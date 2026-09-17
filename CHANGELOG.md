@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Header Cash/Margin: never Unknown while connected
+
+- **What:** Connected IBKR accounts show Cash or Margin. Unknown is gone while Gateway is up. Ahmed's live `AccountType=INDIVIDUAL` + BP≈cash is Cash. Ticket Short uses the same class (`shortSideVisible` -- hidden on Cash). Optional `IBKR_ACCOUNT_CLASS=cash|margin` in `.env`.
+- **Why:** #181 live smoke. Ahmed rejected Unknown on a live desk. AccountType is ownership, not Cash vs Margin.
+- **Files touched:** `backend/ibkr/account_class.py`, `account_summary.py`, `constants_ibkr.py`, `frontend/src/ibkr/accountType.ts`, `accountTypeChip.ts`, `.env.example`.
+- **How it works now:** Snapshot keeps raw AccountType for the tooltip. `account_class` is cash|margin: env override, then CASH/MARGIN tokens, then BP <= cash*1.15 -> Cash, BP >= cash*1.5 or BP >= ExcessLiquidity*1.5 -> Margin, else Cash. Weak mid-band never invents Margin. Disconnected hides the chip. #186 should call `shortSideVisible(summary)`, not the raw token.
+- **Verified by:** pytest `test_ibkr_account_class` + account overlay; Vitest accountType / chip / GlobalAppBar.
+- **Related:** Closes #181. Refs #186. PROBLEM_LOG 2026-09-16 -- Connected desk rejected Unknown.
+
 ## 2026-09-16 -- Order outcome honesty, commissions, fill audit
 
 - **What:** Soft IBKR warnings (2109 and peers) no longer open a reject modal or latch as the broker error; filled qty / avg / filled_at come only from execDetails. Orders Today and Positions gain a Commissions column from CommissionReport. Place no longer auto-opens Trading prerequisites on one health miss. Terminal orders append `IBKR_FILL_AUDIT` + `fill-latency.jsonl`.

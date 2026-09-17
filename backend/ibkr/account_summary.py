@@ -13,10 +13,12 @@ Flex Query ``margin=CASH|MRGN|PMRGN`` and Client Portal Account Management
 ``margin`` / Margin Type exist, but Nova does not call those APIs.
 
 The snapshot keeps raw AccountType / TradingType / WhatIfPMEnabled / Leverage
-for display/debug. The header chip maps only explicit CASH / MARGIN tokens.
-Otherwise Unknown -- never invent Margin.
+for tooltip/debug. ``account_class`` is cash|margin on a connected snapshot
+(env override, then tokens, then BP vs cash / ExcessLiquidity, else Cash).
 """
 from __future__ import annotations
+
+from ibkr.account_class import attach_account_class
 
 _SUMMARY_NUMERIC_TAGS = frozenset({
     "NetLiquidation",
@@ -25,6 +27,7 @@ _SUMMARY_NUMERIC_TAGS = frozenset({
     "UnrealizedPnL",
     "RealizedPnL",
     "GrossPositionValue",
+    "ExcessLiquidity",
     "Leverage",
     "Leverage-S",
 })
@@ -80,7 +83,7 @@ def summary_from_items(items: list, *, mode: str) -> dict:
             parsed = None
         if parsed is not None or key not in summary:
             summary[key] = parsed
-    return summary
+    return attach_account_class(summary)
 
 
 def overlay_missing_tags(base: dict, extra: dict) -> dict:
@@ -92,4 +95,4 @@ def overlay_missing_tags(base: dict, extra: dict) -> dict:
         value = extra.get(key)
         if value not in (None, ""):
             out[key] = value
-    return out
+    return attach_account_class(out)

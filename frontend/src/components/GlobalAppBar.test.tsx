@@ -411,7 +411,7 @@ describe('GlobalAppBar', () => {
     expect(kids.indexOf(type as Element)).toBeLessThan(kids.indexOf(accountBtn as Element));
   });
 
-  it('shows Unknown with raw AccountType when IBKR reports INDIVIDUAL', () => {
+  it('shows Cash with raw AccountType when IBKR reports INDIVIDUAL and BP≈cash', () => {
     account = baseAccount({
       summary: {
         connected: true,
@@ -428,8 +428,8 @@ describe('GlobalAppBar', () => {
       '[data-testid="global-bar-account-type"]',
     ) as HTMLElement;
     expect(type).toBeTruthy();
-    expect(type.textContent).toBe('Unknown');
-    expect(type.getAttribute('data-kind')).toBe('unknown');
+    expect(type.textContent).toBe('Cash');
+    expect(type.getAttribute('data-kind')).toBe('cash');
     expect(type.getAttribute('title') ?? '').toContain('IBKR AccountType: INDIVIDUAL');
     expect(type.getAttribute('title') ?? '').toContain('IBKR TradingType-S: STKNOPT');
     expect(type.getAttribute('title') ?? '').not.toMatch(/\bMargin\b/);

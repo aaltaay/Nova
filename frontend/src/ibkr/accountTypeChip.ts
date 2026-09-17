@@ -1,11 +1,8 @@
 /**
  * Header Cash / Margin chip.
  *
- * TWS AccountType is ownership (INDIVIDUAL / IRA / LLC), not Cash vs Margin.
- * AccountSummaryTags has no CASH / MARGIN / RegT / PortfolioMargin field.
- * TradingType-S is usually STKNOPT (securities trading config).
- * WhatIfPMEnabled and Leverage / BuyingPower are not classifiers.
- * Only explicit CASH / MARGIN tokens map. Otherwise Unknown.
+ * Connected + snapshot → Cash or Margin (never Unknown). Hidden when disconnected.
+ * Raw AccountType stays in the tooltip. Ticket Short uses shortSideVisible.
  */
 import {
   GLOBAL_BAR_ACCOUNT_TYPE_CASH,
@@ -14,52 +11,23 @@ import {
   GLOBAL_BAR_ACCOUNT_TYPE_RAW_PREFIX,
   GLOBAL_BAR_ACCOUNT_TYPE_TOOLTIP,
   GLOBAL_BAR_ACCOUNT_TYPE_TRADING_PREFIX,
-  GLOBAL_BAR_ACCOUNT_TYPE_UNKNOWN,
 } from '../constantGroups/global_bar';
+import { classifyMarginKind } from './accountType';
 import type { IbkrAccountSummary } from './types';
 
-export type AccountTypeKind = 'cash' | 'margin' | 'unknown';
+export type { AccountTypeKind } from './accountType';
+export { classifyAccountType, classifyMarginKind, shortSideVisible } from './accountType';
 
 export type AccountTypeChipView = {
-  kind: AccountTypeKind;
+  kind: 'cash' | 'margin';
   label: string;
   tooltip: string;
 };
 
-const CASH_TOKENS = new Set(['CASH', 'CASH ACCOUNT']);
-const MARGIN_TOKENS = new Set([
-  'MARGIN',
-  'MRGN',
-  'REGT',
-  'REGT MARGIN',
-  'REG T MARGIN',
-  'PORTFOLIO MARGIN',
-  'PMRGN',
-  'UNCLEARED MARGIN ACCOUNT',
-  'PM',
-]);
-
-const LABELS: Record<AccountTypeKind, string> = {
+const LABELS: Record<'cash' | 'margin', string> = {
   cash: GLOBAL_BAR_ACCOUNT_TYPE_CASH,
   margin: GLOBAL_BAR_ACCOUNT_TYPE_MARGIN,
-  unknown: GLOBAL_BAR_ACCOUNT_TYPE_UNKNOWN,
 };
-
-export function classifyAccountType(raw: string | null | undefined): AccountTypeKind {
-  const key = (raw ?? '').trim().toUpperCase();
-  if (!key) return 'unknown';
-  if (CASH_TOKENS.has(key)) return 'cash';
-  if (MARGIN_TOKENS.has(key)) return 'margin';
-  return 'unknown';
-}
-
-export function classifyMarginKind(summary: IbkrAccountSummary): AccountTypeKind {
-  for (const raw of [summary.AccountType, summary.TradingType]) {
-    const kind = classifyAccountType(raw);
-    if (kind !== 'unknown') return kind;
-  }
-  return 'unknown';
-}
 
 export function accountTypeTooltip(summary: IbkrAccountSummary): string {
   const raw = (summary.AccountType ?? '').trim() || GLOBAL_BAR_ACCOUNT_TYPE_RAW_MISSING;

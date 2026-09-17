@@ -3,7 +3,6 @@ import {
   GLOBAL_BAR_ACCOUNT_TYPE_CASH,
   GLOBAL_BAR_ACCOUNT_TYPE_MARGIN,
   GLOBAL_BAR_ACCOUNT_TYPE_TOOLTIP,
-  GLOBAL_BAR_ACCOUNT_TYPE_UNKNOWN,
 } from '../constantGroups/global_bar';
 import { accountTypeChipView, accountTypeTooltip } from './accountTypeChip';
 import type { IbkrAccountSummary } from './types';
@@ -19,7 +18,7 @@ function summary(overrides: Partial<IbkrAccountSummary> = {}): IbkrAccountSummar
 }
 
 describe('accountTypeChipView', () => {
-  it('shows Cash from IBKR AccountType and never from BuyingPower', () => {
+  it('shows Cash from IBKR AccountType', () => {
     const view = accountTypeChipView({
       ibkrConnected: true,
       summary: summary({ AccountType: 'CASH', BuyingPower: 10 }),
@@ -30,7 +29,7 @@ describe('accountTypeChipView', () => {
     expect(view?.tooltip).toContain('IBKR AccountType: CASH');
   });
 
-  it('shows Margin only when AccountType or TradingType is a margin token', () => {
+  it('shows Margin from an explicit token or leveraged BP', () => {
     const fromType = accountTypeChipView({
       ibkrConnected: true,
       summary: summary({ AccountType: 'MARGIN' }),
@@ -38,14 +37,14 @@ describe('accountTypeChipView', () => {
     expect(fromType?.kind).toBe('margin');
     expect(fromType?.label).toBe(GLOBAL_BAR_ACCOUNT_TYPE_MARGIN);
 
-    const fromTrading = accountTypeChipView({
+    const fromBp = accountTypeChipView({
       ibkrConnected: true,
-      summary: summary({ AccountType: 'INDIVIDUAL', TradingType: 'CASH' }),
+      summary: summary({ AccountType: 'INDIVIDUAL', BuyingPower: 4000, TotalCashValue: 1000 }),
     });
-    expect(fromTrading?.kind).toBe('cash');
+    expect(fromBp?.kind).toBe('margin');
   });
 
-  it('keeps Ahmed live INDIVIDUAL snapshot as Unknown -- not Margin from BP', () => {
+  it('shows Cash for Ahmed INDIVIDUAL when BP≈cash -- never Unknown', () => {
     const view = accountTypeChipView({
       ibkrConnected: true,
       summary: summary({
@@ -58,31 +57,21 @@ describe('accountTypeChipView', () => {
         Leverage: 0.29,
       }),
     });
-    expect(view?.kind).toBe('unknown');
-    expect(view?.label).toBe(GLOBAL_BAR_ACCOUNT_TYPE_UNKNOWN);
+    expect(view?.kind).toBe('cash');
+    expect(view?.label).toBe(GLOBAL_BAR_ACCOUNT_TYPE_CASH);
     expect(view?.tooltip).toContain('IBKR AccountType: INDIVIDUAL');
     expect(view?.tooltip).toContain('IBKR TradingType-S: STKNOPT');
     expect(view?.tooltip).not.toMatch(/\bMargin\b/);
   });
 
-  it('does not invent Margin from BuyingPower, WhatIfPMEnabled, or INDIVIDUAL', () => {
+  it('defaults Cash when connected with no class token and no cash pair', () => {
     const missingType = summary({ BuyingPower: 50_000 });
     const fromBp = accountTypeChipView({
       ibkrConnected: true,
       summary: missingType,
     });
-    expect(fromBp?.kind).toBe('unknown');
+    expect(fromBp?.kind).toBe('cash');
     expect(accountTypeTooltip(missingType)).toContain('IBKR AccountType: (missing)');
-
-    const fromPmFlag = accountTypeChipView({
-      ibkrConnected: true,
-      summary: summary({
-        AccountType: 'INDIVIDUAL',
-        WhatIfPMEnabled: 'true',
-        BuyingPower: 50_000,
-      }),
-    });
-    expect(fromPmFlag?.kind).toBe('unknown');
   });
 
   it('hides when disconnected or summary is missing', () => {

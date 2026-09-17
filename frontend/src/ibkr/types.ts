@@ -79,6 +79,9 @@ export interface IbkrAccountSummary {
   WhatIfPMEnabled?: string | null;
   /** GrossPositionValue / NetLiquidation. Debug only -- not a classifier. */
   Leverage?: number | null;
+  ExcessLiquidity?: number | null;
+  /** Backend Cash vs Margin class. Set on a connected snapshot. */
+  account_class?: 'cash' | 'margin' | null;
   error?: string;
 }
 

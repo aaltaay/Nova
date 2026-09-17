@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Connected desk rejected Unknown
+
+- **Symptom:** After #185, Ahmed's live Gateway returned `AccountType=INDIVIDUAL` with BP~376 vs cash~383. The header chip showed Unknown. He rejects Unknown on a live connected account -- it is Cash or Margin.
+- **Cause:** First #181 ship treated AccountType as Cash vs Margin SSOT. INDIVIDUAL is ownership. Token-only classify left a connected desk unlabeled.
+- **Fix:** Keep raw AccountType for tooltip. Stamp `account_class` cash|margin: `IBKR_ACCOUNT_CLASS` override, explicit tokens, BP vs TotalCashValue bands (1.15 / 1.5) or ExcessLiquidity leverage, else Cash. Never invent Margin from a weak band. Hide the chip only when disconnected. `shortSideVisible` hides Short on Cash for #186.
+- **Fix class:** admission
+- **Keywords:** AccountType, INDIVIDUAL, Unknown, account_class, IBKR_ACCOUNT_CLASS, Cash, Margin, #181, #188, #186
+
 ## 2026-09-16 -- note_status Filled no longer latches ledger qty
 
 - **Symptom:** After the commission migrate-strip fix, `test_note_filled_writes_perm_id_and_qty` failed `filled_qty is None` (expected 1.0). Same class: journal round-trip from `note_status` + `note_filled` never recorded PnL.

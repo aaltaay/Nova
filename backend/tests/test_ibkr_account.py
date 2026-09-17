@@ -236,6 +236,7 @@ def test_get_account_summary_ahmed_individual_does_not_invent_margin(monkeypatch
     assert out["AccountType"] == "INDIVIDUAL"
     assert out["TradingType"] == "STKNOPT"
     assert out["BuyingPower"] == 376.0
+    assert out["account_class"] == "cash"
     assert out.get("margin_kind") is None
 
 
