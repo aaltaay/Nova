@@ -126,12 +126,13 @@ describe('StockViewTabStrip', () => {
     expect(onExtract).not.toHaveBeenCalled();
   });
 
-  it('renders tabs, marks active, and disables add at cap', async () => {
+  it('renders tabs, marks active, and keeps + enabled past three names', async () => {
     const onAddDraft = vi.fn();
     await act(async () => {
       root.render(
         <StockViewTabStrip
-          tabs={['AAPL', 'NUWE', 'MVO']}
+          tabs={['AAPL', 'NUWE', 'MVO', 'IPST']}
+          live={['NUWE', 'MVO', 'IPST']}
           active="NUWE"
           onActivate={vi.fn()}
           onClose={vi.fn()}
@@ -144,7 +145,14 @@ describe('StockViewTabStrip', () => {
     expect(container.querySelector('[data-testid="sv-tab-NUWE"]')?.className).toContain(
       'sv-tab--active',
     );
+    expect(container.querySelector('[data-testid="sv-tab-AAPL"]')?.className).toContain(
+      'sv-tab--suspended',
+    );
     const add = container.querySelector('[data-testid="sv-tab-add"]') as HTMLButtonElement;
-    expect(add.disabled).toBe(true);
+    expect(add.disabled).toBe(false);
+    await act(async () => {
+      add.click();
+    });
+    expect(onAddDraft).toHaveBeenCalledOnce();
   });
 });

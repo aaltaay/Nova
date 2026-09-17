@@ -74,6 +74,14 @@
   border-color: var(--border-color, #333);
 }
 
+.sv-tab--suspended {
+  opacity: 0.45;
+}
+
+.sv-tab--suspended.sv-tab--active {
+  opacity: 0.7;
+}
+
 .sv-tab__label {
   border: none;
   background: transparent;

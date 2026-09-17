@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-17 -- Trader tabs: unlimited strip, 3 live/gray, add-not-replace, dock-back
+
+- **What:** Trader keeps every clicked symbol on the strip. At most 3 tabs are live L2; extras are gray / suspended. Scanner ticker click adds or activates -- never silent-replace. Pop-out dock-back restores the tab on the drop-target host.
+- **Why:** #201 locked model (Ahmed 2026-09-16). #199 vanish-on-dock: `window.open` copied the host `windowId`, so the host ignored its own dock-request.
+- **Files touched:** `traderTabsState.ts`, `useTraderDeskBinding.ts`, `windowId.ts`, `commands.ts`, `StockViewTabStrip.tsx`, `StockViewTabs.tsx`, ADR 011, `single-market-data-feed.mdc`.
+- **How it works now:** `addTab` / `activateTab` own an unbounded `tabs` list plus a `live` LRU (oldest first, cap `TRADER_MAX_LIVE_TABS=3`). Gray tabs do not mount `StockViewPage`. Floats remint `windowId`. Dock button targets last-known host. Drop target is the window that received the drop.
+- **Verified by:** Vitest `traderTabsState`, `traderOpen`, `windowId`, `commands`, `StockViewTabStrip`, `StockViewTabs`; frontend build. No live IBKR orders.
+- **Follow-ups:** Ahmed Edge-smokes add A/B/C/D, gray click, pop out + dock-back. Nova Repo squash-merges after yes.
+- **Related:** Closes #201, Closes #199. PROBLEM_LOG 2026-09-17 dock vanish.
+
 ## 2026-09-17 -- Maximized chart drawing tools are flat and usable
 
 - **What:** Maximized / fullscreen chart chrome now shows Trendline, Horizontal Line, Vertical Line, Extended, Ray, and Horizontal Ray as individual toolbar buttons. The leftover cluster menu portals into the maximize / fullscreen host and stacks above that overlay. Timeframe and EMAs / VWAP / RSI / MACD stay put.

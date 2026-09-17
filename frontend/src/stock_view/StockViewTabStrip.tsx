@@ -1,10 +1,10 @@
 /**
- * Editable symbol chips for Trader View (max TRADER_MAX_TABS).
+ * Editable symbol chips for Trader View. Strip is unbounded; live L2 tabs
+ * stay bright and extras render gray / suspended.
  * + / type stays here. Extract pops out. Drag docks onto another Nova window.
  */
 import { useEffect, useRef, useState } from 'react';
 import {
-  TRADER_MAX_TABS,
   TRADER_TAB_ADD_TITLE,
   TRADER_TAB_DOCK_ARIA,
   TRADER_TAB_DOCK_LABEL,
@@ -17,6 +17,7 @@ import {
   TRADER_TAB_LABEL_TITLE_FLOAT,
   TRADER_TAB_STRIP_HINT,
   TRADER_TAB_STRIP_HINT_FLOAT,
+  TRADER_TAB_SUSPENDED_TITLE,
 } from '../constants';
 import {
   allowTraderTabDrop,
@@ -28,6 +29,7 @@ import { TRADER_DRAFT_SYMBOL } from './traderTabsState';
 
 interface Props {
   tabs: string[];
+  live?: string[];
   active: string | null;
   windowId?: string;
   showDock?: boolean;
@@ -46,6 +48,7 @@ interface Props {
 
 export function StockViewTabStrip({
   tabs,
+  live,
   active,
   windowId = '',
   showDock = false,
@@ -93,8 +96,7 @@ export function StockViewTabStrip({
     setEditing(null);
   };
 
-  const atCap = tabs.filter(t => t !== TRADER_DRAFT_SYMBOL).length >= TRADER_MAX_TABS
-    && !tabs.includes(TRADER_DRAFT_SYMBOL);
+  const liveSet = new Set(live ?? tabs.filter(t => t !== TRADER_DRAFT_SYMBOL));
 
   return (
     <div
@@ -112,13 +114,15 @@ export function StockViewTabStrip({
         const isActive = symbol === active;
         const isEditing = editing === symbol;
         const isDraft = symbol === TRADER_DRAFT_SYMBOL;
+        const suspended = !isDraft && !liveSet.has(symbol);
         const label = isDraft ? 'New' : symbol;
         return (
           <div
             key={isDraft ? '__draft__' : symbol}
-            className={`sv-tab${isActive ? ' sv-tab--active' : ''}`}
+            className={`sv-tab${isActive ? ' sv-tab--active' : ''}${suspended ? ' sv-tab--suspended' : ''}`}
             role="tab"
             aria-selected={isActive}
+            data-suspended={suspended ? '1' : '0'}
             data-testid={`sv-tab-${label}`}
             draggable={!isDraft && !isEditing}
             onDragStart={(e) => {
@@ -162,7 +166,9 @@ export function StockViewTabStrip({
                 title={
                   isDraft
                     ? 'Type a ticker, then Enter'
-                    : (showExtract ? TRADER_TAB_LABEL_TITLE : TRADER_TAB_LABEL_TITLE_FLOAT)
+                    : suspended
+                      ? TRADER_TAB_SUSPENDED_TITLE
+                      : (showExtract ? TRADER_TAB_LABEL_TITLE : TRADER_TAB_LABEL_TITLE_FLOAT)
                 }
               >
                 {label}
@@ -217,8 +223,8 @@ export function StockViewTabStrip({
         type="button"
         className="sv-tab-add"
         aria-label="Add ticker tab"
-        title={atCap ? `Max ${TRADER_MAX_TABS} Level 2 tabs` : TRADER_TAB_ADD_TITLE}
-        disabled={atCap || tabs.includes(TRADER_DRAFT_SYMBOL)}
+        title={TRADER_TAB_ADD_TITLE}
+        disabled={tabs.includes(TRADER_DRAFT_SYMBOL)}
         onClick={onAddDraft}
         data-testid="sv-tab-add"
       >

@@ -27,6 +27,7 @@ vi.mock('../workspace/WorkspaceContext', () => ({
     openStockView: vi.fn(),
     selectRowSymbol: vi.fn(),
     traderTabs: [],
+    traderLiveTabs: [],
     activeTraderSymbol: null,
     traderBlockNotice: null,
     dismissTraderBlockNotice: vi.fn(),

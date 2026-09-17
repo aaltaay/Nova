@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-17 -- Dock popped-out tab vanished
+
+- **Symptom:** Pop out worked. Dock-back (drag or Dock) made the ticker disappear; it never returned to the parent window (#199).
+- **Cause:** `window.open` copies sessionStorage, including `nova.trader.windowId`. The float kept the host id, so `isForeignTabDrag` / dock-request `sourceWindowId === thisWindowId` treated the move as a self-message. The host ignored it. Closing or giving up the float then left no tab on either desk. Hard 3-tab cap also refused a dock when the host strip was full.
+- **Fix:** Remint the float window id once per float session. Remember last-known host in localStorage for the Dock button. Strip is unbounded so dock add cannot hard-block. Host overlay still accepts a drop while Scanner is showing.
+- **Fix class:** ownership
+- **Keywords:** dock, pop out, windowId, sessionStorage, #199, #201, ADR 011, TRADER_MAX_LIVE_TABS
+
 ## 2026-09-17 -- Maximized drawings dropdown buried
 
 - **Symptom:** On a maximized chart the top-left drawings control (diagonal-line + chevron) did not open. Indicator chips still worked. Plenty of empty toolbar space sat to their right.

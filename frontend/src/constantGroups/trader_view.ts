@@ -1,10 +1,13 @@
 /**
  * Trader View (Stock View) -- tabbed terminal opened by a ticker click.
- * Cap matches backend IBKR_MAX_DEPTH_SYMBOLS (IBKR Level 2 plan limit).
+ * Live-slot cap matches backend IBKR_MAX_DEPTH_SYMBOLS (IBKR Level 2 plan limit).
+ * The tab strip itself is unbounded -- extras stay visible but gray / suspended.
  */
 
-/** Max simultaneous Trader windows/tabs (= concurrent Level 2 streams). */
-export const TRADER_MAX_TABS = 3;
+/** Max simultaneous live L2 / full-desk streams in one window. Strip is unbounded. */
+export const TRADER_MAX_LIVE_TABS = 3;
+/** @deprecated Use TRADER_MAX_LIVE_TABS -- strip length is not capped. */
+export const TRADER_MAX_TABS = TRADER_MAX_LIVE_TABS;
 
 /** Index ETFs the operator can pick when opening Trader with no row selected. */
 export const TRADER_DEFAULT_SYMBOLS = ['SPY', 'QQQ', 'IWM'] as const;
@@ -12,13 +15,13 @@ export const TRADER_DEFAULT_SYMBOLS = ['SPY', 'QQQ', 'IWM'] as const;
 /** Open this when Trader is clicked with no selected symbol (S&P 500 ETF). */
 export const TRADER_DEFAULT_SYMBOL = TRADER_DEFAULT_SYMBOLS[0];
 
-/** Shared ticker hover copy for the replace-active-tab click behavior. */
+/** Shared ticker hover copy for add-or-activate (never silent-replace). */
 export const TICKER_OPEN_TRADER_TITLE =
-  'Click to open Trader here and replace the active tab.';
+  'Click to open Trader here -- adds a tab or activates one already open.';
 
 /** Row-body hover copy for tables where the ticker (not the row) opens
- * Trader. While Trader is already showing, the row instead switches focus
- * to that symbol's tab -- see selectRowSymbol in useTraderDeskBinding. */
+ * Trader. While Trader is already showing, the row adds or activates that
+ * symbol's tab -- see selectRowSymbol in useTraderDeskBinding. */
 export const ROW_SELECT_QUOTE_TITLE =
   'Click to load this symbol in the Quote Panel. Click the ticker to open Trader.';
 
@@ -31,6 +34,10 @@ export const TRADER_TABS_STORAGE_KEY = 'nova.trader.tabs';
 
 /** sessionStorage key for this OS window's desk id (ADR 011). */
 export const TRADER_WINDOW_ID_KEY = 'nova.trader.windowId';
+/** Marks that a float already reminted its window id (copied sessionStorage from opener). */
+export const TRADER_FLOAT_ID_READY_KEY = 'nova.trader.floatIdReady';
+/** localStorage: last host desk that can receive a Dock-button request. */
+export const TRADER_LAST_HOST_KEY = 'nova.trader.lastHostWindowId';
 
 /** sessionStorage key for a pending "at cap" notice after a blocked open. */
 export const TRADER_BLOCK_NOTICE_STORAGE_KEY = 'nova.trader.blockNotice';
@@ -40,9 +47,11 @@ export const TRADER_WINDOW_NAME_PREFIX = 'nova-trader';
 /** @deprecated Use stockViewWindowName(symbol). Kept as the prefix fallback. */
 export const TRADER_WINDOW_NAME = TRADER_WINDOW_NAME_PREFIX;
 
-/** Banner copy when the user tries to open a 4th live Level 2 window/tab. */
+/** Banner copy reserved for extract/dock transport failures -- not a 4th-tab hard block. */
 export const TRADER_BLOCK_NOTICE_MESSAGE =
-  '3 symbols already hold live Level 2 (IBKR plan cap) -- close one or reuse a symbol.';
+  'Could not complete that Trader move. Try again, or dock onto the main Nova window.';
+export const TRADER_TAB_SUSPENDED_TITLE =
+  'Suspended -- no live Level 2. Click to make this tab live (oldest live tab goes gray).';
 
 /** Tab label -- click stays here; double-click extracts. */
 export const TRADER_TAB_LABEL_TITLE =

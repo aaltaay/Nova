@@ -5,6 +5,9 @@ import {
   closePolicyAfterGive,
   deskRoleFromStockView,
   isForeignTabDrag,
+  readLastHostWindow,
+  rememberLastHostWindow,
+  shouldHandleDockRequest,
 } from './commands';
 
 describe('trader desk commands', () => {
@@ -28,6 +31,43 @@ describe('trader desk commands', () => {
   it('ignores a drag that originated in this window', () => {
     expect(isForeignTabDrag('win-a', 'win-b')).toBe(true);
     expect(isForeignTabDrag('win-a', 'win-a')).toBe(false);
+  });
+
+  it('remembers the last host for Dock-button targeting', () => {
+    const store = new Map<string, string>();
+    const storage = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => {
+        store.set(k, v);
+      },
+    };
+    expect(readLastHostWindow(storage)).toBeNull();
+    rememberLastHostWindow(storage, 'host-1');
+    expect(readLastHostWindow(storage)).toBe('host-1');
+  });
+
+  it('ignores a dock-request that still carries the host window id', () => {
+    expect(shouldHandleDockRequest({
+      role: 'host',
+      sourceWindowId: 'host-1',
+      thisWindowId: 'host-1',
+    })).toBe(false);
+    expect(shouldHandleDockRequest({
+      role: 'host',
+      sourceWindowId: 'float-1',
+      thisWindowId: 'host-1',
+    })).toBe(true);
+    expect(shouldHandleDockRequest({
+      role: 'host',
+      sourceWindowId: 'float-1',
+      thisWindowId: 'host-1',
+      targetWindowId: 'other-host',
+    })).toBe(false);
+    expect(shouldHandleDockRequest({
+      role: 'float',
+      sourceWindowId: 'float-1',
+      thisWindowId: 'float-1',
+    })).toBe(false);
   });
 
   it('lets only one host claim a dock-request', () => {

@@ -44,7 +44,9 @@ function baseWorkspace(overrides: Partial<WorkspaceValue> = {}): WorkspaceValue 
     ibkrSessionReason: 'ok',
     ibkrPortsDark: false,
     openStockView: () => {},
+    selectRowSymbol: () => {},
     traderTabs: ['AAPL', 'MSFT'],
+    traderLiveTabs: ['AAPL', 'MSFT'],
     activeTraderSymbol: 'AAPL',
     traderBlockNotice: null,
     dismissTraderBlockNotice: () => {},
@@ -129,6 +131,7 @@ describe('StockViewTabs tab-strip placement', () => {
     workspace = baseWorkspace({
       traderDeskRole: 'float',
       traderTabs: ['F'],
+      traderLiveTabs: ['F'],
       activeTraderSymbol: 'F',
     });
     act(() => {
@@ -149,5 +152,19 @@ describe('StockViewTabs tab-strip placement', () => {
     });
     expect(headerSlot.querySelector('.sv-tab-strip')).toBeNull();
     expect(container.querySelector('.sv-tab-strip')).toBeTruthy();
+  });
+
+  it('does not mount a StockViewPage for a gray / suspended tab', () => {
+    workspace = baseWorkspace({
+      traderTabs: ['AAPL', 'MSFT', 'NVDA', 'F'],
+      traderLiveTabs: ['MSFT', 'NVDA', 'F'],
+      activeTraderSymbol: 'F',
+    });
+    act(() => {
+      root.render(<StockViewTabs detached={false} />);
+    });
+    expect(container.querySelector('[data-testid="stock-view-page-AAPL"]')).toBeNull();
+    expect(container.querySelector('[data-testid="sv-tab-pane-AAPL"]')?.getAttribute('data-suspended')).toBe('1');
+    expect(container.querySelector('[data-testid="stock-view-page-F"]')).toBeTruthy();
   });
 });

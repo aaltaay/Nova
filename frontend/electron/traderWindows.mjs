@@ -1,5 +1,6 @@
 /**
- * Per-symbol Trader BrowserWindows. Cap matches TRADER_MAX_TABS (3).
+ * Per-symbol Trader BrowserWindows. OS-window cap stays 3 (TRADER_MAX_WINDOWS).
+ * In-window strip length is unbounded; live L2 is TRADER_MAX_LIVE_TABS.
  * Prefer one window per display; cascade when monitors < windows.
  *
  * Dock/extract SoT is ADR 011 in the renderer (`traderDesk/`). This file
