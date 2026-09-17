@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Header Cash/Margin: never Unknown while connected
+
+- **What:** Connected IBKR accounts show Cash or Margin. Unknown is gone while Gateway is up. Ahmed's live `AccountType=INDIVIDUAL` + BP≈cash is Cash. Ticket Short uses the same class (`shortSideVisible` -- hidden on Cash). Optional `IBKR_ACCOUNT_CLASS=cash|margin` in `.env`.
+- **Why:** #181 live smoke. Ahmed rejected Unknown on a live desk. AccountType is ownership, not Cash vs Margin.
+- **Files touched:** `backend/ibkr/account_class.py`, `account_summary.py`, `constants_ibkr.py`, `frontend/src/ibkr/accountType.ts`, `accountTypeChip.ts`, `.env.example`.
+- **How it works now:** Snapshot keeps raw AccountType for the tooltip. `account_class` is cash|margin: env override, then CASH/MARGIN tokens, then BP <= cash*1.15 -> Cash, BP >= cash*1.5 or BP >= ExcessLiquidity*1.5 -> Margin, else Cash. Weak mid-band never invents Margin. Disconnected hides the chip. #186 should call `shortSideVisible(summary)`, not the raw token.
+- **Verified by:** pytest `test_ibkr_account_class` + account overlay; Vitest accountType / chip / GlobalAppBar.
+- **Related:** Closes #181. Refs #186. PROBLEM_LOG 2026-09-16 -- Connected desk rejected Unknown.
+
 ## 2026-09-16 -- Order outcome honesty, commissions, fill audit
 
 - **What:** Soft IBKR warnings (2109 and peers) no longer open a reject modal or latch as the broker error; filled qty / avg / filled_at come only from execDetails. Orders Today and Positions gain a Commissions column from CommissionReport. Place no longer auto-opens Trading prerequisites on one health miss. Terminal orders append `IBKR_FILL_AUDIT` + `fill-latency.jsonl`.
@@ -88,12 +97,12 @@ Entry template (copy and fill in):
 
 ## 2026-09-16 -- Header IBKR Cash vs Margin chip
 
-- **What:** Global header shows IBKR Cash / Margin / Unknown between the trade-session lock and Account. `/api/ibkr/account` now includes raw `AccountType` from the IBKR account summary.
-- **Why:** #181. A cash account cannot short; `short_enabled` is only the Nova env gate. The desk needed an honest label so Sell-short is not confused with a long exit.
+- **What:** Global header shows IBKR Cash / Margin / Unknown between the trade-session lock and Account. `/api/ibkr/account` keeps raw `AccountType` plus debug `TradingType` / `WhatIfPMEnabled` / `Leverage`.
+- **Why:** #181. Live smoke: `AccountType` was `INDIVIDUAL` (ownership), not Cash vs Margin. BuyingPower ~376 is not a classifier.
 - **Files touched:** `backend/ibkr/account_summary.py`, `backend/ibkr/account.py`, `frontend/src/ibkr/IbkrAccountTypeChip.tsx`, `accountTypeChip.ts`, `GlobalAppBar.tsx`, `constantGroups/global_bar.ts`.
-- **How it works now:** Snapshot keeps `AccountType` as the IBKR string (never coerced to a float, never inferred from BuyingPower). The chip maps CASH / MARGIN tokens only. INDIVIDUAL and other structure tags stay Unknown. Disconnected or missing summary hides the chip. Tooltip: stock shorting needs margin; `IBKR_SHORT_ENABLED` is a separate env gate.
-- **Verified by:** pytest `test_ibkr_account` AccountType cases + `test_ibkr_safety` summary parse; Vitest `accountTypeChip` / `IbkrAccountTypeChip` / GlobalAppBar placement.
-- **Related:** Closes #181.
+- **How it works now:** Official TWS `AccountSummaryTags.GetAllTags` has no CASH / MARGIN / RegT / PM class field. Snapshot keeps the IBKR strings. `accountSummaryAsync` omits `TradingType-S`; refresh overlays it from `accountValues` without overwriting summary BuyingPower. The chip maps only explicit CASH / MARGIN tokens. Ahmed's INDIVIDUAL + STKNOPT snapshot is Unknown. Tooltip always includes `IBKR AccountType: <raw>` so Portal can be checked. Never invent Margin from BP / Leverage / WhatIfPMEnabled. Disconnected hides the chip.
+- **Verified by:** pytest overlay + Ahmed INDIVIDUAL fixture; Vitest chip Unknown + tooltip `IBKR AccountType: INDIVIDUAL`.
+- **Related:** Closes #181. PROBLEM_LOG 2026-09-16 -- AccountType is ownership.
 
 ## 2026-09-16 -- Stop requesting illegal IBKR generic tick 49
 

@@ -719,3 +719,26 @@ class TestAccountSummaryCache:
         assert out["BuyingPower"] == 600.0
         assert out["AccountType"] == "CASH"
         assert "TotalCashValue" not in out
+
+    def test_summary_from_items_aliases_trading_type_s(self):
+        from ibkr.account_summary import summary_from_items
+
+        class Item:
+            def __init__(self, tag, value, currency="USD"):
+                self.tag = tag
+                self.value = value
+                self.currency = currency
+
+        out = summary_from_items(
+            [
+                Item("AccountType", "INDIVIDUAL"),
+                Item("TradingType-S", "STKNOPT"),
+                Item("Leverage-S", "0.29"),
+                Item("BuyingPower", "376.00"),
+            ],
+            mode="live",
+        )
+        assert out["AccountType"] == "INDIVIDUAL"
+        assert out["TradingType"] == "STKNOPT"
+        assert out["Leverage"] == 0.29
+        assert out["BuyingPower"] == 376.0

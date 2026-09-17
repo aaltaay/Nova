@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Connected desk rejected Unknown
+
+- **Symptom:** After #185, Ahmed's live Gateway returned `AccountType=INDIVIDUAL` with BP~376 vs cash~383. The header chip showed Unknown. He rejects Unknown on a live connected account -- it is Cash or Margin.
+- **Cause:** First #181 ship treated AccountType as Cash vs Margin SSOT. INDIVIDUAL is ownership. Token-only classify left a connected desk unlabeled.
+- **Fix:** Keep raw AccountType for tooltip. Stamp `account_class` cash|margin: `IBKR_ACCOUNT_CLASS` override, explicit tokens, BP vs TotalCashValue bands (1.15 / 1.5) or ExcessLiquidity leverage, else Cash. Never invent Margin from a weak band. Hide the chip only when disconnected. `shortSideVisible` hides Short on Cash for #186.
+- **Fix class:** admission
+- **Keywords:** AccountType, INDIVIDUAL, Unknown, account_class, IBKR_ACCOUNT_CLASS, Cash, Margin, #181, #188, #186
+
 ## 2026-09-16 -- note_status Filled no longer latches ledger qty
 
 - **Symptom:** After the commission migrate-strip fix, `test_note_filled_writes_perm_id_and_qty` failed `filled_qty is None` (expected 1.0). Same class: journal round-trip from `note_status` + `note_filled` never recorded PnL.
@@ -108,6 +116,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Fix:** Rename the label helper to `mwcbDesk.ts` / `mwcbDesk.test.ts`. Linux contract test `test_frontend_src_has_no_windows_case_collisions` walks `frontend/src`.
 - **Fix class:** infra
 - **Keywords:** Desktop pack, windows-latest, TS1261, TS2305, MwcbBanner, mwcbBanner, case-insensitive, electron:pack, #191
+
+## 2026-09-16 -- AccountType is ownership
+
+- **Symptom:** After the first #181 ship, `GET /api/ibkr/account` on Ahmed's Gateway returned `AccountType: "INDIVIDUAL"` with BuyingPower ~376, TotalCashValue ~383, NetLiquidation ~540. The header chip would show Unknown -- the tag is ownership, not Cash vs Margin.
+- **Cause:** TWS `AccountType` is structure (INDIVIDUAL / LLC / IRA). Official `AccountSummaryTags.GetAllTags` has no CASH / MARGIN / RegT / PortfolioMargin class. `TradingType-S` is trading-config (STKNOPT). `WhatIfPMEnabled` / Leverage / BuyingPower are not classifiers. Flex Query `margin=CASH|MRGN|PMRGN` is not on the Gateway socket.
+- **Fix:** Keep raw AccountType on the snapshot. Overlay `TradingType-S` from `accountValues` after `accountSummaryAsync`. Map only explicit CASH / MARGIN tokens. Otherwise Unknown. Tooltip: `IBKR AccountType: INDIVIDUAL` (plus TradingType-S when present). Never infer Margin from BuyingPower.
+- **Fix class:** admission
+- **Keywords:** AccountType, INDIVIDUAL, Cash, Margin, TradingType-S, STKNOPT, #181, #185
 
 ## 2026-09-16 -- Warning 321 generic tick 49
 

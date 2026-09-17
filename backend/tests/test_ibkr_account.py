@@ -147,6 +147,30 @@ def test_get_account_summary_blank_account_type_is_none(monkeypatch):
     assert out["AccountType"] is None
 
 
+def test_overlay_missing_tags_fills_only_empty_config_keys():
+    from ibkr.account_summary import overlay_missing_tags
+
+    out = overlay_missing_tags(
+        {
+            "connected": True,
+            "mode": "live",
+            "AccountType": "INDIVIDUAL",
+            "BuyingPower": 376.0,
+            "TradingType": None,
+        },
+        {
+            "AccountType": "CASH",
+            "TradingType": "STKNOPT",
+            "WhatIfPMEnabled": "true",
+            "BuyingPower": 99999.0,
+        },
+    )
+    assert out["AccountType"] == "INDIVIDUAL"
+    assert out["TradingType"] == "STKNOPT"
+    assert out["WhatIfPMEnabled"] == "true"
+    assert out["BuyingPower"] == 376.0
+
+
 def test_refresh_account_summary_includes_account_type(monkeypatch):
     fake_ib = MagicMock()
 
@@ -157,11 +181,64 @@ def test_refresh_account_summary_includes_account_type(monkeypatch):
         ]
 
     fake_ib.accountSummaryAsync = _fake_summary
+    fake_ib.accountValues.return_value = []
     monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
     monkeypatch.setattr(client_mod, "account_mode", lambda: "paper")
     out = asyncio.run(account_mod.refresh_account_summary())
     assert out["AccountType"] == "INDIVIDUAL"
     assert out["NetLiquidation"] == 1000.0
+
+
+def test_refresh_account_summary_overlays_trading_type_from_account_values(
+    monkeypatch,
+):
+    """reqAccountSummary does not request TradingType-S -- fill from accountValues."""
+    fake_ib = MagicMock()
+
+    async def _fake_summary():
+        return [
+            _FakeSummaryItem("NetLiquidation", "540.00"),
+            _FakeSummaryItem("AccountType", "INDIVIDUAL"),
+            _FakeSummaryItem("BuyingPower", "376.00"),
+            _FakeSummaryItem("TotalCashValue", "383.00"),
+        ]
+
+    fake_ib.accountSummaryAsync = _fake_summary
+    fake_ib.accountValues.return_value = [
+        _FakeSummaryItem("TradingType-S", "STKNOPT"),
+        _FakeSummaryItem("WhatIfPMEnabled", "true"),
+        _FakeSummaryItem("Leverage-S", "0.29"),
+        _FakeSummaryItem("BuyingPower", "99999.00"),
+    ]
+    monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
+    monkeypatch.setattr(client_mod, "account_mode", lambda: "live")
+    out = asyncio.run(account_mod.refresh_account_summary())
+    assert out["AccountType"] == "INDIVIDUAL"
+    assert out["TradingType"] == "STKNOPT"
+    assert out["WhatIfPMEnabled"] == "true"
+    assert out["Leverage"] == 0.29
+    assert out["BuyingPower"] == 376.0
+    assert out["NetLiquidation"] == 540.0
+    assert out["account_class"] == "cash"
+
+
+def test_get_account_summary_ahmed_individual_does_not_invent_margin(monkeypatch):
+    fake_ib = MagicMock()
+    fake_ib.accountValues.return_value = [
+        _FakeSummaryItem("AccountType", "INDIVIDUAL"),
+        _FakeSummaryItem("NetLiquidation", "540.00"),
+        _FakeSummaryItem("BuyingPower", "376.00"),
+        _FakeSummaryItem("TotalCashValue", "383.00"),
+        _FakeSummaryItem("TradingType-S", "STKNOPT"),
+    ]
+    monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
+    monkeypatch.setattr(client_mod, "account_mode", lambda: "live")
+    out = account_mod.get_account_summary()
+    assert out["AccountType"] == "INDIVIDUAL"
+    assert out["TradingType"] == "STKNOPT"
+    assert out["BuyingPower"] == 376.0
+    assert out["account_class"] == "cash"
+    assert out.get("margin_kind") is None
 
 
 def test_get_account_summary_raises_on_account_values_error(monkeypatch):
@@ -186,6 +263,7 @@ def test_refresh_account_summary_uses_async_items(monkeypatch):
         return [_FakeSummaryItem("NetLiquidation", "1000.00")]
 
     fake_ib.accountSummaryAsync = _fake_summary
+    fake_ib.accountValues.return_value = []
     monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
     monkeypatch.setattr(client_mod, "account_mode", lambda: "paper")
     out = asyncio.run(account_mod.refresh_account_summary())

@@ -72,6 +72,7 @@ def test_overlay_account_summary_uses_l1_unrealized_and_adjusts_net_liq():
         "RealizedPnL": 12.0,
         "GrossPositionValue": 1050.0,
         "AccountType": "MARGIN",
+        "account_class": "margin",
     }
     positions = [apply_l1_position_mark(_row(), 10.87)]
     out = overlay_account_summary(summary, positions)
@@ -81,6 +82,7 @@ def test_overlay_account_summary_uses_l1_unrealized_and_adjusts_net_liq():
     assert out["RealizedPnL"] == 12.0
     assert out["GrossPositionValue"] == 1050.0
     assert out["AccountType"] == "MARGIN"
+    assert out["account_class"] == "margin"
 
 
 def test_overlay_account_summary_skips_when_no_marked_unrealized():

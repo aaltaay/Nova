@@ -16,6 +16,13 @@ NOVA_DESKTOP_API_PORT = 8000
 # IBKR_FORCE_ONE_SHARE=True     → MASTER TEST QTY GATE (see below). Not a bug.
 IBKR_HOST = "127.0.0.1"
 IBKR_SHORT_ENABLED_DEFAULT = False
+# Optional .env override when Gateway AccountType is ownership (INDIVIDUAL).
+# cash | margin. Unset = classify from tokens, then BP vs cash, else Cash.
+IBKR_ACCOUNT_CLASS_ENV = "IBKR_ACCOUNT_CLASS"
+# BP <= cash * this → Cash. Mirror: frontend/src/ibkr/accountType.ts
+IBKR_ACCOUNT_CLASS_CASH_MAX_BP_RATIO = 1.15
+# BP >= cash * this (or BP >= ExcessLiquidity * this) → Margin. Else Cash.
+IBKR_ACCOUNT_CLASS_MARGIN_MIN_BP_RATIO = 1.5
 
 # ── MASTER TEST QTY GATE (intentional; remove with one flip) ───────────────────
 # When True, ADR 007 `execution.service.execute` rewrites every place/bracket

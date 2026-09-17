@@ -3,9 +3,8 @@ import {
   GLOBAL_BAR_ACCOUNT_TYPE_CASH,
   GLOBAL_BAR_ACCOUNT_TYPE_MARGIN,
   GLOBAL_BAR_ACCOUNT_TYPE_TOOLTIP,
-  GLOBAL_BAR_ACCOUNT_TYPE_UNKNOWN,
 } from '../constantGroups/global_bar';
-import { accountTypeChipView } from './accountTypeChip';
+import { accountTypeChipView, accountTypeTooltip } from './accountTypeChip';
 import type { IbkrAccountSummary } from './types';
 
 function summary(overrides: Partial<IbkrAccountSummary> = {}): IbkrAccountSummary {
@@ -19,42 +18,60 @@ function summary(overrides: Partial<IbkrAccountSummary> = {}): IbkrAccountSummar
 }
 
 describe('accountTypeChipView', () => {
-  it('shows Cash from IBKR AccountType and never from BuyingPower', () => {
+  it('shows Cash from IBKR AccountType', () => {
     const view = accountTypeChipView({
       ibkrConnected: true,
       summary: summary({ AccountType: 'CASH', BuyingPower: 10 }),
     });
-    expect(view).toEqual({
-      kind: 'cash',
-      label: GLOBAL_BAR_ACCOUNT_TYPE_CASH,
-      tooltip: GLOBAL_BAR_ACCOUNT_TYPE_TOOLTIP,
-    });
+    expect(view?.kind).toBe('cash');
+    expect(view?.label).toBe(GLOBAL_BAR_ACCOUNT_TYPE_CASH);
+    expect(view?.tooltip).toContain(GLOBAL_BAR_ACCOUNT_TYPE_TOOLTIP);
+    expect(view?.tooltip).toContain('IBKR AccountType: CASH');
   });
 
-  it('shows Margin only when AccountType is a margin token', () => {
-    const view = accountTypeChipView({
+  it('shows Margin from an explicit token or leveraged BP', () => {
+    const fromType = accountTypeChipView({
       ibkrConnected: true,
       summary: summary({ AccountType: 'MARGIN' }),
     });
-    expect(view?.kind).toBe('margin');
-    expect(view?.label).toBe(GLOBAL_BAR_ACCOUNT_TYPE_MARGIN);
-    expect(view?.tooltip).toBe(GLOBAL_BAR_ACCOUNT_TYPE_TOOLTIP);
-  });
+    expect(fromType?.kind).toBe('margin');
+    expect(fromType?.label).toBe(GLOBAL_BAR_ACCOUNT_TYPE_MARGIN);
 
-  it('does not invent Margin from BuyingPower or INDIVIDUAL structure', () => {
     const fromBp = accountTypeChipView({
       ibkrConnected: true,
-      summary: summary({ BuyingPower: 50_000 }),
+      summary: summary({ AccountType: 'INDIVIDUAL', BuyingPower: 4000, TotalCashValue: 1000 }),
     });
-    expect(fromBp?.kind).toBe('unknown');
-    expect(fromBp?.label).toBe(GLOBAL_BAR_ACCOUNT_TYPE_UNKNOWN);
+    expect(fromBp?.kind).toBe('margin');
+  });
 
-    const fromStructure = accountTypeChipView({
+  it('shows Cash for Ahmed INDIVIDUAL when BP≈cash -- never Unknown', () => {
+    const view = accountTypeChipView({
       ibkrConnected: true,
-      summary: summary({ AccountType: 'INDIVIDUAL', BuyingPower: 50_000 }),
+      summary: summary({
+        AccountType: 'INDIVIDUAL',
+        TradingType: 'STKNOPT',
+        WhatIfPMEnabled: 'true',
+        BuyingPower: 376,
+        TotalCashValue: 383,
+        NetLiquidation: 540,
+        Leverage: 0.29,
+      }),
     });
-    expect(fromStructure?.kind).toBe('unknown');
-    expect(fromStructure?.label).toBe(GLOBAL_BAR_ACCOUNT_TYPE_UNKNOWN);
+    expect(view?.kind).toBe('cash');
+    expect(view?.label).toBe(GLOBAL_BAR_ACCOUNT_TYPE_CASH);
+    expect(view?.tooltip).toContain('IBKR AccountType: INDIVIDUAL');
+    expect(view?.tooltip).toContain('IBKR TradingType-S: STKNOPT');
+    expect(view?.tooltip).not.toMatch(/\bMargin\b/);
+  });
+
+  it('defaults Cash when connected with no class token and no cash pair', () => {
+    const missingType = summary({ BuyingPower: 50_000 });
+    const fromBp = accountTypeChipView({
+      ibkrConnected: true,
+      summary: missingType,
+    });
+    expect(fromBp?.kind).toBe('cash');
+    expect(accountTypeTooltip(missingType)).toContain('IBKR AccountType: (missing)');
   });
 
   it('hides when disconnected or summary is missing', () => {

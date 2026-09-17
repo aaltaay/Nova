@@ -1,48 +1,45 @@
 /**
- * Header Cash / Margin chip from IBKR AccountType only.
- * Never infer Margin from BuyingPower or account-structure tags.
+ * Header Cash / Margin chip.
+ *
+ * Connected + snapshot → Cash or Margin (never Unknown). Hidden when disconnected.
+ * Raw AccountType stays in the tooltip. Ticket Short uses shortSideVisible.
  */
 import {
   GLOBAL_BAR_ACCOUNT_TYPE_CASH,
   GLOBAL_BAR_ACCOUNT_TYPE_MARGIN,
+  GLOBAL_BAR_ACCOUNT_TYPE_RAW_MISSING,
+  GLOBAL_BAR_ACCOUNT_TYPE_RAW_PREFIX,
   GLOBAL_BAR_ACCOUNT_TYPE_TOOLTIP,
-  GLOBAL_BAR_ACCOUNT_TYPE_UNKNOWN,
+  GLOBAL_BAR_ACCOUNT_TYPE_TRADING_PREFIX,
 } from '../constantGroups/global_bar';
+import { classifyMarginKind } from './accountType';
 import type { IbkrAccountSummary } from './types';
 
-export type AccountTypeKind = 'cash' | 'margin' | 'unknown';
+export type { AccountTypeKind } from './accountType';
+export { classifyAccountType, classifyMarginKind, shortSideVisible } from './accountType';
 
 export type AccountTypeChipView = {
-  kind: AccountTypeKind;
+  kind: 'cash' | 'margin';
   label: string;
   tooltip: string;
 };
 
-const CASH_TOKENS = new Set(['CASH', 'CASH ACCOUNT']);
-const MARGIN_TOKENS = new Set([
-  'MARGIN',
-  'MRGN',
-  'REGT',
-  'REGT MARGIN',
-  'REG T MARGIN',
-  'PORTFOLIO MARGIN',
-  'PMRGN',
-  'UNCLEARED MARGIN ACCOUNT',
-  'PM',
-]);
-
-const LABELS: Record<AccountTypeKind, string> = {
+const LABELS: Record<'cash' | 'margin', string> = {
   cash: GLOBAL_BAR_ACCOUNT_TYPE_CASH,
   margin: GLOBAL_BAR_ACCOUNT_TYPE_MARGIN,
-  unknown: GLOBAL_BAR_ACCOUNT_TYPE_UNKNOWN,
 };
 
-export function classifyAccountType(raw: string | null | undefined): AccountTypeKind {
-  const key = (raw ?? '').trim().toUpperCase();
-  if (!key) return 'unknown';
-  if (CASH_TOKENS.has(key)) return 'cash';
-  if (MARGIN_TOKENS.has(key)) return 'margin';
-  return 'unknown';
+export function accountTypeTooltip(summary: IbkrAccountSummary): string {
+  const raw = (summary.AccountType ?? '').trim() || GLOBAL_BAR_ACCOUNT_TYPE_RAW_MISSING;
+  const parts = [
+    GLOBAL_BAR_ACCOUNT_TYPE_TOOLTIP,
+    `${GLOBAL_BAR_ACCOUNT_TYPE_RAW_PREFIX} ${raw}`,
+  ];
+  const trading = (summary.TradingType ?? '').trim();
+  if (trading) {
+    parts.push(`${GLOBAL_BAR_ACCOUNT_TYPE_TRADING_PREFIX} ${trading}`);
+  }
+  return parts.join(' ');
 }
 
 export function accountTypeChipView(opts: {
@@ -50,10 +47,10 @@ export function accountTypeChipView(opts: {
   summary: IbkrAccountSummary | null;
 }): AccountTypeChipView | null {
   if (!opts.ibkrConnected || !opts.summary?.connected) return null;
-  const kind = classifyAccountType(opts.summary.AccountType);
+  const kind = classifyMarginKind(opts.summary);
   return {
     kind,
     label: LABELS[kind],
-    tooltip: GLOBAL_BAR_ACCOUNT_TYPE_TOOLTIP,
+    tooltip: accountTypeTooltip(opts.summary),
   };
 }
