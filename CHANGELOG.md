@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-17 -- Bot persist teardown no longer mints WindowsPath
+
+- **What:** `cache_dir()` / `log_dir()` / `env_file_path()` build host-OS paths via `paths.host_path`. Gateway helpers reuse that helper. Bot persist test reset clears memory even if disk unlink cannot run.
+- **Why:** Linux CI `pytest backend/ -x` ERRORed at teardown of `test_launch_focuses_when_already_running` after 1372 passes. That test sets `os.name = "nt"`. `Path(raw)` can mint a `WindowsPath`; `path / filename` then raises.
+- **Files touched:** `backend/paths.py`, `backend/ibkr/gateway_paths.py`, `backend/bot/persist.py`, `backend/tests/test_paths.py`, `backend/tests/test_bot_session.py`.
+- **How it works now:** Cache paths follow `sys.platform`, not a mocked `os.name`. Autouse bot persist reset can run after Gateway Windows-branch tests without killing the suite.
+- **Verified by:** `test_persist_reset_survives_windows_os_name`, `test_cache_dir_is_host_path_when_os_name_is_nt`, `test_launch_gateway.py` (no teardown ERROR).
+- **Related:** PR #223. PROBLEM_LOG 2026-09-17 WindowsPath persist teardown. Same family as 2026-09-02 Gateway `_local_path`.
+
 ## 2026-09-17 -- Bot brain client + arming harden + allowlist UX
 
 - **What:** Desk Activate token + header L0/L1/L2/pack/Activate/Stop. Mutating `/api/bot` and `/bot` always need `NOVA_API_KEY`. `nova-brain` starts with Nova (localhost, exclusive claim, halt/LULD resume). Right-click Add/Remove bot allowlist. Quote-spike and volume packs are selectable stubs. Thin SDK/MCP adapter contract, not a server.

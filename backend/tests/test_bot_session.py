@@ -106,3 +106,17 @@ def test_drop_to_l0_clears_brain():
     assert view["brain_session_id"] is None
     assert view["strategy"] is None
     assert view["armed"] is False
+
+
+def test_persist_reset_survives_windows_os_name(monkeypatch):
+    """Gateway tests set os.name = nt. Teardown must not build WindowsPath."""
+    import os
+
+    from bot.persist import reset_for_tests
+    from paths import cache_dir
+
+    monkeypatch.setattr(os, "name", "nt")
+    reset_for_tests()
+    path = cache_dir()
+    assert path.exists()
+    reset_for_tests()

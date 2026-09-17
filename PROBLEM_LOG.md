@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-17 -- Bot persist teardown minted WindowsPath on Linux CI
+
+- **Symptom:** `pytest backend/ -x` reached 1372 passed, then ERROR at teardown of `test_launch_focuses_when_already_running`: `cannot instantiate 'WindowsPath' on your system` at `bot.persist._session_path` via autouse `_reset_bot_persist`.
+- **Cause:** The launch test sets `os.name = "nt"` on the real `os` module. Python 3.12/3.13 `Path(raw)` then returns a `WindowsPath` via `object.__new__`. Joining (`cache_dir() / filename`) calls `WindowsPath.__new__`, which was bound at import on Linux and always raises. Monkeypatch restore runs after that autouse teardown.
+- **Fix:** `paths.host_path` uses `sys.platform` (same idea as the old Gateway `_local_path`). `cache_dir` / `log_dir` / `env_file_path` use it. Persist `reset_for_tests` still clears in-memory session if disk unlink cannot run.
+- **Fix class:** infra
+- **Keywords:** WindowsPath, os.name, cache_dir, persist.reset_for_tests, test_launch_gateway, teardown, Linux CI
+
 ## 2026-09-17 -- Bot alias writes skipped the API key and brains could raise L2
 
 - **Symptom:** `POST /bot/*` (no `/api` prefix) mutated the session without `NOVA_API_KEY`. `PATCH /session` `{"level":2}` from curl or a brain raised autonomy with no desk Activate. Fire looked live while no brain heartbeat existed.

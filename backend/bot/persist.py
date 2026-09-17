@@ -198,6 +198,9 @@ def reset_for_tests() -> None:
     with _lock:
         _session = None
         _proposals = None
-        for path in (_session_path(), _proposals_path(), _audit_path()):
-            if path.exists():
-                path.unlink()
+        try:
+            for path in (_session_path(), _proposals_path(), _audit_path()):
+                if path.exists():
+                    path.unlink()
+        except (OSError, NotImplementedError):
+            logger.warning("bot persist: test reset skipped disk unlink")
