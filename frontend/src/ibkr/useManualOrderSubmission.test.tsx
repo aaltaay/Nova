@@ -84,6 +84,23 @@ describe('useManualOrderSubmission gesture identity', () => {
     expect(key).toMatch(/^manual:/);
   });
 
+  it('confirm copy says SHORT when short_entry is set', async () => {
+    skipConfirm = false;
+    const { result } = renderHook(() =>
+      useManualOrderSubmission({
+        ...params(),
+        side: 'SELL',
+        shortEntry: true,
+        symbol: 'NVDA',
+      }),
+    );
+    await act(async () => {
+      result.current.submit({ preventDefault: () => undefined } as never);
+    });
+    expect(result.current.confirmSummary).toMatch(/^SHORT 10 NVDA /);
+    expect(result.current.confirmSummary).not.toMatch(/^SELL /);
+  });
+
   it('mints a fresh key for the next gesture', async () => {
     const { result } = renderHook(() => useManualOrderSubmission(params()));
     await act(async () => {

@@ -40,6 +40,10 @@ const SAMPLE_SUMMARY: IbkrAccountSummary = {
   mode: 'paper',
   NetLiquidation: 100_000,
   BuyingPower: 50_000,
+  // Sample desk is a margin paper fixture so Side can show Short (#184).
+  // Live desks use stamped account_class / shortSideVisible -- never AccountType=INDIVIDUAL.
+  AccountType: 'MARGIN',
+  account_class: 'margin',
 };
 
 export const SAMPLE_IBKR_ACCOUNT_STATE: IbkrAccountState = {

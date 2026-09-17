@@ -30,7 +30,8 @@ describe('ManualOrderFields Extended Hours checkbox', () => {
     act(() => {
       root.render(
         <ManualOrderFields
-          side="BUY"
+          ticketSide="buy"
+          allowShort={false}
           orderType={orderType}
           quantityMode="shares"
           quantityValue="1"
@@ -38,7 +39,7 @@ describe('ManualOrderFields Extended Hours checkbox', () => {
           stopPrice="10"
           outsideRth={outsideRth}
           disabled={false}
-          onSideChange={() => undefined}
+          onTicketSideChange={() => undefined}
           onOrderTypeChange={() => undefined}
           onQuantityModeChange={() => undefined}
           onQuantityValueChange={() => undefined}

@@ -4,11 +4,8 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  TICKER_TRADE_PLACE_ORDER_LABEL,
-  TICKER_TRADE_PLACE_PAPER_ORDER_LABEL,
-} from '../constants';
 import { ManualOrderTicket } from './ManualOrderTicket';
+import { placeActionLabel } from './ticketSide';
 
 vi.mock('./ticketUnlock', () => ({
   readTicketSessionUnlocked: () => true,
@@ -50,19 +47,19 @@ describe('ManualOrderTicket paper place label', () => {
     });
   }
 
-  it('uses orange Place Paper order CTA in paper mode', () => {
+  it('uses orange Buy SYMBOL CTA in paper mode', () => {
     render('paper');
     const btn = container.querySelector('.manual-order-submit') as HTMLButtonElement;
     expect(btn).toBeTruthy();
-    expect(btn.textContent).toBe(TICKER_TRADE_PLACE_PAPER_ORDER_LABEL);
+    expect(btn.textContent).toBe(placeActionLabel('buy', 'SPY'));
     expect(btn.classList.contains('manual-order-submit--paper')).toBe(true);
   });
 
-  it('keeps blue Place an order CTA in live mode', () => {
+  it('keeps blue Buy SYMBOL CTA in live mode', () => {
     render('live');
     const btn = container.querySelector('.manual-order-submit') as HTMLButtonElement;
     expect(btn).toBeTruthy();
-    expect(btn.textContent).toBe(TICKER_TRADE_PLACE_ORDER_LABEL);
+    expect(btn.textContent).toBe(placeActionLabel('buy', 'SPY'));
     expect(btn.classList.contains('manual-order-submit--paper')).toBe(false);
   });
 

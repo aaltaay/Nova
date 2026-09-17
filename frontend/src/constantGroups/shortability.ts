@@ -27,6 +27,7 @@ export const SHORTABILITY_NOT_SHORTABLE =
 export const SHORTABILITY_STALE =
   'Shortability stale -- wait for a fresh listing tick';
 
-export const TICKER_TRADE_LABEL_DIRECTION = 'Direction';
-export const TICKER_TRADE_LABEL_LONG = 'Long';
+/** Ticket Side options (issue #184). Direction Long/Short is gone. */
+export const TICKER_TRADE_LABEL_BUY = 'Buy';
+export const TICKER_TRADE_LABEL_SELL = 'Sell';
 export const TICKER_TRADE_LABEL_SHORT = 'Short';

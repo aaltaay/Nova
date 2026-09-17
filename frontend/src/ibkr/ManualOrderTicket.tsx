@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import {
   forcedManualOrderQty,
   presetsForQuantityMode,
-  type ManualOrderSide,
   type ManualOrderType,
   type QuantityMode,
 } from './orderEntry';
@@ -16,6 +15,13 @@ import type { IbkrListingFlags } from '../types/ticker';
 import { applyTicketDefaults, seedPricesForSide } from './applyTicketDefaults';
 import { ManualOrderFields } from './ManualOrderFields';
 import { ManualOrderFooter } from './ManualOrderFooter';
+import {
+  allowShortSide,
+  clampTicketSide,
+  orderSideToTicketSide,
+  ticketSideToOrder,
+  type TicketSide,
+} from './ticketSide';
 import { subscribeOrderTicketPrefill } from './orderTicketPrefill';
 import type { PlaceOrderResult } from './placeOrder';
 import { resolveShortabilityState } from './ShortabilityChip';
@@ -73,8 +79,11 @@ export function ManualOrderTicket({
   const ibkrStatus = useIbkrStatus();
   const { topOfBook } = useTopOfBook();
   const initial = applyTicketDefaults(symbol, referencePrice, topOfBook);
-  const [side, setSide] = useState<ManualOrderSide>(initial.side);
-  const [shortEntry, setShortEntry] = useState(false);
+  const allowShort = allowShortSide(summary);
+  const [ticketSide, setTicketSide] = useState<TicketSide>(() =>
+    clampTicketSide(orderSideToTicketSide(initial.side), allowShort),
+  );
+  const { side, shortEntry } = ticketSideToOrder(ticketSide);
   const [orderType, setOrderType] = useState<ManualOrderType>(initial.orderType);
   const shortBlockReason = shortDisabledReason(
     ibkrStatus.short_enabled,
@@ -136,8 +145,7 @@ export function ManualOrderTicket({
 
   useEffect(() => {
     const next = applyTicketDefaults(symbol, referencePrice, topOfBook);
-    setSide(next.side);
-    setShortEntry(false);
+    setTicketSide(orderSideToTicketSide(next.side));
     setOrderType(next.orderType);
     setQuantityMode('shares');
     setQuantityValue(next.quantityValue);
@@ -151,8 +159,7 @@ export function ManualOrderTicket({
   // spend-lock and confirm gates below stay the only way an order leaves Nova.
   useEffect(() => {
     return subscribeOrderTicketPrefill(symbol, (req) => {
-      setSide(req.side);
-      setShortEntry(false);
+      setTicketSide(orderSideToTicketSide(req.side));
       setOrderType(req.orderType);
       setQuantityMode('shares');
       if (!QTY_LOCKED) setQuantityValue(req.quantityValue);
@@ -161,13 +168,16 @@ export function ManualOrderTicket({
     });
   }, [symbol]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function selectDirection(nextShort: boolean) {
-    if (nextShort && shortBlockReason) return;
-    setShortEntry(nextShort);
-    const nextSide: ManualOrderSide = nextShort ? 'SELL' : 'BUY';
-    setSide(nextSide);
+  useEffect(() => {
+    setTicketSide((current) => clampTicketSide(current, allowShort));
+  }, [allowShort]);
+
+  function selectTicketSide(next: TicketSide) {
+    if (next === 'short' && (!allowShort || shortBlockReason)) return;
+    setTicketSide(next);
+    const mapped = ticketSideToOrder(next);
     const seeded = seedPricesForSide(
-      nextSide,
+      mapped.side,
       orderType,
       symbol,
       referencePrice,
@@ -221,7 +231,8 @@ export function ManualOrderTicket({
   return (
     <form className="manual-order-ticket" onSubmit={submit}>
       <ManualOrderFields
-        side={side}
+        ticketSide={ticketSide}
+        allowShort={allowShort}
         orderType={orderType}
         quantityMode={displayQuantityMode}
         quantityValue={displayQuantityValue}
@@ -230,10 +241,8 @@ export function ManualOrderTicket({
         outsideRth={outsideRth}
         disabled={!connected || submitting}
         quantityLocked={QTY_LOCKED}
-        shortEntry={shortEntry}
         shortDisabledReason={shortBlockReason}
-        onDirectionChange={selectDirection}
-        onSideChange={setSide}
+        onTicketSideChange={selectTicketSide}
         onOrderTypeChange={selectOrderType}
         onQuantityModeChange={selectQuantityMode}
         onQuantityValueChange={onQuantityValueChange}
@@ -244,6 +253,8 @@ export function ManualOrderTicket({
 
       <ManualOrderFooter
         isPaper={mode === 'paper'}
+        ticketSide={ticketSide}
+        symbol={symbol}
         needsPinUnlock={needsPinUnlock}
         connected={connected}
         submitting={submitting}
