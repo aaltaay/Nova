@@ -97,6 +97,41 @@ def list_session_placed(*, since_ts: float, limit: int = 300) -> list[dict]:
         conn.close()
 
 
+def list_session_place_overlay(*, since_ts: float, limit: int = 300) -> list[dict]:
+    """Place/bracket rows Closed can join -- including still-PreSubmitted ids.
+
+    ``list_session_placed`` stays closed-only so commissions and leftovers do
+    not treat a working order as a Closed row. Overlay matches IB Cancelled /
+    Filled by ``order_id`` or ``perm_id`` even when the place row is still
+    ``PreSubmitted`` after a restart mid-cancel.
+    """
+    store.init_db()
+    conn = store.get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT * FROM executions
+            WHERE created_ts >= ?
+              AND operation IN ('place', 'bracket')
+              AND IFNULL(source, '') != 'benchmark'
+              AND (
+                status = 'filled'
+                OR broker_status IN (
+                    'Filled', 'Cancelled', 'ApiCancelled', 'Inactive'
+                )
+                OR IFNULL(order_id, 0) > 0
+                OR IFNULL(perm_id, 0) > 0
+              )
+            ORDER BY created_ts DESC
+            LIMIT ?
+            """,
+            (float(since_ts), int(limit)),
+        ).fetchall()
+        return [store._row_to_dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
 def session_commission_by_symbol(*, since_ts: float) -> dict[str, float]:
     """Sum real CommissionReport dollars per symbol this session. Never invent."""
     totals: dict[str, float] = {}
@@ -142,11 +177,10 @@ def mark_place_cancelled(
 ) -> str | None:
     """Set the matching place/bracket ``broker_status`` to Cancelled.
 
-    Overlay ``list_session_placed`` / ``_usable_ledger`` only admit place rows
-    that are filled or already closed. A user cancel writes a separate
-    ``operation=cancel`` row and leaves the place row ``PreSubmitted`` /
-    ``acked``, so Time Placed cannot join after restart. This updates the
-    place row only. It does not invent clocks and does not overwrite a fill.
+    Overlay can also join a still-PreSubmitted place by ``order_id`` /
+    ``perm_id``. This durable mark still matters after restart when IB does
+    not return the cancel, and it must work across ``boot_id``. It does not
+    invent clocks and does not overwrite a fill.
     """
     oid = _as_int(order_id)
     pid = _as_int(perm_id)

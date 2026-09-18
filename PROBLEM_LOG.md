@@ -40,10 +40,10 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 ## 2026-09-18 -- Cancel left place PreSubmitted so Time Placed blanked
 
 - **Symptom:** After paper Place + cancel + API restart, `payload.nova_placed_at` was on the place execution, but Closed / Orders Today still blanked Time Placed. Live closed API returned IB-recovered cancel (`order_id=0`, null `submitted_at`) despite a matching `perm_id`.
-- **Cause:** Cancel `watch_order(..., fresh=True, leg_role="cancel")` writes `Cancelled` onto the cancel execution. `mark_ack_by_order_id` only updates when `broker_ack_ns IS NULL`, so the already-acked place row stays `PreSubmitted`. `list_session_placed` / `_usable_ledger` require place/bracket + closed `broker_status`, so they ignore both the stuck place row and the cancel row.
-- **Fix:** `mark_place_cancelled` / `persist_successful_cancel` set the matching place/bracket `broker_status=Cancelled` after verified gone / Cancelled ack. No new clocks. Filled rows are left alone.
+- **Cause:** Cancel `watch_order(..., fresh=True)` writes `Cancelled` onto the cancel execution. `mark_ack_by_order_id` only updates when `broker_ack_ns IS NULL`; `allow_status_upgrade` heals Cancelled→PreSubmitted, not the reverse; updates are `boot_id`-scoped. `_usable_ledger` / `list_session_placed` require place/bracket + closed `broker_status`, so a stuck PreSubmitted place never joins.
+- **Fix:** Primary -- `mark_place_cancelled` sets the matching place/bracket `broker_status=Cancelled` by `order_id`/`perm_id` with no `boot_id` fence. Secondary -- overlay joins IB Cancelled/Filled to a PreSubmitted place by those ids and heals blank `submitted_at` via `ledger_placed_iso`. No leftover working-order append. No invented clocks.
 - **Fix class:** ownership
-- **Keywords:** nova_placed_at, Time Placed, PreSubmitted, Cancelled, list_session_placed, watch_order fresh, #202, #204
+- **Keywords:** nova_placed_at, Time Placed, PreSubmitted, Cancelled, list_session_placed, watch_order fresh, boot_id, #202, #204
 
 ## 2026-09-18 -- Bot Autonomy Eyes snap-back
 

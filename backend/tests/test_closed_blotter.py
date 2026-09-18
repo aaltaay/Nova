@@ -341,20 +341,81 @@ def test_leftover_ledger_prefers_nova_placed_at_over_created_ts():
     assert out[0]["filled_at"] is None
 
 
-def test_presubmitted_place_is_not_overlay_usable_until_cancelled():
-    """Live cancel leaves place PreSubmitted+acked -- Closed cannot join yet."""
+def test_live_presubmitted_place_and_cancel_op_join_ib_zero_id():
+    """Red Team live shape: place stays PreSubmitted; cancel is a separate op."""
+    place = _ztg_cancel_ledger(
+        status="acked",
+        broker_status="PreSubmitted",
+        perm_id=888777,
+        filled_qty=None,
+    )
+    cancel_op = {
+        "id": "e-cancel-116071",
+        "operation": "cancel",
+        "source": "manual",
+        "symbol": "ZTG",
+        "status": "acked",
+        "order_id": 116071,
+        "perm_id": 888777,
+        "filled_qty": None,
+        "broker_status": "Cancelled",
+        "created_ts": 1_755_451_010.0,
+        "payload": {},
+    }
+    ib = _ztg_cancel_ib(order_id=0, perm_id=888777, submitted_at=None)
+    out = overlay_closed_orders(
+        [ib],
+        ledger_rows=[place, cancel_op],
+        limit=50,
+    )
+    assert len(out) == 1
+    assert out[0]["source"] == "nova"
+    assert out[0]["execution_id"] == "e-ztg-116071"
+    assert out[0]["submitted_at"] == _NOVA_PLACED
+    assert out[0]["filled_at"] is None
+    assert out[0]["status"] == "Cancelled"
+    assert out[0]["order_id"] == 116071
+
+
+def test_presubmitted_place_leftover_is_not_appended_to_closed():
+    """Working PreSubmitted must not become a Closed leftover row."""
     place = _ztg_cancel_ledger(
         status="acked",
         broker_status="PreSubmitted",
         perm_id=888777,
     )
-    ib = _ztg_cancel_ib(
+    assert overlay_closed_orders([], ledger_rows=[place], limit=50) == []
+
+
+def test_overlay_filled_joins_presubmitted_place_by_perm_id():
+    ib = _ib(
         order_id=0,
-        perm_id=888777,
+        perm_id=888001,
+        symbol="SPCX",
+        status="Filled",
+        qty=0,
+        filled_qty=0,
         submitted_at=None,
+        filled_at=_BROKER_FILL,
     )
-    out = overlay_closed_orders([ib], ledger_rows=[place], limit=50)
-    assert len(out) == 1
-    assert out[0]["source"] == "ib_recovered"
-    assert out[0]["submitted_at"] is None
-    assert out[0].get("execution_id") is None
+    led = _ledger(
+        id="e-spcx-open",
+        symbol="SPCX",
+        status="acked",
+        broker_status="PreSubmitted",
+        order_id=115728,
+        perm_id=888001,
+        filled_qty=None,
+        payload={
+            "qty": 1,
+            "sent_qty": 1.0,
+            "side": "BUY",
+            "order_type": "MKT",
+            "nova_placed_at": _NOVA_PLACED,
+        },
+    )
+    out = overlay_closed_orders([ib], ledger_rows=[led], limit=50)
+    assert out[0]["source"] == "nova"
+    assert out[0]["submitted_at"] == _NOVA_PLACED
+    assert out[0]["filled_at"] == _BROKER_FILL
+    assert out[0]["order_id"] == 115728

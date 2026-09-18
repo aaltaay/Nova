@@ -32,13 +32,13 @@ Entry template (copy and fill in):
 
 ## 2026-09-18 -- Cancel marks place ledger Cancelled for Time Placed
 
-- **What:** A verified user cancel now sets the matching **place** (or bracket) execution `broker_status=Cancelled`. Closed / Orders Today can overlay that row after API restart and keep **Time Placed** from `payload.nova_placed_at`. The separate `operation=cancel` row is unchanged. **Time Filled** stays fill-only. IB-recovered cancels with no place ledger stay blank.
-- **Why:** Live paper Place+cancel+API restart on #204. Persist worked, but the place row stayed `PreSubmitted` / `acked`. `list_session_placed` / `_usable_ledger` only admit place/bracket + closed broker_status, so overlay treated the IB cancel as `ib_recovered` (`order_id=0`, null clocks) even with a matching `perm_id` and stamp.
-- **Files touched:** `backend/execution/store_facts.py`, `broker_send.py`, `backend/tests/test_execution_store_facts.py`, `test_closed_blotter.py`, `test_nova_placed.py`.
-- **How it works now:** Cancel `watch_order(..., fresh=True)` still binds IB status to the cancel execution. After `verified_gone` / Cancelled ack, `persist_successful_cancel` updates the place row by `order_id` or `perm_id`. It does not invent clocks and does not overwrite a fill. Overlay then matches IB `order_id=0` via `perm_id`.
-- **Verified by:** pytest `test_execution_store_facts` (live-mirror PreSubmitted + IB cancel), `test_closed_blotter`, `test_nova_placed` send_broker cancel. Fixtures only -- no live IBKR orders.
-- **Follow-ups:** Nova Repo re-smokes Windows paper Place+cancel+API restart. `do-not-merge` stays until that yes. Time Cancelled from `updated_at` stays out of scope.
-- **Related:** Closes #202. PROBLEM_LOG 2026-09-18 -- Cancel left place PreSubmitted. Refs persist entry 2026-09-17.
+- **What:** A verified user cancel now sets the matching **place** (or bracket) execution `broker_status=Cancelled` across `boot_id`. Closed overlay can also join IB Cancelled/Filled to a still-`PreSubmitted` place row by `perm_id` or `order_id` and fill blank Time Placed from `nova_placed_at`. Cancel `operation` rows stay unused. Working PreSubmitted leftovers are not appended. IB-recovered with no ledger stays blank. **Time Filled** stays fill-only.
+- **Why:** Live paper Place+cancel+API restart on #204, then Red Team CONDITIONAL FAIL. Persist worked, but `_usable_ledger` dropped PreSubmitted place rows, `mark_ack_by_order_id` cannot upgrade PreSubmitted→Cancelled after ack, and boot-scoped acks miss a prior-boot place row.
+- **Files touched:** `backend/execution/store_facts.py`, `broker_send.py`, `closed_blotter.py`, `backend/tests/test_execution_store_facts.py`, `test_closed_blotter.py`, `test_nova_placed.py`.
+- **How it works now:** Primary -- `persist_successful_cancel` / `mark_place_cancelled` match place/bracket by `order_id`/`perm_id` with no `boot_id` fence. Secondary -- `list_session_place_overlay` + `_matchable_ledger` admit PreSubmitted rows that have broker ids; leftover append stays closed-only. First stamp wins. No invented clocks.
+- **Verified by:** pytest live-shape fixture (PreSubmitted place + cancel op + IB `order_id=0` / same `perm_id` / null clocks), leftover-not-appended, Filled join, cross-boot mark, send_broker cancel. Fixtures only -- no live IBKR orders.
+- **Follow-ups:** Nova Repo re-smokes Windows Place→cancel→API-restart. `do-not-merge` stays until that yes. This agent does not squash-merge. Time Cancelled from `updated_at` stays out of scope.
+- **Related:** Closes #202. PROBLEM_LOG 2026-09-18 -- Cancel left place PreSubmitted. Red Team lock on #204.
 
 ## 2026-09-18 -- Bot Autonomy header: Active/Not active + level sticks
 

@@ -27,9 +27,9 @@ def session_start_ts(now: datetime | None = None) -> float:
 
 
 def load_session_ledger() -> list[dict]:
-    from execution.store_facts import list_session_placed
+    from execution.store_facts import list_session_place_overlay
 
-    return list_session_placed(since_ts=session_start_ts())
+    return list_session_place_overlay(since_ts=session_start_ts())
 
 
 def overlay_closed_orders(
@@ -42,7 +42,7 @@ def overlay_closed_orders(
     cap = IBKR_CLOSED_ORDERS_LIMIT_DEFAULT if limit is None else max(1, int(limit))
     ledger = [
         row for row in (ledger_rows if ledger_rows is not None else load_session_ledger())
-        if _usable_ledger(row)
+        if _matchable_ledger(row)
     ]
     unused = list(ledger)
     out: list[dict] = []
@@ -55,21 +55,43 @@ def overlay_closed_orders(
         else:
             out.append(_merge_ib_ledger(ib, match))
     for leftover in unused:
-        out.append(_row_from_ledger(leftover))
+        if _closed_ledger(leftover):
+            out.append(_row_from_ledger(leftover))
     out.sort(key=_sort_key, reverse=True)
     return out[:cap]
 
 
-def _usable_ledger(row: dict) -> bool:
+def _place_ledger(row: dict) -> bool:
     if str(row.get("source") or "") == "benchmark":
         return False
     if str(row.get("operation") or "") not in _PLACE_OPS:
         return False
-    if not str(row.get("symbol") or "").strip():
+    return bool(str(row.get("symbol") or "").strip())
+
+
+def _closed_ledger(row: dict) -> bool:
+    """Closed leftover: filled or a terminal broker_status. Not working PreSubmitted."""
+    if not _place_ledger(row):
         return False
     if str(row.get("status") or "") == "filled":
         return True
     return str(row.get("broker_status") or "") in IBKR_CLOSED_ORDER_STATUSES
+
+
+def _has_broker_id(row: dict) -> bool:
+    return _as_int(row.get("order_id")) > 0 or _as_int(row.get("perm_id")) > 0
+
+
+def _matchable_ledger(row: dict) -> bool:
+    """Join pool: closed rows, or still-PreSubmitted place rows with broker ids."""
+    if _closed_ledger(row):
+        return True
+    return _place_ledger(row) and _has_broker_id(row)
+
+
+def _usable_ledger(row: dict) -> bool:
+    """Closed-only leftover admission. Join uses ``_matchable_ledger``."""
+    return _closed_ledger(row)
 
 
 def _as_int(value: object) -> int:
@@ -137,7 +159,8 @@ def _take_match(ib: dict, unused: list[dict]) -> dict | None:
     ranked = [
         (i, led)
         for i, led in enumerate(unused)
-        if str(led.get("symbol") or "").strip().upper() == symbol
+        if _closed_ledger(led)
+        and str(led.get("symbol") or "").strip().upper() == symbol
         and _ledger_side(led) in (side, "")
     ]
     if not ranked:
