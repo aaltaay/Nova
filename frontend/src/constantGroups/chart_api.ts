@@ -627,6 +627,9 @@ export const PAPER_TRADING_BANNER_TEXT =
 export const TICKER_TRADE_UNLOCK_PIN = '123456';
 export const TICKER_TRADE_UNLOCK_PIN_LENGTH = TICKER_TRADE_UNLOCK_PIN.length;
 export const TICKER_TRADE_UNLOCK_SESSION_KEY = 'nova.tickerTrade.sessionUnlocked';
+/** localStorage echo so Electron pop-outs hear lock/unlock (BroadcastChannel is silent there). */
+export const TICKER_TRADE_UNLOCK_SYNC_KEY = 'nova.tickerTrade.sessionUnlocked.sync';
+export const TICKER_TRADE_UNLOCK_CHANNEL = 'nova-ticket-session-unlock';
 /** PIN dialog copy (`TradingPinDialog`). */
 export const TICKER_TRADE_UNLOCK_DIALOG_TITLE = 'Trading Verification';
 export const TICKER_TRADE_UNLOCK_DIALOG_SUBTITLE = `Please Enter ${TICKER_TRADE_UNLOCK_PIN_LENGTH} Digit Password`;

@@ -41,7 +41,7 @@ describe('runEmergencyKill', () => {
     patchBotSession.mockResolvedValue({ level: 0 });
   });
 
-  it('invokes cancel, flatten, L0 PATCH, then desk lock in that order', async () => {
+  it('locks and drops L0 first, then cancel, flatten, then lock again', async () => {
     const order: string[] = [];
     cancelAllWorkingOrders.mockImplementation(async () => {
       order.push('cancel');
@@ -62,8 +62,33 @@ describe('runEmergencyKill', () => {
     const result = await runEmergencyKill();
 
     expect(result).toEqual({ ok: true, errors: [] });
-    expect(order).toEqual(['cancel', 'flatten', 'autonomy:0', 'lock:false']);
+    expect(order).toEqual([
+      'lock:false',
+      'autonomy:0',
+      'cancel',
+      'flatten',
+      'lock:false',
+    ]);
+    expect(patchBotSession).toHaveBeenCalledOnce();
     expect(refreshBotSessionNow).toHaveBeenCalledOnce();
+  });
+
+  it('reuses one in-flight compose when called twice', async () => {
+    let resolveFlatten!: (value: { ok: boolean; error: null }) => void;
+    flattenAccount.mockImplementation(
+      () => new Promise((resolve) => {
+        resolveFlatten = resolve;
+      }),
+    );
+
+    const first = runEmergencyKill();
+    const second = runEmergencyKill();
+    await vi.waitFor(() => expect(flattenAccount).toHaveBeenCalledOnce());
+    expect(cancelAllWorkingOrders).toHaveBeenCalledOnce();
+    resolveFlatten({ ok: true, error: null });
+    await expect(first).resolves.toEqual({ ok: true, errors: [] });
+    await expect(second).resolves.toEqual({ ok: true, errors: [] });
+    expect(flattenAccount).toHaveBeenCalledOnce();
   });
 
   it('still flattens, drops to L0, and locks when cancel-all fails', async () => {
@@ -93,5 +118,6 @@ describe('runEmergencyKill', () => {
     expect(writeTicketSessionUnlocked).toHaveBeenCalledWith(false);
     expect(result.ok).toBe(false);
     expect(result.errors).toContain('Need Nova API key');
+    expect(patchBotSession).toHaveBeenCalledTimes(2);
   });
 });

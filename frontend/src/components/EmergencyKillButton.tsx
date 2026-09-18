@@ -1,7 +1,7 @@
 /**
  * Global header Emergency KILL -- confirm, then compose existing doors.
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   APP_DIALOG_EMERGENCY_KILL_LABEL,
   GLOBAL_BAR_EMERGENCY_KILL_BUSY_LABEL,
@@ -16,28 +16,34 @@ import { alertApp, confirmApp } from '../ux';
 
 export function EmergencyKillButton() {
   const [busy, setBusy] = useState(false);
+  const inflight = useRef(false);
 
   async function onClick() {
-    if (busy) return;
-    const ok = await confirmApp({
-      title: GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_TITLE,
-      message: GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_BODY,
-      confirmLabel: APP_DIALOG_EMERGENCY_KILL_LABEL,
-      tone: 'danger',
-    });
-    if (!ok) return;
-    setBusy(true);
+    if (inflight.current) return;
+    inflight.current = true;
     try {
-      const result = await runEmergencyKill();
-      if (!result.ok) {
-        await alertApp({
-          title: GLOBAL_BAR_EMERGENCY_KILL_FAIL_TITLE,
-          message: result.errors.join('\n'),
-          tone: 'danger',
-        });
+      const ok = await confirmApp({
+        title: GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_TITLE,
+        message: GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_BODY,
+        confirmLabel: APP_DIALOG_EMERGENCY_KILL_LABEL,
+        tone: 'danger',
+      });
+      if (!ok) return;
+      setBusy(true);
+      try {
+        const result = await runEmergencyKill();
+        if (!result.ok) {
+          await alertApp({
+            title: GLOBAL_BAR_EMERGENCY_KILL_FAIL_TITLE,
+            message: result.errors.join('\n'),
+            tone: 'danger',
+          });
+        }
+      } finally {
+        setBusy(false);
       }
     } finally {
-      setBusy(false);
+      inflight.current = false;
     }
   }
 

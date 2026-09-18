@@ -120,6 +120,7 @@ export const GLOBAL_BAR_EMERGENCY_KILL_TITLE =
 export const GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_TITLE = 'Emergency KILL?';
 export const GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_BODY = [
   'This uses the existing cancel-all, account flatten, Bot Autonomy PATCH, and header trade-lock doors.',
+  'L0 and the header lock apply first so the bot cannot re-enter while cancel/flatten run, then again after.',
   '',
   ...GLOBAL_BAR_EMERGENCY_KILL_OPS.map((op) => `- ${op}`),
   '',

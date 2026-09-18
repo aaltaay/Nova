@@ -91,4 +91,27 @@ describe('EmergencyKillButton', () => {
     });
     expect(runEmergencyKill).not.toHaveBeenCalled();
   });
+
+  it('opens only one confirm dialog for two rapid clicks', async () => {
+    let resolveConfirm!: (value: boolean) => void;
+    confirmApp.mockImplementation(
+      () => new Promise<boolean>((resolve) => {
+        resolveConfirm = resolve;
+      }),
+    );
+    const button = container.querySelector(
+      '[data-testid="global-bar-emergency-kill"]',
+    ) as HTMLButtonElement;
+    await act(async () => {
+      button.click();
+      button.click();
+      await Promise.resolve();
+    });
+    expect(confirmApp).toHaveBeenCalledOnce();
+    await act(async () => {
+      resolveConfirm(true);
+      await Promise.resolve();
+    });
+    expect(runEmergencyKill).toHaveBeenCalledOnce();
+  });
 });

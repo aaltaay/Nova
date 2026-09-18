@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   TICKER_TRADE_UNLOCK_PIN,
   TICKER_TRADE_UNLOCK_SESSION_KEY,
+  TICKER_TRADE_UNLOCK_SYNC_KEY,
 } from '../constants';
 import {
   readTicketSessionUnlocked,
@@ -16,6 +17,7 @@ import {
 describe('ticketUnlock', () => {
   beforeEach(() => {
     sessionStorage.clear();
+    localStorage.clear();
   });
 
   it('starts locked', () => {
@@ -46,5 +48,31 @@ describe('ticketUnlock', () => {
     writeTicketSessionUnlocked(false);
     unsub();
     expect(seen).toEqual([true, false]);
+  });
+
+  it('echoes lock to localStorage so a peer pop-out can apply it', () => {
+    writeTicketSessionUnlocked(true);
+    const raw = localStorage.getItem(TICKER_TRADE_UNLOCK_SYNC_KEY);
+    expect(raw).toBeTruthy();
+    expect(JSON.parse(raw ?? '{}').unlocked).toBe(true);
+    writeTicketSessionUnlocked(false);
+    expect(JSON.parse(localStorage.getItem(TICKER_TRADE_UNLOCK_SYNC_KEY) ?? '{}').unlocked).toBe(
+      false,
+    );
+  });
+
+  it('applies a peer storage lock without unlocking this window', () => {
+    writeTicketSessionUnlocked(true);
+    const seen: boolean[] = [];
+    const unsub = subscribeTicketSessionUnlock(() => {
+      seen.push(readTicketSessionUnlocked());
+    });
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: TICKER_TRADE_UNLOCK_SYNC_KEY,
+      newValue: JSON.stringify({ unlocked: false, t: Date.now() }),
+    }));
+    expect(readTicketSessionUnlocked()).toBe(false);
+    expect(seen.at(-1)).toBe(false);
+    unsub();
   });
 });

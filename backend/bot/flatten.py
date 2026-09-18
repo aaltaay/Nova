@@ -2,6 +2,7 @@
 
 Desk HTTP: POST /api/ibkr/flatten-account (Emergency KILL + tests).
 Breakers call flatten_account_with_retry directly -- same function.
+Cancel leftover working first, then place closes -- never cancel after place.
 """
 from __future__ import annotations
 
@@ -92,11 +93,13 @@ async def flatten_account_once() -> dict[str, Any]:
     except IbkrAccountError as exc:
         return {"ok": False, "error": str(exc), "results": []}
 
+    # Cancel leftover working first. Never cancel after place -- openTrades
+    # can include the unfilled liquidation MKTs (wait_ack=False) and kill them.
+    cancels = await _cancel_working()
     results: list[dict[str, Any]] = []
     for symbol, qty, side in _position_closes(positions):
         close = await _place_close(symbol, qty, side)
         results.append({"symbol": symbol, "qty": qty, "side": side, "close": close})
-    cancels = await _cancel_working()
     ok = all((r.get("close") or {}).get("ok") for r in results) if results else True
     if cancels and not results:
         ok = all(c.get("ok") for c in cancels)
