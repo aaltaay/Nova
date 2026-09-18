@@ -32,13 +32,13 @@ Entry template (copy and fill in):
 
 ## 2026-09-18 -- Strategy left-tab allowlist + locked breaker settings
 
-- **What:** Strategy left tab is the small-cap / safety settings surface. It now manages the symbol allowlist through the existing `POST /api/bot/allowlist` (chips + add ticker, plus the right-click hint), PATCHes the locked caps / EH / Advise spend, and shows -$50 / -$200 breaker thresholds as display-only. Pack picker and Activate stay on the header.
-- **Why:** #215 (epic #205 phase 10/11). The tab already had cap/Advise inputs; allowlist was a read-only string and breakers only appeared after a trip.
+- **What:** Strategy left tab is the small-cap / safety settings surface. It now manages the symbol allowlist through the existing `POST /api/bot/allowlist` (chips + add ticker, plus the right-click hint), PATCHes the locked caps / EH / Advise spend, and shows -$50 / -$200 breaker thresholds as display-only. Pack picker and Activate stay on the header. BP budget step is cents (`0.01`) so integer dollars like 25 and 50 stay HTML-valid.
+- **Why:** #215 (epic #205 phase 10/11). The tab already had cap/Advise inputs; allowlist was a read-only string and breakers only appeared after a trip. Browser walkthrough showed `min=0.01` + `step=0.5` rejecting 25.
 - **Files touched:** `frontend/src/bot/StrategyTab.tsx`, `StrategyAllowlistCard.tsx`, `StrategyBreakersCard.tsx`, `useBotAllowlist.ts`, `strategyTab.css`, `constantGroups/bot.ts`, `docs/bot-localhost-api.md`
 - **How it works now:** Header still owns Level / pack / Activate. Strategy tab PATCHes `caps` (max shares 1-10, BP <= $50, TTL 1-10s, EH) and `advise` (toggle + $2 / 10-call defaults). Allowlist add/remove uses the same POST as the scanner/chart right-click menu and writes the shared bot session snapshot. Breaker numbers come from `BOT_SOFT_BREAKER_USD` / `BOT_HARD_BREAKER_USD`; session PATCH has no breaker fields, so those inputs are locked. Action kinds stay a locked catalog. L3 stays parked.
-- **Verified by:** `npx vitest run src/bot src/constantGroups/bot.test.ts src/chart/chartContextMenuItems.test.ts src/chart/ChartContextMenuHost.test.tsx src/workspace/registry.test.ts` -- 73 passed. `npm run lint` -- exit 0. `npm run build` -- exit 0, emits `StrategyTab-*.js`. `python3 tools/doc_invariants.py` -- OK. `python3 tools/agent_contract.py --ci` -- PASS.
+- **Verified by:** `npx vitest run src/bot src/constantGroups/bot.test.ts src/chart/chartContextMenuItems.test.ts src/chart/ChartContextMenuHost.test.tsx src/workspace/registry.test.ts`. `npm run lint` / `npm run build`. Browser walkthrough on Strategy tab (allowlist ABCD, caps, locked breakers). `python3 tools/doc_invariants.py` -- OK. `python3 tools/agent_contract.py --ci` -- PASS.
 - **Follow-ups:** Refs #205 (epic stays open). L3 parked (#216). No new packs.
-- **Related:** Closes #215. Refs #205. ADR 016.
+- **Related:** Closes #215. Refs #205. ADR 016. PROBLEM_LOG 2026-09-18 -- Strategy BP budget step rejected integers.
 
 ## 2026-09-18 -- D-003 cold 10Sec regression + close-out
 

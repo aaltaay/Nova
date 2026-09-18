@@ -3,6 +3,8 @@ import {
   BOT_ADVISE_DEFAULT_CALL_CAP,
   BOT_ADVISE_DEFAULT_USD_CAP,
   BOT_BP_BUDGET_HARD_MAX_USD,
+  BOT_BP_BUDGET_MIN_USD,
+  BOT_BP_BUDGET_STEP_USD,
   BOT_DEFAULT_MAX_SHARES,
   BOT_MAX_SHARES_CAP,
   BOT_PACK_LABELS,
@@ -99,9 +101,9 @@ export function StrategyTab() {
             <input
               type="number"
               data-testid="bot-strategy-bp-budget"
-              min={0.01}
+              min={BOT_BP_BUDGET_MIN_USD}
               max={BOT_BP_BUDGET_HARD_MAX_USD}
-              step={0.5}
+              step={BOT_BP_BUDGET_STEP_USD}
               value={session.caps.bp_budget_usd}
               onChange={e => void patch({ caps: { bp_budget_usd: Number(e.target.value) } })}
             />

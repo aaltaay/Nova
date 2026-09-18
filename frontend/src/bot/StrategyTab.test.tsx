@@ -4,6 +4,9 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  BOT_BP_BUDGET_HARD_MAX_USD,
+  BOT_BP_BUDGET_MIN_USD,
+  BOT_BP_BUDGET_STEP_USD,
   BOT_HARD_BREAKER_USD,
   BOT_SOFT_BREAKER_USD,
 } from '../constantGroups/bot';
@@ -315,6 +318,20 @@ describe('StrategyTab', () => {
       { caps: { extended_hours: true } },
       { advise: { enabled: true } },
     ]));
+  });
+
+  it('keeps BP budget cents-step so 25 and 50 are HTML-valid', async () => {
+    mockBotFetch();
+    await renderTab();
+
+    const input = screen.getByTestId('bot-strategy-bp-budget') as HTMLInputElement;
+    expect(Number(input.min)).toBe(BOT_BP_BUDGET_MIN_USD);
+    expect(Number(input.max)).toBe(BOT_BP_BUDGET_HARD_MAX_USD);
+    expect(Number(input.step)).toBe(BOT_BP_BUDGET_STEP_USD);
+    for (const dollars of [25, 50]) {
+      const steps = (dollars - Number(input.min)) / Number(input.step);
+      expect(Math.abs(steps - Math.round(steps))).toBeLessThan(1e-8);
+    }
   });
 
   it('manages the symbol allowlist through the existing POST /bot/allowlist', async () => {
