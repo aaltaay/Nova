@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** Issue #43 stayed open because the 2026-08-26 / 2026-09-11 work was never live-verified. The code gap was gone; the missing piece was a single test that ties tape candles to `open_chart` / `warm`, not another hist-scheduler rewrite.
 - **Files touched:** `backend/tests/test_tape_10sec.py`, `CHANGELOG.md`, `PROBLEM_LOG.md`
 - **How it works now:** Empty interactive 10Sec asks `open_chart` and returns `[]` + `filling`. After one tape bucket is in `bars_store`, `/bars` returns those candles with `filling=true` and asks `warm`. Tape-only rows never fake `store_series_complete`. The client still seeds the overlay from the first AllLast print before the backend bucket flushes.
-- **Verified by:** Pending on this branch -- focused pytest + neighbor hist/tape tests in the same session.
+- **Verified by:** `test_tape_10sec.py` 5 passed (new cold `/bars` contract included). Neighbor pytest (`test_ibkr_bars`, `test_ibkr_tape_stream`, `test_historical_service`, `test_historical_pacing`, `test_large_cap_hooks`, `test_large_cap_metrics`) 66 passed. Frontend neighbors already on master: Vitest `barsStore` + `chartBarsStuckRetry` + `useIbkrTape` 24 passed. `doc_invariants.py` OK. `agent_contract.py --ci` PASS (14 agents). No live Gateway in this VM -- no `window_used` or paint-time claim.
 - **Follow-ups:** One Nova Repo live check during RTH (see #43 Next). This PR stays `do-not-merge` until that yes. No invented `window_used` or paint-time numbers.
 - **Related:** Refs #43. PROBLEM_LOG 2026-09-18 D-003 close-out. ADR 012.
 
