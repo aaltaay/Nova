@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Bot pack sentence sits under the header picker
+
+- **What:** Header `BotArmControls` shows the selected pack's one-sentence `description` under the Pack picker. Hover tooltip remains as overflow backup. Strategy tab copy is unchanged.
+- **Why:** #225 wants the rule visible before Activate. Session packs already return `description`; the header only put it on `title`.
+- **Files touched:** `frontend/src/bot/BotArmControls.tsx`, `botArm.css`, `BotArmControls.test.tsx`, `global-app-bar.css`, `e2e/global-bar-bot-row.spec.ts`.
+- **How it works now:** Same source as Strategy: session `packs[].description`, else `packDescription(id)`. Changing the picker updates the muted two-line sentence immediately. Level vs Active, one active pack, and stub-vs-live wording stay as they are. No new pack copy.
+- **Verified by:** Vitest `BotArmControls` (session copy + `packDescription` fallback for Halt / Quote spike / Volume / LLM). `npm run build`. Playwright bot-row neighbor when run.
+- **Related:** Closes #225. Refs #205. PROBLEM_LOG n/a (requested surface, not a runtime defect).
+
 ## 2026-09-18 -- Volume L2 bot pack is live
 
 - **What:** Pack `volume` is live (not stub). Eyes proposes and L2 + Activate fires once when shared L1 day-volume rate over the last 60s is 5x the prior 10-minute baseline. Quote-spike and halt/LULD stay live.

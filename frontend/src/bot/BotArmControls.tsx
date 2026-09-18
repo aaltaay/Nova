@@ -85,27 +85,40 @@ export function BotArmControls() {
           <option value={2} title={BOT_LEVEL_HINTS[2]}>{BOT_LEVEL_LABELS[2]}</option>
         </select>
       </label>
-      <label className="bot-arm__field">
-        <span className="bot-arm__label">{BOT_PACK_FIELD_LABEL}</span>
-        <select
-          aria-label={BOT_PACK_FIELD_LABEL}
-          data-testid="bot-arm-pack"
-          value={pack}
-          disabled={busy || !session}
-          title={description}
-          onChange={event => {
-            const next = event.target.value;
-            setPickedPack(next);
-            void patch({ active_pack: next });
-          }}
-        >
-          {packs.map(row => (
-            <option key={row.id} value={row.id}>
-              {row.label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="bot-arm__pack">
+        <label className="bot-arm__field">
+          <span className="bot-arm__label">{BOT_PACK_FIELD_LABEL}</span>
+          <select
+            aria-label={BOT_PACK_FIELD_LABEL}
+            aria-describedby={description ? 'bot-arm-pack-desc' : undefined}
+            data-testid="bot-arm-pack"
+            value={pack}
+            disabled={busy || !session}
+            title={description}
+            onChange={event => {
+              const next = event.target.value;
+              setPickedPack(next);
+              void patch({ active_pack: next });
+            }}
+          >
+            {packs.map(row => (
+              <option key={row.id} value={row.id}>
+                {row.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {description ? (
+          <p
+            id="bot-arm-pack-desc"
+            className="bot-arm__desc"
+            data-testid="bot-arm-pack-desc"
+            title={description}
+          >
+            {description}
+          </p>
+        ) : null}
+      </div>
       <span
         className={`bot-arm__status${armed ? ' bot-arm__status--active' : ' bot-arm__status--idle'}`}
         data-testid="bot-arm-status"
