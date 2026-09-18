@@ -7,7 +7,7 @@ from bot.eligibility import add_symbol, assert_symbol_eligible, eligible_symbols
 from bot.errors import BotError
 from bot.packs import assert_pack_can_fire, catalog, normalize_pack
 from bot.persist import default_session
-from constants_bot import BOT_REASON_PACK_STUB, BOT_REASON_SYMBOL_BLOCKED
+from constants_bot import BOT_REASON_SYMBOL_BLOCKED
 
 
 def test_eligible_is_intersection():
@@ -57,8 +57,6 @@ def test_pack_catalog_marks_stubs():
     assert ids["halt-luld"] == "live"
     assert ids["llm-decide"] == "live"
     assert ids["quote-spike"] == "live"
-    assert ids["volume"] == "stub"
+    assert ids["volume"] == "live"
     assert normalize_pack(None) == "halt-luld"
-    with pytest.raises(BotError) as exc:
-        assert_pack_can_fire("volume")
-    assert exc.value.reason == BOT_REASON_PACK_STUB
+    assert_pack_can_fire("volume")

@@ -38,6 +38,7 @@ def eyes_row(symbol: str) -> dict[str, Any]:
         "last_update_ts": last.get("last_update_ts"),
         "bid": bid,
         "ask": ask,
+        "volume": last.get("volume"),
         "has_l1": bool(last),
         "has_depth": bid is not None or ask is not None,
     }

@@ -174,4 +174,44 @@ describe('StrategyTab', () => {
     expect(screen.getByTestId('bot-quote-spike-settings').textContent).toMatch(/3%/);
     expect(screen.getByTestId('bot-quote-spike-settings').textContent).not.toMatch(/stub/i);
   });
+
+  it('shows volume signal settings', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const href = String(url);
+      if (href.includes('/bot/session')) {
+        return {
+          ok: true,
+          json: async () => session({
+            active_pack: 'volume',
+            pack_settings: {
+              volume: {
+                volume_kind: 'buy_market',
+                min_mult: 5,
+                window_sec: 60,
+                baseline_sec: 600,
+                cooldown_sec: 60,
+              },
+            },
+            packs: [{
+              id: 'volume',
+              label: 'Volume boost',
+              status: 'live',
+              description: 'Last-60s day-volume rate is 5x the prior 10m baseline.',
+            }],
+          }),
+        };
+      }
+      return { ok: true, json: async () => (href.includes('proposals') ? { proposals: [] } : { entries: [] }) };
+    }));
+
+    await act(async () => {
+      render(<StrategyTab />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId('bot-pack-desc').textContent).toMatch(/5x|10m|day-volume/i);
+    expect(screen.getByTestId('bot-volume-settings').textContent).toMatch(/5x/);
+    expect(screen.getByTestId('bot-volume-settings').textContent).not.toMatch(/stub/i);
+  });
 });

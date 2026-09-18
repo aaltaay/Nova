@@ -6,6 +6,7 @@ import {
   packDescription,
   packStatus,
   quoteSpikeSettingsLine,
+  volumeSettingsLine,
 } from './bot';
 
 describe('bot pack copy', () => {
@@ -20,7 +21,8 @@ describe('bot pack copy', () => {
     expect(BOT_PACK_DESCRIPTIONS['halt-luld'].toLowerCase()).toMatch(/halt|luld/);
     expect(BOT_PACK_DESCRIPTIONS['quote-spike'].toLowerCase()).not.toMatch(/stub/);
     expect(BOT_PACK_DESCRIPTIONS['quote-spike'].toLowerCase()).toMatch(/3%|last|mid/);
-    expect(BOT_PACK_DESCRIPTIONS.volume.toLowerCase()).toMatch(/stub/);
+    expect(BOT_PACK_DESCRIPTIONS.volume.toLowerCase()).not.toMatch(/stub/);
+    expect(BOT_PACK_DESCRIPTIONS.volume.toLowerCase()).toMatch(/5x|day-volume|60/);
     expect(BOT_PACK_DESCRIPTIONS['llm-decide']).toMatch(/L2 \+ Activate/);
     expect(BOT_PACK_DESCRIPTIONS['llm-decide']).not.toMatch(/LLM_LIVE_FIRE/);
   });
@@ -29,8 +31,11 @@ describe('bot pack copy', () => {
     expect(packDescription('halt-luld')).not.toBe(packDescription('llm-decide'));
     expect(packDescription('volume')).not.toBe(packDescription('quote-spike'));
     expect(packStatus('quote-spike')).toBe('live');
-    expect(packStatus('volume')).toBe('stub');
+    expect(packStatus('volume')).toBe('live');
     expect(quoteSpikeSettingsLine({ min_pct: 3, window_sec: 5, spike_kind: 'buy_market', cooldown_sec: 30 }))
       .toMatch(/3% in 5s/);
+    expect(volumeSettingsLine({
+      min_mult: 5, window_sec: 60, baseline_sec: 600, volume_kind: 'buy_market', cooldown_sec: 60,
+    })).toMatch(/5x/);
   });
 });

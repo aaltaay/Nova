@@ -300,3 +300,17 @@ def test_ticker_budget_status_counts_unique_lines_and_owners():
     assert snap["reqMktData_remaining"] == IBKR_L1_STREAM_BUDGET - 2
     assert snap["max_tickers_hit"] is False
     _reset()
+
+
+def test_last_quotes_exposes_shared_day_volume():
+    _reset()
+    ticks._subs["ABCD"] = {
+        "owners": {ticks.OWNER_DETAIL},
+        "last_price": 1.25,
+        "last_update_ts": 12.0,
+        "last_cum_volume": 44000,
+    }
+    row = ticks.last_quotes(["ABCD"])["ABCD"]
+    assert row["price"] == 1.25
+    assert row["volume"] == 44000
+    _reset()

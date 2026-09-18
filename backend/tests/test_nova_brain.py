@@ -108,7 +108,7 @@ def test_step_never_raises_autonomy_and_heartbeats():
     assert client.patches == 0
 
 
-def test_step_stub_pack_is_heartbeat_only():
+def test_step_volume_pack_does_not_run_halt():
     client = _FakeClient(
         {
             "level": 2,
@@ -116,10 +116,11 @@ def test_step_stub_pack_is_heartbeat_only():
             "active_pack": "volume",
             "live_fire_ready": True,
         },
-        watch={"symbols": [{"symbol": "ABCD", "halted": False}]},
+        watch={"symbols": [{"symbol": "ABCD", "halted": False, "volume": None}]},
     )
     prev = step(client, halt_prev={"ABCD": True}, last_fire={})
     assert client.heartbeats == 1
+    assert client.claims == 1
     assert prev == {"ABCD": True}
 
 

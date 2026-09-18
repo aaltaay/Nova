@@ -69,6 +69,14 @@ def last_quotes(
         day_high = _as_float(sub.get("day_high"))
         if day_high is not None:
             row["day_high"] = day_high
+        cum = sub.get("last_cum_volume")
+        if cum is not None:
+            try:
+                vol = int(cum)
+            except (TypeError, ValueError):
+                vol = None
+            if vol is not None and vol >= 0:
+                row["volume"] = vol
         out[sym] = row
     return out
 

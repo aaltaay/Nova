@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Volume L2 bot pack is live
+
+- **What:** Pack `volume` is live (not stub). Eyes proposes and L2 + Activate fires once when shared L1 day-volume rate over the last 60s is 5x the prior 10-minute baseline. Quote-spike and halt/LULD stay live.
+- **Why:** Pack ladder after quote-spike (#221). Scanner tab Volume boost (#189) stays the desk list; this pack reuses that rate math on allowlist ∩ live-focus only.
+- **Files touched:** `backend/nova_brain/volume.py`, `backend/nova_brain/loop.py`, `backend/bot/packs.py`, `backend/bot/watch.py`, `backend/bot/quotes.py`, `backend/ibkr/ticks_status.py`, `backend/constants_bot.py`, `docs/bot-localhost-api.md`, ADR 016, frontend pack copy.
+- **How it works now:** `ticks.last_quotes` exposes `volume` from already-stored `last_cum_volume`. Watch/quotes pass that through. Brain accumulates samples and calls `volume_boost_detect.measure_spike`. Thin history, down tapes, and quiet tapes fail closed. Rising-edge only. Cooldown default 60s. `volume_kind` default `buy_market`. Leftover stub `pack_settings` blobs are replaced on load. Small-cap sleeve / `BOT_NOT_ACTIVE` / one `active_pack` / Advise never places unchanged. No new `reqMktData`.
+- **Verified by:** Fixture pytest (`test_nova_brain_volume`, quote-spike / actions / eligibility / ticks neighbors). Vitest pack copy + StrategyTab. No live IBKR.
+- **Follow-ups:** Nova Repo smokes then squash. Do not squash-merge this agent. Epic #205 stays open.
+- **Related:** Refs #205 / #221. PROBLEM_LOG 2026-09-18 -- Volume pack was stub.
+
 ## 2026-09-18 -- Quote spike L2 bot pack is live
 
 - **What:** Pack `quote-spike` is live (not stub). Eyes proposes and L2 + Activate fires once when shared last (or bid/ask mid) rises 3% in 5s. Volume pack stays stub.

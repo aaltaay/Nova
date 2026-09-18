@@ -45,6 +45,10 @@ def test_session_get_l0_open_without_key(bot_iso):
     assert body["armed"] is False
     assert body["live_fire_ready"] is False
     assert "desk_arm_token" not in body
+    packs = {row["id"]: row for row in body["packs"]}
+    assert packs["volume"]["status"] == "live"
+    assert "stub" not in packs["volume"]["description"].lower()
+    assert body["pack_settings"]["volume"]["min_mult"] == 5.0
     alias = client.get("/bot/session")
     assert alias.status_code == 200
 

@@ -56,8 +56,8 @@ free-form qty, REST quote polls, a second broker path) was rejected.
 
 11. **One active pack.** Day-one live pack is halt/LULD resume. Quote-spike
     is live: shared L1 last or bid/ask mid up `min_pct` in `window_sec`,
-    Eyes proposes, L2 + Activate fires once. Volume stays a selectable
-    stub (`BOT_PACK_STUB` if it fires). Small-cap remains the risk sleeve.
+    Eyes proposes, L2 + Activate fires once. Volume is the next live
+    ladder step (same feed, same sleeve). Small-cap remains the risk sleeve.
     Propose/fire require symbol allowlist AND live Trader focus.
 
 12. **Adapters are clients.** `backend/bot/sdk.py` + `docs/bot-adapters.md`
@@ -104,8 +104,18 @@ free-form qty, REST quote polls, a second broker path) was rejected.
     last and the shared depth book mid (`bot.quotes`). No new
     `reqMktData`. Settings: `spike_kind`, `min_pct` (3), `window_sec`
     (5), `cooldown_sec` (30). Rising-edge only. Down moves do not fire.
-    Volume pack stays stub; Scanner tab Volume boost is that signal's
-    SSOT.
+    Volume pack is the next ladder step on the same shared feed.
+
+## Amendment 2026-09-18 -- Volume live pack
+
+18. **Volume is a live pack.** Detection reads shared L1 day volume already
+    on `ticks.last_quotes` (`last_cum_volume`) via `bot.quotes` / `/bot/watch`.
+    No new `reqMktData`. Rising-edge only: last `window_sec` (60) day-volume
+    rate >= `min_mult` (5) times the prior `baseline_sec` (600) rate. Thin
+    open-session history fails closed -- never invent volume. Down / quiet
+    tapes do not fire. Eyes proposes a fixed-schema `buy_market` (or
+    `volume_kind`). L2 + Activate fires once, then `cooldown_sec` (60).
+    Scanner tab Volume boost remains the desk list, not a second fire path.
 
 ## Consequences
 
