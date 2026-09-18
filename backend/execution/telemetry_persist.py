@@ -62,6 +62,14 @@ def submit_facts(
             logger.exception(
                 "journal flatten_close failed after facts for %s", execution_id
             )
+        try:
+            from journal.net_pnl import apply_reported_commission
+
+            apply_reported_commission(execution_id)
+        except Exception:
+            logger.exception(
+                "journal net_pnl commission apply failed for %s", execution_id
+            )
 
     persist_queue.submit(f"facts order {order_id}", _write)
 

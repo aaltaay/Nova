@@ -64,6 +64,8 @@ _TRADES_MIGRATIONS = [
     ("is_mock", "INTEGER NOT NULL DEFAULT 0"),
     ("tags", "TEXT NOT NULL DEFAULT '[]'"),
     ("close_key", "TEXT"),
+    ("commission", "REAL"),
+    ("fill_ids", "TEXT"),
 ]
 
 

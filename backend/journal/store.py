@@ -98,6 +98,8 @@ def record_trade(
     is_mock: bool = False,
     tags: list[str] | None = None,
     close_key: str | None = None,
+    commission: float | None = None,
+    fill_ids: str | None = None,
 ) -> int:
     """is_mock=True tags a synthetic row inserted by journal/mock_data.py for
     UI/logic testing before Phase D (paper execution) exists. Real callers
@@ -114,8 +116,8 @@ def record_trade(
             INSERT INTO trades (
                 opened_ts, closed_ts, symbol, setup, side, qty, entry_price,
                 exit_price, stop_price, target_price, pnl, adherent, notes,
-                is_mock, tags, close_key
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                is_mock, tags, close_key, commission, fill_ids
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 opened_ts if opened_ts is not None else time.time(),
@@ -134,6 +136,8 @@ def record_trade(
                 int(is_mock),
                 _tags_to_json(tags),
                 key,
+                commission,
+                (fill_ids or "").strip() or None,
             ),
         )
         conn.commit()
@@ -184,6 +188,40 @@ def update_trade_tags(trade_id: int, tags: list[str]) -> dict | None:
         if cur.rowcount == 0:
             return None
         row = conn.execute("SELECT * FROM trades WHERE id = ?", (trade_id,)).fetchone()
+        return _row_to_trade(dict(row)) if row else None
+    finally:
+        conn.close()
+
+
+def update_trade_net(
+    trade_id: int,
+    *,
+    pnl: float,
+    commission: float | None,
+    notes: str,
+    fill_ids: str | None = None,
+) -> dict | None:
+    """Rewrite stored P/L after a late CommissionReport. Does not invent fees."""
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            """
+            UPDATE trades
+            SET pnl = ?, commission = ?, notes = ?, fill_ids = ?
+            WHERE id = ?
+            """,
+            (
+                float(pnl),
+                commission,
+                notes,
+                (fill_ids or "").strip() or None,
+                int(trade_id),
+            ),
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            return None
+        row = conn.execute("SELECT * FROM trades WHERE id = ?", (int(trade_id),)).fetchone()
         return _row_to_trade(dict(row)) if row else None
     finally:
         conn.close()

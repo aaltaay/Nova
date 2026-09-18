@@ -93,6 +93,9 @@ export interface JournalTradeRow {
   stop_price: number | null;
   target_price: number | null;
   pnl: number | null;
+  /** IBKR CommissionReport sum -- null until a real report. */
+  commission?: number | null;
+  fill_ids?: string | null;
   adherent: number | null;
   notes: string;
   is_mock: number;
