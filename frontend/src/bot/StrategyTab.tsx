@@ -1,4 +1,19 @@
-import { BOT_ACTION_KINDS, BOT_PACK_LABELS, packDescription, quoteSpikeSettingsLine, volumeSettingsLine } from '../constantGroups/bot';
+import {
+  BOT_ACTION_KINDS,
+  BOT_ADVISE_DEFAULT_CALL_CAP,
+  BOT_ADVISE_DEFAULT_USD_CAP,
+  BOT_BP_BUDGET_HARD_MAX_USD,
+  BOT_DEFAULT_MAX_SHARES,
+  BOT_MAX_SHARES_CAP,
+  BOT_PACK_LABELS,
+  BOT_WORKING_TTL_MAX_SEC,
+  BOT_WORKING_TTL_MIN_SEC,
+  packDescription,
+  quoteSpikeSettingsLine,
+  volumeSettingsLine,
+} from '../constantGroups/bot';
+import { StrategyAllowlistCard } from './StrategyAllowlistCard';
+import { StrategyBreakersCard } from './StrategyBreakersCard';
 import { useBotSession } from './useBotSession';
 
 export function StrategyTab() {
@@ -61,10 +76,9 @@ export function StrategyTab() {
           Brain: {session.brain_session_id || 'none'}
           {session.brain_alive ? ' (heartbeat alive)' : ' (heartbeat stale or missing)'}
         </p>
-        <p className="form-hint">
-          Symbol allowlist: {session.symbol_allowlist?.join(', ') || 'empty -- fail closed'}
-        </p>
       </section>
+
+      <StrategyAllowlistCard />
 
       <section className="bot-strategy__card">
         <h3>Small-cap filters</h3>
@@ -73,18 +87,20 @@ export function StrategyTab() {
             Max shares (1-10)
             <input
               type="number"
-              min={1}
-              max={10}
+              data-testid="bot-strategy-max-shares"
+              min={BOT_DEFAULT_MAX_SHARES}
+              max={BOT_MAX_SHARES_CAP}
               value={session.caps.max_shares}
               onChange={e => void patch({ caps: { max_shares: Number(e.target.value) } })}
             />
           </label>
           <label>
-            BP budget $ (hard max 50)
+            BP budget $ (hard max {BOT_BP_BUDGET_HARD_MAX_USD})
             <input
               type="number"
+              data-testid="bot-strategy-bp-budget"
               min={0.01}
-              max={50}
+              max={BOT_BP_BUDGET_HARD_MAX_USD}
               step={0.5}
               value={session.caps.bp_budget_usd}
               onChange={e => void patch({ caps: { bp_budget_usd: Number(e.target.value) } })}
@@ -94,8 +110,9 @@ export function StrategyTab() {
             Working TTL seconds (1-10)
             <input
               type="number"
-              min={1}
-              max={10}
+              data-testid="bot-strategy-ttl"
+              min={BOT_WORKING_TTL_MIN_SEC}
+              max={BOT_WORKING_TTL_MAX_SEC}
               value={session.caps.working_ttl_sec}
               onChange={e => void patch({ caps: { working_ttl_sec: Number(e.target.value) } })}
             />
@@ -103,6 +120,7 @@ export function StrategyTab() {
           <label className="bot-strategy__check">
             <input
               type="checkbox"
+              data-testid="bot-strategy-eh"
               checked={session.caps.extended_hours}
               onChange={e => void patch({ caps: { extended_hours: e.target.checked } })}
             />
@@ -170,6 +188,7 @@ export function StrategyTab() {
         <label className="bot-strategy__check">
           <input
             type="checkbox"
+            data-testid="bot-strategy-advise-enabled"
             checked={session.advise.enabled}
             onChange={e => void patch({ advise: { enabled: e.target.checked } })}
           />
@@ -180,6 +199,7 @@ export function StrategyTab() {
             USD cap
             <input
               type="number"
+              data-testid="bot-strategy-advise-usd"
               min={0}
               step={0.25}
               value={session.advise.usd_cap}
@@ -190,6 +210,7 @@ export function StrategyTab() {
             Call cap
             <input
               type="number"
+              data-testid="bot-strategy-advise-calls"
               min={0}
               value={session.advise.call_cap}
               onChange={e => void patch({ advise: { call_cap: Number(e.target.value) } })}
@@ -198,8 +219,11 @@ export function StrategyTab() {
         </div>
         <p className="form-hint">
           Spent ${session.advise.usd_spent.toFixed(2)} / {session.advise.calls_used} calls
+          {` (defaults $${BOT_ADVISE_DEFAULT_USD_CAP} / ${BOT_ADVISE_DEFAULT_CALL_CAP} calls)`}
         </p>
       </section>
+
+      <StrategyBreakersCard />
 
       <section className="bot-strategy__card">
         <h3>L1 proposals -- human places</h3>

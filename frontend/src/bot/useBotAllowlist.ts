@@ -1,21 +1,31 @@
-import { useCallback, useEffect, useState } from 'react';
-import { fetchBotSession, postBotAllowlist } from './api';
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
+import { postBotAllowlist } from './api';
+import {
+  getBotSessionSnapshot,
+  refreshBotSessionNow,
+  runBotSessionWrite,
+  setBotSessionError,
+  subscribeBotSession,
+} from './botSessionPoller';
+
+const EMPTY = {
+  session: null,
+  proposals: [],
+  audit: [],
+  error: null,
+  errorSticky: false,
+};
 
 export function useBotAllowlist() {
-  const [symbols, setSymbols] = useState<string[]>([]);
-
-  const refresh = useCallback(async () => {
-    try {
-      const next = await fetchBotSession();
-      setSymbols(next.symbol_allowlist || []);
-    } catch {
-      /* menu stays empty until the next successful fetch */
-    }
-  }, []);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  const snap = useSyncExternalStore(
+    subscribeBotSession,
+    getBotSessionSnapshot,
+    () => EMPTY,
+  );
+  const symbols = useMemo(
+    () => snap.session?.symbol_allowlist ?? [],
+    [snap.session?.symbol_allowlist],
+  );
 
   const isAllowed = useCallback(
     (symbol: string) => symbols.includes(symbol.trim().toUpperCase()),
@@ -23,16 +33,22 @@ export function useBotAllowlist() {
   );
 
   const add = useCallback(async (symbol: string) => {
-    const next = await postBotAllowlist(symbol, 'add');
-    setSymbols(next.symbol_allowlist || []);
-    return next;
+    try {
+      return await runBotSessionWrite(() => postBotAllowlist(symbol, 'add'));
+    } catch (err) {
+      setBotSessionError(err instanceof Error ? err.message : 'allowlist add failed');
+      return null;
+    }
   }, []);
 
   const remove = useCallback(async (symbol: string) => {
-    const next = await postBotAllowlist(symbol, 'remove');
-    setSymbols(next.symbol_allowlist || []);
-    return next;
+    try {
+      return await runBotSessionWrite(() => postBotAllowlist(symbol, 'remove'));
+    } catch (err) {
+      setBotSessionError(err instanceof Error ? err.message : 'allowlist remove failed');
+      return null;
+    }
   }, []);
 
-  return { symbols, isAllowed, add, remove, refresh };
+  return { symbols, isAllowed, add, remove, refresh: refreshBotSessionNow };
 }
