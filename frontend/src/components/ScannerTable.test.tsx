@@ -99,4 +99,35 @@ describe('ScannerTable row numbers', () => {
     expect(headers.filter(h => h === 'Earnings')).toHaveLength(1);
     expect(container.querySelector('.earnings-dots')).not.toBeNull();
   });
+
+  it('locks live numeric columns on the shared scanner shell', async () => {
+    await act(() => {
+      root.render(
+        <ScannerTable
+          columns={[
+            ['symbol', 'Symbol'],
+            ['price', 'Price'],
+            ['change_pct', 'Change'],
+            ['gap_percent', 'Gap %'],
+          ]}
+          data={[row('IMCC')]}
+          sortState={{ key: '', dir: null }}
+          onSort={() => {}}
+          selectedSymbol={null}
+          onSelect={() => {}}
+          onOpenTrading={() => {}}
+        />,
+      );
+    });
+
+    expect(container.querySelector('.table-wrapper--scanner')).not.toBeNull();
+    expect(container.querySelector('colgroup')).not.toBeNull();
+    const changeTh = container.querySelector('th[data-col="change_pct"]');
+    const gapTd = container.querySelector('td[data-col="gap_percent"]');
+    expect(changeTh?.className).toContain('scanner-col--pct');
+    expect(gapTd?.className).toContain('scanner-col--pct');
+    expect(container.querySelector('td[data-col="price"]')?.className).toContain(
+      'scanner-col--price',
+    );
+  });
 });

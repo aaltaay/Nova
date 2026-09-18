@@ -1,6 +1,7 @@
 /** Dense scanner table: Gappers / Movers / After Hours tabs share this rendering. */
 import { ScannerTableRow } from './ScannerTableRow';
-import { ScannerRowNumHeader } from './ScannerTableChrome';
+import { ScannerColGroup, ScannerRowNumHeader } from './ScannerTableChrome';
+import { SCANNER_TABLE_WRAPPER_CLASS, scannerColClass } from './scannerTableCol';
 import { isRowQuoteStale } from '../hooks/useScannerPriceStream';
 import {
   SCANNER_RVOL_SOURCE_TITLE,
@@ -10,7 +11,7 @@ import type { ScannerRow, SortConfig } from '../types/scanner';
 
 export { NewsCell } from './NewsCell';
 export { WatchCell } from './ScannerTableRow';
-export { ScannerRowNumHeader, ScannerRowNumCell } from './ScannerTableChrome';
+export { ScannerColGroup, ScannerRowNumHeader, ScannerRowNumCell } from './ScannerTableChrome';
 
 interface ScannerTableProps {
   columns: [string, string][];
@@ -38,15 +39,17 @@ export function ScannerTable({
   nowSec = 0,
 }: ScannerTableProps) {
   return (
-    <div className="table-wrapper">
+    <div className={SCANNER_TABLE_WRAPPER_CLASS}>
       <table>
+        <ScannerColGroup columns={columns} />
         <thead>
           <tr>
             <ScannerRowNumHeader />
             {columns.map(([key, label]) => (
               <th
                 key={key}
-                className="sortable-th"
+                data-col={key}
+                className={`sortable-th ${scannerColClass(key)}`}
                 onClick={() => onSort(key)}
                 title={key === 'volume' ? SCANNER_RVOL_SOURCE_TITLE : undefined}
                 aria-sort={

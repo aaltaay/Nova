@@ -4,7 +4,8 @@
 import { Fragment, useState } from 'react';
 import { SymbolSelectButton } from './SymbolSelectButton';
 import { SelectableTableRow } from './SelectableTableRow';
-import { ScannerRowNumCell, ScannerRowNumHeader } from './ScannerTable';
+import { ScannerColGroup, ScannerRowNumCell, ScannerRowNumHeader } from './ScannerTable';
+import { SCANNER_TABLE_WRAPPER_CLASS, scannerColClass } from './scannerTableCol';
 import { NewsCell } from './NewsCell';
 import { NewsImpactPanel } from './NewsImpactPanel';
 import { fmtPct, fmtVolume } from '../utils/quoteFormat';
@@ -58,15 +59,17 @@ export function CatalystsTable({
         Open Nova News for AI-in-trading headlines.
       </div>
       {catalysts.length > 0 ? (
-        <div className="table-wrapper">
+        <div className={SCANNER_TABLE_WRAPPER_CLASS}>
           <table>
+            <ScannerColGroup columns={CATALYST_COLUMNS} />
             <thead>
               <tr>
                 <ScannerRowNumHeader />
                 {CATALYST_COLUMNS.map(([key, label]) => (
                   <th
                     key={key}
-                    className="sortable-th"
+                    data-col={key}
+                    className={`sortable-th ${scannerColClass(key)}`}
                     onClick={() => onSort(key)}
                     aria-sort={
                       sortState.key === key
@@ -99,7 +102,7 @@ export function CatalystsTable({
                       openOnRowClick={false}
                     >
                       <ScannerRowNumCell index={index} />
-                      <td>
+                      <td data-col="symbol" className={scannerColClass('symbol')}>
                         <SymbolSelectButton
                           symbol={c.symbol}
                           exchange={c.exchange}
@@ -108,13 +111,22 @@ export function CatalystsTable({
                           onOpenTrading={onOpenTrading}
                         />
                       </td>
-                      <td>${c.previous_close.toFixed(2)}</td>
-                      <td>${c.current_price.toFixed(2)}</td>
-                      <td className={c.gap_percent >= 0 ? 'positive' : 'negative'}>
+                      <td data-col="previous_close" className={scannerColClass('previous_close')}>
+                        ${c.previous_close.toFixed(2)}
+                      </td>
+                      <td data-col="current_price" className={scannerColClass('current_price')}>
+                        ${c.current_price.toFixed(2)}
+                      </td>
+                      <td
+                        data-col="gap_percent"
+                        className={`${scannerColClass('gap_percent')} ${c.gap_percent >= 0 ? 'positive' : 'negative'}`}
+                      >
                         {fmtPct(c.gap_percent)}
                       </td>
-                      <td>{fmtVolume(c.volume)}</td>
-                      <td className="catalyst-headline-cell">
+                      <td data-col="volume" className={scannerColClass('volume')}>
+                        {fmtVolume(c.volume)}
+                      </td>
+                      <td data-col="catalyst_headline" className={`${scannerColClass('catalyst_headline')} catalyst-headline-cell`}>
                         <span className="catalyst-headline-text">
                           {c.catalyst_headline ? (
                             c.catalyst_url ? (
@@ -171,7 +183,9 @@ export function CatalystsTable({
                           </button>
                         )}
                       </td>
-                      <td><NewsCell newest_headline_at={c.newest_headline_at} /></td>
+                      <td data-col="newest_headline_at" className={scannerColClass('newest_headline_at')}>
+                        <NewsCell newest_headline_at={c.newest_headline_at} />
+                      </td>
                     </SelectableTableRow>
                     {isExpanded && c.news_impact && (
                       <tr className="catalyst-expand-row">
