@@ -103,6 +103,23 @@ def _to_iso(value: Any) -> str | None:
     return None
 
 
+def execution_time_to_iso(value: Any) -> str | None:
+    """Normalize IBKR Execution.time. Wall digits are UTC.
+
+    ib_async may attach America/New_York to those digits. Trusting that
+    label converts 15:02:48 -> 19:02:48Z (false +4h EDT). Strip a non-UTC
+    label and keep the wall digits. Already-UTC values pass through;
+    ``honest_filled_at_iso`` rewrites a host-TZ conversion against Place.
+    """
+    if isinstance(value, datetime) and value.tzinfo is not None:
+        off = value.utcoffset()
+        if off is not None and off.total_seconds() != 0:
+            return value.replace(tzinfo=timezone.utc).isoformat().replace(
+                "+00:00", "Z"
+            )
+    return _to_iso(value)
+
+
 def extract_trade_times(trade: Any) -> tuple[str | None, str | None, str | None]:
     """Return (submitted_at, updated_at, filled_at) ISO strings; any may be None.
 
@@ -131,9 +148,19 @@ def extract_trade_times(trade: Any) -> tuple[str | None, str | None, str | None]
         except TypeError:
             last_fill_raw = fill_times[-1]
 
-    last_raw = last_fill_raw if last_fill_raw is not None else (log_times[-1] if log_times else None)
+    filled_at = (
+        execution_time_to_iso(last_fill_raw) if last_fill_raw is not None else None
+    )
+    if filled_at:
+        from execution.fill_audit_clock import honest_filled_at_iso
 
-    return submitted, _to_iso(last_raw), _to_iso(last_fill_raw)
+        filled_at = honest_filled_at_iso(submitted, filled_at)
+
+    last_raw = last_fill_raw if last_fill_raw is not None else (
+        log_times[-1] if log_times else None
+    )
+    updated_at = filled_at if last_fill_raw is not None else _to_iso(last_raw)
+    return submitted, updated_at, filled_at
 
 
 def audit_log_placed(

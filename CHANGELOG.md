@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Orders Today Time Filled matches Place zone; no false 0ms
+
+- **What:** Closed Orders Today Time Filled no longer paints a UTC fill as if it were already Eastern (11:02 Place vs 15:02 Filled). Latency never shows `0ms` when the raw clocks disagree by hours. Hour-skew fills rewrite to the UTC wall digits; the cell is an em dash when the residual collapses to zero.
+- **Why:** After #266/#267, Ahmed desk order ~109741 (face F) still showed Latency `0ms` with Time Filled ~4h ahead of Time Placed. #266 left `filled_at` on the row alone. ib_async `naive.astimezone(UTC)` on an Eastern host turns UTC `15:02:48` digits into `19:02:48Z`. Second-rounded `created_ts` minus that stamp is exactly 4h, so the TZ guard residual was `0` and `face_ms=0`.
+- **Files touched:** `backend/execution/fill_audit_clock.py`, `backend/execution/fill_audit_attach.py`, `backend/ibkr/order_times.py`, `backend/ibkr/order_rows.py`, `frontend/src/ibkr/orderDisplay.ts`, `frontend/src/ibkr/orderFillLatency.ts`.
+- **How it works now:** `execution_time_to_iso` keeps NY-labeled execution wall digits as UTC. `honest_filled_at_iso` subtracts a NY/4h/5h offset from an already-converted Zulu fill when Place is the reference. Attach writes the honest ISO onto the row so Time Filled uses the same ET formatter as Time Placed. `face_ms` requires a positive coherent delta; exact-offset residual is `timezone_shaped_clock` (em dash), not `0ms`. #266 MKT 3037ms warn and #267 clock-skew dash stay.
+- **Verified by:** pytest fill_audit_clock + fill_audit + attach + matrix + order_times -- 58 passed. Neighbor execution/orders/closed blotter -- 78 passed. Vitest orderFillLatency + orderDisplay + closed cells -- 36 passed. Fixture: Place `15:02:48.551Z`, Fill `19:02:48Z` -> Fill `15:02:48Z`, face null, no `0ms`. Rebased onto `origin/master` `ee62484` after #275; only CHANGELOG conflicted. Prior rebase CI on `ccb3306` was all-green before #275 landed.
+- **Follow-ups:** Hold merge (`do-not-merge`) until required CI is green on this rebase.
+- **Related:** Follow-up to #266 / #267. PROBLEM_LOG 2026-09-18 -- Orders Today Time Filled 4h false 0ms.
+
 ## 2026-09-18 -- Time & Sales right-click min-size filter
 
 - **What:** Right-click anywhere on the Time & Sales widget opens a min-size filter box. Type `100` to hide prints smaller than 100. Empty or 0 shows all. A `Size ≥ N` chip marks an active filter. Preference survives reload.

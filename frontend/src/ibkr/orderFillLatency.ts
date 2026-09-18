@@ -89,17 +89,17 @@ export function fillLatencyFaceMs(
   if (!audit || isInvalidFillClock(audit) || isClockSkewFill(audit)) return null;
   if (audit.face_ms !== undefined) {
     const face = asInt(audit.face_ms);
-    return face != null && face >= 0 ? face : null;
+    return face != null && face > 0 ? face : null;
   }
   const fill = asInt(audit.place_to_fill_ms);
-  if (fill != null) return fill >= 0 ? fill : null;
+  if (fill != null) return fill > 0 ? fill : null;
   const terminal = asInt(audit.place_to_terminal_ms);
-  return terminal != null && terminal >= 0 ? terminal : null;
+  return terminal != null && terminal > 0 ? terminal : null;
 }
 
 export function formatFillLatencyMs(ms: number | null | undefined): string {
   const n = asInt(ms);
-  if (n == null) return FILL_LATENCY_EM_DASH;
+  if (n == null || n === 0) return FILL_LATENCY_EM_DASH;
   return `${n}ms`;
 }
 

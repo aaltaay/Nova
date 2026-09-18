@@ -108,6 +108,33 @@ def test_matrix_d_missing_filled_at_has_no_face():
     assert pub is None
 
 
+def test_matrix_f_hour_skew_zero_residual_is_not_zero_ms():
+    """109741-shaped: exact EDT offset must not publish face_ms=0."""
+    fill, reason = apply_fill_clock_guard(
+        place_to_fill_ms=14_400_000,
+        place_to_submit_ms=551,
+        placed_iso="2026-09-18T15:02:48.000Z",
+        order_type="MKT",
+    )
+    assert fill is None
+    assert reason == "timezone_shaped_clock"
+    assert coherent_face_ms(0, None, "filled") is None
+    pub = public_fill_audit(
+        {
+            "place_to_submit_ms": 551,
+            "place_to_fill_ms": 14_400_000,
+            "place_to_terminal_ms": None,
+            "level": "ok",
+            "reason": "filled",
+            "type": "MKT",
+        },
+    )
+    assert pub is not None
+    assert pub["face_ms"] is None
+    assert pub["face_ms"] != 0
+    assert pub["place_to_fill_ms"] != 0
+
+
 def test_matrix_e_never_clamps_negative_residual_to_zero():
     fill, reason = apply_fill_clock_guard(
         place_to_fill_ms=14_399_704,

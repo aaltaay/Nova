@@ -80,6 +80,29 @@ describe('orderFillLatency fixture matrix', () => {
     );
   });
 
+  it('(f) hour-skew residual 0 is an em dash -- never a false 0ms fill', () => {
+    const audit: OrderFillAudit = {
+      place_to_submit_ms: 551,
+      place_to_fill_ms: 0,
+      face_ms: 0,
+      level: 'ok',
+      reason: 'filled',
+    };
+    expect(fillLatencyFaceMs(audit)).toBeNull();
+    expect(formatFillLatencyMs(fillLatencyFaceMs(audit))).toBe(FILL_LATENCY_EM_DASH);
+    expect(formatFillLatencyMs(0)).toBe(FILL_LATENCY_EM_DASH);
+
+    const shaped: OrderFillAudit = {
+      place_to_submit_ms: 551,
+      place_to_fill_ms: null,
+      face_ms: null,
+      level: 'warn',
+      reason: 'timezone_shaped_clock',
+    };
+    expect(fillLatencyFaceMs(shaped)).toBeNull();
+    expect(formatFillLatencyMs(fillLatencyFaceMs(shaped))).toBe(FILL_LATENCY_EM_DASH);
+  });
+
   it('(e) hover lists every step as ms or unavailable -- never a guessed 0ms fill', () => {
     const hover = fillLatencyTooltip({
       place_to_submit_ms: -296,

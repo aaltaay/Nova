@@ -109,6 +109,10 @@ def trade_to_order_row(trade) -> dict:
         filled_at = None
     oid = trade.order.orderId
     submitted_at = resolve_submitted_at(broker_submitted, oid)
+    if filled_at:
+        from execution.fill_audit_clock import honest_filled_at_iso
+
+        filled_at = honest_filled_at_iso(submitted_at, filled_at)
     from ibkr.order_held_until import held_until_iso_from_trade
 
     perm_raw = getattr(trade.order, "permId", None)
