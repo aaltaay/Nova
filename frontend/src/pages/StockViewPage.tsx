@@ -4,7 +4,7 @@
  * Thin data coordinator: streams, IBKR gates, resizable rail, detached nav.
  * Layout chrome lives under `stock_view/` (rail + quote card).
  */
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useRef, useState, type CSSProperties } from 'react';
 import { ChartGrid } from '../components/ChartGrid';
 import { ResizeHandle } from '../components/ResizeHandle';
 import { useResizableHeight } from '../hooks/useResizableHeight';
@@ -29,7 +29,6 @@ import {
   STOCK_VIEW_OPEN_ORDERS_DEFAULT_COLLAPSED,
   STOCK_VIEW_OPEN_ORDERS_PANE_MIN_PX,
   STOCK_VIEW_SIDE_WIDTH_KEY,
-  STOCK_VIEW_TITLE,
   TICKER_TRADE_SIDE_WIDTH_MAX_PX,
   TICKER_TRADE_SIDE_WIDTH_MIN_PX,
   TICKER_TRADE_SIDE_WIDTH_PX,
@@ -92,13 +91,6 @@ export function StockViewPage({
     maxPct: STOCK_VIEW_MAIN_ORDERS_SPLIT_MAX_PCT,
     containerRef: mainColRef,
   });
-
-  useEffect(() => {
-    document.title = `${symbol} · ${STOCK_VIEW_TITLE} · Nova`;
-    return () => {
-      document.title = 'Nova — Stock Scanner';
-    };
-  }, [symbol]);
 
   const detailSymbol = typeof detail?.symbol === 'string' ? detail.symbol : '';
   const detailReady =

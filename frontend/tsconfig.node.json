@@ -9,6 +9,7 @@
 
     /* Bundler mode */
     "moduleResolution": "bundler",
+    "allowJs": true,
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
@@ -20,5 +21,10 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts", "scripts/vite-nova-start-api.ts"]
+  "include": [
+    "vite.config.ts",
+    "scripts/vite-nova-start-api.ts",
+    "electron/appTitle.mjs.d.ts",
+    "electron/releaseTag.mjs.d.ts"
+  ]
 }
