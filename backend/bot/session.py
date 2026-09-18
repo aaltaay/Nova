@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from bot import persist
-from bot.arming import heartbeat_is_fresh
+from bot.arming import has_desk_arm, heartbeat_is_fresh, is_desk_active
 from bot.clock import lock_is_active
 from bot.eligibility import normalize_symbols
 from bot.errors import BotError
@@ -35,8 +35,8 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
     advise = dict(row.get("advise") or {})
     caps = dict(row.get("caps") or {})
     lock_until = row.get("hard_lock_until_date")
-    token_on = bool((row.get("desk_arm_token") or "").strip())
-    armed = bool(row.get("armed")) and token_on
+    token_on = has_desk_arm(row)
+    armed = is_desk_active(row)
     brain_id = row.get("brain_session_id") if level >= BOT_LEVEL_STRATEGY else None
     alive = heartbeat_is_fresh(row) and bool(brain_id)
     return {
@@ -106,7 +106,7 @@ def require_l2_brain(brain_session_id: str | None, *, claim: bool = True) -> str
     if int(row.get("level") or 0) != BOT_LEVEL_STRATEGY:
         raise BotError("L2 brain required only at Strategy level", 409, BOT_REASON_BRAIN_EXCLUSIVE)
     desk_token = (row.get("desk_arm_token") or "").strip()
-    if not row.get("armed") or not desk_token:
+    if not is_desk_active(row):
         raise BotError(
             "Activate from the desk header before a brain can claim",
             409,

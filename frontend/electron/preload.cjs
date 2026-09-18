@@ -4,6 +4,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 const API_BASE = 'http://127.0.0.1:8000';
+// Same NOVA_API_KEY the API loaded -- never a second secret, never baked into dist.
 const apiKey = ipcRenderer.sendSync('nova:apiKeySync') || '';
 
 contextBridge.exposeInMainWorld('novaDesktop', {

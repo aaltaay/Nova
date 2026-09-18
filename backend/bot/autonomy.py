@@ -6,6 +6,7 @@ from typing import Any
 from bot.arming import (
     assert_fresh_heartbeat,
     clear_arm_fields,
+    is_desk_active,
     issue_arm_token,
     require_matching_arm_token,
 )
@@ -59,11 +60,14 @@ def apply_patch(
             require_matching_arm_token(row, arm_token)
         row["level"] = level
         if level < BOT_LEVEL_STRATEGY:
-            row["brain_session_id"] = None
-            row["claim_arm_token"] = None
-            row["brain_heartbeat_ts"] = None
-            if level == BOT_LEVEL_OFF:
+            leaving_strategy = current >= BOT_LEVEL_STRATEGY
+            if level == BOT_LEVEL_OFF or leaving_strategy:
                 clear_arm_fields(row)
+            else:
+                row["brain_session_id"] = None
+                row["claim_arm_token"] = None
+                row["brain_heartbeat_ts"] = None
+            if level == BOT_LEVEL_OFF:
                 row["strategy"] = None
         if level == BOT_LEVEL_STRATEGY:
             row["strategy"] = row.get("strategy") or BOT_STRATEGY_SMALL_CAP
@@ -144,15 +148,20 @@ def assert_not_dark(row: dict[str, Any] | None = None) -> dict[str, Any]:
 
 
 def assert_can_fire(row: dict[str, Any] | None = None) -> dict[str, Any]:
-    from constants_bot import BOT_REASON_L1_NO_FIRE
+    from constants_bot import BOT_REASON_L1_NO_FIRE, BOT_REASON_NOT_ACTIVE
 
     current = assert_not_dark(row)
-    token_on = bool((current.get("desk_arm_token") or "").strip())
-    if int(current.get("level") or 0) < BOT_LEVEL_STRATEGY or not current.get("armed") or not token_on:
+    if int(current.get("level") or 0) < BOT_LEVEL_STRATEGY:
         raise BotError(
             "Level 1 Eyes cannot place, cancel, or flatten -- human places",
             409,
             BOT_REASON_L1_NO_FIRE,
+        )
+    if not is_desk_active(current):
+        raise BotError(
+            "desk is Not active -- Activate before live fire",
+            409,
+            BOT_REASON_NOT_ACTIVE,
         )
     assert_fresh_heartbeat(current)
     return current

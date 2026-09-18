@@ -3,7 +3,7 @@ interface Window {
   novaDesktop?: {
     isDesktop: boolean;
     apiBase: string;
-    /** Sidecar-provisioned key for POST /api/config (D-040). Never log this. */
+    /** Same NOVA_API_KEY the API loaded (D-040 / bot writes). Never log this. */
     apiKey?: string;
     getVersion: () => Promise<string>;
     /** Electron IPC: open Stock View in a child BrowserWindow. */

@@ -11,6 +11,7 @@ from constants_bot import (
     BOT_REASON_FREE_FORM_QTY,
     BOT_REASON_L0_DARK,
     BOT_REASON_L1_NO_FIRE,
+    BOT_REASON_NOT_ACTIVE,
     BOT_REASON_PACK_STUB,
 )
 from tests.bot_helpers import ready_l2
@@ -47,6 +48,26 @@ async def test_l1_cannot_fire():
     with pytest.raises(BotError) as exc:
         await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="x")
     assert exc.value.reason == BOT_REASON_L1_NO_FIRE
+
+
+@pytest.mark.asyncio
+async def test_l2_pack_allowlist_not_active_rejects(monkeypatch):
+    """L2 + live pack + allowlist is not enough -- Activate is a separate axis."""
+    from bot.arming import disarm_session
+
+    ready_l2(brain="brain-1", heartbeat=True)
+    disarm_session()
+    called = {"n": 0}
+
+    async def fake_execute(cmd, wait_ack=False):
+        called["n"] += 1
+        return _ok(1)
+
+    monkeypatch.setattr("bot.actions.execute", fake_execute)
+    with pytest.raises(BotError) as exc:
+        await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="brain-1")
+    assert exc.value.reason == BOT_REASON_NOT_ACTIVE
+    assert called["n"] == 0
 
 
 @pytest.mark.asyncio

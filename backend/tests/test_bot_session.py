@@ -15,6 +15,7 @@ from constants_bot import (
     BOT_REASON_L0_DARK,
     BOT_REASON_L1_NO_FIRE,
     BOT_REASON_L3_PARKED,
+    BOT_REASON_NOT_ACTIVE,
     BOT_SCHEMA_VERSION,
 )
 
@@ -106,6 +107,59 @@ def test_drop_to_l0_clears_brain():
     assert view["brain_session_id"] is None
     assert view["strategy"] is None
     assert view["armed"] is False
+    assert view["has_desk_arm"] is False
+    assert view["live_fire_ready"] is False
+
+
+def test_l2_to_eyes_disarms_live_fire():
+    from bot.arming import record_heartbeat
+
+    apply_desk_level(2)
+    require_l2_brain("brain-a", claim=True)
+    record_heartbeat("brain-a")
+    assert get_session()["live_fire_ready"] is True
+    apply_patch({"level": 1}, desk=True)
+    view = get_session()
+    assert view["level"] == 1
+    assert view["armed"] is False
+    assert view["has_desk_arm"] is False
+    assert view["brain_session_id"] is None
+    assert view["live_fire_ready"] is False
+    with pytest.raises(BotError) as exc:
+        assert_can_fire()
+    assert exc.value.reason == BOT_REASON_L1_NO_FIRE
+
+
+def test_l2_not_active_assert_can_fire():
+    from bot.arming import disarm_session, record_heartbeat
+
+    apply_desk_level(2)
+    require_l2_brain("brain-a", claim=True)
+    record_heartbeat("brain-a")
+    disarm_session()
+    view = get_session()
+    assert view["level"] == 2
+    assert view["armed"] is False
+    assert view["has_desk_arm"] is False
+    assert view["live_fire_ready"] is False
+    with pytest.raises(BotError) as exc:
+        assert_can_fire()
+    assert exc.value.reason == BOT_REASON_NOT_ACTIVE
+
+
+def test_l1_active_still_cannot_fire():
+    from bot.arming import issue_arm_token
+
+    issue_arm_token()
+    apply_patch({"level": 1}, desk=True)
+    view = get_session()
+    assert view["level"] == 1
+    assert view["armed"] is True
+    assert view["has_desk_arm"] is True
+    assert view["live_fire_ready"] is False
+    with pytest.raises(BotError) as exc:
+        assert_can_fire()
+    assert exc.value.reason == BOT_REASON_L1_NO_FIRE
 
 
 def test_persist_reset_survives_windows_os_name(monkeypatch):
