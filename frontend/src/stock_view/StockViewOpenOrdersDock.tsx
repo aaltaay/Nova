@@ -54,6 +54,8 @@ type Props = {
   onPositionClosed?: () => void;
   highlightOrderId?: number | null;
   onCollapsedChange?: (collapsed: boolean) => void;
+  /** Which desk mounted this instance -- keep-alive can leave more than one in the tree. */
+  host: 'scanner' | 'trader';
 };
 
 export function StockViewOpenOrdersDock({
@@ -73,6 +75,7 @@ export function StockViewOpenOrdersDock({
   onPositionClosed,
   highlightOrderId = null,
   onCollapsedChange,
+  host,
 }: Props) {
   const sample = useSampleDataOptional();
   const [collapsed, setCollapsed] = useState(readCollapsed);
@@ -184,6 +187,8 @@ export function StockViewOpenOrdersDock({
         usingSample ? ' sv-open-orders-dock--sample' : ''
       }`}
       data-testid="stock-view-open-orders-dock"
+      data-dock-host={host}
+      data-dock-symbol={symbolKey}
       data-dock-surface={surface}
       data-orders-filter={filter}
       data-sample={usingSample ? '1' : undefined}

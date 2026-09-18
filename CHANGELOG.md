@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Orders dock hosts are scanner vs trader
+
+- **What:** The Orders/Positions/Nova OS dock stamps `data-dock-host` (`scanner` | `trader`) and `data-dock-symbol`. Hidden keep-alive hosts are `inert`. Dashboard unmounts while Trader is showing, so `scanner-desk` is gone on `/?view=stock`.
+- **Why:** Frontend E2E on #251 failed: two `stock-view-open-orders-dock` nodes (`scanner-desk` + `stock-view-main`) after this PR left Dashboard mounted on Trader. Red Team: real multi-instance product, not a Time Placed clock bug. Do not delete the scanner dock.
+- **Files touched:** `App.tsx`, `StockViewOpenOrdersDock.tsx`, `ScannerDesk.tsx`, `StockViewPage.tsx`, `StockViewTabs.tsx`, `e2e/helpers/ordersDock.ts`, open-closed-orders / scanner-account-dock / workspace-context specs.
+- **How it works now:** ScannerDesk keeps `host=scanner` while Dashboard is up. Each live StockViewPage keeps `host=trader`. The Trader slot stays mounted `hidden` + `inert` on Scanner so L2/tape stay up. Inactive live panes are `inert`. E2E clicks the trader host+symbol dock, never `.first()`.
+- **Verified by:** Vitest dock / tabs / ScannerDesk / workspaceWiring. Playwright `open-closed-orders` + `scanner-account-dock` + `workspace-context`.
+- **Follow-ups:** Windows Electron paint gate on #251 is unchanged (visible chrome + ticket, not title-only). Optional later: inactive trader tabs mount a dock stub.
+- **Related:** PROBLEM_LOG 2026-09-18 -- Dual Orders dock failed Frontend E2E. Refs #251.
+
 ## 2026-09-18 -- Header Trader no longer blanks the Electron window
 
 - **What:** Clicking header Trader keeps the Nova chrome and opens the in-app desk. Electron no longer leaves a black File/Edit/View shell after `document.title` already says `SYMBOL · Trader · Nova · vNNN`.

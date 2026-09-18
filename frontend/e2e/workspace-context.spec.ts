@@ -7,6 +7,7 @@ test.describe('Phase 2 — WorkspaceContext', () => {
     await page.goto('/?view=stock&symbol=MSFT');
 
     await expect(page.locator('.stock-view-page')).toBeVisible();
+    await expect(page.getByTestId('scanner-desk')).toHaveCount(0);
     await expect(page).toHaveTitle(/MSFT.*Trader/);
     await expect(page.getByText('Trader', { exact: true })).toBeVisible();
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
@@ -29,6 +30,7 @@ test.describe('Phase 2 — WorkspaceContext', () => {
     await expect(page.locator('[data-testid="sv-tabs-root"]')).toBeVisible({ timeout: 15_000 });
     await expect(page.locator('[data-testid="sv-tab-AAPL"]')).toBeVisible();
     await expect(page.locator('.stock-view-page')).toBeVisible();
+    await expect(page.getByTestId('scanner-desk')).toHaveCount(0);
     expect(page.url()).not.toMatch(/view=stock/);
 
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
@@ -44,6 +46,7 @@ test.describe('Phase 2 — WorkspaceContext', () => {
     await expect(page.getByTestId('global-app-bar')).toBeVisible();
     await expect(page.getByTestId('sv-tabs-root')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('sv-tab-SPY')).toBeVisible();
+    await expect(page.getByTestId('scanner-desk')).toHaveCount(0);
     await expect(page.getByTestId('global-bar-nav-trader')).toHaveAttribute(
       'aria-pressed',
       'true',

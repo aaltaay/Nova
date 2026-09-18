@@ -194,6 +194,7 @@ export function StockViewPage({
               />
             )}
             <StockViewOpenOrdersDock
+              host="trader"
               symbol={symbol}
               orders={orders}
               positions={positions}

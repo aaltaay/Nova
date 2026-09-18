@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Dual Orders dock failed Frontend E2E
+
+- **Symptom:** CI Frontend E2E (`35295154273`) failed `open-closed-orders.spec.ts`: `orders-today-filter-all` click "not visible"; `getByTestId('stock-view-open-orders-dock')` strict-mode 2 elements (`scanner-desk` + `stock-view-main`).
+- **Cause:** This PR kept Dashboard mounted (hidden) on Trader. ScannerDesk and each live StockViewPage both mount `StockViewOpenOrdersDock` with the same test id. Hidden hosts were not `inert`, so Playwright could hit the keep-alive instance. Not a Time Placed clock bug. Not a reason to delete the scanner dock.
+- **Fix:** Unmount Dashboard when `showTrader`. Stamp `data-dock-host` / `data-dock-symbol`. Set `inert` on the hidden Trader slot and inactive panes. Scope E2E to `[data-dock-host="trader"][data-dock-symbol="AAPL"]` (scanner specs via `scanner-desk`).
+- **Fix class:** ownership
+- **Keywords:** stock-view-open-orders-dock, scanner-desk, inert, data-dock-host, Frontend E2E, Playwright strict mode, #251
+
 ## 2026-09-18 -- Trader click blanked Electron
 
 - **Symptom:** Header Trader on Electron→Vite left File/Edit/View on a black client area. After #250 the OS title was `AEMD · Trader · Nova · v477` -- React and `document.title` ran. Playwright Chromium against Vite clicking header Trader worked (title `SPY · Trader · Nova`, Net Liq / tabs; bench `backend/logs/trader-click-smoke.png`). A leftover process pile had DevTools on `chrome-error://chromewebdata/`; kill-all + one clean start pointed DevTools at Vite again.

@@ -100,6 +100,8 @@ describe('ScannerDesk', () => {
     );
     const dock = container.querySelector('[data-testid="stock-view-open-orders-dock"]');
     expect(dock).toBeTruthy();
+    expect(dock?.getAttribute('data-dock-host')).toBe('scanner');
+    expect(dock?.getAttribute('data-dock-symbol')).toBe('SMPL');
     expect(
       container.querySelector('[data-testid="stock-view-dock-tab-positions"]')?.textContent,
     ).toContain(STOCK_VIEW_MODULE_POSITIONS_TITLE);

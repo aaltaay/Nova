@@ -176,6 +176,12 @@ describe('StockViewTabs tab-strip placement', () => {
     expect(
       container.querySelector('[data-testid="stock-view-page-MSFT"]')?.getAttribute('data-chart-active'),
     ).toBe('0');
+    expect(container.querySelector('[data-testid="sv-tab-pane-AAPL"]')?.hasAttribute('inert')).toBe(
+      false,
+    );
+    expect(container.querySelector('[data-testid="sv-tab-pane-MSFT"]')?.hasAttribute('inert')).toBe(
+      true,
+    );
   });
 
   it('does not mount a StockViewPage for a gray / suspended tab', () => {

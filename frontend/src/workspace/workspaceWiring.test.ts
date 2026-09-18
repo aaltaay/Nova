@@ -15,7 +15,8 @@ describe('WorkspaceContext wiring (Phase 2)', () => {
     expect(app).toMatch(/LayoutStoreProvider/);
     expect(app).toMatch(/<DashboardPage\s*\/>/);
     expect(app).toMatch(/nova-scanner-desk-slot/);
-    expect(app).not.toMatch(/\{!showTrader && \(/);
+    expect(app).toMatch(/\{!showTrader && \(/);
+    expect(app).toMatch(/inert=\{!showTrader\}/);
     expect(dash).toMatch(/useWorkspace\(/);
     expect(dash).not.toMatch(/interface Props/);
   });
