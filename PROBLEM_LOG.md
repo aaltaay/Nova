@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Bot Autonomy Eyes snap-back
+
+- **Symptom:** On live Vite (`http://127.0.0.1:5173/`), `bot-arm-level` stayed `0` after `selectOption('1')` / `'2'`. Activate stayed **Bot off**. curl PATCH L0/L1 with `X-Nova-Api-Key` worked; L2 without the desk arm token returned 403 `BOT_ARM_REQUIRED`.
+- **Cause:** GET `/bot/session` is open, so the strip painted L0. PATCH/ARM always need `NOVA_API_KEY`. Vite did not send repo-root `NOVA_API_KEY` as `VITE_NOVA_API_KEY`. Failures parsed string FastAPI `detail` as `bot API 401` and hid it in a tooltip. The 2.5s poller GET then cleared that error. Status used `armed` only, so Eyes + not armed still read **Bot off**.
+- **Fix:** Vite `serve` maps `NOVA_API_KEY` -> `VITE_NOVA_API_KEY`. `messageFromBotApiBody` turns 401/403 into plain words. Mutation errors are sticky. Status is **Active** / **Not active**. Buttons are Activate or Deactivate. Strategy still arms first.
+- **Fix class:** ownership
+- **Keywords:** Bot Autonomy, bot-arm-level, Eyes, Bot off, X-Nova-Api-Key, VITE_NOVA_API_KEY, BOT_ARM_REQUIRED
+
 ## 2026-09-18 -- Sample trader title stayed on Scanner
 
 - **Symptom:** CI Frontend E2E failed `toHaveTitle(/SMPL.*Trader/)` on `/?view=sample&symbol=SMPL`. Title stayed `Nova <em dash> Stock Scanner · v477` (baseline.spec + global-bar-bot-row.spec).

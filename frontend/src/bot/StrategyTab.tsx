@@ -54,7 +54,7 @@ export function StrategyTab() {
       <section className="bot-strategy__card">
         <h3>Status (read-only)</h3>
         <p className="form-hint">
-          Level {session.level} · {session.armed ? 'Activate on' : 'stopped'} · pack {packLabel}
+          Level {session.level} · {session.armed ? 'Active' : 'Not active'} · pack {packLabel}
           {session.live_fire_ready ? ' · live-fire ready' : ''}
         </p>
         <p className="form-hint">

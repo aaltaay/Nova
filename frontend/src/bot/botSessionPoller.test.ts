@@ -5,6 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   _botSessionPollerDebugForTests,
   _resetBotSessionPollerForTests,
+  getBotSessionSnapshot,
+  pollBotSessionOnce,
+  setBotSessionError,
   subscribeBotSession,
   voteBotPollInterval,
 } from './botSessionPoller';
@@ -71,5 +74,15 @@ describe('botSessionPoller', () => {
     offA();
     offB();
     expect(_botSessionPollerDebugForTests().subscriberCount).toBe(0);
+  });
+
+  it('does not let a later GET wipe a sticky mutation error', async () => {
+    const off = subscribeBotSession(() => {});
+    await pollBotSessionOnce();
+    setBotSessionError('Need Nova API key -- Vite serve maps repo NOVA_API_KEY, or save it here');
+    await pollBotSessionOnce();
+    expect(getBotSessionSnapshot().error).toMatch(/Need Nova API key/);
+    expect(getBotSessionSnapshot().errorSticky).toBe(true);
+    off();
   });
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { postBotAllowlist, syncTraderLive } from './api';
+import { BOT_ERROR_NEED_API_KEY } from '../constantGroups/bot';
+import { patchBotSession, postBotAllowlist, syncTraderLive } from './api';
 
 describe('bot api', () => {
   it('posts allowlist add/remove', async () => {
@@ -25,6 +26,16 @@ describe('bot api', () => {
     expect(String(url)).toContain('/bot/focus/sync');
     expect((init as RequestInit).method).toBe('POST');
     expect(String((init as RequestInit).body)).toContain('AAPL');
+    vi.unstubAllGlobals();
+  });
+
+  it('raises a readable API-key error on 401 string details', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: false,
+      status: 401,
+      json: async () => ({ detail: 'Invalid or missing X-Nova-Api-Key' }),
+    })));
+    await expect(patchBotSession({ level: 1 })).rejects.toThrow(BOT_ERROR_NEED_API_KEY);
     vi.unstubAllGlobals();
   });
 });

@@ -24,6 +24,7 @@ export interface BotSessionPollSnap {
   proposals: BotProposal[];
   audit: BotAuditEntry[];
   error: string | null;
+  errorSticky: boolean;
 }
 
 const EMPTY: BotSessionPollSnap = {
@@ -31,6 +32,7 @@ const EMPTY: BotSessionPollSnap = {
   proposals: [],
   audit: [],
   error: null,
+  errorSticky: false,
 };
 
 type Listener = () => void;
@@ -41,7 +43,13 @@ let subscriberCount = 0;
 let intervalVoters = 0;
 let timer: ReturnType<typeof setInterval> | null = null;
 let inflight = false;
+let applyEpoch = 0;
 let shareUnsub: (() => void) | null = null;
+
+function bumpApplyEpoch(): number {
+  applyEpoch += 1;
+  return applyEpoch;
+}
 
 function emit(): void {
   listeners.forEach((fn) => fn());
@@ -72,17 +80,28 @@ export async function pollBotSessionOnce(): Promise<void> {
   }
   heartbeatDeskPollLeader(DESK_POLL_BOT_SHARE);
   inflight = true;
+  const epoch = applyEpoch;
   try {
     const [session, proposals, audit] = await Promise.all([
       fetchBotSession(),
       fetchBotProposals(),
       fetchBotAudit(),
     ]);
-    publishLocal({ session, proposals, audit, error: null });
+    if (epoch !== applyEpoch) return;
+    publishLocal({
+      session,
+      proposals,
+      audit,
+      error: snapshot.errorSticky ? snapshot.error : null,
+      errorSticky: snapshot.errorSticky,
+    });
   } catch (err) {
+    if (epoch !== applyEpoch) return;
     applySnap({
       ...snapshot,
-      error: err instanceof Error ? err.message : 'bot session failed',
+      error: snapshot.errorSticky
+        ? snapshot.error
+        : err instanceof Error ? err.message : 'bot session failed',
     });
   } finally {
     inflight = false;
@@ -141,11 +160,21 @@ export function getBotSessionSnapshot(): BotSessionPollSnap {
 }
 
 export function applyBotSessionLocal(session: BotSession): void {
-  publishLocal({ ...snapshot, session, error: null });
+  bumpApplyEpoch();
+  publishLocal({ ...snapshot, session, error: null, errorSticky: false });
 }
 
 export function setBotSessionError(message: string): void {
-  applySnap({ ...snapshot, error: message });
+  applySnap({ ...snapshot, error: message, errorSticky: true });
+}
+
+export async function runBotSessionWrite(
+  work: () => Promise<BotSession>,
+): Promise<BotSession> {
+  bumpApplyEpoch();
+  const next = await work();
+  applyBotSessionLocal(next);
+  return next;
 }
 
 export function refreshBotSessionNow(): void {
@@ -158,6 +187,7 @@ export function _resetBotSessionPollerForTests(): void {
   subscriberCount = 0;
   intervalVoters = 0;
   inflight = false;
+  applyEpoch = 0;
   shareUnsub?.();
   shareUnsub = null;
   snapshot = { ...EMPTY };

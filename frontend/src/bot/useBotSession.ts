@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import {
-  applyBotSessionLocal,
   getBotSessionSnapshot,
   refreshBotSessionNow,
+  runBotSessionWrite,
   setBotSessionError,
   subscribeBotSession,
   voteBotPollInterval,
@@ -19,6 +19,7 @@ const EMPTY = {
   proposals: [],
   audit: [],
   error: null,
+  errorSticky: false,
 };
 
 export function useBotSession(pollMs = 0) {
@@ -38,9 +39,7 @@ export function useBotSession(pollMs = 0) {
   const patch = useCallback(async (body: Record<string, unknown>) => {
     setBusy(true);
     try {
-      const next = await patchBotSession(body);
-      applyBotSessionLocal(next);
-      return next;
+      return await runBotSessionWrite(() => patchBotSession(body));
     } catch (err) {
       setBotSessionError(err instanceof Error ? err.message : 'bot patch failed');
       return null;
@@ -52,11 +51,9 @@ export function useBotSession(pollMs = 0) {
   const activate = useCallback(async () => {
     setBusy(true);
     try {
-      const next = await armBotSession({
+      return await runBotSessionWrite(() => armBotSession({
         reenable: Boolean(snap.session?.soft_breaker_fired),
-      });
-      applyBotSessionLocal(next);
-      return next;
+      }));
     } catch (err) {
       setBotSessionError(err instanceof Error ? err.message : 'bot activate failed');
       return null;
@@ -68,9 +65,7 @@ export function useBotSession(pollMs = 0) {
   const stop = useCallback(async () => {
     setBusy(true);
     try {
-      const next = await disarmBotSession();
-      applyBotSessionLocal(next);
-      return next;
+      return await runBotSessionWrite(() => disarmBotSession());
     } catch (err) {
       setBotSessionError(err instanceof Error ? err.message : 'bot stop failed');
       return null;
