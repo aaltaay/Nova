@@ -62,16 +62,22 @@ export type BotPackId = (typeof BOT_PACKS)[number];
 
 export const BOT_PACK_LABELS: Record<BotPackId, string> = {
   'halt-luld': 'Halt / LULD resume',
-  'quote-spike': 'Quote spike (stub)',
+  'quote-spike': 'Quote spike',
   volume: 'Volume boost (stub)',
   'llm-decide': 'LLM decide',
 };
+
+export const BOT_PACK_STUBS: readonly BotPackId[] = ['volume'];
+
+export const BOT_QUOTE_SPIKE_MIN_PCT = 3;
+export const BOT_QUOTE_SPIKE_WINDOW_SEC = 5;
+export const BOT_QUOTE_SPIKE_COOLDOWN_SEC = 30;
 
 export const BOT_PACK_DESCRIPTIONS: Record<BotPackId, string> = {
   'halt-luld':
     'When an allowlisted live-focus symbol resumes from halt or LULD, Eyes proposes and L2 plus Activate fires buy_market (or the configured kind) once, then waits the cooldown.',
   'quote-spike':
-    'Stub: quote-spike is not implemented yet -- the brain heartbeats only and fire returns 409 BOT_PACK_STUB.',
+    `When an allowlisted live-focus last (or bid/ask mid when both sides exist) rises ${BOT_QUOTE_SPIKE_MIN_PCT}% within ${BOT_QUOTE_SPIKE_WINDOW_SEC}s on the shared L1/quote stream, Eyes proposes and L2 plus Activate fires buy_market (or spike_kind) once, then waits the cooldown. No new reqMktData.`,
   volume:
     'Stub: Scanner tab Volume boost is the detection SSOT. This pack does not fire -- heartbeats only and fire returns 409 BOT_PACK_STUB.',
   'llm-decide':
@@ -80,6 +86,20 @@ export const BOT_PACK_DESCRIPTIONS: Record<BotPackId, string> = {
 
 export function packDescription(id: string): string {
   return BOT_PACK_DESCRIPTIONS[id as BotPackId] || '';
+}
+
+export function packStatus(id: string): 'live' | 'stub' {
+  return (BOT_PACK_STUBS as readonly string[]).includes(id) ? 'stub' : 'live';
+}
+
+export function quoteSpikeSettingsLine(
+  settings: Record<string, unknown> | undefined,
+): string {
+  const minPct = Number(settings?.min_pct ?? BOT_QUOTE_SPIKE_MIN_PCT);
+  const windowSec = Number(settings?.window_sec ?? BOT_QUOTE_SPIKE_WINDOW_SEC);
+  const kind = String(settings?.spike_kind || 'buy_market');
+  const cool = Number(settings?.cooldown_sec ?? BOT_QUOTE_SPIKE_COOLDOWN_SEC);
+  return `Signal: last or bid/ask mid up ${minPct}% in ${windowSec}s, fire ${kind} once, cooldown ${cool}s.`;
 }
 
 export const BOT_IN_CONTROL_LABEL = 'Bot is in control';

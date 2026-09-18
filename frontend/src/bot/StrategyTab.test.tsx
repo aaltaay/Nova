@@ -135,4 +135,43 @@ describe('StrategyTab', () => {
     expect(screen.getByTestId('bot-pack-desc').textContent).toMatch(/L2 \+ Activate/);
     expect(screen.getByTestId('bot-llm-fire-status').textContent).toMatch(/live-fire when Activate/);
   });
+
+  it('shows quote-spike signal settings', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const href = String(url);
+      if (href.includes('/bot/session')) {
+        return {
+          ok: true,
+          json: async () => session({
+            active_pack: 'quote-spike',
+            pack_settings: {
+              'quote-spike': {
+                spike_kind: 'buy_market',
+                min_pct: 3,
+                window_sec: 5,
+                cooldown_sec: 30,
+              },
+            },
+            packs: [{
+              id: 'quote-spike',
+              label: 'Quote spike',
+              status: 'live',
+              description: 'Last or mid rises 3% in 5s.',
+            }],
+          }),
+        };
+      }
+      return { ok: true, json: async () => (href.includes('proposals') ? { proposals: [] } : { entries: [] }) };
+    }));
+
+    await act(async () => {
+      render(<StrategyTab />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId('bot-pack-desc').textContent).toMatch(/3%/);
+    expect(screen.getByTestId('bot-quote-spike-settings').textContent).toMatch(/3%/);
+    expect(screen.getByTestId('bot-quote-spike-settings').textContent).not.toMatch(/stub/i);
+  });
 });

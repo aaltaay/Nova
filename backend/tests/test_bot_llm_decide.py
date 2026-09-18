@@ -25,7 +25,8 @@ def test_catalog_includes_llm_decide_description():
     assert "L2" in desc
     assert "Activate" in desc
     assert "LLM_LIVE_FIRE" not in desc
-    assert "stub" in rows["quote-spike"]["description"].lower()
+    assert "stub" not in rows["quote-spike"]["description"].lower()
+    assert rows["quote-spike"]["status"] == "live"
     assert normalize_pack(BOT_PACK_LLM_DECIDE) == BOT_PACK_LLM_DECIDE
 
 

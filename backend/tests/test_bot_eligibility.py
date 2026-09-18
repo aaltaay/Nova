@@ -56,7 +56,7 @@ def test_pack_catalog_marks_stubs():
     ids = {row["id"]: row["status"] for row in catalog()}
     assert ids["halt-luld"] == "live"
     assert ids["llm-decide"] == "live"
-    assert ids["quote-spike"] == "stub"
+    assert ids["quote-spike"] == "live"
     assert ids["volume"] == "stub"
     assert normalize_pack(None) == "halt-luld"
     with pytest.raises(BotError) as exc:

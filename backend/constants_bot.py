@@ -30,13 +30,16 @@ BOT_PACKS = (
     BOT_PACK_VOLUME,
     BOT_PACK_LLM_DECIDE,
 )
-BOT_PACK_STUBS = frozenset({BOT_PACK_QUOTE_SPIKE, BOT_PACK_VOLUME})
+BOT_PACK_STUBS = frozenset({BOT_PACK_VOLUME})
 BOT_PACK_LABELS = {
     BOT_PACK_HALT_LULD: "Halt / LULD resume",
-    BOT_PACK_QUOTE_SPIKE: "Quote spike (stub)",
+    BOT_PACK_QUOTE_SPIKE: "Quote spike",
     BOT_PACK_VOLUME: "Volume boost (stub)",
     BOT_PACK_LLM_DECIDE: "LLM decide",
 }
+BOT_QUOTE_SPIKE_MIN_PCT = 3.0
+BOT_QUOTE_SPIKE_WINDOW_SEC = 5.0
+BOT_QUOTE_SPIKE_COOLDOWN_SEC = 30
 BOT_PACK_DESCRIPTIONS = {
     BOT_PACK_HALT_LULD: (
         "When an allowlisted live-focus symbol resumes from halt or LULD, "
@@ -44,8 +47,11 @@ BOT_PACK_DESCRIPTIONS = {
         "kind) once, then waits the cooldown."
     ),
     BOT_PACK_QUOTE_SPIKE: (
-        "Stub: quote-spike is not implemented yet -- the brain heartbeats "
-        "only and fire returns 409 BOT_PACK_STUB."
+        f"When an allowlisted live-focus last (or bid/ask mid when both sides "
+        f"exist) rises {BOT_QUOTE_SPIKE_MIN_PCT:g}% within "
+        f"{BOT_QUOTE_SPIKE_WINDOW_SEC:g}s on the shared L1/quote stream, Eyes "
+        f"proposes and L2 plus Activate fires buy_market (or spike_kind) once, "
+        f"then waits the cooldown. No new reqMktData."
     ),
     BOT_PACK_VOLUME: (
         "Stub: Scanner tab Volume boost is the detection SSOT. This pack "

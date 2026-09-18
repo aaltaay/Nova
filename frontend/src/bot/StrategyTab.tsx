@@ -1,4 +1,4 @@
-import { BOT_ACTION_KINDS, BOT_PACK_LABELS, packDescription } from '../constantGroups/bot';
+import { BOT_ACTION_KINDS, BOT_PACK_LABELS, packDescription, quoteSpikeSettingsLine } from '../constantGroups/bot';
 import { useBotSession } from './useBotSession';
 
 export function StrategyTab() {
@@ -119,6 +119,11 @@ export function StrategyTab() {
         <p className="form-hint" data-testid="bot-pack-desc">
           {description}
         </p>
+        {pack === 'quote-spike' ? (
+          <p className="form-hint" data-testid="bot-quote-spike-settings">
+            {quoteSpikeSettingsLine(session.pack_settings?.['quote-spike'])}
+          </p>
+        ) : null}
       </section>
 
       <section className="bot-strategy__card">

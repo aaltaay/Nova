@@ -16,6 +16,7 @@ import {
   BOT_STATE_ACTIVE,
   BOT_STATE_NOT_ACTIVE,
   packDescription,
+  packStatus,
 } from '../constantGroups/bot';
 import { DESK_BOT_POLL_MS } from '../constants';
 import { useBotSession } from './useBotSession';
@@ -34,7 +35,7 @@ export function BotArmControls() {
     : BOT_PACKS.map(id => ({
         id,
         label: BOT_PACK_LABELS[id],
-        status: id === 'halt-luld' || id === 'llm-decide' ? 'live' : 'stub',
+        status: packStatus(id),
         description: packDescription(id),
       }));
   const selected = packs.find(row => row.id === pack);

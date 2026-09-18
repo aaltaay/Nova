@@ -30,7 +30,7 @@ function session(partial: Partial<BotSession> = {}): BotSession {
     active_pack: 'halt-luld',
     packs: [
       { id: 'halt-luld', label: 'Halt / LULD resume', status: 'live' },
-      { id: 'quote-spike', label: 'Quote spike (stub)', status: 'stub' },
+      { id: 'quote-spike', label: 'Quote spike', status: 'live' },
       { id: 'volume', label: 'Volume boost (stub)', status: 'stub' },
     ],
     symbol_allowlist: [],

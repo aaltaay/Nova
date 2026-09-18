@@ -1,4 +1,4 @@
-"""Halt/LULD snapshots for allowlist ∩ live focus (brain Eyes)."""
+"""Halt/LULD + shared-quote snapshots for allowlist ∩ live focus (brain Eyes)."""
 from __future__ import annotations
 
 from typing import Any
@@ -16,14 +16,23 @@ def halt_watch(row: dict[str, Any]) -> dict[str, Any]:
     for symbol in symbols:
         snap = halt_status.snapshot(symbol)
         last = None
+        bid = None
+        ask = None
+        last_update_ts = None
         position_qty = 0.0
         try:
-            from bot.quotes import last_quote
+            from bot.quotes import eyes_row
 
-            quote = last_quote(symbol) or {}
-            last = quote.get("price")
+            quote = eyes_row(symbol)
+            last = quote.get("last")
+            bid = quote.get("bid")
+            ask = quote.get("ask")
+            last_update_ts = quote.get("last_update_ts")
         except Exception:
             last = None
+            bid = None
+            ask = None
+            last_update_ts = None
         try:
             from ibkr import account as _account
 
@@ -36,6 +45,9 @@ def halt_watch(row: dict[str, Any]) -> dict[str, Any]:
                 "halted": bool(snap and snap.get("halted")),
                 "halt": snap,
                 "last": last,
+                "bid": bid,
+                "ask": ask,
+                "last_update_ts": last_update_ts,
                 "position_qty": position_qty,
             }
         )

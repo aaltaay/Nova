@@ -13,7 +13,7 @@ from bot.arming import (
 from bot.errors import BotError
 from bot.persist import load_session, save_session
 from bot.eligibility import normalize_symbols
-from bot.packs import default_pack_settings, normalize_pack
+from bot.packs import merge_pack_settings, normalize_pack
 from bot.session import clamp_caps
 from constants_bot import (
     BOT_LEVEL_EYES,
@@ -77,15 +77,14 @@ def apply_patch(
     if "symbol_allowlist" in body:
         row["symbol_allowlist"] = normalize_symbols(body.get("symbol_allowlist"))
     if "pack_settings" in body and isinstance(body["pack_settings"], dict):
-        settings = default_pack_settings()
-        settings.update(dict(row.get("pack_settings") or {}))
+        current = merge_pack_settings(row.get("pack_settings"))
         incoming = body["pack_settings"]
         for key, value in incoming.items():
             if isinstance(value, dict):
-                merged = dict(settings.get(key) or {})
+                merged = dict(current.get(key) or {})
                 merged.update(value)
-                settings[key] = merged
-        row["pack_settings"] = settings
+                current[key] = merged
+        row["pack_settings"] = merge_pack_settings(current)
     if "strategy" in body and int(row.get("level") or 0) >= BOT_LEVEL_STRATEGY:
         name = str(body.get("strategy") or "").strip()
         if name and name not in BOT_STRATEGIES:

@@ -55,9 +55,10 @@ free-form qty, REST quote polls, a second broker path) was rejected.
     on both `/api/bot/*` and `/bot/*`. GET session/watch/proposals stay open.
 
 11. **One active pack.** Day-one live pack is halt/LULD resume. Quote-spike
-    and volume are selectable stubs (`BOT_PACK_STUB` if they fire). Small-cap
-    remains the risk sleeve. Propose/fire require symbol allowlist AND live
-    Trader focus.
+    is live: shared L1 last or bid/ask mid up `min_pct` in `window_sec`,
+    Eyes proposes, L2 + Activate fires once. Volume stays a selectable
+    stub (`BOT_PACK_STUB` if it fires). Small-cap remains the risk sleeve.
+    Propose/fire require symbol allowlist AND live Trader focus.
 
 12. **Adapters are clients.** `backend/bot/sdk.py` + `docs/bot-adapters.md`
     point at OpenAPI. No MCP server in core. No model-vendor marriage.
@@ -96,6 +97,15 @@ free-form qty, REST quote polls, a second broker path) was rejected.
     `novaDesktop.apiKey`, and `novaFetch` sends `X-Nova-Api-Key`. Do not
     generate a second key when that file already has one. Do not bake the
     key into the renderer bundle.
+
+## Amendment 2026-09-18 -- Quote-spike live pack
+
+17. **Quote-spike is a live pack.** Detection reads `ticks.last_quotes`
+    last and the shared depth book mid (`bot.quotes`). No new
+    `reqMktData`. Settings: `spike_kind`, `min_pct` (3), `window_sec`
+    (5), `cooldown_sec` (30). Rising-edge only. Down moves do not fire.
+    Volume pack stays stub; Scanner tab Volume boost is that signal's
+    SSOT.
 
 ## Consequences
 
