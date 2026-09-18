@@ -103,3 +103,14 @@ export interface DrawdownResponse {
   max_drawdown_pct: number | null;
   curve: DrawdownCurvePoint[];
 }
+
+/** POST /api/journal/import */
+export interface JournalImportResult {
+  ok: boolean;
+  source?: string | null;
+  imported: number;
+  duplicates?: number;
+  skipped?: number;
+  errors?: string[];
+  error?: string | null;
+}

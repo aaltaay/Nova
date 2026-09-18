@@ -13,7 +13,11 @@ export interface UseReportsV2Return {
   error: string | null;
 }
 
-export function useReportsV2(enabled: boolean, includeMock: boolean): UseReportsV2Return {
+export function useReportsV2(
+  enabled: boolean,
+  includeMock: boolean,
+  refreshToken = 0,
+): UseReportsV2Return {
   const [tags, setTags] = useState<TagsResponse | null>(null);
   const [rMultiples, setRMultiples] = useState<RMultiplesResponse | null>(null);
   const [drawdown, setDrawdown] = useState<DrawdownResponse | null>(null);
@@ -66,7 +70,7 @@ export function useReportsV2(enabled: boolean, includeMock: boolean): UseReports
       cancelled = true;
       clearInterval(interval);
     };
-  }, [enabled, includeMock]);
+  }, [enabled, includeMock, refreshToken]);
 
   return { tags, rMultiples, drawdown, loading, error };
 }

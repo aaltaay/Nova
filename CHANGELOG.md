@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Reports import UI for CSV/JSON (D-046 slice 3)
+
+- **What:** Account > Reports can import closed trades from a CSV or JSON file. Rows land in `journal.db` and show on the calendar, Journal table, and Reports v2 panels. No live IBKR. No invented P/L or commissions.
+- **Why:** D-046 / #92 third slice. Slice 1/2 journal flatten and CommissionReport net P/L. Reports still had no file UI; TraderVue parity v1 skipped broker import; IB Flex is not wired.
+- **Files touched:** `backend/journal/import_parse.py`, `backend/journal/import_apply.py`, `backend/routes/journal.py`, `backend/tests/test_journal_import.py`, `frontend/src/reports/ReportsImport.tsx`, `importJournal.ts`, Reports tab + calendar refresh.
+- **How it works now:** Operator picks a `.csv` or `.json` file (or downloads the sample). `POST /api/journal/import` takes `{filename, content}`. Required facts: symbol, side (`long`/`short`), qty, entry_price, exit_price, pnl, closed_at/closed_ts. Optional commission is stored only when present and is never subtracted from the supplied pnl. Missing-fact rows are skipped. Re-import of the same facts is idempotent (`close_key`). `/import/ibkr` is unchanged.
+- **Verified by:** pytest `test_journal_import.py` plus calendar/journal neighbors; Vitest ReportsImport + importJournal; Playwright `e2e/reports-import.spec.ts`.
+- **Follow-ups:** #92 remains open: Activity/trail page (slice 4). GitHub closed #92 on the #261 merge; this PR does not close it.
+- **Related:** Refs #92 (D-046). PROBLEM_LOG 2026-09-18 -- Reports had no honest file import.
+
 ## 2026-09-18 -- CommissionReport into journal net P/L (D-046 slice 2)
 
 - **What:** Closed-trade `pnl` (Journal table, metrics, Reports calendar) subtracts stored IBKR `CommissionReport` dollars when present. Missing report stays price-only gross. No invented fee from avg_cost - fill. Flatten `source` tags unchanged.

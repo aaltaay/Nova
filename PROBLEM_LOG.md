@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Reports had no honest file import
+
+- **Symptom:** Reports calendar stayed empty without live flatten/IBKR. There was no Reports file control. `POST /api/journal/import/ibkr` accepted JSON but defaulted missing `closed_ts` to now and allowed missing `pnl` (calendar then skipped the row).
+- **Cause:** TraderVue parity v1 listed broker import as a non-goal. D-046 named a Reports import UI and never shipped it. IB Flex Query is not wired. Computing P/L from entry/exit would invent numbers.
+- **Fix:** New `POST /api/journal/import` plus Reports file picker. Parser requires symbol, side, qty, entry, exit, pnl, closed time. Skip rows that lack those facts. Do not compute pnl. Do not treat missing commission as $0. Leave `/import/ibkr` alone.
+- **Fix class:** admission
+- **Keywords:** Reports import, journal import, D-046, #92, CSV, JSON, pnl, Flex
+
 ## 2026-09-18 -- Journal net P/L ignored CommissionReport
 
 - **Symptom:** Journal / Reports showed price-only P/L as if it were net. A closed trade with a real IBKR `CommissionReport` on the ledger still stored gross. A report that arrived after the journal write never patched the row.

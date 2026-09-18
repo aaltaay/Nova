@@ -1,0 +1,15 @@
+{
+  "trades": [
+    {
+      "symbol": "IMP",
+      "side": "long",
+      "qty": 100,
+      "entry_price": 10.0,
+      "exit_price": 10.5,
+      "pnl": 48.0,
+      "closed_at": "2026-03-15",
+      "commission": 2.0,
+      "tags": ["import", "sample"]
+    }
+  ]
+}

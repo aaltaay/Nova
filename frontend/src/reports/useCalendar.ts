@@ -17,6 +17,7 @@ export function useCalendar(
   year: number,
   month: number | null,
   includeMock: boolean,
+  refreshToken = 0,
 ): UseCalendarReturn {
   const [yearData, setYearData] = useState<YearCalendarResponse | null>(null);
   const [monthData, setMonthData] = useState<MonthCalendarResponse | null>(null);
@@ -68,7 +69,7 @@ export function useCalendar(
       cancelled = true;
       clearInterval(interval);
     };
-  }, [enabled, year, month, includeMock]);
+  }, [enabled, year, month, includeMock, refreshToken]);
 
   return { yearData, monthData, loading, error };
 }
