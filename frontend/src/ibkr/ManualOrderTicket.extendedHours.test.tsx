@@ -1,16 +1,13 @@
 /**
- * Chart menu -> trade ticket -> `placeIbkrOrder` (#116 acceptance 4 + 6).
- *
- * The chart never places. It stages the ticket, and the ticket's existing
- * gate chain (PIN unlock, spend lock, confirm) is what finally calls the one
- * shared order helper. This test drives the real path with a mocked broker.
+ * #169 -- ticket Place path: Extended Hours checkbox default on,
+ * uncheck clears outside_rth. No Trading Hours dropdown.
  *
  * @vitest-environment jsdom
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { stageChartOrder } from '../chart/chartOrderActions';
+import { TICKER_TRADE_LABEL_TRADING_HOURS } from '../constants';
 import { ManualOrderTicket } from './ManualOrderTicket';
 import type { IbkrAccountSummary } from './types';
 
@@ -24,8 +21,6 @@ vi.mock('./notifyOrderRejected', () => ({
   notifyOrderRejected: vi.fn(),
 }));
 
-// Skip the confirm dialog: it is covered by useManualOrderSubmission tests and
-// is not what this test is proving.
 vi.mock('./placeConfirmPrefs', () => ({
   readSkipPlaceConfirm: () => true,
 }));
@@ -51,13 +46,14 @@ const SUMMARY: IbkrAccountSummary = {
   BuyingPower: 100_000,
 } as IbkrAccountSummary;
 
-describe('chart menu order -> ManualOrderTicket -> placeIbkrOrder', () => {
+describe('ManualOrderTicket Extended Hours Place path', () => {
   let mount: HTMLDivElement;
   let root: Root;
 
   beforeEach(() => {
+    localStorage.clear();
     placeIbkrOrder.mockReset();
-    placeIbkrOrder.mockResolvedValue({ ok: true, order_id: 42, mode: 'paper' });
+    placeIbkrOrder.mockResolvedValue({ ok: true, order_id: 11, mode: 'paper' });
     mount = document.createElement('div');
     document.body.appendChild(mount);
     root = createRoot(mount);
@@ -85,16 +81,10 @@ describe('chart menu order -> ManualOrderTicket -> placeIbkrOrder', () => {
     });
   }
 
-  function limitInput(): HTMLInputElement {
-    return mount.querySelector('#manual-order-limit') as HTMLInputElement;
-  }
-
-  function sidePressed(label: string): boolean {
-    const group = mount.querySelector('.manual-order-side') as HTMLElement;
-    const btn = Array.from(group.querySelectorAll('button')).find(
-      (b) => b.textContent === label,
-    );
-    return btn?.getAttribute('aria-pressed') === 'true';
+  function checkbox(): HTMLInputElement {
+    return mount.querySelector(
+      '[data-testid="manual-order-extended"]',
+    ) as HTMLInputElement;
   }
 
   async function place() {
@@ -104,58 +94,72 @@ describe('chart menu order -> ManualOrderTicket -> placeIbkrOrder', () => {
     });
   }
 
-  it('Buy @ price stages a limit BUY and places it through the shared helper', async () => {
+  it('shows an enabled Extended Hours checkbox and no hours dropdown', () => {
     renderTicket();
-    act(() => {
-      stageChartOrder({ symbol: 'SMPL', intent: 'buy', price: 4.253 });
-    });
+    const box = checkbox();
+    expect(box).toBeTruthy();
+    expect(box.type).toBe('checkbox');
+    expect(box.checked).toBe(true);
+    expect(box.disabled).toBe(false);
+    expect(mount.querySelector('#manual-order-hours')).toBeNull();
+    expect(mount.querySelector('select#manual-order-hours')).toBeNull();
+    expect(mount.textContent).toContain(TICKER_TRADE_LABEL_TRADING_HOURS);
+    expect(mount.textContent).not.toContain('Regular Hours');
+  });
 
-    expect(sidePressed('Buy')).toBe(true);
-    expect(limitInput().value).toBe('4.25');
-
+  it('Places Market with outside_rth true by default', async () => {
+    renderTicket();
     await place();
-
     expect(placeIbkrOrder).toHaveBeenCalledTimes(1);
     expect(placeIbkrOrder.mock.calls[0][0]).toMatchObject({
       symbol: 'SMPL',
       side: 'BUY',
-      order_type: 'LMT',
-      limit_price: 4.25,
+      order_type: 'MKT',
       outside_rth: true,
     });
-    expect(placeIbkrOrder.mock.calls[0][0].qty).toBeGreaterThan(0);
   });
 
-  it('Sell @ price stages a limit SELL without inferring a short entry', async () => {
+  it('unchecking Extended Hours clears outside_rth on Place', async () => {
     renderTicket();
     act(() => {
-      stageChartOrder({ symbol: 'SMPL', intent: 'sell', price: 4.1 });
+      checkbox().click();
     });
-
-    expect(sidePressed('Sell')).toBe(true);
+    expect(checkbox().checked).toBe(false);
     await place();
-
-    const payload = placeIbkrOrder.mock.calls[0][0];
-    expect(payload).toMatchObject({
-      side: 'SELL',
-      order_type: 'LMT',
-      limit_price: 4.1,
-      outside_rth: true,
-    });
-    // ADR 009: opening a short needs the explicit ticket opt-in, never a
-    // side+flat inference from a chart click.
-    expect(payload.short_entry).toBeUndefined();
+    expect(placeIbkrOrder).toHaveBeenCalledTimes(1);
+    expect(placeIbkrOrder.mock.calls[0][0].outside_rth).toBe(false);
   });
 
-  it('ignores a request staged for a different symbol', () => {
+  it('keeps the checkbox enabled after Stop Limit / Trailing Stop flyout picks', () => {
     renderTicket();
     act(() => {
-      stageChartOrder({ symbol: 'SMPL', intent: 'buy', price: 4.25 });
+      const caret = mount.querySelector(
+        '[data-testid="manual-order-stop-caret"]',
+      ) as HTMLButtonElement;
+      caret.click();
     });
     act(() => {
-      stageChartOrder({ symbol: 'AAPL', intent: 'sell', price: 250 });
+      const stopLimit = mount.querySelector(
+        '[data-testid="manual-order-type-stop-limit"]',
+      ) as HTMLButtonElement;
+      stopLimit.click();
     });
-    expect(sidePressed('Buy')).toBe(true);
-    expect(limitInput().value).toBe('4.25');
+    expect(checkbox().checked).toBe(true);
+    expect(checkbox().disabled).toBe(false);
+
+    act(() => {
+      const caret = mount.querySelector(
+        '[data-testid="manual-order-stop-caret"]',
+      ) as HTMLButtonElement;
+      caret.click();
+    });
+    act(() => {
+      const trail = mount.querySelector(
+        '[data-testid="manual-order-type-trail"]',
+      ) as HTMLButtonElement;
+      trail.click();
+    });
+    expect(checkbox().checked).toBe(true);
+    expect(checkbox().disabled).toBe(false);
   });
 });

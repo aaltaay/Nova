@@ -69,11 +69,13 @@ describe('ManualOrderFields Extended Hours checkbox', () => {
     expect(container.textContent).toContain(TICKER_TRADE_LABEL_TRADING_HOURS);
   });
 
-  it('does not disable the checkbox for Stop', () => {
-    render('STP', true);
-    const box = checkbox();
-    expect(box.disabled).toBe(false);
-    expect(box.checked).toBe(true);
+  it('does not disable the checkbox for Stop, Stop Limit, or Trailing Stop', () => {
+    for (const orderType of ['STP', 'STP LMT', 'TRAIL'] as const) {
+      render(orderType, true);
+      const box = checkbox();
+      expect(box.disabled).toBe(false);
+      expect(box.checked).toBe(true);
+    }
   });
 
   it('toggles Extended Hours for Market', () => {

@@ -25,6 +25,11 @@ test.describe('sample shortability (Phase K)', () => {
     const ticket = page.locator('form.manual-order-ticket').first();
     await ticket.scrollIntoViewIfNeeded();
     await expect(page.getByTestId('manual-order-submit')).toHaveText('Buy SMPL');
+    const eh = page.getByTestId('manual-order-extended');
+    await expect(eh).toBeVisible();
+    await expect(eh).toBeChecked();
+    await expect(eh).toBeEnabled();
+    await expect(page.locator('#manual-order-hours')).toHaveCount(0);
     await ticket.screenshot({ path: `${ARTIFACTS}/ticket-side-margin-buy.png` });
 
     await shortBtn.scrollIntoViewIfNeeded();
