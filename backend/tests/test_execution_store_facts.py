@@ -148,3 +148,146 @@ def test_note_filled_writes_perm_id_and_qty():
     assert row["perm_id"] == 777002
     assert row["filled_qty"] == 1.0
     assert row["avg_fill_price"] == 3.5
+
+
+_NOVA_PLACED = "2026-09-16T18:04:12.123456Z"
+
+
+def _acked_presubmitted_place(*, order_id: int = 116071, perm_id: int = 888777) -> str:
+    from execution.nova_placed import persist_nova_placed_at
+
+    execution_id, is_new = store.reserve(
+        idempotency_key=f"place-{order_id}",
+        operation="place",
+        source="manual",
+        symbol="ZTG",
+        received_ns=1,
+        payload={
+            "qty": 1,
+            "sent_qty": 1.0,
+            "side": "BUY",
+            "order_type": "LMT",
+            "requested_price": 1.76,
+        },
+    )
+    assert is_new is True
+    store.update_stages(
+        execution_id,
+        order_id=order_id,
+        status="acked",
+        broker_status="PreSubmitted",
+        broker_ack_ns=11,
+    )
+    persist_nova_placed_at(execution_id, _NOVA_PLACED)
+    facts.record_broker_facts(execution_id, perm_id=perm_id)
+    return execution_id
+
+
+def test_mark_place_cancelled_closes_presubmitted_place_not_cancel_row():
+    place_id = _acked_presubmitted_place()
+    cancel_id, _ = store.reserve(
+        idempotency_key="cancel-116071",
+        operation="cancel",
+        source="manual",
+        symbol="ZTG",
+        received_ns=2,
+        payload={},
+    )
+    store.update_stages(
+        cancel_id,
+        order_id=116071,
+        status="acked",
+        broker_status="Cancelled",
+        broker_ack_ns=22,
+    )
+    assert facts.list_session_placed(since_ts=0, limit=50) == []
+
+    marked = facts.mark_place_cancelled(order_id=116071, perm_id=888777)
+    assert marked == place_id
+    place = store.get_by_id(place_id)
+    cancel = store.get_by_id(cancel_id)
+    assert place["broker_status"] == "Cancelled"
+    assert place["status"] == "acked"
+    assert place["payload"]["nova_placed_at"] == _NOVA_PLACED
+    assert cancel["operation"] == "cancel"
+    assert cancel["broker_status"] == "Cancelled"
+    rows = facts.list_session_placed(since_ts=0, limit=50)
+    assert [r["id"] for r in rows] == [place_id]
+
+
+def test_mark_place_cancelled_does_not_overwrite_fill():
+    execution_id, _ = store.reserve(
+        idempotency_key="filled-keep",
+        operation="place",
+        source="manual",
+        symbol="SPCX",
+        received_ns=1,
+        payload={"qty": 1, "sent_qty": 1.0, "side": "BUY"},
+    )
+    store.update_stages(
+        execution_id,
+        order_id=115728,
+        status="filled",
+        broker_status="Filled",
+    )
+    facts.record_broker_facts(execution_id, perm_id=777001, filled_qty=1.0)
+    assert facts.mark_place_cancelled(order_id=115728, perm_id=777001) is None
+    row = store.get_by_id(execution_id)
+    assert row["broker_status"] == "Filled"
+    assert row["status"] == "filled"
+
+
+def test_live_presubmitted_place_plus_ib_cancel_overlay_uses_nova_placed():
+    """Windows paper: place stays PreSubmitted; IB cancel is order_id=0 + perm_id."""
+    from execution.closed_blotter import overlay_closed_orders
+
+    place_id = _acked_presubmitted_place()
+    store.reserve(
+        idempotency_key="cancel-live-116071",
+        operation="cancel",
+        source="manual",
+        symbol="ZTG",
+        received_ns=2,
+        payload={},
+    )
+    ib = {
+        "order_id": 0,
+        "symbol": "ZTG",
+        "side": "BUY",
+        "qty": 1,
+        "filled_qty": 0.0,
+        "remaining_qty": 1.0,
+        "order_type": "LMT",
+        "limit_price": 1.76,
+        "stop_price": None,
+        "avg_fill_price": None,
+        "outside_rth": False,
+        "status": "Cancelled",
+        "submitted_at": None,
+        "updated_at": None,
+        "filled_at": None,
+        "held_until": None,
+        "perm_id": 888777,
+    }
+    before = overlay_closed_orders(
+        [ib],
+        ledger_rows=facts.list_session_placed(since_ts=0, limit=50),
+        limit=50,
+    )
+    assert before[0]["source"] == "ib_recovered"
+    assert before[0]["submitted_at"] is None
+
+    assert facts.mark_place_cancelled(order_id=116071, perm_id=888777) == place_id
+    out = overlay_closed_orders(
+        [ib],
+        ledger_rows=facts.list_session_placed(since_ts=0, limit=50),
+        limit=50,
+    )
+    assert len(out) == 1
+    assert out[0]["source"] == "nova"
+    assert out[0]["execution_id"] == place_id
+    assert out[0]["submitted_at"] == _NOVA_PLACED
+    assert out[0]["filled_at"] is None
+    assert out[0]["status"] == "Cancelled"
+    assert out[0]["order_id"] == 116071
+    assert store.get_by_id(place_id)["payload"]["nova_placed_at"] == _NOVA_PLACED

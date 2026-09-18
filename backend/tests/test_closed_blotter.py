@@ -339,3 +339,22 @@ def test_leftover_ledger_prefers_nova_placed_at_over_created_ts():
     )
     assert out[0]["submitted_at"] == _NOVA_PLACED
     assert out[0]["filled_at"] is None
+
+
+def test_presubmitted_place_is_not_overlay_usable_until_cancelled():
+    """Live cancel leaves place PreSubmitted+acked -- Closed cannot join yet."""
+    place = _ztg_cancel_ledger(
+        status="acked",
+        broker_status="PreSubmitted",
+        perm_id=888777,
+    )
+    ib = _ztg_cancel_ib(
+        order_id=0,
+        perm_id=888777,
+        submitted_at=None,
+    )
+    out = overlay_closed_orders([ib], ledger_rows=[place], limit=50)
+    assert len(out) == 1
+    assert out[0]["source"] == "ib_recovered"
+    assert out[0]["submitted_at"] is None
+    assert out[0].get("execution_id") is None

@@ -96,3 +96,70 @@ def test_finish_place_persists_nova_placed_at(monkeypatch):
     clear_nova_placed_for_tests()
     assert resolve_submitted_at(None, 116071) is None
     assert ledger_placed_iso(row) == STAMP
+
+
+def test_send_broker_cancel_marks_presubmitted_place(monkeypatch):
+    """Cancel watch is fresh=True -- place row must still become Cancelled."""
+    import execution.broker_send as broker_send
+    from execution.store_facts import record_broker_facts
+
+    place_id, _ = store.reserve(
+        idempotency_key="nova-placed-place",
+        operation="place",
+        source="manual",
+        symbol="ZTG",
+        received_ns=1,
+        payload={"qty": 1, "sent_qty": 1.0, "side": "BUY", "order_type": "LMT"},
+    )
+    store.update_stages(
+        place_id,
+        order_id=116071,
+        status="acked",
+        broker_status="PreSubmitted",
+        broker_ack_ns=11,
+    )
+    persist_nova_placed_at(place_id, STAMP)
+    record_broker_facts(place_id, perm_id=888777)
+    cancel_id, _ = store.reserve(
+        idempotency_key="nova-placed-cancel",
+        operation="cancel",
+        source="manual",
+        symbol="ZTG",
+        received_ns=2,
+        payload={},
+    )
+
+    async def _fake_cancel(order_id, *, watch=None):
+        if watch is not None:
+            watch.perm_id = 888777
+            watch.ack_status = "Cancelled"
+            watch.ack_ns = 99
+        return {"ok": True, "verified_gone": True, "order_id": order_id}
+
+    monkeypatch.setattr(broker_send, "cancel_order_verified_on_ib", _fake_cancel)
+    monkeypatch.setattr(broker_send._client, "account_mode", lambda: "paper")
+    monkeypatch.setattr(broker_send.inflight, "release_order", lambda *_a, **_k: None)
+
+    receipt = asyncio.run(
+        broker_send.send_broker(
+            ExecutionCommand(
+                operation="cancel",
+                idempotency_key="nova-placed-cancel",
+                source="manual",
+                symbol="ZTG",
+                order_id=116071,
+            ),
+            cancel_id,
+            StageTimings(received_ns=2),
+            wait_ack=False,
+            reject=lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("reject")),
+        )
+    )
+    assert receipt.ok is True
+    place = store.get_by_id(place_id)
+    cancel = store.get_by_id(cancel_id)
+    assert place["broker_status"] == "Cancelled"
+    assert place["status"] == "acked"
+    assert place["payload"]["nova_placed_at"] == STAMP
+    assert cancel["operation"] == "cancel"
+    assert cancel["broker_status"] == "Cancelled"

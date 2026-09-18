@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Cancel left place PreSubmitted so Time Placed blanked
+
+- **Symptom:** After paper Place + cancel + API restart, `payload.nova_placed_at` was on the place execution, but Closed / Orders Today still blanked Time Placed. Live closed API returned IB-recovered cancel (`order_id=0`, null `submitted_at`) despite a matching `perm_id`.
+- **Cause:** Cancel `watch_order(..., fresh=True, leg_role="cancel")` writes `Cancelled` onto the cancel execution. `mark_ack_by_order_id` only updates when `broker_ack_ns IS NULL`, so the already-acked place row stays `PreSubmitted`. `list_session_placed` / `_usable_ledger` require place/bracket + closed `broker_status`, so they ignore both the stuck place row and the cancel row.
+- **Fix:** `mark_place_cancelled` / `persist_successful_cancel` set the matching place/bracket `broker_status=Cancelled` after verified gone / Cancelled ack. No new clocks. Filled rows are left alone.
+- **Fix class:** ownership
+- **Keywords:** nova_placed_at, Time Placed, PreSubmitted, Cancelled, list_session_placed, watch_order fresh, #202, #204
+
 ## 2026-09-18 -- Bot Autonomy Eyes snap-back
 
 - **Symptom:** On live Vite (`http://127.0.0.1:5173/`), `bot-arm-level` stayed `0` after `selectOption('1')` / `'2'`. Activate stayed **Bot off**. curl PATCH L0/L1 with `X-Nova-Api-Key` worked; L2 without the desk arm token returned 403 `BOT_ARM_REQUIRED`.
