@@ -71,7 +71,7 @@ describe('AppErrorBoundary', () => {
     expect(reload).not.toHaveBeenCalled();
   });
 
-  it('auto-reloads once on missing WorkspaceProvider', async () => {
+  it('auto-reloads once on missing WorkspaceProvider at the app shell', async () => {
     vi.useFakeTimers();
     const reload = vi.fn();
     Object.defineProperty(window, 'location', {
@@ -81,7 +81,7 @@ describe('AppErrorBoundary', () => {
 
     await act(async () => {
       root.render(
-        <AppErrorBoundary source="dashboard">
+        <AppErrorBoundary source="app-shell">
           <Boom message="useWorkspace must be used within WorkspaceProvider" />
         </AppErrorBoundary>,
       );
@@ -94,5 +94,26 @@ describe('AppErrorBoundary', () => {
     });
     expect(reload).toHaveBeenCalledTimes(1);
     vi.useRealTimers();
+  });
+
+  it('keeps Trader chrome on a fatal pane error instead of reloading', async () => {
+    const reload = vi.fn();
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...window.location, reload },
+    });
+
+    await act(async () => {
+      root.render(
+        <AppErrorBoundary source="stock-view">
+          <Boom message="useWorkspace must be used within WorkspaceProvider" />
+        </AppErrorBoundary>,
+      );
+    });
+
+    expect(sessionStorage.getItem(APP_SHELL_RELOAD_SESSION_KEY)).toBeNull();
+    expect(container.textContent).toMatch(/Something went wrong/);
+    expect(container.querySelector('button')?.textContent).toMatch(/Retry/);
+    expect(reload).not.toHaveBeenCalled();
   });
 });

@@ -4,6 +4,7 @@ import {
   clearShellAutoReloadSlot,
   consumeShellAutoReloadSlot,
   isFatalShellError,
+  shouldAutoReloadShell,
 } from './appErrorRecovery';
 
 describe('appErrorRecovery', () => {
@@ -13,6 +14,14 @@ describe('appErrorRecovery', () => {
     ).toBe(true);
     expect(isFatalShellError(new Error('Invalid hook call'))).toBe(true);
     expect(isFatalShellError(new Error('chart boom'))).toBe(false);
+  });
+
+  it('auto-reloads only the outer app-shell boundary', () => {
+    const fatal = new Error('useWorkspace must be used within WorkspaceProvider');
+    expect(shouldAutoReloadShell('app-shell', fatal)).toBe(true);
+    expect(shouldAutoReloadShell('stock-view', fatal)).toBe(false);
+    expect(shouldAutoReloadShell('dashboard', fatal)).toBe(false);
+    expect(shouldAutoReloadShell('app-shell', new Error('chart boom'))).toBe(false);
   });
 
   it('allows one auto-reload slot per session storage', () => {

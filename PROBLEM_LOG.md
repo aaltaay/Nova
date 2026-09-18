@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Trader click blanked Electron
+
+- **Symptom:** Header Trader on Electron→Vite left File/Edit/View on a black client area. After #250 the OS title was `AEMD · Trader · Nova · v477` -- React and `document.title` ran. Browser Vite Trader still mounted (Net Liq, tabs). A leftover process pile had DevTools on `chrome-error://chromewebdata/`.
+- **Cause:** Electron-only paint failure, not a missing Trader route. (1) Windows GPU compositor can go black while JS keeps running (native title still updates). (2) Trader `.nova-shell--ticker-detail` sets `min-height: 0` and `body:has(...)` locks `height/max-height: 100dvh` + `overflow: hidden`. In Electron `dvh` can resolve to 0 / clip the flex chain, so the chrome disappears and `--bg-color: #000` shows. Scanner still had `.nova-shell { min-height: 100vh }` so it painted. (3) `Start-NovaDevDesktop.ps1` piled `electron .` with no single-instance lock.
+- **Fix:** Disable hardware acceleration on Windows by default (`NOVA_ELECTRON_GPU=1` to opt in). Size `html/body/#root` with `height: 100%` (webContents box) instead of `100dvh`. Keep Scanner mounted hidden. Child windows `show: false` until load. Single-instance recovers chrome-error windows.
+- **Fix class:** infra
+- **Keywords:** Trader, Electron, blank window, black content, document.title, v477, 100dvh, hardware acceleration, chrome-error, NOVA_VITE_URL, File/Edit/View
+
 ## 2026-09-18 -- Cancel left place PreSubmitted so Time Placed blanked
 
 - **Symptom:** After paper Place + cancel + API restart, `payload.nova_placed_at` was on the place execution, but Closed / Orders Today still blanked Time Placed. Live closed API returned IB-recovered cancel (`order_id=0`, null `submitted_at`) despite a matching `perm_id`.

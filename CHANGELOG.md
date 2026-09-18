@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Header Trader no longer blanks the Electron window
+
+- **What:** Clicking header Trader keeps the Nova chrome and opens the in-app desk. Electron no longer leaves a black File/Edit/View shell after `document.title` already says `SYMBOL · Trader · Nova · vNNN`.
+- **Why:** Live Electron→Vite desk: Scanner worked, header Trader painted black. Browser Vite Trader still worked. After #250 the OS title updated, so React ran -- this is an Electron paint/GPU/layout failure, not a missing route.
+- **Files touched:** `electron/main.mjs`, `electron/gpuPolicy.mjs`, `electron/rendererGuards.mjs`, `electron/singleInstance.mjs`, `electron/traderWindows.mjs`, `stock-view.css`, `hodMomoDock.css`, `AppErrorBoundary.tsx`, `App.tsx`.
+- **How it works now:** Windows Electron disables hardware acceleration by default (`NOVA_ELECTRON_GPU=1` opt-in). Viewport locks use `html/body/#root` `height: 100%` instead of `100dvh` so the Trader `min-height: 0` shell cannot collapse the chrome. Single-instance + chrome-error recover stay as guards.
+- **Verified by:** Vitest gpuPolicy / rendererGuards / AppErrorBoundary / workspaceWiring. Playwright header Trader (SPA neighbor).
+- **Follow-ups:** Confirm on Windows after kill-all + one `Start-NovaDevDesktop.ps1`. Not D-003.
+- **Related:** PROBLEM_LOG 2026-09-18 -- Trader click blanked Electron.
+
 ## 2026-09-18 -- Cancel marks place ledger Cancelled for Time Placed
 
 - **What:** A verified user cancel now sets the matching **place** (or bracket) execution `broker_status=Cancelled` across `boot_id`. Closed overlay can also join IB Cancelled/Filled to a still-`PreSubmitted` place row by `perm_id` or `order_id` and fill blank Time Placed from `nova_placed_at`. Cancel `operation` rows stay unused. Working PreSubmitted leftovers are not appended. IB-recovered with no ledger stays blank. **Time Filled** stays fill-only.

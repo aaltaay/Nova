@@ -3,6 +3,7 @@
  * Business logic lives in pages/hooks/components (frontend-modularity rule).
  *
  * HOD stream owner lives here so Trader does not tear down the WS.
+ * Scanner stays mounted (hidden) on Trader -- same view-switch as the desk.
  * Dock UI mounts in the Scanner middle column only -- not on Trader.
  */
 import { Suspense, useEffect, useState } from 'react';
@@ -103,11 +104,15 @@ function AppShell() {
                   </AppErrorBoundary>
                 </div>
               )}
-              {!showTrader && (
+              <div
+                className="nova-scanner-desk-slot"
+                hidden={showTrader}
+                aria-hidden={showTrader}
+              >
                 <AppErrorBoundary source="dashboard">
                   <DashboardPage />
                 </AppErrorBoundary>
-              )}
+              </div>
             </div>
             </div>
           </HodMomoProvider>

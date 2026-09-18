@@ -13,11 +13,15 @@ function emit(): void {
   listeners.forEach((l) => l());
 }
 
-/** GlobalAppBar callback ref -- null on unmount. */
+/** GlobalAppBar callback ref -- null on unmount.
+ * Emit after this commit so StockViewTabs is not updated while GlobalAppBar
+ * is still committing (React 19 + StrictMode). */
 export function setGlobalBarTraderSlot(el: HTMLElement | null): void {
   if (slot === el) return;
   slot = el;
-  emit();
+  queueMicrotask(() => {
+    if (slot === el) emit();
+  });
 }
 
 export function getGlobalBarTraderSlot(): HTMLElement | null {

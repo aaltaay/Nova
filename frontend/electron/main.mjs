@@ -16,6 +16,7 @@ import {
   waitForHealth,
 } from './sidecar.mjs';
 import { skipApiSidecar } from './sidecarSkip.mjs';
+import { isAllowedRendererUrl } from './traderWindowLoad.mjs';
 import { openOrFocusTraderWindow } from './traderWindows.mjs';
 import {
   WINDOW_ID_MAIN,
@@ -61,12 +62,29 @@ function windowOptions() {
 /** Stock View double-click opens ?view=stock&symbol=… in a real child window. */
 function attachStockViewWindowOpen(win) {
   win.webContents.setWindowOpenHandler(({ url }) => {
-    try {
-      openOrFocusTraderWindow(url, windowOptions(), attachStockViewWindowOpen);
-    } catch {
-      /* invalid or non-trader URL */
+    if (!isAllowedRendererUrl(url, { requireStockView: true })) {
+      return { action: 'deny' };
     }
+    void openOrFocusTraderWindow(url, windowOptions(), attachStockViewWindowOpen).catch(
+      (err) => {
+        console.error('[nova] open trader window failed', err);
+      },
+    );
     return { action: 'deny' };
+  });
+}
+
+function attachMainLoadRetry(win, reloadUrl, loadFilePath) {
+  let retried = false;
+  win.webContents.on('did-fail-load', (_event, code, desc, _url, isMainFrame) => {
+    if (!isMainFrame || retried || win.isDestroyed()) return;
+    retried = true;
+    console.error('[nova] main window failed to load', code, desc);
+    if (reloadUrl) {
+      void win.loadURL(reloadUrl);
+      return;
+    }
+    if (loadFilePath) void win.loadFile(loadFilePath);
   });
 }
 
@@ -78,12 +96,15 @@ function createWindow() {
 
   if (isDev) {
     const viteUrl = process.env.NOVA_VITE_URL || 'http://127.0.0.1:5173';
+    attachMainLoadRetry(mainWindow, viteUrl, null);
     void mainWindow.loadURL(viteUrl);
     if (shouldOpenDetachedDevTools(isDev)) {
       mainWindow.webContents.openDevTools({ mode: 'detach' });
     }
   } else {
-    void mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+    const indexHtml = path.join(__dirname, '..', 'dist', 'index.html');
+    attachMainLoadRetry(mainWindow, null, indexHtml);
+    void mainWindow.loadFile(indexHtml);
   }
 
   attachStockViewWindowOpen(mainWindow);
@@ -118,7 +139,7 @@ ipcMain.handle('nova:restartApi', async () => {
 });
 
 ipcMain.handle('nova:openStockView', (_event, url) => {
-  if (typeof url !== 'string' || !url.startsWith('http')) {
+  if (!isAllowedRendererUrl(url, { requireStockView: true })) {
     throw new Error('Invalid Trader URL');
   }
   return openOrFocusTraderWindow(url, windowOptions(), attachStockViewWindowOpen);
