@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- D-003 code-complete; live RTH verify still open
+
+- **Symptom:** Trader 10Sec / Full Day sat on "Loading IBKR historical..." for minutes on a cold ticker (MSS soak 2026-08-26). #43 stayed open after Phases 0-4 and the 2026-09-11 client first-print seed shipped.
+- **Cause:** The product code was already on `origin/master` (`historical_pacing`, Large Cap once-per-session daily fill, `chart_bars` `open_chart` vs `warm`, `ibkr/tape_10sec.py`, tape-subscribe warm fill, client `upsertTapePrint10SecBar` + self-scheduling empty+filling retry). What was missing was a single fixture that a cold 10Sec `/bars` cannot stay empty after a flushed tape bucket. This cloud VM has no IB Gateway and must not invent live `window_used` or paint-time numbers.
+- **Fix:** Added `test_cold_10sec_paints_tape_bars_and_keeps_open_chart_then_warm`: empty interactive 10Sec asks `open_chart`; one flushed tape candle makes `/bars` return that bar with `filling=true` and `warm`; `store_series_complete` stays false so hist still runs. No runtime scheduler change. #43 stays open for the one Nova Repo RTH smoke in Next.
+- **Fix class:** ownership
+- **Keywords:** D-003, #43, 10Sec, Loading IBKR historical, open_chart, warm, tape_10sec, bars_store, live RTH verify
+
 ## 2026-09-18 -- Volume pack was stub
 
 - **Symptom:** Selecting `volume` looked like a pack, but catalog status was stub, nova-brain heartbeat-only, and `POST /bot/action` returned `409 BOT_PACK_STUB`.
