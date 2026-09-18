@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Quote spike L2 bot pack is live
+
+- **What:** Pack `quote-spike` is live (not stub). Eyes proposes and L2 + Activate fires once when shared last (or bid/ask mid) rises 3% in 5s. Volume pack stays stub.
+- **Why:** Pack ladder after halt/LULD: quote spike next. Volume boost Scanner tab (#254) is the volume SSOT; this pack uses existing L1/quote fields only.
+- **Files touched:** `backend/nova_brain/quote_spike.py`, `backend/nova_brain/loop.py`, `backend/bot/packs.py`, `backend/bot/watch.py`, `backend/constants_bot.py`, `docs/bot-localhost-api.md`, ADR 016, frontend pack copy.
+- **How it works now:** `GET /bot/watch` already had last; it now also exposes bid/ask/`last_update_ts` from `bot.quotes` (shared `last_quotes` + depth book, no new `reqMktData`). Brain tick detects a rising-edge jump of `min_pct` inside `window_sec`, proposes at Eyes, fires `spike_kind` only when `live_fire_ready`. Cooldown default 30s. Small-cap sleeve / `BOT_NOT_ACTIVE` / allowlist ∩ live focus unchanged. Advise never places.
+- **Verified by:** Fixture pytest (`test_nova_brain_quote_spike`, bot actions/eligibility neighbors). Vitest pack copy + BotArmControls. No live IBKR.
+- **Follow-ups:** Nova Repo smokes then squash. Do not squash-merge this agent. Volume pack stays stub.
+- **Related:** Refs #205. PROBLEM_LOG 2026-09-18 -- Quote-spike pack was stub.
+
 ## 2026-09-18 -- Volume boost Scanner tab MVP
 
 - **What:** New Scanner tab **Volume boost** lists names with an exceptional last-60s volume-rate spike vs the prior 10 minutes. Ticker click opens Trader. Empty is honest when nothing spiked. Bot pack `volume` stays a stub.

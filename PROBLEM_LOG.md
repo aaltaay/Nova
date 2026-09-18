@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Quote-spike pack was stub
+
+- **Symptom:** Selecting `quote-spike` looked like a real pack, but catalog status was stub, nova-brain heartbeat-only, and `POST /bot/action` returned `409 BOT_PACK_STUB`.
+- **Cause:** ADR 016 day-one left quote-spike as a selectable stub. Watch already had shared L1 `last`; bid/ask lived on `bot.quotes.eyes_row` and were not on `/bot/watch`. No rising-edge detector existed.
+- **Fix:** Live pack with `min_pct` / `window_sec` / `spike_kind` / `cooldown_sec`. Watch exposes last + bid + ask + `last_update_ts` from the shared feed. Eyes proposes; L2 + Activate fires once. Volume stays stub.
+- **Fix class:** admission
+- **Keywords:** quote-spike, BOT_PACK_STUB, last_quotes, bid, ask, live_fire_ready, nova-brain, #205
+
 ## 2026-09-18 -- L2 fire while Not active used Eyes refusal
 
 - **Symptom:** Strategy + pack + allowlist with the desk Not active still hit `assert_can_fire`, but the reason was `BOT_L1_NO_FIRE` ("Level 1 Eyes cannot place"). UI Activate/Not active (#252) did not exist on the fire path. L2 → Eyes kept `armed` / `has_desk_arm`, so a leftover desk token could look Active for live fire.

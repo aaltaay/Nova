@@ -10,7 +10,7 @@ from bot.eligibility import normalize_symbols
 from bot.errors import BotError
 from bot.kinds import default_allowlist
 from bot.llm_guard import public_llm
-from bot.packs import catalog, default_pack_settings, normalize_pack
+from bot.packs import catalog, merge_pack_settings, normalize_pack
 from constants_bot import (
     BOT_ADVISE_DEFAULT_CALL_CAP,
     BOT_ADVISE_DEFAULT_USD_CAP,
@@ -47,7 +47,7 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
         "active_pack": normalize_pack(row.get("active_pack")),
         "packs": catalog(),
         "symbol_allowlist": normalize_symbols(row.get("symbol_allowlist")),
-        "pack_settings": {**default_pack_settings(), **dict(row.get("pack_settings") or {})},
+        "pack_settings": merge_pack_settings(row.get("pack_settings")),
         "brain_session_id": brain_id,
         "brain_heartbeat_ts": row.get("brain_heartbeat_ts") if brain_id else None,
         "brain_alive": alive,

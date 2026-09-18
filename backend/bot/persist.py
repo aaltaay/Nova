@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from bot.packs import default_pack_settings
+from bot.packs import default_pack_settings, merge_pack_settings
 from constants_bot import (
     BOT_ACTION_KINDS,
     BOT_ADVISE_DEFAULT_CALL_CAP,
@@ -128,10 +128,7 @@ def load_session() -> dict[str, Any]:
         merged["caps"] = {**default_session()["caps"], **(raw.get("caps") or {})}
         merged["advise"] = {**default_session()["advise"], **(raw.get("advise") or {})}
         merged["llm"] = {**default_session()["llm"], **(raw.get("llm") or {})}
-        merged["pack_settings"] = {
-            **default_session()["pack_settings"],
-            **(raw.get("pack_settings") or {}),
-        }
+        merged["pack_settings"] = merge_pack_settings(raw.get("pack_settings"))
         _session = merged
         return _session
 

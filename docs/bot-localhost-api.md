@@ -70,8 +70,8 @@ Risk sleeve stays `small-cap`. Packs are a separate picker:
 | Pack | Status | Behavior |
 |---|---|---|
 | `halt-luld` | live | Fire `resume_kind` once on halted -> clear, cooldown 30s. |
-| `quote-spike` | stub | Selectable. Heartbeat only. Fire is `409 BOT_PACK_STUB`. |
-| `volume` | stub | Same as quote-spike. |
+| `quote-spike` | live | Last (or bid/ask mid) up `min_pct` (default 3%) in `window_sec` (default 5s) on the shared L1/quote stream. Eyes proposes. L2 + Activate fires `spike_kind` once, then `cooldown_sec` (default 30). |
+| `volume` | stub | Scanner tab Volume boost is detection SSOT. Heartbeat only. Fire is `409 BOT_PACK_STUB`. |
 | `llm-decide` | live | Configured LLM posts fixed-schema proposals. Live fire needs L2 + Activate + claim + heartbeat + allowlist ∩ focus. No hidden `LLM_LIVE_FIRE` flag. Idle if key, base URL, or model is missing. |
 
 ## Symbol gate
