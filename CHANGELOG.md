@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- D-003 cold 10Sec regression + close-out
+
+- **What:** Phases 0-4 plus the client first-print 10Sec seed were already on `origin/master`. This change adds one fixture regression so a cold 10Sec `/bars` cannot stay empty after a flushed tape bucket, and records that live RTH paint-time is still the #43 Unblock.
+- **Why:** Issue #43 stayed open because the 2026-08-26 / 2026-09-11 work was never live-verified. The code gap was gone; the missing piece was a single test that ties tape candles to `open_chart` / `warm`, not another hist-scheduler rewrite.
+- **Files touched:** `backend/tests/test_tape_10sec.py`, `CHANGELOG.md`, `PROBLEM_LOG.md`
+- **How it works now:** Empty interactive 10Sec asks `open_chart` and returns `[]` + `filling`. After one tape bucket is in `bars_store`, `/bars` returns those candles with `filling=true` and asks `warm`. Tape-only rows never fake `store_series_complete`. The client still seeds the overlay from the first AllLast print before the backend bucket flushes.
+- **Verified by:** `test_tape_10sec.py` 5 passed (new cold `/bars` contract included). Neighbor pytest (`test_ibkr_bars`, `test_ibkr_tape_stream`, `test_historical_service`, `test_historical_pacing`, `test_large_cap_hooks`, `test_large_cap_metrics`) 66 passed. Frontend neighbors already on master: Vitest `barsStore` + `chartBarsStuckRetry` + `useIbkrTape` 24 passed. `doc_invariants.py` OK. `agent_contract.py --ci` PASS (14 agents). No live Gateway in this VM -- no `window_used` or paint-time claim.
+- **Follow-ups:** One Nova Repo live check during RTH (see #43 Next). This PR stays `do-not-merge` until that yes. No invented `window_used` or paint-time numbers.
+- **Related:** Refs #43. PROBLEM_LOG 2026-09-18 D-003 close-out. ADR 012.
+
 ## 2026-09-18 -- Trade ticket Extended Hours checkbox closes #169
 
 - **What:** Issue #169 is the product close for the ticket hours control. The Trading Hours dropdown is already an Extended Hours checkbox, default checked. This PR proves the Place path: default send is `outside_rth=true`; uncheck sends false. Stop Limit / Trailing Stop flyouts keep the box enabled and do not reset it.

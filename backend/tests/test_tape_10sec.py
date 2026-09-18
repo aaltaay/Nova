@@ -95,3 +95,61 @@ def test_ignores_non_positive_price_and_timestamp():
     tape_10sec.on_print("zzzz", 1.0, 100, 0.0)
     tape_10sec.on_print("", 1.0, 100, 1_700_000_000.0)
     assert tape_10sec._open == {}
+
+
+def test_cold_10sec_paints_tape_bars_and_keeps_open_chart_then_warm(
+    monkeypatch, tmp_path,
+):
+    """D-003: a cold 10Sec pane cannot sit empty after a flushed tape bucket.
+
+    Empty interactive /bars must ask ``open_chart``. After one provisional
+    candle lands, /bars must return it (not []) and still schedule hist as
+    ``warm`` -- tape-only rows never fake ``store_series_complete``.
+    """
+    from unittest.mock import patch
+
+    import chart_bars
+
+    monkeypatch.setattr(archive_db, "cache_dir", lambda: tmp_path)
+    archive_db.init_db()
+    wq.reset_for_tests()
+    tape_10sec.reset_for_tests()
+
+    with patch.object(chart_bars._ibkr_client, "is_ready", return_value=True):
+        with patch.object(chart_bars, "_schedule_ibkr_fill") as fill:
+            empty = chart_bars.fetch_chart_bars(
+                "MSS",
+                "10Sec",
+                1500,
+                discovery_provider="ibkr",
+                interactive=True,
+            )
+    assert empty["bars"] == []
+    assert empty["coverage"]["filling"] is True
+    fill.assert_called_once()
+    assert fill.call_args.kwargs["priority"] == "open_chart"
+
+    t0 = 1_700_000_000.0
+    tape_10sec.on_print("mss", 1.66, 100, t0)
+    tape_10sec.flush_elapsed(t0 + 10.0)
+    wq.drain_once()
+
+    stored = bars_store.read("MSS", "10Sec", 1500)
+    assert stored is not None
+    assert len(stored["bars"]) == 1
+    assert bars_store.store_series_complete("10Sec", len(stored["bars"])) is False
+
+    with patch.object(chart_bars._ibkr_client, "is_ready", return_value=True):
+        with patch.object(chart_bars, "_schedule_ibkr_fill") as fill:
+            out = chart_bars.fetch_chart_bars(
+                "MSS",
+                "10Sec",
+                1500,
+                discovery_provider="ibkr",
+                interactive=True,
+            )
+    assert len(out["bars"]) == 1
+    assert out["bars"][0]["c"] == 1.66
+    assert out["coverage"]["filling"] is True
+    fill.assert_called_once()
+    assert fill.call_args.kwargs["priority"] == "warm"
