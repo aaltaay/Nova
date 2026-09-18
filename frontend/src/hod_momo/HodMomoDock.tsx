@@ -13,6 +13,7 @@ import { HodMomoDockModes } from './HodMomoDockModes';
 import { HodMomoDockRoster } from './HodMomoDockRoster';
 import { useHodMomo, type HodDockMode } from './HodMomoContext';
 import { HodMomoSection } from './HodMomoSection';
+import { HodMomoSoundToggle } from './HodMomoSoundToggle';
 import { isAlertDockMode, isRosterDockMode } from './scannerDockModes';
 
 type Props = {
@@ -169,6 +170,9 @@ export function HodMomoDock({ onOpenTrading }: Props) {
 
         {alertMode ? (
           <div className="hod-momo-dock__actions" onClick={(e) => e.stopPropagation()}>
+            {dockMode === 'hod_momo' ? (
+              <HodMomoSoundToggle className="hod-momo-dock__action" />
+            ) : null}
             <button
               type="button"
               className="hod-momo-dock__action"

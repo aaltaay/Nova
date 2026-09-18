@@ -7,6 +7,8 @@ import {
   HOD_MOMO_DOCK_COLLAPSED_KEY,
   HOD_MOMO_DOCK_HEIGHT_KEY,
 } from '../constants';
+import { HOD_MOMO_ALERT_SOUND_KEY } from './hodMomoAlertSoundConstants';
+import { resetHodMomoAlertSoundForTests } from './hodMomoAlertSound';
 import {
   makeLiveScannerFeedStub,
   ScannerDataContextProvider,
@@ -72,6 +74,8 @@ describe('HodMomoDock', () => {
   beforeEach(() => {
     localStorage.removeItem(HOD_MOMO_DOCK_COLLAPSED_KEY);
     localStorage.removeItem(HOD_MOMO_DOCK_HEIGHT_KEY);
+    localStorage.removeItem(HOD_MOMO_ALERT_SOUND_KEY);
+    resetHodMomoAlertSoundForTests();
   });
 
   afterEach(() => {
@@ -91,8 +95,15 @@ describe('HodMomoDock', () => {
     renderDock(makeValue({ collapsed: false, setDockMode }));
     expect(screen.getByTestId('hod-momo-dock-body')).toBeTruthy();
     expect(screen.getByTestId('hod-section-stub')).toBeTruthy();
+    expect(screen.getByTestId('hod-momo-sound-toggle')).toBeTruthy();
     fireEvent.click(screen.getByTestId('hod-momo-dock-mode-ru'));
     expect(setDockMode).toHaveBeenCalledWith('running_up');
+  });
+
+  it('hides the HOD sound toggle on Running Up', () => {
+    renderDock(makeValue({ collapsed: true, dockMode: 'running_up' }));
+    expect(screen.queryByTestId('hod-momo-sound-toggle')).toBeNull();
+    expect(screen.getByTestId('hod-momo-dock-clear')).toBeTruthy();
   });
 
   it('hides roster scanner pills when no scanner feed is mounted', () => {

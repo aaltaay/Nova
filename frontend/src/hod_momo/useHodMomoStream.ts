@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { HOD_MOMO_ALERT_BATCH_MS, WS_BASE_URL } from '../constants';
+import {
+  noteHodMomoLiveAlert,
+  rememberHodMomoAlertSnapshot,
+} from './hodMomoAlertSound';
 import type { AlertObject } from './types';
 
 interface HodMomoStreamState {
@@ -81,6 +85,7 @@ export function useHodMomoStream(): HodMomoStreamState {
             }
             const list = Array.isArray(msg.alerts) ? (msg.alerts as AlertObject[]) : [];
             seenIdsRef.current = new Set(list.map(a => a.id));
+            rememberHodMomoAlertSnapshot(list);
             setAlerts(list);
             setTotalToday(
               typeof msg.total === 'number' && msg.total >= 0 ? msg.total : list.length,
@@ -89,6 +94,7 @@ export function useHodMomoStream(): HodMomoStreamState {
             const alert = msg.alert as AlertObject;
             if (seenIdsRef.current.has(alert.id)) return;
             seenIdsRef.current.add(alert.id);
+            noteHodMomoLiveAlert(alert);
             pendingRef.current.push(alert);
             scheduleFlush();
           }
