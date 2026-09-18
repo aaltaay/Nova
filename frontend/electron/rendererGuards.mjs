@@ -64,6 +64,15 @@ export function recoverWindowIfErrorPage(win, opts) {
   return reloadRenderer(win, opts);
 }
 
+/** Wake a compositor that left File/Edit/View on a black client area. */
+export function pulseWindowPaint(win) {
+  if (typeof win?.isDestroyed === 'function' && win.isDestroyed()) return false;
+  const wc = win.webContents;
+  if (!wc) return false;
+  if (typeof wc.invalidate === 'function') wc.invalidate();
+  return true;
+}
+
 /**
  * @param {{ webContents: { on: Function, getURL?: Function }, loadURL?: Function, loadFile?: Function, isDestroyed?: Function }} win
  * @param {{ allowedBase?: string, reloadUrl?: string | null, loadFilePath?: string | null, retryFail?: boolean }} opts
@@ -96,4 +105,11 @@ export function attachRendererGuards(win, opts = {}) {
     console.error('[nova] render-process-gone', reason, details?.exitCode);
     if (shouldReloadAfterRendererGone(reason)) recover();
   });
+
+  const paint = () => pulseWindowPaint(win);
+  if (typeof win.on === 'function') {
+    win.on('show', paint);
+    win.on('restore', paint);
+    win.on('focus', paint);
+  }
 }

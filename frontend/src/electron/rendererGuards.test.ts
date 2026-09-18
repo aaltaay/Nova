@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   attachRendererGuards,
   needsRendererRecover,
+  pulseWindowPaint,
   recoverWindowIfErrorPage,
   shouldBlockNavigation,
   shouldReloadAfterRendererGone,
@@ -136,5 +137,33 @@ describe('attachRendererGuards', () => {
     });
     listeners.get('render-process-gone')?.[0]?.({}, { reason: 'crashed', exitCode: 1 });
     expect(win.loadURL).toHaveBeenCalledWith('http://127.0.0.1:5173');
+  });
+
+  it('invalidates the compositor on show / restore / focus', () => {
+    const listeners = new Map<string, ((...args: unknown[]) => void)[]>();
+    const invalidate = vi.fn();
+    const win = {
+      isDestroyed: () => false,
+      on: (event: string, fn: (...args: unknown[]) => void) => {
+        const list = listeners.get(event) ?? [];
+        list.push(fn);
+        listeners.set(event, list);
+      },
+      webContents: {
+        on: vi.fn(),
+        invalidate,
+      },
+    };
+    attachRendererGuards(win, { allowedBase: 'http://127.0.0.1:5173' });
+    listeners.get('show')?.[0]?.();
+    listeners.get('restore')?.[0]?.();
+    listeners.get('focus')?.[0]?.();
+    expect(invalidate).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('pulseWindowPaint', () => {
+  it('skips a destroyed window', () => {
+    expect(pulseWindowPaint({ isDestroyed: () => true, webContents: {} })).toBe(false);
   });
 });

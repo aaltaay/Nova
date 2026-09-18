@@ -33,10 +33,10 @@ Entry template (copy and fill in):
 ## 2026-09-18 -- Header Trader no longer blanks the Electron window
 
 - **What:** Clicking header Trader keeps the Nova chrome and opens the in-app desk. Electron no longer leaves a black File/Edit/View shell after `document.title` already says `SYMBOL · Trader · Nova · vNNN`.
-- **Why:** Live Electron→Vite desk: Scanner worked, header Trader painted black. Browser Vite Trader still worked. After #250 the OS title updated, so React ran -- this is an Electron paint/GPU/layout failure, not a missing route.
-- **Files touched:** `electron/main.mjs`, `electron/gpuPolicy.mjs`, `electron/rendererGuards.mjs`, `electron/singleInstance.mjs`, `electron/traderWindows.mjs`, `stock-view.css`, `hodMomoDock.css`, `AppErrorBoundary.tsx`, `App.tsx`.
-- **How it works now:** Windows Electron disables hardware acceleration by default (`NOVA_ELECTRON_GPU=1` opt-in). Viewport locks use `html/body/#root` `height: 100%` instead of `100dvh` so the Trader `min-height: 0` shell cannot collapse the chrome. Single-instance + chrome-error recover stay as guards.
-- **Verified by:** Vitest gpuPolicy / rendererGuards / AppErrorBoundary / workspaceWiring. Playwright header Trader (SPA neighbor).
+- **Why:** Live Electron→Vite desk: Scanner worked, header Trader painted black. Browser Vite Trader still worked. After #250 (`f8d8aa8`) Ahmed's OS title was `AEMD · Trader · Nova · v477` with a fully black client -- React ran; the compositor did not present frames.
+- **Files touched:** `electron/main.mjs`, `electron/gpuPolicy.mjs`, `electron/rendererGuards.mjs`, `electron/singleInstance.mjs`, `electron/traderWindows.mjs`, `nudgeElectronPaint.ts`, `stock-view.css`, `hodMomoDock.css`, `tokens-shell.css`, `AppErrorBoundary.tsx`, `App.tsx`.
+- **How it works now:** On Windows, Electron disables `CalculateNativeWinOcclusion` and occluded-window backgrounding before `whenReady`, and defaults to software raster (`disableHardwareAcceleration` + no GPU/direct composition). `NOVA_ELECTRON_GPU=1` keeps GPU but still kills occlusion. Viewport locks use `html/body/#root` `height: 100%` instead of `100dvh`. Show/restore/focus invalidates the compositor; Scanner→Trader nudges `translateZ(0)` in the Electron renderer only. Single-instance + chrome-error recover stay as guards.
+- **Verified by:** Vitest gpuPolicy / rendererGuards / nudgeElectronPaint / electronViewport / AppErrorBoundary / workspaceWiring. Playwright header Trader (SPA neighbor).
 - **Follow-ups:** Confirm on Windows after kill-all + one `Start-NovaDevDesktop.ps1`. Not D-003.
 - **Related:** PROBLEM_LOG 2026-09-18 -- Trader click blanked Electron.
 

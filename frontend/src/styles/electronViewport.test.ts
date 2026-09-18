@@ -21,5 +21,8 @@ describe('Electron-safe viewport locks', () => {
     expect(stock).toMatch(
       /body:has\(\.nova-shell--ticker-detail\)\s*\{[^}]*height:\s*100%/s,
     );
+    const tokens = css('tokens-shell.css');
+    expect(tokens).toMatch(/html\s*\{[^}]*height:\s*100%/s);
+    expect(tokens).toMatch(/html\s*\{[^}]*min-height:\s*100%/s);
   });
 });
