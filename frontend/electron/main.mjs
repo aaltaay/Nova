@@ -15,9 +15,10 @@ import {
   stopApiSidecar,
   waitForHealth,
 } from './sidecar.mjs';
-import { skipApiSidecar } from './sidecarSkip.mjs';
+import { applyGpuPolicy } from './gpuPolicy.mjs';
 import { attachRendererGuards, recoverWindowIfErrorPage } from './rendererGuards.mjs';
 import { applySingleInstance, focusExistingWindow } from './singleInstance.mjs';
+import { skipApiSidecar } from './sidecarSkip.mjs';
 import { isAllowedRendererUrl } from './traderWindowLoad.mjs';
 import { openOrFocusTraderWindow } from './traderWindows.mjs';
 import {
@@ -29,6 +30,7 @@ import { formatScannerWindowTitle } from './appTitle.mjs';
 import { novaDesktopReleaseTag } from './loadReleaseTag.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+applyGpuPolicy(app);
 const isDev = !app.isPackaged;
 const ALLOWED_EXTERNAL_HOSTS = new Set(['www.interactivebrokers.com']);
 
