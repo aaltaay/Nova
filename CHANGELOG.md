@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Journal-on-close from ledger flatten (D-046 slice 1)
+
+- **What:** A filled `source=flatten` ledger row now appends one `journal.db` trade from stored qty/price. Works with IB disconnected. No CommissionReport / net P/L change, no Reports import UI, no Activity page.
+- **Why:** D-046 / #92 first slice. Journal waited on IB fill watches / `ib.fills()`; flatten closes needed a local ledger write.
+- **Files touched:** `backend/journal/flatten_close.py`, `backend/journal/round_trip.py`, `backend/execution/telemetry_persist.py`, `backend/tests/test_journal_flatten.py`.
+- **How it works now:** Executor / bot flatten still place through ADR 007 (`source=flatten`). When `record_broker_facts` stores `filled_qty` + `avg_fill_price`, `on_flatten_fill_recorded` rebuilds that symbol's open cycle from session ledger fills and `record_trade`s only if the flatten flats it. Missing price is a no-op (no invented P/L). `close_key` keeps the write idempotent. Desk Close Position stays `source=manual` (ADR 007 anti-short) and still uses the generic round-trip hook. Rows show in Strategy Journal (`GET /api/journal/trades`) and Reports calendar.
+- **Verified by:** `pytest backend/tests/test_journal_flatten.py backend/tests/test_journal_round_trip.py` -- 15 passed. No live orders.
+- **Follow-ups:** #92 remains open: CommissionReport into net P/L, Reports import UI, Activity/trail page.
+- **Related:** Refs #92 (D-046). PROBLEM_LOG 2026-09-18 -- Flatten close did not journal from ledger.
+
 ## 2026-09-18 -- Strategy left-tab allowlist + locked breaker settings
 
 - **What:** Strategy left tab is the small-cap / safety settings surface. It now manages the symbol allowlist through the existing `POST /api/bot/allowlist` (chips + add ticker, plus the right-click hint), PATCHes the locked caps / EH / Advise spend, and shows -$50 / -$200 breaker thresholds as display-only. Pack picker and Activate stay on the header. BP budget step is cents (`0.01`) so integer dollars like 25 and 50 stay HTML-valid.

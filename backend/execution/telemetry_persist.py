@@ -7,9 +7,12 @@ lands before facts and facts before the fill row.
 """
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from execution import persist_queue
+
+logger = logging.getLogger(__name__)
 
 
 def submit_ack(
@@ -51,6 +54,14 @@ def submit_facts(
             avg_fill_price=avg_fill_price,
             commission=commission,
         )
+        try:
+            from journal.flatten_close import on_flatten_fill_recorded
+
+            on_flatten_fill_recorded(execution_id)
+        except Exception:
+            logger.exception(
+                "journal flatten_close failed after facts for %s", execution_id
+            )
 
     persist_queue.submit(f"facts order {order_id}", _write)
 
