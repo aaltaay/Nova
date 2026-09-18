@@ -91,6 +91,10 @@ export const GLOBAL_BAR_MODE_DISCONNECTED = 'Disconnected';
 export const GLOBAL_BAR_ACCOUNT_LABEL = 'Account';
 export const GLOBAL_BAR_ACCOUNT_TITLE =
   'Account overview — positions, orders, and trading habit reports';
+/** Opens IBKR Client Portal only -- Nova never deposits. */
+export const GLOBAL_BAR_FUND_ACCOUNT_LABEL = 'Fund account';
+export const GLOBAL_BAR_FUND_ACCOUNT_TITLE =
+  'Opens IBKR Client Portal -- then Transfer & Pay -> Deposit Funds. Nova does not deposit.';
 /** IBKR AccountType chip between trade lock and Account (issue #181). */
 export const GLOBAL_BAR_ACCOUNT_TYPE_CASH = 'Cash';
 export const GLOBAL_BAR_ACCOUNT_TYPE_MARGIN = 'Margin';

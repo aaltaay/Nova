@@ -521,6 +521,7 @@
 }
 
 .global-app-bar__account-nav,
+.global-app-bar__fund,
 .global-app-bar__settings {
   flex-shrink: 0;
   background: transparent;
@@ -534,6 +535,7 @@
 }
 
 .global-app-bar__account-nav:hover,
+.global-app-bar__fund:hover,
 .global-app-bar__settings:hover {
   color: var(--nova-text);
   border-color: color-mix(in srgb, var(--nova-text-muted) 50%, var(--nova-border));
