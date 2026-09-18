@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ORDER_TABLE_COLUMNS_STORAGE_KEY } from '../constantGroups/chart_api';
+import { TAPE_MIN_SIZE_STORAGE_KEY } from '../constantGroups/features';
 import { SCANNER_ACTIVE_TAB_STORAGE_KEY } from '../constantGroups/market_ui';
 import {
   exportPrefsBundle,
@@ -63,5 +64,14 @@ describe('prefsBundle', () => {
     });
     const bundle = exportPrefsBundle(storage);
     expect(bundle.prefs[SCANNER_ACTIVE_TAB_STORAGE_KEY]).toContain('gainers');
+  });
+
+  it('allowlists the T&S min-size filter key', () => {
+    expect(PREFS_BUNDLE_KEYS).toContain(TAPE_MIN_SIZE_STORAGE_KEY);
+    const storage = memoryStorage({
+      [TAPE_MIN_SIZE_STORAGE_KEY]: '{"schema_version":1,"value":100}',
+    });
+    const bundle = exportPrefsBundle(storage);
+    expect(bundle.prefs[TAPE_MIN_SIZE_STORAGE_KEY]).toContain('100');
   });
 });

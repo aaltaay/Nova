@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Time & Sales right-click min-size filter
+
+- **What:** Right-click anywhere on the Time & Sales widget opens a min-size filter box. Type `100` to hide prints smaller than 100. Empty or 0 shows all. A `Size ≥ N` chip marks an active filter. Preference survives reload.
+- **Why:** Ahmed asked to hide small tape prints on the live T&S (QNME desk) without a new IBKR stream or backend change.
+- **Files touched:** `frontend/src/ibkr/TimeSalesPanel.tsx`, `TapeMinSizeFilterMenu.tsx`, `tapeMinSizeFilter.ts`, `constantGroups/features.ts`, `settings/prefsBundle.ts`, `ibkr/marketData.css`.
+- **How it works now:** Display-only filter over the existing virtualized ring (`useIbkrTape` still holds every print). `prefStore` writes `nova.tape.minSize`. Desk prefs export/import includes that key. No price/exchange filter. No second tape subscription.
+- **Verified by:** `npx vitest run` TimeSalesPanel + tapeMinSizeFilter + prefsBundle + tape neighbors -- 5 files, 34 passed. `npm run lint` / `npm run build` exit 0. `doc_invariants` OK. Rebased onto `origin/master` 002ad73 after #272; only CHANGELOG conflicted.
+- **Follow-ups:** PR holds `do-not-merge` until CI is green after rebase and Ahmed clicks the live T&S filter on the desk.
+- **Related:** Phase 1 T&S virtualize #243. No D-NNN (new product ask).
+
 ## 2026-09-18 -- Bot Autonomy strip edits symbol allowlist
 
 - **What:** Bot Autonomy header gains an **Allowlist · N** control immediately after Pack. The popover adds and removes `session.symbol_allowlist` the same way the Strategy tab does. Visible for every pack, not only Halt / LULD.
