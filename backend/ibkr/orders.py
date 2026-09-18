@@ -7,17 +7,31 @@ single source of truth. See that module for the env gate list.
 from __future__ import annotations
 
 import logging
-from typing import Literal
-
 from ibkr import client as _client
 from ibkr import safety as _safety
 from ibkr.errors import IbkrAccountError, describe_exc
+from ibkr.order_build import (
+    OrderSide,
+    OrderType,
+    build_ib_order as _build_order,
+    normalize_order_type,
+    validation_error as _validation_error,
+)
 from ibkr.order_rows import trade_to_order_row as _trade_to_order_row
 
 logger = logging.getLogger(__name__)
 
-OrderSide = Literal["BUY", "SELL"]
-OrderType = Literal["MKT", "LMT", "STP"]
+__all__ = (
+    "OrderSide",
+    "OrderType",
+    "cancel_order",
+    "closed_orders",
+    "closed_orders_async",
+    "normalize_order_type",
+    "open_orders",
+    "place_bracket_order",
+    "place_order",
+)
 
 
 def _ib_sync(fn, label: str, timeout: float = 15.0):
@@ -37,51 +51,6 @@ def _safety_check() -> tuple[bool, str]:
     )
 
 
-def _validation_error(
-    side: str,
-    qty: float,
-    order_type: str,
-    limit_price: float | None,
-    stop_price: float | None,
-    _outside_rth: bool,
-) -> str | None:
-    if side not in ("BUY", "SELL"):
-        return "side must be BUY or SELL"
-    if qty <= 0:
-        return "qty must be greater than zero"
-    if order_type not in ("MKT", "LMT", "STP"):
-        return "order_type must be MKT, LMT, or STP"
-    if order_type == "LMT" and (limit_price is None or limit_price <= 0):
-        return "limit_price must be greater than zero for LMT"
-    if order_type == "STP" and (stop_price is None or stop_price <= 0):
-        return "stop_price must be greater than zero for STP"
-    # MKT / LMT / STP all forward outside_rth. IBKR may reject or ignore
-    # (Error 2109) some combinations -- surface that after Place.
-    return None
-
-
-def _build_order(
-    side: OrderSide,
-    qty: float,
-    order_type: OrderType,
-    limit_price: float | None,
-    stop_price: float | None,
-    outside_rth: bool,
-):
-    from ib_async import LimitOrder, MarketOrder, StopOrder
-    from constants import IBKR_ORDER_TIF_DEFAULT
-
-    # Always set tif -- blank TIF triggers IB Error 10349 (false Cancelled).
-    tif = IBKR_ORDER_TIF_DEFAULT
-    if order_type == "MKT":
-        return MarketOrder(side, qty, outsideRth=bool(outside_rth), tif=tif)
-    if order_type == "LMT":
-        return LimitOrder(
-            side, qty, limit_price, outsideRth=outside_rth, tif=tif,
-        )
-    return StopOrder(side, qty, stop_price, outsideRth=bool(outside_rth), tif=tif)
-
-
 def place_order(
     symbol: str,
     side: OrderSide,
@@ -93,11 +62,14 @@ def place_order(
     order_id: int | None = None,
 ) -> dict:
     """
-    Place a market, limit, or stop order (or price-modify when order_id set).
+    Place a market, limit, stop, stop-limit, or trailing-stop order
+    (or price-modify when order_id set).
 
     Returns {"ok": bool, "order_id": int|None, "error": str|None, "mode": str}.
     Adapter only — callers must enter via execution.service.execute (ADR 007).
+    TRAIL uses stop_price as the IBKR trail $ (auxPrice). Trail % is not sent.
     """
+    order_type = normalize_order_type(order_type)  # type: ignore[assignment]
     error = _validation_error(
         side,
         qty,
@@ -155,7 +127,7 @@ def place_order(
         nova_placed = remember_nova_placed(oid)
         broker_submitted, _, _ = extract_trade_times(trade)
         submitted_at = resolve_submitted_at(broker_submitted, oid)
-        price = limit_price if order_type == "LMT" else stop_price
+        price = limit_price if order_type in ("LMT", "STP LMT") else stop_price
         action = "modified" if order_id is not None else "placed"
         logger.info(
             "IBKR: %s %s %s %s %s @ %s outside_rth=%s (id=%s)",

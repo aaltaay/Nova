@@ -12,6 +12,7 @@ from execution.models import ExecutionCommand
 from execution.timing import ingress_stamps
 from ibkr import orders as _orders
 from ibkr.errors import IbkrAccountError
+from ibkr.order_build import normalize_order_type
 
 router = APIRouter(tags=["ibkr"])
 
@@ -85,7 +86,7 @@ async def place_order(req: OrderRequest, request: Request) -> dict:
             symbol=req.symbol.upper(),
             side=req.side.upper(),
             qty=req.qty,
-            order_type=req.order_type.upper(),
+            order_type=normalize_order_type(req.order_type),
             limit_price=req.limit_price,
             stop_price=req.stop_price,
             reference_price=req.reference_price,

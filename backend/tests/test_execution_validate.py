@@ -192,6 +192,60 @@ def test_place_allows_market_and_stop_outside_rth(monkeypatch):
     assert reason is None
 
 
+def test_place_accepts_stop_limit_and_trail(monkeypatch):
+    import ibkr.safety as safety_mod
+
+    monkeypatch.setattr(client_mod, "is_enabled", lambda: True)
+    monkeypatch.setattr(client_mod, "is_connected", lambda: True)
+    monkeypatch.setattr(client_mod, "account_mode", lambda: "paper")
+    monkeypatch.setattr(client_mod, "broker_account_kind", lambda: "paper")
+    monkeypatch.setattr(
+        safety_mod,
+        "assert_orders_allowed",
+        lambda **_k: (True, "OK"),
+    )
+    stop_limit = ExecutionCommand(
+        operation="place",
+        idempotency_key="stplmt",
+        source="manual",
+        symbol="AAPL",
+        side="SELL",
+        qty=1,
+        order_type="STPLMT",
+        limit_price=23.25,
+        stop_price=23.5,
+    )
+    ok, _detail, reason = validate.validate_command(stop_limit)
+    assert ok is True
+    assert reason is None
+    trail = ExecutionCommand(
+        operation="place",
+        idempotency_key="trail",
+        source="manual",
+        symbol="AAPL",
+        side="SELL",
+        qty=1,
+        order_type="TRAIL",
+        stop_price=0.35,
+    )
+    ok, _detail, reason = validate.validate_command(trail)
+    assert ok is True
+    assert reason is None
+    missing = ExecutionCommand(
+        operation="place",
+        idempotency_key="trail-miss",
+        source="manual",
+        symbol="AAPL",
+        side="SELL",
+        qty=1,
+        order_type="TRAIL",
+    )
+    ok, detail, reason = validate.validate_command(missing)
+    assert ok is False
+    assert reason == "TRAIL_MISSING"
+    assert "trail $" in detail
+
+
 def test_place_rejects_fractional_qty_preflight(monkeypatch):
     """IBKR Error 10243 — never submit fractional lots via the API."""
     import ibkr.safety as safety_mod

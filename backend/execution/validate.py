@@ -11,6 +11,7 @@ from ibkr import account as _account
 from ibkr import client as _client
 from ibkr import safety as _safety
 from ibkr.errors import IbkrAccountError
+from ibkr.order_build import PLACEABLE_ORDER_TYPES, normalize_order_type
 
 logger = logging.getLogger(__name__)
 
@@ -76,12 +77,15 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
         # Fail closed here so Flatten/manual place never look like a silent cancel.
         if not is_whole_share_qty(qty):
             return False, IBKR_FRACTIONAL_ORDER_API_MSG, "QTY_FRACTIONAL_API"
-        if cmd.order_type not in ("MKT", "LMT", "STP"):
-            return False, "order_type must be MKT, LMT, or STP", "ORDER_TYPE_INVALID"
-        if cmd.order_type == "LMT" and (cmd.limit_price is None or cmd.limit_price <= 0):
-            return False, "limit_price required for LMT", "LIMIT_MISSING"
-        if cmd.order_type == "STP" and (cmd.stop_price is None or cmd.stop_price <= 0):
-            return False, "stop_price required for STP", "STOP_MISSING"
+        typ = normalize_order_type(cmd.order_type)
+        if typ not in PLACEABLE_ORDER_TYPES:
+            return False, "order_type must be MKT, LMT, STP, STP LMT, or TRAIL", "ORDER_TYPE_INVALID"
+        if typ in ("LMT", "STP LMT") and (cmd.limit_price is None or cmd.limit_price <= 0):
+            return False, f"limit_price required for {typ}", "LIMIT_MISSING"
+        if typ in ("STP", "STP LMT") and (cmd.stop_price is None or cmd.stop_price <= 0):
+            return False, f"stop_price required for {typ}", "STOP_MISSING"
+        if typ == "TRAIL" and (cmd.stop_price is None or cmd.stop_price <= 0):
+            return False, "stop_price required for TRAIL (trail $)", "TRAIL_MISSING"
     elif cmd.operation == "bracket":
         if cmd.entry_price is None or cmd.stop_price is None or cmd.target_price is None:
             return False, "bracket requires entry/stop/target", "BRACKET_FIELDS"

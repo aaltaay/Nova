@@ -121,7 +121,7 @@ export interface IbkrOrder {
   filled_qty?: number | null;
   /** Shares still working (IBKR orderStatus.remaining). */
   remaining_qty?: number | null;
-  order_type: 'MKT' | 'LMT' | 'STP';
+  order_type: string;
   limit_price: number | null;
   stop_price?: number | null;
   /** Average fill price when any fills exist. */

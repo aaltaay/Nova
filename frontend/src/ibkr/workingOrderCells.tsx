@@ -91,12 +91,18 @@ export function renderWorkingOrderCell(
           {formatMoney(o.limit_price)}
         </td>
       );
-    case 'stop':
+    case 'stop': {
+      const compact = (o.order_type || '').toUpperCase().replace(/[\s_-]+/g, '');
+      const stopTitle =
+        compact === 'TRAIL' || compact === 'TRAILINGSTOP'
+          ? `Trail ${formatMoney(o.stop_price ?? null)}`
+          : undefined;
       return (
-        <td key={col} className="ibkr-col--num">
+        <td key={col} className="ibkr-col--num" title={stopTitle}>
           {formatMoney(o.stop_price ?? null)}
         </td>
       );
+    }
     case 'avg_fill':
       return (
         <td key={col} className="ibkr-col--num">

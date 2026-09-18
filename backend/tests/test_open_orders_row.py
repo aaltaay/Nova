@@ -147,6 +147,59 @@ def test_trade_to_order_row_stop_and_partial_fields():
     assert row["submitted_at"].startswith("2026-07-18T14:00:00")
 
 
+def test_trade_to_order_row_stop_limit_and_trail():
+    stop_limit = SimpleNamespace(
+        order=SimpleNamespace(
+            orderId=100,
+            action="SELL",
+            totalQuantity=10,
+            orderType="STP LMT",
+            lmtPrice=9.5,
+            auxPrice=9.75,
+            outsideRth=False,
+        ),
+        contract=SimpleNamespace(symbol="AAA"),
+        orderStatus=SimpleNamespace(
+            status="Submitted",
+            filled=0,
+            remaining=10,
+            avgFillPrice=0.0,
+        ),
+        log=[],
+        fills=[],
+    )
+    row = _trade_to_order_row(stop_limit)
+    assert row["order_type"] == "STP LMT"
+    assert row["limit_price"] == 9.5
+    assert row["stop_price"] == 9.75
+
+    trail = SimpleNamespace(
+        order=SimpleNamespace(
+            orderId=101,
+            action="SELL",
+            totalQuantity=10,
+            orderType="TRAIL",
+            lmtPrice=0.0,
+            auxPrice=0.35,
+            outsideRth=True,
+        ),
+        contract=SimpleNamespace(symbol="AAA"),
+        orderStatus=SimpleNamespace(
+            status="Submitted",
+            filled=0,
+            remaining=10,
+            avgFillPrice=0.0,
+        ),
+        log=[],
+        fills=[],
+    )
+    row = _trade_to_order_row(trail)
+    assert row["order_type"] == "TRAIL"
+    assert row["limit_price"] is None
+    assert row["stop_price"] == 0.35
+    assert row["outside_rth"] is True
+
+
 def test_warm_completed_filled_without_fills_uses_total_quantity():
     """reqCompletedOrdersAsync: status Filled, orderStatus.filled=0, no fills."""
     trade = SimpleNamespace(

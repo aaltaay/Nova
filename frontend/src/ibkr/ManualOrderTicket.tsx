@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import {
   forcedManualOrderQty,
   presetsForQuantityMode,
+  usesLimitPrice,
+  usesStopPrice,
   type ManualOrderType,
   type QuantityMode,
 } from './orderEntry';
@@ -183,16 +185,16 @@ export function ManualOrderTicket({
       referencePrice,
       topOfBook,
     );
-    if (orderType === 'LMT') setLimitPrice(seeded.limitPrice);
-    if (orderType === 'STP') setStopPrice(seeded.stopPrice);
+    if (usesLimitPrice(orderType)) setLimitPrice(seeded.limitPrice);
+    if (usesStopPrice(orderType)) setStopPrice(seeded.stopPrice);
     resetSubmission();
   }
 
   useEffect(() => {
-    if (referencePrice != null && !limitPrice && orderType === 'LMT') {
+    if (referencePrice != null && !limitPrice && usesLimitPrice(orderType)) {
       const seeded = seedPricesForSide(
         side,
-        'LMT',
+        orderType,
         symbol,
         referencePrice,
         topOfBook,
@@ -203,6 +205,15 @@ export function ManualOrderTicket({
 
   function selectOrderType(next: ManualOrderType) {
     setOrderType(next);
+    const seeded = seedPricesForSide(
+      side,
+      next,
+      symbol,
+      referencePrice,
+      topOfBook,
+    );
+    if (usesLimitPrice(next)) setLimitPrice(seeded.limitPrice);
+    if (usesStopPrice(next)) setStopPrice(seeded.stopPrice);
     resetSubmission();
   }
 

@@ -48,6 +48,18 @@ export function seedStopPrice(
   return seeded > 0 ? seeded : null;
 }
 
+/** Trail $ from the same offset % used for a protective stop. */
+export function seedTrailAmount(
+  last: number | null,
+  offsetPct: number,
+): number | null {
+  const px = finite(last);
+  if (px == null) return null;
+  const pct = Number.isFinite(offsetPct) && offsetPct >= 0 ? offsetPct : 0;
+  const amount = px * (pct / 100);
+  return amount > 0 ? amount : null;
+}
+
 export function formatSeedPrice(n: number | null): string {
   if (n == null) return '';
   return n.toFixed(2);

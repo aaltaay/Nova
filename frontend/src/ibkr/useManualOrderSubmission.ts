@@ -5,6 +5,7 @@ import {
 } from '../execution_latency';
 import {
   buildManualOrder,
+  manualOrderConfirmPriceText,
   type ManualOrderPayload,
   type ManualOrderSide,
   type ManualOrderType,
@@ -162,12 +163,11 @@ export function useManualOrderSubmission(params: Params) {
       fail(built.error);
       return;
     }
-    const priceText =
-      params.orderType === 'LMT'
-        ? ` @ $${params.limitPrice}`
-        : params.orderType === 'STP'
-          ? ` stop $${params.stopPrice}`
-          : '';
+    const priceText = manualOrderConfirmPriceText({
+      orderType: params.orderType,
+      limitPrice: params.limitPrice,
+      stopPrice: params.stopPrice,
+    });
     const hoursText = params.outsideRth
       ? ' including extended hours'
       : ' during regular hours';
