@@ -9,7 +9,7 @@ schema_version: 1.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from constants_ibkr import (
@@ -81,8 +81,8 @@ def coherent_face_ms(
 ) -> int | None:
     """Face total only when both endpoints tell one coherent clock story.
 
-    Missing stamps, negatives, clock_skew, timezone-shaped, and impossible
-    clocks return None -- never a guessed 0ms or a negative face.
+    Missing stamps, negatives, zero, clock_skew, timezone-shaped, and
+    impossible clocks return None -- never a guessed 0ms or a negative face.
     """
     if reason in {
         FILL_AUDIT_REASON_CLOCK_SKEW,
@@ -91,9 +91,9 @@ def coherent_face_ms(
     }:
         return None
     if place_to_fill_ms is not None:
-        return place_to_fill_ms if place_to_fill_ms >= 0 else None
+        return place_to_fill_ms if place_to_fill_ms > 0 else None
     if place_to_terminal_ms is not None:
-        return place_to_terminal_ms if place_to_terminal_ms >= 0 else None
+        return place_to_terminal_ms if place_to_terminal_ms > 0 else None
     return None
 
 
@@ -122,13 +122,12 @@ def _residual_in_window(residual: int) -> bool:
     )
 
 
-def timezone_shaped_residual_ms(
+def ny_shaped_offset_ms(
     place_to_fill_ms: int | None,
-    place_to_submit_ms: int | None,
     placed_iso: str | None,
 ) -> int | None:
-    """Residual after removing a NY (or 4h/5h) offset, else None."""
-    if place_to_fill_ms is None or not _same_second_submit(place_to_submit_ms):
+    """NY / 4h / 5h offset when place→fill matches it, else None."""
+    if place_to_fill_ms is None:
         return None
     offsets: list[int] = []
     ny = ny_offset_ms(placed_iso)
@@ -138,10 +137,66 @@ def timezone_shaped_residual_ms(
         if extra not in offsets:
             offsets.append(extra)
     for offset in offsets:
-        residual = place_to_fill_ms - offset
-        if _residual_in_window(residual):
-            return residual
+        if _residual_in_window(place_to_fill_ms - offset):
+            return offset
     return None
+
+
+def timezone_shaped_residual_ms(
+    place_to_fill_ms: int | None,
+    place_to_submit_ms: int | None,
+    placed_iso: str | None,
+) -> int | None:
+    """Residual after removing a NY (or 4h/5h) offset, else None."""
+    if place_to_fill_ms is None or not _same_second_submit(place_to_submit_ms):
+        return None
+    offset = ny_shaped_offset_ms(place_to_fill_ms, placed_iso)
+    if offset is None:
+        return None
+    return place_to_fill_ms - offset
+
+
+def _delta_ms_iso(start_iso: str | None, end_iso: str | None) -> int | None:
+    start = _parse_iso(start_iso)
+    end = _parse_iso(end_iso)
+    if start is None or end is None:
+        return None
+    return int(round((end.timestamp() - start.timestamp()) * 1000.0))
+
+
+def _iso_utc(dt: datetime) -> str:
+    return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def same_clock_instant(left: str | None, right: str | None) -> bool:
+    """True when two ISO stamps name the same UTC instant (.000Z vs Z)."""
+    a = _parse_iso(left)
+    b = _parse_iso(right)
+    if a is None or b is None:
+        return bool(left) and left == right
+    return a == b
+
+
+def honest_filled_at_iso(
+    reference_iso: str | None,
+    filled_iso: str | None,
+) -> str | None:
+    """Rewrite a NY-offset-shaped fill to the UTC wall digits.
+
+    ib_async ``naive.astimezone(UTC)`` on an Eastern host turns UTC
+    ``15:02:48`` digits into ``19:02:48Z``. Time Placed stays the real
+    UTC instant, so Time Filled must not keep the +4h label.
+    """
+    if not filled_iso:
+        return filled_iso
+    filled_dt = _parse_iso(filled_iso)
+    if filled_dt is None:
+        return filled_iso
+    raw = _delta_ms_iso(reference_iso, filled_iso)
+    offset = ny_shaped_offset_ms(raw, reference_iso)
+    if offset is None:
+        return filled_iso
+    return _iso_utc(filled_dt - timedelta(milliseconds=offset))
 
 
 def apply_fill_clock_guard(
@@ -166,6 +221,10 @@ def apply_fill_clock_guard(
     )
     if residual is not None:
         if typ in FILL_AUDIT_FAST_TYPES:
+            if residual == 0:
+                # Exact offset collapse (109741 created_ts + ib_async +4h).
+                # Not an honest instant fill -- never publish 0ms.
+                return None, FILL_AUDIT_REASON_TIMEZONE_SHAPED
             if is_clock_skew_ms(residual):
                 return residual, FILL_AUDIT_REASON_CLOCK_SKEW
             return residual, None
@@ -179,4 +238,6 @@ def apply_fill_clock_guard(
         return None, FILL_AUDIT_REASON_IMPOSSIBLE
     if is_clock_skew_ms(place_to_fill_ms):
         return place_to_fill_ms, FILL_AUDIT_REASON_CLOCK_SKEW
+    if place_to_fill_ms == 0:
+        return None, None
     return place_to_fill_ms, None

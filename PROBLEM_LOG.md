@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Orders Today Time Filled 4h false 0ms
+
+- **Symptom:** After #266/#267, a live Filled row (order ~109741) showed Latency `0ms` while Time Placed was ~11:02:48.551 ET and Time Filled was ~15:02:48 ET (~+4h). Not a real zero-latency fill.
+- **Cause:** #266 fixed latency math but left `filled_at` on the row. ib_async `execDetails` still does `naive.astimezone(UTC)` when `TimezoneTWS` is empty, so UTC wall digits become `19:02:48Z` on an Eastern host. Time Placed uses Nova/log UTC (`15:02:48.551Z` -> 11:02:48.551 ET). Time Filled formatted `19:02:48Z` as 15:02:48 ET. Latency used second-rounded `created_ts` (`15:02:48.000Z`); minus the +4h fill is exactly 14400000ms. The TZ guard residual was `0`, and `coherent_face_ms` treated `0` as an honest face.
+- **Fix:** Rewrite NY-offset-shaped `filled_at` to the UTC wall digits (`honest_filled_at_iso`). Strip a non-UTC label on Execution.time. Refuse `face_ms=0` / exact-offset residual (em dash + `timezone_shaped_clock`). Frontend treats timezone-less ISO as UTC and never paints `0ms`.
+- **Fix class:** admission
+- **Keywords:** fill latency, Time Filled, 0ms, EDT, execution.time, 109741, Orders Today, created_ts, face_ms
+
 ## 2026-09-18 -- Orders Today negative fill latency clock skew
 
 - **Symptom:** After #266, IMCC BUY 106411 Latency showed white `-296ms`. API: `place_to_submit_ms=-296`, `place_to_fill_ms=-296`, `level=ok`. Ahmed asked if a negative fill time was right.

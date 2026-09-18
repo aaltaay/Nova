@@ -116,3 +116,27 @@ def test_est_shaped_mkt_corrects():
     )
     assert reason is None
     assert fill == 3000
+
+
+def test_exact_four_hour_residual_is_not_zero_ms_face():
+    """Ahmed 109741: created_ts second + ib_async +4h fill collapsed to 0ms."""
+    from execution.fill_audit_clock import coherent_face_ms, honest_filled_at_iso
+
+    fill, reason = apply_fill_clock_guard(
+        place_to_fill_ms=14_400_000,
+        place_to_submit_ms=551,
+        placed_iso="2026-09-18T15:02:48.000Z",
+        order_type="MKT",
+    )
+    assert fill != 0
+    assert fill is None
+    assert reason == "timezone_shaped_clock"
+    assert coherent_face_ms(0, None, None) is None
+    assert coherent_face_ms(fill, None, reason) is None
+
+    honest = honest_filled_at_iso(
+        "2026-09-18T15:02:48.551Z",
+        "2026-09-18T19:02:48Z",
+    )
+    assert honest == "2026-09-18T15:02:48Z"
+    assert not honest.startswith("2026-09-18T19:02:48")

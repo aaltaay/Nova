@@ -323,6 +323,39 @@ def test_imcc_sell_3037_stays_warn():
     assert pub["level"] == "warn"
 
 
+def test_order_109741_four_hour_fill_is_not_zero_ms():
+    """Desk F row: Time Placed 11:02:48.551 ET, Time Filled 15:02:48 ET, Latency 0ms.
+
+    created_ts is second-rounded UTC. ib_async already converted naive UTC
+    execution.time through the Eastern host TZ, so filled_at is +4h Zulu.
+    """
+    placed_ts = datetime(2026, 9, 18, 15, 2, 48, tzinfo=timezone.utc).timestamp()
+    led = {
+        "order_id": 109741,
+        "perm_id": 6001,
+        "created_ts": placed_ts,
+        "operation": "place",
+        "status": "filled",
+    }
+    row = _order(
+        order_id=109741,
+        perm_id=6001,
+        symbol="TEST",
+        side="BUY",
+        submitted_at="2026-09-18T15:02:48.551Z",
+        filled_at="2026-09-18T19:02:48Z",
+        updated_at="2026-09-18T19:02:48Z",
+    )
+    out = attach_fill_audit([row], ledger_rows=[led])
+    assert out[0]["filled_at"] == "2026-09-18T15:02:48Z"
+    assert not str(out[0]["filled_at"]).startswith("2026-09-18T19:02:48")
+    audit = out[0]["fill_audit"]
+    assert audit is None or audit.get("face_ms") in (None,)
+    if audit is not None:
+        assert audit.get("face_ms") != 0
+        assert audit.get("place_to_fill_ms") != 0
+
+
 def test_placed_index_prefers_payload_nova_placed_at():
     from execution.fill_audit_attach import placed_index_from_ledger
 

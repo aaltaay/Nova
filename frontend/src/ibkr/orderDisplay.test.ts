@@ -79,6 +79,25 @@ describe('orderDisplay', () => {
     expect(formatOrderDateTime(null)).toBe('—');
   });
 
+  it('treats timezone-less ISO as UTC so Time Filled matches Time Placed zone', () => {
+    const zulu = formatOrderDateTime('2026-09-18T15:02:48Z');
+    const naive = formatOrderDateTime('2026-09-18T15:02:48');
+    expect(zulu).toMatch(/11:02:48/);
+    expect(naive).toBe(zulu);
+    expect(naive).not.toMatch(/15:02:48/);
+    expect(zulu.endsWith(' ET')).toBe(true);
+  });
+
+  it('109741 place and honest fill share the 11:02 ET hour', () => {
+    const placed = formatOrderDateTime('2026-09-18T15:02:48.551Z');
+    const filledHonest = formatOrderDateTime('2026-09-18T15:02:48Z');
+    const filledSkew = formatOrderDateTime('2026-09-18T19:02:48Z');
+    expect(placed).toMatch(/11:02:48/);
+    expect(filledHonest).toMatch(/11:02:48/);
+    expect(filledSkew).toMatch(/15:02:48/);
+    expect(filledHonest).not.toMatch(/15:02:48/);
+  });
+
   it('formats fractional seconds when ISO carries them (audit)', () => {
     const label = formatOrderDateTime('2026-07-18T13:41:23.456Z');
     expect(label).toMatch(/09:41:23/);

@@ -172,6 +172,30 @@ describe('closedOrderCells — column contract', () => {
     expect(html).toContain(`datetime="${filledRow.filled_at}"`);
   });
 
+  it('109741 Time Filled uses the honest UTC fill, same ET hour as Time Placed', () => {
+    const row: ClosedOrder = {
+      ...FILLED,
+      order_id: 109741,
+      submitted_at: '2026-09-18T15:02:48.551Z',
+      filled_at: '2026-09-18T15:02:48Z',
+      fill_audit: {
+        place_to_submit_ms: 551,
+        place_to_fill_ms: null,
+        face_ms: null,
+        level: 'warn',
+        reason: 'timezone_shaped_clock',
+      },
+    };
+    const placed = renderCell('time', row);
+    const filled = renderCell('filled_at', row);
+    const latency = renderCell('latency', row);
+    expect(placed.text).toMatch(/11:02:48/);
+    expect(filled.text).toMatch(/11:02:48/);
+    expect(filled.text).not.toMatch(/15:02:48/);
+    expect(latency.text).toBe('—');
+    expect(latency.text).not.toBe('0ms');
+  });
+
   it('Time Filled shows — when the order never filled', () => {
     const { text, html } = renderCell('filled_at', { ...PARTIAL_CANCEL, filled_at: null });
     expect(text).toBe('—');

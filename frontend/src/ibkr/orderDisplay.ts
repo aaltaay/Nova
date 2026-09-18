@@ -148,9 +148,15 @@ export function formatExtendedHours(outsideRth: boolean): string {
  * Shows milliseconds whenever the ISO carries a fractional second (audit).
  * Machine truth stays on `<time dateTime={iso}>` (UTC ISO unchanged).
  */
+function parseOrderInstant(iso: string): Date {
+  const text = iso.trim();
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(text);
+  return new Date(hasZone ? text : `${text}Z`);
+}
+
 export function formatOrderDateTime(iso: string | null | undefined): string {
   if (!iso) return '—';
-  const d = new Date(iso);
+  const d = parseOrderInstant(iso);
   if (Number.isNaN(d.getTime())) return '—';
   const hasFraction = /[T ]\d{2}:\d{2}:\d{2}\.\d/.test(iso);
   const formatted = new Intl.DateTimeFormat('en-US', {

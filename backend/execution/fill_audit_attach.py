@@ -28,7 +28,9 @@ from execution.fill_audit_clock import (
     apply_fill_clock_guard,
     clock_guard_level,
     coherent_face_ms,
+    honest_filled_at_iso,
     is_clock_skew_ms,
+    same_clock_instant,
 )
 
 _INVALID_CLOCK_REASONS = frozenset({
@@ -150,7 +152,9 @@ def _clocks_usable(
     """Refuse collapsed identical stamps -- those are not measured latency."""
     if not placed or not end:
         return False
-    return placed != end
+    if placed == end:
+        return False
+    return not same_clock_instant(placed, end)
 
 
 def resolve_fill_audit(
@@ -170,7 +174,13 @@ def resolve_fill_audit(
     has_fill = _has_real_fill(row)
     status = str(row.get("status") or "")
     terminal = status in IBKR_CLOSED_ORDER_STATUSES
+    submitted = str(row.get("submitted_at") or "") or None
     filled_at = str(row.get("filled_at") or "") if has_fill else None
+    if filled_at:
+        honest = honest_filled_at_iso(submitted or placed, filled_at)
+        if honest and honest != filled_at:
+            row["filled_at"] = honest
+            filled_at = honest
     terminal_at = None
     if terminal and not has_fill:
         terminal_at = str(row.get("updated_at") or "") or None
@@ -184,7 +194,7 @@ def resolve_fill_audit(
             mode=str(row.get("mode") or ""),
             status=status,
             nova_placed_at=placed,
-            submitted_at=str(row.get("submitted_at") or "") or None,
+            submitted_at=submitted,
             filled_at=filled_at,
             terminal_at=terminal_at,
             has_fill=has_fill,

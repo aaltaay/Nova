@@ -55,6 +55,50 @@ def test_to_iso_ib_dash_compact_is_utc():
     assert iso == "2026-09-18T14:06:10Z"
 
 
+def test_extract_ny_labeled_execution_keeps_utc_wall_digits():
+    """ib_async may attach America/New_York to UTC execution.time digits."""
+    et = ZoneInfo("America/New_York")
+    trade = SimpleNamespace(
+        log=[
+            SimpleNamespace(
+                time=datetime(2026, 9, 18, 15, 2, 48, 551000, tzinfo=timezone.utc),
+            ),
+        ],
+        fills=[
+            SimpleNamespace(
+                execution=SimpleNamespace(
+                    time=datetime(2026, 9, 18, 15, 2, 48, tzinfo=et),
+                ),
+            ),
+        ],
+    )
+    submitted, _updated, filled_at = extract_trade_times(trade)
+    assert submitted is not None and submitted.startswith("2026-09-18T15:02:48")
+    assert filled_at == "2026-09-18T15:02:48Z"
+    assert not filled_at.startswith("2026-09-18T19:02:48")
+
+
+def test_extract_ib_async_host_tz_converted_fill_rewritten():
+    """naive.astimezone(UTC) on an Eastern host yields 19:02:48Z from 15:02:48."""
+    et = ZoneInfo("America/New_York")
+    converted = datetime(2026, 9, 18, 15, 2, 48, tzinfo=et).astimezone(timezone.utc)
+    assert converted.hour == 19
+    trade = SimpleNamespace(
+        log=[
+            SimpleNamespace(
+                time=datetime(2026, 9, 18, 15, 2, 48, 551000, tzinfo=timezone.utc),
+            ),
+        ],
+        fills=[
+            SimpleNamespace(execution=SimpleNamespace(time=converted)),
+        ],
+    )
+    submitted, _updated, filled_at = extract_trade_times(trade)
+    assert submitted is not None and submitted.startswith("2026-09-18T15:02:48")
+    assert filled_at is not None and filled_at.startswith("2026-09-18T15:02:48")
+    assert not filled_at.startswith("2026-09-18T19:02:48")
+
+
 def test_extract_naive_fill_stays_utc_against_utc_log():
     """IMCC-shaped: naive 14:06:10 fill must not become 18:06:10Z."""
     trade = SimpleNamespace(
@@ -81,12 +125,12 @@ def test_extract_trade_times_prefers_last_fill():
         fills=[
             SimpleNamespace(
                 execution=SimpleNamespace(
-                    time=datetime(2026, 7, 18, 9, 35, 0, tzinfo=et),
+                    time=datetime(2026, 7, 18, 13, 35, 0),
                 ),
             ),
             SimpleNamespace(
                 execution=SimpleNamespace(
-                    time=datetime(2026, 7, 18, 9, 41, 23, tzinfo=et),
+                    time=datetime(2026, 7, 18, 13, 41, 23),
                 ),
             ),
         ],
