@@ -33,6 +33,7 @@ export function StrategyConfigurator({
 
       <div className="hod-cfg-row">
         <BoolField label="Enabled" value={cfg.enabled} onChange={v => onChange({ enabled: v })} />
+        {/* Per-strategy Warrior flag (server). Banner ping mute is localStorage -- see hodMomoAlertPing.ts. */}
         <BoolField label="Audio Alert" value={cfg.audio} onChange={v => onChange({ audio: v })} />
       </div>
 

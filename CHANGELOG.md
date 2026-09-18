@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- HOD Momo banner ping on new alert rows
+
+- **What:** A short quiet ping plays when a new HOD Momo list row arrives. The HOD Momo Scanner header has a speaker toggle (default on, localStorage). Mute silences the ping.
+- **Why:** Ahmed 2026-09-18 -- look over when something new hits the HOD list, without opening Configure.
+- **Files touched:** `frontend/src/hod_momo/hodMomoAlertPing.ts`, `HodMomoSoundToggle.tsx`, `useHodMomoStream.ts`, `HodMomoTab.tsx`, `hodMomo.css`.
+- **How it works now:** Live `/ws/hod-momo` alerts that add a new HOD Momentum ticker play one oscillator ping (same shape as Nova OS attention, no mp3). Initial snapshot, id replay, same symbol+time, and later fires of a ticker already on the list stay silent. Several new names in 400ms share one ping. Running Up uses the same stream but does not ping. Banner mute is local (`nova.hodMomo.alertSound`). Configure "Audio Alert" (`cfg.audio`) stays per-strategy server config -- it is not this mute (no play path, mixed defaults).
+- **Verified by:** Vitest `src/hod_momo` + `novaOsAttention` -- 16 files, 55 passed. `npm run lint` + `npm run build` -- exit 0.
+- **Follow-ups:** Hold merge (`do-not-merge`) until Ahmed hears a live HOD row ping and confirms the banner toggle.
+- **Related:** Product ask 2026-09-18. Not a D-NNN.
+
 ## 2026-09-18 -- Orders Today Latency blanks clock-skew negatives
 
 - **What:** Orders Today Latency never paints a negative ms face. IMCC BUY 106411-style rows (`place_to_fill_ms=-296`) show an em dash. Hover says the clocks disagree; it does not imply the order filled before Place. SELL 3037ms warn is unchanged.
