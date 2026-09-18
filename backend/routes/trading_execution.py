@@ -214,6 +214,18 @@ async def cancel_orders_for_symbol(
     return out
 
 
+@router.post("/flatten-account")
+async def flatten_account_route() -> dict:
+    """Whole-account MKT flatten -- same door bot breakers already use.
+
+    Calls ``bot.flatten.flatten_account_with_retry`` (execution source=flatten).
+    Not a second place / cancel stack.
+    """
+    from bot.flatten import flatten_account_with_retry
+
+    return await flatten_account_with_retry()
+
+
 @router.patch("/order/{order_id}")
 async def replace_order(
     order_id: int,

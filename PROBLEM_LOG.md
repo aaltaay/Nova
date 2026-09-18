@@ -37,6 +37,22 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Emergency KILL could cancel its own flatten and double-fire
+
+- **Symptom:** Codex review on #273: flatten returned `ok: true` after canceling the liquidation MKTs it just placed; two rapid KILL clicks could open two confirms and flatten twice (`source=flatten` skips oversell); L2 bot could re-enter during cancel/flatten; pop-out windows stayed unlocked.
+- **Cause:** `flatten_account_once` placed closes with `wait_ack=False` then `_cancel_working()` on the full `openTrades()` snapshot. The KILL button set `busy` only after confirm. Compose did L0 last. Desk lock wrote `sessionStorage` in one window only.
+- **Fix:** Cancel leftover working first, then place closes. Busy/inflight guard before confirm + one in-flight `runEmergencyKill`. Lock + L0 first (and again after); cancel/flatten still run if PATCH fails. Lock echoes via BroadcastChannel + `localStorage` storage events.
+- **Fix class:** ownership
+- **Keywords:** Emergency KILL, flatten_account_once, liquidation MKT, _cancel_working, double-click, Bot Autonomy L0, ticketUnlock sync, BroadcastChannel, Codex #273
+
+## 2026-09-18 -- Emergency KILL had no desk compose of existing doors
+
+- **Symptom:** Panic exit required four separate gestures (Working Cancel All, flatten, Bot Autonomy Off, header lock). Account flatten SSOT (`bot.flatten.flatten_account_with_retry`) was breaker-only -- no human HTTP door -- so a header KILL could not reuse the same market-close path without inventing a second place loop.
+- **Cause:** Cancel-all, breaker flatten, session PATCH L0, and `writeTicketSessionUnlocked` already existed as four doors. Nothing composed them. Executor flatten only closes Nova OS tracked positions, so it is not "flatten all open positions."
+- **Fix:** Header Emergency KILL after Look Up confirms, then cancel-all -> thin `POST /api/ibkr/flatten-account` (same `flatten_account_with_retry` breakers call) -> `patchBotSession({level:0})` -> desk trade lock. Bot PATCH failure does not skip cancel/flatten. Unlock stays the header PIN lock.
+- **Fix class:** admission
+- **Keywords:** Emergency KILL, flatten_account_with_retry, cancelAllWorkingOrders, Bot Autonomy L0, writeTicketSessionUnlocked, TradingSessionLockButton, Look Up, APP_DIALOG_EMERGENCY_KILL_LABEL, ADR 007, D-037
+
 ## 2026-09-18 -- Scanner table column width jitter
 
 - **Symptom:** On Gainers (and the same scanner shell), PRICE / CHANGE / GAP % ticks made columns nudge a few pixels so the whole table slid left/right. Ahmed marked CHANGE and GAP %.

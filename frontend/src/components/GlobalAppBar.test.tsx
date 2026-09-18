@@ -4,7 +4,13 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { TRADER_DEFAULT_SYMBOL, TRADER_DEFAULT_SYMBOLS } from '../constants';
+import {
+  GLOBAL_BAR_EMERGENCY_KILL_LABEL,
+  GLOBAL_BAR_EMERGENCY_KILL_OPS,
+  GLOBAL_BAR_EMERGENCY_KILL_TITLE,
+  TRADER_DEFAULT_SYMBOL,
+  TRADER_DEFAULT_SYMBOLS,
+} from '../constants';
 import { GlobalAppBar } from './GlobalAppBar';
 import type { IbkrAccountState } from '../ibkr/IbkrAccountContext';
 import type { WorkspaceValue } from '../workspace/WorkspaceContext';
@@ -474,5 +480,48 @@ describe('GlobalAppBar', () => {
     account = baseAccount({ summary: null, orders: [] });
     renderBar();
     expect(container.querySelector('[data-testid="global-bar-account-type"]')).toBeNull();
+  });
+
+  it('places Emergency KILL immediately after Look Up with the four-op hover', () => {
+    act(() => {
+      root.render(<GlobalAppBar scanner={scannerProps} />);
+    });
+    const cluster = container.querySelector('[data-testid="global-bar-scanner"]') as HTMLElement;
+    expect(cluster).toBeTruthy();
+    const search = cluster.querySelector('.header-symbol-search') as HTMLElement;
+    const lookUp = search?.querySelector('.side-search-btn') as HTMLButtonElement;
+    const kill = cluster.querySelector(
+      '[data-testid="global-bar-emergency-kill"]',
+    ) as HTMLButtonElement;
+    expect(lookUp?.textContent).toBe('Look Up');
+    expect(kill).toBeTruthy();
+    expect(kill.textContent).toBe(GLOBAL_BAR_EMERGENCY_KILL_LABEL);
+    expect(kill.title).toBe(GLOBAL_BAR_EMERGENCY_KILL_TITLE);
+    for (const op of GLOBAL_BAR_EMERGENCY_KILL_OPS) {
+      expect(kill.title).toContain(op);
+    }
+    const kids = Array.from(cluster.children);
+    expect(kids.indexOf(kill)).toBe(kids.indexOf(search) + 1);
+  });
+
+  it('keeps Emergency KILL in the header when Trader hides Look Up', () => {
+    workspace = baseWorkspace({
+      traderTabs: ['AAPL'],
+      activeTraderSymbol: 'AAPL',
+      traderViewActive: true,
+    });
+    act(() => {
+      root.render(<GlobalAppBar scanner={scannerProps} />);
+    });
+    expect(container.querySelector('[data-testid="global-bar-scanner"]')).toBeNull();
+    const center = container.querySelector('[data-testid="global-bar-center"]') as HTMLElement;
+    const slot = center.querySelector('[data-testid="global-bar-trader-slot"]') as HTMLElement;
+    const kill = center.querySelector(
+      '[data-testid="global-bar-emergency-kill"]',
+    ) as HTMLButtonElement;
+    expect(slot).toBeTruthy();
+    expect(kill).toBeTruthy();
+    const kids = Array.from(center.children);
+    expect(kids.indexOf(kill)).toBe(kids.indexOf(slot) + 1);
   });
 });

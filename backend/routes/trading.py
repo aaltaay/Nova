@@ -13,6 +13,7 @@ Endpoints:
   GET  /api/ibkr/orders/closed    -- filled / cancelled session orders (WID-027)
   POST /api/ibkr/order            -- place market, limit, or stop order
   DELETE /api/ibkr/order/{id}     -- cancel order
+  POST /api/ibkr/flatten-account  -- whole-account flatten (breaker SSOT)
   POST /api/ibkr/depth/subscribe  -- subscribe to L2 depth for a symbol
   POST /api/ibkr/depth/unsubscribe -- unsubscribe symbol
   GET  /api/ibkr/depth            -- list currently subscribed depth symbols
