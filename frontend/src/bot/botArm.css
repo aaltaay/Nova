@@ -24,9 +24,24 @@
   animation: bot-arm-pulse 1.2s ease-in-out infinite;
 }
 
+.bot-arm__name {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
 .bot-arm__field {
   display: inline-flex;
   align-items: center;
+  gap: 0.25rem;
+}
+
+.bot-arm__label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  white-space: nowrap;
+  opacity: 0.88;
 }
 
 .bot-arm__check {
@@ -68,10 +83,52 @@
 }
 
 .bot-arm__status {
-  font-size: 0.68rem;
-  font-weight: 700;
+  font-size: 0.72rem;
+  font-weight: 800;
   letter-spacing: 0.02em;
   white-space: nowrap;
+}
+
+.bot-arm__status--idle {
+  color: #9aa3b2;
+}
+
+.bot-arm__status--active {
+  color: #f5d76e;
+}
+
+.bot-arm--live .bot-arm__status--active {
+  color: #bbf7d0;
+}
+
+.bot-arm__error,
+.bot-arm__key {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.bot-arm__error {
+  color: #f87171;
+}
+
+.bot-arm__key {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.bot-arm__key input {
+  font-size: 0.7rem;
+  background: var(--bg-secondary, #0f131a);
+  color: inherit;
+  border: 1px solid var(--nova-border, #2a3140);
+  border-radius: 4px;
+  padding: 0.15rem 0.3rem;
+  min-width: 10rem;
 }
 
 .bot-arm__sr {

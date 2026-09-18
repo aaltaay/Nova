@@ -1,6 +1,7 @@
 import { novaFetch } from '../api/novaFetch';
 import { API_URL } from '../constantGroups/chart_api';
 import { BOT_DESK_ARM_HEADER, BOT_DESK_ARM_STORAGE } from '../constantGroups/bot';
+import { messageFromBotApiBody } from './botApiError';
 import type { BotAuditEntry, BotProposal, BotSession } from './types';
 
 const BOT = `${API_URL}/bot`;
@@ -8,8 +9,7 @@ const BOT = `${API_URL}/bot`;
 async function readJson<T>(res: Response): Promise<T> {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const detail = (body as { detail?: { error?: string; reason?: string } }).detail;
-    throw new Error(detail?.error || detail?.reason || `bot API ${res.status}`);
+    throw new Error(messageFromBotApiBody(res.status, body));
   }
   return body as T;
 }

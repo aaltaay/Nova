@@ -8,7 +8,7 @@
 export const GLOBAL_APP_BAR_HEIGHT_PX = 40;
 
 /** Accessible name for the bot-only second header row. */
-export const GLOBAL_BAR_BOT_ROW_LABEL = 'Bot controls';
+export const GLOBAL_BAR_BOT_ROW_LABEL = 'Bot Autonomy';
 
 /** Account cluster (Day P&L / Net Liq / BP / position marks) while Gateway is up. */
 export const IBKR_ACCOUNT_POLL_MS = 1_000;

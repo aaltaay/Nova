@@ -55,12 +55,22 @@ function session(partial: Partial<BotSession> = {}): BotSession {
   };
 }
 
-function mockFetch(handler: (url: string, init?: RequestInit) => BotSession | Record<string, unknown>) {
+function mockFetch(
+  handler: (url: string, init?: RequestInit) => BotSession | Record<string, unknown>,
+) {
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     const href = String(url);
-    if (href.includes('/bot/proposals')) return { ok: true, json: async () => ({ proposals: [] }) };
-    if (href.includes('/bot/audit')) return { ok: true, json: async () => ({ entries: [] }) };
-    return { ok: true, json: async () => handler(href, init) };
+    if (href.includes('/bot/proposals')) {
+      return { ok: true, status: 200, json: async () => ({ proposals: [] }) };
+    }
+    if (href.includes('/bot/audit')) {
+      return { ok: true, status: 200, json: async () => ({ entries: [] }) };
+    }
+    const result = handler(href, init);
+    if (result && typeof result === 'object' && 'ok' in result && result.ok === false) {
+      return result;
+    }
+    return { ok: true, status: 200, json: async () => result };
   }));
 }
 
@@ -122,11 +132,85 @@ describe('BotArmControls', () => {
 
     expect(screen.getByTestId('bot-arm-controls').className).toContain('bot-arm--live');
     expect(screen.getByTestId('bot-arm-controls').className).not.toContain('bot-arm--idle');
-    expect(screen.getByTestId('bot-arm-status').textContent).toMatch(/L2 live/);
+    expect(screen.getByTestId('bot-arm-status').textContent).toBe('Active');
     const box = screen.getByTestId('bot-arm-in-control') as HTMLInputElement;
     expect(box.checked).toBe(true);
     expect(screen.getByTestId('bot-arm-in-control-label').textContent).toMatch(/Bot is in control/);
     expect(screen.queryByTestId('bot-arm-activate')).toBeNull();
+    expect(screen.getByTestId('bot-arm-stop').textContent).toBe('Deactivate');
+  });
+
+  it('does not call Eyes "Bot off" -- level and Active are separate', async () => {
+    mockFetch(() => session({ level: 1, armed: false }));
+    await act(async () => {
+      render(<BotArmControls />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const level = screen.getByTestId('bot-arm-level') as HTMLSelectElement;
+    expect(level.value).toBe('1');
+    expect(level.selectedOptions[0].textContent).toBe('Eyes');
+    expect(screen.getByTestId('bot-arm-status').textContent).toBe('Not active');
+    expect(screen.getByTestId('bot-arm-status').textContent).not.toMatch(/Bot off/i);
+    expect(screen.getByTestId('bot-arm-activate').textContent).toBe('Activate');
+    expect(screen.getByTestId('bot-arm-name').textContent).toBe('Bot Autonomy');
+  });
+
+  it('surfaces a failed Eyes patch instead of snapping back silently', async () => {
+    mockFetch((_href, init) => {
+      if (init?.method === 'PATCH') {
+        return {
+          ok: false,
+          status: 401,
+          json: async () => ({ detail: 'Invalid or missing X-Nova-Api-Key' }),
+        };
+      }
+      return session({ level: 0, armed: false });
+    });
+    await act(async () => {
+      render(<BotArmControls />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('bot-arm-level'), { target: { value: '1' } });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect((screen.getByTestId('bot-arm-level') as HTMLSelectElement).value).toBe('0');
+    expect(screen.getByTestId('bot-arm-error').textContent).toMatch(/Need Nova API key/i);
+    expect(screen.getByTestId('bot-arm-api-key')).toBeTruthy();
+  });
+
+  it('selecting Strategy arms first and patches with the desk token', async () => {
+    mockFetch((href, init) => {
+      if (href.includes('/session/arm')) {
+        return session({ armed: true, has_desk_arm: true, desk_arm_token: 'desk-token-l2' });
+      }
+      if (href.includes('/bot/session') && init?.method === 'PATCH') {
+        return session({ level: 2, armed: true, has_desk_arm: true, strategy: 'small-cap' });
+      }
+      return session({ level: 0, armed: false });
+    });
+    await act(async () => {
+      render(<BotArmControls />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('bot-arm-level'), { target: { value: '2' } });
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/session/arm'))).toBe(true);
+    const patchCall = fetchMock.mock.calls.find(([, init]) => init && (init as RequestInit).method === 'PATCH');
+    expect(patchCall).toBeTruthy();
+    const headers = new Headers((patchCall?.[1] as RequestInit).headers);
+    expect(headers.get('X-Nova-Desk-Arm')).toBe('desk-token-l2');
+    expect((screen.getByTestId('bot-arm-level') as HTMLSelectElement).value).toBe('2');
+    expect(screen.getByTestId('bot-arm-status').textContent).toBe('Active');
   });
 
   it('marks L0 inactive chrome as idle so the header row can mute', async () => {

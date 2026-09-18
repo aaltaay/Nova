@@ -24,11 +24,28 @@ export const BOT_ADVISE_DEFAULT_CALL_CAP = 10;
 export const BOT_SOFT_BREAKER_USD = -50;
 export const BOT_HARD_BREAKER_USD = -200;
 
+export const BOT_AUTONOMY_LABEL = 'Bot Autonomy';
+export const BOT_LEVEL_FIELD_LABEL = 'Level';
+export const BOT_PACK_FIELD_LABEL = 'Pack';
 export const BOT_LEVEL_LABELS = {
-  0: 'Off (L0 dark)',
-  1: 'Eyes (L1 watch + propose)',
-  2: 'Strategy (L2 small-cap)',
+  0: 'Off',
+  1: 'Eyes',
+  2: 'Strategy',
 } as const;
+export const BOT_LEVEL_HINTS = {
+  0: 'L0 dark -- no watch, propose, or writes',
+  1: 'L1 Eyes -- watch and propose; human places',
+  2: 'L2 Strategy -- live under gates after Activate',
+} as const;
+export const BOT_STATE_ACTIVE = 'Active';
+export const BOT_STATE_NOT_ACTIVE = 'Not active';
+export const BOT_ACTIVATE_LABEL = 'Activate';
+export const BOT_DEACTIVATE_LABEL = 'Deactivate';
+export const BOT_API_KEY_HINT = 'Need Nova API key to change Bot Autonomy';
+export const BOT_API_KEY_SAVE = 'Save';
+export const BOT_ERROR_NEED_API_KEY =
+  'Need Nova API key -- Vite serve maps repo NOVA_API_KEY, or save it here';
+export const BOT_ERROR_ARM_REQUIRED = 'Activate first, then choose Strategy';
 
 export const BOT_PACK_HALT_LULD = 'halt-luld';
 export const BOT_PACK_QUOTE_SPIKE = 'quote-spike';

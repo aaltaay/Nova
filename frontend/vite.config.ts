@@ -3,9 +3,11 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
+import { loadEnv } from 'vite'
 import { defineConfig } from 'vitest/config'
 import { injectNovaTitle } from './electron/appTitle.mjs'
 import { releaseTagFromText } from './electron/releaseTag.mjs'
+import { readDevNovaApiKey } from './scripts/vite-nova-api-key'
 import { novaLaunchGatewayPlugin } from './scripts/vite-nova-launch-gateway'
 import { novaStartApiPlugin } from './scripts/vite-nova-start-api'
 
@@ -45,8 +47,24 @@ function readNovaReleaseTag(): string {
 
 const novaReleaseTag = readNovaReleaseTag()
 
+function applyLocalNovaApiKey(mode: string): void {
+  const rootEnv = loadEnv(mode, path.resolve(__dirname, '..'), '')
+  const frontendEnv = loadEnv(mode, __dirname, '')
+  const key = readDevNovaApiKey({
+    VITE_NOVA_API_KEY:
+      process.env.VITE_NOVA_API_KEY ||
+      frontendEnv.VITE_NOVA_API_KEY ||
+      rootEnv.VITE_NOVA_API_KEY,
+    NOVA_API_KEY:
+      process.env.NOVA_API_KEY || frontendEnv.NOVA_API_KEY || rootEnv.NOVA_API_KEY,
+  })
+  if (key) process.env.VITE_NOVA_API_KEY = key
+}
+
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command, mode }) => {
+  if (command === 'serve') applyLocalNovaApiKey(mode)
+  return {
   // Relative asset URLs required for Electron file:// loads; web/Vercel keep absolute `/`.
   base: isElectronBuild ? './' : '/',
   define: {
@@ -107,5 +125,6 @@ export default defineConfig({
     exclude: ['**/node_modules/**', '**/dist/**', '**/e2e/**'],
     setupFiles: ['./src/testSetup/reactActEnvironment.ts'],
   },
+}
 })
 

@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Bot Autonomy header: Active/Not active + level sticks
+
+- **What:** Header Bot Autonomy strip now splits **Level** (Off / Eyes / Strategy) from **Active / Not active**. Activate and Deactivate match that armed state. Failed level/arm calls show a visible error (and an API-key field on 401). Vite `serve` maps repo `NOVA_API_KEY` onto `VITE_NOVA_API_KEY` so the desk can PATCH.
+- **Why:** Playwright on Vite could not change Off/Eyes/Strategy or Activate. Status said **Bot off** even when Eyes was selected. API PATCH worked with `X-Nova-Api-Key`; the UI failed quiet.
+- **Files touched:** `frontend/src/bot/BotArmControls.tsx`, `useBotSession.ts`, `botSessionPoller.ts`, `api.ts`, `botApiError.ts`, `botArm.css`, `frontend/src/api/novaFetch.ts`, `frontend/vite.config.ts`, `frontend/scripts/vite-nova-api-key.ts`, `constantGroups/bot.ts`.
+- **How it works now:** GET `/bot/session` stays open. Mutating bot routes still need `X-Nova-Api-Key`. The header is controlled by the last successful session. A 401/403 is sticky text under the strip, not a tooltip. Selecting Strategy still Activate-then-PATCH with `X-Nova-Desk-Arm`. L3 stays parked.
+- **Verified by:** Vitest BotArmControls / botApiError / novaFetch / botSessionPoller / api / StrategyTab / GlobalAppBar / vite-nova-api-key. `npm run lint` + `npm run build` on this branch.
+- **Related:** Refs #205. PROBLEM_LOG 2026-09-18 -- Bot Autonomy Eyes snap-back.
+
 ## 2026-09-18 -- Window title shows VERSION (vNNN)
 
 - **What:** The Electron OS title (and the Vite browser tab) now include the public Nova revision next to the existing view label. Scanner is `Nova <em dash> Stock Scanner · vNNN`. Trader is `SYMBOL · Trader · Nova · vNNN`. Popped-out trader windows are `Nova -- SYMBOL · vNNN`.
