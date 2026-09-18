@@ -9,6 +9,7 @@
  * second Electron-only dock model here.
  */
 import { app, BrowserWindow, screen } from 'electron';
+import { attachRendererGuards } from './rendererGuards.mjs';
 import { isAllowedRendererUrl, loadTraderWindow } from './traderWindowLoad.mjs';
 import {
   bindWindowBoundsPersist,
@@ -94,6 +95,7 @@ export async function openOrFocusTraderWindow(url, windowOptions, attachHandler)
     windowOptions.height ?? 900,
   );
   const child = new BrowserWindow({ ...windowOptions, ...bounds, show: false });
+  attachRendererGuards(child, { allowedBase: url, reloadUrl: url });
   let currentSym = sym;
   bindWindowBoundsPersist(child, userData, () => traderWindowId(currentSym));
   const releaseTag = novaDesktopReleaseTag(app);

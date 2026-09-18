@@ -16,6 +16,8 @@ import {
   waitForHealth,
 } from './sidecar.mjs';
 import { skipApiSidecar } from './sidecarSkip.mjs';
+import { attachRendererGuards, recoverWindowIfErrorPage } from './rendererGuards.mjs';
+import { applySingleInstance, focusExistingWindow } from './singleInstance.mjs';
 import { isAllowedRendererUrl } from './traderWindowLoad.mjs';
 import { openOrFocusTraderWindow } from './traderWindows.mjs';
 import {
@@ -74,18 +76,18 @@ function attachStockViewWindowOpen(win) {
   });
 }
 
-function attachMainLoadRetry(win, reloadUrl, loadFilePath) {
-  let retried = false;
-  win.webContents.on('did-fail-load', (_event, code, desc, _url, isMainFrame) => {
-    if (!isMainFrame || retried || win.isDestroyed()) return;
-    retried = true;
-    console.error('[nova] main window failed to load', code, desc);
-    if (reloadUrl) {
-      void win.loadURL(reloadUrl);
-      return;
-    }
-    if (loadFilePath) void win.loadFile(loadFilePath);
-  });
+function packagedIndexHtml() {
+  return path.join(__dirname, '..', 'dist', 'index.html');
+}
+
+function viteUrl() {
+  return process.env.NOVA_VITE_URL || 'http://127.0.0.1:5173';
+}
+
+function mainRecoverOpts() {
+  return isDev
+    ? { reloadUrl: viteUrl(), loadFilePath: null, allowedBase: viteUrl() }
+    : { reloadUrl: null, loadFilePath: packagedIndexHtml(), allowedBase: 'file:' };
 }
 
 function createWindow() {
@@ -93,18 +95,16 @@ function createWindow() {
   const saved = restoreWindowBounds(userData, WINDOW_ID_MAIN, displayWorkAreas());
   mainWindow = new BrowserWindow({ ...windowOptions(), ...(saved || {}) });
   bindWindowBoundsPersist(mainWindow, userData, WINDOW_ID_MAIN);
+  const recover = mainRecoverOpts();
+  attachRendererGuards(mainWindow, { ...recover, retryFail: true });
 
   if (isDev) {
-    const viteUrl = process.env.NOVA_VITE_URL || 'http://127.0.0.1:5173';
-    attachMainLoadRetry(mainWindow, viteUrl, null);
-    void mainWindow.loadURL(viteUrl);
+    void mainWindow.loadURL(recover.reloadUrl);
     if (shouldOpenDetachedDevTools(isDev)) {
       mainWindow.webContents.openDevTools({ mode: 'detach' });
     }
   } else {
-    const indexHtml = path.join(__dirname, '..', 'dist', 'index.html');
-    attachMainLoadRetry(mainWindow, null, indexHtml);
-    void mainWindow.loadFile(indexHtml);
+    void mainWindow.loadFile(recover.loadFilePath);
   }
 
   attachStockViewWindowOpen(mainWindow);
@@ -157,26 +157,36 @@ ipcMain.handle('nova:openExternal', async (_event, url) => {
   return true;
 });
 
-app.whenReady().then(async () => {
-  try {
-    await startApiSidecar();
-    await openEnvFileIfNeeded();
-    await waitForHealth();
-    createWindow();
-  } catch (err) {
-    console.error(err);
-    const { dialog } = await import('electron');
-    await dialog.showErrorBox(
-      'Nova failed to start',
-      err instanceof Error ? err.message : String(err),
-    );
-    app.quit();
-  }
+if (
+  !applySingleInstance(app, () => {
+    focusExistingWindow(mainWindow, (win) => {
+      recoverWindowIfErrorPage(win, mainRecoverOpts());
+    });
+  })
+) {
+  app.quit();
+} else {
+  app.whenReady().then(async () => {
+    try {
+      await startApiSidecar();
+      await openEnvFileIfNeeded();
+      await waitForHealth();
+      createWindow();
+    } catch (err) {
+      console.error(err);
+      const { dialog } = await import('electron');
+      await dialog.showErrorBox(
+        'Nova failed to start',
+        err instanceof Error ? err.message : String(err),
+      );
+      app.quit();
+    }
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
   });
-});
+}
 
 app.on('window-all-closed', () => {
   stopApiSidecar();
