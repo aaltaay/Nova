@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   appendTapePrint,
   emptyTapeState,
+  flushPendingTapePrints,
   tapeMessageAllowed,
   tapeSymbolKey,
   type TapePrint,
@@ -66,6 +67,24 @@ describe('appendTapePrint', () => {
     expect(next).toHaveLength(2);
     expect(next[0].price).toBe(3);
     expect(next[1].price).toBe(2);
+  });
+});
+
+describe('flushPendingTapePrints', () => {
+  it('keeps arrival order (newest first) and does not invent prints', () => {
+    const a = { ...makePrint('AAPL', 1), time: '2026-09-18T13:00:00.000Z' };
+    const b = { ...makePrint('AAPL', 2), time: '2026-09-18T13:00:00.010Z' };
+    const c = { ...makePrint('AAPL', 3), time: '2026-09-18T13:00:00.020Z' };
+    const next = flushPendingTapePrints([], [a, b, c]);
+    expect(next.map(p => p.price)).toEqual([3, 2, 1]);
+    expect(next).toHaveLength(3);
+  });
+
+  it('caps the ring without dropping a newer pending print', () => {
+    const existing = [makePrint('AAPL', 10), makePrint('AAPL', 9)];
+    const pending = [makePrint('AAPL', 11), makePrint('AAPL', 12)];
+    const next = flushPendingTapePrints(existing, pending, 3);
+    expect(next.map(p => p.price)).toEqual([12, 11, 10]);
   });
 });
 

@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Desk perf Phase 1: T&S coalesce + virtualize + tip-only 10Sec
+
+- **What:** Time & Sales flushes AllLast prints once per animation frame, paints only a viewport window over the 200-print ring, and hidden live trader tabs stop applying tape/depth/chart UI. 10Sec chart uses lightweight-charts tip `update` and skips `setIndicatorBars` / full `setData` on same-bucket prints. Daily Electron no longer detaches DevTools unless `NOVA_ELECTRON_DEVTOOLS=1`.
+- **Why:** After poll thin (#241) the desk still rushed and the 10Sec pane hitched. Ahmed Lock A 2026-09-17: the bottleneck is UI main-thread thrash, not CPU.
+- **Files touched:** `useIbkrTape.ts`, `tapeFeed.ts`, `tapeWindow.ts`, `TimeSalesPanel.tsx`, `useIbkrDepth.ts`, `useChartBars.ts`, `chartBarsPaint.ts`, `StockViewPage.tsx`, `electron/devtoolsGate.mjs`.
+- **How it works now:** The tape ring still prepends every print (cap 200). React commits and T&S DOM update once per frame, and only ~viewport+overscan rows mount. Hidden live tabs keep the WebSocket and ring (and 10Sec upsert) but do not paint until shown. Chart `subscribeBars` is rAF-coalesced; same-length tip changes call `series.update` only. Day P&L poll rate is unchanged.
+- **Verified by:** Vitest `src/ibkr` + `src/chart` + coalesce/window/gate neighbors -- 121 files / 694 passed. ESLint on touched files -- exit 0. `npm run build` (frontend) -- exit 0.
+- **Follow-ups:** Workers, OffscreenCanvas, Electron multi-process, bigger rings, GPU flags, and slowing `IBKR_ACCOUNT_POLL_MS` stay parked (out of scope).
+- **Related:** Closes #243. PROBLEM_LOG 2026-09-18 T&S/10Sec main-thread thrash. Not D-003 (hist loading).
+
 ## 2026-09-17 -- Halt chip observe + no false API-down + desk poll thin-out
 
 - **What:** HaltEtaChip can show on a live-focused name (DAIC) that is halted even when tick 49 never logged. A successful GET /api/health no longer paints "Backend unreachable". Account / closed-orders / bot HTTP is one owner per process, with a cross-window leader so Electron+Vite do not N-times the 1s cluster. Daily UI roll-out can attach unpackaged Electron to a healthy API without recycling :8000.

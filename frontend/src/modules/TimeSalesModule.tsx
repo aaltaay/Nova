@@ -8,16 +8,23 @@ interface Props {
   symbol: string | null;
   /** Hide inner title when a parent pane already labels the module. */
   embedded?: boolean;
+  /** False on live-but-hidden trader tabs. */
+  uiActive?: boolean;
 }
 
-export function TimeSalesModule({ symbol, embedded = false }: Props) {
+export function TimeSalesModule({ symbol, embedded = false, uiActive = true }: Props) {
   return (
     <div
       className="nova-module nova-module--time-sales"
       data-module="time-sales"
       data-symbol={symbol ?? ''}
     >
-      <TimeSalesPanel key={symbol ?? 'none'} symbol={symbol} embedded={embedded} />
+      <TimeSalesPanel
+        key={symbol ?? 'none'}
+        symbol={symbol}
+        embedded={embedded}
+        uiActive={uiActive}
+      />
     </div>
   );
 }
