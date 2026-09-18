@@ -121,6 +121,15 @@ IBKR_ERROR_NO_OPENING_TRADES = 201
 FILL_AUDIT_MKT_RTH_WARN_MS = 2_000
 FILL_AUDIT_MKT_RTH_DANGER_MS = 10_000
 FILL_AUDIT_JSONL_FILENAME = "fill-latency.jsonl"
+# Same-second submit (incl. -1ms clock skew) vs a multi-hour fill is not a
+# real MKT delay -- it is a timezone-mislabelled IBKR execution.time.
+FILL_AUDIT_SAME_SECOND_SUBMIT_MS = 2_000
+FILL_AUDIT_TZ_OFFSET_SLACK_MS = 2_000
+FILL_AUDIT_TZ_RESIDUAL_MAX_MS = 120_000
+FILL_AUDIT_IMPOSSIBLE_MKT_FILL_MS = 3_600_000
+FILL_AUDIT_FAST_TYPES = frozenset({"MKT", "MIT", "MOC"})
+FILL_AUDIT_REASON_TIMEZONE_SHAPED = "timezone_shaped_clock"
+FILL_AUDIT_REASON_IMPOSSIBLE = "impossible_fill_clock"
 # Default TIF for all Nova API orders -- never leave blank (triggers 10349).
 IBKR_ORDER_TIF_DEFAULT = "DAY"
 # Connectivity lost / restored (async via errorEvent). 1100 = lost; 1101/1102 = restored.

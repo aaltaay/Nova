@@ -40,6 +40,23 @@ def _base(**kw) -> dict:
     return row
 
 
+def test_imcc_edt_false_four_hour_is_corrected():
+    """Ahmed bench 2026-09-18: 14403037ms is EDT offset + 3037ms, not a 4h fill."""
+    row = classify_fill_audit(
+        **_base(
+            nova_placed_at="2026-09-18T14:06:06.963023Z",
+            submitted_at="2026-09-18T14:06:06.962023Z",
+            filled_at="2026-09-18T18:06:10Z",
+            terminal_at="2026-09-18T18:06:10Z",
+        ),
+    )
+    assert row["place_to_submit_ms"] == -1
+    assert row["place_to_fill_ms"] == 3037
+    assert row["place_to_fill_ms"] != 14_403_037
+    assert row["reason"] == "mkt_rth_slow"
+    assert row["level"] == "warn"
+
+
 def test_quiet_ok_mkt_fill_under_2s():
     row = classify_fill_audit(**_base())
     assert row["place_to_submit_ms"] == 12

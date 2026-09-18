@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
@@ -20,12 +20,12 @@ def setup_function() -> None:
     clear_nova_placed_for_tests()
 
 
-def test_to_iso_naive_datetime_assumes_eastern():
+def test_to_iso_naive_datetime_is_utc():
     dt = datetime(2026, 7, 18, 9, 41, 23)
     iso = _to_iso(dt)
     assert iso is not None
-    # 09:41 ET in July is UTC-4 → 13:41 UTC
-    assert iso.startswith("2026-07-18T13:41:23")
+    # IBKR Execution.time digits are UTC -- do not attach Eastern.
+    assert iso.startswith("2026-07-18T09:41:23")
     assert iso.endswith("Z")
 
 
@@ -40,14 +40,35 @@ def test_to_iso_preserves_microseconds():
 def test_to_iso_ib_compact_string():
     iso = _to_iso("20260718  09:41:23")
     assert iso is not None
-    assert "2026-07-18T13:41:23" in iso
+    assert "2026-07-18T09:41:23" in iso
 
 
 def test_to_iso_ib_compact_with_fraction():
     iso = _to_iso("20260718 09:41:23.123456")
     assert iso is not None
-    assert iso.startswith("2026-07-18T13:41:23")
+    assert iso.startswith("2026-07-18T09:41:23")
     assert "123" in iso
+
+
+def test_to_iso_ib_dash_compact_is_utc():
+    iso = _to_iso("20260918-14:06:10")
+    assert iso == "2026-09-18T14:06:10Z"
+
+
+def test_extract_naive_fill_stays_utc_against_utc_log():
+    """IMCC-shaped: naive 14:06:10 fill must not become 18:06:10Z."""
+    trade = SimpleNamespace(
+        log=[SimpleNamespace(time=datetime(2026, 9, 18, 14, 6, 6, 962023, tzinfo=timezone.utc))],
+        fills=[
+            SimpleNamespace(
+                execution=SimpleNamespace(time=datetime(2026, 9, 18, 14, 6, 10)),
+            ),
+        ],
+    )
+    submitted, _updated, filled_at = extract_trade_times(trade)
+    assert submitted is not None and submitted.startswith("2026-09-18T14:06:06")
+    assert filled_at is not None and filled_at.startswith("2026-09-18T14:06:10")
+    assert not filled_at.startswith("2026-09-18T18:06:10")
 
 
 def test_extract_trade_times_prefers_last_fill():

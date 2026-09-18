@@ -217,6 +217,6 @@ describe('workingOrderCells — Open Orders column contract', () => {
     });
     expect(text).toBe('180ms');
     expect(html).toContain('ibkr-fill-latency--warn');
-    expect(html).toContain('Nova → IBKR submit: 12ms');
+    expect(html).toContain('Nova → submit: 12ms');
   });
 });

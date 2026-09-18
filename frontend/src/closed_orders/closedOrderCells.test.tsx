@@ -103,7 +103,7 @@ describe('closedOrderCells — column contract', () => {
         reason: 'mkt_rth_slow',
       },
     });
-    expect(warn.text).toBe('2.1s');
+    expect(warn.text).toBe('2100ms');
     expect(warn.html).toContain('ibkr-fill-latency--warn');
   });
 
