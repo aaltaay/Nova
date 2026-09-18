@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Trade ticket Extended Hours checkbox closes #169
+
+- **What:** Issue #169 is the product close for the ticket hours control. The Trading Hours dropdown is already an Extended Hours checkbox, default checked. This PR proves the Place path: default send is `outside_rth=true`; uncheck sends false. Stop Limit / Trailing Stop flyouts keep the box enabled and do not reset it.
+- **Why:** #169. #170 / #172 shipped the checkbox and unlocked Market/Stop. #169 stayed open as the original Ahmed ask (checkbox default on, align with Flatten).
+- **Files touched:** `ManualOrderTicket.extendedHours.test.tsx`, `useManualOrderSubmission.test.tsx`, `chartOrderToTicket.test.tsx`, `ManualOrderFields.test.tsx`, `e2e/sample-shortability.spec.ts`.
+- **How it works now:** `TRADE_DEFAULT_EXTENDED_HOURS=true` seeds new tickets. Saved `nova.trade.defaults.v1` still wins. Place reads the checkbox through `buildManualOrder` -> `placeIbkrOrder`. Flatten / Cancel+Flatten stay clock-auto EH (`shouldUseOutsideRth`). Fill now still plans an LMT sweep outside RTH (#171). MKT+EH remains broker-limited: IBKR may ignore `outsideRth` on market (Warning 2109) or hold until the open (Warning 399). Nova shows that after Place; it does not pre-disable the box.
+- **Verified by:** Vitest ticket / Place / fields / chart-prefill neighbors. Playwright sample-shortability cheap EH assert. Backend flatten/validate neighbors unchanged.
+- **Follow-ups:** Ahmed Edge-smokes on a live Gateway. `do-not-merge` until he says yes.
+- **Related:** Closes #169. Refs #170 / #171 / #168. No PROBLEM_LOG (feature already on master; this is the issue close + Place-path proof).
+
 ## 2026-09-18 -- Bot pack sentence sits under the header picker
 
 - **What:** Header `BotArmControls` shows the selected pack's one-sentence `description` under the Pack picker. Hover tooltip remains as overflow backup. Strategy tab copy is unchanged.

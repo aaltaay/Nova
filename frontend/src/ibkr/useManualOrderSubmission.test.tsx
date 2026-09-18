@@ -101,6 +101,26 @@ describe('useManualOrderSubmission gesture identity', () => {
     expect(result.current.confirmSummary).not.toMatch(/^SELL /);
   });
 
+  it('forwards outside_rth true from the ticket checkbox', async () => {
+    const { result } = renderHook(() =>
+      useManualOrderSubmission({ ...params(), outsideRth: true }),
+    );
+    await act(async () => {
+      await result.current.executeOrder();
+    });
+    expect(placeIbkrOrder.mock.calls[0][0].outside_rth).toBe(true);
+  });
+
+  it('forwards outside_rth false when Extended Hours is unchecked', async () => {
+    const { result } = renderHook(() =>
+      useManualOrderSubmission({ ...params(), outsideRth: false }),
+    );
+    await act(async () => {
+      await result.current.executeOrder();
+    });
+    expect(placeIbkrOrder.mock.calls[0][0].outside_rth).toBe(false);
+  });
+
   it('mints a fresh key for the next gesture', async () => {
     const { result } = renderHook(() => useManualOrderSubmission(params()));
     await act(async () => {
