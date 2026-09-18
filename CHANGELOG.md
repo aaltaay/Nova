@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** Ahmed asked for a one-click path from desk chrome to IBKR Transfer & Pay -> Deposit Funds. IBKR SSO has no stable public deposit deep-link.
 - **Files touched:** `frontend/src/ibkr/FundAccountButton.tsx`, `frontend/src/components/GlobalAppBar.tsx`, `frontend/src/constantGroups/global_bar.ts`, `frontend/src/styles/global-app-bar.css`.
 - **How it works now:** The button sits in the account identity zone (after Cash/Margin, before Account) so it stays visible when Net Liq is loading or IBKR is offline. Tooltip tells the operator to use Transfer & Pay -> Deposit Funds. Same Electron `openExternal` / browser tab path as the verification reject dialog.
-- **Verified by:** Vitest `FundAccountButton` (click calls `openIbkrClientPortal` once). Neighbor `openIbkrClientPortal` + `GlobalAppBar` tests. `npm run lint` / `npm run build`.
+- **Verified by:** Vitest `FundAccountButton` (click calls `openIbkrClientPortal` once). Neighbor `openIbkrClientPortal` + `GlobalAppBar` + Playwright `e2e/fund-account.spec.ts`. `npm run lint` / `npm run build`.
 - **Follow-ups:** ACH / bank-link UI inside Nova stays out of scope. PR holds `do-not-merge` until Ahmed clicks Fund account on the desk.
 - **Related:** none (no D-NNN; no money movement).
 
