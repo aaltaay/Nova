@@ -19,7 +19,7 @@ import { applyGpuPolicy } from './gpuPolicy.mjs';
 import { attachRendererGuards, recoverWindowIfErrorPage } from './rendererGuards.mjs';
 import { applySingleInstance, focusExistingWindow } from './singleInstance.mjs';
 import { skipApiSidecar } from './sidecarSkip.mjs';
-import { isAllowedRendererUrl } from './traderWindowLoad.mjs';
+import { isAllowedRendererUrl, loadHostWindow } from './traderWindowLoad.mjs';
 import { openOrFocusTraderWindow } from './traderWindows.mjs';
 import {
   WINDOW_ID_MAIN,
@@ -95,20 +95,20 @@ function mainRecoverOpts() {
 function createWindow() {
   const userData = app.getPath('userData');
   const saved = restoreWindowBounds(userData, WINDOW_ID_MAIN, displayWorkAreas());
-  mainWindow = new BrowserWindow({ ...windowOptions(), ...(saved || {}) });
+  mainWindow = new BrowserWindow({
+    ...windowOptions(),
+    ...(saved || {}),
+    show: false,
+  });
   bindWindowBoundsPersist(mainWindow, userData, WINDOW_ID_MAIN);
   const recover = mainRecoverOpts();
   attachRendererGuards(mainWindow, { ...recover, retryFail: true });
-
-  if (isDev) {
-    void mainWindow.loadURL(recover.reloadUrl);
-    if (shouldOpenDetachedDevTools(isDev)) {
+  void loadHostWindow(mainWindow, recover).then((ok) => {
+    if (!ok) recoverWindowIfErrorPage(mainWindow, recover);
+    if (shouldOpenDetachedDevTools(isDev) && mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.openDevTools({ mode: 'detach' });
     }
-  } else {
-    void mainWindow.loadFile(recover.loadFilePath);
-  }
-
+  });
   attachStockViewWindowOpen(mainWindow);
 
   mainWindow.on('closed', () => {

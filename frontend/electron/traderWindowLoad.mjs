@@ -1,6 +1,7 @@
 /**
- * Pure URL + load helpers for Trader BrowserWindows.
- * Owner: traderWindows.mjs (child) and main.mjs (main-window fail retry).
+ * Pure URL + load helpers for Electron BrowserWindows.
+ * Owner: traderWindows.mjs (child, close on fail) and main.mjs (host,
+ * keep the window so rendererGuards can retry Vite).
  */
 
 export function isAllowedRendererUrl(url, { requireStockView = false } = {}) {
@@ -26,13 +27,25 @@ export function isAllowedRendererUrl(url, { requireStockView = false } = {}) {
 }
 
 /**
- * Load `url` into an already-created window. Resolves true only after a
- * successful load; failed loads close the window so a blank chrome-error
- * shell does not stay focused.
- *
- * @param {{ loadURL: (url: string) => Promise<unknown>, show: () => void, focus: () => void, close: () => void, isDestroyed?: () => boolean, webContents: { once: Function, removeListener: Function } }} win
+ * @param {{
+ *   loadURL?: (url: string) => Promise<unknown>,
+ *   loadFile?: (path: string) => Promise<unknown>,
+ *   show: () => void,
+ *   focus: () => void,
+ *   close: () => void,
+ *   isDestroyed?: () => boolean,
+ *   webContents: { once: Function, removeListener: Function },
+ * }} win
+ * @param {{ reloadUrl?: string | null, loadFilePath?: string | null, closeOnFail?: boolean, label?: string }} opts
  */
-export function loadTraderWindow(win, url) {
+export function loadRendererWindow(win, opts = {}) {
+  const {
+    reloadUrl = null,
+    loadFilePath = null,
+    closeOnFail = false,
+    label = 'window',
+  } = opts;
+  const target = reloadUrl || loadFilePath || '';
   return new Promise((resolve) => {
     let settled = false;
     const done = (ok) => {
@@ -41,13 +54,18 @@ export function loadTraderWindow(win, url) {
       resolve(ok);
     };
     const destroyed = () => typeof win.isDestroyed === 'function' && win.isDestroyed();
+    const start = () => {
+      if (reloadUrl) return win.loadURL(reloadUrl);
+      if (loadFilePath) return win.loadFile(loadFilePath);
+      return Promise.reject(new Error('no renderer URL'));
+    };
     const onFail = (_event, code, desc) => {
-      console.error('[nova] trader window load failed', url, code, desc);
+      console.error('[nova]', label, 'load failed', target, code, desc);
       done(false);
-      if (!destroyed()) win.close();
+      if (closeOnFail && !destroyed()) win.close();
     };
     win.webContents.once('did-fail-load', onFail);
-    Promise.resolve(win.loadURL(url))
+    Promise.resolve(start())
       .then(() => {
         win.webContents.removeListener('did-fail-load', onFail);
         if (destroyed()) {
@@ -62,5 +80,24 @@ export function loadTraderWindow(win, url) {
         const message = err instanceof Error ? err.message : String(err);
         onFail(null, -1, message);
       });
+  });
+}
+
+/** Child Trader window: hide until load; close on chrome-error. */
+export function loadTraderWindow(win, url) {
+  return loadRendererWindow(win, {
+    reloadUrl: url,
+    closeOnFail: true,
+    label: 'trader window',
+  });
+}
+
+/** Host desk: hide until Vite/file loads; keep the window so guards can retry. */
+export function loadHostWindow(win, { reloadUrl = null, loadFilePath = null } = {}) {
+  return loadRendererWindow(win, {
+    reloadUrl,
+    loadFilePath,
+    closeOnFail: false,
+    label: 'host window',
   });
 }

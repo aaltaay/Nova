@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   isAllowedRendererUrl,
+  loadHostWindow,
   loadTraderWindow,
 } from '../../electron/traderWindowLoad.mjs';
 
@@ -77,5 +78,41 @@ describe('loadTraderWindow', () => {
     await expect(loadTraderWindow(win, 'chrome-error://chromewebdata/')).resolves.toBe(false);
     expect(win.show).not.toHaveBeenCalled();
     expect(win.close).toHaveBeenCalledOnce();
+  });
+});
+
+describe('loadHostWindow', () => {
+  function mockHost(loadImpl: () => Promise<void>) {
+    return {
+      loadURL: vi.fn(loadImpl),
+      loadFile: vi.fn(loadImpl),
+      show: vi.fn(),
+      focus: vi.fn(),
+      close: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+      webContents: {
+        once: vi.fn(),
+        removeListener: vi.fn(),
+      },
+    };
+  }
+
+  it('shows the host only after Vite loadURL resolves', async () => {
+    const win = mockHost(() => Promise.resolve());
+    await expect(
+      loadHostWindow(win, { reloadUrl: 'http://127.0.0.1:5173/' }),
+    ).resolves.toBe(true);
+    expect(win.loadURL).toHaveBeenCalledWith('http://127.0.0.1:5173/');
+    expect(win.show).toHaveBeenCalledOnce();
+    expect(win.close).not.toHaveBeenCalled();
+  });
+
+  it('keeps a failed host so rendererGuards can retry Vite', async () => {
+    const win = mockHost(() => Promise.reject(new Error('ERR_FAILED')));
+    await expect(
+      loadHostWindow(win, { reloadUrl: 'http://127.0.0.1:5173/' }),
+    ).resolves.toBe(false);
+    expect(win.show).not.toHaveBeenCalled();
+    expect(win.close).not.toHaveBeenCalled();
   });
 });
