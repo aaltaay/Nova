@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   buildManualOrder,
   forcedManualOrderQty,
+  isStopFamilyType,
+  manualOrderConfirmPriceText,
   nudgeQuantityValue,
   presetsForQuantityMode,
   resolveOrderQuantity,
@@ -166,6 +168,80 @@ describe('manual order payloads', () => {
     });
   });
 
+  it('builds a stop-limit with both prices', () => {
+    const result = buildManualOrder(
+      {
+        ...base,
+        side: 'SELL',
+        orderType: 'STP LMT',
+        stopPrice: '23.5',
+        limitPrice: '23.25',
+      },
+      context,
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      payload: {
+        symbol: 'AAPL',
+        side: 'SELL',
+        qty: 100,
+        order_type: 'STP LMT',
+        stop_price: 23.5,
+        limit_price: 23.25,
+        outside_rth: false,
+      },
+      referencePrice: 23.25,
+    });
+  });
+
+  it('rejects stop-limit without a limit price', () => {
+    const result = buildManualOrder(
+      {
+        ...base,
+        orderType: 'STP LMT',
+        stopPrice: '23.5',
+        limitPrice: '',
+      },
+      context,
+    );
+    expect(result).toEqual({ ok: false, error: 'Limit price is required' });
+  });
+
+  it('builds a trailing stop with trail $ in stop_price', () => {
+    const result = buildManualOrder(
+      {
+        ...base,
+        side: 'SELL',
+        orderType: 'TRAIL',
+        stopPrice: '0.35',
+      },
+      context,
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      payload: {
+        symbol: 'AAPL',
+        side: 'SELL',
+        qty: 100,
+        order_type: 'TRAIL',
+        stop_price: 0.35,
+        outside_rth: false,
+      },
+    });
+  });
+
+  it('rejects a trailing stop without a trail amount', () => {
+    const result = buildManualOrder(
+      {
+        ...base,
+        orderType: 'TRAIL',
+        stopPrice: '',
+      },
+      context,
+    );
+    expect(result).toEqual({ ok: false, error: 'Trail amount is required' });
+  });
+
   it('builds a stop order with outside_rth', () => {
     const result = buildManualOrder(
       {
@@ -194,6 +270,32 @@ describe('manual order payloads', () => {
     expect(presetsForQuantityMode('shares')).toEqual([10, 50, 100, 500]);
     expect(presetsForQuantityMode('percent')).toEqual([10, 25, 50, 100]);
     expect(presetsForQuantityMode('dollars')).toEqual([100, 500, 1000, 5000]);
+  });
+});
+
+describe('stop family helpers', () => {
+  it('treats Stop Limit and Trailing Stop as the Stop family', () => {
+    expect(isStopFamilyType('STP')).toBe(true);
+    expect(isStopFamilyType('STP LMT')).toBe(true);
+    expect(isStopFamilyType('TRAIL')).toBe(true);
+    expect(isStopFamilyType('MKT')).toBe(false);
+  });
+
+  it('writes honest confirm price text', () => {
+    expect(
+      manualOrderConfirmPriceText({
+        orderType: 'STP LMT',
+        stopPrice: '23.5',
+        limitPrice: '23.25',
+      }),
+    ).toBe(' stop $23.5 limit $23.25');
+    expect(
+      manualOrderConfirmPriceText({
+        orderType: 'TRAIL',
+        stopPrice: '0.35',
+        limitPrice: '',
+      }),
+    ).toBe(' trail $0.35');
   });
 });
 

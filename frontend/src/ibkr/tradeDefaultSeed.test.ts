@@ -3,6 +3,7 @@ import {
   formatSeedPrice,
   seedLimitPrice,
   seedStopPrice,
+  seedTrailAmount,
 } from './tradeDefaultSeed';
 
 describe('tradeDefaultSeed', () => {
@@ -28,6 +29,11 @@ describe('tradeDefaultSeed', () => {
     expect(seedStopPrice('BUY', 100, 1)).toBeCloseTo(99);
     expect(seedStopPrice('SELL', 100, 1)).toBeCloseTo(101);
     expect(seedStopPrice('BUY', null, 1)).toBeNull();
+  });
+
+  it('seeds trail $ from the stop offset percent', () => {
+    expect(seedTrailAmount(100, 1)).toBeCloseTo(1);
+    expect(seedTrailAmount(null, 1)).toBeNull();
   });
 
   it('formats prices', () => {

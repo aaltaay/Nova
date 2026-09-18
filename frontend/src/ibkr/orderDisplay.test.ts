@@ -30,6 +30,7 @@ describe('orderDisplay', () => {
     expect(formatOrderType('MKT')).toBe('Market Order');
     expect(formatOrderType('STP')).toBe('Stop Order');
     expect(formatOrderType('STP LMT')).toBe('Stop Limit Order');
+    expect(formatOrderType('TRAIL')).toBe('Trailing Stop Order');
   });
 
   it('maps IBKR statuses to Webull-clean labels', () => {

@@ -8,8 +8,20 @@ import {
 } from '../constants';
 
 export type ManualOrderSide = 'BUY' | 'SELL';
-export type ManualOrderType = 'MKT' | 'LMT' | 'STP';
+export type ManualOrderType = 'MKT' | 'LMT' | 'STP' | 'STP LMT' | 'TRAIL';
 export type QuantityMode = 'shares' | 'percent' | 'dollars';
+
+export function isStopFamilyType(orderType: ManualOrderType): boolean {
+  return orderType === 'STP' || orderType === 'STP LMT' || orderType === 'TRAIL';
+}
+
+export function usesLimitPrice(orderType: ManualOrderType): boolean {
+  return orderType === 'LMT' || orderType === 'STP LMT';
+}
+
+export function usesStopPrice(orderType: ManualOrderType): boolean {
+  return orderType === 'STP' || orderType === 'STP LMT' || orderType === 'TRAIL';
+}
 
 export interface ManualOrderValues {
   symbol: string;
@@ -87,11 +99,28 @@ export function orderReferencePrice(
   values: ManualOrderValues,
   marketReferencePrice: number | null,
 ): number | null {
-  if (values.orderType === 'LMT') return positiveNumber(values.limitPrice);
+  if (values.orderType === 'LMT' || values.orderType === 'STP LMT') {
+    return positiveNumber(values.limitPrice);
+  }
   if (values.orderType === 'STP') return positiveNumber(values.stopPrice);
   return marketReferencePrice != null && marketReferencePrice > 0
     ? marketReferencePrice
     : null;
+}
+
+/** Confirm-dialog price clause. TRAIL stopPrice is the trail $ amount. */
+export function manualOrderConfirmPriceText(values: {
+  orderType: ManualOrderType;
+  limitPrice: string;
+  stopPrice: string;
+}): string {
+  if (values.orderType === 'LMT') return ` @ $${values.limitPrice}`;
+  if (values.orderType === 'STP') return ` stop $${values.stopPrice}`;
+  if (values.orderType === 'STP LMT') {
+    return ` stop $${values.stopPrice} limit $${values.limitPrice}`;
+  }
+  if (values.orderType === 'TRAIL') return ` trail $${values.stopPrice}`;
+  return '';
 }
 
 export interface ResolveQuantityOptions {
@@ -191,12 +220,18 @@ export function buildManualOrder(
     ...(values.shortEntry ? { short_entry: true } : {}),
   };
 
-  if (values.orderType === 'LMT') {
+  if (usesLimitPrice(values.orderType)) {
     const limitPrice = positiveNumber(values.limitPrice);
     if (limitPrice == null) return { ok: false, error: 'Limit price is required' };
     payload.limit_price = limitPrice;
   }
-  if (values.orderType === 'STP') {
+  if (values.orderType === 'TRAIL') {
+    const trailAmount = positiveNumber(values.stopPrice);
+    if (trailAmount == null) {
+      return { ok: false, error: 'Trail amount is required' };
+    }
+    payload.stop_price = trailAmount;
+  } else if (usesStopPrice(values.orderType)) {
     const stopPrice = positiveNumber(values.stopPrice);
     if (stopPrice == null) return { ok: false, error: 'Stop price is required' };
     payload.stop_price = stopPrice;

@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- STP LMT / TRAIL rejected as invalid
+
+- **Symptom:** Manual ticket and `execution.validate` only accepted `MKT` / `LMT` / `STP`. A Webull-style Stop Limit or Trailing Stop could not be built or placed. `orders._build_order` also defaulted any unknown type to `StopOrder`.
+- **Cause:** `OrderType` and the place allow-list were three literals. There was no Stop flyout and no IBKR `StopLimitOrder` / `TRAIL` constructor on the ADR 007 path.
+- **Fix:** `ibkr/order_build.py` normalizes aliases and builds `STP LMT` + `TRAIL` (trail $ via `auxPrice` / `stop_price`). Validate and the ticket Stop flyout use the same types. Unknown types now fail closed instead of becoming a plain stop.
+- **Fix class:** admission
+- **Keywords:** STP LMT, TRAIL, Stop Limit, Trailing Stop, order_type, ManualOrderFields, order_build
+
 ## 2026-09-17 -- Electron sidecar recycle killed a healthy :8000
 
 - **Symptom:** Daily UI roll-out (unpackaged Electron against a morning API) could Stop-NovaPorts or spawn a second `run_api.py` even when GET /api/health was 200. That is Lock A: health 200 means do not recycle the API.

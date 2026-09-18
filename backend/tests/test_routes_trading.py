@@ -169,6 +169,64 @@ def test_stop_order_route_delegates_stop_price():
     assert kwargs["stop_price"] == 210.5
 
 
+def test_stop_limit_route_delegates_both_prices():
+    fake_result = {"ok": True, "order_id": 46, "error": None, "mode": "paper"}
+    patches = _arm_paper_gates()
+    with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[7], \
+         patch.object(
+             account_mod,
+             "get_positions",
+             return_value=[{"symbol": "TSLA", "qty": 25.0}],
+         ), \
+         patch.object(orders_mod, "place_order", return_value=fake_result) as place_mock:
+        res = client.post(
+            "/api/ibkr/order",
+            json={
+                "symbol": "tsla",
+                "side": "sell",
+                "qty": 25,
+                "order_type": "stp lmt",
+                "stop_price": 210.5,
+                "limit_price": 210.0,
+                "idempotency_key": "route-stplmt",
+            },
+        )
+    assert res.status_code == 200
+    assert res.json()["ok"] is True
+    kwargs = place_mock.call_args.kwargs
+    assert kwargs["order_type"] == "STP LMT"
+    assert kwargs["stop_price"] == 210.5
+    assert kwargs["limit_price"] == 210.0
+
+
+def test_trail_route_delegates_trail_dollars_as_stop_price():
+    fake_result = {"ok": True, "order_id": 47, "error": None, "mode": "paper"}
+    patches = _arm_paper_gates()
+    with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[7], \
+         patch.object(
+             account_mod,
+             "get_positions",
+             return_value=[{"symbol": "TSLA", "qty": 25.0}],
+         ), \
+         patch.object(orders_mod, "place_order", return_value=fake_result) as place_mock:
+        res = client.post(
+            "/api/ibkr/order",
+            json={
+                "symbol": "tsla",
+                "side": "sell",
+                "qty": 25,
+                "order_type": "trail",
+                "stop_price": 0.35,
+                "idempotency_key": "route-trail",
+            },
+        )
+    assert res.status_code == 200
+    assert res.json()["ok"] is True
+    kwargs = place_mock.call_args.kwargs
+    assert kwargs["order_type"] == "TRAIL"
+    assert kwargs["stop_price"] == 0.35
+
+
 def test_limit_order_route_delegates_extended_hours():
     fake_result = {"ok": True, "order_id": 44, "error": None, "mode": "paper"}
     patches = _arm_paper_gates()

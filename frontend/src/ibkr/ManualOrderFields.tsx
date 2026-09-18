@@ -4,6 +4,7 @@ import {
   TICKER_TRADE_LABEL_ORDER_TYPE,
   TICKER_TRADE_LABEL_SIDE,
   TICKER_TRADE_LABEL_STOP_PRICE,
+  TICKER_TRADE_LABEL_TRAIL_AMOUNT,
   TICKER_TRADE_LABEL_TRADING_HOURS,
 } from '../constants';
 import {
@@ -12,7 +13,9 @@ import {
   TICKER_TRADE_LABEL_SHORT,
 } from '../constantGroups/shortability';
 import { ManualOrderQuantityRow } from './ManualOrderQuantityRow';
+import { ManualOrderStopControl } from './ManualOrderStopControl';
 import {
+  usesLimitPrice,
   type ManualOrderType,
   type QuantityMode,
 } from './orderEntry';
@@ -40,7 +43,7 @@ interface Props {
   onOutsideRthChange: (outsideRth: boolean) => void;
 }
 
-const ORDER_TYPES: readonly { value: ManualOrderType; label: string; title?: string }[] = [
+const PRIMARY_TYPES: readonly { value: ManualOrderType; label: string; title?: string }[] = [
   { value: 'LMT', label: 'Limit', title: 'Limit order' },
   {
     value: 'MKT',
@@ -50,7 +53,6 @@ const ORDER_TYPES: readonly { value: ManualOrderType; label: string; title?: str
         ? 'Market (default)'
         : 'Market order',
   },
-  { value: 'STP', label: 'Stop', title: 'Stop order' },
 ];
 
 export function ManualOrderFields({
@@ -131,7 +133,7 @@ export function ManualOrderFields({
         role="group"
         aria-label={TICKER_TRADE_LABEL_ORDER_TYPE}
       >
-        {ORDER_TYPES.map(item => {
+        {PRIMARY_TYPES.map(item => {
           const isDefault = item.value === TICKER_TRADE_DEFAULT_ORDER_TYPE;
           const isActive = orderType === item.value;
           return (
@@ -153,6 +155,11 @@ export function ManualOrderFields({
             </button>
           );
         })}
+        <ManualOrderStopControl
+          orderType={orderType}
+          disabled={disabled}
+          onOrderTypeChange={onOrderTypeChange}
+        />
       </div>
 
       <ManualOrderQuantityRow
@@ -164,7 +171,7 @@ export function ManualOrderFields({
         onQuantityValueChange={onQuantityValueChange}
       />
 
-      {orderType === 'LMT' && (
+      {usesLimitPrice(orderType) && (
         <>
           <label className="manual-order-label" htmlFor="manual-order-limit">
             {TICKER_TRADE_LABEL_LIMIT_PRICE}
@@ -182,7 +189,7 @@ export function ManualOrderFields({
         </>
       )}
 
-      {orderType === 'STP' && (
+      {(orderType === 'STP' || orderType === 'STP LMT') && (
         <>
           <label className="manual-order-label" htmlFor="manual-order-stop">
             {TICKER_TRADE_LABEL_STOP_PRICE}
@@ -196,6 +203,25 @@ export function ManualOrderFields({
             value={stopPrice}
             onChange={event => onStopPriceChange(event.target.value)}
             disabled={disabled}
+          />
+        </>
+      )}
+
+      {orderType === 'TRAIL' && (
+        <>
+          <label className="manual-order-label" htmlFor="manual-order-trail">
+            {TICKER_TRADE_LABEL_TRAIL_AMOUNT}
+          </label>
+          <input
+            id="manual-order-trail"
+            className="manual-order-price"
+            type="number"
+            min="0"
+            step="0.01"
+            value={stopPrice}
+            onChange={event => onStopPriceChange(event.target.value)}
+            disabled={disabled}
+            data-testid="manual-order-trail"
           />
         </>
       )}

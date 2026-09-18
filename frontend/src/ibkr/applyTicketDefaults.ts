@@ -1,13 +1,18 @@
 /**
  * Apply Settings > Trade > Stocks prefs onto a fresh ManualOrderTicket.
  */
-import { forcedManualOrderQty } from './orderEntry';
+import {
+  forcedManualOrderQty,
+  usesLimitPrice,
+  usesStopPrice,
+} from './orderEntry';
 import type { ManualOrderSide, ManualOrderType } from './orderEntry';
 import { readTradeDefaultsPrefs } from '../settings/tradeDefaultsPrefs';
 import {
   formatSeedPrice,
   seedLimitPrice,
   seedStopPrice,
+  seedTrailAmount,
 } from './tradeDefaultSeed';
 
 export interface TopOfBookLike {
@@ -79,15 +84,16 @@ export function seedPricesForSide(
         }
       : { last: referencePrice, bid: null, ask: null };
   return {
-    limitPrice:
-      orderType === 'LMT'
-        ? formatSeedPrice(seedLimitPrice(prefs.limitPriceSource, side, book))
-        : '',
+    limitPrice: usesLimitPrice(orderType)
+      ? formatSeedPrice(seedLimitPrice(prefs.limitPriceSource, side, book))
+      : '',
     stopPrice:
-      orderType === 'STP'
-        ? formatSeedPrice(
-            seedStopPrice(side, referencePrice, prefs.stopOffsetPct),
-          )
-        : '',
+      orderType === 'TRAIL'
+        ? formatSeedPrice(seedTrailAmount(referencePrice, prefs.stopOffsetPct))
+        : usesStopPrice(orderType)
+          ? formatSeedPrice(
+              seedStopPrice(side, referencePrice, prefs.stopOffsetPct),
+            )
+          : '',
   };
 }

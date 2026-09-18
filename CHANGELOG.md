@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Manual ticket Stop flyout: Stop Limit + Trailing Stop
+
+- **What:** The manual trader ticket Stop control opens a Webull-style flyout for Stop Limit and Trailing Stop. Plain Stop stays one click. Both new types go through `execution.service.execute` (ADR 007). Market / Limit / Stop stay. OCO / bracket stay off this ticket.
+- **Why:** #247 -- Ahmed wanted the Webull Stop menu (Stop Limit + Trailing Stop) without bringing strategy brackets onto the manual ticket.
+- **Files touched:** `backend/ibkr/order_build.py`, `backend/ibkr/orders.py`, `backend/execution/validate.py`, `backend/routes/trading_execution.py`, `frontend/src/ibkr/ManualOrderStopControl.tsx`, `ManualOrderFields.tsx`, `orderEntry.ts`, `AGENTS.md`.
+- **How it works now:** Stop click = `STP`. Caret opens Stop Limit (`STP LMT`, stop + limit) and Trailing Stop (`TRAIL`). Trail uses `stop_price` as IBKR trail $ (`auxPrice`). Trail % is not a field. Same spend / PIN / kill / EH / shortability gates. Orders Today / Working already label `STP LMT` and `TRAIL`; the stop column title for trail is `Trail $`.
+- **Verified by:** pytest order_build / validate / trading routes / open-order rows; Vitest orderEntry + Stop flyout + working cells + orderDisplay.
+- **Follow-ups:** OCO / bracket-on-entry / attach-exits stay parked (see D-045 for backend TIF/GTC + bracket defaults). No trail %.
+- **Related:** Closes #247. PROBLEM_LOG 2026-09-18 -- STP LMT / TRAIL rejected as invalid.
+
 ## 2026-09-17 -- Halt chip observe + no false API-down + desk poll thin-out
 
 - **What:** HaltEtaChip can show on a live-focused name (DAIC) that is halted even when tick 49 never logged. A successful GET /api/health no longer paints "Backend unreachable". Account / closed-orders / bot HTTP is one owner per process, with a cross-window leader so Electron+Vite do not N-times the 1s cluster. Daily UI roll-out can attach unpackaged Electron to a healthy API without recycling :8000.

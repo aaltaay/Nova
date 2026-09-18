@@ -3,7 +3,7 @@
 > **Single source of truth.** `gemini.md` is a legacy alias that `@`-imports this file (consolidated 2026-07-28 after the two mirrors drifted).
 >
 > **Status:** ENFORCED — Active governance document
-> **Last Updated:** 2026-09-11
+> **Last Updated:** 2026-09-18
 > **Project:** Nova — Stock Alert Automation System
 > **Enforcement:** Every AI agent (Cursor, Antigravity, any LLM assistant) MUST read this file before writing ANY code. Violations are NEVER acceptable.
 
@@ -198,15 +198,17 @@ All buy/sell/cancel/replace requests enter `execution.service.execute` with:
   "symbol": "AAPL",
   "side": "BUY",
   "qty": 1,
-  "order_type": "MKT",
-  "limit_price": null,
-  "stop_price": null,
-  "target_price": null,
-  "entry_price": null,
-  "order_id": null,
-  "short_entry": false
+ "order_type": "MKT | LMT | STP | STP LMT | TRAIL",
+ "limit_price": null,
+ "stop_price": null,
+ "target_price": null,
+ "entry_price": null,
+ "order_id": null,
+ "short_entry": false
 }
 ```
+
+`STP LMT` requires both `limit_price` and `stop_price`. `TRAIL` uses `stop_price` as the IBKR trail dollar amount (`auxPrice`); trail percent is not a ticket field. OCO / bracket stay off the manual ticket (strategy executor only).
 
 Receipt includes stage timings (`validation_ms`, `persisted_ms`, `broker_sent_ms`, `broker_ack_ms`, `filled_ms`).
 Paper and live share this path; only Gateway credentials/port and safety gates differ. `auto_live` remains rejected. Short opening requires `short_entry: true` plus `IBKR_SHORT_ENABLED` and fresh IBKR shortability (ADR 009).
@@ -398,6 +400,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-18 | Manual ticket order_type gains `STP LMT` and `TRAIL` (trail $ via stop_price / auxPrice). OCO/bracket stay parked. | User Directive + Cursor Agent |
 | 2026-09-17 | ADR 007 source list gains `bot` (localhost bot API, ADR 016). Same execution door; L3 parked. | User Directive + Cursor Agent |
 | 2026-09-11 | Nova Delivery board is https://github.com/users/aaltaay/projects/1. New issues/PRs auto-add via workflow; agents attach metadata; 403 is reported, never a new project. | User Directive + Cursor Agent |
 | 2026-09-11 | Session lifecycle (§5.1): clean start from `origin/master`; every coding session MUST end with a ready (non-draft) PR. Casual "quick fix" phrasing does not waive. | User Directive + Cursor Agent |

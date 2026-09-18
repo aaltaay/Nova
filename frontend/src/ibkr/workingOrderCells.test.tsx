@@ -130,6 +130,31 @@ describe('workingOrderCells — Open Orders column contract', () => {
     expect(text).toBe('—');
   });
 
+  it('Stop Limit shows both limit and stop dollars', () => {
+    const stopLimit: IbkrOrder = {
+      ...STOP,
+      order_type: 'STP LMT',
+      limit_price: 219.5,
+      stop_price: 220.1,
+    };
+    expect(renderCell('type', stopLimit).text).toBe('Stop Limit Order');
+    expect(renderCell('limit', stopLimit).text).toBe('$219.50');
+    expect(renderCell('stop', stopLimit).text).toBe('$220.10');
+  });
+
+  it('Trailing Stop labels the stop column as trail $', () => {
+    const trail: IbkrOrder = {
+      ...STOP,
+      order_type: 'TRAIL',
+      limit_price: null,
+      stop_price: 0.35,
+    };
+    expect(renderCell('type', trail).text).toBe('Trailing Stop Order');
+    const shown = renderCell('stop', trail);
+    expect(shown.text).toBe('$0.35');
+    expect(shown.html).toContain('title="Trail $0.35"');
+  });
+
   it('Average fill formats as dollars', () => {
     const { text } = renderCell('avg_fill', PARTIAL);
     expect(text).toBe('$190.42');

@@ -78,6 +78,47 @@ def test_build_stop_order_respects_outside_rth():
     assert order.outsideRth is True
 
 
+def test_normalize_accepts_stop_limit_and_trail_aliases():
+    assert orders.normalize_order_type("stplmt") == "STP LMT"
+    assert orders.normalize_order_type("stop-limit") == "STP LMT"
+    assert orders.normalize_order_type("TRAILING STOP") == "TRAIL"
+    assert orders.normalize_order_type("trail") == "TRAIL"
+
+
+def test_validation_requires_both_prices_for_stop_limit():
+    assert orders._validation_error("SELL", 10, "STP LMT", None, 12.5, False) == (
+        "limit_price must be greater than zero for STP LMT"
+    )
+    assert orders._validation_error("SELL", 10, "STP LMT", 12.25, None, False) == (
+        "stop_price must be greater than zero for STP LMT"
+    )
+    assert orders._validation_error("SELL", 10, "STP LMT", 12.25, 12.5, False) is None
+
+
+def test_validation_requires_trail_dollar_amount():
+    assert orders._validation_error("SELL", 10, "TRAIL", None, None, False) == (
+        "stop_price must be greater than zero for TRAIL (trail $)"
+    )
+    assert orders._validation_error("SELL", 10, "TRAIL", None, 0.35, True) is None
+
+
+def test_build_stop_limit_sets_lmt_and_aux():
+    order = orders._build_order("SELL", 20, "STP LMT", 9.5, 9.75, True)
+    assert order.orderType == "STP LMT"
+    assert order.lmtPrice == 9.5
+    assert order.auxPrice == 9.75
+    assert order.outsideRth is True
+
+
+def test_build_trail_uses_aux_price_as_trail_dollars():
+    order = orders._build_order("SELL", 20, "TRAIL", None, 0.35, False)
+    assert order.orderType == "TRAIL"
+    assert order.auxPrice == 0.35
+    assert order.outsideRth is False
+    # Do not send trail % -- trailingPercent stays the IB unset sentinel.
+    assert float(order.trailingPercent) > 1e100
+
+
 def test_build_market_order_respects_outside_rth():
     rth = orders._build_order("BUY", 5, "MKT", None, None, False)
     assert rth.orderType == "MKT"
