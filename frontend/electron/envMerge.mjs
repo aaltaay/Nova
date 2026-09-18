@@ -66,9 +66,51 @@ export function readEnvValue(text, key) {
 }
 
 /**
- * Desktop sidecar always provisions a local API key so POST /api/config
- * can require X-Nova-Api-Key even on loopback (D-040).
+ * Same NOVA_API_KEY the API already uses (D-040). Do not invent a second
+ * secret. Order: process env, NOVA_ENV_PATH file, repo .env (unpackaged /
+ * portable), userData .env. Empty source='missing' means the caller may
+ * generate once into the API's env file.
  */
+export function pickNovaApiKey({
+  processKey = '',
+  envPathKey = '',
+  repoKey = '',
+  userDataKey = '',
+  packaged = false,
+} = {}) {
+  const processTrim = String(processKey || '').trim();
+  if (processTrim) return { key: processTrim, source: 'process' };
+  const envPathTrim = String(envPathKey || '').trim();
+  if (envPathTrim) return { key: envPathTrim, source: 'env_path' };
+  const repoTrim = String(repoKey || '').trim();
+  if (repoTrim && !packaged) return { key: repoTrim, source: 'repo' };
+  const userTrim = String(userDataKey || '').trim();
+  if (userTrim) return { key: userTrim, source: 'userdata' };
+  if (repoTrim) return { key: repoTrim, source: 'repo' };
+  return { key: '', source: 'missing' };
+}
+
+
+/** Env file the API should load -- same file that owns the picked key. */
+export function pickNovaEnvPath({
+  source = '',
+  envPathOverride = '',
+  repoEnv = '',
+  userEnv = '',
+  packaged = false,
+} = {}) {
+  if (source === 'env_path' && envPathOverride) return envPathOverride;
+  if (source === 'repo' && repoEnv) return repoEnv;
+  if (source === 'process') {
+    return envPathOverride || (!packaged && repoEnv ? repoEnv : userEnv);
+  }
+  if ((source === 'generated' || source === 'missing') && !packaged && repoEnv) {
+    return envPathOverride || repoEnv;
+  }
+  return envPathOverride || userEnv;
+}
+
+
 export function ensureNovaApiKey(existingText, generate) {
   const text = String(existingText ?? '');
   const current = readEnvValue(text, 'NOVA_API_KEY');

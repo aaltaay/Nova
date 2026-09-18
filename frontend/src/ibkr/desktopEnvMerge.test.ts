@@ -4,6 +4,8 @@ import {
   ensureNovaApiKey,
   mergeMissingEnvKeys,
   parseEnvKeys,
+  pickNovaApiKey,
+  pickNovaEnvPath,
 } from '../../electron/envMerge.mjs';
 
 describe('desktop envMerge', () => {
@@ -39,5 +41,72 @@ describe('desktop envMerge', () => {
     expect(again.created).toBe(false);
     expect(again.key).toBe('generated-key');
     expect(again.text.match(/NOVA_API_KEY=/g)?.length).toBe(1);
+  });
+
+  it('picks the API process/repo key instead of inventing a userData key', () => {
+    expect(pickNovaApiKey({
+      processKey: 'process-secret',
+      envPathKey: 'from-nova-env-path',
+      repoKey: 'repo-secret',
+      userDataKey: 'desktop-secret',
+      packaged: false,
+    })).toEqual({ key: 'process-secret', source: 'process' });
+
+    const unpackaged = pickNovaApiKey({
+      processKey: '',
+      envPathKey: '',
+      repoKey: 'repo-secret',
+      userDataKey: 'other-generated',
+      packaged: false,
+    });
+    expect(unpackaged).toEqual({ key: 'repo-secret', source: 'repo' });
+
+    const packaged = pickNovaApiKey({
+      processKey: '',
+      envPathKey: '',
+      repoKey: '',
+      userDataKey: 'desktop-secret',
+      packaged: true,
+    });
+    expect(packaged).toEqual({ key: 'desktop-secret', source: 'userdata' });
+
+    const envPath = pickNovaApiKey({
+      processKey: '',
+      envPathKey: 'from-nova-env-path',
+      repoKey: 'repo-secret',
+      userDataKey: 'desktop-secret',
+      packaged: true,
+    });
+    expect(envPath).toEqual({ key: 'from-nova-env-path', source: 'env_path' });
+
+    const missing = pickNovaApiKey({
+      processKey: '',
+      envPathKey: '',
+      repoKey: '',
+      userDataKey: '',
+      packaged: true,
+    });
+    expect(missing).toEqual({ key: '', source: 'missing' });
+  });
+
+  it('points NOVA_ENV_PATH at the file that owns the picked key', () => {
+    expect(pickNovaEnvPath({
+      source: 'repo',
+      repoEnv: '/repo/.env',
+      userEnv: '/user/.env',
+      packaged: false,
+    })).toBe('/repo/.env');
+    expect(pickNovaEnvPath({
+      source: 'userdata',
+      repoEnv: '',
+      userEnv: '/user/.env',
+      packaged: true,
+    })).toBe('/user/.env');
+    expect(pickNovaEnvPath({
+      source: 'missing',
+      repoEnv: '/repo/.env',
+      userEnv: '/user/.env',
+      packaged: false,
+    })).toBe('/repo/.env');
   });
 });

@@ -6,8 +6,10 @@ Local loopback with no ``NOVA_API_KEY`` stays open for most mutating routes
 ``POST /api/config`` and mutating ``/api/bot/*`` / ``/bot/*`` always require
 a configured ``NOVA_API_KEY`` and a matching ``X-Nova-Api-Key`` header, even
 on loopback. Any local process can reach ``127.0.0.1:8000``. The Desktop
-sidecar provisions the key and injects it. Vite Settings needs the same
-value as ``VITE_NOVA_API_KEY`` or ``localStorage.nova_api_key``.
+sidecar reads the same ``NOVA_API_KEY`` the API already uses (repo
+``.env``, ``NOVA_ENV_PATH``, or userData ``.env``) and injects it on
+``novaDesktop.apiKey``. Vite serve maps that repo key onto
+``VITE_NOVA_API_KEY``. Settings can still save ``localStorage.nova_api_key``.
 """
 from __future__ import annotations
 

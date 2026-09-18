@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { BOT_ERROR_ARM_REQUIRED, BOT_ERROR_NEED_API_KEY } from '../constantGroups/bot';
+import {
+  BOT_ERROR_ARM_REQUIRED,
+  BOT_ERROR_NEED_API_KEY,
+  BOT_ERROR_NOT_ACTIVE,
+} from '../constantGroups/bot';
 import { messageFromBotApiBody } from './botApiError';
 
 describe('messageFromBotApiBody', () => {
@@ -12,6 +16,12 @@ describe('messageFromBotApiBody', () => {
     expect(messageFromBotApiBody(403, {
       detail: { error: 'desk arm token required', reason: 'BOT_ARM_REQUIRED' },
     })).toBe(BOT_ERROR_ARM_REQUIRED);
+  });
+
+  it('turns BOT_NOT_ACTIVE into Activate copy', () => {
+    expect(messageFromBotApiBody(409, {
+      detail: { error: 'desk is Not active -- Activate before live fire', reason: 'BOT_NOT_ACTIVE' },
+    })).toBe(BOT_ERROR_NOT_ACTIVE);
   });
 
   it('keeps other object details readable', () => {

@@ -78,6 +78,25 @@ free-form qty, REST quote polls, a second broker path) was rejected.
     when `live_fire_ready`. L0/L1 hide the checkbox. Pack picker and
     Strategy settings show one sentence per pack.
 
+## Amendment 2026-09-18 -- Not-active reject + one Desktop API key (#205)
+
+15. **Level and Active are separate on the fire path.** Choosing Eyes or
+    Strategy does not enable live fire. `POST /bot/action` / `actions.fire`
+    reject when the desk is Not active (`armed` and `has_desk_arm` are the
+    session SSOT; both must be true) with `409 BOT_NOT_ACTIVE`, even if
+    level is L2, the pack is live, and the symbol is allowlisted. Eyes stay
+    `409 BOT_L1_NO_FIRE`. L2 → Eyes or L0 runs `clear_arm_fields` so
+    `live_fire_ready` cannot stay true. `live_fire_ready` remains
+    L2 + Active + fresh exclusive heartbeat. Brains still cannot raise
+    autonomy.
+
+16. **One `NOVA_API_KEY` for Desktop.** Packaged Electron has no Vite
+    `VITE_NOVA_API_KEY`. Main reads the same repo / `NOVA_ENV_PATH` /
+    userData `.env` the API already uses, exposes it on
+    `novaDesktop.apiKey`, and `novaFetch` sends `X-Nova-Api-Key`. Do not
+    generate a second key when that file already has one. Do not bake the
+    key into the renderer bundle.
+
 ## Consequences
 
 - `source="bot"` is a first-class ADR 007 source. Kill / flatten /

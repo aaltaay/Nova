@@ -11,6 +11,9 @@ import {
   IBKR_CONNECT_DEFAULTS,
   ensureNovaApiKey,
   mergeMissingEnvKeys,
+  pickNovaApiKey,
+  pickNovaEnvPath,
+  readEnvValue,
 } from './envMerge.mjs';
 import { waitForPortFree } from './portWait.mjs';
 import { createSerialQueue } from './serialQueue.mjs';
@@ -26,10 +29,64 @@ export const API_BASE = `http://${API_HOST}:${API_PORT}`;
 
 let apiChild = null;
 let desktopApiKey = '';
+let desktopEnvPath = '';
 const sidecarQueue = createSerialQueue();
 
 export function getDesktopApiKey() {
+  if (!desktopApiKey) {
+    try {
+      ensureUserEnv();
+    } catch {
+      /* app path unavailable in unit tests */
+    }
+  }
   return desktopApiKey;
+}
+
+function readKeyFromEnvFile(envPath) {
+  if (!envPath || !fs.existsSync(envPath)) return '';
+  return readEnvValue(fs.readFileSync(envPath, 'utf8'), 'NOVA_API_KEY');
+}
+
+function resolveSharedApiKey(userEnvPath) {
+  const repoEnv = path.join(repoRootFromElectron(), '.env');
+  const envPathOverride = (process.env.NOVA_ENV_PATH || '').trim();
+  const picked = pickNovaApiKey({
+    processKey: process.env.NOVA_API_KEY,
+    envPathKey: readKeyFromEnvFile(envPathOverride),
+    repoKey: readKeyFromEnvFile(repoEnv),
+    userDataKey: readKeyFromEnvFile(userEnvPath),
+    packaged: Boolean(app.isPackaged),
+  });
+  const packaged = Boolean(app.isPackaged);
+  const repoExists = fs.existsSync(repoEnv) ? repoEnv : '';
+  if (picked.key) {
+    desktopApiKey = picked.key;
+    desktopEnvPath = pickNovaEnvPath({
+      source: picked.source,
+      envPathOverride,
+      repoEnv: repoExists,
+      userEnv: userEnvPath,
+      packaged,
+    });
+    return picked;
+  }
+  const provisionPath = pickNovaEnvPath({
+    source: 'missing',
+    envPathOverride,
+    repoEnv: repoExists,
+    userEnv: userEnvPath,
+    packaged,
+  });
+  const raw = fs.existsSync(provisionPath) ? fs.readFileSync(provisionPath, 'utf8') : '';
+  const withKey = ensureNovaApiKey(raw);
+  fs.mkdirSync(path.dirname(provisionPath), { recursive: true });
+  if (withKey.text !== raw) {
+    fs.writeFileSync(provisionPath, withKey.text, 'utf8');
+  }
+  desktopApiKey = withKey.key;
+  desktopEnvPath = provisionPath;
+  return { key: withKey.key, source: 'generated' };
 }
 
 function repoRootFromElectron() {
@@ -65,11 +122,10 @@ function ensureUserEnv() {
   }
   const raw = fs.readFileSync(envPath, 'utf8');
   const merged = mergeMissingEnvKeys(raw, IBKR_CONNECT_DEFAULTS);
-  const withKey = ensureNovaApiKey(merged);
-  desktopApiKey = withKey.key;
-  if (withKey.text !== raw) {
-    fs.writeFileSync(envPath, withKey.text, 'utf8');
+  if (merged !== raw) {
+    fs.writeFileSync(envPath, merged, 'utf8');
   }
+  resolveSharedApiKey(envPath);
   return { envPath, cacheDir, logDir, userData };
 }
 
@@ -77,7 +133,7 @@ function sidecarEnv() {
   const { envPath, cacheDir, logDir } = ensureUserEnv();
   return {
     ...process.env,
-    NOVA_ENV_PATH: envPath,
+    NOVA_ENV_PATH: desktopEnvPath || envPath,
     NOVA_CACHE_DIR: cacheDir,
     NOVA_LOG_DIR: logDir,
     NOVA_API_HOST: API_HOST,

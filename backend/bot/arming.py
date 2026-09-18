@@ -70,6 +70,16 @@ def assert_desk_activate(brain_session_id: str | None) -> None:
         )
 
 
+def has_desk_arm(row: dict[str, Any]) -> bool:
+    """Session SSOT: desk token present (UI `has_desk_arm`)."""
+    return bool((row.get("desk_arm_token") or "").strip())
+
+
+def is_desk_active(row: dict[str, Any]) -> bool:
+    """Session SSOT: Activate is on (`armed` and `has_desk_arm`)."""
+    return bool(row.get("armed")) and has_desk_arm(row)
+
+
 def heartbeat_is_fresh(row: dict[str, Any], *, now: float | None = None) -> bool:
     ts = row.get("brain_heartbeat_ts")
     if not isinstance(ts, (int, float)):

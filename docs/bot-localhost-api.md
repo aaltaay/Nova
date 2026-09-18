@@ -19,6 +19,13 @@ Mutating bot routes **always** require a configured `NOVA_API_KEY` and a
 matching `X-Nova-Api-Key` header, including on loopback. GET `/session`,
 `/watch`, `/proposals`, `/focus`, `/audit`, `/pnl` stay open.
 
+One key only. Vite `serve` maps repo-root `NOVA_API_KEY` onto
+`VITE_NOVA_API_KEY`. Packaged Desktop has no Vite inject: Electron main
+reads the same repo / `NOVA_ENV_PATH` / userData `.env` the API uses,
+exposes it on `novaDesktop.apiKey`, and `novaFetch` sends the header.
+Do not generate a second key when that file already has one. Do not bake
+the key into the renderer bundle.
+
 Brains send `X-Nova-Brain-Session`. They must not send a desk arm token and
 must not PATCH `level`.
 
@@ -41,6 +48,11 @@ L1 -> L2 is **desk UI only**:
 `PATCH {"level":2}` without the token is `403 BOT_ARM_REQUIRED`.
 `POST /arm` with `X-Nova-Brain-Session` is `403 BOT_ARM_DESK_ONLY`.
 Setting `armed` in a PATCH body is refused.
+
+Level and Active are separate. L2 + pack + allowlist with the desk
+**Not active** (`armed` / `has_desk_arm` false) is `409 BOT_NOT_ACTIVE`
+on fire. Eyes never fire (`409 BOT_L1_NO_FIRE`). L2 → Eyes or L0
+disarms so `live_fire_ready` cannot stay true.
 
 Header owns L0/L1/L2, pack, and arming. At L2 the header shows a
 **Bot is in control** checkbox (checked = Activate / armed, unchecked =

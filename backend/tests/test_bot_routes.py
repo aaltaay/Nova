@@ -13,6 +13,7 @@ from constants_bot import (
     BOT_REASON_L0_DARK,
     BOT_REASON_L1_NO_FIRE,
     BOT_REASON_L3_PARKED,
+    BOT_REASON_NOT_ACTIVE,
 )
 from main import app
 from tests.bot_helpers import headers, ready_l2
@@ -71,6 +72,50 @@ def test_patch_l3_parked(bot_iso, api_key):
     res = client.patch("/api/bot/session", json={"level": 3}, headers=headers(api_key))
     assert res.status_code == 409
     assert res.json()["detail"]["reason"] == BOT_REASON_L3_PARKED
+
+
+def test_l2_not_active_action_rejected(bot_iso, api_key):
+    from bot.arming import disarm_session
+
+    ready_l2(brain="brain-1", heartbeat=True)
+    disarm_session()
+    res = client.post(
+        "/api/bot/action",
+        json={"kind": "buy_market", "symbol": "ABCD", "brain_session_id": "brain-1"},
+        headers=headers(api_key),
+    )
+    assert res.status_code == 409
+    assert res.json()["detail"]["reason"] == BOT_REASON_NOT_ACTIVE
+
+
+def test_l2_active_action_reaches_execute(bot_iso, api_key, monkeypatch):
+    from execution.models import ExecutionReceipt
+
+    ready_l2(brain="brain-1", heartbeat=True)
+    seen = {}
+
+    async def fake_execute(cmd, wait_ack=False):
+        seen["source"] = cmd.source
+        return ExecutionReceipt(
+            ok=True,
+            execution_id="exec-bot",
+            operation="place",
+            source="bot",
+            idempotency_key="k",
+            order_id=88,
+        )
+
+    monkeypatch.setattr("bot.actions.execute", fake_execute)
+    monkeypatch.setattr("bot.risk.last_quote", lambda _s: {"price": 2.0})
+    res = client.post(
+        "/api/bot/action",
+        json={"kind": "buy_market", "symbol": "ABCD", "brain_session_id": "brain-1"},
+        headers=headers(api_key),
+    )
+    assert res.status_code == 200
+    assert res.json()["ok"] is True
+    assert res.json()["order_id"] == 88
+    assert seen["source"] == "bot"
 
 
 def test_l0_action_dark(bot_iso, api_key):

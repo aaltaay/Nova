@@ -11,6 +11,7 @@ import {
   subscribeBotSession,
   voteBotPollInterval,
 } from './botSessionPoller';
+import { BOT_ERROR_NEED_API_KEY } from '../constantGroups/bot';
 import { _resetDeskPollShareForTests } from '../ibkr/deskSharedPoll';
 
 describe('botSessionPoller', () => {
@@ -79,7 +80,7 @@ describe('botSessionPoller', () => {
   it('does not let a later GET wipe a sticky mutation error', async () => {
     const off = subscribeBotSession(() => {});
     await pollBotSessionOnce();
-    setBotSessionError('Need Nova API key -- Vite serve maps repo NOVA_API_KEY, or save it here');
+    setBotSessionError(BOT_ERROR_NEED_API_KEY);
     await pollBotSessionOnce();
     expect(getBotSessionSnapshot().error).toMatch(/Need Nova API key/);
     expect(getBotSessionSnapshot().errorSticky).toBe(true);

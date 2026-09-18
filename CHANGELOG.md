@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Bot fire rejects Not active; Desktop shares one API key
+
+- **What:** L2 live-fire / `POST /bot/action` now returns `409 BOT_NOT_ACTIVE` when the desk is Not active (`armed` / `has_desk_arm` false), even with pack + allowlist. L2 → Eyes or L0 disarms so `live_fire_ready` cannot stay true. Packaged Desktop and unpackaged Electron send `X-Nova-Api-Key` from the same `NOVA_API_KEY` the API already uses -- no Vite inject required, no second generated key.
+- **Why:** Red Team + Ahmed after #252: UI Level ≠ Active is not enough. Choosing Strategy must not enable live fire. Packaged Desktop Activate was 401 because Vite `VITE_NOVA_API_KEY` is serve-only and Electron could invent a userData key.
+- **Files touched:** `backend/bot/autonomy.py`, `arming.py`, `session.py`, `constants_bot.py`, `frontend/electron/{envMerge,sidecar,preload}`, `novaFetch` neighbors, ADR 016, `docs/bot-localhost-api.md`.
+- **How it works now:** `assert_can_fire` splits Eyes (`BOT_L1_NO_FIRE`) from L2-not-Active (`BOT_NOT_ACTIVE`). Session SSOT names stay `armed` / `has_desk_arm`. Electron `pickNovaApiKey` prefers process / `NOVA_ENV_PATH` / repo `.env` / userData, generates only if every source is empty, and preload exposes that key to `novaFetch`. Brains still cannot raise autonomy. No live IBKR in CI.
+- **Verified by:** pytest bot actions / session / routes / arming neighbors. Vitest envMerge / novaFetch / botApiError. `npm run build`.
+- **Follow-ups:** Windows Desktop smoke on Nova Repo before merge. Do not squash-merge. Epic #205 stays open.
+- **Related:** Refs #205. PROBLEM_LOG 2026-09-18 -- L2 fire while Not active; Desktop second API key.
+
 ## 2026-09-18 -- Orders dock hosts are scanner vs trader
 
 - **What:** The Orders/Positions/Nova OS dock stamps `data-dock-host` (`scanner` | `trader`) and `data-dock-symbol`. Hidden keep-alive hosts are `inert`. Dashboard unmounts while Trader is showing, so `scanner-desk` is gone on `/?view=stock`.

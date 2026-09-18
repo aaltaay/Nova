@@ -37,6 +37,22 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- L2 fire while Not active used Eyes refusal
+
+- **Symptom:** Strategy + pack + allowlist with the desk Not active still hit `assert_can_fire`, but the reason was `BOT_L1_NO_FIRE` ("Level 1 Eyes cannot place"). UI Activate/Not active (#252) did not exist on the fire path. L2 → Eyes kept `armed` / `has_desk_arm`, so a leftover desk token could look Active for live fire.
+- **Cause:** One `if` lumped "not L2" and "not Activate" into the Eyes code. `apply_patch` only called `clear_arm_fields` on L0.
+- **Fix:** `409 BOT_NOT_ACTIVE` when level is L2 and `is_desk_active` is false (`armed` and `has_desk_arm`). Eyes stay `BOT_L1_NO_FIRE`. L2 → Eyes or L0 disarms. Fixtures mock the broker; no live IBKR.
+- **Fix class:** admission
+- **Keywords:** BOT_NOT_ACTIVE, armed, has_desk_arm, live_fire_ready, assert_can_fire, #205, #252
+
+## 2026-09-18 -- Desktop invented a second NOVA_API_KEY
+
+- **Symptom:** Vite Activate/PATCH worked after #252 (`NOVA_API_KEY` → `VITE_NOVA_API_KEY`). Packaged Desktop and unpackaged Electron→Vite could 401 on the same mutating bot routes. Operator would have to paste a key.
+- **Cause:** Packaged `vite build` does not run the serve-only Vite map. Electron `ensureNovaApiKey` wrote a generated key into userData `.env` and exposed that on `novaDesktop.apiKey`, while the morning API still loaded repo-root `.env`. Two secrets.
+- **Fix:** `pickNovaApiKey` reads process / `NOVA_ENV_PATH` / repo / userData in that order and generates only when every source is empty. Preload still syncs that one key into `novaFetch` as `X-Nova-Api-Key`. Do not bake the key into `dist`.
+- **Fix class:** ownership
+- **Keywords:** NOVA_API_KEY, VITE_NOVA_API_KEY, novaDesktop.apiKey, X-Nova-Api-Key, packaged Desktop, #205
+
 ## 2026-09-18 -- Dual Orders dock failed Frontend E2E
 
 - **Symptom:** CI Frontend E2E (`35295154273`) failed `open-closed-orders.spec.ts`: `orders-today-filter-all` click "not visible"; `getByTestId('stock-view-open-orders-dock')` strict-mode 2 elements (`scanner-desk` + `stock-view-main`).

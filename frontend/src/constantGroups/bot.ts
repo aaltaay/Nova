@@ -44,8 +44,9 @@ export const BOT_DEACTIVATE_LABEL = 'Deactivate';
 export const BOT_API_KEY_HINT = 'Need Nova API key to change Bot Autonomy';
 export const BOT_API_KEY_SAVE = 'Save';
 export const BOT_ERROR_NEED_API_KEY =
-  'Need Nova API key -- Vite serve maps repo NOVA_API_KEY, or save it here';
+  'Need Nova API key -- Desktop and Vite read the same repo NOVA_API_KEY, or save it here';
 export const BOT_ERROR_ARM_REQUIRED = 'Activate first, then choose Strategy';
+export const BOT_ERROR_NOT_ACTIVE = 'Not active -- Activate before live fire';
 
 export const BOT_PACK_HALT_LULD = 'halt-luld';
 export const BOT_PACK_QUOTE_SPIKE = 'quote-spike';
