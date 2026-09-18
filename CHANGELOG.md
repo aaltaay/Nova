@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Orders Today fill latency refuses EDT-shaped 4h clocks
+
+- **What:** Orders Today Latency no longer treats a ~4h (EDT) / ~5h (EST) place-to-fill gap as a real fill. IMCC-style stamps recompute to the residual milliseconds. The cell face and hover are milliseconds per step (Nova→submit, submit→fill, click→fill), not a giant seconds total.
+- **Why:** Closed IMCC SELL 106416 showed place_to_fill_ms=14403037 (~4.0008h) as level=ok. Ahmed's sell filled in seconds. The delta is exactly America/New_York EDT. Naive IBKR `execution.time` was labeled Eastern (or ib_async `astimezone` on an Eastern host) against a real UTC submit stamp.
+- **Files touched:** `backend/ibkr/order_times.py`, `backend/execution/fill_audit_clock.py`, `backend/execution/fill_audit.py`, `backend/execution/fill_audit_attach.py`, `backend/constants_ibkr.py`, `frontend/src/ibkr/orderFillLatency.ts`.
+- **How it works now:** `_to_iso` treats naive IBKR digits as UTC (IB Execution.time is server/UTC). `apply_fill_clock_guard` detects same-second submit plus a NY-offset-shaped fill: MKT/MIT/MOC keep the residual ms; LMT is blank + `timezone_shaped_clock`; a multi-hour MKT that is not TZ-shaped is `impossible_fill_clock`. Hover is three ms lines. No invented stamps -- same wire digits, UTC label.
+- **Verified by:** `PYTHONPATH=backend python3 -m pytest` fill_audit_clock + fill_audit + fill_audit_attach + order_times -- 42 passed. Neighbor execution/orders -- 49 passed. Ruff on touched Python -- clean. `doc_invariants` -- OK. Vitest orderFillLatency + working/closed cells + sort -- 42 passed. `npm run lint` / `npm run build` -- exit 0. No live IBKR in this environment.
+- **Follow-ups:** Did not set `IB.TimezoneTWS=UTC` -- that knob also normalizes bar/scanner datetimes. Latency math no longer depends on it.
+- **Related:** PROBLEM_LOG 2026-09-18 -- Orders Today fill latency EDT false 4h.
+
 ## 2026-09-18 -- Reports import UI for CSV/JSON (D-046 slice 3)
 
 - **What:** Account > Reports can import closed trades from a CSV or JSON file. Rows land in `journal.db` and show on the calendar, Journal table, and Reports v2 panels. No live IBKR. No invented P/L or commissions.

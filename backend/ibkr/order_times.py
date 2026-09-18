@@ -22,15 +22,6 @@ logger = logging.getLogger(__name__)
 _nova_placed_at: dict[int, str] = {}
 
 
-def _eastern_tz():
-    try:
-        from zoneinfo import ZoneInfo
-
-        return ZoneInfo("America/New_York")
-    except Exception:
-        return timezone.utc
-
-
 def wall_utc_now_iso() -> str:
     """Wall-clock UTC ISO-8601 with microsecond precision (audit stamp)."""
     ns = time.time_ns()
@@ -69,11 +60,17 @@ def resolve_submitted_at(broker_submitted: str | None, order_id: int) -> str | N
 
 
 def _to_iso(value: Any) -> str | None:
-    """Normalize IBKR datetime / string times to ISO-8601 UTC (keep sub-seconds)."""
+    """Normalize IBKR datetime / string times to ISO-8601 UTC (keep sub-seconds).
+
+    Naive values are UTC. IBKR Execution.time is server time (UTC format).
+    Treating naive digits as America/New_York added a false +4h EDT / +5h EST
+    against Nova wall and trade.log UTC stamps (IMCC 2026-09-18).
+    Aware values keep their labeled zone and convert to UTC.
+    """
     if value is None:
         return None
     if isinstance(value, datetime):
-        dt = value if value.tzinfo is not None else value.replace(tzinfo=_eastern_tz())
+        dt = value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
         return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
     text = str(value).strip()
@@ -84,24 +81,23 @@ def _to_iso(value: Any) -> str | None:
     try:
         parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
         if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=_eastern_tz())
+            parsed = parsed.replace(tzinfo=timezone.utc)
         return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
     except ValueError:
         pass
 
-    # Common IB execution string: "20260718  09:41:23" or with fractional seconds.
+    # Common IB execution string: "20260718  09:41:23" or "20260918-14:06:10".
     compact = " ".join(text.split())
     for fmt in (
         "%Y%m%d %H:%M:%S.%f",
         "%Y%m%d %H:%M:%S",
+        "%Y%m%d-%H:%M:%S",
         "%Y-%m-%d %H:%M:%S.%f",
         "%Y-%m-%d %H:%M:%S",
     ):
         try:
             dt = datetime.strptime(compact, fmt)
-            return dt.replace(tzinfo=_eastern_tz()).astimezone(timezone.utc).isoformat().replace(
-                "+00:00", "Z",
-            )
+            return dt.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
         except ValueError:
             continue
     return None

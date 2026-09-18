@@ -181,6 +181,88 @@ def test_public_fill_audit_drops_empty_row():
     assert public_fill_audit(None) is None
 
 
+def test_imcc_ledger_clocks_do_not_publish_four_hours():
+    remember_fill_audit(
+        {"order_id": 106416, "level": "ok", "reason": "filled"},
+        nova_placed_at="2026-09-18T14:06:06.963023Z",
+    )
+    row = _order(
+        order_id=106416,
+        perm_id=5001,
+        symbol="IMCC",
+        side="SELL",
+        submitted_at="2026-09-18T14:06:06.962023Z",
+        filled_at="2026-09-18T18:06:10Z",
+        updated_at="2026-09-18T18:06:10Z",
+    )
+    out = attach_fill_audit([row], ledger_rows=[])
+    audit = out[0]["fill_audit"]
+    assert audit is not None
+    assert audit["place_to_fill_ms"] == 3037
+    assert audit["place_to_fill_ms"] < 10_000
+    assert audit["place_to_submit_ms"] == -1
+
+
+def test_imcc_second_resolution_ledger_still_refuses_four_hours():
+    """created_ts loses micros -- still must not publish ~14400s as ok."""
+    placed_ts = datetime(2026, 9, 18, 14, 6, 6, tzinfo=timezone.utc).timestamp()
+    led = {
+        "order_id": 106416,
+        "perm_id": 5001,
+        "created_ts": placed_ts,
+        "operation": "place",
+        "status": "filled",
+    }
+    row = _order(
+        order_id=106416,
+        perm_id=5001,
+        symbol="IMCC",
+        side="SELL",
+        submitted_at="2026-09-18T14:06:06.962023Z",
+        filled_at="2026-09-18T18:06:10Z",
+        updated_at="2026-09-18T18:06:10Z",
+    )
+    out = attach_fill_audit([row], ledger_rows=[led])
+    audit = out[0]["fill_audit"]
+    assert audit is not None
+    assert audit["place_to_fill_ms"] is not None
+    assert audit["place_to_fill_ms"] < 10_000
+
+
+def test_stored_leftover_four_hour_row_is_corrected():
+    pub = public_fill_audit(
+        {
+            "place_to_submit_ms": -1,
+            "place_to_fill_ms": 14_403_037,
+            "place_to_terminal_ms": None,
+            "level": "ok",
+            "reason": "filled",
+            "type": "MKT",
+        },
+    )
+    assert pub is not None
+    assert pub["place_to_fill_ms"] == 3037
+    assert pub["level"] == "warn"
+    assert pub["reason"] == "mkt_rth_slow"
+
+
+def test_lmt_timezone_shaped_stored_row_is_invalid_not_four_hours():
+    pub = public_fill_audit(
+        {
+            "place_to_submit_ms": -1,
+            "place_to_fill_ms": 14_403_037,
+            "place_to_terminal_ms": None,
+            "level": "ok",
+            "reason": "filled",
+            "type": "LMT",
+        },
+    )
+    assert pub is not None
+    assert pub["place_to_fill_ms"] is None
+    assert pub["reason"] == "timezone_shaped_clock"
+    assert pub["level"] == "warn"
+
+
 def test_placed_index_prefers_payload_nova_placed_at():
     from execution.fill_audit_attach import placed_index_from_ledger
 

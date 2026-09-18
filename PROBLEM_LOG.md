@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Orders Today fill latency EDT false 4h
+
+- **Symptom:** Closed IMCC SELL 106416 showed fill latency ~14403s / 4.0008h as level=ok (`place_to_fill_ms=14403037`). Same pattern on IMCC BUY 106411 (`14399704`). Ahmed said the sell filled in a little while. Hover joined three lines with ` -- ` and rendered negative `place_to_submit_ms` as an em dash.
+- **Cause:** IBKR `Execution.time` is server/UTC wall digits (often naive). Nova `_to_iso` attached America/New_York, then converted to UTC. ib_async `execDetails` does the same when `TimezoneTWS` is empty: `naive.astimezone(UTC)` treats naive as the host TZ. On an Eastern bench that adds exactly the EDT offset to a UTC submit stamp (`14:06:06Z` vs `18:06:10Z`).
+- **Fix:** Naive IBKR times parse as UTC. `fill_audit_clock` corrects MKT-class timezone-shaped deltas to the residual ms and refuses LMT-shaped / impossible multi-hour same-second MKT fills. Orders Today face + hover stay in ms per step.
+- **Fix class:** admission
+- **Keywords:** fill latency, place_to_fill_ms, execution.time, EDT, timezone, IMCC, Orders Today, fill_audit
+
 ## 2026-09-18 -- Reports import E2E click hit the prereq overlay
 
 - **Symptom:** CI Frontend E2E failed `reports-import.spec.ts` -- `getByRole('tab', { name: 'Reports' }).click()` timed out. Interceptors: `sv-open-orders-dock`, `hod-momo-dock`, then `trading-prerequisites-gate`.

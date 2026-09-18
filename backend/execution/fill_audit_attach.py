@@ -11,11 +11,24 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from constants_ibkr import IBKR_CLOSED_ORDER_STATUSES
+from constants_ibkr import (
+    IBKR_CLOSED_ORDER_STATUSES,
+    FILL_AUDIT_FAST_TYPES,
+    FILL_AUDIT_MKT_RTH_DANGER_MS,
+    FILL_AUDIT_MKT_RTH_WARN_MS,
+    FILL_AUDIT_REASON_IMPOSSIBLE,
+    FILL_AUDIT_REASON_TIMEZONE_SHAPED,
+)
 from execution.fill_audit import (
     classify_fill_audit,
     lookup_fill_audit,
 )
+from execution.fill_audit_clock import apply_fill_clock_guard
+
+_INVALID_CLOCK_REASONS = frozenset({
+    FILL_AUDIT_REASON_IMPOSSIBLE,
+    FILL_AUDIT_REASON_TIMEZONE_SHAPED,
+})
 
 logger = logging.getLogger(__name__)
 
@@ -46,19 +59,46 @@ def _int_or_none(value: object) -> int | None:
 
 
 def public_fill_audit(row: dict[str, Any] | None) -> dict[str, Any] | None:
-    """UI payload, or None when there is no click-to-fill / click-to-terminal."""
+    """UI payload, or None when there is no click-to-fill / click-to-terminal.
+
+    Timezone-shaped leftovers (same-second submit + ~4h/5h fill) stay
+    publishable so the cell can show an invalid clock, not a confident 4h ok.
+    """
     if not row:
         return None
     fill = _int_or_none(row.get("place_to_fill_ms"))
     terminal = _int_or_none(row.get("place_to_terminal_ms"))
-    if fill is None and terminal is None:
+    submit = _int_or_none(row.get("place_to_submit_ms"))
+    reason = row.get("reason")
+    level = row.get("level")
+    guarded_fill, clock_reason = apply_fill_clock_guard(
+        place_to_fill_ms=fill,
+        place_to_submit_ms=submit,
+        placed_iso=None,
+        order_type=str(row.get("type") or "MKT"),
+    )
+    if clock_reason:
+        fill = None
+        reason = clock_reason
+        level = "danger" if clock_reason == FILL_AUDIT_REASON_IMPOSSIBLE else "warn"
+    elif guarded_fill is not None:
+        fill = guarded_fill
+        typ = str(row.get("type") or "MKT").upper()
+        if typ in FILL_AUDIT_FAST_TYPES and fill is not None and reason == "filled":
+            if fill > FILL_AUDIT_MKT_RTH_DANGER_MS:
+                level = "danger"
+                reason = "mkt_rth_slow"
+            elif fill > FILL_AUDIT_MKT_RTH_WARN_MS:
+                level = "warn"
+                reason = "mkt_rth_slow"
+    if fill is None and terminal is None and reason not in _INVALID_CLOCK_REASONS:
         return None
     return {
-        "place_to_submit_ms": _int_or_none(row.get("place_to_submit_ms")),
+        "place_to_submit_ms": submit,
         "place_to_fill_ms": fill,
         "place_to_terminal_ms": terminal,
-        "level": row.get("level"),
-        "reason": row.get("reason"),
+        "level": level,
+        "reason": reason,
     }
 
 

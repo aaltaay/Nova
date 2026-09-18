@@ -25,8 +25,10 @@ from constants import (
     FILL_AUDIT_JSONL_FILENAME,
     FILL_AUDIT_MKT_RTH_DANGER_MS,
     FILL_AUDIT_MKT_RTH_WARN_MS,
+    FILL_AUDIT_REASON_IMPOSSIBLE,
 )
 from execution import persist_queue
+from execution.fill_audit_clock import apply_fill_clock_guard
 from paths import log_dir
 
 logger = logging.getLogger(__name__)
@@ -152,6 +154,15 @@ def classify_fill_audit(
     if not has_fill:
         place_to_terminal = _delta_ms(nova_placed_at, terminal_at or now_iso)
 
+    clock_reason = None
+    if has_fill:
+        place_to_fill, clock_reason = apply_fill_clock_guard(
+            place_to_fill_ms=place_to_fill,
+            place_to_submit_ms=place_to_submit,
+            placed_iso=nova_placed_at,
+            order_type=typ,
+        )
+
     returned = (
         any(s in {"Filled", "Inactive"} for s in status_history[:-1])
         and last in _WORKING
@@ -166,7 +177,10 @@ def classify_fill_audit(
     level = "ok"
     reason = "filled" if has_fill else "terminal"
     latency = place_to_fill if has_fill else place_to_terminal
-    if returned:
+    if clock_reason:
+        level = "danger" if clock_reason == FILL_AUDIT_REASON_IMPOSSIBLE else "warn"
+        reason = clock_reason
+    elif returned:
         level = "danger"
         reason = "return_to_working"
     elif working_no_fill:
