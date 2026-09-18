@@ -131,6 +131,14 @@ export const BOT_ALLOWLIST_EMPTY = 'empty -- fail closed';
 export const BOT_ALLOWLIST_ADD_LABEL = 'Add ticker';
 export const BOT_ALLOWLIST_ADD_BUTTON = 'Add';
 export const BOT_ALLOWLIST_CHIP_REMOVE = 'Remove';
+/** Mirrors backend/constants_bot.py -- session.symbol_allowlist only, not caps.allowlist. */
+export const BOT_SYMBOL_ALLOWLIST_CAP = 50;
+export const BOT_ALLOWLIST_STRIP_LABEL = 'Allowlist';
+export const BOT_ALLOWLIST_STRIP_TITLE = 'Symbol allowlist';
+
+export function botAllowlistStripLabel(count: number): string {
+  return `${BOT_ALLOWLIST_STRIP_LABEL} · ${count}`;
+}
 export const BOT_BREAKER_SOFT_LABEL = 'Bot trip $ (locked)';
 export const BOT_BREAKER_HARD_LABEL = 'All-stop $ (locked)';
 export const BOT_BREAKER_HINT =

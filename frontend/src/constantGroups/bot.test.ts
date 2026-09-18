@@ -3,6 +3,8 @@ import {
   BOT_PACKS,
   BOT_PACK_DESCRIPTIONS,
   BOT_PACK_LLM_DECIDE,
+  BOT_SYMBOL_ALLOWLIST_CAP,
+  botAllowlistStripLabel,
   packDescription,
   packStatus,
   quoteSpikeSettingsLine,
@@ -37,5 +39,11 @@ describe('bot pack copy', () => {
     expect(volumeSettingsLine({
       min_mult: 5, window_sec: 60, baseline_sec: 600, volume_kind: 'buy_market', cooldown_sec: 60,
     })).toMatch(/5x/);
+  });
+
+  it('mirrors the backend symbol-allowlist cap and strip count label', () => {
+    expect(BOT_SYMBOL_ALLOWLIST_CAP).toBe(50);
+    expect(botAllowlistStripLabel(0)).toBe('Allowlist · 0');
+    expect(botAllowlistStripLabel(3)).toBe('Allowlist · 3');
   });
 });

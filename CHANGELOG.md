@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Bot Autonomy strip edits symbol allowlist
+
+- **What:** Bot Autonomy header gains an **Allowlist · N** control immediately after Pack. The popover adds and removes `session.symbol_allowlist` the same way the Strategy tab does. Visible for every pack, not only Halt / LULD.
+- **Why:** Ahmed needed to edit the Eyes/L2 symbol allowlist without opening the Strategy left tab. Empty space sat to the right of Pack.
+- **Files touched:** `frontend/src/bot/BotArmAllowlistControl.tsx`, `frontend/src/bot/BotAllowlistEditor.tsx`, `frontend/src/bot/BotArmControls.tsx`, `frontend/src/bot/StrategyAllowlistCard.tsx`, `frontend/src/constantGroups/bot.ts`, `frontend/src/bot/botArm.css`, `docs/bot-localhost-api.md`.
+- **How it works now:** The strip button and StrategyAllowlistCard both render `BotAllowlistEditor` and call `useBotAllowlist` -> `postBotAllowlist`. Same SSOT, same cap (`BOT_SYMBOL_ALLOWLIST_CAP` = 50), same empty/remove chips. This is symbols only -- not `caps.allowlist` action kinds. No new broker path.
+- **Verified by:** Vitest placement after Pack + add/remove through `postBotAllowlist`. Neighbor Strategy allowlist + bot pack copy tests. `npm run lint` / `npm run build`. Rebased onto `origin/master` after HOD Momo ping (#273); only CHANGELOG conflicted.
+- **Follow-ups:** PR holds `do-not-merge` until Ahmed clicks Allowlist on the live desk.
+- **Related:** Strategy tab allowlist 2026-09-18. No new deferred issue.
+
 ## 2026-09-18 -- HOD Momo new-row ping + banner mute
 
 - **What:** A short Web Audio ping plays when a new HOD Momo alert row arrives. Speaker toggle in the HOD Momo Scanner header (and the HOD dock bar) mutes it. Default on; preference is localStorage.
