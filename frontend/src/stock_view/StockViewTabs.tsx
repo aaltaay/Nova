@@ -1,6 +1,7 @@
 /**
  * Trader View container — tab strip + one StockViewPage per tab.
- * Inactive panes stay mounted (display:none) so L1/L2/tape stay hot.
+ * Inactive live panes stay mounted (hidden) so L1/L2/tape sockets stay
+ * subscribed. Tape/depth/chart UI apply pauses until the tab is shown again.
  * The tab strip portals into GlobalAppBar's middle column when that slot is
  * mounted (one header row), else renders inline above the panes.
  */

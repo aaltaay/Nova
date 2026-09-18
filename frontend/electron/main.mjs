@@ -5,6 +5,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow, ipcMain, screen, shell } from 'electron';
+import { shouldOpenDetachedDevTools } from './devtoolsGate.mjs';
 import {
   API_BASE,
   getDesktopApiKey,
@@ -76,7 +77,9 @@ function createWindow() {
   if (isDev) {
     const viteUrl = process.env.NOVA_VITE_URL || 'http://127.0.0.1:5173';
     void mainWindow.loadURL(viteUrl);
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
+    if (shouldOpenDetachedDevTools(isDev)) {
+      mainWindow.webContents.openDevTools({ mode: 'detach' });
+    }
   } else {
     void mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
   }

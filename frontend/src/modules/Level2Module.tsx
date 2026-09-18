@@ -6,16 +6,18 @@ import { DepthLadder } from '../ibkr';
 
 interface Props {
   symbol: string | null;
+  /** False on live-but-hidden trader tabs. */
+  uiActive?: boolean;
 }
 
-export function Level2Module({ symbol }: Props) {
+export function Level2Module({ symbol, uiActive = true }: Props) {
   return (
     <div
       className="nova-module nova-module--level2"
       data-module="level2"
       data-symbol={symbol ?? ''}
     >
-      <DepthLadder key={symbol ?? 'none'} symbol={symbol} />
+      <DepthLadder key={symbol ?? 'none'} symbol={symbol} uiActive={uiActive} />
     </div>
   );
 }

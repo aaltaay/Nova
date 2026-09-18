@@ -1,19 +1,32 @@
 /**
- * Compact Time & Sales tape — newest print on top.
+ * Compact Time & Sales tape -- newest print on top.
  * Owns useIbkrTape (same pattern as DepthLadder → useIbkrDepth).
  * Side is row tint only (no Side column): ask green | bid red | mid/unknown neutral.
+ * DOM mounts a viewport window; the hook ring still holds TAPE_UI_MAX_ROWS.
  */
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type UIEvent } from 'react';
 import {
   TAPE_COL_HEADERS,
+  TAPE_OVERSCAN_ROWS,
+  TAPE_ROW_HEIGHT_PX,
   TAPE_SECTION_TITLE,
+  TAPE_STICK_TOP_PX,
+  TAPE_VIEWPORT_FALLBACK_ROWS,
 } from '../constants';
-import { useIbkrTape, type TapeSide } from './useIbkrTape';
+import { createRafCoalesce } from '../utils/rafCoalesce';
+import {
+  computeTapeVisibleRange,
+  tapePinnedToNewest,
+  tapeScrollAfterPrepend,
+} from './tapeWindow';
+import { useIbkrTape, type TapePrint, type TapeSide } from './useIbkrTape';
 
 interface Props {
   symbol: string | null;
   /** Parent rail: pane chrome + LIVE; no duplicate outer card title. */
   embedded?: boolean;
+  /** False on live-but-hidden trader tabs -- ring stays hot, UI does not. */
+  uiActive?: boolean;
 }
 
 function fmtTime(iso: string): string {
@@ -46,8 +59,88 @@ function sideClass(side: TapeSide | undefined): string {
   }
 }
 
-export function TimeSalesPanel({ symbol, embedded = false }: Props) {
-  const { prints, connected, error } = useIbkrTape(symbol);
+function TapeRow({ print }: { print: TapePrint }) {
+  return (
+    <div
+      className={`ts-row ${sideClass(print.side)}`}
+      style={{ height: TAPE_ROW_HEIGHT_PX }}
+    >
+      <span className="ts-col--time">{fmtTime(print.time)}</span>
+      <span className="ts-col--price">{fmtPrice(print.price)}</span>
+      <span className="ts-col--size">{fmtSize(print.size)}</span>
+      <span className="ts-col--exch">{print.exchange || '—'}</span>
+    </div>
+  );
+}
+
+export function TimeSalesPanel({ symbol, embedded = false, uiActive = true }: Props) {
+  const { prints, connected, error } = useIbkrTape(symbol, uiActive);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewportPx, setViewportPx] = useState(
+    TAPE_VIEWPORT_FALLBACK_ROWS * TAPE_ROW_HEIGHT_PX,
+  );
+  const prevLenRef = useRef(0);
+  const pinnedRef = useRef(true);
+  const pendingScrollRef = useRef(0);
+  const scrollRafRef = useRef(createRafCoalesce(() => {
+    setScrollTop(pendingScrollRef.current);
+  }));
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(entries => {
+      const h = entries[0]?.contentRect.height ?? 0;
+      if (h > 0) setViewportPx(h);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    prevLenRef.current = 0;
+    pinnedRef.current = true;
+    setScrollTop(0);
+    const el = scrollRef.current;
+    if (el) el.scrollTop = 0;
+  }, [symbol]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    const added = prints.length - prevLenRef.current;
+    prevLenRef.current = prints.length;
+    if (!el || added <= 0 || pinnedRef.current) return;
+    const nextTop = tapeScrollAfterPrepend(
+      el.scrollTop,
+      added,
+      TAPE_ROW_HEIGHT_PX,
+      TAPE_STICK_TOP_PX,
+    );
+    el.scrollTop = nextTop;
+    setScrollTop(nextTop);
+  }, [prints.length]);
+
+  useEffect(() => {
+    const raf = scrollRafRef.current;
+    return () => raf.cancel();
+  }, []);
+
+  const onScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
+    const top = event.currentTarget.scrollTop;
+    pinnedRef.current = tapePinnedToNewest(top);
+    pendingScrollRef.current = top;
+    scrollRafRef.current.schedule();
+  }, []);
+
+  const range = computeTapeVisibleRange(
+    scrollTop,
+    prints.length,
+    TAPE_ROW_HEIGHT_PX,
+    viewportPx,
+    TAPE_OVERSCAN_ROWS,
+  );
+  const visible = prints.slice(range.startIndex, range.endIndex);
 
   const statusLabel = useMemo(() => {
     if (error) return error;
@@ -69,18 +162,25 @@ export function TimeSalesPanel({ symbol, embedded = false }: Props) {
   );
 
   const rows = (
-    <div className="ts-panel__rows">
+    <div
+      className="ts-panel__rows"
+      ref={scrollRef}
+      onScroll={onScroll}
+      data-testid="ts-panel-rows"
+      data-ring-count={prints.length}
+      data-rendered-count={statusLabel ? 0 : visible.length}
+      data-tape-ui-active={uiActive ? '1' : '0'}
+    >
       {statusLabel ? (
         <div className="ts-panel__empty">{statusLabel}</div>
       ) : (
-        prints.map((p, i) => (
-          <div key={`${p.time}-${i}`} className={`ts-row ${sideClass(p.side)}`}>
-            <span className="ts-col--time">{fmtTime(p.time)}</span>
-            <span className="ts-col--price">{fmtPrice(p.price)}</span>
-            <span className="ts-col--size">{fmtSize(p.size)}</span>
-            <span className="ts-col--exch">{p.exchange || '—'}</span>
-          </div>
-        ))
+        <>
+          {range.topSpacerPx > 0 && <div style={{ height: range.topSpacerPx }} aria-hidden />}
+          {visible.map((p, i) => (
+            <TapeRow key={`${p.time}-${range.startIndex + i}`} print={p} />
+          ))}
+          {range.bottomSpacerPx > 0 && <div style={{ height: range.bottomSpacerPx }} aria-hidden />}
+        </>
       )}
     </div>
   );

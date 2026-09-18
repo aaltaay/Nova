@@ -29,6 +29,14 @@ export const L2_DAS_HEADERS = {
 // ── Time & Sales panel ─────────────────────────────────────────────────────
 /** Max rows kept in the TimeSalesPanel (mirrors backend TAPE_UI_MAX_ROWS). */
 export const TAPE_UI_MAX_ROWS = 200;
+/** Fixed T&S row height so the DOM window can scroll the full ring. */
+export const TAPE_ROW_HEIGHT_PX = 22;
+/** Extra T&S rows mounted above/below the viewport. */
+export const TAPE_OVERSCAN_ROWS = 8;
+/** Used before ResizeObserver reports a real pane height. */
+export const TAPE_VIEWPORT_FALLBACK_ROWS = 20;
+/** scrollTop at or below this stays pinned to the newest prints. */
+export const TAPE_STICK_TOP_PX = 4;
 export const TAPE_SECTION_TITLE = 'Time & Sales';
 export const TAPE_COL_HEADERS = {
   time: 'Time',

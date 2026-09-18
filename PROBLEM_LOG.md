@@ -45,6 +45,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Fix class:** admission
 - **Keywords:** STP LMT, TRAIL, Stop Limit, Trailing Stop, order_type, ManualOrderFields, order_build
 
+## 2026-09-18 -- T&S rush and 10Sec hitch under hot tape
+
+- **Symptom:** After poll thin (#241), Time & Sales still rushed and the 10Sec chart hitched on a hot name. Ahmed's Windows desk has headroom; the UI main thread was the bottleneck.
+- **Cause:** Every AllLast print called React `setState`, remapped up to 200 T&S DOM rows, rebuilt chart indicator bars, and kept painting live-but-hidden trader tabs. Daily Electron also detached DevTools.
+- **Fix:** rAF-coalesce tape UI; virtualize T&S over the existing 200-print ring; tip-only 10Sec `series.update` plus rAF-coalesced `barsStore` listeners; pause tape/depth/chart UI apply on hidden live tabs (socket + ring stay honest); gate detach DevTools behind `NOVA_ELECTRON_DEVTOOLS`.
+- **Fix class:** ownership
+- **Keywords:** Time & Sales, tape, rAF, virtualize, 10Sec, setIndicatorBars, hidden tab, DevTools, #243
+
 ## 2026-09-17 -- Electron sidecar recycle killed a healthy :8000
 
 - **Symptom:** Daily UI roll-out (unpackaged Electron against a morning API) could Stop-NovaPorts or spawn a second `run_api.py` even when GET /api/health was 200. That is Lock A: health 200 means do not recycle the API.
