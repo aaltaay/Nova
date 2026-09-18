@@ -282,6 +282,7 @@ def test_imcc_buy_106411_ledger_publishes_clock_skew():
     assert audit is not None
     assert audit["place_to_fill_ms"] == -296
     assert audit["place_to_submit_ms"] == -296
+    assert audit["face_ms"] is None
     assert audit["reason"] == "clock_skew"
     assert audit["level"] == "ok"
 
@@ -299,6 +300,7 @@ def test_stored_negative_fill_is_clock_skew_not_ok_filled():
     )
     assert pub is not None
     assert pub["place_to_fill_ms"] == -296
+    assert pub["face_ms"] is None
     assert pub["reason"] == "clock_skew"
     assert pub["level"] == "ok"
 
@@ -316,6 +318,7 @@ def test_imcc_sell_3037_stays_warn():
     )
     assert pub is not None
     assert pub["place_to_fill_ms"] == 3037
+    assert pub["face_ms"] == 3037
     assert pub["reason"] == "mkt_rth_slow"
     assert pub["level"] == "warn"
 

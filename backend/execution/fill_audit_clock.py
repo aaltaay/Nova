@@ -74,6 +74,29 @@ def is_clock_skew_ms(ms: int | None) -> bool:
     return True
 
 
+def coherent_face_ms(
+    place_to_fill_ms: int | None,
+    place_to_terminal_ms: int | None,
+    reason: str | None,
+) -> int | None:
+    """Face total only when both endpoints tell one coherent clock story.
+
+    Missing stamps, negatives, clock_skew, timezone-shaped, and impossible
+    clocks return None -- never a guessed 0ms or a negative face.
+    """
+    if reason in {
+        FILL_AUDIT_REASON_CLOCK_SKEW,
+        FILL_AUDIT_REASON_TIMEZONE_SHAPED,
+        FILL_AUDIT_REASON_IMPOSSIBLE,
+    }:
+        return None
+    if place_to_fill_ms is not None:
+        return place_to_fill_ms if place_to_fill_ms >= 0 else None
+    if place_to_terminal_ms is not None:
+        return place_to_terminal_ms if place_to_terminal_ms >= 0 else None
+    return None
+
+
 def clock_guard_level(reason: str | None) -> str | None:
     """Detective tone for a clock-guard reason. clock_skew stays calm."""
     if reason is None:

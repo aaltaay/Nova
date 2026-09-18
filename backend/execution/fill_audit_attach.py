@@ -27,6 +27,7 @@ from execution.fill_audit import (
 from execution.fill_audit_clock import (
     apply_fill_clock_guard,
     clock_guard_level,
+    coherent_face_ms,
     is_clock_skew_ms,
 )
 
@@ -113,6 +114,7 @@ def public_fill_audit(row: dict[str, Any] | None) -> dict[str, Any] | None:
         "place_to_submit_ms": submit,
         "place_to_fill_ms": fill,
         "place_to_terminal_ms": terminal,
+        "face_ms": coherent_face_ms(fill, terminal, str(reason) if reason else None),
         "level": level,
         "reason": reason,
     }

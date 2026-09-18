@@ -53,6 +53,7 @@ def test_imcc_edt_false_four_hour_is_corrected():
     assert row["place_to_submit_ms"] == -1
     assert row["place_to_fill_ms"] == 3037
     assert row["place_to_fill_ms"] != 14_403_037
+    assert row["face_ms"] == 3037
     assert row["reason"] == "mkt_rth_slow"
     assert row["level"] == "warn"
 
@@ -69,6 +70,7 @@ def test_imcc_buy_whole_second_stamps_are_clock_skew_ok():
     )
     assert row["place_to_submit_ms"] == -296
     assert row["place_to_fill_ms"] == -296
+    assert row["face_ms"] is None
     assert row["reason"] == "clock_skew"
     assert row["level"] == "ok"
 
@@ -94,6 +96,7 @@ def test_quiet_ok_mkt_fill_under_2s():
     row = classify_fill_audit(**_base())
     assert row["place_to_submit_ms"] == 12
     assert row["place_to_fill_ms"] == 180
+    assert row["face_ms"] == 180
     assert "place_to_terminal_ms" not in row
     assert row["level"] == "ok"
     assert row["status"] == "Filled"

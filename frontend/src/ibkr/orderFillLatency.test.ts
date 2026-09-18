@@ -83,7 +83,7 @@ describe('orderFillLatency', () => {
 
   it('tooltip uses click→terminal when there is no fill', () => {
     expect(fillLatencyTooltip(TERMINAL_ONLY)).toBe(
-      'Nova → submit: 15ms\nSubmit → fill: —\nClick → terminal: 3000ms',
+      'Nova → submit: 15ms\nSubmit → fill: unavailable\nClick → terminal: 3000ms',
     );
   });
 
@@ -107,7 +107,7 @@ describe('orderFillLatency', () => {
       FILL_LATENCY_EM_DASH,
     );
     expect(fillLatencyTooltip(IMCC_REFUSED)).toBe(
-      'Nova → submit: -1ms\nSubmit → fill: —\nClick → fill: —\nClock: invalid (timezone_shaped_clock)',
+      'Nova → submit: -1ms\nSubmit → fill: unavailable\nClick → fill: unavailable\nClock: invalid (timezone_shaped_clock)',
     );
   });
 
@@ -122,9 +122,10 @@ describe('orderFillLatency', () => {
     expect(formatFillLatencyMs(fillLatencyFaceMs(audit))).toBe(FILL_LATENCY_EM_DASH);
     expect(fillLatencyTone(audit)).toBe('ok');
     expect(fillLatencyTooltip(audit)).toBe(
-      'Clocks disagree by 296ms -- not a real negative fill\nNova → submit (raw): -296ms',
+      'Clocks disagree by 296ms -- not a real negative fill\nNova → submit: -296ms (raw)\nSubmit → fill: unavailable\nClick → fill: unavailable',
     );
-    expect(fillLatencyTooltip(audit)).not.toContain('Click → fill');
+    expect(fillLatencyTooltip(audit)).not.toContain('Click → fill: -296');
+    expect(fillLatencyTooltip(audit)).not.toContain('Submit → fill: 0');
   });
 
   it('negative fill without reason is still blank -- never a -296ms face', () => {

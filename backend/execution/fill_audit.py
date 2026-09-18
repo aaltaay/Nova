@@ -31,6 +31,7 @@ from execution import persist_queue
 from execution.fill_audit_clock import (
     apply_fill_clock_guard,
     clock_guard_level,
+    coherent_face_ms,
     is_clock_skew_ms,
 )
 from paths import log_dir
@@ -216,6 +217,11 @@ def classify_fill_audit(
         row["place_to_fill_ms"] = place_to_fill
     else:
         row["place_to_terminal_ms"] = place_to_terminal
+    row["face_ms"] = coherent_face_ms(
+        place_to_fill if has_fill else None,
+        None if has_fill else place_to_terminal,
+        reason,
+    )
     return row
 
 

@@ -6,6 +6,7 @@ import type { FillAuditLevel, OrderFillAudit } from './types';
 
 export const FILL_LATENCY_EM_DASH = '—';
 export const FILL_AUDIT_REASON_CLOCK_SKEW = 'clock_skew';
+export const FILL_LATENCY_UNAVAILABLE = 'unavailable';
 
 const INVALID_CLOCK_REASONS = new Set([
   'timezone_shaped_clock',
@@ -51,14 +52,49 @@ function clockSkewAbsMs(
   return null;
 }
 
+function formatHoverStep(
+  ms: number | null | undefined,
+  allowNegative = false,
+): string {
+  const n = asInt(ms);
+  if (n == null) return FILL_LATENCY_UNAVAILABLE;
+  if (n < 0 && !allowNegative) return FILL_LATENCY_UNAVAILABLE;
+  return `${n}ms`;
+}
+
+function hasHoverStory(audit: OrderFillAudit): boolean {
+  return (
+    isClockSkewFill(audit) ||
+    isInvalidFillClock(audit) ||
+    asInt(audit.place_to_submit_ms) != null ||
+    asInt(audit.place_to_fill_ms) != null ||
+    asInt(audit.place_to_terminal_ms) != null
+  );
+}
+
+function hoverSubmitToFill(audit: OrderFillAudit): string {
+  if (isClockSkewFill(audit) || isInvalidFillClock(audit)) {
+    return FILL_LATENCY_UNAVAILABLE;
+  }
+  const fill = asInt(audit.place_to_fill_ms);
+  const submit = asInt(audit.place_to_submit_ms);
+  if (fill == null || fill < 0 || submit == null) return FILL_LATENCY_UNAVAILABLE;
+  return formatHoverStep(fill - submit);
+}
+
 /** Click-to-fill when filled, else click-to-terminal. Invalid / skew stay blank. */
 export function fillLatencyFaceMs(
   audit: OrderFillAudit | null | undefined,
 ): number | null {
   if (!audit || isInvalidFillClock(audit) || isClockSkewFill(audit)) return null;
+  if (audit.face_ms !== undefined) {
+    const face = asInt(audit.face_ms);
+    return face != null && face >= 0 ? face : null;
+  }
   const fill = asInt(audit.place_to_fill_ms);
-  if (fill != null) return fill;
-  return asInt(audit.place_to_terminal_ms);
+  if (fill != null) return fill >= 0 ? fill : null;
+  const terminal = asInt(audit.place_to_terminal_ms);
+  return terminal != null && terminal >= 0 ? terminal : null;
 }
 
 export function formatFillLatencyMs(ms: number | null | undefined): string {
@@ -96,35 +132,33 @@ export function fillLatencyTone(
 export function fillLatencyTooltip(
   audit: OrderFillAudit | null | undefined,
 ): string | undefined {
-  if (!audit) return undefined;
-  if (isClockSkewFill(audit)) {
-    const skew = clockSkewAbsMs(audit);
-    const lines = [
-      skew != null
-        ? `Clocks disagree by ${skew}ms -- not a real negative fill`
-        : 'Clocks disagree -- not a real negative fill',
-    ];
-    const submit = asInt(audit.place_to_submit_ms);
-    if (submit != null) {
-      lines.push(`Nova → submit (raw): ${submit}ms`);
-    }
-    return lines.join('\n');
-  }
-  const face = fillLatencyFaceMs(audit);
+  if (!audit || !hasHoverStory(audit)) return undefined;
   const invalid = isInvalidFillClock(audit);
-  if (face == null && !invalid) return undefined;
-  const lines = [
-    `Nova → submit: ${formatFillLatencyMs(asInt(audit.place_to_submit_ms))}`,
-    `Submit → fill: ${formatFillLatencyMs(submitToFillMs(audit))}`,
-  ];
-  if (asInt(audit.place_to_fill_ms) != null && !invalid) {
-    lines.push(`Click → fill: ${formatFillLatencyMs(asInt(audit.place_to_fill_ms))}`);
-  } else if (asInt(audit.place_to_terminal_ms) != null && !invalid) {
+  const skew = isClockSkewFill(audit);
+  const lines: string[] = [];
+  if (skew) {
+    const absMs = clockSkewAbsMs(audit);
     lines.push(
-      `Click → terminal: ${formatFillLatencyMs(asInt(audit.place_to_terminal_ms))}`,
+      absMs != null
+        ? `Clocks disagree by ${absMs}ms -- not a real negative fill`
+        : 'Clocks disagree -- not a real negative fill',
     );
+  }
+  const submit = asInt(audit.place_to_submit_ms);
+  const submitLabel =
+    skew && submit != null && submit < 0
+      ? `${formatHoverStep(submit, true)} (raw)`
+      : formatHoverStep(submit, true);
+  lines.push(`Nova → submit: ${submitLabel}`);
+  lines.push(`Submit → fill: ${hoverSubmitToFill(audit)}`);
+  const fill = asInt(audit.place_to_fill_ms);
+  const terminal = asInt(audit.place_to_terminal_ms);
+  if (!skew && !invalid && fill != null && fill >= 0) {
+    lines.push(`Click → fill: ${formatHoverStep(fill)}`);
+  } else if (!skew && !invalid && terminal != null && terminal >= 0) {
+    lines.push(`Click → terminal: ${formatHoverStep(terminal)}`);
   } else {
-    lines.push(`Click → fill: ${FILL_LATENCY_EM_DASH}`);
+    lines.push(`Click → fill: ${FILL_LATENCY_UNAVAILABLE}`);
   }
   if (invalid) {
     lines.push(`Clock: invalid (${audit.reason})`);
