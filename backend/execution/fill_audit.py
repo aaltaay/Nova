@@ -295,9 +295,11 @@ def queue_watch_fill_audit(
                 logger.exception("fill_audit: ledger read failed for %s", execution_id)
                 row = None
             if row:
+                payload = row.get("payload") or {}
+                if not placed:
+                    placed = str(payload.get("nova_placed_at") or "").strip() or None
                 if not placed and row.get("created_ts"):
                     placed = _iso_from_unix(float(row["created_ts"]))
-                payload = row.get("payload") or {}
                 typ = str(payload.get("order_type") or typ or "MKT")
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
         row = classify_fill_audit(

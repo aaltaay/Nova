@@ -1,7 +1,7 @@
 """Join fill-audit latency onto order rows for Orders Today (#195).
 
 Owner: execution.fill_audit_attach.
-Invalidation: process-lifetime store + session ledger created_ts.
+Invalidation: process-lifetime store + session ledger nova_placed_at / created_ts.
 schema_version: 1 -- public payload is a subset of fill_audit SCHEMA_VERSION.
 
 Never invent milliseconds. Collapsed ledger clocks (place == fill) stay blank.
@@ -9,7 +9,6 @@ Never invent milliseconds. Collapsed ledger clocks (place == fill) stay blank.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
 from typing import Any
 
 from constants_ibkr import IBKR_CLOSED_ORDER_STATUSES
@@ -46,18 +45,6 @@ def _int_or_none(value: object) -> int | None:
         return None
 
 
-def _iso_from_ts(ts: object) -> str | None:
-    try:
-        value = float(ts)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
-        return None
-    if value <= 0:
-        return None
-    return datetime.fromtimestamp(value, tz=timezone.utc).strftime(
-        "%Y-%m-%dT%H:%M:%S.000Z"
-    )
-
-
 def public_fill_audit(row: dict[str, Any] | None) -> dict[str, Any] | None:
     """UI payload, or None when there is no click-to-fill / click-to-terminal."""
     if not row:
@@ -76,10 +63,12 @@ def public_fill_audit(row: dict[str, Any] | None) -> dict[str, Any] | None:
 
 
 def placed_index_from_ledger(ledger_rows: list[dict] | None) -> dict[tuple[str, int], str]:
-    """Map (order|perm, id) -> nova_placed_at ISO from ledger created_ts."""
+    """Map (order|perm, id) -> nova_placed_at ISO (payload, else created_ts)."""
+    from execution.nova_placed import ledger_placed_iso
+
     index: dict[tuple[str, int], str] = {}
     for led in ledger_rows or []:
-        iso = _iso_from_ts(led.get("created_ts"))
+        iso = ledger_placed_iso(led)
         if not iso:
             continue
         oid = _as_int(led.get("order_id"))

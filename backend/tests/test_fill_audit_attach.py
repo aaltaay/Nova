@@ -179,3 +179,17 @@ def test_cancelled_uses_click_to_terminal():
 def test_public_fill_audit_drops_empty_row():
     assert public_fill_audit({"order_id": 1, "level": "ok"}) is None
     assert public_fill_audit(None) is None
+
+
+def test_placed_index_prefers_payload_nova_placed_at():
+    from execution.fill_audit_attach import placed_index_from_ledger
+
+    stamp = "2026-09-16T18:04:12.123456Z"
+    led = {
+        "order_id": 116071,
+        "perm_id": 0,
+        "created_ts": 1_000.0,
+        "payload": {"nova_placed_at": stamp},
+    }
+    index = placed_index_from_ledger([led])
+    assert index[("order", 116071)] == stamp

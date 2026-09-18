@@ -157,6 +157,7 @@ def place_order(
             "error": None,
             "mode": _client.account_mode(),
             "submitted_at": submitted_at,
+            "nova_placed_at": nova_placed,
         }
 
     except Exception as exc:
@@ -220,6 +221,7 @@ def place_bracket_order(
             "error": None,
             "mode": _client.account_mode(),
             "submitted_at": nova_stamp,
+            "nova_placed_at": nova_stamp,
         }
     except Exception as exc:
         logger.exception("IBKR: bracket order error for %s: %s", symbol, exc)

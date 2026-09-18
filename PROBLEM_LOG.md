@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Cancel left place PreSubmitted so Time Placed blanked
+
+- **Symptom:** After paper Place + cancel + API restart, `payload.nova_placed_at` was on the place execution, but Closed / Orders Today still blanked Time Placed. Live closed API returned IB-recovered cancel (`order_id=0`, null `submitted_at`) despite a matching `perm_id`.
+- **Cause:** Cancel `watch_order(..., fresh=True)` writes `Cancelled` onto the cancel execution. `mark_ack_by_order_id` only updates when `broker_ack_ns IS NULL`; `allow_status_upgrade` heals Cancelled→PreSubmitted, not the reverse; updates are `boot_id`-scoped. `_usable_ledger` / `list_session_placed` require place/bracket + closed `broker_status`, so a stuck PreSubmitted place never joins.
+- **Fix:** Primary -- `mark_place_cancelled` sets the matching place/bracket `broker_status=Cancelled` by `order_id`/`perm_id` with no `boot_id` fence. Secondary -- overlay joins IB Cancelled/Filled to a PreSubmitted place by those ids and heals blank `submitted_at` via `ledger_placed_iso`. No leftover working-order append. No invented clocks.
+- **Fix class:** ownership
+- **Keywords:** nova_placed_at, Time Placed, PreSubmitted, Cancelled, list_session_placed, watch_order fresh, boot_id, #202, #204
+
 ## 2026-09-18 -- Bot Autonomy Eyes snap-back
 
 - **Symptom:** On live Vite (`http://127.0.0.1:5173/`), `bot-arm-level` stayed `0` after `selectOption('1')` / `'2'`. Activate stayed **Bot off**. curl PATCH L0/L1 with `X-Nova-Api-Key` worked; L2 without the desk arm token returned 403 `BOT_ARM_REQUIRED`.
@@ -156,6 +164,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Fix:** Remint the float window id once per float session. Remember last-known host in localStorage for the Dock button. Strip is unbounded so dock add cannot hard-block. Host overlay still accepts a drop while Scanner is showing.
 - **Fix class:** ownership
 - **Keywords:** dock, pop out, windowId, sessionStorage, #199, #201, ADR 011, TRADER_MAX_LIVE_TABS
+
+## 2026-09-17 -- RAM-only nova_placed_at blanked cancel Time Placed
+
+- **Symptom:** Canceled Orders Today rows (ZTG `#116071`, source nova, execution_id present) showed blank Time Placed. Time Filled blank was correct (never filled). Filled SPCX `#115728` had clocks. IB-recovered cancels were also blank.
+- **Cause:** `remember_nova_placed` lived only in `backend/ibkr/order_times.py` RAM. `trade_to_order_row` falls back to that map when `trade.log` is empty. After restart or a fast cancel with no broker log, Closed overlay (`_merge_ib_ledger`) kept IB's null `submitted_at` even when a ledger row existed. Leftover-only rows already used `created_ts`; the matched-IB path did not.
+- **Fix:** Persist `payload.nova_placed_at` at Place (`finish_place`). Overlay Time Placed = broker submit else ledger send ISO else `created_ts`. Do not invent clocks for IB-recovered rows with no ledger. Time Filled stays fill-only.
+- **Fix class:** admission
+- **Keywords:** nova_placed_at, Time Placed, Orders Today, remember_nova_placed, submitted_at, ZTG, #202
 
 ## 2026-09-17 -- Maximized drawings dropdown buried
 

@@ -17,7 +17,9 @@ from execution import telemetry
 from execution import verification_gate
 from execution.models import ExecutionCommand, ExecutionReceipt, StageTimings
 from execution.fill_audit import audit_place_watch
+from execution.nova_placed import persist_nova_placed_at
 from execution.place_reject_guard import confirm_terminal_reject
+from execution.store_facts import persist_successful_cancel
 from ibkr import client as _client
 from ibkr import orders as _orders
 from ibkr.cancel_verify import cancel_order_verified_on_ib
@@ -118,7 +120,6 @@ async def send_broker(
         watch = telemetry.watch_order(
             cmd.order_id, execution_id, fresh=True, leg_role="cancel",
         )
-        # cancelOrder / openTrades run on the IB loop; the wait is awaited there.
         raw = await cancel_order_verified_on_ib(cmd.order_id, watch=watch)
         if not raw.get("ok"):
             store.update_stages(
@@ -134,14 +135,14 @@ async def send_broker(
         if wait_ack:
             await watch.wait_ack(EXECUTION_ACK_WAIT_SEC)
             timings.broker_ack_ns = watch.ack_ns
-        # The cancelled order is no longer going to consume the position.
         inflight.release_order(cmd.order_id)
         broker_status = watch.ack_status or (
             "Cancelled" if raw.get("verified_gone") else None
         )
-        store.update_stages(
-            execution_id, status="acked" if timings.broker_ack_ns else "sent",
+        persist_successful_cancel(
+            execution_id, order_id=cmd.order_id, perm_id=watch.perm_id,
             broker_ack_ns=timings.broker_ack_ns, broker_status=broker_status,
+            verified_gone=bool(raw.get("verified_gone")),
         )
         return ExecutionReceipt(
             ok=True, execution_id=execution_id, operation=cmd.operation,
@@ -247,6 +248,9 @@ async def send_broker(
                 error=raw.get("error"), reason_code="BROKER_REJECT",
                 mode=mode, symbol=symbol, timings=timings,
             )
+        persist_nova_placed_at(
+            execution_id, raw.get("nova_placed_at") or raw.get("submitted_at")
+        )
         if watch is not None and wait_ack:
             await watch.wait_ack(EXECUTION_ACK_WAIT_SEC)
             timings.broker_ack_ns = watch.ack_ns
@@ -326,6 +330,7 @@ async def finish_place(
             error=raw.get("error"), reason_code="BROKER_REJECT",
             mode=mode, symbol=cmd.normalized_symbol(), timings=timings,
         )
+    persist_nova_placed_at(execution_id, raw.get("nova_placed_at"))
     oid = raw.get("order_id")
     if watch is not None and wait_ack:
         await watch.wait_ack(EXECUTION_ACK_WAIT_SEC)
