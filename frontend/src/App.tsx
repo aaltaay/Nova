@@ -25,7 +25,7 @@ import { SettingsProvider } from './settings/SettingsContext';
 import { NovaOsAttentionStrip } from './strategy/NovaOsAttentionStrip';
 import { useNovaOsEventAttention } from './strategy/novaOsEventAttention';
 import { parseStockViewSymbol } from './utils/stockViewNav';
-import { useNovaWindowTitle } from './utils/useNovaWindowTitle';
+import { useNovaDeskWindowTitle } from './utils/useNovaWindowTitle';
 import { AdviseHost } from './advise/AdvisePanel';
 import { AdviseProvider } from './advise/AdviseContext';
 import { AppDialogHost } from './ux';
@@ -39,7 +39,7 @@ function AppShell() {
   const [sampleMode, setSampleMode] = useState(() => isSampleView());
   const hasTraderDesk = traderTabs.length > 0;
   const showTrader = hasTraderDesk && traderViewActive;
-  useNovaWindowTitle(!sampleMode && showTrader, activeTraderSymbol);
+  useNovaDeskWindowTitle(sampleMode, showTrader, activeTraderSymbol);
 
   useEffect(() => {
     const sync = () => setSampleMode(isSampleView());

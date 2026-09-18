@@ -7,4 +7,10 @@ export function novaWindowTitle(opts?: {
   traderSymbol?: string | null;
   releaseTag?: string;
 }): string;
+export function resolveNovaTitleDesk(opts?: {
+  sampleMode?: boolean;
+  sampleSymbol?: string | null;
+  liveTraderActive?: boolean;
+  liveTraderSymbol?: string | null;
+}): { traderActive: boolean; traderSymbol: string };
 export function injectNovaTitle(html: string, releaseTag: string): string;

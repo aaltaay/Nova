@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Sample trader title stayed on Scanner
+
+- **Symptom:** CI Frontend E2E failed `toHaveTitle(/SMPL.*Trader/)` on `/?view=sample&symbol=SMPL`. Title stayed `Nova <em dash> Stock Scanner · v477` (baseline.spec + global-bar-bot-row.spec).
+- **Cause:** AppShell owned `document.title` but forced Scanner whenever `sampleMode` was true. Sample Trader lives in `SampleShell` (`?view=sample&symbol=`), and StockViewPage no longer set the title.
+- **Fix:** `resolveNovaTitleDesk` treats sample+symbol as Trader. `useNovaDeskWindowTitle` follows that URL on popstate. Live Scanner|Trader switch is unchanged.
+- **Fix class:** ownership
+- **Keywords:** document.title, sample trader, SMPL, Playwright toHaveTitle, VERSION, window title
+
 ## 2026-09-18 -- STP LMT / TRAIL rejected as invalid
 
 - **Symptom:** Manual ticket and `execution.validate` only accepted `MKT` / `LMT` / `STP`. A Webull-style Stop Limit or Trailing Stop could not be built or placed. `orders._build_order` also defaulted any unknown type to `StopOrder`.

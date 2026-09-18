@@ -35,10 +35,10 @@ Entry template (copy and fill in):
 - **What:** The Electron OS title (and the Vite browser tab) now include the public Nova revision next to the existing view label. Scanner is `Nova <em dash> Stock Scanner · vNNN`. Trader is `SYMBOL · Trader · Nova · vNNN`. Popped-out trader windows are `Nova -- SYMBOL · vNNN`.
 - **Why:** Ahmed wants the installed/dev app version visible in the window title bar without hunting Settings or git.
 - **Files touched:** `frontend/electron/appTitle.mjs`, `releaseTag.mjs`, `loadReleaseTag.mjs`, `main.mjs`, `traderWindows.mjs`, `frontend/vite.config.ts`, `frontend/src/utils/useNovaWindowTitle.ts`, `frontend/src/App.tsx`, `frontend/src/pages/StockViewPage.tsx`.
-- **How it works now:** SSOT is repo `VERSION` (`vNNN`, same N as `package.json` `0.1.N`). Vite bakes that tag into `__NOVA_RELEASE_TAG__` and the index.html `<title>` so first paint is already versioned. `AppShell` owns `document.title` from Scanner vs Trader so hidden Trader tabs no longer leave a trader title on the scanner desk. Unpackaged Electron reads `VERSION`; packaged builds map `app.getVersion()` `0.1.N` to `vNNN`. Do not show `0.1.N` in the title.
-- **Verified by:** Vitest `appTitle` / `releaseTag` / `useNovaWindowTitle`; `npm run lint`; `npm run build`.
+- **How it works now:** SSOT is repo `VERSION` (`vNNN`, same N as `package.json` `0.1.N`). Vite bakes that tag into `__NOVA_RELEASE_TAG__` and the index.html `<title>` so first paint is already versioned. `AppShell` owns `document.title`. Live Scanner|Trader uses the view switch. Sample `?view=sample&symbol=` is Trader (same as StockViewPage used to do). Unpackaged Electron reads `VERSION`; packaged builds map `app.getVersion()` `0.1.N` to `vNNN`. Do not show `0.1.N` in the title.
+- **Verified by:** Vitest `appTitle` / `releaseTag` / `useNovaWindowTitle`. `npm run lint` / `npm run build`. Vite first paint + browser tooltips for Scanner and SPY Trader. Playwright `baseline` + `global-bar-bot-row` after the sample-trader title fix.
 - **Follow-ups:** none.
-- **Related:** README versioning (`VERSION` is SSOT; electron-builder semver is `0.1.N`).
+- **Related:** README versioning (`VERSION` is SSOT; electron-builder semver is `0.1.N`). PROBLEM_LOG 2026-09-18 -- Sample trader title stayed on Scanner.
 
 ## 2026-09-18 -- Manual ticket Stop flyout: Stop Limit + Trailing Stop
 

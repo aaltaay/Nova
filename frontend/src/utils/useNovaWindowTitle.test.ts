@@ -12,7 +12,7 @@ import {
 } from '../../electron/appTitle.mjs';
 import { releaseTagFromText } from '../../electron/releaseTag.mjs';
 import { novaRendererReleaseTag } from './novaReleaseTag';
-import { useNovaWindowTitle } from './useNovaWindowTitle';
+import { useNovaDeskWindowTitle, useNovaWindowTitle } from './useNovaWindowTitle';
 
 const repoVersion = releaseTagFromText(
   readFileSync(
@@ -36,5 +36,12 @@ describe('useNovaWindowTitle', () => {
 
     rerender({ active: true, symbol: 'AAPL' });
     expect(document.title).toBe(formatTraderDocumentTitle('AAPL', tag));
+  });
+
+  it('sets a sample trader title from ?view=sample&symbol=SMPL', () => {
+    const tag = novaRendererReleaseTag();
+    window.history.replaceState({}, '', '/?view=sample&symbol=SMPL');
+    renderHook(() => useNovaDeskWindowTitle(true, false, null));
+    expect(document.title).toBe(formatTraderDocumentTitle('SMPL', tag));
   });
 });

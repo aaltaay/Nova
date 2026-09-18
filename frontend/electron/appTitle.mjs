@@ -40,6 +40,23 @@ export function novaWindowTitle({
   return formatScannerWindowTitle(releaseTag);
 }
 
+/** Sample `?view=sample&symbol=` is a Trader desk; live uses the Scanner|Trader switch. */
+export function resolveNovaTitleDesk({
+  sampleMode = false,
+  sampleSymbol = '',
+  liveTraderActive = false,
+  liveTraderSymbol = '',
+} = {}) {
+  if (sampleMode) {
+    const symbol = String(sampleSymbol ?? '').trim();
+    return { traderActive: Boolean(symbol), traderSymbol: symbol };
+  }
+  return {
+    traderActive: Boolean(liveTraderActive),
+    traderSymbol: liveTraderSymbol ?? '',
+  };
+}
+
 export function injectNovaTitle(html, releaseTag) {
   const title = formatScannerWindowTitle(releaseTag);
   return String(html).replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`);

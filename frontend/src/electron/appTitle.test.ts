@@ -5,6 +5,7 @@ import {
   formatTraderDocumentTitle,
   injectNovaTitle,
   novaWindowTitle,
+  resolveNovaTitleDesk,
 } from '../../electron/appTitle.mjs';
 
 describe('Nova window titles', () => {
@@ -47,6 +48,25 @@ describe('Nova window titles', () => {
         releaseTag: 'v477',
       }),
     ).toBe('AAPL · Trader · Nova · v477');
+  });
+
+  it('treats sample+symbol as Trader so e2e ?view=sample&symbol=SMPL keeps the view label', () => {
+    expect(
+      resolveNovaTitleDesk({
+        sampleMode: true,
+        sampleSymbol: 'SMPL',
+        liveTraderActive: false,
+        liveTraderSymbol: null,
+      }),
+    ).toEqual({ traderActive: true, traderSymbol: 'SMPL' });
+    expect(
+      resolveNovaTitleDesk({
+        sampleMode: true,
+        sampleSymbol: '',
+        liveTraderActive: true,
+        liveTraderSymbol: 'AAPL',
+      }),
+    ).toEqual({ traderActive: false, traderSymbol: '' });
   });
 
   it('rewrites the HTML title tag for first paint', () => {
