@@ -45,7 +45,7 @@ interface Props {
   onBack: () => void;
   /** Rename / switch the active Trader tab symbol (owned by StockViewTabs). */
   onSelectSymbol: (symbol: string) => void;
-  /** When false, pause chart polling/resize (inactive Trader tab). */
+  /** When false, pause chart/tape/depth UI apply (inactive Trader tab). */
   chartActive?: boolean;
 }
 
@@ -236,6 +236,7 @@ export function StockViewPage({
               summary={summary}
               referencePrice={metrics?.mainPrice ?? null}
               onOrderPlaced={onOrderPlaced}
+              uiActive={chartActive}
             />
           ) : (
             <aside

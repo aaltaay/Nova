@@ -34,6 +34,8 @@ interface Props {
   summary: IbkrAccountSummary | null;
   referencePrice: number | null;
   onOrderPlaced: (result?: PlaceOrderResult) => void;
+  /** False on live-but-hidden trader tabs. */
+  uiActive?: boolean;
 }
 
 export function StockViewRail({
@@ -47,6 +49,7 @@ export function StockViewRail({
   summary,
   referencePrice,
   onOrderPlaced,
+  uiActive = true,
 }: Props) {
   const tradeStackRef = useRef<HTMLDivElement>(null);
   const { topPct, onDragStart, reset } = useResizableHeight({
@@ -80,6 +83,7 @@ export function StockViewRail({
             selectedSymbol={symbol}
             detail={detail}
             listingIbkr={detail.listing?.ibkr ?? null}
+            uiActive={uiActive}
           />
         </div>
 

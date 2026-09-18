@@ -31,14 +31,22 @@ class FakeWebSocket {
 
 function Harness({
   symbol,
+  uiActive = true,
   onValue,
 }: {
   symbol: string | null;
+  uiActive?: boolean;
   onValue: (state: TapeState) => void;
 }) {
-  const state = useIbkrTape(symbol);
+  const state = useIbkrTape(symbol, uiActive);
   onValue(state);
   return null;
+}
+
+function flushTapeFrame() {
+  act(() => {
+    vi.advanceTimersByTime(16);
+  });
 }
 
 describe('useIbkrTape lifecycle', () => {
@@ -46,11 +54,12 @@ describe('useIbkrTape lifecycle', () => {
   let root: Root;
   let latest: TapeState | null;
 
-  function renderSymbol(symbol: string | null) {
+  function renderSymbol(symbol: string | null, uiActive = true) {
     act(() => {
       root.render(
         <Harness
           symbol={symbol}
+          uiActive={uiActive}
           onValue={state => {
             latest = state;
           }}
@@ -67,6 +76,10 @@ describe('useIbkrTape lifecycle', () => {
     document.body.appendChild(container);
     root = createRoot(container);
     vi.stubGlobal('WebSocket', FakeWebSocket);
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) =>
+      setTimeout(() => cb(0), 16) as unknown as number,
+    );
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => clearTimeout(id));
     vi.useFakeTimers();
   });
 
@@ -98,6 +111,7 @@ describe('useIbkrTape lifecycle', () => {
         }),
       });
     });
+    flushTapeFrame();
     expect(latest?.prints).toHaveLength(1);
     expect(latest?.prints[0]?.symbol).toBe('AAPL');
 
@@ -162,5 +176,50 @@ describe('useIbkrTape lifecycle', () => {
       },
     ]);
     expect(entry?.coverage?.filling).toBe(true);
+  });
+
+  it('coalesces a print burst into one ordered ring after one frame', () => {
+    renderSymbol('AAPL');
+    act(() => {
+      const ws = FakeWebSocket.instances[0];
+      for (const price of [1, 2, 3, 4, 5]) {
+        ws.onmessage?.({
+          data: JSON.stringify({
+            type: 'print',
+            symbol: 'AAPL',
+            time: `2026-09-18T13:00:00.00${price}Z`,
+            price,
+            size: 10,
+          }),
+        });
+      }
+    });
+    expect(latest?.prints).toEqual([]);
+    flushTapeFrame();
+    expect(latest?.prints.map(p => p.price)).toEqual([5, 4, 3, 2, 1]);
+  });
+
+  it('keeps the ring while hidden and flushes on show without dropping prints', () => {
+    renderSymbol('AAPL', false);
+    act(() => {
+      const ws = FakeWebSocket.instances[0];
+      for (const price of [1, 2, 3]) {
+        ws.onmessage?.({
+          data: JSON.stringify({
+            type: 'print',
+            symbol: 'AAPL',
+            time: `2026-09-18T13:00:00.00${price}Z`,
+            price,
+            size: 10,
+          }),
+        });
+      }
+    });
+    flushTapeFrame();
+    expect(latest?.prints).toEqual([]);
+    expect(getBarsEntry('AAPL', '10Sec')?.bars).toHaveLength(1);
+
+    renderSymbol('AAPL', true);
+    expect(latest?.prints.map(p => p.price)).toEqual([3, 2, 1]);
   });
 });

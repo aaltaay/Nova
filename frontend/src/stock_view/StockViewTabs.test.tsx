@@ -18,8 +18,19 @@ vi.mock('../workspace/WorkspaceContext', () => ({
 }));
 
 vi.mock('../pages/StockViewPage', () => ({
-  StockViewPage: ({ symbol }: { symbol: string }) => (
-    <div data-testid={`stock-view-page-${symbol}`}>{symbol}</div>
+  StockViewPage: ({
+    symbol,
+    chartActive,
+  }: {
+    symbol: string;
+    chartActive?: boolean;
+  }) => (
+    <div
+      data-testid={`stock-view-page-${symbol}`}
+      data-chart-active={chartActive ? '1' : '0'}
+    >
+      {symbol}
+    </div>
   ),
 }));
 
@@ -152,6 +163,18 @@ describe('StockViewTabs tab-strip placement', () => {
     });
     expect(headerSlot.querySelector('.sv-tab-strip')).toBeNull();
     expect(container.querySelector('.sv-tab-strip')).toBeTruthy();
+  });
+
+  it('pauses chart/tape/depth apply on live-but-hidden tabs', () => {
+    act(() => {
+      root.render(<StockViewTabs detached={false} />);
+    });
+    expect(
+      container.querySelector('[data-testid="stock-view-page-AAPL"]')?.getAttribute('data-chart-active'),
+    ).toBe('1');
+    expect(
+      container.querySelector('[data-testid="stock-view-page-MSFT"]')?.getAttribute('data-chart-active'),
+    ).toBe('0');
   });
 
   it('does not mount a StockViewPage for a gray / suspended tab', () => {

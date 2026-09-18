@@ -25,6 +25,8 @@ import type { DepthLevel } from './types';
 
 interface Props {
   symbol: string | null;
+  /** False on live-but-hidden trader tabs -- keep WS, pause ladder/TOB paint. */
+  uiActive?: boolean;
 }
 
 function fmtPrice(p: number | null | undefined) {
@@ -122,13 +124,14 @@ function MontageSide({
   );
 }
 
-export function DepthLadder({ symbol }: Props) {
-  const { book, connected, l1Fallback, error } = useIbkrDepth(symbol);
+export function DepthLadder({ symbol, uiActive = true }: Props) {
+  const { book, connected, l1Fallback, error } = useIbkrDepth(symbol, uiActive);
   const { setTopOfBook } = useTopOfBook();
 
   useEffect(() => {
-    if (!symbol) {
-      setTopOfBook(null);
+    if (!symbol || !uiActive) {
+      if (!uiActive) setTopOfBook(null);
+      if (!symbol) setTopOfBook(null);
       return;
     }
     const bid = book?.bids[0]?.price ?? null;
@@ -140,7 +143,7 @@ export function DepthLadder({ symbol }: Props) {
       depthSubscribed: book != null && connected,
     });
     return () => setTopOfBook(null);
-  }, [symbol, book, connected, setTopOfBook]);
+  }, [symbol, book, connected, setTopOfBook, uiActive]);
 
   if (!symbol) {
     return <div className="ibkr-depth-empty">Enter a symbol to view the order book.</div>;

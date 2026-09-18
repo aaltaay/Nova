@@ -53,3 +53,20 @@ export function appendTapePrint(
   const next = [print, ...prints];
   return next.length > maxRows ? next.slice(0, maxRows) : next;
 }
+
+/**
+ * Apply a burst of AllLast prints in arrival order. Newest ends up first.
+ * Does not invent prints; the ring cap may drop the oldest, same as live.
+ */
+export function flushPendingTapePrints(
+  prints: TapePrint[],
+  pending: TapePrint[],
+  maxRows: number = TAPE_UI_MAX_ROWS,
+): TapePrint[] {
+  if (pending.length === 0) return prints;
+  let next = prints;
+  for (const print of pending) {
+    next = appendTapePrint(next, print, maxRows);
+  }
+  return next;
+}

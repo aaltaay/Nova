@@ -32,12 +32,14 @@ type DepthState = ReturnType<typeof useIbkrDepth>;
 
 function Harness({
   symbol,
+  uiActive = true,
   onValue,
 }: {
   symbol: string | null;
+  uiActive?: boolean;
   onValue: (state: DepthState) => void;
 }) {
-  const state = useIbkrDepth(symbol);
+  const state = useIbkrDepth(symbol, uiActive);
   onValue(state);
   return null;
 }
@@ -47,11 +49,12 @@ describe('useIbkrDepth lifecycle', () => {
   let root: Root;
   let latest: DepthState | null;
 
-  function renderSymbol(symbol: string | null) {
+  function renderSymbol(symbol: string | null, uiActive = true) {
     act(() => {
       root.render(
         <Harness
           symbol={symbol}
+          uiActive={uiActive}
           onValue={state => {
             latest = state;
           }}
@@ -129,5 +132,24 @@ describe('useIbkrDepth lifecycle', () => {
       vi.advanceTimersByTime(8_000);
     });
     expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
+  it('holds the latest book while hidden and applies it on show', () => {
+    renderSymbol('AAPL', false);
+    act(() => {
+      FakeWebSocket.instances[0].onmessage?.({
+        data: JSON.stringify({
+          type: 'book',
+          symbol: 'AAPL',
+          data: { bids: [{ price: 1, size: 1 }], asks: [], l1_fallback: false },
+        }),
+      });
+    });
+    expect(latest?.book).toBeNull();
+    expect(FakeWebSocket.instances).toHaveLength(1);
+
+    renderSymbol('AAPL', true);
+    expect(latest?.book?.symbol).toBe('AAPL');
+    expect(latest?.book?.bids[0]?.price).toBe(1);
   });
 });

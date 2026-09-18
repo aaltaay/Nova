@@ -21,6 +21,8 @@ interface Props {
   selectedSymbol: string;
   detail: TickerDetail;
   listingIbkr?: IbkrListingFlags | null;
+  /** False on live-but-hidden trader tabs. */
+  uiActive?: boolean;
 }
 
 function QuoteHead({ detail }: { detail: TickerDetail }) {
@@ -36,6 +38,7 @@ export function StockViewDepthTape({
   selectedSymbol,
   detail,
   listingIbkr = null,
+  uiActive = true,
 }: Props) {
   const { ibkrConnected } = useWorkspace();
   const { isVisible } = useModuleVisibility();
@@ -96,14 +99,14 @@ export function StockViewDepthTape({
                 </div>
               </div>
               <div className="sv-md-pane__body">
-                <Level2Module symbol={depthSymbol} />
+                <Level2Module symbol={depthSymbol} uiActive={uiActive} />
               </div>
             </div>
           </div>
         )}
         {showTape && (
           <div className="depth-and-tape__col sv-depth-and-tape__tape" data-testid="stock-view-tape-col">
-            <TimeSalesModule symbol={depthSymbol} embedded />
+            <TimeSalesModule symbol={depthSymbol} embedded uiActive={uiActive} />
           </div>
         )}
       </div>
