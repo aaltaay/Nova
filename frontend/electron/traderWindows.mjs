@@ -14,6 +14,8 @@ import {
   restoreWindowBounds,
   traderWindowId,
 } from './windowBounds.mjs';
+import { formatElectronTraderTitle } from './appTitle.mjs';
+import { novaDesktopReleaseTag } from './loadReleaseTag.mjs';
 
 export const TRADER_MAX_WINDOWS = 3;
 const EDGE_PAD = 24;
@@ -90,7 +92,8 @@ export function openOrFocusTraderWindow(url, windowOptions, attachHandler) {
   const child = new BrowserWindow({ ...windowOptions, ...bounds });
   let currentSym = sym;
   bindWindowBoundsPersist(child, userData, () => traderWindowId(currentSym));
-  child.setTitle(`Nova -- ${currentSym}`);
+  const releaseTag = novaDesktopReleaseTag(app);
+  child.setTitle(formatElectronTraderTitle(currentSym, releaseTag));
   attachHandler?.(child);
   traderWindows.set(currentSym, child);
   const remapIfNeeded = (nextUrl) => {
@@ -104,7 +107,9 @@ export function openOrFocusTraderWindow(url, windowOptions, attachHandler) {
     if (traderWindows.get(currentSym) === child) traderWindows.delete(currentSym);
     currentSym = next;
     traderWindows.set(currentSym, child);
-    if (!child.isDestroyed()) child.setTitle(`Nova -- ${currentSym}`);
+    if (!child.isDestroyed()) {
+      child.setTitle(formatElectronTraderTitle(currentSym, releaseTag));
+    }
   };
   child.webContents.on('did-navigate-in-page', (_event, nextUrl) => {
     remapIfNeeded(nextUrl);

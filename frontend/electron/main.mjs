@@ -22,6 +22,8 @@ import {
   bindWindowBoundsPersist,
   restoreWindowBounds,
 } from './windowBounds.mjs';
+import { formatScannerWindowTitle } from './appTitle.mjs';
+import { novaDesktopReleaseTag } from './loadReleaseTag.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = !app.isPackaged;
@@ -45,7 +47,7 @@ function windowOptions() {
     height: 900,
     minWidth: 1024,
     minHeight: 700,
-    title: 'Nova',
+    title: formatScannerWindowTitle(novaDesktopReleaseTag(app)),
     backgroundColor: '#0b0f14',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
