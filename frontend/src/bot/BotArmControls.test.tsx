@@ -4,8 +4,9 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { _resetBotSessionPollerForTests } from './botSessionPoller';
-import { packDescription } from '../constantGroups/bot';
+import { botAllowlistStripLabel, packDescription } from '../constantGroups/bot';
 import { BotArmControls } from './BotArmControls';
+import * as botApi from './api';
 import type { BotSession } from './types';
 import { _resetDeskPollShareForTests } from '../ibkr/deskSharedPoll';
 
@@ -339,5 +340,95 @@ describe('BotArmControls', () => {
       await Promise.resolve();
     });
     expect(screen.getByTestId('bot-arm-pack-desc').textContent).toBe(packDescription('llm-decide'));
+  });
+
+  it('places Allowlist immediately after Pack and before other strip chrome', async () => {
+    mockFetch(() => session({
+      symbol_allowlist: ['ABCD', 'EFGH', 'IJKL'],
+      caps: {
+        max_shares: 1,
+        bp_budget_usd: 50,
+        working_ttl_sec: 3,
+        extended_hours: false,
+        allowlist: ['buy_market'],
+      },
+    }));
+    await act(async () => {
+      render(<BotArmControls />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const pack = screen.getByTestId('bot-arm-pack');
+    const allow = screen.getByTestId('bot-arm-allowlist');
+    const status = screen.getByTestId('bot-arm-status');
+    expect(pack.closest('label')?.nextElementSibling).toBe(allow);
+    expect(pack.compareDocumentPosition(allow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(allow.compareDocumentPosition(status) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByTestId('bot-arm-allowlist-toggle').textContent).toBe(
+      botAllowlistStripLabel(3),
+    );
+    expect(allow.textContent).not.toMatch(/buy_market/);
+  });
+
+  it('keeps Allowlist on the strip when the pack is not halt-luld', async () => {
+    mockFetch(() => session({ active_pack: 'quote-spike' }));
+    await act(async () => {
+      render(<BotArmControls />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId('bot-arm-allowlist-toggle')).toBeTruthy();
+    const pack = screen.getByTestId('bot-arm-pack') as HTMLSelectElement;
+    expect(pack.value).toBe('quote-spike');
+    expect(pack.closest('label')?.nextElementSibling).toBe(
+      screen.getByTestId('bot-arm-allowlist'),
+    );
+  });
+
+  it('add/remove from the strip popover call postBotAllowlist', async () => {
+    const ops: Array<{ symbol: string; op: string }> = [];
+    const postSpy = vi.spyOn(botApi, 'postBotAllowlist');
+    mockFetch((href, init) => {
+      if (href.includes('/bot/allowlist') && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body || '{}')) as { symbol: string; op: string };
+        ops.push(body);
+        return session({
+          symbol_allowlist: body.op === 'remove' ? [] : ['ABCD', String(body.symbol).toUpperCase()],
+        });
+      }
+      return session({ symbol_allowlist: ['ABCD'] });
+    });
+
+    await act(async () => {
+      render(<BotArmControls />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('bot-arm-allowlist-toggle'));
+    });
+    const panel = screen.getByTestId('bot-arm-allowlist-panel');
+    expect(panel.textContent).toMatch(/ABCD/);
+    expect(panel.textContent).toMatch(/right-click/i);
+    expect(panel.textContent).not.toMatch(/buy_market/);
+
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('bot-arm-allowlist-input'), {
+        target: { value: 'efgh' },
+      });
+      fireEvent.click(screen.getByTestId('bot-arm-allowlist-add'));
+      await Promise.resolve();
+    });
+    expect(ops).toContainEqual({ symbol: 'efgh', op: 'add' });
+    expect(postSpy).toHaveBeenCalledWith('efgh', 'add');
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('bot-arm-allowlist-remove-ABCD'));
+      await Promise.resolve();
+    });
+    expect(ops).toContainEqual({ symbol: 'ABCD', op: 'remove' });
+    expect(postSpy).toHaveBeenCalledWith('ABCD', 'remove');
+    postSpy.mockRestore();
   });
 });

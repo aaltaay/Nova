@@ -62,6 +62,41 @@
   flex: 1 1 16rem;
 }
 
+.bot-arm__pack-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.bot-arm__allowlist {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.bot-arm__allowlist-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+}
+
+.bot-arm__allowlist-panel {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  z-index: 80;
+  min-width: 16rem;
+  max-width: min(22rem, 80vw);
+  max-height: 18rem;
+  overflow: auto;
+  background: var(--nova-panel, #12161e);
+  color: inherit;
+  border: 1px solid var(--nova-border, #2a3140);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  padding: 0.55rem 0.65rem;
+}
+
 .bot-arm__desc {
   margin: 0;
   font-size: 0.64rem;

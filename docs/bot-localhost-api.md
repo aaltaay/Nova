@@ -79,9 +79,10 @@ Risk sleeve stays `small-cap`. Packs are a separate picker:
 Propose and fire require **allowlist AND live Trader focus**. Empty
 allowlist is fail-closed (`409 BOT_SYMBOL_BLOCKED`). Right-click
 Add / Remove on scanner rows, trader tabs, and the chart menu. The
-Strategy left tab lists the same allowlist (chips + add ticker) and
-calls the same `POST /api/bot/allowlist` -- it does not own a second
-list.
+Bot Autonomy strip **Allowlist** control and the Strategy left tab
+list the same `session.symbol_allowlist` (chips + add ticker) and
+call the same `POST /api/bot/allowlist` -- neither owns a second
+list. That is symbols only, not `caps.allowlist` action kinds.
 
 ## Small-cap filters
 

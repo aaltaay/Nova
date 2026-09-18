@@ -19,6 +19,7 @@ import {
   packStatus,
 } from '../constantGroups/bot';
 import { DESK_BOT_POLL_MS } from '../constants';
+import { BotArmAllowlistControl } from './BotArmAllowlistControl';
 import { useBotSession } from './useBotSession';
 
 export function BotArmControls() {
@@ -86,28 +87,31 @@ export function BotArmControls() {
         </select>
       </label>
       <div className="bot-arm__pack">
-        <label className="bot-arm__field">
-          <span className="bot-arm__label">{BOT_PACK_FIELD_LABEL}</span>
-          <select
-            aria-label={BOT_PACK_FIELD_LABEL}
-            aria-describedby={description ? 'bot-arm-pack-desc' : undefined}
-            data-testid="bot-arm-pack"
-            value={pack}
-            disabled={busy || !session}
-            title={description}
-            onChange={event => {
-              const next = event.target.value;
-              setPickedPack(next);
-              void patch({ active_pack: next });
-            }}
-          >
-            {packs.map(row => (
-              <option key={row.id} value={row.id}>
-                {row.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="bot-arm__pack-tools">
+          <label className="bot-arm__field">
+            <span className="bot-arm__label">{BOT_PACK_FIELD_LABEL}</span>
+            <select
+              aria-label={BOT_PACK_FIELD_LABEL}
+              aria-describedby={description ? 'bot-arm-pack-desc' : undefined}
+              data-testid="bot-arm-pack"
+              value={pack}
+              disabled={busy || !session}
+              title={description}
+              onChange={event => {
+                const next = event.target.value;
+                setPickedPack(next);
+                void patch({ active_pack: next });
+              }}
+            >
+              {packs.map(row => (
+                <option key={row.id} value={row.id}>
+                  {row.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <BotArmAllowlistControl />
+        </div>
         {description ? (
           <p
             id="bot-arm-pack-desc"
