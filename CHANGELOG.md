@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** Ahmed marked CHANGE and GAP % on Gainers -- auto-sized columns reflow when digit count or glyph width changes.
 - **Files touched:** `frontend/src/components/scannerTableCol.ts`, `ScannerTable.tsx`, `ScannerTableRow.tsx`, `ScannerTableChrome.tsx`, `CatalystsTable.tsx`, `VolumeBoostTable.tsx`, `frontend/src/styles/scanner-table-cols.css`.
 - **How it works now:** `.table-wrapper--scanner` uses `table-layout: fixed` plus role classes (`scanner-col--price` / `--pct` / `--num`). Reserved `ch` widths cover `$99999.99` and `+9999.99%`. Tabular nums stop same-digit jitter. Volume / headlines stay flex and absorb leftover. Positions / Orders already lock via `ibkr-table--orders`. HOD is a fixed CSS grid (unchanged).
-- **Verified by:** Vitest `scannerTableCol.test.ts` (CSS contract) + `ScannerTable` class/colgroup test + Volume Boost panel tests. `npm run lint` / `npm run build`. Rebased onto `origin/master` after Orders Today Time Filled (#274); CHANGELOG + PROBLEM_LOG conflicted.
+- **Verified by:** Vitest `scannerTableCol.test.ts` (CSS contract) + `ScannerTable` class/colgroup test + Volume Boost panel tests. Playwright `e2e/scanner-col-width-stable.spec.ts` -- Gainers CHANGE/GAP text `+9.99%` then `+215.52%`, thead lefts unchanged (`price` 351 / `change_pct` 462 / `gap_percent` 572 / `volume` 683). `npm run lint` / `npm run build`. Rebased onto `origin/master` after Orders Today Time Filled (#274); CHANGELOG + PROBLEM_LOG conflicted.
 - **Follow-ups:** PR holds `do-not-merge` until CI is green after rebase.
 - **Related:** #277. PROBLEM_LOG 2026-09-18 scanner column width jitter.
 
