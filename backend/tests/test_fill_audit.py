@@ -57,6 +57,39 @@ def test_imcc_edt_false_four_hour_is_corrected():
     assert row["level"] == "warn"
 
 
+def test_imcc_buy_whole_second_stamps_are_clock_skew_ok():
+    """Ahmed bench after #266: BUY 106411 face was -296ms / ok -- not a time machine."""
+    row = classify_fill_audit(
+        **_base(
+            nova_placed_at="2026-09-18T14:05:58.296Z",
+            submitted_at="2026-09-18T14:05:58Z",
+            filled_at="2026-09-18T14:05:58Z",
+            terminal_at="2026-09-18T14:05:58Z",
+        ),
+    )
+    assert row["place_to_submit_ms"] == -296
+    assert row["place_to_fill_ms"] == -296
+    assert row["reason"] == "clock_skew"
+    assert row["level"] == "ok"
+
+
+def test_negative_terminal_is_clock_skew_ok():
+    row = classify_fill_audit(
+        **_base(
+            status="Cancelled",
+            has_fill=False,
+            filled_at=None,
+            nova_placed_at="2026-09-18T14:05:58.296Z",
+            submitted_at="2026-09-18T14:05:58Z",
+            terminal_at="2026-09-18T14:05:58Z",
+            status_history=("PendingSubmit", "Cancelled"),
+        ),
+    )
+    assert row["place_to_terminal_ms"] == -296
+    assert row["reason"] == "clock_skew"
+    assert row["level"] == "ok"
+
+
 def test_quiet_ok_mkt_fill_under_2s():
     row = classify_fill_audit(**_base())
     assert row["place_to_submit_ms"] == 12

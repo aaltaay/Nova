@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Orders Today Latency blanks clock-skew negatives
+
+- **What:** Orders Today Latency never paints a negative ms face. IMCC BUY 106411-style rows (`place_to_fill_ms=-296`) show an em dash. Hover says the clocks disagree; it does not imply the order filled before Place. SELL 3037ms warn is unchanged.
+- **Why:** After #266, BUY 106411 showed white `-296ms`. IBKR `submitted_at` / `filled_at` were the same whole second; Nova's place stamp was 296ms later. That is second-rounding / clock skew, not a fill before click.
+- **Files touched:** `backend/execution/fill_audit_clock.py`, `backend/execution/fill_audit.py`, `backend/execution/fill_audit_attach.py`, `backend/constants_ibkr.py`, `frontend/src/ibkr/orderFillLatency.ts`, `frontend/src/ibkr/orderTableSort.ts`.
+- **How it works now:** Any negative click-to-fill or click-to-terminal is `clock_skew` / `ok`. Raw negative ms stay on the audit for hover. The face uses `fillLatencyFaceMs` (null) so the cell is an em dash. Usual band is 1..`FILL_AUDIT_CLOCK_SKEW_MS` (1000) from whole-second IBKR stamps; larger negatives stay calm too. Sort treats skew as missing.
+- **Verified by:** pytest fill_audit_clock + fill_audit + fill_audit_attach -- 37 passed. Neighbor execution/orders -- 49 passed. Ruff clean. `doc_invariants` OK. Vitest orderFillLatency + working/closed cells + sort -- 48 passed.
+- **Follow-ups:** Hold merge (`do-not-merge`) until Ahmed confirms BUY 106411 shows an em dash on the desk and SELL 3037ms still warns.
+- **Related:** Follow-up to #266. PROBLEM_LOG 2026-09-18 -- Orders Today negative fill latency clock skew.
+
 ## 2026-09-18 -- Orders Today fill latency refuses EDT-shaped 4h clocks
 
 - **What:** Orders Today Latency no longer treats a ~4h (EDT) / ~5h (EST) place-to-fill gap as a real fill. IMCC-style stamps recompute to the residual milliseconds. The cell face and hover are milliseconds per step (Nova→submit, submit→fill, click→fill), not a giant seconds total.

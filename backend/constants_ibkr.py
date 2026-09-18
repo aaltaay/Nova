@@ -130,6 +130,14 @@ FILL_AUDIT_IMPOSSIBLE_MKT_FILL_MS = 3_600_000
 FILL_AUDIT_FAST_TYPES = frozenset({"MKT", "MIT", "MOC"})
 FILL_AUDIT_REASON_TIMEZONE_SHAPED = "timezone_shaped_clock"
 FILL_AUDIT_REASON_IMPOSSIBLE = "impossible_fill_clock"
+# IBKR submitted_at / filled_at are often whole-second stamps. Nova's
+# millisecond clock can land up to ~999ms later in the same second
+# (IMCC BUY 106411: place_to_fill_ms=-296). That is clock disagreement,
+# not a fill before Place. Any negative face total is clock_skew / ok.
+# This ceiling documents the usual rounding band; larger negatives stay
+# calm too -- still not a time machine.
+FILL_AUDIT_CLOCK_SKEW_MS = 1_000
+FILL_AUDIT_REASON_CLOCK_SKEW = "clock_skew"
 # Default TIF for all Nova API orders -- never leave blank (triggers 10349).
 IBKR_ORDER_TIF_DEFAULT = "DAY"
 # Connectivity lost / restored (async via errorEvent). 1100 = lost; 1101/1102 = restored.

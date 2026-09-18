@@ -111,6 +111,51 @@ describe('orderFillLatency', () => {
     );
   });
 
+  it('IMCC BUY 106411 clock skew blanks the face and explains hover', () => {
+    const audit: OrderFillAudit = {
+      place_to_submit_ms: -296,
+      place_to_fill_ms: -296,
+      level: 'ok',
+      reason: 'clock_skew',
+    };
+    expect(fillLatencyFaceMs(audit)).toBeNull();
+    expect(formatFillLatencyMs(fillLatencyFaceMs(audit))).toBe(FILL_LATENCY_EM_DASH);
+    expect(fillLatencyTone(audit)).toBe('ok');
+    expect(fillLatencyTooltip(audit)).toBe(
+      'Clocks disagree by 296ms -- not a real negative fill\nNova → submit (raw): -296ms',
+    );
+    expect(fillLatencyTooltip(audit)).not.toContain('Click → fill');
+  });
+
+  it('negative fill without reason is still blank -- never a -296ms face', () => {
+    const audit: OrderFillAudit = {
+      place_to_submit_ms: -296,
+      place_to_fill_ms: -296,
+      level: 'ok',
+      reason: 'filled',
+    };
+    expect(fillLatencyFaceMs(audit)).toBeNull();
+    expect(formatFillLatencyMs(fillLatencyFaceMs(audit))).toBe(FILL_LATENCY_EM_DASH);
+    expect(fillLatencyTooltip(audit)).toContain(
+      'Clocks disagree by 296ms -- not a real negative fill',
+    );
+  });
+
+  it('IMCC SELL 3037ms warn face is unchanged', () => {
+    const audit: OrderFillAudit = {
+      place_to_submit_ms: -1,
+      place_to_fill_ms: 3037,
+      level: 'warn',
+      reason: 'mkt_rth_slow',
+    };
+    expect(fillLatencyFaceMs(audit)).toBe(3037);
+    expect(formatFillLatencyMs(fillLatencyFaceMs(audit))).toBe('3037ms');
+    expect(fillLatencyTone(audit)).toBe('warn');
+    expect(fillLatencyTooltip(audit)).toBe(
+      'Nova → submit: -1ms\nSubmit → fill: 3038ms\nClick → fill: 3037ms',
+    );
+  });
+
   it('colors warn/danger from classify_fill_audit level only', () => {
     expect(fillLatencyTone(FILLED_OK)).toBe('ok');
     expect(fillLatencyTone(FILLED_WARN)).toBe('warn');

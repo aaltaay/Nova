@@ -45,15 +45,33 @@ def test_mkt_timezone_shaped_corrects_to_residual():
     assert fill == 3037
 
 
-def test_mkt_buy_under_offset_clamps_to_zero():
+def test_mkt_buy_under_offset_is_clock_skew_not_zero():
+    """TZ residual -296 is clock skew -- do not invent a 0ms fill."""
     fill, reason = apply_fill_clock_guard(
         place_to_fill_ms=14_399_704,
         place_to_submit_ms=-1,
         placed_iso="2026-09-18T14:06:10.296Z",
         order_type="MKT",
     )
-    assert reason is None
-    assert fill == 0
+    assert fill == -296
+    assert reason == "clock_skew"
+
+
+def test_imcc_buy_whole_second_stamps_are_clock_skew():
+    """BUY 106411: IBKR submitted/filled share 14:05:58; Nova is 296ms later."""
+    from execution.fill_audit_clock import is_clock_skew_ms
+
+    fill, reason = apply_fill_clock_guard(
+        place_to_fill_ms=-296,
+        place_to_submit_ms=-296,
+        placed_iso="2026-09-18T14:05:58.296Z",
+        order_type="MKT",
+    )
+    assert fill == -296
+    assert reason == "clock_skew"
+    assert is_clock_skew_ms(-296) is True
+    assert is_clock_skew_ms(3037) is False
+    assert is_clock_skew_ms(0) is False
 
 
 def test_lmt_timezone_shaped_is_refused():

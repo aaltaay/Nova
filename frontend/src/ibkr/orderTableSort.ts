@@ -5,6 +5,7 @@
  */
 import { ORDER_TABLE_DATA_SORT_KEYS } from '../constants';
 import { formatOrderStatus, orderFilledIso, orderSubmittedIso } from './orderDisplay';
+import { fillLatencyFaceMs } from './orderFillLatency';
 import type { IbkrOrder } from './types';
 
 export type OrderSortDir = 'asc' | 'desc';
@@ -135,8 +136,8 @@ export function compareOrderField(
       bv = num(b.commission);
       break;
     case 'latency':
-      av = num(a.fill_audit?.place_to_fill_ms ?? a.fill_audit?.place_to_terminal_ms);
-      bv = num(b.fill_audit?.place_to_fill_ms ?? b.fill_audit?.place_to_terminal_ms);
+      av = num(fillLatencyFaceMs(a.fill_audit));
+      bv = num(fillLatencyFaceMs(b.fill_audit));
       break;
     case 'order_id':
       av = a.order_id;
