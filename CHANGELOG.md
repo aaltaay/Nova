@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Reports import UI for CSV/JSON (D-046 slice 3)
+
+- **What:** Account > Reports can import closed trades from a CSV or JSON file. Rows land in `journal.db` and show on the calendar, Journal table, and Reports v2 panels. No live IBKR. No invented P/L or commissions.
+- **Why:** D-046 / #92 third slice. Slice 1/2 journal flatten and CommissionReport net P/L. Reports still had no file UI; TraderVue parity v1 skipped broker import; IB Flex is not wired.
+- **Files touched:** `backend/journal/import_parse.py`, `backend/journal/import_apply.py`, `backend/routes/journal.py`, `backend/tests/test_journal_import.py`, `frontend/src/reports/ReportsImport.tsx`, `importJournal.ts`, Reports tab + calendar refresh.
+- **How it works now:** Operator picks a `.csv` or `.json` file (or downloads the sample). `POST /api/journal/import` takes `{filename, content}`. Required facts: symbol, side (`long`/`short`), qty, entry_price, exit_price, pnl, closed_at/closed_ts. Optional commission is stored only when present and is never subtracted from the supplied pnl. Missing-fact rows are skipped. Re-import of the same facts is idempotent (`close_key`). `/import/ibkr` is unchanged.
+- **Verified by:** `PYTHONPATH=backend python3 -m pytest` journal import + flatten/net_pnl/round-trip/calendar neighbors -- 67 passed. Ruff on touched Python -- clean. `doc_invariants` -- OK. Vitest ReportsImport + importJournal + format -- 8 passed. `npm run lint` / `npm run build` -- exit 0. Live API: POST import sample then GET `/api/journal/trades` + `/api/journal/calendar?year=2026` show IMP $48 on 2026-03-15. Browser: Account > Reports import + Watchlist Journal IMP $48 (no IBKR). Playwright `reports-import` now dismisses the trading-prereq overlay before clicking Account > Reports (CI has no API; docks + gate intercepted the first spec).
+- **Follow-ups:** #92 remains open: Activity/trail page (slice 4). GitHub closed #92 on the #261 merge; this PR does not close it.
+- **Related:** Refs #92 (D-046). PROBLEM_LOG 2026-09-18 -- Reports had no honest file import.
+
 ## 2026-09-18 -- CommissionReport into journal net P/L (D-046 slice 2)
 
 - **What:** Closed-trade `pnl` (Journal table, metrics, Reports calendar) subtracts stored IBKR `CommissionReport` dollars when present. Missing report stays price-only gross. No invented fee from avg_cost - fill. Flatten `source` tags unchanged.

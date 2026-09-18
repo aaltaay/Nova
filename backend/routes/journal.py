@@ -11,6 +11,7 @@ Endpoints:
   GET /api/journal/r-multiples -- R-multiple expectancy (Reports v2)
   GET /api/journal/drawdown  -- equity curve + max drawdown (Reports v2)
   POST /api/journal/trades/{id}/tags -- update trade tags
+  POST /api/journal/import -- Reports CSV/JSON file upload (never invents P/L)
   POST /api/journal/import/ibkr -- IBKR fills probe or JSON trade import
 
 `include_mock` (default False) opts into synthetic rows seeded by
@@ -36,6 +37,7 @@ from constants import (
 )
 from journal.drawdown import compute_drawdown
 from journal.ibkr_import import import_trades_from_json, try_import_from_ibkr_gateway
+from journal.import_apply import import_uploaded_file
 from journal.r_multiples import compute_r_multiples
 from journal.tags import tag_performance
 from journal.calendar import build_month_calendar, build_year_calendar
@@ -52,6 +54,11 @@ class TradeTagsBody(BaseModel):
 class IbkrImportBody(BaseModel):
     trades: list[dict[str, Any]] | None = None
     use_gateway: bool = False
+
+
+class JournalImportFileBody(BaseModel):
+    filename: str
+    content: str
 
 
 @router.get("/signals")
@@ -119,6 +126,15 @@ def journal_update_trade_tags(trade_id: int, body: TradeTagsBody) -> dict:
     if updated is None:
         raise HTTPException(status_code=404, detail=f"trade {trade_id} not found")
     return {"ok": True, "trade": updated}
+
+
+@router.post("/import")
+def journal_import_file(body: JournalImportFileBody) -> dict:
+    raw = body.content.encode("utf-8")
+    result = import_uploaded_file(body.filename or "upload", raw)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result)
+    return result
 
 
 @router.post("/import/ibkr")

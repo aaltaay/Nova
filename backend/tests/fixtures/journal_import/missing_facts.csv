@@ -1,0 +1,5 @@
+symbol,side,qty,entry_price,exit_price,pnl,closed_at
+SKIP,long,10,1.00,1.10,,2026-03-15
+OK,long,10,2.00,2.20,2.00,2026-03-16
+NOEXIT,long,10,3.00,,,2026-03-17
+NOSIDE,,10,4.00,4.10,1.00,2026-03-18

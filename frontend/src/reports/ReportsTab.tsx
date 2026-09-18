@@ -1,8 +1,9 @@
-/** Reports tab — TraderVue-style P&L calendar from journal trades (no import). */
+/** Reports tab -- TraderVue-style P&L calendar from journal trades + file import. */
 import { useState } from 'react';
 import { AnalyticsSummary } from './AnalyticsSummary';
 import { DrawdownPanel } from './DrawdownPanel';
 import { MonthDetail } from './MonthDetail';
+import { ReportsImport } from './ReportsImport';
 import { RMultiplesPanel } from './RMultiplesPanel';
 import { TagPerformance } from './TagPerformance';
 import { YearCalendar } from './YearCalendar';
@@ -14,14 +15,16 @@ export function ReportsTab() {
   const [year, setYear] = useState(now.getFullYear());
   const [openMonth, setOpenMonth] = useState<number | null>(null);
   const [includeMock, setIncludeMock] = useState(false);
+  const [refreshToken, setRefreshToken] = useState(0);
 
   const { yearData, monthData, loading, error } = useCalendar(
     true,
     year,
     openMonth,
     includeMock,
+    refreshToken,
   );
-  const reportsV2 = useReportsV2(true, includeMock);
+  const reportsV2 = useReportsV2(true, includeMock, refreshToken);
 
   return (
     <div className="reports-panel journal-panel">
@@ -48,9 +51,11 @@ export function ReportsTab() {
         </div>
       </div>
 
+      <ReportsImport onImported={() => setRefreshToken(n => n + 1)} />
+
       {includeMock && (
         <div className="journal-demo-banner">
-          Demo data is on — calendar includes mock journal trades. Real metrics stay separate unless you leave this checked.
+          Demo data is on -- calendar includes mock journal trades. Real metrics stay separate unless you leave this checked.
         </div>
       )}
 
@@ -74,7 +79,8 @@ export function ReportsTab() {
 
       {!loading && yearData && yearData.year_trade_count === 0 && (
         <div className="reports-empty">
-          No closed trades in {year}. Enable demo data, or close trades into the journal to populate the calendar.
+          No closed trades in {year}. Import a CSV/JSON file, enable demo data, or
+          close trades into the journal.
         </div>
       )}
 

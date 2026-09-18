@@ -22,6 +22,7 @@ export function TradingSectionNav({
           type="button"
           role="tab"
           aria-selected={section === item.id}
+          data-testid={`account-section-${item.id}`}
           className={
             section === item.id
               ? 'ibkr-section-toggle-btn active'

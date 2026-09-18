@@ -1,0 +1,2 @@
+symbol,side,qty,entry_price,exit_price,pnl,closed_at,commission,tags
+IMP,long,100,10.00,10.50,48.00,2026-03-15,2.00,import;sample

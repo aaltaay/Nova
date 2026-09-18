@@ -496,6 +496,9 @@ JOURNAL_CALENDAR_MAX_YEAR = 2100
 JOURNAL_TAGS_DEFAULT_JSON = "[]"
 JOURNAL_TAGS_MAX_PER_TRADE = 20
 JOURNAL_IBKR_IMPORT_MAX_ROWS = 500
+# Reports file import (D-046 slice 3) -- CSV/JSON only; never Flex/broker API
+JOURNAL_IMPORT_MAX_BYTES = 262144
+JOURNAL_IMPORT_ACCEPTED_SUFFIXES = (".csv", ".json")
 
 # ── Paper execution / Arm Automation (Phase D) ──────────────────────────────
 # backend/strategy/executor.py places IBKR bracket orders ONLY when armed
