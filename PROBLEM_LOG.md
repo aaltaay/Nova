@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Reports import E2E click hit the prereq overlay
+
+- **Symptom:** CI Frontend E2E failed `reports-import.spec.ts` -- `getByRole('tab', { name: 'Reports' }).click()` timed out. Interceptors: `sv-open-orders-dock`, `hod-momo-dock`, then `trading-prerequisites-gate`.
+- **Cause:** Playwright E2E has no Nova API on :8999. After a few failed health probes the prerequisites overlay covers the desk (`position: fixed; z-index: 9000`). Baseline only asserts the Reports tab is visible. The new spec clicked it while docks and the gate sat on the hit box.
+- **Fix:** Dismiss `[data-testid=trading-prereq-close]` when the gate is up, then click the Account-section Reports tab (`account-section-reports`). Fall back to a DOM click if a dock still intercepts.
+- **Fix class:** surfacing
+- **Keywords:** reports-import, Playwright, trading-prerequisites-gate, Account Reports, D-046
+
 ## 2026-09-18 -- Reports had no honest file import
 
 - **Symptom:** Reports calendar stayed empty without live flatten/IBKR. There was no Reports file control. `POST /api/journal/import/ibkr` accepted JSON but defaulted missing `closed_ts` to now and allowed missing `pnl` (calendar then skipped the row).

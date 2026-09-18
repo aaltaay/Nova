@@ -3,6 +3,7 @@
  */
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { JOURNAL_IMPORT_SAMPLE_CSV } from '../src/reports/importConstants';
+import { openAccountReports } from './helpers/accountReports';
 import { attachErrorCollector } from './helpers/errorCollector';
 
 function emptyYear(year: number) {
@@ -92,9 +93,7 @@ test('Account Reports import control uploads a sample CSV', async ({ page }) => 
   const imported = { current: false };
   await mockReportsApis(page, imported);
   await page.goto('/');
-  await page.getByTestId('global-bar-account-nav').click();
-  await page.getByRole('tab', { name: 'Reports' }).click();
-  await expect(page.getByTestId('reports-import')).toBeVisible();
+  await openAccountReports(page);
   await page.getByTestId('reports-import-input').setInputFiles({
     name: 'valid_trades.csv',
     mimeType: 'text/csv',
