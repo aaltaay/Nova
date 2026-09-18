@@ -50,7 +50,7 @@ function MiniMonth({
           {isOpen ? 'Active' : 'Open'}
         </button>
       </div>
-      <div className="reports-month-card-pnl" title="Net P&L for this month">
+      <div className="reports-month-card-pnl" title="Net P/L for this month (CommissionReport subtracted when present)">
         {fmtPnlShort(month.pnl)}
         <span className="reports-month-card-trades"> · {month.trade_count} trades</span>
       </div>

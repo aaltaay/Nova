@@ -3,13 +3,12 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
 _SKIP_SOURCES = frozenset({"benchmark", "ib_recovered"})
 _PLACE_OPS = frozenset({"place", "bracket"})
-_GROSS_NOTE = "gross of commissions"
 
 
 @dataclass(frozen=True)
@@ -41,6 +40,7 @@ class OpenCycle:
     decrease_notional: float = 0.0
     net_qty: float = 0.0
     last_execution_id: str = ""
+    execution_ids: list[str] = field(default_factory=list)
 
 
 _open: dict[str, OpenCycle] = {}
@@ -263,6 +263,7 @@ def _new_cycle(event: FillEvent, signed: float) -> OpenCycle:
         increase_notional=qty * event.price,
         net_qty=signed,
         last_execution_id=event.execution_id,
+        execution_ids=[event.execution_id] if event.execution_id else [],
     )
 
 
@@ -271,6 +272,7 @@ def _add(cycle: OpenCycle, event: FillEvent, qty: float) -> None:
     cycle.increase_notional += qty * event.price
     cycle.net_qty += qty if event.side == "BUY" else -qty
     cycle.last_execution_id = event.execution_id
+    _remember_fill(cycle, event.execution_id)
 
 
 def _reduce(cycle: OpenCycle, event: FillEvent, qty: float) -> None:
@@ -278,6 +280,12 @@ def _reduce(cycle: OpenCycle, event: FillEvent, qty: float) -> None:
     cycle.decrease_notional += qty * event.price
     cycle.net_qty += qty if event.side == "BUY" else -qty
     cycle.last_execution_id = event.execution_id
+    _remember_fill(cycle, event.execution_id)
+
+
+def _remember_fill(cycle: OpenCycle, execution_id: str) -> None:
+    if execution_id and execution_id not in cycle.execution_ids:
+        cycle.execution_ids.append(execution_id)
 
 
 def _close_cycle(
@@ -290,38 +298,23 @@ def _close_cycle(
     qty = cycle.decrease_qty
     if qty <= 0 or cycle.increase_qty <= 0:
         return None
-    entry = cycle.increase_notional / cycle.increase_qty
-    exit_px = cycle.decrease_notional / qty
-    if cycle.direction > 0:
-        pnl = (exit_px - entry) * qty
-        side = "long"
-    else:
-        pnl = (entry - exit_px) * qty
-        side = "short"
-    qty_i = int(round(qty))
-    key = close_key_for(cycle, event.execution_id)
-    notes = (
-        f"Nova round trip {cycle.open_execution_id} -> {event.execution_id}; "
-        f"{_GROSS_NOTE}"
+    from journal.net_pnl import build_close_payload
+
+    _remember_fill(cycle, event.execution_id)
+    row = build_close_payload(
+        symbol=cycle.symbol,
+        setup=cycle.setup,
+        side="long" if cycle.direction > 0 else "short",
+        qty=int(round(qty)),
+        entry_price=cycle.increase_notional / cycle.increase_qty,
+        exit_price=cycle.decrease_notional / qty,
+        opened_ts=cycle.opened_ts,
+        closed_ts=event.ts if event.ts else time.time(),
+        close_key=close_key_for(cycle, event.execution_id),
+        execution_ids=list(cycle.execution_ids),
+        open_execution_id=cycle.open_execution_id,
+        close_execution_id=event.execution_id,
     )
-    row = {
-        "symbol": cycle.symbol,
-        "setup": cycle.setup,
-        "side": side,
-        "qty": qty_i,
-        "entry_price": entry,
-        "exit_price": exit_px,
-        "pnl": pnl,
-        "opened_ts": cycle.opened_ts,
-        "closed_ts": event.ts if event.ts else time.time(),
-        "notes": notes,
-        "is_mock": 0,
-        "close_key": key,
-        "adherent": None,
-        "stop_price": None,
-        "target_price": None,
-        "tags": [],
-    }
     if not persist:
         return row
     from journal.store import get_trade_by_id, record_trade
@@ -341,7 +334,9 @@ def _close_cycle(
         closed_ts=row["closed_ts"],
         notes=row["notes"],
         is_mock=False,
-        close_key=key,
+        close_key=row["close_key"],
+        commission=row.get("commission"),
+        fill_ids=row.get("fill_ids"),
     )
     if not trade_id:
         return None
@@ -349,7 +344,7 @@ def _close_cycle(
         try:
             from strategy import risk as _risk
 
-            _risk.record_trade_result(float(pnl))
+            _risk.record_trade_result(float(row["pnl"]))
         except Exception:
             logger.exception("journal.round_trip: risk update failed for %s", cycle.symbol)
     stored = get_trade_by_id(trade_id)

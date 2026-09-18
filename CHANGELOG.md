@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- CommissionReport into journal net P/L (D-046 slice 2)
+
+- **What:** Closed-trade `pnl` (Journal table, metrics, Reports calendar) subtracts stored IBKR `CommissionReport` dollars when present. Missing report stays price-only gross. No invented fee from avg_cost - fill. Flatten `source` tags unchanged.
+- **Why:** D-046 / #92 second slice. Slice 1 journaled flatten closes as gross. Reports already labeled that number Net P/L.
+- **Files touched:** `backend/journal/net_pnl.py`, `backend/journal/round_trip.py`, `backend/journal/store.py`, `backend/journal/db.py`, `backend/execution/telemetry_persist.py`, `backend/tests/test_journal_net_pnl.py`, Journal / Reports copy.
+- **How it works now:** Ledger `executions.commission` is still the only fee source (same column as Orders Today / Positions). `journal.net_pnl` sums reports on the cycle's fill ids. `pnl = gross - abs(report)` when any report exists; otherwise `pnl` stays gross and notes say `gross of commissions`. A late `CommissionReport` (facts persist after the journal row) patches that row. Closed blotter commission column is unchanged. Desk Close Position stays `source=manual`.
+- **Verified by:** `pytest backend/tests/test_journal_net_pnl.py` plus flatten / round-trip / journal / ledger neighbors. No live IBKR orders.
+- **Follow-ups:** #92 remains open: Reports import UI, Activity/trail page. GitHub closed #92 on the #261 merge; this PR does not close it.
+- **Related:** Refs #92 (D-046). PROBLEM_LOG 2026-09-18 -- Journal net P/L ignored CommissionReport.
+
 ## 2026-09-18 -- Journal-on-close from ledger flatten (D-046 slice 1)
 
 - **What:** A filled `source=flatten` ledger row now appends one `journal.db` trade from stored qty/price. Works with IB disconnected. No CommissionReport / net P/L change, no Reports import UI, no Activity page.

@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Journal net P/L ignored CommissionReport
+
+- **Symptom:** Journal / Reports showed price-only P/L as if it were net. A closed trade with a real IBKR `CommissionReport` on the ledger still stored gross. A report that arrived after the journal write never patched the row.
+- **Cause:** `journal.round_trip._close_cycle` computed `(exit - entry) * qty` and stamped `gross of commissions`. Ledger `executions.commission` (from `commissionReportEvent`) was already shown on Orders Today / Positions and used by bot Day P&L, but journal never read it. Slice 1 flatten-on-close inherited that gross path.
+- **Fix:** `journal.net_pnl` subtracts abs(sum of stored reports) on the cycle's fill ids only when a report exists. Missing report stays gross (not $0). `telemetry_persist.submit_facts` applies a late report to the existing journal row. Never derives a fee from avg_cost - fill.
+- **Fix class:** admission
+- **Keywords:** CommissionReport, net P/L, journal.pnl, D-046, #92, executions.commission, gross of commissions
+
 ## 2026-09-18 -- Flatten close did not journal from ledger
 
 - **Symptom:** Nova flatten/close (executor / bot `source=flatten`) did not append a durable Journal row from local ledger facts. Journal-on-close stayed parked on D-046 / #92. Executor bracket close still needed `ib.fills()`.

@@ -154,7 +154,7 @@ function TradesTable({
             <th title="Share quantity.">Qty</th>
             <th title="Fill price at entry.">Entry</th>
             <th title="Fill price at exit.">Exit</th>
-            <th title="Realized profit or loss on this trade in dollars.">P&amp;L</th>
+            <th title="Net P/L after IBKR CommissionReport when present. Missing report stays price-only (gross) -- never invented from avg cost.">P&amp;L</th>
             <th title="Whether this trade followed the risk rules exactly (correct size, respected the stop, no trading through a halt).">Adherent</th>
           </tr>
         </thead>
@@ -175,7 +175,14 @@ function TradesTable({
               <td>{formatShareQty(t.qty)}</td>
               <td>{fmtPrice(t.entry_price)}</td>
               <td>{fmtPrice(t.exit_price)}</td>
-              <td className={t.pnl != null && t.pnl >= 0 ? 'positive' : 'negative'}>{fmtPrice(t.pnl)}</td>
+              <td
+                className={t.pnl != null && t.pnl >= 0 ? 'positive' : 'negative'}
+                title={
+                  t.commission != null
+                    ? `Net of CommissionReport ${fmtPrice(t.commission)}`
+                    : 'Gross -- no CommissionReport yet'
+                }
+              >{fmtPrice(t.pnl)}</td>
               <td>{t.adherent == null ? '\u2014' : t.adherent ? '\u2713' : '\u2717'}</td>
             </SelectableTableRow>
           ))}
