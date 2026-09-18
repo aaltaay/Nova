@@ -140,6 +140,14 @@ def rebuild_from_ledger(*, since_ts: float | None = None) -> int:
 def notify_watch_filled(watch: object) -> None:
     """Telemetry hook: apply a completed watch fill to the builder."""
     execution_id = str(getattr(watch, "execution_id", "") or "")
+    if execution_id:
+        from execution.store import get_by_id
+        from journal.flatten_close import is_flatten_ledger_row, on_flatten_fill_recorded
+
+        row = get_by_id(execution_id)
+        if is_flatten_ledger_row(row):
+            on_flatten_fill_recorded(execution_id)
+            return
     qty = getattr(watch, "last_filled_qty", None)
     price = getattr(watch, "last_avg_fill", None)
     if not execution_id or qty is None or float(qty) <= 0 or not price:

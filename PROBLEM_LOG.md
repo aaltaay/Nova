@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Flatten close did not journal from ledger
+
+- **Symptom:** Nova flatten/close (executor / bot `source=flatten`) did not append a durable Journal row from local ledger facts. Journal-on-close stayed parked on D-046 / #92. Executor bracket close still needed `ib.fills()`.
+- **Cause:** `journal.round_trip` only wrote on IB watch `note_filled` or startup `rebuild_from_ledger`. There was no flatten-gated hook after ledger fill facts landed, so a flatten close with stored qty/price still depended on a live IB callback.
+- **Fix:** `journal.flatten_close.on_flatten_fill_recorded` reads the flatten row plus same-symbol session fills from the execution ledger and journals only when that flatten flats an existing cycle. Wired from `telemetry_persist.submit_facts` and flatten `notify_watch_filled`. No IB calls; no invented prices or commissions.
+- **Fix class:** admission
+- **Keywords:** journal-on-close, flatten, execution ledger, D-046, #92, journal.db, source=flatten
+
 ## 2026-09-18 -- Strategy BP budget step rejected integers
 
 - **Symptom:** Clicking BP budget $ (value 25) popped Chrome's native tooltip: "Please enter a valid value. The two nearest valid values are 24.01 and 25.01."
