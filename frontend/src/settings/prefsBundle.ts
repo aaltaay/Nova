@@ -2,6 +2,7 @@
 
 import { ORDER_TABLE_COLUMNS_STORAGE_KEY } from '../constantGroups/chart_api';
 import { SCANNER_ACTIVE_TAB_STORAGE_KEY } from '../constantGroups/market_ui';
+import { HOD_MOMO_ALERT_SOUND_KEY } from '../hod_momo/hodMomoAlertSound';
 
 export const PREFS_BUNDLE_VERSION = 1;
 export const PREFS_DOWNLOAD_NAME = 'nova-prefs.json';
@@ -32,6 +33,7 @@ export const PREFS_BUNDLE_KEYS = [
   'nova.chartGrid.show10Sec',
   'nova.hodMomo.dock.v2.collapsed',
   'nova.hodMomo.dock.v2.heightPx',
+  HOD_MOMO_ALERT_SOUND_KEY,
   'nova_os_attention_muted',
 ] as const;
 

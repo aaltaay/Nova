@@ -7,6 +7,7 @@ import {
   HOD_MOMO_DOCK_COLLAPSED_KEY,
   HOD_MOMO_DOCK_HEIGHT_KEY,
 } from '../constants';
+import { resetHodMomoAlertSoundForTests } from './hodMomoAlertSound';
 import {
   makeLiveScannerFeedStub,
   ScannerDataContextProvider,
@@ -72,6 +73,7 @@ describe('HodMomoDock', () => {
   beforeEach(() => {
     localStorage.removeItem(HOD_MOMO_DOCK_COLLAPSED_KEY);
     localStorage.removeItem(HOD_MOMO_DOCK_HEIGHT_KEY);
+    resetHodMomoAlertSoundForTests();
   });
 
   afterEach(() => {
@@ -155,6 +157,17 @@ describe('HodMomoDock', () => {
     fireEvent.click(screen.getByTestId('hod-momo-dock-mode-gainers'));
     expect(setDockMode).toHaveBeenCalledWith('gainers');
     expect(setL1DockTab).toHaveBeenCalledWith('gappers');
+  });
+
+  it('shows the sound toggle on HOD Momo, not Running Up', () => {
+    const { rerender } = renderDock(makeValue({ collapsed: true, dockMode: 'hod_momo' }));
+    expect(screen.getByTestId('hod-momo-sound-toggle')).toBeTruthy();
+    rerender(
+      <HodMomoContextProvider value={makeValue({ collapsed: true, dockMode: 'running_up' })}>
+        <HodMomoDock />
+      </HodMomoContextProvider>,
+    );
+    expect(screen.queryByTestId('hod-momo-sound-toggle')).toBeNull();
   });
 });
 

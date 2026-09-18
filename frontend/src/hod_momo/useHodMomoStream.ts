@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { HOD_MOMO_ALERT_BATCH_MS, WS_BASE_URL } from '../constants';
+import {
+  isHodMomoAlertSoundOn,
+  playHodMomoAlertPing,
+} from './hodMomoAlertSound';
+import {
+  createHodMomoSoundGate,
+  evaluateHodMomoAlertPing,
+  seedHodMomoSoundGate,
+} from './hodMomoAlertSoundGate';
 import type { AlertObject } from './types';
 
 interface HodMomoStreamState {
@@ -29,6 +38,7 @@ export function useHodMomoStream(): HodMomoStreamState {
   // never be pushed into `alerts` twice. Rebuilt only on a fresh `initial`
   // payload, never rescanned from the full day list on every live alert.
   const seenIdsRef = useRef<Set<string>>(new Set());
+  const soundGateRef = useRef(createHodMomoSoundGate());
 
   useEffect(() => {
     mountedRef.current = true;
@@ -38,6 +48,13 @@ export function useHodMomoStream(): HodMomoStreamState {
       if (!mountedRef.current || pendingRef.current.length === 0) return;
       const batch = pendingRef.current;
       pendingRef.current = [];
+      const noted = evaluateHodMomoAlertPing(
+        soundGateRef.current,
+        batch,
+        isHodMomoAlertSoundOn(),
+      );
+      soundGateRef.current = noted.gate;
+      if (noted.play) playHodMomoAlertPing();
       setAlerts(prev => {
         const next = [...batch, ...prev];
         setTotalToday(next.length);
@@ -81,6 +98,7 @@ export function useHodMomoStream(): HodMomoStreamState {
             }
             const list = Array.isArray(msg.alerts) ? (msg.alerts as AlertObject[]) : [];
             seenIdsRef.current = new Set(list.map(a => a.id));
+            soundGateRef.current = seedHodMomoSoundGate(list);
             setAlerts(list);
             setTotalToday(
               typeof msg.total === 'number' && msg.total >= 0 ? msg.total : list.length,

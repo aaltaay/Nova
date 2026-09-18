@@ -33,6 +33,8 @@ export function StrategyConfigurator({
 
       <div className="hod-cfg-row">
         <BoolField label="Enabled" value={cfg.enabled} onChange={v => onChange({ enabled: v })} />
+        {/* Per-strategy Warrior checkbox on the backend. Not the banner mute --
+            that is HodMomoSoundToggle / localStorage. cfg.audio has no player. */}
         <BoolField label="Audio Alert" value={cfg.audio} onChange={v => onChange({ audio: v })} />
       </div>
 

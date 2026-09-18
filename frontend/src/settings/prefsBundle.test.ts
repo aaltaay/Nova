@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ORDER_TABLE_COLUMNS_STORAGE_KEY } from '../constantGroups/chart_api';
 import { SCANNER_ACTIVE_TAB_STORAGE_KEY } from '../constantGroups/market_ui';
+import { HOD_MOMO_ALERT_SOUND_KEY } from '../hod_momo/hodMomoAlertSound';
 import {
   exportPrefsBundle,
   importPrefsBundle,
@@ -54,6 +55,10 @@ describe('prefsBundle', () => {
     expect(ORDER_TABLE_COLUMNS_STORAGE_KEY).toBe(
       'nova.ibkr.orderTable.columns.v7',
     );
+  });
+
+  it('allowlists the HOD Momo banner sound key', () => {
+    expect(PREFS_BUNDLE_KEYS).toContain(HOD_MOMO_ALERT_SOUND_KEY);
   });
 
   it('allowlists the scanner activeTab persist key', () => {

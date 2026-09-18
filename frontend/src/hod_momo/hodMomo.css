@@ -118,6 +118,31 @@
   color: var(--text-primary);
 }
 
+.hod-sound-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.45rem;
+  padding: 0;
+  border-radius: 3px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.hod-sound-btn:hover,
+.hod-sound-btn[aria-pressed='true']:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.hod-sound-btn[aria-pressed='false'] {
+  color: var(--text-muted, #9aa3b2);
+  opacity: 0.7;
+}
+
 .hod-clear-btn {
   font-size: 0.65rem;
   padding: 0.15rem 0.45rem;
