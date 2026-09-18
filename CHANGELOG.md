@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** Ahmed 2026-09-18 -- look over when something new triggers HOD, without opening Configure.
 - **Files touched:** `frontend/src/hod_momo/hodMomoAlertSound.ts`, `hodMomoAlertSoundGate.ts`, `HodMomoSoundToggle.tsx`, `useHodMomoStream.ts`, `HodMomoTab.tsx`, `HodMomoDock.tsx`.
 - **How it works now:** The WS `initial` snapshot seeds seen alert ids + HOD tickers and never pings (reconnect / clear / first paint). Live `alert` batches ping once when a new HOD ticker appears and the banner is on. Same-id replay, same-ticker re-fire, and Running Up do not ping. Several new names in one flush, or within 400ms, share one ping. `StrategyConfig.audio` stays a per-strategy backend checkbox with no player -- it is not this mute.
-- **Verified by:** Vitest hodMomoAlertSound (new-row / muted / replay) + toggle + dock visibility + prefs allowlist. Frontend lint/build after.
+- **Verified by:** `npx vitest run src/hod_momo` + prefsBundle -- 60 passed. `npm run lint` -- exit 0. `npm run build` -- exit 0. `doc_invariants` -- OK.
 - **Follow-ups:** Hold merge (`do-not-merge`) until Ahmed hears a live ping on the desk.
 - **Related:** none (new product ask; not D-036).
 
