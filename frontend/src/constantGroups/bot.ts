@@ -16,6 +16,8 @@ export type BotActionKind = (typeof BOT_ACTION_KINDS)[number];
 export const BOT_DEFAULT_MAX_SHARES = 1;
 export const BOT_MAX_SHARES_CAP = 10;
 export const BOT_BP_BUDGET_HARD_MAX_USD = 50;
+export const BOT_BP_BUDGET_MIN_USD = 0.01;
+export const BOT_BP_BUDGET_STEP_USD = 0.01;
 export const BOT_DEFAULT_WORKING_TTL_SEC = 3;
 export const BOT_WORKING_TTL_MIN_SEC = 1;
 export const BOT_WORKING_TTL_MAX_SEC = 10;
@@ -123,3 +125,13 @@ export const BOT_DESK_ARM_HEADER = 'X-Nova-Desk-Arm';
 export const BOT_DESK_ARM_STORAGE = 'nova_bot_desk_arm';
 export const BOT_ALLOWLIST_ADD = 'Add to bot allowlist';
 export const BOT_ALLOWLIST_REMOVE = 'Remove from bot allowlist';
+export const BOT_ALLOWLIST_HINT =
+  'Right-click a scanner row, trader tab, or chart to add or remove. Empty list is fail-closed.';
+export const BOT_ALLOWLIST_EMPTY = 'empty -- fail closed';
+export const BOT_ALLOWLIST_ADD_LABEL = 'Add ticker';
+export const BOT_ALLOWLIST_ADD_BUTTON = 'Add';
+export const BOT_ALLOWLIST_CHIP_REMOVE = 'Remove';
+export const BOT_BREAKER_SOFT_LABEL = 'Bot trip $ (locked)';
+export const BOT_BREAKER_HARD_LABEL = 'All-stop $ (locked)';
+export const BOT_BREAKER_HINT =
+  'Locked product thresholds. Session PATCH has no breaker fields. -$50 flattens and drops the bot to L0. -$200 flattens and locks bot plus manual buys until next ET midnight.';

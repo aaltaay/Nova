@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Strategy BP budget step rejected integers
+
+- **Symptom:** Clicking BP budget $ (value 25) popped Chrome's native tooltip: "Please enter a valid value. The two nearest valid values are 24.01 and 25.01."
+- **Cause:** The number input used `min=0.01` and `step=0.5`. HTML validity is `min + n*step`, so 25 and the default 50 are off the grid (0.01, 0.51, 1.01, ...).
+- **Fix:** Step is now cents (`BOT_BP_BUDGET_STEP_USD = 0.01`) matching backend clamp `max(0.01, min(50, budget))`. Vitest asserts 25 and 50 sit on that grid.
+- **Fix class:** admission
+- **Keywords:** Strategy tab, BP budget, HTML5 step, 24.01, 25.01, BOT_BP_BUDGET_STEP_USD, #215
+
 ## 2026-09-18 -- D-003 code-complete; live RTH verify still open
 
 - **Symptom:** Trader 10Sec / Full Day sat on "Loading IBKR historical..." for minutes on a cold ticker (MSS soak 2026-08-26). #43 stayed open after Phases 0-4 and the 2026-09-11 client first-print seed shipped.

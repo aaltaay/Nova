@@ -1,12 +1,19 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  BOT_BP_BUDGET_HARD_MAX_USD,
+  BOT_BP_BUDGET_MIN_USD,
+  BOT_BP_BUDGET_STEP_USD,
+  BOT_HARD_BREAKER_USD,
+  BOT_SOFT_BREAKER_USD,
+} from '../constantGroups/bot';
+import { _resetDeskPollShareForTests } from '../ibkr/deskSharedPoll';
 import { _resetBotSessionPollerForTests } from './botSessionPoller';
 import { StrategyTab } from './StrategyTab';
 import type { BotSession } from './types';
-import { _resetDeskPollShareForTests } from '../ibkr/deskSharedPoll';
 
 beforeEach(() => {
   _resetBotSessionPollerForTests();
@@ -52,6 +59,50 @@ function session(partial: Partial<BotSession> = {}): BotSession {
     working: [],
     ...partial,
   };
+}
+
+function mockBotFetch(opts: {
+  session?: BotSession;
+  onPatch?: (body: Record<string, unknown>) => BotSession;
+  onAllowlist?: (body: { symbol: string; op: string }) => BotSession;
+} = {}) {
+  let current = opts.session ?? session();
+  const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    const href = String(url);
+    if (href.includes('/bot/proposals')) {
+      return { ok: true, json: async () => ({ proposals: [] }) };
+    }
+    if (href.includes('/bot/audit')) {
+      return { ok: true, json: async () => ({ entries: [] }) };
+    }
+    if (href.includes('/bot/allowlist') && init?.method === 'POST') {
+      const body = JSON.parse(String(init.body || '{}')) as { symbol: string; op: string };
+      current = opts.onAllowlist?.(body) ?? {
+        ...current,
+        symbol_allowlist: body.op === 'remove' ? [] : [String(body.symbol).toUpperCase()],
+      };
+      return { ok: true, json: async () => current };
+    }
+    if (href.includes('/bot/session') && init?.method === 'PATCH') {
+      const body = JSON.parse(String(init.body || '{}')) as Record<string, unknown>;
+      current = opts.onPatch?.(body) ?? current;
+      return { ok: true, json: async () => current };
+    }
+    if (href.includes('/bot/session')) {
+      return { ok: true, json: async () => current };
+    }
+    return { ok: true, json: async () => ({}) };
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
+}
+
+async function renderTab() {
+  await act(async () => {
+    render(<StrategyTab />);
+    await Promise.resolve();
+    await Promise.resolve();
+  });
 }
 
 describe('StrategyTab', () => {
@@ -213,5 +264,116 @@ describe('StrategyTab', () => {
     expect(screen.getByTestId('bot-pack-desc').textContent).toMatch(/5x|10m|day-volume/i);
     expect(screen.getByTestId('bot-volume-settings').textContent).toMatch(/5x/);
     expect(screen.getByTestId('bot-volume-settings').textContent).not.toMatch(/stub/i);
+  });
+
+  it('keeps pack picker and Activate in the header -- not this tab', async () => {
+    mockBotFetch();
+    await renderTab();
+
+    expect(screen.queryByTestId('bot-arm-controls')).toBeNull();
+    expect(screen.queryByLabelText('Bot pack')).toBeNull();
+    expect(screen.queryByLabelText('Bot autonomy')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Activate' })).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: /Bot is in control/i })).toBeNull();
+  });
+
+  it('PATCHes small-cap caps and Advise through /bot/session', async () => {
+    const patches: Record<string, unknown>[] = [];
+    mockBotFetch({
+      onPatch: (body) => {
+        patches.push(body);
+        return session({
+          caps: {
+            max_shares: 4,
+            bp_budget_usd: 25,
+            working_ttl_sec: 7,
+            extended_hours: true,
+            allowlist: [],
+          },
+          advise: {
+            enabled: true,
+            usd_cap: 2,
+            call_cap: 10,
+            usd_spent: 0,
+            calls_used: 0,
+          },
+        });
+      },
+    });
+    await renderTab();
+
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('bot-strategy-max-shares'), { target: { value: '4' } });
+      fireEvent.change(screen.getByTestId('bot-strategy-bp-budget'), { target: { value: '25' } });
+      fireEvent.change(screen.getByTestId('bot-strategy-ttl'), { target: { value: '7' } });
+      fireEvent.click(screen.getByTestId('bot-strategy-eh'));
+      fireEvent.click(screen.getByTestId('bot-strategy-advise-enabled'));
+      await Promise.resolve();
+    });
+
+    expect(patches).toEqual(expect.arrayContaining([
+      { caps: { max_shares: 4 } },
+      { caps: { bp_budget_usd: 25 } },
+      { caps: { working_ttl_sec: 7 } },
+      { caps: { extended_hours: true } },
+      { advise: { enabled: true } },
+    ]));
+  });
+
+  it('keeps BP budget cents-step so 25 and 50 are HTML-valid', async () => {
+    mockBotFetch();
+    await renderTab();
+
+    const input = screen.getByTestId('bot-strategy-bp-budget') as HTMLInputElement;
+    expect(Number(input.min)).toBe(BOT_BP_BUDGET_MIN_USD);
+    expect(Number(input.max)).toBe(BOT_BP_BUDGET_HARD_MAX_USD);
+    expect(Number(input.step)).toBe(BOT_BP_BUDGET_STEP_USD);
+    for (const dollars of [25, 50]) {
+      const steps = (dollars - Number(input.min)) / Number(input.step);
+      expect(Math.abs(steps - Math.round(steps))).toBeLessThan(1e-8);
+    }
+  });
+
+  it('manages the symbol allowlist through the existing POST /bot/allowlist', async () => {
+    const ops: Array<{ symbol: string; op: string }> = [];
+    mockBotFetch({
+      session: session({ symbol_allowlist: ['ABCD'] }),
+      onAllowlist: (body) => {
+        ops.push(body);
+        return session({
+          symbol_allowlist: body.op === 'remove' ? [] : ['ABCD', String(body.symbol).toUpperCase()],
+        });
+      },
+    });
+    await renderTab();
+
+    expect(screen.getByTestId('bot-strategy-allowlist').textContent).toMatch(/ABCD/);
+    expect(screen.getByTestId('bot-strategy-allowlist').textContent).toMatch(/right-click/i);
+
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('bot-strategy-allowlist-input'), { target: { value: 'efgh' } });
+      fireEvent.click(screen.getByTestId('bot-strategy-allowlist-add'));
+      await Promise.resolve();
+    });
+    expect(ops).toContainEqual({ symbol: 'efgh', op: 'add' });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('bot-strategy-allowlist-remove-ABCD'));
+      await Promise.resolve();
+    });
+    expect(ops).toContainEqual({ symbol: 'ABCD', op: 'remove' });
+  });
+
+  it('shows locked breaker thresholds as display-only', async () => {
+    mockBotFetch();
+    await renderTab();
+
+    const soft = screen.getByTestId('bot-strategy-breaker-soft') as HTMLInputElement;
+    const hard = screen.getByTestId('bot-strategy-breaker-hard') as HTMLInputElement;
+    expect(Number(soft.value)).toBe(BOT_SOFT_BREAKER_USD);
+    expect(Number(hard.value)).toBe(BOT_HARD_BREAKER_USD);
+    expect(soft.disabled).toBe(true);
+    expect(hard.disabled).toBe(true);
+    expect(screen.getByTestId('bot-strategy-breakers').textContent).toMatch(/locked/i);
   });
 });
