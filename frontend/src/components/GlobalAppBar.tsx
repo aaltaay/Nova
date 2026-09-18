@@ -20,6 +20,7 @@ import {
   GLOBAL_BAR_SETTINGS_TITLE,
 } from '../constants';
 import { useClosedOrders } from '../closed_orders/useClosedOrders';
+import { FundAccountButton } from '../ibkr/FundAccountButton';
 import { useIbkrAccountContext } from '../ibkr/IbkrAccountContext';
 import { IbkrAccountTypeChip } from '../ibkr/IbkrAccountTypeChip';
 import { TradingSessionLockButton } from '../ibkr/TradingSessionLockButton';
@@ -260,6 +261,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
           ibkrConnected={Boolean(ibkrConnected)}
           summary={summary}
         />
+        <FundAccountButton />
 
         {showAccountNav && (
           <button
