@@ -1,0 +1,66 @@
+/* Stable column widths for the shared scanner/desk table shell.
+   Owner: ScannerTable + Catalysts + Volume Boost (.table-wrapper--scanner).
+   Live ticks must not reflow sibling columns. Widths match SCANNER_COL_WIDTH
+   in components/scannerTableCol.ts. */
+
+.table-wrapper--scanner table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.table-wrapper--scanner th,
+.table-wrapper--scanner td {
+  box-sizing: border-box;
+}
+
+.table-wrapper--scanner .scanner-col--num,
+.table-wrapper--scanner .scanner-col--pct,
+.table-wrapper--scanner .scanner-col--price,
+.table-wrapper--scanner .scanner-col--compact {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.table-wrapper--scanner .scanner-col--price {
+  width: calc(10ch + 1.2rem);
+}
+
+.table-wrapper--scanner .scanner-col--pct {
+  width: calc(10ch + 1.2rem);
+}
+
+.table-wrapper--scanner .scanner-col--num {
+  width: calc(9ch + 1.2rem);
+}
+
+.table-wrapper--scanner .scanner-col--compact {
+  width: calc(5ch + 1.1rem);
+}
+
+.table-wrapper--scanner .scanner-col--rownum,
+.table-wrapper--scanner .scanner-row-num-th,
+.table-wrapper--scanner .scanner-row-num {
+  width: 2.4em;
+}
+
+.table-wrapper--scanner .scanner-col--newest_headline_at {
+  width: 2.8rem;
+}
+
+.table-wrapper--scanner .scanner-col--symbol {
+  width: 6.75rem;
+}
+
+.table-wrapper--scanner .scanner-col--earnings_day_offset {
+  width: 3.6rem;
+}
+
+.table-wrapper--scanner .scanner-col--watchlist_score {
+  width: 4rem;
+}
+
+.table-wrapper--scanner .scanner-col--flex {
+  min-width: 0;
+}

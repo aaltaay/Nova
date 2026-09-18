@@ -1,5 +1,17 @@
 /** Shared # column for scanner-style tables (not HOD / Running Up). */
 import { SCANNER_ROW_NUM_LABEL, SCANNER_ROW_NUM_TITLE } from '../constants';
+import { scannerColClass } from './scannerTableCol';
+
+export function ScannerColGroup({ columns }: { columns: [string, string][] }) {
+  return (
+    <colgroup>
+      <col className="scanner-col scanner-col--rownum" />
+      {columns.map(([key]) => (
+        <col key={key} className={scannerColClass(key)} />
+      ))}
+    </colgroup>
+  );
+}
 
 export function ScannerRowNumHeader() {
   return (

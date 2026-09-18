@@ -7,6 +7,7 @@ import { ScannerPriceCell } from './ScannerPriceCell';
 import { NewsCell } from './NewsCell';
 import { EarningsDots } from './EarningsDots';
 import { ScannerRowNumCell } from './ScannerTableChrome';
+import { scannerColClass } from './scannerTableCol';
 import { fmtMarketCap, fmtPct, fmtPrice, fmtVolume } from '../utils/quoteFormat';
 import { SCANNER_RVOL_SOURCE_BADGE, SCANNER_RVOL_SOURCE_TITLE } from '../constants';
 import type { ScannerRow } from '../types/scanner';
@@ -217,7 +218,7 @@ function ScannerTableRowView({
       <ScannerRowNumCell index={index} />
       {columns.map(([key]) =>
         key === 'symbol' ? (
-          <td key={key}>
+          <td key={key} data-col={key} className={scannerColClass(key)}>
             <SymbolSelectButton
               symbol={row.symbol}
               exchange={row.exchange}
@@ -227,7 +228,7 @@ function ScannerTableRowView({
             />
           </td>
         ) : (
-          <td key={key}>
+          <td key={key} data-col={key} className={scannerColClass(key)}>
             {renderCell(key, row, flash, stale)}
           </td>
         )

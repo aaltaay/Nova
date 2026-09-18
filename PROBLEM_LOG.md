@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Scanner table column width jitter
+
+- **Symptom:** On Gainers (and the same scanner shell), PRICE / CHANGE / GAP % ticks made columns nudge a few pixels so the whole table slid left/right. Ahmed marked CHANGE and GAP %.
+- **Cause:** `.table-wrapper table` used auto layout. Only the price cell had `tabular-nums`. A digit-count change (`+99.99%` -> `+100.00%` or `+35.64%` -> `+215.52%`) or proportional glyph width resized the column and reflowed every sibling.
+- **Fix:** Shared scanner shell (`table-wrapper--scanner` + `scannerColClass`) locks numeric columns with `table-layout: fixed`, tabular nums, and reserved `ch` widths. Applied once on `ScannerTable` / Catalysts / Volume Boost -- not a Gainers-only hack.
+- **Fix class:** surfacing
+- **Keywords:** column width, jitter, Gainers, CHANGE, GAP %, table-layout, tabular-nums, ScannerTable
+
 ## 2026-09-18 -- Orders Today Time Filled 4h false 0ms
 
 - **Symptom:** After #266/#267, a live Filled row (order ~109741) showed Latency `0ms` while Time Placed was ~11:02:48.551 ET and Time Filled was ~15:02:48 ET (~+4h). Not a real zero-latency fill.
