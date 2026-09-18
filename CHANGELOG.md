@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Emergency KILL after Look Up
+
+- **What:** GlobalAppBar scanner cluster gains a red **Emergency KILL** control immediately after Look Up. After confirm it cancels all working orders, flattens the account at market, sets Bot Autonomy to L0, and locks the desk trade session.
+- **Why:** Ahmed 2026-09-18 -- one obvious header panic control that composes existing doors only (no second flatten/cancel stack).
+- **Files touched:** `frontend/src/ibkr/emergencyKill.ts`, `frontend/src/ibkr/flattenAccount.ts`, `frontend/src/components/EmergencyKillButton.tsx`, `frontend/src/components/GlobalBarScannerCluster.tsx`, `frontend/src/components/GlobalAppBar.tsx`, `backend/routes/trading_execution.py`, `docs/trading-execution-validation.md`.
+- **How it works now:** Confirm uses `APP_DIALOG_EMERGENCY_KILL_LABEL`. Order is cancel-all (`cancelAllWorkingOrders`) -> `bot.flatten.flatten_account_with_retry` via thin `POST /api/ibkr/flatten-account` -> `patchBotSession({level:0})` -> `writeTicketSessionUnlocked(false)`. Cancel/flatten still run if the bot PATCH fails; failures alert loudly. Hover lists the four ops. Unlock is the existing header lock / PIN (`TradingSessionLockButton`), not the -$200 `hard_lock_until_date`. Trader view keeps the same button after the tab strip so KILL never disappears with Look Up.
+- **Verified by:** Vitest `emergencyKill`, `EmergencyKillButton`, `flattenAccount`, `GlobalAppBar` placement/hover. Pytest `test_flatten_account_route`. Neighbor cancel-all + bot session PATCH tests.
+- **Follow-ups:** PR holds `do-not-merge` until Ahmed clicks Emergency KILL on the desk. Does not trip the Nova OS D-037 spend latch (different door).
+- **Related:** PROBLEM_LOG 2026-09-18 Emergency KILL compose; ADR 007 flatten source; D-037 kill latch; bot breakers `flatten_account_with_retry`.
+
 ## 2026-09-18 -- Stable scanner table column widths
 
 - **What:** PRICE / CHANGE / GAP % (and other live numeric cells) no longer nudge sibling columns when values tick. Shared scanner shell: Gappers, Gainers, Losers, Afterhours, Large Cap, Catalysts, Volume Boost.

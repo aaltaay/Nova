@@ -1,4 +1,8 @@
-"""Whole-account MKT flatten through the existing execution door."""
+"""Whole-account MKT flatten through the existing execution door.
+
+Desk HTTP: POST /api/ibkr/flatten-account (Emergency KILL + tests).
+Breakers call flatten_account_with_retry directly -- same function.
+"""
 from __future__ import annotations
 
 import logging

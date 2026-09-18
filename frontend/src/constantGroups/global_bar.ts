@@ -106,3 +106,25 @@ export const GLOBAL_BAR_ACCOUNT_TYPE_TRADING_PREFIX = 'IBKR TradingType-S:';
 export const GLOBAL_BAR_ACCOUNT_TYPE_ARIA = 'IBKR account type';
 export const GLOBAL_BAR_SETTINGS_LABEL = 'Settings';
 export const GLOBAL_BAR_SETTINGS_TITLE = 'Open Settings';
+
+/** Header Emergency KILL -- compose existing cancel / flatten / L0 / desk lock. */
+export const GLOBAL_BAR_EMERGENCY_KILL_LABEL = 'Emergency KILL';
+export const GLOBAL_BAR_EMERGENCY_KILL_OPS = [
+  'Cancel all working orders',
+  'Flatten all open positions (market)',
+  'Set Bot Autonomy to L0',
+  'Lock trading until you unlock',
+] as const;
+export const GLOBAL_BAR_EMERGENCY_KILL_TITLE =
+  GLOBAL_BAR_EMERGENCY_KILL_OPS.join('\n');
+export const GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_TITLE = 'Emergency KILL?';
+export const GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_BODY = [
+  'This uses the existing cancel-all, account flatten, Bot Autonomy PATCH, and header trade-lock doors.',
+  '',
+  ...GLOBAL_BAR_EMERGENCY_KILL_OPS.map((op) => `- ${op}`),
+  '',
+  'Unlock afterwards with the header lock (PIN). Place stays blocked until you unlock.',
+].join('\n');
+export const GLOBAL_BAR_EMERGENCY_KILL_FAIL_TITLE =
+  'Emergency KILL did not finish cleanly';
+export const GLOBAL_BAR_EMERGENCY_KILL_BUSY_LABEL = 'KILL running…';

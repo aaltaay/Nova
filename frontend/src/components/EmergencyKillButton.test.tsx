@@ -1,0 +1,94 @@
+/**
+ * @vitest-environment jsdom
+ */
+import { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  APP_DIALOG_EMERGENCY_KILL_LABEL,
+  GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_TITLE,
+  GLOBAL_BAR_EMERGENCY_KILL_LABEL,
+  GLOBAL_BAR_EMERGENCY_KILL_OPS,
+  GLOBAL_BAR_EMERGENCY_KILL_TITLE,
+} from '../constants';
+import { EmergencyKillButton } from './EmergencyKillButton';
+
+const confirmApp = vi.fn();
+const alertApp = vi.fn();
+const runEmergencyKill = vi.fn();
+
+vi.mock('../ux', () => ({
+  confirmApp: (...args: unknown[]) => confirmApp(...args),
+  alertApp: (...args: unknown[]) => alertApp(...args),
+}));
+
+vi.mock('../ibkr/emergencyKill', () => ({
+  runEmergencyKill: (...args: unknown[]) => runEmergencyKill(...args),
+}));
+
+describe('EmergencyKillButton', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    confirmApp.mockReset().mockResolvedValue(true);
+    alertApp.mockReset().mockResolvedValue(undefined);
+    runEmergencyKill.mockReset().mockResolvedValue({ ok: true, errors: [] });
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => {
+      root.render(<EmergencyKillButton />);
+    });
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it('is a red Emergency KILL control with the four-op hover list', () => {
+    const button = container.querySelector(
+      '[data-testid="global-bar-emergency-kill"]',
+    ) as HTMLButtonElement;
+    expect(button).toBeTruthy();
+    expect(button.textContent).toBe(GLOBAL_BAR_EMERGENCY_KILL_LABEL);
+    expect(button.title).toBe(GLOBAL_BAR_EMERGENCY_KILL_TITLE);
+    for (const op of GLOBAL_BAR_EMERGENCY_KILL_OPS) {
+      expect(button.title).toContain(op);
+    }
+    expect(button.className).toContain('global-app-bar__emergency-kill');
+  });
+
+  it('confirms then runs the existing-door compose helper', async () => {
+    const button = container.querySelector(
+      '[data-testid="global-bar-emergency-kill"]',
+    ) as HTMLButtonElement;
+    await act(async () => {
+      button.click();
+      await Promise.resolve();
+    });
+    expect(confirmApp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_TITLE,
+        confirmLabel: APP_DIALOG_EMERGENCY_KILL_LABEL,
+        tone: 'danger',
+      }),
+    );
+    expect(runEmergencyKill).toHaveBeenCalledOnce();
+  });
+
+  it('does not fire when the confirm dialog is cancelled', async () => {
+    confirmApp.mockResolvedValue(false);
+    const button = container.querySelector(
+      '[data-testid="global-bar-emergency-kill"]',
+    ) as HTMLButtonElement;
+    await act(async () => {
+      button.click();
+      await Promise.resolve();
+    });
+    expect(runEmergencyKill).not.toHaveBeenCalled();
+  });
+});

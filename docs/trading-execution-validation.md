@@ -89,6 +89,23 @@ check in `execution.service.execute` sits **before** the `skip_risk` block:
   not be proven) are preserved — cancelling those would leave a naked
   position.
 
+## Emergency KILL compose (header, 2026-09-18)
+
+The red **Emergency KILL** control after Look Up is **not** a fifth broker
+stack and is **not** the Nova OS `kill_switch` latch. It confirms, then
+calls existing doors in this order:
+
+1. `cancelAllWorkingOrders` -- `DELETE /api/ibkr/orders?all_symbols=true`
+2. `flatten_account_with_retry` -- `POST /api/ibkr/flatten-account` (same
+   function bot loss breakers use; `source=flatten`)
+3. Bot Autonomy L0 -- `PATCH /api/bot/session` `{level:0}`
+4. Desk trade lock -- `writeTicketSessionUnlocked(false)` (header lock /
+   PIN unlock)
+
+Cancel and flatten still run if the bot PATCH fails. Unlock is the existing
+header lock, not `hard_lock_until_date` (that midnight lock is the -$200
+breaker only). `auto_live` stays NO-GO.
+
 ## Stage latency (synthetic, 2026-07-23)
 
 Command: `py -3 tools/execution_latency_probe.py --confirm-paper-orders --synthetic --samples 20`

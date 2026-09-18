@@ -11,6 +11,7 @@ export const APP_DIALOG_DELETE_LABEL = 'Delete';
 export const APP_DIALOG_RESET_LABEL = 'Reset';
 export const APP_DIALOG_FLATTEN_LABEL = 'Flatten';
 export const APP_DIALOG_KILL_LABEL = 'Stop automation';
+export const APP_DIALOG_EMERGENCY_KILL_LABEL = 'Emergency KILL';
 export const APP_DIALOG_PLACE_LABEL = 'Place';
 export const APP_DIALOG_FILL_LABEL = 'Fill now';
 export const APP_DIALOG_SWITCH_TO_LIVE_LABEL = 'Switch to Live';
