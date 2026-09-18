@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** #225 wants the rule visible before Activate. Session packs already return `description`; the header only put it on `title`.
 - **Files touched:** `frontend/src/bot/BotArmControls.tsx`, `botArm.css`, `BotArmControls.test.tsx`, `global-app-bar.css`, `e2e/global-bar-bot-row.spec.ts`.
 - **How it works now:** Same source as Strategy: session `packs[].description`, else `packDescription(id)`. Changing the picker updates the muted two-line sentence immediately. Level vs Active, one active pack, and stub-vs-live wording stay as they are. No new pack copy.
-- **Verified by:** Vitest `BotArmControls` (session copy + `packDescription` fallback for Halt / Quote spike / Volume / LLM). `npm run build`. Playwright bot-row neighbor when run.
+- **Verified by:** Vitest `BotArmControls` + `bot.test` + `StrategyTab` + `GlobalAppBar` -- 35 passed. `npm run lint` -- exit 0. `npm run build` -- exit 0. Playwright `e2e/global-bar-bot-row.spec.ts` -- 2 passed (`bot-arm-pack-desc` visible). Sample header screenshots for Halt / Quote spike / Volume / LLM.
 - **Related:** Closes #225. Refs #205. PROBLEM_LOG n/a (requested surface, not a runtime defect).
 
 ## 2026-09-18 -- Volume L2 bot pack is live
