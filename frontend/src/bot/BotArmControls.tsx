@@ -91,6 +91,7 @@ export function BotArmControls() {
           data-testid="bot-arm-pack"
           value={pack}
           disabled={busy || !session}
+          title={description}
           onChange={event => {
             const next = event.target.value;
             setPickedPack(next);
@@ -171,11 +172,6 @@ export function BotArmControls() {
             {BOT_API_KEY_SAVE}
           </button>
         </form>
-      ) : null}
-      {description ? (
-        <p className="bot-arm__desc" data-testid="bot-arm-pack-desc">
-          {description}
-        </p>
       ) : null}
     </div>
   );

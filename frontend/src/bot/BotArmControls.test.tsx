@@ -286,11 +286,13 @@ describe('BotArmControls', () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(screen.getByTestId('bot-arm-pack-desc').textContent).toMatch(/Halt resume/);
+    const pack = screen.getByTestId('bot-arm-pack') as HTMLSelectElement;
+    expect(pack.title).toMatch(/Halt resume/);
     await act(async () => {
-      fireEvent.change(screen.getByTestId('bot-arm-pack'), { target: { value: 'llm-decide' } });
+      fireEvent.change(pack, { target: { value: 'llm-decide' } });
       await Promise.resolve();
     });
-    expect(screen.getByTestId('bot-arm-pack-desc').textContent).toMatch(/L2 \+ Activate/);
+    expect((screen.getByTestId('bot-arm-pack') as HTMLSelectElement).title).toMatch(/L2 \+ Activate/);
+    expect(screen.queryByTestId('bot-arm-pack-desc')).toBeNull();
   });
 });

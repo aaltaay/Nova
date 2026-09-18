@@ -32,7 +32,7 @@ Entry template (copy and fill in):
 
 ## 2026-09-18 -- Bot Autonomy header: Active/Not active + level sticks
 
-- **What:** Header Bot Autonomy strip now splits **Level** (Off / Eyes / Strategy) from **Active / Not active**. Activate and Deactivate match that armed state. Failed level/arm calls show a visible error (and an API-key field on 401). Vite `serve` maps repo `NOVA_API_KEY` onto `VITE_NOVA_API_KEY` so the desk can PATCH.
+- **What:** Header Bot Autonomy strip now splits **Level** (Off / Eyes / Strategy) from **Active / Not active**. Activate and Deactivate match that armed state. The long pack sentence left the strip (tooltip on Pack; Strategy tab still has it). Failed level/arm calls show a visible error (and an API-key field on 401). Vite `serve` maps repo `NOVA_API_KEY` onto `VITE_NOVA_API_KEY` so the desk can PATCH.
 - **Why:** Playwright on Vite could not change Off/Eyes/Strategy or Activate. Status said **Bot off** even when Eyes was selected. API PATCH worked with `X-Nova-Api-Key`; the UI failed quiet.
 - **Files touched:** `frontend/src/bot/BotArmControls.tsx`, `useBotSession.ts`, `botSessionPoller.ts`, `api.ts`, `botApiError.ts`, `botArm.css`, `frontend/src/api/novaFetch.ts`, `frontend/vite.config.ts`, `frontend/scripts/vite-nova-api-key.ts`, `constantGroups/bot.ts`.
 - **How it works now:** GET `/bot/session` stays open. Mutating bot routes still need `X-Nova-Api-Key`. The header is controlled by the last successful session. A 401/403 is sticky text under the strip, not a tooltip. Selecting Strategy still Activate-then-PATCH with `X-Nova-Desk-Arm`. L3 stays parked.
