@@ -191,7 +191,7 @@
   flex: 1 1 0;
   min-height: 0;
   height: 100%;
-  max-height: 100dvh;
+  max-height: 100%;
   overflow: hidden;
 }
 
@@ -214,8 +214,9 @@
 body:has(.nova-app-stack) {
   display: flex;
   flex-direction: column;
-  height: 100dvh;
-  max-height: 100dvh;
+  height: 100%;
+  max-height: 100%;
+  min-height: 100%;
   overflow: hidden;
 }
 

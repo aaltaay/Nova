@@ -3,7 +3,8 @@
  * Business logic lives in pages/hooks/components (frontend-modularity rule).
  *
  * HOD stream owner lives here so Trader does not tear down the WS.
- * Dock UI mounts in the Scanner middle column only -- not on Trader.
+ * Trader stays mounted (hidden + inert) on Scanner so L2/tape stay up.
+ * Dashboard unmounts on Trader. Each live pane owns a trader Orders dock.
  */
 import { Suspense, useEffect, useState } from 'react';
 import { LazySampleShell, LazyStockViewTabs } from './appLazy';
@@ -83,6 +84,7 @@ function AppShell() {
                   className="nova-trader-desk-slot"
                   hidden={!showTrader}
                   aria-hidden={!showTrader}
+                  inert={!showTrader}
                 >
                   <AppErrorBoundary source="stock-view">
                     <div
@@ -104,9 +106,11 @@ function AppShell() {
                 </div>
               )}
               {!showTrader && (
-                <AppErrorBoundary source="dashboard">
-                  <DashboardPage />
-                </AppErrorBoundary>
+                <div className="nova-scanner-desk-slot">
+                  <AppErrorBoundary source="dashboard">
+                    <DashboardPage />
+                  </AppErrorBoundary>
+                </div>
               )}
             </div>
             </div>

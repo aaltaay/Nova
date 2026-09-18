@@ -3,7 +3,7 @@ import { reportClientError } from '../utils/reportClientError';
 import {
   clearShellAutoReloadSlot,
   consumeShellAutoReloadSlot,
-  isFatalShellError,
+  shouldAutoReloadShell,
 } from './appErrorRecovery';
 
 interface Props {
@@ -46,7 +46,7 @@ export class AppErrorBoundary extends Component<Props, State> {
       source: this.props.source || 'react-boundary',
     });
 
-    if (isFatalShellError(error) && consumeShellAutoReloadSlot()) {
+    if (shouldAutoReloadShell(this.props.source, error) && consumeShellAutoReloadSlot()) {
       this.setState({ recovering: true });
       window.setTimeout(() => {
         window.location.reload();
@@ -56,7 +56,7 @@ export class AppErrorBoundary extends Component<Props, State> {
 
   private handleRetry = (): void => {
     const { error } = this.state;
-    if (isFatalShellError(error)) {
+    if (shouldAutoReloadShell(this.props.source, error)) {
       window.location.reload();
       return;
     }
@@ -83,7 +83,7 @@ export class AppErrorBoundary extends Component<Props, State> {
                 className="history-banner-btn"
                 onClick={this.handleRetry}
               >
-                {isFatalShellError(error) ? 'Reload Nova' : 'Retry'}
+                {shouldAutoReloadShell(this.props.source, error) ? 'Reload Nova' : 'Retry'}
               </button>
             </>
           )}

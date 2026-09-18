@@ -15,7 +15,11 @@ import {
   stopApiSidecar,
   waitForHealth,
 } from './sidecar.mjs';
+import { applyGpuPolicy } from './gpuPolicy.mjs';
+import { attachRendererGuards, recoverWindowIfErrorPage } from './rendererGuards.mjs';
+import { applySingleInstance, focusExistingWindow } from './singleInstance.mjs';
 import { skipApiSidecar } from './sidecarSkip.mjs';
+import { isAllowedRendererUrl, loadHostWindow } from './traderWindowLoad.mjs';
 import { openOrFocusTraderWindow } from './traderWindows.mjs';
 import {
   WINDOW_ID_MAIN,
@@ -26,6 +30,7 @@ import { formatScannerWindowTitle } from './appTitle.mjs';
 import { novaDesktopReleaseTag } from './loadReleaseTag.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+applyGpuPolicy(app);
 const isDev = !app.isPackaged;
 const ALLOWED_EXTERNAL_HOSTS = new Set(['www.interactivebrokers.com']);
 
@@ -61,31 +66,49 @@ function windowOptions() {
 /** Stock View double-click opens ?view=stock&symbol=… in a real child window. */
 function attachStockViewWindowOpen(win) {
   win.webContents.setWindowOpenHandler(({ url }) => {
-    try {
-      openOrFocusTraderWindow(url, windowOptions(), attachStockViewWindowOpen);
-    } catch {
-      /* invalid or non-trader URL */
+    if (!isAllowedRendererUrl(url, { requireStockView: true })) {
+      return { action: 'deny' };
     }
+    void openOrFocusTraderWindow(url, windowOptions(), attachStockViewWindowOpen).catch(
+      (err) => {
+        console.error('[nova] open trader window failed', err);
+      },
+    );
     return { action: 'deny' };
   });
+}
+
+function packagedIndexHtml() {
+  return path.join(__dirname, '..', 'dist', 'index.html');
+}
+
+function viteUrl() {
+  return process.env.NOVA_VITE_URL || 'http://127.0.0.1:5173';
+}
+
+function mainRecoverOpts() {
+  return isDev
+    ? { reloadUrl: viteUrl(), loadFilePath: null, allowedBase: viteUrl() }
+    : { reloadUrl: null, loadFilePath: packagedIndexHtml(), allowedBase: 'file:' };
 }
 
 function createWindow() {
   const userData = app.getPath('userData');
   const saved = restoreWindowBounds(userData, WINDOW_ID_MAIN, displayWorkAreas());
-  mainWindow = new BrowserWindow({ ...windowOptions(), ...(saved || {}) });
+  mainWindow = new BrowserWindow({
+    ...windowOptions(),
+    ...(saved || {}),
+    show: false,
+  });
   bindWindowBoundsPersist(mainWindow, userData, WINDOW_ID_MAIN);
-
-  if (isDev) {
-    const viteUrl = process.env.NOVA_VITE_URL || 'http://127.0.0.1:5173';
-    void mainWindow.loadURL(viteUrl);
-    if (shouldOpenDetachedDevTools(isDev)) {
+  const recover = mainRecoverOpts();
+  attachRendererGuards(mainWindow, { ...recover, retryFail: true });
+  void loadHostWindow(mainWindow, recover).then((ok) => {
+    if (!ok) recoverWindowIfErrorPage(mainWindow, recover);
+    if (shouldOpenDetachedDevTools(isDev) && mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.openDevTools({ mode: 'detach' });
     }
-  } else {
-    void mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
-  }
-
+  });
   attachStockViewWindowOpen(mainWindow);
 
   mainWindow.on('closed', () => {
@@ -118,7 +141,7 @@ ipcMain.handle('nova:restartApi', async () => {
 });
 
 ipcMain.handle('nova:openStockView', (_event, url) => {
-  if (typeof url !== 'string' || !url.startsWith('http')) {
+  if (!isAllowedRendererUrl(url, { requireStockView: true })) {
     throw new Error('Invalid Trader URL');
   }
   return openOrFocusTraderWindow(url, windowOptions(), attachStockViewWindowOpen);
@@ -136,26 +159,36 @@ ipcMain.handle('nova:openExternal', async (_event, url) => {
   return true;
 });
 
-app.whenReady().then(async () => {
-  try {
-    await startApiSidecar();
-    await openEnvFileIfNeeded();
-    await waitForHealth();
-    createWindow();
-  } catch (err) {
-    console.error(err);
-    const { dialog } = await import('electron');
-    await dialog.showErrorBox(
-      'Nova failed to start',
-      err instanceof Error ? err.message : String(err),
-    );
-    app.quit();
-  }
+if (
+  !applySingleInstance(app, () => {
+    focusExistingWindow(mainWindow, (win) => {
+      recoverWindowIfErrorPage(win, mainRecoverOpts());
+    });
+  })
+) {
+  app.quit();
+} else {
+  app.whenReady().then(async () => {
+    try {
+      await startApiSidecar();
+      await openEnvFileIfNeeded();
+      await waitForHealth();
+      createWindow();
+    } catch (err) {
+      console.error(err);
+      const { dialog } = await import('electron');
+      await dialog.showErrorBox(
+        'Nova failed to start',
+        err instanceof Error ? err.message : String(err),
+      );
+      app.quit();
+    }
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
   });
-});
+}
 
 app.on('window-all-closed', () => {
   stopApiSidecar();

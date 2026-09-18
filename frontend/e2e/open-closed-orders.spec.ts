@@ -16,6 +16,7 @@ import {
   E2E_WORKING_PRESUBMITTED,
 } from './fixtures/orderRows';
 import { attachErrorCollector } from './helpers/errorCollector';
+import { traderOrdersDock } from './helpers/ordersDock';
 
 async function json(route: Route, body: unknown, status = 200) {
   await route.fulfill({
@@ -95,11 +96,11 @@ test.describe('Orders pyramid L3 — Open/Closed dock (mocked API)', () => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/?view=stock&symbol=AAPL');
 
-    await expect(page.getByTestId('stock-view-open-orders-dock')).toBeVisible({
-      timeout: 20_000,
-    });
-    await expect(page.getByTestId('stock-view-working-orders')).toBeVisible();
-    const panel = page.getByTestId('working-orders-panel');
+    await expect(page.getByTestId('scanner-desk')).toHaveCount(0);
+    const dock = traderOrdersDock(page, 'AAPL');
+    await expect(dock).toBeVisible({ timeout: 20_000 });
+    await expect(dock.getByTestId('stock-view-working-orders')).toBeVisible();
+    const panel = dock.getByTestId('working-orders-panel');
     await expect(panel).toBeVisible();
 
     const text = await panel.innerText();
@@ -113,7 +114,7 @@ test.describe('Orders pyramid L3 — Open/Closed dock (mocked API)', () => {
     expect(text).toMatch(/09:41:23/);
     expect(text).not.toMatch(/14:00:00/);
 
-    const fillBtn = page.getByRole('button', { name: /Fill now order 4242/i });
+    const fillBtn = dock.getByRole('button', { name: /Fill now order 4242/i });
     await expect(fillBtn).toBeEnabled();
 
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
@@ -125,15 +126,18 @@ test.describe('Orders pyramid L3 — Open/Closed dock (mocked API)', () => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/?view=stock&symbol=AAPL');
 
-    await page.getByTestId('orders-today-filter-all').click();
-    await expect(page.getByTestId('orders-today-view')).toBeVisible();
-    await page.getByTestId('orders-today-filter-filled').click();
-    await expect(page.getByTestId('stock-view-closed-orders')).toBeVisible({
+    await expect(page.getByTestId('scanner-desk')).toHaveCount(0);
+    const dock = traderOrdersDock(page, 'AAPL');
+    await expect(dock).toBeVisible({ timeout: 20_000 });
+    await dock.getByTestId('orders-today-filter-all').click();
+    await expect(dock.getByTestId('orders-today-view')).toBeVisible();
+    await dock.getByTestId('orders-today-filter-filled').click();
+    await expect(dock.getByTestId('stock-view-closed-orders')).toBeVisible({
       timeout: 15_000,
     });
-    // Partial cancel + Failed live under other segments — use All for full matrix.
-    await page.getByTestId('orders-today-filter-all').click();
-    const closed = page.getByTestId('stock-view-closed-orders');
+    // Partial cancel + Failed live under other segments -- use All for full matrix.
+    await dock.getByTestId('orders-today-filter-all').click();
+    const closed = dock.getByTestId('stock-view-closed-orders');
     await expect(closed).toBeVisible();
 
     const text = await closed.innerText();
@@ -155,12 +159,12 @@ test.describe('Orders pyramid L3 — Open/Closed dock (mocked API)', () => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/?view=stock&symbol=AAPL');
 
-    await expect(page.getByTestId('stock-view-open-orders-dock')).toBeVisible({
-      timeout: 20_000,
-    });
-    await page.getByTestId('stock-view-dock-tab-positions').click();
-    await expect(page.getByTestId('stock-view-positions')).toBeVisible();
-    const table = page.getByTestId('positions-table');
+    await expect(page.getByTestId('scanner-desk')).toHaveCount(0);
+    const dock = traderOrdersDock(page, 'AAPL');
+    await expect(dock).toBeVisible({ timeout: 20_000 });
+    await dock.getByTestId('stock-view-dock-tab-positions').click();
+    await expect(dock.getByTestId('stock-view-positions')).toBeVisible();
+    const table = dock.getByTestId('positions-table');
     await expect(table).toBeVisible();
     const text = await table.innerText();
     expect(text).toContain('AAPL');

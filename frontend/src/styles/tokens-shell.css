@@ -138,6 +138,13 @@ html:not([data-theme]) select optgroup {
   color: #1d1d1f;
 }
 
+/* Percent of the webContents box. 100dvh in Electron can clip the desk
+   to --bg-color (#000) while document.title still updates. */
+html {
+  height: 100%;
+  min-height: 100%;
+}
+
 body {
   margin: 0;
   padding: 0;

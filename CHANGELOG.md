@@ -30,6 +30,26 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Orders dock hosts are scanner vs trader
+
+- **What:** The Orders/Positions/Nova OS dock stamps `data-dock-host` (`scanner` | `trader`) and `data-dock-symbol`. Hidden keep-alive hosts are `inert`. Dashboard unmounts while Trader is showing, so `scanner-desk` is gone on `/?view=stock`.
+- **Why:** Frontend E2E on #251 failed: two `stock-view-open-orders-dock` nodes (`scanner-desk` + `stock-view-main`) after this PR left Dashboard mounted on Trader. Red Team: real multi-instance product, not a Time Placed clock bug. Do not delete the scanner dock.
+- **Files touched:** `App.tsx`, `StockViewOpenOrdersDock.tsx`, `ScannerDesk.tsx`, `StockViewPage.tsx`, `StockViewTabs.tsx`, `e2e/helpers/ordersDock.ts`, open-closed-orders / scanner-account-dock / workspace-context specs.
+- **How it works now:** ScannerDesk keeps `host=scanner` while Dashboard is up. Each live StockViewPage keeps `host=trader`. The Trader slot stays mounted `hidden` + `inert` on Scanner so L2/tape stay up. Inactive live panes are `inert`. E2E clicks the trader host+symbol dock, never `.first()`.
+- **Verified by:** Vitest dock / tabs / ScannerDesk / workspaceWiring. Playwright `open-closed-orders` + `scanner-account-dock` + `workspace-context`.
+- **Follow-ups:** Windows Electron paint gate on #251 is unchanged (visible chrome + ticket, not title-only). Optional later: inactive trader tabs mount a dock stub.
+- **Related:** PROBLEM_LOG 2026-09-18 -- Dual Orders dock failed Frontend E2E. Refs #251.
+
+## 2026-09-18 -- Header Trader no longer blanks the Electron window
+
+- **What:** Clicking header Trader keeps the Nova chrome and opens the in-app desk. Electron no longer leaves a black File/Edit/View shell after `document.title` already says `SYMBOL · Trader · Nova · vNNN`.
+- **Why:** Live Electron→Vite desk: Scanner worked, header Trader painted black. Playwright Chromium against `http://127.0.0.1:5173/` clicking header Trader works (title `SPY · Trader · Nova`, Net Liq / tabs). Bench also saw `chrome-error://chromewebdata/` on a pile of stale Electron processes; kill-all + one `Start-NovaDevDesktop.ps1` pointed DevTools at Vite again. After #250 (`f8d8aa8`) Ahmed's OS title was `AEMD · Trader · Nova · v477` with a fully black client -- React ran; the Electron compositor did not present frames. Not a SPA route crash.
+- **Files touched:** `electron/main.mjs`, `electron/gpuPolicy.mjs`, `electron/rendererGuards.mjs`, `electron/singleInstance.mjs`, `electron/traderWindows.mjs`, `electron/traderWindowLoad.mjs`, `nudgeElectronPaint.ts`, `stock-view.css`, `hodMomoDock.css`, `tokens-shell.css`, `AppErrorBoundary.tsx`, `App.tsx`.
+- **How it works now:** Host and child BrowserWindows stay `show: false` until `loadURL`/`loadFile` succeeds. Child chrome-error closes; host stays so guards can reload Vite. Single-instance recovers a second `electron .`. On Windows, Electron disables `CalculateNativeWinOcclusion` and defaults to software raster. Viewport locks use `html/body/#root` `height: 100%` instead of `100dvh`. Show/restore/focus invalidates; Scanner→Trader nudges `translateZ(0)` in Electron only.
+- **Verified by:** Vitest gpuPolicy / rendererGuards / traderWindowLoad / nudgeElectronPaint / electronViewport. Playwright header Trader (SPA neighbor -- bench also green). Desktop pack CI is the Windows installer proof.
+- **Follow-ups:** Confirm on Windows after kill-all + one `Start-NovaDevDesktop.ps1`. Not D-003.
+- **Related:** PROBLEM_LOG 2026-09-18 -- Trader click blanked Electron.
+
 ## 2026-09-18 -- Cancel marks place ledger Cancelled for Time Placed
 
 - **What:** A verified user cancel now sets the matching **place** (or bracket) execution `broker_status=Cancelled` across `boot_id`. Closed overlay can also join IB Cancelled/Filled to a still-`PreSubmitted` place row by `perm_id` or `order_id` and fill blank Time Placed from `nova_placed_at`. Cancel `operation` rows stay unused. Working PreSubmitted leftovers are not appended. IB-recovered with no ledger stays blank. **Time Filled** stays fill-only.

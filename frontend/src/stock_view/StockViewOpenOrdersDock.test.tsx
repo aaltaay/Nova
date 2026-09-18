@@ -85,6 +85,7 @@ const POSITION: IbkrPosition = {
 };
 
 const baseProps = {
+  host: 'trader' as const,
   symbol: 'AAPL',
   orders: [] as IbkrOrder[],
   positions: [] as IbkrPosition[],
@@ -121,6 +122,8 @@ describe('StockViewOpenOrdersDock', () => {
       '[data-testid="stock-view-open-orders-dock"]',
     );
     expect(dock).toBeTruthy();
+    expect(dock?.getAttribute('data-dock-host')).toBe('trader');
+    expect(dock?.getAttribute('data-dock-symbol')).toBe('AAPL');
     expect(dock?.getAttribute('data-sample')).not.toBe('1');
     expect(container.textContent).toContain(ORDERS_TODAY_TITLE);
     expect(container.textContent).not.toContain('90001');

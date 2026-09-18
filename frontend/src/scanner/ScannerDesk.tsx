@@ -102,6 +102,7 @@ export function ScannerDesk({ children, onOpenTrading }: Props) {
         />
       )}
       <StockViewOpenOrdersDock
+        host="scanner"
         symbol={symbol}
         orders={orders}
         positions={positions}

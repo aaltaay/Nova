@@ -9,6 +9,8 @@
  * second Electron-only dock model here.
  */
 import { app, BrowserWindow, screen } from 'electron';
+import { attachRendererGuards } from './rendererGuards.mjs';
+import { isAllowedRendererUrl, loadTraderWindow } from './traderWindowLoad.mjs';
 import {
   bindWindowBoundsPersist,
   restoreWindowBounds,
@@ -63,9 +65,12 @@ function displayWorkAreas() {
 
 /**
  * Focus an existing symbol window, or open a new one on the next display.
- * @returns {boolean} false when the 3-window cap is full (focuses an existing).
+ * @returns {Promise<boolean>} false when the cap is full or the URL failed to load.
  */
-export function openOrFocusTraderWindow(url, windowOptions, attachHandler) {
+export async function openOrFocusTraderWindow(url, windowOptions, attachHandler) {
+  if (!isAllowedRendererUrl(url, { requireStockView: true })) {
+    throw new Error('Invalid Trader URL');
+  }
   const sym = symbolFromTraderUrl(url);
   if (!sym) {
     throw new Error('Invalid Trader URL');
@@ -89,7 +94,8 @@ export function openOrFocusTraderWindow(url, windowOptions, attachHandler) {
     windowOptions.width ?? 1440,
     windowOptions.height ?? 900,
   );
-  const child = new BrowserWindow({ ...windowOptions, ...bounds });
+  const child = new BrowserWindow({ ...windowOptions, ...bounds, show: false });
+  attachRendererGuards(child, { allowedBase: url, reloadUrl: url });
   let currentSym = sym;
   bindWindowBoundsPersist(child, userData, () => traderWindowId(currentSym));
   const releaseTag = novaDesktopReleaseTag(app);
@@ -120,11 +126,9 @@ export function openOrFocusTraderWindow(url, windowOptions, attachHandler) {
   child.on('closed', () => {
     if (traderWindows.get(currentSym) === child) traderWindows.delete(currentSym);
   });
-  void child.loadURL(url).then(() => {
-    if (!child.isDestroyed()) {
-      child.show();
-      child.focus();
-    }
-  });
-  return true;
+  const loaded = await loadTraderWindow(child, url);
+  if (!loaded && traderWindows.get(currentSym) === child) {
+    traderWindows.delete(currentSym);
+  }
+  return loaded;
 }

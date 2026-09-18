@@ -116,7 +116,7 @@ describe('StockViewTabs tab-strip placement', () => {
     expect(container.querySelector('[data-testid="stock-view-page-MSFT"]')).toBeTruthy();
   });
 
-  it('portals the strip into the GlobalAppBar slot and moves back when the slot goes away', () => {
+  it('portals the strip into the GlobalAppBar slot and moves back when the slot goes away', async () => {
     act(() => {
       setGlobalBarTraderSlot(headerSlot);
     });
@@ -131,8 +131,9 @@ describe('StockViewTabs tab-strip placement', () => {
     expect(headerSlot.querySelector('[data-testid="sv-tab-MSFT"]')).toBeTruthy();
     expect(rootEl.querySelector('[data-testid="stock-view-page-AAPL"]')).toBeTruthy();
 
-    act(() => {
+    await act(async () => {
       setGlobalBarTraderSlot(null);
+      await Promise.resolve();
     });
     expect(headerSlot.querySelector('.sv-tab-strip')).toBeNull();
     expect(rootEl.querySelector('.sv-tab-strip')).toBeTruthy();
@@ -175,6 +176,12 @@ describe('StockViewTabs tab-strip placement', () => {
     expect(
       container.querySelector('[data-testid="stock-view-page-MSFT"]')?.getAttribute('data-chart-active'),
     ).toBe('0');
+    expect(container.querySelector('[data-testid="sv-tab-pane-AAPL"]')?.hasAttribute('inert')).toBe(
+      false,
+    );
+    expect(container.querySelector('[data-testid="sv-tab-pane-MSFT"]')?.hasAttribute('inert')).toBe(
+      true,
+    );
   });
 
   it('does not mount a StockViewPage for a gray / suspended tab', () => {

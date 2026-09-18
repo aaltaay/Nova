@@ -143,6 +143,7 @@ export function StockViewTabs({ detached }: Props) {
                 className="sv-tabs-pane sv-tabs-pane--draft"
                 hidden={!show}
                 aria-hidden={!show}
+                inert={!show}
               >
                 <p className="sv-tabs-draft-hint">Type a ticker in the tab above, then press Enter.</p>
               </div>
@@ -157,6 +158,7 @@ export function StockViewTabs({ detached }: Props) {
                 className="sv-tabs-pane sv-tabs-pane--suspended"
                 hidden={!show}
                 aria-hidden={!show}
+                inert={!show}
                 data-testid={`sv-tab-pane-${symbol}`}
                 data-suspended="1"
               />
@@ -168,6 +170,7 @@ export function StockViewTabs({ detached }: Props) {
               className="sv-tabs-pane"
               hidden={!show}
               aria-hidden={!show}
+              inert={!show}
               data-testid={`sv-tab-pane-${symbol}`}
             >
               <StockViewPage
