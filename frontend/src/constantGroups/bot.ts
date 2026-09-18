@@ -63,15 +63,19 @@ export type BotPackId = (typeof BOT_PACKS)[number];
 export const BOT_PACK_LABELS: Record<BotPackId, string> = {
   'halt-luld': 'Halt / LULD resume',
   'quote-spike': 'Quote spike',
-  volume: 'Volume boost (stub)',
+  volume: 'Volume boost',
   'llm-decide': 'LLM decide',
 };
 
-export const BOT_PACK_STUBS: readonly BotPackId[] = ['volume'];
+export const BOT_PACK_STUBS: readonly BotPackId[] = [];
 
 export const BOT_QUOTE_SPIKE_MIN_PCT = 3;
 export const BOT_QUOTE_SPIKE_WINDOW_SEC = 5;
 export const BOT_QUOTE_SPIKE_COOLDOWN_SEC = 30;
+export const BOT_VOLUME_MIN_MULT = 5;
+export const BOT_VOLUME_WINDOW_SEC = 60;
+export const BOT_VOLUME_BASELINE_SEC = 600;
+export const BOT_VOLUME_COOLDOWN_SEC = 60;
 
 export const BOT_PACK_DESCRIPTIONS: Record<BotPackId, string> = {
   'halt-luld':
@@ -79,7 +83,7 @@ export const BOT_PACK_DESCRIPTIONS: Record<BotPackId, string> = {
   'quote-spike':
     `When an allowlisted live-focus last (or bid/ask mid when both sides exist) rises ${BOT_QUOTE_SPIKE_MIN_PCT}% within ${BOT_QUOTE_SPIKE_WINDOW_SEC}s on the shared L1/quote stream, Eyes proposes and L2 plus Activate fires buy_market (or spike_kind) once, then waits the cooldown. No new reqMktData.`,
   volume:
-    'Stub: Scanner tab Volume boost is the detection SSOT. This pack does not fire -- heartbeats only and fire returns 409 BOT_PACK_STUB.',
+    `When an allowlisted live-focus day-volume rate over the last ${BOT_VOLUME_WINDOW_SEC}s is ${BOT_VOLUME_MIN_MULT}x the prior ${BOT_VOLUME_BASELINE_SEC}s baseline on the shared L1/quote stream, Eyes proposes and L2 plus Activate fires buy_market (or volume_kind) once, then waits the cooldown. Thin history fails closed. No new reqMktData.`,
   'llm-decide':
     'A configured LLM posts fixed-schema proposals for allowlisted live-focus names and live-fires those kinds only when L2 + Activate are on. Idle if the key, base URL, or model is missing.',
 };
@@ -100,6 +104,17 @@ export function quoteSpikeSettingsLine(
   const kind = String(settings?.spike_kind || 'buy_market');
   const cool = Number(settings?.cooldown_sec ?? BOT_QUOTE_SPIKE_COOLDOWN_SEC);
   return `Signal: last or bid/ask mid up ${minPct}% in ${windowSec}s, fire ${kind} once, cooldown ${cool}s.`;
+}
+
+export function volumeSettingsLine(
+  settings: Record<string, unknown> | undefined,
+): string {
+  const minMult = Number(settings?.min_mult ?? BOT_VOLUME_MIN_MULT);
+  const windowSec = Number(settings?.window_sec ?? BOT_VOLUME_WINDOW_SEC);
+  const baselineSec = Number(settings?.baseline_sec ?? BOT_VOLUME_BASELINE_SEC);
+  const kind = String(settings?.volume_kind || 'buy_market');
+  const cool = Number(settings?.cooldown_sec ?? BOT_VOLUME_COOLDOWN_SEC);
+  return `Signal: last-${windowSec}s day-volume rate >= ${minMult}x the prior ${baselineSec}s baseline, fire ${kind} once, cooldown ${cool}s.`;
 }
 
 export const BOT_IN_CONTROL_LABEL = 'Bot is in control';

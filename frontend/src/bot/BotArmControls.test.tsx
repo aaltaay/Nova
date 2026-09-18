@@ -31,7 +31,7 @@ function session(partial: Partial<BotSession> = {}): BotSession {
     packs: [
       { id: 'halt-luld', label: 'Halt / LULD resume', status: 'live' },
       { id: 'quote-spike', label: 'Quote spike', status: 'live' },
-      { id: 'volume', label: 'Volume boost (stub)', status: 'stub' },
+      { id: 'volume', label: 'Volume boost', status: 'live' },
     ],
     symbol_allowlist: [],
     brain_session_id: null,

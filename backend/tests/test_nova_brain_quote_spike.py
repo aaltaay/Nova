@@ -5,14 +5,12 @@ import json
 
 import pytest
 
-from bot.errors import BotError
 from bot.packs import assert_pack_can_fire, catalog, default_pack_settings, merge_pack_settings
 from constants_bot import (
     BOT_PACK_QUOTE_SPIKE,
     BOT_QUOTE_SPIKE_COOLDOWN_SEC,
     BOT_QUOTE_SPIKE_MIN_PCT,
     BOT_QUOTE_SPIKE_WINDOW_SEC,
-    BOT_REASON_PACK_STUB,
 )
 from nova_brain.loop import step
 from nova_brain.quote_spike import detect_spikes, quote_px, tick
@@ -25,13 +23,11 @@ def _watch(*rows: dict) -> dict:
 def test_catalog_marks_quote_spike_live():
     rows = {row["id"]: row for row in catalog()}
     assert rows[BOT_PACK_QUOTE_SPIKE]["status"] == "live"
-    assert rows["volume"]["status"] == "stub"
+    assert rows["volume"]["status"] == "live"
     assert "stub" not in rows[BOT_PACK_QUOTE_SPIKE]["description"].lower()
     assert "3%" in rows[BOT_PACK_QUOTE_SPIKE]["description"]
     assert_pack_can_fire(BOT_PACK_QUOTE_SPIKE)
-    with pytest.raises(BotError) as exc:
-        assert_pack_can_fire("volume")
-    assert exc.value.reason == BOT_REASON_PACK_STUB
+    assert_pack_can_fire("volume")
 
 
 def test_default_pack_settings_define_the_signal():

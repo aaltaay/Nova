@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Volume pack was stub
+
+- **Symptom:** Selecting `volume` looked like a pack, but catalog status was stub, nova-brain heartbeat-only, and `POST /bot/action` returned `409 BOT_PACK_STUB`.
+- **Cause:** ADR 016 / #221 left volume as the next selectable stub after quote-spike shipped. Shared L1 day volume already lived on `ticks._subs["last_cum_volume"]` and the Volume boost scanner, but `last_quotes` / `/bot/watch` did not expose it and no rising-edge fire path existed.
+- **Fix:** Live pack with `min_mult` / `window_sec` / `baseline_sec` / `volume_kind` / `cooldown_sec`. Watch exposes day volume from the shared feed. Eyes proposes; L2 + Activate fires once. Thin history fails closed.
+- **Fix class:** admission
+- **Keywords:** volume, BOT_PACK_STUB, last_cum_volume, last_quotes, volume_boost, live_fire_ready, nova-brain, #205, #221
+
 ## 2026-09-18 -- Quote-spike pack was stub
 
 - **Symptom:** Selecting `quote-spike` looked like a real pack, but catalog status was stub, nova-brain heartbeat-only, and `POST /bot/action` returned `409 BOT_PACK_STUB`.

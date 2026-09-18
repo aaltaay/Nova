@@ -9,11 +9,11 @@ from bot.errors import BotError
 from bot.persist import load_session
 from constants_bot import (
     BOT_PACK_QUOTE_SPIKE,
+    BOT_PACK_VOLUME,
     BOT_REASON_FREE_FORM_QTY,
     BOT_REASON_L0_DARK,
     BOT_REASON_L1_NO_FIRE,
     BOT_REASON_NOT_ACTIVE,
-    BOT_REASON_PACK_STUB,
 )
 from tests.bot_helpers import ready_l2
 from execution.models import ExecutionReceipt
@@ -161,11 +161,20 @@ async def test_eh_follows_session(monkeypatch, l2_brain):
 
 
 @pytest.mark.asyncio
-async def test_stub_pack_cannot_fire(l2_brain):
-    apply_patch({"active_pack": "volume"}, desk=True)
-    with pytest.raises(BotError) as exc:
-        await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="brain-1")
-    assert exc.value.reason == BOT_REASON_PACK_STUB
+async def test_volume_pack_can_fire(monkeypatch, l2_brain):
+    apply_patch({"active_pack": BOT_PACK_VOLUME}, desk=True)
+    seen = {}
+
+    async def fake_execute(cmd, wait_ack=False):
+        seen["source"] = cmd.source
+        return _ok(62)
+
+    monkeypatch.setattr("bot.actions.execute", fake_execute)
+    monkeypatch.setattr("bot.risk.last_quote", lambda _s: {"price": 2.0})
+    monkeypatch.setattr("bot.risk.top_of_book", lambda _s: (1.9, 2.1))
+    result = await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="brain-1")
+    assert result["ok"] is True
+    assert seen["source"] == "bot"
 
 
 @pytest.mark.asyncio

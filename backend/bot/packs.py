@@ -12,11 +12,16 @@ from constants_bot import (
     BOT_PACK_LLM_DECIDE,
     BOT_PACK_QUOTE_SPIKE,
     BOT_PACK_STUBS,
+    BOT_PACK_VOLUME,
     BOT_PACKS,
     BOT_QUOTE_SPIKE_COOLDOWN_SEC,
     BOT_QUOTE_SPIKE_MIN_PCT,
     BOT_QUOTE_SPIKE_WINDOW_SEC,
     BOT_REASON_PACK_STUB,
+    BOT_VOLUME_BASELINE_SEC,
+    BOT_VOLUME_COOLDOWN_SEC,
+    BOT_VOLUME_MIN_MULT,
+    BOT_VOLUME_WINDOW_SEC,
 )
 
 
@@ -62,7 +67,14 @@ def default_pack_settings() -> dict[str, Any]:
             "window_sec": BOT_QUOTE_SPIKE_WINDOW_SEC,
             "cooldown_sec": BOT_QUOTE_SPIKE_COOLDOWN_SEC,
         },
-        "volume": {"enabled": False, "note": "stub -- no signal logic yet"},
+        BOT_PACK_VOLUME: {
+            "enabled": True,
+            "volume_kind": "buy_market",
+            "min_mult": BOT_VOLUME_MIN_MULT,
+            "window_sec": BOT_VOLUME_WINDOW_SEC,
+            "baseline_sec": BOT_VOLUME_BASELINE_SEC,
+            "cooldown_sec": BOT_VOLUME_COOLDOWN_SEC,
+        },
         BOT_PACK_LLM_DECIDE: {
             "min_interval_sec": 15,
             "note": "Live fire needs L2 + Activate -- no hidden arm flag",
@@ -73,7 +85,7 @@ def default_pack_settings() -> dict[str, Any]:
 def merge_pack_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
     """Deep-merge session pack settings onto defaults.
 
-    A leftover quote-spike stub blob (no spike_kind / min_pct) is replaced,
+    A leftover quote-spike or volume stub blob (no signal keys) is replaced,
     not shallow-kept. Other packs keep operator overrides.
     """
     defaults = default_pack_settings()
@@ -85,6 +97,9 @@ def merge_pack_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
             out[pack_id] = dict(base)
             continue
         if pack_id == BOT_PACK_QUOTE_SPIKE and "spike_kind" not in extra and "min_pct" not in extra:
+            out[pack_id] = dict(base)
+            continue
+        if pack_id == BOT_PACK_VOLUME and "min_mult" not in extra and "window_sec" not in extra:
             out[pack_id] = dict(base)
             continue
         out[pack_id] = {**base, **extra}

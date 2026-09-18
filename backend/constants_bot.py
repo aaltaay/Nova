@@ -30,16 +30,20 @@ BOT_PACKS = (
     BOT_PACK_VOLUME,
     BOT_PACK_LLM_DECIDE,
 )
-BOT_PACK_STUBS = frozenset({BOT_PACK_VOLUME})
+BOT_PACK_STUBS = frozenset()
 BOT_PACK_LABELS = {
     BOT_PACK_HALT_LULD: "Halt / LULD resume",
     BOT_PACK_QUOTE_SPIKE: "Quote spike",
-    BOT_PACK_VOLUME: "Volume boost (stub)",
+    BOT_PACK_VOLUME: "Volume boost",
     BOT_PACK_LLM_DECIDE: "LLM decide",
 }
 BOT_QUOTE_SPIKE_MIN_PCT = 3.0
 BOT_QUOTE_SPIKE_WINDOW_SEC = 5.0
 BOT_QUOTE_SPIKE_COOLDOWN_SEC = 30
+BOT_VOLUME_MIN_MULT = 5.0
+BOT_VOLUME_WINDOW_SEC = 60
+BOT_VOLUME_BASELINE_SEC = 600
+BOT_VOLUME_COOLDOWN_SEC = 60
 BOT_PACK_DESCRIPTIONS = {
     BOT_PACK_HALT_LULD: (
         "When an allowlisted live-focus symbol resumes from halt or LULD, "
@@ -54,8 +58,12 @@ BOT_PACK_DESCRIPTIONS = {
         f"then waits the cooldown. No new reqMktData."
     ),
     BOT_PACK_VOLUME: (
-        "Stub: Scanner tab Volume boost is the detection SSOT. This pack "
-        "does not fire -- heartbeats only and fire returns 409 BOT_PACK_STUB."
+        f"When an allowlisted live-focus day-volume rate over the last "
+        f"{BOT_VOLUME_WINDOW_SEC:g}s is {BOT_VOLUME_MIN_MULT:g}x the prior "
+        f"{BOT_VOLUME_BASELINE_SEC:g}s baseline on the shared L1/quote stream, "
+        f"Eyes proposes and L2 plus Activate fires buy_market (or volume_kind) "
+        f"once, then waits the cooldown. Thin history fails closed. No new "
+        f"reqMktData."
     ),
     BOT_PACK_LLM_DECIDE: (
         "A configured LLM posts fixed-schema proposals for allowlisted "

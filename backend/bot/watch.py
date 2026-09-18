@@ -19,6 +19,7 @@ def halt_watch(row: dict[str, Any]) -> dict[str, Any]:
         bid = None
         ask = None
         last_update_ts = None
+        volume = None
         position_qty = 0.0
         try:
             from bot.quotes import eyes_row
@@ -28,11 +29,13 @@ def halt_watch(row: dict[str, Any]) -> dict[str, Any]:
             bid = quote.get("bid")
             ask = quote.get("ask")
             last_update_ts = quote.get("last_update_ts")
+            volume = quote.get("volume")
         except Exception:
             last = None
             bid = None
             ask = None
             last_update_ts = None
+            volume = None
         try:
             from ibkr import account as _account
 
@@ -48,6 +51,7 @@ def halt_watch(row: dict[str, Any]) -> dict[str, Any]:
                 "bid": bid,
                 "ask": ask,
                 "last_update_ts": last_update_ts,
+                "volume": volume,
                 "position_qty": position_qty,
             }
         )
