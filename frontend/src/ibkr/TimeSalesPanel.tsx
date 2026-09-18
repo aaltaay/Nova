@@ -3,8 +3,9 @@
  * Owns useIbkrTape (same pattern as DepthLadder → useIbkrDepth).
  * Side is row tint only (no Side column): ask green | bid red | mid/unknown neutral.
  * DOM mounts a viewport window; the hook ring still holds TAPE_UI_MAX_ROWS.
+ * Right-click opens a min-size display filter (does not change the tape stream).
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type UIEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type UIEvent } from 'react';
 import {
   TAPE_COL_HEADERS,
   TAPE_OVERSCAN_ROWS,
@@ -14,6 +15,15 @@ import {
   TAPE_VIEWPORT_FALLBACK_ROWS,
 } from '../constants';
 import { createRafCoalesce } from '../utils/rafCoalesce';
+import { TapeMinSizeFilterMenu } from './TapeMinSizeFilterMenu';
+import {
+  applyTapeMinSizeDraft,
+  filterTapePrints,
+  readTapeMinSize,
+  tapeMinSizeBadgeLabel,
+  tapeMinSizeEmptyLabel,
+  writeTapeMinSize,
+} from './tapeMinSizeFilter';
 import {
   computeTapeVisibleRange,
   tapePinnedToNewest,
@@ -67,8 +77,31 @@ function TapeRow({ print }: { print: TapePrint }) {
     >
       <span className="ts-col--time">{fmtTime(print.time)}</span>
       <span className="ts-col--price">{fmtPrice(print.price)}</span>
-      <span className="ts-col--size">{fmtSize(print.size)}</span>
+      <span className="ts-col--size" data-testid="ts-size" data-size={print.size}>
+        {fmtSize(print.size)}
+      </span>
       <span className="ts-col--exch">{print.exchange || '—'}</span>
+    </div>
+  );
+}
+
+function TapeHeadMeta({
+  badge,
+  statusClass,
+  statusText,
+}: {
+  badge: string | null;
+  statusClass: string;
+  statusText: string;
+}) {
+  return (
+    <div className="ts-panel__header-end">
+      {badge && (
+        <span className="ts-panel__filter-badge" data-testid="ts-min-size-badge">
+          {badge}
+        </span>
+      )}
+      <span className={statusClass}>{statusText}</span>
     </div>
   );
 }
@@ -80,12 +113,20 @@ export function TimeSalesPanel({ symbol, embedded = false, uiActive = true }: Pr
   const [viewportPx, setViewportPx] = useState(
     TAPE_VIEWPORT_FALLBACK_ROWS * TAPE_ROW_HEIGHT_PX,
   );
+  const [minSize, setMinSize] = useState(() => readTapeMinSize());
+  const [menu, setMenu] = useState<{ x: number; y: number; draft: string } | null>(null);
   const prevLenRef = useRef(0);
   const pinnedRef = useRef(true);
   const pendingScrollRef = useRef(0);
   const scrollRafRef = useRef(createRafCoalesce(() => {
     setScrollTop(pendingScrollRef.current);
   }));
+
+  const filtered = useMemo(
+    () => filterTapePrints(prints, minSize),
+    [prints, minSize],
+  );
+  const badge = tapeMinSizeBadgeLabel(minSize);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -108,8 +149,8 @@ export function TimeSalesPanel({ symbol, embedded = false, uiActive = true }: Pr
 
   useEffect(() => {
     const el = scrollRef.current;
-    const added = prints.length - prevLenRef.current;
-    prevLenRef.current = prints.length;
+    const added = filtered.length - prevLenRef.current;
+    prevLenRef.current = filtered.length;
     if (!el || added <= 0 || pinnedRef.current) return;
     const nextTop = tapeScrollAfterPrepend(
       el.scrollTop,
@@ -119,7 +160,7 @@ export function TimeSalesPanel({ symbol, embedded = false, uiActive = true }: Pr
     );
     el.scrollTop = nextTop;
     setScrollTop(nextTop);
-  }, [prints.length]);
+  }, [filtered.length]);
 
   useEffect(() => {
     const raf = scrollRafRef.current;
@@ -133,24 +174,47 @@ export function TimeSalesPanel({ symbol, embedded = false, uiActive = true }: Pr
     scrollRafRef.current.schedule();
   }, []);
 
+  const onContextMenu = useCallback((event: MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setMenu({
+      x: event.clientX,
+      y: event.clientY,
+      draft: minSize > 0 ? String(minSize) : '',
+    });
+  }, [minSize]);
+
+  const onDraftChange = useCallback((next: string) => {
+    setMenu((open) => (open ? { ...open, draft: next } : open));
+    const parsed = applyTapeMinSizeDraft(next);
+    if (parsed == null) return;
+    setMinSize(parsed);
+    writeTapeMinSize(parsed);
+  }, []);
+
+  const closeMenu = useCallback(() => setMenu(null), []);
+
   const range = computeTapeVisibleRange(
     scrollTop,
-    prints.length,
+    filtered.length,
     TAPE_ROW_HEIGHT_PX,
     viewportPx,
     TAPE_OVERSCAN_ROWS,
   );
-  const visible = prints.slice(range.startIndex, range.endIndex);
+  const visible = filtered.slice(range.startIndex, range.endIndex);
 
   const statusLabel = useMemo(() => {
     if (error) return error;
     if (!connected) return 'Connecting…';
     if (prints.length === 0) return 'Waiting for prints…';
+    if (filtered.length === 0 && minSize > 0) return tapeMinSizeEmptyLabel(minSize);
     return null;
-  }, [error, connected, prints.length]);
+  }, [error, connected, prints.length, filtered.length, minSize]);
 
   const statusClass = `ts-panel__status ${connected ? 'ts-panel__status--live' : 'ts-panel__status--off'}`;
   const statusText = connected ? 'LIVE' : (error ? 'ERROR' : '…');
+  const headMeta = (
+    <TapeHeadMeta badge={badge} statusClass={statusClass} statusText={statusText} />
+  );
 
   const cols = (
     <div className="ts-panel__cols" data-testid="ts-panel-cols">
@@ -168,6 +232,8 @@ export function TimeSalesPanel({ symbol, embedded = false, uiActive = true }: Pr
       onScroll={onScroll}
       data-testid="ts-panel-rows"
       data-ring-count={prints.length}
+      data-filtered-count={filtered.length}
+      data-min-size={minSize}
       data-rendered-count={statusLabel ? 0 : visible.length}
       data-tape-ui-active={uiActive ? '1' : '0'}
     >
@@ -185,29 +251,45 @@ export function TimeSalesPanel({ symbol, embedded = false, uiActive = true }: Pr
     </div>
   );
 
+  const filterMenu = menu && (
+    <TapeMinSizeFilterMenu
+      x={menu.x}
+      y={menu.y}
+      draft={menu.draft}
+      onDraftChange={onDraftChange}
+      onClose={closeMenu}
+    />
+  );
+
   if (embedded) {
     return (
-      <div className="sv-md-pane ts-panel ts-panel--embedded">
+      <div
+        className="sv-md-pane ts-panel ts-panel--embedded"
+        data-testid="ts-panel"
+        onContextMenu={onContextMenu}
+      >
         <div className="sv-md-pane__head">
           <h3 className="sv-md-pane__title">{TAPE_SECTION_TITLE}</h3>
-          <span className={statusClass}>{statusText}</span>
+          {headMeta}
         </div>
         <div className="sv-md-pane__body">
           {cols}
           {rows}
         </div>
+        {filterMenu}
       </div>
     );
   }
 
   return (
-    <div className="ts-panel">
+    <div className="ts-panel" data-testid="ts-panel" onContextMenu={onContextMenu}>
       <div className="ts-panel__header">
         <span className="ts-panel__title">{TAPE_SECTION_TITLE}</span>
-        <span className={statusClass}>{statusText}</span>
+        {headMeta}
       </div>
       {cols}
       {rows}
+      {filterMenu}
     </div>
   );
 }

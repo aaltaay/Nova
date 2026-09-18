@@ -44,6 +44,13 @@ export const TAPE_COL_HEADERS = {
   size: 'Size',
   exchange: 'Exch',
 } as const;
+/** localStorage: T&S min print size. 0 / empty = show all (display filter only). */
+export const TAPE_MIN_SIZE_STORAGE_KEY = 'nova.tape.minSize';
+export const TAPE_MIN_SIZE_FILTER_TITLE = 'Min size';
+export const TAPE_MIN_SIZE_FILTER_HINT = 'Empty or 0 shows all prints';
+export const TAPE_MIN_SIZE_FILTER_MENU_WIDTH_PX = 220;
+export const TAPE_MIN_SIZE_FILTER_MENU_HEIGHT_PX = 104;
+export const TAPE_MIN_SIZE_FILTER_MENU_PAD_PX = 8;
 /** Aggressor labels (legacy / tests). Tape UI encodes side via row tint only. */
 export const TAPE_SIDE_LABELS = {
   ask: 'ASK',

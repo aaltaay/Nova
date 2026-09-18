@@ -1,6 +1,7 @@
 /** Export / import browser desk prefs (localStorage only). */
 
 import { ORDER_TABLE_COLUMNS_STORAGE_KEY } from '../constantGroups/chart_api';
+import { TAPE_MIN_SIZE_STORAGE_KEY } from '../constantGroups/features';
 import { SCANNER_ACTIVE_TAB_STORAGE_KEY } from '../constantGroups/market_ui';
 
 export const PREFS_BUNDLE_VERSION = 1;
@@ -33,6 +34,7 @@ export const PREFS_BUNDLE_KEYS = [
   'nova.hodMomo.dock.v2.collapsed',
   'nova.hodMomo.dock.v2.heightPx',
   'nova_os_attention_muted',
+  TAPE_MIN_SIZE_STORAGE_KEY,
 ] as const;
 
 export interface PrefsBundle {
