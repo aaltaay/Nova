@@ -5,6 +5,7 @@ import { collapseAlertsBySymbol } from './collapseAlertsBySymbol';
 import { HodMomoAlertTable } from './HodMomoAlertTable';
 import { HodMomoDebugPanel } from './HodMomoDebugPanel';
 import { HodMomoIntegrityBanner } from './HodMomoIntegrityBanner';
+import { HodMomoSoundToggle } from './HodMomoSoundToggle';
 import {
   defaultHodMomentumVisibleStrategies,
   HOD_MOMENTUM_STRATEGY_META,
@@ -157,6 +158,7 @@ export function HodMomoTab({
           <span className="hod-alert-count">{alertCountLabel}</span>
         </div>
         <div className="hod-header-right">
+          <HodMomoSoundToggle />
           <button
             type="button"
             className="hod-clear-btn"

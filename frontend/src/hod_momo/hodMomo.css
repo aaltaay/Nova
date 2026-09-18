@@ -135,6 +135,35 @@
   border-color: #ef444466;
 }
 
+.hod-sound-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.45rem;
+  height: 1.45rem;
+  padding: 0;
+  border-radius: 3px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.hod-sound-btn:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.hod-sound-btn--off {
+  color: var(--text-muted, #6b7280);
+  opacity: 0.72;
+}
+
+.hod-sound-btn__icon {
+  display: inline-flex;
+  line-height: 0;
+}
+
 /* Compact single-row toolbar (strategies live in a dropdown) */
 .hod-filter-toolbar {
   display: flex;

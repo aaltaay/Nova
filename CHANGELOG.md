@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- HOD Momo new-row ping + banner mute
+
+- **What:** A short Web Audio ping plays when a new HOD Momo alert row arrives. Speaker toggle in the HOD Momo Scanner header (and the HOD dock bar) mutes it. Default on; preference is localStorage.
+- **Why:** Ahmed asked to look up when HOD fires without opening Configure.
+- **Files touched:** `frontend/src/hod_momo/hodMomoAlertSound.ts`, `HodMomoSoundToggle.tsx`, `useHodMomoStream.ts`, `HodMomoTab.tsx`, `HodMomoDock.tsx`.
+- **How it works now:** Live `/ws/hod-momo` `alert` messages (not `initial` / reconnect replay, not duplicate id or symbol+time) call `noteHodMomoLiveAlert`. Running Up (strategy 12) does not ping. Burst rule: one ping per 400ms. Banner mute is not `cfg.audio` -- that field is per-strategy backend Warrior config and never plays a sound. Cue matches `novaOsAttention` (quiet 880Hz oscillator); Nova OS mute is not shared.
+- **Verified by:** `npx vitest run src/hod_momo` -- 15 files, 51 passed. `npm run lint` / `npm run build` exit 0. `doc_invariants` OK. Rebase onto `origin/master` 07a3835; only CHANGELOG conflicted.
+- **Related:** Product ask 2026-09-18. Rebased onto `origin/master` after #267 / #268. Closed duplicates #270 / #271 heads deleted. `do-not-merge` until CI green.
+
 ## 2026-09-18 -- Fund account opens IBKR Client Portal
 
 - **What:** GlobalAppBar gains a **Fund account** control next to Account / Cash-Margin. Click opens IBKR Client Portal through the existing `openIbkrClientPortal` helper. Nova does not deposit.
