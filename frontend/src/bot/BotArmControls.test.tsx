@@ -4,6 +4,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { _resetBotSessionPollerForTests } from './botSessionPoller';
+import { packDescription } from '../constantGroups/bot';
 import { BotArmControls } from './BotArmControls';
 import type { BotSession } from './types';
 import { _resetDeskPollShareForTests } from '../ibkr/deskSharedPoll';
@@ -274,10 +275,12 @@ describe('BotArmControls', () => {
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/session/arm'))).toBe(true);
   });
 
-  it('updates pack description when the picker changes', async () => {
+  it('shows the session pack sentence under the picker, not only as a tooltip', async () => {
     mockFetch(() => session({
       packs: [
         { id: 'halt-luld', label: 'Halt / LULD resume', status: 'live', description: 'Halt resume sentence.' },
+        { id: 'quote-spike', label: 'Quote spike', status: 'live', description: 'Quote spike sentence.' },
+        { id: 'volume', label: 'Volume boost', status: 'live', description: 'Volume boost sentence.' },
         { id: 'llm-decide', label: 'LLM decide', status: 'live', description: 'Live fire needs L2 + Activate.' },
       ],
     }));
@@ -287,12 +290,54 @@ describe('BotArmControls', () => {
       await Promise.resolve();
     });
     const pack = screen.getByTestId('bot-arm-pack') as HTMLSelectElement;
-    expect(pack.title).toMatch(/Halt resume/);
+    const desc = screen.getByTestId('bot-arm-pack-desc');
+    expect(desc.textContent).toBe('Halt resume sentence.');
+    expect(desc.compareDocumentPosition(pack) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    expect(pack.getAttribute('aria-describedby')).toBe('bot-arm-pack-desc');
+    const sentences: Array<[string, string]> = [
+      ['quote-spike', 'Quote spike sentence.'],
+      ['volume', 'Volume boost sentence.'],
+      ['llm-decide', 'Live fire needs L2 + Activate.'],
+    ];
+    for (const [id, text] of sentences) {
+      await act(async () => {
+        fireEvent.change(pack, { target: { value: id } });
+        await Promise.resolve();
+      });
+      expect(screen.getByTestId('bot-arm-pack-desc').textContent).toBe(text);
+    }
+  });
+
+  it('falls back to packDescription when session packs omit description', async () => {
+    mockFetch(() => session({
+      packs: [
+        { id: 'halt-luld', label: 'Halt / LULD resume', status: 'live' },
+        { id: 'quote-spike', label: 'Quote spike', status: 'live' },
+        { id: 'volume', label: 'Volume boost', status: 'live' },
+        { id: 'llm-decide', label: 'LLM decide', status: 'live' },
+      ],
+    }));
+    await act(async () => {
+      render(<BotArmControls />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId('bot-arm-pack-desc').textContent).toBe(packDescription('halt-luld'));
+    const pack = screen.getByTestId('bot-arm-pack') as HTMLSelectElement;
+    await act(async () => {
+      fireEvent.change(pack, { target: { value: 'quote-spike' } });
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId('bot-arm-pack-desc').textContent).toBe(packDescription('quote-spike'));
+    await act(async () => {
+      fireEvent.change(pack, { target: { value: 'volume' } });
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId('bot-arm-pack-desc').textContent).toBe(packDescription('volume'));
     await act(async () => {
       fireEvent.change(pack, { target: { value: 'llm-decide' } });
       await Promise.resolve();
     });
-    expect((screen.getByTestId('bot-arm-pack') as HTMLSelectElement).title).toMatch(/L2 \+ Activate/);
-    expect(screen.queryByTestId('bot-arm-pack-desc')).toBeNull();
+    expect(screen.getByTestId('bot-arm-pack-desc').textContent).toBe(packDescription('llm-decide'));
   });
 });

@@ -53,13 +53,25 @@
   white-space: nowrap;
 }
 
+.bot-arm__pack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.12rem;
+  min-width: 0;
+  flex: 1 1 16rem;
+}
+
 .bot-arm__desc {
-  flex: 1 1 100%;
   margin: 0;
   font-size: 0.64rem;
   line-height: 1.3;
-  opacity: 0.88;
-  max-width: 36rem;
+  opacity: 0.72;
+  max-width: min(36rem, 100%);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .bot-arm select,

@@ -11,6 +11,7 @@ async function expectBotRowBelowPrimary(page: import('@playwright/test').Page) {
   await expect(bot.getByTestId('bot-arm-controls')).toBeVisible();
   await expect(bot.getByTestId('bot-arm-level')).toBeVisible();
   await expect(bot.getByTestId('bot-arm-pack')).toBeVisible();
+  await expect(bot.getByTestId('bot-arm-pack-desc')).toBeVisible();
   await expect(bot.getByTestId('bot-arm-status')).toBeVisible();
   await expect(right.getByTestId('bot-arm-controls')).toHaveCount(0);
   await expect(right.getByTestId('global-bar-account')).toBeVisible();
