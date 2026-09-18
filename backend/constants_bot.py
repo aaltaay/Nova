@@ -48,8 +48,8 @@ BOT_PACK_DESCRIPTIONS = {
         "only and fire returns 409 BOT_PACK_STUB."
     ),
     BOT_PACK_VOLUME: (
-        "Stub: volume-boost is not implemented yet -- the brain heartbeats "
-        "only and fire returns 409 BOT_PACK_STUB."
+        "Stub: Scanner tab Volume boost is the detection SSOT. This pack "
+        "does not fire -- heartbeats only and fire returns 409 BOT_PACK_STUB."
     ),
     BOT_PACK_LLM_DECIDE: (
         "A configured LLM posts fixed-schema proposals for allowlisted "

@@ -20,6 +20,9 @@ const EarningsPanel = lazy(() =>
 const NovaNewsPanel = lazy(() =>
   import('../nova_news/NovaNewsPanel').then(m => ({ default: m.NovaNewsPanel })),
 );
+const VolumeBoostPanel = lazy(() =>
+  import('../volume_boost/VolumeBoostPanel').then(m => ({ default: m.VolumeBoostPanel })),
+);
 const StrategyTab = lazy(() =>
   import('../bot/StrategyTab').then(m => ({ default: m.StrategyTab })),
 );
@@ -156,6 +159,19 @@ export function TabModuleHost(props: TabModuleHostProps) {
           selectedSymbol={selectedSymbol}
           onSelectSymbol={onSelect}
           onOpenTrading={onOpenTrading}
+        />
+      </Suspense>
+    );
+  }
+
+  if (activeTab === 'volume_boost') {
+    return (
+      <Suspense fallback={<TabLazyFallback />}>
+        <VolumeBoostPanel
+          selectedSymbol={selectedSymbol}
+          onSelect={onSelect}
+          onOpenTrading={onOpenTrading}
+          sampleMode={sampleMode}
         />
       </Suspense>
     );

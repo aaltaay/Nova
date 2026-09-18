@@ -39,6 +39,7 @@
 @import "./orders_today/ordersToday.css" layer(features);
 @import "./ibkr/tradeTicket.css" layer(features);
 @import "./earnings/earningsPanel.css" layer(features);
+@import "./volume_boost/volumeBoost.css" layer(features);
 @import "./nova_news/novaNews.css" layer(features);
 @import "./bot/strategyTab.css" layer(features);
 @import "./bot/botArm.css" layer(features);

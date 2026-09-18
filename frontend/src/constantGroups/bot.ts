@@ -73,7 +73,7 @@ export const BOT_PACK_DESCRIPTIONS: Record<BotPackId, string> = {
   'quote-spike':
     'Stub: quote-spike is not implemented yet -- the brain heartbeats only and fire returns 409 BOT_PACK_STUB.',
   volume:
-    'Stub: volume-boost is not implemented yet -- the brain heartbeats only and fire returns 409 BOT_PACK_STUB.',
+    'Stub: Scanner tab Volume boost is the detection SSOT. This pack does not fire -- heartbeats only and fire returns 409 BOT_PACK_STUB.',
   'llm-decide':
     'A configured LLM posts fixed-schema proposals for allowlisted live-focus names and live-fires those kinds only when L2 + Activate are on. Idle if the key, base URL, or model is missing.',
 };

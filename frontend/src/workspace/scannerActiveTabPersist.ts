@@ -13,6 +13,7 @@ export const PERSISTED_SCANNER_TABS = [
   'gainers',
   'losers',
   'afterhours',
+  'volume_boost',
   'large_cap',
   'catalysts',
 ] as const;

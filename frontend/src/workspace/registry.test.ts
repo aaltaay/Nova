@@ -77,6 +77,16 @@ describe('module registry (Phase 4)', () => {
     expect(getModule('dashboard')).toBeUndefined();
   });
 
+  it('registers Volume boost as a derived L1 tab with no scanner price patch', () => {
+    const tab = getModule('volume_boost');
+    expect(tab?.title).toBe('Volume boost');
+    expect(tab?.defaultPlacement).toBe('tab');
+    expect(tab?.feedDeps).toEqual(['none']);
+    expect(tab?.countKey).toBe('volumeBoost');
+    expect(listTabModules().map(t => t.id)).toContain('volume_boost');
+    expect(tabUsesScannerPricePatch('volume_boost')).toBe(false);
+  });
+
   it('registers Earnings as a calendar tab with no scanner feed dependency', () => {
     const earnings = getModule('earnings');
     expect(earnings?.title).toBe('Earnings');
@@ -124,7 +134,7 @@ describe('module registry (Phase 4)', () => {
     for (const id of ['gappers', 'gainers', 'losers', 'afterhours', 'catalysts'] as const) {
       expect(tabUsesScannerPricePatch(id)).toBe(true);
     }
-    for (const id of ['hod_momo', 'running_up', 'watchlist', 'trading', 'nova_news', 'strategy'] as const) {
+    for (const id of ['hod_momo', 'running_up', 'watchlist', 'trading', 'nova_news', 'strategy', 'volume_boost'] as const) {
       expect(tabUsesScannerPricePatch(id)).toBe(false);
     }
   });

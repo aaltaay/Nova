@@ -15,6 +15,7 @@ describe('tabHints', () => {
 
   it('drops alert-only and unknown tabs, dedupes, and lowercases', () => {
     expect(tabHints(['hod_momo', 'Gainers', 'gainers', 'catalysts', null])).toEqual(['gainers']);
+    expect(tabHints(['volume_boost'])).toEqual([]);
   });
 
   it('returns an empty list when nothing scanner-ish is on screen', () => {

@@ -50,6 +50,12 @@ describe('scannerActiveTabPersist restore', () => {
       tab: 'catalysts',
       userPicked: true,
     });
+
+    writePersistedScannerTab('volume_boost');
+    expect(initialScannerTabState()).toEqual({
+      tab: 'volume_boost',
+      userPicked: true,
+    });
   });
 
   it('writes a prefStore envelope under the named scanner key', () => {
@@ -106,6 +112,9 @@ describe('scannerActiveTabPersist session auto-switch', () => {
     expect(applySessionAutoSwitch('large_cap', 'market', true)).toBe('large_cap');
     expect(applySessionAutoSwitch('catalysts', 'afterhours', true)).toBe(
       'catalysts',
+    );
+    expect(applySessionAutoSwitch('volume_boost', 'market', true)).toBe(
+      'volume_boost',
     );
     expect(applySessionAutoSwitch('gainers', 'premarket', true)).toBe('gainers');
     expect(applySessionAutoSwitch('afterhours', 'market', true)).toBe(

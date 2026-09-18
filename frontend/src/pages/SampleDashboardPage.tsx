@@ -17,6 +17,7 @@ import { setAccountNavActive } from '../components/accountNavActive';
 import { useHodMomo } from '../hod_momo/HodMomoContext';
 import { HodMomoDock } from '../hod_momo/HodMomoDock';
 import { usePublishScannerNews } from '../hod_momo/usePublishScannerNews';
+import { SAMPLE_VOLUME_BOOST_ROWS } from '../volume_boost/sampleRows';
 import { getModule, isTabModuleId, type ActiveTab } from '../workspace/registry';
 import { isDockTab } from '../workspace/scannerTabs';
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
@@ -80,6 +81,7 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
     hodMomo: hodCount,
     runningUp: runningUpCount,
     watchlist: sample.watchlist.length,
+    volumeBoost: SAMPLE_VOLUME_BOOST_ROWS.length,
   };
 
   return (

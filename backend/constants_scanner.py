@@ -108,6 +108,21 @@ EARNINGS_LOGO_CACHE_FILE = _os.path.join(
     _earnings_calendar_cache_root(), "earnings-logos.json"
 )
 
+# ── Volume boost (scanner tab) -- derived L1 spike list, not a lease ────────
+# Last-window volume rate vs the prior baseline on already-streamed L1
+# day-volume. Not session rvol_5min, not Large Cap swing RVOL, not a scrape.
+# No private reqMktData (single-market-data-feed.mdc rule 12).
+VOLUME_BOOST_TABLE = "volume_boost"
+VOLUME_BOOST_SPIKE_WINDOW_SEC = 60.0
+VOLUME_BOOST_BASELINE_WINDOW_SEC = 600.0
+VOLUME_BOOST_ENTER_RATIO = 5.0
+VOLUME_BOOST_EXIT_RATIO = 2.5
+VOLUME_BOOST_MIN_SPIKE_SHARES = 10_000
+VOLUME_BOOST_MIN_BASELINE_SHARES = 5_000
+VOLUME_BOOST_DEBOUNCE_SEC = 3.0
+VOLUME_BOOST_TOP_N = 15
+VOLUME_BOOST_STALE_SEC = 90.0
+
 # ── Client error telemetry (browser → API) ─────────────────────────────────
 CLIENT_ERRORS_ENABLED = True
 CLIENT_ERRORS_MAX_BODY_BYTES = 16_384

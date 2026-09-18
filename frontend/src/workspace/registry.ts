@@ -31,6 +31,7 @@ export type ModuleCountKey =
   | 'gainers'
   | 'losers'
   | 'afterhours'
+  | 'volumeBoost'
   | 'largeCap'
   | 'earnings'
   | 'novaNews'
@@ -45,6 +46,7 @@ export const TAB_MODULE_IDS = [
   'gainers',
   'losers',
   'afterhours',
+  'volume_boost',
   'large_cap',
   'earnings',
   'nova_news',
@@ -123,6 +125,17 @@ export const NOVA_MODULES: readonly NovaModule[] = [
     defaultPlacement: 'tab',
     showInTabNav: true,
     countKey: 'afterhours',
+  },
+  {
+    id: 'volume_boost',
+    title: 'Volume boost',
+    component: host,
+    // Derived from existing L1 day-volume -- not a /ws/scanner roster and
+    // not a new reqMktData line (single-market-data-feed.mdc rule 12).
+    feedDeps: ['none'],
+    defaultPlacement: 'tab',
+    showInTabNav: true,
+    countKey: 'volumeBoost',
   },
   {
     id: 'large_cap',
