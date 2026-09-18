@@ -1,0 +1,31 @@
+.volume-boost-description {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  padding: 0.6rem 0.25rem 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 0.5rem;
+}
+
+.volume-boost-watched {
+  color: var(--text-muted, var(--text-secondary));
+}
+
+.volume-boost-ratio {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.volume-boost-status {
+  display: inline-block;
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.volume-boost-status--hot {
+  color: var(--positive, #22c55e);
+}
+
+.volume-boost-status--cooling {
+  color: var(--warning, #f59e0b);
+}

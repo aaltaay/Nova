@@ -182,4 +182,10 @@ def apply_l1_quote(
     from hod_tick_feed import feed_hod_on_tick
 
     feed_hod_on_tick(sym, price, volume, now)
+    try:
+        from volume_boost import observe_l1
+
+        observe_l1(sym, volume, float(price), now)
+    except Exception:
+        logger.exception("volume_boost: observe_l1 failed for %s", sym)
     return patch

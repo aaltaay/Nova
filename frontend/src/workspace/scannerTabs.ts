@@ -12,6 +12,7 @@ export function isMainScannerTab(tab: ActiveTab): boolean {
     || tab === 'gainers'
     || tab === 'losers'
     || tab === 'afterhours'
+    || tab === 'volume_boost'
     || tab === 'large_cap'
     || tab === 'earnings'
     || tab === 'nova_news'
@@ -21,4 +22,9 @@ export function isMainScannerTab(tab: ActiveTab): boolean {
     || tab === 'trading'
     || tab === 'reports'
   );
+}
+
+/** Volume boost watches existing L1 -- never declare it as the active table. */
+export function declaresScannerL1(tab: ActiveTab): boolean {
+  return tab !== 'volume_boost';
 }

@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Volume boost Scanner tab MVP
+
+- **What:** New Scanner tab **Volume boost** lists names with an exceptional last-60s volume-rate spike vs the prior 10 minutes. Ticker click opens Trader. Empty is honest when nothing spiked. Bot pack `volume` stays a stub.
+- **Why:** #189 locked after Ahmed skipped the picker -- tab, existing L1 only, debounce + top-N + age/cool-off. Not news join, not alerts, not Place, not Large Cap RVOL.
+- **Files touched:** `backend/volume_boost.py`, `volume_boost_detect.py`, `routes/volume_boost.py`, `ibkr/l1_apply.py`, `constants_scanner.py`, `frontend/src/volume_boost/*`, `workspace/registry.ts`, `TabModuleHost.tsx`, `single-market-data-feed.mdc`.
+- **How it works now:** `apply_l1_quote` already has day-volume. `observe_l1` records it on the shared `hod_momo_metrics` cum-vol buffer (no new `reqMktData`). Detector needs real baseline+spike coverage, `>=5x` rate, `>=10k` spike shares, 3s debounce, hysteresis cool-off at `2.5x`, top 15. `GET /api/volume-boost` is the snapshot. IBKR down + empty is `feed_error`. Session `rvol_5min` is not the admission metric. Opening the tab does not declare `volume_boost` as the L1 active table -- that would send empty `set_active_tab` and drop the watch this list is derived from.
+- **Verified by:** Rebased onto `21ee3ab` (#253). Fixture pytest + Vitest after rebase; see PR #254.
+- **Follow-ups:** V2 news/halt/float join and V3 alerts stay out. Bot pack fire stays stub until a later Activate-gated SSOT share.
+- **Related:** Closes #189. Planning lock: issue comment 2026-09-18.
+
 ## 2026-09-18 -- Bot fire rejects Not active; Desktop shares one API key
 
 - **What:** L2 live-fire / `POST /bot/action` now returns `409 BOT_NOT_ACTIVE` when the desk is Not active (`armed` / `has_desk_arm` false), even with pack + allowlist. L2 → Eyes or L0 disarms so `live_fire_ready` cannot stay true. Packaged Desktop and unpackaged Electron send `X-Nova-Api-Key` from the same `NOVA_API_KEY` the API already uses -- no Vite inject required, no second generated key.

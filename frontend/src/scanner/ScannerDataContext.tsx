@@ -13,6 +13,7 @@ import {
 import { useScannerData } from '../hooks/useScannerData';
 import { useSettings } from '../settings/SettingsContext';
 import { DEFAULT_ACTIVE_TAB, type ActiveTab } from '../workspace/registry';
+import { declaresScannerL1 } from '../workspace/scannerTabs';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 
 export type LiveScannerFeed = ReturnType<typeof useScannerData> & {
@@ -35,6 +36,9 @@ export function ScannerDataProvider({ children }: { children: ReactNode }) {
   const [l1ActiveTab, setL1ActiveTabState] = useState<ActiveTab>(DEFAULT_ACTIVE_TAB);
   const [l1DockTab, setL1DockTabState] = useState<ActiveTab | null>(null);
   const setL1ActiveTab = useCallback((tab: ActiveTab) => {
+    // Volume boost is derived from day-volume already on the watch. Declaring
+    // it as the active table sends set_active_tab=[] and drops scanner L1.
+    if (!declaresScannerL1(tab)) return;
     setL1ActiveTabState(tab);
   }, []);
   const setL1DockTab = useCallback((tab: ActiveTab | null) => {

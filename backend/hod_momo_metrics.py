@@ -29,6 +29,12 @@ def clear_volume_buffers() -> None:
     _cum_volume_buffer.clear()
 
 
+def cum_volume_samples(symbol: str) -> list[tuple[float, int]]:
+    """Oldest-first L1 day-volume samples for Volume boost / tests."""
+    buf = _cum_volume_buffer.get(symbol)
+    return list(buf) if buf else []
+
+
 def update_cum_volume(symbol: str, cum_volume: int | None, ts: float) -> None:
     """Record a cumulative day-volume sample (skip None / non-positive)."""
     if cum_volume is None:

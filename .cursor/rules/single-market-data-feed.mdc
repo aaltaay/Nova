@@ -85,6 +85,8 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
 
 11. **Nova News is an AI-in-trading headline desk, not a price feed.** `backend/nova_news/` aggregates targeted Google News RSS (AI trading / quant / bots / wires), Yahoo-scoped AI-trading RSS, trade-press and research feeds, Finnhub `/news`, and Alpaca `/v1beta1/news`. Admission requires a high-signal "AI is doing the trading" phrase or a headline that pairs an AI term with a trading term -- NVDA-as-an-AI-stock and generic Fed tape are not rows. It is not an IBKR scanner lease, has no `/ws/scanner` price stream, and must never admit symbols into HOD Momo. Empty + all-sources-down is a loud `error`, not a fresh empty desk. Live sources with only off-topic headlines are an honest empty desk. Ticker chips open Trader (`SymbolSelectButton` -> `onOpenTrading`, ADR 011). Do not scrape HTML. Do not paint Alpaca/Yahoo/Finnhub prices from this path. Do not reuse `tools/ai_news_rank.rank_articles` on this path. Catalysts stays on-roster-with-news; Nova News is the AI-in-trading desk.
 
+12. **Volume boost is a derived L1 spike list, not a scanner lease.** `backend/volume_boost.py` watches day-volume already arriving on the shared scanner/detail/HOD `reqMktData` line (`apply_l1_quote` -> `observe_l1`). Metric is last-60s volume rate vs the prior 10 minutes -- not session `rvol_5min`, not Large Cap swing RVOL, not a third-party unusual-volume scrape. No private `reqMktData`. No IBKR `reqScannerSubscription`. No HOD admission. No `/ws/scanner` roster. Empty + IBKR ready is an honest empty desk. Empty + Gateway down is a loud `feed_error`. Debounce one-shot blips; show spike age and cool-off; cap top-N. Ticker click opens Trader (`SymbolSelectButton` -> `onOpenTrading`, ADR 011). The bot pack `volume` stays a stub (`BOT_PACK_STUB`) -- this tab is not live fire.
+
 ## Anti-patterns
 
 - ❌ Keeping previous `detail` while loading the next ticker so L2 stays on NXTC under an MVO quote
@@ -138,6 +140,7 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
 - ❌ Filling Nova News with generic tape or "AI stocks to buy" instead of AI-used-in-trading headlines
 - ❌ Painting Positions Mkt Price / Day P&L only from a 5s portfolio poll when Nova already has a live L1 last for that symbol -- prefer `ticks.last_quotes` (do not open a private `reqMktData` just to mark a position)
 - ❌ Firing `accountSummaryAsync` on the 1s account-cluster poll -- read the `reqAccountUpdates` cache (`accountValues` / `portfolio`)
+- ❌ Opening a private `reqMktData` or IBKR scanner lease for Volume boost, ranking by session `rvol_5min` / Large Cap swing RVOL as if that were a spike, inventing volume from a quiet tape, or letting the bot `volume` pack fire from this tab
 
 ## Related
 
@@ -161,6 +164,7 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
 - `backend/ibkr/tape_stream.py` — `reqTickByTickData AllLast` subscriber
 - `backend/earnings_calendar.py` -- Finnhub calendar fetch/cache; `earnings_enrich_hooks.py` -- background yfinance name/sector/mcap warm
 - `backend/nova_news/` -- Nova News desk (AI-in-trading headlines, criticality columns)
+- `backend/volume_boost.py` -- Volume boost tab (L1 day-volume rate spike vs recent baseline; no new ticks)
 - `backend/scanner_push.py` — `/ws/scanner` + `set_active_tab`
 - `frontend/src/hooks/useTickerStream.ts`, `useIbkrDepth.ts`, `useIbkrTape.ts`, `useScannerPriceStream.ts`
 - `frontend/src/utils/dataSourceMap.ts` — honest attribution
