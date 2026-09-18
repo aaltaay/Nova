@@ -16,6 +16,7 @@ from constants_ibkr import (
     FILL_AUDIT_FAST_TYPES,
     FILL_AUDIT_MKT_RTH_DANGER_MS,
     FILL_AUDIT_MKT_RTH_WARN_MS,
+    FILL_AUDIT_REASON_CLOCK_SKEW,
     FILL_AUDIT_REASON_IMPOSSIBLE,
     FILL_AUDIT_REASON_TIMEZONE_SHAPED,
 )
@@ -23,11 +24,17 @@ from execution.fill_audit import (
     classify_fill_audit,
     lookup_fill_audit,
 )
-from execution.fill_audit_clock import apply_fill_clock_guard
+from execution.fill_audit_clock import (
+    apply_fill_clock_guard,
+    clock_guard_level,
+    coherent_face_ms,
+    is_clock_skew_ms,
+)
 
 _INVALID_CLOCK_REASONS = frozenset({
     FILL_AUDIT_REASON_IMPOSSIBLE,
     FILL_AUDIT_REASON_TIMEZONE_SHAPED,
+    FILL_AUDIT_REASON_CLOCK_SKEW,
 })
 
 logger = logging.getLogger(__name__)
@@ -63,6 +70,8 @@ def public_fill_audit(row: dict[str, Any] | None) -> dict[str, Any] | None:
 
     Timezone-shaped leftovers (same-second submit + ~4h/5h fill) stay
     publishable so the cell can show an invalid clock, not a confident 4h ok.
+    Negative whole-second skew stays publishable as clock_skew / ok so the
+    hover can explain the disagreement without a -Nms face.
     """
     if not row:
         return None
@@ -77,10 +86,15 @@ def public_fill_audit(row: dict[str, Any] | None) -> dict[str, Any] | None:
         placed_iso=None,
         order_type=str(row.get("type") or "MKT"),
     )
-    if clock_reason:
+    if clock_reason == FILL_AUDIT_REASON_CLOCK_SKEW:
+        if guarded_fill is not None:
+            fill = guarded_fill
+        reason = clock_reason
+        level = "ok"
+    elif clock_reason:
         fill = None
         reason = clock_reason
-        level = "danger" if clock_reason == FILL_AUDIT_REASON_IMPOSSIBLE else "warn"
+        level = clock_guard_level(clock_reason)
     elif guarded_fill is not None:
         fill = guarded_fill
         typ = str(row.get("type") or "MKT").upper()
@@ -91,12 +105,16 @@ def public_fill_audit(row: dict[str, Any] | None) -> dict[str, Any] | None:
             elif fill > FILL_AUDIT_MKT_RTH_WARN_MS:
                 level = "warn"
                 reason = "mkt_rth_slow"
+    if is_clock_skew_ms(fill) or is_clock_skew_ms(terminal):
+        reason = FILL_AUDIT_REASON_CLOCK_SKEW
+        level = "ok"
     if fill is None and terminal is None and reason not in _INVALID_CLOCK_REASONS:
         return None
     return {
         "place_to_submit_ms": submit,
         "place_to_fill_ms": fill,
         "place_to_terminal_ms": terminal,
+        "face_ms": coherent_face_ms(fill, terminal, str(reason) if reason else None),
         "level": level,
         "reason": reason,
     }

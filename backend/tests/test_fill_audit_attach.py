@@ -263,6 +263,66 @@ def test_lmt_timezone_shaped_stored_row_is_invalid_not_four_hours():
     assert pub["level"] == "warn"
 
 
+def test_imcc_buy_106411_ledger_publishes_clock_skew():
+    remember_fill_audit(
+        {"order_id": 106411, "level": "ok", "reason": "filled"},
+        nova_placed_at="2026-09-18T14:05:58.296Z",
+    )
+    row = _order(
+        order_id=106411,
+        perm_id=5002,
+        symbol="IMCC",
+        side="BUY",
+        submitted_at="2026-09-18T14:05:58Z",
+        filled_at="2026-09-18T14:05:58Z",
+        updated_at="2026-09-18T14:05:58Z",
+    )
+    out = attach_fill_audit([row], ledger_rows=[])
+    audit = out[0]["fill_audit"]
+    assert audit is not None
+    assert audit["place_to_fill_ms"] == -296
+    assert audit["place_to_submit_ms"] == -296
+    assert audit["face_ms"] is None
+    assert audit["reason"] == "clock_skew"
+    assert audit["level"] == "ok"
+
+
+def test_stored_negative_fill_is_clock_skew_not_ok_filled():
+    pub = public_fill_audit(
+        {
+            "place_to_submit_ms": -296,
+            "place_to_fill_ms": -296,
+            "place_to_terminal_ms": None,
+            "level": "ok",
+            "reason": "filled",
+            "type": "MKT",
+        },
+    )
+    assert pub is not None
+    assert pub["place_to_fill_ms"] == -296
+    assert pub["face_ms"] is None
+    assert pub["reason"] == "clock_skew"
+    assert pub["level"] == "ok"
+
+
+def test_imcc_sell_3037_stays_warn():
+    pub = public_fill_audit(
+        {
+            "place_to_submit_ms": -1,
+            "place_to_fill_ms": 3037,
+            "place_to_terminal_ms": None,
+            "level": "warn",
+            "reason": "mkt_rth_slow",
+            "type": "MKT",
+        },
+    )
+    assert pub is not None
+    assert pub["place_to_fill_ms"] == 3037
+    assert pub["face_ms"] == 3037
+    assert pub["reason"] == "mkt_rth_slow"
+    assert pub["level"] == "warn"
+
+
 def test_placed_index_prefers_payload_nova_placed_at():
     from execution.fill_audit_attach import placed_index_from_ledger
 

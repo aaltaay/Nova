@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-18 -- Orders Today negative fill latency clock skew
+
+- **Symptom:** After #266, IMCC BUY 106411 Latency showed white `-296ms`. API: `place_to_submit_ms=-296`, `place_to_fill_ms=-296`, `level=ok`. Ahmed asked if a negative fill time was right.
+- **Cause:** IBKR `submitted_at` and `filled_at` were the same whole second (`14:05:58`). Nova `nova_placed_at` had milliseconds (~296ms later). The delta is second-rounding / clock disagreement, not a fill before Place. #266 corrected EDT-shaped 4h clocks; it still published a negative residual as a real face total.
+- **Fix:** `is_clock_skew_ms` + reason `clock_skew` / `ok`. Public `face_ms` is null unless both endpoints are a coherent clock. Face blanks (em dash). Hover lists steps as ms or `unavailable` and explains the 296ms disagreement. Never clamp to 0ms. SELL 3037ms warn path unchanged.
+- **Fix class:** admission
+- **Keywords:** fill latency, clock_skew, place_to_fill_ms, negative, IMCC, 106411, Orders Today, second rounding
+
 ## 2026-09-18 -- Orders Today fill latency EDT false 4h
 
 - **Symptom:** Closed IMCC SELL 106416 showed fill latency ~14403s / 4.0008h as level=ok (`place_to_fill_ms=14403037`). Same pattern on IMCC BUY 106411 (`14399704`). Ahmed said the sell filled in a little while. Hover joined three lines with ` -- ` and rendered negative `place_to_submit_ms` as an em dash.

@@ -104,6 +104,8 @@ export interface OrderFillAudit {
   place_to_submit_ms?: number | null;
   place_to_fill_ms?: number | null;
   place_to_terminal_ms?: number | null;
+  /** Coherent face total only. Null when skew / invalid / missing -- never negative. */
+  face_ms?: number | null;
   level?: FillAuditLevel | string | null;
   reason?: string | null;
 }

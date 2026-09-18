@@ -83,7 +83,7 @@ describe('orderFillLatency', () => {
 
   it('tooltip uses click→terminal when there is no fill', () => {
     expect(fillLatencyTooltip(TERMINAL_ONLY)).toBe(
-      'Nova → submit: 15ms\nSubmit → fill: —\nClick → terminal: 3000ms',
+      'Nova → submit: 15ms\nSubmit → fill: unavailable\nClick → terminal: 3000ms',
     );
   });
 
@@ -107,7 +107,53 @@ describe('orderFillLatency', () => {
       FILL_LATENCY_EM_DASH,
     );
     expect(fillLatencyTooltip(IMCC_REFUSED)).toBe(
-      'Nova → submit: -1ms\nSubmit → fill: —\nClick → fill: —\nClock: invalid (timezone_shaped_clock)',
+      'Nova → submit: -1ms\nSubmit → fill: unavailable\nClick → fill: unavailable\nClock: invalid (timezone_shaped_clock)',
+    );
+  });
+
+  it('IMCC BUY 106411 clock skew blanks the face and explains hover', () => {
+    const audit: OrderFillAudit = {
+      place_to_submit_ms: -296,
+      place_to_fill_ms: -296,
+      level: 'ok',
+      reason: 'clock_skew',
+    };
+    expect(fillLatencyFaceMs(audit)).toBeNull();
+    expect(formatFillLatencyMs(fillLatencyFaceMs(audit))).toBe(FILL_LATENCY_EM_DASH);
+    expect(fillLatencyTone(audit)).toBe('ok');
+    expect(fillLatencyTooltip(audit)).toBe(
+      'Clocks disagree by 296ms -- not a real negative fill\nNova → submit: -296ms (raw)\nSubmit → fill: unavailable\nClick → fill: unavailable',
+    );
+    expect(fillLatencyTooltip(audit)).not.toContain('Click → fill: -296');
+    expect(fillLatencyTooltip(audit)).not.toContain('Submit → fill: 0');
+  });
+
+  it('negative fill without reason is still blank -- never a -296ms face', () => {
+    const audit: OrderFillAudit = {
+      place_to_submit_ms: -296,
+      place_to_fill_ms: -296,
+      level: 'ok',
+      reason: 'filled',
+    };
+    expect(fillLatencyFaceMs(audit)).toBeNull();
+    expect(formatFillLatencyMs(fillLatencyFaceMs(audit))).toBe(FILL_LATENCY_EM_DASH);
+    expect(fillLatencyTooltip(audit)).toContain(
+      'Clocks disagree by 296ms -- not a real negative fill',
+    );
+  });
+
+  it('IMCC SELL 3037ms warn face is unchanged', () => {
+    const audit: OrderFillAudit = {
+      place_to_submit_ms: -1,
+      place_to_fill_ms: 3037,
+      level: 'warn',
+      reason: 'mkt_rth_slow',
+    };
+    expect(fillLatencyFaceMs(audit)).toBe(3037);
+    expect(formatFillLatencyMs(fillLatencyFaceMs(audit))).toBe('3037ms');
+    expect(fillLatencyTone(audit)).toBe('warn');
+    expect(fillLatencyTooltip(audit)).toBe(
+      'Nova → submit: -1ms\nSubmit → fill: 3038ms\nClick → fill: 3037ms',
     );
   });
 

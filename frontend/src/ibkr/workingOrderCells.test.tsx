@@ -205,6 +205,37 @@ describe('workingOrderCells — Open Orders column contract', () => {
     expect(html).not.toContain('ibkr-fill-latency--danger');
   });
 
+  it('Latency face is em dash for IMCC BUY 106411 clock skew, not -296ms', () => {
+    const { text, html } = renderCell('latency', {
+      ...PARTIAL,
+      fill_audit: {
+        place_to_submit_ms: -296,
+        place_to_fill_ms: -296,
+        level: 'ok',
+        reason: 'clock_skew',
+      },
+    });
+    expect(text).toBe('—');
+    expect(text).not.toContain('-296');
+    expect(html).toContain('Clocks disagree by 296ms');
+    expect(html).not.toContain('ibkr-fill-latency--warn');
+    expect(html).not.toContain('ibkr-fill-latency--danger');
+  });
+
+  it('Latency still shows 3037ms warn for IMCC SELL', () => {
+    const { text, html } = renderCell('latency', {
+      ...PARTIAL,
+      fill_audit: {
+        place_to_submit_ms: -1,
+        place_to_fill_ms: 3037,
+        level: 'warn',
+        reason: 'mkt_rth_slow',
+      },
+    });
+    expect(text).toBe('3037ms');
+    expect(html).toContain('ibkr-fill-latency--warn');
+  });
+
   it('Latency shows 180ms and warn class from fill_audit', () => {
     const { text, html } = renderCell('latency', {
       ...PARTIAL,
