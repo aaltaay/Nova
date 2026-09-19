@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { WS_BASE_URL } from '../constants';
 import { upsertTapePrint10SecBar } from '../chart/barsStore';
-import { SIM_CLOCK_SCRUB_EVENT } from '../sim/simClockEvents';
 import { createRafCoalesce } from '../utils/rafCoalesce';
 import {
   appendTapePrint,
@@ -40,17 +39,6 @@ export function useIbkrTape(symbol: string | null, uiActive = true): TapeState {
     uiActiveRef.current = uiActive;
   }, [uiActive]);
 
-  // Sim scrub: clear stale open-session prints immediately; backend reseeds via scrub_reset + prints.
-  useEffect(() => {
-    const onScrub = () => {
-      printsRef.current = [];
-      if (uiActiveRef.current) {
-        setState(s => ({ ...s, prints: [] }));
-      }
-    };
-    window.addEventListener(SIM_CLOCK_SCRUB_EVENT, onScrub);
-    return () => window.removeEventListener(SIM_CLOCK_SCRUB_EVENT, onScrub);
-  }, []);
 
   const commitUi = () => {
     if (!mountedRef.current) return;

@@ -66,8 +66,18 @@ def rebuild_for_scrub() -> None:
             return
         from ibkr.tape_stream import _push_queue
         _push_queue(sym, {"type": "scrub_reset", "symbol": sym})
-        for row in _player.recent_prints(40):
+        rows = _player.recent_prints(40)
+        for row in rows:
             _push_queue(sym, {**row, "type": "print", "symbol": sym})
+        if rows:
+            # Advance emit cursor past seeded prints so the feed loop does not re-blast open.
+            last_t = rows[-1].get("time")
+            try:
+                from datetime import datetime
+                # recent_prints already used asof; seek already set — mark last print ts
+                _player.mark_emitted(_player.asof_unix())
+            except Exception:
+                pass
         try:
             from ibkr.depth import state as _depth_state
             book = _player.book_at()
