@@ -98,3 +98,7 @@ Nova.repo
 tools/nova-launcher/bin/
 tools/nova-launcher/obj/
 
+
+# Runtime logs written by the local API / desktop sidecar (root-level).
+# backend/logs/ is already covered above; this is the repo-root sibling.
+logs/
