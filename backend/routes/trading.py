@@ -35,7 +35,6 @@ from ibkr import client as _client
 from ibkr import depth as _depth
 from ibkr import orders as _orders
 from ibkr import account as _account
-from ibkr import tape_stream as _tape
 from ibkr.errors import IbkrAccountError
 from routes.trading_execution import router as execution_router
 

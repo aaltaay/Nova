@@ -83,7 +83,6 @@ def _position_closes(positions: list[dict[str, Any]]) -> list[tuple[str, float, 
 
 async def flatten_account_once() -> dict[str, Any]:
     from ibkr import account as _account
-    from ibkr import client as _client
     from ibkr.errors import IbkrAccountError
 
     from sim.mode import desk_connected
