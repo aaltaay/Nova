@@ -104,3 +104,96 @@ def test_main_exits_nonzero_on_violation(di, tmp_path, monkeypatch, capsys):
     assert code == 1
     err = capsys.readouterr().err
     assert "railway_deploy_job" in err
+
+
+# --- agent-maintained entry logs (CHANGELOG.md / PROBLEM_LOG.md) -------------
+#
+# Regression cover for the first-match prepend: four commits (bd0d0cb6,
+# e4a73ef9, 5854569, 58f6bc7) anchored on the how-to's prose mention of the
+# marker instead of the standalone marker line.
+
+HOWTO_TAIL = "` marker (newest entries at the top)."
+STEP_TWO = (
+    "2. **Where:** Prepend a new `##` section **immediately below** the "
+    "`<!-- ENTRIES_START -->" + HOWTO_TAIL
+)
+
+
+def _entry_log(step_two: str = STEP_TWO, above: str = "", entries: str = "") -> str:
+    """A minimal but faithful CHANGELOG.md shape."""
+    return (
+        f"{above}# Change log (agent-maintained)\n"
+        "\n"
+        "## How agents update this file\n"
+        "\n"
+        "1. **When:** After completing any task.\n"
+        f"{step_two}\n"
+        "3. **Commit together:** Ships in the same commit.\n"
+        "\n"
+        "```markdown\n"
+        "## YYYY-MM-DD — Short descriptive title\n"
+        "```\n"
+        "\n"
+        "<!-- ENTRIES_START -->\n"
+        "\n"
+        f"{entries}"
+        "## 2026-09-01 -- An older entry\n"
+        "\n"
+        "- **What:** something.\n"
+    )
+
+
+def _check(di, text):
+    return [v.invariant_id for v in di.check_entry_log("CHANGELOG.md", "# Change log (agent-maintained)", text)]
+
+
+def test_entry_log_accepts_a_healthy_file(di):
+    assert _check(di, _entry_log()) == []
+
+
+def test_entry_log_flags_entry_wedged_into_the_how_to(di):
+    """The exact bd0d0cb6 shape: step 2 split, entry inside the instructions."""
+    split = (
+        "2. **Where:** Prepend a new `##` section **immediately below** the "
+        "`<!-- ENTRIES_START -->\n"
+        "\n"
+        "## 2026-09-19 -- Sim pause/play button\n"
+        "\n"
+        "- **What:** a button.\n" + HOWTO_TAIL
+    )
+    ids = _check(di, _entry_log(step_two=split))
+    assert "entry_log_entry_above_marker" in ids
+    assert "entry_log_howto_split" in ids
+
+
+def test_entry_log_flags_block_above_the_title(di):
+    """The 8745b964 shape: an '## Unreleased' block prepended above the H1."""
+    above = "## Unreleased\n\n### Fixed\n- **Sim tape charts:** fixed.\n"
+    ids = _check(di, _entry_log(above=above))
+    assert "entry_log_title" in ids
+    assert "entry_log_entry_above_marker" in ids
+
+
+def test_entry_log_flags_a_missing_or_duplicated_marker(di):
+    text = _entry_log()
+    assert _check(di, text.replace("<!-- ENTRIES_START -->\n\n", "", 1)) == ["entry_log_marker"]
+    doubled = text.replace(
+        "<!-- ENTRIES_START -->\n\n", "<!-- ENTRIES_START -->\n\n<!-- ENTRIES_START -->\n\n", 1
+    )
+    assert _check(di, doubled) == ["entry_log_marker"]
+
+
+def test_entry_log_allows_the_template_heading_above_the_marker(di):
+    """'## YYYY-MM-DD — Short descriptive title' lives in the how-to fence."""
+    assert "entry_log_entry_above_marker" not in _check(di, _entry_log())
+
+
+def test_entry_logs_skip_absent_files(di, tmp_path):
+    """Other tests scan tmp roots; absent logs must not manufacture violations."""
+    assert di.check_entry_logs(tmp_path) == []
+
+
+def test_real_repo_entry_logs_are_present_and_structurally_sound(di):
+    for rel, _title in di.ENTRY_LOGS:
+        assert (REPO_ROOT / rel).is_file(), f"{rel} missing -- gate lost coverage"
+    assert di.check_entry_logs(REPO_ROOT) == []

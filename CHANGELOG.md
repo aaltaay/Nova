@@ -1,7 +1,3 @@
-## Unreleased
-
-### Fixed
-- **Sim tape charts / T&S:** bar `t` is UTC ISO (not unix seconds) so lightweight-charts no longer assert duplicate times / `iso.slice`. Feed starts on the HTTP loop when Sim is toggled from a worker thread. Session clock 06:00–18:00 ET with phase density + scrubber header.
 # Change log (agent-maintained)
 
 This file is a running narrative of **what changed in this repo and why**, so future agent and human sessions can get oriented in minutes without digging through diffs.
@@ -14,47 +10,7 @@ Bug fixes should **also** be logged in `PROBLEM_LOG.md` (symptom / cause / fix).
 ## How agents update this file
 
 1. **When:** After completing any task that changes logic, public behavior, a module boundary, constants, config, build, or rules. Skip pure cosmetics.
-2. **Where:** Prepend a new `##` section **immediately below** the `<!-- ENTRIES_START -->
-
-## 2026-09-19 -- Version is derived from git, never committed (WS1 of #344)
-
-- **What:** `VERSION` is now a gitignored build artifact and `frontend/package.json` stays `0.0.0-dev` in git. The `.githooks/pre-commit` / `pre-push` version hooks and `tools/install_git_hooks.ps1` are deleted. `bump_version.py` loses `--pre-commit`, `--pre-push`, and `is_amend_commit`; `sync_revision()` no longer stages anything. New `frontend/electron/releaseTagSource.mjs` resolves the tag from the generated `VERSION` file, then from `git rev-list --count HEAD`.
-- **Why:** The hooks wrote a value that was wrong on master 56 of the last 60 commits (server-side squash runs no hooks) and that CI discarded anyway — `desktop-pack.yml` recomputes it with `--sync` + `--print-tag` before packing. Meanwhile they cost every agent real time: `GIT_REFLOG_ACTION` is unset in the pre-commit hook, so the `is_amend_commit()` guard could never fire and `git commit --amend` deadlocked (3/3 retries blocked, escapable only via `--no-verify` or a junk commit), and any two PRs with different commit counts conflicted on `VERSION` + `package.json` the moment one landed.
-- **Files touched:** `.gitignore`, `VERSION` (untracked), `.githooks/pre-commit` + `pre-push` (deleted), `tools/install_git_hooks.ps1` (deleted), `tools/bump_version.py`, `backend/tests/test_bump_version.py`, `frontend/electron/releaseTagSource.mjs` (+ `.d.ts`, new), `frontend/electron/loadReleaseTag.mjs`, `frontend/vite.config.ts`, `frontend/scripts/run-electron-pack.mjs`, `frontend/src/utils/useNovaWindowTitle.test.ts`, `.github/workflows/deploy.yml`, `README.md`.
-- **How it works now:** Git history is the only source of truth. A working clone derives `vNNN` automatically, so nothing needs installing; CI regenerates both files with `--sync` before packing and tagging, exactly as before. Packaged Electron still maps `app.getVersion()` (electron-builder stamps `0.1.N` at pack time). The governing rule is **hooks validate, never mutate the index** — a hook that runs `git add` breaks amend, rebase, cherry-pick and squash at once.
-- **Verified by:** `git commit --amend` and `git rebase` now succeed with `core.hooksPath=.githooks` active and no `--no-verify`; a subsequent commit touches only the edited file (no `VERSION`, no `package.json`); with `VERSION` deleted the production build still injects a real tag (`<title>Nova — Stock Scanner · v768</title>`, `v768` in the bundle); Vitest 1647/1647 in 324 files; ESLint `--max-warnings 0` clean; Ruff clean; `test_bump_version.py` 8/8 including a new guard that `run_sync` never invokes git.
-- **Follow-ups:** WS2–WS5 of #344 (shard the prepend-style ledgers, replace the `D-NNN` counter with issue numbers, merge queue, workspace hygiene) are still open.
-- **Related:** #344 (D-080 plan), #332 (D-075, resolved by this change), #342 (D-079 CI audit).
-
-## 2026-09-19 -- Sim session date is the last open exchange day
-
-- **What:** On a weekend or NYSE holiday the Sim clock's default session date is the latest earlier trading day, and the wall clamp keeps the wall time of day on that date. `/api/sim/clock` adds `session_date`; the Sim header shows it. EMA/VWAP overlays clear with the candles when a replay window has no bars.
-- **Why:** Sim is the weekend practice desk, but the session date followed the wall calendar, so every real ticker (SPY on a Saturday) hit the D-052 session-date boundary with nothing to read and showed "No bars available at this replay time" over stale indicator lines.
-- **Files touched:** sim/trading_day.py (new), sim/session_clock.py, sim/history_store.py, SimSessionHeader.tsx, simClockTypes.ts, TickerChartOverlays.tsx, architecture/sim-clock.md, docs/sim-mode.md, focused tests.
-- **How it works now:** `session_bounds_on` resolves the wall day through `last_trading_day`; `now_et` projects the wall time of day onto that date before clamping. Capture and historical dates still override. The chart boundary (session date + interval-end cutoff) is unchanged.
-- **Verified by:** 193 backend tests passed under `-k "sim or history or replay or capture or chart or clock"` (4 pre-existing 401 operator-auth failures, D-053 #293); real-store check: Saturday 04:41 ET replays SPY Friday 04:00-04:40 (1Min 41 bars); Vitest header suite 9/9; changed-file ESLint + tsc; doc_invariants OK.
-- **Follow-ups:** 10-second panes stay empty before 16:00 on archived days until a Historical replay download covers the morning (IBKR 4h backfill limit).
-- **Related:** PROBLEM_LOG entry below; D-052 #292.
-
-## 2026-09-19 -- Sim pause/play button
-
-- **What:** One Sim-header button switches between Pause and Play icons. Pause freezes the Sim clock and feed; Play resumes at the frozen timestamp without wall-time catch-up.
-- **Why:** Operators need time to inspect replay charts and prints without the playhead moving.
-- **Files touched:** sim/session_clock.py, sim/feed.py, sim/routes.py, SimPlaybackButton.tsx, SimSessionHeader.tsx, simClockTypes.ts, focused tests and Sim documentation.
-- **How it works now:** POST /api/sim/clock accepts paused:boolean only while Sim is active. Scrubbing and capture selection stay paused; Follow wall clock clears pause. Requests report errors inline. No Trader navigation from playback controls.
-- **Verified by:** 20 backend tests passed, two confirmed baseline failures excluded (D-051 #291); 18 Vitest tests and Chromium regression passed; production build, changed-file ESLint/Ruff and doc invariants passed.
-- **Follow-ups:** Existing full-project lint blocker remains D-050 #290. Baseline Sim test failures recorded in D-051 #291. User requested a local commit on this branch, no push.
-- **Related:** architecture/sim-clock.md; docs/sim-mode.md; knowledge/task-log/2026-09-19-sim-pause-play.md.
-
-## 2026-09-19 -- Sim scrub preserves the active Trader tab
-
-- **What:** Moving the Sim time slider refreshes replay data without opening or activating the replay ticker. IMCC remains active when SIM1 has been closed.
-- **Why:** Scrubbing called openStockView on the server replay symbol, overriding deliberate tab navigation.
-- **Files touched:** SimSessionHeader.tsx, focused unit/browser regressions, ADR 011.
-- **How it works now:** Clock updates emit the existing scrub event; explicit replay ticker selection retains the open/activate action.
-- **Verified by:** 15 Vitest tests passed; Chromium pointer/keyboard regression passed; production build and changed-file ESLint passed; doc_invariants OK. Full lint is blocked by existing GatewayDisconnectedBanner conditional hooks (D-050 / #290).
-- **Follow-ups:** No slider remainder. User explicitly requested this branch and a local commit without push.
-- **Related:** PROBLEM_LOG entry below; ADR 011 section 7b; knowledge/task-log/2026-09-19-sim-scrub-preserve-tab.md.` marker (newest entries at the top).
+2. **Where:** Prepend a new `##` section **immediately below** the `<!-- ENTRIES_START -->` marker (newest entries at the top).
 3. **Commit together:** The changelog entry ships in the **same commit** as the code it describes. Do not push code without an entry.
 4. **Keep it short:** A few lines per field. No secrets, tokens, or personal data.
 
@@ -73,6 +29,16 @@ Entry template (copy and fill in):
 ```
 
 <!-- ENTRIES_START -->
+
+## 2026-09-19 -- Log entries re-filed under the entries marker, plus a CI guard (D-061)
+
+- **What:** Five CHANGELOG blocks and three PROBLEM_LOG entries that had been written into the "How agents update this file" prose are now filed under the real standalone ENTRIES_START marker, newest-first, text unchanged; instruction item 2 reads as one sentence again in both files; `# Change log (agent-maintained)` is back on line 1. `tools/doc_invariants.py` now fails CI on the same mistake, and both log rules say to anchor on the marker line.
+- **Why:** Four commits (`bd0d0cb6`, `e4a73ef9`, `5854569`, `58f6bc7`) prepended entries to the marker's *prose mention* instead of the marker line, splitting the instruction mid-sentence -- so the next agent read a corrupted spec for the very operation that corrupted it. The fourth recurrence landed while this repair was in flight, which is why prose alone is not enough and the check is mechanical.
+- **Files touched:** `CHANGELOG.md`, `PROBLEM_LOG.md`, `tools/doc_invariants.py`, `tools/test_doc_invariants.py`, `.cursor/rules/change-log.mdc`, `.cursor/rules/problem-log.mdc`.
+- **How it works now:** `check_entry_logs()` asserts, for both files: H1 on line 1, exactly one line *equal to* the marker, no `##` entry heading above it (the how-to heading and the `## YYYY-MM-DD` template are allowed), and no how-to line ending with the marker. It runs inside the existing `run_scan()`, so the CI job that already runs `doc_invariants.py` gates it. Entry prose is still never scanned for stale claims -- structure only. Absent files are skipped so tmp-root scans stay clean; a separate test asserts both files exist in the repo.
+- **Verified by:** `py -3 -m pytest tools/test_doc_invariants.py -q` -> 18 passed; `py -3 tools/doc_invariants.py` -> OK. Red/green against the real defect: the guard reports 7 violations on `origin/master`'s CHANGELOG and 4 on its PROBLEM_LOG, naming every misplaced block by line, and 0 on this branch. Repair itself: scripted check shows all 8 moved blocks byte-identical, prior entries below the marker untouched, and every line above the marker byte-identical to `32b93f2`.
+- **Follow-ups:** The moved Sim tape block keeps its original `## Unreleased` / `### Fixed` heading rather than the dated template (this PR was scoped not to alter moved content) -- normalization stays on D-061 #312. The guard catches at PR time; it does not stop an agent writing the entry wrong, and it does not check ordering below the marker.
+- **Related:** D-061 #312; `.cursor/agent-memory/*` `RUN_LOG_START` markers were checked and are never quoted in prose, so the hazard is specific to these two files.
 
 ## 2026-09-19 -- Operational rules now cite `#NNN`, not `D-NNN` (follow-up to #352)
 
@@ -95,6 +61,16 @@ Entry template (copy and fill in):
 - **Follow-ups:** `publish_markdown` still echoes `D-NNN` from the legacy markdown, which is correct -- it replays ids that already exist and allocates nothing. `#147` carries no `P*` label, so it sorts last until one is added.
 - **Related:** Closes #335 (D-078), #313 (D-062), #351 (D-084), #349 (D-083). WS2 of #344 (D-080). `PROBLEM_LOG.md` entry below.
 
+
+## 2026-09-19 -- Version is derived from git, never committed (WS1 of #344)
+
+- **What:** `VERSION` is now a gitignored build artifact and `frontend/package.json` stays `0.0.0-dev` in git. The `.githooks/pre-commit` / `pre-push` version hooks and `tools/install_git_hooks.ps1` are deleted. `bump_version.py` loses `--pre-commit`, `--pre-push`, and `is_amend_commit`; `sync_revision()` no longer stages anything. New `frontend/electron/releaseTagSource.mjs` resolves the tag from the generated `VERSION` file, then from `git rev-list --count HEAD`.
+- **Why:** The hooks wrote a value that was wrong on master 56 of the last 60 commits (server-side squash runs no hooks) and that CI discarded anyway — `desktop-pack.yml` recomputes it with `--sync` + `--print-tag` before packing. Meanwhile they cost every agent real time: `GIT_REFLOG_ACTION` is unset in the pre-commit hook, so the `is_amend_commit()` guard could never fire and `git commit --amend` deadlocked (3/3 retries blocked, escapable only via `--no-verify` or a junk commit), and any two PRs with different commit counts conflicted on `VERSION` + `package.json` the moment one landed.
+- **Files touched:** `.gitignore`, `VERSION` (untracked), `.githooks/pre-commit` + `pre-push` (deleted), `tools/install_git_hooks.ps1` (deleted), `tools/bump_version.py`, `backend/tests/test_bump_version.py`, `frontend/electron/releaseTagSource.mjs` (+ `.d.ts`, new), `frontend/electron/loadReleaseTag.mjs`, `frontend/vite.config.ts`, `frontend/scripts/run-electron-pack.mjs`, `frontend/src/utils/useNovaWindowTitle.test.ts`, `.github/workflows/deploy.yml`, `README.md`.
+- **How it works now:** Git history is the only source of truth. A working clone derives `vNNN` automatically, so nothing needs installing; CI regenerates both files with `--sync` before packing and tagging, exactly as before. Packaged Electron still maps `app.getVersion()` (electron-builder stamps `0.1.N` at pack time). The governing rule is **hooks validate, never mutate the index** — a hook that runs `git add` breaks amend, rebase, cherry-pick and squash at once.
+- **Verified by:** `git commit --amend` and `git rebase` now succeed with `core.hooksPath=.githooks` active and no `--no-verify`; a subsequent commit touches only the edited file (no `VERSION`, no `package.json`); with `VERSION` deleted the production build still injects a real tag (`<title>Nova — Stock Scanner · v768</title>`, `v768` in the bundle); Vitest 1647/1647 in 324 files; ESLint `--max-warnings 0` clean; Ruff clean; `test_bump_version.py` 8/8 including a new guard that `run_sync` never invokes git.
+- **Follow-ups:** WS2–WS5 of #344 (shard the prepend-style ledgers, replace the `D-NNN` counter with issue numbers, merge queue, workspace hygiene) are still open.
+- **Related:** #344 (D-080 plan), #332 (D-075, resolved by this change), #342 (D-079 CI audit).
 
 ## 2026-09-19 -- Historical replay keeps the live Stock Quote rail
 
@@ -149,6 +125,16 @@ Entry template (copy and fill in):
 - **Verified by:** New tests fail on the old code (5) and pass with the fix. Full backend `pytest` -- 2196 passed. Live run on the operator's Gateway after an API restart: `completed-orders ... StaleIbRequestError` warning, then `session READY via earn_usable (generation 1, connect)`.
 - **Related:** PROBLEM_LOG 2026-09-19 Reconnect button never reaches READY.
 
+## 2026-09-19 -- Sim session date is the last open exchange day
+
+- **What:** On a weekend or NYSE holiday the Sim clock's default session date is the latest earlier trading day, and the wall clamp keeps the wall time of day on that date. `/api/sim/clock` adds `session_date`; the Sim header shows it. EMA/VWAP overlays clear with the candles when a replay window has no bars.
+- **Why:** Sim is the weekend practice desk, but the session date followed the wall calendar, so every real ticker (SPY on a Saturday) hit the D-052 session-date boundary with nothing to read and showed "No bars available at this replay time" over stale indicator lines.
+- **Files touched:** sim/trading_day.py (new), sim/session_clock.py, sim/history_store.py, SimSessionHeader.tsx, simClockTypes.ts, TickerChartOverlays.tsx, architecture/sim-clock.md, docs/sim-mode.md, focused tests.
+- **How it works now:** `session_bounds_on` resolves the wall day through `last_trading_day`; `now_et` projects the wall time of day onto that date before clamping. Capture and historical dates still override. The chart boundary (session date + interval-end cutoff) is unchanged.
+- **Verified by:** 193 backend tests passed under `-k "sim or history or replay or capture or chart or clock"` (4 pre-existing 401 operator-auth failures, D-053 #293); real-store check: Saturday 04:41 ET replays SPY Friday 04:00-04:40 (1Min 41 bars); Vitest header suite 9/9; changed-file ESLint + tsc; doc_invariants OK.
+- **Follow-ups:** 10-second panes stay empty before 16:00 on archived days until a Historical replay download covers the morning (IBKR 4h backfill limit).
+- **Related:** PROBLEM_LOG entry below; D-052 #292.
+
 ## 2026-09-19 -- IMCC intraday replay respects the selected session date
 
 - **What:** Real-ticker intraday SIM charts show only completed bars from the clock's Eastern session date. The standalone replay fixture now opens with local sample data through Vite and explains direct-file usage.
@@ -167,6 +153,31 @@ Entry template (copy and fill in):
 - **Verified by:** Focused backend, chart/SIM Vitest, Chromium chart/slider regressions, production build, changed-file lint, doc invariants and agent contract. PR body contains final counts and baseline failures.
 - **Follow-ups:** D-052 retains historical IBKR trade acquisition and quote/tape symbol reconciliation. No historical tick download or fabricated intraminute movement added.
 - **Related:** Refs #292; architecture/sim-clock.md (ADR 012 store boundary). User continued the existing local SIM branch; unrelated untracked data/logs are preserved.
+
+## 2026-09-19 -- Sim pause/play button
+
+- **What:** One Sim-header button switches between Pause and Play icons. Pause freezes the Sim clock and feed; Play resumes at the frozen timestamp without wall-time catch-up.
+- **Why:** Operators need time to inspect replay charts and prints without the playhead moving.
+- **Files touched:** sim/session_clock.py, sim/feed.py, sim/routes.py, SimPlaybackButton.tsx, SimSessionHeader.tsx, simClockTypes.ts, focused tests and Sim documentation.
+- **How it works now:** POST /api/sim/clock accepts paused:boolean only while Sim is active. Scrubbing and capture selection stay paused; Follow wall clock clears pause. Requests report errors inline. No Trader navigation from playback controls.
+- **Verified by:** 20 backend tests passed, two confirmed baseline failures excluded (D-051 #291); 18 Vitest tests and Chromium regression passed; production build, changed-file ESLint/Ruff and doc invariants passed.
+- **Follow-ups:** Existing full-project lint blocker remains D-050 #290. Baseline Sim test failures recorded in D-051 #291. User requested a local commit on this branch, no push.
+- **Related:** architecture/sim-clock.md; docs/sim-mode.md; knowledge/task-log/2026-09-19-sim-pause-play.md.
+
+## 2026-09-19 -- Sim scrub preserves the active Trader tab
+
+- **What:** Moving the Sim time slider refreshes replay data without opening or activating the replay ticker. IMCC remains active when SIM1 has been closed.
+- **Why:** Scrubbing called openStockView on the server replay symbol, overriding deliberate tab navigation.
+- **Files touched:** SimSessionHeader.tsx, focused unit/browser regressions, ADR 011.
+- **How it works now:** Clock updates emit the existing scrub event; explicit replay ticker selection retains the open/activate action.
+- **Verified by:** 15 Vitest tests passed; Chromium pointer/keyboard regression passed; production build and changed-file ESLint passed; doc_invariants OK. Full lint is blocked by existing GatewayDisconnectedBanner conditional hooks (D-050 / #290).
+- **Follow-ups:** No slider remainder. User explicitly requested this branch and a local commit without push.
+- **Related:** PROBLEM_LOG entry below; ADR 011 section 7b; knowledge/task-log/2026-09-19-sim-scrub-preserve-tab.md.
+
+## Unreleased
+
+### Fixed
+- **Sim tape charts / T&S:** bar `t` is UTC ISO (not unix seconds) so lightweight-charts no longer assert duplicate times / `iso.slice`. Feed starts on the HTTP loop when Sim is toggled from a worker thread. Session clock 06:00–18:00 ET with phase density + scrubber header.
 
 ## 2026-09-19 -- nova-brain OpenRouter + Sensor Board context
 

@@ -2,7 +2,10 @@
 
 Scans constitution, README, env examples, rules, docs/, security markdown,
 and a few generator strings. Historical CHANGELOG / PROBLEM_LOG / task-log
-are excluded on purpose -- archives may narrate past Railway/Alpaca eras.
+prose is excluded on purpose -- archives may narrate past Railway/Alpaca eras.
+CHANGELOG / PROBLEM_LOG are checked for *structure* only (one standalone
+entries marker, no entry above it, title on line 1), because an entry written
+against the marker's prose mention corrupts the instructions themselves.
 
 Usage:
   py -3 tools/doc_invariants.py
@@ -117,6 +120,29 @@ INVARIANTS: tuple[tuple[str, re.Pattern[str], str], ...] = (
 )
 
 
+# Agent-maintained entry logs: (path, expected H1).
+#
+# Both files quote their own insert anchor in prose ("immediately below the
+# `<!-- ENTRIES_START -->` marker"), so the FIRST textual match of the marker is
+# that sentence, ~50 lines above the real standalone marker line. Four commits
+# (bd0d0cb6, e4a73ef9, 5854569, 58f6bc7) prepended by first match and buried
+# their entry inside the how-to block, splitting the instruction mid-sentence.
+# These checks are structural only -- entry prose is never scanned for stale
+# claims, per the module docstring.
+ENTRY_LOGS: tuple[tuple[str, str], ...] = (
+    ("CHANGELOG.md", "# Change log (agent-maintained)"),
+    ("PROBLEM_LOG.md", "# Problem log (agent-maintained — MANDATORY)"),
+)
+
+ENTRIES_MARKER = "<!-- ENTRIES_START -->"
+
+# Headings allowed above the marker: the how-to section and the entry template.
+ENTRY_LOG_ALLOWED_HEADINGS: tuple[str, ...] = (
+    "## How agents update this file",
+    "## YYYY-MM-DD",
+)
+
+
 @dataclass(frozen=True)
 class Violation:
     invariant_id: str
@@ -147,6 +173,97 @@ def missing_live_paths(root: Path) -> list[str]:
     LIVE_GLOBS is exempt: a glob may legitimately match nothing.
     """
     return [rel for rel in LIVE_PATHS if not (root / rel).is_file()]
+
+
+def check_entry_log(rel: str, title: str, text: str) -> list[Violation]:
+    """Structural checks for one agent-maintained entry log.
+
+    Catches the first-match prepend: an entry written under the prose mention
+    of the marker instead of under the standalone marker line. Absent files are
+    the caller's concern; this only inspects content it was handed.
+    """
+    lines = text.split("\n")
+    hits: list[Violation] = []
+
+    def add(inv_id: str, line: int, snippet: str, reason: str) -> None:
+        hits.append(
+            Violation(
+                invariant_id=inv_id,
+                path=rel,
+                line=line,
+                snippet=snippet.strip()[:200],
+                reason=reason,
+            )
+        )
+
+    if not lines or lines[0] != title:
+        add(
+            "entry_log_title",
+            1,
+            lines[0] if lines else "",
+            f"{rel} must start with its H1 ({title!r}). Content above the title "
+            "means an entry was prepended to the file instead of to the entries "
+            "section.",
+        )
+
+    marker_lines = [i for i, ln in enumerate(lines, start=1) if ln == ENTRIES_MARKER]
+    if len(marker_lines) != 1:
+        add(
+            "entry_log_marker",
+            marker_lines[0] if marker_lines else 0,
+            f"found {len(marker_lines)} standalone {ENTRIES_MARKER} lines",
+            f"{rel} needs exactly one line equal to {ENTRIES_MARKER}; entries go "
+            "below it. Zero or several means the anchor is ambiguous and the next "
+            "prepend will land somewhere unpredictable.",
+        )
+        return hits
+
+    marker_at = marker_lines[0]
+    for i, line in enumerate(lines[: marker_at - 1], start=1):
+        if line.startswith("## ") and not line.startswith(ENTRY_LOG_ALLOWED_HEADINGS):
+            add(
+                "entry_log_entry_above_marker",
+                i,
+                line,
+                f"{rel} has a '##' entry heading above the {ENTRIES_MARKER} line "
+                f"(marker is line {marker_at}). Entries belong below the marker; "
+                "this one was almost certainly anchored on the marker's prose "
+                "mention instead of the marker line.",
+            )
+        if ENTRIES_MARKER in line and line.rstrip().endswith(ENTRIES_MARKER):
+            add(
+                "entry_log_howto_split",
+                i,
+                line,
+                f"{rel} how-to line ends with {ENTRIES_MARKER}, so its sentence "
+                "was cut off by text appended after the marker mention. Restore "
+                "the full sentence and move the appended content below the marker.",
+            )
+    return hits
+
+
+def check_entry_logs(root: Path) -> list[Violation]:
+    """Run entry-log structure checks for every ENTRY_LOGS file present."""
+    violations: list[Violation] = []
+    for rel, title in ENTRY_LOGS:
+        path = root / rel
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            violations.append(
+                Violation(
+                    invariant_id="read_error",
+                    path=rel,
+                    line=0,
+                    snippet=str(exc),
+                    reason="Could not read agent-maintained entry log.",
+                )
+            )
+            continue
+        violations.extend(check_entry_log(rel, title, text))
+    return violations
 
 
 def scan_text(path: Path, text: str) -> list[Violation]:
@@ -202,6 +319,7 @@ def run_scan(root: Path | None = None) -> list[Violation]:
             )
             continue
         violations.extend(scan_text(path, text))
+    violations.extend(check_entry_logs(base))
     return violations
 
 
@@ -217,7 +335,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps([asdict(v) for v in violations], indent=2))
     elif not violations:
-        print("doc_invariants: OK (no stale live-doc claims)")
+        print("doc_invariants: OK (live-doc claims + entry-log structure)")
     else:
         print(f"doc_invariants: {len(violations)} violation(s)", file=sys.stderr)
         for v in violations:
