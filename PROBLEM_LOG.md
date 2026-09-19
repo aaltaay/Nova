@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- Sim PR Backend tests failed ruff F401 unused imports
+
+- **Symptom:** CI Backend tests on #282 failed ruff F401: `ibkr.client` unused in `bot/flatten.py`, `ibkr.tape_stream` unused in `routes/trading.py`.
+- **Cause:** Sim flatten switched to `desk_connected()` and tape WS moved to `trading_tape_ws.py`, but the old imports stayed.
+- **Fix:** Removed the unused imports.
+- **Fix class:** infra
+- **Keywords:** ruff, F401, flatten, tape_stream, unused import, #282
+
 ## 2026-09-18 -- Emergency KILL could cancel its own flatten and double-fire
 
 - **Symptom:** Codex review on #273: flatten returned `ok: true` after canceling the liquidation MKTs it just placed; two rapid KILL clicks could open two confirms and flatten twice (`source=flatten` skips oversell); L2 bot could re-enter during cancel/flatten; pop-out windows stayed unlocked.

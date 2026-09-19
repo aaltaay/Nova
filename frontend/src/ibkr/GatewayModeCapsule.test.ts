@@ -14,6 +14,10 @@ describe('resolveCapsuleSelection', () => {
     expect(resolveCapsuleSelection('paper', 'paper', 'live')).toBe('live');
   });
 
+  it('selects Sim when status.mode is sim even if Gateway is live', () => {
+    expect(resolveCapsuleSelection('sim', 'live', 'live')).toBe('sim');
+  });
+
   it('falls back to configured door then session mode', () => {
     expect(resolveCapsuleSelection('paper', 'live')).toBe('live');
     expect(resolveCapsuleSelection('disconnected', 'paper')).toBe('paper');

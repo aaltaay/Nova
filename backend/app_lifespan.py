@@ -227,6 +227,12 @@ async def _bootstrap_runtime() -> None:
     _runtime_tasks = _spawn_runtime_tasks()
     global _bootstrap_complete
     _bootstrap_complete = True
+    from sim.mode import is_sim_mode
+
+    if is_sim_mode():
+        from sim.feed import start_sim_feed
+
+        start_sim_feed()
     logger.info("lifespan bootstrap complete (%d background tasks)", len(_runtime_tasks))
 
 
@@ -286,6 +292,12 @@ async def lifespan(app: FastAPI):
         shutdown_scan_executor()
     except Exception:
         logger.exception("scan_executor shutdown failed")
+    try:
+        from sim.feed import stop_sim_feed
+
+        stop_sim_feed()
+    except Exception:
+        logger.exception("SIM feed shutdown failed")
     await _ibkr_client.shutdown()
     try:
         from ibkr.loop_supervisor import stop as stop_ib_loop

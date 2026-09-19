@@ -4,6 +4,7 @@ import {
   BACKEND_DIAG_FLAG_WEDGED,
   HEADER_GATEWAY_DELAYED_LABEL,
   HEADER_GATEWAY_OFFLINE_LABEL,
+  HEADER_GATEWAY_SIM_LABEL,
   HEADER_GATEWAY_STALE_LABEL,
   HEADER_GATEWAY_UP_LABEL,
 } from '../constants';
@@ -18,6 +19,7 @@ export function resolveGatewayModeTag(
   ibkrGatewayMode: 'paper' | 'live' | null,
   accountKind?: string | null,
 ): 'paper' | 'live' | null {
+  if (ibkrMode === 'sim') return null;
   if (accountKind === 'paper' || accountKind === 'live') return accountKind;
   if (ibkrMode === 'paper' || ibkrMode === 'live') return ibkrMode;
   if (ibkrGatewayMode === 'paper' || ibkrGatewayMode === 'live') return ibkrGatewayMode;
@@ -59,8 +61,10 @@ export function deskConnectionLabel(args: {
   stale?: boolean;
   launchBusy?: boolean;
   launchOk?: boolean | null;
+  sim?: boolean;
 }): string {
   if (!args.apiOk) return HEADER_DESK_API_DOWN_LABEL;
+  if (args.sim) return HEADER_GATEWAY_SIM_LABEL;
   return gatewayConnectionLabel(args);
 }
 

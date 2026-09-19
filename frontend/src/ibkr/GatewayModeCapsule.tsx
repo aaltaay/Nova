@@ -1,5 +1,7 @@
 /**
- * Paper | Live segmented capsule. Persists IBKR_GATEWAY_MODE and reconnects.
+ * Paper | Live | Sim segmented capsule.
+ * Paper/Live persist IBKR_GATEWAY_MODE and reconnect.
+ * Sim POSTs /api/sim and never places to Gateway.
  * Never sets IBKR_LIVE_TRADING_CONFIRMED -- live spend stays a separate gate.
  */
 import { useState } from 'react';
@@ -9,8 +11,11 @@ import {
   GATEWAY_MODE_API_RESTART_HINT,
   GLOBAL_BAR_MODE_LIVE,
   GLOBAL_BAR_MODE_PAPER,
+  GLOBAL_BAR_MODE_SIM,
+  SIM_PRACTICE_FLAG_TEXT,
   STOCK_VIEW_ACCOUNT_MODE_LIVE_TITLE,
   STOCK_VIEW_ACCOUNT_MODE_PAPER_TITLE,
+  STOCK_VIEW_ACCOUNT_MODE_SIM_TITLE,
 } from '../constants';
 import { confirmApp } from '../ux';
 import { disconnectHintSwitchTarget } from './disconnectCopy';
@@ -18,13 +23,16 @@ import type { IbkrMode } from './types';
 import { refreshIbkrStatusNow } from './useIbkrStatus';
 
 interface GatewayModeResponse {
-  ok: boolean;
+  ok?: boolean;
   error?: string | null;
   detail?: string;
   mode?: IbkrMode;
   launch_action?: string | null;
   message?: string | null;
+  sim?: boolean;
 }
+
+export type CapsuleSelection = 'paper' | 'live' | 'sim';
 
 export interface GatewayModeCapsuleProps {
   mode: IbkrMode;
@@ -40,7 +48,7 @@ export interface GatewayModeCapsuleProps {
 function gatewayModeErrorMessage(
   res: Response,
   body: GatewayModeResponse,
-  next: 'paper' | 'live',
+  next: CapsuleSelection,
 ): string {
   if (res.status === 404) {
     return GATEWAY_MODE_API_RESTART_HINT;
@@ -57,7 +65,8 @@ export function resolveCapsuleSelection(
   gatewayMode?: 'paper' | 'live',
   accountKind?: string | null,
   intentional?: 'paper' | 'live' | null,
-): 'paper' | 'live' | null {
+): CapsuleSelection | null {
+  if (mode === 'sim') return 'sim';
   if (intentional === 'paper' || intentional === 'live') return intentional;
   if (accountKind === 'paper' || accountKind === 'live') return accountKind;
   if (gatewayMode === 'live' || gatewayMode === 'paper') return gatewayMode;
@@ -75,12 +84,46 @@ export function GatewayModeCapsule({
   errorTestId,
   className,
 }: GatewayModeCapsuleProps) {
-  const [pending, setPending] = useState<'paper' | 'live' | null>(null);
+  const [pending, setPending] = useState<CapsuleSelection | null>(null);
   const selected =
     pending ?? resolveCapsuleSelection(mode, gatewayMode, accountKind, intentionalMode);
-  const [switching, setSwitching] = useState<'paper' | 'live' | null>(null);
+  const [switching, setSwitching] = useState<CapsuleSelection | null>(null);
   const [switchError, setSwitchError] = useState<string | null>(null);
   const hintTarget = disconnectHintSwitchTarget(disconnectHint);
+
+  async function requestSim() {
+    if (selected === 'sim' || switching) return;
+    const confirmed = await confirmApp({
+      title: 'Switch to Sim practice',
+      message: STOCK_VIEW_ACCOUNT_MODE_SIM_TITLE,
+      confirmLabel: APP_DIALOG_SWITCH_LABEL,
+      tone: 'warning',
+    });
+    if (!confirmed) return;
+    setPending('sim');
+    setSwitching('sim');
+    setSwitchError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/sim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: true }),
+      });
+      const body: GatewayModeResponse = await res.json().catch(() => ({
+        ok: false,
+        error: `Switch to Sim failed`,
+      }));
+      if (!res.ok || body.sim !== true) {
+        setSwitchError(gatewayModeErrorMessage(res, body, 'sim'));
+      }
+    } catch {
+      setSwitchError('Could not reach Nova backend to switch to Sim');
+    } finally {
+      setSwitching(null);
+      setPending(null);
+      refreshIbkrStatusNow();
+    }
+  }
 
   async function requestMode(next: 'paper' | 'live') {
     if (next === selected || switching) return;
@@ -97,6 +140,18 @@ export function GatewayModeCapsule({
     setSwitching(next);
     setSwitchError(null);
     try {
+      if (selected === 'sim' || mode === 'sim') {
+        const simRes = await fetch(`${API_BASE_URL}/api/sim`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: false }),
+        });
+        if (!simRes.ok) {
+          const simBody: GatewayModeResponse = await simRes.json().catch(() => ({}));
+          setSwitchError(gatewayModeErrorMessage(simRes, simBody, next));
+          return;
+        }
+      }
       const res = await fetch(`${API_BASE_URL}/api/ibkr/gateway-mode`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -124,7 +179,13 @@ export function GatewayModeCapsule({
     <div className={`gw-mode-capsule-wrap${className ? ` ${className}` : ''}`}>
       <div
         className={`gw-mode-capsule sv-capsule${
-          selected === 'paper' ? ' is-paper' : selected === 'live' ? ' is-live' : ''
+          selected === 'paper'
+            ? ' is-paper'
+            : selected === 'live'
+              ? ' is-live'
+              : selected === 'sim'
+                ? ' is-sim'
+                : ''
         }`}
         role="group"
         aria-label="Account mode"
@@ -154,7 +215,25 @@ export function GatewayModeCapsule({
         >
           {switching === 'live' ? '…' : GLOBAL_BAR_MODE_LIVE}
         </button>
+        <button
+          type="button"
+          className={`gw-mode-capsule__seg sv-capsule__seg${
+            selected === 'sim' ? ' is-selected is-sim' : ''
+          }`}
+          aria-pressed={selected === 'sim'}
+          disabled={switching !== null}
+          title={STOCK_VIEW_ACCOUNT_MODE_SIM_TITLE}
+          data-testid={`${testId}-sim`}
+          onClick={() => requestSim()}
+        >
+          {switching === 'sim' ? '…' : GLOBAL_BAR_MODE_SIM}
+        </button>
       </div>
+      {selected === 'sim' && (
+        <span className="gw-mode-capsule__sim-flag" data-testid="sim-practice-flag">
+          {SIM_PRACTICE_FLAG_TEXT}
+        </span>
+      )}
       {hintTarget && mode === 'disconnected' && !switchError && (
         <button
           type="button"

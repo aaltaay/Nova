@@ -69,6 +69,13 @@ def place_order(
     Adapter only — callers must enter via execution.service.execute (ADR 007).
     TRAIL uses stop_price as the IBKR trail $ (auxPrice). Trail % is not sent.
     """
+    from sim.mode import is_sim_mode
+
+    if is_sim_mode():
+        from sim.guard import refuse_place
+
+        return refuse_place()
+
     order_type = normalize_order_type(order_type)  # type: ignore[assignment]
     error = _validation_error(
         side,
@@ -177,6 +184,13 @@ def place_bracket_order(
     Place a bracket order: a LMT entry with a linked LMT profit target and a
     linked STP loss. Uses ib_async's native IB.bracketOrder() helper.
     """
+    from sim.mode import is_sim_mode
+
+    if is_sim_mode():
+        from sim.guard import refuse_bracket
+
+        return refuse_bracket()
+
     ok, reason = _safety_check()
     if not ok:
         logger.warning("IBKR bracket order blocked: %s", reason)
@@ -236,6 +250,13 @@ def cancel_order(order_id: int) -> dict:
     Cancel an open order by ID.
     Allowed whenever connected (does not require IBKR_ORDERS_ENABLED).
     """
+    from sim.mode import is_sim_mode
+
+    if is_sim_mode():
+        from sim.guard import refuse_cancel
+
+        return refuse_cancel()
+
     ok, reason = _safety.assert_cancel_allowed(
         client_enabled=_client.is_enabled(),
         connected=_client.is_connected(),
@@ -270,6 +291,13 @@ def open_orders() -> list[dict]:
     must never look like "no working orders" (cancel-all and the kill-switch
     reconciliation both depend on knowing the difference).
     """
+    from sim.mode import is_sim_mode
+
+    if is_sim_mode():
+        from sim import broker as _sim_broker
+
+        return _sim_broker.open_orders()
+
     ib = _client.get_ib()
     if ib is None:
         raise IbkrAccountError("IBKR not connected — cannot read open orders")
@@ -300,6 +328,13 @@ def closed_orders(limit: int | None = None) -> list[dict]:
         IBKR_CLOSED_ORDER_STATUSES,
         IBKR_CLOSED_ORDERS_LIMIT_DEFAULT,
     )
+
+    from sim.mode import is_sim_mode
+
+    if is_sim_mode():
+        from sim import broker as _sim_broker
+
+        return _sim_broker.closed_orders(limit)
 
     cap = IBKR_CLOSED_ORDERS_LIMIT_DEFAULT if limit is None else max(1, int(limit))
     ib = _client.get_ib()

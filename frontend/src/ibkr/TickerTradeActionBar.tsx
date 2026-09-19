@@ -71,7 +71,8 @@ export function TickerTradeActionBar({
 
   const canTrade = connected && mode !== 'disconnected' && disabledReason == null && !closing;
   const canFlatten = canTrade && !accountError;
-  const modeLabel = mode === 'paper' ? 'PAPER' : mode === 'live' ? '⚠ LIVE' : 'OFFLINE';
+  const modeLabel =
+    mode === 'paper' ? 'PAPER' : mode === 'live' ? '⚠ LIVE' : mode === 'sim' ? 'SIM' : 'OFFLINE';
   const hasPosition = position != null && position.qty !== 0;
   const compactChrome = variant === 'rail';
   const showAccount = !compactChrome;

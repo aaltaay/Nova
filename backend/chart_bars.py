@@ -72,6 +72,18 @@ def fetch_chart_bars(
     fallback. An empty store while Gateway is down is still HTTP 503.
     """
     symbol = symbol.upper()
+    from sim.mode import is_sim_mode
+
+    if is_sim_mode():
+        from constants_sim import SIM_SYMBOL
+        from sim import market as _sim_market
+
+        if symbol == SIM_SYMBOL:
+            return _sim_market.chart_bars(symbol, timeframe, limit)
+        raise HTTPException(
+            status_code=503,
+            detail="SIM mode only serves SIM1 -- switch to Paper or Live for IBKR charts.",
+        )
     if discovery_provider == "ibkr":
         stored = _store_read(symbol, timeframe, limit)
         ready = _ibkr_client.is_ready()

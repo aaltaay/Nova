@@ -64,7 +64,8 @@ export function TickerTradeSideColumn({ detail, position, ibkrConnected, mode }:
   if (detail.fundamentals?.sector) descParts.push(detail.fundamentals.sector);
 
   const news = (detail.news ?? []).slice(0, TICKER_TRADE_SIDE_NEWS_COUNT);
-  const modeLabel = mode === 'paper' ? 'PAPER' : mode === 'live' ? 'LIVE' : 'OFFLINE';
+  const modeLabel =
+    mode === 'paper' ? 'PAPER' : mode === 'live' ? 'LIVE' : mode === 'sim' ? 'SIM' : 'OFFLINE';
 
   return (
     <aside className="ticker-trade-side" aria-label="Ticker information">

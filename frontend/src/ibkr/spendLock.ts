@@ -6,7 +6,7 @@
  * fail closed in the UI instead of reading as armed.
  */
 
-const ARMED_STATUSES = new Set(['paper_armed', 'live_armed']);
+const ARMED_STATUSES = new Set(['paper_armed', 'live_armed', 'sim_armed']);
 
 const LOCK_REASONS: Record<string, string> = {
   locked: 'Orders locked — enable IBKR orders in Nova settings/environment',
@@ -38,5 +38,7 @@ export function spendLockReason(
 /** Short chip label for the Trading header. */
 export function spendStatusLabel(spendStatus?: string | null): string {
   if (isSpendLocked(spendStatus)) return 'ORDERS LOCKED — no spends';
-  return spendStatus === 'live_armed' ? 'LIVE ORDERS ARMED' : 'PAPER ORDERS ON';
+  if (spendStatus === 'live_armed') return 'LIVE ORDERS ARMED';
+  if (spendStatus === 'sim_armed') return 'SIM ORDERS (PRACTICE)';
+  return 'PAPER ORDERS ON';
 }

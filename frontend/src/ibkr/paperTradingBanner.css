@@ -14,3 +14,13 @@
   );
   border-bottom: 1px solid color-mix(in srgb, #ea580c 55%, transparent);
 }
+
+.paper-trading-banner.is-sim {
+  color: #1a041f;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, #e879f9 92%, #a21caf),
+    color-mix(in srgb, #f0abfc 90%, #e879f9)
+  );
+  border-bottom: 1px solid color-mix(in srgb, #a21caf 55%, transparent);
+}

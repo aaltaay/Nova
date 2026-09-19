@@ -99,6 +99,7 @@ export function TradingTab({
   const modeColor =
     status.mode === 'live' ? 'var(--red)' :
     status.mode === 'paper' ? 'var(--green)' :
+    status.mode === 'sim' ? '#e879f9' :
     'var(--text-muted)';
 
   return (

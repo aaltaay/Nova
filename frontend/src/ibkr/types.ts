@@ -1,7 +1,7 @@
 // Shared TypeScript types for the IBKR trading module.
 // Mirrors the JSON shapes returned by backend/routes/trading.py.
 
-export type IbkrMode = 'paper' | 'live' | 'disconnected';
+export type IbkrMode = 'paper' | 'live' | 'sim' | 'disconnected';
 
 export interface IbkrStatus {
   enabled: boolean;
@@ -17,6 +17,9 @@ export interface IbkrStatus {
   /** disconnected | connecting | synchronizing | ready | degraded (ibkr/session_state.py). */
   session_state?: string;
   mode: IbkrMode;
+  /** True while the in-app Sim practice toggle is on. */
+  sim?: boolean;
+  sim_symbol?: string | null;
   gateway_mode?: 'paper' | 'live';
   /** Session account classification from IB account ids (DU…=paper, U…=live). */
   broker_account_kind?: 'paper' | 'live' | 'unknown';
@@ -30,7 +33,7 @@ export interface IbkrStatus {
   short_enabled?: boolean;
   /**
    * locked | locked_live_unconfirmed | locked_account_unconfirmed
-   * | paper_armed | live_armed — read it through `spendLock.ts`, never by
+   * | paper_armed | live_armed | sim_armed -- read it through `spendLock.ts`, never by
    * comparing literals (a new locked state must not read as armed).
    */
   spend_status?: string;

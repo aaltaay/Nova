@@ -12,6 +12,7 @@ import {
   HEADER_GATEWAY_TITLE_DELAYED,
   HEADER_GATEWAY_TITLE_LIVE,
   HEADER_GATEWAY_TITLE_PAPER,
+  HEADER_GATEWAY_TITLE_SIM,
   HEADER_GATEWAY_TITLE_UNKNOWN,
   HEADER_INTEGRATION_CHIP_LABELS,
   HEADER_INTEGRATION_CHIP_ORDER,
@@ -127,11 +128,13 @@ export function HeaderConnectionStatus({
 
   const modeTag = resolveGatewayModeTag(ibkrMode, ibkrGatewayMode, ibkrAccountKind);
   const modeTitle =
-    modeTag === 'live'
-      ? HEADER_GATEWAY_TITLE_LIVE
-      : modeTag === 'paper'
-        ? HEADER_GATEWAY_TITLE_PAPER
-        : HEADER_GATEWAY_TITLE_UNKNOWN;
+    ibkrMode === 'sim'
+      ? HEADER_GATEWAY_TITLE_SIM
+      : modeTag === 'live'
+        ? HEADER_GATEWAY_TITLE_LIVE
+        : modeTag === 'paper'
+          ? HEADER_GATEWAY_TITLE_PAPER
+          : HEADER_GATEWAY_TITLE_UNKNOWN;
   const gatewayTitle = [
     modeTitle,
     ibkrConnected
@@ -145,7 +148,9 @@ export function HeaderConnectionStatus({
     .join('\n\n');
 
   const statusStale = ibkrStatusLive.stale === true;
-  const gatewayChipTone: HeaderChipTone = gatewayLaunchOk === false
+  const gatewayChipTone: HeaderChipTone = ibkrMode === 'sim'
+    ? 'warn'
+    : gatewayLaunchOk === false
     ? 'bad'
     : gatewayLaunchOk === true
       ? 'ok'
@@ -164,6 +169,7 @@ export function HeaderConnectionStatus({
     stale: statusStale,
     launchBusy: gatewayLaunchBusy,
     launchOk: gatewayLaunchOk,
+    sim: ibkrMode === 'sim',
   });
   const deskTone = deskChipTone({ apiOk, gatewayTone: gatewayChipTone });
   const deskTitle = [

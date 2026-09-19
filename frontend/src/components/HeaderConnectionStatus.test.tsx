@@ -197,9 +197,10 @@ describe('HeaderConnectionStatus', () => {
     const capsule = container.querySelector('[data-testid="header-gateway-mode-capsule"]');
     expect(capsule).toBeTruthy();
     const segs = capsule!.querySelectorAll('.gw-mode-capsule__seg');
-    expect(segs).toHaveLength(2);
+    expect(segs).toHaveLength(3);
     expect(segs[0].textContent).toMatch(/Paper/i);
     expect(segs[1].textContent).toMatch(/Live/i);
+    expect(segs[2].textContent).toMatch(/Sim/i);
     expect(capsule!.classList.contains('is-paper')).toBe(true);
     expect(segs[0].classList.contains('is-selected')).toBe(true);
     expect(segs[0].classList.contains('is-paper')).toBe(true);

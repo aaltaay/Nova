@@ -337,6 +337,7 @@ describe('GlobalAppBar', () => {
     expect(capsule!.classList.contains('is-paper')).toBe(true);
     expect(segs[0].textContent).toMatch(/Paper/i);
     expect(segs[1].textContent).toMatch(/Live/i);
+    expect(segs[2].textContent).toMatch(/Sim/i);
     expect(segs[0].classList.contains('is-paper')).toBe(true);
   });
 
