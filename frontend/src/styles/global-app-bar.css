@@ -367,7 +367,8 @@
 }
 
 /* Trader tab strip lives here (portal from StockViewTabs). Chips, not tabs. */
-.global-app-bar__trader-slot {
+.global-app-bar__trader-slot,
+.global-app-bar__trader-row {
   align-self: stretch;
 }
 
@@ -571,4 +572,39 @@
   color: var(--nova-text);
   background: color-mix(in srgb, var(--nova-accent, #3b82f6) 18%, transparent);
   border-color: color-mix(in srgb, var(--nova-accent, #3b82f6) 45%, var(--nova-border));
+}
+
+
+/* Symbol tabs under Bot Autonomy, above the chart */
+.global-app-bar__trader-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  width: 100%;
+  padding: 0.2rem 0 0.15rem;
+  border-top: 1px solid color-mix(in srgb, var(--nova-border) 70%, transparent);
+}
+.global-app-bar__trader-row .sv-tab-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+}
+.global-app-bar__icon-btn {
+  min-width: 2rem;
+  padding: 0.35rem 0.45rem;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+.global-app-bar__card-row--fund {
+  margin-top: 0.35rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--nova-border);
+  justify-content: stretch;
+}
+.global-app-bar__card-row--fund .global-app-bar__fund {
+  width: 100%;
+  justify-content: center;
 }

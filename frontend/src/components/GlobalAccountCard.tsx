@@ -9,6 +9,7 @@ import {
 import type { IbkrAccountSummary } from '../ibkr/types';
 import { formatMoney } from '../utils/formatMoney';
 import { formatSignedMoney, pnlToneClass } from './globalBarMoney';
+import { FundAccountButton } from '../ibkr/FundAccountButton';
 
 interface Props {
   summary: IbkrAccountSummary | null;
@@ -43,6 +44,9 @@ export function GlobalAccountCard({ summary }: Props) {
             ? formatMoney(summary.GrossPositionValue)
             : GLOBAL_BAR_OFFLINE_PLACEHOLDER}
         </span>
+      </div>
+      <div className="global-app-bar__card-row global-app-bar__card-row--fund">
+        <FundAccountButton />
       </div>
     </div>
   );
