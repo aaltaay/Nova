@@ -9,6 +9,14 @@ This file is a **shared memory** of errors fixed and problems identified in this
 1. **When:** After you fix a failing build, test, linter error, runtime error, or incorrect behavior; or after you identify a non-obvious root cause worth remembering. **Required** — not optional for “obvious” or “quick” fixes.
 2. **Where:** Prepend a new `##` section **immediately below** the `<!-- ENTRIES_START -->
 
+## 2026-09-19 -- `git commit --amend` deadlocked against the version pre-push hook
+
+- **Symptom:** After `git commit --amend`, `git push` was rejected forever: `bump_version: version drift -- VERSION is 'v004', expected 'v003'`. Following the hook's own printed remedy (`--sync`, restage, amend) re-triggered it; 3 of 3 retries stayed blocked. Agents escaped only with `--no-verify` or by adding a junk commit, and burned turns rediscovering this.
+- **Cause:** `.githooks/pre-commit` stamped `target_count_for_hook()` = `git rev-list --count HEAD` + 1. `is_amend_commit()` was supposed to suppress the +1 by reading `GIT_REFLOG_ACTION`, but **git does not export that variable to the pre-commit hook** — verified by swapping the hook for a probe, which printed `<unset>` during a real `--amend`. So the guard could never fire: amend stamped count+1 while the commit count did not move, and `pre-push` compared the two and refused. The deeper fault is that the hook *mutated the index* (`git add`) with a value derived from history, which is not stable under any history rewrite.
+- **Fix:** Deleted the version hooks and untracked `VERSION`; the tag is now derived from git at build time (`frontend/electron/releaseTagSource.mjs`). `sync_revision()` no longer stages, and a regression test asserts `run_sync` invokes no git command and that `run_pre_commit` / `run_pre_push` no longer exist. Rule adopted: **hooks validate, never mutate the index.** WS1 of #344.
+- **Fix class:** infra
+- **Keywords:** bump_version, pre-commit, pre-push, GIT_REFLOG_ACTION, git commit --amend, version drift, VERSION, deadlock, --no-verify
+
 ## 2026-09-19 -- Sim feed retained unused fixed-interval import
 
 - **Symptom:** Targeted Ruff verification failed F401 for SIM_TICK_INTERVAL_SEC in sim/feed.py.
