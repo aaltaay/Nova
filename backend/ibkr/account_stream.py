@@ -7,12 +7,12 @@ multi-account or empty-account connect still keeps ``accountValues()`` and
 """
 from __future__ import annotations
 
-import asyncio
 import inspect
 import logging
 from typing import Any
 
 from ibkr.errors import describe_exc
+from ibkr.ib_await import await_ib_request
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ async def ensure_account_updates(ib: Any | None = None) -> bool:
 
         result = req(account)
         if inspect.isawaitable(result):
-            await asyncio.wait_for(
+            await await_ib_request(
                 result,
                 timeout=float(IBKR_ACCOUNT_UPDATES_TIMEOUT_SEC),
             )

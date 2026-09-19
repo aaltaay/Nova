@@ -68,6 +68,41 @@ def test_stuck_unusable_past_threshold_forces_reset_and_wakes(monkeypatch):
     client_mod.wake_reconnect_loop.assert_called_once()
     assert session_state.state() == session_state.DISCONNECTED
     client_mod.set_session_reason.assert_called_with("force_reconnect_stuck_unusable")
+    # Reset starts a fresh clock -- the next attempt is not pre-judged.
+    assert session_errors.unusable_since() is None
+
+
+@pytest.mark.parametrize("dialer_phase", ["connecting", "synchronizing"])
+def test_stuck_unusable_leaves_in_progress_connect_alone(monkeypatch, dialer_phase):
+    """PROBLEM_LOG 2026-09-19: an old stamp (the Reconnect click) made the
+    watchdog kill every fresh connect ~4s in, so READY was never reachable."""
+    import constants_ibkr as cibkr
+
+    monkeypatch.setattr(cibkr, "IBKR_UNUSABLE_FORCE_RECONNECT_SEC", 0.01)
+    session_errors.stamp_unusable()
+    time.sleep(0.02)
+    session_state.set_connecting()
+    if dialer_phase == "synchronizing":
+        session_state.set_synchronizing()
+    client_mod = _fake_client_mod(is_connected=True, is_ready=False)
+
+    watchdog._check_stuck_unusable(client_mod)
+
+    client_mod._safe_disconnect.assert_not_called()
+    client_mod.wake_reconnect_loop.assert_not_called()
+
+
+def test_dialer_reset_also_clears_unusable_stamp(monkeypatch):
+    import ibkr.session_reconnect as reconnect
+
+    monkeypatch.setattr(reconnect, "dialer_heartbeat_age_sec", lambda: None)
+    session_errors.stamp_unusable()
+    client_mod = _fake_client_mod()
+    client_mod.reconnect_task.return_value = None
+
+    watchdog._check_dialer_heartbeat(client_mod)
+
+    assert session_errors.unusable_since() is None
 
 
 def test_stuck_unusable_ignored_when_transport_down():

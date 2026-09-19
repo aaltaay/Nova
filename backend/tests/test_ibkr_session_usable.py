@@ -84,3 +84,26 @@ def test_earn_usable_happy_path_reaches_ready(monkeypatch):
     assert detail == "ok"
     assert session_state.state() == session_state.READY
     assert session_state.generation() == 1
+
+
+def test_earn_usable_reaches_ready_when_completed_orders_future_is_stale(monkeypatch):
+    """connectAsync's completed-orders sync timed out, so ib_async hands the
+    warm-up an already-cancelled future. That used to raise CancelledError
+    out of earn_usable and silently kill the dialer (PROBLEM_LOG 2026-09-19)."""
+
+    async def _noop(*_a, **_k):
+        return None
+
+    monkeypatch.setattr(account_mod, "refresh_positions_cache", _noop)
+
+    async def run():
+        stale = asyncio.get_running_loop().create_future()
+        stale.cancel()
+        ib = _fake_ib()
+        ib.reqCompletedOrdersAsync = lambda _api_only: stale
+        return await session_usable.earn_usable(ib, "connect")
+
+    ok, detail = asyncio.run(run())
+
+    assert (ok, detail) == (True, "ok")
+    assert session_state.state() == session_state.READY
