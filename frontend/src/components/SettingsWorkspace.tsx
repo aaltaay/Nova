@@ -18,6 +18,7 @@ import {
   type SettingsSectionId,
 } from '../settings/settingsNav';
 import { TradeSettingsSection } from '../settings/TradeSettingsSection';
+import { SensorBoard } from '../sensors/SensorBoard';
 
 export type SettingsSection = SettingsSectionId;
 
@@ -126,6 +127,7 @@ export function SettingsWorkspace(props: SettingsWorkspaceProps) {
             {section === 'account' && (
               <AccountSettingsSection onClose={props.onCancel} />
             )}
+            {section === 'sensors' && <SensorBoard />}
           </div>
         </div>
       </div>

@@ -123,6 +123,11 @@ def book() -> dict[str, Any]:
     return {"bids": bids, "asks": asks, "l1_fallback": False}
 
 
+def recent_prints(limit: int = 20) -> list[dict[str, Any]]:
+    cap = max(1, int(limit))
+    return list(_prints[-cap:])
+
+
 def print_payload() -> dict[str, Any]:
     px = last()
     b, a = bid(), ask()

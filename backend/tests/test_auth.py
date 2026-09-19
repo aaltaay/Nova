@@ -105,6 +105,15 @@ def test_bot_get_session_open_without_key(monkeypatch):
     assert client.get("/bot/session").status_code == 200
 
 
+def test_sensor_memory_post_rejects_missing_key(api_key):
+    res = client.post("/sensors/memory", json={"symbol": "AAPL", "decision": "go"})
+    assert res.status_code == 401
+
+
+def test_sensor_memory_get_stays_open_with_key_configured(api_key):
+    assert client.get("/sensors/memory", params={"symbol": "AAPL"}).status_code == 200
+
+
 def test_config_post_loopback_valid_key_accepted(api_key, monkeypatch, tmp_path):
     env_path = tmp_path / ".env"
     env_path.write_text("NOVA_DISCOVERY_PROVIDER=ibkr\n", encoding="utf-8")

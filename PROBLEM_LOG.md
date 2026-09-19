@@ -37,6 +37,22 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- Sensor Board UX review: no Advice provenance, green chip on error, fat cards
+
+- **Symptom:** Sensor 13 looked like a bare headline. Live rows with `error` kept a green live chip. Eighteen two-line bordered cards failed operator glance density.
+- **Cause:** `sensorSummary` omitted `data.source`. `SensorStatusChip` only knew live/stub/computed_stub. Rows used a card stack (`row-head` + value).
+- **Fix:** News value is `Advice · <headline>`. Chip becomes `error` when `row.error` is set. One scanner-density row: name / value / chip. Tape/flow no longer invent `0 prints`.
+- **Fix class:** surfacing
+- **Keywords:** sensors, Sensor Board, Advice, error chip, density, tape, flow, #287
+
+## 2026-09-19 -- Sensor news test treated Advice disclaimer as Advisor leak
+
+- **Symptom:** `test_news_does_not_require_finnhub` failed: `'Advisor' is contained here` on a healthy `/sensors/news` envelope.
+- **Cause:** The Advice-only note says "Not Advisor." A whole-body substring check treated that disclaimer as a leak to the Advisor product.
+- **Fix:** Assert `source=advice`, no Finnhub, no `/api/advisor`, and that the note names Advice.
+- **Fix class:** surfacing
+- **Keywords:** sensors, news, Advice, Advisor, finnhub, substring
+
 ## 2026-09-19 -- Sim PR Backend tests failed ruff F401 unused imports
 
 - **Symptom:** CI Backend tests on #282 failed ruff F401: `ibkr.client` unused in `bot/flatten.py`, `ibkr.tape_stream` unused in `routes/trading.py`.

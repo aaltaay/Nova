@@ -1,0 +1,129 @@
+/* Owner: frontend/src/sensors. Sensor Board inside Settings. */
+.sensor-board {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.sensor-board-toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.45rem;
+}
+
+.sensor-board-symbol {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.sensor-board-symbol input {
+  width: 6.5rem;
+  background: var(--bg-primary, #0f1115);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+}
+
+.sensor-board-refresh {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.sensor-board-error,
+.sensor-board-empty {
+  border: 1px solid var(--danger, #c44);
+  background: color-mix(in srgb, var(--danger, #c44) 12%, transparent);
+  color: var(--text-primary);
+  padding: 0.35rem 0.5rem;
+  border-radius: 3px;
+  font-size: 0.75rem;
+}
+
+.sensor-board-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid rgba(38, 42, 54, 0.65);
+}
+
+.sensor-board-row {
+  display: grid;
+  grid-template-columns: minmax(6.5rem, 10.5rem) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 1.55rem;
+  padding: 0.18rem 0.3rem;
+  border-bottom: 1px solid rgba(38, 42, 54, 0.65);
+}
+
+.sensor-board-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.sensor-board-name {
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sensor-board-value {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.sensor-board-value.is-error,
+.sensor-board-row.is-error .sensor-board-value {
+  color: var(--danger, #e06666);
+}
+
+.sensor-chip {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  font-size: 0.62rem;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 0.05rem 0.38rem;
+  border: 1px solid var(--border-color);
+}
+
+.sensor-chip--live {
+  color: #7dcea0;
+  border-color: #7dcea0;
+}
+
+.sensor-chip--stub {
+  color: #d4ac0d;
+  border-color: #d4ac0d;
+}
+
+.sensor-chip--computed_stub {
+  color: #5dade2;
+  border-color: #5dade2;
+}
+
+.sensor-chip--error {
+  color: #e06666;
+  border-color: #e06666;
+}

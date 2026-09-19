@@ -21,3 +21,4 @@ from constants_metrics import *  # noqa: F403
 from constants_nova_os import *  # noqa: F403
 from constants_scanner import *  # noqa: F403
 from constants_sim import *  # noqa: F403
+from constants_sensors import *  # noqa: F403
