@@ -7,32 +7,7 @@ This file is a **shared memory** of errors fixed and problems identified in this
 ## How agents update this file
 
 1. **When:** After you fix a failing build, test, linter error, runtime error, or incorrect behavior; or after you identify a non-obvious root cause worth remembering. **Required** — not optional for “obvious” or “quick” fixes.
-2. **Where:** Prepend a new `##` section **immediately below** the `<!-- ENTRIES_START -->
-
-## 2026-09-19 -- `git commit --amend` deadlocked against the version pre-push hook
-
-- **Symptom:** After `git commit --amend`, `git push` was rejected forever: `bump_version: version drift -- VERSION is 'v004', expected 'v003'`. Following the hook's own printed remedy (`--sync`, restage, amend) re-triggered it; 3 of 3 retries stayed blocked. Agents escaped only with `--no-verify` or by adding a junk commit, and burned turns rediscovering this.
-- **Cause:** `.githooks/pre-commit` stamped `target_count_for_hook()` = `git rev-list --count HEAD` + 1. `is_amend_commit()` was supposed to suppress the +1 by reading `GIT_REFLOG_ACTION`, but **git does not export that variable to the pre-commit hook** — verified by swapping the hook for a probe, which printed `<unset>` during a real `--amend`. So the guard could never fire: amend stamped count+1 while the commit count did not move, and `pre-push` compared the two and refused. The deeper fault is that the hook *mutated the index* (`git add`) with a value derived from history, which is not stable under any history rewrite.
-- **Fix:** Deleted the version hooks and untracked `VERSION`; the tag is now derived from git at build time (`frontend/electron/releaseTagSource.mjs`). `sync_revision()` no longer stages, and a regression test asserts `run_sync` invokes no git command and that `run_pre_commit` / `run_pre_push` no longer exist. Rule adopted: **hooks validate, never mutate the index.** WS1 of #344.
-- **Fix class:** infra
-- **Keywords:** bump_version, pre-commit, pre-push, GIT_REFLOG_ACTION, git commit --amend, version drift, VERSION, deadlock, --no-verify
-
-## 2026-09-19 -- Sim feed retained unused fixed-interval import
-
-- **Symptom:** Targeted Ruff verification failed F401 for SIM_TICK_INTERVAL_SEC in sim/feed.py.
-- **Cause:** Feed sleep already uses phase_tick_interval_sec; the older fixed interval import was left unused.
-- **Fix:** Remove the unused import in the touched feed module. No timing behavior changed by this cleanup. Playback ownership is documented in architecture/sim-clock.md.
-- **Fix class:** infra
-- **Keywords:** sim, feed, Ruff, F401, SIM_TICK_INTERVAL_SEC, phase_tick_interval_sec
-
-## 2026-09-19 -- Sim slider reopens closed replay ticker and steals focus
-
-- **Symptom:** With IMCC active and SIM1 closed, dragging the Sim clock reopened SIM1 and activated it.
-- **Cause:** postScrub called openStockView(replay_symbol) on every successful clock response. Replay selection survives tab closure, so clock updates overrode desk selection.
-- **Fix:** Remove navigation from scrubbing; retain the existing chart/tape refresh event and explicit ticker-pick navigation. ADR 011 section 7b records the ownership contract.
-- **Fix class:** ownership
-- **Verified by:** Both pointer and debounced regressions failed before the fix (SIM1 instead of IMCC), then passed; neighboring Trader tests and Chromium mouse/keyboard checks passed.
-- **Keywords:** SimSessionHeader, postScrub, SIM1, IMCC, replay_symbol, openStockView, closed tab, slider` marker (newest entries at the top).
+2. **Where:** Prepend a new `##` section **immediately below** the `<!-- ENTRIES_START -->` marker (newest entries at the top).
 3. **Keep it short:** A few lines per field is enough.
 
 Entry template (copy and fill in):
@@ -62,6 +37,15 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- Log entries landed inside the how-to block instead of under the entries marker
+
+- **Symptom:** `CHANGELOG.md` and `PROBLEM_LOG.md` held dated entries in the middle of instruction item 2, whose sentence broke after the marker name and resumed as an orphaned `` ` marker (newest entries at the top).`` tail below them. `CHANGELOG.md` also opened with an `## Unreleased` block above its own H1.
+- **Cause:** Both how-to sections quote the literal `ENTRIES_START` marker inside backticks, so the first textual occurrence of the marker is the prose mention, not the standalone marker line ~50 lines further down. An agent editing by first match therefore appends each new entry to that sentence. No Nova tool inserts these entries; `tools/`, `scripts/`, `.cursor/`, `.githooks/` contain no inserter, and the first bad commit (`bd0d0cb6`, PR #294) carries no tool signature. `58f6bc7` repeated it hours later, while the repair PR was open -- four recurrences in total.
+- **Fix:** Re-filed the eight entries under the real standalone marker in landing order without changing their text, rejoined item 2 in both files, and restored `# Change log (agent-maintained)` to line 1. Added structural checks to `tools/doc_invariants.py` (already CI-gated) so the same mistake fails the build with the offending line numbers, and told both log rules to anchor on the marker *line*, not the first match of the marker text.
+- **Fix class:** infra
+- **Verified by:** `py -3 -m pytest tools/test_doc_invariants.py -q` -> 18 passed (fixtures reproduce the `bd0d0cb6` split-sentence shape and the `8745b964` above-the-title shape); `py -3 tools/doc_invariants.py` -> OK; guard run against `origin/master` reports 7 + 4 violations naming every misplaced block, and 0 on this branch.
+- **Keywords:** CHANGELOG, PROBLEM_LOG, ENTRIES_START, marker, how-to block, first occurrence, doc_invariants, entry_log_howto_split, D-061, bd0d0cb6, 58f6bc7
+
 ## 2026-09-19 -- Deferred ids collided under concurrency, and labeled issues vanished from `status`
 
 - **Symptom:** Two unrelated failures in the same 300 lines of tooling. (1) 8 `D-NNN` ids are duplicated across 16 open+closed issues. (2) `deferred_log.py status` under-reported the backlog: 4 of 94 `deferred`-labeled issues never appeared, including #216, which is labeled `parked`.
@@ -71,6 +55,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Verified by:** 313 tests pass in `tools/` (two pre-existing failures confirmed by stashing onto clean master); `doc_invariants.py` exit 0; the four previously-invisible issues replayed through the patched parser all resolve, with `parked` and `done` preserved.
 - **Keywords:** deferred_log, deferred_github, next-id, next_id_from_issues, TITLE_RE, parse_issue, D-NNN, duplicate id, open_actionable, AttributeError, session_brief_hook, doc_invariants, missing_live_path
 
+
+## 2026-09-19 -- `git commit --amend` deadlocked against the version pre-push hook
+
+- **Symptom:** After `git commit --amend`, `git push` was rejected forever: `bump_version: version drift -- VERSION is 'v004', expected 'v003'`. Following the hook's own printed remedy (`--sync`, restage, amend) re-triggered it; 3 of 3 retries stayed blocked. Agents escaped only with `--no-verify` or by adding a junk commit, and burned turns rediscovering this.
+- **Cause:** `.githooks/pre-commit` stamped `target_count_for_hook()` = `git rev-list --count HEAD` + 1. `is_amend_commit()` was supposed to suppress the +1 by reading `GIT_REFLOG_ACTION`, but **git does not export that variable to the pre-commit hook** — verified by swapping the hook for a probe, which printed `<unset>` during a real `--amend`. So the guard could never fire: amend stamped count+1 while the commit count did not move, and `pre-push` compared the two and refused. The deeper fault is that the hook *mutated the index* (`git add`) with a value derived from history, which is not stable under any history rewrite.
+- **Fix:** Deleted the version hooks and untracked `VERSION`; the tag is now derived from git at build time (`frontend/electron/releaseTagSource.mjs`). `sync_revision()` no longer stages, and a regression test asserts `run_sync` invokes no git command and that `run_pre_commit` / `run_pre_push` no longer exist. Rule adopted: **hooks validate, never mutate the index.** WS1 of #344.
+- **Fix class:** infra
+- **Keywords:** bump_version, pre-commit, pre-push, GIT_REFLOG_ACTION, git commit --amend, version drift, VERSION, deadlock, --no-verify
 
 ## 2026-09-19 -- Replay quote rail: hidden L2 note and wrong prior close
 
@@ -127,6 +119,23 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Verified by:** Boundary/rewind/volume/store-isolation regressions, chart store race tests, actual Lightweight Charts series in Chromium, and neighboring archive/sensor tests. Cold Vite fixture startup is awaited separately from chart refresh timing.
 - **Keywords:** sim, replay, lookahead, future bars, candle close, OHLCV, VWAP, stale response, capture_player, bars_store
 - **Related:** #292; architecture/sim-clock.md. Historical tick acquisition and quote/tape reconciliation remain deferred.
+
+## 2026-09-19 -- Sim feed retained unused fixed-interval import
+
+- **Symptom:** Targeted Ruff verification failed F401 for SIM_TICK_INTERVAL_SEC in sim/feed.py.
+- **Cause:** Feed sleep already uses phase_tick_interval_sec; the older fixed interval import was left unused.
+- **Fix:** Remove the unused import in the touched feed module. No timing behavior changed by this cleanup. Playback ownership is documented in architecture/sim-clock.md.
+- **Fix class:** infra
+- **Keywords:** sim, feed, Ruff, F401, SIM_TICK_INTERVAL_SEC, phase_tick_interval_sec
+
+## 2026-09-19 -- Sim slider reopens closed replay ticker and steals focus
+
+- **Symptom:** With IMCC active and SIM1 closed, dragging the Sim clock reopened SIM1 and activated it.
+- **Cause:** postScrub called openStockView(replay_symbol) on every successful clock response. Replay selection survives tab closure, so clock updates overrode desk selection.
+- **Fix:** Remove navigation from scrubbing; retain the existing chart/tape refresh event and explicit ticker-pick navigation. ADR 011 section 7b records the ownership contract.
+- **Fix class:** ownership
+- **Verified by:** Both pointer and debounced regressions failed before the fix (SIM1 instead of IMCC), then passed; neighboring Trader tests and Chromium mouse/keyboard checks passed.
+- **Keywords:** SimSessionHeader, postScrub, SIM1, IMCC, replay_symbol, openStockView, closed tab, slider
 
 ## 2026-09-19 -- nova-brain skipped Sensor Board and required a second LLM key
 

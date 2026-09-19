@@ -27,6 +27,7 @@ When a session **fixes or fully diagnoses** any of the following, the agent **MU
 ## Where and how
 
 1. Prepend a new `##` section **immediately below** the `<!-- ENTRIES_START -->` marker (newest first).
+   **Anchor on the marker *line*, not the first match of the marker text.** This sentence quotes the marker, so a first-match edit lands here, ~50 lines above the real anchor, and splits the instruction. The marker line is the one whose entire content is `<!-- ENTRIES_START -->`. `tools/doc_invariants.py` fails CI on that mistake (`entry_log_entry_above_marker`, `entry_log_howto_split`).
 2. Use the template in `PROBLEM_LOG.md`: Symptom, Cause, Fix, Keywords.
 3. Do not log secrets, tokens, or personal data.
 4. Cross-link from `CHANGELOG.md` / task-log `Related:` when those also get an entry.
