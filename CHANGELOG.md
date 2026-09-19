@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- L2 Brain sensor list v1 (docs)
+
+- **What:** Added `docs/l2-brain-sensors.md` -- draft sensor list (1-13) for L2 Brain. Each sensor is an independent read-only GET smoke-test endpoint. Thresholds stay unset. Sensor 13 news/catalyst is wired to the existing Advice feature (not Advisor, not a stub, not a new news API). Linked from `docs/README.md`.
+- **Why:** Ahmed asked for the v1 sensor contract on a ready PR, then locked sensor 13's product name to Advice.
+- **Files touched:** `docs/l2-brain-sensors.md`, `docs/README.md`.
+- **How it works now:** Agents treat this note as the sensor contract. `/sensors/*` is not implemented here. Sensor 13 reads headline / source / timestamp / sentiment from the Advice feature's output (`docs/advise-rail.md`). No new API keys. No autonomous orders.
+- **Verified by:** markdownlint on the new note + README; `doc_invariants.py`; grep that sensor 13 says Advice feature and never Advisor.
+- **Follow-ups:** Ahmed review of the draft; later session implements the GET routes.
+- **Related:** Advice feature / Advise rail (`docs/advise-rail.md`).
+
 ## 2026-09-18 -- Emergency KILL after Look Up
 
 - **What:** GlobalAppBar scanner cluster gains a red **Emergency KILL** control immediately after Look Up. After confirm it cancels all working orders, flattens the account at market, sets Bot Autonomy to L0, and locks the desk trade session.

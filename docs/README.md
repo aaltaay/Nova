@@ -1,5 +1,9 @@
 # docs/
 
+## L2 Brain
+
+[l2-brain-sensors.md](l2-brain-sensors.md) -- Sensor list v1 (draft, 2026-09-18, pending Ahmed review). Read-only GET smoke-test surface. Sensor 13 news/catalyst is wired to the existing **Advice feature** (Advise rail / Advice UI). No new API keys. See also [advise-rail.md](advise-rail.md).
+
 ## Warrior Trading materials
 
 Canonical local library (gitignored under `downloads/`):
