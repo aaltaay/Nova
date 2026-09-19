@@ -10,6 +10,11 @@ small local decision log (stub). Sensor 17 regime is computed/stub. Sensor
 18 macro calendar is a stub (not the Advice feature). No new API keys.
 See also [advise-rail.md](advise-rail.md) and [sim-mode.md](sim-mode.md).
 
+[nova-brain.md](nova-brain.md) -- Windows `python -m nova_brain` worker.
+OpenRouter is the llm-decide model (shared `OPENROUTER_API_KEY` with Advise).
+Reads `/api/health`, bot session, focus, and `/sensors/snapshot`. L1 proposes;
+L2 + Activate may fire allowlisted actions.
+
 ## Warrior Trading materials
 
 Canonical local library (gitignored under `downloads/`):

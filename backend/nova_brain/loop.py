@@ -39,6 +39,9 @@ def step(
     llm_state = last_llm if last_llm is not None else {}
     qp = quote_prev if quote_prev is not None else {}
     vp = volume_prev if volume_prev is not None else {}
+    health = client.health()
+    if not isinstance(health, dict):
+        raise requests.RequestException("Nova /api/health is not a JSON object")
     session = client.session_get()
     level = int(session.get("level") or 0)
     pack = str(session.get("active_pack") or BOT_PACK_HALT_LULD)
@@ -112,10 +115,17 @@ def step(
 
 def run_forever(*, client: BotApiClient | None = None, poll_sec: float | None = None) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    from bot.llm_guard import llm_configured, llm_model_id
+
     api = client or BotApiClient()
     if not api.api_key:
         logger.error("NOVA_API_KEY is required -- nova-brain will not start")
         raise SystemExit(2)
+    if not llm_configured():
+        logger.error(
+            "OPENROUTER_API_KEY (or NOVA_LLM_API_KEY) is missing -- "
+            "llm-decide will not place; other packs still run"
+        )
     misses = 0
     seen_ok = False
     halt_prev: dict[str, bool] = {}
@@ -124,7 +134,13 @@ def run_forever(*, client: BotApiClient | None = None, poll_sec: float | None = 
     quote_prev: dict = {}
     volume_prev: dict = {}
     delay = BOT_BRAIN_POLL_SEC if poll_sec is None else poll_sec
-    logger.info("nova-brain starting against %s as %s", api.base, api.brain_id)
+    logger.info(
+        "nova-brain starting against %s as %s (llm configured=%s model=%s)",
+        api.base,
+        api.brain_id,
+        llm_configured(),
+        llm_model_id() if llm_configured() else "-",
+    )
     while True:
         try:
             halt_prev = step(

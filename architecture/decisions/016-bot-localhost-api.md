@@ -117,6 +117,19 @@ free-form qty, REST quote polls, a second broker path) was rejected.
     `volume_kind`). L2 + Activate fires once, then `cooldown_sec` (60).
     Scanner tab Volume boost remains the desk list, not a second fire path.
 
+## Amendment 2026-09-19 -- OpenRouter is the nova-brain decision model
+
+19. **`nova-brain` llm-decide uses OpenRouter** with the same
+    `OPENROUTER_API_KEY` Advise already uses. Default model is
+    `openai/gpt-4o-mini` (env override allowed). Each tick reads
+    `/api/health`, bot session, watch (allowlist ∩ live focus), and
+    `GET /sensors/snapshot` for those names. Validated JSON may propose at
+    L1 / Activate-off and may `POST /api/bot/action` only at L2 + Activate.
+    Missing key, missing health, sensor-read failure, or free-text JSON
+    fail closed (no place). Qty stays the session preset. Advise still
+    never places. This does not add a second order door or a specialty UX
+    agent.
+
 ## Consequences
 
 - `source="bot"` is a first-class ADR 007 source. Kill / flatten /
