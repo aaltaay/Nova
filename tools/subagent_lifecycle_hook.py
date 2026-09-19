@@ -81,7 +81,7 @@ def handle_payload(payload: dict) -> dict:
             "dashboard=clean|refresh-required | handoff=none|<sibling|parent> | "
             "task_log=<PR URL>|<path>|skipped|n/a | "
             "problem_log=<entry>|skipped|n/a | "
-            "deferred_log=<D-NNN>|none|skipped|n/a "
+            "deferred_log=<#NNN or D-NNN>|none|skipped|n/a "
             "If the run fixed a bug, prepend PROBLEM_LOG.md (problem-log.mdc). "
             "If the run parked a bug or feature, open a GitHub issue labeled "
             "deferred (deferred-log.mdc). "
