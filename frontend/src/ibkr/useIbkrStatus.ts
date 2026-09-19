@@ -20,6 +20,8 @@ const SAMPLE_STATUS: IbkrClientStatus = {
   orders_enabled: true,
   short_enabled: true,
   spend_status: 'paper_armed',
+  trading_allowed: true,
+  trading_allowed_reason: null,
   market_data_type: 1,
   market_data_delayed: false,
   clientReady: true,

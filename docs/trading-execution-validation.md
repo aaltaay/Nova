@@ -101,7 +101,13 @@ calls existing doors in this order:
 2. `cancelAllWorkingOrders` -- `DELETE /api/ibkr/orders?all_symbols=true`
 3. `flatten_account_with_retry` -- `POST /api/ibkr/flatten-account` (same
    function bot loss breakers use; `source=flatten`). Flatten cancels leftover
-   working **before** placing liquidation MKTs so it cannot cancel those closes.
+   working **before** placing closes so it cannot cancel those exits. Weekday
+   RTH closes stay MKT (`outside_rth=false`). After hours / weekend / holiday
+   uses an EH LMT at bid/ask/last (`outside_rth=true`) -- IBKR ignores
+   outsideRth on MKT (Warning 2109) and would hold an RTH-only MKT until the
+   next regular session (Warning 399). Place/Activate/padlock share one
+   `trading_allowed` gate (spend + Gateway + desk PIN). Flatten / KILL /
+   cancel stay protective and do not use that gate to refuse an exit.
 4. Bot Autonomy L0 + desk lock again (reaffirm; L0 retries if the first PATCH
    failed)
 

@@ -614,6 +614,8 @@ export const TICKER_TRADE_LOCK_ICON_UNLOCKED_TITLE =
   'Trading unlocked for this browser session. Click to lock.';
 export const TICKER_TRADE_LOCK_ICON_LOCKED_TITLE =
   'Trading locked. Click and enter PIN to unlock Place an order / Nova Actions.';
+export const FLATTEN_EH_NO_MARK =
+  'After-hours flatten needs a live bid/ask or last -- refusing an RTH-only MKT that IBKR would hold until the next regular session';
 export const TICKER_TRADE_LOCK_ICON_ARIA_UNLOCKED = 'Lock trading';
 export const TICKER_TRADE_LOCK_ICON_ARIA_LOCKED = 'Unlock trading';
 /** Primary CTA after PIN unlock — submits the built order (live / offline). */

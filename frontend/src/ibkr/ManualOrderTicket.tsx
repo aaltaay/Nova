@@ -27,7 +27,7 @@ import {
 import { subscribeOrderTicketPrefill } from './orderTicketPrefill';
 import type { PlaceOrderResult } from './placeOrder';
 import { resolveShortabilityState } from './ShortabilityChip';
-import { isSpendLocked, spendLockReason } from './spendLock';
+import { evaluateTradingAllowed } from './tradingAllowed';
 import {
   readTicketSessionUnlocked,
   subscribeTicketSessionUnlock,
@@ -109,12 +109,17 @@ export function ManualOrderTicket({
   const displayQuantityValue = QTY_LOCKED
     ? String(FORCED_QTY)
     : quantityValue;
-  const spendLocked = isSpendLocked(spendStatus);
-  const spendLockNote = spendLockReason(
+  const trading = evaluateTradingAllowed({
+    connected,
     spendStatus,
-    ibkrStatus.spend_locked_reason,
-  );
-  const needsPinUnlock = !sessionUnlocked;
+    spendReason: ibkrStatus.spend_locked_reason,
+    sessionUnlocked,
+    backendAllowed: ibkrStatus.trading_allowed,
+    backendReason: ibkrStatus.trading_allowed_reason,
+  });
+  const spendLocked = trading.blockers.includes('spend');
+  const spendLockNote = trading.blockers.includes('spend') ? trading.reason : null;
+  const needsPinUnlock = trading.blockers.includes('pin');
   const {
     submitting,
     result,

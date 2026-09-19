@@ -1,8 +1,8 @@
 /**
- * GlobalAppBar lock / unlock icon — same PIN session gate as Manual Order
- * "Unlock Trading" / Place an order. Does not touch IBKR spend env gates.
+ * GlobalAppBar lock / unlock icon -- same trading_allowed gate as Place.
+ * Icon looks unlocked only when places are allowed (spend + PIN + connected).
  */
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Lock, LockOpen } from 'lucide-react';
 import {
   TICKER_TRADE_LOCK_ICON_ARIA_LOCKED,
@@ -10,26 +10,18 @@ import {
   TICKER_TRADE_LOCK_ICON_LOCKED_TITLE,
   TICKER_TRADE_LOCK_ICON_UNLOCKED_TITLE,
 } from '../constants';
+import { padlockLooksUnlocked } from './tradingAllowed';
 import { TradingPinDialog } from './TradingPinDialog';
-import {
-  readTicketSessionUnlocked,
-  subscribeTicketSessionUnlock,
-  tryUnlockTicketSession,
-  writeTicketSessionUnlocked,
-} from './ticketUnlock';
+import { tryUnlockTicketSession, writeTicketSessionUnlocked } from './ticketUnlock';
+import { useDeskTradingAllowed } from './useDeskTradingAllowed';
 
 export function TradingSessionLockButton() {
-  const [unlocked, setUnlocked] = useState(readTicketSessionUnlocked);
+  const gate = useDeskTradingAllowed();
   const [pinOpen, setPinOpen] = useState(false);
-
-  useEffect(() => {
-    const sync = () => setUnlocked(readTicketSessionUnlocked());
-    sync();
-    return subscribeTicketSessionUnlock(sync);
-  }, []);
+  const looksUnlocked = padlockLooksUnlocked(gate);
 
   function onClick() {
-    if (unlocked) {
+    if (gate.sessionUnlocked) {
       writeTicketSessionUnlocked(false);
       setPinOpen(false);
       return;
@@ -37,26 +29,26 @@ export function TradingSessionLockButton() {
     setPinOpen(true);
   }
 
+  const lockedTitle = gate.reason
+    ? `${TICKER_TRADE_LOCK_ICON_LOCKED_TITLE} ${gate.reason}`
+    : TICKER_TRADE_LOCK_ICON_LOCKED_TITLE;
+
   return (
     <>
       <button
         type="button"
-        className={`global-app-bar__trade-lock${unlocked ? ' is-unlocked' : ' is-locked'}`}
-        title={
-          unlocked
-            ? TICKER_TRADE_LOCK_ICON_UNLOCKED_TITLE
-            : TICKER_TRADE_LOCK_ICON_LOCKED_TITLE
-        }
+        className={`global-app-bar__trade-lock${looksUnlocked ? ' is-unlocked' : ' is-locked'}`}
+        title={looksUnlocked ? TICKER_TRADE_LOCK_ICON_UNLOCKED_TITLE : lockedTitle}
         aria-label={
-          unlocked
+          looksUnlocked
             ? TICKER_TRADE_LOCK_ICON_ARIA_UNLOCKED
             : TICKER_TRADE_LOCK_ICON_ARIA_LOCKED
         }
-        aria-pressed={unlocked}
+        aria-pressed={looksUnlocked}
         data-testid="global-bar-trade-lock"
         onClick={onClick}
       >
-        {unlocked ? (
+        {looksUnlocked ? (
           <LockOpen className="global-app-bar__trade-lock-icon" aria-hidden />
         ) : (
           <Lock className="global-app-bar__trade-lock-icon" aria-hidden />

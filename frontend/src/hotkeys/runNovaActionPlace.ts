@@ -10,8 +10,8 @@ import {
   beginBrowserExecutionTiming,
   type BrowserActionStamp,
 } from '../execution_latency';
-import { shouldUseOutsideRth } from '../ibkr/extendedSession';
 import { buildLongExitPercent } from '../ibkr/exitPosition';
+import { planFlattenExit } from '../ibkr/planFlattenExit';
 import { placeIbkrOrder } from '../ibkr/placeOrder';
 import type { TopOfBook } from './TopOfBookContext';
 import type { NovaActionResult } from './novaActionTypes';
@@ -49,11 +49,23 @@ export async function placeMarketExit(
   maybeConfirm: (runtime: NovaActionRuntime, summary: string) => Promise<boolean>,
   idempotencyKey?: string,
 ): Promise<NovaActionResult> {
-  const outside_rth = shouldUseOutsideRth(false);
-  const hours = outside_rth ? ' extended hours' : '';
+  const ticket = planFlattenExit(side, {
+    book: {
+      bid: runtime.topOfBook?.bid,
+      ask: runtime.topOfBook?.ask,
+      last: runtime.position?.market_price,
+    },
+  });
+  if (!ticket.ok) {
+    return { ok: false, text: ticket.error };
+  }
+  const hours = ticket.outside_rth ? ' extended hours' : '';
   const mode = accountModeLabel(runtime.accountMode);
+  const kind = ticket.order_type === 'LMT'
+    ? `LMT ${ticket.limit_price}`
+    : 'MKT';
   const summary =
-    `${side} ${qty} ${symbol} (MKT${hours} ${label}) on ${mode} account.`;
+    `${side} ${qty} ${symbol} (${kind}${hours} ${label}) on ${mode} account.`;
   if (!(await maybeConfirm(runtime, summary))) {
     return { ok: false, text: 'Order cancelled' };
   }
@@ -63,8 +75,9 @@ export async function placeMarketExit(
         symbol,
         side,
         qty,
-        order_type: 'MKT',
-        outside_rth,
+        order_type: ticket.order_type,
+        outside_rth: ticket.outside_rth,
+        limit_price: ticket.limit_price,
       },
       idempotencyKey,
       {
@@ -74,7 +87,7 @@ export async function placeMarketExit(
     return {
       ok: res.ok,
       text: res.ok
-        ? `Exit order #${res.order_id}${outside_rth ? ' (EH)' : ''}`
+        ? `Exit order #${res.order_id}${ticket.outside_rth ? ' (EH)' : ''}`
         : res.error ?? 'Exit failed',
       ...(!res.ok
         ? {

@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- Desk safety: AH flatten held + trading_allowed looks vs is
+
+- **Symptom:** After-hours / weekend flatten-account and Emergency KILL placed RTH-only MKT sells that IBKR held until Monday 9:30 ET (`held_until`, Warning 399). Bot Autonomy Activate could look Active while the desk padlock still blocked Place, or API place and UI lock disagreed.
+- **Cause:** `_place_close` / executor flatten / `closeFullPosition` always sent MKT with `outside_rth=false`. IBKR ignores `outsideRth` on MKT (Warning 2109). Session-kind helpers treated Saturday 10:30 ET as RTH because they ignore weekday. Activate, padlock, ticket, and API each read a different lock.
+- **Fix:** Shared flatten planner: weekday RTH stays MKT; else EH LMT at bid/ask/last (`outside_rth=true`), refuse loud if there is no mark. `evaluate_trading_allowed` / `evaluateTradingAllowed` is the SSOT (spend + Gateway + PIN). Display Active only when armed and places are allowed. PIN lock disarms. After #282, Sim overlay / `places_allowed` treat Sim as allowed so practice is not padlocked when Gateway is down.
+- **Fix class:** ownership
+- **Keywords:** flatten, Emergency KILL, outside_rth, held_until, Warning 2109, Warning 399, trading_allowed, ticketUnlock, Bot Autonomy, padlock, sim
+
 ## 2026-09-19 -- Sensor Board UX review: no Advice provenance, green chip on error, fat cards
 
 - **Symptom:** Sensor 13 looked like a bare headline. Live rows with `error` kept a green live chip. Eighteen two-line bordered cards failed operator glance density.

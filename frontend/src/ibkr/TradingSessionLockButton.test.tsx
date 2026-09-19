@@ -11,6 +11,18 @@ import {
   writeTicketSessionUnlocked,
 } from './ticketUnlock';
 
+const ibkrStatus = {
+  connected: true,
+  spend_status: 'paper_armed',
+  spend_locked_reason: null as string | null,
+  trading_allowed: true as boolean,
+  trading_allowed_reason: null as string | null,
+};
+
+vi.mock('./useIbkrStatus', () => ({
+  useIbkrStatus: () => ibkrStatus,
+}));
+
 vi.mock('./TradingPinDialog', () => ({
   TradingPinDialog: ({
     open,
@@ -36,6 +48,10 @@ describe('TradingSessionLockButton', () => {
 
   beforeEach(() => {
     sessionStorage.clear();
+    ibkrStatus.connected = true;
+    ibkrStatus.spend_status = 'paper_armed';
+    ibkrStatus.trading_allowed = true;
+    ibkrStatus.trading_allowed_reason = null;
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -86,5 +102,21 @@ describe('TradingSessionLockButton', () => {
     });
     expect(readTicketSessionUnlocked()).toBe(false);
     expect(btn.className).toMatch(/is-locked/);
+  });
+
+  it('stays locked after PIN when backend trading_allowed is false', async () => {
+    ibkrStatus.trading_allowed = false;
+    ibkrStatus.trading_allowed_reason = 'Orders locked -- IBKR_ORDERS_ENABLED is off';
+    writeTicketSessionUnlocked(true);
+    act(() => {
+      root.render(<TradingSessionLockButton />);
+    });
+    const btn = container.querySelector(
+      '[data-testid="global-bar-trade-lock"]',
+    ) as HTMLButtonElement;
+    expect(readTicketSessionUnlocked()).toBe(true);
+    expect(btn.className).toMatch(/is-locked/);
+    expect(btn.className).not.toMatch(/is-unlocked/);
+    expect(btn.title).toMatch(/ORDERS_ENABLED/);
   });
 });

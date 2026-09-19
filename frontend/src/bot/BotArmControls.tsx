@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { writeNovaApiKey } from '../api/novaFetch';
 import {
   BOT_ACTIVATE_LABEL,
@@ -13,22 +13,24 @@ import {
   BOT_PACK_FIELD_LABEL,
   BOT_PACK_LABELS,
   BOT_PACKS,
-  BOT_STATE_ACTIVE,
-  BOT_STATE_NOT_ACTIVE,
   packDescription,
   packStatus,
 } from '../constantGroups/bot';
 import { DESK_BOT_POLL_MS } from '../constants';
+import { botArmDisplayState } from '../ibkr/tradingAllowed';
+import { useDeskTradingAllowed } from '../ibkr/useDeskTradingAllowed';
 import { BotArmAllowlistControl } from './BotArmAllowlistControl';
 import { useBotSession } from './useBotSession';
 
 export function BotArmControls() {
   const { session, error, busy, patch, activate, stop } = useBotSession(DESK_BOT_POLL_MS);
+  const gate = useDeskTradingAllowed();
   const [pickedPack, setPickedPack] = useState<string | null>(null);
   const [keyDraft, setKeyDraft] = useState('');
   const level = session?.level ?? 0;
   const armed = Boolean(session?.armed);
-  const live = Boolean(session?.live_fire_ready);
+  const display = botArmDisplayState(armed, gate);
+  const live = Boolean(session?.live_fire_ready) && display.looksActive;
   const sessionPack = String(session?.active_pack || 'halt-luld');
   const pack = pickedPack ?? sessionPack;
   const packs = session?.packs?.length
@@ -42,12 +44,20 @@ export function BotArmControls() {
   const selected = packs.find(row => row.id === pack);
   const description = selected?.description || packDescription(pack);
   const showControlBox = level >= 2;
-  const idle = !armed && !live;
-  const stateLabel = armed ? BOT_STATE_ACTIVE : BOT_STATE_NOT_ACTIVE;
+  const idle = !display.looksActive && !live;
+  const stateLabel = display.label;
   const showKeyField = Boolean(error && /api key/i.test(error));
+  const activateBlocked = !gate.allowed;
+
+  useEffect(() => {
+    if (gate.blockers.includes('pin') && armed) {
+      void stop();
+    }
+  }, [gate.blockers, armed, stop]);
 
   async function onLevel(next: number) {
     if (next >= 2 && !armed) {
+      if (activateBlocked) return;
       const armedSession = await activate();
       if (!armedSession) return;
     }
@@ -56,8 +66,10 @@ export function BotArmControls() {
 
   async function onControl(next: boolean) {
     if (level < 2) return;
-    if (next) await activate();
-    else await stop();
+    if (next) {
+      if (activateBlocked) return;
+      await activate();
+    } else await stop();
   }
 
   function onSaveKey() {
@@ -67,7 +79,7 @@ export function BotArmControls() {
 
   return (
     <div
-      className={`bot-arm${live ? ' bot-arm--live' : ''}${armed ? ' bot-arm--armed' : ''}${idle ? ' bot-arm--idle' : ''}`}
+      className={`bot-arm${live ? ' bot-arm--live' : ''}${display.looksActive ? ' bot-arm--armed' : ''}${idle ? ' bot-arm--idle' : ''}`}
       data-testid="bot-arm-controls"
     >
       <span className="bot-arm__name" data-testid="bot-arm-name">{BOT_AUTONOMY_LABEL}</span>
@@ -124,8 +136,9 @@ export function BotArmControls() {
         ) : null}
       </div>
       <span
-        className={`bot-arm__status${armed ? ' bot-arm__status--active' : ' bot-arm__status--idle'}`}
+        className={`bot-arm__status${display.looksActive ? ' bot-arm__status--active' : ' bot-arm__status--idle'}`}
         data-testid="bot-arm-status"
+        title={gate.reason ?? undefined}
       >
         {stateLabel}
       </span>
@@ -144,8 +157,12 @@ export function BotArmControls() {
           type="button"
           className="bot-arm__btn"
           data-testid="bot-arm-activate"
-          disabled={busy}
-          onClick={() => void activate()}
+          disabled={busy || activateBlocked}
+          title={activateBlocked ? gate.reason ?? undefined : undefined}
+          onClick={() => {
+            if (activateBlocked) return;
+            void activate();
+          }}
         >
           {BOT_ACTIVATE_LABEL}
         </button>

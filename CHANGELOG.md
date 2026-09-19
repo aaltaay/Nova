@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- Desk safety: after-hours flatten + trading_allowed SSOT
+
+- **What:** Flatten / Emergency KILL / close exits after RTH (and on weekends/holidays) send an EH LMT at bid/ask/last with `outside_rth=true` instead of an RTH-only MKT. Header Activate, padlock, order ticket, and API place now read one `trading_allowed` gate.
+- **Why:** Weekend paper flatten left PreSubmitted MKT sells `held_until` Monday 9:30 ET (IBKR Warning 2109/399). Activate could look armed while the padlock still blocked Place.
+- **Files touched:** `backend/execution/flatten_exit.py`, `backend/ibkr/trading_allowed.py`, `backend/bot/flatten.py`, `backend/strategy/executor_flatten.py`, `backend/routes/trading.py`, `frontend/src/ibkr/planFlattenExit.ts`, `frontend/src/ibkr/tradingAllowed.ts`, `frontend/src/ibkr/closeFullPosition.ts`, `frontend/src/bot/BotArmControls.tsx`, `frontend/src/ibkr/TradingSessionLockButton.tsx`.
+- **How it works now:** Weekday RTH flatten stays MKT `outside_rth=false`. Anything else uses Fill-now's EH LMT sweep and fails loud (`FLATTEN_EH_NO_MARK`) if there is no mark -- never a held RTH MKT. `/api/ibkr/status.trading_allowed` is `assert_orders_allowed`. The UI AND-s the local PIN. Activate shows Active only when armed and the gate allows; PIN lock disarms. Flatten / KILL / cancel stay protective and do not use this gate to refuse an exit. After #282, Sim overlay forces `trading_allowed=true` so weekend practice is not padlocked when Gateway is down.
+- **Verified by:** pytest `test_flatten_exit`, `test_flatten_account_once` EH place, `test_trading_allowed`, `test_bot_session` places-blocked; Vitest `planFlattenExit`, `tradingAllowed`, `closeFullPosition`, `extendedSession` weekend, `TradingSessionLockButton` + `BotArmControls` inconsistency.
+- **Follow-ups:** Smoke on a live desk: after-hours flatten should not show `held_until` next RTH; Activate must match the padlock.
+- **Related:** PROBLEM_LOG 2026-09-19 desk safety.
+
 ## 2026-09-19 -- L2 Brain 18 sensors + Sensor Board
 
 - **What:** All 18 L2 Brain sensors are independent GET smoke-test endpoints (`/sensors/...`) plus a Settings > Sensors board (one-row density, status chips including error, symbol picker, loud empty/error). Sensor 13 reads Advice and the board value always shows that source. Sensors 16-18 stay stub / computed_stub with stable shapes. No orders.

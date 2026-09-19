@@ -123,16 +123,28 @@ def _cancel_protective_legs(pos: "OpenPosition") -> list[int]:
 
 
 def _flatten_market_close(symbol: str, qty: float, *, side: str) -> dict:
-    """Market close through the centralized execution path (ADR 007).
+    """Close through the centralized execution path (ADR 007).
 
+    Weekday RTH is MKT. After hours / weekend uses an EH LMT at bid/ask/last
+    so IBKR cannot hold the exit until the next regular session.
     ``side`` is SELL for longs or BUY for short cover.
     """
     import asyncio
     import uuid
+    from execution.flatten_exit import (
+        plan_flatten_exit,
+        resolve_flatten_marks,
+        ticket_to_command_fields,
+    )
     from execution.models import ExecutionCommand
     from execution.service import execute
 
     side_u = side.upper()
+    bid, ask, last = resolve_flatten_marks(symbol)
+    ticket = plan_flatten_exit(side_u, bid=bid, ask=ask, last=last)
+    if not ticket.ok:
+        return {"ok": False, "error": ticket.error, "reason_code": "FLATTEN_EH_NO_MARK"}
+
     async def _run():
         return await execute(
             ExecutionCommand(
@@ -142,9 +154,9 @@ def _flatten_market_close(symbol: str, qty: float, *, side: str) -> dict:
                 symbol=symbol,
                 side=side_u,
                 qty=qty,
-                order_type="MKT",
                 skip_risk=True,
                 skip_concurrency=True,
+                **ticket_to_command_fields(ticket),
             ),
             wait_ack=False,
         )

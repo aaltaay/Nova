@@ -414,6 +414,8 @@ def test_status_route_reports_safety_snapshot():
     assert body["transport_connected"] is False
     assert body["session_reason"] == "disabled"
     assert body["spend_status"] == "locked"
+    assert body["trading_allowed"] is False
+    assert body["trading_allowed_reason"]
     assert body["disconnect_hint"] == "paper_port_refused_live_listening"
     assert body["preferred_port"] == 4002
     assert body["market_data_type"] == 1

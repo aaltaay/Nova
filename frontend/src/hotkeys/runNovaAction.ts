@@ -11,7 +11,6 @@ import {
   NOVA_ACTION_DEFAULT_OFFSET_DOLLARS,
   NOVA_ACTION_DEFAULT_SHARES,
   NOVA_ACTION_NO_SYMBOL_MESSAGE,
-  NOVA_ACTION_PIN_LOCKED_MESSAGE,
   NOVA_ACTION_SPEND_LOCKED_MESSAGE,
 } from '../constants';
 import {
@@ -33,7 +32,7 @@ import {
 } from '../ibkr/placeOrder';
 import { readSkipPlaceConfirm } from '../ibkr/placeConfirmPrefs';
 import { readTicketSessionUnlocked } from '../ibkr/ticketUnlock';
-import { isSpendLocked } from '../ibkr/spendLock';
+import { evaluateTradingAllowed } from '../ibkr/tradingAllowed';
 import { confirmApp } from '../ux';
 import type { TopOfBook } from './TopOfBookContext';
 import type { NovaActionRecord, NovaActionResult } from './novaActionTypes';
@@ -47,17 +46,14 @@ import type { NovaActionRuntime } from './runNovaActionRuntime';
 
 export type { NovaActionRuntime } from './runNovaActionRuntime';
 
-const spendLocked = isSpendLocked;
-
 function gateConnected(runtime: NovaActionRuntime): NovaActionResult | null {
-  if (!runtime.connected) {
-    return { ok: false, text: 'IBKR disconnected — connect Gateway first' };
-  }
-  if (!readTicketSessionUnlocked()) {
-    return { ok: false, text: NOVA_ACTION_PIN_LOCKED_MESSAGE };
-  }
-  if (spendLocked(runtime.spendStatus)) {
-    return { ok: false, text: NOVA_ACTION_SPEND_LOCKED_MESSAGE };
+  const gate = evaluateTradingAllowed({
+    connected: runtime.connected,
+    spendStatus: runtime.spendStatus,
+    sessionUnlocked: readTicketSessionUnlocked(),
+  });
+  if (!gate.allowed) {
+    return { ok: false, text: gate.reason ?? NOVA_ACTION_SPEND_LOCKED_MESSAGE };
   }
   return null;
 }

@@ -41,6 +41,9 @@ export interface IbkrStatus {
   armed_for_account_kind?: 'paper' | 'live' | null;
   /** Backend-authored reason for the spend lock (safety.py). */
   spend_locked_reason?: string | null;
+  /** Spend + Gateway -- same gate as place_order. PIN is AND-ed in the UI. */
+  trading_allowed?: boolean;
+  trading_allowed_reason?: string | null;
   preferred_port?: number;
   alternate_port?: number;
   preferred_port_reachable?: boolean;
