@@ -223,12 +223,27 @@ export function StockViewTabStrip({
                 {TRADER_TAB_EXTRACT_LABEL}
               </button>
             )}
-            <button
+                        <button
               type="button"
               className="sv-tab__close"
-              aria-label={`Close ${label}`}
+              aria-label={
+                !isDraft && isTabRecording(symbol)
+                  ? `Recording ${label} — stop recording before close`
+                  : `Close ${label}`
+              }
+              disabled={!isDraft && isTabRecording(symbol)}
+              title={
+                !isDraft && isTabRecording(symbol)
+                  ? 'Stop recording before closing this tab'
+                  : undefined
+              }
+              data-testid={`sv-tab-close-${label}`}
               onClick={e => {
                 e.stopPropagation();
+                if (!isDraft && isTabRecording(symbol)) {
+                  e.preventDefault();
+                  return;
+                }
                 if (isEditing) cancelEdit();
                 else onClose(symbol);
               }}
