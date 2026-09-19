@@ -222,20 +222,24 @@ def ticker_snapshot(symbol: str) -> dict[str, Any]:
     if q is None:
         return {}
     now = _now_iso()
+    last = q.get("last")
+    prev = q.get("prev_close")
+    if prev is None:
+        prev = last
     return {
         "latest_trade": {
-            "price": q["last"],
+            "price": last,
             "size": SIM_PRINT_SIZE,
             "exchange": SIM_EXCHANGE,
             "timestamp": now,
         },
-        "latest_quote": {"bid": q["bid"], "ask": q["ask"], "timestamp": now},
+        "latest_quote": {"bid": q.get("bid"), "ask": q.get("ask"), "timestamp": now},
         "minute_bar": None,
         "daily_bar": {
             "open": SIM_START_LAST,
-            "high": _high,
-            "low": _low,
-            "close": q["last"],
+            "high": _high if _high else last,
+            "low": _low if _low else last,
+            "close": last,
             "volume": _volume,
             "trade_count": None,
             "vwap": None,
@@ -245,16 +249,16 @@ def ticker_snapshot(symbol: str) -> dict[str, Any]:
             "open": None,
             "high": None,
             "low": None,
-            "close": q["prev_close"],
+            "close": prev,
             "volume": None,
             "trade_count": None,
             "vwap": None,
             "timestamp": None,
         },
-        "prev_close": q["prev_close"],
-        "session_close": q["prev_close"],
+        "prev_close": prev,
+        "session_close": prev,
         "session_prev_close": None,
-        "source": "sim",
+        "source": q.get("source") or "sim",
     }
 
 

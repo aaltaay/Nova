@@ -234,11 +234,13 @@ def quote_at(asof: float | None = None) -> dict[str, Any] | None:
         i = _asof_index(_quote_keys, t)
         if i >= 0:
             row = _quotes[i]
+            last = float(row.get("last") or row.get("price") or 0)
             return {
                 "symbol": str(row.get("symbol") or "").upper(),
                 "bid": row.get("bid"),
                 "ask": row.get("ask"),
-                "last": row.get("last") or row.get("price"),
+                "last": last,
+                "prev_close": float(row.get("prev_close") or last),
                 "bid_size": row.get("bid_size"),
                 "ask_size": row.get("ask_size"),
                 "volume": row.get("volume"),
@@ -255,6 +257,7 @@ def quote_at(asof: float | None = None) -> dict[str, Any] | None:
         "bid": row.get("bid") or round(px - 0.01, 2),
         "ask": row.get("ask") or round(px + 0.01, 2),
         "last": px,
+        "prev_close": px,
         "bid_size": 100,
         "ask_size": 100,
         "volume": None,
