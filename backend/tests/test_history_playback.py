@@ -114,8 +114,10 @@ def test_reloading_same_window_keeps_playhead_and_new_window_starts_at_open():
     assert clock.is_paused() and (clock.now_et().hour, clock.now_et().minute) == (5, 0)
 
 
-def test_return_to_sim1_keeps_pause_and_time_of_day_on_sim1_date():
+def test_return_to_sim1_keeps_pause_and_time_of_day_on_sim1_date(monkeypatch):
     from sim import replay
+    # Saturday wall: the SIM1 session date is the last open exchange day.
+    monkeypatch.setattr(clock, "_wall_et_now", lambda: datetime(2026, 9, 19, 10, 0, tzinfo=clock.ET))
     spec = store.window("IMCC", "2026-09-18", "16:00", "20:00")
     playback.select(spec)
     clock.set_paused(True)
@@ -124,7 +126,7 @@ def test_return_to_sim1_keeps_pause_and_time_of_day_on_sim1_date():
     now = clock.now_et()
     assert playback.status() is None and clock.is_paused()
     assert (now.hour, now.minute) == (17, 0)
-    assert now.date() == datetime.now(clock.ET).date()
+    assert now.date().isoformat() == "2026-09-18"
     assert clock.status_payload()["minute_max"] == 960
 
 

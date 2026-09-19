@@ -13,12 +13,12 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from capture.recorder import capture_root
-from constants_nova_os import NOVA_OS_NYSE_HOLIDAYS
 from constants_sim import (
     SIM_HISTORY_DEFAULT_ROOT_WIN, SIM_HISTORY_DIR_ENV,
     SIM_HISTORY_MAX_PAGES, SIM_HISTORY_PAGE_SIZE, SIM_HISTORY_REQUEST_INTERVAL_SEC,
     SIM_HISTORY_REQUEST_TIMEOUT_SEC, SIM_HISTORY_RETRY_INTERVAL_SEC, SIM_SESSION_CLOSE_HOUR,
 )
+from sim.trading_day import is_trading_day
 
 ET = ZoneInfo("America/New_York")
 KINDS = ("bars", "trades")
@@ -58,7 +58,7 @@ def default_date(now: datetime | None = None) -> str:
     day = now.date()
     while True:
         close = datetime.combine(day, datetime.min.time(), tzinfo=ET).replace(hour=SIM_SESSION_CLOSE_HOUR)
-        if day.weekday() < 5 and day.isoformat() not in NOVA_OS_NYSE_HOLIDAYS and close <= now:
+        if is_trading_day(day) and close <= now:
             return day.isoformat()
         day -= timedelta(days=1)
 

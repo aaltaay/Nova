@@ -36,6 +36,22 @@ function formatClock(iso?: string): string {
   }
 }
 
+/** "Fri, Sep 18" from the clock's Eastern session date (falls back to the open stamp). */
+function formatSessionDate(clock: SimClockState | null): string {
+  const iso = clock?.session_date ?? clock?.session_open_et?.slice(0, 10);
+  if (!iso) return '';
+  try {
+    return new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', {
+      timeZone: 'UTC',
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
+  } catch {
+    return iso;
+  }
+}
+
 function formatMinuteClock(minuteFromOpen: number, opening: number): string {
   const total = Math.max(0, Math.floor(minuteFromOpen)) + opening;
   const h = Math.floor(total / 60);
@@ -198,6 +214,7 @@ export function SimSessionHeader({ active }: { active: boolean }) {
   const opening = Number(openingLabel.slice(0, 2)) * 60 + Number(openingLabel.slice(3, 5));
   const clockLabel =
     dragMinute != null ? `${formatMinuteClock(dragMinute, opening)} ET` : `${formatClock(clock?.sim_time_et)} ET`;
+  const sessionDate = formatSessionDate(clock);
 
   return (
     <div
@@ -217,6 +234,15 @@ export function SimSessionHeader({ active }: { active: boolean }) {
       <strong style={{ letterSpacing: 0.4 }}>SIM SESSION</strong>
       <SimPlaybackButton clock={clock} onClock={setClock} />
       <span data-testid="sim-session-clock">{clockLabel}</span>
+      {sessionDate && (
+        <span
+          data-testid="sim-session-date"
+          title="Session date being replayed (last open exchange day on weekends and holidays)"
+          style={{ opacity: 0.75 }}
+        >
+          {sessionDate}
+        </span>
+      )}
       <span style={{ opacity: 0.85 }}>{phase}</span>
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
         <span>{openingLabel}</span>
