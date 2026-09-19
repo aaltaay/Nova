@@ -76,11 +76,9 @@ Output: `frontend/release/Nova-Setup-vNNN.exe` and `frontend/release/Nova-Portab
 
 ## Releases
 
-Public revision is **`vNNN`**: `v` plus the git commit count, at least three digits. `VERSION` is the source of truth. `frontend/package.json` keeps `0.1.N` because electron-builder requires semver.
+Public revision is **`vNNN`**: `v` plus the git commit count, at least three digits. Git history is the source of truth — `VERSION` and `frontend/package.json`'s `0.1.N` are **generated build artifacts**, not repo content. `VERSION` is gitignored and `package.json` stays `0.0.0-dev` in git; CI regenerates both with `py -3 tools/bump_version.py --sync` before packing. A working clone derives the tag from git automatically, so there is nothing to install and no commit ever diffs a version file (see [#344](https://github.com/aaltaay/Nova/issues/344)).
 
 A green push to `master` creates tag `vNNN` and a GitHub Release with both EXEs. The automatic Source code zip is not the app. Pull requests upload the same EXEs as workflow artifacts.
-
-Install git hooks once: `powershell -File tools/install_git_hooks.ps1`.
 
 ## Configuration
 

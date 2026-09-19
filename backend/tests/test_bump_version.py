@@ -80,53 +80,30 @@ def test_sync_writes_tag_and_package(tmp_path: Path, monkeypatch):
     assert data["version"] == "0.1.418"
 
 
-def test_pre_commit_targets_next_count(tmp_path: Path, monkeypatch):
+def test_sync_never_touches_the_git_index(tmp_path: Path, monkeypatch):
+    """VERSION is a build artifact (#344): writing it must not stage anything.
+
+    A hook that mutates the index deadlocks `git commit --amend` and conflicts
+    across parallel PRs, which is exactly what WS1 removed.
+    """
     bump = _load_bump_version()
     vf = tmp_path / "VERSION"
     pkg = tmp_path / "package.json"
     pkg.write_text(json.dumps({"name": "nova", "version": "0.1.0"}) + "\n", encoding="utf-8")
-    vf.write_text("v001\n", encoding="utf-8")
     monkeypatch.setattr(bump, "VERSION_FILE", vf)
     monkeypatch.setattr(bump, "PACKAGE_JSON", pkg)
-    monkeypatch.setattr(bump, "git_commit_count", lambda: 10)
-    monkeypatch.setattr(bump, "is_amend_commit", lambda: False)
-    staged: list[list[str]] = []
+    monkeypatch.setattr(bump, "git_commit_count", lambda: 418)
+    calls: list[list[str]] = []
     monkeypatch.setattr(
         bump.subprocess,
         "run",
-        lambda cmd, **kwargs: staged.append(cmd) or subprocess.CompletedProcess(cmd, 0),
+        lambda cmd, **kwargs: calls.append(cmd) or subprocess.CompletedProcess(cmd, 0),
     )
 
-    assert bump.run_pre_commit() == 0
-    assert vf.read_text(encoding="utf-8").strip() == "v011"
-    assert json.loads(pkg.read_text(encoding="utf-8"))["version"] == "0.1.11"
-    assert staged and "git" in staged[0]
-
-
-def test_pre_push_fails_on_drift(tmp_path: Path, monkeypatch):
-    bump = _load_bump_version()
-    vf = tmp_path / "VERSION"
-    pkg = tmp_path / "package.json"
-    vf.write_text("v001\n", encoding="utf-8")
-    pkg.write_text(json.dumps({"name": "nova", "version": "0.1.1"}) + "\n", encoding="utf-8")
-    monkeypatch.setattr(bump, "VERSION_FILE", vf)
-    monkeypatch.setattr(bump, "PACKAGE_JSON", pkg)
-    monkeypatch.setattr(bump, "git_commit_count", lambda: 99)
-
-    assert bump.run_pre_push() == 1
-
-
-def test_pre_push_ok_when_aligned(tmp_path: Path, monkeypatch):
-    bump = _load_bump_version()
-    vf = tmp_path / "VERSION"
-    pkg = tmp_path / "package.json"
-    vf.write_text("v099\n", encoding="utf-8")
-    pkg.write_text(json.dumps({"name": "nova", "version": "0.1.99"}) + "\n", encoding="utf-8")
-    monkeypatch.setattr(bump, "VERSION_FILE", vf)
-    monkeypatch.setattr(bump, "PACKAGE_JSON", pkg)
-    monkeypatch.setattr(bump, "git_commit_count", lambda: 99)
-
-    assert bump.run_pre_push() == 0
+    assert bump.run_sync() == 0
+    assert calls == []
+    assert not hasattr(bump, "run_pre_commit")
+    assert not hasattr(bump, "run_pre_push")
 
 
 def test_ensure_tag_skips_when_present(tmp_path: Path, monkeypatch):

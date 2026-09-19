@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import tailwindcss from '@tailwindcss/vite'
@@ -6,7 +5,7 @@ import react from '@vitejs/plugin-react'
 import { loadEnv } from 'vite'
 import { defineConfig } from 'vitest/config'
 import { injectNovaTitle } from './electron/appTitle.mjs'
-import { releaseTagFromText } from './electron/releaseTag.mjs'
+import { resolveReleaseTag } from './electron/releaseTagSource.mjs'
 import { readDevNovaApiKey } from './scripts/vite-nova-api-key'
 import { novaLaunchGatewayPlugin } from './scripts/vite-nova-launch-gateway'
 import { novaStartApiPlugin } from './scripts/vite-nova-start-api'
@@ -26,26 +25,12 @@ function escapeMetaAttr(value: string): string {
 
 const isElectronBuild = process.env.NOVA_ELECTRON_BUILD === '1'
 
-function readNovaReleaseTag(): string {
-  try {
-    const fromFile = releaseTagFromText(
-      readFileSync(path.resolve(__dirname, '..', 'VERSION'), 'utf8'),
-    )
-    if (fromFile) return fromFile
-  } catch {
-    /* fall through to package.json 0.1.N */
-  }
-  try {
-    const pkg = JSON.parse(
-      readFileSync(path.resolve(__dirname, 'package.json'), 'utf8'),
-    ) as { version?: string }
-    return releaseTagFromText(String(pkg.version || ''))
-  } catch {
-    return ''
-  }
-}
-
-const novaReleaseTag = readNovaReleaseTag()
+// VERSION is a build artifact (CI writes it with bump_version.py --sync); a working
+// clone derives the tag from git instead. package.json stays 0.0.0-dev. See #344.
+const novaReleaseTag = resolveReleaseTag({
+  versionFile: path.resolve(__dirname, '..', 'VERSION'),
+  cwd: path.resolve(__dirname, '..'),
+})
 
 function applyLocalNovaApiKey(mode: string): void {
   const rootEnv = loadEnv(mode, path.resolve(__dirname, '..'), '')
