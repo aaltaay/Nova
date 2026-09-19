@@ -48,10 +48,15 @@ def _stale_row(
     return execution_id
 
 
-def _arm_connected(monkeypatch, *, working: list[dict], closed: list[dict]):
+def _arm_connected(
+    monkeypatch, *, working: list[dict], closed: list[dict], history_loaded: bool = True,
+):
     monkeypatch.setattr(client_mod, "is_connected", lambda: True)
     monkeypatch.setattr(orders_mod, "open_orders", lambda: working)
     monkeypatch.setattr(orders_mod, "closed_orders", lambda *a, **k: closed)
+    monkeypatch.setattr(
+        sweep.completed_orders_state, "loaded_for", lambda _ib: history_loaded,
+    )
 
 
 def test_current_boot_rows_are_not_swept(monkeypatch):
@@ -127,6 +132,36 @@ def test_unknown_order_is_abandoned_not_invented(monkeypatch):
     row = store.get_by_id(execution_id)
     assert row["status"] == "abandoned"
     assert row["reason_code"] == "SWEEP_UNRESOLVED"
+
+
+def test_unknown_order_left_untouched_while_history_not_loaded(monkeypatch):
+    """PROBLEM_LOG 2026-09-19: the Gateway stopped answering reqCompletedOrders
+    for hours, so an order that filled while Nova was down is missing from
+    closed_orders(). Absence is not evidence then -- never mark it abandoned."""
+    execution_id = _stale_row("stale-no-history", order_id=27)
+    _arm_connected(monkeypatch, working=[], closed=[], history_loaded=False)
+    summary = sweep.run_startup_sweep()
+    assert summary["unverified"] == [execution_id]
+    assert summary["abandoned"] == []
+    row = store.get_by_id(execution_id)
+    assert row["status"] == "sent"
+    assert row["reason_code"] is None
+
+
+def test_without_history_known_outcomes_still_resolve(monkeypatch):
+    """Only the absence branch waits on history; positive evidence still counts."""
+    never_sent = _stale_row("stale-never-sent", order_id=None, status="reserved")
+    found = _stale_row("stale-found", order_id=28)
+    _arm_connected(
+        monkeypatch,
+        working=[],
+        closed=[{"order_id": 28, "symbol": "AAPL", "status": "Filled"}],
+        history_loaded=False,
+    )
+    summary = sweep.run_startup_sweep()
+    assert summary["abandoned"] == [never_sent]
+    assert summary["resolved"] == [found]
+    assert store.get_by_id(found)["status"] == "filled"
 
 
 def test_disconnected_sweep_rewrites_nothing(monkeypatch):

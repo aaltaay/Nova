@@ -54,6 +54,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- Startup sweep would abandon filled orders while completed orders are stuck
+
+- **Symptom:** No damage has happened yet: there were no non-terminal ledger rows at the 04:43 start. The problem is latent: `execution/startup_sweep.py` marks a previous-run row `abandoned` / `SWEEP_UNRESOLVED` (terminal) when its order id is neither working nor in `closed_orders()`.
+- **Cause:** `closed_orders()` comes from `ib.trades()`, which includes pre-session orders only after `reqCompletedOrders` answers. On 2026-09-19 the Gateway stopped answering it for hours after a server reconnect. The sweep was skipped overnight only because READY took about 15.5s and missed the 12s bootstrap wait. Making READY faster, which is the account-updates fix, would have let it run on an incomplete history.
+- **Fix:** New `ibkr/completed_orders_state` marks the IB object whose completed-orders refresh succeeded (weakref). The sweep leaves "absent" rows untouched (`unverified`) unless history loaded on this connection. Positive evidence still resolves: working, found in history, or never sent.
+- **Fix class:** admission
+- **Keywords:** startup sweep, abandoned, SWEEP_UNRESOLVED, closed_orders, completed orders not loaded, reqCompletedOrders stuck, bootstrap wait, reconciliation, D-011
+
 ## 2026-09-19 -- Account-updates re-subscribe waited 8s on every IBKR connect
 
 - **Symptom:** Every earn_usable logged "IBKR: account updates subscribe failed (cache reads still used): TimeoutError" after exactly 8s. This happened on almost every connect since at least 2026-09-16, daytime included. It looked like the Gateway was slow.
