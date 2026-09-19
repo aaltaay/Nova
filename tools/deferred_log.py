@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Nova deferred tracker -- ranked status + next durable ID.
+"""Nova deferred tracker -- ranked status over GitHub Issues.
 
 Source of truth is GitHub Issues labeled ``deferred``
 (https://github.com/aaltaay/Nova/issues?q=is%3Aissue+label%3Adeferred).
@@ -7,7 +7,6 @@ Source of truth is GitHub Issues labeled ``deferred``
 Usage:
   py -3 tools/deferred_log.py status
   py -3 tools/deferred_log.py priorities
-  py -3 tools/deferred_log.py next-id
   py -3 tools/deferred_log.py refresh-index
   py -3 tools/deferred_log.py publish [--path DEFERRED_LOG.md]
 
@@ -15,13 +14,17 @@ Usage:
 to-do / what is missing / what the priorities are, run this tool -- do not
 invent a second tracker.
 
-``--path`` reads a markdown snapshot (tests + one-shot publish). Live
-status/next-id talk to GitHub via ``gh``.
+``--path`` reads a markdown snapshot (tests + one-shot publish). Live status
+talks to GitHub via ``gh``.
 
-``refresh-index`` rewrites ``knowledge/deferred-index.json`` -- the offline
-fallback that ``status`` uses when ``gh`` cannot read Issues. Run it in the
-same commit as any issue you open or close, or a later ``next-id`` can hand
-out an ID that already exists.
+There is deliberately no ``next-id``. The durable id is the GitHub issue
+number, minted atomically by GitHub on create; the old read-max-then-add-one
+allocation raced whenever two agents filed at once and produced 8 duplicated
+``D-NNN`` across 16 issues. ``D-NNN`` is now a legacy alias only.
+
+``refresh-index`` rewrites ``knowledge/deferred-index.json`` -- a read cache
+for environments where ``gh`` cannot read Issues. Nothing allocates from it,
+so a stale snapshot degrades a listing but cannot corrupt the tracker.
 """
 
 from __future__ import annotations
@@ -101,9 +104,19 @@ def iter_raw_sections(text: str, *, section: str) -> list[tuple[str, str, str]]:
     return out
 
 
-def next_id(text: str) -> str:
-    nums = [int(n) for n in ID_RE.findall(text)]
-    return f"D-{max(nums, default=0) + 1:03d}"
+def _rank_number(entry: dict[str, str]) -> int:
+    """Newest-first tiebreak within a severity band.
+
+    Prefers the GitHub issue number (chronological and always present for live
+    entries) and falls back to a legacy ``D-NNN``. Must never raise: an id that
+    is neither -- ``#?``, or anything a future title format produces -- sorts
+    last instead of crashing every caller, including the sessionStart brief.
+    """
+    raw = (entry.get("number") or "").strip().lstrip("#")
+    if raw.isdigit():
+        return int(raw)
+    match = ID_RE.search(entry.get("id") or "")
+    return int(match.group(1)) if match else 0
 
 
 def open_actionable(entries: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -115,10 +128,18 @@ def open_actionable(entries: list[dict[str, str]]) -> list[dict[str, str]]:
     out.sort(
         key=lambda e: (
             SEVERITY_RANK.get((e.get("severity") or "P3").split()[0].upper(), 9),
-            -int(ID_RE.search(e.get("id") or "D-0").group(1)),
+            -_rank_number(e),
         )
     )
     return out
+
+
+def _number_suffix(item: dict[str, str]) -> str:
+    """` #NNN`, unless the id already *is* `#NNN` -- no `#216 #216`."""
+    number = (item.get("number") or "").strip()
+    if not number or (item.get("id") or "") == f"#{number}":
+        return ""
+    return f" #{number}"
 
 
 def format_status_items(items: list[dict[str, str]]) -> str:
@@ -128,9 +149,7 @@ def format_status_items(items: list[dict[str, str]]) -> str:
     for item in items:
         sev = (item.get("severity") or "?").split()[0]
         kind = (item.get("kind") or "?").split()[0]
-        number = (item.get("number") or "").strip()
-        extra = f" #{number}" if number else ""
-        lines.append(f"- [{sev} {kind}] {item['id']}{extra} {item['title']}")
+        lines.append(f"- [{sev} {kind}] {item['id']}{_number_suffix(item)} {item['title']}")
     return "\n".join(lines)
 
 
@@ -153,9 +172,7 @@ def format_session_brief_items(items: list[dict[str, str]], *, top_n: int = 3) -
     for item in hot[:top_n]:
         sev = (item.get("severity") or "?").split()[0]
         kind = (item.get("kind") or "?").split()[0]
-        number = (item.get("number") or "").strip()
-        extra = f" #{number}" if number else ""
-        lines.append(f"- [{sev} {kind}] {item['id']}{extra} {item['title']}")
+        lines.append(f"- [{sev} {kind}] {item['id']}{_number_suffix(item)} {item['title']}")
     return lines
 
 
@@ -250,8 +267,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Nova deferred tracker (GitHub Issues)")
     parser.add_argument(
         "command",
-        choices=("status", "priorities", "next-id", "refresh-index", "publish"),
-        help="status/priorities = ranked open list; next-id = next durable D-NNN; "
+        choices=("status", "priorities", "refresh-index", "publish"),
+        help="status/priorities = ranked open list; "
         "refresh-index = rewrite the offline snapshot from GitHub; "
         "publish = one-shot markdown -> GitHub",
     )
@@ -272,9 +289,6 @@ def main(argv: list[str] | None = None) -> int:
         except OSError as exc:
             print(f"deferred_log: cannot read {args.path}: {exc}", file=sys.stderr)
             return 1
-        if args.command == "next-id":
-            print(next_id(text))
-            return 0
         print(format_status(text))
         return 0
 
@@ -282,12 +296,7 @@ def main(argv: list[str] | None = None) -> int:
     if tools_dir not in sys.path:
         sys.path.insert(0, tools_dir)
     try:
-        from deferred_github import (
-            fetch_entries,
-            issues_url,
-            next_id_from_issues,
-            refresh_index,
-        )
+        from deferred_github import fetch_entries, issues_url, refresh_index
     except Exception as exc:
         print(f"deferred_log: cannot import GitHub helper: {exc}", file=sys.stderr)
         return 1
@@ -300,9 +309,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"refresh-index: wrote {count} item(s) to {target}")
         return 0
     try:
-        if args.command == "next-id":
-            print(next_id_from_issues())
-            return 0
         items = open_actionable(fetch_entries(state="open"))
     except Exception as exc:
         print(f"deferred_log: GitHub list failed: {exc}", file=sys.stderr)

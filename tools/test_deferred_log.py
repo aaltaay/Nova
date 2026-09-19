@@ -76,8 +76,36 @@ def test_closed_not_in_open(dl):
     assert "D-001" not in [e["id"] for e in dl.parse_entries(SAMPLE, section="OPEN")]
 
 
-def test_next_id_skips_closed(dl):
-    assert dl.next_id(SAMPLE) == "D-011"
+def test_next_id_is_gone(dl):
+    """Allocation raced; GitHub mints #NNN atomically instead."""
+    assert not hasattr(dl, "next_id")
+
+
+def test_open_actionable_survives_a_non_legacy_id(dl):
+    """A `#NNN` id must not crash the sort -- this path feeds the sessionStart brief."""
+    items = dl.open_actionable(
+        [
+            {"id": "#216", "title": "Human-filed", "severity": "P1", "status": "parked",
+             "kind": "feature", "number": "216"},
+            {"id": "D-011", "title": "Legacy", "severity": "P0", "status": "open",
+             "kind": "bug", "number": "39"},
+            {"id": "#?", "title": "No number at all", "severity": "P1", "status": "open",
+             "kind": "bug", "number": ""},
+        ]
+    )
+    assert [e["id"] for e in items] == ["D-011", "#216", "#?"]
+
+
+def test_session_brief_survives_a_non_legacy_id(dl):
+    lines = dl.format_session_brief_items(
+        dl.open_actionable(
+            [
+                {"id": "#216", "title": "Human-filed", "severity": "P1",
+                 "status": "open", "kind": "feature", "number": "216"}
+            ]
+        )
+    )
+    assert any("#216" in line for line in lines)
 
 
 def test_session_brief_lists_p0_p1_only(dl):
@@ -114,7 +142,7 @@ def test_session_brief_empty(dl):
     assert dl.format_session_brief_lines(text) == []
 
 
-def test_cli_status_and_next_id(dl, tmp_path, capsys):
+def test_cli_status_and_priorities(dl, tmp_path, capsys):
     path = tmp_path / "DEFERRED_LOG.md"
     path.write_text(SAMPLE, encoding="utf-8")
     assert dl.main(["status", "--path", str(path)]) == 0
@@ -122,8 +150,13 @@ def test_cli_status_and_next_id(dl, tmp_path, capsys):
     assert "D-010" in out
     assert dl.main(["priorities", "--path", str(path)]) == 0
     assert "D-010" in capsys.readouterr().out
-    assert dl.main(["next-id", "--path", str(path)]) == 0
-    assert capsys.readouterr().out.strip() == "D-011"
+
+
+def test_cli_rejects_next_id(dl, tmp_path):
+    path = tmp_path / "DEFERRED_LOG.md"
+    path.write_text(SAMPLE, encoding="utf-8")
+    with pytest.raises(SystemExit):
+        dl.main(["next-id", "--path", str(path)])
 
 
 def test_prose_marker_mention_does_not_steal_closed_section(dl):
@@ -162,6 +195,23 @@ def test_format_status_includes_github_number(dl):
     ]
     blob = dl.format_status_items(dl.open_actionable(items))
     assert "D-011 #12 Lock gap" in blob
+
+
+def test_format_status_does_not_repeat_a_github_id(dl):
+    """When the id already is `#216`, do not render `#216 #216`."""
+    items = [
+        {
+            "id": "#216",
+            "title": "Human-filed",
+            "kind": "feature",
+            "severity": "P2",
+            "status": "open",
+            "number": "216",
+        }
+    ]
+    blob = dl.format_status_items(dl.open_actionable(items))
+    assert "#216 Human-filed" in blob
+    assert "#216 #216" not in blob
 
 
 def test_live_file_points_at_github(dl):

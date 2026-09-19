@@ -62,6 +62,16 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- Deferred ids collided under concurrency, and labeled issues vanished from `status`
+
+- **Symptom:** Two unrelated failures in the same 300 lines of tooling. (1) 8 `D-NNN` ids are duplicated across 16 open+closed issues. (2) `deferred_log.py status` under-reported the backlog: 4 of 94 `deferred`-labeled issues never appeared, including #216, which is labeled `parked`.
+- **Cause:** (1) `next_id_from_issues` was read-max-then-add-one. The algorithm was correct in isolation -- `state="all"` already prevented reuse of *closed* ids -- but read and allocate were not atomic, so concurrent agents derive the same number. Proved live: an id taken from a fresh GitHub read (max was D-081) still collided, because #347 claimed D-082 between the read and the write. A stale `deferred-index.json` made it likelier but was never the root cause; a perfectly fresh index collides identically. (2) `TITLE_RE = ^(D-\d+)\s+--\s+(.+)$` and `parse_issue` returning `None` on no-match. Issues filed through the tool inherit its title format and parse; issues filed by hand in the GitHub UI get the label but not the format, so the tool recognized only its own output. No caller counted the `None`s, so the loss was silent.
+- **Fix:** Deleted `next_id` / `next_id_from_issues` and made GitHub's `#NNN` the durable id -- allocation cannot race if there is no allocation. Made the `D-NNN --` prefix optional in `TITLE_RE` with an `#NNN` fallback, and made `fetch_entries` count and report skipped issues on stderr. Fixed the coupled crash this exposed: `open_actionable` sorted on `ID_RE.search(e["id"]).group(1)`, which raises `AttributeError` on `#349` -- that path feeds `session_brief_hook.py`, so admitting `#NNN` ids without fixing the sort would have crashed the start of every session. Constitution amended first (AGENTS.md §7.2c) per Invariant #8, since the `D-NNN -- short title` contract was law.
+- **Fix class:** ownership
+- **Verified by:** 313 tests pass in `tools/` (two pre-existing failures confirmed by stashing onto clean master); `doc_invariants.py` exit 0; the four previously-invisible issues replayed through the patched parser all resolve, with `parked` and `done` preserved.
+- **Keywords:** deferred_log, deferred_github, next-id, next_id_from_issues, TITLE_RE, parse_issue, D-NNN, duplicate id, open_actionable, AttributeError, session_brief_hook, doc_invariants, missing_live_path
+
+
 ## 2026-09-19 -- Replay quote rail: hidden L2 note and wrong prior close
 
 - **Symptom:** Found in review of the replay rail-parity change before it shipped. (1) The replay Level 2 "not recorded" note never showed in the Trader rail. (2) Replay change/Gap% used a weeks-old close for some tickers (PFSA: 25.19 from 08-18 vs ~2.07 on 09-18, -91.8%). (3) SPY change was measured against 762.08 while the live head uses the official close (~762.63). (4) The live shortability chip painted today's borrow state over the past session.

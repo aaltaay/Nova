@@ -40,7 +40,6 @@ How Nova's custom Cursor agents are installed, validated, and kept in sync.
 | Session brief (top-3 cracks, used by hook) | `py -3 tools/agent_fleet.py --session-brief` |
 | Deferred log (ranked open bugs/features) | `py -3 tools/deferred_log.py status` |
 | Deferred log (same list; human "priorities" ask) | `py -3 tools/deferred_log.py priorities` |
-| Deferred log (next durable ID) | `py -3 tools/deferred_log.py next-id` |
 | Lifecycle hook (Cursor) | `.cursor/hooks.json` → `tools/subagent_lifecycle_hook.py` |
 | Session-start fleet brief hook (Cursor) | `.cursor/hooks.json` → `tools/session_brief_hook.py` |
 | Agent dreaming (dry-run) | `py -3 tools/agent_dream.py` |
