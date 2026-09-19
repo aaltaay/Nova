@@ -40,6 +40,7 @@ import { setGlobalBarTraderSlot } from './globalBarSlots';
 import { HeaderConnectionStatus } from './HeaderConnectionStatus';
 import { EmergencyKillButton } from './EmergencyKillButton';
 import { GlobalBarBotRow } from '../bot/GlobalBarBotRow';
+import { SimSessionHeader } from '../sim/SimSessionHeader';
 import { GlobalBarScannerCluster } from './GlobalBarScannerCluster';
 import { ThemeToggle } from './ThemeToggle';
 import { requestOpenTradingTab } from './openTradingTabNav';
@@ -259,6 +260,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
       </div>
       </div>
       <GlobalBarBotRow />
+      <SimSessionHeader active={ibkrMode === 'sim'} />
     </header>
   );
 }

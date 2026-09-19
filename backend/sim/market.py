@@ -1,9 +1,14 @@
-"""Looping synthetic tape for SIM1 -- last/bid/ask, prints, simplified L2, bars."""
+"""Looping synthetic tape for SIM1 -- last/bid/ask, prints, simplified L2, bars.
+
+Bar timestamps are UTC ISO strings (frontend RawBar.t / isoToEtTime).
+Session clock is 06:00–18:00 America/New_York via sim.session_clock.
+"""
 from __future__ import annotations
 
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from constants_sim import (
     SIM_BOOK_LEVELS,
@@ -20,6 +25,9 @@ from constants_sim import (
     SIM_TICK_AMPLITUDE,
     SIM_TICK_STEP_RAD,
 )
+from sim import session_clock as _clock
+
+ET = ZoneInfo("America/New_York")
 
 _tick = 0
 _last = SIM_START_LAST
@@ -39,6 +47,7 @@ def reset_for_tests() -> None:
     _volume = 0
     _prints = []
     _bars_1m = []
+    _clock.reset_for_tests()
 
 
 def last() -> float:
@@ -102,10 +111,11 @@ def last_quotes(symbols: list[str] | None = None) -> dict[str, dict[str, Any]]:
 def book() -> dict[str, Any]:
     b = bid()
     a = ask()
+    mult = _clock.phase_volume_mult()
     bids = [
         {
             "price": round(b - i * SIM_BOOK_TICK, 4),
-            "size": float(SIM_BOOK_SIZE * (SIM_BOOK_LEVELS - i)),
+            "size": float(SIM_BOOK_SIZE * (SIM_BOOK_LEVELS - i) * mult),
             "side": "bid",
             "mm": "SIM",
         }
@@ -114,7 +124,7 @@ def book() -> dict[str, Any]:
     asks = [
         {
             "price": round(a + i * SIM_BOOK_TICK, 4),
-            "size": float(SIM_BOOK_SIZE * (SIM_BOOK_LEVELS - i)),
+            "size": float(SIM_BOOK_SIZE * (SIM_BOOK_LEVELS - i) * mult),
             "side": "ask",
             "mm": "SIM",
         }
@@ -132,12 +142,13 @@ def print_payload() -> dict[str, Any]:
     px = last()
     b, a = bid(), ask()
     side = "buy" if px >= (b + a) / 2.0 else "sell"
+    size = int(round(SIM_PRINT_SIZE * _clock.phase_volume_mult()))
     return {
         "type": "print",
         "symbol": SIM_SYMBOL,
         "time": _now_iso(),
         "price": px,
-        "size": SIM_PRINT_SIZE,
+        "size": max(1, size),
         "exchange": SIM_EXCHANGE,
         "conditions": "SIM",
         "side": side,
@@ -150,15 +161,20 @@ def step() -> dict[str, Any]:
     """Advance one loop tick. Returns the print just produced."""
     global _tick, _last, _high, _low, _volume
     _tick += 1
-    mid = SIM_PREV_CLOSE + SIM_TICK_AMPLITUDE * math.sin(_tick * SIM_TICK_STEP_RAD)
+    amp = SIM_TICK_AMPLITUDE * (1.35 if _clock.phase() == "rth" else 0.85)
+    mid = SIM_PREV_CLOSE + amp * math.sin(_tick * SIM_TICK_STEP_RAD)
+    # Scrub position nudges mid so charts repaint when clock moves.
+    minute = _clock.status_payload()["minute_from_open"]
+    mid += 0.0004 * (minute - 360)
     _last = max(0.01, mid)
     _high = max(_high, _last)
     _low = min(_low, _last)
-    _volume += SIM_PRINT_SIZE
+    size = int(round(SIM_PRINT_SIZE * _clock.phase_volume_mult()))
+    _volume += max(1, size)
     payload = print_payload()
     _prints.append(payload)
-    if len(_prints) > 400:
-        del _prints[:200]
+    if len(_prints) > 800:
+        del _prints[:400]
     _roll_minute(payload)
     return payload
 
@@ -204,18 +220,40 @@ def ticker_snapshot(symbol: str) -> dict[str, Any]:
     }
 
 
+def _tf_step_sec(timeframe: str) -> int | None:
+    tf = (timeframe or "").strip()
+    mapping = {
+        "10Sec": 10,
+        "10sec": 10,
+        "1Min": 60,
+        "1min": 60,
+        "1m": 60,
+        "5Min": 300,
+        "5min": 300,
+        "15Min": 900,
+        "15min": 900,
+        "30Min": 1800,
+        "1Hour": 3600,
+    }
+    return mapping.get(tf)
+
+
 def chart_bars(symbol: str, timeframe: str, limit: int) -> dict[str, Any]:
     sym = (symbol or "").strip().upper()
     cap = max(1, min(int(limit or SIM_CHART_BARS_DEFAULT), 2000))
-    now = int(datetime.now(timezone.utc).timestamp())
-    if timeframe in ("1Min", "1min", "1m"):
+    tf = timeframe or "1Min"
+    if tf in ("1Day", "1Week", "1Month"):
+        bars = _seed_daily(cap)
+    elif tf in ("1Min", "1min", "1m") and _bars_1m:
         bars = list(_bars_1m[-cap:])
-        if not bars:
-            bars = _seed_bars(now, cap, 60)
-    elif timeframe in ("10Sec", "10sec"):
-        bars = _seed_bars(now, cap, 10)
+        if len(bars) < min(cap, 30):
+            seeded = _seed_session_bars(cap, 60)
+            # Prefer live tip after seed history
+            bars = seeded[:-1] + bars if bars else seeded
+            bars = _dedupe_ascending(bars)[-cap:]
     else:
-        bars = _seed_bars(now, cap, 60)
+        step = _tf_step_sec(tf) or 60
+        bars = _seed_session_bars(cap, step)
     return {
         "symbol": sym or SIM_SYMBOL,
         "timeframe": timeframe,
@@ -258,31 +296,89 @@ def gainer_row() -> dict[str, Any]:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    # Use sim clock so scrub moves print times + chart as_of
+    return _clock.now_et().astimezone(timezone.utc).isoformat()
 
 
 def _roll_minute(payload: dict[str, Any]) -> None:
-    ts = int(datetime.now(timezone.utc).timestamp())
-    bucket = ts - (ts % 60)
+    n = _clock.now_et()
+    bucket = n.replace(second=0, microsecond=0)
     px = float(payload["price"])
     size = float(payload["size"])
-    if _bars_1m and _bars_1m[-1]["t"] == bucket:
+    t_iso = bucket.astimezone(timezone.utc).isoformat()
+    if _bars_1m and _bars_1m[-1]["t"] == t_iso:
         bar = _bars_1m[-1]
         bar["h"] = max(bar["h"], px)
         bar["l"] = min(bar["l"], px)
         bar["c"] = px
         bar["v"] = float(bar["v"]) + size
         return
-    _bars_1m.append({"t": bucket, "o": px, "h": px, "l": px, "c": px, "v": size})
-    if len(_bars_1m) > 400:
-        del _bars_1m[:200]
+    _bars_1m.append({"t": t_iso, "o": px, "h": px, "l": px, "c": px, "v": size})
+    if len(_bars_1m) > 800:
+        del _bars_1m[:400]
 
 
-def _seed_bars(now: int, count: int, step_sec: int) -> list[dict[str, Any]]:
+def _seed_session_bars(count: int, step_sec: int) -> list[dict[str, Any]]:
+    """Dense ascending ISO bars ending at sim now, within 06:00–18:00 ET."""
+    now = _clock.now_et()
+    start, _end = _clock.session_bounds_on(now)
+    out: list[dict[str, Any]] = []
+    # Walk backward in step_sec from now, stay >= session open
+    cursor = now.replace(microsecond=0)
+    # Align to step
+    epoch = int(cursor.timestamp())
+    aligned = epoch - (epoch % step_sec)
+    cursor = datetime.fromtimestamp(aligned, tz=ET)
+    for i in range(count):
+        if cursor < start:
+            break
+        mid = SIM_PREV_CLOSE + SIM_TICK_AMPLITUDE * math.sin((count - i) * SIM_TICK_STEP_RAD)
+        px = round(max(0.01, mid), 4)
+        out.append(
+            {
+                "t": cursor.astimezone(timezone.utc).isoformat(),
+                "o": px,
+                "h": round(px + 0.01, 4),
+                "l": round(max(0.01, px - 0.01), 4),
+                "c": px,
+                "v": float(SIM_PRINT_SIZE * _clock.phase_volume_mult(cursor)),
+            }
+        )
+        cursor -= timedelta(seconds=step_sec)
+    out.reverse()
+    return _dedupe_ascending(out)
+
+
+def _seed_daily(count: int) -> list[dict[str, Any]]:
+    now = _clock.now_et().date()
     out: list[dict[str, Any]] = []
     for i in range(count, 0, -1):
-        t = now - i * step_sec
+        d = now - timedelta(days=i - 1)
         mid = SIM_PREV_CLOSE + SIM_TICK_AMPLITUDE * math.sin(i * SIM_TICK_STEP_RAD)
         px = round(max(0.01, mid), 4)
-        out.append({"t": t, "o": px, "h": px, "l": px, "c": px, "v": float(SIM_PRINT_SIZE)})
+        # Daily business-day string YYYY-MM-DD (isoToEtTime daily path uses slice 0:10)
+        out.append(
+            {
+                "t": f"{d.isoformat()}T16:00:00+00:00",
+                "o": px,
+                "h": round(px + 0.05, 4),
+                "l": round(max(0.01, px - 0.05), 4),
+                "c": px,
+                "v": float(SIM_PRINT_SIZE * 40),
+            }
+        )
+    return _dedupe_ascending(out)
+
+
+def _dedupe_ascending(bars: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not bars:
+        return bars
+    out: list[dict[str, Any]] = []
+    last_t = None
+    for b in bars:
+        t = b["t"]
+        if last_t is not None and t <= last_t:
+            continue
+        out.append(b)
+        last_t = t
     return out

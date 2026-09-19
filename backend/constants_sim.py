@@ -45,3 +45,9 @@ def nova_broker_from_env() -> str:
     if raw == NOVA_BROKER_SIM:
         return NOVA_BROKER_SIM
     return NOVA_BROKER_IBKR
+
+# Session window for looping tape (America/New_York clock).
+SIM_SESSION_OPEN_HOUR = 6
+SIM_SESSION_CLOSE_HOUR = 18
+SIM_TICK_INTERVAL_RTH_SEC = 0.08
+SIM_TICK_INTERVAL_EXT_SEC = 0.15

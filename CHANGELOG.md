@@ -1,3 +1,7 @@
+## Unreleased
+
+### Fixed
+- **Sim tape charts / T&S:** bar `t` is UTC ISO (not unix seconds) so lightweight-charts no longer assert duplicate times / `iso.slice`. Feed starts on the HTTP loop when Sim is toggled from a worker thread. Session clock 06:00–18:00 ET with phase density + scrubber header.
 # Change log (agent-maintained)
 
 This file is a running narrative of **what changed in this repo and why**, so future agent and human sessions can get oriented in minutes without digging through diffs.
@@ -6233,3 +6237,4 @@ Entry template (copy and fill in):
 - **Verified by:** Built and ran the app via `Run Stock Alert.bat` (uvicorn on `:8000`, Vite on `:5173`) — no code paths changed, doc-only change.
 - **Follow-ups:** `progress.md` and `findings.md` (Phase-0 leftovers, last touched 2026-04-13) overlap with this file and should probably be archived or deleted in a future task.
 - **Related:** Mirrors the newest-first `<!-- ENTRIES_START -->` convention in `PROBLEM_LOG.md`.
+
