@@ -10,6 +10,7 @@ import {
   beginBrowserExecutionTiming,
   type BrowserActionStamp,
 } from '../execution_latency';
+import { shouldUseOutsideRth } from '../ibkr/extendedSession';
 import { buildLongExitPercent } from '../ibkr/exitPosition';
 import { planFlattenExit } from '../ibkr/planFlattenExit';
 import { placeIbkrOrder } from '../ibkr/placeOrder';
