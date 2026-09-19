@@ -3,16 +3,80 @@ import {
   BACKEND_DIAG_FLAG_UNREACHABLE,
   BACKEND_DIAG_FLAG_WEDGED,
   HEADER_GATEWAY_DELAYED_LABEL,
+  HEADER_GATEWAY_LAUNCH_HINT,
   HEADER_GATEWAY_OFFLINE_LABEL,
   HEADER_GATEWAY_SIM_LABEL,
   HEADER_GATEWAY_STALE_LABEL,
+  HEADER_GATEWAY_TITLE_DELAYED,
+  HEADER_GATEWAY_TITLE_LIVE,
+  HEADER_GATEWAY_TITLE_PAPER,
+  HEADER_GATEWAY_TITLE_SIM,
+  HEADER_GATEWAY_TITLE_UNKNOWN,
   HEADER_GATEWAY_UP_LABEL,
+  SCANNER_DATA_SOURCE_TITLES,
 } from '../constants';
-import { HEADER_DESK_API_DOWN_LABEL } from '../ibkr/gatewayUxConstants';
+import { emptyIbkrDisconnectedMessage } from '../ibkr/disconnectCopy';
+import {
+  HEADER_DESK_API_DOWN_LABEL,
+  PREREQ_COMPLETED_ORDERS_STUCK_DETAIL,
+} from '../ibkr/gatewayUxConstants';
+import { completedOrdersStuckNotice } from '../ibkr/tradingPrerequisites';
 import type { IbkrMode } from '../ibkr/types';
 import type { HealthStatus } from '../types/health';
 
 export type HeaderChipTone = 'ok' | 'bad' | 'warn' | 'live';
+
+/**
+ * Gateway half of the Desk chip: tooltip lines + tone. The D-058 notice
+ * ("Completed orders not answering since …") is amber like delayed data and
+ * uses the same helper as the Trading prerequisites panel.
+ */
+export function deskGatewayView(args: {
+  ibkrMode: IbkrMode;
+  gatewayMode: 'paper' | 'live' | null;
+  accountKind: string | null;
+  connected: boolean;
+  delayed: boolean;
+  statusStale: boolean;
+  launchOk: boolean | null;
+  launchHint: string | null;
+  completedOrdersUnansweredSince?: number | null;
+}): { tone: HeaderChipTone; title: string } {
+  const sim = args.ibkrMode === 'sim';
+  const modeTag = resolveGatewayModeTag(args.ibkrMode, args.gatewayMode, args.accountKind);
+  const modeTitle = sim
+    ? HEADER_GATEWAY_TITLE_SIM
+    : modeTag === 'live'
+      ? HEADER_GATEWAY_TITLE_LIVE
+      : modeTag === 'paper'
+        ? HEADER_GATEWAY_TITLE_PAPER
+        : HEADER_GATEWAY_TITLE_UNKNOWN;
+  const notice = completedOrdersStuckNotice({
+    sinceEpochSec: args.completedOrdersUnansweredSince,
+    gatewayReady: args.connected && !args.statusStale,
+    simMode: sim,
+  });
+  const title = [
+    modeTitle,
+    args.connected
+      ? SCANNER_DATA_SOURCE_TITLES.ibkr
+      : emptyIbkrDisconnectedMessage(args.gatewayMode),
+    args.delayed ? HEADER_GATEWAY_TITLE_DELAYED : null,
+    notice ? `${notice}. ${PREREQ_COMPLETED_ORDERS_STUCK_DETAIL}` : null,
+    HEADER_GATEWAY_LAUNCH_HINT,
+    args.launchHint,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+  let tone: HeaderChipTone;
+  if (sim) tone = 'warn';
+  else if (args.launchOk === false) tone = 'bad';
+  else if (args.launchOk === true) tone = 'ok';
+  else if (args.statusStale) tone = 'warn';
+  else if (!args.connected) tone = 'bad';
+  else tone = args.delayed || notice ? 'warn' : 'ok';
+  return { tone, title };
+}
 
 export function resolveGatewayModeTag(
   ibkrMode: IbkrMode,

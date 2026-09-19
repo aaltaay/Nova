@@ -495,6 +495,32 @@ def test_status_route_surfaces_freeze_diagnostics():
     assert body["dialer_heartbeat_age_sec"] == 25200.0
 
 
+def test_status_route_surfaces_completed_orders_unanswered_since():
+    """D-058: READY desk, but the Gateway stopped answering reqCompletedOrders."""
+    fake_snapshot = {
+        "gateway_mode": "live",
+        "orders_enabled": False,
+        "live_trading_confirmed": False,
+        "spend_status": "locked",
+    }
+    with patch.object(safety_mod, "status_snapshot", return_value=fake_snapshot), \
+         patch.object(client_mod, "is_enabled", return_value=True), \
+         patch.object(client_mod, "is_ready", return_value=True), \
+         patch.object(client_mod, "is_connected", return_value=True), \
+         patch.object(client_mod, "session_reason", return_value="ok"), \
+         patch.object(client_mod, "account_mode", return_value="live"), \
+         patch.object(client_mod, "broker_account_kind", return_value="live"), \
+         patch.object(client_mod, "get_market_data_type", return_value=1), \
+         patch("ibkr.session_errors.is_delayed_data", return_value=False), \
+         patch("ibkr.completed_orders_health.warn_since", return_value=1789808049.0):
+        res = client.get("/api/ibkr/status")
+        assert res.json()["completed_orders_unanswered_since"] == 1789808049.0
+        # Not usable -> never report a verdict that may belong to a replaced session.
+        with patch.object(client_mod, "is_ready", return_value=False):
+            res = client.get("/api/ibkr/status")
+        assert res.json()["completed_orders_unanswered_since"] is None
+
+
 def test_status_route_includes_reqmkt_data_budget():
     """D-039: /api/ibkr/status exposes the Error 101 ticker ceiling."""
     fake_snapshot = {

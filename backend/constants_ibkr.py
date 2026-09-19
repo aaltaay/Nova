@@ -255,6 +255,14 @@ IBKR_COMPLETED_ORDERS_TIMEOUT_SEC = 10.0
 # on every empty read and flood reqCompletedOrdersAsync (event-loop stalls /
 # API_WEDGED). Connect warm-up passes force=True to bypass this cooldown.
 IBKR_COMPLETED_ORDERS_MIN_INTERVAL_SEC = 300.0
+# D-058: while completed orders are unanswered, re-ask this often on the IB
+# loop so the desk warning clears as soon as the Gateway answers. Cheap while
+# ib_async still holds the stale request (fails with no wire traffic).
+IBKR_COMPLETED_ORDERS_REPROBE_SEC = 60.0
+# D-058: only surface the warning once it has lasted this long, so a Gateway
+# that is merely slow at connect (answers at ~8s vs the 7.5s sync) and
+# recovers on the next re-probe never reaches the desk.
+IBKR_COMPLETED_ORDERS_WARN_AFTER_SEC = 120.0
 
 # User-initiated Gateway launch (header double-click → POST /api/ibkr/launch-gateway).
 # Override with IBKR_GATEWAY_EXE; otherwise ibgateway.exe or IBC-renamed ibgateway1.exe.

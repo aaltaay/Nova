@@ -12,6 +12,8 @@ import {
 } from '../constants';
 import type { HealthStatus } from '../types/health';
 import {
+  PREREQ_COMPLETED_ORDERS_STUCK_DETAIL,
+  PREREQ_COMPLETED_ORDERS_STUCK_PREFIX,
   PREREQ_GATEWAY_CLIENT_ID_DETAIL,
   PREREQ_GATEWAY_FOLLOW_LIVE_DETAIL,
   PREREQ_GATEWAY_FOLLOW_PAPER_DETAIL,
@@ -37,6 +39,13 @@ export interface PrereqItem {
   label: string;
   detail: string;
   action: PrereqAction;
+}
+
+/** Amber note under the checklist -- never changes deskReady / blockDesk. */
+export interface PrereqWarning {
+  id: 'completed_orders';
+  label: string;
+  detail: string;
 }
 
 export interface TradingPrerequisitesInput {
@@ -66,10 +75,13 @@ export interface TradingPrerequisitesInput {
   sessionRecording?: boolean;
   /** In-app Sim practice -- Gateway is not required. */
   simMode?: boolean;
+  /** status.completed_orders_unanswered_since (D-058), epoch seconds. */
+  completedOrdersUnansweredSince?: number | null;
 }
 
 export interface TradingPrerequisites {
   items: PrereqItem[];
+  warnings: PrereqWarning[];
   /** True when Nova API + IBKR enabled + Gateway READY. */
   deskReady: boolean;
   /** Same as deskReady -- spend / ticket locks are outside this checklist. */
@@ -173,6 +185,34 @@ function gatewayDetail(input: TradingPrerequisitesInput, gatewayOk: boolean): st
   return PREREQ_GATEWAY_LOGIN_DETAIL;
 }
 
+/**
+ * "Completed orders not answering since 01:14 AM" (D-058), or null. Shared by
+ * the checklist and the header Desk chip so both say the same thing. Only on
+ * a READY, non-Sim desk -- while reconnecting the stamp may already be stale.
+ */
+export function completedOrdersStuckNotice(input: {
+  sinceEpochSec?: number | null;
+  gatewayReady: boolean;
+  simMode?: boolean;
+  /** Injectable "now" for tests; defaults to the wall clock. */
+  now?: Date;
+}): string | null {
+  const since = Number(input.sinceEpochSec);
+  if (input.simMode || !input.gatewayReady || !Number.isFinite(since) || since <= 0) {
+    return null;
+  }
+  const at = new Date(since * 1000);
+  const today = (input.now ?? new Date()).toDateString() === at.toDateString();
+  // Add the weekday once it is not today, so an overnight onset never reads
+  // as a time later today.
+  const clock = at.toLocaleString([], {
+    ...(today ? {} : { weekday: 'short' as const }),
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  return `${PREREQ_COMPLETED_ORDERS_STUCK_PREFIX} ${clock}`;
+}
+
 /** Pure builder — unit-test without React. */
 export function buildTradingPrerequisites(
   input: TradingPrerequisitesInput,
@@ -221,6 +261,20 @@ export function buildTradingPrerequisites(
     },
   ];
 
+  const warnings: PrereqWarning[] = [];
+  const stuckNotice = completedOrdersStuckNotice({
+    sinceEpochSec: input.completedOrdersUnansweredSince,
+    gatewayReady: gatewayOk,
+    simMode: input.simMode,
+  });
+  if (stuckNotice) {
+    warnings.push({
+      id: 'completed_orders',
+      label: stuckNotice,
+      detail: PREREQ_COMPLETED_ORDERS_STUCK_DETAIL,
+    });
+  }
+
   const deskReady = apiOk && enabled && gatewayOk;
   const failStreak = input.apiFailStreak ?? 0;
   const loopWedged = Boolean(input.health?.ib_loop_lag_ms?.wedged);
@@ -230,6 +284,7 @@ export function buildTradingPrerequisites(
 
   return {
     items,
+    warnings,
     deskReady,
     tradeReady: deskReady,
     blockDesk: !deskReady,

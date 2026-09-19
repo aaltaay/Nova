@@ -22,6 +22,7 @@ vi.mock('../utils/startLocalApi', () => ({
 const ibkrStatusMock = vi.hoisted(() => ({
   market_data_delayed: false as boolean,
   market_data_type: 1 as number | null,
+  completed_orders_unanswered_since: null as number | null,
 }));
 
 vi.mock('../ibkr/useIbkrStatus', () => ({
@@ -31,6 +32,7 @@ vi.mock('../ibkr/useIbkrStatus', () => ({
     mode: 'paper',
     market_data_type: ibkrStatusMock.market_data_type,
     market_data_delayed: ibkrStatusMock.market_data_delayed,
+    completed_orders_unanswered_since: ibkrStatusMock.completed_orders_unanswered_since,
     disconnect_hint: null,
   }),
   refreshIbkrStatusNow: () => {},
@@ -57,6 +59,7 @@ describe('HeaderConnectionStatus', () => {
   beforeEach(() => {
     ibkrStatusMock.market_data_delayed = false;
     ibkrStatusMock.market_data_type = 1;
+    ibkrStatusMock.completed_orders_unanswered_since = null;
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -317,6 +320,29 @@ describe('HeaderConnectionStatus', () => {
     const desk = container.querySelector('[data-testid="status-chip-desk"]');
     expect(desk?.textContent).toMatch(/delayed/i);
     expect(desk?.className).toMatch(/status-chip--warn/);
+  });
+
+  it('turns the Desk chip amber when the Gateway stops answering completed orders (D-058)', () => {
+    ibkrStatusMock.completed_orders_unanswered_since = 1789808049;
+    act(() => {
+      root.render(
+        <HeaderConnectionStatus
+          health={healthy}
+          discoveryProvider="ibkr"
+          ibkrConnected
+          ibkrMode="live"
+          ibkrGatewayMode="live"
+          activeFeed="sip"
+          feedFellBack={false}
+          secondsAgo={12}
+          historyDate={null}
+        />,
+      );
+    });
+    const desk = container.querySelector('[data-testid="status-chip-desk"]');
+    expect(desk?.className).toMatch(/status-chip--warn/);
+    expect(desk?.getAttribute('title')).toMatch(/Completed orders not answering since/);
+    expect(desk?.getAttribute('title')).toMatch(/restart IB Gateway when convenient/i);
   });
 
   it('says no L1 yet when lastPriceTs is 0, even in compact GlobalAppBar', () => {
