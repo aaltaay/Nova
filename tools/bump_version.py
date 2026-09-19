@@ -4,15 +4,18 @@ Public tag / VERSION file: v001, v042, v473, v1000 (at least three digits).
 electron-builder still needs semver, so frontend/package.json stays 0.1.N
 with the same N.
 
+VERSION is a build artifact, not repo content (D-080 / #344): it is gitignored
+and frontend/package.json stays 0.0.0-dev in git. Nothing writes either file
+during a commit, so amend/rebase/cherry-pick are safe and no PR ever diffs them.
+
 Owner: this script (writes VERSION + frontend/package.json; optional git tag).
-Invalidation: pre-commit hook before each new commit; pre-push verifies match;
-CI stamps from `git rev-list --count HEAD` with a full clone before packing.
+Invalidation: none persisted -- `--sync` regenerates from `git rev-list --count
+HEAD`. CI stamps with a full clone before packing.
 """
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import subprocess
 from pathlib import Path
@@ -34,18 +37,6 @@ def git_commit_count() -> int:
         text=True,
     )
     return int(out.strip())
-
-
-def is_amend_commit() -> bool:
-    action = os.environ.get("GIT_REFLOG_ACTION", "")
-    return "amend" in action.lower()
-
-
-def target_count_for_hook() -> int:
-    count = git_commit_count()
-    if is_amend_commit():
-        return count
-    return count + 1
 
 
 def format_release_tag(count: int) -> str:
@@ -99,7 +90,7 @@ def write_package_version(version: str) -> None:
     )
 
 
-def sync_revision(count: int, *, stage: bool = False) -> bool:
+def sync_revision(count: int) -> bool:
     """Write VERSION (vNNN) + package.json (0.1.N). Returns True when changed."""
     tag = format_release_tag(count)
     package = format_package_version(count)
@@ -110,12 +101,6 @@ def sync_revision(count: int, *, stage: bool = False) -> bool:
     if read_package_version() != package:
         write_package_version(package)
         changed = True
-    if changed and stage:
-        subprocess.run(
-            ["git", "add", str(VERSION_FILE), str(PACKAGE_JSON)],
-            cwd=REPO_ROOT,
-            check=True,
-        )
     return changed
 
 
@@ -127,45 +112,10 @@ def expected_package_for_head() -> str:
     return format_package_version(git_commit_count())
 
 
-def expected_tag_for_next_commit() -> str:
-    return format_release_tag(target_count_for_hook())
-
-
-def run_pre_commit() -> int:
-    count = target_count_for_hook()
-    tag = format_release_tag(count)
-    changed = sync_revision(count, stage=True)
-    if changed:
-        print(f"bump_version: staged {tag} / {format_package_version(count)}")
-    else:
-        print(f"bump_version: already {tag}")
-    return 0
-
-
-def run_pre_push() -> int:
-    count = git_commit_count()
-    expected_tag = format_release_tag(count)
-    expected_pkg = format_package_version(count)
-    vf = read_version_file()
-    pkg = read_package_version()
-    problems: list[str] = []
-    if vf != expected_tag:
-        problems.append(f"VERSION is {vf!r}, expected {expected_tag!r}")
-    if pkg != expected_pkg:
-        problems.append(f"frontend/package.json is {pkg!r}, expected {expected_pkg!r}")
-    if problems:
-        print("bump_version: version drift -- run: py -3 tools/bump_version.py --sync")
-        for line in problems:
-            print(f"  - {line}")
-        return 1
-    print(f"bump_version: ok ({expected_tag} / {expected_pkg})")
-    return 0
-
-
 def run_sync() -> int:
     count = git_commit_count()
     tag = format_release_tag(count)
-    changed = sync_revision(count, stage=False)
+    changed = sync_revision(count)
     print(f"bump_version: {'updated' if changed else 'already'} {tag}")
     return 0
 
@@ -175,7 +125,6 @@ def run_show() -> int:
     print(f"commits={count}")
     print(f"tag={format_release_tag(count)}")
     print(f"package={format_package_version(count)}")
-    print(f"next_tag={format_release_tag(target_count_for_hook())}")
     print(f"VERSION_file={read_version_file()}")
     print(f"package_json={read_package_version()}")
     return 0
@@ -227,19 +176,9 @@ def run_ensure_tag(*, push: bool = False) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Nova commit-count vNNN versioning")
     parser.add_argument(
-        "--pre-commit",
-        action="store_true",
-        help="Bump to next commit count and stage version files",
-    )
-    parser.add_argument(
-        "--pre-push",
-        action="store_true",
-        help="Verify VERSION tag and package.json match current commit count",
-    )
-    parser.add_argument(
         "--sync",
         action="store_true",
-        help="Align files to current HEAD commit count (no stage)",
+        help="Regenerate VERSION + package.json from the HEAD commit count",
     )
     parser.add_argument(
         "--show",
@@ -262,10 +201,6 @@ def main(argv: list[str] | None = None) -> int:
         help="With --ensure-tag, push the new tag to origin",
     )
     args = parser.parse_args(argv)
-    if args.pre_commit:
-        return run_pre_commit()
-    if args.pre_push:
-        return run_pre_push()
     if args.sync:
         return run_sync()
     if args.show:

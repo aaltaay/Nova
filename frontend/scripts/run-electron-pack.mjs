@@ -1,12 +1,13 @@
 /**
- * Stamp NOVA_RELEASE_TAG from repo VERSION (vNNN) and run electron-builder.
+ * Stamp NOVA_RELEASE_TAG (vNNN) from the generated VERSION file or git, then run
+ * electron-builder.
  * Usage: node scripts/run-electron-pack.mjs [nsis|portable|dir]
  * Default (no arg): nsis + portable.
  */
 import { spawnSync } from 'node:child_process';
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveReleaseTag } from '../electron/releaseTagSource.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const frontendDir = path.resolve(__dirname, '..');
@@ -16,22 +17,14 @@ const arg = process.argv[2];
 const targets =
   arg === 'dir' ? ['dir'] : arg === 'nsis' ? ['nsis'] : arg === 'portable' ? ['portable'] : ['nsis', 'portable'];
 
-function releaseTagFromVersionFile() {
-  if (!fs.existsSync(versionFile)) {
-    throw new Error(`missing ${versionFile}`);
-  }
-  const raw = fs.readFileSync(versionFile, 'utf8').trim();
-  if (/^v\d{3,}$/.test(raw)) {
-    return raw;
-  }
-  const legacy = raw.match(/^0\.1\.(\d+)$/);
-  if (legacy) {
-    return `v${legacy[1].padStart(3, '0')}`;
-  }
-  throw new Error(`unrecognized VERSION: ${raw}`);
+// VERSION is a build artifact, so a clean clone has none -- fall back to git. See #344.
+const tag = resolveReleaseTag({ versionFile, cwd: repoRoot });
+if (!tag) {
+  throw new Error(
+    `cannot resolve a release tag: no ${versionFile} and no git history. ` +
+      'Run: py -3 tools/bump_version.py --sync',
+  );
 }
-
-const tag = releaseTagFromVersionFile();
 const env = {
   ...process.env,
   NOVA_RELEASE_TAG: tag,
