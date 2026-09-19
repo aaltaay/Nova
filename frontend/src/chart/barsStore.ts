@@ -5,6 +5,7 @@
  */
 import { API_BASE_URL, CHART_TIMEFRAME_BAR_LIMITS } from '../constants';
 import type { RawBar } from '../tickerChartData';
+import { getIbkrStatusSnapshot } from '../ibkr/ibkrStatusPoller';
 
 const API_URL = `${API_BASE_URL}/api`;
 
@@ -15,6 +16,8 @@ export interface BarsCoverage {
   completeThrough: string | null;
   filling: boolean;
   derivedFrom?: string | null;
+  replay?: boolean;
+  replayMode?: string | null;
 }
 
 export interface BarsStoreEntry {
@@ -29,6 +32,7 @@ type Listener = () => void;
 const entries = new Map<BarsStoreKey, BarsStoreEntry>();
 const listeners = new Map<BarsStoreKey, Set<Listener>>();
 const inflight = new Map<BarsStoreKey, Promise<RawBar[]>>();
+const generations = new Map<BarsStoreKey, number>();
 
 export function barsStoreKey(symbol: string, timeframe: string): BarsStoreKey {
   return `${symbol.trim().toUpperCase()}|${timeframe}`;
@@ -38,12 +42,14 @@ export function clearBarsStoreForTests(): void {
   entries.clear();
   listeners.clear();
   inflight.clear();
+  generations.clear();
 }
 
 /** Drop cached bars so the next ensureBars hits the network (Sim scrub). */
 export function invalidateBars(symbol: string, timeframe: string): void {
   const key = barsStoreKey(symbol, timeframe);
   entries.delete(key);
+  generations.set(key, (generations.get(key) ?? 0) + 1);
   inflight.delete(key);
   listeners.get(key)?.forEach(l => l());
 }
@@ -65,6 +71,10 @@ export function parseBarsCoverage(raw: unknown): BarsCoverage | undefined {
     completeThrough: typeof cov.complete_through === 'string' ? cov.complete_through : null,
     filling: Boolean(cov.filling),
     derivedFrom: typeof cov.derived_from === 'string' ? cov.derived_from : null,
+    ...(cov.replay ? {
+      replay: true,
+      replayMode: typeof cov.replay_mode === 'string' ? cov.replay_mode : null,
+    } : {}),
   };
 }
 
@@ -82,6 +92,10 @@ export function setBars(
 ): BarsStoreEntry {
   const key = barsStoreKey(symbol, timeframe);
   const prev = entries.get(key);
+  // Replay HTTP owns candles. A broker patch must not replace them.
+  if (!coverage?.replay && (getIbkrStatusSnapshot().mode === 'sim' || prev?.coverage?.replay)) {
+    return prev ?? { bars: [], revision: 0, fetchedAt: 0 };
+  }
   const next: BarsStoreEntry = {
     bars,
     revision: (prev?.revision ?? 0) + 1,
@@ -98,6 +112,9 @@ export function upsertTapePrint10SecBar(
   print: { time: string; price: number; size: number },
 ): boolean {
   const sym = symbol.trim().toUpperCase();
+  if (getIbkrStatusSnapshot().mode === 'sim' || getBarsEntry(sym, '10Sec')?.coverage?.replay) {
+    return false;
+  }
   const stamp = new Date(print.time).getTime();
   const price = Number(print.price);
   const size = Math.max(0, Number(print.size) || 0);
@@ -166,6 +183,8 @@ async function fetchSingleBars(
   timeframe: string,
   limit?: number,
 ): Promise<RawBar[]> {
+  const key = barsStoreKey(symbol, timeframe);
+  const generation = generations.get(key) ?? 0;
   const params = new URLSearchParams({ timeframe });
   if (limit != null && limit > 0) params.set('limit', String(limit));
   const res = await fetch(
@@ -178,12 +197,19 @@ async function fetchSingleBars(
     );
   }
   const data = (await res.json()) as { bars?: RawBar[]; coverage?: unknown };
+  if ((generations.get(key) ?? 0) !== generation) {
+    throw new DOMException('Replay position changed', 'AbortError');
+  }
+  const coverage = parseBarsCoverage(data.coverage);
+  if (getIbkrStatusSnapshot().mode === 'sim' && !coverage?.replay) {
+    throw new DOMException('Desk mode changed', 'AbortError');
+  }
   const bars = data.bars ?? [];
   const current = getBarsEntry(symbol, timeframe);
-  if (bars.length === 0 && current && current.bars.length > 0) {
+  if (!coverage?.replay && bars.length === 0 && current && current.bars.length > 0) {
     return current.bars;
   }
-  setBars(symbol, timeframe, bars, parseBarsCoverage(data.coverage));
+  setBars(symbol, timeframe, bars, coverage);
   return bars;
 }
 

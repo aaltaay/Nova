@@ -166,7 +166,8 @@ def _upsert_coverage_locked(
     )
 
 
-def read(symbol: str, timeframe: str, limit: int) -> dict[str, Any] | None:
+def read(symbol: str, timeframe: str, limit: int, *,
+         through_ts: float | None = None) -> dict[str, Any] | None:
     """Return stored bars + coverage, or None on a total miss."""
     symbol = symbol.upper()
     limit = max(1, int(limit))
@@ -176,11 +177,11 @@ def read(symbol: str, timeframe: str, limit: int) -> dict[str, Any] | None:
             """
             SELECT ts, open, high, low, close, volume, source
             FROM bars_intraday
-            WHERE symbol = ? AND timeframe = ?
+            WHERE symbol = ? AND timeframe = ? AND (? IS NULL OR ts <= ?)
             ORDER BY ts DESC
             LIMIT ?
             """,
-            (symbol, timeframe, limit),
+            (symbol, timeframe, through_ts, through_ts, limit),
         ).fetchall()
         # Chart store is bars_intraday only. Tape archive bars_1m / bars_1d is a
         # different product (often 1 print-built bar) and must not satisfy a miss.

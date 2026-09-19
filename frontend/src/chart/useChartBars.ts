@@ -20,7 +20,7 @@ import {
   CHART_TIMEFRAME_BAR_LIMITS,
 } from '../constants';
 import { isStuckLoadingBars, startStuckBarsRetries } from './chartBarsStuckRetry';
-import { type IndicatorBar } from '../chartIndicators';
+import { rawBarsToIndicatorBars, type IndicatorBar } from '../chartIndicators';
 import {
   buildMockBars,
   type RawBar,
@@ -39,6 +39,8 @@ import { isCurrentBarsRequest } from './requestVersion';
 import type { ChartTradeUpdate } from './types';
 import { createRafCoalesce } from '../utils/rafCoalesce';
 import { SIM_CLOCK_SCRUB_EVENT } from '../sim/simClockEvents';
+import { useIbkrStatus } from '../ibkr/useIbkrStatus';
+import { SIM_CHART_REFRESH_MS } from '../sim/simClockEvents';
 
 interface UseChartBarsOptions {
   symbol: string;
@@ -74,6 +76,7 @@ export function useChartBars({
   chartActive = true,
 }: UseChartBarsOptions) {
   const { discoveryProvider } = useWorkspace();
+  const sim = useIbkrStatus().mode === 'sim';
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [usingMock, setUsingMock] = useState(false);
@@ -108,19 +111,19 @@ export function useChartBars({
     let next = bars;
     let mock = false;
     if (next.length === 0) {
-      if (opts.filling) {
+      if (opts.filling && !sim) {
         setUsingMock(false);
         setError(null);
         return;
       }
-      if (!allowMockBarsFallback(discoveryProvider)) {
+      if (sim || !allowMockBarsFallback(discoveryProvider)) {
         setUsingMock(false);
         setIndicatorBars([]);
         candleSeriesRef.current?.setData([]);
         volSeriesRef.current?.setData([]);
         lastCandleRef.current = null;
         paintedBarsRef.current = [];
-        setError(emptyBarsMessage(discoveryProvider));
+        setError(sim ? 'No bars available at this replay time' : emptyBarsMessage(discoveryProvider));
         return;
       }
       next = buildMockBars(CHART_MOCK_BAR_COUNT, CHART_MOCK_BASE_PRICE);
@@ -138,7 +141,9 @@ export function useChartBars({
       paintEpochRef,
     );
     paintedBarsRef.current = next;
-    if (!painted.skipIndicatorCommit) {
+    if (sim) {
+      setIndicatorBars(rawBarsToIndicatorBars(next, timeframe));
+    } else if (!painted.skipIndicatorCommit) {
       setIndicatorBars(painted.indicators);
     }
     setError(null);
@@ -149,6 +154,7 @@ export function useChartBars({
     candleSeriesRef,
     chartRef,
     discoveryProvider,
+    sim,
     lastCandleRef,
     timeframe,
     volSeriesRef,
@@ -195,7 +201,7 @@ export function useChartBars({
     setFilling(false);
     setCoverageAsOf(null);
     const existing = getBarsEntry(symbol, timeframe);
-    if (existing && existing.bars.length > 0) {
+    if (existing && existing.bars.length > 0 && Boolean(existing.coverage?.replay) === sim) {
       applyCoverage(symbol, timeframe);
       applyStoreBars(existing.bars, {
         background: false,
@@ -222,7 +228,7 @@ export function useChartBars({
       raf.cancel();
       unsub();
     };
-  }, [symbol, timeframe, onSeriesReset, applyStoreBars, applyCoverage]);
+  }, [symbol, timeframe, onSeriesReset, applyStoreBars, applyCoverage, sim]);
 
   useEffect(() => {
     if (!chartActive) return;
@@ -245,26 +251,33 @@ export function useChartBars({
   useEffect(() => {
     if (!chartActive) return undefined;
     const onScrub = () => {
+      barsRequestVersionRef.current += 1;
+      onSeriesReset();
+      paintedBarsRef.current = null;
+      setIndicatorBars([]);
+      candleSeriesRef.current?.setData([]);
+      volSeriesRef.current?.setData([]);
       invalidateBars(symbol, timeframe);
       void fetchBars(symbol, timeframe, false);
     };
+    onScrub();
     window.addEventListener(SIM_CLOCK_SCRUB_EVENT, onScrub);
     return () => window.removeEventListener(SIM_CLOCK_SCRUB_EVENT, onScrub);
-  }, [symbol, timeframe, chartActive, fetchBars]);
+  }, [symbol, timeframe, chartActive, fetchBars, sim, onSeriesReset, candleSeriesRef, volSeriesRef]);
 
 useEffect(() => {
     if (!chartActive) return;
-    const sec = CHART_REFETCH_SEC[timeframe];
-    if (!sec) return;
+    const interval = sim ? SIM_CHART_REFRESH_MS : (CHART_REFETCH_SEC[timeframe] ?? 0) * 1000;
+    if (!interval) return;
     const controller = new AbortController();
     const id = setInterval(() => {
       void fetchBars(symbol, timeframe, true, controller.signal);
-    }, sec * 1000);
+    }, interval);
     return () => {
       controller.abort();
       clearInterval(id);
     };
-  }, [symbol, timeframe, fetchBars, chartActive]);
+  }, [symbol, timeframe, fetchBars, chartActive, sim]);
 
   const wasActiveRef = useRef(chartActive);
   useEffect(() => {

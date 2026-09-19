@@ -71,38 +71,15 @@ def fetch_chart_bars(
     IBKR-sourced (store and/or live historical). There is no silent Alpaca
     fallback. An empty store while Gateway is down is still HTTP 503.
 
-    Sim: IBKR historical is the global chart base for real tickers. Capture overlays scrubbed intraday (not daily+) when that day+ticker is selected. SIM1 stays local/synthetic.
+    Sim reads obey the session knowledge boundary, including archived history.
     """
     symbol = symbol.upper()
     from sim.mode import is_sim_mode
 
     if is_sim_mode():
-        from constants_sim import SIM_SYMBOL
-        from sim import market as _sim_market
-        from sim import replay as _sim_replay
+        from sim.chart_replay import fetch_replay_bars
 
-        # Lock 2026-09-19: IBKR is global chart base for real tickers.
-        # Capture overlays scrubbed intraday when that day+ticker is selected.
-        # SIM1 has no IBKR contract — always local/capture/sim.
-        replay_sym = str(
-            (_sim_replay.status_payload() or {}).get("replay_symbol") or ""
-        ).strip().upper()
-        capture_overlay = (
-            _sim_replay.is_capture_replay()
-            and replay_sym
-            and symbol == replay_sym
-        )
-        _daily_tfs = frozenset({"1Day", "1Week", "1Month"})
-
-        if symbol == SIM_SYMBOL:
-            return _sim_market.chart_bars(symbol, timeframe, limit)
-
-        if capture_overlay and timeframe not in _daily_tfs:
-            # Scrubbed session tape bars from capture; daily+ still IBKR below.
-            return _sim_market.chart_bars(symbol, timeframe, limit)
-
-        # Real ticker, no capture overlay (or daily+): fall through to IBKR.
-        # (Do not 503 — IBKR historical is the Sim global base.)
+        return fetch_replay_bars(symbol, timeframe, limit)
 
     if discovery_provider == "ibkr":
         stored = _store_read(symbol, timeframe, limit)

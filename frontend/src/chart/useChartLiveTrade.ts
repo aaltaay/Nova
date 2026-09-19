@@ -5,6 +5,8 @@ import type { CandlestickData, ISeriesApi, Time } from 'lightweight-charts';
 import { mergeLiveTradeCandle } from './liveTradeApply';
 import { tradeMatchesChartSymbol } from './liveTradeGate';
 import type { ChartTradeUpdate } from './types';
+import { useIbkrStatus } from '../ibkr/useIbkrStatus';
+import { getBarsEntry } from './barsStore';
 
 export function useChartLiveTrade(
   candleSeriesRef: React.RefObject<ISeriesApi<'Candlestick'> | null>,
@@ -12,12 +14,14 @@ export function useChartLiveTrade(
   timeframe: string,
   chartSymbol: string,
 ) {
+  const sim = useIbkrStatus().mode === 'sim';
   const lastCandleRef = useRef<CandlestickData<Time> | null>(null);
   const prevTradeTsRef = useRef<string | null>(null);
   const liveTipTimeRef = useRef<number | null>(null);
   const [liveTipTime, setLiveTipTime] = useState<number | null>(null);
 
   const applyLiveTrade = useCallback((trade: ChartTradeUpdate, tf: string) => {
+    if (sim || getBarsEntry(chartSymbol, tf)?.coverage?.replay) return;
     if (!trade.price || !trade.timestamp || !candleSeriesRef.current) return;
     if (!tradeMatchesChartSymbol(chartSymbol, trade.symbol)) return;
 
@@ -37,7 +41,7 @@ export function useChartLiveTrade(
     } catch {
       /* series not ready / LWC rejected -- next paint will reset tip */
     }
-  }, [candleSeriesRef, chartSymbol]);
+  }, [candleSeriesRef, chartSymbol, sim]);
 
   useEffect(() => {
     if (!lastTrade?.price || !lastTrade.timestamp) return;

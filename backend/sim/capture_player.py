@@ -25,6 +25,7 @@ _bar_keys: dict[str, list[float]] = {}
 _loaded_key: str | None = None
 _last_emit_ts: float = 0.0
 _l2_path: Path | None = None
+_print_bar_cache: dict[str, tuple[list[dict], list[float]]] = {}
 
 
 def reset_for_tests() -> None:
@@ -37,6 +38,7 @@ def reset_for_tests() -> None:
     _loaded_key = None
     _last_emit_ts = 0.0
     _l2_path = None
+    _print_bar_cache.clear()
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -69,6 +71,7 @@ def load(date: str, symbol: str) -> dict[str, Any]:
     global _prints, _quotes, _l2, _bars, _loaded_key, _last_emit_ts, _l2_path
     global _print_keys, _quote_keys, _l2_keys, _bar_keys
     key = f"{date}|{symbol.upper()}"
+    _print_bar_cache.clear()
     root = session_dir(date, symbol)
     if not root.is_dir():
         reset_for_tests()
@@ -184,19 +187,49 @@ def _ensure_l2() -> None:
     logger.info("CAPTURE PLAY: L2 hydrated n=%s from %s", len(_l2), path)
 
 
-def chart_bars(timeframe: str, limit: int) -> list[dict[str, Any]]:
+def has_prints() -> bool:
+    return bool(_prints)
+
+
+def chart_bars(timeframe: str, limit: int, *, asof: float | None = None) -> list[dict[str, Any]]:
     """Intraday bars from capture. Daily SSOT is IBKR (see chart_bars.py); 1d here is unused for desk."""
     if not is_loaded():
         return []
+    from sim.chart_replay import INTERVAL_SECONDS, aggregate_prints, print_candle
+    from ibkr.historical_derive import derive_from_1min
+
+    seconds = INTERVAL_SECONDS.get(timeframe)
+    if seconds is None:
+        return []
     kind = _bar_tf(timeframe)
+    derive = timeframe in ("15Min", "30Min", "1Hour")
+    if derive:
+        kind = "1m"
     rows = _bars.get(kind) or []
     keys = _bar_keys.get(kind) or []
-    asof = asof_unix()
-    i = _asof_index(keys, asof + 1e-6)
-    if i < 0:
-        return []
+    if not rows and _prints:
+        if timeframe not in _print_bar_cache:
+            aggregated = aggregate_prints(_prints, seconds)
+            _print_bar_cache[timeframe] = (aggregated, [_ts(r) for r in aggregated])
+        rows, keys = _print_bar_cache[timeframe]
+        derive = False
+    asof = asof_unix() if asof is None else asof
+    bucket = int(asof // seconds) * seconds
+    # A bar's timestamp is its OPEN. Its final OHLCV is not known until close.
+    i = _asof_index(keys, bucket - (60 if derive else seconds))
     cap = max(1, min(int(limit or 300), 2000))
-    return [_to_chart_bar(r) for r in rows[max(0, i - cap + 1) : i + 1]]
+    source_cap = cap * (seconds // 60) if derive else cap
+    bars = list({r["t"]: r for r in (
+        _to_chart_bar(row) for row in rows[max(0, i - source_cap + 1):i + 1]
+    )}.values())
+    if derive:
+        bars = derive_from_1min(bars, timeframe)
+    lo = bisect.bisect_left(_print_keys, bucket)
+    hi = bisect.bisect_right(_print_keys, asof)
+    partial = print_candle(_prints[lo:hi], bucket)
+    if partial:
+        bars.append(partial)
+    return bars[-cap:]
 
 
 def recent_prints(limit: int = 40) -> list[dict[str, Any]]:

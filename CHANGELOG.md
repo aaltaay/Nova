@@ -54,6 +54,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- Replay chart knowledge boundary
+
+- **What:** All SIM chart reads use the replay clock, including real tickers without a selected capture. Archived candles appear only after interval close; recorded trades build partial intraday candles and volume. Current calendar-period daily/weekly/monthly bars stay hidden.
+- **Why:** Unrestricted IBKR history and final captured OHLCV exposed future information while the SIM clock showed an earlier time.
+- **How it works now:** Bounded store reads apply the cutoff before LIMIT. Capture replay uses reached prints for the open bucket and completed OHLCV otherwise. Active charts and VWAP refresh every second; seeks clear candles/indicators, stale HTTP responses are discarded, and live patches cannot overwrite replay series.
+- **Verified by:** Focused backend, chart/SIM Vitest, Chromium chart/slider regressions, production build, changed-file lint, doc invariants and agent contract. PR body contains final counts and baseline failures.
+- **Follow-ups:** D-052 retains historical IBKR trade acquisition and quote/tape symbol reconciliation. No historical tick download or fabricated intraminute movement added.
+- **Related:** Refs #292; architecture/sim-clock.md (ADR 012 store boundary). User continued the existing local SIM branch; unrelated untracked data/logs are preserved.
+
+
 ## 2026-09-19 -- Paper/Live/Sim toggle sends X-Nova-Api-Key
 
 - **What:** Header Paper/Live/Sim and the prerequisites Follow/Reconnect buttons now POST through `novaFetch`, so `X-Nova-Api-Key` is attached when `NOVA_API_KEY` is set.

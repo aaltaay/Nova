@@ -5,6 +5,28 @@
   "updated": "2026-09-19",
   "items": [
     {
+      "id": "D-053",
+      "title": "Existing UI test drift and operator auth contaminate verification",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "tester",
+      "number": "293",
+      "url": "https://github.com/aaltaay/Nova/issues/293",
+      "state": "OPEN"
+    },
+    {
+      "id": "D-052",
+      "title": "SIM replay exposes future bars and final intrabar values",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "market-feed | widgets",
+      "number": "292",
+      "url": "https://github.com/aaltaay/Nova/issues/292",
+      "state": "OPEN"
+    },
+    {
       "id": "D-051",
       "title": "Sim baseline chart and status tests fail",
       "kind": "bug",

@@ -15,8 +15,10 @@ import {
   CHART_VWAP_SOURCE_TIMEFRAME,
 } from '../constants';
 import { rawBarsToIndicatorBars, type IndicatorBar } from '../chartIndicators';
-import { ensureBars, getBarsEntry, isBarsEntryFresh, subscribeBars } from './barsStore';
+import { ensureBars, getBarsEntry, invalidateBars, isBarsEntryFresh, subscribeBars } from './barsStore';
 import { coversSessionOpen } from './vwapSession';
+import { useIbkrStatus } from '../ibkr/useIbkrStatus';
+import { SIM_CHART_REFRESH_MS, SIM_CLOCK_SCRUB_EVENT } from '../sim/simClockEvents';
 
 export interface VwapSource {
   bars: IndicatorBar[];
@@ -28,6 +30,7 @@ export interface VwapSource {
 const EMPTY: VwapSource = { bars: [], revision: 0, coversOpen: false };
 
 export function useVwapSourceBars(symbol: string, active: boolean): VwapSource {
+  const sim = useIbkrStatus().mode === 'sim';
   const [source, setSource] = useState<VwapSource>(EMPTY);
 
   useEffect(() => {
@@ -41,7 +44,11 @@ export function useVwapSourceBars(symbol: string, active: boolean): VwapSource {
 
     const apply = () => {
       const entry = getBarsEntry(symbol, timeframe);
-      if (!alive || !entry) return;
+      if (!alive) return;
+      if (!entry || Boolean(entry.coverage?.replay) !== sim) {
+        setSource(EMPTY);
+        return;
+      }
       const bars = rawBarsToIndicatorBars(entry.bars, timeframe);
       setSource({
         bars,
@@ -52,7 +59,7 @@ export function useVwapSourceBars(symbol: string, active: boolean): VwapSource {
 
     const refresh = () => {
       const entry = getBarsEntry(symbol, timeframe);
-      if (entry && entry.bars.length > 0 && isBarsEntryFresh(entry, CHART_BARS_CLIENT_STALE_MS)) {
+      if (!sim && entry && entry.bars.length > 0 && isBarsEntryFresh(entry, CHART_BARS_CLIENT_STALE_MS)) {
         return;
       }
       void ensureBars(
@@ -66,20 +73,27 @@ export function useVwapSourceBars(symbol: string, active: boolean): VwapSource {
       });
     };
 
-    apply();
+    const onScrub = () => {
+      invalidateBars(symbol, timeframe);
+      setSource(EMPTY);
+      refresh();
+    };
     const unsubscribe = subscribeBars(symbol, timeframe, apply);
-    refresh();
+    onScrub();
+    window.addEventListener(SIM_CLOCK_SCRUB_EVENT, onScrub);
 
     const seconds = CHART_REFETCH_SEC[timeframe];
-    const timer = seconds ? setInterval(refresh, seconds * 1000) : null;
+    const interval = sim ? SIM_CHART_REFRESH_MS : (seconds ?? 0) * 1000;
+    const timer = interval ? setInterval(refresh, interval) : null;
 
     return () => {
       alive = false;
       controller.abort();
       unsubscribe();
+      window.removeEventListener(SIM_CLOCK_SCRUB_EVENT, onScrub);
       if (timer) clearInterval(timer);
     };
-  }, [symbol, active]);
+  }, [symbol, active, sim]);
 
   return source;
 }

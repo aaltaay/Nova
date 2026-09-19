@@ -54,6 +54,16 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- SIM charts exposed future OHLCV and stale replay data
+
+- **Symptom:** SIM time was earlier than visible chart candles; captured open candles already contained their final high, low, close and volume. Rewinding could retain future candles or VWAP.
+- **Cause:** Nonselected real tickers bypassed the replay path, captured rows were gated by start instead of close, empty fetches retained old data, invalidation did not reject pending responses, and live patches could overwrite replay-owned series. VWAP had an independent cache refresh path.
+- **Fix:** Apply the session cutoff before store LIMIT; reveal completed intervals or build the partial bucket from reached captured prints. Poll replay-owned charts/VWAP each second, clear on seek/mode change, version requests, and reject live writes to replay series. Keep missing historical data visibly empty. Prints-only captures retain completed aggregate buckets.
+- **Verified by:** Boundary/rewind/volume/store-isolation regressions, chart store race tests, actual Lightweight Charts series in Chromium, and neighboring archive/sensor tests. Cold Vite fixture startup is awaited separately from chart refresh timing.
+- **Keywords:** sim, replay, lookahead, future bars, candle close, OHLCV, VWAP, stale response, capture_player, bars_store
+- **Related:** #292; architecture/sim-clock.md. Historical tick acquisition and quote/tape reconciliation remain deferred.
+
+
 ## 2026-09-19 -- Paper/Live/Sim toggle missing API key header
 
 - **Symptom:** Toggling Paper/Live/Sim showed `Invalid or missing X-Nova-Api-Key`.
