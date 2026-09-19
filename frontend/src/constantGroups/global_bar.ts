@@ -95,6 +95,8 @@ export const SIM_SYMBOL = 'SIM1';
 export const GLOBAL_BAR_ACCOUNT_LABEL = 'Account';
 export const GLOBAL_BAR_ACCOUNT_TITLE =
   'Account overview — positions, orders, and trading habit reports';
+/** Hover/focus popover under the Account icon (holds Fund account). */
+export const GLOBAL_BAR_ACCOUNT_MENU_LABEL = 'Account shortcuts';
 /** Opens IBKR Client Portal only -- Nova never deposits. */
 export const GLOBAL_BAR_FUND_ACCOUNT_LABEL = 'Fund account';
 export const GLOBAL_BAR_FUND_ACCOUNT_TITLE =

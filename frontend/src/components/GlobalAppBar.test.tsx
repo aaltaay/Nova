@@ -5,7 +5,9 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  GLOBAL_BAR_ACCOUNT_LABEL,
   GLOBAL_BAR_EMERGENCY_KILL_LABEL,
+  GLOBAL_BAR_FUND_ACCOUNT_LABEL,
   GLOBAL_BAR_EMERGENCY_KILL_OPS,
   GLOBAL_BAR_EMERGENCY_KILL_TITLE,
   TRADER_DEFAULT_SYMBOL,
@@ -156,7 +158,7 @@ describe('GlobalAppBar', () => {
     });
   }
 
-  it('shows Day P&L, Net Liq, BP, Working when connected', () => {
+  it('shows Day P&L, Net Liq, Working (no BP) when connected', () => {
     account = baseAccount({
       orders: [
         {
@@ -177,7 +179,9 @@ describe('GlobalAppBar', () => {
     expect(bar!.textContent).toMatch(/-\$0\.17/);
     expect(bar!.textContent).toMatch(/Net Liq/);
     expect(bar!.textContent).toMatch(/\$3,559\.55/);
-    expect(bar!.textContent).toMatch(/BP/);
+    // Slim header: BP is not a primary-row metric.
+    expect(bar!.textContent).not.toMatch(/\bBP\b/);
+    expect(bar!.textContent).not.toMatch(/\$3,558\.53/);
     expect(bar!.textContent).toMatch(/Working/);
     expect(bar!.textContent).toMatch(/1/);
     expect(container.querySelector('[data-testid="global-bar-offline"]')).toBeNull();
@@ -390,17 +394,79 @@ describe('GlobalAppBar', () => {
     root = createRoot(container);
   });
 
-  it('places Account next to Settings and opens the trading tab', () => {
+  it('renders Account as a labelled icon that opens the trading tab', () => {
     renderBar();
     const accountBtn = container.querySelector(
       '[data-testid="global-bar-account-nav"]',
     ) as HTMLButtonElement;
     expect(accountBtn).toBeTruthy();
-    expect(accountBtn.textContent).toMatch(/Account/);
+    expect(accountBtn.getAttribute('aria-label')).toBe(GLOBAL_BAR_ACCOUNT_LABEL);
+    expect(accountBtn.textContent).not.toMatch(/Account/);
     act(() => {
       accountBtn.click();
     });
     expect(requestOpenTradingTab).toHaveBeenCalled();
+  });
+
+  function hoverAccount() {
+    const wrap = container.querySelector(
+      '[data-testid="global-bar-account-menu-wrap"]',
+    ) as HTMLElement;
+    expect(wrap).toBeTruthy();
+    act(() => {
+      wrap.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    });
+    return wrap;
+  }
+
+  it('shows Fund account under the Account icon on hover, not in the Net Liq card', () => {
+    renderBar();
+    expect(container.querySelector('[data-testid="global-bar-fund-account"]')).toBeNull();
+
+    const wrap = hoverAccount();
+    const menu = container.querySelector('[data-testid="global-bar-account-menu"]');
+    const fund = container.querySelector(
+      '[data-testid="global-bar-fund-account"]',
+    ) as HTMLButtonElement;
+    expect(menu).toBeTruthy();
+    expect(fund).toBeTruthy();
+    expect(wrap.contains(menu)).toBe(true);
+    expect(menu!.contains(fund)).toBe(true);
+    expect(fund.textContent).toBe(GLOBAL_BAR_FUND_ACCOUNT_LABEL);
+
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(container.querySelector('[data-testid="global-bar-account-menu"]')).toBeNull();
+
+    const trigger = container.querySelector(
+      '[data-testid="global-bar-account-trigger"]',
+    ) as HTMLButtonElement;
+    act(() => {
+      trigger.click();
+    });
+    const card = container.querySelector('[aria-label="Account details"]');
+    expect(card).toBeTruthy();
+    expect(card!.querySelector('[data-testid="global-bar-fund-account"]')).toBeNull();
+  });
+
+  it('opens the Fund account popover on keyboard focus', () => {
+    renderBar();
+    const accountBtn = container.querySelector(
+      '[data-testid="global-bar-account-nav"]',
+    ) as HTMLButtonElement;
+    act(() => {
+      accountBtn.focus();
+    });
+    expect(container.querySelector('[data-testid="global-bar-fund-account"]')).toBeTruthy();
+  });
+
+  it('keeps Fund account reachable while IBKR is disconnected', () => {
+    workspace = baseWorkspace({ ibkrConnected: false, ibkrMode: 'disconnected' });
+    account = baseAccount({ summary: null, orders: [] });
+    renderBar();
+    hoverAccount();
+    expect(container.querySelector('[data-testid="global-bar-fund-account"]')).toBeTruthy();
   });
 
   it('places bot controls on a second header row, not in the primary right cluster', () => {
@@ -442,14 +508,15 @@ describe('GlobalAppBar', () => {
     expect(right).toBeTruthy();
     const lock = right!.querySelector('[data-testid="global-bar-trade-lock"]');
     const type = right!.querySelector('[data-testid="global-bar-account-type"]');
-    const accountBtn = right!.querySelector('[data-testid="global-bar-account-nav"]');
+    const accountNav = right!.querySelector('[data-testid="global-bar-account-menu-wrap"]');
     expect(lock).toBeTruthy();
     expect(type).toBeTruthy();
-    expect(accountBtn).toBeTruthy();
+    expect(accountNav).toBeTruthy();
+    expect(accountNav!.querySelector('[data-testid="global-bar-account-nav"]')).toBeTruthy();
     expect(type!.textContent).toBe('Cash');
     const kids = Array.from(right!.children);
     expect(kids.indexOf(lock as Element)).toBeLessThan(kids.indexOf(type as Element));
-    expect(kids.indexOf(type as Element)).toBeLessThan(kids.indexOf(accountBtn as Element));
+    expect(kids.indexOf(type as Element)).toBeLessThan(kids.indexOf(accountNav as Element));
   });
 
   it('shows Cash with raw AccountType when IBKR reports INDIVIDUAL and BP≈cash', () => {
@@ -516,13 +583,35 @@ describe('GlobalAppBar', () => {
     });
     expect(container.querySelector('[data-testid="global-bar-scanner"]')).toBeNull();
     const center = container.querySelector('[data-testid="global-bar-center"]') as HTMLElement;
-    const slot = center.querySelector('[data-testid="global-bar-trader-slot"]') as HTMLElement;
     const kill = center.querySelector(
       '[data-testid="global-bar-emergency-kill"]',
     ) as HTMLButtonElement;
-    expect(slot).toBeTruthy();
     expect(kill).toBeTruthy();
+    // KILL leads the center column; the status cluster follows it.
     const kids = Array.from(center.children);
-    expect(kids.indexOf(kill)).toBe(kids.indexOf(slot) + 1);
+    const status = center.querySelector('[data-testid="global-bar-status"]') as HTMLElement;
+    expect(kids.indexOf(kill)).toBe(0);
+    expect(kids.indexOf(status)).toBe(1);
+    // Symbol tabs moved out of the center column to their own row under Bot Autonomy.
+    expect(center.querySelector('[data-testid="global-bar-trader-slot"]')).toBeNull();
+  });
+
+  it('puts the Trader tab row under Bot Autonomy, outside the primary row', () => {
+    workspace = baseWorkspace({
+      traderTabs: ['AAPL'],
+      activeTraderSymbol: 'AAPL',
+      traderViewActive: true,
+    });
+    act(() => {
+      root.render(<GlobalAppBar scanner={scannerProps} />);
+    });
+    const header = container.querySelector('[data-testid="global-app-bar"]') as HTMLElement;
+    const primary = container.querySelector('[data-testid="global-bar-primary"]') as HTMLElement;
+    const botRow = container.querySelector('[data-testid="global-bar-bot"]') as HTMLElement;
+    const slot = container.querySelector('[data-testid="global-bar-trader-slot"]') as HTMLElement;
+    expect(slot).toBeTruthy();
+    expect(primary.contains(slot)).toBe(false);
+    const kids = Array.from(header.children);
+    expect(kids.indexOf(slot)).toBe(kids.indexOf(botRow) + 1);
   });
 });

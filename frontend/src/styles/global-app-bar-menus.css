@@ -68,3 +68,20 @@
   right: 0;
   min-width: 13.5rem;
 }
+
+/* Account icon popover: Fund account sits under Account (hover / focus). */
+.global-app-bar__account-nav-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.global-app-bar__account-menu {
+  min-width: 0;
+  padding: 0.35rem;
+}
+
+.global-app-bar__account-menu .global-app-bar__fund {
+  width: 100%;
+  white-space: nowrap;
+}

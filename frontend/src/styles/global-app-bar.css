@@ -598,13 +598,3 @@
   font-size: 0.95rem;
   line-height: 1;
 }
-.global-app-bar__card-row--fund {
-  margin-top: 0.35rem;
-  padding-top: 0.4rem;
-  border-top: 1px solid var(--nova-border);
-  justify-content: stretch;
-}
-.global-app-bar__card-row--fund .global-app-bar__fund {
-  width: 100%;
-  justify-content: center;
-}

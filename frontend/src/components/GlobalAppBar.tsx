@@ -3,7 +3,7 @@
  * Mounted once in AppShell so every live page inherits it automatically.
  *
  * Primary row = brand, Scanner/Trader, status, theme, account cluster,
- * lock, Cash/Margin, Account (icon), Settings (icon).
+ * lock, Cash/Margin, Account (icon; Fund account on hover), Settings (icon).
  * Bot row = BotArmControls + BotSymbolMenuHost (issue #230).
  * Trader tabs row = symbol strip under Bot Autonomy, above the chart.
  * Narrow widths hide low-value chips on the primary row
@@ -11,8 +11,6 @@
  */
 import { useEffect, useId, useRef, useState } from 'react';
 import {
-  GLOBAL_BAR_ACCOUNT_LABEL,
-  GLOBAL_BAR_ACCOUNT_TITLE,
   GLOBAL_BAR_BRAND,
   GLOBAL_BAR_NAV_SCANNER,
   GLOBAL_BAR_NAV_SCANNER_TITLE,
@@ -33,6 +31,7 @@ import {
   subscribeAccountNavActive,
 } from './accountNavActive';
 import { GlobalBarAccountCluster } from './GlobalBarAccountCluster';
+import { GlobalBarAccountNav } from './GlobalBarAccountNav';
 import { resolveAccountChromeState } from './globalBarAccountChrome';
 import { NovaLogo } from './NovaLogo';
 import { GatewayModeCapsule } from '../ibkr/GatewayModeCapsule';
@@ -221,20 +220,13 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
         />
 
         {showAccountNav && (
-          <button
-            type="button"
-            className={`global-app-bar__account-nav global-app-bar__icon-btn${accountNavActive ? ' is-active' : ''}`}
-            title={GLOBAL_BAR_ACCOUNT_TITLE}
-            aria-label={GLOBAL_BAR_ACCOUNT_LABEL}
-            aria-pressed={accountNavActive}
-            data-testid="global-bar-account-nav"
-            onClick={() => {
+          <GlobalBarAccountNav
+            active={accountNavActive}
+            onOpenAccount={() => {
               requestOpenTradingTab();
               leaveTraderToScanner();
             }}
-          >
-            <span aria-hidden="true">👤</span>
-          </button>
+          />
         )}
 
         {settingsApi && (
