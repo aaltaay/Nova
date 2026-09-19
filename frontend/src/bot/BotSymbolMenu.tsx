@@ -64,7 +64,11 @@ export function BotSymbolMenuHost() {
             const err = recording
               ? await stopTabRecord(open.symbol)
               : await startTabRecord(open.symbol);
-            if (err) window.alert(err);
+            // No popup during Record — keep the menu open with error text if needed
+            if (err) {
+              console.warn('session Record:', err);
+              return;
+            }
             closeBotSymbolMenu();
           })();
         }}

@@ -182,11 +182,13 @@ export function TradingPrerequisitesGate() {
         secondFactorAgeSec: ibkr.second_factor_age_sec,
         apiFailStreak: overlayGates.apiFailStreak,
         deskActionInFlight: overlayGates.deskActionInFlight,
+        sessionRecording: overlayGates.sessionRecording,
       }),
     [
       health,
       overlayGates.apiFailStreak,
       overlayGates.deskActionInFlight,
+      overlayGates.sessionRecording,
       ibkr.enabled,
       ibkr.connected,
       ibkr.mode,
@@ -308,6 +310,14 @@ export function TradingPrerequisitesGate() {
     setManualOpen(false);
     setAutoDismissed(true);
   }, []);
+
+  useEffect(() => {
+    if (overlayGates.sessionRecording) {
+      setManualOpen(false);
+      setAutoDismissed(true);
+    }
+  }, [overlayGates.sessionRecording]);
+
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
