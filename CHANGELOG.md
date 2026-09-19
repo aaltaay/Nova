@@ -64,6 +64,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- IBKR account-updates subscribe no longer blocks connect for 8s
+
+- **What:** `ensure_account_updates` now sends `reqAccountUpdates(True, account)` on the wire and returns. It no longer waits for `accountDownloadEnd`. `IBKR_ACCOUNT_UPDATES_TIMEOUT_SEC` is removed because nothing reads it now.
+- **Why:** A live probe on 2026-09-19 showed IB never re-sends `accountDownloadEnd` for an account that is already subscribed, and connectAsync has already subscribed single-account sessions. Every earn_usable therefore waited the full 8s and logged "account updates subscribe failed ... TimeoutError". That happened on nearly every connect in the logs, day and night; only 3 successes ever. The same 8s window is where the old watchdog killed reconnects for hours on 2026-09-17.
+- **Files touched:** `backend/ibkr/account_stream.py`, `backend/constants_ibkr.py`, `backend/tests/test_account_stream.py`.
+- **How it works now:** The call is still made after connect, on 1101/1102 restores, and on self-heal, so multi-account, empty-account, and data-lost sessions still get a live push subscription. It sends through `ib.client.reqAccountUpdates`, not the single-flight `reqAccountUpdatesAsync`, so no pending request is left in ib_async's registry. Values keep flowing into `accountValues()` / `portfolio()` through ib_async's wrapper handlers.
+- **Verified by:** New tests fail on the old code (3) and pass with the fix. Among them, a real ib_async `IB` re-subscribes twice and returns in under 0.5s with no pending `accountValues` request. Live read-only probe on the operator's Gateway (separate clientId 96): the call returned True in 0.2 ms, with 179 account values and 3 portfolio rows present. Full backend suite: see PR.
+- **Related:** PROBLEM_LOG 2026-09-19 account-updates re-subscribe; PR #299 (Reconnect button / READY).
+
 ## 2026-09-19 -- IMCC intraday replay respects the selected session date
 
 - **What:** Real-ticker intraday SIM charts show only completed bars from the clock's Eastern session date. The standalone replay fixture now opens with local sample data through Vite and explains direct-file usage.

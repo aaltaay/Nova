@@ -54,6 +54,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- Account-updates re-subscribe waited 8s on every IBKR connect
+
+- **Symptom:** Every earn_usable logged "IBKR: account updates subscribe failed (cache reads still used): TimeoutError" after exactly 8s. This happened on almost every connect since at least 2026-09-16, daytime included. It looked like the Gateway was slow.
+- **Cause:** connectAsync already calls `reqAccountUpdates` for a single managed account. `ensure_account_updates` subscribed a second time and awaited `accountDownloadEnd`, which IB sends only once per subscription. A live probe confirmed it: the first request answered in 0.00s, and a second one on the same connection got no answer in 30s. The awaited single-flight future was also left cancelled in ib_async's registry.
+- **Fix:** Send `ib.client.reqAccountUpdates(True, account)` and return without awaiting an end marker. Removed `IBKR_ACCOUNT_UPDATES_TIMEOUT_SEC`.
+- **Fix class:** infra
+- **Keywords:** account updates subscribe failed, TimeoutError, reqAccountUpdates, accountDownloadEnd, re-subscribe, earn_usable, 8s connect, ensure_account_updates
+
 ## 2026-09-19 -- Real tickers empty in Sim on a weekend
 
 - **Symptom:** SPY in Sim on Saturday 04:41 ET: every intraday pane showed "No bars available at this replay time" while Friday's EMA/VWAP lines and time axis were still painted underneath.
