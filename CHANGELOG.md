@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** Ahmed product lock -- weekend practice 24/7 without IBKR hours, NASDAQ TOP, or Gateway. Activation is the in-app toggle, not env-only.
 - **Files touched:** `backend/sim/*`, `backend/constants_sim.py`, `backend/execution/broker_send.py`, `backend/ibkr/orders.py`, `backend/ibkr/account.py`, `frontend/src/ibkr/GatewayModeCapsule.tsx`, `docs/sim-mode.md`.
 - **How it works now:** `POST /api/sim {enabled}` is the live control. Overlay on `/api/ibkr/status` forces `mode=sim` + `spend_status=sim_armed` so the desk never looks paper/live. Feed injects existing tape / depth / quote pipes. `send_broker` dispatches to `send_sim_broker`. Leaving Sim disables the override then uses the existing Paper/Live Gateway door. `NOVA_BROKER=sim` is optional bootstrap only. v1 tape is SIM1 only -- no fake SPY ticks. In-memory ledger (restart clears). `auto_live` stays NO-GO.
-- **Verified by:** pytest `test_sim_*` (feed loop, fill match, toggle overlay, no-IBKR guard, SIM1-only). Vitest capsule / spendLock / prerequisites / header. `npm run build`. `tools/doc_invariants.py`.
+- **Verified by:** pytest `test_sim_*` + neighbors (`test_execution_validate`, `test_ibkr_orders`, flatten, closed/open orders) -- 73 passed; `test_ibkr_account` + `test_routes_trading` + flatten route -- 58 passed. Vitest capsule / spendLock / prerequisites / header / GlobalAppBar -- 82 passed. `npm run build` exit 0. `tools/doc_invariants.py` OK. Ruff on new `backend/sim/` plus touched send/account/orders/validate.
 - **Follow-ups:** Multi-symbol SIM2+ parked. STP / TRAIL / brackets stay IBKR-only.
 - **Related:** ADR 007 send door; `single-market-data-feed.mdc` Sim practice exception.
 

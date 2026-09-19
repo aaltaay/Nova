@@ -54,6 +54,21 @@ def test_overlay_passthrough_when_off() -> None:
     assert out["sim"] is False
 
 
+def test_sim_http_toggle() -> None:
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from sim.routes import router
+
+    app = FastAPI()
+    app.include_router(router)
+    client = TestClient(app)
+    assert client.get("/api/sim").json()["sim"] is False
+    body = client.post("/api/sim", json={"enabled": True}).json()
+    assert body["sim"] is True
+    assert body["sim_symbol"] == "SIM1"
+    assert client.post("/api/sim", json={"enabled": False}).json()["sim"] is False
+
+
 def test_scan_injects_sim1() -> None:
     from sim.scan import with_sim_row
 

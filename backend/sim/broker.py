@@ -263,7 +263,6 @@ def _fill(row: dict[str, Any], price: float) -> None:
 def _apply_position(symbol: str, side: str, qty: float, price: float) -> None:
     global _cash, _realized
     pos = _positions.setdefault(symbol, {"qty": 0.0, "avg_cost": 0.0, "realized": 0.0})
-    signed = qty if side == "BUY" else -qty
     cur = float(pos["qty"])
     avg = float(pos["avg_cost"])
     if side == "BUY":

@@ -13,6 +13,9 @@ from sim import broker
 def setup_function() -> None:
     reset_for_tests()
     set_sim_mode(True)
+    from execution import store
+
+    store.init_db()
 
 
 def teardown_function() -> None:
