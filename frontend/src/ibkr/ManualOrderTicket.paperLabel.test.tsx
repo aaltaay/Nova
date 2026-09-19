@@ -13,6 +13,16 @@ vi.mock('./ticketUnlock', () => ({
   subscribeTicketSessionUnlock: () => () => {},
 }));
 
+vi.mock('./useIbkrStatus', () => ({
+  useIbkrStatus: () => ({
+    connected: true,
+    mode: 'paper',
+    spend_status: 'paper_armed',
+    trading_allowed: true,
+    trading_allowed_reason: null,
+  }),
+}));
+
 describe('ManualOrderTicket paper place label', () => {
   let container: HTMLDivElement;
   let root: Root;
