@@ -73,6 +73,14 @@ Entry template (copy and fill in):
 - **Follow-ups:** D-052 retains historical IBKR trade acquisition and quote/tape symbol reconciliation. No historical tick download or fabricated intraminute movement added.
 - **Related:** Refs #292; architecture/sim-clock.md (ADR 012 store boundary). User continued the existing local SIM branch; unrelated untracked data/logs are preserved.
 
+## 2026-09-19 -- nova-brain OpenRouter + Sensor Board context
+
+- **What:** `nova-brain` llm-decide now uses OpenRouter (`OPENROUTER_API_KEY`, same key as Advise) with a cheap default model, reads `/api/health` + `/sensors/snapshot` for live-focus names, and fail-closes on missing key / bad JSON / sensor or health miss. L1 still proposes; L2 + Activate may fire allowlisted kinds. Docs: `docs/nova-brain.md`.
+- **Why:** The standing worker already called an LLM, but it required a separate `NOVA_LLM_*` trio and never saw the 18-sensor L2 Brain / Sensor Board surface Ahmed locked.
+- **Files touched:** `backend/nova_brain/`, `backend/bot/llm_guard.py`, `backend/constants_bot.py`, `docs/nova-brain.md`, ADR 016, `.env.example`, Strategy pack copy.
+- **How it works now:** Process is `python -m nova_brain` or `scripts/Start-NovaBrain.ps1`. dotenv loads repo `.env`. Default model `openai/gpt-4o-mini` (override with `NOVA_BRAIN_MODEL` / `NOVA_LLM_MODEL`). Prompt is fixed JSON (`qty_preset=default` only). Nova still owns breakers / budget / TTL. Tests stub HTTP. No live OpenRouter in CI.
+- **Verified by:** `PYTHONPATH=backend pytest` nova-brain + bot + sensors neighbors -- 96 passed. Advise neighbors -- 34 passed earlier. `ruff check` on touched Python -- clean. `doc_invariants.py` -- OK. Vitest bot pack / StrategyTab / BotArmControls -- 28 passed. `npm run build` -- exit 0. Worker with empty `NOVA_API_KEY` exits 2.
+- **Related:** ADR 016 amendment 19; PROBLEM_LOG 2026-09-19 nova-brain OpenRouter / sensors.
 
 ## 2026-09-19 -- Paper/Live/Sim toggle sends X-Nova-Api-Key
 

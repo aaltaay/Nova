@@ -70,6 +70,13 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Keywords:** sim, replay, lookahead, future bars, candle close, OHLCV, VWAP, stale response, capture_player, bars_store
 - **Related:** #292; architecture/sim-clock.md. Historical tick acquisition and quote/tape reconciliation remain deferred.
 
+## 2026-09-19 -- nova-brain skipped Sensor Board and required a second LLM key
+
+- **Symptom:** `llm-decide` could idle even when Advise's `OPENROUTER_API_KEY` was set, and the model never saw the 18-sensor L2 Brain / Sensor Board snapshot.
+- **Cause:** `llm_guard` required `NOVA_LLM_API_KEY` + base + model with no OpenRouter default. `llm_decide` built context from `/api/bot/watch` quotes only.
+- **Fix:** Fall back to `OPENROUTER_API_KEY` and OpenRouter defaults; compact `GET /sensors/snapshot` into the prompt; fail-closed on health / key / bad JSON / snapshot errors.
+- **Fix class:** admission
+- **Keywords:** nova-brain, llm-decide, OpenRouter, OPENROUTER_API_KEY, sensors, Sensor Board, fail-closed
 
 ## 2026-09-19 -- Paper/Live/Sim toggle missing API key header
 

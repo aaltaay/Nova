@@ -157,7 +157,7 @@ export function StrategyTab() {
           {llm.live_fire
             ? 'LLM may live-fire when Activate is on.'
             : 'LLM may live-fire when Activate -- currently propose-only or idle.'}
-          {llm.configured ? '' : ' Pack is idle until NOVA_LLM_API_KEY, base URL, and model are set.'}
+          {llm.configured ? '' : ' Pack is idle until OPENROUTER_API_KEY (same key as Advise) is set.'}
         </p>
         <div className="bot-strategy__grid">
           <label>

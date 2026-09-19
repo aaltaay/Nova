@@ -34,7 +34,9 @@ def test_llm_pack_can_fire_without_hidden_flag():
     assert_pack_can_fire(BOT_PACK_LLM_DECIDE)
 
 
-def test_session_exposes_llm_caps_and_configured_false():
+def test_session_exposes_llm_caps_and_configured_false(monkeypatch):
+    monkeypatch.delenv("NOVA_LLM_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     view = get_session()
     assert view["llm"]["live_fire"] is False
     assert view["llm"]["configured"] is False
@@ -43,6 +45,20 @@ def test_session_exposes_llm_caps_and_configured_false():
     view = get_session()
     assert view["llm"]["call_cap"] == 4
     assert view["llm"]["usd_cap"] == 1.25
+
+
+def test_openrouter_key_alone_configures_llm(monkeypatch):
+    from bot.llm_guard import llm_base_url, llm_configured, llm_model_id
+    from constants_bot import BOT_LLM_DEFAULT_MODEL, BOT_LLM_OPENROUTER_BASE_URL
+
+    monkeypatch.delenv("NOVA_LLM_API_KEY", raising=False)
+    monkeypatch.delenv("NOVA_LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("NOVA_LLM_MODEL", raising=False)
+    monkeypatch.delenv("NOVA_BRAIN_MODEL", raising=False)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "or-test")
+    assert llm_configured() is True
+    assert llm_base_url() == BOT_LLM_OPENROUTER_BASE_URL
+    assert llm_model_id() == BOT_LLM_DEFAULT_MODEL
 
 
 def test_session_llm_live_fire_follows_activate(monkeypatch):

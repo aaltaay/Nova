@@ -1,4 +1,5 @@
 # Standing nova-brain client -- localhost bot API only.
+# Loads repo .env from Python (OPENROUTER_API_KEY shared with Advise).
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $backend = Join-Path $root "backend"

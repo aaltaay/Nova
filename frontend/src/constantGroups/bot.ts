@@ -87,7 +87,7 @@ export const BOT_PACK_DESCRIPTIONS: Record<BotPackId, string> = {
   volume:
     `When an allowlisted live-focus day-volume rate over the last ${BOT_VOLUME_WINDOW_SEC}s is ${BOT_VOLUME_MIN_MULT}x the prior ${BOT_VOLUME_BASELINE_SEC}s baseline on the shared L1/quote stream, Eyes proposes and L2 plus Activate fires buy_market (or volume_kind) once, then waits the cooldown. Thin history fails closed. No new reqMktData.`,
   'llm-decide':
-    'A configured LLM posts fixed-schema proposals for allowlisted live-focus names and live-fires those kinds only when L2 + Activate are on. Idle if the key, base URL, or model is missing.',
+    'OpenRouter posts fixed-schema decisions from the Sensor Board snapshot for allowlisted live-focus names and live-fires those kinds only when L2 + Activate are on. Idle if OPENROUTER_API_KEY (or NOVA_LLM_API_KEY) is missing.',
 };
 
 export function packDescription(id: string): string {

@@ -10,7 +10,9 @@ from bot.persist import load_session, save_session
 from constants_bot import (
     BOT_LEVEL_STRATEGY,
     BOT_LLM_DEFAULT_CALL_CAP,
+    BOT_LLM_DEFAULT_MODEL,
     BOT_LLM_DEFAULT_USD_CAP,
+    BOT_LLM_OPENROUTER_BASE_URL,
     BOT_LLM_USD_PER_CALL_EST,
     BOT_REASON_LLM_CAP,
     BOT_REASON_LLM_IDLE,
@@ -18,19 +20,26 @@ from constants_bot import (
 
 
 def llm_api_key() -> str:
-    return (os.environ.get("NOVA_LLM_API_KEY") or "").strip()
+    return (
+        (os.environ.get("NOVA_LLM_API_KEY") or "").strip()
+        or (os.environ.get("OPENROUTER_API_KEY") or "").strip()
+    )
 
 
 def llm_base_url() -> str:
-    return (os.environ.get("NOVA_LLM_BASE_URL") or "").strip()
+    return (os.environ.get("NOVA_LLM_BASE_URL") or "").strip() or BOT_LLM_OPENROUTER_BASE_URL
 
 
 def llm_model_id() -> str:
-    return (os.environ.get("NOVA_LLM_MODEL") or "").strip()
+    return (
+        (os.environ.get("NOVA_LLM_MODEL") or "").strip()
+        or (os.environ.get("NOVA_BRAIN_MODEL") or "").strip()
+        or BOT_LLM_DEFAULT_MODEL
+    )
 
 
 def llm_configured() -> bool:
-    return bool(llm_api_key() and llm_base_url() and llm_model_id())
+    return bool(llm_api_key())
 
 
 def default_llm() -> dict[str, Any]:
@@ -78,7 +87,8 @@ def public_llm(row: dict[str, Any] | None = None) -> dict[str, Any]:
 def assert_and_charge(usd: float) -> dict[str, Any]:
     if not llm_configured():
         raise BotError(
-            "LLM pack is idle -- set NOVA_LLM_API_KEY, NOVA_LLM_BASE_URL, and NOVA_LLM_MODEL",
+            "LLM pack is idle -- set OPENROUTER_API_KEY (same key as Advise) "
+            "or NOVA_LLM_API_KEY",
             409,
             BOT_REASON_LLM_IDLE,
         )

@@ -71,6 +71,9 @@ class _FakeClient:
         self.heartbeats = 0
         self.patches = 0
 
+    def health(self) -> dict:
+        return {"status": "ok"}
+
     def session_get(self) -> dict:
         return dict(self._session)
 

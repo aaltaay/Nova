@@ -1,4 +1,4 @@
-"""Vendor-agnostic chat/completions client. Key stays in env. No live calls in CI."""
+"""OpenRouter chat/completions client. Key stays in env. No live calls in CI."""
 from __future__ import annotations
 
 from typing import Any
@@ -6,7 +6,11 @@ from typing import Any
 import requests
 
 from bot.llm_guard import llm_api_key, llm_base_url, llm_model_id
-from constants_bot import BOT_LLM_HTTP_TIMEOUT_SEC
+from constants_bot import (
+    BOT_LLM_HTTP_REFERER,
+    BOT_LLM_HTTP_TIMEOUT_SEC,
+    BOT_LLM_HTTP_TITLE,
+)
 
 
 def chat(system: str, user: str) -> dict[str, Any]:
@@ -15,20 +19,27 @@ def chat(system: str, user: str) -> dict[str, Any]:
     model = llm_model_id()
     if not (base and key and model):
         raise RuntimeError("LLM is not configured")
+    headers = {
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+    }
+    body: dict[str, Any] = {
+        "model": model,
+        "temperature": 0,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+    }
+    if "openrouter.ai" in base:
+        headers["HTTP-Referer"] = BOT_LLM_HTTP_REFERER
+        headers["X-Title"] = BOT_LLM_HTTP_TITLE
+        body["usage"] = {"include": True}
+        body["response_format"] = {"type": "json_object"}
     res = requests.post(
         f"{base}/chat/completions",
-        json={
-            "model": model,
-            "temperature": 0,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-        },
-        headers={
-            "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json",
-        },
+        json=body,
+        headers=headers,
         timeout=BOT_LLM_HTTP_TIMEOUT_SEC,
     )
     res.raise_for_status()
