@@ -7,7 +7,16 @@ This file is a **shared memory** of errors fixed and problems identified in this
 ## How agents update this file
 
 1. **When:** After you fix a failing build, test, linter error, runtime error, or incorrect behavior; or after you identify a non-obvious root cause worth remembering. **Required** — not optional for “obvious” or “quick” fixes.
-2. **Where:** Prepend a new `##` section **immediately below** the `<!-- ENTRIES_START -->` marker (newest entries at the top).
+2. **Where:** Prepend a new `##` section **immediately below** the `<!-- ENTRIES_START -->
+
+## 2026-09-19 -- Sim slider reopens closed replay ticker and steals focus
+
+- **Symptom:** With IMCC active and SIM1 closed, dragging the Sim clock reopened SIM1 and activated it.
+- **Cause:** postScrub called openStockView(replay_symbol) on every successful clock response. Replay selection survives tab closure, so clock updates overrode desk selection.
+- **Fix:** Remove navigation from scrubbing; retain the existing chart/tape refresh event and explicit ticker-pick navigation. ADR 011 section 7b records the ownership contract.
+- **Fix class:** ownership
+- **Verified by:** Both pointer and debounced regressions failed before the fix (SIM1 instead of IMCC), then passed; neighboring Trader tests and Chromium mouse/keyboard checks passed.
+- **Keywords:** SimSessionHeader, postScrub, SIM1, IMCC, replay_symbol, openStockView, closed tab, slider` marker (newest entries at the top).
 3. **Keep it short:** A few lines per field is enough.
 
 Entry template (copy and fill in):

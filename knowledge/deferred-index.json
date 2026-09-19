@@ -2,18 +2,29 @@
   "schema_version": 1,
   "source": "github",
   "repo": "aaltaay/Nova",
-  "updated": "2026-09-11",
+  "updated": "2026-09-19",
   "items": [
+    {
+      "id": "D-050",
+      "title": "Gateway disconnected banner calls hooks conditionally",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "ui",
+      "number": "290",
+      "url": "https://github.com/aaltaay/Nova/issues/290",
+      "state": "OPEN"
+    },
     {
       "id": "D-049",
       "title": "L1 1Min volume=0 VWAP lag and RTVolume tick 233",
       "kind": "feature",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed",
       "number": "95",
       "url": "https://github.com/aaltaay/Nova/issues/95",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-048",
@@ -31,22 +42,22 @@
       "title": "Hotkeys Settings tab and OrderTicket Automate are Coming soon",
       "kind": "feature",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "widgets",
       "number": "93",
       "url": "https://github.com/aaltaay/Nova/issues/93",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-046",
       "title": "Journal-on-close, CommissionReport P/L, Reports import, Activity page",
       "kind": "feature",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "execution",
       "number": "92",
       "url": "https://github.com/aaltaay/Nova/issues/92",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-045",
@@ -71,26 +82,15 @@
       "state": "OPEN"
     },
     {
-      "id": "D-043",
-      "title": "Large Cap historical date-picker UI",
-      "kind": "feature",
-      "severity": "P2",
-      "status": "open",
-      "domain": "widgets",
-      "number": "89",
-      "url": "https://github.com/aaltaay/Nova/issues/89",
-      "state": "OPEN"
-    },
-    {
       "id": "D-042",
       "title": "Persist scanner activeTab across reload",
       "kind": "feature",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "widgets",
       "number": "88",
       "url": "https://github.com/aaltaay/Nova/issues/88",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-041",
@@ -101,17 +101,6 @@
       "domain": "security",
       "number": "63",
       "url": "https://github.com/aaltaay/Nova/issues/63",
-      "state": "CLOSED"
-    },
-    {
-      "id": "D-007",
-      "title": "After-hours VWAP: Nova freezes at 16:00; Webull/DAS reset",
-      "kind": "decision",
-      "severity": "P2",
-      "status": "done",
-      "domain": "market-feed",
-      "number": "48",
-      "url": "https://github.com/aaltaay/Nova/issues/48",
       "state": "CLOSED"
     },
     {
@@ -126,14 +115,14 @@
       "state": "CLOSED"
     },
     {
-      "id": "D-008",
-      "title": "Earnings-day-offset test fails; sentiment model import segfaults full suite",
-      "kind": "bug",
+      "id": "D-007",
+      "title": "After-hours VWAP: Nova freezes at 16:00; Webull/DAS reset",
+      "kind": "decision",
       "severity": "P2",
       "status": "done",
-      "domain": "news",
-      "number": "46",
-      "url": "https://github.com/aaltaay/Nova/issues/46",
+      "domain": "market-feed",
+      "number": "48",
+      "url": "https://github.com/aaltaay/Nova/issues/48",
       "state": "CLOSED"
     },
     {
@@ -148,6 +137,17 @@
       "state": "CLOSED"
     },
     {
+      "id": "D-008",
+      "title": "Earnings-day-offset test fails; sentiment model import segfaults full suite",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "done",
+      "domain": "news",
+      "number": "46",
+      "url": "https://github.com/aaltaay/Nova/issues/46",
+      "state": "CLOSED"
+    },
+    {
       "id": "D-002",
       "title": "Afterhours Gap % equals Change %, not the open-vs-prior-close gap",
       "kind": "bug",
@@ -159,17 +159,6 @@
       "state": "CLOSED"
     },
     {
-      "id": "D-003",
-      "title": "Trader 10Sec / Full Day sit on \"Loading IBKR historical...\" for minutes",
-      "kind": "bug",
-      "severity": "P1",
-      "status": "blocked",
-      "domain": "market-feed",
-      "number": "43",
-      "url": "https://github.com/aaltaay/Nova/issues/43",
-      "state": "OPEN"
-    },
-    {
       "id": "D-005",
       "title": "Aborted API terminal can leave a live process with no HTTP listener",
       "kind": "bug",
@@ -178,6 +167,17 @@
       "domain": "ibkr-ops",
       "number": "42",
       "url": "https://github.com/aaltaay/Nova/issues/42",
+      "state": "CLOSED"
+    },
+    {
+      "id": "D-003",
+      "title": "Trader 10Sec / Full Day sit on \"Loading IBKR historical...\" for minutes",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "done",
+      "domain": "market-feed",
+      "number": "43",
+      "url": "https://github.com/aaltaay/Nova/issues/43",
       "state": "CLOSED"
     },
     {
@@ -218,11 +218,11 @@
       "title": "Trend Line two-click place pans the chart instead",
       "kind": "bug",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "widgets",
       "number": "38",
       "url": "https://github.com/aaltaay/Nova/issues/38",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-012",
@@ -247,17 +247,6 @@
       "state": "CLOSED"
     },
     {
-      "id": "D-015",
-      "title": "News / Earnings: Catalysts limited to IBKR roster; FinBERT cold load on scan pool; Finnhub no 429 path",
-      "kind": "bug",
-      "severity": "P1",
-      "status": "done",
-      "domain": "news",
-      "number": "35",
-      "url": "https://github.com/aaltaay/Nova/issues/35",
-      "state": "CLOSED"
-    },
-    {
       "id": "D-016",
       "title": "yfinance failure caches an empty row for 15 minutes, silently",
       "kind": "bug",
@@ -266,6 +255,17 @@
       "domain": "market-feed",
       "number": "34",
       "url": "https://github.com/aaltaay/Nova/issues/34",
+      "state": "CLOSED"
+    },
+    {
+      "id": "D-015",
+      "title": "News / Earnings: Catalysts limited to IBKR roster; FinBERT cold load on scan pool; Finnhub no 429 path",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "done",
+      "domain": "news",
+      "number": "35",
+      "url": "https://github.com/aaltaay/Nova/issues/35",
       "state": "CLOSED"
     },
     {
@@ -291,17 +291,6 @@
       "state": "CLOSED"
     },
     {
-      "id": "D-019",
-      "title": "`apply_l1_quote` rebuilds every scanner cache list on each IB tick",
-      "kind": "bug",
-      "severity": "P1",
-      "status": "done",
-      "domain": "market-feed",
-      "number": "31",
-      "url": "https://github.com/aaltaay/Nova/issues/31",
-      "state": "CLOSED"
-    },
-    {
       "id": "D-017",
       "title": "Persisted files still ship without `schema_version` (backend JSON + frontend localStorage)",
       "kind": "bug",
@@ -310,6 +299,17 @@
       "domain": "market-feed | widgets | hod-momo | news",
       "number": "30",
       "url": "https://github.com/aaltaay/Nova/issues/30",
+      "state": "CLOSED"
+    },
+    {
+      "id": "D-019",
+      "title": "`apply_l1_quote` rebuilds every scanner cache list on each IB tick",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "done",
+      "domain": "market-feed",
+      "number": "31",
+      "url": "https://github.com/aaltaay/Nova/issues/31",
       "state": "CLOSED"
     },
     {
@@ -379,17 +379,6 @@
       "state": "CLOSED"
     },
     {
-      "id": "D-026",
-      "title": "Roster commit mutates state then reports failure if the WS push throws",
-      "kind": "bug",
-      "severity": "P2",
-      "status": "done",
-      "domain": "market-feed",
-      "number": "23",
-      "url": "https://github.com/aaltaay/Nova/issues/23",
-      "state": "CLOSED"
-    },
-    {
       "id": "D-027",
       "title": "Depth cap force-evicts a live viewer instead of refusing the 4th symbol",
       "kind": "decision",
@@ -398,6 +387,17 @@
       "domain": "market-feed",
       "number": "22",
       "url": "https://github.com/aaltaay/Nova/issues/22",
+      "state": "CLOSED"
+    },
+    {
+      "id": "D-026",
+      "title": "Roster commit mutates state then reports failure if the WS push throws",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "done",
+      "domain": "market-feed",
+      "number": "23",
+      "url": "https://github.com/aaltaay/Nova/issues/23",
       "state": "CLOSED"
     },
     {
@@ -493,11 +493,11 @@
       "title": "Untracked product follow-ups from CHANGELOG (UI + execution + HOD)",
       "kind": "feature",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "execution | widgets | hod-momo",
       "number": "13",
       "url": "https://github.com/aaltaay/Nova/issues/13",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-037",

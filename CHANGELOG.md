@@ -14,7 +14,17 @@ Bug fixes should **also** be logged in `PROBLEM_LOG.md` (symptom / cause / fix).
 ## How agents update this file
 
 1. **When:** After completing any task that changes logic, public behavior, a module boundary, constants, config, build, or rules. Skip pure cosmetics.
-2. **Where:** Prepend a new `##` section **immediately below** the `<!-- ENTRIES_START -->` marker (newest entries at the top).
+2. **Where:** Prepend a new `##` section **immediately below** the `<!-- ENTRIES_START -->
+
+## 2026-09-19 -- Sim scrub preserves the active Trader tab
+
+- **What:** Moving the Sim time slider refreshes replay data without opening or activating the replay ticker. IMCC remains active when SIM1 has been closed.
+- **Why:** Scrubbing called openStockView on the server replay symbol, overriding deliberate tab navigation.
+- **Files touched:** SimSessionHeader.tsx, focused unit/browser regressions, ADR 011.
+- **How it works now:** Clock updates emit the existing scrub event; explicit replay ticker selection retains the open/activate action.
+- **Verified by:** 15 Vitest tests passed; Chromium pointer/keyboard regression passed; production build and changed-file ESLint passed; doc_invariants OK. Full lint is blocked by existing GatewayDisconnectedBanner conditional hooks (D-050 / #290).
+- **Follow-ups:** No slider remainder. User explicitly requested this branch and a local commit without push.
+- **Related:** PROBLEM_LOG entry below; ADR 011 section 7b; knowledge/task-log/2026-09-19-sim-scrub-preserve-tab.md.` marker (newest entries at the top).
 3. **Commit together:** The changelog entry ships in the **same commit** as the code it describes. Do not push code without an entry.
 4. **Keep it short:** A few lines per field. No secrets, tokens, or personal data.
 

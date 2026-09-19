@@ -104,7 +104,7 @@ export function SimSessionHeader({ active }: { active: boolean }) {
     return sessions.tickers_by_day[day] ?? [];
   }, [day, sessions]);
 
-  const postScrub = useCallback(async (minute: number, emitCharts: boolean) => {
+  const postScrub = useCallback(async (minute: number) => {
     try {
       const res = await novaFetch(`${API_BASE_URL}/api/sim/clock`, {
         method: 'POST',
@@ -120,12 +120,11 @@ export function SimSessionHeader({ active }: { active: boolean }) {
         setClock(c => ({ ...(c || { sim: true }), ...body, minute_from_open: minute, scrubbed: true }));
       }
       emitSimClockScrub();
-      const pin = (body.replay_symbol || '').trim().toUpperCase();
-      if (body.replay_source === 'capture' && pin) openStockView(pin);
+      // Time changes refresh data; only an explicit ticker pick navigates the desk.
     } catch {
       /* ignore */
     }
-  }, [openStockView]);
+  }, []);
 
   const onScrubInput = (minute: number) => {
     setDragMinute(minute);
@@ -142,7 +141,7 @@ export function SimSessionHeader({ active }: { active: boolean }) {
     if (scrubTimerRef.current != null) window.clearTimeout(scrubTimerRef.current);
     // Debounce server + chart work so the thumb stays smooth.
     scrubTimerRef.current = window.setTimeout(() => {
-      void postScrub(minute, false);
+      void postScrub(minute);
     }, 120);
   };
 
@@ -152,7 +151,7 @@ export function SimSessionHeader({ active }: { active: boolean }) {
       window.clearTimeout(scrubTimerRef.current);
       scrubTimerRef.current = null;
     }
-    void postScrub(minute, true).then(() => setDragMinute(null));
+    void postScrub(minute).then(() => setDragMinute(null));
   };
 
   const onFollowWall = async () => {
