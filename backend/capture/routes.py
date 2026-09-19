@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from capture.mode import set_capture_mode, status_payload
 from capture.recorder import status as recorder_status
+from capture.sessions import list_sessions
 
 router = APIRouter(tags=["capture"])
 
@@ -24,3 +25,9 @@ def get_capture() -> dict:
 def post_capture(body: CaptureToggleRequest) -> dict:
     out = set_capture_mode(body.enabled, symbol=body.symbol)
     return {**out, "recorder": recorder_status()}
+
+
+@router.get("/api/capture/sessions")
+def get_capture_sessions() -> dict:
+    """List recorded days/tickers under the capture root for Sim replay pickers."""
+    return list_sessions()

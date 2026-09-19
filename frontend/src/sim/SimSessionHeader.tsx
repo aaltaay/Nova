@@ -1,8 +1,8 @@
 /**
  * Second header bar for Sim session clock + scrubber (6:00–18:00 ET).
- * Shown only while Sim mode is on.
+ * Right side: day + ticker pickers for captured sessions (Lock A).
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { API_BASE_URL } from '../constants';
 import { novaFetch } from '../api/novaFetch';
 
@@ -13,6 +13,15 @@ export interface SimClockState {
   minute_from_open?: number;
   minute_max?: number;
   scrubbed?: boolean;
+  replay_date?: string | null;
+  replay_symbol?: string | null;
+  replay_source?: string;
+}
+
+interface CaptureSessions {
+  root?: string;
+  days: { date: string; ticker_count: number }[];
+  tickers_by_day: Record<string, { symbol: string; prints: number; l2: number; source?: string }[]>;
 }
 
 function formatClock(iso?: string): string {
@@ -33,13 +42,32 @@ function formatClock(iso?: string): string {
 
 export function SimSessionHeader({ active }: { active: boolean }) {
   const [clock, setClock] = useState<SimClockState | null>(null);
+  const [sessions, setSessions] = useState<CaptureSessions | null>(null);
+  const [day, setDay] = useState<string>('');
+  const [symbol, setSymbol] = useState<string>('');
 
-  const refresh = useCallback(async () => {
+  const refreshClock = useCallback(async () => {
     try {
       const res = await novaFetch(`${API_BASE_URL}/api/sim/clock`);
       if (!res.ok) return;
       const body = (await res.json()) as SimClockState;
       setClock(body);
+      if (body.replay_date) setDay(body.replay_date);
+      if (body.replay_symbol) setSymbol(body.replay_symbol);
+      if (body.replay_source === 'synthetic') {
+        setDay('');
+        setSymbol('');
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const refreshSessions = useCallback(async () => {
+    try {
+      const res = await novaFetch(`${API_BASE_URL}/api/capture/sessions`);
+      if (!res.ok) return;
+      setSessions((await res.json()) as CaptureSessions);
     } catch {
       /* ignore */
     }
@@ -47,10 +75,16 @@ export function SimSessionHeader({ active }: { active: boolean }) {
 
   useEffect(() => {
     if (!active) return;
-    void refresh();
-    const id = window.setInterval(() => void refresh(), 1000);
+    void refreshClock();
+    void refreshSessions();
+    const id = window.setInterval(() => void refreshClock(), 1000);
     return () => window.clearInterval(id);
-  }, [active, refresh]);
+  }, [active, refreshClock, refreshSessions]);
+
+  const tickers = useMemo(() => {
+    if (!day || !sessions) return [];
+    return sessions.tickers_by_day[day] ?? [];
+  }, [day, sessions]);
 
   const onScrub = async (minute: number) => {
     try {
@@ -78,10 +112,31 @@ export function SimSessionHeader({ active }: { active: boolean }) {
     }
   };
 
+  const applyReplay = async (nextDay: string, nextSymbol: string) => {
+    try {
+      const body =
+        nextDay && nextSymbol
+          ? { date: nextDay, symbol: nextSymbol }
+          : { date: null, symbol: null };
+      const res = await novaFetch(`${API_BASE_URL}/api/sim/replay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        const payload = (await res.json()) as SimClockState;
+        setClock(c => ({ ...(c || { sim: true }), ...payload }));
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
   if (!active) return null;
   const max = clock?.minute_max ?? 12 * 60;
   const minute = clock?.minute_from_open ?? 0;
   const phase = (clock?.phase || '—').toUpperCase();
+  const source = clock?.replay_source === 'capture' ? 'CAPTURE' : 'SIM1';
 
   return (
     <div
@@ -109,7 +164,7 @@ export function SimSessionHeader({ active }: { active: boolean }) {
           min={0}
           max={max}
           value={minute}
-          onChange={(e) => void onScrub(Number(e.target.value))}
+          onChange={e => void onScrub(Number(e.target.value))}
           style={{ flex: 1 }}
         />
         <span>18:00</span>
@@ -121,6 +176,53 @@ export function SimSessionHeader({ active }: { active: boolean }) {
       ) : (
         <span style={{ opacity: 0.7 }}>Live wall clamp</span>
       )}
+
+      <span style={{ opacity: 0.5 }}>|</span>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 4 }} title="Captured session date">
+        <span style={{ opacity: 0.75 }}>Day</span>
+        <select
+          data-testid="sim-replay-day"
+          value={day}
+          onChange={e => {
+            const next = e.target.value;
+            setDay(next);
+            setSymbol('');
+            void applyReplay('', '');
+          }}
+          style={{ fontSize: 11, maxWidth: 120 }}
+        >
+          <option value="">Synthetic SIM1</option>
+          {(sessions?.days ?? []).map(d => (
+            <option key={d.date} value={d.date}>
+              {d.date} ({d.ticker_count})
+            </option>
+          ))}
+        </select>
+      </label>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 4 }} title="Captured ticker">
+        <span style={{ opacity: 0.75 }}>Ticker</span>
+        <select
+          data-testid="sim-replay-ticker"
+          value={symbol}
+          disabled={!day}
+          onChange={e => {
+            const next = e.target.value;
+            setSymbol(next);
+            void applyReplay(day, next);
+          }}
+          style={{ fontSize: 11, maxWidth: 100 }}
+        >
+          <option value="">{day ? 'Pick ticker' : '—'}</option>
+          {tickers.map(t => (
+            <option key={t.symbol} value={t.symbol}>
+              {t.symbol} · {t.prints}p
+            </option>
+          ))}
+        </select>
+      </label>
+      <span data-testid="sim-replay-source" style={{ opacity: 0.8, fontSize: 11 }}>
+        {source}
+      </span>
     </div>
   );
 }

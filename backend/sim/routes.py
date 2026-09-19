@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from sim.mode import set_sim_mode, status_payload
 
@@ -14,27 +14,39 @@ class SimToggleRequest(BaseModel):
     persist: bool = False
 
 
+class SimReplayRequest(BaseModel):
+    date: str | None = Field(default=None, description="ET session date YYYY-MM-DD, or null for synthetic")
+    symbol: str | None = Field(default=None, description="Captured ticker, or null for synthetic SIM1")
+
+
 @router.get("/api/sim")
 def get_sim() -> dict:
-    return status_payload()
+    from sim import replay as _replay
+
+    return {**status_payload(), **_replay.status_payload()}
 
 
 @router.post("/api/sim")
 def post_sim(body: SimToggleRequest) -> dict:
-    return set_sim_mode(body.enabled, persist=body.persist)
+    from sim import replay as _replay
+
+    return {**set_sim_mode(body.enabled, persist=body.persist), **_replay.status_payload()}
+
 
 @router.get("/api/sim/clock")
 def get_sim_clock() -> dict:
     from sim import session_clock as _clock
+    from sim import replay as _replay
     from sim.mode import is_sim_mode
 
-    return {"sim": is_sim_mode(), **_clock.status_payload()}
+    return {"sim": is_sim_mode(), **_clock.status_payload(), **_replay.status_payload()}
 
 
 @router.post("/api/sim/clock")
 def post_sim_clock(body: dict) -> dict:
     """Scrub sim session time. Body: {minute_from_open: int} or {follow_wall: true}."""
     from sim import session_clock as _clock
+    from sim import replay as _replay
     from sim.mode import is_sim_mode
 
     if body.get("follow_wall"):
@@ -42,4 +54,21 @@ def post_sim_clock(body: dict) -> dict:
     else:
         minute = int(body.get("minute_from_open", 0))
         payload = _clock.scrub_to_minute(minute)
-    return {"sim": is_sim_mode(), **payload}
+    return {"sim": is_sim_mode(), **payload, **_replay.status_payload()}
+
+
+@router.get("/api/sim/replay")
+def get_sim_replay() -> dict:
+    from sim import replay as _replay
+    from sim.mode import is_sim_mode
+
+    return {"sim": is_sim_mode(), **_replay.status_payload()}
+
+
+@router.post("/api/sim/replay")
+def post_sim_replay(body: SimReplayRequest) -> dict:
+    """Select capture day+ticker for Sim, or clear both for synthetic SIM1."""
+    from sim import replay as _replay
+    from sim.mode import is_sim_mode
+
+    return {"sim": is_sim_mode(), **_replay.set_replay(body.date, body.symbol)}
