@@ -18,7 +18,7 @@ $script:NovaVitePort = 5173
 $script:NovaCaptureRoot = if ($env:NOVA_SIM_CAPTURE_DIR) { $env:NOVA_SIM_CAPTURE_DIR } else { 'F:\Nova\sim_capture' }
 $script:NovaLogDir = Join-Path $script:NovaRepo 'logs'
 $script:NovaWatchLog = Join-Path $script:NovaLogDir 'nova-localhost-watch.log'
-$script:NovaMutexName = 'Global\NovaLocalhostWatchdog'
+$script:NovaMutexName = 'Local\NovaLocalhostWatchdog'
 
 function Write-NovaLog([string]$Message) {
   try {
@@ -174,3 +174,4 @@ function Get-NovaLocalhostStatus {
     repo = $script:NovaRepo
   }
 }
+
