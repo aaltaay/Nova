@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- L2 Brain sensor list is 18 sensors
+
+- **What:** `docs/l2-brain-sensors.md` grows from 16 to **18 sensors**. Appended 17 regime detector and 18 macro event calendar. Sensors 1-16 unchanged; sensor 13 stays wired to the Advice feature. README blurb now says 18 sensors.
+- **Why:** Ahmed added regime and scheduled-macro inputs to the L2 Brain contract.
+- **Files touched:** `docs/l2-brain-sensors.md`, `docs/README.md`.
+- **How it works now:** 17 classifies trending / mean-reverting / chopping from existing L2/T&S (`GET /sensors/regime?symbol=`, status computed/stub). 18 lists scheduled FOMC/CPI/NFP/earnings (`GET /sensors/macro`, optional `?symbol=`; status stub). Sensor 18 is not the Advice feature. Still docs-only; no `/sensors/*` routes. No autonomous orders.
+- **Verified by:** markdownlint on the note + README; `doc_invariants.py`; sensors 1-16 text unchanged vs prior commit; sensor 13 still Advice feature / wired to Advice.
+- **Follow-ups:** Ahmed review of the 18-sensor draft; later session implements GET routes.
+- **Related:** PR #285. Advice feature (`docs/advise-rail.md`). Earnings tab (`backend/earnings_calendar.py`) is optional later fill for 18, not a stub requirement.
+
 ## 2026-09-19 -- L2 Brain sensor list is 16 sensors
 
 - **What:** `docs/l2-brain-sensors.md` grows from 13 to **16 sensors**. Appended 14 risk state, 15 halt/LULD, 16 brain memory. Sensors 1-13 unchanged; sensor 13 stays wired to the Advice feature. README blurb now says 16 sensors.

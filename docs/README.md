@@ -2,7 +2,7 @@
 
 ## L2 Brain
 
-[l2-brain-sensors.md](l2-brain-sensors.md) -- Sensor list v1, **16 sensors** (draft, 2026-09-18, pending Ahmed review). Read-only GET smoke-test surface. Sensor 13 news/catalyst is wired to the existing **Advice feature** (Advise rail / Advice UI). Sensors 14-15 are wired to existing risk/halt sources. Sensor 16 is a new small local decision log. No new API keys. See also [advise-rail.md](advise-rail.md).
+[l2-brain-sensors.md](l2-brain-sensors.md) -- Sensor list v1, **18 sensors** (draft, 2026-09-18, pending Ahmed review). Read-only GET smoke-test surface. Sensor 13 news/catalyst is wired to the existing **Advice feature** (Advise rail / Advice UI). Sensors 14-15 are wired to existing risk/halt sources. Sensor 16 is a new small local decision log. Sensor 17 regime is computed/stub from existing L2/T&S. Sensor 18 macro calendar is a stub (not the Advice feature). No new API keys. See also [advise-rail.md](advise-rail.md).
 
 ## Warrior Trading materials
 

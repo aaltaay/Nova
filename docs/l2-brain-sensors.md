@@ -2,12 +2,12 @@
 
 - **Date:** 2026-09-18
 - **Status:** draft -- pending Ahmed review
-- **Count:** **16 sensors**
+- **Count:** **18 sensors**
 - **Scope:** read-only sensors. No autonomous order placement.
 - **Smoke test:** each sensor is an independent GET endpoint.
 - **Thresholds:** unset until Ahmed sets them from live sessions.
 
-This note is the v1 contract for L2 Brain inputs (16 sensors). It does not
+This note is the v1 contract for L2 Brain inputs (18 sensors). It does not
 implement the `/sensors/*` routes. Endpoints below are the intended
 smoke-test surface.
 
@@ -172,6 +172,38 @@ is added it needs an owner module, invalidation trigger, and
 
 **Status:** **new (small local store)**.
 
+### 17. Regime detector
+
+Classifies the current tape regime for the symbol: trending / mean-reverting
+/ chopping, with a confidence score. Derived from recent price action,
+volatility, and order-flow characteristics already available in the repo.
+
+`GET /sensors/regime?symbol=`
+
+**Source:** computed from existing L2 / Time & Sales data (sensors 1-2 and
+the IBKR book/tape already on the desk). A stub payload is fine at first
+(`regime=unknown`, low confidence) until the classifier exists. Do not
+open a new market-data feed.
+
+**Status:** **computed/stub**.
+
+### 18. Macro event calendar
+
+Upcoming scheduled catalysts (FOMC, CPI, NFP, earnings for the symbol,
+etc.) with timestamp and expected impact.
+
+`GET /sensors/macro` (optional `?symbol=` for earnings)
+
+**Source:** a lightweight calendar API or a static schedule file. A stub
+is fine if no key exists yet. Distinct from the **Advice feature** (sensor
+13): Advice is ad-hoc headline / sentiment for the symbol; this sensor
+covers known recurring macro drops. Do not read Advice output here. Do
+not add a news key for this sensor. Existing `backend/earnings_calendar.py`
+(Finnhub earnings tab) may later fill the optional symbol-earnings slice;
+it is not required for the stub.
+
+**Status:** **stub**.
+
 ## Non-goals
 
 - No Place / cancel / flatten from a sensor.
@@ -180,3 +212,5 @@ is added it needs an owner module, invalidation trigger, and
 - No second news vendor for sensor 13. The Advice feature is the owner.
 - No second risk engine or halt feed for sensors 14-15.
 - Sensor 16 is a new local decision log only -- not a news, risk, or IBKR sensor.
+- Sensor 17 must not open a new L1/L2/tape subscription.
+- Sensor 18 is not the Advice feature and must not reuse `GET /sensors/news`.
