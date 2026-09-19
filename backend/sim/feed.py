@@ -98,6 +98,13 @@ def tick() -> dict:
 
 def _inject(payload: dict) -> None:
     try:
+        from capture.bridge_sim import emit_sim_tick
+
+        emit_sim_tick(payload, _market.quote() or {}, _market.book())
+    except Exception:
+        logger.debug("SIM: capture bridge skipped", exc_info=True)
+
+    try:
         from ibkr.tape_stream import _push_queue
 
         _push_queue(SIM_SYMBOL, payload)

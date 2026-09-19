@@ -313,6 +313,13 @@ def _roll_minute(payload: dict[str, Any]) -> None:
         bar["c"] = px
         bar["v"] = float(bar["v"]) + size
         return
+    if _bars_1m:
+        try:
+            from capture.bridge_sim import emit_sim_bar
+
+            emit_sim_bar("1m", _bars_1m[-1])
+        except Exception:
+            pass
     _bars_1m.append({"t": t_iso, "o": px, "h": px, "l": px, "c": px, "v": size})
     if len(_bars_1m) > 800:
         del _bars_1m[:400]
