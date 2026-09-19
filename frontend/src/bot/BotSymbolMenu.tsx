@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { BOT_ALLOWLIST_ADD, BOT_ALLOWLIST_REMOVE } from '../constantGroups/bot';
 import {
   closeBotSymbolMenu,
@@ -6,10 +6,22 @@ import {
   type BotSymbolMenuOpen,
 } from './botSymbolMenuStore';
 import { useBotAllowlist } from './useBotAllowlist';
+import {
+  getRecordingSymbols,
+  isTabRecording,
+  startTabRecord,
+  stopTabRecord,
+  subscribeSessionRecord,
+} from '../capture/sessionRecordStore';
 
 export function BotSymbolMenuHost() {
   const [open, setOpen] = useState<BotSymbolMenuOpen>(null);
   const { isAllowed, add, remove } = useBotAllowlist();
+  const recordEpoch = useSyncExternalStore(
+    subscribeSessionRecord,
+    () => getRecordingSymbols().join(','),
+    () => '',
+  );
 
   useEffect(() => subscribeBotSymbolMenu(setOpen), []);
 
@@ -33,6 +45,9 @@ export function BotSymbolMenuHost() {
 
   if (!open) return null;
   const allowed = isAllowed(open.symbol);
+  const recording = isTabRecording(open.symbol);
+  void recordEpoch;
+
   return (
     <div
       className="bot-symbol-menu"
@@ -40,6 +55,22 @@ export function BotSymbolMenuHost() {
       data-testid="bot-symbol-menu"
       style={{ top: open.y, left: open.x }}
     >
+      <button
+        type="button"
+        role="menuitem"
+        data-testid="bot-symbol-menu-record"
+        onClick={() => {
+          void (async () => {
+            const err = recording
+              ? await stopTabRecord(open.symbol)
+              : await startTabRecord(open.symbol);
+            if (err) window.alert(err);
+            closeBotSymbolMenu();
+          })();
+        }}
+      >
+        {recording ? 'Stop recording' : 'Record'} -- {open.symbol}
+      </button>
       <button
         type="button"
         role="menuitem"

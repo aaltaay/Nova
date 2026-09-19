@@ -43,7 +43,7 @@ def _session_dir(symbol: str) -> Path:
     return capture_root() / day / symbol.upper()
 
 
-def start_recorder(symbol: str | None) -> dict[str, Any]:
+def start_recorder(symbol: str | None, *, resume: bool = True) -> dict[str, Any]:
     global _active, _symbol, _day, _dir, _last_l2_mono, _counts
     with _lock:
         stop_recorder_unlocked()
@@ -64,7 +64,9 @@ def start_recorder(symbol: str | None) -> dict[str, Any]:
             "source": "ibkr",
             "schema": "sim_capture_v1",
             "l2_max_hz": CAPTURE_L2_MAX_HZ,
-            "note": "Capture mode — places blocked; compact to parquet after session",
+            "note": "Per-tab Record — partial days OK; append resume; compact whatever landed",
+            "partial_ok": True,
+            "resume": True,
         }
         (_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
         _active = True
@@ -93,6 +95,8 @@ def stop_recorder_unlocked() -> None:
             man_path = _dir / "manifest.json"
             man = json.loads(man_path.read_text(encoding="utf-8")) if man_path.exists() else {}
             man["stopped_et"] = datetime.now(ET).isoformat()
+            man["complete"] = False  # full-day completeness is never assumed
+            man["status"] = "stopped_partial_ok"
             man["counts"] = dict(_counts)
             man_path.write_text(json.dumps(man, indent=2), encoding="utf-8")
         except Exception:

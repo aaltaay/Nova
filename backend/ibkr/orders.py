@@ -79,7 +79,6 @@ def place_order(
     try:
         from capture.mode import is_capture_mode
     except Exception:
-        is_capture_mode = lambda: False  # noqa: E731
     if is_capture_mode():
         from capture.guard import refuse_place as capture_refuse_place
 
