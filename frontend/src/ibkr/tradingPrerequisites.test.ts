@@ -353,7 +353,7 @@ describe('buildTradingPrerequisites', () => {
       expect(out.warnings).toHaveLength(1);
       expect(out.warnings[0].id).toBe('completed_orders');
       expect(out.warnings[0].label).toMatch(/^Completed orders not answering since \d{1,2}:\d{2}/);
-      expect(out.warnings[0].detail).toMatch(/Restart IB Gateway when convenient/);
+      expect(out.warnings[0].detail).toMatch(/restart IB Gateway when convenient/i);
     });
 
     it('stays quiet when answering, while reconnecting, or in Sim', () => {
@@ -372,9 +372,16 @@ describe('buildTradingPrerequisites', () => {
     });
 
     it('formats the clock from epoch seconds and ignores junk', () => {
-      const text = completedOrdersStuckNotice({ sinceEpochSec: since, gatewayReady: true });
-      const clock = new Date(since * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const sameDay = new Date(since * 1000 + 60_000);
+      const text = completedOrdersStuckNotice({ sinceEpochSec: since, gatewayReady: true, now: sameDay });
+      const clock = new Date(since * 1000).toLocaleString([], { hour: '2-digit', minute: '2-digit' });
       expect(text).toBe(`Completed orders not answering since ${clock}`);
+      const nextDay = new Date(since * 1000 + 26 * 3600_000);
+      const older = completedOrdersStuckNotice({ sinceEpochSec: since, gatewayReady: true, now: nextDay });
+      const withDay = new Date(since * 1000).toLocaleString([], {
+        weekday: 'short', hour: '2-digit', minute: '2-digit',
+      });
+      expect(older).toBe(`Completed orders not answering since ${withDay}`);
       expect(completedOrdersStuckNotice({ sinceEpochSec: 0, gatewayReady: true })).toBeNull();
       expect(completedOrdersStuckNotice({ sinceEpochSec: Number.NaN, gatewayReady: true })).toBeNull();
     });

@@ -179,9 +179,12 @@ if (-not $failedLeg) {
             if ($ibkr.connected -eq $true) {
                 Write-CheckLog "ibkr_status connected mode=$($ibkr.mode)" "PASS"
                 # D-058: READY, but the Gateway stopped answering reqCompletedOrders.
-                if ($ibkr.completed_orders_unanswered_since) {
-                    $since = [DateTimeOffset]::FromUnixTimeSeconds([long]$ibkr.completed_orders_unanswered_since).ToLocalTime().ToString("HH:mm")
-                    Write-CheckLog "completed orders not answering since $since -- trading works; restart IB Gateway when convenient (2FA)" "WARN"
+                # The desk hides this in Sim (status forces connected=true there).
+                $inSim = ($ibkr.mode -eq "sim") -or ($ibkr.sim -eq $true)
+                if ($ibkr.completed_orders_unanswered_since -and -not $inSim) {
+                    $at = [DateTimeOffset]::FromUnixTimeSeconds([long]$ibkr.completed_orders_unanswered_since).ToLocalTime()
+                    $fmt = if ($at.Date -eq (Get-Date).Date) { "HH:mm" } else { "ddd HH:mm" }
+                    Write-CheckLog "completed orders not answering since $($at.ToString($fmt)) -- prices/positions update; restart IB Gateway when convenient (2FA); if orders are rejected too, check Read-Only API" "WARN"
                 }
                 $ibkrOk = $true
                 break

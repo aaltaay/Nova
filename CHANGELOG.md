@@ -66,24 +66,27 @@ Entry template (copy and fill in):
 
 ## 2026-09-19 -- Desk warns when the Gateway stops answering completed orders (D-058)
 
-- **What:** When the IBKR session is READY but the Gateway has stopped answering `reqCompletedOrders`, Nova now shows an amber warning in three places:
-  - the Trading prerequisites panel: "Completed orders not answering since HH:MM", with restart advice;
+- **What:** When the IBKR session is READY but the Gateway has stopped answering `reqCompletedOrders` for 2+ minutes, Nova shows an amber warning in three places:
+  - the Trading prerequisites panel: "Completed orders not answering since HH:MM", with the weekday added when it isn't today;
   - the header Desk chip, which turns amber and gets the same line in its tooltip;
-  - the morning check, which logs a WARN line.
+  - the morning check, which logs a WARN line (skipped in Sim).
 
-  `/api/ibkr/status` gains `completed_orders_unanswered_since` (epoch seconds or null). New `backend/ibkr/completed_orders_health.py`.
-- **Why:** On 2026-09-17 and 2026-09-19 the Gateway silently stopped answering completed orders for 3-4+ hours after a server reconnect. Trading kept working, so the only symptom was a log line. The operator needs to know when a Gateway restart is worth doing, rather than digging it out of logs (#306, PROBLEM_LOG 2026-09-19).
-- **Files touched:** `backend/ibkr/completed_orders_health.py` (new), `backend/ibkr/account.py`, `backend/routes/trading.py`, `frontend/src/ibkr/tradingPrerequisites.ts`, `frontend/src/ibkr/TradingPrerequisitesGate.tsx`, `frontend/src/ibkr/PrereqItemRow.tsx` (row component split out for the 400-line limit), `frontend/src/components/HeaderConnectionStatus.tsx`, `gatewayUxConstants.ts`, `types.ts`, `tradingPrerequisitesGate.css`, `scripts/Invoke-NovaMorningCheck.ps1`, tests.
+  A new IB-loop task re-asks every 60s while the warning is active and clears it as soon as the Gateway answers. `/api/ibkr/status` gains `completed_orders_unanswered_since` (epoch seconds; null unless the session is usable and the warning is due). New `backend/ibkr/completed_orders_health.py` plus the tunables `IBKR_COMPLETED_ORDERS_REPROBE_SEC=60` and `IBKR_COMPLETED_ORDERS_WARN_AFTER_SEC=120`.
+- **Why:** On 2026-09-17 and 2026-09-19 the Gateway silently stopped answering completed orders for 3-4+ hours after a server reconnect. Prices and positions kept working, so the only symptom was a log line. The operator needs to know when a Gateway restart is worth doing (#306, PROBLEM_LOG 2026-09-19).
+- **Files touched:** `backend/ibkr/completed_orders_health.py` (new), `backend/ibkr/account.py`, `backend/routes/trading.py`, `backend/app_lifespan.py`, `backend/constants_ibkr.py`, `frontend/src/ibkr/tradingPrerequisites.ts`, `frontend/src/ibkr/TradingPrerequisitesGate.tsx`, `frontend/src/ibkr/PrereqItemRow.tsx` (row split out for the 400-line limit), `frontend/src/components/headerConnectionStatusModel.ts` (`deskGatewayView`; `HeaderConnectionStatus.tsx` shrinks 368 -> 337), `gatewayUxConstants.ts`, `types.ts`, `tradingPrerequisitesGate.css`, `scripts/Invoke-NovaMorningCheck.ps1`, tests.
 - **How it works now:**
-  - `refresh_completed_orders_cache` reports every outcome. Only "no answer" failures (`TimeoutError`, `StaleIbRequestError`) stamp the first-seen time; disconnects and busy cold slots do not. The first answered refresh clears it.
-  - The stamp is in-memory, so it means "first seen by this API run", not the Gateway-side onset.
-  - The frontend shares one helper, `completedOrdersStuckNotice`, between panel and chip. It shows only on a READY, non-Sim desk, and it never changes `deskReady`: it's a warning, not a blocker.
-  - The warning clears when a later refresh gets an answer, which in practice means after a reconnect (e.g. once Gateway has been restarted) or after the Closed Orders poll retries.
+  - `refresh_completed_orders_cache` reports each outcome. Only "no answer" failures (`TimeoutError`, `StaleIbRequestError`) stamp the first-seen time; any answer clears it.
+  - `reprobe_loop` re-asks every 60s while the stamp is set and the session is READY. This is needed because nothing else re-asks until a reconnect: the Closed Orders poll never warms off the IB loop. While ib_async still holds the stale request, a re-ask fails with no wire traffic. Once a late `completedOrdersEnd` settles it, the next re-ask sends a fresh request.
+  - `warn_since` hides stamps younger than 120s, so a Gateway that is merely slow at connect never reaches the desk.
+  - The stamp is in-memory: it means "first seen by this API run".
+  - The copy never claims orders work: a Read-Only API Gateway shows the same timeout and rejects orders (PROBLEM_LOG 2026-07-22). It points there first if orders are rejected too.
+  - Panel and chip share `completedOrdersStuckNotice`, which shows only on a READY, non-Sim desk and never changes `deskReady`.
 - **Verified by:**
-  - Backend: new `test_ibkr_completed_orders_health.py` plus a status-route test; targeted suites 72 passed.
-  - Frontend: vitest for the builder and the header (46 passed), `tsc --noEmit` clean, eslint clean, `npm run build` exit 0.
-  - Browser check: a production build behind a read-only proxy that injected the field into the live status. The Desk chip was `status-chip--warn` with the tooltip line, and the panel showed "Completed orders not answering since 01:14 AM" under three green rows, at the same 10px spacing as the rows.
-- **Follow-ups:** D-057 (#305) moves completed orders to a background refresh with retry, which will also clear this warning without a reconnect.
+  - Backend: new `test_ibkr_completed_orders_health.py`, including the review repro with real ib_async objects: startup sync times out, the refresh stamps, the re-ask stays silent while stale, a late `completedOrdersEnd` lands, and the next re-ask clears it. Plus the 120s threshold, and a status-route test that also covers usable gating.
+  - Frontend: builder, header, and a new `TradingPrerequisitesGate.test.tsx` render test. The render test fails if the gate stops passing the field. Also `tsc`, eslint, and `npm run build`.
+  - Browser check of a production build behind a read-only proxy (the Desk chip is amber with the tooltip line; the panel warning sits at the same 10px row gap).
+  - An adversarial three-lens review; all its findings were fixed in this PR.
+- **Follow-ups:** D-057 (#305) moves completed orders out of the blocking connect sync.
 
 ## 2026-09-19 -- IBKR account-updates subscribe no longer blocks connect for 8s
 

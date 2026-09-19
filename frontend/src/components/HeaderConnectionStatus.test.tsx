@@ -342,7 +342,7 @@ describe('HeaderConnectionStatus', () => {
     const desk = container.querySelector('[data-testid="status-chip-desk"]');
     expect(desk?.className).toMatch(/status-chip--warn/);
     expect(desk?.getAttribute('title')).toMatch(/Completed orders not answering since/);
-    expect(desk?.getAttribute('title')).toMatch(/Restart IB Gateway when convenient/);
+    expect(desk?.getAttribute('title')).toMatch(/restart IB Gateway when convenient/i);
   });
 
   it('says no L1 yet when lastPriceTs is 0, even in compact GlobalAppBar', () => {

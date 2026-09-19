@@ -194,12 +194,19 @@ export function completedOrdersStuckNotice(input: {
   sinceEpochSec?: number | null;
   gatewayReady: boolean;
   simMode?: boolean;
+  /** Injectable "now" for tests; defaults to the wall clock. */
+  now?: Date;
 }): string | null {
   const since = Number(input.sinceEpochSec);
   if (input.simMode || !input.gatewayReady || !Number.isFinite(since) || since <= 0) {
     return null;
   }
-  const clock = new Date(since * 1000).toLocaleTimeString([], {
+  const at = new Date(since * 1000);
+  const today = (input.now ?? new Date()).toDateString() === at.toDateString();
+  // Add the weekday once it is not today, so an overnight onset never reads
+  // as a time later today.
+  const clock = at.toLocaleString([], {
+    ...(today ? {} : { weekday: 'short' as const }),
     hour: '2-digit',
     minute: '2-digit',
   });

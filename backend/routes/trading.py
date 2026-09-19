@@ -102,7 +102,8 @@ async def ibkr_status() -> dict:
         "ib_cold_inflight": _ib_scheduler.inflight_label() or None,
         "dialer_heartbeat_age_sec": _reconnect.dialer_heartbeat_age_sec(),
         # D-058: READY but the Gateway is not answering reqCompletedOrders.
-        "completed_orders_unanswered_since": _co_health.unanswered_since(),
+        # Only while usable, so no consumer can show a replaced session's verdict.
+        "completed_orders_unanswered_since": _co_health.warn_since() if usable else None,
         **_ticks.ticker_budget_status(),
     })
 

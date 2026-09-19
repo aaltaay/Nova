@@ -512,9 +512,13 @@ def test_status_route_surfaces_completed_orders_unanswered_since():
          patch.object(client_mod, "broker_account_kind", return_value="live"), \
          patch.object(client_mod, "get_market_data_type", return_value=1), \
          patch("ibkr.session_errors.is_delayed_data", return_value=False), \
-         patch("ibkr.completed_orders_health.unanswered_since", return_value=1789808049.0):
+         patch("ibkr.completed_orders_health.warn_since", return_value=1789808049.0):
         res = client.get("/api/ibkr/status")
-    assert res.json()["completed_orders_unanswered_since"] == 1789808049.0
+        assert res.json()["completed_orders_unanswered_since"] == 1789808049.0
+        # Not usable -> never report a verdict that may belong to a replaced session.
+        with patch.object(client_mod, "is_ready", return_value=False):
+            res = client.get("/api/ibkr/status")
+        assert res.json()["completed_orders_unanswered_since"] is None
 
 
 def test_status_route_includes_reqmkt_data_budget():

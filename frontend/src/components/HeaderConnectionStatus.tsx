@@ -8,17 +8,9 @@ import { BackendReloadButton } from './BackendReloadButton';
 import {
   DATA_FEED_LABELS,
   DISCOVERY_PROVIDER_DEFAULT,
-  HEADER_GATEWAY_LAUNCH_HINT,
-  HEADER_GATEWAY_TITLE_DELAYED,
-  HEADER_GATEWAY_TITLE_LIVE,
-  HEADER_GATEWAY_TITLE_PAPER,
-  HEADER_GATEWAY_TITLE_SIM,
-  HEADER_GATEWAY_TITLE_UNKNOWN,
   HEADER_INTEGRATION_CHIP_LABELS,
   HEADER_INTEGRATION_CHIP_ORDER,
-  SCANNER_DATA_SOURCE_TITLES,
 } from '../constants';
-import { emptyIbkrDisconnectedMessage } from '../ibkr/disconnectCopy';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import type { IbkrMode } from '../ibkr/types';
 import type { HealthStatus, IntegrationChipStatus } from '../types/health';
@@ -29,11 +21,7 @@ import { canReloadLocalBackend } from '../utils/startLocalApi';
 import { launchIbGateway } from '../utils/launchIbGateway';
 import { GatewayModeCapsule } from '../ibkr/GatewayModeCapsule';
 import { StockViewMarketClock } from '../stock_view/StockViewMarketClock';
-import {
-  HEADER_DESK_ROLE,
-  PREREQ_COMPLETED_ORDERS_STUCK_DETAIL,
-} from '../ibkr/gatewayUxConstants';
-import { completedOrdersStuckNotice } from '../ibkr/tradingPrerequisites';
+import { HEADER_DESK_ROLE } from '../ibkr/gatewayUxConstants';
 import { openTradingPrerequisites } from '../ibkr/tradingPrereqUi';
 import {
   SCANNER_HONESTY_CHIP_ROLE,
@@ -46,9 +34,9 @@ import {
   apiTone,
   deskChipTone,
   deskConnectionLabel,
+  deskGatewayView,
   healthLatencyLabel,
   integrationTone,
-  resolveGatewayModeTag,
   toneDot,
   type HeaderChipTone,
 } from './headerConnectionStatusModel';
@@ -130,50 +118,18 @@ export function HeaderConnectionStatus({
   const priceTone: HeaderChipTone =
     lastPriceTs === 0 || pricesStale ? 'warn' : 'ok';
 
-  const modeTag = resolveGatewayModeTag(ibkrMode, ibkrGatewayMode, ibkrAccountKind);
-  const modeTitle =
-    ibkrMode === 'sim'
-      ? HEADER_GATEWAY_TITLE_SIM
-      : modeTag === 'live'
-        ? HEADER_GATEWAY_TITLE_LIVE
-        : modeTag === 'paper'
-          ? HEADER_GATEWAY_TITLE_PAPER
-          : HEADER_GATEWAY_TITLE_UNKNOWN;
-  // D-058: READY desk whose Gateway stopped answering completed orders.
-  const completedOrdersNotice = completedOrdersStuckNotice({
-    sinceEpochSec: ibkrStatusLive.completed_orders_unanswered_since,
-    gatewayReady: ibkrConnected && ibkrStatusLive.stale !== true,
-    simMode: ibkrMode === 'sim',
-  });
-  const gatewayTitle = [
-    modeTitle,
-    ibkrConnected
-      ? SCANNER_DATA_SOURCE_TITLES.ibkr
-      : emptyIbkrDisconnectedMessage(ibkrGatewayMode),
-    marketDataDelayed ? HEADER_GATEWAY_TITLE_DELAYED : null,
-    completedOrdersNotice
-      ? `${completedOrdersNotice}. ${PREREQ_COMPLETED_ORDERS_STUCK_DETAIL}`
-      : null,
-    HEADER_GATEWAY_LAUNCH_HINT,
-    gatewayLaunchHint,
-  ]
-    .filter(Boolean)
-    .join('\n\n');
-
   const statusStale = ibkrStatusLive.stale === true;
-  const gatewayChipTone: HeaderChipTone = ibkrMode === 'sim'
-    ? 'warn'
-    : gatewayLaunchOk === false
-    ? 'bad'
-    : gatewayLaunchOk === true
-      ? 'ok'
-      : statusStale
-        ? 'warn'
-        : !ibkrConnected
-          ? 'bad'
-          : marketDataDelayed || completedOrdersNotice
-            ? 'warn'
-            : 'ok';
+  const { tone: gatewayChipTone, title: gatewayTitle } = deskGatewayView({
+    ibkrMode,
+    gatewayMode: ibkrGatewayMode,
+    accountKind: ibkrAccountKind,
+    connected: ibkrConnected,
+    delayed: marketDataDelayed,
+    statusStale,
+    launchOk: gatewayLaunchOk,
+    launchHint: gatewayLaunchHint,
+    completedOrdersUnansweredSince: ibkrStatusLive.completed_orders_unanswered_since,
+  });
 
   const deskValue = deskConnectionLabel({
     apiOk,

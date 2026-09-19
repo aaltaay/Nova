@@ -37,6 +37,7 @@ from constants import (
 import archive.db as _archive_db
 from health_status import mark_nova_process_health, set_health_broker_keys_missing
 from ibkr import client as _ibkr_client
+from ibkr import completed_orders_health as _completed_orders_health
 from ibkr import scanner_l1 as _scanner_l1
 from ibkr import scanner_session as _scanner_session
 from ibkr import session_watchdog as _session_watchdog
@@ -212,6 +213,8 @@ async def _bootstrap_runtime() -> None:
     # Sibling task to the dialer, not inside it -- see session_watchdog
     # module docstring / PROBLEM_LOG 2026-08-31.
     spawn_ib("ibkr.session_watchdog", _session_watchdog.run)
+    # D-058: clears the desk warning once the Gateway answers completed orders.
+    spawn_ib("ibkr.completed_orders_reprobe", _completed_orders_health.reprobe_loop)
     # Prefer waiting ~one connect wall; never block HTTP (already yielded).
     connected = await _wait_ibkr_connected(float(IBKR_RECONNECT_DELAY_SEC) + 2.0)
     if not connected:
