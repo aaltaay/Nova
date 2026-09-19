@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BackendStartButton } from '../components/BackendStartButton';
 import { useScannerBarProps } from '../components/scannerBarStore';
+import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL, DISCOVERY_PROVIDER_DEFAULT } from '../constants';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
@@ -232,7 +233,7 @@ export function TradingPrerequisitesGate() {
     setFollowBusy(true);
     setLaunchHint(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/ibkr/gateway-mode`, {
+      const res = await novaFetch(`${API_BASE_URL}/api/ibkr/gateway-mode`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: target }),
@@ -260,7 +261,7 @@ export function TradingPrerequisitesGate() {
     setReconnectBusy(true);
     setLaunchHint(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/ibkr/reconnect`, { method: 'POST' });
+      const res = await novaFetch(`${API_BASE_URL}/api/ibkr/reconnect`, { method: 'POST' });
       const body = (await res.json().catch(() => ({}))) as {
         connected?: boolean;
         session_reason?: string;

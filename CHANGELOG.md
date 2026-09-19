@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- Paper/Live/Sim toggle sends X-Nova-Api-Key
+
+- **What:** Header Paper/Live/Sim and the prerequisites Follow/Reconnect buttons now POST through `novaFetch`, so `X-Nova-Api-Key` is attached when `NOVA_API_KEY` is set.
+- **Why:** Raw `fetch` on `/api/sim` and `/api/ibkr/gateway-mode` returned `Invalid or missing X-Nova-Api-Key` on Ahmed's desk.
+- **Files touched:** `frontend/src/ibkr/GatewayModeCapsule.tsx`, `frontend/src/ibkr/TradingPrerequisitesGate.tsx`, `frontend/src/ibkr/GatewayModeCapsule.switch.test.tsx`.
+- **How it works now:** Capsule Sim enable/disable and Paper/Live door POSTs, plus prerequisites Follow Gateway and Reconnect, use `novaFetch` (desktop / `VITE_NOVA_API_KEY` / localStorage). Same URLs, bodies, and error copy. GET polls stay on raw `fetch`.
+- **Verified by:** Vitest capsule + novaFetch -- 14 passed. `npm run lint` exit 0. `npx vite build` exit 0. `doc_invariants.py` OK.
+- **Follow-ups:** Ahmed smoke on the desk, then merge. Do not auto-merge.
+- **Related:** PROBLEM_LOG 2026-09-19 -- Paper/Live/Sim missing API key header.
+
 ## 2026-09-19 -- Activity trail for closed trades (D-046 slice 4)
 
 - **What:** Account > Activity gains a Trail panel: place -> fill -> flatten/close plus stored CommissionReport dollars and timestamps. `GET /api/journal/trail` is a read model over journal rows + the execution ledger. No Client Portal. No invented P/L or fees.

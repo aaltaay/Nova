@@ -5,6 +5,7 @@
  * Never sets IBKR_LIVE_TRADING_CONFIRMED -- live spend stays a separate gate.
  */
 import { useState } from 'react';
+import { novaFetch } from '../api/novaFetch';
 import {
   API_BASE_URL,
   APP_DIALOG_SWITCH_LABEL,
@@ -104,7 +105,7 @@ export function GatewayModeCapsule({
     setSwitching('sim');
     setSwitchError(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/sim`, {
+      const res = await novaFetch(`${API_BASE_URL}/api/sim`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: true }),
@@ -141,7 +142,7 @@ export function GatewayModeCapsule({
     setSwitchError(null);
     try {
       if (selected === 'sim' || mode === 'sim') {
-        const simRes = await fetch(`${API_BASE_URL}/api/sim`, {
+        const simRes = await novaFetch(`${API_BASE_URL}/api/sim`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ enabled: false }),
@@ -152,7 +153,7 @@ export function GatewayModeCapsule({
           return;
         }
       }
-      const res = await fetch(`${API_BASE_URL}/api/ibkr/gateway-mode`, {
+      const res = await novaFetch(`${API_BASE_URL}/api/ibkr/gateway-mode`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: next }),
