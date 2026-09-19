@@ -178,6 +178,11 @@ if (-not $failedLeg) {
             $ibkr = Get-Json "$Base/api/ibkr/status"
             if ($ibkr.connected -eq $true) {
                 Write-CheckLog "ibkr_status connected mode=$($ibkr.mode)" "PASS"
+                # D-058: READY, but the Gateway stopped answering reqCompletedOrders.
+                if ($ibkr.completed_orders_unanswered_since) {
+                    $since = [DateTimeOffset]::FromUnixTimeSeconds([long]$ibkr.completed_orders_unanswered_since).ToLocalTime().ToString("HH:mm")
+                    Write-CheckLog "completed orders not answering since $since -- trading works; restart IB Gateway when convenient (2FA)" "WARN"
+                }
                 $ibkrOk = $true
                 break
             }

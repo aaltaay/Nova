@@ -44,6 +44,13 @@ export const PREREQ_GATEWAY_STALE_SECOND_FACTOR_DETAIL =
 export const PREREQ_GATEWAY_STALE_SECOND_FACTOR_CTA_LABEL = 'Start fresh login';
 export const PREREQ_GATEWAY_STALE_SECOND_FACTOR_CTA_BUSY_LABEL = 'Restarting login...';
 
+/** D-058 -- READY desk, but the Gateway stopped answering reqCompletedOrders
+ * (usually after a Gateway <-> IBKR server reconnect; PROBLEM_LOG 2026-09-19).
+ * A warning, not a blocker: prices and orders still work. */
+export const PREREQ_COMPLETED_ORDERS_STUCK_PREFIX = 'Completed orders not answering since';
+export const PREREQ_COMPLETED_ORDERS_STUCK_DETAIL =
+  'Trading still works, but Closed Orders may miss orders from before this session. Restart IB Gateway when convenient -- IBKR Mobile 2FA required.';
+
 export const DOOR_TRAIL_TITLE = 'Door trail';
 export const DOOR_TRAIL_KICKER = 'Paper / Live audit';
 export const DOOR_TRAIL_HINT =

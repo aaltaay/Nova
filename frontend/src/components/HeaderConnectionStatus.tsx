@@ -29,7 +29,11 @@ import { canReloadLocalBackend } from '../utils/startLocalApi';
 import { launchIbGateway } from '../utils/launchIbGateway';
 import { GatewayModeCapsule } from '../ibkr/GatewayModeCapsule';
 import { StockViewMarketClock } from '../stock_view/StockViewMarketClock';
-import { HEADER_DESK_ROLE } from '../ibkr/gatewayUxConstants';
+import {
+  HEADER_DESK_ROLE,
+  PREREQ_COMPLETED_ORDERS_STUCK_DETAIL,
+} from '../ibkr/gatewayUxConstants';
+import { completedOrdersStuckNotice } from '../ibkr/tradingPrerequisites';
 import { openTradingPrerequisites } from '../ibkr/tradingPrereqUi';
 import {
   SCANNER_HONESTY_CHIP_ROLE,
@@ -135,12 +139,21 @@ export function HeaderConnectionStatus({
         : modeTag === 'paper'
           ? HEADER_GATEWAY_TITLE_PAPER
           : HEADER_GATEWAY_TITLE_UNKNOWN;
+  // D-058: READY desk whose Gateway stopped answering completed orders.
+  const completedOrdersNotice = completedOrdersStuckNotice({
+    sinceEpochSec: ibkrStatusLive.completed_orders_unanswered_since,
+    gatewayReady: ibkrConnected && ibkrStatusLive.stale !== true,
+    simMode: ibkrMode === 'sim',
+  });
   const gatewayTitle = [
     modeTitle,
     ibkrConnected
       ? SCANNER_DATA_SOURCE_TITLES.ibkr
       : emptyIbkrDisconnectedMessage(ibkrGatewayMode),
     marketDataDelayed ? HEADER_GATEWAY_TITLE_DELAYED : null,
+    completedOrdersNotice
+      ? `${completedOrdersNotice}. ${PREREQ_COMPLETED_ORDERS_STUCK_DETAIL}`
+      : null,
     HEADER_GATEWAY_LAUNCH_HINT,
     gatewayLaunchHint,
   ]
@@ -158,7 +171,7 @@ export function HeaderConnectionStatus({
         ? 'warn'
         : !ibkrConnected
           ? 'bad'
-          : marketDataDelayed
+          : marketDataDelayed || completedOrdersNotice
             ? 'warn'
             : 'ok';
 

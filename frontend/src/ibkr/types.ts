@@ -58,6 +58,9 @@ export interface IbkrStatus {
   /** True once the prompt has sat open longer than IBC's own timeout --
    * IBC will silently discard it even if approved a moment later. */
   second_factor_stale?: boolean;
+  /** D-058: epoch seconds of the first reqCompletedOrders the Gateway left
+   * unanswered (this API run); null once it answers. Warning, not a blocker. */
+  completed_orders_unanswered_since?: number | null;
   gateway_self_heal?: {
     from_mode?: string;
     to_mode?: string;

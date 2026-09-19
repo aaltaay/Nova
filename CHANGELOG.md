@@ -64,6 +64,27 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- Desk warns when the Gateway stops answering completed orders (D-058)
+
+- **What:** When the IBKR session is READY but the Gateway has stopped answering `reqCompletedOrders`, Nova now shows an amber warning in three places:
+  - the Trading prerequisites panel: "Completed orders not answering since HH:MM", with restart advice;
+  - the header Desk chip, which turns amber and gets the same line in its tooltip;
+  - the morning check, which logs a WARN line.
+
+  `/api/ibkr/status` gains `completed_orders_unanswered_since` (epoch seconds or null). New `backend/ibkr/completed_orders_health.py`.
+- **Why:** On 2026-09-17 and 2026-09-19 the Gateway silently stopped answering completed orders for 3-4+ hours after a server reconnect. Trading kept working, so the only symptom was a log line. The operator needs to know when a Gateway restart is worth doing, rather than digging it out of logs (#306, PROBLEM_LOG 2026-09-19).
+- **Files touched:** `backend/ibkr/completed_orders_health.py` (new), `backend/ibkr/account.py`, `backend/routes/trading.py`, `frontend/src/ibkr/tradingPrerequisites.ts`, `frontend/src/ibkr/TradingPrerequisitesGate.tsx`, `frontend/src/ibkr/PrereqItemRow.tsx` (row component split out for the 400-line limit), `frontend/src/components/HeaderConnectionStatus.tsx`, `gatewayUxConstants.ts`, `types.ts`, `tradingPrerequisitesGate.css`, `scripts/Invoke-NovaMorningCheck.ps1`, tests.
+- **How it works now:**
+  - `refresh_completed_orders_cache` reports every outcome. Only "no answer" failures (`TimeoutError`, `StaleIbRequestError`) stamp the first-seen time; disconnects and busy cold slots do not. The first answered refresh clears it.
+  - The stamp is in-memory, so it means "first seen by this API run", not the Gateway-side onset.
+  - The frontend shares one helper, `completedOrdersStuckNotice`, between panel and chip. It shows only on a READY, non-Sim desk, and it never changes `deskReady`: it's a warning, not a blocker.
+  - The warning clears when a later refresh gets an answer, which in practice means after a reconnect (e.g. once Gateway has been restarted) or after the Closed Orders poll retries.
+- **Verified by:**
+  - Backend: new `test_ibkr_completed_orders_health.py` plus a status-route test; targeted suites 72 passed.
+  - Frontend: vitest for the builder and the header (46 passed), `tsc --noEmit` clean, eslint clean, `npm run build` exit 0.
+  - Browser check: a production build behind a read-only proxy that injected the field into the live status. The Desk chip was `status-chip--warn` with the tooltip line, and the panel showed "Completed orders not answering since 01:14 AM" under three green rows, at the same 10px spacing as the rows.
+- **Follow-ups:** D-057 (#305) moves completed orders to a background refresh with retry, which will also clear this warning without a reconnect.
+
 ## 2026-09-19 -- IBKR reconnect reaches READY when Gateway sync is slow
 
 - **What:** The session now reaches READY even when the Gateway is too slow to answer ib_async's connect-time sync, so "Reconnect Nova to Gateway" works again. New helper `ibkr/ib_await.await_ib_request` bounds the three warm-up requests. The session watchdog no longer judges a connect that is still running, and each forced reset starts a fresh stuck clock.
