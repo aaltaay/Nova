@@ -6,7 +6,7 @@ https://github.com/aaltaay/Nova/issues?q=is%3Aissue+label%3Adeferred
 
 `DEFERRED_LOG.md` is the how-to. It is **not** the to-do list. Do not prepend new `## D-NNN` sections here.
 
-**Mandatory for every agent.** Rule: `.cursor/rules/deferred-log.mdc`. Finding a real bug (or parking a real feature) and walking away with no GitHub issue is a constitution violation -- same severity as skipping `PROBLEM_LOG.md` after a real fix. Lifecycle footers must declare `deferred_log=<D-NNN>|none|skipped|n/a`.
+**Mandatory for every agent.** Rule: `.cursor/rules/deferred-log.mdc`. Finding a real bug (or parking a real feature) and walking away with no GitHub issue is a constitution violation -- same severity as skipping `PROBLEM_LOG.md` after a real fix. Lifecycle footers must declare `deferred_log=<#NNN or D-NNN>|none|skipped|n/a`.
 
 This is **not** `PROBLEM_LOG.md` (closed: symptom / cause / fix). This is **not** `CHANGELOG.md` (what the code does now). This is **not** `knowledge/task-log/` (why we shipped a change). This is **not** `Nova-Roadmap-Status.md` (product NEXT / phases L-Z). This is **not** an agent-memory Backlog.
 
@@ -15,18 +15,17 @@ Ranked list:
 ```text
 py -3 tools/deferred_log.py status
 py -3 tools/deferred_log.py priorities
-py -3 tools/deferred_log.py next-id
 ```
 
 `priorities` is the same ranked list as `status`. When the human asks "what's on the to-do / what's missing / priorities," run that command -- do not invent a second tracker. Every new chat also sees open P0/P1 items in the session-start fleet brief.
 
-If `gh` cannot read Issues (some CI / cloud tokens), the command says so and falls back to `knowledge/deferred-index.json` (schema_version 1, owner `tools/deferred_github.py`). That file is a snapshot, not a second to-do. After you open or close an issue, refresh it in the same commit:
+If `gh` cannot read Issues (some CI / cloud tokens, or a container with no `gh` installed at all), the command says so on stderr and falls back to `knowledge/deferred-index.json` (schema_version 1, owner `tools/deferred_github.py`). That file is a **read cache**, not a second to-do. Refresh it when convenient:
 
 ```text
 py -3 tools/deferred_log.py refresh-index
 ```
 
-A stale snapshot is how `next-id` hands out an ID that already exists. `refresh-index` refuses to overwrite a nonempty snapshot when `gh` returns zero issues, so a token that cannot read Issues cannot erase the fallback.
+Nothing allocates from the snapshot any more, so a stale one degrades a listing but cannot corrupt the tracker. `refresh-index` still refuses to overwrite a nonempty snapshot when `gh` returns zero issues, so a token that cannot read Issues cannot erase the fallback.
 
 Browse in the browser: filter Issues by label `deferred`, then `P0` / `P1` / `bug` / `decision` / `domain:execution` (and the other domain labels).
 
@@ -47,12 +46,12 @@ Pull into a session when: severity is P0, or the human names the ID, or you are 
 
 ## How agents open or close an item
 
-1. **Search first.** `py -3 tools/deferred_log.py status` and `gh issue list --repo aaltaay/Nova --label deferred --search "<symptom>"`. If a `D-NNN` already covers the ask: comment on that issue. Honor `parked` (label `parked` -- do not start it), `blocked`, Unblock, and Next.
-2. **New item.** `py -3 tools/deferred_log.py next-id` then:
+1. **Search first.** `py -3 tools/deferred_log.py status` and `gh issue list --repo aaltaay/Nova --label deferred --search "<symptom>"`. If an existing issue already covers the ask: comment on that issue. Honor `parked` (label `parked` -- do not start it), `blocked`, Unblock, and Next.
+2. **New item.** Title it plainly -- there is no ID to allocate. GitHub mints the durable `#NNN` when the issue is created:
 
 ```text
 gh issue create --repo aaltaay/Nova \
-  --title "D-NNN -- short title" \
+  --title "short title" \
   --label deferred --label P1 --label bug --label "domain:execution" \
   --body-file - <<'EOF'
 - **Status:** open
@@ -71,11 +70,11 @@ gh issue create --repo aaltaay/Nova \
 EOF
 ```
 
-Title contract is `D-NNN -- title` (ASCII double hyphen). Labels: always `deferred` plus one of `P0`..`P3`, plus `bug` / `enhancement` (feature) / `decision`, plus `domain:<name>` from `execution`, `market-feed`, `widgets`, `news`, `hod-momo`, `ibkr-ops`, `tester`, `security`, `docs`, `frontend`. Add `blocked` or `parked` when that is the status.
-3. **Done.** Close the GitHub issue (reason completed). Write `PROBLEM_LOG.md` if it was a bug. Set Lifecycle `deferred_log=D-NNN` plus `problem_log=...`. Do not delete history.
+Title is a plain short title -- the durable id is GitHub's `#NNN`, and `D-NNN` is a legacy alias kept only on issues that already carry one. Labels: always `deferred` plus one of `P0`..`P3`, plus `bug` / `enhancement` (feature) / `decision`, plus `domain:<name>` from `execution`, `market-feed`, `widgets`, `news`, `hod-momo`, `ibkr-ops`, `tester`, `security`, `docs`, `frontend`. Add `blocked` or `parked` when that is the status.
+3. **Done.** Close the GitHub issue (reason completed). Write `PROBLEM_LOG.md` if it was a bug. Set Lifecycle `deferred_log=#NNN` plus `problem_log=...`. Do not delete history.
 4. **Keep it short.** No secrets, tokens, or personal data.
 
-IDs are durable. Never reuse a closed ID.
+IDs are durable: GitHub never reuses `#NNN`, including for closed issues.
 
 ## Do not
 
@@ -84,12 +83,12 @@ IDs are durable. Never reuse a closed ID.
 - Treat a CHANGELOG `Follow-ups:` bullet as enough
 - Prepend a new `## D-NNN` section to this markdown file
 - Band-aid a P0/P1 so you can skip the issue
-- Invent an ID
-- Start a fix that is already a `D-NNN` without reading that issue first
+- Mint a new `D-NNN`; the prefix is legacy-only and hand-allocating one re-opens the collision class
+- Start a fix that is already an open issue without reading that issue first
 
 ## When skip is allowed
 
-Only for: you fixed the bug this session (`PROBLEM_LOG.md`); purely cosmetic edits; status-only polls with no new gap; the gap is already an open issue and you learned nothing new (still declare `deferred_log=D-NNN` if you touched that area).
+Only for: you fixed the bug this session (`PROBLEM_LOG.md`); purely cosmetic edits; status-only polls with no new gap; the gap is already an open issue and you learned nothing new (still declare `deferred_log=#NNN` if you touched that area).
 
 ## Relationship to other logs
 

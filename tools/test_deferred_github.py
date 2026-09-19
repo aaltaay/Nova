@@ -65,8 +65,51 @@ def test_parse_issue_feature_and_parked(gh):
     assert parsed["status"] == "parked"
 
 
-def test_parse_issue_rejects_bad_title(gh):
-    assert gh.parse_issue({"number": 1, "title": "Random bug", "labels": []}) is None
+def test_parse_issue_keeps_plain_title_under_github_number(gh):
+    """A human-filed issue has the label but not the legacy `D-NNN --` format."""
+    parsed = gh.parse_issue(
+        {
+            "number": 216,
+            "title": "[Bot #205] 11/11 L3 Unrestricted (later)",
+            "state": "OPEN",
+            "labels": ["deferred", "P2", "enhancement", "parked"],
+        }
+    )
+    assert parsed is not None, "a labeled issue must never be dropped for its title"
+    assert parsed["id"] == "#216"
+    assert parsed["title"] == "[Bot #205] 11/11 L3 Unrestricted (later)"
+    assert parsed["status"] == "parked"
+    assert parsed["number"] == "216"
+
+
+def test_parse_issue_still_reads_legacy_prefix(gh):
+    parsed = gh.parse_issue({"number": 39, "title": "D-011 -- Lock gap", "labels": []})
+    assert parsed is not None
+    assert parsed["id"] == "D-011"
+    assert parsed["title"] == "Lock gap"
+
+
+def test_parse_issue_rejects_empty_title(gh):
+    assert gh.parse_issue({"number": 1, "title": "   ", "labels": []}) is None
+
+
+def test_fetch_entries_warns_on_skipped(gh, monkeypatch, capsys):
+    monkeypatch.setattr(
+        gh,
+        "list_issues",
+        lambda **_k: [
+            {"number": 1, "title": "", "state": "OPEN", "labels": ["deferred"]},
+            {"number": 2, "title": "Real one", "state": "OPEN", "labels": ["deferred"]},
+        ],
+    )
+    items = gh.fetch_entries(state="open")
+    assert [e["id"] for e in items] == ["#2"]
+    assert "1 `deferred` issue(s) skipped" in capsys.readouterr().err
+
+
+def test_next_id_is_gone(gh):
+    """Allocation raced; GitHub mints #NNN atomically instead."""
+    assert not hasattr(gh, "next_id_from_issues")
 
 
 def test_labels_for_entry(gh):
@@ -84,11 +127,6 @@ def test_labels_for_entry(gh):
     assert "blocked" in labels
     assert "domain:execution" in labels
     assert "domain:ibkr-ops" in labels
-
-
-def test_next_id_from_issue_rows(gh):
-    assert gh.next_id_from_issues([{"id": "D-040"}, {"id": "D-008"}]) == "D-041"
-    assert gh.next_id_from_issues([]) == "D-001"
 
 
 def test_index_round_trip_and_schema(gh, tmp_path):
@@ -177,4 +215,3 @@ def test_live_index_has_seed_ids(gh):
     assert "D-001" in ids
     assert "D-011" in ids
     assert "D-040" in ids
-    assert gh.next_id_from_issues(items) == "D-041"

@@ -139,6 +139,16 @@ def _iter_live_files(root: Path) -> list[Path]:
     return sorted(found)
 
 
+def missing_live_paths(root: Path) -> list[str]:
+    """Declared LIVE_PATHS entries that do not resolve to a file.
+
+    A renamed or deleted live doc would otherwise drop out of the scan set
+    silently and the gate would keep exiting 0 on shrinking coverage.
+    LIVE_GLOBS is exempt: a glob may legitimately match nothing.
+    """
+    return [rel for rel in LIVE_PATHS if not (root / rel).is_file()]
+
+
 def scan_text(path: Path, text: str) -> list[Violation]:
     rel = path.as_posix()
     try:
@@ -164,6 +174,19 @@ def scan_text(path: Path, text: str) -> list[Violation]:
 def run_scan(root: Path | None = None) -> list[Violation]:
     base = root or REPO_ROOT
     violations: list[Violation] = []
+    for rel in missing_live_paths(base):
+        violations.append(
+            Violation(
+                invariant_id="missing_live_path",
+                path=rel,
+                line=0,
+                snippet="declared in LIVE_PATHS but not found on disk",
+                reason=(
+                    "A declared live doc is missing, so the gate stopped checking it. "
+                    "Restore the file or update LIVE_PATHS deliberately."
+                ),
+            )
+        )
     for path in _iter_live_files(base):
         try:
             text = path.read_text(encoding="utf-8")

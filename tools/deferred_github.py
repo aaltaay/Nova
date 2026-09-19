@@ -2,7 +2,11 @@
 """GitHub Issues backend for the Nova deferred tracker.
 
 Source of truth is issues labeled ``deferred`` on the Nova repo.
-Title contract: ``D-NNN -- short title`` (ASCII double hyphen).
+
+The durable id is the GitHub issue number (``#NNN``), which GitHub mints
+atomically. ``D-NNN -- short title`` is a legacy title format that is still
+parsed and displayed for the issues that carry one; it is never minted again.
+A labeled issue titled any other way is still tracked, under its ``#NNN``.
 """
 
 from __future__ import annotations
@@ -25,7 +29,9 @@ INDEX_SCHEMA_VERSION = 1
 DEFAULT_REPO = "aaltaay/Nova"
 DEFERRED_LABEL = "deferred"
 ISSUES_QUERY = "is:issue label:deferred"
-TITLE_RE = re.compile(r"^(D-\d+)\s+--\s+(.+)$")
+# The ``D-NNN --`` prefix is optional: issues filed by hand carry the label but
+# not the legacy format, and dropping them hid real work from `status`.
+TITLE_RE = re.compile(r"^(?:(D-\d+)\s+--\s+)?(.+)$")
 
 KIND_TO_LABEL = {
     "bug": "bug",
@@ -91,11 +97,17 @@ def _label_names(issue: dict[str, Any]) -> list[str]:
 
 
 def parse_issue(issue: dict[str, Any]) -> dict[str, str] | None:
-    """Map a ``gh`` issue JSON object to a deferred_log entry dict."""
+    """Map a ``gh`` issue JSON object to a deferred_log entry dict.
+
+    Returns ``None`` only when the title is empty -- every labeled issue with a
+    usable title is tracked, under its legacy ``D-NNN`` when it has one and
+    otherwise under its GitHub ``#NNN``.
+    """
     title = (issue.get("title") or "").strip()
     match = TITLE_RE.match(title)
     if not match:
         return None
+    number = str(issue.get("number") or "")
     names = _label_names(issue)
     name_set = {n.lower(): n for n in names}
     kind = "bug"
@@ -123,13 +135,13 @@ def parse_issue(issue: dict[str, Any]) -> dict[str, str] | None:
         if n.lower().startswith(DOMAIN_PREFIX)
     ]
     return {
-        "id": match.group(1),
+        "id": match.group(1) or (f"#{number}" if number else "#?"),
         "title": match.group(2).strip(),
         "kind": kind,
         "severity": severity,
         "status": status,
         "domain": " | ".join(domains),
-        "number": str(issue.get("number") or ""),
+        "number": number,
         "url": (issue.get("url") or "").strip(),
         "state": state,
     }
@@ -232,19 +244,29 @@ def _entries_from_index(state: str) -> list[dict[str, str]]:
 
 
 def fetch_entries(*, state: str = "open") -> list[dict[str, str]]:
-    live: list[dict[str, str]] | None
     try:
-        live = []
-        for issue in list_issues(state=state):
-            parsed = parse_issue(issue)
-            if parsed:
-                live.append(parsed)
+        raw = list_issues(state=state)
     except Exception as exc:
         print(
             f"deferred_github: gh list failed ({exc}); using {INDEX_PATH.name} snapshot",
             file=sys.stderr,
         )
         return _entries_from_index(state)
+    live: list[dict[str, str]] = []
+    skipped = 0
+    for issue in raw:
+        parsed = parse_issue(issue)
+        if parsed:
+            live.append(parsed)
+        else:
+            skipped += 1
+    if skipped:
+        # Never drop a labeled issue in silence -- an under-reported backlog
+        # reads exactly like an empty one.
+        print(
+            f"deferred_github: {skipped} `deferred` issue(s) skipped (empty title)",
+            file=sys.stderr,
+        )
     if live:
         return live
     # Some tokens return [] with exit 0 instead of 403. Prefer a nonempty snapshot.
@@ -284,16 +306,6 @@ def refresh_index() -> tuple[int, str]:
 
 def existing_ids() -> dict[str, dict[str, str]]:
     return {e["id"]: e for e in fetch_entries(state="all")}
-
-
-def next_id_from_issues(entries: list[dict[str, str]] | None = None) -> str:
-    rows = entries if entries is not None else fetch_entries(state="all")
-    nums = []
-    for item in rows:
-        match = re.search(r"D-(\d+)", item.get("id") or "")
-        if match:
-            nums.append(int(match.group(1)))
-    return f"D-{max(nums, default=0) + 1:03d}"
 
 
 def ensure_labels() -> None:

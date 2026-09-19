@@ -69,6 +69,31 @@ def test_allows_nova_public_archive_wording(di):
     assert hits == []
 
 
+def test_missing_live_path_is_a_violation(di, tmp_path, monkeypatch):
+    """A renamed/deleted live doc must fail loudly, not shrink coverage in silence."""
+    (tmp_path / "AGENTS.md").write_text("all good\n", encoding="utf-8")
+    monkeypatch.setattr(di, "LIVE_PATHS", ("AGENTS.md", "docs/gone.md"))
+    monkeypatch.setattr(di, "LIVE_GLOBS", ())
+    violations = di.run_scan(tmp_path)
+    assert [v.invariant_id for v in violations] == ["missing_live_path"]
+    assert violations[0].path == "docs/gone.md"
+
+
+def test_missing_live_path_exits_nonzero(di, tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(di, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(di, "LIVE_PATHS", ("docs/gone.md",))
+    monkeypatch.setattr(di, "LIVE_GLOBS", ())
+    assert di.main([]) == 1
+    assert "missing_live_path" in capsys.readouterr().err
+
+
+def test_live_globs_may_match_nothing(di, tmp_path, monkeypatch):
+    """A glob legitimately matches zero files; only explicit paths are asserted."""
+    monkeypatch.setattr(di, "LIVE_PATHS", ())
+    monkeypatch.setattr(di, "LIVE_GLOBS", ("nowhere/*.mdc",))
+    assert di.run_scan(tmp_path) == []
+
+
 def test_main_exits_nonzero_on_violation(di, tmp_path, monkeypatch, capsys):
     live = tmp_path / "AGENTS.md"
     live.write_text("Deploy to Railway now.\n", encoding="utf-8")

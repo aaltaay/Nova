@@ -31,13 +31,13 @@ Starting a fix that is already an open issue, without reading the issue, is a co
 
 ## Where and how
 
-1. Next ID: `py -3 tools/deferred_log.py next-id`. Title: `D-NNN -- short title` (ASCII double hyphen). Never reuse an ID.
+1. Title: a plain `short title` -- **no `D-NNN` prefix, no ID to allocate**. The durable id is the GitHub issue number (`#NNN`), minted atomically by GitHub, so concurrent agents cannot collide. `D-NNN` survives only as a legacy alias on the issues that already carry one.
 2. Labels: always `deferred`, plus one of `P0`..`P3`, plus `bug` / `enhancement` (feature) / `decision`, plus `domain:<name>`. Add `blocked` or `parked` when that is the status.
 3. Body fields (never optional): Kind, Severity, Effort, Why parked, Blast radius, Unblock, Next, Evidence. How-to: `DEFERRED_LOG.md`.
 4. Do not log secrets, tokens, or personal data.
 5. Cross-link from CHANGELOG / task-log `Related:` when those also get an entry.
-6. When you later **fix the entire issue**: use `Closes #NNN` in the PR, close with reason completed, write `PROBLEM_LOG.md` for a bug, and set Lifecycle `deferred_log=D-NNN` plus `problem_log=...`. Partial fixes use `Refs #NNN`, get an evidence comment, and leave the issue open.
-7. Refresh the index in the PR that opens an issue. When `Closes` auto-closes after merge, run `py -3 tools/deferred_log.py refresh-index` immediately and push that generated snapshot as a status-only commit. A stale index is how `next-id` reuses an ID.
+6. When you later **fix the entire issue**: use `Closes #NNN` in the PR, close with reason completed, write `PROBLEM_LOG.md` for a bug, and set Lifecycle `deferred_log=#NNN` plus `problem_log=...`. Partial fixes use `Refs #NNN`, get an evidence comment, and leave the issue open.
+7. `py -3 tools/deferred_log.py refresh-index` rewrites the offline snapshot. It is a **read cache** for environments without `gh` -- nothing allocates from it any more, so a stale snapshot degrades a listing but can no longer corrupt the tracker. Refresh it when convenient; it is not a gate.
 
 ## Do not
 
@@ -46,8 +46,8 @@ Starting a fix that is already an open issue, without reading the issue, is a co
 - Treat a CHANGELOG `Follow-ups:` bullet as enough -- if it is a real bug or parked feature, it belongs on a `deferred` issue
 - Prepend a new `## D-NNN` section to `DEFERRED_LOG.md`
 - Band-aid a P0/P1 so you can skip writing the issue
-- Invent an ID; never reuse a Closed ID
-- Start a fix that is already a `D-NNN` without reading that issue first (honor `parked` / Unblock / Next)
+- Mint a new `D-NNN`; the prefix is legacy-only and hand-allocating one re-opens the collision class
+- Start a fix that is already an open issue without reading that issue first (honor `parked` / Unblock / Next)
 
 ## When skip is allowed
 
@@ -65,7 +65,7 @@ When skipping, Lifecycle (specialists) or the closing report (parent) **MUST** s
 Every Lifecycle footer **MUST** include:
 
 ```text
-deferred_log=<D-NNN>|none|skipped|n/a
+deferred_log=<#NNN or D-NNN>|none|skipped|n/a
 ```
 
 Example after parking a bug:
