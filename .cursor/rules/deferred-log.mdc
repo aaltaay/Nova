@@ -24,8 +24,8 @@ When a session **finds a real bug it will not fix now**, or **parks a feature th
 ## Before any fix (mandatory, every chat)
 
 1. Run `py -3 tools/deferred_log.py status` (alias: `priorities`). That ranked list **is** the known-bugs / parked-features to-do. When the human asks "what's missing / what are our priorities," answer from this command -- do not invent a second tracker.
-2. Search open `deferred` issues for the module, symptom, or keyword. If a `D-NNN` already covers the ask: **work from that issue**. Honor **Status** (label `parked` means do not start it), **Unblock**, and **Next**. Do not start a parallel fix that ignores them.
-3. If you are about to "improve" chart drawings, scanners, VWAP, lifespan, NEWS, or any other named row: you must cite the matching `D-NNN` or explain why this is a different bug.
+2. Search open `deferred` issues for the module, symptom, or keyword. If an existing issue already covers the ask: **work from that issue**. Honor **Status** (label `parked` means do not start it), **Unblock**, and **Next**. Do not start a parallel fix that ignores them.
+3. If you are about to "improve" chart drawings, scanners, VWAP, lifespan, NEWS, or any other named row: you must cite the matching issue (`#NNN`, or its legacy `D-NNN`) or explain why this is a different bug.
 
 Starting a fix that is already an open issue, without reading the issue, is a constitution violation -- same class as parking work with no issue.
 
@@ -53,10 +53,10 @@ Starting a fix that is already an open issue, without reading the issue, is a co
 
 Only for:
 
-- You actually **fixed** the bug this session (that is `PROBLEM_LOG.md`, then `deferred_log=none` unless you also closed a D-NNN)
+- You actually **fixed** the bug this session (that is `PROBLEM_LOG.md`, then `deferred_log=none` unless you also closed an issue)
 - Purely cosmetic edits with nothing parked
 - Status-only polls / read-only triage with no new gap found
-- The gap is already an open issue and you did not learn anything new -- still declare `deferred_log=D-NNN` if you touched that area, else `none`
+- The gap is already an open issue and you did not learn anything new -- still declare `deferred_log=#NNN` if you touched that area, else `none`
 
 When skipping, Lifecycle (specialists) or the closing report (parent) **MUST** say `deferred_log=none`, `deferred_log=skipped`, or `deferred_log=n/a` -- never silently omit the declaration.
 

@@ -74,6 +74,17 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- Operational rules now cite `#NNN`, not `D-NNN` (follow-up to #352)
+
+- **What:** Every *instruction* in the always-on rules, the agent-ops docs and the subagent lifecycle hook that told agents to recognise, cite or record a `D-NNN` now prefers the GitHub issue number (`#NNN`), while still accepting the legacy alias. 12 sites across `.cursor/rules/deferred-log.mdc`, `.cursor/rules/self-annealing.mdc`, `.cursor/rules/specialist-routing.mdc`, `.cursor/rules/constitution.mdc`, `tools/subagent_lifecycle_hook.py` and `docs/agent-operations.md`. No runtime behavior changes; the hook edit is a reminder string.
+- **Why:** #352 amended AGENTS.md §7.2b / §7.2c / §9 so new issues are `#NNN`-only, but left the enforced `.mdc` rules disagreeing with it. Since a newly filed issue has no `D-NNN`, an agent following those lines would either search for an id that cannot exist -- and so start a parallel fix on an already-parked issue -- or declare a fictitious identifier in its Lifecycle footer. §7.3 makes the MDC rules peers of the constitution, and they are what every agent reads on every request, so amending only AGENTS.md left the governing pair inconsistent. Raised as a P1 review finding on #353 and verified by grep before fixing.
+- **Files touched:** `.cursor/rules/deferred-log.mdc`, `.cursor/rules/self-annealing.mdc`, `.cursor/rules/specialist-routing.mdc`, `.cursor/rules/constitution.mdc`, `tools/subagent_lifecycle_hook.py`, `docs/agent-operations.md`, `CHANGELOG.md`.
+- **How it works now:** Search and citation steps say "an existing issue" or "`#NNN`, or its legacy `D-NNN`"; `deferred_log=` examples declare `#NNN`; the lifecycle reminder reads `deferred_log=<#NNN or D-NNN>`. The mentions that describe `D-NNN` *as* the legacy format are deliberately kept -- "do not prepend `## D-NNN` sections", "no `D-NNN` prefix", "never mint a new `D-NNN`", and the `<#NNN or D-NNN>` footer shapes -- because ~90 existing issues still carry a legacy id and deleting those lines would lose the alias contract.
+- **Verified by:** `python3 tools/doc_invariants.py` -> exit 0, which is the meaningful gate here because `.cursor/rules/*.mdc` are covered by `LIVE_GLOBS`, so every edited rule file is scanned. `pytest tools/ -q --ignore=tools/course_memory` -> 313 passed, 1 failed (`test_maintainer_checks` index_css, pre-existing on clean master). `ruff check tools/subagent_lifecycle_hook.py` -> clean. Post-edit grep confirms no surviving `D-NNN` instruction outside the legacy-alias mentions listed above.
+- **Follow-ups:** #352's four `Closes` targets (#335, #313, #351, #349) did **not** auto-close on merge despite the keywords; they were closed manually with evidence comments. Worth checking whether other Actions-merged PRs left linked issues open.
+- **Related:** Follow-up to #352 (merged as `c3f1273`). WS2 of #344 (D-080). Constitution §7.1 requires this entry for a rules change -- it was omitted on the first push and is corrected here.
+
+
 ## 2026-09-19 -- Deferred ids are GitHub issue numbers; `next-id` removed (WS2 of #344)
 
 - **What:** The durable id for a `deferred` item is now the GitHub issue number (`#NNN`). `deferred_log.py next-id` and `deferred_github.next_id_from_issues` are deleted. `TITLE_RE` no longer requires a `D-NNN --` prefix, so a labeled issue is tracked whatever its title. `doc_invariants.py` gains a `missing_live_path` violation. `D-NNN` remains a legacy alias that still parses and displays.

@@ -37,7 +37,7 @@ Before writing ANY code in this project, you MUST:
 - ❌ Forgetting CHANGELOG.md → entry required for every behavior change
 - ❌ Fixing a bug without a `PROBLEM_LOG.md` entry → mandatory for every agent
 - ❌ Parking a known bug or feature without a GitHub Issue labeled `deferred` → dump in agent-memory Backlog is not enough
-- ❌ Starting a fix that is already a `D-NNN` issue without reading that issue first
+- ❌ Starting a fix that is already an open `deferred` issue without reading that issue first
 - ❌ Swallowing an error silently → log it, fix root cause, update PROBLEM_LOG.md
 
 ## Context economy

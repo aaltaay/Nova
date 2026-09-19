@@ -104,7 +104,7 @@ Every specialist report must end with:
 
 `problem_log=` is mandatory for **every** agent (rule: `.cursor/rules/problem-log.mdc`). After any bug fix or full diagnosis, prepend `PROBLEM_LOG.md` and set `problem_log=<YYYY-MM-DD title>`; otherwise `skipped` / `n/a`. Parent Auto sessions without a Lifecycle line still must write PROBLEM_LOG when they fix a bug.
 
-`deferred_log=` is mandatory for **every** agent (rule: `.cursor/rules/deferred-log.mdc`). After parking a known bug or a feature you will not build this session, open or update a GitHub Issue labeled `deferred` and set `deferred_log=D-NNN`; otherwise `none` / `skipped` / `n/a`. Agent-memory Backlog is not the SSOT. Parent Auto sessions without a Lifecycle line still must open the issue when they park work.
+`deferred_log=` is mandatory for **every** agent (rule: `.cursor/rules/deferred-log.mdc`). After parking a known bug or a feature you will not build this session, open or update a GitHub Issue labeled `deferred` and set `deferred_log=#NNN` (its GitHub number); otherwise `none` / `skipped` / `n/a`. Agent-memory Backlog is not the SSOT. Parent Auto sessions without a Lifecycle line still must open the issue when they park work.
 
 The `subagentStop` hook reminds once (fail-open, `loop_limit: 1`) if a Nova agent omits this line. It never edits files and never blocks completion.
 
@@ -126,7 +126,7 @@ The parent writes one aggregate narrative for multi-domain jobs done in-session,
 
 Parked work that is **not** a closed fix lives as GitHub Issues labeled `deferred` -- same respect as `PROBLEM_LOG.md`. Open P0/P1 items also appear in the session-start fleet brief. `DEFERRED_LOG.md` is the how-to, not the list.
 
-**Before any fix:** run `py -3 tools/deferred_log.py status` (alias `priorities`) and search open issues. If a `D-NNN` already covers the ask, work from that issue (`parked` means do not start it). When the human asks "what's on the to-do / what's missing / priorities," that command is the answer -- do not invent a second tracker.
+**Before any fix:** run `py -3 tools/deferred_log.py status` (alias `priorities`) and search open issues. If an existing issue already covers the ask, work from that issue (`parked` means do not start it). When the human asks "what's on the to-do / what's missing / priorities," that command is the answer -- do not invent a second tracker.
 
 | Piece | Path |
 |-------|------|
