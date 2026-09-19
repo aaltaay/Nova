@@ -64,8 +64,6 @@ IBKR_DEPTH_RELEASE_GRACE_SEC = 0.75
 # Header Day P&L / Net Liq / BP + Positions marks. Frontend mirror:
 # ``IBKR_ACCOUNT_POLL_MS`` (<=1000). Orders/closed stay slower.
 IBKR_ACCOUNT_POLL_SEC = 1
-# Wall for connect-time reqAccountUpdatesAsync (push accountValue/updatePortfolio).
-IBKR_ACCOUNT_UPDATES_TIMEOUT_SEC = 8.0
 IBKR_RECONNECT_DELAY_SEC = 10  # Delay before reconnect attempt
 # Hard wall for connectAsync — ib_async's own timeout= can fail to cancel when
 # Gateway accepts TCP but never finishes the API handshake (zombie clientId).

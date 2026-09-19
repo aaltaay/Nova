@@ -5,6 +5,72 @@
   "updated": "2026-09-19",
   "items": [
     {
+      "id": "D-059",
+      "title": "pytest writes fake broker lines into production blast.log",
+      "kind": "bug",
+      "severity": "P3",
+      "status": "open",
+      "domain": "tester",
+      "number": "307",
+      "url": "https://github.com/aaltaay/Nova/issues/307",
+      "state": "OPEN"
+    },
+    {
+      "id": "D-058",
+      "title": "Alert when Gateway stops answering reqCompletedOrders",
+      "kind": "feature",
+      "severity": "P2",
+      "status": "open",
+      "domain": "ibkr-ops",
+      "number": "306",
+      "url": "https://github.com/aaltaay/Nova/issues/306",
+      "state": "OPEN"
+    },
+    {
+      "id": "D-057",
+      "title": "Move completed orders out of the blocking IBKR connect sync",
+      "kind": "feature",
+      "severity": "P2",
+      "status": "open",
+      "domain": "ibkr",
+      "number": "305",
+      "url": "https://github.com/aaltaay/Nova/issues/305",
+      "state": "OPEN"
+    },
+    {
+      "id": "D-056",
+      "title": "Replay candles show sub-penny OHLC and omit IBKR flat bars",
+      "kind": "bug",
+      "severity": "P3",
+      "status": "open",
+      "domain": "market-feed",
+      "number": "304",
+      "url": "https://github.com/aaltaay/Nova/issues/304",
+      "state": "OPEN"
+    },
+    {
+      "id": "D-055",
+      "title": "Historical download marks an empty mid-window IBKR page as complete",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "market-feed",
+      "number": "303",
+      "url": "https://github.com/aaltaay/Nova/issues/303",
+      "state": "OPEN"
+    },
+    {
+      "id": "D-054",
+      "title": "Backend restart silently drops the desk from Sim to Live",
+      "kind": "decision",
+      "severity": "P1",
+      "status": "open",
+      "domain": "execution",
+      "number": "302",
+      "url": "https://github.com/aaltaay/Nova/issues/302",
+      "state": "OPEN"
+    },
+    {
       "id": "D-053",
       "title": "Existing UI test drift and operator auth contaminate verification",
       "kind": "bug",
@@ -31,22 +97,22 @@
       "title": "Sim baseline chart and status tests fail",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "ui",
       "number": "291",
       "url": "https://github.com/aaltaay/Nova/issues/291",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-050",
       "title": "Gateway disconnected banner calls hooks conditionally",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "ui",
       "number": "290",
       "url": "https://github.com/aaltaay/Nova/issues/290",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-049",

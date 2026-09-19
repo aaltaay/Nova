@@ -9,7 +9,9 @@ Runs once at startup, after IBKR connects, against the two cached broker
 reads Nova already has: `open_orders` (still working) and `closed_orders`
 (already terminal). It never guesses — with no broker read, nothing is
 rewritten, and a row that neither list explains is marked `abandoned` rather
-than invented as filled or failed.
+than invented as filled or failed. Absence only counts once completed orders
+actually loaded on this connection; while the Gateway is not answering
+`reqCompletedOrders` such rows stay untouched (PROBLEM_LOG 2026-09-19).
 
 Timings are not back-filled: `perf_counter_ns` stamps from a dead process
 cannot be compared with this one (ADR 007 decision 7).
@@ -20,6 +22,7 @@ import logging
 
 from execution import store
 from ibkr import client as _client
+from ibkr import completed_orders_state
 from ibkr.errors import IbkrAccountError
 
 logger = logging.getLogger(__name__)
@@ -70,6 +73,7 @@ def run_startup_sweep() -> dict:
         "still_working": [],
         "resolved": [],
         "abandoned": [],
+        "unverified": [],
     }
     if not rows:
         return summary
@@ -87,6 +91,7 @@ def run_startup_sweep() -> dict:
         return summary
     working_ids, terminal_by_id = broker
     summary["broker_checked"] = True
+    history_loaded = completed_orders_state.loaded_for(_client.get_ib())
 
     for row in rows:
         execution_id = str(row["id"])
@@ -118,6 +123,9 @@ def run_startup_sweep() -> dict:
             )
             summary["resolved"].append(execution_id)
             continue
+        if not history_loaded:
+            summary["unverified"].append(execution_id)
+            continue
         store.update_stages(
             execution_id,
             status="abandoned",
@@ -131,10 +139,13 @@ def run_startup_sweep() -> dict:
 
     log = logger.error if summary["abandoned"] else logger.warning
     log(
-        "execution sweep: scanned=%d still_working=%d resolved=%d abandoned=%d",
+        "execution sweep: scanned=%d still_working=%d resolved=%d abandoned=%d "
+        "unverified=%d (completed orders loaded=%s)",
         summary["scanned"],
         len(summary["still_working"]),
         len(summary["resolved"]),
         len(summary["abandoned"]),
+        len(summary["unverified"]),
+        history_loaded,
     )
     return summary
