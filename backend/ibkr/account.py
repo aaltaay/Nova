@@ -15,7 +15,12 @@ import time
 
 from ibkr import client as _client
 from ibkr.account_marks import apply_l1_marks, live_l1_last, overlay_account_summary
-from ibkr.account_summary import overlay_missing_tags, summary_from_items
+from ibkr.account_summary import (
+    account_values_items,
+    overlay_missing_tags,
+    summary_from_items,
+)
+from sim.account_hooks import positions_if_sim, summary_if_sim
 from ibkr.errors import IbkrAccountError, describe_exc
 from metrics.op_metrics import timed, timed_sync
 
@@ -50,6 +55,10 @@ def get_positions() -> list[dict]:
     positions, and safety code like flatten/oversell checks depends on
     telling those two apart).
     """
+    sim = positions_if_sim()
+    if sim is not None:
+        return sim
+
     ib = _client.get_ib()
     if ib is None:
         raise IbkrAccountError(
@@ -121,13 +130,11 @@ def short_qty(symbol: str) -> float:
 
 
 def positions_for_ui() -> list[dict]:
-    """Positions rows for ``GET /api/ibkr/positions``.
+    """Positions rows for ``GET /api/ibkr/positions``."""
+    sim = positions_if_sim()
+    if sim is not None:
+        return sim
 
-    **Qty** (and avg_cost) come from ``ib.positions()`` — same SSOT as
-    ``long_qty``. Mark / market value / PnL are joined from ``ib.portfolio()``
-    by symbol when that cache is available. Portfolio-only symbols are never
-    invented as open longs (avoids UI qty that validate/flatten would refuse).
-    """
     by_sym: dict[str, dict] = {}
     for p in get_positions():
         sym = str(p.get("symbol") or "").upper()
@@ -190,6 +197,9 @@ def positions_for_ui() -> list[dict]:
 
 def account_summary_for_ui() -> dict:
     """GET /account: accountValues cache + L1 unrealized overlay (no COLD refresh)."""
+    sim = summary_if_sim()
+    if sim is not None:
+        return sim
     return overlay_account_summary(get_account_summary(), positions_for_ui())
 
 
@@ -201,6 +211,10 @@ def get_account_summary() -> dict:
     ``accountValues()`` fails — never disguise that as a normal summary
     (BUY LMT BuyingPower check must fail closed, not skip).
     """
+    sim = summary_if_sim()
+    if sim is not None:
+        return sim
+
     ib = _client.get_ib()
     if ib is None:
         return {"connected": False, "mode": "disconnected"}
@@ -218,29 +232,15 @@ def get_account_summary() -> dict:
         raise IbkrAccountError(f"get_account_summary failed: {detail}") from exc
 
 
-def _account_values_items(ib: object) -> list:
-    """Cached reqAccountUpdates rows. Empty on failure -- never raise here."""
-    getter = getattr(ib, "accountValues", None)
-    if getter is None:
-        return []
-    try:
-        raw = getter()
-    except Exception:
-        return []
-    if raw is None:
-        return []
-    try:
-        return list(raw)
-    except TypeError:
-        return []
-
-
 async def refresh_account_summary() -> dict:
     """Async refresh via accountSummaryAsync, then return snapshot.
 
     Propagates ``IbkrAccountError`` honestly — does not swallow into a
     ``{connected: False}`` dict that would skip BUY BuyingPower checks.
     """
+    sim = summary_if_sim()
+    if sim is not None:
+        return sim
     ib = _client.get_ib()
     if ib is None:
         return {"connected": False, "mode": "disconnected"}
@@ -249,7 +249,7 @@ async def refresh_account_summary() -> dict:
             items = await ib.accountSummaryAsync()
         if items:
             summary = summary_from_items(list(items), mode=_client.account_mode())
-            extra_items = _account_values_items(ib)
+            extra_items = account_values_items(ib)
             if extra_items:
                 extra = summary_from_items(extra_items, mode=_client.account_mode())
                 summary = overlay_missing_tags(summary, extra)

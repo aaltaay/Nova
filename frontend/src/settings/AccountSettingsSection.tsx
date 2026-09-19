@@ -16,11 +16,13 @@ interface Props {
 export function AccountSettingsSection({ onClose }: Props) {
   const status = useIbkrStatus();
   const modeLabel =
-    status.mode === 'paper'
-      ? 'Paper'
-      : status.mode === 'live'
-        ? 'Live'
-        : 'Disconnected';
+    status.mode === 'sim'
+      ? 'Sim practice'
+      : status.mode === 'paper'
+        ? 'Paper'
+        : status.mode === 'live'
+          ? 'Live'
+          : 'Disconnected';
 
   return (
     <div className="settings-account" data-testid="settings-account">

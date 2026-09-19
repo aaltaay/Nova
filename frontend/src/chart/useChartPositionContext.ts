@@ -21,7 +21,13 @@ export function useChartPositionContext(symbol: string): ChartPositionContext {
   const status = useIbkrStatus();
   const position = findOpenIbkrPosition(account?.positions ?? [], symbol) ?? null;
   const mode: IbkrMode =
-    status.mode === 'live' ? 'live' : status.mode === 'disconnected' ? 'disconnected' : 'paper';
+    status.mode === 'live'
+      ? 'live'
+      : status.mode === 'sim'
+        ? 'sim'
+        : status.mode === 'disconnected'
+          ? 'disconnected'
+          : 'paper';
   return {
     position,
     mode,

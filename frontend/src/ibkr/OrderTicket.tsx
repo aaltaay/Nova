@@ -24,7 +24,14 @@ export function OrderTicket({
 }: Props) {
   const [symbol, setSymbol] = useState(defaultSymbol);
 
-  const modeLabel = mode === 'paper' ? 'PAPER' : mode === 'live' ? '⚠ LIVE' : 'DISCONNECTED';
+  const modeLabel =
+    mode === 'paper'
+      ? 'PAPER'
+      : mode === 'live'
+        ? '⚠ LIVE'
+        : mode === 'sim'
+          ? 'SIM'
+          : 'DISCONNECTED';
   const position =
     positions.find(item => item.symbol.toUpperCase() === symbol.toUpperCase()) ?? null;
   const referencePrice = position?.market_price ?? null;

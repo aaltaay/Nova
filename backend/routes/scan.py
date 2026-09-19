@@ -32,6 +32,12 @@ from runtime_state import get_runtime_state
 router = APIRouter(tags=["scan"])
 
 
+def _with_sim(rows: list[dict]) -> list[dict]:
+    from sim.scan import with_sim_row
+
+    return with_sim_row(rows)
+
+
 def _strip_blocked(rows: list[dict]) -> list[dict]:
     """Remove blocklisted symbols, attach listing ``exchange``, fill reference columns.
 
@@ -69,7 +75,7 @@ def get_gappers():
         "mode": state.current_mode,
         "health": _scan_health(),
         "data_feed": _get_feed(),
-        "gappers": _strip_blocked(state.gapper_cache),
+        "gappers": _with_sim(_strip_blocked(state.gapper_cache)),
         "last_scan": state.gapper_cache_ts,
         **_roster_surface(state.gapper_table),
         "feed_error": _feed_error(state),
@@ -84,7 +90,7 @@ def get_movers():
         "rev": NOVA_API_REV,
         "mode": state.current_mode,
         "health": _scan_health(),
-        "gainers": _strip_blocked(state.gainer_cache),
+        "gainers": _with_sim(_strip_blocked(state.gainer_cache)),
         "losers": _strip_blocked(state.loser_cache),
         "last_scan": state.gainer_cache_ts,
         **_roster_surface(state.gainer_table),

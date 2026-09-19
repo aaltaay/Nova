@@ -85,7 +85,10 @@ export const GLOBAL_BAR_OPEN_TRADING_TAB_EVENT = 'nova:open-trading-tab';
 
 export const GLOBAL_BAR_MODE_PAPER = 'Paper';
 export const GLOBAL_BAR_MODE_LIVE = 'Live';
+export const GLOBAL_BAR_MODE_SIM = 'Sim';
 export const GLOBAL_BAR_MODE_DISCONNECTED = 'Disconnected';
+export const SIM_PRACTICE_FLAG_TEXT = 'SIM PRACTICE -- not IBKR';
+export const SIM_SYMBOL = 'SIM1';
 
 /** Account + Settings on the shared GlobalAppBar (Scanner + Trader). */
 export const GLOBAL_BAR_ACCOUNT_LABEL = 'Account';

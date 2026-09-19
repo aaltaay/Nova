@@ -49,6 +49,17 @@ describe('deskConnectionLabel', () => {
     ).toBe('up');
   });
 
+  it('shows SIM when the in-app Sim toggle is on', () => {
+    expect(
+      deskConnectionLabel({
+        apiOk: true,
+        connected: false,
+        delayed: false,
+        sim: true,
+      }),
+    ).toBe('SIM');
+  });
+
   it('marks the chip stale after missed IBKR status polls', () => {
     expect(
       deskConnectionLabel({

@@ -61,6 +61,35 @@ describe('GatewayModeCapsule — intentional Gateway switch', () => {
     return container.querySelectorAll('.sv-capsule__seg')[1] as HTMLButtonElement;
   }
 
+  function simButton() {
+    return container.querySelectorAll('.sv-capsule__seg')[2] as HTMLButtonElement;
+  }
+
+  it('clicking Sim confirms and POSTs /api/sim enabled true', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        new Response(JSON.stringify({ sim: true, broker: 'sim' }), { status: 200 }),
+      );
+    render('paper');
+
+    await act(async () => {
+      simButton().click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(confirmAppMock).toHaveBeenCalled();
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining('/api/sim'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ enabled: true }),
+      }),
+    );
+    expect(refreshIbkrStatusNow).toHaveBeenCalled();
+  });
+
   it('clicking Live confirms, POSTs gateway-mode, and refreshes status on success', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')

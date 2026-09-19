@@ -380,6 +380,7 @@ export const HEADER_GATEWAY_LAUNCH_HINT =
 /** Header Desk/Gateway chip visible states. Paper/Live lives on the mode capsule. */
 export const HEADER_GATEWAY_UP_LABEL = 'up';
 export const HEADER_GATEWAY_OFFLINE_LABEL = 'offline';
+export const HEADER_GATEWAY_SIM_LABEL = 'SIM';
 /** /api/ibkr/status missed N polls -- last-good must not keep the chip green. */
 export const HEADER_GATEWAY_STALE_LABEL = 'stale';
 /** Legacy chip suffixes -- kept for tooltip / older copy, not the chip value. */
@@ -391,6 +392,8 @@ export const HEADER_GATEWAY_TITLE_LIVE =
   'IBKR account class: LIVE (U/F/I). Market data uses this login; spend still gated by IBKR_ORDERS_ENABLED + live confirm.';
 export const HEADER_GATEWAY_TITLE_UNKNOWN =
   'IBKR session mode unknown — check Trading /api/ibkr/status (mode / gateway_mode).';
+export const HEADER_GATEWAY_TITLE_SIM =
+  'SIM PRACTICE -- looping SIM1 tape and local fills. Not IBKR paper. Not live. No Gateway places.';
 /** Header Gateway chip suffix when /api/ibkr/status reports delayed market data. */
 export const HEADER_GATEWAY_DELAYED_LABEL = 'delayed';
 export const HEADER_GATEWAY_TITLE_DELAYED =

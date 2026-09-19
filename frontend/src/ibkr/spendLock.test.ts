@@ -5,6 +5,7 @@ describe('isSpendLocked', () => {
   it('treats the armed statuses as unlocked', () => {
     expect(isSpendLocked('paper_armed')).toBe(false);
     expect(isSpendLocked('live_armed')).toBe(false);
+    expect(isSpendLocked('sim_armed')).toBe(false);
   });
 
   it('treats every known locked status as locked', () => {
@@ -47,6 +48,7 @@ describe('spendStatusLabel', () => {
   it('labels the three operator-visible cases', () => {
     expect(spendStatusLabel('paper_armed')).toBe('PAPER ORDERS ON');
     expect(spendStatusLabel('live_armed')).toBe('LIVE ORDERS ARMED');
+    expect(spendStatusLabel('sim_armed')).toBe('SIM ORDERS (PRACTICE)');
     expect(spendStatusLabel('locked_account_unconfirmed')).toBe(
       'ORDERS LOCKED — no spends',
     );

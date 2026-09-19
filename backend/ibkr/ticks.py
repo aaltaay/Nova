@@ -330,6 +330,12 @@ def owners_for(symbol: str) -> set[str]:
 
 
 def last_quotes(symbols: list[str] | None = None) -> dict[str, dict[str, Any]]:
+    from sim.mode import is_sim_mode
+
+    if is_sim_mode():
+        from sim import market as _sim_market
+
+        return _sim_market.last_quotes(symbols)
     return _status.last_quotes(_subs, symbols)
 
 

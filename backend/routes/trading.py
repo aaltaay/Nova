@@ -67,7 +67,9 @@ async def ibkr_status() -> dict:
     usable = _client.is_ready()
     transport = _client.is_connected()
     sf_state = _second_factor.current_state()
-    return {
+    from sim.status import overlay_ibkr_status
+
+    return overlay_ibkr_status({
         "enabled": _client.is_enabled(),
         "connected": usable,
         "transport_connected": transport,
@@ -91,7 +93,7 @@ async def ibkr_status() -> dict:
         "ib_cold_inflight": _ib_scheduler.inflight_label() or None,
         "dialer_heartbeat_age_sec": _reconnect.dialer_heartbeat_age_sec(),
         **_ticks.ticker_budget_status(),
-    }
+    })
 
 
 def _gateway_trail_tail() -> list[dict]:
@@ -367,84 +369,7 @@ async def ws_depth(websocket: WebSocket, symbol: str) -> None:
 
 @ws_router.websocket("/ws/ibkr/tape/{symbol}")
 async def ws_tape(websocket: WebSocket, symbol: str) -> None:
-    """Stream IBKR AllLast tick-by-tick Time & Sales prints for a symbol.
+    """Stream Time & Sales prints. Sim injects the same viewer queues."""
+    from routes.trading_tape_ws import run_ws_tape
 
-    Auto-subscribes on first viewer, refcounts concurrent viewers, and
-    unsubscribes when the last viewer disconnects — same lifecycle as depth.
-    Symbol gates applied on every message (msg.symbol == requested symbol).
-    """
-    symbol = symbol.upper()
-    await websocket.accept()
-
-    if not _client.is_connected():
-        await websocket.send_text(json.dumps({"type": "error", "message": "IBKR not connected"}))
-        await websocket.close()
-        return
-
-    if not _tape.is_subscribed(symbol):
-        result = await _tape.subscribe_async(symbol)
-        if not result["ok"]:
-            await websocket.send_text(json.dumps({"type": "error", "message": result["error"]}))
-            await websocket.close()
-            return
-
-    viewer_opened = False
-    queue: asyncio.Queue | None = None
-    try:
-        _tape.ws_viewer_opened(symbol)
-        viewer_opened = True
-
-        # Remount race: previous viewer cleanup may have dropped the line.
-        if not _tape.is_subscribed(symbol):
-            result = await _tape.subscribe_async(symbol)
-            if not result["ok"]:
-                await websocket.send_text(json.dumps({"type": "error", "message": result["error"]}))
-                return
-
-        # Own queue per viewer -- a shared per-symbol queue makes concurrent
-        # viewers (StrictMode double-mount, or a second Trader tab on the
-        # same symbol) competing consumers instead of both seeing every
-        # print (PROBLEM_LOG 2026-08-25: a live soak proved this starved
-        # the surviving viewer for 1,902 archived prints).
-        queue = _tape.open_viewer_queue(symbol)
-        await websocket.send_text(json.dumps({"type": "subscribed", "symbol": symbol}))
-
-        async for print_data in _tape.stream(queue):
-            if print_data is None:
-                await websocket.send_text(json.dumps({"type": "ping", "symbol": symbol}))
-                continue
-            if print_data.get("symbol") != symbol:
-                continue
-            msg_type = print_data.get("type") or "print"
-            if msg_type == "error":
-                await websocket.send_text(
-                    json.dumps(
-                        {
-                            "type": "error",
-                            "symbol": symbol,
-                            "message": print_data.get("message") or "Tape error",
-                        }
-                    )
-                )
-                if print_data.get("released"):
-                    # Line was torn down (idle-linger release) -- close so
-                    # the client's onclose backoff reconnects it instead of
-                    # sitting on a dead line behind a stale "LIVE" badge.
-                    await websocket.close()
-                    break
-            else:
-                await websocket.send_text(json.dumps({**print_data, "type": "print"}))
-    except WebSocketDisconnect:
-        logger.debug("IBKR tape WS disconnected: %s", symbol)
-    except Exception as exc:
-        from ws_close_errors import is_websocket_send_after_close
-
-        if is_websocket_send_after_close(exc):
-            logger.debug("IBKR tape WS send-after-close: %s", symbol)
-        else:
-            logger.exception("IBKR tape WS error for %s: %s", symbol, exc)
-    finally:
-        if queue is not None:
-            _tape.close_viewer_queue(symbol, queue)
-        if viewer_opened and _tape.ws_viewer_closed(symbol):
-            _tape.unsubscribe(symbol)
+    await run_ws_tape(websocket, symbol)

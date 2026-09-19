@@ -62,6 +62,8 @@ export interface TradingPrerequisitesInput {
   apiFailStreak?: number;
   /** Place / Flatten / Fill now in flight -- never steal the ticket. */
   deskActionInFlight?: boolean;
+  /** In-app Sim practice -- Gateway is not required. */
+  simMode?: boolean;
 }
 
 export interface TradingPrerequisites {
@@ -141,6 +143,9 @@ export function gatewayPortOpenButSessionDown(input: {
 }
 
 function gatewayDetail(input: TradingPrerequisitesInput, gatewayOk: boolean): string {
+  if (input.simMode) {
+    return 'Sim Feed -- looping SIM1 tape. No Gateway required.';
+  }
   if (gatewayOk) {
     return 'Gateway connected -- live prices and order path available.';
   }
@@ -171,8 +176,8 @@ export function buildTradingPrerequisites(
   input: TradingPrerequisitesInput,
 ): TradingPrerequisites {
   const apiOk = novaApiOk(input.health);
-  const enabled = input.ibkrEnabled !== false;
-  const gatewayOk = Boolean(input.ibkrConnected);
+  const enabled = input.simMode ? true : input.ibkrEnabled !== false;
+  const gatewayOk = input.simMode ? true : Boolean(input.ibkrConnected);
   const followTarget = gatewayPortMismatchHint(input.disconnectHint);
   const portOpenStuck = !gatewayOk && gatewayPortOpenButSessionDown(input);
   const apiDown = input.health?.flag === BACKEND_DIAG_FLAG_DOWN;
@@ -198,7 +203,9 @@ export function buildTradingPrerequisites(
       id: 'ibkr_enabled',
       ok: enabled,
       label: 'IBKR enabled',
-      detail: enabled
+      detail: input.simMode
+        ? 'Sim practice -- IBKR_ENABLED is not required.'
+        : enabled
         ? 'IBKR_ENABLED is on.'
         : 'Set IBKR_ENABLED=true in .env and restart the API.',
       action: enabled ? null : 'env_ibkr',
@@ -206,7 +213,7 @@ export function buildTradingPrerequisites(
     {
       id: 'ibkr_gateway',
       ok: gatewayOk,
-      label: 'IB Gateway (session READY)',
+      label: input.simMode ? 'Sim Feed (no Gateway)' : 'IB Gateway (session READY)',
       detail: gatewayDetail(input, gatewayOk),
       action: gatewayAction,
     },

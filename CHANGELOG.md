@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- Local Sim Feed + Sim Fill (header Paper / Live / Sim)
+
+- **What:** Header capsule gains a third **Sim** segment. Sim drives a looping SIM1 tape (quote, T&S, L2, shared chart path) and a local fill ledger (place / cancel / flatten -> positions, Orders Today, Day P&L, Net Liq / BP). Loud magenta SIM PRACTICE labeling. While Sim is on, `ibkr.orders` refuses every Gateway place.
+- **Why:** Ahmed product lock -- weekend practice 24/7 without IBKR hours, NASDAQ TOP, or Gateway. Activation is the in-app toggle, not env-only.
+- **Files touched:** `backend/sim/*`, `backend/constants_sim.py`, `backend/execution/broker_send.py`, `backend/ibkr/orders.py`, `backend/ibkr/account.py`, `frontend/src/ibkr/GatewayModeCapsule.tsx`, `docs/sim-mode.md`.
+- **How it works now:** `POST /api/sim {enabled}` is the live control. Overlay on `/api/ibkr/status` forces `mode=sim` + `spend_status=sim_armed` so the desk never looks paper/live. Feed injects existing tape / depth / quote pipes. `send_broker` dispatches to `send_sim_broker`. Leaving Sim disables the override then uses the existing Paper/Live Gateway door. `NOVA_BROKER=sim` is optional bootstrap only. v1 tape is SIM1 only -- no fake SPY ticks. In-memory ledger (restart clears). `auto_live` stays NO-GO.
+- **Verified by:** pytest `test_sim_*` (feed loop, fill match, toggle overlay, no-IBKR guard, SIM1-only). Vitest capsule / spendLock / prerequisites / header. `npm run build`. `tools/doc_invariants.py`.
+- **Follow-ups:** Multi-symbol SIM2+ parked. STP / TRAIL / brackets stay IBKR-only.
+- **Related:** ADR 007 send door; `single-market-data-feed.mdc` Sim practice exception.
+
 ## 2026-09-18 -- Emergency KILL after Look Up
 
 - **What:** GlobalAppBar scanner cluster gains a red **Emergency KILL** control immediately after Look Up. After confirm it cancels all working orders, flattens the account at market, sets Bot Autonomy to L0, and locks the desk trade session.

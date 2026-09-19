@@ -308,6 +308,19 @@ describe('buildTradingPrerequisites', () => {
     expect(gw?.action).toBe('stale_second_factor');
   });
 
+  it('treats Sim as desk-ready without Gateway', () => {
+    const out = buildTradingPrerequisites({
+      health: { status: 'connected', latency_ms: 0, health_source: 'nova_process' },
+      ibkrEnabled: false,
+      ibkrConnected: false,
+      simMode: true,
+    });
+    expect(out.deskReady).toBe(true);
+    expect(out.blockDesk).toBe(false);
+    expect(out.items.find((i) => i.id === 'ibkr_gateway')?.ok).toBe(true);
+    expect(out.items.find((i) => i.id === 'ibkr_gateway')?.detail).toMatch(/Sim Feed/i);
+  });
+
   it('never treats Alpaca as a prerequisite id', () => {
     const out = buildTradingPrerequisites({
       health: {

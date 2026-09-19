@@ -23,6 +23,23 @@ async def subscribe_async(symbol: str) -> dict:
     Qualify + subscribe to Level 2 (or L1 fallback).
     Safe under FastAPI's running event loop.
     """
+    from sim.mode import is_sim_mode
+
+    if is_sim_mode():
+        from constants_sim import SIM_SYMBOL
+        from sim import market as _sim_market
+
+        state.reserve_slot(symbol)
+        book = (
+            dict(_sim_market.book())
+            if symbol.upper() == SIM_SYMBOL
+            else {"bids": [], "asks": [], "l1_fallback": True}
+        )
+        book["symbol"] = symbol.upper()
+        state._subscriptions[symbol] = book
+        state.push_book(symbol, book)
+        return {"ok": True, "error": None, "symbols": state.subscribed_symbols()}
+
     if not _client.is_ready():
         return {
             "ok": False,

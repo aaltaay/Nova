@@ -86,7 +86,9 @@ async def flatten_account_once() -> dict[str, Any]:
     from ibkr import client as _client
     from ibkr.errors import IbkrAccountError
 
-    if not _client.is_connected():
+    from sim.mode import desk_connected
+
+    if not desk_connected():
         return {"ok": False, "error": "IBKR not connected -- cannot flatten", "results": []}
     try:
         positions = _account.get_positions()

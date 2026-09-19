@@ -114,6 +114,10 @@ def _isolate_operator_state(tmp_path, monkeypatch):
     import bot as _bot
 
     _bot.reset_for_tests()
+    from sim.mode import reset_for_tests as _reset_sim
+
+    _reset_sim()
+    monkeypatch.delenv("NOVA_BROKER", raising=False)
     monkeypatch.setattr(
         _nasdaq_halt_feed,
         "_default_fetch",

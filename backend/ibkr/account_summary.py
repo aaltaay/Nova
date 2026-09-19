@@ -86,6 +86,23 @@ def summary_from_items(items: list, *, mode: str) -> dict:
     return attach_account_class(summary)
 
 
+def account_values_items(ib: object) -> list:
+    """Cached reqAccountUpdates rows. Empty on failure -- never raise here."""
+    getter = getattr(ib, "accountValues", None)
+    if getter is None:
+        return []
+    try:
+        raw = getter()
+    except Exception:
+        return []
+    if raw is None:
+        return []
+    try:
+        return list(raw)
+    except TypeError:
+        return []
+
+
 def overlay_missing_tags(base: dict, extra: dict) -> dict:
     """Fill config tags that reqAccountSummary does not request from accountValues."""
     out = dict(base)
