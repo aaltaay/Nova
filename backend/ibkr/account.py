@@ -22,6 +22,7 @@ from ibkr.account_summary import (
 )
 from sim.account_hooks import positions_if_sim, summary_if_sim
 from ibkr.errors import IbkrAccountError, describe_exc
+from ibkr.ib_await import await_ib_request
 from metrics.op_metrics import timed, timed_sync
 
 logger = logging.getLogger(__name__)
@@ -286,7 +287,7 @@ async def refresh_positions_cache(ib: object | None = None) -> None:
         from constants_ibkr import IBKR_POSITIONS_TIMEOUT_SEC
 
         async with timed("ibkr.account.positions_refresh"):
-            await asyncio.wait_for(
+            await await_ib_request(
                 req(),
                 timeout=float(IBKR_POSITIONS_TIMEOUT_SEC),
             )
@@ -348,7 +349,7 @@ async def refresh_completed_orders_cache(
         ):
             return
         try:
-            await asyncio.wait_for(
+            await await_ib_request(
                 req(False),
                 timeout=float(IBKR_COMPLETED_ORDERS_TIMEOUT_SEC),
             )
