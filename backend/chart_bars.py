@@ -71,7 +71,7 @@ def fetch_chart_bars(
     IBKR-sourced (store and/or live historical). There is no silent Alpaca
     fallback. An empty store while Gateway is down is still HTTP 503.
 
-    Sim: 1Day/1Week/1Month use IBKR (except SIM1 synthetic). Intraday uses capture/sim tape.
+    Sim: IBKR historical is the global chart base for real tickers. Capture overlays scrubbed intraday (not daily+) when that day+ticker is selected. SIM1 stays local/synthetic.
     """
     symbol = symbol.upper()
     from sim.mode import is_sim_mode
@@ -81,29 +81,29 @@ def fetch_chart_bars(
         from sim import market as _sim_market
         from sim import replay as _sim_replay
 
-        # Lock 2026-09-19: daily+ from IBKR historical (not capture bars_1d).
-        # Intraday scrubbed tape from sim/capture. SIM1 daily stays synthetic.
+        # Lock 2026-09-19: IBKR is global chart base for real tickers.
+        # Capture overlays scrubbed intraday when that day+ticker is selected.
+        # SIM1 has no IBKR contract — always local/capture/sim.
+        replay_sym = str(
+            (_sim_replay.status_payload() or {}).get("replay_symbol") or ""
+        ).strip().upper()
+        capture_overlay = (
+            _sim_replay.is_capture_replay()
+            and replay_sym
+            and symbol == replay_sym
+        )
         _daily_tfs = frozenset({"1Day", "1Week", "1Month"})
-        if timeframe in _daily_tfs:
-            if symbol == SIM_SYMBOL:
-                return _sim_market.chart_bars(symbol, timeframe, limit)
-            # Real ticker: fall through to IBKR store/historical below.
-        else:
-            replay_sym = str(
-                (_sim_replay.status_payload() or {}).get("replay_symbol") or ""
-            ).strip().upper()
-            use_local = symbol == SIM_SYMBOL or (
-                _sim_replay.is_capture_replay() and replay_sym == symbol
-            )
-            if use_local:
-                return _sim_market.chart_bars(symbol, timeframe, limit)
-            raise HTTPException(
-                status_code=503,
-                detail=(
-                    "SIM mode intraday charts need SIM1 or a selected capture ticker. "
-                    "Pick Day+Ticker in SIM SESSION, or switch to Paper/Live for IBKR."
-                ),
-            )
+
+        if symbol == SIM_SYMBOL:
+            return _sim_market.chart_bars(symbol, timeframe, limit)
+
+        if capture_overlay and timeframe not in _daily_tfs:
+            # Scrubbed session tape bars from capture; daily+ still IBKR below.
+            return _sim_market.chart_bars(symbol, timeframe, limit)
+
+        # Real ticker, no capture overlay (or daily+): fall through to IBKR.
+        # (Do not 503 — IBKR historical is the Sim global base.)
+
     if discovery_provider == "ibkr":
         stored = _store_read(symbol, timeframe, limit)
         ready = _ibkr_client.is_ready()
