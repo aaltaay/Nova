@@ -10,6 +10,7 @@ Endpoints:
   GET /api/journal/tags      -- per-tag win rate / pnl (Reports v2)
   GET /api/journal/r-multiples -- R-multiple expectancy (Reports v2)
   GET /api/journal/drawdown  -- equity curve + max drawdown (Reports v2)
+  GET /api/journal/trail     -- closed-trade / session activity (ledger + journal)
   POST /api/journal/trades/{id}/tags -- update trade tags
   POST /api/journal/import -- Reports CSV/JSON file upload (never invents P/L)
   POST /api/journal/import/ibkr -- IBKR fills probe or JSON trade import
@@ -33,6 +34,7 @@ from constants import (
     JOURNAL_CALENDAR_MIN_YEAR,
     JOURNAL_SIGNALS_DEFAULT_LIMIT,
     JOURNAL_TAGS_MAX_PER_TRADE,
+    JOURNAL_TRAIL_DEFAULT_LIMIT,
     JOURNAL_TRADES_DEFAULT_LIMIT,
 )
 from journal.drawdown import compute_drawdown
@@ -116,6 +118,17 @@ def journal_drawdown(include_mock: bool = False) -> dict:
     result = compute_drawdown(trades)
     result["includes_mock_data"] = include_mock
     return result
+
+
+@router.get("/trail")
+def journal_trail(
+    limit: int = JOURNAL_TRAIL_DEFAULT_LIMIT,
+    symbol: str | None = None,
+    include_mock: bool = False,
+) -> dict:
+    from journal.trail import recent_trail
+
+    return recent_trail(limit=limit, symbol=symbol, include_mock=include_mock)
 
 
 @router.post("/trades/{trade_id}/tags")

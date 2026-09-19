@@ -20,7 +20,7 @@ export async function dismissTradingPrereqIfOpen(
   await expect(gate).toHaveCount(0);
 }
 
-async function clickThroughOverlay(page: Page, locator: Locator): Promise<void> {
+export async function clickThroughOverlay(page: Page, locator: Locator): Promise<void> {
   try {
     await locator.click({ timeout: 3000 });
   } catch {
@@ -28,6 +28,20 @@ async function clickThroughOverlay(page: Page, locator: Locator): Promise<void> 
     // Same escape hatch as module-registry when a dock still sits on the hit box.
     await locator.evaluate((el: HTMLElement) => el.click());
   }
+}
+
+/** Account header -> Activity section, past docks and the prereq overlay. */
+export async function openAccountActivity(page: Page): Promise<void> {
+  const account = page.getByTestId('global-bar-account-nav');
+  await expect(account).toBeVisible();
+  await dismissTradingPrereqIfOpen(page, 8000);
+  await clickThroughOverlay(page, account);
+  await expect(page.getByRole('region', { name: 'Account' })).toBeVisible();
+  await dismissTradingPrereqIfOpen(page, 2000);
+  const activity = page.getByTestId('account-section-activity');
+  await expect(activity).toBeVisible();
+  await clickThroughOverlay(page, activity);
+  await expect(page.getByTestId('activity-trail')).toBeVisible();
 }
 
 /** Account header -> Reports section, past docks and the prereq overlay. */

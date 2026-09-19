@@ -1,13 +1,27 @@
-import { ActivityPanel } from './ActivityPanel';
-import { useActivityLedger } from './useActivityLedger';
 import { GatewayDoorTrail } from '../ibkr/GatewayDoorTrail';
+import { ActivityPanel } from './ActivityPanel';
+import { ActivityTrail } from './ActivityTrail';
+import { useActivityLedger } from './useActivityLedger';
+import { useActivityTrail } from './useActivityTrail';
 
 export function ActivityDashboard() {
-  const { rows, loading, error, refresh } = useActivityLedger();
+  const ledger = useActivityLedger();
+  const trail = useActivityTrail();
   return (
     <>
       <GatewayDoorTrail />
-      <ActivityPanel rows={rows} loading={loading} error={error} onRefresh={refresh} />
+      <ActivityTrail
+        items={trail.items}
+        loading={trail.loading}
+        error={trail.error}
+        onRefresh={trail.refresh}
+      />
+      <ActivityPanel
+        rows={ledger.rows}
+        loading={ledger.loading}
+        error={ledger.error}
+        onRefresh={ledger.refresh}
+      />
     </>
   );
 }

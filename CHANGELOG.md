@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- Activity trail for closed trades (D-046 slice 4)
+
+- **What:** Account > Activity gains a Trail panel: place -> fill -> flatten/close plus stored CommissionReport dollars and timestamps. `GET /api/journal/trail` is a read model over journal rows + the execution ledger. No Client Portal. No invented P/L or fees.
+- **Why:** D-046 / #92 last named surface. Command ledger already listed place/cancel rows; operators still could not see one closed-trade audit trail on the desk.
+- **Files touched:** `backend/journal/trail.py`, `backend/routes/journal.py`, `frontend/src/activity/ActivityTrail.tsx`, `frontend/src/activity/ActivityDashboard.tsx`, `backend/tests/test_journal_trail.py`.
+- **How it works now:** Closed journal trades join `fill_ids` / `close_key` to ledger rows. Each cycle lists stored events only. Missing CommissionReport stays gross and omits a fee step. Imported journal rows without ledger ids are Close only. Unattached session ledger rows show as `open` groups. The existing ADR 007 command table stays below. Door trail is unchanged.
+- **Verified by:** `PYTHONPATH=backend python3 -m pytest` trail + flatten/net_pnl/import/calendar/round-trip/activity neighbors -- 52 passed. Ruff + `doc_invariants.py` OK. Vitest ActivityTrail/formatTrail/ActivityPanel + Reports import -- 15 passed. `npm run lint` / `npm run build` exit 0. Playwright `e2e/activity-trail.spec.ts` -- 1 passed (21s); Reports import neighbor passed earlier.
+- **Follow-ups:** none on #92. OCO/brackets stay parked. Parent #13 may still have other D-036 leftovers.
+- **Related:** Closes #92 (D-046). Slice 1 #261, slice 2 #263, slice 3 #264.
+
 ## 2026-09-19 -- Desk safety: after-hours flatten + trading_allowed SSOT
 
 - **What:** Flatten / Emergency KILL / close exits after RTH (and on weekends/holidays) send an EH LMT at bid/ask/last with `outside_rth=true` instead of an RTH-only MKT. Header Activate, padlock, order ticket, and API place now read one `trading_allowed` gate.

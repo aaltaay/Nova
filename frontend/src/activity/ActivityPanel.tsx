@@ -51,7 +51,8 @@ export function ActivityPanel({ rows, loading = false, error = null, onRefresh }
           <p className="activity-panel__kicker">ADR 007 · read-only ledger</p>
           <h2>Activity</h2>
           <p className="activity-panel__hint">
-            Requested vs sent qty, spend gates, and permId. This view never sends an order.
+            Requested vs sent qty, spend gates, and permId. Closed-trade steps
+            live in Trail above. This view never sends an order.
           </p>
         </div>
         {onRefresh && (

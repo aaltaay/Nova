@@ -499,6 +499,8 @@ RISK_SESSION_RESET_HOUR_ET = 4        # daily state resets at 4:00 AM ET, mirror
 JOURNAL_DB_FILENAME = "journal.db"      # lives under paths.cache_dir(), not git-tracked
 JOURNAL_SIGNALS_DEFAULT_LIMIT = 100
 JOURNAL_TRADES_DEFAULT_LIMIT = 200
+# Activity trail (D-046): journal + ledger join, not a second store
+JOURNAL_TRAIL_DEFAULT_LIMIT = 100
 # Aligned with Phase I Live-Readiness (≥50 closed / ≥90% adherence).
 JOURNAL_MIN_TRADES_FOR_GO_LIVE = 50
 JOURNAL_MIN_ADHERENCE_PCT_FOR_GO_LIVE = 90.0
