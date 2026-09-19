@@ -680,3 +680,6 @@ export const L2_DAS_SIZE_BAR = 'rgba(255, 255, 255, 0.32)';
 export const L2_DAS_SIZE_BAR_BID = L2_DAS_SIZE_BAR;
 /** @deprecated Use L2_DAS_SIZE_BAR. */
 export const L2_DAS_SIZE_BAR_ASK = L2_DAS_SIZE_BAR;
+
+export const CAPTURE_MODE_BANNER =
+  'CAPTURE MODE -- recording IBKR for Sim replay. Not for placing. Keep the desk light.';

@@ -76,6 +76,15 @@ def place_order(
 
         return refuse_place()
 
+    try:
+        from capture.mode import is_capture_mode
+    except Exception:
+        is_capture_mode = lambda: False  # noqa: E731
+    if is_capture_mode():
+        from capture.guard import refuse_place as capture_refuse_place
+
+        return capture_refuse_place()
+
     order_type = normalize_order_type(order_type)  # type: ignore[assignment]
     error = _validation_error(
         side,

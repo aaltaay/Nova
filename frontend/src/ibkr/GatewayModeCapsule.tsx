@@ -13,6 +13,7 @@ import {
   GLOBAL_BAR_MODE_LIVE,
   GLOBAL_BAR_MODE_PAPER,
   GLOBAL_BAR_MODE_SIM,
+  GLOBAL_BAR_MODE_CAPTURE,
   SIM_PRACTICE_FLAG_TEXT,
   STOCK_VIEW_ACCOUNT_MODE_LIVE_TITLE,
   STOCK_VIEW_ACCOUNT_MODE_PAPER_TITLE,
@@ -33,7 +34,7 @@ interface GatewayModeResponse {
   sim?: boolean;
 }
 
-export type CapsuleSelection = 'paper' | 'live' | 'sim';
+export type CapsuleSelection = 'paper' | 'live' | 'sim' | 'capture';
 
 export interface GatewayModeCapsuleProps {
   mode: IbkrMode;
@@ -68,6 +69,7 @@ export function resolveCapsuleSelection(
   intentional?: 'paper' | 'live' | null,
 ): CapsuleSelection | null {
   if (mode === 'sim') return 'sim';
+  if (mode === 'capture') return 'capture';
   if (intentional === 'paper' || intentional === 'live') return intentional;
   if (accountKind === 'paper' || accountKind === 'live') return accountKind;
   if (gatewayMode === 'live' || gatewayMode === 'paper') return gatewayMode;
@@ -119,6 +121,50 @@ export function GatewayModeCapsule({
       }
     } catch {
       setSwitchError('Could not reach Nova backend to switch to Sim');
+    } finally {
+      setSwitching(null);
+      setPending(null);
+      refreshIbkrStatusNow();
+    }
+  }
+
+  
+  async function requestCapture() {
+    if (selected === 'capture' || switching) return;
+    const confirmed = await confirmApp({
+      title: 'Switch to Capture',
+      message:
+        'CAPTURE records IBKR tape/L2/quotes/bars for Monday Sim replay. Places are blocked. Keep Trader/scanner light.',
+      confirmLabel: APP_DIALOG_SWITCH_LABEL,
+      tone: 'warning',
+    });
+    if (!confirmed) return;
+    setPending('capture');
+    setSwitching('capture');
+    setSwitchError(null);
+    try {
+      if (selected === 'sim' || mode === 'sim') {
+        await novaFetch(`${API_BASE_URL}/api/sim`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: false }),
+        });
+      }
+      const res = await novaFetch(`${API_BASE_URL}/api/capture`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: true }),
+      });
+      const body = await res.json().catch(() => ({ capture: false }));
+      if (!res.ok || body.capture !== true) {
+        setSwitchError(
+          (typeof body.detail === 'string' && body.detail) ||
+            body.error ||
+            'Switch to Capture failed',
+        );
+      }
+    } catch {
+      setSwitchError('Could not reach Nova backend to switch to Capture');
     } finally {
       setSwitching(null);
       setPending(null);
@@ -184,9 +230,7 @@ export function GatewayModeCapsule({
             ? ' is-paper'
             : selected === 'live'
               ? ' is-live'
-              : selected === 'sim'
-                ? ' is-sim'
-                : ''
+              : selected === 'sim' ? ' is-sim' : selected === 'capture' ? ' is-capture' : ''
         }`}
         role="group"
         aria-label="Account mode"
@@ -228,6 +272,19 @@ export function GatewayModeCapsule({
           onClick={() => requestSim()}
         >
           {switching === 'sim' ? '…' : GLOBAL_BAR_MODE_SIM}
+        </button>
+        <button
+          type="button"
+          className={`gw-mode-capsule__seg sv-capsule__seg${
+            selected === 'capture' ? ' is-selected is-capture' : ''
+          }`}
+          aria-pressed={selected === 'capture'}
+          disabled={switching !== null}
+          title="Capture IBKR session for Sim replay — places blocked"
+          data-testid={`${testId}-capture`}
+          onClick={() => requestCapture()}
+        >
+          {switching === 'capture' ? '…' : GLOBAL_BAR_MODE_CAPTURE}
         </button>
       </div>
       {selected === 'sim' && (
