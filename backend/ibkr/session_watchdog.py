@@ -65,6 +65,8 @@ def _force_reset_session(client_mod: object, *, reason: str) -> None:
         mode="disconnected", broker_account_kind="unknown",
     )
     _session.set_disconnected()
+    # The reset is the remedy -- the next stuck episode gets its own clock.
+    _session_errors.clear_unusable_stamp()
 
 
 def _check_stuck_unusable(client_mod: object) -> None:
@@ -73,6 +75,12 @@ def _check_stuck_unusable(client_mod: object) -> None:
     if not client_mod.is_connected():  # type: ignore[attr-defined]
         return
     if client_mod.is_ready():  # type: ignore[attr-defined]
+        return
+    # Connect + earn_usable are the dialer's, bounded by their own timeouts;
+    # _check_dialer_heartbeat catches a dialer frozen inside them. Judging a
+    # fresh connect against an older stamp killed it ~4s in, forever
+    # (PROBLEM_LOG 2026-09-19).
+    if _session.state() in (_session.CONNECTING, _session.SYNCHRONIZING):
         return
     since = _session_errors.unusable_since()
     if since is None:

@@ -58,6 +58,7 @@ async def ibkr_status() -> dict:
 
     # Product "connected" = usable session (get_ib() non-None). Transport is
     # separate so port hints / Authenticating ops stay honest.
+    from ibkr import completed_orders_health as _co_health
     from ibkr import ib_scheduler as _ib_scheduler
     from ibkr import session_reconnect as _reconnect
     from ibkr import session_usable as _session_usable
@@ -100,6 +101,9 @@ async def ibkr_status() -> dict:
         "earn_in_flight": _session_usable.earn_in_flight(),
         "ib_cold_inflight": _ib_scheduler.inflight_label() or None,
         "dialer_heartbeat_age_sec": _reconnect.dialer_heartbeat_age_sec(),
+        # D-058: READY but the Gateway is not answering reqCompletedOrders.
+        # Only while usable, so no consumer can show a replaced session's verdict.
+        "completed_orders_unanswered_since": _co_health.warn_since() if usable else None,
         **_ticks.ticker_budget_status(),
     })
 

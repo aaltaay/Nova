@@ -2,7 +2,10 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest';
-import { buildTradingPrerequisites } from './tradingPrerequisites';
+import {
+  buildTradingPrerequisites,
+  completedOrdersStuckNotice,
+} from './tradingPrerequisites';
 
 describe('buildTradingPrerequisites', () => {
   it('blocks desk when Nova API is down', () => {
@@ -332,5 +335,55 @@ describe('buildTradingPrerequisites', () => {
     });
     expect(out.items.some((i) => i.id.includes('alpaca'))).toBe(false);
     expect(out.tradeReady).toBe(true);
+  });
+
+  describe('D-058 completed orders not answering', () => {
+    const connected = { status: 'connected', latency_ms: 5 } as const;
+    const since = 1789808049; // 2026-09-19 04:54 ET
+
+    it('adds an amber warning on a READY desk without blocking it', () => {
+      const out = buildTradingPrerequisites({
+        health: connected,
+        ibkrConnected: true,
+        completedOrdersUnansweredSince: since,
+      });
+      expect(out.deskReady).toBe(true);
+      expect(out.blockDesk).toBe(false);
+      expect(out.items.every((i) => i.ok)).toBe(true);
+      expect(out.warnings).toHaveLength(1);
+      expect(out.warnings[0].id).toBe('completed_orders');
+      expect(out.warnings[0].label).toMatch(/^Completed orders not answering since \d{1,2}:\d{2}/);
+      expect(out.warnings[0].detail).toMatch(/restart IB Gateway when convenient/i);
+    });
+
+    it('stays quiet when answering, while reconnecting, or in Sim', () => {
+      const answering = buildTradingPrerequisites({
+        health: connected, ibkrConnected: true, completedOrdersUnansweredSince: null,
+      });
+      const reconnecting = buildTradingPrerequisites({
+        health: connected, ibkrConnected: false, completedOrdersUnansweredSince: since,
+      });
+      const sim = buildTradingPrerequisites({
+        health: connected, ibkrConnected: false, simMode: true, completedOrdersUnansweredSince: since,
+      });
+      expect(answering.warnings).toEqual([]);
+      expect(reconnecting.warnings).toEqual([]);
+      expect(sim.warnings).toEqual([]);
+    });
+
+    it('formats the clock from epoch seconds and ignores junk', () => {
+      const sameDay = new Date(since * 1000 + 60_000);
+      const text = completedOrdersStuckNotice({ sinceEpochSec: since, gatewayReady: true, now: sameDay });
+      const clock = new Date(since * 1000).toLocaleString([], { hour: '2-digit', minute: '2-digit' });
+      expect(text).toBe(`Completed orders not answering since ${clock}`);
+      const nextDay = new Date(since * 1000 + 26 * 3600_000);
+      const older = completedOrdersStuckNotice({ sinceEpochSec: since, gatewayReady: true, now: nextDay });
+      const withDay = new Date(since * 1000).toLocaleString([], {
+        weekday: 'short', hour: '2-digit', minute: '2-digit',
+      });
+      expect(older).toBe(`Completed orders not answering since ${withDay}`);
+      expect(completedOrdersStuckNotice({ sinceEpochSec: 0, gatewayReady: true })).toBeNull();
+      expect(completedOrdersStuckNotice({ sinceEpochSec: Number.NaN, gatewayReady: true })).toBeNull();
+    });
   });
 });

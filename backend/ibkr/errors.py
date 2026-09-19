@@ -31,6 +31,11 @@ class StaleIbkrSessionError(RuntimeError):
     so the result must not be applied (see ibkr/session_state.py)."""
 
 
+class StaleIbRequestError(RuntimeError):
+    """An ib_async single-flight request handed back a future that an earlier
+    timeout already cancelled — see ``ibkr.ib_await.await_ib_request``."""
+
+
 def describe_exc(exc: BaseException) -> str:
     """Human-readable exception text; falls back to type name when ``str(exc)`` is empty."""
     raw = str(exc).strip()

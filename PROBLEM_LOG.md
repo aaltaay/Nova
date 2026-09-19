@@ -62,6 +62,30 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Fix class:** admission
 - **Keywords:** historical replay, prev_close, useRTH, official close, 15:59, ibkr-depth-fallback-badge, sv-rail, ShortabilityChip, listingIbkr, PFSA, lookahead
 
+## 2026-09-19 -- Startup sweep would abandon filled orders while completed orders are stuck
+
+- **Symptom:** No damage has happened yet: there were no non-terminal ledger rows at the 04:43 start. The problem is latent: `execution/startup_sweep.py` marks a previous-run row `abandoned` / `SWEEP_UNRESOLVED` (terminal) when its order id is neither working nor in `closed_orders()`.
+- **Cause:** `closed_orders()` comes from `ib.trades()`, which includes pre-session orders only after `reqCompletedOrders` answers. On 2026-09-19 the Gateway stopped answering it for hours after a server reconnect. The sweep was skipped overnight only because READY took about 15.5s and missed the 12s bootstrap wait. Making READY faster, which is the account-updates fix, would have let it run on an incomplete history.
+- **Fix:** New `ibkr/completed_orders_state` marks the IB object whose completed-orders refresh succeeded (weakref). The sweep leaves "absent" rows untouched (`unverified`) unless history loaded on this connection. Positive evidence still resolves: working, found in history, or never sent.
+- **Fix class:** admission
+- **Keywords:** startup sweep, abandoned, SWEEP_UNRESOLVED, closed_orders, completed orders not loaded, reqCompletedOrders stuck, bootstrap wait, reconciliation, D-011
+
+## 2026-09-19 -- Account-updates re-subscribe waited 8s on every IBKR connect
+
+- **Symptom:** Every earn_usable logged "IBKR: account updates subscribe failed (cache reads still used): TimeoutError" after exactly 8s. This happened on almost every connect since at least 2026-09-16, daytime included. It looked like the Gateway was slow.
+- **Cause:** connectAsync already calls `reqAccountUpdates` for a single managed account. `ensure_account_updates` subscribed a second time and awaited `accountDownloadEnd`, which IB sends only once per subscription. A live probe confirmed it: the first request answered in 0.00s, and a second one on the same connection got no answer in 30s. The awaited single-flight future was also left cancelled in ib_async's registry.
+- **Fix:** Send `ib.client.reqAccountUpdates(True, account)` and return without awaiting an end marker. Removed `IBKR_ACCOUNT_UPDATES_TIMEOUT_SEC`.
+- **Fix class:** infra
+- **Keywords:** account updates subscribe failed, TimeoutError, reqAccountUpdates, accountDownloadEnd, re-subscribe, earn_usable, 8s connect, ensure_account_updates
+
+## 2026-09-19 -- Reconnect button never reaches READY (dialer killed twice over)
+
+- **Symptom:** The Trading prerequisites "Reconnect Nova to Gateway" button seemed to do nothing. It returned "Reconnect finished but session not READY yet (connecting: connecting)". The Door trail logged "Attached -- live" every ~10s. The log alternated `watchdog: dialer dead (heartbeat_age=10.0s)` with `session stuck unusable for 203s ... 218s ... 263s` while Gateway :4001 was up and logged in.
+- **Cause:** There were two loops. (1) The Gateway did not answer `reqCompletedOrders` within connectAsync's 8s sync (`completed orders request timed out`). That `wait_for` cancels ib_async's single-flight future but leaves the registry entry live. So earn_usable's `reqCompletedOrdersAsync` attached to the already-cancelled future and got `CancelledError`. That error is a BaseException and escaped `except Exception`, and `reconnect_loop` re-raises it. The dialer task ended silently, and the watchdog respawned it every 10s. (2) The Reconnect click stamped `unusable_since`. Only a successful earn_usable clears that stamp, so the watchdog judged every later in-progress connect (state CONNECTING, transport up) against the old stamp and killed it ~4s in.
+- **Fix:** `ibkr/ib_await.await_ib_request` converts a foreign cancel (`task.cancelling() == 0`) into `StaleIbRequestError`, and all three warm-up requests use it. `session_watchdog._check_stuck_unusable` skips CONNECTING / SYNCHRONIZING, which are the dialer's and bounded by its own timeouts plus the heartbeat check. `_force_reset_session` clears the stamp.
+- **Fix class:** ownership
+- **Keywords:** reconnect button, session not READY, connecting, force_reconnect_stuck_unusable, dialer dead, completed orders request timed out, CancelledError, single-flight, SingletonKey, ib_async registry, unusable_since, watchdog
+
 ## 2026-09-19 -- Real tickers empty in Sim on a weekend
 
 - **Symptom:** SPY in Sim on Saturday 04:41 ET: every intraday pane showed "No bars available at this replay time" while Friday's EMA/VWAP lines and time axis were still painted underneath.

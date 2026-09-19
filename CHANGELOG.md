@@ -74,6 +74,49 @@ Entry template (copy and fill in):
 - **Follow-ups:** D-054 #302 (restart drops Sim to Live), D-055 #303 (empty page marks download complete), D-056 #304 (sub-penny OHLC + missing flat bars).
 - **Related:** Refs #292 (D-052).
 
+## 2026-09-19 -- Desk warns when the Gateway stops answering completed orders (D-058)
+
+- **What:** When the IBKR session is READY but the Gateway has stopped answering `reqCompletedOrders` for 2+ minutes, Nova shows an amber warning in three places:
+  - the Trading prerequisites panel: "Completed orders not answering since HH:MM", with the weekday added when it isn't today;
+  - the header Desk chip, which turns amber and gets the same line in its tooltip;
+  - the morning check, which logs a WARN line (skipped in Sim).
+
+  A new IB-loop task re-asks every 60s while the warning is active and clears it as soon as the Gateway answers. `/api/ibkr/status` gains `completed_orders_unanswered_since` (epoch seconds; null unless the session is usable and the warning is due). New `backend/ibkr/completed_orders_health.py` plus the tunables `IBKR_COMPLETED_ORDERS_REPROBE_SEC=60` and `IBKR_COMPLETED_ORDERS_WARN_AFTER_SEC=120`.
+- **Why:** On 2026-09-17 and 2026-09-19 the Gateway silently stopped answering completed orders for 3-4+ hours after a server reconnect. Prices and positions kept working, so the only symptom was a log line. The operator needs to know when a Gateway restart is worth doing (#306, PROBLEM_LOG 2026-09-19).
+- **Files touched:** `backend/ibkr/completed_orders_health.py` (new), `backend/ibkr/account.py`, `backend/routes/trading.py`, `backend/app_lifespan.py`, `backend/constants_ibkr.py`, `frontend/src/ibkr/tradingPrerequisites.ts`, `frontend/src/ibkr/TradingPrerequisitesGate.tsx`, `frontend/src/ibkr/PrereqItemRow.tsx` (row split out for the 400-line limit), `frontend/src/components/headerConnectionStatusModel.ts` (`deskGatewayView`; `HeaderConnectionStatus.tsx` shrinks 368 -> 337), `gatewayUxConstants.ts`, `types.ts`, `tradingPrerequisitesGate.css`, `scripts/Invoke-NovaMorningCheck.ps1`, tests.
+- **How it works now:**
+  - `refresh_completed_orders_cache` reports each outcome. Only "no answer" failures (`TimeoutError`, `StaleIbRequestError`) stamp the first-seen time; any answer clears it.
+  - `reprobe_loop` re-asks every 60s while the stamp is set and the session is READY. This is needed because nothing else re-asks until a reconnect: the Closed Orders poll never warms off the IB loop. While ib_async still holds the stale request, a re-ask fails with no wire traffic. Once a late `completedOrdersEnd` settles it, the next re-ask sends a fresh request.
+  - `warn_since` hides stamps younger than 120s, so a Gateway that is merely slow at connect never reaches the desk.
+  - The stamp is in-memory: it means "first seen by this API run".
+  - The copy never claims orders work: a Read-Only API Gateway shows the same timeout and rejects orders (PROBLEM_LOG 2026-07-22). It points there first if orders are rejected too.
+  - Panel and chip share `completedOrdersStuckNotice`, which shows only on a READY, non-Sim desk and never changes `deskReady`.
+- **Verified by:**
+  - Backend: new `test_ibkr_completed_orders_health.py`, including the review repro with real ib_async objects: startup sync times out, the refresh stamps, the re-ask stays silent while stale, a late `completedOrdersEnd` lands, and the next re-ask clears it. Plus the 120s threshold, and a status-route test that also covers usable gating.
+  - Frontend: builder, header, and a new `TradingPrerequisitesGate.test.tsx` render test. The render test fails if the gate stops passing the field. Also `tsc`, eslint, and `npm run build`.
+  - Browser check of a production build behind a read-only proxy (the Desk chip is amber with the tooltip line; the panel warning sits at the same 10px row gap).
+  - An adversarial three-lens review; all its findings were fixed in this PR.
+- **Follow-ups:** D-057 (#305) moves completed orders out of the blocking connect sync.
+
+## 2026-09-19 -- IBKR account-updates subscribe no longer blocks connect for 8s
+
+- **What:** `ensure_account_updates` now sends `reqAccountUpdates(True, account)` on the wire and returns. It no longer waits for `accountDownloadEnd`. `IBKR_ACCOUNT_UPDATES_TIMEOUT_SEC` is removed because nothing reads it now. The execution startup sweep also stops treating "not in closed orders" as abandoned unless completed orders actually loaded on this connection. New `ibkr/completed_orders_state.py` tracks that per IB object.
+- **Why (sweep guard):** Faster READY puts overnight startups inside the 12s bootstrap wait. The Gateway was not answering `reqCompletedOrders` at the time, so the sweep would have permanently marked orders that filled while Nova was down as `abandoned`. Until now it was protected only because READY happened to arrive too late.
+- **Why:** A live probe on 2026-09-19 showed IB never re-sends `accountDownloadEnd` for an account that is already subscribed, and connectAsync has already subscribed single-account sessions. Every earn_usable therefore waited the full 8s and logged "account updates subscribe failed ... TimeoutError". That happened on nearly every connect in the logs, day and night; only 3 successes ever. The same 8s window is where the old watchdog killed reconnects for hours on 2026-09-17.
+- **Files touched:** `backend/ibkr/account_stream.py`, `backend/constants_ibkr.py`, `backend/ibkr/completed_orders_state.py` (new), `backend/ibkr/account.py`, `backend/execution/startup_sweep.py`, tests.
+- **How it works now:** The call is still made after connect, on 1101/1102 restores, and on self-heal, so multi-account, empty-account, and data-lost sessions still get a live push subscription. It sends through `ib.client.reqAccountUpdates`, not the single-flight `reqAccountUpdatesAsync`, so no pending request is left in ib_async's registry. Values keep flowing into `accountValues()` / `portfolio()` through ib_async's wrapper handlers.
+- **Verified by:** New tests fail on the old code (3) and pass with the fix. Among them, a real ib_async `IB` re-subscribes twice and returns in under 0.5s with no pending `accountValues` request. Live read-only probe on the operator's Gateway (separate clientId 96): the call returned True in 0.2 ms, with 179 account values and 3 portfolio rows present. Full backend suite: see PR.
+- **Related:** PROBLEM_LOG 2026-09-19 account-updates re-subscribe; PR #299 (Reconnect button / READY).
+
+## 2026-09-19 -- IBKR reconnect reaches READY when Gateway sync is slow
+
+- **What:** The session now reaches READY even when the Gateway is too slow to answer ib_async's connect-time sync, so "Reconnect Nova to Gateway" works again. New helper `ibkr/ib_await.await_ib_request` bounds the three warm-up requests. The session watchdog no longer judges a connect that is still running, and each forced reset starts a fresh stuck clock.
+- **Why:** Operator report: the Reconnect button "does nothing." The logs showed two loops that together blocked READY (PROBLEM_LOG 2026-09-19).
+- **Files touched:** `backend/ibkr/ib_await.py` (new), `backend/ibkr/errors.py`, `backend/ibkr/account.py`, `backend/ibkr/account_stream.py`, `backend/ibkr/session_watchdog.py`, tests.
+- **How it works now:** Positions, completed orders, and account updates go through `await_ib_request`. A cancel that came from a stale ib_async future becomes `StaleIbRequestError`. The existing `except Exception` logs it, and warm-up continues to the fence check. A real cancel of the calling task still propagates. `_check_stuck_unusable` skips CONNECTING / SYNCHRONIZING. Those phases already have their own timeouts, and the heartbeat check catches a frozen dialer. `_force_reset_session` clears the unusable stamp.
+- **Verified by:** New tests fail on the old code (5) and pass with the fix. Full backend `pytest` -- 2196 passed. Live run on the operator's Gateway after an API restart: `completed-orders ... StaleIbRequestError` warning, then `session READY via earn_usable (generation 1, connect)`.
+- **Related:** PROBLEM_LOG 2026-09-19 Reconnect button never reaches READY.
+
 ## 2026-09-19 -- IMCC intraday replay respects the selected session date
 
 - **What:** Real-ticker intraday SIM charts show only completed bars from the clock's Eastern session date. The standalone replay fixture now opens with local sample data through Vite and explains direct-file usage.

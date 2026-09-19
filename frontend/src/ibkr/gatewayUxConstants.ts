@@ -44,6 +44,14 @@ export const PREREQ_GATEWAY_STALE_SECOND_FACTOR_DETAIL =
 export const PREREQ_GATEWAY_STALE_SECOND_FACTOR_CTA_LABEL = 'Start fresh login';
 export const PREREQ_GATEWAY_STALE_SECOND_FACTOR_CTA_BUSY_LABEL = 'Restarting login...';
 
+/** D-058 -- READY desk, but the Gateway stopped answering reqCompletedOrders
+ * (usually after a Gateway <-> IBKR server reconnect; PROBLEM_LOG 2026-09-19).
+ * A warning, not a blocker. Never claim orders work: a Read-Only API Gateway
+ * shows the same timeout and rejects every order (PROBLEM_LOG 2026-07-22). */
+export const PREREQ_COMPLETED_ORDERS_STUCK_PREFIX = 'Completed orders not answering since';
+export const PREREQ_COMPLETED_ORDERS_STUCK_DETAIL =
+  'Prices and positions still update; Closed Orders may miss orders from before this session. Nova keeps re-checking and clears this when the Gateway answers. To fix, restart IB Gateway when convenient (IBKR Mobile 2FA). If orders are rejected too, check the Gateway Read-Only API setting first.';
+
 export const DOOR_TRAIL_TITLE = 'Door trail';
 export const DOOR_TRAIL_KICKER = 'Paper / Live audit';
 export const DOOR_TRAIL_HINT =
