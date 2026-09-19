@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** D-046 / #92 last named surface. Command ledger already listed place/cancel rows; operators still could not see one closed-trade audit trail on the desk.
 - **Files touched:** `backend/journal/trail.py`, `backend/routes/journal.py`, `frontend/src/activity/ActivityTrail.tsx`, `frontend/src/activity/ActivityDashboard.tsx`, `backend/tests/test_journal_trail.py`.
 - **How it works now:** Closed journal trades join `fill_ids` / `close_key` to ledger rows. Each cycle lists stored events only. Missing CommissionReport stays gross and omits a fee step. Imported journal rows without ledger ids are Close only. Unattached session ledger rows show as `open` groups. The existing ADR 007 command table stays below. Door trail is unchanged.
-- **Verified by:** pytest trail + flatten/net_pnl neighbors; Vitest ActivityTrail/formatTrail; Playwright Account > Activity; `npm run build`.
+- **Verified by:** `PYTHONPATH=backend python3 -m pytest` trail + flatten/net_pnl/import/calendar/round-trip/activity neighbors -- 52 passed. Ruff + `doc_invariants.py` OK. Vitest ActivityTrail/formatTrail/ActivityPanel + Reports import -- 15 passed. `npm run lint` / `npm run build` exit 0. Playwright `e2e/activity-trail.spec.ts` -- 1 passed (21s); Reports import neighbor passed earlier.
 - **Follow-ups:** none on #92. OCO/brackets stay parked. Parent #13 may still have other D-036 leftovers.
 - **Related:** Closes #92 (D-046). Slice 1 #261, slice 2 #263, slice 3 #264.
 

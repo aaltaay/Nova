@@ -2,7 +2,11 @@
  * Account > Activity trail -- mocked journal/ledger join, no live IBKR.
  */
 import { expect, test, type Page, type Route } from '@playwright/test';
-import { openAccountActivity } from './helpers/accountReports';
+import {
+  clickThroughOverlay,
+  dismissTradingPrereqIfOpen,
+  openAccountActivity,
+} from './helpers/accountReports';
 import { attachErrorCollector } from './helpers/errorCollector';
 
 const TRAIL = {
@@ -61,7 +65,8 @@ test('Account Activity trail shows place-fill-flatten-close', async ({ page }) =
   await expect(trail).toContainText('$12.75');
   await expect(trail).toContainText('$2.25');
   await expect(trail).toContainText('Place -> Fill -> Flatten -> Fill -> Commission -> Close');
-  await page.getByTestId('activity-trail-row-trade:1').click();
+  await dismissTradingPrereqIfOpen(page, 2000);
+  await clickThroughOverlay(page, page.getByTestId('activity-trail-row-trade:1'));
   await expect(page.getByTestId('activity-trail-detail-trade:1')).toBeVisible();
   await expect(page.getByTestId('activity-trail-detail-trade:1')).toContainText('Flatten');
 });

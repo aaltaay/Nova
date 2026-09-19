@@ -20,7 +20,7 @@ export async function dismissTradingPrereqIfOpen(
   await expect(gate).toHaveCount(0);
 }
 
-async function clickThroughOverlay(page: Page, locator: Locator): Promise<void> {
+export async function clickThroughOverlay(page: Page, locator: Locator): Promise<void> {
   try {
     await locator.click({ timeout: 3000 });
   } catch {

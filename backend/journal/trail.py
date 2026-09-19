@@ -180,7 +180,6 @@ def cycle_from_trade(trade: dict) -> dict:
             continue
         seen.add(exec_id)
         events.extend(events_from_ledger_row(get_by_id(exec_id)))
-    events.append(_close_event(trade))
     commission = reported_commission(trade.get("commission"))
     return {
         "id": f"trade:{trade.get('id')}",
@@ -198,7 +197,7 @@ def cycle_from_trade(trade: dict) -> dict:
         "closed_ts": _as_ts(trade.get("closed_ts")),
         "close_key": trade.get("close_key"),
         "notes": trade.get("notes"),
-        "events": _sort_events(events, fill_ids),
+        "events": _sort_events(events, fill_ids) + [_close_event(trade)],
         "fill_ids": fill_ids,
     }
 
