@@ -369,6 +369,12 @@
   color: var(--nova-text, var(--text-primary));
 }
 
+/* IBKR unreported (odd lot / Form T): listed, excluded from candles and volume */
+.ts-row--unreported {
+  opacity: 0.5;
+  font-style: italic;
+}
+
 .ts-col--time {
   color: inherit;
   opacity: 0.85;

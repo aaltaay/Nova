@@ -64,6 +64,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- Historical replay keeps the live Stock Quote rail
+
+- **What:** In SIM historical replay the Stock Quote rail now has the same structure as Paper/Live: quote head (last, change vs prior close, Vol/Gap/High/Low) over Level 2 | Time & Sales side by side. Time & Sales is the live panel fed from replay prints with a REPLAY badge and dimmed unreported rows. Level 2 keeps its montage frame, empty, with a "not recorded" badge. The separate historical text card is removed.
+- **Why:** The replay tape looked and behaved differently from the live desk (text card, no L2 frame, rows below the fold), which breaks practice muscle memory.
+- **Files touched:** ibkr/TimeSalesView.tsx (new, extracted from TimeSalesPanel.tsx), TimeSalesPanel.tsx, DepthLadder.tsx (export MontageSide), ibkr/index.ts, tapeFeed.ts, marketData.css, constantGroups/features.ts; sim/HistoricalTimeSales.tsx, HistoricalDepthPlaceholder.tsx, historicalQuoteDetail.ts (new), useHistoricalSnapshot.ts, simConstants.ts; stock_view/StockViewDepthTape.tsx; backend sim/history_playback.py; architecture/historical-replay.md; docs/sim-mode.md; tests.
+- **How it works now:** `TimeSalesView` is feed-agnostic; `TimeSalesPanel` wraps it with `useIbkrTape`, replay wraps it with the `/api/sim/history/snapshot` prints. Replay never mounts the live tape or depth feed, and the Level 2 header shows a "Replay · No L2 recorded" chip instead of today's halt/shortability chips. The snapshot adds `open`/`high`/`low` (reached reported prints, or reached candles) and `prev_close` (prior trading day's 15:59 ET minute close, else that day's daily bar, else none -- never an older session).
+- **Verified by:** see PR body (Vitest suites, backend playback tests, tsc/ESLint/build, running desk at SPY 2026-09-18 04:41:16).
+- **Follow-ups:** D-054 #302 (restart drops Sim to Live), D-055 #303 (empty page marks download complete), D-056 #304 (sub-penny OHLC + missing flat bars).
+- **Related:** Refs #292 (D-052).
+
 ## 2026-09-19 -- Desk warns when the Gateway stops answering completed orders (D-058)
 
 - **What:** When the IBKR session is READY but the Gateway has stopped answering `reqCompletedOrders` for 2+ minutes, Nova shows an amber warning in three places:

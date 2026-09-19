@@ -52,7 +52,25 @@ reached print and marks unreported ones (IMCC: odd-lot/Form T `TI`/`FTI`
 prints would otherwise invent highs such as 2.00 against a 1.88 bar). With that
 rule replay OHLCV equals IBKR's own 1-minute bars. Past coverage the quote card
 says trades end at the coverage time. Historical replay exposes no invented bid, ask, quotes or
-depth. A seek or selection change clears UI snapshots and rebuilds
+depth.
+
+**Rail parity.** The Stock Quote rail keeps the live structure in historical
+replay: quote head (last, change, Float/Vol/Gap/High/Low) over **Level 2 |
+Time & Sales** side by side. Time & Sales is the live `TimeSalesView` (same
+columns, row height, virtualized window, min-size filter) fed from the
+snapshot instead of the tape WebSocket; its status badge reads REPLAY and
+unreported prints are dimmed rows, not a separate column. Level 2 keeps its
+pane and column headers with empty rows; it never mounts the live depth feed
+during replay. Its header shows a "Replay · No L2 recorded" chip in place of
+the live halt and shortability chips, which describe today, not the replayed
+session (the rail hides `.ibkr-depth-fallback-badge`, so the note lives in the
+header). The quote head reads the snapshot: `last`, `volume`, session
+`open`/`high`/`low` from reached reported prints (or reached candles when
+trades are not downloaded) and `prev_close` = the prior trading day's 15:59 ET
+minute close (proxy for the official close the live head uses), else that
+day's stored daily close (extended hours, `useRTH=False`), else none -- never
+an older session. RVOL, halt and shortability are blank in replay. Rows carry
+no bid/ask aggressor tint because historical quotes are not downloaded. A seek or selection change clears UI snapshots and rebuilds
 deterministically. Pause freezes event time. Synthetic and capture feeds must
 not inject into historical playback, so SIM1 practice fills also wait until
 historical replay is closed (SIM orders accept only SIM1). Loading new

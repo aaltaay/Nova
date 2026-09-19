@@ -6,7 +6,7 @@ import { SimSessionHeader } from '../../src/sim/SimSessionHeader';
 import { useChartBars } from '../../src/chart/useChartBars';
 import { useChartLiveTrade } from '../../src/chart/useChartLiveTrade';
 import { useVwapSourceBars } from '../../src/chart/useVwapSourceBars';
-import { HistoricalQuoteTape } from '../../src/sim/HistoricalQuoteTape';
+import { HistoricalTimeSales } from '../../src/sim/HistoricalTimeSales';
 import { useHistoricalSnapshot } from '../../src/sim/useHistoricalSnapshot';
 import { advanceSampleMinute, installSampleReplayApi } from './replayChartSampleApi';
 
@@ -40,7 +40,7 @@ function Chart() {
   return <>
     {sampleApi && <button type="button" onClick={advanceSampleMinute}>Advance sample minute</button>}
     <div ref={container} />
-    {snapshot?.active && <HistoricalQuoteTape data={snapshot} />}
+    {snapshot?.active && <HistoricalTimeSales symbol="IMCC" snapshot={snapshot} />}
     <output data-testid="painted">{painted}</output>
     <output data-testid="indicators">{JSON.stringify(state.indicatorBars)}</output>
     <output data-testid="vwap">{JSON.stringify(vwap.bars)}</output>

@@ -38,6 +38,12 @@ export const TAPE_VIEWPORT_FALLBACK_ROWS = 20;
 /** scrollTop at or below this stays pinned to the newest prints. */
 export const TAPE_STICK_TOP_PX = 4;
 export const TAPE_SECTION_TITLE = 'Time & Sales';
+/** Header badge while the live tape feed is subscribed. */
+export const TAPE_STATUS_LIVE = 'LIVE';
+export const TAPE_EMPTY_LABEL = 'Waiting for prints…';
+/** Row tooltip for prints IBKR flags unreported (odd lot / Form T). */
+export const TAPE_UNREPORTED_TITLE =
+  'Unreported print (odd lot / Form T) -- excluded from candles, last and volume';
 export const TAPE_COL_HEADERS = {
   time: 'Time',
   price: 'Price',

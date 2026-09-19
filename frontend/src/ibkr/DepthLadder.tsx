@@ -63,7 +63,8 @@ function sizeBarStyle(
   };
 }
 
-function MontageSide({
+/** One side of the DAS-style montage; historical replay renders it with no levels. */
+export function MontageSide({
   side,
   levels,
 }: {

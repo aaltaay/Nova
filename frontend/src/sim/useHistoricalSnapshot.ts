@@ -8,8 +8,15 @@ import { SIM_HISTORY_POLL_MS } from './simConstants';
 export interface HistoricalSnapshot {
   active: boolean; symbol: string; last: number | null; volume: number | null;
   source: string; as_of: string; error?: string;
+  /** Session open/high/low from reached reported prints (or reached candles). */
+  open?: number | null; high?: number | null; low?: number | null;
+  /** Close of the last daily bar before the session date. */
+  prev_close?: number | null;
   selection?: { coverage_through: number; symbol: string; date: string; start: string; end: string };
-  prints: { time: string; price: number; size: number; exchange: string; unreported?: boolean }[];
+  prints: {
+    time: string; price: number; size: number; exchange: string;
+    conditions?: string; unreported?: boolean;
+  }[];
 }
 
 function blank(symbol: string): HistoricalSnapshot {
