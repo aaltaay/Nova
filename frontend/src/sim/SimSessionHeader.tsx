@@ -119,11 +119,13 @@ export function SimSessionHeader({ active }: { active: boolean }) {
       } else {
         setClock(c => ({ ...(c || { sim: true }), ...body, minute_from_open: minute, scrubbed: true }));
       }
-      if (emitCharts) emitSimClockScrub();
+      emitSimClockScrub();
+      const pin = (body.replay_symbol || '').trim().toUpperCase();
+      if (body.replay_source === 'capture' && pin) openStockView(pin);
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [openStockView]);
 
   const onScrubInput = (minute: number) => {
     setDragMinute(minute);
@@ -188,6 +190,7 @@ export function SimSessionHeader({ active }: { active: boolean }) {
         // Capture ticker pick -> same desk tab (add or activate). Clear stays put.
         const sym = (nextSymbol || '').trim().toUpperCase();
         if (sym) openStockView(sym);
+        emitSimClockScrub();
       }
     } catch {
       /* ignore */
