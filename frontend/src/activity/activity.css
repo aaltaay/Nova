@@ -49,3 +49,8 @@
 .activity-evidence {
   margin-top: 0.4rem;
 }
+
+.activity-trail {
+  border-bottom: 1px solid var(--border, #1f2937);
+  margin-bottom: 0.5rem;
+}

@@ -47,3 +47,55 @@ export interface ActivityFillEvidence {
 export interface ActivityDetail extends ActivityRow {
   fill_evidence?: ActivityFillEvidence[];
 }
+
+export type TrailEventKind =
+  | 'place'
+  | 'fill'
+  | 'flatten'
+  | 'cancel'
+  | 'replace'
+  | 'commission'
+  | 'close';
+
+export interface TrailEvent {
+  kind: TrailEventKind | string;
+  ts: number | null;
+  execution_id?: string | null;
+  symbol?: string | null;
+  operation?: string | null;
+  source?: string | null;
+  side?: string | null;
+  qty?: number | null;
+  price?: number | null;
+  commission?: number | null;
+  pnl?: number | null;
+  status?: string | null;
+  broker_status?: string | null;
+  order_id?: number | null;
+}
+
+export interface TrailItem {
+  id: string;
+  kind: 'closed' | 'open' | string;
+  trade_id?: number | null;
+  symbol: string | null;
+  side?: string | null;
+  qty?: number | null;
+  entry_price?: number | null;
+  exit_price?: number | null;
+  pnl?: number | null;
+  commission?: number | null;
+  pnl_basis?: 'net' | 'gross' | null;
+  opened_ts?: number | null;
+  closed_ts?: number | null;
+  close_key?: string | null;
+  notes?: string | null;
+  events: TrailEvent[];
+  fill_ids?: string[];
+}
+
+export interface TrailPayload {
+  count: number;
+  includes_mock_data: boolean;
+  items: TrailItem[];
+}
