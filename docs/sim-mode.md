@@ -58,11 +58,19 @@ playhead stays put. **Return to SIM1** keeps pause and the time of day. Other
 ticker tabs use available archived candles for the same date. Data is not
 preloaded for the entire market.
 
+The Stock Quote rail looks the same as Paper/Live: the quote head (last,
+change vs the prior close, Vol/Gap/High/Low for the replay so far) over
+**Level 2 | Time & Sales**. Time & Sales is the live panel with a **REPLAY**
+badge; Level 2 keeps its columns but stays empty because historical depth is
+not recorded. Rows are not tinted green/red, because historical bid/ask is not
+downloaded.
+
 Candles without trade coverage appear only after their interval closes.
 Downloaded prints build partial candles and Time & Sales at one-second
 precision. Identical prints remain separate. Prints IBKR marks unreported
-(odd-lot/Form T) are listed in Time & Sales but excluded from candles, last and
-volume, so replay matches IBKR's own bars. Historical bid/ask and Level 2 are
+(odd-lot/Form T) are listed in Time & Sales as dimmed rows but excluded from
+candles, last and volume, so replay matches IBKR's own bars. Right-click the
+tape and set a minimum size of 100 to hide odd lots. Historical bid/ask and Level 2 are
 unavailable, and SIM1 practice fills wait until historical replay is closed.
 Pause/resume download keeps committed pages; failed jobs remain incomplete with
 an error. Only one download runs at a time. The default persistent archive on

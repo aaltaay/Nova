@@ -1,7 +1,11 @@
 /**
  * Stock Quote module — last/change + stats + Level 2 | Time & Sales.
  * Height vs Order Entry is controlled by StockViewRail's horizontal splitter.
+ * Historical replay keeps this exact structure: the quote head reads the
+ * replay snapshot, Level 2 shows its empty frame, and Time & Sales is the same
+ * view fed from reached prints (architecture/historical-replay.md).
  */
+import type { ReactNode } from 'react';
 import { HaltEtaChip } from '../ibkr/HaltEtaChip';
 import { ShortabilityChip } from '../ibkr/ShortabilityChip';
 import { Level2Module } from '../modules/Level2Module';
@@ -17,7 +21,9 @@ import { StockViewModuleCard } from './StockViewModuleCard';
 import { StockViewQuotePrice } from './StockViewQuotePrice';
 import { StockViewQuoteStats } from './StockViewQuoteStats';
 import { useHistoricalSnapshot } from '../sim/useHistoricalSnapshot';
-import { HistoricalQuoteTape } from '../sim/HistoricalQuoteTape';
+import { HistoricalTimeSales } from '../sim/HistoricalTimeSales';
+import { HistoricalDepthPlaceholder, HistoricalL2Chip } from '../sim/HistoricalDepthPlaceholder';
+import { historicalQuoteDetail } from '../sim/historicalQuoteDetail';
 
 interface Props {
   selectedSymbol: string;
@@ -36,6 +42,45 @@ function QuoteHead({ detail }: { detail: TickerDetail }) {
   );
 }
 
+function DepthAndTapeColumns({
+  symbol,
+  chips,
+  level2,
+  tape,
+}: {
+  symbol: string;
+  /** Level 2 header chips: live halt + shortability, or the replay note. */
+  chips: ReactNode;
+  level2: ReactNode | null;
+  tape: ReactNode | null;
+}) {
+  return (
+    <div
+      className="depth-and-tape sv-depth-and-tape"
+      data-module="stock-view-depth"
+      data-symbol={symbol}
+      data-testid="stock-view-depth-side-by-side"
+    >
+      {level2 && (
+        <div className="depth-and-tape__col sv-depth-and-tape__l2" data-testid="stock-view-l2-col">
+          <div className="sv-md-pane">
+            <div className="sv-md-pane__head">
+              <h3 className="sv-md-pane__title">{STOCK_VIEW_MODULE_L2_TITLE}</h3>
+              <div className="sv-md-pane__chips">{chips}</div>
+            </div>
+            <div className="sv-md-pane__body">{level2}</div>
+          </div>
+        </div>
+      )}
+      {tape && (
+        <div className="depth-and-tape__col sv-depth-and-tape__tape" data-testid="stock-view-tape-col">
+          {tape}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function StockViewDepthTape({
   selectedSymbol,
   detail,
@@ -50,7 +95,30 @@ export function StockViewDepthTape({
   const showTape = isVisible('tape');
   const historical = useHistoricalSnapshot(depthSymbol, uiActive);
 
-  if (historical?.active) return <HistoricalQuoteTape data={historical} />;
+  if (historical?.active) {
+    const replayDetail = historicalQuoteDetail(detail, historical);
+    return (
+      <StockViewModuleCard
+        title={STOCK_VIEW_MODULE_QUOTE_TITLE}
+        className="sv-quote-depth-card"
+        testId="stock-view-depth-stack"
+        aria-label={STOCK_VIEW_MODULE_QUOTE_TITLE}
+      >
+        <QuoteHead detail={replayDetail} />
+        {(showL2 || showTape) && (
+          <DepthAndTapeColumns
+            symbol={depthSymbol}
+            // Today's halt and borrow state are not the replayed session's.
+            chips={<HistoricalL2Chip />}
+            level2={showL2 ? <HistoricalDepthPlaceholder /> : null}
+            tape={showTape ? (
+              <HistoricalTimeSales symbol={depthSymbol} snapshot={historical} uiActive={uiActive} />
+            ) : null}
+          />
+        )}
+      </StockViewModuleCard>
+    );
+  }
 
   if (!ibkrConnected || !detailMatches) {
     return (
@@ -87,34 +155,17 @@ export function StockViewDepthTape({
       aria-label={STOCK_VIEW_MODULE_QUOTE_TITLE}
     >
       <QuoteHead detail={detail} />
-      <div
-        className="depth-and-tape sv-depth-and-tape"
-        data-module="stock-view-depth"
-        data-symbol={depthSymbol}
-        data-testid="stock-view-depth-side-by-side"
-      >
-        {showL2 && (
-          <div className="depth-and-tape__col sv-depth-and-tape__l2" data-testid="stock-view-l2-col">
-            <div className="sv-md-pane">
-              <div className="sv-md-pane__head">
-                <h3 className="sv-md-pane__title">{STOCK_VIEW_MODULE_L2_TITLE}</h3>
-                <div className="sv-md-pane__chips">
-                  <HaltEtaChip halt={detail.halt} />
-                  <ShortabilityChip ibkr={listingIbkr} />
-                </div>
-              </div>
-              <div className="sv-md-pane__body">
-                <Level2Module symbol={depthSymbol} uiActive={uiActive} />
-              </div>
-            </div>
-          </div>
+      <DepthAndTapeColumns
+        symbol={depthSymbol}
+        chips={(
+          <>
+            <HaltEtaChip halt={detail.halt} />
+            <ShortabilityChip ibkr={listingIbkr} />
+          </>
         )}
-        {showTape && (
-          <div className="depth-and-tape__col sv-depth-and-tape__tape" data-testid="stock-view-tape-col">
-            <TimeSalesModule symbol={depthSymbol} embedded uiActive={uiActive} />
-          </div>
-        )}
-      </div>
+        level2={showL2 ? <Level2Module symbol={depthSymbol} uiActive={uiActive} /> : null}
+        tape={showTape ? <TimeSalesModule symbol={depthSymbol} embedded uiActive={uiActive} /> : null}
+      />
     </StockViewModuleCard>
   );
 }

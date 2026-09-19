@@ -17,6 +17,8 @@ export interface TapePrint {
   side?: TapeSide;
   bid?: number | null;
   ask?: number | null;
+  /** IBKR tickAttribLast.unreported: listed, but not in candles/last/volume. */
+  unreported?: boolean;
 }
 
 export interface TapeState {

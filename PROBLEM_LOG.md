@@ -54,6 +54,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- Replay quote rail: hidden L2 note and wrong prior close
+
+- **Symptom:** Found in review of the replay rail-parity change before it shipped. (1) The replay Level 2 "not recorded" note never showed in the Trader rail. (2) Replay change/Gap% used a weeks-old close for some tickers (PFSA: 25.19 from 08-18 vs ~2.07 on 09-18, -91.8%). (3) SPY change was measured against 762.08 while the live head uses the official close (~762.63). (4) The live shortability chip painted today's borrow state over the past session.
+- **Cause:** (1) `stockViewTerminal.css` hides `.stock-view-page .sv-rail .ibkr-depth-fallback-badge`, so any note in that class is invisible in the rail. (2) `bars_store.read(..., through_ts=cutoff)` has no lower bound; the newest stored daily bar can be any age because Sim never refills 1Day. (3) Stored daily bars use `useRTH=False`, so their close is the 20:00 extended-hours last, not the official close. (4) `listingIbkr` reaches the Level 2 header through a separate prop, not `TickerDetail`.
+- **Fix:** Replay Level 2 header shows a "Replay · No L2 recorded" chip instead of halt/shortability; `prev_close` reads the prior trading day's 15:59 ET minute close, then that exact day's daily bar, else None (misses not cached). Tests in `test_history_playback.py` and `historicalRailParity.test.tsx`.
+- **Fix class:** admission
+- **Keywords:** historical replay, prev_close, useRTH, official close, 15:59, ibkr-depth-fallback-badge, sv-rail, ShortabilityChip, listingIbkr, PFSA, lookahead
+
 ## 2026-09-19 -- Real tickers empty in Sim on a weekend
 
 - **Symptom:** SPY in Sim on Saturday 04:41 ET: every intraday pane showed "No bars available at this replay time" while Friday's EMA/VWAP lines and time axis were still painted underneath.
