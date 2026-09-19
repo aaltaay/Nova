@@ -62,6 +62,25 @@ def test_real_intraday_replay_does_not_paint_prior_session(monkeypatch):
     assert len(bars_store.read("IMCC", "5Min", 10)["bars"]) == 2
 
 
+def test_weekend_wall_clock_replays_last_trading_day(monkeypatch):
+    """Saturday 04:41 ET with no capture selected reads Friday 04:00-04:40."""
+    bars_store.write_payload(dict(symbol="SPY", timeframe="1Min", bars=[
+        candle("2026-09-18T08:00:00Z", 1),
+        candle("2026-09-18T08:40:00Z", 2),
+        candle("2026-09-18T08:41:00Z", 3),
+        candle("2026-09-18T23:55:00Z", 4),
+    ]))
+    session_clock.reset_for_tests()
+    monkeypatch.setattr(session_clock, "_wall_et_now", lambda: datetime(
+        2026, 9, 19, 4, 41, 16, tzinfo=session_clock.ET,
+    ))
+    result = chart_bars.fetch_chart_bars("SPY", "1Min", 10, discovery_provider="ibkr")
+    assert [b["t"] for b in result["bars"]] == [
+        "2026-09-18T08:00:00Z", "2026-09-18T08:40:00Z",
+    ]
+    assert result["coverage"]["replay"] is True
+
+
 def test_real_intraday_replay_shows_only_closed_bars_on_selected_day(monkeypatch):
     bars_store.write_payload(dict(symbol="IMCC", timeframe="1Min", bars=[
         candle("2026-09-17T19:00:00Z", 1),

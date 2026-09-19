@@ -7,6 +7,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from constants_sim import SIM_SESSION_CLOSE_HOUR, SIM_SESSION_OPEN_HOUR
+from sim.trading_day import last_trading_day
 
 ET = ZoneInfo("America/New_York")
 
@@ -63,7 +64,9 @@ def session_bounds_on(day: datetime) -> tuple[datetime, datetime]:
         y, m, dd = (int(x) for x in date_override.split("-"))
         d = _date(y, m, dd)
     else:
-        d = day.astimezone(ET).date()
+        # Weekend practice desk: a closed exchange day replays the last open one
+        # at the same time of day, so real tickers have a session to read from.
+        d = last_trading_day(day.astimezone(ET).date())
     opening, closing = _window or (SESSION_OPEN, SESSION_CLOSE)
     start = datetime.combine(d, opening, tzinfo=ET)
     end = datetime.combine(d, closing, tzinfo=ET)
@@ -95,6 +98,9 @@ def now_et() -> datetime:
     if scrub is not None:
         return start + timedelta(seconds=scrub)
     wall = _wall_et_now()
+    if wall.date() != start.date():
+        # Closed exchange day: the wall time of day on the replayed session date.
+        wall = datetime.combine(start.date(), wall.timetz())
     if wall < start:
         return start
     if wall > end:
@@ -207,6 +213,7 @@ def status_payload() -> dict[str, Any]:
     second = int(elapsed)
     return {
         "sim_time_et": n.isoformat(),
+        "session_date": start.date().isoformat(),
         "phase": phase(n),
         "session_open_et": start.isoformat(),
         "session_close_et": end.isoformat(),

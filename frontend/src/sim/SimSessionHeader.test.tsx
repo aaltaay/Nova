@@ -152,3 +152,14 @@ it('Return to SIM1 clears the hidden capture pickers', async () => {
   expect((screen.getByTestId('sim-replay-day') as HTMLSelectElement).value).toBe('');
   expect((screen.getByTestId('sim-replay-ticker') as HTMLSelectElement).value).toBe('');
 });
+
+it('shows the session date the clock is replaying', async () => {
+  mocks.fetch.mockImplementation(async (url: string) => ({
+    ok: true,
+    json: async () => url.endsWith('/history') ? { jobs: [] }
+      : url.endsWith('/sessions') ? { days: [], tickers_by_day: {} }
+      : { ...clock, replay_source: 'synthetic', session_date: '2026-09-18' },
+  }));
+  await mount();
+  expect(screen.getByTestId('sim-session-date').textContent).toBe('Fri, Sep 18');
+});

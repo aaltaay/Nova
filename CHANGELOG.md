@@ -16,6 +16,16 @@ Bug fixes should **also** be logged in `PROBLEM_LOG.md` (symptom / cause / fix).
 1. **When:** After completing any task that changes logic, public behavior, a module boundary, constants, config, build, or rules. Skip pure cosmetics.
 2. **Where:** Prepend a new `##` section **immediately below** the `<!-- ENTRIES_START -->
 
+## 2026-09-19 -- Sim session date is the last open exchange day
+
+- **What:** On a weekend or NYSE holiday the Sim clock's default session date is the latest earlier trading day, and the wall clamp keeps the wall time of day on that date. `/api/sim/clock` adds `session_date`; the Sim header shows it. EMA/VWAP overlays clear with the candles when a replay window has no bars.
+- **Why:** Sim is the weekend practice desk, but the session date followed the wall calendar, so every real ticker (SPY on a Saturday) hit the D-052 session-date boundary with nothing to read and showed "No bars available at this replay time" over stale indicator lines.
+- **Files touched:** sim/trading_day.py (new), sim/session_clock.py, sim/history_store.py, SimSessionHeader.tsx, simClockTypes.ts, TickerChartOverlays.tsx, architecture/sim-clock.md, docs/sim-mode.md, focused tests.
+- **How it works now:** `session_bounds_on` resolves the wall day through `last_trading_day`; `now_et` projects the wall time of day onto that date before clamping. Capture and historical dates still override. The chart boundary (session date + interval-end cutoff) is unchanged.
+- **Verified by:** 193 backend tests passed under `-k "sim or history or replay or capture or chart or clock"` (4 pre-existing 401 operator-auth failures, D-053 #293); real-store check: Saturday 04:41 ET replays SPY Friday 04:00-04:40 (1Min 41 bars); Vitest header suite 9/9; changed-file ESLint + tsc; doc_invariants OK.
+- **Follow-ups:** 10-second panes stay empty before 16:00 on archived days until a Historical replay download covers the morning (IBKR 4h backfill limit).
+- **Related:** PROBLEM_LOG entry below; D-052 #292.
+
 ## 2026-09-19 -- Sim pause/play button
 
 - **What:** One Sim-header button switches between Pause and Play icons. Pause freezes the Sim clock and feed; Play resumes at the frozen timestamp without wall-time catch-up.
