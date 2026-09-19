@@ -72,7 +72,7 @@ Risk sleeve stays `small-cap`. Packs are a separate picker:
 | `halt-luld` | live | Fire `resume_kind` once on halted -> clear, cooldown 30s. |
 | `quote-spike` | live | Last (or bid/ask mid) up `min_pct` (default 3%) in `window_sec` (default 5s) on the shared L1/quote stream. Eyes proposes. L2 + Activate fires `spike_kind` once, then `cooldown_sec` (default 30). |
 | `volume` | live | Last-60s day-volume rate >= `min_mult` (default 5x) vs the prior `baseline_sec` (default 600s) on the shared L1/quote stream. Eyes proposes. L2 + Activate fires `volume_kind` once, then `cooldown_sec` (default 60). Thin history fails closed. |
-| `llm-decide` | live | Configured LLM posts fixed-schema proposals. Live fire needs L2 + Activate + claim + heartbeat + allowlist ∩ focus. No hidden `LLM_LIVE_FIRE` flag. Idle if key, base URL, or model is missing. |
+| `llm-decide` | live | OpenRouter posts fixed-schema decisions from the Sensor Board snapshot. Live fire needs L2 + Activate + claim + heartbeat + allowlist ∩ focus. No hidden `LLM_LIVE_FIRE` flag. Idle if `OPENROUTER_API_KEY` (or `NOVA_LLM_API_KEY`) is missing. |
 
 ## Symbol gate
 
@@ -106,24 +106,29 @@ Action-kind allowlist: `buy_market`, `buy_limit_ask_offset`,
 
 ## LLM env
 
-Vendor-agnostic `POST {NOVA_LLM_BASE_URL}/chat/completions`.
+OpenRouter is the v1 decision vendor. The worker reuses `OPENROUTER_API_KEY`
+(same key as Advise). Optional overrides:
 
 ```text
+#OPENROUTER_API_KEY=
 #NOVA_LLM_API_KEY=
-#NOVA_LLM_BASE_URL=https://api.example.com/v1
+#NOVA_LLM_BASE_URL=https://openrouter.ai/api/v1
 #NOVA_LLM_MODEL=
+#NOVA_BRAIN_MODEL=openai/gpt-4o-mini
 ```
 
-Session call + USD caps live on Strategy (Advise-style). Brain charges
-`POST /api/bot/llm/spend` before each call. Missing config = idle, never
-place. Tests mock HTTP. No paid LLM in CI.
+Default model is `openai/gpt-4o-mini` (cheap / fast). Do not hard-require
+Sonnet for the loop. Session call + USD caps live on Strategy
+(Advise-style). Brain charges `POST /api/bot/llm/spend` before each call.
+Missing key = idle, never place. Tests mock HTTP. No paid LLM in CI.
 
 ## nova-brain
 
 Standing process: Desktop sidecar + `Run Nova.bat` (`python -m nova_brain`).
+Windows script: `scripts/Start-NovaBrain.ps1`. How-to: [nova-brain.md](nova-brain.md).
 Localhost only. Needs `NOVA_API_KEY`. Exclusive claim `nova-brain`. Never
-PATCHes level. Every fire re-reads API SSOT (session + watch + action).
-Skip with `NOVA_BRAIN_DISABLED=1`.
+PATCHes level. Each tick reads `/api/health`, session, watch, and
+`/sensors/snapshot` for focus names. Skip with `NOVA_BRAIN_DISABLED=1`.
 
 ## Curl (localhost)
 

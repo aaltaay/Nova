@@ -51,7 +51,7 @@ def _llm_action():
 def test_parse_refuses_off_allowlist_qty_and_junk():
     eligible = {"ABCD"}
     kinds = {"buy_market"}
-    assert parse_proposals("not-json", eligible, kinds) == []
+    assert parse_proposals("not-json", eligible, kinds) is None
     assert parse_proposals(json.dumps({"proposals": []}), eligible, kinds) == []
     bad = {
         "proposals": [
@@ -67,6 +67,7 @@ def test_parse_refuses_off_allowlist_qty_and_junk():
             "symbol": "ABCD",
             "side": "BUY",
             "kind": "buy_market",
+            "qty_preset": "default",
             "reason": "gap hold",
             "confidence": None,
         }
@@ -81,6 +82,16 @@ class _FakeClient:
         self.charges: list[float] = []
         self.claims = 0
         self.heartbeats = 0
+
+    def health(self) -> dict:
+        return {"status": "ok"}
+
+    def sensors_snapshot(self, symbol: str) -> dict:
+        return {
+            "symbol": symbol,
+            "count": 1,
+            "sensors": [{"sensor": "l2", "status": "live", "data": {"imbalance": 0.2}}],
+        }
 
     def session_get(self) -> dict:
         return dict(self._session)
@@ -121,8 +132,10 @@ class _FakeClient:
 
 def test_tick_idle_without_key(monkeypatch):
     monkeypatch.delenv("NOVA_LLM_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     monkeypatch.delenv("NOVA_LLM_BASE_URL", raising=False)
     monkeypatch.delenv("NOVA_LLM_MODEL", raising=False)
+    monkeypatch.delenv("NOVA_BRAIN_MODEL", raising=False)
     client = _FakeClient()
     calls = {"n": 0}
 
@@ -214,3 +227,116 @@ def test_step_llm_pack_fires_only_when_l2_activate(monkeypatch):
     assert idle.claims == 0
     assert idle.fired == []
     assert idle.proposed[0]["kind"] == "buy_market"
+
+
+def test_parse_single_decision_and_hold():
+    eligible = {"ABCD"}
+    kinds = {"buy_market"}
+    one = parse_proposals(
+        json.dumps(
+            {
+                "symbol": "ABCD",
+                "side": "BUY",
+                "kind": "buy_market",
+                "qty_preset": "default",
+                "reason": "tape lift",
+                "confidence": 0.8,
+            }
+        ),
+        eligible,
+        kinds,
+    )
+    assert one == [
+        {
+            "symbol": "ABCD",
+            "side": "BUY",
+            "kind": "buy_market",
+            "qty_preset": "default",
+            "reason": "tape lift",
+            "confidence": 0.8,
+        }
+    ]
+    assert parse_proposals(
+        json.dumps(
+            {
+                "symbol": "ABCD",
+                "side": "HOLD",
+                "kind": "none",
+                "qty_preset": "default",
+                "reason": "no setup",
+                "confidence": 0.1,
+            }
+        ),
+        eligible,
+        kinds,
+    ) == []
+
+
+def test_tick_sends_sensor_board_context(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "or-key")
+    monkeypatch.delenv("NOVA_LLM_API_KEY", raising=False)
+    captured: dict[str, str] = {}
+
+    def fake_chat(system: str, user: str) -> dict:
+        captured["system"] = system
+        captured["user"] = user
+        return _llm_action()
+
+    monkeypatch.setattr("nova_brain.llm_http.chat", fake_chat)
+    client = _FakeClient()
+    tick(client, session=_session(), now=100.0, last={"ts": 0.0})
+    assert "sensors" in captured["user"]
+    assert "l2" in captured["user"]
+    assert "qty_preset" in captured["system"]
+    assert client.proposed[0]["qty_preset"] == "default"
+    assert "qty" not in client.proposed[0]
+
+
+def test_tick_fail_closed_on_bad_json_and_sensor_error(monkeypatch):
+    monkeypatch.setenv("NOVA_LLM_API_KEY", "test-key")
+    monkeypatch.setenv("NOVA_LLM_BASE_URL", "http://127.0.0.1:9")
+    monkeypatch.setenv("NOVA_LLM_MODEL", "test-model")
+    monkeypatch.setattr(
+        "nova_brain.llm_http.chat",
+        lambda *_a, **_k: {"content": "maybe buy ABCD", "usage": {}},
+    )
+    junk = _FakeClient()
+    tick(junk, session=_session(), now=100.0, last={"ts": 0.0})
+    assert junk.proposed == []
+    assert junk.fired == []
+
+    class _Down(_FakeClient):
+        def sensors_snapshot(self, symbol: str) -> dict:
+            raise RuntimeError("sensor board down")
+
+    monkeypatch.setattr("nova_brain.llm_http.chat", lambda *_a, **_k: _llm_action())
+    down = _Down()
+    tick(down, session=_session(live_fire_ready=True, level=2, armed=True), now=100.0, last={"ts": 0.0})
+    assert down.fired == []
+    assert down.proposed == []
+    assert down.charges == []
+
+
+def test_step_health_down_does_not_fire(monkeypatch):
+    import requests
+
+    from nova_brain.loop import step
+
+    monkeypatch.setenv("NOVA_LLM_API_KEY", "test-key")
+    monkeypatch.setenv("NOVA_LLM_BASE_URL", "http://127.0.0.1:9")
+    monkeypatch.setenv("NOVA_LLM_MODEL", "test-model")
+    monkeypatch.setattr("nova_brain.llm_http.chat", lambda *_a, **_k: _llm_action())
+
+    class _Dead(_FakeClient):
+        def health(self) -> dict:
+            raise requests.RequestException("no Nova heartbeat")
+
+    dead = _Dead(_session(level=2, armed=True, live_fire_ready=True))
+    try:
+        step(dead, halt_prev={}, last_fire={}, last_llm={"ts": 0.0})
+    except requests.RequestException as exc:
+        assert "heartbeat" in str(exc)
+    else:
+        raise AssertionError("health miss must fail closed")
+    assert dead.claims == 0
+    assert dead.fired == []

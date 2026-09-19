@@ -66,14 +66,20 @@ BOT_PACK_DESCRIPTIONS = {
         f"reqMktData."
     ),
     BOT_PACK_LLM_DECIDE: (
-        "A configured LLM posts fixed-schema proposals for allowlisted "
-        "live-focus names and live-fires those kinds only when L2 + Activate "
-        "are on. Idle if the key, base URL, or model is missing."
+        "OpenRouter posts fixed-schema decisions from the Sensor Board "
+        "snapshot for allowlisted live-focus names and live-fires those "
+        "kinds only when L2 + Activate are on. Idle if OPENROUTER_API_KEY "
+        "(or NOVA_LLM_API_KEY) is missing."
     ),
 }
 BOT_LLM_MIN_INTERVAL_SEC = 15
 BOT_LLM_USD_PER_CALL_EST = 0.02
 BOT_LLM_HTTP_TIMEOUT_SEC = 20
+BOT_LLM_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+BOT_LLM_DEFAULT_MODEL = "openai/gpt-4o-mini"
+BOT_LLM_QTY_PRESETS = ("default",)
+BOT_LLM_HTTP_REFERER = "https://github.com/aaltaay/Nova"
+BOT_LLM_HTTP_TITLE = "Nova Brain"
 BOT_SYMBOL_ALLOWLIST_CAP = 50
 BOT_HALT_RESUME_COOLDOWN_SEC = 30
 BOT_BRAIN_SESSION_ID = "nova-brain"

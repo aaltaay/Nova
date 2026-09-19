@@ -221,6 +221,9 @@ class _FakeClient:
         self.fired: list[tuple[str, str]] = []
         self.proposed: list[dict] = []
 
+    def health(self) -> dict:
+        return {"status": "ok"}
+
     def session_get(self) -> dict:
         return dict(self._session)
 

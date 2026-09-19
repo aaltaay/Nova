@@ -48,6 +48,15 @@ class BotApiClient:
         res.raise_for_status()
         return res.json()
 
+    def health(self) -> dict[str, Any]:
+        return self.get("/api/health")
+
+    def sensors_snapshot(self, symbol: str) -> dict[str, Any]:
+        from urllib.parse import quote
+
+        name = str(symbol or "").strip().upper()
+        return self.get(f"/sensors/snapshot?symbol={quote(name, safe='')}")
+
     def session_get(self) -> dict[str, Any]:
         return self.get("/api/bot/session")
 
