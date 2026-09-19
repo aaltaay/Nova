@@ -50,10 +50,17 @@ def reset_for_tests() -> None:
 
 
 def rebuild_for_scrub() -> None:
-    """Drop live 1m buffer so charts re-seed from the scrubbed sim clock."""
+    """Drop live 1m buffer so charts re-seed from scrubbed/capture clock."""
     global _bars_1m
     _bars_1m = []
-    _clock.reset_for_tests()
+    try:
+        from sim import capture_player as _player
+        from sim import replay as _replay
+        if _replay.is_capture_replay():
+            _player.seek_emit_cursor(_clock.now_et().timestamp())
+    except Exception:
+        pass
+
 
 
 def last() -> float:
@@ -77,6 +84,15 @@ def volume() -> int:
 
 
 def quote(symbol: str | None = None) -> dict[str, Any] | None:
+    try:
+        from sim import replay as _replay
+        from sim import capture_player as _player
+        if _replay.is_capture_replay():
+            q = _player.quote_at()
+            if q is not None:
+                return q
+    except Exception:
+        pass
     sym = (symbol or SIM_SYMBOL).strip().upper()
     if sym != SIM_SYMBOL:
         return None
@@ -115,6 +131,15 @@ def last_quotes(symbols: list[str] | None = None) -> dict[str, dict[str, Any]]:
 
 
 def book() -> dict[str, Any]:
+    try:
+        from sim import replay as _replay
+        from sim import capture_player as _player
+        if _replay.is_capture_replay():
+            b = _player.book_at()
+            if b is not None:
+                return b
+    except Exception:
+        pass
     b = bid()
     a = ask()
     mult = _clock.phase_volume_mult()
@@ -140,6 +165,13 @@ def book() -> dict[str, Any]:
 
 
 def recent_prints(limit: int = 20) -> list[dict[str, Any]]:
+    try:
+        from sim import replay as _replay
+        from sim import capture_player as _player
+        if _replay.is_capture_replay():
+            return _player.recent_prints(limit)
+    except Exception:
+        pass
     cap = max(1, int(limit))
     return list(_prints[-cap:])
 
@@ -246,6 +278,24 @@ def _tf_step_sec(timeframe: str) -> int | None:
 
 def chart_bars(symbol: str, timeframe: str, limit: int) -> dict[str, Any]:
     sym = (symbol or "").strip().upper()
+    try:
+        from sim import replay as _replay
+        from sim import capture_player as _player
+        if _replay.is_capture_replay():
+            bars = _player.chart_bars(timeframe, limit)
+            return {
+                "symbol": sym or _replay.status_payload().get("replay_symbol") or SIM_SYMBOL,
+                "timeframe": timeframe,
+                "bars": bars,
+                "source": "capture",
+                "coverage": {
+                    "as_of": _now_iso(),
+                    "complete_through": bars[-1]["t"] if bars else None,
+                    "filling": False,
+                },
+            }
+    except Exception:
+        pass
     cap = max(1, min(int(limit or SIM_CHART_BARS_DEFAULT), 2000))
     tf = timeframe or "1Min"
     scrubbed = bool(_clock.status_payload().get("scrubbed"))

@@ -90,6 +90,54 @@ async def _run() -> None:
 
 def tick() -> dict:
     """One synchronous tape step + fill match + fan-out. Used by tests."""
+    try:
+        from sim import replay as _replay
+        from sim import capture_player as _player
+        from sim import session_clock as _clock
+        if _replay.is_capture_replay():
+            now_ts = _clock.now_et().timestamp()
+            rows = _player.prints_since(_player.last_emit_ts(), now_ts)
+            last_payload: dict = {}
+            for row in rows[-20:]:  # bound burst on big scrub jumps
+                ts = float(row.get("ts") or now_ts)
+                from datetime import datetime, timezone
+                from zoneinfo import ZoneInfo
+                ET = ZoneInfo("America/New_York")
+                t_iso = datetime.fromtimestamp(ts, tz=ET).astimezone(timezone.utc).isoformat()
+                payload = {
+                    "type": "print",
+                    "symbol": str(row.get("symbol") or "").upper(),
+                    "time": t_iso,
+                    "price": float(row.get("price") or 0),
+                    "size": int(row.get("size") or 1),
+                    "exchange": str(row.get("exchange") or ""),
+                    "conditions": str(row.get("conditions") or ""),
+                    "side": row.get("side"),
+                    "bid": row.get("bid"),
+                    "ask": row.get("ask"),
+                }
+                _inject(payload)
+                last_payload = payload
+                _player.mark_emitted(ts)
+            if not last_payload:
+                # still advance book/quote for scrubbed quiet gaps
+                q = _player.quote_at() or {}
+                last_payload = {
+                    "type": "print",
+                    "symbol": (_replay.status_payload().get("replay_symbol") or "SIM1"),
+                    "time": _clock.now_et().astimezone(__import__("datetime").timezone.utc).isoformat(),
+                    "price": float(q.get("last") or 0),
+                    "size": 0,
+                    "exchange": "SIM",
+                    "conditions": "GAP",
+                    "side": None,
+                    "bid": q.get("bid"),
+                    "ask": q.get("ask"),
+                }
+                _inject(last_payload)
+            return last_payload
+    except Exception:
+        logger.debug("SIM: capture play tick failed", exc_info=True)
     payload = _market.step()
     _broker.try_fill_working(_market.last())
     _inject(payload)
