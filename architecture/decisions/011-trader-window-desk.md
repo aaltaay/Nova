@@ -43,6 +43,8 @@ The operator needs Chrome-style docking: grab the ticker in the floated window a
 
 7a. **Row body vs ticker button is a spatial split, not click-vs-double-click (2026-08-26; add-or-activate 2026-09-17).** On tables that render a separate `SymbolSelectButton` (scanner tables, Catalysts, HOD Momo + Running Up, Watchlist, Signals), only the ticker opens Trader (`openStockView`). The row body calls `WorkspaceContext.selectRowSymbol`: on Scanner it only updates `selectedSymbol` (Quote Panel); while Trader is already showing it adds or activates, same as a ticker click. `SelectableTableRow`'s `openOnRowClick` prop (default `true`) keeps the old single-gesture behavior on tables with no ticker button (Positions, Working/Closed Orders, Journal, Executor, HOD debug) -- their row click still opens Trader directly. This does **not** reopen the temporal click-vs-double-click split rejected below; row and ticker are two different DOM elements clicked once, not one element clicked twice.
 
+7b. **Sim scrubbing preserves desk selection (2026-09-19).** Moving the Sim session clock refreshes replay charts/tape without calling `openStockView`, activating a tab, or reopening a closed replay ticker. Replay selection and the active Trader tab are separate state. Only an explicit replay ticker pick opens/activates that ticker through the existing workspace command. Regression: IMCC active with SIM1 closed must remain that way when a clock response still names SIM1.
+
 ## Consequences
 
 - Docking works in Vite/browser and in Electron with one protocol.

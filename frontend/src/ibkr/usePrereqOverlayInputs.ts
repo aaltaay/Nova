@@ -1,17 +1,26 @@
 /**
- * Overlay gates for Trading prerequisites -- streak + in-flight Place.
+ * Overlay gates for Trading prerequisites -- streak + in-flight Place + Record.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { HealthStatus } from '../types/health';
 import {
   deskActionInFlight,
   subscribeDeskAction,
 } from './deskActionFlight';
 import { novaApiOk } from './tradingPrerequisites';
+import {
+  getRecordingSymbols,
+  subscribeSessionRecord,
+} from '../capture/sessionRecordStore';
 
 export function usePrereqOverlayInputs(health: HealthStatus) {
   const [apiFailStreak, setApiFailStreak] = useState(0);
   const [deskBusy, setDeskBusy] = useState(() => deskActionInFlight());
+  const recordingEpoch = useSyncExternalStore(
+    subscribeSessionRecord,
+    () => getRecordingSymbols().join(','),
+    () => '',
+  );
 
   const apiOk = novaApiOk(health);
 
@@ -21,9 +30,6 @@ export function usePrereqOverlayInputs(health: HealthStatus) {
       return;
     }
     setApiFailStreak((n) => n + 1);
-    // `health` is the probe snapshot (memoized on bar.health). Each new
-    // object that is still down increments the streak. `apiOk` alone would
-    // stick at 1 and never overlay.
   }, [health, apiOk]);
 
   useEffect(() => subscribeDeskAction(() => {
@@ -33,5 +39,6 @@ export function usePrereqOverlayInputs(health: HealthStatus) {
   return {
     apiFailStreak,
     deskActionInFlight: deskBusy,
+    sessionRecording: recordingEpoch.length > 0,
   };
 }

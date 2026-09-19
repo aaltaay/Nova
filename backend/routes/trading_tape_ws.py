@@ -46,6 +46,17 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
         queue = _tape.open_viewer_queue(symbol)
         await websocket.send_text(json.dumps({"type": "subscribed", "symbol": symbol}))
 
+        # Capture replay: seed recent prints so T&S is not empty until the feed catches up.
+        try:
+            from sim import replay as _replay
+            from sim import capture_player as _player
+            if (is_sim_mode() and _replay.is_capture_replay()
+                    and _replay.status_payload().get("replay_symbol") == symbol):
+                for row in _player.recent_prints(40):
+                    await websocket.send_text(json.dumps({**row, "type": "print"}))
+        except Exception:
+            logger.debug("SIM tape: capture seed skipped", exc_info=True)
+
         async for print_data in _tape.stream(queue):
             if print_data is None:
                 await websocket.send_text(json.dumps({"type": "ping", "symbol": symbol}))
@@ -66,6 +77,8 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
                 if print_data.get("released"):
                     await websocket.close()
                     break
+            elif msg_type == "scrub_reset":
+                await websocket.send_text(json.dumps({"type": "scrub_reset", "symbol": symbol}))
             else:
                 await websocket.send_text(json.dumps({**print_data, "type": "print"}))
     except WebSocketDisconnect:

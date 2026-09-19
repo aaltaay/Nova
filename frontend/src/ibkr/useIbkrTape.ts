@@ -39,6 +39,7 @@ export function useIbkrTape(symbol: string | null, uiActive = true): TapeState {
     uiActiveRef.current = uiActive;
   }, [uiActive]);
 
+
   const commitUi = () => {
     if (!mountedRef.current) return;
     setState({
@@ -90,6 +91,14 @@ export function useIbkrTape(symbol: string | null, uiActive = true): TapeState {
         try {
           const msg = JSON.parse(e.data as string);
           if (!tapeMessageAllowed(msg.symbol, symKey!)) return;
+
+          if (msg.type === 'scrub_reset') {
+            printsRef.current = [];
+            if (uiActiveRef.current) {
+              setState(s => ({ ...s, prints: [], connected: true, error: null }));
+            }
+            return;
+          }
 
           if (msg.type === 'subscribed') {
             connectedRef.current = true;

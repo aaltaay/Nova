@@ -16,6 +16,8 @@ import { useModuleVisibility, useWorkspace } from '../workspace';
 import { StockViewModuleCard } from './StockViewModuleCard';
 import { StockViewQuotePrice } from './StockViewQuotePrice';
 import { StockViewQuoteStats } from './StockViewQuoteStats';
+import { useHistoricalSnapshot } from '../sim/useHistoricalSnapshot';
+import { HistoricalQuoteTape } from '../sim/HistoricalQuoteTape';
 
 interface Props {
   selectedSymbol: string;
@@ -46,6 +48,9 @@ export function StockViewDepthTape({
   const detailMatches = detail.symbol.toUpperCase() === depthSymbol;
   const showL2 = isVisible('level2');
   const showTape = isVisible('tape');
+  const historical = useHistoricalSnapshot(depthSymbol, uiActive);
+
+  if (historical?.active) return <HistoricalQuoteTape data={historical} />;
 
   if (!ibkrConnected || !detailMatches) {
     return (

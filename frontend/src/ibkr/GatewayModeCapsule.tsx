@@ -3,6 +3,7 @@
  * Paper/Live persist IBKR_GATEWAY_MODE and reconnect.
  * Sim POSTs /api/sim and never places to Gateway.
  * Never sets IBKR_LIVE_TRADING_CONFIRMED -- live spend stays a separate gate.
+ * Session Record is per-tab (right-click), not a capsule mode.
  */
 import { useState } from 'react';
 import { novaFetch } from '../api/novaFetch';
@@ -230,31 +231,25 @@ export function GatewayModeCapsule({
           {switching === 'sim' ? '…' : GLOBAL_BAR_MODE_SIM}
         </button>
       </div>
-      {selected === 'sim' && (
-        <span className="gw-mode-capsule__sim-flag" data-testid="sim-practice-flag">
+      {selected === 'sim' ? (
+        <span className="gw-mode-capsule__sim-flag" data-testid={`${testId}-sim-flag`}>
           {SIM_PRACTICE_FLAG_TEXT}
         </span>
-      )}
-      {hintTarget && mode === 'disconnected' && !switchError && (
-        <button
-          type="button"
-          className="gw-mode-capsule__hint-cta"
-          data-testid="sv-disconnect-hint-cta"
-          disabled={switching !== null}
-          onClick={() => requestMode(hintTarget)}
-        >
-          Switch to {hintTarget === 'live' ? GLOBAL_BAR_MODE_LIVE : GLOBAL_BAR_MODE_PAPER}
-        </button>
-      )}
-      {switchError && (
-        <span
-          className="gw-mode-capsule__error sv-capsule__error"
+      ) : null}
+      {switchError ? (
+        <div
+          className="gw-mode-capsule__error"
           role="alert"
           data-testid={errorTestId ?? `${testId}-error`}
         >
           {switchError}
-        </span>
-      )}
+        </div>
+      ) : null}
+      {hintTarget && selected !== hintTarget && selected !== 'sim' ? (
+        <div className="gw-mode-capsule__hint" data-testid={`${testId}-disconnect-hint`}>
+          Gateway looks disconnected — try switching to {hintTarget}.
+        </div>
+      ) : null}
     </div>
   );
 }

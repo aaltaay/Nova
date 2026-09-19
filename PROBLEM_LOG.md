@@ -7,7 +7,24 @@ This file is a **shared memory** of errors fixed and problems identified in this
 ## How agents update this file
 
 1. **When:** After you fix a failing build, test, linter error, runtime error, or incorrect behavior; or after you identify a non-obvious root cause worth remembering. **Required** — not optional for “obvious” or “quick” fixes.
-2. **Where:** Prepend a new `##` section **immediately below** the `<!-- ENTRIES_START -->` marker (newest entries at the top).
+2. **Where:** Prepend a new `##` section **immediately below** the `<!-- ENTRIES_START -->
+
+## 2026-09-19 -- Sim feed retained unused fixed-interval import
+
+- **Symptom:** Targeted Ruff verification failed F401 for SIM_TICK_INTERVAL_SEC in sim/feed.py.
+- **Cause:** Feed sleep already uses phase_tick_interval_sec; the older fixed interval import was left unused.
+- **Fix:** Remove the unused import in the touched feed module. No timing behavior changed by this cleanup. Playback ownership is documented in architecture/sim-clock.md.
+- **Fix class:** infra
+- **Keywords:** sim, feed, Ruff, F401, SIM_TICK_INTERVAL_SEC, phase_tick_interval_sec
+
+## 2026-09-19 -- Sim slider reopens closed replay ticker and steals focus
+
+- **Symptom:** With IMCC active and SIM1 closed, dragging the Sim clock reopened SIM1 and activated it.
+- **Cause:** postScrub called openStockView(replay_symbol) on every successful clock response. Replay selection survives tab closure, so clock updates overrode desk selection.
+- **Fix:** Remove navigation from scrubbing; retain the existing chart/tape refresh event and explicit ticker-pick navigation. ADR 011 section 7b records the ownership contract.
+- **Fix class:** ownership
+- **Verified by:** Both pointer and debounced regressions failed before the fix (SIM1 instead of IMCC), then passed; neighboring Trader tests and Chromium mouse/keyboard checks passed.
+- **Keywords:** SimSessionHeader, postScrub, SIM1, IMCC, replay_symbol, openStockView, closed tab, slider` marker (newest entries at the top).
 3. **Keep it short:** A few lines per field is enough.
 
 Entry template (copy and fill in):
@@ -36,6 +53,22 @@ message and go read the admission contract. Ten consecutive `surfacing` fixes on
 scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
+
+## 2026-09-19 -- IMCC prior-session chart looked like future replay
+
+- **Symptom:** IMCC's 5-minute and 1-minute panes showed a fully painted September 18 session while SIM was at 06:46 ET on September 19.
+- **Cause:** The replay store query had an upper timestamp cutoff but no lower session-date bound, so it returned the most recent prior-day bars when the selected day had no IMCC data.
+- **Fix:** Restrict real-ticker intraday replay queries to the clock's Eastern date before `LIMIT`; keep previous completed periods only on daily/longer charts. Add a no-data regression and an interval-close regression.
+- **Keywords:** IMCC, replay, lookahead, previous session, bars_store, Eastern date, SIM clock
+
+## 2026-09-19 -- SIM charts exposed future OHLCV and stale replay data
+
+- **Symptom:** SIM time was earlier than visible chart candles; captured open candles already contained their final high, low, close and volume. Rewinding could retain future candles or VWAP.
+- **Cause:** Nonselected real tickers bypassed the replay path, captured rows were gated by start instead of close, empty fetches retained old data, invalidation did not reject pending responses, and live patches could overwrite replay-owned series. VWAP had an independent cache refresh path.
+- **Fix:** Apply the session cutoff before store LIMIT; reveal completed intervals or build the partial bucket from reached captured prints. Poll replay-owned charts/VWAP each second, clear on seek/mode change, version requests, and reject live writes to replay series. Keep missing historical data visibly empty. Prints-only captures retain completed aggregate buckets.
+- **Verified by:** Boundary/rewind/volume/store-isolation regressions, chart store race tests, actual Lightweight Charts series in Chromium, and neighboring archive/sensor tests. Cold Vite fixture startup is awaited separately from chart refresh timing.
+- **Keywords:** sim, replay, lookahead, future bars, candle close, OHLCV, VWAP, stale response, capture_player, bars_store
+- **Related:** #292; architecture/sim-clock.md. Historical tick acquisition and quote/tape reconciliation remain deferred.
 
 ## 2026-09-19 -- nova-brain skipped Sensor Board and required a second LLM key
 

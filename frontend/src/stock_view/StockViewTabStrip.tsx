@@ -3,7 +3,7 @@
  * stay bright and extras render gray / suspended.
  * + / type stays here. Extract pops out. Drag docks onto another Nova window.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   TRADER_TAB_ADD_TITLE,
   TRADER_TAB_DOCK_ARIA,
@@ -26,6 +26,11 @@ import {
   type TraderTabDragPayload,
 } from '../workspace/traderDesk';
 import { openBotSymbolMenu } from '../bot/botSymbolMenuStore';
+import {
+  getRecordingSymbols,
+  isTabRecording,
+  subscribeSessionRecord,
+} from '../capture/sessionRecordStore';
 import { TRADER_DRAFT_SYMBOL } from './traderTabsState';
 
 interface Props {
@@ -68,6 +73,12 @@ export function StockViewTabStrip({
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const recordEpoch = useSyncExternalStore(
+    subscribeSessionRecord,
+    () => getRecordingSymbols().join(','),
+    () => '',
+  );
+  void recordEpoch;
 
   useEffect(() => {
     if (active === TRADER_DRAFT_SYMBOL) {
@@ -120,7 +131,9 @@ export function StockViewTabStrip({
         return (
           <div
             key={isDraft ? '__draft__' : symbol}
-            className={`sv-tab${isActive ? ' sv-tab--active' : ''}${suspended ? ' sv-tab--suspended' : ''}`}
+            className={`sv-tab${isActive ? ' sv-tab--active' : ''}${suspended ? ' sv-tab--suspended' : ''}${
+              !isDraft && isTabRecording(symbol) ? ' sv-tab--recording' : ''
+            }`}
             role="tab"
             aria-selected={isActive}
             data-suspended={suspended ? '1' : '0'}
@@ -210,12 +223,27 @@ export function StockViewTabStrip({
                 {TRADER_TAB_EXTRACT_LABEL}
               </button>
             )}
-            <button
+                        <button
               type="button"
               className="sv-tab__close"
-              aria-label={`Close ${label}`}
+              aria-label={
+                !isDraft && isTabRecording(symbol)
+                  ? `Recording ${label} — stop recording before close`
+                  : `Close ${label}`
+              }
+              disabled={!isDraft && isTabRecording(symbol)}
+              title={
+                !isDraft && isTabRecording(symbol)
+                  ? 'Stop recording before closing this tab'
+                  : undefined
+              }
+              data-testid={`sv-tab-close-${label}`}
               onClick={e => {
                 e.stopPropagation();
+                if (!isDraft && isTabRecording(symbol)) {
+                  e.preventDefault();
+                  return;
+                }
                 if (isEditing) cancelEdit();
                 else onClose(symbol);
               }}

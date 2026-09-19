@@ -2,8 +2,8 @@
  * Trader View container — tab strip + one StockViewPage per tab.
  * Inactive live panes stay mounted (hidden) so L1/L2/tape sockets stay
  * subscribed. Tape/depth/chart UI apply pauses until the tab is shown again.
- * The tab strip portals into GlobalAppBar's middle column when that slot is
- * mounted (one header row), else renders inline above the panes.
+ * The tab strip portals into GlobalAppBar's trader row (under Bot Autonomy)
+ * when that slot is mounted; else renders inline above the panes.
  */
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
@@ -132,7 +132,7 @@ export function StockViewTabs({ detached }: Props) {
           </button>
         </div>
       )}
-      {headerSlot && traderViewActive ? createPortal(tabStrip, headerSlot) : tabStrip}
+      {headerSlot && traderViewActive && !detached ? createPortal(tabStrip, headerSlot) : tabStrip}
       <div className="sv-tabs-panes">
         {traderTabs.map(symbol => {
           if (symbol === TRADER_DRAFT_SYMBOL) {

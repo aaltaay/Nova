@@ -15,6 +15,21 @@ vi.mock('../utils/launchIbGateway', () => ({
   launchIbGateway: (...args: unknown[]) => launchIbGatewayMock(...args),
 }));
 
+// Controllable Record store: the banner hides while any tab records (D-050).
+const recordStore = vi.hoisted(() => {
+  let symbols: string[] = [];
+  const listeners = new Set<() => void>();
+  return {
+    get: () => symbols,
+    set(next: string[]) { symbols = next; listeners.forEach(l => l()); },
+    subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
+  };
+});
+vi.mock('../capture/sessionRecordStore', () => ({
+  getRecordingSymbols: () => recordStore.get(),
+  subscribeSessionRecord: (listener: () => void) => recordStore.subscribe(listener),
+}));
+
 describe('shouldShowGatewayLoginBanner', () => {
   it('hides when discovery is not ibkr', () => {
     expect(
@@ -130,6 +145,23 @@ describe('GatewayDisconnectedBanner', () => {
       root.unmount();
     });
     container.remove();
+  });
+
+  it('keeps hook order stable when Record starts and stops (D-050)', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const banner = () => container.querySelector('[data-testid="gateway-disconnected-banner"]');
+    act(() => {
+      root.render(
+        <GatewayDisconnectedBanner discoveryProvider="ibkr" ibkrConnected={false} ibkrTransportConnected={false} />,
+      );
+    });
+    expect(banner()).not.toBeNull();
+    act(() => recordStore.set(['IMCC']));
+    expect(banner()).toBeNull();
+    act(() => recordStore.set([]));
+    expect(banner()).not.toBeNull();
+    expect(consoleError).not.toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 
   it('renders nothing when discoveryProvider is not ibkr', () => {

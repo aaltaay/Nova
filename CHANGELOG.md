@@ -1,3 +1,7 @@
+## Unreleased
+
+### Fixed
+- **Sim tape charts / T&S:** bar `t` is UTC ISO (not unix seconds) so lightweight-charts no longer assert duplicate times / `iso.slice`. Feed starts on the HTTP loop when Sim is toggled from a worker thread. Session clock 06:00–18:00 ET with phase density + scrubber header.
 # Change log (agent-maintained)
 
 This file is a running narrative of **what changed in this repo and why**, so future agent and human sessions can get oriented in minutes without digging through diffs.
@@ -10,7 +14,27 @@ Bug fixes should **also** be logged in `PROBLEM_LOG.md` (symptom / cause / fix).
 ## How agents update this file
 
 1. **When:** After completing any task that changes logic, public behavior, a module boundary, constants, config, build, or rules. Skip pure cosmetics.
-2. **Where:** Prepend a new `##` section **immediately below** the `<!-- ENTRIES_START -->` marker (newest entries at the top).
+2. **Where:** Prepend a new `##` section **immediately below** the `<!-- ENTRIES_START -->
+
+## 2026-09-19 -- Sim pause/play button
+
+- **What:** One Sim-header button switches between Pause and Play icons. Pause freezes the Sim clock and feed; Play resumes at the frozen timestamp without wall-time catch-up.
+- **Why:** Operators need time to inspect replay charts and prints without the playhead moving.
+- **Files touched:** sim/session_clock.py, sim/feed.py, sim/routes.py, SimPlaybackButton.tsx, SimSessionHeader.tsx, simClockTypes.ts, focused tests and Sim documentation.
+- **How it works now:** POST /api/sim/clock accepts paused:boolean only while Sim is active. Scrubbing and capture selection stay paused; Follow wall clock clears pause. Requests report errors inline. No Trader navigation from playback controls.
+- **Verified by:** 20 backend tests passed, two confirmed baseline failures excluded (D-051 #291); 18 Vitest tests and Chromium regression passed; production build, changed-file ESLint/Ruff and doc invariants passed.
+- **Follow-ups:** Existing full-project lint blocker remains D-050 #290. Baseline Sim test failures recorded in D-051 #291. User requested a local commit on this branch, no push.
+- **Related:** architecture/sim-clock.md; docs/sim-mode.md; knowledge/task-log/2026-09-19-sim-pause-play.md.
+
+## 2026-09-19 -- Sim scrub preserves the active Trader tab
+
+- **What:** Moving the Sim time slider refreshes replay data without opening or activating the replay ticker. IMCC remains active when SIM1 has been closed.
+- **Why:** Scrubbing called openStockView on the server replay symbol, overriding deliberate tab navigation.
+- **Files touched:** SimSessionHeader.tsx, focused unit/browser regressions, ADR 011.
+- **How it works now:** Clock updates emit the existing scrub event; explicit replay ticker selection retains the open/activate action.
+- **Verified by:** 15 Vitest tests passed; Chromium pointer/keyboard regression passed; production build and changed-file ESLint passed; doc_invariants OK. Full lint is blocked by existing GatewayDisconnectedBanner conditional hooks (D-050 / #290).
+- **Follow-ups:** No slider remainder. User explicitly requested this branch and a local commit without push.
+- **Related:** PROBLEM_LOG entry below; ADR 011 section 7b; knowledge/task-log/2026-09-19-sim-scrub-preserve-tab.md.` marker (newest entries at the top).
 3. **Commit together:** The changelog entry ships in the **same commit** as the code it describes. Do not push code without an entry.
 4. **Keep it short:** A few lines per field. No secrets, tokens, or personal data.
 
@@ -29,6 +53,25 @@ Entry template (copy and fill in):
 ```
 
 <!-- ENTRIES_START -->
+
+## 2026-09-19 -- IMCC intraday replay respects the selected session date
+
+- **What:** Real-ticker intraday SIM charts show only completed bars from the clock's Eastern session date. The standalone replay fixture now opens with local sample data through Vite and explains direct-file usage.
+- **Why:** At 06:46 on September 19, IMCC painted the entire September 18 intraday session because the cutoff excluded future timestamps but did not exclude prior days.
+- **Files touched:** `backend/sim/chart_replay.py`, `backend/bars_store.py`, replay fixture and tests, `architecture/sim-clock.md`.
+- **How it works now:** The store applies both the session start and completed-interval end before limiting rows. No IMCC bars on the selected date means an empty pane; daily historical context remains available. Without trade prints, a current intraday candle waits until its interval closes.
+- **Verified by:** SIM replay backend tests (13 passed), Chromium replay fixture (3 passed), frontend production build.
+- **Follow-ups:** IMCC historical trade acquisition and symbol/date selection remain in D-052 #292.
+- **Related:** `PROBLEM_LOG.md` 2026-09-19 IMCC prior-session chart; D-052 #292; PR #294.
+
+## 2026-09-19 -- Replay chart knowledge boundary
+
+- **What:** All SIM chart reads use the replay clock, including real tickers without a selected capture. Archived candles appear only after interval close; recorded trades build partial intraday candles and volume. Current calendar-period daily/weekly/monthly bars stay hidden.
+- **Why:** Unrestricted IBKR history and final captured OHLCV exposed future information while the SIM clock showed an earlier time.
+- **How it works now:** Bounded store reads apply the cutoff before LIMIT. Capture replay uses reached prints for the open bucket and completed OHLCV otherwise. Active charts and VWAP refresh every second; seeks clear candles/indicators, stale HTTP responses are discarded, and live patches cannot overwrite replay series.
+- **Verified by:** Focused backend, chart/SIM Vitest, Chromium chart/slider regressions, production build, changed-file lint, doc invariants and agent contract. PR body contains final counts and baseline failures.
+- **Follow-ups:** D-052 retains historical IBKR trade acquisition and quote/tape symbol reconciliation. No historical tick download or fabricated intraminute movement added.
+- **Related:** Refs #292; architecture/sim-clock.md (ADR 012 store boundary). User continued the existing local SIM branch; unrelated untracked data/logs are preserved.
 
 ## 2026-09-19 -- nova-brain OpenRouter + Sensor Board context
 
@@ -6242,3 +6285,4 @@ Entry template (copy and fill in):
 - **Verified by:** Built and ran the app via `Run Stock Alert.bat` (uvicorn on `:8000`, Vite on `:5173`) — no code paths changed, doc-only change.
 - **Follow-ups:** `progress.md` and `findings.md` (Phase-0 leftovers, last touched 2026-04-13) overlap with this file and should probably be archived or deleted in a future task.
 - **Related:** Mirrors the newest-first `<!-- ENTRIES_START -->` convention in `PROBLEM_LOG.md`.
+
