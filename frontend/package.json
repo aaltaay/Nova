@@ -1,7 +1,7 @@
 {
   "name": "nova",
   "private": true,
-  "version": "0.1.760",
+  "version": "0.1.762",
   "description": "Nova — local stock scanner (web + Windows desktop)",
   "author": "Altay Studio",
   "type": "module",
