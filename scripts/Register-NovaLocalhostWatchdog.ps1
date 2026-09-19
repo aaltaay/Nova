@@ -9,15 +9,16 @@ $arg = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$watch`" 
 Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
 
 $action = New-ScheduledTaskAction -Execute $ps -Argument $arg
-# At logon + also start whenever the machine is on: daily trigger that repeats every 1 min
-# (starts watch; mutex exits duplicates immediately so this is cheap)
 $tLogon = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
-$tRepeat = New-ScheduledTaskTrigger -Once -At (Get-Date).Date -RepetitionInterval (New-TimeSpan -Minutes 1) -RepetitionDuration ([TimeSpan]::MaxValue)
+# Kick every 5 minutes for a year — mutex makes extras no-ops if watch already looping
+$tRepeat = New-ScheduledTaskTrigger -Once -At ((Get-Date).AddMinutes(1)) `
+  -RepetitionInterval (New-TimeSpan -Minutes 5) `
+  -RepetitionDuration (New-TimeSpan -Days 365)
 $settings = New-ScheduledTaskSettingsSet `
   -AllowStartIfOnBatteries `
   -DontStopIfGoingOnBatteries `
   -StartWhenAvailable `
-  -RestartCount 999 `
+  -RestartCount 3 `
   -RestartInterval (New-TimeSpan -Minutes 1) `
   -ExecutionTimeLimit ([TimeSpan]::Zero) `
   -MultipleInstances IgnoreNew
@@ -26,12 +27,12 @@ $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interac
 Register-ScheduledTask -TaskName $taskName -Action $action `
   -Trigger @($tLogon, $tRepeat) -Settings $settings -Principal $principal -Force | Out-Null
 
-# Launch detached watch NOW (don't rely only on task result codes)
+# Detached long-running watch now
 Start-Process -FilePath $ps -ArgumentList $arg -WindowStyle Hidden
-Start-Sleep 5
-Start-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-Start-Sleep 2
-Get-ScheduledTask -TaskName $taskName | Select-Object TaskName, State
-Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -EA SilentlyContinue |
+Start-Sleep 4
+Write-Host 'Task:'
+Get-ScheduledTask -TaskName $taskName | Format-Table TaskName, State -AutoSize
+Write-Host 'Watch processes:'
+Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" |
   Where-Object { $_.CommandLine -match 'Watch-NovaLocalhost' } |
-  Select-Object ProcessId
+  Select-Object ProcessId | Format-Table -AutoSize
