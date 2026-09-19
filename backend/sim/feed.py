@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from constants_sim import SIM_PRINT_SIZE, SIM_SYMBOL, SIM_TICK_INTERVAL_SEC
+from constants_sim import SIM_PRINT_SIZE, SIM_SYMBOL
 from sim import broker as _broker
 from sim import market as _market
 from sim import session_clock as _clock
@@ -90,10 +90,11 @@ async def _run() -> None:
 
 def tick() -> dict:
     """One synchronous tape step + fill match + fan-out. Used by tests."""
+    if _clock.is_paused():
+        return {}
     try:
         from sim import replay as _replay
         from sim import capture_player as _player
-        from sim import session_clock as _clock
         if _replay.is_capture_replay():
             now_ts = _clock.now_et().timestamp()
             rows = _player.prints_since(_player.last_emit_ts(), now_ts)

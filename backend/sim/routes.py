@@ -1,7 +1,7 @@
 """In-app Sim toggle -- header Paper / Live / Sim posts here."""
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from sim.mode import set_sim_mode, status_payload
@@ -49,7 +49,13 @@ def post_sim_clock(body: dict) -> dict:
     from sim import replay as _replay
     from sim.mode import is_sim_mode
 
-    if body.get("follow_wall"):
+    if "paused" in body:
+        if not is_sim_mode():
+            raise HTTPException(status_code=409, detail="Playback controls require Sim mode")
+        if not isinstance(body["paused"], bool):
+            raise HTTPException(status_code=422, detail="paused must be a boolean")
+        payload = _clock.set_paused(body["paused"])
+    elif body.get("follow_wall"):
         payload = _clock.clear_scrub()
     else:
         minute = int(body.get("minute_from_open", 0))

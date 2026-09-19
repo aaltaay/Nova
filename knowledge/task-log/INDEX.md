@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-09-19 | [Sim pause and play clock control](2026-09-19-sim-pause-play.md) | Freeze Sim clock/feed and resume from the same timestamp; local commit only. |
 | 2026-09-19 | [Sim scrubbing preserves the active Trader tab](2026-09-19-sim-scrub-preserve-tab.md) | Keep IMCC active and SIM1 closed when moving replay time; local-only commit. |
 | 2026-09-10 | [IBKR verification-required flow](2026-09-10-ibkr-verification-required-flow.md) | Error 201 becomes an actionable per-symbol entry latch while exits stay available |
 | 2026-09-08 | [Deferred tracker moves to GitHub Issues](2026-09-08-deferred-github-issues.md) | To-do is Issues labeled `deferred`; DEFERRED_LOG.md is how-to only |

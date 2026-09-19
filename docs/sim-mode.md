@@ -10,6 +10,19 @@ Sim is a **local practice harness**. It is not IBKR paper and not live.
 
 Look up **SIM1**. Quote, Time & Sales, Level 2, and the shared chart path use a looping synthetic tape. Place / cancel / flatten update a sim ledger (positions, Orders Today, Day P&L, Net Liq / BP). Works 24/7 with no Gateway.
 
+## Pause and play
+
+The Sim session bar has one **Pause / Play** icon button. Pause freezes the
+Sim timestamp and stops new simulated tape updates; Play resumes from that
+point without jumping forward by the time spent paused. You can move the
+slider while paused to inspect another moment. The same button then resumes
+playback. **Follow wall clock** explicitly resumes the wall-clock view.
+
+This control applies only to Sim, including capture replay. It does not pause
+IBKR paper or live data. Clock controls preserve the active Trader tab.
+
+Clock contract: `architecture/sim-clock.md`.
+
 ## Turn it off
 
 Click **Paper** or **Live**. Nova disables Sim, then uses the existing Gateway door (same as today).

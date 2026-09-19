@@ -4,8 +4,9 @@ test('scrubbing preserves IMCC with SIM1 closed; explicit replay picks still nav
   let minute = 120;
   let replaySymbol = 'SIM1';
   let scrubPosts = 0;
+  let paused = false;
   const clock = () => ({
-    sim: true, replay_source: 'capture', replay_date: '2026-09-19',
+    sim: true, paused, replay_source: 'capture', replay_date: '2026-09-19',
     replay_symbol: replaySymbol, minute_from_open: minute, minute_max: 720,
   });
   await page.route('http://127.0.0.1:8999/**', async route => {
@@ -13,8 +14,12 @@ test('scrubbing preserves IMCC with SIM1 closed; explicit replay picks still nav
     let body: unknown = {};
     if (path === '/api/sim/clock') {
       if (route.request().method() === 'POST') {
-        minute = route.request().postDataJSON().minute_from_open;
-        scrubPosts++;
+        const action = route.request().postDataJSON();
+        if ('paused' in action) paused = action.paused;
+        else {
+          minute = action.minute_from_open;
+          scrubPosts++;
+        }
       }
       body = clock();
     } else if (path === '/api/sim/replay') {
@@ -37,6 +42,8 @@ test('scrubbing preserves IMCC with SIM1 closed; explicit replay picks still nav
   await page.getByRole('button', { name: 'Close SIM1', exact: true }).click();
   await expect(page.getByTestId('desk-tabs')).toHaveText('IMCC');
   await expect(page.getByTestId('sim-replay-ticker')).toHaveValue('SIM1');
+  await page.getByRole('button', { name: 'Pause Sim time' }).click();
+  await expect(page.getByRole('button', { name: 'Play Sim time' })).toBeVisible();
   const slider = page.getByTestId('sim-session-scrubber');
   const box = (await slider.boundingBox())!;
   await page.mouse.move(box.x + box.width / 6, box.y + box.height / 2);
@@ -56,4 +63,7 @@ test('scrubbing preserves IMCC with SIM1 closed; explicit replay picks still nav
   await page.getByTestId('sim-replay-ticker').selectOption('SIM1');
   await expect(page.getByTestId('desk-active')).toHaveText('SIM1');
   await expect(page.getByTestId('desk-tabs')).toHaveText('IMCC,SIM1');
+  await expect(page.getByRole('button', { name: 'Play Sim time' })).toBeVisible();
+  await page.getByRole('button', { name: 'Play Sim time' }).click();
+  await expect(page.getByRole('button', { name: 'Pause Sim time' })).toBeVisible();
 });

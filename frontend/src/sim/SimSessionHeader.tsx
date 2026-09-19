@@ -9,18 +9,8 @@ import { API_BASE_URL } from '../constants';
 import { novaFetch } from '../api/novaFetch';
 import { emitSimClockScrub } from './simClockEvents';
 import { useWorkspace } from '../workspace/WorkspaceContext';
-
-export interface SimClockState {
-  sim: boolean;
-  sim_time_et?: string;
-  phase?: string;
-  minute_from_open?: number;
-  minute_max?: number;
-  scrubbed?: boolean;
-  replay_date?: string | null;
-  replay_symbol?: string | null;
-  replay_source?: string;
-}
+import { SimPlaybackButton } from './SimPlaybackButton';
+import type { SimClockState } from './simClockTypes';
 
 interface CaptureSessions {
   root?: string;
@@ -220,6 +210,7 @@ export function SimSessionHeader({ active }: { active: boolean }) {
       }}
     >
       <strong style={{ letterSpacing: 0.4 }}>SIM SESSION</strong>
+      <SimPlaybackButton clock={clock} onClock={setClock} />
       <span data-testid="sim-session-clock">{clockLabel}</span>
       <span style={{ opacity: 0.85 }}>{phase}</span>
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
@@ -240,7 +231,7 @@ export function SimSessionHeader({ active }: { active: boolean }) {
         />
         <span>18:00</span>
       </label>
-      {clock?.scrubbed || dragMinute != null ? (
+      {clock?.scrubbed || clock?.paused || dragMinute != null ? (
         <button type="button" onClick={() => void onFollowWall()} style={{ fontSize: 11 }}>
           Follow wall clock
         </button>

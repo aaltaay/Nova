@@ -16,6 +16,16 @@ Bug fixes should **also** be logged in `PROBLEM_LOG.md` (symptom / cause / fix).
 1. **When:** After completing any task that changes logic, public behavior, a module boundary, constants, config, build, or rules. Skip pure cosmetics.
 2. **Where:** Prepend a new `##` section **immediately below** the `<!-- ENTRIES_START -->
 
+## 2026-09-19 -- Sim pause/play button
+
+- **What:** One Sim-header button switches between Pause and Play icons. Pause freezes the Sim clock and feed; Play resumes at the frozen timestamp without wall-time catch-up.
+- **Why:** Operators need time to inspect replay charts and prints without the playhead moving.
+- **Files touched:** sim/session_clock.py, sim/feed.py, sim/routes.py, SimPlaybackButton.tsx, SimSessionHeader.tsx, simClockTypes.ts, focused tests and Sim documentation.
+- **How it works now:** POST /api/sim/clock accepts paused:boolean only while Sim is active. Scrubbing and capture selection stay paused; Follow wall clock clears pause. Requests report errors inline. No Trader navigation from playback controls.
+- **Verified by:** 20 backend tests passed, two confirmed baseline failures excluded (D-051 #291); 18 Vitest tests and Chromium regression passed; production build, changed-file ESLint/Ruff and doc invariants passed.
+- **Follow-ups:** Existing full-project lint blocker remains D-050 #290. Baseline Sim test failures recorded in D-051 #291. User requested a local commit on this branch, no push.
+- **Related:** architecture/sim-clock.md; docs/sim-mode.md; knowledge/task-log/2026-09-19-sim-pause-play.md.
+
 ## 2026-09-19 -- Sim scrub preserves the active Trader tab
 
 - **What:** Moving the Sim time slider refreshes replay data without opening or activating the replay ticker. IMCC remains active when SIM1 has been closed.

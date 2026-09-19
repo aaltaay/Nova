@@ -95,3 +95,28 @@ it('an explicit ticker pick still opens and activates the chosen replay tab', as
   expect(screen.getByTestId('active').textContent).toBe('SIM1');
   expect(screen.getByTestId('tabs').textContent).toBe('IMCC,SIM1');
 });
+
+it('one button switches between Pause and Play without navigating', async () => {
+  await mount();
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Pause Sim time' })); });
+  expect(mocks.fetch).toHaveBeenLastCalledWith(expect.stringContaining('/api/sim/clock'),
+    expect.objectContaining({ body: JSON.stringify({ paused: true }) }));
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Play Sim time' })); });
+  expect(screen.getByRole('button', { name: 'Pause Sim time' })).toBeTruthy();
+  expect(mocks.fetch).toHaveBeenLastCalledWith(expect.stringContaining('/api/sim/clock'),
+    expect.objectContaining({ body: JSON.stringify({ paused: false }) }));
+  expect(mocks.open).not.toHaveBeenCalled();
+});
+
+it('failed pause remains visibly playing and surfaces an error', async () => {
+  await mount();
+  mocks.fetch.mockResolvedValueOnce({ ok: false });
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Pause Sim time' })); });
+  expect(screen.getByRole('alert').textContent).toContain('Could not change Sim playback');
+  expect(screen.getByRole('button', { name: 'Pause Sim time' })).toBeTruthy();
+});
+
+it('playback controls are absent when Sim is inactive', () => {
+  render(<SimSessionHeader active={false} />);
+  expect(screen.queryByRole('button', { name: 'Pause Sim time' })).toBeNull();
+});

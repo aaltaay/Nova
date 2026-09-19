@@ -9,6 +9,14 @@ This file is a **shared memory** of errors fixed and problems identified in this
 1. **When:** After you fix a failing build, test, linter error, runtime error, or incorrect behavior; or after you identify a non-obvious root cause worth remembering. **Required** — not optional for “obvious” or “quick” fixes.
 2. **Where:** Prepend a new `##` section **immediately below** the `<!-- ENTRIES_START -->
 
+## 2026-09-19 -- Sim feed retained unused fixed-interval import
+
+- **Symptom:** Targeted Ruff verification failed F401 for SIM_TICK_INTERVAL_SEC in sim/feed.py.
+- **Cause:** Feed sleep already uses phase_tick_interval_sec; the older fixed interval import was left unused.
+- **Fix:** Remove the unused import in the touched feed module. No timing behavior changed by this cleanup. Playback ownership is documented in architecture/sim-clock.md.
+- **Fix class:** infra
+- **Keywords:** sim, feed, Ruff, F401, SIM_TICK_INTERVAL_SEC, phase_tick_interval_sec
+
 ## 2026-09-19 -- Sim slider reopens closed replay ticker and steals focus
 
 - **Symptom:** With IMCC active and SIM1 closed, dragging the Sim clock reopened SIM1 and activated it.
