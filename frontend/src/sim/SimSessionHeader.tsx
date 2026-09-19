@@ -1,8 +1,9 @@
 /**
  * Second header bar for Sim session clock + scrubber (6:00–18:00 ET).
  * Right side: day + ticker pickers for captured sessions (Lock A).
+ * Scrubber uses local drag state so the 1s clock poll cannot steal the thumb.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { API_BASE_URL } from '../constants';
 import { novaFetch } from '../api/novaFetch';
 import { emitSimClockScrub } from './simClockEvents';
@@ -41,20 +42,30 @@ function formatClock(iso?: string): string {
   }
 }
 
+function formatMinuteClock(minuteFromOpen: number): string {
+  const total = Math.max(0, Math.min(12 * 60, Math.floor(minuteFromOpen)));
+  const h = Math.floor(total / 60) + 6;
+  const m = total % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
+}
+
 export function SimSessionHeader({ active }: { active: boolean }) {
   const [clock, setClock] = useState<SimClockState | null>(null);
   const [sessions, setSessions] = useState<CaptureSessions | null>(null);
   const [day, setDay] = useState<string>('');
   const [symbol, setSymbol] = useState<string>('');
+  const [dragMinute, setDragMinute] = useState<number | null>(null);
+  const draggingRef = useRef(false);
+  const scrubTimerRef = useRef<number | null>(null);
 
   const refreshClock = useCallback(async () => {
+    if (draggingRef.current) return;
     try {
       const res = await novaFetch(`${API_BASE_URL}/api/sim/clock`);
       if (!res.ok) return;
       const body = (await res.json()) as SimClockState;
+      if (draggingRef.current) return;
       setClock(body);
-      // Only sync pickers from server when a capture is actually selected.
-      // Do not wipe a day the user just chose before picking a ticker.
       if (body.replay_source === 'capture' && body.replay_date && body.replay_symbol) {
         setDay(body.replay_date);
         setSymbol(body.replay_symbol);
@@ -79,7 +90,10 @@ export function SimSessionHeader({ active }: { active: boolean }) {
     void refreshClock();
     void refreshSessions();
     const id = window.setInterval(() => void refreshClock(), 1000);
-    return () => window.clearInterval(id);
+    return () => {
+      window.clearInterval(id);
+      if (scrubTimerRef.current != null) window.clearTimeout(scrubTimerRef.current);
+    };
   }, [active, refreshClock, refreshSessions]);
 
   const tickers = useMemo(() => {
@@ -87,23 +101,58 @@ export function SimSessionHeader({ active }: { active: boolean }) {
     return sessions.tickers_by_day[day] ?? [];
   }, [day, sessions]);
 
-  const onScrub = async (minute: number) => {
+  const postScrub = useCallback(async (minute: number, emitCharts: boolean) => {
     try {
       const res = await novaFetch(`${API_BASE_URL}/api/sim/clock`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ minute_from_open: minute }),
       });
-      if (res.ok) {
-        setClock((await res.json()) as SimClockState);
-        emitSimClockScrub();
+      if (!res.ok) return;
+      const body = (await res.json()) as SimClockState;
+      if (!draggingRef.current) {
+        setClock(body);
+        setDragMinute(null);
+      } else {
+        setClock(c => ({ ...(c || { sim: true }), ...body, minute_from_open: minute, scrubbed: true }));
       }
+      if (emitCharts) emitSimClockScrub();
     } catch {
       /* ignore */
     }
+  }, []);
+
+  const onScrubInput = (minute: number) => {
+    setDragMinute(minute);
+    setClock(c =>
+      c
+        ? {
+            ...c,
+            minute_from_open: minute,
+            scrubbed: true,
+            sim_time_et: undefined,
+          }
+        : c,
+    );
+    if (scrubTimerRef.current != null) window.clearTimeout(scrubTimerRef.current);
+    // Debounce server + chart work so the thumb stays smooth.
+    scrubTimerRef.current = window.setTimeout(() => {
+      void postScrub(minute, false);
+    }, 120);
+  };
+
+  const endDrag = (minute: number) => {
+    draggingRef.current = false;
+    if (scrubTimerRef.current != null) {
+      window.clearTimeout(scrubTimerRef.current);
+      scrubTimerRef.current = null;
+    }
+    void postScrub(minute, true).then(() => setDragMinute(null));
   };
 
   const onFollowWall = async () => {
+    draggingRef.current = false;
+    setDragMinute(null);
     try {
       const res = await novaFetch(`${API_BASE_URL}/api/sim/clock`, {
         method: 'POST',
@@ -141,9 +190,11 @@ export function SimSessionHeader({ active }: { active: boolean }) {
 
   if (!active) return null;
   const max = clock?.minute_max ?? 12 * 60;
-  const minute = clock?.minute_from_open ?? 0;
+  const minute = dragMinute ?? clock?.minute_from_open ?? 0;
   const phase = (clock?.phase || '—').toUpperCase();
   const source = clock?.replay_source === 'capture' ? 'CAPTURE' : 'SIM1';
+  const clockLabel =
+    dragMinute != null ? `${formatMinuteClock(dragMinute)} ET` : `${formatClock(clock?.sim_time_et)} ET`;
 
   return (
     <div
@@ -161,7 +212,7 @@ export function SimSessionHeader({ active }: { active: boolean }) {
       }}
     >
       <strong style={{ letterSpacing: 0.4 }}>SIM SESSION</strong>
-      <span data-testid="sim-session-clock">{formatClock(clock?.sim_time_et)} ET</span>
+      <span data-testid="sim-session-clock">{clockLabel}</span>
       <span style={{ opacity: 0.85 }}>{phase}</span>
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
         <span>6:00</span>
@@ -171,12 +222,17 @@ export function SimSessionHeader({ active }: { active: boolean }) {
           min={0}
           max={max}
           value={minute}
-          onChange={e => void onScrub(Number(e.target.value))}
+          onPointerDown={() => {
+            draggingRef.current = true;
+          }}
+          onPointerUp={e => endDrag(Number((e.target as HTMLInputElement).value))}
+          onPointerCancel={e => endDrag(Number((e.target as HTMLInputElement).value))}
+          onChange={e => onScrubInput(Number(e.target.value))}
           style={{ flex: 1 }}
         />
         <span>18:00</span>
       </label>
-      {clock?.scrubbed ? (
+      {clock?.scrubbed || dragMinute != null ? (
         <button type="button" onClick={() => void onFollowWall()} style={{ fontSize: 11 }}>
           Follow wall clock
         </button>
@@ -194,7 +250,6 @@ export function SimSessionHeader({ active }: { active: boolean }) {
             const next = e.target.value;
             setDay(next);
             setSymbol('');
-            // Stay on synthetic until a ticker is chosen; picking Synthetic clears.
             if (!next) void applyReplay('', '');
           }}
           style={{ fontSize: 11, maxWidth: 120 }}
