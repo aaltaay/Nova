@@ -52,11 +52,11 @@ export function SimSessionHeader({ active }: { active: boolean }) {
       if (!res.ok) return;
       const body = (await res.json()) as SimClockState;
       setClock(body);
-      if (body.replay_date) setDay(body.replay_date);
-      if (body.replay_symbol) setSymbol(body.replay_symbol);
-      if (body.replay_source === 'synthetic') {
-        setDay('');
-        setSymbol('');
+      // Only sync pickers from server when a capture is actually selected.
+      // Do not wipe a day the user just chose before picking a ticker.
+      if (body.replay_source === 'capture' && body.replay_date && body.replay_symbol) {
+        setDay(body.replay_date);
+        setSymbol(body.replay_symbol);
       }
     } catch {
       /* ignore */
@@ -187,7 +187,8 @@ export function SimSessionHeader({ active }: { active: boolean }) {
             const next = e.target.value;
             setDay(next);
             setSymbol('');
-            void applyReplay('', '');
+            // Stay on synthetic until a ticker is chosen; picking Synthetic clears.
+            if (!next) void applyReplay('', '');
           }}
           style={{ fontSize: 11, maxWidth: 120 }}
         >
