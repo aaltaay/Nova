@@ -70,6 +70,8 @@ def fetch_chart_bars(
     Single-feed rule: when ``discovery_provider == \"ibkr\"``, candles are
     IBKR-sourced (store and/or live historical). There is no silent Alpaca
     fallback. An empty store while Gateway is down is still HTTP 503.
+
+    Sim: 1Day/1Week/1Month use IBKR (except SIM1 synthetic). Intraday uses capture/sim tape.
     """
     symbol = symbol.upper()
     from sim.mode import is_sim_mode
@@ -77,13 +79,31 @@ def fetch_chart_bars(
     if is_sim_mode():
         from constants_sim import SIM_SYMBOL
         from sim import market as _sim_market
+        from sim import replay as _sim_replay
 
-        if symbol == SIM_SYMBOL:
-            return _sim_market.chart_bars(symbol, timeframe, limit)
-        raise HTTPException(
-            status_code=503,
-            detail="SIM mode only serves SIM1 -- switch to Paper or Live for IBKR charts.",
-        )
+        # Lock 2026-09-19: daily+ from IBKR historical (not capture bars_1d).
+        # Intraday scrubbed tape from sim/capture. SIM1 daily stays synthetic.
+        _daily_tfs = frozenset({"1Day", "1Week", "1Month"})
+        if timeframe in _daily_tfs:
+            if symbol == SIM_SYMBOL:
+                return _sim_market.chart_bars(symbol, timeframe, limit)
+            # Real ticker: fall through to IBKR store/historical below.
+        else:
+            replay_sym = str(
+                (_sim_replay.status_payload() or {}).get("replay_symbol") or ""
+            ).strip().upper()
+            use_local = symbol == SIM_SYMBOL or (
+                _sim_replay.is_capture_replay() and replay_sym == symbol
+            )
+            if use_local:
+                return _sim_market.chart_bars(symbol, timeframe, limit)
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "SIM mode intraday charts need SIM1 or a selected capture ticker. "
+                    "Pick Day+Ticker in SIM SESSION, or switch to Paper/Live for IBKR."
+                ),
+            )
     if discovery_provider == "ibkr":
         stored = _store_read(symbol, timeframe, limit)
         ready = _ibkr_client.is_ready()

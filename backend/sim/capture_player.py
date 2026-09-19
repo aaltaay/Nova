@@ -185,6 +185,7 @@ def _ensure_l2() -> None:
 
 
 def chart_bars(timeframe: str, limit: int) -> list[dict[str, Any]]:
+    """Intraday bars from capture. Daily SSOT is IBKR (see chart_bars.py); 1d here is unused for desk."""
     if not is_loaded():
         return []
     kind = _bar_tf(timeframe)

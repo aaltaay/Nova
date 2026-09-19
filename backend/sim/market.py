@@ -285,7 +285,9 @@ def chart_bars(symbol: str, timeframe: str, limit: int) -> dict[str, Any]:
     try:
         from sim import replay as _replay
         from sim import capture_player as _player
-        if _replay.is_capture_replay():
+        # Capture owns scrubbed intraday only — daily+ is IBKR (chart_bars.py).
+        tf_norm = (timeframe or "").strip()
+        if _replay.is_capture_replay() and tf_norm not in ("1Day", "1Week", "1Month"):
             bars = _player.chart_bars(timeframe, limit)
             return {
                 "symbol": sym or _replay.status_payload().get("replay_symbol") or SIM_SYMBOL,
