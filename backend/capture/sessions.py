@@ -8,21 +8,15 @@ from typing import Any
 from capture.recorder import capture_root
 
 
-def _line_count(path: Path, limit: int = 50_000) -> int:
-    if not path.is_file():
-        return 0
-    n = 0
+def _file_bytes(path: Path) -> int:
     try:
-        with path.open("r", encoding="utf-8", errors="ignore") as fh:
-            for n, _ in enumerate(fh, 1):
-                if n >= limit:
-                    return n
+        return path.stat().st_size if path.is_file() else 0
     except OSError:
         return 0
-    return n
 
 
 def list_sessions() -> dict[str, Any]:
+    """Fast listing: prefer manifest.counts; never line-scan huge jsonl."""
     root = capture_root()
     days: list[dict[str, Any]] = []
     if not root.is_dir():
@@ -40,14 +34,30 @@ def list_sessions() -> dict[str, Any]:
                     man = json.loads(man_path.read_text(encoding="utf-8"))
                 except Exception:
                     man = {}
-            prints = _line_count(sym_dir / "prints.jsonl")
-            l2 = _line_count(sym_dir / "l2.jsonl")
+            counts = man.get("counts") if isinstance(man.get("counts"), dict) else {}
+            prints_n = int(counts.get("prints") or 0)
+            l2_n = int(counts.get("l2") or 0)
+            # Presence check only (bytes), never read lines.
+            has_prints = _file_bytes(sym_dir / "prints.jsonl") > 0
+            has_l2 = _file_bytes(sym_dir / "l2.jsonl") > 0
+            if prints_n == 0 and has_prints:
+                prints_n = -1  # unknown but present
+            if l2_n == 0 and has_l2:
+                l2_n = -1
+            # Skip empty dirs with no capture files
+            if not (has_prints or has_l2 or man):
+                continue
             tickers.append(
                 {
                     "symbol": sym_dir.name.upper(),
                     "dir": str(sym_dir),
-                    "prints": prints,
-                    "l2": l2,
+                    "prints": prints_n,
+                    "l2": l2_n,
+                    "bytes": {
+                        "prints": _file_bytes(sym_dir / "prints.jsonl"),
+                        "l2": _file_bytes(sym_dir / "l2.jsonl"),
+                        "quotes": _file_bytes(sym_dir / "quotes.jsonl"),
+                    },
                     "source": man.get("source"),
                     "status": man.get("status"),
                     "partial_ok": man.get("partial_ok", True),

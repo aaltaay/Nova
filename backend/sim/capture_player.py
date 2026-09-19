@@ -1,6 +1,7 @@
 """Play recorded sim_capture jsonl into Sim desk (charts / T&S / L2 / quotes)."""
 from __future__ import annotations
 
+import bisect
 import json
 import logging
 from datetime import datetime, timezone
@@ -17,16 +18,25 @@ _prints: list[dict[str, Any]] = []
 _quotes: list[dict[str, Any]] = []
 _l2: list[dict[str, Any]] = []
 _bars: dict[str, list[dict[str, Any]]] = {"10s": [], "1m": [], "5m": [], "1d": []}
+_print_keys: list[float] = []
+_quote_keys: list[float] = []
+_l2_keys: list[float] = []
+_bar_keys: dict[str, list[float]] = {}
 _loaded_key: str | None = None
 _last_emit_ts: float = 0.0
+_l2_path: Path | None = None
 
 
 def reset_for_tests() -> None:
-    global _prints, _quotes, _l2, _bars, _loaded_key, _last_emit_ts
+    global _prints, _quotes, _l2, _bars, _loaded_key, _last_emit_ts, _l2_path
+    global _print_keys, _quote_keys, _l2_keys, _bar_keys
     _prints, _quotes, _l2 = [], [], []
     _bars = {"10s": [], "1m": [], "5m": [], "1d": []}
+    _print_keys, _quote_keys, _l2_keys = [], [], []
+    _bar_keys = {}
     _loaded_key = None
     _last_emit_ts = 0.0
+    _l2_path = None
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -55,26 +65,42 @@ def session_dir(date: str, symbol: str) -> Path:
 
 
 def load(date: str, symbol: str) -> dict[str, Any]:
-    global _prints, _quotes, _l2, _bars, _loaded_key, _last_emit_ts
+    """Eager prints/quotes/bars; defer L2 so API stays responsive."""
+    global _prints, _quotes, _l2, _bars, _loaded_key, _last_emit_ts, _l2_path
+    global _print_keys, _quote_keys, _l2_keys, _bar_keys
     key = f"{date}|{symbol.upper()}"
     root = session_dir(date, symbol)
     if not root.is_dir():
         reset_for_tests()
         return {"ok": False, "error": f"missing {root}", "key": key}
+
     _prints = sorted(_read_jsonl(root / "prints.jsonl"), key=_ts)
     _quotes = sorted(_read_jsonl(root / "quotes.jsonl"), key=_ts)
-    _l2 = sorted(_read_jsonl(root / "l2.jsonl"), key=_ts)
+    _l2 = []
+    _l2_path = root / "l2.jsonl"
     _bars = {
         "10s": sorted(_read_jsonl(root / "bars_10s.jsonl"), key=_ts),
         "1m": sorted(_read_jsonl(root / "bars_1m.jsonl"), key=_ts),
         "5m": sorted(_read_jsonl(root / "bars_5m.jsonl"), key=_ts),
         "1d": sorted(_read_jsonl(root / "bars_1d.jsonl"), key=_ts),
     }
+    _print_keys = [_ts(r) for r in _prints]
+    _quote_keys = [_ts(r) for r in _quotes]
+    _l2_keys = []
+    _bar_keys = {k: [_ts(r) for r in v] for k, v in _bars.items()}
     _loaded_key = key
     _last_emit_ts = 0.0
-    first_ts = _ts(_prints[0]) if _prints else (_ts(_bars["1m"][0]) if _bars["1m"] else None)
-    last_ts = _ts(_prints[-1]) if _prints else (_ts(_bars["1m"][-1]) if _bars["1m"] else None)
-    logger.info("CAPTURE PLAY: loaded %s prints=%s l2=%s bars1m=%s", root, len(_prints), len(_l2), len(_bars["1m"]))
+    first_ts = _print_keys[0] if _print_keys else None
+    last_ts = _print_keys[-1] if _print_keys else None
+    l2_bytes = _l2_path.stat().st_size if _l2_path.is_file() else 0
+    logger.info(
+        "CAPTURE PLAY: loaded %s prints=%s quotes=%s bars1m=%s l2_bytes=%s",
+        root,
+        len(_prints),
+        len(_quotes),
+        len(_bars["1m"]),
+        l2_bytes,
+    )
     return {
         "ok": True,
         "key": key,
@@ -82,7 +108,8 @@ def load(date: str, symbol: str) -> dict[str, Any]:
         "counts": {
             "prints": len(_prints),
             "quotes": len(_quotes),
-            "l2": len(_l2),
+            "l2": -1,
+            "l2_bytes": l2_bytes,
             "bars_10s": len(_bars["10s"]),
             "bars_1m": len(_bars["1m"]),
             "bars_5m": len(_bars["5m"]),
@@ -101,8 +128,13 @@ def is_loaded() -> bool:
     return _loaded_key is not None
 
 
+def loaded_key() -> str | None:
+    return _loaded_key
+
+
 def asof_unix() -> float:
     from sim import session_clock as _clock
+
     return _clock.now_et().timestamp()
 
 
@@ -130,28 +162,26 @@ def _to_chart_bar(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _bars_from_prints(kind: str, limit: int, asof: float) -> list[dict[str, Any]]:
-    step = {"10s": 10, "1m": 60, "5m": 300, "1d": 86400}.get(kind, 60)
-    prints = [p for p in _prints if _ts(p) <= asof + 1e-6]
-    if not prints:
-        return []
-    buckets: dict[int, dict[str, Any]] = {}
-    for p in prints:
-        ts = int(_ts(p))
-        bts = ts - (ts % step)
-        px = float(p.get("price") or 0)
-        sz = float(p.get("size") or 0)
-        cur = buckets.get(bts)
-        if cur is None:
-            buckets[bts] = {"ts": float(bts), "open": px, "high": px, "low": px, "close": px, "volume": sz}
-        else:
-            cur["high"] = max(cur["high"], px)
-            cur["low"] = min(cur["low"], px)
-            cur["close"] = px
-            cur["volume"] += sz
-    ordered = [buckets[k] for k in sorted(buckets)]
-    cap = max(1, min(int(limit or 300), 2000))
-    return [_to_chart_bar(r) for r in ordered[-cap:]]
+def _asof_index(keys: list[float], asof: float) -> int:
+    if not keys:
+        return -1
+    return bisect.bisect_right(keys, asof) - 1
+
+
+def _ensure_l2() -> None:
+    global _l2, _l2_keys, _l2_path
+    if _l2 or _l2_path is None:
+        return
+    path = _l2_path
+    if not path.is_file():
+        return
+    rows = _read_jsonl(path)
+    if len(rows) > 30_000:
+        step = max(1, len(rows) // 30_000)
+        rows = rows[::step]
+    _l2 = sorted(rows, key=_ts)
+    _l2_keys = [_ts(r) for r in _l2]
+    logger.info("CAPTURE PLAY: L2 hydrated n=%s from %s", len(_l2), path)
 
 
 def chart_bars(timeframe: str, limit: int) -> list[dict[str, Any]]:
@@ -159,92 +189,116 @@ def chart_bars(timeframe: str, limit: int) -> list[dict[str, Any]]:
         return []
     kind = _bar_tf(timeframe)
     rows = _bars.get(kind) or []
+    keys = _bar_keys.get(kind) or []
     asof = asof_unix()
-    usable = [r for r in rows if _ts(r) <= asof + 1e-6]
-    if not usable:
-        return _bars_from_prints(kind, limit, asof)
+    i = _asof_index(keys, asof + 1e-6)
+    if i < 0:
+        return []
     cap = max(1, min(int(limit or 300), 2000))
-    return [_to_chart_bar(r) for r in usable[-cap:]]
+    return [_to_chart_bar(r) for r in rows[max(0, i - cap + 1) : i + 1]]
 
 
 def recent_prints(limit: int = 40) -> list[dict[str, Any]]:
-    if not is_loaded():
+    if not is_loaded() or not _prints:
         return []
     asof = asof_unix()
-    rows = [p for p in _prints if _ts(p) <= asof + 1e-6]
+    i = _asof_index(_print_keys, asof + 1e-6)
+    if i < 0:
+        return []
+    cap = max(1, int(limit))
+    chunk = _prints[max(0, i - cap + 1) : i + 1]
     out: list[dict[str, Any]] = []
-    for p in rows[-max(1, limit):]:
+    for p in chunk:
         ts = _ts(p)
         t_iso = datetime.fromtimestamp(ts, tz=ET).astimezone(timezone.utc).isoformat()
-        out.append({
-            "type": "print",
-            "symbol": str(p.get("symbol") or "").upper(),
-            "time": t_iso,
-            "price": float(p.get("price") or 0),
-            "size": int(p.get("size") or 1),
-            "exchange": str(p.get("exchange") or ""),
-            "conditions": str(p.get("conditions") or ""),
-            "side": p.get("side"),
-            "bid": p.get("bid"),
-            "ask": p.get("ask"),
-        })
+        out.append(
+            {
+                "type": "print",
+                "symbol": str(p.get("symbol") or "").upper(),
+                "time": t_iso,
+                "price": float(p.get("price") or 0),
+                "size": int(p.get("size") or 1),
+                "exchange": str(p.get("exchange") or ""),
+                "conditions": str(p.get("conditions") or ""),
+                "side": p.get("side"),
+                "bid": p.get("bid"),
+                "ask": p.get("ask"),
+            }
+        )
     return out
 
 
-def quote_at() -> dict[str, Any] | None:
-    if not is_loaded():
+def quote_at(asof: float | None = None) -> dict[str, Any] | None:
+    t = asof if asof is not None else asof_unix()
+    if _quotes:
+        i = _asof_index(_quote_keys, t)
+        if i >= 0:
+            row = _quotes[i]
+            return {
+                "symbol": str(row.get("symbol") or "").upper(),
+                "bid": row.get("bid"),
+                "ask": row.get("ask"),
+                "last": row.get("last") or row.get("price"),
+                "bid_size": row.get("bid_size"),
+                "ask_size": row.get("ask_size"),
+                "volume": row.get("volume"),
+                "ts": _ts(row),
+                "source": "capture",
+            }
+    i = _asof_index(_print_keys, t)
+    if i < 0:
         return None
-    asof = asof_unix()
-    qrows = [q for q in _quotes if _ts(q) <= asof + 1e-6]
-    prows = [p for p in _prints if _ts(p) <= asof + 1e-6]
-    last = float(prows[-1]["price"]) if prows else None
-    bid = ask = None
-    if qrows:
-        q = qrows[-1]
-        bid, ask = q.get("bid"), q.get("ask")
-        if last is None and q.get("last") is not None:
-            last = float(q["last"])
-    elif prows:
-        bid, ask = prows[-1].get("bid"), prows[-1].get("ask")
-    if last is None:
-        return None
+    row = _prints[i]
+    px = float(row.get("price") or 0)
     return {
-        "last": last,
-        "bid": float(bid) if bid is not None else last,
-        "ask": float(ask) if ask is not None else last,
+        "symbol": str(row.get("symbol") or "").upper(),
+        "bid": row.get("bid") or round(px - 0.01, 2),
+        "ask": row.get("ask") or round(px + 0.01, 2),
+        "last": px,
+        "bid_size": 100,
+        "ask_size": 100,
         "volume": None,
-        "prev_close": None,
-        "change_pct": None,
-        "change_abs": None,
+        "ts": _ts(row),
+        "source": "capture",
     }
 
 
-def book_at() -> dict[str, Any] | None:
-    if not is_loaded() or not _l2:
+def book_at(asof: float | None = None) -> dict[str, Any] | None:
+    _ensure_l2()
+    if not _l2:
         return None
-    asof = asof_unix()
-    rows = [r for r in _l2 if _ts(r) <= asof + 1e-6]
-    if not rows:
+    t = asof if asof is not None else asof_unix()
+    i = _asof_index(_l2_keys, t)
+    if i < 0:
         return None
-    r = rows[-1]
-    return {"bids": r.get("bids") or [], "asks": r.get("asks") or [], "l1_fallback": False}
+    row = _l2[i]
+    return {
+        "symbol": str(row.get("symbol") or "").upper(),
+        "bids": list(row.get("bids") or []),
+        "asks": list(row.get("asks") or []),
+        "ts": _ts(row),
+        "source": "capture",
+    }
 
 
-def prints_since(after_ts: float, until_ts: float) -> list[dict[str, Any]]:
-    if not is_loaded():
+def prints_since(since_ts: float, until_ts: float) -> list[dict[str, Any]]:
+    if not _prints:
         return []
-    return [p for p in _prints if after_ts < _ts(p) <= until_ts + 1e-6]
+    lo = bisect.bisect_right(_print_keys, float(since_ts))
+    hi = bisect.bisect_right(_print_keys, float(until_ts))
+    return _prints[lo:hi]
 
 
 def last_emit_ts() -> float:
     return _last_emit_ts
 
 
-def mark_emitted(until_ts: float) -> None:
+def mark_emitted(ts: float) -> None:
     global _last_emit_ts
-    _last_emit_ts = max(_last_emit_ts, until_ts)
+    _last_emit_ts = max(_last_emit_ts, float(ts))
 
 
 def seek_emit_cursor(asof: float) -> None:
+    """Position emit cursor just before asof so the next tick streams forward."""
     global _last_emit_ts
-    _last_emit_ts = asof
+    _last_emit_ts = float(asof) - 0.001
