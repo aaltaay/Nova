@@ -50,6 +50,33 @@ def test_real_history_cutoff_before_limit_and_backward_seek(monkeypatch):
     assert len(bars_store.read("IMCC", "1Min", 10)["bars"]) == 4
 
 
+def test_real_intraday_replay_does_not_paint_prior_session(monkeypatch):
+    bars_store.write_payload(dict(symbol="IMCC", timeframe="5Min", bars=[
+        candle("2026-09-18T13:30:00Z"),
+        candle("2026-09-18T19:55:00Z", 90),
+    ]))
+    monkeypatch.setattr(session_clock, "now_et", lambda: datetime.fromisoformat(
+        "2026-09-19T06:46:00-04:00",
+    ))
+    assert fetch("5Min")["bars"] == []
+    assert len(bars_store.read("IMCC", "5Min", 10)["bars"]) == 2
+
+
+def test_real_intraday_replay_shows_only_closed_bars_on_selected_day(monkeypatch):
+    bars_store.write_payload(dict(symbol="IMCC", timeframe="1Min", bars=[
+        candle("2026-09-17T19:00:00Z", 1),
+        candle("2026-09-18T09:59:00Z", 2),
+        candle("2026-09-18T10:00:00Z", 3),
+        candle("2026-09-18T10:01:00Z", 4),
+    ]))
+    monkeypatch.setattr(session_clock, "now_et", lambda: datetime.fromisoformat(
+        "2026-09-18T06:01:30-04:00",
+    ))
+    assert [b["t"] for b in fetch("1Min")["bars"]] == [
+        "2026-09-18T09:59:00Z", "2026-09-18T10:00:00Z",
+    ]
+
+
 @pytest.mark.parametrize("tf,cutoff", [
     ("10Sec", "2026-09-18T13:31:07+00:00"),
     ("5Min", "2026-09-18T13:26:17+00:00"),

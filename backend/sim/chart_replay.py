@@ -60,8 +60,14 @@ def fetch_replay_bars(symbol: str, timeframe: str, limit: int) -> dict:
         bars = [] if captured else market.chart_bars(symbol, timeframe, limit)["bars"]
         return response(symbol, timeframe, bars, now, source="sim",
                         replay_mode="completed_bars" if captured else "synthetic")
+    session_start = None
+    if timeframe in INTERVAL_SECONDS:
+        session_start = datetime.combine(
+            now.astimezone(ET).date(), datetime.min.time(), ET,
+        ).timestamp()
     stored = read(symbol, timeframe, limit,
-                  through_ts=completed_start_cutoff(timeframe, now))
+                  through_ts=completed_start_cutoff(timeframe, now),
+                  from_ts=session_start)
     return response(symbol, timeframe, (stored or {}).get("bars", []), now,
                     source="ibkr", replay_mode="completed_bars")
 

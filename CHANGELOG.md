@@ -54,6 +54,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- IMCC intraday replay respects the selected session date
+
+- **What:** Real-ticker intraday SIM charts show only completed bars from the clock's Eastern session date. The standalone replay fixture now opens with local sample data through Vite and explains direct-file usage.
+- **Why:** At 06:46 on September 19, IMCC painted the entire September 18 intraday session because the cutoff excluded future timestamps but did not exclude prior days.
+- **Files touched:** `backend/sim/chart_replay.py`, `backend/bars_store.py`, replay fixture and tests, `architecture/sim-clock.md`.
+- **How it works now:** The store applies both the session start and completed-interval end before limiting rows. No IMCC bars on the selected date means an empty pane; daily historical context remains available. Without trade prints, a current intraday candle waits until its interval closes.
+- **Verified by:** SIM replay backend tests (13 passed), Chromium replay fixture (3 passed), frontend production build.
+- **Follow-ups:** IMCC historical trade acquisition and symbol/date selection remain in D-052 #292.
+- **Related:** `PROBLEM_LOG.md` 2026-09-19 IMCC prior-session chart; D-052 #292; PR #294.
+
 ## 2026-09-19 -- Replay chart knowledge boundary
 
 - **What:** All SIM chart reads use the replay clock, including real tickers without a selected capture. Archived candles appear only after interval close; recorded trades build partial intraday candles and volume. Current calendar-period daily/weekly/monthly bars stay hidden.

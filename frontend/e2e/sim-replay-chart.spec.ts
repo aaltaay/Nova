@@ -30,7 +30,7 @@ test('actual candle series follows replay time, clears on rewind and ignores a f
     }
     await route.fulfill({ json: body });
   });
-  await page.goto('/e2e/fixtures/replay-chart.html');
+  await page.goto('/e2e/fixtures/replay-chart.html?external-api=1');
   const painted = page.getByTestId('painted');
   // Cold Vite compilation is separate from the chart's one-second replay poll.
   await expect(painted).toBeVisible({ timeout: 15_000 });
@@ -52,4 +52,27 @@ test('actual candle series follows replay time, clears on rewind and ignores a f
   await expect.poll(async () => JSON.parse(await painted.innerText()).length).toBe(1);
   await expect(painted).not.toContainText('999');
   expect(errors).toEqual([]);
+});
+
+test('the fixture opens with sample data without Playwright API interception', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/e2e/fixtures/replay-chart.html');
+  const painted = page.getByTestId('painted');
+  await expect(painted).toBeVisible({ timeout: 15_000 });
+  await expect.poll(async () => JSON.parse(await painted.innerText()).length).toBe(2);
+  await page.getByRole('button', { name: 'Advance sample minute' }).click();
+  await expect.poll(async () => JSON.parse(await painted.innerText()).length).toBe(3);
+  await page.getByTestId('sim-session-scrubber').focus();
+  await page.keyboard.press('Home');
+  await expect(painted).toHaveText('[]');
+  expect(errors).toEqual([]);
+});
+
+test('opening HTML directly explains how to run the fixture', async ({ page }) => {
+  await page.goto(`file://${process.cwd().replaceAll('\\', '/')}/e2e/fixtures/replay-chart.html`);
+  await expect(page.getByText('This test fixture needs the Vite dev server')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'the replay chart fixture' })).toHaveAttribute(
+    'href', 'http://127.0.0.1:5173/e2e/fixtures/replay-chart.html',
+  );
 });

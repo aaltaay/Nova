@@ -54,6 +54,13 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- IMCC prior-session chart looked like future replay
+
+- **Symptom:** IMCC's 5-minute and 1-minute panes showed a fully painted September 18 session while SIM was at 06:46 ET on September 19.
+- **Cause:** The replay store query had an upper timestamp cutoff but no lower session-date bound, so it returned the most recent prior-day bars when the selected day had no IMCC data.
+- **Fix:** Restrict real-ticker intraday replay queries to the clock's Eastern date before `LIMIT`; keep previous completed periods only on daily/longer charts. Add a no-data regression and an interval-close regression.
+- **Keywords:** IMCC, replay, lookahead, previous session, bars_store, Eastern date, SIM clock
+
 ## 2026-09-19 -- SIM charts exposed future OHLCV and stale replay data
 
 - **Symptom:** SIM time was earlier than visible chart candles; captured open candles already contained their final high, low, close and volume. Rewinding could retain future candles or VWAP.

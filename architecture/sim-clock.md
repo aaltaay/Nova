@@ -29,8 +29,11 @@ Sim-only validation, and the single-button UI in unit and browser tests.
 
 All SIM chart responses use the session clock, including real tickers without
 a selected capture. Under ADR 012 the archived IBKR store remains the source,
-but replay reads apply the time cutoff before the row limit. Replay never
-substitutes unrestricted present-day history for missing past data.
+but intraday replay reads are restricted to the clock's Eastern session date
+and apply the time cutoff before the row limit. A real ticker without bars on
+that date shows an empty pane rather than a fully painted earlier session.
+Daily and longer history may still show earlier completed periods as context.
+Replay never substitutes unrestricted present-day history for missing past data.
 
 Completed intraday OHLCV is visible only at interval end. Captured prints may
 build the current candle using only events at or before the playhead. Missing
@@ -48,3 +51,10 @@ replay-owned candles. Indicators receive the same bounded bars.
 Historical trade acquisition, quote/tape symbol reconciliation, and current
 daily/weekly/monthly partial aggregation remain tracked in D-052; this chart
 boundary does not claim those datasets or features exist.
+
+The browser replay chart under `frontend/e2e/fixtures/` is a development
+fixture. Vite serves its TSX module. Its normal browser URL uses a small local
+sample clock and bars so opening the page needs no broker, credentials, or
+Playwright route interception. Playwright can opt into external API interception
+with `?external-api=1`. Opening its HTML as `file://` shows the Vite URL and
+does not try to import TSX directly.

@@ -6,6 +6,10 @@ import { SimSessionHeader } from '../../src/sim/SimSessionHeader';
 import { useChartBars } from '../../src/chart/useChartBars';
 import { useChartLiveTrade } from '../../src/chart/useChartLiveTrade';
 import { useVwapSourceBars } from '../../src/chart/useVwapSourceBars';
+import { advanceSampleMinute, installSampleReplayApi } from './replayChartSampleApi';
+
+const sampleApi = !new URLSearchParams(location.search).has('external-api');
+if (sampleApi) installSampleReplayApi();
 
 const futureTrade = { symbol: 'IMCC', price: 999, timestamp: '2026-09-18T23:00:00Z' };
 
@@ -30,6 +34,7 @@ function Chart() {
     lastTrade: futureTrade, applyLiveTrade: live.applyLiveTrade, onSeriesReset: live.resetTradeState });
   const vwap = useVwapSourceBars('IMCC', true);
   return <>
+    {sampleApi && <button type="button" onClick={advanceSampleMinute}>Advance sample minute</button>}
     <div ref={container} />
     <output data-testid="painted">{painted}</output>
     <output data-testid="indicators">{JSON.stringify(state.indicatorBars)}</output>
