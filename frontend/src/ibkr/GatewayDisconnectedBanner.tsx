@@ -8,7 +8,7 @@
  * ports dark / disconnect login hint). Do NOT show for Error 1100-style
  * transport_up + session !usable -- reconnect recovers that without a login.
  */
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useSyncExternalStore } from 'react';
 import { HEADER_GATEWAY_LAUNCH_HINT } from '../constants';
 import { launchIbGateway, type LaunchGatewayMode } from '../utils/launchIbGateway';
 import { emptyIbkrDisconnectedMessage } from './disconnectCopy';
@@ -18,6 +18,7 @@ import {
   PREREQ_GATEWAY_STALE_SECOND_FACTOR_DETAIL,
 } from './gatewayUxConstants';
 import { openTradingPrerequisites } from './tradingPrereqUi';
+import { getRecordingSymbols, subscribeSessionRecord } from '../capture/sessionRecordStore';
 
 interface Props {
   discoveryProvider: string;
@@ -82,6 +83,13 @@ export function GatewayDisconnectedBanner({
   ibkrGatewayMode = null,
   ibkrSecondFactorStale = false,
 }: Props) {
+  const recording = useSyncExternalStore(
+    subscribeSessionRecord,
+    () => getRecordingSymbols().join(','),
+    () => '',
+  );
+  // Every hook runs before any early return (D-050): toggling Record must not
+  // change hook order between renders.
   const [busyMode, setBusyMode] = useState<LaunchGatewayMode | null>(null);
   const [launchHint, setLaunchHint] = useState<string | null>(null);
 
@@ -96,6 +104,7 @@ export function GatewayDisconnectedBanner({
     setBusyMode(null);
   }, [busyMode, ibkrSecondFactorStale]);
 
+  if (recording) return null;
   if (
     !shouldShowGatewayLoginBanner({
       discoveryProvider,

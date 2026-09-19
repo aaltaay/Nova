@@ -55,6 +55,12 @@ def set_sim_mode(enabled: bool, *, persist: bool = False) -> dict:
     if persist:
         persisted = persist_nova_broker(NOVA_BROKER_SIM if enabled else NOVA_BROKER_IBKR)
     if enabled:
+        try:
+            from capture.mode import is_capture_mode, set_capture_mode
+            if is_capture_mode():
+                set_capture_mode(False)
+        except Exception:
+            pass
         from sim.feed import start_sim_feed_threadsafe
 
         start_sim_feed_threadsafe()

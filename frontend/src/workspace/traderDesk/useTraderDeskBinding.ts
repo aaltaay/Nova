@@ -41,6 +41,7 @@ import { useBotFocusSync } from '../../bot/useBotFocusSync';
 import { useTraderDesk } from './useTraderDesk';
 import { getTraderWindowId } from './windowId';
 import type { TraderTabDragPayload } from './protocol';
+import { isTabRecording } from '../../capture/sessionRecordStore';
 
 export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => void) {
   const boot = initialTraderState();
@@ -221,6 +222,9 @@ export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => 
   const closeTraderTab = useCallback((symbol: string) => {
     const urlSym = parseStockViewSymbol();
     const key = symbol === TRADER_DRAFT_SYMBOL ? TRADER_DRAFT_SYMBOL : symbol.trim().toUpperCase();
+    if (key !== TRADER_DRAFT_SYMBOL && isTabRecording(key)) {
+      return; // recording lock — Stop recording before close
+    }
     setTraderState((prev) => {
       let next = closeTab(prev, symbol);
       if (next.active && next.active !== TRADER_DRAFT_SYMBOL) {

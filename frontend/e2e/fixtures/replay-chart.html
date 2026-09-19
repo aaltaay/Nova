@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="UTF-8"><title>Replay chart test fixture</title></head>
+  <body>
+    <p id="fixture-help">Replay chart test fixture · sample candles, no broker connection</p>
+    <div id="root"></div>
+    <script>
+      if (location.protocol === 'file:') {
+        document.getElementById('fixture-help').innerHTML =
+          'This test fixture needs the Vite dev server to compile TSX. Run <code>cd frontend &amp;&amp; npm run dev</code>, then open ' +
+          '<a href="http://127.0.0.1:5173/e2e/fixtures/replay-chart.html">the replay chart fixture</a>.';
+      } else {
+        const moduleScript = document.createElement('script');
+        moduleScript.type = 'module';
+        moduleScript.src = './replayChart.tsx';
+        document.body.append(moduleScript);
+      }
+    </script>
+  </body>
+</html>

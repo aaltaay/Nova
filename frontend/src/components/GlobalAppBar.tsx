@@ -2,16 +2,15 @@
  * Webull-style chrome shared by Scanner and Trader View (parent + pop-out).
  * Mounted once in AppShell so every live page inherits it automatically.
  *
- * Primary row = brand, Scanner/Trader, center context, status, theme,
- * account cluster, lock, Cash/Margin, Account, Settings.
+ * Primary row = brand, Scanner/Trader, status, theme, account cluster,
+ * lock, Cash/Margin, Account (icon; Fund account on hover), Settings (icon).
  * Bot row = BotArmControls + BotSymbolMenuHost (issue #230).
+ * Trader tabs row = symbol strip under Bot Autonomy, above the chart.
  * Narrow widths hide low-value chips on the primary row
  * (global-app-bar-responsive.css); the bot row wraps/scrolls on its own.
  */
 import { useEffect, useId, useRef, useState } from 'react';
 import {
-  GLOBAL_BAR_ACCOUNT_LABEL,
-  GLOBAL_BAR_ACCOUNT_TITLE,
   GLOBAL_BAR_BRAND,
   GLOBAL_BAR_NAV_SCANNER,
   GLOBAL_BAR_NAV_SCANNER_TITLE,
@@ -20,7 +19,6 @@ import {
   GLOBAL_BAR_SETTINGS_TITLE,
 } from '../constants';
 import { useClosedOrders } from '../closed_orders/useClosedOrders';
-import { FundAccountButton } from '../ibkr/FundAccountButton';
 import { useIbkrAccountContext } from '../ibkr/IbkrAccountContext';
 import { IbkrAccountTypeChip } from '../ibkr/IbkrAccountTypeChip';
 import { TradingSessionLockButton } from '../ibkr/TradingSessionLockButton';
@@ -33,6 +31,7 @@ import {
   subscribeAccountNavActive,
 } from './accountNavActive';
 import { GlobalBarAccountCluster } from './GlobalBarAccountCluster';
+import { GlobalBarAccountNav } from './GlobalBarAccountNav';
 import { resolveAccountChromeState } from './globalBarAccountChrome';
 import { NovaLogo } from './NovaLogo';
 import { GatewayModeCapsule } from '../ibkr/GatewayModeCapsule';
@@ -40,6 +39,7 @@ import { setGlobalBarTraderSlot } from './globalBarSlots';
 import { HeaderConnectionStatus } from './HeaderConnectionStatus';
 import { EmergencyKillButton } from './EmergencyKillButton';
 import { GlobalBarBotRow } from '../bot/GlobalBarBotRow';
+import { SimSessionHeader } from '../sim/SimSessionHeader';
 import { GlobalBarScannerCluster } from './GlobalBarScannerCluster';
 import { ThemeToggle } from './ThemeToggle';
 import { requestOpenTradingTab } from './openTradingTabNav';
@@ -148,15 +148,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
       </div>
 
       <div className="global-app-bar__center" data-testid="global-bar-center">
-        {traderActive ? (
-          <div
-            ref={setGlobalBarTraderSlot}
-            className="global-app-bar__context global-app-bar__trader-slot"
-            data-testid="global-bar-trader-slot"
-          />
-        ) : (
-          scanner && <GlobalBarScannerCluster scanner={scanner} />
-        )}
+        {!traderActive && scanner && <GlobalBarScannerCluster scanner={scanner} />}
         {(traderActive || !scanner) && <EmergencyKillButton />}
         {scanner && (
           <div className="global-app-bar__status" data-testid="global-bar-status">
@@ -226,39 +218,42 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
           ibkrConnected={Boolean(ibkrConnected)}
           summary={summary}
         />
-        <FundAccountButton />
 
         {showAccountNav && (
-          <button
-            type="button"
-            className={`global-app-bar__account-nav${accountNavActive ? ' is-active' : ''}`}
-            title={GLOBAL_BAR_ACCOUNT_TITLE}
-            aria-pressed={accountNavActive}
-            data-testid="global-bar-account-nav"
-            onClick={() => {
+          <GlobalBarAccountNav
+            active={accountNavActive}
+            onOpenAccount={() => {
               requestOpenTradingTab();
               leaveTraderToScanner();
             }}
-          >
-            {GLOBAL_BAR_ACCOUNT_LABEL}
-          </button>
+          />
         )}
 
         {settingsApi && (
           <button
             type="button"
-            className={`global-app-bar__settings${settingsOpen ? ' is-active' : ''}`}
+            className={`global-app-bar__settings global-app-bar__icon-btn${settingsOpen ? ' is-active' : ''}`}
             title={GLOBAL_BAR_SETTINGS_TITLE}
+            aria-label={GLOBAL_BAR_SETTINGS_LABEL}
             aria-pressed={settingsOpen}
             data-testid="global-bar-settings"
             onClick={() => settingsApi.toggleSettings()}
           >
-            {GLOBAL_BAR_SETTINGS_LABEL}
+            <span aria-hidden="true">⚙</span>
           </button>
         )}
       </div>
       </div>
       <GlobalBarBotRow />
+      {/* Host desk only — pop-out floats render tabs inline above the chart. */}
+      {traderActive && !detachedTrader ? (
+        <div
+          ref={setGlobalBarTraderSlot}
+          className="global-app-bar__trader-row"
+          data-testid="global-bar-trader-slot"
+        />
+      ) : null}
+      <SimSessionHeader active={ibkrMode === 'sim'} />
     </header>
   );
 }

@@ -9,7 +9,12 @@ test.describe('Phase 2 — WorkspaceContext', () => {
     await expect(page.locator('.stock-view-page')).toBeVisible();
     await expect(page.getByTestId('scanner-desk')).toHaveCount(0);
     await expect(page).toHaveTitle(/MSFT.*Trader/);
-    await expect(page.getByText('Trader', { exact: true })).toBeVisible();
+    // A ?view=stock URL is a pop-out float: thin float chrome, no main header.
+    const chrome = page.getByTestId('float-desk-chrome');
+    await expect(chrome).toBeVisible();
+    await expect(chrome).toContainText('Pop-out');
+    await expect(chrome).toContainText('MSFT');
+    await expect(page.getByTestId('global-app-bar')).toHaveCount(0);
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 

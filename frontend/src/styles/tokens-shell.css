@@ -821,3 +821,6 @@ body {
   max-width: 480px;
 }
 
+
+.gw-mode-capsule.is-capture, .gw-mode-capsule__seg.is-capture { outline: 1px solid #f59e0b; }
+

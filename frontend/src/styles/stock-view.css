@@ -932,3 +932,7 @@ body:has(.nova-shell--ticker-detail) #root .app-shell-host {
   background: rgba(99, 102, 241, 0.25);
 }
 
+
+.sv-tab--recording { background: #7f1d1d !important; border-color: #ef4444 !important; color: #fecaca !important; }
+.sv-tab--recording .sv-tab__close:disabled { opacity: 0.35; cursor: not-allowed; }
+

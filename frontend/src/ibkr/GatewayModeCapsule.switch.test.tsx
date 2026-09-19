@@ -219,7 +219,7 @@ describe('GatewayModeCapsule — intentional Gateway switch', () => {
     expect(error!.textContent).toMatch(/Restart Nova API/i);
   });
 
-  it('shows a one-click Switch CTA when disconnect_hint is a port mismatch', () => {
+  it('hints at the Live segment when disconnect_hint is a port mismatch', () => {
     act(() => {
       root.render(
         <GatewayModeCapsule
@@ -229,8 +229,25 @@ describe('GatewayModeCapsule — intentional Gateway switch', () => {
         />,
       );
     });
-    const cta = container.querySelector('[data-testid="sv-disconnect-hint-cta"]');
-    expect(cta).toBeTruthy();
-    expect(cta!.textContent).toMatch(/Switch to Live/i);
+    const hint = container.querySelector('[data-testid="gateway-mode-capsule-disconnect-hint"]');
+    expect(hint).toBeTruthy();
+    expect(hint!.textContent).toMatch(/switching to live/i);
+    // Slim capsule: the Live segment is the switch; no separate CTA button.
+    expect(container.querySelector('[data-testid="sv-disconnect-hint-cta"]')).toBeNull();
+  });
+
+  it('drops the disconnect hint once the hinted mode is selected', () => {
+    act(() => {
+      root.render(
+        <GatewayModeCapsule
+          mode="disconnected"
+          gatewayMode="live"
+          disconnectHint="paper_port_refused_live_listening"
+        />,
+      );
+    });
+    expect(
+      container.querySelector('[data-testid="gateway-mode-capsule-disconnect-hint"]'),
+    ).toBeNull();
   });
 });

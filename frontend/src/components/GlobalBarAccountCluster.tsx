@@ -7,7 +7,6 @@ import type { IbkrAccountSummary, IbkrOrder } from '../ibkr/types';
 import {
   GLOBAL_BAR_ACCOUNT_LOADING_CHIP,
   GLOBAL_BAR_ACCOUNT_UNAVAILABLE_CHIP,
-  GLOBAL_BAR_BP_LABEL,
   GLOBAL_BAR_DAY_PNL_LABEL,
   GLOBAL_BAR_NET_LIQ_LABEL,
   GLOBAL_BAR_OFFLINE_CHIP,
@@ -81,17 +80,6 @@ export function GlobalBarAccountCluster({
           >
             <label>{GLOBAL_BAR_NET_LIQ_LABEL}</label>
             <span>{formatMoney(summary?.NetLiquidation)}</span>
-          </button>
-          <span className="global-app-bar__sep global-app-bar__sep--bp" aria-hidden />
-          <button
-            type="button"
-            className="global-app-bar__metric-btn global-app-bar__metric--bp"
-            aria-expanded={openMenu === 'account'}
-            onClick={() => setOpenMenu(m => (m === 'account' ? null : 'account'))}
-            onMouseEnter={() => setOpenMenu('account')}
-          >
-            <label>{GLOBAL_BAR_BP_LABEL}</label>
-            <span>{formatMoney(summary?.BuyingPower)}</span>
           </button>
           <span className="global-app-bar__sep" aria-hidden />
           <button
