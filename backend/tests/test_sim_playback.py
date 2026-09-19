@@ -13,7 +13,8 @@ from sim.routes import router
 @pytest.fixture(autouse=True)
 def frozen_clock(monkeypatch):
     clock.reset_for_tests()
-    wall = [datetime(2026, 9, 19, 10, 0, tzinfo=clock.ET)]
+    # Thursday: the +1 day steps below stay on an open exchange day.
+    wall = [datetime(2026, 9, 17, 10, 0, tzinfo=clock.ET)]
     mono = [100.0]
     monkeypatch.setattr(clock, "_wall_et_now", lambda: wall[0])
     monkeypatch.setattr(clock.time_mod, "monotonic", lambda: mono[0])
@@ -94,6 +95,21 @@ def test_api_pause_only_in_sim_and_validates_boolean(monkeypatch):
     assert not client.post("/api/sim/clock", json={"paused": False}).json()["paused"]
     client.post("/api/sim/clock", json={"paused": True})
     assert not client.post("/api/sim/clock", json={"follow_wall": True}).json()["paused"]
+
+
+def test_closed_exchange_day_replays_last_trading_day(frozen_clock):
+    wall, _ = frozen_clock
+    wall[0] = datetime(2026, 9, 19, 4, 41, 16, tzinfo=clock.ET)  # Saturday
+    assert clock.now_et() == datetime(2026, 9, 18, 4, 41, 16, tzinfo=clock.ET)
+    status = clock.status_payload()
+    assert status["session_date"] == "2026-09-18"
+    assert status["session_open_et"].startswith("2026-09-18T04:00:00")
+    wall[0] = datetime(2026, 9, 7, 10, 0, tzinfo=clock.ET)  # Labor Day
+    assert clock.status_payload()["session_date"] == "2026-09-04"
+    wall[0] = datetime(2026, 9, 17, 10, 0, tzinfo=clock.ET)  # Thursday
+    assert clock.status_payload()["session_date"] == "2026-09-17"
+    clock.set_session_date("2026-09-19")  # an explicit capture date still wins
+    assert clock.status_payload()["session_date"] == "2026-09-19"
 
 
 def test_default_extended_session_and_custom_window(frozen_clock):

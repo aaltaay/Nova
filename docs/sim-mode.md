@@ -10,6 +10,15 @@ Sim is a **local practice harness**. It is not IBKR paper and not live.
 
 Look up **SIM1**. Quote, Time & Sales, Level 2, and the shared chart path use a looping synthetic tape. Place / cancel / flatten update a sim ledger (positions, Orders Today, Day P&L, Net Liq / BP). Works 24/7 with no Gateway.
 
+Real tickers (SPY, IMCC, ...) chart their archived IBKR bars up to the Sim
+clock. On a weekend or NYSE holiday the Sim session is the last open exchange
+day at the same time of day (Saturday 04:41 ET replays Friday 04:41 ET); the
+Sim header shows that date. A pane still reads "No bars available at this
+replay time" when the archive has no bars for that ticker/timeframe before the
+playhead -- for example 10-second bars, which IBKR only backfills for the last
+four hours before a chart was opened. Download the day under **Historical
+replay** to fill it.
+
 ## Pause and play
 
 The Sim session bar has one **Pause / Play** icon button. Pause freezes the

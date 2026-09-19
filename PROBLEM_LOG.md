@@ -62,6 +62,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Fix class:** ownership
 - **Keywords:** reconnect button, session not READY, connecting, force_reconnect_stuck_unusable, dialer dead, completed orders request timed out, CancelledError, single-flight, SingletonKey, ib_async registry, unusable_since, watchdog
 
+## 2026-09-19 -- Real tickers empty in Sim on a weekend
+
+- **Symptom:** SPY in Sim on Saturday 04:41 ET: every intraday pane showed "No bars available at this replay time" while Friday's EMA/VWAP lines and time axis were still painted underneath.
+- **Cause:** The Sim session date defaulted to the wall calendar day. The D-052 replay read is scoped to that date, and no real ticker has bars on a Saturday, so the boundary correctly returned nothing. `TickerChartOverlays` also returned early on empty bars, leaving the previous paint on the line series.
+- **Fix:** `session_bounds_on` resolves the wall day through `sim/trading_day.last_trading_day` and `now_et` maps the wall time of day onto that date; the clock payload and Sim header carry `session_date`. Overlays call `setData([])` when bars are empty. Regressions in `test_sim_playback.py`, `test_sim_chart_replay.py`, `SimSessionHeader.test.tsx`.
+- **Fix class:** admission
+- **Keywords:** sim, session_clock, session_date, weekend, holiday, last_trading_day, No bars available at this replay time, SPY, D-052, TickerChartOverlays
+
 ## 2026-09-19 -- IMCC prior-session chart looked like future replay
 
 - **Symptom:** IMCC's 5-minute and 1-minute panes showed a fully painted September 18 session while SIM was at 06:46 ET on September 19.

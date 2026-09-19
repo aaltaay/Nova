@@ -163,7 +163,16 @@ export function TickerChartOverlays({
 
   // Push computed data into series (skip when revision + toggles unchanged).
   useEffect(() => {
-    if (!chart || bars.length === 0) return;
+    if (!chart) return;
+    if (bars.length === 0) {
+      // Candles were cleared (replay window with no bars): drop the previous
+      // session's lines too, or the pane shows EMAs/VWAP under "No bars".
+      if (lastPaintKeyRef.current === '') return;
+      lastPaintKeyRef.current = '';
+      for (const length of CHART_EMA_LENGTHS) emaSeriesRef.current[length]?.setData([]);
+      vwapSeriesRef.current?.setData([]);
+      return;
+    }
     const paintKey = [
       barsRevision, showEmas, showVwap, bars.length,
       vwapSourceRevision, vwapSourceBars.length, vwapCoversOpen,

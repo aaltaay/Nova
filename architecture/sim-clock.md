@@ -7,6 +7,15 @@ opening and closing timestamps.
 The process-local owner is `backend/sim/session_clock.py`. Only the Sim feed
 consults its paused state; IBKR paper/live clocks and broker connections do not.
 
+**Session date.** With no capture or historical window selected, the session
+date is the wall calendar day when the exchange is open that day; on a weekend
+or NYSE holiday it is the latest earlier open day (`sim/trading_day.py`), and
+the wall clamp maps the wall time of day onto that date (Saturday 04:41 ET
+replays Friday 04:41 ET). Real tickers therefore read archived bars from a day
+that actually traded; the chart knowledge boundary below is unchanged. The
+clock payload carries `session_date`, shown in the Sim header. An explicit
+capture or historical date still overrides this.
+
 `POST /api/sim/clock` accepts one clock action: existing
 `{minute_from_open: integer}` / `{follow_wall: true}`, `{paused: boolean}`, or
 `{second_from_open: number}` (finite; otherwise 422).

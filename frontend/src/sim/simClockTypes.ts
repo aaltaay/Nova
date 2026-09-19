@@ -2,6 +2,8 @@
 export interface SimClockState {
   sim: boolean;
   sim_time_et?: string;
+  /** Eastern session date (YYYY-MM-DD); the last open exchange day on weekends/holidays. */
+  session_date?: string;
   session_open_et?: string;
   session_close_et?: string;
   phase?: string;
