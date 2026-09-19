@@ -1,10 +1,11 @@
 """Looping synthetic tape for SIM1 -- last/bid/ask, prints, simplified L2, bars.
 
 Bar timestamps are UTC ISO strings (frontend RawBar.t / isoToEtTime).
-Session clock is 06:00–18:00 America/New_York via sim.session_clock.
+Session clock is 04:00–20:00 America/New_York via sim.session_clock.
 """
 from __future__ import annotations
 
+import logging
 import math
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -26,6 +27,8 @@ from constants_sim import (
     SIM_TICK_STEP_RAD,
 )
 from sim import session_clock as _clock
+
+logger = logging.getLogger(__name__)
 
 ET = ZoneInfo("America/New_York")
 
@@ -71,13 +74,11 @@ def rebuild_for_scrub() -> None:
             _push_queue(sym, {**row, "type": "print", "symbol": sym})
         if rows:
             # Advance emit cursor past seeded prints so the feed loop does not re-blast open.
-            last_t = rows[-1].get("time")
             try:
-                from datetime import datetime
                 # recent_prints already used asof; seek already set — mark last print ts
                 _player.mark_emitted(_player.asof_unix())
             except Exception:
-                pass
+                logger.debug("SIM scrub: emit cursor not advanced", exc_info=True)
         try:
             from ibkr.depth import state as _depth_state
             book = _player.book_at()
@@ -422,7 +423,7 @@ def _roll_minute(payload: dict[str, Any]) -> None:
 
 
 def _seed_session_bars(count: int, step_sec: int) -> list[dict[str, Any]]:
-    """Dense ascending ISO bars ending at sim now, within 06:00–18:00 ET."""
+    """Dense ascending ISO bars ending at sim now, never before the session open."""
     now = _clock.now_et()
     start, _end = _clock.session_bounds_on(now)
     out: list[dict[str, Any]] = []

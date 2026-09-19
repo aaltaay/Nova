@@ -1,10 +1,15 @@
 # Sim playback clock
 
+The default session is 04:00–20:00 America/New_York (960 minutes). Explicit
+historical session windows override those bounds; all slider labels use the API
+opening and closing timestamps.
+
 The process-local owner is `backend/sim/session_clock.py`. Only the Sim feed
 consults its paused state; IBKR paper/live clocks and broker connections do not.
 
 `POST /api/sim/clock` accepts one clock action: existing
-`{minute_from_open: integer}` / `{follow_wall: true}`, or `{paused: boolean}`.
+`{minute_from_open: integer}` / `{follow_wall: true}`, `{paused: boolean}`, or
+`{second_from_open: number}` (finite; otherwise 422).
 The response adds `paused: boolean` to the existing clock envelope.
 Pause/play requests are rejected when Sim is off.
 
@@ -16,6 +21,9 @@ Pause/play requests are rejected when Sim is off.
   idempotent.
 - Scrubbing while paused updates the frozen position and rebuilds its snapshot;
   it stays paused. Explicit replay ticker changes retain that paused state.
+  Leaving historical replay also keeps the playhead's Eastern time of day,
+  moved onto the SIM1 session date; reloading the same historical window keeps
+  the playhead.
 - Follow wall clock explicitly clears pause and returns to the existing wall
   clamp. Process restart/test reset clears pause. Pause is not persisted.
 - One Sim-header button changes between Pause and Play icons with accessible

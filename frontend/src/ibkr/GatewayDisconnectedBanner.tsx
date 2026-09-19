@@ -88,8 +88,8 @@ export function GatewayDisconnectedBanner({
     () => getRecordingSymbols().join(','),
     () => '',
   );
-  if (recording) return null;
-
+  // Every hook runs before any early return (D-050): toggling Record must not
+  // change hook order between renders.
   const [busyMode, setBusyMode] = useState<LaunchGatewayMode | null>(null);
   const [launchHint, setLaunchHint] = useState<string | null>(null);
 
@@ -104,6 +104,7 @@ export function GatewayDisconnectedBanner({
     setBusyMode(null);
   }, [busyMode, ibkrSecondFactorStale]);
 
+  if (recording) return null;
   if (
     !shouldShowGatewayLoginBanner({
       discoveryProvider,

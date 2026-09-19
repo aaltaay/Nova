@@ -1,12 +1,16 @@
 """In-app Sim toggle -- header Paper / Live / Sim posts here."""
 from __future__ import annotations
 
+import math
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from sim.history_routes import router as history_router
 from sim.mode import set_sim_mode, status_payload
 
 router = APIRouter(tags=["sim"])
+router.include_router(history_router)
 
 
 class SimToggleRequest(BaseModel):
@@ -55,6 +59,11 @@ def post_sim_clock(body: dict) -> dict:
         if not isinstance(body["paused"], bool):
             raise HTTPException(status_code=422, detail="paused must be a boolean")
         payload = _clock.set_paused(body["paused"])
+    elif "second_from_open" in body:
+        second = body["second_from_open"]
+        if isinstance(second, bool) or not isinstance(second, (int, float)) or not math.isfinite(second):
+            raise HTTPException(status_code=422, detail="second_from_open must be a finite number")
+        payload = _clock.scrub_to_second(float(second))
     elif body.get("follow_wall"):
         payload = _clock.clear_scrub()
     else:

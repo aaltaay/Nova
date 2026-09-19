@@ -13,7 +13,7 @@ vi.mock('../workspace/WorkspaceContext', () => ({
 
 const clock = {
   sim: true, replay_source: 'capture', replay_date: '2026-09-19',
-  replay_symbol: 'SIM1', minute_from_open: 120, minute_max: 720,
+  replay_symbol: 'SIM1', minute_from_open: 120, minute_max: 960,
 };
 
 // Model the visible desk: IMCC is active and SIM1 has been closed.
@@ -38,7 +38,7 @@ beforeEach(() => {
   mocks.fetch.mockReset();
   mocks.fetch.mockImplementation(async (url: string, init?: RequestInit) => ({
     ok: true,
-    json: async () => url.endsWith('/sessions') ? {
+    json: async () => url.endsWith('/history') ? {jobs: []} : url.endsWith('/sessions') ? {
       days: [{ date: '2026-09-19', ticker_count: 2 }],
       tickers_by_day: { '2026-09-19': [
         { symbol: 'SIM1', prints: 100, l2: 10 },
@@ -119,4 +119,36 @@ it('failed pause remains visibly playing and surfaces an error', async () => {
 it('playback controls are absent when Sim is inactive', () => {
   render(<SimSessionHeader active={false} />);
   expect(screen.queryByRole('button', { name: 'Pause Sim time' })).toBeNull();
+});
+
+
+it('defaults to the extended-hours session slider', async () => {
+  await mount();
+  expect(screen.getByText('04:00')).toBeTruthy();
+  expect(screen.getByText('20:00')).toBeTruthy();
+  expect((screen.getByTestId('sim-session-scrubber') as HTMLInputElement).max).toBe('960');
+});
+
+it('Return to SIM1 clears the hidden capture pickers', async () => {
+  let source = 'capture';
+  mocks.fetch.mockImplementation(async (url: string, init?: RequestInit) => ({
+    ok: true,
+    json: async () => {
+      if (url.endsWith('/history')) return { jobs: [] };
+      if (url.endsWith('/sessions')) return { days: [{ date: '2026-09-19', ticker_count: 1 }],
+        tickers_by_day: { '2026-09-19': [{ symbol: 'IMCC', prints: 10, l2: 1 }] } };
+      if (url.endsWith('/api/sim/replay') && init?.method === 'POST') source = 'synthetic';
+      if (source === 'historical') return { ...clock, replay_source: 'historical', replay_date: '2026-09-18', replay_symbol: 'IMCC' };
+      if (source === 'synthetic') return { ...clock, replay_source: 'synthetic', replay_date: null, replay_symbol: null };
+      return { ...clock, replay_symbol: 'IMCC' };
+    },
+  }));
+  await mount();
+  expect((screen.getByTestId('sim-replay-ticker') as HTMLSelectElement).value).toBe('IMCC');
+  source = 'historical';
+  await act(async () => { await vi.advanceTimersByTimeAsync(1100); });
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Return to SIM1' })); });
+  expect(screen.getByTestId('sim-replay-source').textContent).toBe('SIM1');
+  expect((screen.getByTestId('sim-replay-day') as HTMLSelectElement).value).toBe('');
+  expect((screen.getByTestId('sim-replay-ticker') as HTMLSelectElement).value).toBe('');
 });

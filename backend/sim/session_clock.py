@@ -1,4 +1,4 @@
-"""Sim session clock — 6:00–18:00 America/New_York, scrubbable, 1s playhead."""
+"""Sim session clock — 4:00–20:00 America/New_York, scrubbable, 1s playhead."""
 from __future__ import annotations
 
 import time as time_mod
@@ -6,24 +6,37 @@ from datetime import datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from constants_sim import SIM_SESSION_CLOSE_HOUR, SIM_SESSION_OPEN_HOUR
+
 ET = ZoneInfo("America/New_York")
 
-SESSION_OPEN = time(6, 0)
-SESSION_CLOSE = time(18, 0)
+SESSION_OPEN = time(SIM_SESSION_OPEN_HOUR, 0)
+SESSION_CLOSE = time(SIM_SESSION_CLOSE_HOUR, 0)
 PRE_END = time(9, 30)
 RTH_END = time(16, 0)
 
-SESSION_SECONDS = 12 * 60 * 60  # 06:00–18:00
+SESSION_SECONDS = (SIM_SESSION_CLOSE_HOUR - SIM_SESSION_OPEN_HOUR) * 60 * 60  # 04:00–20:00
 
 # Optional YYYY-MM-DD for capture replay (None = wall calendar day).
 _session_date: str | None = None
 _resume_date: str | None = None
 
-# Seconds from 06:00 ET (0 .. SESSION_SECONDS). None = follow wall clock clamped to session.
+# Seconds from 04:00 ET (0 .. SESSION_SECONDS). None = follow wall clock clamped to session.
 _scrub_second: float | None = None
 # Wall monotonic when scrub position was last set (so playhead advances 1s / real second).
 _scrub_anchor_mono: float | None = None
 _paused_at: datetime | None = None
+_window: tuple[time, time] | None = None
+
+
+def set_window(start: str | None = None, end: str | None = None):
+    global _window
+    _window = (time.fromisoformat(start), time.fromisoformat(end)) if start and end else None
+
+
+def session_seconds():
+    start, end = session_bounds_on(_wall_et_now())
+    return int((end - start).total_seconds())
 
 
 def reset_for_tests() -> None:
@@ -33,6 +46,7 @@ def reset_for_tests() -> None:
     _session_date = None
     _paused_at = None
     _resume_date = None
+    set_window()
 
 
 def set_session_date(date_yyyy_mm_dd: str | None) -> None:
@@ -50,8 +64,9 @@ def session_bounds_on(day: datetime) -> tuple[datetime, datetime]:
         d = _date(y, m, dd)
     else:
         d = day.astimezone(ET).date()
-    start = datetime.combine(d, SESSION_OPEN, tzinfo=ET)
-    end = datetime.combine(d, SESSION_CLOSE, tzinfo=ET)
+    opening, closing = _window or (SESSION_OPEN, SESSION_CLOSE)
+    start = datetime.combine(d, opening, tzinfo=ET)
+    end = datetime.combine(d, closing, tzinfo=ET)
     return start, end
 
 
@@ -60,7 +75,7 @@ def _wall_et_now() -> datetime:
 
 
 def _clamp_sec(sec: float) -> float:
-    return float(max(0.0, min(float(sec), float(SESSION_SECONDS))))
+    return float(max(0.0, min(float(sec), float(session_seconds()))))
 
 
 def _effective_scrub_second() -> float | None:
@@ -72,7 +87,7 @@ def _effective_scrub_second() -> float | None:
 
 
 def now_et() -> datetime:
-    """Current sim time in ET (scrubbed playhead or wall, clamped into today's 6–18)."""
+    """Current sim time in ET (scrubbed playhead or wall, clamped into the session window)."""
     if _paused_at is not None:
         return _paused_at
     start, end = session_bounds_on(_wall_et_now())
@@ -136,7 +151,7 @@ def phase_tick_interval_sec(at: datetime | None = None) -> float:
 
 def scrub_to_minute(minute_from_open: int) -> dict[str, Any]:
     """UI scrubber is still minute-grained; playhead then advances per real second."""
-    minute = int(max(0, min(int(minute_from_open), 12 * 60)))
+    minute = int(max(0, min(int(minute_from_open), session_seconds() // 60)))
     return scrub_to_second(float(minute * 60))
 
 
@@ -154,6 +169,19 @@ def scrub_to_second(second_from_open: float) -> dict[str, Any]:
     except Exception:
         pass
     return status_payload()
+
+
+def keep_time_of_day(at: datetime) -> dict[str, Any]:
+    """Place the playhead at ``at``'s Eastern clock time on the current session date.
+
+    Used after the window/date changed (leaving historical replay); pause is kept.
+    """
+    global _paused_at
+    start, _ = session_bounds_on(_wall_et_now())
+    target = datetime.combine(start.date(), at.astimezone(ET).time(), tzinfo=ET)
+    if _paused_at is not None:
+        _paused_at = start  # re-date the frozen position; scrub places it below
+    return scrub_to_second((target - start).total_seconds())
 
 
 def clear_scrub() -> dict[str, Any]:
@@ -184,8 +212,8 @@ def status_payload() -> dict[str, Any]:
         "session_close_et": end.isoformat(),
         "minute_from_open": minute,
         "second_from_open": second,
-        "minute_max": 12 * 60,
-        "second_max": SESSION_SECONDS,
+        "minute_max": session_seconds() // 60,
+        "second_max": session_seconds(),
         "scrubbed": _scrub_second is not None,
         "paused": is_paused(),
         "volume_mult": phase_volume_mult(n),

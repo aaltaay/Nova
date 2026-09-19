@@ -6,14 +6,18 @@ import { SimSessionHeader } from '../../src/sim/SimSessionHeader';
 import { useChartBars } from '../../src/chart/useChartBars';
 import { useChartLiveTrade } from '../../src/chart/useChartLiveTrade';
 import { useVwapSourceBars } from '../../src/chart/useVwapSourceBars';
+import { HistoricalQuoteTape } from '../../src/sim/HistoricalQuoteTape';
+import { useHistoricalSnapshot } from '../../src/sim/useHistoricalSnapshot';
 import { advanceSampleMinute, installSampleReplayApi } from './replayChartSampleApi';
 
 const sampleApi = !new URLSearchParams(location.search).has('external-api');
 if (sampleApi) installSampleReplayApi();
+else document.getElementById('fixture-help')!.textContent = 'Replay component verification · configured API and actual archived data';
 
 const futureTrade = { symbol: 'IMCC', price: 999, timestamp: '2026-09-18T23:00:00Z' };
 
 function Chart() {
+  const snapshot = useHistoricalSnapshot('IMCC', !sampleApi);
   const container = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -36,6 +40,7 @@ function Chart() {
   return <>
     {sampleApi && <button type="button" onClick={advanceSampleMinute}>Advance sample minute</button>}
     <div ref={container} />
+    {snapshot?.active && <HistoricalQuoteTape data={snapshot} />}
     <output data-testid="painted">{painted}</output>
     <output data-testid="indicators">{JSON.stringify(state.indicatorBars)}</output>
     <output data-testid="vwap">{JSON.stringify(vwap.bars)}</output>

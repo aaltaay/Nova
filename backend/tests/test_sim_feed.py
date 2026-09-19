@@ -47,7 +47,14 @@ def test_quote_refuses_real_tickers() -> None:
     assert market.last_quotes(["SPY"]) == {}
 
 
-def test_chart_bars_iso_ascending() -> None:
+def _wall(monkeypatch, hour: int, minute: int = 0) -> None:
+    from datetime import datetime
+    from sim import session_clock as clock
+    monkeypatch.setattr(clock, "_wall_et_now", lambda: datetime(2026, 9, 18, hour, minute, tzinfo=clock.ET))
+
+
+def test_chart_bars_iso_ascending(monkeypatch) -> None:
+    _wall(monkeypatch, 11)  # deterministic mid-session wall clock (D-051)
     for tf in ("10Sec", "1Min", "5Min", "1Day"):
         bars = market.chart_bars(SIM_SYMBOL, tf, 40)
         assert bars["source"] == "sim"
@@ -65,6 +72,16 @@ def test_session_scrub_moves_clock() -> None:
     assert a["scrubbed"] is True
     assert a["minute_from_open"] == 30
     assert a["phase"] == "premarket"
-    b = clock.scrub_to_minute(4 * 60)  # 10:00
+    b = clock.scrub_to_minute(6 * 60)  # 10:00
     assert b["phase"] == "rth"
     clock.clear_scrub()
+
+
+def test_chart_bars_before_open_stay_at_the_session_open(monkeypatch) -> None:
+    from datetime import datetime, timezone
+    from sim import session_clock as clock
+    _wall(monkeypatch, 3, 30)  # clock clamps to the 04:00 open
+    opening = datetime(2026, 9, 18, 4, 0, tzinfo=clock.ET).astimezone(timezone.utc)
+    for tf in ("10Sec", "1Min", "5Min"):
+        bars = market.chart_bars(SIM_SYMBOL, tf, 40)["bars"]
+        assert [datetime.fromisoformat(b["t"]) for b in bars] == [opening]

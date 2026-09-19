@@ -52,7 +52,7 @@ def test_scrub_while_paused_stays_paused(frozen_clock):
     assert clock.is_paused()
     clock.set_session_date("2026-09-18")
     clock.scrub_to_second(100.5)
-    assert clock.now_et() == datetime(2026, 9, 18, 6, 1, 40, 500000, tzinfo=clock.ET)
+    assert clock.now_et() == datetime(2026, 9, 18, 4, 1, 40, 500000, tzinfo=clock.ET)
     clock.set_paused(False)
     mono[0] += 2
     assert clock.status_payload()["second_from_open"] == 102
@@ -94,3 +94,19 @@ def test_api_pause_only_in_sim_and_validates_boolean(monkeypatch):
     assert not client.post("/api/sim/clock", json={"paused": False}).json()["paused"]
     client.post("/api/sim/clock", json={"paused": True})
     assert not client.post("/api/sim/clock", json={"follow_wall": True}).json()["paused"]
+
+
+def test_default_extended_session_and_custom_window(frozen_clock):
+    wall, _ = frozen_clock
+    wall[0] = wall[0].replace(hour=2)
+    assert clock.now_et().hour == 4
+    status = clock.status_payload()
+    assert status["minute_max"] == 960
+    assert status["second_max"] == 57600
+    clock.scrub_to_minute(9999)
+    assert clock.now_et().hour == 20
+    assert clock.phase() == "postmarket"
+    clock.set_window("04:00", "09:30")
+    clock.scrub_to_minute(9999)
+    assert clock.status_payload()["minute_max"] == 330
+    assert (clock.now_et().hour, clock.now_et().minute) == (9, 30)

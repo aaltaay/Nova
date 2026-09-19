@@ -50,9 +50,10 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
         try:
             from sim import replay as _replay
             from sim import capture_player as _player
-            if is_sim_mode() and _replay.is_capture_replay():
+            if (is_sim_mode() and _replay.is_capture_replay()
+                    and _replay.status_payload().get("replay_symbol") == symbol):
                 for row in _player.recent_prints(40):
-                    await websocket.send_text(json.dumps({**row, "type": "print", "symbol": symbol}))
+                    await websocket.send_text(json.dumps({**row, "type": "print"}))
         except Exception:
             logger.debug("SIM tape: capture seed skipped", exc_info=True)
 

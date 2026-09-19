@@ -7,7 +7,7 @@ test('scrubbing preserves IMCC with SIM1 closed; explicit replay picks still nav
   let paused = false;
   const clock = () => ({
     sim: true, paused, replay_source: 'capture', replay_date: '2026-09-19',
-    replay_symbol: replaySymbol, minute_from_open: minute, minute_max: 720,
+    replay_symbol: replaySymbol, minute_from_open: minute, minute_max: 960,
   });
   await page.route('http://127.0.0.1:8999/**', async route => {
     const path = new URL(route.request().url()).pathname;
@@ -25,6 +25,10 @@ test('scrubbing preserves IMCC with SIM1 closed; explicit replay picks still nav
     } else if (path === '/api/sim/replay') {
       replaySymbol = route.request().postDataJSON().symbol;
       body = clock();
+    } else if (path === '/api/sim/history') {
+      body = { jobs: [], default_date: '2026-09-18' };
+    } else if (path.startsWith('/api/sim/history/snapshot/')) {
+      body = { active: false };
     } else if (path === '/api/capture/sessions') {
       body = {
         days: [{ date: '2026-09-19', ticker_count: 2 }],

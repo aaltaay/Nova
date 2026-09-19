@@ -2,6 +2,8 @@
 export interface SimClockState {
   sim: boolean;
   sim_time_et?: string;
+  session_open_et?: string;
+  session_close_et?: string;
   phase?: string;
   minute_from_open?: number;
   minute_max?: number;

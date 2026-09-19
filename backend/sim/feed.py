@@ -92,6 +92,9 @@ def tick() -> dict:
     """One synchronous tape step + fill match + fan-out. Used by tests."""
     if _clock.is_paused():
         return {}
+    from sim import history_playback
+    if history_playback.status():
+        return {}  # Historical snapshots own tape/quotes; never inject SIM1 here.
     try:
         from sim import replay as _replay
         from sim import capture_player as _player

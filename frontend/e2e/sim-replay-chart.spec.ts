@@ -20,10 +20,12 @@ test('actual candle series follows replay time, clears on rewind and ignores a f
         if ('minute_from_open' in action) minute = action.minute_from_open;
         if ('paused' in action) paused = action.paused;
       }
-      body = { sim: true, paused, minute_from_open: minute, minute_max: 720,
+      body = { sim: true, paused, minute_from_open: minute, minute_max: 960,
         sim_time_et: `2026-09-18T06:${String(minute).padStart(2, '0')}:00-04:00`, replay_source: 'synthetic' };
     }
     if (path === '/api/capture/sessions') body = { days: [], tickers_by_day: {} };
+    if (path === '/api/sim/history') body = { jobs: [], default_date: '2026-09-17' };
+    if (path.startsWith('/api/sim/history/snapshot/')) body = { active: false };
     if (path.endsWith('/bars')) {
       calls++;
       body = { bars: rows.slice(0, minute), coverage: { replay: true, replay_mode: 'completed_bars', filling: false } };

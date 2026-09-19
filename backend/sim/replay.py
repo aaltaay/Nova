@@ -11,7 +11,8 @@ _symbol: str | None = None
 _load_info: dict[str, Any] | None = None
 
 
-def reset_for_tests() -> None:
+def clear_capture() -> None:
+    """Drop the captured day/ticker (historical selection is owned elsewhere)."""
     global _date, _symbol, _load_info
     _date = None
     _symbol = None
@@ -20,10 +21,21 @@ def reset_for_tests() -> None:
         from sim import capture_player as _player
         _player.unload()
     except Exception:
-        pass
+        logger.warning("CAPTURE PLAY: unload failed", exc_info=True)
+
+
+def reset_for_tests() -> None:
+    from sim import history_playback
+    history_playback.clear()
+    clear_capture()
 
 
 def status_payload() -> dict[str, Any]:
+    from sim import history_playback
+    historical = history_playback.status()
+    if historical:
+        return dict(replay_date=historical["date"], replay_symbol=historical["symbol"],
+                    replay_source="historical", replay_load=historical)
     capture = bool(_date and _symbol)
     out: dict[str, Any] = {
         "replay_date": _date,
@@ -50,6 +62,11 @@ def set_replay(date: str | None, symbol: str | None) -> dict[str, Any]:
     global _date, _symbol, _load_info
     from sim import capture_player as _player
     from sim import session_clock as _clock
+    from sim import history_playback
+    # Leaving historical replay keeps pause and the Eastern time of day (sim-clock.md).
+    left_historical = _clock.now_et() if history_playback.status() else None
+    history_playback.clear()
+    _clock.set_window()
 
     d = (date or "").strip() or None
     s = (symbol or "").strip().upper() or None
@@ -59,6 +76,8 @@ def set_replay(date: str | None, symbol: str | None) -> dict[str, Any]:
         _load_info = None
         _player.unload()
         _clock.set_session_date(None)
+        if left_historical is not None:
+            _clock.keep_time_of_day(left_historical)
         return status_payload()
 
     _date = d
@@ -80,7 +99,8 @@ def set_replay(date: str | None, symbol: str | None) -> dict[str, Any]:
             from zoneinfo import ZoneInfo
             ET = ZoneInfo("America/New_York")
             start, _end = _clock.session_bounds_on(datetime.fromtimestamp(float(first), tz=ET))
-            minute = int(max(0, min((float(first) - start.timestamp()) // 60, 12 * 60)))
+            minute = int(max(0, min((float(first) - start.timestamp()) // 60,
+                                     _clock.session_seconds() // 60)))
             _clock.scrub_to_minute(minute)
             _player.seek_emit_cursor(_clock.now_et().timestamp())
         except Exception:

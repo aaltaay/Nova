@@ -1,5 +1,5 @@
 /**
- * Second header bar for Sim session clock + scrubber (6:00–18:00 ET).
+ * Second header bar for Sim session clock + scrubber (4:00–20:00 ET).
  * Right side: day + ticker pickers for captured sessions (Lock A).
  * Picking a ticker also opens/activates that trader tab (same as scanner open).
  * Scrubber uses local drag state so the 1s clock poll cannot steal the thumb.
@@ -11,6 +11,8 @@ import { emitSimClockScrub } from './simClockEvents';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { SimPlaybackButton } from './SimPlaybackButton';
 import type { SimClockState } from './simClockTypes';
+import { HistoricalReplayPanel } from './HistoricalReplayPanel';
+import { SIM_SESSION_CLOSE_LABEL, SIM_SESSION_MINUTES, SIM_SESSION_OPEN_LABEL } from './simConstants';
 
 interface CaptureSessions {
   root?: string;
@@ -34,9 +36,9 @@ function formatClock(iso?: string): string {
   }
 }
 
-function formatMinuteClock(minuteFromOpen: number): string {
-  const total = Math.max(0, Math.min(12 * 60, Math.floor(minuteFromOpen)));
-  const h = Math.floor(total / 60) + 6;
+function formatMinuteClock(minuteFromOpen: number, opening: number): string {
+  const total = Math.max(0, Math.floor(minuteFromOpen)) + opening;
+  const h = Math.floor(total / 60);
   const m = total % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
 }
@@ -187,12 +189,15 @@ export function SimSessionHeader({ active }: { active: boolean }) {
   };
 
   if (!active) return null;
-  const max = clock?.minute_max ?? 12 * 60;
+  const max = clock?.minute_max ?? SIM_SESSION_MINUTES;
   const minute = dragMinute ?? clock?.minute_from_open ?? 0;
   const phase = (clock?.phase || '—').toUpperCase();
-  const source = clock?.replay_source === 'capture' ? 'CAPTURE' : 'SIM1';
+  const historical = clock?.replay_source === 'historical';
+  const source = historical ? 'HISTORICAL' : clock?.replay_source === 'capture' ? 'CAPTURE' : 'SIM1';
+  const openingLabel = clock?.session_open_et ? formatClock(clock.session_open_et).slice(0, 5) : SIM_SESSION_OPEN_LABEL;
+  const opening = Number(openingLabel.slice(0, 2)) * 60 + Number(openingLabel.slice(3, 5));
   const clockLabel =
-    dragMinute != null ? `${formatMinuteClock(dragMinute)} ET` : `${formatClock(clock?.sim_time_et)} ET`;
+    dragMinute != null ? `${formatMinuteClock(dragMinute, opening)} ET` : `${formatClock(clock?.sim_time_et)} ET`;
 
   return (
     <div
@@ -214,7 +219,7 @@ export function SimSessionHeader({ active }: { active: boolean }) {
       <span data-testid="sim-session-clock">{clockLabel}</span>
       <span style={{ opacity: 0.85 }}>{phase}</span>
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
-        <span>6:00</span>
+        <span>{openingLabel}</span>
         <input
           data-testid="sim-session-scrubber"
           type="range"
@@ -229,7 +234,7 @@ export function SimSessionHeader({ active }: { active: boolean }) {
           onChange={e => onScrubInput(Number(e.target.value))}
           style={{ flex: 1 }}
         />
-        <span>18:00</span>
+        <span>{clock?.session_close_et ? formatClock(clock.session_close_et).slice(0, 5) : SIM_SESSION_CLOSE_LABEL}</span>
       </label>
       {clock?.scrubbed || clock?.paused || dragMinute != null ? (
         <button type="button" onClick={() => void onFollowWall()} style={{ fontSize: 11 }}>
@@ -240,6 +245,12 @@ export function SimSessionHeader({ active }: { active: boolean }) {
       )}
 
       <span style={{ opacity: 0.5 }}>|</span>
+      <HistoricalReplayPanel />
+      {clock?.replay_source === 'historical' && <span>{clock.replay_date} · {clock.replay_symbol} · Historical</span>}
+      {historical ? <button type="button" onClick={() => {
+        // Pickers were hidden in historical mode; never resurface a stale capture pick.
+        setDay(''); setSymbol(''); void applyReplay('', '');
+      }}>Return to SIM1</button> : <>
       <label style={{ display: 'flex', alignItems: 'center', gap: 4 }} title="Captured session date">
         <span style={{ opacity: 0.75 }}>Day</span>
         <select
@@ -282,6 +293,7 @@ export function SimSessionHeader({ active }: { active: boolean }) {
           ))}
         </select>
       </label>
+      </>}
       <span data-testid="sim-replay-source" style={{ opacity: 0.8, fontSize: 11 }}>
         {source}
       </span>

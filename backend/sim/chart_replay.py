@@ -49,6 +49,11 @@ def fetch_replay_bars(symbol: str, timeframe: str, limit: int) -> dict:
     from sim import capture_player, market, replay, session_clock
 
     now = session_clock.now_et()
+    from sim import history_playback
+    historical = history_playback.bars(symbol, timeframe, limit, now)
+    if historical is not None:
+        return response(symbol, timeframe, historical, now, source="ibkr",
+                        replay_mode=history_playback.snapshot(symbol)["source"])
     selected = (replay.status_payload() or {}).get("replay_symbol")
     captured = replay.is_capture_replay() and symbol == selected
     if captured and timeframe in INTERVAL_SECONDS:

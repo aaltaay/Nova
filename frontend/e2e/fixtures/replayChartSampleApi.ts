@@ -10,7 +10,7 @@ let paused = false;
 function clock() {
   return {
     sim: true, paused, phase: 'premarket', minute_from_open: minute,
-    minute_max: 720, replay_source: 'synthetic', scrubbed: minute !== 2,
+    minute_max: 960, replay_source: 'synthetic', scrubbed: minute !== 2,
     sim_time_et: `2026-09-18T06:${String(minute).padStart(2, '0')}:00-04:00`,
   };
 }
@@ -39,6 +39,10 @@ export function installSampleReplayApi(): void {
       body = clock();
     } else if (path === '/api/capture/sessions') {
       body = { days: [], tickers_by_day: {} };
+    } else if (path === '/api/sim/history') {
+      body = { jobs: [], default_date: '2026-09-17' };
+    } else if (path.startsWith('/api/sim/history/snapshot/')) {
+      body = { active: false };
     } else if (/^\/api\/ticker\/[^/]+\/bars$/.test(path)) {
       body = {
         bars: sampleBars.slice(0, minute),
