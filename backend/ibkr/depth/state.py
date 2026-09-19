@@ -146,6 +146,12 @@ def _broadcast(symbol: str, payload: dict) -> None:
 
 def push_book(symbol: str, book: dict) -> None:
     """Broadcast a book snapshot to every viewer currently watching this symbol."""
+    try:
+        from sensors.rings import observe_book
+
+        observe_book(symbol, book)
+    except Exception:
+        logger.debug("IBKR depth: sensor ring skip for %s", symbol, exc_info=True)
     _broadcast(symbol, book)
 
 

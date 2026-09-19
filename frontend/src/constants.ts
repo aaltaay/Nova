@@ -18,3 +18,4 @@ export * from './constantGroups/halt_eta';
 export * from './constantGroups/trade_defaults';
 export * from './constantGroups/news_junk';
 export * from './constantGroups/bot';
+export * from './constantGroups/sensors';

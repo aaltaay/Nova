@@ -108,6 +108,12 @@ def _clean(x: float | None) -> float | None:
 
 def _push_queue(symbol: str, payload: dict) -> None:
     """Broadcast payload to every viewer currently watching this symbol."""
+    try:
+        from sensors.rings import observe_print
+
+        observe_print(symbol, payload)
+    except Exception:
+        logger.debug("IBKR tape: sensor ring skip for %s", symbol, exc_info=True)
     for q in list(_viewer_queues.get(symbol, ())):
         try:
             q.put_nowait(payload)

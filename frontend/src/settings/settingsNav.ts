@@ -5,7 +5,8 @@ export type SettingsSectionId =
   | 'hotkeys'
   | 'trade'
   | 'alerts'
-  | 'account';
+  | 'account'
+  | 'sensors';
 
 export type TradeSettingsSubTab = 'stocks' | 'order_preferences';
 
@@ -20,6 +21,7 @@ export const SETTINGS_NAV: readonly SettingsNavItem[] = [
   { id: 'trade', label: 'Trade' },
   { id: 'alerts', label: 'Alerts' },
   { id: 'account', label: 'Account' },
+  { id: 'sensors', label: 'Sensors' },
 ] as const;
 
 export const TRADE_SETTINGS_SUB_TABS: readonly {

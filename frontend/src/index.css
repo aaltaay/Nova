@@ -15,6 +15,7 @@
 @import "./ibkr/gatewayModeCapsule.css" layer(components);
 @import "./ibkr/marketData.css" layer(components);
 @import "./styles/settings-workspace.css" layer(features);
+@import "./sensors/sensors.css" layer(features);
 @import "./styles/trade-defaults.css" layer(features);
 @import "./styles/shortcuts-menu.css" layer(features);
 @import "./styles/scanner-l2.css" layer(features);

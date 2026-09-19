@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- L2 Brain 18 sensors + Sensor Board
+
+- **What:** All 18 L2 Brain sensors are independent GET smoke-test endpoints (`/sensors/...`) plus a Settings > Sensors board (status chips, symbol picker, loud empty/error). Sensor 13 reads Advice. Sensors 16-18 stay stub / computed_stub with stable shapes. No orders.
+- **Why:** Ahmed locked the 18-sensor list (PR #285 contract) and asked for live-first wiring, thorough tests, and a reviewable board -- not half-baked stubs for 1-15.
+- **Files touched:** `backend/sensors/`, `backend/constants_sensors.py`, `frontend/src/sensors/`, `docs/l2-brain-sensors.md`.
+- **How it works now:** A registry + thin adapters read existing IBKR depth/tape, bars, L1 volume, Advice (`/api/advise`), `strategy.risk`, halt/LULD, and Sim SIM1. Common envelope `{sensor, symbol?, status, as_of, data, error?}`. Brain memory is a versioned local JSON store with POST write. Macro is a static schedule, not Advice. Sensor Board polls `/sensors/snapshot`.
+- **Verified by:** pytest sensor suites + neighbors; Vitest Sensor Board / Settings rail; ruff; doc_invariants; frontend build.
+- **Follow-ups:** Ahmed smoke on the desk (board + live chips). Do not merge this turn (`do-not-merge`). 20-day TOD RVOL still unstored (`tod_20d` null).
+- **Related:** PR #285 contract. Advice rail. Sim mode. `persisted-state.mdc` for sensor 16.
+
 ## 2026-09-19 -- Local Sim Feed + Sim Fill (header Paper / Live / Sim)
 
 - **What:** Header capsule gains a third **Sim** segment. Sim drives a looping SIM1 tape (quote, T&S, L2, shared chart path) and a local fill ledger (place / cancel / flatten -> positions, Orders Today, Day P&L, Net Liq / BP). Loud magenta SIM PRACTICE labeling. While Sim is on, `ibkr.orders` refuses every Gateway place.

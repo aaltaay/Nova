@@ -119,6 +119,13 @@ def _drop_cache(symbol: str) -> None:
     _fundamentals_cache_ttl.pop(symbol, None)
 
 
+def peek_cached(symbol: str) -> dict | None:
+    """Cache-only fundamentals row. Never hits Yahoo."""
+    key = (symbol or "").strip().upper()
+    row = _fundamentals_cache.get(key)
+    return dict(row) if row else None
+
+
 def cache_size() -> int:
     return len(_fundamentals_cache)
 

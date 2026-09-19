@@ -27,6 +27,10 @@ vi.mock('../settings/GeneralSettingsSection', () => ({
   GeneralSettingsSection: () => <div data-testid="general-mock">General Mock</div>,
 }));
 
+vi.mock('../sensors/SensorBoard', () => ({
+  SensorBoard: () => <div data-testid="sensors-mock">Sensors Mock</div>,
+}));
+
 const filter: ExchangeFilter = {
   selected: ['NASDAQ'],
   toggle: vi.fn(),
@@ -90,6 +94,7 @@ describe('SettingsWorkspace', () => {
       ['Trade', 'trade-mock'],
       ['Alerts', 'alerts-mock'],
       ['Account', 'account-mock'],
+      ['Sensors', 'sensors-mock'],
     ] as const) {
       const btn = Array.from(container.querySelectorAll('button')).find(
         (b) => b.textContent === label,
