@@ -81,6 +81,14 @@ def emit_sim_tick(print_payload: dict[str, Any], quote: dict[str, Any] | None, b
         }
     )
 
+    try:
+        from capture.bar_buckets import on_print
+        on_print(SIM_SYMBOL, ts, px, size, source="sim", session_date=day)
+    except Exception:
+        pass
+
+
+
     q = quote or {}
     record_quote(
         {

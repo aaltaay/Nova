@@ -23,7 +23,7 @@ _day: str | None = None
 _dir: Path | None = None
 _files: dict[str, TextIO] = {}
 _last_l2_mono = 0.0
-_counts = {"prints": 0, "quotes": 0, "l2": 0, "bars_1m": 0, "bars_10s": 0}
+_counts = {"prints": 0, "quotes": 0, "l2": 0, "bars_10s": 0, "bars_1m": 0, "bars_5m": 0, "bars_1d": 0}
 
 
 def reset_for_tests() -> None:
@@ -66,7 +66,7 @@ def start_recorder(symbol: str | None, *, resume: bool = True) -> dict[str, Any]
         _day = _dir.parent.name
         _counts = {k: 0 for k in _counts}
         _last_l2_mono = 0.0
-        for name in ("prints", "quotes", "l2", "bars_1m", "bars_10s"):
+        for name in ("prints", "quotes", "l2", "bars_10s", "bars_1m", "bars_5m", "bars_1d"):
             path = _dir / f"{name}.jsonl"
             _files[name] = path.open("a", encoding="utf-8")
         manifest = {
@@ -93,6 +93,11 @@ def stop_recorder() -> None:
 
 def stop_recorder_unlocked() -> None:
     global _active
+    try:
+        from capture.bar_buckets import flush_open
+        flush_open(_symbol)
+    except Exception:
+        logger.debug("CAPTURE: bar flush skipped", exc_info=True)
     if not _active and not _files:
         return
     for fh in list(_files.values()):
@@ -161,13 +166,32 @@ def record_l2(payload: dict[str, Any]) -> None:
 
 
 def record_bar(timeframe: str, payload: dict[str, Any]) -> None:
+    """Persist one bar. timeframes: 10s/10Sec, 1m/1Min, 5m/5Min, 1d/1Day."""
     if not _active:
         return
-    kind = "bars_1m" if timeframe in ("1Min", "1min", "1m") else "bars_10s"
+    tf = (timeframe or "").strip().lower().replace(" ", "")
+    if tf in ("10s", "10sec", "10"):
+        kind = "bars_10s"
+        norm = "10s"
+    elif tf in ("1m", "1min", "1minute"):
+        kind = "bars_1m"
+        norm = "1m"
+    elif tf in ("5m", "5min", "5minute"):
+        kind = "bars_5m"
+        norm = "5m"
+    elif tf in ("1d", "1day", "day", "daily"):
+        kind = "bars_1d"
+        norm = "1d"
+    else:
+        logger.warning("CAPTURE: unknown bar timeframe %r — skipped", timeframe)
+        return
+    row = dict(payload)
+    row.setdefault("timeframe", norm)
     with _lock:
         if not _active:
             return
-        _write(kind, payload)
+        _write(kind, row)
+
 
 
 def status() -> dict[str, Any]:
