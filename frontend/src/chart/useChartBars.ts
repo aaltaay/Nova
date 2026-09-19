@@ -31,12 +31,14 @@ import { paintBars } from './chartBarsPaint';
 import {
   ensureBars,
   getBarsEntry,
+  invalidateBars,
   isBarsEntryFresh,
   subscribeBars,
 } from './barsStore';
 import { isCurrentBarsRequest } from './requestVersion';
 import type { ChartTradeUpdate } from './types';
 import { createRafCoalesce } from '../utils/rafCoalesce';
+import { SIM_CLOCK_SCRUB_EVENT } from '../sim/simClockEvents';
 
 interface UseChartBarsOptions {
   symbol: string;
@@ -238,7 +240,20 @@ export function useChartBars({
     };
   }, [symbol, timeframe, fetchBars, chartActive]);
 
+  
+  // Sim scrubber — drop cache and refetch so charts honor session clock jumps.
   useEffect(() => {
+    if (!chartActive) return undefined;
+    const onScrub = () => {
+      const limit = CHART_TIMEFRAME_BAR_LIMITS[timeframe] ?? 300;
+      invalidateBars(symbol, timeframe);
+      void ensureBars(symbol, timeframe, undefined, limit);
+    };
+    window.addEventListener(SIM_CLOCK_SCRUB_EVENT, onScrub);
+    return () => window.removeEventListener(SIM_CLOCK_SCRUB_EVENT, onScrub);
+  }, [symbol, timeframe, chartActive]);
+
+useEffect(() => {
     if (!chartActive) return;
     const sec = CHART_REFETCH_SEC[timeframe];
     if (!sec) return;

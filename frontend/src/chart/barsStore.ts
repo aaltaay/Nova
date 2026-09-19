@@ -40,6 +40,14 @@ export function clearBarsStoreForTests(): void {
   inflight.clear();
 }
 
+/** Drop cached bars so the next ensureBars hits the network (Sim scrub). */
+export function invalidateBars(symbol: string, timeframe: string): void {
+  const key = barsStoreKey(symbol, timeframe);
+  entries.delete(key);
+  inflight.delete(key);
+  listeners.get(key)?.forEach(l => l());
+}
+
 export function getBarsEntry(symbol: string, timeframe: string): BarsStoreEntry | null {
   return entries.get(barsStoreKey(symbol, timeframe)) ?? null;
 }

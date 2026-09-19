@@ -47,6 +47,12 @@ def reset_for_tests() -> None:
     _volume = 0
     _prints = []
     _bars_1m = []
+
+
+def rebuild_for_scrub() -> None:
+    """Drop live 1m buffer so charts re-seed from the scrubbed sim clock."""
+    global _bars_1m
+    _bars_1m = []
     _clock.reset_for_tests()
 
 
@@ -242,8 +248,13 @@ def chart_bars(symbol: str, timeframe: str, limit: int) -> dict[str, Any]:
     sym = (symbol or "").strip().upper()
     cap = max(1, min(int(limit or SIM_CHART_BARS_DEFAULT), 2000))
     tf = timeframe or "1Min"
+    scrubbed = bool(_clock.status_payload().get("scrubbed"))
     if tf in ("1Day", "1Week", "1Month"):
         bars = _seed_daily(cap)
+    elif scrubbed:
+        # Scrub must re-seed history ending at sim now — ignore live 1m buffer.
+        step = _tf_step_sec(tf) or 60
+        bars = _seed_session_bars(cap, step)
     elif tf in ("1Min", "1min", "1m") and _bars_1m:
         bars = list(_bars_1m[-cap:])
         if len(bars) < min(cap, 30):

@@ -77,12 +77,24 @@ def phase_tick_interval_sec(at: datetime | None = None) -> float:
 def scrub_to_minute(minute_from_open: int) -> dict[str, Any]:
     global _scrub_minute
     _scrub_minute = int(max(0, min(int(minute_from_open), 12 * 60)))
+    try:
+        from sim import market as _market
+
+        _market.rebuild_for_scrub()
+    except Exception:
+        pass
     return status_payload()
 
 
 def clear_scrub() -> dict[str, Any]:
     global _scrub_minute
     _scrub_minute = None
+    try:
+        from sim import market as _market
+
+        _market.rebuild_for_scrub()
+    except Exception:
+        pass
     return status_payload()
 
 

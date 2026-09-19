@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { API_BASE_URL } from '../constants';
 import { novaFetch } from '../api/novaFetch';
+import { emitSimClockScrub } from './simClockEvents';
 
 export interface SimClockState {
   sim: boolean;
@@ -93,7 +94,10 @@ export function SimSessionHeader({ active }: { active: boolean }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ minute_from_open: minute }),
       });
-      if (res.ok) setClock((await res.json()) as SimClockState);
+      if (res.ok) {
+        setClock((await res.json()) as SimClockState);
+        emitSimClockScrub();
+      }
     } catch {
       /* ignore */
     }
@@ -106,7 +110,10 @@ export function SimSessionHeader({ active }: { active: boolean }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ follow_wall: true }),
       });
-      if (res.ok) setClock((await res.json()) as SimClockState);
+      if (res.ok) {
+        setClock((await res.json()) as SimClockState);
+        emitSimClockScrub();
+      }
     } catch {
       /* ignore */
     }
