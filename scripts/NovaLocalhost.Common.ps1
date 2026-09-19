@@ -1,6 +1,6 @@
 #Requires -Version 5.1
 <#
-  Nova localhost helpers — API :8000 + Vite :5173.
+  Nova localhost helpers - API :8000 + Vite :5173.
   Defenses for every breakage we hit on the trading bench:
   - intentional Stop-Process after code updates
   - Vite/npm PATH missing under Task Scheduler
@@ -29,7 +29,7 @@ function Write-NovaLog([string]$Message) {
 }
 
 function Test-NovaPort([int]$Port) {
-  # Prefer netstat — Get-NetTCPConnection often fails under limited/module-load contexts.
+  # Prefer netstat - Get-NetTCPConnection often fails under limited/module-load contexts.
   try {
     $hit = netstat -ano 2>$null | Select-String -Pattern (":$Port\s+.*LISTENING") | Select-Object -First 1
     if ($hit) { return $true }
@@ -46,7 +46,7 @@ function Test-NovaPort([int]$Port) {
 function Test-NovaApiHealthy {
   if (-not (Test-NovaPort $script:NovaApiPort)) { return $false }
   try {
-    # Soft probe — any HTTP response from the API socket counts as alive.
+    # Soft probe - any HTTP response from the API socket counts as alive.
     $r = Invoke-WebRequest -Uri "http://127.0.0.1:$($script:NovaApiPort)/docs" -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop
     return $true
   } catch {
@@ -100,7 +100,7 @@ function Start-NovaApi {
     return $true
   }
   if (Test-NovaPort $script:NovaApiPort) {
-    Write-NovaLog "API port up but unhealthy — leaving process (will retry health next loop)"
+    Write-NovaLog "API port up but unhealthy - leaving process (will retry health next loop)"
     return $false
   }
   Import-NovaEnv
@@ -124,7 +124,7 @@ function Start-NovaApi {
       return $true
     }
   }
-  Write-NovaLog "API FAILED health on $($script:NovaApiPort) — see $err"
+  Write-NovaLog "API FAILED health on $($script:NovaApiPort) - see $err"
   return $false
 }
 
@@ -153,7 +153,7 @@ function Start-NovaVite {
       return $true
     }
   }
-  Write-NovaLog "Vite FAILED to listen on $($script:NovaVitePort) — see $err"
+  Write-NovaLog "Vite FAILED to listen on $($script:NovaVitePort) - see $err"
   return $false
 }
 
