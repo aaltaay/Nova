@@ -32,11 +32,11 @@ Entry template (copy and fill in):
 
 ## 2026-09-19 -- L2 Brain 18 sensors + Sensor Board
 
-- **What:** All 18 L2 Brain sensors are independent GET smoke-test endpoints (`/sensors/...`) plus a Settings > Sensors board (status chips, symbol picker, loud empty/error). Sensor 13 reads Advice. Sensors 16-18 stay stub / computed_stub with stable shapes. No orders.
-- **Why:** Ahmed locked the 18-sensor list (PR #285 contract) and asked for live-first wiring, thorough tests, and a reviewable board -- not half-baked stubs for 1-15.
+- **What:** All 18 L2 Brain sensors are independent GET smoke-test endpoints (`/sensors/...`) plus a Settings > Sensors board (one-row density, status chips including error, symbol picker, loud empty/error). Sensor 13 reads Advice and the board value always shows that source. Sensors 16-18 stay stub / computed_stub with stable shapes. No orders.
+- **Why:** Ahmed locked the 18-sensor list (PR #285 contract) and asked for live-first wiring, thorough tests, and a reviewable board -- not half-baked stubs for 1-15. UX review failed fat cards, missing Advice provenance, and a green live chip on error rows.
 - **Files touched:** `backend/sensors/`, `backend/constants_sensors.py`, `frontend/src/sensors/`, `docs/l2-brain-sensors.md`.
-- **How it works now:** A registry + thin adapters read existing IBKR depth/tape, bars, L1 volume, Advice (`/api/advise`), `strategy.risk`, halt/LULD, and Sim SIM1. Common envelope `{sensor, symbol?, status, as_of, data, error?}`. Brain memory is a versioned local JSON store with POST write. `POST /sensors/memory` uses the same mutating API-key gate as `/api/*`. Macro is a static schedule, not Advice. Sensor Board polls `/sensors/snapshot` and shows catalog titles.
-- **Verified by:** `PYTHONPATH=backend pytest` sensor suites + `test_auth` -- 48 passed. Vitest SensorBoard / sensorSummary / SettingsWorkspace -- 12 passed. `ruff check` on sensor + auth paths -- clean. `python3 tools/doc_invariants.py` -- OK. `npm run build` -- exit 0.
+- **How it works now:** A registry + thin adapters read existing IBKR depth/tape, bars, L1 volume, Advice (`/api/advise`), `strategy.risk`, halt/LULD, and Sim SIM1. Common envelope `{sensor, symbol?, status, as_of, data, error?}`. Brain memory is a versioned local JSON store with POST write. `POST /sensors/memory` uses the same mutating API-key gate as `/api/*`. Macro is a static schedule, not Advice. Sensor Board polls `/sensors/snapshot`, paints one scanner-density row per sensor, and swaps the chip to `error` when `row.error` is set. News summary is `Advice · <headline>`. Tape/flow omit fake `0 prints`.
+- **Verified by:** `PYTHONPATH=backend pytest` sensor suites + `test_auth` -- 48 passed. Vitest SensorBoard / sensorSummary / SettingsWorkspace -- 14 passed. `ruff check` on sensor + auth paths -- clean. `python3 tools/doc_invariants.py` -- OK. `npm run build` -- exit 0.
 - **Follow-ups:** Ahmed smoke on the desk (board + live chips). Do not merge this turn (`do-not-merge`). 20-day TOD RVOL still unstored (`tod_20d` null).
 - **Related:** PR #285 contract. Advice rail. Sim mode. `persisted-state.mdc` for sensor 16.
 

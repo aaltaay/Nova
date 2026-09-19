@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- Sensor Board UX review: no Advice provenance, green chip on error, fat cards
+
+- **Symptom:** Sensor 13 looked like a bare headline. Live rows with `error` kept a green live chip. Eighteen two-line bordered cards failed operator glance density.
+- **Cause:** `sensorSummary` omitted `data.source`. `SensorStatusChip` only knew live/stub/computed_stub. Rows used a card stack (`row-head` + value).
+- **Fix:** News value is `Advice · <headline>`. Chip becomes `error` when `row.error` is set. One scanner-density row: name / value / chip. Tape/flow no longer invent `0 prints`.
+- **Fix class:** surfacing
+- **Keywords:** sensors, Sensor Board, Advice, error chip, density, tape, flow, #287
+
 ## 2026-09-19 -- Sensor news test treated Advice disclaimer as Advisor leak
 
 - **Symptom:** `test_news_does_not_require_finnhub` failed: `'Advisor' is contained here` on a healthy `/sensors/news` envelope.

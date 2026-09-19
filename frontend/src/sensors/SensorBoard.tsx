@@ -113,19 +113,21 @@ export function SensorBoard() {
       )}
       <ul className="sensor-board-list">
         {rows.map((row) => (
-          <li key={row.sensor} className="sensor-board-row" data-testid={`sensor-row-${row.sensor}`}>
-            <div className="sensor-board-row-head">
-              <span className="sensor-board-name" data-testid={`sensor-title-${row.sensor}`}>
-                {row.title || row.sensor}
-              </span>
-              <SensorStatusChip status={row.status} />
-            </div>
-            <div
+          <li
+            key={row.sensor}
+            className={`sensor-board-row${row.error ? ' is-error' : ''}`}
+            data-testid={`sensor-row-${row.sensor}`}
+          >
+            <span className="sensor-board-name" data-testid={`sensor-title-${row.sensor}`}>
+              {row.title || row.sensor}
+            </span>
+            <span
               className={`sensor-board-value${row.error ? ' is-error' : ''}`}
               data-testid={`sensor-value-${row.sensor}`}
             >
               {sensorSummary(row)}
-            </div>
+            </span>
+            <SensorStatusChip status={row.status} error={row.error} />
           </li>
         ))}
       </ul>

@@ -6,6 +6,26 @@ function num(value: unknown, digits = 2): string | null {
   return value.toFixed(digits);
 }
 
+function printCount(data: Record<string, unknown>): string | null {
+  if (typeof data.print_count !== 'number' || Number.isNaN(data.print_count)) return null;
+  return `${data.print_count} prints`;
+}
+
+function newsSourceLabel(raw: unknown): string {
+  const source = typeof raw === 'string' ? raw.trim() : '';
+  if (!source) return 'Advice';
+  return source.toLowerCase() === 'advice' ? 'Advice' : source;
+}
+
+function newsSummary(data: Record<string, unknown>): string {
+  const source = newsSourceLabel(data.source);
+  const text =
+    (typeof data.headline === 'string' && data.headline.trim()) ||
+    (typeof data.sentiment === 'string' && data.sentiment.trim()) ||
+    SENSORS_NO_VALUE;
+  return `${source} · ${text}`;
+}
+
 export function sensorSummary(row: SensorEnvelope): string {
   if (row.error) return row.error;
   const data = row.data || {};
@@ -13,7 +33,7 @@ export function sensorSummary(row: SensorEnvelope): string {
     case 'l2':
       return `imb ${num(data.imbalance, 2) ?? '-'} · spr ${num(data.spread_ticks, 1) ?? '-'}t`;
     case 'tape':
-      return `${data.print_count ?? 0} prints`;
+      return printCount(data) ?? SENSORS_NO_VALUE;
     case 'vwap':
       return data.vwap != null ? `VWAP ${num(data.vwap, 3)} (${num(data.distance_ticks, 1) ?? '-'}t)` : SENSORS_NO_VALUE;
     case 'macd':
@@ -27,7 +47,8 @@ export function sensorSummary(row: SensorEnvelope): string {
     case 'session-phase':
       return String(data.phase ?? SENSORS_NO_VALUE);
     case 'flow':
-      return data.sweep ? `sweep ${data.sweep && typeof data.sweep === 'object' ? 'yes' : ''}` : `${data.print_count ?? 0} prints`;
+      if (data.sweep && typeof data.sweep === 'object') return 'sweep yes';
+      return printCount(data) ?? SENSORS_NO_VALUE;
     case 'last-move':
       return data.seconds_ago != null ? `${num(data.seconds_ago, 0)}s ago` : SENSORS_NO_VALUE;
     case 'liquidity':
@@ -37,7 +58,7 @@ export function sensorSummary(row: SensorEnvelope): string {
       return e9?.value != null ? `EMA9 ${num(e9.value, 3)}` : SENSORS_NO_VALUE;
     }
     case 'news':
-      return String(data.headline || data.sentiment || SENSORS_NO_VALUE);
+      return newsSummary(data);
     case 'risk':
       return `remain ${num(data.daily_loss_limit_remaining, 0)} · L${data.consecutive_losses ?? 0}`;
     case 'halt':

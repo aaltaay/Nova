@@ -1,4 +1,5 @@
 export type SensorStatus = 'live' | 'stub' | 'computed_stub';
+export type SensorChipStatus = SensorStatus | 'error';
 
 export interface SensorCatalogRow {
   id: number;

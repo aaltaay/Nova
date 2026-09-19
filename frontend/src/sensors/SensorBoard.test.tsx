@@ -76,6 +76,43 @@ describe('SensorBoard', () => {
     expect(container.querySelector('[data-testid="sensor-title-l2"]')?.textContent).toBe('L2 book');
     expect(container.querySelector('[data-testid="sensor-title-memory"]')?.textContent).toBe('Brain memory');
     expect(container.querySelector('[data-testid="sensor-symbol"]')).toBeTruthy();
+    expect(container.querySelector('.sensor-board-row-head')).toBeNull();
+  });
+
+  it('shows an error chip and Advice provenance on live rows', async () => {
+    fetchCatalog.mockResolvedValue({
+      count: 2,
+      sensors: [
+        { id: 2, sensor: 'tape', title: 'Time & sales tape', path: '/sensors/tape', status: 'live', needs_symbol: true },
+        { id: 13, sensor: 'news', title: 'News / catalyst (Advice)', path: '/sensors/news', status: 'live', needs_symbol: true },
+      ],
+    });
+    fetchSnapshot.mockResolvedValue({
+      symbol: 'AAPL',
+      count: 2,
+      sensors: [
+        { sensor: 'tape', symbol: 'AAPL', status: 'live', as_of: 1, data: {}, error: 'No prints yet' },
+        {
+          sensor: 'news',
+          symbol: 'AAPL',
+          status: 'live',
+          as_of: 1,
+          data: { source: 'advice', headline: 'Contract win' },
+        },
+      ],
+    });
+    await act(async () => {
+      root.render(<SensorBoard />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[data-testid="sensor-chip-error"]')?.textContent).toMatch(/error/i);
+    expect(container.querySelector('[data-testid="sensor-value-tape"]')?.textContent).toBe('No prints yet');
+    expect(container.querySelector('[data-testid="sensor-chip-live"]')?.textContent).toMatch(/live/i);
+    expect(container.querySelector('[data-testid="sensor-value-news"]')?.textContent).toBe(
+      'Advice · Contract win',
+    );
   });
 
   it('refreshes snapshot for a typed symbol', async () => {

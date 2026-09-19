@@ -226,9 +226,12 @@ row) with timestamp and expected impact. Static placeholders are OK.
 
 ## Sensor Board
 
-Settings overlay left rail **Sensors**. List of all 18 names, live/stub
-chips, latest value summary, symbol picker. Empty and error states are
-loud. Account settings points here. No Place button.
+Settings overlay left rail **Sensors**. One tight row per sensor
+(name / value / chip), scanner-table density. A row with `error` paints
+an **error** chip -- not a green live chip. News value always includes
+Advice provenance (`data.source`). Tape/flow do not invent `0 prints`.
+Empty and load-fail states stay loud. Account settings points here. No
+Place button.
 
 ## Non-goals
 

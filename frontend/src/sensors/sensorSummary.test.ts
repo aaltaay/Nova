@@ -19,6 +19,15 @@ describe('sensorSummary', () => {
 
   it('shows empty reading when data is missing', () => {
     expect(sensorSummary(row('vwap', {}))).toBe(SENSORS_NO_VALUE);
+    expect(sensorSummary(row('tape', {}))).toBe(SENSORS_NO_VALUE);
+    expect(sensorSummary(row('flow', {}))).toBe(SENSORS_NO_VALUE);
+  });
+
+  it('names Advice as the news source', () => {
+    expect(sensorSummary(row('news', { source: 'advice', headline: 'Contract win' }))).toBe(
+      'Advice · Contract win',
+    );
+    expect(sensorSummary(row('news', { source: 'advice' }))).toBe(`Advice · ${SENSORS_NO_VALUE}`);
   });
 
   it('labels halt and session phase', () => {
@@ -38,7 +47,7 @@ describe('sensorSummary', () => {
       ['last-move', { seconds_ago: 12 }, '12s ago'],
       ['liquidity', { adv: 1000 }, 'ADV 1000'],
       ['emas', { ema_9: { value: 10.5 } }, 'EMA9 10.500'],
-      ['news', { headline: 'Contract win' }, 'Contract win'],
+      ['news', { source: 'advice', headline: 'Contract win' }, 'Advice · Contract win'],
       ['risk', { daily_loss_limit_remaining: 400, consecutive_losses: 1 }, 'remain 400'],
       ['regime', { regime: 'chopping', confidence: 0.4 }, 'chopping (0.40)'],
       ['macro', { count: 3 }, '3 stub events'],
