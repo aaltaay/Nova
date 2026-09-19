@@ -50,14 +50,33 @@ def reset_for_tests() -> None:
 
 
 def rebuild_for_scrub() -> None:
-    """Drop live 1m buffer so charts re-seed from scrubbed/capture clock."""
+    """Drop live 1m buffer; for capture, seek emit cursor and reseed tape/L2 viewers."""
     global _bars_1m
     _bars_1m = []
     try:
         from sim import capture_player as _player
         from sim import replay as _replay
-        if _replay.is_capture_replay():
-            _player.seek_emit_cursor(_clock.now_et().timestamp())
+        if not _replay.is_capture_replay():
+            return
+        now_ts = _clock.now_et().timestamp()
+        _player.seek_emit_cursor(now_ts)
+        status = _replay.status_payload() or {}
+        sym = str(status.get("replay_symbol") or SIM_SYMBOL).strip().upper()
+        if not sym:
+            return
+        from ibkr.tape_stream import _push_queue
+        _push_queue(sym, {"type": "scrub_reset", "symbol": sym})
+        for row in _player.recent_prints(40):
+            _push_queue(sym, {**row, "type": "print", "symbol": sym})
+        try:
+            from ibkr.depth import state as _depth_state
+            book = _player.book_at()
+            if book is not None:
+                book = dict(book)
+                book["symbol"] = sym
+                _depth_state.push_book(sym, book)
+        except Exception:
+            pass
     except Exception:
         pass
 

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { WS_BASE_URL } from '../constants';
 import { upsertTapePrint10SecBar } from '../chart/barsStore';
+import { SIM_CLOCK_SCRUB_EVENT } from '../sim/simClockEvents';
 import { createRafCoalesce } from '../utils/rafCoalesce';
 import {
   appendTapePrint,
@@ -38,6 +39,18 @@ export function useIbkrTape(symbol: string | null, uiActive = true): TapeState {
   useEffect(() => {
     uiActiveRef.current = uiActive;
   }, [uiActive]);
+
+  // Sim scrub: clear stale open-session prints immediately; backend reseeds via scrub_reset + prints.
+  useEffect(() => {
+    const onScrub = () => {
+      printsRef.current = [];
+      if (uiActiveRef.current) {
+        setState(s => ({ ...s, prints: [] }));
+      }
+    };
+    window.addEventListener(SIM_CLOCK_SCRUB_EVENT, onScrub);
+    return () => window.removeEventListener(SIM_CLOCK_SCRUB_EVENT, onScrub);
+  }, []);
 
   const commitUi = () => {
     if (!mountedRef.current) return;
@@ -90,6 +103,14 @@ export function useIbkrTape(symbol: string | null, uiActive = true): TapeState {
         try {
           const msg = JSON.parse(e.data as string);
           if (!tapeMessageAllowed(msg.symbol, symKey!)) return;
+
+          if (msg.type === 'scrub_reset') {
+            printsRef.current = [];
+            if (uiActiveRef.current) {
+              setState(s => ({ ...s, prints: [], connected: true, error: null }));
+            }
+            return;
+          }
 
           if (msg.type === 'subscribed') {
             connectedRef.current = true;

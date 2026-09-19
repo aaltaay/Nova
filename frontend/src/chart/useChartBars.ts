@@ -245,13 +245,12 @@ export function useChartBars({
   useEffect(() => {
     if (!chartActive) return undefined;
     const onScrub = () => {
-      const limit = CHART_TIMEFRAME_BAR_LIMITS[timeframe] ?? 300;
       invalidateBars(symbol, timeframe);
-      void ensureBars(symbol, timeframe, undefined, limit);
+      void fetchBars(symbol, timeframe, false);
     };
     window.addEventListener(SIM_CLOCK_SCRUB_EVENT, onScrub);
     return () => window.removeEventListener(SIM_CLOCK_SCRUB_EVENT, onScrub);
-  }, [symbol, timeframe, chartActive]);
+  }, [symbol, timeframe, chartActive, fetchBars]);
 
 useEffect(() => {
     if (!chartActive) return;

@@ -76,6 +76,8 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
                 if print_data.get("released"):
                     await websocket.close()
                     break
+            elif msg_type == "scrub_reset":
+                await websocket.send_text(json.dumps({"type": "scrub_reset", "symbol": symbol}))
             else:
                 await websocket.send_text(json.dumps({**print_data, "type": "print"}))
     except WebSocketDisconnect:
