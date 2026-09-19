@@ -1,12 +1,14 @@
 /**
  * Second header bar for Sim session clock + scrubber (6:00–18:00 ET).
  * Right side: day + ticker pickers for captured sessions (Lock A).
+ * Picking a ticker also opens/activates that trader tab (same as scanner open).
  * Scrubber uses local drag state so the 1s clock poll cannot steal the thumb.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { API_BASE_URL } from '../constants';
 import { novaFetch } from '../api/novaFetch';
 import { emitSimClockScrub } from './simClockEvents';
+import { useWorkspace } from '../workspace/WorkspaceContext';
 
 export interface SimClockState {
   sim: boolean;
@@ -50,6 +52,7 @@ function formatMinuteClock(minuteFromOpen: number): string {
 }
 
 export function SimSessionHeader({ active }: { active: boolean }) {
+  const { openStockView } = useWorkspace();
   const [clock, setClock] = useState<SimClockState | null>(null);
   const [sessions, setSessions] = useState<CaptureSessions | null>(null);
   const [day, setDay] = useState<string>('');
@@ -182,6 +185,9 @@ export function SimSessionHeader({ active }: { active: boolean }) {
       if (res.ok) {
         const payload = (await res.json()) as SimClockState;
         setClock(c => ({ ...(c || { sim: true }), ...payload }));
+        // Capture ticker pick -> same desk tab (add or activate). Clear stays put.
+        const sym = (nextSymbol || '').trim().toUpperCase();
+        if (sym) openStockView(sym);
       }
     } catch {
       /* ignore */
