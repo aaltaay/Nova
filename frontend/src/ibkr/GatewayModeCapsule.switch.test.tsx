@@ -2,11 +2,13 @@
  * @vitest-environment jsdom
  *
  * Intentional Paper<->Live Gateway switch -- real POST to
- * /api/ibkr/gateway-mode, honest error surfacing, never arms live spend.
+ * /api/ibkr/gateway-mode via novaFetch (X-Nova-Api-Key), honest error
+ * surfacing, never arms live spend.
  */
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { NOVA_API_KEY_HEADER, NOVA_API_KEY_STORAGE } from '../constantGroups/api_auth';
 
 const refreshIbkrStatusNow = vi.fn();
 const confirmAppMock = vi.fn();
@@ -29,6 +31,8 @@ describe('GatewayModeCapsule — intentional Gateway switch', () => {
     refreshIbkrStatusNow.mockClear();
     confirmAppMock.mockReset();
     confirmAppMock.mockResolvedValue(true);
+    localStorage.clear();
+    localStorage.setItem(NOVA_API_KEY_STORAGE, 'test-nova-key');
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -39,8 +43,13 @@ describe('GatewayModeCapsule — intentional Gateway switch', () => {
       root.unmount();
     });
     container.remove();
+    localStorage.clear();
     vi.restoreAllMocks();
   });
+
+  function requestHeaders(init: RequestInit | undefined): Headers {
+    return new Headers(init?.headers);
+  }
 
   function render(
     mode: 'paper' | 'live' | 'disconnected',
@@ -87,6 +96,9 @@ describe('GatewayModeCapsule — intentional Gateway switch', () => {
         body: JSON.stringify({ enabled: true }),
       }),
     );
+    expect(requestHeaders(fetchSpy.mock.calls[0][1] as RequestInit).get(NOVA_API_KEY_HEADER)).toBe(
+      'test-nova-key',
+    );
     expect(refreshIbkrStatusNow).toHaveBeenCalled();
   });
 
@@ -114,6 +126,9 @@ describe('GatewayModeCapsule — intentional Gateway switch', () => {
     );
     const sentBody = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string);
     expect(sentBody).toEqual({ mode: 'live' });
+    expect(requestHeaders(fetchSpy.mock.calls[0][1] as RequestInit).get(NOVA_API_KEY_HEADER)).toBe(
+      'test-nova-key',
+    );
     expect(refreshIbkrStatusNow).toHaveBeenCalled();
   });
 

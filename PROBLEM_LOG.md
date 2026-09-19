@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- Paper/Live/Sim toggle missing API key header
+
+- **Symptom:** Toggling Paper/Live/Sim showed `Invalid or missing X-Nova-Api-Key`.
+- **Cause:** `GatewayModeCapsule` used raw `fetch` for `POST /api/sim` and `POST /api/ibkr/gateway-mode`. MutatingApiKeyMiddleware requires `X-Nova-Api-Key` when `NOVA_API_KEY` is set. `novaFetch` attaches that header; raw `fetch` does not. Prerequisites Follow/Reconnect had the same hole.
+- **Fix:** Route those POSTs through `novaFetch`. Switch test asserts the header on Sim and Live.
+- **Fix class:** infra
+- **Keywords:** X-Nova-Api-Key, novaFetch, GatewayModeCapsule, /api/sim, gateway-mode, MutatingApiKeyMiddleware
+
 ## 2026-09-19 -- Desk safety: AH flatten held + trading_allowed looks vs is
 
 - **Symptom:** After-hours / weekend flatten-account and Emergency KILL placed RTH-only MKT sells that IBKR held until Monday 9:30 ET (`held_until`, Warning 399). Bot Autonomy Activate could look Active while the desk padlock still blocked Place, or API place and UI lock disagreed.
