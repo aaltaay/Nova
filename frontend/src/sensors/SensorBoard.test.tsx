@@ -1,6 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
+import { fireEvent } from '@testing-library/react';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -72,7 +73,27 @@ describe('SensorBoard', () => {
     expect(container.querySelector('[data-testid="sensor-chip-stub"]')?.textContent).toMatch(/stub/i);
     expect(container.querySelector('[data-testid="sensor-chip-computed_stub"]')?.textContent).toMatch(/computed/i);
     expect(container.querySelector('[data-testid="sensor-value-l2"]')?.textContent).toContain('imb');
+    expect(container.querySelector('[data-testid="sensor-title-l2"]')?.textContent).toBe('L2 book');
+    expect(container.querySelector('[data-testid="sensor-title-memory"]')?.textContent).toBe('Brain memory');
     expect(container.querySelector('[data-testid="sensor-symbol"]')).toBeTruthy();
+  });
+
+  it('refreshes snapshot for a typed symbol', async () => {
+    fetchCatalog.mockResolvedValue(catalog);
+    fetchSnapshot.mockResolvedValue(snap());
+    await act(async () => {
+      root.render(<SensorBoard />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const input = container.querySelector('[data-testid="sensor-symbol"]');
+    expect(input).toBeTruthy();
+    await act(async () => {
+      fireEvent.change(input as HTMLInputElement, { target: { value: 'msft' } });
+      fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+    });
+    expect(fetchSnapshot).toHaveBeenCalledWith('MSFT');
   });
 
   it('shows a loud error when the snapshot fails', async () => {

@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- Sensor news test treated Advice disclaimer as Advisor leak
+
+- **Symptom:** `test_news_does_not_require_finnhub` failed: `'Advisor' is contained here` on a healthy `/sensors/news` envelope.
+- **Cause:** The Advice-only note says "Not Advisor." A whole-body substring check treated that disclaimer as a leak to the Advisor product.
+- **Fix:** Assert `source=advice`, no Finnhub, no `/api/advisor`, and that the note names Advice.
+- **Fix class:** surfacing
+- **Keywords:** sensors, news, Advice, Advisor, finnhub, substring
+
 ## 2026-09-19 -- Sim PR Backend tests failed ruff F401 unused imports
 
 - **Symptom:** CI Backend tests on #282 failed ruff F401: `ibkr.client` unused in `bot/flatten.py`, `ibkr.tape_stream` unused in `routes/trading.py`.

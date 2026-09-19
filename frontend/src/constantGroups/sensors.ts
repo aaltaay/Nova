@@ -15,3 +15,5 @@ export const SENSORS_SIM_SYMBOL = 'SIM1';
 export const SENSORS_LIVE = 'live';
 export const SENSORS_STUB = 'stub';
 export const SENSORS_COMPUTED_STUB = 'computed_stub';
+export const SENSORS_ACCOUNT_HINT =
+  'L2 Brain Sensor Board is Settings > Sensors -- read-only GET smoke tests.';

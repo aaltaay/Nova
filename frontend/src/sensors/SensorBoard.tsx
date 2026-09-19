@@ -20,9 +20,10 @@ function mergeRows(catalog: SensorCatalogRow[], readings: SensorEnvelope[]): Sen
   const byKey = new Map(readings.map((row) => [row.sensor, row]));
   return catalog.map((item) => {
     const live = byKey.get(item.sensor);
-    if (live) return live;
+    if (live) return { ...live, title: item.title };
     return {
       sensor: item.sensor,
+      title: item.title,
       status: item.status,
       as_of: 0,
       data: {},
@@ -55,7 +56,7 @@ export function SensorBoard() {
       ]);
       setCatalog(cat.sensors || []);
       setReadings(snap.sensors || []);
-      setError(cat.sensors?.length ? null : SENSORS_EMPTY_CATALOG);
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : SENSORS_LOAD_ERROR);
     } finally {
@@ -114,7 +115,9 @@ export function SensorBoard() {
         {rows.map((row) => (
           <li key={row.sensor} className="sensor-board-row" data-testid={`sensor-row-${row.sensor}`}>
             <div className="sensor-board-row-head">
-              <span className="sensor-board-name">{row.sensor}</span>
+              <span className="sensor-board-name" data-testid={`sensor-title-${row.sensor}`}>
+                {row.title || row.sensor}
+              </span>
               <SensorStatusChip status={row.status} />
             </div>
             <div

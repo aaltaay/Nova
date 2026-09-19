@@ -1,6 +1,7 @@
 /**
  * Settings > Account — IBKR status summary + open Trading tab.
  */
+import { SENSORS_ACCOUNT_HINT } from '../constantGroups/sensors';
 import {
   SETTINGS_ACCOUNT_DISCONNECTED,
   SETTINGS_ACCOUNT_OPEN_TRADING,
@@ -28,7 +29,7 @@ export function AccountSettingsSection({ onClose }: Props) {
     <div className="settings-account" data-testid="settings-account">
       <h3 className="settings-block-title">{SETTINGS_ACCOUNT_TITLE}</h3>
       <p className="settings-block-hint">
-        L2 Brain Sensor Board is Settings &gt; Sensors -- read-only GET smoke tests.
+        {SENSORS_ACCOUNT_HINT}
       </p>
       <dl className="settings-account-dl">
         <div>

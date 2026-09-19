@@ -26,4 +26,28 @@ describe('sensorSummary', () => {
     expect(sensorSummary(row('halt', { halted: true, kind: 'LULD' }))).toBe('HALT LULD');
     expect(sensorSummary(row('session-phase', { phase: 'power hour' }))).toBe('power hour');
   });
+
+  it('summarizes every sensor key without unicode dashes', () => {
+    const samples: Array<[string, Record<string, unknown>, string]> = [
+      ['tape', { print_count: 4 }, '4 prints'],
+      ['macd', { ready: true, macd: 0.12, histogram: 0.01 }, 'MACD 0.120'],
+      ['rvol', { rvol_vs_adv_pace: 1.5 }, 'pace 1.50'],
+      ['day-volume', { day_volume: 900 }, '900'],
+      ['spread', { spread_ticks: 2, direction: 'widening' }, '2.0t widening'],
+      ['flow', { sweep: { side: 'ask' } }, 'sweep yes'],
+      ['last-move', { seconds_ago: 12 }, '12s ago'],
+      ['liquidity', { adv: 1000 }, 'ADV 1000'],
+      ['emas', { ema_9: { value: 10.5 } }, 'EMA9 10.500'],
+      ['news', { headline: 'Contract win' }, 'Contract win'],
+      ['risk', { daily_loss_limit_remaining: 400, consecutive_losses: 1 }, 'remain 400'],
+      ['regime', { regime: 'chopping', confidence: 0.4 }, 'chopping (0.40)'],
+      ['macro', { count: 3 }, '3 stub events'],
+    ];
+    for (const [sensor, data, needle] of samples) {
+      const text = sensorSummary(row(sensor, data));
+      expect(text).toContain(needle);
+      expect(text).not.toContain('\u2014');
+      expect(text).not.toContain('\u2013');
+    }
+  });
 });

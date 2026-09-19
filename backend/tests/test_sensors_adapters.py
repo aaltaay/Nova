@@ -87,3 +87,76 @@ def test_halt_from_existing_snapshot(monkeypatch):
     assert body["data"]["halted"] is True
     assert body["data"]["kind"] == "LULD"
     assert body["data"]["elapsed_sec"] is not None
+
+
+def test_spread_marks_widening(monkeypatch):
+    tight = {
+        "bids": [{"price": 10.00, "size": 100}],
+        "asks": [{"price": 10.01, "size": 100}],
+    }
+    wide = {
+        "bids": [{"price": 10.00, "size": 100}],
+        "asks": [{"price": 10.05, "size": 100}],
+    }
+    rings.observe_book("AAPL", tight)
+    monkeypatch.setattr("sensors.adapters.bookish.get_book", lambda symbol: (wide, "ibkr_depth"))
+    rings.observe_book("AAPL", wide)
+    body = bookish.read_spread("AAPL")
+    assert body["data"]["direction"] == "widening"
+    assert body["data"]["spread_ticks"] == 5.0
+
+
+def test_flow_flags_same_side_sweep(monkeypatch):
+    prints = [
+        {"time": "2026-09-19T14:00:00+00:00", "price": 10.0, "size": 200, "side": "ask"},
+        {"time": "2026-09-19T14:00:01+00:00", "price": 10.01, "size": 200, "side": "ask"},
+        {"time": "2026-09-19T14:00:02+00:00", "price": 10.02, "size": 200, "side": "ask"},
+    ]
+    monkeypatch.setattr("sensors.adapters.bookish.get_prints", lambda symbol, limit=20: (prints, "ibkr_tape"))
+    monkeypatch.setattr("sensors.adapters.bookish.get_book", lambda symbol: (None, None))
+    body = bookish.read_flow("AAPL")
+    assert body["data"]["sweep"] == {"side": "ask", "prints": 3}
+
+
+def test_last_move_uses_median_range(monkeypatch):
+    bars_1m = [
+        {"t": 1_700_000_000 + i * 60, "o": 10, "h": 10.02, "l": 9.99, "c": 10, "v": 10}
+        for i in range(19)
+    ]
+    bars_1m.append({"t": 1_700_001_140, "o": 10, "h": 10.50, "l": 9.50, "c": 10.2, "v": 50})
+    monkeypatch.setattr("sensors.adapters.tapeish.get_bars", lambda symbol, timeframe="1Min", limit=240: (bars_1m, "bars_store"))
+    body = tapeish.read_last_move("AAPL")
+    assert body["data"]["bar"]["h"] == 10.50
+    assert body["data"]["median_range"] is not None
+
+
+def test_liquidity_does_not_invent_typical_spread(monkeypatch):
+    monkeypatch.setattr("sensors.adapters.bookish.peek_avg_volume", lambda symbol: 1_000_000.0)
+    monkeypatch.setattr("sensors.adapters.bookish.get_book", lambda symbol: (None, None))
+    monkeypatch.setattr("sensors.adapters.bookish.get_quote", lambda symbol: ({"price": 4.2}, "ibkr_l1"))
+    body = bookish.read_liquidity("AAPL")
+    assert body["data"]["adv"] == 1_000_000.0
+    assert body["data"]["typical_spread_dollars"] is None
+    assert "no historical" in body["data"]["typical_spread_note"].lower()
+
+
+def test_day_volume_loud_when_missing(monkeypatch):
+    monkeypatch.setattr("sensors.adapters.volume.get_quote", lambda symbol: (None, None))
+    body = volume.read_day_volume("AAPL")
+    assert body["error"]
+    assert body["data"]["day_volume"] is None
+
+
+def test_regime_trending_from_up_closes(monkeypatch):
+    bars_1m = [
+        {"t": 1_700_000_000 + i * 60, "o": 10 + i, "h": 10 + i, "l": 10 + i, "c": 10 + i, "v": 10}
+        for i in range(20)
+    ]
+    monkeypatch.setattr("sensors.adapters.stubs.get_bars", lambda symbol, timeframe="1Min", limit=20: (bars_1m, "bars_store"))
+    monkeypatch.setattr("sensors.adapters.stubs.get_prints", lambda symbol, limit=20: ([], None))
+    monkeypatch.setattr("sensors.adapters.stubs.get_book", lambda symbol: (None, None))
+    from sensors.adapters import stubs
+
+    body = stubs.read_regime("AAPL")
+    assert body["status"] == "computed_stub"
+    assert body["data"]["regime"] == "trending"

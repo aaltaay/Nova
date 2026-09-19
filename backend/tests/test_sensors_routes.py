@@ -124,8 +124,10 @@ def test_news_does_not_require_finnhub(monkeypatch):
     assert body["data"]["source"] == "advice"
     assert body["data"]["headline"] == "Catalyst: contract win."
     assert body["data"]["sentiment"] == "bullish"
-    assert "Advisor" not in str(body)
     assert "finnhub" not in str(body).lower()
+    assert "/api/advisor" not in str(body).lower()
+    assert body["data"]["source"] != "advisor"
+    assert "Advice" in body["data"]["note"]
 
 
 def test_macro_is_stub_not_advice():
@@ -164,3 +166,74 @@ def test_session_phase_live():
         "after-hours",
         "closed",
     }
+
+
+def test_catalog_live_vs_stub_contract():
+    by_id = {row["id"]: row for row in client.get("/sensors").json()["sensors"]}
+    for sensor_id in range(1, 16):
+        assert by_id[sensor_id]["status"] == "live", sensor_id
+    assert by_id[16]["status"] == "stub"
+    assert by_id[17]["status"] == "computed_stub"
+    assert by_id[18]["status"] == "stub"
+
+
+def test_snapshot_status_matches_contract():
+    statuses = {
+        row["sensor"]: row["status"]
+        for row in client.get("/sensors/snapshot", params={"symbol": "AAPL"}).json()["sensors"]
+    }
+    live = {
+        "l2",
+        "tape",
+        "vwap",
+        "macd",
+        "rvol",
+        "day-volume",
+        "spread",
+        "session-phase",
+        "flow",
+        "last-move",
+        "liquidity",
+        "emas",
+        "news",
+        "risk",
+        "halt",
+    }
+    assert live <= set(statuses)
+    for key in live:
+        assert statuses[key] == "live", key
+    assert statuses["memory"] == "stub"
+    assert statuses["regime"] == "computed_stub"
+    assert statuses["macro"] == "stub"
+
+
+def test_news_empty_advice_stays_live_and_loud(monkeypatch):
+    from advise import service
+
+    monkeypatch.setattr(service, "latest", lambda symbol, depth=None: None)
+    body = client.get("/sensors/news", params={"symbol": "AAPL"}).json()
+    assert body["status"] == "live"
+    assert body["data"]["source"] == "advice"
+    assert body["error"]
+    assert "Advice" in body["error"]
+    assert body["data"].get("provider") != "finnhub"
+
+
+def test_memory_write_rejects_unknown_decision():
+    res = client.post("/sensors/memory", json={"symbol": "AAPL", "decision": "maybe"})
+    assert res.status_code == 400
+
+
+def test_memory_post_requires_api_key_when_configured(monkeypatch):
+    monkeypatch.setenv("NOVA_API_KEY", "sensor-test-key")
+    monkeypatch.setenv("NOVA_API_HOST", "127.0.0.1")
+    denied = client.post("/sensors/memory", json={"symbol": "AAPL", "decision": "go"})
+    assert denied.status_code == 401
+    allowed = client.post(
+        "/sensors/memory",
+        json={"symbol": "AAPL", "decision": "go"},
+        headers={"X-Nova-Api-Key": "sensor-test-key"},
+    )
+    assert allowed.status_code == 200
+    opened = client.get("/sensors/memory", params={"symbol": "AAPL"})
+    assert opened.status_code == 200

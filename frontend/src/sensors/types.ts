@@ -11,6 +11,7 @@ export interface SensorCatalogRow {
 
 export interface SensorEnvelope {
   sensor: string;
+  title?: string;
   symbol?: string;
   status: SensorStatus;
   as_of: number;

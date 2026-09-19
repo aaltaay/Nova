@@ -65,6 +65,15 @@ def is_bot_mutate(method: str, path: str) -> bool:
     return method in _MUTATING and is_bot_http_path(path)
 
 
+def is_sensor_http_path(path: str) -> bool:
+    normalized = path.rstrip("/") or "/"
+    return normalized == "/sensors" or normalized.startswith("/sensors/")
+
+
+def is_sensor_mutate(method: str, path: str) -> bool:
+    return method in _MUTATING and is_sensor_http_path(path)
+
+
 _BOT_KEY_REQUIRED = (
     "NOVA_API_KEY must be set for mutating bot routes, including on loopback"
 )
@@ -122,14 +131,15 @@ async def require_bot_auth(
 
 
 class MutatingApiKeyMiddleware(BaseHTTPMiddleware):
-    """Enforce API key on mutating ``/api/*`` and ``/bot/*`` HTTP methods."""
+    """Enforce API key on mutating ``/api/*``, ``/bot/*``, and ``/sensors/*``."""
 
     async def dispatch(self, request: Request, call_next) -> Response:
         path = request.url.path
         mutating = request.method in _MUTATING
         bot = is_bot_mutate(request.method, path)
         api = path.startswith("/api/")
-        if mutating and (bot or api):
+        sensors = is_sensor_mutate(request.method, path)
+        if mutating and (bot or api or sensors):
             rejected = check_api_key(
                 request.headers.get(NOVA_API_KEY_HEADER),
                 require_configured_key=is_config_mutate(request.method, path) or bot,
@@ -172,6 +182,8 @@ __all__ = [
     "is_bot_http_path",
     "is_bot_mutate",
     "is_config_mutate",
+    "is_sensor_http_path",
+    "is_sensor_mutate",
     "require_auth",
     "require_bot_auth",
 ]

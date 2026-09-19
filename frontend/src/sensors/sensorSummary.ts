@@ -11,11 +11,11 @@ export function sensorSummary(row: SensorEnvelope): string {
   const data = row.data || {};
   switch (row.sensor) {
     case 'l2':
-      return `imb ${num(data.imbalance, 2) ?? '—'} · spr ${num(data.spread_ticks, 1) ?? '—'}t`;
+      return `imb ${num(data.imbalance, 2) ?? '-'} · spr ${num(data.spread_ticks, 1) ?? '-'}t`;
     case 'tape':
       return `${data.print_count ?? 0} prints`;
     case 'vwap':
-      return data.vwap != null ? `VWAP ${num(data.vwap, 3)} (${num(data.distance_ticks, 1) ?? '—'}t)` : SENSORS_NO_VALUE;
+      return data.vwap != null ? `VWAP ${num(data.vwap, 3)} (${num(data.distance_ticks, 1) ?? '-'}t)` : SENSORS_NO_VALUE;
     case 'macd':
       return data.ready ? `MACD ${num(data.macd, 3)} / hist ${num(data.histogram, 3)}` : SENSORS_NO_VALUE;
     case 'rvol':
@@ -23,7 +23,7 @@ export function sensorSummary(row: SensorEnvelope): string {
     case 'day-volume':
       return data.day_volume != null ? String(data.day_volume) : SENSORS_NO_VALUE;
     case 'spread':
-      return `${num(data.spread_ticks, 1) ?? '—'}t ${data.direction ?? ''}`.trim();
+      return `${num(data.spread_ticks, 1) ?? '-'}t ${data.direction ?? ''}`.trim();
     case 'session-phase':
       return String(data.phase ?? SENSORS_NO_VALUE);
     case 'flow':
@@ -45,7 +45,7 @@ export function sensorSummary(row: SensorEnvelope): string {
     case 'memory':
       return `${data.count ?? 0} decisions`;
     case 'regime':
-      return `${data.regime ?? 'unknown'} (${num(data.confidence, 2) ?? '—'})`;
+      return `${data.regime ?? 'unknown'} (${num(data.confidence, 2) ?? '-'})`;
     case 'macro':
       return `${data.count ?? 0} stub events`;
     default:
