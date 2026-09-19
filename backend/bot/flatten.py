@@ -1,8 +1,10 @@
-"""Whole-account MKT flatten through the existing execution door.
+"""Whole-account flatten through the existing execution door.
 
 Desk HTTP: POST /api/ibkr/flatten-account (Emergency KILL + tests).
 Breakers call flatten_account_with_retry directly -- same function.
 Cancel leftover working first, then place closes -- never cancel after place.
+Weekday RTH closes are MKT. After hours / weekend uses an EH LMT so IBKR
+cannot hold the exit until the next regular session.
 """
 from __future__ import annotations
 
@@ -16,8 +18,18 @@ logger = logging.getLogger(__name__)
 
 
 async def _place_close(symbol: str, qty: float, side: str) -> dict[str, Any]:
+    from execution.flatten_exit import (
+        plan_flatten_exit,
+        resolve_flatten_marks,
+        ticket_to_command_fields,
+    )
     from execution.models import ExecutionCommand
     from execution.service import execute
+
+    bid, ask, last = resolve_flatten_marks(symbol)
+    ticket = plan_flatten_exit(side, bid=bid, ask=ask, last=last)
+    if not ticket.ok:
+        return {"ok": False, "error": ticket.error, "reason_code": "FLATTEN_EH_NO_MARK"}
 
     receipt = await execute(
         ExecutionCommand(
@@ -27,9 +39,9 @@ async def _place_close(symbol: str, qty: float, side: str) -> dict[str, Any]:
             symbol=symbol,
             side=side,
             qty=abs(float(qty)),
-            order_type="MKT",
             skip_risk=True,
             skip_concurrency=True,
+            **ticket_to_command_fields(ticket),
         ),
         wait_ack=False,
     )

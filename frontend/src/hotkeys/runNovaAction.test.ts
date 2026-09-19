@@ -26,6 +26,8 @@ vi.mock('../ibkr/ticketUnlock', () => ({
 
 vi.mock('../ibkr/extendedSession', () => ({
   shouldUseOutsideRth: (flag?: boolean | null) => Boolean(flag),
+  flattenNeedsOutsideRth: () => false,
+  resolveFillSessionKind: () => 'rth',
 }));
 
 vi.mock('../execution_latency', () => ({

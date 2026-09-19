@@ -31,6 +31,8 @@ export type BotSession = {
   brain_heartbeat_ts?: number | null;
   brain_alive?: boolean;
   live_fire_ready?: boolean;
+  trading_allowed?: boolean;
+  trading_allowed_reason?: string | null;
   caps: {
     max_shares: number;
     bp_budget_usd: number;

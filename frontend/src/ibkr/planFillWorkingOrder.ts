@@ -8,10 +8,9 @@
  * same unfillable MKT and treat broker-accept as success (#168).
  */
 import type { MarketSessionKind } from '../chart/sessionHighlight';
-import { sessionKindFromEtMinutes } from '../chart/sessionHighlight';
 import { FILL_WORKING_ORDER_CONFIRM_PREFIX } from '../constants';
 import { formatMoney } from '../utils/formatMoney';
-import { etMinutesNow } from './extendedSession';
+import { resolveFillSessionKind } from './extendedSession';
 import { remainingSharesWhole } from './orderQtyMath';
 import type { IbkrOrder } from './types';
 
@@ -40,12 +39,7 @@ export type PlanFillWorkingOrderOptions = {
   now?: Date;
 };
 
-export function resolveFillSessionKind(
-  options?: Pick<PlanFillWorkingOrderOptions, 'sessionKind' | 'now'>,
-): MarketSessionKind {
-  if (options?.sessionKind) return options.sessionKind;
-  return sessionKindFromEtMinutes(etMinutesNow(options?.now));
-}
+export { resolveFillSessionKind } from './extendedSession';
 
 function sessionPhrase(kind: MarketSessionKind): string {
   if (kind === 'premarket') return 'premarket';

@@ -9,8 +9,27 @@ import { BotArmControls } from './BotArmControls';
 import * as botApi from './api';
 import type { BotSession } from './types';
 import { _resetDeskPollShareForTests } from '../ibkr/deskSharedPoll';
+import { writeTicketSessionUnlocked } from '../ibkr/ticketUnlock';
+
+const ibkrStatus = {
+  connected: true,
+  spend_status: 'paper_armed',
+  spend_locked_reason: null as string | null,
+  trading_allowed: true as boolean,
+  trading_allowed_reason: null as string | null,
+};
+
+vi.mock('../ibkr/useIbkrStatus', () => ({
+  useIbkrStatus: () => ibkrStatus,
+}));
 
 beforeEach(() => {
+  sessionStorage.clear();
+  writeTicketSessionUnlocked(true);
+  ibkrStatus.connected = true;
+  ibkrStatus.spend_status = 'paper_armed';
+  ibkrStatus.trading_allowed = true;
+  ibkrStatus.trading_allowed_reason = null;
   _resetBotSessionPollerForTests();
   _resetDeskPollShareForTests();
 });
@@ -430,5 +449,58 @@ describe('BotArmControls', () => {
     expect(ops).toContainEqual({ symbol: 'ABCD', op: 'remove' });
     expect(postSpy).toHaveBeenCalledWith('ABCD', 'remove');
     postSpy.mockRestore();
+  });
+
+  it('does not look Active or allow Activate when places are blocked', async () => {
+    writeTicketSessionUnlocked(false);
+    mockFetch((href) => {
+      if (href.includes('/session/arm')) {
+        return session({ armed: true, has_desk_arm: true, desk_arm_token: 'blocked' });
+      }
+      return session();
+    });
+    await act(async () => {
+      render(<BotArmControls />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const activate = screen.getByTestId('bot-arm-activate') as HTMLButtonElement;
+    expect(activate.disabled).toBe(true);
+    expect(screen.getByTestId('bot-arm-status').textContent).toBe('Not active');
+    expect(screen.getByTestId('bot-arm-controls').className).not.toContain('bot-arm--armed');
+    await act(async () => {
+      fireEvent.click(activate);
+      await Promise.resolve();
+    });
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/session/arm'))).toBe(false);
+  });
+
+  it('disarms and shows why when armed while the padlock is locked', async () => {
+    writeTicketSessionUnlocked(false);
+    mockFetch((href) => {
+      if (href.includes('/session/disarm')) {
+        return session({ level: 2, armed: false, strategy: 'small-cap' });
+      }
+      return session({
+        level: 2,
+        armed: true,
+        has_desk_arm: true,
+        strategy: 'small-cap',
+        live_fire_ready: true,
+      });
+    });
+    await act(async () => {
+      render(<BotArmControls />);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const status = screen.getByTestId('bot-arm-status').textContent || '';
+    expect(status).not.toBe('Active');
+    expect(screen.getByTestId('bot-arm-controls').className).not.toContain('bot-arm--armed');
+    expect(screen.getByTestId('bot-arm-controls').className).not.toContain('bot-arm--live');
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/session/disarm'))).toBe(true);
   });
 });

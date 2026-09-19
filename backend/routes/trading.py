@@ -66,8 +66,15 @@ async def ibkr_status() -> dict:
     usable = _client.is_ready()
     transport = _client.is_connected()
     sf_state = _second_factor.current_state()
+    from ibkr.trading_allowed import evaluate_trading_allowed
     from sim.status import overlay_ibkr_status
 
+    allowed = evaluate_trading_allowed(
+        client_enabled=_client.is_enabled(),
+        connected=usable,
+        account_mode=_client.account_mode(),
+        broker_account_kind=_client.broker_account_kind(),
+    )
     return overlay_ibkr_status({
         "enabled": _client.is_enabled(),
         "connected": usable,
@@ -80,6 +87,8 @@ async def ibkr_status() -> dict:
         "market_data_type": _client.get_market_data_type(),
         "market_data_delayed": bool(_session_errors.is_delayed_data()),
         **snap,
+        "trading_allowed": allowed["trading_allowed"],
+        "trading_allowed_reason": allowed["trading_allowed_reason"],
         **_heal.heal_status(),
         **_ports.status_port_fields(connected=transport),
         "second_factor_pending": sf_state.pending,

@@ -44,6 +44,8 @@ def test_overlay_forces_sim_even_when_gateway_looks_live() -> None:
     assert out["connected"] is True
     assert out["enabled"] is True
     assert out["spend_status"] == "sim_armed"
+    assert out["trading_allowed"] is True
+    assert out["trading_allowed_reason"] is None
     assert out["sim"] is True
     assert out["sim_symbol"] == "SIM1"
 

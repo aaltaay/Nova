@@ -115,9 +115,15 @@ def _isolate_operator_state(tmp_path, monkeypatch):
 
     _bot.reset_for_tests()
     from sim.mode import reset_for_tests as _reset_sim
+    import execution.flatten_exit as _flatten_exit
+    import ibkr.trading_allowed as _trading_allowed
 
     _reset_sim()
     monkeypatch.delenv("NOVA_BROKER", raising=False)
+    # Saturday CI / weekend agent runs must not flip existing flatten tests to EH.
+    monkeypatch.setattr(_flatten_exit, "flatten_needs_extended_hours", lambda now=None: False)
+    # Bot session / fire tests assume spend+Gateway are allowed unless they opt out.
+    monkeypatch.setattr(_trading_allowed, "places_allowed", lambda: (True, ""))
     monkeypatch.setattr(
         _nasdaq_halt_feed,
         "_default_fetch",

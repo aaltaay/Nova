@@ -58,3 +58,77 @@ async def test_flatten_still_places_closes_when_cancel_fails(monkeypatch):
     assert result["ok"] is True
     assert result["results"][0]["side"] == "BUY"
     assert result["cancels"][0]["ok"] is False
+
+
+class _Receipt:
+    def legacy_place_dict(self):
+        return {"ok": True, "order_id": 5}
+
+
+@pytest.mark.asyncio
+async def test_place_close_rth_stays_market(monkeypatch):
+    from bot import flatten as flatten_mod
+    from execution import flatten_exit as fe
+
+    captured: dict = {}
+
+    async def fake_execute(cmd, wait_ack=False):
+        captured["cmd"] = cmd
+        return _Receipt()
+
+    monkeypatch.setattr(fe, "flatten_needs_extended_hours", lambda now=None: False)
+    monkeypatch.setattr(fe, "resolve_flatten_marks", lambda _symbol: (10.0, 10.1, 10.05))
+    monkeypatch.setattr("execution.service.execute", fake_execute)
+
+    result = await flatten_mod._place_close("AAPL", 10, "SELL")
+    assert result["ok"] is True
+    cmd = captured["cmd"]
+    assert cmd.order_type == "MKT"
+    assert cmd.outside_rth is False
+    assert cmd.limit_price is None
+    assert cmd.source == "flatten"
+
+
+@pytest.mark.asyncio
+async def test_place_close_after_hours_uses_eh_lmt(monkeypatch):
+    from bot import flatten as flatten_mod
+    from execution import flatten_exit as fe
+
+    captured: dict = {}
+
+    async def fake_execute(cmd, wait_ack=False):
+        captured["cmd"] = cmd
+        return _Receipt()
+
+    monkeypatch.setattr(fe, "flatten_needs_extended_hours", lambda now=None: True)
+    monkeypatch.setattr(fe, "resolve_flatten_marks", lambda _symbol: (10.0, 10.1, 10.05))
+    monkeypatch.setattr("execution.service.execute", fake_execute)
+
+    result = await flatten_mod._place_close("AAPL", 10, "SELL")
+    assert result["ok"] is True
+    cmd = captured["cmd"]
+    assert cmd.order_type == "LMT"
+    assert cmd.outside_rth is True
+    assert cmd.limit_price == 10.0
+    assert cmd.side == "SELL"
+
+
+@pytest.mark.asyncio
+async def test_place_close_after_hours_without_mark_fails_loud(monkeypatch):
+    from bot import flatten as flatten_mod
+    from execution import flatten_exit as fe
+
+    called = {"execute": False}
+
+    async def fake_execute(_cmd, wait_ack=False):
+        called["execute"] = True
+        return _Receipt()
+
+    monkeypatch.setattr(fe, "flatten_needs_extended_hours", lambda now=None: True)
+    monkeypatch.setattr(fe, "resolve_flatten_marks", lambda _symbol: (None, None, None))
+    monkeypatch.setattr("execution.service.execute", fake_execute)
+
+    result = await flatten_mod._place_close("AAPL", 10, "SELL")
+    assert result["ok"] is False
+    assert result["reason_code"] == "FLATTEN_EH_NO_MARK"
+    assert called["execute"] is False

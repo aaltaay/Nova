@@ -16,6 +16,7 @@ from constants_bot import (
     BOT_REASON_L1_NO_FIRE,
     BOT_REASON_L3_PARKED,
     BOT_REASON_NOT_ACTIVE,
+    BOT_REASON_TRADING_LOCKED,
     BOT_SCHEMA_VERSION,
 )
 
@@ -160,6 +161,25 @@ def test_l1_active_still_cannot_fire():
     with pytest.raises(BotError) as exc:
         assert_can_fire()
     assert exc.value.reason == BOT_REASON_L1_NO_FIRE
+
+
+def test_places_blocked_clears_live_fire_and_assert_can_fire(monkeypatch):
+    from bot.arming import record_heartbeat
+    from ibkr import trading_allowed as ta
+
+    apply_desk_level(2)
+    require_l2_brain("brain-a", claim=True)
+    record_heartbeat("brain-a")
+    assert get_session()["live_fire_ready"] is True
+    monkeypatch.setattr(ta, "places_allowed", lambda: (False, "orders locked"))
+    view = get_session()
+    assert view["trading_allowed"] is False
+    assert view["trading_allowed_reason"] == "orders locked"
+    assert view["armed"] is True
+    assert view["live_fire_ready"] is False
+    with pytest.raises(BotError) as exc:
+        assert_can_fire()
+    assert exc.value.reason == BOT_REASON_TRADING_LOCKED
 
 
 def test_persist_reset_survives_windows_os_name(monkeypatch):

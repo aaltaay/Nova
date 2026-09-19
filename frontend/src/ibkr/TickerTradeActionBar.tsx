@@ -98,7 +98,9 @@ export function TickerTradeActionBar({
     setClosing(true);
     setResultMsg(null);
     try {
-      const data = await closeFullPosition(symbol, position.qty);
+      const data = await closeFullPosition(symbol, position.qty, {
+        referencePrice: position.market_price,
+      });
       if (data.ok) {
         setResultMsg({
           ok: true,

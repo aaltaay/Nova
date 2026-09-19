@@ -31,6 +31,8 @@ export const DEFAULT_IBKR_STATUS: IbkrStatus = {
   orders_enabled: false,
   short_enabled: false,
   spend_status: 'locked',
+  trading_allowed: false,
+  trading_allowed_reason: 'IBKR not connected',
   market_data_type: null,
   market_data_delayed: false,
 };

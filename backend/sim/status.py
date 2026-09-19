@@ -24,6 +24,8 @@ def overlay_ibkr_status(payload: dict[str, Any]) -> dict[str, Any]:
     out["spend_status"] = SIM_SPEND_STATUS
     out["spend_locked_reason"] = None
     out["armed_for_account_kind"] = None
+    out["trading_allowed"] = True
+    out["trading_allowed_reason"] = None
     out["sim"] = True
     out["sim_symbol"] = SIM_SYMBOL
     return out

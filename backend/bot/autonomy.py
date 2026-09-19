@@ -162,5 +162,8 @@ def assert_can_fire(row: dict[str, Any] | None = None) -> dict[str, Any]:
             409,
             BOT_REASON_NOT_ACTIVE,
         )
+    from ibkr.trading_allowed import require_places_allowed
+
+    require_places_allowed()
     assert_fresh_heartbeat(current)
     return current

@@ -39,6 +39,9 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
     armed = is_desk_active(row)
     brain_id = row.get("brain_session_id") if level >= BOT_LEVEL_STRATEGY else None
     alive = heartbeat_is_fresh(row) and bool(brain_id)
+    from ibkr.trading_allowed import places_allowed
+
+    places_ok, places_reason = places_allowed()
     return {
         "level": level,
         "armed": armed,
@@ -51,8 +54,14 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
         "brain_session_id": brain_id,
         "brain_heartbeat_ts": row.get("brain_heartbeat_ts") if brain_id else None,
         "brain_alive": alive,
+        "trading_allowed": places_ok,
+        "trading_allowed_reason": None if places_ok else places_reason or None,
         "live_fire_ready": (
-            level >= BOT_LEVEL_STRATEGY and armed and alive and bool(brain_id)
+            level >= BOT_LEVEL_STRATEGY
+            and armed
+            and alive
+            and bool(brain_id)
+            and places_ok
         ),
         "caps": {
             "max_shares": int(caps.get("max_shares") or 1),
