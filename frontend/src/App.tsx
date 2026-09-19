@@ -10,6 +10,8 @@ import { Suspense, useEffect, useState } from 'react';
 import { LazySampleShell, LazyStockViewTabs } from './appLazy';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { GlobalAppBar } from './components/GlobalAppBar';
+import { FloatDeskChrome } from './stock_view/FloatDeskChrome';
+import './styles/float-desk.css';
 import { GlobalBarStatusBridge } from './components/GlobalBarStatusBridge';
 import { TabLazyFallback } from './components/TabLazyFallback';
 import { HotkeyDispatchProvider } from './hotkeys/HotkeyDispatchContext';
@@ -69,12 +71,13 @@ function AppShell() {
       <SettingsProvider>
         <ScannerDataProvider>
           <HodMomoProvider>
-            <div className="nova-app-stack">
-            {/* One shared header for Scanner + Trader; status strip never clears on route. */}
-            <GlobalBarStatusBridge />
-            <GlobalAppBar />
-            <TradingPrerequisitesGate />
-            <GatewayDisconnectedBannerHost />
+            <div className={`nova-app-stack${detached ? ' nova-app-stack--float' : ''}`}>
+            {/* Parent desk keeps full chrome. Pop-out floats are child trade desks — no main header. */}
+            {!detached && <GlobalBarStatusBridge />}
+            {!detached && <GlobalAppBar />}
+            {detached && <FloatDeskChrome />}
+            {!detached && <TradingPrerequisitesGate />}
+            {!detached && <GatewayDisconnectedBannerHost />}
             <MwcbBannerHost />
             <NovaOsAttentionStrip global />
             <div className="nova-app-branch">
