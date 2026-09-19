@@ -64,6 +64,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- IBKR reconnect reaches READY when Gateway sync is slow
+
+- **What:** The session now reaches READY even when the Gateway is too slow to answer ib_async's connect-time sync, so "Reconnect Nova to Gateway" works again. New helper `ibkr/ib_await.await_ib_request` bounds the three warm-up requests. The session watchdog no longer judges a connect that is still running, and each forced reset starts a fresh stuck clock.
+- **Why:** Operator report: the Reconnect button "does nothing." The logs showed two loops that together blocked READY (PROBLEM_LOG 2026-09-19).
+- **Files touched:** `backend/ibkr/ib_await.py` (new), `backend/ibkr/errors.py`, `backend/ibkr/account.py`, `backend/ibkr/account_stream.py`, `backend/ibkr/session_watchdog.py`, tests.
+- **How it works now:** Positions, completed orders, and account updates go through `await_ib_request`. A cancel that came from a stale ib_async future becomes `StaleIbRequestError`. The existing `except Exception` logs it, and warm-up continues to the fence check. A real cancel of the calling task still propagates. `_check_stuck_unusable` skips CONNECTING / SYNCHRONIZING. Those phases already have their own timeouts, and the heartbeat check catches a frozen dialer. `_force_reset_session` clears the unusable stamp.
+- **Verified by:** New tests fail on the old code (5) and pass with the fix. Full backend `pytest` -- 2196 passed. Live run on the operator's Gateway after an API restart: `completed-orders ... StaleIbRequestError` warning, then `session READY via earn_usable (generation 1, connect)`.
+- **Related:** PROBLEM_LOG 2026-09-19 Reconnect button never reaches READY.
+
 ## 2026-09-19 -- IMCC intraday replay respects the selected session date
 
 - **What:** Real-ticker intraday SIM charts show only completed bars from the clock's Eastern session date. The standalone replay fixture now opens with local sample data through Vite and explains direct-file usage.

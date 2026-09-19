@@ -54,6 +54,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- Reconnect button never reaches READY (dialer killed twice over)
+
+- **Symptom:** The Trading prerequisites "Reconnect Nova to Gateway" button seemed to do nothing. It returned "Reconnect finished but session not READY yet (connecting: connecting)". The Door trail logged "Attached -- live" every ~10s. The log alternated `watchdog: dialer dead (heartbeat_age=10.0s)` with `session stuck unusable for 203s ... 218s ... 263s` while Gateway :4001 was up and logged in.
+- **Cause:** There were two loops. (1) The Gateway did not answer `reqCompletedOrders` within connectAsync's 8s sync (`completed orders request timed out`). That `wait_for` cancels ib_async's single-flight future but leaves the registry entry live. So earn_usable's `reqCompletedOrdersAsync` attached to the already-cancelled future and got `CancelledError`. That error is a BaseException and escaped `except Exception`, and `reconnect_loop` re-raises it. The dialer task ended silently, and the watchdog respawned it every 10s. (2) The Reconnect click stamped `unusable_since`. Only a successful earn_usable clears that stamp, so the watchdog judged every later in-progress connect (state CONNECTING, transport up) against the old stamp and killed it ~4s in.
+- **Fix:** `ibkr/ib_await.await_ib_request` converts a foreign cancel (`task.cancelling() == 0`) into `StaleIbRequestError`, and all three warm-up requests use it. `session_watchdog._check_stuck_unusable` skips CONNECTING / SYNCHRONIZING, which are the dialer's and bounded by its own timeouts plus the heartbeat check. `_force_reset_session` clears the stamp.
+- **Fix class:** ownership
+- **Keywords:** reconnect button, session not READY, connecting, force_reconnect_stuck_unusable, dialer dead, completed orders request timed out, CancelledError, single-flight, SingletonKey, ib_async registry, unusable_since, watchdog
+
 ## 2026-09-19 -- Real tickers empty in Sim on a weekend
 
 - **Symptom:** SPY in Sim on Saturday 04:41 ET: every intraday pane showed "No bars available at this replay time" while Friday's EMA/VWAP lines and time axis were still painted underneath.
