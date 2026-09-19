@@ -2,18 +2,22 @@
 
 - **Date:** 2026-09-18
 - **Status:** draft -- pending Ahmed review
+- **Count:** **16 sensors**
 - **Scope:** read-only sensors. No autonomous order placement.
 - **Smoke test:** each sensor is an independent GET endpoint.
 - **Thresholds:** unset until Ahmed sets them from live sessions.
 
-This note is the v1 contract for L2 Brain inputs. It does not implement the
-`/sensors/*` routes. Endpoints below are the intended smoke-test surface.
+This note is the v1 contract for L2 Brain inputs (16 sensors). It does not
+implement the `/sensors/*` routes. Endpoints below are the intended
+smoke-test surface.
 
 ## Contract
 
 1. One GET per sensor. Call them independently. A down neighbor must not
    hide a healthy sensor.
 2. Symbol sensors take `?symbol=`. Session phase is desk-wide (no symbol).
+   Risk (14) is desk-wide `GET /sensors/risk` and may also take `?symbol=`
+   when per-symbol state exists.
 3. Responses are observations only. They never Place, cancel, flatten, or
    arm a bot.
 4. Numeric trip/clear levels stay blank until Ahmed sets them from live
@@ -119,9 +123,60 @@ endpoint is still `GET /sensors/news`. The Advice feature already spends
 OpenRouter (`OPENROUTER_API_KEY`) for a debate; sensor 13 reuses that
 output. No new API keys.
 
+### 14. Risk state
+
+Daily loss limit remaining; whether daily loss limit is hit (boolean);
+cooldown active after consecutive losses; current streak of losses/wins.
+
+`GET /sensors/risk` (and/or `?symbol=` if per-symbol)
+
+**Source:** existing risk / account state in this repo. Desk-wide daily
+discipline lives in `backend/strategy/risk.py` (`RiskState`:
+`daily_realized_pnl`, `RISK_DAILY_GOAL_DOLLARS`, `halted` / `can_trade`,
+`consecutive_losses`, `consecutive_wins`) and Nova OS loss policy
+(`backend/nova_os/gates.py`, `codes.py`). Adjacent account lock:
+`BOT_HARD_BREAKER_USD` / `hard_lock_until_date` in `backend/bot/breakers.py`.
+Do not add a second risk engine.
+
+**Status:** **wired to existing sources**.
+
+### 15. Halt / LULD status
+
+Whether the symbol is currently halted or in LULD; time since halt began;
+halt type.
+
+`GET /sensors/halt?symbol=`
+
+**Source:** existing market data / LULD feed. IBKR `ticker.halted` observe
+in `backend/ibkr/halt_status.py` plus the LULD clock in
+`backend/ibkr/halt_eta.py` (kinds LULD / NEWS / UNK). Nasdaq Trade Halt RSS
+may overlay official start / resume; missing RSS never invents those times.
+Do not request generic tick 49. Do not invent a countdown from a quiet tape.
+
+**Status:** **wired to existing sources**.
+
+### 16. Brain memory
+
+The brain's own last N decisions (go/no-go, confidence, timestamp, outcome
+if known) for this symbol, so it avoids flip-flopping every tick.
+
+`GET /sensors/memory?symbol=`
+
+**Write path:** the brain appends to a small local log (not IBKR, not the
+Advice feature). The GET is the smoke-test read of that log. When the store
+is added it needs an owner module, invalidation trigger, and
+`schema_version` (`persisted-state.mdc`). Pytest must not write
+`backend/.cache`.
+
+**Source:** a small local log the brain writes to.
+
+**Status:** **new (small local store)**.
+
 ## Non-goals
 
 - No Place / cancel / flatten from a sensor.
 - No `auto_live`.
 - No threshold defaults before Ahmed's live-session pass.
 - No second news vendor for sensor 13. The Advice feature is the owner.
+- No second risk engine or halt feed for sensors 14-15.
+- Sensor 16 is a new local decision log only -- not a news, risk, or IBKR sensor.

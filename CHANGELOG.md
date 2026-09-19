@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- L2 Brain sensor list is 16 sensors
+
+- **What:** `docs/l2-brain-sensors.md` grows from 13 to **16 sensors**. Appended 14 risk state, 15 halt/LULD, 16 brain memory. Sensors 1-13 unchanged; sensor 13 stays wired to the Advice feature. README blurb now says 16 sensors.
+- **Why:** Ahmed added risk, halt, and brain-memory inputs to the L2 Brain contract.
+- **Files touched:** `docs/l2-brain-sensors.md`, `docs/README.md`.
+- **How it works now:** 14 reads existing `strategy.risk` / Nova OS / bot breaker state (`GET /sensors/risk`). 15 reads existing IBKR halt/LULD + RSS (`GET /sensors/halt?symbol=`). 16 is a new small local decision log (`GET /sensors/memory?symbol=` plus a brain write path). Still docs-only; no `/sensors/*` routes. No autonomous orders.
+- **Verified by:** markdownlint on the note + README; `doc_invariants.py`; grep that sensors 1-13 text is unchanged and sensor 13 still says Advice feature / wired to Advice.
+- **Follow-ups:** Ahmed review of the 16-sensor draft; later session implements GET routes and the sensor-16 store.
+- **Related:** PR #285. Advice feature (`docs/advise-rail.md`). Halt observe (`backend/ibkr/halt_status.py`). Risk (`backend/strategy/risk.py`).
+
 ## 2026-09-19 -- L2 Brain sensor list v1 (docs)
 
 - **What:** Added `docs/l2-brain-sensors.md` -- draft sensor list (1-13) for L2 Brain. Each sensor is an independent read-only GET smoke-test endpoint. Thresholds stay unset. Sensor 13 news/catalyst is wired to the existing Advice feature (not Advisor, not a stub, not a new news API). Linked from `docs/README.md`.
