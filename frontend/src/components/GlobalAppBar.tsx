@@ -253,7 +253,8 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
       </div>
       </div>
       <GlobalBarBotRow />
-      {traderActive ? (
+      {/* Host desk only — pop-out floats render tabs inline above the chart. */}
+      {traderActive && !detachedTrader ? (
         <div
           ref={setGlobalBarTraderSlot}
           className="global-app-bar__trader-row"

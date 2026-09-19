@@ -132,7 +132,7 @@ export function StockViewTabs({ detached }: Props) {
           </button>
         </div>
       )}
-      {headerSlot && traderViewActive ? createPortal(tabStrip, headerSlot) : tabStrip}
+      {headerSlot && traderViewActive && !detached ? createPortal(tabStrip, headerSlot) : tabStrip}
       <div className="sv-tabs-panes">
         {traderTabs.map(symbol => {
           if (symbol === TRADER_DRAFT_SYMBOL) {
