@@ -1,4 +1,4 @@
-"""Session recorder — jsonl under archive/sim_capture/<date>/<symbol>/."""
+"""Session recorder — jsonl under F:\\Nova\\sim_capture\\<date>\\<symbol>\\ (outside repo)."""
 from __future__ import annotations
 
 import json
@@ -35,7 +35,19 @@ def is_recording() -> bool:
 
 
 def capture_root() -> Path:
-    return cache_dir() / "sim_capture"
+    """Prefer F:\\Nova\\sim_capture (outside repo); env override; else cache fallback."""
+    import os
+
+    from capture.constants_capture import DEFAULT_SIM_CAPTURE_ROOT_WIN
+
+    raw = (os.environ.get("NOVA_SIM_CAPTURE_DIR") or "").strip()
+    if raw:
+        root = Path(raw)
+    else:
+        win = Path(DEFAULT_SIM_CAPTURE_ROOT_WIN)
+        root = win if win.drive and Path(win.drive + "\\").exists() else (cache_dir() / "sim_capture")
+    root.mkdir(parents=True, exist_ok=True)
+    return root
 
 
 def _session_dir(symbol: str) -> Path:
