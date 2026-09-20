@@ -372,8 +372,8 @@ async def closed_orders_async(limit: int | None = None) -> list[dict]:
     """``closed_orders`` with a one-shot completed-orders warm-up on empty.
 
     Covers a UI reading ``GET /api/ibkr/orders/closed`` before (or racing)
-    the post-connect ``refresh_completed_orders_cache`` warm finishes. Only
-    warms when the first read is empty *and* still connected; still raises
+    the post-READY ``completed_orders_warm`` task finishes. Only warms when
+    the first read is empty *and* still connected; still raises
     ``IbkrAccountError`` like ``closed_orders`` when disconnected.
     """
     rows = closed_orders(limit=limit)
@@ -382,8 +382,8 @@ async def closed_orders_async(limit: int | None = None) -> list[dict]:
     from ibkr import account as _account
     from ibkr.loop_supervisor import is_ib_loop
 
-    # HTTP / uvicorn is not the IB connect-loop. Connect-time warm already
-    # ran on that loop; hopping reqCompletedOrders here 500s the blotter
+    # HTTP / uvicorn is not the IB connect-loop. The post-READY warm already
+    # runs on that loop; hopping reqCompletedOrders here 500s the blotter
     # (ADR 010). Skip and let the caller overlay the ledger.
     if not is_ib_loop():
         return rows

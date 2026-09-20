@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-20 -- Recover news ranking without stale delivery regressions
+
+- **Symptom:** The public AI-in-trading digest admitted stock-theme and promotional filler, let prolific mega-wire publishers dominate, missed gzip feeds, and rewrote identical stories on every clock tick. The parked recovery also included obsolete CI/version changes.
+- **Cause:** Broad topic pairing and uniform domain caps; feed reads assumed plain XML; publication timestamps guaranteed a diff. The old WIP fingerprint compared only URL/title and its PR helper predated the protected-master delivery repair.
+- **Fix:** Recover strict topic gates, publisher caps, targeted trade-press sources and longer full-feed recency; decode gzip with explicit failure reporting; compare ordered story content and rendered blocks at the prior publication time. Preserve modern PR/PAT delivery, Desktop checks, derived versions and homepage teaser. Split the oversized test suite, update workflow discovery and its command assertion, and remove imports made unused by the split. Regressions cover content edits, malformed prior state, age limits and gzip failures (#356).
+- **Fix class:** admission
+- **Keywords:** ai-news, ranking, gzip, publication fingerprint, clock-only rewrite, WIP recovery, #356
+
 ## 2026-09-20 -- Cleanup preserves recreated branches with unmerged work
 
 - **Symptom:** A head recreated after PR merge could be deleted while carrying new, unmerged commits (#369).

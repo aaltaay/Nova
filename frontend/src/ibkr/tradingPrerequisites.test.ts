@@ -392,4 +392,41 @@ describe('buildTradingPrerequisites', () => {
       expect(completedOrdersStuckNotice({ sinceEpochSec: Number.NaN, gatewayReady: true })).toBeNull();
     });
   });
+
+  describe('D-076 Gateway Read-Only API', () => {
+    const connected = { status: 'connected', latency_ms: 5 } as const;
+
+    it('names Read-Only API as a blocking row on a READY desk', () => {
+      const out = buildTradingPrerequisites({
+        health: connected,
+        ibkrConnected: true,
+        gatewayReadOnly: true,
+      });
+      const row = out.items.find((i) => i.id === 'gateway_read_only');
+      expect(row).toBeDefined();
+      expect(row?.ok).toBe(false);
+      expect(row?.detail).toMatch(/Read-Only API/);
+      expect(row?.detail).toMatch(/Error 321/);
+      expect(out.deskReady).toBe(false);
+      expect(out.blockDesk).toBe(true);
+      // Gateway itself is fine -- never tell the trader to log in again.
+      expect(out.items.find((i) => i.id === 'ibkr_gateway')?.ok).toBe(true);
+      // A named blocker must not cover the desk on its own.
+      expect(out.autoOverlay).toBe(false);
+    });
+
+    it('shows no row when the Gateway is not read-only, or in Sim', () => {
+      const off = buildTradingPrerequisites({
+        health: connected, ibkrConnected: true, gatewayReadOnly: false,
+      });
+      const unknown = buildTradingPrerequisites({ health: connected, ibkrConnected: true });
+      const sim = buildTradingPrerequisites({
+        health: connected, ibkrConnected: false, simMode: true, gatewayReadOnly: true,
+      });
+      for (const out of [off, unknown, sim]) {
+        expect(out.items.find((i) => i.id === 'gateway_read_only')).toBeUndefined();
+        expect(out.deskReady).toBe(true);
+      }
+    });
+  });
 });

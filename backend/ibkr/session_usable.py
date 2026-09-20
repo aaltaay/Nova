@@ -1,7 +1,9 @@
 """Single-flight path that promotes a connected IB session to Nova usable.
 
 ``earn_usable`` warms account caches, fences mid-sync revoke (Error 1100),
-bumps generation via ``set_ready``, then runs READY side effects. Used by
+bumps generation via ``set_ready``, then runs READY side effects. Completed
+orders are deliberately not part of that warm (D-057) -- they are fetched in
+the background after READY by ``ibkr.completed_orders_warm``. Used by
 initial connect, self-heal, and 1101/1102 restore — never stack concurrent
 warm-ups (anti API_WEDGED).
 """
@@ -51,6 +53,7 @@ async def earn_usable(ib: Any, reason: str) -> tuple[bool, str]:
 
 async def _earn_usable_locked(ib: Any, reason: str) -> tuple[bool, str]:
     from ibkr import account as _account
+    from ibkr import completed_orders_warm as _completed_orders_warm
     from ibkr.client import (
         _clear_sticky_bridge_error_on_ready,
         _on_session_ready,
@@ -79,8 +82,11 @@ async def _earn_usable_locked(ib: Any, reason: str) -> tuple[bool, str]:
     logger.info("IBKR: earn_usable begin (%s)", reason)
 
     async def _warm() -> None:
+        # Completed orders are deliberately NOT here (D-057): a Gateway that
+        # stops answering reqCompletedOrders would hold READY for the full
+        # earn_usable deadline, and the desk would read that as a login
+        # problem. They are fetched after READY by completed_orders_warm.
         await _account.refresh_positions_cache(ib)
-        await _account.refresh_completed_orders_cache(ib, force=True)
         from ibkr.account_stream import ensure_account_updates
 
         await ensure_account_updates(ib)
@@ -129,6 +135,9 @@ async def _earn_usable_locked(ib: Any, reason: str) -> tuple[bool, str]:
 
     gen = _session.set_ready()
     _clear_sticky_bridge_error_on_ready()
+    # History after READY, never before it (D-057). Fire-and-forget: a Gateway
+    # that never answers reqCompletedOrders must not delay a usable desk.
+    _completed_orders_warm.schedule(ib)
     await _on_session_ready(ib, reason=f"{reason} generation {gen}")
     _session_errors.clear_unusable_stamp()
     # Drop a stale restore flag if we earned usable another way.
@@ -143,3 +152,6 @@ def reset_for_tests() -> None:
     global _earn_lock, _earn_in_flight
     _earn_lock = None
     _earn_in_flight = False
+    from ibkr import completed_orders_warm as _completed_orders_warm
+
+    _completed_orders_warm.reset_for_testing()

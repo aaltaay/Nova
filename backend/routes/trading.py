@@ -104,6 +104,11 @@ async def ibkr_status() -> dict:
         # D-058: READY but the Gateway is not answering reqCompletedOrders.
         # Only while usable, so no consumer can show a replaced session's verdict.
         "completed_orders_unanswered_since": _co_health.warn_since() if usable else None,
+        # D-076: the Gateway rejected an order with Error 321 (Read-Only API)
+        # on this connection. Names the blocker instead of leaving the desk
+        # looking tradeable. Spend / order gates are unchanged (ADR 007).
+        "gateway_read_only": bool(_session_errors.gateway_read_only()),
+        "gateway_read_only_since": _session_errors.gateway_read_only_since(),
         **_ticks.ticker_budget_status(),
     })
 

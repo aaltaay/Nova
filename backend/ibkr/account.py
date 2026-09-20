@@ -319,11 +319,16 @@ async def refresh_completed_orders_cache(
     disconnect check, never silently substituting an empty result here.
 
     Cooldown: successful refreshes skip further IBKR round-trips for
-    ``IBKR_COMPLETED_ORDERS_MIN_INTERVAL_SEC`` unless ``force=True`` (connect
-    warm-up). Empty Closed Orders polls must not re-warm every 5s.
+    ``IBKR_COMPLETED_ORDERS_MIN_INTERVAL_SEC`` unless ``force=True``
+    (``completed_orders_warm`` and the D-058 re-probe). Empty Closed Orders
+    polls must not re-warm every 5s.
 
-    ``ib`` — see ``refresh_positions_cache`` docstring; lets the connect
-    warm-up path bypass the READY gate it is itself trying to satisfy.
+    Never awaited by connect or by ``earn_usable`` (D-057): a Gateway can stop
+    answering this one request for hours while everything else is healthy, so
+    it runs after READY instead (``ibkr.completed_orders_warm``).
+
+    ``ib`` — see ``refresh_positions_cache`` docstring; lets the post-READY
+    warm pass the connection explicitly instead of waiting on the READY gate.
     """
     global _last_completed_orders_ok_at
     if ib is None:
@@ -358,7 +363,7 @@ async def refresh_completed_orders_cache(
             _last_completed_orders_ok_at = time.monotonic()
             completed_orders_state.mark_loaded(ib)
             completed_orders_health.note_answered()
-            logger.info("IBKR: completed-orders cache refreshed after connect")
+            logger.info("IBKR: completed-orders cache refreshed (post-READY warm)")
         except Exception as exc:
             completed_orders_health.note_failed(exc)
             logger.warning(
