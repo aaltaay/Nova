@@ -463,3 +463,40 @@ def test_real_entry_points_are_within_the_logical_limit(mc):
     for rel, count in counts.items():
         assert count <= mc.HARD_LIMIT_FILES[rel], f"{rel} holds {count} logical lines"
     assert [f for f in report["findings"] if f["kind"] == "file_size_hard"] == []
+
+
+def test_single_quoted_docstring_does_not_swallow_the_file():
+    """A `'''` docstring closed by `'''`, not by `\"\"\"` (Codex review on #415)."""
+    from maintainer_lib.sizes import count_logical_lines
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "main.py"
+        path.write_text(
+            "'''Module docstring\nspanning lines\n'''\n"
+            + "".join(f"value{i} = {i}\n" for i in range(250)),
+            encoding="utf-8",
+        )
+        assert count_logical_lines(path) == 250
+
+
+def test_multiline_named_imports_are_not_logic(tmp_path: Path):
+    from maintainer_lib.sizes import count_logical_lines
+
+    tsx = tmp_path / "App.tsx"
+    tsx.write_text(
+        "import {\n  AlphaProvider,\n  BetaProvider,\n  GammaProvider,\n} from './providers';\n"
+        "import { Solo } from './solo';\n"
+        "const wiring = 1;\n",
+        encoding="utf-8",
+    )
+    assert count_logical_lines(tsx) == 1
+
+    py = tmp_path / "main.py"
+    py.write_text(
+        "from x import (\n    alpha,\n    beta,\n)\n"
+        "import os\n"
+        "app = 1\n",
+        encoding="utf-8",
+    )
+    assert count_logical_lines(py) == 1

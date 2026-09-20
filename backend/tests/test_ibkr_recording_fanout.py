@@ -415,3 +415,55 @@ def test_status_warns_when_the_recorded_symbol_has_no_depth_line():
 
     assert status["book"]["subscribed"] is False
     assert "quotes and Level 2 do not" in status["warning"]
+
+
+# --- Codex review on #415 -------------------------------------------------
+
+
+def test_the_newest_coalesced_book_is_kept_not_dropped():
+    """A burst that then goes quiet must not leave a stale book recorded.
+
+    The first coalescer dropped everything after the first update in an
+    interval, so books at t and t+0.01 recorded only t -- and if nothing
+    followed, the capture held a stale book forever. Fidelity.offer_l2 keeps a
+    pending snapshot for exactly this reason; the bridge now does too.
+    """
+    mode.set_capture_mode(True, symbol="AAPL")
+    tick()
+    push_depth(bids=((42.20, 300),))   # enqueued immediately
+    push_depth(bids=((42.99, 900),))   # inside the interval -> held, not dropped
+    assert bridge_ibkr._pending_book.get("AAPL") is not None
+    mode.set_capture_mode(False)       # flushes the pending book
+    directory = Path(recorder.status()["dir"])
+
+    prices = [row["bids"][0]["price"] for row in rows(directory, "l2")]
+    assert 42.99 in prices, f"newest book was dropped: {prices}"
+
+
+def test_depth_is_not_claimed_before_a_book_has_been_seen():
+    """A reserved slot makes is_subscribed true while the book is still empty."""
+    from ibkr.depth import state as depth_state
+
+    mode.set_capture_mode(True, symbol="AAPL")
+    tick()
+    depth_state.reserve_slot("AAPL")  # subscribed, but nothing received yet
+    health = bridge_ibkr.book_health("AAPL")
+    status = mode.status_payload()
+    mode.set_capture_mode(False)
+
+    assert health["subscribed"] is True
+    assert health["observed"] is False
+    assert health["depth"] is False, "claimed depth before any book arrived"
+    assert "not recording" in status["warning"]
+
+
+def test_depth_is_claimed_once_a_real_book_arrives():
+    mode.set_capture_mode(True, symbol="AAPL")
+    tick()
+    push_depth()
+    health = bridge_ibkr.book_health("AAPL")
+    status = mode.status_payload()
+    mode.set_capture_mode(False)
+
+    assert (health["observed"], health["depth"], health["l1_fallback"]) == (True, True, False)
+    assert "warning" not in status

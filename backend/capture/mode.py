@@ -35,6 +35,12 @@ def set_capture_mode(
     """
     from capture.worker import transition
 
+    if not enabled and _recording and _symbol:
+        # Before transition() closes ingress: the bridge holds the newest
+        # coalesced book, and a burst that went quiet leaves it unflushed.
+        from capture.bridge_ibkr import flush_book
+
+        flush_book(_symbol)
     result = transition(lambda: _set_capture_mode(enabled, symbol=symbol, protect_active=protect_active))
     out = status_payload() | (result or {})
     # Admission succeeded but the first write is pending. Report that on polls,
