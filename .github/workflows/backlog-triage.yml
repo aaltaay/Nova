@@ -1,0 +1,102 @@
+# Keep the backlog answerable: "what should we work on next?"
+#
+# The plan lives on GitHub, not in a chat transcript:
+#   * a milestone per work package (title `NN - slug`, so GitHub's own
+#     alphabetical listing reads as the rank)
+#   * labels P0-P3 / kind / domain:* / deferred on every issue
+#   * BACKLOG.md for the narrative
+#   * one pinned Backlog Map issue holding a generated rollup
+#
+# Any consumer can read that -- `gh`, a webhook, a dashboard, a non-Claude
+# bot -- because milestones and labels are first-class API objects. This job
+# is the periodic sweep that stops it rotting:
+#
+#   Monday 13:05 UTC (09:05 ET, before the week's work starts)
+#     1. refresh the generated block in the Backlog Map issue
+#     2. report hygiene gaps -- issues with no package or no labels
+#     3. comment on the Map issue ONLY when there are gaps, so a clean
+#        backlog is silent and a noisy one is impossible to ignore
+#
+# Deliberately NOT a required check on PRs. A new issue is unpackaged for
+# the minutes between filing and triage; failing CI for that would train
+# agents to skip filing issues, which is the opposite of what we want.
+#
+# Cron is best-effort under GitHub load. workflow_dispatch is the manual
+# path; `python tools/backlog_triage.py report` is the local one.
+#
+# Token: GITHUB_TOKEN is enough (issues: write covers editing the Map).
+
+name: Backlog triage
+
+on:
+  schedule:
+    - cron: "5 13 * * 1"
+  workflow_dispatch:
+    inputs:
+      map_issue:
+        description: "Backlog Map issue number"
+        required: false
+        default: "361"
+
+concurrency:
+  group: backlog-triage
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  MAP_ISSUE: ${{ github.event.inputs.map_issue || '361' }}
+
+jobs:
+  triage:
+    name: Sweep the backlog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: Unit tests (the report must hold before it can publish)
+        run: python -m pytest tools/test_backlog_triage.py -q --tb=short
+
+      - name: Refresh the Backlog Map
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NOVA_GITHUB_REPO: ${{ github.repository }}
+        run: python tools/backlog_triage.py sync-map --issue "$MAP_ISSUE"
+
+      - name: Report hygiene gaps
+        id: check
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NOVA_GITHUB_REPO: ${{ github.repository }}
+        run: |
+          python tools/backlog_triage.py check > triage.txt 2>&1 && echo "gaps=no" >> "$GITHUB_OUTPUT" || echo "gaps=yes" >> "$GITHUB_OUTPUT"
+          cat triage.txt
+
+      - name: Nudge the Map issue when triage is needed
+        if: steps.check.outputs.gaps == 'yes'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NOVA_GITHUB_REPO: ${{ github.repository }}
+        run: |
+          {
+            echo "### Weekly triage: issues are missing a package or labels"
+            echo
+            echo "Assign each one a milestone (the work package) and the"
+            echo "\`deferred\` + \`P0\`-\`P3\` + kind + \`domain:*\` labels."
+            echo "Routing rules are in BACKLOG.md."
+            echo
+            echo '```'
+            cat triage.txt
+            echo '```'
+          } > comment.md
+          gh issue comment "$MAP_ISSUE" --repo "$NOVA_GITHUB_REPO" --body-file comment.md

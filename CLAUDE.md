@@ -10,3 +10,29 @@ Rules:
 - Read `graphify-out/GRAPH_REPORT.md` only for broad review or when query/path/explain are insufficient.
 - After editing `knowledge/obsidian/`, rebuild with `/graphify knowledge/obsidian --update --wiki` (Markdown needs a semantic pass — not AST-only `graphify update`).
 - See `knowledge/obsidian/00-System/Graphify-Knowledge-Graph.md`.
+
+## backlog
+
+The backlog is organised into ranked **work packages** (GitHub milestones). When
+asked to "start on the next item in the backlog", or whenever you need to know
+what to work on next, run:
+
+```text
+py -3 tools/backlog_triage.py next
+```
+
+That prints one package, one pull request, the issues it resolves, and the
+acceptance criteria. Do not re-triage the backlog or open a PR per issue — the
+plan already batches related issues into one reviewable PR.
+
+Rules:
+- `BACKLOG.md` is the narrative; `knowledge/backlog-packages.json` is the authored
+  plan; milestones are its GitHub projection (`backlog_triage.py sync`). Issue
+  state (open/closed, labels) always comes from GitHub.
+- After filing a new issue, add it to a package and run `sync`. `backlog_triage.py
+  check` reports issues with no package or missing labels.
+- Work marked gated needs an operator decision — record the question on the issue,
+  never guess the policy.
+- For a multi-agent pass over one package use `.claude/workflows/backlog-wave.js`
+  (2–3 agents, ramps down before token limits). Only when the user has opted into
+  workflows.
