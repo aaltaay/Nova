@@ -49,6 +49,6 @@ and implementations selected from the capability map.
 2. Refresh the memory snapshot, backlog, and run log.
 3. Refresh `agent-widgets.canvas.tsx` with source date/revision.
 4. Hand product verification to `tester`.
-5. Update `CHANGELOG.md` for shipped behavior or agent-system changes.
+5. Record shipped behavior or agent-system changes in the PR body.
 
 The Canvas is a snapshot, never the source of truth.

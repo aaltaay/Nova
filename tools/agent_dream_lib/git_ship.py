@@ -54,7 +54,6 @@ def ship_dream_changes(
         "knowledge/task-log/2026-07-18-agent-dreaming.md",
         "knowledge/task-log/INDEX.md",
         "docs/agent-operations.md",
-        "CHANGELOG.md",
         ".claude/settings.json",
         ".cursor/agents/docs.md",
         ".cursor/agent-system/registry.json",

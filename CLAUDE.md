@@ -59,13 +59,11 @@ Rules:
 
 ## ledger
 
-`CHANGELOG.md` is **generated** (AGENTS.md §7.1). Do NOT
-prepend to it — that is what makes parallel PRs collide on paperwork (#344).
+There is **no changelog** (AGENTS.md §7.1). `CHANGELOG.md` is retired and
+archived under `_archived/`. Do not recreate it or add a changelog step
+anywhere.
 
 - A PR carries its entry in its own body: **What** / **Why this approach** /
   **Verified by**, from `.github/pull_request_template.md`. Nothing else.
-- No PR (direct push, ops diagnosis)? Scaffold a fragment instead:
-  `py -3 tools/changes_new.py --kind fix --scope <area> --title "..."`
-  It is a new file, so it cannot conflict.
-- `.github/workflows/ledger-collate.yml` folds merged PRs and fragments into
-  the ledger on master and opens one PR. Only that job writes the ledger.
+- No PR (direct push, ops diagnosis)? Write the narrative under
+  `knowledge/task-log/`. There is no fragment and no collation job.

@@ -41,7 +41,7 @@ If you have not run the proving command in this turn, you cannot claim it passes
 
 - Trusting "looks correct" or a prior session's green run
 - Trusting a subagent "success" without diff + re-verify
-- Treating CHANGELOG/task-log as proof of correctness
+- Treating PR evidence/task-log as proof of correctness
 - Skipping verification because work stayed in the parent session (zero-hop does not waive evidence)
 - Verifying only the unit you changed when you touched a shared resource (IB socket, bars store, ledger) -- see the blast-radius table in `.cursor/rules/verification-before-completion.mdc`
 

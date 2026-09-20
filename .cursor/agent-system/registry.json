@@ -221,7 +221,6 @@
       "continuity_waiver": "Canonical feed architecture and scanner memory govern diagnostics; follow single-market-data-feed.mdc.",
       "canonical_inputs": [
         "knowledge/obsidian/03-Nova-Decisions/IBKR-Scanner-HOD-Architecture.md",
-        "CHANGELOG.md",
         ".cursor/agent-memory/hod-momo-memory.md"
       ],
       "writable_paths": [

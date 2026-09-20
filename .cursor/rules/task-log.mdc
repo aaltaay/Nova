@@ -14,7 +14,7 @@ Where that narrative lives depends on whether the work ships through a pull requ
 | Work ships in a PR (default for code, config, CI, rules) | **PR body** -- `.github/pull_request_template.md` |
 | No PR (status-only direct push, ops diagnosis, audit conclusion) | `knowledge/task-log/YYYY-MM-DD-<slug>.md` |
 
-CHANGELOG = short "what the code does now."
+The PR body = short "what the code does now."
 PR/issue evidence records bug diagnosis after a **fix**.
 GitHub Issues labeled `deferred` = known bugs and parked features that are **not** done yet.
 **This rule = full job narrative + reasoning.** All four can apply to one job.
@@ -78,7 +78,7 @@ Example Lifecycle:
 - ❌ Duplicating the same narrative in a PR body *and* a task-log file
 - ❌ Secrets, tokens, or full `.env` contents in a narrative
 - ❌ Duplicating a 40-line stack trace (summarize)
-- ❌ Skipping the narrative because CHANGELOG already has a bullet
+- ❌ Skipping the narrative because the PR title already says it
 - ❌ Editing old entries to rewrite history — add a new dated note instead
 
 ## Related

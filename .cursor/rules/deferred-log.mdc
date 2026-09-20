@@ -13,7 +13,7 @@ Browse: https://github.com/aaltaay/Nova/issues?q=is%3Aissue+label%3Adeferred
 
 ## Hard requirement
 
-When a session **finds a real bug it will not fix now**, or **parks a feature the human asked for**, the agent **MUST** open or comment on a GitHub Issue labeled `deferred` in the **same session** (before or with the CHANGELOG / task-log / commit):
+When a session **finds a real bug it will not fix now**, or **parks a feature the human asked for**, the agent **MUST** open or comment on a GitHub Issue labeled `deferred` in the **same session** (before or with the task-log / commit):
 
 - A bug whose fix is too big, architectural, or the wrong task for this session
 - A fully diagnosed root cause whose patch is deferred (do not band-aid; do not stay silent)
@@ -35,7 +35,7 @@ Starting a fix that is already an open issue, without reading the issue, is a co
 2. Labels: always `deferred`, plus one of `P0`..`P3`, plus `bug` / `enhancement` (feature) / `decision`, plus `domain:<name>`. Add `blocked` or `parked` when that is the status.
 3. Body fields (never optional): Kind, Severity, Effort, Why parked, Blast radius, Unblock, Next, Evidence. How-to: `DEFERRED_LOG.md`.
 4. Do not log secrets, tokens, or personal data.
-5. Cross-link from CHANGELOG / task-log `Related:` when those also get an entry.
+5. Cross-link from the PR body / task-log `Related:` when those also get an entry.
 6. When you later **fix the entire issue**: use `Closes #NNN` in the PR, close with reason completed, record bug-fix evidence in the PR, and set Lifecycle `deferred_log=#NNN`. Partial fixes use `Refs #NNN`, get an evidence comment, and leave the issue open.
 7. `py -3 tools/deferred_log.py refresh-index` rewrites the offline snapshot. It is a **read cache** for environments without `gh` -- nothing allocates from it any more, so a stale snapshot degrades a listing but can no longer corrupt the tracker. Refresh it when convenient; it is not a gate.
 
@@ -43,7 +43,7 @@ Starting a fix that is already an open issue, without reading the issue, is a co
 
 - Dump parked work only into `.cursor/agent-memory/*-memory.md` Backlog (scratchpad, not SSOT)
 - Dump product-phase NEXT / L-Z parking-lot work here -- that stays in `Nova-Roadmap-Status.md`
-- Treat a CHANGELOG `Follow-ups:` bullet as enough -- if it is a real bug or parked feature, it belongs on a `deferred` issue
+- Treat a PR-body `Follow-ups:` bullet as enough -- if it is a real bug or parked feature, it belongs on a `deferred` issue
 - Prepend a new `## D-NNN` section to `DEFERRED_LOG.md`
 - Band-aid a P0/P1 so you can skip writing the issue
 - Mint a new `D-NNN`; the prefix is legacy-only and hand-allocating one re-opens the collision class
@@ -80,7 +80,6 @@ Example after parking a bug:
 |-----|---------|
 | PR/issue evidence | What went wrong, the fix, and verification |
 | GitHub Issues (`deferred`) | What is **still wrong or not built**, with severity so a human can prioritize |
-| `CHANGELOG.md` | What the codebase does now |
 | PR body (or `knowledge/task-log/`) | Full job narrative + why this approach |
 | `Nova-Roadmap-Status.md` | Product phase NEXT (not a bug tracker) |
 

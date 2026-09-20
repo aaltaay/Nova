@@ -110,7 +110,7 @@ Record the bucket + symbol + one-line evidence in memory under **Run log**, and 
 - **Classified misses:** bucket → symbols (or "none new")
 - **Fix proposed/applied:** (file + approach, or "diagnosis only")
 - **Evidence:** command output / debug-symbol excerpt
-- **PR evidence / CHANGELOG:** (entry added | not needed | pending parent approval to ship)
+- **PR evidence:** (recorded | not needed | pending parent approval to ship)
 - **Memory update:** none | run-log only | root-cause ledger updated | promoted: <what> | backlog +N
 
 **Lifecycle:** memory=unchanged | promotion=none | dashboard=clean | handoff=none | task_log=<path>|skipped|n/a | deferred_log=<id>|none|skipped|n/a

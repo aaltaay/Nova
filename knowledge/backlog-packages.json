@@ -253,16 +253,13 @@
           "issues": [
             344
           ],
-          "note": "Ledger sharding so concurrent agent PRs stop colliding on paperwork. Two of #344's decisions are still open - land the uncontested worksteams and leave the rest on the issue.",
+          "note": "The paperwork collision is resolved by retirement, not sharding: BACKLOG, PROBLEM_LOG and CHANGELOG are archived and the PR body is the record, so there is nothing left for parallel PRs to collide on. What remains of #344 is merge queueing for concurrent agents - leave the rest on the issue.",
           "gated": false,
           "touches": [
             ".github/workflows/",
-            "tools/changes_collate.py",
-            "tools/changes_new.py",
-            "tools/test_changes_fragments.py",
+            "tools/pr_delivery.py",
             "AGENTS.md",
-            ".cursor/rules/",
-            ".github/pull_request_template.md"
+            ".cursor/rules/"
           ]
         },
         {

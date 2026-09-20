@@ -13,7 +13,7 @@ Nova OS engine internals (decide/control_mode/archive code bugs) still use `.cur
 
 1. Read `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md` — canonical phase, blockers, next step. Short by design; closed phases, verification baselines, and pre-2026-07-28 History live in `Nova-Roadmap-Archive.md` (read-only).
 2. Read the Master Roadmap plan: `nova_master_roadmap_a_z.plan.md` in the repo root (or the linked plan in the Cursor plans folder).
-3. Skim recent `CHANGELOG.md` and search GitHub issues/PRs for matching symptoms if debugging.
+3. Search GitHub issues/PRs for matching symptoms if debugging.
 4. Run `git status` and state the current roadmap phase before making changes.
 5. Optionally open the project homepage canvas: `canvases/nova-home.canvas.tsx` (absolute under the Cursor projects canvases folder).
 6. For Phase B ops, also read `docs/paper-shadow-protocol.md`.
@@ -30,7 +30,7 @@ Nova OS engine internals (decide/control_mode/archive code bugs) still use `.cur
 1. Run phase verification (pytest, Vitest / `npm run build`, Playwright/browser when UI changes). Ops phases: record review artifacts and day count in the status note.
 2. Update `Nova-Roadmap-Status.md`: phase checkboxes, state, exact next phase task; **append** a History row to the live note (do not rewrite prior History, and do not edit `Nova-Roadmap-Archive.md`). When a phase closes, move its detail into the archive so the live note stays a status page.
 3. Refresh `nova-home.canvas.tsx` if phase status or live health materially changed.
-4. Record behavior changes and bug-fix evidence in the PR body (CHANGELOG is generated).
+4. Record behavior changes and bug-fix evidence in the PR body (there is no changelog).
 5. **Hard rule -- PR-first phase delivery:** start from a clean `origin/master` tip on a new focused branch (`AGENTS.md` §5.1), commit intentional phase files, push, fill the PR template, and open a ready (non-draft) PR. Phase completion is **incomplete** until the PR merges. Record the merge commit SHA in `Nova-Roadmap-Status.md` (`Last verified commit`). If auth/network/checks fail, record the blocker and do not claim verified.
 6. Stop -- next chat begins the next phase from the status note. A new chat must not start the next phase until this phase's PR is merged.
 

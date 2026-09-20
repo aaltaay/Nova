@@ -11,13 +11,14 @@
 
 ## Retired ledgers (owner instruction, 2026-09-20)
 
-`BACKLOG.md` and `PROBLEM_LOG.md` are retired and archived under `_archived/`.
-Do not read, update, regenerate, or require them during ordinary agent work.
-Read archived material only when the user explicitly asks for historical context.
-Old references in comments, past PRs, task logs, and maintenance history are not
-instructions to restore these files. Use GitHub Issues/milestones for current
-work and PR descriptions plus regression tests for completed fixes. No
-`problem_log=` footer or problem-log fragment is required or supported.
+`BACKLOG.md`, `PROBLEM_LOG.md` and `CHANGELOG.md` are retired and archived under
+`_archived/`. Do not read, update, regenerate, or require them during ordinary
+agent work. Read archived material only when the user explicitly asks for
+historical context. Old references in comments, past PRs, task logs, and
+maintenance history are not instructions to restore these files. Use GitHub
+Issues/milestones for current work and PR descriptions plus regression tests for
+completed fixes. No `problem_log=` footer, problem-log fragment, changelog
+entry, changelog fragment or collation job is required or supported.
 
 ## 0. PURPOSE
 
@@ -33,7 +34,7 @@ This document is the **single source of truth** for how this project is built, m
 
 - **Canonical ledger:** `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md` — which phase is NEXT, checkboxes, History.
 - **Target architecture (maintenance):** `architecture/README.md` + `architecture/dependency-rules.md` + ADRs under `architecture/decisions/` — modular monolith, selective ports/adapters, feature slices, CSS cascade layers. Structural moves must cite an ADR.
-- **Continuity rule:** `.cursor/rules/nova-roadmap-continuity.mdc` — read status first; phase-close verify + CHANGELOG + commit + push; scope guard.
+- **Continuity rule:** `.cursor/rules/nova-roadmap-continuity.mdc` — read status first; phase-close verify + commit + push; scope guard.
 - **Phase B ops:** `docs/paper-shadow-protocol.md` — paper shadow (`signal` → `confirm` → `auto_paper`); **`auto_live` NO-GO**.
 - **Plan / canvas:** `nova_master_roadmap_a_z.plan.md` · `nova-home.canvas.tsx`
 - **Nova OS engine map (closed):** `knowledge/obsidian/03-Nova-Decisions/Nova-OS-Status.md` — still authoritative for P0–P10 internals; product “what’s next” is Roadmap-Status.
@@ -376,26 +377,24 @@ Always-on copies: `.cursor/rules/commit-push-deploy.mdc`, `.cursor/rules/github-
 
 ## 7. 📝 Documentation Requirements (Enforced)
 
-### 7.1 CHANGELOG.md -- GENERATED. Do not hand-edit.
+### 7.1 CHANGELOG.md -- RETIRED. The PR body is the record.
 
-`CHANGELOG.md` is produced by `.github/workflows/ledger-collate.yml` from
-**merged pull-request bodies**. An agent writes the PR body (§7.2b) and writes
-**nothing** to the ledger.
+There is no changelog. `CHANGELOG.md` is archived under `_archived/` and is not
+maintained, generated, or required. Do not recreate it, and do not add a
+changelog entry, fragment, or collation step to any workflow.
 
-- **Do not prepend to `CHANGELOG.md`.** A PR that changes behavior carries its
-  entry in its own body: **What** / **Why this approach** / **Verified by**,
-  per `.github/pull_request_template.md`. That is the entry.
-- **No PR?** (direct push, ops diagnosis, audit conclusion) -- add a fragment
-  instead: `py -3 tools/changes_new.py --kind fix --scope capture --title "..."`
-  writes `.changes/unreleased/<stamp>-<slug>.md`. The collation job folds it in
-  and deletes it.
-- **Why:** every PR prepending at line 1 means two parallel PRs always collide
-  on paperwork rather than on code -- N agents, N-squared conflict pairs, zero
-  engineering value in the diff (#344). Removing the write removes the
-  conflict; resolving it faster does not.
-- `merge=union` in `.gitattributes` is a **transitional** net for PRs authored
-  before this rule. It is removed once no hand-written entries remain.
-- Existing history is untouched. Only new entries are generated.
+- **A PR that changes behavior carries its entry in its own body:** **What** /
+  **Why this approach** / **Verified by**, per
+  `.github/pull_request_template.md`. That is the record, and the merged PR is
+  its permanent home.
+- **No PR?** (direct push, ops diagnosis, audit conclusion) -- write the
+  narrative under `knowledge/task-log/` (§7.2b). Nothing else is needed.
+- **Why retired:** the entry already exists in the PR body. A second generated
+  copy added a file nothing read, a workflow that could silently fail to open
+  its PR (it did -- master drifted 11 PRs behind without anyone noticing), and a
+  `merge=union` attribute to stop the paperwork causing merge conflicts (#344).
+  Removing the mirror removes all three.
+- Existing history is untouched and stays readable in the archive.
 
 ### 7.2 Bug-fix evidence
 
@@ -481,6 +480,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-20 | `CHANGELOG.md` **retired** at the owner's request and archived under `_archived/`, completing the ledger retirement. The generator goes with it: `ledger-collate.yml`, `tools/changes_collate.py` / `changes_fragments.py` / `changes_new.py`, `.changes/`, the always-on `change-log.mdc`, and the `CHANGELOG.md merge=union` attribute. The PR body is the only record. Evidence the mirror was not earning its keep: the 09:11 collate run succeeded, pushed its branch, never opened its PR, and left master 11 PRs behind with nobody noticing. §7.1 rewritten. | User Directive + Claude Opus 5 |
 | 2026-09-20 | ADR 018 implemented (#302): desk venue and spend arming split into two latches with opposite lifetimes. Venue persists in `desk-venue.json` (owner `sim/mode.py`, `schema_version`, refuses unknown loud, wins over `NOVA_BROKER`); a runtime latch in `ibkr/safety.py` starts every process disarmed in every venue and is armed only by the operator at the existing header padlock (`POST /api/ibkr/arm`). `spend_permitted` (env) and `armed` (runtime) are separate status fields. Venue change disarms; `flatten`/`kill`/`cancel_working` and cancel are exempt. No new UI -- the padlock's `sessionStorage` flag moved to the backend, which also makes pop-out windows and the bot API read one answer. | User Directive + Claude Code |
 | 2026-09-20 | Retired the backlog narrative and problem ledger at the owner's request. Archived snapshots are inactive; GitHub Issues/PRs replace their required reads/writes. Removed problem fragments, lifecycle enforcement and regeneration. | User Directive + Codex |
 | 2026-09-20 | Next-move footer replaces the Better ask / Follow-up ask paragraphs: a numbered lane menu (`[thread]` `[ship]` `[backlog]` `[decide]`) answered by digit, grounded by `tools/next_moves.py seed` (roadmap NEXT + `backlog next` batch + gated decision + open P0s) and injected by the session brief, which also regains the roadmap line (its regex still matched the retired `Active ops` label). Template in always-on `next-move-footer.mdc`; `next_moves.py lint` + `test_next_moves.py` guard shape, lane order and forbidden phrases. | User Directive + Claude Fable 5.1 |
@@ -608,7 +608,6 @@ Live rule bodies live only under `.cursor/rules/*.mdc`. Do **not** paste full ru
 - `engineering-standards.mdc` -- Tailwind direction, tests, CI, deps, patterns
 - `karpathy-guidelines.mdc` -- think / simplify / surgical / verify
 - `deferred-log.mdc` -- check GitHub Issues (`deferred`) before any fix; park known bugs/features; to-do via `deferred_log.py status` / `priorities`
-- `change-log.mdc` -- CHANGELOG after behavior changes
 - `task-log.mdc` -- reasoning narrative after material work (PR body first; file when no PR)
 - `commit-push-deploy.mdc` -- clean start from `origin/master`; verify, commit, push, open a ready PR; Actions merges it; delete head after merge (+ deploy when applicable)
 - `doc-invariants.mdc` -- posture-change same-commit live homes; CI `doc_invariants.py`

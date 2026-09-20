@@ -52,4 +52,4 @@ Product fixes inside `backend/execution/` require an explicit ask each time.
 1. Re-run `test_execution_service.py` (+ latency probe when SLA claims change).
 2. Update `docs/trading-execution-validation.md` and the `agent-execution` canvas snapshot if verdict/metrics moved.
 3. Update execution memory Current snapshot.
-4. Record behavior changes and bug-fix evidence in the PR body (CHANGELOG is generated).
+4. Record behavior changes and bug-fix evidence in the PR body (there is no changelog).

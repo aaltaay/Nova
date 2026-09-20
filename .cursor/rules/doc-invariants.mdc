@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Doc invariants (anti-stale live docs)
 
-Historical CHANGELOG / PR evidence / task-log may narrate past Railway or Alpaca eras. **Live** docs must not.
+Archived ledgers / PR evidence / task-log may narrate past Railway or Alpaca eras. **Live** docs must not.
 
 ## Live homes (update in the same commit as the posture change)
 
@@ -17,7 +17,7 @@ Historical CHANGELOG / PR evidence / task-log may narrate past Railway or Alpaca
 | Roadmap NEXT / phase scope | `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md` |
 | Trading gates / `auto_live` | `AGENTS.md` Invariant #7 + ADR 007/009 |
 
-When hosting, discovery provider, phase NEXT, or trading posture changes: update the matching live home(s) in the **same commit**. CHANGELOG alone is not enough.
+When hosting, discovery provider, phase NEXT, or trading posture changes: update the matching live home(s) in the **same commit**. The PR body alone is not enough.
 
 ## Machine gate
 
