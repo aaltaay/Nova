@@ -52,7 +52,7 @@ jobs:
         run: pip install pytest
 
       - name: Unit tests (ranking must hold before it can publish)
-        run: python -m pytest tools/test_ai_news_digest.py -q
+        run: python -m pytest tools/test_ai_news*.py -q
 
       - name: Rebuild the digest
         run: python tools/ai_news_digest.py --limit 6 --feed-limit 60
