@@ -80,7 +80,9 @@ class TestReplayRoute:
         body = res.json()
         assert body["hindsight"] is False
         assert body["as_of_ts"] == as_of
-        assert body["decisions"][0]["replay"]["bar_count"] == 5
+        # Interval-close contract (#385): at the 5th bar's OPEN only the first
+        # four minutes have closed, so the route reports 4, not 5.
+        assert body["decisions"][0]["replay"]["bar_count"] == 4
 
     def test_replay_bad_date_400(self):
         res = client.get("/api/archive/replay/not-a-date")

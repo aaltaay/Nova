@@ -151,11 +151,37 @@ class TestNoHindsight:
     """P9 hardening: decide() must never see bars after the moment it is
     supposedly deciding at."""
 
-    def test_slice_bars_as_of_excludes_future(self):
+    def test_slice_bars_as_of_requires_the_interval_to_have_closed(self):
+        """#385: ``ts`` is the bar's OPENING stamp, so a 1m bar opening at 100
+        is only known from 160 onward — inclusive at close, never before."""
         bars = [{"ts": 100.0}, {"ts": 200.0}, {"ts": 300.0}]
-        assert replay.slice_bars_as_of(bars, 200.0) == [{"ts": 100.0}, {"ts": 200.0}]
+        assert replay.slice_bars_as_of(bars, 105.0) == []       # +5s into the minute
+        assert replay.slice_bars_as_of(bars, 159.0) == []       # one second early
+        assert replay.slice_bars_as_of(bars, 160.0) == [{"ts": 100.0}]  # exact close
+        assert replay.slice_bars_as_of(bars, 161.0) == [{"ts": 100.0}]
+        assert replay.slice_bars_as_of(bars, 260.0) == [{"ts": 100.0}, {"ts": 200.0}]
         assert replay.slice_bars_as_of(bars, 50.0) == []
-        assert replay.slice_bars_as_of(bars, 300.0) == bars
+        assert replay.slice_bars_as_of(bars, 360.0) == bars
+
+    def test_final_minute_ohlcv_is_not_revealed_before_close(self):
+        """The issue's own probe, as an executable regression (#385).
+
+        A bar opening at 1789738200 must not hand its high/close/volume to a
+        decision made 55 seconds before that minute ends — and must hand them
+        over once it has closed. We suppress lookahead, not data.
+        """
+        bar = {"ts": 1789738200.0, "o": 100.0, "h": 200.0, "l": 99.0, "c": 99.0, "v": 1000}
+        early = replay.slice_bars_as_of([bar], 1789738205.0)
+        assert early == []
+        candidate = replay._candidate_from_bars("TEST", early, "2026-09-20")
+        assert candidate["price"] is None
+        assert candidate["volume"] == 0
+
+        at_close = replay.slice_bars_as_of([bar], 1789738260.0)
+        assert at_close == [bar]
+        closed_candidate = replay._candidate_from_bars("TEST", at_close, "2026-09-20")
+        assert closed_candidate["price"] == 99.0
+        assert closed_candidate["volume"] == 1000
 
     def test_replay_day_default_is_hindsight_and_says_so(self, monkeypatch):
         _seed_replay_day()
@@ -182,13 +208,19 @@ class TestNoHindsight:
             ),
         )
         base = 1_720_000_000.0
-        as_of_ts = base + 9 * 60  # 10th bar (index 0..9 inclusive)
+        # Bar i opens at base + i*60 and closes at base + (i+1)*60. At the
+        # 10th bar's OPEN only the first 9 minutes have closed (#385).
+        as_of_ts = base + 9 * 60
         result = replay.replay_at("2026-07-10", as_of_ts, symbols=["TEST"])
         assert result["hindsight"] is False
         assert result["as_of_ts"] == as_of_ts
         dec = result["decisions"][0]
-        assert dec["replay"]["bar_count"] == 10
+        assert dec["replay"]["bar_count"] == 9
         assert dec["replay"]["hindsight"] is False
+
+        # Inclusive at close: one minute later that 10th bar is known.
+        at_close = replay.replay_at("2026-07-10", base + 10 * 60, symbols=["TEST"])
+        assert at_close["decisions"][0]["replay"]["bar_count"] == 10
 
     def test_walk_day_never_leaks_future_bars_into_earlier_steps(self, monkeypatch):
         _seed_replay_day()
@@ -217,13 +249,47 @@ class TestNoHindsight:
             # Cumulative bars seen can only grow (or stay flat) as time moves
             # forward — it must never include bars beyond this step's as_of.
             assert bar_count >= prev_bar_count
+            # A bar is known only once its minute has CLOSED (#385).
             expected_max = sum(
-                1 for i in range(30) if (1_720_000_000.0 + i * 60) <= step["as_of_ts"]
+                1 for i in range(30) if (1_720_000_000.0 + i * 60 + 60) <= step["as_of_ts"]
             )
             assert bar_count == expected_max
             prev_bar_count = bar_count
-        # Final step must reach the full day (last bar's ts).
+        # Final step must still reach the full day — this passes only because
+        # _walk_steps now ends at the last bar's CLOSE rather than its open.
         assert steps[-1]["decisions"][0]["replay"]["bar_count"] == 30
+
+    def test_walk_final_step_lands_on_last_bar_close(self, monkeypatch):
+        _seed_replay_day()
+        from nova_os.gates import GateResult
+
+        monkeypatch.setattr(
+            "nova_os.decide.gate_session",
+            lambda risk_state, requested_mode: (
+                GateResult("session", True, True, ["SESSION_OK"], {}), requested_mode, [],
+            ),
+        )
+        result = replay.walk_day("2026-07-10", symbols=["TEST"], step_min=5)
+        last_bar_ts = 1_720_000_000.0 + 29 * 60
+        assert result["steps"][-1]["as_of_ts"] == last_bar_ts + 60
+
+    def test_first_walk_step_sees_no_closed_bar(self, monkeypatch):
+        """At the very first as-of nothing has closed yet — decide() must
+        still produce a decision rather than choking on an empty bar list."""
+        _seed_replay_day()
+        from nova_os.gates import GateResult
+
+        monkeypatch.setattr(
+            "nova_os.decide.gate_session",
+            lambda risk_state, requested_mode: (
+                GateResult("session", True, True, ["SESSION_OK"], {}), requested_mode, [],
+            ),
+        )
+        result = replay.walk_day("2026-07-10", symbols=["TEST"], step_min=5)
+        first = result["steps"][0]
+        assert first["as_of_ts"] == 1_720_000_000.0
+        assert first["errors"] == []
+        assert first["decisions"][0]["replay"]["bar_count"] == 0
 
     def test_walk_day_missing_day(self):
         result = replay.walk_day("1999-01-01")

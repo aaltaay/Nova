@@ -82,6 +82,9 @@ ARCHIVE_REPLAY_MAX_SYMBOLS = 50
 ARCHIVE_REPLAY_WALK_STEP_MIN = 5               # minutes between as-of snapshots in walk_day
 ARCHIVE_REPLAY_WALK_MAX_STEPS = 200            # hard cap on snapshots per walk (safety)
 ARCHIVE_EVENING_REVIEW_MAX_SYMBOLS = 10        # walk_day is O(steps x symbols); keep review scoped
+# An archived 1m bar is stamped with the minute's OPENING ts; its final OHLCV is
+# only known at bar_start + this. Replay projections must not reveal it earlier.
+ARCHIVE_BAR_1M_INTERVAL_SEC = 60.0
 
 # ── News impact decision layer (rules-first; not a black box) ────────────────
 # Explicit thresholds for whether news actually moved a ticker / Level 2.

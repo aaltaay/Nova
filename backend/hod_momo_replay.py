@@ -15,6 +15,12 @@ What the driver does per session:
    price-buffer seed from those bars (``seed_price_buffer``), and a
    ``TickerSnap`` built from the fixture meta (prev_close, float; RVOL/gap
    stand-ins from the day's production alerts when available).
+   Interval-close contract (#385): a bar's ``ts`` is the minute's OPENING
+   stamp, so only minutes CLOSED by the first tape print seed the high floor,
+   the surge buffer and the volume base -- never the minute in progress, which
+   step 3 rebuilds from ticks instead. A symbol with no closed bar and no
+   prev_close therefore primes with no high floor and no 52-week sentinel
+   (both would be lookahead) and takes the live-only seed path.
 3. Feed every tape print in ts order with reconstructed cumulative day
    volume (bar-volume base + print sizes) and a running day-high series
    (emulates IBKR tick-6). ``time.time`` and ``market.now_et`` are pinned
@@ -51,6 +57,7 @@ import hod_momo_high as _high
 import hod_momo_market as _market
 import hod_momo_metrics as _metrics
 import market as _clock_market
+from constants import ARCHIVE_BAR_1M_INTERVAL_SEC
 from hod_momo_models import alert_to_dict
 from hod_momo_state import HodMomoState
 
@@ -177,7 +184,12 @@ def prime_symbol(fixture: ReplayFixture, symbol: str, first_ts: float) -> None:
         ) or {}
     except Exception:
         archived = {}
-    bars_before = [b for b in fixture.bars_by_symbol.get(symbol, []) if b["ts"] <= first_ts]
+    # Closed minutes only (#385): a bar's ``ts`` is the minute's OPEN, so the
+    # in-progress minute's final high/close have not happened yet.
+    bars_before = [
+        b for b in fixture.bars_by_symbol.get(symbol, [])
+        if b["ts"] + ARCHIVE_BAR_1M_INTERVAL_SEC <= first_ts
+    ]
 
     prev_close = meta.get("prev_close") or None
     seed_candidates = [b["high"] for b in bars_before]
@@ -190,6 +202,11 @@ def prime_symbol(fixture: ReplayFixture, symbol: str, first_ts: float) -> None:
         _market.seed_price_buffer(
             symbol, [(float(b["ts"]), float(b["close"])) for b in bars_before]
         )
+    else:
+        # No closed bar to seed from: mirror production's live-only path,
+        # which marks the attempt (seed_price_buffer would have done it for
+        # us) so the symbol is stranded outside neither seeded set.
+        _market.mark_surge_seed_attempted(symbol)
 
     float_shares = (
         archived.get("float_shares")
@@ -293,10 +310,13 @@ def replay_session(
 
     cum_volume: dict[str, float] = {}
     for sym, first_ts in first_ts_by_symbol.items():
+        # Completed minutes only (#385). The in-progress minute's own prints
+        # arrive on the tape below, so counting its whole bar volume here both
+        # leaked the future and double-counted that minute.
         cum_volume[sym] = sum(
             float(b["volume"])
             for b in fixture.bars_by_symbol.get(sym, [])
-            if b["ts"] <= first_ts
+            if b["ts"] + ARCHIVE_BAR_1M_INTERVAL_SEC <= first_ts
         )
     running_high = {
         sym: float(hm.get_state().session_highs.get(sym) or 0.0)
