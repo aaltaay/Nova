@@ -5,15 +5,158 @@
   "updated": "2026-09-19",
   "items": [
     {
+      "id": "#357",
+      "title": "Nova Marketing Sample Data on ?view=sample",
+      "kind": "feature",
+      "severity": "P3",
+      "status": "open",
+      "domain": "ui",
+      "number": "357",
+      "url": "https://github.com/aaltaay/Nova/issues/357",
+      "state": "OPEN"
+    },
+    {
+      "id": "#356",
+      "title": "Resume ai-news ranking WIP parked on wip/ai-news-ranking",
+      "kind": "feature",
+      "severity": "P3",
+      "status": "open",
+      "domain": "news",
+      "number": "356",
+      "url": "https://github.com/aaltaay/Nova/issues/356",
+      "state": "OPEN"
+    },
+    {
+      "id": "D-084",
+      "title": "Human-filed `deferred` issues are invisible to deferred_log: TITLE_RE drops anything not titled `D-NNN --`",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "done",
+      "domain": "docs",
+      "number": "351",
+      "url": "https://github.com/aaltaay/Nova/issues/351",
+      "state": "CLOSED"
+    },
+    {
+      "id": "D-083",
+      "title": "doc_invariants silently drops a live doc that is renamed or deleted (gate still exits 0)",
+      "kind": "bug",
+      "severity": "P3",
+      "status": "done",
+      "domain": "docs",
+      "number": "349",
+      "url": "https://github.com/aaltaay/Nova/issues/349",
+      "state": "CLOSED"
+    },
+    {
+      "id": "D-082",
+      "title": "Desktop delivery: installer-only, and an in-app update check off GitHub Releases",
+      "kind": "feature",
+      "severity": "P2",
+      "status": "open",
+      "domain": "ci",
+      "number": "347",
+      "url": "https://github.com/aaltaay/Nova/issues/347",
+      "state": "OPEN"
+    },
+    {
+      "id": "D-081",
+      "title": "Actions-merged PRs never trigger Desktop pack, so no vNNN tag or Release since v757",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "open",
+      "domain": "ci",
+      "number": "346",
+      "url": "https://github.com/aaltaay/Nova/issues/346",
+      "state": "OPEN"
+    },
+    {
+      "id": "D-080",
+      "title": "Commit process for a parallel agent swarm: derive versions, shard the ledgers, queue the merges",
+      "kind": "feature",
+      "severity": "P1",
+      "status": "open",
+      "domain": "ci",
+      "number": "344",
+      "url": "https://github.com/aaltaay/Nova/issues/344",
+      "state": "OPEN"
+    },
+    {
+      "id": "D-079",
+      "title": "CI velocity audit: bookkeeping conflicts, noisy gates, slow critical path",
+      "kind": "feature",
+      "severity": "P1",
+      "status": "open",
+      "domain": "ci",
+      "number": "342",
+      "url": "https://github.com/aaltaay/Nova/issues/342",
+      "state": "OPEN"
+    },
+    {
+      "id": "D-077",
+      "title": "Unfinished: live UI performance measurement and the replay engine backend audit",
+      "kind": "feature",
+      "severity": "P2",
+      "status": "open",
+      "domain": "market-feed | tester",
+      "number": "341",
+      "url": "https://github.com/aaltaay/Nova/issues/341",
+      "state": "OPEN"
+    },
+    {
+      "id": "D-076",
+      "title": "Recorder &amp; replay: capability gaps and recommendations (umbrella)",
+      "kind": "decision",
+      "severity": "P2",
+      "status": "open",
+      "domain": "market-feed | ui",
+      "number": "340",
+      "url": "https://github.com/aaltaay/Nova/issues/340",
+      "state": "OPEN"
+    },
+    {
+      "id": "D-075",
+      "title": "Zero test coverage for capture, and `--reporter=basic` makes Vitest exit 0 while running nothing",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "tester",
+      "number": "339",
+      "url": "https://github.com/aaltaay/Nova/issues/339",
+      "state": "OPEN"
+    },
+    {
+      "id": "D-074",
+      "title": "Historical replay card loses its module chrome, overrides layout prefs, and the Sim feature has no stylesheet (light theme broken)",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "ui",
+      "number": "338",
+      "url": "https://github.com/aaltaay/Nova/issues/338",
+      "state": "OPEN"
+    },
+    {
+      "id": "D-073",
+      "title": "Capture fidelity defects: L2 drops instead of coalescing, silent decimation, no schema_version, 1d bucket lookahead",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "market-feed",
+      "number": "337",
+      "url": "https://github.com/aaltaay/Nova/issues/337",
+      "state": "OPEN"
+    },
+    {
       "id": "D-078",
       "title": "Duplicate deferred IDs: #308/#309 reuse D-057/D-058; make next-id collision-safe",
       "kind": "bug",
       "severity": "P3",
-      "status": "open",
+      "status": "done",
       "domain": "docs",
       "number": "335",
       "url": "https://github.com/aaltaay/Nova/issues/335",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-077",
@@ -42,11 +185,11 @@
       "title": "bump_version miscounts merge commits; every PR conflicts on VERSION when master moves",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "tester",
       "number": "332",
       "url": "https://github.com/aaltaay/Nova/issues/332",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-074",
@@ -185,11 +328,11 @@
       "title": "deferred-index.json is stale, so `deferred_log.py next-id` hands out an already-used ID",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "tester",
       "number": "313",
       "url": "https://github.com/aaltaay/Nova/issues/313",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-061",
@@ -355,6 +498,50 @@
       "number": "290",
       "url": "https://github.com/aaltaay/Nova/issues/290",
       "state": "CLOSED"
+    },
+    {
+      "id": "#222",
+      "title": "Optional bot MCP/SDK adapters (not core brain)",
+      "kind": "feature",
+      "severity": "P3",
+      "status": "open",
+      "domain": "execution",
+      "number": "222",
+      "url": "https://github.com/aaltaay/Nova/issues/222",
+      "state": "OPEN"
+    },
+    {
+      "id": "#216",
+      "title": "[Bot #205] 11/11 L3 Unrestricted (later)",
+      "kind": "feature",
+      "severity": "P2",
+      "status": "parked",
+      "domain": "execution",
+      "number": "216",
+      "url": "https://github.com/aaltaay/Nova/issues/216",
+      "state": "OPEN"
+    },
+    {
+      "id": "#189",
+      "title": "Scanner: Volume boost \u00e2\u20ac\u201d exceptional volume-spike tab (plan first)",
+      "kind": "feature",
+      "severity": "P3",
+      "status": "done",
+      "domain": "market-feed",
+      "number": "189",
+      "url": "https://github.com/aaltaay/Nova/issues/189",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#147",
+      "title": "Follow-up: Advise opt-in multi-model (tabs, sequential, max 3)",
+      "kind": "feature",
+      "severity": "?",
+      "status": "open",
+      "domain": "",
+      "number": "147",
+      "url": "https://github.com/aaltaay/Nova/issues/147",
+      "state": "OPEN"
     },
     {
       "id": "D-049",
