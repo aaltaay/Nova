@@ -133,13 +133,19 @@ def status_payload() -> dict[str, Any]:
     out["writer"] = worker
     from constants_sim import SIM_SYMBOL
     if on and _symbol != SIM_SYMBOL:
-        from capture.bridge_ibkr import producer_health
+        from capture.bridge_ibkr import book_health, producer_health
         from capture.recorder import status as recorder_status
         from ibkr.tape_recording import dispatch_errors
         health = producer_health(_symbol)
         if health["healthy"] and not recorder_status()["segment_prints"]:
             health = health | {"state": "waiting", "healthy": False}
         out["producer"] = health
+        # Prints and the book are separate subscriptions. A recording with no
+        # depth line captures tape only, and the operator has to learn that
+        # now rather than at replay time (D-064).
+        out["book"] = books = book_health(_symbol)
+        if books["note"]:
+            out.setdefault("warning", books["note"])
         out["healthy"] = health["healthy"] and not worker["error"] and not err
         if health["error"]:
             out["error"] = health["error"]

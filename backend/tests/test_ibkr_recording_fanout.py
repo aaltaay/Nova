@@ -288,3 +288,100 @@ def test_shutdown_drains_accepted_rows_and_closes_ingress():
     assert [row["price"] for row in rows] == [1, 2]
     assert not sink.thread.is_alive()
     assert not sink.submit({"price": 3})
+
+
+# --- D-064: quote / Level 2 capture for a real IBKR symbol -------------------
+
+
+def book(bids=((42.20, 300),), asks=((42.30, 400),), l1_fallback=False):
+    return {
+        "bids": [{"price": p, "size": s, "side": "bid", "mm": "ARCA"} for p, s in bids],
+        "asks": [{"price": p, "size": s, "side": "ask", "mm": "ARCA"} for p, s in asks],
+        "l1_fallback": l1_fallback,
+    }
+
+
+def rows(directory, name):
+    text = (Path(directory) / (name + ".jsonl")).read_text().strip()
+    return [json.loads(line) for line in text.splitlines() if line]
+
+
+@pytest.fixture(autouse=True)
+def book_bridge_reset():
+    bridge_ibkr.reset_for_tests()
+    yield
+    bridge_ibkr.reset_for_tests()
+
+
+def test_depth_book_records_quote_and_l2_with_ibkr_provenance():
+    from ibkr.depth import state as depth_state
+
+    mode.set_capture_mode(True, symbol="AAPL")
+    tick()
+    depth_state.push_book("AAPL", book())
+    mode.set_capture_mode(False)  # drains, rotating onto the print event date
+    directory = Path(recorder.status()["dir"])
+
+    quote = rows(directory, "quotes")[0]
+    assert (quote["bid"], quote["bid_size"]) == (42.20, 300.0)
+    assert (quote["ask"], quote["ask_size"]) == (42.30, 400.0)
+    assert quote["source"] == "ibkr"
+    depth_row = rows(directory, "l2")[0]
+    assert depth_row["bids"] == [{"price": 42.20, "size": 300.0}]
+    assert depth_row["asks"] == [{"price": 42.30, "size": 400.0}]
+    assert depth_row["source"] == "ibkr"
+    counts = json.loads((directory / "manifest.json").read_text())["counts"]
+    assert counts["quotes"] == 1 and counts["l2"] == 1
+
+
+def test_l1_fallback_book_records_a_quote_but_never_claims_depth():
+    from ibkr.depth import state as depth_state
+
+    mode.set_capture_mode(True, symbol="AAPL")
+    tick()
+    depth_state.push_book("AAPL", book(l1_fallback=True))
+    mode.set_capture_mode(False)
+    directory = Path(recorder.status()["dir"])
+
+    assert rows(directory, "quotes")[0]["bid"] == 42.20
+    assert (directory / "l2.jsonl").stat().st_size == 0
+
+
+def test_book_for_another_symbol_and_empty_books_are_never_recorded():
+    from ibkr.depth import state as depth_state
+
+    mode.set_capture_mode(True, symbol="AAPL")
+    tick()
+    depth_state.push_book("MSFT", book())  # not the recorded symbol
+    depth_state.push_book("AAPL", {"bids": [], "asks": [], "l1_fallback": False})
+    mode.set_capture_mode(False)
+    directory = Path(recorder.status()["dir"])
+
+    assert (directory / "quotes.jsonl").stat().st_size == 0
+    assert (directory / "l2.jsonl").stat().st_size == 0
+
+
+def test_fast_books_coalesce_before_the_worker_backlog_can_stop_the_session():
+    from ibkr.depth import state as depth_state
+
+    mode.set_capture_mode(True, symbol="AAPL")
+    tick()
+    for i in range(worker.CAPTURE_PENDING_BATCHES * 2):
+        depth_state.push_book("AAPL", book(bids=((42.20 + i / 1000, 300),)))
+    assert recorder.status()["error"] is None  # backlog never filled
+    health = bridge_ibkr.book_health("AAPL")
+    mode.set_capture_mode(False)
+    directory = Path(recorder.status()["dir"])
+
+    assert health["books_coalesced"] > 0
+    assert len(rows(directory, "quotes")) < worker.CAPTURE_PENDING_BATCHES
+
+
+def test_status_warns_when_the_recorded_symbol_has_no_depth_line():
+    mode.set_capture_mode(True, symbol="AAPL")
+    tick()
+    status = mode.status_payload()
+    mode.set_capture_mode(False)
+
+    assert status["book"]["subscribed"] is False
+    assert "quotes and Level 2 do not" in status["warning"]
