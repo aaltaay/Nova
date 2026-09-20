@@ -26,17 +26,19 @@ try:
     from tools.branch_cleanup import delete_closed_head
     from tools.pr_delivery_actions import merge_now, merge_pr, signal_conflict
     from tools.pr_review_status import (
-        ANNOUNCE_GRACE_SECONDS,
-        await_review_announcement,
+        MIN_PR_AGE_SECONDS,
+        pr_age_seconds,
         review_running,
+        too_young,
     )
 except ImportError:  # `python tools/pr_delivery.py` puts tools/ on sys.path
     from branch_cleanup import delete_closed_head
     from pr_delivery_actions import merge_now, merge_pr, signal_conflict
     from pr_review_status import (
-        ANNOUNCE_GRACE_SECONDS,
-        await_review_announcement,
+        MIN_PR_AGE_SECONDS,
+        pr_age_seconds,
         review_running,
+        too_young,
     )
 
 DEFAULT_REPO = "aaltaay/Nova"
@@ -145,6 +147,8 @@ def decide(
     same_repo: bool,
     checks: list[dict[str, Any]],
     review_in_flight: bool = False,
+    age_seconds: float | None = None,
+    min_age_seconds: int = MIN_PR_AGE_SECONDS,
 ) -> Decision:
     if str(state or "OPEN").upper() not in {"OPEN"}:
         return Decision(ACTION_SKIP, "not_open")
@@ -163,9 +167,13 @@ def decide(
     if merge_state in {"dirty", "conflicting"}:
         return Decision(ACTION_BLOCK, "conflict")
     # After the gates that mean "never merge this", before the ones that mean
-    # "merge it now": there is no point waiting on a review for a PR that is
-    # held anyway, and no point merging out from under one that is running.
-    # WAIT, not BLOCK -- the next sweep merges it, and CI completing fires one.
+    # "merge it now": there is no point waiting on a PR that is held anyway.
+    # Both gates live HERE, not in a caller, so the merge job, the scheduled
+    # sweep and a manual dispatch give one answer. A grace period that lived
+    # only in cmd_merge was bypassed by the sweep within the hour (#410).
+    # WAIT, not BLOCK -- a later sweep merges it, and CI completing fires one.
+    if too_young(age_seconds, min_age=min_age_seconds):
+        return Decision(ACTION_WAIT, "settling")
     if review_in_flight:
         return Decision(ACTION_WAIT, "review_running")
     by_name = check_map(checks)
@@ -237,7 +245,8 @@ def _fetch_pr(number: int) -> tuple[dict[str, Any], list[dict[str, Any]]]:
             str(number),
             "--json",
             "number,title,body,state,isDraft,mergeStateStatus,labels,"
-            "headRefName,headRefOid,headRepository,headRepositoryOwner,comments",
+            "headRefName,headRefOid,headRepository,headRepositoryOwner,comments,"
+            "createdAt",
         ]
     ).stdout
     pr = json.loads(raw)
@@ -245,7 +254,10 @@ def _fetch_pr(number: int) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     return pr, []
 
 
-def _decision_from_pr(pr: dict[str, Any], checks: list[dict[str, Any]]) -> Decision:
+def _decision_from_pr(
+    pr: dict[str, Any], checks: list[dict[str, Any]], *,
+    min_age_seconds: int = MIN_PR_AGE_SECONDS,
+) -> Decision:
     head_repo = pr.get("headRepository") or {}
     head_owner = pr.get("headRepositoryOwner") or {}
     return decide(
@@ -260,6 +272,8 @@ def _decision_from_pr(pr: dict[str, Any], checks: list[dict[str, Any]]) -> Decis
         ),
         checks=checks,
         review_in_flight=_review_in_flight(pr),
+        age_seconds=pr_age_seconds(str(pr.get("createdAt") or "")),
+        min_age_seconds=min_age_seconds,
     )
 
 
@@ -294,21 +308,12 @@ def cmd_decide(number: int) -> int:
 
 def cmd_merge(
     number: int, *, wait_desktop_minutes: int,
-    announce_grace_seconds: int = ANNOUNCE_GRACE_SECONDS,
+    min_age_seconds: int = MIN_PR_AGE_SECONDS,
 ) -> int:
-    # A "merge" decided in a PR's first seconds may simply predate the
-    # reviewer. Only a PR that is otherwise about to merge pays the wait, so
-    # a draft, a fork or a conflict still reports instantly.
-    pr, checks = _fetch_pr(number)
-    if _decision_from_pr(pr, checks).action == ACTION_MERGE:
-        await_review_announcement(
-            lambda: _review_in_flight(_fetch_pr(number)[0]),
-            seconds=announce_grace_seconds,
-        )
     deadline = time.time() + max(0, wait_desktop_minutes) * 60
     while True:
         pr, checks = _fetch_pr(number)
-        decision = _decision_from_pr(pr, checks)
+        decision = _decision_from_pr(pr, checks, min_age_seconds=min_age_seconds)
         print(f"#{number} {decision.action} {decision.reason}")
         if decision.action == ACTION_MERGE:
             return _merge_pr(pr)
@@ -320,7 +325,7 @@ def cmd_merge(
         return 0 if decision.action in {ACTION_SKIP, ACTION_WAIT} else 1
 
 
-def cmd_sweep() -> int:
+def cmd_sweep(*, min_age_seconds: int = MIN_PR_AGE_SECONDS) -> int:
     raw = _gh(
         [
             "pr",
@@ -339,7 +344,7 @@ def cmd_sweep() -> int:
     for row in rows:
         number = int(row["number"])
         pr, checks = _fetch_pr(number)
-        decision = _decision_from_pr(pr, checks)
+        decision = _decision_from_pr(pr, checks, min_age_seconds=min_age_seconds)
         print(f"#{number} {decision.action} {decision.reason}")
         if decision.action == ACTION_MERGE:
             errors += 0 if _merge_pr(pr) == 0 else 1
@@ -363,11 +368,12 @@ def main(argv: list[str] | None = None) -> int:
     merge_p = sub.add_parser("merge")
     merge_p.add_argument("--pr", type=int, required=True)
     merge_p.add_argument("--wait-desktop-minutes", type=int, default=0)
-    merge_p.add_argument("--announce-grace-seconds", type=int,
-                         default=ANNOUNCE_GRACE_SECONDS,
-                         help="how long to let a reviewer announce itself (0 disables)")
+    merge_p.add_argument("--min-age-seconds", type=int, default=MIN_PR_AGE_SECONDS,
+                         help="floor on a PR's age before it can merge (0 disables)")
 
-    sub.add_parser("sweep")
+    sweep_p = sub.add_parser("sweep")
+    sweep_p.add_argument("--min-age-seconds", type=int, default=MIN_PR_AGE_SECONDS,
+                         help="floor on a PR's age before it can merge (0 disables)")
 
     delete_p = sub.add_parser("delete-closed")
     delete_p.add_argument("--ref", required=True)
@@ -379,9 +385,9 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_decide(args.pr)
     if args.command == "merge":
         return cmd_merge(args.pr, wait_desktop_minutes=args.wait_desktop_minutes,
-                         announce_grace_seconds=args.announce_grace_seconds)
+                         min_age_seconds=args.min_age_seconds)
     if args.command == "sweep":
-        return cmd_sweep()
+        return cmd_sweep(min_age_seconds=args.min_age_seconds)
     if args.command == "delete-closed":
         return cmd_delete_closed(args.ref, same_repo=not args.fork)
     return 2

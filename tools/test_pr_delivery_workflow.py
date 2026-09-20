@@ -125,3 +125,22 @@ def test_every_merge_path_may_dispatch_the_desktop_pack():
         "these merge paths cannot dispatch Desktop pack, so the commits they "
         f"merge ship no vNNN tag, Release or EXE (#346): {refused}"
     )
+
+
+TIMING_RULE = REPO_ROOT / ".cursor" / "rules" / "pr-delivery-timing.mdc"
+
+
+def test_merge_timing_has_a_rule_and_the_rule_names_both_paths():
+    """AGENTS.md 7.3: a behaviour change to delivery needs its rule beside it.
+
+    A rule with no executable form is decoration, and a rule that names only
+    one merge path is how the first grace period got bypassed by the other.
+    """
+    text = TIMING_RULE.read_text(encoding="utf-8")
+    head = text.split("---")[1]
+    assert "tools/pr_delivery.py" in head and "tools/pr_review_status.py" in head
+    assert "MIN_PR_AGE_SECONDS" in text
+    assert "cmd_merge" in text and "cmd_sweep" in text
+    assert "test_pr_review_status.py" in text
+    always_on = (REPO_ROOT / ".cursor" / "rules" / "github-delivery.mdc").read_text(encoding="utf-8")
+    assert "pr-delivery-timing.mdc" in always_on, "agents must learn the floor from the always-on rule"
