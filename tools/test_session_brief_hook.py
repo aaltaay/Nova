@@ -52,11 +52,24 @@ def test_build_brief_real_repo_smoke(hook):
 
 
 def test_main_emits_additional_context(hook, monkeypatch, capsys):
-    monkeypatch.setattr(hook, "build_brief", lambda: "fake brief text")
+    monkeypatch.setattr(hook, "build_brief", lambda: "sample brief text")
     monkeypatch.setattr(sys, "stdin", type("S", (), {"read": lambda self: "{}"})())
-    assert hook.main() == 0
+    assert hook.main([]) == 0
     out = json.loads(capsys.readouterr().out.strip())
-    assert out == {"additional_context": "fake brief text"}
+    assert out == {"additional_context": "sample brief text"}
+
+
+def test_main_claude_flag_emits_hook_specific_output(hook, monkeypatch, capsys):
+    monkeypatch.setattr(hook, "build_brief", lambda: "sample brief text")
+    monkeypatch.setattr(sys, "stdin", type("S", (), {"read": lambda self: "{}"})())
+    assert hook.main(["--claude"]) == 0
+    out = json.loads(capsys.readouterr().out.strip())
+    assert out == {
+        "hookSpecificOutput": {
+            "hookEventName": "SessionStart",
+            "additionalContext": "sample brief text",
+        }
+    }
 
 
 def test_main_fail_open_when_brief_raises(hook, monkeypatch, capsys):
@@ -65,13 +78,19 @@ def test_main_fail_open_when_brief_raises(hook, monkeypatch, capsys):
 
     monkeypatch.setattr(hook, "build_brief", _boom)
     monkeypatch.setattr(sys, "stdin", type("S", (), {"read": lambda self: "{}"})())
-    assert hook.main() == 0
+    assert hook.main([]) == 0
     assert json.loads(capsys.readouterr().out.strip()) == {}
 
 
 def test_main_tolerates_malformed_stdin(hook, monkeypatch, capsys):
-    monkeypatch.setattr(hook, "build_brief", lambda: "fake brief text")
+    monkeypatch.setattr(hook, "build_brief", lambda: "sample brief text")
     monkeypatch.setattr(sys, "stdin", type("S", (), {"read": lambda self: "not-json"})())
-    assert hook.main() == 0
+    assert hook.main([]) == 0
     out = json.loads(capsys.readouterr().out.strip())
-    assert out == {"additional_context": "fake brief text"}
+    assert out == {"additional_context": "sample brief text"}
+
+
+def test_build_brief_includes_repo_hygiene_line(hook):
+    brief = hook.build_brief()
+    if brief:
+        assert "Repo hygiene:" in brief

@@ -21,6 +21,12 @@
 .PARAMETER MorningCheckAtTime
   Local clock time for NovaMorningCheck (default 03:55). Empty string skips it.
 
+.PARAMETER RepoHygieneAtTime
+  Local clock time for NovaRepoHygiene (default 02:30). Runs
+  `py -3 tools/repo_hygiene.py fix` (safe class only: merged local branches,
+  stale worktrees, orphan remote refs) and appends to logs/repo-hygiene.log.
+  Empty string skips it.
+
 .PARAMETER TaskName
   Scheduled task name (default NovaDailyStart).
 
@@ -45,8 +51,10 @@ param(
     [string]$AtTime = "06:00",
     [string]$PremarketAtTime = "03:40",
     [string]$MorningCheckAtTime = "03:55",
+    [string]$RepoHygieneAtTime = "02:30",
     [string]$TaskName = "NovaDailyStart",
     [string]$MorningCheckTaskName = "NovaMorningCheck",
+    [string]$RepoHygieneTaskName = "NovaRepoHygiene",
     [switch]$Unregister,
     [switch]$SkipGateway,
     [switch]$SkipBrowser
@@ -61,7 +69,7 @@ if (-not (Test-Path $startScript)) {
 }
 
 if ($Unregister) {
-    foreach ($name in @($TaskName, $MorningCheckTaskName)) {
+    foreach ($name in @($TaskName, $MorningCheckTaskName, $RepoHygieneTaskName)) {
         $existing = Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
         if ($existing) {
             Unregister-ScheduledTask -TaskName $name -Confirm:$false
@@ -206,10 +214,45 @@ if ($MorningCheckAtTime -and (Test-Path $checkScript)) {
     Write-Host "Morning check script missing: $checkScript" -ForegroundColor Yellow
 }
 
+# Nightly repo hygiene: safe-class cleanup only (workspace-hygiene.mdc).
+$hygieneScript = Join-Path $repoRoot "tools\repo_hygiene.py"
+if ($RepoHygieneAtTime -and (Test-Path $hygieneScript)) {
+    try {
+        $hygieneParsed = Get-Date $RepoHygieneAtTime
+    } catch {
+        throw "Invalid -RepoHygieneAtTime '$RepoHygieneAtTime'. Use something like 02:30."
+    }
+    $hygieneLog = Join-Path $repoRoot "logs\repo-hygiene.log"
+    $hygieneCmd = "if (-not (Test-Path '$repoRoot\logs')) { New-Item -ItemType Directory '$repoRoot\logs' | Out-Null }; " +
+        "Set-Location '$repoRoot'; " +
+        "('=== ' + (Get-Date -Format s) + ' ===') | Out-File -Append -Encoding utf8 '$hygieneLog'; " +
+        "py -3 tools\repo_hygiene.py fix 2>&1 | Out-File -Append -Encoding utf8 '$hygieneLog'"
+    $hygieneAction = New-ScheduledTaskAction `
+        -Execute "powershell.exe" `
+        -Argument ("-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command `"$hygieneCmd`"") `
+        -WorkingDirectory $repoRoot
+    $hygieneTrigger = New-ScheduledTaskTrigger -Daily -At $hygieneParsed
+    $existingHygiene = Get-ScheduledTask -TaskName $RepoHygieneTaskName -ErrorAction SilentlyContinue
+    if ($existingHygiene) {
+        Unregister-ScheduledTask -TaskName $RepoHygieneTaskName -Confirm:$false
+    }
+    Register-ScheduledTask `
+        -TaskName $RepoHygieneTaskName `
+        -Action $hygieneAction `
+        -Trigger $hygieneTrigger `
+        -Settings $settings `
+        -Principal $principal `
+        -Description "Nova repo hygiene: py -3 tools/repo_hygiene.py fix (merged local branches, stale worktrees, orphan refs). Log: logs/repo-hygiene.log." | Out-Null
+    Write-Host "Registered scheduled task '$RepoHygieneTaskName' at $RepoHygieneAtTime local" -ForegroundColor Green
+} elseif ($RepoHygieneAtTime) {
+    Write-Host "Repo hygiene tool missing: $hygieneScript" -ForegroundColor Yellow
+}
+
 Write-Host ""
 Write-Host "Test now:" -ForegroundColor Cyan
 Write-Host ("  schtasks /Run /TN " + $TaskName)
 Write-Host ("  schtasks /Run /TN " + $MorningCheckTaskName)
+Write-Host ("  schtasks /Run /TN " + $RepoHygieneTaskName)
 Write-Host ("  OR:  powershell -NoProfile -ExecutionPolicy Bypass -File " + $startScript)
 Write-Host ("  OR:  powershell -NoProfile -ExecutionPolicy Bypass -File " + $checkScript)
 Write-Host ""

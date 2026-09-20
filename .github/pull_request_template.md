@@ -54,6 +54,7 @@ Parked something new instead of fixing it? Open a `deferred` issue and link it h
 - [ ] GitHub issue opened or closed for anything parked or fully finished (label `deferred`)
 - [ ] Live docs updated in the same commit if hosting / feed / phase / trading posture changed (`doc-invariants.mdc`)
 - [ ] Started from a clean `origin/master` tip on a new focused branch (or documented an explicit user waiver in this body)
+- [ ] Tree clean at finish: no stash, no leftover scratch worktree, `py -3 tools/repo_hygiene.py status` OK for what I own (`workspace-hygiene.mdc`)
 - [ ] This PR is ready (not draft) so GitHub Actions can merge it; I did not leave it parked waiting for a human merge ask; CI still running is not a draft reason
 - [ ] After merge/close the head is gone (`pr-delivery.yml` + `delete_branch_on_merge`; `stale_pr_branches.py` if a leftover remains)
 - [ ] Desktop pack produced `Nova-Setup-vNNN.exe` and `Nova-Portable-vNNN.exe` on this PR (or the change cannot affect the installer)
