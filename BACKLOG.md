@@ -58,8 +58,10 @@ self-heals.
 
 ## The packages
 
-Ranked by impact, dependency and readiness. `next` walks this order and
-skips anything gated.
+Ranked by impact, dependency and readiness. `next` walks this order and picks
+the first package holding an **ungated, unclaimed batch with open issues** — so
+ready work inside a mostly-blocked package stays reachable, and a package whose
+remaining batches are all gated does not stop the walk.
 
 | # | Package | Issues | Ready | Why here |
 |---|---------|--------|-------|----------|
@@ -72,7 +74,7 @@ skips anything gated.
 | 7 | The replay desk is usable, readable and honest | 321, 322, 324, 338, 341 | ✅ | The surface the operator actually drives. |
 | 8 | A replay reproduces the day, or refuses loudly | 303, 304, 320, 337 | ✅ | Silent holes and unbounded disk growth. |
 | 9 | One replay surface, one trade-print source | 308, 309, 310, 311, 315, 340 | ⛔ | **The chokepoint.** See below. |
-| 10 | Live desk on master, plus residual product asks | 14, 90, 91, 94, 147, 331 | ⛔ | Needs the operator at the physical trading PC. |
+| 10 | Live desk on master, plus residual product asks | 14, 90, 91, 94, 147, 331 | ◐ | #91's TIF half and #147 are startable; #14/#331/#90/#94 are gated. |
 | 11 | Marketing site and parked WIP | 356, 357 | ✅ | Non-desk P3s, kept where they can never outrank desk work. |
 | 00 | Untriaged (the inbox) | — | 🕓 | New issues land here automatically until someone routes them. |
 
@@ -107,10 +109,18 @@ once the package's `readiness` is flipped in `knowledge/backlog-packages.json`.
 Parallel agents are useful here, but a wide fan-out that dies on a token limit
 loses the whole wave. The rule is **2–3 agents at a time, with a reserve**.
 
-```bash
-# One package, 2 concurrent agents, ramps down before the budget runs out
-# (see .claude/workflows/backlog-wave.js)
+Launch it by **path**, not by name:
+
+```text
+Workflow({ scriptPath: ".claude/workflows/backlog-wave.js", args: { concurrency: 2, maxAgents: 3 } })
 ```
+
+`Workflow({ name: 'backlog-wave' })` was observed to fail on a Windows checkout
+with *"script contains control characters"* even after the file was normalised
+to LF and verified to be pure ASCII — the by-name lookup appears to resolve a
+different copy than the repo file. `scriptPath` works. `.gitattributes` pins
+`.claude/workflows/*.js` to `eol=lf` so a Windows checkout cannot reintroduce
+CRLF into the script itself.
 
 The runner is budget-aware: before each wave it checks the remaining budget
 against the cost of the last wave, and when the margin is thin it **stops

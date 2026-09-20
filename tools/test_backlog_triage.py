@@ -780,3 +780,76 @@ def test_wave_runner_tells_its_agents_to_claim_first():
     assert "backlog_triage.py claim" in text
     assert "backlog_triage.py release" in text
     assert "Do not use --force" in text, "a wave agent must never steal a live claim"
+
+
+def test_readiness_agrees_with_whether_any_batch_is_startable():
+    # Selection is batch-driven, so a package labelled not-ready while holding
+    # an ungated batch would contradict what `next` hands out -- and a
+    # ready-now package with every batch gated would promise work that is not
+    # there. Either way the label lies to a human reading the milestone.
+    for pkg in load_packages():
+        if not pkg["prs"]:
+            continue  # the inbox
+        has_ungated = any(not pr.get("gated") for pr in pkg["prs"])
+        assert (pkg["readiness"] == READY) == has_ungated, (
+            f"{pkg['slug']}: readiness={pkg['readiness']} but ungated batches={has_ungated}"
+        )
+
+
+def test_a_ready_package_whose_batches_are_all_gated_does_not_stop_the_walk():
+    packages = [
+        {"rank": 1, "slug": "a", "title": "01 - a", "issues": [1], "readiness": READY,
+         "objective": "o", "done": ["d"], "gate": "",
+         "prs": [{"title": "gated", "issues": [1], "note": "GATED", "gated": True}]},
+        {"rank": 2, "slug": "b", "title": "02 - b", "issues": [2], "readiness": READY,
+         "objective": "o", "done": ["d"], "gate": "",
+         "prs": [{"title": "open", "issues": [2], "note": "n", "gated": False}]},
+    ]
+    pkg, skipped = pick_next(packages, {1, 2})
+    assert pkg["slug"] == "b", "a fully-gated ready package must not strand packages below it"
+    assert skipped[0]["_skip_reason"] == "every remaining batch is gated on a decision"
+
+
+def test_ready_work_inside_a_mostly_blocked_package_is_still_reachable():
+    packages = [
+        {"rank": 1, "slug": "mixed", "title": "01 - mixed", "issues": [1, 2],
+         "readiness": READY, "objective": "o", "done": ["d"], "gate": "one batch is gated",
+         "prs": [
+             {"title": "gated", "issues": [1], "note": "GATED", "gated": True},
+             {"title": "ready", "issues": [2], "note": "n", "gated": False},
+         ]},
+    ]
+    pkg, _ = pick_next(packages, {1, 2})
+    assert next_pr(pkg, {1, 2})["title"] == "ready"
+
+
+def test_the_skip_reason_distinguishes_a_claim_from_a_gate():
+    packages = [
+        {"rank": 1, "slug": "a", "title": "01 - a", "issues": [1], "readiness": READY,
+         "objective": "o", "done": ["d"], "gate": "",
+         "prs": [{"title": "open", "issues": [1], "note": "n", "gated": False}]},
+        {"rank": 2, "slug": "b", "title": "02 - b", "issues": [2], "readiness": READY,
+         "objective": "o", "done": ["d"], "gate": "",
+         "prs": [{"title": "open", "issues": [2], "note": "n", "gated": False}]},
+    ]
+    _, skipped = pick_next(packages, {1, 2}, claimed={1})
+    assert skipped[0]["_skip_reason"] == "every startable batch is already claimed"
+
+
+def test_wave_runner_caps_agents_by_remaining_allowance_not_a_full_window():
+    js = (REPO_ROOT / ".claude" / "workflows" / "backlog-wave.js").read_text(encoding="utf-8")
+    assert "Math.min(CONCURRENCY, allowance)" in js, \
+        "slicing a full CONCURRENCY window makes maxAgents not a real cap"
+    assert "i += wave.length" in js, "the loop must advance by what it actually ran"
+
+
+def test_wave_runner_asks_the_cli_for_an_explicit_package():
+    js = (REPO_ROOT / ".claude" / "workflows" / "backlog-wave.js").read_text(encoding="utf-8")
+    assert "next --json --package" in js, \
+        "the authored JSON carries no open/closed state; the CLI must supply it"
+
+
+def test_next_accepts_an_explicit_package():
+    from tools.backlog_triage import build_parser
+    args = build_parser().parse_args(["next", "--package", "test-integrity"])
+    assert args.package == "test-integrity"

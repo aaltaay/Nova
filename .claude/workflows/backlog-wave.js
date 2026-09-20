@@ -79,7 +79,9 @@ const brief = await agent(
   `Read the Nova backlog plan and report the package to work now. Do not change any files.
 
 Run: py -3 tools/backlog_triage.py next --json
-${WANTED ? `\nThe caller asked specifically for package "${WANTED}". Read knowledge/backlog-packages.json and report THAT package instead of the one \`next\` picks, but still use \`next --json\` to learn which of its issues are still open.\n` : ''}
+${WANTED ? `
+The caller asked specifically for package "${WANTED}", so run \`py -3 tools/backlog_triage.py next --json --package ${WANTED}\` instead -- that reports THAT package with live open/closed state.
+` : ''}
 Then read knowledge/backlog-packages.json for the full package entry.
 
 Report every PR batch in that package that is NOT gated and still has at least
@@ -166,17 +168,22 @@ Return the PR URL. An empty pr_url means you did not open one -- say why in bloc
 phase('Build')
 const done = []
 const skipped = []
+let attempted = 0
 let spentBefore = budget.spent()
 let lastWaveCost = 0
 
-for (let i = 0; i < brief.batches.length; i += CONCURRENCY) {
-  const wave = brief.batches.slice(i, i + CONCURRENCY)
-
-  if (done.length + skipped.length >= MAX_AGENTS) {
+for (let i = 0; i < brief.batches.length; ) {
+  // Slice to the REMAINING allowance, not a full CONCURRENCY window: checking
+  // the cap only before a full slice let `maxAgents: 1, concurrency: 3` still
+  // launch three. This is the brake that works when no token budget exists,
+  // so it has to be a real cap.
+  const allowance = MAX_AGENTS - attempted
+  if (allowance <= 0) {
     skipped.push(...brief.batches.slice(i))
     log(`Agent cap (${MAX_AGENTS}) reached -- stopping cleanly with ${brief.batches.length - i} batch(es) left`)
     break
   }
+  const wave = brief.batches.slice(i, i + Math.min(CONCURRENCY, allowance))
 
   // Only meaningful when the turn declared a token target; otherwise
   // remaining() is Infinity and MAX_AGENTS is the brake that matters.
@@ -189,6 +196,7 @@ for (let i = 0; i < brief.batches.length; i += CONCURRENCY) {
     }
   }
 
+  attempted += wave.length
   log(`Wave ${Math.floor(i / CONCURRENCY) + 1}: ${wave.map(b => b.issues.map(n => '#' + n).join('+')).join(', ')}`)
 
   const results = await parallel(wave.map((b, k) => () => agent(batchPrompt(b, i + k), {
@@ -207,6 +215,7 @@ for (let i = 0; i < brief.batches.length; i += CONCURRENCY) {
 
   lastWaveCost = budget.spent() - spentBefore
   spentBefore = budget.spent()
+  i += wave.length
 }
 
 phase('Handoff')

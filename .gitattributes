@@ -1,0 +1,4 @@
+# Workflow scripts are read verbatim by the Workflow tool, which rejects the
+# CR in a CRLF line ending as a control character. Keep them LF on every
+# platform so a Windows checkout can still launch them.
+.claude/workflows/*.js text eol=lf
