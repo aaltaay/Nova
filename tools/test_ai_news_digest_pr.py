@@ -121,7 +121,7 @@ def test_push_command_targets_digest_branch_only():
 
 def test_workflow_keeps_tests_rebuild_and_never_pushes_master():
     text = WORKFLOW.read_text(encoding="utf-8")
-    assert "python -m pytest tools/test_ai_news_digest.py" in text
+    assert "python -m pytest tools/test_ai_news*.py -q" in text
     assert "python tools/ai_news_digest.py --limit 6 --feed-limit 60" in text
     assert "python tools/ai_news_digest_pr.py" in text
     assert "contents: write" in text

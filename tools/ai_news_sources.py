@@ -8,6 +8,48 @@ from __future__ import annotations
 
 UNKNOWN_SOURCE_WEIGHT = 0.45
 REQUIRE_KNOWN_SOURCE = True
+MEGA_WIRE_CAP = 2
+
+# Title pairing uses this set -- not invest / Wall Street / stock market.
+# Those three turned "ChatGPT + Wall Street bankers" and "UAE to invest in AI"
+# into fake AI-trading hits. Agents that actually invest still pass via
+# HIGH_SIGNAL or the agent/bot exception in is_on_topic.
+STRICT_MARKET_TERMS = (
+    "trading", "trader", "trades", "trade desk", "trading desk",
+    "hedge fund", "quant", "quantitative", "asset manager",
+    "asset management", "portfolio", "market maker", "market making",
+    "broker", "brokerage", "order flow", "order execution",
+    "trade execution", "backtest", "buy-side", "sell-side", "buy side",
+    "proprietary trading", "wealth management", "stock picking",
+    "securities trading", "high-frequency", "market microstructure",
+    "capital markets", "equities", "fund manager", "money manager",
+    "institutional investing", "investment process",
+)
+
+# Hard out, even when a high-signal phrase also matches. These are the
+# stories that padded /news after PR #108.
+THEME_REJECT_PHRASES = (
+    "ai stock", "ai stocks", "ai stock market", "stock market boom",
+    "the ai trade", "beyond the ai", "ai boom", "ai wealth",
+    "junior banker", "junior bankers", "financial services",
+    "regular plan returns", "plan returns",
+    "spruiking ai", "full time parenting",
+    ".png", "my real test",
+    "trading card", "trading cards",
+    "trading under symbol",
+    "best crypto ai", "best ai trading platform", "best ai trading platforms",
+    "best ai trading bots", "which bots actually",
+    "i built a",
+    "direct plan", "plan portfolio",
+    "stock surges", "stock pops", "stock rises",
+    "youtube channel",
+    "ai bets", "ai-fuelled", "ai-fueled", "crowded ai",
+    "ai trade unwind", "trade insults",
+    "best ai forex", "certificate in",
+    "used ai to write",
+    "ai-led selloff", "ai positions",
+    "ai-speed coding", "best ai & auto",
+)
 
 SOURCE_WEIGHTS = {
     "reuters.com": 1.0, "bloomberg.com": 1.0, "ft.com": 1.0, "wsj.com": 1.0,
@@ -19,7 +61,7 @@ SOURCE_WEIGHTS = {
     "thetradenews.com": 0.98, "risk.net": 0.98, "waterstechnology.com": 0.95,
     "institutionalinvestor.com": 0.90, "pionline.com": 0.88,
     "marketsmedia.com": 0.92, "hedgeweek.com": 0.90, "finextra.com": 0.88,
-    "tradersmagazine.com": 0.88, "efinancialcareers.com": 0.6,
+    "tradersmagazine.com": 0.88,
     "globaltrading.net": 0.74, "financialit.net": 0.70,
     "automatedtrader.com": 0.70, "efinancialnews.com": 0.75,
     "ai-cio.com": 0.72, "tabbforum.com": 0.70,
@@ -30,6 +72,14 @@ SOURCE_WEIGHTS = {
     "techcrunch.com": 0.7, "theverge.com": 0.68, "venturebeat.com": 0.66,
     "arxiv.org": 0.62,
 }
+
+MEGA_WIRE_DOMAINS = frozenset({
+    "reuters.com", "bloomberg.com", "ft.com", "wsj.com",
+    "cnbc.com", "marketwatch.com", "nytimes.com", "theguardian.com",
+    "bbc.co.uk", "economist.com", "fortune.com", "cnn.com",
+    "forbes.com", "businessinsider.com", "economictimes.com",
+    "benzinga.com",
+})
 
 TRADE_PRESS_DOMAINS = frozenset({
     "thetradenews.com", "risk.net", "waterstechnology.com",
@@ -49,13 +99,18 @@ BLOCKED_DOMAINS = frozenset({
     "globenewswire.com",
     "businesswire.com",
     "accesswire.com",
+    "accessnewswire.com",
     "prlog.org",
     "openpr.com",
+    "einnews.com",
+    "einpresswire.com",
+    "newsfilecorp.com",
+    "issuewire.com",
 })
 
 # Exchange blogs, content mills, and affiliate desks. Not the AI-trading beat.
 FEED_SPAM_DOMAINS = frozenset({
-    "mexc.com", "kucoin.com", "weex.com", "moomoo.com",
+    "mexc.com", "mexc.co", "kucoin.com", "weex.com", "moomoo.com",
     "coinedition.com", "crypto.news", "blockchain.news",
     "en.cryptonomist.ch", "fool.com", "stocktitan.net",
     "financialcontent.com", "techbullion.com", "citybuzz.co",
@@ -65,6 +120,14 @@ FEED_SPAM_DOMAINS = frozenset({
     "gurufocus.com", "www1.ru", "tipranks.com",
     "ccn.com", "ventureburn.com", "t.co", "binance.com",
     "bitcoin.org", "techstock2.com",
+    "youtube.com", "youtu.be", "britannica.com", "tradingview.com",
+    "bignewsnetwork.com", "arabtribune.com", "mshale.com",
+    "coingape.com", "coinmarketcap.com", "yellow.com",
+    "nubiapage.com", "indiagazette.com", "americanbazaaronline.com",
+    "ebc.com", "macaubusiness.com", "techflowpost.com",
+    "pulse2.com", "efinancialcareers.com", "seekingalpha.com",
+    "stockstotrade.com", "digitaljournal.com", "kalkinemedia.com",
+    "issuewire.com",
 })
 
 # Unknown outlets mentioning these are almost always coin-bot filler.
