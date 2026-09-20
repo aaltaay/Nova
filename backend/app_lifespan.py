@@ -320,6 +320,11 @@ async def lifespan(app: FastAPI):
         logger.exception("SIM feed shutdown failed")
     await _ibkr_client.shutdown()
     try:
+        from ibkr.tape_recording import l2_sink
+        await asyncio.to_thread(l2_sink.close)
+    except Exception:
+        logger.exception("L2 tape writer shutdown failed")
+    try:
         from ibkr.loop_supervisor import stop as stop_ib_loop
         stop_ib_loop()
     except Exception:

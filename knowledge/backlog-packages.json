@@ -488,9 +488,9 @@
       "rank": 9,
       "slug": "replay-architecture",
       "title": "09 - One replay surface, one trade-print source",
-      "readiness": "needs-decision-first",
-      "gate": "THE CHOKEPOINT. #340 Phase 3: keep backend/sim/history_* as the single replay surface and fix or retire backend/capture/. That one sitting gates six issues. #309/#311 (depth and quotes) and #310 (practice fills on a replayed day) are separate calls behind it.",
-      "objective": "Nova ships three overlapping record/replay stacks with no shared model, only one of which works, and no ADR saying which is the engine. The L2 tape has written zero rows since the IBKR switch while still reporting healthy, and backend/l2/db.py plus the Local-Market-Data-Recorders note still name Alpaca WS as the time-and-sales source - a live contradiction of the IBKR-only feed rule.",
+      "readiness": "partially-startable",
+      "gate": "ADR 017 accepts history_* as sole Historical engine, capture as feeder, and L2 as hot sink. The shared AllLast print fan-out is implemented. Canonical capture import, depth/quote replay (#309/#311), and practice fills (#310) remain separate work.",
+      "objective": "One Historical replay surface with a shared IBKR AllLast source and explicit recording health; complete remaining capture-import and replay capability decisions.",
       "issues": [
         308,
         309,
@@ -512,8 +512,8 @@
           "issues": [
             340
           ],
-          "note": "GATED: the ADR records a decision only the operator can make (keep backend/sim/history_* as the single replay surface; fix or retire backend/capture/). An agent can draft options on the issue but cannot pick. This is the unblocking PR - the rest of the package waits on it.",
-          "gated": true,
+          "note": "ADR 017 accepted and included with the live print fan-out implementation.",
+          "gated": false,
           "touches": [
             "architecture/decisions/",
             "backend/l2/db.py",
@@ -526,8 +526,8 @@
             315,
             308
           ],
-          "note": "Both recorders lack a producer for the same reason. Blocked until the ADR lands.",
-          "gated": true,
+          "note": "Shared bounded AllLast fan-out implemented for capture/L2, with producer admission, independent health and regressions. Live-market validation remains operator work.",
+          "gated": false,
           "touches": [
             "backend/ibkr/",
             "backend/capture/",

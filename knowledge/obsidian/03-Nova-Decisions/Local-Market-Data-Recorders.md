@@ -25,7 +25,7 @@ Answer questions like: **“With ticker X open, what did Level 2 look like at se
 **Why this is fast enough locally**
 
 - IBKR depth is capped (~3 symbols). Continuous snapshots at ~1 Hz → low write rate for books.
-- Tape (Alpaca WS prints) is higher volume but only recorded for **watched** symbols (open depth session or active signal window), not the entire scanner universe.
+- Tape (IBKR AllLast prints) is higher volume but only recorded for **watched** symbols (open depth session or active signal window), not the entire scanner universe.
 - Writers enqueue in memory and flush on batch size **or** ~250 ms (`L2_BATCH_*` / `TAPE_BATCH_*` in `constants.py`).
 - `PRAGMA journal_mode=WAL` + `synchronous=NORMAL` on every connection.
 
@@ -36,7 +36,7 @@ Answer questions like: **“With ticker X open, what did Level 2 look like at se
 | Stream | Source | When | Table |
 |--------|--------|------|-------|
 | L2 book snapshots | `ibkr/depth.current_book()` | Signal window (`recorder.py`) **and** while DepthLadder / depth WS is open (`continuous.py`) | `l2_snapshots` |
-| Time & sales | Alpaca WS trade msgs (`T=t`) | Symbol is watched (session open) | `tape_trades` |
+| Time & sales | Shared IBKR AllLast fan-out | Symbol is watched (session open) | `tape_trades` |
 | Session metadata | wall clock + reason | `signal` or `depth` start/stop | `record_sessions` |
 
 **Schema (conceptual)**
@@ -47,7 +47,7 @@ Answer questions like: **“With ticker X open, what did Level 2 look like at se
 
 **Retention:** `L2_RETENTION_DAYS` (default 14). Background sweep deletes old snapshots/tape/ended sessions.
 
-**Not recorded (yet):** full-universe Alpaca tape, IBKR tick-by-tick, quotes/bars (already elsewhere), playback UI state.
+**Not recorded (yet):** full-universe tape, quotes/bars (already elsewhere), playback UI state.
 
 ---
 
@@ -91,6 +91,27 @@ Status / list (no fancy UI): `GET /api/l2/status`, `GET /api/l2/sessions`.
 - Full backtester harness
 - Parquet cold tier
 - Recording all scanner symbols’ tape by default
-- IBKR `reqTickByTickData` as a second tape source
+- A second trade subscription (forbidden; reuse the AllLast owner)
 
 > **Nova OS relation:** hot SQLite recorders (this note) remain the live facade. Permanent archive / Parquet / R2 / day-rewind are Nova OS phases P6–P9 — see [[Nova-OS-Status]]. Do not treat timer-only 14-day purge as “forever” until those phases land.
+
+## Live print health (ADR 017, #315 / #308)
+
+Tab Record requires the selected symbol's connected, non-rejected AllLast line.
+The existing capture worker fences sessions and fails visibly on overflow. L2
+has its own bounded worker; disk writes never run on the IB callback. Both retain
+event/receive timestamps, exchange, conditions and `source=ibkr`. SIM1 manifests
+use `source=sim`. Real segments with no prints finish failed, including resumed
+segments with older rows. Quotes/depth are not inferred by the print feeder.
+
+`GET /api/capture` exposes producer state, writer backlog/error and health.
+`GET /api/l2/status` reports watched-symbol producer/write freshness and sticky
+writer failure. Waiting, rejected, disconnected, stale or overflowed sinks are
+not healthy. Quiet markets can legitimately be stale; no rows are fabricated.
+After an L2 sink failure, resolve the disk/backpressure problem and restart Nova.
+
+`GET /api/l2/tape-audit` counts depth sessions whose observed interval has no tape
+and lists their intervals. Run it against the operator's archive before using old
+sessions for analysis; empty history cannot be backfilled by this change. The
+count is evidence of missing coverage, not proof of a feed failure during quiet
+intervals. The automated suite uses isolated fixtures, not the operator's data.

@@ -25,6 +25,7 @@ Constitution (`gemini.md` / `AGENTS.md`) and `.cursor/rules/*` remain supreme fo
 | [014](./decisions/014-large-cap-swing-table.md) | Large Cap swing table | Accepted |
 | [015](./decisions/015-persistent-chart-drawings.md) | Persistent chart drawings | Accepted |
 | [016](./decisions/016-bot-localhost-api.md) | Localhost bot API (brain-agnostic) | Accepted |
+| [017](./decisions/017-single-replay-surface.md) | One Historical replay surface and IBKR print source | Accepted; live print fan-out implemented |
 
 ## Rules and maps
 

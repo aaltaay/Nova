@@ -41,6 +41,8 @@ from capture.constants_capture import (
     CAPTURE_STREAM_NAMES,
 )
 from paths import cache_dir
+from capture.timeframes import _normalize_timeframe
+from constants_sim import SIM_SYMBOL
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
@@ -99,20 +101,6 @@ def _session_dir(symbol: str) -> Path:
     return capture_root() / day / symbol.upper()
 
 
-def _normalize_timeframe(timeframe: str) -> tuple[str, str] | None:
-    """``("bars_1m", "1m")`` for any accepted spelling, else ``None``."""
-    tf = (timeframe or "").strip().lower().replace(" ", "")
-    if tf in ("10s", "10sec", "10"):
-        return "bars_10s", "10s"
-    if tf in ("1m", "1min", "1minute"):
-        return "bars_1m", "1m"
-    if tf in ("5m", "5min", "5minute"):
-        return "bars_5m", "5m"
-    if tf in ("1d", "1day", "day", "daily"):
-        return "bars_1d", "1d"
-    return None
-
-
 def start_recorder(symbol: str | None, *, resume: bool = True) -> dict[str, Any]:
     """Begin (or resume) recording ``symbol`` for today.
 
@@ -160,7 +148,7 @@ def start_recorder(symbol: str | None, *, resume: bool = True) -> dict[str, Any]
                 "started_et": prior.get("started_et") or _started_et,
                 "segment_started_et": _started_et,
                 "stopped_et": None,
-                "source": "ibkr",
+                "source": "sim" if _symbol == SIM_SYMBOL else "ibkr",
                 "schema": CAPTURE_SCHEMA,
                 "l2_max_hz": CAPTURE_L2_MAX_HZ,
                 "note": "Per-tab Record — partial days OK; append resume; compact whatever landed",
@@ -193,10 +181,12 @@ def _stop_locked() -> None:
     no-ops the moment it gets in, and so the drained bars below take the
     already-locked write path rather than the public one.
     """
-    global _active
+    global _active, _error
     if not _active and not _files:
         return
     _active = False
+    if _symbol != SIM_SYMBOL and _counts["prints"] == _segment_base["prints"]:
+        _error = _error or "No IBKR prints received in this recording segment"
 
     bars: list[tuple[str, dict[str, Any]]] = []
     try:
@@ -256,7 +246,7 @@ def _finalize_locked(status: str) -> None:
                 base={
                     "symbol": _symbol,
                     "session_date": _day,
-                    "source": "ibkr",
+                    "source": "sim" if _symbol == SIM_SYMBOL else "ibkr",
                     "schema": CAPTURE_SCHEMA,
                     "partial_ok": True,
                 },
@@ -391,6 +381,7 @@ def status() -> dict[str, Any]:
         "session_date": _day,
         "dir": str(_dir) if _dir else None,
         "counts": dict(_counts),
+        "segment_prints": _counts["prints"] - _segment_base["prints"],
         "error": _error,
         "write_failures": _write_failures,
         "last_write_ts": _last_write_ts,

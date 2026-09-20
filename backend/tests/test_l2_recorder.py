@@ -86,9 +86,9 @@ class TestRangeAndRecall:
 
     def test_tape_range_and_recall_at(self):
         tape.watch_symbol("AAPL", session_id="sess-1")
-        tape.on_alpaca_trade("AAPL", 5.01, 100, ts=1000.0)
-        tape.on_alpaca_trade("AAPL", 5.02, 200, ts=1000.5)
-        tape.on_alpaca_trade("MSFT", 10.0, 50, ts=1000.2)  # not watched
+        tape.on_trade_print("AAPL", 5.01, 100, ts=1000.0)
+        tape.on_trade_print("AAPL", 5.02, 200, ts=1000.5)
+        tape.on_trade_print("MSFT", 10.0, 50, ts=1000.2)  # not watched
         batch.flush()
 
         trades = tape.get_trades_in_range("AAPL", 999.0, 1001.0)
@@ -152,7 +152,7 @@ class TestRecorderGracefulSkip:
         assert tape.watched_symbols() == []
 
     def test_unwatched_trades_are_dropped(self):
-        tape.on_alpaca_trade("ZZZZ", 1.0, 10, ts=1.0)
+        tape.on_trade_print("ZZZZ", 1.0, 10, ts=1.0)
         batch.flush()
         assert tape.get_trades_in_range("ZZZZ", 0, 10) == []
 
