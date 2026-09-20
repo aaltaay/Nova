@@ -45,6 +45,7 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.is_file() or path.stat().st_size == 0:
         return []
     rows: list[dict[str, Any]] = []
+    dropped = 0
     with path.open("r", encoding="utf-8", errors="ignore") as fh:
         for line in fh:
             line = line.strip()
@@ -53,7 +54,18 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
             try:
                 rows.append(json.loads(line))
             except json.JSONDecodeError:
+                dropped += 1
                 continue
+    if dropped:
+        # D-067: a torn tail from an interrupted write is real data loss; say so
+        # instead of silently replaying a short session.
+        logger.warning(
+            "CAPTURE replay: dropped %d unparseable line(s) from %s "
+            "(truncated tail from an interrupted write?) — %d rows loaded",
+            dropped,
+            path,
+            len(rows),
+        )
     return rows
 
 
