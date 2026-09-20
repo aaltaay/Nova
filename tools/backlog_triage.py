@@ -25,6 +25,7 @@ the whole backlog.
 
 Usage:
   python3 tools/backlog_triage.py next              # <- "what do I work on?"
+  python3 tools/backlog_triage.py triage            # <- route the inbox
   python3 tools/backlog_triage.py next --json
   python3 tools/backlog_triage.py report            # package rollup + gaps
   python3 tools/backlog_triage.py report --json
@@ -68,6 +69,19 @@ READY = "ready-now"
 # The Backlog Map issue is a rendered view of the backlog, not an item in it.
 # Without this it would report itself as an untriaged issue forever.
 META_LABEL = "backlog-map"
+
+# The inbox. A new issue is assigned here by .github/workflows/backlog-inbox.yml
+# the moment it is opened, so it is visible to `next` within minutes instead of
+# waiting for the Monday sweep. Routing it onward is a judgement call -- which
+# outcome does this issue serve? -- so nothing guesses it from a label. Issues
+# leave the inbox by being added to a package in knowledge/backlog-packages.json,
+# never by being worked on from here.
+INBOX_TITLE = "00 - Untriaged"
+
+# An untriaged P0/P1 is the failure this inbox exists to prevent: `next` would
+# hand out routine work while a desk-breaking bug sat unrouted. `check` fails
+# on those rather than treating the inbox as uniformly fine.
+URGENT = ("P0", "P1")
 
 Runner = Callable[..., subprocess.CompletedProcess[str]]
 
@@ -248,6 +262,8 @@ def plan_drift(packages: list[dict[str, Any]], issues: list[dict[str, Any]]) -> 
 
     for number, issue in sorted(open_by_number.items()):
         if number not in planned:
+            if milestone_title(issue) == INBOX_TITLE:
+                continue  # queued for routing, not drift
             problems.append(f"#{number} is open but in no package (add it to backlog-packages.json)")
             continue
         want = next(p["title"] for p in packages if p["slug"] == planned[number])
@@ -276,19 +292,102 @@ def analyse(
         "open_issues": len(issues),
         "packages": counts,
         "package_order": order,
-        "empty_packages": [t for t in order if t not in counts],
+        "empty_packages": [t for t in order if t not in counts and t != INBOX_TITLE],
         "hygiene_gaps": gaps,
         "duplicate_aliases": duplicate_aliases(issues),
         "unpackaged": sorted(
             int(i["number"]) for i in issues if milestone_title(i) == NO_MILESTONE
         ),
         "drift": plan_drift(packages, issues) if packages else [],
+        "inbox": sorted(int(i["number"]) for i in issues if milestone_title(i) == INBOX_TITLE),
+        "inbox_urgent": sorted(
+            int(i["number"]) for i in issues
+            if milestone_title(i) == INBOX_TITLE and severity_of(i) in URGENT
+        ),
     }
+
+
+def domain_labels(issue: dict[str, Any]) -> set[str]:
+    return {n for n in label_names(issue) if n.startswith("domain:")}
+
+
+def candidate_packages(
+    issue: dict[str, Any],
+    packages: list[dict[str, Any]],
+    by_number: dict[int, dict[str, Any]],
+) -> list[tuple[str, int]]:
+    """Packages already holding issues that share this one's domain labels.
+
+    A *suggestion*, never an assignment: domain overlap says "these touch
+    similar code", which is a weaker claim than "these serve the same
+    outcome". The routing decision stays with whoever runs triage.
+    """
+    mine = domain_labels(issue)
+    if not mine:
+        return []
+    scored: list[tuple[str, int]] = []
+    for pkg in packages:
+        if pkg["title"] == INBOX_TITLE:
+            continue
+        hits = sum(
+            1 for n in pkg["issues"]
+            if n in by_number and domain_labels(by_number[n]) & mine
+        )
+        if hits:
+            scored.append((pkg["slug"], hits))
+    return sorted(scored, key=lambda s: (-s[1], s[0]))[:3]
+
+
+def render_triage(
+    inbox: list[dict[str, Any]],
+    packages: list[dict[str, Any]],
+    by_number: dict[int, dict[str, Any]],
+) -> str:
+    if not inbox:
+        return "Inbox empty -- every open issue is routed to a package."
+    lines = [
+        f"{len(inbox)} issue(s) awaiting routing.",
+        "",
+        "For each: decide which package's OUTCOME it serves, add its number to that",
+        "package's `issues` (and to a PR batch) in knowledge/backlog-packages.json,",
+        "then run `py -3 tools/backlog_triage.py sync`.",
+        "",
+    ]
+    for issue in sorted(inbox, key=lambda i: (severity_of(i) or "P9", int(i["number"]))):
+        number = int(issue["number"])
+        sev = severity_of(issue) or "unprioritised"
+        doms = ", ".join(sorted(domain_labels(issue))) or "no domain label"
+        lines.append(f"  #{number}  [{sev}] {issue.get('title', '')[:66]}")
+        lines.append(f"      {doms}")
+        hints = candidate_packages(issue, packages, by_number)
+        if hints:
+            lines.append(
+                "      shares a domain with: "
+                + ", ".join(f"{slug} ({n})" for slug, n in hints)
+                + "   <- suggestion only"
+            )
+        if sev in URGENT:
+            lines.append("      URGENT -- check fails while this sits here")
+        lines.append("")
+    return "\n".join(lines).rstrip()
 
 
 # --------------------------------------------------------------------------
 # "what do I work on next?"
 # --------------------------------------------------------------------------
+
+
+def with_inbox(
+    packages: list[dict[str, Any]], issues: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Fill the inbox package's issue list from GitHub.
+
+    The authored JSON cannot list issues that did not exist when it was
+    written, so inbox membership is read from the milestone instead. Without
+    this the inbox always looks empty and `next` would never mention it.
+    """
+    queued = sorted(int(i["number"]) for i in issues if milestone_title(i) == INBOX_TITLE)
+    return [dict(p, issues=queued) if p["title"] == INBOX_TITLE else p for p in packages]
 
 
 def pick_next(
@@ -396,7 +495,9 @@ def render_report(data: dict[str, Any]) -> str:
     for title in data["package_order"]:
         bucket = data["packages"].get(title)
         if not bucket:
-            lines.append(f"  {title:<52} 0 open  (milestone can be closed)")
+            # The inbox is a permanent fixture, not a finished package.
+            note = "(empty -- nothing awaiting triage)" if title == INBOX_TITLE else "(milestone can be closed)"
+            lines.append(f"  {title:<52} 0 open  {note}")
             continue
         lines.append(f"  {title:<52} {bucket['open']:>2} open  [{_severity_bar(bucket)}]")
     if NO_MILESTONE in data["packages"]:
@@ -404,6 +505,16 @@ def render_report(data: dict[str, Any]) -> str:
         lines.append(f"  {NO_MILESTONE:<52} {bucket['open']:>2} open  [{_severity_bar(bucket)}]")
 
     lines.append("")
+    if data.get("inbox"):
+        urgent = data.get("inbox_urgent") or []
+        mark = f"   <- {len(urgent)} URGENT: {', '.join('#%d' % n for n in urgent)}" if urgent else ""
+        lines.append(
+            f"Inbox: {len(data['inbox'])} awaiting routing "
+            f"({', '.join('#%d' % n for n in data['inbox'])}){mark}"
+        )
+        lines.append("  -> py -3 tools/backlog_triage.py triage")
+        lines.append("")
+
     if data["hygiene_gaps"]:
         lines.append(f"Hygiene gaps ({len(data['hygiene_gaps'])} issues):")
         for number, gaps in sorted(data["hygiene_gaps"].items()):
@@ -451,7 +562,8 @@ def render_map_section(
         link = f"[{title}](https://github.com/{data['repo']}/milestone/{num})" if num else title
         ready = pkg.get("readiness", "?")
         if not bucket:
-            lines.append(f"| {num} | {link} | 0 | - | {ready} | _done_ |")
+            state = "_empty_" if title == INBOX_TITLE else "_done_"
+            lines.append(f"| {num} | {link} | 0 | - | {ready} | {state} |")
             continue
         issues = " ".join(f"#{n}" for n in bucket["numbers"])
         lines.append(
@@ -498,8 +610,8 @@ def splice_map(body: str, section: str) -> str:
 
 
 def cmd_next(args: argparse.Namespace) -> int:
-    packages = load_packages()
     issues = fetch_issues()
+    packages = with_inbox(load_packages(), issues)
     open_numbers = {int(i["number"]) for i in issues}
     titles = {int(i["number"]): i.get("title", "") for i in issues}
     pkg, skipped = pick_next(packages, open_numbers)
@@ -523,6 +635,30 @@ def cmd_next(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_triage(args: argparse.Namespace) -> int:
+    packages = load_packages()
+    issues = fetch_issues()
+    by_number = {int(i["number"]): i for i in issues}
+    inbox = [i for i in issues if milestone_title(i) == INBOX_TITLE]
+    if args.json:
+        print(json.dumps(
+            [
+                {
+                    "number": int(i["number"]),
+                    "title": i.get("title", ""),
+                    "severity": severity_of(i),
+                    "domains": sorted(domain_labels(i)),
+                    "suggestions": candidate_packages(i, packages, by_number),
+                }
+                for i in inbox
+            ],
+            indent=2,
+        ))
+    else:
+        print(render_triage(inbox, packages, by_number))
+    return EXIT_OK
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     data = analyse(fetch_issues(), fetch_milestones(), load_packages())
     print(json.dumps(data, indent=2, sort_keys=True) if args.json else render_report(data))
@@ -532,14 +668,23 @@ def cmd_report(args: argparse.Namespace) -> int:
 def cmd_check(args: argparse.Namespace) -> int:
     data = analyse(fetch_issues(), fetch_milestones(), load_packages())
     print(render_report(data))
-    problems = len(data["hygiene_gaps"]) + len(data["drift"])
+    urgent = data.get("inbox_urgent") or []
+    problems = len(data["hygiene_gaps"]) + len(data["drift"]) + len(urgent)
     if problems:
         print("", file=sys.stderr)
-        print(
-            f"FAIL: {len(data['hygiene_gaps'])} issues missing a package or label, "
-            f"{len(data['drift'])} plan/GitHub mismatches. See the triage step in BACKLOG.md.",
-            file=sys.stderr,
-        )
+        if urgent:
+            print(
+                "FAIL: untriaged P0/P1 -- "
+                + ", ".join(f"#{n}" for n in urgent)
+                + ". Route these before any other work.",
+                file=sys.stderr,
+            )
+        if data["hygiene_gaps"] or data["drift"]:
+            print(
+                f"FAIL: {len(data['hygiene_gaps'])} issues missing a package or label, "
+                f"{len(data['drift'])} plan/GitHub mismatches. See the triage step in BACKLOG.md.",
+                file=sys.stderr,
+            )
         return EXIT_GAPS
     return EXIT_OK
 
@@ -642,6 +787,10 @@ def build_parser() -> argparse.ArgumentParser:
     nxt = sub.add_parser("next", help="the one package and PR to start now")
     nxt.add_argument("--json", action="store_true")
     nxt.set_defaults(func=cmd_next)
+
+    tri = sub.add_parser("triage", help="list inbox issues with routing context")
+    tri.add_argument("--json", action="store_true")
+    tri.set_defaults(func=cmd_triage)
 
     rep = sub.add_parser("report", help="package rollup, hygiene gaps and plan drift")
     rep.add_argument("--json", action="store_true")

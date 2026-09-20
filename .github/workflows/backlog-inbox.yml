@@ -1,0 +1,62 @@
+# Put every new issue in the backlog inbox the moment it is opened.
+#
+# The problem this solves: an issue with no milestone is not "low priority",
+# it is ABSENT. `backlog_triage.py next` walks packages, so an unrouted P0
+# would sit invisible while agents worked routine packages -- until the Monday
+# sweep noticed, up to seven days later.
+#
+# So: assign `00 - Untriaged` immediately. The issue is then visible to every
+# consumer (next, report, check, the Backlog Map) within a minute of filing.
+#
+# What this job deliberately does NOT do is guess the real package. Routing is
+# a judgement call -- which outcome does this issue serve? -- and a heuristic
+# on `domain:*` labels would silently mis-file work, which is worse than not
+# filing it, because a mis-filed issue looks handled. `backlog_triage.py
+# triage` prints domain overlap as a SUGGESTION for a human or an agent to act
+# on; nothing here acts on it.
+#
+# Never overwrites a milestone that is already set: an issue filed by an agent
+# that already routed it correctly is left alone.
+#
+# Token: GITHUB_TOKEN is enough (issues: write).
+
+name: Backlog inbox
+
+on:
+  issues:
+    types: [opened, reopened, transferred]
+
+concurrency:
+  group: backlog-inbox-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  inbox:
+    name: Queue for triage
+    # The Backlog Map is a rendered view of the backlog, not an item in it.
+    if: ${{ !contains(github.event.issue.labels.*.name, 'backlog-map') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assign the inbox milestone when the issue has none
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
+          INBOX: "00 - Untriaged"
+        run: |
+          current=$(gh issue view "$NUMBER" --repo "$REPO" --json milestone --jq '.milestone.title // ""')
+          if [ -n "$current" ]; then
+            echo "#$NUMBER already in '$current' -- leaving it alone."
+            exit 0
+          fi
+          if ! gh api "repos/$REPO/milestones?state=open&per_page=100" \
+                 --jq '.[].title' | grep -qxF "$INBOX"; then
+            echo "::error::Milestone '$INBOX' does not exist. Run: py -3 tools/backlog_triage.py sync"
+            exit 1
+          fi
+          gh issue edit "$NUMBER" --repo "$REPO" --milestone "$INBOX"
+          echo "#$NUMBER queued for triage."

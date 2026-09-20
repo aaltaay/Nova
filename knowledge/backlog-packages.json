@@ -6,6 +6,21 @@
   "invalidation": "Re-author when a package completes, when a gate decision lands, or when triage moves an issue between packages. `backlog_triage.py check` reports drift; it does not self-heal.",
   "packages": [
     {
+      "rank": 0,
+      "slug": "untriaged",
+      "title": "00 - Untriaged",
+      "readiness": "needs-triage",
+      "gate": "Needs a routing decision: which package's outcome does this issue serve? Run `py -3 tools/backlog_triage.py triage`.",
+      "objective": "The inbox. Every new issue lands here automatically so it is never invisible to `next`, and never silently mis-filed by a heuristic. Issues leave by being added to a real package in knowledge/backlog-packages.json, not by being worked on from here.",
+      "issues": [],
+      "done": [
+        "The inbox is empty: every open issue has been routed to a package whose outcome it actually serves.",
+        "No issue has sat in the inbox across two weekly sweeps without either a package or a comment saying why it is hard to route.",
+        "No P0 or P1 is in the inbox at all -- `backlog_triage.py check` fails while one is."
+      ],
+      "prs": []
+    },
+    {
       "rank": 1,
       "slug": "recorder-safety",
       "title": "01 - Recorder cannot wedge the desk or lose a session",

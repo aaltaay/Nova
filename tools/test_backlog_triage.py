@@ -351,7 +351,7 @@ def test_real_packages_file_loads_and_is_rank_ordered():
     assert packages, "backlog-packages.json must define packages"
     ranks = [p["rank"] for p in packages]
     assert ranks == sorted(ranks)
-    assert ranks == list(range(1, len(packages) + 1)), "rank must be a strict 1..N"
+    assert len(set(ranks)) == len(ranks), "two packages may not share a rank"
 
 
 def test_real_packages_assign_every_issue_exactly_once():
@@ -406,3 +406,174 @@ def test_the_backlog_map_issue_is_not_itself_backlog_work():
     from tools.backlog_triage import META_LABEL, is_meta
     assert is_meta(issue(361, labels=(META_LABEL, "documentation")))
     assert not is_meta(issue(314, labels=FULL))
+
+
+# --------------------------------------------------------------------------
+# the inbox -- new issues are queued, never invisible, never auto-routed
+# --------------------------------------------------------------------------
+
+
+from tools.backlog_triage import (  # noqa: E402
+    INBOX_TITLE,
+    URGENT,
+    candidate_packages,
+    domain_labels,
+    render_triage,
+)
+
+INBOX_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "backlog-inbox.yml"
+
+
+def inboxed(number, *, labels=()):
+    return issue(number, labels=tuple(labels) + ("deferred",), milestone=INBOX_TITLE)
+
+
+def test_an_inbox_issue_is_queued_not_drift():
+    # It has a milestone, so it is visible everywhere; it is just not routed.
+    assert plan_drift(PKGS, [inboxed(500, labels=("P2", "bug", "domain:ui"))]) == []
+
+
+def test_an_issue_with_no_milestone_at_all_is_still_drift():
+    # That means the inbox workflow failed; it must not be silently tolerated.
+    problems = plan_drift(PKGS, [issue(500, labels=("P2", "bug", "domain:ui", "deferred"))])
+    assert any("#500" in p and "no package" in p for p in problems)
+
+
+def test_inbox_issues_are_reported_separately():
+    data = analyse([inboxed(500, labels=("P2", "bug", "domain:ui"))], [], PKGS)
+    assert data["inbox"] == [500]
+    assert data["inbox_urgent"] == []
+
+
+def test_an_untriaged_p0_is_flagged_urgent():
+    data = analyse([inboxed(501, labels=("P0", "bug", "domain:ui"))], [], PKGS)
+    assert data["inbox_urgent"] == [501]
+
+
+def test_report_surfaces_the_inbox_and_names_the_triage_command():
+    text = render_report(analyse([inboxed(500, labels=("P2", "bug", "domain:ui"))], [], PKGS))
+    assert "Inbox: 1 awaiting routing" in text
+    assert "backlog_triage.py triage" in text
+
+
+def test_report_marks_an_urgent_inbox_issue():
+    text = render_report(analyse([inboxed(501, labels=("P1", "bug", "domain:ui"))], [], PKGS))
+    assert "URGENT" in text and "#501" in text
+
+
+def test_an_inbox_issue_does_not_count_as_a_hygiene_gap():
+    # It has a package (the inbox) and full labels; it needs routing, not fields.
+    assert hygiene_gaps(inboxed(500, labels=("P2", "bug", "domain:ui"))) == []
+
+
+# --- routing suggestions are suggestions ---------------------------------
+
+
+def test_candidate_packages_ranks_by_shared_domain_labels():
+    by_number = {
+        1: issue(1, labels=("domain:ui",)),
+        2: issue(2, labels=("domain:ui",)),
+        3: issue(3, labels=("domain:market-feed",)),
+    }
+    pkgs = [
+        {"title": "01 - a", "slug": "a", "issues": [1, 2]},
+        {"title": "02 - b", "slug": "b", "issues": [3]},
+    ]
+    hits = candidate_packages(issue(9, labels=("domain:ui",)), pkgs, by_number)
+    assert hits[0] == ("a", 2)
+    assert [s for s, _ in hits] == ["a"]
+
+
+def test_candidate_packages_never_suggests_the_inbox_itself():
+    by_number = {1: issue(1, labels=("domain:ui",))}
+    pkgs = [{"title": INBOX_TITLE, "slug": "untriaged", "issues": [1]}]
+    assert candidate_packages(issue(9, labels=("domain:ui",)), pkgs, by_number) == []
+
+
+def test_an_issue_with_no_domain_label_gets_no_suggestion():
+    assert candidate_packages(issue(9, labels=("P2",)), [], {}) == []
+
+
+def test_domain_labels_ignores_priority_and_kind():
+    assert domain_labels(issue(1, labels=("P1", "bug", "domain:ui"))) == {"domain:ui"}
+
+
+def test_triage_output_marks_suggestions_as_suggestions_only():
+    by_number = {1: issue(1, labels=("domain:ui",))}
+    pkgs = [{"title": "01 - a", "slug": "a", "issues": [1]}]
+    text = render_triage([inboxed(500, labels=("P2", "bug", "domain:ui"))], pkgs, by_number)
+    assert "suggestion only" in text, "routing must never read as an assignment"
+    assert "#500" in text
+
+
+def test_triage_output_calls_out_urgent_issues():
+    text = render_triage([inboxed(501, labels=("P0", "bug", "domain:ui"))], [], {})
+    assert "URGENT" in text
+
+
+def test_triage_says_so_when_the_inbox_is_empty():
+    assert "Inbox empty" in render_triage([], [], {})
+
+
+# --- the inbox must exist as a real package ------------------------------
+
+
+def test_the_inbox_package_exists_and_is_never_startable():
+    packages = load_packages()
+    inbox = [p for p in packages if p["title"] == INBOX_TITLE]
+    assert inbox, "the inbox package must exist or the workflow cannot assign it"
+    assert inbox[0]["readiness"] != READY, "next must never hand out unrouted work"
+    assert packages[0]["title"] == INBOX_TITLE, "the inbox sorts first so it is always seen"
+
+
+def test_working_packages_are_still_ranked_one_upwards():
+    ranks = [p["rank"] for p in load_packages()]
+    assert ranks[0] == 0, "the inbox is rank 0"
+    assert ranks[1:] == list(range(1, len(ranks))), "working packages are a strict 1..N"
+
+
+def test_next_skips_the_inbox_but_surfaces_it():
+    from tools.backlog_triage import with_inbox
+    real = load_packages()[1]
+    # An unrouted issue plus one real package's work.
+    packages = with_inbox(load_packages(), [inboxed(500, labels=("P2", "bug", "domain:ui"))])
+    pkg, skipped = pick_next(packages, {500} | set(real["issues"]))
+    assert pkg["title"] != INBOX_TITLE
+    assert any(s["title"] == INBOX_TITLE for s in skipped)
+
+
+def test_urgent_severities_are_the_ones_that_break_a_desk():
+    assert set(URGENT) == {"P0", "P1"}
+
+
+def test_inbox_workflow_assigns_on_open_and_does_not_guess_a_package():
+    assert INBOX_WORKFLOW.exists()
+    text = INBOX_WORKFLOW.read_text(encoding="utf-8")
+    assert "issues:" in text and "opened" in text
+    assert INBOX_TITLE in text
+    assert "already in" in text, "must not overwrite a milestone the filer set"
+
+
+def test_with_inbox_reads_membership_from_the_milestone_not_the_json():
+    from tools.backlog_triage import with_inbox
+    packages = with_inbox(
+        [{"title": INBOX_TITLE, "slug": "untriaged", "issues": [], "readiness": "needs-triage"}],
+        [inboxed(500), inboxed(501), issue(9, milestone="01 - a")],
+    )
+    assert packages[0]["issues"] == [500, 501]
+
+
+def test_with_inbox_leaves_real_packages_untouched():
+    from tools.backlog_triage import with_inbox
+    original = {"title": "01 - a", "slug": "a", "issues": [1, 2], "readiness": READY}
+    assert with_inbox([original], [inboxed(500)])[0]["issues"] == [1, 2]
+
+
+def test_an_empty_inbox_is_never_advertised_as_closable():
+    packages = [{"rank": 0, "slug": "untriaged", "title": INBOX_TITLE,
+                 "issues": [], "readiness": "needs-triage"}]
+    data = analyse([], [{"title": INBOX_TITLE, "state": "open", "number": 1}], packages)
+    assert data["empty_packages"] == [], "the inbox is permanent"
+    text = render_report(data)
+    assert "milestone can be closed" not in text
+    assert "nothing awaiting triage" in text

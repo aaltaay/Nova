@@ -1,8 +1,8 @@
 # Nova backlog — work packages
 
-**The backlog is organised into ten work packages.** A package is an outcome
-("after this, recording cannot wedge the desk"), not a module. Every open
-issue belongs to exactly one.
+**The backlog is organised into eleven work packages, plus an inbox.** A package
+is an outcome ("after this, recording cannot wedge the desk"), not a module.
+Every open issue belongs to exactly one.
 
 If you are an agent and you were told *"start on the next item in the backlog"*,
 run this and do what it says:
@@ -35,7 +35,7 @@ self-heals.
 
 ## Rules of engagement
 
-1. **One PR per batch, not per issue.** The plan batches 44 issues into 23
+1. **One PR per batch, not per issue.** The plan batches 46 issues into 25
    pull requests. The batches share a root cause and a file set; a reviewer
    should be able to hold one in their head. Do not split a batch to make
    the diff smaller, and do not staple unrelated issues onto one to look
@@ -73,6 +73,8 @@ skips anything gated.
 | 8 | A replay reproduces the day, or refuses loudly | 303, 304, 320, 337 | ✅ | Silent holes and unbounded disk growth. |
 | 9 | One replay surface, one trade-print source | 308, 309, 310, 311, 315, 340 | ⛔ | **The chokepoint.** See below. |
 | 10 | Live desk on master, plus residual product asks | 14, 90, 91, 94, 147, 331 | ⛔ | Needs the operator at the physical trading PC. |
+| 11 | Marketing site and parked WIP | 356, 357 | ✅ | Non-desk P3s, kept where they can never outrank desk work. |
+| 00 | Untriaged (the inbox) | — | 🕓 | New issues land here automatically until someone routes them. |
 
 Objectives and acceptance criteria live in `knowledge/backlog-packages.json`
 and on each milestone's description — they are not duplicated here, so they
@@ -82,9 +84,9 @@ cannot drift.
 
 ## What you unblock by deciding
 
-**19 of 44 issues (43%) are waiting on a human, not on engineering capacity.**
-Packages 1–8 are all startable today, so agents are not idle — but the ranking
-below is where a decision buys the most.
+**19 of the 44 originally-triaged issues (43%) were waiting on a human, not on
+engineering capacity.** Packages 1–8 and 11 are all startable today, so agents
+are not idle — but the ranking below is where a decision buys the most.
 
 | Decision | Gates | Cost of not deciding |
 |----------|-------|----------------------|
@@ -129,9 +131,13 @@ Constraints worth keeping:
 
 ## Periodic triage
 
-Automatic: **`.github/workflows/backlog-triage.yml` runs every Monday 13:05 UTC**
-(09:05 ET). It refreshes the Backlog Map issue, and comments on it *only* when
-something needs a human — so a clean backlog is silent.
+Two automatic jobs:
+
+- **`.github/workflows/backlog-inbox.yml`** — on `issues.opened`, queues the new
+  issue into `00 - Untriaged` so it is never invisible. Runs in seconds.
+- **`.github/workflows/backlog-triage.yml`** — every Monday 13:05 UTC (09:05 ET).
+  Refreshes the Backlog Map issue, and comments on it *only* when something needs
+  a human, so a clean backlog is silent.
 
 Manual, any time:
 
@@ -144,19 +150,43 @@ py -3 tools/backlog_triage.py check
 ```
 
 `check` exits 1 when an open issue has no package or is missing a
-`deferred` / priority / kind / `domain:*` label, or when the milestones
-disagree with the authored plan. Deliberately **not** a required PR check: a
-new issue is unpackaged for the minutes between filing and triage, and failing
+`deferred` / priority / kind / `domain:*` label, when the milestones disagree
+with the authored plan, or when a **P0/P1 sits untriaged**. Deliberately **not**
+a required PR check: a new issue is briefly unrouted between filing and triage,
+and failing
 CI for that would train agents to skip filing issues.
 
-### Triaging a new issue
+### How a new issue reaches a package
 
-1. File it as usual (`.github/ISSUE_TEMPLATE/`, labels per AGENTS.md §7.2c).
-2. Add it to a package in `knowledge/backlog-packages.json` — either into an
-   existing PR batch or as a new one.
-3. `py -3 tools/backlog_triage.py sync` to project it onto the milestone.
-4. If it does not fit any package, that is a signal the plan needs a new one,
-   not that the issue should stay unpackaged.
+New issues are **queued automatically**. `.github/workflows/backlog-inbox.yml`
+assigns `00 - Untriaged` on `issues.opened`, so an issue is visible to `next`,
+`report` and the Map within a minute of filing — never invisible, never waiting
+for Monday. An issue that already has a milestone is left alone.
+
+Nothing guesses the real package. Routing asks *which outcome does this issue
+serve*, which is a weaker question than "which files does it touch" — a
+heuristic on `domain:*` labels would silently mis-file work, and a mis-filed
+issue is worse than an unrouted one because it looks handled.
+
+Routing is **on demand**. Say *"triage the backlog"* and an agent will:
+
+```bash
+py -3 tools/backlog_triage.py triage
+```
+
+…which lists each inbox issue with its severity, domain labels, and which
+packages already hold issues sharing those domains — **suggestions only**. The
+agent then adds each issue to a package's `issues` and to a PR batch in
+`knowledge/backlog-packages.json`, runs `sync`, and opens one small PR with the
+JSON change plus a line of reasoning per issue. You review the PR, not the raw
+issues.
+
+If an issue fits no package, the **plan** needs a new package — the issue does
+not stay unrouted.
+
+**`check` fails while a P0 or P1 is in the inbox.** A routine package must never
+be handed out while a desk-breaking bug sits unrouted; everything else in the
+inbox can wait for the next triage pass.
 
 ### When a package completes
 

@@ -29,8 +29,15 @@ Rules:
 - `BACKLOG.md` is the narrative; `knowledge/backlog-packages.json` is the authored
   plan; milestones are its GitHub projection (`backlog_triage.py sync`). Issue
   state (open/closed, labels) always comes from GitHub.
-- After filing a new issue, add it to a package and run `sync`. `backlog_triage.py
-  check` reports issues with no package or missing labels.
+- New issues are queued into `00 - Untriaged` automatically the moment they are
+  opened (`.github/workflows/backlog-inbox.yml`), so nothing is invisible to
+  `next`. Nothing guesses the real package.
+- When asked to **"triage the backlog"**: run `py -3 tools/backlog_triage.py triage`,
+  decide which package's *outcome* each inbox issue serves, add it to that package's
+  `issues` and to a PR batch in `knowledge/backlog-packages.json`, run `sync`, and
+  open one small PR with the JSON change. Domain-overlap hints are suggestions, not
+  assignments -- say why you routed each one.
+- `backlog_triage.py check` fails while a **P0 or P1 sits untriaged**.
 - Work marked gated needs an operator decision — record the question on the issue,
   never guess the policy.
 - For a multi-agent pass over one package use `.claude/workflows/backlog-wave.js`
