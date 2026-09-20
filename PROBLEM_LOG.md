@@ -44,6 +44,13 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Fix:** Capture owns one bounded FIFO writer for copied complete batches and serialized session transitions. Stop closes admission and drains accepted batches before finalizing; overflow is immediately visible and finalizes as failed after draining. Symbol admission is rechecked against the current session. Async shutdown awaits the worker through `asyncio.to_thread`. Timeout-guarded tests hold a real recorder operation, prove an independent coroutine progresses, then verify ordered rows, manifests, session isolation, overflow and restart after worker failure.
 - **Fix class:** ownership
 - **Keywords:** capture, recorder, event loop, writer thread, bounded queue, backpressure, session isolation, #314, #324
+## 2026-09-20 -- Recover news ranking without stale delivery regressions
+
+- **Symptom:** The public AI-in-trading digest admitted stock-theme and promotional filler, let prolific mega-wire publishers dominate, missed gzip feeds, and rewrote identical stories on every clock tick. The parked recovery also included obsolete CI/version changes.
+- **Cause:** Broad topic pairing and uniform domain caps; feed reads assumed plain XML; publication timestamps guaranteed a diff. The old WIP fingerprint compared only URL/title and its PR helper predated the protected-master delivery repair.
+- **Fix:** Recover strict topic gates, publisher caps, targeted trade-press sources and longer full-feed recency; decode gzip with explicit failure reporting; compare ordered story content and rendered blocks at the prior publication time. Preserve modern PR/PAT delivery, Desktop checks, derived versions and homepage teaser. Split the oversized test suite, update workflow discovery and its command assertion, and remove imports made unused by the split. Regressions cover content edits, malformed prior state, age limits and gzip failures (#356).
+- **Fix class:** admission
+- **Keywords:** ai-news, ranking, gzip, publication fingerprint, clock-only rewrite, WIP recovery, #356
 
 ## 2026-09-20 -- Cleanup preserves recreated branches with unmerged work
 
