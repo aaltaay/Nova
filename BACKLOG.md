@@ -265,3 +265,28 @@ milestone at 0 open as closable.
 - **14 of 44 issues were not confirmed live** when the backlog was verified
   against the tree on 2026-09-19: ten partially fixed, two likely stale, two
   unverifiable. Package 3 exists to settle them.
+
+## Parallel work must have disjoint footprints (#367)
+
+The authored plan now records `touches` for each PR batch. A package can
+supply a default; an explicit batch list overrides it. Use repository-relative
+files and trailing-slash directory paths (for example `backend/capture/`).
+Directories include descendants, never sibling prefixes. Matching normalizes
+Windows separators and case. Keep footprints current when scope changes;
+exclude routine ledger updates, but include substantive source, test and CI
+files. These are advisory reservations, not filesystem locks.
+
+New claim comments snapshot the batch footprint as JSON. Legacy claims are
+resolved through the current authored batch (or the claimed issue); an unknown
+live footprint blocks selection instead of being treated as safe. Both `next`
+and `next --package` skip overlapping batches. The `claim` command checks too,
+then re-reads after publication to yield to an earlier overlapping claim.
+`--force` never overrides another live file reservation.
+
+Run `py -3 tools/backlog_triage.py claims --conflicts` to see the blocked batch,
+holder, branch and overlapping paths. Stale/released claims stop reserving
+files. A disjoint later batch remains selectable inside the same package.
+
+#367 belongs to delivery-pipeline: avoiding competing agent edits is delivery
+coordination, not a replay product change. Its batch is separate from release
+publishing so each change stays independently verifiable.

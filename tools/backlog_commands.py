@@ -13,27 +13,16 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 
-from tools.backlog_claims import (
-    CLAIM_LABEL,
-    CLAIM_TTL_HOURS,
-    active_claim,
-    agent_id,
-    batch_ref,
-    format_claim,
-    format_release,
-    live_claims,
-    resolve_batch,
-)
+from tools.backlog_claim_commands import cmd_claim, cmd_claims, cmd_release  # noqa: F401
+from tools.backlog_claims import live_claims
 from tools.backlog_github import (
     EXIT_ERROR,
     EXIT_GAPS,
     EXIT_OK,
     INBOX_TITLE,
     domain_labels,
-    fetch_comments,
     fetch_issues,
     fetch_milestones,
-    label_names,
     milestone_title,
     repo_slug,
     run_gh,
@@ -71,12 +60,10 @@ def cmd_next(args: argparse.Namespace) -> int:
         if not chosen:
             print(f"no package with slug {args.package!r}", file=sys.stderr)
             return EXIT_ERROR
-        pkg, skipped = chosen[0], []
-        if not set(pkg["issues"]) & open_numbers:
-            pkg = None
+        pkg, skipped = pick_next(chosen, open_numbers, held, claim_packages=packages)
     else:
         pkg, skipped = pick_next(packages, open_numbers, held)
-    pr = next_pr(pkg, open_numbers, held) if pkg else None
+    pr = next_pr(pkg, open_numbers, held, packages=packages) if pkg else None
 
     if args.json:
         print(json.dumps(
@@ -89,6 +76,7 @@ def cmd_next(args: argparse.Namespace) -> int:
                         "rank": s["rank"],
                         "title": s["title"],
                         "gate": s.get("_skip_reason") or s.get("gate", ""),
+                        "conflicts": s.get("_conflicts", []),
                     }
                     for s in skipped
                 ],
@@ -98,122 +86,6 @@ def cmd_next(args: argparse.Namespace) -> int:
         ))
     else:
         print(render_next(pkg, pr, skipped, open_numbers, titles))
-    return EXIT_OK
-
-
-def cmd_claims(args: argparse.Namespace) -> int:
-    now = datetime.now(timezone.utc)
-    issues = fetch_issues()
-    labelled = [i for i in issues if CLAIM_LABEL in label_names(i)]
-    if not labelled:
-        print("No claims held.")
-        return EXIT_OK
-    rows = []
-    for issue in labelled:
-        claim = active_claim(fetch_comments(int(issue["number"])), now=now)
-        rows.append((int(issue["number"]), issue.get("title", ""), claim))
-    for number, title, claim in sorted(rows):
-        if claim is None:
-            print(f"  #{number}  label set but no claim comment -- run `release` to clear it")
-            continue
-        state = "STALE" if claim["stale"] else "held"
-        print(f"  #{number}  [{state}] {claim.get('agent','?')} on {claim.get('branch','?')} "
-              f"(batch {claim.get('batch','?')}, {claim.get('age_hours','?')}h)")
-        print(f"      {title[:70]}")
-    stale = [r for r in rows if r[2] and r[2]["stale"]]
-    if stale:
-        print(f"\n{len(stale)} stale claim(s) past {CLAIM_TTL_HOURS}h -- reclaimable with "
-              f"`claim --force`, or clear with `release`.")
-    return EXIT_OK
-
-
-def cmd_claim(args: argparse.Namespace) -> int:
-    now = datetime.now(timezone.utc)
-    packages = load_packages()
-    matches = [p for p in packages if p["slug"] == args.package]
-    if not matches:
-        print(f"no package with slug {args.package!r}", file=sys.stderr)
-        return EXIT_ERROR
-    pkg = matches[0]
-    index, batch = resolve_batch(pkg, args.batch)
-    ref = batch_ref(pkg["slug"], index)
-    agent = args.agent or agent_id()
-    branch = args.branch or f"agent/{pkg['slug']}-{index}"
-
-    issues = fetch_issues()
-    open_numbers = {int(i["number"]) for i in issues}
-    targets = [n for n in batch["issues"] if n in open_numbers]
-    if not targets:
-        print(f"batch {ref} has no open issues left -- nothing to claim.")
-        return EXIT_OK
-
-    existing = {}
-    for number in targets:
-        claim = active_claim(fetch_comments(number), now=now)
-        if claim and (not claim["stale"] or args.force):
-            if not claim["stale"]:
-                existing[number] = claim
-    if existing and not args.force:
-        for number, claim in existing.items():
-            print(f"#{number} already held by {claim.get('agent','?')} "
-                  f"on {claim.get('branch','?')} ({claim.get('age_hours','?')}h)", file=sys.stderr)
-        print("Pick another batch, or use --force if you know that agent is gone.", file=sys.stderr)
-        return EXIT_GAPS
-
-    body = format_claim(agent=agent, batch=ref, branch=branch, at=now)
-    for number in targets:
-        run_gh(["issue", "edit", str(number), "--repo", repo_slug(), "--add-label", CLAIM_LABEL])
-        proc = run_gh(
-            ["issue", "comment", str(number), "--repo", repo_slug(), "--body-file", "-"],
-            runner=lambda cmd, **kw: subprocess.run(cmd, input=body, **kw),
-        )
-        if proc.returncode != 0:
-            print(f"claim comment on #{number} failed: {proc.stderr.strip()}", file=sys.stderr)
-            return EXIT_ERROR
-
-    # Claim-then-verify: GitHub has no compare-and-swap, so two agents can both
-    # have read "unclaimed". Earliest `at` wins; a loser yields immediately
-    # rather than working a batch someone else also started.
-    others = [
-        c for c in (active_claim(fetch_comments(n), now=now) for n in targets)
-        if c and c.get("agent") and c["agent"] != agent and not c["stale"]
-    ]
-    if others:
-        earliest_other = min(others, key=lambda c: c.get("at", ""))
-        if earliest_other.get("at", "") < now.strftime("%Y-%m-%dT%H:%M:%SZ"):
-            print(f"Race lost: {earliest_other.get('agent')} claimed {ref} first. Yielding.",
-                  file=sys.stderr)
-            for number in targets:
-                run_gh(["issue", "comment", str(number), "--repo", repo_slug(), "--body-file", "-"],
-                       runner=lambda cmd, **kw: subprocess.run(
-                           cmd, input=format_release(agent=agent, batch=ref), **kw))
-            return EXIT_GAPS
-
-    print(f"Claimed {ref} ({', '.join('#%d' % n for n in targets)}) as {agent} on {branch}.")
-    print(f"Release with: py -3 tools/backlog_triage.py release --package {pkg['slug']} --batch {index}")
-    return EXIT_OK
-
-
-def cmd_release(args: argparse.Namespace) -> int:
-    packages = load_packages()
-    matches = [p for p in packages if p["slug"] == args.package]
-    if not matches:
-        print(f"no package with slug {args.package!r}", file=sys.stderr)
-        return EXIT_ERROR
-    pkg = matches[0]
-    index, batch = resolve_batch(pkg, args.batch)
-    ref = batch_ref(pkg["slug"], index)
-    agent = args.agent or agent_id()
-    body = format_release(agent=agent, batch=ref)
-    issues = fetch_issues()
-    open_numbers = {int(i["number"]) for i in issues}
-    for number in batch["issues"]:
-        if number not in open_numbers:
-            continue  # closed issues carry no claim worth clearing
-        run_gh(["issue", "edit", str(number), "--repo", repo_slug(), "--remove-label", CLAIM_LABEL])
-        run_gh(["issue", "comment", str(number), "--repo", repo_slug(), "--body-file", "-"],
-               runner=lambda cmd, **kw: subprocess.run(cmd, input=body, **kw))
-    print(f"Released {ref}.")
     return EXIT_OK
 
 

@@ -37,6 +37,16 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-20 -- Backlog selection ignored files held by another batch (#367)
+
+- **Symptom:** `backlog_triage.py next` offered recording-state work while a live recorder claim held six of the same files. Different issue numbers hid the collision until PR delivery.
+- **Cause:** The picker reserved only issue ids. The authored package plan and structured claim comments carried no file footprint, so outcome-based packages were incorrectly assumed independent.
+- **Fix:** Author per-batch `touches` paths, snapshot them in claims, resolve legacy claims through their batch/issue, and share file/directory overlap checks across selection and claim acquisition. Unknown live footprints block selection; stale/released claims do not. `claims --conflicts` names holders and paths. Re-read after claiming and yield to earlier overlapping work; `--force` cannot steal a live file reservation. Keep commands separated from pure footprint logic (ADR 001).
+- **Fix class:** ownership
+- **Verified by:** Regression coverage reproduces the six-file case, directory boundaries, legacy snapshots, stale/released holders, explicit-package selection, conflict explanations and claim races. Race fixtures freeze UTC time; workflow fixtures read UTF-8 explicitly so local Windows locale/date cannot change the result.
+- **Keywords:** backlog, claims, touches, file overlap, parallel agents, directory prefix, legacy claim, #367
+
+
 ## 2026-09-20 -- Cleanup preserves recreated branches with unmerged work
 
 - **Symptom:** A head recreated after PR merge could be deleted while carrying new, unmerged commits (#369).

@@ -17,11 +17,13 @@ impossible. An agent that ignores the protocol will still collide."""
 
 from __future__ import annotations
 
+import json
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from tools.backlog_github import fetch_comments, label_names
+from tools.backlog_footprints import normalize_touches
 
 CLAIM_LABEL = "claimed"
 
@@ -44,13 +46,18 @@ def batch_ref(slug: str, index: int) -> str:
     return f"{slug}#{index}"
 
 
-def format_claim(*, agent: str, batch: str, branch: str, at: datetime) -> str:
+def format_claim(
+    *, agent: str, batch: str, branch: str, at: datetime,
+    touches: list[str] | None = None,
+) -> str:
+    footprint = f"touches: {json.dumps(normalize_touches(touches))}\n" if touches is not None else ""
     return (
         f"{CLAIM_BEGIN}\n"
         f"agent: {agent}\n"
         f"batch: {batch}\n"
         f"branch: {branch}\n"
         f"at: {at.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}\n"
+        f"{footprint}"
         f"{CLAIM_END}\n"
         f"Claimed by `{agent}` on branch `{branch}` for batch `{batch}`. "
         f"Stale after {CLAIM_TTL_HOURS}h with no branch activity -- "
