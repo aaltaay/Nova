@@ -1,35 +1,32 @@
 """Deterministic HOD Momo replay harness (HOD scanner capture audit).
 
-Replays archived IBKR tape (fixtures exported by
-``tools/export_hod_replay_fixture.py``) through the real alert engine --
-``hod_momo.on_trade_update`` -- with an injected clock so results do not
-depend on the wall clock, market hours, or an IB Gateway login.
+Replays archived IBKR tape (fixtures from ``tools/export_hod_replay_fixture.py``) through the real
+alert engine -- ``hod_momo.on_trade_update`` -- with an injected clock, so results never depend on
+the wall clock, market hours, or an IB Gateway login.
 
-What the driver does per session:
+Per session: (1) ``reset_engine_state()``, the fresh-engine recipe shared with
+``tests/conftest.py``; (2) prime each symbol the way production enrichment/seeding would --
+session-high floor from early 1m bars (``apply_session_high``), surge buffer seed from those bars
+(``seed_price_buffer``), a ``TickerSnap`` from the fixture meta (prev_close, float; RVOL/gap
+stand-ins from the day's production alerts); (3) feed every tape print in ts order with
+reconstructed cumulative day volume and a running day-high series (emulates IBKR tick-6), with
+``time.time`` / ``market.now_et`` pinned to the replay ts so pace RVOL, session-dependent
+min-RVOL, cooldown and consolidation deadlines evaluate on *replay* time; (4) mirror the
+consolidation flush (``hod_momo_alerts.flush_consolidated_loop``'s per-strategy grouping) without
+disk/WS side effects, collecting emitted alerts for assertions.
 
-1. ``reset_engine_state()`` -- canonical fresh-engine recipe (also used by
-   ``tests/conftest.py``): new state owner, disk configs, cleared session
-   collections, warmup grace escaped, metrics volume buffers purged.
-2. Prime each symbol the way production enrichment/seeding would:
-   session-high floor from early 1m bars (``apply_session_high``), surge
-   price-buffer seed from those bars (``seed_price_buffer``), and a
-   ``TickerSnap`` built from the fixture meta (prev_close, float; RVOL/gap
-   stand-ins from the day's production alerts when available).
-3. Feed every tape print in ts order with reconstructed cumulative day
-   volume (bar-volume base + print sizes) and a running day-high series
-   (emulates IBKR tick-6). ``time.time`` and ``market.now_et`` are pinned
-   to the replay ts, so pace RVOL, session-dependent min-RVOL, cooldown,
-   and consolidation deadlines all evaluate on *replay* time.
-4. Mirror the consolidation flush (same per-strategy grouping as
-   ``hod_momo_alerts.flush_consolidated_loop``) without disk/WS side
-   effects, collecting emitted alerts for assertions.
+Interval-close contract (#385): a bar's ``ts`` is the minute's OPENING stamp, so only minutes
+CLOSED by ``first_ts`` seed the high floor and the surge buffer. On the 2026-07-17 fixture the
+minute in progress IS the tape step 3 replays -- bar open == first print, high/low == that
+minute's print extremes, volume == their sizes to the unit -- so priming from it fed the engine
+its own future. Withheld means that bar's final values, never the symbol: with no closed bar a
+symbol takes production's live-only seed path and still primes a snapshot price and a 52-week
+sentinel from its first observed print.
 
-Fidelity caveats (also in the fixture meta): tape only covers symbols that
-had an active tape subscription; avg_volume / live enrichment were not
-archived, so RVOL stands still at its primed value unless avg_volume is
-provided; ``fifty_two_week_high`` is a sentinel.
-
-CLI: ``py -3 hod_momo_replay.py --date 2026-07-17`` prints a JSON summary.
+Fidelity caveats (also in the fixture meta): tape only covers symbols that had an active tape
+subscription; avg_volume / live enrichment were not archived, so RVOL stands still at its primed
+value unless avg_volume is provided; ``fifty_two_week_high`` is a sentinel. CLI:
+``py -3 hod_momo_replay.py --date 2026-07-17`` prints a JSON summary.
 """
 from __future__ import annotations
 
@@ -51,8 +48,10 @@ import hod_momo_high as _high
 import hod_momo_market as _market
 import hod_momo_metrics as _metrics
 import market as _clock_market
+from constants import ARCHIVE_BAR_1M_INTERVAL_SEC
 from hod_momo_models import alert_to_dict
 from hod_momo_state import HodMomoState
+from hod_momo_surge_seed import bars_to_surge_points
 
 _ET = ZoneInfo("America/New_York")
 _FIFTY_TWO_WEEK_SENTINEL_MULT = 3.0
@@ -164,20 +163,28 @@ def _production_enrichment(fixture: ReplayFixture) -> dict[str, dict]:
     return out
 
 
-def prime_symbol(fixture: ReplayFixture, symbol: str, first_ts: float) -> None:
-    """Seed one symbol the way production would before live evaluation."""
+def closed_bars_before(bars: list[dict], as_of_ts: float) -> list[dict]:
+    """Bars whose minute CLOSED by ``as_of_ts`` -- ``ts`` is its OPEN (#385). The fixture-shaped
+    twin of ``archive.replay.slice_bars_as_of``."""
+    return [b for b in bars or [] if float(b["ts"]) + ARCHIVE_BAR_1M_INTERVAL_SEC <= as_of_ts]
+
+
+def prime_symbol(
+    fixture: ReplayFixture, symbol: str, first_ts: float, *, first_price: float | None = None,
+) -> None:
+    """Seed one symbol the way production would before live evaluation. ``first_price`` (the
+    symbol's first tape print -- the market price at the priming instant) is the last-resort
+    stand-in for the snapshot price and the 52-week sentinel; it never feeds the session-high
+    floor, so the first print can still register a genuine HOD (#385)."""
     meta = (fixture.meta.get("symbols") or {}).get(symbol) or {}
     prod = _production_enrichment(fixture).get(symbol) or {}
     archived: dict[str, Any] = {}
     try:
         from archive.capture import load_enrichment_snapshot, session_date_for_ts
-
-        archived = load_enrichment_snapshot(
-            symbol, session_date=session_date_for_ts(first_ts),
-        ) or {}
+        archived = load_enrichment_snapshot(symbol, session_date=session_date_for_ts(first_ts)) or {}
     except Exception:
         archived = {}
-    bars_before = [b for b in fixture.bars_by_symbol.get(symbol, []) if b["ts"] <= first_ts]
+    bars_before = closed_bars_before(fixture.bars_by_symbol.get(symbol, []), first_ts)
 
     prev_close = meta.get("prev_close") or None
     seed_candidates = [b["high"] for b in bars_before]
@@ -187,25 +194,29 @@ def prime_symbol(fixture: ReplayFixture, symbol: str, first_ts: float) -> None:
     if seed_high:
         _high.apply_session_high(symbol, float(seed_high), source="bars")
     if bars_before:
-        _market.seed_price_buffer(
-            symbol, [(float(b["ts"]), float(b["close"])) for b in bars_before]
-        )
+        # Production's own function, so low_to_current surge sees each candle's trough (low, then
+        # close ~30s later) exactly as it does live.
+        _market.seed_price_buffer(symbol, bars_to_surge_points(
+            [{"t": b["ts"], "l": b["low"], "c": b["close"]} for b in bars_before]
+        ))
+    else:
+        # No closed bar: production's live-only path (``seed_symbol`` against an empty store) --
+        # mark the attempt, and let tick-6 / observed-warmup set the high floor from the tape.
+        _market.mark_surge_seed_attempted(symbol)
 
-    float_shares = (
-        archived.get("float_shares")
-        or meta.get("float_shares")
-        or prod.get("float_shares")
-    )
+    float_shares = archived.get("float_shares") or meta.get("float_shares") or prod.get("float_shares")
     avg_volume = archived.get("avg_volume")
+    # Stand-ins, never the in-progress bar's final high (#385's lookahead). Without a sentinel any
+    # strategy with proximity_52wk_pct > 0 blocks on "52wk_high:unknown" all session.
+    snap_base = prev_close or seed_high or first_price
+    sentinel_base = seed_high or first_price
     fifty_two = archived.get("fifty_two_week_high")
-    if fifty_two is None and seed_high:
-        fifty_two = float(seed_high) * _FIFTY_TWO_WEEK_SENTINEL_MULT
-    rvol_source = archived.get("rvol_source") or (
-        "replay_meta" if prod.get("rvol") is not None else None
-    )
+    if fifty_two is None and sentinel_base:
+        fifty_two = float(sentinel_base) * _FIFTY_TWO_WEEK_SENTINEL_MULT
+    rvol_source = archived.get("rvol_source") or ("replay_meta" if prod.get("rvol") is not None else None)
     hm.update_ticker_snapshot(
         symbol,
-        price=float(prev_close) if prev_close else float(seed_high or 0.0),
+        price=float(snap_base or 0.0),
         change_pct=None,
         rvol=prod.get("rvol"),
         float_shares=float_shares,
@@ -285,19 +296,30 @@ def replay_session(
     if not tape:
         return result
 
-    first_ts_by_symbol: dict[str, float] = {}
+    first_row_by_symbol: dict[str, dict] = {}
     for row in tape:
-        first_ts_by_symbol.setdefault(row["symbol"], row["ts"])
-    for sym, first_ts in first_ts_by_symbol.items():
-        prime_symbol(fixture, sym, first_ts)
+        first_row_by_symbol.setdefault(row["symbol"], row)
+    first_ts_by_symbol = {sym: float(r["ts"]) for sym, r in first_row_by_symbol.items()}
+    for sym, row in first_row_by_symbol.items():
+        prime_symbol(fixture, sym, first_ts_by_symbol[sym], first_price=float(row["price"]))
 
+    # Volume base (#385): closed minutes are whole facts; the minute in progress at first_ts is
+    # split, so recover only its pre-tape part by subtracting the prints replayed below. Leaks
+    # none of that minute's future (unlike the old ``ts <= first_ts`` sum, which also
+    # double-counted every print in it) and drops none of its past -- 0.0 on the 2026-07-17
+    # fixture, where the bar IS the tape.
     cum_volume: dict[str, float] = {}
+    open_minute_end: dict[str, float] = {}
     for sym, first_ts in first_ts_by_symbol.items():
-        cum_volume[sym] = sum(
-            float(b["volume"])
-            for b in fixture.bars_by_symbol.get(sym, [])
-            if b["ts"] <= first_ts
-        )
+        started = [b for b in fixture.bars_by_symbol.get(sym, []) if float(b["ts"]) <= first_ts]
+        cum_volume[sym] = sum(float(b["volume"]) for b in started)
+        live = [b for b in started if float(b["ts"]) + ARCHIVE_BAR_1M_INTERVAL_SEC > first_ts]
+        if live:
+            open_minute_end[sym] = float(live[-1]["ts"]) + ARCHIVE_BAR_1M_INTERVAL_SEC
+    for row in tape:
+        if float(row["ts"]) < open_minute_end.get(row["symbol"], 0.0):
+            cum_volume[row["symbol"]] -= float(row.get("size") or 0.0)
+    cum_volume = {sym: max(0.0, base) for sym, base in cum_volume.items()}
     running_high = {
         sym: float(hm.get_state().session_highs.get(sym) or 0.0)
         for sym in first_ts_by_symbol

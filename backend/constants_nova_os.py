@@ -87,19 +87,120 @@ EXECUTION_SOURCES = (
     "bot",
 )
 EXECUTION_OPS = ("place", "bracket", "cancel", "replace")
-# NYSE full-day closures (ISO dates). Gate 0 + set_mode(auto_paper) refuse holidays.
-NOVA_OS_NYSE_HOLIDAYS = frozenset({
-    "2026-01-01",  # New Year's Day
-    "2026-01-19",  # Martin Luther King Jr. Day
-    "2026-02-16",  # Presidents' Day
-    "2026-04-03",  # Good Friday
-    "2026-05-25",  # Memorial Day
-    "2026-06-19",  # Juneteenth
-    "2026-07-03",  # Independence Day (observed)
-    "2026-09-07",  # Labor Day
-    "2026-11-26",  # Thanksgiving
-    "2026-12-25",  # Christmas
+# ── NYSE exchange calendar ───────────────────────────────────────────────────
+# Full-day closures (ISO dates). Gate 0, set_mode(auto_paper), the Sim session
+# clock and historical replay all read this one table, so it must answer for
+# every year those consumers can be asked about — not only the current one.
+#
+# Policy (#386): the table is DERIVED BY RULE across a declared, closed year
+# range, and callers refuse loudly outside it (sim.trading_day raises
+# UnsupportedCalendarYear). Both halves are load-bearing — covering a range
+# alone is silently wrong past its edge, and refusing alone is silently wrong
+# inside it. We deliberately do NOT project indefinitely: a future NYSE rule
+# change would reintroduce exactly the silent wrong answer this replaces. To
+# extend, bump NOVA_OS_CALENDAR_LAST_YEAR after checking the published NYSE
+# calendar for the added years.
+#
+# The derivation reproduces the previously hand-typed 2026 set exactly (all ten
+# dates, zero diff), which is both its validation and a regression guard that
+# production-year behaviour is unchanged. tests/test_sim_trading_day.py pins
+# every derived date against a hand-entered table taken from the published NYSE
+# calendars, so the rules are checked against something other than themselves.
+#
+# NOT modelled: early-close (13:00 ET) half-days. This table is full-day
+# closures only; see sim/trading_day.py for what that costs a replayed session.
+from types import MappingProxyType as _MappingProxyType
+
+# The supported (vouchable) range. Callers refuse dates outside it.
+NOVA_OS_CALENDAR_FIRST_YEAR = 2015
+NOVA_OS_CALENDAR_LAST_YEAR = 2035
+# The table itself carries one extra year BELOW the supported range. It is not
+# a supported year — is_trading_day still refuses it — it exists so that the
+# backward walk in sim.trading_day.last_trading_day can step off 2015-01-01
+# onto a day the table still knows about instead of falling off its edge and
+# having to guess (#386 finding 8: an in-range input must never raise).
+NOVA_OS_CALENDAR_TABLE_FIRST_YEAR = NOVA_OS_CALENDAR_FIRST_YEAR - 1
+NOVA_OS_NYSE_JUNETEENTH_FIRST_YEAR = 2022  # federal in 2021; the NYSE first closed in 2022
+# One-off full-day closures no rule can derive (national days of mourning).
+NOVA_OS_NYSE_AD_HOC_CLOSURES = frozenset({
+    "2018-12-05",  # George H. W. Bush
+    "2025-01-09",  # Jimmy Carter
 })
+
+
+# Helpers are underscore-prefixed and import datetime names inside their bodies
+# so `from constants_nova_os import *` (constants.py) cannot leak them.
+def _easter(year):
+    """Gregorian Easter Sunday (Anonymous Gregorian computus)."""
+    from datetime import date
+    golden = year % 19
+    century, year_in_century = divmod(year, 100)
+    leap_centuries, century_rem = divmod(century, 4)
+    correction = (century + 8) // 25
+    lunar_shift = (century - correction + 1) // 3
+    epact = (19 * golden + century - leap_centuries - lunar_shift + 15) % 30
+    leap_years, weekday_rem = divmod(year_in_century, 4)
+    weekday = (32 + 2 * century_rem + 2 * leap_years - epact - weekday_rem) % 7
+    adjust = (golden + 11 * epact + 22 * weekday) // 451
+    month, day = divmod(epact + weekday - 7 * adjust + 114, 31)
+    return date(year, month, day + 1)
+
+
+def _nth_weekday(year, month, weekday, n):
+    """The ``n``-th ``weekday`` (Mon=0) of ``month``."""
+    from datetime import date, timedelta
+    first = date(year, month, 1)
+    return first + timedelta(days=(weekday - first.weekday()) % 7 + 7 * (n - 1))
+
+
+def _last_weekday(year, month, weekday):
+    """The final ``weekday`` (Mon=0) of ``month``."""
+    from datetime import date, timedelta
+    following = date(year + month // 12, month % 12 + 1, 1)
+    last = following - timedelta(days=1)
+    return last - timedelta(days=(last.weekday() - weekday) % 7)
+
+
+def _observed(day):
+    """NYSE observance shift: Saturday -> Friday, Sunday -> Monday."""
+    from datetime import timedelta
+    return day + timedelta(days={5: -1, 6: 1}.get(day.weekday(), 0))
+
+
+def _nyse_holidays(year):
+    """``{date: name}`` of NYSE full-day closures in ``year``."""
+    from datetime import date, timedelta
+    days = {}
+    new_year = date(year, 1, 1)
+    if new_year.weekday() != 5:  # A Saturday Jan 1 is not observed; the NYSE trades Dec 31
+        days[_observed(new_year)] = "New Year's Day"
+    days[_nth_weekday(year, 1, 0, 3)] = "Martin Luther King Jr. Day"
+    days[_nth_weekday(year, 2, 0, 3)] = "Presidents' Day"
+    days[_easter(year) - timedelta(days=2)] = "Good Friday"
+    days[_last_weekday(year, 5, 0)] = "Memorial Day"
+    if year >= NOVA_OS_NYSE_JUNETEENTH_FIRST_YEAR:
+        days[_observed(date(year, 6, 19))] = "Juneteenth"
+    days[_observed(date(year, 7, 4))] = "Independence Day"
+    days[_nth_weekday(year, 9, 0, 1)] = "Labor Day"
+    days[_nth_weekday(year, 11, 3, 4)] = "Thanksgiving Day"
+    days[_observed(date(year, 12, 25))] = "Christmas Day"
+    for iso in NOVA_OS_NYSE_AD_HOC_CLOSURES:
+        closure = date.fromisoformat(iso)
+        if closure.year == year:
+            days[closure] = "National day of mourning"
+    return days
+
+
+# ISO date -> holiday name, for auditable and loud diagnostics.
+NOVA_OS_NYSE_HOLIDAY_NAMES = _MappingProxyType({
+    day.isoformat(): name
+    for year in range(NOVA_OS_CALENDAR_TABLE_FIRST_YEAR, NOVA_OS_CALENDAR_LAST_YEAR + 1)
+    for day, name in sorted(_nyse_holidays(year).items())
+})
+# Same name and same frozenset-of-ISO-strings contract as the 2026-only literal
+# it replaces, so nova_os.gates and execution.flatten_exit become year-correct
+# with no edit of their own.
+NOVA_OS_NYSE_HOLIDAYS = frozenset(NOVA_OS_NYSE_HOLIDAY_NAMES)
 
 # Action codes — what Nova OS actually did with a decision. The "no silent
 # action" contract means every one of these is recorded as an event receipt.

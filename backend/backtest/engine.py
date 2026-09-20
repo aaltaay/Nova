@@ -18,6 +18,7 @@ from archive.compact import cold_root
 from archive.replay import bars_by_symbol_for_day, slice_bars_as_of
 from backtest.scorer import score_trades
 from constants import (
+    ARCHIVE_BAR_1M_INTERVAL_SEC,
     ARCHIVE_SCHEMA_VERSION,
     BACKTEST_CANDIDATE_FLOAT,
     BACKTEST_CANDIDATE_HAS_NEWS,
@@ -257,7 +258,16 @@ def _simulate_symbol(
         if trades_for_symbol >= max_trades or state.open_pos or state.pending:
             continue
 
-        visible = slice_bars_as_of(all_bars, ts)
+        # Ask for the bars known at bar i's CLOSE, which under the
+        # interval-close contract (#385) is exactly bars 0..i — an exact
+        # identity with the previous ``slice_bars_as_of(all_bars, ts)``
+        # (``ts_b + I <= ts_i + I`` iff ``ts_b <= ts_i``), so the visible set
+        # is unchanged by that contract. ``now_et`` below is deliberately left
+        # on bar i's OPENING stamp: the resulting one-minute skew between the
+        # evaluation clock and the visible set is pre-existing, identical on
+        # both sides of #385, and moving it would change which session-gated
+        # setups fire. Not silently changed here.
+        visible = slice_bars_as_of(all_bars, ts + ARCHIVE_BAR_1M_INTERVAL_SEC)
         candidate = _candidate_from_bars(symbol, visible, session_date)
         now_et = _bar_now_et(bar)
         hit = _first_eligible(setups, candidate, visible, now_et)
