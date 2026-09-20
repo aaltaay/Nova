@@ -139,6 +139,11 @@ def test_closed_candidate_and_gated_batch_are_never_selected():
     assert pkg["slug"] == "gateway"
 
 
+def test_legacy_issue_iterator_is_not_consumed_before_batch_selection():
+    pkg, _ = pick_next(plan(), {1, 2, 3, 4}, iter([1]))
+    assert pkg["slug"] == "state"
+
+
 def test_explicit_package_still_resolves_claims_against_full_plan(monkeypatch, capsys):
     packages = plan()
     monkeypatch.setattr(commands, "load_packages", lambda: packages)

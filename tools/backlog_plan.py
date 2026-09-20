@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -243,6 +244,7 @@ def pick_next(
     hidden, so a decision or a claim is surfaced instead of silently costing
     the reader a package.
     """
+    claimed = claimed if isinstance(claimed, Mapping) else set(claimed)
     held = live_issue_numbers(claimed)
     plan = claim_packages if claim_packages is not None else packages
     skipped: list[dict[str, Any]] = []
