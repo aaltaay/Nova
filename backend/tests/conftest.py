@@ -10,6 +10,16 @@ Cache isolation: ``NOVA_CACHE_DIR`` is set *before* backend imports so modules
 that snapshot the cache path at import (``cache._CACHE_DIR``,
 ``HOD_MOMO_CONFIG_FILE``) never point at the operator ``backend/.cache``.
 An autouse fixture then re-pins per test and forces ``IBKR_GATEWAY_MODE=paper``.
+
+Operator isolation (#293, #307): the same "before backend imports" rule covers
+the operator's logs and ``.env``. ``main.py`` runs ``configure_logging()`` and
+``load_dotenv(env_file_path())`` as *import* side effects, so without these
+pins a plain ``pytest backend/`` appends fake broker lines (``account=DU123``)
+to the production ``backend/logs/blast.log`` and reads the operator's real
+``NOVA_API_KEY``, which flips the no-key route tests to 401. ``NOVA_LOG_DIR``
+and ``NOVA_ENV_PATH`` move both under a throwaway temp dir, and ``NOVA_API_KEY``
+is dropped so a test run means the same thing on every machine. Tests that want
+a key set their own (see ``test_auth.py``).
 """
 from __future__ import annotations
 
@@ -21,6 +31,12 @@ from pathlib import Path
 
 _SESSION_CACHE = Path(tempfile.mkdtemp(prefix="nova_pytest_cache_"))
 os.environ["NOVA_CACHE_DIR"] = str(_SESSION_CACHE)
+_SESSION_LOGS = Path(tempfile.mkdtemp(prefix="nova_pytest_logs_"))
+os.environ["NOVA_LOG_DIR"] = str(_SESSION_LOGS)
+# Never created: load_dotenv on a missing path is a no-op, which is exactly the
+# point -- importing main.py must not pull the operator's .env into os.environ.
+os.environ["NOVA_ENV_PATH"] = str(_SESSION_CACHE / "pytest-never-written.env")
+os.environ.pop("NOVA_API_KEY", None)
 os.environ["IBKR_GATEWAY_MODE"] = os.environ.get("IBKR_GATEWAY_MODE") or "paper"
 
 import pytest
@@ -45,7 +61,15 @@ def _reset_bot_persist():
 def _isolate_operator_state(tmp_path, monkeypatch):
     cache_root = tmp_path / "nova_cache"
     cache_root.mkdir()
+    log_root = tmp_path / "nova_logs"
+    log_root.mkdir()
     monkeypatch.setenv("NOVA_CACHE_DIR", str(cache_root))
+    # Re-pin per test so anything resolving paths lazily (fill_audit's
+    # fill-latency.jsonl, hod_momo_trade) stays out of backend/logs/ even if an
+    # earlier test wrote os.environ directly.
+    monkeypatch.setenv("NOVA_LOG_DIR", str(log_root))
+    monkeypatch.setenv("NOVA_ENV_PATH", str(tmp_path / "nova.env"))
+    monkeypatch.delenv("NOVA_API_KEY", raising=False)
     monkeypatch.setenv("IBKR_GATEWAY_MODE", "paper")
     monkeypatch.setattr(cache_mod, "_CACHE_DIR", str(cache_root), raising=False)
     monkeypatch.setattr(

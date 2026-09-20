@@ -10,6 +10,27 @@ from advise.engine import run_debate
 from advise.worker_main import main as worker_main
 from constants_advise import ADVISE_GRAPH_VERSION, advise_model_id
 
+# Bounded waits, not fixed sleeps (#326). A fixed 0.4s "the stub has surely
+# written a partial transcript by now" was a CPU-load lottery: under a
+# concurrent full vitest run the spawned worker had written nothing yet and
+# test_cancel_kills_slow_stub failed with `assert []`. Poll instead, so a slow
+# machine waits longer and a fast one finishes sooner.
+_WAIT_TIMEOUT_SEC = 10.0
+_WAIT_POLL_SEC = 0.02
+
+
+async def _wait_until(predicate, what: str, timeout: float = _WAIT_TIMEOUT_SEC):
+    """Poll ``predicate`` until truthy; fail with a readable message on timeout."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while True:
+        value = predicate()
+        if value:
+            return value
+        if loop.time() >= deadline:
+            raise AssertionError(f"timed out after {timeout:.1f}s waiting for {what}")
+        await asyncio.sleep(_WAIT_POLL_SEC)
+
 
 @pytest.fixture
 def advise_iso(tmp_path, monkeypatch):
@@ -95,8 +116,10 @@ async def test_cancel_before_spawn_clears_slot(advise_iso, monkeypatch):
     started = await service.start_run("IBM", 2, force_refresh=True)
     cancelled = await service.cancel_run(started["id"])
     assert cancelled["status"] == "cancelled"
-    await asyncio.sleep(0.2)
-    assert pool.active_run_for("IBM") is None
+    await _wait_until(
+        lambda: pool.active_run_for("IBM") is None,
+        "the IBM pool slot to clear after cancel",
+    )
     loaded = book.get_run(started["id"])
     assert loaded is not None
     assert loaded["status"] == "cancelled"
@@ -108,11 +131,18 @@ async def test_cancel_kills_slow_stub(advise_iso, monkeypatch):
     monkeypatch.setattr(service, "session_key_et", lambda now=None: "2026-09-15")
     started = await service.start_run("TSLA", 2, force_refresh=True)
     run_id = started["id"]
-    await asyncio.sleep(0.4)
+    # Cancel only once the stub has actually written a partial transcript --
+    # that partial surviving cancel is the whole point of the test.
+    await _wait_until(
+        lambda: (book.get_run(run_id) or {}).get("transcript"),
+        f"run {run_id} to write a partial transcript",
+    )
     cancelled = await service.cancel_run(run_id)
     assert cancelled["status"] == "cancelled"
-    await asyncio.sleep(0.3)
-    assert pool.active_run_for("TSLA") is None
+    await _wait_until(
+        lambda: pool.active_run_for("TSLA") is None,
+        "the TSLA pool slot to clear after cancel",
+    )
     loaded = book.get_run(run_id)
     assert loaded is not None
     assert loaded["status"] == "cancelled"
