@@ -27,7 +27,7 @@ import json
 import logging
 
 from fastapi import APIRouter, Body, HTTPException, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel
+from pydantic import BaseModel, StrictBool
 
 from execution import closed_blotter as _closed_blotter
 from execution.fill_audit_attach import attach_fill_audit
@@ -190,6 +190,33 @@ async def ibkr_launch_gateway(body: LaunchGatewayRequest | None = Body(default=N
 def _client_safety_status() -> dict:
     from ibkr import safety as _safety
     return _safety.status_snapshot(_client.broker_account_kind())
+
+
+class ArmRequest(BaseModel):
+    # StrictBool, not bool: pydantic's lax mode reads "yes" / "on" / "1" as
+    # True, so a sloppy client could arm a live desk with a string. An arming
+    # request must be an unambiguous boolean.
+    armed: StrictBool
+
+
+@router.post("/arm")
+def ibkr_arm(body: ArmRequest) -> dict:
+    """Arm / disarm this process for opening orders (ADR 018).
+
+    The header padlock posts here. The client PIN stays the human challenge in
+    front of it; this latch is the truth behind it, so pop-out windows and the
+    localhost bot API all read one answer instead of a per-tab flag.
+
+    `armed` is required rather than defaulted: a malformed body must never be
+    read as a request to arm.
+
+    Deliberately not persisted: a fresh process is disarmed by construction,
+    and no connect / reconnect / self-heal path may call this.
+    """
+    from ibkr import safety as _safety
+
+    _safety.set_armed(body.armed, reason="operator")
+    return _client_safety_status()
 
 
 # ── Account ────────────────────────────────────────────────────────────────────

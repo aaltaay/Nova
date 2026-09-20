@@ -63,7 +63,21 @@ function applyUnlocked(unlocked: boolean, echo: boolean): void {
     /* private mode / quota */
   }
   notifyTicketSessionUnlockChanged();
-  if (echo) echoUnlocked(unlocked);
+  // ADR 018: the PIN is the challenge, the backend latch is the gate. Only the
+  // window the operator acted in posts -- peers apply the echo locally, so a
+  // BroadcastChannel round trip cannot arm a desk nobody touched.
+  if (echo) {
+    void armDeskBestEffort(unlocked);
+    echoUnlocked(unlocked);
+  }
+}
+
+function armDeskBestEffort(unlocked: boolean): Promise<unknown> {
+  // Imported lazily so unit tests that exercise the local session flag do not
+  // need a fetch stub, and a missing backend never breaks the padlock.
+  return import('./armDesk')
+    .then((m) => m.armDesk(unlocked))
+    .catch(() => false);
 }
 
 function echoUnlocked(unlocked: boolean): void {

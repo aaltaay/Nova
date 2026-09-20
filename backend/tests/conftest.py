@@ -148,6 +148,13 @@ def _isolate_operator_state(tmp_path, monkeypatch):
     monkeypatch.setattr(_flatten_exit, "flatten_needs_extended_hours", lambda now=None: False)
     # Bot session / fire tests assume spend+Gateway are allowed unless they opt out.
     monkeypatch.setattr(_trading_allowed, "places_allowed", lambda: (True, ""))
+    # ADR 018 adds a runtime arm latch that is off on every process start. The
+    # suite predates it and assumes a desk that can place, so arm by default for
+    # the same reason places_allowed is pinned above. Tests that are *about* the
+    # latch disarm explicitly (see test_desk_venue_arming.py).
+    import ibkr.safety as _safety
+
+    monkeypatch.setattr(_safety, "_armed", True)
     monkeypatch.setattr(
         _nasdaq_halt_feed,
         "_default_fetch",

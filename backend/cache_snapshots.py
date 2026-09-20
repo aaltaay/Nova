@@ -246,6 +246,45 @@ def load_large_cap_config() -> dict:
         return {}
 
 
+def save_desk_venue(payload: dict) -> bool:
+    """Owner: sim/mode.py. Invalidation: operator venue click. Version stamped.
+
+    Returns whether the write landed -- the caller reports ``persisted`` to the
+    operator, and a venue that silently failed to persist is exactly the state
+    ADR 018 exists to make visible.
+    """
+    try:
+        os.makedirs(_cache._CACHE_DIR, exist_ok=True)
+        _cache._atomic_write(_cache.DESK_VENUE_FILE, payload)
+        return True
+    except Exception:
+        logger.warning("cache: save_desk_venue failed to persist to disk", exc_info=True)
+        return False
+
+
+def load_desk_venue() -> dict:
+    """Missing is normal and silent; unreadable is not (AGENTS.md 6.3).
+
+    Corruption and a missing file both fall back to the ``NOVA_BROKER``
+    bootstrap venue, which can move a settled Sim desk to IBKR. Only one of
+    those is expected, so the other must say so in the log rather than look
+    like a first run.
+    """
+    try:
+        with open(_cache.DESK_VENUE_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+    except (OSError, ValueError):
+        logger.warning(
+            "cache: desk venue file at %s is unreadable -- falling back to the "
+            "NOVA_BROKER bootstrap venue (the desk stays disarmed either way)",
+            _cache.DESK_VENUE_FILE,
+            exc_info=True,
+        )
+        return {}
+
+
 def save_chart_drawings(payload: dict) -> None:
     try:
         os.makedirs(_cache._CACHE_DIR, exist_ok=True)

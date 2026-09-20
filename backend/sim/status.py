@@ -41,12 +41,19 @@ def overlay_ibkr_status(payload: dict[str, Any]) -> dict[str, Any]:
         out["enabled"] = True
         out["session_state"] = "ready"
         out["session_reason"] = "ok"
-        out["spend_status"] = SIM_SPEND_STATUS
-        out["spend_locked_reason"] = None
         out["armed_for_account_kind"] = None
-        # Sim practice fills are local (ADR 007 source path); IBKR spend stays gated.
-        out["trading_allowed"] = True
-        out["trading_allowed_reason"] = None
+        # Sim practice fills are local (ADR 007 source path); IBKR spend stays
+        # gated. ADR 018: the arm latch is about the *process*, not the door, so
+        # Sim reads it too -- otherwise the venue would be answering "may I
+        # place", which is exactly the coupling ADR 018 breaks.
+        from ibkr.safety import DISARMED_REASON, armed as _armed_now
+
+        is_armed = _armed_now()
+        out["armed"] = is_armed
+        out["spend_status"] = SIM_SPEND_STATUS if is_armed else "locked_disarmed"
+        out["spend_locked_reason"] = None if is_armed else DISARMED_REASON
+        out["trading_allowed"] = is_armed
+        out["trading_allowed_reason"] = None if is_armed else DISARMED_REASON
         out["sim"] = True
         out["sim_symbol"] = SIM_SYMBOL
         out["capture"] = recording

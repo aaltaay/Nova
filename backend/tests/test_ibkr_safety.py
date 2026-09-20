@@ -266,16 +266,36 @@ class TestSpendStatusFollowsAccount:
             "IBKR_GATEWAY_MODE": "live",
             "IBKR_LIVE_TRADING_CONFIRMED": "true",
         })
+        # ADR 018: reloading the module is a process start, so the arm latch is
+        # off. This test is about the env -> spend_status mapping, so arm.
+        safety_mod.set_armed(True, reason="test")
         snap = safety_mod.status_snapshot("live")
         assert snap["spend_status"] == "live_armed"
         assert snap["armed_for_account_kind"] == "live"
         assert snap["spend_locked_reason"] is None
+
+    def test_live_door_live_account_is_locked_until_armed(self, monkeypatch):
+        """ADR 018 / #302: the env may permit live spending; a fresh process
+        still may not, and the effective status must say so."""
+        safety_mod, _, _ = _reload_safety_stack(monkeypatch, {
+            "IBKR_ORDERS_ENABLED": "true",
+            "IBKR_GATEWAY_MODE": "live",
+            "IBKR_LIVE_TRADING_CONFIRMED": "true",
+        })
+        snap = safety_mod.status_snapshot("live")
+        assert snap["armed"] is False
+        assert snap["spend_status"] == "locked_disarmed"
+        assert snap["armed_for_account_kind"] is None
+        # The capability is unchanged -- only this process's latch is off.
+        assert snap["spend_permitted"] is True
+        assert snap["spend_permitted_status"] == "live_armed"
 
     def test_paper_door_paper_account_is_paper_armed(self, monkeypatch):
         safety_mod, _, _ = _reload_safety_stack(monkeypatch, {
             "IBKR_ORDERS_ENABLED": "true",
             "IBKR_GATEWAY_MODE": "paper",
         })
+        safety_mod.set_armed(True, reason="test")
         snap = safety_mod.status_snapshot("paper")
         assert snap["spend_status"] == "paper_armed"
         assert snap["armed_for_account_kind"] == "paper"

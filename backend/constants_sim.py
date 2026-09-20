@@ -32,6 +32,9 @@ SIM_STARTING_CASH = 100_000.0
 SIM_STARTING_BUYING_POWER = 200_000.0
 
 SIM_SPEND_STATUS = "sim_armed"
+# Effective status when the ADR 018 arm latch is off. Must match the value
+# ibkr.safety.spend_state returns so one vocabulary reaches every surface.
+SIM_SPEND_LOCKED_DISARMED = "locked_disarmed"
 SIM_MODE_LABEL = "sim"
 SIM_NO_IBKR_REASON = "SIM mode cannot place to IBKR"
 SIM_NO_IBKR_CODE = "SIM_NO_IBKR"
@@ -45,6 +48,22 @@ def nova_broker_from_env() -> str:
     if raw == NOVA_BROKER_SIM:
         return NOVA_BROKER_SIM
     return NOVA_BROKER_IBKR
+
+
+def _desk_venue_cache_root() -> str:
+    return (
+        os.environ.get("NOVA_CACHE_DIR")
+        or os.path.join(os.path.dirname(__file__), ".cache")
+    )
+
+
+# Owner: sim/mode.py (the only reader/writer). Invalidation trigger: an
+# operator venue click only -- ADR 018 makes the *settled* venue deliberately
+# restart-independent, so no session rollover or reconnect generation stales
+# it. An in-flight gateway-mode switch is never stored here; that stays in
+# ibkr/gateway_heal.py process state (ADR 018 decision 7).
+DESK_VENUE_FILE = os.path.join(_desk_venue_cache_root(), "desk-venue.json")
+DESK_VENUE_SCHEMA_VERSION = 1
 
 # Session window for looping tape (America/New_York clock).
 SIM_SESSION_OPEN_HOUR = 4

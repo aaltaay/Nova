@@ -74,6 +74,7 @@ def _atomic_write(path: str, payload: dict) -> None:
 from cache_schema import accept_schema, stamp_schema, version_for_prefix
 from constants import (  # noqa: F401 -- aliases for cache_snapshots + test patches
     CHART_DRAWINGS_FILE,
+    DESK_VENUE_FILE,
     HOD_MOMO_ALERTS_PREFIX,
     HOD_MOMO_BLOCKLIST_FILE,
     HOD_MOMO_CONFIG_FILE,
@@ -237,6 +238,7 @@ def _normalize_gapper_row(row: dict) -> dict:
 from cache_snapshots import (  # noqa: E402, F401
     load_afterhours_snapshot,
     load_chart_drawings,
+    load_desk_venue,
     load_gapper_snapshot,
     load_gainer_snapshot,
     load_hod_momo_blocklist,
@@ -250,6 +252,7 @@ from cache_snapshots import (  # noqa: E402, F401
     load_movers_snapshot,
     save_afterhours_snapshot,
     save_chart_drawings,
+    save_desk_venue,
     save_gapper_snapshot,
     save_gainer_snapshot,
     save_hod_momo_blocklist,

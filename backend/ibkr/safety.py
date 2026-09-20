@@ -77,8 +77,66 @@ def normalize_account_kind(broker_account_kind: str | None) -> str:
     return kind if kind in ("paper", "live", "mixed") else "unknown"
 
 
-def spend_state(broker_account_kind: str | None) -> tuple[str, str]:
-    """(spend_status, locked_reason) for a gateway mode + account class.
+# ── Runtime arm latch (ADR 018) ───────────────────────────────────────────────
+#
+# `spend_permitted` (below) is the env capability: this desk is *allowed* to
+# spend. `armed` (here) is this process's latch: it *currently* may. A place
+# needs both, and `spend_state` is the AND of the two.
+#
+# Owner: this module. Invalidation: process start (the latch is a plain module
+# global, so a fresh process is disarmed by construction) and any venue change
+# (sim.mode.set_sim_mode). Nothing persists it -- that is the whole point.
+_armed: bool = False
+
+DISARMED_REASON = (
+    "Desk is disarmed -- arm trading in this session before placing "
+    "(a restart never lands armed, ADR 018)"
+)
+
+# Risk-reducing sources never consult the latch. A disarmed desk must always be
+# able to get flat; it just cannot open. Mirrors the deliberately softer
+# `assert_cancel_allowed` above.
+PROTECTIVE_SOURCES = frozenset({"kill", "cancel_working", "flatten"})
+
+
+def armed() -> bool:
+    """Whether this process is currently armed to open positions."""
+    return _armed
+
+
+def set_armed(value: bool, *, reason: str = "") -> bool:
+    """Arm or disarm this process. Returns the new state.
+
+    Only an explicit operator action should arm. Never call this from a
+    connect, reconnect or self-heal path -- re-arming on a healthy Gateway
+    would re-arm on exactly the event the watchdog generates.
+    """
+    global _armed
+    was = _armed
+    _armed = bool(value)
+    if was != _armed:
+        logger.info(
+            "IBKR: desk %s%s", "ARMED" if _armed else "DISARMED",
+            f" ({reason})" if reason else "",
+        )
+    return _armed
+
+
+def assert_armed_for(source: str | None) -> tuple[bool, str]:
+    """(ok, reason) for an opening order from *source*."""
+    if (source or "") in PROTECTIVE_SOURCES:
+        return True, ""
+    if not _armed:
+        return False, DISARMED_REASON
+    return True, ""
+
+
+def spend_permitted(broker_account_kind: str | None) -> tuple[str, str]:
+    """(spend_status, locked_reason) from env + account class alone.
+
+    This is the *capability*: what this desk is configured to be allowed to do.
+    It deliberately ignores the runtime arm latch so the UI can say "permitted
+    but disarmed" instead of collapsing both into one lock.
 
     ADR 013: the account class behind the socket decides, not the env door.
     A door whose accounts are not yet classified is locked, not armed.
@@ -102,19 +160,38 @@ def spend_state(broker_account_kind: str | None) -> tuple[str, str]:
     return ("live_armed" if mode == "live" else "paper_armed"), ""
 
 
+def spend_state(broker_account_kind: str | None) -> tuple[str, str]:
+    """(spend_status, locked_reason) — the *effective* state: permitted AND armed.
+
+    Every existing caller keeps reading one field and gets the safe answer:
+    a permitted-but-disarmed desk reads locked, not armed.
+    """
+    status, locked_reason = spend_permitted(broker_account_kind)
+    if status in ("live_armed", "paper_armed") and not _armed:
+        return "locked_disarmed", DISARMED_REASON
+    return status, locked_reason
+
+
 def status_snapshot(broker_account_kind: str | None = None) -> dict:
     """Fields for /api/ibkr/status — UI + operators."""
     mode = gateway_mode()
+    permitted, permitted_reason = spend_permitted(broker_account_kind)
     spend, locked_reason = spend_state(broker_account_kind)
-    armed = mode if spend in ("live_armed", "paper_armed") else None
+    armed_kind = mode if spend in ("live_armed", "paper_armed") else None
     return {
         "gateway_mode": mode,
         "orders_enabled": orders_enabled(),
         "live_trading_confirmed": live_trading_confirmed(),
         "short_enabled": short_enabled(),
         "spend_status": spend,
-        "armed_for_account_kind": armed,
+        "armed_for_account_kind": armed_kind,
         "spend_locked_reason": locked_reason or None,
+        # ADR 018 decision 5: venue and arm state are separate facts, so no
+        # surface can say "practice" while the engine is armed for live.
+        "spend_permitted": permitted in ("live_armed", "paper_armed"),
+        "spend_permitted_status": permitted,
+        "spend_permitted_reason": permitted_reason or None,
+        "armed": _armed,
     }
 
 

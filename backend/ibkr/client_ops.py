@@ -109,6 +109,12 @@ async def request_gateway_mode(mode: str) -> dict:
     persisted = _heal.persist_gateway_mode(target)  # type: ignore[arg-type]
     _heal.apply_runtime_gateway_mode(target)  # type: ignore[arg-type]
     _heal.set_intentional_mode(target)  # type: ignore[arg-type]
+    # ADR 018: a venue change disarms. Paper<->Live posts here rather than
+    # through sim.mode, so without this an armed Paper desk would reconnect as
+    # Live still armed and spend on the next keystroke -- the same class of bug
+    # as carrying an arm across a restart. Disarm on every door change, even a
+    # no-op one: the operator asked for a different desk.
+    _safety.set_armed(False, reason=f"gateway mode -> {target}")
 
     if plan == "noop":
         from ibkr.gateway_trail import append_event as _trail

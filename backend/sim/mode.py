@@ -1,7 +1,17 @@
-"""Sim mode selector -- env NOVA_BROKER=sim plus an optional process toggle.
+"""Desk venue selector -- the operator's settled Sim / IBKR choice (ADR 018).
 
-Owner: this module. Invalidation: process start or set_sim_mode().
-No persisted operator cache (in-memory + optional .env rewrite only).
+Owner: this module (sole reader/writer of ``DESK_VENUE_FILE``).
+Invalidation: an operator venue click only. The settled venue is deliberately
+restart-independent -- that is the whole point of ADR 018 -- so no session
+rollover or reconnect generation stales it.
+
+Precedence on process start: the operator cache file wins, then the
+``NOVA_BROKER`` env bootstrap default. An unreadable or unknown-version file
+refuses loud and falls back to env; it never silently picks a venue.
+
+This module answers *where the desk points*, never *whether it may spend*.
+Spend arming is a separate latch with the opposite lifetime and lives in
+``ibkr.safety`` -- see ADR 018.
 """
 from __future__ import annotations
 
@@ -11,10 +21,12 @@ import re
 from pathlib import Path
 
 from constants_sim import (
+    DESK_VENUE_SCHEMA_VERSION,
     NOVA_BROKER_ENV,
     NOVA_BROKER_IBKR,
     NOVA_BROKER_SIM,
     SIM_MODE_LABEL,
+    SIM_SPEND_LOCKED_DISARMED,
     SIM_SPEND_STATUS,
     SIM_SYMBOL,
     nova_broker_from_env,
@@ -27,11 +39,74 @@ _BROKER_LINE = re.compile(
     re.IGNORECASE,
 )
 
-# None = follow env. True/False = process override (Settings toggle).
+# None = follow env. True/False = resolved venue (persisted click or toggle).
 _override: bool | None = None
+# Whether this process has already consulted the operator cache file.
+_venue_loaded = False
+
+
+def _load_venue() -> None:
+    """Resolve the venue once per process: cache file first, env default second.
+
+    A missing, unreadable or unknown-version file leaves ``_override`` as None
+    so ``is_sim_mode`` falls back to ``NOVA_BROKER``. That fallback is safe
+    only because a fresh process is never armed (ADR 018 decision 2) -- losing
+    the file costs the venue, never the spend gate.
+    """
+    global _override, _venue_loaded
+    if _venue_loaded:
+        return
+    _venue_loaded = True
+    import cache as _cache
+
+    data = _cache.load_desk_venue()
+    if not data:
+        return
+    # A hand-edited or corrupted file can carry a non-numeric version. Raising
+    # here would abort the runtime bootstrap that makes the first is_sim_mode()
+    # call, which is the opposite of the refuse-loud fallback this promises.
+    try:
+        version = int(data.get("schema_version") or 0)
+    except (TypeError, ValueError):
+        version = -1
+    if version != DESK_VENUE_SCHEMA_VERSION:
+        logger.warning(
+            "SIM: refusing desk venue file with unknown schema_version=%s "
+            "(expected %s) -- falling back to %s, on-disk file left untouched",
+            version,
+            DESK_VENUE_SCHEMA_VERSION,
+            NOVA_BROKER_ENV,
+        )
+        return
+    venue = data.get("venue")
+    if venue not in (NOVA_BROKER_SIM, NOVA_BROKER_IBKR):
+        logger.warning(
+            "SIM: desk venue file carries no usable 'venue' (%r) -- falling back to %s",
+            venue,
+            NOVA_BROKER_ENV,
+        )
+        return
+    _override = venue == NOVA_BROKER_SIM
+    os.environ[NOVA_BROKER_ENV] = venue
+    logger.info("SIM: restored desk venue %s from the operator cache", venue)
+
+
+def _save_venue(enabled: bool) -> bool:
+    import cache as _cache
+
+    return bool(
+        _cache.save_desk_venue(
+            {
+                "schema_version": DESK_VENUE_SCHEMA_VERSION,
+                "venue": NOVA_BROKER_SIM if enabled else NOVA_BROKER_IBKR,
+            }
+        )
+    )
 
 
 def is_sim_mode() -> bool:
+    if not _venue_loaded:
+        _load_venue()
     if _override is not None:
         return _override
     return nova_broker_from_env() == NOVA_BROKER_SIM
@@ -47,13 +122,30 @@ def desk_connected() -> bool:
 
 
 def set_sim_mode(enabled: bool, *, persist: bool = False) -> dict:
-    """Process-local toggle. persist=True rewrites NOVA_BROKER in .env."""
-    global _override
+    """Settle the desk venue. Always persists the click; never arms anything.
+
+    ``persist=True`` additionally rewrites the ``NOVA_BROKER`` bootstrap default
+    in ``.env``. That is no longer how the venue survives a restart (ADR 018
+    decision 6 moved the store to the operator cache) -- it only changes what a
+    clone with no cache file starts on.
+
+    Changing venue always disarms. Carrying an arm across a venue change is the
+    same class of bug as carrying it across a restart: the operator armed one
+    desk and would be handed a different one already armed.
+    """
+    global _override, _venue_loaded
     _override = bool(enabled)
+    _venue_loaded = True
     os.environ[NOVA_BROKER_ENV] = NOVA_BROKER_SIM if enabled else NOVA_BROKER_IBKR
-    persisted = False
+    persisted = _save_venue(bool(enabled))
+    bootstrap_persisted = False
     if persist:
-        persisted = persist_nova_broker(NOVA_BROKER_SIM if enabled else NOVA_BROKER_IBKR)
+        bootstrap_persisted = persist_nova_broker(
+            NOVA_BROKER_SIM if enabled else NOVA_BROKER_IBKR
+        )
+    from ibkr import safety as _safety
+
+    _safety.set_armed(False, reason="venue changed")
     if enabled:
         try:
             from capture.mode import is_capture_mode, set_capture_mode
@@ -68,8 +160,16 @@ def set_sim_mode(enabled: bool, *, persist: bool = False) -> dict:
         from sim.feed import stop_sim_feed_threadsafe
 
         stop_sim_feed_threadsafe()
-    logger.info("SIM: mode %s persist=%s", "on" if enabled else "off", persisted)
-    return status_payload() | {"persisted": persisted}
+    logger.info(
+        "SIM: venue %s persisted=%s bootstrap=%s",
+        "sim" if enabled else "ibkr",
+        persisted,
+        bootstrap_persisted,
+    )
+    return status_payload() | {
+        "persisted": persisted,
+        "bootstrap_persisted": bootstrap_persisted,
+    }
 
 
 def persist_nova_broker(value: str, env_path: Path | None = None) -> bool:
@@ -102,19 +202,46 @@ def persist_nova_broker(value: str, env_path: Path | None = None) -> bool:
 
 
 def status_payload() -> dict:
+    from ibkr.safety import armed as _armed_now
+
+    sim = is_sim_mode()
+    armed = _armed_now()
+    # `spend_status` is the *effective* state everywhere else, so it must not
+    # read `sim_armed` while the latch is off -- a consumer reading it would
+    # believe practice orders are enabled while validation rejects them. Mirrors
+    # the /api/ibkr/status overlay.
+    if not sim:
+        spend_status = None
+    else:
+        spend_status = SIM_SPEND_STATUS if armed else SIM_SPEND_LOCKED_DISARMED
     return {
-        "sim": is_sim_mode(),
-        "sim_symbol": SIM_SYMBOL if is_sim_mode() else None,
-        "broker": NOVA_BROKER_SIM if is_sim_mode() else NOVA_BROKER_IBKR,
-        "mode": SIM_MODE_LABEL if is_sim_mode() else None,
-        "spend_status": SIM_SPEND_STATUS if is_sim_mode() else None,
+        "armed": armed,
+        "sim": sim,
+        "sim_symbol": SIM_SYMBOL if sim else None,
+        "broker": NOVA_BROKER_SIM if sim else NOVA_BROKER_IBKR,
+        "mode": SIM_MODE_LABEL if sim else None,
+        "spend_status": spend_status,
     }
 
 
 def reset_for_tests() -> None:
-    global _override
+    global _override, _venue_loaded
     _override = None
+    _venue_loaded = False
     os.environ.pop(NOVA_BROKER_ENV, None)
+    # The venue is durable by design, so clearing memory is not enough: a left
+    # -behind file would make the next test resolve the previous test's venue.
+    # conftest pins NOVA_CACHE_DIR to a temp dir, so this only ever unlinks a
+    # test-owned file (persisted-state.mdc).
+    try:
+        from constants_sim import DESK_VENUE_FILE
+
+        Path(DESK_VENUE_FILE).unlink(missing_ok=True)
+    except OSError:
+        logger.debug("SIM: could not clear desk venue file in reset", exc_info=True)
+    from ibkr import safety as _safety
+
+    _safety.set_armed(False, reason="test reset")
     from sim import broker as _broker
     from sim import feed as _feed
     from sim import market as _market

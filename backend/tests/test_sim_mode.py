@@ -31,7 +31,10 @@ def test_toggle_on_and_off() -> None:
 
 
 def test_overlay_forces_sim_even_when_gateway_looks_live() -> None:
+    from ibkr import safety as _safety
+
     set_sim_mode(True)
+    _safety.set_armed(True, reason="test")
     out = overlay_ibkr_status({
         "mode": "live",
         "connected": False,

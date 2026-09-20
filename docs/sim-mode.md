@@ -36,16 +36,43 @@ Clock contract: `architecture/sim-clock.md`.
 
 Click **Paper** or **Live**. Nova disables Sim, then uses the existing Gateway door (same as today).
 
+## Your venue survives a restart -- your arming does not (ADR 018)
+
+Two separate facts, with deliberately opposite lifetimes:
+
+- **Venue** (Paper / Live / Sim) is remembered. Nova writes your click to
+  `desk-venue.json` in the operator cache, so a backend restart -- including the
+  localhost watchdog bouncing the API mid-session -- comes back on the venue you
+  chose. Sim now behaves like Paper and Live, which were already sticky.
+- **Arming** is never remembered. Every backend start is **disarmed**, in every
+  venue. Unlock the header padlock to arm this session; the PIN is unchanged.
+
+That pairing is what closes the old hole: a restart used to drop the desk from
+Sim back to an armed live Gateway with nothing on screen to say so. Now, if the
+venue file is missing or unreadable, Nova falls back to `NOVA_BROKER` and comes
+up on IBKR **disarmed** -- charts, scanners and Level 2 work, and no order can
+leave until you arm it by hand.
+
+Changing venue also disarms, so switching Sim -> Live never hands you a live
+desk that is already armed.
+
+Cancel, flatten and KILL stay available while disarmed. A disarmed desk can
+always get flat; it just cannot open.
+
 ## Optional bootstrap
 
-`NOVA_BROKER=sim` in `.env` starts the process already in Sim. The header toggle is still the live control. Do not treat the env flag as the product activation.
+`NOVA_BROKER=sim` in `.env` starts the process in Sim **only when there is no
+saved venue** -- it is the default for a fresh clone, not the store. Your header
+click wins over it. The header toggle is still the live control; do not treat
+the env flag as the product activation.
 
 ## Hard rules
 
 - While Sim is on, `ibkr.orders` refuses every Gateway place / bracket / cancel (`SIM_NO_IBKR`).
 - v1 tape is **SIM1 only**. No fake SPY / AAPL ticks.
 - Fills are always live (no `held_until` Monday).
-- In-memory ledger only -- restart clears practice positions.
+- In-memory ledger only -- restart clears practice positions. The **venue**
+  survives that restart (ADR 018); the practice ledger and the arming do not.
 - `auto_live` stays NO-GO. Sim does not unlock live spend.
 
 ## Historical replay
