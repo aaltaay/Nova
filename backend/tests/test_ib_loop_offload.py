@@ -27,6 +27,31 @@ def _reset():
     persist_queue.reset_for_tests()
 
 
+async def _settle_until(predicate, *, task=None, turns: int = 200) -> None:
+    """Yield the event loop until ``predicate()`` holds.
+
+    A bare ``await asyncio.sleep(0)`` advances the loop exactly one turn, so a
+    test that mutates state right after it silently depends on how many awaits
+    the code under test happens to make first. ``_shortable_shares`` needs four
+    turns before ``reqMktData`` registers its ticker, so the one-turn form read
+    ``fake_ib.tickers["SOAR"]`` too early and raised ``KeyError`` (#390). Wait
+    for the condition instead, and re-raise a task that died rather than
+    letting the caller block until its timeout.
+    """
+    for _ in range(turns):
+        if predicate():
+            return
+        if task is not None and task.done():
+            task.result()  # re-raise the real failure, if any
+            raise AssertionError(
+                "task completed before the awaited state appeared",
+            )
+        await asyncio.sleep(0)
+    raise AssertionError(
+        f"condition never held after {turns} event-loop turns",
+    )
+
+
 def _call_names(module) -> set[str]:
     """Dotted names of every call in ``module`` -- prose in docstrings excluded."""
     tree = ast.parse(Path(module.__file__).read_text(encoding="utf-8"))
@@ -211,7 +236,9 @@ def test_cancel_verify_wakes_on_order_status_without_polling():
             task = asyncio.create_task(
                 cv.cancel_order_verified(51, timeout_sec=5.0, poll_sec=4.0, watch=watch),
             )
-            await asyncio.sleep(0)
+            await _settle_until(
+                lambda: bool(watch._status_listeners), task=task,
+            )
             # The verify is parked on the callback, not on a 4s poll tick.
             open_rows.clear()
             watch.note_status("Cancelled")
@@ -315,7 +342,7 @@ def test_shortability_uses_the_shared_line_and_waits_for_the_tick(ticks_env):
 
     async def _run():
         task = asyncio.create_task(listing_flags._shortable_shares("SOAR"))
-        await asyncio.sleep(0)
+        await _settle_until(lambda: "SOAR" in fake_ib.tickers, task=task)
         ticker = fake_ib.tickers["SOAR"]
         ticker.shortableShares = 25_000.0
         ticker.updateEvent.fire(ticker)
