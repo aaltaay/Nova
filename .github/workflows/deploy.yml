@@ -250,7 +250,10 @@ jobs:
 
   auto-merge:
     name: Auto-merge
-    timeout-minutes: 5
+    # Long enough to wait out the five-minute settling floor plus its
+    # twice-the-floor cap (pr-delivery-timing.mdc); a shorter timeout would
+    # kill the job mid-wait and read as a red check.
+    timeout-minutes: 13
     if: >
       github.event_name == 'pull_request' &&
       github.event.pull_request.draft == false &&

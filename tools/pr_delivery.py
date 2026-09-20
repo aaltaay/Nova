@@ -27,8 +27,8 @@ try:
     from tools.pr_delivery_actions import merge_now, merge_pr, signal_conflict
     from tools.pr_review_status import (
         MIN_PR_AGE_SECONDS,
-        pr_age_seconds,
-        review_running,
+        head_age_seconds,
+        review_in_flight,
         too_young,
     )
 except ImportError:  # `python tools/pr_delivery.py` puts tools/ on sys.path
@@ -36,8 +36,8 @@ except ImportError:  # `python tools/pr_delivery.py` puts tools/ on sys.path
     from pr_delivery_actions import merge_now, merge_pr, signal_conflict
     from pr_review_status import (
         MIN_PR_AGE_SECONDS,
-        pr_age_seconds,
-        review_running,
+        head_age_seconds,
+        review_in_flight,
         too_young,
     )
 
@@ -246,7 +246,7 @@ def _fetch_pr(number: int) -> tuple[dict[str, Any], list[dict[str, Any]]]:
             "--json",
             "number,title,body,state,isDraft,mergeStateStatus,labels,"
             "headRefName,headRefOid,headRepository,headRepositoryOwner,comments,"
-            "createdAt",
+            "createdAt,commits",
         ]
     ).stdout
     pr = json.loads(raw)
@@ -271,16 +271,9 @@ def _decision_from_pr(
             str(head_repo.get("name") or ""),
         ),
         checks=checks,
-        review_in_flight=_review_in_flight(pr),
-        age_seconds=pr_age_seconds(str(pr.get("createdAt") or "")),
+        review_in_flight=review_in_flight(pr),
+        age_seconds=head_age_seconds(pr),
         min_age_seconds=min_age_seconds,
-    )
-
-
-def _review_in_flight(pr: dict[str, Any]) -> bool:
-    return review_running(
-        [str(c.get("body") or "") for c in (pr.get("comments") or [])],
-        head_sha=str(pr.get("headRefOid") or ""),
     )
 
 
@@ -311,6 +304,10 @@ def cmd_merge(
     min_age_seconds: int = MIN_PR_AGE_SECONDS,
 ) -> int:
     deadline = time.time() + max(0, wait_desktop_minutes) * 60
+    # Nothing re-fires when the floor expires, so this job waits it out rather
+    # than leave the PR to the hourly cron. Capped at twice the floor: a head
+    # that keeps moving keeps resetting the floor, and that must not pin a runner.
+    settle_cap = time.time() + 2 * max(min_age_seconds, 1)
     while True:
         pr, checks = _fetch_pr(number)
         decision = _decision_from_pr(pr, checks, min_age_seconds=min_age_seconds)
@@ -319,6 +316,9 @@ def cmd_merge(
             return _merge_pr(pr)
         if decision.reason == "conflict":
             _signal_conflict(number)
+        if decision.reason == "settling":
+            left = max(0.0, min_age_seconds - (head_age_seconds(pr) or 0.0)) + 5
+            deadline = min(max(deadline, time.time() + left), settle_cap)
         if decision.action == ACTION_WAIT and time.time() < deadline:
             time.sleep(20)
             continue

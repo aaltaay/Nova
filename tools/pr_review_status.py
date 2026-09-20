@@ -9,8 +9,9 @@ a push to the open branch. In one session that happened six times.
 Two gates, both inside `decide()` so that every path -- the merge job, the
 scheduled sweep, a manual dispatch -- gets the same answer:
 
-1. A PR younger than ``MIN_PR_AGE_SECONDS`` waits. Reviews took two to four
-   minutes on every PR measured; the floor gives one time to exist. This is
+1. A head younger than ``MIN_PR_AGE_SECONDS`` waits -- the newest commit,
+   not the PR's opening, so a push restarts the floor. Reviews took two to
+   four minutes on every PR measured; the floor gives one time to exist. This is
    what closes the announcement race: a merge job that reads comments before
    the reviewer has posted sees nothing to wait for, and a sweep that fires
    seconds after a PR opens sees the same. Age needs no reviewer at all.
@@ -68,6 +69,36 @@ def pr_age_seconds(created_at: str, *, now: datetime | None = None) -> float | N
         opened = opened.replace(tzinfo=timezone.utc)
     current = now or datetime.now(timezone.utc)
     return (current - opened).total_seconds()
+
+
+def head_age_seconds(pr: dict, *, now: datetime | None = None) -> float | None:
+    """Seconds since the CURRENT HEAD landed, never more than the PR's own age.
+
+    The floor is about a review having a chance at the code being merged, and
+    a push replaces that code. Measured from `createdAt` alone it protected
+    only the first commit: any push to a PR older than the floor was eligible
+    at once, before a review of the new head had started -- the same race,
+    one push later. So the clock restarts at the newest commit.
+
+    `committedDate` is when the commit was made, not when it was pushed; a
+    commit made an hour ago and pushed now reads as old. The rule names that
+    gap rather than hiding it. Missing or malformed commit data falls back to
+    `createdAt`, and an unreadable `createdAt` to None -- never to "hold".
+    """
+    stamps = [str(pr.get("createdAt") or "")]
+    for commit in pr.get("commits") or []:
+        if isinstance(commit, dict):
+            stamps.append(str(commit.get("committedDate") or ""))
+    ages = [a for a in (pr_age_seconds(s, now=now) for s in stamps) if a is not None]
+    return min(ages) if ages else None
+
+
+def review_in_flight(pr: dict) -> bool:
+    """`review_running` over a `gh pr view` payload."""
+    return review_running(
+        [str(c.get("body") or "") for c in (pr.get("comments") or [])],
+        head_sha=str(pr.get("headRefOid") or ""),
+    )
 
 
 def too_young(age_seconds: float | None, *, min_age: int = MIN_PR_AGE_SECONDS) -> bool:

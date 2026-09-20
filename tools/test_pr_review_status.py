@@ -21,7 +21,9 @@ from tools import pr_delivery
 from tools.pr_delivery import ACTION_MERGE, ACTION_SKIP, ACTION_WAIT, decide
 from tools.pr_review_status import (
     MIN_PR_AGE_SECONDS,
+    head_age_seconds,
     pr_age_seconds,
+    review_in_flight,
     review_running,
     too_young,
 )
@@ -191,8 +193,9 @@ def test_age_reads_githubs_timestamp():
 # both paths
 
 
-def pr_payload(*, created_at, comments=(), draft=False):
+def pr_payload(*, created_at, comments=(), draft=False, commits=()):
     return {
+        "commits": [{"oid": HEAD, "committedDate": d} for d in commits],
         "number": 410, "title": "t", "body": "b", "isDraft": draft,
         "state": "OPEN", "mergeStateStatus": "CLEAN", "labels": [],
         "headRefName": "claude/x", "headRefOid": HEAD,
@@ -226,12 +229,6 @@ def test_the_sweep_leaves_a_fresh_pr_alone(monkeypatch):
     assert merged == []
 
 
-def test_the_merge_job_leaves_a_fresh_pr_alone(monkeypatch):
-    merged = wire(monkeypatch, pr_payload(created_at=fresh()))
-    assert pr_delivery.cmd_merge(410, wait_desktop_minutes=0) == 0
-    assert merged == []
-
-
 def test_both_paths_merge_a_settled_pr(monkeypatch):
     merged = wire(monkeypatch, pr_payload(created_at="2026-01-01T00:00:00Z"))
     assert pr_delivery.cmd_sweep() == 0
@@ -247,7 +244,7 @@ def test_a_settled_pr_still_waits_on_a_running_review(monkeypatch):
     assert merged == []
 
 
-def test_the_pr_query_asks_for_the_age(monkeypatch):
+def test_the_pr_query_asks_for_the_age_of_the_head(monkeypatch):
     seen: list[list[str]] = []
 
     def fake_gh(args, check=True, stdin=None):
@@ -256,4 +253,89 @@ def test_the_pr_query_asks_for_the_age(monkeypatch):
 
     monkeypatch.setattr(pr_delivery, "_gh", fake_gh)
     pr_delivery._fetch_pr(410)
-    assert "createdAt" in seen[0][seen[0].index("--json") + 1]
+    fields = seen[0][seen[0].index("--json") + 1]
+    assert "createdAt" in fields and "commits" in fields
+
+
+# --------------------------------------------------------------------------
+# the floor follows the head (review finding on #411, P1)
+#
+# Measured from createdAt the floor protected only the first commit: a push to
+# a PR older than five minutes was eligible at once, before a review of the
+# new head had started.
+
+NOW = __import__("datetime").datetime(2026, 9, 20, 16, tzinfo=__import__("datetime").timezone.utc)
+
+
+def test_a_push_restarts_the_floor():
+    pr = pr_payload(created_at="2026-09-20T15:00:00Z", commits=["2026-09-20T15:59:50Z"])
+    assert head_age_seconds(pr, now=NOW) == 10.0
+    assert _decide(age_seconds=head_age_seconds(pr, now=NOW)).reason == "settling"
+
+
+def test_an_old_pr_with_an_old_head_merges():
+    pr = pr_payload(created_at="2026-09-20T15:00:00Z", commits=["2026-09-20T15:00:00Z"])
+    assert _decide(age_seconds=head_age_seconds(pr, now=NOW)).action == ACTION_MERGE
+
+
+def test_missing_commit_data_falls_back_to_the_prs_own_age():
+    pr = pr_payload(created_at="2026-09-20T15:59:50Z")
+    del pr["commits"]
+    assert head_age_seconds(pr, now=NOW) == 10.0
+    pr["commits"] = [{"oid": HEAD}, "garbage", None, {"committedDate": "nonsense"}]
+    assert head_age_seconds(pr, now=NOW) == 10.0
+    assert head_age_seconds({"createdAt": "", "commits": []}, now=NOW) is None
+
+
+def test_review_in_flight_reads_a_pr_payload():
+    assert review_in_flight(pr_payload(created_at="x", comments=[RUNNING])) is True
+    assert review_in_flight(pr_payload(created_at="x", comments=[COMPLETED])) is False
+
+
+# --------------------------------------------------------------------------
+# the merge job waits the floor out (review finding on #411, P2)
+#
+# Nothing fires when the floor expires. Without this a PR whose CI finished
+# inside five minutes sat until the hourly cron -- up to an hour for a gate
+# meant to cost five minutes.
+
+
+# Every cmd_merge call in this file goes through fake_clock: since the P2 fix
+# the merge job sleeps out the settling floor with real time.sleep(20)s, so
+# a fresh-PR test on the wall clock hangs for five minutes.
+def fake_clock(monkeypatch, start=1000.0):
+    clock = {"t": start}
+    monkeypatch.setattr(pr_delivery.time, "time", lambda: clock["t"])
+    monkeypatch.setattr(pr_delivery.time, "sleep",
+                        lambda s: clock.__setitem__("t", clock["t"] + s))
+    return clock
+
+
+def test_the_merge_job_waits_out_the_floor_rather_than_the_cron(monkeypatch):
+    clock = fake_clock(monkeypatch)
+    # the head landed at t=1000; its age grows with the fake clock
+    monkeypatch.setattr(pr_delivery, "head_age_seconds",
+                        lambda pr, now=None: clock["t"] - 1000.0)
+    merged = wire(monkeypatch, pr_payload(created_at="2026-09-20T15:59:50Z"))
+    assert pr_delivery.cmd_merge(411, wait_desktop_minutes=0, min_age_seconds=60) == 0
+    assert len(merged) == 1, "waited the floor out and merged in the same job"
+    waited = clock["t"] - 1000.0
+    assert 60 <= waited <= 60 + 25, waited
+
+
+def test_the_settle_wait_is_capped_when_the_head_keeps_moving(monkeypatch):
+    # A push on every poll resets the floor forever; the job must not pin a
+    # runner forever with it.
+    clock = fake_clock(monkeypatch)
+    monkeypatch.setattr(pr_delivery, "head_age_seconds", lambda pr, now=None: 0.0)
+    merged = wire(monkeypatch, pr_payload(created_at="2026-09-20T15:59:50Z"))
+    assert pr_delivery.cmd_merge(411, wait_desktop_minutes=0, min_age_seconds=60) == 0
+    assert merged == []
+    assert clock["t"] - 1000.0 <= 2 * 60 + 25
+
+
+def test_a_held_pr_does_not_wait_at_all(monkeypatch):
+    clock = fake_clock(monkeypatch)
+    merged = wire(monkeypatch, pr_payload(created_at=fresh(), draft=True))
+    assert pr_delivery.cmd_merge(411, wait_desktop_minutes=0) == 0
+    assert merged == [] and clock["t"] == 1000.0
