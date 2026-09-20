@@ -19,10 +19,16 @@ import {
   PREREQ_GATEWAY_FOLLOW_PAPER_DETAIL,
   PREREQ_GATEWAY_LOGIN_DETAIL,
   PREREQ_GATEWAY_PORT_OPEN_DETAIL,
+  PREREQ_GATEWAY_READ_ONLY_DETAIL,
+  PREREQ_GATEWAY_READ_ONLY_LABEL,
   PREREQ_GATEWAY_STALE_SECOND_FACTOR_DETAIL,
 } from './gatewayUxConstants';
 
-export type PrereqId = 'nova_api' | 'ibkr_gateway' | 'ibkr_enabled';
+export type PrereqId =
+  | 'nova_api'
+  | 'ibkr_gateway'
+  | 'ibkr_enabled'
+  | 'gateway_read_only';
 
 export type PrereqAction =
   | 'start_api'
@@ -77,6 +83,9 @@ export interface TradingPrerequisitesInput {
   simMode?: boolean;
   /** status.completed_orders_unanswered_since (D-058), epoch seconds. */
   completedOrdersUnansweredSince?: number | null;
+  /** status.gateway_read_only (D-076) -- the Gateway rejected an order with
+   * Error 321 because Read-Only API is ticked. Named blocker, not a login. */
+  gatewayReadOnly?: boolean | null;
 }
 
 export interface TradingPrerequisites {
@@ -261,6 +270,21 @@ export function buildTradingPrerequisites(
     },
   ];
 
+  // Only shown once the Gateway has actually rejected an order as read-only.
+  // Nova cannot prove the setting is OFF without placing an order, so there is
+  // no green counterpart row -- the row simply goes away on the next connect
+  // and only comes back if the Gateway rejects again (D-076).
+  const readOnly = !input.simMode && input.gatewayReadOnly === true;
+  if (readOnly) {
+    items.push({
+      id: 'gateway_read_only',
+      ok: false,
+      label: PREREQ_GATEWAY_READ_ONLY_LABEL,
+      detail: PREREQ_GATEWAY_READ_ONLY_DETAIL,
+      action: 'reconnect_ibkr',
+    });
+  }
+
   const warnings: PrereqWarning[] = [];
   const stuckNotice = completedOrdersStuckNotice({
     sinceEpochSec: input.completedOrdersUnansweredSince,
@@ -275,7 +299,9 @@ export function buildTradingPrerequisites(
     });
   }
 
-  const deskReady = apiOk && enabled && gatewayOk;
+  // Read-only is part of desk readiness: every order would be rejected. It
+  // does not change any spend / order gate -- those stay on the trade path.
+  const deskReady = apiOk && enabled && gatewayOk && !readOnly;
   const failStreak = input.apiFailStreak ?? 0;
   const loopWedged = Boolean(input.health?.ib_loop_lag_ms?.wedged);
   const sustainedApiDown = !apiOk && failStreak >= DESK_API_FAIL_STREAK_FOR_OVERLAY;

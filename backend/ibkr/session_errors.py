@@ -3,7 +3,8 @@
 Installed on each ``IB()`` before ``connectAsync`` (so Error 326 is seen)
 and again after READY. Covers clientId-in-use (326), connectivity
 (1100/1101/1102), data-farm notices (2104/2106/2108), max-tickers (101),
-delayed-data (10167), and MD-subscription-required (10089).
+delayed-data (10167), MD-subscription-required (10089), and Read-Only API
+rejections (321 whose message names read-only -- D-076).
 
 Handlers MUST NOT issue new IB requests (ib_async forbids it). Connectivity
 codes only observe + classify + enqueue; ``reconnect_loop`` acts via
@@ -26,6 +27,8 @@ from constants import (
     IBKR_ERROR_DELAYED_DATA_NOTICE,
     IBKR_ERROR_MAX_TICKERS,
     IBKR_ERROR_MD_REQUIRES_SUBSCRIPTION,
+    IBKR_ERROR_READ_ONLY_API,
+    IBKR_READ_ONLY_API_MARKERS,
 )
 from ibkr import session_state as _session
 
@@ -44,6 +47,11 @@ _max_tickers_hit = False
 _max_tickers_ts: float = 0.0
 
 _unusable_since: float | None = None
+# D-076: epoch seconds of the first Error 321 on THIS connection whose message
+# named Read-Only API. Per-connection on purpose -- the Gateway applies the
+# setting when the API session is made, so a fresh connect is the only moment
+# the answer can have changed.
+_read_only_since: float | None = None
 _last_connectivity_code: int | None = None
 _last_connectivity_ts: float = 0.0
 _restore_pending: RestoreKind | None = None
@@ -71,6 +79,31 @@ def max_tickers_hit() -> bool:
 
 def max_tickers_ts() -> float | None:
     return _max_tickers_ts or None
+
+
+def gateway_read_only() -> bool:
+    """True once this connection rejected an order with Read-Only API (321)."""
+    return _read_only_since is not None
+
+
+def gateway_read_only_since() -> float | None:
+    """Epoch seconds of that first rejection, or None."""
+    return _read_only_since
+
+
+def clear_read_only() -> None:
+    """Forget the read-only verdict (a new API session re-reads the setting)."""
+    global _read_only_since
+    _read_only_since = None
+
+
+def is_read_only_rejection(code: int, message: str) -> bool:
+    """Error 321 is IB's generic "error validating request"; only the message
+    distinguishes a Read-Only API rejection from a malformed order."""
+    if int(code) != IBKR_ERROR_READ_ONLY_API:
+        return False
+    text = (message or "").lower()
+    return any(marker in text for marker in IBKR_READ_ONLY_API_MARKERS)
 
 
 def unusable_since() -> float | None:
@@ -134,8 +167,9 @@ def reset_for_tests() -> None:
     global _delayed_data, _live_md_blocked, _data_farm_status, _data_farm_status_ts
     global _max_tickers_hit, _max_tickers_ts
     global _unusable_since, _last_connectivity_code, _last_connectivity_ts
-    global _restore_pending
+    global _restore_pending, _read_only_since
     _error_hooked_ib_ids.clear()
+    _read_only_since = None
     _delayed_data = False
     _live_md_blocked = False
     _data_farm_status = None
@@ -154,6 +188,10 @@ def install_error_hook(ib: Any) -> None:
     ib_id = id(ib)
     if ib_id in _error_hooked_ib_ids:
         return
+    # First hook on this IB object == a new API session, which is when IB
+    # re-reads Read-Only API. Drop the previous connection's verdict so an
+    # unticked setting clears the desk row on the next connect (D-076).
+    clear_read_only()
     ib.errorEvent += _on_ib_error
     _error_hooked_ib_ids.add(ib_id)
     logger.info("IBKR session_errors: errorEvent hook installed")
@@ -186,10 +224,27 @@ def _on_ib_error(
     global _delayed_data, _live_md_blocked, _data_farm_status, _data_farm_status_ts
     global _max_tickers_hit, _max_tickers_ts
     global _restore_pending, _last_connectivity_code, _last_connectivity_ts
+    global _read_only_since
 
     code = int(errorCode)
     msg = (errorString or "").strip()
     now = time.time()
+
+    if is_read_only_rejection(code, msg):
+        # Not a connectivity fault: prices and positions keep working, so the
+        # session stays READY. It only means every order mutation (place,
+        # cancel, replace) is rejected until the Gateway setting is unticked.
+        # Surfaced by /api/ibkr/status -> the Trading prerequisites row; gates
+        # are untouched (ADR 007).
+        if _read_only_since is None:
+            _read_only_since = now
+            logger.error(
+                "IBKR session_errors: Gateway is in Read-Only API mode "
+                "(Error %s) -- every order will be rejected. Untick "
+                "Configure > Settings > API > Read-Only API. %s",
+                code, msg or "",
+            )
+        return
 
     if code == IBKR_ERROR_CLIENT_ID_IN_USE:
         logger.warning(

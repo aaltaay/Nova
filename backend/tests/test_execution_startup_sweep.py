@@ -20,7 +20,11 @@ def isolated_ledger(tmp_path, monkeypatch):
     monkeypatch.setattr("paths.cache_dir", lambda: tmp_path)
     monkeypatch.setattr("execution.store.cache_dir", lambda: tmp_path)
     store.init_db()
+    sweep.reset_for_testing()
+    sweep.completed_orders_state.reset_for_testing()
     yield
+    sweep.reset_for_testing()
+    sweep.completed_orders_state.reset_for_testing()
 
 
 def _stale_row(
@@ -48,10 +52,36 @@ def _stale_row(
     return execution_id
 
 
+class _FakeExecution:
+    def __init__(self, order_id: int, shares: float, cum_qty: float):
+        self.orderId = order_id
+        self.shares = shares
+        self.cumQty = cum_qty
+
+
+class _FakeFill:
+    def __init__(self, execution: _FakeExecution):
+        self.execution = execution
+
+
+class _FakeIb:
+    def __init__(self, fills: list[_FakeFill]):
+        self._fills = fills
+
+    def fills(self) -> list[_FakeFill]:
+        return list(self._fills)
+
+
 def _arm_connected(
-    monkeypatch, *, working: list[dict], closed: list[dict], history_loaded: bool = True,
+    monkeypatch,
+    *,
+    working: list[dict],
+    closed: list[dict],
+    history_loaded: bool = True,
+    fills: list[_FakeFill] | None = None,
 ):
     monkeypatch.setattr(client_mod, "is_connected", lambda: True)
+    monkeypatch.setattr(client_mod, "get_ib", lambda: _FakeIb(fills or []))
     monkeypatch.setattr(orders_mod, "open_orders", lambda: working)
     monkeypatch.setattr(orders_mod, "closed_orders", lambda *a, **k: closed)
     monkeypatch.setattr(
@@ -162,6 +192,119 @@ def test_without_history_known_outcomes_still_resolve(monkeypatch):
     assert summary["abandoned"] == [never_sent]
     assert summary["resolved"] == [found]
     assert store.get_by_id(found)["status"] == "filled"
+
+
+def test_executions_prove_a_fill_while_history_is_stuck(monkeypatch):
+    """D-077: reqExecutions still answers when reqCompletedOrders does not, so
+    a filled order must resolve from fills instead of sitting unverified."""
+    execution_id = _stale_row("stale-filled-by-fills", order_id=30)
+    _arm_connected(
+        monkeypatch,
+        working=[],
+        closed=[],
+        history_loaded=False,
+        fills=[_FakeFill(_FakeExecution(30, 60, 60)), _FakeFill(_FakeExecution(30, 40, 100))],
+    )
+    summary = sweep.run_startup_sweep()
+    assert summary["resolved"] == [execution_id]
+    assert summary["resolved_by_executions"] == [execution_id]
+    assert summary["unverified"] == []
+    row = store.get_by_id(execution_id)
+    assert row["status"] == "filled"
+    assert row["broker_status"] == "Filled"
+    # A non-empty error would make the receipt read as failed.
+    assert not row["error"]
+
+
+def test_partial_execution_is_never_abandoned(monkeypatch):
+    """Something happened at the broker -- unknown is not the same as abandoned."""
+    execution_id = _stale_row("stale-partial", order_id=31)
+    _arm_connected(
+        monkeypatch,
+        working=[],
+        closed=[],
+        history_loaded=True,
+        fills=[_FakeFill(_FakeExecution(31, 40, 40))],
+    )
+    summary = sweep.run_startup_sweep()
+    assert summary["abandoned"] == []
+    assert summary["unverified"] == [execution_id]
+    assert store.get_by_id(execution_id)["status"] == "sent"
+
+
+def test_history_load_reruns_the_sweep_for_unverified_rows(monkeypatch):
+    """D-077 acceptance: unverified rows resolve on the first completed-orders
+    answer, without waiting for the next API restart."""
+    execution_id = _stale_row("stale-resweep", order_id=32)
+    history = {"loaded": False}
+    closed: list[dict] = []
+    monkeypatch.setattr(client_mod, "is_connected", lambda: True)
+    monkeypatch.setattr(client_mod, "get_ib", lambda: _FakeIb([]))
+    monkeypatch.setattr(orders_mod, "open_orders", lambda: [])
+    monkeypatch.setattr(orders_mod, "closed_orders", lambda *a, **k: closed)
+    monkeypatch.setattr(
+        sweep.completed_orders_state, "loaded_for", lambda _ib: history["loaded"],
+    )
+
+    assert sweep.run_startup_sweep()["unverified"] == [execution_id]
+    assert store.get_by_id(execution_id)["status"] == "sent"
+
+    # The Gateway finally answers: completed orders load and Closed Orders now
+    # carries the fill that happened while Nova was down.
+    history["loaded"] = True
+    closed.append({"order_id": 32, "symbol": "AAPL", "status": "Filled"})
+    sweep.completed_orders_state.mark_loaded(_FakeIb([]))
+
+    row = store.get_by_id(execution_id)
+    assert row["status"] == "filled"
+    assert row["broker_status"] == "Filled"
+
+
+def test_history_resweep_listener_fires_once(monkeypatch):
+    _stale_row("stale-resweep-once", order_id=33)
+    _arm_connected(monkeypatch, working=[], closed=[], history_loaded=False)
+    sweep.run_startup_sweep()
+
+    runs: list[int] = []
+    monkeypatch.setattr(sweep, "run_startup_sweep", lambda: runs.append(1))
+    sweep.completed_orders_state.mark_loaded(_FakeIb([]))
+    sweep.completed_orders_state.mark_loaded(_FakeIb([]))
+    assert len(runs) == 1
+
+
+def test_resweep_stays_armed_when_the_socket_dropped(monkeypatch):
+    """A re-run that cannot read the broker must not disarm the hook."""
+    execution_id = _stale_row("stale-resweep-offline", order_id=35)
+    _arm_connected(monkeypatch, working=[], closed=[], history_loaded=False)
+    assert sweep.run_startup_sweep()["unverified"] == [execution_id]
+
+    monkeypatch.setattr(client_mod, "is_connected", lambda: False)
+    sweep.completed_orders_state.mark_loaded(_FakeIb([]))
+    assert store.get_by_id(execution_id)["status"] == "sent"
+
+    _arm_connected(
+        monkeypatch,
+        working=[],
+        closed=[{"order_id": 35, "symbol": "AAPL", "status": "Filled"}],
+    )
+    sweep.completed_orders_state.mark_loaded(_FakeIb([]))
+    assert store.get_by_id(execution_id)["status"] == "filled"
+
+
+def test_no_resweep_is_armed_when_nothing_is_unverified(monkeypatch):
+    _stale_row("stale-clean", order_id=34)
+    _arm_connected(
+        monkeypatch,
+        working=[],
+        closed=[{"order_id": 34, "symbol": "AAPL", "status": "Filled"}],
+        history_loaded=False,
+    )
+    sweep.run_startup_sweep()
+
+    runs: list[int] = []
+    monkeypatch.setattr(sweep, "run_startup_sweep", lambda: runs.append(1))
+    sweep.completed_orders_state.mark_loaded(_FakeIb([]))
+    assert runs == []
 
 
 def test_disconnected_sweep_rewrites_nothing(monkeypatch):

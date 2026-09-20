@@ -10,6 +10,7 @@ import { openTradingPrerequisites } from './tradingPrereqUi';
 const status = vi.hoisted(() => ({
   connected: true,
   completed_orders_unanswered_since: null as number | null,
+  gateway_read_only: false,
 }));
 
 vi.mock('../components/scannerBarStore', () => ({
@@ -28,6 +29,7 @@ vi.mock('./useIbkrStatus', () => ({
     mode: 'live',
     stale: false,
     completed_orders_unanswered_since: status.completed_orders_unanswered_since,
+    gateway_read_only: status.gateway_read_only,
   }),
   refreshIbkrStatusNow: () => {},
 }));
@@ -47,6 +49,7 @@ describe('TradingPrerequisitesGate D-058 warning', () => {
   beforeEach(() => {
     status.connected = true;
     status.completed_orders_unanswered_since = null;
+    status.gateway_read_only = false;
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -79,6 +82,17 @@ describe('TradingPrerequisitesGate D-058 warning', () => {
     openPanel();
     expect(container.querySelector('.trading-prereq-warning')).toBeNull();
     expect(container.querySelectorAll('.trading-prereq-item--ok')).toHaveLength(3);
+  });
+
+  it('names Read-Only API as its own red row (D-076)', () => {
+    status.gateway_read_only = true;
+    openPanel();
+    const row = container.querySelector('[data-testid="trading-prereq-gateway_read_only"]');
+    expect(row?.className).toMatch(/trading-prereq-item--bad/);
+    expect(row?.textContent).toMatch(/Read-Only API/);
+    // The Gateway row itself stays green -- this is not a login problem.
+    expect(container.querySelector('[data-testid="trading-prereq-ibkr_gateway"]')?.className)
+      .toMatch(/trading-prereq-item--ok/);
   });
 
   it('keeps the Reconnect CTA working in the extracted row when READY is lost', () => {
