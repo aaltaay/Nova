@@ -2,3 +2,20 @@
 # CR in a CRLF line ending as a control character. Keep them LF on every
 # platform so a Windows checkout can still launch them.
 .claude/workflows/*.js text eol=lf
+
+# Ledger files every PR is required to prepend to (AGENTS.md 7.1 / 7.2 / 7.2b).
+# Two PRs authored in parallel always collide at line 1 on these, on paperwork
+# rather than on code -- see #344 "the structural problem".
+#
+# `merge=union` keeps BOTH sides instead of raising a conflict. That is exactly
+# the right outcome here: two independent log entries are additive, and losing
+# one silently would be worse than a conflict. It is a transitional safety net,
+# not the fix -- #344 WS2 moves new entries to per-PR fragments under
+# .changes/unreleased/ and knowledge/problems/, after which these files become
+# generated and stop being written by hand at all.
+#
+# Union merging is only safe for append/prepend-only logs. Never add it to a
+# file where two edits could interleave into something meaningless.
+CHANGELOG.md            merge=union
+PROBLEM_LOG.md          merge=union
+knowledge/task-log/INDEX.md merge=union
