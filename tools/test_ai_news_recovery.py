@@ -187,5 +187,3 @@ def test_native_trade_press_feeds_are_listed():
     assert "institutionalinvestor.com/rss.xml" in urls
     assert "site:tradersmagazine.com" in urls
     assert "site:finextra.com" in urls
-
-
