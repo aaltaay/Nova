@@ -40,6 +40,12 @@ Rules:
 - `backlog_triage.py check` fails while a **P0 or P1 sits untriaged**.
 - Work marked gated needs an operator decision — record the question on the issue,
   never guess the policy.
+- **Claim before you work** when other agents may be active — they run from
+  Claude, Codex and Cursor against the same GitHub account, so `assignee` cannot
+  identify a holder: `py -3 tools/backlog_triage.py claim --package <slug> --batch <n>
+  --branch <name>` (set `NOVA_AGENT_ID`). `next` skips claimed batches. Claims go
+  stale after 4h; `claims` lists holders; `release` clears one you did not ship.
+  A merged PR retires its own claim. Advisory, not mutual exclusion.
 - For a multi-agent pass over one package use `.claude/workflows/backlog-wave.js`
-  (2–3 agents, ramps down before token limits). Only when the user has opted into
-  workflows.
+  (2–3 agents, claims each batch, ramps down before token limits). Only when the
+  user has opted into workflows.

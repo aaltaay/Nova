@@ -129,6 +129,56 @@ Constraints worth keeping:
 
 ---
 
+## Working alongside other agents
+
+Agents run from several tools — Claude Code, Codex, Cursor — and **all of them
+authenticate as the same GitHub account**, so `assignee` can say *taken* but
+never *by whom*. GitHub is the only substrate every tool can see, so the claim
+lives there.
+
+**Claim before you work. The unit is the PR batch, not the issue.**
+
+```bash
+NOVA_AGENT_ID=codex@laptop py -3 tools/backlog_triage.py claim --package recorder-safety --batch 0 --branch agent/recorder
+```
+
+```bash
+py -3 tools/backlog_triage.py claims
+```
+
+```bash
+py -3 tools/backlog_triage.py release --package recorder-safety --batch 0
+```
+
+How it behaves:
+
+- A claim is a `claimed` label (the cheap filter `next` uses) plus a structured
+  comment carrying **agent id, branch and timestamp**.
+- **`next` honours it.** A package whose every startable batch is claimed is
+  skipped, so a second agent fans out to the next package instead of
+  duplicating work.
+- Holding **any** issue in a batch holds the whole batch — the batch is one PR.
+- **Claims go stale after 4 hours** with no activity, so a crashed agent cannot
+  deadlock a package. `claims` lists stale holders; `claim --force` takes one
+  over. Nothing steals silently.
+- A **merged PR closes the issues, which retires the claim on its own.** You
+  only need `release` if you stop without opening a PR.
+
+**This is advisory locking, not mutual exclusion.** Two agents can both read
+"unclaimed" before either writes — GitHub has no compare-and-swap on labels.
+`claim` re-reads after writing and yields if an earlier live claim exists
+(earliest timestamp wins), which makes a collision *detectable and resolvable*
+rather than impossible. An agent that ignores the protocol will still collide.
+
+If you are running several swarms, the cheapest extra insurance is to hand each
+one a different package explicitly:
+
+```bash
+# in the Workflow call: args: { package: 'test-integrity' }
+```
+
+---
+
 ## Periodic triage
 
 Two automatic jobs:

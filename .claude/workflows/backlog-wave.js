@@ -7,6 +7,12 @@
 // agents, each owning one whole PR batch in its own git worktree, is the
 // shape that actually lands.
 //
+// Claims: agents run from several tools (Claude Code, Codex, Cursor) against
+// the SAME GitHub account, so `assignee` cannot say who holds what. Each batch
+// agent claims its batch on GitHub before touching code and releases it if it
+// does not open a PR, so a second swarm fans out to other batches instead of
+// duplicating this one. Advisory, not mutual exclusion -- see backlog_triage.py.
+//
 // Two independent brakes, because they fail in different ways:
 //
 //   maxAgents   a hard cap (default 6). This is the brake that works when no
@@ -108,7 +114,9 @@ const RESULT = {
   required: ['batch_title', 'pr_url', 'issues_closed', 'issues_refs', 'verified_by', 'blocked', 'blocker'],
 }
 
-const batchPrompt = (b) => `Land ONE pull request for the Nova backlog.
+const AGENT_PREFIX = args?.agentPrefix ?? 'claude-wave'
+
+const batchPrompt = (b, idx) => `Land ONE pull request for the Nova backlog.
 
 PACKAGE: ${brief.package_title}
 ${brief.objective}
@@ -121,6 +129,16 @@ The package is done when (your PR covers the parts that belong to your issues):
 ${brief.done.map(d => '  - ' + d).join('\n')}
 
 Do this:
+0. CLAIM IT FIRST, before reading anything or touching code:
+     NOVA_AGENT_ID=${AGENT_PREFIX}-${idx} py -3 tools/backlog_triage.py claim \
+       --package ${brief.package_slug} --batch ${idx} --branch <your-branch-name>
+   Other agents (Codex, Cursor, another Claude session) may be working this
+   backlog against the same GitHub account. If the claim command exits non-zero
+   because someone already holds this batch, STOP: do not work it, return
+   blocked=true with their agent id in blocker. Do not use --force.
+   If you finish without opening a PR, release it:
+     py -3 tools/backlog_triage.py release --package ${brief.package_slug} --batch ${idx}
+   A merged PR closes the issues, which retires the claim on its own.
 1. Read each issue with \`gh issue view <n> --repo aaltaay/Nova\`. The bodies carry
    Evidence, Unblock and Next fields -- use them.
 2. Verify the problem is still real before fixing it. Some of these issues were
@@ -173,7 +191,7 @@ for (let i = 0; i < brief.batches.length; i += CONCURRENCY) {
 
   log(`Wave ${Math.floor(i / CONCURRENCY) + 1}: ${wave.map(b => b.issues.map(n => '#' + n).join('+')).join(', ')}`)
 
-  const results = await parallel(wave.map(b => () => agent(batchPrompt(b), {
+  const results = await parallel(wave.map((b, k) => () => agent(batchPrompt(b, i + k), {
     label: `pr:${b.issues.join('+')}`,
     phase: 'Build',
     schema: RESULT,

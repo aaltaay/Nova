@@ -26,6 +26,9 @@ the whole backlog.
 Usage:
   python3 tools/backlog_triage.py next              # <- "what do I work on?"
   python3 tools/backlog_triage.py triage            # <- route the inbox
+  python3 tools/backlog_triage.py claims            # <- who holds what
+  python3 tools/backlog_triage.py claim --package recorder-safety
+  python3 tools/backlog_triage.py release --package recorder-safety
   python3 tools/backlog_triage.py next --json
   python3 tools/backlog_triage.py report            # package rollup + gaps
   python3 tools/backlog_triage.py report --json
@@ -43,6 +46,7 @@ import os
 import re
 import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
@@ -82,6 +86,32 @@ INBOX_TITLE = "00 - Untriaged"
 # hand out routine work while a desk-breaking bug sat unrouted. `check` fails
 # on those rather than treating the inbox as uniformly fine.
 URGENT = ("P0", "P1")
+
+# --- claims ---------------------------------------------------------------
+#
+# Agents run from several tools (Claude Code, Codex, Cursor) and all of them
+# authenticate as the same GitHub account, so `assignee` cannot say WHO holds
+# a piece of work. GitHub is the only substrate every tool can see, so the
+# claim lives there: a `claimed` label for cheap filtering plus a structured
+# comment carrying agent id, branch and timestamp.
+#
+# The lock unit is the PR BATCH, not the issue -- the batch is already the
+# unit of work, so locking per-issue would create four locks for one job.
+#
+# This is ADVISORY. Two agents can both read "unclaimed" before either writes;
+# GitHub offers no compare-and-swap on labels. `claim` therefore re-reads
+# after writing and yields if an earlier live claim exists (earliest `at`
+# wins), which makes a collision detectable and resolvable rather than
+# impossible. An agent that ignores the protocol will still collide.
+CLAIM_LABEL = "claimed"
+
+# Long enough for a real session on a multi-issue batch, short enough that a
+# crashed agent does not block a package for a working day.
+CLAIM_TTL_HOURS = 4
+
+CLAIM_BEGIN = "<!-- nova-claim"
+CLAIM_RELEASE = "<!-- nova-claim-release"
+CLAIM_END = "-->"
 
 Runner = Callable[..., subprocess.CompletedProcess[str]]
 
@@ -373,6 +403,138 @@ def render_triage(
 
 
 # --------------------------------------------------------------------------
+# claims -- who is already holding this work
+# --------------------------------------------------------------------------
+
+
+def agent_id() -> str:
+    """Self-reported. Cooperative, not adversarial -- nobody is defending
+    against a hostile agent, only stopping honest ones duplicating work."""
+    return os.environ.get("NOVA_AGENT_ID") or "unknown-agent"
+
+
+def batch_ref(slug: str, index: int) -> str:
+    return f"{slug}#{index}"
+
+
+def format_claim(*, agent: str, batch: str, branch: str, at: datetime) -> str:
+    return (
+        f"{CLAIM_BEGIN}\n"
+        f"agent: {agent}\n"
+        f"batch: {batch}\n"
+        f"branch: {branch}\n"
+        f"at: {at.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}\n"
+        f"{CLAIM_END}\n"
+        f"Claimed by `{agent}` on branch `{branch}` for batch `{batch}`. "
+        f"Stale after {CLAIM_TTL_HOURS}h with no branch activity -- "
+        f"`py -3 tools/backlog_triage.py claims` lists holders."
+    )
+
+
+def format_release(*, agent: str, batch: str) -> str:
+    return (
+        f"{CLAIM_RELEASE} {CLAIM_END}\n"
+        f"Released by `{agent}` (batch `{batch}`)."
+    )
+
+
+def parse_claim(body: str) -> dict[str, str] | None:
+    """Pull the structured block out of a claim comment. None if absent."""
+    if CLAIM_BEGIN not in body:
+        return None
+    block = body.split(CLAIM_BEGIN, 1)[1].split(CLAIM_END, 1)[0]
+    fields: dict[str, str] = {}
+    for line in block.splitlines():
+        if ":" in line:
+            key, _, value = line.partition(":")
+            fields[key.strip()] = value.strip()
+    return fields or None
+
+
+def _as_dt(value: str) -> datetime | None:
+    try:
+        return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return None
+
+
+def active_claim(
+    comments: list[dict[str, Any]], *, now: datetime, ttl_hours: int = CLAIM_TTL_HOURS
+) -> dict[str, Any] | None:
+    """The claim in force on an issue, or None.
+
+    The newest marker wins: a release after a claim clears it. A claim older
+    than the TTL is reported with ``stale: True`` rather than hidden, so a
+    caller can decide between reclaiming and reporting.
+    """
+    markers: list[tuple[str, str, dict[str, str] | None]] = []
+    for comment in comments:
+        body = comment.get("body") or ""
+        created = comment.get("createdAt") or ""
+        if CLAIM_RELEASE in body:
+            markers.append((created, "release", None))
+        elif CLAIM_BEGIN in body:
+            markers.append((created, "claim", parse_claim(body)))
+    if not markers:
+        return None
+    markers.sort(key=lambda m: m[0])
+    created, kind, fields = markers[-1]
+    if kind == "release" or not fields:
+        return None
+    at = _as_dt(fields.get("at", "")) or _as_dt(created[:19] + "Z")
+    stale = at is None or (now - at) > timedelta(hours=ttl_hours)
+    return {**fields, "stale": stale, "age_hours": round((now - at).total_seconds() / 3600, 1) if at else None}
+
+
+def fetch_comments(number: int, *, runner: Runner = subprocess.run) -> list[dict[str, Any]]:
+    proc = run_gh(
+        ["issue", "view", str(number), "--repo", repo_slug(), "--json", "comments"],
+        runner=runner,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"gh issue view {number} failed: {proc.stderr.strip()}")
+    return json.loads(proc.stdout or "{}").get("comments") or []
+
+
+def live_claims(issues: list[dict[str, Any]], *, now: datetime) -> dict[int, dict[str, Any]]:
+    """Claims in force, keyed by issue number.
+
+    Only issues carrying the label are inspected: the label is the cheap
+    filter that keeps `next` from fetching comments for the whole backlog.
+    """
+    out: dict[int, dict[str, Any]] = {}
+    for issue in issues:
+        if CLAIM_LABEL not in label_names(issue):
+            continue
+        claim = active_claim(fetch_comments(int(issue["number"])), now=now)
+        if claim and not claim["stale"]:
+            out[int(issue["number"])] = claim
+    return out
+
+
+def stale_claims(issues: list[dict[str, Any]], *, now: datetime) -> dict[int, dict[str, Any]]:
+    out: dict[int, dict[str, Any]] = {}
+    for issue in issues:
+        if CLAIM_LABEL not in label_names(issue):
+            continue
+        claim = active_claim(fetch_comments(int(issue["number"])), now=now)
+        if claim and claim["stale"]:
+            out[int(issue["number"])] = claim
+    return out
+
+
+def resolve_batch(pkg: dict[str, Any], index: int | None) -> tuple[int, dict[str, Any]]:
+    batches = pkg.get("prs", [])
+    if not batches:
+        raise RuntimeError(f"package {pkg['slug']} has no PR batches to claim")
+    if index is None:
+        index = 0
+    if not 0 <= index < len(batches):
+        raise RuntimeError(f"batch {index} out of range for {pkg['slug']} (0..{len(batches) - 1})")
+    return index, batches[index]
+
+
+# --------------------------------------------------------------------------
 # "what do I work on next?"
 # --------------------------------------------------------------------------
 
@@ -391,14 +553,21 @@ def with_inbox(
 
 
 def pick_next(
-    packages: list[dict[str, Any]], open_numbers: set[int]
+    packages: list[dict[str, Any]],
+    open_numbers: set[int],
+    claimed: Iterable[int] = (),
 ) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
     """The highest-ranked package an agent can actually start, plus what it skipped.
 
     Gated packages are skipped rather than returned, so a session never opens
     on work it cannot finish -- but they are returned alongside so the caller
     can surface the decision instead of hiding it.
+
+    A package whose every startable batch is already claimed is skipped too,
+    which is what makes two concurrent agents fan out across packages instead
+    of colliding on the top-ranked one.
     """
+    held = set(claimed)
     skipped: list[dict[str, Any]] = []
     for pkg in packages:
         if not (set(pkg["issues"]) & open_numbers):
@@ -406,14 +575,26 @@ def pick_next(
         if pkg.get("readiness") != READY:
             skipped.append(pkg)
             continue
+        if next_pr(pkg, open_numbers, held) is None:
+            skipped.append(dict(pkg, _skip_reason="every startable batch is already claimed"))
+            continue
         return pkg, skipped
     return None, skipped
 
 
-def next_pr(pkg: dict[str, Any], open_numbers: set[int]) -> dict[str, Any] | None:
-    """The first ungated PR batch in this package with open issues left."""
+def next_pr(
+    pkg: dict[str, Any], open_numbers: set[int], claimed: Iterable[int] = ()
+) -> dict[str, Any] | None:
+    """The first ungated, unclaimed PR batch with open issues left.
+
+    A batch is unavailable if ANY of its issues is under a live claim -- the
+    batch is one PR, so a partially-claimed batch is not startable.
+    """
+    held = set(claimed)
     for pr in pkg.get("prs", []):
         if pr.get("gated"):
+            continue
+        if set(pr["issues"]) & held:
             continue
         if set(pr["issues"]) & open_numbers:
             return pr
@@ -430,10 +611,11 @@ def render_next(
     if pkg is None:
         lines = ["No startable package: every ready-now package is complete."]
         if skipped:
-            lines += ["", "Everything left is gated on a decision:"]
+            lines += ["", "Everything left is gated or already claimed:"]
             for gated in skipped:
+                why = gated.get("_skip_reason") or gated.get("gate") or "see the issues"
                 lines.append(f"  [{gated['rank']}] {gated['title']} ({gated['readiness']})")
-                lines.append(f"      GATE: {gated.get('gate') or 'see the issues'}")
+                lines.append(f"      {why}")
         return "\n".join(lines)
 
     remaining = sorted(set(pkg["issues"]) & open_numbers)
@@ -468,7 +650,8 @@ def render_next(
     if skipped:
         lines += ["", "Ranked higher but not startable:"]
         for gated in skipped:
-            lines.append(f"  [{gated['rank']}] {gated['title']} -- {gated.get('gate') or gated['readiness']}")
+            why = gated.get("_skip_reason") or gated.get("gate") or gated["readiness"]
+            lines.append(f"  [{gated['rank']}] {gated['title']} -- {why}")
 
     lines += [
         "",
@@ -614,8 +797,9 @@ def cmd_next(args: argparse.Namespace) -> int:
     packages = with_inbox(load_packages(), issues)
     open_numbers = {int(i["number"]) for i in issues}
     titles = {int(i["number"]): i.get("title", "") for i in issues}
-    pkg, skipped = pick_next(packages, open_numbers)
-    pr = next_pr(pkg, open_numbers) if pkg else None
+    held = live_claims(issues, now=datetime.now(timezone.utc))
+    pkg, skipped = pick_next(packages, open_numbers, held)
+    pr = next_pr(pkg, open_numbers, held) if pkg else None
 
     if args.json:
         print(json.dumps(
@@ -624,14 +808,135 @@ def cmd_next(args: argparse.Namespace) -> int:
                 "pull_request": pr,
                 "open_in_package": sorted(set(pkg["issues"]) & open_numbers) if pkg else [],
                 "skipped_gated": [
-                    {"rank": s["rank"], "title": s["title"], "gate": s.get("gate", "")}
+                    {
+                        "rank": s["rank"],
+                        "title": s["title"],
+                        "gate": s.get("_skip_reason") or s.get("gate", ""),
+                    }
                     for s in skipped
                 ],
+                "claimed_issues": sorted(held),
             },
             indent=2,
         ))
     else:
         print(render_next(pkg, pr, skipped, open_numbers, titles))
+    return EXIT_OK
+
+
+def cmd_claims(args: argparse.Namespace) -> int:
+    now = datetime.now(timezone.utc)
+    issues = fetch_issues()
+    labelled = [i for i in issues if CLAIM_LABEL in label_names(i)]
+    if not labelled:
+        print("No claims held.")
+        return EXIT_OK
+    rows = []
+    for issue in labelled:
+        claim = active_claim(fetch_comments(int(issue["number"])), now=now)
+        rows.append((int(issue["number"]), issue.get("title", ""), claim))
+    for number, title, claim in sorted(rows):
+        if claim is None:
+            print(f"  #{number}  label set but no claim comment -- run `release` to clear it")
+            continue
+        state = "STALE" if claim["stale"] else "held"
+        print(f"  #{number}  [{state}] {claim.get('agent','?')} on {claim.get('branch','?')} "
+              f"(batch {claim.get('batch','?')}, {claim.get('age_hours','?')}h)")
+        print(f"      {title[:70]}")
+    stale = [r for r in rows if r[2] and r[2]["stale"]]
+    if stale:
+        print(f"\n{len(stale)} stale claim(s) past {CLAIM_TTL_HOURS}h -- reclaimable with "
+              f"`claim --force`, or clear with `release`.")
+    return EXIT_OK
+
+
+def cmd_claim(args: argparse.Namespace) -> int:
+    now = datetime.now(timezone.utc)
+    packages = load_packages()
+    matches = [p for p in packages if p["slug"] == args.package]
+    if not matches:
+        print(f"no package with slug {args.package!r}", file=sys.stderr)
+        return EXIT_ERROR
+    pkg = matches[0]
+    index, batch = resolve_batch(pkg, args.batch)
+    ref = batch_ref(pkg["slug"], index)
+    agent = args.agent or agent_id()
+    branch = args.branch or f"agent/{pkg['slug']}-{index}"
+
+    issues = fetch_issues()
+    open_numbers = {int(i["number"]) for i in issues}
+    targets = [n for n in batch["issues"] if n in open_numbers]
+    if not targets:
+        print(f"batch {ref} has no open issues left -- nothing to claim.")
+        return EXIT_OK
+
+    existing = {}
+    for number in targets:
+        claim = active_claim(fetch_comments(number), now=now)
+        if claim and (not claim["stale"] or args.force):
+            if not claim["stale"]:
+                existing[number] = claim
+    if existing and not args.force:
+        for number, claim in existing.items():
+            print(f"#{number} already held by {claim.get('agent','?')} "
+                  f"on {claim.get('branch','?')} ({claim.get('age_hours','?')}h)", file=sys.stderr)
+        print("Pick another batch, or use --force if you know that agent is gone.", file=sys.stderr)
+        return EXIT_GAPS
+
+    body = format_claim(agent=agent, batch=ref, branch=branch, at=now)
+    for number in targets:
+        run_gh(["issue", "edit", str(number), "--repo", repo_slug(), "--add-label", CLAIM_LABEL])
+        proc = run_gh(
+            ["issue", "comment", str(number), "--repo", repo_slug(), "--body-file", "-"],
+            runner=lambda cmd, **kw: subprocess.run(cmd, input=body, **kw),
+        )
+        if proc.returncode != 0:
+            print(f"claim comment on #{number} failed: {proc.stderr.strip()}", file=sys.stderr)
+            return EXIT_ERROR
+
+    # Claim-then-verify: GitHub has no compare-and-swap, so two agents can both
+    # have read "unclaimed". Earliest `at` wins; a loser yields immediately
+    # rather than working a batch someone else also started.
+    others = [
+        c for c in (active_claim(fetch_comments(n), now=now) for n in targets)
+        if c and c.get("agent") and c["agent"] != agent and not c["stale"]
+    ]
+    if others:
+        earliest_other = min(others, key=lambda c: c.get("at", ""))
+        if earliest_other.get("at", "") < now.strftime("%Y-%m-%dT%H:%M:%SZ"):
+            print(f"Race lost: {earliest_other.get('agent')} claimed {ref} first. Yielding.",
+                  file=sys.stderr)
+            for number in targets:
+                run_gh(["issue", "comment", str(number), "--repo", repo_slug(), "--body-file", "-"],
+                       runner=lambda cmd, **kw: subprocess.run(
+                           cmd, input=format_release(agent=agent, batch=ref), **kw))
+            return EXIT_GAPS
+
+    print(f"Claimed {ref} ({', '.join('#%d' % n for n in targets)}) as {agent} on {branch}.")
+    print(f"Release with: py -3 tools/backlog_triage.py release --package {pkg['slug']} --batch {index}")
+    return EXIT_OK
+
+
+def cmd_release(args: argparse.Namespace) -> int:
+    packages = load_packages()
+    matches = [p for p in packages if p["slug"] == args.package]
+    if not matches:
+        print(f"no package with slug {args.package!r}", file=sys.stderr)
+        return EXIT_ERROR
+    pkg = matches[0]
+    index, batch = resolve_batch(pkg, args.batch)
+    ref = batch_ref(pkg["slug"], index)
+    agent = args.agent or agent_id()
+    body = format_release(agent=agent, batch=ref)
+    issues = fetch_issues()
+    open_numbers = {int(i["number"]) for i in issues}
+    for number in batch["issues"]:
+        if number not in open_numbers:
+            continue  # closed issues carry no claim worth clearing
+        run_gh(["issue", "edit", str(number), "--repo", repo_slug(), "--remove-label", CLAIM_LABEL])
+        run_gh(["issue", "comment", str(number), "--repo", repo_slug(), "--body-file", "-"],
+               runner=lambda cmd, **kw: subprocess.run(cmd, input=body, **kw))
+    print(f"Released {ref}.")
     return EXIT_OK
 
 
@@ -787,6 +1092,23 @@ def build_parser() -> argparse.ArgumentParser:
     nxt = sub.add_parser("next", help="the one package and PR to start now")
     nxt.add_argument("--json", action="store_true")
     nxt.set_defaults(func=cmd_next)
+
+    clm = sub.add_parser("claims", help="who is holding which batch")
+    clm.set_defaults(func=cmd_claims)
+
+    cla = sub.add_parser("claim", help="claim a PR batch before working it")
+    cla.add_argument("--package", required=True, help="package slug")
+    cla.add_argument("--batch", type=int, default=None, help="batch index (default 0)")
+    cla.add_argument("--agent", default=None, help="agent id (default $NOVA_AGENT_ID)")
+    cla.add_argument("--branch", default=None, help="branch you will work on")
+    cla.add_argument("--force", action="store_true", help="take over a stale claim")
+    cla.set_defaults(func=cmd_claim)
+
+    rel = sub.add_parser("release", help="release a batch you claimed")
+    rel.add_argument("--package", required=True)
+    rel.add_argument("--batch", type=int, default=None)
+    rel.add_argument("--agent", default=None)
+    rel.set_defaults(func=cmd_release)
 
     tri = sub.add_parser("triage", help="list inbox issues with routing context")
     tri.add_argument("--json", action="store_true")

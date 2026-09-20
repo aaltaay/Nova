@@ -337,7 +337,7 @@ def test_render_next_states_the_package_the_pr_and_the_done_criteria():
 
 def test_render_next_explains_itself_when_only_gated_work_remains():
     text = render_next(None, None, [PKGS[1]], {3}, {})
-    assert "gated on a decision" in text
+    assert "gated or already claimed" in text
     assert "operator must choose X" in text
 
 
@@ -577,3 +577,206 @@ def test_an_empty_inbox_is_never_advertised_as_closable():
     text = render_report(data)
     assert "milestone can be closed" not in text
     assert "nothing awaiting triage" in text
+
+
+# --------------------------------------------------------------------------
+# claims -- cross-tool advisory locking on a PR batch
+# --------------------------------------------------------------------------
+
+
+from datetime import datetime, timedelta, timezone  # noqa: E402
+
+from tools.backlog_triage import (  # noqa: E402
+    CLAIM_LABEL,
+    CLAIM_TTL_HOURS,
+    active_claim,
+    batch_ref,
+    format_claim,
+    format_release,
+    parse_claim,
+    resolve_batch,
+)
+
+NOW = datetime(2026, 9, 20, 12, 0, 0, tzinfo=timezone.utc)
+
+
+def comment(body, *, at):
+    return {"body": body, "createdAt": at.strftime("%Y-%m-%dT%H:%M:%SZ")}
+
+
+def claim_comment(*, agent="codex@laptop", batch="recorder-safety#0", branch="agent/x", at=NOW):
+    return comment(format_claim(agent=agent, batch=batch, branch=branch, at=at), at=at)
+
+
+# --- round trip -----------------------------------------------------------
+
+
+def test_a_claim_round_trips_through_its_comment():
+    fields = parse_claim(format_claim(
+        agent="cursor@desk", batch="test-integrity#0", branch="agent/ti", at=NOW))
+    assert fields["agent"] == "cursor@desk"
+    assert fields["batch"] == "test-integrity#0"
+    assert fields["branch"] == "agent/ti"
+    assert fields["at"] == "2026-09-20T12:00:00Z"
+
+
+def test_a_claim_comment_is_human_readable_too():
+    body = format_claim(agent="a", batch="b#0", branch="c", at=NOW)
+    assert "Claimed by" in body, "a human reading the issue must understand it"
+    assert str(CLAIM_TTL_HOURS) in body
+
+
+def test_parse_claim_ignores_an_ordinary_comment():
+    assert parse_claim("just a normal comment about the bug") is None
+
+
+# --- what is in force -----------------------------------------------------
+
+
+def test_a_fresh_claim_is_in_force():
+    claim = active_claim([claim_comment()], now=NOW + timedelta(hours=1))
+    assert claim is not None
+    assert claim["stale"] is False
+    assert claim["agent"] == "codex@laptop"
+
+
+def test_a_claim_past_the_ttl_is_stale_not_hidden():
+    claim = active_claim([claim_comment()], now=NOW + timedelta(hours=CLAIM_TTL_HOURS + 1))
+    assert claim is not None, "a stale claim must still be reportable, not vanish"
+    assert claim["stale"] is True
+
+
+def test_a_claim_just_inside_the_ttl_still_holds():
+    claim = active_claim([claim_comment()], now=NOW + timedelta(hours=CLAIM_TTL_HOURS) - timedelta(minutes=1))
+    assert claim["stale"] is False
+
+
+def test_a_release_after_a_claim_clears_it():
+    comments = [
+        claim_comment(at=NOW),
+        comment(format_release(agent="codex@laptop", batch="recorder-safety#0"),
+                at=NOW + timedelta(minutes=5)),
+    ]
+    assert active_claim(comments, now=NOW + timedelta(minutes=10)) is None
+
+
+def test_a_reclaim_after_a_release_holds_again():
+    comments = [
+        claim_comment(agent="a", at=NOW),
+        comment(format_release(agent="a", batch="x#0"), at=NOW + timedelta(minutes=5)),
+        claim_comment(agent="b", at=NOW + timedelta(minutes=10)),
+    ]
+    claim = active_claim(comments, now=NOW + timedelta(minutes=20))
+    assert claim["agent"] == "b"
+
+
+def test_the_newest_marker_wins_regardless_of_list_order():
+    comments = [
+        comment(format_release(agent="a", batch="x#0"), at=NOW + timedelta(minutes=5)),
+        claim_comment(agent="a", at=NOW),
+    ]
+    assert active_claim(comments, now=NOW + timedelta(minutes=10)) is None
+
+
+def test_no_comments_means_no_claim():
+    assert active_claim([], now=NOW) is None
+
+
+def test_age_is_reported_for_the_holder():
+    claim = active_claim([claim_comment()], now=NOW + timedelta(hours=2))
+    assert claim["age_hours"] == 2.0
+
+
+# --- next honours claims --------------------------------------------------
+
+
+CLAIM_PKGS = [
+    {"rank": 1, "slug": "a", "title": "01 - a", "issues": [1, 2, 3], "readiness": READY,
+     "objective": "o", "done": ["d"], "gate": "",
+     "prs": [
+         {"title": "batch one", "issues": [1, 2], "note": "n", "gated": False},
+         {"title": "batch two", "issues": [3], "note": "n", "gated": False},
+     ]},
+    {"rank": 2, "slug": "b", "title": "02 - b", "issues": [4], "readiness": READY,
+     "objective": "o", "done": ["d"], "gate": "",
+     "prs": [{"title": "batch b", "issues": [4], "note": "n", "gated": False}]},
+]
+
+
+def test_a_claimed_batch_is_skipped_for_the_next_one_in_the_same_package():
+    pr = next_pr(CLAIM_PKGS[0], {1, 2, 3}, claimed={1})
+    assert pr["title"] == "batch two", "a partially-claimed batch is not startable"
+
+
+def test_claiming_any_issue_blocks_the_whole_batch():
+    # The batch is one PR; holding half of it is holding all of it.
+    assert next_pr(CLAIM_PKGS[0], {1, 2}, claimed={2}) is None
+
+
+def test_a_fully_claimed_package_hands_the_agent_the_next_package():
+    pkg, skipped = pick_next(CLAIM_PKGS, {1, 2, 3, 4}, claimed={1, 3})
+    assert pkg["slug"] == "b", "two agents must fan out, not collide"
+    assert skipped[0]["_skip_reason"] == "every startable batch is already claimed"
+
+
+def test_render_next_says_why_a_package_was_skipped_for_a_claim():
+    pkg, skipped = pick_next(CLAIM_PKGS, {1, 2, 3, 4}, claimed={1, 3})
+    text = render_next(pkg, next_pr(pkg, {4}, {1, 3}), skipped, {4}, {4: "t"})
+    assert "already claimed" in text
+
+
+def test_no_claims_behaves_exactly_as_before():
+    pkg, skipped = pick_next(CLAIM_PKGS, {1, 2, 3, 4})
+    assert pkg["slug"] == "a" and skipped == []
+
+
+# --- batch addressing -----------------------------------------------------
+
+
+def test_batch_ref_is_stable_and_readable():
+    assert batch_ref("recorder-safety", 0) == "recorder-safety#0"
+
+
+def test_resolve_batch_defaults_to_the_first():
+    index, batch = resolve_batch(CLAIM_PKGS[0], None)
+    assert index == 0 and batch["title"] == "batch one"
+
+
+def test_resolve_batch_rejects_an_out_of_range_index():
+    import pytest
+    with pytest.raises(RuntimeError, match="out of range"):
+        resolve_batch(CLAIM_PKGS[0], 9)
+
+
+def test_resolve_batch_rejects_a_package_with_no_batches():
+    import pytest
+    with pytest.raises(RuntimeError, match="no PR batches"):
+        resolve_batch({"slug": "untriaged", "prs": []}, None)
+
+
+def test_the_inbox_cannot_be_claimed():
+    import pytest
+    inbox = [p for p in load_packages() if p["title"] == INBOX_TITLE][0]
+    with pytest.raises(RuntimeError, match="no PR batches"):
+        resolve_batch(inbox, None)
+
+
+def test_claim_label_is_a_single_known_name():
+    # next uses the label as its cheap filter; a typo would silently
+    # disable claim-awareness rather than fail loudly.
+    assert CLAIM_LABEL == "claimed"
+
+
+def test_backlog_md_documents_the_claim_protocol_and_its_limit():
+    text = BACKLOG.read_text(encoding="utf-8")
+    assert "claim --package" in text
+    assert "advisory locking, not mutual exclusion" in text.lower()
+    assert str(CLAIM_TTL_HOURS) in text, "the TTL must be documented, not folklore"
+
+
+def test_wave_runner_tells_its_agents_to_claim_first():
+    runner = REPO_ROOT / ".claude" / "workflows" / "backlog-wave.js"
+    text = runner.read_text(encoding="utf-8")
+    assert "backlog_triage.py claim" in text
+    assert "backlog_triage.py release" in text
+    assert "Do not use --force" in text, "a wave agent must never steal a live claim"
