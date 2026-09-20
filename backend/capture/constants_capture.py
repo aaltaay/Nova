@@ -36,3 +36,5 @@ CAPTURE_STATUS_RECORDING = "recording"
 CAPTURE_STATUS_STOPPED = "stopped_partial_ok"
 CAPTURE_STATUS_INTERRUPTED = "interrupted"
 CAPTURE_STATUS_FAILED = "failed"
+# Bound pending complete tick/bar batches, including the currently writing batch.
+CAPTURE_PENDING_BATCHES = 256
