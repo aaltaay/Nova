@@ -74,6 +74,22 @@ function Test-PremarketEt {
     }
 }
 
+function Test-BeforeWindowEt {
+    # True before 04:00 ET. The daily task fires at 03:55, and at that point
+    # the scanner session has already rolled over to today's key while the
+    # 04:00 window has not opened, so every table reads `unavailable` by
+    # design (ADR 008). Treating that as a failure fired a FAIL alert every
+    # single morning and -- because $failedLeg short-circuits -- skipped the
+    # Gainers leg below, which is the load-bearing premarket signal.
+    try {
+        $tz = [TimeZoneInfo]::FindSystemTimeZoneById("Eastern Standard Time")
+        $et = [TimeZoneInfo]::ConvertTimeFromUtc((Get-Date).ToUniversalTime(), $tz)
+        return (($et.Hour * 60 + $et.Minute) -lt (4 * 60))
+    } catch {
+        return $false
+    }
+}
+
 function Get-DirectWebhookUrl {
     $cacheDir = Join-Path $RepoRoot "backend\.cache"
     $envCache = [Environment]::GetEnvironmentVariable("NOVA_CACHE_DIR")
@@ -118,6 +134,29 @@ function Send-DirectWebhook {
     }
 }
 
+function Get-NovaApiKey {
+    # /api/alerts/system-event is a mutating route, so it needs the key even on
+    # loopback (backend/auth.py). Without it the POST answered 401 every
+    # morning and the only alert an unattended failure could raise was lost.
+    $key = [Environment]::GetEnvironmentVariable("NOVA_API_KEY")
+    if ($key) { return $key.Trim() }
+    $envFile = Join-Path $RepoRoot ".env"
+    if (-not (Test-Path $envFile)) { return $null }
+    try {
+        foreach ($line in Get-Content -Path $envFile -Encoding UTF8) {
+            $text = $line.Trim()
+            if ($text.StartsWith("#") -or -not $text.Contains("=")) { continue }
+            $name, $value = $text.Split("=", 2)
+            if ($name.Trim() -eq "NOVA_API_KEY") {
+                return $value.Trim().Trim('"').Trim("'")
+            }
+        }
+    } catch {
+        return $null
+    }
+    return $null
+}
+
 function Send-SystemAlert {
     param([string]$Leg, [bool]$Ok, [string]$Detail)
     $payload = @{
@@ -125,8 +164,11 @@ function Send-SystemAlert {
         ok     = $Ok
         detail = $Detail
     } | ConvertTo-Json
+    $headers = @{}
+    $key = Get-NovaApiKey
+    if ($key) { $headers["X-Nova-Api-Key"] = $key }
     try {
-        Invoke-RestMethod -Uri "$Base/api/alerts/system-event" -Method Post -ContentType "application/json" -Body $payload -TimeoutSec 10 | Out-Null
+        Invoke-RestMethod -Uri "$Base/api/alerts/system-event" -Method Post -ContentType "application/json" -Headers $headers -Body $payload -TimeoutSec 10 | Out-Null
         return $true
     } catch {
         Write-CheckLog "system-event POST failed: $($_.Exception.Message)" "WARN"
@@ -221,6 +263,10 @@ if (-not $failedLeg) {
             $failedLeg = "gappers"
             $failedDetail = "feed_error=$feedErr table_state=$tableState rows=$n"
             Write-CheckLog $failedDetail "ERROR"
+        } elseif ($tableState -eq "unavailable" -and (Test-BeforeWindowEt)) {
+            # Correct pre-04:00 state; still a failure at any later hour,
+            # where unavailable means a missed morning rather than an early one.
+            Write-CheckLog "pre-window table_state=unavailable rows=$n (expected before 04:00 ET)" "PASS"
         } elseif ($tableState -eq "unavailable") {
             $failedLeg = "gappers"
             $failedDetail = "table_state=unavailable rows=$n"
