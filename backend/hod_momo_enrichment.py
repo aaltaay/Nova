@@ -11,7 +11,7 @@ Two loops are registered as asyncio tasks in main.py lifespan:
     hod_momo.mark_needs_fundamentals(); fetches float_shares + fifty_two_week_high
     and writes them through the HOD snapshot API.
 
-Feed-level RVOL routing (§ yfinance fallback + Warrior pace):
+Feed-level RVOL routing (§ yfinance fallback + momentum pace):
   - SIP feed: pace RVOL = Alpaca volume / (Alpaca avg × elapsed 04:00–16:00 ET frac)
   - IEX feed: same formula with yfinance current_volume / average_volume
   - HOD_MOMO_RVOL_USE_PACE=False falls back to raw daily/avg
@@ -213,7 +213,7 @@ async def universe_enrichment_loop() -> None:
                         change_pct = None
                         gap_pct = None
 
-                    # ── RVOL: Warrior Daily Rate (pace) when enabled ───────────
+                    # ── RVOL: momentum Daily Rate (pace) when enabled ───────────
                     # Pace = today_vol / (avg_daily * fraction of 04:00–16:00 ET).
                     # Raw daily/avg understates mid-morning and mid-day runners.
                     rvol: float | None = None

@@ -18,8 +18,8 @@ NOVA_OS_CATALYST_MIN_CONFIDENCE = 0.45     # soft Gate 4 floor for news-impact c
 NOVA_OS_PRIMARY_SETUP = "gap_and_go"       # v1 strategy scope
 NOVA_OS_DECIDE_DEFAULT_LIMIT = 4           # GET /api/nova-os/decide watchlist batch size
 NOVA_OS_CITATIONS = (
-    "SS101 Gap and Go — Five Pillars gate",
-    "SS101 Gap and Go — first-minute volume ≥100k",
+    "Gap and Go — Five Pillars gate",
+    "Gap and Go — first-minute volume ≥100k",
     "Basics — trade the most obvious gapper (top watchlist)",
     "Risk — min 2:1 R:R, max 20¢ stop, walk-away after losses",
 )

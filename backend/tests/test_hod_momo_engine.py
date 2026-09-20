@@ -22,7 +22,7 @@ def test_on_trade_update_fires_when_master_and_strategy_pass(monkeypatch):
         cfg.enabled = sid == 11
 
     state.master.hod_required = True
-    state.master.surge_pct = 0.0  # strategies own surge (Warrior parity)
+    state.master.surge_pct = 0.0  # strategies own surge (momentum parity)
     state.master.surge_window_min = 5
     state.master.min_rvol = 0.0
 
@@ -88,7 +88,7 @@ def test_on_trade_update_blocked_by_strategy_rvol(monkeypatch):
 
 
 def test_squeeze_fires_with_low_pace_rvol(monkeypatch):
-    """Warrior Squeeze can fire below 2× pace RVOL (TRT live evidence)."""
+    """momentum Squeeze can fire below 2× pace RVOL (TRT live evidence)."""
     _reset_engine(monkeypatch)
     state = hm.get_state()
     for sid, cfg in state.configs.items():
@@ -122,7 +122,7 @@ def test_squeeze_fires_with_low_pace_rvol(monkeypatch):
 
 
 def test_former_momo_empty_list_never_fires(monkeypatch):
-    """Warrior Former Momo only tags known runners — empty list != all symbols."""
+    """momentum Former Momo only tags known runners — empty list != all symbols."""
     _reset_engine(monkeypatch)
     state = hm.get_state()
     for sid, cfg in state.configs.items():
@@ -180,7 +180,7 @@ def test_former_momo_fires_when_on_list(monkeypatch):
 
 
 def test_running_up_fires_without_hod(monkeypatch):
-    """Warrior Running Up alerts on momentum without requiring a new HOD."""
+    """momentum Running Up alerts on momentum without requiring a new HOD."""
     _reset_engine(monkeypatch)
     state = hm.get_state()
     for sid, cfg in state.configs.items():
@@ -217,7 +217,7 @@ def test_running_up_fires_without_hod(monkeypatch):
 
 
 def test_medium_float_fires_without_master_surge(monkeypatch):
-    """Warrior Medium Float Med Rel Vol needs HOD+float+RVOL, not a global 3% surge."""
+    """momentum Medium Float Med Rel Vol needs HOD+float+RVOL, not a global 3% surge."""
     _reset_engine(monkeypatch)
     state = hm.get_state()
     for sid, cfg in state.configs.items():
@@ -245,7 +245,7 @@ def test_medium_float_fires_without_master_surge(monkeypatch):
 
 
 def test_same_ticker_shares_consolidation_emit_deadline(monkeypatch):
-    """Warrior batches same-ticker fires into one window (not per-alert deadlines)."""
+    """momentum batches same-ticker fires into one window (not per-alert deadlines)."""
     _reset_engine(monkeypatch)
     state = hm.get_state()
     for sid, cfg in state.configs.items():

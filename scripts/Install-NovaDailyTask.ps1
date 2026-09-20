@@ -21,6 +21,12 @@
 .PARAMETER MorningCheckAtTime
   Local clock time for NovaMorningCheck (default 03:55). Empty string skips it.
 
+.PARAMETER RepoHygieneAtTime
+  Local clock time for NovaRepoHygiene (default 02:30). Runs
+  `py -3 tools/repo_hygiene.py fix` (safe class only: merged local branches,
+  stale worktrees, orphan remote refs) and appends to logs/repo-hygiene.log.
+  Empty string skips it.
+
 .PARAMETER TaskName
   Scheduled task name (default NovaDailyStart).
 
@@ -45,8 +51,10 @@ param(
     [string]$AtTime = "06:00",
     [string]$PremarketAtTime = "03:40",
     [string]$MorningCheckAtTime = "03:55",
+    [string]$RepoHygieneAtTime = "02:30",
     [string]$TaskName = "NovaDailyStart",
     [string]$MorningCheckTaskName = "NovaMorningCheck",
+    [string]$RepoHygieneTaskName = "NovaRepoHygiene",
     [switch]$Unregister,
     [switch]$SkipGateway,
     [switch]$SkipBrowser
@@ -61,7 +69,7 @@ if (-not (Test-Path $startScript)) {
 }
 
 if ($Unregister) {
-    foreach ($name in @($TaskName, $MorningCheckTaskName)) {
+    foreach ($name in @($TaskName, $MorningCheckTaskName, $RepoHygieneTaskName)) {
         $existing = Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
         if ($existing) {
             Unregister-ScheduledTask -TaskName $name -Confirm:$false
@@ -206,10 +214,19 @@ if ($MorningCheckAtTime -and (Test-Path $checkScript)) {
     Write-Host "Morning check script missing: $checkScript" -ForegroundColor Yellow
 }
 
+# Share the startup installer; preserve cleanup exit codes in Task Scheduler.
+if ($RepoHygieneAtTime) {
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `
+        (Join-Path $PSScriptRoot 'Ensure-NovaMaintenanceTask.ps1') `
+        -RepoRoot $repoRoot -TaskName $RepoHygieneTaskName -AtTime $RepoHygieneAtTime
+    if ($LASTEXITCODE -ne 0) { throw 'Repo maintenance task setup failed.' }
+}
+
 Write-Host ""
 Write-Host "Test now:" -ForegroundColor Cyan
 Write-Host ("  schtasks /Run /TN " + $TaskName)
 Write-Host ("  schtasks /Run /TN " + $MorningCheckTaskName)
+Write-Host ("  schtasks /Run /TN " + $RepoHygieneTaskName)
 Write-Host ("  OR:  powershell -NoProfile -ExecutionPolicy Bypass -File " + $startScript)
 Write-Host ("  OR:  powershell -NoProfile -ExecutionPolicy Bypass -File " + $checkScript)
 Write-Host ""

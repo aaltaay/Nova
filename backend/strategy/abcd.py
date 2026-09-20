@@ -1,7 +1,7 @@
 """
 ABCD setup detection — signal-only.
 
-Pattern (SS101 Ch.5): an impulsive A-to-B move of at least ABCD_MIN_AB_MOVE_PCT,
+Pattern (strategy specification): an impulsive A-to-B move of at least ABCD_MIN_AB_MOVE_PCT,
 a pullback to point C that holds the 9 EMA and doesn't retrace more than half
 the A-B move, with entry D on a break back above point B. Stop is the course's
 documented ~20 cent risk (see ABCD_MAX_STOP_DOLLARS).

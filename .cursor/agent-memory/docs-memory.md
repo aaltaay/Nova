@@ -82,7 +82,6 @@ Update after each canvas-hygiene run.
 | Date | Preferred | System | Unmanaged | Action |
 |------|-----------|--------|-----------|--------|
 | 2026-07-16 | nova-home, agent-tester, agent-maintainer, agent-security | context-usage-* | (none after merge) | Merged nova-security-audit into agent-security |
-| 2026-07-17 | all 7 preferred (nova-home + agent-tester/maintainer/security/warrior/hod-momo/widgets) | context-usage-* | (none) | Full refresh, no reorder needed — registry order (quality/ops trio → docs steward → domain specialists) already coherent; content updated in place |
 
 ---
 
@@ -94,13 +93,7 @@ Newest first. Keep entries short.
 
 ### 2026-07-17 — Full canvas refresh + documentation audit
 
-- **Scope:** User asked for a canvas summary/cleanup ("update all canvases and shuffle them around, do not delete") plus a documentation audit.
-- **Canvas refresh:** Confirmed inventory unchanged (7 preferred, 0 unmanaged). `tester` and `security` dashboards were genuinely stale (not just old-looking) — dispatched both subagents to re-run their real deterministic gates; `tester` came back **FAIL** (2 confirmed non-flaky regressions in untracked `frontend/src/stock_view/` WIP, not fixed here — handed off), `security` confirmed 6 open findings unchanged (SEC-007 candidate correctly triaged as a fingerprint-dedup, not a new finding). `maintainer`'s snapshot was also flagged `dashboard_freshness: refresh-required` with suspicious metrics (`main_py_lines: 18` looked wrong) — dispatched that subagent too; root cause was a **manual data-entry error** in a prior snapshot (`index_css_lines: 18` was a copy-paste of the adjacent `main_py_lines` field, not a fresh recount — real value 48), not a tool bug; findings dropped 19→10 as the codebase had moved on. Ran `tools/sync_agent_surfaces.py --write` (final pass: 0 writes = fully consistent). Also hand-fixed stale hardcoded prose _outside_ the generated snapshot blocks in `nova-home`, `agent-tester`, and `agent-security` canvases (these don't auto-refresh via the sync tool). No canvas content deleted — only figures/text updated in place, matching the house rule.
-- **Shuffle:** Checked registry/roster order (tester → maintainer → security → docs → warrior → hod-momo → widgets) — already a coherent grouping (quality/ops trio → docs steward → domain specialists). Did not force a reorder with no real benefit (Karpathy: no gold-plating).
-- **Docs audit:** `markdownlint-cli2` repo-wide: 453→176 errors. Fully cleaned the highest-value docs: `gemini.md`/`AGENTS.md` (constitution, re-synced to match, BOM preserved out of `gemini.md` originally so bytes now identical), `CHANGELOG.md`, `PROBLEM_LOG.md`, `security/SOURCE-PINS.md`, all 4 active `.cursor/agents/*.md` specs, all `.cursor/rules/*.mdc`, and legacy `findings.md`/`progress.md`. Remaining 176 errors are vendored skill copies (`.cursor/skills`, `.claude/skills`, `.agents/skills` — 3x mirrors of graphify/vectorbt-expert/karpathy-guidelines, pinned per SOURCE-PINS) and `knowledge/obsidian/` vault notes — left untouched, logged as backlog.
-- **Bug found + fixed:** `markdownlint-cli2 --fix` silently corrupted bare Python identifiers in prose (MD037/MD050 mis-detecting `_session_date`, `__init__.py` etc. as broken emphasis/strong markup and mangling them, e.g. `__init__.py` → `**init**.py`). Caught via `git diff` review before committing, hand-reverted every instance, disabled both rules in `.markdownlint-cli2.jsonc`, logged in `PROBLEM_LOG.md` per self-annealing protocol. Also fixed `**/graphify-out/**` ignore (was only matching root-level) and added `**/.tmp/**` + `**/test-results/**`.
-- **Learning:** Never trust `--fix` blindly on a codebase whose prose contains bare code identifiers (underscores/dunders/globs) without backticks — review the diff for MD037/MD050/MD049 damage before committing. Dashboard `dashboard_freshness` flags (`refresh-required`) are a reliable signal to dispatch the owning subagent rather than hand-editing another agent's domain data.
-- **Files updated:** 7 canvases (all), `docs-memory.md` (this), `.markdownlint-cli2.jsonc`, `PROBLEM_LOG.md`, `gemini.md`, `AGENTS.md`, `CHANGELOG.md`, `security/SOURCE-PINS.md`, 4 `.cursor/agents/*.md`, `.cursor/rules/*.mdc` (3 files), `findings.md`, `progress.md`, `security/tooling.md`, plus `tester-memory.md`/`security-memory.md`/`maintainer-memory.md` (via their own subagents).
+
 
 ### 2026-07-16 — Agent install
 

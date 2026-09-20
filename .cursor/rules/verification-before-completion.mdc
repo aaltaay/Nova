@@ -58,3 +58,5 @@ After touching a shared resource, re-verify its **loudest neighbor** in the same
 | `scanner_hydrate` / `commit_table` / roster admission | Cold start with IB already READY **and** a loaded desk (Trader tabs + chart panes): names must reach `/api/movers` **before** any `snapshot_quotes` completes, and `last_gainer_scan` must leave 0. Then check `/api/gappers` fills only with real gaps. |
 | Integrity check text for a table | The sibling table it defers to ("OK if another list is live") -- prove the sibling is actually live, or the two empty tables will vouch for each other |
 | An accepted ADR decision | Its row in that ADR's decision ledger -- "Accepted" describes the document, not the code |
+
+Date-sensitive tests must freeze the system clock and restore real timers afterward; fixed historical fixtures must not depend on the CI runner's calendar date.

@@ -1,4 +1,4 @@
-"""Tests for Warrior 5-min relative volume metrics."""
+"""Tests for momentum 5-min relative volume metrics."""
 from __future__ import annotations
 
 from hod_momo_metrics import (

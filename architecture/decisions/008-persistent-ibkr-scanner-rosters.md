@@ -58,11 +58,7 @@ and rejected alternatives.
 
 ## Consequences
 
-- Gappers/Gainers/Afterhours become genuinely frozen artifacts after their window — the frontend can trust "Frozen at 09:30 ET" instead of re-deriving staleness from a poll timestamp.
-- IBKR scanner slot usage drops from up to 3 simultaneous codes (movers + seed + sub-$20) to at most 2, with headroom for the historical/chart/detail slots that share the same 10-slot ceiling.
-- `DISCOVERY_INTERVAL_SEC`, `FOCUS_INTERVAL_SEC`, `GAINERS_INTERVAL_SEC`, `AFTERHOURS_DISCOVERY_INTERVAL_SEC`, `AFTERHOURS_FOCUS_INTERVAL_SEC` stop governing IBKR scanner cadence; `scan_loop.py` keeps only session reconciliation (freeze/rollover) plus the independent news-catalyst schedule, which has no IBKR analog.
-- HOD Momo loses the volume-seed / sub-$20 augmentation that used to surface mid-day runners absent from the top-% tables. This is an intentional narrowing — Warrior parity work on catching those runners becomes a `hod-momo` specialist follow-up (widening the *documented* Gainers/Gappers/AH union, e.g. via additional scan codes visible in the UI, not a hidden side-channel).
-- Losers keeps its own persistent RTH-only subscription and its own snapshot/revision — a Gainers freeze or reprice must not touch Losers' revision, and vice versa.
+
 
 ## Rejected alternatives
 

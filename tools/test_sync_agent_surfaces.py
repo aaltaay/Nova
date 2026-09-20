@@ -137,9 +137,6 @@ def test_home_agents_block_lists_registry_roster(sync):
     ]
     block = sync.home_agents_block(snaps)
     assert '"kind": "nova-home-agents"' in block
-    assert '"title": "Warrior Navigator"' in block
-    assert '"invoke": "Use the warrior subagent to navigate Warrior Trading"' in block
-    assert '"canvas": "agent-warrior.canvas.tsx"' in block
     assert '"title": "Widgets"' in block
     assert '"invoke": "Use the widgets subagent to map Webull widgets to Nova"' in block
     assert '"canvas": "agent-widgets.canvas.tsx"' in block
@@ -148,7 +145,6 @@ def test_home_agents_block_lists_registry_roster(sync):
         "maintainer",
         "security",
         "docs",
-        "warrior",
         "hod-momo",
         "widgets",
     ):

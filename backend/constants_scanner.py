@@ -23,8 +23,7 @@ REL_VOLUME_HIGH = 2         # highlight threshold
 RVOL_LOOKBACK_DAYS = 30     # trading days of history used to compute avg daily volume
 
 # ── Large Cap swing table (ADR 014) ─────────────────────────────────────────
-# Nova's own swing metrics -- NOT a Warrior Trading parity target (Warrior has
-# no published swing criteria; see ADR 014 context). Tunable at runtime via
+# Swing metrics defined in ADR 014. Tunable at runtime via
 # GET/POST /api/large-cap/config (large_cap_admin.py); these are the defaults.
 LARGE_CAP_TABLE = "large_cap"
 LARGE_CAP_SCAN_CODE = "TOP_VOLUME_RATE"      # IB's native RVOL-style ranking; verified

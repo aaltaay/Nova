@@ -439,7 +439,7 @@ GAP_AND_GO_MAX_STOP_DOLLARS = 0.20      # max risk per share (stop distance)
 GAP_AND_GO_MIN_PROFIT_LOSS_RATIO = 2.0  # target = entry + risk * this ratio
 
 # ── Bull Flag setup (Phase B) ────────────────────────────────────────────────
-# Source: SS101 Ch.5 — flagpole of green candles, shallow pullback holding the
+# Source: strategy specification — flagpole of green candles, shallow pullback holding the
 # 9 EMA, entry on break back above the flagpole high.
 BULL_FLAG_LOOKBACK_BARS = 30       # recent 1-min bars scanned for the pattern
 BULL_FLAG_MIN_FLAGPOLE_CANDLES = 3  # consecutive green candles forming the pole
@@ -449,7 +449,7 @@ BULL_FLAG_MAX_RETRACE_PCT = 0.50    # pullback must retrace less than this of th
 BULL_FLAG_MIN_PROFIT_LOSS_RATIO = 2.0
 
 # ── ABCD setup (Phase B) ─────────────────────────────────────────────────────
-# Source: SS101 Ch.5 — A-to-B impulsive move, C pullback holding the 9 EMA,
+# Source: strategy specification — A-to-B impulsive move, C pullback holding the 9 EMA,
 # entry D on break back above point B.
 ABCD_LOOKBACK_BARS = 40            # recent 1-min bars scanned for A/B/C points
 ABCD_MIN_AB_MOVE_PCT = 5.0         # minimum % move from A to B to qualify as impulsive
@@ -482,7 +482,7 @@ SETUPS_ALERT_COOLDOWN_SEC = 120.0   # suppress a repeat alert for the same symbo
 SETUPS_MAX_HISTORY = 200            # cap on in-memory signal history for the initial WS payload
 
 # ── Risk / discipline engine (Phase C) ──────────────────────────────────────
-# Source: SS101 Ch.2, Ch.12; Basics Ch.15. This is a pure state machine — no
+# Source: strategy specification Ch.2, Ch.12; Basics Ch.15. This is a pure state machine — no
 # orders are ever placed by backend/strategy/risk.py.
 RISK_DAILY_GOAL_DOLLARS = 500.0       # daily profit target; also the daily max-loss walk-away trigger
                                        # NOTE: placeholder default — should become a per-user Settings

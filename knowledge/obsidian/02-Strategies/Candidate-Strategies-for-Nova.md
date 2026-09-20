@@ -14,10 +14,7 @@ Update this note as Pinecone recall surfaces better evidence.
 
 | Strategy | Course source | Automatable? | Fits Nova scanner? | Priority | Notes |
 |---|---|---|---|---|---|
-| Gap and Go / premarket gapper | Basics / SS101 | TBD | High | TBD | Natural fit for gapper tab |
-| ABCD / momentum continuation | SS101 | TBD | Medium | TBD | Needs clean level detection |
 | HOD breakout | Basics / SS / HOD Momo | TBD | High | TBD | Overlaps existing HOD Momo module |
-| VWAP reclaim / fail | SS101 | TBD | Medium | TBD | Needs intraday bars |
 | News catalyst spike | Basics + news module | TBD | High | TBD | Nova already has news catalyst panel |
 | Algo scalping (AS101) | Algo Scalping | TBD | Low–Med | TBD | May need faster data than IEX |
 

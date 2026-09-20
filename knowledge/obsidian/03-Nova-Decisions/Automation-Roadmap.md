@@ -4,10 +4,7 @@
 
 ## Phase 0 — Memory (done)
 
-- [x] Download course slide PDFs (Basics, SS101, Algo)
-- [x] Ingest PDFs → Pinecone (`tools/course_memory/ingest.py`) — ~1080 vectors
-- [x] Obsidian decision notes (this folder)
-- [x] Active Strategy + backbone documented
+
 
 ## Phase A–F — Strategy backbone (done)
 

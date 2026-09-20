@@ -7,7 +7,7 @@
  * or re-stamp on a later re-fire -- only its live snapshot fields and
  * badges/tags update in place. See `collapseAlertsBySymbol` for details.
  *
- * Warrior-style "(N in Xs)" badges only accumulate fires within a short burst
+ * momentum "(N in Xs)" badges only accumulate fires within a short burst
  * window. Older same-ticker alerts still merge strategy tags but must not
  * inflate the badge into all-day counts like "(1179 in 2157sec)".
  *
@@ -19,7 +19,7 @@ import { HOD_MOMO_FORMER_MOMO_STRATEGY_ID } from '../constants';
 import type { AlertObject, AlertStrategyTag } from './types';
 
 /** Max gap (seconds) to treat consecutive same-ticker fires as one burst. */
-/** Match backend consolidation window (Warrior "(N in Xs)" burst). */
+/** Match backend consolidation window (momentum "(N in Xs)" burst). */
 export const HOD_BURST_GAP_SEC = 10;
 
 /**
@@ -53,7 +53,7 @@ function visibleStrategyTag(a: AlertObject): AlertStrategyTag | null {
 
 /**
  * @param alerts Newest-first alert list (already strategy-filtered).
- * @param maxBurstGapSec Burst window for Warrior-style consolidation badge.
+ * @param maxBurstGapSec Burst window for momentum consolidation badge.
  * @returns One row per ticker. Each row's `id`/`timestamp`/`created_ts` (and
  *   therefore its position) are pinned to that ticker's FIRST-ever fire in
  *   `alerts` by trade TIME, so a row never moves or re-stamps on a later
@@ -104,7 +104,7 @@ export function collapseAlertsBySymbol(
     const newer = alertDisplayUnix(row);
     const older = alertDisplayUnix(raw);
     const delta = newer > 0 && older > 0 ? Math.abs(newer - older) : 0;
-    // Only extend Warrior burst badge inside the gap; keep strategy tags always.
+    // Only extend momentum burst badge inside the gap; keep strategy tags always.
     if (delta <= gap) {
       row.consolidation_count = (row.consolidation_count || 0) + fireCount(raw);
       const prevSpan = row.consolidation_span_sec ?? 0;

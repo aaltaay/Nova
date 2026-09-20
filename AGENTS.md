@@ -75,7 +75,6 @@ backend/
   hod_momo_models.py   # HOD Momo dataclasses + pure serialization + timestamp helpers
   hod_momo_filters.py  # HOD Momo pure per-strategy gate evaluation (no module state)
   hod_momo_debug.py    # HOD Momo pure debug-payload builders (no module state)
-  hod_momo_metrics.py   # HOD Momo Warrior 5-min RVOL metrics
   hod_momo_enrichment.py  # HOD Momo enrichment pipeline
   bars.py            # bar data fetching
   routes/
@@ -261,8 +260,9 @@ These gates are **MUST**. They override casual phrasing such as "quick fix" or "
 5. Draft or `do-not-merge` only when the user explicitly asked to hold, or a hard external blocker (for example, needs live IBKR proof) is documented in the PR -- not because CI is still running.
 6. Do not end the session with only local commits, unpushed commits, or "I'll open the PR later." The PR URL is the finish line.
 7. Keep existing rules: Actions auto-merge when available; `Closes` vs `Refs`; delete the head after merge or close; required checks unchanged.
+8. **Leave it clean.** No modified, staged or untracked files, no `git stash`, no leftover scratch worktree; `py -3 tools/repo_hygiene.py status` is OK for what you own. Stage explicit paths, never `git add -A`. The Claude Code Stop hook (`repo_hygiene.py stop-gate`) refuses the first dirty stop; `repo_hygiene.py fix` and the nightly `NovaRepoHygiene` task reclaim merged local branches and stale worktrees (`workspace-hygiene.mdc`).
 
-Always-on copies: `.cursor/rules/commit-push-deploy.mdc`, `.cursor/rules/github-delivery.mdc`, `.cursor/skills/github-delivery/SKILL.md`.
+Always-on copies: `.cursor/rules/commit-push-deploy.mdc`, `.cursor/rules/github-delivery.mdc`, `.cursor/rules/workspace-hygiene.mdc`, `.cursor/skills/github-delivery/SKILL.md`.
 
 ---
 
@@ -403,6 +403,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 | Date | Change | Author |
 |------|--------|--------|
 | 2026-09-20 | Backlog organised into 11 ranked work packages (one GitHub milestone each, all 46 open issues assigned). `BACKLOG.md` + `knowledge/backlog-packages.json` + `tools/backlog_triage.py` (`next` / `report` / `check` / `sync` / `sync-map`); weekly sweep workflow; pinned Backlog Map #361; budget-aware 2-3 agent wave runner. PRs batch related issues (46 issues -> 25 PRs). | User Directive + Claude Opus 5 |
+| 2026-09-19 | Workspace hygiene (WS5 of #344): §5.1 B step 8 "leave it clean"; always-on `workspace-hygiene.mdc` (never stash, one worktree per task, explicit `git add` paths); `tools/repo_hygiene.py status\|fix\|stop-gate` inspects the clone (nothing did before); Claude Code SessionStart brief + blocking one-shot Stop hook; nightly `NovaRepoHygiene` task. | User Directive + Claude Fable 5.1 |
 | 2026-09-19 | Version is derived from git, never committed: `VERSION` is a gitignored build artifact, `frontend/package.json` stays `0.0.0-dev`, and the version git hooks are deleted. Rule: **hooks validate, never mutate the index**. WS1 of #344. | User Directive + Claude Opus 5 |
 | 2026-09-19 | Deferred ids: GitHub `#NNN` is the durable id; `D-NNN` is a legacy alias that still parses. `next-id` removed (allocation raced -- 8 duplicated ids across 16 issues). `deferred` issues no longer need a `D-NNN` title to be visible. §7.2b / §7.2c / §9 updated. | User Directive + Claude Code |
 | 2026-09-19 | Header Paper / Live / Sim practice harness: SIM1 tape + local fills, no Gateway places. Env `NOVA_BROKER` is bootstrap only. | User Directive + Cursor Agent |
@@ -441,7 +442,6 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 | 2026-07-18 | Agent Fleet Router: `Agent-Fleet-Map.md` domain/skill ownership matrix; `tools/agent_fleet.py` read-only crack index (+ tests); Nova Home "Fleet cracks" rollup; `router` specialist (report-only triage, `agent-router` dashboard); `sessionStart` hook (`tools/session_brief_hook.py`) leads every chat with top-3 cracks; `specialist-routing.mdc` gains an unowned-domain escalation path; fixed missing `hod-momo` in `AGENT_TITLES`. | Cursor Agent |
 | 2026-07-16 | Webull Widget Parity Specialist (`widgets`): source-backed stock/day-trading capability map, continuity rule, and dedicated `agent-widgets` dashboard; selected implementations preserve manual controls and IBKR safety. | Cursor Agent |
 | 2026-07-16 | Unified agent lifecycle OS: `.cursor/agent-system/` contract+registry; memories in `.cursor/agent-memory/`; specialist-routing + subagentStop hook; agent_contract / sync_agent_surfaces / create_nova_agent tools + CI job; docs/agent-operations.md. | Cursor Agent |
-| 2026-07-16 | Warrior Trading Navigator (`warrior`): authenticated site navigation specialist; dashboard `agent-warrior`; durable map in Obsidian + `docs/warrior-authenticated-access.md`; retired unmanaged `warrior-site-map` canvas. | Cursor Agent |
 | 2026-07-16 | Docs (`docs`): docs + canvas steward; Diátaxis / markdownlint-cli2 / Vale / Lychee pins; `docs-continuity.mdc`; `tools/nova_docs_inventory.py`; dashboard = Nova Home; merged unmanaged `nova-security-audit` into `agent-security`. | Cursor Agent |
 | 2026-07-16 | Security-sentinel baseline enrichment: compensating controls seeded for SEC-001–SEC-006 in `security/findings-registry.json`; `Security-Status.md` open-findings table + verification ledger populated; `security-memory.md` run log updated. Findings open — no product fixes. | Cursor Agent |
 | 2026-07-15 | Maintainer sentinel subagent: `.cursor/agents/maintainer.md` + `maintainer-memory.md` (read-only auditor for file limits, secrets, swallowed errors, deps); deterministic `tools/maintainer_checks.py` + tests; `pip-audit` added to `requirements-dev.txt`. Invoke: “Use the maintainer subagent to audit the repo.” | Cursor Agent |
@@ -498,13 +498,12 @@ Wiring: `.cursor/agent-system/registry.json` · memory: `.cursor/agent-memory/` 
 | **backtester** | “Use the backtester subagent to work the backtest product” | [agent-backtester](canvases/agent-backtester.canvas.tsx) |
 | **news** | “Use the news subagent to work the news pipeline” | [agent-news](canvases/agent-news.canvas.tsx) |
 | **widgets** | “Use the widgets subagent to map Webull widgets to Nova” | [agent-widgets](canvases/agent-widgets.canvas.tsx) |
-| **warrior** | “Use the warrior subagent to navigate Warrior Trading” | [agent-warrior](canvases/agent-warrior.canvas.tsx) |
 | **tester** | “Use the tester subagent to verify …” | `agent-tester.canvas.tsx` |
 | **maintainer** | “Use the maintainer subagent to audit the repo” | `agent-maintainer.canvas.tsx` |
 | **security** | “Use the security subagent to audit the repo” | `agent-security.canvas.tsx` |
 | **docs** | “Use the docs subagent to review documentation” | [nova-home](canvases/nova-home.canvas.tsx) |
 
-Canvas naming: prefer `nova-home` + `agent-*` (+ Cursor `context-usage-*`). Unmanaged boards are reviewed by Docs. **`router`** remains the pure classification / crack-index tool, invoked only on explicit ask (default is `py -3 tools/agent_fleet.py`, no LLM hop). `hod-momo` owns HOD Momo ↔ Warrior parity (`agent-hod-momo`); never feeds Warrior data into Nova's alert engine. `widgets` owns Webull ↔ Nova widget mapping (`agent-widgets`); Webull remains research-only. `execution` is audit-only for ADR 007. `market-feed` owns general L1 + quote/L2/T&S coherence (HOD pool stays `hod-momo`). `backtester` owns Phase E + the VectorBT skill cluster. Route via `.cursor/rules/specialist-routing.mdc` (zero-hop default; specialists are opt-in).
+
 
 ---
 
@@ -534,6 +533,7 @@ Live rule bodies live only under `.cursor/rules/*.mdc`. Do **not** paste full ru
 - `engineering-methodology.mdc` -- soft TDD + plan/interview/doubt/review skill map
 - `github-delivery.mdc` -- issue metadata, [Nova Delivery](https://github.com/users/aaltaay/projects/1) board, clean-start + ready-PR session gates, Actions merge of ready PRs, delete head after merge/close, strict gates
 - `persisted-state.mdc` -- cache files need owner + invalidation + schema_version
+- `workspace-hygiene.mdc` -- never stash; one worktree per task; finish with a clean tree; `tools/repo_hygiene.py status|fix|stop-gate`
 - `graphify.mdc` -- vault/decision questions: `py -3 tools/graphify_ask.py query` + savings meter
 
 **Glob-scoped** (attach when editing matching files; `alwaysApply: false`):

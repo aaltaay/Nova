@@ -1,7 +1,7 @@
 """
 Classify Time & Sales prints against the best bid/ask at receipt time.
 
-Convention (matches typical DAS / Warrior T&S aggressor coloring):
+Convention (matches typical DAS / momentum T&S aggressor coloring):
   - ask     → print at or above the ask (buyer lifted the offer)
   - bid     → print at or below the bid (seller hit the bid)
   - between → print strictly inside the spread

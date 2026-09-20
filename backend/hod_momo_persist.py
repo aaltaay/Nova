@@ -53,7 +53,7 @@ def _migrate_loaded_configs(data: dict) -> bool:
         changed = True
         logger.info(
             "HOD Momo: migrated master surge_pct 3.0 → %s "
-            "(schema v2 Warrior parity)",
+            "(schema v2 momentum parity)",
             HOD_MOMO_MASTER_SURGE_PCT,
         )
     if version < 3:
@@ -62,7 +62,7 @@ def _migrate_loaded_configs(data: dict) -> bool:
         logger.info("HOD Momo: schema v3 — Running Up Alert + 5-min RVOL fields")
         changed = True
     if version < 4:
-        # Former Momo has no public Warrior formula — disable until we own a fill path.
+        # Former Momo has no public momentum formula — disable until we own a fill path.
         cfg = state.configs.get(HOD_MOMO_FORMER_MOMO_STRATEGY_ID)
         if cfg is not None and cfg.enabled:
             cfg.enabled = False
@@ -74,7 +74,7 @@ def _migrate_loaded_configs(data: dict) -> bool:
         changed = True
     if version < 5:
         # Live bug: Squeeze 5%/10% had requires_hod=False so names like CNF fired
-        # without a new HOD — Warrior Small-Cap HOD Momentum never would.
+        # without a new HOD — momentum Small-Cap HOD Momentum never would.
         # Also restore enabled=True for non-Former strategies if a accidental
         # mass-disable left only Squeeze on.
         for sid, cfg in list(state.configs.items()):
@@ -107,7 +107,7 @@ def _migrate_loaded_configs(data: dict) -> bool:
         # Historical config bug: some installs persisted Squeeze #10/#11 with
         # surge_pct zeroed out while surge_window_min still matched the
         # strategy's own default window — a silent no-op filter (surge_pct=0
-        # always passes) instead of Warrior's actual 10%/10m and 5%/5m gate.
+        # always passes) instead of momentum actual 10%/10m and 5%/5m gate.
         # Only repair the exact zeroed-surge/matching-window shape so a user
         # who deliberately changed the window (and thus surge_pct) is left
         # alone; never touch enabled/audio/other fields.

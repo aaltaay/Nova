@@ -59,7 +59,6 @@ Windows: always `py -3` for Python.
 | Maintainability / danger audit | `maintainer` |
 | Full-repo security posture / SEC-NNN | `security` |
 | Docs, MDC rules, agent prompts, canvases (not this router's own artifacts) | `docs` |
-| Warrior Trading authenticated site navigation | `warrior` |
 | HOD Momo scanner data-quality / IBKR feed UML | `hod-momo` |
 | Webull-to-Nova widget mapping | `widgets` |
 | Trading execution ADR 007 audit | `execution` |
@@ -112,6 +111,5 @@ After the Routing card, hand off — do not continue into implementation unless 
 | security | full-repo security / SEC-NNN |
 | docs | docs / canvas hygiene (outside Agent-Fleet-Map.md) |
 | hod-momo | HOD/IBKR feed data-quality |
-| warrior | Warrior Trading site navigation |
 | widgets | Webull-to-Nova widget mapping |
 | parent | task fits no registered specialist and isn't fleet-triage itself |

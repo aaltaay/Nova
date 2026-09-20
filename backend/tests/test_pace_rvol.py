@@ -1,4 +1,4 @@
-"""Tests for Warrior-style pace RVOL (Daily Rate)."""
+"""Tests for momentum pace RVOL (Daily Rate)."""
 from __future__ import annotations
 
 from datetime import datetime

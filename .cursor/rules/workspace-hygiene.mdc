@@ -1,0 +1,18 @@
+---
+description: Leave the clone clean -- never stash, one worktree per task, finish with a clean tree; repo_hygiene.py enforces it
+alwaysApply: true
+---
+
+# Workspace hygiene -- the clone must always be clean
+
+Merged local branches, abandoned worktrees, stashes and dirty trees are invisible to every remote gate. `py -3 tools/repo_hygiene.py` looks at the clone itself; these rules stop the debt at the source.
+
+1. **Never `git stash`.** Commit work-in-progress on your own branch (`wip:` prefix is fine; it squashes away). A stash used only to prove a failure is pre-existing is popped in the **same turn**.
+2. **One worktree per task**, created from `origin/master`, removed when the task ends (`git worktree remove <path>`). Never edit the main checkout from a worktree session, and never leave a scratch worktree behind "for later".
+3. **Stage explicit paths.** Never `git add -A` or `git add .` -- that is how logs, captures and scratch files reach a commit.
+4. **Finish = clean.** A session ends with: tree clean, branch pushed, PR open, your worktree removed, and `py -3 tools/repo_hygiene.py status` printing OK for what you own. The Claude Code Stop hook (`repo_hygiene.py stop-gate`) refuses the first attempt to end a turn with modified, staged, untracked or unpushed work on a branch; if the user explicitly asked you to stop there, stop again and say why.
+5. **After merge**, local branches and worktrees are yours to delete, not only origin heads: run `py -3 tools/repo_hygiene.py fix` (safe class only: merged/closed-PR branches by GitHub state, clean finished worktrees idle >24h, orphan remote-tracking refs). The nightly `NovaRepoHygiene` task does the same. Stashes, dirty files and branches without a PR are reported, never auto-removed.
+
+Related: `commit-push-deploy.mdc`, `github-delivery.mdc`, `AGENTS.md` §5.1, `docs/agent-operations.md`.
+
+Maintenance installation and truthful exit codes: `maintenance-finish.mdc`.

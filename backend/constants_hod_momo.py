@@ -22,13 +22,13 @@ HOD_MOMO_BLOCKLIST_FILE = _os.path.join(_hod_momo_cache_root(), "hod-momo-blockl
 
 # Engine timing
 # Anti-spam mute removed (2026-07-17): a 60s mute ≥ burst window starved the
-# Warrior "(N in Xs)" badge. Burst/consolidation alone rate-limits emits.
+# momentum "(N in Xs)" badge. Burst/consolidation alone rate-limits emits.
 HOD_MOMO_COOLDOWN_SEC = 0.0          # 0 = mute off; do not raise without revisiting burst
-HOD_MOMO_CONSOLIDATION_SEC = 10.0    # batch same-ticker alerts (Warrior "N in Xs")
+HOD_MOMO_CONSOLIDATION_SEC = 10.0    # batch same-ticker alerts (momentum "N in Xs")
 # HOD truth: last must be within this of session high (abs $ or relative).
 HOD_MOMO_HOD_EPSILON_ABS = 0.01
 HOD_MOMO_HOD_EPSILON_PCT = 0.001     # 0.1%
-# Warrior BA101 / KB: HOD Momentum needs a *new* high-of-day (+ momentum), not
+# momentum strategy specification: HOD Momentum needs a *new* high-of-day (+ momentum), not
 # every retest of an already-set high (that's Running Up). After an observed /
 # tick-6 raise of the session high, allow requires_hod strategies this long
 # while price stays near the high (KB: alert may confirm within ~1 minute).
@@ -47,7 +47,7 @@ HOD_MOMO_ALERT_SAVE_INTERVAL_SEC = 5.0
 HOD_MOMO_UNIVERSE_INTERVAL_SEC = 300.0  # refresh cadence for broad (full-asset) mode
 # Ross-style focus: Top Gainer/Gapper shortlist + IBKR volume seeds — not the
 # full US tape. Broad mode subscribed ~6k IEX symbols → zero trades (empty tab).
-# Warrior Day Trade Dash scans the whole market; Nova approximates that by
+# momentum scans the whole market; Nova approximates that by
 # unioning Top % Gain/Lose with HOT_BY_VOLUME / TOP_VOLUME_RATE / MOST_ACTIVE.
 HOD_MOMO_UNIVERSE_MODE_FOCUS = "focus"
 HOD_MOMO_UNIVERSE_MODE_BROAD = "broad"
@@ -147,7 +147,7 @@ HOD_MOMO_INTEGRITY_DISCOVERY_TO_EVAL_TARGET_SEC = 5.0
 HOD_MOMO_FORMER_MOMO_STRATEGY_ID = 1  # empty former_momo_list → never fire
 # Manual-only watchlist default seed (REQ-HOD-006) — user edits from here.
 HOD_MOMO_FORMER_MOMO_DEFAULT_LIST = ["SPRC"]
-HOD_MOMO_RUNNING_UP_STRATEGY_ID = 12  # Warrior Running Up — no HOD required
+HOD_MOMO_RUNNING_UP_STRATEGY_ID = 12  # momentum Running Up — no HOD required
 HOD_MOMO_APPROACH_STRATEGY_ID = 13  # Re-touch of stale session high after pullback
 HOD_MOMO_STRATEGY_ID_MAX = 13
 # Squeeze family — session-focus sticky L1 when these are evaluated (not every tick).
@@ -179,9 +179,9 @@ HOD_MOMO_FUNDAMENTALS_BATCH_SIZE = 10            # symbols per fundamentals tick
 HOD_MOMO_FUNDAMENTALS_REFRESH_SEC = 300.0
 
 # Master gate defaults.
-# Warrior HOD Momo = new HOD + *per-strategy* momentum (float/RVOL/surge bands).
+# momentum HOD Momo = new HOD + *per-strategy* momentum (float/RVOL/surge bands).
 # Master surge is OFF by default so Medium Float / Low Float Rel Vol strategies
-# are not double-gated by a global 3%/5min filter that Warrior does not apply.
+# are not double-gated by a global 3%/5min filter that momentum does not apply.
 HOD_MOMO_MASTER_HOD_REQUIRED = True
 HOD_MOMO_MASTER_SURGE_PCT = 0.0      # 0 = disabled; squeeze strategies keep their own surge
 HOD_MOMO_MASTER_SURGE_WINDOW_MIN = 5  # minutes (used only when surge_pct > 0)
@@ -191,11 +191,11 @@ HOD_MOMO_MASTER_MIN_RVOL = 0.0
 HOD_MOMO_MASTER_PREMARKET_MIN_RVOL = 0.0   # master RVOL retired — strategy-level only
 HOD_MOMO_MASTER_AFTERHOURS_MIN_RVOL = 0.0
 
-# Pace RVOL (Warrior "Relative Volume (Daily Rate)"): today_vol / (avg * elapsed_frac).
+# Pace RVOL (momentum "Relative Volume (Daily Rate)"): today_vol / (avg * elapsed_frac).
 # Floor = ~14 min of the 04:00–16:00 ET volume day — avoids insane RVOL at 4:01.
 HOD_MOMO_RVOL_PACE_FLOOR = 0.02
 HOD_MOMO_RVOL_USE_PACE = True
-# Warrior "Relative Volume (5 min %)": last-5m vol ÷ (avg_daily / bars_in_session).
+# momentum "Relative Volume (5 min %)": last-5m vol ÷ (avg_daily / bars_in_session).
 # Session = 04:00–16:00 ET (720 min → 144 five-minute bars), matching pace RVOL day.
 HOD_MOMO_RVOL_5MIN_WINDOW_SEC = 300
 HOD_MOMO_RVOL_5MIN_SESSION_MINUTES = 720.0
@@ -264,7 +264,7 @@ HOD_MOMO_STRATEGY_AUDIO_DEFAULT: dict[int, bool] = {
 # Per-strategy default config values.
 # Keys match StrategyConfig field names. Missing keys use the universal 0-disabled default.
 HOD_MOMO_STRATEGY_DEFAULTS: dict[int, dict] = {
-    1: {  # Former Momo Stock — off until we have a real Warrior-aligned fill path
+    1: {  # Former Momo Stock — off until we have a real momentum fill path
         "enabled": False,
         "min_rvol": 2.0,
         "former_momo_list": HOD_MOMO_FORMER_MOMO_DEFAULT_LIST,
@@ -313,17 +313,17 @@ HOD_MOMO_STRATEGY_DEFAULTS: dict[int, dict] = {
         "max_rvol": 4.9,
         "min_price": 20.0,
     },
-    10: {  # Squeeze Alert - Up 10% in 10min — Warrior HOD widget requires new HOD
+    10: {  # Squeeze Alert - Up 10% in 10min — momentum HOD widget requires new HOD
         "surge_pct": 10.0,
         "surge_window_min": 10,
         "requires_hod": True,
     },
-    11: {  # Squeeze Alert - Up 5% in 5min — Warrior HOD widget requires new HOD
+    11: {  # Squeeze Alert - Up 5% in 5min — momentum HOD widget requires new HOD
         "surge_pct": 5.0,
         "surge_window_min": 5,
         "requires_hod": True,
     },
-    12: {  # Running Up Alert — Warrior separate scanner; momentum without HOD
+    12: {  # Running Up Alert — momentum separate scanner; momentum without HOD
         "requires_hod": False,
         "surge_pct": 5.0,
         "surge_window_min": 5,

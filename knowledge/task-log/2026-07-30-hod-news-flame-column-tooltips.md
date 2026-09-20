@@ -7,7 +7,7 @@
 
 ## Task
 
-Replace/extend HOD columns toward a Warrior-like layout with a news fire symbol, header tooltips for column math, and a maintainable single source of truth for columns.
+
 
 ## Goal
 

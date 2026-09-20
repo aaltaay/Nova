@@ -5,20 +5,7 @@ Nova Cursor agents remain authoritative; this is an interoperability snapshot.
 
 ## Fleet signal (latest dream)
 
-- daddy: pending=0 promotable=0 backlog=1
-- router: pending=0 promotable=0 backlog=1
-- execution: pending=0 promotable=0 backlog=2
-- ibkr-ops: pending=0 promotable=0 backlog=2
-- market-feed: pending=0 promotable=0 backlog=2
-- hod-momo: pending=0 promotable=0 backlog=4
-- backtester: pending=0 promotable=0 backlog=1
-- news: pending=0 promotable=0 backlog=2
-- widgets: pending=0 promotable=0 backlog=5
-- warrior: pending=0 promotable=0 backlog=10
-- tester: pending=0 promotable=0 backlog=6
-- maintainer: pending=0 promotable=0 backlog=6
-- security: pending=0 promotable=0 backlog=7
-- docs: pending=0 promotable=0 backlog=6
+
 
 ## How to use with OpenClaw
 

@@ -47,7 +47,6 @@
         "security": "security posture",
         "docs": "docs / canvases (outside Agent-Fleet-Map.md)",
         "hod-momo": "HOD/IBKR feed data-quality",
-        "warrior": "Warrior Trading site navigation",
         "widgets": "Webull-to-Nova widget mapping"
       },
       "domain": "fleet triage / classification / crack index"
@@ -219,12 +218,9 @@
         "canvas": "agent-hod-momo.canvas.tsx"
       },
       "continuity_rule": null,
-      "continuity_waiver": "No dedicated continuity MDC; canonical feed UML + IBKR API map live in knowledge/obsidian/03-Nova-Decisions/IBKR-Scanner-HOD-Architecture.md (this agent owns); parity plan (c:\\Users\\aalta\\.cursor\\plans\\hod_momo_parity_e02ce8f4.plan.md, read-only) plus root-cause ledger in memory; routing via specialist-routing.mdc + single-market-data-feed.mdc (Warrior-feed research-only boundary).",
+      "continuity_waiver": "Canonical feed architecture and scanner memory govern diagnostics; follow single-market-data-feed.mdc.",
       "canonical_inputs": [
         "knowledge/obsidian/03-Nova-Decisions/IBKR-Scanner-HOD-Architecture.md",
-        ".tmp/hod-momo-parity/diff_latest.json",
-        ".tmp/hod-momo-parity/summary.md",
-        ".tmp/hod-momo-parity/warrior_latest.json",
         "PROBLEM_LOG.md",
         "CHANGELOG.md",
         ".cursor/agent-memory/hod-momo-memory.md"
@@ -252,22 +248,20 @@
         "arm_executor",
         "place_orders",
         "commit_without_ask",
-        "feed_warrior_into_alert_engine",
         "mix_alpaca_when_ibkr",
-        "trust_parity_counts_on_failed_gate"
+        "trust_parity_counts_on_failed_gate",
+        "feed_external_research_into_alert_engine"
       ],
       "deterministic_checks": [
         "py -3 tools/hod_momo_session_gate.py --profile integrity_only",
-        "py -3 tools/hod_momo_parity_observe.py --once",
         "py -3 -m pytest backend/tests/test_hod_momo_engine.py backend/tests/test_hod_momo_filters.py backend/tests/test_hod_momo_spam_rate.py backend/tests/test_hod_momo_integrity.py -q"
       ],
       "sibling_handoffs": {
-        "warrior": "fresh Warrior Day Trade Dash HOD Momentum snapshot (warrior_latest.json)",
         "tester": "full pytest / Vitest / build / browser verification after a fix ships",
         "maintainer": "file-size / modularity / danger findings in hod_momo*.py",
         "docs": "docs / canvas hygiene outside this agent's own dashboard"
       },
-      "domain": "HOD Momo scanner data-quality + Warrior parity iteration"
+      "domain": "HOD Momo scanner data quality"
     },
     {
       "id": "backtester",
@@ -427,55 +421,6 @@
         "parent": "cross-domain implementation beyond the selected capability"
       },
       "domain": "evidence-based Webull-to-Nova stock/day-trading widget capability mapping and selected gap implementation"
-    },
-    {
-      "id": "warrior",
-      "name": "warrior",
-      "spec": ".cursor/agents/warrior.md",
-      "memory": ".cursor/agent-memory/warrior-memory.md",
-      "invoke_phrases": [
-        "Use the warrior subagent to navigate Warrior Trading",
-        "Use the warrior subagent to map Day Trade Dash",
-        "Improve the warrior agent \u2014 work the next backlog item"
-      ],
-      "dashboard": {
-        "type": "dedicated",
-        "canvas": "agent-warrior.canvas.tsx"
-      },
-      "continuity_rule": null,
-      "continuity_waiver": "No dedicated continuity MDC; durable map + access runbook are canonical; routing via specialist-routing.mdc + warrior memory.",
-      "canonical_inputs": [
-        "docs/warrior-authenticated-access.md",
-        "knowledge/obsidian/01-Courses/Warrior-Trading/Authenticated-Site-Map.md",
-        "scripts/open_warrior_site.ps1",
-        ".cursor/agent-memory/warrior-memory.md"
-      ],
-      "writable_paths": [
-        ".cursor/agents/warrior.md",
-        ".cursor/agent-memory/warrior-memory.md",
-        "docs/warrior-authenticated-access.md",
-        "knowledge/obsidian/01-Courses/Warrior-Trading/",
-        "scripts/open_warrior_site.ps1"
-      ],
-      "prohibited_actions": [
-        "arm_executor",
-        "place_orders",
-        "commit_without_ask",
-        "store_secrets_in_repo",
-        "scrape_paid_course_bodies",
-        "post_chat_or_trade_on_warrior",
-        "edit_product_runtime_unless_asked"
-      ],
-      "deterministic_checks": [
-        "py -3 -c \"from pathlib import Path; assert Path('scripts/open_warrior_site.ps1').is_file(); assert Path('docs/warrior-authenticated-access.md').is_file(); assert Path('knowledge/obsidian/01-Courses/Warrior-Trading/Authenticated-Site-Map.md').is_file()\""
-      ],
-      "sibling_handoffs": {
-        "docs": "Nova Home / general docs and unmanaged non-Warrior canvases",
-        "tester": "Nova product test / build gates",
-        "maintainer": "Nova code hygiene",
-        "security": "Nova AppSec / SEC-NNN"
-      },
-      "domain": "authenticated Warrior Trading site navigation and mapping"
     },
     {
       "id": "tester",
@@ -650,7 +595,6 @@
         "tester": "test / build gates",
         "maintainer": "code hygiene",
         "security": "SEC-NNN posture",
-        "warrior": "Warrior Trading authenticated site navigation / Day Trade Dash map",
         "widgets": "Webull-to-Nova stock/day-trading capability mapping and agent-widgets content"
       },
       "domain": "documentation + canvas stewardship"

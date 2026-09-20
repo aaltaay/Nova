@@ -22,7 +22,6 @@ Specialists accumulate pending promotions and long run logs with no scheduled cl
 - Added `tools/agent_dream.py` + `tools/agent_dream_lib/` (parse, phases)
 - Tests in `tools/test_agent_dream.py`
 - Diary `.cursor/agent-system/DREAMS.md`, vault note `Agent-Dreaming.md`
-- Wired docs agent, registry, agent-operations, fleet map, Memory-Router, specialist-routing
 
 ## How it works now
 

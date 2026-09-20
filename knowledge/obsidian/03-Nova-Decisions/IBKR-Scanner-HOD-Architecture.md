@@ -64,8 +64,7 @@ ADR).
 
 ## Rate limit
 
-- Anti-spam **mute removed** (`cooldown_sec = 0`).
-- Warrior burst = **10s consolidation** only (`HOD_MOMO_CONSOLIDATION_SEC` / UI `HOD_BURST_GAP_SEC`).
+
 
 ## Master gate
 

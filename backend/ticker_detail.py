@@ -36,7 +36,7 @@ def rvol_5min_fields(
     avg_vol: float | None,
     daily_vol: int | float | None,
 ) -> dict[str, float | int | None]:
-    """Warrior 5-min RVOL fields for the quote panel."""
+    """momentum 5-min RVOL fields for the quote panel."""
     import hod_momo as _hod_momo
     import hod_momo_metrics as _metrics
 

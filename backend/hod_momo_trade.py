@@ -194,7 +194,7 @@ def on_trade_update(
             )
             continue
 
-        # Mute removed: consolidation window alone batches Warrior "(N in Xs)".
+        # Mute removed: consolidation window alone batches momentum "(N in Xs)".
         cooldown_sec = float(state.master.cooldown_sec or 0.0)
         if cooldown_sec > 0:
             cooldown_key = (symbol, strategy_id)

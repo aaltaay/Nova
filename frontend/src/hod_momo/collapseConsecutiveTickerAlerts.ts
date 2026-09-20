@@ -1,5 +1,5 @@
 /**
- * Collapse consecutive same-ticker alert rows (newest-first), Warrior-style.
+ * Collapse consecutive same-ticker alert rows (newest-first), momentum.
  * Keeps one row per burst and stamps consolidation_count / consolidation_span_sec.
  */
 import type { AlertObject } from './types';

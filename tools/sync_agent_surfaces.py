@@ -244,7 +244,6 @@ AGENT_TITLES = {
     "tester": "Tester",
     "maintainer": "Maintainer",
     "security": "Security",
-    "warrior": "Warrior Navigator",
     "hod-momo": "HOD Momo Parity",
     "widgets": "Widgets",
     "router": "Router",

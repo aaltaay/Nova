@@ -135,7 +135,7 @@ def test_full_day_dense_movers_captured(full_day_result):
 def test_full_day_no_phantom_strategies(day_fixture, full_day_result):
     """Replayed strategies must be a subset of production's per symbol.
 
-    Strategy 13 (Approaching HOD) is Nova-only — not in Warrior production
+    Strategy 13 (Approaching HOD) is Nova-only — not in momentum production
     IDs — so it is excluded from the phantom check.
     """
     from constants import HOD_MOMO_APPROACH_STRATEGY_ID
@@ -169,7 +169,7 @@ def test_full_day_thin_tape_symbols_are_coverage_gaps(day_fixture, full_day_resu
 
     fired = full_day_result.alerts_by_symbol_strategy()
     for sym in THIN_TAPE | {"CNF"}:
-        # Nova-only Approaching HOD (13) is outside Warrior production IDs.
+        # Nova-only Approaching HOD (13) is outside momentum production IDs.
         replayed = set(fired.get(sym, [])) - {HOD_MOMO_APPROACH_STRATEGY_ID}
         production = set(
             (day_fixture.meta["symbols"].get(sym) or {}).get("production_strategy_ids") or []

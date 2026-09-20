@@ -1,7 +1,7 @@
 """
 Bull Flag setup detection — signal-only.
 
-Pattern (SS101 Ch.5): a flagpole of 3+ consecutive green candles, followed by
+Pattern (strategy specification): a flagpole of 3+ consecutive green candles, followed by
 a shallow pullback of 2+ candles that hold above the 9 EMA and don't retrace
 more than half the flagpole's move, with entry on a break back above the
 flagpole high.

@@ -37,6 +37,39 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- Cleanup failures looked successful and maintenance needed manual installation
+
+- **Symptom:** `repo_hygiene.py fix` returned 0 after failed git commands, and the scheduled PowerShell pipeline discarded Python's result. Nightly cleanup remained uninstalled after delivery.
+- **Cause:** Fix ignored fetch/action return codes and never checked the resulting state; installation existed only in the manual daily-task installer. A removed worktree's branch was invisible until the next scan.
+- **Fix:** Structured action outcomes, fail-closed fetch/GitHub checks, two bounded passes with fresh scans, distinct exit codes, a logging runner that preserves them, and verified idempotent setup from source startup. Real Windows verification caught Task Scheduler normalizing the principal to a short account name; compare the resolved SID instead, avoiding endless reinstallation. Existing custom daily times are retained.
+- **Fix class:** infra
+- **Keywords:** repo hygiene, cleanup, exit code, Task Scheduler, SID, idempotence, WS5, #344
+
+
+## 2026-09-19 — Agent metadata cleanup
+
+**Symptom:** Cleanup validation rejected incomplete agent metadata and misplaced log entries.
+**Cause:** Shared contract blocks were removed alongside retired notes, and the log insertion matched a prose example instead of the marker line.
+**Fix:** Restored active agent contracts and inserted entries at the exact marker line; kept text processing explicitly UTF-8.
+**Keywords:** agent-contract, metadata, cleanup, entry-log
+
+## 2026-09-19 -- Completed-orders warning test expired with the calendar
+
+- **Symptom:** PR #355 Frontend build failed because a time-only regex received "Completed orders not answering since Sat 08:54 AM".
+- **Cause:** The builder read the actual system date while the test supplied a fixed September 19 onset. Once those dates differed, the valid production formatter added a weekday.
+- **Fix:** Freeze system time within the completed-orders describe block and restore real timers after each test. Keep explicit same-day and next-day formatting assertions; add the clock-isolation verification rule.
+- **Fix class:** infra
+- **Keywords:** tradingPrerequisites, completed orders, Vitest, calendar, UTC, fake timers, PR355
+
+## 2026-09-19 -- Local git debt accumulated because nothing inspected the clone
+
+- **Symptom:** The main checkout carried 14 local branches with gone upstreams, 4 abandoned worktrees (two under `~/.codex/worktrees`, one in `%TEMP%`, one in `.claude/worktrees`), a remote-tracking ref `scratch/pr299` for a remote that no longer existed, 7 stashes (5 already landed), and uncommitted `backend/ibkr/` edits that another agent had already shipped as PR #299 from a different worktree. `git status` looked clean apart from an untracked `backend/sim/data/`. Cleaning it by hand cost a session.
+- **Cause:** Every hygiene gate was remote-facing: `stale_pr_branches.py` reads `git branch -r`, `pr-delivery.yml` runs on GitHub, `doc_invariants.py` / `engineering_skills_audit.py` read text, CI runs on an ephemeral checkout. No tool ran `git status`, `git stash list`, `git worktree list` or `git branch -vv` locally. The rules had a clean-*start* precondition but no clean-*finish* postcondition, and `commit-push-deploy.mdc` even said `git add -A`. Agents stashed to switch branches, spun scratch worktrees to satisfy "clean start" and abandoned them, and never deleted local branches because squash merges make `git branch -d` refuse. `.githooks/` had been deleted (WS1 of #344) while `core.hooksPath` still pointed at it, and Claude Code sessions had no session brief at all.
+- **Fix:** `tools/repo_hygiene.py` (`status` / `fix` / `stop-gate`) with pure classifiers in `repo_hygiene_lib.py`; Claude Code SessionStart brief + one-shot blocking Stop hook in `.claude/settings.json`; always-on `workspace-hygiene.mdc` (never stash, one worktree per task, explicit `git add` paths, finish clean) mirrored into AGENTS.md §5.1 B, `commit-push-deploy.mdc`, `constitution.mdc`, the PR template; nightly `NovaRepoHygiene` task; `.gitignore` for `backend/sim/data/` and `.claude/worktrees/`. Fix decisions use GitHub PR state, never ancestry, and fall back to report-only when `gh` is unavailable.
+- **Fix class:** surfacing
+- **Verified by:** 54 tool tests pass; live `status` on the dirty clone found all 14 branches and the orphan ref as fixable and left worktrees/stashes to a human; `stop-gate` exits 2 on a dirty branch and 0 on the second stop. Subtle bug caught while verifying: `_git()` used `.strip()`, which removed the leading space of the first `status --porcelain` line and misread ` M .claude/settings.json` as staged `claude/settings.json`; fixed to strip line endings only, with the tree test covering both shapes.
+- **Keywords:** repo_hygiene, stop-gate, SessionStart, Stop hook, git stash, git worktree, gone upstream, squash merge, branch -d, orphan remote ref, scratch/pr299, workspace-hygiene.mdc, WS5, #344, porcelain leading space
+
 ## 2026-09-19 -- Log entries landed inside the how-to block instead of under the entries marker
 
 - **Symptom:** `CHANGELOG.md` and `PROBLEM_LOG.md` held dated entries in the middle of instruction item 2, whose sentence broke after the marker name and resumed as an orphaned `` ` marker (newest entries at the top).`` tail below them. `CHANGELOG.md` also opened with an `## Unreleased` block above its own H1.
@@ -744,14 +777,6 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Fix:** Rewrote the four comments to match ADR 008/010 and local-only cache. Deleted `_snapshot_lock` / `_get_snapshot_lock` (zero production callers) and their test monkeypatches.
 - **Fix class:** surfacing
 - **Keywords:** D-034, volume seeds, ADR 008, _snapshot_lock, cold_slot, Railway, xfail
-
-## 2026-09-11 -- Scanner integrity mutual-vouch and Large Cap re-fire on restart
-
-- **Symptom:** Integrity could pass empty Gappers/Losers with "OK if another scanner list is live" while the sibling was also empty. Large Cap Discord/Telegram breakouts re-fired after an API restart. Cooldown default 0 looked like a missing mute.
-- **Cause:** The no-cache branch never checked that a sibling table was actually live with rows. `_fired_today` lived only in process memory. `HOD_MOMO_COOLDOWN_SEC = 0` is the 2026-07-17 Warrior burst-badge decision -- consolidation (10s) is the rate limit, and persist already pins cooldown to that constant.
-- **Fix:** Sibling-vouch requires another table live-with-rows (or frozen-with-rows). Persist `_fired_today` on the dated Large Cap snapshot with `schema_version`. Leave cooldown at 0 and document it.
-- **Fix class:** surfacing (integrity) / ownership (Large Cap dedupe)
-- **Keywords:** D-028, mutual vouch, OK if another scanner list is live, _fired_today, large_cap_alerts, HOD_MOMO_COOLDOWN_SEC, schema_version
 
 ## 2026-09-11 -- Depth cap force-evicted a live Level 2 viewer
 
@@ -2156,13 +2181,6 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Fix:** Clear `ibkr_bridge_last_error` on successful `run_gainers_update()` when gainers rows land. Demote `scanner_ibkr_bridge` to `warn` when gainer cache is still fresh. Treat empty/stale losers as `pass` (secondary list) whenever gainers are live. Alert suppression remains HOD-scoped (REQ-HOD-004).
 - **Keywords:** scanner_ibkr_bridge, ibkr_bridge_last_error, TOP_PERC_GAIN, TimeoutError, Integrity fail banner, sticky error, scanner_losers, run_gainers_update
 
-## 2026-07-23 — Former Momo silently auto-grew forever + re-seeded from alert history on every restart
-
-- **Symptom:** Not a crash — a design flaw found during HOD brainstorming (`docs/hod_brainstorming.html` REQ-HOD-005/006). `hod_momo_trade.on_trade_update` called `_former.remember_former_momo(symbol)` every time **any other** strategy fired, permanently appending that ticker to strategy 1's `former_momo_list` (persisted to disk, never pruned). `hod_momo_persist.load_persisted_state()` additionally called `bootstrap_former_momo_from_alerts()` on every process start, re-seeding the list from that day's alert history. Net effect: the "manual" Former Momo watchlist was neither manual nor bounded — it silently accreted every ticker that ever alerted, session after session.
-- **Cause:** The feature was designed to mirror Warrior's "Former Momo Stock" tag (auto-detect names that already hit HOD Momentum) rather than as a user-curated list, so every alert fire and every restart mutated it as a side effect with no cap and no user visibility into why a symbol appeared.
-- **Fix:** Removed the auto-remember call site in `hod_momo_trade.on_trade_update` and the bootstrap-from-alerts call in `hod_momo_persist.load_persisted_state`. Deleted the now-dead `remember_former_momo()` / `bootstrap_former_momo_from_alerts()` functions from `hod_momo_former.py`. `former_momo_list` is now edited only via the strategy-1 config API (`StrategyConfigurator.tsx`) — manual only. Added `hod_momo_former.former_momo_priority_symbols()` (manual list, order-preserving, dedup'd) and wired it as `build_active_set()`'s `priority_symbols` in `ibkr_bridge.refresh_hod_active_set()` and as `extra_symbols` in `universe.refresh_hod_momo_universe()`, replacing the old `hod_momo_session_focus.session_focus_active_priority()`/`session_focus_extra_symbols()` calls (alert-history + sticky-memory inputs — sticky was already dead code since nothing called `remember_session_focus()` in production). Effect: Former Momo members now get guaranteed HOD active-set admission — same live-L1 pipeline every Top Gainer flows through — regardless of Top Gainers rank, without any alert-fire side effect. Seeded a one-time default (`HOD_MOMO_FORMER_MOMO_DEFAULT_LIST = ["SPRC"]`) via config schema v6 migration (only if the persisted list is still empty — never clobbers a user-customized list). `hod_momo_session_focus.py` itself is left intact (still unit-tested) but is no longer called from the active-set build path.
-- **Keywords:** Former Momo, remember_former_momo, bootstrap_former_momo_from_alerts, session_focus_active_priority, priority_symbols, build_active_set, manual watchlist, REQ-HOD-005, REQ-HOD-006, schema v6
-
 ## 2026-07-23 — API restart cascade: hot-reload race + two confirmed IBKR lifecycle defects (correction + fix)
 
 - **Symptom:** Repeated API restarts around 10:18–10:19 while editing backend files; browser showed a ~2.5s health delay during one of those restarts. The 2026-07-23 "API_WEDGED" entry below attributed delayed health to health and `scan_loop` sharing asyncio's default thread pool.
@@ -2302,13 +2320,6 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Fix:** Shared `formatShareQty` (0–4 decimals, trim trailing zeros) wired into Positions, Working/Closed Orders, executor/journal tables, and Pos/flatten UI copy.
 - **Keywords:** fractional shares, Positions Qty 0, formatShareQty, IBKR leftover, Webull S6
 
-## 2026-07-20 — VCIG late Squeeze fired on HOD retest (not new HOD)
-
-- **Symptom:** User: VCIG hit Nova HOD scanner at 08:24:14 ET; Warrior showed true HOD (Former Momo + Low Float High Rel Vol) at 08:02:54 / $1.34, then many Running Up alerts 08:02–08:26 while price was *not* making new HOD.
-- **Cause:** (1) Nova first evaluated VCIG ~08:22 ET (`hod_momo.log`; earlier IBKR Error 10089 delayed MD). (2) HOD gate only checked `price ≈ session_high`, so after seeding the ~$1.34 floor, Squeeze 5%/10% re-fired on retests with 5–10m surge — Warrior Running Up semantics on the HOD widget. (3) Alert cache confirms strategies 10/11 at $1.34, not Running Up (12 blocked by `rvol:unknown`).
-- **Fix:** Track `session_high_raised_ts`; `fails_hod_gate` requires a fresh new-high within `HOD_MOMO_NEW_HOD_GRACE_SEC` (60s). Initial bars/tick6 seed does not open the window.
-- **Keywords:** VCIG, HOD retest, Squeeze, Running Up, session_high_raised_ts, fails_hod_gate, hod:not_new, Error 10089, BA101
-
 ## 2026-07-19 — Sample Closed Orders Time Placed milliseconds crawled
 
 - **Symptom:** Sample Closed Orders Time Placed (e.g. `.323`) kept changing on refresh; looked like live stamps were mutable.
@@ -2406,41 +2417,6 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Cause:** `HOD_MOMO_SESSION_FOCUS_MAX=40` let hot master_rvol soft-blocks accumulate; reserved session_focus slots are only 8. Newest hot stickies took the slots; cooled TRT never subscribed.
 - **Fix:** Cap sticky to 8 slots; `_rank_sticky` puts off-mover (cooled) symbols before on-table ones before truncate/priority.
 - **Keywords:** TRT, sticky flood, session_focus, cooled-first, HOD_MOMO_SESSION_FOCUS_MAX, empty snap
-
-## 2026-07-17 — TRT empty snap after leaving gainer table (session-focus churn)
-
-- **Symptom:** After PN L1 fix, TRT `/debug/symbol/TRT` empty (no price/rvol/session_high) while Warrior still showed prior Squeeze; TRT not in movers/active/uncovered.
-- **Cause:** Session-focus reserved only 2 slots (Former cut) and only `today_alerts` + Former list. TRT never Nova-alerted (soft-block then churn). Once off TOP_PERC_GAIN it left the focus universe and L1. Early sticky-on-every-tick / every-Squeeze-eval flooded the sticky list and evicted TRT.
-- **Fix:** `hod_momo_session_focus` day-persisted sticky; remember only on master_rvol soft-block; priority sticky→alerts→Former; `HOD_MOMO_ACTIVE_SESSION_FOCUS_SLOTS=8`.
-- **Keywords:** TRT, empty snap, session_focus, sticky L1, master_rvol soft-block, Squeeze churn
-
-## 2026-07-17 — PN Squeeze empty snap despite being on IBKR gainers table
-
-- **Symptom:** Warrior PN Squeeze 5%/10% (~12:54–12:58 @ $4.25–4.49); Nova `/debug/symbol/PN` empty (never evaluated). PN ranked ~36 on `/api/movers` gainers.
-- **Cause:** Not a missing scan code — PN was in focus/discovery but uncovered. Active seed_slots took the **head** of HOT_BY_VOLUME-ordered seeds (~150 names before belowPrice TOP_PERC_GAIN). Losers filled ~half of mover slots via `abs(change_pct)`. Former `session_focus` reserved 8 L1 slots. Mid-tier low-volume sub-$20 gainers never got sticky L1.
-- **Fix:** `seed_symbols_for_active` / `discovery_for_active` (under-$20 gainer head); `scan_hod_momentum_seeds` belowPrice-first; `ibkr_bridge` omits `loser_rows`; `HOD_MOMO_ACTIVE_FORMER_SLOTS` 8→2.
-- **Keywords:** PN, Squeeze, universe_gap, seed_slots, under20, HOT_BY_VOLUME, top_loser, session_focus, empty snap
-
-## 2026-07-17 — CNF Squeeze on Nova but never on Warrior HOD
-
-- **Symptom:** User saw **CNF** alert on Nova HOD Momo (Squeeze 5%/10%); Warrior Small-Cap HOD Momentum never showed CNF.
-- **Cause:** (1) Live config had **only** strategies 10/11 enabled — Float / Running Up / 52wk all disabled. (2) Those Squeeze configs had `requires_hod=False`, so a surge alone could fire without a new high of day — Warrior’s HOD widget requires HOD.
-- **Fix:** Schema v5 + live repair: Squeeze `requires_hod=True`; re-enable strategies 2–12; Former stays off. Defaults document Squeeze HOD requirement.
-- **Keywords:** CNF, nova_only, Squeeze, requires_hod, Warrior HOD Momentum, mass-disabled strategies, schema v5
-
-## 2026-07-17 — Squeeze blocked by master RVOL; microcap squeezes crowded out of seed top-50
-
-- **Symptom:** Live Warrior Squeeze on **TRT** while Nova `would_fire_now` hard-stopped at `master_rvol(0.32<2.0)` with empty strategies. **BTMD** Squeeze never entered Nova (empty snap) despite seed codes including TOP_PERC_GAIN.
-- **Cause:** (1) Squeeze 5%/10% defaults intentionally set `min_rvol=0` (surge is the gate), but `passes_master_gate` still applied a global Daily Rate floor of 2.0 before any strategy ran — pace RVOL math for TRT was correct (vol/avg×elapsed ≈ 0.32). (2) IBKR TOP_PERC_GAIN hard-caps at 50 rows; mega-gainers fill the uncapped list so sub-$20 squeezes never enter the HOD seed/watch set.
-- **Fix:** Soft-block master RVOL — still evaluate surge-only strategies (`min_rvol<=0` + surge window). Second seed pass: `TOP_PERC_GAIN` with `belowPrice=IBKR_HOD_SEED_BELOW_PRICE` (20). BTMD may still miss when it ranks outside the sub-$20 top-50 (`capacity_expected`).
-- **Keywords:** Squeeze, master_rvol, TRT, BTMD, pace RVOL, Daily Rate, belowPrice, TOP_PERC_GAIN, universe_gap, strategy_ignores_master_rvol
-
-## 2026-07-17 — HOD L1 never started — lifespan spawn typo aborted before scanner_l1
-
-- **Symptom:** After uvicorn restart, integrity FAIL (coverage ~42–62%, quote/eval ages climbing to minutes); parity `nova=0`; Warrior Squeeze names (SDOT/TRT) had enrichment snaps but `surge:None` / empty `session_high` (no `on_trade_update`). Log had scan_loop + surge_seed but **zero** `IBKR ticks: subscribed … owner=hod|scanner` and no `lifespan bootstrap complete`.
-- **Cause:** `app_lifespan._spawn_runtime_tasks` built a single task list and called `_executor.fills_poll_loop` (plural). Real name is `fill_poll_loop`. `AttributeError` aborted the list mid-build after early tasks (scan/enrichment/surge_seed) were already `create_task`'d but **before** `scanner_l1.reconcile_loop` — so table/HOD L1 never subscribed.
-- **Fix:** Wire `fill_poll_loop`; spawn each background task independently (fail one, keep others); start `scanner_l1` + HOD heartbeat/surge-seed first. Regression: `test_app_lifespan_spawn.py`.
-- **Keywords:** fills_poll_loop, fill_poll_loop, scanner_l1, lifespan spawn, surge:None, SDOT, Squeeze, L1 coverage, bootstrap complete
 
 ## 2026-07-17 — API listens but never serves — lifespan blocked on IBKR connect
 
@@ -2544,27 +2520,6 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Fix:** Group by `strategy_id` and emit one consolidated alert per strategy; plus session_focus L1 slots + quiet-tape re-eval.
 - **Keywords:** HOD Momo, consolidation, Former Momo, LBGJ, strategy_id, flush_consolidated_loop
 
-## 2026-07-16 — Former Momo would_fire PASS but never alerts (off active set)
-
-- **Symptom:** LBGJ debug `would_fire_now` Former/Low Float PASS; Warrior still warrior_only for Former; no new Former alerts.
-- **Cause:** Active set filled by top gainers/seeds; LBGJ dropped from L1 so `on_trade_update` stopped while snap/would_fire stayed stale-optimistic.
-- **Fix:** Reserved `session_focus` active slots + Former-list-first priority.
-- **Keywords:** HOD Momo, active set, session_focus, Former Momo, LBGJ, would_fire, L1 starve
-
-## 2026-07-16 — Integrity p95 ~2.1s false-fail + Former Momo empty vs Warrior
-
-- **Symptom:** After heartbeat, integrity still failed with quote/eval p95≈2.1s; Warrior Former Momo / Squeeze names (BIYA, LBGJ) absent on Nova; parity observe hung after session_gate PASS.
-- **Cause:** (1) Heartbeat 1s loop + 1.5s stale gate samples ages just over the 2s SLO. (2) Former Momo list empty and never auto-filled from prior momo fires; `would_fire_now` skipped Former/HOD gates. (3) `/api/hod-momo/alerts` returned full-day 9k rows and stalled observe.
-- **Fix:** Heartbeat 0.5s / stale 0.75s; `hod_momo_former` remember+bootstrap; align `would_fire_now`; alerts `limit` query + observe cap; HOD seeds add TOP_PERC_GAIN.
-- **Keywords:** HOD Momo, heartbeat, p95, Former Momo, would_fire_now, parity observe, alerts limit, TOP_PERC_GAIN
-
-## 2026-07-16 — HOD Integrity fail: active quote/eval ages ~hours on quiet L1
-
-- **Symptom:** HOD banner Integrity fail with active coverage ~8–15%, quote/eval p95 ~2000–4000s, CJMB shown as (1179 in 2157sec), scanner_gappers cache hours old after open; ~9k alerts today.
-- **Cause:** (1) IBKR quote listeners only fire on price *change*, so illiquid AH active symbols never `note_quote`. (2) UI `collapseAlertsBySymbol` summed all-day fires into one Warrior-style badge. (3) Scanner integrity mode-blind on frozen gappers. (4) Alerts route called missing `_current_date_et` → 500.
-- **Fix:** `hod_momo_heartbeat` 1Hz refresh from L1 last / cache / subscribed; burst gap 15s in collapse; mode-aware gappers; route uses `current_date_et`; surge_none warn when tape alive; session_gate + parity observe tools.
-- **Keywords:** HOD Momo, integrity, note_quote, heartbeat, coverage, CJMB, consolidation badge, gappers offline, session_gate, parity observe
-
 ## 2026-07-16 — Scanner "stale · updated Ns ago" despite Connected (IBKR snapshot SLA impossible)
 
 - **Symptom:** Header showed Connected (~258ms) plus `stale · updated 9s ago` on Gainers; table prices froze; `blast.log` flooded with `snapshot timeout (4.0s) for 20 symbols` and occasional `15.0s for 220 symbols`; HOD integrity reported last tick hours ago.
@@ -2620,13 +2575,6 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Cause:** Cursor discovers every `*.md` in `.cursor/agents/` as an agent prompt; memory documents were co-located with prompts and there was no versioned registry/contract separating prompts, memory, and generated dashboards.
 - **Fix:** Moved memories to `.cursor/agent-memory/`; added `.cursor/agent-system/contract.json` + `registry.json`; normalized the four agents; added `tools/agent_contract.py` (blocking), `create_nova_agent.py`, `sync_agent_surfaces.py`, specialist routing, and a fail-open lifecycle hook.
 - **Keywords:** agent lifecycle, agent-memory, registry, contract, subagentStop, canvas snapshot, create_nova_agent
-
-## 2026-07-16 — Ghost HOD integrity/surge-seed docs vs missing runtime
-
-- **Symptom:** CHANGELOG/constants/CSS claimed fail-loud integrity + Squeeze bar seeding, but `hod_momo_integrity.py`, `integrity_live.py`, `hod_momo_surge_seed.py`, CLI, routes, and UI banner did not exist at master `d3a8985`. Live HOD still cold-started Squeeze and cycled slowly across a large watch set.
-- **Cause:** Prior HOD work landed documentation/constants without the runtime modules (or was lost during branch/stash churn); agents treated docs as shipped.
-- **Fix:** Implemented integrity evaluators + live builders + CLI/banner; IBKR surge seed loop; capacity-bounded active set with fair reprice batching; uncovered symbols explicit. Corrected changelog with a real ship entry.
-- **Keywords:** HOD Momo, integrity, surge seed, active set, reqTickersAsync, HKIT, ghost docs, Warrior parity
 
 ## 2026-07-16 — Alert channel Test fire sent empty Discord embeds
 
@@ -2815,40 +2763,12 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Fix:** Chunk snapshots (`IBKR_TABLE_REPRICE_CHUNK_SIZE=20`) with per-chunk timeout; one chunk per 1Hz tick + rotate; push after each chunk; drop HOD seeds from `_table_reprice_symbols` (scanner rows only).
 - **Keywords:** stale updated 7s ago, table reprice, reqTickersAsync, IBKR_TABLE_REPRICE_CHUNK_SIZE, price_patch, scanner
 
-## 2026-07-14 — HOD same-ticker spam (no Warrior consolidation)
-
-- **Symptom:** HOD feed repeated the same ticker row after row (CNEY/TRT/…) instead of one row with "(3 in 5sec)".
-- **Cause:** Each queued alert set its own `emit_after = now + consolidation_sec`, so staggered fires in the same burst never landed in one flush bucket.
-- **Fix:** First alert opens the window; later same-ticker fires share that deadline; emit newest price + real `consolidation_span_sec`; UI shows `(N in Xs)` under Symbol and collapses leftover consecutive rows.
-- **Keywords:** HOD Momo, consolidation, Warrior, N in Xs, same ticker, TRT, AEHR
-
 ## 2026-07-14 — HOD Momo freezes with 3k+ alerts (save + UI thrash)
 
 - **Symptom:** UI glitches/freezes with HOD Momo at ~3000 alerts; whole app felt sticky. Follow-up: truncating the live list to 500 hid older alerts users still needed.
 - **Cause:** (1) Every emitted alert serialized+wrote the full day list to disk on the asyncio thread. (2) Each live alert re-rendered App. (3) Mounting every `<tr>` (pre-virtualization). Truncating data was the wrong fix for (3).
 - **Fix:** Rate-limit alert persistence (5s); keep **all** alerts in memory/WS; virtualize row render only; batch live prepends (150ms); rAF-throttle scroll.
 - **Keywords:** HOD Momo freeze, 3000 alerts, _save_alerts, virtualization, useHodMomoStream, do not truncate
-
-## 2026-07-14 — After-hours HOD missed Warrior names (ATHE/TRT/XCUR)
-
-- **Symptom:** Warrior Small Cap HOD AH showed ATHE/TRT/XCUR; Nova HOD showed DYAI squeeze spam; XCUR open in quote but not alerting; After Hours tab ~2 rows.
-- **Cause:** (1) AH discovery used Alpaca IEX full-universe scan while `discovery=ibkr` — often 0–2 rows, starving HOD universe. (2) First IBKR AH call raced Gateway connect → 0 rows → **silent Alpaca fallback** locked in a 2-row snapshot for the discovery interval. (3) Enrichment/fundamentals overwrote RVOL with thin yfinance volume. (4) AH scan loop stopped refreshing Top Gainers. (5) `_effective_min_rvol` ignored `afterhours_min_rvol`.
-- **Fix:** AH rows reshape from live IBKR `_gainer_cache` every AH cycle (no Alpaca fallback when discovery=ibkr); IBKR focus reprice + HOD snap seed; enrichment/on_trade `ibkr_pace` RVOL; AH loop runs `_run_gainers_update`; master gate uses `afterhours_min_rvol`.
-- **Keywords:** after hours, HOD Momo, ATHE, TRT, XCUR, DYAI, IBKR TOP_PERC_GAIN, ibkr_pace, yfinance_pace, afterhours_min_rvol, Alpaca fallback
-
-## 2026-07-14 — HOD Momo ≠ Warrior Day Trade Dash (wrong universe / RVOL / gates)
-
-- **Symptom:** Warrior Small-Cap HOD showed TSSI / YG / FRE with Squeeze and Medium Float strategies; Nova showed CNEY spam (Former Momo + Squeeze) and missed the same names.
-- **Cause:** (1) Watch set was only Top Gainer/Gapper shortlist — Warrior scans the tape including volume runners. (2) RVOL was raw daily/avg, not Warrior "Daily Rate" pace RVOL. (3) Master gate required +3% in 5min on *every* strategy, blocking Medium Float HOD grinds. (4) Former Momo with empty list treated every symbol as a former runner.
-- **Fix:** IBKR HOT_BY_VOLUME / TOP_VOLUME_RATE / MOST_ACTIVE seeds; pace RVOL via `market.pace_relative_volume`; master surge default 0 + schema v2 migrate; Former Momo requires non-empty list; table reprice includes HOD seeds.
-- **Keywords:** HOD Momo, Warrior Trading, Day Trade Dash, pace RVOL, Daily Rate, Former Momo, HOT_BY_VOLUME, master surge, Medium Float
-
-## 2026-07-14 — HOD Momo tab empty (total_trades_seen=0)
-
-- **Symptom:** HOD Momo showed no alerts all session; debug counters had `universe_size≈6022`, `snaps_populated≈6020`, but `total_trades_seen=0` and empty decisions.
-- **Cause:** `_refresh_hod_momo_universe` subscribed Alpaca IEX trades to the full common-stock list (~6k). Free IEX does not deliver a usable tape at that scale (probe: 5 top-gainers → trades; 6k subscribe → silence). Ross / Warrior scanners watch a Top Gainer shortlist, not the full tape — already noted in `Scanner-Provider-IBKR-Primary.md`. A follow-on bug shadowed `import hod_momo_universe as _hod_momo_universe` with the `_hod_momo_universe: set` global (`AttributeError: 'set' object has no attribute 'build_focus_universe'`), which broke the scan loop until the import was renamed `_hod_uni`.
-- **Fix:** Default `HOD_MOMO_UNIVERSE_MODE=focus` builds watch set from gappers/gainers/losers/AH + open details; chunk Alpaca subscribe; feed IBKR 1Hz table reprice into `on_trade_update` when discovery=ibkr; import alias `_hod_uni`; add universe + engine tests.
-- **Keywords:** HOD Momo empty, total_trades_seen, Alpaca IEX, 6000 symbols, Ross shortlist, focus universe, table_reprice, on_trade_update
 
 ## 2026-07-14 — Empty Time & Sales; Level 2 cramped beside it
 
@@ -3066,15 +2986,6 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Cause:** Earlier in the session, port 8000 was already bound by a stale backend from a previous run. `taskkill /F /PID <that-pid>` was used to free the port — but that PID was the **outer process** in the `uvicorn --reload` parent/child pair (the reloader process spawns a separate worker subprocess that actually serves requests). Force-killing only the outer PID left the **child worker orphaned**, still bound to the port and still serving the old, pre-edit code. A brand-new `uvicorn --reload` was then started successfully on the same port (Windows allowed a second `LISTENING` socket to coexist), so two servers were live simultaneously: the new one with fresh code (receiving my direct test requests inconsistently) and the orphaned old one (pinned to the frontend's already-established keep-alive HTTP connections, so the running UI kept talking to stale code no matter how many times the new code reloaded).
 - **Fix:** Identified the orphan via `tasklist | findstr python` cross-referenced against the uvicorn terminal log's own reported PIDs, then `taskkill /F /PID <orphan-worker-pid>` (not the reloader PID) to kill the actual leftover worker. After that, `netstat` showed exactly one `LISTENING` entry and the API immediately returned current code. **Going forward:** when a port conflict requires killing a prior `uvicorn --reload` instance, kill the entire process tree (e.g. `taskkill /F /T /PID <pid>` to include child processes) rather than a single PID, and afterward verify with `netstat -ano | findstr :PORT | findstr LISTENING` that only one PID remains before trusting any response from that port.
 - **Keywords:** uvicorn --reload orphan process, stale code served, duplicate LISTENING socket same port Windows, taskkill /F leaves child worker running, WatchFiles reload not reflected, FastAPI response missing new field, netstat two PIDs same port, taskkill /T process tree
-
-## 2026-07-10 — UnicodeEncodeError crashing the API process on Windows console output
-
-- **Symptom:** Log/print statements containing non-ASCII characters (e.g. `→`) raised `UnicodeEncodeError: 'charmap' codec can't encode character ... : character maps to <undefined>` when run from a plain Windows console/`cmd.exe` window. The error persisted even after adding a console-stdio fix (below) — it kept firing from inside `logging.StreamHandler.emit`.
-- **Cause:** Two separate encoding gaps, found by live-running the app after the first fix:
-  1. Windows consoles default to the `cp1252` codepage for Python's `stdout`/`stderr`, which cannot represent most Unicode characters. `uvicorn --reload` also spawns a fresh child interpreter via `multiprocessing.spawn`, which re-reads `PYTHONIOENCODING` from the environment at startup rather than inheriting the parent's already-reconfigured streams.
-  2. **Root cause of the residual crash:** `backend/main.py` creates a `logging.handlers.RotatingFileHandler("blast.log", ...)` with no `encoding=`/`errors=` argument. Python opens files with the platform's locale-preferred encoding (`cp1252` on Windows) and **strict** error handling by default — unlike `sys.stderr`, which Python already defaults to `errors="backslashreplace"`. So even with console stdio fixed, the file handler alone still raised on any non-ASCII character.
-- **Fix:** `backend/run_api.py` calls `_force_utf8_io()` before importing `uvicorn` (sets `PYTHONIOENCODING=utf-8:backslashreplace` / `PYTHONUTF8=1` env vars plus `sys.stdout`/`stderr.reconfigure(...)`) to cover console output. `backend/main.py`'s `RotatingFileHandler` now passes `encoding="utf-8", errors="backslashreplace"` explicitly to cover the log file. Verified by actually starting the app (`scripts/Start-NovaApi.ps1`) after each change — the first fix alone still crashed; both together started clean. `tools/course_memory/recall.py` now also reconfigures its own stdout/stderr before printing arbitrary Obsidian or Pinecone content; replacing one literal arrow was insufficient because retrieved notes can contain any Unicode character.
-- **Keywords:** UnicodeEncodeError, charmap codec, cp1252, Windows console encoding, PYTHONIOENCODING, PYTHONUTF8, uvicorn --reload multiprocessing spawn, stdout reconfigure, RotatingFileHandler encoding, logging FileHandler default encoding strict errors
 
 ## 2026-07-10 — pytest collection SyntaxError "source code string cannot contain null bytes"
 

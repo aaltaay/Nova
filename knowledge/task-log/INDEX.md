@@ -194,9 +194,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 | 2026-07-20 | [Header Gateway shows PAPER vs LIVE; point Nova at live Gateway](2026-07-20-gateway-paper-live-badge.md) | Header Gateway shows PAPER vs LIVE; point Nova at live Gateway |
 | 2026-07-19 | [Dual listing flags, aux API chips, Alpaca RVOL label](2026-07-19-dual-listing-aux-chips-rvol-label.md) | Side-by-side listing; aux API chips; Alpaca RVOL badge (swap deferred) |
 | 2026-07-19 | [Nova OS judgment moved to Stock View dock tab](2026-07-19-nova-os-dock-tab.md) | Judgment panel → dock Nova OS tab; charts reclaim header space |
-| 2026-07-19 | [Harvested Warrior materials vs AI / trading decision wiring (current truth)](2026-07-19-harvested-materials-ai-decision-wiring.md) | Whisper harvest on disk unused; Pinecone=slides+official only; no trading auto-consume |
 | 2026-07-19 | [Alpaca API usage inventory (discovery=ibkr ops)](2026-07-19-alpaca-usage-inventory.md) | Yes: news + listing + scanner RVOL bars + health; not live prices when ibkr |
-| 2026-07-19 | [Warrior transcript harvest → KB / automation / AI plan](2026-07-19-warrior-transcript-kb-plan.md) | Plan: gitignored store → Pinecone (official first) → agents; no vault dump |
 | 2026-07-19 | [Isolated Sample data route](2026-07-19-sample-data-route.md) | Header switch → ?view=sample fixtures; never mixes with live |
 | 2026-07-19 | [Trader always-on Nova OS judgment](2026-07-19-trader-nova-os-brain.md) | Decide band under Trader header; gates + news_impact ratings |
 | 2026-07-19 | [Account header replaces Trading tab](2026-07-19-account-header-replaces-trading.md) | Trading→Account in header; Reports nested; L2/ticket removed |

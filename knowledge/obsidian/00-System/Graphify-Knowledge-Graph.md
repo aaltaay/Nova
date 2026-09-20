@@ -48,5 +48,3 @@ Also: open `graphify-out/graph.html` in a browser, or start navigation at `graph
 - CLI: `uv tool install graphifyy` (command is still `graphify`)
 - Cursor always-on: `graphify cursor install` → `.cursor/rules/graphify.mdc`
 - Project skill copies: `.cursor/skills/graphify/`, `.agents/skills/graphify/`, `.claude/skills/graphify/`
-
-See also: [[How-Recall-Works]], [[Memory-Router]].
