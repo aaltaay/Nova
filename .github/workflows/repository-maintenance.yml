@@ -1,0 +1,33 @@
+# Repository state must not block unrelated PRs.
+name: Repository maintenance
+on:
+  schedule:
+    - cron: '29 7 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: No leftover merged or closed PR head branches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git fetch --prune origin
+          python tools/stale_pr_branches.py
+
+      - name: Master branch protection
+        # Advisory until a human admin token / GitHub Pro can apply the rule.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python tools/master_branch_protection.py check
