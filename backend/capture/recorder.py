@@ -126,6 +126,8 @@ def start_recorder(symbol: str | None, *, resume: bool = True) -> dict[str, Any]
 
     with _lock:
         _stop_locked()
+        from capture.bar_buckets import drain_open
+        drain_open()  # Discard buckets left by a failed previous batch/session.
         sym = (symbol or "PENDING").strip().upper()
         _symbol = sym
         _dir = _session_dir(sym)
@@ -370,6 +372,14 @@ def record_bar(timeframe: str, payload: dict[str, Any]) -> None:
         if not _active:
             return
         _write(kind, row)
+
+
+def fail_recorder(error: str) -> None:
+    """Finalize an ingress/worker failure using the normal locked stop path."""
+    global _error
+    with _lock:
+        _error = error
+        _stop_locked()
 
 
 def status() -> dict[str, Any]:

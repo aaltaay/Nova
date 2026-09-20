@@ -1,0 +1,29 @@
+---
+description: Session recorder ordering and event-loop isolation (#314, #324)
+globs: backend/capture/**/*.py,backend/sim/feed.py,backend/app_lifespan.py
+alwaysApply: false
+---
+
+# Session recording worker
+
+Under ADR 001, capture owns one in-process writer thread. Production producers
+enqueue complete copied tick/bar batches without waiting for disk or recorder
+locks. Start and Stop run on the same FIFO worker; Stop closes admission before
+waiting and drains every accepted batch before flushing buckets and manifests.
+Session transitions are serialized and clear old bar buckets before a new start.
+Producer generation tokens reject late batches across same-symbol restarts.
+
+The data backlog is bounded by a domain constant. Overflow closes admission,
+logs an error immediately, and finalizes the recording as failed after draining
+accepted batches. Report the error even while the writer is still blocked.
+Never silently drop a batch and keep claiming a healthy recording.
+
+Synchronous lifecycle waits are forbidden on an asyncio event-loop thread.
+HTTP sync routes already run in FastAPI's threadpool; async shutdown must await
+`asyncio.to_thread`. Keep Sim quote/tape fan-out on its existing loop.
+
+Regression tests must hold a real recorder write behind a threading event,
+prove another coroutine progresses, then release it in a finally block. Verify
+FIFO drain, cross-session isolation, overflow failure, and shutdown ordering.
+The existing non-reentrant recorder lock, atomic manifests, crash recovery and
+failure reporting remain authoritative; the worker must not duplicate them.

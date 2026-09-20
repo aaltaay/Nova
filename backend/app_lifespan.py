@@ -304,7 +304,7 @@ async def lifespan(app: FastAPI):
         # and leaves manifest.json with no counts or status forever.
         from capture.mode import set_capture_mode
 
-        set_capture_mode(False)
+        await asyncio.to_thread(set_capture_mode, False)
     except Exception:
         logger.exception("CAPTURE: final recorder stop failed")
     try:
