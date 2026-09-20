@@ -109,10 +109,18 @@ once the package's `readiness` is flipped in `knowledge/backlog-packages.json`.
 Parallel agents are useful here, but a wide fan-out that dies on a token limit
 loses the whole wave. The rule is **2–3 agents at a time, with a reserve**.
 
-```bash
-# One package, 2 concurrent agents, ramps down before the budget runs out
-# (see .claude/workflows/backlog-wave.js)
+Launch it by **path**, not by name:
+
+```text
+Workflow({ scriptPath: ".claude/workflows/backlog-wave.js", args: { concurrency: 2, maxAgents: 3 } })
 ```
+
+`Workflow({ name: 'backlog-wave' })` was observed to fail on a Windows checkout
+with *"script contains control characters"* even after the file was normalised
+to LF and verified to be pure ASCII — the by-name lookup appears to resolve a
+different copy than the repo file. `scriptPath` works. `.gitattributes` pins
+`.claude/workflows/*.js` to `eol=lf` so a Windows checkout cannot reintroduce
+CRLF into the script itself.
 
 The runner is budget-aware: before each wave it checks the remaining budget
 against the cost of the last wave, and when the margin is thin it **stops
