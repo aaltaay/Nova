@@ -1,0 +1,66 @@
+---
+description: Next-move footer -- every substantive reply ends with a numbered, product-grounded menu the operator answers with a digit (template, lanes, modes, seed, lint)
+alwaysApply: true
+---
+
+# Next-move footer -- mandatory for every user-facing reply
+
+AGENTS.md §5 requires it; this rule holds the template. The menu exists so the
+operator's next hour goes to **getting Nova out the door**, not to whatever
+the agent just touched. Constants (`LANES`, word caps, forbidden phrases) and
+the lint live in `tools/next_moves.py`; the seed keeps issue numbers, package
+slugs and PR titles out of the agent's memory.
+
+## Template
+
+```text
+**Better ask:** <one sentence: the sharper version of the ask + one thing the operator did not know, with a file / #issue / command reference> (omit when nothing real)
+
+**Next move** (reply with a number; `3 go` starts it; `1 3` for several; `0` = other):
+1. `[thread]` <verb + scope (file / #NNN / slug) + artifact it produces; done when <criterion>>
+2. `[ship]` <seed `ship=`: the human-only roadmap step, or "verify PR #N merged" when this session opened one>
+3. `[backlog]` <seed `backlog=`: Claim `<slug>` batch <n> and open its PR: "<title>" (#a, #b).>
+4. `[decide]` <seed `decide=`: Answer #NNN (<question>?) -- unblocks N issues.>
+```
+
+Exactly one line is prefixed `★ ` and ends with `-- <reason, <=8 words>`. Star
+the line that gets the product out the door soonest: an unmerged PR this
+session produced > the `[ship]` human step > `[backlog]`. Never star `[decide]`.
+
+## Rules
+
+1. **Lanes and numbers are fixed**: `[thread]`, `[ship]`, `[backlog]`, then `[decide]`. Three to five options; `[decide]` is the only optional lane. An empty lane says `none`, it does not shift the numbers.
+2. **Every line is a pasteable prompt**: verb + scope + artifact + done-criterion, at most 30 words. Never "you could also ask about X", never a question to the agent.
+3. **Seed, never recall.** `[ship]`, `[backlog]`, `[decide]` are copied from the `Next-move seed` block the session brief injected (or `py -3 tools/next_moves.py seed`). Re-run the seed after you open or merge a PR, close an issue, claim or release a batch, or edit the roadmap ledger. If the seed says `unavailable`, print that -- do not guess an issue number.
+4. **Never offer** `auto_live`, a live-gate flip, an order outside gated `backend/ibkr/`, a claimed or gated batch, or a per-issue PR. The seed withholds these; the lint rejects them.
+5. **Reply semantics.** A bare digit returns the plan or checklist (for `[decide]`: draft the issue comment and wait for the operator's answer, never implement). `N go` executes it -- for `[backlog]` that means `backlog_triage.py claim`, then the §5.1 clean start. `1 3` runs in order; `0` is a fresh ask; `4: <text>` is the operator's own question. On any digit, restate the chosen prompt verbatim first.
+6. **Failure mode.** When the reply reports a failed build, test or run, lines 1-2 become `[fix]` (root-cause prompt) and `[park]` (open a `deferred` issue with Symptom / Cause-so-far); `[backlog]` and `[decide]` follow. Never skip the menu on a failure.
+7. **Question mode.** When the reply itself ends by asking the operator something, render `**Your call** (reply with a number; `0` = other):` with the answer choices as the options, star the recommended answer, and omit Better ask.
+8. **Better ask** is one sentence, at most 35 words, only when there is a real gap plus one fact the operator did not know. No flattery; omit rather than pad.
+9. **Budget**: the whole block is at most 180 words; no prose between lines; nothing after it.
+10. **Audience**: the parent, user-facing reply that ends a task. Mid-task progress messages carry nothing. Specialist subagent reports end with the `**Lifecycle:**` line (`docs/agent-operations.md`) and never this menu.
+
+## Skip
+
+Only trivial exchanges: one-word pings, tiny confirmations, pure status polls,
+mid-task progress lines. When skipping, write nothing -- no stub.
+
+## Example (this rule's own PR, real state on 2026-09-20)
+
+```text
+**Better ask:** Name the clients that must render it and cap the words; you did not know the session brief silently dropped the roadmap line when it switched to `**Product NEXT:**`.
+
+**Next move** (reply with a number; `3 go` starts it; `1 3` for several; `0` = other):
+1. ★ `[thread]` Review the next-move footer PR and merge it; done when CI is green and the head branch is gone. -- finishes this task
+2. `[ship]` K3 paper short day 1: set `IBKR_SHORT_ENABLED=true` on the paper Gateway, place one `short_entry`, fill K3 Evidence (0/3 days).
+3. `[backlog]` Claim `state-truth` batch 0 and open its PR: "fix(sim): server-owned recording state; an empty capture refuses instead of fabricating prints" (#316, #317).
+4. `[decide]` Answer #340 (keep `backend/sim/history_*` as the single replay surface?) -- unblocks 6 issues, incl. P0 #315.
+```
+
+Check a draft: `py -3 tools/next_moves.py lint <file|->`. `tools/test_next_moves.py`
+pins this example, the lane order in AGENTS.md §5, and the forbidden phrases.
+
+## Related
+
+- `AGENTS.md` §5 (requirement) · `tools/next_moves.py` (seed + lint) · `tools/session_brief_hook.py` (injects the seed)
+- `.cursor/rules/deferred-log.mdc` (what `[park]` opens) · `BACKLOG.md` (what `[backlog]` claims) · `Nova-Roadmap-Status.md` (where `[ship]` comes from)

@@ -2,9 +2,10 @@
 """Fail-open sessionStart hook: inject a short fleet-triage brief.
 
 Reads stdin JSON (ignored — sessionStart carries no task text to act on).
-Emits the top fleet cracks from `agent_fleet.py`, the active roadmap NEXT
-one-liner, deferred items, the Graphify meter and the repo-hygiene line, so
-every new chat starts informed even before the always-apply rules kick in.
+Emits the top fleet cracks from `agent_fleet.py`, the roadmap Product NEXT
+one-liner, the Next-move footer seed (`next_moves.py`), deferred items, the
+Graphify meter and the repo-hygiene line, so every new chat starts informed
+even before the always-apply rules kick in.
 
 Cursor (`.cursor/hooks.json`) reads `{"additional_context": ...}`.
 Claude Code (`.claude/settings.json`) passes `--claude` and reads
@@ -29,15 +30,18 @@ ROADMAP_STATUS = (
     / "03-Nova-Decisions"
     / "Nova-Roadmap-Status.md"
 )
-ACTIVE_OPS_RE = re.compile(r"^\*\*Active ops:\*\*\s*(.+)$", re.MULTILINE)
+# The ledger's "Current position" list item, e.g. `- **Product NEXT:** ...`.
+# (Until 2026-09-20 this matched the retired `**Active ops:**` label, so the
+# roadmap line silently vanished from every brief.)
+PRODUCT_NEXT_RE = re.compile(r"^-\s*\*\*Product NEXT:\*\*\s*(.+)$", re.MULTILINE)
 
 
 def _roadmap_next() -> str | None:
     if not ROADMAP_STATUS.is_file():
         return None
     text = ROADMAP_STATUS.read_text(encoding="utf-8")
-    m = ACTIVE_OPS_RE.search(text)
-    return m.group(1).strip() if m else None
+    m = PRODUCT_NEXT_RE.search(text)
+    return re.sub(r"\*\*", "", m.group(1)).strip() if m else None
 
 
 def build_brief() -> str | None:
@@ -57,6 +61,12 @@ def build_brief() -> str | None:
     roadmap = _roadmap_next()
     if roadmap:
         lines.append(f"Roadmap NEXT: {roadmap}")
+    try:
+        import next_moves  # noqa: E402  (path inserted above)
+
+        lines.extend(next_moves.session_brief_lines())
+    except Exception:
+        lines.append("Next-move seed: unavailable -- run `py -3 tools/next_moves.py seed`")
     try:
         import deferred_log  # noqa: E402  (path inserted above)
 
