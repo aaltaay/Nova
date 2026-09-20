@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from tools import backlog_branches as bb
 from tools import backlog_claim_commands as cc
 from tools import backlog_commands as commands
 from tools.backlog_claims import active_claim, format_claim, format_release, parse_claim
@@ -199,6 +200,10 @@ def test_claim_rejects_overlap_before_writing_even_with_force(monkeypatch, capsy
 def test_claim_records_authored_footprint(monkeypatch):
     setup_claim(monkeypatch, {})
     monkeypatch.setattr(cc, "run_gh", lambda *a, **kw: SimpleNamespace(returncode=0))
+    # Branch cutting has its own tests (test_backlog_branches.py); this one is
+    # about what the claim comment records.
+    monkeypatch.setattr(cc, "ensure_linked_branch", lambda *a, **kw: bb.BranchLink(
+        branch="codex/state", tip="a" * 40, created=True, linked=(1,)))
     observed = []
     original = cc.format_claim
     def record(**kw):
