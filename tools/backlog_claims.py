@@ -9,6 +9,10 @@ carrying agent id, branch and timestamp.
 The lock unit is the PR BATCH, not the issue -- the batch is already the unit
 of work, so locking per-issue would create four locks for one job.
 
+The claim is the lock; the branch it names is the proof (see
+`backlog_branches`). A claim that cannot cut its branch is withdrawn, so the
+`claimed` label never outlives a ref nobody can fetch.
+
 This is ADVISORY. Two agents can both read "unclaimed" before either writes;
 GitHub offers no compare-and-swap on labels. The `claim` command therefore
 re-reads after writing and yields if an earlier live claim exists (earliest
@@ -60,8 +64,8 @@ def format_claim(
         f"{footprint}"
         f"{CLAIM_END}\n"
         f"Claimed by `{agent}` on branch `{branch}` for batch `{batch}`. "
-        f"Stale after {CLAIM_TTL_HOURS}h with no branch activity -- "
-        f"`py -3 tools/backlog_triage.py claims` lists holders."
+        f"Stale {CLAIM_TTL_HOURS}h after the newer of this claim and the last "
+        f"commit on `{branch}` -- `py -3 tools/backlog_triage.py claims` lists holders."
     )
 
 
@@ -93,13 +97,19 @@ def _as_dt(value: str) -> datetime | None:
 
 
 def active_claim(
-    comments: list[dict[str, Any]], *, now: datetime, ttl_hours: int = CLAIM_TTL_HOURS
+    comments: list[dict[str, Any]], *, now: datetime, ttl_hours: int = CLAIM_TTL_HOURS,
+    branch_activity: datetime | None = None,
 ) -> dict[str, Any] | None:
     """The claim in force on an issue, or None.
 
     The newest marker wins: a release after a claim clears it. A claim older
     than the TTL is reported with ``stale: True`` rather than hidden, so a
     caller can decide between reclaiming and reporting.
+
+    ``branch_activity`` is the last commit time on the claimed branch, which
+    only a caller can fetch -- this stays pure (ADR 003). Given it, an agent
+    four hours into real work reads as live instead of looking identical to one
+    that died at minute two. Omitted, the answer is exactly what it always was.
     """
     markers: list[tuple[str, str, dict[str, str] | None]] = []
     for comment in comments:
@@ -116,8 +126,11 @@ def active_claim(
     if kind == "release" or not fields:
         return None
     at = _as_dt(fields.get("at", "")) or _as_dt(created[:19] + "Z")
-    stale = at is None or (now - at) > timedelta(hours=ttl_hours)
-    return {**fields, "stale": stale, "age_hours": round((now - at).total_seconds() / 3600, 1) if at else None}
+    # Work on the branch renews the claim; the comment is only where it started.
+    last = max([t for t in (at, branch_activity) if t is not None], default=None)
+    stale = last is None or (now - last) > timedelta(hours=ttl_hours)
+    return {**fields, "stale": stale,
+            "age_hours": round((now - last).total_seconds() / 3600, 1) if last else None}
 
 
 def live_claims(issues: list[dict[str, Any]], *, now: datetime) -> dict[int, dict[str, Any]]:
