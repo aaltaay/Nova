@@ -8,7 +8,7 @@ up unseen. This tool looks at the clone.
 
 `fix` touches only the safe class: prune, orphan remote-tracking refs, clean
 worktrees on finished branches idle >24h, and local branches whose PR GitHub
-says is merged/closed (never by ancestry -- squash merges hide it). Stashes,
+says is merged/closed AND whose current tip is contained in master. Stashes,
 dirty files and branches without a PR are reported, never touched. If `gh`
 is unavailable nothing branch- or worktree-related is fixable.
 
@@ -44,6 +44,7 @@ from repo_hygiene_lib import (  # noqa: E402
     index_prs,
     summarize,
 )
+from branch_cleanup import contained_tip  # noqa: E402
 
 GH_TIMEOUT_SEC = 8
 EXIT_CLEAN = 0
@@ -116,7 +117,8 @@ def _local_branches(worktrees: list[dict]) -> list[dict]:
     for line in raw.splitlines():
         name, _, track = line.partition("\t")
         out.append({"name": name, "upstream_gone": track.strip() == "[gone]",
-                    "checked_out_at": checked.get(name)})
+                    "checked_out_at": checked.get(name),
+                    "contained_in_master": contained_tip(f"refs/heads/{name}") is not None})
     return out
 
 
@@ -130,8 +132,8 @@ def _stashes() -> list[dict]:
 
 
 def _master_reachable(worktrees: list[dict]) -> set[str]:
-    heads = {wt["head"] for wt in worktrees if not wt.get("branch") and wt.get("head")}
-    return {h for h in heads if _git_ok("merge-base", "--is-ancestor", h, "origin/master")}
+    heads = {wt["head"] for wt in worktrees if wt.get("head")}
+    return {h for h in heads if contained_tip(h) is not None}
 
 
 def gather(max_age_hours: float) -> tuple[list[Finding], bool]:
@@ -181,6 +183,22 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 
 def _apply(f: Finding, dry: bool) -> tuple[bool, str]:
+    if not dry and f.kind in {"worktree_stale", "merged_local_branch"}:
+        # Gathered findings may be stale: a worker can commit while cleanup runs.
+        cwd = f.subject if f.kind == "worktree_stale" else None
+        ref = "HEAD" if cwd else f"refs/heads/{f.subject}"
+        tip = contained_tip(ref, cwd=cwd)
+        if not tip:
+            return False, f"REFUSE {f.subject}: current tip not contained in master"
+        branch = _git("branch", "--show-current", cwd=cwd) if cwd else f.subject
+        prs = _gh_prs()
+        if prs is None:
+            return False, f"REFUSE {f.subject}: GitHub recheck unavailable"
+        matches = [p for p in prs if p.get("head") == branch]
+        if branch and (not matches or any(p.get("state") == "OPEN" for p in matches)):
+            return False, f"REFUSE {f.subject}: branch has no closed PR or has an open PR"
+        if not cwd and any(wt.get("branch") == branch for wt in _worktrees()):
+            return False, f"REFUSE {f.subject}: branch is checked out"
     if f.kind == "worktree_missing":
         cmd = ["git", "worktree", "prune"]
     elif f.kind == "orphan_remote_ref":
@@ -188,7 +206,9 @@ def _apply(f: Finding, dry: bool) -> tuple[bool, str]:
     elif f.kind == "worktree_stale":
         cmd = ["git", "worktree", "remove", f.subject]
     elif f.kind == "merged_local_branch":
-        cmd = ["git", "branch", "-D", f.subject]
+        # Compare-and-delete fails if another process advanced the branch.
+        cmd = ["git", "update-ref", "-d", f"refs/heads/{f.subject}",
+               "<verified-tip>" if dry else tip]
     else:
         return False, f"skip {f.kind} {f.subject}"
     shown = " ".join(cmd)

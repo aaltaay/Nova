@@ -57,6 +57,8 @@ mid-task progress lines. When skipping, write nothing -- no stub.
 4. `[decide]` Answer #340 (keep `backend/sim/history_*` as the single replay surface?) -- unblocks 6 issues, incl. P0 #315.
 ```
 
+The CLI emits UTF-8 even when Windows pipes default to a legacy code page; roadmap symbols must not crash seed output. A subprocess regression forces a legacy output encoding.
+
 Check a draft: `py -3 tools/next_moves.py lint <file|->`. `tools/test_next_moves.py`
 pins this example, the lane order in AGENTS.md §5, and the forbidden phrases.
 

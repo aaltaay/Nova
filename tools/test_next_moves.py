@@ -250,3 +250,20 @@ def test_rule_names_the_lanes_in_order_and_is_always_on():
 
 def test_ci_runs_this_file():
     assert "tools/test_next_moves.py" in DEPLOY.read_text(encoding="utf-8")
+
+
+def test_offline_cli_emits_utf8_with_legacy_windows_pipe_encoding():
+    import os
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, str(nm.REPO_ROOT / "tools" / "next_moves.py"), "seed", "--offline"],
+        env={**os.environ, "PYTHONIOENCODING": "cp1252"},
+        capture_output=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr.decode("utf-8", errors="replace")
+    output = result.stdout.decode("utf-8")
+    assert "- ship=" in output
+    assert nm.ship_lane(nm.ROADMAP_STATUS.read_text(encoding="utf-8")) in output

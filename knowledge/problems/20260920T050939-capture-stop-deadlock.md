@@ -1,0 +1,10 @@
+---
+kind: fix
+scope: capture
+pr: 
+title: Stopping a recording self-deadlocked the FastAPI event loop
+---
+- **Symptom:** `POST /api/capture {enabled:false}` never returned, and the whole desk froze with it — every HTTP request, every WebSocket, the IB bridge. Only a backend restart recovered. Reproduced on the very first Stop of every recording; a probe showed `stop_recorder()` not returning within 5s with `_lock.locked() == True` and `_active` still `True`.
+- **Cause:** `recorder._lock` is a non-reentrant `threading.Lock`, and the stop path re-acquired it on the same thread. `stop_recorder()` took the lock, called `bar_buckets.flush_open()` while still holding it, and `flush_open` called back into `recorder.record_bar()` — which takes the same lock. Buckets open after the *first* print, so this fired every time. `start_recorder` had the identical shape (it calls the unlocked stop inside its own `with _lock`), so starting a second recording hung too. It took the app down rather than one request because `sim.feed` drives `record_print` **on the FastAPI event loop**, so the next SIM tick blocked the loop forever.
+- **Fix:** Broke the callback. `bar_buckets.flush_open` became `drain_open`, which pops the open buckets and *returns* them instead of calling the recorder; the write moved to the caller's side of the lock via an internal already-locked path. `_stop_locked` also clears `_active` **before** draining, so a concurrent `record_*` queued on the lock no-ops the moment it gets in. `_lock` deliberately stays non-reentrant — an `RLock` would have hidden the bug instead of fixing it. Regression coverage in `backend/tests/test_capture_recorder.py` runs every Stop through a timeout guard (`_stop_within`) and hard-resets a wedged lock in fixture teardown, so a reintroduced deadlock **fails in ~90s instead of hanging CI forever**.
+- **Keywords:** capture recorder deadlock, threading.Lock non-reentrant, flush_open record_bar re-entrancy, stop_recorder hangs, FastAPI event loop frozen, sim feed capture bridge, D-063, #314

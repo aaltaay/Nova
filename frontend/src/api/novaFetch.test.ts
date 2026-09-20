@@ -1,15 +1,37 @@
 /**
  * @vitest-environment jsdom
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { novaFetch, resolveNovaApiKey } from './novaFetch';
 import { NOVA_API_KEY_HEADER, NOVA_API_KEY_STORAGE } from '../constantGroups/api_auth';
 
 describe('novaFetch', () => {
+  beforeEach(() => {
+    // State the precondition instead of inheriting it (#293): resolveNovaApiKey
+    // prefers an env key over localStorage, so an operator key leaking into
+    // import.meta.env used to fail the localStorage case -- and print that key
+    // in the assertion diff.
+    vi.stubEnv('VITE_NOVA_API_KEY', '');
+  });
+
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     delete (window as { novaDesktop?: unknown }).novaDesktop;
     localStorage.clear();
+  });
+
+  it('resolves no key when nothing is configured', () => {
+    // Guards the pinned Vitest env: this fails the moment a real machine's
+    // NOVA_API_KEY reaches import.meta.env again.
+    vi.unstubAllEnvs();
+    expect(resolveNovaApiKey()).toBe('');
+  });
+
+  it('prefers a Vite-injected key over localStorage', () => {
+    vi.stubEnv('VITE_NOVA_API_KEY', 'vite-injected-key');
+    localStorage.setItem(NOVA_API_KEY_STORAGE, 'vite-stored-key');
+    expect(resolveNovaApiKey()).toBe('vite-injected-key');
   });
 
   it('sends the desktop sidecar key first', async () => {
