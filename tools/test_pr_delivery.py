@@ -16,8 +16,6 @@ from tools.pr_delivery import (
     ACTION_BLOCK,
     ACTION_MERGE,
     ACTION_SKIP,
-    ACTION_WAIT,
-    REQUIRED_CHECKS,
     can_delete_closed_head,
     decide,
     normalize_check,
@@ -33,7 +31,7 @@ from tools.pr_delivery_text import (
 def _ok_checks() -> list[dict]:
     return [
         {"name": name, "status": "completed", "conclusion": "success"}
-        for name in REQUIRED_CHECKS
+        for name in ("Backend tests", "Frontend build", "Frontend E2E", "Agent contract")
     ]
 
 
@@ -138,7 +136,7 @@ def test_conflict_comment_dedupes():
     )
 
 
-def test_missing_required_check_waits():
+def test_missing_checks_allow_merge():
     result = decide(
         draft=False,
         state="OPEN",
@@ -148,14 +146,14 @@ def test_missing_required_check_waits():
         same_repo=True,
         checks=_ok_checks()[:-1],
     )
-    assert result.action == ACTION_WAIT
-    assert result.reason.startswith("pending:")
+    assert result.action == ACTION_MERGE
+    assert result.reason == "ready"
 
 
-def test_failed_required_check_blocks():
+def test_failed_checks_allow_merge():
     checks = _ok_checks()
     checks[0] = {
-        "name": REQUIRED_CHECKS[0],
+        "name": "Backend tests",
         "status": "completed",
         "conclusion": "failure",
     }
@@ -168,11 +166,11 @@ def test_failed_required_check_blocks():
         same_repo=True,
         checks=checks,
     )
-    assert result.action == ACTION_BLOCK
-    assert "Backend tests" in result.reason
+    assert result.action == ACTION_MERGE
+    assert result.reason == "ready"
 
 
-def test_desktop_pack_pending_waits():
+def test_desktop_pack_pending_allows_merge():
     checks = _ok_checks() + [
         {"name": "Desktop pack", "status": "in_progress", "conclusion": None}
     ]
@@ -185,8 +183,8 @@ def test_desktop_pack_pending_waits():
         same_repo=True,
         checks=checks,
     )
-    assert result.action == ACTION_WAIT
-    assert result.reason == "pending:Desktop pack"
+    assert result.action == ACTION_MERGE
+    assert result.reason == "ready"
 
 
 def test_desktop_pack_missing_still_merges():

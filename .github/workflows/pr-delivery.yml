@@ -1,7 +1,7 @@
-# Finish-line delivery: merge green PRs and delete closed heads.
+# Finish-line delivery: merge ready PRs without waiting for CI and delete closed heads.
 #
 # This is the non-agentic path. Agents open a ready PR. GitHub Actions
-# merges it when gating CI is green and deletes the head on close.
+# merges it without waiting for CI and deletes the head on close.
 # Label `do-not-merge` or leave the PR as draft to hold it.
 #
 # `delete_branch_on_merge` is still the backup for merges. This workflow

@@ -5,7 +5,7 @@ Closes the Security Overview hole: "Your master branch isn't protected."
 
 Policy (solo public repo):
 - Block force-push and deletion, including for admins.
-- Require gating CI checks before a PR can merge.
+- All CI checks are advisory; ready PRs can merge while checks run or fail.
 - Do not require pull-request reviews (would deadlock a solo merge).
 - Do not require a PR to push (status-only master commits).
 - The AI news digest must not push master -- it opens a ready PR from
@@ -38,12 +38,7 @@ DEFAULT_BRANCH = "master"
 
 # Job `name:` values from `.github/workflows/deploy.yml`. Do not require
 # warning-only scanners (Semgrep has been red on master).
-REQUIRED_CONTEXTS: tuple[str, ...] = (
-    "Backend tests",
-    "Frontend build",
-    "Frontend E2E",
-    "Agent contract",
-)
+REQUIRED_CONTEXTS: tuple[str, ...] = ()
 
 EXIT_OK = 0
 EXIT_UNPROTECTED = 1
@@ -73,13 +68,8 @@ def repo_slug() -> str:
 
 def apply_payload() -> dict[str, Any]:
     """PUT /branches/{branch}/protection body."""
-    checks = [{"context": name} for name in REQUIRED_CONTEXTS]
     return {
-        "required_status_checks": {
-            "strict": True,
-            "contexts": list(REQUIRED_CONTEXTS),
-            "checks": checks,
-        },
+        "required_status_checks": None,
         "enforce_admins": True,
         "required_pull_request_reviews": None,
         "restrictions": None,
@@ -199,9 +189,10 @@ def evaluate(
             reasons.append("Admins can bypass protection (owner force-push hole).")
 
     have = required_contexts(protection)
-    missing = [name for name in REQUIRED_CONTEXTS if name not in have]
-    if missing:
-        reasons.append("Missing required status checks: " + ", ".join(missing))
+    if have:
+        reasons.append("CI must be advisory; remove required status checks: " + ", ".join(sorted(have)))
+    if (protection.get("required_status_checks") or {}).get("strict"):
+        reasons.append("Up-to-date CI requirement must be disabled.")
 
     if reasons:
         return CheckResult(False, "policy_mismatch", tuple(reasons), EXIT_UNPROTECTED)

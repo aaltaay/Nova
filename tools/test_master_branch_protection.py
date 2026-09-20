@@ -29,7 +29,7 @@ def _ok_protection() -> dict:
         "allow_deletions": {"enabled": False},
         "enforce_admins": {"enabled": True},
         "required_status_checks": {
-            "strict": True,
+            "strict": False,
             "contexts": list(REQUIRED_CONTEXTS),
             "checks": [{"context": name} for name in REQUIRED_CONTEXTS],
         },
@@ -97,20 +97,20 @@ def test_evaluate_mismatch_when_admins_can_bypass():
     assert any("admin" in r.lower() for r in result.reasons)
 
 
-def test_evaluate_mismatch_when_required_check_missing():
+def test_evaluate_mismatch_when_check_is_required():
     prot = _ok_protection()
     prot["required_status_checks"]["contexts"] = ["Backend tests"]
     prot["required_status_checks"]["checks"] = [{"context": "Backend tests"}]
     result = evaluate(branch_protected=True, protection=prot, error=None)
     assert result.status == "policy_mismatch"
-    assert any("Agent contract" in r for r in result.reasons)
+    assert any("Backend tests" in r for r in result.reasons)
 
 
-def test_evaluate_ok_when_extra_required_checks_present():
+def test_evaluate_rejects_extra_required_checks():
     prot = _ok_protection()
     prot["required_status_checks"]["contexts"].append("Extra check")
     result = evaluate(branch_protected=True, protection=prot, error=None)
-    assert result.ok is True
+    assert result.ok is False
 
 
 def test_classify_plan_required():
@@ -179,13 +179,13 @@ def test_evaluate_mismatch_when_public_summary_not_everyone():
     assert any("admin" in r.lower() for r in result.reasons)
 
 
-def test_evaluate_mismatch_when_public_summary_missing_check():
+def test_evaluate_rejects_public_summary_required_check():
     prot = _public_summary()
     prot["required_status_checks"]["contexts"] = ["Backend tests"]
     prot["required_status_checks"]["checks"] = [{"context": "Backend tests"}]
     result = evaluate(branch_protected=True, protection=prot, error=None)
     assert result.status == "policy_mismatch"
-    assert any("Agent contract" in r for r in result.reasons)
+    assert any("Backend tests" in r for r in result.reasons)
 
 
 def test_evaluate_unprotected_when_public_summary_disabled():

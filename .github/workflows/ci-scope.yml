@@ -1,0 +1,42 @@
+name: CI scope
+
+on:
+  workflow_call:
+    outputs:
+      backend:
+        value: ${{ jobs.select.outputs.backend }}
+      frontend:
+        value: ${{ jobs.select.outputs.frontend }}
+      e2e:
+        value: ${{ jobs.select.outputs.e2e }}
+      desktop:
+        value: ${{ jobs.select.outputs.desktop }}
+      source:
+        value: ${{ jobs.select.outputs.source }}
+      dependencies:
+        value: ${{ jobs.select.outputs.dependencies }}
+
+permissions:
+  contents: read
+
+jobs:
+  select:
+    name: Select affected checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      backend: ${{ steps.scope.outputs.backend }}
+      frontend: ${{ steps.scope.outputs.frontend }}
+      e2e: ${{ steps.scope.outputs.e2e }}
+      desktop: ${{ steps.scope.outputs.desktop }}
+      source: ${{ steps.scope.outputs.source }}
+      dependencies: ${{ steps.scope.outputs.dependencies }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - id: scope
+        run: python tools/ci_scope.py

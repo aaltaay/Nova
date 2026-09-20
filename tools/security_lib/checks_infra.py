@@ -18,7 +18,7 @@ _DOCKERFILE = REPO_ROOT / "Dockerfile"
 
 
 def check_ci_missing_security_jobs() -> list[RawFinding]:
-    """Check that deploy.yml includes dedicated security scanners.
+    """Check that CI includes scanners directly or in its called local workflow.
 
     A warning-only ``security-audit`` job that runs ``tools/security_audit.py``
     is progress but does not replace gitleaks / osv-scanner / semgrep coverage.
@@ -42,6 +42,10 @@ def check_ci_missing_security_jobs() -> list[RawFinding]:
                 redacted_evidence="File not found",
             )
         ]
+
+    security_workflow = ".github/workflows/security-scans.yml"
+    if f"uses: ./{security_workflow}" in text:
+        text += "\n" + (read(REPO_ROOT / security_workflow) or "")
 
     missing = [
         name

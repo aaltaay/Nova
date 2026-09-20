@@ -30,13 +30,9 @@ except ImportError:  # `python tools/pr_delivery.py` puts tools/ on sys.path
     from pr_delivery_actions import merge_now, merge_pr, signal_conflict
 
 DEFAULT_REPO = "aaltaay/Nova"
-REQUIRED_CHECKS: tuple[str, ...] = (
-    "Backend tests",
-    "Frontend build",
-    "Frontend E2E",
-    "Agent contract",
-)
-WAIT_IF_PRESENT: tuple[str, ...] = ("Desktop pack",)
+# Owner policy: verification is feedback, never a merge prerequisite.
+REQUIRED_CHECKS: tuple[str, ...] = ()
+WAIT_IF_PRESENT: tuple[str, ...] = ()
 SKIP_LABELS = frozenset({"do-not-merge"})
 PROTECTED_HEADS = frozenset({"master", "main", "HEAD"})
 
@@ -228,16 +224,8 @@ def _fetch_pr(number: int) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         ]
     ).stdout
     pr = json.loads(raw)
-    checks_raw = _gh(
-        ["pr", "checks", str(number), "--json", "name,state,bucket"],
-        check=False,
-    )
-    checks: list[dict[str, Any]] = []
-    if checks_raw.returncode == 0 and checks_raw.stdout.strip():
-        loaded = json.loads(checks_raw.stdout)
-        if isinstance(loaded, list):
-            checks = loaded
-    return pr, checks
+    # Pending, failing, missing and malformed check results cannot delay delivery.
+    return pr, []
 
 
 def _decision_from_pr(pr: dict[str, Any], checks: list[dict[str, Any]]) -> Decision:

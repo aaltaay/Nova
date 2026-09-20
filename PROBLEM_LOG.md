@@ -59,6 +59,13 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Fix:** Recover strict topic gates, publisher caps, targeted trade-press sources and longer full-feed recency; decode gzip with explicit failure reporting; compare ordered story content and rendered blocks at the prior publication time. Preserve modern PR/PAT delivery, Desktop checks, derived versions and homepage teaser. Split the oversized test suite, update workflow discovery and its command assertion, and remove imports made unused by the split. Regressions cover content edits, malformed prior state, age limits and gzip failures (#356).
 - **Fix class:** admission
 - **Keywords:** ai-news, ranking, gzip, publication fingerprint, clock-only rewrite, WIP recovery, #356
+## 2026-09-20 -- CI scope and advisory delivery policy
+
+- **Symptom:** Documentation and marketing changes ran full app suites and Windows packaging; running or failed checks prevented ready PR delivery.
+- **Cause:** Workflows had no change classification, auto-merge waited for four jobs plus Desktop pack, and branch protection separately required those checks. Repository housekeeping also blocked unrelated PRs.
+- **Fix:** Classify complete Git diffs conservatively, retain relevant suites, move housekeeping to maintenance, and scope advisory security scans plus daily runs. Owner explicitly removed all verification prerequisites: delivery no longer polls checks, auto-merge has no test dependency, and branch protection retains force-push/deletion protection with zero required checks. The security audit follows the called local scanner workflow. Regression tests cover pending/failed checks and rename/deletion classification. No runtime trading gate changed.
+- **Fix class:** infra
+- **Keywords:** CI, advisory, pending checks, branch protection, path scope, desktop, #342
 
 ## 2026-09-20 -- Cleanup preserves recreated branches with unmerged work
 
