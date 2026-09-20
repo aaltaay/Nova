@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildTradingPrerequisites,
   completedOrdersStuckNotice,
@@ -340,6 +340,12 @@ describe('buildTradingPrerequisites', () => {
   describe('D-058 completed orders not answering', () => {
     const connected = { status: 'connected', latency_ms: 5 } as const;
     const since = 1789808049; // 2026-09-19 04:54 ET
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(since * 1000 + 60_000));
+    });
+    afterEach(() => vi.useRealTimers());
 
     it('adds an amber warning on a READY desk without blocking it', () => {
       const out = buildTradingPrerequisites({

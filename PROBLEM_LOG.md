@@ -37,6 +37,15 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- Completed-orders warning test expired with the calendar
+
+- **Symptom:** PR #355 Frontend build failed because a time-only regex received "Completed orders not answering since Sat 08:54 AM".
+- **Cause:** The builder read the actual system date while the test supplied a fixed September 19 onset. Once those dates differed, the valid production formatter added a weekday.
+- **Fix:** Freeze system time within the completed-orders describe block and restore real timers after each test. Keep explicit same-day and next-day formatting assertions; add the clock-isolation verification rule.
+- **Fix class:** infra
+- **Keywords:** tradingPrerequisites, completed orders, Vitest, calendar, UTC, fake timers, PR355
+
+
 ## 2026-09-19 -- Log entries landed inside the how-to block instead of under the entries marker
 
 - **Symptom:** `CHANGELOG.md` and `PROBLEM_LOG.md` held dated entries in the middle of instruction item 2, whose sentence broke after the marker name and resumed as an orphaned `` ` marker (newest entries at the top).`` tail below them. `CHANGELOG.md` also opened with an `## Unreleased` block above its own H1.
