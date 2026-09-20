@@ -11,18 +11,38 @@ import sys
 from datetime import datetime, timezone
 
 from tools.backlog_branches import (
-    delete_unused_branch, ensure_linked_branch, last_commit_at,
+    delete_unused_branch,
+    ensure_linked_branch,
+    last_commit_at,
 )
 from tools.backlog_claims import (
-    CLAIM_LABEL, CLAIM_TTL_HOURS, active_claim, agent_id, batch_ref,
-    format_claim, format_release, live_claims, resolve_batch, resolve_claim,
+    CLAIM_LABEL,
+    CLAIM_TTL_HOURS,
+    active_claim,
+    agent_id,
+    batch_ref,
+    claim_for,
+    format_claim,
+    format_release,
+    live_claims,
+    resolve_batch,
+    resolve_claim,
 )
 from tools.backlog_footprints import (
-    OVERLAP_REASON, batch_touches, claim_conflicts, conflict_lines,
+    OVERLAP_REASON,
+    batch_touches,
+    claim_conflicts,
+    conflict_lines,
 )
 from tools.backlog_github import (
-    EXIT_ERROR, EXIT_GAPS, EXIT_OK, fetch_comments, fetch_issues,
-    label_names, repo_slug, run_gh,
+    EXIT_ERROR,
+    EXIT_GAPS,
+    EXIT_OK,
+    fetch_comments,
+    fetch_issues,
+    label_names,
+    repo_slug,
+    run_gh,
 )
 from tools.backlog_plan import load_packages, with_inbox
 
@@ -237,14 +257,16 @@ def cmd_release(args: argparse.Namespace) -> int:
 
     # The branch to clean up is the one the claim recorded, not one the caller
     # remembers: the claim comment is the only record that survives a crash.
-    now = datetime.now(timezone.utc)
+    # R5: the branch WE claimed, never the elected holder's. With two
+    # surviving holders the election returns the other agent, and cleaning up
+    # their branch deletes the ref their live claim points at.
     branch = getattr(args, "branch", None)
     for number in targets:
         if branch:
             break
-        held = active_claim(fetch_comments(number), now=now)
-        if held:
-            branch = held.get("branch")
+        mine = claim_for(fetch_comments(number), agent=agent, batch=ref)
+        if mine:
+            branch = mine.get("branch")
 
     # closed issues carry no claim worth clearing; post_release drops the label
     post_release(targets, agent=agent, batch=ref)

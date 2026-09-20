@@ -121,84 +121,130 @@ def _as_dt(value: str) -> datetime | None:
         return None
 
 
-def active_claim(
-    comments: list[dict[str, Any]], *, now: datetime, ttl_hours: int = CLAIM_TTL_HOURS,
-    branch_activity: datetime | None = None,
-) -> dict[str, Any] | None:
-    """The claim in force on an issue, or None.
+# ---------------------------------------------------------------------------
+# Resolution
+#
+# Written down because three consecutive patches to this logic each fixed one
+# scenario and broke another: the label survived a withdrawal, then a loser's
+# release erased the winner, then an abandoned claim outranked a fresh
+# reclaim. Every one was a combination of (agents x claim/release x
+# fresh/stale) that the previous patch had not considered. The rules:
+#
+#   R1  Markers are per agent. An agent HOLDS the issue while their own newest
+#       marker is a claim. Only that agent's release ends their hold.
+#   R2  A release naming nobody is a legacy marker from before releases
+#       carried identity, and keeps its old meaning: it clears every marker at
+#       or before its own timestamp.
+#   R3  A holder is STALE when now - max(claim time, last commit on its
+#       branch) exceeds the TTL. Branch activity can only revive a hold, never
+#       end one, so only a holder that already looks expired costs a lookup.
+#   R4  Among holders the earliest LIVE one is elected: earliest because a
+#       race is settled by who claimed first, live-first because a fresh
+#       reclaim must never hide behind an abandoned claim. With no live holder
+#       the earliest stale one is reported, so `claims` can show it and
+#       `--force` can take it over.
+#   R5  "Which claim is mine?" is a DIFFERENT question from "who holds this?"
+#       and gets its own door, `claim_for`. Answering it by election deletes
+#       another agent's branch -- see `cmd_release`.
+#
+# Each rule has rows in tools/test_backlog_claims_table.py. Change the table
+# first; an edit here that the table still passes has not been reasoned about.
+# ---------------------------------------------------------------------------
 
-    The newest marker wins: a release after a claim clears it. A claim older
-    than the TTL is reported with ``stale: True`` rather than hidden, so a
-    caller can decide between reclaiming and reporting.
 
-    ``branch_activity`` is the last commit time on the claimed branch, which
-    only a caller can fetch -- this stays pure (ADR 003). Given it, an agent
-    four hours into real work reads as live instead of looking identical to one
-    that died at minute two. Omitted, the answer is exactly what it always was.
-    """
-    markers: list[tuple[str, str, dict[str, str]]] = []
+def _markers(comments: list[dict[str, Any]]) -> list[tuple[str, str, dict[str, str]]]:
+    out: list[tuple[str, str, dict[str, str]]] = []
     for comment in comments:
         body = comment.get("body") or ""
         created = comment.get("createdAt") or ""
-        # CLAIM_BEGIN is a prefix of CLAIM_RELEASE: release first, always.
+        # CLAIM_BEGIN is a prefix of CLAIM_RELEASE: test for a release first.
         if CLAIM_RELEASE in body:
-            markers.append((created, "release", parse_release(body) or {}))
+            out.append((created, "release", parse_release(body) or {}))
         elif CLAIM_BEGIN in body:
-            markers.append((created, "claim", parse_claim(body) or {}))
-    if not markers:
-        return None
-    markers.sort(key=lambda m: m[0])
+            out.append((created, "claim", parse_claim(body) or {}))
+    out.sort(key=lambda m: m[0])
+    return out
 
-    # A release that names nobody predates identity-aware releases and keeps
-    # its old meaning: it clears the issue outright, up to its own timestamp.
-    anonymous_release = ""
+
+def _surviving(markers: list[tuple[str, str, dict[str, str]]]) -> list[tuple[str, dict[str, str]]]:
+    """R1 + R2 -- every agent whose newest marker is still a claim."""
+    anonymous = ""
     for created, kind, fields in markers:
         if kind == "release" and not fields.get("agent"):
-            anonymous_release = created
-
-    # Otherwise each agent's newest marker decides whether THEY still hold.
-    # A losing agent yielding must not clear the winner's claim: two agents
-    # can hold markers on one issue, and only their own release speaks for them.
+            anonymous = created
     latest: dict[str, tuple[str, str, dict[str, str]]] = {}
     for created, kind, fields in markers:
-        if anonymous_release and created <= anonymous_release:
+        if anonymous and created <= anonymous:
             continue
         latest[fields.get("agent", "")] = (created, kind, fields)
+    return [(created, fields) for created, kind, fields in latest.values()
+            if kind == "claim" and fields]
 
-    holders = [(created, fields) for created, kind, fields in latest.values()
-               if kind == "claim" and fields]
-    if not holders:
-        return None
-    # Earliest claim wins, the same rule claim-then-verify applies to a race.
-    created, fields = min(holders, key=lambda h: (h[1].get("at", ""), h[0]))
-    at = _as_dt(fields.get("at", "")) or _as_dt(created[:19] + "Z")
-    # Work on the branch renews the claim; the comment is only where it started.
-    last = max([t for t in (at, branch_activity) if t is not None], default=None)
+
+def _score(
+    created: str, fields: dict[str, str], *, now: datetime, ttl_hours: int,
+    branch_activity_for: Callable[[str], datetime | None] | None,
+) -> dict[str, Any]:
+    """R3 -- one holder's staleness, consulting its branch only if it may help."""
+    last = _as_dt(fields.get("at", "")) or _as_dt(created[:19] + "Z")
+    expired = last is None or (now - last) > timedelta(hours=ttl_hours)
+    branch = fields.get("branch") or ""
+    if expired and branch_activity_for and branch:
+        activity = branch_activity_for(branch)
+        if activity and (last is None or activity > last):
+            last = activity
     stale = last is None or (now - last) > timedelta(hours=ttl_hours)
     return {**fields, "stale": stale,
             "age_hours": round((now - last).total_seconds() / 3600, 1) if last else None}
+
+
+def active_claim(
+    comments: list[dict[str, Any]], *, now: datetime, ttl_hours: int = CLAIM_TTL_HOURS,
+    branch_activity_for: Callable[[str], datetime | None] | None = None,
+) -> dict[str, Any] | None:
+    """Who holds this issue, or None. R1-R4 above.
+
+    ``branch_activity_for`` maps a branch to its last commit time. Only a
+    caller can fetch that, so this stays pure (ADR 003); omit it and staleness
+    falls back to claim age alone, which is what every path did before the
+    branch became part of the answer.
+    """
+    scored: list[tuple[tuple[str, str], dict[str, Any]]] = []
+    for created, fields in _surviving(_markers(comments)):
+        claim = _score(created, fields, now=now, ttl_hours=ttl_hours,
+                       branch_activity_for=branch_activity_for)
+        scored.append(((fields.get("at", ""), created), claim))
+    if not scored:
+        return None
+    live = [row for row in scored if not row[1]["stale"]]
+    return min(live or scored, key=lambda row: row[0])[1]
+
+
+def claim_for(
+    comments: list[dict[str, Any]], *, agent: str, batch: str | None = None,
+) -> dict[str, str] | None:
+    """R5 -- the surviving claim belonging to ``agent``, never the elected one.
+
+    `cmd_release` needs the branch IT claimed. With two surviving holders the
+    elected claim belongs to the other agent, and cleaning up that branch
+    deletes the ref a live claim points at. Fails closed: no match, no answer,
+    so a mismatched agent id cleans up nothing rather than something.
+    """
+    for _created, fields in _surviving(_markers(comments)):
+        if fields.get("agent") != agent:
+            continue
+        if batch is not None and fields.get("batch") != batch:
+            continue
+        return dict(fields)
+    return None
 
 
 def resolve_claim(
     comments: list[dict[str, Any]], *, now: datetime,
     branch_activity_for: Callable[[str], datetime | None] | None = None,
 ) -> dict[str, Any] | None:
-    """`active_claim`, with the branch consulted only when it can change the answer.
-
-    Every path that decides whether a batch is held must go through here, or
-    `claims` and `next` disagree about who is working: a holder six hours in
-    but committing would read as held on the display and stale to the picker,
-    which hands the same batch to a second agent.
-
-    Branch activity can only ever revive a claim -- staleness takes the newer
-    of the two -- so a claim that is live on comment age needs no lookup at
-    all, and `next` pays one call only for the rare stale-looking holder.
-    """
-    claim = active_claim(comments, now=now)
-    if claim and claim["stale"] and branch_activity_for and claim.get("branch"):
-        claim = active_claim(comments, now=now,
-                             branch_activity=branch_activity_for(claim["branch"]))
-    return claim
+    """The door every enforcement path uses, so `claims` and `next` agree."""
+    return active_claim(comments, now=now, branch_activity_for=branch_activity_for)
 
 
 def _claims_where(
