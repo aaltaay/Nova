@@ -26,6 +26,7 @@ from constants_sim import (
     NOVA_BROKER_IBKR,
     NOVA_BROKER_SIM,
     SIM_MODE_LABEL,
+    SIM_SPEND_LOCKED_DISARMED,
     SIM_SPEND_STATUS,
     SIM_SYMBOL,
     nova_broker_from_env,
@@ -61,7 +62,13 @@ def _load_venue() -> None:
     data = _cache.load_desk_venue()
     if not data:
         return
-    version = int(data.get("schema_version") or 0)
+    # A hand-edited or corrupted file can carry a non-numeric version. Raising
+    # here would abort the runtime bootstrap that makes the first is_sim_mode()
+    # call, which is the opposite of the refuse-loud fallback this promises.
+    try:
+        version = int(data.get("schema_version") or 0)
+    except (TypeError, ValueError):
+        version = -1
     if version != DESK_VENUE_SCHEMA_VERSION:
         logger.warning(
             "SIM: refusing desk venue file with unknown schema_version=%s "
@@ -197,13 +204,23 @@ def persist_nova_broker(value: str, env_path: Path | None = None) -> bool:
 def status_payload() -> dict:
     from ibkr.safety import armed as _armed_now
 
+    sim = is_sim_mode()
+    armed = _armed_now()
+    # `spend_status` is the *effective* state everywhere else, so it must not
+    # read `sim_armed` while the latch is off -- a consumer reading it would
+    # believe practice orders are enabled while validation rejects them. Mirrors
+    # the /api/ibkr/status overlay.
+    if not sim:
+        spend_status = None
+    else:
+        spend_status = SIM_SPEND_STATUS if armed else SIM_SPEND_LOCKED_DISARMED
     return {
-        "armed": _armed_now(),
-        "sim": is_sim_mode(),
-        "sim_symbol": SIM_SYMBOL if is_sim_mode() else None,
-        "broker": NOVA_BROKER_SIM if is_sim_mode() else NOVA_BROKER_IBKR,
-        "mode": SIM_MODE_LABEL if is_sim_mode() else None,
-        "spend_status": SIM_SPEND_STATUS if is_sim_mode() else None,
+        "armed": armed,
+        "sim": sim,
+        "sim_symbol": SIM_SYMBOL if sim else None,
+        "broker": NOVA_BROKER_SIM if sim else NOVA_BROKER_IBKR,
+        "mode": SIM_MODE_LABEL if sim else None,
+        "spend_status": spend_status,
     }
 
 

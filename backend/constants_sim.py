@@ -32,6 +32,9 @@ SIM_STARTING_CASH = 100_000.0
 SIM_STARTING_BUYING_POWER = 200_000.0
 
 SIM_SPEND_STATUS = "sim_armed"
+# Effective status when the ADR 018 arm latch is off. Must match the value
+# ibkr.safety.spend_state returns so one vocabulary reaches every surface.
+SIM_SPEND_LOCKED_DISARMED = "locked_disarmed"
 SIM_MODE_LABEL = "sim"
 SIM_NO_IBKR_REASON = "SIM mode cannot place to IBKR"
 SIM_NO_IBKR_CODE = "SIM_NO_IBKR"

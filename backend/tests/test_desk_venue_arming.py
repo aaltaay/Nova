@@ -197,3 +197,87 @@ def test_status_snapshot_names_permitted_and_armed_separately(monkeypatch) -> No
     )
     _safety.set_armed(True, reason="test")
     assert _safety.status_snapshot("live")["spend_status"] == "live_armed"
+
+
+# ── Codex review 2026-09-20: holes found in the first implementation ─────────
+
+def _replace(source: str) -> ExecutionCommand:
+    return ExecutionCommand(
+        operation="replace",
+        idempotency_key=f"adr018-replace-{source}",
+        source=source,
+        symbol="SIM1",
+        order_id=1,
+        limit_price=30.0,
+    )
+
+
+@pytest.mark.parametrize("source", ["manual", "bot", "approve"])
+def test_replace_is_refused_while_disarmed(source: str) -> None:
+    """Repricing a resting BUY limit up through the market opens exposure just
+    as surely as a fresh place, so `replace` is not a free pass while disarmed."""
+    set_sim_mode(True)
+    ok, _detail, reason = validate_command(_replace(source))
+    assert ok is False
+    assert reason == "DISARMED"
+
+
+@pytest.mark.parametrize("source", ["flatten", "kill", "cancel_working"])
+def test_protective_replace_still_allowed_while_disarmed(source: str) -> None:
+    set_sim_mode(True)
+    ok, detail, _reason = validate_command(_replace(source))
+    assert ok is True, detail
+
+
+def test_cancel_is_never_gated_by_the_latch() -> None:
+    """Cancel is protective by definition and sits above the latch check."""
+    set_sim_mode(True)
+    assert _safety.armed() is False
+    ok, detail, _reason = validate_command(
+        ExecutionCommand(
+            operation="cancel",
+            idempotency_key="adr018-cancel",
+            source="manual",
+            symbol="SIM1",
+            order_id=1,
+        )
+    )
+    assert ok is True, detail
+
+
+def test_sim_status_payload_never_says_armed_while_disarmed() -> None:
+    """`GET /api/sim` must not pair armed:false with spend_status:sim_armed."""
+    set_sim_mode(True)
+    payload = _mode.status_payload()
+    assert payload["armed"] is False
+    assert payload["spend_status"] == "locked_disarmed"
+
+    _safety.set_armed(True, reason="test")
+    armed_payload = _mode.status_payload()
+    assert armed_payload["armed"] is True
+    assert armed_payload["spend_status"] == "sim_armed"
+
+
+def test_non_numeric_schema_version_refuses_instead_of_raising() -> None:
+    """A hand-edited file must not abort the bootstrap that first reads it."""
+    set_sim_mode(True)
+    _write_venue_file({"schema_version": "not-a-number", "venue": NOVA_BROKER_SIM})
+
+    _simulate_process_restart()
+
+    assert is_sim_mode() is False, "unreadable version falls back to env"
+    assert _safety.armed() is False
+
+
+def test_corrupt_venue_file_is_logged_not_silently_treated_as_missing(caplog) -> None:
+    set_sim_mode(True)
+    Path(DESK_VENUE_FILE).write_text("{ this is not json", encoding="utf-8")
+
+    _simulate_process_restart()
+    with caplog.at_level("WARNING"):
+        resolved = is_sim_mode()
+
+    assert resolved is False
+    assert any("unreadable" in r.message for r in caplog.records), (
+        "corruption must not look like a first run"
+    )

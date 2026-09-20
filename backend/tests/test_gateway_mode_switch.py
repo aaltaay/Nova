@@ -186,3 +186,29 @@ def test_request_gateway_mode_paper_from_live_reattaches_if_4002_up(monkeypatch)
     assert result["launch_action"] == "already_listening"
     fake_ib.disconnect.assert_called()
     mock_launch.assert_called_once_with("paper", force_restart=False)
+
+
+def test_request_gateway_mode_disarms_the_desk(monkeypatch):
+    """ADR 018: a venue change disarms, and Paper<->Live does not go through
+    sim.mode. Without this, an armed Paper desk reconnects as Live still armed
+    and spends on the next keystroke -- carrying an arm across a venue change
+    is the same class of bug as carrying it across a restart."""
+    from ibkr import safety as _safety
+
+    monkeypatch.setattr(ibkr_client, "_enabled", True)
+    monkeypatch.setattr(ibkr_client, "_ib", None)
+    monkeypatch.setattr(ibkr_client, "is_connected", lambda: True)
+    monkeypatch.setattr(ibkr_client, "broker_account_kind", lambda: "paper")
+    monkeypatch.setattr(ibkr_client, "account_mode", lambda: "paper")
+    _safety.set_armed(True, reason="operator armed the paper desk")
+
+    with (
+        patch.object(heal, "persist_gateway_mode", return_value=True),
+        patch.object(heal, "apply_runtime_gateway_mode"),
+        patch.object(heal, "set_intentional_mode"),
+        patch("ibkr.launch_gateway.launch_or_focus_gateway"),
+    ):
+        result = _run(ibkr_client.request_gateway_mode("live"))
+
+    assert result["ok"] is True
+    assert _safety.armed() is False, "the door changed -- the arm must not survive it"

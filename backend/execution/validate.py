@@ -50,6 +50,16 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
             return False, reason, "CANCEL_GATE"
         return True, "OK", None
 
+    # ADR 018: everything past the cancel branch can increase exposure, so the
+    # arm latch is checked here rather than per-operation. A price-only
+    # `replace` counts: repricing a resting BUY limit up through the market
+    # makes it immediately marketable, which opens a position just as surely as
+    # a fresh place. Cancel is above this line because it is protective by
+    # definition; other protective sources are exempted inside assert_armed_for.
+    armed_ok, armed_reason = _safety.assert_armed_for(cmd.source)
+    if not armed_ok:
+        return False, armed_reason, "DISARMED"
+
     if cmd.operation == "replace":
         if cmd.order_id is None:
             return False, "order_id required for replace", "ORDER_ID_MISSING"
@@ -106,15 +116,9 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
     from constants_sim import SIM_SYMBOL
     from sim.mode import is_sim_mode
 
-    # ADR 018: opening needs this process's arm latch, in every venue -- the
-    # latch is about the process, not the door. Protective sources (flatten /
-    # KILL / cancel_working) are exempt so a disarmed desk can always get flat.
-    # This sits above the Sim branch on purpose: being in Sim decides *where* an
-    # allowed order is routed, never *whether* one is allowed.
-    armed_ok, armed_reason = _safety.assert_armed_for(cmd.source)
-    if not armed_ok:
-        return False, armed_reason, "DISARMED"
-
+    # The arm latch was checked above the operation branches, before Sim is
+    # consulted: being in Sim decides *where* an allowed order is routed, never
+    # *whether* one is allowed (ADR 018).
     if is_sim_mode():
         if cmd.operation in ("place", "bracket") and symbol != SIM_SYMBOL:
             return False, "SIM v1 only serves SIM1", "SIM_SYMBOL"
