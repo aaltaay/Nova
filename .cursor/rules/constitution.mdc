@@ -30,6 +30,7 @@ Before writing ANY code in this project, you MUST:
 - ❌ Direct-pushing product work to `master` -- use a focused branch and PR
 - ❌ Starting edits on a dirty worktree or a stale local `master` -- fetch and branch from `origin/master`
 - ❌ Ending a coding session with local-only commits, unpushed commits, or "I'll open the PR later"
+- ❌ Ending a session with a dirty tree, a `git stash`, or an abandoned worktree -- commit `wip:` on the branch, remove your worktree, `py -3 tools/repo_hygiene.py status` (workspace-hygiene.mdc)
 - ❌ Parking a shippable PR as draft because CI is still running
 - ❌ Leaving a shippable PR open and idle -- Actions merges ready PRs; do not wait for "please merge"
 - ❌ Leaving a merged or closed PR's head branch on origin -- delete it in the same session

@@ -105,3 +105,11 @@ tools/nova-launcher/obj/
 # Runtime logs written by the local API / desktop sidecar (root-level).
 # backend/logs/ is already covered above; this is the repo-root sibling.
 logs/
+
+# One-off sim bar captures (e.g. soun_bars.json) written locally for replay
+# experiments. Owner: backend/sim. Never committed -- WS5 of #344.
+backend/sim/data/
+
+# Claude Code scratch worktrees (isolation: worktree). Registered with git but
+# never part of the tree; `py -3 tools/repo_hygiene.py fix` reclaims stale ones.
+.claude/worktrees/

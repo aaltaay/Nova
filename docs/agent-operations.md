@@ -42,6 +42,9 @@ How Nova's custom Cursor agents are installed, validated, and kept in sync.
 | Deferred log (same list; human "priorities" ask) | `py -3 tools/deferred_log.py priorities` |
 | Lifecycle hook (Cursor) | `.cursor/hooks.json` → `tools/subagent_lifecycle_hook.py` |
 | Session-start fleet brief hook (Cursor) | `.cursor/hooks.json` → `tools/session_brief_hook.py` |
+| Session-start brief + Stop gate (Claude Code) | `.claude/settings.json` → `tools/session_brief_hook.py --claude`, `tools/repo_hygiene.py stop-gate` |
+| Repo hygiene (is this clone clean?) | `py -3 tools/repo_hygiene.py status` |
+| Repo hygiene (safe fixes: merged branches, stale worktrees, orphan refs) | `py -3 tools/repo_hygiene.py fix [--dry-run]` (nightly task `NovaRepoHygiene`, `scripts/Install-NovaDailyTask.ps1`) |
 | Agent dreaming (dry-run) | `py -3 tools/agent_dream.py` |
 | Agent dreaming (apply) | `py -3 tools/agent_dream.py --write` |
 | Agent dreaming (one agent) | `py -3 tools/agent_dream.py --agent <id> [--write]` |
