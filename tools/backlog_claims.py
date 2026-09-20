@@ -24,6 +24,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime, timedelta, timezone
+from collections.abc import Callable
 from typing import Any
 
 from tools.backlog_github import fetch_comments, label_names
@@ -133,31 +134,67 @@ def active_claim(
             "age_hours": round((now - last).total_seconds() / 3600, 1) if last else None}
 
 
-def live_claims(issues: list[dict[str, Any]], *, now: datetime) -> dict[int, dict[str, Any]]:
+def resolve_claim(
+    comments: list[dict[str, Any]], *, now: datetime,
+    branch_activity_for: Callable[[str], datetime | None] | None = None,
+) -> dict[str, Any] | None:
+    """`active_claim`, with the branch consulted only when it can change the answer.
+
+    Every path that decides whether a batch is held must go through here, or
+    `claims` and `next` disagree about who is working: a holder six hours in
+    but committing would read as held on the display and stale to the picker,
+    which hands the same batch to a second agent.
+
+    Branch activity can only ever revive a claim -- staleness takes the newer
+    of the two -- so a claim that is live on comment age needs no lookup at
+    all, and `next` pays one call only for the rare stale-looking holder.
+    """
+    claim = active_claim(comments, now=now)
+    if claim and claim["stale"] and branch_activity_for and claim.get("branch"):
+        claim = active_claim(comments, now=now,
+                             branch_activity=branch_activity_for(claim["branch"]))
+    return claim
+
+
+def _claims_where(
+    issues: list[dict[str, Any]], *, now: datetime, stale: bool,
+    branch_activity_for: Callable[[str], datetime | None] | None,
+) -> dict[int, dict[str, Any]]:
+    out: dict[int, dict[str, Any]] = {}
+    for issue in issues:
+        if CLAIM_LABEL not in label_names(issue):
+            continue
+        number = int(issue["number"])
+        claim = resolve_claim(fetch_comments(number), now=now,
+                              branch_activity_for=branch_activity_for)
+        if claim and claim["stale"] is stale:
+            out[number] = claim
+    return out
+
+
+def live_claims(
+    issues: list[dict[str, Any]], *, now: datetime,
+    branch_activity_for: Callable[[str], datetime | None] | None = None,
+) -> dict[int, dict[str, Any]]:
     """Claims in force, keyed by issue number.
 
     Only issues carrying the label are inspected: the label is the cheap
     filter that keeps `next` from fetching comments for the whole backlog.
+
+    This is the enforcement path -- `next` skips what it returns -- so callers
+    that can reach GitHub pass ``branch_activity_for`` and get the same answer
+    the `claims` view shows.
     """
-    out: dict[int, dict[str, Any]] = {}
-    for issue in issues:
-        if CLAIM_LABEL not in label_names(issue):
-            continue
-        claim = active_claim(fetch_comments(int(issue["number"])), now=now)
-        if claim and not claim["stale"]:
-            out[int(issue["number"])] = claim
-    return out
+    return _claims_where(issues, now=now, stale=False,
+                         branch_activity_for=branch_activity_for)
 
 
-def stale_claims(issues: list[dict[str, Any]], *, now: datetime) -> dict[int, dict[str, Any]]:
-    out: dict[int, dict[str, Any]] = {}
-    for issue in issues:
-        if CLAIM_LABEL not in label_names(issue):
-            continue
-        claim = active_claim(fetch_comments(int(issue["number"])), now=now)
-        if claim and claim["stale"]:
-            out[int(issue["number"])] = claim
-    return out
+def stale_claims(
+    issues: list[dict[str, Any]], *, now: datetime,
+    branch_activity_for: Callable[[str], datetime | None] | None = None,
+) -> dict[int, dict[str, Any]]:
+    return _claims_where(issues, now=now, stale=True,
+                         branch_activity_for=branch_activity_for)
 
 
 def resolve_batch(pkg: dict[str, Any], index: int | None) -> tuple[int, dict[str, Any]]:
