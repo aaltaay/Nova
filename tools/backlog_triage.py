@@ -150,7 +150,8 @@ def build_parser() -> argparse.ArgumentParser:
     cla.add_argument("--package", required=True, help="package slug")
     cla.add_argument("--batch", type=int, default=None, help="batch index (default 0)")
     cla.add_argument("--agent", default=None, help="agent id (default $NOVA_AGENT_ID)")
-    cla.add_argument("--branch", default=None, help="branch you will work on")
+    cla.add_argument("--branch", default=None,
+                     help="branch to cut and link (default agent/<slug>-<batch>)")
     cla.add_argument("--force", action="store_true", help="take over a stale claim")
     cla.set_defaults(func=cmd_claim)
 
@@ -158,6 +159,10 @@ def build_parser() -> argparse.ArgumentParser:
     rel.add_argument("--package", required=True)
     rel.add_argument("--batch", type=int, default=None)
     rel.add_argument("--agent", default=None)
+    rel.add_argument("--branch", default=None,
+                     help="branch to clean up (default: the one the claim recorded)")
+    rel.add_argument("--keep-branch", action="store_true",
+                     help="release the claim but leave the branch on origin")
     rel.set_defaults(func=cmd_release)
 
     tri = sub.add_parser("triage", help="list inbox issues with routing context")
