@@ -35,10 +35,25 @@ def checked(action):
         raise HTTPException(422, str(exc)) from exc
 
 
+def _default_date() -> str | None:
+    """The picker's pre-filled date, or None when it cannot be computed.
+
+    Scoped on purpose (#386): this is one convenience field, and an operator who
+    already knows the date they want must still see their jobs, their selection
+    and their storage path. Failing it used to fail the whole listing.
+    """
+    try:
+        return store.default_date()
+    except ValueError:
+        logger.warning("Default replay date is unavailable; listing continues without it",
+                       exc_info=True)
+        return None
+
+
 @router.get("")
 def list_downloads():
     return checked(lambda: {"jobs": download.list_jobs(), "selection": playback.status(),
-                            "storage": str(store.path()), "default_date": store.default_date()})
+                            "storage": str(store.path()), "default_date": _default_date()})
 
 
 def _begin(body: Window):

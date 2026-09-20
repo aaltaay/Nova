@@ -1,4 +1,9 @@
-"""Sim session clock — 4:00–20:00 America/New_York, scrubbable, 1s playhead."""
+"""Sim session clock — 4:00–20:00 America/New_York, scrubbable, 1s playhead.
+
+Session bounds ignore early-close (13:00 ET) half-days: see sim/trading_day.py.
+The full 04:00–20:00 window opens on the day after Thanksgiving and the other
+half-days, so those replays look live but have an empty tape after 13:00.
+"""
 from __future__ import annotations
 
 import time as time_mod
@@ -7,7 +12,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from constants_sim import SIM_SESSION_CLOSE_HOUR, SIM_SESSION_OPEN_HOUR
-from sim.trading_day import last_trading_day
+from sim.trading_day import last_open_day
 
 ET = ZoneInfo("America/New_York")
 
@@ -58,6 +63,14 @@ def set_session_date(date_yyyy_mm_dd: str | None) -> None:
 
 
 def session_bounds_on(day: datetime) -> tuple[datetime, datetime]:
+    """Open/close for the session ``day`` belongs to. Never refuses a year.
+
+    ``day`` here is the wall clock, not operator input, and every caller below
+    (status_payload, now_et, session_seconds, sim.market, sim.replay) sits under
+    a route with no ValueError mapping — so a refusal is a 500 and a dead Sim
+    desk. ``last_open_day`` degrades and logs instead (#386). Half-days are not
+    modelled: the window is the full 04:00–20:00 on them.
+    """
     date_override = _session_date or _resume_date
     if date_override:
         from datetime import date as _date
@@ -66,7 +79,7 @@ def session_bounds_on(day: datetime) -> tuple[datetime, datetime]:
     else:
         # Weekend practice desk: a closed exchange day replays the last open one
         # at the same time of day, so real tickers have a session to read from.
-        d = last_trading_day(day.astimezone(ET).date())
+        d = last_open_day(day.astimezone(ET).date())
     opening, closing = _window or (SESSION_OPEN, SESSION_CLOSE)
     start = datetime.combine(d, opening, tzinfo=ET)
     end = datetime.combine(d, closing, tzinfo=ET)
