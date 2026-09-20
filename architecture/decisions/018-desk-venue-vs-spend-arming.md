@@ -1,6 +1,6 @@
 # ADR 018 -- Desk venue persists, spend arming does not
 
-**Status:** Proposed -- awaiting operator approval (#302 is a `decision` issue)
+**Status:** Accepted -- operator approved 2026-09-20 on [#391](https://github.com/aaltaay/Nova/pull/391)
 **Date:** 2026-09-20
 **Builds on:** [[007-centralized-trading-execution]] · [[013-ibkr-account-vs-port]]
 **Issue:** [#302](https://github.com/aaltaay/Nova/issues/302) (D-054) -- Backend restart silently drops the desk from Sim to Live
@@ -51,12 +51,14 @@ Under these latches the failure that started this ADR is unreachable from either
 
 ## Consequences
 
+- **Naming, fixed at approval:** the env flags are **`permitted`** (this desk is allowed to spend) and the runtime latch is **`armed`** (this process currently may). Implementation uses those two words and does not reuse "armed" for the env capability, so the two cannot be confused in code or in the status payload.
+- The arm / disarm control does not exist today. Building it is part of the #302 implementation PR, not a follow-up.
 - `sim/mode.py` gains the cache read on process start and the cache write on `set_sim_mode`, and keeps owning both. `persist_nova_broker` (the `.env` rewrite) is no longer the persistence path for the venue.
 - `ibkr/safety.py` gains the runtime arm latch, AND-ed into `spend_state()`. Exit paths continue to bypass it.
 - `ibkr/trading_allowed.py` `places_allowed()` stops treating "in Sim" as the answer to "may I spend"; venue routing and spend permission become separate reads.
 - `GatewayModeCapsule.tsx` sets the `persist` field the API already accepts, and renders the arm state as its own affordance rather than implying it from the venue chip.
 - A regression test asserts the property directly: **a process start whose previous venue was Sim never lands on IBKR with spending armed** -- covering both the cache-present and cache-missing paths.
-- **Ergonomic cost, accepted:** an arm click after each watchdog bounce. The operator trades the old failure (a silent armed-live desk) for a loud disarmed one. The two errors are not symmetric -- a desk stuck disarmed misses a fill, a desk silently armed spends real money -- so the latch is biased toward the recoverable error.
+- **Ergonomic cost, explicitly accepted by the operator at approval:** an arm click after each watchdog bounce. The operator trades the old failure (a silent armed-live desk) for a loud disarmed one. The two errors are not symmetric -- a desk stuck disarmed misses a fill, a desk silently armed spends real money -- so the latch is biased toward the recoverable error.
 - `AGENTS.md` §5 and `docs/sim-mode.md` ("In-memory ledger only -- restart clears practice positions" and the Optional bootstrap section) are updated **in the implementation PR**, per the process the operator set on #302: ADR first, approval, then docs, then code.
 - Nothing here changes Invariant #7, the IBKR-only feed, or the `auto_live` NO-GO.
 
