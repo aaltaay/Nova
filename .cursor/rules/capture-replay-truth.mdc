@@ -1,0 +1,31 @@
+---
+description: Capture replay selection and feed must describe actual loaded recordings
+globs: ["backend/sim/*.py", "backend/capture/sessions.py", "frontend/src/sim/*"]
+alwaysApply: false
+---
+
+# Capture replay truth (#317)
+
+Following ADR 012 and architecture/historical-replay.md, capture selection is
+successful only after the player has read usable recorded prints or quotes.
+Missing, unreadable, malformed-only, empty and L2/bar-only sessions are refused.
+Failed selection clears capture identity and returns replay_source=synthetic,
+replay_ok=false and replay_error; the error persists in clock polls until an
+explicit successful selection or Return to SIM1. The header renders the error
+and never opens the rejected ticker. After a failed attempt the feed emits nothing until an explicit successful
+selection or Return to SIM1, preventing a silent synthetic fallback.
+
+Session listings retain empty recordings for diagnosis, with empty, usable and
+unavailable_reason fields. Byte presence is a cheap availability hint, not proof
+of valid rows; the loader remains authoritative. Disabled sessions cannot be
+picked. Valid quotes-only captures remain usable.
+
+The capture feed publishes only recorded prints on the recorded symbol. Quiet
+intervals may refresh an actual captured book, but never manufacture GAP prints,
+zero prices, synthetic SIM1 quotes or depth. Capture feed failure stops that tick
+and reports replay failure instead of falling through to the synthetic generator.
+A synthetic tick is permitted only when synthetic playback is explicitly active.
+
+Parsing and availability helpers belong to the capture domain, and capture feed
+fan-out belongs to the SIM feature (ADR 001 module ownership). Keep existing
+fidelity and L2 decimation policy unchanged in this fix.

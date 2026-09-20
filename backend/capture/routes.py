@@ -1,7 +1,7 @@
 """Capture HTTP routes."""
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from capture.mode import set_capture_mode, status_payload
@@ -23,7 +23,9 @@ def get_capture() -> dict:
 
 @router.post("/api/capture")
 def post_capture(body: CaptureToggleRequest) -> dict:
-    out = set_capture_mode(body.enabled, symbol=body.symbol)
+    out = set_capture_mode(body.enabled, symbol=body.symbol, protect_active=True)
+    if out.pop("conflict", False):
+        raise HTTPException(status_code=409, detail=out["error"])
     return {**out, "recorder": recorder_status()}
 
 

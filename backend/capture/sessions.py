@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
 from capture.recorder import capture_root
+
+logger = logging.getLogger(__name__)
 
 
 def _file_bytes(path: Path) -> int:
@@ -31,25 +34,31 @@ def list_sessions() -> dict[str, Any]:
             man_path = sym_dir / "manifest.json"
             if man_path.is_file():
                 try:
-                    man = json.loads(man_path.read_text(encoding="utf-8"))
-                except Exception:
-                    man = {}
+                    loaded = json.loads(man_path.read_text(encoding="utf-8"))
+                    man = loaded if isinstance(loaded, dict) else {}
+                except (OSError, ValueError):
+                    logger.warning("CAPTURE: cannot read manifest %s", man_path, exc_info=True)
             counts = man.get("counts") if isinstance(man.get("counts"), dict) else {}
-            prints_n = int(counts.get("prints") or 0)
-            l2_n = int(counts.get("l2") or 0)
+            prints_n = _count(counts.get("prints"))
+            l2_n = _count(counts.get("l2"))
             # Presence check only (bytes), never read lines.
             has_prints = _file_bytes(sym_dir / "prints.jsonl") > 0
             has_l2 = _file_bytes(sym_dir / "l2.jsonl") > 0
+            has_quotes = _file_bytes(sym_dir / "quotes.jsonl") > 0
+            usable = has_prints or has_quotes
             if prints_n == 0 and has_prints:
                 prints_n = -1  # unknown but present
             if l2_n == 0 and has_l2:
                 l2_n = -1
             # Skip empty dirs with no capture files
-            if not (has_prints or has_l2 or man):
+            if not (usable or has_l2 or man):
                 continue
             tickers.append(
                 {
                     "symbol": sym_dir.name.upper(),
+                    "empty": not usable,
+                    "usable": usable,
+                    "unavailable_reason": None if usable else "No recorded prints or quotes",
                     "dir": str(sym_dir),
                     "prints": prints_n,
                     "l2": l2_n,
@@ -68,3 +77,10 @@ def list_sessions() -> dict[str, Any]:
             tickers_by_day[day] = tickers
 
     return {"root": str(root), "days": days, "tickers_by_day": tickers_by_day}
+
+
+def _count(value: Any) -> int:
+    try:
+        return max(0, int(value or 0))
+    except (ValueError, TypeError, OverflowError):
+        return 0

@@ -159,6 +159,19 @@ When touching ANY function currently in a monolith file:
 GitHub job outputs serialize these booleans as `true` / `false`. Unknown paths,
 unavailable diffs, and manual runs select full verification. See `.cursor/rules/ci-scope.mdc`.
 
+### Capture / replay truth (issues #316, #317)
+
+`GET /api/capture` and recording fields in `/api/ibkr/status` describe one
+server-owned recording symbol, with `capture_error: string | null` on IBKR status.
+Cross-symbol HTTP starts/stops return 409 with
+`detail`; the operator must stop the active symbol first.
+
+Sim replay status adds `replay_ok: boolean` and `replay_error: string | null`.
+A failed capture selection clears `replay_date` / `replay_symbol`, reports
+`replay_source: "synthetic"` with `replay_ok: false`, and never claims a capture
+loaded. Capture session listing rows add `empty: boolean`, `usable: boolean`,
+and `unavailable_reason: string | null`; empty sessions cannot be selected.
+
 ### Input Payload (Raw)
 
 ```json

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import bisect
-import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,6 +9,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from capture.recorder import capture_root
+from sim.capture_reader import read_jsonl as _read_jsonl, usable_rows
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
@@ -41,34 +41,6 @@ def reset_for_tests() -> None:
     _print_bar_cache.clear()
 
 
-def _read_jsonl(path: Path) -> list[dict[str, Any]]:
-    if not path.is_file() or path.stat().st_size == 0:
-        return []
-    rows: list[dict[str, Any]] = []
-    dropped = 0
-    with path.open("r", encoding="utf-8", errors="ignore") as fh:
-        for line in fh:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                rows.append(json.loads(line))
-            except json.JSONDecodeError:
-                dropped += 1
-                continue
-    if dropped:
-        # D-067: a torn tail from an interrupted write is real data loss; say so
-        # instead of silently replaying a short session.
-        logger.warning(
-            "CAPTURE replay: dropped %d unparseable line(s) from %s "
-            "(truncated tail from an interrupted write?) — %d rows loaded",
-            dropped,
-            path,
-            len(rows),
-        )
-    return rows
-
-
 def _ts(row: dict[str, Any]) -> float:
     v = row.get("ts")
     return float(v) if isinstance(v, (int, float)) else 0.0
@@ -89,8 +61,11 @@ def load(date: str, symbol: str) -> dict[str, Any]:
         reset_for_tests()
         return {"ok": False, "error": f"missing {root}", "key": key}
 
-    _prints = sorted(_read_jsonl(root / "prints.jsonl"), key=_ts)
-    _quotes = sorted(_read_jsonl(root / "quotes.jsonl"), key=_ts)
+    _prints = usable_rows(_read_jsonl(root / "prints.jsonl"), "prints", symbol)
+    _quotes = usable_rows(_read_jsonl(root / "quotes.jsonl"), "quotes", symbol)
+    if not _prints and not _quotes:
+        reset_for_tests()
+        return {"ok": False, "error": "Capture contains no usable prints or quotes", "key": key}
     _l2 = []
     _l2_path = root / "l2.jsonl"
     _bars = {
@@ -105,8 +80,9 @@ def load(date: str, symbol: str) -> dict[str, Any]:
     _bar_keys = {k: [_ts(r) for r in v] for k, v in _bars.items()}
     _loaded_key = key
     _last_emit_ts = 0.0
-    first_ts = _print_keys[0] if _print_keys else None
-    last_ts = _print_keys[-1] if _print_keys else None
+    event_keys = _print_keys + _quote_keys
+    first_ts = min(event_keys)
+    last_ts = max(event_keys)
     l2_bytes = _l2_path.stat().st_size if _l2_path.is_file() else 0
     logger.info(
         "CAPTURE PLAY: loaded %s prints=%s quotes=%s bars1m=%s l2_bytes=%s",

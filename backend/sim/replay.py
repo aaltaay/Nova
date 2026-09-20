@@ -35,12 +35,15 @@ def status_payload() -> dict[str, Any]:
     historical = history_playback.status()
     if historical:
         return dict(replay_date=historical["date"], replay_symbol=historical["symbol"],
-                    replay_source="historical", replay_load=historical)
-    capture = bool(_date and _symbol)
+                    replay_source="historical", replay_load=historical,
+                    replay_ok=True, replay_error=None)
+    capture = is_capture_replay()
     out: dict[str, Any] = {
         "replay_date": _date,
         "replay_symbol": _symbol,
         "replay_source": "capture" if capture else "synthetic",
+        "replay_ok": not _load_info or bool(_load_info.get("ok")),
+        "replay_error": _load_info.get("error") if _load_info else None,
     }
     if _load_info:
         out["replay_load"] = _load_info
@@ -80,9 +83,15 @@ def set_replay(date: str | None, symbol: str | None) -> dict[str, Any]:
             _clock.keep_time_of_day(left_historical)
         return status_payload()
 
+    try:
+        info = _player.load(d, s)
+    except Exception:
+        logger.exception("CAPTURE PLAY: load failed for %s %s", d, s)
+        info = {"ok": False, "error": f"Could not read capture {d} {s}"}
+    if not info.get("ok"):
+        return fail_replay(str(info.get("error") or "Capture contains no usable data"))
     _date = d
     _symbol = s
-    info = _player.load(d, s)
     _load_info = info
     _clock.set_session_date(d)
     # Scrub to session open so user can slide into the capture; seek emit cursor
@@ -106,4 +115,15 @@ def set_replay(date: str | None, symbol: str | None) -> dict[str, Any]:
         except Exception:
             logger.exception("CAPTURE PLAY: could not align scrub to first print")
     logger.info("CAPTURE PLAY: set_replay %s %s ok=%s", d, s, info.get("ok") if info else None)
+    return status_payload()
+
+
+def fail_replay(error: str) -> dict[str, Any]:
+    """Drop the failed capture and expose a persistent, explicit failure."""
+    global _load_info
+    from sim import session_clock as _clock
+    clear_capture()
+    _load_info = {"ok": False, "error": error}
+    _clock.set_session_date(None)
+    logger.warning("CAPTURE PLAY: %s", error)
     return status_payload()

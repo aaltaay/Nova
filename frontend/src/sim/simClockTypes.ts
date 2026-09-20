@@ -14,4 +14,6 @@ export interface SimClockState {
   replay_date?: string | null;
   replay_symbol?: string | null;
   replay_source?: string;
+  replay_ok?: boolean;
+  replay_error?: string | null;
 }

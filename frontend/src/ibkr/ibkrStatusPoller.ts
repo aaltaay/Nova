@@ -16,6 +16,8 @@ import type { IbkrStatus } from './types';
 export type IbkrClientStatus = IbkrStatus & {
   /** False until a poll finishes or this tab already has last-good status. */
   clientReady: boolean;
+  /** Successful in-memory read only; persisted cache cannot attest freshness. */
+  lastSuccessAt?: number | null;
   /** True after consecutive /api/ibkr/status failures. */
   stale: boolean;
   /** epoch ms of the first consecutive miss; null when fresh. */
@@ -40,9 +42,9 @@ export const DEFAULT_IBKR_STATUS: IbkrStatus = {
 function hydrate(): IbkrClientStatus {
   const last = readLastIbkrStatus();
   if (last) {
-    return { ...last, clientReady: true, stale: false, staleSince: null };
+    return { ...last, clientReady: true, stale: false, staleSince: null, lastSuccessAt: null };
   }
-  return { ...DEFAULT_IBKR_STATUS, clientReady: false, stale: false, staleSince: null };
+  return { ...DEFAULT_IBKR_STATUS, clientReady: false, stale: false, staleSince: null, lastSuccessAt: null };
 }
 
 type Listener = () => void;
@@ -64,7 +66,7 @@ function emit(): void {
 function applySuccess(next: IbkrStatus): void {
   misses = 0;
   writeLastIbkrStatus(next);
-  snapshot = { ...next, clientReady: true, stale: false, staleSince: null };
+  snapshot = { ...next, clientReady: true, stale: false, staleSince: null, lastSuccessAt: nowImpl() };
   emit();
 }
 

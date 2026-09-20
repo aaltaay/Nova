@@ -11,6 +11,7 @@ const status = vi.hoisted(() => ({
   connected: true,
   completed_orders_unanswered_since: null as number | null,
   gateway_read_only: false,
+  recording: false,
 }));
 
 vi.mock('../components/scannerBarStore', () => ({
@@ -37,7 +38,7 @@ vi.mock('./usePrereqOverlayInputs', () => ({
   usePrereqOverlayInputs: () => ({
     apiFailStreak: 0,
     deskActionInFlight: false,
-    sessionRecording: false,
+    sessionRecording: status.recording,
   }),
 }));
 vi.mock('./GatewayDoorTrail', () => ({ GatewayDoorTrail: () => null }));
@@ -48,6 +49,7 @@ describe('TradingPrerequisitesGate D-058 warning', () => {
 
   beforeEach(() => {
     status.connected = true;
+    status.recording = false;
     status.completed_orders_unanswered_since = null;
     status.gateway_read_only = false;
     container = document.createElement('div');
@@ -64,6 +66,14 @@ describe('TradingPrerequisitesGate D-058 warning', () => {
     act(() => root.render(<TradingPrerequisitesGate />));
     act(() => openTradingPrerequisites());
   }
+
+  it('keeps a manually opened checklist visible when recording starts', () => {
+    openPanel();
+    expect(container.querySelector('.trading-prereq-gate')).not.toBeNull();
+    status.recording = true;
+    act(() => root.render(<TradingPrerequisitesGate />));
+    expect(container.querySelector('.trading-prereq-gate')).not.toBeNull();
+  });
 
   it('shows the amber warning under an all-OK checklist', () => {
     status.completed_orders_unanswered_since = 1789808049;

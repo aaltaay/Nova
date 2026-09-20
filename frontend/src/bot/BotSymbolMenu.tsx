@@ -8,6 +8,7 @@ import {
 import { useBotAllowlist } from './useBotAllowlist';
 import {
   getRecordingSymbols,
+  getSessionRecordError,
   isTabRecording,
   startTabRecord,
   stopTabRecord,
@@ -16,14 +17,19 @@ import {
 
 export function BotSymbolMenuHost() {
   const [open, setOpen] = useState<BotSymbolMenuOpen>(null);
+  const [recordError, setRecordError] = useState<string | null>(null);
+  const [recordBusy, setRecordBusy] = useState(false);
   const { isAllowed, add, remove } = useBotAllowlist();
   const recordEpoch = useSyncExternalStore(
     subscribeSessionRecord,
-    () => getRecordingSymbols().join(','),
+    () => `${getRecordingSymbols().join(',')}|${getSessionRecordError() || ''}`,
     () => '',
   );
 
-  useEffect(() => subscribeBotSymbolMenu(setOpen), []);
+  useEffect(() => subscribeBotSymbolMenu(value => {
+    setRecordError(null);
+    setOpen(value);
+  }), []);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -59,14 +65,17 @@ export function BotSymbolMenuHost() {
         type="button"
         role="menuitem"
         data-testid="bot-symbol-menu-record"
+        disabled={recordBusy}
         onClick={() => {
+          setRecordBusy(true);
+          setRecordError(null);
           void (async () => {
             const err = recording
               ? await stopTabRecord(open.symbol)
               : await startTabRecord(open.symbol);
-            // No popup during Record — keep the menu open with error text if needed
+            setRecordBusy(false);
             if (err) {
-              console.warn('session Record:', err);
+              setRecordError(err);
               return;
             }
             closeBotSymbolMenu();
@@ -75,6 +84,9 @@ export function BotSymbolMenuHost() {
       >
         {recording ? 'Stop recording' : 'Record'} -- {open.symbol}
       </button>
+      {(recordError || getSessionRecordError()) && (
+        <div role="alert">{recordError || getSessionRecordError()}</div>
+      )}
       <button
         type="button"
         role="menuitem"
