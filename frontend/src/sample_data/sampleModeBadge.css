@@ -1,0 +1,15 @@
+/*
+ * Sample marking strip (#357). Feature-local so the strip owns its own layout
+ * contract instead of inheriting whatever .sample-data-banner happens to be.
+ *
+ * `flex: 0 0 auto` is the load-bearing line. The strip is a flex child of
+ * .nova-app-stack (overflow:hidden; height:100%), whose other child
+ * .nova-app-branch is `flex: 1 1 0; min-height: 0`. Without an explicit basis
+ * the strip is a shrinkable auto-basis item, so its rendered height depends on
+ * flexbox arbitration; pinning it makes the branch absorb the difference and
+ * keeps the page-scroll assertion in e2e/baseline.spec.ts a property of the
+ * layout rather than of the default algorithm.
+ */
+.sample-data-banner.sample-data-banner--strip {
+  flex: 0 0 auto;
+}

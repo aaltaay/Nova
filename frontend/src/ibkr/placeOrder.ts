@@ -34,8 +34,10 @@ export async function placeIbkrOrder(
     referencePrice?: number | null;
   },
 ): Promise<PlaceOrderResult> {
-  // The sample desk never reaches a broker (#357). Refuse before any transport
-  // so a sample ticket cannot POST an order at a machine whose backend is up.
+  // No order mutation from the sample desk reaches a broker (#357). Refuse
+  // before any transport so a sample ticket cannot POST an order at a machine
+  // whose backend is up. Narrower claim than it looks: non-order endpoints on
+  // the sample route (bot session, settings) are not gated by this guard.
   const refusal = sampleOrderRefusal();
   if (refusal) {
     // Close a caller-supplied span so the latency ledger stays honest; a

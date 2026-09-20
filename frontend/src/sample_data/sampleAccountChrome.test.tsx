@@ -1,38 +1,102 @@
 /**
  * @vitest-environment jsdom
  *
- * #357: the sample desk renders its own account figures with no backend.
- * The Playwright spec covers this end to end; this pins the two pieces it
- * depends on (chrome resolution + fixture formatting) without a browser.
+ * #357 acceptance line 1: on ?view=sample the header shows the Nova Marketing
+ * Sample Data account figures, with no backend.
+ *
+ * This renders the REAL GlobalAppBar. An earlier version of this file
+ * reimplemented the header's chrome expression in a local helper and bound it
+ * back with a regex over GlobalAppBar.tsx, which meant every behavioural
+ * assertion passed against a copy. The only contexts stubbed here are the two
+ * providers a browser-less desk cannot supply (workspace + account poller);
+ * the chrome decision, the cluster and the money formatting are the shipped
+ * code paths.
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GlobalBarAccountCluster } from '../components/GlobalBarAccountCluster';
-import { resolveAccountChromeState } from '../components/globalBarAccountChrome';
-import { SAMPLE_IBKR_ACCOUNT_STATE, SAMPLE_SUMMARY } from './sampleAccount';
-import { isSampleView } from './sampleNav';
+import { GlobalAppBar } from '../components/GlobalAppBar';
+import type { IbkrAccountState } from '../ibkr/IbkrAccountContext';
+import type { WorkspaceValue } from '../workspace/WorkspaceContext';
+import { SAMPLE_IBKR_ACCOUNT_STATE } from './sampleAccount';
 
-const here = dirname(fileURLToPath(import.meta.url));
+let workspace: WorkspaceValue;
+let account: IbkrAccountState;
 
-/** The exact expression GlobalAppBar feeds resolveAccountChromeState. */
-function chromeForSampleDesk(ibkrConnected: boolean) {
-  return resolveAccountChromeState({
-    ibkrConnected: Boolean(ibkrConnected) || isSampleView(),
-    summaryConnected: SAMPLE_SUMMARY.connected,
-    loading: SAMPLE_IBKR_ACCOUNT_STATE.loading,
-    error: SAMPLE_IBKR_ACCOUNT_STATE.error,
-  });
+vi.mock('../workspace/WorkspaceContext', () => ({
+  useWorkspace: () => workspace,
+}));
+
+vi.mock('../ibkr/IbkrAccountContext', () => ({
+  useIbkrAccountContext: () => account,
+}));
+
+vi.mock('../closed_orders/useClosedOrders', () => ({
+  useClosedOrders: () => ({ orders: [], loading: false, error: null, refresh: () => {} }),
+}));
+
+vi.mock('../bot/BotArmControls', () => ({
+  BotArmControls: () => <div data-testid="bot-arm-controls-stub" />,
+}));
+vi.mock('../bot/BotSymbolMenu', () => ({
+  BotSymbolMenuHost: () => <div data-testid="bot-symbol-menu-host-stub" />,
+}));
+
+vi.mock('../workspace/useModuleVisibility', () => ({
+  useModuleVisibility: () => ({ visibility: { trading: true }, setVisible: () => {} }),
+}));
+
+/**
+ * The sample desk as a marketing machine actually sees it: no Nova API, so
+ * WorkspaceProvider (which sits above the sample gate) reports the Gateway
+ * down. Only the fields GlobalAppBar and its children read are meaningful;
+ * the cast keeps this fixture from drifting every time WorkspaceValue grows a
+ * field the header never touches.
+ */
+function backendlessWorkspace(overrides: Partial<WorkspaceValue> = {}): WorkspaceValue {
+  return {
+    selectedSymbol: 'SMPL',
+    setSelectedSymbol: () => {},
+    ibkrConnected: false,
+    ibkrTransportConnected: false,
+    ibkrMode: 'disconnected',
+    ibkrGatewayMode: null,
+    ibkrAccountKind: null,
+    ibkrIntentionalMode: null,
+    ibkrDisconnectHint: null,
+    openStockView: () => {},
+    selectRowSymbol: () => {},
+    traderTabs: [],
+    traderLiveTabs: [],
+    activeTraderSymbol: null,
+    traderBlockNotice: null,
+    dismissTraderBlockNotice: () => {},
+    activateTraderTab: () => {},
+    closeTraderTab: () => {},
+    renameTraderTab: () => {},
+    addTraderDraftTab: () => {},
+    extractTraderTab: () => {},
+    acceptTraderTabDrop: () => false,
+    requestDockTraderTab: () => {},
+    traderWindowId: 'sample-window',
+    traderDeskRole: 'host',
+    traderDockOffer: null,
+    publishTraderTabOffer: () => {},
+    publishTraderTabOfferEnd: () => {},
+    closeTraderView: () => {},
+    traderViewActive: false,
+    showScannerView: () => {},
+    ...overrides,
+  } as unknown as WorkspaceValue;
 }
 
-describe('sample desk account chrome', () => {
+describe('sample desk account chrome (real GlobalAppBar)', () => {
   let container: HTMLDivElement;
   let root: Root;
 
   beforeEach(() => {
+    workspace = backendlessWorkspace();
+    account = SAMPLE_IBKR_ACCOUNT_STATE;
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -44,49 +108,15 @@ describe('sample desk account chrome', () => {
     window.history.replaceState({}, '', '/');
   });
 
-  it('is ready on the sample route even with Gateway reported down', () => {
-    // CI and the marketing desk both run with no Nova API, so ibkrConnected
-    // is false there; the header must not say "IBKR offline" anyway.
-    window.history.replaceState({}, '', '/?view=sample');
-    expect(chromeForSampleDesk(false)).toBe('ready');
-  });
-
-  it('is the expression GlobalAppBar actually passes', () => {
-    // Binds the cases above to the real header: the chrome fix is one line in
-    // GlobalAppBar, and nothing else would catch it being reverted.
-    const src = readFileSync(join(here, '..', 'components', 'GlobalAppBar.tsx'), 'utf8');
-    expect(src).toMatch(/import \{ isSampleView \} from '\.\.\/sample_data\/sampleNav'/);
-    expect(src).toMatch(
-      /resolveAccountChromeState\(\{[\s\S]*?ibkrConnected: Boolean\(ibkrConnected\) \|\| isSampleView\(\)/,
-    );
-  });
-
-  it('still reports offline on a live route with Gateway down', () => {
-    window.history.replaceState({}, '', '/');
-    expect(chromeForSampleDesk(false)).toBe('offline');
-  });
-
-  it('renders Day P&L and Net Liq from the sample fixture', () => {
-    window.history.replaceState({}, '', '/?view=sample');
+  function renderAt(path: string) {
+    window.history.replaceState({}, '', path);
     act(() => {
-      root.render(
-        <GlobalBarAccountCluster
-          accountChrome={chromeForSampleDesk(false)}
-          accountError={null}
-          summary={SAMPLE_SUMMARY}
-          orders={SAMPLE_IBKR_ACCOUNT_STATE.orders}
-          workingCount={0}
-          openMenu={null}
-          setOpenMenu={vi.fn()}
-          accountCardId="card"
-          workingMenuId="working"
-          closedOrders={[]}
-          traderActive={false}
-          closeTraderView={vi.fn()}
-          refresh={vi.fn()}
-        />,
-      );
+      root.render(<GlobalAppBar />);
     });
+  }
+
+  it('shows the sample account figures with the Gateway reported down', () => {
+    renderAt('/?view=sample');
 
     expect(container.querySelector('[data-testid="global-bar-offline"]')).toBeNull();
     expect(container.querySelector('[data-testid="global-bar-cluster"]')).toBeTruthy();
@@ -96,5 +126,36 @@ describe('sample desk account chrome', () => {
     expect(
       container.querySelector('.global-app-bar__metric--netliq')?.textContent,
     ).toContain('$100,000.00');
+  });
+
+  it('marks the sample Trader route the same way', () => {
+    renderAt('/?view=sample&symbol=SMPL');
+
+    expect(container.querySelector('[data-testid="global-bar-offline"]')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="global-bar-account-trigger"]')?.textContent,
+    ).toContain('+$230.00');
+  });
+
+  it('still says IBKR offline on a live route with the same Gateway down', () => {
+    // The mutation guard: if the sample check were dropped from GlobalAppBar
+    // the first case would fail; if it were widened to every route this one
+    // would, and a real desk would stop reporting a dead Gateway.
+    renderAt('/');
+
+    const offline = container.querySelector('[data-testid="global-bar-offline"]');
+    expect(offline).toBeTruthy();
+    expect(container.textContent).toMatch(/IBKR offline/);
+    expect(container.querySelector('[data-testid="global-bar-cluster"]')).toBeNull();
+  });
+
+  it('does not treat a near-miss URL as the sample desk', () => {
+    for (const path of ['/?view=samples', '/?view=SAMPLE', '/?view=stock&symbol=SMPL']) {
+      renderAt(path);
+      expect(
+        container.querySelector('[data-testid="global-bar-offline"]'),
+        `expected an offline chip at ${path}`,
+      ).toBeTruthy();
+    }
   });
 });

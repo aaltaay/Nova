@@ -1,20 +1,33 @@
 /**
  * @vitest-environment jsdom
  *
- * #357: the sample desk must not reach the network for any order mutation.
- * Asserted at the transport boundary (novaFetch), because that is the only
- * place a fabricated sample order id could ever leave the browser.
+ * #357: no order mutation from the sample desk reaches the network.
+ *
+ * Scope is stated exactly, because an earlier version of this file claimed the
+ * four functions it enumerated were "the only place a fabricated sample order
+ * id could ever leave the browser" — which was false, and let the whole-account
+ * flatten ship unguarded behind a green suite. The order doors under src/ibkr/
+ * are placeIbkrOrder, cancelIbkrOrder, cancelAllOrdersForSymbol,
+ * cancelAllWorkingOrders and flattenAccount; runEmergencyKill composes two of
+ * them plus a bot-session PATCH. All six are asserted below, at the novaFetch
+ * boundary, together with the live-route control that proves the guard is not
+ * blocking real orders.
+ *
+ * Non-order endpoints reachable from the sample route (bot controls, settings)
+ * are NOT covered by this guard and are not claimed to be.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { novaFetch } from '../api/novaFetch';
 import type { BrowserExecutionTiming } from '../execution_latency';
 import { cancelIbkrOrder } from '../ibkr/cancelOrder';
+import { runEmergencyKill } from '../ibkr/emergencyKill';
+import { flattenAccount } from '../ibkr/flattenAccount';
 import {
   cancelAllOrdersForSymbol,
   cancelAllWorkingOrders,
   placeIbkrOrder,
 } from '../ibkr/placeOrder';
-import { SAMPLE_ORDER_REFUSAL } from './sampleCopy';
+import { SAMPLE_KILL_REFUSAL, SAMPLE_ORDER_REFUSAL } from './sampleCopy';
 
 vi.mock('../api/novaFetch', () => ({
   novaFetch: vi.fn(),
@@ -22,6 +35,12 @@ vi.mock('../api/novaFetch', () => ({
 
 vi.mock('../ux', () => ({
   alertApp: vi.fn(),
+}));
+
+// The bot poller refresh is not an order door; stubbing it keeps the live-route
+// control's request list to the calls Emergency KILL itself makes.
+vi.mock('../bot/botSessionPoller', () => ({
+  refreshBotSessionNow: vi.fn(),
 }));
 
 const PAYLOAD = {
@@ -46,6 +65,11 @@ function timing(): BrowserExecutionTiming {
 
 function at(path: string) {
   window.history.replaceState({}, '', path);
+}
+
+/** URLs novaFetch was asked for, in call order. */
+function requestedUrls(): string[] {
+  return vi.mocked(novaFetch).mock.calls.map(([url]) => String(url));
 }
 
 describe('sample desk refuses order mutations', () => {
@@ -78,7 +102,7 @@ describe('sample desk refuses order mutations', () => {
     expect(novaFetch).not.toHaveBeenCalled();
   });
 
-  it('refuses cancelIbkrOrder — the sample preview-row Cancel path', async () => {
+  it('refuses cancelIbkrOrder', async () => {
     at('/?view=sample&symbol=SMPL');
     const result = await cancelIbkrOrder(123);
 
@@ -107,6 +131,14 @@ describe('sample desk refuses order mutations', () => {
     expect(novaFetch).not.toHaveBeenCalled();
   });
 
+  it('refuses flattenAccount — the whole-account MKT liquidation', async () => {
+    at('/?view=sample');
+    const result = await flattenAccount();
+
+    expect(result).toEqual({ ok: false, error: SAMPLE_ORDER_REFUSAL });
+    expect(novaFetch).not.toHaveBeenCalled();
+  });
+
   it('still places and cancels on every live route', async () => {
     // The dangerous direction: a false positive would silently block real
     // orders. Each near-miss URL must still reach the transport.
@@ -126,6 +158,67 @@ describe('sample desk refuses order mutations', () => {
 
       await cancelIbkrOrder(123);
       expect(novaFetch).toHaveBeenCalledTimes(2);
+
+      const flattened = await flattenAccount();
+      expect(flattened.ok, `expected a real flatten at ${path}`).toBe(true);
+      expect(novaFetch).toHaveBeenCalledTimes(3);
     }
+  });
+});
+
+describe('Emergency KILL on the sample desk refuses as one unit', () => {
+  beforeEach(() => {
+    vi.mocked(novaFetch).mockReset();
+  });
+
+  afterEach(() => {
+    window.history.replaceState({}, '', '/');
+  });
+
+  it('fires no leg at all — not the bot PATCH, not cancel, not flatten', async () => {
+    // The defect this replaces: cancel was refused while flatten still POSTed,
+    // so the account was market-flattened with its resting orders left live —
+    // a state neither master nor a fully-guarded route can produce — while the
+    // operator read a refusal dialog.
+    at('/?view=sample');
+
+    const result = await runEmergencyKill();
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toEqual([SAMPLE_KILL_REFUSAL]);
+    expect(novaFetch).not.toHaveBeenCalled();
+  });
+
+  it('tells the operator nothing happened and where a real kill lives', async () => {
+    at('/?view=sample&symbol=SMPL');
+    const [message] = (await runEmergencyKill()).errors;
+
+    expect(message).toContain('Nova Marketing Sample Data');
+    expect(message).toMatch(/nothing was cancelled or flattened/i);
+    expect(message).toMatch(/exit the sample desk/i);
+    expect(message).not.toMatch(/fake|mock|dummy/i);
+  });
+
+  it('still cancels before it flattens on a live route', async () => {
+    // Master's behaviour must be untouched off ?view=sample, in that order:
+    // cancel-before-flatten is what stops a resting order re-filling after the
+    // flatten (emergencyKill.ts module header).
+    at('/');
+    vi.mocked(novaFetch).mockImplementation(async () =>
+      new Response(JSON.stringify({ ok: true, level: 0, cancelled: [], failed: [] }), {
+        status: 200,
+      }),
+    );
+
+    const result = await runEmergencyKill();
+
+    const urls = requestedUrls();
+    const cancelAt = urls.findIndex(u => u.includes('/api/ibkr/orders?all_symbols=true'));
+    const flattenAt = urls.findIndex(u => u.includes('/api/ibkr/flatten-account'));
+    expect(cancelAt, `no cancel-all in ${urls.join(', ')}`).toBeGreaterThanOrEqual(0);
+    expect(flattenAt, `no flatten in ${urls.join(', ')}`).toBeGreaterThanOrEqual(0);
+    expect(cancelAt).toBeLessThan(flattenAt);
+    expect(urls.some(u => u.includes('/bot/session'))).toBe(true);
+    expect(result.ok).toBe(true);
   });
 });

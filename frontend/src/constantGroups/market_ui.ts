@@ -99,10 +99,13 @@ export const NOVA_OS_DECIDE_POLL_INTERVAL_MS = 5000;
 /** Faster poll for Trader Nova OS dock tab (single symbol, while mounted). */
 export const NOVA_OS_TRADER_DECIDE_POLL_MS = 2000;
 
-/** Header toggle + banner for isolated sample-data route (?view=sample). */
+/**
+ * Header toggle for the isolated sample-data route (?view=sample).
+ * The route's own marketing copy lives in sample_data/sampleCopy.ts (#357):
+ * feature-local per AGENTS.md §6.1, and it must stay in one place so the
+ * wording rule ("Nova Marketing Sample Data" / "sample") is enforceable.
+ */
 export const SAMPLE_DATA_SWITCH_LABEL = 'Sample data';
-export const SAMPLE_DATA_BANNER =
-  'Sample data route — fixtures only. Live scanner, HOD, watchlist, and IBKR feeds are not connected.';
 /** Education strip under Trader Nova OS brain (rules brain, not chat AI). */
 export const NOVA_OS_TRADER_BRAIN_DISCLOSURE =
   'Nova OS rules brain (not chat AI). You are watching live ratings. Signal-only — nothing places from Trader. Like the calls? Watchlist → Automation → Confirm / Auto Paper.';

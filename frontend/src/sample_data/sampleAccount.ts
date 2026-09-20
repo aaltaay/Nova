@@ -8,8 +8,12 @@
  * The numbers reconcile with the SMPL sample position on purpose:
  *   NetLiquidation (100,000) = TotalCashValue (99,150) + GrossPositionValue (850)
  *   UnrealizedPnL (230)      = (4.25 market - 3.10 avg) * 200 shares
- * Day P&L in the header is RealizedPnL + UnrealizedPnL, and `RealizedPnL: 0`
- * must be present-and-zero: an absent field renders `--`, not `$0.00`.
+ * Day P&L in the header is RealizedPnL + UnrealizedPnL
+ * (components/globalBarMoney.dayPnlFromSummary), which returns `--` only when
+ * BOTH are absent -- so `RealizedPnL: 0` is here because a sample desk that has
+ * closed nothing today has realized zero, not because omitting it would blank
+ * the header. What actually made the header render `--` was the summary
+ * carrying no P&L fields at all.
  */
 import type { IbkrAccountState } from '../ibkr/IbkrAccountContext';
 import type { IbkrAccountSummary } from '../ibkr/types';

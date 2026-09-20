@@ -3,6 +3,7 @@
  * The sample account fixture is marketing chrome AND an #184 regression guard.
  */
 import { describe, expect, it } from 'vitest';
+import { dayPnlFromSummary, formatSignedMoney } from '../components/globalBarMoney';
 import { SAMPLE_IBKR_ACCOUNT_STATE, SAMPLE_SUMMARY } from './sampleAccount';
 
 describe('Nova Marketing Sample Data account', () => {
@@ -14,11 +15,19 @@ describe('Nova Marketing Sample Data account', () => {
     expect(SAMPLE_SUMMARY.account_class).toBe('margin');
   });
 
-  it('carries present-and-zero RealizedPnL so Day P&L is not "--"', () => {
-    // The exact distinction that made the header render a placeholder: absent
-    // is not the same as zero (globalBarMoney.dayPnlFromSummary).
+  it('renders Day P&L as +$230.00 through the real header formatter', () => {
+    // Asserted through globalBarMoney rather than by restating a rule about
+    // which field must be present: dayPnlFromSummary blanks to "--" only when
+    // realized AND unrealized are both absent, so the fixture earns its
+    // +$230.00 from the sum, not from RealizedPnL being spelled out.
     expect(SAMPLE_SUMMARY.RealizedPnL).toBe(0);
     expect(SAMPLE_SUMMARY.UnrealizedPnL).toBe(230);
+    const dayPnl = dayPnlFromSummary(
+      SAMPLE_SUMMARY.RealizedPnL,
+      SAMPLE_SUMMARY.UnrealizedPnL,
+    );
+    expect(dayPnl).toBe(230);
+    expect(formatSignedMoney(dayPnl)).toBe('+$230.00');
   });
 
   it('reconciles net liquidation with cash plus gross position value', () => {

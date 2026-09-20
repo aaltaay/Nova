@@ -21,8 +21,13 @@ export async function cancelIbkrOrder(
   orderId: number,
   timing: BrowserExecutionTiming = beginBrowserExecutionTiming('cancel_order'),
 ): Promise<CancelOrderResult> {
-  // Sample working-order rows are previews (#357): a Cancel click must not
-  // DELETE a fabricated order id against a real account.
+  // Defence in depth for the fabricated working-order rows (#357). The row
+  // Cancel button is already withheld for them -- OrdersTodayView passes
+  // `onCancelOrder={usingWorkingSample ? undefined : ...}` and
+  // WorkingOrdersPanel renders the button only when that prop exists -- so this
+  // guard is not the only thing standing between a preview row and a real
+  // DELETE, and must not be described as if it were. It covers hotkeys and any
+  // future caller that reaches this door from the ?view=sample URL.
   const refusal = sampleOrderRefusal();
   if (refusal) {
     timing.complete(false);
