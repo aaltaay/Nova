@@ -154,7 +154,9 @@ def _inject(payload: dict) -> None:
 
         emit_sim_tick(payload, _market.quote() or {}, _market.book())
     except Exception:
-        logger.debug("SIM: capture bridge skipped", exc_info=True)
+        # D-068: this used to be logger.debug, and root is INFO — a failing
+        # capture bridge produced no line anywhere while the session was lost.
+        logger.warning("SIM: capture bridge failed", exc_info=True)
 
     try:
         from ibkr.tape_stream import _push_queue

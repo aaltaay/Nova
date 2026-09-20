@@ -23,6 +23,7 @@ from constants_bot import (
     BOT_DEFAULT_MAX_SHARES,
     BOT_DEFAULT_WORKING_TTL_SEC,
     BOT_LEVEL_OFF,
+    BOT_LEVEL_UNRESTRICTED,
     BOT_LLM_DEFAULT_CALL_CAP,
     BOT_LLM_DEFAULT_USD_CAP,
     BOT_PACK_DEFAULT,
@@ -112,6 +113,27 @@ def _refuse_unknown(raw: Any, label: str) -> None:
         )
 
 
+def _refuse_parked_level(row: dict[str, Any]) -> None:
+    """Load dark on any level at or above the parked one (#216).
+
+    `apply_patch` refuses to *write* L3, but that guard only covers the write
+    door. A session file that carries a parked or unknown level -- stale state
+    from another build, a hand-edited file -- must not come back live.
+    """
+    try:
+        level = int(row.get("level") or BOT_LEVEL_OFF)
+    except (TypeError, ValueError):
+        level = BOT_LEVEL_UNRESTRICTED
+    if level < BOT_LEVEL_UNRESTRICTED:
+        return
+    logger.warning(
+        "bot persist: session file carries parked autonomy level %s -- loading dark", level
+    )
+    row["level"] = BOT_LEVEL_OFF
+    row["armed"] = False
+    row["strategy"] = None
+
+
 def load_session() -> dict[str, Any]:
     global _session
     with _lock:
@@ -129,6 +151,7 @@ def load_session() -> dict[str, Any]:
         merged["advise"] = {**default_session()["advise"], **(raw.get("advise") or {})}
         merged["llm"] = {**default_session()["llm"], **(raw.get("llm") or {})}
         merged["pack_settings"] = merge_pack_settings(raw.get("pack_settings"))
+        _refuse_parked_level(merged)
         _session = merged
         return _session
 

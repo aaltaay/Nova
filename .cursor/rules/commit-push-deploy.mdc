@@ -41,7 +41,7 @@ Code, config, CI, security, and rule changes never start or finish directly on `
 
 6. **After the PR is merged or closed, delete the head branch if it is still on origin**
    - Same session. `git fetch origin --prune`, then `py -3 tools/stale_pr_branches.py`.
-   - GitHub `delete_branch_on_merge` plus `.github/workflows/pr-delivery.yml` are the backup. If the head is still listed, `git push origin --delete <branch>` and prune again.
+   - GitHub `delete_branch_on_merge` plus `.github/workflows/pr-delivery.yml` are the backup. If the head is still listed, `py -3 tools/pr_delivery.py delete-closed --ref <branch>` and prune again.
    - Never delete `master` / `main` or a branch that still has an open PR.
    - See `github-delivery.mdc` items 8 and 10.
 
@@ -56,3 +56,5 @@ Code, config, CI, security, and rule changes never start or finish directly on `
    - Report the deployment status clearly to the user (including "no backend cloud deploy" when only local applies).
 
 Do not skip fetch / new-branch / commit / push / ready-PR unless the user gave an explicit waiver. Skip cloud deploy steps when there is no applicable host (Nova backend today).
+
+Current-tip preservation overrides mandatory head deletion: follow `branch-cleanup.mdc`. Never delete a recreated/unmerged or squash-only tip automatically; the guarded command rechecks ancestry and uses a SHA lease.

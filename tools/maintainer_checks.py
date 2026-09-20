@@ -115,6 +115,7 @@ EXCEPT_RETURN_EMPTY_ALLOWLIST = {
     "backend/journal/tags.py",  # bad tag JSON -> no tags (non-trading, cosmetic)
     "backend/ibkr/client.py",  # managedAccounts() failure -> [] then paper-pin refuses (fail-closed)
     "backend/scanner.py",  # Alpaca snapshot/news chunk failures — already loud-logged degrades
+    "backend/capture/manifest_io.py",  # corrupt capture manifest -> empty, already warn-logged
 }
 
 # except: pass sites already triaged as intentional (idempotent cleanup /

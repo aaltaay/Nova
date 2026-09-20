@@ -6,7 +6,7 @@ import { loadEnv } from 'vite'
 import { defineConfig } from 'vitest/config'
 import { injectNovaTitle } from './electron/appTitle.mjs'
 import { resolveReleaseTag } from './electron/releaseTagSource.mjs'
-import { readDevNovaApiKey } from './scripts/vite-nova-api-key'
+import { readDevNovaApiKey, shouldInjectDevNovaApiKey } from './scripts/vite-nova-api-key'
 import { novaLaunchGatewayPlugin } from './scripts/vite-nova-launch-gateway'
 import { novaStartApiPlugin } from './scripts/vite-nova-start-api'
 
@@ -48,7 +48,11 @@ function applyLocalNovaApiKey(mode: string): void {
 
 // https://vite.dev/config/
 export default defineConfig(({ command, mode }) => {
-  if (command === 'serve') applyLocalNovaApiKey(mode)
+  // Vitest resolves this config with command === 'serve' too -- see
+  // shouldInjectDevNovaApiKey. Only a real dev server gets the operator key.
+  if (shouldInjectDevNovaApiKey({ command, mode, vitest: process.env.VITEST })) {
+    applyLocalNovaApiKey(mode)
+  }
   return {
   // Relative asset URLs required for Electron file:// loads; web/Vercel keep absolute `/`.
   base: isElectronBuild ? './' : '/',
@@ -109,6 +113,14 @@ export default defineConfig(({ command, mode }) => {
   test: {
     exclude: ['**/node_modules/**', '**/dist/**', '**/e2e/**'],
     setupFiles: ['./src/testSetup/reactActEnvironment.ts'],
+    // Pinned test env (#293). Belt to shouldInjectDevNovaApiKey's braces: a
+    // key exported in the operator's shell would otherwise still reach
+    // import.meta.env and beat localStorage in resolveNovaApiKey. Tests that
+    // want a key stub it themselves (vi.stubEnv).
+    env: {
+      VITE_NOVA_API_KEY: '',
+      NOVA_API_KEY: '',
+    },
   },
 }
 })

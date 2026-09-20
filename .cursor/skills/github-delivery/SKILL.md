@@ -149,7 +149,7 @@ py -3 tools/stale_pr_branches.py
 If that checker still lists the head, then delete it:
 
 ```text
-git push origin --delete <head-branch>
+py -3 tools/pr_delivery.py delete-closed --ref <head-branch>
 git fetch origin --prune
 py -3 tools/stale_pr_branches.py
 ```
@@ -192,3 +192,5 @@ A verified, non-draft PR targeting `master` is finished work. GitHub Actions mer
 - Dirty (conflict) or failed gating checks stay open -- rebase or fix, do not leave them for the human to babysit if you can rebase in-session.
 
 Do not end a coding session with only local commits, unpushed commits, or "I'll open the PR later." The PR URL is the finish line. The pile of idle PRs is a delivery bug.
+
+Current-tip preservation overrides mandatory head deletion: follow `branch-cleanup.mdc`. Never delete a recreated/unmerged or squash-only tip automatically; the guarded command rechecks ancestry and uses a SHA lease.

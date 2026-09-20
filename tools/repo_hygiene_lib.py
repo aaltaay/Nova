@@ -52,8 +52,8 @@ def classify_local_branches(
 ) -> list[Finding]:
     """branches: [{name, upstream_gone: bool, checked_out_at: str|None}].
 
-    A branch is fixable only when GitHub says its PR is merged/closed and no
-    worktree has it checked out. Without gh data nothing is fixable.
+    A branch is fixable only when its current tip is contained in master,
+    GitHub says its PR is merged/closed, and no worktree has it checked out.
     """
     out: list[Finding] = []
     for br in branches:
@@ -66,6 +66,9 @@ def classify_local_branches(
             if where:
                 out.append(Finding("checked_out_elsewhere", name,
                                    f"PR {state} but checked out at {where}"))
+            elif not br.get("contained_in_master", False):
+                out.append(Finding("unmerged_branch", name,
+                                   f"PR {state} but current tip is not contained in master; preserve for review"))
             else:
                 out.append(Finding("merged_local_branch", name, f"PR {state}", fixable=True))
         elif state is None:
@@ -102,8 +105,10 @@ def classify_worktrees(
         age_h = (now - float(wt.get("last_activity_ts") or now)) / 3600.0
         if branch:
             state = _pr_state(prs_by_head, branch) if prs_by_head is not None else None
-            finished = state in STALE_STATES
+            finished = state in STALE_STATES and str(wt.get("head") or "") in master_reachable
             why = f"branch {branch} PR {state}" if state else f"branch {branch} has no PR"
+            if state in STALE_STATES and not finished:
+                why += "; current tip not contained in master; preserve for review"
         else:
             finished = str(wt.get("head") or "") in master_reachable
             why = "detached on origin/master history" if finished else "detached, not on master"

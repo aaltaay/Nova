@@ -49,6 +49,47 @@ def test_l3_is_parked():
     assert load_session()["level"] == BOT_LEVEL_OFF
 
 
+def test_l3_is_parked_through_the_desk_shortcut():
+    # apply_desk_level is the internal/test shortcut -- it must not bypass the park.
+    with pytest.raises(BotError) as exc:
+        apply_desk_level(3)
+    assert exc.value.reason == BOT_REASON_L3_PARKED
+    assert load_session()["level"] == BOT_LEVEL_OFF
+
+
+def _seed_session_file(level: int) -> None:
+    """Write a session file straight to disk and drop the in-memory copy."""
+    import json
+
+    from bot import persist
+    from constants_bot import BOT_SESSION_FILENAME
+    from paths import cache_dir
+
+    row = default_session()
+    row["level"] = level
+    row["armed"] = True
+    (cache_dir() / BOT_SESSION_FILENAME).write_text(json.dumps(row), encoding="utf-8")
+    persist._session = None
+
+
+@pytest.mark.parametrize("level", [3, 4, 99])
+def test_persisted_parked_level_loads_dark(level):
+    # The park must hold on the read door too, not only on apply_patch (#216).
+    _seed_session_file(level)
+    row = load_session()
+    assert row["level"] == BOT_LEVEL_OFF
+    assert row["armed"] is False
+    with pytest.raises(BotError) as exc:
+        assert_not_dark()
+    assert exc.value.reason == BOT_REASON_L0_DARK
+
+
+def test_persisted_l2_still_loads_l2():
+    # The clamp is surgical: proven levels survive a reload untouched.
+    _seed_session_file(2)
+    assert load_session()["level"] == 2
+
+
 def test_l1_eyes_cannot_fire():
     apply_patch({"level": 1}, desk=True)
     row = assert_not_dark()

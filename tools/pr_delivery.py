@@ -23,8 +23,10 @@ from dataclasses import dataclass
 from typing import Any
 
 try:
+    from tools.branch_cleanup import delete_closed_head
     from tools.pr_delivery_actions import merge_now, merge_pr, signal_conflict
 except ImportError:  # `python tools/pr_delivery.py` puts tools/ on sys.path
+    from branch_cleanup import delete_closed_head
     from pr_delivery_actions import merge_now, merge_pr, signal_conflict
 
 DEFAULT_REPO = "aaltaay/Nova"
@@ -323,32 +325,7 @@ def cmd_sweep() -> int:
 
 
 def cmd_delete_closed(ref: str, *, same_repo: bool) -> int:
-    open_raw = _gh(
-        ["pr", "list", "--state", "open", "--head", ref, "--json", "number"],
-        check=False,
-    )
-    open_on_head = False
-    if open_raw.returncode == 0 and open_raw.stdout.strip():
-        loaded = json.loads(open_raw.stdout)
-        open_on_head = bool(loaded)
-    ok, reason = can_delete_closed_head(
-        ref,
-        same_repo=same_repo,
-        open_pr_on_head=open_on_head,
-    )
-    if not ok:
-        print(f"skip delete {ref}: {reason}")
-        return 0
-    slug = repo_slug()
-    proc = _gh(
-        ["api", "-X", "DELETE", f"repos/{slug}/git/refs/heads/{ref}"],
-        check=False,
-    )
-    if proc.returncode == 0 or "Reference does not exist" in (proc.stderr + proc.stdout):
-        print(f"deleted {ref}")
-        return 0
-    print(proc.stderr or proc.stdout or f"delete {ref} failed", file=sys.stderr)
-    return 1
+    return delete_closed_head(_gh, repo_slug(), ref, same_repo=same_repo)
 
 
 def main(argv: list[str] | None = None) -> int:
