@@ -27,14 +27,40 @@ def hook():
     return _load()
 
 
-def test_roadmap_next_parses_active_ops_line(hook, tmp_path, monkeypatch):
+def test_roadmap_next_parses_product_next_line(hook, tmp_path, monkeypatch):
     fake = tmp_path / "Nova-Roadmap-Status.md"
     fake.write_text(
-        "# Status\n\n**Active ops:** Phase B — Paper shadow (testing)\n",
+        "# Status\n\n## Current position\n\n"
+        "- **Product NEXT:** **Phase K -- short entry**, `[~]` IN PROGRESS.\n"
+        "- **`auto_live`:** **NO-GO**\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(hook, "ROADMAP_STATUS", fake)
-    assert hook._roadmap_next() == "Phase B — Paper shadow (testing)"
+    assert hook._roadmap_next() == "Phase K -- short entry, `[~]` IN PROGRESS."
+
+
+def test_roadmap_next_parses_the_live_ledger(hook):
+    """The retired `Active ops` regex passed its fixture while missing the real file."""
+    assert hook._roadmap_next(), "Nova-Roadmap-Status.md has no `- **Product NEXT:**` line"
+
+
+def test_build_brief_carries_the_next_move_seed(hook, monkeypatch):
+    import next_moves
+
+    monkeypatch.setattr(next_moves, "session_brief_lines", lambda: ["Next-move seed (as of t, source=live):", "- ship= K3"])
+    brief = hook.build_brief()
+    assert brief and "Next-move seed" in brief and "- ship= K3" in brief
+
+
+def test_build_brief_fails_open_when_seed_raises(hook, monkeypatch):
+    import next_moves
+
+    def _boom():
+        raise RuntimeError("gh down")
+
+    monkeypatch.setattr(next_moves, "session_brief_lines", _boom)
+    brief = hook.build_brief()
+    assert brief and "Next-move seed: unavailable" in brief
 
 
 def test_roadmap_next_missing_file(hook, tmp_path, monkeypatch):

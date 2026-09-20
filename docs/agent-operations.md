@@ -95,6 +95,16 @@ Every specialist report must end with:
 
 The `subagentStop` hook reminds once (fail-open, `loop_limit: 1`) if a Nova agent omits this line. It never edits files and never blocks completion.
 
+### Two footers, two audiences
+
+The **Lifecycle** line above is for specialist reports to the parent. The
+parent's user-facing reply ends instead with the **Next-move footer** (AGENTS.md
+§5, `.cursor/rules/next-move-footer.mdc`): a numbered `[thread]` / `[ship]` /
+`[backlog]` / `[decide]` menu the operator answers with a digit, seeded by
+`py -3 tools/next_moves.py seed` (the SessionStart brief injects it). Never
+point `contract.json`'s Lifecycle regex at the menu, and never put the menu on
+a specialist report.
+
 ## Task narrative (reasoning archive)
 
 After every completed material task, write the narrative so future agents keep the **why**, not only the diff. Default home is the **PR body**; the `knowledge/task-log/` folder covers work that ships without a PR.
