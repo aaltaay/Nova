@@ -12,6 +12,7 @@ import type { HistoricalSnapshot } from './useHistoricalSnapshot';
 const hooks = vi.hoisted(() => ({
   snapshot: null as HistoricalSnapshot | null,
   tape: vi.fn(),
+  visible: { level2: true, tape: true },
   depth: vi.fn(),
 }));
 
@@ -24,7 +25,7 @@ vi.mock('../workspace', async () => {
   return {
     ...actual,
     useWorkspace: () => ({ ibkrConnected: false, discoveryProvider: 'ibkr' }),
-    useModuleVisibility: () => ({ isVisible: () => true, setVisible: () => {}, visibility: {} }),
+    useModuleVisibility: () => ({ isVisible: (key: 'level2' | 'tape') => hooks.visible[key], setVisible: () => {}, visibility: {} }),
   };
 });
 
@@ -46,6 +47,7 @@ describe('historical replay keeps the live Stock Quote structure', () => {
   let root: Root;
 
   beforeEach(() => {
+    hooks.visible = { level2: true, tape: true };
     hooks.tape.mockReset();
     hooks.depth.mockReset();
     container = document.createElement('div');
@@ -93,6 +95,19 @@ describe('historical replay keeps the live Stock Quote structure', () => {
     // The rail hides .ibkr-depth-fallback-badge, so the note must not depend on it.
     expect(container.querySelector('[data-testid="historical-l2"] .ibkr-depth-fallback-badge')).toBeNull();
   });
+
+  it.each([[false, true], [true, false], [false, false]])(
+    'honors module visibility with level2=%s and tape=%s', async (level2, tape) => {
+      hooks.visible = { level2, tape };
+      await render(replaySnapshot());
+      expect(Boolean(container.querySelector('[data-testid="stock-view-l2-col"]'))).toBe(level2);
+      expect(Boolean(container.querySelector('[data-testid="stock-view-tape-col"]'))).toBe(tape);
+      expect(container.querySelector('[data-testid="stock-view-depth-stack"]')).toBeTruthy();
+      expect(container.querySelector('.sv-quote-card__last')?.textContent).toBe('$763.00');
+      expect(hooks.tape).not.toHaveBeenCalled();
+      expect(hooks.depth).not.toHaveBeenCalled();
+    },
+  );
 
   it('uses the live tape rows, REPLAY badge and dims unreported prints', async () => {
     await render(replaySnapshot());

@@ -95,57 +95,71 @@ def tick() -> dict:
     from sim import history_playback
     if history_playback.status():
         return {}  # Historical snapshots own tape/quotes; never inject SIM1 here.
-    try:
-        from sim import replay as _replay
-        from sim import capture_player as _player
-        if _replay.is_capture_replay():
-            now_ts = _clock.now_et().timestamp()
-            rows = _player.prints_since(_player.last_emit_ts(), now_ts)
-            last_payload: dict = {}
-            for row in rows[-20:]:  # bound burst on big scrub jumps
-                ts = float(row.get("ts") or now_ts)
-                from datetime import datetime, timezone
-                from zoneinfo import ZoneInfo
-                ET = ZoneInfo("America/New_York")
-                t_iso = datetime.fromtimestamp(ts, tz=ET).astimezone(timezone.utc).isoformat()
-                payload = {
-                    "type": "print",
-                    "symbol": str(row.get("symbol") or "").upper(),
-                    "time": t_iso,
-                    "price": float(row.get("price") or 0),
-                    "size": int(row.get("size") or 1),
-                    "exchange": str(row.get("exchange") or ""),
-                    "conditions": str(row.get("conditions") or ""),
-                    "side": row.get("side"),
-                    "bid": row.get("bid"),
-                    "ask": row.get("ask"),
-                }
-                _inject(payload)
-                last_payload = payload
-                _player.mark_emitted(ts)
-            if not last_payload:
-                # still advance book/quote for scrubbed quiet gaps
-                q = _player.quote_at() or {}
-                last_payload = {
-                    "type": "print",
-                    "symbol": (_replay.status_payload().get("replay_symbol") or "SIM1"),
-                    "time": _clock.now_et().astimezone(__import__("datetime").timezone.utc).isoformat(),
-                    "price": float(q.get("last") or 0),
-                    "size": 0,
-                    "exchange": "SIM",
-                    "conditions": "GAP",
-                    "side": None,
-                    "bid": q.get("bid"),
-                    "ask": q.get("ask"),
-                }
-                _inject(last_payload)
-            return last_payload
-    except Exception:
-        logger.debug("SIM: capture play tick failed", exc_info=True)
+    from sim import replay as _replay
+    if not _replay.status_payload()["replay_ok"]:
+        return {}  # Failed selection must be acknowledged by selecting a source.
+    if _replay.is_capture_replay():
+        try:
+            return _capture_tick()
+        except Exception:
+            logger.exception("SIM: capture play tick failed")
+            _replay.fail_replay("Capture playback failed; select a recording or return to SIM1")
+            return {}
     payload = _market.step()
     _broker.try_fill_working(_market.last())
     _inject(payload)
     return payload
+
+
+def _capture_tick() -> dict:
+    """Forward recorded events only; quiet intervals are not trades."""
+    from datetime import datetime, timezone
+    from sim import capture_player as player
+    from sim import replay
+    from ibkr.tape_stream import _push_queue
+    from ibkr.depth import state as depth_state
+
+    now_ts = _clock.now_et().timestamp()
+    symbol = replay.status_payload()["replay_symbol"]
+    rows = player.prints_since(player.last_emit_ts(), now_ts)
+    last_payload: dict = {}
+    for row in rows[-20:]:  # Preserve the existing bounded scrub burst policy.
+        ts = float(row["ts"])
+        payload = {
+            "type": "print", "symbol": symbol,
+            "time": datetime.fromtimestamp(ts, tz=timezone.utc).isoformat(),
+            "price": float(row["price"]), "size": int(row.get("size") or 0),
+            "exchange": str(row.get("exchange") or ""),
+            "conditions": str(row.get("conditions") or ""),
+            "side": row.get("side"), "bid": row.get("bid"), "ask": row.get("ask"),
+        }
+        _push_queue(symbol, payload)
+        _broadcast_capture(payload)
+        player.mark_emitted(ts)
+        last_payload = payload
+    book = player.book_at()
+    if book is not None:
+        depth_state.push_book(symbol, {**book, "symbol": symbol})
+    return last_payload
+
+
+def _broadcast_capture(payload: dict) -> None:
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+
+    async def broadcast() -> None:
+        try:
+            from websocket import broadcast_trade_update
+            await broadcast_trade_update(
+                payload["symbol"], payload["price"], payload["size"], payload["time"],
+                None, None,
+            )
+        except Exception:
+            logger.warning("SIM: captured trade broadcast failed", exc_info=True)
+
+    loop.create_task(broadcast())
 
 
 def _inject(payload: dict) -> None:

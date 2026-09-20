@@ -77,7 +77,7 @@ export interface TradingPrerequisitesInput {
   apiFailStreak?: number;
   /** Place / Flatten / Fill now in flight -- never steal the ticket. */
   deskActionInFlight?: boolean;
-  /** Session Record active on any tab -- never auto-cover the desk. */
+  /** Legacy caller hint; recording never suppresses connectivity safety. */
   sessionRecording?: boolean;
   /** In-app Sim practice -- Gateway is not required. */
   simMode?: boolean;
@@ -306,7 +306,6 @@ export function buildTradingPrerequisites(
   const loopWedged = Boolean(input.health?.ib_loop_lag_ms?.wedged);
   const sustainedApiDown = !apiOk && failStreak >= DESK_API_FAIL_STREAK_FOR_OVERLAY;
   const inFlight = Boolean(input.deskActionInFlight);
-  const recording = Boolean(input.sessionRecording);
 
   return {
     items,
@@ -314,6 +313,6 @@ export function buildTradingPrerequisites(
     deskReady,
     tradeReady: deskReady,
     blockDesk: !deskReady,
-    autoOverlay: (loopWedged || sustainedApiDown) && !inFlight && !recording,
+    autoOverlay: (loopWedged || sustainedApiDown) && !inFlight,
   };
 }

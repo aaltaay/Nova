@@ -25,16 +25,30 @@ def capture_symbol() -> str | None:
     return _symbol if _recording else None
 
 
-def set_capture_mode(enabled: bool, *, symbol: str | None = None) -> dict[str, Any]:
-    """Start/stop per-symbol IBKR session record. Does not switch Paper/Live/Sim."""
+def set_capture_mode(
+    enabled: bool, *, symbol: str | None = None, protect_active: bool = False,
+) -> dict[str, Any]:
+    """Start/stop recording; HTTP callers protect the existing owner.
+
+    Internal lifecycle callers may deliberately rotate sessions. Both paths run
+    ownership checks on the writer after previously accepted batches drain.
+    """
     from capture.worker import transition
 
-    result = transition(lambda: _set_capture_mode(enabled, symbol=symbol))
+    result = transition(lambda: _set_capture_mode(enabled, symbol=symbol, protect_active=protect_active))
     return status_payload() | (result or {})
 
 
-def _set_capture_mode(enabled: bool, *, symbol: str | None = None) -> dict[str, Any] | None:
+def _set_capture_mode(
+    enabled: bool, *, symbol: str | None = None, protect_active: bool = False,
+) -> dict[str, Any] | None:
     global _recording, _symbol
+    _reconcile()
+    requested = (symbol or "").strip().upper()
+    if protect_active and _recording and requested and requested != _symbol:
+        return {"error": f"Already recording {_symbol}; stop it first", "conflict": True}
+    if protect_active and enabled and _recording:
+        return None  # Idempotent: do not reopen files or reset the active segment.
     if enabled:
         sym = (symbol or _symbol or "").strip().upper()
         if not sym:
@@ -45,8 +59,6 @@ def _set_capture_mode(enabled: bool, *, symbol: str | None = None) -> dict[str, 
                 "capture_symbol": None,
                 "spend_status": None,
             }
-        _symbol = sym
-        _recording = True
         try:
             from capture.recorder import start_recorder
 
@@ -54,7 +66,10 @@ def _set_capture_mode(enabled: bool, *, symbol: str | None = None) -> dict[str, 
         except Exception:
             logger.exception("RECORD: recorder start failed")
             _recording = False
+            _symbol = None
             return {"error": "Recorder start failed"}
+        _symbol = sym
+        _recording = True
     else:
         try:
             from capture.recorder import stop_recorder
@@ -62,7 +77,10 @@ def _set_capture_mode(enabled: bool, *, symbol: str | None = None) -> dict[str, 
             stop_recorder()
         except Exception:
             logger.exception("RECORD: recorder stop failed")
+            _reconcile()
+            return {"error": "Recorder stop failed"}
         _recording = False
+        _symbol = None
     logger.info("RECORD: %s symbol=%s", "on" if _recording else "off", _symbol)
     return None
 
@@ -77,15 +95,13 @@ def _reconcile() -> str | None:
     recorder's error so the caller can surface it.
     """
     global _recording
-    if not _recording:
-        return None
     try:
         from capture.recorder import is_recording, last_error
     except Exception:
         logger.exception("RECORD: recorder status unavailable")
         return None
-    if is_recording():
-        return None
+    if not _recording or is_recording():
+        return last_error()
     err = last_error()
     _recording = False
     logger.warning("RECORD: recorder stopped itself (%s) — clearing record mode", err or "unknown")

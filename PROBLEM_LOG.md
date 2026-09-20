@@ -37,6 +37,15 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-20 -- Recording truth and rejected replay evidence (#316, #317, #339)
+
+- **Symptom:** Multiple tabs could claim to record although the recorder owns one symbol; stopping the wrong tab stopped the active session. A stale flag hid Gateway/API warnings. Failed or empty capture selections claimed CAPTURE and emitted synthetic or zero-price GAP trades. Missing browser/store coverage left these paths unverified.
+- **Cause:** The client kept an optimistic Set hydrated once, HTTP commands ignored active ownership, and replay trusted requested identifiers instead of successfully loaded events. Capture feed reused synthetic fan-out and manufactured trades during quiet intervals.
+- **Fix:** Use fresh server snapshots from the shared IBKR status poller, expire stale evidence, persist visible capture errors, and reject conflicting HTTP commands inside the serialized worker. Recording no longer suppresses Gateway or prerequisite warnings. Validate usable captured prints/quotes, persist replay failure until explicit selection, disable empty sessions, and publish only captured-symbol trades/books. Add API, store, menu, real-warning, replay action, tape, playback, timer and browser regressions; name the chart replay suite after barsStore.
+- **Fix class:** ownership
+- **Verification notes:** New-worktree checks require its own locked npm install: the existing clone's incomplete node_modules lacked runner shims and transitive modules. Use npm ci in frontend, not a shared junction. For native disabled option elements assert their disabled DOM property; Playwright's generic toBeDisabled assertion did not recognize an option even with the disabled attribute. Run npm commands from frontend. These are test-environment corrections, not product behavior changes.
+- **Keywords:** recording state, stale flag, Gateway warning, capture conflict, empty replay, synthetic fallback, GAP, replay_ok, test coverage, npm ci, #316, #317, #339
+
 ## 2026-09-20 -- Backlog selection ignored files held by another batch (#367)
 
 - **Symptom:** `backlog_triage.py next` offered recording-state work while a live recorder claim held six of the same files. Different issue numbers hid the collision until PR delivery.

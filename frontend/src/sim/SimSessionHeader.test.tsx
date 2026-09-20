@@ -163,3 +163,61 @@ it('shows the session date the clock is replaying', async () => {
   await mount();
   expect(screen.getByTestId('sim-session-date').textContent).toBe('Fri, Sep 18');
 });
+
+it('failed capture selection shows an error without opening the rejected ticker, then retries', async () => {
+  await mount();
+  mocks.fetch.mockResolvedValueOnce({ ok: true, json: async () => ({
+    sim: true, replay_source: 'synthetic', replay_date: null, replay_symbol: null,
+    replay_ok: false, replay_error: 'Capture contains no usable prints or quotes',
+  }) });
+  await act(async () => {
+    fireEvent.change(screen.getByTestId('sim-replay-ticker'), { target: { value: 'SIM1' } });
+  });
+  expect(screen.getByRole('alert').textContent).toContain('no usable prints or quotes');
+  expect(screen.getByTestId('sim-replay-source').textContent).toBe('SIM1');
+  expect(screen.getByTestId('active').textContent).toBe('IMCC');
+  expect(mocks.open).not.toHaveBeenCalled();
+  expect((screen.getByTestId('sim-replay-day') as HTMLSelectElement).value).toBe('2026-09-19');
+  expect((screen.getByTestId('sim-replay-ticker') as HTMLSelectElement).value).toBe('');
+  mocks.fetch.mockResolvedValueOnce({ ok: true, json: async () => ({ ...clock, replay_ok: true, replay_error: null }) });
+  await act(async () => {
+    fireEvent.change(screen.getByTestId('sim-replay-ticker'), { target: { value: 'SIM1' } });
+  });
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(mocks.open).toHaveBeenCalledWith('SIM1');
+});
+
+it('a transport failure reports unconfirmed selection and never navigates', async () => {
+  await mount();
+  mocks.fetch.mockRejectedValueOnce(new Error('offline'));
+  await act(async () => {
+    fireEvent.change(screen.getByTestId('sim-replay-ticker'), { target: { value: 'IMCC' } });
+  });
+  expect(screen.getByRole('alert').textContent).toContain('selection was not confirmed');
+  expect(mocks.open).not.toHaveBeenCalled();
+});
+
+it('a failed replay remains visible after clock polling', async () => {
+  const original = mocks.fetch.getMockImplementation()!;
+  mocks.fetch.mockImplementation(async (url: string, init?: RequestInit) => url.endsWith('/clock') ? {
+    ok: true, json: async () => ({ ...clock, replay_source: 'synthetic', replay_ok: false,
+      replay_error: 'Capture playback failed', replay_date: null, replay_symbol: null }),
+  } : original(url, init));
+  await mount();
+  expect(screen.getByRole('alert').textContent).toBe('Capture playback failed');
+  await act(async () => { await vi.advanceTimersByTimeAsync(1100); });
+  expect(screen.getByRole('alert').textContent).toBe('Capture playback failed');
+  expect(mocks.open).not.toHaveBeenCalled();
+});
+
+it('empty recordings are visibly disabled in the ticker picker', async () => {
+  const original = mocks.fetch.getMockImplementation()!;
+  mocks.fetch.mockImplementation(async (url: string, init?: RequestInit) => url.endsWith('/sessions') ? {
+    ok: true, json: async () => ({ days: [{ date: '2026-09-19', ticker_count: 1 }],
+      tickers_by_day: { '2026-09-19': [{ symbol: 'EMPTY', prints: 0, l2: 0,
+        empty: true, usable: false, unavailable_reason: 'No recorded prints or quotes' }] } }),
+  } : original(url, init));
+  await mount();
+  const empty = screen.getByRole('option', { name: 'EMPTY · No recorded prints or quotes' }) as HTMLOptionElement;
+  expect(empty.disabled).toBe(true);
+});

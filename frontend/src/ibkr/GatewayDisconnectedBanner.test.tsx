@@ -9,25 +9,16 @@ import {
   shouldShowGatewayLoginBanner,
 } from './GatewayDisconnectedBanner';
 
+import { getRecordingSymbols } from '../capture/sessionRecordStore';
+import {
+  _resetIbkrStatusPollerForTests, _setIbkrStatusPollerFetchForTests,
+  pollIbkrStatusOnce,
+} from './ibkrStatusPoller';
+
 const launchIbGatewayMock = vi.fn();
 
 vi.mock('../utils/launchIbGateway', () => ({
   launchIbGateway: (...args: unknown[]) => launchIbGatewayMock(...args),
-}));
-
-// Controllable Record store: the banner hides while any tab records (D-050).
-const recordStore = vi.hoisted(() => {
-  let symbols: string[] = [];
-  const listeners = new Set<() => void>();
-  return {
-    get: () => symbols,
-    set(next: string[]) { symbols = next; listeners.forEach(l => l()); },
-    subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
-  };
-});
-vi.mock('../capture/sessionRecordStore', () => ({
-  getRecordingSymbols: () => recordStore.get(),
-  subscribeSessionRecord: (listener: () => void) => recordStore.subscribe(listener),
 }));
 
 describe('shouldShowGatewayLoginBanner', () => {
@@ -138,6 +129,7 @@ describe('GatewayDisconnectedBanner', () => {
     document.body.appendChild(container);
     root = createRoot(container);
     launchIbGatewayMock.mockReset();
+    _resetIbkrStatusPollerForTests();
   });
 
   afterEach(() => {
@@ -145,9 +137,10 @@ describe('GatewayDisconnectedBanner', () => {
       root.unmount();
     });
     container.remove();
+    _resetIbkrStatusPollerForTests();
   });
 
-  it('keeps hook order stable when Record starts and stops (D-050)', () => {
+  it('keeps the Gateway alarm visible with real fresh and failed recording state (#316)', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const banner = () => container.querySelector('[data-testid="gateway-disconnected-banner"]');
     act(() => {
@@ -156,9 +149,15 @@ describe('GatewayDisconnectedBanner', () => {
       );
     });
     expect(banner()).not.toBeNull();
-    act(() => recordStore.set(['IMCC']));
-    expect(banner()).toBeNull();
-    act(() => recordStore.set([]));
+    _setIbkrStatusPollerFetchForTests(vi.fn().mockResolvedValue({
+      ok: true, json: async () => ({ capture: true, recording: true, capture_symbol: 'IMCC' }),
+    }));
+    await pollIbkrStatusOnce();
+    expect(getRecordingSymbols()).toEqual(['IMCC']);
+    expect(banner()).not.toBeNull();
+    _setIbkrStatusPollerFetchForTests(vi.fn().mockRejectedValue(new Error('backend down')));
+    await pollIbkrStatusOnce();
+    expect(getRecordingSymbols()).toEqual([]);
     expect(banner()).not.toBeNull();
     expect(consoleError).not.toHaveBeenCalled();
     consoleError.mockRestore();

@@ -1,9 +1,12 @@
 """Overlay /api/ibkr/status for Sim desk mode. Tab Record is a side flag only."""
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from constants_sim import SIM_MODE_LABEL, SIM_SPEND_STATUS, SIM_SYMBOL
+
+logger = logging.getLogger(__name__)
 
 
 def overlay_ibkr_status(payload: dict[str, Any]) -> dict[str, Any]:
@@ -16,12 +19,17 @@ def overlay_ibkr_status(payload: dict[str, Any]) -> dict[str, Any]:
 
     recording = False
     record_symbol = None
+    record_error = None
     try:
-        from capture.mode import is_capture_mode, capture_symbol
+        from capture.mode import status_payload as capture_status_payload
 
-        recording = bool(is_capture_mode())
-        record_symbol = capture_symbol()
+        capture = capture_status_payload()
+        recording = bool(capture["capture"])
+        record_symbol = capture["capture_symbol"]
+        record_error = capture.get("error")
     except Exception:
+        logger.exception("RECORD: capture status unavailable")
+        record_error = "Recording status unavailable"
         recording = False
         record_symbol = None
 
@@ -44,6 +52,7 @@ def overlay_ibkr_status(payload: dict[str, Any]) -> dict[str, Any]:
         out["capture"] = recording
         out["capture_symbol"] = record_symbol
         out["recording"] = recording
+        out["capture_error"] = record_error
         return out
 
     out = dict(payload)
@@ -52,5 +61,6 @@ def overlay_ibkr_status(payload: dict[str, Any]) -> dict[str, Any]:
     out["capture"] = recording
     out["capture_symbol"] = record_symbol
     out["recording"] = recording
+    out["capture_error"] = record_error
     # Tab Record must NOT rewrite mode or trading_allowed — Paper/Live stay themselves.
     return out

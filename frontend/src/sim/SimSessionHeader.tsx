@@ -17,7 +17,7 @@ import { SIM_SESSION_CLOSE_LABEL, SIM_SESSION_MINUTES, SIM_SESSION_OPEN_LABEL } 
 interface CaptureSessions {
   root?: string;
   days: { date: string; ticker_count: number }[];
-  tickers_by_day: Record<string, { symbol: string; prints: number; l2: number; source?: string }[]>;
+  tickers_by_day: Record<string, { symbol: string; prints: number; l2: number; source?: string; usable?: boolean; empty?: boolean; unavailable_reason?: string | null }[]>;
 }
 
 function formatClock(iso?: string): string {
@@ -65,6 +65,7 @@ export function SimSessionHeader({ active }: { active: boolean }) {
   const [sessions, setSessions] = useState<CaptureSessions | null>(null);
   const [day, setDay] = useState<string>('');
   const [symbol, setSymbol] = useState<string>('');
+  const [replayError, setReplayError] = useState<string | null>(null);
   const [dragMinute, setDragMinute] = useState<number | null>(null);
   const draggingRef = useRef(false);
   const scrubTimerRef = useRef<number | null>(null);
@@ -191,16 +192,23 @@ export function SimSessionHeader({ active }: { active: boolean }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (res.ok) {
-        const payload = (await res.json()) as SimClockState;
-        setClock(c => ({ ...(c || { sim: true }), ...payload }));
-        // Capture ticker pick -> same desk tab (add or activate). Clear stays put.
-        const sym = (nextSymbol || '').trim().toUpperCase();
-        if (sym) openStockView(sym);
+      if (!res.ok) throw new Error('Could not select capture replay');
+      const payload = (await res.json()) as SimClockState;
+      setClock(c => ({ ...(c || { sim: true }), ...payload }));
+      setReplayError(null);
+      if (payload.replay_ok === false) {
+        setSymbol('');
         emitSimClockScrub();
+        return;
       }
+      // Capture ticker pick -> same desk tab (add or activate). Clear stays put.
+      const sym = (nextSymbol || '').trim().toUpperCase();
+      if (sym) openStockView(sym);
+      emitSimClockScrub();
     } catch {
-      /* ignore */
+      setReplayError('Could not select capture replay; selection was not confirmed');
+      setDay(clock?.replay_source === 'capture' ? clock.replay_date ?? '' : '');
+      setSymbol(clock?.replay_source === 'capture' ? clock.replay_symbol ?? '' : '');
     }
   };
 
@@ -313,13 +321,16 @@ export function SimSessionHeader({ active }: { active: boolean }) {
         >
           <option value="">{day ? 'Pick ticker' : '—'}</option>
           {tickers.map(t => (
-            <option key={t.symbol} value={t.symbol}>
-              {t.symbol} · {t.prints}p
+            <option key={t.symbol} value={t.symbol} disabled={t.usable === false || t.empty}>
+              {t.symbol} · {t.usable === false || t.empty ? t.unavailable_reason ?? 'Empty recording' : `${t.prints}p`}
             </option>
           ))}
         </select>
       </label>
       </>}
+      {(replayError || clock?.replay_ok === false) && <span role="alert">
+        {replayError || clock?.replay_error || 'Capture replay failed'}
+      </span>}
       <span data-testid="sim-replay-source" style={{ opacity: 0.8, fontSize: 11 }}>
         {source}
       </span>

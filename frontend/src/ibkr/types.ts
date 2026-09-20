@@ -20,6 +20,10 @@ export interface IbkrStatus {
   /** True while the in-app Sim practice toggle is on. */
   sim?: boolean;
   sim_symbol?: string | null;
+  capture?: boolean;
+  capture_symbol?: string | null;
+  recording?: boolean;
+  capture_error?: string | null;
   gateway_mode?: 'paper' | 'live';
   /** Session account classification from IB account ids (DU…=paper, U…=live). */
   broker_account_kind?: 'paper' | 'live' | 'unknown';

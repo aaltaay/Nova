@@ -193,14 +193,6 @@ export function TradingPrerequisitesGate() {
   }, []);
 
   useEffect(() => {
-    if (overlayGates.sessionRecording) {
-      setManualOpen(false);
-      setAutoDismissed(true);
-    }
-  }, [overlayGates.sessionRecording]);
-
-
-  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') closePanel();
     };

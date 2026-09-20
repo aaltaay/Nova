@@ -1,0 +1,23 @@
+---
+description: Capture and replay regression evidence (#339)
+globs: backend/tests/test_capture*.py,frontend/src/capture/*.test.ts,frontend/src/sim/*.test.tsx
+alwaysApply: false
+---
+
+# Capture verification
+
+Use temporary capture roots and freeze wall/monotonic clocks where timing is
+asserted. Stop/deadlock probes must have bounded waits and safe cleanup.
+Exercise recording HTTP conflicts and server-owned client state, including
+failed/stale reads and the real Gateway warning path. Replay UI tests must click
+Load, candle/trade downloads, Pause/Resume and check POST bodies and visible errors.
+Verify timers stop after unmount. Tape assertions must preserve recorded prices
+and avoid inventing bid/ask or trade direction.
+
+Use Vitest's default or dot reporter, never the removed basic reporter. Check
+reported nonzero test counts as well as exit status. Existing parked UX/fidelity
+issues keep their own scope; coverage is not evidence that those issues shipped.
+
+Fresh worktrees install frontend dependencies with npm ci. A shared node_modules
+link is not evidence that the locked dependency tree is complete. Native option
+disablement is verified through its disabled DOM property in browser tests.

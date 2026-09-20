@@ -1,0 +1,22 @@
+---
+description: Server-owned capture state and always-on trading safety (#316, #339)
+globs: backend/capture/**,backend/sim/status.py,frontend/src/capture/**,frontend/src/ibkr/**,frontend/src/bot/BotSymbolMenu*
+alwaysApply: false
+---
+
+# Recording state truth
+
+- Capture owns exactly one symbol. Serialize start/stop through the capture worker.
+  Starting the active symbol is idempotent; starting another or stopping a different
+  symbol returns HTTP 409 without stopping/replacing the active recorder.
+- `/api/ibkr/status` must reconcile recorder self-stop before exposing capture fields.
+  Capture errors are logged and returned as `capture_error` alongside those fields.
+- The existing IBKR status poller owns recording freshness. A client Record click
+  requests a refresh; it never optimistically adds/removes symbols. Persisted cache,
+  failed polls and snapshots older than 15 seconds cannot claim active recording.
+  Subscribers must receive expiry updates even when the next request hangs.
+- Tab recording never suppresses Gateway login or API/wedged-loop prerequisites;
+  recording needs those services too. Runtime order gates remain unchanged.
+- Record/Stop failures stay visible in the symbol menu. Cover ownership conflicts,
+  backend restart/self-stop, failed/hung polling, fresh recovery, and visible errors.
+- Use feature modules under ADR 001; no new runtime loop or market-data owner.
