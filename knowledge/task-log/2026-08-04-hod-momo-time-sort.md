@@ -30,9 +30,7 @@ One row per symbol. TIME and list position use first print catch (newest first-c
 
 ## Why this approach
 
-- Rejected sorting on `created_ts` -- that is emit time after consolidation lag, not the TIME column.
-- Rejected changing backend `created_ts=ts` -- consolidation/`emit_after` needs wall clock.
-- Kept newest-first (Warrior-style); only aligned the clock with TIME.
+
 
 ## Verification
 

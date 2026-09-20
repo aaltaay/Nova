@@ -23,15 +23,7 @@ a market-cap floor. IB's `ScannerSubscription` natively supports `marketCapAbove
 instead of a client-curated symbol list — but the lease-open/reconcile/watchdog code path
 needs to compare more than `scan_code` to decide whether a lease is still current.
 
-**Warrior Trading has no swing-trading material in this repo.** A survey of
-`knowledge/obsidian/01-Courses/Warrior-Trading/`, `Automation-Strategy-Backbone.md`, and
-the Course Index found only small-cap intraday criteria (Five Pillars: price $2-$20,
-float <20M, RVOL >=5x, catalyst) and a bare scanner-widget name, "Large Cap HOD," with no
-published numeric criteria. The metrics chosen below (relative volume, ATR-relative range
-expansion, 5-day and 20-day change) are Nova's own design for a swing use case, not a
-Warrior parity target. This distinction matters because `hod_momo` strategy defaults are
-explicitly labeled Warrior-parity approximations elsewhere in this codebase, and Large Cap
-must not be mistaken for one.
+
 
 ## Decision
 
@@ -99,22 +91,7 @@ must not be mistaken for one.
 
 ## Consequences
 
-- Nova's total persistent scanner lease count rises from at most 2 (RTH: Gainers +
-  Losers) to at most 3 (adds Large Cap in every period). Still far under IBKR's 10-slot
-  ceiling and the ~10-concurrent-subscription account limit recorded in
-  `.cursor/agent-memory/hod-momo-memory.md`.
-- `desired_leases()` and its callers change signature from `list[tuple[str, str]]` to
-  `list[LeaseSpec]` — every caller in `scanner_stream.py` must be updated in the same
-  change (no partial migration).
-- `reconcile_session_tables()` gains an explicit `_ALWAYS_LIVE` branch; the loop over
-  `(TABLE_GAPPERS, TABLE_GAINERS, TABLE_LOSERS, TABLE_AFTERHOURS)` must be extended to
-  include `TABLE_LARGE_CAP` with different rollover semantics (bump `session_key`, keep
-  cache) than the freeze-at-boundary tables (clear cache, reset to `unavailable`).
-- A small, steady background IB historical spend (up to ~50 daily-bar fills/day) is added
-  outside the chart/detail pane budget. Must be verified not to compete with chart pane
-  fills or wedge `ib_loop_lag_ms` under load (see plan verification step).
-- Documented as Nova's own metric design; `hod-momo`-style "Warrior parity" language must
-  not be applied to Large Cap Score, RVOL threshold, or ATR-expansion threshold defaults.
+
 
 ## Rejected alternatives
 

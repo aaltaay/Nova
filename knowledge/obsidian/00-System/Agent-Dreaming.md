@@ -2,14 +2,12 @@
 
 Nova-native sleep cycle for specialist living memory, course RAG, and decision hygiene. Inspired by OpenClaw light→REM→deep and open-second-brain nightly passes — **implemented in-repo**. Sibling tools (Claude Code Auto Dream, OpenClaw) are bridged, not vendored as Nova’s runtime.
 
-Companion: [[Memory-Router]] · `docs/agent-operations.md` · diary `.cursor/agent-system/DREAMS.md`
 
 ## Why the early “out of scope” cuts existed (and why they’re in now)
 
 | Surface | Original reason to defer | Mission completion |
 |---------|--------------------------|--------------------|
 | OpenClaw / Claude Auto Dream | Wrong primary runtime; risk of dual agent OS | **Bridges:** Claude `autoDreamEnabled`; OpenClaw `openclaw-MEMORY.md` export — Nova Cursor agents stay authoritative |
-| Pinecone re-ingest | Long, key-gated, expensive | `--pinecone` → `tools/course_memory/ingest.py` (dry-run unless `--write`; `--pinecone-full` for unlimited) |
 | Auto-edit `03-Nova-Decisions/` | Highest-trust strategy truth | Hygiene note + stamp footers on strategy notes; **does not rewrite Chosen strategy / Mechanical rules** |
 | LLM-backed REM | Needs `OPENAI_API_KEY`; CI must work offline | Default on when key present; heuristic fallback; `--no-llm-rem` |
 | Auto commit/push | Surprising git mutation | `--commit` / `--push` (requires `--write`) |

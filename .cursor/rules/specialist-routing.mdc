@@ -28,8 +28,6 @@ These name which rules/files govern a domain and which specialist exists for an 
 | Maintainability / danger audit | `maintainer` (explicit ask) | Read-only; significant diffs |
 | Full-repository security posture / SEC-NNN | `security` (explicit ask) | Not for PR/diff review |
 | Docs, MDC rules, agent prompts, canvases, agent dreaming | `docs` (explicit ask) | Dashboard = Nova Home; `tools/agent_dream.py` |
-| Warrior Trading authenticated site / Day Trade Dash navigation | `warrior` (explicit ask) | Dashboard = `agent-warrior`; not Nova Home |
-| HOD Momo scanner data-quality / Warrior parity iteration | `hod-momo` (explicit ask) | Dashboard = `agent-hod-momo`; owns `IBKR-Scanner-HOD-Architecture.md` feed UML; never feeds Warrior data into the alert engine |
 | Webull-to-Nova widget mapping or selected parity gap | `widgets` (explicit ask) | Dashboard = `agent-widgets`; Webull evidence is research-only |
 | Trading execution ADR 007 / ledger / latency / auto_live NO-GO | `execution` (explicit ask) | Audit-only; `execution-continuity.mdc`; dashboard `agent-execution` |
 | IB Gateway login / IBC / API port health | `ibkr-ops` (explicit ask) | Loud-warn protocol; never stores credentials |
@@ -66,3 +64,7 @@ The `subagentStop` hook (`.cursor/hooks.json`) may remind once if the footer is 
 ## Ops
 
 See `docs/agent-operations.md`. Validate with `py -3 tools/agent_contract.py`.
+
+## Repository boundary
+
+Personal course libraries, authenticated-site notes, and generated research graphs live outside this repository. Do not recreate or publish them here. Scanner diagnostics use Nova and IBKR evidence.

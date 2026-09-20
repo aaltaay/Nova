@@ -2,7 +2,7 @@
  * Desk ping when a new HOD Momo alert row arrives.
  *
  * Banner mute is a separate localStorage preference -- not `cfg.audio`.
- * `cfg.audio` is per-strategy backend config (Warrior "Audio Alert" lanes)
+ * `cfg.audio` is per-strategy backend config (momentum "Audio Alert" lanes)
  * and is never consumed to play a sound. A single header toggle cannot be
  * that field: defaults differ by strategy, it lives on the server, and
  * Configure would have to open to change it.

@@ -1,9 +1,8 @@
 """Session-focus sticky L1 — keep evaluated / alerted names on the tape.
 
-Warrior HOD names that cool off the gainer table (TRT-class) must not lose
+HOD names that cool off the gainer table (TRT-class) must not lose
 their snap the moment they drop out of TOP_PERC_GAIN. Sticky membership is
-driven only by Nova's own IBKR evaluations and today's alerts — never Warrior
-rows.
+driven only by Nova's IBKR evaluations and today's alerts.
 
 Capacity rule: sticky length == reserved session_focus slots. Hot soft-block
 names still on the mover tables are ranked *after* cooled stickies so they

@@ -22,7 +22,6 @@ Companion: `.cursor/agent-system/registry.json` (machine wiring) · `tools/agent
 | maintainer | Audit | yes | read-only hygiene |
 | security | Audit | yes | read-only posture |
 | execution | Audit | yes | read-only ADR 007 audit |
-| warrior | Research | yes | research-only; never feed into live Nova |
 | tester | Implement | after-deps | run **after** implementers finish |
 | ibkr-ops | Implement | after-deps | often **first** when Gateway/discovery is suspect |
 | market-feed | Implement | solo-writes | do not parallel with `hod-momo` or `widgets` on overlapping surfaces |
@@ -55,7 +54,6 @@ Detail + report shape: `.cursor/rules/specialist-routing.mdc` (zero-hop default 
 | Maintainability / file limits / danger sniff | maintainer | Owned | Audit | read-only, `maintainer_checks.py` |
 | Full-repo security posture + SEC-NNN | security | Owned | Audit | `security-continuity.mdc` |
 | PR / branch / uncommitted diff security | security-review (Cursor built-in) | Owned | Audit | not a Nova registry agent |
-| Warrior Trading authenticated site / Day Trade Dash map | warrior | Owned | Research | research-only snapshot producer |
 | HOD Momo scanner data-quality + IBKR feed UML | hod-momo | Owned | Implement | owns `IBKR-Scanner-HOD-Architecture.md` |
 | Webull-to-Nova widget capability mapping + selected UI gaps | widgets | Owned | Implement | `widgets-continuity.mdc` |
 | Trading execution (`backend/execution/`, ADR 007, latency proof) | execution | Owned | Audit | `execution-continuity.mdc`; dashboard `agent-execution` |

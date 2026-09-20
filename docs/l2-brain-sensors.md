@@ -61,7 +61,6 @@ Sim practice: [sim-mode.md](sim-mode.md).
 | 2 | Tape | `/sensors/tape?symbol=` | **live** | Tape ring (`tape_stream._push_queue` + Sim prints). Last ~20 prints. |
 | 3 | VWAP | `/sensors/vwap?symbol=` | **live** | 1Min typical-price VWAP from `bars_store` / Sim bars. Not `ticker.vwap`. |
 | 4 | MACD | `/sensors/macd?symbol=` | **live** | 12/26/9 on 1Min closes. Standard periods, not trip levels. |
-| 5 | RVOL | `/sensors/rvol?symbol=` | **live** | ADV pace (`large_cap_metrics.compute_rvol`) + Warrior 5-min when present. `tod_20d` is null -- that series is not stored. |
 | 6 | Day volume | `/sensors/day-volume?symbol=` | **live** | Shared L1 `last_quotes` / Sim volume. |
 | 7 | Spread | `/sensors/spread?symbol=` | **live** | Current book spread vs oldest snapshot in the minute. |
 | 8 | Session phase | `/sensors/session-phase` | **live** | Clock buckets from existing session constants. |
@@ -150,7 +149,7 @@ ADV (fundamentals cache), current spread, bot allowlist flag.
 
 ### 12. EMA context (9/20/200) -- live
 
-Warrior-style periods on 1Min closes.
+
 
 `GET /sensors/emas?symbol=`
 

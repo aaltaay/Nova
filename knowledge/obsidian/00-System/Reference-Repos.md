@@ -84,4 +84,3 @@ Nova defaults: IBKR-only execution, single market-data feed, archive honesty, `a
 
 - [[Skills-Library]] — vendored skills + guardrails  
 - [[Graphify-Knowledge-Graph]] — rebuild after vault edits  
-- [[Memory-Router]] — when Obsidian vs Graphify vs Pinecone  

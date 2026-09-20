@@ -362,7 +362,7 @@ def test_schema_v5_squeeze_requires_hod_and_reenables(monkeypatch):
 def test_schema_v7_restores_zeroed_squeeze_surge(monkeypatch):
     """Historical bug: Squeeze #10/#11 persisted with surge_pct=0 while
     surge_window_min still matched the strategy's own default window — a
-    silent no-op filter instead of Warrior's 10%/10m and 5%/5m gate."""
+    silent no-op filter instead of momentum 10%/10m and 5%/5m gate."""
     state = hm.replace_state(HodMomoState())
     monkeypatch.setattr(
         persist._cache,

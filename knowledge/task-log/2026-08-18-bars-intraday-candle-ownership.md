@@ -34,7 +34,7 @@ Rejected: a live `/api/integrity` check on OHLC drift. That is a detector, not a
 
 ## Verification
 
-`py -3 -m pytest backend/tests` -- 1237 passed. `py -3 -m pytest tools` -- 191 passed, 3 failed (pre-existing: warrior transcript provenance, `test_sync_agent_surfaces` security canvas counts; not this change). Frontend Vitest 697 passed. `npm run build` exit 0. `doc_invariants` OK.
+
 
 Focused: `test_l1_does_not_clobber_zero_volume_hist`, `test_l1_volume_cannot_buy_a_hist_row`, `test_hist_fill_replaces_live_minute`, `test_migrate_legacy_source_unique_keeps_hist`, `test_intraday_drain_opens_one_connection`.
 

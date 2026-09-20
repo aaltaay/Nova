@@ -7,7 +7,7 @@
 
 ## Task
 
-Explain Warrior Running Up vs HOD Momentum; diagnose why Nova fired VCIG at 08:24:14 when Warrior’s true HOD was ~08:02; say whether Nova implements Running Up; fix if root cause is clear.
+
 
 ## Goal
 
@@ -15,7 +15,7 @@ Correct HOD gate semantics (new high, not retest) and a clear user-facing answer
 
 ## Why it mattered
 
-False HOD Squeeze alerts on pullback/retest confuse parity with Warrior and train the wrong trade idea (HOD break vs Running Up curl).
+
 
 ## What we changed
 
@@ -26,13 +26,11 @@ False HOD Squeeze alerts on pullback/retest confuse parity with Warrior and trai
 
 ## How it works now
 
-HOD Momentum strategies need a recent *raise* of session high while price stays near that high. Running Up (strategy 12) still skips HOD. Warrior’s separate Running Up widget is the research model for no-HOD surge alerts.
+
 
 ## Why this approach
 
-- Rejected “keep at-HOD gate”: matches neither BA101 nor the VCIG tape.
-- Rejected same-tick-only new HOD: Warrior KB allows momentum confirm within ~1 minute — grace window covers that.
-- Rejected feeding Warrior rows into Nova: research-only constraint preserved.
+
 
 ## Verification
 
@@ -41,10 +39,6 @@ HOD Momentum strategies need a recent *raise* of session high while price stays 
 
 ## Follow-ups
 
-- Restart API to load gate.
-- Optional: separate Running Up UI surface (Warrior sibling widget).
-- Error 10089 delayed MD → late L1 admission (ibkr-ops / market-data subscription).
+
 
 ## Keywords
-
-VCIG, Running Up, HOD Momentum, Squeeze, session_high_raised_ts, BA101, retest

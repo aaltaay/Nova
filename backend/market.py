@@ -5,7 +5,7 @@ Extracted from main.py (backend-modularity.mdc target layout). Behavior is
 unchanged — same premarket/regular/after-hours boundaries used by the scan
 loop to decide which discovery function runs.
 
-Also owns Warrior-style pace RVOL (Daily Rate): today's volume ÷ expected
+Also owns momentum pace RVOL (Daily Rate): today's volume ÷ expected
 volume by this time of day.
 """
 from __future__ import annotations
@@ -76,7 +76,7 @@ def in_after_hours() -> bool:
 def volume_day_elapsed_fraction(now: datetime | None = None) -> float:
     """Fraction of the volume day (04:00–16:00 ET) elapsed, for pace RVOL.
 
-    Warrior / Trade-Ideas "Relative Volume (Daily Rate)" compares cumulative
+    momentum / Trade-Ideas "Relative Volume (Daily Rate)" compares cumulative
     volume to *expected* volume by this clock time, not raw daily/avg.
     Floor avoids divide-by-near-zero in the first minutes after 4:00.
     """
@@ -99,7 +99,7 @@ def pace_relative_volume(
     avg_daily_vol: float | None,
     now: datetime | None = None,
 ) -> float | None:
-    """Warrior-style Daily Rate RVOL: today_vol / (avg_daily_vol * elapsed_frac)."""
+    """momentum Daily Rate RVOL: today_vol / (avg_daily_vol * elapsed_frac)."""
     if today_vol is None or avg_daily_vol is None:
         return None
     try:

@@ -4,7 +4,7 @@ Cold-start bug: ``session_highs[sym]`` started at 0 and first last-price became
 "HOD". This module seeds from historical bar highs and L1 day High (tick 6),
 marks ``session_high_seeded``, and only then allows HOD strategies to pass.
 
-Warrior parity (BA101 / KB): requires_hod strategies need a *new* high-of-day,
+momentum parity (strategy specification): requires_hod strategies need a *new* high-of-day,
 not a retest of an already-seeded high (Running Up covers that). Initial bar /
 tick-6 seed sets the floor without opening the alert grace window; only an
 observed last (or a later tick-6 raise above that floor) opens it.

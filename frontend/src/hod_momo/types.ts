@@ -25,7 +25,7 @@ export interface AlertObject {
   rvol_source: string | null;     // "alpaca" | "yfinance" | "yfinance_pace" | ...
   consolidation_count: number;
   consolidated_ids: string[];
-  /** Actual burst span in seconds for Warrior-style "(3 in 5sec)". */
+  /** Actual burst span in seconds for momentum "(3 in 5sec)". */
   consolidation_span_sec?: number | null;
   created_ts?: number;
   /**

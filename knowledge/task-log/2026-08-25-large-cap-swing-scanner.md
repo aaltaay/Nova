@@ -15,7 +15,7 @@ A new "Large Cap" scanner tab that: filters to large-cap, liquid names server-si
 
 ## Why it mattered
 
-The user was about to buy into a plausible but wrong mental model (borrowing IB's `MOST_ACTIVE`/`HOT_BY_VOLUME` scan codes the way a ChatGPT draft suggested, and assuming Warrior Trading had swing criteria to copy). Both would have produced a table that looks like the same 10 mega-caps every day, or that quietly used the wrong universe. Getting the scan-code choice and the units right up front avoids a slow, hard-to-diagnose "why does this table never change" complaint months later.
+
 
 ## What we changed
 

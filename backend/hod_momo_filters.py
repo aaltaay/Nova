@@ -182,7 +182,7 @@ def fails_hod_gate(
     """Return a block reason if this strategy requires a fresh new HOD.
 
     Unseeded highs always block (kills cold-start invent-from-first-tick).
-    Being merely *at* a seeded high is not enough — Warrior HOD Momentum needs
+    Being merely *at* a seeded high is not enough — momentum HOD Momentum needs
     a new high-of-day (Running Up covers pullback squeezes without new HOD).
     ``new_hod_age_sec`` is seconds since the session high last rose via an
     observed print or post-seed tick-6; must be within ``new_hod_grace_sec``.

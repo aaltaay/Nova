@@ -64,7 +64,7 @@ class StrategyConfig:
     proximity_52wk_pct: float = 0.0
     # Former Momo ticker list (only used / non-empty for strategy #1)
     former_momo_list: list[str] = field(default_factory=list)
-    # Warrior Running Up: False → may fire without a new HOD
+    # momentum Running Up: False → may fire without a new HOD
     requires_hod: bool = True
 
 
@@ -95,10 +95,10 @@ class AlertObject:
     volume: int | None
     momentum_pct: float | None   # surge % that triggered (if applicable)
     rvol_source: str | None = None  # "alpaca" | "yfinance" | "yfinance_pace" | ...
-    rvol_5min: float | None = None  # Warrior Rel Vol (5 min %)
+    rvol_5min: float | None = None  # momentum Rel Vol (5 min %)
     consolidation_count: int = 1
     consolidated_ids: list[str] = field(default_factory=list)
-    # Actual burst duration in seconds (Warrior "(3 in 5sec)"); None if single fire.
+    # Actual burst duration in seconds (momentum "(3 in 5sec)"); None if single fire.
     consolidation_span_sec: int | None = None
     # Unix time when the alert was created (for span math / display collapse).
     created_ts: float = 0.0

@@ -18,8 +18,7 @@ run can't blow up the account. "Guaranteeing money" is really **guaranteeing dis
 machine follows the rules every time, never revenge-trades, never oversizes, always cuts losses.
 That consistency is the closest thing to an edge that survives.
 
-The strategy we're encoding is Ross Cameron / Warrior Trading **momentum trading** — buying
-strong, high-relative-volume, low-float stocks with a news catalyst, and scalping the move.
+
 
 ---
 
@@ -34,7 +33,6 @@ take profits into strength at a 2:1 (or better) profit/loss ratio. Edge comes fr
 (few trades, walk away after losses).
 
 ### The 5 Pillars of Stock Selection (course-verified)
-Source: Basics Ch.3 p85; SS101 Ch.1 p13 & Ch.3 p64
 1. **Price** — best $2–$20 (exceptions allowed).
 2. **% Change Today** — up ≥10% vs prior close (or ≥10% off LOD on continuation).
 3. **Relative Volume** — at least **5x** average.
@@ -54,16 +52,12 @@ These are mechanical and map directly onto Nova's existing scanner data.
 - **Automatable: 100%.** This is signal generation, not order execution.
 
 ### B. Setup detection (pattern recognition on bars)
-- **Gap and Go** (SS101 Ch.7): premarket gapper, mark premarket high, entry on break of
   premarket high / first pullback; window 9:30–10:00 ET. Rules are explicit.
-- **Bull Flag** (SS101 Ch.5 p35): 3+ green candles, 2+ red pullback candles not breaking prior
   high, pullback to 9 EMA, retrace <50% of the move; entry on break of the flag.
-- **ABCD** (SS101 Ch.5 p55): big move (A→B), pullback holds above 9 EMA (C), entry on break of
   point B (D); stop ~20 cents.
 - All three have **numeric, codeable triggers** (candles, EMA, prior highs). **Automatable.**
 
 ### C. Risk / trade management (the part that guarantees discipline)
-Source: SS101 Ch.2, Ch.12; Basics Ch.15
 - **Position sizing:** start 100-share blocks; ¼ size until a profit cushion (~¼ of daily goal),
   then scale up; cut size after a loss >10% of the day.
 - **Profit/Loss ratio:** minimum 1:1, target **2:1** (wins bigger than losses).
@@ -132,10 +126,8 @@ Source: SS101 Ch.2, Ch.12; Basics Ch.15
 
 ## 7. Decision log (append-only)
 
-- **2026-07-10** — Backbone created. Chose Warrior/Ross momentum model as the strategy family.
   Decided: automate selection + setup detection + risk/journaling; do NOT automate tape-reading
   exits, catalyst judgment, or live money yet. Everything paper-first. Evidence pulled from
-  Pinecone (Basics Ch.3/15, SS101 Ch.1/2/5/7/11/12 + Extra).
 - **2026-07-10** — Implemented Phase 1 ("signal only") for the Five Pillars and Gap and Go:
   `backend/strategy/five_pillars.py` scores any candidate dict against all 5 pillars and returns
   a checkmark only when all 5 pass; `backend/strategy/gap_and_go.py` adds the time-window +

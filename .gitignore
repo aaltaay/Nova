@@ -57,7 +57,6 @@ Thumbs.db
 
 # Local course handouts (large PDFs / videos — keep on disk, do not push)
 downloads/
-docs/warrior-trading/
 
 # Vale synced style packages (keep Vocab committed)
 .vale/styles/**
@@ -113,3 +112,6 @@ backend/sim/data/
 # Claude Code scratch worktrees (isolation: worktree). Registered with git but
 # never part of the tree; `py -3 tools/repo_hygiene.py fix` reclaims stale ones.
 .claude/worktrees/
+
+# Generated research outputs are local-only.
+/graphify-out/

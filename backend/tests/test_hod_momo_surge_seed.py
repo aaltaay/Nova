@@ -1,4 +1,4 @@
-"""Tests for HOD Momo surge cold-start seeding (Warrior Squeeze parity)."""
+"""Tests for HOD Momo surge cold-start seeding (momentum Squeeze parity)."""
 from __future__ import annotations
 
 import time

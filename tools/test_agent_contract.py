@@ -39,7 +39,6 @@ def test_discovery_finds_registered_agents(ac):
         "maintainer",
         "security",
         "docs",
-        "warrior",
         "hod-momo",
         "widgets",
         "router",

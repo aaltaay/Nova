@@ -21,7 +21,7 @@ interface RunningUpTabProps {
   onClearAlerts: () => void;
 }
 
-/** Warrior-style sibling scanner — surge/RVOL without requiring a new HOD. */
+/** momentum sibling scanner — surge/RVOL without requiring a new HOD. */
 export function RunningUpTab({
   alerts,
   totalToday,
@@ -93,7 +93,7 @@ export function RunningUpTab({
       </div>
 
       <p className="hod-scanner-blurb">
-        Quick upward moves without requiring a new high of day (Warrior sibling of HOD Momentum).
+        Quick upward moves without requiring a new high of day.
       </p>
 
       <HodMomoAlertTable

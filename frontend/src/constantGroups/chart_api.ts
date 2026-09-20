@@ -15,7 +15,7 @@ export const CHART_INDICATORS: { id: ChartIndicatorId; label: string }[] = [
   { id: 'macd', label: 'MACD' },
 ];
 
-/** Warrior-style overlays default on (Ross always shows these on the chart). */
+/** momentum overlays default on (standard chart defaults). */
 export const CHART_DEFAULT_INDICATORS: ChartIndicatorId[] = ['emas', 'vwap'];
 
 /**
@@ -32,7 +32,7 @@ export const CHART_GRID_PANE_INDICATORS: Record<string, ChartIndicatorId[]> = {
 export const CHART_OVERLAY_IDS: ChartOverlayId[] = ['emas', 'vwap'];
 export const CHART_OSCILLATOR_IDS: ChartOscillatorId[] = ['rsi', 'macd'];
 
-/** Warrior-style EMA lengths: 9 / 20 / 200 (no 50). VWAP is a separate overlay. */
+/** momentum EMA lengths: 9 / 20 / 200 (no 50). VWAP is a separate overlay. */
 export const CHART_EMA_LENGTHS = [9, 20, 200] as const;
 export type ChartEmaLength = (typeof CHART_EMA_LENGTHS)[number];
 
@@ -237,7 +237,7 @@ export const STRATEGY_META: StrategyMeta[] = [
   { id: 13, name: 'Approaching HOD',                            color: '#FFC107', audioDefault: true  },
 ];
 
-/** Warrior Running Up — strategy id 12 (requires_hod=false on the backend). */
+/** momentum Running Up — strategy id 12 (requires_hod=false on the backend). */
 export const HOD_MOMO_FORMER_MOMO_STRATEGY_ID = 1;
 export const HOD_MOMO_RUNNING_UP_STRATEGY_ID = 12;
 /** Re-touch of stale session high after a 0.5% pullback — mirrors backend. */
@@ -294,7 +294,7 @@ export const HOD_MOMO_INTEGRITY_POLL_MS = 10_000;
 /** Default master gate config — mirrors backend MasterGateConfig defaults */
 export const DEFAULT_MASTER_GATE = {
   hod_required: true,
-  surge_pct: 0.0, // strategies own surge; Warrior does not global-gate 3%/5m
+  surge_pct: 0.0, // strategies own surge; momentum does not global-gate 3%/5m
   surge_window_min: 5,
   min_rvol: 2.0,
   premarket_min_rvol: 1.0,

@@ -33,7 +33,7 @@ async def flush_consolidated_loop() -> None:
                 ]
                 if not ready:
                     continue
-                # Warrior consolidates bursts of the *same* strategy. Collapsing
+                # momentum consolidates bursts of the *same* strategy. Collapsing
                 # all strategies into one row drops Former Momo when Low Float
                 # also fires in the same window — emit one primary per strategy_id.
                 by_strategy: dict[int, list[AlertObject]] = {}

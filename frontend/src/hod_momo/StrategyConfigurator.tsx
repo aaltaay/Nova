@@ -33,7 +33,7 @@ export function StrategyConfigurator({
 
       <div className="hod-cfg-row">
         <BoolField label="Enabled" value={cfg.enabled} onChange={v => onChange({ enabled: v })} />
-        {/* Per-strategy Warrior lane stored on the backend. The desk ping mute
+        {/* Per-strategy momentum lane stored on the backend. The desk ping mute
             is HodMomoSoundToggle / localStorage -- cfg.audio does not play. */}
         <BoolField label="Audio Alert" value={cfg.audio} onChange={v => onChange({ audio: v })} />
       </div>

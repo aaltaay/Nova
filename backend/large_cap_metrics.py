@@ -1,8 +1,6 @@
 """Pure swing metrics for the Large Cap table (ADR 014).
 
-Every metric here is Nova's own design for a swing use case, not a Warrior
-Trading parity target -- Warrior has no published swing criteria (see ADR
-014 context). Split by cost:
+Metrics serve the swing use case defined in ADR 014. Split by cost:
 
 - ``compute_rvol`` / ``days_to_earnings`` are zero-IB-cost: they read fields
   ``fundamentals.py`` already fetches via yfinance. ``days_to_earnings`` uses
