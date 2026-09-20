@@ -1,6 +1,6 @@
-"""HOD Momo volume metrics — Warrior 5-min relative volume.
+"""HOD Momo volume metrics — momentum 5-min relative volume.
 
-Warrior Day Trade Dash shows Relative Volume (5 min %): volume in the last
+momentum shows Relative Volume (5 min %): volume in the last
 5 minutes vs a typical 5-minute interval.
 
 Default typical uses a coarse ET time-of-day curve (open/close heavy). Flat
@@ -153,7 +153,7 @@ def rvol_5min(
     use_tod: bool | None = None,
     ts: float | None = None,
 ) -> float | None:
-    """Warrior Rel Vol (5 min): last-5m volume ÷ typical 5m volume."""
+    """momentum Rel Vol (5 min): last-5m volume ÷ typical 5m volume."""
     if vol_5m is None or avg_daily_vol is None:
         return None
     try:

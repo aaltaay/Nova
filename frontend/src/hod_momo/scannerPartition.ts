@@ -1,5 +1,5 @@
 /**
- * Partition the shared HOD Momo WS feed into Warrior-style sibling scanners:
+ * Partition the shared HOD Momo WS feed into momentum sibling scanners:
  * Small Cap HOD Momentum vs Running Up (strategy 12).
  */
 import {

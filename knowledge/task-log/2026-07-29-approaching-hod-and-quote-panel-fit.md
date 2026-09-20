@@ -38,9 +38,7 @@ AMIX at 09:35 touched a prior HOD of 5.44 without firing strategy 10 (correct --
 
 ## Why this approach
 
-- Separate strategy 13 (not relaxing `requires_hod` on 10/11) preserves Warrior breakout parity.
-- Dip-reset by percent (not cents or a fixed timer) scales across $0.50 and $6 names and matches the user's "one alert per genuine re-approach" ask.
-- Viewport fit via CSS density + chart cap, not a layout reorder (LOCKED chart-on-top stays).
+
 
 ## Verification
 

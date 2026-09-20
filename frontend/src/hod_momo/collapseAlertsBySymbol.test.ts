@@ -80,7 +80,7 @@ describe('collapseAlertsBySymbol', () => {
     expect(aehr.strategies?.map(s => s.id)).toEqual([3]);
   });
 
-  it('does not inflate Warrior burst badge across long gaps', () => {
+  it('does not inflate momentum burst badge across long gaps', () => {
     const rows = [
       alert({
         id: '1',

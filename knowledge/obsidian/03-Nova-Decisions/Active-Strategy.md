@@ -1,15 +1,12 @@
 # Active Strategy (Nova)
 
-**Status:** `DIRECTION SET — Warrior/Ross momentum family` · **primary setup: Gap and Go** (signal-only today)
-**Backbone doc:** [[Automation-Strategy-Backbone]]  
-**Nova OS (decision pipeline):** [[Nova-OS-Decision-Brain]]
+
 
 When decided, fill this template. The recall router treats this note as **highest trust** for “what should we build?”
 
 ## Chosen strategy
 
 - Name: **Gap and Go** (momentum family; Bull Flag / ABCD later)
-- Course / chapter evidence: SS101 Gap and Go; Basics Five Pillars; free ebook Gap and Go chapter; Pinecone + Obsidian
 - Why this one:
   - Most mechanical morning play (PM high break, 9:30–10 window)
   - Already partially encoded in `backend/strategy/{five_pillars,gap_and_go}.py`

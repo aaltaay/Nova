@@ -25,7 +25,7 @@ but are not selectable. Undo = code change, not Settings.
 
 ## Why (strategy-grounded)
 
-Warrior Trading Scanning 101 + Strategies Ch.3/7 (Pinecone + Obsidian):
+
 
 1. Morning workflow is **Top Gainer / Top Gapper list scanners**, not a custom full-universe poll.
 2. Those scanners already search the whole market and return a short list (~40–60 names meeting ≥5% etc.).
@@ -134,6 +134,5 @@ the existing Alpaca-shaped functions:
 
 ## Related
 
-- Course: BA101 Ch.12 Scanning 101; SS101 Ch.3 / Ch.7 Gap and Go
 - Nova: `Automation-Strategy-Backbone.md`, IBKR module CHANGELOG 2026-07-10
 - Alpaca SIP pricing: Algo Trader Plus ~$99/mo — explicitly out of scope

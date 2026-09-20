@@ -1,6 +1,6 @@
 """After-hours mover discovery for HOD Momo + After Hours tab.
 
-When ``discovery=ibkr``, Warrior-style AH HOD needs live Top % Gainers —
+When ``discovery=ibkr``, momentum AH HOD needs live Top % Gainers —
 not Alpaca IEX's thin extended-hours snapshot scan (often 0–2 rows).
 IBKR ``TOP_PERC_GAIN`` works after the close the same way as RTH.
 """

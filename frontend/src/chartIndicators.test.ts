@@ -71,7 +71,7 @@ describe('chartIndicators (library adapters)', () => {
     expect(histValued.every(p => 'color' in p && typeof p.color === 'string' && p.color.length > 0)).toBe(true);
   });
 
-  it('keeps the Warrior overlay set as 9 / 20 / 200 EMAs + VWAP (no 50)', () => {
+  it('keeps the momentum overlay set as 9 / 20 / 200 EMAs + VWAP (no 50)', () => {
     expect([...CHART_EMA_LENGTHS]).toEqual([9, 20, 200]);
     expect(CHART_EMA_LENGTHS).not.toContain(50);
     expect(CHART_EMA_COLORS).toEqual({

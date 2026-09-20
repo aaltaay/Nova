@@ -59,7 +59,6 @@ Nova-native light → REM → deep over agent memory, plus optional Obsidian hyg
 | REM | Diary | Heuristic themes + LLM diary when `OPENAI_API_KEY` set (`--no-llm-rem` to force heuristic) |
 | Deep | `--write` | Promote pending facts; trim run logs to 30; stamp `last_dream_at` |
 | `--obsidian` | `--write` | `_Agent-Dream-Hygiene.md` + strategy note footers (no Chosen-strategy rewrites) |
-| `--pinecone` | dry-run unless `--write` | `tools/course_memory/ingest.py` (`--pinecone-full` drops `--limit`) |
 | `--bridges` | `--write` | Claude Code `autoDreamEnabled` + `.cursor/agent-system/openclaw-MEMORY.md` export |
 | `--commit` / `--push` | requires `--write` | Ship dream artifacts |
 
@@ -71,8 +70,7 @@ Shorthand: `py -3 tools/agent_dream.py --full-mission` (± `--write --commit --p
 
 **Default is zero-hop:** the parent Auto session does classification and orchestration itself — no automatic `Task(...)` dispatch, including for "just get this done" or multi-domain work. Every subagent call is a full extra agent turn (new context, tools, Lifecycle report); routing to one automatically was found to be the most expensive, highest-frequency cost in the fleet. Prefer `py -3 tools/agent_fleet.py` for "who owns X / what's cracked?" — it's deterministic and has no LLM cost.
 
-- **`router`** (dashboard `agent-router.canvas.tsx`) remains the pure classification / crack-index tool: given a task, it names the specialist(s)/skill(s) via a **Routing card** and hands off — it never implements product code. Invoke only when the user explicitly asks for a routing card; otherwise run `agent_fleet.py` directly.
-- Every other specialist (ibkr-ops, market-feed, hod-momo, tester, maintainer, security, docs, warrior, widgets, execution, news, backtester, hotkeys) remains registered and invocable, but **opt-in only** — invoke by name when the user explicitly asks, never automatically.
+
 
 When a domain/skill's ownership changes (a specialist is scaffolded, a domain starts/stops being maintained), update its row in `Agent-Fleet-Map.md` in the same commit — `agent_fleet.py` reads that file as the ownership source of truth and never rewrites it.
 
@@ -80,22 +78,7 @@ When a domain/skill's ownership changes (a specialist is scaffolded, a domain st
 
 See `.cursor/rules/specialist-routing.mdc`. Defaults (all opt-in unless noted):
 
-- "Just get this done" / multi-domain work → the parent, in-session (no automatic dispatch)
-- Classification / crack index only → `py -3 tools/agent_fleet.py` (default); `router` only on explicit ask
-- "What's on the to-do / what's missing / priorities?" → `py -3 tools/deferred_log.py status` (alias `priorities`); GitHub Issues labeled `deferred`
-- Product change verification → `tester` (explicit ask) or run pytest/Vitest/build yourself
-- Maintainability / danger audit → `maintainer`
-- Full-repo security posture → `security`
-- Docs / rules / prompts / canvases → `docs`
-- Warrior Trading authenticated site / Day Trade Dash → `warrior`
-- HOD Momo scanner data-quality / Warrior parity iteration → `hod-momo`
-- Webull-to-Nova stock/day-trading widget parity → `widgets`
-- Trading execution ADR 007 audit → `execution`
-- IB Gateway login / IBC / port health → `ibkr-ops`
-- General scanner L1 + quote/chart/L2/T&S coherence → `market-feed`
-- News / catalyst pipeline → `news`
-- Backtest product + VectorBT skills → `backtester`
-- PR / diff security → Cursor built-in `security-review`
+
 
 ## Report Lifecycle line
 

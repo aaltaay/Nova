@@ -15,7 +15,7 @@ Clarify intentional zeros vs stale/broken config; repair live persisted config s
 
 ## Why it mattered
 
-Only Squeeze (#10/#11) and Running Up (#12) were enabled in production config. Float Rel Vol strategies and Approaching HOD were silent, which looks like "stale work" in the Settings UI and misses Warrior-parity alerts.
+
 
 ## What we changed
 
@@ -36,7 +36,7 @@ Only Squeeze (#10/#11) and Running Up (#12) were enabled in production config. F
 
 ## Why this approach
 
-Chose a one-shot schema migration (same pattern as v5/v7) over asking the user to click Reset All -- preserves Former Momo list and any intentional surge tweaks while fixing the known mass-disable + missing-#13 shape. Rejected treating Squeeze price zeros as a bug (would invent fake price filters Warrior does not use). Rejected only documenting the issue without migrating -- live disk was already wrong.
+
 
 ## Verification
 

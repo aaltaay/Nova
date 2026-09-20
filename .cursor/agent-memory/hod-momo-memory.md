@@ -9,26 +9,15 @@ Companion to: `.cursor/agents/hod-momo.md`
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-23T16:00:00Z
-source_revision: local-uncommitted
-result: RBNE warrior Squeeze miss = integrity_fail_suppress (not filter miss); HOD L1 still healthy
-metrics:
-  warrior_rows: n/a
-  nova_rows: n/a
-  both: n/a
-  warrior_only: n/a
-  nova_only: n/a
-  strategy_mismatch_symbols: n/a
-  integrity_fail_suppress: ~5430
-  strategy_11_fired: 6
-  strategy_12_fired: n/a
-  alerts_today: 6
-  active_quote_p95_sec: 0.57
-blockers: ["integrity merge FAIL from sticky scanner_ibkr_bridge TimeoutError suppresses HOD fires", "RBNE case confirms false mute at Warrior time"]
+captured_at: 2026-09-19T00:00:00Z
+source_revision: migration
+result: not-run
+metrics: {}
+blockers: []
 dashboard_freshness: refresh-required
-notes: "RBNE 11:58:26 ET Warrior Squeeze @$5.90 = Nova TRADE 15:58:27Z blocked 11+12 integrity_fail_suppress after HOD+strategy passed. Ship P0 mute scope fix."
 ```
-Machine-readable block only. Update after material runs. Do not duplicate mutable truth that lives in canonical domain sources (`.tmp/hod-momo-parity/*`, `PROBLEM_LOG.md`, `CHANGELOG.md`).
+
+
 
 ---
 
@@ -120,7 +109,7 @@ Promoted into `hod-momo.md` as a compact table (2026-07-17). Keep this expanded 
 
 ### 2026-07-17 — Former Momo intentionally OFF
 
-User disabled Former Momo Stock (strategy 1) by default (schema v4). **Do not spend fix budget on Former warrior_only rows.** List still auto-remembers from other fires for a future fill path; re-enable only when user asks. Focus Squeeze → Float → Running Up.
+
 
 ### 2026-07-17 — Schema v5 (CNF) — do not re-litigate
 
@@ -141,10 +130,8 @@ Session-over-session tracking so future runs don't re-diagnose a solved bug or r
 | 2026-07-16 | `rvol_formula` (same-day movers, silent feed mixing) | `hod_momo_enrichment.universe_enrichment_loop`'s `discovery=ibkr` branch read Alpaca IEX-feed daily-bar averages (`state.avg_volume_cache`) *before* falling back to yfinance — IEX undercounts consolidated volume for thin microcaps by 100x+ (ATPC cached 13,620.44 vs. yfinance 3,375,816.00 — 248x off) and, running every 30s, kept re-clobbering any correct value fix #2 above would have supplied | Extracted `ibkr_avg_volume()` (yfinance-only, never reads `avg_volume_cache`) and used it exclusively in the ibkr branch of `universe_enrichment_loop`, matching the existing correct `fundamentals_enrichment_loop` path and the single-market-data-feed rule | PROBLEM_LOG 2026-07-16 same entry; **ATPC avg_volume 13,620.44 → 3,375,816.00** (matches live yfinance exactly) |
 | 2026-07-16 | `spam_cooldown` | LBGJ Former `passed=True` but only Low Float alert appeared (consolidation dropped strategies) | `flush_consolidated_loop` now groups by `strategy_id`, one alert per strategy | PROBLEM_LOG 2026-07-16 "Consolidation dropped Former Momo when Low Float also fired" |
 | 2026-07-16 | `l1_capacity` | LBGJ `would_fire_now` PASS but no alerts — dropped from L1 by top-gainer/seed active-set churn | Reserved `session_focus` active slots, Former-list-first priority | PROBLEM_LOG 2026-07-16 "Former Momo would_fire PASS but never alerts (off active set)" |
-| 2026-07-16 | `l1_capacity` + gate | Integrity p95 ~2.1s false-fail; Former Momo list empty vs Warrior; `/alerts` full-day 9k dump stalled observer | Heartbeat 0.5s/0.75s stale; Former Momo auto-remember + session bootstrap; `would_fire_now` aligned to real gates; `?limit=` on `/alerts` | PROBLEM_LOG 2026-07-16 "Integrity p95 ~2.1s false-fail + Former Momo empty vs Warrior" |
 | 2026-07-16 | `l1_capacity` (root: note_quote starvation) | HOD banner Integrity fail, coverage 15%, quote/eval p95 ~2000-4000s, CJMB `(1179 in 2157sec)` burst badge | `hod_momo_heartbeat` 1Hz refresh on quiet active symbols; UI burst-gap 15s in `collapseAlertsBySymbol`; mode-aware scanner integrity; `session_gate`/`parity_observe` tools built | PROBLEM_LOG 2026-07-16 "HOD Integrity fail: active quote/eval ages ~hours on quiet L1" |
 | 2026-07-16 | infra (table SLA, not HOD-specific but shares root) | `stale · updated Ns ago` despite Connected — `reqTickersAsync` structurally can't meet <3s SLA | Bounded persistent `reqMktData` L1 for active tab + reserved HOD pool (`ibkr/scanner_l1.py`) | PROBLEM_LOG 2026-07-16 "Scanner stale despite Connected (IBKR snapshot SLA impossible)" |
-| 2026-07-14 | `universe_gap` + `rvol_formula` + gate | Nova watch set ≠ Warrior tape; RVOL was raw daily/avg not Warrior "Daily Rate" pace RVOL; master gate required +3%/5min on every strategy (blocked Medium Float grinds); Former Momo empty-list treated every symbol as former | IBKR HOT_BY_VOLUME/TOP_VOLUME_RATE/MOST_ACTIVE seeds; `market.pace_relative_volume`; master surge default 0 + schema v2; Former Momo requires non-empty list | PROBLEM_LOG 2026-07-14 "HOD Momo ≠ Warrior Day Trade Dash (wrong universe / RVOL / gates)" |
 | 2026-07-17 | `l1_capacity` / integrity flap (explore poison) | Integrity FAIL coverage 85–98% with FRE/CRD missing or hours-old ages; `l1_err subscribe failed`; observe REFUSED while ticks otherwise flowing | `note_l1_subscribe_failed` 300s cooldown from scanner_l1; purge quote/eval ages on demotion; coverage fail floor 90% (98%→warn); session_gate/observe HTTP timeout 30s | PROBLEM_LOG 2026-07-17 "HOD integrity FAIL from L1-failed explore symbols"; live gate PASS(warn) + observe --once after reload |
 | 2026-07-17 | infra (lifespan / event loop) | :8000 listens but `/docs` times out — IB Gateway 4001 up | Yield HTTP before IBKR; hard `wait_for` on `connectAsync`; recreate `IB()` on fail; default `IBKR_CLIENT_ID` 1→17 | PROBLEM_LOG 2026-07-17 "API listens but never serves"; unit tests `test_ibkr_client_connect.py` — live confirmed after restart |
 | 2026-07-17 | `l1_capacity` / infra (spawn abort) | Post-restart integrity FAIL coverage ~42%; zero `owner=hod/scanner` L1 subs; Squeeze names enrichment-only with `surge:None` | `fills_poll_loop` typo → `fill_poll_loop`; per-task resilient spawn; scanner_l1 first | PROBLEM_LOG 2026-07-17 "HOD L1 never started"; post-fix active p95~0.8s; SDOT session_high live |
@@ -154,38 +141,27 @@ Session-over-session tracking so future runs don't re-diagnose a solved bug or r
 | 2026-07-17 | `l1_capacity` (TRT sticky) | TRT empty snap after leaving gainers; never Nova-alerted so not in session_focus; slots=2 | `hod_momo_session_focus` sticky on master_rvol soft-block; slots=8; sticky→alerts→Former | Live: TRT `session_focus` $10.67 rvol=0.31; do not sticky on every Squeeze eval (flood) |
 | 2026-07-17 | `l1_capacity` (TRT sticky flood) | Sticky file 15 soft-blocks; TRT #15; only 8 L1 slots → empty snap post-restart | Cap sticky=8; cooled-first rank vs mover caches before truncate | Live: TRT $10.66 rvol=0.30; sticky `["ETS","BGDE","TRT",…]` |
 
-| 2026-07-17 | `gate_mismatch` (CNF nova_only / Squeeze without HOD) | User: CNF never on Warrior HOD but Nova Squeeze 5%/10% fired. Live config had **only** strategies 10/11 enabled (Float/Running Up/52wk accidentally mass-disabled) and Squeeze `requires_hod=False`, so surge-alone fired without Warrior Small-Cap HOD Momentum semantics | Schema v5 (`HOD_MOMO_CONFIG_SCHEMA_VERSION=5`): migrate forces Squeeze 10/11 `requires_hod=True`; re-enables non-Former strategies; live API repair + `test_schema_v5_squeeze_requires_hod_and_reenables` | Live config verified 2026-07-17T17:21Z: 10/11 `requires_hod=True`; 2–12 `enabled=True`; Former off. **Do not re-diagnose CNF as rvol_formula / universe_gap.** |
-| 2026-07-20 | `timing_definition` (VCIG HOD retest as Squeeze) | VCIG Nova Squeeze @ 08:24:14 / $1.34; Warrior true HOD @ 08:02:54; many Warrior Running Up after | `fails_hod_gate` required only price≈session_high; seed/retest opened HOD strategies. Now `session_high_raised_ts` + `HOD_MOMO_NEW_HOD_GRACE_SEC=60` | `hod-momo-2026-07-20.json` + `hod_momo.log` first eval 12:22:19Z; pytest 45 pass. **Restart API.** |
+
 
 ### Running Up — evidence summary (2026-07-20)
 
 | Source | What it says |
 |--------|----------------|
-| BA101 Ch.12 Scanning 101 | HOD Momentum = new high-of-day + pillars + recent % surge. **Running Up does not require new HOD** — only that the stock is moving; can alert on curls before HOD break. Separate scanner from HOD. |
-| KB / Authenticated-Site-Map | Running Up = sibling **alert scanner** (not an HOD sub-strategy). Same columns as HOD; may show burst annotations. |
-| Nova | Strategy **#12 Running Up Alert** (`requires_hod=False`, surge 5%/5m, min_rvol 2). Lives in the **same** HOD Momo tab (Warrior has a separate widget). VCIG 08:24 fire was Squeeze 10/11, not #12 (`rvol:unknown` blocked Running Up). |
 
 ### Still open (as of 2026-07-23 — post external survey)
 
 | Bucket | Evidence | Notes |
 |--------|----------|-------|
 | infra / false mute (**P0**) | Merged integrity FAIL from `scanner_ibkr_bridge` TimeoutError → `integrity_fail_suppress` ≫ fires while HOD L1 green | PROBLEM_LOG 2026-07-23; fix not shipped |
-| `timing_definition` (SDOT Squeeze) | Cool surge/hod; Warrior peak ~$31 vs Nova session_high ~$27.6 | Document only unless Warrior re-fires. |
 | `timing_definition` (PN/TRT Squeeze) | PN + TRT on L1; Squeeze blocked by cooled surge / soft path open | Wait for live surge — not universe/L1. |
-| `capacity_expected` (BTMD) | Off Warrior widget; empty Nova snap; never in IBKR top-50 at +3.8% | Do not chase until it reappears/re-ranks. |
 | Former | Disabled by default (schema v4); session_focus slots=8 for sticky/alerts (Former ranked last) | No fix budget. |
 | integrity: `hod_surge_after_seed` | Soft WARN (10 seeded surge=None) | Non-blocking cold-start risk. |
 | `nova_only` CNF (stale window) | Pre-v5 / off-widget Float names; SDOT Float vs Squeeze mismatch | Expect age-out; do not re-litigate / auto-label spam. |
 
-### Former Momo — evidence summary (for parent → user; do NOT invent Warrior formula)
+
 
 | Source | What it actually says |
 |--------|----------------------|
-| Warrior UI (research snapshot) | Strategy **label** `"Former Momo Stock"` appears as a row strategy in Day Trade Dash HOD Momentum (same widget as Squeeze / Low|Medium Float). No published numeric formula in the widget. |
-| BA101 Ch.12 Scanning 101 (`downloads/warrior-trading-caption-notes/BA101/chapter-12-scanning-101.md`) | Describes HOD Momentum as: new high-of-day + five pillars + recent % surge; Running Up omits HOD. Color guide mentions Former Momo as a **green strategy color band** ("All of the former Momo scanners are that same shade of green") — **label/UI grouping only**, not a closed-form equation. |
-| Warrior agent memory | Same: BA101 five-pillar + surge for HOD; Former Momo appears in AH snapshots as a strategy name. No formula scraped. |
-| Nova implementation (`backend/hod_momo_former.py`) | **Approximation, not a Warrior formula port:** explicit `former_momo_list` on strategy #1. Empty list → never fire. When any *other* strategy fires, `remember_former_momo(symbol)` appends the ticker; `bootstrap_former_momo_from_alerts()` heals from today's non-Former alerts. Gate = on list + normal HOD/RVOL strategy defaults (`min_rvol: 2.0`). Reserved `session_focus` L1 slots prefer Former-list order. |
-| Hard rule | Never copy Warrior Former rows into `former_momo_list` / `on_trade_update`. |
 
 
 ### Tried and failed (do not repeat blind)
@@ -207,49 +183,17 @@ The task that requested this refresh quoted **CJMB RVOL 7016.02→1.06** and **L
 
 Open improvements. Newest first. Mark `[x]` when done and move a one-line note to **Completed**.
 
-- [x] **CRITICAL:** API listen-but-not-serve — lifespan/IBKR connect hang — fixed 2026-07-17 (deferred bootstrap + connect wall + clientId 17); parent must restart uvicorn.
-- [x] **CRITICAL:** lifespan spawn typo `fills_poll_loop` aborted `scanner_l1` — fixed 2026-07-17 (`fill_poll_loop` + resilient spawn).
-- [x] Live Warrior RTH snapshot refreshed (AMPG/BTMD/RAM/RFIL/SDOT/TRT) — classified 2026-07-17T17:10Z.
-- [x] Live Warrior refresh ts=1784308360 (PESI/PN/VELO new) — Squeeze classified 2026-07-17T17:14Z.
-- [x] **TRT master_rvol** — formula OK; Squeeze soft-bypass shipped 2026-07-17.
-- [x] Sub-$20 TOP_PERC_GAIN seed pass (belowPrice=20).
-- [x] **PN empty snap** — under-$20 gainer seed head + upside-only movers + former_slots=2 (2026-07-17T17:22Z live volume_seed $4.44).
-- [x] **CNF nova_only false positive** — schema v5 Squeeze `requires_hod=True` + re-enable 2–12 (parent shipped; memory 2026-07-17T17:21Z).
-- [x] **TRT sticky L1** — session_focus soft-block sticky; live $10.67 (2026-07-17T17:30Z).
-- [x] **TRT sticky flood** — cooled-first + cap=8; live $10.66 (2026-07-17T17:45Z).
-- [ ] **P0 mute:** Scope `integrity_fail_suppress` to hod_momo integrity `fail` (or IBKR disconnect / L1 dead), not merged scanner-bridge TimeoutError flaps — PROBLEM_LOG 2026-07-23.
-- [ ] SDOT Squeeze: mid-move admission + surge trough — only if Warrior re-fires.
-- [ ] If BTMD-class miss while ranked outside IBKR top-50, consider HOT_BY_PRICE (capacity_expected until then).
-- [x] L1-fail explore poison + coverage 98% hard-fail — fixed 2026-07-17 (cooldown + age purge + 90% floor).
-- [ ] Independently re-verify the exact post-fix RVOL decimals for CJMB/LBGJ against a live `/debug/symbol` pull — resolve the 46.49/10.38 vs 1.06/0.01 discrepancy.
-- [ ] Verify `test_hod_momo_persist.py` asserts the cooldown_sec floor-guard before adding a duplicate spam-rate test.
+
 
 ### Completed
 
-- [x] 2026-07-17 — CNF false positive closed as schema v5 `gate_mismatch` (Squeeze without HOD + mass-disabled floats); PN seed + TRT soft-block already closed — remaining PN/TRT warrior_only = `timing_definition`.
-- [x] 2026-07-17 — RTH feed re-diagnosis: overnight integrity FAIL → recovered PASS(warn); classified JSPR universe_gap + Squeeze timing + LBGJ RVOL gate with live `/debug/symbol`; documented Former Momo evidence (BA101 label-only vs Nova remember-list); re-armed observe loop `--interval 30`.
-- [x] 2026-07-16 — Agent scaffolded via `tools/create_nova_agent.py`; root-cause ledger seeded from CHANGELOG.md/PROBLEM_LOG.md HOD Momo history so this agent starts with real context.
-- [x] 2026-07-16 — First real run: `hod_momo_session_gate.py --profile integrity_only` — FAIL on coverage=98% flap; seconds later `/api/integrity` WARN only (`hod_surge_after_seed` 7). See run log.
-- [x] 2026-07-17 — Separate worker fixed the 3 root causes behind live RVOL blowup + alert spam (cooldown_sec=0.0 persisted, stale avg_volume for multi-day runners, Alpaca-IEX avg_volume fallback for same-day movers); refreshed parity snapshot from the persistent observe loop confirms `nova_only` dropped from 41 to 0 across 14 stable ticks.
+
 
 ---
 
 ## Known traps
 
-- **Do not trust CHANGELOG "Verified by" lines as still-true.** This domain has had repeated claims of fixes ("HOD Integrity fail" fixed 2026-07-16, then a new integrity-adjacent bug found the same day) — the user explicitly said the live app still shows broken data despite prior fix claims. Always re-verify with a fresh command before reporting a bucket as closed.
-- **`nova_only` spam ≠ automatically a bug** — some `nova_only` rows may be legitimate Nova finds that Warrior's widget simply isn't showing (different universe breadth). Only escalate a bucket as `spam_cooldown` when the *rate* (same symbol+strategy firing repeatedly within the parity window) looks wrong, not just because Nova's row count is higher.
-- **Parity observer refuses to arm on integrity FAIL (exit 2) by design** — this is not a tool bug; it means fix the feed first (`tools/hod_momo_parity_observe.py` calls `hod_momo_session_gate.py --profile integrity_only` before diffing).
-- **`coverage=98%` Integrity fail ≠ L1 dead.** 39/40 active symbols OK rounds to 98%; usually one newly-admitted active symbol before first `note_quote`. Quote/eval p95 can be green while coverage hard-fails. Uncovered count is capacity design (watch ≫ 40), not a miss list to chase.
-- **Check id is `hod_surge_after_seed`** (not "after_reset"). Empty historical bar fetch still marks the symbol seeded → inflates `surge_none_after_seed_count`.
-- **After-hours snapshots undercount** — Warrior's HOD Momentum widget during AH shows a thinner symbol set (BIYA/LBGJ/JSPR pattern recurring across warrior-memory run log) than RTH; do not generalize AH parity numbers to RTH claims.
-- **`.tmp/hod-momo-parity/` is gitignored and ephemeral** — never treat it as the source of truth across sessions; always fold durable findings into this memory file + `PROBLEM_LOG.md`/`CHANGELOG.md`.
-- **Multiple `uvicorn --reload` cycles can leave a zombie process holding the real IBKR `clientId`** (per `classify_latest.md` operational note) — WatchFiles can log "Reloading..." without the worker PID actually changing, so a newer `--reload` spawn fails to connect to IBKR (`Error 326: client id already in use`) while the zombie keeps answering HTTP. Before trusting "the API on port 8000" for live verification, confirm exactly one python/uvicorn process is bound to that port and its log shows a clean IBKR `Connected`/`Logged on` with no `Error 326`.
-- **Overnight L1 death can look like "Nova alerts broken" while HTTP still answers** — integrity FAIL with quote/eval max ages climbing for hours + `scanner_table_reprice` stale; observer correctly refuses (nova=0). Do not redesign gates from that window. Re-check `/api/integrity` live; if recovered, parity numbers after recovery are the ones that count.
-- **Stale `warrior_latest.json` invalidates continuous 1:1** — if Warrior ts is from prior session/AH while Nova is RTH, warrior_only and nova_only mix timing artifacts with real gaps. Always check Warrior `ts` before escalating buckets.
-- **yfinance's own `averageVolume` field drifts within minutes on extreme-volume days** — a fresh ATPC fetch returned a value 248x higher than one taken ~11 minutes earlier from the same function. `HOD_MOMO_FUNDAMENTALS_REFRESH_SEC` (300s) bounds staleness, it does not guarantee RVOL is never momentarily off inside a single refresh window on the most explosive names.
-- **Accidental mass-disable + Squeeze `requires_hod=False` looks like a formula bug** — if only strategies 10/11 are enabled (or Squeeze fires without HOD), check persisted `hod-momo-config.json` / schema version before chasing RVOL/universe. Schema v5 self-heals; do not re-litigate CNF.
-- **`price ≈ session_high` is not a Warrior HOD alert** — that's Running Up / retest. After 2026-07-20, requires_hod needs `session_high_raised_ts` within 60s. If Squeeze fires without a true new high, check grace + raised_ts before blaming surge/RVOL.
-- **IBKR Error 10089 (delayed MD)** on a symbol can delay first HOD eval by many minutes vs Warrior — classify as `l1_capacity` / subscription, not gate mismatch, when first TRADE line is far after Warrior's HOD time.
+
 
 ---
 
@@ -259,41 +203,21 @@ Newest first. Keep entries short. Cap at ~30 entries — delete the oldest half 
 
 <!-- RUN_LOG_START -->
 
-### 2026-07-23 — RBNE Warrior Squeeze miss (integrity mute, not filter)
 
-- **Scope:** Diagnosis — why RBNE absent on Nova when Warrior Squeeze 5%/5min @ 11:58:26 ET / $5.90.
-- **Watched:** Yes — active set `priority_reasons.RBNE=top_gainer`; L1 quote/eval p95~0.57s; float=430406; rvol≈3.39 ibkr_pace; high_seeded; session_high raised to 5.90 at same tick.
-- **Exact Warrior-time TRADE:** `2026-07-23T15:58:27.523 TRADE RBNE price=5.9 … gate=passed fired=[none] blocked=[11:integrity_fail_suppress; 12:integrity_fail_suppress]`.
-- **Code path proof:** `hod_momo_trade` only writes `integrity_fail_suppress` *after* HOD gate + `evaluate_strategy` both pass — so Squeeze #11 **would have fired**.
-- **Bucket:** infra / false mute (known P0). Not `gate_mismatch` / surge / universe / L1.
-- **Also muted earlier new-HOD:** 15:55:05Z price=5.75 both 11+12 `integrity_fail_suppress`.
-- **Gate now:** session_gate FAIL exit 2 — sticky `scanner_ibkr_bridge` TimeoutError (~31m); `parts.hod_momo=warn`. Zero RBNE alerts today.
-- **Next:** ship P0 — scope suppress to hod_momo fail only (PROBLEM_LOG 2026-07-23). No new PROBLEM_LOG (same root).
+
+
 
 ### 2026-07-23 — Investigation: external HOD survey + live mute root cause
 
-- **Scope:** Diagnosis only — “is there ready OSS HOD to repurpose?” No product code.
-- **Gate:** FAIL exit 2 — `scanner_ibkr_bridge` `gainers: TimeoutError` (gainers cache still fresh 50 rows).
-- **HOD L1:** healthy — p95 quote/eval ~0.75s; ticks flowing; watch 575 / active 40.
-- **Mute evidence:** `integrity_fail_suppress`~6418 vs Squeeze fired 5 / Running Up 23; alerts_today 78 (ticker field, e.g. VIVK).
-- **OSS verdict:** no drop-in reuse; Warrior-inspired Yahoo scrapers / Polygon-primary MMR / MIT RVOL docs = study-only. Prefer surgical Nova fix over rewrite.
-- **Artifacts:** `knowledge/task-log/2026-07-23-hod-scanner-external-survey.md`; PROBLEM_LOG integrity mute entry.
-- **Next:** authorize fix to decouple HOD suppress from scanner-bridge flaps; then re-arm parity observe.
+
 
 ### 2026-07-20 — Separate Running Up UI tab from HOD Momo
 
-- **Scope:** User asked complete separation so Running Up is not mixed into HOD scanner.
-- **Change:** `running_up` registry tab + `RunningUpTab`; `partitionScannerAlerts`; HOD chips/filter exclude #12; removed “Running Up only” chip.
-- **Unchanged:** Backend one feed/evaluator; strat 12 `requires_hod=false`; Warrior never drives engine.
-- **Verify:** Vitest partition+registry 14 pass; `tsc --noEmit` clean.
+
 
 ### 2026-07-20 — VCIG late Squeeze = HOD retest (fixed new-high grace)
 
-- **Scope:** User VCIG 08:24 Nova vs Warrior 08:02 HOD + Running Up flood; Running Up definition + gap.
-- **Evidence:** `hod-momo-2026-07-20.json` VCIG Squeeze 10/11 @ 12:24:14Z $1.34; `hod_momo.log` first TRADE 12:22:19Z `high_unseeded` then fire; Running Up #12 blocked `rvol:unknown`; blast.log Error 10089 on VCIG.
-- **Bucket:** `timing_definition` (+ late L1 / 10089). Not "treating Running Up as HOD" literally — Squeeze with at-HOD gate.
-- **Fix:** `session_high_raised_ts` + `HOD_MOMO_NEW_HOD_GRACE_SEC=60`; seed does not open window. Pytest 45. No commit. **Restart API.**
-- **Running Up:** Official = separate scanner, no new HOD required (BA101). Nova has strat #12 in same tab.
+
 
 ### 2026-07-17 — Fix #2b TRT sticky flood (cooled-first + cap=8)
 
@@ -312,86 +236,39 @@ Newest first. Keep entries short. Cap at ~30 entries — delete the oldest half 
 
 ### 2026-07-17 — CNF false positive closed (schema v5); PN/TRT seed+RVOL remain timing-only
 
-- **Scope:** Parent fixed CNF; update ledger; confirm PN/TRT still-open status. No new code. No commit.
-- **Gate:** PASS (warn) — `hod_surge_buffer` cold-start WARN.
-- **CNF:** `gate_mismatch` — only Squeeze 10/11 enabled + `requires_hod=False`. Warrior HOD Momentum requires new HOD. Schema v5 live verified (10/11 hod=True; 2–12 on; Former off). Stale CNF may remain in nova_only window until age-out.
-- **PN:** seed closed — live $4.44 at HOD, soft master_rvol, Squeeze surge cooled → `timing_definition`.
-- **TRT:** soft-block closed earlier; empty snap now → churn/`timing_definition` (not RVOL formula).
-- **Parity:** warrior=40 nova=93 both=0 warrior_only=10 nova_only=37.
-- **Memory:** Fixed ledger + Known trap + backlog; dashboard refresh-required.
+
 
 ### 2026-07-17 — Fix #1 PN universe_gap: under-$20 seed head + upside movers
 
-- **Scope:** Authorized surgical fix for PN empty snap (Squeeze universe_gap).
-- **Trace:** PN in gainer cache rank~36 @ ~$4.40; watch/discovery yes; active no — HOT_BY_VOLUME seed head + top_loser mover slots + former_slots=8.
-- **Fix:** `seed_symbols_for_active`/`discovery_for_active`; belowPrice-first `scan_hod_momentum_seeds`; omit loser_rows; FORMER_SLOTS 2.
-- **Verify:** PN active `volume_seed` price=$4.44; gate PASS(warn); observe warrior=40 nova=93 both=0 warrior_only=10; pytest 25 passed.
-- **No commit.** Next: TRT L1 sticky.
+
 
 ### 2026-07-17 — Follow-up fix: TRT RVOL soft-block + sub-$20 seed (PN admitted)
 
-- **Scope:** BTMD seed/L1; TRT RVOL diagnose/fix; SDOT document-only. Warrior age ~6min (<10m).
-- **Gate:** PASS (warn).
-- **TRT:** pace RVOL 0.32 = vol/(avg×elapsed) correct (yf avg 1.58M). Not formula bug — master floor blocked surge-only Squeeze. Soft-block shipped; live Squeeze strategies evaluate.
-- **PN:** Was empty-snap universe_gap; now price=$4.40 in gainers, gate soft master_rvol(0.05), Squeeze blocked only by cooled surge~3.5%.
-- **BTMD:** Off widget; still capacity_expected (never in IBKR top-50 at +3.8%).
-- **SDOT:** timing cooled — no code change.
-- **Files:** filters/trade/admin, discovery, constants_ibkr, tests, CHANGELOG, PROBLEM_LOG, memory.
 
-### 2026-07-17 — Warrior refresh ts=1784308360; Squeeze classify (PN/SDOT/TRT)
 
-- **Scope:** integrity PASS/warn; classify warrior_only focusing Squeeze; Former deprioritized; no commit.
-- **Gate:** PASS (warn) — `hod_surge_after_seed=3`; active q/e p95~0.57s; IBKR connected.
-- **Parity:** warrior=40 nova=53 both=0 warrior_only=10 nova_only=27 strategy_mismatch=SDOT.
-- **Squeeze:** SDOT→`timing_definition` (at HOD surge 3.3%/4.6%; Warrior peak ~$31 vs Nova HOD $27.55); PN→`universe_gap` (empty snap; new vs BTMD); TRT→`gate_mismatch`/`rvol_formula` (master_rvol 0.32).
-- **Former:** AMPG/PESI/RAM/RFIL/VELO — deprioritized (no fix budget).
-- **BTMD:** off Warrior widget; still empty Nova — seed work continues via PN.
-- **Fix:** diagnosis only. Memory + dashboard updated.
 
-### 2026-07-17 — Live Warrior snap + Squeeze triage; spawn typo killed L1
 
-- **Scope:** integrity + observe vs fresh warrior_latest (SDOT/BTMD/TRT/AMPG/RAM/RFIL); prioritize Squeeze; fix clear root cause.
-- **Gate:** PASS (warn) after fix; during broken spawn: FAIL coverage ~42%.
-- **Parity:** warrior=40 nova=13 both=0 warrior_only=7 nova_only=13 (post-fix tick).
-- **Classified:** SDOT Squeeze→`timing_definition` (hod cooled; L1 OK); BTMD Squeeze→`universe_gap`; TRT Squeeze→`gate_mismatch`/`rvol_formula` (master_rvol 0.32); AMPG/RAM/RFIL Former→deprioritized/empty snap.
-- **Fix applied:** `fills_poll_loop`→`fill_poll_loop` + per-task spawn; scanner_l1 first. Evidence: before=0 hod/scanner L1 subs + no bootstrap complete; after=bootstrap complete + IBKR ticks subscribed + active p95~0.8s.
-- **Files:** `app_lifespan.py`, `test_app_lifespan_spawn.py`, CHANGELOG, PROBLEM_LOG, memory, dashboard.
-- **Handoff:** none required for feed; next Squeeze recall = BTMD seed + TRT RVOL evidence.
+
+
+
+
+
 
 ### 2026-07-17 — CRITICAL: API listen-but-not-serve (lifespan IBKR hang)
 
-- **Scope:** Diagnose :8000 accept TCP but `/docs` timeout; Gateway 4001 listening; fix surgically.
-- **Result:** BLOCKED for parity — code fix applied; live serve unconfirmed until parent restarts uvicorn.
-- **Root cause:** `app_lifespan` awaited Alpaca ping + IBKR startup on the same loop before `yield`. Hung `connectAsync` (Error 326 / clientId=1 zombie pattern) prevented Starlette from finishing startup.
-- **Fix applied:** Deferred bootstrap after yield; `asyncio.wait_for` around connect (`IBKR_CONNECT_TIMEOUT_SEC=8`); recreate `IB()` on fail; default `IBKR_CLIENT_ID` 17. Tests: `test_ibkr_client_connect.py`. CHANGELOG + PROBLEM_LOG prepended (no commit).
-- **Handoff:** parent restart uvicorn (kill zombie on 8000 first); then `curl /docs` + `session_gate`; warrior needs human Sign in.
-- **Files:** `app_lifespan.py`, `ibkr/client.py`, `constants_ibkr.py`, tests, memory, CHANGELOG, PROBLEM_LOG.
+
 
 ### 2026-07-17 — URGENT tick #2: L1-fail explore poison (FRE) → integrity FAIL → fixed
 
-- **Scope:** Diagnose re-FAIL (coverage ~85–98%, FRE missing, quote ages hours); surgical fix; restore gate + observe.
-- **Result:** PASS (warn) — `session_gate` exit 0; `observe --once` warrior=40 nova=82 both=1 warrior_only=7 nova_only=29. Observe loop re-armed `--interval 30`.
-- **Root cause:** FRE (discovery explore) failed IBKR L1 subscribe (`l1_hod=39`); coverage hard-required 100%; demoted symbols retained stale `_last_quote_ts` → hours-old max age when re-admitted without L1. Not Error 326 (single uvicorn worker; IBKR connected).
-- **Fix applied:** `note_l1_subscribe_failed` cooldown; purge ages on demotion; coverage fail floor 90%; tool timeouts 30s. Tests green. PROBLEM_LOG + CHANGELOG prepended (no commit — parent must ask).
-- **Classified (unchanged vs prior):** JSPR→`universe_gap`; BIYA/LBGJ Squeeze→`timing_definition`; LBGJ Low Float→`gate_mismatch` (rvol&lt;5); Former deprioritized. Warrior snapshot still AH-stale.
-- **Files updated:** `hod_momo_active.py`, `hod_momo_integrity_hod.py`, `constants_hod_momo.py`, `scanner_l1.py`, tools timeouts, tests, memory, CHANGELOG, PROBLEM_LOG, dashboard.
+
 
 ### 2026-07-17 — RTH critical re-arm (user: Nova not matching / want continuous 1:1)
 
-- **Scope:** Diagnose overnight integrity FAIL / nova=0; re-arm gate+observer; classify warrior_only with priority on Squeeze/Float/JSPR; document Former Momo evidence. No code change (feed recovered without patch).
-- **Result:** PASS (warn) — integrity recovered (coverage 100%, qmax &lt;1s, IBKR connected). Parity `--once`: warrior=40 nova=53 both=1 warrior_only=7 nova_only=21. Observe loop restarted (`--interval 30`) — first tick warrior=40 nova=61 both=1 warrior_only=7 nova_only=23.
-- **Classified:** JSPR→`universe_gap` (no snap, not in discovery); BIYA Squeeze→`timing_definition` (`hod price&lt;hod`); LBGJ Squeeze→`timing_definition` (`surge:None`); LBGJ Low Float→`gate_mismatch` (`rvol 2.64&lt;5`); LBGJ/BIYA Former deprioritized; nova_only held pending Warrior refresh.
-- **Former Momo:** BA101 only labels color/strategy name; Nova uses remember-list approximation — no published Warrior closed-source formula found.
-- **Blocker for continuous 1:1:** `warrior_latest.json` still AH 2026-07-16T23:07Z — handoff `warrior`.
-- **Files updated:** `hod-momo-memory.md`, `agent-hod-momo.canvas.tsx`.
+
 
 ### 2026-07-17 — Post-fix refresh (separate worker landed cooldown/RVOL/enrichment fixes)
 
-- **Scope:** Refresh memory + dashboard after a separate worker fixed 3 root causes behind live RVOL blowup + alert spam. No code touched by this agent; read-only classification + ledger/dashboard update.
-- **Result:** PASS (warn) — `nova_only` 41→0 across 14 consecutive observe-loop ticks (`warrior=40 nova=2 both=2 warrior_only=6 nova_only=0`); `session_gate --profile integrity_only` PASS (warn, `hod_surge_after_seed` only).
-- **Evidence:** Persistent `tools/hod_momo_parity_observe.py --interval 30` loop's `.tmp/hod-momo-parity/observe_loop_stdout.log` (14 ticks, all identical counts); own independent `py -3 tools/hod_momo_parity_observe.py --once` run at 2026-07-17T00:32:02Z reproduced the exact same `warrior=40 nova=2 both=2 warrior_only=6 nova_only=0` (15th consistent data point); `PROBLEM_LOG.md`/`CHANGELOG.md` 2026-07-16 "RVOL 700x-11000x blowup + alert spam despite 'fixed' prior session"; `.tmp/hod-momo-parity/classify_latest.md` (other worker's own root-cause + before/after table).
-- **Learning:** Moved 3 root causes (cooldown_sec=0.0 persisted, stale avg_volume for multi-day runners, Alpaca-IEX avg_volume fallback for same-day movers) from "still open" to "fixed" with corroborated before/after evidence. Found and flagged a numeric discrepancy: this session's task prompt quoted CJMB/LBGJ post-fix RVOL as 1.06/0.01, but every written artifact from the fixing session (PROBLEM_LOG, CHANGELOG, classify_latest.md) says 46.49/10.38 — used the corroborated repo numbers and logged the discrepancy rather than silently trusting the prompt's paraphrase. `nova=2` (vs. 400 before) is a genuinely quiet post-fix tape per the fixing session's own note (extended-hours liquidity dried up post-20:00 ET), not a broken feed — cross-checked against 14 stable ticks, not a single sample.
-- **Files updated:** `hod-momo-memory.md`, `agent-hod-momo.canvas.tsx`.
+
 
 ### 2026-07-16 — Live Integrity fail banner triage (coverage 98% + surge_none)
 
@@ -403,10 +280,6 @@ Newest first. Keep entries short. Cap at ~30 entries — delete the oldest half 
 
 ### 2026-07-16 — Agent install + memory seed
 
-- **Scope:** Meta — scaffold `hod-momo` via agent contract system; seed memory from existing CHANGELOG.md/PROBLEM_LOG.md HOD Momo entries and `.tmp/hod-momo-parity/diff_latest.json` (captured 2026-07-16T23:31:51Z) so the agent starts with real context instead of empty.
-- **Result:** install
-- **Evidence:** `diff_latest.json` counts warrior=40 nova=400 both=3 warrior_only=5 nova_only=41; 5 CHANGELOG/PROBLEM_LOG root causes already fixed this session (consolidation span, session_focus L1, heartbeat SLO, Former Momo bootstrap, scanner_l1 streaming); RTH remeasure and JSPR universe gap explicitly still open per CHANGELOG follow-ups.
-- **Learning:** This domain has a pattern of "fixed" claims that the user still finds broken live — treat every prior fix as needing fresh re-verification, not as closed.
-- **Files updated:** `hod-momo.md`, `hod-momo-memory.md`, registry entry, `agent-hod-momo.canvas.tsx`.
+
 
 <!-- RUN_LOG_END -->

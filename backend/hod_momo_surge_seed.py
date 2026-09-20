@@ -1,6 +1,6 @@
 """HOD Momo surge buffer seeding from local 1-min bars (never IB historicals).
 
-Warrior Squeeze (Up 5% in 5min / 10% in 10min) needs a rolling price buffer.
+momentum Squeeze (Up 5% in 5min / 10% in 10min) needs a rolling price buffer.
 Live L1 only starts after a symbol joins the focus universe. If the operator
 already paid for today's 1Min series (chart open / warm prefetch), reuse
 ``bars_store`` so Squeeze can see the trough. Otherwise the buffer builds

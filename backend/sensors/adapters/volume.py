@@ -61,7 +61,7 @@ def read_rvol(symbol: str) -> dict[str, Any]:
             "tod_20d": None,
             "note": (
                 "20-day time-of-day average is not stored. "
-                "Using existing ADV pace (today / expected-by-clock) and Warrior 5-min when present."
+                "Using existing ADV pace (today / expected-by-clock) and momentum 5-min when present."
             ),
         },
         error=None

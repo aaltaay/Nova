@@ -30,6 +30,11 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+
+## 2026-09-19 — Remove files
+
+- Removed unused supporting files and generated outputs; updated references and agent metadata.
+
 ## 2026-09-19 -- Freeze the completed-orders prerequisite test clock
 
 - **What:** Pin the completed-orders warning tests to the fixture day and restore real timers afterward.
@@ -57,28 +62,6 @@ Entry template (copy and fill in):
 - **Verified by:** `py -3 -m pytest tools/test_doc_invariants.py -q` -> 18 passed; `py -3 tools/doc_invariants.py` -> OK. Red/green against the real defect: the guard reports 7 violations on `origin/master`'s CHANGELOG and 4 on its PROBLEM_LOG, naming every misplaced block by line, and 0 on this branch. Repair itself: scripted check shows all 8 moved blocks byte-identical, prior entries below the marker untouched, and every line above the marker byte-identical to `32b93f2`.
 - **Follow-ups:** The moved Sim tape block keeps its original `## Unreleased` / `### Fixed` heading rather than the dated template (this PR was scoped not to alter moved content) -- normalization stays on D-061 #312. The guard catches at PR time; it does not stop an agent writing the entry wrong, and it does not check ordering below the marker.
 - **Related:** D-061 #312; `.cursor/agent-memory/*` `RUN_LOG_START` markers were checked and are never quoted in prose, so the hazard is specific to these two files.
-
-## 2026-09-19 -- Operational rules now cite `#NNN`, not `D-NNN` (follow-up to #352)
-
-- **What:** Every *instruction* in the always-on rules, the agent-ops docs and the subagent lifecycle hook that told agents to recognise, cite or record a `D-NNN` now prefers the GitHub issue number (`#NNN`), while still accepting the legacy alias. 12 sites across `.cursor/rules/deferred-log.mdc`, `.cursor/rules/self-annealing.mdc`, `.cursor/rules/specialist-routing.mdc`, `.cursor/rules/constitution.mdc`, `tools/subagent_lifecycle_hook.py` and `docs/agent-operations.md`. No runtime behavior changes; the hook edit is a reminder string.
-- **Why:** #352 amended AGENTS.md §7.2b / §7.2c / §9 so new issues are `#NNN`-only, but left the enforced `.mdc` rules disagreeing with it. Since a newly filed issue has no `D-NNN`, an agent following those lines would either search for an id that cannot exist -- and so start a parallel fix on an already-parked issue -- or declare a fictitious identifier in its Lifecycle footer. §7.3 makes the MDC rules peers of the constitution, and they are what every agent reads on every request, so amending only AGENTS.md left the governing pair inconsistent. Raised as a P1 review finding on #353 and verified by grep before fixing.
-- **Files touched:** `.cursor/rules/deferred-log.mdc`, `.cursor/rules/self-annealing.mdc`, `.cursor/rules/specialist-routing.mdc`, `.cursor/rules/constitution.mdc`, `tools/subagent_lifecycle_hook.py`, `docs/agent-operations.md`, `CHANGELOG.md`.
-- **How it works now:** Search and citation steps say "an existing issue" or "`#NNN`, or its legacy `D-NNN`"; `deferred_log=` examples declare `#NNN`; the lifecycle reminder reads `deferred_log=<#NNN or D-NNN>`. The mentions that describe `D-NNN` *as* the legacy format are deliberately kept -- "do not prepend `## D-NNN` sections", "no `D-NNN` prefix", "never mint a new `D-NNN`", and the `<#NNN or D-NNN>` footer shapes -- because ~90 existing issues still carry a legacy id and deleting those lines would lose the alias contract.
-- **Verified by:** `python3 tools/doc_invariants.py` -> exit 0, which is the meaningful gate here because `.cursor/rules/*.mdc` are covered by `LIVE_GLOBS`, so every edited rule file is scanned. `pytest tools/ -q --ignore=tools/course_memory` -> 313 passed, 1 failed (`test_maintainer_checks` index_css, pre-existing on clean master). `ruff check tools/subagent_lifecycle_hook.py` -> clean. Post-edit grep confirms no surviving `D-NNN` instruction outside the legacy-alias mentions listed above.
-- **Follow-ups:** #352's four `Closes` targets (#335, #313, #351, #349) did **not** auto-close on merge despite the keywords; they were closed manually with evidence comments. Worth checking whether other Actions-merged PRs left linked issues open.
-- **Related:** Follow-up to #352 (merged as `c3f1273`). WS2 of #344 (D-080). Constitution §7.1 requires this entry for a rules change -- it was omitted on the first push and is corrected here.
-
-
-## 2026-09-19 -- Deferred ids are GitHub issue numbers; `next-id` removed (WS2 of #344)
-
-- **What:** The durable id for a `deferred` item is now the GitHub issue number (`#NNN`). `deferred_log.py next-id` and `deferred_github.next_id_from_issues` are deleted. `TITLE_RE` no longer requires a `D-NNN --` prefix, so a labeled issue is tracked whatever its title. `doc_invariants.py` gains a `missing_live_path` violation. `D-NNN` remains a legacy alias that still parses and displays.
-- **Why:** Allocation was read-max-then-add-one, which is not atomic. Two agents filing concurrently derive the same id, and 8 ids are duplicated across 16 issues today (D-057, D-058, D-059, D-073, D-074, D-075, D-076, D-077). This was demonstrated live: an id allocated from a fresh GitHub read still collided, because another issue took it between the read and the write -- so a fresher index could never have prevented it. GitHub already mints a unique monotonic id atomically on create, and `#NNN` carries no less information than `D-NNN`, so the allocation step was pure cost. Separately, `TITLE_RE` was dropping every issue not filed through the tool: 4 of 94 labeled issues were invisible to `status` / `priorities` / the sessionStart brief, including #216 which is labeled `parked` -- the one status agents are told to honor.
-- **Files touched:** `tools/deferred_log.py`, `tools/deferred_github.py`, `tools/doc_invariants.py`, `tools/test_deferred_log.py`, `tools/test_deferred_github.py`, `tools/test_doc_invariants.py`, `AGENTS.md` (§7.2b / §7.2c / §9 + maintenance log), `.cursor/rules/deferred-log.mdc`, `DEFERRED_LOG.md`, `docs/agent-operations.md`.
-- **How it works now:** File an issue with a plain title and the usual labels; GitHub assigns `#NNN`. `parse_issue` returns the legacy `D-NNN` when the title carries one and `#NNN` otherwise, and returns `None` only for an empty title -- which is now counted and reported on stderr rather than dropped in silence. `open_actionable` sorts on the issue number (falling back to a legacy `D-NNN`) through a helper that cannot raise, because that path also feeds the sessionStart brief. `knowledge/deferred-index.json` is demoted to a read cache: nothing allocates from it, so staleness degrades a listing instead of corrupting the tracker. `doc_invariants.py` now fails when a declared `LIVE_PATHS` entry is missing, instead of silently scanning less; `LIVE_GLOBS` stays exempt because a glob may legitimately match nothing.
-- **Verified by:** `pytest tools/ --ignore=tools/course_memory` -> 313 passed, 1 failed (`test_maintainer_checks.py::test_run_checks_on_real_repo_reports_index_css`, `152 lines > hard limit 150` -- confirmed pre-existing by re-running it with these changes stashed on clean master; `tools/course_memory` is excluded for a pre-existing `ModuleNotFoundError: pypdf`, also confirmed on clean master). `python3 tools/doc_invariants.py` -> exit 0. `deferred_log.py next-id` -> argparse rejects the choice. The four previously-invisible issues (#222, #216, #147, #189) were replayed through the patched parser as `gh` would return them: all four now parse, #216 keeps `parked`, #189 keeps `done`, and `open_actionable` ranks a mixed `#NNN` / `D-NNN` set without raising.
-- **Follow-ups:** `publish_markdown` still echoes `D-NNN` from the legacy markdown, which is correct -- it replays ids that already exist and allocates nothing. `#147` carries no `P*` label, so it sorts last until one is added.
-- **Related:** Closes #335 (D-078), #313 (D-062), #351 (D-084), #349 (D-083). WS2 of #344 (D-080). `PROBLEM_LOG.md` entry below.
-
 
 ## 2026-09-19 -- Version is derived from git, never committed (WS1 of #344)
 
@@ -305,15 +288,6 @@ Entry template (copy and fill in):
 - **Verified by:** Vitest placement after Pack + add/remove through `postBotAllowlist`. Neighbor Strategy allowlist + bot pack copy tests. `npm run lint` / `npm run build`. Rebased onto `origin/master` after HOD Momo ping (#273); only CHANGELOG conflicted.
 - **Follow-ups:** PR holds `do-not-merge` until Ahmed clicks Allowlist on the live desk.
 - **Related:** Strategy tab allowlist 2026-09-18. No new deferred issue.
-
-## 2026-09-18 -- HOD Momo new-row ping + banner mute
-
-- **What:** A short Web Audio ping plays when a new HOD Momo alert row arrives. Speaker toggle in the HOD Momo Scanner header (and the HOD dock bar) mutes it. Default on; preference is localStorage.
-- **Why:** Ahmed asked to look up when HOD fires without opening Configure.
-- **Files touched:** `frontend/src/hod_momo/hodMomoAlertSound.ts`, `HodMomoSoundToggle.tsx`, `useHodMomoStream.ts`, `HodMomoTab.tsx`, `HodMomoDock.tsx`.
-- **How it works now:** Live `/ws/hod-momo` `alert` messages (not `initial` / reconnect replay, not duplicate id or symbol+time) call `noteHodMomoLiveAlert`. Running Up (strategy 12) does not ping. Burst rule: one ping per 400ms. Banner mute is not `cfg.audio` -- that field is per-strategy backend Warrior config and never plays a sound. Cue matches `novaOsAttention` (quiet 880Hz oscillator); Nova OS mute is not shared.
-- **Verified by:** `npx vitest run src/hod_momo` -- 15 files, 51 passed. `npm run lint` / `npm run build` exit 0. `doc_invariants` OK. Rebase onto `origin/master` 07a3835; only CHANGELOG conflicted.
-- **Related:** Product ask 2026-09-18. Rebased onto `origin/master` after #267 / #268. Closed duplicates #270 / #271 heads deleted. `do-not-merge` until CI green.
 
 ## 2026-09-18 -- Fund account opens IBKR Client Portal
 
@@ -835,15 +809,6 @@ Entry template (copy and fill in):
 - **Verified by:** Vitest `StockViewTabStrip`, `StockViewTabs`, `traderDesk`, `traderOpen` (dock-request over storage restores F).
 - **Related:** Closes #158. PROBLEM_LOG 2026-09-16 -- Pop-out Dock vanished ticker.
 
-## 2026-09-16 -- Drop 50 EMA from chart overlays
-
-- **What:** Chart overlays no longer draw a 50 EMA. The Warrior-style set is 9 / 20 / 200 EMAs plus VWAP. Existing hex colors for 9, 20, 200, and VWAP are unchanged.
-- **Why:** Ahmed does not use the 50 EMA; the red 50 line was clutter on the price pane.
-- **Files touched:** `frontend/src/constantGroups/chart_api.ts`, `frontend/src/chartIndicators.test.ts`.
-- **How it works now:** `CHART_EMA_LENGTHS` is `[9, 20, 200]`. Overlay rendering, axis titles, and `computeEmaOverlays` all walk that list, so the 50 line, color, and legend tag are gone. VWAP and the 9/20/200 colors stay as they were.
-- **Verified by:** Soft TDD on `chartIndicators.test.ts` (red with `[9, 20, 50, 200]`, then 9/9 green). Chart-adjacent Vitest: 39 files / 276 passed. ESLint on touched chart files exit 0. `npm run build` exit 0; built `constants-*.js` has `$e=[9,20,200]` and colors 9/20/200/VWAP only (`#EF4444` absent). `doc_invariants.py` OK.
-- **Related:** none (product preference, not a bug). Historical CHANGELOG / task-log rows that said 9/20/50/200 stay as dated history.
-
 ## 2026-09-16 -- Filter junk movers listicles from News + flame
 
 - **What:** Movers/listicle headlines (Benzinga "N stocks moving" recaps and the same class) are excluded from the trader News column, scanner NEWS timestamp, catalyst pick, and news_impact. They no longer light the age flame.
@@ -1057,15 +1022,6 @@ Entry template (copy and fill in):
 - **Verified by:** `pytest backend/tests -q` (1645 passed after pinning the surge-seed clock; 1 prior fail was `test_seed_symbol_stale_store_does_not_poison_surge_buffer` at the 04:00 ET boundary); `npx vitest run` (972 passed); `npm run lint` (0 warnings); `ruff check` on touched backend files; `tools/doc_invariants.py` OK; `npm run build` -- `App-*.js` is 28.44 kB (was 705 kB). Settings 65 kB, Reports 14 kB, Backtest 4.4 kB, Trading 14 kB are separate chunks. The remaining >500 kB warning is `vendor-charts` (already split). Playwright E2E was not run here (no Chromium on this VM); CI `Frontend E2E` is the gate.
 - **Follow-ups:** `settings-workspace.css` / `stockViewTerminal.css` still exceed the 1000-line stylesheet baseline -- that is a split, not this perf Next.
 - **Related:** Closes #18 #16 #15. PROBLEM_LOG 2026-09-11 -- ScannerTable full-grid re-render; D-034 stale ADR comments.
-
-## 2026-09-11 -- Honesty batch: HOD integrity, depth cap refuse, persist schema_version
-
-- **What:** Empty scanner tables no longer pass integrity by vouching for each other. Large Cap breakout dedupe survives an API restart. A 4th live Level 2 symbol is refused instead of evicting a live ladder. Dated cache JSON, blocklist, session-focus, alert channels, and the localStorage prefs we touch now carry `schema_version`.
-- **Why:** D-028 / D-027 / D-017. Two empty tables could call each other "OK". Large Cap re-fired Discord/Telegram after restart. Depth cap tore down a real Trader ladder. Persist files had no version, so a shape change would load half-parsed rows.
-- **Files touched:** `backend/hod_momo_integrity_scanner.py`, `backend/large_cap_alerts.py`, `backend/ibkr/depth/subscribe.py`, `backend/cache.py`, `backend/cache_schema.py`, `backend/news_catalyst_persist.py`, `backend/hod_momo_session_focus.py`, `backend/alerts/channels_store.py`, `frontend/src/utils/prefStore.ts`, `frontend/src/hooks/useExchangeFilter.ts`, `frontend/src/components/ChartGrid.tsx`, `frontend/src/stock_view/stockViewDockPersist.ts`, `frontend/src/ibkr/useOrderTableSort.ts`
-- **How it works now:** Sibling-vouch requires another table to be live with rows (or frozen with rows). `_fired_today` is stored on today's `large_cap-*.json`. Depth evicts idle slots only; three live viewers stay. Missing `schema_version` migrates; unknown versions refuse loud. `HOD_MOMO_COOLDOWN_SEC` stays 0 -- consolidation (10s) is the rate limit (Warrior burst badge, 2026-07-17). Persist already pins cooldown to that constant.
-- **Verified by:** `pytest backend/tests` 1606 passed; `ruff check backend` clean; focused honesty tests 109 passed; `npm test` 917 passed; `npm run lint` 0 warnings. Frontend build on this revision.
-- **Related:** Closes #21 #22 #30. PROBLEM_LOG 2026-09-11 honesty batch.
 
 ## 2026-09-11 -- Execution safety batch: account-pinned spend, kill switch is a spend latch, honest order ticket
 
@@ -1290,16 +1246,6 @@ Entry template (copy and fill in):
 - **How it works now:** The exact Client Portal token message latches only that symbol at the centralized execution boundary. A later entry is rejected before broker send; order-management and position-reducing commands bypass the latch. The dialog shows the order context, opens only the allowlisted official IBKR portal in the system browser, and clears the latch only when the operator confirms completion. Nova never retries automatically.
 - **Verified by:** Backend 1,493 passed; frontend 878 passed across 180 files; `npm run build`; doc invariants and IB-loop maintainer gate passed; local-browser dialog verification without sending an order. `npm run lint` remains red only on the pre-existing D-029 baseline.
 - **Related:** PROBLEM_LOG 2026-09-10 IBKR verification reject; [D-013](https://github.com/aaltaay/Nova/issues/36); restart verification reproduced existing [D-005](https://github.com/aaltaay/Nova/issues/42); `knowledge/task-log/2026-09-10-ibkr-verification-required-flow.md`
-
-## 2026-09-08 -- PR body is the task narrative; roadmap note trimmed
-
-- **What:** Added `.github/pull_request_template.md` (What / Why this approach / Verified by / Related issue + a logs checklist). `knowledge/task-log/` is now the fallback home for work that ships without a PR. `Nova-Roadmap-Status.md` shrank from 366 to ~100 lines; closed phases, verification baselines, the maintenance track, and pre-2026-07-28 History moved verbatim to a new `Nova-Roadmap-Archive.md`.
-- **Why:** Operator asked whether four hand-maintained markdown logs are the standard way to track work. Agreed split: GitHub Issues own the to-do, PR bodies own the "why this approach" narrative, `CHANGELOG.md` + `PROBLEM_LOG.md` stay in-repo (greppable offline history), and the roadmap note stays a short status page.
-- **Files touched:** `.github/pull_request_template.md`, `.cursor/rules/task-log.mdc`, `knowledge/task-log/README.md`, `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`, `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Archive.md`, `.cursor/rules/nova-roadmap-continuity.mdc`, `.cursor/rules/{constitution,specialist-routing,problem-log,deferred-log}.mdc`, `AGENTS.md` §7.2b / §12, `docs/agent-operations.md`, `tools/subagent_lifecycle_hook.py`
-- **How it works now:** Work that ships in a PR puts the narrative in the PR body and cites the PR URL in `task_log=`. Work with no PR still writes `knowledge/task-log/YYYY-MM-DD-<slug>.md` + an `INDEX.md` row. Never both for one job. The Lifecycle regex already accepted `task_log=.+`, so agent specs needed no change. Roadmap: read `Nova-Roadmap-Status.md` for NEXT/blockers, append History rows there; `Nova-Roadmap-Archive.md` is read-only.
-- **Also in this PR (pre-merge review):** `deferred_log.py refresh-index` rewrites `knowledge/deferred-index.json` from live Issues and **refuses** to overwrite a nonempty snapshot when `gh` returns zero issues -- a token that cannot read Issues must not erase the fallback, because a stale snapshot lets `next-id` reuse a D-NNN. Rules/how-to now require `refresh-index` in the same commit as any issue open/close. Two throwaway probe issues (#7/#8) had their tracker labels cleared so `label:deferred` is exactly the 40 real items (37 open + 3 closed).
-- **Verified by:** `python3 tools/doc_invariants.py` OK; `pytest tools/ -q --ignore=tools/course_memory` 164 passed; `tools/agent_contract.py --ci` PASS (14 agents); `engineering_skills_audit.py` PASS; `maintainer_checks.py --fail-on-kind ib_loop_sync_io` exit 0; `deferred_log.py refresh-index` correctly refused to erase the 40-item snapshot from this token; GitHub `label:deferred` listing shows 40 issues.
-- **Related:** 2026-09-08 deferred-tracker entry below; no phase state changed and `auto_live` stays NO-GO.
 
 ## 2026-09-08 -- Deferred tracker moves to GitHub Issues
 
@@ -1706,16 +1652,6 @@ Entry template (copy and fill in):
 - **How it works now:** lightweight-charts uses the LineSeries `title` as the axis label text (it replaces the numeric last-value). After each VWAP paint, Nova sets that title to the last plot point formatted as `VWAP $X.XX`. EMAs stay name-only.
 - **Verified by:** `npx vitest run src/chartIndicators.test.ts` (8/8 pass). `npm run build` (`tsc -b && vite build`) exit 0. Browser: NVDA Trader chart with VWAP on; orange axis tag read `VWAP $212.18`.
 - **Related:** task-log `knowledge/task-log/2026-08-25-chart-vwap-axis-dollars.md`
-
-## 2026-08-25 — New "Large Cap" swing table (ADR 014)
-
-- **What:** New scanner tab, "Large Cap," for swing trading large-cap movers (TSLA/NVDA/AMD/META/AAPL-class names) instead of the day-trade Gainers/Losers tables, which small caps dominate. One persistent IBKR `TOP_VOLUME_RATE` scanner lease filtered server-side by market cap (`marketCapAbove`, tunable, default $50B) and volume (`aboveVolume`, default 1M shares) with `stockTypeFilter="CORP"` to exclude ETF/ETN/REIT/CEF pollution. Ranks by relative volume (RVOL), ATR-relative range expansion, and 5-day/20-day % change, plus a composite 0-100 "Large Cap Score" (equal-weighted percentile ranks within the current roster). A days-to-earnings badge is shown but never hides a row. Own breakout alert channel (20-day high/low break confirmed by RVOL >= 2x), separate from HOD Momo's day-trade chimes. The table is always-live (never freezes, unlike Gappers/Gainers/Losers/Afterhours) and the cap/volume filters are runtime-tunable via `GET`/`POST /api/large-cap/config`.
-- **Why:** User request -- wanted a "Gainers, but for large caps, focused on swing trading" with minimum filters. Verified live against the production Gateway that Warrior Trading has no published swing criteria in this repo (small-cap intraday only), so the metrics are Nova's own design, not a Warrior parity target. Verified live that the user has real-time (non-delayed) IBKR data on both NASDAQ and NYSE, so no data subscription concern applies.
-- **Files touched:** New: `backend/large_cap_metrics.py`, `backend/large_cap_alerts.py`, `backend/large_cap_admin.py`, `backend/large_cap_reprice.py`, `backend/large_cap_hooks.py`, `backend/hod_tick_feed.py` (extraction), `tools/ibkr_scan_params.py`, `architecture/decisions/014-large-cap-swing-table.md`. Edited: `backend/ibkr/scanner_session.py` (`TABLE_LARGE_CAP`, `LeaseSpec`, `_ALWAYS_LIVE` carve-out), `backend/ibkr/scanner_stream.py` (per-table lease filters), `backend/ibkr/scanner_hydrate.py`, `backend/ibkr/scanner_persist.py`, `backend/runtime_state/state.py`, `backend/scanner_tab_registry.py`, `backend/scanner_push.py`, `backend/cache.py`, `backend/routes/scan.py`, `backend/ibkr_bridge.py`, `backend/integrity_live.py`, `backend/constants_scanner.py`, `backend/alerts/formatters.py`; frontend: `types/scanner.ts`, `constantGroups/chart_api.ts` (`LARGE_CAP_COLUMNS`), `components/ScannerTable.tsx`, `components/ScannerTabPanels.tsx`, `components/TabModuleHost.tsx`, `components/EmptyState.tsx`, `hooks/useScannerData.ts`, `hooks/useScannerPriceStream.ts`, `pages/DashboardPage.tsx`, `scanner/ScannerDataContext.tsx`, `scanner/scannerNavIcons.tsx`, `utils/scanAge.ts`, `workspace/registry.ts`.
-- **How it works now:** A name is admitted the instant IB ranks it (`price=null` until the first L1 tick, ADR 010 decision 5). Zero-IB-cost metrics (RVOL, days-to-earnings) read the `fundamentals.py` cache dict directly on the hot tick path -- never calling `fetch_fundamentals` there, since a cache miss can block on a synchronous yfinance round trip. Daily-bar metrics (ATR14, 5d/20d change, 20d high/low) read `bars_store` with a 15-minute in-process TTL cache and schedule a paced background fill (ADR 012) on a miss, never blocking. A roster-commit hook warms fundamentals in a background thread and pre-schedules daily-bar fills for every newly admitted symbol. The composite score is computed at read time over the whole current roster (percentile ranks, not raw units, so RVOL multiples and ATR multiples are never summed in mismatched units). `hod_roster_hooks.on_hod_roster_commit` already whitelists Gappers/Gainers/Afterhours only, so Large Cap is naturally excluded from HOD Momo admission with no extra guard needed.
-- **Verified by:** Live probe of the production Gateway (`tools/ibkr_scan_params.py`) confirmed `TOP_VOLUME_RATE` + `marketCapAbove` + `stockTypeFilter=CORP` returns 50 pure large-cap equities that differ day to day, and confirmed `MOST_ACTIVE` returns the same mega-cap crowd every time (rejected). Backend: 1305/1305 pytest pass (full suite, excluding two pre-existing unrelated collection/native-library issues) including 60+ new Large Cap tests. Frontend: `tsc -b` clean, `vite build` clean, 709/709 Vitest pass, ESLint clean (pre-existing unrelated warnings only). Live end-to-end: restarted the API against the live Gateway, confirmed `/api/large-cap` returns a real 50-row roster, connected a WebSocket client with `large_cap` as the active tab and observed a real `price_patch` with live IBKR prices and computed RVOL, confirmed `ib_loop_lag_ms.wedged=false` and `/api/movers` Gainers L1 stayed fresh throughout (blast-radius check), and confirmed the rendered "Large Cap" tab in the browser (screenshot) shows real prices, RVOL-descending sort, and colored change/5D/20D columns.
-- **Follow-ups:** Frontend historical date-picker browsing is not wired for Large Cap yet (backend `/api/history/large_cap/{date}` already works). `Mkt Cap`/`Float` columns populate only after a symbol's first L1 tick (same "honest empty" pattern as price).
-- **Related:** `architecture/decisions/014-large-cap-swing-table.md`, `PROBLEM_LOG.md` 2026-08-25 ("IBKR ScannerSubscription.marketCapAbove is in millions, not raw dollars").
 
 ## 2026-08-25 — Scanner exchange filter fails open; defaults to all exchanges
 
@@ -2435,16 +2371,6 @@ Entry template (copy and fill in):
 - **Follow-ups:** Align IBC `TradingMode` with Nova `IBKR_GATEWAY_MODE` if you run Live (local config was paper). Optional: unify GATEWAY chip vs account "IBKR offline" chrome (separate signals).
 - **Related:** PROBLEM_LOG 2026-07-30 Integrity false warn root causes.
 
-## 2026-07-30 -- HOD table News flame + column calculation tooltips
-
-- **What:** HOD Momo / Running Up table gained a leading News flame column (same glyph as Gappers/Movers) and header hover tooltips that explain how each column is calculated. Columns + tooltips live in feature-local `hod_momo/hodMomoColumns.ts`.
-- **Why:** Match Warrior-style scanner readability; keep a single maintainable column list; explain first-catch Time vs live-updating metrics without changing row semantics.
-- **Files touched:** `hodMomoColumns.ts`, `NewsCell.tsx`, `scannerNewsStore.ts`, `newsBySymbol.ts`, `usePublishScannerNews.ts`, `HodMomoAlertTable.tsx`, `HodMomoAlertRow.tsx`, `DashboardPage.tsx`, `SampleDashboardPage.tsx`, `chart_api.ts` (removed `HOD_MOMO_COLUMNS`).
-- **How it works now:** Dashboard pages publish a source-tagged `symbol -> newest_headline_at` map from unfiltered scanner/catalyst rows (empty while viewing history). The HOD table subscribes with a live/sample gate so sample fixtures cannot leak into live. Time stays first-catch; tooltips state that price/RVOL/etc. refresh on later fires. No backend/`AlertObject` change.
-- **Verified by:** `npx tsc --noEmit`; Vitest `newsBySymbol`, `scannerNewsStore`, `HodMomoAlertTable.render`.
-- **Follow-ups:** Deep-link into sample Trader before visiting sample dashboard shows News dashes until sample dashboard publishes once.
-- **Related:** task-log `knowledge/task-log/2026-07-30-hod-news-flame-column-tooltips.md`
-
 ## 2026-07-29 -- Fix app boot: ScannerBarBridge Windows case collision
 
 - **What:** Renamed scanner status store `scannerBarBridge.ts` → `scannerBarStore.ts` so it no longer collides with `ScannerBarBridge.tsx` on Windows.
@@ -2898,16 +2824,6 @@ Entry template (copy and fill in):
 - **Verified by:** `npm run test -- --run src/workspace/registry.test.ts src/components/HeaderConnectionStatus.test.tsx` (15 passed).
 - **Follow-ups:** Optional future HOD-scoped header chip tied to `/ws/hod-momo` or integrity metrics if product wants tab-local freshness there too.
 
-## 2026-07-24 — Remove daddy dispatcher; zero-hop specialist routing
-
-- **What:** Deleted the `daddy` top-of-fleet dispatcher agent (spec, memory, dashboard canvas, registry entry) and flipped Nova's agent routing default from "auto-dispatch a specialist" to **zero-hop**: the parent Auto session classifies and does multi-domain work in-session by default. All other specialists (router, ibkr-ops, market-feed, hod-momo, tester, maintainer, security, docs, warrior, widgets, execution, news, backtester, hotkeys) remain registered but are now **opt-in only** — invoked when the user explicitly names one. Also added a "Pragmatic patterns & loops" section to `engineering-standards.mdc` reviewing refactoring.guru's GoF catalog and the loop-library loop collection against this repo, adopting only a small named-pattern vocabulary for shapes already present in the code plus a future pre-commit test guard, and rejecting the rest as unneeded ceremony for a solo-maintained, functional (non-OOP) codebase.
-- **Why:** Every `Task(subagent)` call is a full extra agent turn (new context, tools, Lifecycle report). `daddy` nested an extra nested-Task hop on top of that for the highest-frequency routing paths ("just get this done", casual `daddy, …` address), making normal requests structurally slower and more expensive with no product benefit — investigation found no backend/frontend code depends on it.
-- **Files touched:** Deleted `.cursor/agents/daddy.md`, `.cursor/agent-memory/daddy-memory.md`, `agent-daddy.canvas.tsx`. Edited `.cursor/agent-system/registry.json`, `.cursor/rules/specialist-routing.mdc`, `.cursor/rules/task-log.mdc`, `.cursor/rules/problem-log.mdc`, `.cursor/rules/engineering-standards.mdc`, `knowledge/obsidian/00-System/Agent-Fleet-Map.md`, `AGENTS.md`, `docs/agent-operations.md`, `.cursor/agents/router.md`, `.cursor/agents/hotkeys.md`, `.cursor/agent-system/agent-template.md`, `tools/sync_agent_surfaces.py`, `tools/session_brief_hook.py`, `tools/test_agent_contract.py`, `tools/test_agent_fleet.py`, `tools/agent_dream_lib/bridges.py`, `knowledge/task-log/_template.md`, `knowledge/task-log/README.md`, `nova-home.canvas.tsx`, `agent-router.canvas.tsx`.
-- **How it works now:** Default path for any request (including multi-domain work) is the parent working in the current session — no automatic `Task(...)` calls. A hop only happens when the user explicitly names a specialist (e.g. "Use the ibkr-ops subagent…"). Fleet crack index prefers the deterministic `py -3 tools/agent_fleet.py` (no LLM cost) over invoking `router`. `Agent-Fleet-Map.md`'s "Fleet dispatch / orchestration" domain is now owned by `parent` instead of `daddy`. Specialist specs/memories/continuity rules remain as ownership/knowledge references the parent should still follow even when not invoking the agent.
-- **Verified by:** `py -3 tools/agent_contract.py` (PASS, 14 agents); `py -3 -m pytest tools/test_agent_contract.py tools/test_agent_fleet.py -q` (19 passed); `py -3 tools/agent_fleet.py --session-brief` shows no daddy reference; regenerated canvas snapshots via `py -3 tools/sync_agent_surfaces.py --write`.
-- **Follow-ups:** None planned — specialist fleet stays available opt-in; no loop-runner framework or pre-commit hook was added in this pass (reviewed and deferred, see `engineering-standards.mdc`).
-- **Related:** `PROBLEM_LOG.md` § 2026-07-24 — `hotkeys` agent missing from contract test's expected set · `knowledge/task-log/2026-07-24-remove-daddy-zero-hop-routing.md`
-
 ## 2026-07-24 — Loud IB Gateway login banner + reconnect warm-up empty state
 
 - **What:** Added a non-dismissible red **ACTION REQUIRED — IB Gateway login** banner above scanner tabs when discovery is IBKR and Gateway is disconnected, with an **Open IB Gateway** CTA. After reconnect, empty Gainers/Losers show a bounded warm-up message instead of “no rows in the feed.”
@@ -3314,25 +3230,6 @@ Entry template (copy and fill in):
 - **How it works now:** Shared `formatShareQty` uses up to `TICKER_TRADE_QTY_DECIMALS` (4) with no forced trailing zeros — `100` stays `100`, `0.0642` stays `0.0642`.
 - **Verified by:** Vitest `formatShareQty` + working/closed order cell contracts (21 passed).
 - **Related:** PROBLEM_LOG 2026-07-20 · `knowledge/task-log/2026-07-20-fractional-share-qty-display.md`
-
-## 2026-07-20 — Separate Running Up tab from HOD Momo
-
-- **What:** Added a top-level **Running Up** tab. HOD Momo no longer shows strategy #12 or the “Running Up only” chip; each tab gets its own partitioned feed and badge count.
-- **Why:** Warrior treats Running Up as a sibling alert scanner (no new HOD required). Mixing it into HOD Momo caused confusion (e.g. VCIG Squeeze retests looking like HOD).
-- **Files touched:** `frontend/src/hod_momo/RunningUpTab.tsx`, `scannerPartition.ts`, `HodMomoTab.tsx`, `HodMomoAlertTable.tsx`, `workspace/registry.ts`, `TabModuleHost.tsx`, `DashboardPage.tsx`, `SampleDashboardPage.tsx`.
-- **How it works now:** One backend WS (`/ws/hod-momo`) still evaluates all strategies. UI partitions `strategy_id === 12` → Running Up tab; everything else → HOD Momo. Clear-today still hits the shared alert store (honest confirm copy). Warrior Day Trade Dash never feeds Nova’s engine.
-- **Verified by:** Vitest `scannerPartition` + `registry` tests; `npm run build` / targeted vitest.
-- **Follow-ups:** Optional separate clear/history API; audio routing per tab.
-
-## 2026-07-20 — HOD strategies require a fresh new high (not retest)
-
-- **What:** `requires_hod` strategies (Squeeze / Float / etc.) now pass the HOD gate only when the session high was *raised* recently (observed print or post-seed tick-6) within `HOD_MOMO_NEW_HOD_GRACE_SEC` (60s), while price stays near that high. Mere retests of a bars/tick6 floor no longer fire HOD Momentum.
-- **Why:** VCIG hit Nova Squeeze at 08:24:14 ET / $1.34 after Warrior’s true HOD alerts at 08:02:54; Nova had treated “at session high + surge” as HOD, which is Warrior Running Up semantics.
-- **Files touched:** `backend/hod_momo_high.py`, `hod_momo_filters.py`, `hod_momo_trade.py`, `hod_momo_admin.py`, `hod_momo_state.py`, `hod_momo_session.py`, `constants_hod_momo.py`, HOD unit tests.
-- **How it works now:** Initial bars/tick6 seed sets the floor without opening the alert window. A later last (or tick-6 raise above that floor) stamps `session_high_raised_ts`. Running Up (strategy 12, `requires_hod=False`) is unchanged. Restart API to load the gate.
-- **Verified by:** `pytest` `test_hod_momo_high` / `filters` / `engine` / `persist` / `consolidation` — 45 passed; live VCIG evidence in `hod_momo.log` + `hod-momo-2026-07-20.json`.
-- **Follow-ups:** Parent restart uvicorn; Warrior handoff if fresh Running Up snapshot needed; consider separate Running Up UI widget (Warrior has a sibling scanner).
-- **Related:** PROBLEM_LOG 2026-07-20 VCIG late Squeeze; task-log `knowledge/task-log/2026-07-20-vcig-hod-retest-gate.md`.
 
 ## 2026-07-20 — Gateway chip shows PAPER vs LIVE
 
@@ -3870,14 +3767,6 @@ Entry template (copy and fill in):
 - **Follow-ups:** Set `NOVA_API_KEY` + `VITE_NOVA_API_KEY` for any non-loopback deploy; tighten CI `continue-on-error` when scanner noise is low.
 - **Related:** PROBLEM_LOG 2026-07-18 SEC remediation; Security-Status.md; `knowledge/task-log/2026-07-18-sec-001-008-remediation.md`.
 
-## 2026-07-18 — Daddy orchestration contract (parallel vs sequence)
-
-- **What:** Documented that specialists do not peer-chat — daddy is a hub. Added parallel-safe / sequential / write-conflict rules to `daddy.md` and a durable **Orchestration** table in `Agent-Fleet-Map.md`; daddy reports now label `[parallel]` vs `[after: …]`. Canvas `agent-daddy` shows the same matrix.
-- **Why:** Need a clear way to communicate which agents can run together vs which must wait or would conflict on the same files.
-- **Files touched:** `.cursor/agents/daddy.md`, `knowledge/obsidian/00-System/Agent-Fleet-Map.md`, `agent-daddy.canvas.tsx`.
-- **How it works now:** Audit/research agents (`maintainer`, `security`, `execution`, `router`, `warrior`) may run in parallel. Implementers that share paths (`market-feed`/`hod-momo`/`widgets`) must sequence. Gateway work (`ibkr-ops`) usually runs before feed agents. Tester runs after implementers.
-- **Verified by:** Spec + fleet-map review; `py -3 tools/agent_contract.py`.
-
 ## 2026-07-18 — Daddy casual shorthand (`daddy, …`)
 
 - **What:** You can address daddy naturally — `daddy, diagnose and tell me what to do next.` — without the formal “Use the daddy subagent…” phrase. Wired via always-apply `specialist-routing.mdc` (Daddy shorthand = highest priority), expanded `daddy.md` description for Cursor proactive match, and casual invoke phrases in the registry.
@@ -3935,16 +3824,6 @@ Entry template (copy and fill in):
 - **Follow-ups:** None outstanding from this verification pass; `run_focus_scan` no-op under `discovery=ibkr` was confirmed as intentional (membership churn is scanner-driven, not focus-scan-driven) and needs no fix.
 - **Related:** `.cursor/plans/hod_gate_uml_cleanup_69da0848.plan.md` verified-gaps ledger.
 
-## 2026-07-17 — HOD truth seed + mute/burst cleanup
-
-- **What:** Stop inventing session high from the first L1 last; seed from IBKR bar highs + tick-6 day High (`hod_momo_high.py`). Require `high_seeded` for HOD strategies. Remove anti-spam mute (cooldown=0), set consolidation/burst to 10s, drop quiet-tape strategy re-eval, retire master RVOL soft bypass. Document APIs in Obsidian + hod-momo agent memory.
-- **Why:** Mid-session admissions and restarts falsely claimed "at HOD"; mute ≥ burst window starved Warrior `(N in Xs)` badges; quiet re-eval amplified fake highs.
-- **Files touched:** `hod_momo_high.py`, `hod_momo_trade.py`, `hod_momo_filters.py`, `hod_momo_surge_seed.py`, `ibkr/ticks.py`, `ibkr_bridge.py`, `hod_momo_heartbeat.py`, `constants_hod_momo.py`, `collapseAlertsBySymbol.ts`, Obsidian `IBKR-Scanner-HOD-Architecture.md`, tests.
-- **How it works now:** Scanner = membership; L1 + bars = HOD truth. Alerts only on real price/day-high updates. Burst window alone rate-limits. `HOD_RAW_MODE=1` skips strategy filters for raw observability.
-- **Verified by:** pytest HOD high/engine/filters/persist/heartbeat/spam suites.
-- **Follow-ups:** Central scanner service (Phase 3), raw-scanner UI table, day-keyed high persist across restart.
-- **Related:** PROBLEM_LOG 2026-07-17 cold-start false HOD.
-
 ## 2026-07-17 — TRT sticky L1: cooled-first rank + cap to 8 slots
 
 - **What:** Session-focus sticky now ranks **cooled** (off mover tables) ahead of still-on-table soft-blocks, and caps the sticky list at `HOD_MOMO_ACTIVE_SESSION_FOCUS_SLOTS` (8) instead of 40.
@@ -3954,15 +3833,6 @@ Entry template (copy and fill in):
 - **Verified by:** pytest 14 passed; live TRT price=$10.66 rvol=0.30 session_high=$10.66; Former still `enabled=False`; session_gate PASS(warn).
 - **Related:** PROBLEM_LOG 2026-07-17 TRT sticky flood / cooled-first.
 
-## 2026-07-17 — TRT sticky L1: session-focus for master_rvol soft-block
-
-- **What:** New `hod_momo_session_focus` sticky list (day-persisted) pins symbols that hit master_rvol soft-block so they keep reserved L1 after leaving the gainer table. Session-focus slots restored to 8; priority is sticky → today_alerts → Former (last).
-- **Why:** TRT dropped to empty `/debug/symbol/TRT` once off movers — Former slots were cut to 2 and only today_alerts got session_focus, so cooled Squeeze names never stayed subscribed.
-- **Files touched:** `backend/hod_momo_session_focus.py`, `hod_momo_trade.py`, `hod_momo_session.py`, `hod_momo_former.py`, `ibkr_bridge.py`, `universe.py`, `constants_hod_momo.py`, tests.
-- **How it works now:** Soft-block evals call `remember_session_focus`; sticky feeds universe extras + active priority. Not Warrior-fed. Do not sticky on every Squeeze hod/surge miss (floods the list).
-- **Verified by:** pytest session_focus/former (8 passed); live TRT `session_focus` price=$10.67 rvol=0.31; session_gate PASS(warn).
-- **Related:** PROBLEM_LOG 2026-07-17 TRT empty snap / session-focus sticky.
-
 ## 2026-07-17 — HOD strategy pills stack vertically (no horizontal scroll)
 
 - **What:** Strategy column pills stack top-to-bottom; row height grows. Former Momo tags hidden from default filter/collapse/display.
@@ -3970,52 +3840,6 @@ Entry template (copy and fill in):
 - **Files touched:** `frontend/src/hod_momo/hodMomo.css`, `HodMomoAlertRow.tsx`, `HodMomoTab.tsx`, `HodMomoAlertTable.tsx`, `collapseAlertsBySymbol.ts`, `chart_api.ts`.
 - **How it works now:** `.hod-strategy-pills` is a column flex; strategy cells allow wrap; Former (id 1) omitted from default visible set and pills.
 - **Verified by:** `vitest run src/hod_momo/collapseAlertsBySymbol.test.ts` (4 passed).
-
-## 2026-07-17 — PN Squeeze L1: under-$20 gainer seed head + upside-only movers
-
-- **What:** Mid-tier IBKR table gainers under $20 (PN-class) now win HOD active `seed_slots` ahead of HOT_BY_VOLUME; discovery explore is gainer-ranked; losers no longer consume HOD mover slots; Former sticky slots 8→2. IBKR `scan_hod_momentum_seeds` puts `TOP_PERC_GAIN(belowPrice=20)` first.
-- **Why:** PN was on `/api/movers` gainers (rank ~36, ~$4.40) but empty `/debug/symbol/PN` — volume-seed head + abs-% losers + 8 Former slots starved L1 so Squeeze never evaluated.
-- **Files touched:** `backend/hod_momo_universe.py`, `backend/ibkr_bridge.py`, `backend/ibkr/discovery.py`, `backend/constants_hod_momo.py`, tests.
-- **How it works now:** `seed_symbols_for_active` / `discovery_for_active` feed `build_active_set`. Reserved seed L1 prefers hottest sub-$20 gainer-table names, then volume scans. No Warrior data in the engine.
-- **Verified by:** `pytest backend/tests/test_hod_momo_universe.py backend/tests/test_hod_active_quota.py` (25 passed); live PN `volume_seed` + snap price=$4.44; session_gate PASS(warn); observe --once.
-- **Follow-ups:** TRT Squeeze timing once on L1; SDOT mid-move if Warrior re-fires.
-- **Related:** PROBLEM_LOG 2026-07-17 PN empty snap / seed head burial.
-
-## 2026-07-17 — Squeeze must require HOD; restore mass-disabled strategies (schema v5)
-
-- **What:** Squeeze 5%/10% defaults + schema v5 migrate force `requires_hod=True`; non-Former strategies that were all-disabled get re-enabled. Live config repaired the same way.
-- **Why:** CNF fired Nova Squeeze while never on Warrior Small-Cap HOD — only Squeeze was enabled, with `requires_hod=False` (Running-Up behavior on the HOD widget).
-- **Files touched:** `backend/constants_hod_momo.py`, `backend/hod_momo_persist.py`, tests, live config.
-- **How it works now:** HOD-widget Squeeze needs a new session high. Running Up (12) stays `requires_hod=False`. Former (1) stays off. Disk schema=5.
-- **Verified by:** live config + `test_schema_v5_squeeze_requires_hod_and_reenables` (3 passed with v4 test).
-- **Related:** PROBLEM_LOG 2026-07-17 CNF nova_only without Warrior HOD.
-
-## 2026-07-17 — Squeeze ignores master RVOL soft-block; sub-$20 gainer seed pass
-
-- **What:** Master Daily Rate RVOL no longer hard-stops Squeeze 5%/10% (surge-only, `min_rvol=0`). HOD seeds add a second `TOP_PERC_GAIN` scan capped `belowPrice=20` so mega-gainers cannot crowd out microcap squeezes from IB's 50-row cap.
-- **Why:** Live Warrior TRT Squeeze with Nova pace RVOL 0.32× (formula correct); BTMD/PN-class empty-snap gaps while SDOT-class names fill uncapped gainers.
-- **Files touched:** `hod_momo_filters.py`, `hod_momo_trade.py`, `hod_momo_admin.py`, `ibkr/discovery.py`, `constants_ibkr.py`, tests.
-- **How it works now:** Soft `master_rvol` still blocks float RelVol strategies; Squeeze evaluates on surge. Seeds = volume scanners + uncapped gainers + sub-$20 gainers.
-- **Verified by:** pytest filters/engine/discovery; live TRT `would_fire` lists Squeeze surge blocks (not empty strategies).
-- **Related:** PROBLEM_LOG 2026-07-17 "Squeeze blocked by master RVOL…".
-
-## 2026-07-17 — Former Momo Stock disabled by default (schema v4)
-
-- **What:** Strategy 1 (Former Momo Stock) defaults to `enabled=False` / audio off; config schema bumps to v4 and one-time migrate forces persisted Former Momo off while keeping `former_momo_list` intact.
-- **Why:** No public Warrior formula for Former; user asked to disable it and focus parity on Squeeze / Float / Running Up.
-- **Files touched:** `backend/constants_hod_momo.py`, `backend/hod_momo_persist.py`, `frontend/src/constantGroups/chart_api.ts`, tests.
-- **How it works now:** Fresh installs and schema versions below 4 migrate Former off. List still auto-remembers from other strategy fires for later; re-enable in HOD Strategy UI when ready. Other strategies unchanged.
-- **Verified by:** `pytest backend/tests/test_hod_momo_models.py backend/tests/test_hod_momo_persist.py -q` (schema v4 + default tests).
-- **Follow-ups:** Own a deliberate Former list fill path before re-enabling; continue Squeeze parity (PN seed / TRT RVOL).
-
-## 2026-07-17 — Fix lifespan spawn typo that skipped scanner_l1 (Squeeze L1 dead)
-
-- **What:** Corrected `app_lifespan` wiring from nonexistent `fills_poll_loop` → `fill_poll_loop`, and made background-task spawn per-task resilient so one bad factory cannot skip `scanner_l1`.
-- **Why:** Live Warrior Squeeze parity (SDOT/BTMD/TRT) showed enrichment-only snaps with `surge:None` after restart — HOD/table L1 never subscribed because spawn aborted mid-list.
-- **Files touched:** `backend/app_lifespan.py`, `backend/tests/test_app_lifespan_spawn.py`.
-- **How it works now:** Bootstrap starts `scanner_l1` + HOD heartbeat/surge-seed first; remaining loops start independently; `bootstrap complete` logs with the count of successfully started tasks.
-- **Verified by:** `pytest backend/tests/test_app_lifespan_spawn.py`; live restart → integrity gate + observe (this session).
-- **Related:** PROBLEM_LOG 2026-07-17 "HOD L1 never started — lifespan spawn typo".
 
 ## 2026-07-17 — Lifespan yields before IBKR connect (API serves while Gateway slow)
 
@@ -4039,7 +3863,6 @@ Entry template (copy and fill in):
 
 - **What:** IBKR L1 subscribe failures (e.g. FRE qualify fail) now cool out of the HOD active set for 300s; demoted actives clear stale quote/eval ages; integrity treats coverage 90–99% as warn (still fails below 90%). Session-gate/observe HTTP timeouts raised to 30s.
 - **Why:** Explore admitted unqualifiable symbols → coverage 98% hard-fail + recycled symbols kept hours-old `_last_quote_ts`, flapping integrity FAIL and refusing parity observe while the rest of L1 was healthy.
-- **Files touched:** `backend/hod_momo_active.py`, `hod_momo_integrity_hod.py`, `constants_hod_momo.py`, `ibkr/scanner_l1.py`, `tools/hod_momo_session_gate.py`, `tools/hod_momo_parity_observe.py`, tests.
 - **How it works now:** Failed L1 symbols cannot occupy discovery slots during cooldown; leaving the active set drops age timestamps; coverage flaps no longer suppress alerts when quote/eval ages are green.
 - **Verified by:** `test_hod_momo_active` + `test_hod_momo_integrity` new cases; live `session_gate --profile integrity_only` after reload.
 - **Related:** PROBLEM_LOG 2026-07-17 "HOD integrity FAIL from L1-failed explore symbols".
@@ -4252,16 +4075,6 @@ Entry template (copy and fill in):
 - **Follow-ups:** Trace why some live alerts were persisted with `timestamp=""` (likely test pollution / empty constructor path).
 - **Related:** PROBLEM_LOG 2026-07-16 "HOD Momo table shrunk to one ugly row".
 
-## 2026-07-16 — Fix HOD Momo RVOL blowup and alert spam (root cause, not the parity-loop band-aids)
-
-- **What:** Fixed three independently-diagnosed root causes behind live-reported HOD Momo garbage: absurd RVOL multiples (700x-11,000x+) and alert-feed spam (~12-24 new rows/30s on a quiet tape). Restored `master.cooldown_sec` to its 60s default (was persisted as `0.0`); added a periodic fundamentals re-fetch so `avg_volume` no longer freezes at whatever yfinance returned the first time a symbol was ever seen; removed a silent Alpaca-IEX-feed fallback that was overriding yfinance's `avg_volume` for `discovery=ibkr`.
-- **Why:** User reported the live table/alert feed still showing the exact symptoms a prior session had claimed to fix via pytest/session_gate. Re-verification against the *running* API (not test mocks) found the prior "fixes" never addressed the actual denominator/rate-limit bugs.
-- **Files touched:** `backend/hod_momo_persist.py` (cooldown floor guard on load), `backend/hod_momo_heartbeat.py` (`_maybe_refresh_fundamentals`), `backend/hod_momo_enrichment.py` (new `ibkr_avg_volume()`, removed `avg_volume_cache` read from the ibkr branch), `backend/hod_momo_debug.py` (`avg_volume` now visible in `/debug/symbol` and `/debug/snaps`), `backend/constants_hod_momo.py` (`HOD_MOMO_FUNDAMENTALS_REFRESH_SEC`), `backend/tests/test_hod_momo_persist.py`, `test_hod_momo_heartbeat.py`, `test_hod_momo_enrichment.py` (new), `test_integrity_live_builders.py` (unrelated pre-existing gap fixed — mock `_State` was missing `afterhours_cache`).
-- **How it works now:** `on_trade_update`'s `(symbol, strategy_id)` cooldown is the only thing standing between one qualifying trade tick and unbounded re-fires — a persisted `cooldown_sec` of 0 (or any value below 1s) is now self-healed back to `HOD_MOMO_COOLDOWN_SEC` on every config load, with a loud warning. For `discovery=ibkr`, `avg_volume` is yfinance-only end-to-end (`ibkr_avg_volume()` in the 30s universe-enrichment loop, matching the fundamentals-queue loop) — Alpaca's IEX-feed daily bars are never consulted, since IEX captures only a sliver of consolidated volume for the thin/low-float names this scanner targets. The active heartbeat now re-queues `mark_needs_fundamentals` for every active symbol every 300s so a multi-day Former Momo runner's `avg_volume` keeps pace with yfinance instead of freezing at whatever was fetched the very first time it was ever flagged (which could be days stale).
-- **Verified by:** Live before/after on a cleanly-restarted backend (no stray IBKR-clientId-conflicted process still serving requests): CJMB rvol 7016.02→46.49, LBGJ 1526.36→10.38, ATPC avg_volume 13,620.44→3,375,816.00 (all now matching a fresh yfinance query). Alert growth 0 new rows/60s once cooldown held. `py -3 -m pytest backend/tests/ -k "hod_momo or integrity or spam or heartbeat or active or former or consolidation or enrichment"` → 97 passed; full suite 665 passed. Parity observe loop (`tools/hod_momo_parity_observe.py --interval 30`) ticked 4x with stable, non-runaway `nova=` counts.
-- **Follow-ups:** yfinance's own `averageVolume` field itself drifts within minutes for extreme-volume days (live-observed on ATPC), so `HOD_MOMO_FUNDAMENTALS_REFRESH_SEC` is a mitigation, not a perfect fix — some transient staleness between refresh cycles is expected and acceptable. The Warrior↔Nova parity gap (JSPR/BIYA Squeeze timing misses) is unrelated pre-existing work tracked separately in `.tmp/hod-momo-parity/classify_latest.md`.
-- **Related:** PROBLEM_LOG 2026-07-16 "RVOL 700x-11000x blowup + alert spam despite 'fixed' prior session".
-
 ## 2026-07-16 — Chart session highlighting (pre / RTH / AH)
 
 - **What:** Intraday charts (panel, page, Stock View 2×2) shade bar backgrounds for premarket, regular hours, and after-hours, with a small legend. Daily+ timeframes stay unshaded.
@@ -4299,16 +4112,6 @@ Entry template (copy and fill in):
 - **Verified by:** CSS tokens wired; reload UI to confirm on HOD Momo table + page scroll.
 - **Follow-ups:** None.
 
-## 2026-07-16 — New specialist subagent: `hod-momo` (HOD Momo ↔ Warrior parity)
-
-- **What:** Added a dedicated `hod-momo` specialist to own the ongoing, multi-session HOD Momo scanner data-quality + Warrior parity workstream: run/monitor `tools/hod_momo_parity_observe.py`, classify `warrior_only`/`nova_only` misses into named buckets, propose/apply surgical fixes in `backend/hod_momo*.py`, and track parity metrics + a root-cause ledger (fixed vs still-open) session over session so future runs don't re-diagnose solved bugs.
-- **Why:** The parity effort ("this is not going to be a quick one") needed a persistent owner with living memory instead of being re-litigated from scratch by whichever general-purpose session picks it up next; prior CHANGELOG "fixed" claims for HOD Momo integrity/spam were repeatedly found still-broken live.
-- **Files touched:** `.cursor/agents/hod-momo.md`, `.cursor/agent-memory/hod-momo-memory.md` (seeded with the last 5 fixed root causes + 4 still-open buckets from CHANGELOG/PROBLEM_LOG + `.tmp/hod-momo-parity/diff_latest.json`), `.cursor/agent-system/registry.json`, `.cursor/rules/specialist-routing.mdc`, `docs/agent-operations.md`, `AGENTS.md` (specialist table), `tools/test_agent_contract.py` (discovery set), new dashboard `agent-hod-momo.canvas.tsx`.
-- **How it works now:** Invoke "Use the hod-momo subagent to continue HOD Momo parity" (or the backlog-improvement phrase). The agent reads memory first, gates on `hod_momo_session_gate.py` before trusting any parity count, classifies misses into `universe_gap` / `gate_mismatch` / `l1_capacity` / `rvol_formula` / `timing_definition` / `spam_cooldown` / `capacity_expected`, and hands off to `warrior` for fresh snapshots or `tester` for full verification. Never feeds Warrior rows into Nova's alert engine (single-market-data-feed boundary). Dashboard visualizes recall/precision, a nova_only strategy breakdown, and the fixed/open root-cause ledger from real `.tmp/hod-momo-parity/diff_latest.json` data (captured 2026-07-16T23:31:51Z).
-- **Verified by:** `py -3 tools/agent_contract.py` → PASS (6 agents); `py -3 tools/agent_contract.py --ci` → PASS; `py -3 tools/sync_agent_surfaces.py --write` → wrote snapshot blocks to all 6 dashboards + Nova Home; `py -3 -m pytest tools -q` → 122 passed (after updating the hard-coded discovery set in `test_agent_contract.py`); canvas TypeScript check: no errors.
-- **Follow-ups:** First real hod-momo run should re-verify the integrity/spam claims live (memory flags this explicitly) before trusting any parity recall/precision number reported here.
-- **Related:** PROBLEM_LOG 2026-07-16 HOD Momo integrity/spam/Former-Momo entries; `hod_momo_parity_e02ce8f4.plan.md` (read-only, not edited).
-
 ## 2026-07-16 — Active-set session_focus + per-strategy consolidation
 
 - **What:** Reserved `session_focus` L1 slots (Former-list order); quiet-tape heartbeat re-evals those names every 5s; consolidation emits **one alert per strategy_id** (no longer drops Former when Low Float also fires).
@@ -4318,26 +4121,6 @@ Entry template (copy and fill in):
 - **Verified by:** pytest consolidation/active/former/heartbeat; live LBGJ `session_focus` + Former `passed` in decisions.
 - **Follow-ups:** JSPR universe; RTH squeeze timing; watch IBKR gainers/seed empty during AH glitches.
 - **Related:** PROBLEM_LOG 2026-07-16 consolidation drops Former.
-
-## 2026-07-16 — Former Momo remember + heartbeat SLO + parity observe
-
-- **What:** Auto-remember tickers on non-Former HOD fires into strategy-1 `former_momo_list`; bootstrap from today's alerts; `would_fire_now` matches real Former/HOD gates; heartbeat 0.5s/0.75s stale; HOD seeds include `TOP_PERC_GAIN`; alerts `?limit=` for parity observer; observe prints flush + capped fetch.
-- **Why:** Warrior↔Nova parity stuck on empty Former Momo list / universe gaps; integrity false-failed at ~2.1s p95; observe hung on 9k alert dumps.
-- **Files touched:** `hod_momo_former.py`, `hod_momo_trade.py`, `hod_momo_admin.py`, `hod_momo_persist.py`, `universe.py`, `constants_hod_momo.py`, `constants_ibkr.py`, `routes/hod_momo.py`, `tools/hod_momo_parity_observe.py`, tests.
-- **How it works now:** Any other strategy fire (or session bootstrap from today alerts) seeds Former Momo. Session alert/former symbols stay in focus universe. Seeds include percent gainers. Parity observe refuses on integrity fail; uses limited alerts.
-- **Verified by:** pytest former/engine/integrity; live session_gate integrity_only exit 0 (quote p95~0.55s); observe `--once` prints parity counts.
-- **Follow-ups:** RTH remeasure; JSPR remains universe miss until IBKR %/volume seeds surface it.
-- **Related:** PROBLEM_LOG 2026-07-16 heartbeat SLO / Former Momo empty.
-
-## 2026-07-16 — HOD Momo integrity heartbeat + Warrior parity harness
-
-- **What:** Active-set L1 heartbeat restores quote/eval SLOs on quiet tapes; mode-aware gappers integrity; Warrior-style burst badge (no all-day 1179-in-2157s); session_gate + parity observer tools; spam/mode/heartbeat tests; alerts route date fix.
-- **Why:** Live HOD Integrity fail (p95 ages ~hours, CJMB spam badge, stale gappers) blocked Warrior↔Nova parity.
-- **Files touched:** `hod_momo_heartbeat.py`, `hod_momo_active.py`, `hod_momo_integrity_*.py`, `integrity_live.py`, `ibkr/ticks.py`, `hod_momo_trade.py`, `app_lifespan.py`, `routes/hod_momo.py`, `collapseAlertsBySymbol.ts`, `tools/hod_momo_session_gate.py`, `tools/hod_momo_parity_observe.py`, tests, `tester.md`.
-- **How it works now:** Quiet subscribed/active symbols get 1Hz `note_quote`/`note_evaluation` without re-firing strategies. Gappers stale after open → pass in RTH/AH. UI burst badge only merges within 15s. `session_gate` exit 3=BLOCKED, 2=FAIL; parity observe refuses on fail. Research snapshots under `.tmp/hod-momo-parity/`.
-- **Verified by:** pytest integrity/spam/heartbeat/mode/builders; Vitest collapse; live `/api/integrity` coverage=100 p95~1.5s; latency probe coverage 100; session_gate exit 0; alerts GET fixed.
-- **Follow-ups:** Persistent observe during RTH; Former Momo list import; tighten nova_only spam vs Warrior.
-- **Related:** PROBLEM_LOG 2026-07-16 HOD active ages / burst badge.
 
 ## 2026-07-16 — Active-tab IBKR Level-1 streaming (replace impossible snapshot table loop)
 
@@ -4403,15 +4186,6 @@ Entry template (copy and fill in):
 - **How it works now:** Maintainer reports 0 non-baseline findings. Residual torch CVEs without fix are documented with compensating controls. Depth state resets only via explicit API.
 - **Verified by:** maintainer 0 non-baseline · focused depth/news/lifecycle tests 43 passed · `pip_audit` residual torch-only.
 - **Related:** PROBLEM_LOG for prior overstated swallow-zero claim.
-
-## 2026-07-16 — Close remediation Phase 1: truthful maintainer audit
-
-- **What:** Maintainer scanner now detects tuple `except (...): pass` swallows, fingerprints legacy cross-feature imports (new violations fail `--fail-on-findings`), and treats ignored local artifacts as informational. Fixed stale agent-contract discovery for five specialists including `warrior`.
-- **Why:** Post-close review found Phase 11/13 claims overstated (missed WebSocket swallows; architecture baselines were unconditional).
-- **Files touched:** `tools/maintainer_checks.py`, `tools/maintainer_lib/{baselines,artifacts,deps}.py`, `tools/test_maintainer_checks.py`, `tools/test_agent_contract.py`.
-- **How it works now:** Fingerprints live in `tools/maintainer_lib/baselines.json`. Production `import main` / cross-feature / swallow findings are non-baseline unless listed. Artifacts only fail when git-tracked.
-- **Verified by:** `pytest tools` 122 passed; `pytest tools/test_maintainer_checks.py tools/test_agent_contract.py` 25 passed.
-- **Follow-ups:** Phase 2 remediates the newly visible swallowed handlers and dependency CVEs.
 
 ## 2026-07-16 — Maintenance Phase 13: architecture program close
 
@@ -4537,23 +4311,6 @@ Entry template (copy and fill in):
 - **Verified by:** `py -3 tools/maintainer_checks.py` (38/36) · pytest collect 617 · `npx vitest run` 178 passed.
 - **Follow-ups:** Phase 0A architecture ADRs before any product moves.
 
-## 2026-07-16 — List all specialists on Nova Home canvas
-
-- **What:** Nova Home “Specialized agents” section now renders the full registry roster (Tester, Maintainer, Security, Docs, Warrior Navigator) from `NOVA_HOME_AGENT_SNAPSHOT`, with invoke phrases and dashboard links.
-- **Why:** User asked to list agents on Nova Home; the old hand-coded cards omitted Warrior and ignored the sync snapshot.
-- **Files touched:** `tools/sync_agent_surfaces.py` (`home_agents_block` fields), `nova-home.canvas.tsx`.
-- **How it works now:** `py -3 tools/sync_agent_surfaces.py --write` refreshes the roster from `.cursor/agent-system/registry.json`; the table always shows every registered agent.
-- **Verified by:** sync write · `pytest tools/test_sync_agent_surfaces.py` · canvas TypeScript check.
-
-## 2026-07-16 — Install warrior specialist agent + agent-warrior canvas
-
-- **What:** Registered a dedicated `warrior` subagent for authenticated Warrior Trading navigation; migrated the unmanaged site-map canvas to `agent-warrior.canvas.tsx` so Nova Home hygiene stays clean.
-- **Why:** Docs owns Nova Home / unmanaged canvases; Warrior browsing needed a named owner with invoke phrases and a durable dashboard.
-- **Files touched:** `.cursor/agents/warrior.md`, `.cursor/agent-memory/warrior-memory.md`, `.cursor/agent-system/registry.json`, `.cursor/rules/specialist-routing.mdc`, `AGENTS.md`, `docs/agent-operations.md`, `docs/warrior-authenticated-access.md`, Obsidian map/router links, `docs.md` handoff.
-- **How it works now:** Say “Use the warrior subagent to navigate Warrior Trading” (or “…map Day Trade Dash”). Profile + runbook unchanged; dashboard is `agent-warrior` only. `nova_docs_inventory` reports zero unmanaged canvases.
-- **Verified by:** `py -3 tools/agent_contract.py` PASS (5 agents); `py -3 tools/sync_agent_surfaces.py --write`; inventory `preferred_agent` for `agent-warrior`.
-- **Related:** map commit `5c8b878`.
-
 ## 2026-07-16 — Phase G2: DAS-compatible hotkey manager (authoring only)
 
 - **What:** Settings gains a Hotkeys section with a DAS-style Name / Key / Command(s) manager: `.htk` import/export, row editor, compatibility report, and Help capability catalog. Imported/edited commands are never registered with `useHotkeys` and never place orders.
@@ -4563,15 +4320,6 @@ Entry template (copy and fill in):
 - **Verified by:** Vitest 178 pass (hotkey + SettingsWorkspace + useHotkeys); `npm run build`; browser Settings → Hotkeys import/Help/F8 safety (no order network) via tester subagent.
 - **Follow-ups:** Future execution phase may map “translatable later” rows to guarded Nova actions; do not enable without explicit roadmap unlock. `auto_live` remains NO-GO.
 - **Related:** commit `645761b`; Phase G finish `722d614`; plan `hotkey_capability_catalog_ad947399.plan.md` (do not edit).
-
-## 2026-07-16 — Warrior authenticated site map + access runbook
-
-- **What:** Added a repeatable headed browser launcher and durable maps of the full Warrior member site (dashboard, LMS, Day Trade Dash widgets, support/CRM entry points) for future agent questions. No Nova UI product changes.
-- **Why:** User needs agents to navigate Warrior freely (not just chatroom) when asking for Warrior-parity features later.
-- **Files touched:** `scripts/open_warrior_site.ps1`, `docs/warrior-authenticated-access.md`, `knowledge/obsidian/01-Courses/Warrior-Trading/Authenticated-Site-Map.md`, `Memory-Router.md`, `Local-Library-Inventory.md`, `.gitignore` (canvas later migrated to `agent-warrior`).
-- **How it works now:** Run `.\scripts\open_warrior_site.ps1` — profile lives under `%LOCALAPPDATA%\Nova\browser-profiles\warrior-site` (never in git). Site hierarchy + Day Trade Dash column/widget inventory lives in Obsidian; visual summary owned by the `warrior` agent canvas. Secrets/cookies/SSO JWTs stay out of the repo.
-- **Verified by:** Live login to Members Dashboard, LMS Learner Home + BA101 chapter index, Day Trade Dash after disclaimer ACCEPT; screenshots under `.tmp/warrior-site-map/` (gitignored).
-- **Follow-ups:** When building a Nova multi-widget dash, use workspace Phase 8 + this map; do not scrape Warrior feeds.
 
 ## 2026-07-16 — Ship pending docs, Vale, and security registry leftovers
 
@@ -4664,16 +4412,6 @@ Entry template (copy and fill in):
 - **How it works now:** Invoke with "Use the security subagent to audit the repo." It reads memory + registry first (honors accepted risks), runs `py -3 tools/security_audit.py --json` + pip_audit + npm audit + ruff + secrets grep, assigns SEC-NNN IDs, and outputs a structured report. `security-continuity.mdc` fires on edits to `backend/ibkr/**`, `backend/strategy/**`, `backend/alerts/**`, execution routes, and `security/**` — prompting agents to check the registry and accepted risks before changing those files.
 - **Verified by:** Files created and line counts confirmed (sentinel 156 lines ≤ 180 target; memory 82 lines; rule 48 lines).
 - **Follow-ups:** `tools/security_audit.py` still needs to be implemented; CI gate (GitHub Actions) is next in the sentinel's backlog.
-
-## 2026-07-16 — HOD Momo live accuracy: integrity, surge seed, active-set reprice
-
-- **What:** Shipped the previously ghost-documented HOD integrity + Squeeze surge-seed + capacity-bounded active evaluation set. Fail-loud API/CLI/UI banner; IBKR 1Min historical seed on first active entry; fair 1Hz `reqTickersAsync` scheduler (hot + age-rotating tail) without dumping the whole discovery universe into one batch.
-- **Why:** Master tip claimed integrity/surge-seed in CHANGELOG but runtime modules were missing; live HOD evaluated ~9 symbols/sec across ~200 watch symbols (~20s cycle) and Squeeze cold-started at `surge=None`.
-- **Files touched:** `backend/hod_momo_integrity.py`, `integrity_live.py`, `hod_momo_surge_seed.py`, `hod_momo_active.py`, `hod_momo_flow.py`, `hod_momo.py`, `ibkr/reprice.py`, `ibkr_bridge.py`, `app_lifespan.py`, routes, `tools/hod_momo_integrity_check.py`, `tools/hod_momo_latency_probe.py`, `HodMomoIntegrityBanner.tsx`, constants, tests.
-- **How it works now:** Discovery watch set stays broad; only `HOD_MOMO_ACTIVE_SET_CAPACITY` (40) symbols are kept within quote/eval SLOs. Uncovered symbols are explicit in integrity metrics/banner. Surge seed queues once per symbol/session via IBKR bars (no Alpaca fallback under `discovery=ibkr`). `GET /api/integrity` + CLI exit 0/1/2; HOD tab banner uses existing `.hod-integrity-*` CSS.
-- **Verified by:** `pytest` full backend 617 passed; targeted integrity/surge/active/reprice; Vitest banner + collapse; `npm run build`. Live: `/api/integrity` + CLI exit codes work; overnight session showed IBKR `reqTickersAsync` snapshot timeouts so quote-age SLO not claimed until market hours.
-- **Follow-ups:** 15-minute RTH live probe for p95≤2s / max≤3s gates; Warrior CDP parity harness deferred until cookies/CDP available. Avoid multiple uvicorn processes (orphan workers steal port 8000 / IBKR clientId 1).
-- **Related:** Corrects ghost 2026-07-15 integrity/surge-seed CHANGELOG claims; PROBLEM_LOG 2026-07-16 HOD live parity.
 
 ## 2026-07-16 — Harden Phases D–G (alert test format + route tests)
 
@@ -4969,7 +4707,6 @@ Entry template (copy and fill in):
 
 - **What:** Installed [graphify](https://github.com/Graphify-Labs/graphify) (`graphifyy` CLI) for this Windows/Cursor setup and built a knowledge graph over `knowledge/obsidian/` (52 nodes · 92 edges · 6 communities). Wired always-on Cursor rule, project skills, agent wiki, and Obsidian recall docs.
 - **Why:** User asked to read Graphify docs and implement it properly against the project knowledge / Obsidian vault (not a silent codebase-only install).
-- **Files touched:** `.cursor/rules/graphify.mdc`, `.cursor/skills/graphify/`, `.agents/skills/graphify/`, `.claude/skills/graphify/`, `CLAUDE.md` (graphify section), `graphify-out/{graph.json,GRAPH_REPORT.md,graph.html,wiki/}`, `knowledge/obsidian/00-System/{Graphify-Knowledge-Graph,How-Recall-Works,Memory-Router}.md`, `.gitignore`.
 - **How it works now:** Agents treat `graphify-out/` as a navigation layer over the vault. For “what connects X to Y?” decision questions, run `graphify query` / `path` / `explain` (or open `graphify-out/wiki/index.md`) before grepping notes. Exact decision wording still lives in Obsidian; course content still goes through Pinecone. Rebuild after vault edits with `/graphify knowledge/obsidian --update --wiki` in Cursor. Open `graphify-out/graph.html` for the interactive view. CLI install: `uv tool install graphifyy` then ensure `%USERPROFILE%\.local\bin` is on PATH.
 - **Verified by:** `graphify query` returns Gap-and-Go ↔ IBKR safety subgraph; `graphify path "Gap and Go Setup" "IBKR Safety Gates"` = 2 hops via Nova OS decide() gate pipeline; `graphify explain "Nova OS"`; wiki + HTML written; app launched via `Run Nova.bat`.
 - **Follow-ups:** Optional `/graphify . --wiki` to add backend/frontend code into a merged graph; optional MCP (`python -m graphify.serve graphify-out/graph.json`) if live tool calls are preferred over CLI.
@@ -5056,28 +4793,6 @@ Entry template (copy and fill in):
 - **Related:** [[Nova-OS-Status]] P4.
 
 - **Related:** Nova-OS-Status P4.
-
-## 2026-07-15 — Fail-loud HOD/scanner integrity checks
-
-- **What:** Continuous integrity evaluators + API + CLI + HOD tab banner so silent data-flow bugs (no ticks, surge cold-start, empty volume seeds, IBKR down, stale scanner caches) cannot look like “quiet market.”
-- **Why:** HKIT Squeeze miss was an invisible `surge:None` / empty-history bug; user asked how we make sure this class of error does not happen again across scanners.
-- **Files touched:** `hod_momo_integrity.py`, `integrity_live.py`, `hod_momo.py`, `ibkr/reprice.py`, `routes/hod_momo.py`, `routes/scan.py`, `app_lifespan.py`, `tools/hod_momo_integrity_check.py`, `HodMomoIntegrityBanner.tsx`, `HodMomoTab.tsx`, constants, tests.
-- **How it works now:** Poll `GET /api/integrity` (or `/api/hod-momo/debug/integrity`, `/api/scan/integrity`). Background loop logs `INTEGRITY FAIL/WARN`. Banner on HOD tab surfaces fail/warn. CLI: `py -3 tools/hod_momo_integrity_check.py` (exit 0/1/2).
-- **Verified by:** `pytest tests/test_hod_momo_integrity.py` + surge-seed tests; frontend build.
-- **Follow-ups:** Warrior live parity poller once real auth cookies available; fix `watch_seed_size=0` when integrity warns.
-- **Related:** PROBLEM_LOG HKIT surge:None; surge bar-seed CHANGELOG entry.
-- **Correction (2026-07-16):** This entry was aspirational — runtime modules were missing at master `d3a8985`. Real ship is **2026-07-16 — HOD Momo live accuracy**.
-
-## 2026-07-15 — HOD Momo Squeeze cold-start: seed surge buffer from 1-min bars
-
-- **What:** When a symbol first gets a HOD tick, Nova now seeds the Squeeze price buffer from recent 1-min bars (IBKR when discovery=ibkr), then re-evaluates strategies. Fixes `surge:None` / flat-surge misses like HKIT vs Warrior.
-- **Why:** Warrior already has tape history; Nova only started measuring after the name entered the focus watch set — too late for Up 5% in 5min.
-- **Files touched:** `backend/hod_momo_surge_seed.py`, `backend/hod_momo.py`, `backend/app_lifespan.py`, `backend/constants.py`, `backend/tests/test_hod_momo_surge_seed.py`.
-- **How it works now:** `on_trade_update` queues `request_surge_seed(sym)` once/session → background `surge_seed_loop` fetches 1Min bars → merges low+close points into `_price_buffer` → `reevaluate_after_surge_seed`. Session rollover clears seed state.
-- **Verified by:** `pytest tests/test_hod_momo_surge_seed.py` (+ existing HOD engine tests).
-- **Follow-ups:** Warrior ↔ Nova alert parity poller once real auth cookies are available (analytics cookies alone are not enough); investigate `watch_seed_size=0`.
-- **Related:** PROBLEM_LOG 2026-07-15 HKIT surge:None.
-- **Correction (2026-07-16):** Runtime was missing at master tip; re-implemented under **2026-07-16 — HOD Momo live accuracy**.
 
 ## 2026-07-15 — Nova OS Phase P3: Decision UX + attention
 
@@ -5284,15 +4999,6 @@ Entry template (copy and fill in):
 - **Verified by:** `pytest` 401 passed (incl. new persist tests); vitest; `tsc -b` clean.
 - **Related:** PROBLEM_LOG 2026-07-15 HOD restart wipe.
 
-## 2026-07-15 — Chart EMAs + VWAP overlays (library-backed)
-
-- **What:** Price chart toolbar now has EMAs / VWAP toggles (default on). Enabling them draws Warrior-colored 9/20/50/200 EMA lines plus an orange dashed VWAP on the main candle pane.
-- **Why:** User asked for Ross-style EMA + VWAP overlays using the already-installed `lightweight-charts-indicators` stack (same as RSI/MACD) — no hand-rolled TA.
-- **Files touched:** `frontend/src/constants.ts`, `chartIndicators.ts` (+ test), `components/TickerChartOverlays.tsx` (new), `TickerChart.tsx`, `TickerChartOscillatorPanes.tsx`.
-- **How it works now:** `EMA.calculate` (×4 lengths) and `VwapMvwapEmaCrossover` plot0 feed `LineSeries` on the existing price chart. Oscillator panes stay RSI/MACD-only. Colors: grey 9 / light-blue 20 / red 50 / purple 200 / orange dashed VWAP.
-- **Verified by:** vitest chartIndicators; frontend build; app run.
-- **Follow-ups:** Session-boundary VWAP reset across multi-day lookbacks if the community cumulative VWAP looks wrong on long histories.
-
 ## 2026-07-15 — HOD Momo: @tanstack/react-virtual for continuous scroll
 
 - **What:** Replaced the custom pager + hand-rolled `useWindowedRows` with `@tanstack/react-virtual`. Scroll the full day list continuously; the library mounts only the viewport + overscan (~50–100 DOM rows). Removed `HodMomoPager` / `HOD_MOMO_PAGE_SIZE`.
@@ -5384,15 +5090,6 @@ Entry template (copy and fill in):
 - **Follow-ups:** Optional Sentry ignore for `ib_async.wrapper`; IBKR open-ticker streaming for queue contention.
 - **Related:** PROBLEM_LOG 2026-07-15 empty IBKR bars message.
 
-## 2026-07-15 — Ticker speed, TOD RVOL, Sentry opt-in, IBC docs, _main thin
-
-- **What:** REST ticker composes fast+slow builders, cache-only avg volume, shorter HTTP + IBKR snapshot budgets. 5-min RVOL uses a coarse ET TOD curve. Optional Sentry via `SENTRY_DSN`. IBC setup docs + example launcher. `scan_runners` / `scan_loop` / `routes/health` call leaf modules directly for functions.
-- **Why:** User asked for the full next queue (ticker latency, cleanup, deferred deepeners).
-- **Files touched:** `backend/ticker.py`, `hod_momo_metrics.py`, `observability.py`, `scan_runners.py`, `scan_loop.py`, `routes/health.py`, `docs/ibc-gateway-setup.md`, `scripts/start_gateway_ibc.ps1.example`.
-- **How it works now:** `/api/ticker/{sym}` wall time ≈ max(IBKR snap ≤6s bridge, news/fund); avg volume never blocks. `typical_5min_volume` weights open/close when `HOD_MOMO_RVOL_5MIN_USE_TOD`. Sentry no-ops without DSN. IBC credentials stay under `%USERPROFILE%\.nova\ibc\`.
-- **Verified by:** 341 pytest; smoke 10/10; ticker timing after IBKR budget change.
-- **Follow-ups:** Tune TOD knots from live Warrior curves; frontend Sentry if desired.
-
 ## 2026-07-15 — Smoke: longer timeout for IBKR ticker detail
 
 - **What:** `smoke_check.ps1` uses 25s for `/api/ticker/{sym}` and 20s for bars (other checks stay at 8s).
@@ -5418,16 +5115,6 @@ Entry template (copy and fill in):
 - **How it works now:** IBKR table/detail ticks are the only HOD price path under ibkr (`alpaca_trades_drive_hod()`). Depth/tape compare `msg.symbol` to an uppercased hook key so case mismatch cannot drop or bleed updates.
 - **Verified by:** pytest (incl. `test_websocket_hod_feed`) + vitest + production build; live API health.
 - **Follow-ups:** Manual A→B→A rapid-switch checklist still human/agent-browser; optional stop Alpaca WS subscribe entirely under ibkr; TOD 5-min RVOL profile.
-
-## 2026-07-14 — Tracks A/C/D: Warrior quote RVOL, cleanup, client-error intake
-
-- **What:** Quote panel now shows live **5-min RVOL** + **volume in 5 min** from the shared HOD cum-vol buffer; HOD tab gets a **Running Up only** chip (strategy #12). Deduped `HealthStatus` to `types/health.ts`. Added `POST /api/client-errors` + `AppErrorBoundary` / window error reporting into `blast.log`. Fixed ticker WS route to import `ibkr.ticks` directly (was broken `_ibkr_ticks` on main).
-- **Why:** User asked for remaining product-health tracks A (Warrior parity), C (cleanup), D (observability) after Phases 1–7 + smoke.
-- **Files touched:** `backend/ticker.py`, `backend/hod_momo.py`, `backend/routes/ticker.py`, `backend/routes/client_errors.py`, `frontend/src/components/TickerDetailContent.tsx`, `HodMomoTab.tsx`, `AppErrorBoundary.tsx`, `App.tsx`, `main.tsx`, `types/health.ts`.
-- **How it works now:** Opening a ticker seeds cum-vol and returns `rvol_5min` / `volume_in_5min` on REST + WS `initial`/`detail_update`. Running Up is still strategy #12 (`requires_hod=false`); the chip just filters the feed. Browser crashes POST to `/api/client-errors` (capped payload) when `CLIENT_ERRORS_ENABLED` / `CLIENT_ERROR_REPORT_ENABLED` are true.
-- **Verified by:** 335 pytest + 60 vitest; `npm run build` clean; client-errors endpoint tests.
-- **Follow-ups:** Optional Sentry; TOD 5-min RVOL profile; further `_main` re-export thinning; manual rapid-switch L2/T&S checklist.
-- **Related:** Track B smoke SOP entry same day.
 
 ## 2026-07-14 — Live smoke SOP: fix smoke_check.ps1 + expand checklist
 
@@ -5482,35 +5169,6 @@ Entry template (copy and fill in):
 - **Follow-ups:** Phase 4 — extract HOD Momo routes, WS/trade handler, scan-loop into separate modules.
 - **Related:** CHANGELOG 2026-07-14 Phase 2.
 
-## 2026-07-14 — Warrior library merge saved to Obsidian + Pinecone
-
-- **What:** Documented the Warrior Trading downloads de-dupe/merge in Obsidian; upserted **588** new PDF chunks (ebook, ss-07, ss-16…20, Trader Rehab, Jess/Danny/Max grads, TOS layout PDFs) into Pinecone `nova-warrior-courses` / `warrior-slides`.
-- **Why:** Persist what we learned from the member-dashboard sync so recall/ask use one library story (no parallel `docs/warrior-trading/` tree).
-- **Files touched:** `knowledge/obsidian/01-Courses/Course-Index.md`, `knowledge/obsidian/01-Courses/Warrior-Trading/Local-Library-Inventory.md` (new), `knowledge/obsidian/03-Nova-Decisions/Warrior-Trading-Library-Merge.md` (new), `knowledge/obsidian/00-System/{How-Recall-Works,Memory-Router}.md`, `docs/README.md`, `.gitignore` (`docs/warrior-trading/`).
-- **How it works now:** On-disk canon is `downloads/warrior-trading-{slides,resources,caption-notes,videos}/`. Obsidian holds inventory + merge decision. Pinecone searchable text includes the newly merged PDFs (prefer 1pp slides). Agents check the inventory before re-downloading.
-- **Verified by:** `py recall.py --source obsidian` hits Library Merge + Inventory notes; `py recall.py --source pinecone` returns Trader Rehab PDF, free ebook float section, and new SS Chapter 13 (`ss-16`) chunks.
-- **Related:** Prior merge of unique files into `downloads/` (same day).
-
-## 2026-07-14 — Phase 2: alpaca.py extraction + blind-except triage
-
-- **What:** Extracted Alpaca client helpers + discovery-provider state from `main.py` into a new leaf module `backend/alpaca.py`; removed duplicate copies in `bars.py`; updated 6 callsites (`ticker.py`, `bars.py`, `routes/strategy.py`, `strategy/setups_stream.py`, `hod_momo_enrichment.py`, `routes/news.py`) to import directly from `alpaca.py`. Fixed 5 blind `except Exception` blocks in `main.py` that swallowed errors without logging. `main.py` shrinks from 2229 → 2148 lines.
-- **Why:** Phase 2 of the product-health phased plan: centralize Alpaca helpers to eliminate duplicate definitions, break the lazy-main-import pattern for pure helpers, and stop silently swallowing scan errors.
-- **Files touched:** `backend/alpaca.py` (new), `backend/main.py`, `backend/ticker.py`, `backend/bars.py`, `backend/routes/strategy.py`, `backend/strategy/setups_stream.py`, `backend/hod_momo_enrichment.py`, `backend/routes/news.py`.
-- **How it works now:** `_env`, `_alpaca_headers`, `_get_feed/_set_feed`, `_try_fallback_to_iex`, `_get_discovery_provider/_set_discovery_provider` all live in `alpaca.py` and own their own state (`_active_feed`, `_active_discovery_provider`). `main.py` re-exports them via `from alpaca import ...` so existing callers that do `import main as _main; _main._get_feed()` still work. Modules that can import directly (routes, setups_stream, ticker, bars, hod_momo_enrichment) now do so without the lazy-import boilerplate. Blind excepts in `_get_tradable_symbols`, `_fetch_snapshots`, `_check_news`, `_run_gainers_update`, and the catalyst scan now emit `logger.warning/exception` so failures surface in logs.
-- **Verified by:** `pytest backend/tests/ -x -q` → 333 passed; `npm run build` → clean.
-- **Follow-ups:** Phase 3 — extract scanner/news catalyst functions from `main.py`. Phase 4 — Warrior parity. Phase 5 — IBC/telemetry.
-- **Related:** CHANGELOG 2026-07-14 Phase 1.
-
-## 2026-07-14 — Phase 1 reliability: feed coherence + ticker module extraction
-
-- **What:** Eliminated all remaining silent Alpaca-fallback paths under `discovery=ibkr`; extracted ticker domain (~440 lines) from `main.py` into `backend/ticker.py` + `backend/routes/ticker.py`; added live smoke checklist.
-- **Why:** Product-health audit identified 3 open dual-feed surfaces (REST ticker, strategy bars, catalyst prices) and `main.py` at 2300+ lines well over the 200-line target.
-- **Files touched:** `backend/main.py`, `backend/ticker.py` (new), `backend/routes/ticker.py` (new), `backend/routes/strategy.py`, `backend/strategy/setups_stream.py`, `backend/tests/test_ibkr_cache_priority.py`, `scripts/ibkr_smoke_checklist.md` (new), `scripts/smoke_check.ps1` (new).
-- **How it works now:** (1) `GET /api/ticker/{symbol}` with IBKR discovery returns empty snapshot when IBKR is empty — no silent Alpaca price fallback. (2) Strategy endpoints and background setups scanner use `chart_bars.fetch_chart_bars` (discovery-aware) — IBKR failure surfaces as 503 not silent Alpaca. (3) Catalyst price/gap% comes from IBKR scanner cache when discovery=ibkr; Alpaca is still used for news headlines. (4) Ticker builders, caches, WS client registry, and routes live in `ticker.py` + `routes/ticker.py`; `main.py` imports `_ticker_ws_clients` + `_find_ibkr_cache_row` from ticker so all reprice/WS/HOD paths stay unchanged. `main.py` shrinks from ~2300 to ~1820 lines.
-- **Verified by:** `pytest backend/tests/ -x -q` → 333 passed; `npm run build` → clean; `python -c "import main; import ticker"` → OK.
-- **Follow-ups:** Phase 2 — extract `alpaca.py` client + continue blind-except triage. Phase 3 — scanner/news catalyst extraction. Phase 4 — Warrior parity (5-min RVOL, Running-Up). Phase 5 — IBC / telemetry.
-- **Related:** PROBLEM_LOG 2026-07-14 (catalyst feed, strategy bars).
-
 ## 2026-07-14 — Faster scanner table prices (chunked IBKR snapshots)
 
 - **What:** Gainers/Gappers/Losers table prices refresh in batches of 20 via rotating `reqTickersAsync` chunks, with a push after each chunk so the header age stays ~1s instead of 7–10s.
@@ -5519,14 +5177,6 @@ Entry template (copy and fill in):
 - **How it works now:** `table_reprice_loop` takes one chunk per 1Hz tick (size `IBKR_TABLE_REPRICE_CHUNK_SIZE`, timeout `IBKR_TABLE_REPRICE_CHUNK_TIMEOUT_SEC`), rotates across the scanner universe, and pushes `/ws/scanner` `price_patch` immediately. Scanner rows only — no HOD seeds on this hot path.
 - **Verified by:** `pytest backend/tests/test_ibkr_reprice.py`; frontend build; API restart.
 - **Related:** PROBLEM_LOG 2026-07-14 table reprice 7–10s stale.
-
-## 2026-07-14 — HOD consolidates same-ticker bursts like Warrior "(N in Xs)"
-
-- **What:** Same-ticker alerts in a short window merge into one feed row with `(3 in 5sec)` under the symbol (not a stack of duplicate tickers).
-- **Why:** Each alert previously got its own consolidation deadline, so bursts never merged; UI also hid the badge under Time instead of Symbol.
-- **Files touched:** `backend/hod_momo.py`; `collapseConsecutiveTickerAlerts.ts`; `HodMomoAlertRow.tsx`; `HodMomoTab.tsx`.
-- **How it works now:** First fire in a burst opens a consolidation window; later same-ticker fires join it. Emit uses newest price + real span seconds. UI also collapses leftover consecutive rows within ~3× consolidation window.
-- **Verified by:** pytest consolidation window test; vitest collapse helper; frontend build.
 
 ## 2026-07-14 — HOD Momo performance: full list + virtualize + debounce disk saves
 
@@ -5553,43 +5203,6 @@ Entry template (copy and fill in):
 - **How it works now:** `computeWindowSlice` + spacer rows keep scroll height correct while mounting ~20 rows. Sticky header; consolidation detail is a tooltip (no expanding second row that breaks fixed row height).
 - **Verified by:** vitest window math; frontend build; UI scroll on HOD tab.
 - **Follow-ups:** Apply same pattern to other multi-thousand scanners if needed.
-
-## 2026-07-14 — After-hours HOD Momo uses IBKR gainers + IBKR volume RVOL
-
-- **What:** After-hours discovery/focus now pulls IBKR top % gainers (not thin Alpaca IEX AH scans). HOD enrichment and table ticks recompute pace RVOL from IBKR cum volume. AH scan loop also refreshes Top Gainers; master RVOL gate uses `afterhours_min_rvol`.
-- **Why:** Warrior AH HOD showed ATHE/TRT/XCUR while Nova showed DYAI spam / missed XCUR — AH tab had ~2 Alpaca rows and RVOL stuck at yfinance ~1.3x.
-- **Files touched:** `backend/afterhours_discovery.py` (new), `main.py`, `hod_momo.py`, `hod_momo_enrichment.py`, tests.
-- **How it works now:** During after-hours with `discovery=ibkr`, each scan cycle refreshes Top Gainers then reshapes them into the After Hours cache (same names Warrior watches). No Alpaca fallback. 1Hz IBKR ticks / enrichment set `ibkr_pace` RVOL. Master RVOL uses `afterhours_min_rvol`.
-- **Verified by:** pytest afterhours + HOD engine tests; build + run app.
-- **Related:** PROBLEM_LOG 2026-07-14 AH HOD mismatch.
-
-## 2026-07-14 — HOD 5-min RVOL + Running Up Alert
-
-- **What:** HOD table shows Warrior-style **RVOL (Daily)** and **RVOL (5m)**. New strategy **#12 Running Up Alert** fires on surge/RVOL without requiring a new HOD (`requires_hod=false`).
-- **Why:** Follow-up after Warrior parity — Day Trade Dash shows both Rel Vol columns and a separate Running Up scanner.
-- **Files touched:** `backend/hod_momo_metrics.py` (new), `hod_momo.py`, `hod_momo_enrichment.py`, `constants.py`, frontend HOD types/columns/settings, tests.
-- **How it works now:** Cumulative day-volume samples → 5m delta ÷ (avg_daily / 144 bars). Master gate no longer owns HOD; each strategy’s `requires_hod` does. Schema v3 adds strategy 12.
-- **Verified by:** `pytest` HOD suite 18 passed; frontend build.
-- **Related:** commit after Warrior parity `94b8f6e`.
-
-## 2026-07-14 — HOD Momo Warrior parity (pace RVOL, volume seeds, gates)
-
-- **What:** Nova HOD Momo now closer to Warrior Day Trade Dash: pace RVOL (Daily Rate), IBKR volume-scanner seeds, Former Momo no longer fires on an empty list, master surge default off so float/RVOL strategies are not double-gated.
-- **Why:** Side-by-side with Warrior showed different symbols (TSSI/YG/FRE vs CNEY spam); strategy names matched but gates/universe/RVOL did not.
-- **Files touched:** `backend/market.py`, `hod_momo.py`, `hod_momo_universe.py`, `hod_momo_seed.py` (new), `hod_momo_enrichment.py`, `ibkr/discovery.py`, `constants.py`, `main.py`, `frontend/src/constants.ts`, tests.
-- **How it works now:** Focus watch set = gappers/gainers/losers/AH + IBKR `HOT_BY_VOLUME` / `TOP_VOLUME_RATE` / `MOST_ACTIVE` seeds + open details. RVOL = today_vol / (avg × 04:00–16:00 ET elapsed frac). Master gate is HOD + min RVOL; squeeze strategies keep their own surge. Former Momo requires a non-empty list. Persisted configs with master surge 3.0 migrate to 0 once (schema v2). Table reprice includes HOD seeds (cap 100).
-- **Verified by:** `pytest tests/test_hod_momo_engine.py tests/test_hod_momo_universe.py tests/test_pace_rvol.py` (14 passed).
-- **Follow-ups:** True 5-min RVOL column; Running Up scanner (no HOD required); optional former-runner list import from Warrior history.
-- **Related:** PROBLEM_LOG 2026-07-14 HOD Momo ≠ Warrior; closes CHANGELOG follow-up on Daily Rate RVOL.
-
-## 2026-07-14 — L2 | T&S side-by-side + bid/ask tape colors
-
-- **What:** Level 2 and Time & Sales sit side-by-side in one full-width row again. Each T&S print is classified against the open symbol’s live BBO and highlighted: green ASK (at/above ask), red BID (at/below bid), black MID (inside spread).
-- **Why:** User asked for side-by-side panels (not stacked rows) and aggressor-side coloring; prior uptick/downtick coloring did not answer bid vs ask.
-- **Files touched:** `backend/ibkr/tape_side.py`, `backend/ibkr/tape_stream.py`, `backend/tests/test_ibkr_tape_side.py`, `backend/tests/test_ibkr_tape_stream.py`, `frontend/src/ibkr/DepthAndTape.tsx`, `frontend/src/ibkr/TimeSalesPanel.tsx`, `frontend/src/ibkr/useIbkrTape.ts`, `frontend/src/constants.ts`, `frontend/src/index.css`.
-- **How it works now:** On each AllLast print, `tape_stream` reads `depth.current_book(symbol)` top-of-book and sets `side`/`bid`/`ask` on the WS payload. UI uses row block highlights + `ASK`/`BID`/`MID` labels (not color-only). Grid stacks to one column below 560px.
-- **Verified by:** `pytest tests/test_ibkr_tape_side.py tests/test_ibkr_tape_stream.py`; frontend build; browser check of layout + colors.
-- **Follow-ups:** (none for RVOL — see Warrior parity entry above).
 
 ## 2026-07-14 — HOD Momo empty: Ross focus universe + IBKR ticks
 
@@ -6172,54 +5785,6 @@ Entry template (copy and fill in):
 - **Verified by:** 12 new unit tests + 41/41 full backend suite passing; live endpoint returned 30 ranked real candidates against the running scanner; headless-browser screenshot confirms the tab renders and updates the live count badge.
 - **Follow-ups:** Phase B (Bull Flag / ABCD setup triggers + signal stream) is next per the backbone doc.
 
-## 2026-07-11 — Grounded Q&A CLI (`ask.py`) over the course knowledge base
-
-- **What:** New `tools/course_memory/ask.py`: retrieves from Pinecone (slides + official captions) and Obsidian, then has the model answer using ONLY the retrieved blocks, with numbered citations. Out-of-scope questions return `NOT_IN_KNOWLEDGE_BASE` instead of a guess.
-- **Why:** User wants a single command that asks the database and answers solely from indexed course material.
-- **Files touched:** `tools/course_memory/ask.py`, `tools/course_memory/constants.py` (ASK_* tunables), `knowledge/obsidian/00-System/How-Recall-Works.md`.
-- **How it works now:** `py ask.py "question"` → router (reused from `recall.py`) → top-12 Pinecone chunks + top-4 Obsidian hits capped at 24k chars → chat completion at temperature 0 with a context-only system prompt → answer + citation list. `--show-sources` prints the retrieved text. `recall.py` remains the raw-retrieval tool.
-- **Verified by:** Level 2 question answered with 16 citations from SS/BA slides + transcripts; crude-oil-futures control question correctly returned `NOT_IN_KNOWLEDGE_BASE`.
-- **Related:** Same-day fidelity-test entry (guarantees the underlying data is caption-exact).
-
-## 2026-07-11 — Fidelity tests: transcripts proven identical to raw captions
-
-- **What:** Added `tools/course_memory/test_transcript_fidelity.py` (word-for-word comparison of every exported transcript against the raw Wistia caption JSON, plus timestamp validation and provenance checks) and `verify_pinecone_sources.py` (audits Pinecone vectors by `source` metadata). Deleted the last leftover sparse-notes file (`BA101_TIMESTAMPED_NOTES.md`), which the new provenance test caught.
-- **Why:** User required proof the indexed transcripts contain no hallucinations or AI rewriting.
-- **Files touched:** `tools/course_memory/test_transcript_fidelity.py`, `tools/course_memory/test_obsidian_recall.py`, `tools/course_memory/verify_pinecone_sources.py`, removed `downloads/warrior-trading-caption-notes/BA101_TIMESTAMPED_NOTES.md`.
-- **How it works now:** Fidelity tests parametrize over every `warrior-trading-official-captions` MD file; the full transcript text must equal the concatenated raw caption cues and every timestamp must map to a real cue start. The Pinecone audit confirms only `warrior-trading-slides` and `warrior-trading-official-captions` sources exist and the stale `warrior-trading-caption-notes` source is fully purged.
-- **Verified by:** 45/45 pytest passing (incl. `test_obsidian_recall.py`: vault holds no transcript/paraphrase bodies, recall admits only official-caption files); Pinecone audit reports 1,506 vectors, stale source purged, PASS.
-- **Related:** Same-day entries below on official transcripts and purge.
-
-## 2026-07-11 — Purge inaccurate caption notes; index official LMS transcripts only
-
-- **What:** Added `py ingest.py --official-transcripts` which deletes stale `warrior-trading-caption-notes` vectors, then upserts only `warrior-trading-official-captions` Markdown from `downloads/warrior-trading-caption-notes/`. Obsidian recall now also keyword-searches those official transcript files on disk (Whisper files excluded). Documented the accuracy model in How-Recall-Works.
-- **Why:** Sparse/paraphrase notes were inaccurate; user required the knowledge stores not learn non-video-aligned text.
-- **Files touched:** `tools/course_memory/{ingest,constants,extract_markdown,pinecone_store,obsidian_store}.py`, `knowledge/obsidian/00-System/How-Recall-Works.md`.
-- **How it works now:** Default transcript ingest is official LMS subtitle tracks only. Whisper gap transcripts stay local until `--include-whisper`. Slide PDFs unchanged.
-- **Verified by:** Dry-run (18 files / 426 chunks / official source only); live purge+upsert 426 vectors; recall queries return `warrior-trading-official-captions`.
-- **Follow-ups:** Optional opt-in Whisper indexing after manual spot-checks; do not claim absolute 100% ASR accuracy.
-- **Related:** Real transcript export from same day.
-
-## 2026-07-11 — Real video-aligned transcripts (official captions + Whisper)
-
-- **What:** Replaced sparse title-only caption notes with real timestamped transcripts. For 18 LMS units with English captions, exported the official Wistia subtitle track. For 7 local BA101 MP4s that had no caption track, extracted audio with ffmpeg and transcribed via OpenAI Whisper.
-- **Why:** Prior notes were paraphrased topic titles, not video-aligned speech. User asked for transcripts that match the videos without downloading more remote video.
-- **Files touched:** `downloads/warrior-trading-caption-notes/` (local transcripts + `_export_official_transcripts.py`, `_whisper_local_videos.py`), Obsidian course index pointers under `knowledge/obsidian/01-Courses/`.
-- **How it works now:** Official-caption units use the same text/timing as the LMS player. Gap units use local audio only (`_audio_cache/`). Full transcripts stay under gitignored `downloads/`; Obsidian holds path indexes only.
-- **Verified by:** DE101 mentor-session MD now shows real spoken lines at matching timestamps; Whisper wrote 7 BA101 gap transcripts; frontend build + app already running.
-- **Follow-ups:** Optional Pinecone re-ingest of transcript Markdown; Whisper remaining courses only if local videos exist.
-- **Related:** Replaces the sparse-note approach from 2026-07-10.
-
-## 2026-07-10 — Timestamped LMS notes in Obsidian and Pinecone
-
-- **What:** Added source-aware Markdown ingestion and per-unit note export to the course-memory tooling, plus curated timestamped notes for captioned BA101, SS101, Live Trading Archive, and Platform Demo units. Inventoried all 12 enrolled LMS courses without downloading videos or storing full transcripts.
-- **Why:** The user wanted caption-derived strategy material to complement the existing slide PDFs in both Obsidian and Pinecone.
-- **Files touched:** `tools/course_memory/{constants,extract,extract_markdown,export_unit_notes,chunk,ingest,pinecone_store,recall}.py`, `tools/course_memory/test_extract_markdown.py`, `knowledge/obsidian/00-System/How-Recall-Works.md`, `knowledge/obsidian/01-Courses/`, `PROBLEM_LOG.md`.
-- **How it works now:** `py ingest.py --content markdown` splits curated course notes by Markdown section, preserves course/source/unit/timestamp metadata, and upserts them into the existing course namespace. Recall output labels slide versus caption-note provenance and prints arbitrary Unicode safely on Windows.
-- **Verified by:** Six pytest tests; 18 per-unit Markdown exports; Markdown dry run (4 files, 25 chunks); Pinecone upsert (25 vectors); successful Pinecone queries for VWAP and IPO/slippage notes; successful Obsidian query for simulator loss controls; frontend production build and browser launch.
-- **Follow-ups:** Only 13 of 538 additional detected Wistia videos expose English captions. Add future notes incrementally when the LMS publishes more caption tracks or official handouts.
-- **Related:** Updated the 2026-07-10 Windows `UnicodeEncodeError` entry in `PROBLEM_LOG.md`.
-
 ## 2026-07-10 — Five Pillars scoring + Gap and Go signal (Phase 1, signal-only)
 
 - **What:** Added `backend/strategy/` with two pure-logic modules: `five_pillars.py` scores
@@ -6251,15 +5816,6 @@ Entry template (copy and fill in):
   registered (no circular-import regression).
 - **Follow-ups:** No UI panel yet for these signals; Phase 2 (paper execution via IBKR) is not
   started — see backbone doc §5 for the phased plan and go/no-go bar before any order is placed.
-
-## 2026-07-10 — Dual memory: Pinecone course RAG + Obsidian vault + recall router
-
-- **What:** Added `tools/course_memory/` to ingest Warrior slide PDFs into Pinecone, plus an Obsidian vault at `knowledge/obsidian/` for curated Nova decisions. `recall.py` auto-routes questions to Obsidian, Pinecone, or both.
-- **Why:** User wants accurate long-term recall of course material and a place for “what should Nova automate?” decisions without manually choosing a database.
-- **Files touched:** `tools/course_memory/*`, `knowledge/obsidian/**`, `.env.example`, `.gitignore`.
-- **How it works now:** PDFs → chunk/embed → Pinecone (`ingest.py`). Decisions live in Obsidian notes. Ask via `py recall.py "…"`. Router: Nova/build/decide → Obsidian first; course/setup/rules → Pinecone first; ambiguous → both. Trust order: Obsidian decisions > Pinecone citations > model guesses.
-- **Verified by:** `ingest.py --dry-run` (1080 chunks from 34 1pp PDFs); `recall.py` Obsidian path after Unicode fix.
-- **Follow-ups:** User adds `PINECONE_API_KEY` + `OPENAI_API_KEY`, runs full `ingest.py`, opens vault in Obsidian.
 
 ## 2026-07-10 — IBKR optional trading module (Level 2 depth + paper order execution)
 

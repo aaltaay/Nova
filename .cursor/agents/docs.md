@@ -45,7 +45,6 @@ Full pins and Windows install notes: `docs/SOURCE-PINS.md`.
 | Agent dreaming (dry-run) | `py -3 tools/agent_dream.py` | repo root |
 | Agent dreaming (apply) | `py -3 tools/agent_dream.py --write` | repo root |
 | Dreaming tests | `py -3 -m pytest tools/test_agent_dream.py -q` | repo root |
-| Markdown structure | `npx --yes markdownlint-cli2@0.23.0 "**/*.{md,mdc}" "#node_modules" "#frontend/node_modules" "#.git" "#graphify-out"` | repo root |
 | Prose (if Vale installed) | `vale sync` then `vale .` | repo root |
 | Links (if Lychee installed) | `lychee --root-dir . "./**/*.md"` | repo root |
 
@@ -63,11 +62,7 @@ Windows: always `py -3` for Python. Missing Vale or Lychee → report **BLOCKED*
 
 **Must not edit unless the user explicitly asks:**
 
-- Product/runtime code under `backend/`, `frontend/src/`
-- Secrets / `.env`
-- Tester / Maintainer / Security product-audit responsibilities (you may link and refresh their boards; do not own SEC-NNN triage or code hygiene findings)
-- Warrior Trading live navigation / Day Trade Dash mapping (hand off to `warrior`; do not recreate unmanaged Warrior canvases — point at `agent-warrior.canvas.tsx`)
-- Webull-to-Nova widget capability accuracy or selected gap implementation (hand off to `widgets`; retain general naming and canvas hygiene)
+
 
 ## Evidence rules
 
@@ -153,5 +148,4 @@ After material docs/process work, write `knowledge/task-log/` (see `.cursor/rule
 | tester | test / build / browser gates |
 | maintainer | code hygiene / danger |
 | security | full-repo security / SEC-NNN |
-| warrior | Warrior Trading authenticated site / Day Trade Dash navigation (`agent-warrior`) |
 | widgets | Webull-to-Nova stock/day-trading capability mapping and `agent-widgets` content |
