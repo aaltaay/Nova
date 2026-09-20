@@ -1,0 +1,53 @@
+---
+description: How a backlog claim resolves -- who holds an issue, when a hold goes stale, and which claim is yours (R1-R5)
+globs: tools/backlog_claims.py,tools/backlog_claim_commands.py,tools/backlog_commands.py
+alwaysApply: false
+---
+
+# Claim resolution (R1-R5)
+
+An issue accumulates markers: a **claim** by an agent, or a **release**. These
+rules decide what those markers mean. They exist because three consecutive
+patches to the resolution logic each fixed one scenario and broke another --
+the `claimed` label survived a withdrawal (#400), a loser's release erased the
+winner (#402), an abandoned claim outranked a fresh reclaim (#405). Every one
+was a combination of (agents x claim/release x fresh/stale) the previous patch
+had not considered.
+
+- **R1 -- per agent.** An agent holds the issue while their own newest marker
+  is a claim. Only that agent's release ends their hold. A losing agent
+  yielding must never clear the winner's claim.
+- **R2 -- legacy releases.** A release naming nobody predates identity-aware
+  releases and keeps its old meaning: it clears every marker at or before its
+  own timestamp. Every release already on a GitHub issue is anonymous.
+- **R3 -- staleness.** A holder is stale when `now - max(claim time, last
+  commit on its branch)` exceeds the TTL. Branch activity can only revive a
+  hold, never end one, so only a holder that already looks expired costs a
+  branch lookup -- which is what makes resolution affordable on `next`'s path.
+- **R4 -- election.** Among holders the earliest **live** one wins: earliest
+  because a race is settled by who claimed first, live-first because a fresh
+  reclaim must never hide behind an abandoned claim. With no live holder the
+  earliest stale one is reported, so `claims` can show it and `--force` can
+  take it over.
+- **R5 -- your own claim is a different question.** "Which claim is mine?" is
+  not "who holds this?" and has its own door, `claim_for`. Answering it by
+  election deletes another agent's branch (`cmd_release` cleans up the branch
+  it is told about). It fails closed: no match, no cleanup.
+
+## Enforcement
+
+`tools/test_backlog_claims_table.py` is the executable form of these rules --
+a table over the state space, not prose. **Change the table first.** An edit to
+`tools/backlog_claims.py` that the table still passes has not been reasoned
+about, and that is the failure this rule exists to prevent.
+
+Every path that decides whether a batch is held goes through `resolve_claim`,
+so `claims` (display) and `next` (enforcement) cannot disagree about who is
+working. A bare `active_claim` staleness decision in `cmd_claim` is a bug;
+`tools/test_backlog_branches.py` asserts against it in the source.
+
+## Related
+
+`CLAUDE.md` backlog section (the claim protocol an agent follows) ·
+`.cursor/rules/backlog-footprints.mdc` (file overlap between batches) ·
+AGENTS.md §7.3 (rules are peers of the constitution)

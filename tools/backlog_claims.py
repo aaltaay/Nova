@@ -122,33 +122,13 @@ def _as_dt(value: str) -> datetime | None:
 
 
 # ---------------------------------------------------------------------------
-# Resolution
-#
-# Written down because three consecutive patches to this logic each fixed one
-# scenario and broke another: the label survived a withdrawal, then a loser's
-# release erased the winner, then an abandoned claim outranked a fresh
-# reclaim. Every one was a combination of (agents x claim/release x
-# fresh/stale) that the previous patch had not considered. The rules:
-#
-#   R1  Markers are per agent. An agent HOLDS the issue while their own newest
-#       marker is a claim. Only that agent's release ends their hold.
-#   R2  A release naming nobody is a legacy marker from before releases
-#       carried identity, and keeps its old meaning: it clears every marker at
-#       or before its own timestamp.
-#   R3  A holder is STALE when now - max(claim time, last commit on its
-#       branch) exceeds the TTL. Branch activity can only revive a hold, never
-#       end one, so only a holder that already looks expired costs a lookup.
-#   R4  Among holders the earliest LIVE one is elected: earliest because a
-#       race is settled by who claimed first, live-first because a fresh
-#       reclaim must never hide behind an abandoned claim. With no live holder
-#       the earliest stale one is reported, so `claims` can show it and
-#       `--force` can take it over.
-#   R5  "Which claim is mine?" is a DIFFERENT question from "who holds this?"
-#       and gets its own door, `claim_for`. Answering it by election deletes
-#       another agent's branch -- see `cmd_release`.
-#
-# Each rule has rows in tools/test_backlog_claims_table.py. Change the table
-# first; an edit here that the table still passes has not been reasoned about.
+# Resolution -- the normative rules R1-R5 live in
+# `.cursor/rules/claim-resolution.mdc`, and their executable form is the state
+# table in `tools/test_backlog_claims_table.py`. They are deliberately NOT
+# restated here: three patches to this logic each fixed one scenario and broke
+# another, and prose duplicated beside code is how a rule and its behaviour
+# drift apart. Change the table first; an edit here that the table still
+# passes has not been reasoned about.
 # ---------------------------------------------------------------------------
 
 

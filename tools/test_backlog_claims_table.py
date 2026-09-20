@@ -13,6 +13,7 @@ Change this table before changing the rules it pins: an edit to
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
@@ -147,3 +148,38 @@ def test_claim_for_fails_closed():
     assert claim_for(rows, agent="nobody") is None
     assert claim_for(comments(claim("a", FRESH), release("a", NOW)), agent="a") is None
     assert claim_for(rows, agent="a", batch="other#9") is None
+
+
+# -- the rule and the code cannot drift apart ------------------------------
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+RULE = REPO_ROOT / ".cursor" / "rules" / "claim-resolution.mdc"
+MODULE = REPO_ROOT / "tools" / "backlog_claims.py"
+
+
+def test_the_rule_states_every_numbered_rule():
+    # A rule file that has lost a rule governs less than it claims to.
+    text = RULE.read_text(encoding="utf-8")
+    for rule in ("R1", "R2", "R3", "R4", "R5"):
+        assert f"**{rule}" in text, f"{rule} is missing from claim-resolution.mdc"
+
+
+def test_the_rule_is_scoped_to_the_code_it_governs():
+    head = RULE.read_text(encoding="utf-8").split("---")[1]
+    assert "tools/backlog_claims.py" in head, "an unscoped rule attaches to nothing"
+
+
+def test_the_code_points_at_the_rule_rather_than_restating_it():
+    # Prose duplicated beside code is how a rule and its behaviour drift --
+    # which is the defect that started this whole subsystem's trouble.
+    text = MODULE.read_text(encoding="utf-8")
+    assert "claim-resolution.mdc" in text
+    assert "R1  Markers are per agent" not in text, (
+        "the rules belong in the MDC rule, not copied back into the module"
+    )
+
+
+def test_the_rule_names_its_own_enforcement():
+    assert "test_backlog_claims_table.py" in RULE.read_text(encoding="utf-8"), (
+        "a rule with no executable form is decoration"
+    )
