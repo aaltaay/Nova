@@ -103,12 +103,23 @@ EXECUTION_OPS = ("place", "bracket", "cancel", "replace")
 #
 # The derivation reproduces the previously hand-typed 2026 set exactly (all ten
 # dates, zero diff), which is both its validation and a regression guard that
-# production-year behaviour is unchanged.
-# NOT modelled: early-close (1pm) half-days. These are full-day closures only.
+# production-year behaviour is unchanged. tests/test_sim_trading_day.py pins
+# every derived date against a hand-entered table taken from the published NYSE
+# calendars, so the rules are checked against something other than themselves.
+#
+# NOT modelled: early-close (13:00 ET) half-days. This table is full-day
+# closures only; see sim/trading_day.py for what that costs a replayed session.
 from types import MappingProxyType as _MappingProxyType
 
+# The supported (vouchable) range. Callers refuse dates outside it.
 NOVA_OS_CALENDAR_FIRST_YEAR = 2015
 NOVA_OS_CALENDAR_LAST_YEAR = 2035
+# The table itself carries one extra year BELOW the supported range. It is not
+# a supported year — is_trading_day still refuses it — it exists so that the
+# backward walk in sim.trading_day.last_trading_day can step off 2015-01-01
+# onto a day the table still knows about instead of falling off its edge and
+# having to guess (#386 finding 8: an in-range input must never raise).
+NOVA_OS_CALENDAR_TABLE_FIRST_YEAR = NOVA_OS_CALENDAR_FIRST_YEAR - 1
 NOVA_OS_NYSE_JUNETEENTH_FIRST_YEAR = 2022  # federal in 2021; the NYSE first closed in 2022
 # One-off full-day closures no rule can derive (national days of mourning).
 NOVA_OS_NYSE_AD_HOC_CLOSURES = frozenset({
@@ -183,7 +194,7 @@ def _nyse_holidays(year):
 # ISO date -> holiday name, for auditable and loud diagnostics.
 NOVA_OS_NYSE_HOLIDAY_NAMES = _MappingProxyType({
     day.isoformat(): name
-    for year in range(NOVA_OS_CALENDAR_FIRST_YEAR, NOVA_OS_CALENDAR_LAST_YEAR + 1)
+    for year in range(NOVA_OS_CALENDAR_TABLE_FIRST_YEAR, NOVA_OS_CALENDAR_LAST_YEAR + 1)
     for day, name in sorted(_nyse_holidays(year).items())
 })
 # Same name and same frozenset-of-ISO-strings contract as the 2026-only literal

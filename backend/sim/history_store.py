@@ -19,7 +19,7 @@ from constants_sim import (
     SIM_HISTORY_REQUEST_TIMEOUT_SEC, SIM_HISTORY_RETRY_INTERVAL_SEC, SIM_SESSION_CLOSE_HOUR,
     SIM_HISTORY_SQLITE_TIMEOUT_SEC,
 )
-from sim.trading_day import is_trading_day
+from sim.trading_day import last_open_day, require_supported
 
 ET = ZoneInfo("America/New_York")
 KINDS = ("bars", "trades")
@@ -38,6 +38,15 @@ def stale_after() -> float:
 
 
 def window(symbol: str, date: str, start: str, end: str) -> dict:
+    """Validate an operator-chosen replay window; the only gate on POST /select.
+
+    The calendar check belongs here and nowhere deeper: this date is typed by a
+    human, so a year the holiday table cannot vouch for is refused by name and
+    rendered as a 422, rather than being accepted and then degrading silently
+    two layers down (#386). A non-trading day INSIDE the range stays selectable
+    and reports an empty tape — that is a deliberate diagnostic, pinned by
+    test_weekend_holiday_selection_is_explicitly_empty_not_remapped.
+    """
     symbol = symbol.strip().upper()
     if not re.fullmatch(r"[A-Z0-9][A-Z0-9. -]{0,19}", symbol):
         raise ValueError("Enter a stock ticker")
@@ -48,18 +57,25 @@ def window(symbol: str, date: str, start: str, end: str) -> dict:
     b = datetime.fromisoformat(f"{date}T{end}").replace(tzinfo=ET)
     if a >= b or b.timestamp() > time.time():
         raise ValueError("Choose a completed historical window with start before end")
+    require_supported(a.date())
     return dict(symbol=symbol, date=a.date().isoformat(), start=start, end=end,
                 start_ts=int(a.timestamp()), end_ts=int(b.timestamp()),
                 timezone="America/New_York", source="ibkr_historical")
 
 
 def default_date(now: datetime | None = None) -> str:
-    """Latest weekday, not an NYSE holiday, whose default session has closed."""
+    """Latest weekday, not an NYSE holiday, whose default session has closed.
+
+    A pre-filled picker value, derived from the wall clock rather than chosen,
+    so it degrades with ``last_open_day`` instead of refusing: a clock outside
+    the supported range must not make the acquisition listing unanswerable.
+    """
     now = (now or datetime.now(ET)).astimezone(ET)
     day = now.date()
     while True:
+        day = last_open_day(day)
         close = datetime.combine(day, datetime.min.time(), tzinfo=ET).replace(hour=SIM_SESSION_CLOSE_HOUR)
-        if is_trading_day(day) and close <= now:
+        if close <= now:
             return day.isoformat()
         day -= timedelta(days=1)
 

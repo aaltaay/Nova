@@ -206,20 +206,66 @@ def test_previous_close_reads_the_true_prior_session_across_a_holiday(client):
     assert history_cache.previous_close('HOLI', {'date': '2025-07-07'}) == 31.5
 
 
-def test_previous_close_degrades_to_a_miss_when_the_prior_session_leaves_the_range(client, caplog):
-    """A supported selection is not refused because its prior day is off the edge."""
+def test_previous_close_reads_the_prior_session_below_the_calendars_first_year(client):
+    """The stored prior bar still wins when the walk leaves the vouched range.
+
+    ``2015-01-02`` is inside the supported range but its prior session is not;
+    the earlier fix returned None here and for every date before 2015-01-05,
+    turning a working path into a miss even with the bar on disk (#386).
+    """
+    import bars_store
     from sim import history_cache
+    bars_store.write_payload(dict(symbol='EDGE', timeframe='1Min', bars=[
+        # Wed 2014-12-31 15:59 ET (EST, so 20:59Z) is the prior session.
+        dict(t='2014-12-31T20:59:00Z', o=1, h=2, l=1, c=57.25, v=10)]))
+    assert history_cache.previous_close('EDGE', {'date': '2015-01-02'}) == 57.25
+
+
+def test_previous_close_still_answers_for_a_selection_older_than_the_calendar(client, caplog):
+    """A pre-2015 archive keeps the weekday behaviour it had before the calendar."""
+    import bars_store
+    from sim import history_cache
+    bars_store.write_payload(dict(symbol='OLDY', timeframe='1Min', bars=[
+        # Wed 2014-06-04 15:59 ET (EDT, so 19:59Z).
+        dict(t='2014-06-04T19:59:00Z', o=1, h=2, l=1, c=42.5, v=10)]))
     with caplog.at_level(logging.WARNING):
-        assert history_cache.previous_close('EDGE', {'date': '2015-01-02'}) is None
-    assert 'No prior session available for EDGE 2015-01-02' in caplog.text
+        assert history_cache.previous_close('OLDY', {'date': '2014-06-05'}) == 42.5
+    assert 'outside the supported exchange calendar' in caplog.text
 
 
-def test_out_of_range_calendar_refusal_is_a_422_not_a_500(client, monkeypatch):
-    from sim.trading_day import UnsupportedCalendarYear
-    real, beyond = store.default_date, datetime(2036, 6, 2, 21, 0, tzinfo=store.ET)
-    with pytest.raises(UnsupportedCalendarYear):
-        real(beyond)  # the calendar genuinely refuses this clock
-    monkeypatch.setattr(store, 'default_date', lambda: real(beyond))
-    response = client.get('/api/sim/history')
+@pytest.mark.parametrize('path', ['/api/sim/history', '/api/sim/history/select'])
+def test_an_out_of_range_selection_is_refused_at_the_operator_entry_point(client, path):
+    """The date the operator typed is the one the refusal has to cover (#386)."""
+    response = client.post(path, json=dict(
+        symbol='BENCH', date='2014-06-05', start='04:00', end='20:00'))
     assert response.status_code == 422
-    assert '2015-2035' in response.json()['detail']
+    detail = response.json()['detail']
+    assert '2014-06-05' in detail and '2015-2035' in detail
+    # The operator reads this string; it must not describe Nova's own layout.
+    assert '.py' not in detail and 'backend/' not in detail
+
+
+def test_an_uncomputable_default_date_does_not_take_down_the_listing(client, monkeypatch, caplog):
+    """One convenience field is not allowed to hide the operator's jobs (#386)."""
+    store.create(store.window('BENCH', '2026-09-18', '04:00', '09:30'), 'trades')
+    def refuse():
+        raise ValueError('no calendar for this clock')
+    monkeypatch.setattr(store, 'default_date', refuse)
+    with caplog.at_level(logging.WARNING):
+        response = client.get('/api/sim/history')
+    assert response.status_code == 200
+    body = response.json()
+    assert body['default_date'] is None
+    assert len(body['jobs']) == 1 and body['storage']
+    assert 'Default replay date is unavailable' in caplog.text
+
+
+def test_a_wall_clock_past_the_calendar_still_serves_the_listing(client, monkeypatch, caplog):
+    """A slipped or future clock degrades the default date; it never 500s."""
+    beyond, real = datetime(2036, 6, 2, 21, 0, tzinfo=store.ET), store.default_date
+    monkeypatch.setattr(store, 'default_date', lambda: real(beyond))
+    with caplog.at_level(logging.WARNING):
+        response = client.get('/api/sim/history')
+    assert response.status_code == 200
+    assert response.json()['default_date'] == '2036-06-02'
+    assert 'outside the supported exchange calendar' in caplog.text
