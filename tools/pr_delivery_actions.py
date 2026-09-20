@@ -23,6 +23,9 @@ except ImportError:
 GhFn = Callable[..., Any]
 DeleteFn = Callable[..., int]
 
+DESKTOP_PACK_WORKFLOW = "desktop-pack.yml"
+RELEASE_BRANCH = "master"
+
 
 def merge_now(
     gh: GhFn,
@@ -43,9 +46,44 @@ def merge_now(
         print(proc.stderr or proc.stdout or f"merge #{number} failed", file=sys.stderr)
         return 2
     print(f"merged #{number}")
+    dispatch_desktop_pack(gh, repo)
     if head_ref:
         delete_closed(head_ref, same_repo=True)
     return 0
+
+
+def dispatch_desktop_pack(gh: GhFn, repo: str, ref: str = RELEASE_BRANCH) -> bool:
+    """Start the pack explicitly -- an Actions merge never fires `push:` (#346).
+
+    GitHub suppresses workflow runs for events created with `GITHUB_TOKEN` so a
+    workflow cannot trigger itself. The squash-merge above therefore lands on
+    master without starting `desktop-pack.yml`, which is why no `vNNN` tag,
+    Release or EXE has been published since `v757`. `workflow_dispatch` is one
+    of the two documented exceptions to that rule, so the same token can start
+    the pack on purpose. Keeping `GITHUB_TOKEN` here means no release PAT.
+    """
+    proc = gh(
+        [
+            "api",
+            "-X",
+            "POST",
+            f"repos/{repo}/actions/workflows/{DESKTOP_PACK_WORKFLOW}/dispatches",
+            "-f",
+            f"ref={ref}",
+        ],
+        check=False,
+    )
+    if proc.returncode != 0:
+        # The merge already landed. A failed dispatch costs this commit its
+        # Release, not the merge, so report it loudly and let the caller
+        # return success -- `--ensure-tag` backfills on the next pack.
+        print(
+            proc.stderr or proc.stdout or f"desktop pack dispatch on {ref} failed",
+            file=sys.stderr,
+        )
+        return False
+    print(f"desktop pack dispatched on {ref}")
+    return True
 
 
 def signal_conflict(gh: GhFn, repo: str, number: int) -> None:

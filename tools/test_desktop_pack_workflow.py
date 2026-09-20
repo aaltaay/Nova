@@ -118,3 +118,20 @@ def test_npm_electron_pack_does_not_force_nsis_only():
     assert "portable" in json.dumps(
         json.loads(PACKAGE_JSON.read_text(encoding="utf-8"))["build"]["win"]["target"]
     )
+
+
+def test_publish_accepts_an_actions_merge_dispatch():
+    """A dispatched master run must publish, not just a pushed one.
+
+    `tools/pr_delivery.py` merges with `GITHUB_TOKEN`, which by design starts
+    no `push:` run. Gating publish on `push` alone is what left master at
+    v757 with no tag, Release or EXE (#346).
+    """
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert "workflow_dispatch:" in text, "pack cannot be dispatched at all"
+    assert "github.event_name == 'workflow_dispatch'" in text, (
+        "publish-release still gates on push only -- an Actions merge "
+        "would publish nothing"
+    )
+    # A dispatch of any other ref must still not publish.
+    assert "github.ref == 'refs/heads/master'" in text

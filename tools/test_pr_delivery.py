@@ -365,3 +365,69 @@ def test_cmd_sweep_signals_conflict(monkeypatch):
     rc = pr_delivery.cmd_sweep()
     assert rc == 1
     assert posted == [239]
+
+
+def _dispatch_call(calls: list[list[str]]) -> list[str] | None:
+    """The desktop-pack workflow_dispatch call, if the merge made one."""
+    for args in calls:
+        if args[:3] == ["api", "-X", "POST"] and "desktop-pack.yml/dispatches" in args[3]:
+            return args
+    return None
+
+
+def test_merge_dispatches_desktop_pack(monkeypatch):
+    """An Actions merge must start the pack itself.
+
+    The squash-merge pushes with `GITHUB_TOKEN`, which by design starts no
+    `push:` run, so without this dispatch master gets no vNNN tag, Release
+    or EXE -- the #346 defect that stalled releases at v757.
+    """
+    calls: list[list[str]] = []
+
+    def fake_gh(args, check=True, stdin=None):
+        calls.append(list(args))
+        return subprocess.CompletedProcess(args, 0, stdout="{}", stderr="")
+
+    monkeypatch.setattr(pr_delivery, "_gh", fake_gh)
+    monkeypatch.setattr(pr_delivery, "cmd_delete_closed", lambda *a, **k: 0)
+    rc = pr_delivery._merge_now(239, "feature-head", title="t", body="b")
+
+    assert rc == 0
+    dispatched = _dispatch_call(calls)
+    assert dispatched is not None, "merge did not dispatch Desktop pack"
+    # master HEAD, not the merged head -- the head is deleted right after.
+    assert "ref=master" in dispatched
+
+
+def test_desktop_pack_dispatch_follows_the_merge(monkeypatch):
+    """Dispatch after the merge lands, never before, and never on a failure."""
+    calls: list[list[str]] = []
+
+    def fake_gh(args, check=True, stdin=None):
+        calls.append(list(args))
+        if args[:3] == ["api", "-X", "PUT"]:
+            return subprocess.CompletedProcess(args, 1, stdout="", stderr="merge blocked")
+        return subprocess.CompletedProcess(args, 0, stdout="{}", stderr="")
+
+    monkeypatch.setattr(pr_delivery, "_gh", fake_gh)
+    monkeypatch.setattr(pr_delivery, "cmd_delete_closed", lambda *a, **k: 0)
+    rc = pr_delivery._merge_now(239, "feature-head", title="t", body="b")
+
+    assert rc == 2
+    assert _dispatch_call(calls) is None, "dispatched a pack for a merge that failed"
+
+
+def test_failed_dispatch_does_not_fail_the_merge(monkeypatch, capsys):
+    """The merge already landed; a lost dispatch costs a Release, not the merge."""
+    def fake_gh(args, check=True, stdin=None):
+        if args[:3] == ["api", "-X", "POST"]:
+            return subprocess.CompletedProcess(args, 1, stdout="", stderr="no actions scope")
+        return subprocess.CompletedProcess(args, 0, stdout="{}", stderr="")
+
+    monkeypatch.setattr(pr_delivery, "_gh", fake_gh)
+    monkeypatch.setattr(pr_delivery, "cmd_delete_closed", lambda *a, **k: 0)
+    rc = pr_delivery._merge_now(239, "feature-head", title="t", body="b")
+
+    assert rc == 0
+    # Never silent (AGENTS.md 6.3) -- the operator must see the lost Release.
+    assert "no actions scope" in capsys.readouterr().err
