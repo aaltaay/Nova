@@ -6,6 +6,7 @@ import sqlite3
 import threading
 import time
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import pytest
 from fastapi import FastAPI
@@ -97,7 +98,32 @@ def test_schema_initialized_once_and_recreated_database_invalidates(client, monk
     assert sum('CREATE TABLE IF NOT EXISTS jobs' in sql for sql in calls) == 2
 
 
-def test_unknown_schema_version_refuses_without_overwriting(client):
+@pytest.mark.parametrize('legacy', [False, True])
+def test_recreated_database_with_reused_inode_and_no_birthtime_is_initialized(client, monkeypatch, legacy):
+    database = store.path()
+    stat = database.parent.stat()
+    original_stat = type(database).stat
+    def reused_stat(path, *args, **kwargs):
+        if path == database:
+            return SimpleNamespace(st_dev=stat.st_dev, st_ino=42)
+        return original_stat(path, *args, **kwargs)
+    monkeypatch.setattr(type(database), 'stat', reused_stat)
+    assert store.jobs() == []  # Cache this identity before removing the file.
+    database.unlink()
+    if legacy:
+        with sqlite3.connect(database) as conn:
+            conn.execute('CREATE TABLE jobs (id TEXT PRIMARY KEY, payload TEXT NOT NULL)')
+            conn.execute('INSERT INTO jobs VALUES (?,?)', ('legacy', '{"id":"legacy"}'))
+    assert store.jobs() == ([{'id': 'legacy'}] if legacy else [])
+    with store.connect() as conn:
+        assert conn.execute('PRAGMA user_version').fetchone()[0] == 1
+        assert conn.execute('SELECT COUNT(*) FROM prints').fetchone()[0] == 0
+
+
+@pytest.mark.parametrize('warm_cache', [False, True])
+def test_unknown_schema_version_refuses_without_overwriting(client, warm_cache):
+    if warm_cache:
+        assert store.jobs() == []
     with sqlite3.connect(store.path()) as conn:
         conn.execute('PRAGMA user_version=999')
     response = client.get('/api/sim/history')

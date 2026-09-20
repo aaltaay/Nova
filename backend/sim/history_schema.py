@@ -19,12 +19,14 @@ def initialize(db: sqlite3.Connection, path: Path):
     identity = (stat.st_dev, stat.st_ino, getattr(stat, 'st_birthtime_ns', None))
     key = str(path.resolve())
     with _lock:
-        if _initialized.get(key) == identity:
-            _initialized.move_to_end(key)
-            return
+        # Inodes can be reused and birth time is not available on every platform.
+        # Validate this connection before trusting any cached initialization proof.
         version = db.execute('PRAGMA user_version').fetchone()[0]
         if version not in (0, SCHEMA_VERSION):
             raise sqlite3.DatabaseError(f'Unsupported historical schema version {version}')
+        if version == SCHEMA_VERSION and _initialized.get(key) == identity:
+            _initialized.move_to_end(key)
+            return
         db.execute('PRAGMA journal_mode=WAL')
         db.executescript('''
             BEGIN;

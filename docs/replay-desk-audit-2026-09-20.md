@@ -143,9 +143,9 @@ coverage remains enabled in `replay-desk.spec.ts`, `sim-replay-chart.spec.ts`,
 `sim-session-scrub.spec.ts` and `capture-replay-truth.spec.ts`.
 
 The combined browser run passed **7 tests**, including the 60-second benchmark.
-The full frontend suite passed **1,715 tests in 331 files**; frontend lint and
-production build passed. Later focused review fixes and their additional evidence
-are recorded in the PR body. Vite's existing >500 kB chart-vendor chunk warning
+The full frontend suite passed **1,718 tests in 331 files**; frontend lint and
+production build passed. This final run includes the three pending-seek/source-mutation race regressions;
+additional evidence is recorded in the PR body. Vite's existing >500 kB chart-vendor chunk warning
 remains advisory. Desktop packaging and a full desktop restart were not run locally.
 
 The backend audit found separate candle-lookahead #385 and holiday-calendar #386;
