@@ -167,13 +167,15 @@
         342,
         344,
         346,
-        347
+        347,
+        369
       ],
       "done": [
         "An Actions-merged PR produces a vNNN tag, a GitHub Release, and an attached installer - proven on one real merge, not just a dry run.",
         "A red gating run means code broke: expected delivery states exit 0, and CI has concurrency groups plus job timeouts.",
         "The shared bookkeeping files no longer force every PR to edit the same lines (#344 WS2-WS4).",
-        "`py -3 tools/master_branch_protection.py check` still exits 0 afterwards."
+        "`py -3 tools/master_branch_protection.py check` still exits 0 afterwards.",
+        "Cleanup preserves and reports recreated branches with unmerged commits; remote deletion is conditional on the verified SHA (#369)."
       ],
       "prs": [
         {
@@ -207,6 +209,14 @@
           ],
           "note": "GATED on the owner's three calls and on #346 landing first. Do not start this PR before both.",
           "gated": true
+        },
+        {
+          "title": "fix(delivery): preserve unmerged work during branch cleanup",
+          "issues": [
+            369
+          ],
+          "note": "The checker, Actions cleanup and local hygiene share the same unsafe branch-name assumption; fix and verify them together.",
+          "gated": false
         }
       ]
     },

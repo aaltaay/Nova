@@ -37,6 +37,15 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-20 -- Cleanup preserves recreated branches with unmerged work
+
+- **Symptom:** A head recreated after PR merge could be deleted while carrying new, unmerged commits (#369).
+- **Cause:** Remote cleanup and local hygiene trusted a closed PR branch name without proving the current tip was disposable; unconditional deletion also raced concurrent pushes.
+- **Fix:** Require current-tip ancestry in master, fail closed on missing proof, report retained tips, recheck before local removal, and compare-and-delete remote/local branch refs using the verified SHA. Squash-only and closed-unmerged tips remain for review. Regression tests reproduce a recreated branch and a real concurrent-push lease rejection. Added explicit import-order exceptions to the existing test bootstrap for Ruff.
+- **Fix class:** infra
+- **Keywords:** branch hygiene, recreated head, unmerged commits, force-with-lease, compare-and-delete, #369
+
+
 ## 2026-09-20 -- Parked L3 autonomy came back live from the session file
 
 - **Symptom:** `PATCH /api/bot/session {"level": 3}` correctly returns 409 `BOT_L3_PARKED`, but a `bot_session.json` on disk carrying `"level": 3` loaded as level 3 and sailed through `assert_not_dark()` and the `level < BOT_LEVEL_STRATEGY` check in `assert_can_fire()` (3 >= 2). The park was enforced on the write door only.

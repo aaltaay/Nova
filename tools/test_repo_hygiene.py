@@ -41,8 +41,8 @@ def _kinds(findings):
 
 def test_merged_and_closed_branches_are_fixable_by_pr_state():
     out = classify_local_branches(
-        [{"name": "feat/done", "upstream_gone": True, "checked_out_at": None},
-         {"name": "fix/closed", "upstream_gone": True, "checked_out_at": None}],
+        [{"name": "feat/done", "upstream_gone": True, "checked_out_at": None, "contained_in_master": True},
+         {"name": "fix/closed", "upstream_gone": True, "checked_out_at": None, "contained_in_master": True}],
         PRS,
     )
     assert _kinds(out) == {("merged_local_branch", "feat/done", True),
@@ -73,8 +73,15 @@ def test_no_pr_branch_is_reported_not_fixed_and_master_is_ignored():
 
 def test_gh_unavailable_makes_nothing_fixable():
     out = classify_local_branches(
-        [{"name": "feat/done", "upstream_gone": True, "checked_out_at": None}], None)
+        [{"name": "feat/done", "upstream_gone": True, "checked_out_at": None, "contained_in_master": True}], None)
     assert _kinds(out) == {("branch_unknown", "feat/done", False)}
+
+
+def test_recreated_or_unknown_tip_cannot_be_deleted():
+    for contained in (False, None):
+        out = classify_local_branches([
+            {"name": "feat/done", "contained_in_master": contained}], PRS)
+        assert _kinds(out) == {("unmerged_branch", "feat/done", False)}
 
 
 # --- worktrees ----------------------------------------------------------------
@@ -87,8 +94,14 @@ def _wt(**kw):
 
 
 def test_clean_old_worktree_on_merged_branch_is_stale():
-    out = classify_worktrees([_wt(branch="feat/done")], PRS, set(), NOW)
+    out = classify_worktrees([_wt(branch="feat/done")], PRS, {"abc"}, NOW)
     assert _kinds(out) == {("worktree_stale", "C:/wt/x", True)}
+
+
+def test_old_worktree_with_new_unmerged_commit_is_preserved():
+    out = classify_worktrees([_wt(branch="feat/done", head="new")], PRS, {"abc"}, NOW)
+    assert _kinds(out) == {("worktree_active", "C:/wt/x", False)}
+    assert "preserve for review" in out[0].detail
 
 
 def test_recent_dirty_or_no_pr_worktrees_are_kept():
@@ -97,7 +110,7 @@ def test_recent_dirty_or_no_pr_worktrees_are_kept():
         _wt(path="dirty", branch="feat/done", clean=False),
         _wt(path="nopr", branch="wip/idea"),
         _wt(path="open", branch="feat/live"),
-    ], PRS, set(), NOW)
+    ], PRS, {"abc"}, NOW)
     assert {f.subject: f.fixable for f in out} == {
         "recent": False, "dirty": False, "nopr": False, "open": False}
     assert {f.kind for f in out} == {"worktree_recent", "worktree_dirty", "worktree_active"}

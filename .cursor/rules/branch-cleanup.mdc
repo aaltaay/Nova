@@ -1,0 +1,29 @@
+---
+description: Preserve recreated branches and worktrees with unmerged commits during cleanup
+alwaysApply: true
+---
+
+# Branch cleanup proof (#369)
+
+The shared proof adapter is `tools/branch_cleanup.py`, extracted from delivery
+CLI logic under ADR 001's modularity principle; tools stay outside the runtime
+dependency graph (`architecture/dependency-rules.md`).
+
+A merged or closed PR identifies a candidate by name, not permission to discard
+the current tip. Before recommending or performing cleanup:
+
+1. Keep protected heads, open PR heads and heads with no closed PR.
+2. Require current-tip ancestry in `origin/master` (or the equivalent GitHub
+   compare against master). Missing refs, unavailable GitHub and comparison
+   errors fail closed. Report unmerged/recreated tips prominently.
+3. Squash-only and closed-unmerged tips are retained for explicit review.
+4. Use `pr_delivery.py delete-closed --ref <branch>` for remote deletion; its
+   explicit SHA lease rejects deletion if the branch changes after checking.
+   Never copy a bare `git push origin --delete` command from historical docs.
+5. Local cleanup must recheck ancestry at application time. Local branch
+   deletion uses an expected old SHA; worktrees with unmerged HEADs stay put.
+6. A push saying `* [new branch]` after delivery may have recreated a merged
+   branch. Inspect PR state and start a new focused branch for new work.
+
+This preservation rule overrides mandatory deletion/clean-clone wording in
+older delivery guidance. A retained tip is a finding, never a successful cleanup.

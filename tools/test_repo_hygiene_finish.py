@@ -30,6 +30,9 @@ def test_failed_fetch_stops_before_inspection_or_deletion(monkeypatch):
 
 
 def test_failed_delete_is_not_success_even_when_printed(monkeypatch):
+    monkeypatch.setattr(hygiene, 'contained_tip', lambda *a, **kw: 'abc')
+    monkeypatch.setattr(hygiene, '_gh_prs', lambda: [{'head': 'done', 'state': 'MERGED'}])
+    monkeypatch.setattr(hygiene, '_worktrees', lambda: [])
     run = setup_run(monkeypatch, [([finding()], True)])
     run.side_effect = [subprocess.CompletedProcess([], 0, '', ''),
                        subprocess.CompletedProcess([], 1, '', 'locked worktree')]
@@ -84,3 +87,33 @@ def test_status_does_not_claim_clean_when_github_is_down(monkeypatch, capsys):
 def test_status_inspection_failure_has_distinct_exit_code(monkeypatch):
     setup_run(monkeypatch, [OSError('git unavailable')])
     assert hygiene.cmd_status(Namespace(max_age_hours=24, json=False)) == 2
+
+
+@pytest.mark.parametrize('kind', ['merged_local_branch', 'worktree_stale'])
+def test_apply_rechecks_tip_and_preserves_new_work(monkeypatch, kind):
+    monkeypatch.setattr(hygiene, 'contained_tip', lambda *a, **kw: None)
+    run = Mock()
+    monkeypatch.setattr(hygiene.subprocess, 'run', run)
+    ok, reason = hygiene._apply(finding(kind), False)
+    assert not ok and 'not contained' in reason
+    run.assert_not_called()
+
+
+def test_local_delete_uses_expected_tip(monkeypatch):
+    monkeypatch.setattr(hygiene, 'contained_tip', lambda *a, **kw: 'verified-sha')
+    monkeypatch.setattr(hygiene, '_gh_prs', lambda: [{'head': 'done', 'state': 'MERGED'}])
+    monkeypatch.setattr(hygiene, '_worktrees', lambda: [])
+    run = Mock(return_value=subprocess.CompletedProcess([], 0, '', ''))
+    monkeypatch.setattr(hygiene.subprocess, 'run', run)
+    assert hygiene._apply(finding(), False)[0]
+    assert run.call_args.args[0] == ['git', 'update-ref', '-d', 'refs/heads/done', 'verified-sha']
+
+
+@pytest.mark.parametrize('prs', [None, [], [{'head': 'done', 'state': 'OPEN'}]])
+def test_local_delete_requires_fresh_closed_pr_evidence(monkeypatch, prs):
+    monkeypatch.setattr(hygiene, 'contained_tip', lambda *a, **kw: 'verified-sha')
+    monkeypatch.setattr(hygiene, '_gh_prs', lambda: prs)
+    run = Mock()
+    monkeypatch.setattr(hygiene.subprocess, 'run', run)
+    assert not hygiene._apply(finding(), False)[0]
+    run.assert_not_called()
