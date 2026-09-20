@@ -22,6 +22,7 @@ import { useClosedOrders } from '../closed_orders/useClosedOrders';
 import { useIbkrAccountContext } from '../ibkr/IbkrAccountContext';
 import { IbkrAccountTypeChip } from '../ibkr/IbkrAccountTypeChip';
 import { TradingSessionLockButton } from '../ibkr/TradingSessionLockButton';
+import { isSampleView } from '../sample_data/sampleNav';
 import { useSettingsOptional } from '../settings/SettingsContext';
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
 import { parseStockViewSymbol } from '../utils/stockViewNav';
@@ -95,7 +96,12 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
   useEffect(() => subscribeAccountNavActive(setAccountNavActive), []);
   const traderSymbol = (selectedSymbol?.trim() || TRADER_DEFAULT_SYMBOL).toUpperCase();
   const accountChrome = resolveAccountChromeState({
-    ibkrConnected: Boolean(ibkrConnected),
+    // The sample desk owns its own account snapshot (#357). WorkspaceProvider
+    // sits above the sample gate, so ibkrConnected is false there with no
+    // backend -- and the header would say "IBKR offline" next to its own
+    // GATEWAY-connected chip, the exact contradiction globalBarAccountChrome
+    // warns against. isSampleView() is false on every live route.
+    ibkrConnected: Boolean(ibkrConnected) || isSampleView(),
     summaryConnected: summary?.connected,
     loading: accountLoading,
     error: accountError,

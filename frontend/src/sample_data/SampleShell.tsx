@@ -20,6 +20,7 @@ import {
   replaceSampleTraderUrl,
 } from './sampleNav';
 import { SampleDataProvider, useSampleData } from './SampleDataContext';
+import { SampleModeBadge } from './SampleModeBadge';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 
 function SampleShellInner() {
@@ -80,6 +81,7 @@ function SampleShellInner() {
     return (
       <div className="nova-app-stack">
         <GlobalAppBar scanner={sampleScannerBar} />
+        <SampleModeBadge onExit={leaveSampleView} />
         <div className="nova-app-branch">
           <AppErrorBoundary source="sample-trader">
             <div className="nova-shell nova-shell--ticker-detail">
@@ -104,9 +106,10 @@ function SampleShellInner() {
     <HodMomoFixtureProvider>
       <div className="nova-app-stack">
         <GlobalAppBar scanner={sampleScannerBar} />
+        <SampleModeBadge onExit={leaveSampleView} />
         <div className="nova-app-branch">
           <AppErrorBoundary source="sample-dashboard">
-            <SampleDashboardPage onOpenTrader={openTrader} onLeaveSample={leaveSampleView} />
+            <SampleDashboardPage onOpenTrader={openTrader} />
           </AppErrorBoundary>
         </div>
       </div>

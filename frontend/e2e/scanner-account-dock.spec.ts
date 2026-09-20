@@ -17,4 +17,23 @@ test.describe('Scanner account dock', () => {
 
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
+
+  // #357: the sample desk is a marketing surface and CI runs with no Nova API,
+  // so both of these must hold without a backend.
+  test('sample desk is badged and shows its own account figures', async ({ page }) => {
+    const { errors } = attachErrorCollector(page);
+    await page.goto('/?view=sample');
+
+    const badge = page.getByTestId('sample-data-badge');
+    await expect(badge).toBeVisible();
+    await expect(badge).toContainText('Nova Marketing Sample Data');
+
+    // The header must not contradict its own GATEWAY-connected chip.
+    await expect(page.getByTestId('global-bar-cluster')).toBeVisible();
+    await expect(page.getByTestId('global-bar-offline')).toHaveCount(0);
+    await expect(page.getByTestId('global-bar-account-trigger')).toContainText('+$230.00');
+    await expect(page.locator('.global-app-bar__metric--netliq')).toContainText('$100,000.00');
+
+    expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
+  });
 });

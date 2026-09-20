@@ -1,5 +1,6 @@
 import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constants';
+import { sampleOrderRefusal } from '../sample_data/sampleOrderGuard';
 import {
   beginBrowserExecutionTiming,
   captureBrowserAction,
@@ -20,6 +21,13 @@ export async function cancelIbkrOrder(
   orderId: number,
   timing: BrowserExecutionTiming = beginBrowserExecutionTiming('cancel_order'),
 ): Promise<CancelOrderResult> {
+  // Sample working-order rows are previews (#357): a Cancel click must not
+  // DELETE a fabricated order id against a real account.
+  const refusal = sampleOrderRefusal();
+  if (refusal) {
+    timing.complete(false);
+    return { ok: false, error: refusal, httpOk: false, httpStatus: 0 };
+  }
   try {
     const response = await novaFetch(
       `${API_BASE_URL}/api/ibkr/order/${orderId}`,

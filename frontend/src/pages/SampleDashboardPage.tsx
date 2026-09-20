@@ -12,7 +12,7 @@ import { useExchangeFilter } from '../hooks/useExchangeFilter';
 import { useSidePanelWidth } from '../hooks/useSidePanelWidth';
 import { ScannerDesk } from '../scanner/ScannerDesk';
 import { useSampleData } from '../sample_data/SampleDataContext';
-import { DISCOVERY_PROVIDER_DEFAULT, SAMPLE_DATA_BANNER, SAMPLE_DATA_SWITCH_LABEL } from '../constants';
+import { DISCOVERY_PROVIDER_DEFAULT } from '../constants';
 import { setAccountNavActive } from '../components/accountNavActive';
 import { useHodMomo } from '../hod_momo/HodMomoContext';
 import { HodMomoDock } from '../hod_momo/HodMomoDock';
@@ -25,10 +25,11 @@ import { useWorkspace } from '../workspace/WorkspaceContext';
 
 type Props = {
   onOpenTrader: (symbol: string) => void;
-  onLeaveSample: () => void;
 };
 
-export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
+// The sample marking strip is owned by SampleShell (#357) so both sample
+// branches carry it; this page must not render a second one.
+export function SampleDashboardPage({ onOpenTrader }: Props) {
   const sample = useSampleData();
   const { selectedSymbol, setSelectedSymbol } = useWorkspace();
   const { hodCount, runningUpCount, focusDock } = useHodMomo();
@@ -95,13 +96,6 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
       />
 
       <div className="main-col main-col--scanner-stack">
-        <div className="sample-data-banner" role="status" data-testid="sample-data-banner">
-          <span>{SAMPLE_DATA_BANNER}</span>
-          <button type="button" className="history-banner-btn" onClick={onLeaveSample}>
-            Exit {SAMPLE_DATA_SWITCH_LABEL}
-          </button>
-        </div>
-
         <HodMomoDock onOpenTrading={onOpenTrader} />
 
         <ScannerDesk onOpenTrading={onOpenTrader}>

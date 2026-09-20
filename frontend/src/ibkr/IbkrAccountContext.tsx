@@ -10,6 +10,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
+import { SAMPLE_IBKR_ACCOUNT_STATE } from '../sample_data/sampleAccount';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
@@ -36,38 +37,9 @@ export interface IbkrAccountState {
   refresh: () => void;
 }
 
-const SAMPLE_SUMMARY: IbkrAccountSummary = {
-  connected: true,
-  mode: 'paper',
-  NetLiquidation: 100_000,
-  BuyingPower: 50_000,
-  // Sample desk is a margin paper fixture so Side can show Short (#184).
-  // Live desks use stamped account_class / shortSideVisible -- never AccountType=INDIVIDUAL.
-  AccountType: 'MARGIN',
-  account_class: 'margin',
-};
-
-export const SAMPLE_IBKR_ACCOUNT_STATE: IbkrAccountState = {
-  summary: SAMPLE_SUMMARY,
-  positions: [
-    {
-      symbol: 'SMPL',
-      qty: 200,
-      market_price: 4.25,
-      market_value: 850,
-      avg_cost: 3.1,
-      unrealized_pnl: 230,
-      realized_pnl: 0,
-    },
-  ],
-  orders: [],
-  closedOrders: [],
-  loading: false,
-  error: null,
-  stale: false,
-  staleSince: null,
-  refresh: () => {},
-};
+// The sample snapshot is a fixture and lives with the other sample fixtures
+// (#357). Re-exported so existing importers keep their path.
+export { SAMPLE_IBKR_ACCOUNT_STATE };
 
 const IbkrAccountContext = createContext<IbkrAccountState | null>(null);
 

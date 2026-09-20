@@ -1,5 +1,6 @@
 import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constants';
+import { sampleOrderRefusal } from '../sample_data/sampleOrderGuard';
 import { executionTransportError } from './executionTransportError';
 import { newGestureKey } from './gestureKey';
 import {
@@ -33,6 +34,20 @@ export async function placeIbkrOrder(
     referencePrice?: number | null;
   },
 ): Promise<PlaceOrderResult> {
+  // The sample desk never reaches a broker (#357). Refuse before any transport
+  // so a sample ticket cannot POST an order at a machine whose backend is up.
+  const refusal = sampleOrderRefusal();
+  if (refusal) {
+    // Close a caller-supplied span so the latency ledger stays honest; a
+    // refusal must not open a new one.
+    options?.timing?.complete(false);
+    return {
+      ok: false,
+      order_id: null,
+      error: refusal,
+      reason_code: 'SAMPLE_VIEW',
+    };
+  }
   const timing = options?.timing ?? beginBrowserExecutionTiming('place_order');
   const clientTiming = timing.clientTimingAtRequest();
   try {
@@ -74,6 +89,13 @@ export async function cancelAllOrdersForSymbol(
   symbol: string,
   timing: BrowserExecutionTiming = beginBrowserExecutionTiming('cancel_symbol'),
 ): Promise<CancelAllResult> {
+  const refusal = sampleOrderRefusal();
+  if (refusal) {
+    // The span is already open (default arg), so close it rather than leave it
+    // dangling -- same as the transport-error path below.
+    timing.complete(false);
+    return { ok: false, cancelled: [], failed: [], error: refusal };
+  }
   try {
     const response = await novaFetch(
       `${API_BASE_URL}/api/ibkr/orders?symbol=${encodeURIComponent(symbol.toUpperCase())}`,
@@ -93,6 +115,13 @@ export async function cancelAllOrdersForSymbol(
 export async function cancelAllWorkingOrders(
   timing: BrowserExecutionTiming = beginBrowserExecutionTiming('cancel_all'),
 ): Promise<CancelAllResult> {
+  const refusal = sampleOrderRefusal();
+  if (refusal) {
+    // The span is already open (default arg), so close it rather than leave it
+    // dangling -- same as the transport-error path below.
+    timing.complete(false);
+    return { ok: false, cancelled: [], failed: [], error: refusal };
+  }
   try {
     const response = await novaFetch(
       `${API_BASE_URL}/api/ibkr/orders?all_symbols=true`,
