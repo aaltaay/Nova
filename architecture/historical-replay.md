@@ -90,3 +90,43 @@ prints, atomic resume, timezone and range boundaries, no lookahead, rewind,
 symbol switches, and sum of reached reported sizes equal candle volume. Compare
 IBKR bars per minute: the raw archive keeps every print unaltered, and
 differences are reported rather than hidden.
+
+## Bounded replay snapshots and progress (2026-09-20, #321/#324/#303)
+
+ADR 017's canonical engine publishes an immutable selection only after its disk
+reads and indexes finish outside the playback lock (ADR 001/003 extraction).
+Readers retain that selection for the duration of a response. A selection/clear
+revision fences obsolete loads; publishing selection and session clock is atomic.
+The maximum is 500,000 prints per selection; SQL stops at limit + one and refuses
+larger selections without dropping prints. Narrow the requested window to load
+more of a large archive. This is a memory guard, not a retention policy.
+
+One selection owns bounded archive/timeframe and event-second result caches.
+Selected-symbol archive candles and prior close (including a miss) stay fixed until explicit
+reload; new downloads never mutate a running selection. Rewind keys a different
+event second and cannot reuse future values. Reload and clear discard every
+cache. Other-symbol fallback series are loaded lazily into a bounded cache and
+may be read again after eviction. Snapshot prints carry their stable zero-based download ordinal. A request
+for a different symbol returns active=false and no historical quote/tape values;
+chart fallback may still read that symbol's completed bars at the session cut.
+
+Job progress is the fraction of requested event time durably covered, never an
+inferred fraction of prints. `downloaded_through` is the committed cursor;
+`progress_pct`, `age_seconds`, and `stale` are computed for each GET. `started`
+is the current worker-run start. `eta_seconds` estimates remaining elapsed time
+from this run's cursor advancement only and is null before advancement, after
+pause/failure/completion, or while stale. Resume resets its timing baseline.
+An empty page with cursor before end fails resumably, preserving rows, count and
+cursor. Only nonempty evidence reaching the boundary proves completion.
+Schema initialization uses an integer SQLite `user_version` (v1, migrating legacy
+v0). It runs once per database file identity in each process, under a separate
+initialization lock; file replacement invalidates the bounded identity registry.
+Unknown versions refuse with an archive error. Repeated connections set the
+connection timeout but do not repeat schema DDL or journal-mode transitions.
+New download admission checks active ownership, validates retry cooldown, creates
+the row, and claims it in one SQLite transaction. Simultaneous requests cannot
+leave a refused request's queued orphan behind; resume uses the same active-job
+invariant. The process lock also covers reservation-to-worker launch.
+Capture intent registration uses the same history-to-capture lock order as
+historical publication. Clearing history and registering the capture generation
+are one short transition; capture file loading and scrub fan-out stay outside it.

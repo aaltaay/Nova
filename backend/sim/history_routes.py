@@ -1,10 +1,15 @@
 """Operator-facing acquisition and historical session selection."""
+import json
+import logging
+import sqlite3
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from sim import history_download as download, history_playback as playback, history_store as store
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/sim/history", tags=["sim-history"])
 
@@ -23,21 +28,21 @@ class Window(BaseModel):
 def checked(action):
     try:
         return action()
+    except (sqlite3.DatabaseError, OSError, json.JSONDecodeError) as exc:
+        logger.exception("Historical archive unavailable")
+        raise HTTPException(503, "Historical archive is unavailable; check storage and retry") from exc
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
 
 
 @router.get("")
 def list_downloads():
-    return {"jobs": download.list_jobs(), "selection": playback.status(),
-            "storage": str(store.path()), "default_date": store.default_date()}
+    return checked(lambda: {"jobs": download.list_jobs(), "selection": playback.status(),
+                            "storage": str(store.path()), "default_date": store.default_date()})
 
 
 def _begin(body: Window):
-    spec = body.spec()
-    existing = store.find(spec, body.kind)
-    download.ensure_idle(existing["id"] if existing else None)
-    return download.start(store.create(spec, body.kind)["id"])
+    return download.begin(body.spec(), body.kind)
 
 
 @router.post("")
@@ -56,7 +61,7 @@ def select(body: Window):
 @router.get("/snapshot/{symbol}")
 def snapshot(symbol: str):
     from sim.mode import is_sim_mode
-    return playback.snapshot(symbol.upper()) if is_sim_mode() else {"active": False}
+    return checked(lambda: playback.snapshot(symbol.strip().upper())) if is_sim_mode() else {"active": False}
 
 
 @router.post("/{job_id}/resume")

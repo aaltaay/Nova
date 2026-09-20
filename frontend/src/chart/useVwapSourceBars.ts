@@ -15,10 +15,12 @@ import {
   CHART_VWAP_SOURCE_TIMEFRAME,
 } from '../constants';
 import { rawBarsToIndicatorBars, type IndicatorBar } from '../chartIndicators';
-import { ensureBars, getBarsEntry, invalidateBars, isBarsEntryFresh, subscribeBars } from './barsStore';
+import { ensureBars, getBarsEntry, isBarsEntryFresh, subscribeBars } from './barsStore';
 import { coversSessionOpen } from './vwapSession';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
-import { SIM_CHART_REFRESH_MS, SIM_CLOCK_SCRUB_EVENT } from '../sim/simClockEvents';
+import { matchesSimClockScrub, SIM_CLOCK_SCRUB_EVENT } from '../sim/simClockEvents';
+
+import { invalidateReplayBars, subscribeReplayBarsRefresh } from './replayBarsRefresh';
 
 export interface VwapSource {
   bars: IndicatorBar[];
@@ -73,8 +75,9 @@ export function useVwapSourceBars(symbol: string, active: boolean): VwapSource {
       });
     };
 
-    const onScrub = () => {
-      invalidateBars(symbol, timeframe);
+    const onScrub = (event?: Event) => {
+      if (event && (!sim || !matchesSimClockScrub(event, symbol))) return;
+      invalidateReplayBars(event, symbol, timeframe);
       setSource(EMPTY);
       refresh();
     };
@@ -83,8 +86,9 @@ export function useVwapSourceBars(symbol: string, active: boolean): VwapSource {
     window.addEventListener(SIM_CLOCK_SCRUB_EVENT, onScrub);
 
     const seconds = CHART_REFETCH_SEC[timeframe];
-    const interval = sim ? SIM_CHART_REFRESH_MS : (seconds ?? 0) * 1000;
-    const timer = interval ? setInterval(refresh, interval) : null;
+    const interval = (seconds ?? 0) * 1000;
+    const stopReplay = sim ? subscribeReplayBarsRefresh(symbol, timeframe, refresh) : null;
+    const timer = !sim && interval ? setInterval(refresh, interval) : null;
 
     return () => {
       alive = false;
@@ -92,6 +96,7 @@ export function useVwapSourceBars(symbol: string, active: boolean): VwapSource {
       unsubscribe();
       window.removeEventListener(SIM_CLOCK_SCRUB_EVENT, onScrub);
       if (timer) clearInterval(timer);
+      stopReplay?.();
     };
   }, [symbol, active, sim]);
 

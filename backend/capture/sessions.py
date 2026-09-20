@@ -1,12 +1,12 @@
 """List recorded sessions under the capture root (F:\\Nova\\sim_capture)."""
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 from typing import Any
 
 from capture.recorder import capture_root
+from capture.schema import read_manifest
 
 logger = logging.getLogger(__name__)
 
@@ -30,14 +30,13 @@ def list_sessions() -> dict[str, Any]:
         day = day_dir.name
         tickers: list[dict[str, Any]] = []
         for sym_dir in sorted((p for p in day_dir.iterdir() if p.is_dir()), key=lambda p: p.name):
-            man: dict[str, Any] = {}
-            man_path = sym_dir / "manifest.json"
-            if man_path.is_file():
-                try:
-                    loaded = json.loads(man_path.read_text(encoding="utf-8"))
-                    man = loaded if isinstance(loaded, dict) else {}
-                except (OSError, ValueError):
-                    logger.warning("CAPTURE: cannot read manifest %s", man_path, exc_info=True)
+            manifest_error = None
+            try:
+                man, _legacy = read_manifest(sym_dir)
+            except ValueError as exc:
+                man = {}
+                manifest_error = str(exc)
+                logger.warning("CAPTURE: %s (%s)", manifest_error, sym_dir)
             counts = man.get("counts") if isinstance(man.get("counts"), dict) else {}
             prints_n = _count(counts.get("prints"))
             l2_n = _count(counts.get("l2"))
@@ -45,20 +44,21 @@ def list_sessions() -> dict[str, Any]:
             has_prints = _file_bytes(sym_dir / "prints.jsonl") > 0
             has_l2 = _file_bytes(sym_dir / "l2.jsonl") > 0
             has_quotes = _file_bytes(sym_dir / "quotes.jsonl") > 0
-            usable = has_prints or has_quotes
+            has_events = has_prints or has_quotes
+            usable = has_events and manifest_error is None
             if prints_n == 0 and has_prints:
                 prints_n = -1  # unknown but present
             if l2_n == 0 and has_l2:
                 l2_n = -1
             # Skip empty dirs with no capture files
-            if not (usable or has_l2 or man):
+            if not (has_events or has_l2 or man or manifest_error):
                 continue
             tickers.append(
                 {
                     "symbol": sym_dir.name.upper(),
-                    "empty": not usable,
+                    "empty": not has_events,
                     "usable": usable,
-                    "unavailable_reason": None if usable else "No recorded prints or quotes",
+                    "unavailable_reason": manifest_error or (None if usable else "No recorded prints or quotes"),
                     "dir": str(sym_dir),
                     "prints": prints_n,
                     "l2": l2_n,

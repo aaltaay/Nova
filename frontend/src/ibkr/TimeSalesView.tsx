@@ -7,7 +7,7 @@
  * DOM mounts a viewport window; the feed ring still holds TAPE_UI_MAX_ROWS.
  * Right-click opens a min-size display filter (does not change the tape stream).
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type UIEvent } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type UIEvent } from 'react';
 import {
   TAPE_COL_HEADERS,
   TAPE_EMPTY_LABEL,
@@ -81,7 +81,7 @@ function sideClass(side: TapeSide | undefined): string {
   }
 }
 
-function TapeRow({ print }: { print: TapePrint }) {
+const TapeRow = memo(function TapeRow({ print }: { print: TapePrint }) {
   return (
     <div
       className={`ts-row ${sideClass(print.side)}${print.unreported ? ' ts-row--unreported' : ''}`}
@@ -97,7 +97,12 @@ function TapeRow({ print }: { print: TapePrint }) {
       <span className="ts-col--exch">{print.exchange || '—'}</span>
     </div>
   );
-}
+}, (previous, next) => {
+  const a = previous.print, b = next.print;
+  return a === b || (a.replayId != null && a.replayId === b.replayId
+    && a.price === b.price && a.size === b.size && a.time === b.time
+    && a.exchange === b.exchange && a.side === b.side && a.unreported === b.unreported);
+});
 
 function TapeHeadMeta({
   badge,
@@ -272,7 +277,7 @@ export function TimeSalesView({
         <>
           {range.topSpacerPx > 0 && <div style={{ height: range.topSpacerPx }} aria-hidden />}
           {visible.map((p, i) => (
-            <TapeRow key={`${p.time}-${range.startIndex + i}`} print={p} />
+            <TapeRow key={p.replayId ?? `${p.time}-${range.startIndex + i}`} print={p} />
           ))}
           {range.bottomSpacerPx > 0 && <div style={{ height: range.bottomSpacerPx }} aria-hidden />}
         </>

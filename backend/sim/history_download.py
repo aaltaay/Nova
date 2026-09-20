@@ -10,12 +10,14 @@ import time
 from sim import history_store as store
 
 logger = logging.getLogger(__name__)
-_lock = threading.Lock()
+_lock = threading.RLock()
 _active: dict[str, threading.Event] = {}
 
 
 def page(rows: list[dict], cursor: int, end: int) -> tuple[list[dict], int, bool]:
     if not rows:
+        if cursor < end:
+            raise ValueError("IBKR returned an empty page before the window ended; progress preserved, resume to retry")
         return [], end, True
     stamps = [r["ts"] for r in rows]
     if stamps != sorted(stamps) or stamps[0] < cursor:
@@ -90,7 +92,18 @@ def ensure_idle(job_id: str | None = None):
     store.ensure_idle(job_id)
 
 
-def start(job_id: str) -> dict:
+def begin(spec: dict, kind: str) -> dict:
+    """Reserve before creating a row; refused simultaneous requests leave no orphan."""
+    with _lock:
+        wanted = store.job_id_for(spec, kind)
+        if _active:
+            if wanted in _active:
+                return store.get(wanted)
+            raise ValueError("Another historical download is running; pause it first")
+        return start(store.reserve_job(spec, kind)["id"], reserved=True)
+
+
+def start(job_id: str, *, reserved: bool = False) -> dict:
     with _lock:
         if _active:
             if job_id in _active:
@@ -99,11 +112,12 @@ def start(job_id: str) -> dict:
         job = store.get(job_id)
         if job["status"] == "complete":
             return job
-        if job["status"] in store.ACTIVE and time.time() - job["updated"] < store.stale_after():
+        if (not reserved and job["status"] in store.ACTIVE
+                and time.time() - job["updated"] < store.stale_after()):
             raise ValueError("Download is active in another worker; wait for its checkpoint")
         if job["status"] == "failed" and time.time() - job["updated"] < store.RETRY_INTERVAL:
             raise ValueError(f"Wait {store.RETRY_INTERVAL:.0f} seconds before retrying an IBKR request")
-        job = store.claim(job_id)
+        job = job if reserved else store.claim(job_id)
         stop = threading.Event()
         _active[job_id] = stop
 
@@ -133,4 +147,5 @@ def list_jobs():
         if (job["status"] in store.ACTIVE and job["id"] not in active
                 and time.time() - job["updated"] > store.stale_after()):
             job["status"] = "interrupted"
-    return result
+    from sim.history_progress import progress
+    return [progress(job) for job in result]

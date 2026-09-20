@@ -17,7 +17,7 @@ it.each([true, false])('toggles paused=%s and publishes the returned clock', asy
   render(<SimPlaybackButton clock={{ sim: true, paused }} onClock={onClock} />);
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: paused ? 'Play Sim time' : 'Pause Sim time' })); });
   expect(mocks.fetch).toHaveBeenCalledExactlyOnceWith(`${API_BASE_URL}/api/sim/clock`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paused: !paused }),
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paused: !paused }), signal: expect.any(AbortSignal),
   });
   expect(onClock).toHaveBeenCalledExactlyOnceWith(returned);
 });

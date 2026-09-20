@@ -1,21 +1,8 @@
-"""Session recorder — jsonl under F:\\Nova\\sim_capture\\<date>\\<symbol>\\ (outside repo).
+"""Capture writer: atomic manifest, serialized streams and explicit failures.
 
-Locking contract (D-063).  ``_lock`` is a plain, **non-reentrant**
-``threading.Lock`` on purpose: nothing on the stop path may re-enter it, and a
-non-reentrant lock is what makes a future re-entrancy bug fail the timeout-guarded
-regression test instead of hiding.  Everything that writes while the lock is
-already held goes through ``_write`` / ``_write_bar_locked``; the public
-``record_*`` entry points are the only ones that acquire it.
-
-Durability contract (D-067).  ``manifest.json`` is written atomically
-(temp + fsync + ``os.replace``) and merged rather than clobbered, jsonl streams
-are fsynced periodically and on stop, and an in-flight session is announced in a
-marker file so a restart can finalize what a crash left behind.
-
-Failure contract (D-068).  A write failure (ENOSPC, revoked handle, unplugged
-drive) is logged at ERROR, counted, surfaced on ``status()``, and after
-``CAPTURE_MAX_WRITE_FAILURES`` in a row the session is stopped and marked
-``failed`` -- it never keeps reporting itself healthy while writing nothing.
+The non-reentrant lock is intentional. Stop drains buckets without callbacks;
+only public entrypoints acquire it. Storage and timestamp policy are separate
+modules under ADR 001; this compatibility feeder follows ADR 017.
 """
 from __future__ import annotations
 
@@ -35,12 +22,15 @@ from capture.constants_capture import (
     CAPTURE_MANIFEST_NAME,
     CAPTURE_MAX_WRITE_FAILURES,
     CAPTURE_SCHEMA,
+    CAPTURE_SCHEMA_VERSION,
     CAPTURE_STATUS_FAILED,
     CAPTURE_STATUS_RECORDING,
     CAPTURE_STATUS_STOPPED,
     CAPTURE_STREAM_NAMES,
 )
-from paths import cache_dir
+from capture.storage import capture_root
+from capture.schema import read_manifest
+from capture.fidelity import Fidelity
 from capture.timeframes import _normalize_timeframe
 from constants_sim import SIM_SYMBOL
 
@@ -53,7 +43,7 @@ _symbol: str | None = None
 _day: str | None = None
 _dir: Path | None = None
 _files: dict[str, TextIO] = {}
-_last_l2_mono = 0.0
+_fidelity = Fidelity()
 _last_fsync_mono = 0.0
 _counts = {name: 0 for name in CAPTURE_STREAM_NAMES}
 # Counts already on disk when this segment started, so a segment's own totals
@@ -82,33 +72,22 @@ def last_error() -> str | None:
     return _error
 
 
-def capture_root() -> Path:
-    """Prefer F:\\Nova\\sim_capture (outside repo); env override; else cache fallback."""
-    from capture.constants_capture import DEFAULT_SIM_CAPTURE_ROOT_WIN
-
-    raw = (os.environ.get("NOVA_SIM_CAPTURE_DIR") or "").strip()
-    if raw:
-        root = Path(raw)
-    else:
-        win = Path(DEFAULT_SIM_CAPTURE_ROOT_WIN)
-        root = win if win.drive and Path(win.drive + "\\").exists() else (cache_dir() / "sim_capture")
-    root.mkdir(parents=True, exist_ok=True)
-    return root
-
-
-def _session_dir(symbol: str) -> Path:
-    day = datetime.now(ET).strftime("%Y-%m-%d")
+def _session_dir(symbol: str, day: str | None = None) -> Path:
+    if day is None and symbol == SIM_SYMBOL:
+        from sim.session_clock import now_et
+        day = now_et().strftime("%Y-%m-%d")
+    day = day or datetime.now(ET).strftime("%Y-%m-%d")
     return capture_root() / day / symbol.upper()
 
 
-def start_recorder(symbol: str | None, *, resume: bool = True) -> dict[str, Any]:
+def start_recorder(symbol: str | None, *, resume: bool = True, session_date: str | None = None) -> dict[str, Any]:
     """Begin (or resume) recording ``symbol`` for today.
 
     ``resume=True`` appends to whatever is already on disk for this symbol+day
     and carries the manifest forward; ``resume=False`` truncates the streams and
     starts a fresh manifest.
     """
-    global _active, _symbol, _day, _dir, _last_l2_mono, _last_fsync_mono
+    global _active, _symbol, _day, _dir, _fidelity, _last_fsync_mono
     global _counts, _segment_base, _started_et, _write_failures, _error, _last_write_ts
     from capture import manifest_io, session_state
 
@@ -118,18 +97,20 @@ def start_recorder(symbol: str | None, *, resume: bool = True) -> dict[str, Any]
         drain_open()  # Discard buckets left by a failed previous batch/session.
         sym = (symbol or "PENDING").strip().upper()
         _symbol = sym
-        _dir = _session_dir(sym)
+        _dir = _session_dir(sym, session_date)
         _dir.mkdir(parents=True, exist_ok=True)
         _day = _dir.parent.name
         man_path = _dir / CAPTURE_MANIFEST_NAME
-        prior = manifest_io.read_json(man_path) if resume else {}
+        prior = read_manifest(_dir)[0] if resume else {}
 
         # Seed from what is already on disk so the manifest never understates
         # the jsonl files after a stop/start on the same symbol+day (D-067b).
         seeded = manifest_io.prior_counts(prior) if resume else {}
         _counts = {name: int(seeded.get(name, 0)) for name in CAPTURE_STREAM_NAMES}
         _segment_base = dict(_counts)
-        _last_l2_mono = 0.0
+        _fidelity = Fidelity()
+        if resume:
+            _fidelity.seed(_dir, prior)
         _last_fsync_mono = time.monotonic()
         _write_failures = 0
         _error = None
@@ -150,6 +131,7 @@ def start_recorder(symbol: str | None, *, resume: bool = True) -> dict[str, Any]
                 "stopped_et": None,
                 "source": "sim" if _symbol == SIM_SYMBOL else "ibkr",
                 "schema": CAPTURE_SCHEMA,
+                "schema_version": CAPTURE_SCHEMA_VERSION,
                 "l2_max_hz": CAPTURE_L2_MAX_HZ,
                 "note": "Per-tab Record — partial days OK; append resume; compact whatever landed",
                 "partial_ok": True,
@@ -188,6 +170,9 @@ def _stop_locked() -> None:
     if _symbol != SIM_SYMBOL and _counts["prints"] == _segment_base["prints"]:
         _error = _error or "No IBKR prints received in this recording segment"
 
+    pending = _fidelity.drain_l2()
+    if pending is not None:
+        _write("l2", pending)
     bars: list[tuple[str, dict[str, Any]]] = []
     try:
         from capture.bar_buckets import drain_open
@@ -248,7 +233,9 @@ def _finalize_locked(status: str) -> None:
                     "session_date": _day,
                     "source": "sim" if _symbol == SIM_SYMBOL else "ibkr",
                     "schema": CAPTURE_SCHEMA,
+                    "schema_version": CAPTURE_SCHEMA_VERSION,
                     "partial_ok": True,
+                    "fidelity": _fidelity.payload(),
                 },
                 started_et=_started_et,
                 stopped_et=datetime.now(ET).isoformat(),
@@ -274,7 +261,7 @@ def _write(kind: str, row: dict[str, Any]) -> None:
     if fh is None:
         return
     try:
-        fh.write(json.dumps(row, separators=(",", ":")) + "\n")
+        fh.write(json.dumps({**row, "schema_version": CAPTURE_SCHEMA_VERSION}, separators=(",", ":")) + "\n")
         fh.flush()
         now = time.monotonic()
         if now - _last_fsync_mono >= CAPTURE_FSYNC_INTERVAL_SEC:
@@ -313,38 +300,49 @@ def _write_bar_locked(timeframe: str, payload: dict[str, Any]) -> None:
     _write(kind, row)
 
 
-def record_print(payload: dict[str, Any]) -> None:
+def _record(kind: str, payload: dict[str, Any]) -> bool:
+    global _error
     if not _active:
-        return
+        return False
     with _lock:
         if not _active:
-            return
-        _write("prints", payload)
+            return False
+        error = _fidelity.admit(kind, payload)
+        if error:
+            _error = error
+            logger.error("CAPTURE: %s (%s)", error, kind)
+            _stop_locked()
+            return False
+        row = _fidelity.offer_l2(payload) if kind == "l2" else payload
+        if row is not None:
+            _write(kind, row)
+        return _active
+
+
+def record_print(payload: dict[str, Any]) -> bool:
+    return _record("prints", payload)
 
 
 def record_quote(payload: dict[str, Any]) -> None:
-    if not _active:
-        return
-    with _lock:
-        if not _active:
-            return
-        _write("quotes", payload)
+    _record("quotes", payload)
 
 
 def record_l2(payload: dict[str, Any]) -> None:
-    """Sampled L2 — drop updates faster than CAPTURE_L2_MAX_HZ."""
-    global _last_l2_mono
-    if not _active:
+    """Coalesce in event time, preserving the final pending book on stop."""
+    _record("l2", payload)
+
+
+def ensure_event_day(ts: float) -> None:
+    """Rotate accepted worker batches on Eastern date; refuse backward scrubs."""
+    from capture.schema import valid_timestamp
+    if not _active or not valid_timestamp(ts):
         return
-    now = time.monotonic()
-    min_dt = 1.0 / max(1.0, CAPTURE_L2_MAX_HZ)
-    with _lock:
-        if not _active:
-            return
-        if now - _last_l2_mono < min_dt:
-            return
-        _last_l2_mono = now
-        _write("l2", payload)
+    previous = _fidelity.last_ts.get("prints")
+    if previous is not None and ts < previous:
+        return  # record_print diagnoses and fails before bar aggregation.
+    day = datetime.fromtimestamp(ts, ET).strftime("%Y-%m-%d")
+    if day != _day:
+        start_recorder(_symbol, session_date=day)
 
 
 def record_bar(timeframe: str, payload: dict[str, Any]) -> None:
@@ -360,6 +358,10 @@ def record_bar(timeframe: str, payload: dict[str, Any]) -> None:
     row.setdefault("timeframe", label)
     with _lock:
         if not _active:
+            return
+        error = _fidelity.admit(kind, row)
+        if error:
+            logger.warning("CAPTURE: skipped bar: %s", error)
             return
         _write(kind, row)
 
@@ -381,6 +383,7 @@ def status() -> dict[str, Any]:
         "session_date": _day,
         "dir": str(_dir) if _dir else None,
         "counts": dict(_counts),
+        "fidelity": _fidelity.payload(),
         "segment_prints": _counts["prints"] - _segment_base["prints"],
         "error": _error,
         "write_failures": _write_failures,

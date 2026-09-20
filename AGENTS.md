@@ -182,6 +182,26 @@ A failed capture selection clears `replay_date` / `replay_symbol`, reports
 loaded. Capture session listing rows add `empty: boolean`, `usable: boolean`,
 and `unavailable_reason: string | null`; empty sessions cannot be selected.
 
+### Replay progress and capture fidelity (#321, #337)
+
+Historical job responses add `progress_pct: number`, `downloaded_through: number`
+(epoch seconds), `eta_seconds: number | null`, `stale: boolean`,
+`age_seconds: number`, and `started: number | null`; `updated` remains the durable
+checkpoint time. ETA is an estimate only after advancement in the current run.
+Historical snapshot prints include stable integer `ordinal` within the selected job.
+The historical SQLite store uses integer `PRAGMA user_version=1`, migrates known
+unversioned tables, and refuses unknown versions. Selection refuses oversized
+windows above the domain constant instead of silently truncating their prints.
+
+Capture manifests stamp integer `schema_version: 1`. Validated legacy v1 is
+migrated; unknown versions refuse loudly. Capture load diagnostics include
+`l2_total`, `l2_loaded`, `l2_decimated`, `malformed_rows`,
+`invalid_timestamp_rows`, `invalid_rows`, and `legacy_schema`. Recorder
+`fidelity` includes `l2_offered`, `l2_coalesced`, `invalid_timestamp_rows`,
+`timestamp_regressions`, and `last_stream_ts`. Diagnostics are counts except
+`legacy_schema` / `l2_decimated` (booleans) and `last_stream_ts` (per-stream event timestamps).
+No automatic retention policy is selected by these additions.
+
 ### Input Payload (Raw)
 
 ```json
@@ -214,6 +234,11 @@ and `unavailable_reason: string | null`; empty sessions cannot be selected.
   ]
 }
 ```
+
+Capture market projections preserve missing facts: print-only rows have null
+bid/ask/sizes/previous close; depth is empty without recorded books; daily OHLC
+is null unless a replay source provides it. Loading, failed, and pre-first-event
+capture selections never fall back to synthetic SIM1 market data.
 
 ### Execution command (ADR 007 — sole broker mutation entry)
 

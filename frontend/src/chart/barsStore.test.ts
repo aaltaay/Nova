@@ -4,6 +4,7 @@ import {
   ensureBars,
   ensureBarsBatch,
   getBarsEntry,
+  invalidateBars,
   isBarsEntryFresh,
   parseBarsCoverage,
   setBars,
@@ -117,6 +118,9 @@ describe('barsStore', () => {
     const aborted = ensureBars('AAPL', '1Min', ac.signal);
     const kept = ensureBars('AAPL', '1Min');
     ac.abort();
+    const networkSignal = (fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].signal as AbortSignal;
+    expect(networkSignal).not.toBe(ac.signal);
+    expect(networkSignal.aborted).toBe(false);
     resolveFetch({
       ok: true,
       json: async () => ({ bars: [bar(0), bar(1)] }),
@@ -208,4 +212,42 @@ describe('barsStore', () => {
     await expect(request).resolves.toHaveLength(1);
     expect(getBarsEntry('SPCI', '10Sec')?.bars).toHaveLength(1);
   });
+  it('cancels the obsolete network on seek without losing its replacement', async () => {
+    const requests: { signal: AbortSignal; resolve: (value: unknown) => void }[] = [];
+    (fetch as ReturnType<typeof vi.fn>).mockImplementation((_url: string, init: RequestInit) => new Promise((resolve, reject) => {
+      const signal = init.signal as AbortSignal;
+      requests.push({ signal, resolve });
+      signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+    }));
+    const old = ensureBars('AAPL', '1Min');
+    const oldRejected = expect(old).rejects.toMatchObject({ name: 'AbortError' });
+    invalidateBars('AAPL', '1Min');
+    const next = ensureBars('AAPL', '1Min');
+    expect(requests[0].signal.aborted).toBe(true);
+    expect(requests[1].signal.aborted).toBe(false);
+    await oldRejected;
+    // Completion of the canceled request must not remove the new in-flight entry.
+    const shared = ensureBars('AAPL', '1Min');
+    expect(fetch).toHaveBeenCalledTimes(2);
+    requests[1].resolve({ ok: true, json: async () => ({ bars: [bar(1)] }) });
+    await expect(next).resolves.toEqual([bar(1)]);
+    await expect(shared).resolves.toEqual([bar(1)]);
+  });
+
+  it('fences an old response even if the transport ignores abort and generations reset', async () => {
+    const requests: { signal: AbortSignal; resolve: (value: unknown) => void }[] = [];
+    (fetch as ReturnType<typeof vi.fn>).mockImplementation((_url: string, init: RequestInit) => new Promise(resolve => {
+      requests.push({ signal: init.signal as AbortSignal, resolve });
+    }));
+    const old = ensureBars('AAPL', '1Min');
+    clearBarsStoreForTests();
+    expect(requests[0].signal.aborted).toBe(true);
+    const next = ensureBars('AAPL', '1Min');
+    requests[1].resolve({ ok: true, json: async () => ({ bars: [bar(1)] }) });
+    await next;
+    requests[0].resolve({ ok: true, json: async () => ({ bars: [bar(0)] }) });
+    await expect(old).rejects.toMatchObject({ name: 'AbortError' });
+    expect(getBarsEntry('AAPL', '1Min')?.bars).toEqual([bar(1)]);
+  });
+
 });

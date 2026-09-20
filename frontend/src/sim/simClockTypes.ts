@@ -16,4 +16,9 @@ export interface SimClockState {
   replay_source?: string;
   replay_ok?: boolean;
   replay_error?: string | null;
+  replay_load?: {
+    l2_total: number; l2_loaded: number; l2_decimated: boolean;
+    malformed_rows: number; invalid_timestamp_rows: number; invalid_rows: number;
+    legacy_schema: boolean;
+  };
 }

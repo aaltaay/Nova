@@ -12,9 +12,6 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from constants_sim import (
-    SIM_BOOK_LEVELS,
-    SIM_BOOK_SIZE,
-    SIM_BOOK_TICK,
     SIM_CHART_BARS_DEFAULT,
     SIM_EXCHANGE,
     SIM_NAME,
@@ -27,6 +24,7 @@ from constants_sim import (
     SIM_TICK_STEP_RAD,
 )
 from sim import session_clock as _clock
+from sim.market_views import book, last_quotes, quote, ticker_snapshot  # noqa: F401 - public compatibility API
 
 logger = logging.getLogger(__name__)
 
@@ -52,44 +50,43 @@ def reset_for_tests() -> None:
     _bars_1m = []
 
 
-def rebuild_for_scrub() -> None:
-    """Drop live 1m buffer; for capture, seek emit cursor and reseed tape/L2 viewers."""
+def rebuild_for_scrub(*, expected_capture_generation: int | None = None) -> None:
+    """Reseed tape/depth outside selection locks; reject superseded selections."""
     global _bars_1m
+    from sim import capture_player as player, replay
+    def current() -> bool:
+        return (expected_capture_generation is None
+                or replay.generation_matches(expected_capture_generation))
+    if not current():
+        return
     _bars_1m = []
+    if not replay.is_capture_replay():
+        return
+    selection = player.snapshot()
+    if selection is None:
+        return
+    def selected() -> bool:
+        return current() and player.snapshot() is selection
     try:
-        from sim import capture_player as _player
-        from sim import replay as _replay
-        if not _replay.is_capture_replay():
-            return
-        now_ts = _clock.now_et().timestamp()
-        _player.seek_emit_cursor(now_ts)
-        status = _replay.status_payload() or {}
-        sym = str(status.get("replay_symbol") or SIM_SYMBOL).strip().upper()
-        if not sym:
-            return
         from ibkr.tape_stream import _push_queue
-        _push_queue(sym, {"type": "scrub_reset", "symbol": sym})
-        rows = _player.recent_prints(40)
+        from ibkr.depth import state as depth_state
+        now_ts = _clock.now_et().timestamp()
+        if not selected():
+            return
+        player.seek_emit_cursor(now_ts, state=selection)
+        _push_queue(selection.symbol, {"type": "scrub_reset", "symbol": selection.symbol})
+        rows = player.recent_prints(40, state=selection)
         for row in rows:
-            _push_queue(sym, {**row, "type": "print", "symbol": sym})
+            if not selected():
+                return
+            _push_queue(selection.symbol, {**row, "type": "print", "symbol": selection.symbol})
         if rows:
-            # Advance emit cursor past seeded prints so the feed loop does not re-blast open.
-            try:
-                # recent_prints already used asof; seek already set — mark last print ts
-                _player.mark_emitted(_player.asof_unix())
-            except Exception:
-                logger.debug("SIM scrub: emit cursor not advanced", exc_info=True)
-        try:
-            from ibkr.depth import state as _depth_state
-            book = _player.book_at()
-            if book is not None:
-                book = dict(book)
-                book["symbol"] = sym
-                _depth_state.push_book(sym, book)
-        except Exception:
-            pass
+            player.mark_emitted(now_ts, state=selection)
+        book = player.book_at(state=selection)
+        if book is not None and selected():
+            depth_state.push_book(selection.symbol, {**book, "symbol": selection.symbol})
     except Exception:
-        pass
+        logger.warning("CAPTURE: scrub projection failed", exc_info=True)
 
 
 
@@ -111,87 +108,6 @@ def prev_close() -> float:
 
 def volume() -> int:
     return _volume
-
-
-def quote(symbol: str | None = None) -> dict[str, Any] | None:
-    try:
-        from sim import replay as _replay
-        from sim import capture_player as _player
-        if _replay.is_capture_replay():
-            q = _player.quote_at()
-            if q is not None:
-                return q
-    except Exception:
-        pass
-    sym = (symbol or SIM_SYMBOL).strip().upper()
-    if sym != SIM_SYMBOL:
-        return None
-    px = last()
-    prev = prev_close()
-    change = px - prev
-    return {
-        "symbol": SIM_SYMBOL,
-        "last": px,
-        "bid": bid(),
-        "ask": ask(),
-        "prev_close": prev,
-        "volume": _volume,
-        "change_abs": round(change, 4),
-        "change_pct": round(change / prev, 6) if prev else 0.0,
-    }
-
-
-def last_quotes(symbols: list[str] | None = None) -> dict[str, dict[str, Any]]:
-    wanted = None
-    if symbols is not None:
-        wanted = {(s or "").strip().upper() for s in symbols if s and str(s).strip()}
-    if wanted is not None and SIM_SYMBOL not in wanted:
-        return {}
-    q = quote(SIM_SYMBOL)
-    if q is None:
-        return {}
-    return {
-        SIM_SYMBOL: {
-            "price": q["last"],
-            "last_update_ts": _now_iso(),
-            "owners": {"sim"},
-            "volume": q["volume"],
-        }
-    }
-
-
-def book() -> dict[str, Any]:
-    try:
-        from sim import replay as _replay
-        from sim import capture_player as _player
-        if _replay.is_capture_replay():
-            b = _player.book_at()
-            if b is not None:
-                return b
-    except Exception:
-        pass
-    b = bid()
-    a = ask()
-    mult = _clock.phase_volume_mult()
-    bids = [
-        {
-            "price": round(b - i * SIM_BOOK_TICK, 4),
-            "size": float(SIM_BOOK_SIZE * (SIM_BOOK_LEVELS - i) * mult),
-            "side": "bid",
-            "mm": "SIM",
-        }
-        for i in range(SIM_BOOK_LEVELS)
-    ]
-    asks = [
-        {
-            "price": round(a + i * SIM_BOOK_TICK, 4),
-            "size": float(SIM_BOOK_SIZE * (SIM_BOOK_LEVELS - i) * mult),
-            "side": "ask",
-            "mm": "SIM",
-        }
-        for i in range(SIM_BOOK_LEVELS)
-    ]
-    return {"bids": bids, "asks": asks, "l1_fallback": False}
 
 
 def recent_prints(limit: int = 20) -> list[dict[str, Any]]:
@@ -245,51 +161,6 @@ def step() -> dict[str, Any]:
         del _prints[:400]
     _roll_minute(payload)
     return payload
-
-
-def ticker_snapshot(symbol: str) -> dict[str, Any]:
-    q = quote(symbol)
-    if q is None:
-        return {}
-    now = _now_iso()
-    last = q.get("last")
-    prev = q.get("prev_close")
-    if prev is None:
-        prev = last
-    return {
-        "latest_trade": {
-            "price": last,
-            "size": SIM_PRINT_SIZE,
-            "exchange": SIM_EXCHANGE,
-            "timestamp": now,
-        },
-        "latest_quote": {"bid": q.get("bid"), "ask": q.get("ask"), "timestamp": now},
-        "minute_bar": None,
-        "daily_bar": {
-            "open": SIM_START_LAST,
-            "high": _high if _high else last,
-            "low": _low if _low else last,
-            "close": last,
-            "volume": _volume,
-            "trade_count": None,
-            "vwap": None,
-            "timestamp": now,
-        },
-        "prev_daily_bar": {
-            "open": None,
-            "high": None,
-            "low": None,
-            "close": prev,
-            "volume": None,
-            "trade_count": None,
-            "vwap": None,
-            "timestamp": None,
-        },
-        "prev_close": prev,
-        "session_close": prev,
-        "session_prev_close": None,
-        "source": q.get("source") or "sim",
-    }
 
 
 def _tf_step_sec(timeframe: str) -> int | None:

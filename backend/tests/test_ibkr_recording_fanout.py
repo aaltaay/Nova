@@ -67,10 +67,11 @@ def test_callback_persists_identical_provenance_to_both_sinks():
     assert started["capture"]
     assert "error" not in started  # pending first print is not a failed command
     assert not mode.status_payload()["healthy"]  # waiting is not healthy
-    directory = Path(recorder.status()["dir"])
     tick("MSFT", 9)  # wrong symbol must not enter this capture or L2 watch
     tick()
     mode.set_capture_mode(False)  # drains accepted capture rows
+    directory = Path(recorder.status()["dir"])
+    assert directory.parent.name == "2026-09-18"  # event date, not the test wall date
     fanout.l2_sink.queue.join()
     captured = json.loads((directory / "prints.jsonl").read_text())
     rows = tape.get_trades_in_range("AAPL", 0, 2_000_000_000)
@@ -114,7 +115,7 @@ def test_blocked_capture_does_not_block_l2_viewer_or_event_loop(monkeypatch):
     def blocked(payload):
         entered.set()
         assert release.wait(5)
-        original(payload)
+        return original(payload)
 
     monkeypatch.setattr(recorder, "record_print", blocked)
 
@@ -259,7 +260,7 @@ def test_capture_overflow_does_not_stop_l2(monkeypatch):
     def blocked(payload):
         entered.set()
         assert release.wait(5)
-        original(payload)
+        return original(payload)
 
     monkeypatch.setattr(recorder, "record_print", blocked)
     monkeypatch.setattr(worker, "CAPTURE_PENDING_BATCHES", 1)

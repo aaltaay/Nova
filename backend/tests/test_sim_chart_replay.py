@@ -110,13 +110,12 @@ def test_completed_calendar_and_intraday_boundary(tf, cutoff):
 
 def prepare_capture(monkeypatch, tf="1m"):
     start = stamp("2026-09-18T13:31:00+00:00")
-    monkeypatch.setattr(player, "_loaded_key", "2026-09-18|IMCC")
-    monkeypatch.setattr(player, "_bars", {tf: [dict(ts=start, open=10, high=99, low=1, close=50, volume=900)]})
-    monkeypatch.setattr(player, "_bar_keys", {tf: [start]})
+    bars = {tf: [dict(ts=start, open=10, high=99, low=1, close=50, volume=900)]}
     prints = [dict(ts=start + sec, price=px, size=size) for sec, px, size in
               [(0, 10, 5), (5, 12, 8), (17, 11, 2), (18, 99, 885)]]
-    monkeypatch.setattr(player, "_prints", prints)
-    monkeypatch.setattr(player, "_print_keys", [p["ts"] for p in prints])
+    selection = player.CaptureData("2026-09-18|IMCC", "IMCC", prints, [], [], bars,
+                                   [p["ts"] for p in prints], [], [], {tf: [start]})
+    monkeypatch.setattr(player, "_state", selection)
     return start
 
 
@@ -134,16 +133,16 @@ def test_partial_candle_only_contains_reached_prints_and_rewinds(monkeypatch):
 
 def test_missing_trades_waits_for_close(monkeypatch):
     start = prepare_capture(monkeypatch)
-    monkeypatch.setattr(player, "_prints", [])
-    monkeypatch.setattr(player, "_print_keys", [])
+    monkeypatch.setattr(player.snapshot(), "prints", [])
+    monkeypatch.setattr(player.snapshot(), "print_keys", [])
     assert player.chart_bars("1Min", 10, asof=start + 59) == []
     assert len(player.chart_bars("1Min", 10, asof=start + 60)) == 1
 
 
 def test_print_only_capture_keeps_closed_bars_without_exposing_future_prints(monkeypatch):
     start = prepare_capture(monkeypatch)
-    monkeypatch.setattr(player, "_bars", {})
-    monkeypatch.setattr(player, "_bar_keys", {})
+    monkeypatch.setattr(player.snapshot(), "bars", {})
+    monkeypatch.setattr(player.snapshot(), "bar_keys", {})
     early = player.chart_bars("1Min", 10, asof=start + 5)
     assert early[0]["h"] == 12 and early[0]["v"] == 13
     closed = player.chart_bars("1Min", 10, asof=start + 60)

@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
-import { API_BASE_URL } from '../constants';
-import { novaFetch } from '../api/novaFetch';
+import { useCallback, useSyncExternalStore } from 'react';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
-import { SIM_CLOCK_SCRUB_EVENT } from './simClockEvents';
+import { matchesSimClockScrub, SIM_CLOCK_SCRUB_EVENT } from './simClockEvents';
 import { SIM_HISTORY_POLL_MS } from './simConstants';
+import { replayPollResource } from './replayPollResource';
+import type { HistoricalSelection } from './historicalTypes';
 
 export interface HistoricalSnapshot {
   active: boolean; symbol: string; last: number | null; volume: number | null;
@@ -12,9 +12,9 @@ export interface HistoricalSnapshot {
   open?: number | null; high?: number | null; low?: number | null;
   /** Close of the last daily bar before the session date. */
   prev_close?: number | null;
-  selection?: { coverage_through: number; symbol: string; date: string; start: string; end: string };
+  selection?: HistoricalSelection;
   prints: {
-    time: string; price: number; size: number; exchange: string;
+    ordinal?: number; time: string; price: number; size: number; exchange: string;
     conditions?: string; unreported?: boolean;
   }[];
 }
@@ -22,38 +22,38 @@ export interface HistoricalSnapshot {
 function blank(symbol: string): HistoricalSnapshot {
   return { active: true, symbol, last: null, volume: null, source: 'loading', as_of: '', prints: [] };
 }
-
-/**
- * Historical replay quote + tape for ``symbol`` while Sim has a historical selection.
- * Null until the backend confirms one, so synthetic SIM1 / capture panels never flash.
- */
+const resources = new Map<string, ReturnType<typeof createResource>>();
+function createResource(symbol: string) {
+  const poller = replayPollResource<HistoricalSnapshot>(`/history/snapshot/${encodeURIComponent(symbol)}`, () => SIM_HISTORY_POLL_MS);
+  let count = 0;
+  const seek = (event: Event) => {
+    if (matchesSimClockScrub(event, symbol)) poller.invalidate(poller.getSnapshot().data?.active ? blank(symbol) : null);
+  };
+  const resource = { ...poller, subscribe(listener: () => void) {
+    if (++count === 1) window.addEventListener(SIM_CLOCK_SCRUB_EVENT, seek);
+    const unsubscribe = poller.subscribe(listener);
+    return () => {
+      unsubscribe();
+      if (--count === 0) {
+        window.removeEventListener(SIM_CLOCK_SCRUB_EVENT, seek);
+        queueMicrotask(() => { if (!count && resources.get(symbol) === resource) resources.delete(symbol); });
+      }
+    };
+  } };
+  return resource;
+}
+const emptyState = { data: null, error: null };
+const noSubscription = () => () => {};
+/** Shared single-flight snapshots; seek clears future prints, transient errors retain reached data. */
 export function useHistoricalSnapshot(symbol: string, active: boolean) {
   const sim = useIbkrStatus().mode === 'sim';
-  const [data, setData] = useState<HistoricalSnapshot | null>(null);
-  useEffect(() => {
-    if (!sim || !active) return;
-    let stopped = false, version = 0;
-    async function refresh() {
-      const request = ++version;
-      try {
-        const res = await novaFetch(`${API_BASE_URL}/api/sim/history/snapshot/${encodeURIComponent(symbol)}`);
-        if (!res.ok) throw new Error(`Historical replay unavailable (${res.status})`);
-        const next = await res.json();
-        if (!stopped && request === version) setData(next);
-      } catch (error) {
-        // Only a known historical selection reports errors; other Sim panels stay put.
-        if (!stopped && request === version) {
-          setData(prev => prev?.active ? { ...blank(symbol), error: String(error) } : prev);
-        }
-      }
-    }
-    // Seek/rewind: drop reached prints at once; later polls rebuild at the new time.
-    const seek = () => { version++; setData(prev => prev?.active ? blank(symbol) : prev); void refresh(); };
-    seek();
-    const id = window.setInterval(() => void refresh(), SIM_HISTORY_POLL_MS);
-    window.addEventListener(SIM_CLOCK_SCRUB_EVENT, seek);
-    return () => { stopped = true; version++; window.clearInterval(id); window.removeEventListener(SIM_CLOCK_SCRUB_EVENT, seek); };
-  }, [symbol, sim, active]);
-  if (!sim || !active || !data?.active) return null;
-  return data.symbol === symbol ? data : blank(symbol);
+  const key = symbol.trim().toUpperCase();
+  const enabled = sim && active;
+  if (enabled && !resources.has(key)) resources.set(key, createResource(key));
+  const resource = enabled ? resources.get(key)! : null;
+  const subscribe = useCallback((listener: () => void) => resource?.subscribe(listener) ?? noSubscription(), [resource]);
+  const state = useSyncExternalStore(subscribe, resource?.getSnapshot ?? (() => emptyState));
+  const data = state.data;
+  if (!enabled || !data?.active || data.symbol !== key || (data.selection && data.selection.symbol !== key)) return null;
+  return state.error ? { ...data, error: state.error } : data;
 }

@@ -55,7 +55,9 @@ def test_other_symbol_closed_bars_only_and_date_switch():
     clock.scrub_to_second(59)
     assert playback.bars("SPY", "1Min", 100, clock.now_et()) == []
     clock.scrub_to_second(60)
-    assert playback.snapshot("SPY")["last"] == 8
+    assert playback.bars("SPY", "1Min", 100, clock.now_et())[-1]["c"] == 8
+    assert playback.snapshot("SPY")["active"] is False
+    assert playback.snapshot("SPY")["last"] is None
     assert playback.snapshot("SPY")["prints"] == []
     playback.select(store.window("SPY", "2026-09-17", "04:00", "20:00"))
     clock.scrub_to_second(60)
@@ -91,6 +93,8 @@ def test_retained_candles_require_complete_download_and_survive_cache_eviction()
     assert playback.bars("F", "1Min",100,clock.now_et()) == []
     job["status"] = "complete"
     store.save(job)
+    assert playback.bars("F", "1Min",100,clock.now_et()) == []
+    playback.select(spec)  # Explicit reload publishes newly completed data.
     assert playback.bars("F", "1Min",100,clock.now_et())[0]["v"] == 50
     clock.scrub_to_second(59)
     assert playback.bars("F", "1Min",100,clock.now_et()) == []
@@ -176,7 +180,7 @@ def test_prior_close_prefers_regular_session_close_over_extended_daily_bar():
     assert playback.snapshot("IMCC")["prev_close"] == 762.63
 
 
-def test_prior_close_is_never_an_older_session_and_a_miss_is_not_cached():
+def test_prior_close_is_never_an_older_session_and_reload_invalidates_a_miss():
     # Weeks-old daily close (PFSA: 25.19 on 08-18 vs ~2.07 on 09-18) must not become prev_close.
     bars_store.write_payload(dict(symbol="IMCC", timeframe="1Day", bars=[
         dict(t="2026-08-18T00:00:00Z", o=1, h=2, l=1, c=25.19, v=10)]))
@@ -184,6 +188,8 @@ def test_prior_close_is_never_an_older_session_and_a_miss_is_not_cached():
     assert playback.snapshot("IMCC")["prev_close"] is None
     bars_store.write_payload(dict(symbol="IMCC", timeframe="1Day", bars=[
         dict(t="2026-09-17T00:00:00Z", o=1, h=2, l=1, c=2.11, v=10)]))
+    assert playback.snapshot("IMCC")["prev_close"] is None
+    playback.select(store.window("IMCC", "2026-09-18", "04:00", "09:30"))
     assert playback.snapshot("IMCC")["prev_close"] == 2.11
 
 
@@ -193,3 +199,68 @@ def test_prior_close_skips_weekends_and_holidays():
         dict(t="2026-09-04T00:00:00Z", o=1, h=2, l=1, c=3.5, v=10)]))
     playback.select(spec)
     assert playback.snapshot("IMCC")["prev_close"] == 3.5
+
+
+def test_hot_snapshots_and_warm_timeframe_bars_do_not_read_disk(monkeypatch):
+    prepare()
+    clock.scrub_to_second(60)
+    playback.bars('IMCC', '5Min', 100, clock.now_et())
+    def unexpected(*args, **kwargs):
+        raise AssertionError('hot path touched disk')
+    monkeypatch.setattr(store, 'connect', unexpected)
+    monkeypatch.setattr(bars_store, 'read', unexpected)
+    for second in (60, 0, 80, 60):
+        clock.scrub_to_second(second)
+        snap = playback.snapshot('IMCC')
+        assert all(row['ts'] <= clock.now_et().timestamp() for row in snap['prints'])
+        for timeframe in ('1Min', '5Min'):
+            playback.bars('IMCC', timeframe, 100, clock.now_et())
+    assert [row['ordinal'] for row in playback.snapshot('IMCC')['prints']] == [3, 2, 1, 0]
+
+
+def test_load_does_not_block_snapshots_and_clear_fences_inflight_load(monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    import threading
+    spec = prepare()
+    entered, release = threading.Event(), threading.Event()
+    real_read = store.read_prints
+    def slow_read(*args, **kwargs):
+        entered.set()
+        assert release.wait(3)
+        return real_read(*args, **kwargs)
+    monkeypatch.setattr(store, 'read_prints', slow_read)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        pending = executor.submit(playback.select, spec)
+        try:
+            assert entered.wait(2)
+            current = executor.submit(playback.snapshot, 'IMCC').result(timeout=1)
+            assert current['active'] and current['selection']['symbol'] == 'IMCC'
+            playback.clear()
+        finally:
+            release.set()
+        with pytest.raises(ValueError, match='selection changed'):
+            pending.result(timeout=3)
+    assert playback.status() is None
+
+
+def test_print_limit_refuses_without_losing_previous_selection(monkeypatch):
+    spec = prepare()
+    before = playback.status()
+    monkeypatch.setattr(playback, 'SIM_HISTORY_MAX_SELECTION_PRINTS', 2)
+    with pytest.raises(ValueError, match='narrow the window'):
+        playback.select(spec)
+    assert playback.status() == before
+    assert len(playback.snapshot('IMCC')['prints']) == 2
+
+
+def test_cached_results_and_selection_cannot_be_mutated_by_callers():
+    prepare()
+    clock.scrub_to_second(60)
+    first = playback.bars('IMCC', '1Min', 100, clock.now_et())
+    first[-1]['c'] = 999
+    snap = playback.snapshot('IMCC')
+    snap['selection']['symbol'] = 'WRONG'
+    snap['prints'][0]['price'] = 999
+    assert playback.snapshot('IMCC')['last'] == 20
+    assert playback.status()['symbol'] == 'IMCC'
+    assert playback.bars('IMCC', '1Min', 100, clock.now_et())[-1]['c'] == 20

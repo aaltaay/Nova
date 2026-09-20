@@ -1,0 +1,37 @@
+{
+  "label": "before",
+  "fixture": "production header + quote rail, 200 API prints, two snapshot consumers; routed API, not Gateway",
+  "idle": {
+    "frames": 3600,
+    "meanFps": 60,
+    "delayedFrames": 0,
+    "longTasks": 0,
+    "totalBlockingMs": 0
+  },
+  "requests": {
+    "/api/sim/history": 60,
+    "/api/sim/clock": 60,
+    "/api/capture/sessions": 0,
+    "/api/ibkr/status": 12,
+    "/api/config": 0,
+    "/api/bot/focus/sync": 0,
+    "/api/sim/history/snapshot/IMCC": 120
+  },
+  "beforeGeometry": {
+    "rows": 26,
+    "nodes": 331,
+    "viewport": null,
+    "scrollHeight": null,
+    "documentHeight": 720
+  },
+  "afterGeometry": {
+    "rows": 26,
+    "nodes": 331,
+    "viewport": null,
+    "scrollHeight": null,
+    "documentHeight": 720
+  },
+  "heapBefore": 16760788,
+  "heapAfter": 18653468,
+  "errors": []
+}

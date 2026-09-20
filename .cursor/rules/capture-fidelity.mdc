@@ -1,0 +1,32 @@
+---
+description: Versioned capture integrity and bounded compatibility loading (#337, ungated #320)
+globs: backend/capture/**,backend/sim/capture_*.py
+alwaysApply: false
+---
+
+# Capture fidelity (ADR 001, ADR 017)
+
+- Capture owns manifest/JSONL schema version 1. Session rotation invalidates write
+  state; schema changes require explicit migration. Missing versions and the known
+  sim_capture_v1 label migrate in memory after row validation; unknown versions
+  and malformed manifests refuse selection/resume loudly.
+- Validate timestamps before writing and before print aggregation. A backward
+  event timestamp fails the recording, retaining the already accepted prefix.
+  Date rollover finalizes the old directory then resumes the row's Eastern date.
+  Stream bar timestamps may equal an earlier partial bucket on resume.
+- Sample L2 in event time, retain the newest pending update, and flush the final
+  book on stop. Persist offered/coalesced counters with the effective rate limit.
+- Daily buckets use the session opening hour on the event's own calendar date;
+  pre-open events belong to the previous session anchor. Emit only at rollover
+  or final flush. Compatibility replay does not read unused daily bar files.
+- Compatibility loading counts malformed, invalid timestamp and invalid payload
+  rows. Bounded L2 decimation preserves the first/final book and exposes both
+  total and loaded counts. These diagnostics travel in replay_load.
+- Default storage is F:/Nova/sim_capture when available, otherwise the user's
+  local application-data directory (or XDG data directory on Unix), never the
+  checkout cache. An explicit NOVA_SIM_CAPTURE_DIR override remains authoritative.
+- Retention and delete controls remain operator-gated under #320.
+- Selection builds an immutable data snapshot off-lock, then publishes it only if its generation is current. Clear/new selection invalidates pending loads. Capture locks never call historical selection/status functions; the feed is suppressed while capture selection is loading.
+- Capture quote/book/ticker projections expose only recorded facts. Missing bid/ask, size, prior close, depth, daily/minute bars and trade fields remain null/empty; before first event, while loading, or after failure, never substitute synthetic SIM1. Quote/book/snapshot projection lives in sim/market_views.py under ADR 001.
+- Clock alignment during capture publication uses notify=False: no tape/depth fanout or replay/history lookup may execute under the capture lock. After release, a generation-fenced rebuild pins one capture snapshot. Quote and ticker projections likewise share one pinned snapshot across all field reads.
+- Capture latest_quote follows SnapshotData: bid_price/ask_price/bid_size/ask_size are recorded numbers or null, plus timestamp; legacy bid/ask aliases remain for compatibility. No unknown size is replaced with a default.

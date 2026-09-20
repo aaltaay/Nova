@@ -398,36 +398,30 @@
       ],
       "prs": [
         {
-          "title": "feat(sim): replay panel - stylesheet, progress and ETA, usability fixes",
+          "title": "feat(replay): usable desk, measured performance, and faithful capture",
           "issues": [
             321,
             322,
-            338
+            338,
+            324,
+            341
           ],
-          "note": "All three rewrite the same ~100-line HistoricalReplayPanel plus its header. One reviewable pass over one component.",
+          "note": "Owner-approved combined PR on 2026-09-20, with before/after measurements captured before implementation. Also addresses capture-fidelity #303, #337 and ungated #320 fixes in this same PR; retention policy remains open. Claim reserves the complete shared footprint.",
           "gated": false,
           "touches": [
             "frontend/src/sim/",
             "frontend/src/capture/",
             "backend/sim/",
             "backend/capture/routes.py",
-            "backend/capture/sessions.py"
-          ]
-        },
-        {
-          "title": "perf(sim): collapse the poll storm, virtualize the tape, unblock the event loop",
-          "issues": [
-            324,
-            341
-          ],
-          "note": "Performance work kept separate from the UX rewrite so the measurement in #341 has a clean before/after.",
-          "gated": false,
-          "touches": [
-            "frontend/src/sim/",
-            "frontend/src/capture/",
+            "backend/capture/sessions.py",
             "frontend/src/components/TickerDetailContent.tsx",
-            "backend/sim/",
-            "backend/capture/"
+            "backend/capture/",
+            "frontend/src/stock_view/",
+            "frontend/src/chart/",
+            "frontend/src/styles/",
+            "frontend/src/index.css",
+            "backend/tests/",
+            "architecture/historical-replay.md"
           ]
         }
       ]
@@ -443,7 +437,9 @@
         303,
         304,
         320,
-        337
+        337,
+        385,
+        386
       ],
       "done": [
         "Captures carry a schema_version and a loader refuses an unknown one instead of guessing.",
@@ -480,6 +476,35 @@
             "backend/tests/test_sim_playback.py",
             "backend/tests/test_sim_chart_replay.py",
             "frontend/src/sim/"
+          ]
+        },
+        {
+          "title": "fix(replay): completed-minute boundaries in strategy projections",
+          "issues": [
+            385
+          ],
+          "note": "Audit finding from #341: Nova OS archive replay and HOD warmup share the same opening-versus-close boundary error; preserve strategy-neighbor coverage.",
+          "gated": false,
+          "touches": [
+            "backend/archive/replay.py",
+            "backend/hod_momo_replay.py",
+            "backend/tests/test_archive_replay.py",
+            "backend/tests/test_hod_momo_replay.py"
+          ]
+        },
+        {
+          "title": "fix(calendar): supported historical trading days and prior-session lookup",
+          "issues": [
+            386
+          ],
+          "note": "Audit finding from #341: replace the year-specific shared holiday assumption with one deterministic calendar contract.",
+          "gated": false,
+          "touches": [
+            "backend/sim/trading_day.py",
+            "backend/constants_nova_os.py",
+            "backend/sim/history_cache.py",
+            "backend/tests/test_history_audit.py",
+            "backend/tests/test_sim_trading_day.py"
           ]
         }
       ]

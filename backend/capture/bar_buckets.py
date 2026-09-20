@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
+
+from capture.constants_capture import CAPTURE_BAR_STEPS
+from constants_sim import SIM_SESSION_OPEN_HOUR
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
@@ -23,7 +26,9 @@ def _floor_ts(ts: float, step: int) -> float:
 
 def _day_open_ts(ts: float) -> float:
     dt = datetime.fromtimestamp(ts, tz=ET)
-    open_dt = dt.replace(hour=6, minute=0, second=0, microsecond=0)
+    open_dt = dt.replace(hour=SIM_SESSION_OPEN_HOUR, minute=0, second=0, microsecond=0)
+    if open_dt > dt:
+        open_dt -= timedelta(days=1)
     return open_dt.timestamp()
 
 
@@ -37,12 +42,7 @@ def on_print(symbol: str, ts: float, price: float, size: float, *, source: str, 
     sym = symbol.upper()
     by_tf = _buckets.setdefault(sym, {})
 
-    specs = (
-        ("10s", 10),
-        ("1m", 60),
-        ("5m", 300),
-    )
-    for tf, step in specs:
+    for tf, step in CAPTURE_BAR_STEPS:
         bucket_ts = _floor_ts(ts, step)
         cur = by_tf.get(tf)
         if cur is None or cur["ts"] != bucket_ts:
@@ -66,7 +66,7 @@ def on_print(symbol: str, ts: float, price: float, size: float, *, source: str, 
             cur["close"] = price
             cur["volume"] = float(cur["volume"]) + size
 
-    # Full day: one bar from session open (6:00 ET) that updates continuously
+    # Keep the daily tip in memory; append it only at rollover/final flush.
     day_ts = _day_open_ts(ts)
     cur = by_tf.get("1d")
     if cur is None or cur["ts"] != day_ts:
@@ -89,8 +89,6 @@ def on_print(symbol: str, ts: float, price: float, size: float, *, source: str, 
         cur["low"] = min(cur["low"], price)
         cur["close"] = price
         cur["volume"] = float(cur["volume"]) + size
-        # Upsert current day bar each print so partial days still have a usable 1d tip
-        record_bar("1d", dict(cur))
 
 
 def drain_open(symbol: str | None = None) -> list[tuple[str, dict[str, Any]]]:

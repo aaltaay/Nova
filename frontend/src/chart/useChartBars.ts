@@ -31,16 +31,15 @@ import { paintBars } from './chartBarsPaint';
 import {
   ensureBars,
   getBarsEntry,
-  invalidateBars,
   isBarsEntryFresh,
   subscribeBars,
 } from './barsStore';
 import { isCurrentBarsRequest } from './requestVersion';
 import type { ChartTradeUpdate } from './types';
 import { createRafCoalesce } from '../utils/rafCoalesce';
-import { SIM_CLOCK_SCRUB_EVENT } from '../sim/simClockEvents';
+import { matchesSimClockScrub, SIM_CLOCK_SCRUB_EVENT } from '../sim/simClockEvents';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
-import { SIM_CHART_REFRESH_MS } from '../sim/simClockEvents';
+import { invalidateReplayBars, subscribeReplayBarsRefresh } from './replayBarsRefresh';
 
 interface UseChartBarsOptions {
   symbol: string;
@@ -247,17 +246,18 @@ export function useChartBars({
   }, [symbol, timeframe, fetchBars, chartActive]);
 
   
-  // Sim scrubber — drop cache and refetch so charts honor session clock jumps.
+  // Sim scrubber - drop cache and refetch so charts honor session clock jumps.
   useEffect(() => {
     if (!chartActive) return undefined;
-    const onScrub = () => {
+    const onScrub = (event?: Event) => {
+      if (event && (!sim || !matchesSimClockScrub(event, symbol))) return;
       barsRequestVersionRef.current += 1;
       onSeriesReset();
       paintedBarsRef.current = null;
       setIndicatorBars([]);
       candleSeriesRef.current?.setData([]);
       volSeriesRef.current?.setData([]);
-      invalidateBars(symbol, timeframe);
+      invalidateReplayBars(event, symbol, timeframe);
       void fetchBars(symbol, timeframe, false);
     };
     onScrub();
@@ -267,16 +267,16 @@ export function useChartBars({
 
 useEffect(() => {
     if (!chartActive) return;
-    const interval = sim ? SIM_CHART_REFRESH_MS : (CHART_REFETCH_SEC[timeframe] ?? 0) * 1000;
-    if (!interval) return;
     const controller = new AbortController();
-    const id = setInterval(() => {
-      void fetchBars(symbol, timeframe, true, controller.signal);
-    }, interval);
-    return () => {
-      controller.abort();
-      clearInterval(id);
-    };
+    const refresh = () => { void fetchBars(symbol, timeframe, true, controller.signal); };
+    if (sim) {
+      const stop = subscribeReplayBarsRefresh(symbol, timeframe, refresh);
+      return () => { controller.abort(); stop(); };
+    }
+    const interval = (CHART_REFETCH_SEC[timeframe] ?? 0) * 1000;
+    if (!interval) return;
+    const id = setInterval(refresh, interval);
+    return () => { controller.abort(); clearInterval(id); };
   }, [symbol, timeframe, fetchBars, chartActive, sim]);
 
   const wasActiveRef = useRef(chartActive);

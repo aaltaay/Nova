@@ -33,7 +33,9 @@ def test_range_excludes_end_and_rejects_overlapping_page(job):
     assert page([trade(b - 1), trade(b)], a, b) == ([trade(b - 1)], b, True)
     with pytest.raises(ValueError, match="overlapping"):
         page([trade(a - 1)], a, b)
-    assert page([], a, b) == ([], b, True)
+    with pytest.raises(ValueError, match="empty page"):
+        page([], a, b)
+    assert page([], b, b) == ([], b, True)
 
 
 def test_timezone_and_validation():
@@ -158,3 +160,47 @@ def test_gateway_tries_live_then_paper_port(monkeypatch):
 def test_default_date_is_latest_completed_trading_day(now, expected):
     from datetime import datetime
     assert store.default_date(datetime.fromisoformat(now).replace(tzinfo=store.ET)) == expected
+
+
+def test_empty_page_fails_resumably_without_advancing_committed_cursor(job):
+    class Gateway:
+        calls = []
+        empty = True
+        async def open(self, symbol):
+            return {'conId': 12}
+        async def trades(self, cursor):
+            self.calls.append(cursor)
+            if cursor == job['cursor']:
+                return [trade(cursor), trade(cursor)]
+            return [] if self.empty else [trade(job['end_ts'])]
+        def close(self):
+            pass
+    gateway = Gateway()
+    failed = asyncio.run(run(job['id'], gateway, threading.Event(), paced=False))
+    assert failed['status'] == 'failed'
+    assert failed['cursor'] == job['cursor'] + 1 and failed['count'] == 2
+    assert 'empty page' in failed['error']
+    gateway.empty = False
+    resumed = asyncio.run(run(job['id'], gateway, threading.Event(), paced=False))
+    assert resumed['status'] == 'complete' and resumed['count'] == 2
+    assert gateway.calls == [job['cursor'], job['cursor'] + 1, job['cursor'] + 1]
+
+
+def test_eta_uses_this_run_coverage_and_never_invents_progress(job, monkeypatch):
+    from sim.history_progress import progress
+    queued = progress(job, now=job['updated'])
+    assert queued['progress_pct'] == 0 and queued['eta_seconds'] is None
+    current = dict(job, started=100, updated=120, run_cursor=job['cursor'],
+                   cursor=job['cursor'] + 1980, status='running')
+    result = progress(current, now=130)
+    assert result['progress_pct'] == 10 and result['eta_seconds'] == 180
+    assert result['downloaded_through'] == current['cursor'] and result['age_seconds'] == 10
+    assert progress(current, now=500)['stale']
+    assert progress(current, now=500)['eta_seconds'] is None
+    for status in ('queued', 'paused', 'failed', 'complete', 'interrupted'):
+        assert progress(dict(current, status=status), now=130)['eta_seconds'] is None
+    monkeypatch.setattr(store.time, 'time', lambda: 1000)
+    store.save(dict(current, status='paused'))
+    resumed = store.begin_run(job['id'])
+    assert resumed['started'] == 1000 and resumed['run_cursor'] == current['cursor']
+    assert progress(resumed, now=1001)['eta_seconds'] is None
