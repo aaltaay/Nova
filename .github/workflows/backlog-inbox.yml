@@ -6,7 +6,7 @@
 # sweep noticed, up to seven days later.
 #
 # So: assign `00 - Untriaged` immediately. The issue is then visible to every
-# consumer (next, report, check, the Backlog Map) within a minute of filing.
+# consumer (next, report, check) within a minute of filing.
 #
 # What this job deliberately does NOT do is guess the real package. Routing is
 # a judgement call -- which outcome does this issue serve? -- and a heuristic
@@ -37,8 +37,6 @@ permissions:
 jobs:
   inbox:
     name: Queue for triage
-    # The Backlog Map is a rendered view of the backlog, not an item in it.
-    if: ${{ !contains(github.event.issue.labels.*.name, 'backlog-map') }}
     runs-on: ubuntu-latest
     steps:
       - name: Assign the inbox milestone when the issue has none
