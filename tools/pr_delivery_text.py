@@ -15,11 +15,21 @@ def squash_commit_title(number: int, title: str) -> str:
     return line[:SQUASH_TITLE_MAX]
 
 
-def squash_merge_fields(number: int, title: str, body: str = "") -> dict[str, str]:
+def squash_merge_fields(
+    number: int, title: str, body: str = "", sha: str = "",
+) -> dict[str, str]:
+    """`sha` binds the merge to the head the decision was made about (#412).
+
+    Without it the payload binds to the PR *number*, so a push landing between
+    the last fetch and this PUT is merged as-is -- a head that never passed the
+    settling floor or the in-flight-review check.
+    """
     fields = {
         "merge_method": "squash",
         "commit_title": squash_commit_title(number, title),
     }
+    if sha:
+        fields["sha"] = sha
     text = (body or "").strip()
     if text:
         if len(text) > SQUASH_BODY_MAX:

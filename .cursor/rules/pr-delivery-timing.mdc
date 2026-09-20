@@ -42,6 +42,17 @@ CI-completion sweep (`sweep`), and a manual `workflow_dispatch`.
 Neither gate reads what a review concluded. `WAIT`, never `BLOCK`: a later
 sweep merges it, and CI completing fires one.
 
+**The merge is bound to the head that passed the gates.** `decide()` is pure
+over a fetched snapshot, so the write must carry that snapshot's identity or
+the two can name different heads: the merge payload sends `sha:
+pr.headRefOid`, and GitHub answers `409` when the head has moved since. A
+`409` is not a failure -- `cmd_merge` loops back to `_fetch_pr` and re-decides
+(the new head reads `settling`), and `cmd_sweep` prints `#N skip head_moved`
+and carries on. Without it a `synchronize` push landing between the last fetch
+and the `PUT` ships a head that passed neither the floor nor the in-flight
+review check, and the push's own `Auto-merge` run then finds the PR closed
+(`skip not_open`), so nothing evaluates it afterwards either.
+
 **The merge job waits the floor out.** Nothing fires when the floor expires,
 so `cmd_merge` sleeps through the remaining settling time and re-decides,
 instead of leaving a PR whose CI finished early to the hourly cron -- up to

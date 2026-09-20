@@ -24,6 +24,9 @@ GhFn = Callable[..., Any]
 DeleteFn = Callable[..., int]
 
 DESKTOP_PACK_WORKFLOW = "desktop-pack.yml"
+# A head that moved is not a failure -- the new head simply has to be
+# decided again from scratch, and it reads as `settling` (#412).
+MERGE_HEAD_MOVED = 3
 RELEASE_BRANCH = "master"
 
 
@@ -35,15 +38,22 @@ def merge_now(
     title: str,
     body: str,
     delete_closed: DeleteFn,
+    sha: str = "",
 ) -> int:
-    payload = squash_merge_fields(number, title, body)
+    payload = squash_merge_fields(number, title, body, sha)
     proc = gh(
         ["api", "-X", "PUT", f"repos/{repo}/pulls/{number}/merge", "--input", "-"],
         check=False,
         stdin=json.dumps(payload),
     )
     if proc.returncode != 0:
-        print(proc.stderr or proc.stdout or f"merge #{number} failed", file=sys.stderr)
+        detail = proc.stderr or proc.stdout or f"merge #{number} failed"
+        # With `sha` sent, 409 means only "head branch was modified"; a merge
+        # that genuinely cannot be performed answers 405.
+        if sha and "409" in detail:
+            print(f"#{number} skip head_moved", file=sys.stderr)
+            return MERGE_HEAD_MOVED
+        print(detail, file=sys.stderr)
         return 2
     print(f"merged #{number}")
     dispatch_desktop_pack(gh, repo)
@@ -128,4 +138,5 @@ def merge_pr(gh: GhFn, repo: str, pr: dict[str, Any], delete_closed: DeleteFn) -
         str(pr.get("title") or ""),
         str(pr.get("body") or ""),
         delete_closed,
+        str(pr.get("headRefOid") or ""),
     )
