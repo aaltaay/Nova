@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- Freeze the completed-orders prerequisite test clock
+
+- **What:** Pin the completed-orders warning tests to the fixture day and restore real timers afterward.
+- **Why:** PR #355 failed once the runner date moved beyond the fixed September 19 fixture.
+- **Files touched:** `frontend/src/ibkr/tradingPrerequisites.test.ts`, `.cursor/rules/verification-before-completion.mdc`.
+- **How it works now:** Same-day integration assertions use a deterministic clock; the existing explicitly injected next-day check continues to verify weekday formatting. Runtime behavior is unchanged.
+- **Verified by:** 24 tests pass in UTC and America/New_York; targeted ESLint; agent contract and skills audit.
+
+
 ## 2026-09-19 -- Log entries re-filed under the entries marker, plus a CI guard (D-061)
 
 - **What:** Five CHANGELOG blocks and three PROBLEM_LOG entries that had been written into the "How agents update this file" prose are now filed under the real standalone ENTRIES_START marker, newest-first, text unchanged; instruction item 2 reads as one sentence again in both files; `# Change log (agent-maintained)` is back on line 1. `tools/doc_invariants.py` now fails CI on the same mistake, and both log rules say to anchor on the marker line.
