@@ -12,6 +12,7 @@ Ranking: `tools/ai_news_rank.py`. HTML: `tools/ai_news_html.py`.
 from __future__ import annotations
 
 import argparse
+import gzip
 import html
 import json
 import re
@@ -36,7 +37,7 @@ from ai_news_html import (
     render_block,
     render_feed_block,
 )
-from ai_news_rank import Article, rank_articles
+from ai_news_rank import Article, canonical_url, rank_articles
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 INDEX_HTML = REPO_ROOT / "site" / "index.html"
@@ -44,13 +45,17 @@ NEWS_HTML = REPO_ROOT / "site" / "news" / "index.html"
 FEED_JSON = REPO_ROOT / "site" / "news" / "feed.json"
 
 DEFAULT_LIMIT = 6
-DEFAULT_FEED_LIMIT = 60
+DEFAULT_FEED_LIMIT = 80
 DEFAULT_MIN_ITEMS = 4
 DEFAULT_FEED_MIN_ITEMS = 50
 FEED_MAX_PER_DOMAIN = 10
-FEED_MIN_SCORE = 0.35
+FEED_MIN_SCORE = 0.2
 TRADE_PRESS_BOOST = 1.25
-FETCH_TIMEOUT_SEC = 20
+# Trade press publishes slowly. A 72h half-life zeroed Waters/Risk/The TRADE
+# rows that were still the right beat. /news uses a two-week half-life.
+FEED_RECENCY_HALF_LIFE_HOURS = 336.0
+FEED_MAX_AGE_DAYS = 90
+FETCH_TIMEOUT_SEC = 25
 MAX_SUMMARY_CHARS = 190
 USER_AGENT = "NovaNewsDigest/1.0 (+https://nova.altaystudio.com)"
 
@@ -199,7 +204,7 @@ def fetch_feed(label: str, url: str) -> list[Article]:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     try:
         with urllib.request.urlopen(request, timeout=FETCH_TIMEOUT_SEC) as response:
-            payload = response.read()
+            payload = decode_feed_body(response.read())
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         print(f"  warn: {label} unreachable ({exc})", file=sys.stderr)
         return []
@@ -208,16 +213,45 @@ def fetch_feed(label: str, url: str) -> list[Article]:
     return articles
 
 
+def decode_feed_body(payload: bytes) -> bytes:
+    """Some trade-press hosts gzip the body without a Content-Encoding header."""
+    if not payload.startswith(b"\x1f\x8b"):
+        return payload
+    try:
+        return gzip.decompress(payload)
+    except OSError:
+        return payload
+
+
+def feed_fingerprint(articles: list[Article]) -> tuple[tuple[str, str], ...]:
+    """Identity of a published list -- URLs and titles, not the clock."""
+    return tuple((canonical_url(article.url), article.title.strip()) for article in articles)
+
+
+def fingerprint_from_json(path: Path) -> tuple[tuple[str, str], ...]:
+    if not path.exists():
+        return ()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError):
+        return ()
+    stories = payload.get("stories") or []
+    rows: list[tuple[str, str]] = []
+    for row in stories:
+        if not isinstance(row, dict):
+            continue
+        url = str(row.get("url") or "")
+        title = str(row.get("title") or "").strip()
+        if url and title:
+            rows.append((canonical_url(url), title))
+    return tuple(rows)
+
+
 def collect(feeds: tuple[tuple[str, str], ...] = FEEDS) -> list[Article]:
     print(f"Fetching {len(feeds)} feeds...", file=sys.stderr)
     with ThreadPoolExecutor(max_workers=len(feeds)) as pool:
         batches = pool.map(lambda feed: fetch_feed(*feed), feeds)
     return [article for batch in batches for article in batch]
-
-
-def rank_teaser(candidates: list[Article], now: datetime, limit: int) -> list[Article]:
-    """Tight homepage shortlist -- known sources, 2 per domain."""
-    return rank_articles(candidates, now, limit)
 
 
 def rank_feed(candidates: list[Article], now: datetime, limit: int) -> list[Article]:
@@ -230,6 +264,8 @@ def rank_feed(candidates: list[Article], now: datetime, limit: int) -> list[Arti
         min_score=FEED_MIN_SCORE,
         require_known_source=False,
         trade_press_boost=TRADE_PRESS_BOOST,
+        recency_half_life_hours=FEED_RECENCY_HALF_LIFE_HOURS,
+        max_age_days=FEED_MAX_AGE_DAYS,
     )
 
 
@@ -254,15 +290,17 @@ def publish(
     feed_json_path: Path = FEED_JSON,
     dry_run: bool = False,
 ) -> int:
-    """Write teaser + /news when each list clears its honesty floor.
+    """Write /news when the list clears the honesty floor.
 
-    A thin feed never overwrites a page that already has `feed_min` rows.
-    Homepage still uses today's min-items rule. Exit 1 only if the teaser
-    is too thin to publish.
+    Homepage gets a count tease, never a ranked card grid. A thin fetch
+    never overwrites a page that already has `feed_min` rows. Identical
+    story identity (ignoring the clock) does not rewrite, so Vercel is not
+    burned on a 10-minute no-op. `homepage_limit` / `homepage_min` stay on
+    the CLI for compatibility and are unused.
     """
-    teaser = rank_teaser(candidates, now, homepage_limit)
+    _ = (homepage_limit, homepage_min)
     feed = rank_feed(candidates, now, feed_limit)
-    print(f"{len(teaser)} teaser / {len(feed)} feed stories survived ranking", file=sys.stderr)
+    print(f"{len(feed)} feed stories survived ranking", file=sys.stderr)
 
     existing_feed = 0
     if news_path.exists():
@@ -270,7 +308,10 @@ def publish(
             news_path.read_text(encoding="utf-8"), FEED_START_MARKER, FEED_END_MARKER,
         )
 
-    write_home = len(teaser) >= homepage_min
+    if feed_fingerprint(feed) == fingerprint_from_json(feed_json_path) and existing_feed >= feed_min:
+        print("Feed fingerprint unchanged -- keeping published pages.", file=sys.stderr)
+        return 0
+
     write_feed = len(feed) >= feed_min
     if not write_feed:
         print(
@@ -278,38 +319,30 @@ def publish(
             f"Keeping the previously published feed ({existing_feed} rows).",
             file=sys.stderr,
         )
-
-    if not write_home:
-        print(
-            f"REFUSING to write homepage: {len(teaser)} stories < --min-items {homepage_min}. "
-            "Keeping the previously published block.",
-            file=sys.stderr,
-        )
-        return 1
+        if dry_run:
+            return 0
+        return 0 if existing_feed >= feed_min else 1
 
     if dry_run:
         print("Dry run -- pages not modified.", file=sys.stderr)
         return 0
 
     home_page = index_path.read_text(encoding="utf-8")
-    home_updated = inject(home_page, render_block(teaser, now), START_MARKER, END_MARKER)
+    home_updated = inject(home_page, render_block(feed, now), START_MARKER, END_MARKER)
     if home_updated != home_page:
         index_path.write_text(home_updated, encoding="utf-8")
-        print(f"Wrote {len(teaser)} teaser stories to {index_path}", file=sys.stderr)
-    else:
-        print("Homepage teaser unchanged.", file=sys.stderr)
+        print(f"Wrote homepage tease ({len(feed)} stories) to {index_path}", file=sys.stderr)
 
-    if write_feed:
-        news_page = news_path.read_text(encoding="utf-8")
-        news_updated = inject(
-            news_page, render_feed_block(feed, now), FEED_START_MARKER, FEED_END_MARKER,
-        )
-        if news_updated != news_page:
-            news_path.write_text(news_updated, encoding="utf-8")
-            print(f"Wrote {len(feed)} feed stories to {news_path}", file=sys.stderr)
-        dumped = feed_json_text(feed, now)
-        if _write_if_changed(feed_json_path, dumped):
-            print(f"Wrote {len(feed)} stories to {feed_json_path}", file=sys.stderr)
+    news_page = news_path.read_text(encoding="utf-8")
+    news_updated = inject(
+        news_page, render_feed_block(feed, now), FEED_START_MARKER, FEED_END_MARKER,
+    )
+    if news_updated != news_page:
+        news_path.write_text(news_updated, encoding="utf-8")
+        print(f"Wrote {len(feed)} feed stories to {news_path}", file=sys.stderr)
+    dumped = feed_json_text(feed, now)
+    if _write_if_changed(feed_json_path, dumped):
+        print(f"Wrote {len(feed)} stories to {feed_json_path}", file=sys.stderr)
 
     return 0
 

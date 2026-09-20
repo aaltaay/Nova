@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Public /news was a 6-card teaser and a 404
+
+- **Symptom:** Live `https://nova.altaystudio.com/news` 404'd. The homepage still looked like the product: six ranked cards, copy like "Ranked and refreshed daily". Digest Action pushed `master` on every clock tick. After tightening the topic gate, a live fetch of 39 stories would have wiped a 51-row page if honesty had not refused the write. Waters/Risk/The TRADE native rows scored 0.0.
+- **Cause:** Four stacked bugs. (1) Vercel free-tier `api-deployments-free-per-day` blocked the #108 deploy, so `/news` never went live. (2) Homepage still rendered `ol.news-list`. (3) `ai-news.yml` `git push`ed master, which also fought branch protection and burned deploys because timestamps changed every run. (4) Homepage recency (72h half-life, 21-day hard zero) was reused on `/news`, so slow trade press died. Google News items keep `news.google.com` URLs, so `youtube.com` spam checks missed `youtu.be` publisher hosts. HIGH_SIGNAL `quant fund` and bounded `trade` also let factsheets and "trade insults" through.
+- **Fix:** Homepage is a tease + `/#news` replace to `/news`. Publish `/news` only at >=50. Fingerprint skip ignores the clock. Digest opens `chore/ai-news-digest`. Feed recency is 14-day half-life / 90-day window. Publisher host is what spam/block lists match. Theme rejects cover AI-as-a-stock, listicles, job boards, trading cards. Split per-outlet Google searches refill inventory after the tighter gate.
+- **Fix class:** admission
+- **Keywords:** /news, 6-card, Vercel 404, digest master push, recency, youtu.be, THEME_REJECT, feed-min 50, chore/ai-news-digest
+
 ## 2026-09-11 -- Trader 10Sec recovery was one-shot despite live tape (D-003)
 
 - **Symptom:** A newly loaded Trader symbol could show live Time & Sales while the 10-Second pane stayed on "Loading IBKR historical..." for minutes.

@@ -105,6 +105,30 @@ def test_spam_exchange_blog_never_publishes():
     ) == []
 
 
+def test_google_news_youtube_is_spam():
+    """Google News wraps YouTube; the publisher host is what we block."""
+    article = make(
+        "I Built a Claude AI Trading Bot for Live Trading",
+        url="https://news.google.com/rss/articles/abc",
+        publisher="https://youtu.be/abc",
+    )
+    assert rank.is_spam_source(article.publisher_url)
+    assert rank.rank_articles(
+        [article], NOW, 6, require_known_source=False, min_score=0.1,
+    ) == []
+
+
+def test_access_newswire_is_blocked():
+    article = make(
+        "OmniPhi launches agentic trading for systematic trading",
+        url="https://www.accessnewswire.com/newsroom/x",
+    )
+    assert rank.is_blocked_source(article.url)
+    assert rank.rank_articles(
+        [article], NOW, 6, require_known_source=False, min_score=0.1,
+    ) == []
+
+
 def test_blocked_press_wire_never_publishes_even_when_unknown_allowed():
     article = make(
         "Tickeron launches new AI trading robots for systematic trading",
@@ -289,12 +313,14 @@ def test_truncate_cuts_on_a_word_boundary():
 
 # --- Rendering ------------------------------------------------------------
 
-def test_render_escapes_untrusted_feed_text():
+def test_render_homepage_tease_is_not_a_ranked_grid():
     article = make('Quant <script>alert(1)</script> & AI trading desk')
     block = digest.render_block([article], NOW)
+    assert "news-list" not in block
+    assert "news-rank" not in block
+    assert "news-tease-meta" in block
+    assert 'href="/news"' in block
     assert "<script>" not in block
-    assert "&lt;script&gt;" in block
-    assert "&amp;" in block
 
 
 def test_inject_replaces_only_the_marked_region():
@@ -330,10 +356,12 @@ def test_news_page_carries_the_markers():
     assert 'class="news-feed"' in page
 
 
-def test_homepage_teaser_points_at_full_feed():
+def test_homepage_is_a_tease_not_a_six_card_grid():
     page = digest.INDEX_HTML.read_text(encoding="utf-8")
     assert 'href="/news"' in page
-    assert "Full feed" in page
+    assert 'id="news"' in page
+    assert 'class="news-list"' not in page
+    assert "Open the full feed" in page
 
 
 def _unique_feed_articles(count: int) -> list[rank.Article]:
@@ -409,8 +437,7 @@ def test_refuse_thin_feed_keeps_existing_page(tmp_path: Path):
     assert code == 0
     assert news.read_text(encoding="utf-8") == before
     assert not dump.exists()
-    assert "OLD HOME" not in home.read_text(encoding="utf-8")
-    assert home.read_text(encoding="utf-8").count('<li class="news-item">') >= 4
+    assert "OLD HOME" in home.read_text(encoding="utf-8")
 
 
 def test_thin_homepage_exits_nonzero_without_writes(tmp_path: Path):
@@ -472,6 +499,9 @@ def test_publish_writes_feed_json_when_inventory_clears_floor(tmp_path: Path):
         digest.FEED_START_MARKER,
         digest.FEED_END_MARKER,
     ) >= 50
+    home_html = home.read_text(encoding="utf-8")
+    assert "news-list" not in home_html
+    assert "news-tease-meta" in home_html
 
 
 def test_render_feed_escapes_untrusted_feed_text():
@@ -480,3 +510,169 @@ def test_render_feed_escapes_untrusted_feed_text():
     assert "<script>" not in block
     assert "&lt;script&gt;" in block
     assert 'class="news-feed"' in block
+
+
+def test_rejects_ai_stock_boom_banker_tooling_and_review_farms():
+    assert not rank.is_on_topic(make(
+        "Wall Street firm believes the AI stock market boom is nearing an end",
+    ))
+    assert not rank.is_on_topic(make(
+        "OpenAI targets work of Wall Street junior bankers with ChatGPT for Financial Services",
+    ))
+    assert not rank.is_on_topic(make(
+        "UAE Plans to Invest $46 Billion in Germany From AI to Energy",
+    ))
+    assert not rank.is_on_topic(make(
+        "AI Trading Engine Review My Real Test With Results & Demo.png",
+    ))
+    assert not rank.is_on_topic(make(
+        "Motilal Oswal Quant Fund - Regular Plan Returns",
+    ))
+
+
+def test_ai_agents_invest_headline_still_qualifies():
+    assert rank.is_on_topic(make("He's Letting AI Agents Invest His Money"))
+
+
+def test_trading_cards_are_not_the_beat():
+    assert not rank.is_on_topic(make(
+        "CardSight AI Expands Trading Card Infrastructure to MMA",
+    ))
+
+
+def test_ai_stock_unwind_is_not_the_beat():
+    assert not rank.is_on_topic(make(
+        "Hedge funds posted their worst month against the S&P 500 in 20 years as AI bets unwound",
+    ))
+    assert not rank.is_on_topic(make(
+        "Crowded AI trades hit hedge funds as quant and stockpickers cut risk",
+    ))
+    assert not rank.is_on_topic(make(
+        "Epic AI Circle Public Feud: Codex & Claude Code Leaders Openly Trade Insults",
+        url="https://eu.36kr.com/x",
+    ))
+    assert not rank.is_on_topic(make(
+        'Canadian Securities Exchange Welcomes Listing of Pelican AI, Trading Under Symbol "PEL"',
+    ))
+
+
+def test_job_board_listings_are_not_news():
+    article = make(
+        "Machine Learning Researcher - Quantitative Trading- Leading Market-Maker / Hedge Fund",
+        url="https://www.efinancialcareers.com/jobs/x",
+    )
+    assert rank.is_spam_source(article.url)
+    assert rank.rank_articles(
+        [article], NOW, 6, require_known_source=False, min_score=0.1,
+    ) == []
+
+
+def test_claude_investment_process_is_on_topic():
+    assert rank.is_on_topic(make(
+        "T. Rowe Price Expands Use of Claude in its Investment Process",
+        url="https://www.tradersmagazine.com/t-rowe",
+    ))
+    assert rank.is_on_topic(make(
+        "Goldman Sachs Sees AI Reshaping Institutional Investing",
+        url="https://www.tradersmagazine.com/gs",
+    ))
+
+
+def test_mega_wires_cannot_dominate_the_feed():
+    articles = [
+        make(
+            f"Northlake{i} Prairie{i} Zephyr{i} ships execution algorithm",
+            url=f"https://www.cnbc.com/story-{i}",
+            hours_old=1.0,
+        )
+        for i in range(8)
+    ]
+    picks = rank.rank_articles(
+        articles, NOW, 50, max_per_domain=10, min_score=0.1, require_known_source=False,
+    )
+    assert len(picks) == rank.MEGA_WIRE_CAP
+
+
+def test_decode_gzip_feed_body():
+    import gzip
+
+    raw = gzip.compress(RSS)
+    assert digest.decode_feed_body(raw).startswith(b"<?xml")
+    assert digest.decode_feed_body(RSS) == RSS
+
+
+def test_identical_feed_skips_rewrite(tmp_path: Path):
+    home = tmp_path / "index.html"
+    news = tmp_path / "news" / "index.html"
+    dump = tmp_path / "news" / "feed.json"
+    news.parent.mkdir()
+    home.write_text(
+        f"{digest.START_MARKER}\nOLD\n      {digest.END_MARKER}",
+        encoding="utf-8",
+    )
+    news.write_text(
+        f"{digest.FEED_START_MARKER}\nOLD\n      {digest.FEED_END_MARKER}",
+        encoding="utf-8",
+    )
+    articles = _unique_feed_articles(80)
+    assert digest.publish(
+        articles,
+        now=NOW,
+        feed_limit=60,
+        feed_min=50,
+        index_path=home,
+        news_path=news,
+        feed_json_path=dump,
+    ) == 0
+    before_news = news.read_text(encoding="utf-8")
+    before_json = dump.read_text(encoding="utf-8")
+    later = NOW + timedelta(hours=3)
+    assert digest.publish(
+        articles,
+        now=later,
+        feed_limit=60,
+        feed_min=50,
+        index_path=home,
+        news_path=news,
+        feed_json_path=dump,
+    ) == 0
+    assert news.read_text(encoding="utf-8") == before_news
+    assert dump.read_text(encoding="utf-8") == before_json
+
+
+def test_older_trade_press_still_fills_the_public_feed():
+    old = make(
+        "Waters desk ships a new execution algorithm",
+        url="https://www.waterstechnology.com/old-story",
+        hours_old=24 * 40,
+    )
+    picks = digest.rank_feed([old], NOW, 10)
+    assert [a.url for a in picks] == [old.url]
+
+
+def test_native_trade_press_feeds_are_listed():
+    urls = " ".join(url for _label, url in digest.FEEDS)
+    assert "thetradenews.com/feed" in urls
+    assert "waterstechnology.com/feeds/rss" in urls
+    assert "risk.net/feeds/rss" in urls
+    assert "institutionalinvestor.com/rss.xml" in urls
+    assert "site:tradersmagazine.com" in urls
+    assert "site:finextra.com" in urls
+
+
+def test_digest_workflow_opens_a_pr_instead_of_pushing_master():
+    text = Path(__file__).resolve().parents[1].joinpath(
+        ".github", "workflows", "ai-news.yml",
+    ).read_text(encoding="utf-8")
+    assert "tools/ai_news_pr.py" in text
+    assert "git push" not in text
+    assert "pull-requests: write" in text
+
+
+def test_digest_pr_helper_targets_the_refresh_branch():
+    import ai_news_pr as news_pr
+
+    assert news_pr.DIGEST_BRANCH != "master"
+    assert news_pr.DIGEST_BRANCH != "main"
+    assert "site/news/index.html" in news_pr.DIGEST_PATHS
+

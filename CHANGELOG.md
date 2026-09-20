@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Public /news is the AI-trading product, not a 6-card teaser
+
+- **What:** `nova.altaystudio.com/news` is a Reddit-style feed (rank, source, time, title, blurb) with 50+ stories when inventory exists. Homepage `#news` and nav **AI news** go to `/news`. The homepage is a count tease, not a finished 6-card grid. Digest refreshes via PR, never a master push.
+- **Why:** PR #108 shipped a `/news` file and closed #106, but production stayed on the old 6-card homepage (Vercel 404 on `/news`) and the digest Action rewrote HTML onto master. A 21-day recency window also zeroed Waters/Risk/The TRADE rows. Desktop Nova News (#59) is a different product.
+- **Files touched:** `site/index.html`, `site/news/index.html`, `site/motion.js`, `site/styles.css`, `tools/ai_news_{digest,rank,html,feeds,sources,topic,pr}.py`, `tools/test_ai_news_digest.py`, `.github/workflows/ai-news.yml`, `.github/workflows/desktop-pack.yml`, `README.md`.
+- **How it works now:** Public RSS/Atom only. Trade-press native feeds plus per-outlet Google News searches. Topic gate is AI-used-to-trade (not AI stocks, NVDA-as-AI, Fed tape, job listings, YouTube). Mega wires cap at 2. `/news` writes only at >=50 stories; a thin fetch keeps the last good page. Identical URL+title fingerprints skip rewrite so Vercel is not burned. Scheduled Action opens/updates `chore/ai-news-digest`. Desktop pack ignores `site/**` on PRs so digest PRs can pass required checks.
+- **Verified by:** `pytest tools/test_ai_news_digest.py` (57 passed). Live fetch wrote 80 `/news` rows. Ruff on the digest tools. Local static `/`, `/news`, `/#news` in a browser (this session). Ready PR waits on Ahmed's localhost yes.
+- **Follow-ups:** Live `nova.altaystudio.com/news` stays 404 until this lands and Vercel free-tier deploy quota resets. Do not merge until Ahmed says yes.
+- **Related:** Refs #106. Refs #59. PROBLEM_LOG 2026-09-11 public /news 6-card.
+
 ## 2026-09-11 -- Public Nova News page on the marketing site
 
 - **What:** `nova.altaystudio.com/news` is a Reddit-style AI-in-trading feed (50+ rows when inventory exists). The homepage keeps a 6-item teaser with a Full feed link. Actions refresh about every 10 minutes.

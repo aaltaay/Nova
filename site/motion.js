@@ -1,4 +1,9 @@
 (() => {
+  if (location.hash === "#news") {
+    location.replace("/news");
+    return;
+  }
+
   const root = document.documentElement;
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const spot = document.querySelector(".spot");

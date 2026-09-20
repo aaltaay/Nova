@@ -17,6 +17,11 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+    paths-ignore:
+      - "site/**"
+      - "docs/**"
+      - "knowledge/**"
+      - "**/*.md"
   workflow_dispatch:
 
 concurrency:

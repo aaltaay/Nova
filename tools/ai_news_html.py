@@ -36,35 +36,14 @@ def relative_stamp(published: datetime | None, now: datetime) -> str:
     return f"{days} days ago"
 
 
-def _item_html(article: Article, index: int, now: datetime, heading: str) -> str:
-    stamp = article.published.isoformat() if article.published else now.isoformat()
-    summary = (
-        f'\n            <p class="news-sum">{html.escape(article.summary)}</p>'
-        if article.summary else ""
-    )
-    return f"""        <li class="news-item">
-          <a class="news-link" href="{html.escape(article.url, quote=True)}" rel="noopener noreferrer" target="_blank">
-            <p class="news-meta">
-              <span class="news-rank">{index:02d}</span>
-              <span class="news-src">{html.escape(article.source)}</span>
-              <time datetime="{html.escape(stamp, quote=True)}">{relative_stamp(article.published, now)}</time>
-            </p>
-            <{heading}>{html.escape(article.title)}</{heading}>{summary}
-          </a>
-        </li>"""
-
-
 def render_block(articles: list[Article], now: datetime) -> str:
-    """Homepage teaser (shortlist)."""
-    rows = ['      <ol class="news-list">']
-    rows.extend(_item_html(article, i, now, "h3") for i, article in enumerate(articles, start=1))
-    rows.append("      </ol>")
-    rows.append(
-        f'      <p class="news-foot">Homepage shortlist -- not the full desk. '
-        f'<a href="/news">Full feed →</a> Ranked by source, topical depth, and recency. '
+    """Homepage tease -- count + hard link. Never a ranked card grid."""
+    return (
+        f'      <p class="news-tease-meta">'
+        f'<a href="/news">Open the full feed →</a> '
+        f'{len(articles)} AI-in-trading stories. Ranked list lives on /news, not here. '
         f'Updated <time datetime="{now.isoformat()}">{now.strftime("%b %d, %Y %H:%M UTC")}</time>.</p>'
     )
-    return "\n".join(rows)
 
 
 def _feed_item_html(article: Article, index: int, now: datetime) -> str:
