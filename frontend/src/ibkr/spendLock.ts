@@ -14,6 +14,9 @@ const LOCK_REASONS: Record<string, string> = {
     'Live orders locked — explicit live confirmation is required',
   locked_account_unconfirmed:
     'Orders locked — the IB account class behind this Gateway is not confirmed yet',
+  // ADR 018: the env still permits spending; this process is not armed.
+  locked_disarmed:
+    'Desk is disarmed — unlock the padlock to arm trading in this session',
 };
 
 /** True when the backend will reject a place. Unknown/absent status is locked. */
@@ -37,6 +40,9 @@ export function spendLockReason(
 
 /** Short chip label for the Trading header. */
 export function spendStatusLabel(spendStatus?: string | null): string {
+  // ADR 018: disarmed is not the same as locked by the environment, and the
+  // operator's next action differs -- arm the desk vs change a gate.
+  if (spendStatus === 'locked_disarmed') return 'DISARMED — arm to trade';
   if (isSpendLocked(spendStatus)) return 'ORDERS LOCKED — no spends';
   if (spendStatus === 'live_armed') return 'LIVE ORDERS ARMED';
   if (spendStatus === 'sim_armed') return 'SIM ORDERS (PRACTICE)';

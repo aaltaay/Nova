@@ -106,6 +106,15 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
     from constants_sim import SIM_SYMBOL
     from sim.mode import is_sim_mode
 
+    # ADR 018: opening needs this process's arm latch, in every venue -- the
+    # latch is about the process, not the door. Protective sources (flatten /
+    # KILL / cancel_working) are exempt so a disarmed desk can always get flat.
+    # This sits above the Sim branch on purpose: being in Sim decides *where* an
+    # allowed order is routed, never *whether* one is allowed.
+    armed_ok, armed_reason = _safety.assert_armed_for(cmd.source)
+    if not armed_ok:
+        return False, armed_reason, "DISARMED"
+
     if is_sim_mode():
         if cmd.operation in ("place", "bracket") and symbol != SIM_SYMBOL:
             return False, "SIM v1 only serves SIM1", "SIM_SYMBOL"

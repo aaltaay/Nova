@@ -13,6 +13,11 @@ from sim import broker
 def setup_function() -> None:
     reset_for_tests()
     set_sim_mode(True)
+    # ADR 018: the latch is off after any venue change, and these tests are
+    # about sim execution mechanics rather than the arm gate.
+    from ibkr import safety as _safety
+
+    _safety.set_armed(True, reason="test")
     from execution import store
 
     store.init_db()

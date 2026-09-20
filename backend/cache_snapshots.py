@@ -246,6 +246,30 @@ def load_large_cap_config() -> dict:
         return {}
 
 
+def save_desk_venue(payload: dict) -> bool:
+    """Owner: sim/mode.py. Invalidation: operator venue click. Version stamped.
+
+    Returns whether the write landed -- the caller reports ``persisted`` to the
+    operator, and a venue that silently failed to persist is exactly the state
+    ADR 018 exists to make visible.
+    """
+    try:
+        os.makedirs(_cache._CACHE_DIR, exist_ok=True)
+        _cache._atomic_write(_cache.DESK_VENUE_FILE, payload)
+        return True
+    except Exception:
+        logger.warning("cache: save_desk_venue failed to persist to disk", exc_info=True)
+        return False
+
+
+def load_desk_venue() -> dict:
+    try:
+        with open(_cache.DESK_VENUE_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
 def save_chart_drawings(payload: dict) -> None:
     try:
         os.makedirs(_cache._CACHE_DIR, exist_ok=True)

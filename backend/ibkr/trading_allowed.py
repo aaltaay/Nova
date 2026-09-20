@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ibkr.safety import assert_orders_allowed, spend_state
+from ibkr.safety import DISARMED_REASON, armed, assert_orders_allowed, spend_state
 
 
 def evaluate_trading_allowed(
@@ -31,16 +31,29 @@ def evaluate_trading_allowed(
         account_mode=account_mode,
         broker_account_kind=broker_account_kind,
     )
+    # ADR 018: `assert_orders_allowed` is source-blind, so it cannot hold the
+    # arm latch -- flatten / KILL route through it and must survive a disarm.
+    # The padlock snapshot is about *opening*, so it AND-s the latch here.
+    if ok and not armed():
+        ok, reason = False, DISARMED_REASON
     return {
         "trading_allowed": bool(ok),
         "trading_allowed_reason": None if ok else (reason or locked_reason or "orders locked"),
         "spend_status": spend,
         "spend_locked_reason": locked_reason or None,
+        "armed": armed(),
     }
 
 
 def places_allowed() -> tuple[bool, str]:
-    """Wire evaluate_trading_allowed to the live IBKR client."""
+    """Wire evaluate_trading_allowed to the live IBKR client.
+
+    ADR 018 splits the two reads this used to collapse. The arm latch is asked
+    first and is venue-independent, so being in Sim is no longer an answer to
+    "may I spend" -- it only decides *where* an allowed order is routed.
+    """
+    if not armed():
+        return False, DISARMED_REASON
     from sim.mode import is_sim_mode
 
     if is_sim_mode():

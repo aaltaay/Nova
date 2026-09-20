@@ -657,3 +657,39 @@ def test_launch_gateway_route_does_not_rebuild_when_not_already_listening():
     assert res.status_code == 200
     assert res.json() == fake_launch
     mock_rebuild.assert_not_called()
+
+
+# ── ADR 018: the arm latch endpoint the header padlock posts to ───────────────
+
+def test_arm_route_arms_and_disarms_this_process():
+    res = client.post("/api/ibkr/arm", json={"armed": False})
+    assert res.status_code == 200
+    assert res.json()["armed"] is False
+    assert safety_mod.armed() is False
+
+    res = client.post("/api/ibkr/arm", json={"armed": True})
+    assert res.status_code == 200
+    assert res.json()["armed"] is True
+    assert safety_mod.armed() is True
+
+
+def test_arm_route_refuses_a_malformed_body_rather_than_arming():
+    """A body Nova cannot read must never be taken as a request to arm."""
+    safety_mod.set_armed(False, reason="test")
+    for bad in ({}, {"armed": "yes"}, {"arm": True}):
+        res = client.post("/api/ibkr/arm", json=bad)
+        assert res.status_code == 422, bad
+        assert safety_mod.armed() is False
+
+
+def test_arm_route_reports_disarmed_as_locked_not_armed():
+    """spend_status must fail closed so no surface reads a disarmed desk as armed."""
+    patches = _arm_paper_gates()
+    with patches[0], patches[1], patches[2], patches[3], patches[5], patches[7]:
+        client.post("/api/ibkr/arm", json={"armed": False})
+        snap = client.post("/api/ibkr/arm", json={"armed": False}).json()
+        assert snap["armed"] is False
+        assert snap["spend_status"] == "locked_disarmed"
+        # The environment still permits spending -- only this process does not.
+        assert snap["spend_permitted"] is True
+        assert snap["armed_for_account_kind"] is None

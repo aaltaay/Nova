@@ -43,6 +43,17 @@ export interface IbkrStatus {
   spend_status?: string;
   /** The IB account class spending is armed for, or null when locked. */
   armed_for_account_kind?: 'paper' | 'live' | null;
+  /**
+   * ADR 018 -- the runtime arm latch, separate from the env capability below.
+   * False on every fresh backend process, in every venue, so a watchdog restart
+   * can never hand back an armed desk. Set by the padlock, never persisted.
+   */
+  armed?: boolean;
+  /** Whether env + account class *permit* spending, ignoring the arm latch. */
+  spend_permitted?: boolean;
+  /** The spend_status the env alone would produce (`live_armed`, `locked`, ...). */
+  spend_permitted_status?: string;
+  spend_permitted_reason?: string | null;
   /** Backend-authored reason for the spend lock (safety.py). */
   spend_locked_reason?: string | null;
   /** Spend + Gateway -- same gate as place_order. PIN is AND-ed in the UI. */
