@@ -140,12 +140,21 @@ frontend/src/
 
 ### 2.3 File Size Limits
 
-| File | Current | Target | Status |
-|------|---------|--------|--------|
-| `backend/main.py` | 194 lines | <200 lines | ✅ Met (2026-07-14; CORS extraction 2026-07-15) |
-| `frontend/src/App.tsx` | 73 lines | <150 lines | ✅ Met (2026-07-14) |
-| `frontend/src/index.css` | ~41,050 bytes | Split if >1000 lines | ⚠️ Monitor |
-| Any new module | — | <400 lines | Enforced |
+No counts are maintained here -- a hand-copied number goes stale and then
+misleads the next agent (#393: this table claimed 73 lines for an `App.tsx`
+that held 152). **The tree is the truth and the checker is the gate.**
+
+| File | Limit | Measured as | CI kind |
+|------|-------|-------------|---------|
+| `backend/main.py` | 200 | **logical** lines | `file_size_hard` (blocking) |
+| `frontend/src/App.tsx` | 150 | **logical** lines | `file_size_hard` (blocking) |
+| `frontend/src/index.css` | 50 | raw lines (import-only barrel) | `file_size_hard` (blocking) |
+| Any other module | 400 | raw lines | `file_size` (advisory) |
+
+**Logical lines** exclude imports, comments and blank lines, so an entry point
+is capped on the wiring it holds rather than on how many providers it imports
+(`tools/maintainer_lib/sizes.py`). Current counts:
+`py -3 tools/maintainer_checks.py --json` -> `logical_line_counts`.
 
 **Rule:** No single file may exceed 400 lines for new code. Existing violations must be addressed when any task touches the violating file.
 

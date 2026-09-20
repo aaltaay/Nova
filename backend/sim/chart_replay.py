@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from decimal import ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo
 
 from constants_sim import SIM_SYMBOL
@@ -89,6 +90,69 @@ def print_candle(prints: list[dict], bucket: float) -> dict | None:
         "v": sum(max(0, float(p.get("size") or 0)) for p in rows),
         "partial": True,
     }
+
+
+CENT = Decimal("0.01")
+
+
+def _cent(value: float, rounding: str) -> float:
+    return float(Decimal(repr(float(value))).quantize(CENT, rounding=rounding))
+
+
+def penny_bar(bar: dict) -> dict:
+    """IBKR's own presentation of a print-built bar (D-056).
+
+    IB publishes TRADES bars on the cent while the tick stream carries
+    sub-penny prints, so raw aggregation of the same minute reads as a
+    mismatch against ``reqHistoricalData``. Rounding open/close half-up, high
+    up and low down reproduces IB's bars exactly over the SPY reconciliation.
+    """
+    return dict(
+        bar,
+        open=_cent(bar["open"], ROUND_HALF_UP),
+        high=_cent(bar["high"], ROUND_CEILING),
+        low=_cent(bar["low"], ROUND_FLOOR),
+        close=_cent(bar["close"], ROUND_HALF_UP),
+    )
+
+
+def _flat(ts: int, close: float) -> dict:
+    return dict(ts=ts, open=close, high=close, low=close, close=close, volume=0.0)
+
+
+def fill_flat_buckets(buckets: list[dict], seconds: int) -> list[dict]:
+    """Zero-volume bars at the prior close for intervals with no reported print.
+
+    IB emits these; print aggregation cannot, because a silent minute has no
+    row to aggregate. Only gaps *between* reported buckets are filled -- never
+    before the first print, which would invent a session that had not started.
+    """
+    ordered = sorted(buckets, key=lambda bar: bar["ts"])
+    if len(ordered) < 2:
+        return ordered
+    out = [ordered[0]]
+    for bar in ordered[1:]:
+        previous = out[-1]
+        for ts in range(previous["ts"] + seconds, bar["ts"], seconds):
+            out.append(_flat(ts, previous["close"]))
+        out.append(bar)
+    return out
+
+
+def extend_flat_tail(buckets: list[dict], seconds: int, through: float) -> list[dict]:
+    """Carry a silent tail forward to the last interval that closed by ``through``.
+
+    Without this the pane stops at the last print while Time & Sales runs on,
+    so a quiet stretch reads as a stalled chart rather than a quiet market.
+    """
+    if not buckets:
+        return buckets
+    out, last = list(buckets), buckets[-1]
+    ts = last["ts"] + seconds
+    while ts + seconds <= through:
+        out.append(_flat(ts, last["close"]))
+        ts += seconds
+    return out
 
 
 def aggregate_prints(prints: list[dict], seconds: int) -> list[dict]:

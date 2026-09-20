@@ -24,7 +24,9 @@ from typing import Any
 
 try:
     from tools.branch_cleanup import delete_closed_head
-    from tools.pr_delivery_actions import merge_now, merge_pr, signal_conflict
+    from tools.pr_delivery_actions import (
+        MERGE_HEAD_MOVED, merge_now, merge_pr, signal_conflict,
+    )
     from tools.pr_review_status import (
         MIN_PR_AGE_SECONDS,
         head_age_seconds,
@@ -33,7 +35,9 @@ try:
     )
 except ImportError:  # `python tools/pr_delivery.py` puts tools/ on sys.path
     from branch_cleanup import delete_closed_head
-    from pr_delivery_actions import merge_now, merge_pr, signal_conflict
+    from pr_delivery_actions import (
+        MERGE_HEAD_MOVED, merge_now, merge_pr, signal_conflict,
+    )
     from pr_review_status import (
         MIN_PR_AGE_SECONDS,
         head_age_seconds,
@@ -313,7 +317,12 @@ def cmd_merge(
         decision = _decision_from_pr(pr, checks, min_age_seconds=min_age_seconds)
         print(f"#{number} {decision.action} {decision.reason}")
         if decision.action == ACTION_MERGE:
-            return _merge_pr(pr)
+            result = _merge_pr(pr)
+            if result != MERGE_HEAD_MOVED:
+                return result
+            # A push landed between the decision and the PUT. Re-decide from
+            # the new head rather than merging something nothing evaluated.
+            continue
         if decision.reason == "conflict":
             _signal_conflict(number)
         if decision.reason == "settling":
@@ -347,7 +356,10 @@ def cmd_sweep(*, min_age_seconds: int = MIN_PR_AGE_SECONDS) -> int:
         decision = _decision_from_pr(pr, checks, min_age_seconds=min_age_seconds)
         print(f"#{number} {decision.action} {decision.reason}")
         if decision.action == ACTION_MERGE:
-            errors += 0 if _merge_pr(pr) == 0 else 1
+            result = _merge_pr(pr)
+            # head_moved is not an error: the next pass decides the new head.
+            if result not in (0, MERGE_HEAD_MOVED):
+                errors += 1
         elif decision.reason == "conflict":
             _signal_conflict(number)
             errors += 1

@@ -25,6 +25,7 @@ from maintainer_lib.artifacts import ARTIFACT_PATHS, check_artifacts as _check_a
 from maintainer_lib.baselines import apply_baseline_fingerprints  # noqa: E402
 from maintainer_lib.deps import check_cross_feature_imports, check_import_main  # noqa: E402
 from maintainer_lib.ib_loop import check_ib_loop_purity as _check_ib_loop_purity  # noqa: E402
+from maintainer_lib.sizes import LOGICAL_LIMIT_FILES, count_logical_lines  # noqa: E402
 
 MAIN_PY_LIMIT = 200
 APP_TSX_LIMIT = 150
@@ -161,6 +162,11 @@ def _should_skip(path: Path) -> bool:
     return any(part in SKIP_DIR_NAMES for part in path.parts)
 
 
+def logical_line_counts(files: list[Path]) -> dict[str, int]:
+    return {rel: count_logical_lines(path)
+            for path in files if (rel := _rel(path)) in LOGICAL_LIMIT_FILES}
+
+
 def count_lines(path: Path) -> int:
     text = path.read_text(encoding="utf-8", errors="replace")
     if not text:
@@ -211,14 +217,17 @@ def check_file_sizes(files: list[Path]) -> list[Finding]:
 
         if rel in HARD_LIMIT_FILES:
             limit = HARD_LIMIT_FILES[rel]
-            if lines > limit:
+            # Entry points are capped on wiring, not on imports and comments.
+            logical = rel in LOGICAL_LIMIT_FILES
+            counted = count_logical_lines(path) if logical else lines
+            if counted > limit:
+                detail = (
+                    f"{counted} logical lines > entry-point limit {limit} ({lines} raw)"
+                    if logical
+                    else f"{counted} lines > hard limit {limit}"
+                )
                 findings.append(
-                    Finding(
-                        kind="file_size_hard",
-                        path=rel,
-                        detail=f"{lines} lines > hard limit {limit}",
-                        baseline=False,
-                    )
+                    Finding(kind="file_size_hard", path=rel, detail=detail, baseline=False)
                 )
             continue
 
@@ -456,6 +465,7 @@ def run_checks() -> dict:
         "finding_count": len(findings),
         "non_baseline_count": len(non_baseline),
         "css_line_counts": css_report,
+        "logical_line_counts": logical_line_counts(files),
         "findings": [asdict(f) for f in findings],
     }
 

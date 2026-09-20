@@ -264,3 +264,60 @@ def test_cached_results_and_selection_cannot_be_mutated_by_callers():
     assert playback.snapshot('IMCC')['last'] == 20
     assert playback.status()['symbol'] == 'IMCC'
     assert playback.bars('IMCC', '1Min', 100, clock.now_et())[-1]['c'] == 20
+
+
+# --- D-056: replay candles must match IBKR's own bar presentation -----------
+
+
+def prepare_subpenny():
+    """Sub-penny prints, two silent minutes, then a later print."""
+    spec = store.window("SPY", "2026-09-18", "04:00", "09:30")
+    job = store.create(spec, "trades")
+    a = spec["start_ts"]
+    rows = [dict(ts=a + sec, price=price, size=size) for sec, price, size in
+            [(0, 763.3041, 10), (30, 762.8161, 5), (180, 763.50, 4)]]
+    store.commit_page(job["id"], a, rows, spec["end_ts"], True)
+    playback.select(spec)
+    clock.set_paused(True)
+    return spec
+
+
+def test_print_built_candles_round_to_the_cent_like_ibkr():
+    prepare_subpenny()
+    clock.scrub_to_second(60)
+    first = playback.bars("SPY", "1Min", 100, clock.now_et())[0]
+    # open/close half-up, high up, low down -- the rule that reproduced IBKR's
+    # own TRADES bars with zero mismatches over the SPY reconciliation.
+    assert (first["o"], first["c"]) == (763.30, 762.82)
+    assert first["h"] == 763.31 and first["l"] == 762.81
+    assert first["v"] == 15
+
+
+def test_silent_minutes_become_flat_zero_volume_bars():
+    prepare_subpenny()
+    clock.scrub_to_second(240)
+    candles = playback.bars("SPY", "1Min", 100, clock.now_et())
+    assert len(candles) == 4, [c["t"] for c in candles]
+    flat = candles[1:3]
+    for bar in flat:
+        assert bar["v"] == 0
+        assert bar["o"] == bar["h"] == bar["l"] == bar["c"] == 762.82
+        assert not bar["partial"]
+    assert candles[3]["v"] == 4 and candles[3]["c"] == 763.50
+
+
+def test_a_quiet_tail_keeps_the_chart_level_with_the_playhead():
+    prepare_subpenny()
+    clock.scrub_to_second(300)
+    candles = playback.bars("SPY", "1Min", 100, clock.now_et())
+    # Without the tail fill the pane stopped at the last print (180) while
+    # Time & Sales ran on, so a quiet stretch read as a stalled chart.
+    assert len(candles) == 5
+    assert candles[-1]["v"] == 0 and candles[-1]["c"] == 763.50
+
+
+def test_flat_bars_are_never_invented_before_the_first_print():
+    prepare_subpenny()
+    clock.scrub_to_second(60)
+    candles = playback.bars("SPY", "1Min", 100, clock.now_et())
+    assert len(candles) == 1  # the session does not start before it started

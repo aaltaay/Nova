@@ -288,3 +288,182 @@ def test_shutdown_drains_accepted_rows_and_closes_ingress():
     assert [row["price"] for row in rows] == [1, 2]
     assert not sink.thread.is_alive()
     assert not sink.submit({"price": 3})
+
+
+# --- D-064: quote / Level 2 capture for a real IBKR symbol -------------------
+
+
+def push_depth(symbol="AAPL", bids=((42.20, 300),), asks=((42.30, 400),)):
+    """Drive the real ib_async depth handler, not the shared broadcast channel."""
+    from ibkr.depth.handlers import on_update_book
+
+    def level(price, size):
+        return SimpleNamespace(price=price, size=size, marketMaker="ARCA")
+
+    ticker = SimpleNamespace(domBids=[level(p, s) for p, s in bids],
+                             domAsks=[level(p, s) for p, s in asks])
+    on_update_book(ticker, symbol)
+
+
+def push_l1(symbol="AAPL", bid=42.20, bid_size=300, ask=42.30, ask_size=400):
+    from ibkr.depth.handlers import on_update_ticker
+
+    on_update_ticker(
+        SimpleNamespace(bid=bid, bidSize=bid_size, ask=ask, askSize=ask_size), symbol)
+
+
+def rows(directory, name):
+    text = (Path(directory) / (name + ".jsonl")).read_text().strip()
+    return [json.loads(line) for line in text.splitlines() if line]
+
+
+@pytest.fixture(autouse=True)
+def book_bridge_reset():
+    from ibkr.depth import state as depth_state
+
+    bridge_ibkr.reset_for_tests()
+    depth_state.reset_all()  # the handlers write _subscriptions; do not leak it
+    yield
+    bridge_ibkr.reset_for_tests()
+    depth_state.reset_all()
+
+
+def test_sim_and_replay_books_never_enter_a_live_capture():
+    """`state.push_book` is shared with sim/feed and sim/market.
+
+    Hooking the capture bridge there recorded SIM and replay books into a live
+    IBKR capture, stamped with wall clock while the sim bridge stamps sim
+    session time -- which tripped the recorder's timestamp-regression stop and
+    ended the recording. Caught end to end against a running API, not by a
+    unit test, so it is pinned here.
+    """
+    from ibkr.depth import state as depth_state
+
+    mode.set_capture_mode(True, symbol="AAPL")
+    tick()
+    depth_state.push_book("AAPL", {
+        "bids": [{"price": 1.0, "size": 1}], "asks": [], "l1_fallback": False})
+    mode.set_capture_mode(False)
+    directory = Path(recorder.status()["dir"])
+
+    assert (directory / "quotes.jsonl").stat().st_size == 0
+    assert (directory / "l2.jsonl").stat().st_size == 0
+    assert recorder.status()["fidelity"]["timestamp_regressions"] == 0
+
+
+def test_depth_book_records_quote_and_l2_with_ibkr_provenance():
+    mode.set_capture_mode(True, symbol="AAPL")
+    tick()
+    push_depth()
+    mode.set_capture_mode(False)  # drains, rotating onto the print event date
+    directory = Path(recorder.status()["dir"])
+
+    quote = rows(directory, "quotes")[0]
+    assert (quote["bid"], quote["bid_size"]) == (42.20, 300.0)
+    assert (quote["ask"], quote["ask_size"]) == (42.30, 400.0)
+    assert quote["source"] == "ibkr"
+    depth_row = rows(directory, "l2")[0]
+    assert depth_row["bids"] == [{"price": 42.20, "size": 300.0}]
+    assert depth_row["asks"] == [{"price": 42.30, "size": 400.0}]
+    assert depth_row["source"] == "ibkr"
+    counts = json.loads((directory / "manifest.json").read_text())["counts"]
+    assert counts["quotes"] == 1 and counts["l2"] == 1
+
+
+def test_l1_fallback_book_records_a_quote_but_never_claims_depth():
+    mode.set_capture_mode(True, symbol="AAPL")
+    tick()
+    push_l1()
+    mode.set_capture_mode(False)
+    directory = Path(recorder.status()["dir"])
+
+    assert rows(directory, "quotes")[0]["bid"] == 42.20
+    assert (directory / "l2.jsonl").stat().st_size == 0
+
+
+def test_book_for_another_symbol_and_empty_books_are_never_recorded():
+    mode.set_capture_mode(True, symbol="AAPL")
+    tick()
+    push_depth("MSFT")  # not the recorded symbol
+    push_depth("AAPL", bids=(), asks=())  # empty book -- nothing observed yet
+    mode.set_capture_mode(False)
+    directory = Path(recorder.status()["dir"])
+
+    assert (directory / "quotes.jsonl").stat().st_size == 0
+    assert (directory / "l2.jsonl").stat().st_size == 0
+
+
+def test_fast_books_coalesce_before_the_worker_backlog_can_stop_the_session():
+    mode.set_capture_mode(True, symbol="AAPL")
+    tick()
+    for i in range(worker.CAPTURE_PENDING_BATCHES * 2):
+        push_depth(bids=((42.20 + i / 1000, 300),))
+    assert recorder.status()["error"] is None  # backlog never filled
+    health = bridge_ibkr.book_health("AAPL")
+    mode.set_capture_mode(False)
+    directory = Path(recorder.status()["dir"])
+
+    assert health["books_coalesced"] > 0
+    assert len(rows(directory, "quotes")) < worker.CAPTURE_PENDING_BATCHES
+
+
+def test_status_warns_when_the_recorded_symbol_has_no_depth_line():
+    mode.set_capture_mode(True, symbol="AAPL")
+    tick()
+    status = mode.status_payload()
+    mode.set_capture_mode(False)
+
+    assert status["book"]["subscribed"] is False
+    assert "quotes and Level 2 do not" in status["warning"]
+
+
+# --- Codex review on #415 -------------------------------------------------
+
+
+def test_the_newest_coalesced_book_is_kept_not_dropped():
+    """A burst that then goes quiet must not leave a stale book recorded.
+
+    The first coalescer dropped everything after the first update in an
+    interval, so books at t and t+0.01 recorded only t -- and if nothing
+    followed, the capture held a stale book forever. Fidelity.offer_l2 keeps a
+    pending snapshot for exactly this reason; the bridge now does too.
+    """
+    mode.set_capture_mode(True, symbol="AAPL")
+    tick()
+    push_depth(bids=((42.20, 300),))   # enqueued immediately
+    push_depth(bids=((42.99, 900),))   # inside the interval -> held, not dropped
+    assert bridge_ibkr._pending_book.get("AAPL") is not None
+    mode.set_capture_mode(False)       # flushes the pending book
+    directory = Path(recorder.status()["dir"])
+
+    prices = [row["bids"][0]["price"] for row in rows(directory, "l2")]
+    assert 42.99 in prices, f"newest book was dropped: {prices}"
+
+
+def test_depth_is_not_claimed_before_a_book_has_been_seen():
+    """A reserved slot makes is_subscribed true while the book is still empty."""
+    from ibkr.depth import state as depth_state
+
+    mode.set_capture_mode(True, symbol="AAPL")
+    tick()
+    depth_state.reserve_slot("AAPL")  # subscribed, but nothing received yet
+    health = bridge_ibkr.book_health("AAPL")
+    status = mode.status_payload()
+    mode.set_capture_mode(False)
+
+    assert health["subscribed"] is True
+    assert health["observed"] is False
+    assert health["depth"] is False, "claimed depth before any book arrived"
+    assert "not recording" in status["warning"]
+
+
+def test_depth_is_claimed_once_a_real_book_arrives():
+    mode.set_capture_mode(True, symbol="AAPL")
+    tick()
+    push_depth()
+    health = bridge_ibkr.book_health("AAPL")
+    status = mode.status_payload()
+    mode.set_capture_mode(False)
+
+    assert (health["observed"], health["depth"], health["l1_fallback"]) == (True, True, False)
+    assert "warning" not in status

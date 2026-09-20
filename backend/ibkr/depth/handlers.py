@@ -31,6 +31,26 @@ def attach_update_handler(symbol: str, ticker: Any, handler: Any) -> None:
     state._update_handlers[symbol] = handler
 
 
+def _record_book(symbol: str, book: dict) -> None:
+    """Feed Session Record's quote/L2 streams (D-064).
+
+    Hooked here, at the two ib_async ``updateEvent`` handlers, rather than at
+    ``state.push_book``: that is a shared broadcast channel which ``sim/feed``
+    and ``sim/market`` also push through, so a hook there recorded SIM and
+    replay books into a live capture -- stamped with wall clock while the sim
+    bridge stamps sim session time, which tripped the recorder's
+    timestamp-regression stop. Only the IBKR feed reaches these two.
+
+    Runs inside the socket callback, so it only enqueues (ADR 010).
+    """
+    try:
+        from capture.bridge_ibkr import enqueue_book
+
+        enqueue_book(symbol, book)
+    except Exception:
+        logger.exception("IBKR depth: capture book enqueue failed for %s", symbol)
+
+
 def on_update_book(ticker: Any, symbol: str) -> None:
     bids = [
         {
@@ -53,6 +73,7 @@ def on_update_book(ticker: Any, symbol: str) -> None:
     book = {"bids": bids[:10], "asks": asks[:10], "l1_fallback": False}
     state._subscriptions[symbol] = book
     state.push_book(symbol, book)
+    _record_book(symbol, book)
 
 
 def on_update_ticker(ticker: Any, symbol: str) -> None:
@@ -71,6 +92,7 @@ def on_update_ticker(ticker: Any, symbol: str) -> None:
     }
     state._subscriptions[symbol] = book
     state.push_book(symbol, book)
+    _record_book(symbol, book)
 
 
 def install_error_hook(ib: Any) -> None:

@@ -165,3 +165,52 @@ def test_live_chart_path_unchanged(monkeypatch):
     monkeypatch.setattr(chart_bars, "_store_read", lambda *args: payload)
     monkeypatch.setattr(chart_bars._ibkr_client, "is_ready", lambda: False)
     assert fetch()["bars"] == payload["bars"]
+
+
+# --- D-056 helpers ----------------------------------------------------------
+
+
+def test_penny_bar_rounds_half_up_not_bankers():
+    from sim.chart_replay import penny_bar
+
+    # Python's round() is banker's: round(0.125, 2) == 0.12. IBKR is half-up.
+    bar = penny_bar(dict(ts=0, open=10.125, high=10.125, low=10.125, close=10.135, volume=1))
+    assert bar["open"] == 10.13 and bar["close"] == 10.14
+    assert bar["high"] == 10.13  # ceil
+    assert bar["low"] == 10.12   # floor
+
+
+def test_penny_bar_leaves_exact_cents_alone():
+    from sim.chart_replay import penny_bar
+
+    bar = penny_bar(dict(ts=0, open=763.30, high=763.31, low=762.81, close=762.82, volume=5))
+    assert (bar["open"], bar["high"], bar["low"], bar["close"]) == (763.30, 763.31, 762.81, 762.82)
+
+
+def test_fill_flat_buckets_spans_gaps_and_sorts():
+    from sim.chart_replay import fill_flat_buckets
+
+    given = [dict(ts=180, open=2, high=2, low=2, close=2, volume=4),
+             dict(ts=0, open=1, high=1, low=1, close=9, volume=3)]
+    filled = fill_flat_buckets(given, 60)
+    assert [row["ts"] for row in filled] == [0, 60, 120, 180]
+    assert [row["volume"] for row in filled] == [3, 0.0, 0.0, 4]
+    assert all(row["close"] == 9 for row in filled[1:3])  # carried prior close
+
+
+def test_fill_flat_buckets_is_a_noop_without_a_gap():
+    from sim.chart_replay import fill_flat_buckets
+
+    given = [dict(ts=0, open=1, high=1, low=1, close=1, volume=1),
+             dict(ts=60, open=1, high=1, low=1, close=1, volume=1)]
+    assert fill_flat_buckets(given, 60) == given
+    assert fill_flat_buckets([], 60) == []
+
+
+def test_extend_flat_tail_stops_at_the_last_closed_interval():
+    from sim.chart_replay import extend_flat_tail
+
+    given = [dict(ts=0, open=1, high=1, low=1, close=7, volume=2)]
+    assert [row["ts"] for row in extend_flat_tail(given, 60, through=180)] == [0, 60, 120]
+    assert extend_flat_tail(given, 60, through=59) == given
+    assert extend_flat_tail([], 60, through=600) == []

@@ -431,3 +431,85 @@ def test_failed_dispatch_does_not_fail_the_merge(monkeypatch, capsys):
     assert rc == 0
     # Never silent (AGENTS.md 6.3) -- the operator must see the lost Release.
     assert "no actions scope" in capsys.readouterr().err
+
+
+# --- #412: the merge binds to the head the decision was made about ----------
+
+
+def test_merge_payload_carries_the_fetched_head_sha(monkeypatch):
+    calls: list[tuple[list[str], str | None]] = []
+
+    def fake_gh(args, check=True, stdin=None):
+        calls.append((list(args), stdin))
+        return subprocess.CompletedProcess(args, 0, stdout="{}", stderr="")
+
+    monkeypatch.setattr(pr_delivery, "_gh", fake_gh)
+    monkeypatch.setattr(pr_delivery, "cmd_delete_closed", lambda *a, **k: 0)
+    pr = _ok_pr(headRefOid="cafef00d")
+    assert pr_delivery._merge_pr(pr) == 0
+    payload = json.loads(calls[0][1] or "{}")
+    assert payload["sha"] == "cafef00d", "merge bound to the number, not the head"
+
+
+def test_a_head_that_moved_is_not_a_failed_merge(monkeypatch, capsys):
+    def fake_gh(args, check=True, stdin=None):
+        if args[:3] == ["api", "-X", "PUT"]:
+            return subprocess.CompletedProcess(
+                args, 1, stdout="",
+                stderr="gh: Head branch was modified. Review and try the merge again. (HTTP 409)",
+            )
+        return subprocess.CompletedProcess(args, 0, stdout="{}", stderr="")
+
+    monkeypatch.setattr(pr_delivery, "_gh", fake_gh)
+    monkeypatch.setattr(pr_delivery, "cmd_delete_closed", lambda *a, **k: 0)
+    rc = pr_delivery._merge_pr(_ok_pr(headRefOid="aaaa"))
+    assert rc == pr_delivery.MERGE_HEAD_MOVED
+    assert "head_moved" in capsys.readouterr().err
+
+
+def test_a_real_merge_failure_is_still_a_failure(monkeypatch):
+    def fake_gh(args, check=True, stdin=None):
+        if args[:3] == ["api", "-X", "PUT"]:
+            return subprocess.CompletedProcess(
+                args, 1, stdout="", stderr="gh: merge cannot be performed (HTTP 405)")
+        return subprocess.CompletedProcess(args, 0, stdout="{}", stderr="")
+
+    monkeypatch.setattr(pr_delivery, "_gh", fake_gh)
+    monkeypatch.setattr(pr_delivery, "cmd_delete_closed", lambda *a, **k: 0)
+    assert pr_delivery._merge_pr(_ok_pr(headRefOid="aaaa")) == 2
+
+
+def test_cmd_merge_re_decides_the_new_head_instead_of_erroring(monkeypatch):
+    """The whole point: the head that skipped the floor must not ship."""
+    heads = iter(["first", "second"])
+    seen: list[str] = []
+    attempts: list[str] = []
+
+    def fake_fetch(number):
+        seen.append(next(heads, "second"))
+        return _ok_pr(headRefOid=seen[-1]), []
+
+    def fake_merge(pr):
+        attempts.append(str(pr["headRefOid"]))
+        return pr_delivery.MERGE_HEAD_MOVED if pr["headRefOid"] == "first" else 0
+
+    monkeypatch.setattr(pr_delivery, "_fetch_pr", fake_fetch)
+    monkeypatch.setattr(pr_delivery, "_merge_pr", fake_merge)
+    rc = pr_delivery.cmd_merge(239, wait_desktop_minutes=0, min_age_seconds=0)
+    assert rc == 0
+    assert attempts == ["first", "second"], "did not re-decide after the head moved"
+
+
+def test_cmd_sweep_skips_a_moved_head_without_reporting_an_error(monkeypatch):
+    def fake_gh(args, check=True, stdin=None):
+        if args[:2] == ["pr", "list"]:
+            return subprocess.CompletedProcess(
+                args, 0, stdout=json.dumps([{"number": 239}]), stderr="")
+        return subprocess.CompletedProcess(args, 0, stdout="{}", stderr="")
+
+    monkeypatch.setattr(pr_delivery, "_gh", fake_gh)
+    monkeypatch.setattr(
+        pr_delivery, "_fetch_pr",
+        lambda n: (_ok_pr(headRefOid="moved"), []))
+    monkeypatch.setattr(pr_delivery, "_merge_pr", lambda pr: pr_delivery.MERGE_HEAD_MOVED)
+    assert pr_delivery.cmd_sweep(min_age_seconds=0) == 0
