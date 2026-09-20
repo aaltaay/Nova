@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- Verified repository maintenance setup and honest cleanup results
+
+- **What:** Repo cleanup reports 0 only for a verified clean scan, 1 for remaining findings, and 2 for fetch, inspection or action failure. API/source Desktop startup installs or repairs the nightly maintenance task automatically.
+- **Why:** WS5 of #344 still printed failed cleanup commands as success and required a separate manual task-install step.
+- **Files touched:** `tools/repo_hygiene.py`, `scripts/Ensure-NovaMaintenanceTask.ps1`, `scripts/Invoke-NovaRepoHygiene.ps1`, startup/daily installer wiring, CI tests and maintenance rules.
+- **How it works now:** Cleanup re-scans after each of at most two passes (worktree removal can expose its branch). The hidden user task logs results, preserves exit codes, retries three times at five-minute intervals, and runs at 02:30 unless explicitly configured otherwise. Setup verifies action, principal, trigger and settings, preserves a custom daily time, and skips linked worktrees. Trading startup continues with a warning if setup fails.
+- **Verified by:** 77 focused/neighbor tests before the custom-time refinement; subsequent Windows tests cover real Task Scheduler install, unchanged repeat install, custom-time preservation, disabled-task repair and runner exit codes. Windows tests now gate Desktop pack; Python finish tests gate Agent contract.
+- **Related:** Refs #344; follows #355. Runtime trading behavior is unchanged.
+
+
 ## 2026-09-19 -- Freeze the completed-orders prerequisite test clock
 
 - **What:** Pin the completed-orders warning tests to the fixture day and restore real timers afterward.

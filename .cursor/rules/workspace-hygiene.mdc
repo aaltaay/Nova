@@ -14,3 +14,5 @@ Merged local branches, abandoned worktrees, stashes and dirty trees are invisibl
 5. **After merge**, local branches and worktrees are yours to delete, not only origin heads: run `py -3 tools/repo_hygiene.py fix` (safe class only: merged/closed-PR branches by GitHub state, clean finished worktrees idle >24h, orphan remote-tracking refs). The nightly `NovaRepoHygiene` task does the same. Stashes, dirty files and branches without a PR are reported, never auto-removed.
 
 Related: `commit-push-deploy.mdc`, `github-delivery.mdc`, `AGENTS.md` §5.1, `docs/agent-operations.md`.
+
+Maintenance installation and truthful exit codes: `maintenance-finish.mdc`.

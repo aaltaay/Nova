@@ -37,6 +37,15 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-19 -- Cleanup failures looked successful and maintenance needed manual installation
+
+- **Symptom:** `repo_hygiene.py fix` returned 0 after failed git commands, and the scheduled PowerShell pipeline discarded Python's result. Nightly cleanup remained uninstalled after delivery.
+- **Cause:** Fix ignored fetch/action return codes and never checked the resulting state; installation existed only in the manual daily-task installer. A removed worktree's branch was invisible until the next scan.
+- **Fix:** Structured action outcomes, fail-closed fetch/GitHub checks, two bounded passes with fresh scans, distinct exit codes, a logging runner that preserves them, and verified idempotent setup from source startup. Real Windows verification caught Task Scheduler normalizing the principal to a short account name; compare the resolved SID instead, avoiding endless reinstallation. Existing custom daily times are retained.
+- **Fix class:** infra
+- **Keywords:** repo hygiene, cleanup, exit code, Task Scheduler, SID, idempotence, WS5, #344
+
+
 ## 2026-09-19 -- Completed-orders warning test expired with the calendar
 
 - **Symptom:** PR #355 Frontend build failed because a time-only regex received "Completed orders not answering since Sat 08:54 AM".

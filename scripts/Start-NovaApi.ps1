@@ -30,6 +30,11 @@ param(
 
 $ErrorActionPreference = "Continue"
 
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `
+    (Join-Path $PSScriptRoot 'Ensure-NovaMaintenanceTask.ps1')
+if ($LASTEXITCODE -ne 0) { Write-Warning 'Repo maintenance setup failed; API startup continues.' }
+
+
 $logDir = Split-Path -Parent $LogFile
 if ($logDir -and -not (Test-Path $logDir)) {
     New-Item -ItemType Directory -Force -Path $logDir | Out-Null
