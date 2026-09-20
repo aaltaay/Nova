@@ -152,15 +152,6 @@ def push_book(symbol: str, book: dict) -> None:
         observe_book(symbol, book)
     except Exception:
         logger.debug("IBKR depth: sensor ring skip for %s", symbol, exc_info=True)
-    # Session Record's quote/L2 streams (D-064). Runs inside the ib_async
-    # socket callback, so it only enqueues onto the fenced capture worker --
-    # never a synchronous write (ADR 010).
-    try:
-        from capture.bridge_ibkr import enqueue_book
-
-        enqueue_book(symbol, book)
-    except Exception:
-        logger.exception("IBKR depth: capture book enqueue failed for %s", symbol)
     _broadcast(symbol, book)
 
 

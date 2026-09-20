@@ -293,12 +293,23 @@ def test_shutdown_drains_accepted_rows_and_closes_ingress():
 # --- D-064: quote / Level 2 capture for a real IBKR symbol -------------------
 
 
-def book(bids=((42.20, 300),), asks=((42.30, 400),), l1_fallback=False):
-    return {
-        "bids": [{"price": p, "size": s, "side": "bid", "mm": "ARCA"} for p, s in bids],
-        "asks": [{"price": p, "size": s, "side": "ask", "mm": "ARCA"} for p, s in asks],
-        "l1_fallback": l1_fallback,
-    }
+def push_depth(symbol="AAPL", bids=((42.20, 300),), asks=((42.30, 400),)):
+    """Drive the real ib_async depth handler, not the shared broadcast channel."""
+    from ibkr.depth.handlers import on_update_book
+
+    def level(price, size):
+        return SimpleNamespace(price=price, size=size, marketMaker="ARCA")
+
+    ticker = SimpleNamespace(domBids=[level(p, s) for p, s in bids],
+                             domAsks=[level(p, s) for p, s in asks])
+    on_update_book(ticker, symbol)
+
+
+def push_l1(symbol="AAPL", bid=42.20, bid_size=300, ask=42.30, ask_size=400):
+    from ibkr.depth.handlers import on_update_ticker
+
+    on_update_ticker(
+        SimpleNamespace(bid=bid, bidSize=bid_size, ask=ask, askSize=ask_size), symbol)
 
 
 def rows(directory, name):
@@ -308,17 +319,42 @@ def rows(directory, name):
 
 @pytest.fixture(autouse=True)
 def book_bridge_reset():
+    from ibkr.depth import state as depth_state
+
     bridge_ibkr.reset_for_tests()
+    depth_state.reset_all()  # the handlers write _subscriptions; do not leak it
     yield
     bridge_ibkr.reset_for_tests()
+    depth_state.reset_all()
 
 
-def test_depth_book_records_quote_and_l2_with_ibkr_provenance():
+def test_sim_and_replay_books_never_enter_a_live_capture():
+    """`state.push_book` is shared with sim/feed and sim/market.
+
+    Hooking the capture bridge there recorded SIM and replay books into a live
+    IBKR capture, stamped with wall clock while the sim bridge stamps sim
+    session time -- which tripped the recorder's timestamp-regression stop and
+    ended the recording. Caught end to end against a running API, not by a
+    unit test, so it is pinned here.
+    """
     from ibkr.depth import state as depth_state
 
     mode.set_capture_mode(True, symbol="AAPL")
     tick()
-    depth_state.push_book("AAPL", book())
+    depth_state.push_book("AAPL", {
+        "bids": [{"price": 1.0, "size": 1}], "asks": [], "l1_fallback": False})
+    mode.set_capture_mode(False)
+    directory = Path(recorder.status()["dir"])
+
+    assert (directory / "quotes.jsonl").stat().st_size == 0
+    assert (directory / "l2.jsonl").stat().st_size == 0
+    assert recorder.status()["fidelity"]["timestamp_regressions"] == 0
+
+
+def test_depth_book_records_quote_and_l2_with_ibkr_provenance():
+    mode.set_capture_mode(True, symbol="AAPL")
+    tick()
+    push_depth()
     mode.set_capture_mode(False)  # drains, rotating onto the print event date
     directory = Path(recorder.status()["dir"])
 
@@ -335,11 +371,9 @@ def test_depth_book_records_quote_and_l2_with_ibkr_provenance():
 
 
 def test_l1_fallback_book_records_a_quote_but_never_claims_depth():
-    from ibkr.depth import state as depth_state
-
     mode.set_capture_mode(True, symbol="AAPL")
     tick()
-    depth_state.push_book("AAPL", book(l1_fallback=True))
+    push_l1()
     mode.set_capture_mode(False)
     directory = Path(recorder.status()["dir"])
 
@@ -348,12 +382,10 @@ def test_l1_fallback_book_records_a_quote_but_never_claims_depth():
 
 
 def test_book_for_another_symbol_and_empty_books_are_never_recorded():
-    from ibkr.depth import state as depth_state
-
     mode.set_capture_mode(True, symbol="AAPL")
     tick()
-    depth_state.push_book("MSFT", book())  # not the recorded symbol
-    depth_state.push_book("AAPL", {"bids": [], "asks": [], "l1_fallback": False})
+    push_depth("MSFT")  # not the recorded symbol
+    push_depth("AAPL", bids=(), asks=())  # empty book -- nothing observed yet
     mode.set_capture_mode(False)
     directory = Path(recorder.status()["dir"])
 
@@ -362,12 +394,10 @@ def test_book_for_another_symbol_and_empty_books_are_never_recorded():
 
 
 def test_fast_books_coalesce_before_the_worker_backlog_can_stop_the_session():
-    from ibkr.depth import state as depth_state
-
     mode.set_capture_mode(True, symbol="AAPL")
     tick()
     for i in range(worker.CAPTURE_PENDING_BATCHES * 2):
-        depth_state.push_book("AAPL", book(bids=((42.20 + i / 1000, 300),)))
+        push_depth(bids=((42.20 + i / 1000, 300),))
     assert recorder.status()["error"] is None  # backlog never filled
     health = bridge_ibkr.book_health("AAPL")
     mode.set_capture_mode(False)
