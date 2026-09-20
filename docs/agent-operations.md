@@ -43,8 +43,9 @@ How Nova's custom Cursor agents are installed, validated, and kept in sync.
 | Lifecycle hook (Cursor) | `.cursor/hooks.json` → `tools/subagent_lifecycle_hook.py` |
 | Session-start fleet brief hook (Cursor) | `.cursor/hooks.json` → `tools/session_brief_hook.py` |
 | Session-start brief + Stop gate (Claude Code) | `.claude/settings.json` → `tools/session_brief_hook.py --claude`, `tools/repo_hygiene.py stop-gate` |
+| Repo maintenance result | Task Scheduler `LastTaskResult`: 0 = verified clean, 1 = findings remain, 2 = fetch/inspection/action failure; `logs/repo-hygiene.log` records each run. Three retries at five-minute intervals; linked worktrees never install the task. |
 | Repo hygiene (is this clone clean?) | `py -3 tools/repo_hygiene.py status` |
-| Repo hygiene (safe fixes: merged branches, stale worktrees, orphan refs) | `py -3 tools/repo_hygiene.py fix [--dry-run]` (nightly task `NovaRepoHygiene`, `scripts/Install-NovaDailyTask.ps1`) |
+| Repo hygiene (safe fixes: merged branches, stale worktrees, orphan refs) | `py -3 tools/repo_hygiene.py fix [--dry-run]` (nightly task `NovaRepoHygiene`, `scripts/Ensure-NovaMaintenanceTask.ps1`; installed/verified automatically by API and source Desktop startup, and daily-task setup) |
 | Agent dreaming (dry-run) | `py -3 tools/agent_dream.py` |
 | Agent dreaming (apply) | `py -3 tools/agent_dream.py --write` |
 | Agent dreaming (one agent) | `py -3 tools/agent_dream.py --agent <id> [--write]` |

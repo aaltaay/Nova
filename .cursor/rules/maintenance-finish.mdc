@@ -1,0 +1,13 @@
+---
+description: Windows repo maintenance installs itself and reports verified outcomes
+alwaysApply: true
+---
+
+# Maintenance finish contract (#344)
+
+- `repo_hygiene.py fix`: exit 0 only after a fresh clean scan, 1 for remaining findings, 2 for failed fetch/action/inspection or unavailable GitHub evidence. Dry runs do not mutate. Never infer success from printed commands.
+- Re-scan after cleanup; a removed worktree may expose its now-unused branch. Make at most two cleanup passes and report leftovers instead of looping indefinitely.
+- The scheduled runner preserves the Python exit code in Task Scheduler and appends a timestamped result to `logs/repo-hygiene.log`. It must not run recursive deletion fallbacks or bypass policy blocks.
+- Source startup and daily-task setup ensure `NovaRepoHygiene` exists, is enabled, and uses the expected runner, working directory and daily trigger. Verify the saved task after registration. Repair only that task; leave trading/startup schedules alone.
+- Setup runs only from a main Git checkout (`.git` directory), never a linked worktree or packaged app. Registration errors are visible warnings during app startup, not reasons to block the trading app.
+- Setup is idempotent and requires no administrator privileges. The maintenance task runs hidden in the interactive user's session with bounded retries and no concurrent instances.

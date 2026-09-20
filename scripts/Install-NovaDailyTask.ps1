@@ -214,38 +214,12 @@ if ($MorningCheckAtTime -and (Test-Path $checkScript)) {
     Write-Host "Morning check script missing: $checkScript" -ForegroundColor Yellow
 }
 
-# Nightly repo hygiene: safe-class cleanup only (workspace-hygiene.mdc).
-$hygieneScript = Join-Path $repoRoot "tools\repo_hygiene.py"
-if ($RepoHygieneAtTime -and (Test-Path $hygieneScript)) {
-    try {
-        $hygieneParsed = Get-Date $RepoHygieneAtTime
-    } catch {
-        throw "Invalid -RepoHygieneAtTime '$RepoHygieneAtTime'. Use something like 02:30."
-    }
-    $hygieneLog = Join-Path $repoRoot "logs\repo-hygiene.log"
-    $hygieneCmd = "if (-not (Test-Path '$repoRoot\logs')) { New-Item -ItemType Directory '$repoRoot\logs' | Out-Null }; " +
-        "Set-Location '$repoRoot'; " +
-        "('=== ' + (Get-Date -Format s) + ' ===') | Out-File -Append -Encoding utf8 '$hygieneLog'; " +
-        "py -3 tools\repo_hygiene.py fix 2>&1 | Out-File -Append -Encoding utf8 '$hygieneLog'"
-    $hygieneAction = New-ScheduledTaskAction `
-        -Execute "powershell.exe" `
-        -Argument ("-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command `"$hygieneCmd`"") `
-        -WorkingDirectory $repoRoot
-    $hygieneTrigger = New-ScheduledTaskTrigger -Daily -At $hygieneParsed
-    $existingHygiene = Get-ScheduledTask -TaskName $RepoHygieneTaskName -ErrorAction SilentlyContinue
-    if ($existingHygiene) {
-        Unregister-ScheduledTask -TaskName $RepoHygieneTaskName -Confirm:$false
-    }
-    Register-ScheduledTask `
-        -TaskName $RepoHygieneTaskName `
-        -Action $hygieneAction `
-        -Trigger $hygieneTrigger `
-        -Settings $settings `
-        -Principal $principal `
-        -Description "Nova repo hygiene: py -3 tools/repo_hygiene.py fix (merged local branches, stale worktrees, orphan refs). Log: logs/repo-hygiene.log." | Out-Null
-    Write-Host "Registered scheduled task '$RepoHygieneTaskName' at $RepoHygieneAtTime local" -ForegroundColor Green
-} elseif ($RepoHygieneAtTime) {
-    Write-Host "Repo hygiene tool missing: $hygieneScript" -ForegroundColor Yellow
+# Share the startup installer; preserve cleanup exit codes in Task Scheduler.
+if ($RepoHygieneAtTime) {
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `
+        (Join-Path $PSScriptRoot 'Ensure-NovaMaintenanceTask.ps1') `
+        -RepoRoot $repoRoot -TaskName $RepoHygieneTaskName -AtTime $RepoHygieneAtTime
+    if ($LASTEXITCODE -ne 0) { throw 'Repo maintenance task setup failed.' }
 }
 
 Write-Host ""

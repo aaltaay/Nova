@@ -46,6 +46,10 @@ from repo_hygiene_lib import (  # noqa: E402
 )
 
 GH_TIMEOUT_SEC = 8
+EXIT_CLEAN = 0
+EXIT_FINDINGS = 1
+EXIT_FAILED = 2
+MAX_FIX_PASSES = 2
 FIXABLE_ORDER = ("worktree_missing", "orphan_remote_ref", "worktree_stale", "merged_local_branch")
 
 
@@ -150,7 +154,7 @@ def gather(max_age_hours: float) -> tuple[list[Finding], bool]:
 # --- commands ----------------------------------------------------------------
 
 def _print_report(findings: list[Finding], gh_ok: bool) -> None:
-    if not findings:
+    if not findings and gh_ok:
         print("repo_hygiene: OK (clean clone)")
         return
     print("repo_hygiene: findings" + ("" if gh_ok else " (gh unavailable: PR-based fixes disabled)"))
@@ -163,16 +167,20 @@ def _print_report(findings: list[Finding], gh_ok: bool) -> None:
 
 
 def cmd_status(args: argparse.Namespace) -> int:
-    findings, gh_ok = gather(args.max_age_hours)
+    try:
+        findings, gh_ok = gather(args.max_age_hours)
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        print(f"repo_hygiene: FAILED inspection ({type(exc).__name__})", file=sys.stderr)
+        return EXIT_FAILED
     if args.json:
         print(json.dumps({"gh": gh_ok, "counts": summarize(findings),
                           "findings": [asdict(f) for f in findings]}, indent=2))
     else:
         _print_report(findings, gh_ok)
-    return 1 if findings else 0
+    return EXIT_FAILED if not gh_ok else EXIT_FINDINGS if findings else EXIT_CLEAN
 
 
-def _apply(f: Finding, dry: bool) -> str:
+def _apply(f: Finding, dry: bool) -> tuple[bool, str]:
     if f.kind == "worktree_missing":
         cmd = ["git", "worktree", "prune"]
     elif f.kind == "orphan_remote_ref":
@@ -182,28 +190,47 @@ def _apply(f: Finding, dry: bool) -> str:
     elif f.kind == "merged_local_branch":
         cmd = ["git", "branch", "-D", f.subject]
     else:
-        return f"skip {f.kind} {f.subject}"
+        return False, f"skip {f.kind} {f.subject}"
     shown = " ".join(cmd)
     if dry:
-        return f"would run: {shown}"
+        return True, f"would run: {shown}"
     res = subprocess.run(cmd, capture_output=True, text=True)
-    return f"{'ok' if res.returncode == 0 else 'FAILED'}: {shown}" + (
-        "" if res.returncode == 0 else f"  ({res.stderr.strip()})")
+    return res.returncode == 0, (
+        f"{'ok' if res.returncode == 0 else 'FAILED'}: {shown}" +
+        ("" if res.returncode == 0 else f"  ({res.stderr.strip()})"))
 
 
 def cmd_fix(args: argparse.Namespace) -> int:
-    if not args.dry_run:
-        subprocess.run(["git", "fetch", "--prune", "origin"], capture_output=True)
-    findings, gh_ok = gather(args.max_age_hours)
-    fixable = sorted((f for f in findings if f.fixable), key=lambda f: FIXABLE_ORDER.index(f.kind))
-    print(f"repo_hygiene fix{' (dry-run)' if args.dry_run else ''}: {len(fixable)} safe action(s)"
-          + ("" if gh_ok else "; gh unavailable so branch/worktree fixes are off"))
-    for f in fixable:
-        print("  " + _apply(f, args.dry_run))
-    left = [f for f in findings if not f.fixable]
-    if left:
-        print(f"Left for a human ({len(left)}): " + ", ".join(f"{f.kind}:{f.subject}" for f in left[:8]))
-    return 0
+    try:
+        if not args.dry_run:
+            fetched = subprocess.run(
+                ["git", "fetch", "--prune", "origin"], capture_output=True, text=True)
+            if fetched.returncode:
+                print("repo_hygiene: FAILED fetch; cleanup not attempted", file=sys.stderr)
+                return EXIT_FAILED
+        findings, gh_ok = gather(args.max_age_hours)
+        for _ in range(MAX_FIX_PASSES):
+            if not gh_ok:
+                print("repo_hygiene: FAILED inspection (GitHub unavailable)", file=sys.stderr)
+                return EXIT_FAILED
+            fixable = sorted((f for f in findings if f.fixable),
+                             key=lambda f: FIXABLE_ORDER.index(f.kind))
+            if not fixable:
+                break
+            for finding in fixable:
+                ok, message = _apply(finding, args.dry_run)
+                print("  " + message)
+                if not ok:
+                    return EXIT_FAILED
+            if args.dry_run:
+                break
+            # Removing a worktree can expose an unused branch on this next pass.
+            findings, gh_ok = gather(args.max_age_hours)
+        _print_report(findings, gh_ok)
+        return EXIT_FAILED if not gh_ok else EXIT_FINDINGS if findings else EXIT_CLEAN
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        print(f"repo_hygiene: FAILED inspection/action ({type(exc).__name__})", file=sys.stderr)
+        return EXIT_FAILED
 
 
 def _stop_state(stop_hook_active: bool) -> dict | None:
