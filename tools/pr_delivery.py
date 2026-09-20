@@ -25,11 +25,19 @@ from typing import Any
 try:
     from tools.branch_cleanup import delete_closed_head
     from tools.pr_delivery_actions import merge_now, merge_pr, signal_conflict
-    from tools.pr_review_status import review_running
+    from tools.pr_review_status import (
+        ANNOUNCE_GRACE_SECONDS,
+        await_review_announcement,
+        review_running,
+    )
 except ImportError:  # `python tools/pr_delivery.py` puts tools/ on sys.path
     from branch_cleanup import delete_closed_head
     from pr_delivery_actions import merge_now, merge_pr, signal_conflict
-    from pr_review_status import review_running
+    from pr_review_status import (
+        ANNOUNCE_GRACE_SECONDS,
+        await_review_announcement,
+        review_running,
+    )
 
 DEFAULT_REPO = "aaltaay/Nova"
 # Owner policy: verification is feedback, never a merge prerequisite.
@@ -251,10 +259,14 @@ def _decision_from_pr(pr: dict[str, Any], checks: list[dict[str, Any]]) -> Decis
             str(head_repo.get("name") or ""),
         ),
         checks=checks,
-        review_in_flight=review_running(
-            [str(c.get("body") or "") for c in (pr.get("comments") or [])],
-            head_sha=str(pr.get("headRefOid") or ""),
-        ),
+        review_in_flight=_review_in_flight(pr),
+    )
+
+
+def _review_in_flight(pr: dict[str, Any]) -> bool:
+    return review_running(
+        [str(c.get("body") or "") for c in (pr.get("comments") or [])],
+        head_sha=str(pr.get("headRefOid") or ""),
     )
 
 
@@ -280,7 +292,19 @@ def cmd_decide(number: int) -> int:
     return 0
 
 
-def cmd_merge(number: int, *, wait_desktop_minutes: int) -> int:
+def cmd_merge(
+    number: int, *, wait_desktop_minutes: int,
+    announce_grace_seconds: int = ANNOUNCE_GRACE_SECONDS,
+) -> int:
+    # A "merge" decided in a PR's first seconds may simply predate the
+    # reviewer. Only a PR that is otherwise about to merge pays the wait, so
+    # a draft, a fork or a conflict still reports instantly.
+    pr, checks = _fetch_pr(number)
+    if _decision_from_pr(pr, checks).action == ACTION_MERGE:
+        await_review_announcement(
+            lambda: _review_in_flight(_fetch_pr(number)[0]),
+            seconds=announce_grace_seconds,
+        )
     deadline = time.time() + max(0, wait_desktop_minutes) * 60
     while True:
         pr, checks = _fetch_pr(number)
@@ -339,6 +363,9 @@ def main(argv: list[str] | None = None) -> int:
     merge_p = sub.add_parser("merge")
     merge_p.add_argument("--pr", type=int, required=True)
     merge_p.add_argument("--wait-desktop-minutes", type=int, default=0)
+    merge_p.add_argument("--announce-grace-seconds", type=int,
+                         default=ANNOUNCE_GRACE_SECONDS,
+                         help="how long to let a reviewer announce itself (0 disables)")
 
     sub.add_parser("sweep")
 
@@ -351,7 +378,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "decide":
         return cmd_decide(args.pr)
     if args.command == "merge":
-        return cmd_merge(args.pr, wait_desktop_minutes=args.wait_desktop_minutes)
+        return cmd_merge(args.pr, wait_desktop_minutes=args.wait_desktop_minutes,
+                         announce_grace_seconds=args.announce_grace_seconds)
     if args.command == "sweep":
         return cmd_sweep()
     if args.command == "delete-closed":
