@@ -853,3 +853,20 @@ def test_next_accepts_an_explicit_package():
     from tools.backlog_triage import build_parser
     args = build_parser().parse_args(["next", "--package", "test-integrity"])
     assert args.package == "test-integrity"
+
+
+def test_workflow_scripts_contain_no_carriage_returns():
+    # The Workflow tool reads a script verbatim and refuses the CR in a CRLF
+    # line ending as a control character, so a single stray \r makes the runner
+    # unlaunchable. .gitattributes eol=lf fixes CHECKOUT; it does not stop a
+    # tool from writing CRLF -- Python's Path.write_text translates \n to the
+    # platform line ending, which re-broke this file twice on 2026-09-20.
+    # This test is the guard that actually catches it.
+    scripts = sorted((REPO_ROOT / ".claude" / "workflows").glob("*.js"))
+    assert scripts, "no workflow scripts found -- has the runner moved?"
+    for script in scripts:
+        raw = script.read_bytes()
+        assert b"\r" not in raw, (
+            f"{script.name} contains CR. Rewrite it with LF only "
+            f"(write_bytes, or open(..., newline='\n'))."
+        )
