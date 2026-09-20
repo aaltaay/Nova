@@ -2,8 +2,41 @@
   "schema_version": 1,
   "source": "github",
   "repo": "aaltaay/Nova",
-  "updated": "2026-09-19",
+  "updated": "2026-09-20",
   "items": [
+    {
+      "id": "#369",
+      "title": "Branch hygiene deletes a recreated branch that has unmerged commits",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "done",
+      "domain": "ci",
+      "number": "369",
+      "url": "https://github.com/aaltaay/Nova/issues/369",
+      "state": "CLOSED"
+    },
+    {
+      "id": "#367",
+      "title": "backlog next offers packages that clash on files with an in-flight agent",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "open",
+      "domain": "ci",
+      "number": "367",
+      "url": "https://github.com/aaltaay/Nova/issues/367",
+      "state": "OPEN"
+    },
+    {
+      "id": "#363",
+      "title": "TEMP: inbox smoke test (delete me)",
+      "kind": "bug",
+      "severity": "P0",
+      "status": "done",
+      "domain": "ui",
+      "number": "363",
+      "url": "https://github.com/aaltaay/Nova/issues/363",
+      "state": "CLOSED"
+    },
     {
       "id": "#357",
       "title": "Nova Marketing Sample Data on ?view=sample",
@@ -207,11 +240,11 @@
       "title": "test_cancel_kills_slow_stub flakes under CPU load",
       "kind": "bug",
       "severity": "P3",
-      "status": "open",
+      "status": "done",
       "domain": "tester",
       "number": "326",
       "url": "https://github.com/aaltaay/Nova/issues/326",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-072",
@@ -262,22 +295,22 @@
       "title": "A disk-full or I/O failure kills a recording silently; the API and UI keep reporting it as healthy",
       "kind": "bug",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed",
       "number": "319",
       "url": "https://github.com/aaltaay/Nova/issues/319",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-067",
       "title": "Recordings are not crash-safe: no shutdown hook, no fsync, non-atomic manifest, and resume destroys prior counts",
       "kind": "bug",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed",
       "number": "318",
       "url": "https://github.com/aaltaay/Nova/issues/318",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-066",
@@ -394,11 +427,11 @@
       "title": "pytest writes fake broker lines into production blast.log",
       "kind": "bug",
       "severity": "P3",
-      "status": "open",
+      "status": "done",
       "domain": "tester",
       "number": "307",
       "url": "https://github.com/aaltaay/Nova/issues/307",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-058",
@@ -460,11 +493,11 @@
       "title": "Existing UI test drift and operator auth contaminate verification",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "tester",
       "number": "293",
       "url": "https://github.com/aaltaay/Nova/issues/293",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-052",
@@ -500,26 +533,37 @@
       "state": "CLOSED"
     },
     {
+      "id": "#276",
+      "title": "Scanner table column widths jitter when PRICE/CHANGE/GAP tick",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "ui",
+      "number": "276",
+      "url": "https://github.com/aaltaay/Nova/issues/276",
+      "state": "OPEN"
+    },
+    {
       "id": "#222",
       "title": "Optional bot MCP/SDK adapters (not core brain)",
       "kind": "feature",
       "severity": "P3",
-      "status": "open",
+      "status": "done",
       "domain": "execution",
       "number": "222",
       "url": "https://github.com/aaltaay/Nova/issues/222",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#216",
       "title": "[Bot #205] 11/11 L3 Unrestricted (later)",
       "kind": "feature",
       "severity": "P2",
-      "status": "parked",
+      "status": "done",
       "domain": "execution",
       "number": "216",
       "url": "https://github.com/aaltaay/Nova/issues/216",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "#189",
@@ -536,11 +580,22 @@
       "id": "#147",
       "title": "Follow-up: Advise opt-in multi-model (tabs, sequential, max 3)",
       "kind": "feature",
-      "severity": "?",
+      "severity": "P3",
       "status": "open",
-      "domain": "",
+      "domain": "docs",
       "number": "147",
       "url": "https://github.com/aaltaay/Nova/issues/147",
+      "state": "OPEN"
+    },
+    {
+      "id": "#131",
+      "title": "Parked: shared invisible context across agents (ultracontext-style)",
+      "kind": "feature",
+      "severity": "P3",
+      "status": "open",
+      "domain": "docs",
+      "number": "131",
+      "url": "https://github.com/aaltaay/Nova/issues/131",
       "state": "OPEN"
     },
     {
