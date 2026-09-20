@@ -58,8 +58,6 @@ def classify(paths: list[str]) -> dict[str, bool]:
             "/" not in path or path.startswith(("docs/", "knowledge/"))
         ):
             continue
-        elif path.startswith(".changes/"):
-            continue
         else:
             return full_scope()
     return scope

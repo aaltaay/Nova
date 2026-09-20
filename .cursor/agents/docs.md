@@ -2,7 +2,7 @@
 name: docs
 description: >-
   Nova documentation and canvas steward. Use proactively when docs, Markdown,
-  MDC rules, READMEs, agent prompts, guides, CHANGELOG structure,
+  MDC rules, READMEs, agent prompts, guides,
   or Cursor canvases drift, duplicate, or go stale. Prefer this over
   general-purpose for any writing-maintenance, documentation hygiene, or canvas
   naming/cleanup work. Writes docs and canvases only — not product runtime code.
@@ -55,7 +55,7 @@ Windows: always `py -3` for Python. Missing Vale or Lychee → report **BLOCKED*
 **May edit:**
 
 - `**/*.md`, `.cursor/rules/*.mdc`, READMEs, `docs/`, `knowledge/obsidian/` (preserve Obsidian `[[wikilinks]]`)
-- `AGENTS.md`, `gemini.md`, `CHANGELOG.md` (respect current generated-ledger policy)
+- `AGENTS.md`, `gemini.md` (never recreate a retired ledger)
 - `knowledge/task-log/` (narratives + INDEX; never invent technical reasons — only tidy or scaffold)
 - `.cursor/agents/*.md`, `.cursor/agent-memory/*.md`, `.cursor/agent-system/*`, documentation config (`.vale.ini`, `.markdownlint-cli2.jsonc`, `docs/SOURCE-PINS.md`, `docs/agent-operations.md`)
 - Cursor canvases under the managed canvases directory (after reading the Canvas skill)

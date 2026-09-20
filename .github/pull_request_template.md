@@ -6,7 +6,7 @@ No secrets, tokens, or .env contents anywhere in this body.
 
 ## What
 
-<!-- 1-3 sentences: what changed, user-visible + internal. Same shape as the CHANGELOG "What" field. -->
+<!-- 1-3 sentences: what changed, user-visible + internal. This is the permanent record; there is no changelog. -->
 
 ## Why this approach
 
@@ -47,7 +47,6 @@ Parked something new instead of fixing it? Open a `deferred` issue and link it h
 
 ## Logs
 
-- [ ] `CHANGELOG.md` entry in this PR (behavior / endpoint / constant / rule / UI change)
 - [ ] Bug-fix cause and verification recorded in this PR when relevant
 - [ ] Issue labels, human owner, Project status, conditional Milestone, and real relationships are correct
 - [ ] `Closes` is used only for full completion; partial work uses `Refs` and leaves the issue open

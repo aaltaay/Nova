@@ -52,5 +52,5 @@ Use this protocol for work on DAS-compatible hotkeys and executable Nova Actions
 
 1. Re-run scoped Vitest (+ `npm run build` when UI changed).
 2. Update hotkeys memory Current snapshot.
-3. Record behavior changes and bug-fix evidence in the PR body (CHANGELOG is generated).
+3. Record behavior changes and bug-fix evidence in the PR body (there is no changelog).
 4. Refresh `agent-hotkeys` canvas when phase/status metrics move.
