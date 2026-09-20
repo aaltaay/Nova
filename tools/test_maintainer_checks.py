@@ -400,3 +400,66 @@ def test_ib_loop_purity_skips_comment_and_unlisted_file(mc, tmp_path: Path, monk
     monkeypatch.setattr(mc, "REPO_ROOT", fake_root)
     findings = mc.check_ib_loop_purity([listed, other])
     assert findings == []
+
+
+# --- #393: entry points are capped on wiring, not on imports and comments ----
+
+
+def _app_tsx(imports: int, logic: int) -> str:
+    head = "/**\n * Root layout.\n */\n"
+    lines = [f"import {{ X{i} }} from './x{i}';" for i in range(imports)]
+    lines += ["", "// a comment", ""]
+    lines += [f"const value{i} = {i};" for i in range(logic)]
+    return head + "\n".join(lines) + "\n"
+
+
+def test_entry_point_counts_logical_lines_not_imports(mc, tmp_path: Path):
+    from maintainer_lib.sizes import count_logical_lines
+
+    wiring = tmp_path / "App.tsx"
+    wiring.write_text(_app_tsx(imports=100, logic=100), encoding="utf-8")
+    assert mc.count_lines(wiring) > 200
+    assert count_logical_lines(wiring) == 100
+
+
+def test_entry_point_over_the_logical_limit_is_a_hard_finding(mc, tmp_path: Path, monkeypatch):
+    path = tmp_path / "App.tsx"
+    path.write_text(_app_tsx(imports=10, logic=160), encoding="utf-8")
+    monkeypatch.setattr(mc, "_rel", lambda p: "frontend/src/App.tsx")
+    findings = [f for f in mc.check_file_sizes([path]) if f.kind == "file_size_hard"]
+    assert len(findings) == 1
+    assert "160 logical lines > entry-point limit 150" in findings[0].detail
+    assert "raw)" in findings[0].detail
+
+
+def test_entry_point_under_the_logical_limit_is_clean(mc, tmp_path: Path, monkeypatch):
+    path = tmp_path / "App.tsx"
+    path.write_text(_app_tsx(imports=80, logic=100), encoding="utf-8")
+    monkeypatch.setattr(mc, "_rel", lambda p: "frontend/src/App.tsx")
+    assert [f for f in mc.check_file_sizes([path]) if f.kind == "file_size_hard"] == []
+
+
+def test_python_docstrings_and_comments_are_not_logic(tmp_path: Path):
+    from maintainer_lib.sizes import count_logical_lines
+
+    path = tmp_path / "main.py"
+    path.write_text(
+        '"""Module docstring\nspanning lines\n"""\n'
+        "import os\n"
+        "from x import y\n"
+        "\n"
+        "# a comment\n"
+        "app = 1\n"
+        "value = 2\n",
+        encoding="utf-8",
+    )
+    assert count_logical_lines(path) == 2
+
+
+def test_real_entry_points_are_within_the_logical_limit(mc):
+    report = mc.run_checks()
+    counts = report["logical_line_counts"]
+    assert set(counts) == {"backend/main.py", "frontend/src/App.tsx"}
+    for rel, count in counts.items():
+        assert count <= mc.HARD_LIMIT_FILES[rel], f"{rel} holds {count} logical lines"
+    assert [f for f in report["findings"] if f["kind"] == "file_size_hard"] == []
