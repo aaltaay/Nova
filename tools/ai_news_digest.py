@@ -12,7 +12,10 @@ Ranking: `tools/ai_news_rank.py`. HTML: `tools/ai_news_html.py`.
 from __future__ import annotations
 
 import argparse
+import gzip
 import html
+import logging
+import zlib
 import json
 import re
 import sys
@@ -24,6 +27,7 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 from xml.etree import ElementTree
 
+from ai_news_publish import publication_unchanged
 from ai_news_feeds import FEEDS
 from ai_news_html import (
     END_MARKER,
@@ -48,11 +52,15 @@ DEFAULT_FEED_LIMIT = 60
 DEFAULT_MIN_ITEMS = 4
 DEFAULT_FEED_MIN_ITEMS = 50
 FEED_MAX_PER_DOMAIN = 10
-FEED_MIN_SCORE = 0.35
+FEED_MIN_SCORE = 0.2
+FEED_RECENCY_HALF_LIFE_HOURS = 336.0
+FEED_MAX_AGE_DAYS = 90
 TRADE_PRESS_BOOST = 1.25
-FETCH_TIMEOUT_SEC = 20
+FETCH_TIMEOUT_SEC = 25
 MAX_SUMMARY_CHARS = 190
 USER_AGENT = "NovaNewsDigest/1.0 (+https://nova.altaystudio.com)"
+
+logger = logging.getLogger(__name__)
 
 _TAG_RE = re.compile(r"<[^>]+>")
 _WS_RE = re.compile(r"\s+")
@@ -199,13 +207,18 @@ def fetch_feed(label: str, url: str) -> list[Article]:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     try:
         with urllib.request.urlopen(request, timeout=FETCH_TIMEOUT_SEC) as response:
-            payload = response.read()
-    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            payload = decode_feed_body(response.read())
+    except (urllib.error.URLError, TimeoutError, OSError, EOFError, zlib.error) as exc:
         print(f"  warn: {label} unreachable ({exc})", file=sys.stderr)
         return []
     articles = parse_feed(payload, label)
     print(f"  {label}: {len(articles)} items", file=sys.stderr)
     return articles
+
+
+def decode_feed_body(payload: bytes) -> bytes:
+    """Decode gzip magic even when a publisher omits Content-Encoding."""
+    return gzip.decompress(payload) if payload.startswith(b"\x1f\x8b") else payload
 
 
 def collect(feeds: tuple[tuple[str, str], ...] = FEEDS) -> list[Article]:
@@ -230,6 +243,8 @@ def rank_feed(candidates: list[Article], now: datetime, limit: int) -> list[Arti
         min_score=FEED_MIN_SCORE,
         require_known_source=False,
         trade_press_boost=TRADE_PRESS_BOOST,
+        recency_half_life_hours=FEED_RECENCY_HALF_LIFE_HOURS,
+        max_age_days=FEED_MAX_AGE_DAYS,
     )
 
 
@@ -289,6 +304,12 @@ def publish(
 
     if dry_run:
         print("Dry run -- pages not modified.", file=sys.stderr)
+        return 0
+
+    if write_feed and publication_unchanged(
+        feed, teaser, index_path=index_path, news_path=news_path, json_path=feed_json_path,
+    ):
+        logger.info("Published news content unchanged; keeping existing publication time")
         return 0
 
     home_page = index_path.read_text(encoding="utf-8")

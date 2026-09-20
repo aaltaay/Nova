@@ -45,6 +45,13 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Fix:** Match the current roadmap label and test against the real ledger; merge current master into PR #373 while preserving both maintenance entries and the newer current-tip ancestry and SHA-lease cleanup safeguards. Emit UTF-8 from the footer CLI and add a real subprocess regression with `PYTHONIOENCODING=cp1252`. Record the hook fix here as required, rather than only in the PR body. Verify the edit succeeded before staging, check for residual conflict markers, and run the tool test list from CI rather than guessed filenames.
 - **Fix class:** infra
 - **Keywords:** session_brief_hook, Product NEXT, next-move footer, merge conflict, branch preservation, PR373
+## 2026-09-20 -- Recover news ranking without stale delivery regressions
+
+- **Symptom:** The public AI-in-trading digest admitted stock-theme and promotional filler, let prolific mega-wire publishers dominate, missed gzip feeds, and rewrote identical stories on every clock tick. The parked recovery also included obsolete CI/version changes.
+- **Cause:** Broad topic pairing and uniform domain caps; feed reads assumed plain XML; publication timestamps guaranteed a diff. The old WIP fingerprint compared only URL/title and its PR helper predated the protected-master delivery repair.
+- **Fix:** Recover strict topic gates, publisher caps, targeted trade-press sources and longer full-feed recency; decode gzip with explicit failure reporting; compare ordered story content and rendered blocks at the prior publication time. Preserve modern PR/PAT delivery, Desktop checks, derived versions and homepage teaser. Split the oversized test suite, update workflow discovery and its command assertion, and remove imports made unused by the split. Regressions cover content edits, malformed prior state, age limits and gzip failures (#356).
+- **Fix class:** admission
+- **Keywords:** ai-news, ranking, gzip, publication fingerprint, clock-only rewrite, WIP recovery, #356
 
 ## 2026-09-20 -- Cleanup preserves recreated branches with unmerged work
 
