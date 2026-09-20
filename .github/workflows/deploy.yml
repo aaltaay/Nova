@@ -7,6 +7,10 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+    # `ready_for_review` is NOT in GitHub's default type list, so un-drafting a
+    # PR used to fire nothing: no CI run, so no `workflow_run` for PR delivery
+    # and no Auto-merge job, and the PR sat until the hourly sweep at :12.
+    types: [opened, synchronize, reopened, ready_for_review]
   # Lets you run CI from Actions → CI → “Run workflow” when nothing has triggered yet
   workflow_dispatch:
 
@@ -229,7 +233,7 @@ jobs:
       - name: Agent tool tests
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: pytest tools/test_agent_contract.py tools/test_subagent_lifecycle_hook.py tools/test_sync_agent_surfaces.py tools/test_create_nova_agent.py tools/test_doc_invariants.py tools/test_engineering_skills_audit.py tools/test_stale_pr_branches.py tools/test_desktop_pack_workflow.py tools/test_master_branch_protection.py tools/test_pr_delivery.py tools/test_pr_delivery_workflow.py tools/test_nova_delivery_project.py tools/test_ai_news_digest_pr.py tools/test_repo_hygiene.py tools/test_repo_hygiene_finish.py tools/test_session_brief_hook.py tools/test_backlog_triage.py tools/test_backlog_footprints.py tools/test_changes_fragments.py tools/test_next_moves.py tools/test_ci_scope.py tools/test_ci_scope_workflows.py -q --tb=short
+        run: pytest tools/test_agent_contract.py tools/test_subagent_lifecycle_hook.py tools/test_sync_agent_surfaces.py tools/test_create_nova_agent.py tools/test_doc_invariants.py tools/test_engineering_skills_audit.py tools/test_stale_pr_branches.py tools/test_desktop_pack_workflow.py tools/test_master_branch_protection.py tools/test_pr_delivery.py tools/test_pr_delivery_workflow.py tools/test_branch_cleanup_merged.py tools/test_nova_delivery_project.py tools/test_ai_news_digest_pr.py tools/test_repo_hygiene.py tools/test_repo_hygiene_finish.py tools/test_session_brief_hook.py tools/test_backlog_triage.py tools/test_backlog_footprints.py tools/test_changes_fragments.py tools/test_next_moves.py tools/test_ci_scope.py tools/test_ci_scope_workflows.py -q --tb=short
 
       - name: Structural validation (CI mode)
         # --ci skips user-local canvas file existence (canvases live outside the repo).

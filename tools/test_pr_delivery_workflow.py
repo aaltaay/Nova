@@ -31,6 +31,21 @@ def test_pr_delivery_workflow_merges_and_deletes():
     assert "do-not-merge" in text
 
 
+def test_ci_runs_when_a_draft_is_marked_ready():
+    """Un-drafting must fire CI, or nothing merges the PR.
+
+    `ready_for_review` is not in GitHub's default pull_request type list.
+    Without it, marking a PR ready starts no CI run, so neither the Auto-merge
+    job nor PR delivery's `workflow_run` trigger fires and the PR waits for the
+    hourly sweep -- which is exactly what stranded #396 for an hour.
+    """
+    on = yaml.safe_load(DEPLOY.read_text(encoding="utf-8"))[True]
+    types = on["pull_request"]["types"]
+    assert "ready_for_review" in types
+    # Naming types replaces the defaults, so they have to be spelled out.
+    assert {"opened", "synchronize", "reopened"} <= set(types)
+
+
 def test_ci_auto_merge_job_is_wired():
     text = DEPLOY.read_text(encoding="utf-8")
     assert "pr_delivery.py merge" in text

@@ -1,4 +1,14 @@
-"""Current-tip proof and conditional deletion for closed PR heads (#369)."""
+"""Current-tip proof and conditional deletion for closed PR heads (#369).
+
+Deletion is authorized two ways, and the distinction matters because Nova
+squash-merges. A squash lands the branch content on master under a NEW sha, so
+a merged head is never an ancestor of master -- judged on ancestry alone every
+single merged branch is refused and left on origin forever. So a head whose tip
+is exactly the commit a MERGED pull request carried is deleted on the strength
+of that merge. Everything else -- a PR closed without merging, or a branch
+pushed to after its merge -- still has to prove containment in master first,
+which is the protection #369 exists for.
+"""
 
 from __future__ import annotations
 
@@ -39,7 +49,8 @@ def delete_closed_head(gh, repo: str, ref: str, *, same_repo: bool) -> int:
     try:
         result = gh([
             "pr", "list", "--repo", repo, "--state", "all", "--head", ref,
-            "--limit", "200", "--json", "state,headRefName,headRepository,headRepositoryOwner",
+            "--limit", "200",
+            "--json", "state,headRefName,headRefOid,headRepository,headRepositoryOwner",
         ], check=False)
         if result.returncode:
             raise ValueError("PR lookup failed")
@@ -55,6 +66,14 @@ def delete_closed_head(gh, repo: str, ref: str, *, same_repo: bool) -> int:
         if not any(p.get("state") in {"MERGED", "CLOSED"} for p in prs):
             print(f"skip delete {ref}: no closed same-repo PR")
             return 0
+        # The exact commits GitHub merged. Nova squash-merges, so a merged head
+        # is NEVER an ancestor of master -- its content lands under a new sha --
+        # and the ancestry test below refuses every one of them. The merge is
+        # the proof the work is safe; ancestry is the wrong question for it.
+        merged_oids = {
+            str(p.get("headRefOid") or "")
+            for p in prs if p.get("state") == "MERGED"
+        } - {""}
         result = gh(["api", f"repos/{repo}/git/ref/heads/{quote(ref, safe='')}"], check=False)
         if result.returncode and "HTTP 404" in result.stderr:
             print(f"already absent: {ref}")
@@ -62,15 +81,22 @@ def delete_closed_head(gh, repo: str, ref: str, *, same_repo: bool) -> int:
         if result.returncode:
             raise ValueError("branch lookup failed")
         tip = json.loads(result.stdout)["object"]["sha"]
-        result = gh(["api", f"repos/{repo}/compare/master...{tip}"], check=False)
-        if result.returncode:
-            raise ValueError("master ancestry lookup failed")
-        comparison = json.loads(result.stdout)
-        if (comparison.get("status") not in {"behind", "identical"} or
-                (comparison.get("merge_base_commit") or {}).get("sha") != tip):
-            print(f"REFUSE delete {ref}: tip {tip} is not contained in master; "
-                  "unmerged/recreated or squash-only work needs review", file=sys.stderr)
-            return 1
+        if tip not in merged_oids:
+            # Not the commit GitHub merged: either this PR closed without
+            # merging, or someone pushed to the branch after the merge. Both
+            # can hold work that exists nowhere else, so containment in master
+            # is the only proof that deleting loses nothing (#369).
+            result = gh(["api", f"repos/{repo}/compare/master...{tip}"], check=False)
+            if result.returncode:
+                raise ValueError("master ancestry lookup failed")
+            comparison = json.loads(result.stdout)
+            if (comparison.get("status") not in {"behind", "identical"} or
+                    (comparison.get("merge_base_commit") or {}).get("sha") != tip):
+                print(f"REFUSE delete {ref}: tip {tip} is not contained in master "
+                      "and is not the commit a merged PR carried; unmerged, "
+                      "recreated, or pushed-after-merge work needs review",
+                      file=sys.stderr)
+                return 1
         # Check OPEN again after network reads. The lease protects concurrent pushes.
         result = gh(["pr", "list", "--repo", repo, "--state", "open", "--head", ref,
                      "--json", "number"], check=False)
