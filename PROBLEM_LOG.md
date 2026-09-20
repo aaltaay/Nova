@@ -37,6 +37,13 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-20 -- Session recorder disk waits blocked the HTTP event loop
+
+- **Symptom:** After the stop deadlock fix, a slow capture write or recorder lock still stalled Sim's asyncio feed and every HTTP/WebSocket task sharing its loop (#314, #324).
+- **Cause:** The feed called the synchronous capture bridge directly; each print, quote and bar acquired the recorder lock and flushed a file on the event-loop thread. Shutdown also stopped the recorder synchronously.
+- **Fix:** Capture owns one bounded FIFO writer for copied complete batches and serialized session transitions. Stop closes admission and drains accepted batches before finalizing; overflow is immediately visible and finalizes as failed after draining. Symbol admission is rechecked against the current session. Async shutdown awaits the worker through `asyncio.to_thread`. Timeout-guarded tests hold a real recorder operation, prove an independent coroutine progresses, then verify ordered rows, manifests, session isolation, overflow and restart after worker failure.
+- **Fix class:** ownership
+- **Keywords:** capture, recorder, event loop, writer thread, bounded queue, backpressure, session isolation, #314, #324
 ## 2026-09-20 -- Recover news ranking without stale delivery regressions
 
 - **Symptom:** The public AI-in-trading digest admitted stock-theme and promotional filler, let prolific mega-wire publishers dominate, missed gzip feeds, and rewrote identical stories on every clock tick. The parked recovery also included obsolete CI/version changes.
