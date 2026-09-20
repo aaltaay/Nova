@@ -68,7 +68,7 @@ def test_try_connect_alternate_port_heals_on_refused(tmp_path: Path, monkeypatch
     ib = MagicMock()
     calls: list[int] = []
 
-    async def _connect(_host, port, clientId=0, timeout=1):  # noqa: N803
+    async def _connect(_host, port, clientId=0, timeout=1, **_kw):  # noqa: N803
         calls.append(port)
         if port == 4002:
             return None
@@ -264,7 +264,7 @@ def test_try_connect_alternate_heals_timeout_when_preferred_dark(
     ib = MagicMock()
     calls: list[int] = []
 
-    async def _connect(_host, port, clientId=0, timeout=1):  # noqa: N803
+    async def _connect(_host, port, clientId=0, timeout=1, **_kw):  # noqa: N803
         calls.append(port)
         if port == 4001:
             return None
@@ -313,7 +313,7 @@ def test_try_connect_alternate_heals_preferred_dark_probe(
     ib = MagicMock()
     calls: list[int] = []
 
-    async def _connect(_host, port, clientId=0, timeout=1):  # noqa: N803
+    async def _connect(_host, port, clientId=0, timeout=1, **_kw):  # noqa: N803
         calls.append(port)
         if port == 4001:
             return None
@@ -372,7 +372,7 @@ def test_try_connect_alternate_heals_paper_to_live(tmp_path: Path, monkeypatch):
     ib = MagicMock()
     calls: list[int] = []
 
-    async def _connect(_host, port, clientId=0, timeout=1):  # noqa: N803
+    async def _connect(_host, port, clientId=0, timeout=1, **_kw):  # noqa: N803
         calls.append(port)
         if port == 4001:
             return None
@@ -414,7 +414,7 @@ def test_try_connect_alternate_refuses_kind_mismatch(tmp_path: Path, monkeypatch
 
     ib = MagicMock()
 
-    async def _connect(_host, port, clientId=0, timeout=1):  # noqa: N803
+    async def _connect(_host, port, clientId=0, timeout=1, **_kw):  # noqa: N803
         if port == 4001:
             return None
         raise ConnectionRefusedError(10061, "refused")

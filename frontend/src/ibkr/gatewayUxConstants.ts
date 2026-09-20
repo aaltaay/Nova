@@ -52,6 +52,13 @@ export const PREREQ_COMPLETED_ORDERS_STUCK_PREFIX = 'Completed orders not answer
 export const PREREQ_COMPLETED_ORDERS_STUCK_DETAIL =
   'Prices and positions still update; Closed Orders may miss orders from before this session. Nova keeps re-checking and clears this when the Gateway answers. To fix, restart IB Gateway when convenient (IBKR Mobile 2FA). If orders are rejected too, check the Gateway Read-Only API setting first.';
 
+/** D-076 -- IB Gateway "Read-Only API" is ticked, so the session reaches READY
+ * and looks tradeable while every order, cancel and replace comes back as
+ * Error 321 (PROBLEM_LOG 2026-07-22). A named blocker, not a login problem. */
+export const PREREQ_GATEWAY_READ_ONLY_LABEL = 'IB Gateway Read-Only API';
+export const PREREQ_GATEWAY_READ_ONLY_DETAIL =
+  'Gateway is in Read-Only API mode -- orders will be rejected (Error 321). Untick Configure > Settings > API > Read-Only API, then reconnect. Prices and positions are unaffected.';
+
 export const DOOR_TRAIL_TITLE = 'Door trail';
 export const DOOR_TRAIL_KICKER = 'Paper / Live audit';
 export const DOOR_TRAIL_HINT =

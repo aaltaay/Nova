@@ -58,6 +58,7 @@ export function TradingPrerequisitesGate() {
         secondFactorStale: ibkr.second_factor_stale,
         secondFactorAgeSec: ibkr.second_factor_age_sec,
         completedOrdersUnansweredSince: ibkr.completed_orders_unanswered_since,
+        gatewayReadOnly: ibkr.gateway_read_only,
         apiFailStreak: overlayGates.apiFailStreak,
         deskActionInFlight: overlayGates.deskActionInFlight,
         sessionRecording: overlayGates.sessionRecording,
@@ -80,6 +81,7 @@ export function TradingPrerequisitesGate() {
       ibkr.second_factor_stale,
       ibkr.second_factor_age_sec,
       ibkr.completed_orders_unanswered_since,
+      ibkr.gateway_read_only,
       ibkrConnected,
     ],
   );
