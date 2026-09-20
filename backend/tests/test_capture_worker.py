@@ -16,6 +16,8 @@ WAIT_SECONDS = 5.0
 @pytest.fixture(autouse=True)
 def isolated_capture(tmp_path, monkeypatch):
     monkeypatch.setenv("NOVA_SIM_CAPTURE_DIR", str(tmp_path))
+    from capture import bridge_ibkr
+    monkeypatch.setattr(bridge_ibkr, "admission_error", lambda symbol: None)
     mode.set_capture_mode(False)
     recorder.reset_for_tests()
     session_state.reset_for_tests()
@@ -133,7 +135,7 @@ def test_overflow_reports_immediately_then_drains_and_marks_failed(monkeypatch):
     assert worker.status()["pending_batches"] == 0
     # Starting a fresh session clears the worker error and opens ingress again.
     status = mode.set_capture_mode(True, symbol="NEW")
-    assert "error" not in status
+    assert status["writer"]["error"] is None
     assert status["writer"]["accepting"] is True
 
 

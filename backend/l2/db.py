@@ -7,7 +7,7 @@ and time & sales. See Local-Market-Data-Recorders.md for the storage decision.
 
 Tables:
   l2_snapshots     -- order-book snapshots (signal windows + continuous depth)
-  tape_trades      -- time & sales prints for watched symbols (Alpaca WS)
+  tape_trades      -- time & sales prints for watched symbols (IBKR AllLast)
   record_sessions  -- lightweight session metadata (symbol, reason, wall-clock)
 """
 from __future__ import annotations
@@ -48,7 +48,9 @@ CREATE TABLE IF NOT EXISTS tape_trades (
     size REAL NOT NULL,
     exchange TEXT,
     source TEXT NOT NULL,
-    session_id TEXT
+    session_id TEXT,
+    conditions TEXT,
+    receive_ts REAL
 );
 
 CREATE INDEX IF NOT EXISTS idx_tape_trades_symbol_ts ON tape_trades(symbol, ts);
@@ -99,6 +101,10 @@ def init_db() -> None:
     try:
         conn.executescript(_SCHEMA)
         _migrate_l2_snapshot_columns(conn)
+        existing = {row[1] for row in conn.execute("PRAGMA table_info(tape_trades)")}
+        for column, kind in (("conditions", "TEXT"), ("receive_ts", "REAL")):
+            if column not in existing:
+                conn.execute(f"ALTER TABLE tape_trades ADD COLUMN {column} {kind}")
         conn.commit()
     finally:
         conn.close()

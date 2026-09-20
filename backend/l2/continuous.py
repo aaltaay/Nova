@@ -3,7 +3,7 @@ Continuous L2 + tape recording while a depth subscription is open.
 
 Started from routes/trading.py when DepthLadder / depth WS subscribes; stopped
 on unsubscribe. Snapshots the live book on L2_CONTINUOUS_SNAPSHOT_INTERVAL_SEC
-and registers the symbol for Alpaca tape ingest. Never places orders.
+and registers the symbol for shared IBKR AllLast tape ingest. Never places orders.
 Graceful no-op when IBKR is disconnected (caller should not start; if the
 book goes empty mid-session we skip writes rather than crash).
 """

@@ -73,7 +73,7 @@ remaining batches are all gated does not stop the walk.
 | 6 | The desk names how the Gateway is degraded | 302, 305, 333, 334 | ✅ | Read-Only API looks tradeable and rejects every order. |
 | 7 | The replay desk is usable, readable and honest | 321, 322, 324, 338, 341 | ✅ | The surface the operator actually drives. |
 | 8 | A replay reproduces the day, or refuses loudly | 303, 304, 320, 337 | ✅ | Silent holes and unbounded disk growth. |
-| 9 | One replay surface, one trade-print source | 308, 309, 310, 311, 315, 340 | ⛔ | **The chokepoint.** See below. |
+| 9 | One replay surface, one trade-print source | 308, 309, 310, 311, 315, 340 | ◐ | ADR 017 accepted; live AllLast fan-out implemented. Replay import/depth/quotes/fills remain. |
 | 10 | Live desk on master, plus residual product asks | 14, 90, 91, 94, 147, 331 | ◐ | #91's TIF half and #147 are startable; #14/#331/#90/#94 are gated. |
 | 11 | Marketing site and parked WIP | 356, 357 | ✅ | Non-desk P3s, kept where they can never outrank desk work. |
 | 00 | Untriaged (the inbox) | — | 🕓 | New issues land here automatically until someone routes them. |
@@ -92,7 +92,6 @@ are not idle — but the ranking below is where a decision buys the most.
 
 | Decision | Gates | Cost of not deciding |
 |----------|-------|----------------------|
-| **#340 Phase 3** — keep `backend/sim/history_*` as the single replay surface; fix or retire `backend/capture/` | **6 issues** (308, 309, 310, 311, 315, 340) — all of package 9 | Three overlapping record/replay stacks, only one working. Also a live constitution contradiction: `backend/l2/db.py` and the Local-Market-Data-Recorders note still name Alpaca WS as the time-and-sales source. |
 | **#302** — persist the Sim choice, or force an explicit re-arm each boot | 1 issue, but it is a spend-safety gap | A backend restart silently returns the desk to Live with the banner gone and spend gates armed. |
 | **#320** — retention: manual delete only, or auto-prune | Part of package 8 | Recordings grow unbounded with 29% duplicate rows. |
 | **#347** — installer-only vs keep portable; notify-only vs auto-update | Part of package 5 | The portable target can never self-update. |

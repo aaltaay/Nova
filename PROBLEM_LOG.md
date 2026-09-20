@@ -37,6 +37,15 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-20 -- IBKR prints never reached the recording sinks (#315, #308)
+
+- **Symptom:** Real-symbol Record and L2 tape produced empty histories while appearing active.
+- **Cause:** Capture only had a SIM1 bridge; the L2 writer depended on a disabled Alpaca producer. Neither consumed AllLast.
+- **Fix:** Normalize AllLast once, enqueue copied prints to independent bounded capture/L2 workers, fence capture sessions, retain provenance, reject missing/rejected producers, and expose waiting/stale/write failure. Empty real segments fail; SIM1 manifests say sim. Extend both fresh and migrated SQLite schemas so archive restore preserves new metadata.
+- **Fix class:** admission
+- **Keywords:** IBKR, AllLast, capture, tape_trades, backpressure, receive_ts, archive restore, ADR 017
+
+
 ## 2026-09-20 -- Recording truth and rejected replay evidence (#316, #317, #339)
 
 - **Symptom:** Multiple tabs could claim to record although the recorder owns one symbol; stopping the wrong tab stopped the active session. A stale flag hid Gateway/API warnings. Failed or empty capture selections claimed CAPTURE and emitted synthetic or zero-price GAP trades. Missing browser/store coverage left these paths unverified.

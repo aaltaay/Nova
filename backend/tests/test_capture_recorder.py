@@ -75,6 +75,8 @@ def _capture_root(tmp_path, monkeypatch):
     root = tmp_path / "sim_capture"
     root.mkdir()
     monkeypatch.setenv("NOVA_SIM_CAPTURE_DIR", str(root))
+    from capture import bridge_ibkr
+    monkeypatch.setattr(bridge_ibkr, "admission_error", lambda symbol: None)
     bar_buckets.reset_for_tests()
     session_state.reset_for_tests()
     mode.reset_for_tests()

@@ -36,7 +36,13 @@ def set_capture_mode(
     from capture.worker import transition
 
     result = transition(lambda: _set_capture_mode(enabled, symbol=symbol, protect_active=protect_active))
-    return status_payload() | (result or {})
+    out = status_payload() | (result or {})
+    # Admission succeeded but the first write is pending. Report that on polls,
+    # not as a failed command (the UI retains command errors until next action).
+    if (enabled and result is None
+            and out.get("error") == "IBKR AllLast waiting; no recent prints for " + str(_symbol)):
+        out.pop("error", None)
+    return out
 
 
 def _set_capture_mode(
@@ -59,6 +65,10 @@ def _set_capture_mode(
                 "capture_symbol": None,
                 "spend_status": None,
             }
+        from capture.bridge_ibkr import admission_error
+        error = admission_error(sym)
+        if error:
+            return {"error": error}
         try:
             from capture.recorder import start_recorder
 
@@ -123,6 +133,23 @@ def status_payload() -> dict[str, Any]:
 
     worker = worker_status()
     out["writer"] = worker
+    from constants_sim import SIM_SYMBOL
+    if on and _symbol != SIM_SYMBOL:
+        from capture.bridge_ibkr import producer_health
+        from capture.recorder import status as recorder_status
+        from ibkr.tape_recording import dispatch_errors
+        health = producer_health(_symbol)
+        if health["healthy"] and not recorder_status()["segment_prints"]:
+            health = health | {"state": "waiting", "healthy": False}
+        out["producer"] = health
+        out["healthy"] = health["healthy"] and not worker["error"] and not err
+        if health["error"]:
+            out["error"] = health["error"]
+        elif not health["healthy"]:
+            out["error"] = "IBKR AllLast " + health["state"] + "; no recent prints for " + _symbol
+        if dispatch_errors.get("capture"):
+            out["error"] = dispatch_errors["capture"]
+            out["healthy"] = False
     if worker["error"]:
         out["error"] = worker["error"]
     return out

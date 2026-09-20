@@ -171,3 +171,7 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
 - `backend/scanner_push.py` — `/ws/scanner` + `set_active_tab`
 - `frontend/src/hooks/useTickerStream.ts`, `useIbkrDepth.ts`, `useIbkrTape.ts`, `useScannerPriceStream.ts`
 - `frontend/src/utils/dataSourceMap.ts` — honest attribution
+
+## Recording source (ADR 017)
+
+AllLast is the only production recording print source. Reuse its bounded capture/L2 fan-out; never open a second subscription or restore Alpaca tape ingest. A real tab requires a connected, non-rejected matching producer; waiting/stale/failed writers must remain visible. Do not manufacture quote/depth rows from print data.

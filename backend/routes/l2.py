@@ -27,6 +27,11 @@ from l2.recall import recall_at, recall_range
 router = APIRouter(prefix="/api/l2", tags=["l2"])
 
 
+@router.get("/tape-audit")
+def tape_audit() -> dict:
+    return _tape.audit_coverage()
+
+
 @router.get("/recordings")
 def l2_recordings(include_mock: bool = False) -> dict:
     rows = label_recordings(include_mock=include_mock)
@@ -64,4 +69,5 @@ def l2_status() -> dict:
         "continuous_symbols": _continuous.active_symbols(),
         "signal_recording_symbols": sorted(_recorder._active_recordings),
         "tape_watched_symbols": _tape.watched_symbols(),
+        "tape": _tape.health(),
     }

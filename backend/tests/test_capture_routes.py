@@ -16,6 +16,8 @@ from sim.status import overlay_ibkr_status
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("NOVA_SIM_CAPTURE_DIR", str(tmp_path))
+    from capture import bridge_ibkr
+    monkeypatch.setattr(bridge_ibkr, "admission_error", lambda symbol: None)
     mode.set_capture_mode(False)
     recorder.reset_for_tests()
     mode.reset_for_tests()

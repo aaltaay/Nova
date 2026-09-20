@@ -1,5 +1,11 @@
 # Historical replay (ADR 012 archive extension, D-052)
 
+ADR 017 assigns the sole Historical replay surface to `backend/sim/history_*`.
+Live tab capture is a print feeder; `backend/l2/` is the hot depth/tape sink.
+AllLast fans out to their independent bounded workers. The legacy JSONL player
+remains a compatibility path pending canonical import; this does not add live
+quotes/depth or practice fills to Historical replay.
+
 Any qualified stock ticker can select a historical Eastern date and same-day
 window. Candles already in the local IBKR bars archive are immediately usable.
 **Download candles** makes one bounded historical-bar request for the window;

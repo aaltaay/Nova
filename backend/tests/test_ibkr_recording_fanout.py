@@ -1,0 +1,289 @@
+"""AllLast producer -> independent real JSONL/SQLite sinks; no broker needed."""
+
+import asyncio
+import json
+import threading
+from datetime import datetime, timezone
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from capture import bridge_ibkr, mode, recorder, worker
+from ibkr import tape_recording as fanout, tape_stream
+from l2 import db, tape
+
+
+@pytest.fixture(autouse=True)
+def isolated(tmp_path, monkeypatch):
+    monkeypatch.setenv("NOVA_SIM_CAPTURE_DIR", str(tmp_path / "capture"))
+    mode.set_capture_mode(False)
+    recorder.reset_for_tests()
+    mode.reset_for_tests()
+    tape.clear_watched_for_tests()
+    fanout._last.clear()
+    fanout._errors.clear()
+    fanout.dispatch_errors.clear()
+    monkeypatch.setattr(fanout, "l2_sink", fanout.Sink(fanout._write_l2))
+    monkeypatch.setattr(tape_stream, "_tickers", {"AAPL": {}})
+    monkeypatch.setattr(tape_stream._client, "get_ib", lambda: object())
+    monkeypatch.setattr(tape_stream._depth, "current_book", lambda _: None)
+    # Existing archive tests own that independent sink; keep these files isolated.
+    from archive import write_queue, bar_builder
+    from ibkr import tape_10sec
+
+    monkeypatch.setattr(write_queue, "enqueue_tape_print", lambda **kw: None)
+    monkeypatch.setattr(bar_builder, "on_tape_print", lambda **kw: None)
+    monkeypatch.setattr(tape_10sec, "on_print", lambda *a: None)
+    db.init_db()
+    yield
+    mode.set_capture_mode(False)
+    fanout.l2_sink.queue.join()
+    fanout.l2_sink.close()
+    tape.clear_watched_for_tests()
+    fanout._last.clear()
+    fanout._errors.clear()
+    fanout.dispatch_errors.clear()
+
+
+def tick(symbol="AAPL", price=42.25):
+    ticker = SimpleNamespace(
+        tickByTicks=[
+            SimpleNamespace(
+                time=datetime(2026, 9, 18, 14, 30, tzinfo=timezone.utc),
+                price=price,
+                size=7,
+                exchange="NASDAQ",
+                specialConditions="T",
+            )
+        ]
+    )
+    tape_stream._on_tape_update(ticker, symbol)
+
+
+def test_callback_persists_identical_provenance_to_both_sinks():
+    tape.watch_symbol("AAPL", "session-a")
+    started = mode.set_capture_mode(True, symbol="AAPL")
+    assert started["capture"]
+    assert "error" not in started  # pending first print is not a failed command
+    assert not mode.status_payload()["healthy"]  # waiting is not healthy
+    directory = Path(recorder.status()["dir"])
+    tick("MSFT", 9)  # wrong symbol must not enter this capture or L2 watch
+    tick()
+    mode.set_capture_mode(False)  # drains accepted capture rows
+    fanout.l2_sink.queue.join()
+    captured = json.loads((directory / "prints.jsonl").read_text())
+    rows = tape.get_trades_in_range("AAPL", 0, 2_000_000_000)
+    assert len(rows) == 1
+    for field in ("symbol", "ts", "price", "size", "exchange", "conditions", "source", "receive_ts"):
+        assert captured[field] == rows[0][field]
+    assert rows[0]["session_id"] == "session-a"
+    assert captured["source"] == "ibkr"
+    assert (directory / "quotes.jsonl").stat().st_size == 0
+    assert (directory / "l2.jsonl").stat().st_size == 0
+    assert json.loads((directory / "manifest.json").read_text())["counts"]["prints"] == 1
+
+
+def test_admission_rejects_wrong_disconnected_and_rejected_producer(monkeypatch, tmp_path):
+    assert "subscribed" in mode.set_capture_mode(True, symbol="MSFT")["error"]
+    fanout.rejected("AAPL", "market data permission denied")
+    assert "permission" in mode.set_capture_mode(True, symbol="AAPL")["error"]
+    fanout.subscribed("AAPL")
+    monkeypatch.setattr(tape_stream._client, "get_ib", lambda: None)
+    assert "connected" in mode.set_capture_mode(True, symbol="AAPL")["error"]
+    assert not list(tmp_path.rglob("manifest.json"))
+
+
+def test_empty_segment_fails_manifest_and_sim_provenance_is_truthful():
+    mode.set_capture_mode(True, symbol="AAPL")
+    directory = Path(recorder.status()["dir"])
+    mode.set_capture_mode(False)
+    manifest = json.loads((directory / "manifest.json").read_text())
+    assert manifest["status"] == "failed"
+    assert "No IBKR prints" in manifest["error"]
+    mode.set_capture_mode(True, symbol="SIM1")
+    directory = Path(recorder.status()["dir"])
+    mode.set_capture_mode(False)
+    assert json.loads((directory / "manifest.json").read_text())["source"] == "sim"
+
+
+def test_blocked_capture_does_not_block_l2_viewer_or_event_loop(monkeypatch):
+    entered, release, l2_done = threading.Event(), threading.Event(), threading.Event()
+    original = recorder.record_print
+
+    def blocked(payload):
+        entered.set()
+        assert release.wait(5)
+        original(payload)
+
+    monkeypatch.setattr(recorder, "record_print", blocked)
+
+    def write_l2(payload):
+        fanout._write_l2(payload)
+        l2_done.set()
+
+    monkeypatch.setattr(fanout, "l2_sink", fanout.Sink(write_l2))
+    mode.set_capture_mode(True, symbol="AAPL")
+    tape.watch_symbol("AAPL")
+
+    async def run():
+        q = tape_stream.open_viewer_queue("AAPL")
+        try:
+            tick()
+            assert await asyncio.to_thread(entered.wait, 5)
+            assert await asyncio.to_thread(l2_done.wait, 5)
+            assert q.get_nowait()["price"] == 42.25
+            heartbeat = asyncio.Event()
+            asyncio.get_running_loop().call_soon(heartbeat.set)
+            await asyncio.wait_for(heartbeat.wait(), 1)
+        finally:
+            release.set()
+            tape_stream.close_viewer_queue("AAPL", q)
+
+    asyncio.run(run())
+
+
+def test_l2_overflow_is_sticky_and_capture_continues(monkeypatch):
+    entered, release = threading.Event(), threading.Event()
+
+    def blocked(payload):
+        entered.set()
+        assert release.wait(5)
+
+    sink = fanout.Sink(blocked, capacity=1)
+    monkeypatch.setattr(fanout, "l2_sink", sink)
+    tape.watch_symbol("AAPL")
+    mode.set_capture_mode(True, symbol="AAPL")
+    try:
+        tick()
+        assert entered.wait(5)
+        tick()
+        tick()
+        assert "backlog full" in tape.health()["writer"]["error"]
+        assert not tape.health()["healthy"]
+    finally:
+        release.set()
+    mode.set_capture_mode(False)
+    assert recorder.status()["counts"]["prints"] == 3
+
+
+def test_sink_failure_is_visible_and_payload_is_immutable(monkeypatch):
+    def fail(payload):
+        payload["price"] = 0
+
+    sink = fanout.Sink(fail)
+    monkeypatch.setattr(fanout, "l2_sink", sink)
+    tape.watch_symbol("AAPL")
+    tick()
+    sink.queue.join()
+    assert "write failed" in tape.health()["writer"]["error"]
+    assert not sink.submit({"price": 4})
+
+
+def test_disconnect_and_staleness_are_loud(monkeypatch):
+    mode.set_capture_mode(True, symbol="AAPL")
+    tick()
+    worker.transition(lambda: None)  # drain
+    assert mode.status_payload()["healthy"]
+    fanout._last["AAPL"] = 1
+    assert "stale" in mode.status_payload()["error"]
+    monkeypatch.setattr(tape_stream._client, "get_ib", lambda: None)
+    assert "connected" in mode.status_payload()["error"]
+
+
+def test_nonfinite_prices_never_reach_recorders():
+    mode.set_capture_mode(True, symbol="AAPL")
+    for price in (float("nan"), float("inf"), 0, -1):
+        tick(price=price)
+    mode.set_capture_mode(False)
+    assert recorder.status()["counts"]["prints"] == 0
+
+
+def test_schema_upgrade_and_past_missing_tape_audit():
+    conn = db.get_connection()
+    conn.execute(
+        "INSERT INTO l2_snapshots (recording_id,symbol,setup,signal_ts,ts,bids_json,asks_json) VALUES ('old','AAPL','depth',1,1,'[]','[]')"
+    )
+    conn.commit()
+    conn.close()
+    db.init_db()  # repeated migration is safe
+    assert tape.audit_coverage()["sessions_without_tape"] == 1
+    tape.watch_symbol("AAPL")
+    tape.on_trade_print("AAPL", 2, 1, ts=1)
+    assert tape.audit_coverage()["sessions_without_tape"] == 0
+
+
+def test_legacy_schema_migrates_without_losing_existing_rows():
+    conn = db.get_connection()
+    conn.execute("DROP TABLE tape_trades")
+    conn.execute(
+        "CREATE TABLE tape_trades (id INTEGER PRIMARY KEY, symbol TEXT, ts REAL, price REAL, size REAL, exchange TEXT, source TEXT, session_id TEXT)"
+    )
+    conn.execute("INSERT INTO tape_trades VALUES (1,'AAPL',1,2,3,'X','ibkr','old')")
+    conn.commit()
+    conn.close()
+    db.init_db()
+    db.init_db()
+    row = tape.get_trades_in_range("AAPL", 0, 2)[0]
+    assert row["price"] == 2
+    assert row["conditions"] is None
+    assert row["receive_ts"] is None
+
+
+def test_delayed_l2_row_retains_original_session(monkeypatch):
+    entered, release = threading.Event(), threading.Event()
+
+    def blocked(payload):
+        entered.set()
+        assert release.wait(5)
+        fanout._write_l2(payload)
+
+    monkeypatch.setattr(fanout, "l2_sink", fanout.Sink(blocked))
+    tape.watch_symbol("AAPL", "old")
+    try:
+        tick()
+        assert entered.wait(5)
+        tape.unwatch_symbol("AAPL")
+        tape.watch_symbol("AAPL", "new")
+    finally:
+        release.set()
+    fanout.l2_sink.queue.join()
+    assert tape.get_trades_in_range("AAPL", 0, 2_000_000_000)[0]["session_id"] == "old"
+    assert not tape.health()["symbols"]["AAPL"]["healthy"]
+
+
+def test_capture_overflow_does_not_stop_l2(monkeypatch):
+    entered, release = threading.Event(), threading.Event()
+    original = recorder.record_print
+
+    def blocked(payload):
+        entered.set()
+        assert release.wait(5)
+        original(payload)
+
+    monkeypatch.setattr(recorder, "record_print", blocked)
+    monkeypatch.setattr(worker, "CAPTURE_PENDING_BATCHES", 1)
+    mode.set_capture_mode(True, symbol="AAPL")
+    tape.watch_symbol("AAPL")
+    try:
+        tick()
+        assert entered.wait(5)
+        tick()
+        assert "backlog full" in mode.status_payload()["error"]
+    finally:
+        release.set()
+    mode.set_capture_mode(False)
+    fanout.l2_sink.queue.join()
+    assert len(tape.get_trades_in_range("AAPL", 0, 2_000_000_000)) == 2
+    assert fanout.l2_sink.status()["error"] is None
+
+
+def test_shutdown_drains_accepted_rows_and_closes_ingress():
+    rows = []
+    sink = fanout.Sink(rows.append)
+    assert sink.submit({"price": 1})
+    assert sink.submit({"price": 2})
+    sink.close()
+    assert [row["price"] for row in rows] == [1, 2]
+    assert not sink.thread.is_alive()
+    assert not sink.submit({"price": 3})
