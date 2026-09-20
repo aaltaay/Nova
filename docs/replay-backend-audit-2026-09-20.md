@@ -182,3 +182,16 @@ After the concurrent-admission fix, the affected historical suites passed
 benchmark. Capture selection/fidelity and browser evidence are recorded by the
 other parts of this PR. These results establish the tested boundaries; they do
 not claim live IBKR coverage or an exhaustive clean bill of health.
+
+## Linux CI follow-up
+
+PR #387 merged after the Windows-focused evidence above. Its Linux backend CI
+passed 978 tests before the file-recreation regression failed: the filesystem
+reused the same device/inode and did not expose birth time, so a new empty SQLite
+file incorrectly inherited the prior schema proof. Each connection now checks
+`PRAGMA user_version` before accepting a matching cached identity. Version zero
+migrates even after inode reuse; unknown versions refuse even on a warmed path.
+Valid version-one connections still avoid repeated DDL/WAL transitions. New
+portable tests force identical device/inode and missing birth time for both empty
+and legacy replacements. This extends the original audit's platform coverage;
+the paired performance measurements above remain the original observed runs.

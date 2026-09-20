@@ -119,10 +119,13 @@ pause/failure/completion, or while stale. Resume resets its timing baseline.
 An empty page with cursor before end fails resumably, preserving rows, count and
 cursor. Only nonempty evidence reaching the boundary proves completion.
 Schema initialization uses an integer SQLite `user_version` (v1, migrating legacy
-v0). It runs once per database file identity in each process, under a separate
-initialization lock; file replacement invalidates the bounded identity registry.
-Unknown versions refuse with an archive error. Repeated connections set the
-connection timeout but do not repeat schema DDL or journal-mode transitions.
+v0). Each connection checks the database's version before trusting the bounded
+file-identity registry: filesystems may reuse an inode and omit birth time after
+replacement. Only a matching identity at v1 skips initialization. A recreated or
+legacy v0 database runs the known migration under the initialization lock, even
+with a cached identity; unknown versions always refuse with an archive error.
+Repeated valid connections set the connection timeout and read the schema version,
+but do not repeat schema DDL or journal-mode transitions.
 New download admission checks active ownership, validates retry cooldown, creates
 the row, and claims it in one SQLite transaction. Simultaneous requests cannot
 leave a refused request's queued orphan behind; resume uses the same active-job

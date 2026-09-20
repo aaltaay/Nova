@@ -5,6 +5,28 @@
   "updated": "2026-09-20",
   "items": [
     {
+      "id": "#386",
+      "title": "Historical replay calendar treats non-2026 exchange holidays as trading days",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "market-feed",
+      "number": "386",
+      "url": "https://github.com/aaltaay/Nova/issues/386",
+      "state": "OPEN"
+    },
+    {
+      "id": "#385",
+      "title": "Strategy replay exposes final minute bars before their interval closes",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "hod-momo",
+      "number": "385",
+      "url": "https://github.com/aaltaay/Nova/issues/385",
+      "state": "OPEN"
+    },
+    {
       "id": "#369",
       "title": "Branch hygiene deletes a recreated branch that has unmerged commits",
       "kind": "bug",
@@ -130,11 +152,11 @@
       "title": "Unfinished: live UI performance measurement and the replay engine backend audit",
       "kind": "feature",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed | tester",
       "number": "341",
       "url": "https://github.com/aaltaay/Nova/issues/341",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-076",
@@ -163,22 +185,22 @@
       "title": "Historical replay card loses its module chrome, overrides layout prefs, and the Sim feature has no stylesheet (light theme broken)",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "ui",
       "number": "338",
       "url": "https://github.com/aaltaay/Nova/issues/338",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-073",
       "title": "Capture fidelity defects: L2 drops instead of coalescing, silent decimation, no schema_version, 1d bucket lookahead",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed",
       "number": "337",
       "url": "https://github.com/aaltaay/Nova/issues/337",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-078",
@@ -251,33 +273,33 @@
       "title": "Replay performance: five 1 Hz poll loops, scrub strobing, an unvirtualized tape, and blocking file I/O on the event loop",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed | ui",
       "number": "324",
       "url": "https://github.com/aaltaay/Nova/issues/324",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-071",
       "title": "Replay panel usability defects: popover parks on the scrubber, one busy flag locks every control, stale \"Loaded\" message",
       "kind": "bug",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "ui",
       "number": "322",
       "url": "https://github.com/aaltaay/Nova/issues/322",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-070",
       "title": "A 50-minute replay download shows no progress, no ETA, no staleness, and is invisible once the panel is closed",
       "kind": "feature",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "ui",
       "number": "321",
       "url": "https://github.com/aaltaay/Nova/issues/321",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-069",
@@ -372,11 +394,11 @@
       "title": "CHANGELOG.md structure is corrupted; three Sim/replay entries are buried inside the instructions block",
       "kind": "bug",
       "severity": "P3",
-      "status": "open",
+      "status": "done",
       "domain": "docs",
       "number": "312",
       "url": "https://github.com/aaltaay/Nova/issues/312",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-060",
@@ -471,11 +493,11 @@
       "title": "Historical download marks an empty mid-window IBKR page as complete",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed",
       "number": "303",
       "url": "https://github.com/aaltaay/Nova/issues/303",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-054",
@@ -504,11 +526,11 @@
       "title": "SIM replay exposes future bars and final intrabar values",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed | widgets",
       "number": "292",
       "url": "https://github.com/aaltaay/Nova/issues/292",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-051",
