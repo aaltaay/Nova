@@ -43,9 +43,16 @@ Rules:
 - **Claim before you work** when other agents may be active — they run from
   Claude, Codex and Cursor against the same GitHub account, so `assignee` cannot
   identify a holder: `py -3 tools/backlog_triage.py claim --package <slug> --batch <n>
-  --branch <name>` (set `NOVA_AGENT_ID`). `next` skips claimed batches. Claims go
-  stale after 4h; `claims` lists holders; `release` clears one you did not ship.
-  A merged PR retires its own claim. Advisory, not mutual exclusion.
+  --branch <name>` (set `NOVA_AGENT_ID`). `next` skips claimed batches.
+  Advisory, not mutual exclusion.
+  The claim **cuts the branch it names** and links it from the batch's lowest
+  issue, so `claimed` always means a branch you can fetch — a claim that cannot
+  create its branch withdraws itself. Check it out with
+  `git fetch origin && git checkout <name>`; do not create it by hand first.
+  Claims go stale 4h after the newer of the claim and the branch's last commit,
+  so work keeps a claim alive. `claims` lists holders; `release` clears one you
+  did not ship and deletes the branch **only** while it carries no commits and
+  has no PR (`--keep-branch` to keep it). A merged PR retires its own claim.
 - For a multi-agent pass over one package use `.claude/workflows/backlog-wave.js`
   (2–3 agents, claims each batch, ramps down before token limits). Only when the
   user has opted into workflows.

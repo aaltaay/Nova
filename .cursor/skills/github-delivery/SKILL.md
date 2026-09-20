@@ -63,7 +63,12 @@ Code, config, CI, security, and rule changes are PR-first. These gates are **MUS
 3. If the worktree has uncommitted or unrelated dirty files: do **not** proceed on top of them. Reset or clean tracked files you do not own in this task so they match `origin/master`, or abort and report the dirty paths. Never "just keep working" on mixed dirty state.
 4. Cloud and desktop agents: "isolated" means a clean tip of `origin/master` plus a new branch. Local dirty IDE state is not a valid base.
 5. Set the issue/project status to In Progress.
-6. Preserve issue identity in the branch or PR.
+6. Preserve issue identity in the branch or PR. For backlog batches
+   `backlog_triage.py claim` already cut and linked the branch; otherwise
+   `gh issue develop <number> --base master --name <branch>` puts it in the
+   issue's Development panel before any PR exists, so the issue shows someone
+   is on it. On `403`, report that the token cannot write branches -- never
+   claim the link exists.
 7. Use soft TDD for behavior changes.
 
 Direct `master` pushes are limited to status-only operations or explicit user instruction.
@@ -78,7 +83,7 @@ Fill `.github/pull_request_template.md` completely.
 - Include fresh test/build/lint/browser evidence.
 - Include behavior changes, root cause, and verification in the PR body; CHANGELOG is generated.
 
-The PR is the Development link and the task narrative. Do not also create a task-log file for the same work.
+The PR is the task narrative. Do not also create a task-log file for the same work. It joins any linked branch already in the issue's Development panel rather than replacing it.
 
 ## 5. Advisory verification
 
