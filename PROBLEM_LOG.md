@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-20 -- Parked L3 autonomy came back live from the session file
+
+- **Symptom:** `PATCH /api/bot/session {"level": 3}` correctly returns 409 `BOT_L3_PARKED`, but a `bot_session.json` on disk carrying `"level": 3` loaded as level 3 and sailed through `assert_not_dark()` and the `level < BOT_LEVEL_STRATEGY` check in `assert_can_fire()` (3 >= 2). The park was enforced on the write door only.
+- **Cause:** `bot/autonomy._validate_level` guards `apply_patch`, which is the only *writer* of `level`. `bot/persist.load_session` merges the raw file over `default_session()` with no level validation, so any level that reached the file by another route -- stale state from a build where L3 was not refused, a hand-edited file, a future code path -- came back live on the next process start.
+- **Fix:** Added `_refuse_parked_level` in `backend/bot/persist.py`, called from `load_session` after the merge. Any level at or above `BOT_LEVEL_UNRESTRICTED`, including an unparseable one, clamps to `BOT_LEVEL_OFF` with `armed=False` and `strategy=None`, and logs a warning. Levels 0-2 are untouched. Pinned by `test_persisted_parked_level_loads_dark[3|4|99]`, `test_persisted_l2_still_loads_l2` and `test_l3_is_parked_through_the_desk_shortcut` in `backend/tests/test_bot_session.py`.
+- **Fix class:** admission
+- **Keywords:** bot, autonomy, L3, BOT_L3_PARKED, parked level, load_session, persist, session file, clamp, dark, #216
+
 ## 2026-09-19 -- Cleanup failures looked successful and maintenance needed manual installation
 
 - **Symptom:** `repo_hygiene.py fix` returned 0 after failed git commands, and the scheduled PowerShell pipeline discarded Python's result. Nightly cleanup remained uninstalled after delivery.
