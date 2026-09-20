@@ -25,6 +25,36 @@ AcceptSession = Callable[["IB", str], tuple[bool, str]]
 AttemptConnect = Callable[["IB", str, int, int], Awaitable[tuple[bool, str]]]
 
 
+def connect_fetch_fields() -> Any:
+    """Everything ib_async syncs at connect EXCEPT completed orders (D-057).
+
+    ``connectAsync`` gathers its startup requests and awaits them together, so
+    a Gateway that stops answering ``reqCompletedOrders`` -- which it can do
+    for hours after a Gateway<->IBKR server reconnect while every other
+    request still answers in under a second -- burns the whole connect budget,
+    and Nova then reports ``gateway_authenticating`` when nothing is wrong
+    with the login. Completed orders are fetched after READY instead
+    (``ibkr.completed_orders_warm``), where being slow costs nothing.
+
+    Returns ``None`` when the running ib_async has no ``StartupFetch``; the
+    caller then connects with that version's own defaults.
+    """
+    try:
+        from ib_async import StartupFetch
+    except Exception:  # pragma: no cover - ib_async without StartupFetch
+        logger.warning(
+            "IBKR: ib_async has no StartupFetch -- connect will still wait on "
+            "reqCompletedOrders",
+            exc_info=True,
+        )
+        return None
+    fields = StartupFetch(0)
+    for member in StartupFetch:
+        if member is not StartupFetch.ORDERS_COMPLETE:
+            fields |= member
+    return fields
+
+
 def safe_disconnect(ib: Any) -> None:
     """Best-effort teardown — call even when isConnected() is False (half-open)."""
     if ib is None:
@@ -56,10 +86,14 @@ async def attempt_connect(
     se.install_error_hook(ib)
     wall = float(IBKR_CONNECT_TIMEOUT_SEC)
     inner = max(1.0, wall - 0.5)
+    fetch_fields = connect_fetch_fields()
+    kwargs: dict[str, Any] = {"clientId": client_id, "timeout": inner}
+    if fetch_fields is not None:
+        kwargs["fetchFields"] = fetch_fields
     try:
         async with timed("ibkr.connect"):
             await asyncio.wait_for(
-                ib.connectAsync(host, port, clientId=client_id, timeout=inner),
+                ib.connectAsync(host, port, **kwargs),
                 timeout=wall,
             )
         return True, "ok"
