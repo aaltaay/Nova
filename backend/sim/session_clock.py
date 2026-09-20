@@ -155,29 +155,29 @@ def phase_tick_interval_sec(at: datetime | None = None) -> float:
     return 0.12
 
 
-def scrub_to_minute(minute_from_open: int) -> dict[str, Any]:
+def scrub_to_minute(minute_from_open: int, *, notify: bool = True) -> dict[str, Any]:
     """UI scrubber is still minute-grained; playhead then advances per real second."""
     minute = int(max(0, min(int(minute_from_open), session_seconds() // 60)))
-    return scrub_to_second(float(minute * 60))
+    return scrub_to_second(float(minute * 60), notify=notify)
 
 
-def scrub_to_second(second_from_open: float) -> dict[str, Any]:
+def scrub_to_second(second_from_open: float, *, notify: bool = True) -> dict[str, Any]:
     global _scrub_second, _scrub_anchor_mono, _paused_at
     _scrub_second = _clamp_sec(second_from_open)
     _scrub_anchor_mono = time_mod.monotonic()
     if _paused_at is not None:
         start, _ = session_bounds_on(_paused_at)
         _paused_at = start + timedelta(seconds=_scrub_second)
-    try:
-        from sim import market as _market
-
-        _market.rebuild_for_scrub()
-    except Exception:
-        pass
+    if notify:
+        try:
+            from sim import market as _market
+            _market.rebuild_for_scrub()
+        except Exception:
+            pass
     return status_payload()
 
 
-def keep_time_of_day(at: datetime) -> dict[str, Any]:
+def keep_time_of_day(at: datetime, *, notify: bool = True) -> dict[str, Any]:
     """Place the playhead at ``at``'s Eastern clock time on the current session date.
 
     Used after the window/date changed (leaving historical replay); pause is kept.
@@ -187,7 +187,7 @@ def keep_time_of_day(at: datetime) -> dict[str, Any]:
     target = datetime.combine(start.date(), at.astimezone(ET).time(), tzinfo=ET)
     if _paused_at is not None:
         _paused_at = start  # re-date the frozen position; scrub places it below
-    return scrub_to_second((target - start).total_seconds())
+    return scrub_to_second((target - start).total_seconds(), notify=notify)
 
 
 def clear_scrub() -> dict[str, Any]:

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -9,19 +10,18 @@ logger = logging.getLogger(__name__)
 _date: str | None = None
 _symbol: str | None = None
 _load_info: dict[str, Any] | None = None
+_generation = 0
+_selection_lock = threading.RLock()
 
 
 def clear_capture() -> None:
     """Drop the captured day/ticker (historical selection is owned elsewhere)."""
-    global _date, _symbol, _load_info
-    _date = None
-    _symbol = None
-    _load_info = None
-    try:
-        from sim import capture_player as _player
+    global _date, _symbol, _load_info, _generation
+    from sim import capture_player as _player
+    with _selection_lock:
+        _generation += 1
+        _date = _symbol = _load_info = None
         _player.unload()
-    except Exception:
-        logger.warning("CAPTURE PLAY: unload failed", exc_info=True)
 
 
 def reset_for_tests() -> None:
@@ -37,27 +37,24 @@ def status_payload() -> dict[str, Any]:
         return dict(replay_date=historical["date"], replay_symbol=historical["symbol"],
                     replay_source="historical", replay_load=historical,
                     replay_ok=True, replay_error=None)
-    capture = is_capture_replay()
-    out: dict[str, Any] = {
-        "replay_date": _date,
-        "replay_symbol": _symbol,
-        "replay_source": "capture" if capture else "synthetic",
-        "replay_ok": not _load_info or bool(_load_info.get("ok")),
-        "replay_error": _load_info.get("error") if _load_info else None,
-    }
-    if _load_info:
-        out["replay_load"] = _load_info
-    return out
+    with _selection_lock:
+        capture = is_capture_replay()
+        out: dict[str, Any] = {
+            "replay_date": _date,
+            "replay_symbol": _symbol,
+            "replay_source": "capture" if capture else "synthetic",
+            "replay_ok": not _load_info or bool(_load_info.get("ok")),
+            "replay_error": _load_info.get("error") if _load_info else None,
+        }
+        if _load_info:
+            out["replay_load"] = _load_info
+        return out
 
 
 def is_capture_replay() -> bool:
-    if not (_date and _symbol):
-        return False
-    try:
-        from sim import capture_player as _player
-        return _player.is_loaded()
-    except Exception:
-        return False
+    from sim import capture_player as _player
+    with _selection_lock:
+        return bool(_date and _symbol and _player.is_loaded())
 
 
 def set_replay(date: str | None, symbol: str | None) -> dict[str, Any]:
@@ -66,64 +63,80 @@ def set_replay(date: str | None, symbol: str | None) -> dict[str, Any]:
     from sim import capture_player as _player
     from sim import session_clock as _clock
     from sim import history_playback
-    # Leaving historical replay keeps pause and the Eastern time of day (sim-clock.md).
-    left_historical = _clock.now_et() if history_playback.status() else None
-    history_playback.clear()
-    _clock.set_window()
-
     d = (date or "").strip() or None
     s = (symbol or "").strip().upper() or None
+    # Register source intent atomically in history -> capture lock order.
+    # No disk load or notification fanout may run in this transition.
+    with history_playback.capture_transition() as previous:
+        left_historical = _clock.now_et() if previous else None
+        with _selection_lock:
+            clear_capture()
+            generation = _generation
+            _clock.set_window()
+            if not d or not s:
+                _clock.set_session_date(None)
+                if left_historical is not None:
+                    _clock.keep_time_of_day(left_historical, notify=False)
+                player_generation = None
+            else:
+                _load_info = {"ok": False, "error": "Loading capture"}
+                player_generation = _player.prepare_load()
     if not d or not s:
-        _date = None
-        _symbol = None
-        _load_info = None
-        _player.unload()
-        _clock.set_session_date(None)
-        if left_historical is not None:
-            _clock.keep_time_of_day(left_historical)
+        _refresh_views(generation)
         return status_payload()
-
     try:
-        info = _player.load(d, s)
+        info = _player.load(d, s, generation=player_generation)
     except Exception:
         logger.exception("CAPTURE PLAY: load failed for %s %s", d, s)
         info = {"ok": False, "error": f"Could not read capture {d} {s}"}
-    if not info.get("ok"):
-        return fail_replay(str(info.get("error") or "Capture contains no usable data"))
-    _date = d
-    _symbol = s
-    _load_info = info
-    _clock.set_session_date(d)
-    # Scrub to session open so user can slide into the capture; seek emit cursor
-    _clock.scrub_to_minute(0)
-    try:
-        _player.seek_emit_cursor(_clock.now_et().timestamp())
-    except Exception:
-        pass
-    # If capture has prints, jump scrub near first print's session minute
-    first = info.get("first_ts") if isinstance(info, dict) else None
-    if isinstance(first, (int, float)) and first > 0:
-        try:
-            from datetime import datetime
-            from zoneinfo import ZoneInfo
-            ET = ZoneInfo("America/New_York")
-            start, _end = _clock.session_bounds_on(datetime.fromtimestamp(float(first), tz=ET))
-            minute = int(max(0, min((float(first) - start.timestamp()) // 60,
-                                     _clock.session_seconds() // 60)))
-            _clock.scrub_to_minute(minute)
-            _player.seek_emit_cursor(_clock.now_et().timestamp())
-        except Exception:
-            logger.exception("CAPTURE PLAY: could not align scrub to first print")
-    logger.info("CAPTURE PLAY: set_replay %s %s ok=%s", d, s, info.get("ok") if info else None)
+    with _selection_lock:
+        if generation == _generation:
+            if not info.get("ok"):
+                _player.unload()
+                _load_info = info
+                _clock.set_session_date(None)
+            else:
+                _date, _symbol, _load_info = d, s, info
+                _align_clock(d, info)
+    _refresh_views(generation)
+    # Never call historical status under the capture lock: history publication
+    # owns its lock before it invalidates capture via clear_capture().
     return status_payload()
 
 
-def fail_replay(error: str) -> dict[str, Any]:
+def generation_matches(expected: int) -> bool:
+    with _selection_lock:
+        return expected == _generation
+
+
+def _refresh_views(generation: int) -> None:
+    from sim import market
+    if generation_matches(generation):
+        market.rebuild_for_scrub(expected_capture_generation=generation)
+
+
+def _align_clock(date: str, info: dict) -> None:
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    from sim import capture_player as player, session_clock as clock
+    clock.set_session_date(date)
+    clock.scrub_to_minute(0, notify=False)
+    first = info.get("first_ts")
+    if isinstance(first, (int, float)) and first > 0:
+        start, _end = clock.session_bounds_on(datetime.fromtimestamp(first, ZoneInfo("America/New_York")))
+        minute = int(max(0, min((first - start.timestamp()) // 60, clock.session_seconds() // 60)))
+        clock.scrub_to_minute(minute, notify=False)
+    player.seek_emit_cursor(clock.now_et().timestamp())
+
+
+
+def fail_replay(error: str, load_info: dict | None = None) -> dict[str, Any]:
     """Drop the failed capture and expose a persistent, explicit failure."""
     global _load_info
     from sim import session_clock as _clock
-    clear_capture()
-    _load_info = {"ok": False, "error": error}
-    _clock.set_session_date(None)
+    with _selection_lock:
+        clear_capture()
+        _load_info = {**(load_info or {}), "ok": False, "error": error}
+        _clock.set_session_date(None)
     logger.warning("CAPTURE PLAY: %s", error)
     return status_payload()

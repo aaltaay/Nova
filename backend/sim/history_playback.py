@@ -1,181 +1,157 @@
-"""Immutable historical selection; candles and tape share one event-time cut."""
+"""Bounded immutable selection; disk/index work never owns the playback lock."""
 from __future__ import annotations
 
 import bisect
 import threading
-from functools import wraps
-from datetime import date, datetime, time, timedelta, timezone
+from array import array
+from contextlib import contextmanager
+from dataclasses import dataclass
+from datetime import datetime, timezone
 
-from constants_sim import SIM_HISTORY_TAPE_ROWS
+from constants_sim import (
+    SIM_HISTORY_MAX_SELECTION_PRINTS, SIM_HISTORY_QUOTE_CANDLES, SIM_HISTORY_TAPE_ROWS,
+)
 from sim import history_store as store
-from sim.history_store import ET
+from sim.chart_replay import INTERVAL_SECONDS
+from sim.history_cache import CandleCache, previous_close
 
 _lock = threading.RLock()
+_load_lock = threading.Lock()
+_generation = 0
 
 
-def synchronized(fn):
-    @wraps(fn)
-    def wrapped(*args, **kwargs):
-        with _lock:
-            return fn(*args, **kwargs)
-    return wrapped
+@dataclass(frozen=True)
+class Selection:
+    spec: dict
+    prints: tuple
+    keys: array
+    eligible: tuple
+    eligible_keys: array
+    volumes: array
+    highs: array
+    lows: array
+    prev_close: float | None
+    candles: CandleCache
 
 
-_selection: dict | None = None
-# Every downloaded print (Time & Sales) ...
-_prints: list[dict] = []
-_keys: list[int] = []
-# ... and the prints IBKR reports as tape-eligible (unreported=False). Only these
-# build candles, last and volume, matching IBKR's own historical bars.
-_eligible: list[dict] = []
-_ekeys: list[int] = []
-_volumes: list[float] = []
-# Running session high/low over eligible prints, parallel to _volumes.
-_highs: list[float] = []
-_lows: list[float] = []
-_buckets: dict[int, list[dict]] = {}
-_prev_close: dict[str, float | None] = {}
+_selection: Selection | None = None
 
 
-@synchronized
 def clear():
-    global _selection, _prints, _keys, _eligible, _ekeys, _volumes, _highs, _lows, _buckets
-    _selection, _prints, _keys, _eligible, _ekeys, _volumes = None, [], [], [], [], []
-    _highs, _lows, _buckets = [], [], {}
-    _prev_close.clear()
+    global _selection, _generation
+    with _lock:
+        _generation += 1
+        _selection = None
 
 
-@synchronized
-def status():
-    return dict(_selection) if _selection else None
+@contextmanager
+def capture_transition():
+    """Atomically retire history and register capture intent, in history→capture order.
 
-
-@synchronized
-def select(spec: dict):
-    """Load reached trade coverage for the window; never creates a download job."""
-    global _selection, _prints, _keys, _eligible, _ekeys, _volumes, _highs, _lows, _buckets
-    from sim import replay, session_clock
-    previous = _selection
-    same_window = previous is not None and all(
-        previous[k] == spec[k] for k in ("symbol", "date", "start", "end"))
-    replay.clear_capture()
-    job = store.find(spec, "trades")
-    rows = ([r for r in store.read_prints(job["id"]) if r["ts"] < job["cursor"]]
-            if job else [])
-    eligible = [r for r in rows if not r.get("unreported")]
-    volumes, highs, lows, total = [], [], [], 0
-    for row in eligible:
-        total += row["size"]
-        volumes.append(total)
-        highs.append(max(highs[-1], row["price"]) if highs else row["price"])
-        lows.append(min(lows[-1], row["price"]) if lows else row["price"])
-    _prints, _keys, _buckets = rows, [r["ts"] for r in rows], {}
-    _eligible, _ekeys, _volumes = eligible, [r["ts"] for r in eligible], volumes
-    _highs, _lows = highs, lows
-    _prev_close.clear()
-    _selection = dict(spec, coverage_through=job["cursor"] if job else spec["start_ts"],
-                      trade_count=len(rows), download_status=job["status"] if job else "missing",
-                      job_id=job["id"] if job else None)
-    session_clock.set_session_date(spec["date"])
-    session_clock.set_window(spec["start"], spec["end"])
-    if not same_window:
-        session_clock.scrub_to_second(0)  # a reload of the same window keeps the playhead
-    return status()
-
-
-@synchronized
-def bars(symbol: str, timeframe: str, limit: int, now: datetime):
-    from bars_store import read
-    from sim.chart_replay import INTERVAL_SECONDS, aggregate_prints
-    spec = _selection
-    if not spec or timeframe not in INTERVAL_SECONDS:
-        return None
-    seconds = INTERVAL_SECONDS[timeframe]
-    cutoff = min(now.timestamp(), spec["end_ts"])
-    stored = read(symbol, timeframe, limit, from_ts=spec["start_ts"], through_ts=cutoff - seconds)
-    result = (stored or {}).get("bars", [])
-    # Retained downloads survive eviction of the shared chart cache.
-    retained = store.read_candles(symbol, spec["start_ts"], min(cutoff, spec["end_ts"]))
-    if timeframe != "1Min":
-        from ibkr.historical_derive import derive_from_1min
-        retained = derive_from_1min(retained, timeframe)
-    merged = {datetime.fromisoformat(r["t"].replace("Z", "+00:00")).timestamp(): r for r in result}
-    for row in retained:
-        ts = datetime.fromisoformat(row["t"].replace("Z", "+00:00")).timestamp()
-        if spec["start_ts"] <= ts and ts + seconds <= cutoff:
-            merged[ts] = row
-    result = list(merged.values())
-    if symbol == spec["symbol"] and _prints:
-        # Replace an archive bucket only if its whole reached portion is downloaded.
-        coverage = spec["coverage_through"]
-        result = [r for r in result if not (
-            spec["start_ts"] <= datetime.fromisoformat(r["t"].replace("Z", "+00:00")).timestamp()
-            and datetime.fromisoformat(r["t"].replace("Z", "+00:00")).timestamp() + seconds <= coverage)]
-        if seconds not in _buckets:
-            _buckets[seconds] = aggregate_prints(_eligible, seconds)
-        current = int(cutoff // seconds) * seconds
-        completed = [r for r in _buckets[seconds] if r["ts"] + seconds <= cutoff]
-        reached = _eligible[bisect.bisect_left(_ekeys, current):bisect.bisect_right(_ekeys, min(cutoff, coverage - 1))]
-        for row in completed + aggregate_prints(reached, seconds):
-            if row["ts"] + seconds > coverage and cutoff >= coverage:
-                continue
-            result.append(dict(t=datetime.fromtimestamp(row["ts"], timezone.utc).isoformat(),
-                               o=row["open"], h=row["high"], l=row["low"], c=row["close"],
-                               v=row["volume"], partial=row["ts"] + seconds > cutoff))
-    return sorted(result, key=lambda r: r["t"])[-limit:]
-
-
-def _previous_close(symbol: str, spec: dict) -> float | None:
-    """Prior trading day's regular-session close, or None when it is not stored.
-
-    The live quote head measures change against IBKR's official close, so prefer
-    the 15:59 ET minute bar; stored daily bars include extended hours
-    (useRTH=False) and are only the fallback. Never use an older session.
+    The caller must hold this only for local state/clock publication, never disk
+    work or callbacks that acquire the historical lock in another thread.
     """
-    if symbol in _prev_close:
-        return _prev_close[symbol]
-    from bars_store import read
-    from sim.trading_day import last_trading_day
-    prior = last_trading_day(date.fromisoformat(spec["date"]) - timedelta(days=1))
-    last_minute = datetime.combine(prior, time(15, 59), ET).timestamp()
-    daily_label = datetime.combine(prior, time(0, 0), timezone.utc).timestamp()
-    for timeframe, ts in (("1Min", last_minute), ("1Day", daily_label)):
-        rows = (read(symbol, timeframe, 1, from_ts=ts, through_ts=ts) or {}).get("bars") or []
-        if rows:
-            # Cache hits only: bars stored later in the selection still count.
-            _prev_close[symbol] = float(rows[-1]["c"])
-            return _prev_close[symbol]
-    return None
+    with _lock:
+        previous = dict(_selection.spec) if _selection else None
+        clear()
+        yield previous
 
 
-@synchronized
+def status():
+    with _lock:
+        return dict(_selection.spec) if _selection else None
+
+
+def _load(spec: dict) -> Selection:
+    job = store.find(spec, 'trades')
+    rows = (store.read_prints(job['id'], through=job['cursor'],
+                             limit=SIM_HISTORY_MAX_SELECTION_PRINTS + 1) if job else [])
+    if len(rows) > SIM_HISTORY_MAX_SELECTION_PRINTS:
+        raise ValueError(f'Replay exceeds {SIM_HISTORY_MAX_SELECTION_PRINTS:,} prints; narrow the window')
+    eligible = tuple(row for row in rows if not row.get('unreported'))
+    volumes, highs, lows = array('d'), array('d'), array('d')
+    total = 0
+    for row in eligible:
+        total += row['size']
+        volumes.append(total)
+        highs.append(max(highs[-1], row['price']) if highs else row['price'])
+        lows.append(min(lows[-1], row['price']) if lows else row['price'])
+    selected = dict(spec, coverage_through=job['cursor'] if job else spec['start_ts'],
+                    trade_count=len(rows), download_status=job['status'] if job else 'missing',
+                    job_id=job['id'] if job else None)
+    prints, eligible_keys = tuple(rows), array('q', (row['ts'] for row in eligible))
+    return Selection(selected, prints, array('q', (row['ts'] for row in rows)), eligible,
+                     eligible_keys, volumes, highs, lows, previous_close(spec['symbol'], spec),
+                     CandleCache(selected, prints, eligible, eligible_keys))
+
+
+def select(spec: dict):
+    """Publish after loading; a newer select/clear fences a superseded disk load."""
+    global _selection, _generation
+    from sim import replay, session_clock
+    with _lock:
+        _generation += 1
+        generation = _generation
+    # Only one large transient materialization at a time; readers keep old selection.
+    with _load_lock:
+        loaded = _load(spec)
+        with _lock:
+            if generation != _generation:
+                raise ValueError('Historical selection changed while loading; retry the desired window')
+            previous = _selection.spec if _selection else None
+            same_window = previous is not None and all(
+                previous[key] == spec[key] for key in ('symbol', 'date', 'start', 'end'))
+            replay.clear_capture()
+            _selection = loaded
+            session_clock.set_session_date(spec['date'])
+            session_clock.set_window(spec['start'], spec['end'])
+            if not same_window:
+                session_clock.scrub_to_second(0)
+            return dict(loaded.spec)
+
+
+def bars(symbol: str, timeframe: str, limit: int, now: datetime):
+    with _lock:
+        selected = _selection
+    if not selected or timeframe not in INTERVAL_SECONDS:
+        return None
+    return selected.candles.bars(symbol, timeframe, limit, now.timestamp())
+
+
 def snapshot(symbol: str):
     from sim import session_clock
-    spec = _selection
-    if not spec:
-        return {"active": False}
-    now = session_clock.now_et()
-    result = dict(active=True, symbol=symbol, as_of=now.isoformat(), selection=spec,
-                  prints=[], last=None, volume=None, source="completed_bars",
-                  open=None, high=None, low=None, prev_close=_previous_close(symbol, spec),
+    with _lock:
+        selected, now = _selection, session_clock.now_et()
+    if not selected:
+        return {'active': False}
+    spec = selected.spec
+    result = dict(active=symbol == spec['symbol'], symbol=symbol, as_of=now.isoformat(),
+                  selection=dict(spec), prints=[], last=None, volume=None, source='completed_bars',
+                  open=None, high=None, low=None, prev_close=None,
                   bid=None, ask=None, depth_available=False)
-    if symbol == spec["symbol"] and _prints:
-        end = bisect.bisect_right(_keys, now.timestamp())
-        eligible_end = bisect.bisect_right(_ekeys, now.timestamp())
+    if not result['active']:
+        return result
+    result['prev_close'] = selected.prev_close
+    cutoff = min(now.timestamp(), spec['end_ts'])
+    if selected.prints:
+        end = bisect.bisect_right(selected.keys, cutoff)
+        eligible_end = bisect.bisect_right(selected.eligible_keys, cutoff)
         reached = eligible_end - 1
-        result.update(source="trades", volume=_volumes[reached] if eligible_end else 0,
-                      last=_eligible[reached]["price"] if eligible_end else None,
-                      open=_eligible[0]["price"] if eligible_end else None,
-                      high=_highs[reached] if eligible_end else None,
-                      low=_lows[reached] if eligible_end else None)
-        recent = _prints[max(0, end - SIM_HISTORY_TAPE_ROWS):end]
-        result["prints"] = [dict(r, time=datetime.fromtimestamp(r["ts"], timezone.utc).isoformat(),
-                                 bid=None, ask=None, side=None) for r in recent][::-1]
-    if result["source"] != "trades" or now.timestamp() >= spec["coverage_through"]:
-        candles = bars(symbol, "1Min", 2000, now) or []
+        result.update(source='trades', volume=selected.volumes[reached] if eligible_end else 0,
+                      last=selected.eligible[reached]['price'] if eligible_end else None,
+                      open=selected.eligible[0]['price'] if eligible_end else None,
+                      high=selected.highs[reached] if eligible_end else None,
+                      low=selected.lows[reached] if eligible_end else None)
+        start = max(0, end - SIM_HISTORY_TAPE_ROWS)
+        result['prints'] = [dict(row, ordinal=i,
+                                time=datetime.fromtimestamp(row['ts'], timezone.utc).isoformat(),
+                                bid=None, ask=None, side=None)
+                            for i, row in enumerate(selected.prints[start:end], start)][::-1]
+    if result['source'] != 'trades' or cutoff >= spec['coverage_through']:
+        candles = selected.candles.bars(symbol, '1Min', SIM_HISTORY_QUOTE_CANDLES, cutoff)
         if candles:
-            result.update(last=candles[-1]["c"], volume=sum(r["v"] for r in candles),
-                          open=candles[0]["o"], high=max(r["h"] for r in candles),
-                          low=min(r["l"] for r in candles),
-                          source="mixed" if result["prints"] else "completed_bars")
+            result.update(last=candles[-1]['c'], volume=sum(row['v'] for row in candles),
+                          open=candles[0]['o'], high=max(row['h'] for row in candles),
+                          low=min(row['l'] for row in candles),
+                          source='mixed' if result['prints'] else 'completed_bars')
     return result

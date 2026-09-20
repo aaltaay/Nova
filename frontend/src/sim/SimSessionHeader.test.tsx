@@ -221,3 +221,103 @@ it('empty recordings are visibly disabled in the ticker picker', async () => {
   const empty = screen.getByRole('option', { name: 'EMPTY · No recorded prints or quotes' }) as HTMLOptionElement;
   expect(empty.disabled).toBe(true);
 });
+
+it('commits one seek on pointer release and describes slider time for screen readers', async () => {
+  await mount();
+  const slider = screen.getByRole('slider', { name: 'Sim replay time' });
+  await act(async () => {
+    fireEvent.pointerDown(slider);
+    fireEvent.change(slider, { target: { value: '100' } });
+    await vi.advanceTimersByTimeAsync(500);
+    fireEvent.change(slider, { target: { value: '200' } });
+    await vi.advanceTimersByTimeAsync(500);
+  });
+  expect(mocks.fetch.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0);
+  expect(slider.getAttribute('aria-valuetext')).toBe('07:20:00 Eastern');
+  await act(async () => fireEvent.pointerUp(slider));
+  expect(mocks.fetch.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
+});
+it('refreshes completed captures and never prints the unknown-count sentinel', async () => {
+  await mount();
+  const original = mocks.fetch.getMockImplementation()!;
+  mocks.fetch.mockImplementation(async (url: string, init?: RequestInit) => url.endsWith('/sessions') ? responseSessions() : original(url, init));
+  function responseSessions() { return { ok: true, json: async () => ({ days: [{ date: '2026-09-19', ticker_count: 1 }],
+    tickers_by_day: { '2026-09-19': [{ symbol: 'NEW', prints: -1, l2: 0 }] } }) }; }
+  await act(async () => vi.advanceTimersByTimeAsync(15000));
+  expect(screen.getByRole('option', { name: /NEW.*data present/ })).toBeTruthy();
+  expect(screen.queryByText(/-1p/)).toBeNull();
+});
+
+it('retains slider focus and commits the final keyboard step while a prior seek is pending', async () => {
+  await mount();
+  const original = mocks.fetch.getMockImplementation()!;
+  let resolveFirst!: (value: unknown) => void;
+  let posts = 0;
+  mocks.fetch.mockImplementation((url: string, init?: RequestInit) => {
+    if (url.endsWith('/clock') && init?.method === 'POST' && ++posts === 1) return new Promise(resolve => { resolveFirst = resolve; });
+    return original(url, init);
+  });
+  const slider = screen.getByRole('slider') as HTMLInputElement;
+  slider.focus();
+  await act(async () => { fireEvent.change(slider, { target: { value: '0' } }); await vi.advanceTimersByTimeAsync(120); });
+  expect(slider.disabled).toBe(false); expect(document.activeElement).toBe(slider);
+  await act(async () => { fireEvent.change(slider, { target: { value: '1' } }); await vi.advanceTimersByTimeAsync(120); });
+  expect(posts).toBe(1);
+  await act(async () => resolveFirst({ ok: true, json: async () => ({ ...clock, minute_from_open: 0 }) }));
+  expect(posts).toBe(2);
+  expect(slider.value).toBe('1');
+  expect(mocks.fetch).toHaveBeenCalledWith(expect.stringContaining('/clock'), expect.objectContaining({ body: JSON.stringify({ minute_from_open: 1 }) }));
+});
+
+it('Follow wall clock cancels an unsent keyboard seek', async () => {
+  await mount();
+  fireEvent.change(screen.getByRole('slider'), { target: { value: '240' } });
+  await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Follow wall clock' })));
+  await act(async () => vi.advanceTimersByTimeAsync(500));
+  const posts = mocks.fetch.mock.calls.filter(([, init]) => init?.method === 'POST');
+  expect(posts).toHaveLength(1);
+  expect(JSON.parse(String(posts[0][1].body))).toEqual({ follow_wall: true });
+});
+
+it('Follow wall clock waits for an already-sent seek and replaces the queued next step', async () => {
+  await mount();
+  const original = mocks.fetch.getMockImplementation()!;
+  let resolveFirst!: (value: unknown) => void;
+  let posts = 0;
+  mocks.fetch.mockImplementation((url: string, init?: RequestInit) => {
+    if (url.endsWith('/clock') && init?.method === 'POST' && ++posts === 1) return new Promise(resolve => { resolveFirst = resolve; });
+    return original(url, init);
+  });
+  const slider = screen.getByRole('slider');
+  await act(async () => { fireEvent.change(slider, { target: { value: '240' } }); await vi.advanceTimersByTimeAsync(120); });
+  await act(async () => { fireEvent.change(slider, { target: { value: '241' } }); await vi.advanceTimersByTimeAsync(120); });
+  await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Follow wall clock' })));
+  expect(posts).toBe(1);
+  await act(async () => resolveFirst({ ok: true, json: async () => ({ ...clock, minute_from_open: 240, scrubbed: true }) }));
+  await act(async () => vi.advanceTimersByTimeAsync(500));
+  const bodies = mocks.fetch.mock.calls.filter(([, init]) => init?.method === 'POST').map(([, init]) => JSON.parse(String(init.body)));
+  expect(bodies).toEqual([{ minute_from_open: 240 }, { follow_wall: true }]);
+});
+
+it('Return to SIM1 waits for a sent seek and cancels its queued keyboard successor', async () => {
+  const original = mocks.fetch.getMockImplementation()!;
+  let resolveFirst!: (value: unknown) => void;
+  let currentSource = 'historical';
+  mocks.fetch.mockImplementation((url: string, init?: RequestInit) => {
+    if (url.endsWith('/clock') && init?.method === 'POST') return new Promise(resolve => { resolveFirst = resolve; });
+    if (url.endsWith('/api/sim/replay') && init?.method === 'POST') currentSource = 'synthetic';
+    if (url.endsWith('/clock') || url.endsWith('/api/sim/replay')) return Promise.resolve({ ok: true, json: async () => ({ ...clock, replay_source: currentSource }) });
+    return original(url, init);
+  });
+  await mount();
+  const slider = screen.getByRole('slider');
+  await act(async () => { fireEvent.change(slider, { target: { value: '240' } }); await vi.advanceTimersByTimeAsync(120); });
+  await act(async () => { fireEvent.change(slider, { target: { value: '241' } }); await vi.advanceTimersByTimeAsync(120); });
+  await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Return to SIM1' })));
+  expect(currentSource).toBe('historical');
+  await act(async () => resolveFirst({ ok: true, json: async () => ({ ...clock, replay_source: 'historical', minute_from_open: 240 }) }));
+  await act(async () => vi.advanceTimersByTimeAsync(500));
+  const paths = mocks.fetch.mock.calls.filter(([, init]) => init?.method === 'POST').map(([url]) => String(url).split('/').pop());
+  expect(paths).toEqual(['clock', 'replay']);
+  expect(screen.getByTestId('sim-replay-source').textContent).toBe('SIM1');
+});

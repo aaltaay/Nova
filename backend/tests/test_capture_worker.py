@@ -16,6 +16,9 @@ WAIT_SECONDS = 5.0
 @pytest.fixture(autouse=True)
 def isolated_capture(tmp_path, monkeypatch):
     monkeypatch.setenv("NOVA_SIM_CAPTURE_DIR", str(tmp_path))
+    from sim import session_clock
+    session_clock.reset_for_tests()
+    session_clock.set_session_date("2026-09-18")
     from capture import bridge_ibkr
     monkeypatch.setattr(bridge_ibkr, "admission_error", lambda symbol: None)
     mode.set_capture_mode(False)
@@ -24,6 +27,7 @@ def isolated_capture(tmp_path, monkeypatch):
     bar_buckets.reset_for_tests()
     mode.reset_for_tests()
     yield tmp_path
+    session_clock.reset_for_tests()
     mode.set_capture_mode(False)
     recorder.reset_for_tests()
     bar_buckets.reset_for_tests()
@@ -49,7 +53,7 @@ def _block_print(monkeypatch):
     def slow_print(payload):
         entered.set()
         assert release.wait(WAIT_SECONDS), "test failed to release blocked disk"
-        original(payload)
+        return original(payload)
 
     monkeypatch.setattr(recorder, "record_print", slow_print)
     return entered, release

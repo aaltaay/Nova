@@ -1,0 +1,39 @@
+---
+description: Replay desk truth, responsiveness and capture integrity (#321 #322 #338 #324 #341 #303 #337 #320)
+globs: frontend/src/sim/**,backend/sim/**,backend/capture/**
+alwaysApply: false
+---
+
+# Replay desk contract
+
+Extend ADR 017's canonical history engine; ADR 001/003/005 govern module extraction
+and ADR 006 governs feature CSS. Capture remains a compatibility feeder.
+
+- Capture reproducible baseline measurements before changing hot paths; report the
+  fixture, sample count, runtime, before/after latency and measurement limitations.
+- Share historical snapshot/status polling across consumers, permit only one request
+  per resource, cancel obsolete work, retain same-playhead data on transient failure,
+  and invalidate immediately on seek to prevent future-print flashes.
+- Shared chart bars own one internal AbortController per symbol/timeframe. Seek
+  invalidation cancels the obsolete network request as well as its generation;
+  aborting one consumer must never cancel another consumer's shared request.
+- Render persistent truthful download progress from durable cursor/time fields.
+  ETA is an estimate, absent without progress; stalled/failed jobs remain visible.
+- Serialize session-clock, capture-selection and historical-selection mutations across
+  controls. An explicit wall-follow or source selection cancels any debounced or
+  queued seek intent, then runs after the already-sent mutation settles.
+- Keep independent actions usable, bound requests, expose errors without JSON parser
+  gibberish, restore focus on close, and respect symbol/module layout preferences.
+- Use feature-layer CSS and existing tokens in both themes; preserve virtualized tape.
+- No disk I/O in async handlers or repeated selection-wide work under the playback
+  lock on every poll. Cache only with explicit selection/time/data invalidation;
+  no lookahead, identical prints/order and reported-volume semantics must survive.
+- Empty historical tick pages before the end refuse resumably with unchanged cursor;
+  never infer complete coverage or synthesize prints from an empty response.
+- Persist integer capture schema_version; migrate known unversioned legacy rows or refuse unknown
+  formats. Surface malformed/dropped-row counts and decimation rather than hiding it.
+- Coalesce pending L2 and flush its final state; reject backwards capture timestamps.
+  Daily bars are emitted at rollover/flush, not per print. Default capture paths stay
+  outside the repository. Do not add auto-pruning or choose retention policy (#320).
+- Retention, IBKR candle presentation (#304), replay depth/quotes and practice orders
+  remain separate decisions. No execution gate changes or live trading operations.

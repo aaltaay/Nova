@@ -1,0 +1,56 @@
+/* Replay feature owns its theme surfaces and density (ADR 006). */
+.sim-session-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  background: var(--nova-panel);
+  border-bottom: 1px solid var(--nova-border-strong);
+  color: var(--nova-text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.sim-session-header > strong { letter-spacing: .04em; }
+.sim-session-header__scrubber { display: flex; align-items: center; gap: 8px; flex: 1 1 260px; }
+.sim-session-header__scrubber input { flex: 1; min-width: 80px; accent-color: var(--nova-accent); }
+.sim-session-header__picker { display: flex; align-items: center; gap: 4px; }
+.sim-session-header__picker select { max-width: 140px; }
+.sim-muted { color: var(--nova-text-muted); }
+.sim-error { color: var(--nova-danger); }
+.sim-history { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; max-width: 100%; }
+.sim-history__summary { font-variant-numeric: tabular-nums; }
+.sim-history__summary:empty { display: none; }
+.sim-history__selection { max-width: 430px; font-size: 11px; }
+.sim-history__panel {
+  z-index: 10070;
+  box-sizing: border-box;
+  width: min(560px, calc(100vw - 24px));
+  max-height: min(70vh, var(--radix-popover-content-available-height));
+  overflow: auto;
+  padding: 16px;
+  background: var(--nova-panel);
+  color: var(--nova-text);
+  border: 1px solid var(--nova-text-muted);
+  border-radius: var(--radius-panel);
+  box-shadow: 0 8px 24px var(--header-overlay);
+  font-size: 12px;
+  color-scheme: inherit;
+}
+.sim-history__title { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.sim-history__fields, .sim-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.sim-history__fields label { display: flex; flex-direction: column; gap: 4px; }
+.sim-history__panel input, .sim-session-header select {
+  background: var(--input-bg); color: var(--nova-text); border: 1px solid var(--nova-border-strong);
+  border-radius: var(--radius-control); padding: 5px 7px; font: inherit;
+}
+.sim-history__panel button, .sim-session-header button {
+  background: var(--nova-raised); color: var(--nova-text); border: 1px solid var(--nova-border-strong);
+  border-radius: var(--radius-control); padding: 5px 8px; font: inherit; cursor: pointer;
+}
+.sim-history__panel button:disabled, .sim-session-header button:disabled { opacity: .55; cursor: default; }
+.sim-history__panel :focus-visible, .sim-session-header :focus-visible { outline: 2px solid var(--nova-accent); outline-offset: 2px; }
+.sim-downloads { list-style: none; padding: 0; margin: 12px 0 0; }
+.sim-download { padding: 12px 0; border-top: 1px solid var(--nova-text-muted); display: grid; gap: 6px; }
+.sim-download progress { width: 100%; height: 8px; accent-color: var(--nova-accent); }
+.sim-capture-diagnostics { flex-basis: 100%; color: var(--nova-text-muted); }

@@ -63,7 +63,6 @@ def _set_capture_mode(
                 "error": "Pick a symbol tab before Record",
                 "mode": None,
                 "capture_symbol": None,
-                "spend_status": None,
             }
         from capture.bridge_ibkr import admission_error
         error = admission_error(sym)
@@ -125,7 +124,6 @@ def status_payload() -> dict[str, Any]:
         "capture": on,
         "mode": "record" if on else None,
         "capture_symbol": _symbol if on else None,
-        "spend_status": "recording" if on else None,
     }
     if err:
         out["error"] = err

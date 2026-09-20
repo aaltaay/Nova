@@ -12,3 +12,5 @@ cvss>=2.6,<3
 #   py -3 -m py_spy dump --pid <nova-api-pid>
 # (admin shell may be required on Windows)
 py-spy>=0.4.0,<1
+# Opt-in replay benchmark RSS measurements.
+psutil==7.2.2

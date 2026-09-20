@@ -7,6 +7,8 @@ import { TAPE_UI_MAX_ROWS } from '../constants';
 export type TapeSide = 'ask' | 'bid' | 'between' | 'unknown';
 
 export interface TapePrint {
+  /** Stable canonical replay print identity; absent for the live feed. */
+  replayId?: string;
   symbol: string;
   time: string;
   price: number;

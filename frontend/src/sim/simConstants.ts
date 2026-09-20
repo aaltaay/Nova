@@ -14,3 +14,13 @@ export const SIM_REPLAY_L2_CHIP_LABEL = 'Replay';
 export const SIM_REPLAY_L2_CHIP_VALUE = 'No L2 recorded';
 export const SIM_REPLAY_L2_CHIP_TITLE =
   'Historical Level 2 is not recorded. Live halt and borrow state are hidden because they describe today, not this session.';
+
+/** Requests are bounded; slow polls never overlap. */
+export const SIM_REQUEST_TIMEOUT_MS = 15_000;
+export const SIM_HISTORY_IDLE_POLL_MS = 5_000;
+export const SIM_CAPTURE_POLL_MS = 15_000;
+export const SIM_SCRUB_KEYBOARD_MS = 120;
+/** Mirrors backend historical acquisition pacing, not an ETA prediction. */
+export const SIM_HISTORY_PAGE_INTERVAL_SEC = 11;
+export const SIM_HISTORY_LARGE_WINDOW_MINUTES = 240;
+export const SIM_HISTORY_SYMBOL_PATTERN = /^[A-Z0-9][A-Z0-9. -]{0,19}$/;

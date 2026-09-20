@@ -14,7 +14,8 @@ ET = ZoneInfo("America/New_York")
 
 
 def _unix(ts: Any) -> float:
-    if isinstance(ts, (int, float)) and ts > 0:
+    from capture.schema import valid_timestamp
+    if valid_timestamp(ts):
         return float(ts)
     if isinstance(ts, str) and ts.strip():
         raw = ts.strip()
@@ -27,7 +28,7 @@ def _unix(ts: Any) -> float:
             return dt.timestamp()
         except ValueError:
             pass
-    return time.time()
+    raise ValueError("Invalid Sim capture timestamp; refusing wall-clock substitution")
 
 
 def _session_date(ts: float) -> str:
@@ -59,18 +60,23 @@ def emit_sim_tick(print_payload: dict[str, Any], quote: dict[str, Any] | None, b
 
 def _write_sim_tick(print_payload: dict[str, Any], quote: dict[str, Any] | None, book: dict[str, Any] | None) -> None:
     try:
-        from capture.recorder import record_l2, record_print, record_quote
+        from capture.recorder import ensure_event_day, record_l2, record_print, record_quote
     except Exception:
         return
 
-    ts = _unix(print_payload.get("time"))
+    try:
+        ts = _unix(print_payload.get("time"))
+    except ValueError:
+        record_print({"ts": None})  # Persist an explicit invalid-timestamp failure.
+        return
+    ensure_event_day(ts)
     day = _session_date(ts)
     px = float(print_payload.get("price") or 0)
     size = float(print_payload.get("size") or 1)
     bid = print_payload.get("bid")
     ask = print_payload.get("ask")
 
-    record_print(
+    accepted = record_print(
         {
             "symbol": SIM_SYMBOL,
             "ts": ts,
@@ -87,6 +93,9 @@ def _write_sim_tick(print_payload: dict[str, Any], quote: dict[str, Any] | None,
             "session_date": day,
         }
     )
+
+    if not accepted:
+        return
 
     try:
         from capture.bar_buckets import on_print

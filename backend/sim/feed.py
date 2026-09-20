@@ -1,6 +1,8 @@
 """Sim Feed loop -- steps SIM1 tape and injects T&S / L2 / quote updates."""
 from __future__ import annotations
 
+from capture.constants_capture import CAPTURE_FEED_EMIT_LIMIT
+
 import asyncio
 import logging
 
@@ -115,15 +117,17 @@ def _capture_tick() -> dict:
     """Forward recorded events only; quiet intervals are not trades."""
     from datetime import datetime, timezone
     from sim import capture_player as player
-    from sim import replay
     from ibkr.tape_stream import _push_queue
     from ibkr.depth import state as depth_state
 
     now_ts = _clock.now_et().timestamp()
-    symbol = replay.status_payload()["replay_symbol"]
-    rows = player.prints_since(player.last_emit_ts(), now_ts)
+    selection = player.snapshot()
+    if selection is None:
+        return {}
+    symbol = selection.symbol
+    rows = player.prints_since(selection.last_emit, now_ts, state=selection)
     last_payload: dict = {}
-    for row in rows[-20:]:  # Preserve the existing bounded scrub burst policy.
+    for row in rows[-CAPTURE_FEED_EMIT_LIMIT:]:  # Preserve the existing bounded scrub burst policy.
         ts = float(row["ts"])
         payload = {
             "type": "print", "symbol": symbol,
@@ -135,9 +139,9 @@ def _capture_tick() -> dict:
         }
         _push_queue(symbol, payload)
         _broadcast_capture(payload)
-        player.mark_emitted(ts)
+        player.mark_emitted(ts, state=selection)
         last_payload = payload
-    book = player.book_at()
+    book = player.book_at(state=selection)
     if book is not None:
         depth_state.push_book(symbol, {**book, "symbol": symbol})
     return last_payload

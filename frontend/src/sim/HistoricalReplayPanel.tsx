@@ -1,101 +1,90 @@
-import { useEffect, useRef, useState } from 'react';
-import { API_BASE_URL } from '../constants';
-import { novaFetch } from '../api/novaFetch';
+import { useRef, useState } from 'react';
+import { Popover } from 'radix-ui';
 import { useWorkspace } from '../workspace';
-import { emitSimClockScrub } from './simClockEvents';
-import { previousEtWeekday } from './historicalReplayFormat';
-import { SIM_HISTORY_POLL_MS, SIM_SESSION_CLOSE_LABEL, SIM_SESSION_OPEN_LABEL } from './simConstants';
-
-type Job = { id: string; symbol: string; date: string; start: string; end: string;
-  kind: string; status: string; count: number; pages: number; error: string | null };
-
-function jobLabel(j: Job): string {
-  return `${j.symbol} ${j.date} ${j.start}–${j.end} ${j.kind}`;
-}
+import { cancelPendingSimSeek, emitSimClockScrub } from './simClockEvents';
+import { etTime, previousEtWeekday } from './historicalReplayFormat';
+import { SIM_HISTORY_LARGE_WINDOW_MINUTES, SIM_HISTORY_PAGE_INTERVAL_SEC, SIM_SESSION_CLOSE_LABEL, SIM_SESSION_OPEN_LABEL } from './simConstants';
+import { useHistoricalStatus, historicalStatus } from './historicalStatusStore';
+import { useReplayActions } from './useReplayActions';
+import { HistoricalDownloads } from './HistoricalDownloads';
+import { durationLabel, jobSummary, validateHistoricalWindow, windowLabel, windowMinutes } from './historicalProgress';
+import type { HistoricalJob, HistoricalSelection, HistoricalWindow } from './historicalTypes';
 
 export function HistoricalReplayPanel() {
   const { openStockView } = useWorkspace();
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const anchor = useRef({ getBoundingClientRect: () =>
+    (trigger.current?.closest('.sim-session-header') ?? trigger.current)?.getBoundingClientRect() ?? new DOMRect() });
   const [symbol, setSymbol] = useState('');
-  const [date, setDate] = useState(() => previousEtWeekday());
-  const dateTouched = useRef(false);
+  const [date, setDate] = useState<string | null>(null);
   const [start, setStart] = useState(SIM_SESSION_OPEN_LABEL);
   const [end, setEnd] = useState(SIM_SESSION_CLOSE_LABEL);
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
-  const [busy, setBusy] = useState(false);
-  const spec = { symbol: symbol.trim().toUpperCase(), date, start, end };
-  useEffect(() => {
-    let active = true;
-    async function refresh() {
-      try {
-        const res = await novaFetch(`${API_BASE_URL}/api/sim/history`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!active) return;
-        // Guard the shape: an unexpected body must never unmount the SIM header.
-        setJobs(Array.isArray(data?.jobs) ? data.jobs : []);
-        if (typeof data?.default_date === 'string' && !dateTouched.current) setDate(data.default_date);
-      } catch { /* Action errors below remain visible; polling can recover. */ }
-    }
-    void refresh(); const id = window.setInterval(() => void refresh(), SIM_HISTORY_POLL_MS);
-    return () => { active = false; window.clearInterval(id); };
-  }, []);
-  async function request(path: string, body?: unknown) {
-    setBusy(true); setError('');
-    try {
-      const res = await novaFetch(`${API_BASE_URL}/api/sim/history${path}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body ?? {}),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Historical replay request failed');
-      return data;
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-    finally { setBusy(false); }
-  }
+  const [formError, setFormError] = useState('');
+  const status = useHistoricalStatus(open);
+  const { request, busy, errors } = useReplayActions();
+  const jobs = Array.isArray(status.data?.jobs) ? status.data.jobs : [];
+  const selection = status.data?.selection;
+  const spec: HistoricalWindow = { symbol: symbol.trim().toUpperCase(), date: date ?? status.data?.default_date ?? previousEtWeekday(), start, end };
+  const primary = jobs.find(job => !job.stale && ['running', 'pause_requested'].includes(job.status))
+    ?? jobs.find(job => ['running', 'pause_requested'].includes(job.status))
+    ?? jobs.find(job => job.stale || job.error) ?? jobs[0];
+  const validate = () => { const message = validateHistoricalWindow(spec); setFormError(message ?? ''); return !message; };
+  const update = (setter: (value: string) => void, value: string) => { setter(value); setFormError(''); };
   async function load() {
-    if (await request('/select', spec)) {
-      openStockView(spec.symbol); emitSimClockScrub();
-      setMessage(`Loaded ${spec.symbol} · ${date} · ${start}–${end} ET. Candles appear at interval close; downloaded trades build partial candles. Download candles if this window is not stored yet.`);
-    }
+    if (!validate()) return;
+    cancelPendingSimSeek();
+    const selected = await request<HistoricalSelection>('select', '/history/select', spec);
+    if (!selected) return;
+    historicalStatus.invalidate({ ...historicalStatus.getSnapshot().data, jobs, selection: selected });
+    openStockView(spec.symbol);
+    emitSimClockScrub(); // Selection changes also invalidate the previously replayed symbol.
+    setOpen(false);
   }
-  const pickDate = (value: string) => { dateTouched.current = true; setDate(value); };
-  return <details style={{ position: 'relative' }}>
-    <summary>Historical replay</summary>
-    <section aria-label="Historical replay setup" style={{ position: 'absolute', right: 0,
-      top: 25, width: 550, maxWidth: '90vw', zIndex: 1000, padding: 16,
-      background: '#20232c', border: '1px solid #8060b0', boxShadow: '0 4px 20px #0008' }}>
-      <p>Replay any supported stock ticker. Times are America/New_York.</p>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <label>Ticker <input aria-label="Historical ticker" value={symbol} onChange={e => setSymbol(e.target.value.toUpperCase())} size={8} /></label>
-        <label>Date <input type="date" value={date} onChange={e => pickDate(e.target.value)} /></label>
-        <label>From <input type="time" value={start} onChange={e => setStart(e.target.value)} /></label>
-        <label>To <input type="time" value={end} onChange={e => setEnd(e.target.value)} /></label>
-      </div>
-      <p style={{ display: 'flex', gap: 8 }}>
-        <button disabled={busy || !symbol} onClick={() => void load()}>Load replay</button>
-        <button disabled={busy || !symbol} onClick={() => void request('', { ...spec, kind: 'bars' })}>Download candles</button>
-        <button disabled={busy || !symbol} onClick={() => void request('', { ...spec, kind: 'trades' })}>Download trades</button>
-      </p>
-      <p>Load replay again after downloading to use the new data; the playhead stays where it is. Historical quotes and Level 2 are unavailable.</p>
-      {message && <p role="status">{message}</p>}
-      {error && <p role="alert" style={{ color: '#ff938c' }}>{error}</p>}
-      <ul aria-label="Historical downloads" style={{ maxHeight: 240, overflow: 'auto', listStyle: 'none', padding: 0 }}>{jobs.map(j => <li key={j.id} aria-label={jobLabel(j)} style={{ padding: '8px 0', borderTop: '1px solid #555' }}>
-        <strong>{j.symbol} · {j.date} · {j.start}–{j.end}</strong>
-        <div>{j.kind}: {j.status} · {j.count.toLocaleString()} {j.kind === 'trades' ? 'prints' : 'candles'} · {j.pages} pages</div>
-        <button disabled={busy} aria-label={`Use this window: ${jobLabel(j)}`} onClick={() => {
-          setSymbol(j.symbol); pickDate(j.date); setStart(j.start); setEnd(j.end);
-        }}>Use this window</button>
-        {j.error && <p role="alert">{j.error}</p>}
-        {j.status === 'pause_requested'
-          ? <button disabled aria-label={`Pausing download: ${jobLabel(j)}`}>Pausing…</button>
-          : j.status !== 'complete' && <button disabled={busy}
-            aria-label={`${j.status === 'running' ? 'Pause' : 'Resume'} download: ${jobLabel(j)}`}
-            onClick={() => void request(`/${j.id}/${j.status === 'running' ? 'pause' : 'resume'}`)}>
-            {j.status === 'running' ? 'Pause download' : 'Resume download'}
-          </button>}
-      </li>)}</ul>
-    </section>
-  </details>;
+  async function download(kind: 'bars' | 'trades') {
+    if (!validate()) return;
+    if (await request(`download:${kind}`, '/history', { ...spec, kind })) void historicalStatus.refresh();
+  }
+  const pick = (job: HistoricalJob) => { setSymbol(job.symbol); setDate(job.date); setStart(job.start); setEnd(job.end); setFormError(''); };
+  const action = async (job: HistoricalJob, operation: 'pause' | 'resume') => {
+    if (await request(job.id, `/history/${encodeURIComponent(job.id)}/${operation}`)) void historicalStatus.refresh();
+  };
+  const selectionLabel = selection && `${windowLabel(selection)}  -  ${selection.trade_count?.toLocaleString() ?? 'Unknown'} downloaded prints`;
+  return <div className="sim-history">
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Anchor virtualRef={anchor} />
+      <Popover.Trigger asChild><button ref={trigger} type="button" className="sim-history__trigger">Historical replay</button></Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content side="bottom" align="end" sideOffset={12} collisionPadding={12}
+          sticky="always" className="sim-history__panel" aria-label="Historical replay setup">
+          <div className="sim-history__title"><strong>Historical replay</strong><Popover.Close asChild><button type="button" aria-label="Close historical replay">Close</button></Popover.Close></div>
+          <p>Replay any supported stock ticker. Times are America/New_York.</p>
+          <div className="sim-history__fields">
+            <label>Ticker <input aria-label="Historical ticker" value={symbol} onChange={event => update(setSymbol, event.target.value.toUpperCase())} size={8} /></label>
+            <label>Date <input type="date" value={spec.date} onChange={event => update(setDate, event.target.value)} /></label>
+            <label>From <input type="time" value={start} onChange={event => update(setStart, event.target.value)} /></label>
+            <label>To <input type="time" value={end} onChange={event => update(setEnd, event.target.value)} /></label>
+          </div>
+          <p className="sim-actions">
+            <button type="button" disabled={busy.has('select') || !spec.symbol} onClick={() => void load()}>Load replay</button>
+            <button type="button" disabled={busy.has('download:bars') || !spec.symbol} onClick={() => void download('bars')}>Download candles</button>
+            <button type="button" disabled={busy.has('download:trades') || !spec.symbol} onClick={() => void download('trades')}>Download trades</button>
+          </p>
+          <p className="sim-muted">{windowMinutes(spec) >= SIM_HISTORY_LARGE_WINDOW_MINUTES && <strong>Large window ({(windowMinutes(spec) / 60).toFixed(1)} hours). </strong>}Trades are paced at least {SIM_HISTORY_PAGE_INTERVAL_SEC} seconds per page and can take many minutes. ETA starts after the first advancing checkpoint; choose a shorter window for a faster download.</p>
+          <p className="sim-muted">Reload after downloading to use new data; the same window keeps its playhead. Candles appear at interval close. Historical quotes and Level 2 are unavailable.</p>
+          {formError && <p role="alert" className="sim-error">{formError}</p>}
+          {Object.entries(errors).map(([key, message]) => <p key={key} role="alert" className="sim-error">{message}</p>)}
+          <HistoricalDownloads jobs={jobs} busy={busy} onPick={pick} onAction={(job, operation) => void action(job, operation)} />
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+    <span role="status" className="sim-history__summary" title={primary ? `${primary.symbol} ${primary.date} ${primary.start} - ${primary.end}` : undefined}>
+      {status.error ? `Download status unavailable: ${status.error}` : primary ? `${jobSummary(primary)}${primary.eta_seconds != null ? ` - about ${durationLabel(primary.eta_seconds)} remaining` : ''}` : ''}
+    </span>
+    {selection && <span role="status" className="sim-history__selection" title={selectionLabel ?? undefined}>
+      Selected: {selectionLabel}. {selection.download_status === 'missing'
+        ? 'No downloaded trades for this window; candles appear only if stored.'
+        : <>Trades through {etTime(selection.coverage_through)} ET  -  {selection.download_status ?? 'coverage unknown'}.</>}
+    </span>}
+  </div>;
 }

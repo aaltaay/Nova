@@ -62,3 +62,28 @@ def test_clock_second_from_open_is_validated(monkeypatch):
         assert client.post("/api/sim/clock", json={"second_from_open": 90}).json()["second_from_open"] == 90
     finally:
         session_clock.reset_for_tests()
+
+
+def test_corrupt_archive_returns_clean_service_error(tmp_path, monkeypatch):
+    monkeypatch.setenv('NOVA_SIM_HISTORY_DIR', str(tmp_path))
+    (tmp_path / 'replay.sqlite3').write_bytes(b'not a sqlite database')
+    client = client_for(history_routes.router)
+    response = client.get('/api/sim/history')
+    assert response.status_code == 503
+    assert response.json()['detail'] == 'Historical archive is unavailable; check storage and retry'
+
+
+def test_missing_and_empty_download_are_distinguishable(tmp_path, monkeypatch):
+    monkeypatch.setenv('NOVA_SIM_HISTORY_DIR', str(tmp_path))
+    spec = history_store.window('F', '2026-09-18', '04:00', '20:00')
+    try:
+        missing = history_playback.select(spec)
+        job = history_store.create(spec, 'trades')
+        history_store.update(job['id'], status='failed', error='empty page before end')
+        empty = history_playback.select(spec)
+        assert missing['download_status'] == 'missing' and missing['job_id'] is None
+        assert empty['download_status'] == 'failed' and empty['job_id'] == job['id']
+        assert missing['trade_count'] == empty['trade_count'] == 0
+    finally:
+        history_playback.clear()
+        session_clock.reset_for_tests()

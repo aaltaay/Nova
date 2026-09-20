@@ -17,6 +17,7 @@ from constants_sim import (
     SIM_HISTORY_DEFAULT_ROOT_WIN, SIM_HISTORY_DIR_ENV,
     SIM_HISTORY_MAX_PAGES, SIM_HISTORY_PAGE_SIZE, SIM_HISTORY_REQUEST_INTERVAL_SEC,
     SIM_HISTORY_REQUEST_TIMEOUT_SEC, SIM_HISTORY_RETRY_INTERVAL_SEC, SIM_SESSION_CLOSE_HOUR,
+    SIM_HISTORY_SQLITE_TIMEOUT_SEC,
 )
 from sim.trading_day import is_trading_day
 
@@ -74,23 +75,12 @@ def path():
 
 @contextmanager
 def connect():
-    db = sqlite3.connect(path(), timeout=30)
+    from sim.history_schema import initialize
+    database = path()
+    db = sqlite3.connect(database, timeout=SIM_HISTORY_SQLITE_TIMEOUT_SEC)
     db.row_factory = sqlite3.Row
-    db.executescript("""
-        PRAGMA journal_mode=WAL;
-        CREATE TABLE IF NOT EXISTS jobs (
-            id TEXT PRIMARY KEY, payload TEXT NOT NULL);
-        CREATE TABLE IF NOT EXISTS prints (
-            job_id TEXT NOT NULL, ordinal INTEGER NOT NULL,
-            ts INTEGER NOT NULL, payload TEXT NOT NULL,
-            PRIMARY KEY(job_id, ordinal));
-        CREATE INDEX IF NOT EXISTS prints_time ON prints(job_id, ts);
-        CREATE TABLE IF NOT EXISTS candles (
-            job_id TEXT NOT NULL, ts INTEGER NOT NULL, payload TEXT NOT NULL,
-            PRIMARY KEY(job_id, ts));
-        CREATE TABLE IF NOT EXISTS pacing (id INTEGER PRIMARY KEY, sent REAL);
-    """)
     try:
+        initialize(db, database)
         with db:
             yield db
     finally:
@@ -138,17 +128,40 @@ def find(spec: dict, kind: str) -> dict | None:
         return None
 
 
+def _new_job(spec: dict, kind: str) -> dict:
+    return dict(spec, id=job_id_for(spec, kind), kind=kind, status="queued", cursor=spec["start_ts"],
+                count=0, volume=0, pages=0, error=None, contract=None,
+                storage=str(path()), precision="seconds", updated=time.time(), started=None)
+
+
 def create(spec: dict, kind: str) -> dict:
     existing = find(spec, kind)
     if existing is not None:
         return existing
-    job_id = job_id_for(spec, kind)
-    job = dict(spec, id=job_id, kind=kind, status="queued", cursor=spec["start_ts"],
-               count=0, volume=0, pages=0, error=None, contract=None,
-               storage=str(path()), precision="seconds", updated=time.time())
+    job = _new_job(spec, kind)
     with connect() as db:
-        db.execute("INSERT OR IGNORE INTO jobs VALUES (?,?)", (job_id, json.dumps(job)))
-    return get(job_id)
+        db.execute("INSERT OR IGNORE INTO jobs VALUES (?,?)", (job["id"], json.dumps(job)))
+    return get(job["id"])
+
+
+def reserve_job(spec: dict, kind: str) -> dict:
+    """Admission and ownership are atomic, including simultaneous API processes."""
+    wanted = job_id_for(spec, kind)
+    with connect() as db:
+        db.execute("BEGIN IMMEDIATE")
+        all_jobs = [json.loads(row[0]) for row in db.execute("SELECT payload FROM jobs")]
+        if _active_elsewhere(all_jobs, None):
+            raise ValueError("Another historical download is running; pause it first")
+        job = next((row for row in all_jobs if row["id"] == wanted), None)
+        if job and job["status"] == "complete":
+            return job
+        if (job and job["status"] == "failed"
+                and time.time() - job["updated"] < RETRY_INTERVAL):
+            raise ValueError(f"Wait {RETRY_INTERVAL:.0f} seconds before retrying an IBKR request")
+        job = job or _new_job(spec, kind)
+        job.update(status="running", error=None, updated=time.time())
+        save(job, db)
+        return job
 
 
 def update(job_id: str, **fields) -> dict:
@@ -168,7 +181,7 @@ def begin_run(job_id: str) -> dict:
         job = _load(db, job_id)
         if job["status"] != "complete":
             job.update(status="pause_requested" if job["status"] == "pause_requested" else "running",
-                       error=None, updated=time.time())
+                       error=None, updated=time.time(), started=time.time(), run_cursor=job["cursor"])
             save(job, db)
         return job
 
@@ -192,10 +205,12 @@ def commit_page(job_id: str, cursor: int, rows: list[dict], next_cursor: int, co
     return job
 
 
-def read_prints(job_id: str) -> list[dict]:
+def read_prints(job_id: str, *, through: int | None = None, limit: int = -1) -> list[dict]:
+    """Stop materializing at the caller's bound, retaining original ordinal order."""
     with connect() as db:
         return [json.loads(r[0]) for r in db.execute(
-            "SELECT payload FROM prints WHERE job_id=? ORDER BY ordinal", (job_id,))]
+            "SELECT payload FROM prints WHERE job_id=? AND (? IS NULL OR ts<?) "
+            "ORDER BY ordinal LIMIT ?", (job_id, through, through, limit))]
 
 
 def reserve_send() -> float:

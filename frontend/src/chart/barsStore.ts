@@ -33,12 +33,16 @@ const entries = new Map<BarsStoreKey, BarsStoreEntry>();
 const listeners = new Map<BarsStoreKey, Set<Listener>>();
 const inflight = new Map<BarsStoreKey, Promise<RawBar[]>>();
 const generations = new Map<BarsStoreKey, number>();
+/** Store-owned controllers: a consumer abort never cancels another chart. */
+const controllers = new Map<BarsStoreKey, AbortController>();
 
 export function barsStoreKey(symbol: string, timeframe: string): BarsStoreKey {
   return `${symbol.trim().toUpperCase()}|${timeframe}`;
 }
 
 export function clearBarsStoreForTests(): void {
+  controllers.forEach(controller => controller.abort());
+  controllers.clear();
   entries.clear();
   listeners.clear();
   inflight.clear();
@@ -50,6 +54,8 @@ export function invalidateBars(symbol: string, timeframe: string): void {
   const key = barsStoreKey(symbol, timeframe);
   entries.delete(key);
   generations.set(key, (generations.get(key) ?? 0) + 1);
+  controllers.get(key)?.abort();
+  controllers.delete(key);
   inflight.delete(key);
   listeners.get(key)?.forEach(l => l());
 }
@@ -181,6 +187,7 @@ export function subscribeBars(
 async function fetchSingleBars(
   symbol: string,
   timeframe: string,
+  signal: AbortSignal,
   limit?: number,
 ): Promise<RawBar[]> {
   const key = barsStoreKey(symbol, timeframe);
@@ -189,6 +196,7 @@ async function fetchSingleBars(
   if (limit != null && limit > 0) params.set('limit', String(limit));
   const res = await fetch(
     `${API_URL}/ticker/${encodeURIComponent(symbol)}/bars?${params.toString()}`,
+    { signal },
   );
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -197,7 +205,7 @@ async function fetchSingleBars(
     );
   }
   const data = (await res.json()) as { bars?: RawBar[]; coverage?: unknown };
-  if ((generations.get(key) ?? 0) !== generation) {
+  if (signal.aborted || (generations.get(key) ?? 0) !== generation) {
     throw new DOMException('Replay position changed', 'AbortError');
   }
   const coverage = parseBarsCoverage(data.coverage);
@@ -234,8 +242,11 @@ export function ensureBars(
     });
   }
 
-  const promise = fetchSingleBars(sym, timeframe, limit).finally(() => {
+  const controller = new AbortController();
+  controllers.set(key, controller);
+  const promise = fetchSingleBars(sym, timeframe, controller.signal, limit).finally(() => {
     if (inflight.get(key) === promise) inflight.delete(key);
+    if (controllers.get(key) === controller) controllers.delete(key);
   });
   inflight.set(key, promise);
   if (!signal) return promise;
