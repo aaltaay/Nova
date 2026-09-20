@@ -1,0 +1,82 @@
+---
+description: When a ready PR merges -- the five-minute age floor, the in-flight review wait, and why both live in decide()
+globs: tools/pr_delivery.py,tools/pr_delivery_actions.py,tools/pr_review_status.py,.github/workflows/pr-delivery.yml,.github/workflows/deploy.yml
+alwaysApply: false
+---
+
+# PR delivery timing
+
+Actions merges ready PRs without waiting for CI (`github-delivery.mdc` item
+10; AGENTS.md §5). That policy is about **checks**: a slow test suite never
+gates delivery, and findings of any kind stay advisory. This rule is about
+**timing**, and it exists because of one session in which six of nine merged
+PRs were repairs to bugs an automated review had reported minutes *after* the
+auto-merge landed. Each fix needed a whole follow-up PR instead of a push to
+the branch that had been open seconds earlier.
+
+## The two gates
+
+Both are in `decide()` in `tools/pr_delivery.py` -- the one function every
+merge path calls: the CI `Auto-merge` job (`merge --pr`), the scheduled and
+CI-completion sweep (`sweep`), and a manual `workflow_dispatch`.
+
+1. **Age floor -- per head.** A head younger than `MIN_PR_AGE_SECONDS` (five
+   minutes, in `tools/pr_review_status.py`) returns `WAIT` / `settling`. The
+   age is the newest of the PR's opening and its latest commit, so **a push
+   restarts the floor**: measured from `createdAt` alone it protected only
+   the first commit, and any later push was eligible at once. Reviews took
+   two to four minutes on every PR measured; the floor gives one time to
+   exist. It needs no reviewer to be present at all, which is why it closes
+   the race that comment-based detection cannot.
+   Known gap: the commit's `committedDate` is not its push time. A commit
+   made an hour ago and pushed now reads as old. Agents that commit and push
+   in one step -- Nova's normal flow -- are covered; a long-parked local
+   commit is not.
+2. **In-flight review.** A review still running against the *current head*
+   returns `WAIT` / `review_running`. This is the backstop for a review slower
+   than the floor. The signal is the reviewer's summary comment -- untrusted
+   bot markdown, matched and never executed -- and anything unrecognised
+   reads as "not running", so a reviewer that changes format or disappears
+   can never wedge delivery shut.
+
+Neither gate reads what a review concluded. `WAIT`, never `BLOCK`: a later
+sweep merges it, and CI completing fires one.
+
+**The merge job waits the floor out.** Nothing fires when the floor expires,
+so `cmd_merge` sleeps through the remaining settling time and re-decides,
+instead of leaving a PR whose CI finished early to the hourly cron -- up to
+an hour for a gate meant to cost five minutes. The wait is capped at twice
+the floor, because a head that keeps moving keeps resetting the floor and
+must not pin a runner. The `Auto-merge` job's `timeout-minutes` in
+`deploy.yml` has to exceed that cap plus setup, or the job is killed
+mid-wait and reads as a red check. The sweep does not wait; it is periodic.
+
+## Why the gates are in `decide()` and nowhere else
+
+The first version put a grace period in `cmd_merge` only. Within the hour the
+sweep -- which never called it -- merged #410 one second after the reviewer
+announced, while the merge job was still correctly waiting (`#410 skip
+not_open` in its log). A gate that lives in one caller is a gate one caller
+has. Put timing logic in `decide()`, or it is not delivery policy, it is a
+property of whichever path happened to be edited.
+
+## Escape hatches
+
+- `--min-age-seconds 0` on `merge` or `sweep` restores instant merge.
+- `do-not-merge` label or draft holds a PR regardless, as before.
+
+## Enforcement
+
+`tools/test_pr_review_status.py` pins: the floor holds a fresh PR on **both**
+`cmd_merge` and `cmd_sweep`; a push restarts it; an old PR with an old head
+merges; missing commit data falls back to the PR's age; a settled PR still
+waits on a running review; the merge job waits the floor out and merges in
+the same run, and that wait is capped when the head keeps moving; a held PR
+never waits; an unknown age never holds; a zero floor restores instant merge;
+the PR query asks for `createdAt` and `commits`. A change to merge timing
+changes those tests first.
+
+## Related
+
+`github-delivery.mdc` (the agent's finish line) · `AGENTS.md` §5 (advisory
+verification) · `#346` (why an Actions merge dispatches Desktop pack itself)
