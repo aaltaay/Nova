@@ -18,7 +18,11 @@ if str(REPO_ROOT) not in sys.path:
 
 from tools import pr_delivery
 from tools.pr_delivery import ACTION_MERGE, ACTION_SKIP, ACTION_WAIT, decide
-from tools.pr_review_status import review_running
+from tools.pr_review_status import (
+    ANNOUNCE_GRACE_SECONDS,
+    await_review_announcement,
+    review_running,
+)
 
 HEAD = "747985ab944b60dc68b0ac1e2181a71d16dd81bd"
 OTHER = "05e2db0b099360683c00673748f07d56ff0ae1c2"
@@ -127,3 +131,103 @@ def test_the_pr_query_asks_for_what_the_gate_needs(monkeypatch):
     pr_delivery._fetch_pr(396)
     fields = seen[0][seen[0].index("--json") + 1]
     assert "comments" in fields and "headRefOid" in fields
+
+
+# --------------------------------------------------------------------------
+# the grace period
+#
+# The gate above only sees a reviewer that has already spoken. On a PR opened
+# and merged in ten seconds it inspects an empty comment list and merges --
+# which is what #403 and #405 did, with the gate already on master.
+
+
+def spy_clock():
+    """A clock that only moves when something sleeps."""
+    state = {"t": 0.0}
+    return state, (lambda: state["t"]), (lambda s: state.__setitem__("t", state["t"] + s))
+
+
+def test_waiting_stops_the_moment_a_reviewer_speaks():
+    state, clock, sleep = spy_clock()
+    # Measured announcements landed at 6s, 9s and 11s after the trigger.
+    assert await_review_announcement(lambda: state["t"] >= 11,
+                                     sleep=sleep, clock=clock) is True
+    assert state["t"] <= 15, "a reviewer at 11s must not cost the whole window"
+
+
+def test_waiting_gives_up_and_lets_delivery_through():
+    state, clock, sleep = spy_clock()
+    assert await_review_announcement(lambda: False, sleep=sleep, clock=clock) is False
+    assert state["t"] >= ANNOUNCE_GRACE_SECONDS
+
+
+def test_waiting_is_bounded_even_with_a_silent_reviewer():
+    # No reviewer configured, or one that is down, must cost one window and
+    # never wedge delivery.
+    _state, clock, sleep = spy_clock()
+    calls = []
+    await_review_announcement(lambda: calls.append(1) is not None and False,
+                              sleep=sleep, clock=clock)
+    assert len(calls) <= (ANNOUNCE_GRACE_SECONDS // 5) + 2
+
+
+def test_a_zero_window_keeps_the_old_behaviour():
+    state, clock, sleep = spy_clock()
+    assert await_review_announcement(lambda: False, seconds=0,
+                                     sleep=sleep, clock=clock) is False
+    assert state["t"] == 0
+
+
+# --------------------------------------------------------------------------
+# cmd_merge
+
+
+def pr_payload(*, comments=(), draft=False):
+    return {
+        "number": 405, "title": "t", "body": "b", "isDraft": draft,
+        "state": "OPEN", "mergeStateStatus": "CLEAN", "labels": [],
+        "headRefName": "claude/x", "headRefOid": HEAD,
+        "headRepository": {"name": "Nova"},
+        "headRepositoryOwner": {"login": "aaltaay"},
+        "comments": [{"body": b} for b in comments],
+    }
+
+
+def wire_merge(monkeypatch, payloads):
+    """`payloads` is consumed one per _fetch_pr call; the last repeats."""
+    merged = []
+    seq = list(payloads)
+
+    def fetch(number):
+        return (seq.pop(0) if len(seq) > 1 else seq[0]), []
+
+    monkeypatch.setattr(pr_delivery, "_fetch_pr", fetch)
+    monkeypatch.setattr(pr_delivery, "_merge_pr", lambda pr: merged.append(pr) or 0)
+    monkeypatch.setattr(pr_delivery, "_signal_conflict", lambda n: None)
+    return merged
+
+
+def test_a_reviewer_announcing_inside_the_window_stops_the_merge(monkeypatch):
+    # #405's exact shape: nothing to see at first, the summary lands moments
+    # later, and the merge must defer to the next sweep instead of racing it.
+    merged = wire_merge(monkeypatch, [pr_payload(), pr_payload(),
+                                      pr_payload(comments=[RUNNING])])
+    monkeypatch.setattr(pr_delivery.time, "sleep", lambda s: None)
+    assert pr_delivery.cmd_merge(405, wait_desktop_minutes=0) == 0
+    assert merged == [], "the PR must be left for the sweep, not merged"
+
+
+def test_no_reviewer_still_merges(monkeypatch):
+    merged = wire_merge(monkeypatch, [pr_payload()])
+    monkeypatch.setattr(pr_delivery.time, "sleep", lambda s: None)
+    assert pr_delivery.cmd_merge(405, wait_desktop_minutes=0,
+                                 announce_grace_seconds=0) == 0
+    assert len(merged) == 1
+
+
+def test_a_held_pr_never_pays_for_the_wait(monkeypatch):
+    slept: list[float] = []
+    merged = wire_merge(monkeypatch, [pr_payload(draft=True)])
+    monkeypatch.setattr(pr_delivery.time, "sleep", lambda s: slept.append(s))
+    assert pr_delivery.cmd_merge(405, wait_desktop_minutes=0) == 0
+    assert merged == [] and slept == []
