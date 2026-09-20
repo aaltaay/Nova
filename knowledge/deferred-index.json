@@ -53,11 +53,11 @@
       "title": "Resume ai-news ranking WIP parked on wip/ai-news-ranking",
       "kind": "feature",
       "severity": "P3",
-      "status": "open",
+      "status": "done",
       "domain": "news",
       "number": "356",
       "url": "https://github.com/aaltaay/Nova/issues/356",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-084",
@@ -196,11 +196,11 @@
       "title": "Re-run the startup sweep once completed orders load (unverified rows)",
       "kind": "feature",
       "severity": "P3",
-      "status": "open",
+      "status": "done",
       "domain": "execution",
       "number": "334",
       "url": "https://github.com/aaltaay/Nova/issues/334",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-076",
@@ -350,11 +350,11 @@
       "title": "P0: Stopping a recording self-deadlocks on a non-reentrant lock and wedges the FastAPI event loop",
       "kind": "bug",
       "severity": "P0",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed",
       "number": "314",
       "url": "https://github.com/aaltaay/Nova/issues/314",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-062",
@@ -449,11 +449,11 @@
       "title": "Move completed orders out of the blocking IBKR connect sync",
       "kind": "feature",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "ibkr",
       "number": "305",
       "url": "https://github.com/aaltaay/Nova/issues/305",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-056",
