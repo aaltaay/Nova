@@ -6,6 +6,11 @@
 #
 # `delete_branch_on_merge` is still the backup for merges. This workflow
 # also deletes heads of PRs that close without merge.
+#
+# After a successful merge the sweep explicitly dispatches `Desktop pack`.
+# An Actions merge pushes with `GITHUB_TOKEN`, which by design starts no
+# `push:` run, so the pack would otherwise never fire (#346). That needs
+# `actions: write`.
 
 name: PR delivery
 
@@ -24,7 +29,7 @@ permissions:
   contents: write
   pull-requests: write
   checks: read
-  actions: read
+  actions: write
 
 jobs:
   merge-ready:

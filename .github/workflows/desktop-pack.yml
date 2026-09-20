@@ -5,7 +5,8 @@
 #   2. Pack the Electron + FastAPI sidecar as NSIS installer and portable EXE.
 #   3. Upload both EXEs as a workflow artifact (required files).
 #
-# On push to master/main only, after a successful pack:
+# On master/main only (pushed, or dispatched by PR delivery after an
+# Actions merge), after a successful pack:
 #   create git tag vNNN if missing, then create or update the GitHub Release
 #   and attach Nova-Setup-vNNN.exe + Nova-Portable-vNNN.exe.
 #   GitHub also adds Source code zip/tar -- those are not the app.
@@ -149,7 +150,10 @@ jobs:
   publish-release:
     name: Publish vNNN EXEs
     timeout-minutes: 10
-    if: needs.changes.outputs.desktop == 'true' && github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+    # `push` covers a human merge. `workflow_dispatch` covers an Actions
+    # merge, which pushes with `GITHUB_TOKEN` and so starts no `push` run
+    # (#346) -- PR delivery dispatches this workflow on master instead.
+    if: needs.changes.outputs.desktop == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
     needs: [changes, desktop-pack]
     runs-on: ubuntu-latest
     permissions:
