@@ -20,7 +20,12 @@ from tools import backlog_branches as bb
 from tools import backlog_claim_commands as cc
 from tools import backlog_claims as bc
 from tools.backlog_claims import (
-    CLAIM_TTL_HOURS, active_claim, format_claim, live_claims, resolve_claim,
+    CLAIM_TTL_HOURS,
+    active_claim,
+    format_claim,
+    format_release,
+    live_claims,
+    resolve_claim,
 )
 
 NOW = datetime(2026, 9, 20, 12, tzinfo=timezone.utc)
@@ -359,16 +364,70 @@ def test_a_withdrawn_claim_drops_the_label_it_added(monkeypatch, capsys):
     assert {int(c[2]) for c in removed} == {2, 3}
 
 
+def markers(*bodies):
+    return [{"body": b, "createdAt": f"2026-09-20T11:5{i}:00Z"}
+            for i, b in enumerate(bodies)]
+
+
+def winner_claim(agent="worker-a"):
+    return format_claim(agent=agent, batch="state#0", branch=f"{agent}/x",
+                        at=NOW - timedelta(minutes=10))
+
+
 def test_a_withdrawal_never_strips_a_concurrent_winners_label(monkeypatch):
-    # We lose the race, the winner's claim comment is newer than our release,
-    # and the label on those issues is now theirs to hold.
-    gh = FakeGh(deny=True)
-    setup_claim(monkeypatch, gh)
-    monkeypatch.setattr(cc, "active_claim", lambda *a, **kw: {
-        "agent": "worker-a", "batch": "state#0", "branch": "codex/state",
-        "at": "2026-09-20T11:59:00Z", "stale": False})
-    assert cc.cmd_claim(claim_args()) == 2
-    assert not [c for c in gh.calls if "--remove-label" in c]
+    # Drives the real active_claim on real markers. The earlier version of
+    # this test monkeypatched active_claim to return a winner -- which is the
+    # exact function whose behaviour was the bug -- so it asserted the
+    # intention and passed while the code deleted the winner's label.
+    gh = FakeGh()
+    monkeypatch.setattr(cc, "run_gh", gh)
+    monkeypatch.setattr(cc, "fetch_comments", lambda n: markers(
+        winner_claim(),
+        format_release(agent="worker-b", batch="state#0"),
+    ))
+    cc.post_release([2, 3], agent="worker-b", batch="state#0")
+    assert not [c for c in gh.calls if "--remove-label" in c], (
+        "a losing agent's release speaks only for itself; the label is the "
+        "winner's advertisement and live_claims filters on it"
+    )
+
+
+def test_a_withdrawal_drops_the_label_when_no_claim_survives(monkeypatch):
+    gh = FakeGh()
+    monkeypatch.setattr(cc, "run_gh", gh)
+    monkeypatch.setattr(cc, "fetch_comments", lambda n: markers(
+        winner_claim(agent="worker-b"),
+        format_release(agent="worker-b", batch="state#0"),
+    ))
+    cc.post_release([2, 3], agent="worker-b", batch="state#0")
+    assert {int(c[2]) for c in gh.calls if "--remove-label" in c} == {2, 3}
+
+
+def test_a_release_names_the_agent_it_speaks_for():
+    # Identity is the whole basis of the rule above; an anonymous release
+    # silently restores the behaviour that dropped live claims.
+    assert "agent: worker-b" in format_release(agent="worker-b", batch="state#0")
+
+
+def test_a_loser_yielding_leaves_the_winner_visible_to_next():
+    # The same defect one level up: live_claims filters on the label, but
+    # active_claim also has to still report the holder.
+    held = active_claim(markers(
+        winner_claim(),
+        format_claim(agent="worker-b", batch="state#0", branch="b/x", at=NOW),
+        format_release(agent="worker-b", batch="state#0"),
+    ), now=NOW)
+    assert held and held["agent"] == "worker-a"
+
+
+def test_a_legacy_anonymous_release_still_clears_the_issue():
+    # Releases written before they carried an agent keep their old meaning,
+    # so historical comments resolve exactly as they always did.
+    held = active_claim(markers(
+        winner_claim(),
+        "<!-- nova-claim-release -->\nReleased by `worker-b` (batch `state#0`).",
+    ), now=NOW)
+    assert held is None
 
 
 def test_release_clears_the_label_through_the_same_path(monkeypatch):

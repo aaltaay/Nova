@@ -23,12 +23,12 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timedelta, timezone
 from collections.abc import Callable
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from tools.backlog_github import fetch_comments, label_names
 from tools.backlog_footprints import normalize_touches
+from tools.backlog_github import fetch_comments, label_names
 
 CLAIM_LABEL = "claimed"
 
@@ -71,22 +71,46 @@ def format_claim(
 
 
 def format_release(*, agent: str, batch: str) -> str:
+    """A release names its releaser, because it only clears that agent's claim.
+
+    Without the agent a release is anonymous, and the loser of a race yielding
+    reads as "this issue is free" -- which then withdraws the winner's label
+    and hides their live claim from `next`.
+    """
     return (
-        f"{CLAIM_RELEASE} {CLAIM_END}\n"
+        f"{CLAIM_RELEASE}\n"
+        f"agent: {agent}\n"
+        f"batch: {batch}\n"
+        f"{CLAIM_END}\n"
         f"Released by `{agent}` (batch `{batch}`)."
     )
+
+
+def _fields(block: str) -> dict[str, str]:
+    fields: dict[str, str] = {}
+    for line in block.splitlines():
+        if ":" in line:
+            key, _, value = line.partition(":")
+            fields[key.strip()] = value.strip()
+    return fields
+
+
+def parse_release(body: str) -> dict[str, str] | None:
+    """Fields of a release marker. ``{}`` for a legacy one, which named nobody.
+
+    `CLAIM_BEGIN` is a prefix of `CLAIM_RELEASE`, so every caller must test for
+    a release *before* treating a comment as a claim.
+    """
+    if CLAIM_RELEASE not in body:
+        return None
+    return _fields(body.split(CLAIM_RELEASE, 1)[1].split(CLAIM_END, 1)[0])
 
 
 def parse_claim(body: str) -> dict[str, str] | None:
     """Pull the structured block out of a claim comment. None if absent."""
     if CLAIM_BEGIN not in body:
         return None
-    block = body.split(CLAIM_BEGIN, 1)[1].split(CLAIM_END, 1)[0]
-    fields: dict[str, str] = {}
-    for line in block.splitlines():
-        if ":" in line:
-            key, _, value = line.partition(":")
-            fields[key.strip()] = value.strip()
+    fields = _fields(body.split(CLAIM_BEGIN, 1)[1].split(CLAIM_END, 1)[0])
     return fields or None
 
 
@@ -112,20 +136,41 @@ def active_claim(
     four hours into real work reads as live instead of looking identical to one
     that died at minute two. Omitted, the answer is exactly what it always was.
     """
-    markers: list[tuple[str, str, dict[str, str] | None]] = []
+    markers: list[tuple[str, str, dict[str, str]]] = []
     for comment in comments:
         body = comment.get("body") or ""
         created = comment.get("createdAt") or ""
+        # CLAIM_BEGIN is a prefix of CLAIM_RELEASE: release first, always.
         if CLAIM_RELEASE in body:
-            markers.append((created, "release", None))
+            markers.append((created, "release", parse_release(body) or {}))
         elif CLAIM_BEGIN in body:
-            markers.append((created, "claim", parse_claim(body)))
+            markers.append((created, "claim", parse_claim(body) or {}))
     if not markers:
         return None
     markers.sort(key=lambda m: m[0])
-    created, kind, fields = markers[-1]
-    if kind == "release" or not fields:
+
+    # A release that names nobody predates identity-aware releases and keeps
+    # its old meaning: it clears the issue outright, up to its own timestamp.
+    anonymous_release = ""
+    for created, kind, fields in markers:
+        if kind == "release" and not fields.get("agent"):
+            anonymous_release = created
+
+    # Otherwise each agent's newest marker decides whether THEY still hold.
+    # A losing agent yielding must not clear the winner's claim: two agents
+    # can hold markers on one issue, and only their own release speaks for them.
+    latest: dict[str, tuple[str, str, dict[str, str]]] = {}
+    for created, kind, fields in markers:
+        if anonymous_release and created <= anonymous_release:
+            continue
+        latest[fields.get("agent", "")] = (created, kind, fields)
+
+    holders = [(created, fields) for created, kind, fields in latest.values()
+               if kind == "claim" and fields]
+    if not holders:
         return None
+    # Earliest claim wins, the same rule claim-then-verify applies to a race.
+    created, fields = min(holders, key=lambda h: (h[1].get("at", ""), h[0]))
     at = _as_dt(fields.get("at", "")) or _as_dt(created[:19] + "Z")
     # Work on the branch renews the claim; the comment is only where it started.
     last = max([t for t in (at, branch_activity) if t is not None], default=None)
