@@ -25,9 +25,11 @@ from typing import Any
 try:
     from tools.branch_cleanup import delete_closed_head
     from tools.pr_delivery_actions import merge_now, merge_pr, signal_conflict
+    from tools.pr_review_status import review_running
 except ImportError:  # `python tools/pr_delivery.py` puts tools/ on sys.path
     from branch_cleanup import delete_closed_head
     from pr_delivery_actions import merge_now, merge_pr, signal_conflict
+    from pr_review_status import review_running
 
 DEFAULT_REPO = "aaltaay/Nova"
 # Owner policy: verification is feedback, never a merge prerequisite.
@@ -134,6 +136,7 @@ def decide(
     head_ref: str,
     same_repo: bool,
     checks: list[dict[str, Any]],
+    review_in_flight: bool = False,
 ) -> Decision:
     if str(state or "OPEN").upper() not in {"OPEN"}:
         return Decision(ACTION_SKIP, "not_open")
@@ -151,6 +154,12 @@ def decide(
     merge_state = str(mergeable_state or "").lower()
     if merge_state in {"dirty", "conflicting"}:
         return Decision(ACTION_BLOCK, "conflict")
+    # After the gates that mean "never merge this", before the ones that mean
+    # "merge it now": there is no point waiting on a review for a PR that is
+    # held anyway, and no point merging out from under one that is running.
+    # WAIT, not BLOCK -- the next sweep merges it, and CI completing fires one.
+    if review_in_flight:
+        return Decision(ACTION_WAIT, "review_running")
     by_name = check_map(checks)
     for name in REQUIRED_CHECKS:
         item = by_name.get(name)
@@ -220,7 +229,7 @@ def _fetch_pr(number: int) -> tuple[dict[str, Any], list[dict[str, Any]]]:
             str(number),
             "--json",
             "number,title,body,state,isDraft,mergeStateStatus,labels,"
-            "headRefName,headRepository,headRepositoryOwner",
+            "headRefName,headRefOid,headRepository,headRepositoryOwner,comments",
         ]
     ).stdout
     pr = json.loads(raw)
@@ -242,6 +251,10 @@ def _decision_from_pr(pr: dict[str, Any], checks: list[dict[str, Any]]) -> Decis
             str(head_repo.get("name") or ""),
         ),
         checks=checks,
+        review_in_flight=review_running(
+            [str(c.get("body") or "") for c in (pr.get("comments") or [])],
+            head_sha=str(pr.get("headRefOid") or ""),
+        ),
     )
 
 
