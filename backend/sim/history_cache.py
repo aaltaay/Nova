@@ -8,7 +8,9 @@ from datetime import date, datetime, time, timedelta, timezone
 
 from constants_sim import SIM_HISTORY_ARCHIVE_CACHE_ENTRIES, SIM_HISTORY_RESULT_CACHE_ENTRIES
 from sim import history_store as store
-from sim.chart_replay import INTERVAL_SECONDS, aggregate_prints
+from sim.chart_replay import (
+    INTERVAL_SECONDS, aggregate_prints, extend_flat_tail, fill_flat_buckets, penny_bar,
+)
 
 
 def timestamp(row):
@@ -100,14 +102,17 @@ class CandleCache:
                 coverage = self.spec['coverage_through']
                 result = [row for row in result if timestamp(row) + seconds > coverage]
                 if seconds not in self.buckets:
-                    rows = aggregate_prints(self.eligible, seconds)
+                    rows = fill_flat_buckets(
+                        [penny_bar(row) for row in aggregate_prints(self.eligible, seconds)], seconds)
                     self.buckets[seconds] = (rows, [row['ts'] for row in rows])
                 buckets, bucket_keys = self.buckets[seconds]
                 complete_end = bisect.bisect_right(bucket_keys, cutoff - seconds)
                 current = cutoff // seconds * seconds
                 reached = self.eligible[bisect.bisect_left(self.keys, current):
                     bisect.bisect_right(self.keys, min(cutoff, coverage - 1))]
-                for row in buckets[:complete_end] + aggregate_prints(reached, seconds):
+                built = list(buckets[:complete_end]) + [
+                    penny_bar(row) for row in aggregate_prints(reached, seconds)]
+                for row in extend_flat_tail(built, seconds, min(cutoff, coverage)):
                     if row['ts'] + seconds > coverage and cutoff >= coverage:
                         continue
                     result.append(dict(t=datetime.fromtimestamp(row['ts'], timezone.utc).isoformat(),
