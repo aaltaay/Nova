@@ -3,7 +3,7 @@
   "owner": "tools/backlog_triage.py",
   "authored": "2026-09-19",
   "note": "AUTHORED source for the work-package plan. GitHub milestones are the projection of this file (`backlog_triage.py sync`); `check` fails when they disagree. Issue state itself (open/closed, labels) always comes from GitHub, never from here. Re-rank by editing `rank`, then re-run sync.",
-  "invalidation": "Re-author when a package completes, when a gate decision lands, or when triage moves an issue between packages. `backlog_triage.py check` reports drift; it does not self-heal.",
+  "invalidation": "Re-author when a package completes, when a gate decision lands, or when triage moves an issue between packages. `backlog_triage.py check` reports drift; it does not self-heal. Re-author touches when batch scope changes; trailing-slash entries reserve a directory subtree.",
   "packages": [
     {
       "rank": 0,
@@ -49,7 +49,16 @@
             339
           ],
           "note": "One PR: all four are the same file (backend/capture/recorder.py) and #339's whole point is that the P0s shipped green because the module had no tests. Splitting them would merge the fixes unverified.",
-          "gated": false
+          "gated": false,
+          "touches": [
+            "backend/capture/",
+            "backend/sim/feed.py",
+            "backend/sim/capture_player.py",
+            "backend/app_lifespan.py",
+            "backend/tests/test_capture_recorder.py",
+            "frontend/src/capture/sessionRecordStore.ts",
+            "frontend/vite.config.ts"
+          ]
         }
       ]
     },
@@ -77,7 +86,15 @@
             317
           ],
           "note": "Both are the same defect class - a client-side flag trusted over server truth - and touch the capture/ibkr status surfaces together.",
-          "gated": false
+          "gated": false,
+          "touches": [
+            "backend/capture/",
+            "backend/sim/feed.py",
+            "backend/sim/capture_player.py",
+            "backend/tests/test_capture_recorder.py",
+            "frontend/src/capture/",
+            "frontend/src/ibkr/"
+          ]
         }
       ]
     },
@@ -110,7 +127,12 @@
             216
           ],
           "note": "Both already exist in code; this PR adds the tests that let the issues close without the behaviour drifting back.",
-          "gated": false
+          "gated": false,
+          "touches": [
+            "backend/bot/",
+            "backend/tests/test_bot_session.py",
+            "backend/tests/test_bot_mcp_adapter.py"
+          ]
         },
         {
           "title": "chore(triage): close shipped work with evidence",
@@ -121,7 +143,12 @@
             131
           ],
           "note": "No production code. Verification comments plus any CHANGELOG/doc correction; #276 still needs the operator's live-desk confirmation before closing.",
-          "gated": false
+          "gated": false,
+          "touches": [
+            "backend/tests/",
+            "frontend/src/components/",
+            "knowledge/obsidian/03-Nova-Decisions/"
+          ]
         }
       ]
     },
@@ -152,7 +179,17 @@
             326
           ],
           "note": "One root cause - environment bleed into test runs - across conftest.py, vite.config.ts and one flaky timing assertion.",
-          "gated": false
+          "gated": false,
+          "touches": [
+            "backend/tests/conftest.py",
+            "backend/tests/test_advise_worker.py",
+            "backend/tests/test_operator_env_isolation.py",
+            "frontend/vite.config.ts",
+            "frontend/scripts/vite-nova-api-key.ts",
+            "frontend/scripts/vite-nova-api-key.test.ts",
+            "frontend/src/api/novaFetch.test.ts",
+            "frontend/src/hotkeys/htkFormat.test.ts"
+          ]
         }
       ]
     },
@@ -168,14 +205,16 @@
         344,
         346,
         347,
-        369
+        369,
+        367
       ],
       "done": [
         "An Actions-merged PR produces a vNNN tag, a GitHub Release, and an attached installer - proven on one real merge, not just a dry run.",
         "A red gating run means code broke: expected delivery states exit 0, and CI has concurrency groups plus job timeouts.",
         "The shared bookkeeping files no longer force every PR to edit the same lines (#344 WS2-WS4).",
         "`py -3 tools/master_branch_protection.py check` still exits 0 afterwards.",
-        "Cleanup preserves and reports recreated branches with unmerged commits; remote deletion is conditional on the verified SHA (#369)."
+        "Cleanup preserves and reports recreated branches with unmerged commits; remote deletion is conditional on the verified SHA (#369).",
+        "Backlog selection and claim acquisition skip live file/directory overlaps, including legacy claims; claims --conflicts explains the holder and paths (#367)."
       ],
       "prs": [
         {
@@ -184,7 +223,15 @@
             346
           ],
           "note": "The token/trigger fix alone. Ship first and confirm on a real merge before touching the desktop target.",
-          "gated": false
+          "gated": false,
+          "touches": [
+            ".github/workflows/deploy.yml",
+            ".github/workflows/desktop-pack.yml",
+            ".github/workflows/pr-delivery.yml",
+            "tools/pr_delivery.py",
+            "tools/test_pr_delivery.py",
+            "tools/test_desktop_pack_workflow.py"
+          ]
         },
         {
           "title": "ci: red means broken - exit codes, concurrency groups, job timeouts, full tools suite",
@@ -192,7 +239,14 @@
             342
           ],
           "note": "58 audit findings, but one theme: CI reports expected states as failures. Reviewer sees workflow YAML plus tools/pr_delivery.py.",
-          "gated": false
+          "gated": false,
+          "touches": [
+            ".github/workflows/",
+            "tools/pr_delivery.py",
+            "tools/test_pr_delivery.py",
+            "backend/tests/conftest.py",
+            "frontend/vite.config.ts"
+          ]
         },
         {
           "title": "chore(delivery): end the bookkeeping conflict magnet",
@@ -200,7 +254,16 @@
             344
           ],
           "note": "Ledger sharding so concurrent agent PRs stop colliding on paperwork. Two of #344's decisions are still open - land the uncontested worksteams and leave the rest on the issue.",
-          "gated": false
+          "gated": false,
+          "touches": [
+            ".github/workflows/",
+            "tools/changes_collate.py",
+            "tools/changes_new.py",
+            "tools/test_changes_fragments.py",
+            "AGENTS.md",
+            ".cursor/rules/",
+            ".github/pull_request_template.md"
+          ]
         },
         {
           "title": "feat(desktop): installer-only target and a notify-only update check",
@@ -208,7 +271,13 @@
             347
           ],
           "note": "GATED on the owner's three calls and on #346 landing first. Do not start this PR before both.",
-          "gated": true
+          "gated": true,
+          "touches": [
+            "frontend/electron/",
+            "frontend/package.json",
+            ".github/workflows/desktop-pack.yml",
+            "frontend/scripts/"
+          ]
         },
         {
           "title": "fix(delivery): preserve unmerged work during branch cleanup",
@@ -216,7 +285,42 @@
             369
           ],
           "note": "The checker, Actions cleanup and local hygiene share the same unsafe branch-name assumption; fix and verify them together.",
-          "gated": false
+          "gated": false,
+          "touches": [
+            "tools/branch_cleanup.py",
+            "tools/pr_delivery.py",
+            "tools/repo_hygiene.py",
+            "tools/repo_hygiene_lib.py",
+            "tools/stale_pr_branches.py",
+            "tools/maintainer_checks.py",
+            "tools/test_stale_pr_branches.py",
+            "tools/test_repo_hygiene.py",
+            "tools/test_repo_hygiene_finish.py",
+            "AGENTS.md",
+            ".cursor/rules/branch-cleanup.mdc"
+          ]
+        },
+        {
+          "title": "fix(backlog): prevent parallel batches from claiming overlapping files",
+          "issues": [
+            367
+          ],
+          "note": "The authored footprint, claim snapshot and picker must agree; complete the advisory coordination fix together.",
+          "gated": false,
+          "touches": [
+            "tools/backlog_footprints.py",
+            "tools/backlog_claims.py",
+            "tools/backlog_claim_commands.py",
+            "tools/backlog_commands.py",
+            "tools/backlog_plan.py",
+            "tools/backlog_render.py",
+            "tools/backlog_triage.py",
+            "tools/test_backlog_footprints.py",
+            "knowledge/backlog-packages.json",
+            "BACKLOG.md",
+            ".cursor/rules/backlog-footprints.mdc",
+            ".github/workflows/deploy.yml"
+          ]
         }
       ]
     },
@@ -248,7 +352,14 @@
             333
           ],
           "note": "All three are the completed-orders / session-error surface; #334 is a few lines once #305 moves the fetch off connect.",
-          "gated": false
+          "gated": false,
+          "touches": [
+            "backend/ibkr/",
+            "backend/startup_reconciliation.py",
+            "backend/tests/test_ibkr_completed_orders_state.py",
+            "backend/tests/test_ibkr_completed_orders_health.py",
+            "frontend/src/ibkr/"
+          ]
         },
         {
           "title": "fix(sim): the desk cannot silently fall back to Live on restart",
@@ -256,7 +367,11 @@
             302
           ],
           "note": "GATED on the operator's policy call. Small once decided; touches backend/sim/mode.py and the header capsule.",
-          "gated": true
+          "gated": true,
+          "touches": [
+            "backend/sim/mode.py",
+            "frontend/src/ibkr/"
+          ]
         }
       ]
     },
@@ -290,7 +405,14 @@
             338
           ],
           "note": "All three rewrite the same ~100-line HistoricalReplayPanel plus its header. One reviewable pass over one component.",
-          "gated": false
+          "gated": false,
+          "touches": [
+            "frontend/src/sim/",
+            "frontend/src/capture/",
+            "backend/sim/",
+            "backend/capture/routes.py",
+            "backend/capture/sessions.py"
+          ]
         },
         {
           "title": "perf(sim): collapse the poll storm, virtualize the tape, unblock the event loop",
@@ -299,7 +421,14 @@
             341
           ],
           "note": "Performance work kept separate from the UX rewrite so the measurement in #341 has a clean before/after.",
-          "gated": false
+          "gated": false,
+          "touches": [
+            "frontend/src/sim/",
+            "frontend/src/capture/",
+            "frontend/src/components/TickerDetailContent.tsx",
+            "backend/sim/",
+            "backend/capture/"
+          ]
         }
       ]
     },
@@ -331,7 +460,12 @@
             320
           ],
           "note": "Both are backend/capture write-path integrity. #320's retention half is gated on the operator's call; land the dedupe and the fallback-path removal regardless.",
-          "gated": false
+          "gated": false,
+          "touches": [
+            "backend/capture/",
+            "backend/sim/capture_player.py",
+            "backend/tests/test_capture_recorder.py"
+          ]
         },
         {
           "title": "fix(replay): honest coverage status and IBKR-reconciled candles",
@@ -340,7 +474,13 @@
             304
           ],
           "note": "Both are backend/sim/history_*: one refuses to call a holed window complete, the other decides what a replay candle is. #304 is gated on the presentation call.",
-          "gated": false
+          "gated": false,
+          "touches": [
+            "backend/sim/",
+            "backend/tests/test_sim_playback.py",
+            "backend/tests/test_sim_chart_replay.py",
+            "frontend/src/sim/"
+          ]
         }
       ]
     },
@@ -373,7 +513,12 @@
             340
           ],
           "note": "GATED: the ADR records a decision only the operator can make (keep backend/sim/history_* as the single replay surface; fix or retire backend/capture/). An agent can draft options on the issue but cannot pick. This is the unblocking PR - the rest of the package waits on it.",
-          "gated": true
+          "gated": true,
+          "touches": [
+            "architecture/decisions/",
+            "backend/l2/db.py",
+            "knowledge/obsidian/"
+          ]
         },
         {
           "title": "fix(feed): one IBKR trade-print fan-out; the dead tape and empty captures go loud",
@@ -382,7 +527,14 @@
             308
           ],
           "note": "Both recorders lack a producer for the same reason. Blocked until the ADR lands.",
-          "gated": true
+          "gated": true,
+          "touches": [
+            "backend/ibkr/",
+            "backend/capture/",
+            "backend/l2/",
+            "backend/sim/",
+            "backend/tests/"
+          ]
         },
         {
           "title": "feat(sim): replay depth and quotes",
@@ -391,7 +543,13 @@
             311
           ],
           "note": "GATED: #311 is an operator cost call (BID_ASK roughly doubles acquisition time) and #309 needs the archive-surface choice. One PR because the UI consumer and the download side must agree.",
-          "gated": true
+          "gated": true,
+          "touches": [
+            "backend/sim/",
+            "backend/l2/",
+            "frontend/src/sim/",
+            "frontend/src/capture/"
+          ]
         },
         {
           "title": "feat(sim): practice fills against a replayed day",
@@ -399,7 +557,12 @@
             310
           ],
           "note": "GATED and possibly won't-do: the operator must first choose read-only replay (close it) vs practice fills on real replayed symbols. Touches execution validation - respect Invariant #7 and auto_live NO-GO.",
-          "gated": true
+          "gated": true,
+          "touches": [
+            "backend/sim/",
+            "backend/execution/",
+            "frontend/src/sim/"
+          ]
         }
       ]
     },
@@ -433,7 +596,12 @@
             14
           ],
           "note": "OPERATOR-ONLY execution; an agent can prepare the scripts and the recipe but cannot produce the evidence.",
-          "gated": true
+          "gated": true,
+          "touches": [
+            "scripts/Install-NovaDailyTask.ps1",
+            "scripts/",
+            "docs/"
+          ]
         },
         {
           "title": "feat(scanner): HOD slot policy and cold Exchange backfill",
@@ -442,7 +610,13 @@
             90
           ],
           "note": "GATED on two one-line operator calls. Small implementations once answered; both touch the scanner hydrate path.",
-          "gated": true
+          "gated": true,
+          "touches": [
+            "backend/ibkr/scanner_hydrate.py",
+            "backend/hod_momo_universe.py",
+            "backend/hod_roster_hooks.py",
+            "frontend/src/components/"
+          ]
         },
         {
           "title": "feat(execution): ticket TIF/GTC end to end",
@@ -450,7 +624,15 @@
             91
           ],
           "note": "The TIF half is ready now; the bracket TP/SL defaults half needs a call. Respect ADR 007 - TIF is a new ExecutionCommand field, not a new order door.",
-          "gated": false
+          "gated": false,
+          "touches": [
+            "backend/execution/",
+            "backend/ibkr/",
+            "backend/tests/test_execution_service.py",
+            "backend/tests/test_execution_validate.py",
+            "frontend/src/ibkr/",
+            "AGENTS.md"
+          ]
         },
         {
           "title": "feat(advise): opt-in multi-model runs",
@@ -458,7 +640,12 @@
             147
           ],
           "note": "Largest and least urgent item on the board. Do not start it while any ready-now package above is open.",
-          "gated": false
+          "gated": false,
+          "touches": [
+            "backend/advise/",
+            "frontend/src/advise/",
+            "backend/tests/test_advise_worker.py"
+          ]
         }
       ]
     },
@@ -485,7 +672,16 @@
             356
           ],
           "note": "Rebase wip/ai-news-ranking onto master and land the existing tests. Site tooling only - nothing in the trading app.",
-          "gated": false
+          "gated": false,
+          "touches": [
+            "tools/ai_news_digest.py",
+            "tools/ai_news_rank.py",
+            "tools/ai_news_feeds.py",
+            "tools/ai_news_html.py",
+            "tools/ai_news_sources.py",
+            "tools/test_ai_news_digest.py",
+            "site/"
+          ]
         },
         {
           "title": "feat(sample): Nova Marketing Sample Data on ?view=sample",
@@ -493,7 +689,12 @@
             357
           ],
           "note": "Additive on the existing sample route. Call it Nova Marketing Sample Data in code and copy - never fake or mock data.",
-          "gated": false
+          "gated": false,
+          "touches": [
+            "frontend/src/sample_data/",
+            "frontend/src/pages/",
+            "site/"
+          ]
         }
       ]
     }

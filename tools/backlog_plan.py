@@ -14,8 +14,11 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Iterable
+
+from tools.backlog_footprints import OVERLAP_REASON, claim_conflicts, live_issue_numbers
 
 from tools.backlog_github import (
     INBOX_TITLE,
@@ -227,6 +230,7 @@ def pick_next(
     packages: list[dict[str, Any]],
     open_numbers: set[int],
     claimed: Iterable[int] = (),
+    *, claim_packages: list[dict[str, Any]] | None = None,
 ) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
     """The highest-ranked package an agent can actually start, plus what it skipped.
 
@@ -240,13 +244,15 @@ def pick_next(
     hidden, so a decision or a claim is surfaced instead of silently costing
     the reader a package.
     """
-    held = set(claimed)
+    claimed = claimed if isinstance(claimed, Mapping) else set(claimed)
+    held = live_issue_numbers(claimed)
+    plan = claim_packages if claim_packages is not None else packages
     skipped: list[dict[str, Any]] = []
     for pkg in packages:
         remaining = set(pkg["issues"]) & open_numbers
         if not remaining:
             continue
-        startable = next_pr(pkg, open_numbers, held)
+        startable = next_pr(pkg, open_numbers, claimed, packages=plan)
         if startable is not None:
             return pkg, skipped
         # No startable batch. Say WHICH of the two reasons it is -- "gated"
@@ -257,27 +263,37 @@ def pick_next(
             for pr in pkg.get("prs", [])
             if not pr.get("gated") and set(pr["issues"]) & open_numbers
         )
-        reason = (
+        conflicts = [
+            row for pr in pkg.get("prs", [])
+            if not pr.get("gated") and set(pr["issues"]) & open_numbers
+            and not set(pr["issues"]) & held
+            for row in claim_conflicts(pkg, pr, claimed, plan)
+        ]
+        reason = OVERLAP_REASON if conflicts else (
             "every startable batch is already claimed" if blocked_by_claim
             else "every remaining batch is gated on a decision"
         )
-        skipped.append(dict(pkg, _skip_reason=reason))
+        skipped.append(dict(pkg, _skip_reason=reason, _conflicts=conflicts))
     return None, skipped
 
 
 def next_pr(
-    pkg: dict[str, Any], open_numbers: set[int], claimed: Iterable[int] = ()
+    pkg: dict[str, Any], open_numbers: set[int], claimed: Iterable[int] = (),
+    *, packages: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any] | None:
     """The first ungated, unclaimed PR batch with open issues left.
 
     A batch is unavailable if ANY of its issues is under a live claim -- the
     batch is one PR, so a partially-claimed batch is not startable.
     """
-    held = set(claimed)
+    held = live_issue_numbers(claimed)
+    plan = packages if packages is not None else load_packages()
     for pr in pkg.get("prs", []):
         if pr.get("gated"):
             continue
         if set(pr["issues"]) & held:
+            continue
+        if claim_conflicts(pkg, pr, claimed, plan):
             continue
         if set(pr["issues"]) & open_numbers:
             return pr

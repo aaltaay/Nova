@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-20 -- Backlog selection ignored files held by another batch (#367)
+
+- **Symptom:** `backlog_triage.py next` offered recording-state work while a live recorder claim held six of the same files. Different issue numbers hid the collision until PR delivery.
+- **Cause:** The picker reserved only issue ids. The authored package plan and structured claim comments carried no file footprint, so outcome-based packages were incorrectly assumed independent.
+- **Fix:** Author per-batch `touches` paths, snapshot them in claims, resolve legacy claims through their batch/issue, and share file/directory overlap checks across selection and claim acquisition. Unknown live footprints block selection; stale/released claims do not. `claims --conflicts` names holders and paths. Re-read after claiming and yield to earlier overlapping work; `--force` cannot steal a live file reservation. Keep commands separated from pure footprint logic (ADR 001).
+- **Fix class:** ownership
+- **Verified by:** Regression coverage reproduces the six-file case, directory boundaries, legacy snapshots, stale/released holders, explicit-package selection, conflict explanations and claim races. Race fixtures freeze UTC time; workflow fixtures read UTF-8 explicitly so local Windows locale/date cannot change the result.
+- **Keywords:** backlog, claims, touches, file overlap, parallel agents, directory prefix, legacy claim, #367
 ## 2026-09-20 — Recordings lost their manifest on restart and died silently on write failure
 
 - **Symptom:** Two separate ways to lose a recorded session with no evidence. (1) Any restart during a recording — crash, `--reload`, Ctrl-C, sidecar respawn — discarded the open 10s/1m/5m/1d buckets and left `manifest.json` holding only the `start_recorder` shape, so the Sim replay picker reported `prints: -1` ("present but unknown") for that session forever; a later Record on the same symbol+day then reset counts to zero while the jsonl kept appending, so the manifest understated the file (8 rows on disk, `counts.prints: 3`). (2) A disk-full or unplugged-drive write raised `OSError` out of `record_print`, the only catch on the path logged at `DEBUG` while root is `INFO`, so ENOSPC produced **no log line, no API field, no UI change** — `/api/capture` kept answering `recording: true` while nothing was written, and the raised exception also aborted quotes, L2 and bars for that tick.

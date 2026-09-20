@@ -66,9 +66,9 @@ def render_next(
     titles: dict[int, str],
 ) -> str:
     if pkg is None:
-        lines = ["No startable package: every ready-now package is complete."]
+        lines = ["No startable package: ready work is complete or blocked."]
         if skipped:
-            lines += ["", "Everything left is gated or already claimed:"]
+            lines += ["", "Everything left is gated or already claimed, or overlaps held files:"]
             for gated in skipped:
                 why = gated.get("_skip_reason") or gated.get("gate") or "see the issues"
                 lines.append(f"  [{gated['rank']}] {gated['title']} ({gated['readiness']})")

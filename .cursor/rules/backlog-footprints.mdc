@@ -1,0 +1,36 @@
+---
+description: Backlog batch footprints prevent parallel agents from editing overlapping files (#367)
+globs: tools/backlog_*.py,knowledge/backlog-packages.json
+alwaysApply: false
+---
+
+# Backlog footprints
+
+`knowledge/backlog-packages.json` remains schema_version 1. Each authored PR
+batch declares `touches: ["repo/path.py", "repo/directory/"]`; a package may
+provide a default when its batches share one footprint. A batch's explicit
+list overrides that default. List substantive source, test, workflow and
+rule surfaces; omit routine generated/append-only ledgers to avoid turning
+every job into a global lock. Re-author footprints when scope changes.
+
+Paths are relative, slash-normalized and case-insensitive (Windows clone).
+A trailing slash denotes a directory and includes all descendants. A file
+matches only that file: `backend/capture/` must not match `backend/capture2/`.
+Absolute paths, parent traversal and glob syntax are invalid.
+
+New claim comment blocks include a JSON `touches` list, preserving the scope
+at claim time. Legacy or malformed footprints resolve through their `batch`
+reference, then the claimed issue's authored batch. Unresolvable live claims
+block selection with an explicit unknown-footprint reason; never assume
+unknown means disjoint. Released/stale claims do not hold files.
+
+`next`, explicit `next --package`, and `claim` use the same overlap check.
+Skip any candidate batch touching a live claim's file/directory, continue
+to a disjoint batch in the same package, then the next ranked package.
+Expose the reason `files overlap an in-flight claim`, holder and paths in
+`claims --conflicts`. Claims remain advisory: after publication re-read and
+yield to an earlier overlapping claim. `--force` does not steal a live file
+claim. No inference from branch names or GitHub assignees.
+
+Pure path/selection logic lives in `backlog_footprints.py`; GitHub command
+effects live in `backlog_claim_commands.py` (ADR 001 modular separation).

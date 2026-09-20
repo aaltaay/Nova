@@ -143,6 +143,7 @@ def build_parser() -> argparse.ArgumentParser:
     nxt.set_defaults(func=cmd_next)
 
     clm = sub.add_parser("claims", help="who is holding which batch")
+    clm.add_argument("--conflicts", action="store_true", help="show batches blocked by held files")
     clm.set_defaults(func=cmd_claims)
 
     cla = sub.add_parser("claim", help="claim a PR batch before working it")
