@@ -138,7 +138,12 @@ Do this:
    backlog against the same GitHub account. If the claim command exits non-zero
    because someone already holds this batch, STOP: do not work it, return
    blocked=true with their agent id in blocker. Do not use --force.
-   If you finish without opening a PR, release it:
+   The claim cuts that branch for you and links it from the lowest issue --
+   \`git fetch origin && git checkout <your-branch-name>\`, never create it
+   yourself. A claim that cannot cut its branch withdraws itself, so a
+   non-zero exit always means you hold nothing.
+   If you finish without opening a PR, release it (this also deletes the
+   branch when you left no commits on it):
      py -3 tools/backlog_triage.py release --package ${brief.package_slug} --batch ${idx}
    A merged PR closes the issues, which retires the claim on its own.
 1. Read each issue with \`gh issue view <n> --repo aaltaay/Nova\`. The bodies carry

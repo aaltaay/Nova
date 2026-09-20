@@ -10,6 +10,9 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 
+from tools.backlog_branches import (
+    delete_unused_branch, ensure_linked_branch, last_commit_at,
+)
 from tools.backlog_claims import (
     CLAIM_LABEL, CLAIM_TTL_HOURS, active_claim, agent_id, batch_ref,
     format_claim, format_release, live_claims, resolve_batch,
@@ -24,6 +27,15 @@ from tools.backlog_github import (
 from tools.backlog_plan import load_packages, with_inbox
 
 
+def post_release(targets: list[int], *, agent: str, batch: str) -> None:
+    """Withdraw claim comments. Used by every yield path so a losing or failed
+    claim never leaves the backlog looking held."""
+    body = format_release(agent=agent, batch=batch)
+    for number in targets:
+        run_gh(["issue", "comment", str(number), "--repo", repo_slug(), "--body-file", "-"],
+               runner=lambda cmd, **kw: subprocess.run(cmd, input=body, **kw))
+
+
 def cmd_claims(args: argparse.Namespace) -> int:
     now = datetime.now(timezone.utc)
     issues = fetch_issues()
@@ -33,8 +45,16 @@ def cmd_claims(args: argparse.Namespace) -> int:
         return EXIT_OK
     rows = []
     for issue in labelled:
-        claim = active_claim(fetch_comments(int(issue["number"])), now=now)
-        rows.append((int(issue["number"]), issue.get("title", ""), claim))
+        number = int(issue["number"])
+        # Two passes: the claim names the branch, the branch says whether the
+        # holder is still working. A comment alone cannot tell those apart.
+        claim = active_claim(fetch_comments(number), now=now)
+        if claim and claim.get("branch"):
+            claim = active_claim(
+                fetch_comments(number), now=now,
+                branch_activity=last_commit_at(run_gh, repo_slug(), claim["branch"]),
+            )
+        rows.append((number, issue.get("title", ""), claim))
     for number, title, claim in sorted(rows):
         if claim is None:
             print(f"  #{number}  label set but no claim comment -- run `release` to clear it")
@@ -139,10 +159,7 @@ def cmd_claim(args: argparse.Namespace) -> int:
         if earliest_other.get("at", "") < now.strftime("%Y-%m-%dT%H:%M:%SZ"):
             print(f"Race lost: {earliest_other.get('agent')} claimed {ref} first. Yielding.",
                   file=sys.stderr)
-            for number in targets:
-                run_gh(["issue", "comment", str(number), "--repo", repo_slug(), "--body-file", "-"],
-                       runner=lambda cmd, **kw: subprocess.run(
-                           cmd, input=format_release(agent=agent, batch=ref), **kw))
+            post_release(targets, agent=agent, batch=ref)
             return EXIT_GAPS
 
     # Different issues can race on the same files. Re-fetch the label list
@@ -154,15 +171,33 @@ def cmd_claim(args: argparse.Namespace) -> int:
     own_order = (now.strftime("%Y-%m-%dT%H:%M:%SZ"), agent, ref, branch)
     earlier = [c for c in conflicts if (c["at"], c["agent"], c["batch"], c["branch"]) < own_order]
     if earlier:
-        for number in targets:
-            run_gh(["issue", "comment", str(number), "--repo", repo_slug(), "--body-file", "-"],
-                   runner=lambda cmd, **kw: subprocess.run(
-                       cmd, input=format_release(agent=agent, batch=ref), **kw))
+        post_release(targets, agent=agent, batch=ref)
         print("Race lost: " + OVERLAP_REASON + "; yielding to " +
               "; ".join(conflict_lines(earlier)), file=sys.stderr)
         return EXIT_GAPS
 
+    # Only now, with the batch genuinely ours, cut the branch: a losing agent
+    # must not leave an orphan ref on origin. A claim that cannot produce its
+    # branch is withdrawn -- the whole point is that `claimed` implies a branch
+    # someone can fetch.
+    anchor = min(targets)
+    link = ensure_linked_branch(
+        run_gh, repo_slug(), anchor=anchor, branch=branch,
+        extra_issues=tuple(n for n in sorted(targets) if n != anchor),
+    )
+    if not link.ok:
+        post_release(targets, agent=agent, batch=ref)
+        reason = ("this token cannot write branches" if link.denied
+                  else link.error or "unknown failure")
+        print(f"Claim withdrawn: {branch} is not on origin ({reason}).", file=sys.stderr)
+        print("A claim now has to name a branch that exists. Fix the branch name "
+              "or the token, then claim again.", file=sys.stderr)
+        return EXIT_ERROR
+
     print(f"Claimed {ref} ({', '.join('#%d' % n for n in targets)}) as {agent} on {branch}.")
+    where = (f"linked from #{anchor}" if anchor in link.linked else "no Development link")
+    print(f"Branch {branch} on origin at {link.tip[:7]} ({where}).")
+    print(f"  git fetch origin && git checkout {branch}")
     print(f"Release with: py -3 tools/backlog_triage.py release --package {pkg['slug']} --batch {index}")
     return EXIT_OK
 
@@ -177,14 +212,28 @@ def cmd_release(args: argparse.Namespace) -> int:
     index, batch = resolve_batch(pkg, args.batch)
     ref = batch_ref(pkg["slug"], index)
     agent = args.agent or agent_id()
-    body = format_release(agent=agent, batch=ref)
     issues = fetch_issues()
     open_numbers = {int(i["number"]) for i in issues}
-    for number in batch["issues"]:
-        if number not in open_numbers:
-            continue  # closed issues carry no claim worth clearing
+    targets = [n for n in batch["issues"] if n in open_numbers]
+
+    # The branch to clean up is the one the claim recorded, not one the caller
+    # remembers: the claim comment is the only record that survives a crash.
+    now = datetime.now(timezone.utc)
+    branch = getattr(args, "branch", None)
+    for number in targets:
+        if branch:
+            break
+        held = active_claim(fetch_comments(number), now=now)
+        if held:
+            branch = held.get("branch")
+
+    for number in targets:  # closed issues carry no claim worth clearing
         run_gh(["issue", "edit", str(number), "--repo", repo_slug(), "--remove-label", CLAIM_LABEL])
-        run_gh(["issue", "comment", str(number), "--repo", repo_slug(), "--body-file", "-"],
-               runner=lambda cmd, **kw: subprocess.run(cmd, input=body, **kw))
+    post_release(targets, agent=agent, batch=ref)
     print(f"Released {ref}.")
+
+    if branch and not getattr(args, "keep_branch", False):
+        # Untouched branches are litter; a branch with commits is someone's
+        # work and outlives the claim that named it (#369).
+        delete_unused_branch(run_gh, repo_slug(), branch)
     return EXIT_OK
