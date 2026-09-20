@@ -80,9 +80,9 @@ Fill `.github/pull_request_template.md` completely.
 
 The PR is the Development link and the task narrative. Do not also create a task-log file for the same work.
 
-## 5. Strict quality gate
+## 5. Advisory verification
 
-Run the checks relevant to the diff before requesting merge:
+Run relevant checks for feedback; do not delay merge for pending or failed results:
 
 ```text
 py -3 -m pytest backend/tests -q
@@ -96,11 +96,11 @@ npm run test:e2e
 
 Also run `py -3 tools/doc_invariants.py`, the agent contract for rules/skills, and the shared-resource neighbor checks from `verification-before-completion.mdc`.
 
-PRs that change the desktop shell, sidecar, pack scripts, or versioning must wait for the **Desktop pack** GitHub Actions job (Windows NSIS + portable). That job uploads `Nova-Setup-vNNN.exe` and `Nova-Portable-vNNN.exe` on the PR. A red Desktop pack job means the PR is not mergeable. Linux agents cannot produce those EXEs locally; the workflow is the proof.
+Application-affecting PRs run advisory Desktop pack to attempt both EXEs. Do not wait for it before merging; report actual results truthfully.
 
 Releases are git tags `vNNN` (commit count from the first commit) plus a GitHub Release that attaches those two EXEs. GitHub's Source code zip/tar is automatic and is not the app.
 
-Do not claim a strict pass when a required check is red. Existing baselines must be named and linked, not hidden.
+Do not claim a check passed without evidence. Failed checks remain visible but do not block merge.
 
 ## 6. Close decision
 
@@ -167,7 +167,7 @@ GitHub `delete_branch_on_merge` is on. That is a backup sweep, not a skip. If Gi
 Required policy (SSOT: `tools/master_branch_protection.py`):
 
 - Block force-push and deletion, including for admins (`enforce_admins`).
-- Require status checks before merge: `Backend tests`, `Frontend build`, `Frontend E2E`, `Agent contract`.
+- Require no status checks before merge; all verification is advisory.
 - Do **not** require pull-request reviews (solo repo -- that deadlocks merges).
 - Do **not** require a pull request to push. Status-only `master` commits stay allowed. The AI news digest must not push `master` -- it opens a ready PR from `chore/ai-news-digest`.
 
@@ -185,12 +185,15 @@ If plan or token permissions block the setting, say so. Never claim `master` is 
 A verified, non-draft PR targeting `master` is finished work. GitHub Actions merges it. The human does not have to say merge. Agents do not sit idle on an open PR.
 
 - Mark the PR **ready (non-draft)** after verification. CI still running is not a reason to stay draft.
-- CI job `Auto-merge` runs `python tools/pr_delivery.py merge --pr N` after the four gating jobs.
+- CI job `Auto-merge` runs `python tools/pr_delivery.py merge --pr N` independently of all verification jobs.
 - Hourly / `workflow_run` sweep in `.github/workflows/pr-delivery.yml` catches leftovers.
 - Closed PR heads are deleted by that same workflow plus `delete_branch_on_merge`.
 - Hold a PR with draft or label `do-not-merge` only when the user explicitly asked to hold, or a hard external blocker is documented in the PR.
-- Dirty (conflict) or failed gating checks stay open -- rebase or fix, do not leave them for the human to babysit if you can rebase in-session.
+- Dirty (conflict) PRs stay open; failed checks do not block merge -- rebase or fix, do not leave them for the human to babysit if you can rebase in-session.
 
 Do not end a coding session with only local commits, unpushed commits, or "I'll open the PR later." The PR URL is the finish line. The pile of idle PRs is a delivery bug.
 
 Current-tip preservation overrides mandatory head deletion: follow `branch-cleanup.mdc`. Never delete a recreated/unmerged or squash-only tip automatically; the guarded command rechecks ancestry and uses a SHA lease.
+
+
+Owner policy (2026-09-20): all verification is advisory. Ready PRs merge while checks run or fail. Do not wait for Desktop pack. No required status checks; retain force-push/deletion protection. This supersedes older verification-before-merge wording below.
