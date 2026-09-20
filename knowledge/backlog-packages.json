@@ -1,0 +1,491 @@
+{
+  "schema_version": 1,
+  "owner": "tools/backlog_triage.py",
+  "authored": "2026-09-19",
+  "note": "AUTHORED source for the work-package plan. GitHub milestones are the projection of this file (`backlog_triage.py sync`); `check` fails when they disagree. Issue state itself (open/closed, labels) always comes from GitHub, never from here. Re-rank by editing `rank`, then re-run sync.",
+  "invalidation": "Re-author when a package completes, when a gate decision lands, or when triage moves an issue between packages. `backlog_triage.py check` reports drift; it does not self-heal.",
+  "packages": [
+    {
+      "rank": 0,
+      "slug": "untriaged",
+      "title": "00 - Untriaged",
+      "readiness": "needs-triage",
+      "gate": "Needs a routing decision: which package's outcome does this issue serve? Run `py -3 tools/backlog_triage.py triage`.",
+      "objective": "The inbox. Every new issue lands here automatically so it is never invisible to `next`, and never silently mis-filed by a heuristic. Issues leave by being added to a real package in knowledge/backlog-packages.json, not by being worked on from here.",
+      "issues": [],
+      "done": [
+        "The inbox is empty: every open issue has been routed to a package whose outcome it actually serves.",
+        "No issue has sat in the inbox across two weekly sweeps without either a package or a comment saying why it is hard to route.",
+        "No P0 or P1 is in the inbox at all -- `backlog_triage.py check` fails while one is."
+      ],
+      "prs": []
+    },
+    {
+      "rank": 1,
+      "slug": "recorder-safety",
+      "title": "01 - Recorder cannot wedge the desk or lose a session",
+      "readiness": "ready-now",
+      "gate": "",
+      "objective": "Pressing Stop on a recording returns instead of permanently deadlocking the FastAPI event loop, a restart mid-recording keeps its bars and manifest counts, and a full disk fails loudly instead of ending the session in silence. Carries both open P0s.",
+      "issues": [
+        314,
+        318,
+        319,
+        339
+      ],
+      "done": [
+        "Stop on an active recording returns and the API keeps serving; a regression test asserts the non-reentrant lock path.",
+        "Kill the process mid-recording and restart: open bars are flushed, the manifest has terminal counts and status, and a resume does not overwrite the prior segment's totals.",
+        "A simulated write failure (ENOSPC / removed drive) surfaces at WARNING or higher and flips the session to a failed state the API reports.",
+        "backend/capture/ has tests that fail when the deadlock, the lost-bar, or the silent-write-failure behaviour is reintroduced."
+      ],
+      "prs": [
+        {
+          "title": "fix(capture): stop deadlock, crash-safe manifests, loud write failures, first tests",
+          "issues": [
+            314,
+            318,
+            319,
+            339
+          ],
+          "note": "One PR: all four are the same file (backend/capture/recorder.py) and #339's whole point is that the P0s shipped green because the module had no tests. Splitting them would merge the fixes unverified.",
+          "gated": false
+        }
+      ]
+    },
+    {
+      "rank": 2,
+      "slug": "state-truth",
+      "title": "02 - Recording and replay state stop lying",
+      "readiness": "ready-now",
+      "gate": "",
+      "objective": "Two surfaces currently show the operator something untrue. A stale frontend recording flag can permanently silence the IB Gateway login/disconnect banner; a failed or empty capture still reports replay_source=\"capture\" and streams fabricated $0.00 prints. After this, recording state is server-owned and a failed load says so.",
+      "issues": [
+        316,
+        317
+      ],
+      "done": [
+        "The recording indicator is derived from the server's single recorded symbol, not a frontend Set that is never refreshed.",
+        "A stale recording flag can no longer suppress the IB Gateway disconnect banner; a test covers the suppression path.",
+        "A failed or empty capture load reports a failure source, not replay_source=\"capture\", and injects no synthetic $0.00 prints."
+      ],
+      "prs": [
+        {
+          "title": "fix(sim): server-owned recording state; an empty capture refuses instead of fabricating prints",
+          "issues": [
+            316,
+            317
+          ],
+          "note": "Both are the same defect class - a client-side flag trusted over server truth - and touch the capture/ibkr status surfaces together.",
+          "gated": false
+        }
+      ]
+    },
+    {
+      "rank": 3,
+      "slug": "close-the-books",
+      "title": "03 - Close what already shipped or was refused",
+      "readiness": "ready-now",
+      "gate": "",
+      "objective": "Six of the 44 open issues are already fixed on master, deliberately refused in code, or owner-parked idea notes. They inflate the board by ~14% and make the replay backlog look worse than it is. Verify each against the tree, close with evidence, or pin the refusal with a test so it cannot silently regress.",
+      "issues": [
+        131,
+        216,
+        222,
+        276,
+        292,
+        312
+      ],
+      "done": [
+        "Each of the six is either closed with a comment naming the commit or file:line that resolved it, or has a one-line note saying why it stays open.",
+        "#216 (L3 unrestricted autonomy) has a test asserting the refusal, so 'parked' is enforced by CI rather than by memory.",
+        "#222's MCP/SDK adapter contract has a test; the issue closes as already-built.",
+        "`py -3 tools/backlog_triage.py report` shows this package at 0 open."
+      ],
+      "prs": [
+        {
+          "title": "test(bot): pin the MCP/SDK adapter contract and the L3 autonomy refusal",
+          "issues": [
+            222,
+            216
+          ],
+          "note": "Both already exist in code; this PR adds the tests that let the issues close without the behaviour drifting back.",
+          "gated": false
+        },
+        {
+          "title": "chore(triage): close shipped work with evidence",
+          "issues": [
+            312,
+            292,
+            276,
+            131
+          ],
+          "note": "No production code. Verification comments plus any CHANGELOG/doc correction; #276 still needs the operator's live-desk confirmation before closing.",
+          "gated": false
+        }
+      ]
+    },
+    {
+      "rank": 4,
+      "slug": "test-integrity",
+      "title": "04 - A test run means the same thing on every machine",
+      "readiness": "ready-now",
+      "gate": "",
+      "objective": "Verification currently depends on whose machine ran it: importing backend/main.py executes configure_logging() and load_dotenv() as import side effects, so pytest writes fake DU123 broker lines into the production blast.log, and Vite injects the operator's real NOVA_API_KEY into Vitest. Every later package's evidence is worth less until this lands.",
+      "issues": [
+        293,
+        307,
+        326
+      ],
+      "done": [
+        "A full pytest run writes nothing to backend/logs/blast.log.",
+        "Vitest runs with a pinned test env and does not read the operator's .env.",
+        "test_cancel_kills_slow_stub no longer depends on a fixed 0.4s sleep and passes under simulated CPU load.",
+        "Both suites pass identically in CI and on a developer machine with a populated .env."
+      ],
+      "prs": [
+        {
+          "title": "test: isolate both suites from the operator environment",
+          "issues": [
+            293,
+            307,
+            326
+          ],
+          "note": "One root cause - environment bleed into test runs - across conftest.py, vite.config.ts and one flaky timing assertion.",
+          "gated": false
+        }
+      ]
+    },
+    {
+      "rank": 5,
+      "slug": "delivery-pipeline",
+      "title": "05 - Merging a PR ships a Release; red CI means code broke",
+      "readiness": "ready-now",
+      "gate": "#347 needs three owner calls (installer-only vs keep portable; notify-only vs auto-update; release channel) before its half can be built.",
+      "objective": "No vNNN tag or GitHub Release has been produced since v757: Actions-merged PRs push with GITHUB_TOKEN, which by design starts no workflow, so desktop-pack.yml never runs on master. Meanwhile ~65% of red CI runs are expected delivery states reported as failures, which trains everyone to ignore red.",
+      "issues": [
+        342,
+        344,
+        346,
+        347
+      ],
+      "done": [
+        "An Actions-merged PR produces a vNNN tag, a GitHub Release, and an attached installer - proven on one real merge, not just a dry run.",
+        "A red gating run means code broke: expected delivery states exit 0, and CI has concurrency groups plus job timeouts.",
+        "The shared bookkeeping files no longer force every PR to edit the same lines (#344 WS2-WS4).",
+        "`py -3 tools/master_branch_protection.py check` still exits 0 afterwards."
+      ],
+      "prs": [
+        {
+          "title": "ci: Actions-merged PRs publish a Release again",
+          "issues": [
+            346
+          ],
+          "note": "The token/trigger fix alone. Ship first and confirm on a real merge before touching the desktop target.",
+          "gated": false
+        },
+        {
+          "title": "ci: red means broken - exit codes, concurrency groups, job timeouts, full tools suite",
+          "issues": [
+            342
+          ],
+          "note": "58 audit findings, but one theme: CI reports expected states as failures. Reviewer sees workflow YAML plus tools/pr_delivery.py.",
+          "gated": false
+        },
+        {
+          "title": "chore(delivery): end the bookkeeping conflict magnet",
+          "issues": [
+            344
+          ],
+          "note": "Ledger sharding so concurrent agent PRs stop colliding on paperwork. Two of #344's decisions are still open - land the uncontested worksteams and leave the rest on the issue.",
+          "gated": false
+        },
+        {
+          "title": "feat(desktop): installer-only target and a notify-only update check",
+          "issues": [
+            347
+          ],
+          "note": "GATED on the owner's three calls and on #346 landing first. Do not start this PR before both.",
+          "gated": true
+        }
+      ]
+    },
+    {
+      "rank": 6,
+      "slug": "gateway-truth",
+      "title": "06 - The desk names how the Gateway is degraded",
+      "readiness": "ready-now",
+      "gate": "#302 needs the operator to pick the Sim-across-restart policy: persist the Sim choice, or force an explicit re-arm on every boot.",
+      "objective": "A Gateway with Read-Only API enabled reaches READY and looks tradeable; every order is then rejected with Error 321 and nothing names the cause. reqCompletedOrders sits inside the connect warm path, so a wedged Gateway stalls READY. And a backend restart silently returns the desk from Sim to Live with the banner gone while spend gates stay armed.",
+      "issues": [
+        302,
+        305,
+        333,
+        334
+      ],
+      "done": [
+        "Read-Only API (Error 321) appears as a named blocker in the trading prereq list, not as generic 'login/2FA'.",
+        "Nova reaches READY within its normal window even when reqCompletedOrders never answers.",
+        "Ledger rows parked as `unverified` resolve once completed orders load, without an API restart.",
+        "A backend restart cannot silently move the desk from Sim to Live: either the mode persists or the desk refuses to arm until re-chosen."
+      ],
+      "prs": [
+        {
+          "title": "fix(ibkr): completed-orders off the warm path, named Gateway blockers, sweep re-run",
+          "issues": [
+            305,
+            334,
+            333
+          ],
+          "note": "All three are the completed-orders / session-error surface; #334 is a few lines once #305 moves the fetch off connect.",
+          "gated": false
+        },
+        {
+          "title": "fix(sim): the desk cannot silently fall back to Live on restart",
+          "issues": [
+            302
+          ],
+          "note": "GATED on the operator's policy call. Small once decided; touches backend/sim/mode.py and the header capsule.",
+          "gated": true
+        }
+      ]
+    },
+    {
+      "rank": 7,
+      "slug": "replay-desk-ui",
+      "title": "07 - The replay desk is usable, readable and honest",
+      "readiness": "ready-now",
+      "gate": "",
+      "objective": "The historical replay panel is the surface the operator actually drives, and it misleads on every axis: a 50-minute / 271-page download reports only a status string and vanishes when the popover closes, the popover parks on top of the scrubber, one busy flag locks every control, the Sim feature ships zero CSS so light theme is broken, and five 1 Hz poll loops plus an unvirtualized tape make scrubbing strobe.",
+      "issues": [
+        321,
+        322,
+        324,
+        338,
+        341
+      ],
+      "done": [
+        "A long download shows percent complete, downloaded-through time and an ETA, and stays visible with the popover closed.",
+        "The popover no longer covers the scrubber; controls are independently enabled rather than sharing one busy flag; the 'Loaded' message reflects current state.",
+        "The Sim feature has a stylesheet in the cascade layers with no inline hex literals, and light theme renders correctly.",
+        "Scrubbing is smooth with the poll loops collapsed and the tape virtualized - with a measured before/after, not an assertion.",
+        "The two audits killed by the rate limit (#341) have reported."
+      ],
+      "prs": [
+        {
+          "title": "feat(sim): replay panel - stylesheet, progress and ETA, usability fixes",
+          "issues": [
+            321,
+            322,
+            338
+          ],
+          "note": "All three rewrite the same ~100-line HistoricalReplayPanel plus its header. One reviewable pass over one component.",
+          "gated": false
+        },
+        {
+          "title": "perf(sim): collapse the poll storm, virtualize the tape, unblock the event loop",
+          "issues": [
+            324,
+            341
+          ],
+          "note": "Performance work kept separate from the UX rewrite so the measurement in #341 has a clean before/after.",
+          "gated": false
+        }
+      ]
+    },
+    {
+      "rank": 8,
+      "slug": "capture-fidelity",
+      "title": "08 - A replay reproduces the day, or refuses loudly",
+      "readiness": "ready-now",
+      "gate": "#320 needs a retention call (manual delete only vs auto-prune) and #304 a presentation call (mirror IBKR bars exactly vs keep print-built candles).",
+      "objective": "A replay can differ from what was recorded with no indication: L2 throttling discards the newest book, the loader silently decimates and drops malformed rows, there is no schema_version, a 1d bucket leaks lookahead, an empty mid-window IBKR page marks a download complete over a silent hole, and bars_1d.jsonl grows one row per print with 29% duplicates and no retention.",
+      "issues": [
+        303,
+        304,
+        320,
+        337
+      ],
+      "done": [
+        "Captures carry a schema_version and a loader refuses an unknown one instead of guessing.",
+        "L2 throttling coalesces rather than discarding the newest book; decimation and malformed-row drops are counted and surfaced.",
+        "An empty mid-window IBKR page marks the job incomplete; playback will not present a hole as authoritative coverage.",
+        "The capture store has a retention policy and a delete endpoint, and the in-repo fallback write path is gone.",
+        "Replay candles reconcile against IBKR's own 1-minute TRADES bars under the policy chosen for #304."
+      ],
+      "prs": [
+        {
+          "title": "fix(capture): faithful writes, schema_version, and an end to the duplicate-row flood",
+          "issues": [
+            337,
+            320
+          ],
+          "note": "Both are backend/capture write-path integrity. #320's retention half is gated on the operator's call; land the dedupe and the fallback-path removal regardless.",
+          "gated": false
+        },
+        {
+          "title": "fix(replay): honest coverage status and IBKR-reconciled candles",
+          "issues": [
+            303,
+            304
+          ],
+          "note": "Both are backend/sim/history_*: one refuses to call a holed window complete, the other decides what a replay candle is. #304 is gated on the presentation call.",
+          "gated": false
+        }
+      ]
+    },
+    {
+      "rank": 9,
+      "slug": "replay-architecture",
+      "title": "09 - One replay surface, one trade-print source",
+      "readiness": "needs-decision-first",
+      "gate": "THE CHOKEPOINT. #340 Phase 3: keep backend/sim/history_* as the single replay surface and fix or retire backend/capture/. That one sitting gates six issues. #309/#311 (depth and quotes) and #310 (practice fills on a replayed day) are separate calls behind it.",
+      "objective": "Nova ships three overlapping record/replay stacks with no shared model, only one of which works, and no ADR saying which is the engine. The L2 tape has written zero rows since the IBKR switch while still reporting healthy, and backend/l2/db.py plus the Local-Market-Data-Recorders note still name Alpaca WS as the time-and-sales source - a live contradiction of the IBKR-only feed rule.",
+      "issues": [
+        308,
+        309,
+        310,
+        311,
+        315,
+        340
+      ],
+      "done": [
+        "An ADR names one replay surface and declares each of the three stacks engine, feeder, or retired.",
+        "No live doc or module comment names Alpaca as a time-and-sales source.",
+        "One IBKR trade-print fan-out exists and feeds the surviving store; the dead tape either receives rows or reports unhealthy.",
+        "Recording a real symbol either captures real prints or refuses - never an empty session with a healthy manifest.",
+        "The depth/quote question (#309, #311) and the practice-fill question (#310) each have a decision recorded on the issue, implemented or closed as won't-do."
+      ],
+      "prs": [
+        {
+          "title": "docs(adr): one replay surface; purge the Alpaca time-and-sales claim",
+          "issues": [
+            340
+          ],
+          "note": "Decision + ADR only, no product code. This is the unblocking PR - everything else in this package waits on it.",
+          "gated": false
+        },
+        {
+          "title": "fix(feed): one IBKR trade-print fan-out; the dead tape and empty captures go loud",
+          "issues": [
+            315,
+            308
+          ],
+          "note": "Both recorders lack a producer for the same reason. Blocked until the ADR lands.",
+          "gated": true
+        },
+        {
+          "title": "feat(sim): replay depth and quotes",
+          "issues": [
+            309,
+            311
+          ],
+          "note": "GATED: #311 is an operator cost call (BID_ASK roughly doubles acquisition time) and #309 needs the archive-surface choice. One PR because the UI consumer and the download side must agree.",
+          "gated": true
+        },
+        {
+          "title": "feat(sim): practice fills against a replayed day",
+          "issues": [
+            310
+          ],
+          "note": "GATED and possibly won't-do: the operator must first choose read-only replay (close it) vs practice fills on real replayed symbols. Touches execution validation - respect Invariant #7 and auto_live NO-GO.",
+          "gated": true
+        }
+      ]
+    },
+    {
+      "rank": 10,
+      "slug": "desk-and-leftovers",
+      "title": "10 - Live desk on master, plus residual product asks",
+      "readiness": "blocked",
+      "gate": "#14 and #331 need the operator at the physical trading PC. #90, #94 and #91 each need one cost/policy call.",
+      "objective": "The physical trading PC still runs a dirty branch, so three merged IBKR reconnect/health fixes are not in effect, and the unattended premarket start has never been proven with a real 03:55 ET log line. Plus four residual product asks with no shared root cause that survive triage.",
+      "issues": [
+        14,
+        90,
+        91,
+        94,
+        147,
+        331
+      ],
+      "done": [
+        "The live desk runs master and the Gateway restart is confirmed, with the date recorded on #331.",
+        "One real unattended premarket start is evidenced by a 03:55 ET line in morning-check.log.",
+        "Ticket TIF reaches the broker (a GTC order survives the session) rather than being a UI-only 'DAY' literal.",
+        "The HOD slot-crowding policy and the scanner Exchange backfill cost call are each recorded on their issue and implemented or closed.",
+        "#147 (opt-in multi-model Advise) is either built or reclassified out of the delivery backlog."
+      ],
+      "prs": [
+        {
+          "title": "chore(ops): unattended premarket verifier and a corrected live-desk sync recipe",
+          "issues": [
+            331,
+            14
+          ],
+          "note": "OPERATOR-ONLY execution; an agent can prepare the scripts and the recipe but cannot produce the evidence.",
+          "gated": true
+        },
+        {
+          "title": "feat(scanner): HOD slot policy and cold Exchange backfill",
+          "issues": [
+            94,
+            90
+          ],
+          "note": "GATED on two one-line operator calls. Small implementations once answered; both touch the scanner hydrate path.",
+          "gated": true
+        },
+        {
+          "title": "feat(execution): ticket TIF/GTC end to end",
+          "issues": [
+            91
+          ],
+          "note": "The TIF half is ready now; the bracket TP/SL defaults half needs a call. Respect ADR 007 - TIF is a new ExecutionCommand field, not a new order door.",
+          "gated": false
+        },
+        {
+          "title": "feat(advise): opt-in multi-model runs",
+          "issues": [
+            147
+          ],
+          "note": "Largest and least urgent item on the board. Do not start it while any ready-now package above is open.",
+          "gated": false
+        }
+      ]
+    },
+    {
+      "rank": 11,
+      "slug": "site-and-parked-wip",
+      "title": "11 - Marketing site and parked WIP",
+      "readiness": "ready-now",
+      "gate": "",
+      "objective": "Two P3 items that touch the public marketing site and the news tooling, not the trading desk. Kept in their own package so they can never outrank desk work, and so a quiet week has something safe to pick up.",
+      "issues": [
+        356,
+        357
+      ],
+      "done": [
+        "The ai-news ranking WIP on wip/ai-news-ranking is either rebased onto master with its 17 existing tests passing, or the branch is deleted and the issue closed as won't-do.",
+        "Nova Marketing Sample Data on ?view=sample renders the documented desk without touching any backend or execution path.",
+        "Neither change alters the trading app: no backend/ibkr, backend/execution, or scanner files in either diff."
+      ],
+      "prs": [
+        {
+          "title": "feat(news): finish the parked ai-news ranking and dedup work",
+          "issues": [
+            356
+          ],
+          "note": "Rebase wip/ai-news-ranking onto master and land the existing tests. Site tooling only - nothing in the trading app.",
+          "gated": false
+        },
+        {
+          "title": "feat(sample): Nova Marketing Sample Data on ?view=sample",
+          "issues": [
+            357
+          ],
+          "note": "Additive on the existing sample route. Call it Nova Marketing Sample Data in code and copy - never fake or mock data.",
+          "gated": false
+        }
+      ]
+    }
+  ]
+}

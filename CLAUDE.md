@@ -10,3 +10,42 @@ Rules:
 - Read `graphify-out/GRAPH_REPORT.md` only for broad review or when query/path/explain are insufficient.
 - After editing `knowledge/obsidian/`, rebuild with `/graphify knowledge/obsidian --update --wiki` (Markdown needs a semantic pass — not AST-only `graphify update`).
 - See `knowledge/obsidian/00-System/Graphify-Knowledge-Graph.md`.
+
+## backlog
+
+The backlog is organised into ranked **work packages** (GitHub milestones). When
+asked to "start on the next item in the backlog", or whenever you need to know
+what to work on next, run:
+
+```text
+py -3 tools/backlog_triage.py next
+```
+
+That prints one package, one pull request, the issues it resolves, and the
+acceptance criteria. Do not re-triage the backlog or open a PR per issue — the
+plan already batches related issues into one reviewable PR.
+
+Rules:
+- `BACKLOG.md` is the narrative; `knowledge/backlog-packages.json` is the authored
+  plan; milestones are its GitHub projection (`backlog_triage.py sync`). Issue
+  state (open/closed, labels) always comes from GitHub.
+- New issues are queued into `00 - Untriaged` automatically the moment they are
+  opened (`.github/workflows/backlog-inbox.yml`), so nothing is invisible to
+  `next`. Nothing guesses the real package.
+- When asked to **"triage the backlog"**: run `py -3 tools/backlog_triage.py triage`,
+  decide which package's *outcome* each inbox issue serves, add it to that package's
+  `issues` and to a PR batch in `knowledge/backlog-packages.json`, run `sync`, and
+  open one small PR with the JSON change. Domain-overlap hints are suggestions, not
+  assignments -- say why you routed each one.
+- `backlog_triage.py check` fails while a **P0 or P1 sits untriaged**.
+- Work marked gated needs an operator decision — record the question on the issue,
+  never guess the policy.
+- **Claim before you work** when other agents may be active — they run from
+  Claude, Codex and Cursor against the same GitHub account, so `assignee` cannot
+  identify a holder: `py -3 tools/backlog_triage.py claim --package <slug> --batch <n>
+  --branch <name>` (set `NOVA_AGENT_ID`). `next` skips claimed batches. Claims go
+  stale after 4h; `claims` lists holders; `release` clears one you did not ship.
+  A merged PR retires its own claim. Advisory, not mutual exclusion.
+- For a multi-agent pass over one package use `.claude/workflows/backlog-wave.js`
+  (2–3 agents, claims each batch, ramps down before token limits). Only when the
+  user has opted into workflows.
