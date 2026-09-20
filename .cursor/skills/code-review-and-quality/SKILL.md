@@ -46,7 +46,7 @@ No N+1 or unbounded fan-out on hot scanner/WS paths? No extra IBKR depth/tape su
 - [ ] Symbol gates on quote/L2/tape (no cross-symbol bleed)
 - [ ] Execution still ADR 007 shaped if orders touched
 - [ ] `auto_live` remains NO-GO (no unlock path sneaked in)
-- [ ] CHANGELOG / PROBLEM_LOG / task-log obligations noted when behavior changed or bugs fixed
+- [ ] PR evidence / task-log obligations noted when behavior changed or bugs fixed
 - [ ] No silent `except: pass` introduced
 
 ## Structural remedies (propose the move)

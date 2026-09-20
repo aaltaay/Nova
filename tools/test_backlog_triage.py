@@ -33,7 +33,7 @@ from tools.backlog_triage import (
 )
 
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "backlog-triage.yml"
-BACKLOG = REPO_ROOT / "BACKLOG.md"
+
 
 
 def issue(number, *, labels=(), milestone=None, title=None):
@@ -232,9 +232,10 @@ def test_splice_is_idempotent():
 # --------------------------------------------------------------------------
 
 
-def test_backlog_md_exists_and_points_at_the_triage_command():
-    assert BACKLOG.exists(), "BACKLOG.md is the narrative home for the packages"
-    text = BACKLOG.read_text(encoding="utf-8")
+def test_backlog_routes_to_github_instead_of_a_root_ledger():
+    assert not (REPO_ROOT / "BACKLOG.md").exists()
+    text = (REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "GitHub Issues/milestones" in text
     assert "backlog_triage.py" in text
 
 
@@ -767,10 +768,10 @@ def test_claim_label_is_a_single_known_name():
     assert CLAIM_LABEL == "claimed"
 
 
-def test_backlog_md_documents_the_claim_protocol_and_its_limit():
-    text = BACKLOG.read_text(encoding="utf-8")
+def test_agent_instructions_document_the_claim_protocol_and_its_limit():
+    text = (REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
     assert "claim --package" in text
-    assert "advisory locking, not mutual exclusion" in text.lower()
+    assert "advisory, not mutual exclusion" in text.lower()
     assert str(CLAIM_TTL_HOURS) in text, "the TTL must be documented, not folklore"
 
 

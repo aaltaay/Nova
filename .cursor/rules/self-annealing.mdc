@@ -1,32 +1,18 @@
 ---
-description: Self-annealing error protocol — never band-aid, always root-cause fix
+description: Root-cause fixes with evidence in issues and PRs
 alwaysApply: true
 ---
 
-# Self-Annealing Protocol
+# Root-cause protocol
 
-When ANY error occurs during a task — build failure, runtime exception, incorrect behavior, test failure — follow this protocol without exception:
+1. Read the error and search relevant GitHub issues/PRs for matching symptoms.
+   Run `py -3 tools/deferred_log.py status` before a fix and respect existing scope.
+2. Identify the cause; fix it in the owning module, not in an app entry point.
+3. Run appropriate regression checks and report fresh evidence truthfully.
+4. Record the cause, fix, and verification in the issue or PR description.
+5. If work remains out of scope, open/update the existing GitHub deferred issue.
+6. Update an operating rule only when the failure exposes a reusable gap.
+7. Commit, push, and deliver the PR under the normal delivery workflow.
 
-## Steps
-
-1. **STOP** — Do not apply a quick band-aid or workaround.
-2. **Search** -- Check `PROBLEM_LOG.md` *and* `py -3 tools/deferred_log.py status` (GitHub Issues labeled `deferred`) for matching symptoms. If an open/parked issue already covers it, work from that issue (or leave it parked) -- do not start a parallel fix.
-3. **Analyze** -- Identify the ROOT CAUSE, not the symptom. Read the actual error, trace the call stack, check the code. Do not propose a patch until root cause is named (Superpowers-style: investigate before fix). If you cannot patch this session (too big, wrong task, needs an ADR), open a GitHub Issue labeled `deferred` (`deferred-log.mdc`) and continue the original job -- do not band-aid, do not stay silent.
-4. **Patch** — Fix the root cause in the CORRECT MODULE (not in `main.py` or `App.tsx`). Prefer a failing regression test first when behavior changed (soft TDD -- see `engineering-methodology.mdc`).
-5. **Test** — Verify the fix works with **fresh** command evidence (see `verification-before-completion.mdc`). No "should work" claims.
-6. **Document** -- If fixed: **MUST** prepend an entry to `PROBLEM_LOG.md` (see `problem-log.mdc`). If parked: **MUST** open or update a GitHub Issue labeled `deferred` (see `deferred-log.mdc`). Declare `problem_log=` and `deferred_log=` in Lifecycle.
-7. **Update SOP** — If the error reveals a gap in rules, update the relevant `.cursor/rules/*.mdc` file or `AGENTS.md`.
-8. **Commit** — Ship the fix, the log entry, and any rule updates in the same commit.
-
-## Anti-Patterns (NEVER do these)
-
-- ❌ Catching an exception and silently ignoring it
-- ❌ Adding a `try/except: pass` to make an error disappear
-- ❌ Fixing the symptom without understanding the cause
-- ❌ Applying a fix in `main.py` when the bug is in a module
-- ❌ Skipping the PROBLEM_LOG entry because the fix was "obvious" or "quick"
-- ❌ Closing a fix with CHANGELOG only and no PROBLEM_LOG
-- ❌ Finding a bug you will not fix now and moving on with no DEFERRED_LOG entry
-- ❌ Dumping parked work only into agent-memory Backlog
-- ❌ Starting a fix that is already an open `deferred` issue without reading that issue first
-- ❌ Moving on without verifying the fix actually works
+Do not hide exceptions, substitute a workaround for a known root cause, or claim
+verification without running it. Retired ledgers are not part of this workflow.

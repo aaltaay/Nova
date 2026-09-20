@@ -1,6 +1,6 @@
 # Generate CHANGELOG.md from merged pull requests. Agents write nothing.
 #
-# The problem (#344): CHANGELOG.md, PROBLEM_LOG.md and task-log/INDEX.md are
+# The problem (#344): shared ledgers and task-log/INDEX.md were
 # PREPENDED by nearly every PR, so two agents working in parallel always
 # collide at line 1 -- on paperwork, not on code. With N agents that is N^2
 # conflict pairs carrying no engineering value in the diff.
@@ -77,7 +77,7 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -B "$BRANCH"
-          git add CHANGELOG.md PROBLEM_LOG.md .changes knowledge/problems 2>/dev/null || true
+          git add CHANGELOG.md .changes
           git commit -m "chore(ledger): collate merged PRs into CHANGELOG.md"
           git push --force-with-lease origin "$BRANCH"
           gh pr view "$BRANCH" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \

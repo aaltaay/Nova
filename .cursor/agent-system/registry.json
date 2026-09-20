@@ -221,7 +221,6 @@
       "continuity_waiver": "Canonical feed architecture and scanner memory govern diagnostics; follow single-market-data-feed.mdc.",
       "canonical_inputs": [
         "knowledge/obsidian/03-Nova-Decisions/IBKR-Scanner-HOD-Architecture.md",
-        "PROBLEM_LOG.md",
         "CHANGELOG.md",
         ".cursor/agent-memory/hod-momo-memory.md"
       ],
@@ -438,7 +437,6 @@
       "continuity_rule": null,
       "continuity_waiver": "No dedicated continuity MDC; routing via specialist-routing.mdc + tester memory/snapshot.",
       "canonical_inputs": [
-        "PROBLEM_LOG.md",
         ".cursor/agent-memory/tester-memory.md"
       ],
       "writable_paths": [

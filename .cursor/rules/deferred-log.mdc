@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Deferred tracker -- mandatory for every agent
 
-The **parking lot for known bugs and parked features** is GitHub Issues labeled `deferred` on `aaltaay/Nova`. `DEFERRED_LOG.md` is the how-to only -- do not prepend `## D-NNN` sections there. Peer of `PROBLEM_LOG.md` -- same respect, same Lifecycle declaration, same constitution severity if you skip it after parking real work.
+The **parking lot for known bugs and parked features** is GitHub Issues labeled `deferred` on `aaltaay/Nova`. `DEFERRED_LOG.md` is the how-to only -- do not prepend `## D-NNN` sections there. Keep the active issue current when parking real work.
 
 Browse: https://github.com/aaltaay/Nova/issues?q=is%3Aissue+label%3Adeferred
 
@@ -19,7 +19,7 @@ When a session **finds a real bug it will not fix now**, or **parks a feature th
 - A fully diagnosed root cause whose patch is deferred (do not band-aid; do not stay silent)
 - A user-requested feature you declined to build now (too complicated, needs an ADR, needs a human decision)
 
-**Skipping the GitHub issue after parking real work is a constitution violation** -- same severity as skipping `PROBLEM_LOG.md` after a real fix.
+**Skipping the GitHub issue after parking real work is a constitution violation**.
 
 ## Before any fix (mandatory, every chat)
 
@@ -36,7 +36,7 @@ Starting a fix that is already an open issue, without reading the issue, is a co
 3. Body fields (never optional): Kind, Severity, Effort, Why parked, Blast radius, Unblock, Next, Evidence. How-to: `DEFERRED_LOG.md`.
 4. Do not log secrets, tokens, or personal data.
 5. Cross-link from CHANGELOG / task-log `Related:` when those also get an entry.
-6. When you later **fix the entire issue**: use `Closes #NNN` in the PR, close with reason completed, write `PROBLEM_LOG.md` for a bug, and set Lifecycle `deferred_log=#NNN` plus `problem_log=...`. Partial fixes use `Refs #NNN`, get an evidence comment, and leave the issue open.
+6. When you later **fix the entire issue**: use `Closes #NNN` in the PR, close with reason completed, record bug-fix evidence in the PR, and set Lifecycle `deferred_log=#NNN`. Partial fixes use `Refs #NNN`, get an evidence comment, and leave the issue open.
 7. `py -3 tools/deferred_log.py refresh-index` rewrites the offline snapshot. It is a **read cache** for environments without `gh` -- nothing allocates from it any more, so a stale snapshot degrades a listing but can no longer corrupt the tracker. Refresh it when convenient; it is not a gate.
 
 ## Do not
@@ -53,7 +53,7 @@ Starting a fix that is already an open issue, without reading the issue, is a co
 
 Only for:
 
-- You actually **fixed** the bug this session (that is `PROBLEM_LOG.md`, then `deferred_log=none` unless you also closed an issue)
+- You actually **fixed** the bug this session (record the fix in its PR; use `deferred_log=none` unless you also closed an issue)
 - Purely cosmetic edits with nothing parked
 - Status-only polls / read-only triage with no new gap found
 - The gap is already an open issue and you did not learn anything new -- still declare `deferred_log=#NNN` if you touched that area, else `none`
@@ -71,14 +71,14 @@ deferred_log=<#NNN or D-NNN>|none|skipped|n/a
 Example after parking a bug:
 
 ```text
-**Lifecycle:** memory=changed | promotion=none | dashboard=clean | handoff=none | task_log=knowledge/task-log/2026-08-26-example.md | problem_log=n/a | deferred_log=D-001
+**Lifecycle:** memory=changed | promotion=none | dashboard=clean | handoff=none | task_log=knowledge/task-log/2026-08-26-example.md | deferred_log=D-001
 ```
 
 ## Relationship to other logs
 
 | Log | Answers |
 |-----|---------|
-| `PROBLEM_LOG.md` | What went wrong and how it was **fixed** |
+| PR/issue evidence | What went wrong, the fix, and verification |
 | GitHub Issues (`deferred`) | What is **still wrong or not built**, with severity so a human can prioritize |
 | `CHANGELOG.md` | What the codebase does now |
 | PR body (or `knowledge/task-log/`) | Full job narrative + why this approach |
@@ -86,7 +86,6 @@ Example after parking a bug:
 
 ## Related
 
-- `.cursor/rules/problem-log.mdc`
 - `.cursor/rules/self-annealing.mdc`
 - `.cursor/rules/change-log.mdc`
 - `.cursor/rules/task-log.mdc`

@@ -26,7 +26,7 @@ acceptance criteria. Do not re-triage the backlog or open a PR per issue — the
 plan already batches related issues into one reviewable PR.
 
 Rules:
-- `BACKLOG.md` is the narrative; `knowledge/backlog-packages.json` is the authored
+- GitHub Issues/milestones hold the current work; `knowledge/backlog-packages.json` is the authored
   plan; milestones are its GitHub projection (`backlog_triage.py sync`). Issue
   state (open/closed, labels) always comes from GitHub.
 - New issues are queued into `00 - Untriaged` automatically the moment they are
@@ -52,14 +52,13 @@ Rules:
 
 ## ledger
 
-`CHANGELOG.md` and `PROBLEM_LOG.md` are **generated** (AGENTS.md §7.1). Do NOT
-prepend to them — that is what makes parallel PRs collide on paperwork (#344).
+`CHANGELOG.md` is **generated** (AGENTS.md §7.1). Do NOT
+prepend to it — that is what makes parallel PRs collide on paperwork (#344).
 
 - A PR carries its entry in its own body: **What** / **Why this approach** /
   **Verified by**, from `.github/pull_request_template.md`. Nothing else.
 - No PR (direct push, ops diagnosis)? Scaffold a fragment instead:
   `py -3 tools/changes_new.py --kind fix --scope <area> --title "..."`
-  (add `--problem` for a PROBLEM_LOG entry). It is a new file, so it cannot
-  conflict.
+  It is a new file, so it cannot conflict.
 - `.github/workflows/ledger-collate.yml` folds merged PRs and fragments into
   the ledger on master and opens one PR. Only that job writes the ledger.

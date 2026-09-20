@@ -58,7 +58,7 @@ def milestone_description(pkg: dict[str, Any]) -> str:
     if pkg.get("gate"):
         parts.append(f"GATE: {pkg['gate']}")
     parts.append("Done when: " + " | ".join(pkg.get("done", [])))
-    parts.append(f"Plan: BACKLOG.md ({pkg['slug']}) - run `py -3 tools/backlog_triage.py next`")
+    parts.append(f"Plan: GitHub Issues/milestones ({pkg['slug']}) - run `py -3 tools/backlog_triage.py next`")
     return "\n\n".join(parts)
 
 

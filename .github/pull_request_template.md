@@ -33,7 +33,7 @@ Touched a shared resource? Also verify its loudest neighbor (blast-radius table 
 <!--
 Closes #NNN only when this PR completes the entire issue.
 Use Refs #NNN for partial progress and leave that issue open, or "none".
-Also list: CHANGELOG entry date, PROBLEM_LOG entry (bug fixes), ADR, roadmap phase.
+Also list: root cause and verification for bug fixes, ADR, and roadmap phase when relevant.
 Parked something new instead of fixing it? Open a `deferred` issue and link it here.
 -->
 
@@ -48,7 +48,7 @@ Parked something new instead of fixing it? Open a `deferred` issue and link it h
 ## Logs
 
 - [ ] `CHANGELOG.md` entry in this PR (behavior / endpoint / constant / rule / UI change)
-- [ ] `PROBLEM_LOG.md` entry in this PR (any bug fixed or fully diagnosed)
+- [ ] Bug-fix cause and verification recorded in this PR when relevant
 - [ ] Issue labels, human owner, Project status, conditional Milestone, and real relationships are correct
 - [ ] `Closes` is used only for full completion; partial work uses `Refs` and leaves the issue open
 - [ ] GitHub issue opened or closed for anything parked or fully finished (label `deferred`)

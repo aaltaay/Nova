@@ -1,9 +1,9 @@
 """Fail CI when live docs re-introduce known-stale present-tense claims.
 
 Scans constitution, README, env examples, rules, docs/, security markdown,
-and a few generator strings. Historical CHANGELOG / PROBLEM_LOG / task-log
+and a few generator strings. Historical CHANGELOG / archived ledgers / task-log
 prose is excluded on purpose -- archives may narrate past Railway/Alpaca eras.
-CHANGELOG / PROBLEM_LOG are checked for *structure* only (one standalone
+CHANGELOG is checked for *structure* only (one standalone
 entries marker, no entry above it, title on line 1), because an entry written
 against the marker's prose mention corrupts the instructions themselves.
 
@@ -131,7 +131,6 @@ INVARIANTS: tuple[tuple[str, re.Pattern[str], str], ...] = (
 # claims, per the module docstring.
 ENTRY_LOGS: tuple[tuple[str, str], ...] = (
     ("CHANGELOG.md", "# Change log (agent-maintained)"),
-    ("PROBLEM_LOG.md", "# Problem log (agent-maintained — MANDATORY)"),
 )
 
 ENTRIES_MARKER = "<!-- ENTRIES_START -->"

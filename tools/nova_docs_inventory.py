@@ -35,7 +35,6 @@ DOC_ROOT_FILES = (
     "AGENTS.md",
     "gemini.md",
     "CHANGELOG.md",
-    "PROBLEM_LOG.md",
     "README.md",
 )
 

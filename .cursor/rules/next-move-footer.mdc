@@ -65,4 +65,4 @@ pins this example, the lane order in AGENTS.md §5, and the forbidden phrases.
 ## Related
 
 - `AGENTS.md` §5 (requirement) · `tools/next_moves.py` (seed + lint) · `tools/session_brief_hook.py` (injects the seed)
-- `.cursor/rules/deferred-log.mdc` (what `[park]` opens) · `BACKLOG.md` (what `[backlog]` claims) · `Nova-Roadmap-Status.md` (where `[ship]` comes from)
+- `.cursor/rules/deferred-log.mdc` (what `[park]` opens) · GitHub Issues/milestones (what `[backlog]` claims) · `Nova-Roadmap-Status.md` (where `[ship]` comes from)

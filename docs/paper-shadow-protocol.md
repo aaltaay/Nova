@@ -99,7 +99,7 @@ For each notable decision or trade, jot:
 - Mode at the time (`signal` / `confirm` / `auto_paper`)
 - What Nova decided (`BUY` / `WAIT` / `NO_BUY`) vs what you would have done
 - Fill / reject / cancel outcome (paper)
-- Any UI/API bug (file in `PROBLEM_LOG.md` after fix, or a stub note until fixed)
+- Any UI/API bug (track in a GitHub issue; record the fix and verification in its PR)
 
 Keep notes in the shadow-day log section of `Nova-Roadmap-Status.md` History (or a dated row under Phase B Evidence).
 
@@ -136,7 +136,7 @@ If no compacted day yet: still log the shadow day (modes used, paper outcomes, b
 | Finding type | Where |
 |--------------|--------|
 | Day completed + modes + review links | `Nova-Roadmap-Status.md` → Phase B evidence + History append |
-| Bug / incorrect behavior | Fix → `PROBLEM_LOG.md` + `CHANGELOG.md` (self-anneal) |
+| Bug / incorrect behavior | Fix → cause and verification in its issue/PR; CHANGELOG is generated |
 | Live-readiness metrics over time | Feed Phase I later; do **not** unlock `auto_live` here |
 | Archive upload / restore issues | Phase C remainder + `docs/r2-archive-setup.md` |
 

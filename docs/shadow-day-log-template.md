@@ -17,7 +17,7 @@ Copy one row into `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md` 
 | **Paper fills** | count closed brackets (non-mock journal) |
 | **Evening review** | `GET /api/archive/review/YYYY-MM-DD` — ok / empty / error |
 | **walk_day** | ran? Y/N — note if cold day missing |
-| **Bugs filed** | PROBLEM_LOG entry titles or “none” |
+| **Bugs filed** | GitHub issue/PR links or “none” |
 | **Notes** | slippage, UI issues, feed honesty, operator mistakes |
 
 ## Hard rules reminder
@@ -28,7 +28,7 @@ Copy one row into `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md` 
 
 ## Progress tracker
 
-| # | Date | Modes | Review artifact | PROBLEM_LOG |
+| # | Date | Modes | Review artifact | Issue/PR |
 |---|------|-------|-----------------|-------------|
 | 1 | | | | |
 | 2 | | | | |

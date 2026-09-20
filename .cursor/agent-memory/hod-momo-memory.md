@@ -119,7 +119,7 @@ CNF-class Squeeze without HOD was **persisted config**, not a formula bug. Schem
 
 ## Root-cause ledger
 
-Session-over-session tracking so future runs don't re-diagnose a solved bug or re-attempt a failed fix. Seeded from `CHANGELOG.md`/`PROBLEM_LOG.md` "HOD Momo" entries on 2026-07-16 — verify against those files directly if a bucket looks stale.
+Session-over-session tracking so future runs don't re-diagnose a solved bug or re-attempt a failed fix. This table is historical; verify stale claims against current code, regression tests, and related GitHub issues/PRs.
 
 ### Fixed (verified, do not re-litigate)
 

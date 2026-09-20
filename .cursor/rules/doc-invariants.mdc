@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Doc invariants (anti-stale live docs)
 
-Historical CHANGELOG / PROBLEM_LOG / task-log may narrate past Railway or Alpaca eras. **Live** docs must not.
+Historical CHANGELOG / PR evidence / task-log may narrate past Railway or Alpaca eras. **Live** docs must not.
 
 ## Live homes (update in the same commit as the posture change)
 

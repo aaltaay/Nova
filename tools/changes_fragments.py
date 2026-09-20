@@ -1,31 +1,9 @@
-"""Per-PR ledger fragments: append a new file, never prepend to a shared one.
+"""Changelog fragments for work without a PR.
 
-`CHANGELOG.md`, `PROBLEM_LOG.md` and `knowledge/task-log/INDEX.md` are written
-by nearly every PR, and all three are **prepended** at line 1. With one author
-that is tidy bookkeeping; with N agents it is N-squared conflict pairs on files
-that carry no engineering value in the diff (#344, "the structural problem").
-
-Two new files with distinct names cannot conflict. So a PR drops a fragment:
-
-    .changes/unreleased/<utc-timestamp>-<slug>.md      -> CHANGELOG.md
-    knowledge/problems/<utc-timestamp>-<slug>.md       -> PROBLEM_LOG.md
-
-and a master-only job collates them into the ledger and deletes them, so only
-one writer ever touches the ledger. This is the changesets / towncrier
-"news fragment" pattern (#344 WS2, design principle 3).
-
-A fragment is Markdown with a small front-matter block:
-
-    ---
-    kind: fix
-    scope: capture
-    pr: 371
-    title: Stop deadlock on recorder stop
-    ---
-    - **What:** ...
-
-Existing `CHANGELOG.md` / `PROBLEM_LOG.md` history is left untouched; only new
-entries go to fragments.
+Normal changes are derived from merged PR descriptions. A no-PR change can use
+`.changes/unreleased/<timestamp>-<slug>.md`; the master-only collation workflow
+folds those into CHANGELOG and deletes the consumed fragments. Bug evidence
+belongs in issues/PRs; there is no second problem-ledger output.
 """
 
 from __future__ import annotations
@@ -37,12 +15,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 CHANGES_DIR = REPO_ROOT / ".changes" / "unreleased"
-PROBLEMS_DIR = REPO_ROOT / "knowledge" / "problems"
 
 CHANGELOG = REPO_ROOT / "CHANGELOG.md"
-PROBLEM_LOG = REPO_ROOT / "PROBLEM_LOG.md"
 
-# Both ledgers carry this marker; new entries are inserted immediately below it.
+# The changelog carries this marker; new entries are inserted immediately below it.
 ENTRIES_MARKER = "<!-- ENTRIES_START -->"
 
 KINDS = ("feat", "fix", "chore", "docs", "perf", "test", "refactor")
