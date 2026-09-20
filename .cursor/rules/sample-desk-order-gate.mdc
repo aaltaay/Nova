@@ -1,0 +1,72 @@
+---
+description: The sample desk must reach no broker — every order door refuses on ?view=sample, all-or-nothing
+globs:
+  - "frontend/src/ibkr/**"
+  - "frontend/src/sample_data/**"
+  - "frontend/src/bot/api.ts"
+alwaysApply: false
+---
+
+# Sample desk order gate
+
+`?view=sample` serves **Nova Marketing Sample Data** — a screenshot/marketing desk built
+from fixtures. It must never reach a broker. This rule exists because a partial
+guard once shipped and was strictly more dangerous than no guard at all.
+
+## The invariant
+
+Every code path that writes to a broker endpoint **must refuse when
+`isSampleView()` is true**, and a composite path must refuse **as one unit**.
+
+Guarded doors today:
+
+| Door | File |
+|---|---|
+| Place / cancel-all | `frontend/src/ibkr/placeOrder.ts` |
+| Cancel one | `frontend/src/ibkr/cancelOrder.ts` |
+| Flatten account | `frontend/src/ibkr/flattenAccount.ts` |
+| Emergency KILL composite | `frontend/src/ibkr/emergencyKill.ts` |
+
+## Why all-or-nothing, not per-leg
+
+`emergencyKill.ts` composes `L0 + desk lock → cancel → flatten`. Cancel-before-flatten
+exists so a resting order cannot fill **during** the flatten.
+
+A guard on `cancelAllWorkingOrders` alone removes the protective leg and keeps the
+destructive one — the account still gets flattened, now with working orders left live.
+That is worse than guarding nothing. `runEmergencyKillOnce` therefore returns on
+`sampleKillRefusal()` **before** any leg runs, and the caller surfaces the refusal so
+the operator is told nothing happened rather than reading a refusal mid-flatten.
+
+**If you guard one leg of a composite, you must guard the composite.**
+
+## Adding a new order door
+
+Any new function that POSTs / DELETEs / PATCHes a broker or bot endpoint:
+
+1. Guard it at the `novaFetch` call site — not at the UI, which can be bypassed and
+   which future callers will not share.
+2. Add it to the table above in the same commit.
+3. Add a wiring test under `frontend/src/sample_data/` asserting the transport boundary
+   is never reached on the sample route.
+4. If it is a leg of a composite, guard the composite instead and say so.
+
+Not every `novaFetch` writer under `frontend/src/ibkr/` is a broker order door —
+`acknowledgeVerification.ts`, `GatewayModeCapsule.tsx` and `TradingPrerequisitesGate.tsx`
+write desk/session state, not orders. Decide by **what the endpoint does to the
+account**, not by which directory the file sits in.
+
+## Boundaries this rule does NOT move
+
+Invariant #7 is unchanged: orders still flow only through gated `backend/ibkr/`,
+`IBKR_ENABLED` / `IBKR_ORDERS_ENABLED` / `IBKR_LIVE_TRADING_CONFIRMED` still apply, and
+`auto_live` remains NO-GO. This is a client-side refusal on one marketing route; it is a
+second lock, never a replacement for the backend gate.
+
+## Wording
+
+"Nova Marketing Sample Data" or "sample", in code identifiers and user-visible copy.
+Never "fake", "mock" or "dummy".
+
+Related: #357 (the desk), AGENTS.md Invariant #5 (SOP before code) and Invariant #7
+(broker execution gate).

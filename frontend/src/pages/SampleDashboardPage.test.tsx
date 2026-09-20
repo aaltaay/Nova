@@ -61,7 +61,7 @@ describe('SampleDashboardPage', () => {
     container.remove();
   });
 
-  it('renders sample banner and populated gappers without live fetch', async () => {
+  it('renders populated gappers without live fetch and owns no marking strip', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     await act(async () => {
       root.render(
@@ -70,7 +70,7 @@ describe('SampleDashboardPage', () => {
             <SampleDataProvider>
               <IbkrAccountProvider>
               <HodMomoFixtureProvider>
-                <SampleDashboardPage onOpenTrader={() => {}} onLeaveSample={() => {}} />
+                <SampleDashboardPage onOpenTrader={() => {}} />
               </HodMomoFixtureProvider>
               </IbkrAccountProvider>
             </SampleDataProvider>
@@ -80,7 +80,10 @@ describe('SampleDashboardPage', () => {
     });
 
     expect(container.querySelector('[data-testid="sample-dashboard"]')).toBeTruthy();
-    expect(container.querySelector('[data-testid="sample-data-banner"]')).toBeTruthy();
+    // #357: the marking strip moved to SampleShell so the sample Trader route
+    // carries it too. Ownership provably left this page rather than vanishing.
+    expect(container.querySelector('[data-testid="sample-data-banner"]')).toBeNull();
+    expect(container.querySelector('[data-testid="sample-data-badge"]')).toBeNull();
     expect(container.textContent).toMatch(/SMPL|GAPX|MOMO/);
     // Sample shell must not hit scanner/decide/HOD APIs for table data.
     const urls = fetchSpy.mock.calls.map((c) => String(c[0]));
@@ -96,7 +99,7 @@ describe('SampleDashboardPage', () => {
             <SampleDataProvider>
               <IbkrAccountProvider>
               <HodMomoFixtureProvider>
-                <SampleDashboardPage onOpenTrader={() => {}} onLeaveSample={() => {}} />
+                <SampleDashboardPage onOpenTrader={() => {}} />
               </HodMomoFixtureProvider>
               </IbkrAccountProvider>
             </SampleDataProvider>
@@ -128,7 +131,7 @@ describe('SampleDashboardPage', () => {
             <SampleDataProvider>
               <IbkrAccountProvider>
               <HodMomoFixtureProvider>
-                <SampleDashboardPage onOpenTrader={() => {}} onLeaveSample={() => {}} />
+                <SampleDashboardPage onOpenTrader={() => {}} />
               </HodMomoFixtureProvider>
               </IbkrAccountProvider>
             </SampleDataProvider>

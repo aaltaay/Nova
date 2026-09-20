@@ -4,12 +4,23 @@ export const SAMPLE_VIEW_QUERY_VALUE = 'sample';
 export const SAMPLE_VIEW_QUERY_KEY = 'view';
 export const SAMPLE_SYMBOL_KEY = 'symbol';
 
-export function isSampleView(search = window.location.search): boolean {
+/**
+ * '' when there is no browser. `isSampleView` is read by transport guards and
+ * by GlobalAppBar, both of which are imported by suites that declare
+ * `@vitest-environment node`; reading window.location there would throw inside
+ * the guard instead of failing an assertion. Every caller gets the safe answer
+ * here rather than each repeating a `typeof window` check (#357).
+ */
+function currentSearch(): string {
+  return typeof window === 'undefined' ? '' : window.location.search;
+}
+
+export function isSampleView(search = currentSearch()): boolean {
   const params = new URLSearchParams(search);
   return params.get(SAMPLE_VIEW_QUERY_KEY) === SAMPLE_VIEW_QUERY_VALUE;
 }
 
-export function parseSampleSymbol(search = window.location.search): string | null {
+export function parseSampleSymbol(search = currentSearch()): string | null {
   if (!isSampleView(search)) return null;
   const symbol = (new URLSearchParams(search).get(SAMPLE_SYMBOL_KEY) || '')
     .trim()
