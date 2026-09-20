@@ -6,9 +6,9 @@ https://github.com/aaltaay/Nova/issues?q=is%3Aissue+label%3Adeferred
 
 `DEFERRED_LOG.md` is the how-to. It is **not** the to-do list. Do not prepend new `## D-NNN` sections here.
 
-**Mandatory for every agent.** Rule: `.cursor/rules/deferred-log.mdc`. Finding a real bug (or parking a real feature) and walking away with no GitHub issue is a constitution violation -- same severity as skipping `PROBLEM_LOG.md` after a real fix. Lifecycle footers must declare `deferred_log=<#NNN or D-NNN>|none|skipped|n/a`.
+**Mandatory for every agent.** Rule: `.cursor/rules/deferred-log.mdc`. Finding a real bug (or parking a real feature) and walking away with no GitHub issue is a constitution violation. Lifecycle footers must declare `deferred_log=<#NNN or D-NNN>|none|skipped|n/a`.
 
-This is **not** `PROBLEM_LOG.md` (closed: symptom / cause / fix). This is **not** `CHANGELOG.md` (what the code does now). This is **not** `knowledge/task-log/` (why we shipped a change). This is **not** `Nova-Roadmap-Status.md` (product NEXT / phases L-Z). This is **not** an agent-memory Backlog.
+This is **not** `CHANGELOG.md` (what the code does now). This is **not** `knowledge/task-log/` (why we shipped a change). This is **not** `Nova-Roadmap-Status.md` (product NEXT / phases L-Z). This is **not** an agent-memory Backlog.
 
 Ranked list:
 
@@ -71,7 +71,7 @@ EOF
 ```
 
 Title is a plain short title -- the durable id is GitHub's `#NNN`, and `D-NNN` is a legacy alias kept only on issues that already carry one. Labels: always `deferred` plus one of `P0`..`P3`, plus `bug` / `enhancement` (feature) / `decision`, plus `domain:<name>` from `execution`, `market-feed`, `widgets`, `news`, `hod-momo`, `ibkr-ops`, `tester`, `security`, `docs`, `frontend`. Add `blocked` or `parked` when that is the status.
-3. **Done.** Close the GitHub issue (reason completed). Write `PROBLEM_LOG.md` if it was a bug. Set Lifecycle `deferred_log=#NNN` plus `problem_log=...`. Do not delete history.
+3. **Done.** Close the GitHub issue (reason completed). Record the bug cause/fix/verification in its PR. Set Lifecycle `deferred_log=#NNN`. Do not delete history.
 4. **Keep it short.** No secrets, tokens, or personal data.
 
 IDs are durable: GitHub never reuses `#NNN`, including for closed issues.
@@ -88,13 +88,13 @@ IDs are durable: GitHub never reuses `#NNN`, including for closed issues.
 
 ## When skip is allowed
 
-Only for: you fixed the bug this session (`PROBLEM_LOG.md`); purely cosmetic edits; status-only polls with no new gap; the gap is already an open issue and you learned nothing new (still declare `deferred_log=#NNN` if you touched that area).
+Only for: you fixed the bug this session (evidence in its PR); purely cosmetic edits; status-only polls with no new gap; the gap is already an open issue and you learned nothing new (still declare `deferred_log=#NNN` if you touched that area).
 
 ## Relationship to other logs
 
 | Log | Answers |
 |-----|---------|
-| `PROBLEM_LOG.md` | What went wrong and how it was **fixed** |
+| PR/issue evidence | What went wrong, the fix, and verification |
 | GitHub Issues (`deferred`) | What is **still wrong or not built** |
 | `CHANGELOG.md` | What the codebase does now |
 | `knowledge/task-log/` | Full job narrative + why this approach |

@@ -40,7 +40,7 @@ Skip any step = do not claim success.
 
 - Prefer the repo's real commands (`pytest`, `npm test` / Vitest, `npm run build`, `py -3 tools/...`).
 - For UI: browser or Playwright evidence when the change is user-visible (see `browser-testing.mdc`).
-- Logging (CHANGELOG / PROBLEM_LOG / task-log) does **not** replace verification.
+- Logging (CHANGELOG / PR evidence / task-log) does **not** replace verification.
 - Domain gates still apply: never claim trading safety without the relevant IBKR/execution checks when those paths changed.
 
 ## Shared-resource blast radius

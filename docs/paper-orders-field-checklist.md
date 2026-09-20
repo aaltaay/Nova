@@ -24,7 +24,7 @@ Use after Open/Closed Orders UI or qty/time math changes. Automated pyramid laye
 
 ## Fail → log
 
-If any step fails, prepend `PROBLEM_LOG.md` (Symptom / Cause / Fix / Keywords) and keep paper pin gates unchanged.
+If any step fails, record the symptom, cause, fix, and verification in its GitHub issue/PR and keep paper pin gates unchanged.
 
 ## Related
 

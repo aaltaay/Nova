@@ -24,8 +24,8 @@
     "Dashboard",
     "**Lifecycle:**"
   ],
-  "lifecycle_footer_regex": "\\*\\*Lifecycle:\\*\\*\\s*memory=(changed|unchanged)\\s*[|\u00b7]\\s*promotion=.+\\s*[|\u00b7]\\s*dashboard=(clean|refresh-required)\\s*[|\u00b7]\\s*handoff=.+\\s*[|\u00b7]\\s*task_log=.+\\s*[|\u00b7]\\s*problem_log=.+\\s*[|\u00b7]\\s*deferred_log=.+",
-  "lifecycle_footer_example": "**Lifecycle:** memory=unchanged | promotion=none | dashboard=clean | handoff=none | task_log=n/a | problem_log=n/a | deferred_log=none",
+  "lifecycle_footer_regex": "\\*\\*Lifecycle:\\*\\*\\s*memory=(changed|unchanged)\\s*[|\u00b7]\\s*promotion=.+\\s*[|\u00b7]\\s*dashboard=(clean|refresh-required)\\s*[|\u00b7]\\s*handoff=.+\\s*[|\u00b7]\\s*task_log=.+\\s*[|\u00b7]\\s*deferred_log=.+",
+  "lifecycle_footer_example": "**Lifecycle:** memory=unchanged | promotion=none | dashboard=clean | handoff=none | task_log=n/a | deferred_log=none",
   "snapshot_required_keys": [
     "captured_at",
     "source_revision",

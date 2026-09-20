@@ -222,7 +222,7 @@ def test_union_merge_covers_the_hand_written_ledgers():
     # In-flight PRs were authored before the ledger became generated; union
     # merging keeps both sides instead of blocking on a paperwork conflict.
     text = GITATTRIBUTES.read_text(encoding="utf-8")
-    for ledger in ("CHANGELOG.md", "PROBLEM_LOG.md", "knowledge/task-log/INDEX.md"):
+    for ledger in ("CHANGELOG.md", "knowledge/task-log/INDEX.md"):
         assert f"{ledger}" in text
     assert "merge=union" in text
 

@@ -95,7 +95,7 @@ if (!brief || brief.nothing_startable || !brief.batches.length) {
   return {
     status: 'nothing-startable',
     reason: brief?.why_not ?? 'the planning agent returned nothing',
-    hint: 'Run `py -3 tools/backlog_triage.py next` yourself; the remaining work is probably gated on a decision (see BACKLOG.md).',
+    hint: 'Run `py -3 tools/backlog_triage.py next` yourself; the remaining work is probably gated on a decision (see GitHub Issues/milestones).',
   }
 }
 
@@ -152,7 +152,7 @@ Do this:
    lines, constants in domain modules.
 4. Add or update tests. Run them. Paste the real result into verified_by -- if
    they fail, say so; do not claim green.
-5. Do NOT touch CHANGELOG.md or PROBLEM_LOG.md -- they are GENERATED from
+5. Do NOT touch CHANGELOG.md -- it is GENERATED from
    merged PR bodies (AGENTS.md 7.1), and hand-editing them is what makes
    parallel agents collide on paperwork. Your PR body IS the entry, so fill
    What / Why this approach / Verified by properly.

@@ -4,7 +4,7 @@
 #   * a milestone per work package (title `NN - slug`, so GitHub's own
 #     alphabetical listing reads as the rank)
 #   * labels P0-P3 / kind / domain:* / deferred on every issue
-#   * BACKLOG.md for the narrative
+#   * GitHub Issues/milestones for the narrative
 #   * one pinned Backlog Map issue holding a generated rollup
 #
 # Any consumer can read that -- `gh`, a webhook, a dashboard, a non-Claude
@@ -93,7 +93,7 @@ jobs:
             echo
             echo "Assign each one a milestone (the work package) and the"
             echo "\`deferred\` + \`P0\`-\`P3\` + kind + \`domain:*\` labels."
-            echo "Routing rules are in BACKLOG.md."
+            echo "Routing rules are in GitHub Issues/milestones."
             echo
             echo '```'
             cat triage.txt

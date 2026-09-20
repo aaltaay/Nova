@@ -76,7 +76,7 @@ Fill `.github/pull_request_template.md` completely.
 - Use `Refs #NNN` for partial progress.
 - List parent, blocked-by, or related issues when the relationship is real.
 - Include fresh test/build/lint/browser evidence.
-- Include CHANGELOG and PROBLEM_LOG entries when their rules apply.
+- Include behavior changes, root cause, and verification in the PR body; CHANGELOG is generated.
 
 The PR is the Development link and the task narrative. Do not also create a task-log file for the same work.
 

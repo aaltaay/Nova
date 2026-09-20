@@ -55,5 +55,5 @@ On agent "loops" (repeatable automated workflows): most loop-library-style loops
 
 - **Constants:** `centralized-constants.mdc`
 - **Backend layout:** `backend-modularity.mdc`
-- **Incidents:** prepend to `PROBLEM_LOG.md` when resolving non-trivial bugs (see `problem-log.mdc`)
+- **Incidents:** record root cause, fix, and verification in the relevant PR or issue.
 - **Agent routing (zero-hop default):** `specialist-routing.mdc`

@@ -136,7 +136,7 @@ def cmd_check(args: argparse.Namespace) -> int:
         if data["hygiene_gaps"] or data["drift"]:
             print(
                 f"FAIL: {len(data['hygiene_gaps'])} issues missing a package or label, "
-                f"{len(data['drift'])} plan/GitHub mismatches. See the triage step in BACKLOG.md.",
+                f"{len(data['drift'])} plan/GitHub mismatches. See the triage step in GitHub Issues/milestones.",
                 file=sys.stderr,
             )
         return EXIT_GAPS

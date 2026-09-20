@@ -113,7 +113,7 @@ def render_next(
     lines += [
         "",
         "Rules: clean branch off origin/master, one ready PR, `Closes #N` only for",
-        "fully-resolved issues (`Refs #N` otherwise). Details in BACKLOG.md.",
+        "fully-resolved issues (`Refs #N` otherwise). Details in GitHub Issues/milestones.",
     ]
     return "\n".join(lines)
 

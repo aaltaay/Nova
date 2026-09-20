@@ -488,7 +488,7 @@
       "rank": 9,
       "slug": "replay-architecture",
       "title": "09 - One replay surface, one trade-print source",
-      "readiness": "partially-startable",
+      "readiness": "ready-now",
       "gate": "ADR 017 accepts history_* as sole Historical engine, capture as feeder, and L2 as hot sink. The shared AllLast print fan-out is implemented. Canonical capture import, depth/quote replay (#309/#311), and practice fills (#310) remain separate work.",
       "objective": "One Historical replay surface with a shared IBKR AllLast source and explicit recording health; complete remaining capture-import and replay capability decisions.",
       "issues": [

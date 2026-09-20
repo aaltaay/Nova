@@ -82,7 +82,7 @@ Run the deterministic script first. Then layer judgment. Score each dimension 0�
 ### 6. Hygiene drift
 
 - Generated artifacts (`frontend/dist/`, `backend/.cache/`, `.env`) about to be committed.
-- Missing `CHANGELOG.md` / `PROBLEM_LOG.md` for recent non-trivial commits (judgment call — note as SUGGESTION unless clearly a bug fix without PROBLEM_LOG).
+- Missing cause/fix/verification evidence in PRs for recent non-trivial changes.
 
 ## Severity rules
 
@@ -137,7 +137,7 @@ Rules:
 - **Suggested next fixes:** (ordered; one commit each; parent decides)
 - **Memory update:** none | run-log only | baseline updated: <what> | backlog +N
 
-**Lifecycle:** memory=unchanged | promotion=none | dashboard=clean | handoff=none | task_log=<path>|skipped|n/a | problem_log=<entry>|skipped|n/a | deferred_log=<id>|none|skipped|n/a
+**Lifecycle:** memory=unchanged | promotion=none | dashboard=clean | handoff=none | task_log=<path>|skipped|n/a | deferred_log=<id>|none|skipped|n/a
 ```
 
 Keep the report short. Prefer evidence over narrative. If CLEAN, say so — do not invent findings to look busy.

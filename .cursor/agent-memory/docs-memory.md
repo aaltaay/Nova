@@ -55,7 +55,7 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 - [ ] **Vendored skill lint debt** — 176 remaining markdownlint errors are all in `.cursor/skills/*` (+ `.claude/skills`, `.agents/skills` mirrors) and `knowledge/obsidian/`. Vendored copies are pinned per `docs/SOURCE-PINS.md` — don't hand-edit without checking whether upstream already fixed it; Obsidian vault needs its own pass (lower priority, high volume).
 - [ ] **CI warning-first** — GitHub Actions job for markdownlint-cli2 + Vale + Lychee (continue-on-error initially).
 - [ ] **Diátaxis map** — classify `docs/` + key vault notes into tutorial / how-to / reference / explanation; fix misplaced files only with evidence.
-- [ ] **CHANGELOG/PROBLEM_LOG template drift** — detect entries missing required fields.
+- [ ] **PR evidence quality** — check cause/fix/verification when relevant; CHANGELOG is generated.
 - [ ] **Broken internal links** — Lychee pass focused on `file://` / relative markdown links in `docs/` and `knowledge/obsidian/`.
 - [ ] **Promote top traps** — after 2+ identical doc mistakes, add Known traps to `docs.md`.
 

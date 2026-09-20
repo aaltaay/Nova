@@ -51,7 +51,7 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 - [ ] **CI parity** — read `.github/workflows/*` and note any gates the local tester should mirror (matrix Python version, e2e on PR only, etc.).
 - [ ] **Seed a golden browser path** — one short click-path (e.g. open Gappers → pick a symbol → Stock View) recorded here so UI verifies are consistent.
 - [x] **Timeout defaults** — Vitest full suite ~11–16s wall (99/422, verbose) on this machine → `block_until_ms` ≥ 60000 is safe; pytest/playwright still TBD.
-- [ ] **Promote top PROBLEM_LOG traps** — when a new test-infra trap appears 2+ times, add it to `tester.md` Known traps and check it off here.
+- [ ] **Promote recurring test-infra traps** — use relevant PRs/issues and regression failures; add reusable guidance to `tester.md` Known traps.
 
 ### Completed
 

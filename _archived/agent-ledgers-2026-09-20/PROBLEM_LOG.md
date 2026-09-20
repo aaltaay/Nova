@@ -1,3 +1,5 @@
+> ARCHIVED 2026-09-20 — inactive historical snapshot. Do not follow the instructions below or maintain this file. Consult only on explicit user request.
+
 # Problem log (agent-maintained — MANDATORY)
 
 This file is a **shared memory** of errors fixed and problems identified in this repo. Agents should **search here first** (repo search or open this file) when symptoms look familiar.

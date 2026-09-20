@@ -1,3 +1,5 @@
+> ARCHIVED 2026-09-20 — inactive historical snapshot. Do not follow the instructions below or maintain this file. Consult only on explicit user request.
+
 # Nova backlog — work packages
 
 **The backlog is organised into eleven work packages, plus an inbox.** A package

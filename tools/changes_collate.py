@@ -52,8 +52,6 @@ for _stream in (sys.stdout, sys.stderr):
 from tools.changes_fragments import (  # noqa: E402
     CHANGELOG,
     CHANGES_DIR,
-    PROBLEM_LOG,
-    PROBLEMS_DIR,
     Fragment,
     collate,
     load_fragments,
@@ -166,7 +164,7 @@ def pr_to_fragment(pr: dict) -> Fragment | None:
 def cmd_check() -> int:
     """CI gate: every fragment parses. Says nothing when there are none."""
     problems: list[str] = []
-    for directory in (CHANGES_DIR, PROBLEMS_DIR):
+    for directory in (CHANGES_DIR,):
         try:
             found = load_fragments(directory)
         except ValueError as exc:
@@ -181,7 +179,7 @@ def cmd_check() -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Generate CHANGELOG.md / PROBLEM_LOG.md")
+    parser = argparse.ArgumentParser(description="Generate CHANGELOG.md")
     parser.add_argument("--date", help="entry date (YYYY-MM-DD); required unless --check")
     parser.add_argument("--since-merge-of", type=int, default=None,
                         help="only PRs numbered above this one")
@@ -228,7 +226,7 @@ def main(argv: list[str] | None = None) -> int:
         written += len(entries)
 
     # Fragments are the no-PR escape hatch; fold them in and delete them.
-    for directory, ledger in ((CHANGES_DIR, CHANGELOG), (PROBLEMS_DIR, PROBLEM_LOG)):
+    for directory, ledger in ((CHANGES_DIR, CHANGELOG),):
         count, consumed = collate(directory, ledger, date=args.date)
         written += count
         for path in consumed:
