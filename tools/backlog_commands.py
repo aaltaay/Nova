@@ -13,7 +13,9 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 
-from tools.backlog_claim_commands import cmd_claim, cmd_claims, cmd_release  # noqa: F401
+from tools.backlog_claim_commands import (  # noqa: F401
+    branch_activity_for, cmd_claim, cmd_claims, cmd_release,
+)
 from tools.backlog_claims import live_claims
 from tools.backlog_github import (
     EXIT_ERROR,
@@ -51,7 +53,10 @@ def cmd_next(args: argparse.Namespace) -> int:
     packages = with_inbox(load_packages(), issues)
     open_numbers = {int(i["number"]) for i in issues}
     titles = {int(i["number"]): i.get("title", "") for i in issues}
-    held = live_claims(issues, now=datetime.now(timezone.utc))
+    # Same staleness rule the `claims` view shows: a holder past the TTL but
+    # still committing keeps the batch, so `next` never hands it out twice.
+    held = live_claims(issues, now=datetime.now(timezone.utc),
+                       branch_activity_for=branch_activity_for)
     if getattr(args, "package", None):
         # An explicit package still needs LIVE open/closed state, which the
         # authored JSON does not carry -- without this a caller would dispatch

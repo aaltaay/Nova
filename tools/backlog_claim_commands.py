@@ -15,7 +15,7 @@ from tools.backlog_branches import (
 )
 from tools.backlog_claims import (
     CLAIM_LABEL, CLAIM_TTL_HOURS, active_claim, agent_id, batch_ref,
-    format_claim, format_release, live_claims, resolve_batch,
+    format_claim, format_release, live_claims, resolve_batch, resolve_claim,
 )
 from tools.backlog_footprints import (
     OVERLAP_REASON, batch_touches, claim_conflicts, conflict_lines,
@@ -27,13 +27,33 @@ from tools.backlog_github import (
 from tools.backlog_plan import load_packages, with_inbox
 
 
+def branch_activity_for(ref: str):
+    """Last commit on a claimed branch, for the staleness decision.
+
+    A module-level function rather than a lambda so tests can replace it and
+    so every enforcement path shares one definition of "still working".
+    """
+    return last_commit_at(run_gh, repo_slug(), ref)
+
+
 def post_release(targets: list[int], *, agent: str, batch: str) -> None:
-    """Withdraw claim comments. Used by every yield path so a losing or failed
-    claim never leaves the backlog looking held."""
+    """Withdraw a claim: release marker plus the label that advertised it.
+
+    The label is half the claim -- `live_claims` uses it as its cheap filter
+    and `claims` lists it -- so dropping only the comment leaves issues
+    reading `claimed` with nothing behind them.
+
+    A concurrent winner may have claimed the same issues after us, and their
+    claim comment is then newer than our release. The label is theirs at that
+    point, so it is removed only once no claim survives on the issue.
+    """
     body = format_release(agent=agent, batch=batch)
     for number in targets:
         run_gh(["issue", "comment", str(number), "--repo", repo_slug(), "--body-file", "-"],
                runner=lambda cmd, **kw: subprocess.run(cmd, input=body, **kw))
+        if active_claim(fetch_comments(number), now=datetime.now(timezone.utc)) is None:
+            run_gh(["issue", "edit", str(number), "--repo", repo_slug(),
+                    "--remove-label", CLAIM_LABEL])
 
 
 def cmd_claims(args: argparse.Namespace) -> int:
@@ -46,14 +66,10 @@ def cmd_claims(args: argparse.Namespace) -> int:
     rows = []
     for issue in labelled:
         number = int(issue["number"])
-        # Two passes: the claim names the branch, the branch says whether the
-        # holder is still working. A comment alone cannot tell those apart.
-        claim = active_claim(fetch_comments(number), now=now)
-        if claim and claim.get("branch"):
-            claim = active_claim(
-                fetch_comments(number), now=now,
-                branch_activity=last_commit_at(run_gh, repo_slug(), claim["branch"]),
-            )
+        # The claim names the branch; the branch says whether the holder is
+        # still working. A comment alone cannot tell those apart.
+        claim = resolve_claim(fetch_comments(number), now=now,
+                              branch_activity_for=branch_activity_for)
         rows.append((number, issue.get("title", ""), claim))
     for number, title, claim in sorted(rows):
         if claim is None:
@@ -114,7 +130,8 @@ def cmd_claim(args: argparse.Namespace) -> int:
 
     existing = {}
     for number in targets:
-        claim = active_claim(fetch_comments(number), now=now)
+        claim = resolve_claim(fetch_comments(number), now=now,
+                              branch_activity_for=branch_activity_for)
         if claim and (not claim["stale"] or args.force):
             if not claim["stale"]:
                 existing[number] = claim
@@ -125,7 +142,7 @@ def cmd_claim(args: argparse.Namespace) -> int:
         print("Pick another batch, or release the live claim after coordinating with its owner.", file=sys.stderr)
         return EXIT_GAPS
 
-    held = live_claims(issues, now=now)
+    held = live_claims(issues, now=now, branch_activity_for=branch_activity_for)
     # Refreshing our own claim is allowed; a different live holder is not.
     others = {n: c for n, c in held.items()
               if (c.get("agent"), c.get("batch"), c.get("branch")) != (agent, ref, branch)}
@@ -151,7 +168,8 @@ def cmd_claim(args: argparse.Namespace) -> int:
     # have read "unclaimed". Earliest `at` wins; a loser yields immediately
     # rather than working a batch someone else also started.
     others = [
-        c for c in (active_claim(fetch_comments(n), now=now) for n in targets)
+        c for c in (resolve_claim(fetch_comments(n), now=now,
+                                  branch_activity_for=branch_activity_for) for n in targets)
         if c and c.get("agent") and c["agent"] != agent and not c["stale"]
     ]
     if others:
@@ -164,7 +182,8 @@ def cmd_claim(args: argparse.Namespace) -> int:
 
     # Different issues can race on the same files. Re-fetch the label list
     # as well as comments; the pre-claim snapshot cannot see the new holder.
-    live = live_claims(fetch_issues(), now=datetime.now(timezone.utc))
+    live = live_claims(fetch_issues(), now=datetime.now(timezone.utc),
+                       branch_activity_for=branch_activity_for)
     others_by_issue = {n: c for n, c in live.items()
                        if (c.get("agent"), c.get("batch"), c.get("branch")) != (agent, ref, branch)}
     conflicts = claim_conflicts(pkg, batch, others_by_issue, packages)
@@ -227,8 +246,7 @@ def cmd_release(args: argparse.Namespace) -> int:
         if held:
             branch = held.get("branch")
 
-    for number in targets:  # closed issues carry no claim worth clearing
-        run_gh(["issue", "edit", str(number), "--repo", repo_slug(), "--remove-label", CLAIM_LABEL])
+    # closed issues carry no claim worth clearing; post_release drops the label
     post_release(targets, agent=agent, batch=ref)
     print(f"Released {ref}.")
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import unquote
 
@@ -17,7 +18,10 @@ import pytest
 
 from tools import backlog_branches as bb
 from tools import backlog_claim_commands as cc
-from tools.backlog_claims import CLAIM_TTL_HOURS, active_claim, format_claim
+from tools import backlog_claims as bc
+from tools.backlog_claims import (
+    CLAIM_TTL_HOURS, active_claim, format_claim, live_claims, resolve_claim,
+)
 
 NOW = datetime(2026, 9, 20, 12, tzinfo=timezone.utc)
 REPO = "aaltaay/Nova"
@@ -283,3 +287,95 @@ def test_an_abandoned_branch_still_goes_stale():
 def test_the_claim_comment_describes_the_staleness_rule_it_actually_uses():
     body = format_claim(agent="worker-b", batch="state#0", branch="agent/state-0", at=NOW)
     assert "last commit" in body, "the comment must not promise what the code cannot do"
+
+
+# --------------------------------------------------------------------------
+# the enforcement path agrees with the display (P1)
+
+
+def labelled(*numbers):
+    return [{"number": n, "labels": [{"name": "claimed"}]} for n in numbers]
+
+
+def test_next_keeps_a_batch_whose_holder_is_still_committing(monkeypatch):
+    # The bug: `claims` consulted the branch and `next` did not, so a holder
+    # past the TTL but actively committing read as held on the display and
+    # stale to the picker -- which handed the same batch to a second agent.
+    monkeypatch.setattr(bc, "fetch_comments",
+                        lambda n: claim_comment(CLAIM_TTL_HOURS + 2))
+    assert live_claims(labelled(2), now=NOW) == {}, "comment age alone calls it stale"
+    held = live_claims(labelled(2), now=NOW,
+                       branch_activity_for=lambda ref: NOW - timedelta(minutes=5))
+    assert set(held) == {2}, "a branch committed 5 minutes ago is not an abandoned claim"
+
+
+def test_next_still_reclaims_a_batch_whose_branch_was_abandoned(monkeypatch):
+    monkeypatch.setattr(bc, "fetch_comments",
+                        lambda n: claim_comment(CLAIM_TTL_HOURS + 2))
+    held = live_claims(labelled(2), now=NOW,
+                       branch_activity_for=lambda ref: NOW - timedelta(days=2))
+    assert held == {}, "an old claim on an untouched branch must still expire"
+
+
+def test_a_live_claim_costs_no_branch_lookup(monkeypatch):
+    # Branch activity can only revive a claim, never expire one, so a holder
+    # that is live on comment age never pays for the call. This is what keeps
+    # `next` cheap now that it resolves the same way `claims` does.
+    monkeypatch.setattr(bc, "fetch_comments", lambda n: claim_comment(1))
+    looked_up = []
+    held = live_claims(labelled(2), now=NOW,
+                       branch_activity_for=lambda ref: looked_up.append(ref))
+    assert set(held) == {2} and looked_up == []
+
+
+def test_resolve_claim_without_a_resolver_is_the_old_answer():
+    comments = claim_comment(CLAIM_TTL_HOURS + 2)
+    assert resolve_claim(comments, now=NOW) == active_claim(comments, now=NOW)
+
+
+def test_every_enforcement_path_resolves_the_same_way(monkeypatch):
+    # A regression guard with teeth: if a future edit reintroduces a bare
+    # active_claim in cmd_claim, `claims` and `next` silently disagree again.
+    source = Path(cc.__file__)
+    text = source.read_text(encoding="utf-8")
+    body = text.split("def cmd_claim(", 1)[1].split("def cmd_release(", 1)[0]
+    assert "active_claim(" not in body, (
+        "cmd_claim must resolve claims through resolve_claim so the picker and "
+        "the claims view share one definition of stale"
+    )
+
+
+# --------------------------------------------------------------------------
+# a withdrawn claim leaves no label behind (P2)
+
+
+def test_a_withdrawn_claim_drops_the_label_it_added(monkeypatch, capsys):
+    # `claimed` is half the claim: live_claims uses it as its cheap filter, so
+    # a label with nothing behind it makes the backlog look held.
+    gh = FakeGh(deny=True)
+    setup_claim(monkeypatch, gh)
+    assert cc.cmd_claim(claim_args()) == 2
+    removed = [c for c in gh.calls if "--remove-label" in c]
+    assert {int(c[2]) for c in removed} == {2, 3}
+
+
+def test_a_withdrawal_never_strips_a_concurrent_winners_label(monkeypatch):
+    # We lose the race, the winner's claim comment is newer than our release,
+    # and the label on those issues is now theirs to hold.
+    gh = FakeGh(deny=True)
+    setup_claim(monkeypatch, gh)
+    monkeypatch.setattr(cc, "active_claim", lambda *a, **kw: {
+        "agent": "worker-a", "batch": "state#0", "branch": "codex/state",
+        "at": "2026-09-20T11:59:00Z", "stale": False})
+    assert cc.cmd_claim(claim_args()) == 2
+    assert not [c for c in gh.calls if "--remove-label" in c]
+
+
+def test_release_clears_the_label_through_the_same_path(monkeypatch):
+    gh = FakeGh(refs={"agent/state-0": TIP},
+                compare={"status": "identical", "merge_base_commit": {"sha": TIP}})
+    setup_release(monkeypatch, gh)
+    monkeypatch.setattr(cc, "active_claim", lambda *a, **kw: None)
+    assert cc.cmd_release(release_args()) == 0
+    removed = [c for c in gh.calls if "--remove-label" in c]
+    assert {int(c[2]) for c in removed} == {2, 3}

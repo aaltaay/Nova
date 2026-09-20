@@ -161,7 +161,8 @@ def test_claims_conflicts_view_explains_candidate_holder_and_path(monkeypatch, c
     monkeypatch.setattr(cc, "fetch_issues", lambda: [
         {"number": 1, "labels": [{"name": "claimed"}]}, {"number": 2}])
     monkeypatch.setattr(cc, "fetch_comments", lambda n: [])
-    monkeypatch.setattr(cc, "active_claim", lambda *a, **kw: holder())
+    # cmd_claims resolves through the shared branch-aware path now.
+    monkeypatch.setattr(cc, "resolve_claim", lambda *a, **kw: holder())
     assert cc.cmd_claims(build_parser().parse_args(["claims", "--conflicts"])) == 0
     output = capsys.readouterr().out
     assert "state#0 -- files overlap an in-flight claim" in output
