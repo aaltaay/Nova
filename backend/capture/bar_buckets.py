@@ -93,16 +93,22 @@ def on_print(symbol: str, ts: float, price: float, size: float, *, source: str, 
         record_bar("1d", dict(cur))
 
 
-def flush_open(symbol: str | None = None) -> None:
-    """Emit any open buckets (on Stop recording)."""
-    try:
-        from capture.recorder import record_bar
-    except Exception:
-        return
+def drain_open(symbol: str | None = None) -> list[tuple[str, dict[str, Any]]]:
+    """Pop the open buckets and *return* them as ``(timeframe, bar)`` pairs.
+
+    Deliberately does not call back into the recorder (D-063).  ``stop_recorder``
+    runs this while holding the recorder's non-reentrant lock; the old
+    ``flush_open`` called ``record_bar`` from here, which re-acquired that same
+    lock on the same thread and deadlocked the FastAPI event loop on the very
+    first Stop.  Returning the bars keeps the write on the caller's side of the
+    lock, where it can use the internal already-locked write path.
+    """
+    out: list[tuple[str, dict[str, Any]]] = []
     syms = [symbol.upper()] if symbol else list(_buckets.keys())
     for sym in syms:
         by_tf = _buckets.pop(sym, None)
         if not by_tf:
             continue
         for tf, bar in by_tf.items():
-            record_bar(tf, bar)
+            out.append((tf, bar))
+    return out

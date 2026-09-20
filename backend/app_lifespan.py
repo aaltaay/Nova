@@ -188,6 +188,15 @@ def _local_startup() -> None:
     t_c = time.perf_counter()
     _init_databases()
     try:
+        # D-067: a recording the previous process died during is still open on
+        # disk with no terminal counts. Finalize it before anything can resume.
+        from capture.recorder import capture_root
+        from capture.session_state import finalize_orphaned_session
+
+        finalize_orphaned_session(capture_root())
+    except Exception:
+        logger.exception("CAPTURE: orphaned session recovery failed")
+    try:
         from news.sentiment import warm_pipeline
         warm_pipeline()
     except Exception:
@@ -290,6 +299,14 @@ async def lifespan(app: FastAPI):
         _l2_batch.flush()
     except Exception:
         logger.exception("l2.batch: final flush failed")
+    try:
+        # D-067: without this, a restart discards the open 10s/1m/5m/1d buckets
+        # and leaves manifest.json with no counts or status forever.
+        from capture.mode import set_capture_mode
+
+        set_capture_mode(False)
+    except Exception:
+        logger.exception("CAPTURE: final recorder stop failed")
     try:
         from scan_executor import shutdown_scan_executor
         shutdown_scan_executor()
