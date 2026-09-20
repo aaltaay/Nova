@@ -521,6 +521,39 @@ def test_status_route_surfaces_completed_orders_unanswered_since():
         assert res.json()["completed_orders_unanswered_since"] is None
 
 
+def test_status_route_surfaces_gateway_read_only():
+    """D-076: Read-Only API rejected an order -- name it instead of 'login/2FA'."""
+    fake_snapshot = {
+        "gateway_mode": "live",
+        "orders_enabled": False,
+        "live_trading_confirmed": False,
+        "spend_status": "locked",
+    }
+    with patch.object(safety_mod, "status_snapshot", return_value=fake_snapshot), \
+         patch.object(client_mod, "is_enabled", return_value=True), \
+         patch.object(client_mod, "is_ready", return_value=True), \
+         patch.object(client_mod, "is_connected", return_value=True), \
+         patch.object(client_mod, "session_reason", return_value="ok"), \
+         patch.object(client_mod, "account_mode", return_value="live"), \
+         patch.object(client_mod, "broker_account_kind", return_value="live"), \
+         patch.object(client_mod, "get_market_data_type", return_value=1), \
+         patch("ibkr.session_errors.is_delayed_data", return_value=False):
+        with patch("ibkr.session_errors.gateway_read_only", return_value=True), \
+             patch(
+                 "ibkr.session_errors.gateway_read_only_since",
+                 return_value=1789808049.0,
+             ):
+            body = client.get("/api/ibkr/status").json()
+        assert body["gateway_read_only"] is True
+        assert body["gateway_read_only_since"] == 1789808049.0
+        # The session is still READY -- read-only is not a connection fault.
+        assert body["connected"] is True
+
+        body = client.get("/api/ibkr/status").json()
+        assert body["gateway_read_only"] is False
+        assert body["gateway_read_only_since"] is None
+
+
 def test_status_route_includes_reqmkt_data_budget():
     """D-039: /api/ibkr/status exposes the Error 101 ticker ceiling."""
     fake_snapshot = {

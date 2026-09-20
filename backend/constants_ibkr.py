@@ -183,6 +183,15 @@ IBKR_ERROR_DELAYED_DATA_NOTICE = 10167
 # market data is available." Common on paper Gateway when live MD is not shared
 # from the funded account (2026-08-07).
 IBKR_ERROR_MD_REQUIRES_SUBSCRIPTION = 10089
+# D-076: IB's generic "Error validating request" code. IB Gateway also uses it
+# to reject every order mutation while Configure > Settings > API > Read-Only
+# API is ticked, so the code ALONE is not evidence of read-only -- the message
+# has to name it (see IBKR_READ_ONLY_API_MARKERS). PROBLEM_LOG 2026-07-22.
+IBKR_ERROR_READ_ONLY_API = 321
+# Lowercase substrings that make an Error 321 a read-only rejection rather than
+# some other validation failure. IB's own wording is "The API interface is
+# currently in Read-Only mode."
+IBKR_READ_ONLY_API_MARKERS = ("read-only", "read only", "readonly")
 # reqMarketDataType: 1=live, 3=delayed; see ibkr.client.get_market_data_type().
 IBKR_MARKET_DATA_TYPE_LIVE = 1
 IBKR_MARKET_DATA_TYPE_DELAYED = 3
@@ -263,6 +272,12 @@ IBKR_COMPLETED_ORDERS_REPROBE_SEC = 60.0
 # that is merely slow at connect (answers at ~8s vs the 7.5s sync) and
 # recovers on the next re-probe never reaches the desk.
 IBKR_COMPLETED_ORDERS_WARN_AFTER_SEC = 120.0
+# D-057: completed orders are fetched AFTER the session is READY, never inside
+# the connect warm-up (a Gateway that never answers reqCompletedOrders must not
+# delay READY). These are the sleeps before attempt 2..N of that background
+# warm; once they are spent, completed_orders_health.reprobe_loop keeps asking
+# every IBKR_COMPLETED_ORDERS_REPROBE_SEC, so nothing is given up on.
+IBKR_COMPLETED_ORDERS_WARM_BACKOFF_SEC = (2.0, 8.0, 30.0)
 
 # User-initiated Gateway launch (header double-click → POST /api/ibkr/launch-gateway).
 # Override with IBKR_GATEWAY_EXE; otherwise ibgateway.exe or IBC-renamed ibgateway1.exe.
