@@ -48,9 +48,16 @@ def _recording_this(symbol: str) -> bool:
 
 
 def emit_sim_tick(print_payload: dict[str, Any], quote: dict[str, Any] | None, book: dict[str, Any] | None) -> None:
-    """Write one Sim step as prints + quotes + sampled L2 in capture shape."""
+    """Enqueue a complete Sim step; never perform disk I/O on the feed loop."""
     if not _recording_this(SIM_SYMBOL):
         return
+    from capture.worker import session_token, submit
+
+    token = session_token(SIM_SYMBOL)
+    submit(_write_sim_tick, print_payload, quote, book, token=token)
+
+
+def _write_sim_tick(print_payload: dict[str, Any], quote: dict[str, Any] | None, book: dict[str, Any] | None) -> None:
     try:
         from capture.recorder import record_l2, record_print, record_quote
     except Exception:
@@ -85,7 +92,8 @@ def emit_sim_tick(print_payload: dict[str, Any], quote: dict[str, Any] | None, b
         from capture.bar_buckets import on_print
         on_print(SIM_SYMBOL, ts, px, size, source="sim", session_date=day)
     except Exception:
-        pass
+        logger.exception("CAPTURE: Sim bar aggregation failed")
+        raise
 
 
 
@@ -134,6 +142,13 @@ def emit_sim_tick(print_payload: dict[str, Any], quote: dict[str, Any] | None, b
 def emit_sim_bar(timeframe: str, bar: dict[str, Any]) -> None:
     if not _recording_this(SIM_SYMBOL):
         return
+    from capture.worker import session_token, submit
+
+    token = session_token(SIM_SYMBOL)
+    submit(_write_sim_bar, timeframe, bar, token=token)
+
+
+def _write_sim_bar(timeframe: str, bar: dict[str, Any]) -> None:
     try:
         from capture.recorder import record_bar
     except Exception:

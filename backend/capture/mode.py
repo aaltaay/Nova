@@ -27,6 +27,13 @@ def capture_symbol() -> str | None:
 
 def set_capture_mode(enabled: bool, *, symbol: str | None = None) -> dict[str, Any]:
     """Start/stop per-symbol IBKR session record. Does not switch Paper/Live/Sim."""
+    from capture.worker import transition
+
+    result = transition(lambda: _set_capture_mode(enabled, symbol=symbol))
+    return status_payload() | (result or {})
+
+
+def _set_capture_mode(enabled: bool, *, symbol: str | None = None) -> dict[str, Any] | None:
     global _recording, _symbol
     if enabled:
         sym = (symbol or _symbol or "").strip().upper()
@@ -47,7 +54,7 @@ def set_capture_mode(enabled: bool, *, symbol: str | None = None) -> dict[str, A
         except Exception:
             logger.exception("RECORD: recorder start failed")
             _recording = False
-            return status_payload() | {"error": "Recorder start failed"}
+            return {"error": "Recorder start failed"}
     else:
         try:
             from capture.recorder import stop_recorder
@@ -57,7 +64,7 @@ def set_capture_mode(enabled: bool, *, symbol: str | None = None) -> dict[str, A
             logger.exception("RECORD: recorder stop failed")
         _recording = False
     logger.info("RECORD: %s symbol=%s", "on" if _recording else "off", _symbol)
-    return status_payload()
+    return None
 
 
 def _reconcile() -> str | None:
@@ -96,4 +103,10 @@ def status_payload() -> dict[str, Any]:
     }
     if err:
         out["error"] = err
+    from capture.worker import status as worker_status
+
+    worker = worker_status()
+    out["writer"] = worker
+    if worker["error"]:
+        out["error"] = worker["error"]
     return out
