@@ -61,6 +61,12 @@ export interface IbkrStatus {
   /** D-058: epoch seconds of the first reqCompletedOrders the Gateway left
    * unanswered (this API run); null once it answers. Warning, not a blocker. */
   completed_orders_unanswered_since?: number | null;
+  /** D-076: the Gateway rejected an order with Error 321 (Read-Only API) on
+   * this connection. Cleared by a fresh connect, re-armed by the next
+   * rejection. Surfacing only -- spend / order gates are unchanged. */
+  gateway_read_only?: boolean;
+  /** Epoch seconds of that first Error 321, or null. */
+  gateway_read_only_since?: number | null;
   gateway_self_heal?: {
     from_mode?: string;
     to_mode?: string;
