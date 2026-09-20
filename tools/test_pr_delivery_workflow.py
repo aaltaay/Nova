@@ -50,13 +50,23 @@ def test_pr_delivery_auto_merge_is_squash():
     assert "_merge_now" in source
 
 
-def _sweep_job() -> tuple[dict, dict]:
-    """The workflow, and the job that squash-merges, located by what it runs."""
-    workflow = yaml.load(WORKFLOW.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
-    for job in workflow["jobs"].values():
-        if any("pr_delivery.py sweep" in step.get("run", "") for step in job["steps"]):
-            return workflow, job
-    raise AssertionError("no job runs `pr_delivery.py sweep`")
+# `merge` and `sweep` both reach `_merge_now`; `delete-closed` and `decide`
+# do not, so only these two need to be able to dispatch.
+MERGING_COMMANDS = ("pr_delivery.py merge", "pr_delivery.py sweep")
+
+
+def _merging_jobs() -> list[tuple[str, str, dict, dict]]:
+    """Every job in every workflow that can reach `merge_now`, by what it runs."""
+    found = []
+    for path in sorted((REPO_ROOT / ".github" / "workflows").glob("*.y*ml")):
+        workflow = yaml.load(path.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+        if not isinstance(workflow, dict):
+            continue
+        for job_id, job in (workflow.get("jobs") or {}).items():
+            runs = " ".join(step.get("run", "") for step in job.get("steps") or [])
+            if any(command in runs for command in MERGING_COMMANDS):
+                found.append((path.name, job_id, workflow, job))
+    return found
 
 
 def _grants_write(permissions, scope: str) -> bool:
@@ -66,21 +76,37 @@ def _grants_write(permissions, scope: str) -> bool:
     return permissions.get(scope) == "write"
 
 
-def test_sweep_may_dispatch_the_desktop_pack():
-    """The merging job needs `actions: write` or no Release publishes (#346).
+def _effective(workflow: dict, job: dict):
+    return job.get("permissions", workflow.get("permissions", {}))
+
+
+def test_every_merge_path_may_dispatch_the_desktop_pack():
+    """Every merging job needs `actions: write` or no Release publishes (#346).
 
     An Actions merge pushes with `GITHUB_TOKEN`, which by design starts no
     `push:` run, so `merge_now` dispatches `desktop-pack.yml` itself. Without
-    this permission that dispatch is refused, and because a lost dispatch is
-    deliberately not allowed to fail the merge, master would go back to
-    collecting untagged, unreleased commits in silence -- the v757 symptom.
+    this permission the dispatch is refused with
+    `Resource not accessible by integration (HTTP 403)`, and because a lost
+    dispatch is deliberately not allowed to fail the merge, master goes back
+    to collecting untagged, unreleased commits in silence -- the v757 symptom.
 
-    Parsed rather than grepped: the header comment names `actions: write`
-    too, so a substring check passes even with the permission reverted.
+    Swept across every workflow rather than pinned to one file. #389 granted
+    the permission to `pr-delivery.yml` alone and left `deploy.yml`'s
+    `auto-merge` -- the job that actually merges most PRs, within seconds of
+    opening -- still unable to dispatch, so the bug survived its own fix. A
+    third merge path would have slipped through the same way.
+
+    Parsed rather than grepped: both files name `actions: write` in a comment,
+    so a substring check passes even with the permission reverted.
     """
-    workflow, job = _sweep_job()
-    permissions = job.get("permissions", workflow.get("permissions", {}))
-    assert _grants_write(permissions, "actions"), (
-        f"the sweep runs with permissions {permissions!r}; dispatching "
-        "Desktop pack after an Actions merge needs actions: write (#346)"
+    jobs = _merging_jobs()
+    assert jobs, "no job merges PRs -- the delivery path moved, so this guard is blind"
+    refused = [
+        f"{name}:{job_id} runs with {_effective(workflow, job)!r}"
+        for name, job_id, workflow, job in jobs
+        if not _grants_write(_effective(workflow, job), "actions")
+    ]
+    assert not refused, (
+        "these merge paths cannot dispatch Desktop pack, so the commits they "
+        f"merge ship no vNNN tag, Release or EXE (#346): {refused}"
     )
