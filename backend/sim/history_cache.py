@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import bisect
+import logging
 import threading
 from collections import OrderedDict
 from datetime import date, datetime, time, timedelta, timezone
@@ -9,6 +10,8 @@ from datetime import date, datetime, time, timedelta, timezone
 from constants_sim import SIM_HISTORY_ARCHIVE_CACHE_ENTRIES, SIM_HISTORY_RESULT_CACHE_ENTRIES
 from sim import history_store as store
 from sim.chart_replay import INTERVAL_SECONDS, aggregate_prints
+
+logger = logging.getLogger(__name__)
 
 
 def timestamp(row):
@@ -18,8 +21,16 @@ def timestamp(row):
 def previous_close(symbol: str, spec: dict) -> float | None:
     """The previous session only; misses are immutable until explicit reload."""
     from bars_store import read
-    from sim.trading_day import last_trading_day
-    prior = last_trading_day(date.fromisoformat(spec['date']) - timedelta(days=1))
+    from sim.trading_day import UnsupportedCalendarYear, last_trading_day
+    try:
+        prior = last_trading_day(date.fromisoformat(spec['date']) - timedelta(days=1))
+    except UnsupportedCalendarYear as exc:
+        # A selection whose own date is supported must not be refused wholesale
+        # because its prior session falls off the calendar's lower edge. A miss
+        # is already an established state here (prev_close is float | None), so
+        # degrade to it loudly instead of failing the whole load.
+        logger.warning("No prior session available for %s %s: %s", symbol, spec['date'], exc)
+        return None
     last_minute = datetime.combine(prior, time(15, 59), store.ET).timestamp()
     daily_label = datetime.combine(prior, time(0, 0), timezone.utc).timestamp()
     for timeframe, ts in (('1Min', last_minute), ('1Day', daily_label)):

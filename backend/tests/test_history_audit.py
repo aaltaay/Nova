@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import sqlite3
 import threading
 import time
@@ -174,3 +175,51 @@ def test_simultaneous_admission_has_one_owner_and_no_queued_orphan(client):
     assert len([result for result in results if isinstance(result, dict)]) == 1
     assert len(store.jobs()) == 1 and store.jobs()[0]['status'] == 'running'
     assert any('pause it first' in result for result in results if isinstance(result, str))
+
+
+# ── Exchange-calendar boundaries at the integration edge (#386) ───────────────
+# The shared holiday table used to cover 2026 only, so historical selection in
+# any other year picked exchange holidays as sessions and reported the prior
+# close missing even when the true prior session was stored.
+
+@pytest.mark.parametrize('now, expected', [
+    ('2025-07-04T21:00', '2025-07-03'),  # the issue's exact case: Independence Day
+    ('2025-07-07T10:00', '2025-07-03'),  # before Monday's close, back across Jul 4
+    ('2025-01-09T21:00', '2025-01-08'),  # ad-hoc national day of mourning
+    ('2025-04-18T21:00', '2025-04-17'),  # Good Friday
+    ('2026-01-01T21:00', '2025-12-31'),  # cross-year
+    ('2025-11-28T21:00', '2025-11-28'),  # day after Thanksgiving trades — do not over-close
+])
+def test_default_date_skips_holidays_outside_the_once_hardcoded_year(now, expected):
+    assert store.default_date(datetime.fromisoformat(now).replace(tzinfo=store.ET)) == expected
+
+
+def test_previous_close_reads_the_true_prior_session_across_a_holiday(client):
+    """Prior close must not appear missing when the real prior session is stored."""
+    import bars_store
+    from sim import history_cache
+    bars_store.write_payload(dict(symbol='HOLI', timeframe='1Min', bars=[
+        # Thu 2025-07-03 15:59 ET is the prior session for Mon 2025-07-07.
+        dict(t='2025-07-03T19:59:00Z', o=1, h=2, l=1, c=31.5, v=10),
+        # Fri 2025-07-04 is an exchange holiday; this bar must never be chosen.
+        dict(t='2025-07-04T19:59:00Z', o=1, h=2, l=1, c=99.9, v=10)]))
+    assert history_cache.previous_close('HOLI', {'date': '2025-07-07'}) == 31.5
+
+
+def test_previous_close_degrades_to_a_miss_when_the_prior_session_leaves_the_range(client, caplog):
+    """A supported selection is not refused because its prior day is off the edge."""
+    from sim import history_cache
+    with caplog.at_level(logging.WARNING):
+        assert history_cache.previous_close('EDGE', {'date': '2015-01-02'}) is None
+    assert 'No prior session available for EDGE 2015-01-02' in caplog.text
+
+
+def test_out_of_range_calendar_refusal_is_a_422_not_a_500(client, monkeypatch):
+    from sim.trading_day import UnsupportedCalendarYear
+    real, beyond = store.default_date, datetime(2036, 6, 2, 21, 0, tzinfo=store.ET)
+    with pytest.raises(UnsupportedCalendarYear):
+        real(beyond)  # the calendar genuinely refuses this clock
+    monkeypatch.setattr(store, 'default_date', lambda: real(beyond))
+    response = client.get('/api/sim/history')
+    assert response.status_code == 422
+    assert '2015-2035' in response.json()['detail']
