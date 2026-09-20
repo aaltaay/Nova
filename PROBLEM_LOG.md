@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+
+## 2026-09-20 -- Session brief omitted roadmap NEXT; footer delivery conflicted
+
+- **Symptom:** New sessions lacked the roadmap NEXT line, and PR #373's smarter footer remained unmerged despite passing checks.
+- **Cause:** The session hook still matched the retired `Active ops` label instead of the ledger's `Product NEXT` line. Separately, the footer and branch-preservation changes added maintenance rows at the same location in `AGENTS.md`. Direct Windows verification also exposed a `UnicodeEncodeError`: piped stdout used cp1252, which cannot encode the roadmap's greater-than-or-equal symbol.
+- **Fix:** Match the current roadmap label and test against the real ledger; merge current master into PR #373 while preserving both maintenance entries and the newer current-tip ancestry and SHA-lease cleanup safeguards. Emit UTF-8 from the footer CLI and add a real subprocess regression with `PYTHONIOENCODING=cp1252`. Record the hook fix here as required, rather than only in the PR body. Verify the edit succeeded before staging, check for residual conflict markers, and run the tool test list from CI rather than guessed filenames.
+- **Fix class:** infra
+- **Keywords:** session_brief_hook, Product NEXT, next-move footer, merge conflict, branch preservation, PR373
 ## 2026-09-20 -- Session recorder disk waits blocked the HTTP event loop
 
 - **Symptom:** After the stop deadlock fix, a slow capture write or recorder lock still stalled Sim's asyncio feed and every HTTP/WebSocket task sharing its loop (#314, #324).
