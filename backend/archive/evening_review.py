@@ -11,18 +11,29 @@ full, unsliced) archived bars. Looking forward to grade an already-made
 decision is not hindsight bias; feeding decide() those same future bars
 *before* it decided would be — this module now keeps the two strictly apart.
 
+Scorer/decider pairing (#385): the reference price MUST be produced by the
+exact same visibility predicate ``decide()`` ran under, so this module calls
+``replay.slice_bars_as_of`` rather than re-deriving the boundary. Under the
+interval-close contract a bar is known only from ``ts + interval`` onward, so
+"forward" is its complement (``ts + interval > as_of_ts``) and the horizon is
+measured by when a bar's OHLCV became known, not by its opening stamp.
+
 v1 (pre 2026-07-15) scored outcome by looking *backward* from the day's last
 bar (``bars[-(horizon+1)]`` vs ``bars[-1]``), which had no connection to when
 a decision was actually made, and its underlying replay fed decide() the
-whole day at once. Both bugs are fixed here; ``ARCHIVE_EVENING_REVIEW_VERSION``
-was bumped so findings are distinguishable.
+whole day at once. v2 fixed both. v3 (2026-09-20, #385) re-synced the scorer
+with ``slice_bars_as_of`` after the interval-close boundary moved — under v2
+``reference_price`` had drifted one bar into the decision's future.
+``ARCHIVE_EVENING_REVIEW_VERSION`` is bumped on each of these so findings
+stay distinguishable.
 """
 from __future__ import annotations
 
 from typing import Any
 
-from archive.replay import bars_by_symbol_for_day, walk_day
+from archive.replay import bars_by_symbol_for_day, slice_bars_as_of, walk_day
 from constants import (
+    ARCHIVE_BAR_1M_INTERVAL_SEC,
     ARCHIVE_EVENING_REVIEW_HORIZON_MIN,
     ARCHIVE_EVENING_REVIEW_MAX_SYMBOLS,
     ARCHIVE_EVENING_REVIEW_VERSION,
@@ -56,7 +67,14 @@ def _outcome_for_decision(
 ) -> dict[str, Any]:
     """Forward-looking heuristic: price ~``horizon_min`` minutes *after*
     ``as_of_ts`` vs ticket entry (or the price decide() actually saw at
-    ``as_of_ts`` when there's no ticket)."""
+    ``as_of_ts`` when there's no ticket).
+
+    ``reference_price`` is taken from ``slice_bars_as_of`` — the same call
+    ``_decide_snapshot`` makes — so the scorer can never be one bar ahead of
+    the decider (#385). ``forward_bars`` is that slice's exact complement, so
+    the minute in progress at ``as_of_ts`` is scored forward rather than
+    falling through both sets.
+    """
     ticket = decision.get("ticket") or {}
     entry = ticket.get("entry") or ticket.get("entry_price")
     stop = ticket.get("stop") or ticket.get("stop_price")
@@ -72,8 +90,12 @@ def _outcome_for_decision(
             "decision_ts": as_of_ts,
         }
 
-    ref_bars = [b for b in full_day_bars if float(b.get("ts") or 0) <= as_of_ts]
-    forward_bars = [b for b in full_day_bars if float(b.get("ts") or 0) > as_of_ts]
+    # Same predicate decide() ran under — never re-derived here (#385).
+    ref_bars = slice_bars_as_of(full_day_bars, as_of_ts)
+    forward_bars = [
+        b for b in full_day_bars
+        if float(b.get("ts") or 0) + ARCHIVE_BAR_1M_INTERVAL_SEC > as_of_ts
+    ]
     if not forward_bars:
         return {
             "status": "no_forward_bars",
@@ -83,8 +105,13 @@ def _outcome_for_decision(
             "decision_ts": as_of_ts,
         }
 
+    # Horizon is measured by when a bar's OHLCV became KNOWN (its close), so
+    # "5 minutes after the decision" is the bar closing at as_of_ts + 5m.
     target_ts = as_of_ts + horizon_min * 60
-    within_horizon = [b for b in forward_bars if float(b.get("ts") or 0) <= target_ts]
+    within_horizon = [
+        b for b in forward_bars
+        if float(b.get("ts") or 0) + ARCHIVE_BAR_1M_INTERVAL_SEC <= target_ts
+    ]
     fwd_bar = within_horizon[-1] if within_horizon else forward_bars[-1]
     fwd_px = float(fwd_bar.get("c") or 0)
 
@@ -185,8 +212,10 @@ def evening_review(
         "alignment_rate": (aligned / scored) if scored else None,
         "findings": findings,
         "note": (
-            "No-hindsight: each finding's decision only saw bars up to its own "
-            "as_of_ts (walk_day); outcome is scored forward from that same "
-            "as_of_ts. Heuristic only — not expectancy, not live-readiness proof."
+            "No-hindsight: each finding's decision only saw bars whose minute "
+            "had CLOSED by its own as_of_ts (walk_day); reference_price is the "
+            "last of those same bars and outcome is scored forward from that "
+            "same as_of_ts. Heuristic only — not expectancy, not live-readiness "
+            "proof."
         ),
     }

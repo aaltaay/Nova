@@ -84,6 +84,16 @@ class TestReplayRoute:
         # four minutes have closed, so the route reports 4, not 5.
         assert body["decisions"][0]["replay"]["bar_count"] == 4
 
+    def test_replay_as_of_is_inclusive_at_the_minute_close(self):
+        """The other half of the contract the route now documents: one minute
+        later that 5th bar HAS closed, so it is counted. Suppressed lookahead,
+        not a dropped bar (#385)."""
+        _seed_day()
+        as_of = _BASE_TS + 5 * 60
+        res = client.get(f"/api/archive/replay/{_SESSION_DATE}", params={"limit": 5, "as_of": as_of})
+        assert res.status_code == 200
+        assert res.json()["decisions"][0]["replay"]["bar_count"] == 5
+
     def test_replay_bad_date_400(self):
         res = client.get("/api/archive/replay/not-a-date")
         assert res.status_code == 400

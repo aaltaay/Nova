@@ -304,9 +304,9 @@ def replay_at(
     mode: str = NOVA_OS_DEFAULT_MODE,
     max_symbols: int = ARCHIVE_REPLAY_MAX_SYMBOLS,
 ) -> dict[str, Any]:
-    """No-hindsight point-in-time replay — decide() sees only bars with
-    ``ts <= as_of_ts``. Thin, explicitly-named wrapper over replay_day() so
-    callers can't forget the flag."""
+    """No-hindsight point-in-time replay — decide() sees only bars whose
+    minute CLOSED by ``as_of_ts`` (``ts + interval <= as_of_ts``, #385). Thin,
+    explicitly-named wrapper over replay_day() so callers can't forget it."""
     return replay_day(
         session_date,
         cold_dir=cold_dir,

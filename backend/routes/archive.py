@@ -46,10 +46,19 @@ def get_archive_replay(
     limit: int = Query(default=20, ge=1, le=50),
     as_of: float | None = Query(
         default=None,
-        description="Unix ts — if set, decide() only sees bars up to this moment (no-hindsight). Omit for the legacy whole-day (hindsight=True) snapshot.",
+        description="Unix ts — if set, decide() only sees bars whose minute CLOSED at or before this moment (no-hindsight; a 1m bar stamped at its OPEN is visible from ts+60). Omit for the legacy whole-day (hindsight=True) snapshot.",
     ),
 ) -> dict:
-    """Replay one archived day through decide(record=False)."""
+    """Replay one archived day through decide(record=False).
+
+    Interval-close contract (#385): with ``as_of`` set, ``replay.bar_count``
+    counts only bars whose minute had ENDED by ``as_of`` — a bar stamped at
+    the minute's open is counted from ``as_of >= ts + 60``, not at ``ts``.
+    Consumers that compared ``bar_count`` across this change will see one
+    fewer bar at a boundary as-of; that is the lookahead being removed, not a
+    dropped bar. ``/walk`` step ``bar_count`` and ``/review`` findings
+    (``evening-review-v3``) use the same boundary.
+    """
     _require_session_date(session_date)
     result = replay_day(session_date, max_symbols=limit, as_of_ts=as_of)
     if result.get("error") and not result.get("decisions"):

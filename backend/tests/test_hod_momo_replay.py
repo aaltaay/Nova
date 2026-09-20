@@ -19,7 +19,9 @@ import hod_momo as hm
 import hod_momo_persist as persist
 import hod_momo_session as session
 from hod_momo_replay import (
+    _FIFTY_TWO_WEEK_SENTINEL_MULT,
     ReplayFixture,
+    closed_bars_before,
     load_fixture,
     prime_symbol,
     replay_session,
@@ -187,22 +189,23 @@ def test_full_day_thin_tape_symbols_are_coverage_gaps(day_fixture, full_day_resu
             assert replayed != production or tape_prints < 5_000
 
 
-# ── Interval-close contract (#385) — fast synthetic layer ────────────────────
-# A fixture bar's ``ts`` is the minute's OPENING stamp, so its final high,
-# close and volume are only known at ts + 60. These pin that boundary without
-# paying for the 45s full day.
+# ── Interval-close contract (#385) ───────────────────────────────────────────
+# A fixture bar's ``ts`` is the minute's OPENING stamp, so its final high, low,
+# close and volume are only facts at ts + 60. Three layers below: what the real
+# fixture actually contains, the real alert engine across the boundary, and
+# fast synthetic probes.
 
 _T = 1_720_000_020.0  # an exact minute boundary
 _SYM = "ZZTEST"
 
 
-def _bar(ts: float, *, open_: float, high: float, close: float, volume: float) -> dict:
+def _bar(ts: float, *, open_: float, high: float, low: float, close: float, volume: float) -> dict:
     return {
         "symbol": _SYM,
         "ts": ts,
         "open": open_,
         "high": high,
-        "low": min(open_, close),
+        "low": low,
         "close": close,
         "volume": volume,
     }
@@ -232,11 +235,151 @@ def _record_trade_updates(monkeypatch) -> list[dict]:
     return calls
 
 
+# ── Layer 1: what the shipped fixture actually contains ─────────────────────
+
+
+def test_fixture_open_minute_bar_is_the_tape_not_pre_tape_history(day_fixture):
+    """#385's premise, as data.
+
+    For every taped symbol that has bars, the bar still OPEN at the first
+    print is a re-aggregation of the prints this harness is about to replay:
+    open == the first print's price, high/low == that minute's print extremes,
+    volume == their sizes. Priming from it is not "using early history", it is
+    handing the engine its own future -- which is why withholding it is the
+    fix and not an over-withholding. Nothing has CLOSED at that instant, so
+    ``closed_bars_before`` is legitimately empty for every one of them.
+    """
+    checked = 0
+    for sym, bars in day_fixture.bars_by_symbol.items():
+        prints = [r for r in day_fixture.tape if r["symbol"] == sym]
+        if not prints or not bars:
+            continue
+        first_ts = min(float(r["ts"]) for r in prints)
+        live = [b for b in bars if float(b["ts"]) <= first_ts < float(b["ts"]) + 60.0]
+        if not live:
+            continue
+        bar = live[-1]
+        inside = [
+            r for r in prints
+            if float(bar["ts"]) <= float(r["ts"]) < float(bar["ts"]) + 60.0
+        ]
+        assert inside, f"{sym}: open-minute bar with no prints inside it"
+        assert closed_bars_before(bars, first_ts) == []
+        earliest = min(inside, key=lambda r: float(r["ts"]))
+        assert bar["open"] == pytest.approx(float(earliest["price"]))
+        assert bar["high"] == pytest.approx(max(float(r["price"]) for r in inside))
+        assert bar["low"] == pytest.approx(min(float(r["price"]) for r in inside))
+        assert bar["volume"] == pytest.approx(sum(float(r.get("size") or 0.0) for r in inside))
+        checked += 1
+    assert checked >= 5, "fixture no longer exercises the open-minute case"
+
+
+def test_priming_without_closed_bars_still_has_a_price_and_a_52wk_sentinel(day_fixture):
+    """Withholding the in-progress bar must not strand a symbol at price 0.0
+    with ``fifty_two_week_high=None`` -- that blocks every strategy with
+    proximity_52wk_pct > 0 on "52wk_high:unknown" for the whole session. The
+    stand-ins come from the first observed print, never from the bar."""
+    for sym in ("KLRS", "VEEE"):  # the fixture's taped symbols with no prev_close
+        reset_engine_state()
+        prints = [r for r in day_fixture.tape if r["symbol"] == sym]
+        first = min(prints, key=lambda r: float(r["ts"]))
+        prime_symbol(
+            day_fixture, sym, float(first["ts"]), first_price=float(first["price"]),
+        )
+        state = get_state()
+        snap = state.ticker_snaps[sym]
+        assert snap.price == pytest.approx(float(first["price"]))
+        assert snap.fifty_two_week_high == pytest.approx(
+            float(first["price"]) * _FIFTY_TWO_WEEK_SENTINEL_MULT
+        )
+        # ...and still no high floor lifted out of the unclosed bar.
+        assert not state.session_highs.get(sym)
+        assert sym in state.surge_seeded and sym not in state.pending_surge_seed
+
+
+# ── Layer 2: the real alert engine across the boundary ──────────────────────
+
+
+def _rising_tape(start_ts: float, n: int = 40) -> list[dict]:
+    """Prints climbing ~10% over ~6.5 minutes -- clears Squeeze 5%/5m."""
+    return [
+        _print(start_ts + i * 10.0, round(10.0 + i * 0.0256, 4), 100)
+        for i in range(n)
+    ]
+
+
+def test_engine_sees_a_hod_when_the_open_minute_bar_is_withheld():
+    """Runs ``hod_momo.on_trade_update`` for real (no monkeypatch).
+
+    The archived bar covering the first print claims a 99.0 high. Under the
+    old ``ts <= first_ts`` rule that became the session-high floor, so the
+    tape could never make a high and a ``requires_hod`` strategy was mute.
+    Withheld, the tape is the only truth and Squeeze fires.
+    """
+    tape = _rising_tape(_T + 5.0)
+    poison = _bar(_T, open_=10.0, high=99.0, low=9.0, close=98.0, volume=1_000)
+    result = replay_session(_synthetic_fixture([poison], tape), configure=_squeeze11_only)
+
+    assert result.alerts, "withholding the unclosed bar must let the tape set the HOD"
+    assert all(a["strategy_id"] == 11 for a in result.alerts)
+    assert get_state().session_highs[_SYM] == pytest.approx(
+        max(float(r["price"]) for r in tape)
+    )
+
+
+def test_engine_still_honours_a_bar_that_did_close_before_the_tape():
+    """The exact mirror: move the same bar a full minute earlier so it HAS
+    closed by the first print, and its 99.0 high is a real past fact again --
+    the floor is seeded and the same rising tape never makes a new high."""
+    tape = _rising_tape(_T + 5.0)
+    closed = _bar(_T - 60.0, open_=10.0, high=99.0, low=9.0, close=98.0, volume=1_000)
+    result = replay_session(_synthetic_fixture([closed], tape), configure=_squeeze11_only)
+
+    assert get_state().session_highs[_SYM] == pytest.approx(99.0)
+    assert result.alerts == [], "a closed bar's high is a fact and must gate requires_hod"
+
+
+def test_full_day_alert_shape_is_pinned(full_day_result):
+    """#385 changes what the engine sees at session start, so pin the day.
+
+    The subset/silence tests above stayed green through a 296 -> 309 alert
+    change with six of seven symbols' first alert flipping strategy, which is
+    exactly the regression this file exists to catch. Config is deterministic
+    under pytest (conftest points NOVA_CACHE_DIR at a fresh temp dir, so
+    ``load_state()`` gets built-in defaults).
+    """
+    assert len(full_day_result.alerts) == 309
+    assert full_day_result.alerts_by_symbol_strategy() == {
+        "BIYA": [5, 7, 11, 12, 13],
+        "CJMB": [5, 7, 11, 12, 13],
+        "CNF": [5, 7],
+        "KLRS": [13],
+        "SDOT": [4, 5, 7, 10, 11, 12, 13],
+        "SLND": [6, 13],
+        "VEEE": [3, 13],
+    }
+    first: dict[str, tuple] = {}
+    for alert in sorted(full_day_result.alerts, key=lambda a: a["timestamp"]):
+        first.setdefault(alert["ticker"], (alert["strategy_id"], alert["timestamp"]))
+    assert first == {
+        "BIYA": (5, "2026-07-17T16:05:32.000Z"),
+        "CJMB": (5, "2026-07-17T16:05:33.000Z"),
+        "CNF": (5, "2026-07-17T17:19:12.000Z"),
+        "KLRS": (13, "2026-07-17T17:00:21.000Z"),
+        "SDOT": (4, "2026-07-17T16:09:04.000Z"),
+        "SLND": (6, "2026-07-17T17:10:00.000Z"),
+        "VEEE": (3, "2026-07-17T17:47:38.000Z"),
+    }
+
+
+# ── Layer 3: fast synthetic probes ──────────────────────────────────────────
+
+
 def test_prime_symbol_ignores_unclosed_minute():
     """5 seconds into a minute, that minute's high/close are not yet facts."""
     reset_engine_state()
     fixture = _synthetic_fixture(
-        [_bar(_T, open_=10.0, high=99.0, close=98.0, volume=1_000)], []
+        [_bar(_T, open_=10.0, high=99.0, low=9.0, close=98.0, volume=1_000)], []
     )
     prime_symbol(fixture, _SYM, _T + 5)
 
@@ -250,25 +393,31 @@ def test_prime_symbol_ignores_unclosed_minute():
 
 
 def test_prime_symbol_uses_bar_closed_exactly_at_as_of():
-    """Inclusive at close: at ts + 60 the same bar IS known."""
+    """Inclusive at close: at ts + 60 the same bar IS known -- and it seeds
+    production's own point shape, ``(ts, low)`` then ``(ts + 30, close)``
+    (``hod_momo_surge_seed.bars_to_surge_points``), so low_to_current surge
+    can see the trough inside the candle."""
     reset_engine_state()
     fixture = _synthetic_fixture(
-        [_bar(_T, open_=10.0, high=99.0, close=98.0, volume=1_000)], []
+        [_bar(_T, open_=10.0, high=99.0, low=9.0, close=98.0, volume=1_000)], []
     )
     prime_symbol(fixture, _SYM, _T + 60)
 
     state = get_state()
     assert state.session_highs.get(_SYM) == pytest.approx(99.0)
-    assert list(state.price_buffer.get(_SYM) or []) == [(_T, 98.0)]
+    assert list(state.price_buffer.get(_SYM) or []) == [(_T, 9.0), (_T + 30.0, 98.0)]
 
 
-def test_cumulative_volume_base_excludes_unclosed_minute(monkeypatch):
-    """The starting volume counts closed minutes only — and counts the
-    in-progress minute once (via its prints), not twice."""
+def test_cumulative_volume_base_counts_the_open_minute_once_and_only_its_past(monkeypatch):
+    """The base holds closed minutes whole, plus the part of the minute in
+    progress that traded BEFORE the tape starts -- recovered by subtracting
+    the prints about to be replayed. Never the whole open bar (which leaked
+    its future and double-counted every print in it), never nothing (which
+    would drop real past volume)."""
     fixture = _synthetic_fixture(
         [
-            _bar(_T, open_=10.0, high=10.5, close=10.4, volume=1_000),
-            _bar(_T + 60, open_=10.4, high=12.0, close=11.8, volume=500),
+            _bar(_T, open_=10.0, high=10.5, low=10.0, close=10.4, volume=1_000),
+            _bar(_T + 60, open_=10.4, high=12.0, low=10.4, close=11.8, volume=500),
         ],
         [_print(_T + 65, 10.45, 25), _print(_T + 70, 10.90, 40)],
     )
@@ -276,12 +425,28 @@ def test_cumulative_volume_base_excludes_unclosed_minute(monkeypatch):
     replay_session(fixture)
 
     assert calls, "tape must reach the engine"
-    assert calls[0]["volume"] == 1_000 + 25  # not 1_500 + 25
+    # 1_000 closed + (500 - 65 taped) pre-tape + this print's 25.
+    assert calls[0]["volume"] == 1_000 + 435 + 25
+    assert calls[-1]["volume"] == 1_000 + 435 + 65
+
+
+def test_open_minute_volume_recovery_is_exactly_zero_when_the_bar_is_the_tape(monkeypatch):
+    """The shipped fixture's shape: every unit of the open minute's volume is
+    on the tape, so nothing is recovered and nothing is double-counted."""
+    prints = [_print(_T + 10, 10.1, 60), _print(_T + 20, 10.2, 40)]
+    fixture = _synthetic_fixture(
+        [_bar(_T, open_=10.1, high=10.2, low=10.1, close=10.2, volume=100)], prints
+    )
+    calls = _record_trade_updates(monkeypatch)
+    replay_session(fixture)
+
+    assert [c["volume"] for c in calls] == [60, 100]
 
 
 def test_tick_derived_current_minute_is_preserved(monkeypatch):
-    """We withhold the archived bar, not the live minute: cumulative volume
-    and the day high still track the tape tick by tick."""
+    """We withhold the archived bar's final values, not the live minute: the
+    day high still tracks the tape tick by tick and never reaches the
+    unclosed bar's archived 12.0."""
     prints = [
         _print(_T + 65, 10.45, 25),
         _print(_T + 70, 10.90, 40),
@@ -289,8 +454,8 @@ def test_tick_derived_current_minute_is_preserved(monkeypatch):
     ]
     fixture = _synthetic_fixture(
         [
-            _bar(_T, open_=10.0, high=10.5, close=10.4, volume=1_000),
-            _bar(_T + 60, open_=10.4, high=12.0, close=11.8, volume=500),
+            _bar(_T, open_=10.0, high=10.5, low=10.0, close=10.4, volume=1_000),
+            _bar(_T + 60, open_=10.4, high=12.0, low=10.4, close=11.8, volume=500),
         ],
         prints,
     )
@@ -298,7 +463,5 @@ def test_tick_derived_current_minute_is_preserved(monkeypatch):
     replay_session(fixture)
 
     assert len(calls) == len(prints)
-    assert calls[-1]["volume"] == 1_000 + 25 + 40 + 35
-    # Rises above the seeded floor (10.5) on a real print, and never reaches
-    # the unclosed bar's archived 12.0 high.
     assert calls[-1]["day_high"] == pytest.approx(10.90)
+    assert calls[-1]["day_high"] < 12.0
