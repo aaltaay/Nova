@@ -362,8 +362,8 @@
           "issues": [
             340
           ],
-          "note": "Decision + ADR only, no product code. This is the unblocking PR - everything else in this package waits on it.",
-          "gated": false
+          "note": "GATED: the ADR records a decision only the operator can make (keep backend/sim/history_* as the single replay surface; fix or retire backend/capture/). An agent can draft options on the issue but cannot pick. This is the unblocking PR - the rest of the package waits on it.",
+          "gated": true
         },
         {
           "title": "fix(feed): one IBKR trade-print fan-out; the dead tape and empty captures go loud",
@@ -397,8 +397,8 @@
       "rank": 10,
       "slug": "desk-and-leftovers",
       "title": "10 - Live desk on master, plus residual product asks",
-      "readiness": "blocked",
-      "gate": "#14 and #331 need the operator at the physical trading PC. #90, #94 and #91 each need one cost/policy call.",
+      "readiness": "ready-now",
+      "gate": "#14 and #331 need the operator at the physical trading PC, and #90/#94 need one cost call and one policy call - those three batches are gated. The TIF half of #91 and #147 are startable now.",
       "objective": "The physical trading PC still runs a dirty branch, so three merged IBKR reconnect/health fixes are not in effect, and the unattended premarket start has never been proven with a real 03:55 ET log line. Plus four residual product asks with no shared root cause that survive triage.",
       "issues": [
         14,
