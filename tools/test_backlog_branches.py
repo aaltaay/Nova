@@ -225,8 +225,9 @@ def setup_release(monkeypatch, gh, claim_branch="agent/state-0"):
     monkeypatch.setattr(cc, "load_packages", plan)
     monkeypatch.setattr(cc, "fetch_issues", lambda: [{"number": 2}, {"number": 3}])
     monkeypatch.setattr(cc, "fetch_comments", lambda n: [])
-    monkeypatch.setattr(cc, "active_claim",
-                        lambda *a, **kw: {"branch": claim_branch, "stale": False})
+    # R5: release looks up its OWN claim, not whoever is elected.
+    monkeypatch.setattr(cc, "claim_for",
+                        lambda *a, **kw: {"branch": claim_branch})
     monkeypatch.setattr(cc, "run_gh", gh)
     monkeypatch.setattr(bb.subprocess, "run",
                         lambda *a, **kw: SimpleNamespace(returncode=0, stdout="", stderr=""))
@@ -278,14 +279,16 @@ def test_a_working_agent_is_not_stale_just_because_the_comment_aged():
     # died at minute two both read as stale off the comment alone.
     comments = claim_comment(CLAIM_TTL_HOURS + 2)
     assert active_claim(comments, now=NOW)["stale"] is True
-    fresh = active_claim(comments, now=NOW, branch_activity=NOW - timedelta(minutes=30))
+    fresh = active_claim(comments, now=NOW,
+                         branch_activity_for=lambda ref: NOW - timedelta(minutes=30))
     assert fresh["stale"] is False and fresh["age_hours"] == 0.5
 
 
 def test_an_abandoned_branch_still_goes_stale():
     comments = claim_comment(CLAIM_TTL_HOURS + 2)
-    old = active_claim(comments, now=NOW,
-                       branch_activity=NOW - timedelta(hours=CLAIM_TTL_HOURS + 1))
+    old = active_claim(
+        comments, now=NOW,
+        branch_activity_for=lambda ref: NOW - timedelta(hours=CLAIM_TTL_HOURS + 1))
     assert old["stale"] is True
 
 
