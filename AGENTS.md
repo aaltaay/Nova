@@ -310,11 +310,26 @@ Always-on copies: `.cursor/rules/commit-push-deploy.mdc`, `.cursor/rules/github-
 
 ## 7. 📝 Documentation Requirements (Enforced)
 
-### 7.1 CHANGELOG.md
+### 7.1 CHANGELOG.md -- GENERATED. Do not hand-edit.
 
-- Prepend entry after any task that changes behavior, endpoints, module boundaries, constants, build config, rules, or UI behavior.
-- Entry ships in the SAME commit as the code it describes.
-- Use the template in `CHANGELOG.md`.
+`CHANGELOG.md` is produced by `.github/workflows/ledger-collate.yml` from
+**merged pull-request bodies**. An agent writes the PR body (§7.2b) and writes
+**nothing** to the ledger.
+
+- **Do not prepend to `CHANGELOG.md`.** A PR that changes behavior carries its
+  entry in its own body: **What** / **Why this approach** / **Verified by**,
+  per `.github/pull_request_template.md`. That is the entry.
+- **No PR?** (direct push, ops diagnosis, audit conclusion) -- add a fragment
+  instead: `py -3 tools/changes_new.py --kind fix --scope capture --title "..."`
+  writes `.changes/unreleased/<stamp>-<slug>.md`. The collation job folds it in
+  and deletes it.
+- **Why:** every PR prepending at line 1 means two parallel PRs always collide
+  on paperwork rather than on code -- N agents, N-squared conflict pairs, zero
+  engineering value in the diff (#344). Removing the write removes the
+  conflict; resolving it faster does not.
+- `merge=union` in `.gitattributes` is a **transitional** net for PRs authored
+  before this rule. It is removed once no hand-written entries remain.
+- Existing history is untouched. Only new entries are generated.
 
 ### 7.2 PROBLEM_LOG.md
 
@@ -402,6 +417,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-20 | `CHANGELOG.md` is **generated** from merged PR bodies (`ledger-collate.yml` + `tools/changes_collate.py`); agents no longer prepend to it. Fragments under `.changes/unreleased/` are the no-PR escape hatch. `merge=union` on the three ledgers is a transitional net. §7.1 rewritten. #344 WS2. | User Directive + Claude Opus 5 |
 | 2026-09-20 | Backlog organised into 11 ranked work packages (one GitHub milestone each, all 46 open issues assigned). `BACKLOG.md` + `knowledge/backlog-packages.json` + `tools/backlog_triage.py` (`next` / `report` / `check` / `sync` / `sync-map`); weekly sweep workflow; pinned Backlog Map #361; budget-aware 2-3 agent wave runner. PRs batch related issues (46 issues -> 25 PRs). | User Directive + Claude Opus 5 |
 | 2026-09-19 | Workspace hygiene (WS5 of #344): §5.1 B step 8 "leave it clean"; always-on `workspace-hygiene.mdc` (never stash, one worktree per task, explicit `git add` paths); `tools/repo_hygiene.py status\|fix\|stop-gate` inspects the clone (nothing did before); Claude Code SessionStart brief + blocking one-shot Stop hook; nightly `NovaRepoHygiene` task. | User Directive + Claude Fable 5.1 |
 | 2026-09-19 | Version is derived from git, never committed: `VERSION` is a gitignored build artifact, `frontend/package.json` stays `0.0.0-dev`, and the version git hooks are deleted. Rule: **hooks validate, never mutate the index**. WS1 of #344. | User Directive + Claude Opus 5 |

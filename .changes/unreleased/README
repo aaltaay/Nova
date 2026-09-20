@@ -1,0 +1,8 @@
+# Ledger fragments for work with no pull request.
+#
+# CHANGELOG.md is generated from merged PR bodies (AGENTS.md 7.1), so a normal
+# PR writes nothing here. Scaffold one with tools/changes_new.py only for a
+# direct push, an ops diagnosis, or an audit conclusion.
+#
+# A fragment is a NEW file with a unique name, so two agents can never collide
+# on it. changes_collate.py folds it into the ledger and deletes it.

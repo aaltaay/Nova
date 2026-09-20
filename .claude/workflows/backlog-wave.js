@@ -152,8 +152,10 @@ Do this:
    lines, constants in domain modules.
 4. Add or update tests. Run them. Paste the real result into verified_by -- if
    they fail, say so; do not claim green.
-5. Prepend a CHANGELOG.md entry. Add a PROBLEM_LOG.md entry for each real bug
-   you root-caused.
+5. Do NOT touch CHANGELOG.md or PROBLEM_LOG.md -- they are GENERATED from
+   merged PR bodies (AGENTS.md 7.1), and hand-editing them is what makes
+   parallel agents collide on paperwork. Your PR body IS the entry, so fill
+   What / Why this approach / Verified by properly.
 6. Commit on a new branch off origin/master, push, and open a READY (non-draft)
    PR filled from .github/pull_request_template.md.
    Use \`Closes #N\` ONLY for an issue whose entire stated scope is done.
