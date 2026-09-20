@@ -38,7 +38,6 @@ Usage:
   python3 tools/backlog_triage.py report [--json]
   python3 tools/backlog_triage.py check             # exit 1 on gaps or drift
   python3 tools/backlog_triage.py sync [--dry-run]  # packages -> milestones
-  python3 tools/backlog_triage.py sync-map --issue NNN
 """
 
 from __future__ import annotations
@@ -76,7 +75,6 @@ from tools.backlog_github import (  # noqa: F401  (re-exported)
     EXIT_OK,
     INBOX_TITLE,
     KINDS,
-    META_LABEL,
     NO_MILESTONE,
     SEVERITIES,
     URGENT,
@@ -85,7 +83,6 @@ from tools.backlog_github import (  # noqa: F401  (re-exported)
     fetch_comments,
     fetch_issues,
     fetch_milestones,
-    is_meta,
     label_names,
     milestone_title,
     repo_slug,
@@ -109,13 +106,9 @@ from tools.backlog_plan import (  # noqa: F401  (re-exported)
     with_inbox,
 )
 from tools.backlog_render import (  # noqa: F401  (re-exported)
-    MAP_BEGIN,
-    MAP_END,
-    render_map_section,
     render_next,
     render_report,
     render_triage,
-    splice_map,
 )
 
 
@@ -127,7 +120,6 @@ from tools.backlog_commands import (
     cmd_release,
     cmd_report,
     cmd_sync,
-    cmd_sync_map,
     cmd_triage,
 )
 
@@ -180,10 +172,6 @@ def build_parser() -> argparse.ArgumentParser:
     syn.add_argument("--dry-run", action="store_true")
     syn.set_defaults(func=cmd_sync)
 
-    smap = sub.add_parser("sync-map", help="refresh the generated block in the Backlog Map issue")
-    smap.add_argument("--issue", type=int, required=True)
-    smap.add_argument("--dry-run", action="store_true")
-    smap.set_defaults(func=cmd_sync_map)
 
     return parser
 

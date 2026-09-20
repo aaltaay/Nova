@@ -10,8 +10,6 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from tools.backlog_triage import (
-    MAP_BEGIN,
-    MAP_END,
     NO_MILESTONE,
     PACKAGES_PATH,
     READY,
@@ -24,12 +22,10 @@ from tools.backlog_triage import (
     next_pr,
     pick_next,
     plan_drift,
-    render_map_section,
     render_next,
     render_report,
     rollup,
     severity_of,
-    splice_map,
 )
 
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "backlog-triage.yml"
@@ -183,48 +179,6 @@ def test_report_says_clean_when_there_are_no_gaps():
     issues = [issue(315, labels=FULL, milestone="01 - recorder")]
     text = render_report(analyse(issues, [{"title": "01 - recorder", "state": "open", "number": 1}]))
     assert "Hygiene: clean" in text
-
-
-def test_map_section_links_milestones_and_lists_the_triage_queue():
-    issues, milestones = sample()
-    section = render_map_section(analyse(issues, milestones), milestones, [])
-    assert section.startswith(MAP_BEGIN)
-    assert section.endswith(MAP_END)
-    assert "/milestone/1" in section
-    assert "#315" in section
-    assert "Triage queue" in section
-    assert "no-package" in section
-
-
-# --------------------------------------------------------------------------
-# splice -- hand-written prose outside the markers must survive
-# --------------------------------------------------------------------------
-
-
-def test_splice_replaces_only_the_generated_block():
-    body = f"Intro prose.\n\n{MAP_BEGIN}\nOLD\n{MAP_END}\n\nTrailing runbook."
-    out = splice_map(body, f"{MAP_BEGIN}\nNEW\n{MAP_END}")
-    assert "Intro prose." in out
-    assert "Trailing runbook." in out
-    assert "OLD" not in out
-    assert "NEW" in out
-
-
-def test_splice_appends_when_markers_are_absent():
-    out = splice_map("Just prose.", f"{MAP_BEGIN}\nNEW\n{MAP_END}")
-    assert out.startswith("Just prose.")
-    assert MAP_BEGIN in out
-
-
-def test_splice_into_empty_body_does_not_leave_leading_blank_lines():
-    out = splice_map("", f"{MAP_BEGIN}\nNEW\n{MAP_END}")
-    assert out.startswith(MAP_BEGIN)
-
-
-def test_splice_is_idempotent():
-    section = f"{MAP_BEGIN}\nNEW\n{MAP_END}"
-    once = splice_map("Intro.", section)
-    assert splice_map(once, section) == once
 
 
 # --------------------------------------------------------------------------
@@ -401,12 +355,6 @@ def test_packages_file_declares_owner_and_invalidation():
     assert raw["schema_version"] == 1
     assert "backlog_triage" in raw["owner"]
     assert raw["invalidation"]
-
-
-def test_the_backlog_map_issue_is_not_itself_backlog_work():
-    from tools.backlog_triage import META_LABEL, is_meta
-    assert is_meta(issue(361, labels=(META_LABEL, "documentation")))
-    assert not is_meta(issue(314, labels=FULL))
 
 
 # --------------------------------------------------------------------------

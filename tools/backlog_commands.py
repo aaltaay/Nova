@@ -40,11 +40,9 @@ from tools.backlog_plan import (
     with_inbox,
 )
 from tools.backlog_render import (
-    render_map_section,
     render_next,
     render_report,
     render_triage,
-    splice_map,
 )
 
 
@@ -206,36 +204,3 @@ def cmd_sync(args: argparse.Namespace) -> int:
         print(f"{prefix}{action}")
     print(f"\n{len(actions)} change(s){' (dry run)' if args.dry_run else ''}.")
     return EXIT_OK
-
-
-def cmd_sync_map(args: argparse.Namespace) -> int:
-    milestones = fetch_milestones()
-    packages = load_packages()
-    data = analyse(fetch_issues(), milestones, packages)
-    section = render_map_section(data, milestones, packages)
-
-    proc = run_gh(["issue", "view", str(args.issue), "--repo", repo_slug(), "--json", "body"])
-    if proc.returncode != 0:
-        print(f"gh issue view failed: {proc.stderr.strip()}", file=sys.stderr)
-        return EXIT_ERROR
-    current = json.loads(proc.stdout or "{}").get("body") or ""
-    updated = splice_map(current, section)
-
-    if updated == current:
-        print(f"Backlog Map #{args.issue} already current.")
-        return EXIT_OK
-    if args.dry_run:
-        print(updated)
-        return EXIT_OK
-
-    edit = run_gh(
-        ["issue", "edit", str(args.issue), "--repo", repo_slug(), "--body-file", "-"],
-        runner=lambda cmd, **kw: subprocess.run(cmd, input=updated, **kw),
-    )
-    if edit.returncode != 0:
-        print(f"gh issue edit failed: {edit.stderr.strip()}", file=sys.stderr)
-        return EXIT_ERROR
-    print(f"Backlog Map #{args.issue} refreshed.")
-    return EXIT_OK
-
-

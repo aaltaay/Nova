@@ -24,9 +24,7 @@ KINDS = ("bug", "enhancement", "decision", "documentation")
 # so "unassigned" is a gap, not a state.
 NO_MILESTONE = "(no package)"
 
-# The Backlog Map issue is a rendered view of the backlog, not an item in it.
 # Without this it would report itself as an untriaged issue forever.
-META_LABEL = "backlog-map"
 
 # The inbox. A new issue is assigned here by .github/workflows/backlog-inbox.yml
 # the moment it is opened, so it is visible to `next` within minutes instead of
@@ -82,12 +80,8 @@ def domain_labels(issue: dict[str, Any]) -> set[str]:
     return {n for n in label_names(issue) if n.startswith("domain:")}
 
 
-def is_meta(issue: dict[str, Any]) -> bool:
-    return META_LABEL in label_names(issue)
-
-
 def fetch_issues(*, runner: Runner = subprocess.run) -> list[dict[str, Any]]:
-    """Open backlog issues. Meta issues (the Map itself) are excluded.
+    """Open backlog issues.
 
     Raises on a gh failure rather than returning an empty list: an empty
     backlog and an unreadable one must not look the same.
@@ -101,7 +95,7 @@ def fetch_issues(*, runner: Runner = subprocess.run) -> list[dict[str, Any]]:
     )
     if proc.returncode != 0:
         raise RuntimeError(f"gh issue list failed: {proc.stderr.strip()}")
-    return [i for i in json.loads(proc.stdout or "[]") if not is_meta(i)]
+    return json.loads(proc.stdout or "[]")
 
 
 def fetch_milestones(*, runner: Runner = subprocess.run) -> list[dict[str, Any]]:
