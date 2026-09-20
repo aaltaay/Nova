@@ -1,6 +1,6 @@
 ---
 description: How a backlog claim resolves -- who holds an issue, when a hold goes stale, and which claim is yours (R1-R5)
-globs: tools/backlog_claims.py,tools/backlog_claim_commands.py,tools/backlog_commands.py
+globs: tools/backlog_claims.py,tools/backlog_claim_commands.py,tools/backlog_commands.py,tools/next_moves.py
 alwaysApply: false
 ---
 
@@ -41,10 +41,13 @@ a table over the state space, not prose. **Change the table first.** An edit to
 `tools/backlog_claims.py` that the table still passes has not been reasoned
 about, and that is the failure this rule exists to prevent.
 
-Every path that decides whether a batch is held goes through `resolve_claim`,
-so `claims` (display) and `next` (enforcement) cannot disagree about who is
-working. A bare `active_claim` staleness decision in `cmd_claim` is a bug;
-`tools/test_backlog_branches.py` asserts against it in the source.
+Every path that decides whether a batch is held goes through `resolve_claim`
+-- `claims`, `next`, `cmd_claim`'s race checks, and the Next-move seed in
+`tools/next_moves.py`. They must not disagree: the seed's `[backlog]` lane is
+what an operator pastes to start work, so a batch it calls free while `next`
+calls it held is a collision waiting to happen. A bare `active_claim`
+staleness decision is a bug; `tools/test_backlog_branches.py` asserts against
+one in `cmd_claim`'s source.
 
 ## Related
 

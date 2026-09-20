@@ -29,11 +29,14 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tools.backlog_claims import CLAIM_LABEL, active_claim  # noqa: E402
+from tools.backlog_branches import last_commit_at
+from tools.backlog_claims import CLAIM_LABEL, resolve_claim  # noqa: E402
 from tools.backlog_github import (  # noqa: E402
     fetch_comments,
     fetch_issues,
     label_names,
+    repo_slug,
+    run_gh,
     severity_of,
 )
 from tools.backlog_plan import load_packages, next_pr, pick_next, with_inbox  # noqa: E402
@@ -255,6 +258,28 @@ class _Budget:
         return subprocess.run(cmd, **kw)
 
 
+def _branch_activity(budget: _Budget):
+    """Branch lookup for staleness, on the seed's budget (claim-resolution R3).
+
+    The seed decides whether a batch is held, so it has to resolve claims the
+    way `next` does or the footer's `[backlog]` lane offers a batch someone is
+    actively working. R3 only consults a branch for a holder that already
+    looks expired, so this costs a call for the rare abandoned-looking claim
+    and nothing otherwise.
+
+    The budget check is explicit because `last_commit_at` swallows `OSError`,
+    and `TimeoutError` is one: without this a budget exhaustion would quietly
+    become "no branch activity" -- the stale answer -- instead of sending the
+    seed offline like every other exhausted call here.
+    """
+    def look(ref: str):
+        if budget.remaining() <= 0:
+            raise TimeoutError("seed budget exhausted")
+        return last_commit_at(
+            lambda args: run_gh(args, runner=budget.run), repo_slug(), ref)
+    return look
+
+
 def collect_live(
     *, budget: _Budget, now: datetime
 ) -> tuple[list[dict[str, Any]] | None, dict[int, dict[str, Any]], bool]:
@@ -268,7 +293,10 @@ def collect_live(
         if CLAIM_LABEL not in label_names(issue):
             continue
         try:
-            claim = active_claim(fetch_comments(int(issue["number"]), runner=budget.run), now=now)
+            claim = resolve_claim(
+                fetch_comments(int(issue["number"]), runner=budget.run), now=now,
+                branch_activity_for=_branch_activity(budget),
+            )
         except Exception:
             return issues, held, False
         if claim and not claim["stale"]:

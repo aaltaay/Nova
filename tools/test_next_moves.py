@@ -176,6 +176,55 @@ def test_collect_live_fails_open_when_gh_is_unreachable(monkeypatch):
     assert issues is None and held == {} and known is False
 
 
+def test_the_seed_agrees_with_next_about_who_holds_a_batch(monkeypatch):
+    """The seed decides whether a batch is held, so it resolves claims the way
+    `next` does (claim-resolution R3).
+
+    It used to call `active_claim` with no branch activity, so a claim past the
+    TTL whose branch was committed minutes ago read as HELD to
+    `backlog_triage next` and STALE here -- and the `[backlog]` lane is the
+    line an operator pastes to start work, so it would hand out a batch
+    someone was actively holding.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    from tools.backlog_claims import CLAIM_TTL_HOURS, format_claim
+
+    now = datetime(2026, 9, 20, 15, tzinfo=timezone.utc)
+    claimed_at = now - timedelta(hours=CLAIM_TTL_HOURS + 2)
+    monkeypatch.setattr(nm, "fetch_issues",
+                        lambda **kw: [issue(7, labels=["claimed"])])
+    monkeypatch.setattr(nm, "fetch_comments", lambda n, **kw: [
+        {"body": format_claim(agent="worker-a", batch="s#0",
+                              branch="a/x", at=claimed_at),
+         "createdAt": claimed_at.strftime("%Y-%m-%dT%H:%M:%SZ")}])
+
+    # Branch abandoned too: genuinely stale, batch is free.
+    monkeypatch.setattr(nm, "_branch_activity",
+                        lambda budget: (lambda ref: now - timedelta(days=3)))
+    _issues, held, known = nm.collect_live(budget=nm._Budget(5), now=now)
+    assert known is True and held == {}
+
+    # Same claim, branch committed five minutes ago: still held.
+    monkeypatch.setattr(nm, "_branch_activity",
+                        lambda budget: (lambda ref: now - timedelta(minutes=5)))
+    _issues, held, known = nm.collect_live(budget=nm._Budget(5), now=now)
+    assert known is True and set(held) == {7}, (
+        "a holder still committing must not be offered to another agent"
+    )
+
+
+def test_an_exhausted_seed_budget_goes_offline_rather_than_guessing(monkeypatch):
+    # `last_commit_at` swallows OSError and TimeoutError is one, so without an
+    # explicit budget check an exhausted seed would quietly report the stale
+    # answer instead of admitting it could not look.
+    import pytest
+
+    look = nm._branch_activity(nm._Budget(0))
+    with pytest.raises(TimeoutError):
+        look("a/x")
+
+
 # --------------------------------------------------------------------------
 # lint
 # --------------------------------------------------------------------------
