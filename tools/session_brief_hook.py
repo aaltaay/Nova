@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
 """Fail-open sessionStart hook: inject a short fleet-triage brief.
 
-Reads stdin JSON from Cursor (ignored — sessionStart carries no task text to
-act on). Emits `additional_context` with the top fleet cracks from
-`agent_fleet.py` plus the active roadmap NEXT one-liner, so every new chat
-starts informed even before the always-apply triage rule kicks in.
+Reads stdin JSON (ignored — sessionStart carries no task text to act on).
+Emits the top fleet cracks from `agent_fleet.py`, the active roadmap NEXT
+one-liner, deferred items, the Graphify meter and the repo-hygiene line, so
+every new chat starts informed even before the always-apply rules kick in.
+
+Cursor (`.cursor/hooks.json`) reads `{"additional_context": ...}`.
+Claude Code (`.claude/settings.json`) passes `--claude` and reads
+`{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": ...}}`.
 
 Never blocks session start: any failure yields an empty result.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import sys
@@ -68,6 +73,12 @@ def build_brief() -> str | None:
         )
     except Exception:
         pass
+    try:
+        import repo_hygiene  # noqa: E402  (path inserted above)
+
+        lines.extend(repo_hygiene.format_session_brief_lines())
+    except Exception:
+        pass
     lines.append(
         "Zero-hop default: work in-session; invoke a specialist only if explicitly named. "
         "Cracks? Prefer `py -3 tools/agent_fleet.py` (no hop). (specialist-routing.mdc)"
@@ -75,7 +86,12 @@ def build_brief() -> str | None:
     return "\n".join(lines)
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--claude", action="store_true",
+                        help="emit the Claude Code SessionStart hookSpecificOutput shape")
+    args = parser.parse_args(argv)
+
     try:
         raw = sys.stdin.read()
         json.loads(raw) if raw.strip() else {}
@@ -87,7 +103,13 @@ def main() -> int:
     except Exception:
         brief = None
 
-    result = {"additional_context": brief} if brief else {}
+    if not brief:
+        result: dict = {}
+    elif args.claude:
+        result = {"hookSpecificOutput": {"hookEventName": "SessionStart",
+                                         "additionalContext": brief}}
+    else:
+        result = {"additional_context": brief}
     sys.stdout.write(json.dumps(result) + "\n")
     return 0
 

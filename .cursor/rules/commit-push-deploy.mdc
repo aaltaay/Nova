@@ -22,7 +22,7 @@ Code, config, CI, security, and rule changes never start or finish directly on `
    - Ensure the application builds and the automated tests appropriate to the change pass before committing.
 
 2. **Commit the changes**
-   - Stage all intentional changes: `git add -A` (be careful not to commit secrets or untracked local environment files).
+   - Stage the intentional paths explicitly: `git add <paths>`. Never `git add -A` / `git add .` (logs, captures and scratch files ride along). Never `git stash` to get around a dirty tree -- commit `wip:` on the branch instead (`workspace-hygiene.mdc`).
    - Commit with a clear, descriptive, and imperative commit message summarizing the changes.
 
 3. **Push the branch**
@@ -35,8 +35,9 @@ Code, config, CI, security, and rule changes never start or finish directly on `
    - Mark the PR ready (not draft). GitHub Actions merges it when gating CI is green. Do not wait for the human to say merge.
    - Draft or label `do-not-merge` only when the user explicitly asked to hold, or a hard external blocker (for example, needs live IBKR proof) is documented in the PR -- not because CI is still running.
 
-5. **The PR URL is the finish line**
+5. **The PR URL is the finish line -- and the tree is clean**
    - Do not end the session with only local commits, unpushed commits, or "I'll open the PR later."
+   - Leave no modified, staged or untracked files and no scratch worktree behind; `py -3 tools/repo_hygiene.py status` must be OK for what you own. The Claude Code Stop hook refuses the first dirty stop (`workspace-hygiene.mdc`).
 
 6. **After the PR is merged or closed, delete the head branch if it is still on origin**
    - Same session. `git fetch origin --prune`, then `py -3 tools/stale_pr_branches.py`.
