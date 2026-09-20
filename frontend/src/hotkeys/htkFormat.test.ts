@@ -166,6 +166,11 @@ describe('hotkeyStorage migrateProfile', () => {
 });
 
 describe('execution isolation', () => {
+  // Explicit timeout: these two dynamic imports transform a cold module graph,
+  // which in a full 324-file run regularly exceeds Vitest's 5s default and
+  // turned an otherwise green suite red. Same root cause class as #326 -- a
+  // fixed time budget betting on machine speed. Nothing here is expected to
+  // block; the ceiling only needs to be well clear of a cold transform.
   it('hotkey manager modules do not import useHotkeys', async () => {
     // Static guarantee: importing the profile hook must not pull runtime registration.
     const mod = await import('./useHotkeyProfile');
@@ -173,5 +178,5 @@ describe('execution isolation', () => {
     // useHotkeys is a separate module — profile path never registers window listeners.
     const hk = await import('../hooks/useHotkeys');
     expect(typeof hk.useHotkeys).toBe('function');
-  });
+  }, 30_000);
 });
