@@ -812,8 +812,8 @@
   border-radius: var(--mot-radius, 6px);
 }
 
-.stock-view-page .ticker-trade-bar--rail .manual-order-lock-note {
-  display: none; /* unlock button text already signals locked state */
+.stock-view-page .ticker-trade-bar--rail .manual-order-lock-note:not(.manual-order-lock-note--spend) {
+  display: none; /* the PIN note repeats the Unlock Trading button; the spend note is the only reason shown */
 }
 
 .stock-view-page .ticker-trade-bar--rail .manual-order-result {

@@ -281,6 +281,7 @@ export function ManualOrderTicket({
         submitting={submitting}
         spendLocked={spendLocked}
         spendLockReason={spendLockNote}
+        spendDisarmed={spendStatus === 'locked_disarmed'}
         quantityLocked={QTY_LOCKED}
         forcedQty={FORCED_QTY}
         sessionUnlocked={sessionUnlocked}

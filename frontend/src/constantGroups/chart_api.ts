@@ -613,6 +613,10 @@ export const TICKER_TRADE_QTY_NUDGE_MINUS_LABEL = '-1';
 export const TICKER_TRADE_QTY_DECIMALS = 4;
 /** Primary CTA before local PIN unlock (does not bypass IBKR spend gates). */
 export const TICKER_TRADE_UNLOCK_LABEL = 'Unlock Trading';
+/** Place button while the backend refuses spends (env gate, account class). */
+export const TICKER_TRADE_ORDERS_LOCKED_LABEL = 'Orders locked';
+/** Place button while the desk is merely disarmed (ADR 018) -- the fix is the header padlock, not a setting. */
+export const TICKER_TRADE_DISARMED_LABEL = 'Desk disarmed — arm at the padlock';
 /** GlobalAppBar lock icon — same PIN session gate as Place an order. */
 export const TICKER_TRADE_LOCK_ICON_UNLOCKED_TITLE =
   'Trading unlocked for this browser session. Click to lock.';

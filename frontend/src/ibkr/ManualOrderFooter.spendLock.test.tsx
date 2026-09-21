@@ -71,6 +71,19 @@ describe('ManualOrderFooter spend lock (D-013)', () => {
     expect(note?.textContent).toBe('Orders locked — reason here');
   });
 
+  it('names the disarm on the button so the operator looks at the padlock, not Settings (ADR 018)', () => {
+    const btn = render({
+      spendLocked: true,
+      spendDisarmed: true,
+      spendLockReason: 'Desk is disarmed -- arm trading in this session before placing',
+    });
+    expect(btn.disabled).toBe(true);
+    expect(btn.textContent).toBe('Desk disarmed — arm at the padlock');
+    const note = container.querySelector('[data-testid="spend-lock-note"]');
+    expect(note?.className).toContain('manual-order-lock-note--spend');
+    expect(note?.textContent).toContain('arm trading in this session');
+  });
+
   it('keeps the PIN unlock affordance reachable while locked', () => {
     const btn = render({ spendLocked: true, needsPinUnlock: true });
     expect(btn.disabled).toBe(false);

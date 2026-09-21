@@ -1,6 +1,8 @@
 import { Button } from '@/components/ui/button';
 import {
+  TICKER_TRADE_DISARMED_LABEL,
   TICKER_TRADE_FORCE_QTY,
+  TICKER_TRADE_ORDERS_LOCKED_LABEL,
   TICKER_TRADE_UNLOCK_LABEL,
 } from '../constants';
 import { PlaceOrderConfirmDialog } from './PlaceOrderConfirmDialog';
@@ -17,6 +19,8 @@ interface Props {
   submitting: boolean;
   spendLocked: boolean;
   spendLockReason?: string | null;
+  /** ADR 018: the env permits spending but this process is not armed -- a venue change or restart. */
+  spendDisarmed?: boolean;
   quantityLocked: boolean;
   forcedQty: number | null;
   sessionUnlocked: boolean;
@@ -38,6 +42,7 @@ export function ManualOrderFooter({
   submitting,
   spendLocked,
   spendLockReason = null,
+  spendDisarmed = false,
   quantityLocked,
   forcedQty,
   sessionUnlocked,
@@ -60,7 +65,9 @@ export function ManualOrderFooter({
     : needsPinUnlock
       ? TICKER_TRADE_UNLOCK_LABEL
       : placeBlockedBySpend
-        ? 'Orders locked'
+        ? spendDisarmed
+          ? TICKER_TRADE_DISARMED_LABEL
+          : TICKER_TRADE_ORDERS_LOCKED_LABEL
         : submitting
           ? 'Placing…'
           : placeLabel;
@@ -102,7 +109,10 @@ export function ManualOrderFooter({
         </span>
       )}
       {spendLocked && (
-        <span className="manual-order-lock-note" data-testid="spend-lock-note">
+        <span
+          className="manual-order-lock-note manual-order-lock-note--spend"
+          data-testid="spend-lock-note"
+        >
           {lockReason}
         </span>
       )}
