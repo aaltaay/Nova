@@ -8,9 +8,14 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from capture import mode, recorder, worker
+import time
+
+from capture import feed_hold, mode, recorder, worker
 from capture.routes import router
 from sim.status import overlay_ibkr_status
+
+
+HOLDS: dict = {}
 
 
 @pytest.fixture
@@ -18,6 +23,24 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("NOVA_SIM_CAPTURE_DIR", str(tmp_path))
     from capture import bridge_ibkr
     monkeypatch.setattr(bridge_ibkr, "admission_error", lambda symbol: None)
+    # Record opens its own IBKR lines (capture.feed_hold); tests have no Gateway,
+    # so stand in for the hold and keep a log of what the route asked for.
+    feed_hold.reset_for_tests()
+    HOLDS.update(acquired=[], released=[], refuse=None)
+
+    async def acquire(symbol):
+        HOLDS["acquired"].append(symbol)
+        if HOLDS["refuse"]:
+            return HOLDS["refuse"]
+        feed_hold._held[symbol] = {"tape": True, "depth": True}
+        return None
+
+    async def release(symbol):
+        HOLDS["released"].append(symbol)
+        feed_hold._held.pop(symbol, None)
+
+    monkeypatch.setattr(feed_hold, "acquire", acquire)
+    monkeypatch.setattr(feed_hold, "release", release)
     mode.set_capture_mode(False)
     recorder.reset_for_tests()
     mode.reset_for_tests()
@@ -112,3 +135,45 @@ def test_stop_failure_keeps_actual_recording_owner(client, monkeypatch):
         assert result["capture"] is True
         assert result["capture_symbol"] == "AAPL"
     assert toggle(client, False, "AAPL").json()["capture"] is False
+
+
+
+def eventually(check, timeout=2.0):
+    """Releases run as background tasks so a stop answers without waiting on depth's grace."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if check():
+            return True
+        time.sleep(0.02)
+    return check()
+
+
+def test_record_holds_its_own_lines_until_it_stops(client):
+    started = toggle(client, True, "aapl").json()
+    assert started["capture"] is True
+    assert HOLDS["acquired"] == ["AAPL"] and feed_hold.held("AAPL")
+    toggle(client, False, "AAPL")
+    assert eventually(lambda: HOLDS["released"] == ["AAPL"])
+    assert feed_hold.held("AAPL") is None
+
+
+def test_a_refused_tape_line_refuses_the_recording(client):
+    HOLDS["refuse"] = "IBKR tape transport down -- Gateway not connected"
+    result = toggle(client, True, "AAPL").json()
+    assert result["error"] == "IBKR tape transport down -- Gateway not connected"
+    assert result["capture"] is False
+    assert recorder.is_recording() is False
+    assert feed_hold.held("AAPL") is None
+
+
+def test_a_second_symbol_is_refused_before_any_line_is_opened(client):
+    toggle(client, True, "AAPL")
+    assert toggle(client, True, "TSLA").status_code == 409
+    assert HOLDS["acquired"] == ["AAPL"]  # never touched TSLA's tape (15 s resubscribe guard)
+
+
+def test_a_recorder_that_stopped_itself_gives_its_lines_back(client):
+    toggle(client, True, "AAPL")
+    worker.transition(lambda: recorder.fail_recorder("disk full"))
+    assert client.get("/api/capture").json()["capture"] is False
+    assert eventually(lambda: HOLDS["released"] == ["AAPL"])

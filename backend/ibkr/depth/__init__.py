@@ -34,6 +34,7 @@ from ibkr.depth.handlers import (
 from ibkr.depth.state import (
     close_viewer_queue,
     current_book,
+    is_live,
     is_subscribed,
     load_ib_types as _load_ib_types_impl,
     open_viewer_queue,
@@ -99,6 +100,7 @@ __all__ = [
     "current_book",
     "is_subscribed",
     "open_viewer_queue",
+    "is_live",
     "release_when_idle",
     "reset_all",
     "should_send_current_book",

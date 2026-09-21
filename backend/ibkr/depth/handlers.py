@@ -51,6 +51,19 @@ def _record_book(symbol: str, book: dict) -> None:
         logger.exception("IBKR depth: capture book enqueue failed for %s", symbol)
 
 
+def _broadcast_live(symbol: str, book: dict) -> None:
+    """Show a live book to the desk's panels -- except on a Sim desk.
+
+    There the only live line is one Session Record holds (#315). Its books still
+    update ``_subscriptions`` (the live print side is classified against it) and
+    reach the recording, but the practice desk's ladders and sensors read the
+    replay through ``push_book`` and must not be handed the market.
+    """
+    from sim.mode import is_sim_mode
+    if not is_sim_mode():
+        state.push_book(symbol, book)
+
+
 def on_update_book(ticker: Any, symbol: str) -> None:
     bids = [
         {
@@ -72,7 +85,7 @@ def on_update_book(ticker: Any, symbol: str) -> None:
     ]
     book = {"bids": bids[:10], "asks": asks[:10], "l1_fallback": False}
     state._subscriptions[symbol] = book
-    state.push_book(symbol, book)
+    _broadcast_live(symbol, book)
     _record_book(symbol, book)
 
 
@@ -91,7 +104,7 @@ def on_update_ticker(ticker: Any, symbol: str) -> None:
         "l1_fallback": True,
     }
     state._subscriptions[symbol] = book
-    state.push_book(symbol, book)
+    _broadcast_live(symbol, book)
     _record_book(symbol, book)
 
 

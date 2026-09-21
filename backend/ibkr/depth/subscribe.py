@@ -18,14 +18,18 @@ def _facade_attr(name: str):
     return getattr(facade, name)
 
 
-async def subscribe_async(symbol: str) -> dict:
+async def subscribe_async(symbol: str, *, live: bool = False) -> dict:
     """
     Qualify + subscribe to Level 2 (or L1 fallback).
     Safe under FastAPI's running event loop.
+
+    ``live`` opens a real IBKR line even on a Sim desk, replacing a replay slot:
+    Session Record captures the live market whatever the desk is practising on
+    (#315). Panels never pass it, so a Sim desk still shows the replay.
     """
     from sim.mode import is_sim_mode
 
-    if is_sim_mode():
+    if is_sim_mode() and not live:
         from sim import market as _sim_market
 
         state.reserve_slot(symbol)
@@ -48,7 +52,7 @@ async def subscribe_async(symbol: str) -> dict:
         }
 
     async with state.get_subscribe_lock():
-        if symbol in state._subscriptions:
+        if symbol in state._subscriptions and (not live or state.is_live(symbol)):
             return {"ok": True, "error": None, "symbols": state.subscribed_symbols()}
 
         if len(state._subscriptions) >= IBKR_MAX_DEPTH_SYMBOLS:

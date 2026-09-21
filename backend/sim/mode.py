@@ -146,12 +146,10 @@ def set_sim_mode(enabled: bool, *, persist: bool = False) -> dict:
 
     _safety.set_armed(False, reason="venue changed")
     if enabled:
-        try:
-            from capture.mode import is_capture_mode, set_capture_mode
-            if is_capture_mode():
-                set_capture_mode(False)
-        except Exception:
-            pass
+        # A live Session Record keeps running into Sim. It used to be stopped
+        # here because Sim piped SIM1 ticks into the recorder; SIM1 is gone
+        # (ADR 019), only live IBKR callbacks feed a capture, and Record holds its
+        # own lines (capture.feed_hold), so practising no longer ends a recording.
         from sim.feed import start_sim_feed_threadsafe
 
         start_sim_feed_threadsafe()

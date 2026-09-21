@@ -63,12 +63,19 @@ def reset_for_tests() -> None:
 
 
 def is_recording() -> bool:
-    return _active
+    """Read under the lock: a day rotation clears ``_active`` while it swaps
+    segments, and ``capture.mode._reconcile`` treats a False here as "the
+    recorder stopped itself" -- an unlocked read mid-rotation dropped Record mode
+    while the recorder kept writing, leaving a recording no Stop could reach.
+    Safe: no caller holds ``_lock`` (the worker checks between operations)."""
+    with _lock:
+        return _active
 
 
 def last_error() -> str | None:
     """Why the recording stopped writing, or ``None`` while healthy."""
-    return _error
+    with _lock:
+        return _error
 
 
 def _session_dir(symbol: str, day: str | None = None) -> Path:
@@ -88,7 +95,9 @@ def start_recorder(symbol: str | None, *, resume: bool = True, session_date: str
     from capture import manifest_io, session_state
 
     with _lock:
-        _stop_locked()
+        # Rotating to another Eastern day closes the previous segment; one that
+        # never received a print is marked empty, which is not a failed recording.
+        _stop_locked(rotating=_active and session_date is not None)
         from capture.bar_buckets import drain_open
         drain_open()  # Discard buckets left by a failed previous batch/session.
         sym = (symbol or "PENDING").strip().upper()
@@ -151,7 +160,7 @@ def stop_recorder() -> None:
         _stop_locked()
 
 
-def _stop_locked() -> None:
+def _stop_locked(*, rotating: bool = False) -> None:
     """Flush open bars, fsync, close, and finalize the manifest.
 
     Runs with ``_lock`` held and must never re-acquire it.  ``_active`` is
@@ -179,17 +188,20 @@ def _stop_locked() -> None:
     for timeframe, bar in bars:
         _write_bar_locked(timeframe, bar)
 
-    _finalize_locked(CAPTURE_STATUS_FAILED if _error else CAPTURE_STATUS_STOPPED)
+    _finalize_locked(CAPTURE_STATUS_FAILED if _error else CAPTURE_STATUS_STOPPED, rotating=rotating)
     logger.info("CAPTURE: recorder stopped counts=%s", _counts)
 
 
-def _finalize_locked(status: str) -> None:
+def _finalize_locked(status: str, *, rotating: bool = False) -> None:
     """fsync + close the streams and merge terminal state into the manifest."""
     global _active, _started_et
     _active = False
     if not _files and _started_et is None:
         return
-    if status == CAPTURE_STATUS_FAILED:
+    if rotating:
+        # The recording carries on in the new day's segment.
+        logger.info("CAPTURE: %s day segment closed (%s) -- recording continues", _symbol, status)
+    elif status == CAPTURE_STATUS_FAILED:
         logger.error(
             "CAPTURE: giving up on the recording of %s after %d consecutive "
             "write failures — last error: %s",

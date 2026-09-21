@@ -15,7 +15,21 @@ newest pending book even if the feed became quiet. Manifest fidelity describes
 offered/coalesced counts, configured maximum Hz, invalid timestamp and regression
 counts, and per-stream watermarks. A backward print fails visibly before it can
 enter bars. Forward Eastern date changes finalize the old directory and resume
-the event's date. Daily bars stay in
+the event's date; the recording continues across the swap, and recorder state is
+read under its lock so a status poll can never observe the swap half-done and
+drop Record mode. A day segment closed before its first print is marked empty.
+
+Session Record owns its IBKR lines (`capture/feed_hold.py`, #315). Starting a
+recording opens -- or joins -- the symbol's AllLast tape and a live depth line
+and holds a viewer reference on each until it stops, so no panel opening,
+closing or switching venue can pull its feed; stop releases through the same
+linger and grace paths the panels use. A refused tape line refuses the
+recording; a refused depth line records prints only, with a status warning.
+Record runs on any desk venue: on a Sim desk live ticks and books still reach
+the recorder and the stored book the print side is classified against, but are
+not broadcast to the practice desk's panels or sensors, and a switch to Sim no
+longer stops a recording (that stop guarded against SIM1 ticks, removed by
+ADR 019). Daily bars stay in
 memory until rollover/final flush, anchored to the shared Sim session opening
 hour on the actual event calendar; pre-open events use the preceding anchor so
 DST or early prints cannot produce a future timestamp.
