@@ -694,3 +694,17 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #3b82f6) 55%, transparent);
 }
 
+
+/* Practice fills are inferred from a replay; never let one read as a real execution (ADR 019). */
+.ibkr-fill-estimated {
+  margin-left: 0.25rem;
+  padding: 0 0.2rem;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  font-size: 0.62rem;
+  line-height: 1.2;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  opacity: 0.75;
+  vertical-align: middle;
+}

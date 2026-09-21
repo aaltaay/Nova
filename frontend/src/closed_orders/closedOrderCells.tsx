@@ -9,7 +9,7 @@ import {
 import type { ClosedOrderColumnId } from '../ibkr/orderTableColumns';
 import { FillLatencyTd } from '../ibkr/FillLatencyCell';
 import { commissionCellTitle, formatCommission } from '../ibkr/orderCommission';
-import { displayFilledQty } from '../ibkr/orderFillHonesty';
+import { displayFilledQty, practiceFillTitle } from '../ibkr/orderFillHonesty';
 import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
 import { formatClosedOrderId } from './formatClosedOrderId';
@@ -91,6 +91,11 @@ export function renderClosedOrderCell(
       return (
         <td key={col} className="ibkr-col--num">
           {formatMoney(o.avg_fill_price ?? null)}
+          {o.fill_estimated && o.avg_fill_price != null && (
+            <span className="ibkr-fill-estimated" title={practiceFillTitle(o.fill_basis)}>
+              est
+            </span>
+          )}
         </td>
       );
     case 'commission':

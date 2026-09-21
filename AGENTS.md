@@ -452,6 +452,9 @@ Keep useful regression tests. Do not create a separate problem ledger or footer.
 
 ## 8. 🚀 Run & Deploy
 
+Operator runbook for syncing the trading PC to master, cold-restarting IB
+Gateway and arming the unattended premarket: `docs/live-desk-sync.md`.
+
 ### Local Dev (Windows)
 
 ```text
