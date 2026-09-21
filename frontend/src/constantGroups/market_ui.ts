@@ -366,7 +366,7 @@ export const STOCK_VIEW_DISCONNECTED_LABEL = 'Disconnected';
 export const STOCK_VIEW_DISCONNECT_HINT_PAPER_LIVE_UP =
   'Nova targets Paper (4002) — not listening. Live (4001) is up — switch to Live?';
 export const STOCK_VIEW_DISCONNECT_HINT_LIVE_PAPER_UP =
-  'Nova targets Live (4001) — not listening. Paper (4002) is up — switch to Paper?';
+  'Nova targets Live (4001) — not listening. Only the legacy IBKR paper Gateway (4002) is up — it carries no tape. Log into the live Gateway.';
 export const STOCK_VIEW_DISCONNECT_HINT_BOTH_DOWN =
   'Gateway ports 4001/4002 not listening — start IB Gateway and log in.';
 export const STOCK_VIEW_DISCONNECT_HINT_PORT_OPEN =

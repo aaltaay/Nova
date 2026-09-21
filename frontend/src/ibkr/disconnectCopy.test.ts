@@ -29,10 +29,17 @@ describe('disconnectCopy', () => {
     expect(stockViewDisconnectLabel({})).toBe(STOCK_VIEW_DISCONNECTED_LABEL);
   });
 
-  it('suggests switch target from disconnect_hint', () => {
+  it('suggests only live as a switch target -- never the legacy paper Gateway (ADR 020)', () => {
     expect(disconnectHintSwitchTarget('paper_port_refused_live_listening')).toBe('live');
-    expect(disconnectHintSwitchTarget('live_port_refused_paper_listening')).toBe('paper');
+    expect(disconnectHintSwitchTarget('live_port_refused_paper_listening')).toBeNull();
     expect(disconnectHintSwitchTarget('both_ports_unreachable')).toBeNull();
+  });
+
+  it('tells the operator the paper Gateway carries no tape instead of offering it', () => {
+    const label = stockViewDisconnectLabel({ disconnect_hint: 'live_port_refused_paper_listening' });
+    expect(label).toMatch(/legacy/i);
+    expect(label).toMatch(/log into the live Gateway/i);
+    expect(label).not.toMatch(/switch to Paper/i);
   });
 
   it('formats last-known disconnect copy without doubling the banner', () => {

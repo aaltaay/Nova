@@ -4,7 +4,8 @@
  * The header pills are venue pills: Live = IBKR, real money; Paper = Nova's
  * practice account (fake money on the live feed); Sim = the replay playground.
  * Paper never launches a Gateway -- the IBKR paper Gateway (port 4002) is legacy
- * and reachable only from the Desk checklist.
+ * with no desk button: by hand only via `POST /api/ibkr/gateway-mode`, never an
+ * automatic fallback (ADR 020, second pass).
  */
 
 export type DeskVenue = 'live' | 'paper' | 'sim';
@@ -51,8 +52,3 @@ export const DESK_VENUE_SWITCH_UNREACHABLE = 'Could not reach Nova backend to sw
 export const deskVenueSwitchFailed = (venue: DeskVenue): string => `Switch to ${venue} failed`;
 export const DESK_VENUE_API_RESTART_HINT =
   'Restart Nova API (venue route missing), then try switching again.';
-
-/** Desk checklist -- the IBKR paper Gateway launcher is legacy, not the Paper venue. */
-export const DESK_VENUE_LEGACY_PAPER_GATEWAY_LABEL = 'Open IBKR paper Gateway (legacy)';
-export const DESK_VENUE_LEGACY_PAPER_GATEWAY_TITLE =
-  "Legacy: logs into IBKR's own paper Gateway (port 4002). This is not the Paper venue -- the header Paper pill trades Nova's practice account on the live feed.";

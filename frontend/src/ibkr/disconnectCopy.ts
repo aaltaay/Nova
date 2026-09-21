@@ -56,10 +56,14 @@ export function lastKnownBanner(error: string): string {
   return `${error} -- showing last-known data.`;
 }
 
+/**
+ * Only live is ever suggested (ADR 020): the legacy paper Gateway on 4002 is
+ * never a fallback -- beside a live login it is read-only and carries no tape,
+ * and the header Paper pill is Nova's practice account, not that Gateway.
+ */
 export function disconnectHintSwitchTarget(
   hint: string | null | undefined,
-): 'paper' | 'live' | null {
+): 'live' | null {
   if (hint === 'paper_port_refused_live_listening') return 'live';
-  if (hint === 'live_port_refused_paper_listening') return 'paper';
   return null;
 }

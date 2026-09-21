@@ -4,6 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildTradingPrerequisites,
+  gatewayPortMismatchHint,
   completedOrdersStuckNotice,
 } from './tradingPrerequisites';
 
@@ -267,7 +268,7 @@ describe('buildTradingPrerequisites', () => {
     expect(out.autoOverlay).toBe(false);
   });
 
-  it('offers Use paper Gateway when live is targeted but paper is listening', () => {
+  it('never offers the legacy paper Gateway when live is targeted but only paper is listening (ADR 020)', () => {
     const out = buildTradingPrerequisites({
       health: { status: 'connected', latency_ms: 0, health_source: 'nova_process' },
       ibkrEnabled: true,
@@ -278,9 +279,29 @@ describe('buildTradingPrerequisites', () => {
     });
     const gw = out.items.find((i) => i.id === 'ibkr_gateway');
     expect(out.blockDesk).toBe(true);
+    // The paper Gateway carries no tape beside a live login: the row asks for
+    // the live login instead of a switch. No 'switch_gateway_mode', no
+    // "Use paper Gateway".
+    expect(gw?.action).toBe('launch_gateway');
+    expect(gw?.detail).toMatch(/legacy IBKR paper Gateway/i);
+    expect(gw?.detail).toMatch(/log into the live Gateway/i);
+    expect(gw?.detail).not.toMatch(/use Paper/i);
+    expect(gatewayPortMismatchHint('live_port_refused_paper_listening')).toBeNull();
+  });
+
+  it('still offers Use live Gateway when Nova was pointed at the legacy paper door by hand', () => {
+    const out = buildTradingPrerequisites({
+      health: { status: 'connected', latency_ms: 0, health_source: 'nova_process' },
+      ibkrEnabled: true,
+      ibkrConnected: false,
+      preferredPortReachable: false,
+      ibkrTransportConnected: false,
+      disconnectHint: 'paper_port_refused_live_listening',
+    });
+    const gw = out.items.find((i) => i.id === 'ibkr_gateway');
     expect(gw?.action).toBe('switch_gateway_mode');
-    expect(gw?.detail).toMatch(/Paper Gateway is already up/i);
-    expect(gw?.detail).not.toMatch(/2FA/i);
+    expect(gw?.detail).toMatch(/Live Gateway is already up/i);
+    expect(gatewayPortMismatchHint('paper_port_refused_live_listening')).toBe('live');
   });
 
   it('offers Start fresh login when the on-screen Second Factor prompt is stale', () => {

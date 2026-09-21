@@ -58,7 +58,9 @@ def test_persist_gateway_mode_appends_when_missing(tmp_path: Path):
 
 
 def test_try_connect_alternate_port_heals_on_refused(tmp_path: Path, monkeypatch):
+    """live -> paper heal still works, but only behind the explicit opt-in (ADR 020)."""
     monkeypatch.setenv("IBKR_GATEWAY_SELF_HEAL", "true")
+    monkeypatch.setenv("IBKR_PAPER_GATEWAY_FALLBACK", "true")
     monkeypatch.setenv("IBKR_GATEWAY_MODE", "live")
     monkeypatch.setenv("IBKR_LIVE_PORT", "4001")
     monkeypatch.setenv("IBKR_PAPER_PORT", "4002")
@@ -111,13 +113,6 @@ def test_try_connect_alternate_skips_when_disabled(monkeypatch):
 
     assert asyncio.run(_run()) is None
     ib.connectAsync.assert_not_called()
-
-
-def test_heal_target_allowed_bidirectional():
-    assert heal.heal_target_allowed(from_mode="live", to_mode="paper") is True
-    assert heal.heal_target_allowed(from_mode="paper", to_mode="live") is True
-    assert heal.heal_target_allowed(from_mode="paper", to_mode="paper") is False
-    assert heal.heal_target_allowed(from_mode="live", to_mode="live") is False
 
 
 def test_intentional_mode_is_sticky_through_mid_switch_grace(monkeypatch):

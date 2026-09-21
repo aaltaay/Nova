@@ -21,10 +21,6 @@
   cursor: wait;
 }
 
-.trading-prereq-cta--paper {
-  background: color-mix(in srgb, #c47a2a 88%, #000);
-}
-
 .trading-prereq-cta--live {
   background: color-mix(in srgb, #2f8a55 88%, #000);
 }

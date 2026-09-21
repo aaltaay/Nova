@@ -10,9 +10,9 @@
  */
 import { useCallback, useState } from 'react';
 import { HEADER_GATEWAY_LAUNCH_HINT } from '../constants';
-import { launchIbGateway, type LaunchGatewayMode } from '../utils/launchIbGateway';
+import { launchIbGateway } from '../utils/launchIbGateway';
 import { emptyIbkrDisconnectedMessage } from './disconnectCopy';
-import { GatewayModeLaunchButtons } from './GatewayModeLaunchButtons';
+import { GatewayModeLaunchButtons, type DeskLaunchGatewayMode } from './GatewayModeLaunchButtons';
 import {
   GATEWAY_BANNER_TITLE,
   PREREQ_GATEWAY_STALE_SECOND_FACTOR_DETAIL,
@@ -82,10 +82,10 @@ export function GatewayDisconnectedBanner({
   ibkrGatewayMode = null,
   ibkrSecondFactorStale = false,
 }: Props) {
-  const [busyMode, setBusyMode] = useState<LaunchGatewayMode | null>(null);
+  const [busyMode, setBusyMode] = useState<DeskLaunchGatewayMode | null>(null);
   const [launchHint, setLaunchHint] = useState<string | null>(null);
 
-  const onOpenGateway = useCallback(async (mode: LaunchGatewayMode) => {
+  const onOpenGateway = useCallback(async (mode: DeskLaunchGatewayMode) => {
     if (busyMode) return;
     setBusyMode(mode);
     setLaunchHint(null);

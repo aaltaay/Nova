@@ -111,3 +111,30 @@ and the operator trade recordings and can unwind time.
   the real one produces a P&L nobody can read.
 - **Bespoke fill and fee rules.** The practice simulators people actually use
   agree on the conventions; Nova adopts them and names its parameters.
+
+## Amendment -- second pass (operator decisions, 2026-09-21)
+
+1. **The legacy paper Gateway leaves the desk UI.** Decision 1's "stays
+   reachable from the Desk checklist" is withdrawn: there is no "Open IBKR
+   paper Gateway (legacy)" button and no "Use paper Gateway" follow CTA. The
+   live Gateway is the one desk door. `POST /api/ibkr/gateway-mode
+   {"mode":"paper"}` stays as the by-hand legacy door.
+2. **Never an automatic fallback.** Follow-Gateway no longer attaches to the
+   paper port when live is dark: with market-data sharing on, a paper login
+   beside a live session is read-only and carries no tape, so the desk would
+   look connected while every scanner and Level 2 stayed dark.
+   `IBKR_PAPER_GATEWAY_FALLBACK = False` (`backend/constants_ibkr.py`) opts
+   back in; paper -> live healing is unchanged. Constitution Invariant #7 and
+   §5 say so.
+3. **Bot scope, enforced in one place.** A bot fires only on a symbol that is
+   on its allowlist AND whose depth line the backend itself holds -- an open
+   Trader Level 2 (`ibkr.depth.state.is_subscribed`) or a Session Record line
+   (`is_live`). The backend cannot see UI tabs, so the held line is the fact;
+   no line budget. Refusal: `409 BOT_NO_DEPTH_LINE`, "open its Level 2 or
+   record it" (`bot/eligibility.assert_symbol_can_fire`).
+4. **Rewind event for bots.** When the Sim scratch account unwinds and drops
+   anything, Nova publishes `practice_rewind`
+   `{venue: "sim", playhead_ts, dropped_orders, dropped_fills}` on the bot
+   audit stream and keeps it as `last_rewind` on `GET /api/bot/session`. After
+   it, bots re-read positions from the account and never trust their own
+   memory over the ledger (`docs/bot-localhost-api.md`).

@@ -41,7 +41,7 @@ Header **Paper / Live / Sim** replays a real recorded or downloaded session and 
 
 - Windows for the supported desktop and `Run Nova.bat` path
 - Python 3.13 and Node.js 20
-- [IB Gateway](https://www.interactivebrokers.com/en/trading/ibgateway-stable.php) logged in (live port 4001, paper 4002)
+- [IB Gateway](https://www.interactivebrokers.com/en/trading/ibgateway-stable.php) logged in (live port 4001; the paper Gateway on 4002 is legacy, by hand only)
 - Alpaca keys only if you want news and listing flags
 - Optional: Finnhub (Earnings calendar), Discord/Telegram (alerts)
 
@@ -96,7 +96,7 @@ All secrets go in `.env`. The tracked file is `.env.example` (empty placeholders
 | `NOVA_API_KEY` | Required for `POST /api/config` even on loopback; required for all mutating `/api/*` off loopback |
 | `FINNHUB_API_KEY` | Earnings calendar |
 
-Gateway default is live (4001). Paper (4002) is the fallback when live is dark. Port 4001 listening is not proof of a live account.
+Gateway default is live (4001). The IBKR paper Gateway (4002) is legacy -- by hand only (`POST /api/ibkr/gateway-mode {"mode":"paper"}`), never an automatic fallback (ADR 020). Port 4001 listening is not proof of a live account.
 
 ## Architecture
 

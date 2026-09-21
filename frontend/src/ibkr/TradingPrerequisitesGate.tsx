@@ -24,13 +24,14 @@ import { GatewayDoorTrail } from './GatewayDoorTrail';
 import { refreshIbkrStatusNow, useIbkrStatus } from './useIbkrStatus';
 import { TRADING_PREREQ_OPEN_EVENT } from './tradingPrereqUi';
 import { launchIbGateway, type LaunchGatewayMode } from '../utils/launchIbGateway';
+import type { DeskLaunchGatewayMode } from './GatewayModeLaunchButtons';
 import './tradingPrerequisitesGate.css';
 
 export function TradingPrerequisitesGate() {
   const bar = useScannerBarProps();
   const { ibkrConnected, ibkrGatewayMode } = useWorkspace();
   const ibkr = useIbkrStatus();
-  const [launchBusyMode, setLaunchBusyMode] = useState<LaunchGatewayMode | null>(null);
+  const [launchBusyMode, setLaunchBusyMode] = useState<DeskLaunchGatewayMode | null>(null);
   const [reconnectBusy, setReconnectBusy] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
   const [freshLoginBusy, setFreshLoginBusy] = useState(false);
@@ -86,7 +87,7 @@ export function TradingPrerequisitesGate() {
     ],
   );
 
-  const onLaunchGateway = useCallback(async (mode: LaunchGatewayMode) => {
+  const onLaunchGateway = useCallback(async (mode: DeskLaunchGatewayMode) => {
     if (launchBusyMode) return;
     setLaunchBusyMode(mode);
     setLaunchHint(null);
@@ -208,8 +209,8 @@ export function TradingPrerequisitesGate() {
     ibkrGatewayMode === 'live'
       ? 'Target: LIVE Gateway port 4001'
       : ibkrGatewayMode === 'paper'
-        ? 'Target: PAPER Gateway port 4002'
-        : 'Target: IB Gateway API port (4001 live / 4002 paper)';
+        ? 'Target: legacy IBKR paper Gateway port 4002 (set by hand -- not the Paper venue)'
+        : 'Target: live Gateway API port 4001';
 
   return (
     <div

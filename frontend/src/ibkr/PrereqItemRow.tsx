@@ -3,15 +3,13 @@ import { BackendStartButton } from '../components/BackendStartButton';
 import {
   PREREQ_GATEWAY_FOLLOW_CTA_BUSY_LABEL,
   PREREQ_GATEWAY_FOLLOW_LIVE_CTA_LABEL,
-  PREREQ_GATEWAY_FOLLOW_PAPER_CTA_LABEL,
   PREREQ_GATEWAY_RECONNECT_CTA_BUSY_LABEL,
   PREREQ_GATEWAY_RECONNECT_CTA_LABEL,
   PREREQ_GATEWAY_STALE_SECOND_FACTOR_CTA_BUSY_LABEL,
   PREREQ_GATEWAY_STALE_SECOND_FACTOR_CTA_LABEL,
 } from './gatewayUxConstants';
-import { GatewayModeLaunchButtons } from './GatewayModeLaunchButtons';
-import type { PrereqItem } from './tradingPrerequisites';
-import type { LaunchGatewayMode } from '../utils/launchIbGateway';
+import { GatewayModeLaunchButtons, type DeskLaunchGatewayMode } from './GatewayModeLaunchButtons';
+import type { GatewayFollowTarget, PrereqItem } from './tradingPrerequisites';
 
 export function PrereqItemRow({
   item,
@@ -29,11 +27,11 @@ export function PrereqItemRow({
   freshLoginBusy,
 }: {
   item: PrereqItem;
-  onLaunchGateway: (mode: LaunchGatewayMode) => void;
-  launchBusyMode: LaunchGatewayMode | null;
+  onLaunchGateway: (mode: DeskLaunchGatewayMode) => void;
+  launchBusyMode: DeskLaunchGatewayMode | null;
   onReconnectIbkr: () => void;
   onFollowGateway: () => void;
-  followTarget: 'paper' | 'live' | null;
+  followTarget: GatewayFollowTarget;
   reconnectBusy: boolean;
   followBusy: boolean;
   healthFlag?: string;
@@ -81,9 +79,7 @@ export function PrereqItemRow({
             >
               {followBusy
                 ? PREREQ_GATEWAY_FOLLOW_CTA_BUSY_LABEL
-                : followTarget === 'paper'
-                  ? PREREQ_GATEWAY_FOLLOW_PAPER_CTA_LABEL
-                  : PREREQ_GATEWAY_FOLLOW_LIVE_CTA_LABEL}
+                : PREREQ_GATEWAY_FOLLOW_LIVE_CTA_LABEL}
             </button>
           </div>
         )}

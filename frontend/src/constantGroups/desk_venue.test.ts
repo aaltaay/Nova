@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DESK_VENUE_LEGACY_PAPER_GATEWAY_LABEL,
-  DESK_VENUE_LEGACY_PAPER_GATEWAY_TITLE,
   DESK_VENUE_LIVE_TITLE,
   DESK_VENUE_PAPER_BANNER_TEXT,
   DESK_VENUE_PAPER_TITLE,
@@ -23,11 +21,6 @@ describe('desk_venue copy (ADR 020)', () => {
     expect(DESK_VENUE_PAPER_BANNER_TEXT).toMatch(/Nova's practice account/);
     expect(DESK_VENUE_PAPER_BANNER_TEXT).not.toMatch(/IBKR paper account/);
     expect(DESK_VENUE_PAPER_TITLE).not.toMatch(/port 4002/);
-  });
-
-  it('marks the IBKR paper Gateway launcher as legacy and not the venue', () => {
-    expect(DESK_VENUE_LEGACY_PAPER_GATEWAY_LABEL).toMatch(/legacy/i);
-    expect(DESK_VENUE_LEGACY_PAPER_GATEWAY_TITLE).toMatch(/not the Paper venue/);
   });
 
   it('recognises the practice account ids and describes them as Nova-managed', () => {

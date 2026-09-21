@@ -217,7 +217,8 @@ describe('GatewayDisconnectedBanner', () => {
     expect(banner).not.toBeNull();
     expect(banner?.textContent).toContain('ACTION REQUIRED');
     expect(banner?.textContent).toContain('4002');
-    expect(banner?.querySelector('[data-testid="open-gateway-paper"]')?.textContent).toMatch(/paper/i);
+    // ADR 020: the legacy paper Gateway has no desk button -- only live launches.
+    expect(banner?.querySelector('[data-testid="open-gateway-paper"]')).toBeNull();
     expect(banner?.querySelector('[data-testid="open-gateway-live"]')?.textContent).toMatch(/live/i);
   });
 
@@ -232,22 +233,17 @@ describe('GatewayDisconnectedBanner', () => {
         />,
       );
     });
-    const button = container.querySelector('[data-testid="open-gateway-paper"]') as HTMLButtonElement;
-    await act(async () => {
-      button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      await Promise.resolve();
-    });
-    expect(launchIbGatewayMock).toHaveBeenCalledWith('paper', false);
-    expect(container.querySelector('[data-testid="gateway-disconnected-banner"]')?.textContent).toContain(
-      'Started IB Gateway',
-    );
-
+    expect(container.querySelector('[data-testid="open-gateway-paper"]')).toBeNull();
     const live = container.querySelector('[data-testid="open-gateway-live"]') as HTMLButtonElement;
     await act(async () => {
       live.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       await Promise.resolve();
     });
+    expect(launchIbGatewayMock).toHaveBeenCalledTimes(1);
     expect(launchIbGatewayMock).toHaveBeenCalledWith('live', false);
+    expect(container.querySelector('[data-testid="gateway-disconnected-banner"]')?.textContent).toContain(
+      'Started IB Gateway',
+    );
   });
 
   it('forces a fresh login instead of just focusing a stale Second Factor prompt', async () => {
