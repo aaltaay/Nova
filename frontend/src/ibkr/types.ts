@@ -157,6 +157,10 @@ export interface IbkrOrder {
   stop_price?: number | null;
   /** Average fill price when any fills exist. */
   avg_fill_price?: number | null;
+  /** Sim practice fills only: inferred from a replay, never a real execution (ADR 019). */
+  fill_estimated?: boolean | null;
+  /** Which rule priced a practice fill: quote | last_print | print_cross | stop_trigger | last_mark. */
+  fill_basis?: string | null;
   /** IBKR CommissionReport sum -- null until a real report. */
   commission?: number | null;
   /**
