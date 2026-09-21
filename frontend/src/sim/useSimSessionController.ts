@@ -6,15 +6,15 @@ import { useReplayActions } from './useReplayActions';
 import { emitSimClockScrub, SIM_CLOCK_SCRUB_EVENT, SIM_SEEK_CANCEL_EVENT, type SimClockScrubDetail } from './simClockEvents';
 import { SIM_CAPTURE_POLL_MS, SIM_SCRUB_KEYBOARD_MS } from './simConstants';
 import type { SimClockState } from './simClockTypes';
-interface CaptureSessions {
+export interface CaptureSessions {
   days: { date: string; ticker_count: number }[];
   tickers_by_day: Record<string, {
     symbol: string; prints: number; l2: number; usable?: boolean; empty?: boolean; unavailable_reason?: string | null;
-    segments?: number; missing_sec?: number; last_reason?: string | null;
+    segments?: number; missing_sec?: number; last_reason?: string | null; status?: string;
   }[]>;
 }
 const clockResource = simClockResource;
-const capturesResource = replayPollResource<CaptureSessions>('/api/capture/sessions', () => SIM_CAPTURE_POLL_MS);
+export const capturesResource = replayPollResource<CaptureSessions>('/api/capture/sessions', () => SIM_CAPTURE_POLL_MS);
 export function useSimSessionController(active: boolean, openStockView: (symbol: string) => void) {
   const subscribeClock = useCallback((listener: () => void) => active ? clockResource.subscribe(listener) : () => {}, [active]);
   const subscribeCaptures = useCallback((listener: () => void) => active ? capturesResource.subscribe(listener) : () => {}, [active]);

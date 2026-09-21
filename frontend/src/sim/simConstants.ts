@@ -89,6 +89,12 @@ export const SIM_TAB_OTHER_SYMBOL_TITLE = 'Not the replayed symbol';
 export const SIM_TAB_REPLAY_FAILED_TITLE = 'Replay failed to load';
 export const SIM_TAB_CHARTS_ARCHIVED = 'Charts show archived bars until a replay loads.';
 export const SIM_TAB_NO_WINDOW = 'Pick a window with Historical replay in the Sim session bar above.';
+/** A Sim tab with nothing loaded says what Sim is, so Live wall clamp is not read as live data. */
+export const SIM_TAB_WHAT_SIM_IS =
+  'Sim shows only the loaded replay. For live Level 2 and Time & Sales with fake money, use the Paper venue.';
+export const simTabOwnRecording = (symbol: string, date: string, prints: number, recording: boolean): string =>
+  `Your Session Record of ${symbol} (${date}, ${prints.toLocaleString()} prints${recording ? ', still recording' : ''}) `
+  + 'can replay now — pick it under Day / Ticker above.';
 export const simTabOtherSymbolLead = (tab: string, replaySymbol: string): string =>
   `${replaySymbol} is loaded, so ${tab} won't fill.`;
 export const simTabOfferDownload = (label: string, instead: boolean): string =>

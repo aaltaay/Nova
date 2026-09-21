@@ -17,6 +17,7 @@ from datetime import timedelta
 
 from constants import (
     HOD_MOMO_RVOL_PACE_FLOOR,
+    NOVA_OS_NYSE_HOLIDAYS,
     SESSION_AFTERHOURS_END_MIN_ET,
     SESSION_PREMARKET_START_MIN_ET,
     SESSION_RTH_CLOSE_MIN_ET,
@@ -64,6 +65,23 @@ def in_market_hours() -> bool:
     open_ = _et_at_minutes(now, SESSION_RTH_OPEN_MIN_ET)
     close = _et_at_minutes(now, SESSION_RTH_CLOSE_MIN_ET)
     return open_ <= now < close
+
+
+def regular_hours_at(when: datetime) -> bool:
+    """Weekday, not an NYSE holiday, and 09:30 <= ET clock < 16:00.
+
+    The only session that accepts an unpriced (market) order -- Nasdaq offers
+    no unpriced orders in its extended sessions and IBKR holds an RTH-only MKT
+    until the next open (``execution/session_gate.py``). ``when`` is an aware
+    America/New_York datetime: the wall clock on Live and Paper, the replay
+    playhead on Sim.
+    """
+    if when.weekday() >= 5:
+        return False
+    if when.date().isoformat() in NOVA_OS_NYSE_HOLIDAYS:
+        return False
+    minutes = when.hour * 60 + when.minute
+    return SESSION_RTH_OPEN_MIN_ET <= minutes < SESSION_RTH_CLOSE_MIN_ET
 
 
 def in_after_hours() -> bool:

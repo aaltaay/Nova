@@ -19,6 +19,8 @@ import time
 from typing import Any
 
 from constants_practice import (
+    MKT_OUTSIDE_RTH_CODE,
+    MKT_OUTSIDE_RTH_REASON,
     PRACTICE_ACCOUNT_ID_PAPER,
     PRACTICE_ACCOUNT_ID_SIM,
     PRACTICE_ACCOUNT_TYPE_PAPER,
@@ -95,6 +97,8 @@ class PracticeBroker:
         qty_f = float(qty)
         if typ not in fill_model.SUPPORTED_ORDER_TYPES:
             return self._refused(ORDER_TYPE_REASON, SIM_ORDER_TYPE_CODE)
+        if order_rules.mkt_outside_rth(typ, self.reference.now_ts(), protective):
+            return self._refused(MKT_OUTSIDE_RTH_REASON, MKT_OUTSIDE_RTH_CODE)
         tif_u = order_rules.normalize_tif(tif)
         if tif_u is None:
             return self._refused(order_rules.TIF_REASON, PRACTICE_TIF_INVALID_CODE)

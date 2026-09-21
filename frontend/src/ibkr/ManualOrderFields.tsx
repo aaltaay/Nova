@@ -34,6 +34,8 @@ interface Props {
   /** When true, quantity input / units / presets are inert (forced share qty). */
   quantityLocked?: boolean;
   shortDisabledReason?: string | null;
+  /** Set while the backend would refuse a MKT (MKT_OUTSIDE_RTH): Market greys out with this title. */
+  marketDisabledReason?: string | null;
   onTicketSideChange: (side: TicketSide) => void;
   onOrderTypeChange: (orderType: ManualOrderType) => void;
   onQuantityModeChange: (mode: QuantityMode) => void;
@@ -67,6 +69,7 @@ export function ManualOrderFields({
   disabled,
   quantityLocked = false,
   shortDisabledReason = null,
+  marketDisabledReason = null,
   onTicketSideChange,
   onOrderTypeChange,
   onQuantityModeChange,
@@ -136,15 +139,17 @@ export function ManualOrderFields({
         {PRIMARY_TYPES.map(item => {
           const isDefault = item.value === TICKER_TRADE_DEFAULT_ORDER_TYPE;
           const isActive = orderType === item.value;
+          const blocked = item.value === 'MKT' && Boolean(marketDisabledReason);
           return (
             <button
               key={item.value}
               type="button"
               className={`${isActive ? 'is-active' : ''}${isDefault ? ' is-default' : ''}`}
               aria-pressed={isActive}
-              title={item.title}
-              onClick={() => onOrderTypeChange(item.value)}
-              disabled={disabled}
+              title={blocked ? marketDisabledReason ?? undefined : item.title}
+              onClick={() => { if (!blocked) onOrderTypeChange(item.value); }}
+              disabled={disabled || blocked}
+              data-testid={item.value === 'MKT' ? 'manual-order-type-mkt' : undefined}
             >
               {item.label}
               {isDefault ? (
@@ -161,6 +166,11 @@ export function ManualOrderFields({
           onOrderTypeChange={onOrderTypeChange}
         />
       </div>
+      {marketDisabledReason && (
+        <span className="manual-order-lock-note" data-testid="market-outside-rth-note">
+          {marketDisabledReason}
+        </span>
+      )}
 
       <ManualOrderQuantityRow
         quantityMode={quantityMode}

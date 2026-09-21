@@ -6,12 +6,14 @@
  * Gateway not running, Start Gateway & download. The × hides the prompt for this
  * tab and situation; it never cancels a download or a queued heal.
  */
-import { useState } from 'react';
+import { useCallback, useState, useSyncExternalStore } from 'react';
 import { useWorkspace } from '../workspace';
 import { durationLabel } from './historicalProgress';
 import { useSimReplayTarget } from './useSimReplayTarget';
 import { offerCopy, type OfferAction } from './simReplayOffer';
 import { useSimReplayOffer } from './useSimReplayOffer';
+import { ownRecordingFor } from './ownRecording';
+import { capturesResource } from './useSimSessionController';
 import {
   SIM_TAB_ACTION_DOWNLOAD,
   SIM_TAB_ACTION_LOAD,
@@ -29,6 +31,7 @@ import {
   SIM_TAB_NO_WINDOW,
   SIM_TAB_OTHER_SYMBOL_TITLE,
   SIM_TAB_REPLAY_FAILED_TITLE,
+  SIM_TAB_WHAT_SIM_IS,
   simTabGoToReplayLabel,
   simTabOfferBusy,
   simTabOfferDownload,
@@ -42,6 +45,7 @@ import {
   simTabOfferRetrying,
   simTabOfferStopped,
   simTabOtherSymbolLead,
+  simTabOwnRecording,
 } from './simConstants';
 import './simReplayTargetNotice.css';
 
@@ -82,6 +86,15 @@ export function SimReplayTargetNotice({ symbol }: { symbol: string }) {
     symbol, clock, wantsReplay, target.kind === 'none',
   );
   const [, setDismissTick] = useState(0);
+  // Only a Sim tab with nothing loaded reads the capture archive -- a Paper or
+  // Live Stock View never polls it.
+  const wantsOwn = target.kind === 'none';
+  const subscribeCaptures = useCallback(
+    (listener: () => void) => (wantsOwn ? capturesResource.subscribe(listener) : () => {}),
+    [wantsOwn],
+  );
+  const captures = useSyncExternalStore(subscribeCaptures, capturesResource.getSnapshot);
+  const own = wantsOwn ? ownRecordingFor(captures.data, symbol) : null;
 
   const tab = symbol.trim().toUpperCase();
   const dismissKey = `${tab}|${target.kind}`;
@@ -118,6 +131,14 @@ export function SimReplayTargetNotice({ symbol }: { symbol: string }) {
         {target.kind === 'other-symbol' && `${simTabOtherSymbolLead(tab, target.replaySymbol)} `}
         {wantsReplay && (copy ? copy.text : SIM_TAB_NO_WINDOW)}
       </span>
+      {own && (
+        <span className="sim-replay-target__body" data-testid="sim-replay-own-recording">
+          {simTabOwnRecording(own.symbol, own.date, own.prints, own.recording)}
+        </span>
+      )}
+      {target.kind === 'none' && (
+        <span className="sim-replay-target__body" data-testid="sim-replay-what-sim-is">{SIM_TAB_WHAT_SIM_IS}</span>
+      )}
       {error && <span role="alert" className="sim-replay-target__error">{error}</span>}
       <span className="sim-replay-target__actions">
         {actionLabel && (

@@ -7,6 +7,7 @@ from typing import get_args
 
 from constants import IBKR_FRACTIONAL_ORDER_API_MSG
 from execution import inflight as _inflight
+from execution import session_gate as _session_gate
 from execution.models import ExecutionCommand, Source
 from ibkr import account as _account
 from ibkr import client as _client
@@ -113,6 +114,13 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
             return False, f"stop_price required for {typ}", "STOP_MISSING"
         if typ == "TRAIL" and (cmd.stop_price is None or cmd.stop_price <= 0):
             return False, "stop_price required for TRAIL (trail $)", "TRAIL_MISSING"
+        # Operator decision 2026-09-21: no exchange takes an unpriced order
+        # outside regular hours and IBKR would hold it until the next open, so
+        # a MKT is refused on every venue rather than filled (practice) or
+        # silently queued (Live). Protective sources are exempt.
+        refusal = _session_gate.mkt_outside_rth_refusal(typ, cmd.source)
+        if refusal is not None:
+            return False, refusal[0], refusal[1]
     elif cmd.operation == "bracket":
         if cmd.entry_price is None or cmd.stop_price is None or cmd.target_price is None:
             return False, "bracket requires entry/stop/target", "BRACKET_FIELDS"

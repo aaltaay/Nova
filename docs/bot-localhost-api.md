@@ -130,6 +130,12 @@ Action-kind allowlist: `buy_market`, `buy_limit_ask_offset`,
 `cancel_symbol`, `exit_pos_pct`, `sell_pos_pct_ask`,
 `sell_pos_pct_bid_offset`.
 
+- `buy_market`, `exit_pos` and `exit_pos_pct` are market orders and are
+  refused `MKT_OUTSIDE_RTH` outside weekday 09:30-16:00 ET on every venue
+  (the replay playhead on Sim). Premarket and after hours a bot enters with
+  `buy_limit_ask_offset` and exits with `sell_pos_pct_bid_offset` -- the
+  limit sweeps flatten itself uses.
+
 - Max shares default 1, cap 10. Sizes come from the session preset.
 - BP budget = open bot $ + working BUY reservations, hard max $50.
 - New bot buy blocked while any bot working order exists.

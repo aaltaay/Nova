@@ -157,3 +157,18 @@ PRACTICE_TIF_INVALID_CODE = "TIF_INVALID"
 # (execution/practice_checks.py) and again in the broker (practice/broker.py).
 PRACTICE_NO_SHORTS_CODE = "PRACTICE_NO_SHORTS"
 PRACTICE_NO_SHORTS_REASON = "Nova does not support short entries yet"
+
+# ---------------------------------------------------------------------------
+# Market orders need regular hours (operator decision, 2026-09-21)
+# ---------------------------------------------------------------------------
+# No US exchange accepts an unpriced order outside 09:30-16:00 ET and IBKR
+# holds an RTH-only MKT until the next open (Warning 399), so a market order
+# sent after hours is a blind market-on-open, never a fill now. The execution
+# door refuses it on every venue (execution/session_gate.py) and the practice
+# broker repeats the check (practice/order_rules.py); protective sources are
+# exempt. Named here, like TIF_INVALID, so one word reaches the blotter.
+MKT_OUTSIDE_RTH_CODE = "MKT_OUTSIDE_RTH"
+MKT_OUTSIDE_RTH_REASON = (
+    "Market orders are not accepted outside regular hours (09:30-16:00 ET) "
+    "-- use a limit at the ask"
+)

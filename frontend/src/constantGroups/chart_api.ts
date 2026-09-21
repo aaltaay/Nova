@@ -617,6 +617,11 @@ export const TICKER_TRADE_UNLOCK_LABEL = 'Unlock Trading';
 export const TICKER_TRADE_ORDERS_LOCKED_LABEL = 'Orders locked';
 /** Place button while the desk is merely disarmed (ADR 018) -- the fix is the header padlock, not a setting. */
 export const TICKER_TRADE_DISARMED_LABEL = 'Desk disarmed — arm at the padlock';
+/** Ticket preflight of the backend's MKT_OUTSIDE_RTH refusal (backend/execution/session_gate.py). */
+export const TICKER_TRADE_MARKET_OUTSIDE_RTH_REASON =
+  'Market orders are not accepted outside regular hours (09:30–16:00 ET) — use a limit at the ask';
+/** How often the ticket re-reads the session clock for that preflight. */
+export const TICKER_TRADE_SESSION_POLL_MS = 30_000;
 /** GlobalAppBar lock icon — same PIN session gate as Place an order. */
 export const TICKER_TRADE_LOCK_ICON_UNLOCKED_TITLE =
   'Trading unlocked for this browser session. Click to lock.';

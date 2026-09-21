@@ -14,12 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from constants import (
-    NOVA_OS_NYSE_HOLIDAYS,
-    SESSION_RTH_CLOSE_MIN_ET,
-    SESSION_RTH_OPEN_MIN_ET,
-)
-from market import now_et
+from market import now_et, regular_hours_at
 
 FLATTEN_EH_NO_MARK = (
     "After-hours flatten needs a live bid/ask or last -- refusing an RTH-only "
@@ -52,13 +47,7 @@ def _positive(value: Any) -> float | None:
 
 def flatten_needs_extended_hours(now: datetime | None = None) -> bool:
     """True outside weekday RTH (weekend, holiday, premarket, AH, overnight)."""
-    when = now or now_et()
-    if when.weekday() >= 5:
-        return True
-    if when.date().isoformat() in NOVA_OS_NYSE_HOLIDAYS:
-        return True
-    minutes = when.hour * 60 + when.minute
-    return not (SESSION_RTH_OPEN_MIN_ET <= minutes < SESSION_RTH_CLOSE_MIN_ET)
+    return not regular_hours_at(now or now_et())
 
 
 # Conftest pins flatten_needs_extended_hours to False so weekend CI does not

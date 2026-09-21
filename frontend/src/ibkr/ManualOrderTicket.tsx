@@ -17,6 +17,7 @@ import type { IbkrListingFlags } from '../types/ticker';
 import { applyTicketDefaults, seedPricesForSide } from './applyTicketDefaults';
 import { ManualOrderFields } from './ManualOrderFields';
 import { ManualOrderFooter } from './ManualOrderFooter';
+import { useMarketOrdersRefused } from './marketOutsideRth';
 import { ManualOrderLegsNote } from './ManualOrderLegsNote';
 import {
   allowShortSide,
@@ -225,6 +226,13 @@ export function ManualOrderTicket({
     resetSubmission();
   }
 
+  // MKT_OUTSIDE_RTH: the default order type is Market, and after the close
+  // the backend refuses it -- move to Limit before the operator can Place.
+  const marketBlockedReason = useMarketOrdersRefused(mode);
+  useEffect(() => {
+    if (marketBlockedReason && orderType === 'MKT') selectOrderType('LMT');
+  }, [marketBlockedReason, orderType]); // eslint-disable-line react-hooks/exhaustive-deps
+
   function selectQuantityMode(next: QuantityMode) {
     if (QTY_LOCKED) return;
     setQuantityMode(next);
@@ -261,6 +269,7 @@ export function ManualOrderTicket({
         disabled={!connected || submitting}
         quantityLocked={QTY_LOCKED}
         shortDisabledReason={shortBlockReason}
+        marketDisabledReason={marketBlockedReason}
         onTicketSideChange={selectTicketSide}
         onOrderTypeChange={selectOrderType}
         onQuantityModeChange={selectQuantityMode}

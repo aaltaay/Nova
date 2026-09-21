@@ -64,6 +64,23 @@ backwards can never fill it, and moving the playhead forward fills it at the
 first crossing print in between. Unreported prints (odd-lot / Form T) never
 fill anything, matching their exclusion from candles, last and volume.
 
+## Market orders need regular hours (operator decision, 2026-09-21)
+
+A `MKT` from a non-protective source is refused `MKT_OUTSIDE_RTH` -- "use a
+limit at the ask" -- whenever the venue's clock is outside weekday
+09:30-16:00 ET (NYSE holidays excluded). The clock is the venue's: the wall
+clock on Paper, the replay playhead on Sim, so a replayed 10:00 is regular
+hours at any wall time. The rule mirrors the venues Nova imitates: no US
+exchange accepts an unpriced order in an extended session, and IBKR holds an
+RTH-only market order until the next open (Warning 399) while ignoring the
+extended-hours flag on it (Warning 2109). Filling such an order instantly at
+the far quote, as the practice broker did before, taught a habit Live refuses
+(GRML at 8.86 after the close, a 3.6% spread). Protective closes (`flatten`,
+`kill`, `cancel_working`) are exempt so a practice position can always get
+flat; `STP` orders are unchanged (they trigger only on prints). Owner:
+`backend/execution/session_gate.py`; the broker repeats the check in
+`practice/order_rules.py`.
+
 ## Known biases
 
 These are deliberate simplifications. Read a practice result with them in mind:

@@ -150,6 +150,13 @@ def _isolate_operator_state(tmp_path, monkeypatch):
     monkeypatch.delenv("NOVA_BROKER", raising=False)
     # Saturday CI / weekend agent runs must not flip existing flatten tests to EH.
     monkeypatch.setattr(_flatten_exit, "flatten_needs_extended_hours", lambda now=None: False)
+    # Same reason for the market-order clock (execution/session_gate.py): the
+    # suite places MKTs at arbitrary epochs. test_mkt_outside_rth.py restores both.
+    import execution.session_gate as _session_gate
+    import practice.order_rules as _order_rules
+
+    monkeypatch.setattr(_session_gate, "regular_hours_now", lambda: True)
+    monkeypatch.setattr(_order_rules, "mkt_outside_rth", lambda *a, **k: False)
     # Bot session / fire tests assume spend+Gateway are allowed unless they opt out.
     monkeypatch.setattr(_trading_allowed, "places_allowed", lambda: (True, ""))
     # ADR 018 adds a runtime arm latch that is off on every process start. The

@@ -35,6 +35,7 @@ export const ORDER_REJECT_TITLES: Record<string, string> = {
   NO_POSITION: 'No position to sell',
   OVERSELL: 'Sell quantity too large',
   ORDERS_GATE: 'Orders locked',
+  MKT_OUTSIDE_RTH: 'Market orders need regular hours',
   BROKER_REJECT: 'Broker rejected the order',
   IBKR_VERIFICATION_REQUIRED: IBKR_VERIFICATION_DIALOG_TITLE,
   ACCOUNT_UNAVAILABLE: 'Account unavailable',

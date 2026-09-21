@@ -31,6 +31,7 @@ from constants_practice import (
     PRACTICE_TIF_GTC,
     PRACTICE_TIFS,
 )
+from market import regular_hours_at
 from practice.clock import at
 
 _EPS = 1e-9
@@ -90,6 +91,23 @@ def opening_short(held_qty: float, side: str, qty: float, short_entry: bool = Fa
     if (side or "").strip().upper() != "SELL":
         return False
     return float(qty) > float(held_qty) + _EPS
+
+
+def mkt_outside_rth(order_type: str | None, now_ts: float, protective: bool = False) -> bool:
+    """A non-protective MKT at a moment outside regular hours -- refused ``MKT_OUTSIDE_RTH``.
+
+    ``now_ts`` is the venue's clock (the replay playhead on Sim), so a replayed
+    10:00 is regular hours whatever the wall clock says. Protective closes are
+    exempt: a practice position can always get flat (ADR 018).
+    """
+    if protective or (order_type or "").strip().upper() != "MKT":
+        return False
+    return not regular_hours_at(at(now_ts))
+
+
+# The conftest pins mkt_outside_rth to False so after-hours and weekend CI
+# does not flip every MKT test; tests about the gate restore this.
+mkt_outside_rth_unpatched = mkt_outside_rth
 
 
 def due(row: dict[str, Any], now_ts: float) -> bool:
