@@ -161,6 +161,23 @@ def is_sim_mode() -> bool:
     return venue() == DESK_VENUE_SIM
 
 
+def is_replay_desk() -> bool:
+    """The Sim venue off the live edge: every market read is the loaded replay.
+
+    ADR 020 live-edge amendment (2026-09-21 evening): while the Sim clock
+    follows the wall clock on today's date (``session_clock.live_edge``) a Sim
+    tab reads the live IBKR feed exactly as a Paper tab does, so the market
+    data gates -- depth, tape, L1, ticker snapshot, chart bars, sensors -- key
+    on this and not on ``is_sim_mode`` alone. Order routing, the Sim feed loop
+    and the status overlay still key on the venue.
+    """
+    if not is_sim_mode():
+        return False
+    from sim import session_clock
+
+    return not session_clock.live_edge()
+
+
 def is_paper_venue() -> bool:
     """Nova's practice account on the live feed (ADR 020)."""
     return venue() == DESK_VENUE_PAPER

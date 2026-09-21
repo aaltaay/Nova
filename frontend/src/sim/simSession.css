@@ -84,3 +84,5 @@
   font-variant-numeric: tabular-nums;
 }
 .sim-replay-l2-note--empty { font-variant-numeric: normal; }
+/* The live edge: the tabs are live, so the state reads like the LIVE badge, not like a note. */
+.sim-live-edge { color: var(--nova-accent); font-weight: 600; letter-spacing: .02em; cursor: help; }

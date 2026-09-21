@@ -1,6 +1,8 @@
 """Time & Sales WebSocket -- extracted so trading.py stays under the line limit.
 
-Sim mode skips IBKR subscribe and reads the same viewer queues the feed injects.
+A Sim desk off the live edge skips IBKR subscribe and reads the same viewer
+queues the feed injects; at the live edge (ADR 020 live-edge amendment) it
+opens the real tape line exactly as a Paper or Live desk does.
 """
 from __future__ import annotations
 
@@ -10,7 +12,7 @@ import logging
 from fastapi import WebSocket, WebSocketDisconnect
 
 from ibkr import tape_stream as _tape
-from sim.mode import desk_connected, is_sim_mode
+from sim.mode import desk_connected, is_replay_desk
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +26,7 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
         await websocket.close()
         return
 
-    if not is_sim_mode() and not _tape.is_subscribed(symbol):
+    if not is_replay_desk() and not _tape.is_subscribed(symbol):
         result = await _tape.subscribe_async(symbol)
         if not result["ok"]:
             await websocket.send_text(json.dumps({"type": "error", "message": result["error"]}))
@@ -37,7 +39,7 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
         _tape.ws_viewer_opened(symbol)
         viewer_opened = True
 
-        if not is_sim_mode() and not _tape.is_subscribed(symbol):
+        if not is_replay_desk() and not _tape.is_subscribed(symbol):
             result = await _tape.subscribe_async(symbol)
             if not result["ok"]:
                 await websocket.send_text(json.dumps({"type": "error", "message": result["error"]}))
@@ -50,7 +52,7 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
         try:
             from sim import replay as _replay
             from sim import capture_player as _player
-            if (is_sim_mode() and _replay.is_capture_replay()
+            if (is_replay_desk() and _replay.is_capture_replay()
                     and _replay.status_payload().get("replay_symbol") == symbol):
                 for row in _player.recent_prints(40):
                     await websocket.send_text(json.dumps({**row, "type": "print"}))
@@ -94,5 +96,7 @@ async def run_ws_tape(websocket: WebSocket, symbol: str) -> None:
         if queue is not None:
             _tape.close_viewer_queue(symbol, queue)
         if viewer_opened and _tape.ws_viewer_closed(symbol):
-            if not is_sim_mode():
-                _tape.unsubscribe(symbol)
+            # The last viewer left: release the real line if one is open (a Sim
+            # tab holds one at the live edge). With no line this is a no-op, so
+            # a replay desk is unchanged.
+            _tape.unsubscribe(symbol)

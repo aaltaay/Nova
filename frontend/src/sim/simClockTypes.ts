@@ -11,6 +11,13 @@ export interface SimClockState {
   minute_max?: number;
   scrubbed?: boolean;
   paused?: boolean;
+  /**
+   * The playhead is now: following the wall clock on today's date, inside the
+   * session -- not paused, not scrubbed, no past day loaded (ADR 020 live-edge
+   * amendment). At the edge a Sim tab shows the live feed as a Paper tab does;
+   * off it, the loaded replay. The single truth for what a Sim tab shows.
+   */
+  live_edge?: boolean;
   replay_date?: string | null;
   replay_symbol?: string | null;
   replay_source?: string;

@@ -23,6 +23,11 @@ import type { SimClockState } from './simClockTypes';
 export type SimReplayTarget =
   /** Nothing to say: not Sim, clock not read yet, or this tab IS the replay. */
   | { kind: 'ok' }
+  /**
+   * The Sim clock follows the wall clock on today's date: the tab is live
+   * (ADR 020 live-edge amendment). Whatever is loaded serves the scrub back.
+   */
+  | { kind: 'live-edge' }
   /** Sim desk with no capture and no historical window selected. */
   | { kind: 'none' }
   /** A replay is loaded, but of a different symbol than this tab. */
@@ -41,6 +46,9 @@ export function simReplayTarget(
   if (!sim) return { kind: 'ok' };
   // No clock yet is not the same as no replay -- never flash a notice on load.
   if (!clock) return { kind: 'ok' };
+  // At the live edge the tab is live whatever is loaded; the backend's flag is
+  // the single truth for that, never inferred here from scrubbed/paused.
+  if (clock.live_edge) return { kind: 'live-edge' };
   if (clock.replay_ok === false) {
     return { kind: 'failed', error: clock.replay_error || 'Replay failed to load' };
   }
@@ -57,13 +65,15 @@ export function simReplayTarget(
  * What the quote rail says instead of its live panes on a Sim desk, or null to
  * let the normal panes render.
  *
- * Null is right in exactly two cases: not Sim at all, and a CAPTURE replay of
- * this very symbol -- the backend serves a recording through the ordinary
- * quote / book / tape endpoints, so those panes ARE the replay. A historical
- * replay has its own rail branch (the snapshot), so reaching here with one
- * selected for this symbol only means its first snapshot has not arrived yet.
- * Everything else is a practice desk with nothing for this ticker, and the
- * live panes would badge themselves LIVE over a past session.
+ * Null is right in exactly three cases: not Sim at all; the live edge, where
+ * the backend serves the live feed through the ordinary endpoints exactly as
+ * it does for Paper; and a CAPTURE replay of this very symbol -- the backend
+ * serves a recording through the ordinary quote / book / tape endpoints, so
+ * those panes ARE the replay. A historical replay has its own rail branch
+ * (the snapshot), so reaching here with one selected for this symbol only
+ * means its first snapshot has not arrived yet. Everything else is a practice
+ * desk with nothing for this ticker, and the live panes would badge
+ * themselves LIVE over a past session.
  */
 export function simRailNote(
   symbol: string,
@@ -73,6 +83,7 @@ export function simRailNote(
   if (!sim) return null;
   if (!clock) return SIM_RAIL_LOADING_NOTE;
   const target = simReplayTarget(symbol, clock, sim);
+  if (target.kind === 'live-edge') return null;
   if (target.kind === 'none') return SIM_RAIL_NO_REPLAY_NOTE;
   if (target.kind === 'failed') return SIM_RAIL_FAILED_NOTE;
   if (target.kind === 'other-symbol') {

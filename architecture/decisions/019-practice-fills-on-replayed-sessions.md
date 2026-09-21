@@ -95,10 +95,13 @@ against it without placing live orders.
 
 ## Amendment 2026-09-21 -- the live edge
 
-**Status:** Superseded by [[020-three-venues-one-feed]] the same day, before
-any code shipped for it. Its intent -- fake money on the live feed -- is the
-Paper venue of ADR 020; the clock-as-venue-switch mechanism below is withdrawn
-and kept only as the record of the decision.
+**Status:** Accepted through [[020-three-venues-one-feed]] (its live-edge
+amendment, operator decision 2026-09-21 evening). Withdrawn earlier the same
+day before any code shipped for it -- ADR 020 made fake money on the live feed
+the Paper venue -- and then re-accepted with Paper in place as the persistent
+ledger: the clock is not a venue switch, it decides what the Sim playground
+shows and fills against. Decisions 6-8 below are built; where this text says
+"Paper is IBKR's paper money", read ADR 020's Paper venue instead.
 
 ### Context
 

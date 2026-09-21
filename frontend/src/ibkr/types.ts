@@ -22,6 +22,8 @@ export interface IbkrStatus {
   venue?: 'live' | 'paper' | 'sim';
   /** True while the in-app Sim practice toggle is on. */
   sim?: boolean;
+  /** Sim venue only: the playhead follows the wall clock on today's date, so the tab is live (ADR 020 amendment). */
+  live_edge?: boolean;
   capture?: boolean;
   /** The first recording symbol, for single-symbol readers; `capture_symbols` is the truth. */
   capture_symbol?: string | null;

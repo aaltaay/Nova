@@ -4,7 +4,9 @@
 **Builds on:** [[018-desk-venue-vs-spend-arming]] · [[019-practice-fills-on-replayed-sessions]]
 **Supersedes:** the ADR 019 amendment "the live edge" (2026-09-21, withdrawn the
 same day before any code shipped for it -- its intent, fake money on the live
-feed, is the Paper venue below)
+feed, is the Paper venue below). **Re-accepted the same evening** as the
+live-edge amendment at the end of this ADR: Sim at *now* is live, Paper stays
+the persistent-ledger venue.
 
 ## Context
 
@@ -106,7 +108,10 @@ and the operator trade recordings and can unwind time.
 - **Keep IBKR paper as the Paper venue.** No tick-by-tick, exclusive with the
   live session, and IBKR's eligibility rules outside the operator's control.
 - **Sim "at the live edge"** (ADR 019 amendment). Two venues for one job; the
-  clock as a venue switch confused what "Paper" means. Withdrawn.
+  clock as a venue switch confused what "Paper" means. Withdrawn -- and
+  re-accepted the same evening once Paper existed to hold the persistent
+  ledger (live-edge amendment below): the clock is no longer a venue switch,
+  it only decides what the Sim playground shows and fills against.
 - **One wallet for Paper and Sim.** A bot that trades a replayed open and then
   the real one produces a P&L nobody can read.
 - **Bespoke fill and fee rules.** The practice simulators people actually use
@@ -138,3 +143,59 @@ and the operator trade recordings and can unwind time.
    audit stream and keeps it as `last_rewind` on `GET /api/bot/session`. After
    it, bots re-read positions from the account and never trust their own
    memory over the ledger (`docs/bot-localhost-api.md`).
+
+## Amendment -- Sim at now is live: the live edge (operator decision, 2026-09-21 evening)
+
+"Imagine Sim + live wall clock as paper trading." Sim is the time machine: at
+*now* it is live, dragging back is replay, and the operator wants to watch
+live, rewind two minutes and come back on one desk. This re-accepts ADR 019's
+withdrawn amendment "the live edge" with Paper in place as the persistent
+ledger, so the clock is no longer a venue switch.
+
+1. **The live edge is a fact of the Sim clock.** `live_edge` is true while the
+   playhead follows the wall clock on today's Eastern date inside the session
+   window: not paused, not scrubbed, no past-day replay loaded. The Sim clock
+   payload (`GET /api/sim/clock`) and `/api/ibkr/status` on the Sim venue both
+   carry `live_edge: boolean`; it is the single truth for what a Sim tab shows
+   and fills against (`sim/session_clock.live_edge`, gated everywhere through
+   `sim/mode.is_replay_desk`).
+2. **At the edge a Sim tab is a Paper tab on the feed.** Quote, Level 2, Time
+   & Sales and bars come from the same live IBKR sources a Paper or Live tab
+   reads, and the tab holds a real depth line the way a Trader tab does -- so
+   `bot/eligibility.assert_symbol_can_fire` (`BOT_NO_DEPTH_LINE`) gates a bot
+   identically on every venue, unchanged. Off the edge -- scrubbed, paused, or
+   a past day loaded -- every read is the loaded replay exactly as decision 3
+   says, and with nothing loaded the desk is a stated absence, never invented
+   data.
+3. **Fills at the edge use Paper's live reference.** The Sim broker's market
+   (`practice/reference.SimReference`) is `LiveReference` at the edge and
+   `ReplayReference` off it: at the edge any symbol with a live print is
+   admitted (`PRACTICE_NO_LIVE_PRINT` otherwise, never a guess), `last` is
+   the fresh L1 last or newest tape print, `bid` / `ask` the live top of book,
+   `fill_basis` `live_quote` / `live_print` at placement and `print_cross` /
+   `stop_trigger` for resting orders matched by the live matcher
+   (`practice/matcher.pass_venues`). `SIM_NO_REPLAY` / `SIM_SYMBOL_MISMATCH`
+   apply off the edge only. Every fill stays `fill_estimated: true`. The
+   `MKT_OUTSIDE_RTH` rule reads the venue's clock, which at the edge is wall
+   time.
+4. **The scratch account keeps its rewind semantics.** Orders placed at the
+   edge are stamped with the playhead, which is wall time there, and unwind
+   like any other when the operator scrubs back past them (decision 3,
+   `practice_rewind` unchanged). Paper remains the persistent-ledger venue;
+   nothing at the edge writes to it.
+5. **Leaving the edge selects today's recording.** A scrub or pause off the
+   edge with nothing loaded (`POST /api/sim/clock` carrying the tab's
+   `symbol`) loads that symbol's usable Session Record for today when one
+   exists -- keeping the playhead where the operator put it and keeping the
+   scratch account, because the recording is the tape the account already
+   traded -- so the scrubbed past is there. With no recording the scrubbed
+   stretch is a stated absence. "Follow wall clock" returns to the edge.
+6. **The session bar says which it is.** "Live wall clamp" becomes a "Live
+   edge" state with a tooltip; the empty-Sim notice never claims "no replay"
+   at the edge -- there it is quiet, or says the tab is following the wall
+   clock and a scrub back replays.
+
+**Rejected alternative:** keeping Sim replay-only and sending the operator to
+Paper for live practice. Two desks for one workflow: the operator would lose
+the rewind when watching live and lose the live feed when rewinding, which is
+exactly the "watch, rewind two minutes, come back" loop Sim exists for.

@@ -306,8 +306,8 @@ async def ws_depth(websocket: WebSocket, symbol: str) -> None:
 
     from l2 import continuous as _l2_continuous
 
-    # Auto-subscribe if not already
-    if symbol not in _depth.subscribed_symbols():
+    # Auto-subscribe if not already (a Sim tab at the live edge needs the real line, not its replay slot)
+    if _depth.needs_subscribe(symbol):
         result = await _depth.subscribe_async(symbol)
         if not result["ok"]:
             await websocket.send_text(json.dumps({"type": "error", "message": result["error"]}))
@@ -334,7 +334,7 @@ async def ws_depth(websocket: WebSocket, symbol: str) -> None:
         # Remount race: a previous viewer's cleanup may have dropped the line
         # between our initial subscribe check and viewer_opened. Re-subscribe
         # before streaming so the line actually exists to hold a viewer queue.
-        if not _depth.is_subscribed(symbol):
+        if _depth.needs_subscribe(symbol):
             result = await _depth.subscribe_async(symbol)
             if not result["ok"]:
                 await websocket.send_text(json.dumps({"type": "error", "message": result["error"]}))

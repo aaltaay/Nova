@@ -12,7 +12,10 @@ import {
 } from './simCoverage';
 import { etTime } from './historicalReplayFormat';
 import { simCaptureBandTitle, simCaptureGapTitle, simCaptureMissingLabel, simScrubberCoverageTitle } from './simConstants';
-import { SIM_SESSION_CLOSE_LABEL, SIM_SESSION_MINUTES, SIM_SESSION_OPEN_LABEL } from './simConstants';
+import {
+  SIM_LIVE_EDGE_EMPTY_NOTE, SIM_LIVE_EDGE_LABEL, SIM_LIVE_EDGE_SOURCE, SIM_LIVE_EDGE_TITLE,
+  SIM_SESSION_CLOSE_LABEL, SIM_SESSION_MINUTES, SIM_SESSION_OPEN_LABEL, SIM_WALL_CLOCK_LABEL, SIM_WALL_CLOCK_TITLE,
+} from './simConstants';
 
 function formatClock(iso?: string): string {
   if (!iso) return '--:--:--';
@@ -54,8 +57,8 @@ function formatMinuteClock(minuteFromOpen: number, opening: number): string {
 }
 
 export function SimSessionHeader({ active }: { active: boolean }) {
-  const { openStockView } = useWorkspace();
-  const controller = useSimSessionController(active, openStockView);
+  const { openStockView, activeTraderSymbol } = useWorkspace();
+  const controller = useSimSessionController(active, openStockView, activeTraderSymbol);
   useProgressiveReplay(active);
   // Subscribe only on a Sim desk: this header renders on every desk and returns
   // null off Sim, and an unconditional subscription polled /api/sim/history there.
@@ -71,7 +74,9 @@ export function SimSessionHeader({ active }: { active: boolean }) {
   const minute = dragMinute ?? clock?.minute_from_open ?? 0;
   const historical = clock?.replay_source === 'historical';
   const capture = clock?.replay_source === 'capture';
-  const source = historical ? 'HISTORICAL' : capture ? 'CAPTURE' : 'NO REPLAY';
+  const liveEdge = clock?.live_edge === true;
+  // What the tabs show right now: the live feed at the edge, else the loaded replay.
+  const source = liveEdge ? SIM_LIVE_EDGE_SOURCE : historical ? 'HISTORICAL' : capture ? 'CAPTURE' : 'NO REPLAY';
   const openingLabel = clock?.session_open_et ? formatClock(clock.session_open_et).slice(0, 5) : SIM_SESSION_OPEN_LABEL;
   const opening = Number(openingLabel.slice(0, 2)) * 60 + Number(openingLabel.slice(3, 5));
   const clockLabel = dragMinute != null ? `${formatMinuteClock(dragMinute, opening)} ET` : `${formatClock(clock?.sim_time_et)} ET`;
@@ -92,7 +97,8 @@ export function SimSessionHeader({ active }: { active: boolean }) {
     : captureBand.length ? simCaptureBandTitle(captureCoverageLabel(clock, etMinute)) : undefined;
   return <div className="sim-session-header" data-testid="sim-session-header">
     <strong>SIM SESSION</strong>
-    <SimPlaybackButton clock={clock} onClock={controller.setClock} onBeforeChange={controller.suspendClock} onSettled={controller.resumeClock} />
+    <SimPlaybackButton clock={clock} onClock={controller.setClock} onBeforeChange={controller.suspendClock} onSettled={controller.resumeClock}
+      symbol={activeTraderSymbol} />
     <span data-testid="sim-session-clock">{clockLabel}</span>
     {sessionDate && <span data-testid="sim-session-date" className="sim-muted" title="Session date being replayed">{sessionDate}</span>}
     <span className="sim-muted">{(clock?.phase || '--').toUpperCase()}</span>
@@ -118,7 +124,9 @@ export function SimSessionHeader({ active }: { active: boolean }) {
     </label>
     {clock?.scrubbed || clock?.paused || dragMinute != null
       ? <button type="button" disabled={busy.has('follow')} onClick={() => void controller.onFollowWall()}>Follow wall clock</button>
-      : <span className="sim-muted">Live wall clamp</span>}
+      : liveEdge
+        ? <span className="sim-live-edge" data-testid="sim-live-edge" title={SIM_LIVE_EDGE_TITLE}>{SIM_LIVE_EDGE_LABEL}</span>
+        : <span className="sim-muted" data-testid="sim-wall-clock" title={SIM_WALL_CLOCK_TITLE}>{SIM_WALL_CLOCK_LABEL}</span>}
     <HistoricalReplayPanel />
     {historical ? <button type="button" disabled={busy.has('replay')} onClick={() => {
       setDay(''); setSymbol(''); void applyReplay('', '');
@@ -152,7 +160,7 @@ export function SimSessionHeader({ active }: { active: boolean }) {
       {diagnostics.legacy_schema && '  -  legacy format migrated'}
     </span>}
     {!historical && !capture && clock?.replay_ok !== false && <span data-testid="sim-replay-empty" className="sim-muted">
-      Load a recording or a historical window to practise
+      {liveEdge ? SIM_LIVE_EDGE_EMPTY_NOTE : 'Load a recording or a historical window to practise'}
     </span>}
     <span data-testid="sim-replay-source" className="sim-muted">{source}</span>
   </div>;

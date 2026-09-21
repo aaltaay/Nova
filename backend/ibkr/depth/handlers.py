@@ -52,15 +52,16 @@ def _record_book(symbol: str, book: dict) -> None:
 
 
 def _broadcast_live(symbol: str, book: dict) -> None:
-    """Show a live book to the desk's panels -- except on a Sim desk.
+    """Show a live book to the desk's panels -- except on a Sim desk off the live edge.
 
     There the only live line is one Session Record holds (#315). Its books still
     update ``_subscriptions`` (the live print side is classified against it) and
     reach the recording, but the practice desk's ladders and sensors read the
-    replay through ``push_book`` and must not be handed the market.
+    replay through ``push_book`` and must not be handed the market. At the live
+    edge a Sim tab is live (ADR 020 live-edge amendment) and sees the book.
     """
-    from sim.mode import is_sim_mode
-    if not is_sim_mode():
+    from sim.mode import is_replay_desk
+    if not is_replay_desk():
         state.push_book(symbol, book)
 
 

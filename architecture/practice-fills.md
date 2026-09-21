@@ -37,6 +37,44 @@ needs the symbol's tape line open -- the practice broker holds one while an
 order rests. The venue never changes the bot -- gating is identical on Paper,
 Live and Sim. Fees and buying power: `architecture/practice-account.md`.
 
+## The live edge (ADR 020 amendment, operator decision 2026-09-21 evening)
+
+Sim is the time machine: at *now* it is live, dragging back is replay. The
+Sim clock's `live_edge` is true while the playhead follows the wall clock on
+today's Eastern date inside the session window -- not paused, not scrubbed,
+no past-day replay loaded -- and it is the single truth for what a Sim tab
+shows and fills against (`GET /api/sim/clock`, `/api/ibkr/status` on Sim).
+
+- **At the edge** a Sim tab shows the live IBKR feed exactly as a Paper tab
+  does (quote, Level 2, Time & Sales, live bars) and holds a real depth line
+  the way a Trader tab does, so bots gate identically (`BOT_NO_DEPTH_LINE`).
+  The Sim broker's market is Paper's live reference: any symbol with a live
+  print is admitted (`PRACTICE_NO_LIVE_PRINT` otherwise -- never a guess),
+  `last` is the fresh L1 last or newest tape print, `bid` / `ask` the live top
+  of book, `fill_basis` `live_quote` / `live_print` at placement, and resting
+  orders fill on live tape prints through the live matcher as `print_cross` /
+  `stop_trigger`. `SIM_NO_REPLAY` and `SIM_SYMBOL_MISMATCH` do not apply at
+  the edge. The `MKT_OUTSIDE_RTH` clock is wall time there.
+- **Off the edge** -- scrubbed, paused, or a past day loaded -- everything is
+  the loaded replay under the rules above and below, and with nothing loaded
+  the desk is a stated absence. Scrubbing or pausing off the edge with
+  nothing loaded selects the tab symbol's usable Session Record for today
+  when one exists, keeping the playhead where the operator put it and keeping
+  the scratch account, because that recording is the tape the account already
+  traded. "Follow wall clock" returns to the edge.
+- **The scratch account is unchanged.** An order placed at the edge is stamped
+  with the playhead (wall time there) and unwinds like any other when the
+  operator scrubs back past it; bots get `practice_rewind`. Paper stays the
+  persistent ledger; nothing at the edge writes to it.
+- **Still an estimate.** A live NBBO is a better reference than a replay
+  quote, but there is no queue: every biased rule in this document applies
+  and every fill carries `fill_estimated: true`.
+
+Owner: `backend/sim/session_clock.py` (`live_edge`), `backend/sim/mode.py`
+(`is_replay_desk`, the gate every market read keys on),
+`backend/practice/reference.py` (`SimReference`), `backend/sim/live_edge.py`
+(leaving the edge selects today's recording).
+
 ## The market at the playhead
 
 `practice.reference(symbol)` returns `last`, `bid` and `ask`, any of which may

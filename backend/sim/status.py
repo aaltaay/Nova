@@ -79,6 +79,11 @@ def _practice_fields(current: str) -> dict[str, Any]:
         out["enabled"] = True
         out["session_state"] = "ready"
         out["session_reason"] = "ok"
+        # ADR 020 live-edge amendment: the one truth for what a Sim tab shows
+        # and fills against -- live at the edge, the loaded replay off it.
+        from sim import session_clock
+
+        out["live_edge"] = session_clock.live_edge()
     else:
         # Paper needs the feed: `connected` stays the live client's real state.
         out["broker_account_kind"] = current

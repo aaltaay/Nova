@@ -47,6 +47,7 @@ from ibkr.depth.state import (
 )
 from ibkr.depth.subscribe import (
     evict_for_capacity as _evict_for_capacity,
+    needs_subscribe,
     subscribe,
     subscribe_async,
     unsubscribe,
@@ -101,6 +102,7 @@ __all__ = [
     "is_subscribed",
     "open_viewer_queue",
     "is_live",
+    "needs_subscribe",
     "release_when_idle",
     "reset_all",
     "should_send_current_book",

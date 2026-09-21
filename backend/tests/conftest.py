@@ -157,6 +157,12 @@ def _isolate_operator_state(tmp_path, monkeypatch):
 
     monkeypatch.setattr(_session_gate, "regular_hours_now", lambda: True)
     monkeypatch.setattr(_order_rules, "mkt_outside_rth", lambda *a, **k: False)
+    # The Sim live edge (ADR 020 amendment) is a fact of the wall clock: on a
+    # weekday between 04:00 and 20:00 ET every "nothing loaded" Sim test would
+    # otherwise become a live desk. Pinned off; test_sim_live_edge.py restores it.
+    import sim.session_clock as _session_clock
+
+    monkeypatch.setattr(_session_clock, "live_edge", lambda: False)
     # Bot session / fire tests assume spend+Gateway are allowed unless they opt out.
     monkeypatch.setattr(_trading_allowed, "places_allowed", lambda: (True, ""))
     # ADR 018 adds a runtime arm latch that is off on every process start. The

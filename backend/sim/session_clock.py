@@ -11,6 +11,11 @@ venue can reseed its tape and, on a backward move, unwind the scratch practice
 account to the new playhead (ADR 020 decision 3). ``notify=False`` callers are
 the replay selection transitions: they run under the selection locks and the
 loaded replay changes there anyway, which starts the account over.
+
+``live_edge`` (ADR 020 live-edge amendment, 2026-09-21 evening) is the one
+fact every Sim market read keys on: the playhead follows the wall clock on
+today's Eastern date inside the session window -- not paused, not scrubbed,
+no past day loaded. At the edge a Sim tab is live; off it, it is the replay.
 """
 from __future__ import annotations
 
@@ -134,6 +139,30 @@ def now_et() -> datetime:
 
 def is_paused() -> bool:
     return _paused_at is not None
+
+
+def live_edge() -> bool:
+    """The playhead is *now*: following the wall clock on today's date, inside the session.
+
+    False while paused or scrubbed, on a closed exchange day (the session is
+    the last open day), outside today's 04:00-20:00 window (the playhead is
+    clamped, not following), and whenever a past day is loaded -- a capture
+    or historical window re-dates the session, so ``session_bounds_on`` no
+    longer lands on the wall date. Today's own recording loaded and followed
+    to the wall clock IS the edge: the recording is the scrubbed past, the
+    live feed is now.
+    """
+    if _paused_at is not None or _scrub_second is not None:
+        return False
+    wall = _wall_et_now()
+    start, end = session_bounds_on(wall)
+    return start.date() == wall.date() and start <= wall <= end
+
+
+# The conftest pins live_edge to False so a weekday-daytime test run cannot
+# turn every "nothing loaded" Sim test into a live desk; tests about the edge
+# restore this and fix the wall clock.
+live_edge_unpatched = live_edge
 
 
 def set_paused(paused: bool) -> dict[str, Any]:
@@ -266,6 +295,7 @@ def status_payload() -> dict[str, Any]:
         "second_max": session_seconds(),
         "scrubbed": _scrub_second is not None,
         "paused": is_paused(),
+        "live_edge": live_edge(),
         "volume_mult": phase_volume_mult(n),
         "tick_interval_sec": phase_tick_interval_sec(n),
     }

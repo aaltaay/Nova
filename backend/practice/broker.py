@@ -1,16 +1,16 @@
 """The practice broker: one ledger, one market reference, no IBKR (ADR 020).
 
-``for_venue("sim")`` trades the loaded replay (``ReplayReference``) on a
-scratch ledger; ``for_venue("paper")`` trades the live feed (``LiveReference``)
-on the persistent Paper ledger under the operator cache. Fills follow
-``sim.fill_model`` and are always estimates (``fill_estimated`` +
-``fill_basis``); buying power is enforced at admission and again when a
-resting order fills (the order is cancelled ``PRACTICE_BUYING_POWER`` if power
-ran out); every row keeps ``source: "nova"`` (the blotter's ownership key) and
-adds ``order_source`` (the ADR 007 command source) and ``bot_id``. Per-order
-rules -- a DAY order expires at its session close, a SELL is only ever
-risk-reducing -- live in ``practice.order_rules`` (operator decisions,
-2026-09-21). ``sim.broker`` is a facade over the Sim instance.
+``for_venue("sim")`` trades the loaded replay -- the live feed at the live edge
+(``SimReference``, ADR 020 live-edge amendment) -- on a scratch ledger;
+``for_venue("paper")`` trades the live feed (``LiveReference``) on the persistent
+Paper ledger under the operator cache. Fills follow ``sim.fill_model`` and are
+always estimates (``fill_estimated`` + ``fill_basis``); buying power is enforced
+at admission and again when a resting order fills (cancelled
+``PRACTICE_BUYING_POWER`` if power ran out); every row keeps ``source: "nova"``
+(the blotter's ownership key) and adds ``order_source`` (the ADR 007 command
+source) and ``bot_id``. Per-order rules -- DAY expires at the session close, a
+SELL is only ever risk-reducing -- live in ``practice.order_rules`` (operator
+decisions, 2026-09-21). ``sim.broker`` is a facade over the Sim instance.
 """
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ from constants_sim import SIM_ORDER_TYPE_CODE
 from practice import order_rules
 from practice.fees import for_fill
 from practice.ledger import Ledger, iso_utc
-from practice.reference import LiveReference, MarketReference, ReplayReference
+from practice.reference import LiveReference, MarketReference, SimReference
 from practice.watch import notify_watch
 from sim import fill_model
 
@@ -376,18 +376,17 @@ def for_venue(venue: str) -> PracticeBroker:
     if broker is not None:
         return broker
     if key == PRACTICE_VENUE_SIM:
-        ref: MarketReference = ReplayReference()
-        broker = PracticeBroker(
-            ref, Ledger(PRACTICE_STARTING_CASH, created_ts=ref.now_ts()), PRACTICE_ACCOUNT_ID_SIM, venue=key,
-        )
+        # Sim's live half is Paper's class, resolved here so one test seam covers both venues.
+        ref: MarketReference = SimReference(live=LiveReference())
+        ledger = Ledger(PRACTICE_STARTING_CASH, created_ts=ref.now_ts())
+        broker = PracticeBroker(ref, ledger, PRACTICE_ACCOUNT_ID_SIM, venue=key)
     elif key == PRACTICE_VENUE_PAPER:
         from practice import persist
 
         path = persist.paper_ledger_path()
         ref = LiveReference()
-        broker = PracticeBroker(
-            ref, _paper_ledger(path, ref.now_ts()), PRACTICE_ACCOUNT_ID_PAPER, venue=key, persist_path=path,
-        )
+        ledger = _paper_ledger(path, ref.now_ts())
+        broker = PracticeBroker(ref, ledger, PRACTICE_ACCOUNT_ID_PAPER, venue=key, persist_path=path)
     else:
         raise ValueError(f"unknown practice venue {venue!r}")
     _brokers[key] = broker

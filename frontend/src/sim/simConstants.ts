@@ -89,9 +89,33 @@ export const SIM_TAB_OTHER_SYMBOL_TITLE = 'Not the replayed symbol';
 export const SIM_TAB_REPLAY_FAILED_TITLE = 'Replay failed to load';
 export const SIM_TAB_CHARTS_ARCHIVED = 'Charts show archived bars until a replay loads.';
 export const SIM_TAB_NO_WINDOW = 'Pick a window with Historical replay in the Sim session bar above.';
-/** A Sim tab with nothing loaded says what Sim is, so Live wall clamp is not read as live data. */
+/** A Sim tab with nothing loaded, off the live edge, says what Sim is so an empty pane is not read as live data. */
 export const SIM_TAB_WHAT_SIM_IS =
-  'Sim shows only the loaded replay. For live Level 2 and Time & Sales with fake money, use the Paper venue.';
+  'Off the live edge, Sim shows only the loaded replay. Follow wall clock during today\'s session for live '
+  + 'Level 2 and Time & Sales with fake money, or use the Paper venue.';
+
+/**
+ * The live edge (ADR 020 live-edge amendment): the Sim clock follows the wall
+ * clock on today's date, so the tab is live -- quote, Level 2, Time & Sales
+ * and bars from the same feed a Paper tab reads, fills against it. Scrub back
+ * and the tab shows the loaded replay; Follow wall clock returns here.
+ */
+export const SIM_LIVE_EDGE_LABEL = 'Live edge';
+export const SIM_LIVE_EDGE_TITLE =
+  'Following the wall clock on today\'s session: Sim tabs show the live feed and fill against it, fake money. '
+  + 'Scrub back to replay -- today\'s Session Record loads by itself when one exists.';
+/** Session-bar source label at the edge (replaces HISTORICAL / CAPTURE / NO REPLAY). */
+export const SIM_LIVE_EDGE_SOURCE = 'LIVE EDGE';
+/** Session-bar note with nothing loaded at the edge -- never "load a replay", the desk is live. */
+export const SIM_LIVE_EDGE_EMPTY_NOTE = 'Live edge: practise on the live feed; scrub back to replay';
+/** Following the wall clock but not at the edge: outside today\'s session, a closed exchange day, or a replayed day. */
+export const SIM_WALL_CLOCK_LABEL = 'Wall clock';
+export const SIM_WALL_CLOCK_TITLE =
+  'Following the wall clock, but not the live edge: outside today\'s 04:00-20:00 session, on a closed '
+  + 'exchange day, or on a replayed past day. Tabs show the loaded replay.';
+/** The quiet per-tab line at the edge; dismissable, never an offer. */
+export const SIM_TAB_LIVE_EDGE_TITLE = 'Live edge';
+export const SIM_TAB_LIVE_EDGE_NOTE = 'Following the wall clock; scrub back to replay.';
 export const simTabOwnRecording = (symbol: string, date: string, prints: number, recording: boolean): string =>
   `Your Session Record of ${symbol} (${date}, ${prints.toLocaleString()} prints${recording ? ', still recording' : ''}) `
   + 'can replay now — pick it under Day / Ticker above.';

@@ -99,8 +99,14 @@ export function StockViewDepthTape({
   const showTape = isVisible('tape');
   const historical = useHistoricalSnapshot(depthSymbol, uiActive);
   const { sim, clock } = useSimReplayTarget(depthSymbol);
+  // At the live edge a Sim tab is live whatever is loaded (ADR 020 live-edge
+  // amendment): the historical panes wait for the scrub back, and the live
+  // modules remount across the edge so they (re)open the real line rather
+  // than sit on the replay slot they held off it.
+  const liveEdge = sim && clock?.live_edge === true;
+  const feedKey = sim ? (liveEdge ? 'live-edge' : 'replay') : 'live';
 
-  if (historical?.active) {
+  if (historical?.active && !liveEdge) {
     const replayDetail = historicalQuoteDetail(detail, historical);
     return (
       <StockViewModuleCard
@@ -184,8 +190,8 @@ export function StockViewDepthTape({
             <ShortabilityChip ibkr={listingIbkr} />
           </>
         )}
-        level2={showL2 ? <Level2Module symbol={depthSymbol} uiActive={uiActive} /> : null}
-        tape={showTape ? <TimeSalesModule symbol={depthSymbol} embedded uiActive={uiActive} /> : null}
+        level2={showL2 ? <Level2Module key={feedKey} symbol={depthSymbol} uiActive={uiActive} /> : null}
+        tape={showTape ? <TimeSalesModule key={feedKey} symbol={depthSymbol} embedded uiActive={uiActive} /> : null}
       />
     </StockViewModuleCard>
   );

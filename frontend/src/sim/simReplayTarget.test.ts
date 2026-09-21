@@ -102,3 +102,26 @@ describe('simEmptyQuoteDetail', () => {
     expect(simEmptyQuoteDetail(live, 'SPY').fundamentals).toBeNull();
   });
 });
+
+describe('the live edge (ADR 020 live-edge amendment)', () => {
+  it('names the edge whatever is loaded -- the backend flag is the truth, never scrubbed/paused', () => {
+    expect(simReplayTarget('IMCC', clock({ live_edge: true, replay_source: 'none' }), true))
+      .toEqual({ kind: 'live-edge' });
+    expect(simReplayTarget('IMCC', clock({ live_edge: true, replay_source: 'capture', replay_symbol: 'SPY' }), true))
+      .toEqual({ kind: 'live-edge' });
+    expect(simReplayTarget('IMCC', clock({ live_edge: false, replay_source: 'none' }), true))
+      .toEqual({ kind: 'none' });
+  });
+
+  it('lets the live panes render at the edge, even with nothing or another symbol loaded', () => {
+    expect(simRailNote('IMCC', clock({ live_edge: true, replay_source: 'none' }), true)).toBeNull();
+    expect(simRailNote('IMCC', clock({ live_edge: true, replay_source: 'historical', replay_symbol: 'SPY' }), true))
+      .toBeNull();
+    expect(simRailNote('IMCC', clock({ live_edge: true }), false)).toBeNull();
+  });
+
+  it('says "no replay" again the moment the desk leaves the edge', () => {
+    expect(simRailNote('IMCC', clock({ live_edge: false, replay_source: 'none', scrubbed: true }), true))
+      .toBe('No replay loaded -- no quote, Level 2 or Time & Sales.');
+  });
+});

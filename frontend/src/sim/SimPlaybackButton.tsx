@@ -1,16 +1,19 @@
 import { Pause, Play } from 'lucide-react';
 import type { SimClockState } from './simClockTypes';
 import { useReplayActions } from './useReplayActions';
-export function SimPlaybackButton({ clock, onClock, onBeforeChange, onSettled }: {
+export function SimPlaybackButton({ clock, onClock, onBeforeChange, onSettled, symbol }: {
   clock: SimClockState | null; onClock: (clock: SimClockState) => void;
   onBeforeChange?: () => void; onSettled?: () => void;
+  /** The tab the operator is looking at: a pause off the live edge loads its Session Record for today. */
+  symbol?: string | null;
 }) {
   const { request, busy, errors } = useReplayActions();
   const paused = clock?.paused === true;
   const label = paused ? 'Play Sim time' : 'Pause Sim time';
   const toggle = async () => {
     onBeforeChange?.();
-    const next = await request<SimClockState>('playback', '/clock', { paused: !paused }, 'Could not change Sim playback. Try again.');
+    const body = symbol ? { paused: !paused, symbol } : { paused: !paused };
+    const next = await request<SimClockState>('playback', '/clock', body, 'Could not change Sim playback. Try again.');
     if (next) onClock(next);
     onSettled?.();
   };

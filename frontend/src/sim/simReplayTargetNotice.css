@@ -95,3 +95,10 @@
   background: color-mix(in srgb, #ffffff 12%, transparent);
   outline: none;
 }
+
+/* The live edge: a quiet line, not a warning -- the tab is live, nothing is missing. */
+.sim-replay-target--live-edge {
+  color: var(--nova-text-muted);
+  background: transparent;
+  border-bottom-color: var(--nova-border-strong);
+}

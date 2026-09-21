@@ -11,7 +11,10 @@ neither a fresh last nor a recent print exists. A practice fill is never a
 guess: an absent price is stated, not filled in. Each reference also names
 its session's close (``session_close_ts``) so a DAY order knows when it
 expires (``practice.order_rules``): the replayed window's end on Sim, the
-desk's ``PRACTICE_SESSION_CLOSE_HOUR_ET`` on Paper.
+desk's ``PRACTICE_SESSION_CLOSE_HOUR_ET`` on Paper. ``SimReference`` is what
+the Sim broker actually holds (ADR 020 live-edge amendment): the live
+reference while the Sim clock is at the live edge, the replay reference off
+it -- one door, decided per call by ``sim.session_clock.live_edge``.
 """
 from __future__ import annotations
 
@@ -168,3 +171,49 @@ class LiveReference:
                 continue
             out.append((float(ts), px))
         return out
+
+
+class SimReference:
+    """The Sim venue's market: the live feed at the live edge, the loaded replay off it.
+
+    ADR 020 live-edge amendment (2026-09-21 evening). Every call asks the Sim
+    clock whether the playhead is *now*; at the edge the answer is Paper's
+    ``LiveReference`` (any symbol with a live print, ``live_quote`` /
+    ``live_print``), off it ``ReplayReference`` unchanged (``SIM_*`` refusals,
+    the loaded replay at the playhead). The clock stays the Sim playhead in
+    both cases -- at the edge that is wall time, so an order placed there is
+    stamped like any other and unwinds like any other when the operator
+    scrubs back past it.
+    """
+
+    def __init__(self, live: MarketReference | None = None, replay: ReplayReference | None = None) -> None:
+        self.live: MarketReference = live if live is not None else LiveReference()
+        self.replay = replay if replay is not None else ReplayReference()
+
+    @staticmethod
+    def at_live_edge() -> bool:
+        from sim import session_clock
+
+        return session_clock.live_edge()
+
+    def _market(self) -> MarketReference:
+        return self.live if self.at_live_edge() else self.replay
+
+    def reference(self, symbol: str) -> Reference:
+        return self._market().reference(symbol)
+
+    def admission(self, symbol: str) -> tuple[bool, str, str | None]:
+        return self._market().admission(symbol)
+
+    def prints_between(self, symbol: str, after_ts: float, through_ts: float) -> list[Print]:
+        return self._market().prints_between(symbol, after_ts, through_ts)
+
+    def now_ts(self) -> float:
+        """The Sim playhead, which at the live edge is the wall clock."""
+        return self.replay.now_ts()
+
+    def replay_key(self) -> tuple | None:
+        return self.replay.replay_key()
+
+    def session_close_ts(self, ts: float) -> float:
+        return self.replay.session_close_ts(ts)

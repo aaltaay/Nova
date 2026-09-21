@@ -113,9 +113,9 @@ def fetch_ticker_snapshot_ibkr(symbol: str) -> dict:
     Price alone is enough for a snapshot (header last). ``prev_close`` is
     optional — without it the UI still shows last, just not day change %.
     """
-    from sim.mode import is_sim_mode
+    from sim.mode import is_replay_desk
 
-    if is_sim_mode():
+    if is_replay_desk():
         from sim import market as _sim_market
 
         return _sim_market.ticker_snapshot(symbol or "")

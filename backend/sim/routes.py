@@ -48,11 +48,19 @@ def get_sim_clock() -> dict:
 
 @router.post("/api/sim/clock")
 def post_sim_clock(body: dict) -> dict:
-    """Scrub sim session time. Body: {minute_from_open: int} or {follow_wall: true}."""
+    """Scrub sim session time. Body: {minute_from_open: int} or {follow_wall: true}.
+
+    ``symbol`` (optional) names the tab the operator scrubbed from: a move
+    that leaves the live edge with nothing loaded selects that symbol's
+    Session Record for today underneath the playhead (``sim.live_edge``).
+    """
+    from sim import live_edge as _edge
     from sim import session_clock as _clock
     from sim import replay as _replay
     from sim.mode import is_sim_mode
 
+    was_edge = is_sim_mode() and _clock.live_edge()
+    symbol = body.get("symbol")
     if "paused" in body:
         if not is_sim_mode():
             raise HTTPException(status_code=409, detail="Playback controls require Sim mode")
@@ -73,6 +81,8 @@ def post_sim_clock(body: dict) -> dict:
         # The playhead moved: a running download of this window fetches there next.
         from sim import history_download
         history_download.follow_playhead(_clock.now_et().timestamp())
+    if _edge.select_recording_after_leaving(symbol if isinstance(symbol, str) else None, was_edge=was_edge):
+        payload = _clock.status_payload()
     return {"sim": is_sim_mode(), **payload, **_replay.status_payload()}
 
 

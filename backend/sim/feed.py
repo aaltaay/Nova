@@ -109,7 +109,10 @@ def tick() -> dict:
     if not history_playback.status():
         if not _replay.status_payload()["replay_ok"]:
             return {}  # Failed selection must be acknowledged by selecting a source.
-        if _replay.is_capture_replay():
+        # At the live edge the live feed owns the panels (ADR 020 live-edge
+        # amendment): today's recording stays loaded for the scrub back, but
+        # its prints are not forwarded on top of the live tape.
+        if _replay.is_capture_replay() and not _clock.live_edge():
             try:
                 payload = _capture_tick()
             except Exception:

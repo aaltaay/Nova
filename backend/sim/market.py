@@ -31,6 +31,10 @@ def rebuild_for_scrub(
     """
     if previous_playhead_ts is not None:
         _unwind_scratch_account(previous_playhead_ts)
+    if _clock.live_edge():
+        # Back at the edge: the live feed owns the panels, so a loaded
+        # recording is not reseeded over it (ADR 020 live-edge amendment).
+        return
     from sim import capture_player as player, replay
     def current() -> bool:
         return (expected_capture_generation is None
