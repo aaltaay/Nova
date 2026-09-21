@@ -51,10 +51,14 @@ from hod_momo_state import HodMomoState
 @pytest.fixture(autouse=True)
 def _reset_bot_persist():
     from bot.persist import reset_for_tests
+    from tests.bot_helpers import release_depth_lines
 
     reset_for_tests()
     yield
     reset_for_tests()
+    # Depth lines a bot test held (ready_l2 / hold_depth_line) must not leak
+    # into the next test's BOT_NO_DEPTH_LINE gate.
+    release_depth_lines()
 
 
 @pytest.fixture(autouse=True)

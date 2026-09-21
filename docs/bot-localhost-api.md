@@ -76,13 +76,52 @@ Risk sleeve stays `small-cap`. Packs are a separate picker:
 
 ## Symbol gate
 
-Propose and fire require **allowlist AND live Trader focus**. Empty
-allowlist is fail-closed (`409 BOT_SYMBOL_BLOCKED`). Right-click
-Add / Remove on scanner rows, trader tabs, and the chart menu. The
-Bot Autonomy strip **Allowlist** control and the Strategy left tab
-list the same `session.symbol_allowlist` (chips + add ticker) and
-call the same `POST /api/bot/allowlist` -- neither owns a second
-list. That is symbols only, not `caps.allowlist` action kinds.
+**Eyes** (watch / propose) see **allowlist AND live Trader focus** -- the
+tabs the UI reports through `POST /api/bot/focus/sync`. Empty allowlist is
+fail-closed (`409 BOT_SYMBOL_BLOCKED`). Right-click Add / Remove on scanner
+rows, trader tabs, and the chart menu. The Bot Autonomy strip **Allowlist**
+control and the Strategy left tab list the same `session.symbol_allowlist`
+(chips + add ticker) and call the same `POST /api/bot/allowlist` -- neither
+owns a second list. That is symbols only, not `caps.allowlist` action kinds.
+
+**Fire** (`POST /api/bot/action`, every kind) needs **allowlist AND a depth
+line Nova itself holds** (ADR 020 second pass, 2026-09-21). The backend
+cannot see UI tabs, so the held line is the fact: an open Trader Level 2
+(`ibkr.depth.state.is_subscribed`, the replay slot on a Sim desk included)
+or a Session Record line (`is_live`). No line budget. A symbol with no line
+is `409 BOT_NO_DEPTH_LINE` -- "open its Level 2 or record it" -- before the
+execution door is reached. Enforced in one place:
+`bot/eligibility.assert_symbol_can_fire`, called from `bot/actions.fire`.
+
+## Practice rewind (Sim time travel)
+
+On the Sim venue the scratch account follows the playhead (ADR 020
+decision 3): scrubbing backwards drops every practice order and fill after
+the new playhead -- they never happened. Whenever that unwind dropped
+anything, Nova publishes a `practice_rewind` event:
+
+```json
+{"venue": "sim", "playhead_ts": 1758463200.0, "dropped_orders": 1, "dropped_fills": 1}
+```
+
+- **Push:** an entry on the bot audit stream (`ws://127.0.0.1:8000/ws/bot/audit`,
+  the same channel breaker and TTL events use) with `action: "practice_rewind"`,
+  `outcome: "ok"` and the event under `inputs`. It is also in `GET /api/bot/audit`.
+- **Poll:** `GET /api/bot/session` carries `last_rewind` -- the same event plus
+  `ts` (when it was published), or `null` until one happens. Process-local: a
+  restart clears it, and the scratch account with it.
+
+`dropped_orders` counts placements that never happened, `dropped_fills` the
+fills. A forward move, or a backward move that dropped nothing, publishes
+nothing -- the ledger did not change.
+
+**After a rewind a bot must re-read positions and working orders from the
+account** (`GET /api/practice/account?venue=sim`, `/api/ibkr/positions`,
+`/api/ibkr/orders`) and **never trust its own memory over the ledger**: the
+buy it remembers may be gone, the resting order it forgot may be back, and
+the tape from the new playhead is matched again against whatever still
+rests. Nova's own bot bookkeeping is not exempt -- `working` rows for dropped
+orders clear on the next TTL sweep.
 
 ## Small-cap filters
 

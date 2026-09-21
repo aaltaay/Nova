@@ -153,6 +153,15 @@ BOT_REASON_BRAIN_EXCLUSIVE = "BOT_BRAIN_EXCLUSIVE"
 BOT_REASON_ADVISE_OFF = "BOT_ADVISE_OFF"
 BOT_REASON_ADVISE_CAP = "BOT_ADVISE_CAP"
 BOT_REASON_NEEDS_DEPTH = "BOT_NEEDS_DEPTH"
+# ADR 020 second pass (2026-09-21): a bot fires only on an allowlisted symbol
+# whose depth line the backend itself holds -- an open Trader Level 2 or a
+# Session Record line (ibkr.depth.state.is_subscribed / is_live). The backend
+# cannot see UI tabs, so the held line is the server-side fact. No line budget.
+BOT_REASON_NO_DEPTH_LINE = "BOT_NO_DEPTH_LINE"
+BOT_NO_DEPTH_LINE_HINT = "open its Level 2 or record it"
+# Sim time travel (ADR 020 decision 3): the audit action a bot receives when
+# the scratch account unwound behind the playhead.
+BOT_AUDIT_ACTION_PRACTICE_REWIND = "practice_rewind"
 BOT_REASON_NOT_LOOPBACK = "BOT_NOT_LOOPBACK"
 BOT_REASON_TTL_EXPIRED = "working_ttl_expired"
 BOT_REASON_SYMBOL_BLOCKED = "BOT_SYMBOL_BLOCKED"

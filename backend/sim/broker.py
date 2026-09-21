@@ -117,13 +117,49 @@ def unwind_to(ts: float) -> int:
 
     The feed's fill cursor moves back with it, so the tape from ``ts`` on is
     matched again against whatever is still resting -- the re-played stretch is
-    never skipped. Returns how many ledger events were dropped.
+    never skipped. Returns how many ledger events were dropped. When anything
+    was dropped, bots are told through ``bot.rewind`` (a ``practice_rewind``
+    audit entry plus ``last_rewind`` on the session payload) so they re-read
+    the account instead of trusting their own memory.
     """
-    dropped = _sim().unwind_to(ts)
+    broker = _sim()
+    before = _event_counts(broker.ledger.events)
+    dropped = broker.unwind_to(ts)
     from sim import feed as _feed
 
     _feed.rewind_fill_cursor(ts)
+    if dropped:
+        after = _event_counts(broker.ledger.events)
+        _notify_bots_of_rewind(
+            ts,
+            dropped_orders=before[0] - after[0],
+            dropped_fills=before[1] - after[1],
+        )
     return dropped
+
+
+def _event_counts(events: list[dict[str, Any]]) -> tuple[int, int]:
+    """(orders placed, fills) in a ledger's event list -- the two counts bots are told."""
+    from practice.ledger import EVENT_FILLED, EVENT_PLACED
+
+    placed = sum(1 for e in events if e.get("type") == EVENT_PLACED)
+    filled = sum(1 for e in events if e.get("type") == EVENT_FILLED)
+    return placed, filled
+
+
+def _notify_bots_of_rewind(ts: float, *, dropped_orders: int, dropped_fills: int) -> None:
+    """Publish the unwind to bots; never raises (time travel must not fail here)."""
+    try:
+        from bot import rewind as _rewind
+
+        _rewind.publish(
+            venue=PRACTICE_VENUE_SIM,
+            playhead_ts=ts,
+            dropped_orders=dropped_orders,
+            dropped_fills=dropped_fills,
+        )
+    except Exception:
+        logger.warning("SIM: practice_rewind notice failed", exc_info=True)
 
 
 def reset_scratch_account(reason: str) -> None:

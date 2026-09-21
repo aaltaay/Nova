@@ -13,9 +13,10 @@ from constants_bot import (
     BOT_REASON_FREE_FORM_QTY,
     BOT_REASON_L0_DARK,
     BOT_REASON_L1_NO_FIRE,
+    BOT_REASON_NO_DEPTH_LINE,
     BOT_REASON_NOT_ACTIVE,
 )
-from tests.bot_helpers import ready_l2
+from tests.bot_helpers import hold_depth_line, ready_l2
 from execution.models import ExecutionReceipt
 
 
@@ -100,6 +101,53 @@ async def test_free_form_qty_on_fire(l2_brain):
     with pytest.raises(BotError) as exc:
         await fire({"kind": "buy_market", "symbol": "ABCD", "qty": 4}, brain_session_id="brain-1")
     assert exc.value.reason == BOT_REASON_FREE_FORM_QTY
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["buy_market", "buy_limit_ask_offset", "exit_pos", "cancel_symbol"])
+async def test_fire_refuses_a_symbol_whose_depth_line_nova_does_not_hold(monkeypatch, kind):
+    """Allowlisted, UI-reported as live, L2 + Activate + brain -- still no line, no fire.
+
+    The backend cannot see UI tabs: the held depth line is the fact (ADR 020),
+    for every kind, before the execution door is even reached.
+    """
+    ready_l2(brain="brain-1", heartbeat=True, depth_line=False)
+    called = {"n": 0}
+
+    async def fake_execute(cmd, wait_ack=False):
+        called["n"] += 1
+        return _ok(1)
+
+    monkeypatch.setattr("bot.actions.execute", fake_execute)
+    monkeypatch.setattr("bot.risk.top_of_book", lambda _s: (1.9, 2.1))
+    with pytest.raises(BotError) as exc:
+        await fire({"kind": kind, "symbol": "ABCD"}, brain_session_id="brain-1")
+    assert exc.value.status_code == 409
+    assert exc.value.reason == BOT_REASON_NO_DEPTH_LINE
+    assert "open its Level 2 or record it" in exc.value.message
+    assert called["n"] == 0
+
+
+@pytest.mark.asyncio
+async def test_fire_needs_no_ui_focus_report_once_the_line_is_held(monkeypatch):
+    """A Session Record line counts even when the UI never reported a tab."""
+    from bot.persist import save_session
+
+    ready_l2(brain="brain-1", heartbeat=True, depth_line=False)
+    row = load_session()
+    row["trader_live"] = []
+    save_session(row)
+    hold_depth_line("ABCD")
+    seen = {}
+
+    async def fake_execute(cmd, wait_ack=False):
+        seen["cmd"] = cmd
+        return _ok(61)
+
+    monkeypatch.setattr("bot.actions.execute", fake_execute)
+    monkeypatch.setattr("bot.risk.last_quote", lambda _s: {"price": 2.0})
+    result = await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="brain-1")
+    assert result["ok"] is True and seen["cmd"].symbol == "ABCD"
 
 
 @pytest.mark.asyncio

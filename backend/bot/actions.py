@@ -1,4 +1,9 @@
-"""Allowlisted NovaActionKind -> execution.service.execute(source=bot)."""
+"""Allowlisted NovaActionKind -> execution.service.execute(source=bot).
+
+Every kind passes one symbol gate before anything else is resolved:
+``eligibility.assert_symbol_can_fire`` -- allowlist AND a depth line the
+backend holds (``409 BOT_NO_DEPTH_LINE`` otherwise, ADR 020 second pass).
+"""
 from __future__ import annotations
 
 import uuid
@@ -21,7 +26,7 @@ from bot.risk import (
     resolve_percent,
     resolve_shares,
 )
-from bot.eligibility import assert_symbol_eligible
+from bot.eligibility import assert_symbol_can_fire
 from bot.packs import assert_pack_can_fire, normalize_pack
 from bot.session import require_l2_brain
 from constants_bot import BOT_REASON_DAY_LOCK
@@ -91,7 +96,7 @@ async def fire(
     assert_pack_can_fire(normalize_pack(row.get("active_pack")))
     require_l2_brain(brain_session_id, claim=True)
     kind = assert_kind(str(body.get("kind") or body.get("action") or ""), row)
-    symbol = assert_symbol_eligible(str(body.get("symbol") or ""), row)
+    symbol = assert_symbol_can_fire(str(body.get("symbol") or ""), row)
     if day_lock_active() and kind.startswith("buy_"):
         raise BotError("-$200 day lock -- buys locked until next ET midnight", 409, BOT_REASON_DAY_LOCK)
 
