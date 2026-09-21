@@ -1,4 +1,10 @@
-"""Selected capture session for Sim replay (day + ticker)."""
+"""Selected capture session for Sim replay (day + ticker).
+
+The Sim scratch account follows the capture (ADR 020 decision 3): unloading a
+loaded capture, or loading one, starts the account over through the lock-free
+``sim.broker.reset_scratch_account`` -- safe under the selection lock because
+it never reads the selection back.
+"""
 from __future__ import annotations
 
 import logging
@@ -20,8 +26,17 @@ def clear_capture() -> None:
     from sim import capture_player as _player
     with _selection_lock:
         _generation += 1
+        had_capture = bool(_date and _symbol)
         _date = _symbol = _load_info = None
         _player.unload()
+    if had_capture:
+        _scratch_account_starts_over("capture replay unloaded")
+
+
+def _scratch_account_starts_over(reason: str) -> None:
+    from sim import broker as _broker
+
+    _broker.reset_scratch_account(reason)
 
 
 def reset_for_tests() -> None:
@@ -98,6 +113,8 @@ def set_replay(date: str | None, symbol: str | None) -> dict[str, Any]:
             else:
                 _date, _symbol, _load_info = d, s, info
                 _align_clock(d, info)
+                # A capture was loaded: the account starts over at its first print.
+                _scratch_account_starts_over(f"capture {d} {s} loaded")
     _refresh_views(generation)
     # Never call historical status under the capture lock: history publication
     # owns its lock before it invalidates capture via clear_capture().

@@ -7,6 +7,11 @@ API every existing caller uses (``sim.execution``, ``sim.feed``,
 always estimates: each filled row carries ``fill_estimated=True`` and a
 ``fill_basis`` so the desk can tell a practice fill from a historical print
 (architecture/practice-fills.md). Never talks to IBKR.
+
+The account is scratch and follows the replay (ADR 020 decision 3): the clock
+calls ``unwind_to`` when the playhead moves back (``sim.market``), and the
+replay selection calls ``reset_scratch_account`` when the replay is unloaded
+or another one is loaded (``sim.history_playback`` / ``sim.replay``).
 """
 from __future__ import annotations
 
@@ -15,6 +20,7 @@ from typing import Any
 
 from constants_practice import PRACTICE_VENUE_SIM
 from practice.broker import PracticeBroker, notify_watch  # noqa: F401 -- re-exported
+from practice.ledger import Ledger
 
 logger = logging.getLogger(__name__)
 
@@ -99,8 +105,39 @@ def snapshot() -> dict[str, Any]:
 
 
 def unwind_to(ts: float) -> int:
-    """Sim time travel: every order and fill after ``ts`` never happened; returns the events dropped."""
-    return _sim().unwind_to(ts)
+    """Sim time travel: every order and fill after ``ts`` never happened.
+
+    The feed's fill cursor moves back with it, so the tape from ``ts`` on is
+    matched again against whatever is still resting -- the re-played stretch is
+    never skipped. Returns how many ledger events were dropped.
+    """
+    dropped = _sim().unwind_to(ts)
+    from sim import feed as _feed
+
+    _feed.rewind_fill_cursor(ts)
+    return dropped
+
+
+def reset_scratch_account(reason: str) -> None:
+    """The replay was unloaded or another one loaded: the Sim account starts over.
+
+    Keeps the operator's starting cash; the account is re-created at the
+    playhead so its practice day is the replay's day. Lock-free by design --
+    the callers hold the replay selection locks (history -> capture order), so
+    this never reads the selection back (``PracticeBroker.reset`` would, via
+    its snapshot). Never raises: the replay engine must not die over scratch
+    bookkeeping, but the failure is logged loud.
+    """
+    try:
+        broker = _sim()
+        broker.ledger = Ledger(broker.ledger.starting_cash, created_ts=broker.reference.now_ts())
+        from sim import feed as _feed
+
+        _feed.reset_fill_cursor()
+    except Exception:
+        logger.exception("SIM: scratch account reset failed (%s)", reason)
+        return
+    logger.info("SIM: scratch account starts over -- %s", reason)
 
 
 _LEDGER_VIEWS = {

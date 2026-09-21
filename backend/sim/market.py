@@ -16,8 +16,21 @@ from sim.market_views import book, last_quotes, quote, ticker_snapshot  # noqa: 
 logger = logging.getLogger(__name__)
 
 
-def rebuild_for_scrub(*, expected_capture_generation: int | None = None) -> None:
-    """Reseed tape/depth outside selection locks; reject superseded selections."""
+def rebuild_for_scrub(
+    *,
+    expected_capture_generation: int | None = None,
+    previous_playhead_ts: float | None = None,
+) -> None:
+    """Reseed tape/depth outside selection locks; reject superseded selections.
+
+    ``previous_playhead_ts`` is where the playhead was before this move (the
+    clock passes it on every operator scrub): a backward move first unwinds the
+    Sim scratch account to the new playhead -- every practice order and fill
+    after it never happened (ADR 020 decision 3). A forward move, or a replay
+    refresh without a previous playhead, leaves the account alone.
+    """
+    if previous_playhead_ts is not None:
+        _unwind_scratch_account(previous_playhead_ts)
     from sim import capture_player as player, replay
     def current() -> bool:
         return (expected_capture_generation is None
@@ -51,6 +64,31 @@ def rebuild_for_scrub(*, expected_capture_generation: int | None = None) -> None
             depth_state.push_book(selection.symbol, {**book, "symbol": selection.symbol})
     except Exception:
         logger.warning("CAPTURE: scrub projection failed", exc_info=True)
+
+
+def _unwind_scratch_account(previous_playhead_ts: float) -> None:
+    """The playhead went back: the Sim account forgets what came after the new playhead.
+
+    Lock-free end to end (the clock, the ledger and the feed cursor take no
+    selection lock), so it is safe from a historical ``select`` that scrubs to
+    the window start while holding the history lock. Never raises: a failure
+    is logged loud, and the clock move it rides on still stands.
+    """
+    now_ts = _clock.now_et().timestamp()
+    if now_ts >= previous_playhead_ts:
+        return
+    try:
+        from sim import broker as _broker
+
+        dropped = _broker.unwind_to(now_ts)
+    except Exception:
+        logger.warning("SIM: scratch account unwind failed", exc_info=True)
+        return
+    if dropped:
+        logger.info(
+            "SIM: playhead moved back %.1fs -- %d practice event(s) never happened",
+            previous_playhead_ts - now_ts, dropped,
+        )
 
 
 def recent_prints(limit: int = 20) -> list[dict[str, Any]]:

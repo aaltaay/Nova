@@ -136,6 +136,24 @@ def match_practice_fills() -> list[dict]:
     return _broker.try_fill_working(active.symbol, prints) if prints else []
 
 
+def rewind_fill_cursor(ts: float) -> None:
+    """The account was unwound to ``ts``: the next match re-plays the tape from there.
+
+    Without this the cursor would still sit where the last match left it and
+    skip the stretch the operator is replaying. Lock-free (the cursor's own key
+    is kept; a stale key re-anchors on the next match as it always did).
+    """
+    global _fill_cursor
+    if _fill_cursor is not None and _fill_cursor[1] > float(ts):
+        _fill_cursor = (_fill_cursor[0], float(ts))
+
+
+def reset_fill_cursor() -> None:
+    """The account started over: the next match anchors afresh on what is loaded."""
+    global _fill_cursor
+    _fill_cursor = None
+
+
 def _capture_tick() -> dict:
     """Forward recorded events only; quiet intervals are not trades."""
     from datetime import datetime, timezone

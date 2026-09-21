@@ -1,4 +1,10 @@
-"""Bounded immutable selection; disk/index work never owns the playback lock."""
+"""Bounded immutable selection; disk/index work never owns the playback lock.
+
+The Sim scratch account follows the selection (ADR 020 decision 3): clearing a
+loaded window or selecting a different one starts the account over, through
+the lock-free ``sim.broker.reset_scratch_account``. Re-selecting the same
+window (the download folding new ranges in) keeps it.
+"""
 from __future__ import annotations
 
 import bisect
@@ -42,9 +48,18 @@ def clear():
     global _selection, _generation
     with _lock:
         _generation += 1
+        had_selection = _selection is not None
         _selection = None
     history_depth.clear()
     history_sides.clear()
+    if had_selection:
+        _scratch_account_starts_over("historical replay unloaded")
+
+
+def _scratch_account_starts_over(reason: str) -> None:
+    from sim import broker as _broker
+
+    _broker.reset_scratch_account(reason)
 
 
 @contextmanager
@@ -115,6 +130,8 @@ def select(spec: dict):
             session_clock.set_window(spec['start'], spec['end'])
             if not same_window:
                 session_clock.scrub_to_second(0)
+                # Another day (or window): the account starts over at its playhead.
+                _scratch_account_starts_over("another historical window selected")
             return dict(loaded.spec)
 
 
