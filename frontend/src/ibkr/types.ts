@@ -23,6 +23,12 @@ export interface IbkrStatus {
   capture_symbol?: string | null;
   recording?: boolean;
   capture_error?: string | null;
+  /** Running Session Record; null when not recording (AGENTS.md section 3, recording persistence). */
+  capture_session?: RecordingSession | null;
+  /** A resume the backend is attempting after an unrequested stop. */
+  capture_resume?: RecordingResume | null;
+  /** The last stop the operator did not ask for, until a recording starts or one is stopped. */
+  capture_stopped?: RecordingStopped | null;
   gateway_mode?: 'paper' | 'live';
   /** Session account classification from IB account ids (DU…=paper, U…=live). */
   broker_account_kind?: 'paper' | 'live' | 'unknown';
@@ -194,4 +200,45 @@ export interface DepthBook {
   l1_fallback: boolean;
   /** Set by the depth WS / hook — used to reject cross-symbol stale books. */
   symbol?: string;
+}
+
+export interface RecordingSession {
+  symbol: string;
+  session_date: string | null;
+  /** When the session (first segment) began, ET ISO. */
+  started_et: string | null;
+  segment_started_et: string | null;
+  /** 1-based, counting segments already on disk. */
+  segment: number | null;
+  counts: Record<string, number>;
+  last_write_ts: number | null;
+  dir: string | null;
+  /** IBKR lines re-acquired after a Gateway drop, this session. */
+  reacquired: number;
+}
+
+export interface RecordingResume {
+  symbol: string;
+  reason: string;
+  error: string | null;
+  session_date: string;
+  attempt: number;
+  max_attempts: number;
+  /** Epoch seconds of the next automatic attempt. */
+  next_at: number;
+  gave_up: boolean;
+  gave_up_reason: string | null;
+  pending: boolean;
+}
+
+export interface RecordingStopped {
+  symbol: string;
+  /** Epoch seconds. */
+  at: number;
+  reason: string;
+  error: string | null;
+  dir: string | null;
+  counts: Record<string, number>;
+  /** True once the backend or the operator got it recording again. */
+  resumed: boolean;
 }

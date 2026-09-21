@@ -22,6 +22,7 @@ import {
 import { canReloadLocalBackend } from '../utils/startLocalApi';
 import { launchIbGateway } from '../utils/launchIbGateway';
 import { GatewayModeCapsule } from '../ibkr/GatewayModeCapsule';
+import { RecordingChip } from '../capture/RecordingChip';
 import { StockViewMarketClock } from '../stock_view/StockViewMarketClock';
 import { HEADER_DESK_ROLE } from '../ibkr/gatewayUxConstants';
 import { openTradingPrerequisites } from '../ibkr/tradingPrereqUi';
@@ -63,6 +64,8 @@ interface Props {
   compact?: boolean;
   showScannerSource?: boolean;
   onBackendStarted?: () => void;
+  /** Opens a symbol tab; the REC chip uses it. Hosts without a desk pass nothing. */
+  onOpenSymbol?: (symbol: string) => void;
 }
 
 export function HeaderConnectionStatus({
@@ -82,6 +85,7 @@ export function HeaderConnectionStatus({
   historyDate,
   showScannerSource = true,
   onBackendStarted,
+  onOpenSymbol,
 }: Props) {
   const ibkrStatusLive = useIbkrStatus();
   const marketDataDelayed = Boolean(ibkrStatusLive.market_data_delayed);
@@ -263,6 +267,8 @@ export function HeaderConnectionStatus({
           </span>
         </span>
       )}
+
+      <RecordingChip onOpenSymbol={onOpenSymbol} />
 
       {HEADER_INTEGRATION_CHIP_ORDER.map((key) => {
         const chip: IntegrationChipStatus | undefined = health.integrations?.[key];

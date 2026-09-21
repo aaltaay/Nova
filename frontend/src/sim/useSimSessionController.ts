@@ -8,7 +8,10 @@ import { SIM_CAPTURE_POLL_MS, SIM_SCRUB_KEYBOARD_MS } from './simConstants';
 import type { SimClockState } from './simClockTypes';
 interface CaptureSessions {
   days: { date: string; ticker_count: number }[];
-  tickers_by_day: Record<string, { symbol: string; prints: number; l2: number; usable?: boolean; empty?: boolean; unavailable_reason?: string | null }[]>;
+  tickers_by_day: Record<string, {
+    symbol: string; prints: number; l2: number; usable?: boolean; empty?: boolean; unavailable_reason?: string | null;
+    segments?: number; missing_sec?: number; last_reason?: string | null;
+  }[]>;
 }
 const clockResource = simClockResource;
 const capturesResource = replayPollResource<CaptureSessions>('/api/capture/sessions', () => SIM_CAPTURE_POLL_MS);

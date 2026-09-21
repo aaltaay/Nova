@@ -1,0 +1,106 @@
+/*
+ * Session Record signals (operator decision, 2026-09-21): a running recording
+ * is quiet -- a red dot on a header chip and a hairline along the top edge --
+ * and an unrequested stop is loud: a toast that stays until it is resumed or
+ * dismissed. No banner.
+ */
+.status-chip--recording {
+  border-color: color-mix(in srgb, var(--danger, #ef4444) 55%, var(--border-color));
+  background: color-mix(in srgb, var(--danger, #ef4444) 12%, transparent);
+}
+
+.status-chip--recording .status-chip__icon {
+  color: var(--danger, #ef4444);
+}
+
+.dot.recording {
+  background-color: var(--danger, #ef4444);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--danger, #ef4444) 50%, transparent);
+  animation: pulse 1.5s infinite;
+}
+
+.recording-hairline {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--danger, #ef4444);
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.recording-stopped {
+  position: fixed;
+  top: 64px;
+  right: 16px;
+  z-index: 1001;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  max-width: 420px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--danger, #ef4444) 55%, var(--border-color));
+  border-left-width: 4px;
+  border-radius: 6px;
+  background: var(--bg-elevated, var(--bg-secondary, #1a1a1a));
+  color: var(--text-primary);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  font-size: 12px;
+}
+
+.recording-stopped__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.recording-stopped__title {
+  color: var(--danger, #ef4444);
+}
+
+.recording-stopped__resume {
+  color: var(--text-secondary);
+}
+
+.recording-stopped__error {
+  color: var(--danger, #ef4444);
+}
+
+.recording-stopped__actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.recording-stopped__action {
+  padding: 4px 10px;
+  border: 1px solid var(--danger, #ef4444);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--danger, #ef4444) 18%, transparent);
+  color: var(--text-primary);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.recording-stopped__action--secondary {
+  border-color: var(--border-color);
+  background: transparent;
+  font-weight: 500;
+}
+
+.recording-stopped__action:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.recording-stopped__dismiss {
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}

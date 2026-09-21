@@ -15,8 +15,18 @@ let expiryTimer: ReturnType<typeof setTimeout> | null = null;
 let commandError: string | null = null;
 let lastLoggedError: string | null = null;
 
+// Bumped on every publish: a snapshot for useSyncExternalStore that changes
+// when anything here changes (a dismissal, a command error), not only when
+// the status object does.
+let version = 0;
+
 function publish(): void {
+  version += 1;
   listeners.forEach(listener => listener());
+}
+
+export function getSessionRecordVersion(): number {
+  return version;
 }
 
 function fresh(): boolean {
@@ -107,3 +117,22 @@ async function toggleRecord(symbol: string, enabled: boolean): Promise<string | 
 
 export const startTabRecord = (symbol: string): Promise<string | null> => toggleRecord(symbol, true);
 export const stopTabRecord = (symbol: string): Promise<string | null> => toggleRecord(symbol, false);
+
+// The stop toast is per stop (symbol + when): dismissing one never hides the next.
+const dismissedStops = new Set<string>();
+
+export function dismissRecordingStop(key: string): void {
+  dismissedStops.add(key);
+  publish();
+}
+
+export function isRecordingStopDismissed(key: string): boolean {
+  return dismissedStops.has(key);
+}
+
+/** Test seam. */
+export function _resetSessionRecordStoreForTests(): void {
+  dismissedStops.clear();
+  commandError = null;
+  lastLoggedError = null;
+}

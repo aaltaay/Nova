@@ -38,6 +38,7 @@ import { NovaLogo } from './NovaLogo';
 import { GatewayModeCapsule } from '../ibkr/GatewayModeCapsule';
 import { setGlobalBarTraderSlot } from './globalBarSlots';
 import { HeaderConnectionStatus } from './HeaderConnectionStatus';
+import { RecordingSignal } from '../capture/RecordingSignal';
 import { EmergencyKillButton } from './EmergencyKillButton';
 import { GlobalBarBotRow } from '../bot/GlobalBarBotRow';
 import { SimSessionHeader } from '../sim/SimSessionHeader';
@@ -126,6 +127,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
 
   return (
     <header className="global-app-bar" data-testid="global-app-bar">
+      <RecordingSignal onOpenSymbol={openStockView} />
       <div className="global-app-bar__primary" data-testid="global-bar-primary">
       <div className="global-app-bar__left">
         <div className="global-app-bar__brand" aria-label={GLOBAL_BAR_BRAND}>
@@ -179,6 +181,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
               compact
               showScannerSource={scanner.showScannerSource ?? true}
               onBackendStarted={scanner.onBackendStarted}
+              onOpenSymbol={openStockView}
             />
           </div>
         )}

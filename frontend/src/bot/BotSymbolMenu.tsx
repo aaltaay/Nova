@@ -14,6 +14,8 @@ import {
   stopTabRecord,
   subscribeSessionRecord,
 } from '../capture/sessionRecordStore';
+import { HoldToStopButton } from '../capture/HoldToStopButton';
+import { captureStopHoldLabel } from '../capture/constants';
 
 export function BotSymbolMenuHost() {
   const [open, setOpen] = useState<BotSymbolMenuOpen>(null);
@@ -53,6 +55,17 @@ export function BotSymbolMenuHost() {
   const allowed = isAllowed(open.symbol);
   const recording = isTabRecording(open.symbol);
   void recordEpoch;
+  const toggle = async (stop: boolean) => {
+    setRecordBusy(true);
+    setRecordError(null);
+    const err = stop ? await stopTabRecord(open.symbol) : await startTabRecord(open.symbol);
+    setRecordBusy(false);
+    if (err) {
+      setRecordError(err);
+      return;
+    }
+    closeBotSymbolMenu();
+  };
 
   return (
     <div
@@ -61,29 +74,25 @@ export function BotSymbolMenuHost() {
       data-testid="bot-symbol-menu"
       style={{ top: open.y, left: open.x }}
     >
-      <button
-        type="button"
-        role="menuitem"
-        data-testid="bot-symbol-menu-record"
-        disabled={recordBusy}
-        onClick={() => {
-          setRecordBusy(true);
-          setRecordError(null);
-          void (async () => {
-            const err = recording
-              ? await stopTabRecord(open.symbol)
-              : await startTabRecord(open.symbol);
-            setRecordBusy(false);
-            if (err) {
-              setRecordError(err);
-              return;
-            }
-            closeBotSymbolMenu();
-          })();
-        }}
-      >
-        {recording ? 'Stop recording' : 'Record'} -- {open.symbol}
-      </button>
+      {recording ? (
+        // A recording is locked: Stop takes a deliberate hold, never a slip.
+        <HoldToStopButton
+          testId="bot-symbol-menu-record"
+          label={captureStopHoldLabel(open.symbol)}
+          disabled={recordBusy}
+          onConfirm={() => void toggle(true)}
+        />
+      ) : (
+        <button
+          type="button"
+          role="menuitem"
+          data-testid="bot-symbol-menu-record"
+          disabled={recordBusy}
+          onClick={() => void toggle(false)}
+        >
+          Record -- {open.symbol}
+        </button>
+      )}
       {(recordError || getSessionRecordError()) && (
         <div role="alert">{recordError || getSessionRecordError()}</div>
       )}

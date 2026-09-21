@@ -20,5 +20,15 @@ export interface SimClockState {
     l2_total: number; l2_loaded: number; l2_decimated: boolean;
     malformed_rows: number; invalid_timestamp_rows: number; invalid_rows: number;
     legacy_schema: boolean;
+    /** Recorded stretches of a capture, with why each ended (manifest segments). */
+    segments?: CaptureSegment[];
   };
+}
+
+export interface CaptureSegment {
+  started_et: string;
+  stopped_et: string | null;
+  status?: string;
+  reason?: string | null;
+  counts?: Record<string, number>;
 }

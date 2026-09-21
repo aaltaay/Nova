@@ -20,6 +20,18 @@ export const simReplayTapeNotDownloaded = (fetching: boolean): string => (fetchi
   : 'Not downloaded yet -- download this window to see its prints.');
 export const simScrubberCoverageTitle = (ranges: string): string =>
   `Trades downloaded: ${ranges} ET. Drag anywhere -- a running download fetches there next.`;
+/** Capture band: where the recording ran, and the gaps a restart or failure left. */
+export const simCaptureBandTitle = (label: string): string =>
+  `${label} ET. Striped stretches were not recorded.`;
+const SIM_CAPTURE_GAP_REASONS: Record<string, string> = {
+  restart: 'was cut by a Nova restart',
+  failure: 'stopped on its own',
+  operator: 'was stopped',
+  rotation: 'rolled to a new day',
+};
+export const simCaptureGapTitle = (reason: string | null): string =>
+  `Not recorded${reason ? ` -- the recording before this ${SIM_CAPTURE_GAP_REASONS[reason] ?? 'ended'}` : ''}`;
+export const simCaptureMissingLabel = (missing: string): string => `${missing} missing`;
 /** Level 2 header chip in replay (replaces live halt / shortability chips). */
 export const SIM_REPLAY_L2_CHIP_LABEL = 'Replay';
 export const SIM_REPLAY_L2_CHIP_VALUE = 'No L2 recorded';

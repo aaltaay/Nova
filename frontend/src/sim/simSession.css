@@ -23,6 +23,15 @@
   background: color-mix(in srgb, var(--nova-accent) 55%, transparent);
   pointer-events: none;
 }
+/* A loaded capture: recorded stretches solid, the gaps between them striped. */
+.sim-session-header__coverage--recorded {
+  background: color-mix(in srgb, var(--nova-danger) 70%, transparent);
+}
+.sim-session-header__coverage--gap {
+  pointer-events: auto;
+  background: repeating-linear-gradient(45deg,
+    color-mix(in srgb, var(--nova-danger) 60%, transparent) 0 3px, transparent 3px 6px);
+}
 .sim-session-header__picker { display: flex; align-items: center; gap: 4px; }
 .sim-session-header__picker select { max-width: 140px; }
 .sim-muted { color: var(--nova-text-muted); }

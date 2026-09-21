@@ -7,9 +7,11 @@ import { HistoricalReplayPanel } from './HistoricalReplayPanel';
 import { useSimSessionController } from './useSimSessionController';
 import { useProgressiveReplay } from './useProgressiveReplay';
 import { historicalStatus } from './historicalStatusStore';
-import { coverageFraction, coverageLabel, coverageSegments } from './simCoverage';
+import {
+  captureBandSegments, captureCoverageLabel, coverageFraction, coverageLabel, coverageSegments, missingLabel,
+} from './simCoverage';
 import { etTime } from './historicalReplayFormat';
-import { simScrubberCoverageTitle } from './simConstants';
+import { simCaptureBandTitle, simCaptureGapTitle, simCaptureMissingLabel, simScrubberCoverageTitle } from './simConstants';
 import { SIM_SESSION_CLOSE_LABEL, SIM_SESSION_MINUTES, SIM_SESSION_OPEN_LABEL } from './simConstants';
 
 function formatClock(iso?: string): string {
@@ -83,6 +85,11 @@ export function SimSessionHeader({ active }: { active: boolean }) {
   const showCoverage = coverage != null && coverage < 1 && historicalSelection != null;
   const segments = showCoverage ? coverageSegments(historicalSelection) : [];
   const etMinute = (ts: number) => etTime(ts).slice(0, 5);
+  // A loaded capture: where it recorded, and the gaps a restart or failure left.
+  const captureBand = capture ? captureBandSegments(clock) : [];
+  const rangeTitle = showCoverage
+    ? simScrubberCoverageTitle(coverageLabel(historicalSelection, etMinute) || 'none yet')
+    : captureBand.length ? simCaptureBandTitle(captureCoverageLabel(clock, etMinute)) : undefined;
   return <div className="sim-session-header" data-testid="sim-session-header">
     <strong>SIM SESSION</strong>
     <SimPlaybackButton clock={clock} onClock={controller.setClock} onBeforeChange={controller.suspendClock} onSettled={controller.resumeClock} />
@@ -91,8 +98,7 @@ export function SimSessionHeader({ active }: { active: boolean }) {
     <span className="sim-muted">{(clock?.phase || '--').toUpperCase()}</span>
     <label className="sim-session-header__scrubber">
       <span>{openingLabel}</span>
-      <span className="sim-session-header__range"
-        title={showCoverage ? simScrubberCoverageTitle(coverageLabel(historicalSelection, etMinute) || 'none yet') : undefined}>
+      <span className="sim-session-header__range" title={rangeTitle}>
         <input data-testid="sim-session-scrubber" aria-label="Sim replay time" aria-valuetext={`${formatMinuteClock(minute, opening)} Eastern`}
           type="range" min={0} max={max} value={minute} aria-busy={busy.has('clock') || busy.has('follow')}
           onPointerDown={controller.beginDrag}
@@ -101,6 +107,11 @@ export function SimSessionHeader({ active }: { active: boolean }) {
           onChange={event => controller.onScrubInput(Number(event.target.value))} />
         {segments.map(({ left, width }) => <span key={left} className="sim-session-header__coverage"
           data-testid="sim-scrubber-coverage"
+          style={{ left: `${(left * 100).toFixed(2)}%`, width: `${(width * 100).toFixed(2)}%` }} />)}
+        {captureBand.map(({ left, width, kind, reason }) => <span key={`${kind}-${left}`}
+          className={`sim-session-header__coverage sim-session-header__coverage--${kind}`}
+          data-testid={`sim-scrubber-${kind}`}
+          title={kind === 'gap' ? simCaptureGapTitle(reason) : undefined}
           style={{ left: `${(left * 100).toFixed(2)}%`, width: `${(width * 100).toFixed(2)}%` }} />)}
       </span>
       <span>{clock?.session_close_et ? formatClock(clock.session_close_et).slice(0, 5) : SIM_SESSION_CLOSE_LABEL}</span>
@@ -127,6 +138,7 @@ export function SimSessionHeader({ active }: { active: boolean }) {
           <option value="">{day ? 'Pick ticker' : '--'}</option>
           {tickers.map(ticker => <option key={ticker.symbol} value={ticker.symbol} disabled={ticker.usable === false || ticker.empty}>
             {ticker.symbol} · {ticker.usable === false || ticker.empty ? ticker.unavailable_reason ?? 'Empty recording' : ticker.prints < 0 ? 'data present' : `${ticker.prints}p`}
+            {ticker.missing_sec ? ` · ${simCaptureMissingLabel(missingLabel(ticker.missing_sec))}` : ''}
           </option>)}
         </select>
       </label>
