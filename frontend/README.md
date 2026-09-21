@@ -42,7 +42,7 @@ cd frontend && npm ci && npm test
 
 ```bash
 npm run build          # static assets → dist/
-npm run electron:pack  # Windows installer → release/Nova-Setup-vNNN.exe
+npm run electron:pack  # Windows installer → release/Nova-Setup-vNNN.exe (+ latest.yml feed)
 ```
 
 Packaged desktop builds store keys and cache under `%APPDATA%\Nova\`.

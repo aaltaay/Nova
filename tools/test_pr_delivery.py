@@ -379,8 +379,9 @@ def test_merge_dispatches_desktop_pack(monkeypatch):
     """An Actions merge must start the pack itself.
 
     The squash-merge pushes with `GITHUB_TOKEN`, which by design starts no
-    `push:` run, so without this dispatch master gets no vNNN tag, Release
-    or EXE -- the #346 defect that stalled releases at v757.
+    `push:` run, so without this dispatch the merged commit is never packed
+    or verified at all -- the #346 defect that stalled the pipeline at v757.
+    (Publishing a Release is a separate, tag-triggered act since #347.)
     """
     calls: list[list[str]] = []
 
@@ -418,7 +419,7 @@ def test_desktop_pack_dispatch_follows_the_merge(monkeypatch):
 
 
 def test_failed_dispatch_does_not_fail_the_merge(monkeypatch, capsys):
-    """The merge already landed; a lost dispatch costs a Release, not the merge."""
+    """The merge already landed; a lost dispatch costs a pack, not the merge."""
     def fake_gh(args, check=True, stdin=None):
         if args[:3] == ["api", "-X", "POST"]:
             return subprocess.CompletedProcess(args, 1, stdout="", stderr="no actions scope")
@@ -429,7 +430,7 @@ def test_failed_dispatch_does_not_fail_the_merge(monkeypatch, capsys):
     rc = pr_delivery._merge_now(239, "feature-head", title="t", body="b")
 
     assert rc == 0
-    # Never silent (AGENTS.md 6.3) -- the operator must see the lost Release.
+    # Never silent (AGENTS.md 6.3) -- the operator must see the lost pack.
     assert "no actions scope" in capsys.readouterr().err
 
 

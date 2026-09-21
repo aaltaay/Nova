@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Only the latest commit on `master` is supported. Desktop builds are published as GitHub Release assets on tag `vNNN`. Older tags are historical.
+Only the latest commit on `master` is supported. Desktop builds are published as GitHub Release assets when an operator cuts a `vNNN` release tag. Older tags are historical.
 
 ## Reporting a vulnerability
 

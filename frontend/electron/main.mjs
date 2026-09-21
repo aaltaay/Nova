@@ -9,12 +9,15 @@ import { shouldOpenDetachedDevTools } from './devtoolsGate.mjs';
 import {
   API_BASE,
   getDesktopApiKey,
+  getDesktopEnvPath,
   openEnvFileIfNeeded,
   restartApiSidecar,
   startApiSidecar,
   stopApiSidecar,
+  stopApiSidecarForUpdate,
   waitForHealth,
 } from './sidecar.mjs';
+import { startAutoUpdate } from './autoUpdate.mjs';
 import { applyGpuPolicy } from './gpuPolicy.mjs';
 import { attachRendererGuards, recoverWindowIfErrorPage } from './rendererGuards.mjs';
 import { applySingleInstance, focusExistingWindow } from './singleInstance.mjs';
@@ -174,6 +177,14 @@ if (
       await openEnvFileIfNeeded();
       await waitForHealth();
       createWindow();
+      // Packaged Windows only; downloads in the background, installs only on
+      // the operator's "Restart to update" (#347). Never throws.
+      void startAutoUpdate({
+        getWindow: () => mainWindow,
+        envPath: getDesktopEnvPath,
+        stopEngine: stopApiSidecarForUpdate,
+        restartEngine: restartApiSidecar,
+      });
     } catch (err) {
       console.error(err);
       const { dialog } = await import('electron');
