@@ -1,9 +1,10 @@
 /**
  * "Download and load" for one Sim tab, healing itself where it can.
  *
- * - Download starts the same trades job the Historical replay panel would; when
- *   it completes the window loads itself -- only a window THIS tab asked for,
- *   and only while the tab is open, so nothing loads behind the operator's back.
+ * - Download starts the same trades job the Historical replay panel would; at
+ *   its first committed page the window loads itself and keeps growing
+ *   (useProgressiveReplay) -- only a window THIS tab asked for, and only while
+ *   the tab is open, so nothing loads behind the operator's back.
  * - Gateway not running: the button becomes "Start Gateway & download". That
  *   click is the operator's consent to launch (gateway_heal never auto-logs in);
  *   everything after it -- wait for a port, download, load -- is automatic.
@@ -124,13 +125,16 @@ export function useSimReplayOffer(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [healable, key, retryAt, deskEmpty, download]);
 
-  // Finished: load what this tab asked for. A non-healable failure drops the ask.
+  // Load what this tab asked for as soon as there is anything to play -- the
+  // first committed page, not the last (useProgressiveReplay folds in the rest).
+  // A non-healable failure drops the ask.
+  const hasCoverage = base?.kind === 'downloading' && base.hasCoverage;
   useEffect(() => {
     if (!window || !key || intent.current !== key) return;
-    if (kind === 'ready') void load(window);
+    if (kind === 'ready' || hasCoverage) void load(window);
     else if (kind === 'failed' && !failed?.gatewayUnreachable) intent.current = null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kind, key, load]);
+  }, [kind, key, hasCoverage, load]);
 
   let offer: ReplayOffer | null = base;
   if (base?.kind === 'gateway-down') offer = { ...base, waiting: launch.waiting && launch.key === key };

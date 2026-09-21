@@ -50,7 +50,8 @@ describe('replayOffer', () => {
   it('reports progress for this window, not for a bars job of the same window', () => {
     expect(replayOffer(W, [job({ kind: 'bars', status: 'complete' })]).kind).toBe('download');
     expect(replayOffer(W, [job({ progress_pct: 42.4, eta_seconds: 180 })]))
-      .toEqual({ kind: 'downloading', window: W, percent: 42.4, etaSeconds: 180, jobId: 'j' });
+      .toEqual({ kind: 'downloading', window: W, percent: 42.4, etaSeconds: 180, jobId: 'j', hasCoverage: false });
+    expect(replayOffer(W, [job({ count: 1000 })])).toMatchObject({ kind: 'downloading', hasCoverage: true });
   });
 
   it('names the window holding the one download slot, instead of offering a doomed click', () => {
@@ -112,7 +113,7 @@ describe('offerCopy', () => {
   const t = {
     download: (l: string, i: boolean) => `dl ${l}${i ? ' instead' : ''}`,
     ready: (l: string) => `ready ${l}`,
-    downloading: (l: string, p: string) => `downloading ${l}${p}`,
+    downloading: (l: string, p: string, c: boolean) => `downloading ${l}${p}${c ? ' loadable' : ''}`,
     stopped: (l: string, p: string) => `stopped ${l}${p}`,
     failed: (l: string, e: string) => `failed ${l} ${e}`,
     busy: (running: string) => `busy ${running}`,
@@ -127,8 +128,9 @@ describe('offerCopy', () => {
     expect(at({ kind: 'download', window: W })).toEqual({ text: 'dl IMCC · Fri, Sep 18 · 09:15–11:30 ET', action: 'download' });
     expect(at({ kind: 'download', window: W }, true).text).toContain('instead');
     expect(at({ kind: 'ready', window: W }).action).toBe('load');
-    expect(at({ kind: 'downloading', window: W, percent: 42.4, etaSeconds: 90, jobId: 'j' }))
-      .toEqual({ text: 'downloading IMCC · Fri, Sep 18 · 09:15–11:30 ET -- 42%, about 90s left', action: 'stop' });
+    const running = { kind: 'downloading', window: W, percent: 42.4, etaSeconds: 90, jobId: 'j', hasCoverage: false } as const;
+    expect(at(running)).toEqual({ text: 'downloading IMCC · Fri, Sep 18 · 09:15–11:30 ET -- 42%, about 90s left', action: 'stop' });
+    expect(at({ ...running, hasCoverage: true }).action).toBe('load');
     expect(at({ kind: 'stopped', window: W, percent: 30 }).action).toBe('resume');
     const failed = { kind: 'failed', window: W, error: 'x', gatewayUnreachable: true, retryAt: null } as const;
     expect(at(failed).action).toBe('retry');

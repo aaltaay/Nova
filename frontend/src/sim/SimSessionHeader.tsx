@@ -4,6 +4,7 @@ import { SimPlaybackButton } from './SimPlaybackButton';
 import type { SimClockState } from './simClockTypes';
 import { HistoricalReplayPanel } from './HistoricalReplayPanel';
 import { useSimSessionController } from './useSimSessionController';
+import { useProgressiveReplay } from './useProgressiveReplay';
 import { SIM_SESSION_CLOSE_LABEL, SIM_SESSION_MINUTES, SIM_SESSION_OPEN_LABEL } from './simConstants';
 
 function formatClock(iso?: string): string {
@@ -48,6 +49,7 @@ function formatMinuteClock(minuteFromOpen: number, opening: number): string {
 export function SimSessionHeader({ active }: { active: boolean }) {
   const { openStockView } = useWorkspace();
   const controller = useSimSessionController(active, openStockView);
+  useProgressiveReplay(active);
   const { clock, sessions, day, symbol, dragMinute, setDay, setSymbol, applyReplay, busy } = controller;
   if (!active) return null;
   const max = clock?.minute_max ?? SIM_SESSION_MINUTES;

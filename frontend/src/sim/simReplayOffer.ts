@@ -21,7 +21,9 @@ export type ReplayOffer =
   | { kind: 'download'; window: HistoricalWindow }
   /** This window's trades are downloading now. */
   | { kind: 'downloading'; window: HistoricalWindow; percent: number | null;
-      etaSeconds: number | null; jobId: string }
+      etaSeconds: number | null; jobId: string;
+      /** Prints already committed: loadable now, the rest folds in as it lands. */
+      hasCoverage: boolean }
   /** Started earlier and stopped (paused, interrupted, stalled, queued) -- resumable. */
   | { kind: 'stopped'; window: HistoricalWindow; percent: number | null }
   /**
@@ -98,7 +100,7 @@ export function replayOffer(
   if (job && isProgressing(job)) {
     return {
       kind: 'downloading', window, percent: progressPercent(job),
-      etaSeconds: job.eta_seconds ?? null, jobId: job.id,
+      etaSeconds: job.eta_seconds ?? null, jobId: job.id, hasCoverage: (job.count ?? 0) > 0,
     };
   }
   const other = jobs.find(row => row !== job && isProgressing(row));
@@ -141,7 +143,7 @@ export interface OfferCopy { text: string; action: OfferAction | null }
 type CopyText = {
   download: (label: string, instead: boolean) => string;
   ready: (label: string, instead: boolean) => string;
-  downloading: (label: string, progress: string) => string;
+  downloading: (label: string, progress: string, hasCoverage: boolean) => string;
   stopped: (label: string, progress: string) => string;
   failed: (label: string, error: string) => string;
   busy: (runningLabel: string) => string;
@@ -160,9 +162,13 @@ export function offerCopy(offer: ReplayOffer, instead: boolean, t: CopyText): Of
     case 'ready': return { text: t.ready(label, instead), action: 'load' };
     case 'downloading': {
       const eta = offer.etaSeconds == null ? '' : `, about ${t.duration(offer.etaSeconds)} left`;
-      // Stoppable on purpose: the backend runs one download at a time, so a
-       // long job the operator no longer wants blocks every other one.
-      return { text: t.downloading(label, `${pct(offer.percent)}${eta}`), action: 'stop' };
+      const progress = `${pct(offer.percent)}${eta}`;
+      // With prints committed the replay is loadable now (the rest folds in via
+      // useProgressiveReplay). Before the first page, Stop: the backend runs one
+      // download at a time, so a job the operator no longer wants blocks all.
+      return offer.hasCoverage
+        ? { text: t.downloading(label, progress, true), action: 'load' }
+        : { text: t.downloading(label, progress, false), action: 'stop' };
     }
     case 'stopped': return { text: t.stopped(label, offer.percent ? ` at ${offer.percent.toFixed(0)}%` : ''), action: 'resume' };
     case 'failed':

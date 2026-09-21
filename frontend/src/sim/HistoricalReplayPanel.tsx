@@ -67,7 +67,7 @@ export function HistoricalReplayPanel() {
             <button type="button" disabled={busy.has('download:trades') || !spec.symbol} onClick={() => void download('trades')}>Download trades</button>
           </p>
           <p className="sim-muted">{windowMinutes(spec) >= SIM_HISTORY_LARGE_WINDOW_MINUTES && <strong>Large window ({(windowMinutes(spec) / 60).toFixed(1)} hours). </strong>}Trades are paced at least {SIM_HISTORY_PAGE_INTERVAL_SEC} seconds per page and can take many minutes. ETA starts after the first advancing checkpoint; choose a shorter window for a faster download.</p>
-          <p className="sim-muted">Reload after downloading to use new data; the same window keeps its playhead. Candles appear at interval close. Historical quotes and Level 2 are unavailable.</p>
+          <p className="sim-muted">Load any time: a window loaded mid-download picks up new prints by itself, and the playhead stays put. Candles appear at interval close. Historical quotes and Level 2 are unavailable.</p>
           {formError && <p role="alert" className="sim-error">{formError}</p>}
           {Object.entries(errors).map(([key, message]) => <p key={key} role="alert" className="sim-error">{message}</p>)}
           <HistoricalDownloads jobs={jobs} busy={busy} onPick={pick} onAction={(job, operation) => void action(job, operation)} />

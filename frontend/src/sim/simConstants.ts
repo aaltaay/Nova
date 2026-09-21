@@ -36,6 +36,8 @@ export const SIM_HISTORY_RETRY_INTERVAL_SEC = 16;
 export const SIM_HISTORY_GATEWAY_UNREACHABLE = 'IB Gateway unreachable';
 /** Automatic Gateway-unreachable retries per tab visit before Retry is handed back. */
 export const SIM_TAB_HEAL_MAX_ATTEMPTS = 3;
+/** How often a replay loaded mid-download re-selects to fold new prints in. */
+export const SIM_PROGRESSIVE_RELOAD_MS = 10_000;
 /**
  * One-click window: the open and the first two hours, not the whole session.
  *
@@ -65,8 +67,10 @@ export const simTabOfferDownload = (label: string, instead: boolean): string =>
   `Download and load ${label}${instead ? ' instead' : ''}?`;
 export const simTabOfferReady = (label: string, instead: boolean): string =>
   `${label} is downloaded${instead ? ' -- load it instead?' : '.'}`;
-export const simTabOfferDownloading = (label: string, progress: string): string =>
-  `Downloading ${label}${progress}. It loads when done.`;
+export const simTabOfferDownloading = (label: string, progress: string, hasCoverage: boolean): string =>
+  hasCoverage
+    ? `Downloading ${label}${progress}. Load now -- new prints fold in as they land.`
+    : `Downloading ${label}${progress}. It loads as soon as the first prints land.`;
 export const simTabOfferStopped = (label: string, progress: string): string =>
   `${label} download stopped${progress}.`;
 export const simTabOfferFailed = (label: string, error: string): string =>

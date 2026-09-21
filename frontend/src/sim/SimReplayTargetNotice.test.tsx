@@ -105,22 +105,24 @@ describe('SimReplayTargetNotice', () => {
     await act(async () => { fireEvent.click(action()!); });
     expect(posts[0]).toEqual({ url: expect.stringMatching(/\/api\/sim\/history$/), body: { ...WINDOW, kind: 'trades' } });
 
-    await poll([job({ progress_pct: 42, eta_seconds: 180 })]);
-    expect(body()).toBe('Downloading IMCC · Fri, Sep 18 · 09:15–11:30 ET -- 42%, about 3m left. It loads when done.');
-    // Stoppable: one download runs at a time, so a long one must be abandonable.
+    // Before the first page lands: nothing to play yet, and Stop is the action
+    // (one download runs at a time, so a long one must be abandonable).
+    await poll([job({ progress_pct: 0, count: 0 })]);
+    expect(body()).toBe('Downloading IMCC · Fri, Sep 18 · 09:15–11:30 ET -- 0%. It loads as soon as the first prints land.');
     expect(action()?.textContent).toBe('Stop');
 
-    await poll([job({ status: 'complete', progress_pct: 100 })]);
+    // First page committed: it loads now, not at 100%.
+    await poll([job({ progress_pct: 4, eta_seconds: 180, count: 1000 })]);
     expect(posts.at(-1)).toEqual({ url: expect.stringMatching(/\/history\/select$/), body: WINDOW });
   });
 
   it('Stop pauses the running job and hands back Resume', async () => {
-    jobs = [job({ progress_pct: 11, eta_seconds: 38400 })];
+    jobs = [job({ progress_pct: 0, count: 0 })];
     setClock({ sim: true, replay_source: 'none', session_date: '2026-09-18' });
     await mount();
     await act(async () => { fireEvent.click(action()!); });
     expect(posts[0].url).toMatch(/\/history\/imcc\/pause$/);
-    await poll([job({ status: 'paused', progress_pct: 11 })]);
+    await poll([job({ status: 'paused', progress_pct: 11, count: 0 })]);
     expect(body()).toBe('IMCC · Fri, Sep 18 · 09:15–11:30 ET download stopped at 11%.');
     expect(action()?.textContent).toBe('Resume');
   });
@@ -130,6 +132,16 @@ describe('SimReplayTargetNotice', () => {
     setClock({ sim: true, replay_source: 'none', session_date: '2026-09-18' });
     await mount();
     expect(body()).toBe('IMCC · Fri, Sep 18 · 09:15–11:30 ET is downloaded.');
+    await act(async () => { fireEvent.click(action()!); });
+    expect(posts).toEqual([{ url: expect.stringMatching(/\/history\/select$/), body: WINDOW }]);
+  });
+
+  it('offers Load mid-download without auto-loading a job it never asked for', async () => {
+    jobs = [job({ progress_pct: 30, count: 5000 })];
+    setClock({ sim: true, replay_source: 'none', session_date: '2026-09-18' });
+    await mount();
+    expect(body()).toBe('Downloading IMCC · Fri, Sep 18 · 09:15–11:30 ET -- 30%. Load now -- new prints fold in as they land.');
+    expect(posts).toEqual([]);
     await act(async () => { fireEvent.click(action()!); });
     expect(posts).toEqual([{ url: expect.stringMatching(/\/history\/select$/), body: WINDOW }]);
   });
