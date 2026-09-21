@@ -20,6 +20,7 @@ import logging
 import time
 
 from ibkr import client as _client
+from ibkr import exchange_lookup as _exchange_lookup
 from ibkr import scanner_session as _session
 from metrics.op_metrics import timed
 from runtime_state import get_runtime_state
@@ -45,7 +46,9 @@ def stub_row(sym: str, rank: int, exchange: str | None = None) -> dict:
 
     ``None`` (not ``0.0``) for every price field so the UI can render "waiting
     for L1" instead of a fabricated flat quote. ``exchange`` comes free from
-    the same IB scan row (``contract.primaryExchange``) -- no extra IB call.
+    the same IB scan row (``contract.primaryExchange``) when IB supplied one;
+    otherwise ``hydrate_rows`` fills it later from ``ibkr/exchange_lookup.py``
+    (issue #90). Either way this stub is built and returned without waiting.
 
     ``admitted_ts`` is stamped once, here, and carried forward untouched by
     every later rank/reprice merge (``hydrate_rows`` and ``reprice_mover_row``
@@ -82,6 +85,12 @@ async def hydrate_rows(
     the L1 path has filled in; only their rank follows the fresh batch. Symbols
     absent from the current ranked batch are dropped. ``exchanges`` backfills
     an unknown exchange on a prior row -- it never overwrites one already set.
+
+    A symbol IB's scan row left without a ``primaryExchange`` falls back to
+    ``ibkr/exchange_lookup.py``'s cache (issue #90), and rows still blank after
+    that are queued there for one paced round trip. ``note_rows`` returns
+    immediately: nothing on this path is ever awaited on admission, so ADR 010
+    name-only admission holds even with the Gateway slow or dark.
     """
     by_sym = {
         (r.get("symbol") or "").strip().upper(): r
@@ -92,7 +101,7 @@ async def hydrate_rows(
     rows: list[dict] = []
     for rank, sym in enumerate(symbols, start=1):
         prior = by_sym.get(sym)
-        exch = exchanges.get(sym)
+        exch = exchanges.get(sym) or _exchange_lookup.cached_exchange(sym)
         if prior is None:
             rows.append(stub_row(sym, rank, exchange=exch))
         elif prior.get("rank") == rank and (prior.get("exchange") or not exch):
@@ -102,6 +111,7 @@ async def hydrate_rows(
             if not next_row.get("exchange") and exch:
                 next_row["exchange"] = exch
             rows.append(next_row)
+    _exchange_lookup.note_rows(rows)
     return rows
 
 

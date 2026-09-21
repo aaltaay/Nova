@@ -5,9 +5,12 @@ refreshed. Rows call ``attach_exchange`` so the UI can show where each
 symbol is listed next to the ticker.
 
 IBKR discovery does not run the Alpaca universe refresh, so
-``normalize_ib_exchange`` maps ``contract.primaryExchange`` (already present
-on every IB scanner row) onto the same option set the frontend filter
-understands -- no extra IB call needed.
+``normalize_ib_exchange`` maps ``contract.primaryExchange`` onto the same
+option set the frontend filter understands. Most IB scan rows carry no
+``primaryExchange`` at all, so ``ibkr/exchange_lookup.py`` resolves those with
+one paced qualify round trip per new symbol (issue #90) and publishes the
+answer here through ``remember_ib_exchange``, which is what lets a row picked
+up by the scan before the lookup landed fill in on the next serialization.
 """
 
 from __future__ import annotations
@@ -28,6 +31,10 @@ _IB_EXCHANGE_ALIASES = {
 
 # symbol → Alpaca asset ``exchange`` field (e.g. "NASDAQ", "NYSE", "ARCA")
 _symbol_exchange: dict[str, str] = {}
+# symbol → exchange resolved by ibkr/exchange_lookup.py (already normalized).
+# Kept apart from the Alpaca map so ``clear()`` -- an assets-cache
+# invalidation -- cannot discard IB answers it did not populate.
+_ib_symbol_exchange: dict[str, str] = {}
 
 
 def normalize_ib_exchange(value: str | None) -> str | None:
@@ -45,9 +52,29 @@ def normalize_ib_exchange(value: str | None) -> str | None:
     return _IB_EXCHANGE_ALIASES.get(upper)
 
 
+def remember_ib_exchange(symbol: str, value: str | None) -> str | None:
+    """Record an IB-resolved listing exchange for *symbol* (issue #90).
+
+    Normalizes first, so an unrecognized venue is dropped rather than stored --
+    the column stays blank and the UI filter stays unfiltered (fail open).
+    Returns the normalized value, or None when there was nothing usable.
+    """
+    sym = (symbol or "").strip().upper()
+    exch = normalize_ib_exchange(value)
+    if not sym or not exch:
+        return None
+    _ib_symbol_exchange[sym] = exch
+    return exch
+
+
 def clear() -> None:
-    """Drop the map (e.g. when the assets cache is force-invalidated)."""
+    """Drop the Alpaca-sourced map (e.g. when the assets cache is invalidated)."""
     _symbol_exchange.clear()
+
+
+def clear_ib_exchanges() -> None:
+    """Drop IB-resolved exchanges (tests / a deliberate re-lookup)."""
+    _ib_symbol_exchange.clear()
 
 
 def update_from_assets(assets: list[dict]) -> None:
@@ -63,7 +90,11 @@ def exchange_for(symbol: str) -> str | None:
     """Return the listing exchange for ``symbol``, or None if unknown."""
     if not symbol:
         return None
-    return _symbol_exchange.get(symbol) or _symbol_exchange.get(symbol.upper())
+    return (
+        _symbol_exchange.get(symbol)
+        or _symbol_exchange.get(symbol.upper())
+        or _ib_symbol_exchange.get(symbol.upper())
+    )
 
 
 def attach_exchange(row: dict, symbol_key: str = "symbol") -> dict:
