@@ -8,7 +8,7 @@ import {
 } from '../ibkr/ibkrStatusPoller';
 import type { IbkrStatus } from '../ibkr/types';
 import { RecordingChip } from './RecordingChip';
-import { RecordingSignal } from './RecordingSignal';
+import { RecordingSignals } from './RecordingSignals';
 import { _resetSessionRecordStoreForTests } from './sessionRecordStore';
 
 const command = vi.hoisted(() => vi.fn());
@@ -69,9 +69,9 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('RecordingSignal', () => {
+describe('RecordingSignals', () => {
   it('shows the hairline only while the server says a recording runs', async () => {
-    await mount(<RecordingSignal />);
+    await mount(<RecordingSignals />);
     await poll(state({}));
     expect(screen.queryByTestId('recording-hairline')).toBeNull();
     await poll(recording);
@@ -82,7 +82,7 @@ describe('RecordingSignal', () => {
 
   it('shouts about a stop the operator did not ask for, and goes quiet once it resumed', async () => {
     const open = vi.fn();
-    await mount(<RecordingSignal onOpenSymbol={open} />);
+    await mount(<RecordingSignals onOpenSymbol={open} />);
     await poll(died);
     const toast = screen.getByTestId('recording-stopped');
     expect(toast.textContent).toContain('GRML recording stopped on its own');
@@ -96,7 +96,7 @@ describe('RecordingSignal', () => {
   });
 
   it('Resume now starts the recording through the same server door', async () => {
-    await mount(<RecordingSignal />);
+    await mount(<RecordingSignals />);
     await poll(died);
     command.mockResolvedValue(response({ capture: true, capture_symbol: 'GRML' }));
     await act(async () => { fireEvent.click(screen.getByTestId('recording-stopped-resume-now')); });
@@ -106,7 +106,7 @@ describe('RecordingSignal', () => {
   });
 
   it('a dismissed stop stays dismissed; the next stop is a new shout', async () => {
-    await mount(<RecordingSignal />);
+    await mount(<RecordingSignals />);
     await poll(died);
     fireEvent.click(screen.getByTestId('recording-stopped-dismiss'));
     expect(screen.queryByTestId('recording-stopped')).toBeNull();
@@ -117,7 +117,7 @@ describe('RecordingSignal', () => {
   });
 
   it('says when the backend gave up', async () => {
-    await mount(<RecordingSignal />);
+    await mount(<RecordingSignals />);
     await poll(state({
       ...died,
       capture_resume: { ...died.capture_resume!, attempt: 5, gave_up: true, pending: false, gave_up_reason: '5 attempts failed; last: disk gone' },

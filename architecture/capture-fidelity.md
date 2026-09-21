@@ -122,7 +122,7 @@ Steady state is quiet; a change of state is loud:
 - **Hairline**: 2px red along the top window edge while recording.
 - **Window title** leads with `REC GRML` (shared `electron/appTitle.mjs`), so
   the taskbar says so with Nova behind other windows.
-- **Stop toast** (`RecordingSignal.tsx`): only for a stop the operator did not
+- **Stop toast** (`RecordingSignals.tsx`): only for a stop the operator did not
   ask for; stays until resumed or dismissed; one per stop.
 - **Hold to stop** (`HoldToStopButton.tsx`): Stop in the tab menu takes a
   `CAPTURE_STOP_HOLD_MS` hold; a click or an early release keeps recording.

@@ -40,7 +40,7 @@ function resumeLine(view: StoppedView): string | null {
     : recordingResumeWaiting(attempt, resume.maxAttempts);
 }
 
-export function RecordingSignal({ onOpenSymbol }: { onOpenSymbol?: (symbol: string) => void }) {
+export function RecordingSignals({ onOpenSymbol }: { onOpenSymbol?: (symbol: string) => void }) {
   useSyncExternalStore(subscribeSessionRecord, getSessionRecordVersion, () => 0);
   const status = getIbkrStatusSnapshot();
   const recordingSymbol = getRecordingSymbols()[0] ?? null;
