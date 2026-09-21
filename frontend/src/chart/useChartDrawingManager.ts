@@ -16,6 +16,7 @@ import {
 import type { IChartApi, ISeriesApi } from 'lightweight-charts';
 import {
   CHART_DRAWING_STYLE,
+  CHART_DRAWING_OPTIONS,
   CHART_SINGLE_ANCHOR_TOOLS,
   CHART_TWO_ANCHOR_TOOLS,
 } from './chartDrawingConfig';
@@ -208,14 +209,18 @@ export function useChartDrawingManager({
       const DrawingClass = CHART_TWO_ANCHOR_TOOLS[tool];
       if (!DrawingClass) return;
       manager.addDrawing(
-        new DrawingClass(`${tool.toLowerCase()}-${Date.now()}`, result.anchors, CHART_DRAWING_STYLE),
+        new DrawingClass(
+          `${tool.toLowerCase()}-${Date.now()}`, result.anchors, CHART_DRAWING_STYLE, CHART_DRAWING_OPTIONS,
+        ),
       );
     } else if (result.action === 'one') {
       clearPlacePreview();
       const DrawingClass = CHART_SINGLE_ANCHOR_TOOLS[tool];
       if (!DrawingClass) return;
       manager.addDrawing(
-        new DrawingClass(`${tool.toLowerCase()}-${Date.now()}`, result.anchors, CHART_DRAWING_STYLE),
+        new DrawingClass(
+          `${tool.toLowerCase()}-${Date.now()}`, result.anchors, CHART_DRAWING_STYLE, CHART_DRAWING_OPTIONS,
+        ),
       );
     }
     const host = containerRef.current;

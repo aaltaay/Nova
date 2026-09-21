@@ -9,7 +9,7 @@
 
 import type { Anchor, IDrawing } from 'lightweight-charts-drawing';
 import type { IChartApi, ISeriesApi } from 'lightweight-charts';
-import { CHART_DRAWING_STYLE, CHART_TWO_ANCHOR_TOOLS } from './chartDrawingConfig';
+import { CHART_DRAWING_OPTIONS, CHART_DRAWING_STYLE, CHART_TWO_ANCHOR_TOOLS } from './chartDrawingConfig';
 import { placePointFromPointer, type ChartPlacePoint } from './chartDrawingPlace';
 
 export const CHART_PLACE_PREVIEW_ID = 'nova-place-preview';
@@ -28,7 +28,7 @@ export function createPlacePreviewDrawing(
 ): IDrawing | null {
   const DrawingClass = CHART_TWO_ANCHOR_TOOLS[tool];
   if (!DrawingClass) return null;
-  return new DrawingClass(CHART_PLACE_PREVIEW_ID, [start, cursor], CHART_DRAWING_STYLE);
+  return new DrawingClass(CHART_PLACE_PREVIEW_ID, [start, cursor], CHART_DRAWING_STYLE, CHART_DRAWING_OPTIONS);
 }
 
 export function attachPlacePreview(

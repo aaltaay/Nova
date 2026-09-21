@@ -6,6 +6,7 @@
  */
 import { ToolRegistry, type IDrawing, type SerializedDrawing } from 'lightweight-charts-drawing';
 import type { ISeriesApi, Time } from 'lightweight-charts';
+import { CHART_DRAWING_OPTIONS } from './chartDrawingConfig';
 import {
   buildSeriesTimeIndex,
   snapDrawingToSeries,
@@ -59,7 +60,9 @@ export function drawingFactory(type: string, data: SerializedDrawing): IDrawing 
       data.id,
       data.anchors,
       data.style,
-      data.options,
+      // Nova's options win: a drawing stored before the clipped in-plot label
+      // was suppressed must not keep painting it after a reload.
+      { ...data.options, ...CHART_DRAWING_OPTIONS },
     );
   } catch {
     return null;
