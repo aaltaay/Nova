@@ -78,6 +78,11 @@ SIM_HISTORY_CLIENT_ID = 29420
 # prompt keys its auto-retry on it (mirrored in frontend simConstants.ts), so
 # a Gateway that is simply not running heals on its own once it is back.
 SIM_HISTORY_GATEWAY_UNREACHABLE = "IB Gateway unreachable"
+# Leading words when Gateway accepted the connection but IBKR never answered a
+# request within SIM_HISTORY_REQUEST_TIMEOUT_SEC (Gateway logged out, awaiting
+# 2FA, or IBKR maintenance). Mirrored in frontend simConstants.ts: the Sim tab
+# retries these on a slow timer and offers a Gateway reconnect.
+SIM_HISTORY_GATEWAY_NOT_ANSWERING = "IBKR did not answer"
 SIM_HISTORY_TAPE_ROWS = 200
 SIM_TICK_INTERVAL_RTH_SEC = 0.08
 SIM_TICK_INTERVAL_EXT_SEC = 0.15

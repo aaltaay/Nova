@@ -236,3 +236,21 @@ def test_eta_uses_this_run_coverage_and_never_invents_progress(job, monkeypatch)
     assert resumed['started'] == 1000 and resumed['run_cursor'] == current['cursor']
     assert resumed['run_covered'] == 1980
     assert progress(resumed, now=1001)['eta_seconds'] is None
+
+
+def test_a_gateway_that_never_answers_says_so_instead_of_a_bare_timeout(job, monkeypatch):
+    """Seen live 2026-09-21 01:30 ET: 4002 accepted the socket, qualifyContracts hung 45 s."""
+    from constants_sim import SIM_HISTORY_GATEWAY_NOT_ANSWERING
+    monkeypatch.setattr(store, "REQUEST_TIMEOUT", 0.05)
+
+    class Silent:
+        async def open(self, symbol):
+            await asyncio.sleep(10)
+
+        def close(self):
+            pass
+
+    result = asyncio.run(run(job["id"], Silent(), threading.Event(), paced=False))
+    assert result["status"] == "failed"
+    assert result["error"].startswith(SIM_HISTORY_GATEWAY_NOT_ANSWERING)
+    assert "identifying IMCC" in result["error"] and "Gateway window" in result["error"]

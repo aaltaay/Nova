@@ -71,7 +71,7 @@ describe('replayOffer', () => {
     expect(replayOffer(W, [job({ status: 'failed', error: 'Ticker could not be uniquely qualified by IBKR', updated: 1000 })]))
       .toEqual({
         kind: 'failed', window: W, error: 'Ticker could not be uniquely qualified by IBKR',
-        gatewayUnreachable: false, retryAt: 1016,
+        gatewayUnreachable: false, gatewayNotAnswering: false, retryAt: 1016,
       });
   });
 
@@ -79,6 +79,14 @@ describe('replayOffer', () => {
     const refused = 'IB Gateway unreachable (4001: [WinError 1225] refused; 4002: [WinError 1225] refused)';
     const offer = replayOffer(W, [job({ status: 'failed', error: refused, updated: 1000 })]);
     expect(offer).toMatchObject({ kind: 'failed', gatewayUnreachable: true, retryAt: 1016 });
+  });
+
+  it('reads "Gateway took the connection but IBKR never answered" as its own, slower heal', () => {
+    // Seen live: 4002 open, qualifyContracts silent for 45 s.
+    const silent = 'IBKR did not answer within 45s while identifying REFR: IB Gateway accepted the connection';
+    expect(replayOffer(W, [job({ status: 'failed', error: silent, updated: 1000 })])).toMatchObject({
+      kind: 'failed', gatewayNotAnswering: true, gatewayUnreachable: false, retryAt: 1060,
+    });
   });
 
   it('with both Gateway ports dark, offers to start Gateway instead of a doomed click', () => {
@@ -118,6 +126,8 @@ describe('offerCopy', () => {
     failed: (l: string, e: string) => `failed ${l} ${e}`,
     busy: (running: string) => `busy ${running}`,
     gatewayDown: (l: string) => `down ${l}`,
+    notAnswering: (l: string, a: number, m: number) => `silent ${l} ${a}/${m}`,
+    notAnsweringGaveUp: (l: string) => `gave up ${l}`,
     gatewayWaiting: (l: string) => `waiting ${l}`,
     retrying: (l: string) => `retrying ${l}`,
     duration: (s: number) => `${s}s`,
@@ -136,6 +146,11 @@ describe('offerCopy', () => {
     expect(at(failed).action).toBe('retry');
     expect(at({ ...failed, healing: true })).toMatchObject({ text: expect.stringContaining('retrying'), action: null });
     expect(at({ kind: 'gateway-down', window: W }).action).toBe('start-gateway');
+    const silent = { ...failed, gatewayUnreachable: false, gatewayNotAnswering: true };
+    expect(at({ ...silent, healing: true, attempt: 2, maxAttempts: 5 }))
+      .toEqual({ text: 'silent IMCC · Fri, Sep 18 · 09:15–11:30 ET 2/5', action: 'reconnect' });
+    expect(at({ ...silent, healing: false, gaveUp: true }))
+      .toEqual({ text: 'gave up IMCC · Fri, Sep 18 · 09:15–11:30 ET', action: 'reconnect' });
     expect(at({ kind: 'gateway-down', window: W, waiting: true })).toMatchObject({ text: expect.stringContaining('waiting'), action: null });
     expect(at({ kind: 'busy', window: W, runningJobId: 'old', running: { ...W, start: '04:00', end: '20:00' } }))
       .toEqual({ text: 'busy IMCC · Fri, Sep 18 · 04:00–20:00 ET', action: 'stop-other' });

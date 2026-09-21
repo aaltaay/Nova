@@ -45,6 +45,11 @@ export const SIM_HISTORY_SYMBOL_PATTERN = /^[A-Z0-9][A-Z0-9. -]{0,19}$/;
 export const SIM_HISTORY_RETRY_INTERVAL_SEC = 16;
 /** Mirrors backend SIM_HISTORY_GATEWAY_UNREACHABLE: both Gateway ports refused (not running). */
 export const SIM_HISTORY_GATEWAY_UNREACHABLE = 'IB Gateway unreachable';
+/** Mirrors backend SIM_HISTORY_GATEWAY_NOT_ANSWERING: Gateway took the connection, IBKR never answered. */
+export const SIM_HISTORY_GATEWAY_NOT_ANSWERING = 'IBKR did not answer';
+/** A stuck IBKR session is not a blip: retry slowly, a few times, then hand back. */
+export const SIM_TAB_NOT_ANSWERING_RETRY_SEC = 60;
+export const SIM_TAB_NOT_ANSWERING_MAX_ATTEMPTS = 5;
 /** Automatic Gateway-unreachable retries per tab visit before Retry is handed back. */
 export const SIM_TAB_HEAL_MAX_ATTEMPTS = 3;
 /** How often a replay loaded mid-download re-selects to fold new prints in. */
@@ -94,11 +99,16 @@ export const simTabOfferGatewayWaiting = (label: string): string =>
   `Waiting for IB Gateway -- ${label} downloads as soon as it's up. Finish the login in the Gateway window if it asks.`;
 export const simTabOfferRetrying = (label: string): string =>
   `IB Gateway is back -- retrying ${label}.`;
+export const simTabOfferNotAnswering = (label: string, attempt: number, max: number): string =>
+  `IBKR isn't answering IB Gateway -- retrying ${label} every minute (${attempt} of ${max}).`;
+export const simTabOfferNotAnsweringGaveUp = (label: string): string =>
+  `IBKR isn't answering IB Gateway, so ${label} can't download. Check the Gateway window for a login, 2FA prompt or maintenance notice.`;
 export const SIM_TAB_ACTION_DOWNLOAD = 'Download';
 export const SIM_TAB_ACTION_LOAD = 'Load';
 export const SIM_TAB_ACTION_RESUME = 'Resume';
 export const SIM_TAB_ACTION_RETRY = 'Retry';
 export const SIM_TAB_ACTION_START_GATEWAY = 'Start Gateway & download';
+export const SIM_TAB_ACTION_RECONNECT = 'Reconnect Gateway & retry';
 export const SIM_TAB_ACTION_STOP = 'Stop';
 export const SIM_TAB_ACTION_STOP_OTHER = 'Stop it & start this';
 export const SIM_TAB_ACTION_STARTING = 'Starting...';

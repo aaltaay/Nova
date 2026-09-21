@@ -16,6 +16,7 @@ import {
   SIM_TAB_ACTION_DOWNLOAD,
   SIM_TAB_ACTION_LOAD,
   SIM_TAB_ACTION_LOADING,
+  SIM_TAB_ACTION_RECONNECT,
   SIM_TAB_ACTION_RESUME,
   SIM_TAB_ACTION_RETRY,
   SIM_TAB_ACTION_START_GATEWAY,
@@ -35,6 +36,8 @@ import {
   simTabOfferFailed,
   simTabOfferGatewayDown,
   simTabOfferGatewayWaiting,
+  simTabOfferNotAnswering,
+  simTabOfferNotAnsweringGaveUp,
   simTabOfferReady,
   simTabOfferRetrying,
   simTabOfferStopped,
@@ -52,6 +55,8 @@ const COPY = {
   gatewayDown: simTabOfferGatewayDown,
   gatewayWaiting: simTabOfferGatewayWaiting,
   retrying: simTabOfferRetrying,
+  notAnswering: simTabOfferNotAnswering,
+  notAnsweringGaveUp: simTabOfferNotAnsweringGaveUp,
   duration: durationLabel,
 };
 
@@ -63,6 +68,7 @@ const ACTION_LABEL: Record<OfferAction, string> = {
   'start-gateway': SIM_TAB_ACTION_START_GATEWAY,
   stop: SIM_TAB_ACTION_STOP,
   'stop-other': SIM_TAB_ACTION_STOP_OTHER,
+  reconnect: SIM_TAB_ACTION_RECONNECT,
 };
 
 /** Per tab + situation, for the session: a new situation earns a new prompt. */
@@ -72,7 +78,7 @@ export function SimReplayTargetNotice({ symbol }: { symbol: string }) {
   const { openStockView } = useWorkspace();
   const { clock, target } = useSimReplayTarget(symbol);
   const wantsReplay = target.kind === 'none' || target.kind === 'other-symbol';
-  const { offer, download, startGateway, stop, load, starting, loading, error } = useSimReplayOffer(
+  const { offer, download, startGateway, reconnect, stop, load, starting, loading, error } = useSimReplayOffer(
     symbol, clock, wantsReplay, target.kind === 'none',
   );
   const [, setDismissTick] = useState(0);
@@ -90,7 +96,9 @@ export function SimReplayTargetNotice({ symbol }: { symbol: string }) {
     if (!offer || !copy?.action) return;
     if (copy.action === 'stop') { if (offer.kind === 'downloading') void stop(offer.jobId); return; }
     if (copy.action === 'stop-other') { if (offer.kind === 'busy') void stop(offer.runningJobId, offer.window); return; }
-    const act = copy.action === 'load' ? load : copy.action === 'start-gateway' ? startGateway : download;
+    const act = copy.action === 'load' ? load
+      : copy.action === 'start-gateway' ? startGateway
+        : copy.action === 'reconnect' ? reconnect : download;
     void act(offer.window);
   };
   const actionLabel = copy?.action

@@ -18,7 +18,7 @@ import { launchIbGateway } from '../utils/launchIbGateway';
 import { historicalStatus } from './historicalStatusStore';
 import { selectHistoricalReplay } from './historicalReplayLoad';
 import { gatewayReachable, offerWindow, replayOffer, windowKey, type ReplayOffer } from './simReplayOffer';
-import { SIM_TAB_HEAL_MAX_ATTEMPTS } from './simConstants';
+import { SIM_TAB_HEAL_MAX_ATTEMPTS, SIM_TAB_NOT_ANSWERING_MAX_ATTEMPTS } from './simConstants';
 import { useReplayActions } from './useReplayActions';
 import type { HistoricalJob, HistoricalWindow } from './historicalTypes';
 import type { SimClockState } from './simClockTypes';
@@ -93,10 +93,29 @@ export function useSimReplayOffer(
     setLaunch({ waiting: result.ok, message: result.ok ? null : result.message, key: launchKey });
   }, []);
 
+  /**
+   * Gateway took the connection but IBKR is silent: ask the backend to rebuild
+   * Nova's session (launch-gateway does exactly that when the port already
+   * listens), then try the download again straight away.
+   */
+  const reconnect = useCallback(async (spec: HistoricalWindow) => {
+    const launchKey = windowKey(spec);
+    intent.current = launchKey;
+    setHealAttempts(0);
+    const result = await launchIbGateway();
+    setLaunch({ waiting: false, message: result.ok ? null : result.message, key: launchKey });
+    if (result.ok) await download(spec);
+  }, [download]);
+
   const kind = base?.kind;
   const failed = base?.kind === 'failed' ? base : null;
-  const healable = Boolean(failed?.gatewayUnreachable) && reachable
-    && healAttempts < SIM_TAB_HEAL_MAX_ATTEMPTS;
+  // Two healable failures: Gateway was down (retry once a port answers) and
+  // Gateway took the connection but IBKR never answered (retry slowly -- a stuck
+  // session or maintenance -- whatever the ports say).
+  const notAnswering = Boolean(failed?.gatewayNotAnswering);
+  const maxAttempts = notAnswering ? SIM_TAB_NOT_ANSWERING_MAX_ATTEMPTS : SIM_TAB_HEAL_MAX_ATTEMPTS;
+  const healable = (notAnswering || (Boolean(failed?.gatewayUnreachable) && reachable))
+    && healAttempts < maxAttempts;
   const retryAt = failed?.retryAt ?? null;
 
   // Gateway came up after "Start Gateway & download": run the queued download.
@@ -132,18 +151,26 @@ export function useSimReplayOffer(
   useEffect(() => {
     if (!window || !key || intent.current !== key) return;
     if (kind === 'ready' || hasCoverage) void load(window);
-    else if (kind === 'failed' && !failed?.gatewayUnreachable) intent.current = null;
+    else if (kind === 'failed' && !failed?.gatewayUnreachable && !failed?.gatewayNotAnswering) {
+      intent.current = null;
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, key, hasCoverage, load]);
 
   let offer: ReplayOffer | null = base;
   if (base?.kind === 'gateway-down') offer = { ...base, waiting: launch.waiting && launch.key === key };
-  else if (base?.kind === 'failed' && healable) offer = { ...base, healing: true };
+  else if (base?.kind === 'failed' && (healable || base.gatewayNotAnswering)) {
+    offer = {
+      ...base, healing: healable, attempt: healAttempts + 1, maxAttempts,
+      gaveUp: Boolean(base.gatewayNotAnswering) && !healable,
+    };
+  }
 
   return {
     offer,
     download: requestDownload,
     startGateway,
+    reconnect,
     stop,
     load,
     starting: busy.has('download'),

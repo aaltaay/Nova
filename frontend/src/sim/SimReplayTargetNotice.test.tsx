@@ -223,6 +223,28 @@ describe('SimReplayTargetNotice', () => {
     expect(posts.at(-1)).toEqual({ url: expect.stringMatching(/\/history\/select$/), body: WINDOW });
   });
 
+  it('IBKR silent behind an open Gateway: retries by itself and offers a reconnect', async () => {
+    const failedAt = Date.parse('2026-09-21T02:00:00Z') / 1000 - 90;  // past the 60 s wait
+    const silent = 'IBKR did not answer within 45s while identifying IMCC: IB Gateway accepted the connection';
+    jobs = [job({ status: 'failed', error: silent, updated: failedAt })];
+    mocks.gateway = GATEWAY_UP;                   // the port answers; IBKR behind it does not
+    setClock({ sim: true, replay_source: 'none', session_date: '2026-09-18' });
+    await mount();
+    // Its wording and Reconnect button are pinned in simReplayOffer.test.ts; the
+    // retry is already due here, so it fires during mount -- which is the point.
+    await tick();
+    expect(posts[0]).toEqual({ url: expect.stringMatching(/\/api\/sim\/history$/), body: { ...WINDOW, kind: 'trades' } });
+  });
+
+  it('Reconnect Gateway & retry rebuilds the session, then downloads', async () => {
+    jobs = [job({ status: 'failed', error: 'IBKR did not answer within 45s while identifying IMCC', updated: Date.parse('2026-09-21T02:00:00Z') / 1000 })];
+    setClock({ sim: true, replay_source: 'none', session_date: '2026-09-18' });
+    await mount();
+    await act(async () => { fireEvent.click(action()!); });
+    expect(mocks.launch).toHaveBeenCalledTimes(1);
+    expect(posts.at(-1)).toEqual({ url: expect.stringMatching(/\/api\/sim\/history$/), body: { ...WINDOW, kind: 'trades' } });
+  });
+
   it('never auto-retries a failure Gateway being back cannot fix', async () => {
     jobs = [job({ status: 'failed', error: 'Ticker could not be uniquely qualified by IBKR', updated: 1 })];
     mocks.gateway = GATEWAY_UP;

@@ -7,8 +7,10 @@
  */
 import { progressPercent, validateHistoricalWindow } from './historicalProgress';
 import {
+  SIM_HISTORY_GATEWAY_NOT_ANSWERING,
   SIM_HISTORY_GATEWAY_UNREACHABLE,
   SIM_HISTORY_RETRY_INTERVAL_SEC,
+  SIM_TAB_NOT_ANSWERING_RETRY_SEC,
   SIM_TAB_WINDOW_END,
   SIM_TAB_WINDOW_START,
 } from './simConstants';
@@ -32,7 +34,11 @@ export type ReplayOffer =
    * retry throttle. `healing` is set by the hook while that retry is under way.
    */
   | { kind: 'failed'; window: HistoricalWindow; error: string;
-      gatewayUnreachable: boolean; retryAt: number | null; healing?: boolean }
+      gatewayUnreachable: boolean; retryAt: number | null; healing?: boolean;
+      /** Gateway took the connection but IBKR never answered: retried slowly, reconnect offered. */
+      gatewayNotAnswering?: boolean;
+      /** Set by the hook while a not-answering failure is being retried / after it gave up. */
+      attempt?: number; maxAttempts?: number; gaveUp?: boolean }
   /** No Gateway port answers; `waiting` once the operator asked to start it. */
   | { kind: 'gateway-down'; window: HistoricalWindow; waiting?: boolean }
   /** Downloaded and waiting to be loaded. */
@@ -115,10 +121,13 @@ export function replayOffer(
   if (!reachable) return { kind: 'gateway-down', window };
   if (job?.status === 'failed') {
     const error = job.error || 'Download failed';
+    const gatewayNotAnswering = error.startsWith(SIM_HISTORY_GATEWAY_NOT_ANSWERING);
+    const wait = gatewayNotAnswering ? SIM_TAB_NOT_ANSWERING_RETRY_SEC : SIM_HISTORY_RETRY_INTERVAL_SEC;
     return {
       kind: 'failed', window, error,
       gatewayUnreachable: error.startsWith(SIM_HISTORY_GATEWAY_UNREACHABLE),
-      retryAt: job.updated == null ? null : job.updated + SIM_HISTORY_RETRY_INTERVAL_SEC,
+      gatewayNotAnswering,
+      retryAt: job.updated == null ? null : job.updated + wait,
     };
   }
   if (job) return { kind: 'stopped', window, percent: progressPercent(job) };
@@ -136,7 +145,7 @@ export function offerDateLabel(iso: string): string {
 export const offerWindowLabel = (w: HistoricalWindow) =>
   `${w.symbol} · ${offerDateLabel(w.date)} · ${w.start}–${w.end} ET`;
 
-export type OfferAction = 'download' | 'load' | 'resume' | 'retry' | 'start-gateway' | 'stop' | 'stop-other';
+export type OfferAction = 'download' | 'load' | 'resume' | 'retry' | 'start-gateway' | 'stop' | 'stop-other' | 'reconnect';
 
 export interface OfferCopy { text: string; action: OfferAction | null }
 
@@ -150,6 +159,8 @@ type CopyText = {
   gatewayDown: (label: string) => string;
   gatewayWaiting: (label: string) => string;
   retrying: (label: string) => string;
+  notAnswering: (label: string, attempt: number, max: number) => string;
+  notAnsweringGaveUp: (label: string) => string;
   duration: (seconds: number) => string;
 };
 
@@ -172,6 +183,11 @@ export function offerCopy(offer: ReplayOffer, instead: boolean, t: CopyText): Of
     }
     case 'stopped': return { text: t.stopped(label, offer.percent ? ` at ${offer.percent.toFixed(0)}%` : ''), action: 'resume' };
     case 'failed':
+      if (offer.gatewayNotAnswering) {
+        return offer.gaveUp || !offer.healing
+          ? { text: t.notAnsweringGaveUp(label), action: 'reconnect' }
+          : { text: t.notAnswering(label, offer.attempt ?? 1, offer.maxAttempts ?? 1), action: 'reconnect' };
+      }
       return offer.healing
         ? { text: t.retrying(label), action: null }
         : { text: t.failed(label, offer.error), action: 'retry' };
