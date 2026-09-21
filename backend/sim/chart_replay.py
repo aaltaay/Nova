@@ -5,7 +5,6 @@ from datetime import datetime, timedelta, timezone
 from decimal import ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo
 
-from constants_sim import SIM_SYMBOL
 from ibkr.historical_derive import unix_to_iso
 
 ET = ZoneInfo("America/New_York")
@@ -47,7 +46,7 @@ def response(symbol: str, timeframe: str, bars: list[dict], now: datetime,
 
 def fetch_replay_bars(symbol: str, timeframe: str, limit: int) -> dict:
     from bars_store import read
-    from sim import capture_player, market, replay, session_clock
+    from sim import capture_player, replay, session_clock
 
     now = session_clock.now_et()
     from sim import history_playback
@@ -61,11 +60,6 @@ def fetch_replay_bars(symbol: str, timeframe: str, limit: int) -> dict:
         bars = capture_player.chart_bars(timeframe, limit, asof=now.timestamp())
         mode = "trades" if capture_player.has_prints() else "completed_bars"
         return response(symbol, timeframe, bars, now, source="capture", replay_mode=mode)
-    if symbol == SIM_SYMBOL:
-        # A capture has no synthetic calendar history. Missing is genuinely empty.
-        bars = [] if captured else market.chart_bars(symbol, timeframe, limit)["bars"]
-        return response(symbol, timeframe, bars, now, source="sim",
-                        replay_mode="completed_bars" if captured else "synthetic")
     session_start = None
     if timeframe in INTERVAL_SECONDS:
         session_start = datetime.combine(

@@ -4,8 +4,6 @@ Owner: backend/sensors/. Observation sizes only -- no trip/clear levels.
 """
 from __future__ import annotations
 
-from constants_sim import SIM_SYMBOL
-
 # Common envelope
 SENSOR_STATUSES = ("live", "stub", "computed_stub")
 SENSOR_DEFAULT_LIQUID_SYMBOL = "AAPL"
@@ -63,7 +61,3 @@ SENSOR_MACRO_EVENTS = (
         "symbol": None,
     },
 )
-
-
-def default_sensor_symbol(*, sim: bool) -> str:
-    return SIM_SYMBOL if sim else SENSOR_DEFAULT_LIQUID_SYMBOL

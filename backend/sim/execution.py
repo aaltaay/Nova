@@ -4,14 +4,17 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
-from constants_sim import SIM_MODE_LABEL, SIM_SYMBOL
+from constants_sim import SIM_MODE_LABEL, SIM_ORDER_TYPE_CODE
 from execution import inflight
 from execution import store
 from execution import telemetry
 from execution.models import ExecutionCommand, ExecutionReceipt, StageTimings
 from execution.nova_placed import persist_nova_placed_at
 from execution.store_facts import persist_successful_cancel
+from ibkr.safety import PROTECTIVE_SOURCES
 from sim import broker as _broker
+from sim import practice
+from sim.fill_model import SUPPORTED_ORDER_TYPES
 
 if TYPE_CHECKING:
     from execution.broker_send import RejectFn
@@ -34,7 +37,7 @@ async def send_sim_broker(
     if cmd.operation == "bracket":
         return reject(
             execution_id, cmd, timings,
-            "SIM v1 does not support brackets",
+            "Practice orders do not support brackets",
             "SIM_NO_BRACKET",
         )
 
@@ -94,19 +97,18 @@ async def send_sim_broker(
         persist_nova_placed_at(execution_id, raw.get("nova_placed_at"))
         return await _receipt_from_raw(cmd, execution_id, timings, raw, mode)
 
-    if symbol != SIM_SYMBOL:
-        return reject(
-            execution_id, cmd, timings,
-            "SIM v1 only serves SIM1",
-            "SIM_SYMBOL",
-        )
+    protective = cmd.source in PROTECTIVE_SOURCES
+    if not protective:
+        ok, reason, code = practice.admission(symbol or "")
+        if not ok:
+            return reject(execution_id, cmd, timings, reason, code)
 
     typ = (cmd.order_type or "MKT").upper()
-    if typ not in ("MKT", "LMT"):
+    if typ not in SUPPORTED_ORDER_TYPES:
         return reject(
             execution_id, cmd, timings,
-            "SIM v1 supports MKT and LMT only",
-            "SIM_ORDER_TYPE",
+            "Practice orders support MKT, LMT and STP",
+            SIM_ORDER_TYPE_CODE,
         )
 
     timings.broker_sent_ns = time.perf_counter_ns()
@@ -122,6 +124,7 @@ async def send_sim_broker(
         limit_price=cmd.limit_price,
         stop_price=cmd.stop_price,
         outside_rth=True,
+        protective=protective,
     )
     return await _receipt_from_raw(cmd, execution_id, timings, raw, mode)
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 
 from l2 import batch as _batch
-from l2.db import get_connection
+from l2.db import db_path, get_connection
 
 
 def record_snapshot(
@@ -99,6 +99,37 @@ def get_snapshots_in_range(symbol: str, start_ts: float, end_ts: float) -> list[
         return [_decode_snapshot(row) for row in rows]
     finally:
         conn.close()
+
+
+def get_snapshot_before(symbol: str, ts: float, max_age_sec: float) -> dict | None:
+    """Newest snapshot at or before ``ts``, no older than ``max_age_sec``.
+
+    The point-in-time read a replay needs: it never looks ahead of the
+    playhead, and one indexed row is the whole result, so cost does not grow
+    with the archive (``idx_l2_snapshots_symbol_ts``).
+
+    Two deliberate differences from the readers above. It does not flush the
+    writer batch -- queued rows belong to the live recording, never to the
+    replayed past, and a read on the replay poll must not take a write side
+    effect. And it refuses to create ``l2.db``: absence of the file is the
+    answer "nothing was recorded", not a reason to materialize an empty one.
+    """
+    if not db_path().exists():
+        return None
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            """
+            SELECT * FROM l2_snapshots
+            WHERE symbol = ? AND ts <= ? AND ts >= ?
+            ORDER BY ts DESC
+            LIMIT 1
+            """,
+            (symbol.upper(), ts, ts - max_age_sec),
+        ).fetchone()
+    finally:
+        conn.close()
+    return _decode_snapshot(row) if row else None
 
 
 def get_nearest_snapshot(symbol: str, ts: float, window_sec: float) -> dict | None:

@@ -76,7 +76,7 @@ def read_tape(symbol: str) -> dict[str, Any]:
                 "exchange": row.get("exchange"),
             }
         )
-    error = None if rows else "No prints yet. Open Trader tape, or enable Sim for SIM1."
+    error = None if rows else "No prints yet. Open Trader tape, or load a replay in Sim."
     return build_envelope(
         sensor="tape",
         symbol=symbol,

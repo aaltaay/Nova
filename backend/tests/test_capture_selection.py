@@ -74,17 +74,20 @@ def test_complete_snapshot_stays_visible_until_new_load_is_ready(monkeypatch):
     assert old.symbol == "AAA" and old.prints[0]["price"] == 10
 
 
-def test_latest_capture_selection_wins_and_loading_never_generates_sim1(monkeypatch):
+def test_latest_capture_selection_wins_and_loading_never_fabricates_a_market(monkeypatch):
+    from ibkr import tape_stream
     entered, release = block_read(monkeypatch, "AAA")
-    monkeypatch.setattr(feed._market, "step", Mock(side_effect=AssertionError("synthetic during load")))
+    tape = Mock()
+    monkeypatch.setattr(tape_stream, "_push_queue", tape)
     thread, errors = run_thread(lambda: replay.set_replay(DAY, "AAA"))
     try:
         assert entered.wait(5)
         assert not replay.status_payload()["replay_ok"]
         assert feed.tick() == {}
+        tape.assert_not_called()
         from sim import market
-        assert market.quote("SIM1") is None and market.book() == {}
-        assert market.ticker_snapshot("SIM1") == {}
+        assert market.quote("AAA") is None and market.book() == {}
+        assert market.ticker_snapshot("AAA") == {}
         assert replay.set_replay(DAY, "BBB")["replay_symbol"] == "BBB"
     finally:
         finish(thread, errors, release)

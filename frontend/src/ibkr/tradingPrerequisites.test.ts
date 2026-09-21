@@ -321,7 +321,7 @@ describe('buildTradingPrerequisites', () => {
     expect(out.deskReady).toBe(true);
     expect(out.blockDesk).toBe(false);
     expect(out.items.find((i) => i.id === 'ibkr_gateway')?.ok).toBe(true);
-    expect(out.items.find((i) => i.id === 'ibkr_gateway')?.detail).toMatch(/Sim Feed/i);
+    expect(out.items.find((i) => i.id === 'ibkr_gateway')?.detail).toMatch(/Sim practice/i);
   });
 
   it('never treats Alpaca as a prerequisite id', () => {

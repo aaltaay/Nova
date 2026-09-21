@@ -1,0 +1,152 @@
+import { describe, expect, it } from 'vitest';
+import {
+  INITIAL_UPDATE_STATE,
+  LATER_BUTTON,
+  RESTART_BUTTON,
+  displayTag,
+  errorText,
+  isRestartChoice,
+  manualCheckAction,
+  manualCheckResult,
+  reduceUpdateState,
+  resolveUpdateSetting,
+  restartPrompt,
+  shouldAutoCheck,
+  shouldPromptRestart,
+  taskbarProgress,
+  updateCheckSetting,
+  updateGate,
+  updateMenuItems,
+} from '../../electron/updatePolicy.mjs';
+
+type UpdateEvent = { type: string; version?: string; percent?: number; message?: unknown };
+const run = (...events: UpdateEvent[]) => events.reduce(reduceUpdateState, INITIAL_UPDATE_STATE);
+const AUTO = { updater: true, automatic: true, reason: '' };
+const readyAt = (version: string) =>
+  run({ type: 'checking' }, { type: 'available', version }, { type: 'downloaded', version });
+
+describe('update gate', () => {
+  it('never updates a dev checkout or a non-Windows build', () => {
+    expect(updateGate({ isPackaged: false, platform: 'win32', setting: '' }).updater).toBe(false);
+    expect(updateGate({ isPackaged: true, platform: 'darwin', setting: '' }).updater).toBe(false);
+  });
+
+  it('checks automatically on a packaged Windows desk unless switched off', () => {
+    expect(updateGate({ isPackaged: true, platform: 'win32', setting: '' })).toEqual(AUTO);
+    for (const off of ['0', 'false', 'NO', ' off ']) {
+      const gate = updateGate({ isPackaged: true, platform: 'win32', setting: off });
+      expect(gate.updater).toBe(true); // Help > Check for Updates still works offline-by-choice
+      expect(gate.automatic).toBe(false);
+    }
+    expect(updateCheckSetting('1')).toBe(true);
+    expect(updateCheckSetting(undefined)).toBe(true);
+  });
+
+  it('lets the process env override the desk .env', () => {
+    expect(resolveUpdateSetting({ processValue: '0', fileValue: '1' })).toBe('0');
+    expect(resolveUpdateSetting({ processValue: '  ', fileValue: 'off' })).toBe('off');
+    expect(resolveUpdateSetting({})).toBe('');
+  });
+});
+
+describe('update state', () => {
+  it('walks check -> download -> ready and shows progress on the taskbar', () => {
+    const downloading = run({ type: 'checking' }, { type: 'available', version: '0.1.832' }, { type: 'progress', percent: 41.6 });
+    expect(downloading.phase).toBe('downloading');
+    expect(taskbarProgress(downloading)).toBeCloseTo(0.416);
+    const ready = reduceUpdateState(downloading, { type: 'downloaded', version: '0.1.832' });
+    expect(ready.phase).toBe('ready');
+    expect(taskbarProgress(ready)).toBe(-1);
+  });
+
+  it('keeps a downloaded installer when a later check fails or runs', () => {
+    const ready = readyAt('0.1.832');
+    expect(reduceUpdateState(ready, { type: 'checking' }).phase).toBe('ready');
+    expect(reduceUpdateState(ready, { type: 'not-available' }).phase).toBe('ready');
+    const failed = reduceUpdateState(ready, { type: 'error', message: 'offline' });
+    expect(failed.phase).toBe('ready');
+    expect(failed.error).toBe('offline');
+  });
+
+  it('turns an offline check into a visible, retryable failure', () => {
+    const failed = run({ type: 'checking' }, { type: 'error', message: new Error('net::ERR_INTERNET_DISCONNECTED\n  at stack') });
+    expect(failed.phase).toBe('failed');
+    expect(failed.error).toBe('net::ERR_INTERNET_DISCONNECTED');
+    expect(manualCheckAction(failed, AUTO)).toBe('check');
+    expect(updateMenuItems(failed)[0]).toEqual({ label: 'Update check failed — Retry', action: 'check' });
+    expect(manualCheckResult(failed)?.type).toBe('warning');
+  });
+
+  it('returns to ready when an install attempt fails, so the operator can retry', () => {
+    const installing = reduceUpdateState(readyAt('0.1.832'), { type: 'installing' });
+    expect(installing.phase).toBe('installing');
+    const back = reduceUpdateState(installing, { type: 'install-failed', message: 'engine did not stop' });
+    expect(back.phase).toBe('ready');
+    expect(updateMenuItems(back)[0]).toEqual({ label: 'Restart to Update (v832)', action: 'restart' });
+  });
+
+  it('only installs from ready', () => {
+    expect(reduceUpdateState(INITIAL_UPDATE_STATE, { type: 'installing' }).phase).toBe('idle');
+  });
+});
+
+describe('prompt policy', () => {
+  it('prompts once per version; Later is not re-asked this session', () => {
+    const ready = readyAt('0.1.832');
+    expect(shouldPromptRestart(ready)).toBe(true);
+    const prompted = reduceUpdateState(ready, { type: 'prompted', version: '0.1.832' });
+    expect(shouldPromptRestart(prompted)).toBe(false);
+    // An explicit Help-menu request re-offers it.
+    expect(manualCheckAction(prompted, AUTO)).toBe('prompt');
+  });
+
+  it('defaults to Later so a stray Enter never restarts the desk', () => {
+    const prompt = restartPrompt('0.1.832');
+    expect(prompt.buttons[RESTART_BUTTON]).toBe('Restart to update');
+    expect(prompt.buttons[LATER_BUTTON]).toBe('Later');
+    expect(prompt.defaultId).toBe(LATER_BUTTON);
+    expect(prompt.cancelId).toBe(LATER_BUTTON);
+    expect(prompt.message).toContain('v832');
+    expect(isRestartChoice(RESTART_BUTTON)).toBe(true);
+    expect(isRestartChoice(LATER_BUTTON)).toBe(false);
+    expect(isRestartChoice(-1)).toBe(false);
+  });
+
+  it('checks automatically only when idle, and never while busy or ready', () => {
+    expect(shouldAutoCheck(INITIAL_UPDATE_STATE, AUTO)).toBe(true);
+    expect(shouldAutoCheck(INITIAL_UPDATE_STATE, { ...AUTO, automatic: false })).toBe(false);
+    expect(shouldAutoCheck(run({ type: 'checking' }), AUTO)).toBe(false);
+    expect(shouldAutoCheck(readyAt('0.1.832'), AUTO)).toBe(false);
+    expect(manualCheckAction(run({ type: 'checking' }), AUTO)).toBe('busy');
+    expect(manualCheckAction(INITIAL_UPDATE_STATE, { updater: false, automatic: false })).toBe('unavailable');
+  });
+});
+
+describe('labels', () => {
+  it('maps packaged semver to the public vNNN tag', () => {
+    expect(displayTag('0.1.832')).toBe('v832');
+    expect(displayTag('v045')).toBe('v045');
+    expect(displayTag('')).toBe('');
+  });
+
+  it('keeps error text to one short line', () => {
+    expect(errorText('x'.repeat(400)).length).toBeLessThanOrEqual(160);
+    expect(errorText(undefined)).toBe('unknown error');
+  });
+
+  it('always shows the installed version and an automatic-off note', () => {
+    const rows = updateMenuItems(run({ type: 'checking' }, { type: 'not-available' }), {
+      currentTag: 'v831',
+      automatic: false,
+    });
+    expect(rows.map((row) => row.label)).toEqual([
+      'Check for Updates…',
+      'This is the latest release',
+      'Installed: Nova v831',
+      'Automatic checks off (NOVA_UPDATE_CHECK)',
+    ]);
+    expect(manualCheckResult(run({ type: 'not-available' }), 'v831')?.message).toBe(
+      'Nova v831 is the latest release.',
+    );
+  });
+});

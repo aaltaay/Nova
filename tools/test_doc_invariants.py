@@ -69,6 +69,14 @@ def test_allows_nova_public_archive_wording(di):
     assert hits == []
 
 
+def test_detects_the_retired_portable_exe(di):
+    """#347 dropped it: a portable build can never take an in-app update."""
+    text = "Output: `Nova-Setup-vNNN.exe` and `Nova-Portable-vNNN.exe`.\n"
+    hits = di.scan_text(Path("README.md"), text)
+    assert any(h.invariant_id == "portable_exe_shipped" for h in hits)
+    assert di.scan_text(Path("README.md"), "Output: `Nova-Setup-vNNN.exe`.\n") == []
+
+
 def test_missing_live_path_is_a_violation(di, tmp_path, monkeypatch):
     """A renamed/deleted live doc must fail loudly, not shrink coverage in silence."""
     (tmp_path / "AGENTS.md").write_text("all good\n", encoding="utf-8")

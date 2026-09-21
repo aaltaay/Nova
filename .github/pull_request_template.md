@@ -23,7 +23,7 @@ REQUIRED. Fresh evidence from this branch, not "should work" (verification-befor
 Paste the commands and their results, e.g.:
 - `pytest backend/ -q` -> N passed
 - `npm run build` (frontend) -> exit 0
-- Desktop pack CI -> `Nova-Setup-vNNN.exe` and `Nova-Portable-vNNN.exe` artifacts on this PR
+- Desktop pack CI -> `Nova-Setup-vNNN.exe` + `latest.yml` artifact on this PR
 - browser / Playwright path clicked, screenshot or recording
 Touched a shared resource? Also verify its loudest neighbor (blast-radius table in verification-before-completion.mdc).
 -->

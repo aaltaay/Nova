@@ -80,6 +80,7 @@ def test_callback_persists_identical_provenance_to_both_sinks():
         assert captured[field] == rows[0][field]
     assert rows[0]["session_id"] == "session-a"
     assert captured["source"] == "ibkr"
+    assert captured["ts_source"] == "exchange"
     assert (directory / "quotes.jsonl").stat().st_size == 0
     assert (directory / "l2.jsonl").stat().st_size == 0
     assert json.loads((directory / "manifest.json").read_text())["counts"]["prints"] == 1
@@ -95,17 +96,43 @@ def test_admission_rejects_wrong_disconnected_and_rejected_producer(monkeypatch,
     assert not list(tmp_path.rglob("manifest.json"))
 
 
-def test_empty_segment_fails_manifest_and_sim_provenance_is_truthful():
+def test_print_without_an_exchange_time_is_recorded_as_stamped_on_arrival():
+    """A substituted arrival time must never read as the exchange's own."""
+    mode.set_capture_mode(True, symbol="AAPL")
+    untimed = SimpleNamespace(tickByTicks=[SimpleNamespace(
+        time=None, price=42.30, size=3, exchange="NASDAQ", specialConditions="")])
+    tape_stream._on_tape_update(untimed, "AAPL")
+    directory = Path(recorder.status()["dir"])
+    mode.set_capture_mode(False)
+    assert [row["ts_source"] for row in rows(directory, "prints")] == ["receive"]
+
+
+def test_invalid_producer_timestamp_is_diagnosed_by_the_recorder():
+    """The bridge must not raise first, or the row is lost as a generic failure."""
+    mode.set_capture_mode(True, symbol="AAPL")
+    bridge_ibkr._write_print(dict(symbol="AAPL", ts=None, price=1.0, size=1, source="ibkr"))
+    assert recorder.status()["fidelity"]["invalid_timestamp_rows"] == 1
+    mode.set_capture_mode(False)
+
+
+def test_empty_segment_fails_manifest_with_ibkr_provenance():
+    """Empty recordings are never presented as successful (#315)."""
     mode.set_capture_mode(True, symbol="AAPL")
     directory = Path(recorder.status()["dir"])
     mode.set_capture_mode(False)
     manifest = json.loads((directory / "manifest.json").read_text())
     assert manifest["status"] == "failed"
     assert "No IBKR prints" in manifest["error"]
-    mode.set_capture_mode(True, symbol="SIM1")
-    directory = Path(recorder.status()["dir"])
-    mode.set_capture_mode(False)
-    assert json.loads((directory / "manifest.json").read_text())["source"] == "sim"
+    assert manifest["source"] == "ibkr"
+    assert "No IBKR prints" in mode.status_payload()["error"]
+
+
+def test_former_sim_symbol_gets_no_admission_bypass(tmp_path):
+    """SIM1 is gone: it is refused like any symbol without an AllLast producer."""
+    result = mode.set_capture_mode(True, symbol="SIM1")
+    assert result["capture"] is False and "subscribed" in result["error"]
+    assert not recorder.is_recording()
+    assert not list(tmp_path.rglob("manifest.json"))
 
 
 def test_blocked_capture_does_not_block_l2_viewer_or_event_loop(monkeypatch):
@@ -328,14 +355,14 @@ def book_bridge_reset():
     depth_state.reset_all()
 
 
-def test_sim_and_replay_books_never_enter_a_live_capture():
-    """`state.push_book` is shared with sim/feed and sim/market.
+def test_replay_books_never_enter_a_live_capture():
+    """`state.push_book` is shared with the capture replay (sim/feed, sim/market).
 
-    Hooking the capture bridge there recorded SIM and replay books into a live
-    IBKR capture, stamped with wall clock while the sim bridge stamps sim
-    session time -- which tripped the recorder's timestamp-regression stop and
-    ended the recording. Caught end to end against a running API, not by a
-    unit test, so it is pinned here.
+    Hooking the capture bridge there recorded non-IBKR books (then the SIM1
+    tape, now replayed captures) into a live IBKR capture on a different clock,
+    which tripped the recorder's timestamp-regression stop and ended the
+    recording. Caught end to end against a running API, not by a unit test, so
+    it is pinned here.
     """
     from ibkr.depth import state as depth_state
 

@@ -23,7 +23,7 @@ def test_toggle_on_and_off() -> None:
     payload = set_sim_mode(True)
     assert is_sim_mode() is True
     assert payload["sim"] is True
-    assert payload["sim_symbol"] == "SIM1"
+    assert "sim_symbol" not in payload
     assert payload["mode"] == "sim"
     off = set_sim_mode(False)
     assert is_sim_mode() is False
@@ -50,7 +50,7 @@ def test_overlay_forces_sim_even_when_gateway_looks_live() -> None:
     assert out["trading_allowed"] is True
     assert out["trading_allowed_reason"] is None
     assert out["sim"] is True
-    assert out["sim_symbol"] == "SIM1"
+    assert "sim_symbol" not in out
 
 
 def test_overlay_passthrough_when_off() -> None:
@@ -70,18 +70,8 @@ def test_sim_http_toggle() -> None:
     assert client.get("/api/sim").json()["sim"] is False
     body = client.post("/api/sim", json={"enabled": True}).json()
     assert body["sim"] is True
-    assert body["sim_symbol"] == "SIM1"
+    assert "sim_symbol" not in body
     assert client.post("/api/sim", json={"enabled": False}).json()["sim"] is False
-
-
-def test_scan_injects_sim1() -> None:
-    from sim.scan import with_sim_row
-
-    assert with_sim_row([]) == []
-    set_sim_mode(True)
-    rows = with_sim_row([{"symbol": "AAPL", "price": 1}])
-    assert rows[0]["symbol"] == "SIM1"
-    assert rows[1]["symbol"] == "AAPL"
 
 
 def test_persist_rewrites_env(tmp_path: Path) -> None:

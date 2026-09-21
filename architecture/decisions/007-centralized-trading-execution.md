@@ -44,6 +44,15 @@ Anti-short / flatten sizing and Positions **qty** share one API: `ibkr.account.l
 
 **Short entry (Phase K / ADR 009):** SELL remains risk-reducing unless `ExecutionCommand.short_entry=true` and `IBKR_SHORT_ENABLED` plus fresh IBKR tick-236 `shortable_est`. See `architecture/decisions/009-short-entry.md`.
 
+## Per-order TIF and manual-ticket protective legs (2026-09-20, #91)
+
+Operator decision on #91: GTC persists from Settings and the manual ticket may attach a default take-profit / stop-loss. Both stay on `execute()`.
+
+- **TIF is a command field**, `ExecutionCommand.tif`, default `IBKR_ORDER_TIF_DEFAULT` (`DAY`), accepted values `IBKR_ORDER_TIFS` (`DAY`, `GTC`). Validation refuses anything else (`TIF_INVALID`) and the adapter re-checks. `place` and all three bracket legs carry it. `replace` reads the working order's TIF from its open-order row and resends it, so moving a GTC stop does not quietly turn it into a DAY stop. Bracket legs also carry `outside_rth` now; callers that never set it (the strategy executor) get `False`, the same as before.
+- **Protective legs reuse `operation: "bracket"`.** `/api/ibkr/order` maps `take_profit_price` + `stop_loss_price` onto a bracket command with `entry_price` = the limit. There is no second place path and no new order builder: `ib.bracketOrder` builds a Limit parent, so legs attach to Limit entries only. The ticket refuses a Market / Stop / Trail entry while the defaults are on rather than sending it unprotected, and skips the legs for exits and in Sim (Sim has no brackets).
+- **A bracket no longer skips the place gates.** Whole-share qty, `side` consistent with `short_entry`, leg prices on the correct side of the entry, BuyingPower for a long entry (the same check a Limit BUY place gets), and no long bracket while the account is short that symbol (its exit legs would re-open the short). This also applies to strategy-executor brackets, which previously reached the broker without the BuyingPower check. Protective sources may not send a bracket, and a spend command with a `source` outside the ADR's list (for example `auto_live`) is refused `SOURCE_INVALID`.
+- **Known limitation, unchanged by this change:** bracket child legs are not in-flight commitments (`execution/inflight.py` tracks the parent only), and `replace` on a child resends it without `parentId`. Both predate #91 for executor brackets.
+
 ## Rejected alternatives
 
 - Separate paper vs live code paths

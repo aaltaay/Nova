@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from constants_sensors import default_sensor_symbol
+from constants_sensors import SENSOR_DEFAULT_LIQUID_SYMBOL
 
 _SYMBOL_RE = re.compile(r"^[A-Z][A-Z0-9.\-]{0,11}$")
 
@@ -25,12 +25,19 @@ def normalize_symbol(raw: str | None, *, required: bool = True) -> str | None:
     return value
 
 
+def _default_symbol() -> str:
+    """The loaded replay's symbol in the Sim venue, else the liquid default."""
+    try:
+        from sim.mode import is_sim_mode
+        from sim.practice import loaded
+    except Exception:
+        return SENSOR_DEFAULT_LIQUID_SYMBOL
+    active = loaded() if is_sim_mode() else None
+    return active.symbol if active else SENSOR_DEFAULT_LIQUID_SYMBOL
+
+
 def resolve_symbol(raw: str | None) -> str:
-    """Required symbol, or SIM1 / AAPL when the query is omitted."""
+    """Required symbol, or the Sim replay symbol / AAPL when the query is omitted."""
     if raw is None or not str(raw).strip():
-        try:
-            from sim.mode import is_sim_mode
-        except Exception:
-            return default_sensor_symbol(sim=False)
-        return default_sensor_symbol(sim=is_sim_mode())
-    return normalize_symbol(raw, required=True) or default_sensor_symbol(sim=False)
+        return _default_symbol()
+    return normalize_symbol(raw, required=True) or SENSOR_DEFAULT_LIQUID_SYMBOL

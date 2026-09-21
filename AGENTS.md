@@ -212,6 +212,20 @@ migrated; unknown versions refuse loudly. Capture load diagnostics include
 `legacy_schema` / `l2_decimated` (booleans) and `last_stream_ts` (per-stream event timestamps).
 No automatic retention policy is selected by these additions.
 
+### Recorded depth in historical replay (#309)
+
+The historical replay snapshot carries `depth_available: boolean` and
+`depth: object | null`. `depth` is the Level 2 book the local recorder
+(`backend/l2/`) archived at or before the playhead second, shaped
+`{symbol, bids, asks, ts, age_sec, l1_fallback, session_id, source}`, where
+`source` names the archive (`l2_recorder`). `depth_available` is true only when
+`depth` is present. An IBKR historical download carries no book, so an
+unrecorded moment reports `depth_available: false` with `depth: null` and is
+rendered as a stated absence, never an empty or invented ladder. `bid` / `ask`
+stay null — a recorded book is not a quote stream. The lookup never reads ahead
+of the playhead, and an unreadable `l2.db` degrades to the unrecorded case
+instead of failing the snapshot.
+
 ### Input Payload (Raw)
 
 ```json
@@ -248,7 +262,18 @@ No automatic retention policy is selected by these additions.
 Capture market projections preserve missing facts: print-only rows have null
 bid/ask/sizes/previous close; depth is empty without recorded books; daily OHLC
 is null unless a replay source provides it. Loading, failed, and pre-first-event
-capture selections never fall back to synthetic SIM1 market data.
+capture selections have no market data to fall back to -- there is no synthetic
+instrument (ADR 019), and `replay_source` is `none` when nothing is loaded.
+
+### Practice fills (ADR 019)
+
+The Sim venue trades the loaded replay only. A filled practice row carries
+`fill_estimated: true` and `fill_basis: "quote" | "last_print" | "print_cross" |
+"stop_trigger" | "last_mark"`; a practice fill is never displayed as a recorded
+print. Refusals use `SIM_NO_REPLAY`, `SIM_SYMBOL_MISMATCH`, `SIM_NO_TRADES`,
+`SIM_NO_PRICE` and `SIM_ORDER_TYPE`. Recorded prints carry
+`ts_source: "exchange" | "receive"` so a substituted arrival time is never read
+as the exchange's own. Rules and biases: `architecture/practice-fills.md`.
 
 ### Execution command (ADR 007 — sole broker mutation entry)
 
@@ -268,14 +293,18 @@ All buy/sell/cancel/replace requests enter `execution.service.execute` with:
  "target_price": null,
  "entry_price": null,
  "order_id": null,
- "short_entry": false
+ "short_entry": false,
+ "tif": "DAY | GTC",
+ "outside_rth": false
 }
 ```
 
-`STP LMT` requires both `limit_price` and `stop_price`. `TRAIL` uses `stop_price` as the IBKR trail dollar amount (`auxPrice`); trail percent is not a ticket field. OCO / bracket stay off the manual ticket (strategy executor only).
+`STP LMT` requires both `limit_price` and `stop_price`. `TRAIL` uses `stop_price` as the IBKR trail dollar amount (`auxPrice`); trail percent is not a ticket field. `tif` defaults to `DAY` (`IBKR_ORDER_TIF_DEFAULT`), so a caller that omits it is unchanged; anything outside `DAY | GTC` is refused `TIF_INVALID`. `place` and every `bracket` leg carry `tif` and `outside_rth`; `replace` keeps the working order's own TIF.
+
+**Manual-ticket protective legs** (operator decision on #91, 2026-09-20 -- supersedes "OCO / bracket stay off the manual ticket"): OCO stays off the manual ticket. A bracket reaches it only as the operator's optional default take-profit / stop-loss from Settings > Trade (`nova.trade.defaults.v1`), **off by default**. When on, an opening **Limit** entry (BUY while not short, or SELL with `short_entry`) posts `take_profit_price` + `stop_loss_price` with its `/api/ibkr/order` request, and the route sends `operation: "bracket"` (`entry_price` = the limit) through the same `execution.service.execute` -- never a second place path. Other entry types are refused while the defaults are on rather than sent unprotected; exits never carry legs; protective sources (`flatten`, `kill`, `cancel_working`) are refused a `bracket`. A bracket is checked like a place: whole shares, side agrees with `short_entry`, leg prices on the correct side of the entry, BuyingPower for a long entry, and no long bracket while the account is short that symbol.
 
 Receipt includes stage timings (`validation_ms`, `persisted_ms`, `broker_sent_ms`, `broker_ack_ms`, `filled_ms`).
-Paper and live share this path; only Gateway credentials/port and safety gates differ. `auto_live` remains rejected. Short opening requires `short_entry: true` plus `IBKR_SHORT_ENABLED` and fresh IBKR shortability (ADR 009).
+Paper and live share this path; only Gateway credentials/port and safety gates differ. `auto_live` remains rejected -- a spend command whose `source` is not one of the listed values (e.g. `auto_live`) is refused `SOURCE_INVALID`. Short opening requires `short_entry: true` plus `IBKR_SHORT_ENABLED` and fresh IBKR shortability (ADR 009).
 
 ---
 
@@ -305,7 +334,7 @@ Master protection blocks force-push and deletion (including admins), with **no
 required status checks**. Trading runtime gates, opt-ins and `auto_live` NO-GO
 remain unchanged. Conditional coverage is specified in `.cursor/rules/ci-scope.mdc`.
 
-- **Market data / trading:** Scanner and prices are IBKR-only (see `single-market-data-feed.mdc`). Alpaca is news/listing metadata only. Orders are allowed only via gated `backend/ibkr/` (Invariant #7). Gateway port default is live (4001); paper (4002) is the fallback. Spend stays gated; `auto_live` remains NO-GO. Header Paper / Live / Sim may switch the desk to a local SIM1 practice tape (no Gateway places). `NOVA_BROKER=sim` is bootstrap only. Switching off Sim restores the IBKR paths.
+- **Market data / trading:** Scanner and prices are IBKR-only (see `single-market-data-feed.mdc`). Alpaca is news/listing metadata only. Orders are allowed only via gated `backend/ibkr/` (Invariant #7). Gateway port default is live (4001); paper (4002) is the fallback. Spend stays gated; `auto_live` remains NO-GO. Header Paper / Live / Sim may switch the desk to a practice venue that replays a **real recorded or downloaded session** and fills orders locally (no Gateway places, estimated fills, ADR 019). There is no synthetic instrument: with nothing loaded the Sim desk is empty. `NOVA_BROKER=sim` is bootstrap only. Switching off Sim restores the IBKR paths.
 - **Desk venue vs spend arming (ADR 018, #302):** two facts with opposite lifetimes, never one dial. The **venue** (Paper / Live / Sim) is durable -- `sim/mode.py` owns `desk-venue.json` under the operator cache (`schema_version`, unknown version refuses loud), and it wins over the `NOVA_BROKER` bootstrap default. **Spend arming never survives a process start**, in any venue: `IBKR_ORDERS_ENABLED` / `IBKR_LIVE_TRADING_CONFIRMED` say this desk is *permitted*, the runtime latch in `ibkr/safety.py` says it is currently *armed*, and a place needs both. Arming is an explicit operator act at the header padlock (`POST /api/ibkr/arm`) -- never an `.env` edit, never inferred from a connect, reconnect or self-heal, and never re-armed by any automatic path. A venue change disarms. Protective sources (`flatten`, `kill`, `cancel_working`) and cancel are exempt: a disarmed desk must always be able to get flat. Only the *settled* venue persists -- an in-flight gateway-mode switch stays process-local in `gateway_heal.py` so ADR 013's unattended reconnect is unchanged.
 - **Market Open Halt**: The gapper dashboard stops updating its data feed once the market formally opens.
 - **Configurable**: API keys and base URLs must be configurable via UI.
@@ -437,6 +466,9 @@ Keep useful regression tests. Do not create a separate problem ledger or footer.
 
 ## 8. 🚀 Run & Deploy
 
+Operator runbook for syncing the trading PC to master, cold-restarting IB
+Gateway and arming the unattended premarket: `docs/live-desk-sync.md`.
+
 ### Local Dev (Windows)
 
 ```text
@@ -461,7 +493,9 @@ cd frontend && npm run electron:pack
 - **Backend:** local only right now -- no cloud host (not Railway, not another PaaS). Run via `Run Nova.bat`, Desktop sidecar, or local uvicorn on `127.0.0.1:8000`.
 - **Public site:** `nova.altaystudio.com` is a static marketing page (`site/`) -- features, screenshots, and the [source](https://github.com/aaltaay/Nova) link. It is not the live scanner and has no API. Point the Vercel project Root Directory at `site`.
 - **Frontend (app UI):** local Vite / Desktop only (`http://localhost:5173`). Do not host the trading SPA on the public domain.
-- **Desktop:** Electron + local API sidecar. Local pack: `frontend/release/Nova-Setup-vNNN.exe` and `Nova-Portable-vNNN.exe`. Application-affecting PRs run the advisory `Desktop pack` GitHub Actions job, which uploads both EXEs; docs/site-only PRs skip packaging under `.cursor/rules/ci-scope.mdc`. Application-affecting pushes to master/main build the git tag `vNNN` and a GitHub Release that attaches those EXEs (Actions-merge trigger repair is tracked in #346). GitHub's Source code zip/tar is automatic and is not the app.
+- **Desktop:** Electron + local API sidecar. **Installer only** (#347): local pack produces `frontend/release/Nova-Setup-vNNN.exe` plus `latest.yml` + `.blockmap` -- the in-app update feed. The portable EXE is retired; it could never self-update. Application-affecting PRs run the advisory `Desktop pack` GitHub Actions job, which uploads those three files; docs/site-only PRs skip packaging under `.cursor/rules/ci-scope.mdc`. Application-affecting pushes to master/main **build and verify only -- they publish nothing**.
+- **Cutting a release (the only thing that publishes):** on an up-to-date `master`, run `py -3 tools/bump_version.py --ensure-tag --push-tag`. The pushed `vNNN` tag starts `Desktop pack`, which refuses a tag that is not that commit's revision, then creates the GitHub Release with the installer, `.blockmap` and `latest.yml`. A tag pushed by Actions starts no run, so nothing automated can cut a release. Re-run one with `gh workflow run desktop-pack.yml --ref vNNN`. GitHub's Source code zip/tar is automatic and is not the app.
+- **In-app updates (#347):** the installed desk checks GitHub Releases shortly after launch, downloads a newer installer in the background, then offers **Restart to update** / **Later**. It never installs or restarts on its own -- not on quit, not on a timer. `NOVA_UPDATE_CHECK=0` (desk `.env` or process env) turns the automatic check off; Help > Check for Updates still works. Builds are unsigned, so SmartScreen warns on a fresh download.
 
 ---
 
@@ -489,6 +523,12 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-20 | Per-row scanner Exchange (#90): `backend/ibkr/exchange_lookup.py` buys `row["exchange"]` with ONE paced `qualifyContractsAsync` round trip per NEW symbol, modelled on `ibkr/listing_flags.py`. Never awaited on admit -- `hydrate_rows` only queues, so ADR 010 name-only admission is unchanged; once per symbol per session; backfill only when empty; unknown venues stay blank through `normalize_ib_exchange` so the filter keeps failing open. | User Directive + Claude Opus 5 |
+| 2026-09-20 | Scanner table width lock (#276) closed: the shared `.table-wrapper--scanner` `table-layout: fixed` shell already shipped in PR #278 and covers all seven surfaces; the operator lifted the live-desk `do-not-merge` hold. `scannerTableCol.test.ts` now enforces the two acceptance lines that were only stylesheet comments -- every surface uses the shared shell + colgroup, and every shipped column declares an explicit width role. | User Directive + Claude Opus 5 |
+| 2026-09-20 | #309 implemented as option (b): `backend/l2/` feeds recorded Level 2 into the one Sim replay surface instead of getting its own scrubber. `sim/history_depth.py` reads the newest book at or before the playhead second (floored, so no lookahead) and `history_playback.snapshot()` publishes `depth` + `depth_available`. Nothing is fabricated: an unrecorded second says so in the ladder rather than showing an empty book, `bid`/`ask` stay null, and a missing, locked or damaged `l2.db` degrades to "not recorded". | User Directive + Claude Opus 5 |
+| 2026-09-20 | Ticket TIF is a real per-order field (#91): `ExecutionCommand.tif` (DAY default, GTC), validated in `execution/validate.py`, carried into the IB order and all three bracket legs, persisted in `nova.trade.defaults.v1`; `replace` resends the working order's own TIF. Settings gains **optional** default TP/SL (off by default) that send an opening Limit entry as `operation: "bracket"` through the same `execution.service.execute`. §3 amended per the operator decision on #91 (supersedes "OCO / bracket stay off the manual ticket"). | User Directive + Claude Opus 5 |
+| 2026-09-20 | Desktop delivery settled (#347): installer only (portable retired -- it could never self-update); in-app updates via electron-updater's GitHub provider, background download with an operator-chosen "Restart to update" and no install on quit; master merges build and verify the installer plus its `latest.yml` feed but publish nothing -- a GitHub Release comes only from an operator-pushed `vNNN` tag that the pack verifies against the tagged commit. | User Directive + Claude Opus 5 |
+| 2026-09-20 | **SIM1 removed** (ADR 019, #315/#310/#340/#309): the synthetic instrument, its looping tape, fabricated book, seeded bars and scanner row are deleted, and the recorder loses every SIM1 exemption -- all recordings are IBKR-sourced, must pass AllLast admission, and an empty segment finalizes `failed`. The Sim venue now trades the loaded replay (historical download or recorded capture): MKT/LMT/STP fills follow `architecture/practice-fills.md`, each marked `fill_estimated` with its `fill_basis`, and protective sources can always close a held position at its last mark. With nothing loaded the desk is empty rather than fabricated. | User Directive + Claude Opus 5 |
 | 2026-09-20 | Backlog Map #361 retired. A weekly-refreshed cache of a backlog that changes daily is wrong six days out of seven: it claimed 46 open issues against an actual 12, listed 33 closed issues as open, and routed agents at the retired `BACKLOG.md`. Removed the issue, `sync-map`, `render_map_section` / `splice_map`, the `backlog-map` meta-label filter, and both workflow steps that fed it. The weekly sweep now fails on hygiene gaps instead of commenting on a cache; `backlog_triage.py report` is the rollup. | User Directive + Claude Opus 5 |
 | 2026-09-20 | `CHANGELOG.md` **retired** at the owner's request and archived under `_archived/`, completing the ledger retirement. The generator goes with it: `ledger-collate.yml`, `tools/changes_collate.py` / `changes_fragments.py` / `changes_new.py`, `.changes/`, the always-on `change-log.mdc`, and the `CHANGELOG.md merge=union` attribute. The PR body is the only record. Evidence the mirror was not earning its keep: the 09:11 collate run succeeded, pushed its branch, never opened its PR, and left master 11 PRs behind with nobody noticing. §7.1 rewritten. | User Directive + Claude Opus 5 |
 | 2026-09-20 | ADR 018 implemented (#302): desk venue and spend arming split into two latches with opposite lifetimes. Venue persists in `desk-venue.json` (owner `sim/mode.py`, `schema_version`, refuses unknown loud, wins over `NOVA_BROKER`); a runtime latch in `ibkr/safety.py` starts every process disarmed in every venue and is armed only by the operator at the existing header padlock (`POST /api/ibkr/arm`). `spend_permitted` (env) and `armed` (runtime) are separate status fields. Venue change disarms; `flatten`/`kill`/`cancel_working` and cancel are exempt. No new UI -- the padlock's `sessionStorage` flag moved to the backend, which also makes pop-out windows and the bot API read one answer. | User Directive + Claude Code |

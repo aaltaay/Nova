@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
 
-test('scrubbing preserves IMCC with SIM1 closed; explicit replay picks still navigate', async ({ page }) => {
+test('scrubbing preserves IMCC with AAPL closed; explicit replay picks still navigate', async ({ page }) => {
   let minute = 120;
-  let replaySymbol = 'SIM1';
+  let replaySymbol = 'AAPL';
   let scrubPosts = 0;
   let paused = false;
   const clock = () => ({
@@ -33,7 +33,7 @@ test('scrubbing preserves IMCC with SIM1 closed; explicit replay picks still nav
       body = {
         days: [{ date: '2026-09-19', ticker_count: 2 }],
         tickers_by_day: { '2026-09-19': [
-          { symbol: 'SIM1', prints: 100, l2: 10 },
+          { symbol: 'AAPL', prints: 100, l2: 10 },
           { symbol: 'IMCC', prints: 100, l2: 10 },
         ] },
       };
@@ -41,11 +41,11 @@ test('scrubbing preserves IMCC with SIM1 closed; explicit replay picks still nav
     await route.fulfill({ json: body });
   });
   await page.goto('/e2e/fixtures/sim-session.html');
-  await page.getByRole('button', { name: 'Open SIM1', exact: true }).click();
+  await page.getByRole('button', { name: 'Open AAPL', exact: true }).click();
   await page.getByRole('button', { name: 'Open IMCC', exact: true }).click();
-  await page.getByRole('button', { name: 'Close SIM1', exact: true }).click();
+  await page.getByRole('button', { name: 'Close AAPL', exact: true }).click();
   await expect(page.getByTestId('desk-tabs')).toHaveText('IMCC');
-  await expect(page.getByTestId('sim-replay-ticker')).toHaveValue('SIM1');
+  await expect(page.getByTestId('sim-replay-ticker')).toHaveValue('AAPL');
   await page.getByRole('button', { name: 'Pause Sim time' }).click();
   await expect(page.getByRole('button', { name: 'Play Sim time' })).toBeVisible();
   const slider = page.getByTestId('sim-session-scrubber');
@@ -64,9 +64,9 @@ test('scrubbing preserves IMCC with SIM1 closed; explicit replay picks still nav
   await expect(page.getByTestId('desk-tabs')).toHaveText('IMCC');
   await expect(page.getByTestId('desk-active')).toHaveText('IMCC');
   await page.getByTestId('sim-replay-ticker').selectOption('IMCC');
-  await page.getByTestId('sim-replay-ticker').selectOption('SIM1');
-  await expect(page.getByTestId('desk-active')).toHaveText('SIM1');
-  await expect(page.getByTestId('desk-tabs')).toHaveText('IMCC,SIM1');
+  await page.getByTestId('sim-replay-ticker').selectOption('AAPL');
+  await expect(page.getByTestId('desk-active')).toHaveText('AAPL');
+  await expect(page.getByTestId('desk-tabs')).toHaveText('IMCC,AAPL');
   await expect(page.getByRole('button', { name: 'Play Sim time' })).toBeVisible();
   await page.getByRole('button', { name: 'Play Sim time' }).click();
   await expect(page.getByRole('button', { name: 'Pause Sim time' })).toBeVisible();

@@ -167,7 +167,7 @@ export function gatewayPortOpenButSessionDown(input: {
 
 function gatewayDetail(input: TradingPrerequisitesInput, gatewayOk: boolean): string {
   if (input.simMode) {
-    return 'Sim Feed -- looping SIM1 tape. No Gateway required.';
+    return 'Sim practice -- a replayed real session. No Gateway required.';
   }
   if (gatewayOk) {
     return 'Gateway connected -- live prices and order path available.';

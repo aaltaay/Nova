@@ -57,8 +57,12 @@ IBKR reports as tape-eligible (`unreported` false); Time & Sales lists every
 reached print and marks unreported ones (IMCC: odd-lot/Form T `TI`/`FTI`
 prints would otherwise invent highs such as 2.00 against a 1.88 bar). With that
 rule replay OHLCV equals IBKR's own 1-minute bars. Past coverage the quote card
-says trades end at the coverage time. Historical replay exposes no invented bid, ask, quotes or
-depth.
+says trades end at the coverage time. Historical replay exposes no invented bid,
+ask, quotes or depth. Depth it did not invent is a different matter: where the
+local depth recorder (`backend/l2/`) archived a book for the replayed second,
+`sim/history_depth.py` serves it as `depth` with `depth_available` true (#309).
+Quotes stay absent and `bid`/`ask` stay null -- a recorded book is not a quote
+stream, and practice fills still price from prints alone (ADR 019).
 
 **Rail parity.** The Stock Quote rail keeps the live structure in historical
 replay: quote head (last, change, Float/Vol/Gap/High/Low) over **Level 2 |
@@ -66,24 +70,30 @@ Time & Sales** side by side. Time & Sales is the live `TimeSalesView` (same
 columns, row height, virtualized window, min-size filter) fed from the
 snapshot instead of the tape WebSocket; its status badge reads REPLAY and
 unreported prints are dimmed rows, not a separate column. Level 2 keeps its
-pane and column headers with empty rows; it never mounts the live depth feed
-during replay. Its header shows a "Replay · No L2 recorded" chip in place of
-the live halt and shortability chips, which describe today, not the replayed
-session (the rail hides `.ibkr-depth-fallback-badge`, so the note lives in the
-header). The quote head reads the snapshot: `last`, `volume`, session
+pane and column headers, and draws the recorded book at the playhead when the
+snapshot carries one; it never mounts the live depth feed during replay. With no
+recorded book the rows stay empty and the pane states *"Level 2 was not recorded
+for this moment"* inside the ladder, so an unrecorded minute never reads as a
+market with no bids. Its header chip reads "Replay · Recorded L2" or "Replay ·
+No L2 recorded" in place of the live halt and shortability chips, which describe
+today, not the replayed session (the rail hides
+`.ibkr-depth-fallback-badge`, so the notes use their own class). The
+lookup is one indexed newest-at-or-before row per replayed second, memoized, and
+an unreadable `l2.db` degrades to "not recorded" rather than failing the
+replay. The quote head reads the snapshot: `last`, `volume`, session
 `open`/`high`/`low` from reached reported prints (or reached candles when
 trades are not downloaded) and `prev_close` = the prior trading day's 15:59 ET
 minute close (proxy for the official close the live head uses), else that
 day's stored daily close (extended hours, `useRTH=False`), else none -- never
 an older session. RVOL, halt and shortability are blank in replay. Rows carry
 no bid/ask aggressor tint because historical quotes are not downloaded. A seek or selection change clears UI snapshots and rebuilds
-deterministically. Pause freezes event time. Synthetic and capture feeds must
-not inject into historical playback, so SIM1 practice fills also wait until
-historical replay is closed (SIM orders accept only SIM1). Loading new
-downloaded data is explicit: loading the same window again keeps the playhead
-and pause; a different window starts at its open. **Return to SIM1** clears the
-selection and window, keeps pause, and keeps the playhead's Eastern time of day
-on the SIM1 session date.
+deterministically. Pause freezes event time. Capture feeds must not inject into
+historical playback. Practice orders trade the loaded window itself (ADR 019);
+fills price from its prints alone, because a historical download carries no
+bid/ask. Loading new downloaded data is explicit: loading the same window again
+keeps the playhead and pause; a different window starts at its open. **Close
+replay** clears the selection and window, keeps pause, and keeps the playhead's
+Eastern time of day.
 
 Acceptance: IMCC 2026-09-18 04:00–09:30 ET; prove pagination with identical
 prints, atomic resume, timezone and range boundaries, no lookahead, rewind,

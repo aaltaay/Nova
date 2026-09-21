@@ -25,7 +25,7 @@ def _need_bars(sensor: str, symbol: str, bars: list, source: str | None, need: i
         symbol=symbol,
         status="live",
         data={"source": source, "bars": len(bars), "need": need},
-        error=f"Need {need} 1Min bars; have {len(bars)}. Open a chart or Sim SIM1.",
+        error=f"Need {need} 1Min bars; have {len(bars)}. Open a chart, or load a replay in Sim.",
     )
 
 

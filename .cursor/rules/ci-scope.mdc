@@ -20,9 +20,10 @@ alwaysApply: false
   Branch protection has no required status checks. Keep force-push/deletion blocked.
 - Check names remain stable for visibility. Jobs report classification failures;
   inapplicable heavy steps are skipped with a reason. Red stays visible, not disguised.
-- Windows packaging runs only for application-affecting changes or manual dispatch.
-  PRs affecting packaging attempt both EXEs without delaying merge. Docs/site-only
-  pushes do not produce a desktop release. Release-trigger repair remains #346.
+- Windows packaging runs only for application-affecting changes, a release tag, or
+  manual dispatch. PRs affecting packaging attempt the installer without delaying
+  merge. Master merges build and verify only; publishing a GitHub Release requires
+  an operator-pushed `vNNN` tag (#347). Docs/site-only pushes pack nothing.
 - Keep secret scanning on every PR. Advisory source scanners run on source changes;
   dependency scanning runs on manifest changes; all run daily and on manual dispatch.
 - Repository branch cleanup/protection audits belong in scheduled maintenance,

@@ -23,6 +23,22 @@ export function displayFilledQty(order: {
   return qty;
 }
 
+/** Why a practice fill happened, for the `est` marker's tooltip (ADR 019). */
+const PRACTICE_FILL_BASIS: Record<string, string> = {
+  quote: 'the recorded bid/ask at this moment',
+  last_print: 'the last recorded print (this replay has no bid/ask)',
+  print_cross: 'a later print reaching your limit',
+  stop_trigger: 'a print crossing your stop',
+  last_mark: 'the last known mark, closing a position whose replay is unloaded',
+};
+
+export function practiceFillTitle(basis?: string | null): string {
+  const why = basis ? PRACTICE_FILL_BASIS[basis] : undefined;
+  return why
+    ? `Estimated practice fill, priced from ${why}. Not a real execution.`
+    : 'Estimated practice fill against a replayed session. Not a real execution.';
+}
+
 export function isFailedPlusFilledLie(
   status: string,
   filledQty: number,

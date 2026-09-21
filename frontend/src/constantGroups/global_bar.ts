@@ -89,7 +89,6 @@ export const GLOBAL_BAR_MODE_SIM = 'Sim';
 export const GLOBAL_BAR_MODE_CAPTURE = 'Capture';
 export const GLOBAL_BAR_MODE_DISCONNECTED = 'Disconnected';
 export const SIM_PRACTICE_FLAG_TEXT = 'SIM PRACTICE -- not IBKR';
-export const SIM_SYMBOL = 'SIM1';
 
 /** Account + Settings on the shared GlobalAppBar (Scanner + Trader). */
 export const GLOBAL_BAR_ACCOUNT_LABEL = 'Account';

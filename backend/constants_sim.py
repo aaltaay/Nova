@@ -1,31 +1,29 @@
-"""Local Sim Feed + Sim Fill tunables (weekend practice harness).
+"""Sim practice desk tunables: replayed real sessions and a local fill ledger.
 
 Owner: backend/sim/. Not IBKR. Never mixed with Gateway prices or orders.
+There is no synthetic instrument: Sim trades a loaded historical download or
+recorded capture of a real ticker (#310, #315).
 """
 from __future__ import annotations
 
 import os
 
-# Env selector. "sim" turns on the local practice broker + looping tape.
+# Env selector. "sim" starts the process on the local practice desk.
 NOVA_BROKER_ENV = "NOVA_BROKER"
 NOVA_BROKER_SIM = "sim"
 NOVA_BROKER_IBKR = "ibkr"
 
-SIM_SYMBOL = "SIM1"
-SIM_NAME = "Nova Sim Tape"
-SIM_EXCHANGE = "SIM"
-
-# Synthetic session around a stable mid so limits can be written by hand.
-SIM_PREV_CLOSE = 25.00
-SIM_START_LAST = 25.10
-SIM_SPREAD = 0.02
-SIM_TICK_AMPLITUDE = 0.18
-SIM_TICK_STEP_RAD = 0.35
-SIM_TICK_INTERVAL_SEC = 0.25
-SIM_PRINT_SIZE = 100
-SIM_BOOK_LEVELS = 5
-SIM_BOOK_SIZE = 200
-SIM_BOOK_TICK = 0.01
+# Practice orders are refused with one of these codes (architecture/practice-fills.md).
+SIM_NO_REPLAY_CODE = "SIM_NO_REPLAY"
+SIM_NO_REPLAY_REASON = "Load a recording or a historical window before placing a practice order"
+SIM_SYMBOL_MISMATCH_CODE = "SIM_SYMBOL_MISMATCH"
+SIM_NO_PRICE_CODE = "SIM_NO_PRICE"
+SIM_NO_PRICE_REASON = "No trade has printed yet at the replay playhead"
+SIM_NO_TRADES_CODE = "SIM_NO_TRADES"
+SIM_NO_TRADES_REASON = (
+    "This historical window has candles only; download its trades to practise against it"
+)
+SIM_ORDER_TYPE_CODE = "SIM_ORDER_TYPE"
 
 # Practice ledger -- not real buying power. In-memory only (process start).
 SIM_STARTING_CASH = 100_000.0
@@ -38,9 +36,6 @@ SIM_SPEND_LOCKED_DISARMED = "locked_disarmed"
 SIM_MODE_LABEL = "sim"
 SIM_NO_IBKR_REASON = "SIM mode cannot place to IBKR"
 SIM_NO_IBKR_CODE = "SIM_NO_IBKR"
-
-# Chart history seeded from the looping mid so /bars is never a 503.
-SIM_CHART_BARS_DEFAULT = 120
 
 
 def nova_broker_from_env() -> str:
@@ -65,7 +60,7 @@ def _desk_venue_cache_root() -> str:
 DESK_VENUE_FILE = os.path.join(_desk_venue_cache_root(), "desk-venue.json")
 DESK_VENUE_SCHEMA_VERSION = 1
 
-# Session window for looping tape (America/New_York clock).
+# Default replay session window (America/New_York clock).
 SIM_SESSION_OPEN_HOUR = 4
 SIM_SESSION_CLOSE_HOUR = 20
 
@@ -90,3 +85,17 @@ SIM_HISTORY_RESULT_CACHE_ENTRIES = 12
 SIM_HISTORY_QUOTE_CANDLES = 2000
 SIM_HISTORY_SQLITE_TIMEOUT_SEC = 30
 SIM_HISTORY_SCHEMA_CACHE_ENTRIES = 32
+
+# Recorded Level 2 inside historical replay (#309, ADR 017). An IBKR historical
+# download carries trades only, so depth comes from the local recorder archive
+# (backend/l2/) -- a feeder, never a second replay engine or store.
+SIM_HISTORY_DEPTH_SOURCE = "l2_recorder"
+# A recorded book stands for the playhead only while it is this fresh. The
+# continuous depth recorder samples once a second
+# (L2_CONTINUOUS_SNAPSHOT_INTERVAL_SEC), so one spare second absorbs a skipped
+# sample without letting an old book stand in for an unrecorded stretch.
+SIM_HISTORY_DEPTH_MAX_AGE_SEC = 2.0
+# Resolved books per replayed second. The snapshot is polled by the Level 2
+# panel, the chart and practice admission, so the archive is read at most once
+# per second no matter how many callers ask.
+SIM_HISTORY_DEPTH_CACHE_ENTRIES = 16

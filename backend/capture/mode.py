@@ -137,8 +137,7 @@ def status_payload() -> dict[str, Any]:
 
     worker = worker_status()
     out["writer"] = worker
-    from constants_sim import SIM_SYMBOL
-    if on and _symbol != SIM_SYMBOL:
+    if on:
         from capture.bridge_ibkr import book_health, producer_health
         from capture.recorder import status as recorder_status
         from ibkr.tape_recording import dispatch_errors

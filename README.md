@@ -35,7 +35,7 @@ The API binds to `127.0.0.1:8000`. Do not expose it to the internet.
 
 ## Practice Sim
 
-Header **Paper / Live / Sim** turns on a local SIM1 tape and sim ledger so you can practice 24/7 without Gateway. It is not IBKR paper. See [docs/sim-mode.md](docs/sim-mode.md).
+Header **Paper / Live / Sim** replays a real recorded or downloaded session and fills practice orders in a local ledger, with no Gateway. It is not IBKR paper, and the fills are estimates. See [docs/sim-mode.md](docs/sim-mode.md).
 
 ## Requirements
 
@@ -65,20 +65,22 @@ npm install
 npm run electron:dev
 ```
 
-Installer and portable EXE:
+Windows installer:
 
 ```bat
 cd frontend
 npm run electron:pack
 ```
 
-Output: `frontend/release/Nova-Setup-vNNN.exe` and `frontend/release/Nova-Portable-vNNN.exe`. The packaged app stores keys and cache under `%APPDATA%\Nova\`.
+Output: `frontend/release/Nova-Setup-vNNN.exe` plus `latest.yml` and a `.blockmap` (the in-app update feed). The packaged app stores keys and cache under `%APPDATA%\Nova\`, so an update never touches your settings.
 
 ## Releases
 
 Public revision is **`vNNN`**: `v` plus the git commit count, at least three digits. Git history is the source of truth — `VERSION` and `frontend/package.json`'s `0.1.N` are **generated build artifacts**, not repo content. `VERSION` is gitignored and `package.json` stays `0.0.0-dev` in git; CI regenerates both with `py -3 tools/bump_version.py --sync` before packing. A working clone derives the tag from git automatically, so there is nothing to install and no commit ever diffs a version file (see [#344](https://github.com/aaltaay/Nova/issues/344)).
 
-A green push to `master` creates tag `vNNN` and a GitHub Release with both EXEs. The automatic Source code zip is not the app. Pull requests upload the same EXEs as workflow artifacts.
+Pushes to `master` and pull requests build and verify the installer as a workflow artifact; they publish nothing. A Release is deliberate: on an up-to-date `master` run `py -3 tools/bump_version.py --ensure-tag --push-tag`, and the pushed `vNNN` tag publishes the installer, its `.blockmap` and `latest.yml`. The automatic Source code zip is not the app.
+
+Installed desks check that feed shortly after launch, download a newer installer in the background, and offer **Restart to update** / **Later** -- they never install or restart on their own. Set `NOVA_UPDATE_CHECK=0` to stop the automatic check (Help > Check for Updates still works). Builds are unsigned, so SmartScreen warns on a fresh download.
 
 ## Configuration
 

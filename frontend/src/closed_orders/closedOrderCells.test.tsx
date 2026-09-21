@@ -81,6 +81,23 @@ function renderCell(col: ClosedOrderColumnId, order: ClosedOrder) {
   return { text, html };
 }
 
+describe('closedOrderCells — practice fills are never read as real ones', () => {
+  it('marks an estimated practice fill and names what priced it', () => {
+    const practice = renderCell('avg_fill', {
+      ...FILLED, avg_fill_price: 10.5, fill_estimated: true, fill_basis: 'print_cross',
+    });
+    expect(practice.text).toContain('$10.50');
+    expect(practice.text).toContain('est');
+    expect(practice.html).toContain('a later print reaching your limit');
+  });
+
+  it('leaves a real broker fill unmarked', () => {
+    const real = renderCell('avg_fill', FILLED);
+    expect(real.text).toBe('$12.48');
+    expect(real.html).not.toContain('ibkr-fill-estimated');
+  });
+});
+
 describe('closedOrderCells — column contract', () => {
   it('Quantity Filled / Limit / Avg fill / Order ID', () => {
     const filled = renderCell('filled', FILLED);

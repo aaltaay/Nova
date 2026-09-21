@@ -298,6 +298,15 @@ def quote_at(asof: float | None = None, *, state: CaptureData | None = None) -> 
     }
 
 
+def last_print_at(asof: float, *, state: CaptureData | None = None) -> float | None:
+    """Price of the last recorded print at or before ``asof``."""
+    state = state or _state
+    if state is None or not state.prints:
+        return None
+    i = _asof_index(state.print_keys, asof)
+    return float(state.prints[i]["price"]) if i >= 0 else None
+
+
 def book_at(asof: float | None = None, *, state: CaptureData | None = None) -> dict[str, Any] | None:
     state = state or _state
     if state is None or not state.l2:

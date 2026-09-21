@@ -4,7 +4,8 @@ Level 2 recorder (Phase F + continuous/tape extensions).
 When a setup signal fires, auto-subscribes IBKR depth for that symbol and
 snapshots the order book on an interval for a fixed window, writing every
 snapshot to SQLite via l2/store (batched). Also opens a record_session and
-watches the symbol for Alpaca time & sales during the window.
+watches the symbol for IBKR time & sales during the window -- the single
+trade-print source (ADR 017). Alpaca never feeds a recording.
 
 Read-only with respect to trading -- this module never places, modifies, or
 cancels an order, and nothing here feeds backend/strategy/executor.py.

@@ -40,7 +40,13 @@ def enqueue_print(payload) -> None:
 
 def _write_print(payload: dict) -> None:
     from capture import bar_buckets, recorder
+    from capture.schema import valid_timestamp
 
+    if not valid_timestamp(payload.get("ts")):
+        # Let the recorder diagnose it: converting here would raise inside the
+        # worker and report a generic failure instead of invalid_timestamp_rows.
+        recorder.record_print(payload)
+        return
     payload["session_date"] = datetime.fromtimestamp(payload["ts"], ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
     recorder.ensure_event_day(payload["ts"])
     if not recorder.record_print(payload):
@@ -201,8 +207,4 @@ def producer_health(symbol: str) -> dict:
 
 
 def admission_error(symbol: str) -> str | None:
-    from constants_sim import SIM_SYMBOL
-
-    if symbol == SIM_SYMBOL:
-        return None
     return producer_health(symbol).get("error")

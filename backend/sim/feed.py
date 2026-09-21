@@ -1,4 +1,9 @@
-"""Sim Feed loop -- steps SIM1 tape and injects T&S / L2 / quote updates."""
+"""Sim Feed loop -- streams a recorded capture and matches practice orders.
+
+There is no synthetic tape. With nothing loaded the loop is idle; a historical
+window serves its own snapshots, so the loop only matches practice orders
+against its prints (architecture/practice-fills.md).
+"""
 from __future__ import annotations
 
 from capture.constants_capture import CAPTURE_FEED_EMIT_LIMIT
@@ -6,18 +11,22 @@ from capture.constants_capture import CAPTURE_FEED_EMIT_LIMIT
 import asyncio
 import logging
 
-from constants_sim import SIM_PRINT_SIZE, SIM_SYMBOL
 from sim import broker as _broker
-from sim import market as _market
+from sim import practice
 from sim import session_clock as _clock
 
 logger = logging.getLogger(__name__)
 
 _task: asyncio.Task | None = None
+# (replay key, playhead ts) of the last fill match; practice orders only ever
+# fill on prints after it, so a backward scrub or a new replay never back-fills.
+_fill_cursor: tuple[tuple, float] | None = None
 
 
 def reset_for_tests() -> None:
+    global _fill_cursor
     stop_sim_feed()
+    _fill_cursor = None
 
 
 def start_sim_feed() -> None:
@@ -25,7 +34,7 @@ def start_sim_feed() -> None:
     if _task is not None and not _task.done():
         return
     _task = asyncio.get_running_loop().create_task(_run(), name="sim-feed")
-    logger.info("SIM: feed started symbol=%s", SIM_SYMBOL)
+    logger.info("SIM: feed started")
 
 
 def stop_sim_feed() -> None:
@@ -91,26 +100,40 @@ async def _run() -> None:
 
 
 def tick() -> dict:
-    """One synchronous tape step + fill match + fan-out. Used by tests."""
+    """One synchronous capture step + practice fill match. Used by tests."""
     if _clock.is_paused():
         return {}
     from sim import history_playback
-    if history_playback.status():
-        return {}  # Historical snapshots own tape/quotes; never inject SIM1 here.
     from sim import replay as _replay
-    if not _replay.status_payload()["replay_ok"]:
-        return {}  # Failed selection must be acknowledged by selecting a source.
-    if _replay.is_capture_replay():
-        try:
-            return _capture_tick()
-        except Exception:
-            logger.exception("SIM: capture play tick failed")
-            _replay.fail_replay("Capture playback failed; select a recording or return to SIM1")
-            return {}
-    payload = _market.step()
-    _broker.try_fill_working(_market.last())
-    _inject(payload)
+    payload: dict = {}
+    if not history_playback.status():
+        if not _replay.status_payload()["replay_ok"]:
+            return {}  # Failed selection must be acknowledged by selecting a source.
+        if _replay.is_capture_replay():
+            try:
+                payload = _capture_tick()
+            except Exception:
+                logger.exception("SIM: capture play tick failed")
+                _replay.fail_replay("Capture playback failed; select a recording or a historical window")
+                return {}
+    match_practice_fills()
     return payload
+
+
+def match_practice_fills() -> list[dict]:
+    """Fill resting practice orders on the replay prints since the last match."""
+    global _fill_cursor
+    active = practice.loaded()
+    now = practice.playhead_ts()
+    if active is None:
+        _fill_cursor = None
+        return []
+    previous = _fill_cursor
+    _fill_cursor = (active.key, now)
+    if previous is None or previous[0] != active.key or now <= previous[1]:
+        return []
+    prints = practice.prints_between(active.symbol, previous[1], now)
+    return _broker.try_fill_working(active.symbol, prints) if prints else []
 
 
 def _capture_tick() -> dict:
@@ -165,55 +188,3 @@ def _broadcast_capture(payload: dict) -> None:
 
     loop.create_task(broadcast())
 
-
-def _inject(payload: dict) -> None:
-    try:
-        from capture.bridge_sim import emit_sim_tick
-
-        emit_sim_tick(payload, _market.quote() or {}, _market.book())
-    except Exception:
-        # D-068: this used to be logger.debug, and root is INFO — a failing
-        # capture bridge produced no line anywhere while the session was lost.
-        logger.warning("SIM: capture bridge failed", exc_info=True)
-
-    try:
-        from ibkr.tape_stream import _push_queue
-
-        _push_queue(SIM_SYMBOL, payload)
-    except Exception:
-        logger.debug("SIM: tape inject skipped", exc_info=True)
-
-    try:
-        from ibkr.depth import state as _depth_state
-
-        book = dict(_market.book())
-        book["symbol"] = SIM_SYMBOL
-        _depth_state.push_book(SIM_SYMBOL, book)
-    except Exception:
-        logger.debug("SIM: depth inject skipped", exc_info=True)
-
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        return
-    q = _market.quote() or {}
-    last = q.get("last")
-    if last is None:
-        return
-
-    async def _broadcast() -> None:
-        try:
-            from websocket import broadcast_trade_update
-
-            await broadcast_trade_update(
-                SIM_SYMBOL,
-                float(last),
-                int(payload.get("size") or SIM_PRINT_SIZE),
-                payload.get("time"),
-                q.get("volume"),
-                q.get("prev_close"),
-            )
-        except Exception:
-            logger.debug("SIM: quote inject skipped", exc_info=True)
-
-    loop.create_task(_broadcast())

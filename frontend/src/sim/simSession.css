@@ -54,3 +54,15 @@
 .sim-download { padding: 12px 0; border-top: 1px solid var(--nova-text-muted); display: grid; gap: 6px; }
 .sim-download progress { width: 100%; height: 8px; accent-color: var(--nova-accent); }
 .sim-capture-diagnostics { flex-basis: 100%; color: var(--nova-text-muted); }
+/* Replay Level 2 provenance (#309). Its own class because the rail hides
+   .ibkr-depth-fallback-badge, and an unrecorded moment must still say so. */
+.sim-replay-l2-note {
+  font-size: 0.65rem;
+  text-align: center;
+  padding: 0.15rem 0.4rem;
+  margin-bottom: 0.4rem;
+  border-radius: var(--radius-control);
+  color: var(--nova-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.sim-replay-l2-note--empty { font-variant-numeric: normal; }

@@ -32,7 +32,6 @@ from capture.storage import capture_root
 from capture.schema import read_manifest
 from capture.fidelity import Fidelity
 from capture.timeframes import _normalize_timeframe
-from constants_sim import SIM_SYMBOL
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
@@ -73,9 +72,6 @@ def last_error() -> str | None:
 
 
 def _session_dir(symbol: str, day: str | None = None) -> Path:
-    if day is None and symbol == SIM_SYMBOL:
-        from sim.session_clock import now_et
-        day = now_et().strftime("%Y-%m-%d")
     day = day or datetime.now(ET).strftime("%Y-%m-%d")
     return capture_root() / day / symbol.upper()
 
@@ -129,7 +125,7 @@ def start_recorder(symbol: str | None, *, resume: bool = True, session_date: str
                 "started_et": prior.get("started_et") or _started_et,
                 "segment_started_et": _started_et,
                 "stopped_et": None,
-                "source": "sim" if _symbol == SIM_SYMBOL else "ibkr",
+                "source": "ibkr",
                 "schema": CAPTURE_SCHEMA,
                 "schema_version": CAPTURE_SCHEMA_VERSION,
                 "l2_max_hz": CAPTURE_L2_MAX_HZ,
@@ -167,7 +163,7 @@ def _stop_locked() -> None:
     if not _active and not _files:
         return
     _active = False
-    if _symbol != SIM_SYMBOL and _counts["prints"] == _segment_base["prints"]:
+    if _counts["prints"] == _segment_base["prints"]:
         _error = _error or "No IBKR prints received in this recording segment"
 
     pending = _fidelity.drain_l2()
@@ -231,7 +227,7 @@ def _finalize_locked(status: str) -> None:
                 base={
                     "symbol": _symbol,
                     "session_date": _day,
-                    "source": "sim" if _symbol == SIM_SYMBOL else "ibkr",
+                    "source": "ibkr",
                     "schema": CAPTURE_SCHEMA,
                     "schema_version": CAPTURE_SCHEMA_VERSION,
                     "partial_ok": True,

@@ -95,7 +95,7 @@ def read_l2(symbol: str) -> dict[str, Any]:
             symbol=symbol,
             status="live",
             data={},
-            error="No L2 book. Open Trader on this symbol, or enable Sim for SIM1.",
+            error="No L2 book. Open Trader on this symbol, or load a recorded replay in Sim.",
         )
     feat = l2_features.compute_feature_dict(book)
     spread = feat.get("spread")
@@ -125,7 +125,7 @@ def read_spread(symbol: str) -> dict[str, Any]:
             symbol=symbol,
             status="live",
             data={},
-            error="No book for spread. Open Trader L2 or Sim SIM1.",
+            error="No book for spread. Open Trader L2, or load a recorded replay in Sim.",
         )
     current = l2_features.spread(book)
     hist = rings.recent_books(symbol)

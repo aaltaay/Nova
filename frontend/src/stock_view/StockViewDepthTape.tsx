@@ -2,8 +2,10 @@
  * Stock Quote module — last/change + stats + Level 2 | Time & Sales.
  * Height vs Order Entry is controlled by StockViewRail's horizontal splitter.
  * Historical replay keeps this exact structure: the quote head reads the
- * replay snapshot, Level 2 shows its empty frame, and Time & Sales is the same
- * view fed from reached prints (architecture/historical-replay.md).
+ * replay snapshot, Level 2 shows the recorded book at the playhead when the
+ * local depth recorder covered it (and says so when it did not), and Time &
+ * Sales is the same view fed from reached prints
+ * (architecture/historical-replay.md).
  */
 import type { ReactNode } from 'react';
 import { HaltEtaChip } from '../ibkr/HaltEtaChip';
@@ -22,7 +24,7 @@ import { StockViewQuotePrice } from './StockViewQuotePrice';
 import { StockViewQuoteStats } from './StockViewQuoteStats';
 import { useHistoricalSnapshot } from '../sim/useHistoricalSnapshot';
 import { HistoricalTimeSales } from '../sim/HistoricalTimeSales';
-import { HistoricalDepthPlaceholder, HistoricalL2Chip } from '../sim/HistoricalDepthPlaceholder';
+import { HistoricalDepth, HistoricalL2Chip } from '../sim/HistoricalDepth';
 import { historicalQuoteDetail } from '../sim/historicalQuoteDetail';
 
 interface Props {
@@ -109,8 +111,8 @@ export function StockViewDepthTape({
           <DepthAndTapeColumns
             symbol={depthSymbol}
             // Today's halt and borrow state are not the replayed session's.
-            chips={<HistoricalL2Chip />}
-            level2={showL2 ? <HistoricalDepthPlaceholder /> : null}
+            chips={<HistoricalL2Chip depth={historical.depth} />}
+            level2={showL2 ? <HistoricalDepth depth={historical.depth} /> : null}
             tape={showTape ? (
               <HistoricalTimeSales symbol={depthSymbol} snapshot={historical} uiActive={uiActive} />
             ) : null}

@@ -96,14 +96,14 @@ def _effective(workflow: dict, job: dict):
 
 
 def test_every_merge_path_may_dispatch_the_desktop_pack():
-    """Every merging job needs `actions: write` or no Release publishes (#346).
+    """Every merging job needs `actions: write` or nothing is packed (#346).
 
     An Actions merge pushes with `GITHUB_TOKEN`, which by design starts no
     `push:` run, so `merge_now` dispatches `desktop-pack.yml` itself. Without
     this permission the dispatch is refused with
     `Resource not accessible by integration (HTTP 403)`, and because a lost
     dispatch is deliberately not allowed to fail the merge, master goes back
-    to collecting untagged, unreleased commits in silence -- the v757 symptom.
+    to collecting never-packed commits in silence -- the v757 symptom.
 
     Swept across every workflow rather than pinned to one file. #389 granted
     the permission to `pr-delivery.yml` alone and left `deploy.yml`'s
@@ -123,7 +123,7 @@ def test_every_merge_path_may_dispatch_the_desktop_pack():
     ]
     assert not refused, (
         "these merge paths cannot dispatch Desktop pack, so the commits they "
-        f"merge ship no vNNN tag, Release or EXE (#346): {refused}"
+        f"merge are never packed or verified (#346): {refused}"
     )
 
 

@@ -1,21 +1,33 @@
-# Windows desktop installer + portable EXE + vNNN GitHub Release
+# Windows desktop installer (NSIS) + the electron-updater feed; Release on a tag
 #
 # Application-affecting PRs/pushes and manual runs (docs/site skip packaging):
 #   1. Stamp VERSION / package.json from `git rev-list --count HEAD` (full history).
-#   2. Pack the Electron + FastAPI sidecar as NSIS installer and portable EXE.
-#   3. Upload both EXEs as a workflow artifact (required files).
+#   2. Pack the Electron + FastAPI sidecar as the NSIS installer. Installer only
+#      since #347 -- a portable EXE can never update itself.
+#   3. Prove Nova-Setup-vNNN.exe, its .blockmap and latest.yml exist and agree on
+#      the version, then upload the three as one workflow artifact.
 #
-# On master/main only (pushed, or dispatched by PR delivery after an
-# Actions merge), after a successful pack:
-#   create git tag vNNN if missing, then create or update the GitHub Release
-#   and attach Nova-Setup-vNNN.exe + Nova-Portable-vNNN.exe.
-#   GitHub also adds Source code zip/tar -- those are not the app.
+# Master merges (pushed, or dispatched by PR delivery after an Actions merge,
+# #346) build and verify only -- they publish nothing. A Release is now an update
+# prompt on the operator's desk, so one per merged PR would train dismissal.
+#
+# Publishing is a deliberate operator act (#347): on an up-to-date master run
+#   py -3 tools/bump_version.py --ensure-tag --push-tag
+# and this workflow packs that tagged commit and creates the GitHub Release with
+# Nova-Setup-vNNN.exe + .blockmap + latest.yml -- the feed electron-updater reads.
+# A tag pushed by Actions would start no run, so nothing automated can cut one.
+# Re-run a publish with: gh workflow run desktop-pack.yml --ref vNNN
+# (A tag push has no diff base, and `tools/ci_scope.py` selects full verification
+# whenever the diff is unavailable, so a release always packs.)
+# GitHub also adds Source code zip/tar -- those are not the app.
 
 name: Desktop pack
 
 on:
   push:
     branches: [main, master]
+    # Release tags only: vNNN, the commit count of the tagged commit.
+    tags: ["v[0-9]+"]
   pull_request:
     branches: [main, master]
   workflow_dispatch:
@@ -100,6 +112,12 @@ jobs:
           python tools/bump_version.py --sync
           $tag = (python tools/bump_version.py --print-tag).Trim()
           if (-not $tag) { throw "bump_version --print-tag returned empty" }
+          # A release tag must be this commit's own revision, or the installed
+          # app would report a version the Release does not carry and the
+          # updater would compare the wrong number.
+          if ($env:GITHUB_REF_TYPE -eq "tag" -and $env:GITHUB_REF_NAME -ne $tag) {
+            throw "release tag $env:GITHUB_REF_NAME is not this commit's revision $tag -- tag with: py -3 tools/bump_version.py --ensure-tag --push-tag"
+          }
           "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "NOVA_RELEASE_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           Write-Host "revision $tag"
@@ -115,7 +133,7 @@ jobs:
         run: npm ci
         working-directory: frontend
 
-      - name: Pack Windows installer and portable
+      - name: Pack the Windows installer
         if: needs.changes.outputs.desktop == 'true'
         working-directory: frontend
         env:
@@ -125,75 +143,77 @@ jobs:
           NOVA_PYTHON: python
         run: npm run electron:pack
 
-      - name: Prove both EXEs exist
+      - name: Prove the installer and its update feed agree
         if: needs.changes.outputs.desktop == 'true'
         shell: pwsh
         run: |
           $tag = "${{ steps.rev.outputs.tag }}"
           $setup = "frontend/release/Nova-Setup-$tag.exe"
-          $portable = "frontend/release/Nova-Portable-$tag.exe"
-          if (-not (Test-Path $setup)) { throw "missing $setup" }
-          if (-not (Test-Path $portable)) { throw "missing $portable" }
-          Get-Item $setup, $portable | Format-Table Name, Length
+          $feed = "frontend/release/latest.yml"
+          foreach ($file in @($setup, "$setup.blockmap", $feed)) {
+            if (-not (Test-Path $file)) { throw "missing $file" }
+          }
+          # latest.yml is what an installed desk reads to decide it is behind,
+          # so a Release whose feed names another build is worse than none.
+          $version = (Get-Content frontend/package.json -Raw | ConvertFrom-Json).version
+          $yml = Get-Content $feed -Raw
+          if ($yml -notmatch "(?m)^version: ['""]?$([regex]::Escape($version))['""]?\s*$") {
+            throw "latest.yml does not advertise $version"
+          }
+          if ($yml -notmatch "(?m)^path: ['""]?Nova-Setup-$tag\.exe['""]?\s*$") {
+            throw "latest.yml does not point at Nova-Setup-$tag.exe"
+          }
+          Write-Host "$tag -> $version"
+          Get-Item $setup, "$setup.blockmap", $feed | Format-Table Name, Length
 
-      - name: Upload Windows EXEs
+      - name: Upload the installer and update feed
         if: needs.changes.outputs.desktop == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: Nova-${{ steps.rev.outputs.tag }}-win
           path: |
             frontend/release/Nova-Setup-${{ steps.rev.outputs.tag }}.exe
-            frontend/release/Nova-Portable-${{ steps.rev.outputs.tag }}.exe
+            frontend/release/Nova-Setup-${{ steps.rev.outputs.tag }}.exe.blockmap
+            frontend/release/latest.yml
           if-no-files-found: error
           retention-days: 14
 
   publish-release:
-    name: Publish vNNN EXEs
+    name: Publish vNNN installer
     timeout-minutes: 10
-    # `push` covers a human merge. `workflow_dispatch` covers an Actions
-    # merge, which pushes with `GITHUB_TOKEN` and so starts no `push` run
-    # (#346) -- PR delivery dispatches this workflow on master instead.
-    if: needs.changes.outputs.desktop == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+    # Release tags only (#347). A master push -- human, or PR delivery's
+    # dispatch after an Actions merge (#346) -- builds and verifies above and
+    # stops here. `workflow_dispatch` on a tag ref re-runs a publish.
+    if: needs.changes.outputs.desktop == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && startsWith(github.ref, 'refs/tags/v')
     needs: [changes, desktop-pack]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-
-      - name: Download Windows EXEs
+      - name: Download the installer and update feed
         uses: actions/download-artifact@v4
         with:
           name: Nova-${{ needs.desktop-pack.outputs.tag }}-win
           path: dist-win
 
-      - name: Tag and attach EXEs to GitHub Release
+      - name: Attach the installer and update feed to the GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           TAG: ${{ needs.desktop-pack.outputs.tag }}
-          GIT_AUTHOR_NAME: github-actions[bot]
-          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
-          GIT_COMMITTER_NAME: github-actions[bot]
-          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          REF_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          python tools/bump_version.py --ensure-tag
-          if ! git ls-remote --tags origin "refs/tags/${TAG}" | grep -q .; then
-            git push origin "refs/tags/${TAG}"
-          fi
+          # The pack refuses a mismatched tag; refuse it again before publishing.
+          test "$TAG" = "$REF_TAG"
           SETUP="dist-win/Nova-Setup-${TAG}.exe"
-          PORTABLE="dist-win/Nova-Portable-${TAG}.exe"
           test -f "$SETUP"
-          test -f "$PORTABLE"
-          NOTES="$(printf 'Nova %s Windows desktop.\n\n- Installer: Nova-Setup-%s.exe (NSIS)\n- Portable: Nova-Portable-%s.exe (no install)\n\nGitHub also attaches Source code zip/tar automatically. Those are not the app.' "$TAG" "$TAG" "$TAG")"
+          test -f "${SETUP}.blockmap"
+          test -f dist-win/latest.yml
+          NOTES="$(printf 'Nova %s Windows desktop.\n\n- Installer: Nova-Setup-%s.exe (NSIS, x64)\n- latest.yml + .blockmap are the in-app update feed; installed desks offer this build and install it when you choose Restart to update.\n\nBuilds are unsigned, so SmartScreen warns on a fresh download.\nGitHub also attaches Source code zip/tar automatically. Those are not the app.' "$TAG" "$TAG")"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$SETUP" "$PORTABLE" --clobber
+            gh release upload "$TAG" "$SETUP" "${SETUP}.blockmap" dist-win/latest.yml --clobber
           else
-            gh release create "$TAG" "$SETUP" "$PORTABLE" --title "$TAG" --notes "$NOTES" --verify-tag
+            gh release create "$TAG" "$SETUP" "${SETUP}.blockmap" dist-win/latest.yml \
+              --title "$TAG" --notes "$NOTES" --verify-tag --latest
           fi

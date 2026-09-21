@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from constants_sim import (
     SIM_HISTORY_MAX_SELECTION_PRINTS, SIM_HISTORY_QUOTE_CANDLES, SIM_HISTORY_TAPE_ROWS,
 )
+from sim import history_depth
 from sim import history_store as store
 from sim.chart_replay import INTERVAL_SECONDS
 from sim.history_cache import CandleCache, previous_close
@@ -42,6 +43,7 @@ def clear():
     with _lock:
         _generation += 1
         _selection = None
+    history_depth.clear()
 
 
 @contextmanager
@@ -102,6 +104,7 @@ def select(spec: dict):
             same_window = previous is not None and all(
                 previous[key] == spec[key] for key in ('symbol', 'date', 'start', 'end'))
             replay.clear_capture()
+            history_depth.clear()
             _selection = loaded
             session_clock.set_session_date(spec['date'])
             session_clock.set_window(spec['start'], spec['end'])
@@ -118,6 +121,22 @@ def bars(symbol: str, timeframe: str, limit: int, now: datetime):
     return selected.candles.bars(symbol, timeframe, limit, now.timestamp())
 
 
+def prints_between(symbol: str, after_ts: float, through_ts: float) -> list[tuple[float, float]]:
+    """Reported ``(ts, price)`` prints in ``(after_ts, through_ts]`` for practice fills.
+
+    Unreported prints (odd-lot / Form T) are excluded, as they are from last and
+    candles, so a practice order never fills on a print IBKR's own bars ignore.
+    """
+    with _lock:
+        selected = _selection
+    if not selected or selected.spec['symbol'] != symbol:
+        return []
+    through = min(float(through_ts), selected.spec['end_ts'])
+    lo = bisect.bisect_right(selected.eligible_keys, float(after_ts))
+    hi = bisect.bisect_right(selected.eligible_keys, through)
+    return [(float(row['ts']), float(row['price'])) for row in selected.eligible[lo:hi]]
+
+
 def snapshot(symbol: str):
     from sim import session_clock
     with _lock:
@@ -128,11 +147,16 @@ def snapshot(symbol: str):
     result = dict(active=symbol == spec['symbol'], symbol=symbol, as_of=now.isoformat(),
                   selection=dict(spec), prints=[], last=None, volume=None, source='completed_bars',
                   open=None, high=None, low=None, prev_close=None,
-                  bid=None, ask=None, depth_available=False)
+                  bid=None, ask=None, depth_available=False, depth=None)
     if not result['active']:
         return result
     result['prev_close'] = selected.prev_close
     cutoff = min(now.timestamp(), spec['end_ts'])
+    # An IBKR download carries no book, so depth is whatever the local recorder
+    # happens to have archived for this second -- usually nothing (#309).
+    book = history_depth.book_at(symbol, cutoff)
+    if book is not None:
+        result.update(depth=book, depth_available=True)
     if selected.prints:
         end = bisect.bisect_right(selected.keys, cutoff)
         eligible_end = bisect.bisect_right(selected.eligible_keys, cutoff)

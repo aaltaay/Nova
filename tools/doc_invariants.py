@@ -114,6 +114,11 @@ INVARIANTS: tuple[tuple[str, re.Pattern[str], str], ...] = (
         re.compile(r"github\.com/aaltaay/Nova-public"),
         "Live docs still treat Nova-public as the public source (aaltaay/Nova is the source home).",
     ),
+    (
+        "portable_exe_shipped",
+        re.compile(r"Nova-Portable-"),
+        "Names the retired portable EXE (installer only since #347 -- it could never self-update).",
+    ),
 )
 
 

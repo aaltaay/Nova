@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import Literal
 
+from constants_ibkr import IBKR_ORDER_TIF_DEFAULT, IBKR_ORDER_TIFS
+
 OrderSide = Literal["BUY", "SELL"]
 OrderType = Literal["MKT", "LMT", "STP", "STP LMT", "TRAIL"]
 PLACEABLE_ORDER_TYPES: tuple[str, ...] = ("MKT", "LMT", "STP", "STP LMT", "TRAIL")
@@ -32,6 +34,19 @@ def normalize_order_type(raw: str | None) -> str:
     return _TYPE_ALIASES.get(compact, str(raw or "").strip().upper())
 
 
+def normalize_tif(raw: str | None) -> str:
+    """Upper-case a TIF; blank means the Nova default (never send blank -- 10349)."""
+    text = str(raw or "").strip().upper()
+    return text or IBKR_ORDER_TIF_DEFAULT
+
+
+def tif_error(raw: str | None) -> str | None:
+    """None when *raw* is a TIF Nova places; otherwise the refusal text."""
+    if normalize_tif(raw) in IBKR_ORDER_TIFS:
+        return None
+    return f"tif must be one of {', '.join(IBKR_ORDER_TIFS)}"
+
+
 def validation_error(
     side: str,
     qty: float,
@@ -39,6 +54,7 @@ def validation_error(
     limit_price: float | None,
     stop_price: float | None,
     _outside_rth: bool,
+    tif: str | None = None,
 ) -> str | None:
     if side not in ("BUY", "SELL"):
         return "side must be BUY or SELL"
@@ -55,7 +71,7 @@ def validation_error(
         return "stop_price must be greater than zero for TRAIL (trail $)"
     # MKT / LMT / STP / STP LMT / TRAIL all forward outside_rth. IBKR may
     # reject or ignore (Error 2109) some combinations -- surface that after Place.
-    return None
+    return tif_error(tif)
 
 
 def build_ib_order(
@@ -65,11 +81,11 @@ def build_ib_order(
     limit_price: float | None,
     stop_price: float | None,
     outside_rth: bool,
+    tif: str | None = None,
 ):
     from ib_async import LimitOrder, MarketOrder, Order, StopLimitOrder, StopOrder
-    from constants import IBKR_ORDER_TIF_DEFAULT
 
-    tif = IBKR_ORDER_TIF_DEFAULT
+    tif = normalize_tif(tif)
     typ = normalize_order_type(order_type)
     eh = bool(outside_rth)
     if typ == "MKT":

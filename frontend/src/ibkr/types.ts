@@ -19,7 +19,6 @@ export interface IbkrStatus {
   mode: IbkrMode;
   /** True while the in-app Sim practice toggle is on. */
   sim?: boolean;
-  sim_symbol?: string | null;
   capture?: boolean;
   capture_symbol?: string | null;
   recording?: boolean;

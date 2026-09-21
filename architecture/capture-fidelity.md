@@ -15,7 +15,7 @@ newest pending book even if the feed became quiet. Manifest fidelity describes
 offered/coalesced counts, configured maximum Hz, invalid timestamp and regression
 counts, and per-stream watermarks. A backward print fails visibly before it can
 enter bars. Forward Eastern date changes finalize the old directory and resume
-the event's date. SIM1 starts on its selected session date. Daily bars stay in
+the event's date. Daily bars stay in
 memory until rollover/final flush, anchored to the shared Sim session opening
 hour on the actual event calendar; pre-open events use the preceding anchor so
 DST or early prints cannot produce a future timestamp.
@@ -61,14 +61,14 @@ values; prints without quotes carry null bid/ask/sizes/prior close. No spread,
 Ticker snapshots expose actual reached prints, latest_quote only when a recorded
 bid or ask exists, and null minute_bar/daily_bar/prev_daily_bar when unavailable.
 Before the first event, loading or failed capture selections return no quote,
-an empty book and an empty ticker snapshot. Explicit synthetic SIM1 keeps its
+an empty book and an empty ticker snapshot. An unloaded selection keeps its
 existing generated behavior. Requests for another symbol do not reuse the
 selected capture's quote.
 
 
 Clock publication uses a notification-free mutation path under the capture lock.
 Scrub tape/depth refresh runs only after release and checks the capture generation
-before reseeding. This includes return-to-SIM1 time preservation. Read views pin
+before reseeding. This includes close-replay time preservation. Read views pin
 one capture snapshot through quote and ticker projection so a source switch cannot
 combine the prior symbol's quote with the new symbol's trade. A regression holds
 capture alignment and historical publication concurrently to exercise the exact

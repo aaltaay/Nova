@@ -13,11 +13,11 @@ vi.mock('../workspace/WorkspaceContext', () => ({
 
 const clock = {
   sim: true, replay_source: 'capture', replay_date: '2026-09-19',
-  replay_symbol: 'SIM1', minute_from_open: 120, minute_max: 960,
+  replay_symbol: 'AAPL', minute_from_open: 120, minute_max: 960,
 };
 
-// Model the visible desk: IMCC is active and SIM1 has been closed.
-// Any navigation request from the header will reopen and activate SIM1.
+// Model the visible desk: IMCC is active and AAPL has been closed.
+// Any navigation request from the header will reopen and activate AAPL.
 function Desk() {
   const [tabs, setTabs] = useState(['IMCC']);
   const [active, setActive] = useState('IMCC');
@@ -41,7 +41,7 @@ beforeEach(() => {
     json: async () => url.endsWith('/history') ? {jobs: []} : url.endsWith('/sessions') ? {
       days: [{ date: '2026-09-19', ticker_count: 2 }],
       tickers_by_day: { '2026-09-19': [
-        { symbol: 'SIM1', prints: 100, l2: 10 },
+        { symbol: 'AAPL', prints: 100, l2: 10 },
         { symbol: 'IMCC', prints: 100, l2: 10 },
       ] },
     } : { ...clock, ...(init?.body ? JSON.parse(String(init.body)) : {}) },
@@ -58,7 +58,7 @@ async function mount() {
 }
 
 it.each(['pointer release', 'debounced change'])(
-  '%s refreshes the clock without reopening SIM1 or leaving IMCC', async mode => {
+  '%s refreshes the clock without reopening AAPL or leaving IMCC', async mode => {
     await mount();
     const refresh = vi.fn();
     window.addEventListener(SIM_CLOCK_SCRUB_EVENT, refresh);
@@ -89,11 +89,11 @@ it('an explicit ticker pick still opens and activates the chosen replay tab', as
     fireEvent.change(screen.getByTestId('sim-replay-ticker'), { target: { value: 'IMCC' } });
   });
   await act(async () => {
-    fireEvent.change(screen.getByTestId('sim-replay-ticker'), { target: { value: 'SIM1' } });
+    fireEvent.change(screen.getByTestId('sim-replay-ticker'), { target: { value: 'AAPL' } });
   });
-  expect(mocks.open).toHaveBeenLastCalledWith('SIM1');
-  expect(screen.getByTestId('active').textContent).toBe('SIM1');
-  expect(screen.getByTestId('tabs').textContent).toBe('IMCC,SIM1');
+  expect(mocks.open).toHaveBeenLastCalledWith('AAPL');
+  expect(screen.getByTestId('active').textContent).toBe('AAPL');
+  expect(screen.getByTestId('tabs').textContent).toBe('IMCC,AAPL');
 });
 
 it('one button switches between Pause and Play without navigating', async () => {
@@ -129,7 +129,7 @@ it('defaults to the extended-hours session slider', async () => {
   expect((screen.getByTestId('sim-session-scrubber') as HTMLInputElement).max).toBe('960');
 });
 
-it('Return to SIM1 clears the hidden capture pickers', async () => {
+it('Close replay clears the hidden capture pickers', async () => {
   let source = 'capture';
   mocks.fetch.mockImplementation(async (url: string, init?: RequestInit) => ({
     ok: true,
@@ -137,9 +137,9 @@ it('Return to SIM1 clears the hidden capture pickers', async () => {
       if (url.endsWith('/history')) return { jobs: [] };
       if (url.endsWith('/sessions')) return { days: [{ date: '2026-09-19', ticker_count: 1 }],
         tickers_by_day: { '2026-09-19': [{ symbol: 'IMCC', prints: 10, l2: 1 }] } };
-      if (url.endsWith('/api/sim/replay') && init?.method === 'POST') source = 'synthetic';
+      if (url.endsWith('/api/sim/replay') && init?.method === 'POST') source = 'none';
       if (source === 'historical') return { ...clock, replay_source: 'historical', replay_date: '2026-09-18', replay_symbol: 'IMCC' };
-      if (source === 'synthetic') return { ...clock, replay_source: 'synthetic', replay_date: null, replay_symbol: null };
+      if (source === 'none') return { ...clock, replay_source: 'none', replay_date: null, replay_symbol: null };
       return { ...clock, replay_symbol: 'IMCC' };
     },
   }));
@@ -147,8 +147,8 @@ it('Return to SIM1 clears the hidden capture pickers', async () => {
   expect((screen.getByTestId('sim-replay-ticker') as HTMLSelectElement).value).toBe('IMCC');
   source = 'historical';
   await act(async () => { await vi.advanceTimersByTimeAsync(1100); });
-  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Return to SIM1' })); });
-  expect(screen.getByTestId('sim-replay-source').textContent).toBe('SIM1');
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Close replay' })); });
+  expect(screen.getByTestId('sim-replay-source').textContent).toBe('NO REPLAY');
   expect((screen.getByTestId('sim-replay-day') as HTMLSelectElement).value).toBe('');
   expect((screen.getByTestId('sim-replay-ticker') as HTMLSelectElement).value).toBe('');
 });
@@ -158,7 +158,7 @@ it('shows the session date the clock is replaying', async () => {
     ok: true,
     json: async () => url.endsWith('/history') ? { jobs: [] }
       : url.endsWith('/sessions') ? { days: [], tickers_by_day: {} }
-      : { ...clock, replay_source: 'synthetic', session_date: '2026-09-18' },
+      : { ...clock, replay_source: 'none', session_date: '2026-09-18' },
   }));
   await mount();
   expect(screen.getByTestId('sim-session-date').textContent).toBe('Fri, Sep 18');
@@ -167,24 +167,24 @@ it('shows the session date the clock is replaying', async () => {
 it('failed capture selection shows an error without opening the rejected ticker, then retries', async () => {
   await mount();
   mocks.fetch.mockResolvedValueOnce({ ok: true, json: async () => ({
-    sim: true, replay_source: 'synthetic', replay_date: null, replay_symbol: null,
+    sim: true, replay_source: 'none', replay_date: null, replay_symbol: null,
     replay_ok: false, replay_error: 'Capture contains no usable prints or quotes',
   }) });
   await act(async () => {
-    fireEvent.change(screen.getByTestId('sim-replay-ticker'), { target: { value: 'SIM1' } });
+    fireEvent.change(screen.getByTestId('sim-replay-ticker'), { target: { value: 'AAPL' } });
   });
   expect(screen.getByRole('alert').textContent).toContain('no usable prints or quotes');
-  expect(screen.getByTestId('sim-replay-source').textContent).toBe('SIM1');
+  expect(screen.getByTestId('sim-replay-source').textContent).toBe('NO REPLAY');
   expect(screen.getByTestId('active').textContent).toBe('IMCC');
   expect(mocks.open).not.toHaveBeenCalled();
   expect((screen.getByTestId('sim-replay-day') as HTMLSelectElement).value).toBe('2026-09-19');
   expect((screen.getByTestId('sim-replay-ticker') as HTMLSelectElement).value).toBe('');
   mocks.fetch.mockResolvedValueOnce({ ok: true, json: async () => ({ ...clock, replay_ok: true, replay_error: null }) });
   await act(async () => {
-    fireEvent.change(screen.getByTestId('sim-replay-ticker'), { target: { value: 'SIM1' } });
+    fireEvent.change(screen.getByTestId('sim-replay-ticker'), { target: { value: 'AAPL' } });
   });
   expect(screen.queryByRole('alert')).toBeNull();
-  expect(mocks.open).toHaveBeenCalledWith('SIM1');
+  expect(mocks.open).toHaveBeenCalledWith('AAPL');
 });
 
 it('a transport failure reports unconfirmed selection and never navigates', async () => {
@@ -200,7 +200,7 @@ it('a transport failure reports unconfirmed selection and never navigates', asyn
 it('a failed replay remains visible after clock polling', async () => {
   const original = mocks.fetch.getMockImplementation()!;
   mocks.fetch.mockImplementation(async (url: string, init?: RequestInit) => url.endsWith('/clock') ? {
-    ok: true, json: async () => ({ ...clock, replay_source: 'synthetic', replay_ok: false,
+    ok: true, json: async () => ({ ...clock, replay_source: 'none', replay_ok: false,
       replay_error: 'Capture playback failed', replay_date: null, replay_symbol: null }),
   } : original(url, init));
   await mount();
@@ -299,13 +299,13 @@ it('Follow wall clock waits for an already-sent seek and replaces the queued nex
   expect(bodies).toEqual([{ minute_from_open: 240 }, { follow_wall: true }]);
 });
 
-it('Return to SIM1 waits for a sent seek and cancels its queued keyboard successor', async () => {
+it('Close replay waits for a sent seek and cancels its queued keyboard successor', async () => {
   const original = mocks.fetch.getMockImplementation()!;
   let resolveFirst!: (value: unknown) => void;
   let currentSource = 'historical';
   mocks.fetch.mockImplementation((url: string, init?: RequestInit) => {
     if (url.endsWith('/clock') && init?.method === 'POST') return new Promise(resolve => { resolveFirst = resolve; });
-    if (url.endsWith('/api/sim/replay') && init?.method === 'POST') currentSource = 'synthetic';
+    if (url.endsWith('/api/sim/replay') && init?.method === 'POST') currentSource = 'none';
     if (url.endsWith('/clock') || url.endsWith('/api/sim/replay')) return Promise.resolve({ ok: true, json: async () => ({ ...clock, replay_source: currentSource }) });
     return original(url, init);
   });
@@ -313,11 +313,11 @@ it('Return to SIM1 waits for a sent seek and cancels its queued keyboard success
   const slider = screen.getByRole('slider');
   await act(async () => { fireEvent.change(slider, { target: { value: '240' } }); await vi.advanceTimersByTimeAsync(120); });
   await act(async () => { fireEvent.change(slider, { target: { value: '241' } }); await vi.advanceTimersByTimeAsync(120); });
-  await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Return to SIM1' })));
+  await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Close replay' })));
   expect(currentSource).toBe('historical');
   await act(async () => resolveFirst({ ok: true, json: async () => ({ ...clock, replay_source: 'historical', minute_from_open: 240 }) }));
   await act(async () => vi.advanceTimersByTimeAsync(500));
   const paths = mocks.fetch.mock.calls.filter(([, init]) => init?.method === 'POST').map(([url]) => String(url).split('/').pop());
   expect(paths).toEqual(['clock', 'replay']);
-  expect(screen.getByTestId('sim-replay-source').textContent).toBe('SIM1');
+  expect(screen.getByTestId('sim-replay-source').textContent).toBe('NO REPLAY');
 });

@@ -37,17 +37,29 @@ def print_row(**changes):
     return {"ts": TS, "symbol": "IMCC", "price": 12.5, "size": 7, **changes}
 
 
-def test_missing_selection_exposes_persistent_failure_and_stops_synthetic(monkeypatch):
-    step = Mock(side_effect=AssertionError("must not synthesize after rejection"))
-    monkeypatch.setattr(feed._market, "step", step)
+def mute_feed(monkeypatch):
+    """Record every tape/broadcast/fill the feed attempts."""
+    from ibkr import tape_stream
+    tape, broadcast, fills = Mock(), Mock(), Mock(return_value=[])
+    monkeypatch.setattr(tape_stream, "_push_queue", tape)
+    monkeypatch.setattr(feed, "_broadcast_capture", broadcast)
+    monkeypatch.setattr(feed, "match_practice_fills", fills)
+    return tape, broadcast, fills
+
+
+def test_missing_selection_exposes_persistent_failure_and_blocks_ticks(monkeypatch):
+    tape, broadcast, fills = mute_feed(monkeypatch)
     result = replay.set_replay(DAY, "NOPE")
-    assert result["replay_source"] == "synthetic"
+    assert result["replay_source"] == "none"
     assert result["replay_date"] is result["replay_symbol"] is None
     assert result["replay_ok"] is False and result["replay_error"]
     assert not replay.is_capture_replay() and not player.is_loaded()
     assert replay.status_payload()["replay_error"] == result["replay_error"]
     assert feed.tick() == {}
-    step.assert_not_called()
+    # Blocked outright: not even practice fills run until a source is selected.
+    tape.assert_not_called()
+    broadcast.assert_not_called()
+    fills.assert_not_called()
 
 
 @pytest.mark.parametrize("kind", ["empty", "l2", "bars", "corrupt", "invalid_price", "wrong_symbol"])
@@ -65,7 +77,7 @@ def test_unusable_capture_is_refused(tmp_path, kind):
         capture(tmp_path, prints=[print_row(symbol="OTHER")])
     result = replay.set_replay(DAY, "IMCC")
     assert result["replay_ok"] is False
-    assert result["replay_source"] == "synthetic"
+    assert result["replay_source"] == "none"
     assert "no usable" in result["replay_error"]
     assert not player.is_loaded()
 
@@ -86,12 +98,12 @@ def test_quotes_only_is_usable_and_does_not_invent_prints(tmp_path, monkeypatch)
     result = replay.set_replay(DAY, "IMCC")
     assert result["replay_ok"] and result["replay_load"]["first_ts"] == TS
     monkeypatch.setattr(clock, "now_et", lambda: datetime.fromtimestamp(TS + 1, clock.ET))
-    inject = Mock()
-    monkeypatch.setattr(feed, "_inject", inject)
+    tape, broadcast, _fills = mute_feed(monkeypatch)
     assert feed.tick() == {}
     assert player.recent_prints() == []
     assert player.quote_at()["last"] == 12.5
-    inject.assert_not_called()
+    tape.assert_not_called()
+    broadcast.assert_not_called()
 
 
 def test_valid_rows_survive_torn_tail_with_warning(tmp_path, caplog):
@@ -103,7 +115,7 @@ def test_valid_rows_survive_torn_tail_with_warning(tmp_path, caplog):
     assert player.prints_since(TS - 1, TS + 1) == [print_row()]
 
 
-def test_capture_feed_uses_recorded_symbol_and_no_gap_or_synthetic_book(tmp_path, monkeypatch):
+def test_capture_feed_uses_recorded_symbol_and_no_gap_or_fabricated_book(tmp_path, monkeypatch):
     from ibkr import tape_stream
     from ibkr.depth import state
     capture(tmp_path, prints=[print_row()])
@@ -114,8 +126,6 @@ def test_capture_feed_uses_recorded_symbol_and_no_gap_or_synthetic_book(tmp_path
     monkeypatch.setattr(tape_stream, "_push_queue", tape)
     monkeypatch.setattr(state, "push_book", books)
     monkeypatch.setattr(feed, "_broadcast_capture", broadcast)
-    monkeypatch.setattr(feed._market, "step", Mock(side_effect=AssertionError("synthetic")))
-    monkeypatch.setattr(feed._market, "book", Mock(side_effect=AssertionError("synthetic book")))
     payload = feed.tick()
     assert payload["symbol"] == "IMCC" and payload["price"] == 12.5
     tape.assert_called_once_with("IMCC", payload)
@@ -129,22 +139,37 @@ def test_runtime_capture_failure_does_not_fall_through(tmp_path, monkeypatch):
     capture(tmp_path, prints=[print_row()])
     replay.set_replay(DAY, "IMCC")
     monkeypatch.setattr(player, "prints_since", Mock(side_effect=ValueError("broken data")))
-    step = Mock(side_effect=AssertionError("synthetic"))
-    monkeypatch.setattr(feed._market, "step", step)
+    tape, broadcast, fills = mute_feed(monkeypatch)
     assert feed.tick() == {} and feed.tick() == {}
     assert replay.status_payload()["replay_ok"] is False
     assert "playback failed" in replay.status_payload()["replay_error"]
-    step.assert_not_called()
+    assert not replay.is_capture_replay()
+    tape.assert_not_called()
+    broadcast.assert_not_called()
+    fills.assert_not_called()
 
 
-def test_explicit_return_to_sim1_clears_failure_and_resumes(tmp_path, monkeypatch):
+def test_clearing_a_failed_selection_acknowledges_it_and_idles(monkeypatch):
+    """With nothing loaded the feed prints nothing; there is no SIM1 to resume (#315)."""
+    tape, broadcast, fills = mute_feed(monkeypatch)
     replay.set_replay(DAY, "NOPE")
+    assert feed.tick() == {}
+    fills.assert_not_called()  # a failed selection still blocks ticks
     result = replay.set_replay(None, None)
     assert result["replay_ok"] and result["replay_error"] is None
-    monkeypatch.setattr(feed._market, "step", lambda: {"symbol": "SIM1"})
-    monkeypatch.setattr(feed._broker, "try_fill_working", Mock())
-    monkeypatch.setattr(feed, "_inject", Mock())
-    assert feed.tick()["symbol"] == "SIM1"
+    assert result["replay_source"] == "none"
+    assert feed.tick() == {}
+    fills.assert_called_once_with()  # idle, not blocked
+    tape.assert_not_called()
+    broadcast.assert_not_called()
+
+
+def test_idle_feed_never_fills_practice_orders(monkeypatch):
+    fill = Mock(side_effect=AssertionError("filled with nothing loaded"))
+    monkeypatch.setattr(feed._broker, "try_fill_working", fill)
+    assert replay.status_payload()["replay_source"] == "none"
+    assert feed.tick() == {} and feed.tick() == {}
+    assert feed.match_practice_fills() == []
 
 
 @pytest.mark.parametrize("manifest", [{"counts": {"prints": 999}}, [], None, {"counts": {"prints": "invalid"}}])
@@ -178,7 +203,7 @@ def test_http_failure_and_clock_poll_share_replay_error():
         assert selected.json()["replay_ok"] is False
         status = client.get('/api/sim/clock').json()
         assert status["replay_error"] == selected.json()["replay_error"]
-        assert status["replay_source"] == "synthetic"
+        assert status["replay_source"] == "none"
 
 
 def test_quiet_capture_can_refresh_recorded_book_without_fabricating_trade(tmp_path, monkeypatch):

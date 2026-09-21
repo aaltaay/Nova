@@ -6,6 +6,7 @@ import {
   TICKER_TRADE_QTY_NUDGE,
   TICKER_TRADE_SHARE_PRESETS,
 } from '../constants';
+import type { TradeDefaultTif } from '../constantGroups/trade_defaults';
 
 export type ManualOrderSide = 'BUY' | 'SELL';
 export type ManualOrderType = 'MKT' | 'LMT' | 'STP' | 'STP LMT' | 'TRAIL';
@@ -51,6 +52,11 @@ export interface ManualOrderPayload {
   stop_price?: number;
   outside_rth: boolean;
   short_entry?: boolean;
+  /** #91: per-order TIF from Settings > Trade (DAY unless the operator picks GTC). */
+  tif?: TradeDefaultTif;
+  /** #91: default protective legs -- both or neither; they make this a bracket. */
+  take_profit_price?: number;
+  stop_loss_price?: number;
 }
 
 export type BuildOrderResult =

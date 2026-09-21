@@ -142,7 +142,7 @@
             276,
             131
           ],
-          "note": "No production code. Verification comments plus any CHANGELOG/doc correction; #276 still needs the operator's live-desk confirmation before closing.",
+          "note": "No production code. Verification comments plus any doc correction; #276's live-desk hold was lifted by the operator on 2026-09-20 -- it closes on the shipped shared-shell width lock, with desk confirmation afterwards.",
           "gated": false,
           "touches": [
             "backend/tests/",
@@ -198,7 +198,7 @@
       "slug": "delivery-pipeline",
       "title": "05 - Merging a PR ships a Release; red CI means code broke",
       "readiness": "ready-now",
-      "gate": "#347 needs three owner calls (installer-only vs keep portable; notify-only vs auto-update; release channel) before its half can be built.",
+      "gate": "None. The operator answered #347 on 2026-09-20: installer only, background download with an operator-chosen restart, and a Release only from a deliberate vNNN tag.",
       "objective": "No vNNN tag or GitHub Release has been produced since v757: Actions-merged PRs push with GITHUB_TOKEN, which by design starts no workflow, so desktop-pack.yml never runs on master. Meanwhile ~65% of red CI runs are expected delivery states reported as failures, which trains everyone to ignore red.",
       "issues": [
         342,
@@ -209,7 +209,7 @@
         367
       ],
       "done": [
-        "An Actions-merged PR produces a vNNN tag, a GitHub Release, and an attached installer - proven on one real merge, not just a dry run.",
+        "An Actions-merged PR packs and verifies the installer plus its latest.yml feed; a pushed vNNN tag publishes the GitHub Release - proven on one real merge and one real tag, not just a dry run.",
         "A red gating run means code broke: expected delivery states exit 0, and CI has concurrency groups plus job timeouts.",
         "The shared bookkeeping files no longer force every PR to edit the same lines (#344 WS2-WS4).",
         "`py -3 tools/master_branch_protection.py check` still exits 0 afterwards.",
@@ -267,8 +267,8 @@
           "issues": [
             347
           ],
-          "note": "GATED on the owner's three calls and on #346 landing first. Do not start this PR before both.",
-          "gated": true,
+          "note": "Operator answered all three calls 2026-09-20 (#347): installer only, background download with an operator-chosen restart, Release only from a pushed release tag.",
+          "gated": false,
           "touches": [
             "frontend/electron/",
             "frontend/package.json",
@@ -564,8 +564,8 @@
             309,
             311
           ],
-          "note": "GATED: #311 is an operator cost call (BID_ASK roughly doubles acquisition time) and #309 needs the archive-surface choice. One PR because the UI consumer and the download side must agree.",
-          "gated": true,
+          "note": "Operator answered 2026-09-20 (#309): feed l2.db into the one Sim replay surface. #311's BID_ASK cost call is separate and stays closed.",
+          "gated": false,
           "touches": [
             "backend/sim/",
             "backend/l2/",
@@ -578,8 +578,8 @@
           "issues": [
             310
           ],
-          "note": "GATED and possibly won't-do: the operator must first choose read-only replay (close it) vs practice fills on real replayed symbols. Touches execution validation - respect Invariant #7 and auto_live NO-GO.",
-          "gated": true,
+          "note": "Operator answered 2026-09-20 (#310): practice fills against real replayed sessions, SIM1 removed, fill model written down first (ADR 019).",
+          "gated": false,
           "touches": [
             "backend/sim/",
             "backend/execution/",
@@ -617,8 +617,8 @@
             331,
             14
           ],
-          "note": "OPERATOR-ONLY execution; an agent can prepare the scripts and the recipe but cannot produce the evidence.",
-          "gated": true,
+          "note": "OPERATOR-ONLY execution; the recipe is prepared in docs/live-desk-sync.md. Operator chose 2026-09-20 to sync and cold-restart Gateway, upload diagnostics first, and enable the IBC command server.",
+          "gated": false,
           "touches": [
             "scripts/Install-NovaDailyTask.ps1",
             "scripts/",
@@ -631,8 +631,8 @@
             94,
             90
           ],
-          "note": "GATED on two one-line operator calls. Small implementations once answered; both touch the scanner hydrate path.",
-          "gated": true,
+          "note": "Ungated 2026-09-20: the operator answered both calls on the issues (#90 build the cold, paced lookup; #94 the slot policy). #90's cold Exchange backfill is implemented; both touch the scanner hydrate path.",
+          "gated": false,
           "touches": [
             "backend/ibkr/scanner_hydrate.py",
             "backend/hod_momo_universe.py",
