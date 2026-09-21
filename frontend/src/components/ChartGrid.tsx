@@ -26,6 +26,7 @@ import { ensureBarsBatch } from '../chart/barsStore';
 import { clearDrawings, drawingsKey } from '../chart/chartDrawingsStore';
 import { toggleIndicator } from '../chartIndicators';
 import { useChartGridMaximize } from './useChartGridMaximize';
+import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 
 interface Props {
   symbol: string;
@@ -61,6 +62,7 @@ export function ChartGrid({ symbol, lastTrade, chartActive = true }: Props) {
     maxPct: STOCK_VIEW_CHART_ROW_SPLIT_MAX_PCT,
     containerRef: gridRef,
   });
+  const sim = useIbkrStatus().mode === 'sim';
   const [showOptional, setShowOptional] = useState(readOptionalEnabled);
   const [activeTool, setActiveTool] = useState<string | null>(null);
   const [focusedPaneId, setFocusedPaneId] = useState<string | null>(null);
@@ -133,7 +135,7 @@ export function ChartGrid({ symbol, lastTrade, chartActive = true }: Props) {
           variant="grid"
           fixedTimeframe={panel.id}
           title={panel.label}
-          subtitle={panel.note}
+          subtitle={sim && panel.simNote ? panel.simNote : panel.note}
           indicators={indicatorsByPane[panel.id] ?? CHART_DEFAULT_INDICATORS}
           onIndicatorToggle={(id) => toggleIndicatorFor(panel.id, id)}
           activeTool={activeTool}
