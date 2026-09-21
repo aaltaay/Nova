@@ -17,6 +17,7 @@ import type { IbkrListingFlags } from '../types/ticker';
 import { applyTicketDefaults, seedPricesForSide } from './applyTicketDefaults';
 import { ManualOrderFields } from './ManualOrderFields';
 import { ManualOrderFooter } from './ManualOrderFooter';
+import { ManualOrderLegsNote } from './ManualOrderLegsNote';
 import {
   allowShortSide,
   clampTicketSide,
@@ -124,6 +125,8 @@ export function ManualOrderTicket({
     submitting,
     result,
     confirmSummary,
+    legsNote,
+    legsBlocked,
     submit,
     executeOrder,
     setConfirmSummary,
@@ -266,6 +269,8 @@ export function ManualOrderTicket({
         onStopPriceChange={setStopPrice}
         onOutsideRthChange={setOutsideRth}
       />
+
+      <ManualOrderLegsNote note={legsNote} blocked={legsBlocked} />
 
       <ManualOrderFooter
         isPaper={mode === 'paper'}

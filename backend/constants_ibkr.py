@@ -138,6 +138,10 @@ FILL_AUDIT_CLOCK_SKEW_MS = 1_000
 FILL_AUDIT_REASON_CLOCK_SKEW = "clock_skew"
 # Default TIF for all Nova API orders -- never leave blank (triggers 10349).
 IBKR_ORDER_TIF_DEFAULT = "DAY"
+# Per-order TIF values ExecutionCommand.tif accepts (#91). DAY stays the
+# default, so a caller that omits tif is unchanged. Keep in sync with
+# frontend constantGroups/trade_defaults.ts TRADE_DEFAULT_TIFS.
+IBKR_ORDER_TIFS: tuple[str, ...] = ("DAY", "GTC")
 # Connectivity lost / restored (async via errorEvent). 1100 = lost; 1101/1102 = restored.
 IBKR_ERROR_CONNECTIVITY_CODES = frozenset({1100, 1101, 1102})
 IBKR_ERROR_CONNECTIVITY_LOST = 1100

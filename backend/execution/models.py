@@ -4,6 +4,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
+from constants_ibkr import IBKR_ORDER_TIF_DEFAULT
+
 Operation = Literal["place", "bracket", "cancel", "replace"]
 Source = Literal[
     "manual",
@@ -43,6 +45,10 @@ class ExecutionCommand:
     backend_ingress_wall_ns: int | None = None
     # Phase K / ADR 009: explicit short-opening opt-in (never inferred).
     short_entry: bool = False
+    # #91: per-order time-in-force for place and every bracket leg. The
+    # default keeps callers that never set it on DAY; validate refuses values
+    # outside IBKR_ORDER_TIFS. Replace ignores it (keeps the order's own TIF).
+    tif: str = IBKR_ORDER_TIF_DEFAULT
 
     def normalized_symbol(self) -> str | None:
         return self.symbol.upper() if self.symbol else None

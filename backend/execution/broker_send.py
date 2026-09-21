@@ -10,6 +10,7 @@ from constants import (
     EXECUTION_ACK_WAIT_SEC,
     IBKR_ERROR_FRACTIONAL_API,
     IBKR_FRACTIONAL_ORDER_API_MSG,
+    IBKR_ORDER_TIF_DEFAULT,
 )
 from execution import inflight
 from execution import store
@@ -24,6 +25,7 @@ from execution.store_facts import persist_successful_cancel
 from ibkr import client as _client
 from ibkr import orders as _orders
 from ibkr.cancel_verify import cancel_order_verified_on_ib
+from ibkr.order_build import normalize_tif, tif_error
 
 __all__ = ["wait_broker_ack", "send_broker", "finish_place"]
 
@@ -31,6 +33,16 @@ RejectFn = Callable[
     [str, ExecutionCommand, StageTimings, str, str],
     ExecutionReceipt,
 ]
+
+
+def _working_tif(row: dict) -> str:
+    """TIF to resend on a price-only replace: the working order's own (#91).
+
+    A TIF Nova does not place (blank, IOC, a TWS-set GTD) falls back to the
+    default -- what every replace sent before per-order TIF existed.
+    """
+    tif = normalize_tif(row.get("tif"))
+    return tif if tif_error(tif) is None else IBKR_ORDER_TIF_DEFAULT
 
 
 async def send_broker(
@@ -131,6 +143,7 @@ async def send_broker(
             else existing.get("stop_price"),
             outside_rth=bool(existing.get("outside_rth")),
             order_id=cmd.order_id,
+            tif=_working_tif(existing),
         )
         return await finish_place(
             execution_id, cmd, timings, raw, watch, mode, wait_ack=wait_ack,
@@ -158,6 +171,8 @@ async def send_broker(
             entry_price=float(cmd.entry_price or 0),
             stop_price=float(cmd.stop_price or 0),
             target_price=float(cmd.target_price or 0),
+            tif=cmd.tif,
+            outside_rth=cmd.outside_rth,
         )
         parent = raw.get("parent_order_id")
         exit_side = "SELL" if entry_side == "BUY" else "BUY"
@@ -231,6 +246,7 @@ async def send_broker(
         limit_price=cmd.limit_price,
         stop_price=cmd.stop_price,
         outside_rth=cmd.outside_rth,
+        tif=cmd.tif,
     )
     oid = raw.get("order_id")
     watch = (
