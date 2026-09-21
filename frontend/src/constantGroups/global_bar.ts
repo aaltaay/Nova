@@ -108,6 +108,13 @@ export const GLOBAL_BAR_ACCOUNT_TYPE_RAW_PREFIX = 'IBKR AccountType:';
 export const GLOBAL_BAR_ACCOUNT_TYPE_RAW_MISSING = '(missing)';
 export const GLOBAL_BAR_ACCOUNT_TYPE_TRADING_PREFIX = 'IBKR TradingType-S:';
 export const GLOBAL_BAR_ACCOUNT_TYPE_ARIA = 'IBKR account type';
+/** Which IBKR account the desk is logged into -- the id, not the login name (IBKR never exposes that). */
+export const GLOBAL_BAR_ACCOUNT_ID_ARIA = 'IBKR account';
+export const globalBarAccountIdTooltip = (id: string, kind: string, others: string[]): string => {
+  const what = kind === 'paper' ? 'paper' : kind === 'live' ? 'LIVE' : 'unclassified';
+  const rest = others.length ? ` Other managed accounts on this login: ${others.join(', ')}.` : '';
+  return `IBKR account ${id} (${what}). This is what Nova is logged into; the login username is never exposed by the API.${rest}`;
+};
 export const GLOBAL_BAR_SETTINGS_LABEL = 'Settings';
 export const GLOBAL_BAR_SETTINGS_TITLE = 'Open Settings';
 

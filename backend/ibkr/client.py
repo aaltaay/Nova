@@ -66,6 +66,8 @@ _ib: "IB | None" = None
 _mode: str = "disconnected"
 _enabled: bool = False
 _broker_account_kind: str = "unknown"
+# IB managedAccounts() of the connected session: what Nova is logged into.
+_managed_account_ids: list[str] = []
 _reconnect_task: asyncio.Task | None = None
 _loop: asyncio.AbstractEventLoop | None = None  # captured at startup() — where IB lives
 _wake_reconnect: asyncio.Event | None = None
@@ -101,11 +103,16 @@ def unavailable_detail(what: str = "IBKR") -> str:
     return f"{label} session not usable ({reason})"
 
 
-def _set_session(*, mode: str, broker_account_kind: str) -> None:
-    """Atomically update connection mode + account kind (split-brain guard)."""
-    global _mode, _broker_account_kind
+def _set_session(*, mode: str, broker_account_kind: str, account_ids: list[str] | None = None) -> None:
+    """Atomically update connection mode + account kind (split-brain guard).
+
+    ``account_ids`` travels with the kind it was classified from; a session
+    that is not connected names no account.
+    """
+    global _mode, _broker_account_kind, _managed_account_ids
     _mode = mode
     _broker_account_kind = broker_account_kind
+    _managed_account_ids = list(account_ids or []) if mode != "disconnected" else []
 
 
 def _clear_sticky_bridge_error_on_ready() -> None:
@@ -298,6 +305,19 @@ def broker_account_kind() -> str:
     if not is_connected():
         return "unknown"
     return _broker_account_kind
+
+
+def managed_account_ids() -> list[str]:
+    """IB managedAccounts() of the connected session; empty while disconnected."""
+    if not is_connected():
+        return []
+    return list(_managed_account_ids)
+
+
+def account_id() -> str | None:
+    """The account Nova is logged into (first managed account), or None."""
+    ids = managed_account_ids()
+    return ids[0] if ids else None
 
 
 def get_ib() -> "IB | None":

@@ -21,6 +21,7 @@ import {
 import { useClosedOrders } from '../closed_orders/useClosedOrders';
 import { useIbkrAccountContext } from '../ibkr/IbkrAccountContext';
 import { IbkrAccountTypeChip } from '../ibkr/IbkrAccountTypeChip';
+import { IbkrAccountIdChip } from '../ibkr/IbkrAccountIdChip';
 import { TradingSessionLockButton } from '../ibkr/TradingSessionLockButton';
 import { isSampleView } from '../sample_data/sampleNav';
 import { useSettingsOptional } from '../settings/SettingsContext';
@@ -223,6 +224,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
         )}
 
         <TradingSessionLockButton />
+        <IbkrAccountIdChip />
         <IbkrAccountTypeChip
           ibkrConnected={Boolean(ibkrConnected)}
           summary={summary}

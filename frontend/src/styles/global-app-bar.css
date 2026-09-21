@@ -606,3 +606,21 @@
   font-size: 0.95rem;
   line-height: 1;
 }
+
+/* Which IBKR account the desk is logged into (DU… paper / U… live), beside Cash / Margin. */
+.global-app-bar__account-id {
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.global-app-bar__account-id--live {
+  border-color: color-mix(in srgb, #f97316 55%, var(--border-color));
+  color: #ea580c;
+  font-weight: 700;
+}

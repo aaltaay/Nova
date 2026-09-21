@@ -32,6 +32,9 @@ export interface IbkrStatus {
   gateway_mode?: 'paper' | 'live';
   /** Session account classification from IB account ids (DU…=paper, U…=live). */
   broker_account_kind?: 'paper' | 'live' | 'unknown';
+  /** The IBKR account Nova is logged into (first managed account); null while disconnected. */
+  account_id?: string | null;
+  account_ids?: string[];
   /** Last requested IB market-data type (1=live); null before first READY. */
   market_data_type?: number | null;
   /** True after IB Error 10167 (delayed / non-entitled feed). */

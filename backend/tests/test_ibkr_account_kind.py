@@ -76,6 +76,8 @@ def test_accept_follows_paper_account_when_nova_asked_live(monkeypatch):
     assert reason == ""
     assert persisted == ["paper"]
     assert ibkr_client._broker_account_kind == "paper"
+    # The ids travel with the kind: the header can say which account this is.
+    assert ibkr_client._managed_account_ids == ["DUQ266899"]
 
 
 def test_accept_does_not_follow_paper_during_intentional_live(monkeypatch):

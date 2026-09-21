@@ -85,6 +85,8 @@ async def ibkr_status() -> dict:
         "session_generation": _session_state.generation(),
         "mode": _client.account_mode(),
         "broker_account_kind": _client.broker_account_kind(),
+        "account_id": _client.account_id(),
+        "account_ids": _client.managed_account_ids(),
         "market_data_type": _client.get_market_data_type(),
         "market_data_delayed": bool(_session_errors.is_delayed_data()),
         **snap,

@@ -330,6 +330,15 @@ print. Refusals use `SIM_NO_REPLAY`, `SIM_SYMBOL_MISMATCH`, `SIM_NO_TRADES`,
 `ts_source: "exchange" | "receive"` so a substituted arrival time is never read
 as the exchange's own. Rules and biases: `architecture/practice-fills.md`.
 
+### Account identity on `/api/ibkr/status` (operator ask, 2026-09-21)
+
+`account_id: string | null` is the first IBKR managed account of the connected
+session (`DU…` paper, `U…` live) and `account_ids: string[]` all of them; both
+are empty while disconnected. They name *what Nova is logged into*, next to
+`broker_account_kind`; the header shows the id beside Cash / Margin. IBKR's API
+never exposes the login username, so the account id is the identity Nova can
+state truthfully.
+
 ### Execution command (ADR 007 — sole broker mutation entry)
 
 All buy/sell/cancel/replace requests enter `execution.service.execute` with:
