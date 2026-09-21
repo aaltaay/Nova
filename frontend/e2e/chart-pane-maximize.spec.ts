@@ -1,6 +1,12 @@
 import { expect, test } from '@playwright/test';
 import { attachErrorCollector } from './helpers/errorCollector';
 
+// Top-left of the plot, clear of the TradingView attribution link. The link is an
+// <a> anchored to the price pane's bottom-left, and the maximize handler ignores
+// links on purpose; at 1280x720 with MACD on, (40, 40) sat one pixel inside it,
+// so the test passed or failed on font metrics alone.
+const PLOT_POINT = { x: 60, y: 8 };
+
 test.describe('Trader chart pane maximize', () => {
   test('double-click fills the chart grid only; Esc restores rails', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
@@ -10,7 +16,7 @@ test.describe('Trader chart pane maximize', () => {
     await expect(grid).toBeVisible();
     await expect(page.getByTestId('stock-view-rail')).toBeVisible();
 
-    await cell.locator('.chart-body').dblclick({ position: { x: 40, y: 40 } });
+    await cell.locator('.chart-body').dblclick({ position: PLOT_POINT });
     await expect(grid).toHaveClass(/chart-grid--pane-maximized/);
     await expect(grid).toHaveAttribute('data-maximized-pane', '5Min');
     await expect(cell).toHaveClass(/chart-grid-cell--maximized/);
@@ -68,7 +74,7 @@ test.describe('Trader chart pane maximize', () => {
     await page.goto('/?view=sample&symbol=SMPL');
     const grid = page.getByTestId('chart-grid');
     const cell = page.getByTestId('chart-grid-cell-5Min');
-    await cell.locator('.chart-body').dblclick({ position: { x: 40, y: 40 } });
+    await cell.locator('.chart-body').dblclick({ position: PLOT_POINT });
     await expect(grid).toHaveAttribute('data-maximized-pane', '5Min');
 
     await cell.getByTestId('chart-expand-btn').click();

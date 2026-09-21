@@ -1,11 +1,12 @@
 /** Sim clock composition; resource/controller ownership lives in the feature hook (ADR 005). */
+import { useCallback, useSyncExternalStore } from 'react';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { SimPlaybackButton } from './SimPlaybackButton';
 import type { SimClockState } from './simClockTypes';
 import { HistoricalReplayPanel } from './HistoricalReplayPanel';
 import { useSimSessionController } from './useSimSessionController';
 import { useProgressiveReplay } from './useProgressiveReplay';
-import { useHistoricalStatus } from './historicalStatusStore';
+import { historicalStatus } from './historicalStatusStore';
 import { coverageFraction, coverageLabel, coverageSegments } from './simCoverage';
 import { etTime } from './historicalReplayFormat';
 import { simScrubberCoverageTitle } from './simConstants';
@@ -54,7 +55,14 @@ export function SimSessionHeader({ active }: { active: boolean }) {
   const { openStockView } = useWorkspace();
   const controller = useSimSessionController(active, openStockView);
   useProgressiveReplay(active);
-  const historicalSelection = useHistoricalStatus(false).data?.selection ?? null;
+  // Subscribe only on a Sim desk: this header renders on every desk and returns
+  // null off Sim, and an unconditional subscription polled /api/sim/history there.
+  const subscribeHistory = useCallback(
+    (listener: () => void) => (active ? historicalStatus.subscribe(listener) : () => {}),
+    [active],
+  );
+  const historicalSelection = useSyncExternalStore(subscribeHistory, historicalStatus.getSnapshot)
+    .data?.selection ?? null;
   const { clock, sessions, day, symbol, dragMinute, setDay, setSymbol, applyReplay, busy } = controller;
   if (!active) return null;
   const max = clock?.minute_max ?? SIM_SESSION_MINUTES;

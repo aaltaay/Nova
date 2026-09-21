@@ -46,11 +46,11 @@ def isolated(tmp_path, monkeypatch):
     fanout.dispatch_errors.clear()
 
 
-def tick(symbol="AAPL", price=42.25):
+def tick(symbol="AAPL", price=42.25, at=datetime(2026, 9, 18, 14, 30, tzinfo=timezone.utc)):
     ticker = SimpleNamespace(
         tickByTicks=[
             SimpleNamespace(
-                time=datetime(2026, 9, 18, 14, 30, tzinfo=timezone.utc),
+                time=at,
                 price=price,
                 size=7,
                 exchange="NASDAQ",
@@ -422,9 +422,16 @@ def test_book_for_another_symbol_and_empty_books_are_never_recorded():
 
 def test_fast_books_coalesce_before_the_worker_backlog_can_stop_the_session():
     mode.set_capture_mode(True, symbol="AAPL")
-    tick()
+    # Stamped on the recorder's own Eastern day. The shared tick() is dated
+    # 2026-09-18, and a print from another day rotates the segment -- which stops
+    # a segment with no prints and records "No IBKR prints received". That is a
+    # day-boundary behaviour, not what this test is about, and whether the test
+    # saw it depended on the capture worker beating the assertion (flaky: it
+    # failed 5 of 6 isolated runs on master).
+    tick(at=datetime.now(timezone.utc))
     for i in range(worker.CAPTURE_PENDING_BATCHES * 2):
         push_depth(bids=((42.20 + i / 1000, 300),))
+    worker.transition(lambda: None)  # drain accepted batches: no thread-timing race
     assert recorder.status()["error"] is None  # backlog never filled
     health = bridge_ibkr.book_health("AAPL")
     mode.set_capture_mode(False)
