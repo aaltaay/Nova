@@ -41,9 +41,9 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
     if cmd.operation == "cancel":
         if cmd.order_id is None:
             return False, "order_id required for cancel", "ORDER_ID_MISSING"
-        from sim.mode import is_sim_mode
+        from sim.mode import is_practice_venue
 
-        if is_sim_mode():
+        if is_practice_venue():
             return True, "OK", None
         ok, reason = _safety.assert_cancel_allowed(
             client_enabled=_client.is_enabled(),
@@ -77,9 +77,9 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
         if cmd.side is not None or cmd.qty is not None or cmd.symbol is not None:
             # Callers must not attempt to mutate immutable fields via replace.
             pass
-        from sim.mode import is_sim_mode
+        from sim.mode import is_practice_venue
 
-        if is_sim_mode():
+        if is_practice_venue():
             return True, "OK", None
         ok, reason = _safety.assert_orders_allowed(
             client_enabled=_client.is_enabled(),
@@ -130,18 +130,17 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
     if bad_tif:
         return False, bad_tif, "TIF_INVALID"
 
-    from sim.mode import is_sim_mode
+    from sim.mode import is_practice_venue
 
-    # The arm latch was checked above the operation branches, before Sim is
-    # consulted: being in Sim decides *where* an allowed order is routed, never
-    # *whether* one is allowed (ADR 018).
-    if is_sim_mode():
+    # The arm latch was checked above the operation branches, before the venue
+    # is consulted: being on Paper or Sim decides *where* an allowed order is
+    # routed, never *whether* one is allowed (ADR 018). The IBKR env gates
+    # below apply to Live only (ADR 020 decision 4).
+    if is_practice_venue():
         # Protective sources skip admission so a practice position can always
-        # be closed; the sim ledger bounds them to closing a held position.
+        # be closed; the practice ledger bounds them to closing a held position.
         if cmd.operation in ("place", "bracket") and cmd.source not in _safety.PROTECTIVE_SOURCES:
-            from sim.practice import admission
-
-            ok, reason, code = admission(symbol or "")
+            ok, reason, code = _practice_admission(symbol or "")
             if not ok:
                 return False, reason, code
         return True, "OK", None
@@ -154,6 +153,19 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
     if not ok:
         return False, reason, "ORDERS_GATE"
     return True, "OK", None
+
+
+def _practice_admission(symbol: str) -> tuple[bool, str, str | None]:
+    """May the venue's own market price ``symbol`` right now? (ADR 020)
+
+    The loaded replay at the playhead on Sim, the fresh live last / recent
+    tape print on Paper -- read through the venue broker's reference so
+    validation and the fill use one answer.
+    """
+    from practice.broker import for_venue
+    from sim.mode import venue
+
+    return for_venue(venue()).reference.admission(symbol)
 
 
 def _bracket_refusal(cmd: ExecutionCommand) -> tuple[str, str] | None:
@@ -204,9 +216,11 @@ def check_account_and_position(cmd: ExecutionCommand) -> tuple[bool, str, str | 
     if cmd.operation in ("cancel",):
         return True, "OK", None
 
-    from sim.mode import desk_connected
+    from sim.mode import desk_connected, is_practice_venue
 
-    if not desk_connected():
+    # A practice account is a local ledger, readable with the Gateway dark
+    # (ADR 020); a protective close on Paper then settles at the last mark.
+    if not is_practice_venue() and not desk_connected():
         return False, "account checks require IBKR connection", "ACCOUNT_UNAVAILABLE"
 
     summary: dict | None = None

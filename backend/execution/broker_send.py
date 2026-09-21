@@ -53,13 +53,17 @@ async def send_broker(
     wait_ack: bool = True,
     reject: RejectFn,
 ) -> ExecutionReceipt:
-    from sim.mode import is_sim_mode
+    from sim.mode import is_practice_venue, venue
 
-    if is_sim_mode():
-        from sim.execution import send_sim_broker
+    if is_practice_venue():
+        # ADR 020: Paper and Sim share one practice send; the venue's broker
+        # (live feed or loaded replay) decides where the fill comes from.
+        from practice.broker import for_venue
+        from sim.execution import send_practice_broker
 
-        return await send_sim_broker(
-            cmd, execution_id, timings, wait_ack=wait_ack, reject=reject,
+        return await send_practice_broker(
+            cmd, execution_id, timings, broker=for_venue(venue()),
+            wait_ack=wait_ack, reject=reject,
         )
 
     symbol = cmd.normalized_symbol()

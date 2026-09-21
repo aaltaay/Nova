@@ -1,26 +1,24 @@
-"""Overlay /api/ibkr/status for Sim desk mode. Tab Record is a side flag only."""
+"""Overlay /api/ibkr/status for the desk venue (ADR 020). Tab Record is a side flag only.
+
+Live adds ``venue: "live"`` and changes nothing else. Paper and Sim answer as
+Nova's practice account: ``mode`` / ``venue`` name the venue, ``account_id``
+is ``NOVA-PAPER`` / ``NOVA-SIM``, spend reads the ADR 018 arm latch alone
+(``paper_armed`` / ``sim_armed`` or ``locked_disarmed``) and never the IBKR
+env gates. Sim is usable without a Gateway, so it forces ``connected``; Paper
+needs the live feed, so its ``connected`` is the live client's real state.
+"""
 from __future__ import annotations
 
 import logging
 from typing import Any
 
-from constants_sim import SIM_MODE_LABEL, SIM_SPEND_STATUS
+from constants_practice import PRACTICE_ACCOUNT_ID_PAPER, PRACTICE_ACCOUNT_ID_SIM
+from constants_sim import DESK_VENUE_LIVE, DESK_VENUE_SIM
 
 logger = logging.getLogger(__name__)
 
 
-def overlay_ibkr_status(payload: dict[str, Any]) -> dict[str, Any]:
-    """Force desk-usable Sim fields. Gateway transport stays honest."""
-    try:
-        from sim.mode import is_sim_mode, status_payload as sim_status_payload
-    except Exception:
-        is_sim_mode = lambda: False  # noqa: E731
-        sim_status_payload = lambda: {}  # noqa: E731
-
-    recording = False
-    record_symbol = None
-    record_symbols: list[str] = []
-    record_error = None
+def _recording_fields() -> dict[str, Any]:
     persistence: dict[str, Any] = {"capture_sessions": [], "capture_resume": [], "capture_stopped": []}
     try:
         from capture import keepalive
@@ -39,44 +37,73 @@ def overlay_ibkr_status(payload: dict[str, Any]) -> dict[str, Any]:
         recording = False
         record_symbol = None
         record_symbols = []
+    return {
+        "capture": recording,
+        "capture_symbol": record_symbol,
+        "capture_symbols": record_symbols,
+        "recording": recording,
+        "capture_error": record_error,
+        **persistence,
+    }
 
-    if is_sim_mode():
-        out = dict(payload)
-        out.update(sim_status_payload())
-        out["mode"] = SIM_MODE_LABEL
+
+def _practice_fields(current: str) -> dict[str, Any]:
+    """What a practice venue overrides on the IBKR status payload."""
+    from ibkr.safety import DISARMED_REASON, armed as _armed_now
+    from sim.mode import practice_spend_status, status_payload as venue_status_payload
+
+    is_armed = _armed_now()
+    sim = current == DESK_VENUE_SIM
+    out: dict[str, Any] = dict(venue_status_payload())
+    out["mode"] = current
+    out["venue"] = current
+    out["sim"] = sim
+    out["account_id"] = PRACTICE_ACCOUNT_ID_SIM if sim else PRACTICE_ACCOUNT_ID_PAPER
+    out["account_ids"] = [out["account_id"]]
+    # ADR 018: the arm latch is about the *process*, not the door, so the
+    # practice venues read it too -- otherwise the venue would be answering
+    # "may I place", which is exactly the coupling ADR 018 breaks. Fake money
+    # needs no .env permission (ADR 020 decision 4), only the arm.
+    out["armed"] = is_armed
+    out["spend_status"] = practice_spend_status(current, is_armed)
+    out["spend_locked_reason"] = None if is_armed else DISARMED_REASON
+    out["spend_permitted"] = True
+    out["spend_permitted_status"] = practice_spend_status(current, True)
+    out["spend_permitted_reason"] = None
+    out["armed_for_account_kind"] = None
+    out["trading_allowed"] = is_armed
+    out["trading_allowed_reason"] = None if is_armed else DISARMED_REASON
+    if sim:
+        # Sim is usable without a Gateway: the replay is the market.
         out["connected"] = True
         out["enabled"] = True
         out["session_state"] = "ready"
         out["session_reason"] = "ok"
-        out["armed_for_account_kind"] = None
-        # Sim practice fills are local (ADR 007 source path); IBKR spend stays
-        # gated. ADR 018: the arm latch is about the *process*, not the door, so
-        # Sim reads it too -- otherwise the venue would be answering "may I
-        # place", which is exactly the coupling ADR 018 breaks.
-        from ibkr.safety import DISARMED_REASON, armed as _armed_now
+    else:
+        # Paper needs the feed: `connected` stays the live client's real state.
+        out["broker_account_kind"] = current
+    return out
 
-        is_armed = _armed_now()
-        out["armed"] = is_armed
-        out["spend_status"] = SIM_SPEND_STATUS if is_armed else "locked_disarmed"
-        out["spend_locked_reason"] = None if is_armed else DISARMED_REASON
-        out["trading_allowed"] = is_armed
-        out["trading_allowed_reason"] = None if is_armed else DISARMED_REASON
-        out["sim"] = True
-        out["capture"] = recording
-        out["capture_symbol"] = record_symbol
-        out["capture_symbols"] = record_symbols
-        out["recording"] = recording
-        out["capture_error"] = record_error
-        out.update(persistence)
+
+def overlay_ibkr_status(payload: dict[str, Any]) -> dict[str, Any]:
+    """Force desk-usable practice fields. Gateway transport stays honest."""
+    try:
+        from sim.mode import is_practice_venue, venue
+    except Exception:
+        logger.exception("SIM: desk venue unavailable -- status answers as Live")
+        is_practice_venue = lambda: False  # noqa: E731
+        venue = lambda: DESK_VENUE_LIVE  # noqa: E731
+
+    recording = _recording_fields()
+    out = dict(payload)
+    current = venue()
+    if is_practice_venue():
+        out.update(_practice_fields(current))
+        out.update(recording)
         return out
 
-    out = dict(payload)
+    out["venue"] = current
     out.setdefault("sim", False)
-    out["capture"] = recording
-    out["capture_symbol"] = record_symbol
-    out["recording"] = recording
-    out["capture_symbols"] = record_symbols
-    out["capture_error"] = record_error
-    out.update(persistence)
-    # Tab Record must NOT rewrite mode or trading_allowed — Paper/Live stay themselves.
+    out.update(recording)
+    # Tab Record must NOT rewrite mode or trading_allowed -- Live stays itself.
     return out

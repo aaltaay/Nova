@@ -37,10 +37,31 @@ from constants import (
     IBKR_ORDERS_ENABLED_DEFAULT,
     IBKR_SHORT_ENABLED_DEFAULT,
 )
+from constants_sim import (
+    DESK_VENUE_SIM,
+    PAPER_SPEND_STATUS,
+    SIM_SPEND_LOCKED_DISARMED,
+    SIM_SPEND_STATUS,
+)
 
 logger = logging.getLogger(__name__)
 
 GatewayMode = Literal["paper", "live"]
+
+# Every spend_status that means "may open right now once armed". The IBKR
+# statuses come from the env + account class below; the practice statuses are
+# the venue's own (ADR 020 decision 4: fake money needs no .env permission).
+ARMED_SPEND_STATUSES = frozenset({"live_armed", "paper_armed", SIM_SPEND_STATUS})
+
+
+def _practice_venue() -> str | None:
+    """The practice venue the desk is on (``paper`` | ``sim``), ``None`` on the IBKR door."""
+    try:
+        from sim.mode import is_practice_venue, venue
+    except Exception:
+        logger.exception("IBKR: desk venue unavailable -- spend gates answer as Live")
+        return None
+    return venue() if is_practice_venue() else None
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -140,7 +161,14 @@ def spend_permitted(broker_account_kind: str | None) -> tuple[str, str]:
 
     ADR 013: the account class behind the socket decides, not the env door.
     A door whose accounts are not yet classified is locked, not armed.
+
+    ADR 020: on Paper / Sim the capability is the venue's own -- Nova's
+    practice account never needs ``IBKR_ORDERS_ENABLED`` or
+    ``IBKR_LIVE_TRADING_CONFIRMED``; those gate the Live door only.
     """
+    practice = _practice_venue()
+    if practice is not None:
+        return (SIM_SPEND_STATUS if practice == DESK_VENUE_SIM else PAPER_SPEND_STATUS), ""
     mode = gateway_mode()
     kind = normalize_account_kind(broker_account_kind)
     if not orders_enabled():
@@ -167,8 +195,8 @@ def spend_state(broker_account_kind: str | None) -> tuple[str, str]:
     a permitted-but-disarmed desk reads locked, not armed.
     """
     status, locked_reason = spend_permitted(broker_account_kind)
-    if status in ("live_armed", "paper_armed") and not _armed:
-        return "locked_disarmed", DISARMED_REASON
+    if status in ARMED_SPEND_STATUSES and not _armed:
+        return SIM_SPEND_LOCKED_DISARMED, DISARMED_REASON
     return status, locked_reason
 
 
@@ -177,7 +205,13 @@ def status_snapshot(broker_account_kind: str | None = None) -> dict:
     mode = gateway_mode()
     permitted, permitted_reason = spend_permitted(broker_account_kind)
     spend, locked_reason = spend_state(broker_account_kind)
-    armed_kind = mode if spend in ("live_armed", "paper_armed") else None
+    # The account kind an armed IBKR door is armed for; a practice venue arms
+    # Nova's own account, which is no IBKR account kind at all.
+    armed_kind = (
+        mode
+        if spend in ("live_armed", "paper_armed") and _practice_venue() is None
+        else None
+    )
     return {
         "gateway_mode": mode,
         "orders_enabled": orders_enabled(),
@@ -188,7 +222,7 @@ def status_snapshot(broker_account_kind: str | None = None) -> dict:
         "spend_locked_reason": locked_reason or None,
         # ADR 018 decision 5: venue and arm state are separate facts, so no
         # surface can say "practice" while the engine is armed for live.
-        "spend_permitted": permitted in ("live_armed", "paper_armed"),
+        "spend_permitted": permitted in ARMED_SPEND_STATUSES,
         "spend_permitted_status": permitted,
         "spend_permitted_reason": permitted_reason or None,
         "armed": _armed,
