@@ -128,6 +128,7 @@ def test_session_switch_drains_old_rows_without_cross_contamination(monkeypatch)
 
 def test_overflow_reports_immediately_then_drains_and_marks_failed(monkeypatch):
     monkeypatch.setattr(worker, "CAPTURE_PENDING_BATCHES", 2)
+    monkeypatch.setattr(bridge_ibkr, "CAPTURE_PRINT_BATCH_MAX", 1)  # one print, one job
     mode.set_capture_mode(True, symbol=SYMBOL)
     directory = Path(recorder.status()["dir"])
     entered, release = _block_print(monkeypatch)
@@ -152,6 +153,48 @@ def test_overflow_reports_immediately_then_drains_and_marks_failed(monkeypatch):
     status = mode.set_capture_mode(True, symbol="NEW")
     assert status["writer"]["error"] is None
     assert status["writer"]["accepting"] is True
+
+
+def test_a_burst_the_writer_cannot_keep_up_with_is_batched_not_dropped(monkeypatch):
+    """A runner's own volume must not stop its own recording (GRML, 2026-09-21).
+
+    One job per print made CAPTURE_PENDING_BATCHES a bound on PRINTS: a hot tape
+    filled it during any writer stall and the session finalized `failed` after
+    52 seconds. Batched, the same burst costs a handful of jobs, and the prints
+    the batches still hold are written when the recording stops.
+    """
+    monkeypatch.setattr(worker, "CAPTURE_PENDING_BATCHES", 4)
+    monkeypatch.setattr(bridge_ibkr, "CAPTURE_PRINT_BATCH_SEC", 60.0)  # size decides, not the clock
+    monkeypatch.setattr(bridge_ibkr, "CAPTURE_PRINT_BATCH_MAX", 200)
+    mode.set_capture_mode(True, symbol=SYMBOL)
+    directory = Path(recorder.status()["dir"])
+    entered, release = _block_print(monkeypatch)
+    burst = 600  # 150x the job bound, and every print must survive it
+    try:
+        for offset in range(burst):
+            _tick(10 + offset)
+        assert entered.wait(WAIT_SECONDS)
+        status = mode.status_payload()
+        assert "backlog full" not in (status.get("error") or "")
+        assert status["writer"]["accepting"] is True
+        assert status["writer"]["pending_batches"] <= 4
+    finally:
+        release.set()
+    mode.set_capture_mode(False)
+    assert [row["price"] for row in _prints(directory)] == [10 + n for n in range(burst)]
+    assert json.loads((directory / "manifest.json").read_text())["status"] == "stopped_partial_ok"
+
+
+def test_a_rotation_writes_the_prints_the_old_session_still_held(monkeypatch):
+    """Buffered prints belong to the session that produced them, not to silence."""
+    monkeypatch.setattr(bridge_ibkr, "CAPTURE_PRINT_BATCH_SEC", 60.0)
+    mode.set_capture_mode(True, symbol=SYMBOL)
+    old_dir = Path(recorder.status()["dir"])
+    _tick(10)   # submitted: first print of the session
+    _tick(11)   # held by the batch
+    mode.set_capture_mode(True, symbol="OTHER")
+    mode.set_capture_mode(False)
+    assert [row["price"] for row in _prints(old_dir)] == [10, 11]
 
 
 def test_sync_lifecycle_refuses_event_loop_thread():
@@ -211,6 +254,7 @@ def test_invalid_producer_timestamp_fails_the_recording_loudly():
     bad = _payload(11, offset=1)
     bad["ts"] = None
     bridge_ibkr.enqueue_print(bad)
+    bridge_ibkr.flush_prints(SYMBOL)  # as a stop does: the batch still holds it
     worker.transition(lambda: None)  # drain accepted batches
     assert not recorder.is_recording()
     status = mode.status_payload()

@@ -291,6 +291,7 @@ def test_capture_overflow_does_not_stop_l2(monkeypatch):
 
     monkeypatch.setattr(recorder, "record_print", blocked)
     monkeypatch.setattr(worker, "CAPTURE_PENDING_BATCHES", 1)
+    monkeypatch.setattr(bridge_ibkr, "CAPTURE_PRINT_BATCH_MAX", 1)  # one print, one job
     mode.set_capture_mode(True, symbol="AAPL")
     tape.watch_symbol("AAPL")
     try:

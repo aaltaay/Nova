@@ -35,9 +35,17 @@ def set_capture_mode(
     """
     from capture.worker import transition
 
+    if _recording and _symbol:
+        # Before transition() closes ingress and fences the old session: the
+        # bridge holds the prints buffered since its last batch. A print is an
+        # event, so any lifecycle change -- stop OR rotation to another symbol
+        # -- must write them; orphaned, they would be dropped in silence.
+        from capture.bridge_ibkr import flush_prints
+
+        flush_prints(_symbol)
     if not enabled and _recording and _symbol:
-        # Before transition() closes ingress: the bridge holds the newest
-        # coalesced book, and a burst that went quiet leaves it unflushed.
+        # The book is a snapshot, not an event: only a stop needs the newest
+        # coalesced one, which a burst that went quiet leaves unflushed.
         from capture.bridge_ibkr import flush_book
 
         flush_book(_symbol)

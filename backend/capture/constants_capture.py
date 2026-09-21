@@ -30,6 +30,14 @@ CAPTURE_STATUS_INTERRUPTED = "interrupted"
 CAPTURE_STATUS_FAILED = "failed"
 # Bound pending complete tick/bar batches, including the currently writing batch.
 CAPTURE_PENDING_BATCHES = 256
+# Prints are the one stream that outruns the writer, so they are batched before
+# they reach it: the bound above counts BATCHES, and one job per print turned a
+# fast tape into hundreds of jobs a second (GRML, 2026-09-21: 2439 prints in 52s,
+# then "backlog full" and a failed session). A batch is submitted when it fills
+# or when the interval has passed, so a lone print on a quiet tape still goes
+# straight through and a burst costs a handful of jobs instead of hundreds.
+CAPTURE_PRINT_BATCH_MAX = 200
+CAPTURE_PRINT_BATCH_SEC = 0.2
 
 # Capture owns v1 manifests/rows; session rollover resets writer state.
 CAPTURE_SCHEMA_VERSION = 1
