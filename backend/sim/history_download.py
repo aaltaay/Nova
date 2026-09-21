@@ -59,7 +59,7 @@ async def _answered(awaitable, stage: str):
         return await asyncio.wait_for(awaitable, store.REQUEST_TIMEOUT)
     except TimeoutError as exc:
         raise TimeoutError(
-            f"{SIM_HISTORY_GATEWAY_NOT_ANSWERING} within {store.REQUEST_TIMEOUT:.0f}s while {stage}: "
+            f"{SIM_HISTORY_GATEWAY_NOT_ANSWERING} within {store.REQUEST_TIMEOUT:g}s while {stage}: "
             "IB Gateway accepted the connection but IBKR is not responding -- check the Gateway "
             "window for a login, 2FA prompt or maintenance notice"
         ) from exc
