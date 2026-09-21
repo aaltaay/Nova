@@ -119,7 +119,9 @@ def test_session_switch_drains_old_rows_without_cross_contamination(monkeypatch)
             release.set()
 
     asyncio.run(exercise())
-    new_dir = Path(recorder.status()["dir"])
+    # Up to three symbols record at once: OTHER joins AAPL rather than replacing it.
+    new_dir = Path(recorder.status("OTHER")["dir"])
+    assert sorted(mode.capture_symbols()) == ["AAPL", "OTHER"]
     mode.set_capture_mode(False)
     assert len(_prints(old_dir)) == 1
     assert _prints(new_dir) == []
@@ -275,10 +277,10 @@ def test_async_app_shutdown_waits_off_loop_for_recorder(monkeypatch):
     entered, release = threading.Event(), threading.Event()
     original = recorder.stop_recorder
 
-    def slow_stop():
+    def slow_stop(**kwargs):
         entered.set()
         assert release.wait(WAIT_SECONDS), "shutdown test did not release disk"
-        original()
+        original(**kwargs)
 
     async def no_bootstrap():
         await asyncio.Event().wait()

@@ -6,11 +6,12 @@ writer backlog), and an IBKR line that drops with the Gateway. The market only
 happens once, so the policy for all three is the same -- get back up into a new
 segment on your own, and tell the operator what happened -- bounded so a dead
 disk cannot loop forever, never across a day boundary, never onto a different
-symbol, and cancelled the moment the operator stops or starts something else.
+symbol, and cancelled the moment the operator stops that symbol.
 
-State here is process memory. The manifest on disk is the durable record; this
-module only decides when to call ``start`` again and what ``/api/ibkr/status``
-says about it.
+Every symbol is followed on its own: up to CAPTURE_MAX_CONCURRENT record at
+once, and one dying must not touch the others. State here is process memory;
+the manifest on disk is the durable record. This module only decides when to
+call ``start`` again and what ``/api/ibkr/status`` says about it.
 """
 from __future__ import annotations
 
@@ -33,27 +34,31 @@ from capture.constants_capture import (
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
 
-# The symbol the last tick saw recording; a tick that finds nothing recording
-# without an operator stop in between has found an unplanned stop.
-_watched: str | None = None
-# A resume in flight: symbol, why, attempts so far, when next.
-_resume: dict[str, Any] | None = None
-# The last stop the operator did not ask for -- what the UI shouts about.
-_stopped: dict[str, Any] | None = None
-# IBKR lines re-acquired after a Gateway drop, for the running session's status.
-_reacquired = 0
+# Symbols the last tick saw recording; one that is gone without an operator
+# stop in between has died.
+_watched: set[str] = set()
+# symbol -> a resume in flight: why, attempts so far, when next.
+_resume: dict[str, dict[str, Any]] = {}
+# symbol -> the last stop the operator did not ask for -- what the UI shouts about.
+_stopped: dict[str, dict[str, Any]] = {}
+# symbol -> IBKR lines re-acquired after a Gateway drop, this session.
+_reacquired: dict[str, int] = {}
 
 
 def reset_for_tests() -> None:
-    global _watched, _resume, _stopped, _reacquired
-    _watched = None
-    _resume = None
-    _stopped = None
-    _reacquired = 0
+    _watched.clear()
+    _resume.clear()
+    _stopped.clear()
+    _reacquired.clear()
 
 
 def _today_et(now: float) -> str:
     return datetime.fromtimestamp(now, ET).strftime("%Y-%m-%d")
+
+
+def _sym(symbol: str | None) -> str | None:
+    sym = (symbol or "").strip().upper()
+    return sym or None
 
 
 # ---------------------------------------------------------------------------
@@ -61,18 +66,27 @@ def _today_et(now: float) -> str:
 
 
 def operator_stopped(symbol: str | None) -> None:
-    """The operator asked for the stop: nothing to resume, nothing to shout."""
-    global _watched, _resume, _stopped
-    _watched = None
-    _resume = None
-    _stopped = None
+    """The operator asked for the stop: nothing to resume, nothing to shout.
+    With no symbol, every recording is being stopped."""
+    sym = _sym(symbol)
+    for store in (_resume, _stopped):
+        if sym is None:
+            store.clear()
+        else:
+            store.pop(sym, None)
+    if sym is None:
+        _watched.clear()
+    else:
+        _watched.discard(sym)
 
 
 def operator_started(symbol: str) -> None:
-    """A recording the operator started supersedes any pending resume or old stop."""
-    global _resume, _stopped
-    _resume = None
-    _stopped = None
+    """A recording the operator started supersedes that symbol's pending resume or old stop."""
+    sym = _sym(symbol)
+    if sym is None:
+        return
+    _resume.pop(sym, None)
+    _stopped.pop(sym, None)
 
 
 # ---------------------------------------------------------------------------
@@ -81,7 +95,6 @@ def operator_started(symbol: str) -> None:
 
 def note_restart(summary: dict[str, Any] | None, *, now: float | None = None) -> bool:
     """A recording the previous process died during: resume it if it is today's and recent."""
-    global _resume, _stopped
     if not summary or not summary.get("symbol"):
         return False
     now = time.time() if now is None else now
@@ -92,7 +105,7 @@ def note_restart(summary: dict[str, Any] | None, *, now: float | None = None) ->
     if not (recent and today):
         logger.info("CAPTURE: not resuming %s after restart (today=%s recent=%s)", symbol, today, recent)
         return False
-    _stopped = {
+    _stopped[symbol] = {
         "symbol": symbol,
         "at": float(last_write),
         "reason": CAPTURE_STOP_RESTART,
@@ -101,7 +114,8 @@ def note_restart(summary: dict[str, Any] | None, *, now: float | None = None) ->
         "counts": dict(summary.get("counts") or {}),
         "resumed": False,
     }
-    _resume = _new_resume(symbol, CAPTURE_STOP_RESTART, None, summary.get("session_date"), now, first_delay=0.0)
+    _resume[symbol] = _new_resume(symbol, CAPTURE_STOP_RESTART, None, summary.get("session_date"), now,
+                                  first_delay=0.0)
     logger.warning("CAPTURE: %s was recording when the previous process died -- resuming", symbol)
     return True
 
@@ -136,21 +150,23 @@ async def tick(
     release: Callable[[str], Awaitable[None]],
     start: Callable[[str], Awaitable[dict[str, Any]]],
 ) -> None:
-    """Observe the recording once; resume or re-acquire where the policy says so.
+    """Observe every recording once; resume or re-acquire where the policy says so.
 
     ``payload`` is ``capture.mode.status_payload()`` and ``recorder_status`` is
     ``capture.recorder.status()``, both taken by the caller off the loop.
     """
-    global _watched, _resume, _stopped, _reacquired
-    recording = bool(payload.get("capture"))
-    symbol = payload.get("capture_symbol")
-    if recording and symbol:
-        if _resume and _resume["symbol"] == symbol:
-            _resume = None  # whoever started it, the resume is done
-            if _stopped and _stopped["symbol"] == symbol:
-                _stopped["resumed"] = True
-        _watched = symbol
-        producer = payload.get("producer") or {}
+    recording = [str(s).upper() for s in (payload.get("capture_symbols") or []) if s]
+    if not recording and payload.get("capture") and payload.get("capture_symbol"):
+        recording = [str(payload["capture_symbol"]).upper()]
+    sessions = payload.get("sessions") or {}
+
+    for symbol in recording:
+        if symbol in _resume:
+            _resume.pop(symbol)  # whoever started it, the resume is done
+            if symbol in _stopped:
+                _stopped[symbol]["resumed"] = True
+        _watched.add(symbol)
+        producer = (sessions.get(symbol) or {}).get("producer") or payload.get("producer") or {}
         # Gateway drop: the tape line is gone but the client is back. Take the
         # lines again; the recorder never stopped, so this is a gap, not a segment.
         if producer.get("state") == "disconnected" and ready():
@@ -159,93 +175,100 @@ async def tick(
             if error:
                 logger.warning("CAPTURE: re-acquire of IBKR lines for %s failed: %s", symbol, error)
             else:
-                _reacquired += 1
+                _reacquired[symbol] = _reacquired.get(symbol, 0) + 1
                 logger.warning("CAPTURE: IBKR lines re-acquired for %s after a Gateway drop", symbol)
-        return
 
-    if _watched:
-        # Nothing is recording and the operator did not stop it: it died.
-        died = _watched
-        _watched = None
-        error = payload.get("error") or recorder_status.get("error")
-        _stopped = {
+    for died in sorted(_watched - set(recording)):
+        # Nothing records it and the operator did not stop it: it died.
+        _watched.discard(died)
+        rec = (recorder_status.get("sessions") or {}).get(died) or recorder_status
+        error = rec.get("error") or payload.get("error")
+        _stopped[died] = {
             "symbol": died,
             "at": now,
             "reason": CAPTURE_STOP_FAILURE,
             "error": error,
-            "dir": recorder_status.get("dir"),
-            "counts": dict(recorder_status.get("counts") or {}),
+            "dir": rec.get("dir"),
+            "counts": dict(rec.get("counts") or {}),
             "resumed": False,
         }
-        _resume = _new_resume(died, CAPTURE_STOP_FAILURE, error, recorder_status.get("session_date"), now,
-                              first_delay=CAPTURE_RESUME_BACKOFF_SEC[0])
+        _resume[died] = _new_resume(died, CAPTURE_STOP_FAILURE, error, rec.get("session_date"), now,
+                                    first_delay=CAPTURE_RESUME_BACKOFF_SEC[0])
         logger.error("CAPTURE: recording of %s stopped on its own (%s) -- will resume", died, error)
 
-    if not _resume or _resume["gave_up"] or now < _resume["next_at"]:
+    for symbol in list(_resume):
+        await _attempt(symbol, now=now, ready=ready, acquire=acquire, start=start)
+
+
+async def _attempt(symbol: str, *, now: float, ready, acquire, start) -> None:
+    resume = _resume.get(symbol)
+    if not resume or resume["gave_up"] or now < resume["next_at"]:
         return
-    if _resume["session_date"] != _today_et(now):
-        _give_up("the session day ended")
+    if resume["session_date"] != _today_et(now):
+        _give_up(resume, "the session day ended")
         return
     if not ready():
         # IBKR is not usable; that is not the recorder's fault, so it costs no
         # attempt. Try again next tick.
-        _resume["next_at"] = now + CAPTURE_KEEPALIVE_INTERVAL_SEC
+        resume["next_at"] = now + CAPTURE_KEEPALIVE_INTERVAL_SEC
         return
-    sym = _resume["symbol"]
-    _resume["attempt"] += 1
-    error = await acquire(sym)
+    resume["attempt"] += 1
+    error = await acquire(symbol)
     if not error:
-        out = await start(sym)
-        error = None if out.get("capture") and out.get("capture_symbol") == sym else (
-            out.get("error") or out.get("detail") or "Recorder did not start")
+        out = await start(symbol)
+        started = [str(s).upper() for s in (out.get("capture_symbols") or [])]
+        if not started and out.get("capture") and out.get("capture_symbol"):
+            started = [str(out["capture_symbol"]).upper()]
+        error = None if symbol in started else (out.get("error") or out.get("detail") or "Recorder did not start")
     if error is None:
         logger.warning("CAPTURE: resumed recording %s (attempt %d, after %s)",
-                       sym, _resume["attempt"], _resume["reason"])
-        _resume = None
-        if _stopped and _stopped["symbol"] == sym:
-            _stopped["resumed"] = True
-        _watched = sym
+                       symbol, resume["attempt"], resume["reason"])
+        _resume.pop(symbol, None)
+        if symbol in _stopped:
+            _stopped[symbol]["resumed"] = True
+        _watched.add(symbol)
         return
-    logger.warning("CAPTURE: resume of %s failed (attempt %d/%d): %s", sym, _resume["attempt"],
-                   _resume["max_attempts"], error)
-    if _resume["attempt"] >= _resume["max_attempts"]:
-        _give_up(f"{_resume['max_attempts']} attempts failed; last: {error}")
+    logger.warning("CAPTURE: resume of %s failed (attempt %d/%d): %s", symbol, resume["attempt"],
+                   resume["max_attempts"], error)
+    if resume["attempt"] >= resume["max_attempts"]:
+        _give_up(resume, f"{resume['max_attempts']} attempts failed; last: {error}")
     else:
-        step = min(_resume["attempt"], len(CAPTURE_RESUME_BACKOFF_SEC) - 1)
-        _resume["next_at"] = now + CAPTURE_RESUME_BACKOFF_SEC[step]
+        step = min(resume["attempt"], len(CAPTURE_RESUME_BACKOFF_SEC) - 1)
+        resume["next_at"] = now + CAPTURE_RESUME_BACKOFF_SEC[step]
 
 
-def _give_up(reason: str) -> None:
-    assert _resume is not None
-    _resume["gave_up"] = True
-    _resume["gave_up_reason"] = reason
-    _resume["pending"] = False
-    logger.error("CAPTURE: giving up on resuming %s: %s", _resume["symbol"], reason)
+def _give_up(resume: dict[str, Any], reason: str) -> None:
+    resume["gave_up"] = True
+    resume["gave_up_reason"] = reason
+    resume["pending"] = False
+    logger.error("CAPTURE: giving up on resuming %s: %s", resume["symbol"], reason)
 
 
 # ---------------------------------------------------------------------------
 # Status
 
 
-def status_fields(recorder_status: dict[str, Any], recording: bool) -> dict[str, Any]:
-    """The three ``/api/ibkr/status`` fields (AGENTS.md section 3, recording persistence)."""
-    session = None
-    if recording:
-        session = {
-            "symbol": recorder_status.get("symbol"),
-            "session_date": recorder_status.get("session_date"),
-            "started_et": recorder_status.get("started_et"),
-            "segment_started_et": recorder_status.get("segment_started_et"),
-            "segment": recorder_status.get("segment"),
-            "counts": dict(recorder_status.get("counts") or {}),
-            "last_write_ts": recorder_status.get("last_write_ts"),
-            "dir": recorder_status.get("dir"),
-            "reacquired": _reacquired,
-        }
+def status_fields(recorder_status: dict[str, Any], recording: list[str]) -> dict[str, Any]:
+    """The three ``/api/ibkr/status`` lists (AGENTS.md section 3, recording persistence)."""
+    sessions = recorder_status.get("sessions") or {}
+    out_sessions = []
+    for symbol in recording:
+        rec = sessions.get(symbol) or (recorder_status if recorder_status.get("symbol") == symbol else {})
+        out_sessions.append({
+            "symbol": symbol,
+            "session_date": rec.get("session_date"),
+            "started_et": rec.get("started_et"),
+            "segment_started_et": rec.get("segment_started_et"),
+            "segment": rec.get("segment"),
+            "counts": dict(rec.get("counts") or {}),
+            "last_write_ts": rec.get("last_write_ts"),
+            "dir": rec.get("dir"),
+            "reacquired": _reacquired.get(symbol, 0),
+        })
     return {
-        "capture_session": session,
-        "capture_resume": dict(_resume) if _resume else None,
-        "capture_stopped": dict(_stopped) if _stopped else None,
+        "capture_sessions": out_sessions,
+        "capture_resume": [dict(row) for row in _resume.values()],
+        "capture_stopped": [dict(row) for row in _stopped.values()],
     }
 
 

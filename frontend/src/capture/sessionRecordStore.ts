@@ -35,16 +35,22 @@ function fresh(): boolean {
     && Date.now() - status.lastSuccessAt < CAPTURE_STATUS_FRESH_MS;
 }
 
+/** The symbols a payload says are recording; an older payload names one. */
+function symbolsOf(status: { capture_symbols?: unknown; capture_symbol?: unknown }): string[] {
+  const list = Array.isArray(status.capture_symbols)
+    ? status.capture_symbols
+    : typeof status.capture_symbol === 'string' ? [status.capture_symbol] : [];
+  return list.map(value => String(value).trim().toUpperCase()).filter(Boolean);
+}
+
 export function getRecordingSymbols(): string[] {
   const status = getIbkrStatusSnapshot();
-  const recordingSymbol = fresh() && status.capture === true && status.recording === true
-    && typeof status.capture_symbol === 'string'
-    ? status.capture_symbol.trim().toUpperCase() : null;
-  return recordingSymbol ? [recordingSymbol] : [];
+  if (!fresh() || status.capture !== true || status.recording !== true) return [];
+  return symbolsOf(status);
 }
 
 export function isTabRecording(symbol: string): boolean {
-  return getRecordingSymbols()[0] === symbol.trim().toUpperCase();
+  return getRecordingSymbols().includes(symbol.trim().toUpperCase());
 }
 
 export function getSessionRecordError(): string | null {
@@ -98,8 +104,9 @@ async function toggleRecord(symbol: string, enabled: boolean): Promise<string | 
       body: JSON.stringify({ enabled, symbol: sym }),
     });
     const body = await res.json();
-    if (!res.ok || body.error || body.capture !== enabled
-      || (enabled && body.capture_symbol !== sym)) {
+    // Success is about THIS symbol: other symbols may keep recording.
+    const recording = symbolsOf(body).includes(sym);
+    if (!res.ok || body.error || recording !== enabled) {
       commandError = (typeof body.error === 'string' && body.error)
         || (typeof body.detail === 'string' && body.detail)
         || `Record ${enabled ? 'start' : 'stop'} failed`;

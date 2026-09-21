@@ -21,25 +21,25 @@ function state(overrides: Partial<IbkrStatus>): IbkrStatus {
   return { mode: 'live', connected: true, enabled: true, capture: false, recording: false, capture_symbol: null, ...overrides };
 }
 
+const session = {
+  symbol: 'GRML', session_date: '2026-09-21', started_et: '2026-09-21T11:46:35-04:00',
+  segment_started_et: '2026-09-21T11:46:35-04:00', segment: 1,
+  counts: { prints: 2439, quotes: 229, l2: 229 }, last_write_ts: NOW / 1000 - 1, dir: 'F:/x', reacquired: 0,
+};
 const recording = state({
-  capture: true, recording: true, capture_symbol: 'GRML',
-  capture_session: {
-    symbol: 'GRML', session_date: '2026-09-21', started_et: '2026-09-21T11:46:35-04:00',
-    segment_started_et: '2026-09-21T11:46:35-04:00', segment: 1,
-    counts: { prints: 2439, quotes: 229, l2: 229 }, last_write_ts: NOW / 1000 - 1, dir: 'F:/x', reacquired: 0,
-  },
+  capture: true, recording: true, capture_symbol: 'GRML', capture_symbols: ['GRML'],
+  capture_sessions: [session],
 });
 
-const died = state({
-  capture_stopped: {
-    symbol: 'GRML', at: NOW / 1000 - 5, reason: 'failure', error: 'Capture writer backlog full',
-    dir: 'F:/x', counts: { prints: 2439 }, resumed: false,
-  },
-  capture_resume: {
-    symbol: 'GRML', reason: 'failure', error: null, session_date: '2026-09-21', attempt: 0, max_attempts: 5,
-    next_at: NOW / 1000 + 2, gave_up: false, gave_up_reason: null, pending: true,
-  },
-});
+const stoppedRow = {
+  symbol: 'GRML', at: NOW / 1000 - 5, reason: 'failure', error: 'Capture writer backlog full',
+  dir: 'F:/x', counts: { prints: 2439 }, resumed: false,
+};
+const resumeRow = {
+  symbol: 'GRML', reason: 'failure', error: null, session_date: '2026-09-21', attempt: 0, max_attempts: 5,
+  next_at: NOW / 1000 + 2, gave_up: false, gave_up_reason: null, pending: true,
+};
+const died = state({ capture_stopped: [stoppedRow], capture_resume: [resumeRow] });
 
 async function poll(body: IbkrStatus) {
   _setIbkrStatusPollerFetchForTests(vi.fn().mockResolvedValue(response(body)));
@@ -91,7 +91,7 @@ describe('RecordingSignals', () => {
       .toBe('Resuming on its own in 2s (attempt 1 of 5).');
     fireEvent.click(screen.getByTestId('recording-stopped-open'));
     expect(open).toHaveBeenCalledWith('GRML');
-    await poll(state({ ...died, capture_stopped: { ...died.capture_stopped!, resumed: true } }));
+    await poll(state({ ...died, capture_stopped: [{ ...stoppedRow, resumed: true }] }));
     expect(screen.queryByTestId('recording-stopped')).toBeNull();
   });
 
@@ -112,7 +112,7 @@ describe('RecordingSignals', () => {
     expect(screen.queryByTestId('recording-stopped')).toBeNull();
     await poll(died);
     expect(screen.queryByTestId('recording-stopped')).toBeNull();
-    await poll(state({ capture_stopped: { ...died.capture_stopped!, at: NOW / 1000 + 60 } }));
+    await poll(state({ capture_stopped: [{ ...stoppedRow, at: NOW / 1000 + 60 }] }));
     expect(screen.getByTestId('recording-stopped')).toBeTruthy();
   });
 
@@ -120,10 +120,30 @@ describe('RecordingSignals', () => {
     await mount(<RecordingSignals />);
     await poll(state({
       ...died,
-      capture_resume: { ...died.capture_resume!, attempt: 5, gave_up: true, pending: false, gave_up_reason: '5 attempts failed; last: disk gone' },
+      capture_resume: [{ ...resumeRow, attempt: 5, gave_up: true, pending: false, gave_up_reason: '5 attempts failed; last: disk gone' }],
     }));
     expect(screen.getByTestId('recording-stopped-resume').textContent)
       .toContain('Gave up resuming: 5 attempts failed; last: disk gone');
+  });
+});
+
+describe('RecordingSignals with three symbols', () => {
+  it('one hairline, one toast per stop, each with its own Resume', async () => {
+    await mount(<RecordingSignals />);
+    await poll(state({
+      capture: true, recording: true, capture_symbol: 'GRML', capture_symbols: ['GRML', 'IMCC'],
+      capture_sessions: [session, { ...session, symbol: 'IMCC' }],
+      capture_stopped: [{ ...stoppedRow, symbol: 'F' }, { ...stoppedRow, symbol: 'VEEE', at: stoppedRow.at + 1 }],
+      capture_resume: [{ ...resumeRow, symbol: 'F' }],
+    }));
+    expect(screen.getByTestId('recording-hairline').title).toBe('Recording GRML, IMCC');
+    const toasts = screen.getAllByTestId('recording-stopped');
+    expect(toasts.map(toast => toast.dataset.symbol)).toEqual(['F', 'VEEE']);
+    command.mockResolvedValue(response({ capture: true, capture_symbols: ['GRML', 'IMCC', 'VEEE'] }));
+    await act(async () => { fireEvent.click(screen.getAllByTestId('recording-stopped-resume-now')[1]); });
+    expect(command).toHaveBeenCalledWith(expect.stringMatching(/\/api\/capture$/), expect.objectContaining({
+      body: JSON.stringify({ enabled: true, symbol: 'VEEE' }),
+    }));
   });
 });
 
@@ -146,9 +166,9 @@ describe('RecordingChip', () => {
 
   it('after a resume, "for" is this segment and the tooltip says when the session began', async () => {
     await mount(<RecordingChip />);
-    await poll({ ...recording, capture_session: {
-      ...recording.capture_session!, segment: 4, segment_started_et: '2026-09-21T11:59:20-04:00',
-    } });
+    await poll({ ...recording, capture_sessions: [{
+      ...session, segment: 4, segment_started_et: '2026-09-21T11:59:20-04:00',
+    }] });
     const chip = screen.getByTestId('status-chip-recording');
     expect(chip.textContent).toContain('GRML · 40s');
     expect(chip.title).toContain('Recording GRML for 40s -- segment 4 of a session that began 13m 25s ago');

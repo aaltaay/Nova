@@ -19,8 +19,9 @@ def overlay_ibkr_status(payload: dict[str, Any]) -> dict[str, Any]:
 
     recording = False
     record_symbol = None
+    record_symbols: list[str] = []
     record_error = None
-    persistence: dict[str, Any] = {"capture_session": None, "capture_resume": None, "capture_stopped": None}
+    persistence: dict[str, Any] = {"capture_sessions": [], "capture_resume": [], "capture_stopped": []}
     try:
         from capture import keepalive
         from capture.mode import status_payload as capture_status_payload
@@ -29,13 +30,15 @@ def overlay_ibkr_status(payload: dict[str, Any]) -> dict[str, Any]:
         capture = capture_status_payload()
         recording = bool(capture["capture"])
         record_symbol = capture["capture_symbol"]
+        record_symbols = list(capture.get("capture_symbols") or [])
         record_error = capture.get("error")
-        persistence = keepalive.status_fields(recorder_status(), recording)
+        persistence = keepalive.status_fields(recorder_status(), record_symbols)
     except Exception:
         logger.exception("RECORD: capture status unavailable")
         record_error = "Recording status unavailable"
         recording = False
         record_symbol = None
+        record_symbols = []
 
     if is_sim_mode():
         out = dict(payload)
@@ -61,6 +64,7 @@ def overlay_ibkr_status(payload: dict[str, Any]) -> dict[str, Any]:
         out["sim"] = True
         out["capture"] = recording
         out["capture_symbol"] = record_symbol
+        out["capture_symbols"] = record_symbols
         out["recording"] = recording
         out["capture_error"] = record_error
         out.update(persistence)
@@ -71,6 +75,7 @@ def overlay_ibkr_status(payload: dict[str, Any]) -> dict[str, Any]:
     out["capture"] = recording
     out["capture_symbol"] = record_symbol
     out["recording"] = recording
+    out["capture_symbols"] = record_symbols
     out["capture_error"] = record_error
     out.update(persistence)
     # Tab Record must NOT rewrite mode or trading_allowed — Paper/Live stay themselves.

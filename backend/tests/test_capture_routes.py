@@ -57,7 +57,7 @@ def toggle(client, enabled, symbol=None):
     return client.post("/api/capture", json={"enabled": enabled, "symbol": symbol})
 
 
-def test_http_ownership_conflicts_preserve_active_session(client, monkeypatch):
+def test_http_ownership_is_per_symbol_and_idempotent(client, monkeypatch):
     started = toggle(client, True, " aapl ")
     assert started.status_code == 200
     assert started.json()["capture_symbol"] == "AAPL"
@@ -65,26 +65,31 @@ def test_http_ownership_conflicts_preserve_active_session(client, monkeypatch):
     stop = Mock(wraps=recorder.stop_recorder)
     monkeypatch.setattr(recorder, "start_recorder", start)
     monkeypatch.setattr(recorder, "stop_recorder", stop)
-    assert toggle(client, True, "AAPL").status_code == 200
-    for enabled in (True, False):
-        conflict = toggle(client, enabled, "TSLA")
-        assert conflict.status_code == 409
-        assert "Already recording AAPL" in conflict.json()["detail"]
-        state = client.get("/api/capture").json()
-        assert state["capture_symbol"] == "AAPL"
-        assert state["recorder"]["recording"] is True
+    assert toggle(client, True, "AAPL").status_code == 200        # idempotent: no reopen
     start.assert_not_called()
+    # A second symbol records beside the first (operator decision, 2026-09-21).
+    second = toggle(client, True, "TSLA")
+    assert second.status_code == 200
+    assert second.json()["capture_symbols"] == ["AAPL", "TSLA"]
+    assert second.json()["capture_symbol"] == "AAPL"               # first, for single-symbol readers
+    # Stopping a symbol that is not recording is a conflict, not a stop of the others.
+    conflict = toggle(client, False, "MSFT")
+    assert conflict.status_code == 409 and "not recording" in conflict.json()["detail"]
     stop.assert_not_called()
-    assert toggle(client, False, "AAPL").json()["capture"] is False
-    assert toggle(client, True, "TSLA").json()["capture_symbol"] == "TSLA"
+    state = client.get("/api/capture").json()
+    assert state["capture_symbols"] == ["AAPL", "TSLA"]
+    assert set(state["sessions"]) == {"AAPL", "TSLA"}
+    # Stopping one leaves the other.
+    after = toggle(client, False, "AAPL").json()
+    assert after["capture"] is True and after["capture_symbols"] == ["TSLA"]
+    assert toggle(client, False, "TSLA").json()["capture"] is False
 
 
-def test_concurrent_http_starts_have_one_owner(client):
+def test_concurrent_http_starts_both_record(client):
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(lambda sym: toggle(client, True, sym), ["AAPL", "TSLA"]))
-    assert sorted(result.status_code for result in results) == [200, 409]
-    winner = next(result.json()["capture_symbol"] for result in results if result.status_code == 200)
-    assert client.get("/api/capture").json()["capture_symbol"] == winner
+    assert [result.status_code for result in results] == [200, 200]
+    assert sorted(client.get("/api/capture").json()["capture_symbols"]) == ["AAPL", "TSLA"]
 
 
 def test_invalid_empty_start_does_not_record(client):
@@ -166,10 +171,13 @@ def test_a_refused_tape_line_refuses_the_recording(client):
     assert feed_hold.held("AAPL") is None
 
 
-def test_a_second_symbol_is_refused_before_any_line_is_opened(client):
-    toggle(client, True, "AAPL")
-    assert toggle(client, True, "TSLA").status_code == 409
-    assert HOLDS["acquired"] == ["AAPL"]  # never touched TSLA's tape (15 s resubscribe guard)
+def test_a_fourth_symbol_is_refused_before_any_line_is_opened(client):
+    for symbol in ("AAPL", "TSLA", "MSFT"):
+        assert toggle(client, True, symbol).status_code == 200
+    fourth = toggle(client, True, "NVDA")
+    assert fourth.status_code == 409
+    assert "IBKR allows 3 depth lines" in fourth.json()["detail"]
+    assert HOLDS["acquired"] == ["AAPL", "TSLA", "MSFT"]  # never touched NVDA's tape (15 s resubscribe guard)
 
 
 def test_a_recorder_that_stopped_itself_gives_its_lines_back(client):

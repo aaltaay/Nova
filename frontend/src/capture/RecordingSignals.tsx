@@ -19,7 +19,7 @@ import {
   recordingStoppedBody,
   recordingStoppedTitle,
 } from './constants';
-import { stoppedView, type StoppedView } from './recordingSignalModel';
+import { stoppedViews, type StoppedView } from './recordingSignalModel';
 import {
   dismissRecordingStop,
   getRecordingSymbols,
@@ -43,57 +43,62 @@ function resumeLine(view: StoppedView): string | null {
 export function RecordingSignals({ onOpenSymbol }: { onOpenSymbol?: (symbol: string) => void }) {
   useSyncExternalStore(subscribeSessionRecord, getSessionRecordVersion, () => 0);
   const status = getIbkrStatusSnapshot();
-  const recordingSymbol = getRecordingSymbols()[0] ?? null;
+  const recordingSymbols = getRecordingSymbols();
   const [now, setNow] = useState(() => Date.now());
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const stopped = stoppedView(status, now);
-  const shown = stopped && !isRecordingStopDismissed(stopped.key) ? stopped : null;
-  const ticking = Boolean(shown?.resume?.pending);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const shownList = stoppedViews(status, now).filter(view => !isRecordingStopDismissed(view.key));
+  const ticking = shownList.some(view => view.resume?.pending);
   useEffect(() => {
     if (!ticking) return undefined;
     const id = window.setInterval(() => setNow(Date.now()), RECORDING_SIGNAL_TICK_MS);
     return () => window.clearInterval(id);
   }, [ticking]);
-  useEffect(() => { setError(null); }, [shown?.key]);
 
-  const resume = async (symbol: string) => {
-    setBusy(true);
-    setError(null);
+  const resume = async (symbol: string, key: string) => {
+    setBusy(key);
+    setErrors(prev => ({ ...prev, [key]: '' }));
     const err = await startTabRecord(symbol);
-    setBusy(false);
-    if (err) setError(err);
+    setBusy(null);
+    if (err) setErrors(prev => ({ ...prev, [key]: err }));
   };
 
   return (
     <>
-      {recordingSymbol && (
+      {recordingSymbols.length > 0 && (
         <div
           className="recording-hairline"
           data-testid="recording-hairline"
-          title={recordingHairlineTitle(recordingSymbol)}
+          title={recordingHairlineTitle(recordingSymbols.join(', '))}
           aria-hidden="true"
         />
       )}
-      {shown && (
-        <div className="recording-stopped" role="alert" data-testid="recording-stopped">
+      {shownList.map((shown, index) => (
+        <div
+          key={shown.key}
+          className="recording-stopped"
+          role="alert"
+          data-testid="recording-stopped"
+          data-symbol={shown.symbol}
+          style={index ? { top: `${64 + index * 96}px` } : undefined}
+        >
           <div className="recording-stopped__text">
             <strong className="recording-stopped__title">{recordingStoppedTitle(shown.symbol, shown.reason)}</strong>
             <span className="recording-stopped__body">{recordingStoppedBody(shown.error, shown.prints)}</span>
             {resumeLine(shown) && (
               <span className="recording-stopped__resume" data-testid="recording-stopped-resume">{resumeLine(shown)}</span>
             )}
-            {error && <span className="recording-stopped__error">{error}</span>}
+            {errors[shown.key] && <span className="recording-stopped__error">{errors[shown.key]}</span>}
           </div>
           <div className="recording-stopped__actions">
             <button
               type="button"
               className="recording-stopped__action"
               data-testid="recording-stopped-resume-now"
-              disabled={busy}
-              onClick={() => void resume(shown.symbol)}
+              disabled={busy === shown.key}
+              onClick={() => void resume(shown.symbol, shown.key)}
             >
-              {busy ? RECORDING_RESUMING_ACTION : RECORDING_RESUME_ACTION}
+              {busy === shown.key ? RECORDING_RESUMING_ACTION : RECORDING_RESUME_ACTION}
             </button>
             {onOpenSymbol && (
               <button
@@ -117,7 +122,7 @@ export function RecordingSignals({ onOpenSymbol }: { onOpenSymbol?: (symbol: str
             </button>
           </div>
         </div>
-      )}
+      ))}
     </>
   );
 }

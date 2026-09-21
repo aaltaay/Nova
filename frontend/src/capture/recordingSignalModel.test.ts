@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { IbkrStatus } from '../ibkr/types';
-import { elapsedLabel, recordingView, stoppedView } from './recordingSignalModel';
+import { elapsedLabel, recordingView, stoppedViews } from './recordingSignalModel';
 
 const NOW = Date.parse('2026-09-21T12:00:00-04:00');
 
@@ -13,12 +13,13 @@ describe('recordingView', () => {
     const view = recordingView(status({
       recording: true,
       capture_symbol: 'GRML',
-      capture_session: {
+      capture_symbols: ['GRML'],
+      capture_sessions: [{
         symbol: 'GRML', session_date: '2026-09-21', started_et: '2026-09-21T11:46:35-04:00',
         segment_started_et: '2026-09-21T11:58:00-04:00', segment: 2,
         counts: { prints: 2439, quotes: 229, l2: 229 }, last_write_ts: NOW / 1000 - 3,
         dir: 'F:\\Nova\\sim_capture\\2026-09-21\\GRML', reacquired: 1,
-      },
+      }],
     }), 'GRML', NOW);
     expect(view).toMatchObject({
       symbol: 'GRML', segment: 2, prints: 2439, quotes: 229, l2: 229, lastWriteAgeSec: 3, reacquired: 1,
@@ -27,29 +28,30 @@ describe('recordingView', () => {
     expect(view?.segmentSinceMs).toBe(2 * 60 * 1000);
   });
 
-  it('is nothing when the fresh symbol and the session disagree', () => {
+  it('is nothing when no session carries the fresh symbol', () => {
     const session = {
       symbol: 'IMCC', session_date: null, started_et: null, segment_started_et: null, segment: 1,
       counts: {}, last_write_ts: null, dir: null, reacquired: 0,
     };
-    expect(recordingView(status({ capture_session: session }), 'GRML', NOW)).toBeNull();
-    expect(recordingView(status({ capture_session: session }), null, NOW)).toBeNull();
+    expect(recordingView(status({ capture_sessions: [session] }), 'GRML', NOW)).toBeNull();
+    expect(recordingView(status({ capture_sessions: [session] }), null, NOW)).toBeNull();
+    expect(recordingView(status({ capture_sessions: [session] }), 'IMCC', NOW)?.symbol).toBe('IMCC');
   });
 });
 
-describe('stoppedView', () => {
+describe('stoppedViews', () => {
   const stopped = {
     symbol: 'GRML', at: NOW / 1000 - 10, reason: 'failure', error: 'Capture writer backlog full',
     dir: 'F:/x', counts: { prints: 2439 }, resumed: false,
   };
 
   it('is the shout, with the resume countdown', () => {
-    const view = stoppedView(status({
-      capture_stopped: stopped,
-      capture_resume: {
+    const [view] = stoppedViews(status({
+      capture_stopped: [stopped],
+      capture_resume: [{
         symbol: 'GRML', reason: 'failure', error: null, session_date: '2026-09-21', attempt: 1, max_attempts: 5,
         next_at: NOW / 1000 + 4.2, gave_up: false, gave_up_reason: null, pending: true,
-      },
+      }],
     }), NOW);
     expect(view).toMatchObject({ symbol: 'GRML', reason: 'failure', prints: 2439, key: `GRML|${stopped.at}` });
     expect(view?.resume).toEqual({
@@ -57,18 +59,22 @@ describe('stoppedView', () => {
     });
   });
 
-  it('ends once the recording is back', () => {
-    expect(stoppedView(status({ capture_stopped: { ...stopped, resumed: true } }), NOW)).toBeNull();
-    expect(stoppedView(status({ capture_stopped: null }), NOW)).toBeNull();
+  it('ends once that recording is back, and is one shout per symbol', () => {
+    expect(stoppedViews(status({ capture_stopped: [{ ...stopped, resumed: true }] }), NOW)).toEqual([]);
+    expect(stoppedViews(status({ capture_stopped: [] }), NOW)).toEqual([]);
+    const two = stoppedViews(status({
+      capture_stopped: [stopped, { ...stopped, symbol: 'F', at: stopped.at + 1 }],
+    }), NOW);
+    expect(two.map(view => view.symbol)).toEqual(['GRML', 'F']);
   });
 
   it('reports a resume that gave up', () => {
-    const view = stoppedView(status({
-      capture_stopped: stopped,
-      capture_resume: {
+    const [view] = stoppedViews(status({
+      capture_stopped: [stopped],
+      capture_resume: [{
         symbol: 'GRML', reason: 'failure', error: null, session_date: '2026-09-21', attempt: 5, max_attempts: 5,
         next_at: 0, gave_up: true, gave_up_reason: '5 attempts failed; last: disk gone', pending: false,
-      },
+      }],
     }), NOW);
     expect(view?.resume).toMatchObject({ pending: false, gaveUp: true, gaveUpReason: '5 attempts failed; last: disk gone' });
   });

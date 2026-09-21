@@ -20,15 +20,18 @@ export interface IbkrStatus {
   /** True while the in-app Sim practice toggle is on. */
   sim?: boolean;
   capture?: boolean;
+  /** The first recording symbol, for single-symbol readers; `capture_symbols` is the truth. */
   capture_symbol?: string | null;
+  /** Every recording symbol, in start order (up to three; AGENTS.md section 3). */
+  capture_symbols?: string[];
   recording?: boolean;
   capture_error?: string | null;
-  /** Running Session Record; null when not recording (AGENTS.md section 3, recording persistence). */
-  capture_session?: RecordingSession | null;
-  /** A resume the backend is attempting after an unrequested stop. */
-  capture_resume?: RecordingResume | null;
-  /** The last stop the operator did not ask for, until a recording starts or one is stopped. */
-  capture_stopped?: RecordingStopped | null;
+  /** One per recording symbol (AGENTS.md section 3, recording persistence). */
+  capture_sessions?: RecordingSession[];
+  /** Resumes the backend is attempting after unrequested stops, per symbol. */
+  capture_resume?: RecordingResume[];
+  /** Per symbol, the last stop the operator did not ask for, until it records again or is stopped. */
+  capture_stopped?: RecordingStopped[];
   gateway_mode?: 'paper' | 'live';
   /** Session account classification from IB account ids (DU…=paper, U…=live). */
   broker_account_kind?: 'paper' | 'live' | 'unknown';

@@ -15,7 +15,7 @@ export function useNovaWindowTitle(
   // survives the app being behind other windows.
   const recordingSymbol = useSyncExternalStore(
     subscribeSessionRecord,
-    () => getRecordingSymbols()[0] ?? '',
+    () => getRecordingSymbols().join(', '),
     () => '',
   );
   useEffect(() => {

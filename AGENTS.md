@@ -224,8 +224,14 @@ No automatic retention policy is selected by these additions.
 
 ### Recording persistence and coverage (operator decision, 2026-09-21)
 
-A Session Record is owned by the backend process, one symbol at a time by the
-operator's choice, and no page event stops it. What can stop it is a process
+A Session Record is owned by the backend process -- up to
+`CAPTURE_MAX_CONCURRENT` (3) symbols at once, each by the operator's choice,
+because IBKR allows three depth lines and Record holds one per symbol -- and
+no page event stops it. `/api/capture` and `/api/ibkr/status` carry
+`capture_symbols: string[]` (start order) with `capture_symbol` as its first
+entry for single-symbol readers; `/api/capture` adds `sessions: {SYMBOL: {producer,
+book, recorder, healthy, error?, warning?}}` and the recorder's own `sessions`
+map. A fourth symbol is refused 409 before any IBKR line is touched. What can stop it is a process
 restart, a recorder failure, or a lost IBKR line, and the policy for each is
 **resume, then say so** -- the market only happens once, so a gap in the
 middle beats nothing after it. `capture/keepalive.py` owns this: a restart
@@ -247,13 +253,14 @@ replay exposes its `segments` list in `replay_load` so the scrubber can draw
 recorded stretches against the session and gaps as gaps; a quiet stretch inside
 a segment is not a gap -- the recorder was up and the tape said nothing.
 
-`/api/ibkr/status` adds `capture_session: object | null` while recording
-(`symbol`, `session_date`, `started_et`, `segment_started_et`, `segments`,
-`counts`, `last_write_ts`, `dir`), `capture_resume: object | null`
-(`pending`, `attempt`, `max_attempts`, `next_at`, `reason`, `gave_up`) and
-`capture_stopped: object | null` -- the last stop the operator did not ask for
-(`symbol`, `at`, `reason`, `error`, `dir`, `counts`), kept until a recording of
-any symbol starts or the operator stops one. The UI treats a running recording
+`/api/ibkr/status` adds `capture_sessions: object[]`, one per recording
+symbol (`symbol`, `session_date`, `started_et`, `segment_started_et`, `segment`,
+`counts`, `last_write_ts`, `dir`, `reacquired`), `capture_resume: object[]`
+(`symbol`, `pending`, `attempt`, `max_attempts`, `next_at`, `reason`, `gave_up`,
+`gave_up_reason`) and `capture_stopped: object[]` -- per symbol, the last stop
+the operator did not ask for (`symbol`, `at`, `reason`, `error`, `dir`,
+`counts`, `resumed`), kept until that symbol records again or the operator
+stops it. All three are empty lists while nothing is recording or pending. The UI treats a running recording
 as quiet state (chip, hairline, window title) and an unrequested stop as the
 loud one.
 

@@ -49,10 +49,10 @@ function count(counts: Record<string, number> | undefined, key: string): number 
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
-/** The running recording, or null. `symbol` is the fresh, server-owned one. */
+/** One running recording, or null. `symbol` is a fresh, server-owned one. */
 export function recordingView(status: IbkrStatus, symbol: string | null, nowMs: number): RecordingView | null {
-  const session = status.capture_session;
-  if (!symbol || !session || session.symbol !== symbol) return null;
+  const session = symbol ? (status.capture_sessions ?? []).find(row => row.symbol === symbol) : undefined;
+  if (!symbol || !session) return null;
   const started = session.started_et ? Date.parse(session.started_et) : NaN;
   const segmentStarted = session.segment_started_et ? Date.parse(session.segment_started_et) : NaN;
   const lastWrite = session.last_write_ts;
@@ -74,11 +74,15 @@ export function stoppedKey(stopped: RecordingStopped): string {
   return `${stopped.symbol}|${stopped.at}`;
 }
 
-/** The stop to shout about, or null once it resumed (the shout is over). */
-export function stoppedView(status: IbkrStatus, nowMs: number): StoppedView | null {
-  const stopped = status.capture_stopped;
-  if (!stopped || stopped.resumed) return null;
-  const resume = status.capture_resume;
+/** The stops to shout about -- one per symbol, gone once that symbol resumed. */
+export function stoppedViews(status: IbkrStatus, nowMs: number): StoppedView[] {
+  return (status.capture_stopped ?? [])
+    .filter(stopped => !stopped.resumed)
+    .map(stopped => stoppedViewOf(stopped, status, nowMs));
+}
+
+function stoppedViewOf(stopped: RecordingStopped, status: IbkrStatus, nowMs: number): StoppedView {
+  const resume = (status.capture_resume ?? []).find(row => row.symbol === stopped.symbol) ?? null;
   return {
     key: stoppedKey(stopped),
     symbol: stopped.symbol,
@@ -86,7 +90,7 @@ export function stoppedView(status: IbkrStatus, nowMs: number): StoppedView | nu
     error: stopped.error ?? null,
     atMs: stopped.at * 1000,
     prints: count(stopped.counts, 'prints'),
-    resume: resume && resume.symbol === stopped.symbol
+    resume: resume
       ? {
           pending: Boolean(resume.pending) && !resume.gave_up,
           attempt: resume.attempt,

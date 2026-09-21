@@ -2,7 +2,8 @@
 
 The market only happens once. A restart, a recorder failure or a lost IBKR line
 must cost a gap, not the rest of the session -- bounded, never across a day,
-never onto another symbol, and cancelled by the operator's own Stop.
+never onto another symbol, cancelled by the operator's own Stop -- and with up
+to three symbols recording, one dying must not touch the others.
 """
 from __future__ import annotations
 
@@ -33,9 +34,9 @@ class Desk:
     def __init__(self, *, ready=True, acquire_error=None, start_ok=True):
         self.ready_flag, self.acquire_error, self.start_ok = ready, acquire_error, start_ok
         self.acquired, self.released, self.started = [], [], []
-        self.recording: str | None = None
-        self.producer_state = "receiving"
-        self.error: str | None = None
+        self.recording: list[str] = []
+        self.producer_state: dict[str, str] = {}
+        self.errors: dict[str, str | None] = {}
 
     def ready(self) -> bool:
         return self.ready_flag
@@ -50,26 +51,47 @@ class Desk:
     async def start(self, symbol):
         self.started.append(symbol)
         if self.start_ok:
-            self.recording = symbol
-            return {"capture": True, "capture_symbol": symbol}
+            if symbol not in self.recording:
+                self.recording.append(symbol)
+            return {"capture": True, "capture_symbol": self.recording[0], "capture_symbols": list(self.recording)}
         return {"capture": False, "error": "Recorder start failed"}
 
     def payload(self):
-        if self.recording:
-            return {"capture": True, "capture_symbol": self.recording,
-                    "producer": {"state": self.producer_state}}
-        return {"capture": False, "capture_symbol": None, "error": self.error}
+        return {
+            "capture": bool(self.recording),
+            "capture_symbol": self.recording[0] if self.recording else None,
+            "capture_symbols": list(self.recording),
+            "sessions": {sym: {"producer": {"state": self.producer_state.get(sym, "receiving")}}
+                         for sym in self.recording},
+            "error": next((e for e in self.errors.values() if e), None),
+        }
 
     def recorder(self):
-        return {"symbol": self.recording or "GRML", "session_date": "2026-09-21",
-                "dir": "F:/x/2026-09-21/GRML", "counts": {"prints": 2439}, "error": self.error,
-                "started_et": "2026-09-21T11:46:35-04:00", "segment_started_et": "2026-09-21T11:46:35-04:00",
-                "segment": 1, "last_write_ts": NOON - 1}
+        def one(sym):
+            return {"symbol": sym, "session_date": "2026-09-21", "dir": f"F:/x/2026-09-21/{sym}",
+                    "counts": {"prints": 2439}, "error": self.errors.get(sym),
+                    "started_et": "2026-09-21T11:46:35-04:00", "segment_started_et": "2026-09-21T11:46:35-04:00",
+                    "segment": 1, "last_write_ts": NOON - 1}
+        known = set(self.recording) | set(self.errors)
+        primary = self.recording[0] if self.recording else (next(iter(known)) if known else "GRML")
+        return {**one(primary), "sessions": {sym: one(sym) for sym in known}}
 
     def tick(self, now):
         asyncio.run(keepalive.tick(now=now, payload=self.payload(), recorder_status=self.recorder(),
                                    ready=self.ready, acquire=self.acquire, release=self.release,
                                    start=self.start))
+
+
+def fields(desk: Desk):
+    return keepalive.status_fields(desk.recorder(), list(desk.recording))
+
+
+def resume_of(desk: Desk, symbol: str):
+    return next((r for r in fields(desk)["capture_resume"] if r["symbol"] == symbol), None)
+
+
+def stopped_of(desk: Desk, symbol: str):
+    return next((r for r in fields(desk)["capture_stopped"] if r["symbol"] == symbol), None)
 
 
 @pytest.fixture(autouse=True)
@@ -81,48 +103,62 @@ def fresh():
 
 def test_a_recording_that_dies_is_shouted_about_and_resumed():
     desk = Desk()
-    desk.recording = "GRML"
+    desk.recording = ["GRML"]
     desk.tick(NOON)                                    # watched
-    desk.recording, desk.error = None, "Capture writer backlog full"
+    desk.recording, desk.errors = [], {"GRML": "Capture writer backlog full"}
     desk.tick(NOON + 5)                                # gone, and the operator did not stop it
-    fields = keepalive.status_fields(desk.recorder(), False)
-    stopped, resume = fields["capture_stopped"], fields["capture_resume"]
-    assert stopped["symbol"] == "GRML" and stopped["reason"] == CAPTURE_STOP_FAILURE
+    stopped, resume = stopped_of(desk, "GRML"), resume_of(desk, "GRML")
+    assert stopped["reason"] == CAPTURE_STOP_FAILURE
     assert "backlog full" in stopped["error"] and stopped["resumed"] is False
     assert resume["pending"] and resume["attempt"] == 0
     assert resume["next_at"] == NOON + 5 + CAPTURE_RESUME_BACKOFF_SEC[0]
     desk.tick(resume["next_at"])                       # due: lines, then start
     assert desk.acquired == ["GRML"] and desk.started == ["GRML"]
-    fields = keepalive.status_fields(desk.recorder(), True)
-    assert fields["capture_resume"] is None
-    assert fields["capture_stopped"]["resumed"] is True  # the shout now says it healed
-    assert fields["capture_session"]["symbol"] == "GRML"
+    assert resume_of(desk, "GRML") is None
+    assert stopped_of(desk, "GRML")["resumed"] is True  # the shout now says it healed
+    assert fields(desk)["capture_sessions"][0]["symbol"] == "GRML"
+
+
+def test_one_symbol_dying_leaves_the_others_alone():
+    desk = Desk()
+    desk.recording = ["GRML", "F", "IMCC"]
+    desk.tick(NOON)
+    desk.recording, desk.errors = ["GRML", "IMCC"], {"F": "disk gone"}
+    desk.tick(NOON + 5)
+    assert [r["symbol"] for r in fields(desk)["capture_stopped"]] == ["F"]
+    assert [r["symbol"] for r in fields(desk)["capture_resume"]] == ["F"]
+    assert [s["symbol"] for s in fields(desk)["capture_sessions"]] == ["GRML", "IMCC"]
+    desk.tick(resume_of(desk, "F")["next_at"])
+    assert desk.started == ["F"]                       # only the dead one is restarted
+    assert desk.recording == ["GRML", "IMCC", "F"]
 
 
 def test_an_operator_stop_is_not_a_death():
     desk = Desk()
-    desk.recording = "GRML"
+    desk.recording = ["GRML", "F"]
     desk.tick(NOON)
     keepalive.operator_stopped("GRML")                 # the route says so before the stop runs
-    desk.recording = None
+    desk.recording = ["F"]
     desk.tick(NOON + 5)
-    fields = keepalive.status_fields(desk.recorder(), False)
-    assert fields["capture_stopped"] is None and fields["capture_resume"] is None
+    assert fields(desk)["capture_stopped"] == [] and fields(desk)["capture_resume"] == []
     assert desk.started == []
+    keepalive.operator_stopped(None)                   # stop everything
+    desk.recording = []
+    desk.tick(NOON + 10)
+    assert fields(desk)["capture_stopped"] == [] and desk.started == []
 
 
 def test_resume_is_bounded_and_backs_off():
     desk = Desk(acquire_error="IBKR tape transport down")
-    desk.recording = "GRML"
+    desk.recording = ["GRML"]
     desk.tick(NOON)
-    desk.recording = None
+    desk.recording = []
     desk.tick(NOON + 5)
     now = NOON + 5
     for attempt in range(1, CAPTURE_RESUME_MAX_ATTEMPTS + 1):
-        resume = keepalive.status_fields(desk.recorder(), False)["capture_resume"]
-        now = resume["next_at"]
+        now = resume_of(desk, "GRML")["next_at"]
         desk.tick(now)
-        resume = keepalive.status_fields(desk.recorder(), False)["capture_resume"]
+        resume = resume_of(desk, "GRML")
         assert resume["attempt"] == attempt
         if attempt < CAPTURE_RESUME_MAX_ATTEMPTS:
             assert resume["next_at"] == now + CAPTURE_RESUME_BACKOFF_SEC[attempt]
@@ -134,13 +170,13 @@ def test_resume_is_bounded_and_backs_off():
 
 def test_ibkr_being_down_costs_no_attempt():
     desk = Desk(ready=False)
-    desk.recording = "GRML"
+    desk.recording = ["GRML"]
     desk.tick(NOON)
-    desk.recording = None
+    desk.recording = []
     desk.tick(NOON + 5)
-    due = keepalive.status_fields(desk.recorder(), False)["capture_resume"]["next_at"]
+    due = resume_of(desk, "GRML")["next_at"]
     desk.tick(due)
-    resume = keepalive.status_fields(desk.recorder(), False)["capture_resume"]
+    resume = resume_of(desk, "GRML")
     assert resume["attempt"] == 0 and desk.acquired == []
     assert resume["next_at"] == due + CAPTURE_KEEPALIVE_INTERVAL_SEC
     desk.ready_flag = True
@@ -150,42 +186,44 @@ def test_ibkr_being_down_costs_no_attempt():
 
 def test_resume_never_crosses_the_session_day():
     desk = Desk()
-    desk.recording = "GRML"
+    desk.recording = ["GRML"]
     desk.tick(NOON)
-    desk.recording = None
+    desk.recording = []
     desk.tick(NOON + 5)
     tomorrow = datetime(2026, 9, 22, 4, 0, tzinfo=ET).timestamp()
     desk.tick(tomorrow)
-    resume = keepalive.status_fields(desk.recorder(), False)["capture_resume"]
+    resume = resume_of(desk, "GRML")
     assert resume["gave_up"] and "day ended" in resume["gave_up_reason"]
     assert desk.started == []
 
 
 def test_a_gateway_drop_reacquires_the_lines_without_a_new_segment():
     desk = Desk()
-    desk.recording = "GRML"
+    desk.recording = ["GRML", "F"]
     desk.tick(NOON)
-    desk.producer_state = "disconnected"
+    desk.producer_state["GRML"] = "disconnected"
     desk.ready_flag = False
     desk.tick(NOON + 5)                                # Gateway still down: nothing to take
     assert desk.acquired == []
     desk.ready_flag = True
-    desk.tick(NOON + 10)                               # back: take the lines again
+    desk.tick(NOON + 10)                               # back: take the lines again, for that symbol only
     assert desk.released == ["GRML"] and desk.acquired == ["GRML"]
     assert desk.started == []                          # the recorder never stopped
-    assert keepalive.status_fields(desk.recorder(), True)["capture_session"]["reacquired"] == 1
+    sessions = {s["symbol"]: s for s in fields(desk)["capture_sessions"]}
+    assert sessions["GRML"]["reacquired"] == 1 and sessions["F"]["reacquired"] == 0
 
 
-def test_a_restart_resumes_todays_recent_recording():
-    summary = {"symbol": "GRML", "session_date": "2026-09-21", "dir": "F:/x",
-               "counts": {"prints": 2439}, "last_write_ts": NOON - 60}
-    assert keepalive.note_restart(summary, now=NOON) is True
-    fields = keepalive.status_fields({}, False)
-    assert fields["capture_stopped"]["reason"] == CAPTURE_STOP_RESTART
-    assert fields["capture_resume"]["next_at"] == NOON  # no backoff: nothing failed
+def test_a_restart_resumes_todays_recent_recordings():
+    for symbol, prints in (("GRML", 2439), ("F", 12)):
+        summary = {"symbol": symbol, "session_date": "2026-09-21", "dir": f"F:/x/{symbol}",
+                   "counts": {"prints": prints}, "last_write_ts": NOON - 60}
+        assert keepalive.note_restart(summary, now=NOON) is True
+    out = keepalive.status_fields({}, [])
+    assert [r["reason"] for r in out["capture_stopped"]] == [CAPTURE_STOP_RESTART, CAPTURE_STOP_RESTART]
+    assert all(r["next_at"] == NOON for r in out["capture_resume"])  # no backoff: nothing failed
     desk = Desk()
     desk.tick(NOON)
-    assert desk.started == ["GRML"]
+    assert desk.started == ["GRML", "F"]
 
 
 @pytest.mark.parametrize("summary", [
@@ -195,15 +233,14 @@ def test_a_restart_resumes_todays_recent_recording():
 ])
 def test_a_restart_leaves_an_old_or_other_day_recording_alone(summary):
     assert keepalive.note_restart(summary, now=NOON) is False
-    assert keepalive.status_fields({}, False)["capture_resume"] is None
+    assert keepalive.status_fields({}, [])["capture_resume"] == []
 
 
-def test_the_operator_starting_a_recording_supersedes_a_pending_resume():
+def test_the_operator_starting_a_symbol_supersedes_its_pending_resume():
     desk = Desk()
-    desk.recording = "GRML"
+    desk.recording = ["GRML"]
     desk.tick(NOON)
-    desk.recording = None
+    desk.recording = []
     desk.tick(NOON + 5)
-    keepalive.operator_started("IMCC")
-    fields = keepalive.status_fields(desk.recorder(), False)
-    assert fields["capture_resume"] is None and fields["capture_stopped"] is None
+    keepalive.operator_started("GRML")
+    assert fields(desk)["capture_resume"] == [] and fields(desk)["capture_stopped"] == []

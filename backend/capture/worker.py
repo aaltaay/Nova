@@ -77,10 +77,10 @@ def _fail_recording(error: str) -> None:
 
 def session_token(symbol: str) -> int | None:
     """Fence a producer to the current run, even across same-symbol restarts."""
-    from capture.mode import capture_symbol
+    from capture.mode import capture_symbols
 
     with _condition:
-        return _generation if _accepting and capture_symbol() == symbol else None
+        return _generation if _accepting and symbol in capture_symbols() else None
 
 
 def submit(operation: Callable[..., None], *args: Any, token: int | None) -> bool:

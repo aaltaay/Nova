@@ -192,11 +192,12 @@ def _local_startup() -> None:
         # disk with no terminal counts. Finalize it before anything can resume.
         from capture.keepalive import note_restart
         from capture.recorder import capture_root
-        from capture.session_state import finalize_orphaned_session
+        from capture.session_state import finalize_orphaned_sessions
 
-        # ...and if it was today's and died recently, the keepalive resumes it
+        # ...and each that was today's and died recently, the keepalive resumes
         # once IBKR is ready (operator decision 2026-09-21: resume, then say so).
-        note_restart(finalize_orphaned_session(capture_root()))
+        for summary in finalize_orphaned_sessions(capture_root()):
+            note_restart(summary)
     except Exception:
         logger.exception("CAPTURE: orphaned session recovery failed")
     try:

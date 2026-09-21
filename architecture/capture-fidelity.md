@@ -91,9 +91,12 @@ lock order rather than relying on scheduling luck.
 
 ## Persistence: resume, then say so (operator decision, 2026-09-21)
 
-A Session Record is owned by the backend process, one symbol at a time by the
-operator's choice. Nothing on the page stops it: closing the panel, the tab or
-the window, reloading, switching desks. The frontend keeps no recording state
+A Session Record is owned by the backend process -- up to three symbols at
+once (`CAPTURE_MAX_CONCURRENT`: IBKR allows three depth lines, Record holds one
+per symbol), each by the operator's choice, each its own recorder session with
+its own IBKR lines. Nothing on the page stops one: closing the panel, the tab
+or the window, reloading, switching desks. One symbol dying never touches the
+others; a fourth symbol is refused before any IBKR line is touched. The frontend keeps no recording state
 of its own -- `sessionRecordStore.ts` reads only fresh `/api/ibkr/status`
 snapshots -- so a reload simply shows what the backend is still doing.
 
@@ -116,14 +119,14 @@ segments in `replay_load` for the scrubber band.
 
 Steady state is quiet; a change of state is loud:
 
-- **REC chip** in the header status cluster, only while recording: red dot,
-  symbol, elapsed time; counts, segment and last-write age in the tooltip;
-  click opens the tab.
+- **REC chips** in the header status cluster, one per recording symbol, none
+  otherwise: red dot, symbol, elapsed time of this segment; counts, segment
+  and last-write age in the tooltip; click opens that tab.
 - **Hairline**: 2px red along the top window edge while recording.
 - **Window title** leads with `REC GRML` (shared `electron/appTitle.mjs`), so
   the taskbar says so with Nova behind other windows.
 - **Stop toast** (`RecordingSignals.tsx`): only for a stop the operator did not
-  ask for; stays until resumed or dismissed; one per stop.
+  ask for; stays until resumed or dismissed; one per stop, per symbol.
 - **Hold to stop** (`HoldToStopButton.tsx`): Stop in the tab menu takes a
   `CAPTURE_STOP_HOLD_MS` hold; a click or an early release keeps recording.
 - **Capture band** under the Sim scrubber: recorded stretches solid, the gaps

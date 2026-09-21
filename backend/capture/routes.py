@@ -15,7 +15,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from capture import feed_hold, keepalive
-from capture.mode import capture_symbol, is_capture_mode, set_capture_mode, status_payload
+from capture.constants_capture import CAPTURE_MAX_CONCURRENT
+from capture.mode import capture_symbols, is_capture_mode, set_capture_mode, status_payload
 from capture.recorder import status as recorder_status
 from capture.sessions import list_sessions
 
@@ -40,9 +41,9 @@ def _release_later(symbol: str) -> None:
 
 def _release_orphans() -> None:
     """Drop holds the recorder no longer uses -- e.g. it stopped itself on a disk error."""
-    recording = capture_symbol() if is_capture_mode() else None
+    recording = set(capture_symbols()) if is_capture_mode() else set()
     for symbol in feed_hold.held_symbols():
-        if symbol != recording:
+        if symbol not in recording:
             _release_later(symbol)
 
 
@@ -56,24 +57,28 @@ async def get_capture() -> dict:
 @router.post("/api/capture")
 async def post_capture(body: CaptureToggleRequest) -> dict:
     requested = (body.symbol or "").strip().upper()
-    current = capture_symbol() if is_capture_mode() else None
+    recording = capture_symbols() if is_capture_mode() else []
     if body.enabled:
-        # Refuse a second symbol before touching any IBKR line: opening and
+        target = requested or (recording[0] if recording else "")
+        # Refuse a fourth symbol before touching any IBKR line: opening and
         # closing a tape line costs IBKR's 15 s resubscribe guard.
-        if current and requested and requested != current:
-            raise HTTPException(status_code=409, detail=f"Already recording {current}; stop it first")
-        target = requested or current
+        if target and target not in recording and len(recording) >= CAPTURE_MAX_CONCURRENT:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Already recording {', '.join(recording)} -- IBKR allows "
+                       f"{CAPTURE_MAX_CONCURRENT} depth lines; stop one first",
+            )
         if target:
             error = await feed_hold.acquire(target)
             if error:
                 out = await asyncio.to_thread(status_payload)
                 return {**out, "error": error, "recorder": recorder_status()}
         out = await asyncio.to_thread(set_capture_mode, True, symbol=body.symbol, protect_active=True)
-        if out.get("capture") and out.get("capture_symbol"):
-            keepalive.operator_started(out["capture_symbol"])
+        if target and target in (out.get("capture_symbols") or []):
+            keepalive.operator_started(target)
     else:
         # Before the stop: the keepalive must never read this as a death.
-        keepalive.operator_stopped(current)
+        keepalive.operator_stopped(requested or None)
         out = await asyncio.to_thread(set_capture_mode, False, symbol=body.symbol, protect_active=True)
     _release_orphans()
     if out.pop("conflict", False):

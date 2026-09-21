@@ -101,7 +101,7 @@ def _write_print(payload: dict) -> None:
         recorder.record_print(payload)
         return
     payload["session_date"] = datetime.fromtimestamp(payload["ts"], ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
-    recorder.ensure_event_day(payload["ts"])
+    recorder.ensure_event_day(payload["symbol"], payload["ts"])
     if not recorder.record_print(payload):
         return
     bar_buckets.on_print(

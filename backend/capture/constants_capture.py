@@ -57,6 +57,8 @@ CAPTURE_RESUME_MAX_ATTEMPTS = len(CAPTURE_RESUME_BACKOFF_SEC)
 # A restart resumes only a recording from today that died recently -- not one the
 # operator forgot about three hours ago.
 CAPTURE_RESUME_RESTART_WINDOW_SEC = 15 * 60
+# Symbols recording at once: IBKR allows three depth lines, Record holds one each.
+CAPTURE_MAX_CONCURRENT = 3
 # Why a segment ended (manifest segments[].reason).
 CAPTURE_STOP_OPERATOR = "operator"
 CAPTURE_STOP_ROTATION = "rotation"

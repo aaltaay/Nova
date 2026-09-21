@@ -49,13 +49,7 @@ def _call_guarded(fn, timeout: float) -> tuple[bool, BaseException | None]:
 
 def _hard_reset_recorder() -> None:
     """Abandon a wedged lock so one deadlock does not hang every later test."""
-    recorder._lock = threading.Lock()
-    recorder._active = False
-    recorder._files = {}
-    recorder._started_et = None
-    recorder._write_failures = 0
-    recorder._error = None
-    recorder._last_write_ts = None
+    recorder._hard_reset_for_tests()
 
 
 def _reset_recorder() -> bool:
@@ -96,7 +90,7 @@ def _stop_within(timeout: float = STOP_TIMEOUT_SEC) -> None:
     """Stop the recorder, failing (not hanging) if the stop path deadlocks."""
     returned, error = _call_guarded(recorder.stop_recorder, timeout)
     if not returned:
-        held, active = recorder._lock.locked(), recorder._active
+        held, active = recorder._lock.locked(), recorder.is_recording()
         _hard_reset_recorder()
         pytest.fail(
             f"stop_recorder() did not return within {timeout}s — the stop path "
@@ -161,7 +155,7 @@ def test_stop_flushes_open_buckets_to_disk() -> None:
 
 
 def test_restart_on_second_symbol_returns() -> None:
-    """start_recorder stops the previous session inside the same lock (D-063)."""
+    """A second symbol starts inside the same lock the first holds (D-063), beside it."""
     recorder.start_recorder("ONE")
     _feed_prints("ONE", 3)
 
@@ -171,8 +165,10 @@ def test_restart_on_second_symbol_returns() -> None:
         pytest.fail("starting a second recording deadlocked (D-063 regression)")
     if error is not None:
         raise error
-    assert recorder.status()["symbol"] == "TWO"
+    assert sorted(recorder.recording_symbols()) == ["ONE", "TWO"]
+    assert recorder.status("TWO")["recording"] and recorder.status("ONE")["counts"]["prints"] == 3
     _stop_within()
+    assert recorder.recording_symbols() == []
 
 
 def test_recording_survives_concurrent_writers_during_stop() -> None:
@@ -272,9 +268,7 @@ def test_interrupted_session_is_finalized_on_restart(_capture_root) -> None:
 
     # Simulate SIGKILL: process globals vanish, nothing is flushed or finalized,
     # and the active-session marker is left on disk.
-    recorder._active = False
-    recorder._files.clear()
-    recorder._started_et = None
+    recorder._crash_for_tests()
     bar_buckets.reset_for_tests()
     assert (_capture_root / ".active_session.json").is_file()
     assert _manifest(session_dir).get("stopped_et") is None
@@ -294,9 +288,7 @@ def test_resume_after_interruption_keeps_recovered_counts(_capture_root) -> None
     recorder.start_recorder("RESUME")
     _feed_prints("RESUME", 4)
     session_dir = _session_dir()
-    recorder._active = False
-    recorder._files.clear()
-    recorder._started_et = None
+    recorder._crash_for_tests()
     bar_buckets.reset_for_tests()
     session_state.finalize_orphaned_session(_capture_root)
 
@@ -357,7 +349,7 @@ class _FullDisk:
 
 def _break_prints_stream() -> _FullDisk:
     broken = _FullDisk()
-    recorder._files["prints"] = broken
+    recorder._primary().files["prints"] = broken
     return broken
 
 
@@ -504,9 +496,7 @@ def test_a_restart_stamps_a_restart_segment_with_its_own_counts(_capture_root) -
     recorder.start_recorder("CRASH")
     _feed_prints("CRASH", 6, start_ts=1_700_000_100.0)
     session_dir = _session_dir()
-    recorder._active = False
-    recorder._files.clear()
-    recorder._started_et = None
+    recorder._crash_for_tests()
     bar_buckets.reset_for_tests()
 
     summary = session_state.finalize_orphaned_session(_capture_root)
