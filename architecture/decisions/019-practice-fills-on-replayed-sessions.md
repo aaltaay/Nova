@@ -95,7 +95,10 @@ against it without placing live orders.
 
 ## Amendment 2026-09-21 -- the live edge
 
-**Status:** Accepted (operator decision, 2026-09-21)
+**Status:** Superseded by [[020-three-venues-one-feed]] the same day, before
+any code shipped for it. Its intent -- fake money on the live feed -- is the
+Paper venue of ADR 020; the clock-as-venue-switch mechanism below is withdrawn
+and kept only as the record of the decision.
 
 ### Context
 
