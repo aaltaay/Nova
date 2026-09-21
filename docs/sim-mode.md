@@ -8,7 +8,9 @@ Sim is a **local practice harness**. It is not IBKR paper and not live.
 2. In the header, click **Sim** on the Paper / Live / Sim capsule.
 3. Confirm. The desk shows a magenta **SIM PRACTICE -- not IBKR** flag and a matching banner.
 
-Look up **SIM1**. Quote, Time & Sales, Level 2, and the shared chart path use a looping synthetic tape. Place / cancel / flatten update a sim ledger (positions, Orders Today, Day P&L, Net Liq / BP). Works 24/7 with no Gateway.
+Load a replay: a **recorded capture** (Day + Ticker pickers) or a **Historical replay** window you downloaded. Quote, Time & Sales, Level 2 and the chart then play that real session. Place / cancel / flatten update a local practice ledger (positions, Orders Today, Day P&L, Net Liq / BP) without a Gateway.
+
+With nothing loaded the Sim desk is empty and says so. There is no synthetic instrument: Nova never invents a tape (ADR 019).
 
 Real tickers (SPY, IMCC, ...) chart their archived IBKR bars up to the Sim
 clock. On a weekend or NYSE holiday the Sim session is the last open exchange
@@ -69,7 +71,8 @@ the env flag as the product activation.
 ## Hard rules
 
 - While Sim is on, `ibkr.orders` refuses every Gateway place / bracket / cancel (`SIM_NO_IBKR`).
-- v1 tape is **SIM1 only**. No fake SPY / AAPL ticks.
+- The tape is a **real recorded or downloaded session**. Nothing is synthesised, and a practice order is refused unless the loaded replay's symbol has printed at the playhead.
+- **Practice fills are estimates** and are marked as such -- never confuse one with a recorded print. Rules and known biases: [architecture/practice-fills.md](../architecture/practice-fills.md).
 - Fills are always live (no `held_until` Monday).
 - In-memory ledger only -- restart clears practice positions. The **venue**
   survives that restart (ADR 018); the practice ledger and the arming do not.
@@ -81,7 +84,7 @@ The SIM clock defaults to 04:00–20:00 Eastern. Open **Historical replay** in
 its header, enter a supported ticker, date (defaults to the latest completed
 trading day) and session window, then download candles or trades. **Load
 replay** selects that window. Load again after a partial download advances; the
-playhead stays put. **Return to SIM1** keeps pause and the time of day. Other
+playhead stays put. **Close replay** unloads it, keeping pause and the time of day. Other
 ticker tabs use available archived candles for the same date. Data is not
 preloaded for the entire market.
 
@@ -97,8 +100,8 @@ Downloaded prints build partial candles and Time & Sales at one-second
 precision. Identical prints remain separate. Prints IBKR marks unreported
 (odd-lot/Form T) are listed in Time & Sales as dimmed rows but excluded from
 candles, last and volume, so replay matches IBKR's own bars. Right-click the
-tape and set a minimum size of 100 to hide odd lots. Historical bid/ask and Level 2 are
-unavailable, and SIM1 practice fills wait until historical replay is closed.
+tape and set a minimum size of 100 to hide odd lots. Historical bid/ask is unavailable, so
+practice fills on a historical window price from its prints alone.
 Pause/resume download keeps committed pages; failed jobs remain incomplete with
 an error. Only one download runs at a time. The default persistent archive on
 this Windows machine is `F:\Nova\sim\_capture\historical\replay.sqlite3`;

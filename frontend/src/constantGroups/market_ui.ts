@@ -396,7 +396,7 @@ export const HEADER_GATEWAY_TITLE_LIVE =
 export const HEADER_GATEWAY_TITLE_UNKNOWN =
   'IBKR session mode unknown — check Trading /api/ibkr/status (mode / gateway_mode).';
 export const HEADER_GATEWAY_TITLE_SIM =
-  'SIM PRACTICE -- looping SIM1 tape and local fills. Not IBKR paper. Not live. No Gateway places.';
+  'SIM PRACTICE -- replayed real sessions and local estimated fills. Not IBKR paper. Not live. No Gateway places.';
 /** Header Gateway chip suffix when /api/ibkr/status reports delayed market data. */
 export const HEADER_GATEWAY_DELAYED_LABEL = 'delayed';
 export const HEADER_GATEWAY_TITLE_DELAYED =

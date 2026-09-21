@@ -16,7 +16,7 @@ def teardown_function() -> None:
 
 def test_place_order_refused_in_sim() -> None:
     set_sim_mode(True)
-    raw = ibkr_orders.place_order("SIM1", "BUY", 1, "MKT")
+    raw = ibkr_orders.place_order("AAPL", "BUY", 1, "MKT")
     assert raw["ok"] is False
     assert raw["error"] == SIM_NO_IBKR_REASON
     assert raw["reason_code"] == SIM_NO_IBKR_CODE
@@ -25,7 +25,7 @@ def test_place_order_refused_in_sim() -> None:
 
 def test_bracket_refused_in_sim() -> None:
     set_sim_mode(True)
-    raw = ibkr_orders.place_bracket_order("SIM1", "BUY", 1, 25.0, 24.0, 26.0)
+    raw = ibkr_orders.place_bracket_order("AAPL", "BUY", 1, 25.0, 24.0, 26.0)
     assert raw["ok"] is False
     assert raw["error"] == SIM_NO_IBKR_REASON
 

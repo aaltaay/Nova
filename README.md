@@ -35,7 +35,7 @@ The API binds to `127.0.0.1:8000`. Do not expose it to the internet.
 
 ## Practice Sim
 
-Header **Paper / Live / Sim** turns on a local SIM1 tape and sim ledger so you can practice 24/7 without Gateway. It is not IBKR paper. See [docs/sim-mode.md](docs/sim-mode.md).
+Header **Paper / Live / Sim** replays a real recorded or downloaded session and fills practice orders in a local ledger, with no Gateway. It is not IBKR paper, and the fills are estimates. See [docs/sim-mode.md](docs/sim-mode.md).
 
 ## Requirements
 

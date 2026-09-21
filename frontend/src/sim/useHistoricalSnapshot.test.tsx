@@ -23,16 +23,16 @@ it('clears future quote and tape immediately on rewind, then shows errors',async
   expect(result.current?.error).toContain('offline');
   expect(result.current?.last).toBeNull();
 });
-it('leaves synthetic SIM rendering available when no historical selection exists',async()=>{
+it('leaves the live panels alone when no historical selection exists',async()=>{
  mocks.fetch.mockResolvedValue({ok:true,json:async()=>({active:false})});
- const {result}=renderHook(()=>useHistoricalSnapshot('SIM1',true));
+ const {result}=renderHook(()=>useHistoricalSnapshot('AAPL',true));
  await act(async()=>{});
  expect(result.current).toBeNull();
 });
 
-it('never replaces synthetic SIM panels while no historical selection is known', async () => {
+it('never replaces the panels while no historical selection is known', async () => {
   mocks.fetch.mockRejectedValueOnce(new Error('404 old backend'));
-  const { result } = renderHook(() => useHistoricalSnapshot('SIM1', true));
+  const { result } = renderHook(() => useHistoricalSnapshot('AAPL', true));
   expect(result.current).toBeNull();
   await act(async () => {});
   expect(result.current).toBeNull();  // an error without a selection stays out of the way

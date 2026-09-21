@@ -42,7 +42,7 @@ def status_payload() -> dict[str, Any]:
         out: dict[str, Any] = {
             "replay_date": _date,
             "replay_symbol": _symbol,
-            "replay_source": "capture" if capture else "synthetic",
+            "replay_source": "capture" if capture else "none",
             "replay_ok": not _load_info or bool(_load_info.get("ok")),
             "replay_error": _load_info.get("error") if _load_info else None,
         }
@@ -58,7 +58,7 @@ def is_capture_replay() -> bool:
 
 
 def set_replay(date: str | None, symbol: str | None) -> dict[str, Any]:
-    """Select a captured day/ticker, or clear both for synthetic SIM1."""
+    """Select a captured day/ticker, or clear both to unload the capture."""
     global _date, _symbol, _load_info
     from sim import capture_player as _player
     from sim import session_clock as _clock

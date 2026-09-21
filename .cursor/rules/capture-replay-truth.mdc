@@ -11,9 +11,9 @@ successful only after the player has read usable recorded prints or quotes.
 Missing, unreadable, malformed-only, empty and L2/bar-only sessions are refused.
 Failed selection clears capture identity and returns replay_source=synthetic,
 replay_ok=false and replay_error; the error persists in clock polls until an
-explicit successful selection or Return to SIM1. The header renders the error
+explicit successful selection or Close replay. The header renders the error
 and never opens the rejected ticker. After a failed attempt the feed emits nothing until an explicit successful
-selection or Return to SIM1, preventing a silent synthetic fallback.
+selection or Close replay, preventing a silent fabricated fallback.
 
 Session listings retain empty recordings for diagnosis, with empty, usable and
 unavailable_reason fields. Byte presence is a cheap availability hint, not proof
@@ -22,7 +22,7 @@ picked. Valid quotes-only captures remain usable.
 
 The capture feed publishes only recorded prints on the recorded symbol. Quiet
 intervals may refresh an actual captured book, but never manufacture GAP prints,
-zero prices, synthetic SIM1 quotes or depth. Capture feed failure stops that tick
+zero prices, or invented quotes or depth. Capture feed failure stops that tick
 and reports replay failure instead of falling through to the synthetic generator.
 A synthetic tick is permitted only when synthetic playback is explicitly active.
 

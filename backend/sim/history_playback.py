@@ -118,6 +118,22 @@ def bars(symbol: str, timeframe: str, limit: int, now: datetime):
     return selected.candles.bars(symbol, timeframe, limit, now.timestamp())
 
 
+def prints_between(symbol: str, after_ts: float, through_ts: float) -> list[tuple[float, float]]:
+    """Reported ``(ts, price)`` prints in ``(after_ts, through_ts]`` for practice fills.
+
+    Unreported prints (odd-lot / Form T) are excluded, as they are from last and
+    candles, so a practice order never fills on a print IBKR's own bars ignore.
+    """
+    with _lock:
+        selected = _selection
+    if not selected or selected.spec['symbol'] != symbol:
+        return []
+    through = min(float(through_ts), selected.spec['end_ts'])
+    lo = bisect.bisect_right(selected.eligible_keys, float(after_ts))
+    hi = bisect.bisect_right(selected.eligible_keys, through)
+    return [(float(row['ts']), float(row['price'])) for row in selected.eligible[lo:hi]]
+
+
 def snapshot(symbol: str):
     from sim import session_clock
     with _lock:

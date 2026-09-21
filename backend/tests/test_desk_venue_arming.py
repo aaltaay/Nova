@@ -149,7 +149,7 @@ def _place(source: str) -> ExecutionCommand:
         operation="place",
         idempotency_key=f"adr018-{source}",
         source=source,
-        symbol="SIM1",
+        symbol="AAPL",
         side="SELL",
         qty=1,
         order_type="MKT",
@@ -173,7 +173,10 @@ def test_opening_sources_are_refused_while_disarmed(source: str) -> None:
     assert reason == "DISARMED"
 
 
-def test_opening_source_passes_once_armed() -> None:
+def test_opening_source_passes_once_armed(monkeypatch) -> None:
+    from sim import practice
+
+    monkeypatch.setattr(practice, "admission", lambda symbol: (True, "OK", None))
     set_sim_mode(True)
     _safety.set_armed(True, reason="operator")
     ok, detail, reason = validate_command(_place("manual"))
@@ -206,7 +209,7 @@ def _replace(source: str) -> ExecutionCommand:
         operation="replace",
         idempotency_key=f"adr018-replace-{source}",
         source=source,
-        symbol="SIM1",
+        symbol="AAPL",
         order_id=1,
         limit_price=30.0,
     )
@@ -238,7 +241,7 @@ def test_cancel_is_never_gated_by_the_latch() -> None:
             operation="cancel",
             idempotency_key="adr018-cancel",
             source="manual",
-            symbol="SIM1",
+            symbol="AAPL",
             order_id=1,
         )
     )

@@ -1,10 +1,13 @@
-"""Thin readers over existing IBKR / Sim pipes. No new subscriptions."""
+"""Thin readers over existing IBKR / replay pipes. No new subscriptions.
+
+In the Sim venue a loaded capture replay feeds the same depth and tape pipes, so
+the readers are shared; only the source label says the data is a replay.
+"""
 from __future__ import annotations
 
 from typing import Any
 
 from constants_sensors import SENSOR_BAR_LIMIT, SENSOR_TAPE_PRINTS
-from constants_sim import SIM_SYMBOL
 from sensors import rings
 
 
@@ -17,13 +20,11 @@ def _sim_on() -> bool:
         return False
 
 
-def get_book(symbol: str) -> tuple[dict[str, Any] | None, str | None]:
-    if _sim_on() and symbol == SIM_SYMBOL:
-        from sim import market as _market
+def _label(live: str) -> str:
+    return "replay" if _sim_on() else live
 
-        book = _market.book()
-        rings.observe_book(symbol, book)
-        return book, "sim"
+
+def get_book(symbol: str) -> tuple[dict[str, Any] | None, str | None]:
     try:
         from ibkr.depth.state import current_book
 
@@ -31,27 +32,18 @@ def get_book(symbol: str) -> tuple[dict[str, Any] | None, str | None]:
     except Exception:
         book = None
     if book:
-        return book, "ibkr_depth"
+        return book, _label("ibkr_depth")
     return None, None
 
 
 def get_prints(symbol: str, limit: int = SENSOR_TAPE_PRINTS) -> tuple[list[dict[str, Any]], str | None]:
     rows = rings.recent_prints(symbol, limit)
     if rows:
-        source = "sim" if _sim_on() and symbol == SIM_SYMBOL else "ibkr_tape"
-        return rows, source
-    if _sim_on() and symbol == SIM_SYMBOL:
-        from sim import market as _market
-
-        return _market.recent_prints(limit), "sim"
+        return rows, _label("ibkr_tape")
     return [], None
 
 
 def get_quote(symbol: str) -> tuple[dict[str, Any] | None, str | None]:
-    if _sim_on() and symbol == SIM_SYMBOL:
-        from sim import market as _market
-
-        return _market.quote(symbol), "sim"
     try:
         from ibkr.ticks import last_quotes
 
@@ -59,7 +51,7 @@ def get_quote(symbol: str) -> tuple[dict[str, Any] | None, str | None]:
     except Exception:
         row = None
     if row:
-        return row, "ibkr_l1"
+        return row, _label("ibkr_l1")
     return None, None
 
 
@@ -95,11 +87,6 @@ def get_bars(
     limit: int = SENSOR_BAR_LIMIT,
 ) -> tuple[list[dict[str, Any]], str | None]:
     cap = max(1, min(int(limit), 2000))
-    if _sim_on() and symbol == SIM_SYMBOL:
-        from sim import market as _market
-
-        payload = _market.chart_bars(symbol, timeframe, cap)
-        return _normalize_bars(list(payload.get("bars") or [])), "sim"
     try:
         import bars_store
 

@@ -116,12 +116,9 @@ def fetch_ticker_snapshot_ibkr(symbol: str) -> dict:
     from sim.mode import is_sim_mode
 
     if is_sim_mode():
-        from constants_sim import SIM_SYMBOL
         from sim import market as _sim_market
 
-        if (symbol or "").strip().upper() == SIM_SYMBOL:
-            return _sim_market.ticker_snapshot(symbol)
-        return {}
+        return _sim_market.ticker_snapshot(symbol or "")
 
     cached_row = find_ibkr_cache_row(symbol)
     price = None

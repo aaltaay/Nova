@@ -19,8 +19,8 @@ class SimToggleRequest(BaseModel):
 
 
 class SimReplayRequest(BaseModel):
-    date: str | None = Field(default=None, description="ET session date YYYY-MM-DD, or null for synthetic")
-    symbol: str | None = Field(default=None, description="Captured ticker, or null for synthetic SIM1")
+    date: str | None = Field(default=None, description="ET session date YYYY-MM-DD, or null to unload the capture")
+    symbol: str | None = Field(default=None, description="Captured ticker, or null to unload the capture")
 
 
 @router.get("/api/sim")
@@ -82,7 +82,7 @@ def get_sim_replay() -> dict:
 
 @router.post("/api/sim/replay")
 def post_sim_replay(body: SimReplayRequest) -> dict:
-    """Select capture day+ticker for Sim, or clear both for synthetic SIM1."""
+    """Select capture day+ticker for Sim, or clear both to unload it."""
     from sim import replay as _replay
     from sim.mode import is_sim_mode
 

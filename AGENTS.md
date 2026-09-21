@@ -248,7 +248,18 @@ No automatic retention policy is selected by these additions.
 Capture market projections preserve missing facts: print-only rows have null
 bid/ask/sizes/previous close; depth is empty without recorded books; daily OHLC
 is null unless a replay source provides it. Loading, failed, and pre-first-event
-capture selections never fall back to synthetic SIM1 market data.
+capture selections have no market data to fall back to -- there is no synthetic
+instrument (ADR 019), and `replay_source` is `none` when nothing is loaded.
+
+### Practice fills (ADR 019)
+
+The Sim venue trades the loaded replay only. A filled practice row carries
+`fill_estimated: true` and `fill_basis: "quote" | "last_print" | "print_cross" |
+"stop_trigger" | "last_mark"`; a practice fill is never displayed as a recorded
+print. Refusals use `SIM_NO_REPLAY`, `SIM_SYMBOL_MISMATCH`, `SIM_NO_TRADES`,
+`SIM_NO_PRICE` and `SIM_ORDER_TYPE`. Recorded prints carry
+`ts_source: "exchange" | "receive"` so a substituted arrival time is never read
+as the exchange's own. Rules and biases: `architecture/practice-fills.md`.
 
 ### Execution command (ADR 007 — sole broker mutation entry)
 
@@ -305,7 +316,7 @@ Master protection blocks force-push and deletion (including admins), with **no
 required status checks**. Trading runtime gates, opt-ins and `auto_live` NO-GO
 remain unchanged. Conditional coverage is specified in `.cursor/rules/ci-scope.mdc`.
 
-- **Market data / trading:** Scanner and prices are IBKR-only (see `single-market-data-feed.mdc`). Alpaca is news/listing metadata only. Orders are allowed only via gated `backend/ibkr/` (Invariant #7). Gateway port default is live (4001); paper (4002) is the fallback. Spend stays gated; `auto_live` remains NO-GO. Header Paper / Live / Sim may switch the desk to a local SIM1 practice tape (no Gateway places). `NOVA_BROKER=sim` is bootstrap only. Switching off Sim restores the IBKR paths.
+- **Market data / trading:** Scanner and prices are IBKR-only (see `single-market-data-feed.mdc`). Alpaca is news/listing metadata only. Orders are allowed only via gated `backend/ibkr/` (Invariant #7). Gateway port default is live (4001); paper (4002) is the fallback. Spend stays gated; `auto_live` remains NO-GO. Header Paper / Live / Sim may switch the desk to a practice venue that replays a **real recorded or downloaded session** and fills orders locally (no Gateway places, estimated fills, ADR 019). There is no synthetic instrument: with nothing loaded the Sim desk is empty. `NOVA_BROKER=sim` is bootstrap only. Switching off Sim restores the IBKR paths.
 - **Desk venue vs spend arming (ADR 018, #302):** two facts with opposite lifetimes, never one dial. The **venue** (Paper / Live / Sim) is durable -- `sim/mode.py` owns `desk-venue.json` under the operator cache (`schema_version`, unknown version refuses loud), and it wins over the `NOVA_BROKER` bootstrap default. **Spend arming never survives a process start**, in any venue: `IBKR_ORDERS_ENABLED` / `IBKR_LIVE_TRADING_CONFIRMED` say this desk is *permitted*, the runtime latch in `ibkr/safety.py` says it is currently *armed*, and a place needs both. Arming is an explicit operator act at the header padlock (`POST /api/ibkr/arm`) -- never an `.env` edit, never inferred from a connect, reconnect or self-heal, and never re-armed by any automatic path. A venue change disarms. Protective sources (`flatten`, `kill`, `cancel_working`) and cancel are exempt: a disarmed desk must always be able to get flat. Only the *settled* venue persists -- an in-flight gateway-mode switch stays process-local in `gateway_heal.py` so ADR 013's unattended reconnect is unchanged.
 - **Market Open Halt**: The gapper dashboard stops updating its data feed once the market formally opens.
 - **Configurable**: API keys and base URLs must be configurable via UI.
@@ -489,6 +500,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-20 | **SIM1 removed** (ADR 019, #315/#310/#340/#309): the synthetic instrument, its looping tape, fabricated book, seeded bars and scanner row are deleted, and the recorder loses every SIM1 exemption -- all recordings are IBKR-sourced, must pass AllLast admission, and an empty segment finalizes `failed`. The Sim venue now trades the loaded replay (historical download or recorded capture): MKT/LMT/STP fills follow `architecture/practice-fills.md`, each marked `fill_estimated` with its `fill_basis`, and protective sources can always close a held position at its last mark. With nothing loaded the desk is empty rather than fabricated. | User Directive + Claude Opus 5 |
 | 2026-09-20 | Backlog Map #361 retired. A weekly-refreshed cache of a backlog that changes daily is wrong six days out of seven: it claimed 46 open issues against an actual 12, listed 33 closed issues as open, and routed agents at the retired `BACKLOG.md`. Removed the issue, `sync-map`, `render_map_section` / `splice_map`, the `backlog-map` meta-label filter, and both workflow steps that fed it. The weekly sweep now fails on hygiene gaps instead of commenting on a cache; `backlog_triage.py report` is the rollup. | User Directive + Claude Opus 5 |
 | 2026-09-20 | `CHANGELOG.md` **retired** at the owner's request and archived under `_archived/`, completing the ledger retirement. The generator goes with it: `ledger-collate.yml`, `tools/changes_collate.py` / `changes_fragments.py` / `changes_new.py`, `.changes/`, the always-on `change-log.mdc`, and the `CHANGELOG.md merge=union` attribute. The PR body is the only record. Evidence the mirror was not earning its keep: the 09:11 collate run succeeded, pushed its branch, never opened its PR, and left master 11 PRs behind with nobody noticing. §7.1 rewritten. | User Directive + Claude Opus 5 |
 | 2026-09-20 | ADR 018 implemented (#302): desk venue and spend arming split into two latches with opposite lifetimes. Venue persists in `desk-venue.json` (owner `sim/mode.py`, `schema_version`, refuses unknown loud, wins over `NOVA_BROKER`); a runtime latch in `ibkr/safety.py` starts every process disarmed in every venue and is armed only by the operator at the existing header padlock (`POST /api/ibkr/arm`). `spend_permitted` (env) and `armed` (runtime) are separate status fields. Venue change disarms; `flatten`/`kill`/`cancel_working` and cancel are exempt. No new UI -- the padlock's `sessionStorage` flag moved to the backend, which also makes pop-out windows and the bot API read one answer. | User Directive + Claude Code |

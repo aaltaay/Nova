@@ -28,6 +28,9 @@ def on_tape_update(ticker: Any, symbol: str, push, depth) -> None:
         return
     for tbt in tbt_list:
         ts = getattr(tbt, "time", None)
+        # A print with no exchange time is stamped on arrival; say so, so a
+        # recording never presents a substituted time as the exchange's own.
+        ts_source = "exchange" if ts is not None else "receive"
         if ts is None:
             ts_iso = datetime.now(timezone.utc).isoformat()
         elif hasattr(ts, "isoformat"):
@@ -63,6 +66,7 @@ def on_tape_update(ticker: Any, symbol: str, push, depth) -> None:
             "ask": ask,
             "ts": datetime.fromisoformat(ts_iso).timestamp(),
             "receive_ts": time.time(),
+            "ts_source": ts_source,
             "source": "ibkr",
         }
         from ibkr.tape_recording import dispatch

@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from constants_sim import SIM_MODE_LABEL, SIM_SPEND_STATUS, SIM_SYMBOL
+from constants_sim import SIM_MODE_LABEL, SIM_SPEND_STATUS
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,6 @@ def overlay_ibkr_status(payload: dict[str, Any]) -> dict[str, Any]:
         out["trading_allowed"] = is_armed
         out["trading_allowed_reason"] = None if is_armed else DISARMED_REASON
         out["sim"] = True
-        out["sim_symbol"] = SIM_SYMBOL
         out["capture"] = recording
         out["capture_symbol"] = record_symbol
         out["recording"] = recording
@@ -64,7 +63,6 @@ def overlay_ibkr_status(payload: dict[str, Any]) -> dict[str, Any]:
 
     out = dict(payload)
     out.setdefault("sim", False)
-    out.setdefault("sim_symbol", None)
     out["capture"] = recording
     out["capture_symbol"] = record_symbol
     out["recording"] = recording

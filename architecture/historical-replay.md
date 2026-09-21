@@ -77,13 +77,13 @@ minute close (proxy for the official close the live head uses), else that
 day's stored daily close (extended hours, `useRTH=False`), else none -- never
 an older session. RVOL, halt and shortability are blank in replay. Rows carry
 no bid/ask aggressor tint because historical quotes are not downloaded. A seek or selection change clears UI snapshots and rebuilds
-deterministically. Pause freezes event time. Synthetic and capture feeds must
-not inject into historical playback, so SIM1 practice fills also wait until
-historical replay is closed (SIM orders accept only SIM1). Loading new
-downloaded data is explicit: loading the same window again keeps the playhead
-and pause; a different window starts at its open. **Return to SIM1** clears the
-selection and window, keeps pause, and keeps the playhead's Eastern time of day
-on the SIM1 session date.
+deterministically. Pause freezes event time. Capture feeds must not inject into
+historical playback. Practice orders trade the loaded window itself (ADR 019);
+fills price from its prints alone, because a historical download carries no
+bid/ask. Loading new downloaded data is explicit: loading the same window again
+keeps the playhead and pause; a different window starts at its open. **Close
+replay** clears the selection and window, keeps pause, and keeps the playhead's
+Eastern time of day.
 
 Acceptance: IMCC 2026-09-18 04:00–09:30 ET; prove pagination with identical
 prints, atomic resume, timezone and range boundaries, no lookahead, rewind,

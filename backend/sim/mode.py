@@ -28,7 +28,6 @@ from constants_sim import (
     SIM_MODE_LABEL,
     SIM_SPEND_LOCKED_DISARMED,
     SIM_SPEND_STATUS,
-    SIM_SYMBOL,
     nova_broker_from_env,
 )
 
@@ -217,7 +216,6 @@ def status_payload() -> dict:
     return {
         "armed": armed,
         "sim": sim,
-        "sim_symbol": SIM_SYMBOL if sim else None,
         "broker": NOVA_BROKER_SIM if sim else NOVA_BROKER_IBKR,
         "mode": SIM_MODE_LABEL if sim else None,
         "spend_status": spend_status,
@@ -244,8 +242,6 @@ def reset_for_tests() -> None:
     _safety.set_armed(False, reason="test reset")
     from sim import broker as _broker
     from sim import feed as _feed
-    from sim import market as _market
 
     _broker.reset_for_tests()
-    _market.reset_for_tests()
     _feed.reset_for_tests()

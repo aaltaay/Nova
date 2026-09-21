@@ -53,13 +53,14 @@ export function SimSessionHeader({ active }: { active: boolean }) {
   const max = clock?.minute_max ?? SIM_SESSION_MINUTES;
   const minute = dragMinute ?? clock?.minute_from_open ?? 0;
   const historical = clock?.replay_source === 'historical';
-  const source = historical ? 'HISTORICAL' : clock?.replay_source === 'capture' ? 'CAPTURE' : 'SIM1';
+  const capture = clock?.replay_source === 'capture';
+  const source = historical ? 'HISTORICAL' : capture ? 'CAPTURE' : 'NO REPLAY';
   const openingLabel = clock?.session_open_et ? formatClock(clock.session_open_et).slice(0, 5) : SIM_SESSION_OPEN_LABEL;
   const opening = Number(openingLabel.slice(0, 2)) * 60 + Number(openingLabel.slice(3, 5));
   const clockLabel = dragMinute != null ? `${formatMinuteClock(dragMinute, opening)} ET` : `${formatClock(clock?.sim_time_et)} ET`;
   const sessionDate = formatSessionDate(clock);
   const tickers = sessions?.tickers_by_day?.[day] ?? [];
-  const diagnostics = clock?.replay_source === 'capture' ? clock.replay_load : null;
+  const diagnostics = capture ? clock?.replay_load : null;
   const invalid = diagnostics ? (diagnostics.malformed_rows ?? 0) + (diagnostics.invalid_timestamp_rows ?? 0) + (diagnostics.invalid_rows ?? 0) : 0;
   return <div className="sim-session-header" data-testid="sim-session-header">
     <strong>SIM SESSION</strong>
@@ -83,12 +84,12 @@ export function SimSessionHeader({ active }: { active: boolean }) {
     <HistoricalReplayPanel />
     {historical ? <button type="button" disabled={busy.has('replay')} onClick={() => {
       setDay(''); setSymbol(''); void applyReplay('', '');
-    }}>Return to SIM1</button> : <>
+    }}>Close replay</button> : <>
       <label className="sim-session-header__picker" title="Captured session date">Day
         <select data-testid="sim-replay-day" value={day} disabled={busy.has('replay')} onChange={event => {
           const next = event.target.value; setDay(next); setSymbol(''); if (!next) void applyReplay('', '');
         }}>
-          <option value="">Synthetic SIM1</option>
+          <option value="">No recording</option>
           {(sessions?.days ?? []).map(item => <option key={item.date} value={item.date}>{item.date} ({item.ticker_count})</option>)}
         </select>
       </label>
@@ -110,6 +111,9 @@ export function SimSessionHeader({ active }: { active: boolean }) {
       {diagnostics.l2_decimated && '  -  sampled depth (decimated)'}
       {invalid > 0 && `  -  ${invalid.toLocaleString()} invalid rows discarded`}
       {diagnostics.legacy_schema && '  -  legacy format migrated'}
+    </span>}
+    {!historical && !capture && clock?.replay_ok !== false && <span data-testid="sim-replay-empty" className="sim-muted">
+      Load a recording or a historical window to practise
     </span>}
     <span data-testid="sim-replay-source" className="sim-muted">{source}</span>
   </div>;

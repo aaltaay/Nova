@@ -31,7 +31,7 @@ Pause/play requests are rejected when Sim is off.
 - Scrubbing while paused updates the frozen position and rebuilds its snapshot;
   it stays paused. Explicit replay ticker changes retain that paused state.
   Leaving historical replay also keeps the playhead's Eastern time of day,
-  moved onto the SIM1 session date; reloading the same historical window keeps
+  moved onto the replay's session date; reloading the same historical window keeps
   the playhead.
 - Follow wall clock explicitly clears pause and returns to the existing wall
   clamp. Process restart/test reset clears pause. Pause is not persisted.
@@ -57,7 +57,7 @@ build the current candle using only events at or before the playhead. Missing
 prints mean completed-bar playback, not an invented price path or volume ramp.
 Daily, weekly and monthly history excludes the current calendar period (UTC
 date labels interpreted as exchange session dates); no final current-period
-OHLCV is shown. Synthetic SIM1 remains explicitly synthetic practice.
+OHLCV is shown. With no replay loaded the desk stays empty (ADR 019).
 
 Replay coverage adds `replay: true` and `replay_mode` (`trades`,
 `completed_bars`, or `synthetic`) to the existing coverage object. The frontend

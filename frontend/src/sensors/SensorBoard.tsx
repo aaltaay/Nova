@@ -7,11 +7,9 @@ import {
   SENSORS_LOAD_ERROR,
   SENSORS_POLL_MS,
   SENSORS_REFRESH_LABEL,
-  SENSORS_SIM_SYMBOL,
   SENSORS_SYMBOL_LABEL,
 } from '../constantGroups/sensors';
 import { fetchSensorCatalog, fetchSensorSnapshot } from '../api/sensorApi';
-import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { SensorStatusChip } from './SensorStatusChip';
 import { sensorSummary } from './sensorSummary';
 import type { SensorCatalogRow, SensorEnvelope } from './types';
@@ -33,8 +31,7 @@ function mergeRows(catalog: SensorCatalogRow[], readings: SensorEnvelope[]): Sen
 }
 
 export function SensorBoard() {
-  const status = useIbkrStatus();
-  const defaultSymbol = status.mode === 'sim' ? SENSORS_SIM_SYMBOL : SENSORS_DEFAULT_LIQUID;
+  const defaultSymbol = SENSORS_DEFAULT_LIQUID;
   const [symbol, setSymbol] = useState(defaultSymbol);
   const [draft, setDraft] = useState(defaultSymbol);
   const [catalog, setCatalog] = useState<SensorCatalogRow[]>([]);

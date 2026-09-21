@@ -26,13 +26,13 @@ async def subscribe_async(symbol: str) -> dict:
     from sim.mode import is_sim_mode
 
     if is_sim_mode():
-        from constants_sim import SIM_SYMBOL
         from sim import market as _sim_market
 
         state.reserve_slot(symbol)
+        replayed = _sim_market.book()
         book = (
-            dict(_sim_market.book())
-            if symbol.upper() == SIM_SYMBOL
+            dict(replayed)
+            if replayed and str(replayed.get("symbol") or "").upper() == symbol.upper()
             else {"bids": [], "asks": [], "l1_fallback": True}
         )
         book["symbol"] = symbol.upper()

@@ -100,7 +100,7 @@ Status / list (no fancy UI): `GET /api/l2/status`, `GET /api/l2/sessions`.
 Tab Record requires the selected symbol's connected, non-rejected AllLast line.
 The existing capture worker fences sessions and fails visibly on overflow. L2
 has its own bounded worker; disk writes never run on the IB callback. Both retain
-event/receive timestamps, exchange, conditions and `source=ibkr`. SIM1 manifests
+event/receive timestamps, exchange, conditions and `source=ibkr`. Manifests
 use `source=sim`. Real segments with no prints finish failed, including resumed
 segments with older rows. Quotes/depth are not inferred by the print feeder.
 

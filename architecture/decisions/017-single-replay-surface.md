@@ -1,6 +1,6 @@
 # ADR 017 -- One historical replay surface and one IBKR trade-print source
 
-**Status:** Accepted · **Date:** 2026-09-20
+**Status:** Accepted; the SIM1 notes below are superseded by [[019-practice-fills-on-replayed-sessions]] · **Date:** 2026-09-20
 **Builds on:** [[010-ib-loop-isolation]] · [[012-local-first-chart-bars]]
 **Decision issue:** #340 · **Unblocks:** #315, #308
 
@@ -80,7 +80,7 @@ healthy and left #315 blocked on an ownership choice.
   capabilities while sharing one replay contract.
 - Quotes and depth remain absent from an IBKR historical replay until separately
   approved (#309/#311); this ADR does not invent them.
-- Practice fills on historical symbols remain disabled pending #310. No broker
+- Practice fills on replayed symbols are enabled by ADR 019. No broker
   execution path or trading gate changes; `auto_live` remains NO-GO.
 - Retiring direct capture playback requires an importer and compatibility tests,
   so this ADR does not delete user recordings or silently reinterpret them.
@@ -108,5 +108,5 @@ healthy and left #315 blocked on an ownership choice.
 
 ## Implementation: live print feeder
 
-The AllLast callback normalizes one immutable print and only enqueues recording work. Capture uses its bounded, generation-fenced writer; L2 uses an independent bounded worker. Admission requires the selected symbol's connected, non-rejected AllLast subscription. Status reports waiting/stale/disconnected/error explicitly; no-print sessions are not healthy evidence. SIM1 manifests identify sim provenance. Quotes and depth remain absent from this print-only feeder; no inferred rows are created. Legacy capture playback remains until the canonical importer is implemented.
+The AllLast callback normalizes one immutable print and only enqueues recording work. Capture uses its bounded, generation-fenced writer; L2 uses an independent bounded worker. Admission requires the selected symbol's connected, non-rejected AllLast subscription. Status reports waiting/stale/disconnected/error explicitly; no-print sessions are not healthy evidence. Quotes and depth remain absent from this print-only feeder; no inferred rows are created. Legacy capture playback remains until the canonical importer is implemented.
 

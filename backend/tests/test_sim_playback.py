@@ -60,25 +60,22 @@ def test_scrub_while_paused_stays_paused(frozen_clock):
 
 
 @pytest.mark.parametrize("capture", [False, True])
-def test_paused_feed_does_not_step_match_or_publish(monkeypatch, capture):
+def test_paused_feed_does_not_emit_or_match(monkeypatch, capture):
     monkeypatch.setattr(replay, "is_capture_replay", lambda: capture)
-    step = Mock(return_value={"type": "print"})
-    match, inject = Mock(), Mock()
-    monkeypatch.setattr(market, "step", step)
-    monkeypatch.setattr(feed._broker, "try_fill_working", match)
-    monkeypatch.setattr(feed, "_inject", inject)
+    emit = Mock(return_value={"type": "print"})
+    match = Mock(return_value=[])
+    monkeypatch.setattr(feed, "_capture_tick", emit)
+    monkeypatch.setattr(feed, "match_practice_fills", match)
     clock.set_paused(True)
     assert feed.tick() == {}
-    step.assert_not_called()
+    emit.assert_not_called()
     match.assert_not_called()
-    inject.assert_not_called()
     clock.set_paused(False)
-    # Both branches can resume; exercise the deterministic synthetic path here.
-    monkeypatch.setattr(replay, "is_capture_replay", lambda: False)
-    feed.tick()
-    step.assert_called_once()
+    # Playing emits recorded prints only when a capture is loaded; practice
+    # fills are matched either way (a historical window has no emitter).
+    assert feed.tick() == ({"type": "print"} if capture else {})
+    assert emit.call_count == (1 if capture else 0)
     match.assert_called_once()
-    inject.assert_called_once()
 
 
 def test_api_pause_only_in_sim_and_validates_boolean(monkeypatch):

@@ -6,7 +6,7 @@
 - **Scope:** read-only sensors. No autonomous order placement.
 - **Smoke test:** each sensor is an independent GET endpoint.
 - **Thresholds:** unset until Ahmed sets them from live sessions.
-- **UI:** Settings &gt; Sensors (Sensor Board). Default symbol is `SIM1` while
+- **UI:** Settings &gt; Sensors (Sensor Board). Default symbol is `AAPL` while
   Sim is on, otherwise `AAPL`.
 
 This note is the v1 contract for L2 Brain inputs. Agents treat the GET
@@ -57,7 +57,7 @@ Sim practice: [sim-mode.md](sim-mode.md).
 
 | # | Sensor | GET | Status now | Source |
 |---|--------|-----|------------|--------|
-| 1 | L2 book | `/sensors/l2?symbol=` | **live** | IBKR depth / Sim SIM1 book. Imbalance and spread from `l2.features`. |
+| 1 | L2 book | `/sensors/l2?symbol=` | **live** | IBKR depth, or a replayed book in Sim. Imbalance and spread from `l2.features`. |
 | 2 | Tape | `/sensors/tape?symbol=` | **live** | Tape ring (`tape_stream._push_queue` + Sim prints). Last ~20 prints. |
 | 3 | VWAP | `/sensors/vwap?symbol=` | **live** | 1Min typical-price VWAP from `bars_store` / Sim bars. Not `ticker.vwap`. |
 | 4 | MACD | `/sensors/macd?symbol=` | **live** | 12/26/9 on 1Min closes. Standard periods, not trip levels. |
@@ -220,10 +220,10 @@ row) with timestamp and expected impact. Static placeholders are OK.
 - Registry + thin FastAPI router: `backend/sensors/registry.py`,
   `backend/sensors/routes.py`.
 - Adapters read existing IBKR depth/tape, `bars_store`, Advice, risk, halt,
-  and Sim (`SIM1`) pipes. No new IB subscriptions.
+  pipes, which a Sim replay also feeds. No new IB subscriptions.
 - Auth: GET sensors follow other read routes. `POST /sensors/memory` uses
   the same mutating API-key middleware as other writes.
-- Sim: when Sim is on, SIM1 book/tape/volume/bars come from `backend/sim/`.
+- Sim: when Sim is on, the loaded replay's book/tape/volume/bars flow through the same pipes, labelled `replay`.
 
 ## Sensor Board
 

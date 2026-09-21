@@ -375,7 +375,7 @@ export const STOCK_VIEW_ACCOUNT_MODE_LIVE_TITLE =
   'Switch Nova to the live Gateway (port 4001). If live is already logged in, Nova only reconnects -- no 2FA. 2FA is only if live is not running. Live spend stays locked until IBKR_LIVE_TRADING_CONFIRMED is set separately.';
 export const STOCK_VIEW_ACCOUNT_MODE_SIM = 'Sim';
 export const STOCK_VIEW_ACCOUNT_MODE_SIM_TITLE =
-  'Switch Nova to Sim practice. Looping SIM1 tape and local fills. No IBKR Gateway places. Not paper. Not live.';
+  'Switch Nova to Sim practice. Replayed real sessions and local estimated fills. No IBKR Gateway places. Not paper. Not live.';
 
 // ── Full ticker trading page (double-click / Full view) ───────────────────────
 /** Right-rail width (px) on Stock View -- charts keep the rest of the viewport. */
@@ -626,7 +626,7 @@ export const TICKER_TRADE_PLACE_PAPER_ORDER_LABEL = 'Place Paper order';
 export const PAPER_TRADING_BANNER_TEXT =
   'PAPER TRADING — orders go to your IBKR paper account, not live money.';
 export const SIM_TRADING_BANNER_TEXT =
-  'SIM PRACTICE -- looping SIM1 tape and local fills. Not IBKR paper. Not live money.';
+  'SIM PRACTICE -- replayed real sessions and local estimated fills. Not IBKR paper. Not live money.';
 /**
  * Local UI unlock PIN for the Trade ticket (not a server secret).
  * Correct PIN switches the primary button to Place an order for this browser session.

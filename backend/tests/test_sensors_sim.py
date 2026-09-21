@@ -1,11 +1,11 @@
-"""SIM1 sensors read the local Sim feed when Sim is on."""
+"""In the Sim venue, sensors read the loaded replay through the shared pipes."""
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
 from main import app
 from sensors import rings
-from sim import market as sim_market
+from sim import practice
 from sim.mode import reset_for_tests, set_sim_mode
 
 client = TestClient(app)
@@ -15,8 +15,6 @@ def setup_function() -> None:
     reset_for_tests()
     rings.reset_for_tests()
     set_sim_mode(True)
-    for _ in range(40):
-        sim_market.step()
 
 
 def teardown_function() -> None:
@@ -24,21 +22,23 @@ def teardown_function() -> None:
     rings.reset_for_tests()
 
 
-def test_sim1_l2_tape_volume_are_live():
-    l2 = client.get("/sensors/l2", params={"symbol": "SIM1"}).json()
-    assert l2["status"] == "live"
-    assert l2["data"].get("source") == "sim"
-    assert l2["data"]["bids"]
-    tape = client.get("/sensors/tape", params={"symbol": "SIM1"}).json()
-    assert tape["data"]["print_count"] >= 1
-    day = client.get("/sensors/day-volume", params={"symbol": "SIM1"}).json()
-    assert day["data"]["day_volume"]
-    vwap = client.get("/sensors/vwap", params={"symbol": "SIM1"}).json()
-    assert "error" not in vwap or vwap["data"].get("vwap") is not None or vwap["data"].get("bars") is not None
-
-
-def test_snapshot_defaults_to_sim1_when_sim_on():
+def test_snapshot_defaults_to_the_liquid_symbol_with_nothing_loaded():
     res = client.get("/sensors/snapshot")
     assert res.status_code == 200
-    assert res.json()["symbol"] == "SIM1"
+    assert res.json()["symbol"] == "AAPL"
     assert res.json()["count"] == 18
+
+
+def test_snapshot_defaults_to_the_loaded_replay_symbol(monkeypatch):
+    monkeypatch.setattr(practice, "loaded", lambda: practice.Loaded("historical", "IMCC", ("k",)))
+    assert client.get("/sensors/snapshot").json()["symbol"] == "IMCC"
+
+
+def test_replayed_book_is_labelled_replay_not_ibkr(monkeypatch):
+    from ibkr.depth import state as depth_state
+    from sensors import feeds
+
+    book = {"bids": [{"price": 9.9, "size": 100}], "asks": [{"price": 10.1, "size": 100}]}
+    monkeypatch.setattr(depth_state, "current_book", lambda symbol: book if symbol == "IMCC" else None)
+    assert feeds.get_book("IMCC") == (book, "replay")
+    assert feeds.get_book("SPY") == (None, None)

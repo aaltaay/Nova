@@ -113,15 +113,20 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
     else:
         return False, f"unknown operation: {cmd.operation}", "OP_INVALID"
 
-    from constants_sim import SIM_SYMBOL
     from sim.mode import is_sim_mode
 
     # The arm latch was checked above the operation branches, before Sim is
     # consulted: being in Sim decides *where* an allowed order is routed, never
     # *whether* one is allowed (ADR 018).
     if is_sim_mode():
-        if cmd.operation in ("place", "bracket") and symbol != SIM_SYMBOL:
-            return False, "SIM v1 only serves SIM1", "SIM_SYMBOL"
+        # Protective sources skip admission so a practice position can always
+        # be closed; the sim ledger bounds them to closing a held position.
+        if cmd.operation in ("place", "bracket") and cmd.source not in _safety.PROTECTIVE_SOURCES:
+            from sim.practice import admission
+
+            ok, reason, code = admission(symbol or "")
+            if not ok:
+                return False, reason, code
         return True, "OK", None
     ok, reason = _safety.assert_orders_allowed(
         client_enabled=_client.is_enabled(),

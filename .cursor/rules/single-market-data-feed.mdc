@@ -16,7 +16,7 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
    - Scanner rows, quote ticks, chart bars, Level 2, and Time & Sales come from IBKR.
    - Settings must not offer Alpaca as a scanner source; `/api/config` coerces any stale `alpaca` value to `ibkr`.
    - Never fall back from IBKR → Alpaca without an **explicit** user-visible error. Silent fallback is forbidden.
-   - **Sim practice exception:** the header Paper / Live / Sim toggle may drive SIM1 from a local Sim Feed. Never mix Sim ticks with IBKR paper/live prices, never place Sim orders through Gateway, never loop fake real tickers (SPY and friends). Switching off Sim restores the IBKR paths above.
+   - **Sim practice exception:** the header Paper / Live / Sim toggle replays a **real recorded or downloaded session** of one ticker (ADR 019). There is no synthetic instrument and no fabricated tape: with nothing loaded the Sim desk is empty. Never mix replayed ticks with IBKR paper/live prices, and never place Sim orders through Gateway. Switching off Sim restores the IBKR paths above.
 
 2. **Alpaca listing metadata is not a price feed.**
    Asset flags (tradable / shortable / margin) may still come from Alpaca Assets API. Label them as listing/metadata — never as the quote source. Do not imply Alpaca is pricing the panel.
