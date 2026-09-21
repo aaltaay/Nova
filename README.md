@@ -5,7 +5,7 @@ Local-first Interactive Brokers trading workstation. Scanner, charts, Trader Vie
 [![CI](https://github.com/aaltaay/Nova/actions/workflows/deploy.yml/badge.svg)](https://github.com/aaltaay/Nova/actions/workflows/deploy.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-0f172a.svg)](LICENSE)
 
-**Site:** [nova.altaystudio.com](https://nova.altaystudio.com) · **Releases:** [GitHub Releases](https://github.com/aaltaay/Nova/releases)
+**Site:** [nova.altaystudio.com](https://nova.altaystudio.com) (built from [nova-site](https://github.com/aaltaay/nova-site)) · **Releases:** [GitHub Releases](https://github.com/aaltaay/Nova/releases)
 
 ## What it is
 
@@ -127,7 +127,7 @@ python3 tools/doc_invariants.py
 ## Deploy
 
 - **Desk:** local only -- `Run Nova.bat`, Desktop sidecar, or uvicorn on loopback. There is no cloud API host.
-- **Marketing:** `nova.altaystudio.com` serves `site/` (Vercel Root Directory = `site`). It does not run the scanner. Public AI-in-trading headlines live at [`/news`](https://nova.altaystudio.com/news).
+- **Marketing:** `nova.altaystudio.com` lives in its own repo, [aaltaay/nova-site](https://github.com/aaltaay/nova-site) -- source, Vercel deploy and the AI-in-trading digest. Nothing in this repo builds or deploys it.
 - **App UI:** local Vite or the Desktop installer. Do not host the trading SPA on the public domain.
 
 The older `Nova-public` repository is a private archive. It is not the source home.

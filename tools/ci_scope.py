@@ -50,10 +50,6 @@ def classify(paths: list[str]) -> dict[str, bool]:
                     scope["backend"] = True
             else:
                 return full_scope()  # shell, scripts, bundler and shared config
-        elif path.startswith("site/"):
-            # Static marketing site is not bundled into Nova Desktop.
-            scope["dependencies"] |= name in DEPENDENCY_NAMES
-            scope["source"] |= Path(name).suffix in {".js", ".ts", ".html"}
         elif path.endswith(".md") and (
             "/" not in path or path.startswith(("docs/", "knowledge/"))
         ):

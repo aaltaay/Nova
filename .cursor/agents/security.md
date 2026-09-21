@@ -87,7 +87,7 @@ Run the deterministic script first. Then layer judgment. Cite file + line when p
 ### 6. Container / IaC
 
 - `Dockerfile` -- no `--privileged`, no world-writable mounts, no secrets in ENV directives. Optional local image only (backend is not cloud-hosted). `railway.toml*` is deleted.
-- `vercel.json` -- no exposed server routes that bypass auth (static frontend only).
+- (The marketing site and its `vercel.json` moved to `aaltaay/nova-site`; nothing here is web-hosted.)
 
 ### 7. Safe localhost API fuzzing (opt-in only)
 
