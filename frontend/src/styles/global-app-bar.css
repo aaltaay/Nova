@@ -193,14 +193,22 @@
   flex: 0 0 auto;
 }
 
+/* One compact row: Day's | Working | TAV | account pill (Webull order). */
 .global-app-bar__cluster {
   display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 0.45rem;
+  flex-wrap: nowrap;
+  gap: 0.35rem;
   padding: 0.1rem 0;
   color: inherit;
   font: inherit;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.global-app-bar__cluster .global-app-bar__metric > label::after,
+.global-app-bar__cluster .global-app-bar__metric-btn > label::after {
+  content: ':';
 }
 
 .global-app-bar__cluster--offline {
@@ -243,9 +251,19 @@
   font-size: 0.65rem;
 }
 
-.global-app-bar__metric--netliq span:last-child {
+.global-app-bar__metric-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.global-app-bar__metric--tav .global-app-bar__metric-value {
   font-weight: 650;
   color: var(--nova-text);
+}
+
+/* Day's percent rides beside the dollar figure in the same tone. */
+.global-app-bar__pct {
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .global-app-bar__sep {
@@ -534,24 +552,34 @@
   height: 1rem;
 }
 
-.global-app-bar__account-type {
+/* Account pill: structure + class + full id, e.g. "Individual Margin (U1234567)".
+   Last control of the cluster; the menu under it lists the managed accounts. */
+.global-app-bar__account-pill {
   flex-shrink: 0;
   border: 1px solid var(--nova-border);
-  border-radius: var(--radius-control, 8px);
-  padding: 0.25rem 0.55rem;
+  padding: 0.15rem 0.45rem;
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--nova-text-muted);
+  color: var(--nova-text);
   line-height: 1.2;
+  white-space: nowrap;
 }
 
-.global-app-bar__account-type--cash {
-  color: var(--nova-text);
+.global-app-bar__account-pill-label {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
 }
 
-.global-app-bar__account-type--margin {
-  color: var(--nova-text);
-  border-color: color-mix(in srgb, var(--nova-accent, #3b82f6) 40%, var(--nova-border));
+/* U… live account -- the money is real. */
+.global-app-bar__account-pill--live {
+  border-color: color-mix(in srgb, #f97316 55%, var(--nova-border));
+  color: #ea580c;
+  font-weight: 700;
+}
+
+/* NOVA-PAPER / NOVA-SIM -- Nova-managed practice account, fake money (ADR 020). */
+.global-app-bar__account-pill--practice {
+  border-style: dashed;
 }
 
 .global-app-bar__account-nav,
@@ -605,56 +633,4 @@
   padding: 0.35rem 0.45rem;
   font-size: 0.95rem;
   line-height: 1;
-}
-
-/* Which IBKR account the desk is logged into (DU… paper / U… live), beside Cash / Margin. */
-.global-app-bar__account-id {
-  font-size: 0.72rem;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
-  padding: 0.15rem 0.45rem;
-  border-radius: 999px;
-  border: 1px solid var(--border-color);
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-
-.global-app-bar__account-id--live {
-  border-color: color-mix(in srgb, #f97316 55%, var(--border-color));
-  color: #ea580c;
-  font-weight: 700;
-}
-
-/* NOVA-PAPER / NOVA-SIM -- Nova-managed practice account, fake money (ADR 020). */
-.global-app-bar__account-id--practice {
-  border-style: dashed;
-}
-
-/* Practice account strip (ADR 020): Nova's fake-money ledger on Paper / Sim. */
-.practice-strip {
-  gap: 0.4rem;
-  font-size: 0.78rem;
-}
-
-.practice-strip__account {
-  padding: 0 0.35rem;
-  border: 1px dashed var(--nova-border);
-  border-radius: var(--radius-control, 8px);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
-.practice-strip__metric label {
-  color: var(--text-secondary);
-  font-size: 0.7rem;
-}
-
-.practice-strip__replay.is-empty span:last-child {
-  color: var(--text-secondary);
-  font-style: italic;
-}
-
-.practice-strip--loading,
-.practice-strip--unavailable {
-  color: var(--text-secondary);
 }

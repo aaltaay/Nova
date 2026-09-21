@@ -50,7 +50,7 @@
 }
 
 @media (max-width: 1100px) {
-  .global-app-bar__metric--netliq,
+  .global-app-bar__metric--tav,
   .global-app-bar__status .header-market-clock {
     display: none;
   }

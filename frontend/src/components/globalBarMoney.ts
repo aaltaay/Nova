@@ -21,6 +21,15 @@ export function formatSignedMoney(n: number | null | undefined, decimals = 2): s
   return body;
 }
 
+/** Signed percent for Day's (`+0.12%` / `-0.12%` / `0.00%` / `--`). */
+export function formatSignedPercent(n: number | null | undefined, decimals = 2): string {
+  if (n == null || !Number.isFinite(n)) return GLOBAL_BAR_OFFLINE_PLACEHOLDER;
+  const body = `${Math.abs(n).toFixed(decimals)}%`;
+  if (n > 0) return `+${body}`;
+  if (n < 0) return `-${body}`;
+  return body;
+}
+
 export function pnlToneClass(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n) || n === 0) return 'global-app-bar__tone--flat';
   return n > 0 ? 'global-app-bar__tone--up' : 'global-app-bar__tone--down';

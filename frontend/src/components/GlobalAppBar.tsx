@@ -2,14 +2,15 @@
  * Webull-style chrome shared by Scanner and Trader View (parent + pop-out).
  * Mounted once in AppShell so every live page inherits it automatically.
  *
- * Primary row = brand, Scanner/Trader, status, theme, account cluster,
- * lock, Cash/Margin, Account (icon; Fund account on hover), Settings (icon).
+ * Primary row = brand, Scanner/Trader, status, theme, account cluster (Day's /
+ * Working / TAV / account pill -- GlobalBarAccountCluster), lock, Account
+ * (icon; Fund account on hover), Settings (icon).
  * Bot row = BotArmControls + BotSymbolMenuHost (issue #230).
  * Trader tabs row = symbol strip under Bot Autonomy, above the chart.
  * Narrow widths hide low-value chips on the primary row
  * (global-app-bar-responsive.css); the bot row wraps/scrolls on its own.
  */
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   GLOBAL_BAR_BRAND,
   GLOBAL_BAR_NAV_SCANNER,
@@ -20,8 +21,6 @@ import {
 } from '../constants';
 import { useClosedOrders } from '../closed_orders/useClosedOrders';
 import { useIbkrAccountContext } from '../ibkr/IbkrAccountContext';
-import { IbkrAccountTypeChip } from '../ibkr/IbkrAccountTypeChip';
-import { IbkrAccountIdChip } from '../ibkr/IbkrAccountIdChip';
 import { TradingSessionLockButton } from '../ibkr/TradingSessionLockButton';
 import { isSampleView } from '../sample_data/sampleNav';
 import { useSettingsOptional } from '../settings/SettingsContext';
@@ -55,8 +54,6 @@ import {
 
 export type { GlobalAppBarScanner };
 
-type OpenMenu = 'account' | 'working' | null;
-
 export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarScanner }) {
   const liveScanner = useScannerBarProps();
   const scanner = scannerProp ?? liveScanner ?? undefined;
@@ -79,11 +76,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
   const { orders: closedOrders } = useClosedOrders(ibkrConnected);
   const settingsApi = useSettingsOptional();
   const { visibility } = useModuleVisibility();
-  const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const [accountNavActive, setAccountNavActive] = useState(getAccountNavActive);
-  const clusterRef = useRef<HTMLDivElement>(null);
-  const accountCardId = useId();
-  const workingMenuId = useId();
 
   const traderActive = traderViewActive;
   const detachedTrader = traderTabs.length > 0 && parseStockViewSymbol() != null;
@@ -108,24 +101,6 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
     loading: accountLoading,
     error: accountError,
   });
-  const workingCount = orders.length;
-
-  useEffect(() => {
-    if (!openMenu) return;
-    const onDoc = (e: MouseEvent) => {
-      if (!clusterRef.current?.contains(e.target as Node)) setOpenMenu(null);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpenMenu(null);
-    };
-    document.addEventListener('mousedown', onDoc);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDoc);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [openMenu]);
-
   return (
     <header className="global-app-bar" data-testid="global-app-bar">
       <RecordingSignals onOpenSymbol={openStockView} />
@@ -190,28 +165,17 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
 
       <div className="global-app-bar__right">
         <ThemeToggle />
-        <div
-          className="global-app-bar__account"
-          ref={clusterRef}
-          data-testid="global-bar-account"
-        >
-          <GlobalBarAccountCluster
-            accountChrome={accountChrome}
-            accountError={accountError}
-            summary={summary}
-            orders={orders}
-            workingCount={workingCount}
-            openMenu={openMenu}
-            setOpenMenu={setOpenMenu}
-            accountCardId={accountCardId}
-            workingMenuId={workingMenuId}
-            closedOrders={closedOrders}
-            traderActive={traderActive}
-            closeTraderView={leaveTraderToScanner}
-            refresh={refresh}
-            venue={ibkrMode}
-          />
-        </div>
+        <GlobalBarAccountCluster
+          accountChrome={accountChrome}
+          accountError={accountError}
+          summary={summary}
+          orders={orders}
+          closedOrders={closedOrders}
+          traderActive={traderActive}
+          closeTraderView={leaveTraderToScanner}
+          refresh={refresh}
+          venue={ibkrMode}
+        />
 
         {!scanner && (
           <GatewayModeCapsule
@@ -225,11 +189,6 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
         )}
 
         <TradingSessionLockButton />
-        <IbkrAccountIdChip />
-        <IbkrAccountTypeChip
-          ibkrConnected={Boolean(ibkrConnected)}
-          summary={summary}
-        />
 
         {showAccountNav && (
           <GlobalBarAccountNav

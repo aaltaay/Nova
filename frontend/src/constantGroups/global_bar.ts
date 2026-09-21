@@ -47,9 +47,15 @@ export const GLOBAL_BAR_NAV_TRADER_TITLE =
 export const GLOBAL_BAR_NAV_TRADER_DISABLED_TITLE =
   'Select a symbol first, then open Trader View';
 
-export const GLOBAL_BAR_DAY_PNL_LABEL = 'Day P&L';
-export const GLOBAL_BAR_NET_LIQ_LABEL = 'Net Liq';
-export const GLOBAL_BAR_BP_LABEL = 'BP';
+/**
+ * Compact account cluster, Webull order: Day's | Working | TAV | account pill.
+ * One row on every venue; the cards under Day's / TAV hold the rest.
+ */
+export const GLOBAL_BAR_DAY_PNL_LABEL = "Day's";
+export const GLOBAL_BAR_DAY_PNL_TITLE =
+  "Day's P&L -- realized plus unrealized since the day started. The percent is against the account value at the start of the day.";
+export const GLOBAL_BAR_TAV_LABEL = 'TAV';
+export const GLOBAL_BAR_TAV_TITLE = 'Total Account Value -- IBKR NetLiquidation';
 export const GLOBAL_BAR_WORKING_LABEL = 'Working';
 
 /** Only when Gateway / market-data session is down. */
@@ -58,11 +64,21 @@ export const GLOBAL_BAR_OFFLINE_CHIP = 'IBKR offline';
 export const GLOBAL_BAR_ACCOUNT_LOADING_CHIP = 'Account…';
 /** Gateway up; account poll failed — distinct from session offline. */
 export const GLOBAL_BAR_ACCOUNT_UNAVAILABLE_CHIP = 'Account unavailable';
+export const GLOBAL_BAR_ACCOUNT_UNAVAILABLE_TITLE = 'Account snapshot unavailable';
+export const GLOBAL_BAR_ACCOUNT_LOADING_TITLE = 'Gateway connected -- loading account snapshot';
 export const GLOBAL_BAR_OFFLINE_PLACEHOLDER = '--';
 
+/** Card under Day's. */
+export const GLOBAL_BAR_DAY_CARD_ARIA = "Day's P&L details";
 export const GLOBAL_BAR_CARD_OPEN_PNL = 'Open P&L';
+export const GLOBAL_BAR_CARD_DAY_PNL = "Day's P&L";
 export const GLOBAL_BAR_CARD_REALIZED_PNL = "Day's Realized P&L";
-export const GLOBAL_BAR_CARD_CASH = 'Total Cash';
+/** Card under TAV. Excess Liquidity is IBKR-only and omitted when IBKR does not report it. */
+export const GLOBAL_BAR_TAV_CARD_ARIA = 'Account value details';
+export const GLOBAL_BAR_CARD_TAV = 'Total Account Value';
+export const GLOBAL_BAR_CARD_CASH = 'Cash';
+export const GLOBAL_BAR_CARD_BP = 'Buying Power';
+export const GLOBAL_BAR_CARD_EXCESS_LIQUIDITY = 'Excess Liquidity';
 export const GLOBAL_BAR_CARD_GPV = 'Gross Position Value';
 
 export const GLOBAL_BAR_WORKING_MENU_TITLE = 'Working orders';
@@ -99,17 +115,37 @@ export const GLOBAL_BAR_ACCOUNT_MENU_LABEL = 'Account shortcuts';
 export const GLOBAL_BAR_FUND_ACCOUNT_LABEL = 'Fund account';
 export const GLOBAL_BAR_FUND_ACCOUNT_TITLE =
   'Opens IBKR Client Portal -- then Transfer & Pay -> Deposit Funds. Nova does not deposit.';
-/** IBKR AccountType chip between trade lock and Account (issue #181). */
+/**
+ * Account pill -- structure + class + the full account id, e.g.
+ * "Individual Margin (U1234567)" (issue #181 chip folded in). Structure is
+ * IBKR's raw AccountType (ownership); class is the backend-stamped
+ * account_class. A word that is not reported is omitted, never guessed. The
+ * full id is what tells two accounts apart; the login username is never
+ * exposed by the API, so the id is the identity Nova can state truthfully.
+ */
 export const GLOBAL_BAR_ACCOUNT_TYPE_CASH = 'Cash';
 export const GLOBAL_BAR_ACCOUNT_TYPE_MARGIN = 'Margin';
+/** Raw IBKR AccountType -> the word on the pill. Anything else is omitted. */
+export const GLOBAL_BAR_ACCOUNT_STRUCTURE_LABELS: Readonly<Record<string, string>> = {
+  INDIVIDUAL: 'Individual',
+  JOINT: 'Joint',
+  IRA: 'IRA',
+  TRUST: 'Trust',
+  LLC: 'LLC',
+  CORPORATION: 'Corporation',
+  PARTNERSHIP: 'Partnership',
+};
 export const GLOBAL_BAR_ACCOUNT_TYPE_TOOLTIP =
   'Stock shorting requires a margin account. Nova IBKR_SHORT_ENABLED is a separate env gate.';
 export const GLOBAL_BAR_ACCOUNT_TYPE_RAW_PREFIX = 'IBKR AccountType:';
 export const GLOBAL_BAR_ACCOUNT_TYPE_RAW_MISSING = '(missing)';
 export const GLOBAL_BAR_ACCOUNT_TYPE_TRADING_PREFIX = 'IBKR TradingType-S:';
-export const GLOBAL_BAR_ACCOUNT_TYPE_ARIA = 'IBKR account type';
-/** Which IBKR account the desk is logged into -- the id, not the login name (IBKR never exposes that). */
-export const GLOBAL_BAR_ACCOUNT_ID_ARIA = 'IBKR account';
+export const GLOBAL_BAR_ACCOUNT_PILL_ARIA = 'Trading account';
+/** Menu under the pill: every managed account on the login, the active one marked. */
+export const GLOBAL_BAR_ACCOUNT_PILL_MENU_LABEL = 'Managed accounts';
+export const GLOBAL_BAR_ACCOUNT_PILL_ACTIVE_MARK = 'active';
+export const GLOBAL_BAR_ACCOUNT_PILL_SWITCH_NOTE =
+  'Nova trades the account the Gateway is logged into. Switching accounts happens in IB Gateway / TWS, not here.';
 export const globalBarAccountIdTooltip = (id: string, kind: string, others: string[]): string => {
   const what = kind === 'paper' ? 'paper' : kind === 'live' ? 'LIVE' : 'unclassified';
   const rest = others.length ? ` Other managed accounts on this login: ${others.join(', ')}.` : '';

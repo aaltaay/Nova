@@ -25,27 +25,33 @@ export const PRACTICE_VENUE_LABELS: Record<PracticeVenue, string> = {
   sim: 'Sim',
 };
 
-/** Strip labels. */
-export const PRACTICE_STRIP_CASH_LABEL = 'Cash';
-export const PRACTICE_STRIP_BP_LABEL = 'BP';
-export const PRACTICE_STRIP_DAY_PNL_LABEL = 'Day P&L';
-export const PRACTICE_STRIP_FEES_LABEL = 'Fees';
-export const PRACTICE_STRIP_REPLAY_LABEL = 'Replay';
-export const PRACTICE_STRIP_LOADING = 'Practice account loading';
-export const PRACTICE_STRIP_UNAVAILABLE = 'Practice account unavailable';
-export const PRACTICE_STRIP_NO_REPLAY = 'No replay loaded';
+/**
+ * Header account pill on the practice venues: "Nova Paper Margin (NOVA-PAPER)"
+ * / "Nova Sim Margin (NOVA-SIM)". The ledger lends margin-style buying power
+ * (practice margin model), so its class is Margin.
+ */
+export const PRACTICE_PILL_PREFIX: Record<PracticeVenue, string> = {
+  paper: 'Nova Paper',
+  sim: 'Nova Sim',
+};
+export const PRACTICE_PILL_CLASS = 'Margin';
+export const PRACTICE_PILL_ONLY_ACCOUNT_NOTE =
+  "Nova's practice account is the only account on this venue. Switch the venue pill to Live to trade an IBKR account.";
 
-/** Strip tooltips -- every number says whose money it is. */
-export const practiceAccountIdTitle = (venue: PracticeVenue, id: string, startingCash: string): string =>
-  venue === 'sim'
-    ? `${id} -- Nova's Sim practice account. Fake money on the loaded replay; unwinds when you rewind. Started with ${startingCash}.`
-    : `${id} -- Nova's Paper practice account. Fake money on the live data feed; nothing reaches IBKR. Started with ${startingCash}.`;
-export const practiceCashTitle = (netLiq: string): string =>
-  `Settled practice cash after fills and fees. Net liquidation ${netLiq}.`;
-export const practiceBuyingPowerTitle = (gross: string): string =>
-  `Buying power from the practice margin model. Gross position value ${gross}.`;
-export const practiceDayPnlTitle = (realized: string, unrealized: string, since: string): string =>
-  `Day P&L = realized ${realized} + unrealized ${unrealized}, since ${since}.`;
+/** Rows the practice venues add to the header cards. */
+export const PRACTICE_CARD_FEES_LABEL = 'Fees today';
+export const PRACTICE_CARD_STARTING_CASH_LABEL = 'Starting cash';
+export const PRACTICE_CARD_REPLAY_LABEL = 'Replay';
+export const PRACTICE_ACCOUNT_LOADING = 'Practice account loading';
+export const PRACTICE_ACCOUNT_UNAVAILABLE = 'Practice account unavailable';
+export const PRACTICE_NO_REPLAY = 'No replay loaded';
+
+/** Tooltips -- every number says whose money it is. */
+export const practiceTavTitle = (venue: PracticeVenue, id: string): string =>
+  `Net liquidation of Nova's ${PRACTICE_VENUE_LABELS[venue]} practice account ${id} -- fake money: cash plus positions at their last mark.`;
+export const PRACTICE_DAY_START_FALLBACK = 'the day start';
+export const practiceDayPnlTitle = (realized: string, unrealized: string, since: string | null): string =>
+  `Day P&L = realized ${realized} + unrealized ${unrealized}, since ${since || PRACTICE_DAY_START_FALLBACK}.`;
 export const practiceFeesTitle = (fills: number): string =>
   `Simulated commissions and fees charged today across ${fills} fill${fills === 1 ? '' : 's'}.`;
 export const PRACTICE_REPLAY_KEY_TITLE =

@@ -6,6 +6,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   GLOBAL_BAR_ACCOUNT_LABEL,
+  GLOBAL_BAR_DAY_CARD_ARIA,
   GLOBAL_BAR_EMERGENCY_KILL_LABEL,
   GLOBAL_BAR_FUND_ACCOUNT_LABEL,
   GLOBAL_BAR_EMERGENCY_KILL_OPS,
@@ -15,6 +16,9 @@ import {
 } from '../constants';
 import { GlobalAppBar } from './GlobalAppBar';
 import type { IbkrAccountState } from '../ibkr/IbkrAccountContext';
+import type { IbkrClientStatus } from '../ibkr/useIbkrStatus';
+import { PAPER_ACCOUNT } from '../practice/practiceFixtures';
+import type { PracticeAccount } from '../practice/practiceTypes';
 import type { WorkspaceValue } from '../workspace/WorkspaceContext';
 
 const closeTraderView = vi.fn();
@@ -28,10 +32,44 @@ vi.mock('../workspace/WorkspaceContext', () => ({
   useWorkspace: () => workspace,
 }));
 
-// The practice strip polls its own endpoint; it has its own tests.
-vi.mock('../practice/PracticeAccountStrip', () => ({
-  PracticeAccountStrip: () => null,
+// The account cluster reads /api/ibkr/status for the pill and polls Nova's
+// practice ledger on Paper / Sim; both are held here so each test states what
+// the desk is logged into (GlobalBarAccountCluster.test covers the cluster).
+const { status, practice } = vi.hoisted(() => ({
+  status: { current: {} as IbkrClientStatus },
+  practice: { current: { data: null as PracticeAccount | null, error: null as string | null } },
 }));
+vi.mock('../ibkr/useIbkrStatus', () => ({
+  useIbkrStatus: () => status.current,
+}));
+vi.mock('../practice/practiceAccountResource', () => ({
+  usePracticeAccount: () => practice.current,
+}));
+
+function baseStatus(overrides: Partial<IbkrClientStatus> = {}): IbkrClientStatus {
+  return {
+    enabled: true,
+    connected: true,
+    transport_connected: true,
+    session_reason: 'ok',
+    mode: 'live',
+    venue: 'live',
+    orders_enabled: false,
+    short_enabled: false,
+    spend_status: 'locked',
+    trading_allowed: false,
+    trading_allowed_reason: null,
+    market_data_type: 1,
+    market_data_delayed: false,
+    account_id: 'U1234567',
+    account_ids: ['U1234567'],
+    broker_account_kind: 'live',
+    clientReady: true,
+    stale: false,
+    staleSince: null,
+    ...overrides,
+  };
+}
 
 vi.mock('../ibkr/IbkrAccountContext', () => ({
   useIbkrAccountContext: () => account,
@@ -78,9 +116,10 @@ function baseWorkspace(overrides: Partial<WorkspaceValue> = {}): WorkspaceValue 
     scannerPersistentAuthoritative: true,
     ibkrConnected: true,
     ibkrTransportConnected: true,
-    ibkrMode: 'paper',
-    ibkrGatewayMode: 'paper',
-    ibkrAccountKind: 'paper',
+    // Live: the header shows the IBKR account. Paper / Sim show Nova's ledger (ADR 020).
+    ibkrMode: 'live',
+    ibkrGatewayMode: 'live',
+    ibkrAccountKind: 'live',
     ibkrIntentionalMode: null,
     ibkrDisconnectHint: null,
     ibkrSecondFactorStale: false,
@@ -117,7 +156,7 @@ function baseAccount(overrides: Partial<IbkrAccountState> = {}): IbkrAccountStat
   return {
     summary: {
       connected: true,
-      mode: 'paper',
+      mode: 'live',
       NetLiquidation: 3559.55,
       BuyingPower: 3558.53,
       UnrealizedPnL: -0.17,
@@ -145,6 +184,8 @@ describe('GlobalAppBar', () => {
     requestOpenTradingTab.mockReset();
     workspace = baseWorkspace();
     account = baseAccount();
+    status.current = baseStatus();
+    practice.current = { data: null, error: null };
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -163,7 +204,7 @@ describe('GlobalAppBar', () => {
     });
   }
 
-  it('shows Day P&L, Net Liq, Working (no BP) when connected', () => {
+  it("shows Day's, Working, TAV (no BP) on the one row when connected", () => {
     account = baseAccount({
       orders: [
         {
@@ -180,9 +221,9 @@ describe('GlobalAppBar', () => {
     renderBar();
     const bar = container.querySelector('[data-testid="global-app-bar"]');
     expect(bar).toBeTruthy();
-    expect(bar!.textContent).toMatch(/Day P&L/);
+    expect(bar!.textContent).toMatch(/Day's/);
     expect(bar!.textContent).toMatch(/-\$0\.17/);
-    expect(bar!.textContent).toMatch(/Net Liq/);
+    expect(bar!.textContent).toMatch(/TAV/);
     expect(bar!.textContent).toMatch(/\$3,559\.55/);
     // Slim header: BP is not a primary-row metric.
     expect(bar!.textContent).not.toMatch(/\bBP\b/);
@@ -339,6 +380,7 @@ describe('GlobalAppBar', () => {
   });
 
   it('shows Paper | Live capsule when the scanner cluster is absent', () => {
+    workspace = baseWorkspace({ ibkrMode: 'paper', ibkrGatewayMode: 'paper', ibkrAccountKind: 'paper' });
     renderBar();
     const capsule = container.querySelector('[data-testid="header-gateway-mode-capsule"]');
     expect(capsule).toBeTruthy();
@@ -424,7 +466,7 @@ describe('GlobalAppBar', () => {
     return wrap;
   }
 
-  it('shows Fund account under the Account icon on hover, not in the Net Liq card', () => {
+  it("shows Fund account under the Account icon on hover, not in the Day's card", () => {
     renderBar();
     expect(container.querySelector('[data-testid="global-bar-fund-account"]')).toBeNull();
 
@@ -450,8 +492,11 @@ describe('GlobalAppBar', () => {
     act(() => {
       trigger.click();
     });
-    const card = container.querySelector('[aria-label="Account details"]');
+    // jsdom's selector engine cannot match an attribute value holding `'` and `&`
+    // (the card's aria-label), so the card is found by testid and its name checked.
+    const card = container.querySelector('[data-testid="global-bar-day-card"]');
     expect(card).toBeTruthy();
+    expect(card!.getAttribute('aria-label')).toBe(GLOBAL_BAR_DAY_CARD_ARIA);
     expect(card!.querySelector('[data-testid="global-bar-fund-account"]')).toBeNull();
   });
 
@@ -499,32 +544,43 @@ describe('GlobalAppBar', () => {
     expect(kids.indexOf(primary as Element)).toBeLessThan(kids.indexOf(botRow as Element));
   });
 
-  it('places Cash vs Margin between the trade lock and Account', () => {
+  it('ends the cluster with the account pill -- structure, class, full id -- before the trade lock', () => {
     account = baseAccount({
       summary: {
         connected: true,
-        mode: 'paper',
-        AccountType: 'CASH',
+        mode: 'live',
+        AccountType: 'INDIVIDUAL',
+        account_class: 'margin',
         NetLiquidation: 1000,
       },
     });
     renderBar();
-    const right = container.querySelector('.global-app-bar__right');
-    expect(right).toBeTruthy();
-    const lock = right!.querySelector('[data-testid="global-bar-trade-lock"]');
-    const type = right!.querySelector('[data-testid="global-bar-account-type"]');
-    const accountNav = right!.querySelector('[data-testid="global-bar-account-menu-wrap"]');
-    expect(lock).toBeTruthy();
-    expect(type).toBeTruthy();
-    expect(accountNav).toBeTruthy();
-    expect(accountNav!.querySelector('[data-testid="global-bar-account-nav"]')).toBeTruthy();
-    expect(type!.textContent).toBe('Cash');
-    const kids = Array.from(right!.children);
-    expect(kids.indexOf(lock as Element)).toBeLessThan(kids.indexOf(type as Element));
-    expect(kids.indexOf(type as Element)).toBeLessThan(kids.indexOf(accountNav as Element));
+    const right = container.querySelector('.global-app-bar__right') as HTMLElement;
+    const wrap = right.querySelector('[data-testid="global-bar-account"]') as HTMLElement;
+    const cluster = right.querySelector('[data-testid="global-bar-cluster"]') as HTMLElement;
+    const lock = right.querySelector('[data-testid="global-bar-trade-lock"]') as HTMLElement;
+    const accountNav = right.querySelector('[data-testid="global-bar-account-menu-wrap"]') as HTMLElement;
+    const pill = cluster.querySelector('[data-testid="global-bar-account-pill"]') as HTMLElement;
+    expect(pill).toBeTruthy();
+    expect(pill.textContent).toContain('Individual Margin (U1234567)');
+    expect(pill.getAttribute('data-kind')).toBe('live');
+    expect(cluster.lastElementChild).toBe(pill);
+    expect(Array.from(cluster.querySelectorAll('button')).map((b) => b.dataset.testid)).toEqual([
+      'global-bar-account-trigger',
+      'global-bar-working-trigger',
+      'global-bar-tav-trigger',
+      'global-bar-account-pill',
+    ]);
+    expect(accountNav.querySelector('[data-testid="global-bar-account-nav"]')).toBeTruthy();
+    const kids = Array.from(right.children);
+    expect(kids.indexOf(wrap)).toBeLessThan(kids.indexOf(lock));
+    expect(kids.indexOf(lock)).toBeLessThan(kids.indexOf(accountNav));
+    // The two chips this pill replaces are gone.
+    expect(container.querySelector('[data-testid="global-bar-account-type"]')).toBeNull();
+    expect(container.querySelector('[data-testid="global-bar-account-id"]')).toBeNull();
   });
 
-  it('shows Cash with raw AccountType when IBKR reports INDIVIDUAL and BP≈cash', () => {
+  it('omits the class word when account_class is not stamped, keeping the raw AccountType in the tooltip', () => {
     account = baseAccount({
       summary: {
         connected: true,
@@ -537,22 +593,90 @@ describe('GlobalAppBar', () => {
       },
     });
     renderBar();
-    const type = container.querySelector(
-      '[data-testid="global-bar-account-type"]',
-    ) as HTMLElement;
-    expect(type).toBeTruthy();
-    expect(type.textContent).toBe('Cash');
-    expect(type.getAttribute('data-kind')).toBe('cash');
-    expect(type.getAttribute('title') ?? '').toContain('IBKR AccountType: INDIVIDUAL');
-    expect(type.getAttribute('title') ?? '').toContain('IBKR TradingType-S: STKNOPT');
-    expect(type.getAttribute('title') ?? '').not.toMatch(/\bMargin\b/);
+    const pill = container.querySelector('[data-testid="global-bar-account-pill"]') as HTMLElement;
+    expect(pill).toBeTruthy();
+    expect(pill.textContent).toContain('Individual (U1234567)');
+    expect(pill.textContent).not.toMatch(/Cash|Margin/);
+    expect(pill.title).toContain('IBKR AccountType: INDIVIDUAL');
+    expect(pill.title).toContain('IBKR TradingType-S: STKNOPT');
+    expect(pill.title).toContain('login username is never exposed');
+    expect(pill.title).not.toMatch(/\bMargin\b/);
   });
 
-  it('hides the account-type chip when IBKR is disconnected', () => {
+  it('lists the managed accounts under the pill with the active one marked', () => {
+    status.current = baseStatus({ account_ids: ['U1234567', 'U7654321'] });
+    renderBar();
+    const pill = container.querySelector('[data-testid="global-bar-account-pill"]') as HTMLButtonElement;
+    expect(pill.title).toContain('Other managed accounts on this login: U7654321');
+    act(() => {
+      pill.click();
+    });
+    const items = Array.from(
+      container.querySelectorAll('[data-testid="global-bar-account-pill-item"]'),
+    );
+    expect(items.map((el) => el.getAttribute('data-account-id'))).toEqual(['U1234567', 'U7654321']);
+    expect(items[0].getAttribute('aria-current')).toBe('true');
+    expect(items[1].getAttribute('aria-current')).toBeNull();
+  });
+
+  it('hides the account pill while disconnected -- an old id would be a lie', () => {
     workspace = baseWorkspace({ ibkrConnected: false, ibkrMode: 'disconnected' });
+    status.current = baseStatus({ connected: false, mode: 'disconnected' });
     account = baseAccount({ summary: null, orders: [] });
     renderBar();
-    expect(container.querySelector('[data-testid="global-bar-account-type"]')).toBeNull();
+    expect(container.querySelector('[data-testid="global-bar-account-pill"]')).toBeNull();
+  });
+
+  it('shows NOVA-PAPER figures on Paper even though the live Gateway has an IBKR summary too (ADR 020)', () => {
+    workspace = baseWorkspace({ ibkrMode: 'paper', ibkrGatewayMode: 'live', ibkrAccountKind: 'live' });
+    status.current = baseStatus({
+      mode: 'paper',
+      venue: 'paper',
+      account_id: 'NOVA-PAPER',
+      account_ids: ['NOVA-PAPER'],
+    });
+    practice.current = { data: PAPER_ACCOUNT, error: null };
+    renderBar();
+    const cluster = container.querySelector('[data-testid="global-bar-cluster"]') as HTMLElement;
+    expect(cluster).toBeTruthy();
+    expect(cluster.textContent).toContain('+$250.25');
+    expect(cluster.textContent).toContain('$101,200.25');
+    expect(cluster.textContent).not.toContain('$3,559.55');
+    const pill = cluster.querySelector('[data-testid="global-bar-account-pill"]') as HTMLElement;
+    expect(pill.textContent).toContain('Nova Paper Margin (NOVA-PAPER)');
+    expect(pill.getAttribute('data-kind')).toBe('practice');
+    expect(pill.title).toMatch(/fake money/i);
+    act(() => {
+      (cluster.querySelector('[data-testid="global-bar-tav-trigger"]') as HTMLButtonElement).click();
+    });
+    expect(
+      container.querySelector('[data-testid="global-bar-card-starting-cash"]')?.textContent,
+    ).toContain('$100,000.00');
+    expect(container.querySelector('[data-testid="global-bar-card-excess"]')).toBeNull();
+    act(() => {
+      (cluster.querySelector('[data-testid="global-bar-account-trigger"]') as HTMLButtonElement).click();
+    });
+    expect(container.querySelector('[data-testid="global-bar-card-fees"]')?.textContent).toContain('$3.50');
+    // No second row: the practice strip is gone.
+    expect(container.querySelector('[data-testid="practice-strip"]')).toBeNull();
+  });
+
+  it('shows the NOVA-SIM pill and the replay row on Sim', () => {
+    workspace = baseWorkspace({ ibkrMode: 'sim' });
+    status.current = baseStatus({ mode: 'sim', venue: 'sim', account_id: 'NOVA-SIM', account_ids: ['NOVA-SIM'] });
+    practice.current = {
+      data: { ...PAPER_ACCOUNT, venue: 'sim', account_id: 'NOVA-SIM', replay_key: 'capture:AAPL:2026-09-19' },
+      error: null,
+    };
+    renderBar();
+    const pill = container.querySelector('[data-testid="global-bar-account-pill"]') as HTMLElement;
+    expect(pill.textContent).toContain('Nova Sim Margin (NOVA-SIM)');
+    act(() => {
+      (container.querySelector('[data-testid="global-bar-tav-trigger"]') as HTMLButtonElement).click();
+    });
+    expect(container.querySelector('[data-testid="global-bar-card-replay"]')?.textContent).toContain(
+      'capture:AAPL:2026-09-19',
+    );
   });
 
   it('places Emergency KILL immediately after Look Up with the four-op hover', () => {

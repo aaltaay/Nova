@@ -32,7 +32,7 @@ test.describe('Scanner account dock', () => {
     await expect(page.getByTestId('global-bar-cluster')).toBeVisible();
     await expect(page.getByTestId('global-bar-offline')).toHaveCount(0);
     await expect(page.getByTestId('global-bar-account-trigger')).toContainText('+$230.00');
-    await expect(page.locator('.global-app-bar__metric--netliq')).toContainText('$100,000.00');
+    await expect(page.locator('.global-app-bar__metric--tav')).toContainText('$100,000.00');
 
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });

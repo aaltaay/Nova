@@ -85,3 +85,37 @@
   width: 100%;
   white-space: nowrap;
 }
+
+/* Account pill menu: the managed accounts on the login, the active one marked. */
+.global-app-bar__pill-menu {
+  right: 0;
+  min-width: 16rem;
+  max-width: 24rem;
+}
+
+.global-app-bar__card-row.is-active span:first-child {
+  color: var(--nova-text);
+  font-weight: 650;
+}
+
+.global-app-bar__card-row.is-active span:last-child {
+  color: var(--nova-success);
+  font-size: 0.7rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Sim with nothing loaded: a stated absence, not an invented replay. */
+.global-app-bar__card-row.is-empty span:last-child {
+  color: var(--nova-text-muted);
+  font-style: italic;
+}
+
+.global-app-bar__card-note {
+  margin: 0.3rem 0.75rem;
+  color: var(--nova-text-muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+  white-space: normal;
+}
