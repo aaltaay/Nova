@@ -26,9 +26,6 @@ export interface ActivityRow {
   perm_id?: number | null;
   filled_qty?: number | null;
   avg_fill_price?: number | null;
-  /** Sim practice fills only: inferred from a replay, never a real execution (ADR 019). */
-  fill_estimated?: boolean | null;
-  fill_basis?: string | null;
   status: string;
   broker_status?: string | null;
   reason_code?: string | null;

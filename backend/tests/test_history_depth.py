@@ -121,7 +121,7 @@ def test_an_inactive_symbol_claims_no_depth():
 
 
 def test_a_missing_archive_degrades_and_is_never_created_by_a_replay():
-    spec = select()
+    select()
     clock.scrub_to_second(60)
     snap = playback.snapshot("IMCC")
     assert snap["depth_available"] is False and snap["depth"] is None
