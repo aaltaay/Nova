@@ -3,7 +3,8 @@
  * Separate from GATEWAY market-data chip -- never label "IBKR offline" while Gateway is up.
  */
 import type { Dispatch, SetStateAction } from 'react';
-import type { IbkrAccountSummary, IbkrOrder } from '../ibkr/types';
+import type { IbkrAccountSummary, IbkrMode, IbkrOrder } from '../ibkr/types';
+import { PracticeAccountStrip } from '../practice/PracticeAccountStrip';
 import {
   GLOBAL_BAR_ACCOUNT_LOADING_CHIP,
   GLOBAL_BAR_ACCOUNT_UNAVAILABLE_CHIP,
@@ -36,6 +37,7 @@ export function GlobalBarAccountCluster({
   traderActive,
   closeTraderView,
   refresh,
+  venue = null,
 }: {
   accountChrome: AccountChromeState;
   accountError: string | null;
@@ -50,12 +52,15 @@ export function GlobalBarAccountCluster({
   traderActive: boolean;
   closeTraderView: () => void;
   refresh: () => void;
+  /** Desk venue (ADR 020). Paper / Sim add Nova's practice-account strip; anything else adds nothing. */
+  venue?: IbkrMode | null;
 }) {
   const live = accountChrome === 'ready';
   const dayPnl = dayPnlFromSummary(summary?.RealizedPnL, summary?.UnrealizedPnL);
 
   return (
     <>
+      <PracticeAccountStrip venue={venue} />
       {live ? (
         <div className="global-app-bar__cluster" data-testid="global-bar-cluster">
           <button

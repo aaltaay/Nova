@@ -40,3 +40,31 @@
   display: block;
   margin: 0.25rem 0 0;
 }
+
+/* Settings > Trade > Practice Account (ADR 020). */
+.practice-reset {
+  max-width: 28rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  border: 1px dashed var(--nova-border);
+  border-radius: var(--radius-control, 8px);
+}
+
+.practice-reset__head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-bottom: 0.65rem;
+}
+
+.practice-reset__head .settings-block-hint {
+  margin: 0;
+}
+
+.practice-reset__notice {
+  margin: 0.5rem 0 0;
+}
+
+.practice-reset__notice--error {
+  color: var(--nova-danger, #dc2626);
+}

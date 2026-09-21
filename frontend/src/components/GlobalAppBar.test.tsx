@@ -28,6 +28,11 @@ vi.mock('../workspace/WorkspaceContext', () => ({
   useWorkspace: () => workspace,
 }));
 
+// The practice strip polls its own endpoint; it has its own tests.
+vi.mock('../practice/PracticeAccountStrip', () => ({
+  PracticeAccountStrip: () => null,
+}));
+
 vi.mock('../ibkr/IbkrAccountContext', () => ({
   useIbkrAccountContext: () => account,
 }));

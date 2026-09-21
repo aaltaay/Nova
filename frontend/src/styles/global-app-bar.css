@@ -629,3 +629,32 @@
 .global-app-bar__account-id--practice {
   border-style: dashed;
 }
+
+/* Practice account strip (ADR 020): Nova's fake-money ledger on Paper / Sim. */
+.practice-strip {
+  gap: 0.4rem;
+  font-size: 0.78rem;
+}
+
+.practice-strip__account {
+  padding: 0 0.35rem;
+  border: 1px dashed var(--nova-border);
+  border-radius: var(--radius-control, 8px);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.practice-strip__metric label {
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+}
+
+.practice-strip__replay.is-empty span:last-child {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.practice-strip--loading,
+.practice-strip--unavailable {
+  color: var(--text-secondary);
+}

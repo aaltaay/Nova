@@ -20,3 +20,4 @@ export * from './constantGroups/news_junk';
 export * from './constantGroups/bot';
 export * from './constantGroups/sensors';
 export * from './constantGroups/desk_venue';
+export * from './constantGroups/practice';

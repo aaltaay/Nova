@@ -11,7 +11,7 @@ import {
 import { sessionKindNow } from './extendedSession';
 import { FillLatencyTd } from './FillLatencyCell';
 import { commissionCellTitle, formatCommission } from './orderCommission';
-import { displayFilledQty } from './orderFillHonesty';
+import { displayFilledQty, practiceFillTitle } from './orderFillHonesty';
 import { remainingShares } from './orderQtyMath';
 import type { WorkingOrderColumnId } from './orderTableColumns';
 import type { IbkrOrder } from './types';
@@ -107,6 +107,11 @@ export function renderWorkingOrderCell(
       return (
         <td key={col} className="ibkr-col--num">
           {formatMoney(o.avg_fill_price ?? null)}
+          {o.fill_estimated && o.avg_fill_price != null && (
+            <span className="ibkr-fill-estimated" title={practiceFillTitle(o.fill_basis)}>
+              est
+            </span>
+          )}
         </td>
       );
     case 'commission':

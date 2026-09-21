@@ -209,6 +209,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
             traderActive={traderActive}
             closeTraderView={leaveTraderToScanner}
             refresh={refresh}
+            venue={ibkrMode}
           />
         </div>
 
