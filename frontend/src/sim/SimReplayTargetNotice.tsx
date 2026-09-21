@@ -6,12 +6,10 @@
  * Gateway not running, Start Gateway & download. The × hides the prompt for this
  * tab and situation; it never cancels a download or a queued heal.
  */
-import { useCallback, useState, useSyncExternalStore } from 'react';
-import { useIbkrStatus } from '../ibkr/useIbkrStatus';
+import { useState } from 'react';
 import { useWorkspace } from '../workspace';
 import { durationLabel } from './historicalProgress';
-import { simClockResource } from './simClockResource';
-import { simReplayTarget } from './simReplayTarget';
+import { useSimReplayTarget } from './useSimReplayTarget';
 import { offerCopy, type OfferAction } from './simReplayOffer';
 import { useSimReplayOffer } from './useSimReplayOffer';
 import {
@@ -69,15 +67,8 @@ const ACTION_LABEL: Record<OfferAction, string> = {
 const dismissed = new Set<string>();
 
 export function SimReplayTargetNotice({ symbol }: { symbol: string }) {
-  const sim = useIbkrStatus().mode === 'sim';
   const { openStockView } = useWorkspace();
-  const subscribe = useCallback(
-    (listener: () => void) => (sim ? simClockResource.subscribe(listener) : () => {}),
-    [sim],
-  );
-  const clockState = useSyncExternalStore(subscribe, simClockResource.getSnapshot);
-  const clock = sim ? clockState.data : null;
-  const target = simReplayTarget(symbol, clock, sim);
+  const { clock, target } = useSimReplayTarget(symbol);
   const wantsReplay = target.kind === 'none' || target.kind === 'other-symbol';
   const { offer, download, startGateway, stop, load, starting, loading, error } = useSimReplayOffer(
     symbol, clock, wantsReplay, target.kind === 'none',

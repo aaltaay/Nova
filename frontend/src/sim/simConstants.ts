@@ -89,3 +89,15 @@ export const SIM_TAB_ACTION_STARTING = 'Starting...';
 export const SIM_TAB_ACTION_LOADING = 'Loading...';
 export const SIM_TAB_DISMISS_LABEL = 'Dismiss';
 export const simTabGoToReplayLabel = (replaySymbol: string): string => `Go to ${replaySymbol}`;
+
+/**
+ * Sim rail honesty. With no replay loaded (or another symbol loaded) the desk
+ * has no tape, quote or book for this ticker -- so the rail says that instead
+ * of falling through to the live IBKR panes, which would badge themselves LIVE
+ * on a practice desk replaying a past session.
+ */
+export const SIM_RAIL_NO_REPLAY_NOTE = 'No replay loaded -- no quote, Level 2 or Time & Sales.';
+export const simRailOtherSymbolNote = (tab: string, replaySymbol: string): string =>
+  `${replaySymbol} is the loaded replay -- no ${tab} quote, Level 2 or Time & Sales.`;
+export const SIM_RAIL_FAILED_NOTE = 'Replay failed to load -- nothing to show.';
+export const SIM_RAIL_LOADING_NOTE = 'Loading replay...';

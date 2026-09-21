@@ -12,6 +12,12 @@
  * Pure on purpose -- the rendering component stays trivial and this stays
  * testable without a DOM.
  */
+import {
+  SIM_RAIL_FAILED_NOTE,
+  SIM_RAIL_LOADING_NOTE,
+  SIM_RAIL_NO_REPLAY_NOTE,
+  simRailOtherSymbolNote,
+} from './simConstants';
 import type { SimClockState } from './simClockTypes';
 
 export type SimReplayTarget =
@@ -45,4 +51,32 @@ export function simReplayTarget(
   // one mid-transition. Silence beats a notice we cannot substantiate.
   if (!replaySymbol || !tab || replaySymbol === tab) return { kind: 'ok' };
   return { kind: 'other-symbol', replaySymbol };
+}
+
+/**
+ * What the quote rail says instead of its live panes on a Sim desk, or null to
+ * let the normal panes render.
+ *
+ * Null is right in exactly two cases: not Sim at all, and a CAPTURE replay of
+ * this very symbol -- the backend serves a recording through the ordinary
+ * quote / book / tape endpoints, so those panes ARE the replay. A historical
+ * replay has its own rail branch (the snapshot), so reaching here with one
+ * selected for this symbol only means its first snapshot has not arrived yet.
+ * Everything else is a practice desk with nothing for this ticker, and the
+ * live panes would badge themselves LIVE over a past session.
+ */
+export function simRailNote(
+  symbol: string,
+  clock: SimClockState | null | undefined,
+  sim: boolean,
+): string | null {
+  if (!sim) return null;
+  if (!clock) return SIM_RAIL_LOADING_NOTE;
+  const target = simReplayTarget(symbol, clock, sim);
+  if (target.kind === 'none') return SIM_RAIL_NO_REPLAY_NOTE;
+  if (target.kind === 'failed') return SIM_RAIL_FAILED_NOTE;
+  if (target.kind === 'other-symbol') {
+    return simRailOtherSymbolNote(symbol.trim().toUpperCase(), target.replaySymbol);
+  }
+  return clock.replay_source === 'historical' ? SIM_RAIL_LOADING_NOTE : null;
 }

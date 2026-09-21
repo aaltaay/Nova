@@ -25,7 +25,9 @@ import { StockViewQuoteStats } from './StockViewQuoteStats';
 import { useHistoricalSnapshot } from '../sim/useHistoricalSnapshot';
 import { HistoricalTimeSales } from '../sim/HistoricalTimeSales';
 import { HistoricalDepth, HistoricalL2Chip } from '../sim/HistoricalDepth';
-import { historicalQuoteDetail } from '../sim/historicalQuoteDetail';
+import { historicalQuoteDetail, simEmptyQuoteDetail } from '../sim/historicalQuoteDetail';
+import { simRailNote } from '../sim/simReplayTarget';
+import { useSimReplayTarget } from '../sim/useSimReplayTarget';
 
 interface Props {
   selectedSymbol: string;
@@ -96,6 +98,7 @@ export function StockViewDepthTape({
   const showL2 = isVisible('level2');
   const showTape = isVisible('tape');
   const historical = useHistoricalSnapshot(depthSymbol, uiActive);
+  const { sim, clock } = useSimReplayTarget(depthSymbol);
 
   if (historical?.active) {
     const replayDetail = historicalQuoteDetail(detail, historical);
@@ -118,6 +121,22 @@ export function StockViewDepthTape({
             ) : null}
           />
         )}
+      </StockViewModuleCard>
+    );
+  }
+
+  // Sim with nothing for this ticker: say so. Falling through would render the
+  // live panes, badged LIVE, with today's halt and borrow chips, over a replay.
+  const simNote = simRailNote(depthSymbol, clock, sim);
+  if (simNote) {
+    return (
+      <StockViewModuleCard
+        title={STOCK_VIEW_MODULE_QUOTE_TITLE}
+        className="sv-quote-depth-card sv-quote-depth-card--empty"
+        testId="stock-view-depth-stack"
+      >
+        <QuoteHead detail={simEmptyQuoteDetail(detail, depthSymbol)} />
+        <p className="sv-depth-stack__hint" data-testid="stock-view-sim-rail-note">{simNote}</p>
       </StockViewModuleCard>
     );
   }
