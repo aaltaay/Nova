@@ -30,21 +30,62 @@ export const SIM_SCRUB_KEYBOARD_MS = 120;
 export const SIM_HISTORY_PAGE_INTERVAL_SEC = 11;
 export const SIM_HISTORY_LARGE_WINDOW_MINUTES = 240;
 export const SIM_HISTORY_SYMBOL_PATTERN = /^[A-Z0-9][A-Z0-9. -]{0,19}$/;
+/** Mirrors backend SIM_HISTORY_RETRY_INTERVAL_SEC: a failed job is refused a retry sooner. */
+export const SIM_HISTORY_RETRY_INTERVAL_SEC = 16;
+/** Mirrors backend SIM_HISTORY_GATEWAY_UNREACHABLE: both Gateway ports refused (not running). */
+export const SIM_HISTORY_GATEWAY_UNREACHABLE = 'IB Gateway unreachable';
+/** Automatic Gateway-unreachable retries per tab visit before Retry is handed back. */
+export const SIM_TAB_HEAL_MAX_ATTEMPTS = 3;
+/**
+ * One-click window: the open and the first two hours, not the whole session.
+ *
+ * Download cost scales with PRINTS, not with hours. The panel's 04:00-20:00
+ * default is 3.5 minutes for SPY premarket and 10+ hours for a low-float runner
+ * through RTH, because a 1000-print page covers minutes of a quiet tape and
+ * seconds of a busy one. A bounded window around the open is what practice
+ * actually needs, and the prompt always states it. Any other window: use
+ * Historical replay.
+ */
+export const SIM_TAB_WINDOW_START = '09:15';
+export const SIM_TAB_WINDOW_END = '11:30';
 
 /**
- * Sim tab truth. A Sim pane that cannot show replay data says why, and says it
- * where the operator already looks (under the SIM PRACTICE strip), because the
- * charts keep painting archived bars and "some panels are blank" is not an
- * answer anyone should have to infer.
+ * Sim tab prompt. A Sim tab without its replay says so in one line and offers
+ * the one thing to do about it -- download and load -- instead of pointing the
+ * operator at a panel. Window defaults match the Historical replay panel.
  */
 export const SIM_TAB_NO_REPLAY_TITLE = 'No replay loaded';
-export const SIM_TAB_NO_REPLAY_BODY =
-  'This desk has no tape, quote or Level 2 until you load one. Use Historical replay '
-  + 'or pick a recording in the Sim session bar above. The charts below are archived '
-  + 'bars clipped to the sim clock, not replay data.';
 export const SIM_TAB_OTHER_SYMBOL_TITLE = 'Not the replayed symbol';
-export const simTabOtherSymbolBody = (tab: string, replaySymbol: string): string =>
-  `${replaySymbol} is the loaded replay, so ${tab} has no tape, quote or Level 2 here `
-  + `and will not fill. The charts below are archived ${tab} bars, not replay data.`;
-export const simTabGoToReplayLabel = (replaySymbol: string): string => `Go to ${replaySymbol}`;
 export const SIM_TAB_REPLAY_FAILED_TITLE = 'Replay failed to load';
+export const SIM_TAB_CHARTS_ARCHIVED = 'Charts show archived bars until a replay loads.';
+export const SIM_TAB_NO_WINDOW = 'Pick a window with Historical replay in the Sim session bar above.';
+export const simTabOtherSymbolLead = (tab: string, replaySymbol: string): string =>
+  `${replaySymbol} is loaded, so ${tab} won't fill.`;
+export const simTabOfferDownload = (label: string, instead: boolean): string =>
+  `Download and load ${label}${instead ? ' instead' : ''}?`;
+export const simTabOfferReady = (label: string, instead: boolean): string =>
+  `${label} is downloaded${instead ? ' -- load it instead?' : '.'}`;
+export const simTabOfferDownloading = (label: string, progress: string): string =>
+  `Downloading ${label}${progress}. It loads when done.`;
+export const simTabOfferStopped = (label: string, progress: string): string =>
+  `${label} download stopped${progress}.`;
+export const simTabOfferFailed = (label: string, error: string): string =>
+  `${label} download failed: ${error}`;
+export const simTabOfferBusy = (runningSymbol: string, tab: string): string =>
+  `A ${runningSymbol} download is running; ${tab} can start when it finishes.`;
+export const simTabOfferGatewayDown = (label: string): string =>
+  `IB Gateway isn't running. Start it and ${label} downloads and loads by itself.`;
+export const simTabOfferGatewayWaiting = (label: string): string =>
+  `Waiting for IB Gateway -- ${label} downloads as soon as it's up. Finish the login in the Gateway window if it asks.`;
+export const simTabOfferRetrying = (label: string): string =>
+  `IB Gateway is back -- retrying ${label}.`;
+export const SIM_TAB_ACTION_DOWNLOAD = 'Download';
+export const SIM_TAB_ACTION_LOAD = 'Load';
+export const SIM_TAB_ACTION_RESUME = 'Resume';
+export const SIM_TAB_ACTION_RETRY = 'Retry';
+export const SIM_TAB_ACTION_START_GATEWAY = 'Start Gateway & download';
+export const SIM_TAB_ACTION_STOP = 'Stop';
+export const SIM_TAB_ACTION_STARTING = 'Starting...';
+export const SIM_TAB_ACTION_LOADING = 'Loading...';
+export const SIM_TAB_DISMISS_LABEL = 'Dismiss';
+export const simTabGoToReplayLabel = (replaySymbol: string): string => `Go to ${replaySymbol}`;

@@ -1,14 +1,14 @@
 import { useRef, useState } from 'react';
 import { Popover } from 'radix-ui';
 import { useWorkspace } from '../workspace';
-import { cancelPendingSimSeek, emitSimClockScrub } from './simClockEvents';
 import { etTime, previousEtWeekday } from './historicalReplayFormat';
 import { SIM_HISTORY_LARGE_WINDOW_MINUTES, SIM_HISTORY_PAGE_INTERVAL_SEC, SIM_SESSION_CLOSE_LABEL, SIM_SESSION_OPEN_LABEL } from './simConstants';
 import { useHistoricalStatus, historicalStatus } from './historicalStatusStore';
 import { useReplayActions } from './useReplayActions';
+import { selectHistoricalReplay } from './historicalReplayLoad';
 import { HistoricalDownloads } from './HistoricalDownloads';
 import { durationLabel, jobSummary, validateHistoricalWindow, windowLabel, windowMinutes } from './historicalProgress';
-import type { HistoricalJob, HistoricalSelection, HistoricalWindow } from './historicalTypes';
+import type { HistoricalJob, HistoricalWindow } from './historicalTypes';
 
 export function HistoricalReplayPanel() {
   const { openStockView } = useWorkspace();
@@ -33,12 +33,8 @@ export function HistoricalReplayPanel() {
   const update = (setter: (value: string) => void, value: string) => { setter(value); setFormError(''); };
   async function load() {
     if (!validate()) return;
-    cancelPendingSimSeek();
-    const selected = await request<HistoricalSelection>('select', '/history/select', spec);
-    if (!selected) return;
-    historicalStatus.invalidate({ ...historicalStatus.getSnapshot().data, jobs, selection: selected });
+    if (!await selectHistoricalReplay(request, spec)) return;
     openStockView(spec.symbol);
-    emitSimClockScrub(); // Selection changes also invalidate the previously replayed symbol.
     setOpen(false);
   }
   async function download(kind: 'bars' | 'trades') {

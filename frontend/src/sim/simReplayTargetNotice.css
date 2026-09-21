@@ -29,8 +29,19 @@
   opacity: 0.92;
 }
 
-.sim-replay-target__action {
+.sim-replay-target__error {
+  color: #fecaca;
+  font-weight: 600;
+}
+
+.sim-replay-target__actions {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.sim-replay-target__action {
   padding: 0.15rem 0.6rem;
   font: inherit;
   font-weight: 700;
@@ -48,4 +59,39 @@
 .sim-replay-target__action:focus-visible {
   outline: 2px solid #fde68a;
   outline-offset: 1px;
+}
+
+.sim-replay-target__action:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.sim-replay-target__action--secondary {
+  color: #fde68a;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #fbbf24 70%, transparent);
+}
+
+.sim-replay-target__action--secondary:hover {
+  background: color-mix(in srgb, #fbbf24 18%, transparent);
+}
+
+.sim-replay-target__dismiss {
+  padding: 0 0.35rem;
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  opacity: 0.75;
+  cursor: pointer;
+}
+
+.sim-replay-target__dismiss:hover,
+.sim-replay-target__dismiss:focus-visible {
+  opacity: 1;
+  background: color-mix(in srgb, #ffffff 12%, transparent);
+  outline: none;
 }

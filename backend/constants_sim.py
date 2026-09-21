@@ -74,6 +74,10 @@ SIM_HISTORY_REQUEST_TIMEOUT_SEC = 45.0
 SIM_HISTORY_CONNECT_TIMEOUT_SEC = 15.0
 SIM_HISTORY_MAX_PAGES = 10000
 SIM_HISTORY_CLIENT_ID = 29420
+# Leading words of the refusal when neither Gateway port answers. The Sim tab
+# prompt keys its auto-retry on it (mirrored in frontend simConstants.ts), so
+# a Gateway that is simply not running heals on its own once it is back.
+SIM_HISTORY_GATEWAY_UNREACHABLE = "IB Gateway unreachable"
 SIM_HISTORY_TAPE_ROWS = 200
 SIM_TICK_INTERVAL_RTH_SEC = 0.08
 SIM_TICK_INTERVAL_EXT_SEC = 0.15

@@ -151,6 +151,31 @@ def test_gateway_tries_live_then_paper_port(monkeypatch):
     assert candidate_ports() == [4001]
 
 
+def test_both_ports_dark_names_the_shared_unreachable_prefix(monkeypatch):
+    """The Sim tab prompt auto-retries on exactly this prefix once Gateway is back."""
+    import ib_async
+
+    from constants_sim import SIM_HISTORY_GATEWAY_UNREACHABLE
+    from ibkr.replay_history_gateway import ReplayHistoryGateway
+
+    class RefusingIB:
+        RaiseRequestErrors = False
+
+        async def connectAsync(self, *args, **kwargs):
+            raise ConnectionRefusedError("[WinError 1225] refused")
+
+        def disconnect(self):
+            pass
+
+    monkeypatch.setattr(ib_async, "IB", RefusingIB)
+    monkeypatch.setenv("IBKR_LIVE_PORT", "4001")
+    monkeypatch.setenv("IBKR_PAPER_PORT", "4002")
+    with pytest.raises(ConnectionError) as refused:
+        asyncio.run(ReplayHistoryGateway().open("IMCC"))
+    assert str(refused.value).startswith(SIM_HISTORY_GATEWAY_UNREACHABLE)
+    assert "4001" in str(refused.value) and "4002" in str(refused.value)
+
+
 @pytest.mark.parametrize("now, expected", [
     ("2026-09-19T12:00", "2026-09-18"),  # Saturday -> Friday
     ("2026-09-18T19:59", "2026-09-17"),  # Friday before the default close
