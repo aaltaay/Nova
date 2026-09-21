@@ -343,10 +343,17 @@
   container-name: app-bar-scanner;
 }
 
+/* Chips wrap onto a second line instead of overflowing. The middle grid column
+   is minmax(0, 1fr), so a cluster that cannot shrink overflows *leftward* under
+   justify-content: flex-end and paints over the brand and nav. Whether it fits
+   depends on the live P&L / Net Liq widths and which badges are showing, not on
+   the viewport, so the width-based media queries below cannot catch it. */
 .global-app-bar__status {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 0.4rem;
   min-width: 0;
   white-space: nowrap;
@@ -355,9 +362,10 @@
 .global-app-bar__status .status-cluster {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.4rem;
   min-width: 0;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
 }
 
 .global-app-bar__status .status-chip,
