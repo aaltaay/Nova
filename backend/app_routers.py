@@ -33,6 +33,7 @@ from routes.bot_ws import ws_router as bot_ws_router
 from sim.routes import router as sim_router
 from capture.routes import router as capture_router
 from sensors.routes import router as sensors_router
+from practice.routes import router as practice_router
 
 
 def register_routers(app: FastAPI) -> None:
@@ -66,3 +67,4 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(sim_router)
     app.include_router(capture_router)
     app.include_router(sensors_router)
+    app.include_router(practice_router)

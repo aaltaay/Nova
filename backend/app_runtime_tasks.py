@@ -38,6 +38,7 @@ from ibkr_bridge import (
     symbols_for_tab,
 )
 import loop_lag as _loop_lag
+from practice import matcher as _practice_matcher
 from scan_loop import scan_loop
 from scanner_push import broadcast as _scanner_broadcast
 from ticker import _find_ibkr_cache_row
@@ -104,6 +105,8 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         ("bot.breakers", breaker_loop),
         # Session Record: resume after a restart / failure / Gateway drop, then say so.
         ("capture.keepalive", _capture_keepalive.run),
+        # Paper venue (ADR 020): resting practice orders fill on live tape prints.
+        ("practice.matcher", _practice_matcher.run),
     ]
     if maintenance_enabled():
         factories.append(("archive.maintenance", archive_maintenance_loop))
