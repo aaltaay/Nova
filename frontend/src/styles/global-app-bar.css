@@ -624,3 +624,8 @@
   color: #ea580c;
   font-weight: 700;
 }
+
+/* NOVA-PAPER / NOVA-SIM -- Nova-managed practice account, fake money (ADR 020). */
+.global-app-bar__account-id--practice {
+  border-style: dashed;
+}

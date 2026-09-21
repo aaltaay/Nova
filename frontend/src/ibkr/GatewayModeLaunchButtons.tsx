@@ -1,10 +1,12 @@
 /**
- * Side-by-side Open paper / Open live Gateway launchers.
+ * Side-by-side Gateway launchers. Live is the feed for every venue; the IBKR
+ * paper Gateway is legacy (ADR 020) and is not the header Paper venue.
  */
 import {
   GATEWAY_BANNER_CTA_BUSY_LABEL,
   PREREQ_OPEN_LIVE_LABEL,
   PREREQ_OPEN_PAPER_LABEL,
+  PREREQ_OPEN_PAPER_TITLE,
 } from './gatewayUxConstants';
 import './gatewayModeLaunchButtons.css';
 
@@ -30,6 +32,7 @@ export function GatewayModeLaunchButtons({
         type="button"
         className="trading-prereq-cta trading-prereq-cta--paper"
         data-testid={paperTestId}
+        title={PREREQ_OPEN_PAPER_TITLE}
         disabled={busy}
         onClick={() => onLaunch('paper')}
       >

@@ -1,5 +1,6 @@
 /**
- * Hot strip shown only when IBKR Gateway mode is paper — reduces live/paper confusion.
+ * Hot strip shown only while the desk venue is Paper -- Nova's practice account,
+ * fake money on the live feed, never an IBKR paper account (ADR 020).
  * Sim shows none (operator decision, 2026-09-20): the venue already reads from the
  * header's DESK SIM chip and the active Sim pill, and a full-width strip on every
  * Sim tab was noise. A Sim tab's replay state has its own strip (SimReplayTargetNotice).

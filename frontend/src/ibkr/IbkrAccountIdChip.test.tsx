@@ -26,6 +26,26 @@ describe('IbkrAccountIdChip', () => {
     expect(screen.getByTestId('global-bar-account-id').title).toContain('Other managed accounts on this login: U7654321');
   });
 
+  it('NOVA-PAPER reads as a Nova-managed practice account, fake money, not IBKR (ADR 020)', () => {
+    status.current = { connected: true, venue: 'paper', broker_account_kind: 'live', account_id: 'NOVA-PAPER', account_ids: ['NOVA-PAPER'] };
+    render(<IbkrAccountIdChip />);
+    const chip = screen.getByTestId('global-bar-account-id');
+    expect(chip.textContent).toBe('NOVA-PAPER');
+    expect(chip.dataset.kind).toBe('practice');
+    expect(chip.title).toMatch(/Nova-managed/);
+    expect(chip.title).toMatch(/fake money/i);
+    expect(chip.title).not.toMatch(/IBKR account NOVA-PAPER/);
+  });
+
+  it('NOVA-SIM reads as the replay practice account', () => {
+    status.current = { connected: true, venue: 'sim', account_id: 'NOVA-SIM', account_ids: ['NOVA-SIM'] };
+    render(<IbkrAccountIdChip />);
+    const chip = screen.getByTestId('global-bar-account-id');
+    expect(chip.dataset.kind).toBe('practice');
+    expect(chip.title).toMatch(/Nova-managed/);
+    expect(chip.title).toMatch(/replay/);
+  });
+
   it('shows nothing while disconnected -- an old id would be a lie', () => {
     status.current = { connected: false, account_id: 'DUQ266899' };
     render(<IbkrAccountIdChip />);

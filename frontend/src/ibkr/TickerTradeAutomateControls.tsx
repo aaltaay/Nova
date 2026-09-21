@@ -36,7 +36,7 @@ export function TickerTradeAutomateControls({ enabled }: Props) {
     void confirmApp({
       title: 'Raise to Auto Paper?',
       message:
-        `${status.disclosure}\n\nBUY decisions will PLACE paper brackets automatically — no Approve step. Only available on paper Gateway with orders enabled.`,
+        `${status.disclosure}\n\nBUY decisions will PLACE paper brackets automatically — no Approve step. Only available on the Paper venue (Nova practice account) with orders enabled.`,
       confirmLabel: 'Raise to Auto Paper',
       tone: 'warning',
     }).then(ok => {
@@ -90,7 +90,7 @@ export function TickerTradeAutomateControls({ enabled }: Props) {
             title={
               paperGateway
                 ? 'Places paper brackets automatically — no Approve step'
-                : 'Requires IBKR connected on paper Gateway'
+                : 'Requires the Paper venue (Nova practice account) with the live feed connected'
             }
             onClick={handleAutoPaper}
           >

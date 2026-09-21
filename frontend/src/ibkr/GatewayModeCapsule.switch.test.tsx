@@ -1,9 +1,10 @@
 /**
  * @vitest-environment jsdom
  *
- * Intentional Paper<->Live Gateway switch -- real POST to
- * /api/ibkr/gateway-mode via novaFetch (X-Nova-Api-Key), honest error
- * surfacing, never arms live spend.
+ * ADR 020 venue pills -- every pill POSTs /api/desk/venue via novaFetch
+ * (X-Nova-Api-Key). Paper never launches a Gateway; Live also ensures the live
+ * Gateway through /api/ibkr/gateway-mode; Sim falls back to POST /api/sim when
+ * the venue route is missing. Honest error surfacing, never arms live spend.
  */
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -23,7 +24,13 @@ vi.mock('../ux', () => ({
 
 import { GatewayModeCapsule } from './GatewayModeCapsule';
 
-describe('GatewayModeCapsule — intentional Gateway switch', () => {
+type Route = (url: string, init?: RequestInit) => Response | Promise<Response>;
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status });
+}
+
+describe('GatewayModeCapsule — venue switch', () => {
   let container: HTMLDivElement;
   let root: Root;
 
@@ -47,12 +54,22 @@ describe('GatewayModeCapsule — intentional Gateway switch', () => {
     vi.restoreAllMocks();
   });
 
-  function requestHeaders(init: RequestInit | undefined): Headers {
-    return new Headers(init?.headers);
+  function mockFetch(route: Route) {
+    return vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation((input, init) => Promise.resolve(route(String(input), init)));
+  }
+
+  function calledPaths(spy: ReturnType<typeof mockFetch>): string[] {
+    return spy.mock.calls.map(call => new URL(String(call[0]), 'http://x').pathname);
+  }
+
+  function sentBody(spy: ReturnType<typeof mockFetch>, index: number): unknown {
+    return JSON.parse((spy.mock.calls[index][1] as RequestInit).body as string);
   }
 
   function render(
-    mode: 'paper' | 'live' | 'disconnected',
+    mode: 'paper' | 'live' | 'sim' | 'disconnected',
     gatewayMode?: 'paper' | 'live',
   ) {
     act(() => {
@@ -66,157 +83,161 @@ describe('GatewayModeCapsule — intentional Gateway switch', () => {
     });
   }
 
-  function liveButton() {
-    return container.querySelectorAll('.sv-capsule__seg')[1] as HTMLButtonElement;
+  function seg(index: 0 | 1 | 2) {
+    return container.querySelectorAll('.sv-capsule__seg')[index] as HTMLButtonElement;
   }
 
-  function simButton() {
-    return container.querySelectorAll('.sv-capsule__seg')[2] as HTMLButtonElement;
-  }
-
-  it('clicking Sim confirms and POSTs /api/sim enabled true', async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(
-        new Response(JSON.stringify({ sim: true, broker: 'sim' }), { status: 200 }),
-      );
-    render('paper');
-
+  async function click(index: 0 | 1 | 2) {
     await act(async () => {
-      simButton().click();
-      await Promise.resolve();
-      await Promise.resolve();
+      seg(index).click();
+      for (let i = 0; i < 6; i += 1) await Promise.resolve();
     });
+  }
 
-    expect(confirmAppMock).toHaveBeenCalled();
-    expect(fetchSpy).toHaveBeenCalledWith(
-      expect.stringContaining('/api/sim'),
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({ enabled: true }),
-      }),
+  function errorText(): string | null {
+    return container.querySelector('[data-testid="gateway-mode-capsule-error"]')?.textContent ?? null;
+  }
+
+  it('Paper POSTs /api/desk/venue only -- no Gateway launch, no IBC, no /api/sim', async () => {
+    const fetchSpy = mockFetch(() => json({ venue: 'paper' }));
+    render('live');
+
+    await click(0);
+
+    expect(confirmAppMock).toHaveBeenCalledWith(
+      expect.objectContaining({ title: expect.stringMatching(/Nova practice account/) }),
     );
-    expect(requestHeaders(fetchSpy.mock.calls[0][1] as RequestInit).get(NOVA_API_KEY_HEADER)).toBe(
+    expect(calledPaths(fetchSpy)).toEqual(['/api/desk/venue']);
+    expect(sentBody(fetchSpy, 0)).toEqual({ venue: 'paper' });
+    expect(new Headers((fetchSpy.mock.calls[0][1] as RequestInit).headers).get(NOVA_API_KEY_HEADER)).toBe(
       'test-nova-key',
     );
+    expect(errorText()).toBeNull();
     expect(refreshIbkrStatusNow).toHaveBeenCalled();
   });
 
-  it('clicking Live confirms, POSTs gateway-mode, and refreshes status on success', async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(
-        new Response(JSON.stringify({ ok: true, mode: 'live', error: null }), { status: 200 }),
-      );
+  it('Live POSTs the venue, then ensures the live Gateway through gateway-mode', async () => {
+    const fetchSpy = mockFetch(url =>
+      url.includes('/api/desk/venue')
+        ? json({ venue: 'live' })
+        : json({ ok: true, mode: 'live', error: null, launch_action: 'noop' }),
+    );
     render('paper');
 
-    await act(async () => {
-      liveButton().click();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
+    await click(1);
 
-    expect(confirmAppMock).toHaveBeenCalled();
-    expect(fetchSpy).toHaveBeenCalledWith(
-      expect.stringContaining('/api/ibkr/gateway-mode'),
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({ mode: 'live' }),
-      }),
-    );
-    const sentBody = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string);
-    expect(sentBody).toEqual({ mode: 'live' });
-    expect(requestHeaders(fetchSpy.mock.calls[0][1] as RequestInit).get(NOVA_API_KEY_HEADER)).toBe(
-      'test-nova-key',
-    );
+    expect(confirmAppMock).toHaveBeenCalledWith(expect.objectContaining({ tone: 'danger' }));
+    expect(calledPaths(fetchSpy)).toEqual(['/api/desk/venue', '/api/ibkr/gateway-mode']);
+    expect(sentBody(fetchSpy, 0)).toEqual({ venue: 'live' });
+    expect(sentBody(fetchSpy, 1)).toEqual({ mode: 'live' });
+    expect(errorText()).toBeNull();
     expect(refreshIbkrStatusNow).toHaveBeenCalled();
+  });
+
+  it('Live shows the IBC launch message when the live Gateway still has to start', async () => {
+    mockFetch(url =>
+      url.includes('/api/desk/venue')
+        ? json({ venue: 'live' })
+        : json({ ok: true, launch_action: 'launch', message: 'Starting live Gateway -- approve 2FA' }),
+    );
+    render('paper');
+    await click(1);
+    expect(errorText()).toMatch(/approve 2FA/);
+  });
+
+  it('Sim POSTs the venue and never touches /api/sim when the route exists', async () => {
+    const fetchSpy = mockFetch(() => json({ venue: 'sim' }));
+    render('paper');
+
+    await click(2);
+
+    expect(confirmAppMock).toHaveBeenCalledWith(
+      expect.objectContaining({ title: expect.stringMatching(/replay playground/) }),
+    );
+    expect(calledPaths(fetchSpy)).toEqual(['/api/desk/venue']);
+    expect(sentBody(fetchSpy, 0)).toEqual({ venue: 'sim' });
+    expect(errorText()).toBeNull();
+  });
+
+  it('Sim falls back to POST /api/sim {enabled:true} when the venue route answers 404', async () => {
+    const fetchSpy = mockFetch(url =>
+      url.includes('/api/desk/venue')
+        ? json({ detail: 'Not Found' }, 404)
+        : json({ sim: true, broker: 'sim' }),
+    );
+    render('paper');
+
+    await click(2);
+
+    expect(calledPaths(fetchSpy)).toEqual(['/api/desk/venue', '/api/sim']);
+    expect(sentBody(fetchSpy, 1)).toEqual({ enabled: true });
+    expect(errorText()).toBeNull();
+    expect(refreshIbkrStatusNow).toHaveBeenCalled();
+  });
+
+  it('Paper on a stale API surfaces the restart hint instead of launching anything', async () => {
+    const fetchSpy = mockFetch(() => json({ detail: 'Not Found' }, 404));
+    render('live');
+    await click(0);
+    expect(calledPaths(fetchSpy)).toEqual(['/api/desk/venue']);
+    expect(errorText()).toMatch(/Restart Nova API/i);
   });
 
   it('does not call the API when the user cancels the confirm', async () => {
     confirmAppMock.mockResolvedValue(false);
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     render('paper');
-
-    await act(async () => {
-      liveButton().click();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
+    await click(1);
     expect(confirmAppMock).toHaveBeenCalled();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('surfaces an honest inline error and stays off Live when the switch fails', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          ok: false,
-          error: 'Could not connect to the live Gateway on port 4001',
-        }),
-        { status: 200 },
-      ),
+  it('surfaces an honest inline error and stays off Live when the Gateway switch fails', async () => {
+    mockFetch(url =>
+      url.includes('/api/desk/venue')
+        ? json({ venue: 'live' })
+        : json({ ok: false, error: 'Could not connect to the live Gateway on port 4001' }),
     );
     render('paper');
 
-    await act(async () => {
-      liveButton().click();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
+    await click(1);
 
-    const error = container.querySelector('[data-testid="gateway-mode-capsule-error"]');
-    expect(error).toBeTruthy();
-    expect(error!.textContent).toMatch(/Could not connect/);
-    expect(liveButton().classList.contains('is-selected')).toBe(false);
+    expect(errorText()).toMatch(/Could not connect/);
+    expect(seg(1).classList.contains('is-selected')).toBe(false);
     expect(refreshIbkrStatusNow).toHaveBeenCalled();
+  });
+
+  it('surfaces the backend error when the venue route refuses', async () => {
+    mockFetch(() => json({ detail: 'venue store refused: unknown schema_version' }, 409));
+    render('paper');
+    await click(1);
+    expect(errorText()).toMatch(/unknown schema_version/);
   });
 
   it('surfaces an inline error when the backend is unreachable', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('network down'));
     render('paper');
-
-    await act(async () => {
-      liveButton().click();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    const error = container.querySelector('[data-testid="gateway-mode-capsule-error"]');
-    expect(error).toBeTruthy();
-    expect(error!.textContent).toMatch(/Could not reach Nova backend/);
+    await click(1);
+    expect(errorText()).toMatch(/Could not reach Nova backend/);
   });
 
-  it('keeps Paper/Live clickable when disconnected so operators can retarget the listening port', async () => {
+  it('keeps every pill clickable when disconnected so operators can retarget', async () => {
     confirmAppMock.mockResolvedValue(false);
     render('disconnected', 'paper');
-    const segs = container.querySelectorAll('.sv-capsule__seg');
-    expect((segs[0] as HTMLButtonElement).disabled).toBe(false);
-    expect((segs[1] as HTMLButtonElement).disabled).toBe(false);
-    expect(segs[0].classList.contains('is-selected')).toBe(true);
-
-    await act(async () => {
-      liveButton().click();
-      await Promise.resolve();
-    });
+    expect(seg(0).disabled).toBe(false);
+    expect(seg(1).disabled).toBe(false);
+    expect(seg(2).disabled).toBe(false);
+    expect(seg(0).classList.contains('is-selected')).toBe(true);
+    await click(1);
     expect(confirmAppMock).toHaveBeenCalled();
   });
 
-  it('surfaces restart-API hint when gateway-mode returns 404 (stale uvicorn)', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ detail: 'Not Found' }), { status: 404 }),
-    );
+  it('tooltips say what each venue is', () => {
     render('paper');
-
-    await act(async () => {
-      liveButton().click();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    const error = container.querySelector('[data-testid="gateway-mode-capsule-error"]');
-    expect(error).toBeTruthy();
-    expect(error!.textContent).toMatch(/Restart Nova API/i);
+    expect(seg(0).title).toMatch(/Nova's practice account/);
+    expect(seg(0).title).toMatch(/fake money/i);
+    expect(seg(1).title).toMatch(/IBKR, real money/);
+    expect(seg(2).title).toMatch(/replay playground/);
   });
 
   it('hints at the Live segment when disconnect_hint is a port mismatch', () => {
@@ -232,7 +253,6 @@ describe('GatewayModeCapsule — intentional Gateway switch', () => {
     const hint = container.querySelector('[data-testid="gateway-mode-capsule-disconnect-hint"]');
     expect(hint).toBeTruthy();
     expect(hint!.textContent).toMatch(/switching to live/i);
-    // Slim capsule: the Live segment is the switch; no separate CTA button.
     expect(container.querySelector('[data-testid="sv-disconnect-hint-cta"]')).toBeNull();
   });
 

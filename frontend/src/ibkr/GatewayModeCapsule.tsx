@@ -1,7 +1,9 @@
 /**
- * Paper | Live | Sim segmented capsule.
- * Paper/Live persist IBKR_GATEWAY_MODE and reconnect.
- * Sim POSTs /api/sim and never places to Gateway.
+ * Paper | Live | Sim venue capsule (ADR 020 -- three venues on one feed).
+ * Every pill POSTs /api/desk/venue {venue}. Paper is Nova's practice account
+ * on the live feed and never launches a Gateway. Live also keeps ensuring the
+ * live Gateway through POST /api/ibkr/gateway-mode. Sim falls back to the
+ * legacy POST /api/sim when the venue route is missing (stale API process).
  * Never sets IBKR_LIVE_TRADING_CONFIRMED -- live spend stays a separate gate.
  * Session Record is per-tab (right-click), not a capsule mode.
  */
@@ -10,33 +12,46 @@ import { novaFetch } from '../api/novaFetch';
 import {
   API_BASE_URL,
   APP_DIALOG_SWITCH_LABEL,
+  DESK_VENUE_API_PATH,
+  DESK_VENUE_API_RESTART_HINT,
+  DESK_VENUE_CONFIRM_LIVE_TITLE,
+  DESK_VENUE_CONFIRM_PAPER_TITLE,
+  DESK_VENUE_CONFIRM_SIM_TITLE,
+  DESK_VENUE_GATEWAY_MODE_API_PATH,
+  DESK_VENUE_LIVE_TITLE,
+  DESK_VENUE_PAPER_TITLE,
+  DESK_VENUE_SIM_FALLBACK_API_PATH,
+  DESK_VENUE_SIM_TITLE,
+  DESK_VENUE_SWITCH_UNREACHABLE,
+  deskVenueSwitchFailed,
   GATEWAY_MODE_API_RESTART_HINT,
   GLOBAL_BAR_MODE_LIVE,
   GLOBAL_BAR_MODE_PAPER,
   GLOBAL_BAR_MODE_SIM,
-  STOCK_VIEW_ACCOUNT_MODE_LIVE_TITLE,
-  STOCK_VIEW_ACCOUNT_MODE_PAPER_TITLE,
-  STOCK_VIEW_ACCOUNT_MODE_SIM_TITLE,
 } from '../constants';
+import type { DeskVenue } from '../constantGroups/desk_venue';
 import { confirmApp } from '../ux';
 import { disconnectHintSwitchTarget } from './disconnectCopy';
 import type { IbkrMode } from './types';
 import { refreshIbkrStatusNow } from './useIbkrStatus';
 
-interface GatewayModeResponse {
+interface VenueResponse {
   ok?: boolean;
   error?: string | null;
   detail?: string;
+  venue?: DeskVenue;
   mode?: IbkrMode;
   launch_action?: string | null;
   message?: string | null;
   sim?: boolean;
 }
 
-export type CapsuleSelection = 'paper' | 'live' | 'sim';
+export type CapsuleSelection = DeskVenue;
 
 export interface GatewayModeCapsuleProps {
   mode: IbkrMode;
+  /** ADR 020 -- explicit venue from /api/ibkr/status; wins over the older fields. */
+  venue?: DeskVenue | null;
   gatewayMode?: 'paper' | 'live';
   accountKind?: string | null;
   intentionalMode?: 'paper' | 'live' | null;
@@ -46,19 +61,48 @@ export interface GatewayModeCapsuleProps {
   className?: string;
 }
 
-function gatewayModeErrorMessage(
-  res: Response,
-  body: GatewayModeResponse,
-  next: CapsuleSelection,
-): string {
-  if (res.status === 404) {
-    return GATEWAY_MODE_API_RESTART_HINT;
-  }
+const VENUE_TITLE: Record<DeskVenue, string> = {
+  paper: DESK_VENUE_PAPER_TITLE,
+  live: DESK_VENUE_LIVE_TITLE,
+  sim: DESK_VENUE_SIM_TITLE,
+};
+const VENUE_CONFIRM_TITLE: Record<DeskVenue, string> = {
+  paper: DESK_VENUE_CONFIRM_PAPER_TITLE,
+  live: DESK_VENUE_CONFIRM_LIVE_TITLE,
+  sim: DESK_VENUE_CONFIRM_SIM_TITLE,
+};
+const VENUE_LABEL: Record<DeskVenue, string> = {
+  paper: GLOBAL_BAR_MODE_PAPER,
+  live: GLOBAL_BAR_MODE_LIVE,
+  sim: GLOBAL_BAR_MODE_SIM,
+};
+const VENUE_ORDER: DeskVenue[] = ['paper', 'live', 'sim'];
+
+function isRouteMissing(res: Response, body: VenueResponse): boolean {
+  if (res.status === 404) return true;
   const detail = typeof body.detail === 'string' ? body.detail : '';
-  if (detail && (res.status === 404 || detail.toLowerCase().includes('not found'))) {
-    return GATEWAY_MODE_API_RESTART_HINT;
-  }
-  return body.error || detail || `Switch to ${next} failed`;
+  return Boolean(detail) && detail.toLowerCase().includes('not found');
+}
+
+function switchErrorMessage(
+  res: Response,
+  body: VenueResponse,
+  next: DeskVenue,
+  restartHint: string,
+): string {
+  if (isRouteMissing(res, body)) return restartHint;
+  const detail = typeof body.detail === 'string' ? body.detail : '';
+  return body.error || detail || deskVenueSwitchFailed(next);
+}
+
+async function postJson(path: string, payload: unknown): Promise<[Response, VenueResponse]> {
+  const res = await novaFetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const body: VenueResponse = await res.json().catch(() => ({}));
+  return [res, body];
 }
 
 export function resolveCapsuleSelection(
@@ -66,17 +110,20 @@ export function resolveCapsuleSelection(
   gatewayMode?: 'paper' | 'live',
   accountKind?: string | null,
   intentional?: 'paper' | 'live' | null,
+  venue?: DeskVenue | null,
 ): CapsuleSelection | null {
+  if (venue === 'paper' || venue === 'live' || venue === 'sim') return venue;
   if (mode === 'sim') return 'sim';
   if (intentional === 'paper' || intentional === 'live') return intentional;
+  if (mode === 'live' || mode === 'paper') return mode;
   if (accountKind === 'paper' || accountKind === 'live') return accountKind;
   if (gatewayMode === 'live' || gatewayMode === 'paper') return gatewayMode;
-  if (mode === 'live' || mode === 'paper') return mode;
   return null;
 }
 
 export function GatewayModeCapsule({
   mode,
+  venue = null,
   gatewayMode,
   accountKind = null,
   intentionalMode = null,
@@ -87,51 +134,49 @@ export function GatewayModeCapsule({
 }: GatewayModeCapsuleProps) {
   const [pending, setPending] = useState<CapsuleSelection | null>(null);
   const selected =
-    pending ?? resolveCapsuleSelection(mode, gatewayMode, accountKind, intentionalMode);
+    pending ?? resolveCapsuleSelection(mode, gatewayMode, accountKind, intentionalMode, venue);
   const [switching, setSwitching] = useState<CapsuleSelection | null>(null);
   const [switchError, setSwitchError] = useState<string | null>(null);
   const hintTarget = disconnectHintSwitchTarget(disconnectHint);
 
-  async function requestSim() {
-    if (selected === 'sim' || switching) return;
-    const confirmed = await confirmApp({
-      title: 'Switch to Sim practice',
-      message: STOCK_VIEW_ACCOUNT_MODE_SIM_TITLE,
-      confirmLabel: APP_DIALOG_SWITCH_LABEL,
-      tone: 'warning',
-    });
-    if (!confirmed) return;
-    setPending('sim');
-    setSwitching('sim');
-    setSwitchError(null);
-    try {
-      const res = await novaFetch(`${API_BASE_URL}/api/sim`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: true }),
-      });
-      const body: GatewayModeResponse = await res.json().catch(() => ({
-        ok: false,
-        error: `Switch to Sim failed`,
-      }));
-      if (!res.ok || body.sim !== true) {
-        setSwitchError(gatewayModeErrorMessage(res, body, 'sim'));
-      }
-    } catch {
-      setSwitchError('Could not reach Nova backend to switch to Sim');
-    } finally {
-      setSwitching(null);
-      setPending(null);
-      refreshIbkrStatusNow();
+  /** Legacy Sim toggle for an API process that predates /api/desk/venue. */
+  async function legacySimFallback(): Promise<string | null> {
+    const [res, body] = await postJson(DESK_VENUE_SIM_FALLBACK_API_PATH, { enabled: true });
+    if (!res.ok || body.sim !== true) {
+      return switchErrorMessage(res, body, 'sim', DESK_VENUE_API_RESTART_HINT);
     }
+    return null;
   }
 
-  async function requestMode(next: 'paper' | 'live') {
+  /** Live keeps ensuring the live Gateway; its message names IBC's launch action. */
+  async function ensureLiveGateway(): Promise<string | null> {
+    const [res, body] = await postJson(DESK_VENUE_GATEWAY_MODE_API_PATH, { mode: 'live' });
+    if (!res.ok || !body.ok) {
+      return switchErrorMessage(res, body, 'live', GATEWAY_MODE_API_RESTART_HINT);
+    }
+    if (body.message && body.launch_action && body.launch_action !== 'noop') {
+      return body.message;
+    }
+    return null;
+  }
+
+  async function switchVenue(next: DeskVenue): Promise<string | null> {
+    const [res, body] = await postJson(DESK_VENUE_API_PATH, { venue: next });
+    if (isRouteMissing(res, body)) {
+      if (next === 'sim') return legacySimFallback();
+      return DESK_VENUE_API_RESTART_HINT;
+    }
+    if (!res.ok || body.venue !== next) {
+      return switchErrorMessage(res, body, next, DESK_VENUE_API_RESTART_HINT);
+    }
+    return next === 'live' ? ensureLiveGateway() : null;
+  }
+
+  async function requestVenue(next: DeskVenue) {
     if (next === selected || switching) return;
     const confirmed = await confirmApp({
-      title: next === 'live' ? 'Switch to Live Gateway' : 'Switch to Paper Gateway',
-      message:
-        next === 'live' ? STOCK_VIEW_ACCOUNT_MODE_LIVE_TITLE : STOCK_VIEW_ACCOUNT_MODE_PAPER_TITLE,
+      title: VENUE_CONFIRM_TITLE[next],
+      message: VENUE_TITLE[next],
       confirmLabel: APP_DIALOG_SWITCH_LABEL,
       tone: next === 'live' ? 'danger' : 'warning',
     });
@@ -141,34 +186,9 @@ export function GatewayModeCapsule({
     setSwitching(next);
     setSwitchError(null);
     try {
-      if (selected === 'sim' || mode === 'sim') {
-        const simRes = await novaFetch(`${API_BASE_URL}/api/sim`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ enabled: false }),
-        });
-        if (!simRes.ok) {
-          const simBody: GatewayModeResponse = await simRes.json().catch(() => ({}));
-          setSwitchError(gatewayModeErrorMessage(simRes, simBody, next));
-          return;
-        }
-      }
-      const res = await novaFetch(`${API_BASE_URL}/api/ibkr/gateway-mode`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: next }),
-      });
-      const body: GatewayModeResponse = await res.json().catch(() => ({
-        ok: false,
-        error: res.status === 404 ? GATEWAY_MODE_API_RESTART_HINT : `Switch to ${next} failed`,
-      }));
-      if (!res.ok || !body.ok) {
-        setSwitchError(gatewayModeErrorMessage(res, body, next));
-      } else if (body.message && body.launch_action && body.launch_action !== 'noop') {
-        setSwitchError(body.message);
-      }
+      setSwitchError(await switchVenue(next));
     } catch {
-      setSwitchError('Could not reach Nova backend to switch Gateway mode');
+      setSwitchError(DESK_VENUE_SWITCH_UNREACHABLE);
     } finally {
       setSwitching(null);
       setPending(null);
@@ -179,56 +199,27 @@ export function GatewayModeCapsule({
   return (
     <div className={`gw-mode-capsule-wrap${className ? ` ${className}` : ''}`}>
       <div
-        className={`gw-mode-capsule sv-capsule${
-          selected === 'paper'
-            ? ' is-paper'
-            : selected === 'live'
-              ? ' is-live'
-              : selected === 'sim'
-                ? ' is-sim'
-                : ''
-        }`}
+        className={`gw-mode-capsule sv-capsule${selected ? ` is-${selected}` : ''}`}
         role="group"
-        aria-label="Account mode"
+        aria-label="Desk venue"
         data-testid={testId}
       >
-        <button
-          type="button"
-          className={`gw-mode-capsule__seg sv-capsule__seg${
-            selected === 'paper' ? ' is-selected is-paper' : ''
-          }`}
-          aria-pressed={selected === 'paper'}
-          disabled={switching !== null}
-          title={STOCK_VIEW_ACCOUNT_MODE_PAPER_TITLE}
-          onClick={() => requestMode('paper')}
-        >
-          {switching === 'paper' ? '…' : GLOBAL_BAR_MODE_PAPER}
-        </button>
-        <button
-          type="button"
-          className={`gw-mode-capsule__seg sv-capsule__seg${
-            selected === 'live' ? ' is-selected is-live' : ''
-          }`}
-          aria-pressed={selected === 'live'}
-          disabled={switching !== null}
-          title={STOCK_VIEW_ACCOUNT_MODE_LIVE_TITLE}
-          onClick={() => requestMode('live')}
-        >
-          {switching === 'live' ? '…' : GLOBAL_BAR_MODE_LIVE}
-        </button>
-        <button
-          type="button"
-          className={`gw-mode-capsule__seg sv-capsule__seg${
-            selected === 'sim' ? ' is-selected is-sim' : ''
-          }`}
-          aria-pressed={selected === 'sim'}
-          disabled={switching !== null}
-          title={STOCK_VIEW_ACCOUNT_MODE_SIM_TITLE}
-          data-testid={`${testId}-sim`}
-          onClick={() => requestSim()}
-        >
-          {switching === 'sim' ? '…' : GLOBAL_BAR_MODE_SIM}
-        </button>
+        {VENUE_ORDER.map(v => (
+          <button
+            key={v}
+            type="button"
+            className={`gw-mode-capsule__seg sv-capsule__seg${
+              selected === v ? ` is-selected is-${v}` : ''
+            }`}
+            aria-pressed={selected === v}
+            disabled={switching !== null}
+            title={VENUE_TITLE[v]}
+            data-testid={`${testId}-${v}`}
+            onClick={() => void requestVenue(v)}
+          >
+            {switching === v ? '…' : VENUE_LABEL[v]}
+          </button>
+        ))}
       </div>
       {switchError ? (
         <div

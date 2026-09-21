@@ -7,6 +7,12 @@ import {
   type ChartOverlayId,
   type ChartOscillatorId,
 } from './market_ui';
+import {
+  DESK_VENUE_LIVE_TITLE,
+  DESK_VENUE_PAPER_BANNER_TEXT,
+  DESK_VENUE_PAPER_TITLE,
+  DESK_VENUE_SIM_TITLE,
+} from './desk_venue';
 
 export const CHART_INDICATORS: { id: ChartIndicatorId; label: string }[] = [
   { id: 'emas', label: 'EMAs' },
@@ -363,19 +369,17 @@ export const STOCK_VIEW_SYMBOL_EDIT_ARIA = 'Change symbol';
 /** Max length for ticker typed into the Stock View symbol chip. */
 export const STOCK_VIEW_SYMBOL_MAX_LEN = 12;
 
-/** Paper / Live account-mode capsule labels (GlobalAppBar GatewayModeCapsule).
- * Clicking these switches which IBKR Gateway port Nova targets and
- * reconnects (persisted to IBKR_GATEWAY_MODE) -- see POST /api/ibkr/gateway-mode.
- * Orders stay locked until IBKR_LIVE_TRADING_CONFIRMED is armed separately. */
+/** Paper / Live / Sim venue capsule labels (GlobalAppBar GatewayModeCapsule).
+ * Clicking these switches the desk venue (POST /api/desk/venue, ADR 020).
+ * Paper is Nova's practice account on the live feed -- it never launches a
+ * Gateway. Live also ensures the live Gateway (POST /api/ibkr/gateway-mode).
+ * Titles live in constantGroups/desk_venue.ts; these aliases keep old imports. */
 export const STOCK_VIEW_ACCOUNT_MODE_PAPER = 'Paper';
 export const STOCK_VIEW_ACCOUNT_MODE_LIVE = 'Live';
-export const STOCK_VIEW_ACCOUNT_MODE_PAPER_TITLE =
-  'Switch Nova to the paper Gateway (port 4002). If paper is already logged in, Nova only reconnects and does not close live. First paper login of the day may open a second Gateway window.';
-export const STOCK_VIEW_ACCOUNT_MODE_LIVE_TITLE =
-  'Switch Nova to the live Gateway (port 4001). If live is already logged in, Nova only reconnects -- no 2FA. 2FA is only if live is not running. Live spend stays locked until IBKR_LIVE_TRADING_CONFIRMED is set separately.';
+export const STOCK_VIEW_ACCOUNT_MODE_PAPER_TITLE = DESK_VENUE_PAPER_TITLE;
+export const STOCK_VIEW_ACCOUNT_MODE_LIVE_TITLE = DESK_VENUE_LIVE_TITLE;
 export const STOCK_VIEW_ACCOUNT_MODE_SIM = 'Sim';
-export const STOCK_VIEW_ACCOUNT_MODE_SIM_TITLE =
-  'Switch Nova to Sim practice. Replayed real sessions and local estimated fills. No IBKR Gateway places. Not paper. Not live.';
+export const STOCK_VIEW_ACCOUNT_MODE_SIM_TITLE = DESK_VENUE_SIM_TITLE;
 
 // ── Full ticker trading page (double-click / Full view) ───────────────────────
 /** Right-rail width (px) on Stock View -- charts keep the rest of the viewport. */
@@ -622,9 +626,8 @@ export const TICKER_TRADE_LOCK_ICON_ARIA_LOCKED = 'Unlock trading';
 export const TICKER_TRADE_PLACE_ORDER_LABEL = 'Place an order';
 /** Primary CTA after PIN unlock when IBKR Gateway mode is paper. */
 export const TICKER_TRADE_PLACE_PAPER_ORDER_LABEL = 'Place Paper order';
-/** Hot strip above Stock View / Trading when Gateway mode is paper. */
-export const PAPER_TRADING_BANNER_TEXT =
-  'PAPER TRADING — orders go to your IBKR paper account, not live money.';
+/** Hot strip above Stock View / Trading while the venue is Paper (ADR 020). */
+export const PAPER_TRADING_BANNER_TEXT = DESK_VENUE_PAPER_BANNER_TEXT;
 /**
  * Local UI unlock PIN for the Trade ticket (not a server secret).
  * Correct PIN switches the primary button to Place an order for this browser session.

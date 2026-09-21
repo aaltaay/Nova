@@ -62,7 +62,7 @@ export function ExecutorPanel({
     void confirmApp({
       title: 'Raise to Auto Paper?',
       message:
-        `${status.disclosure}\n\nBUY decisions will PLACE paper brackets automatically — no Approve step. Only available on paper Gateway with orders enabled.`,
+        `${status.disclosure}\n\nBUY decisions will PLACE paper brackets automatically — no Approve step. Only available on the Paper venue (Nova practice account) with orders enabled.`,
       confirmLabel: 'Raise to Auto Paper',
       tone: 'warning',
     }).then(ok => {
@@ -144,7 +144,7 @@ export function ExecutorPanel({
     <div className="executor-panel">
       <div className="watchlist-description">
         Control mode ladder (P5): <strong>signal</strong> (display), <strong>confirm</strong> (stage + Approve),
-        or <strong>auto_paper</strong> (places without Approve on paper Gateway).
+        or <strong>auto_paper</strong> (places without Approve on the Paper venue).
         auto_live stays locked. Mode resets to signal on every API restart.
       </div>
 
@@ -182,7 +182,7 @@ export function ExecutorPanel({
               title={
                 paperGateway
                   ? 'Places paper brackets automatically — no Approve'
-                  : 'Requires IBKR connected on paper Gateway'
+                  : 'Requires the Paper venue (Nova practice account) with the live feed connected'
               }
               onClick={handleAutoPaper}
             >

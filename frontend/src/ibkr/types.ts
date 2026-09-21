@@ -1,6 +1,7 @@
 // Shared TypeScript types for the IBKR trading module.
 // Mirrors the JSON shapes returned by backend/routes/trading.py.
 
+/** `paper` is Nova's practice account on the live feed, never the IBKR paper Gateway (ADR 020). */
 export type IbkrMode = 'paper' | 'live' | 'sim' | 'disconnected';
 
 export interface IbkrStatus {
@@ -17,6 +18,8 @@ export interface IbkrStatus {
   /** disconnected | connecting | synchronizing | ready | degraded (ibkr/session_state.py). */
   session_state?: string;
   mode: IbkrMode;
+  /** ADR 020 desk venue -- the same value as `mode` while connected, stated explicitly. */
+  venue?: 'live' | 'paper' | 'sim';
   /** True while the in-app Sim practice toggle is on. */
   sim?: boolean;
   capture?: boolean;

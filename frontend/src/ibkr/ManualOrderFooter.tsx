@@ -73,7 +73,7 @@ export function ManualOrderFooter({
         : quantityLocked
           ? `Quantity locked to ${TICKER_TRADE_FORCE_QTY} share (temporary safety)`
           : isPaper
-            ? 'Review and place this order on the IBKR paper account'
+            ? "Review and place this order on Nova's practice account (fake money)"
             : 'Review and place this order';
 
   return (

@@ -2,19 +2,25 @@
  * IBKR Gateway login / reconnect UX copy and tunables.
  * Feature-local so market_ui.ts does not keep growing past its size floor.
  */
+import {
+  DESK_VENUE_LEGACY_PAPER_GATEWAY_LABEL,
+  DESK_VENUE_LEGACY_PAPER_GATEWAY_TITLE,
+} from '../constantGroups/desk_venue';
 
 /** Loud global banner (all scanner tabs) shown while discovery=ibkr and Gateway is down. */
 export const GATEWAY_BANNER_TITLE = 'ACTION REQUIRED -- IB Gateway login';
 export const GATEWAY_BANNER_CTA_LABEL = 'Open IB Gateway';
 export const GATEWAY_BANNER_CTA_BUSY_LABEL = 'Opening...';
-export const PREREQ_OPEN_PAPER_LABEL = 'Open paper Gateway';
+/** ADR 020: the IBKR paper Gateway is legacy, never the Paper venue. */
+export const PREREQ_OPEN_PAPER_LABEL = DESK_VENUE_LEGACY_PAPER_GATEWAY_LABEL;
+export const PREREQ_OPEN_PAPER_TITLE = DESK_VENUE_LEGACY_PAPER_GATEWAY_TITLE;
 export const PREREQ_OPEN_LIVE_LABEL = 'Open live Gateway';
 export const PREREQ_CLOSE_LABEL = 'X';
 export const PREREQ_CLOSE_ARIA = 'Close checklist';
 export const HEADER_DESK_ROLE = 'Desk';
 export const HEADER_DESK_API_DOWN_LABEL = 'API down';
 export const PREREQ_LEAD_MANUAL =
-  'Pick paper (4002) or live (4001). Nova switches to that door and starts IBC. Approve IBKR Mobile 2FA if prompted.';
+  'Open live (4001) starts the IBC login for the live Gateway that feeds every venue. IBKR paper (4002) is legacy -- not the header Paper venue. Approve IBKR Mobile 2FA if prompted.';
 export const PREREQ_LEAD_API =
   'Nova API is down. Start the API before trusting live data or placing orders.';
 
