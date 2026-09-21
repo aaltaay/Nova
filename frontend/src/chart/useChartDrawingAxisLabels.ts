@@ -21,7 +21,12 @@ import { drawingsKey, getDrawings, subscribeDrawings } from './chartDrawingsStor
 interface Args {
   candleSeriesRef: React.RefObject<ISeriesApi<'Candlestick'> | null>;
   symbol: string;
-  /** Bumps when the pane repaints its series, which discards its price lines. */
+  /**
+   * Re-check trigger only (the series lives in a ref, so its creation re-renders
+   * nothing). It changes on every new bar -- it is NOT a "series was rebuilt"
+   * signal, and must never reset the handles: the price lines survive a repaint,
+   * so forgetting them there drew a second chip beside the first.
+   */
   seriesRevision?: number;
 }
 
@@ -29,6 +34,8 @@ export function useChartDrawingAxisLabels({ candleSeriesRef, symbol, seriesRevis
   const [storeTick, setStoreTick] = useState(0);
   const linesRef = useRef(new Map<string, IPriceLine>());
   const levelsRef = useRef(new Map<string, DrawingAxisLevel>());
+  /** The series those handles were created on -- the only thing that invalidates them. */
+  const ownerRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
 
   const key = drawingsKey(symbol);
   useEffect(() => {
@@ -36,16 +43,16 @@ export function useChartDrawingAxisLabels({ candleSeriesRef, symbol, seriesRevis
     return subscribeDrawings(key, () => setStoreTick(tick => tick + 1));
   }, [key]);
 
-  // A new series owns no price lines, so drop the stale handles rather than
-  // calling removePriceLine on a series that never had them.
-  useEffect(() => {
-    linesRef.current = new Map();
-    levelsRef.current = new Map();
-  }, [seriesRevision, symbol]);
-
   useEffect(() => {
     const series = candleSeriesRef.current;
     if (!series) return;
+    if (ownerRef.current !== series) {
+      // The chart was rebuilt: the old series took its price lines with it, so
+      // drop the handles instead of removing lines from a series that is gone.
+      linesRef.current = new Map();
+      levelsRef.current = new Map();
+      ownerRef.current = series;
+    }
     const next = key ? drawingAxisLevels(getDrawings(key)) : new Map<string, DrawingAxisLevel>();
     const { added, changed, removed } = diffAxisLevels(levelsRef.current, next);
     try {
@@ -69,7 +76,7 @@ export function useChartDrawingAxisLabels({ candleSeriesRef, symbol, seriesRevis
   }, [candleSeriesRef, key, storeTick, seriesRevision]);
 
   useEffect(() => () => {
-    const series = candleSeriesRef.current;
+    const series = ownerRef.current;
     if (series) {
       for (const line of linesRef.current.values()) {
         try { series.removePriceLine(line); } catch { /* already disposed */ }
@@ -77,5 +84,6 @@ export function useChartDrawingAxisLabels({ candleSeriesRef, symbol, seriesRevis
     }
     linesRef.current = new Map();
     levelsRef.current = new Map();
+    ownerRef.current = null;
   }, [candleSeriesRef]);
 }
