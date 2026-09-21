@@ -153,6 +153,8 @@ async def send_practice_broker(
         outside_rth=True,
         protective=protective,
         source=cmd.source,
+        tif=cmd.tif,
+        short_entry=bool(cmd.short_entry),
     )
     return await _receipt_from_raw(cmd, execution_id, timings, raw, mode)
 
@@ -185,6 +187,12 @@ async def _receipt_from_raw(
     receipt = await finish_place(
         execution_id, cmd, timings, raw, watch, mode, wait_ack=False,
     )
+    if not receipt.ok and raw.get("reason_code"):
+        # The venue refused in its own words (PRACTICE_NO_SHORTS,
+        # PRACTICE_BUYING_POWER, TIF_INVALID, SIM_*): keep that code on the
+        # receipt and the store instead of the generic BROKER_REJECT.
+        receipt.reason_code = str(raw["reason_code"])
+        store.update_stages(execution_id, reason_code=receipt.reason_code)
     if receipt.ok and not receipt.broker_status:
         receipt.broker_status = raw.get("broker_status")
         if receipt.broker_status == "Filled" and timings.filled_ns is None:

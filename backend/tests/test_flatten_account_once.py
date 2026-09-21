@@ -132,3 +132,79 @@ async def test_place_close_after_hours_without_mark_fails_loud(monkeypatch):
     assert result["ok"] is False
     assert result["reason_code"] == "FLATTEN_EH_NO_MARK"
     assert called["execute"] is False
+
+
+# ── practice venues (ADR 020): the ledger is local and closes at the last mark ──
+
+@pytest.fixture
+def practice_venue():
+    from sim.mode import reset_for_tests, set_venue
+
+    reset_for_tests()
+    set_venue("paper")
+    yield
+    reset_for_tests()
+
+
+@pytest.mark.asyncio
+async def test_flatten_on_a_practice_venue_proceeds_with_the_gateway_dark(monkeypatch, practice_venue):
+    from bot import flatten as flatten_mod
+
+    order: list[str] = []
+
+    async def fake_cancel() -> list[dict]:
+        order.append("cancel")
+        return []
+
+    async def fake_place(symbol: str, qty: float, side: str) -> dict:
+        order.append(f"place:{symbol}:{side}:{qty}")
+        return {"ok": True, "order_id": 3}
+
+    monkeypatch.setattr(flatten_mod, "_cancel_working", fake_cancel)
+    monkeypatch.setattr(flatten_mod, "_place_close", fake_place)
+    monkeypatch.setattr("ibkr.client.is_connected", lambda: False)
+    monkeypatch.setattr("ibkr.account.get_positions", lambda: [{"symbol": "IMCC", "qty": 7}])
+
+    result = await flatten_mod.flatten_account_once()
+
+    assert result["ok"] is True
+    assert order == ["cancel", "place:IMCC:SELL:7.0"]
+
+
+@pytest.mark.asyncio
+async def test_flatten_on_live_still_refuses_with_the_gateway_dark(monkeypatch):
+    from bot import flatten as flatten_mod
+    from sim.mode import reset_for_tests, set_venue
+
+    reset_for_tests()
+    set_venue("live")
+    monkeypatch.setattr("ibkr.client.is_connected", lambda: False)
+    try:
+        result = await flatten_mod.flatten_account_once()
+    finally:
+        reset_for_tests()
+    assert result["ok"] is False and "not connected" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_place_close_on_a_practice_venue_is_a_market_close_at_any_hour(monkeypatch, practice_venue):
+    from bot import flatten as flatten_mod
+    from execution import flatten_exit as fe
+
+    captured: dict = {}
+
+    async def fake_execute(cmd, wait_ack=False):
+        captured["cmd"] = cmd
+        return _Receipt()
+
+    def no_marks(_symbol):
+        raise AssertionError("a practice close never asks the live feed for a mark")
+
+    monkeypatch.setattr(fe, "flatten_needs_extended_hours", lambda now=None: True)  # a weekend
+    monkeypatch.setattr(fe, "resolve_flatten_marks", no_marks)
+    monkeypatch.setattr("execution.service.execute", fake_execute)
+
+    result = await flatten_mod._place_close("IMCC", 7, "SELL")
+    assert result["ok"] is True
+    cmd = captured["cmd"]
+    assert (cmd.order_type, cmd.outside_rth, cmd.limit_price, cmd.source) == ("MKT", False, None, "flatten")

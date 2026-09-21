@@ -8,7 +8,8 @@ Nothing here is invented -- a value without a named source does not belong.
 """
 from __future__ import annotations
 
-from constants_sim import SIM_STARTING_CASH
+from constants_ibkr import IBKR_ORDER_TIF_DEFAULT, IBKR_ORDER_TIFS
+from constants_sim import SIM_SESSION_CLOSE_HOUR, SIM_STARTING_CASH
 
 # ---------------------------------------------------------------------------
 # Account identity
@@ -123,3 +124,36 @@ PRACTICE_BUYING_POWER_CODE = "PRACTICE_BUYING_POWER"
 PRACTICE_BUYING_POWER_REASON = (
     "Order cost exceeds the practice account's buying power"
 )
+
+# ---------------------------------------------------------------------------
+# Time-in-force (operator decision, 2026-09-21)
+# ---------------------------------------------------------------------------
+# The practice venues honour the two TIFs the execution command carries (#91,
+# constants_ibkr.IBKR_ORDER_TIFS): DAY, the default, and GTC. A DAY order
+# expires at the close of its session -- the desk's session window ends at
+# constants_sim.SIM_SESSION_CLOSE_HOUR (20:00 ET) on Paper; on Sim it is the
+# replayed session's close, whatever window the operator loaded -- as a ledger
+# event whose row reads ``Expired``. A DAY order placed at or after the close
+# works the next session, IBKR's own rule for an after-close DAY order. GTC
+# carries no expiry and persists across days and restarts (the Paper ledger
+# already does).
+PRACTICE_TIF_DAY = IBKR_ORDER_TIF_DEFAULT  # "DAY"
+PRACTICE_TIF_GTC = "GTC"
+PRACTICE_TIFS = IBKR_ORDER_TIFS
+PRACTICE_SESSION_CLOSE_HOUR_ET = SIM_SESSION_CLOSE_HOUR  # 20
+PRACTICE_ORDER_STATUS_EXPIRED = "Expired"
+PRACTICE_TIF_EXPIRED_CODE = "PRACTICE_TIF_EXPIRED"
+PRACTICE_TIF_EXPIRED_REASON = "DAY order expired at the session close"
+# A TIF outside PRACTICE_TIFS is refused with the execution door's own code so
+# one word reaches the blotter whichever gate caught it (execution/validate.py).
+PRACTICE_TIF_INVALID_CODE = "TIF_INVALID"
+
+# ---------------------------------------------------------------------------
+# No shorts (operator decision, 2026-09-21)
+# ---------------------------------------------------------------------------
+# A SELL on a practice venue is only ever risk-reducing, exactly as Invariant
+# #7 keeps it on Live: a SELL for more than the held quantity, or any order
+# carrying ``short_entry``, is an opening short and is refused at admission
+# (execution/practice_checks.py) and again in the broker (practice/broker.py).
+PRACTICE_NO_SHORTS_CODE = "PRACTICE_NO_SHORTS"
+PRACTICE_NO_SHORTS_REASON = "Nova does not support short entries yet"

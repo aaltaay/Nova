@@ -8,7 +8,10 @@ unchanged (the loaded historical download or capture at the playhead).
 the local archive (``l2.tape``) inside the same window, the live top of book
 from ``ibkr.depth.state``, and a refusal (``PRACTICE_NO_LIVE_PRINT``) when
 neither a fresh last nor a recent print exists. A practice fill is never a
-guess: an absent price is stated, not filled in.
+guess: an absent price is stated, not filled in. Each reference also names
+its session's close (``session_close_ts``) so a DAY order knows when it
+expires (``practice.order_rules``): the replayed window's end on Sim, the
+desk's ``PRACTICE_SESSION_CLOSE_HOUR_ET`` on Paper.
 """
 from __future__ import annotations
 
@@ -65,6 +68,14 @@ class ReplayReference:
         active = practice.loaded()
         return active.key if active is not None else None
 
+    def session_close_ts(self, ts: float) -> float:
+        """The replayed session's close: the session clock's window end for ``ts``."""
+        from sim import session_clock
+
+        from practice.clock import at
+
+        return session_clock.session_bounds_on(at(ts))[1].timestamp()
+
 
 def _price(value: Any) -> float | None:
     try:
@@ -91,6 +102,12 @@ class LiveReference:
 
     def now_ts(self) -> float:
         return time.time()
+
+    def session_close_ts(self, ts: float) -> float:
+        """The desk's session ends at ``PRACTICE_SESSION_CLOSE_HOUR_ET``; at or after it, the next day's."""
+        from practice.order_rules import next_close_after
+
+        return next_close_after(ts)
 
     def fresh_last(self, symbol: str) -> float | None:
         """The L1 last, only while its stream ticked within the freshness window."""

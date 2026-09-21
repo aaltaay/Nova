@@ -5,8 +5,10 @@ The Sim feed matches practice orders against replay prints
 venue against the live tape. Each pass rolls the practice day if the clock
 crossed the boundary, holds the tape line of every symbol with a resting
 order (``practice.tape_hold``) and releases the others, then hands the prints
-since the last pass to ``PracticeBroker.try_fill_working``. Registered from
-``app_runtime_tasks`` as ``practice.matcher``.
+since the last pass to ``PracticeBroker.try_fill_working`` and finally expires
+every DAY order whose session has closed (``PracticeBroker.expire_due``) --
+after the match, so a print at the close itself still fills and a print past
+it never does. Registered from ``app_runtime_tasks`` as ``practice.matcher``.
 """
 from __future__ import annotations
 
@@ -63,6 +65,8 @@ async def pass_once(broker: Any = None, *, now: float | None = None) -> list[dic
         prints = await asyncio.to_thread(broker.reference.prints_between, sym, after, now_ts)
         if prints:
             filled.extend(broker.try_fill_working(sym, prints))
+    for row in broker.expire_due(now_ts):
+        logger.info("PRACTICE paper: DAY order %s expired at the session close", row.get("order_id"))
     return filled
 
 

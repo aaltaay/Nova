@@ -355,7 +355,13 @@ and `/api/ibkr/positions` answer from it on the practice venues;
 as a recorded print. Refusals: `SIM_NO_REPLAY`, `SIM_SYMBOL_MISMATCH`,
 `SIM_NO_TRADES`, `SIM_NO_PRICE`, `SIM_ORDER_TYPE` (Sim),
 `PRACTICE_NO_LIVE_PRINT` (Paper: no fresh last and no recent tape print --
-never a guess) and `PRACTICE_BUYING_POWER` (both). Recorded prints carry
+never a guess), `PRACTICE_BUYING_POWER` (both), `PRACTICE_NO_SHORTS` (both:
+a SELL is only ever risk-reducing -- a SELL beyond the held quantity or any
+`short_entry` is refused "Nova does not support short entries yet") and
+`PRACTICE_TIF_EXPIRED` (both: a `DAY` order expires at its session's close --
+20:00 ET on Paper, the replayed window's end on Sim -- as an `expired` ledger
+event with status `Expired`; `GTC` persists across days and restarts; the row
+and its `placed` event carry `tif` and `expires_ts`). Recorded prints carry
 `ts_source: "exchange" | "receive"` so a substituted arrival time is never read
 as the exchange's own. Rules and biases: `architecture/practice-fills.md`;
 fees and margin: `architecture/practice-account.md`.

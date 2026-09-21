@@ -52,7 +52,33 @@ and sum into `commissions_today`. Realized P&L is net of them. Buying power
 while `qty * reference_price <= buying_power` for opening trades; closing
 trades are always admitted.
 
-## 3. Known gaps Nova keeps
+## 3. Time-in-force and no shorts (operator decisions, 2026-09-21)
+
+**Time-in-force.** The practice venues honour the two TIFs the execution
+command carries (#91): `DAY`, the default, and `GTC`. A `DAY` order expires
+at the close of its session -- the desk's session window ends at
+`SIM_SESSION_CLOSE_HOUR` (20:00 ET) on Paper; on Sim it is the replayed
+session's close, whatever window the operator loaded -- as an `expired` ledger
+event whose row reads `Expired` with `reason_code: PRACTICE_TIF_EXPIRED`. A
+print after the close never fills a `DAY` order, even when the matcher sees it
+in the same pass. The event is stamped at the close itself, so a Sim scrub
+back before the close restores the order and a Paper pass after a restart
+records when it really expired. A `DAY` order placed at or after the close
+works the next session (IBKR's own rule). `GTC` carries no expiry and persists
+across days and restarts. The Paper matcher (`practice/matcher.py`) and the
+Sim feed tick (`sim/feed.py`) both expire due orders after matching prints;
+the row and its `placed` event carry `tif` and `expires_ts`. Rules:
+`practice/order_rules.py`.
+
+**No shorts.** A SELL on a practice venue is only ever risk-reducing, exactly
+as Invariant #7 keeps it on Live: a SELL for more than the held quantity, or
+any order carrying `short_entry`, is an opening short and is refused
+`PRACTICE_NO_SHORTS` ("Nova does not support short entries yet") -- at
+admission in the execution door (`execution/practice_checks.py`) and again in
+`PracticeBroker.place`, on every source. Nothing is inferred from side plus a
+flat position beyond that arithmetic.
+
+## 4. Known gaps Nova keeps
 
 Named so nobody reads a practice P&L as a live one:
 

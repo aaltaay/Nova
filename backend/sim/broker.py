@@ -50,12 +50,15 @@ def place(
     protective: bool = False,
     source: str = "manual",
     bot_id: str | None = None,
+    tif: str | None = None,
+    short_entry: bool = False,
 ) -> dict[str, Any]:
     """Place a practice order on the loaded replay (see ``PracticeBroker.place``)."""
     return _sim().place(
         symbol, side, qty, order_type,
         limit_price=limit_price, stop_price=stop_price, outside_rth=outside_rth,
         order_id=order_id, protective=protective, source=source, bot_id=bot_id,
+        tif=tif, short_entry=short_entry,
     )
 
 
@@ -94,6 +97,11 @@ def account_summary() -> dict[str, Any]:
 def try_fill_working(symbol: str, prints: list[tuple[float, float]]) -> list[dict[str, Any]]:
     """Match resting orders for ``symbol`` against later replay prints, oldest first."""
     return _sim().try_fill_working(symbol, prints)
+
+
+def expire_due(now: float | None = None) -> list[dict[str, Any]]:
+    """Expire DAY orders once the playhead reaches the replayed session's close (``PRACTICE_TIF_EXPIRED``)."""
+    return _sim().expire_due(now)
 
 
 def working_symbols() -> list[str]:

@@ -7,8 +7,10 @@ on the persistent Paper ledger under the operator cache. Fills follow
 ``fill_basis``); buying power is enforced at admission and again when a
 resting order fills (the order is cancelled ``PRACTICE_BUYING_POWER`` if power
 ran out); every row keeps ``source: "nova"`` (the blotter's ownership key) and
-adds ``order_source`` (the ADR 007 command source) and ``bot_id``.
-``sim.broker`` is a facade over the Sim instance.
+adds ``order_source`` (the ADR 007 command source) and ``bot_id``. Per-order
+rules -- a DAY order expires at its session close, a SELL is only ever
+risk-reducing -- live in ``practice.order_rules`` (operator decisions,
+2026-09-21). ``sim.broker`` is a facade over the Sim instance.
 """
 from __future__ import annotations
 
@@ -23,39 +25,25 @@ from constants_practice import (
     PRACTICE_ACCOUNT_TYPE_SIM,
     PRACTICE_BUYING_POWER_CODE,
     PRACTICE_BUYING_POWER_REASON,
+    PRACTICE_NO_SHORTS_CODE,
+    PRACTICE_NO_SHORTS_REASON,
     PRACTICE_STARTING_CASH,
+    PRACTICE_TIF_INVALID_CODE,
     PRACTICE_VENUE_PAPER,
     PRACTICE_VENUE_SIM,
 )
 from constants_sim import SIM_ORDER_TYPE_CODE
+from practice import order_rules
 from practice.fees import for_fill
 from practice.ledger import Ledger, iso_utc
 from practice.reference import LiveReference, MarketReference, ReplayReference
+from practice.watch import notify_watch
 from sim import fill_model
 
 logger = logging.getLogger(__name__)
 
 ORDER_TYPE_REASON = "Practice orders support MKT, LMT and STP"
 _EPS = 1e-9
-
-
-def notify_watch(order_id: int, row: dict[str, Any]) -> None:
-    """Tell the execution telemetry watch what the practice venue decided."""
-    try:
-        from execution import telemetry
-    except Exception:
-        logger.debug("PRACTICE: telemetry import failed", exc_info=True)
-        return
-    watch = telemetry.watch_order(int(order_id))
-    avg = row.get("avg_fill_price")
-    watch.note_status(
-        str(row.get("status") or "Submitted"),
-        filled=float(row.get("filled_qty") or 0),
-        remaining=float(row.get("remaining_qty") or 0),
-        average_fill_price=float(avg) if avg else None,
-        perm_id=int(order_id),
-        callback_perf_ns=time.perf_counter_ns(),
-    )
 
 
 class PracticeBroker:
@@ -88,12 +76,17 @@ class PracticeBroker:
         protective: bool = False,
         source: str = "manual",
         bot_id: str | None = None,
+        tif: str | None = None,
+        short_entry: bool = False,
     ) -> dict[str, Any]:
         """Place a practice order against the venue's reference.
 
         ``protective`` (flatten / kill) may close a held position whose
         reference is gone: a MKT order then fills at the last known mark, so
-        the practice desk can always get flat (ADR 018).
+        the practice desk can always get flat (ADR 018). ``tif`` is DAY (the
+        default; expires at the session close) or GTC. An opening short --
+        a SELL beyond the held quantity, or ``short_entry`` -- is refused on
+        every source (``practice.order_rules``).
         """
         del outside_rth  # practice orders are always live; there is no session gate
         sym = (symbol or "").strip().upper()
@@ -102,10 +95,17 @@ class PracticeBroker:
         qty_f = float(qty)
         if typ not in fill_model.SUPPORTED_ORDER_TYPES:
             return self._refused(ORDER_TYPE_REASON, SIM_ORDER_TYPE_CODE)
+        tif_u = order_rules.normalize_tif(tif)
+        if tif_u is None:
+            return self._refused(order_rules.TIF_REASON, PRACTICE_TIF_INVALID_CODE)
         ok, reason, code = self.reference.admission(sym)
         at_mark = not ok and protective and typ == "MKT" and self._closes_position(sym, side_u, qty_f)
         if not ok and not at_mark:
             return self._refused(reason, code)
+        # Admission first, then the no-shorts rule -- the same order as the
+        # execution door (execution/practice_checks.py), so both gates answer alike.
+        if order_rules.opening_short(self.ledger.held_qty(sym), side_u, qty_f, short_entry):
+            return self._refused(PRACTICE_NO_SHORTS_REASON, PRACTICE_NO_SHORTS_CODE)
         ref = None if at_mark else self.reference.reference(sym)
         now = self.reference.now_ts()
         self.ledger.rollover(now)
@@ -118,7 +118,7 @@ class PracticeBroker:
                     PRACTICE_BUYING_POWER_CODE,
                 )
         oid = int(order_id) if order_id is not None else self.ledger.alloc_id()
-        row = self._row(oid, sym, side_u, qty_f, typ, limit_price, stop_price, now, source, bot_id)
+        row = self._row(oid, sym, side_u, qty_f, typ, limit_price, stop_price, now, source, bot_id, tif_u)
         self.ledger.place(row, ts=now, source=source, bot_id=bot_id)
         if at_mark:
             mark = self.ledger.mark_of(sym, self.ledger.avg_cost(sym))
@@ -170,6 +170,8 @@ class PracticeBroker:
             for row in self.ledger.working_orders():
                 if row["symbol"] != sym or float(ts) <= float(row.get("placed_ts") or 0):
                     continue
+                if order_rules.print_after_expiry(row, float(ts)):
+                    continue  # a DAY order's session closed before this print
                 fill = fill_model.on_print(
                     row["side"], row["order_type"], float(price),
                     limit=row.get("limit_price"), stop=row.get("stop_price"),
@@ -182,6 +184,16 @@ class PracticeBroker:
         if prints:
             self._commit()
         return filled
+
+    def expire_due(self, now: float | None = None) -> list[dict[str, Any]]:
+        """Expire every DAY order whose session has closed (``PRACTICE_TIF_EXPIRED``); returns the rows."""
+        now_ts = float(now) if now is not None else float(self.reference.now_ts())
+        expired = order_rules.expire_due(self.ledger, now_ts)
+        for row in expired:
+            notify_watch(int(row["order_id"]), row)
+        if expired:
+            self._commit()
+        return expired
 
     # ----------------------------------------------------------------- reads
     def working_symbols(self) -> list[str]:
@@ -280,7 +292,7 @@ class PracticeBroker:
 
     def _row(
         self, oid: int, sym: str, side: str, qty: float, typ: str, limit_price: float | None,
-        stop_price: float | None, now: float, source: str, bot_id: str | None,
+        stop_price: float | None, now: float, source: str, bot_id: str | None, tif: str,
     ) -> dict[str, Any]:
         wall = iso_utc(time.time())
         return {
@@ -294,6 +306,7 @@ class PracticeBroker:
             "bot_id": bot_id, "mode": self.venue, "venue": self.venue,
             "account_id": self.account_id, "nova_placed_at": wall, "placed_ts": float(now),
             "fill_estimated": True, "fill_basis": None,
+            "tif": tif, "expires_ts": order_rules.expiry_ts(tif, self.reference, now),
         }
 
     def _settle(self, oid: int, ts: float, fill: fill_model.Fill) -> dict[str, Any] | None:

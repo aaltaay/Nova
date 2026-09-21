@@ -117,7 +117,20 @@ def tick() -> dict:
                 _replay.fail_replay("Capture playback failed; select a recording or a historical window")
                 return {}
     match_practice_fills()
+    expire_practice_orders()
     return payload
+
+
+def expire_practice_orders() -> list[dict]:
+    """Expire DAY practice orders once the playhead reaches the replayed session's close.
+
+    Runs after the fill match so a print at the close itself still fills and a
+    print past it never does (``practice.order_rules``). The expiry event is
+    stamped at the close, so a scrub back before it restores the order.
+    """
+    if practice.loaded() is None:
+        return []
+    return _broker.expire_due(practice.playhead_ts())
 
 
 def match_practice_fills() -> list[dict]:

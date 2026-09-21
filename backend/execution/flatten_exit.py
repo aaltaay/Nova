@@ -119,6 +119,22 @@ def plan_flatten_exit(
     )
 
 
+def plan_practice_flatten_exit() -> FlattenExitTicket:
+    """Practice venues (ADR 020): a MKT close at any hour.
+
+    The practice broker fills a protective MKT at the last mark even with the
+    feed dark (ADR 018 / 019), and it never holds an RTH-only MKT until the
+    next session -- that is IBKR behaviour (Warning 399), not the ledger's. An
+    EH LMT would need a live quote a dark desk cannot give.
+    """
+    return FlattenExitTicket(
+        order_type="MKT",
+        outside_rth=False,
+        limit_price=None,
+        quote_source=None,
+    )
+
+
 def resolve_flatten_marks(symbol: str) -> tuple[float | None, float | None, float | None]:
     """Shared-feed bid/ask/last. Never opens reqMktData."""
     from bot.quotes import last_quote, top_of_book

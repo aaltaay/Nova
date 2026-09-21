@@ -43,6 +43,9 @@ def test_unsupported_order_type_is_refused() -> None:
 
 
 def test_cancel_working_limit() -> None:
+    # Hold the shares first: a SELL beyond the position is an opening short and
+    # is refused PRACTICE_NO_SHORTS (test_practice_no_shorts.py).
+    assert broker.place("IMCC", "BUY", 3, "MKT")["broker_status"] == "Filled"
     raw = broker.place("IMCC", "SELL", 3, "LMT", limit_price=12.0)
     assert raw["broker_status"] == "Submitted"
     out = broker.cancel(int(raw["order_id"]))

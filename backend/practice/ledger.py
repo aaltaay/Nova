@@ -1,7 +1,7 @@
 """Event-sourced practice ledger (ADR 020). Pure bookkeeping; never talks to IBKR.
 
-Events -- ``placed`` / ``replaced`` / ``cancelled`` / ``filled`` / ``rollover``
--- carry ``ts`` (the venue's time: the replay playhead on Sim, the wall clock
+Events -- ``placed`` / ``replaced`` / ``cancelled`` / ``expired`` / ``filled`` /
+``rollover`` -- carry ``ts`` (the venue's time: the replay playhead on Sim, the wall clock
 on Paper), ``wall_ts`` (when it really happened, for the row stamps), the ADR
 007 command ``source`` and the ``bot_id``. Every derived number -- cash,
 positions with average cost, realized P&L, marks, working and closed orders,
@@ -26,6 +26,7 @@ from constants_practice import (
     PRACTICE_ACCOUNT_ID_PAPER,
     PRACTICE_ACCOUNT_ID_SIM,
     PRACTICE_LEDGER_SCHEMA_VERSION,
+    PRACTICE_ORDER_STATUS_EXPIRED,
     PRACTICE_STARTING_CASH,
     PRACTICE_VENUE_PAPER,
     PRACTICE_VENUE_SIM,
@@ -41,9 +42,10 @@ _EPS = 1e-9
 EVENT_PLACED = "placed"
 EVENT_REPLACED = "replaced"
 EVENT_CANCELLED = "cancelled"
+EVENT_EXPIRED = "expired"  # a DAY order past its session close (practice.order_rules)
 EVENT_FILLED = "filled"
 EVENT_ROLLOVER = "rollover"
-EVENT_TYPES = (EVENT_PLACED, EVENT_REPLACED, EVENT_CANCELLED, EVENT_FILLED, EVENT_ROLLOVER)
+EVENT_TYPES = (EVENT_PLACED, EVENT_REPLACED, EVENT_CANCELLED, EVENT_EXPIRED, EVENT_FILLED, EVENT_ROLLOVER)
 
 ACCOUNT_IDS = {
     PRACTICE_VENUE_PAPER: PRACTICE_ACCOUNT_ID_PAPER,
@@ -89,7 +91,7 @@ class Ledger:
             self._apply_placed(event)
         elif kind == EVENT_REPLACED:
             self._apply_replaced(event)
-        elif kind == EVENT_CANCELLED:
+        elif kind in (EVENT_CANCELLED, EVENT_EXPIRED):
             self._apply_cancelled(event)
         elif kind == EVENT_FILLED:
             self._apply_filled(event)
@@ -133,7 +135,7 @@ class Ledger:
         row = self._working.pop(int(event["order_id"]), None)
         if row is None:
             return
-        row["status"] = "Cancelled"
+        row["status"] = PRACTICE_ORDER_STATUS_EXPIRED if event.get("type") == EVENT_EXPIRED else "Cancelled"
         row["updated_at"] = self._stamp(event)
         row["remaining_qty"] = float(row.get("qty") or 0) - float(row.get("filled_qty") or 0)
         if event.get("reason"):
@@ -232,14 +234,15 @@ class Ledger:
 
     def cancel(
         self, order_id: int, *, ts: float, reason: str | None = None, code: str | None = None,
-        source: str = "manual", bot_id: str | None = None,
+        source: str = "manual", bot_id: str | None = None, kind: str = EVENT_CANCELLED,
     ) -> dict[str, Any] | None:
+        """Close a working order unfilled; ``kind`` is ``cancelled`` or ``expired`` (a DAY order past its close)."""
         oid = int(order_id)
         if oid not in self._working:
             return None
         self.rollover(ts)
         self._append({
-            "type": EVENT_CANCELLED, "ts": float(ts), "order_id": oid, "reason": reason,
+            "type": kind, "ts": float(ts), "order_id": oid, "reason": reason,
             "code": code, "source": source, "bot_id": bot_id,
         })
         return dict(self._closed[-1])

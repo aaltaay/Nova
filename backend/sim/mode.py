@@ -180,6 +180,21 @@ def desk_connected() -> bool:
     return _client.is_connected()
 
 
+def desk_mode_label() -> str:
+    """What the executor status reports as ``ibkr_mode``: the venue on Paper / Sim, IBKR's port label on Live.
+
+    The Auto Paper controls enable on ``ibkr_mode == "paper"``. On Nova's Paper
+    venue that must be the venue itself, not the live Gateway's port label
+    (``live``) -- the Gateway only feeds it (ADR 020).
+    """
+    current = venue()
+    if current in DESK_PRACTICE_VENUES:
+        return current
+    from ibkr import client as _client
+
+    return _client.account_mode()
+
+
 def set_venue(target: str, *, persist: bool = True) -> dict:
     """Settle the desk venue. Never arms anything.
 

@@ -20,14 +20,21 @@ logger = logging.getLogger(__name__)
 async def _place_close(symbol: str, qty: float, side: str) -> dict[str, Any]:
     from execution.flatten_exit import (
         plan_flatten_exit,
+        plan_practice_flatten_exit,
         resolve_flatten_marks,
         ticket_to_command_fields,
     )
     from execution.models import ExecutionCommand
     from execution.service import execute
+    from sim.mode import is_practice_venue
 
-    bid, ask, last = resolve_flatten_marks(symbol)
-    ticket = plan_flatten_exit(side, bid=bid, ask=ask, last=last)
+    if is_practice_venue():
+        # The practice broker closes a held position at the last mark at any
+        # hour, feed or no feed (ADR 018 / 019) -- no EH sweep, no mark needed.
+        ticket = plan_practice_flatten_exit()
+    else:
+        bid, ask, last = resolve_flatten_marks(symbol)
+        ticket = plan_flatten_exit(side, bid=bid, ask=ask, last=last)
     if not ticket.ok:
         return {"ok": False, "error": ticket.error, "reason_code": "FLATTEN_EH_NO_MARK"}
 
@@ -97,9 +104,12 @@ async def flatten_account_once() -> dict[str, Any]:
     from ibkr import account as _account
     from ibkr.errors import IbkrAccountError
 
-    from sim.mode import desk_connected
+    from sim.mode import desk_connected, is_practice_venue
 
-    if not desk_connected():
+    # A practice account is a local ledger whose broker closes a held position
+    # at the last mark with the Gateway dark (ADR 018 / 019) -- the same
+    # exemption execution.validate.check_account_and_position gives it.
+    if not is_practice_venue() and not desk_connected():
         return {"ok": False, "error": "IBKR not connected -- cannot flatten", "results": []}
     try:
         positions = _account.get_positions()

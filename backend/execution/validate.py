@@ -137,12 +137,14 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
     # routed, never *whether* one is allowed (ADR 018). The IBKR env gates
     # below apply to Live only (ADR 020 decision 4).
     if is_practice_venue():
-        # Protective sources skip admission so a practice position can always
-        # be closed; the practice ledger bounds them to closing a held position.
-        if cmd.operation in ("place", "bracket") and cmd.source not in _safety.PROTECTIVE_SOURCES:
-            ok, reason, code = _practice_admission(symbol or "")
-            if not ok:
-                return False, reason, code
+        # Admission by the venue's own market (protective sources skip it so a
+        # practice position can always be closed) and the no-shorts rule: a
+        # SELL is only ever risk-reducing (execution/practice_checks.py).
+        from execution.practice_checks import practice_refusal
+
+        refusal = practice_refusal(cmd)
+        if refusal is not None:
+            return False, refusal[0], refusal[1]
         return True, "OK", None
     ok, reason = _safety.assert_orders_allowed(
         client_enabled=_client.is_enabled(),
@@ -153,19 +155,6 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
     if not ok:
         return False, reason, "ORDERS_GATE"
     return True, "OK", None
-
-
-def _practice_admission(symbol: str) -> tuple[bool, str, str | None]:
-    """May the venue's own market price ``symbol`` right now? (ADR 020)
-
-    The loaded replay at the playhead on Sim, the fresh live last / recent
-    tape print on Paper -- read through the venue broker's reference so
-    validation and the fill use one answer.
-    """
-    from practice.broker import for_venue
-    from sim.mode import venue
-
-    return for_venue(venue()).reference.admission(symbol)
 
 
 def _bracket_refusal(cmd: ExecutionCommand) -> tuple[str, str] | None:

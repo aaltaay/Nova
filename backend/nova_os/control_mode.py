@@ -57,6 +57,18 @@ def auto_paper_gate_status() -> tuple[bool, str]:
     placement, not only at the moment the operator raised the mode — the
     gateway can disconnect, spend gates can trip, or risk can halt in the
     seconds between set_mode() and the next signal)."""
+    from sim.mode import desk_connected, is_practice_venue, venue
+
+    if is_practice_venue():
+        # ADR 020 decision 4: on Paper / Sim the fill is Nova's own, so fake
+        # money needs no .env permission -- only the venue's feed (the live
+        # Gateway on Paper; Sim carries its own replay) and the ADR 018 arm.
+        if not desk_connected():
+            return False, f"auto_paper requires the live feed on the {venue()} venue -- IBKR not connected"
+        armed_ok, armed_reason = _ibkr_safety.assert_armed_for(NOVA_OS_MODE_AUTO_PAPER)
+        if not armed_ok:
+            return False, armed_reason
+        return _desk_gate_status()
     if not _ibkr_client.is_connected():
         return False, "auto_paper requires IBKR connected on paper Gateway"
     account_mode = _ibkr_client.account_mode()
@@ -77,6 +89,11 @@ def auto_paper_gate_status() -> tuple[bool, str]:
     )
     if not ok:
         return False, reason or "auto_paper blocked by IBKR spend gates"
+    return _desk_gate_status()
+
+
+def _desk_gate_status() -> tuple[bool, str]:
+    """The venue-independent tail of the auto_paper gate: risk and the holiday calendar."""
     can, halt_reason = _risk.can_trade()
     if not can:
         return False, halt_reason or "auto_paper blocked: risk cannot trade"
