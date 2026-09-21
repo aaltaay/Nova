@@ -85,3 +85,17 @@ SIM_HISTORY_RESULT_CACHE_ENTRIES = 12
 SIM_HISTORY_QUOTE_CANDLES = 2000
 SIM_HISTORY_SQLITE_TIMEOUT_SEC = 30
 SIM_HISTORY_SCHEMA_CACHE_ENTRIES = 32
+
+# Recorded Level 2 inside historical replay (#309, ADR 017). An IBKR historical
+# download carries trades only, so depth comes from the local recorder archive
+# (backend/l2/) -- a feeder, never a second replay engine or store.
+SIM_HISTORY_DEPTH_SOURCE = "l2_recorder"
+# A recorded book stands for the playhead only while it is this fresh. The
+# continuous depth recorder samples once a second
+# (L2_CONTINUOUS_SNAPSHOT_INTERVAL_SEC), so one spare second absorbs a skipped
+# sample without letting an old book stand in for an unrecorded stretch.
+SIM_HISTORY_DEPTH_MAX_AGE_SEC = 2.0
+# Resolved books per replayed second. The snapshot is polled by the Level 2
+# panel, the chart and practice admission, so the archive is read at most once
+# per second no matter how many callers ask.
+SIM_HISTORY_DEPTH_CACHE_ENTRIES = 16

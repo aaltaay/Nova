@@ -212,6 +212,20 @@ migrated; unknown versions refuse loudly. Capture load diagnostics include
 `legacy_schema` / `l2_decimated` (booleans) and `last_stream_ts` (per-stream event timestamps).
 No automatic retention policy is selected by these additions.
 
+### Recorded depth in historical replay (#309)
+
+The historical replay snapshot carries `depth_available: boolean` and
+`depth: object | null`. `depth` is the Level 2 book the local recorder
+(`backend/l2/`) archived at or before the playhead second, shaped
+`{symbol, bids, asks, ts, age_sec, l1_fallback, session_id, source}`, where
+`source` names the archive (`l2_recorder`). `depth_available` is true only when
+`depth` is present. An IBKR historical download carries no book, so an
+unrecorded moment reports `depth_available: false` with `depth: null` and is
+rendered as a stated absence, never an empty or invented ladder. `bid` / `ask`
+stay null — a recorded book is not a quote stream. The lookup never reads ahead
+of the playhead, and an unreadable `l2.db` degrades to the unrecorded case
+instead of failing the snapshot.
+
 ### Input Payload (Raw)
 
 ```json

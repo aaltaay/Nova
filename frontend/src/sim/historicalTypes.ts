@@ -1,3 +1,24 @@
+import type { DepthLevel } from '../ibkr/types';
+
+/**
+ * A Level 2 book the local recorder archived for the replayed session (#309).
+ * Present only where `l2.db` actually covered the playhead second; the replay
+ * never synthesises one, so its absence is `null`, not an empty book.
+ */
+export interface HistoricalDepthBook {
+  symbol: string;
+  bids: DepthLevel[];
+  asks: DepthLevel[];
+  /** Epoch seconds the book was recorded at (at or before the playhead). */
+  ts: number;
+  /** Playhead second minus `ts`. */
+  age_sec: number;
+  l1_fallback: boolean;
+  session_id?: string | null;
+  /** Which archive served it, e.g. `l2_recorder`. */
+  source: string;
+}
+
 export interface HistoricalWindow { symbol: string; date: string; start: string; end: string }
 export interface HistoricalSelection extends HistoricalWindow {
   coverage_through: number;

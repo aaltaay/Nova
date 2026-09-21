@@ -8,7 +8,7 @@
 
 ## Goal
 
-Answer questions like: **“With ticker X open, what did Level 2 look like at second T? How was the tape?”** and keep a durable local archive for later relearning / backtesting — without building a replay UI yet.
+Answer questions like: **“With ticker X open, what did Level 2 look like at second T? How was the tape?”** and keep a durable local archive for later relearning / backtesting. This note was written before there was anywhere to watch that back; since #309 the answer is shown in the Sim historical replay, never in a recorder-owned UI (see [Where depth surfaces](#where-depth-surfaces-the-one-replay-ui-309-adr-017)).
 
 ---
 
@@ -85,9 +85,42 @@ Status / list (no fancy UI): `GET /api/l2/status`, `GET /api/l2/sessions`.
 
 ---
 
+## Where depth surfaces: the one replay UI (#309, ADR 017)
+
+Recorded depth is **not** getting its own scrubber. The operator's decision on
+#309 (2026-09-20) was to feed `l2.db` into the Sim historical replay, so there
+is one replay surface and `backend/l2/` is a feeder to it — the rule ADR 017
+already set for `backend/capture/`.
+
+How it reaches the screen: `sim/history_depth.py` asks `l2.recall.book_before`
+for the newest book at or before the playhead second, and
+`sim/history_playback.snapshot()` publishes it as `depth` with a truthful
+`depth_available`. The replay Level 2 pane draws that book in the live montage
+and stamps it with the second it was recorded at.
+
+Two properties matter more than the feature:
+
+- **Nothing is invented.** `l2.db` holds short-lived hot sessions, so most
+  replayed seconds have no book. The pane then says *“Level 2 was not recorded
+  for this moment”* instead of showing an empty ladder that reads like a market
+  with no bids. `depth_available` is false there.
+- **No lookahead, and cheap.** The lookup is one indexed newest-at-or-before
+  row per replayed second, memoized; the playhead is floored to its second, so
+  a book recorded after it can never appear. A missing, locked or damaged
+  `l2.db` degrades to “not recorded” (logged once per outage) and never breaks
+  the replay. The read never flushes the writer batch and never creates the
+  file — a desk that recorded nothing keeps having no archive, not an empty one.
+
+Precedence is settled by selection, not by a tiebreak rule: selecting a
+historical window clears the capture selection, so a loaded capture serves its
+own depth (`sim/capture_player.book_at`) and `l2.db` fills exactly the sessions
+no tab recording covered.
+
+The recall API is unchanged. `recall_at` keeps its symmetric ±window for
+feature work; `book_before` is the no-lookahead sibling replay needs.
+
 ## Deferred
 
-- Replay / scrubber UI
 - Full backtester harness
 - Parquet cold tier
 - Recording all scanner symbols’ tape by default

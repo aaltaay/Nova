@@ -10,7 +10,7 @@ from __future__ import annotations
 from constants import L2_RECALL_DEFAULT_WINDOW_SEC
 from l2 import sessions as _sessions
 from l2 import tape as _tape
-from l2.store import get_nearest_snapshot, get_snapshots_in_range
+from l2.store import get_nearest_snapshot, get_snapshot_before, get_snapshots_in_range
 
 
 def recall_at(
@@ -34,6 +34,34 @@ def recall_at(
         "tape": trades,
         "tape_count": len(trades),
         "session": session,
+    }
+
+
+def book_before(
+    symbol: str,
+    ts: float,
+    max_age_sec: float | None = None,
+) -> dict | None:
+    """The recorded book as of ``ts``, or ``None`` when none covers it.
+
+    ``recall_at`` answers "what was around second T" with a symmetric window,
+    which is the right shape for feature work and the wrong shape for replay:
+    a ±window can return a book recorded after the playhead. This is the
+    no-lookahead sibling, used by the Sim historical replay depth feeder
+    (``sim/history_depth.py``, #309). Tape and session metadata are left out
+    on purpose -- the replay owns its own tape.
+    """
+    window = L2_RECALL_DEFAULT_WINDOW_SEC if max_age_sec is None else max_age_sec
+    row = get_snapshot_before(symbol, ts, window)
+    if row is None:
+        return None
+    return {
+        "symbol": row["symbol"],
+        "ts": row["ts"],
+        "bids": row["bids"],
+        "asks": row["asks"],
+        "l1_fallback": row["l1_fallback"],
+        "session_id": row.get("session_id"),
     }
 
 

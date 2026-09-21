@@ -3,11 +3,15 @@ import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { matchesSimClockScrub, SIM_CLOCK_SCRUB_EVENT } from './simClockEvents';
 import { SIM_HISTORY_POLL_MS } from './simConstants';
 import { replayPollResource } from './replayPollResource';
-import type { HistoricalSelection } from './historicalTypes';
+import type { HistoricalDepthBook, HistoricalSelection } from './historicalTypes';
 
 export interface HistoricalSnapshot {
   active: boolean; symbol: string; last: number | null; volume: number | null;
   source: string; as_of: string; error?: string;
+  /** True only when a recorded book covers this playhead second (#309). */
+  depth_available?: boolean;
+  /** That book, or null/undefined when depth was not recorded for this moment. */
+  depth?: HistoricalDepthBook | null;
   /** Session open/high/low from reached reported prints (or reached candles). */
   open?: number | null; high?: number | null; low?: number | null;
   /** Close of the last daily bar before the session date. */
