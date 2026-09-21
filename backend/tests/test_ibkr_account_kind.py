@@ -78,6 +78,11 @@ def test_accept_follows_paper_account_when_nova_asked_live(monkeypatch):
     assert ibkr_client._broker_account_kind == "paper"
     # The ids travel with the kind: the header can say which account this is.
     assert ibkr_client._managed_account_ids == ["DUQ266899"]
+    # ...and a later mode re-statement without ids keeps them (live: account_id read null).
+    ibkr_client._set_session(mode="paper", broker_account_kind="paper")
+    assert ibkr_client._managed_account_ids == ["DUQ266899"]
+    ibkr_client._set_session(mode="disconnected", broker_account_kind="unknown")
+    assert ibkr_client._managed_account_ids == []
 
 
 def test_accept_does_not_follow_paper_during_intentional_live(monkeypatch):

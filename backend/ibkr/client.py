@@ -112,7 +112,11 @@ def _set_session(*, mode: str, broker_account_kind: str, account_ids: list[str] 
     global _mode, _broker_account_kind, _managed_account_ids
     _mode = mode
     _broker_account_kind = broker_account_kind
-    _managed_account_ids = list(account_ids or []) if mode != "disconnected" else []
+    if mode == "disconnected":
+        _managed_account_ids = []
+    elif account_ids is not None:
+        # Callers that only re-state the mode keep the ids the accept step read.
+        _managed_account_ids = list(account_ids)
 
 
 def _clear_sticky_bridge_error_on_ready() -> None:
