@@ -21,6 +21,7 @@ import {
   SIM_TAB_ACTION_START_GATEWAY,
   SIM_TAB_ACTION_STARTING,
   SIM_TAB_ACTION_STOP,
+  SIM_TAB_ACTION_STOP_OTHER,
   SIM_TAB_CHARTS_ARCHIVED,
   SIM_TAB_DISMISS_LABEL,
   SIM_TAB_NO_REPLAY_TITLE,
@@ -61,6 +62,7 @@ const ACTION_LABEL: Record<OfferAction, string> = {
   retry: SIM_TAB_ACTION_RETRY,
   'start-gateway': SIM_TAB_ACTION_START_GATEWAY,
   stop: SIM_TAB_ACTION_STOP,
+  'stop-other': SIM_TAB_ACTION_STOP_OTHER,
 };
 
 /** Per tab + situation, for the session: a new situation earns a new prompt. */
@@ -87,6 +89,7 @@ export function SimReplayTargetNotice({ symbol }: { symbol: string }) {
   const run = () => {
     if (!offer || !copy?.action) return;
     if (copy.action === 'stop') { if (offer.kind === 'downloading') void stop(offer.jobId); return; }
+    if (copy.action === 'stop-other') { if (offer.kind === 'busy') void stop(offer.runningJobId, offer.window); return; }
     const act = copy.action === 'load' ? load : copy.action === 'start-gateway' ? startGateway : download;
     void act(offer.window);
   };

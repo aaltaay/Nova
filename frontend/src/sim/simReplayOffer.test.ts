@@ -53,9 +53,11 @@ describe('replayOffer', () => {
       .toEqual({ kind: 'downloading', window: W, percent: 42.4, etaSeconds: 180, jobId: 'j' });
   });
 
-  it('says busy instead of offering a click the one-at-a-time backend would refuse', () => {
-    expect(replayOffer(W, [job({ id: 'spy', symbol: 'SPY' })]))
-      .toEqual({ kind: 'busy', window: W, runningSymbol: 'SPY' });
+  it('names the window holding the one download slot, instead of offering a doomed click', () => {
+    expect(replayOffer(W, [job({ id: 'old', start: '04:00', end: '20:00' })])).toEqual({
+      kind: 'busy', window: W, runningJobId: 'old',
+      running: { symbol: 'IMCC', date: '2026-09-18', start: '04:00', end: '20:00' },
+    });
   });
 
   it('treats stalled, paused, interrupted and queued as resumable -- not as progressing', () => {
@@ -113,7 +115,7 @@ describe('offerCopy', () => {
     downloading: (l: string, p: string) => `downloading ${l}${p}`,
     stopped: (l: string, p: string) => `stopped ${l}${p}`,
     failed: (l: string, e: string) => `failed ${l} ${e}`,
-    busy: (r: string, tab: string) => `busy ${r} ${tab}`,
+    busy: (running: string) => `busy ${running}`,
     gatewayDown: (l: string) => `down ${l}`,
     gatewayWaiting: (l: string) => `waiting ${l}`,
     retrying: (l: string) => `retrying ${l}`,
@@ -133,7 +135,8 @@ describe('offerCopy', () => {
     expect(at({ ...failed, healing: true })).toMatchObject({ text: expect.stringContaining('retrying'), action: null });
     expect(at({ kind: 'gateway-down', window: W }).action).toBe('start-gateway');
     expect(at({ kind: 'gateway-down', window: W, waiting: true })).toMatchObject({ text: expect.stringContaining('waiting'), action: null });
-    expect(at({ kind: 'busy', window: W, runningSymbol: 'SPY' }).action).toBeNull();
+    expect(at({ kind: 'busy', window: W, runningJobId: 'old', running: { ...W, start: '04:00', end: '20:00' } }))
+      .toEqual({ text: 'busy IMCC · Fri, Sep 18 · 04:00–20:00 ET', action: 'stop-other' });
   });
 
   it('formats dates like the session bar', () => {

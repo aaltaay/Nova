@@ -35,8 +35,13 @@ export type ReplayOffer =
   | { kind: 'gateway-down'; window: HistoricalWindow; waiting?: boolean }
   /** Downloaded and waiting to be loaded. */
   | { kind: 'ready'; window: HistoricalWindow }
-  /** Another window is downloading; the backend runs one at a time, so a click would only be refused. */
-  | { kind: 'busy'; window: HistoricalWindow; runningSymbol: string };
+  /**
+   * Another window holds the one download slot the backend allows. A plain
+   * Download would only be refused, so the offer is to stop that one and start
+   * this -- `running` names it, because "an IMCC download" is ambiguous when it
+   * is a different IMCC window.
+   */
+  | { kind: 'busy'; window: HistoricalWindow; runningJobId: string; running: HistoricalWindow };
 
 /** Backend `history_store.ACTIVE` -- the only statuses that are really progressing. */
 const ACTIVE = new Set(['running', 'pause_requested']);
@@ -97,7 +102,12 @@ export function replayOffer(
     };
   }
   const other = jobs.find(row => row !== job && isProgressing(row));
-  if (other) return { kind: 'busy', window, runningSymbol: other.symbol };
+  if (other) {
+    return {
+      kind: 'busy', window, runningJobId: other.id,
+      running: { symbol: other.symbol, date: other.date, start: other.start, end: other.end },
+    };
+  }
   // Everything below needs Gateway; offering it while both ports are dark would
   // only reproduce the refusal the operator just read.
   if (!reachable) return { kind: 'gateway-down', window };
@@ -124,7 +134,7 @@ export function offerDateLabel(iso: string): string {
 export const offerWindowLabel = (w: HistoricalWindow) =>
   `${w.symbol} · ${offerDateLabel(w.date)} · ${w.start}–${w.end} ET`;
 
-export type OfferAction = 'download' | 'load' | 'resume' | 'retry' | 'start-gateway' | 'stop';
+export type OfferAction = 'download' | 'load' | 'resume' | 'retry' | 'start-gateway' | 'stop' | 'stop-other';
 
 export interface OfferCopy { text: string; action: OfferAction | null }
 
@@ -134,7 +144,7 @@ type CopyText = {
   downloading: (label: string, progress: string) => string;
   stopped: (label: string, progress: string) => string;
   failed: (label: string, error: string) => string;
-  busy: (runningSymbol: string, tab: string) => string;
+  busy: (runningLabel: string) => string;
   gatewayDown: (label: string) => string;
   gatewayWaiting: (label: string) => string;
   retrying: (label: string) => string;
@@ -159,7 +169,7 @@ export function offerCopy(offer: ReplayOffer, instead: boolean, t: CopyText): Of
       return offer.healing
         ? { text: t.retrying(label), action: null }
         : { text: t.failed(label, offer.error), action: 'retry' };
-    case 'busy': return { text: t.busy(offer.runningSymbol, offer.window.symbol), action: null };
+    case 'busy': return { text: t.busy(offerWindowLabel(offer.running)), action: 'stop-other' };
     case 'gateway-down':
       return offer.waiting
         ? { text: t.gatewayWaiting(label), action: null }

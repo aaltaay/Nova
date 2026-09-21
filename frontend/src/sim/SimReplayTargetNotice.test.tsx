@@ -150,12 +150,18 @@ describe('SimReplayTargetNotice', () => {
     expect(mocks.openStockView).toHaveBeenCalledWith('SPY');
   });
 
-  it('says busy rather than offer a click the backend would refuse', async () => {
-    jobs = [job({ id: 'spy', symbol: 'SPY' })];
+  it('names the window hogging the slot, and Stop it & start this frees it and starts this one', async () => {
+    // The live case: a 16-hour 04:00-20:00 job blocking the one-click window.
+    jobs = [job({ id: 'old', start: '04:00', end: '20:00', progress_pct: 11 })];
     setClock({ sim: true, replay_source: 'none', session_date: '2026-09-18' });
     await mount();
-    expect(body()).toBe('A SPY download is running; IMCC can start when it finishes.');
-    expect(action()).toBeNull();
+    expect(body()).toBe('IMCC · Fri, Sep 18 · 04:00–20:00 ET is downloading, and the desk runs one download at a time.');
+    expect(action()?.textContent).toBe('Stop it & start this');
+
+    await act(async () => { fireEvent.click(action()!); });
+    expect(posts[0].url).toMatch(/\/history\/old\/pause$/);
+    await poll([job({ id: 'old', start: '04:00', end: '20:00', status: 'paused' })]);
+    expect(posts.at(-1)).toEqual({ url: expect.stringMatching(/\/api\/sim\/history$/), body: { ...WINDOW, kind: 'trades' } });
   });
 
   it('Gateway down: one click starts Gateway, then downloads and loads by itself', async () => {

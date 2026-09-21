@@ -68,11 +68,18 @@ export function useSimReplayOffer(
     await download(spec);
   }, [download]);
 
-  /** Abandon a download whose cost the operator has now seen; it stays resumable. */
-  const stop = useCallback(async (jobId: string) => {
-    intent.current = null;
+  /**
+   * Abandon a download whose cost the operator has now seen; it stays resumable.
+   * With `then`, this tab's window starts as soon as the freed slot shows up --
+   * the queued-download effect below picks it up from `intent`.
+   */
+  const stop = useCallback(async (jobId: string, then?: HistoricalWindow) => {
+    intent.current = then ? windowKey(then) : null;
+    if (then) setHealAttempts(0);
     if (await request('download', `/history/${encodeURIComponent(jobId)}/pause`)) {
       void historicalStatus.refresh();
+    } else if (then) {
+      intent.current = null;
     }
   }, [request]);
 

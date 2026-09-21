@@ -71,8 +71,8 @@ export const simTabOfferStopped = (label: string, progress: string): string =>
   `${label} download stopped${progress}.`;
 export const simTabOfferFailed = (label: string, error: string): string =>
   `${label} download failed: ${error}`;
-export const simTabOfferBusy = (runningSymbol: string, tab: string): string =>
-  `A ${runningSymbol} download is running; ${tab} can start when it finishes.`;
+export const simTabOfferBusy = (runningLabel: string): string =>
+  `${runningLabel} is downloading, and the desk runs one download at a time.`;
 export const simTabOfferGatewayDown = (label: string): string =>
   `IB Gateway isn't running. Start it and ${label} downloads and loads by itself.`;
 export const simTabOfferGatewayWaiting = (label: string): string =>
@@ -85,6 +85,7 @@ export const SIM_TAB_ACTION_RESUME = 'Resume';
 export const SIM_TAB_ACTION_RETRY = 'Retry';
 export const SIM_TAB_ACTION_START_GATEWAY = 'Start Gateway & download';
 export const SIM_TAB_ACTION_STOP = 'Stop';
+export const SIM_TAB_ACTION_STOP_OTHER = 'Stop it & start this';
 export const SIM_TAB_ACTION_STARTING = 'Starting...';
 export const SIM_TAB_ACTION_LOADING = 'Loading...';
 export const SIM_TAB_DISMISS_LABEL = 'Dismiss';
