@@ -14,7 +14,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from capture import feed_hold
+from capture import feed_hold, keepalive
 from capture.mode import capture_symbol, is_capture_mode, set_capture_mode, status_payload
 from capture.recorder import status as recorder_status
 from capture.sessions import list_sessions
@@ -69,7 +69,11 @@ async def post_capture(body: CaptureToggleRequest) -> dict:
                 out = await asyncio.to_thread(status_payload)
                 return {**out, "error": error, "recorder": recorder_status()}
         out = await asyncio.to_thread(set_capture_mode, True, symbol=body.symbol, protect_active=True)
+        if out.get("capture") and out.get("capture_symbol"):
+            keepalive.operator_started(out["capture_symbol"])
     else:
+        # Before the stop: the keepalive must never read this as a death.
+        keepalive.operator_stopped(current)
         out = await asyncio.to_thread(set_capture_mode, False, symbol=body.symbol, protect_active=True)
     _release_orphans()
     if out.pop("conflict", False):

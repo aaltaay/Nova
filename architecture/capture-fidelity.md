@@ -88,3 +88,44 @@ combine the prior symbol's quote with the new symbol's trade. A regression holds
 capture alignment and historical publication concurrently to exercise the exact
 lock order rather than relying on scheduling luck.
 `latest_quote` uses canonical `bid_price`, `ask_price`, `bid_size`, and `ask_size` fields from recorded data, retaining `bid`/`ask` aliases for compatibility. Unknown values remain null.
+
+## Persistence: resume, then say so (operator decision, 2026-09-21)
+
+A Session Record is owned by the backend process, one symbol at a time by the
+operator's choice. Nothing on the page stops it: closing the panel, the tab or
+the window, reloading, switching desks. The frontend keeps no recording state
+of its own -- `sessionRecordStore.ts` reads only fresh `/api/ibkr/status`
+snapshots -- so a reload simply shows what the backend is still doing.
+
+What *can* stop it, and the policy for each, lives in `capture/keepalive.py`:
+
+| Event | What happens | What the operator sees |
+|---|---|---|
+| Nova restart | Startup finalizes the orphan (`session_state.finalize_orphaned_session`, segment `reason: "restart"`). If it is today's session and its newest stream file is younger than `CAPTURE_RESUME_RESTART_WINDOW_SEC`, the keepalive resumes it into a new segment once IBKR is ready. | Toast "GRML recording was cut by a Nova restart", then quiet once it resumed. |
+| Recorder stops itself (disk, timestamp, writer backlog) | The next keepalive tick sees no recording and no operator stop: `capture_stopped` is set and a resume is scheduled with `CAPTURE_RESUME_BACKOFF_SEC`, at most `CAPTURE_RESUME_MAX_ATTEMPTS` tries; IBKR being down costs no attempt. | Toast with the reason and "Resuming on its own in 5s (attempt 1 of 5)"; "Gave up" plus a Resume now button after the last. |
+| IBKR line dropped with the Gateway | The recorder never stopped. When the client is ready again the keepalive releases and re-acquires the tape and depth lines (`capture_session.reacquired`). | Nothing loud: a quiet stretch inside the segment. |
+| Operator Stop / Record on another symbol | `routes.py` tells the keepalive first, so the stop is never read as a death and any pending resume is cancelled. | Nothing. |
+
+Resume never crosses the session day and never changes symbol. Every manifest
+segment carries `reason: operator | rotation | failure | restart`, so a gap can
+say what made it; `/api/capture/sessions` rows summarise `segments`,
+`missing_sec` and `last_reason`, and a capture loaded for replay exposes its
+segments in `replay_load` for the scrubber band.
+
+### What the operator sees (frontend/src/capture)
+
+Steady state is quiet; a change of state is loud:
+
+- **REC chip** in the header status cluster, only while recording: red dot,
+  symbol, elapsed time; counts, segment and last-write age in the tooltip;
+  click opens the tab.
+- **Hairline**: 2px red along the top window edge while recording.
+- **Window title** leads with `REC GRML` (shared `electron/appTitle.mjs`), so
+  the taskbar says so with Nova behind other windows.
+- **Stop toast** (`RecordingSignal.tsx`): only for a stop the operator did not
+  ask for; stays until resumed or dismissed; one per stop.
+- **Hold to stop** (`HoldToStopButton.tsx`): Stop in the tab menu takes a
+  `CAPTURE_STOP_HOLD_MS` hold; a click or an early release keeps recording.
+- **Capture band** under the Sim scrubber: recorded stretches solid, the gaps
+  between them striped with why in the tooltip (`simCoverage.captureBandSegments`).
+  A quiet stretch inside one recording is not a gap.

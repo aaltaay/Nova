@@ -26,6 +26,9 @@ from capture.constants_capture import (
     CAPTURE_STATUS_FAILED,
     CAPTURE_STATUS_RECORDING,
     CAPTURE_STATUS_STOPPED,
+    CAPTURE_STOP_FAILURE,
+    CAPTURE_STOP_OPERATOR,
+    CAPTURE_STOP_ROTATION,
     CAPTURE_STREAM_NAMES,
 )
 from capture.storage import capture_root
@@ -52,6 +55,14 @@ _started_et: str | None = None
 _write_failures = 0
 _error: str | None = None
 _last_write_ts: float | None = None
+# Why the segment being closed ended; an unplanned stop sets it before the
+# locked stop path runs, an operator stop passes it in.
+_stop_reason: str = CAPTURE_STOP_OPERATOR
+# Segments already in the manifest when this one started, so status can say
+# "segment 3" without reading the file.
+_prior_segments = 0
+# When the session (first segment) began, carried across resumes.
+_session_started_et: str | None = None
 
 
 def reset_for_tests() -> None:
@@ -92,6 +103,7 @@ def start_recorder(symbol: str | None, *, resume: bool = True, session_date: str
     """
     global _active, _symbol, _day, _dir, _fidelity, _last_fsync_mono
     global _counts, _segment_base, _started_et, _write_failures, _error, _last_write_ts
+    global _stop_reason, _prior_segments, _session_started_et
     from capture import manifest_io, session_state
 
     with _lock:
@@ -120,12 +132,16 @@ def start_recorder(symbol: str | None, *, resume: bool = True, session_date: str
         _write_failures = 0
         _error = None
         _last_write_ts = None
+        _stop_reason = CAPTURE_STOP_OPERATOR
+        segments = prior.get("segments") if resume else None
+        _prior_segments = len(segments) if isinstance(segments, list) else 0
 
         mode = "a" if resume else "w"
         for name in CAPTURE_STREAM_NAMES:
             _files[name] = (_dir / f"{name}.jsonl").open(mode, encoding="utf-8")
 
         _started_et = datetime.now(ET).isoformat()
+        _session_started_et = prior.get("started_et") or _started_et
         manifest = dict(prior)
         manifest.update(
             {
@@ -155,8 +171,10 @@ def start_recorder(symbol: str | None, *, resume: bool = True, session_date: str
         return {"ok": True, "dir": str(_dir), "manifest": manifest}
 
 
-def stop_recorder() -> None:
+def stop_recorder(reason: str = CAPTURE_STOP_OPERATOR) -> None:
+    global _stop_reason
     with _lock:
+        _stop_reason = reason
         _stop_locked()
 
 
@@ -188,11 +206,15 @@ def _stop_locked(*, rotating: bool = False) -> None:
     for timeframe, bar in bars:
         _write_bar_locked(timeframe, bar)
 
-    _finalize_locked(CAPTURE_STATUS_FAILED if _error else CAPTURE_STATUS_STOPPED, rotating=rotating)
+    _finalize_locked(
+        CAPTURE_STATUS_FAILED if _error else CAPTURE_STATUS_STOPPED,
+        rotating=rotating,
+        reason=CAPTURE_STOP_ROTATION if rotating else _stop_reason,
+    )
     logger.info("CAPTURE: recorder stopped counts=%s", _counts)
 
 
-def _finalize_locked(status: str, *, rotating: bool = False) -> None:
+def _finalize_locked(status: str, *, rotating: bool = False, reason: str = CAPTURE_STOP_OPERATOR) -> None:
     """fsync + close the streams and merge terminal state into the manifest."""
     global _active, _started_et
     _active = False
@@ -251,6 +273,7 @@ def _finalize_locked(status: str, *, rotating: bool = False) -> None:
                 counts=dict(_counts),
                 segment_counts=segment,
                 error=_error,
+                reason=reason,
             )
             manifest_io.write_json_atomic(man_path, man)
         except OSError:
@@ -289,7 +312,7 @@ def _write(kind: str, row: dict[str, Any]) -> None:
         if _write_failures >= CAPTURE_MAX_WRITE_FAILURES:
             # Give up rather than keep reporting a healthy recording that is
             # writing nothing (D-068). The traceback is already logged above.
-            _finalize_locked(CAPTURE_STATUS_FAILED)
+            _finalize_locked(CAPTURE_STATUS_FAILED, reason=CAPTURE_STOP_FAILURE)
         return
     _write_failures = 0
     _last_write_ts = time.time()
@@ -309,7 +332,7 @@ def _write_bar_locked(timeframe: str, payload: dict[str, Any]) -> None:
 
 
 def _record(kind: str, payload: dict[str, Any]) -> bool:
-    global _error
+    global _error, _stop_reason
     if not _active:
         return False
     with _lock:
@@ -318,6 +341,7 @@ def _record(kind: str, payload: dict[str, Any]) -> bool:
         error = _fidelity.admit(kind, payload)
         if error:
             _error = error
+            _stop_reason = CAPTURE_STOP_FAILURE
             logger.error("CAPTURE: %s (%s)", error, kind)
             _stop_locked()
             return False
@@ -376,9 +400,10 @@ def record_bar(timeframe: str, payload: dict[str, Any]) -> None:
 
 def fail_recorder(error: str) -> None:
     """Finalize an ingress/worker failure using the normal locked stop path."""
-    global _error
+    global _error, _stop_reason
     with _lock:
         _error = error
+        _stop_reason = CAPTURE_STOP_FAILURE
         _stop_locked()
 
 
@@ -390,6 +415,10 @@ def status() -> dict[str, Any]:
         "symbol": _symbol,
         "session_date": _day,
         "dir": str(_dir) if _dir else None,
+        "started_et": _session_started_et,
+        "segment_started_et": _started_et,
+        # This segment's ordinal (1-based) counting the ones already on disk.
+        "segment": _prior_segments + 1 if _active else _prior_segments,
         "counts": dict(_counts),
         "fidelity": _fidelity.payload(),
         "segment_prints": _counts["prints"] - _segment_base["prints"],

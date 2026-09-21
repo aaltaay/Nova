@@ -20,13 +20,17 @@ def overlay_ibkr_status(payload: dict[str, Any]) -> dict[str, Any]:
     recording = False
     record_symbol = None
     record_error = None
+    persistence: dict[str, Any] = {"capture_session": None, "capture_resume": None, "capture_stopped": None}
     try:
+        from capture import keepalive
         from capture.mode import status_payload as capture_status_payload
+        from capture.recorder import status as recorder_status
 
         capture = capture_status_payload()
         recording = bool(capture["capture"])
         record_symbol = capture["capture_symbol"]
         record_error = capture.get("error")
+        persistence = keepalive.status_fields(recorder_status(), recording)
     except Exception:
         logger.exception("RECORD: capture status unavailable")
         record_error = "Recording status unavailable"
@@ -59,6 +63,7 @@ def overlay_ibkr_status(payload: dict[str, Any]) -> dict[str, Any]:
         out["capture_symbol"] = record_symbol
         out["recording"] = recording
         out["capture_error"] = record_error
+        out.update(persistence)
         return out
 
     out = dict(payload)
@@ -67,5 +72,6 @@ def overlay_ibkr_status(payload: dict[str, Any]) -> dict[str, Any]:
     out["capture_symbol"] = record_symbol
     out["recording"] = recording
     out["capture_error"] = record_error
+    out.update(persistence)
     # Tab Record must NOT rewrite mode or trading_allowed — Paper/Live stay themselves.
     return out

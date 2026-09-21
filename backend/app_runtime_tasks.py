@@ -23,6 +23,7 @@ from alpaca import _get_discovery_provider
 from archive.scheduler import archive_maintenance_loop, maintenance_enabled
 import archive.write_queue as _archive_write_queue
 from bot.loops import breaker_loop, ttl_loop
+from capture import keepalive as _capture_keepalive
 from constants import IBKR_DETAIL_STREAM_FRESH_SEC, L2_RETENTION_SWEEP_INTERVAL_SEC
 from ibkr import reprice as _ibkr_reprice
 from ibkr import scanner_l1 as _scanner_l1
@@ -101,6 +102,8 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         ("nasdaq_halt_rss", _nasdaq_halt_feed.poll_loop),
         ("bot.ttl", ttl_loop),
         ("bot.breakers", breaker_loop),
+        # Session Record: resume after a restart / failure / Gateway drop, then say so.
+        ("capture.keepalive", _capture_keepalive.run),
     ]
     if maintenance_enabled():
         factories.append(("archive.maintenance", archive_maintenance_loop))

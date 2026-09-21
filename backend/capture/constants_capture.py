@@ -46,3 +46,19 @@ CAPTURE_L2_LOAD_LIMIT = 30_000
 CAPTURE_CHART_DEFAULT_LIMIT = 300
 CAPTURE_CHART_MAX_LIMIT = 2000
 CAPTURE_FEED_EMIT_LIMIT = 20
+
+# --- Persistence: resume, then say so (operator decision, 2026-09-21) --------
+# The market only happens once. A recording knocked down by a restart, a recorder
+# failure or a lost IBKR line gets back up on its own into a new segment; the
+# operator is told, never asked. Bounded so a dead disk cannot loop forever.
+CAPTURE_KEEPALIVE_INTERVAL_SEC = 5.0
+CAPTURE_RESUME_BACKOFF_SEC = (2.0, 5.0, 10.0, 30.0, 60.0)
+CAPTURE_RESUME_MAX_ATTEMPTS = len(CAPTURE_RESUME_BACKOFF_SEC)
+# A restart resumes only a recording from today that died recently -- not one the
+# operator forgot about three hours ago.
+CAPTURE_RESUME_RESTART_WINDOW_SEC = 15 * 60
+# Why a segment ended (manifest segments[].reason).
+CAPTURE_STOP_OPERATOR = "operator"
+CAPTURE_STOP_ROTATION = "rotation"
+CAPTURE_STOP_FAILURE = "failure"
+CAPTURE_STOP_RESTART = "restart"

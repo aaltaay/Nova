@@ -190,10 +190,13 @@ def _local_startup() -> None:
     try:
         # D-067: a recording the previous process died during is still open on
         # disk with no terminal counts. Finalize it before anything can resume.
+        from capture.keepalive import note_restart
         from capture.recorder import capture_root
         from capture.session_state import finalize_orphaned_session
 
-        finalize_orphaned_session(capture_root())
+        # ...and if it was today's and died recently, the keepalive resumes it
+        # once IBKR is ready (operator decision 2026-09-21: resume, then say so).
+        note_restart(finalize_orphaned_session(capture_root()))
     except Exception:
         logger.exception("CAPTURE: orphaned session recovery failed")
     try:

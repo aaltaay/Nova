@@ -222,6 +222,41 @@ migrated; unknown versions refuse loudly. Capture load diagnostics include
 `legacy_schema` / `l2_decimated` (booleans) and `last_stream_ts` (per-stream event timestamps).
 No automatic retention policy is selected by these additions.
 
+### Recording persistence and coverage (operator decision, 2026-09-21)
+
+A Session Record is owned by the backend process, one symbol at a time by the
+operator's choice, and no page event stops it. What can stop it is a process
+restart, a recorder failure, or a lost IBKR line, and the policy for each is
+**resume, then say so** -- the market only happens once, so a gap in the
+middle beats nothing after it. `capture/keepalive.py` owns this: a restart
+whose active-session marker names today's Eastern date and is younger than
+`CAPTURE_RESUME_RESTART_WINDOW_SEC` resumes into a new segment once IBKR is
+ready; a recorder that stops itself is resumed with backoff
+(`CAPTURE_RESUME_BACKOFF_SEC`), at most `CAPTURE_RESUME_MAX_ATTEMPTS` times per
+unplanned stop; a recording whose tape line went `disconnected` re-acquires its
+IBKR lines when the client is ready again. Resume never crosses a day boundary,
+never changes symbol, and is cancelled by an operator Stop or by the operator
+starting another symbol.
+
+Every manifest segment carries `reason: "operator" | "rotation" | "failure" |
+"restart"` naming why it ended (`restart` is stamped by the startup finalizer).
+`/api/capture/sessions` rows add `segments: integer`, `missing_sec: integer`
+(seconds between the first segment start and the last segment stop that no
+segment covers) and `last_reason: string | null`. A capture selected for Sim
+replay exposes its `segments` list in `replay_load` so the scrubber can draw
+recorded stretches against the session and gaps as gaps; a quiet stretch inside
+a segment is not a gap -- the recorder was up and the tape said nothing.
+
+`/api/ibkr/status` adds `capture_session: object | null` while recording
+(`symbol`, `session_date`, `started_et`, `segment_started_et`, `segments`,
+`counts`, `last_write_ts`, `dir`), `capture_resume: object | null`
+(`pending`, `attempt`, `max_attempts`, `next_at`, `reason`, `gave_up`) and
+`capture_stopped: object | null` -- the last stop the operator did not ask for
+(`symbol`, `at`, `reason`, `error`, `dir`, `counts`), kept until a recording of
+any symbol starts or the operator stops one. The UI treats a running recording
+as quiet state (chip, hairline, window title) and an unrequested stop as the
+loud one.
+
 ### Recorded depth in historical replay (#309)
 
 The historical replay snapshot carries `depth_available: boolean` and

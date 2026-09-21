@@ -29,8 +29,10 @@ from capture.constants_capture import (
     CAPTURE_ACTIVE_STATE_NAME,
     CAPTURE_MANIFEST_NAME,
     CAPTURE_STATUS_INTERRUPTED,
+    CAPTURE_STOP_RESTART,
+    CAPTURE_STREAM_NAMES,
 )
-from capture.manifest_io import read_json, recount_from_disk, write_json_atomic
+from capture.manifest_io import merge, read_json, recount_from_disk, write_json_atomic
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
@@ -112,14 +114,29 @@ def finalize_orphaned_session(root: Path) -> dict[str, Any] | None:
 
     counts, torn = recount_from_disk(session_dir)
     man_path = session_dir / CAPTURE_MANIFEST_NAME
-    man = read_json(man_path)
-    man["symbol"] = man.get("symbol") or symbol
-    man["started_et"] = man.get("started_et") or state.get("started_et")
-    man["stopped_et"] = datetime.now(ET).isoformat()
-    man["complete"] = False
-    man["status"] = CAPTURE_STATUS_INTERRUPTED
-    man["counts"] = dict(counts)
-    man["recovered_et"] = man["stopped_et"]
+    prior = read_json(man_path)
+    # The dead segment's own rows: what is on disk now minus what the manifest
+    # held when start_recorder seeded it (cumulative counts at segment start).
+    base_counts = prior.get("counts") if isinstance(prior.get("counts"), dict) else {}
+    segment_counts = {
+        name: max(0, int(counts.get(name, 0)) - int(base_counts.get(name) or 0))
+        for name in CAPTURE_STREAM_NAMES
+    }
+    stopped_et = datetime.now(ET).isoformat()
+    segment_started = str(prior.get("segment_started_et") or state.get("started_et") or stopped_et)
+    man = merge(
+        prior,
+        base={"symbol": prior.get("symbol") or symbol},
+        started_et=segment_started,
+        stopped_et=stopped_et,
+        status=CAPTURE_STATUS_INTERRUPTED,
+        counts=dict(counts),
+        segment_counts=segment_counts,
+        error=str(prior.get("error") or "") or None,
+        reason=CAPTURE_STOP_RESTART,
+    )
+    man["started_et"] = prior.get("started_et") or state.get("started_et") or segment_started
+    man["recovered_et"] = stopped_et
     man["recovered_from_pid"] = state.get("pid")
     if torn:
         man["torn_tail"] = True
@@ -132,9 +149,13 @@ def finalize_orphaned_session(root: Path) -> dict[str, Any] | None:
     summary = {
         "symbol": man["symbol"],
         "dir": str(session_dir),
+        "session_date": session_dir.parent.name,
         "started_et": man.get("started_et"),
         "counts": dict(counts),
         "torn_tail": torn,
+        # When the dead process last wrote: the newest stream file. This is what
+        # a restart resume is bounded on -- not when the recording began.
+        "last_write_ts": _last_write_ts(session_dir),
     }
     _last_interrupted = summary
     logger.warning(
@@ -145,3 +166,14 @@ def finalize_orphaned_session(root: Path) -> dict[str, Any] | None:
         counts,
     )
     return summary
+
+
+def _last_write_ts(session_dir: Path) -> float | None:
+    newest: float | None = None
+    for name in CAPTURE_STREAM_NAMES:
+        try:
+            mtime = (session_dir / f"{name}.jsonl").stat().st_mtime
+        except OSError:
+            continue
+        newest = mtime if newest is None else max(newest, mtime)
+    return newest
