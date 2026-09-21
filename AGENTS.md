@@ -329,11 +329,16 @@ instrument (ADR 019), and `replay_source` is `none` when nothing is loaded.
 
 ### Practice fills (ADR 019)
 
-The Sim venue trades the loaded replay only. A filled practice row carries
-`fill_estimated: true` and `fill_basis: "quote" | "last_print" | "print_cross" |
-"stop_trigger" | "last_mark"`; a practice fill is never displayed as a recorded
-print. Refusals use `SIM_NO_REPLAY`, `SIM_SYMBOL_MISMATCH`, `SIM_NO_TRADES`,
-`SIM_NO_PRICE` and `SIM_ORDER_TYPE`. Recorded prints carry
+The Sim venue trades the loaded replay, or -- at the live edge -- the live
+tape. The Sim clock payload carries `live_edge: boolean` (playhead following
+the wall clock on today's date: not scrubbed, not paused, no past day loaded);
+it is the single truth for what a Sim desk shows and fills against. A filled
+practice row carries `fill_estimated: true` and `fill_basis: "quote" |
+"last_print" | "print_cross" | "stop_trigger" | "last_mark" | "live_quote" |
+"live_print"`; a practice fill is never displayed as a recorded print.
+Refusals use `SIM_NO_REPLAY` (off the edge only), `SIM_SYMBOL_MISMATCH`,
+`SIM_NO_TRADES`, `SIM_NO_PRICE` (at the edge: no live print yet) and
+`SIM_ORDER_TYPE`. Recorded prints carry
 `ts_source: "exchange" | "receive"` so a substituted arrival time is never read
 as the exchange's own. Rules and biases: `architecture/practice-fills.md`.
 
@@ -404,7 +409,7 @@ Master protection blocks force-push and deletion (including admins), with **no
 required status checks**. Trading runtime gates, opt-ins and `auto_live` NO-GO
 remain unchanged. Conditional coverage is specified in `.cursor/rules/ci-scope.mdc`.
 
-- **Market data / trading:** Scanner and prices are IBKR-only (see `single-market-data-feed.mdc`). Alpaca is news/listing metadata only. Orders are allowed only via gated `backend/ibkr/` (Invariant #7). Gateway port default is live (4001); paper (4002) is the fallback. Spend stays gated; `auto_live` remains NO-GO. Header Paper / Live / Sim may switch the desk to a practice venue that replays a **real recorded or downloaded session** and fills orders locally (no Gateway places, estimated fills, ADR 019). There is no synthetic instrument: with nothing loaded the Sim desk is empty. `NOVA_BROKER=sim` is bootstrap only. Switching off Sim restores the IBKR paths.
+- **Market data / trading:** Scanner and prices are IBKR-only (see `single-market-data-feed.mdc`). Alpaca is news/listing metadata only. Orders are allowed only via gated `backend/ibkr/` (Invariant #7). Gateway port default is live (4001); paper (4002) is the fallback. Spend stays gated; `auto_live` remains NO-GO. Header Paper / Live / Sim may switch the desk to a practice venue that replays a **real recorded or downloaded session** and fills orders locally (no Gateway places, estimated fills, ADR 019) -- or, at the **live edge** (playhead following the wall clock on today's date), shows the live IBKR feed and fills locally against it (ADR 019 amendment, 2026-09-21). The venue never changes the bot: operator and bots are gated identically everywhere. There is no synthetic instrument: off the live edge with nothing loaded the Sim desk is empty. `NOVA_BROKER=sim` is bootstrap only. Switching off Sim restores the IBKR paths.
 - **Desk venue vs spend arming (ADR 018, #302):** two facts with opposite lifetimes, never one dial. The **venue** (Paper / Live / Sim) is durable -- `sim/mode.py` owns `desk-venue.json` under the operator cache (`schema_version`, unknown version refuses loud), and it wins over the `NOVA_BROKER` bootstrap default. **Spend arming never survives a process start**, in any venue: `IBKR_ORDERS_ENABLED` / `IBKR_LIVE_TRADING_CONFIRMED` say this desk is *permitted*, the runtime latch in `ibkr/safety.py` says it is currently *armed*, and a place needs both. Arming is an explicit operator act at the header padlock (`POST /api/ibkr/arm`) -- never an `.env` edit, never inferred from a connect, reconnect or self-heal, and never re-armed by any automatic path. A venue change disarms. Protective sources (`flatten`, `kill`, `cancel_working`) and cancel are exempt: a disarmed desk must always be able to get flat. Only the *settled* venue persists -- an in-flight gateway-mode switch stays process-local in `gateway_heal.py` so ADR 013's unattended reconnect is unchanged.
 - **Market Open Halt**: The gapper dashboard stops updating its data feed once the market formally opens.
 - **Configurable**: API keys and base URLs must be configurable via UI.

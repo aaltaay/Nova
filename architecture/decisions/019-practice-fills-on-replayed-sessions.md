@@ -92,3 +92,49 @@ against it without placing live orders.
 - `architecture/practice-fills.md` · `docs/sim-mode.md`
 - `backend/sim/practice.py` · `backend/sim/fill_model.py` · `backend/sim/broker.py`
 - `.cursor/rules/capture-replay-truth.mdc` · `.cursor/rules/single-market-data-feed.mdc`
+
+## Amendment 2026-09-21 -- the live edge
+
+**Status:** Accepted (operator decision, 2026-09-21)
+
+### Context
+
+Paper is IBKR's paper money on the live feed. On 2026-09-21 the operator's
+paper login had no API market-data entitlement, which left no venue where a
+bot -- or the operator -- could practise on live data with fake money. The Sim
+clock already knows when the playhead is *now* ("Live wall clamp"), and the
+operator's framing was exact: when the slider points at real time, show real
+time; when it points into history, show the recording.
+
+### Decision
+
+6. **The clock is the single truth for what a Sim desk shows and trades.**
+   `live_edge` is true while the playhead follows the wall clock on today's
+   date -- not scrubbed, not paused, no past day loaded. At the live edge the
+   Sim desk's Time & Sales, Level 2 and quote show the live IBKR feed, and a
+   practice order is admitted for any symbol with a live print, filled as an
+   estimate against the live tape (`fill_basis` `live_quote` / `live_print`).
+   Off the edge -- scrubbed, paused, or a past day loaded -- everything is the
+   loaded replay, exactly as in 1-3 above.
+
+7. **The venue never changes the bot.** The operator and the bots are gated
+   identically on every venue -- arming (ADR 018), autonomy level, Activate,
+   allowlist, heartbeat, breakers, `source` -- and the venue only decides
+   where the fill comes from. Nothing is admitted at the live edge that Paper
+   would refuse, and nothing Paper admits is refused.
+
+8. **A live-edge fill is still an estimate, and says so.** A live NBBO is a
+   better reference than a replay quote, but there is still no queue; the
+   biases in `architecture/practice-fills.md` apply unchanged.
+
+### Consequences
+
+- Sim at the live edge is Nova's fake money on the live feed, without the
+  paper Gateway: Paper stays IBKR's paper money, Sim is any point in time
+  including now.
+- During market hours a Sim desk with nothing loaded is no longer empty -- it
+  is live. The empty-desk notice and the download offer apply off the edge.
+- Charts on a Sim desk still read the bar archive, which the live feed fills
+  as it prints; at the edge they lag the tape by one archive flush.
+- `SIM_NO_REPLAY` applies off the edge only; at the edge a symbol with no live
+  print yet is refused `SIM_NO_PRICE`, never guessed.

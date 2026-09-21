@@ -25,6 +25,18 @@ Everything else is refused with a reason code:
 | `SIM_NO_PRICE` | The replay has not printed yet at the playhead. |
 | `SIM_ORDER_TYPE` | Practice supports `MKT`, `LMT` and `STP` only. |
 
+## The live edge
+
+When the Sim clock follows the wall clock on today's date (`live_edge` on the
+clock payload -- not scrubbed, not paused, no past day loaded), the practice
+desk trades the **live tape**, not a replay: any symbol with a live print is
+admitted, `last` is the live tape's last print and `bid` / `ask` the live top
+of book. Fills follow the same rules below with `fill_basis` `live_quote` (a
+quote was present) or `live_print` (last print only), and resting orders fill
+on live prints that arrive after they were placed. Scrubbing or pausing leaves
+the edge: from then on the desk is the replay again. The venue never changes
+the bot -- gating is identical on Paper, Live and Sim (ADR 019 amendment).
+
 ## The market at the playhead
 
 `practice.reference(symbol)` returns `last`, `bid` and `ask`, any of which may
