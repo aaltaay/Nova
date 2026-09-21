@@ -78,6 +78,17 @@ def _db_path() -> Path:
     return cache_dir() / L2_DB_FILENAME
 
 
+def db_path() -> Path:
+    """Where ``l2.db`` lives, for read paths that must check before connecting.
+
+    ``sqlite3.connect`` creates the file, so a reader that only wants to know
+    whether anything was ever recorded (the replay depth feeder, #309) has to
+    test existence first. A desk that never recorded depth must keep having no
+    archive rather than an empty one.
+    """
+    return _db_path()
+
+
 def get_connection() -> sqlite3.Connection:
     """One connection per call. WAL + NORMAL sync for high local write volume."""
     conn = sqlite3.connect(_db_path(), timeout=30.0)

@@ -94,6 +94,29 @@ describe('historical replay keeps the live Stock Quote structure', () => {
     expect(head.querySelector('[data-testid="historical-l2-chip"]')?.textContent).toBe('ReplayNo L2 recorded');
     // The rail hides .ibkr-depth-fallback-badge, so the note must not depend on it.
     expect(container.querySelector('[data-testid="historical-l2"] .ibkr-depth-fallback-badge')).toBeNull();
+    expect(container.querySelector('[data-testid="historical-l2-empty"]')).toBeTruthy();
+  });
+
+  it('shows the recorded book in the same Level 2 pane when the snapshot carries one', async () => {
+    // Depth recorded locally for the replayed session (#309); the download
+    // itself still has no book, which is why this arrives on the snapshot.
+    await render(replaySnapshot({
+      depth_available: true,
+      depth: {
+        symbol: 'SPY', bids: [{ price: 762.9, size: 200, side: 'bid', mm: 'ISLAND' }],
+        asks: [{ price: 763.1, size: 300, side: 'ask', mm: 'ARCA' }],
+        ts: 1_758_184_876, age_sec: 0.4, l1_fallback: false, source: 'l2_recorder',
+      },
+    }));
+    const l2 = container.querySelector('[data-testid="stock-view-l2-col"]')!;
+    expect(l2.querySelector('[data-testid="historical-l2-empty"]')).toBeNull();
+    expect(l2.querySelector('[data-testid="historical-l2"]')?.getAttribute('data-depth-source'))
+      .toBe('l2_recorder');
+    expect(l2.querySelector('.das-l2-side--bid .das-l2-row--tiered .das-l2-price')?.textContent)
+      .toBe('762.90');
+    expect(l2.querySelector('[data-testid="historical-l2-chip"]')?.textContent).toBe('ReplayRecorded L2');
+    // Still never the live feed for a past session.
+    expect(hooks.depth).not.toHaveBeenCalled();
   });
 
   it.each([[false, true], [true, false], [false, false]])(

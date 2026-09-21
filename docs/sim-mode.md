@@ -91,9 +91,12 @@ preloaded for the entire market.
 The Stock Quote rail looks the same as Paper/Live: the quote head (last,
 change vs the prior close, Vol/Gap/High/Low for the replay so far) over
 **Level 2 | Time & Sales**. Time & Sales is the live panel with a **REPLAY**
-badge; Level 2 keeps its columns but stays empty because historical depth is
-not recorded. Rows are not tinted green/red, because historical bid/ask is not
-downloaded.
+badge. Level 2 keeps its columns and shows the book **your own depth recorder**
+archived for the second at the playhead, stamped with when it was recorded; an
+IBKR download itself carries no book. Most replayed seconds were never
+recorded, and the pane says so ("Level 2 was not recorded for this moment")
+rather than showing an empty ladder. Rows are not tinted green/red, because
+historical bid/ask is not downloaded.
 
 Candles without trade coverage appear only after their interval closes.
 Downloaded prints build partial candles and Time & Sales at one-second

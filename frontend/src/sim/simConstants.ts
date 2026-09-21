@@ -13,7 +13,13 @@ export const SIM_REPLAY_TAPE_NO_TRADES = 'Completed candles only -- download tra
 export const SIM_REPLAY_L2_CHIP_LABEL = 'Replay';
 export const SIM_REPLAY_L2_CHIP_VALUE = 'No L2 recorded';
 export const SIM_REPLAY_L2_CHIP_TITLE =
-  'Historical Level 2 is not recorded. Live halt and borrow state are hidden because they describe today, not this session.';
+  'An IBKR historical download carries trades only, and no local depth recording covers this moment. Live halt and borrow state are hidden because they describe today, not this session.';
+/** Same chip once a locally recorded book covers the playhead second (#309). */
+export const SIM_REPLAY_L2_RECORDED_VALUE = 'Recorded L2';
+export const SIM_REPLAY_L2_RECORDED_TITLE =
+  'Level 2 recorded locally for this session, replayed at the playhead. Live halt and borrow state are hidden because they describe today, not this session.';
+/** Said inside the ladder, because the rail hides .ibkr-depth-fallback-badge. */
+export const SIM_REPLAY_L2_EMPTY_NOTE = 'Level 2 was not recorded for this moment';
 
 /** Requests are bounded; slow polls never overlap. */
 export const SIM_REQUEST_TIMEOUT_MS = 15_000;

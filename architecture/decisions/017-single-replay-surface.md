@@ -79,7 +79,11 @@ healthy and left #315 blocked on an ownership choice.
 - Historical downloads and live recordings can have different acquisition
   capabilities while sharing one replay contract.
 - Quotes and depth remain absent from an IBKR historical replay until separately
-  approved (#309/#311); this ADR does not invent them.
+  approved (#309/#311); this ADR does not invent them. **#309 was approved
+  (operator, 2026-09-20):** `backend/l2/` now feeds recorded books into this
+  engine's snapshot (`sim/history_depth.py`) under decision 4's feeder role. No
+  second player, store or selection state; an unrecorded second reports no
+  depth. Quotes are still absent.
 - Practice fills on replayed symbols are enabled by ADR 019. No broker
   execution path or trading gate changes; `auto_live` remains NO-GO.
 - Retiring direct capture playback requires an importer and compatibility tests,
