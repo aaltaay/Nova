@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from constants_sim import (
     SIM_HISTORY_MAX_SELECTION_PRINTS, SIM_HISTORY_QUOTE_CANDLES, SIM_HISTORY_TAPE_ROWS,
 )
-from sim import history_depth
+from sim import history_depth, history_sides
 from sim import history_store as store
 from sim.chart_replay import INTERVAL_SECONDS
 from sim.history_cache import CandleCache, previous_close
@@ -44,6 +44,7 @@ def clear():
         _generation += 1
         _selection = None
     history_depth.clear()
+    history_sides.clear()
 
 
 @contextmanager
@@ -105,6 +106,7 @@ def select(spec: dict):
                 previous[key] == spec[key] for key in ('symbol', 'date', 'start', 'end'))
             replay.clear_capture()
             history_depth.clear()
+            history_sides.clear()
             _selection = loaded
             session_clock.set_session_date(spec['date'])
             session_clock.set_window(spec['start'], spec['end'])
@@ -147,7 +149,7 @@ def snapshot(symbol: str):
     result = dict(active=symbol == spec['symbol'], symbol=symbol, as_of=now.isoformat(),
                   selection=dict(spec), prints=[], last=None, volume=None, source='completed_bars',
                   open=None, high=None, low=None, prev_close=None,
-                  bid=None, ask=None, depth_available=False, depth=None)
+                  bid=None, ask=None, depth_available=False, depth=None, sides_recorded=0)
     if not result['active']:
         return result
     result['prev_close'] = selected.prev_close
@@ -171,6 +173,8 @@ def snapshot(symbol: str):
                                 time=datetime.fromtimestamp(row['ts'], timezone.utc).isoformat(),
                                 bid=None, ask=None, side=None)
                             for i, row in enumerate(selected.prints[start:end], start)][::-1]
+        # Real sides only, from the local L2 recording where it decides them.
+        result['sides_recorded'] = history_sides.attach_recorded_sides(symbol, result['prints'])
     if result['source'] != 'trades' or cutoff >= spec['coverage_through']:
         candles = selected.candles.bars(symbol, '1Min', SIM_HISTORY_QUOTE_CANDLES, cutoff)
         if candles:

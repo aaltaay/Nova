@@ -226,6 +226,16 @@ stay null — a recorded book is not a quote stream. The lookup never reads ahea
 of the playhead, and an unreadable `l2.db` degrades to the unrecorded case
 instead of failing the snapshot.
 
+Each snapshot print carries `side: "ask" | "bid" | "between" | null`, `bid` and
+`ask` (`number | null`) and `side_source: "recorded_book" | null`, and the
+snapshot adds `sides_recorded: integer`. A print gets a side only when `l2.db`
+holds a book at or before its (whole-second) timestamp and one at or after the
+next second, within `SIM_HISTORY_DEPTH_MAX_AGE_SEC`, and every book in that span
+has the same top of book -- the quote provably held across the print's second --
+classified by the live tape's own rule (`ibkr/tape_side.py`). Otherwise the side
+is `null` and no bid/ask is attached. Unreported prints never get a side. No
+side is ever inferred from price movement.
+
 ### Input Payload (Raw)
 
 ```json

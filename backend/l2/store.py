@@ -132,6 +132,31 @@ def get_snapshot_before(symbol: str, ts: float, max_age_sec: float) -> dict | No
     return _decode_snapshot(row) if row else None
 
 
+def get_snapshots_between(symbol: str, start_ts: float, end_ts: float) -> list[dict]:
+    """Snapshots in [start_ts, end_ts], oldest first -- the replay-safe range read.
+
+    Same two rules as ``get_snapshot_before``: it never flushes the writer batch
+    (queued rows belong to the live recording, not the replayed past) and it
+    never creates ``l2.db``. Used to decide whether the recorded quote held
+    steady across one historical print's second (``sim/history_sides.py``).
+    """
+    if not db_path().exists():
+        return []
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT * FROM l2_snapshots
+            WHERE symbol = ? AND ts >= ? AND ts <= ?
+            ORDER BY ts ASC
+            """,
+            (symbol.upper(), start_ts, end_ts),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [_decode_snapshot(row) for row in rows]
+
+
 def get_nearest_snapshot(symbol: str, ts: float, window_sec: float) -> dict | None:
     """Closest snapshot to ts within ±window_sec, or None."""
     rows = get_snapshots_in_range(symbol, ts - window_sec, ts + window_sec)

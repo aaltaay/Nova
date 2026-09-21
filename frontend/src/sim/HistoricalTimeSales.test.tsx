@@ -31,3 +31,12 @@ it('passes snapshot errors through to the shared tape view', () => {
     prints: [], connected: true, error: 'Replay unavailable',
   });
 });
+
+it('shows a real side exactly where the local recording decided one, and nothing elsewhere', () => {
+  const feed = historicalTapeFeed({ ...snapshot, sides_recorded: 1, prints: [
+    { time: '2026-09-18T14:00:01Z', price: 5.02, size: 100, exchange: 'NSDQ',
+      side: 'ask', bid: 5.0, ask: 5.02, side_source: 'recorded_book' },
+    { time: '2026-09-18T14:00:00Z', price: 5.01, size: 100, exchange: 'ARCA', side: null },
+  ] });
+  expect(feed.prints.map(p => [p.side, p.bid, p.ask])).toEqual([['ask', 5.0, 5.02], ['unknown', null, null]]);
+});

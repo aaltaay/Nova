@@ -17,9 +17,15 @@ export interface HistoricalSnapshot {
   /** Close of the last daily bar before the session date. */
   prev_close?: number | null;
   selection?: HistoricalSelection;
+  /** Prints whose side the local L2 recording decided (AGENTS.md §3). */
+  sides_recorded?: number;
   prints: {
     ordinal?: number; time: string; price: number; size: number; exchange: string;
     conditions?: string; unreported?: boolean;
+    /** Real side from a recorded book that held across the print's second; else null. */
+    side?: 'ask' | 'bid' | 'between' | null;
+    bid?: number | null; ask?: number | null;
+    side_source?: string | null;
   }[];
 }
 

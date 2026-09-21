@@ -9,6 +9,8 @@ import { playheadBeyondCoverage } from './simCoverage';
 import {
   SIM_REPLAY_TAPE_EMPTY,
   SIM_REPLAY_TAPE_NO_TRADES,
+  SIM_REPLAY_TAPE_SIDES_NONE,
+  SIM_REPLAY_TAPE_SIDES_RECORDED,
   SIM_REPLAY_TAPE_STATUS,
   simReplayTapeNotDownloaded,
 } from './simConstants';
@@ -29,10 +31,11 @@ export function historicalTapeFeed(snapshot: HistoricalSnapshot): TapeState {
     size: p.size,
     exchange: p.exchange ?? '',
     conditions: p.conditions ?? '',
-    // No historical quotes are downloaded, so there is no bid/ask aggressor side.
-    side: 'unknown',
-    bid: null,
-    ask: null,
+    // A side exists only where the local L2 recording decided it (the quote held
+    // across the print's second). Otherwise unknown -- never inferred.
+    side: p.side ?? 'unknown',
+    bid: p.bid ?? null,
+    ask: p.ask ?? null,
     unreported: Boolean(p.unreported),
   }));
   return { prints, connected: true, error: prints.length ? null : snapshot.error ?? null };
@@ -58,7 +61,8 @@ export function HistoricalTimeSales({ symbol, snapshot, uiActive = true }: Props
       embedded
       uiActive={uiActive}
       connectedText={SIM_REPLAY_TAPE_STATUS}
-      statusTitle={sourceLabel(snapshot)}
+      statusTitle={`${sourceLabel(snapshot)} ${(snapshot.sides_recorded ?? 0) > 0
+        ? SIM_REPLAY_TAPE_SIDES_RECORDED : SIM_REPLAY_TAPE_SIDES_NONE}`}
       emptyLabel={emptyLabel}
     />
     </>

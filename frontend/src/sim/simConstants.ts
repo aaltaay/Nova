@@ -7,6 +7,11 @@ export const SIM_HISTORY_POLL_MS = 1000;
 export const SIM_ET_TIME_ZONE = 'America/New_York';
 /** Time & Sales badge while historical replay feeds the tape. */
 export const SIM_REPLAY_TAPE_STATUS = 'REPLAY';
+/** Tape tooltip: where colours come from. Never from price movement. */
+export const SIM_REPLAY_TAPE_SIDES_RECORDED =
+  "Colours come from your local L2 recording, only where its quote held across the print's second. Other rows are uncoloured.";
+export const SIM_REPLAY_TAPE_SIDES_NONE =
+  'Uncoloured: a historical download has no quotes, and no local L2 recording covers these prints.';
 export const SIM_REPLAY_TAPE_EMPTY = 'No prints yet at this replay time';
 export const SIM_REPLAY_TAPE_NO_TRADES = 'Completed candles only -- download trades for Time & Sales';
 /** Tape past the download edge: say so rather than show the edge's prints as current. */

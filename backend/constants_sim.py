@@ -103,3 +103,7 @@ SIM_HISTORY_DEPTH_MAX_AGE_SEC = 2.0
 # panel, the chart and practice admission, so the archive is read at most once
 # per second no matter how many callers ask.
 SIM_HISTORY_DEPTH_CACHE_ENTRIES = 16
+# Per-print sides from the local L2 recording (AGENTS.md §3). Memoized per
+# (symbol, second) because the replay tape is re-polled every second.
+SIM_HISTORY_SIDE_SOURCE = "recorded_book"
+SIM_HISTORY_SIDE_CACHE_ENTRIES = 4096
