@@ -321,3 +321,21 @@ it('Close replay waits for a sent seek and cancels its queued keyboard successor
   expect(paths).toEqual(['clock', 'replay']);
   expect(screen.getByTestId('sim-replay-source').textContent).toBe('NO REPLAY');
 });
+
+it('shows how far the loaded window is downloaded on the slider, like a buffered band', async () => {
+  const start = Date.parse('2026-09-18T13:15:00Z') / 1000;
+  const end = Date.parse('2026-09-18T15:30:00Z') / 1000;
+  const selection = { symbol: 'IMCC', date: '2026-09-18', start: '09:15', end: '11:30',
+    start_ts: start, end_ts: end, coverage_through: start + (end - start) / 4 };
+  mocks.fetch.mockImplementation(async (url: string) => ({
+    ok: true,
+    json: async () => url.endsWith('/history') ? { jobs: [], selection }
+      : url.endsWith('/sessions') ? { days: [], tickers_by_day: {} }
+      : { sim: true, replay_source: 'historical', replay_symbol: 'IMCC', minute_from_open: 10, minute_max: 135 },
+  }));
+  await mount();
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  const band = screen.getByTestId('sim-scrubber-coverage');
+  expect(parseFloat(band.style.width)).toBeCloseTo(25);
+  expect(band.parentElement?.getAttribute('title')).toMatch(/Trades downloaded to 09:48:45 ET/);
+});

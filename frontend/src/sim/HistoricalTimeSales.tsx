@@ -4,11 +4,13 @@
  */
 import { useMemo } from 'react';
 import { TimeSalesView, type TapePrint, type TapeState } from '../ibkr';
-import { sourceLabel } from './historicalReplayFormat';
+import { etTime, sourceLabel } from './historicalReplayFormat';
+import { playheadBeyondCoverage } from './simCoverage';
 import {
   SIM_REPLAY_TAPE_EMPTY,
   SIM_REPLAY_TAPE_NO_TRADES,
   SIM_REPLAY_TAPE_STATUS,
+  simReplayTapeNotDownloaded,
 } from './simConstants';
 import type { HistoricalSnapshot } from './useHistoricalSnapshot';
 
@@ -37,8 +39,16 @@ export function historicalTapeFeed(snapshot: HistoricalSnapshot): TapeState {
 }
 
 export function HistoricalTimeSales({ symbol, snapshot, uiActive = true }: Props) {
-  const feed = useMemo(() => historicalTapeFeed(snapshot), [snapshot]);
+  // Past the download edge the reached prints are the edge's, not this moment's.
+  const beyond = playheadBeyondCoverage(snapshot);
+  const feed = useMemo(
+    () => (beyond ? { prints: [], connected: true, error: null } : historicalTapeFeed(snapshot)),
+    [snapshot, beyond],
+  );
   const noTrades = snapshot.source === 'completed_bars';
+  const emptyLabel = beyond
+    ? simReplayTapeNotDownloaded(etTime(snapshot.selection!.coverage_through))
+    : noTrades ? SIM_REPLAY_TAPE_NO_TRADES : SIM_REPLAY_TAPE_EMPTY;
   return (
     <>
     {snapshot.error && snapshot.prints.length > 0 && <p role="alert" className="sim-error">Replay update failed; showing last reached data. {snapshot.error}</p>}
@@ -49,7 +59,7 @@ export function HistoricalTimeSales({ symbol, snapshot, uiActive = true }: Props
       uiActive={uiActive}
       connectedText={SIM_REPLAY_TAPE_STATUS}
       statusTitle={sourceLabel(snapshot)}
-      emptyLabel={noTrades ? SIM_REPLAY_TAPE_NO_TRADES : SIM_REPLAY_TAPE_EMPTY}
+      emptyLabel={emptyLabel}
     />
     </>
   );

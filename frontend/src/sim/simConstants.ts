@@ -9,6 +9,11 @@ export const SIM_ET_TIME_ZONE = 'America/New_York';
 export const SIM_REPLAY_TAPE_STATUS = 'REPLAY';
 export const SIM_REPLAY_TAPE_EMPTY = 'No prints yet at this replay time';
 export const SIM_REPLAY_TAPE_NO_TRADES = 'Completed candles only -- download trades for Time & Sales';
+/** Tape past the download edge: say so rather than show the edge's prints as current. */
+export const simReplayTapeNotDownloaded = (through: string): string =>
+  `Not downloaded yet -- trades reach ${through} ET. They fold in as the download arrives.`;
+export const simScrubberCoverageTitle = (through: string): string =>
+  `Trades downloaded to ${through} ET -- past this the tape is empty until the download arrives`;
 /** Level 2 header chip in replay (replaces live halt / shortability chips). */
 export const SIM_REPLAY_L2_CHIP_LABEL = 'Replay';
 export const SIM_REPLAY_L2_CHIP_VALUE = 'No L2 recorded';

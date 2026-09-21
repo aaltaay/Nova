@@ -21,6 +21,9 @@ export interface HistoricalDepthBook {
 
 export interface HistoricalWindow { symbol: string; date: string; start: string; end: string }
 export interface HistoricalSelection extends HistoricalWindow {
+  /** Window bounds, epoch seconds (the backend's `store.window` spec). */
+  start_ts?: number;
+  end_ts?: number;
   coverage_through: number;
   trade_count?: number;
   download_status?: string;

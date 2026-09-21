@@ -5,6 +5,10 @@ import type { SimClockState } from './simClockTypes';
 import { HistoricalReplayPanel } from './HistoricalReplayPanel';
 import { useSimSessionController } from './useSimSessionController';
 import { useProgressiveReplay } from './useProgressiveReplay';
+import { useHistoricalStatus } from './historicalStatusStore';
+import { coverageFraction } from './simCoverage';
+import { etTime } from './historicalReplayFormat';
+import { simScrubberCoverageTitle } from './simConstants';
 import { SIM_SESSION_CLOSE_LABEL, SIM_SESSION_MINUTES, SIM_SESSION_OPEN_LABEL } from './simConstants';
 
 function formatClock(iso?: string): string {
@@ -50,6 +54,7 @@ export function SimSessionHeader({ active }: { active: boolean }) {
   const { openStockView } = useWorkspace();
   const controller = useSimSessionController(active, openStockView);
   useProgressiveReplay(active);
+  const historicalSelection = useHistoricalStatus(false).data?.selection ?? null;
   const { clock, sessions, day, symbol, dragMinute, setDay, setSymbol, applyReplay, busy } = controller;
   if (!active) return null;
   const max = clock?.minute_max ?? SIM_SESSION_MINUTES;
@@ -64,6 +69,10 @@ export function SimSessionHeader({ active }: { active: boolean }) {
   const tickers = sessions?.tickers_by_day?.[day] ?? [];
   const diagnostics = capture ? clock?.replay_load : null;
   const invalid = diagnostics ? (diagnostics.malformed_rows ?? 0) + (diagnostics.invalid_timestamp_rows ?? 0) + (diagnostics.invalid_rows ?? 0) : 0;
+  // Buffered band: how far the loaded window's trades are downloaded. Hidden when
+  // complete (nothing to warn about) and for anything but a historical replay.
+  const coverage = historical ? coverageFraction(historicalSelection) : null;
+  const showCoverage = coverage != null && coverage < 1 && historicalSelection != null;
   return <div className="sim-session-header" data-testid="sim-session-header">
     <strong>SIM SESSION</strong>
     <SimPlaybackButton clock={clock} onClock={controller.setClock} onBeforeChange={controller.suspendClock} onSettled={controller.resumeClock} />
@@ -72,12 +81,17 @@ export function SimSessionHeader({ active }: { active: boolean }) {
     <span className="sim-muted">{(clock?.phase || '--').toUpperCase()}</span>
     <label className="sim-session-header__scrubber">
       <span>{openingLabel}</span>
-      <input data-testid="sim-session-scrubber" aria-label="Sim replay time" aria-valuetext={`${formatMinuteClock(minute, opening)} Eastern`}
-        type="range" min={0} max={max} value={minute} aria-busy={busy.has('clock') || busy.has('follow')}
-        onPointerDown={controller.beginDrag}
-        onPointerUp={event => void controller.endDrag(Number(event.currentTarget.value))}
-        onPointerCancel={event => void controller.endDrag(Number(event.currentTarget.value))}
-        onChange={event => controller.onScrubInput(Number(event.target.value))} />
+      <span className="sim-session-header__range"
+        title={showCoverage ? simScrubberCoverageTitle(etTime(historicalSelection.coverage_through)) : undefined}>
+        <input data-testid="sim-session-scrubber" aria-label="Sim replay time" aria-valuetext={`${formatMinuteClock(minute, opening)} Eastern`}
+          type="range" min={0} max={max} value={minute} aria-busy={busy.has('clock') || busy.has('follow')}
+          onPointerDown={controller.beginDrag}
+          onPointerUp={event => void controller.endDrag(Number(event.currentTarget.value))}
+          onPointerCancel={event => void controller.endDrag(Number(event.currentTarget.value))}
+          onChange={event => controller.onScrubInput(Number(event.target.value))} />
+        {showCoverage && <span className="sim-session-header__coverage" data-testid="sim-scrubber-coverage"
+          style={{ width: `${(coverage * 100).toFixed(2)}%` }} />}
+      </span>
       <span>{clock?.session_close_et ? formatClock(clock.session_close_et).slice(0, 5) : SIM_SESSION_CLOSE_LABEL}</span>
     </label>
     {clock?.scrubbed || clock?.paused || dragMinute != null
