@@ -12,6 +12,8 @@ export interface RecordingView {
   symbol: string;
   /** Milliseconds since the session's first segment began; null if unknown. */
   sinceMs: number | null;
+  /** Milliseconds this segment has been running -- what "recording for" means after a resume. */
+  segmentSinceMs: number | null;
   segment: number | null;
   prints: number;
   quotes: number;
@@ -52,10 +54,12 @@ export function recordingView(status: IbkrStatus, symbol: string | null, nowMs: 
   const session = status.capture_session;
   if (!symbol || !session || session.symbol !== symbol) return null;
   const started = session.started_et ? Date.parse(session.started_et) : NaN;
+  const segmentStarted = session.segment_started_et ? Date.parse(session.segment_started_et) : NaN;
   const lastWrite = session.last_write_ts;
   return {
     symbol,
     sinceMs: Number.isFinite(started) ? Math.max(0, nowMs - started) : null,
+    segmentSinceMs: Number.isFinite(segmentStarted) ? Math.max(0, nowMs - segmentStarted) : null,
     segment: typeof session.segment === 'number' ? session.segment : null,
     prints: count(session.counts, 'prints'),
     quotes: count(session.counts, 'quotes'),

@@ -137,9 +137,20 @@ describe('RecordingChip', () => {
     const chip = screen.getByTestId('status-chip-recording');
     expect(chip.textContent).toContain('REC');
     expect(chip.textContent).toContain('GRML · 13m 25s');
+    expect(chip.title).toContain('Recording GRML for 13m 25s');
     expect(chip.title).toContain('2,439 prints · 229 quotes · 229 L2 books');
     expect(chip.title).toContain('Last write 1s ago');
     fireEvent.click(chip);
     expect(open).toHaveBeenCalledWith('GRML');
+  });
+
+  it('after a resume, "for" is this segment and the tooltip says when the session began', async () => {
+    await mount(<RecordingChip />);
+    await poll({ ...recording, capture_session: {
+      ...recording.capture_session!, segment: 4, segment_started_et: '2026-09-21T11:59:20-04:00',
+    } });
+    const chip = screen.getByTestId('status-chip-recording');
+    expect(chip.textContent).toContain('GRML · 40s');
+    expect(chip.title).toContain('Recording GRML for 40s -- segment 4 of a session that began 13m 25s ago');
   });
 });

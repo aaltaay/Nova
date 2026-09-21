@@ -11,11 +11,14 @@ export const RECORDING_SIGNAL_TICK_MS = 1000;
 export const recordingChipValue = (symbol: string, elapsed: string): string => `${symbol} · ${elapsed}`;
 export const recordingHairlineTitle = (symbol: string): string => `Recording ${symbol}`;
 export const recordingChipTitle = (args: {
-  symbol: string; elapsed: string; segment: number | null; prints: number; quotes: number; l2: number;
-  lastWriteAgeSec: number | null; reacquired: number; dir: string | null;
+  symbol: string; elapsed: string; sessionElapsed: string; segment: number | null; prints: number; quotes: number;
+  l2: number; lastWriteAgeSec: number | null; reacquired: number; dir: string | null;
 }): string => {
+  const resumed = Boolean(args.segment && args.segment > 1);
   const lines = [
-    `Recording ${args.symbol} for ${args.elapsed}${args.segment && args.segment > 1 ? ` (segment ${args.segment})` : ''}`,
+    resumed
+      ? `Recording ${args.symbol} for ${args.elapsed} -- segment ${args.segment} of a session that began ${args.sessionElapsed} ago`
+      : `Recording ${args.symbol} for ${args.elapsed}`,
     `${args.prints.toLocaleString()} prints · ${args.quotes.toLocaleString()} quotes · ${args.l2.toLocaleString()} L2 books`,
     args.lastWriteAgeSec == null ? 'Nothing written yet' : `Last write ${args.lastWriteAgeSec}s ago`,
   ];

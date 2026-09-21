@@ -24,6 +24,7 @@ describe('recordingView', () => {
       symbol: 'GRML', segment: 2, prints: 2439, quotes: 229, l2: 229, lastWriteAgeSec: 3, reacquired: 1,
     });
     expect(view?.sinceMs).toBe(13 * 60 * 1000 + 25 * 1000);
+    expect(view?.segmentSinceMs).toBe(2 * 60 * 1000);
   });
 
   it('is nothing when the fresh symbol and the session disagree', () => {

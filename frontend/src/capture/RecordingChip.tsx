@@ -29,10 +29,12 @@ export function RecordingChip({ onOpenSymbol }: { onOpenSymbol?: (symbol: string
   const view = symbol ? recordingView(status, symbol, now) : null;
   if (!symbol) return null;
 
-  const elapsed = elapsedLabel(view?.sinceMs ?? null);
+  // "For how long" is this segment: after a resume the session began earlier
+  // than the recording has actually been running, and the tooltip says both.
+  const elapsed = elapsedLabel(view?.segmentSinceMs ?? view?.sinceMs ?? null);
   const value = recordingChipValue(symbol, elapsed);
   const title = view
-    ? recordingChipTitle({ ...view, elapsed })
+    ? recordingChipTitle({ ...view, elapsed, sessionElapsed: elapsedLabel(view.sinceMs) })
     : `Recording ${symbol}`;
   return (
     <button
