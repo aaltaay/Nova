@@ -1,4 +1,4 @@
-/* Sim tab truth strip -- quieter than the SIM PRACTICE banner it sits under. */
+/* Sim tab truth strip -- top of a Sim tab. */
 .sim-replay-target {
   flex-shrink: 0;
   display: flex;

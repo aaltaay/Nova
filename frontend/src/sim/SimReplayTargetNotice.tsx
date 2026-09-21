@@ -1,5 +1,5 @@
 /**
- * Sim tab prompt -- sits directly under the SIM PRACTICE banner.
+ * Sim tab prompt -- sits at the top of a Sim tab.
  *
  * A Sim tab without its replay says so in one line and offers the one action
  * that fixes it: Download (then it loads itself), Load, Resume, Retry -- or, with

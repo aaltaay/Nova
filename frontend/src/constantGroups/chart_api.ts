@@ -625,8 +625,6 @@ export const TICKER_TRADE_PLACE_PAPER_ORDER_LABEL = 'Place Paper order';
 /** Hot strip above Stock View / Trading when Gateway mode is paper. */
 export const PAPER_TRADING_BANNER_TEXT =
   'PAPER TRADING — orders go to your IBKR paper account, not live money.';
-export const SIM_TRADING_BANNER_TEXT =
-  'SIM PRACTICE -- replayed real sessions and local estimated fills. Not IBKR paper. Not live money.';
 /**
  * Local UI unlock PIN for the Trade ticket (not a server secret).
  * Correct PIN switches the primary button to Place an order for this browser session.

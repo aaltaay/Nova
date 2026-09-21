@@ -14,7 +14,6 @@ import {
   GLOBAL_BAR_MODE_LIVE,
   GLOBAL_BAR_MODE_PAPER,
   GLOBAL_BAR_MODE_SIM,
-  SIM_PRACTICE_FLAG_TEXT,
   STOCK_VIEW_ACCOUNT_MODE_LIVE_TITLE,
   STOCK_VIEW_ACCOUNT_MODE_PAPER_TITLE,
   STOCK_VIEW_ACCOUNT_MODE_SIM_TITLE,
@@ -231,11 +230,6 @@ export function GatewayModeCapsule({
           {switching === 'sim' ? '…' : GLOBAL_BAR_MODE_SIM}
         </button>
       </div>
-      {selected === 'sim' ? (
-        <span className="gw-mode-capsule__sim-flag" data-testid={`${testId}-sim-flag`}>
-          {SIM_PRACTICE_FLAG_TEXT}
-        </span>
-      ) : null}
       {switchError ? (
         <div
           className="gw-mode-capsule__error"

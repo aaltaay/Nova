@@ -1,7 +1,10 @@
 /**
  * Hot strip shown only when IBKR Gateway mode is paper — reduces live/paper confusion.
+ * Sim shows none (operator decision, 2026-09-20): the venue already reads from the
+ * header's DESK SIM chip and the active Sim pill, and a full-width strip on every
+ * Sim tab was noise. A Sim tab's replay state has its own strip (SimReplayTargetNotice).
  */
-import { PAPER_TRADING_BANNER_TEXT, SIM_TRADING_BANNER_TEXT } from '../constants';
+import { PAPER_TRADING_BANNER_TEXT } from '../constants';
 import type { IbkrMode } from './types';
 import './paperTradingBanner.css';
 
@@ -10,17 +13,6 @@ interface Props {
 }
 
 export function PaperTradingBanner({ mode }: Props) {
-  if (mode === 'sim') {
-    return (
-      <div
-        className="paper-trading-banner is-sim"
-        role="status"
-        data-testid="sim-trading-banner"
-      >
-        {SIM_TRADING_BANNER_TEXT}
-      </div>
-    );
-  }
   if (mode !== 'paper') return null;
   return (
     <div
