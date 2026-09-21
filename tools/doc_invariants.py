@@ -34,7 +34,6 @@ LIVE_PATHS: tuple[str, ...] = (
     "security/schema.md",
     "security/SOURCE-PINS.md",
     "SECURITY.md",
-    "site/index.html",
     "tools/security_lib/checks_api.py",
     "tools/security_lib/checks_infra.py",
 )

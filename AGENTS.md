@@ -316,7 +316,6 @@ Paper and live share this path; only Gateway credentials/port and safety gates d
 | IB Gateway (local) | Scanner discovery + market data + optional orders | ✅ Verified |
 | Web UI (Localhost / Desktop) | Delivery dashboard for gappers | ✅ Verified |
 | yfinance | Fundamental data (float, short interest, etc.) | ✅ Verified |
-| Vercel | Optional host for the `site/` marketing page (`nova.altaystudio.com`), not the live scanner | ✅ Optional |
 
 ---
 
@@ -491,7 +490,7 @@ cd frontend && npm run electron:pack
 ### Deploy
 
 - **Backend:** local only right now -- no cloud host (not Railway, not another PaaS). Run via `Run Nova.bat`, Desktop sidecar, or local uvicorn on `127.0.0.1:8000`.
-- **Public site:** `nova.altaystudio.com` is a static marketing page (`site/`) -- features, screenshots, and the [source](https://github.com/aaltaay/Nova) link. It is not the live scanner and has no API. Point the Vercel project Root Directory at `site`.
+- **Public site:** not in this repo. `nova.altaystudio.com` is built from [`aaltaay/nova-site`](https://github.com/aaltaay/nova-site), which owns the page, its screenshots, the AI-in-trading digest and the Vercel deploy. Nothing here builds, deploys or tests it.
 - **Frontend (app UI):** local Vite / Desktop only (`http://localhost:5173`). Do not host the trading SPA on the public domain.
 - **Desktop:** Electron + local API sidecar. **Installer only** (#347): local pack produces `frontend/release/Nova-Setup-vNNN.exe` plus `latest.yml` + `.blockmap` -- the in-app update feed. The portable EXE is retired; it could never self-update. Application-affecting PRs run the advisory `Desktop pack` GitHub Actions job, which uploads those three files; docs/site-only PRs skip packaging under `.cursor/rules/ci-scope.mdc`. Application-affecting pushes to master/main **build and verify only -- they publish nothing**.
 - **Cutting a release (the only thing that publishes):** on an up-to-date `master`, run `py -3 tools/bump_version.py --ensure-tag --push-tag`. The pushed `vNNN` tag starts `Desktop pack`, which refuses a tag that is not that commit's revision, then creates the GitHub Release with the installer, `.blockmap` and `latest.yml`. A tag pushed by Actions starts no run, so nothing automated can cut a release. Re-run one with `gh workflow run desktop-pack.yml --ref vNNN`. GitHub's Source code zip/tar is automatic and is not the app.
@@ -523,6 +522,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-20 | Marketing site split out to [`aaltaay/nova-site`](https://github.com/aaltaay/nova-site): `site/`, the `ai_news_*` digest tooling, its tests, the `ai-news.yml` cron and the Vercel integration all leave this repo. They cost Nova a Vercel preview on every backend PR and a digest pull request **every ten minutes** -- bot churn on a trading repo, for a page that shares no code with the desk. The new repo commits the digest straight to `main` (no branch protection, so the PR workaround is gone) and is public, because a private repo cannot run ~4,300 Actions minutes a month. §4 drops the Vercel row; §8 points at the new home. | User Directive + Claude Opus 5 |
 | 2026-09-20 | Per-row scanner Exchange (#90): `backend/ibkr/exchange_lookup.py` buys `row["exchange"]` with ONE paced `qualifyContractsAsync` round trip per NEW symbol, modelled on `ibkr/listing_flags.py`. Never awaited on admit -- `hydrate_rows` only queues, so ADR 010 name-only admission is unchanged; once per symbol per session; backfill only when empty; unknown venues stay blank through `normalize_ib_exchange` so the filter keeps failing open. | User Directive + Claude Opus 5 |
 | 2026-09-20 | Scanner table width lock (#276) closed: the shared `.table-wrapper--scanner` `table-layout: fixed` shell already shipped in PR #278 and covers all seven surfaces; the operator lifted the live-desk `do-not-merge` hold. `scannerTableCol.test.ts` now enforces the two acceptance lines that were only stylesheet comments -- every surface uses the shared shell + colgroup, and every shipped column declares an explicit width role. | User Directive + Claude Opus 5 |
 | 2026-09-20 | #309 implemented as option (b): `backend/l2/` feeds recorded Level 2 into the one Sim replay surface instead of getting its own scrubber. `sim/history_depth.py` reads the newest book at or before the playhead second (floored, so no lookahead) and `history_playback.snapshot()` publishes `depth` + `depth_available`. Nothing is fabricated: an unrecorded second says so in the ladder rather than showing an empty book, `bid`/`ask` stay null, and a missing, locked or damaged `l2.db` degrades to "not recorded". | User Directive + Claude Opus 5 |

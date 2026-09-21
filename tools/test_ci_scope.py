@@ -10,7 +10,6 @@ from tools.ci_scope import FIELDS, changed_paths, classify, full_scope, select_s
 @pytest.mark.parametrize("paths", [
     ["README.md"], ["docs/ci.md"],
     ["knowledge/task-log/2026-09-20-ci.md"],
-    ["site/news/feed.json"],
 ])
 def test_non_application_changes_skip_heavy_checks(paths):
     scope = classify(paths)

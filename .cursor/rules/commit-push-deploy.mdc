@@ -48,8 +48,7 @@ Code, config, CI, security, and rule changes never start or finish directly on `
 7. **Deploy the changes**
    - **Backend has no cloud host right now** (local / Desktop sidecar only). Do not assume Railway or another PaaS deploy. Pushing git does not deploy the API.
    - Identify the project's deployment mechanism for what actually exists:
-     - **Public site (optional):** Vercel may redeploy `site/` (marketing page at nova.altaystudio.com) when Root Directory is `site`. That is not the live scanner.
-     - **Vercel CLI / MCP:** Only if the user wants a frontend deploy and the tool is configured.
+     - **Public site:** not in this repo. nova.altaystudio.com is built from `aaltaay/nova-site`; nothing here deploys it.
      - **Supabase CLI / MCP:** If Supabase edge functions or schemas were modified, deploy them using the `supabase` tool/CLI.
      - **Custom Deploy Script:** Check if there is a deploy script/command in `package.json` (e.g. `npm run deploy`), `Makefile`, or project documentation and execute it.
    - If the deployment command or target is not clear, ask the user for confirmation or check `AGENTS.md` §8 / `README.md`.

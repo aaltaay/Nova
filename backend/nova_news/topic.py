@@ -1,9 +1,8 @@
 """Admit only AI-in-trading headlines onto the Nova News desk.
 
-The marketing digest (`tools/ai_news_rank.py`) taught the same lesson:
+The marketing digest (now `aaltaay/nova-site`) taught the same lesson:
 matching AI *or* markets floods the page with chatbot launches and index
-moves. This module is the desk SSOT. Do not import `tools/`. Do not reuse
-`rank_articles` -- that is a 6-item homepage shortlist, not a newsroom.
+moves. This module is the desk SSOT, and the only one left in this repo.
 """
 from __future__ import annotations
 
