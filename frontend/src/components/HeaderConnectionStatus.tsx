@@ -2,6 +2,8 @@
  * Header connection cluster -- Desk (API + Gateway), Paper/Live, and freshness.
  * One Desk chip opens the same checklist; do not show API and Gateway as twins.
  */
+import { Activity, ListOrdered, Monitor } from 'lucide-react';
+import './headerStatusCompact.css';
 import { useCallback, useState } from 'react';
 import { BackendStartButton } from './BackendStartButton';
 import { BackendReloadButton } from './BackendReloadButton';
@@ -131,6 +133,11 @@ export function HeaderConnectionStatus({
     completedOrdersUnansweredSince: ibkrStatusLive.completed_orders_unanswered_since,
   });
 
+  const pricesTitle = lastPriceTs === 0
+    ? 'No IBKR L1 price_patch has arrived for the active scanner tab.'
+    : pricesStale
+      ? 'Last successful table price tick is late or skipped -- prices are not live right now.'
+      : 'Age of the last successful table price tick for the active scanner tab.';
   const deskValue = deskConnectionLabel({
     apiOk,
     connected: ibkrConnected,
@@ -160,10 +167,10 @@ export function HeaderConnectionStatus({
         <>
           <button
             type="button"
-            className={`status-chip status-chip--action status-chip--${deskTone}${
+            className={`status-chip status-chip--compact status-chip--action status-chip--${deskTone}${
               gatewayLaunchBusy ? ' status-chip--busy' : ''
             }`}
-            title={deskTitle}
+            title={`${HEADER_DESK_ROLE}: ${deskValue}${latencyLabel ? ` · ${latencyLabel}` : ''}\n\n${deskTitle}`}
             data-testid="status-chip-desk"
             onClick={(e) => {
               e.preventDefault();
@@ -183,6 +190,7 @@ export function HeaderConnectionStatus({
                   : toneDot(deskTone)
               }`}
             />
+            <Monitor className="status-chip__icon" aria-hidden="true" />
             <span className="status-chip__role">{HEADER_DESK_ROLE}</span>
             <span className="status-chip__value">
               {deskValue}
@@ -277,11 +285,13 @@ export function HeaderConnectionStatus({
 
       {honestyText ? (
         <span
-          className="status-chip status-chip--warn"
-          title={honestyText}
+          className="status-chip status-chip--compact status-chip--warn"
+          title={`${SCANNER_HONESTY_CHIP_ROLE}: ${honestyText}`}
+          aria-label={`${SCANNER_HONESTY_CHIP_ROLE}: ${honestyText}`}
           data-testid="status-chip-honesty"
         >
           <span className="dot loading" />
+          <ListOrdered className="status-chip__icon" aria-hidden="true" />
           <span className="status-chip__role">{SCANNER_HONESTY_CHIP_ROLE}</span>
           <span className="status-chip__value">{honestyText}</span>
         </span>
@@ -289,17 +299,13 @@ export function HeaderConnectionStatus({
 
       {priceText != null && (
         <span
-          className={`status-chip status-chip--${priceTone}`}
-          title={
-            lastPriceTs === 0
-              ? 'No IBKR L1 price_patch has arrived for the active scanner tab.'
-              : pricesStale
-                ? 'Last successful table price tick is late or skipped -- prices are not live right now.'
-                : 'Age of the last successful table price tick for the active scanner tab.'
-          }
+          className={`status-chip status-chip--compact status-chip--${priceTone}`}
+          aria-label={`Prices: ${priceText}`}
+          title={`Prices: ${priceText}\n\n${pricesTitle}`}
           data-testid="status-chip-prices"
         >
           <span className={`dot ${lastPriceTs === 0 || pricesStale ? 'loading' : 'connected'}`} />
+          <Activity className="status-chip__icon" aria-hidden="true" />
           <span className="status-chip__role">Prices</span>
           <span className="status-chip__value">{priceText}</span>
         </span>

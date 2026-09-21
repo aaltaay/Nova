@@ -365,6 +365,12 @@ describe('HeaderConnectionStatus', () => {
     const prices = container.querySelector('[data-testid="status-chip-prices"]');
     expect(prices?.textContent).toMatch(/no L1 yet/);
     expect(prices?.className).toMatch(/warn/);
+    // Compact header (operator decision): an icon on the chip, the words in the
+    // tooltip and for assistive tech -- still in the DOM, just not on screen.
+    expect(prices?.className).toMatch(/status-chip--compact/);
+    expect(prices?.querySelector('svg.status-chip__icon')).not.toBeNull();
+    expect(prices?.getAttribute('title')).toMatch(/^Prices: no L1 yet\n\nNo IBKR L1 price_patch/);
+    expect(prices?.getAttribute('aria-label')).toBe('Prices: no L1 yet');
   });
 
   it('renders feed_error / subscriptionError as one Roster chip', () => {
