@@ -198,7 +198,7 @@
       "slug": "delivery-pipeline",
       "title": "05 - Merging a PR ships a Release; red CI means code broke",
       "readiness": "ready-now",
-      "gate": "#347 needs three owner calls (installer-only vs keep portable; notify-only vs auto-update; release channel) before its half can be built.",
+      "gate": "None. The operator answered #347 on 2026-09-20: installer only, background download with an operator-chosen restart, and a Release only from a deliberate vNNN tag.",
       "objective": "No vNNN tag or GitHub Release has been produced since v757: Actions-merged PRs push with GITHUB_TOKEN, which by design starts no workflow, so desktop-pack.yml never runs on master. Meanwhile ~65% of red CI runs are expected delivery states reported as failures, which trains everyone to ignore red.",
       "issues": [
         342,
@@ -209,7 +209,7 @@
         367
       ],
       "done": [
-        "An Actions-merged PR produces a vNNN tag, a GitHub Release, and an attached installer - proven on one real merge, not just a dry run.",
+        "An Actions-merged PR packs and verifies the installer plus its latest.yml feed; a pushed vNNN tag publishes the GitHub Release - proven on one real merge and one real tag, not just a dry run.",
         "A red gating run means code broke: expected delivery states exit 0, and CI has concurrency groups plus job timeouts.",
         "The shared bookkeeping files no longer force every PR to edit the same lines (#344 WS2-WS4).",
         "`py -3 tools/master_branch_protection.py check` still exits 0 afterwards.",

@@ -34,6 +34,7 @@ check status, and `master_branch_protection.py` requires zero status-check conte
 To reverse this policy, update those two policy tools, the workflow dependency,
 the constitution/rules and the live branch setting together.
 
-Packaging attempts both EXEs for relevant changes without delaying merge. The
-separate Actions-merge release-trigger defect remains tracked in #346; this change
-does not claim to repair publishing. Broader CI audit follow-ups remain in #342.
+Packaging attempts the Windows installer for relevant changes without delaying
+merge, and verifies its `latest.yml` update feed. Master merges publish nothing:
+since #347 a GitHub Release is cut only by an operator-pushed `vNNN` tag. Broader
+CI audit follow-ups remain in #342.

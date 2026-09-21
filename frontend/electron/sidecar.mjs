@@ -15,7 +15,7 @@ import {
   pickNovaEnvPath,
   readEnvValue,
 } from './envMerge.mjs';
-import { waitForPortFree } from './portWait.mjs';
+import { SIDECAR_PORT_FREE_TIMEOUT_MS, waitForPortFree } from './portWait.mjs';
 import { createSerialQueue } from './serialQueue.mjs';
 import { startBrainSidecar, stopBrainSidecar } from './brainSidecar.mjs';
 import { skipApiSidecar } from './sidecarSkip.mjs';
@@ -41,6 +41,11 @@ export function getDesktopApiKey() {
     }
   }
   return desktopApiKey;
+}
+
+/** The .env the API sidecar reads (userData when packaged); '' before startup. */
+export function getDesktopEnvPath() {
+  return desktopEnvPath;
 }
 
 function readKeyFromEnvFile(envPath) {
@@ -310,6 +315,38 @@ export function startApiSidecar() {
 
 export function stopApiSidecar() {
   stopApiSidecarUnlocked();
+}
+
+/**
+ * Before an update install (#347): stop the engine we spawned and wait until it
+ * has exited and :8000 is free -- the installer rewrites resources/nova-api/, which
+ * a running nova-api.exe would hold open. An API we only attached to (Run Nova.bat,
+ * NOVA_SKIP_API_SIDECAR) is not ours to stop. True when nothing of ours still runs.
+ */
+export function stopApiSidecarForUpdate(timeoutMs = SIDECAR_PORT_FREE_TIMEOUT_MS) {
+  return sidecarQueue.enqueue(async () => {
+    const child = apiChild;
+    if (!child) {
+      stopBrainSidecar();
+      return true;
+    }
+    let timer = null;
+    const exited = new Promise((resolve) => {
+      if (child.exitCode !== null || child.signalCode !== null) resolve(true);
+      else child.once('exit', () => resolve(true));
+    });
+    const timedOut = new Promise((resolve) => {
+      timer = setTimeout(() => resolve(false), timeoutMs);
+    });
+    stopApiSidecarUnlocked();
+    const gone = await Promise.race([exited, timedOut]);
+    clearTimeout(timer);
+    const freed = await waitForPortFree(API_HOST, API_PORT, timeoutMs);
+    if (!gone || !freed) {
+      console.warn(`[nova-api] update stop incomplete: exited=${gone} portFree=${freed}`);
+    }
+    return gone && freed;
+  });
 }
 
 /** Stop our sidecar (if any), free port 8000, start fresh, wait for /api/health. */

@@ -34,6 +34,7 @@
     "@tanstack/react-virtual": "^3.14.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "electron-updater": "^6.8.9",
     "input-otp": "^1.4.2",
     "lightweight-charts": "^5.1.0",
     "lightweight-charts-drawing": "^0.1.1",
@@ -89,16 +90,17 @@
         "to": "nova-api"
       }
     ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "aaltaay",
+        "repo": "Nova"
+      }
+    ],
     "win": {
       "target": [
         {
           "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "portable",
           "arch": [
             "x64"
           ]
@@ -113,9 +115,6 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Nova"
-    },
-    "portable": {
-      "artifactName": "Nova-Portable-${env.NOVA_RELEASE_TAG}.${ext}"
     }
   }
 }

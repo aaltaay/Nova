@@ -1,0 +1,274 @@
+/**
+ * In-app updates (#347): electron-updater reading this repo's GitHub Releases.
+ *
+ * Downloads a newer installer in the background, then offers "Restart to update"
+ * / "Later". Installing is always an operator click: autoInstallOnAppQuit is off,
+ * there is no timer, and a failed check or download only changes the Help menu.
+ * Decisions live in updatePolicy.mjs; this file is the Electron wiring.
+ *
+ * electron-updater loads lazily and only in a packaged Windows build, so a dev
+ * checkout never loads it. Every failure here is logged and swallowed -- the desk
+ * keeps running on the version it has.
+ */
+import fs from 'node:fs';
+import { app, dialog, Menu } from 'electron';
+import { readEnvValue } from './envMerge.mjs';
+import {
+  INITIAL_UPDATE_STATE,
+  UPDATE_CHECK_ENV,
+  UPDATE_FIRST_CHECK_DELAY_MS,
+  displayTag,
+  errorText,
+  isRestartChoice,
+  manualCheckAction,
+  manualCheckResult,
+  reduceUpdateState,
+  resolveUpdateSetting,
+  restartPrompt,
+  shouldAutoCheck,
+  shouldPromptRestart,
+  taskbarProgress,
+  updateGate,
+  updateMenuItems,
+} from './updatePolicy.mjs';
+
+const LOG = '[nova-update]';
+const logger = {
+  info: (msg) => console.log(LOG, String(msg)),
+  warn: (msg) => console.warn(LOG, String(msg)),
+  error: (msg) => console.error(LOG, String(msg)),
+  debug: () => {},
+};
+
+let updater = null;
+let gate = { updater: false, automatic: false, reason: 'not started' };
+let state = INITIAL_UPDATE_STATE;
+let manualPending = false;
+let currentTag = '';
+let lastMenuKey = '';
+let hooks = {
+  getWindow: () => null,
+  envPath: () => '',
+  stopEngine: async () => true,
+  restartEngine: async () => {},
+};
+
+function readSetting() {
+  let fileValue = '';
+  const envPath = hooks.envPath();
+  try {
+    if (envPath && fs.existsSync(envPath)) {
+      fileValue = readEnvValue(fs.readFileSync(envPath, 'utf8'), UPDATE_CHECK_ENV);
+    }
+  } catch (err) {
+    logger.warn(`cannot read ${UPDATE_CHECK_ENV} from ${envPath}: ${errorText(err)}`);
+  }
+  return resolveUpdateSetting({ processValue: process.env[UPDATE_CHECK_ENV], fileValue });
+}
+
+function liveWindow() {
+  const win = hooks.getWindow();
+  return win && !win.isDestroyed() ? win : null;
+}
+
+function renderMenu() {
+  const rows = updateMenuItems(state, { currentTag, automatic: gate.automatic });
+  const key = JSON.stringify(rows);
+  if (key === lastMenuKey) return;
+  lastMenuKey = key;
+  const clicks = { restart: () => void restartToUpdate(), check: () => void checkNow(true) };
+  const submenu = rows.map((row) => ({
+    label: row.label,
+    enabled: Boolean(row.action),
+    click: clicks[row.action],
+  }));
+  // Same roles as Electron's default Windows menu; only Help gains the update rows.
+  const template = [
+    { role: 'fileMenu' },
+    { role: 'editMenu' },
+    { role: 'viewMenu' },
+    { role: 'windowMenu' },
+    { role: 'help', submenu },
+  ];
+  try {
+    Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+  } catch (err) {
+    logger.error(`menu update failed: ${errorText(err)}`);
+  }
+}
+
+function dispatch(event) {
+  state = reduceUpdateState(state, event);
+  renderMenu();
+  const win = liveWindow();
+  if (win) win.setProgressBar(taskbarProgress(state));
+}
+
+async function showBox(options) {
+  try {
+    const win = liveWindow();
+    return win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options);
+  } catch (err) {
+    logger.error(`dialog failed: ${errorText(err)}`);
+    return { response: -1 };
+  }
+}
+
+async function reportManualResult() {
+  if (!manualPending) return;
+  const result = manualCheckResult(state, currentTag);
+  if (!result) return;
+  manualPending = false;
+  await showBox({ title: 'Nova updates', buttons: ['OK'], noLink: true, ...result });
+}
+
+async function promptRestart() {
+  const version = state.version;
+  dispatch({ type: 'prompted', version });
+  const win = liveWindow();
+  if (win) win.flashFrame(true);
+  // No parent window: the prompt never blocks the trading window it sits over.
+  let response = -1;
+  try {
+    ({ response } = await dialog.showMessageBox(restartPrompt(version)));
+  } catch (err) {
+    logger.error(`restart prompt failed: ${errorText(err)}`);
+  }
+  if (win && !win.isDestroyed()) win.flashFrame(false);
+  if (isRestartChoice(response)) await restartToUpdate();
+  else logger.info(`restart to ${displayTag(version)} postponed by operator`);
+}
+
+async function recoverEngine() {
+  try {
+    await hooks.restartEngine();
+  } catch (err) {
+    logger.error(`engine restart after a failed install: ${errorText(err)}`);
+  }
+}
+
+async function restartToUpdate() {
+  if (!updater || state.phase !== 'ready') return;
+  dispatch({ type: 'installing' });
+  let stopped = false;
+  try {
+    stopped = await hooks.stopEngine();
+  } catch (err) {
+    logger.error(`engine stop before install failed: ${errorText(err)}`);
+  }
+  if (!stopped) {
+    dispatch({ type: 'install-failed', message: 'local engine did not stop; nothing was installed' });
+    await recoverEngine();
+    await showBox({
+      type: 'warning',
+      title: 'Nova update not installed',
+      message: 'Nova could not confirm its local engine stopped, so it did not install the update.',
+      detail: 'The engine is restarting. Try Help > Restart to Update again.',
+      buttons: ['OK'],
+      noLink: true,
+    });
+    return;
+  }
+  logger.info(`installing ${displayTag(state.version)} at the operator's request`);
+  try {
+    // Silent NSIS install into the existing location, then relaunch the new
+    // version, which starts its own matching engine. Settings live in userData.
+    updater.quitAndInstall(true, true);
+  } catch (err) {
+    dispatch({ type: 'install-failed', message: errorText(err) });
+    await recoverEngine();
+  }
+}
+
+async function checkNow(manual) {
+  if (!updater) return;
+  const action = manual ? manualCheckAction(state, gate) : shouldAutoCheck(state, gate) ? 'check' : 'skip';
+  if (action === 'prompt') {
+    await promptRestart();
+    return;
+  }
+  if (action !== 'check') return;
+  manualPending = manual;
+  try {
+    const result = await updater.checkForUpdates();
+    // Download failures are also emitted as 'error'; only keep this promise from going unhandled.
+    result?.downloadPromise?.catch(() => {});
+  } catch (err) {
+    logger.warn(`check failed: ${errorText(err)}`);
+  }
+}
+
+function wireEvents(instance) {
+  instance.on('checking-for-update', () => dispatch({ type: 'checking' }));
+  instance.on('update-available', (info) => dispatch({ type: 'available', version: info?.version }));
+  instance.on('update-not-available', () => {
+    dispatch({ type: 'not-available' });
+    void reportManualResult();
+  });
+  instance.on('download-progress', (p) => dispatch({ type: 'progress', percent: p?.percent }));
+  instance.on('update-downloaded', (info) => {
+    manualPending = false;
+    dispatch({ type: 'downloaded', version: info?.version });
+    if (shouldPromptRestart(state)) void promptRestart();
+  });
+  instance.on('error', (err) => {
+    const wasInstalling = state.phase === 'installing';
+    logger.error(`update error: ${errorText(err)}`);
+    dispatch({ type: 'error', message: errorText(err) });
+    if (wasInstalling) void recoverEngine();
+    void reportManualResult();
+  });
+}
+
+async function loadUpdater() {
+  const mod = await import('electron-updater');
+  const NsisUpdater = mod.NsisUpdater ?? mod.default?.NsisUpdater;
+  if (typeof NsisUpdater !== 'function') throw new Error('electron-updater has no NsisUpdater');
+  // Reads resources/app-update.yml (GitHub provider, written by electron-builder).
+  const instance = new NsisUpdater();
+  instance.logger = logger;
+  instance.autoDownload = true;
+  instance.autoInstallOnAppQuit = false;
+  instance.autoRunAppAfterInstall = true;
+  instance.allowPrerelease = false;
+  instance.allowDowngrade = false;
+  return instance;
+}
+
+/**
+ * Start once, after the main window exists. Never throws.
+ * @param {{ getWindow: () => any, envPath: () => string,
+ *   stopEngine: () => Promise<boolean>, restartEngine: () => Promise<void> }} deps
+ */
+export async function startAutoUpdate(deps) {
+  try {
+    await startUnguarded(deps);
+  } catch (err) {
+    logger.error(`in-app updates failed to start: ${errorText(err)}`);
+  }
+}
+
+async function startUnguarded(deps) {
+  hooks = { ...hooks, ...deps };
+  gate = updateGate({ isPackaged: app.isPackaged, platform: process.platform, setting: readSetting() });
+  if (!gate.updater) {
+    logger.info(`in-app updates off: ${gate.reason}`);
+    return;
+  }
+  currentTag = displayTag(app.getVersion());
+  try {
+    updater = await loadUpdater();
+    wireEvents(updater);
+  } catch (err) {
+    updater = null;
+    logger.error(`in-app updates unavailable: ${errorText(err)}`);
+    return;
+  }
+  renderMenu();
+  if (!gate.automatic) {
+    logger.info(`automatic update check off: ${gate.reason}`);
+    return;
+  }
+  const timer = setTimeout(() => void checkNow(false), UPDATE_FIRST_CHECK_DELAY_MS);
+  timer.unref?.();
+}

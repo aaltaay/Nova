@@ -67,10 +67,14 @@ def dispatch_desktop_pack(gh: GhFn, repo: str, ref: str = RELEASE_BRANCH) -> boo
 
     GitHub suppresses workflow runs for events created with `GITHUB_TOKEN` so a
     workflow cannot trigger itself. The squash-merge above therefore lands on
-    master without starting `desktop-pack.yml`, which is why no `vNNN` tag,
-    Release or EXE has been published since `v757`. `workflow_dispatch` is one
-    of the two documented exceptions to that rule, so the same token can start
-    the pack on purpose. Keeping `GITHUB_TOKEN` here means no release PAT.
+    master without starting `desktop-pack.yml`, which is how master once went
+    hundreds of commits with no packed installer at all. `workflow_dispatch` is
+    one of the two documented exceptions to that rule, so the same token can
+    start the pack on purpose. Keeping `GITHUB_TOKEN` here means no release PAT.
+
+    This dispatch builds and verifies the installer for the merged commit. It
+    publishes nothing: since #347 only an operator-pushed `vNNN` release tag
+    cuts a GitHub Release.
     """
     proc = gh(
         [
@@ -85,8 +89,8 @@ def dispatch_desktop_pack(gh: GhFn, repo: str, ref: str = RELEASE_BRANCH) -> boo
     )
     if proc.returncode != 0:
         # The merge already landed. A failed dispatch costs this commit its
-        # Release, not the merge, so report it loudly and let the caller
-        # return success -- `--ensure-tag` backfills on the next pack.
+        # installer build, not the merge, so report it loudly and let the
+        # caller return success -- the next pack covers the same code.
         print(
             proc.stderr or proc.stdout or f"desktop pack dispatch on {ref} failed",
             file=sys.stderr,

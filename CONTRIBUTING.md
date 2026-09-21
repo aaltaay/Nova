@@ -28,7 +28,7 @@ cd frontend && npm run lint && npm test -- --run && npm run build
 python3 tools/doc_invariants.py
 ```
 
-Desktop installer changes also need the **Desktop pack** GitHub Actions job (`Nova-Setup-vNNN.exe` and `Nova-Portable-vNNN.exe`).
+Desktop installer changes also need the **Desktop pack** GitHub Actions job (`Nova-Setup-vNNN.exe` plus the `latest.yml` update feed).
 
 ## Security
 

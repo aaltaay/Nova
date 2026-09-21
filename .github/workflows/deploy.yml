@@ -267,7 +267,8 @@ jobs:
       checks: read
       # Merging with GITHUB_TOKEN starts no `push:` run, so the merge
       # dispatches `Desktop pack` itself (#346). Without this the dispatch
-      # 403s and the commit silently ships no tag, Release or EXE.
+      # 403s and the merged commit is silently never packed. Publishing is
+      # separate: an operator pushes the vNNN release tag (#347).
       actions: write
     steps:
       - uses: actions/checkout@v4
