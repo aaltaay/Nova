@@ -215,11 +215,17 @@ def test_eta_uses_this_run_coverage_and_never_invents_progress(job, monkeypatch)
     from sim.history_progress import progress
     queued = progress(job, now=job['updated'])
     assert queued['progress_pct'] == 0 and queued['eta_seconds'] is None
-    current = dict(job, started=100, updated=120, run_cursor=job['cursor'],
+    # Progress is covered time, and the ETA extrapolates coverage gained this run.
+    current = dict(job, started=100, updated=120, run_cursor=job['cursor'], run_covered=0,
+                   ranges=[[job['start_ts'], job['cursor'] + 1980]],
                    cursor=job['cursor'] + 1980, status='running')
     result = progress(current, now=130)
     assert result['progress_pct'] == 10 and result['eta_seconds'] == 180
     assert result['downloaded_through'] == current['cursor'] and result['age_seconds'] == 10
+    assert result['covered_seconds'] == 1980 and result['coverage'] == current['ranges']
+    # A job saved before coverage ranges reads its cursor as one contiguous range.
+    legacy = {k: v for k, v in current.items() if k != 'ranges'}
+    assert progress(legacy, now=130)['progress_pct'] == 10
     assert progress(current, now=500)['stale']
     assert progress(current, now=500)['eta_seconds'] is None
     for status in ('queued', 'paused', 'failed', 'complete', 'interrupted'):
@@ -228,4 +234,5 @@ def test_eta_uses_this_run_coverage_and_never_invents_progress(job, monkeypatch)
     store.save(dict(current, status='paused'))
     resumed = store.begin_run(job['id'])
     assert resumed['started'] == 1000 and resumed['run_cursor'] == current['cursor']
+    assert resumed['run_covered'] == 1980
     assert progress(resumed, now=1001)['eta_seconds'] is None

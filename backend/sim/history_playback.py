@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from constants_sim import (
     SIM_HISTORY_MAX_SELECTION_PRINTS, SIM_HISTORY_QUOTE_CANDLES, SIM_HISTORY_TAPE_ROWS,
 )
-from sim import history_depth, history_sides
+from sim import history_coverage as coverage, history_depth, history_sides
 from sim import history_store as store
 from sim.chart_replay import INTERVAL_SECONDS
 from sim.history_cache import CandleCache, previous_close
@@ -67,8 +67,10 @@ def status():
 
 def _load(spec: dict) -> Selection:
     job = store.find(spec, 'trades')
-    rows = (store.read_prints(job['id'], through=job['cursor'],
-                             limit=SIM_HISTORY_MAX_SELECTION_PRINTS + 1) if job else [])
+    # Every stored print is inside a downloaded range, so read them all, in time
+    # order -- coverage may have gaps once the worker has jumped to the playhead.
+    rows = (store.read_prints(job['id'], limit=SIM_HISTORY_MAX_SELECTION_PRINTS + 1) if job else [])
+    ranges = coverage.job_ranges(job) if job else []
     if len(rows) > SIM_HISTORY_MAX_SELECTION_PRINTS:
         raise ValueError(f'Replay exceeds {SIM_HISTORY_MAX_SELECTION_PRINTS:,} prints; narrow the window')
     eligible = tuple(row for row in rows if not row.get('unreported'))
@@ -79,7 +81,8 @@ def _load(spec: dict) -> Selection:
         volumes.append(total)
         highs.append(max(highs[-1], row['price']) if highs else row['price'])
         lows.append(min(lows[-1], row['price']) if lows else row['price'])
-    selected = dict(spec, coverage_through=job['cursor'] if job else spec['start_ts'],
+    selected = dict(spec, coverage=ranges, covered_seconds=coverage.covered_seconds(ranges),
+                    coverage_through=coverage.contiguous_through(ranges, spec['start_ts']),
                     trade_count=len(rows), download_status=job['status'] if job else 'missing',
                     job_id=job['id'] if job else None)
     prints, eligible_keys = tuple(rows), array('q', (row['ts'] for row in eligible))
@@ -154,6 +157,10 @@ def snapshot(symbol: str):
         return result
     result['prev_close'] = selected.prev_close
     cutoff = min(now.timestamp(), spec['end_ts'])
+    # Is the playhead's own second downloaded? Past the edge or in a gap it is not,
+    # and the tape must not pass older prints off as this moment's.
+    in_range = coverage.range_at(spec.get('coverage') or [], int(cutoff))
+    result['covered'] = in_range is not None
     # An IBKR download carries no book, so depth is whatever the local recorder
     # happens to have archived for this second -- usually nothing (#309).
     book = history_depth.book_at(symbol, cutoff)
@@ -168,10 +175,14 @@ def snapshot(symbol: str):
                       open=selected.eligible[0]['price'] if eligible_end else None,
                       high=selected.highs[reached] if eligible_end else None,
                       low=selected.lows[reached] if eligible_end else None)
-        start = max(0, end - SIM_HISTORY_TAPE_ROWS)
-        result['prints'] = [dict(row, ordinal=i,
-                                time=datetime.fromtimestamp(row['ts'], timezone.utc).isoformat(),
-                                bid=None, ask=None, side=None)
+        # The tape is the playhead's own range only: it never runs across a gap,
+        # and an uncovered playhead shows none. `ordinal` is the stored sequence,
+        # stable across the re-selects that fold new ranges in.
+        first = bisect.bisect_left(selected.keys, in_range[0]) if in_range else end
+        start = max(first, end - SIM_HISTORY_TAPE_ROWS)
+        result['prints'] = [dict({k: v for k, v in row.items() if k != 'seq'}, ordinal=row.get('seq', i),
+                                 time=datetime.fromtimestamp(row['ts'], timezone.utc).isoformat(),
+                                 bid=None, ask=None, side=None)
                             for i, row in enumerate(selected.prints[start:end], start)][::-1]
         # Real sides only, from the local L2 recording where it decides them.
         result['sides_recorded'] = history_sides.attach_recorded_sides(symbol, result['prints'])
@@ -181,5 +192,7 @@ def snapshot(symbol: str):
             result.update(last=candles[-1]['c'], volume=sum(row['v'] for row in candles),
                           open=candles[0]['o'], high=max(row['h'] for row in candles),
                           low=min(row['l'] for row in candles),
-                          source='mixed' if result['prints'] else 'completed_bars')
+                          # Trades exist for this selection even when this second
+                          # has none; only a trade-less selection is candles-only.
+                          source='mixed' if selected.prints else 'completed_bars')
     return result

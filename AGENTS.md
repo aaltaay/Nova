@@ -198,6 +198,16 @@ Historical job responses add `progress_pct: number`, `downloaded_through: number
 (epoch seconds), `eta_seconds: number | null`, `stale: boolean`,
 `age_seconds: number`, and `started: number | null`; `updated` remains the durable
 checkpoint time. ETA is an estimate only after advancement in the current run.
+Trades jobs and the selection also carry `coverage: [[start, end], ...]` (sorted,
+merged, half-open epoch-second ranges of downloaded prints) and
+`covered_seconds: integer`; `progress_pct` is covered share of the window and
+`downloaded_through` / `coverage_through` stay the end of the range that starts
+at the window start. Coverage can have gaps: scrubbing a running download's
+selection to an uncovered second makes the worker fetch there next, continue
+forward, and backfill skipped gaps from the window start afterwards. The
+snapshot adds `covered: boolean` (the playhead's second is downloaded); an
+uncovered playhead returns no tape prints, and candles are never built or
+flat-filled across a gap.
 Historical snapshot prints include stable integer `ordinal` within the selected job.
 The historical SQLite store uses integer `PRAGMA user_version=1`, migrates known
 unversioned tables, and refuses unknown versions. Selection refuses oversized

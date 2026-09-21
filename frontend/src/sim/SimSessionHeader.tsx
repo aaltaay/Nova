@@ -6,7 +6,7 @@ import { HistoricalReplayPanel } from './HistoricalReplayPanel';
 import { useSimSessionController } from './useSimSessionController';
 import { useProgressiveReplay } from './useProgressiveReplay';
 import { useHistoricalStatus } from './historicalStatusStore';
-import { coverageFraction } from './simCoverage';
+import { coverageFraction, coverageLabel, coverageSegments } from './simCoverage';
 import { etTime } from './historicalReplayFormat';
 import { simScrubberCoverageTitle } from './simConstants';
 import { SIM_SESSION_CLOSE_LABEL, SIM_SESSION_MINUTES, SIM_SESSION_OPEN_LABEL } from './simConstants';
@@ -73,6 +73,8 @@ export function SimSessionHeader({ active }: { active: boolean }) {
   // complete (nothing to warn about) and for anything but a historical replay.
   const coverage = historical ? coverageFraction(historicalSelection) : null;
   const showCoverage = coverage != null && coverage < 1 && historicalSelection != null;
+  const segments = showCoverage ? coverageSegments(historicalSelection) : [];
+  const etMinute = (ts: number) => etTime(ts).slice(0, 5);
   return <div className="sim-session-header" data-testid="sim-session-header">
     <strong>SIM SESSION</strong>
     <SimPlaybackButton clock={clock} onClock={controller.setClock} onBeforeChange={controller.suspendClock} onSettled={controller.resumeClock} />
@@ -82,15 +84,16 @@ export function SimSessionHeader({ active }: { active: boolean }) {
     <label className="sim-session-header__scrubber">
       <span>{openingLabel}</span>
       <span className="sim-session-header__range"
-        title={showCoverage ? simScrubberCoverageTitle(etTime(historicalSelection.coverage_through)) : undefined}>
+        title={showCoverage ? simScrubberCoverageTitle(coverageLabel(historicalSelection, etMinute) || 'none yet') : undefined}>
         <input data-testid="sim-session-scrubber" aria-label="Sim replay time" aria-valuetext={`${formatMinuteClock(minute, opening)} Eastern`}
           type="range" min={0} max={max} value={minute} aria-busy={busy.has('clock') || busy.has('follow')}
           onPointerDown={controller.beginDrag}
           onPointerUp={event => void controller.endDrag(Number(event.currentTarget.value))}
           onPointerCancel={event => void controller.endDrag(Number(event.currentTarget.value))}
           onChange={event => controller.onScrubInput(Number(event.target.value))} />
-        {showCoverage && <span className="sim-session-header__coverage" data-testid="sim-scrubber-coverage"
-          style={{ width: `${(coverage * 100).toFixed(2)}%` }} />}
+        {segments.map(({ left, width }) => <span key={left} className="sim-session-header__coverage"
+          data-testid="sim-scrubber-coverage"
+          style={{ left: `${(left * 100).toFixed(2)}%`, width: `${(width * 100).toFixed(2)}%` }} />)}
       </span>
       <span>{clock?.session_close_et ? formatClock(clock.session_close_et).slice(0, 5) : SIM_SESSION_CLOSE_LABEL}</span>
     </label>

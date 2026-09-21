@@ -29,8 +29,13 @@ export function shouldRefreshSelection(
   if (!selection) return false;
   const key = windowKey(selection);
   const job = jobs.find(row => row.kind === 'trades' && windowKey(row) === key);
-  if (!job || job.cursor == null) return false;
-  if (job.cursor <= (selection.coverage_through ?? 0)) return false;
+  if (!job) return false;
+  // Coverage can grow anywhere (jump ahead, backfill), so compare covered time,
+  // not cursors; pre-range payloads fall back to the contiguous cursor.
+  const gained = job.covered_seconds != null && selection.covered_seconds != null
+    ? job.covered_seconds > selection.covered_seconds
+    : job.cursor != null && job.cursor > (selection.coverage_through ?? 0);
+  if (!gained) return false;
   // Finished since the last load: fold the tail in now, not a throttle later.
   if (job.status === 'complete') return true;
   if (!ACTIVE.has(job.status) || job.stale) return false;

@@ -38,3 +38,11 @@ describe('shouldRefreshSelection', () => {
     expect(at(null, [job()])).toBe(false);
   });
 });
+
+describe('shouldRefreshSelection with coverage ranges', () => {
+  it('reloads when covered time grew, even though the cursor jumped backwards to backfill', () => {
+    const sel = { ...selection(500), covered_seconds: 600 };
+    expect(at(sel, [job({ cursor: 100, covered_seconds: 700 })])).toBe(true);
+    expect(at(sel, [job({ cursor: 900, covered_seconds: 600 })])).toBe(false);
+  });
+});

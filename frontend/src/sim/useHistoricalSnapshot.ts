@@ -17,6 +17,8 @@ export interface HistoricalSnapshot {
   /** Close of the last daily bar before the session date. */
   prev_close?: number | null;
   selection?: HistoricalSelection;
+  /** The playhead's own second is downloaded; false in a gap or past the edge. */
+  covered?: boolean;
   /** Prints whose side the local L2 recording decided (AGENTS.md §3). */
   sides_recorded?: number;
   prints: {

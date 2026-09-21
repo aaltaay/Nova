@@ -7,6 +7,7 @@ import { useHistoricalStatus, historicalStatus } from './historicalStatusStore';
 import { useReplayActions } from './useReplayActions';
 import { selectHistoricalReplay } from './historicalReplayLoad';
 import { HistoricalDownloads } from './HistoricalDownloads';
+import { coverageLabel } from './simCoverage';
 import { durationLabel, jobSummary, validateHistoricalWindow, windowLabel, windowMinutes } from './historicalProgress';
 import type { HistoricalJob, HistoricalWindow } from './historicalTypes';
 
@@ -80,7 +81,9 @@ export function HistoricalReplayPanel() {
     {selection && <span role="status" className="sim-history__selection" title={selectionLabel ?? undefined}>
       Selected: {selectionLabel}. {selection.download_status === 'missing'
         ? 'No downloaded trades for this window; candles appear only if stored.'
-        : <>Trades through {etTime(selection.coverage_through)} ET  -  {selection.download_status ?? 'coverage unknown'}.</>}
+        : (selection.coverage?.length ?? 0) > 1
+          ? <>Trades downloaded {coverageLabel(selection, ts => etTime(ts).slice(0, 5))} ET  -  {selection.download_status ?? 'coverage unknown'}.</>
+          : <>Trades through {etTime(selection.coverage_through)} ET  -  {selection.download_status ?? 'coverage unknown'}.</>}
     </span>}
   </div>;
 }

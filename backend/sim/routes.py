@@ -69,6 +69,10 @@ def post_sim_clock(body: dict) -> dict:
     else:
         minute = int(body.get("minute_from_open", 0))
         payload = _clock.scrub_to_minute(minute)
+    if "paused" not in body:
+        # The playhead moved: a running download of this window fetches there next.
+        from sim import history_download
+        history_download.follow_playhead(_clock.now_et().timestamp())
     return {"sim": is_sim_mode(), **payload, **_replay.status_payload()}
 
 

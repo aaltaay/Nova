@@ -337,5 +337,5 @@ it('shows how far the loaded window is downloaded on the slider, like a buffered
   await act(async () => { await vi.advanceTimersByTimeAsync(0); });
   const band = screen.getByTestId('sim-scrubber-coverage');
   expect(parseFloat(band.style.width)).toBeCloseTo(25);
-  expect(band.parentElement?.getAttribute('title')).toMatch(/Trades downloaded to 09:48:45 ET/);
+  expect(band.parentElement?.getAttribute('title')).toMatch(/Trades downloaded: 09:15–09:48 ET/);
 });

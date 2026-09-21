@@ -7,7 +7,7 @@ from collections import OrderedDict
 from datetime import date, datetime, time, timedelta, timezone
 
 from constants_sim import SIM_HISTORY_ARCHIVE_CACHE_ENTRIES, SIM_HISTORY_RESULT_CACHE_ENTRIES
-from sim import history_store as store
+from sim import history_coverage as coverage, history_store as store
 from sim.chart_replay import (
     INTERVAL_SECONDS, aggregate_prints, extend_flat_tail, fill_flat_buckets, penny_bar,
 )
@@ -87,6 +87,33 @@ class CandleCache:
                 bounded_put(self.archives, key, value, SIM_HISTORY_ARCHIVE_CACHE_ENTRIES)
             return value
 
+    def _ranges(self):
+        """Downloaded coverage; pre-range selections read as their contiguous prefix."""
+        spec = self.spec
+        if spec.get('coverage') is not None:
+            return spec['coverage']
+        through = spec.get('coverage_through', spec['start_ts'])
+        return [[spec['start_ts'], through]] if through > spec['start_ts'] else []
+
+    def _range_buckets(self, seconds):
+        """Complete trade-built buckets that lie wholly inside one downloaded range.
+
+        Aggregated and flat-filled per range, never across a gap: a stretch that
+        was never downloaded must not be drawn as a quiet one. A bucket that
+        straddles a range edge is not built here -- the archive bar stands in.
+        """
+        if seconds not in self.buckets:
+            built = {}
+            for a, b in self._ranges():
+                lo, hi = bisect.bisect_left(self.keys, a), bisect.bisect_left(self.keys, b)
+                rows = fill_flat_buckets(
+                    [penny_bar(row) for row in aggregate_prints(self.eligible[lo:hi], seconds)], seconds)
+                for row in extend_flat_tail(rows, seconds, b):
+                    if row['ts'] >= a and row['ts'] + seconds <= b:
+                        built[row['ts']] = row
+            self.buckets[seconds] = built
+        return self.buckets[seconds]
+
     def bars(self, symbol, timeframe, limit, cutoff):
         seconds = INTERVAL_SECONDS[timeframe]
         # Historical prints have second precision. Keep exact interval-close gates.
@@ -96,29 +123,34 @@ class CandleCache:
             if key in self.results:
                 self.results.move_to_end(key)
                 return [dict(row) for row in self.results[key]]
-            result = [dict(row) for ts, row in self.archive(symbol, timeframe)
-                      if ts + seconds <= cutoff]
+            archive = self.archive(symbol, timeframe)
             if symbol == self.spec['symbol'] and self.prints:
-                coverage = self.spec['coverage_through']
-                result = [row for row in result if timestamp(row) + seconds > coverage]
-                if seconds not in self.buckets:
-                    rows = fill_flat_buckets(
-                        [penny_bar(row) for row in aggregate_prints(self.eligible, seconds)], seconds)
-                    self.buckets[seconds] = (rows, [row['ts'] for row in rows])
-                buckets, bucket_keys = self.buckets[seconds]
-                complete_end = bisect.bisect_right(bucket_keys, cutoff - seconds)
+                built = self._range_buckets(seconds)
+                # Trades build what they wholly cover; the archive fills every
+                # other completed bucket -- gaps, range edges, silent leads.
+                result = [dict(row) for ts, row in archive
+                          if ts + seconds <= cutoff and ts not in built]
+                result += [self._out(row, seconds, cutoff) for ts, row in built.items()
+                           if ts + seconds <= cutoff]
+                # The forming bucket: prints reached so far (a print AT the playhead
+                # second counts), drawn only when the playhead's own second is
+                # downloaded and the bucket began inside that same range.
                 current = cutoff // seconds * seconds
-                reached = self.eligible[bisect.bisect_left(self.keys, current):
-                    bisect.bisect_right(self.keys, min(cutoff, coverage - 1))]
-                built = list(buckets[:complete_end]) + [
-                    penny_bar(row) for row in aggregate_prints(reached, seconds)]
-                for row in extend_flat_tail(built, seconds, min(cutoff, coverage)):
-                    if row['ts'] + seconds > coverage and cutoff >= coverage:
-                        continue
-                    result.append(dict(t=datetime.fromtimestamp(row['ts'], timezone.utc).isoformat(),
-                                       o=row['open'], h=row['high'], l=row['low'], c=row['close'],
-                                       v=row['volume'], partial=row['ts'] + seconds > cutoff))
+                in_range = coverage.range_at(self._ranges(), cutoff)
+                if in_range and in_range[0] <= current:
+                    reached = self.eligible[bisect.bisect_left(self.keys, current):
+                                            bisect.bisect_right(self.keys, cutoff)]
+                    result += [self._out(penny_bar(row), seconds, cutoff)
+                               for row in aggregate_prints(reached, seconds)]
+            else:
+                result = [dict(row) for ts, row in archive if ts + seconds <= cutoff]
             result.sort(key=timestamp)
             value = tuple(result[-max(1, int(limit)):])
             bounded_put(self.results, key, value, SIM_HISTORY_RESULT_CACHE_ENTRIES)
             return [dict(row) for row in value]
+
+    @staticmethod
+    def _out(row, seconds, cutoff):
+        return dict(t=datetime.fromtimestamp(row['ts'], timezone.utc).isoformat(),
+                    o=row['open'], h=row['high'], l=row['low'], c=row['close'],
+                    v=row['volume'], partial=row['ts'] + seconds > cutoff)

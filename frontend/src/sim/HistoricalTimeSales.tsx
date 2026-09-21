@@ -4,7 +4,7 @@
  */
 import { useMemo } from 'react';
 import { TimeSalesView, type TapePrint, type TapeState } from '../ibkr';
-import { etTime, sourceLabel } from './historicalReplayFormat';
+import { sourceLabel } from './historicalReplayFormat';
 import { playheadBeyondCoverage } from './simCoverage';
 import {
   SIM_REPLAY_TAPE_EMPTY,
@@ -49,8 +49,10 @@ export function HistoricalTimeSales({ symbol, snapshot, uiActive = true }: Props
     [snapshot, beyond],
   );
   const noTrades = snapshot.source === 'completed_bars';
+  // A running download was pointed here by the scrub (history_download.follow_playhead).
+  const fetching = snapshot.selection?.download_status === 'running';
   const emptyLabel = beyond
-    ? simReplayTapeNotDownloaded(etTime(snapshot.selection!.coverage_through))
+    ? simReplayTapeNotDownloaded(fetching)
     : noTrades ? SIM_REPLAY_TAPE_NO_TRADES : SIM_REPLAY_TAPE_EMPTY;
   return (
     <>
