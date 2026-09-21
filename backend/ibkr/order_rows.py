@@ -138,6 +138,8 @@ def trade_to_order_row(trade) -> dict:
             float(avg_fill) if avg_fill not in (None, 0, 0.0) else None
         ),
         "outside_rth": bool(getattr(trade.order, "outsideRth", False)),
+        # Replace resends this so a price move never rewrites GTC to DAY (#91).
+        "tif": str(getattr(trade.order, "tif", "") or "").strip().upper() or None,
         "status": status.status,
         "submitted_at": submitted_at,
         "updated_at": updated_at,

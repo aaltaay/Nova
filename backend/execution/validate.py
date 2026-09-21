@@ -3,15 +3,18 @@ from __future__ import annotations
 
 import logging
 import math
+from typing import get_args
 
 from constants import IBKR_FRACTIONAL_ORDER_API_MSG
 from execution import inflight as _inflight
-from execution.models import ExecutionCommand
+from execution.models import ExecutionCommand, Source
 from ibkr import account as _account
 from ibkr import client as _client
 from ibkr import safety as _safety
 from ibkr.errors import IbkrAccountError
-from ibkr.order_build import PLACEABLE_ORDER_TYPES, normalize_order_type
+from ibkr.order_build import PLACEABLE_ORDER_TYPES, normalize_order_type, tif_error
+
+_KNOWN_SOURCES: frozenset[str] = frozenset(get_args(Source))
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +52,12 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
         if not ok:
             return False, reason, "CANCEL_GATE"
         return True, "OK", None
+
+    # Everything below can spend. A source outside ADR 007's list -- `auto_live`
+    # above all -- is refused outright rather than treated as an ordinary
+    # non-protective caller. Cancel stays above: it must never be blocked.
+    if cmd.source not in _KNOWN_SOURCES:
+        return False, f"unknown order source: {cmd.source}", "SOURCE_INVALID"
 
     # ADR 018: everything past the cancel branch can increase exposure, so the
     # arm latch is checked here rather than per-operation. A price-only
@@ -110,8 +119,16 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
         shares = int(cmd.shares or cmd.qty or 0)
         if shares <= 0:
             return False, "bracket qty/shares must be > 0", "QTY_INVALID"
+        refusal = _bracket_refusal(cmd)
+        if refusal is not None:
+            return False, refusal[0], refusal[1]
     else:
         return False, f"unknown operation: {cmd.operation}", "OP_INVALID"
+
+    # #91: place and every bracket leg carry the command's TIF.
+    bad_tif = tif_error(cmd.tif)
+    if bad_tif:
+        return False, bad_tif, "TIF_INVALID"
 
     from constants_sim import SIM_SYMBOL
     from sim.mode import is_sim_mode
@@ -132,6 +149,49 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
     if not ok:
         return False, reason, "ORDERS_GATE"
     return True, "OK", None
+
+
+def _bracket_refusal(cmd: ExecutionCommand) -> tuple[str, str] | None:
+    """(detail, reason_code) when a bracket's fields do not hang together (#91).
+
+    The broker leg picks its entry side from ``short_entry`` alone, so a
+    ``side`` that disagrees would send the opposite trade. Leg prices on the
+    wrong side of the entry would fill the stop the moment the entry fills.
+    """
+    if cmd.source in _safety.PROTECTIVE_SOURCES:
+        return (
+            f"source {cmd.source} cannot send a bracket -- protective orders carry no legs",
+            "BRACKET_SOURCE",
+        )
+    short = bool(cmd.short_entry)
+    entry_side = "SELL" if short else "BUY"
+    if cmd.side is not None and str(cmd.side).upper() != entry_side:
+        return (
+            f"bracket side {cmd.side} disagrees with short_entry={short} "
+            f"(entry side is {entry_side})",
+            "BRACKET_SIDE",
+        )
+    if cmd.qty is not None and not is_whole_share_qty(cmd.qty):
+        return IBKR_FRACTIONAL_ORDER_API_MSG, "QTY_FRACTIONAL_API"
+    try:
+        entry = float(cmd.entry_price)  # type: ignore[arg-type]
+        stop = float(cmd.stop_price)  # type: ignore[arg-type]
+        target = float(cmd.target_price)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return "bracket prices must be numbers", "BRACKET_FIELDS"
+    if not all(math.isfinite(p) and p > 0 for p in (entry, stop, target)):
+        return "bracket prices must be greater than zero", "BRACKET_FIELDS"
+    if cmd.limit_price is not None and abs(float(cmd.limit_price) - entry) > 1e-9:
+        return "bracket limit_price must equal entry_price", "BRACKET_FIELDS"
+    in_order = target < entry < stop if short else stop < entry < target
+    if not in_order:
+        need = "target < entry < stop" if short else "stop < entry < target"
+        return (
+            f"{'short' if short else 'long'} bracket needs {need} "
+            f"(entry {entry}, stop {stop}, target {target})",
+            "BRACKET_GEOMETRY",
+        )
+    return None
 
 
 def check_account_and_position(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
@@ -155,7 +215,11 @@ def check_account_and_position(cmd: ExecutionCommand) -> tuple[bool, str, str | 
         if cmd.operation == "bracket" and getattr(cmd, "short_entry", False):
             return _check_short_entry_sell(cmd)
 
-        if cmd.operation == "place" and (cmd.side or "").upper() == "BUY":
+        # A long bracket is a BUY entry: it gets the same BuyingPower gate a
+        # Limit BUY place gets (#91 -- the manual ticket's default legs must
+        # not be a way around it).
+        long_bracket = cmd.operation == "bracket"
+        if long_bracket or (cmd.operation == "place" and (cmd.side or "").upper() == "BUY"):
             est = _estimate_notional(cmd)
             if summary_error is not None and est is not None:
                 logger.error(
@@ -179,6 +243,8 @@ def check_account_and_position(cmd: ExecutionCommand) -> tuple[bool, str, str | 
             if bp is not None and est is not None and est > float(bp):
                 return False, f"estimated notional {est:.2f} exceeds BuyingPower {bp}", "BUYING_POWER"
 
+            if long_bracket:
+                return _check_long_bracket_not_short(cmd)
             return _check_cover_qty(cmd)
 
         if cmd.operation == "place" and (cmd.side or "").upper() == "SELL":
@@ -252,6 +318,26 @@ def _check_cover_qty(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
                 f"(short {short_open}, {working} already sent)"
             )
         return False, detail, "OVERCOVER"
+    return True, "OK", None
+
+
+def _check_long_bracket_not_short(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
+    """Refuse a long bracket while short: its SELL legs would re-open the short."""
+    symbol = cmd.normalized_symbol() or ""
+    try:
+        short_open = _account.short_qty(symbol)
+    except IbkrAccountError as exc:
+        logger.exception(
+            "validate: short_qty failed — refusing bracket for %s: %s", symbol, exc,
+        )
+        return False, f"bracket refused — position unavailable: {exc}", "POSITION_UNAVAILABLE"
+    if short_open > 0:
+        return (
+            False,
+            f"bracket refused — account is short {short_open} {symbol}; cover "
+            "without legs first (the bracket's exit legs would re-open the short)",
+            "BRACKET_WHILE_SHORT",
+        )
     return True, "OK", None
 
 

@@ -21,6 +21,10 @@ export interface PlaceOrderResult {
   duplicate?: boolean;
   timings?: Record<string, number | null> | null;
   broker_status?: string | null;
+  /** #91: present when the ticket's default protective legs made it a bracket. */
+  parent_order_id?: number | null;
+  target_order_id?: number | null;
+  stop_order_id?: number | null;
 }
 
 // Callers own the key: pass one per user gesture so a retry of that gesture

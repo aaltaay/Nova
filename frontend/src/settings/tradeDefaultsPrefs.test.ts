@@ -44,7 +44,7 @@ describe('tradeDefaultsPrefs', () => {
     expect(readTradeDefaultsPrefs()).toEqual(next);
   });
 
-  it('clamps invalid quantity and forces tif DAY', () => {
+  it('clamps invalid quantity and keeps a supported tif', () => {
     const parsed = parseTradeDefaultsPrefs({
       orderType: 'STP',
       quantity: -3,
@@ -54,7 +54,52 @@ describe('tradeDefaultsPrefs', () => {
       stopOffsetPct: 1,
     });
     expect(parsed.quantity).toBe(defaultTradeDefaultsPrefs().quantity);
-    expect(parsed.tif).toBe('DAY');
+    expect(parsed.tif).toBe('GTC');
     expect(parsed.orderType).toBe('STP');
+  });
+
+  it('falls back to DAY for a tif Nova does not place (#91)', () => {
+    expect(parseTradeDefaultsPrefs({ tif: 'IOC' }).tif).toBe('DAY');
+    expect(parseTradeDefaultsPrefs({ tif: 7 }).tif).toBe('DAY');
+  });
+
+  it('keeps protective legs off unless they are explicitly true (#91)', () => {
+    expect(defaultTradeDefaultsPrefs().protectiveLegs).toBe(false);
+    expect(parseTradeDefaultsPrefs({}).protectiveLegs).toBe(false);
+    expect(parseTradeDefaultsPrefs({ protectiveLegs: 'yes' }).protectiveLegs).toBe(
+      false,
+    );
+    expect(parseTradeDefaultsPrefs({ protectiveLegs: true }).protectiveLegs).toBe(
+      true,
+    );
+  });
+
+  it('rejects leg offsets that are not real percentages (#91)', () => {
+    const fallback = defaultTradeDefaultsPrefs();
+    const parsed = parseTradeDefaultsPrefs({
+      protectiveLegs: true,
+      takeProfitPct: 0,
+      stopLossPct: 150,
+    });
+    expect(parsed.takeProfitPct).toBe(fallback.takeProfitPct);
+    expect(parsed.stopLossPct).toBe(fallback.stopLossPct);
+    expect(
+      parseTradeDefaultsPrefs({ takeProfitPct: 3.5, stopLossPct: 1.25 }),
+    ).toMatchObject({ takeProfitPct: 3.5, stopLossPct: 1.25 });
+  });
+
+  it('round-trips GTC and protective legs through localStorage (#91)', () => {
+    writeTradeDefaultsPrefs({
+      ...defaultTradeDefaultsPrefs(),
+      tif: 'GTC',
+      protectiveLegs: true,
+      takeProfitPct: 4,
+      stopLossPct: 2,
+    });
+    const read = readTradeDefaultsPrefs();
+    expect(read.tif).toBe('GTC');
+    expect(read.protectiveLegs).toBe(true);
+    expect(read.takeProfitPct).toBe(4);
+    expect(read.stopLossPct).toBe(2);
   });
 });

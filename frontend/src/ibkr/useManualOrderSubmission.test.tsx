@@ -21,6 +21,10 @@ vi.mock('./placeConfirmPrefs', () => ({
 }));
 
 import { useManualOrderSubmission } from './useManualOrderSubmission';
+import {
+  defaultTradeDefaultsPrefs,
+  writeTradeDefaultsPrefs,
+} from '../settings/tradeDefaultsPrefs';
 
 function params() {
   return {
@@ -48,6 +52,7 @@ function params() {
 describe('useManualOrderSubmission gesture identity', () => {
   beforeEach(() => {
     skipConfirm = true;
+    localStorage.clear();
     placeIbkrOrder.mockReset();
     placeIbkrOrder.mockResolvedValue({ ok: true, order_id: 7, error: null });
   });
@@ -119,6 +124,81 @@ describe('useManualOrderSubmission gesture identity', () => {
       await result.current.executeOrder();
     });
     expect(placeIbkrOrder.mock.calls[0][0].outside_rth).toBe(false);
+  });
+
+  it('sends the Settings TIF, DAY by default (#91)', async () => {
+    const { result } = renderHook(() => useManualOrderSubmission(params()));
+    await act(async () => {
+      await result.current.executeOrder();
+    });
+    expect(placeIbkrOrder.mock.calls[0][0].tif).toBe('DAY');
+    expect(placeIbkrOrder.mock.calls[0][0].take_profit_price).toBeUndefined();
+
+    writeTradeDefaultsPrefs({ ...defaultTradeDefaultsPrefs(), tif: 'GTC' });
+    const gtc = renderHook(() => useManualOrderSubmission(params()));
+    await act(async () => {
+      await gtc.result.current.executeOrder();
+    });
+    expect(placeIbkrOrder.mock.calls[1][0].tif).toBe('GTC');
+  });
+
+  it('attaches the default legs to an opening limit entry (#91)', async () => {
+    writeTradeDefaultsPrefs({
+      ...defaultTradeDefaultsPrefs(),
+      protectiveLegs: true,
+      takeProfitPct: 2,
+      stopLossPct: 1,
+    });
+    const { result } = renderHook(() =>
+      useManualOrderSubmission({
+        ...params(),
+        orderType: 'LMT',
+        limitPrice: '10',
+      }),
+    );
+    expect(result.current.legsNote).toMatch(/take profit \$10\.20/);
+    await act(async () => {
+      await result.current.executeOrder();
+    });
+    const payload = placeIbkrOrder.mock.calls[0][0];
+    expect(payload.take_profit_price).toBe(10.2);
+    expect(payload.stop_loss_price).toBe(9.9);
+  });
+
+  it('refuses a market entry while the default legs are on (#91)', async () => {
+    writeTradeDefaultsPrefs({
+      ...defaultTradeDefaultsPrefs(),
+      protectiveLegs: true,
+    });
+    const { result } = renderHook(() => useManualOrderSubmission(params()));
+    expect(result.current.legsBlocked).toBe(true);
+    await act(async () => {
+      await result.current.executeOrder();
+    });
+    expect(placeIbkrOrder).not.toHaveBeenCalled();
+    expect(result.current.result?.ok).toBe(false);
+    expect(result.current.result?.text).toMatch(/Limit entry/);
+  });
+
+  it('leaves an exit alone while the default legs are on (#91)', async () => {
+    writeTradeDefaultsPrefs({
+      ...defaultTradeDefaultsPrefs(),
+      protectiveLegs: true,
+    });
+    const { result } = renderHook(() =>
+      useManualOrderSubmission({
+        ...params(),
+        side: 'SELL',
+        position: { qty: 10 } as never,
+      }),
+    );
+    await act(async () => {
+      await result.current.executeOrder();
+    });
+    expect(placeIbkrOrder).toHaveBeenCalledTimes(1);
+    const payload = placeIbkrOrder.mock.calls[0][0];
+    expect(payload.take_profit_price).toBeUndefined();
+    expect(payload.stop_loss_price).toBeUndefined();
   });
 
   it('mints a fresh key for the next gesture', async () => {

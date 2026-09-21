@@ -6,11 +6,14 @@ import {
 import {
   buildManualOrder,
   manualOrderConfirmPriceText,
+  type BuildOrderResult,
   type ManualOrderPayload,
   type ManualOrderSide,
   type ManualOrderType,
   type QuantityMode,
 } from './orderEntry';
+import { planProtectiveLegs } from './protectiveLegs';
+import { readTradeDefaultsPrefs } from '../settings/tradeDefaultsPrefs';
 import { executionTransportError } from './executionTransportError';
 import { newGestureKey } from './gestureKey';
 import { notifyOrderRejected } from './notifyOrderRejected';
@@ -55,8 +58,25 @@ export function useManualOrderSubmission(params: Params) {
   const inFlightRef = useRef(false);
   const gestureKeyRef = useRef<string | null>(null);
 
-  function build() {
-    return buildManualOrder(
+  // #91: Settings owns TIF and the optional default TP/SL. Read per render
+  // (localStorage, like the ticket's other defaults) so a Settings change
+  // reaches the next order instead of waiting for a remount.
+  const prefs = readTradeDefaultsPrefs();
+  const limitNumber = Number(params.limitPrice);
+  const legsPlan = planProtectiveLegs({
+    prefs,
+    side: params.side,
+    shortEntry: params.shortEntry,
+    orderType: params.orderType,
+    limitPrice:
+      Number.isFinite(limitNumber) && limitNumber > 0 ? limitNumber : null,
+    positionQty: params.position?.qty ?? null,
+    mode: params.mode,
+  });
+  const legsNote = legsPlan.kind === 'refuse' ? legsPlan.error : legsPlan.note;
+
+  function build(): BuildOrderResult {
+    const built = buildManualOrder(
       {
         symbol: params.symbol,
         side: params.side,
@@ -74,6 +94,23 @@ export function useManualOrderSubmission(params: Params) {
         positionQty: params.position?.qty ?? null,
       },
     );
+    if (!built.ok) return built;
+    // Defaults on but this entry cannot carry legs: refuse instead of placing
+    // the unprotected order the operator asked Nova to stop sending.
+    if (legsPlan.kind === 'refuse') return { ok: false, error: legsPlan.error };
+    return {
+      ...built,
+      payload: {
+        ...built.payload,
+        tif: prefs.tif,
+        ...(legsPlan.kind === 'attach'
+          ? {
+              take_profit_price: legsPlan.takeProfitPrice,
+              stop_loss_price: legsPlan.stopLossPrice,
+            }
+          : {}),
+      },
+    };
   }
 
   function fail(
@@ -125,9 +162,15 @@ export function useManualOrderSubmission(params: Params) {
         { timing, referencePrice: params.referencePrice },
       );
       if (response.ok) {
+        const legs =
+          response.target_order_id && response.stop_order_id
+            ? ` + TP #${response.target_order_id} / SL #${response.stop_order_id}`
+            : '';
         setResult({
           ok: true,
-          text: `Order #${response.order_id} placed (${response.mode ?? params.mode})`,
+          text:
+            `Order #${response.order_id} placed${legs} ` +
+            `(${response.mode ?? params.mode})`,
         });
         params.onOrderPlaced?.(response);
       } else {
@@ -172,10 +215,14 @@ export function useManualOrderSubmission(params: Params) {
       ? ' including extended hours'
       : ' during regular hours';
     const direction = params.shortEntry ? 'SHORT' : params.side;
+    // DAY and no legs read exactly as before; GTC / a bracket must be said out
+    // loud, because both outlive the click that placed them.
+    const tifText = prefs.tif === 'DAY' ? '' : `, ${prefs.tif}`;
+    const legsText = legsPlan.kind === 'attach' ? ` ${legsPlan.note}.` : '';
     const summaryText =
       `${direction} ${built.quantity} ${params.symbol.toUpperCase()} ` +
-      `(${params.orderType}${priceText})${hoursText} on the ` +
-      `${params.mode.toUpperCase()} account.`;
+      `(${params.orderType}${priceText}${tifText})${hoursText} on the ` +
+      `${params.mode.toUpperCase()} account.${legsText}`;
 
     // One key for this click, whether it places straight away or waits on the
     // confirm dialog — a double-clicked Confirm replays instead of re-placing.
@@ -207,6 +254,8 @@ export function useManualOrderSubmission(params: Params) {
     submitting,
     result,
     confirmSummary,
+    legsNote,
+    legsBlocked: legsPlan.kind === 'refuse',
     submit,
     executeOrder,
     setConfirmSummary,

@@ -4,15 +4,16 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
+from constants_ibkr import IBKR_ORDER_TIF_DEFAULT
 from execution import service as _execution_service
 from execution import verification_gate
 from execution.models import ExecutionCommand
 from execution.timing import ingress_stamps
 from ibkr import orders as _orders
 from ibkr.errors import IbkrAccountError
-from ibkr.order_build import normalize_order_type
+from ibkr.order_build import normalize_order_type, normalize_tif
 
 router = APIRouter(tags=["ibkr"])
 
@@ -36,8 +37,25 @@ class OrderRequest(BaseModel):
     reference_price: float | None = Field(default=None, gt=0)
     outside_rth: bool = False
     short_entry: bool = False
+    # #91: validated by execution.validate (TIF_INVALID), default DAY.
+    tif: str = IBKR_ORDER_TIF_DEFAULT
+    # #91: the ticket's default protective legs. Both or neither, on a Limit
+    # entry only; present -> operation "bracket" through the same execute().
+    take_profit_price: float | None = Field(default=None, gt=0)
+    stop_loss_price: float | None = Field(default=None, gt=0)
     idempotency_key: str | None = None
     client_timing: BrowserTimingRequest | None = None
+
+    @model_validator(mode="after")
+    def _legs_ride_a_limit_entry(self) -> "OrderRequest":
+        legs = (self.take_profit_price, self.stop_loss_price)
+        if all(leg is None for leg in legs):
+            return self
+        if any(leg is None for leg in legs):
+            raise ValueError("take_profit_price and stop_loss_price go together")
+        if normalize_order_type(self.order_type) != "LMT" or self.limit_price is None:
+            raise ValueError("protective legs attach to a Limit entry only")
+        return self
 
 
 class ReplaceRequest(BaseModel):
@@ -74,28 +92,51 @@ def _response(receipt) -> dict:
     return result
 
 
+def _manual_order_command(
+    req: OrderRequest, key: str, client_timing: dict | None, ingress_wall: int,
+) -> ExecutionCommand:
+    """Ticket request -> ADR 007 command. Legs make it a bracket, same door."""
+    common = dict(
+        idempotency_key=key,
+        source="manual",
+        symbol=req.symbol.upper(),
+        side=req.side.upper(),
+        qty=req.qty,
+        reference_price=req.reference_price,
+        outside_rth=req.outside_rth,
+        short_entry=bool(req.short_entry),
+        tif=normalize_tif(req.tif),
+        skip_risk=True,
+        skip_concurrency=True,
+        client_timing=client_timing,
+        backend_ingress_wall_ns=ingress_wall,
+    )
+    if req.take_profit_price is None:
+        return ExecutionCommand(
+            operation="place",
+            order_type=normalize_order_type(req.order_type),
+            limit_price=req.limit_price,
+            stop_price=req.stop_price,
+            **common,
+        )
+    return ExecutionCommand(
+        operation="bracket",
+        order_type="LMT",
+        limit_price=req.limit_price,
+        entry_price=req.limit_price,
+        target_price=req.take_profit_price,
+        stop_price=req.stop_loss_price,
+        **common,
+    )
+
+
 @router.post("/order")
 async def place_order(req: OrderRequest, request: Request) -> dict:
     ingress_perf, ingress_wall = ingress_stamps(request)
     key = (req.idempotency_key or "").strip() or str(uuid.uuid4())
     receipt = await _execution_service.execute(
-        ExecutionCommand(
-            operation="place",
-            idempotency_key=key,
-            source="manual",
-            symbol=req.symbol.upper(),
-            side=req.side.upper(),
-            qty=req.qty,
-            order_type=normalize_order_type(req.order_type),
-            limit_price=req.limit_price,
-            stop_price=req.stop_price,
-            reference_price=req.reference_price,
-            outside_rth=req.outside_rth,
-            short_entry=bool(req.short_entry),
-            skip_risk=True,
-            skip_concurrency=True,
-            client_timing=_browser_timing(request, req.client_timing),
-            backend_ingress_wall_ns=ingress_wall,
+        _manual_order_command(
+            req, key, _browser_timing(request, req.client_timing), ingress_wall,
         ),
         received_ns=ingress_perf,
     )

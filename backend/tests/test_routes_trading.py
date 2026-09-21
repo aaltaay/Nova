@@ -347,6 +347,85 @@ def test_duplicate_idempotency_key_does_not_resend(monkeypatch):
     assert place_mock.call_count == 1
 
 
+def test_order_route_defaults_tif_to_day_and_forwards_gtc(monkeypatch):
+    """#91: the ticket's TIF reaches the adapter; omitting it still means DAY."""
+    fake_result = {"ok": True, "order_id": 51, "error": None, "mode": "paper"}
+    patches = _arm_paper_gates()
+    with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], \
+         patches[7], patches[8], \
+         patch.object(orders_mod, "place_order", return_value=fake_result) as place_mock:
+        base = {
+            "symbol": "AAPL", "side": "BUY", "qty": 1,
+            "order_type": "lmt", "limit_price": 10.0,
+        }
+        client.post("/api/ibkr/order", json={**base, "idempotency_key": "route-tif-day"})
+        client.post(
+            "/api/ibkr/order",
+            json={**base, "tif": "gtc", "idempotency_key": "route-tif-gtc"},
+        )
+    assert place_mock.call_args_list[0].kwargs["tif"] == "DAY"
+    assert place_mock.call_args_list[1].kwargs["tif"] == "GTC"
+
+
+def test_order_route_protective_legs_place_one_bracket():
+    """Defaults on → one bracket through execute(), never a second place."""
+    fake_bracket = {
+        "ok": True, "parent_order_id": 61, "target_order_id": 62,
+        "stop_order_id": 63, "error": None, "mode": "paper",
+    }
+    patches = _arm_paper_gates()
+    with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], \
+         patches[7], patches[8], \
+         patch.object(orders_mod, "place_order") as place_mock, \
+         patch.object(
+             orders_mod, "place_bracket_order", return_value=fake_bracket,
+         ) as bracket_mock:
+        res = client.post(
+            "/api/ibkr/order",
+            json={
+                "symbol": "AAPL", "side": "BUY", "qty": 1, "order_type": "LMT",
+                "limit_price": 10.0, "take_profit_price": 10.5,
+                "stop_loss_price": 9.8, "tif": "GTC", "outside_rth": True,
+                "idempotency_key": "route-legs",
+            },
+        )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["ok"] is True
+    assert body["parent_order_id"] == 61
+    assert body["target_order_id"] == 62
+    assert body["stop_order_id"] == 63
+    place_mock.assert_not_called()
+    kwargs = bracket_mock.call_args.kwargs
+    assert kwargs["entry_price"] == 10.0
+    assert kwargs["target_price"] == 10.5
+    assert kwargs["stop_price"] == 9.8
+    assert kwargs["tif"] == "GTC"
+    assert kwargs["outside_rth"] is True
+
+
+def test_order_route_refuses_legs_without_a_limit_entry():
+    res = client.post(
+        "/api/ibkr/order",
+        json={
+            "symbol": "AAPL", "side": "BUY", "qty": 1, "order_type": "MKT",
+            "take_profit_price": 10.5, "stop_loss_price": 9.8,
+        },
+    )
+    assert res.status_code == 422
+
+
+def test_order_route_refuses_one_sided_legs():
+    res = client.post(
+        "/api/ibkr/order",
+        json={
+            "symbol": "AAPL", "side": "BUY", "qty": 1, "order_type": "LMT",
+            "limit_price": 10.0, "stop_loss_price": 9.8,
+        },
+    )
+    assert res.status_code == 422
+
+
 def test_cancel_order_route_blocked_when_not_connected():
     with patch.object(client_mod, "is_connected", return_value=False), \
          patch.object(client_mod, "is_enabled", return_value=True):
