@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { replayPollResource } from './replayPollResource';
+import { simClockResource } from './simClockResource';
 import { historicalStatus } from './historicalStatusStore';
 import { useReplayActions } from './useReplayActions';
 import { emitSimClockScrub, SIM_CLOCK_SCRUB_EVENT, SIM_SEEK_CANCEL_EVENT, type SimClockScrubDetail } from './simClockEvents';
-import { SIM_CAPTURE_POLL_MS, SIM_HISTORY_POLL_MS, SIM_SCRUB_KEYBOARD_MS } from './simConstants';
+import { SIM_CAPTURE_POLL_MS, SIM_SCRUB_KEYBOARD_MS } from './simConstants';
 import type { SimClockState } from './simClockTypes';
 interface CaptureSessions {
   days: { date: string; ticker_count: number }[];
   tickers_by_day: Record<string, { symbol: string; prints: number; l2: number; usable?: boolean; empty?: boolean; unavailable_reason?: string | null }[]>;
 }
-const clockResource = replayPollResource<SimClockState>('/clock', () => SIM_HISTORY_POLL_MS);
+const clockResource = simClockResource;
 const capturesResource = replayPollResource<CaptureSessions>('/api/capture/sessions', () => SIM_CAPTURE_POLL_MS);
 export function useSimSessionController(active: boolean, openStockView: (symbol: string) => void) {
   const subscribeClock = useCallback((listener: () => void) => active ? clockResource.subscribe(listener) : () => {}, [active]);

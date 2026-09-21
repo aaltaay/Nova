@@ -19,6 +19,7 @@ import type { IbkrOrder } from '../ibkr/types';
 import { useTopOfBook } from '../hotkeys/TopOfBookContext';
 import { computeQuoteMetrics } from '../modules/quoteMetrics';
 import { PaperTradingBanner } from '../ibkr/PaperTradingBanner';
+import { SimReplayTargetNotice } from '../sim/SimReplayTargetNotice';
 import { StockViewOpenOrdersDock } from '../stock_view/StockViewOpenOrdersDock';
 import { StockViewRail } from '../stock_view/StockViewRail';
 import {
@@ -147,6 +148,8 @@ export function StockViewPage({
       style={{ ['--ticker-trade-side-width' as string]: `${sideWidth}px` }}
     >
       <PaperTradingBanner mode={ibkrStatus.mode} />
+      {/* Why this tab's panes are empty, before the operator has to guess. */}
+      <SimReplayTargetNotice symbol={symbol} />
       {/*
         Positions / Orders / Nova OS dock must not wait on ticker WS -- account
         tables stay usable while charts/rail load (also keeps e2e stable).

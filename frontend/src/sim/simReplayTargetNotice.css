@@ -1,0 +1,51 @@
+/* Sim tab truth strip -- quieter than the SIM PRACTICE banner it sits under. */
+.sim-replay-target {
+  flex-shrink: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: #f8e6c0;
+  background: color-mix(in srgb, #78350f 55%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, #b45309 50%, transparent);
+}
+
+.sim-replay-target--failed {
+  color: #fee2e2;
+  background: color-mix(in srgb, #7f1d1d 60%, transparent);
+  border-bottom-color: color-mix(in srgb, #dc2626 55%, transparent);
+}
+
+.sim-replay-target__title {
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.sim-replay-target__body {
+  opacity: 0.92;
+}
+
+.sim-replay-target__action {
+  margin-left: auto;
+  padding: 0.15rem 0.6rem;
+  font: inherit;
+  font-weight: 700;
+  color: #1a1208;
+  background: #fbbf24;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.sim-replay-target__action:hover {
+  background: #fcd34d;
+}
+
+.sim-replay-target__action:focus-visible {
+  outline: 2px solid #fde68a;
+  outline-offset: 1px;
+}

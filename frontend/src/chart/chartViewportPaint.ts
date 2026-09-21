@@ -49,12 +49,23 @@ export function isFollowingRightEdge(
   return logical.to >= barCount - 1 - slack;
 }
 
+/**
+ * Advance by the bars that arrived, never clamp to the tip.
+ *
+ * An operator who pans so the last bar sits mid-pane is still "following" --
+ * `logical.to` simply runs past the last index into the right margin. Clamping
+ * `to` to `newBarCount - 1` silently ate that margin on every full repaint
+ * (backfill, rolling trim, two bars at once), which read as the chart yanking
+ * itself flush to the right edge. Shifting by the delta keeps the margin, and
+ * is equally correct for an append, a prepend and a rolling trim.
+ */
 export function followLogicalRange(
   previous: LogicalRange,
   newBarCount: number,
+  previousBarCount: number,
 ): LogicalRange {
   const span = previous.to - previous.from;
-  const to = Math.max(0, newBarCount - 1);
+  const to = Math.max(0, previous.to + (newBarCount - previousBarCount));
   return toLogicalRange(to - span, to);
 }
 
@@ -67,7 +78,7 @@ export function paintTimeScaleCommand(
   if (previous.logical && isFollowingRightEdge(previous.logical, previous.barCount)) {
     return {
       kind: 'setVisibleLogicalRange',
-      range: followLogicalRange(previous.logical, candleCount),
+      range: followLogicalRange(previous.logical, candleCount, previous.barCount),
     };
   }
   if (previous.time) return { kind: 'setVisibleRange', range: previous.time };

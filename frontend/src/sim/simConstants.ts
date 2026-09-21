@@ -30,3 +30,21 @@ export const SIM_SCRUB_KEYBOARD_MS = 120;
 export const SIM_HISTORY_PAGE_INTERVAL_SEC = 11;
 export const SIM_HISTORY_LARGE_WINDOW_MINUTES = 240;
 export const SIM_HISTORY_SYMBOL_PATTERN = /^[A-Z0-9][A-Z0-9. -]{0,19}$/;
+
+/**
+ * Sim tab truth. A Sim pane that cannot show replay data says why, and says it
+ * where the operator already looks (under the SIM PRACTICE strip), because the
+ * charts keep painting archived bars and "some panels are blank" is not an
+ * answer anyone should have to infer.
+ */
+export const SIM_TAB_NO_REPLAY_TITLE = 'No replay loaded';
+export const SIM_TAB_NO_REPLAY_BODY =
+  'This desk has no tape, quote or Level 2 until you load one. Use Historical replay '
+  + 'or pick a recording in the Sim session bar above. The charts below are archived '
+  + 'bars clipped to the sim clock, not replay data.';
+export const SIM_TAB_OTHER_SYMBOL_TITLE = 'Not the replayed symbol';
+export const simTabOtherSymbolBody = (tab: string, replaySymbol: string): string =>
+  `${replaySymbol} is the loaded replay, so ${tab} has no tape, quote or Level 2 here `
+  + `and will not fill. The charts below are archived ${tab} bars, not replay data.`;
+export const simTabGoToReplayLabel = (replaySymbol: string): string => `Go to ${replaySymbol}`;
+export const SIM_TAB_REPLAY_FAILED_TITLE = 'Replay failed to load';
