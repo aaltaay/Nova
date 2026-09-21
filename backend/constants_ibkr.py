@@ -440,6 +440,14 @@ NASDAQ_TRADE_HALT_RSS_HTTP_TIMEOUT_SEC = 10.0
 NASDAQ_TRADE_HALT_RSS_USER_AGENT = "NovaHaltRss/1.0 (+https://github.com/aaltaay/Nova)"
 IBKR_LISTING_FLAGS_TIMEOUT_SEC = 10.0           # sync bridge ceiling for ticker builders
 
+# ── Per-row scanner listing exchange (issue #90) ─────────────────────────────
+# IB scan rows rarely carry contract.primaryExchange, so ibkr/exchange_lookup.py
+# buys the field with ONE paced qualify round trip per NEW symbol -- cold, and
+# off the admit path (ADR 010 name-only admission is untouched). The qualify
+# itself reuses IBKR_L1_QUALIFY_TIMEOUT_SEC: no second, unpaced request path.
+IBKR_EXCHANGE_LOOKUP_PACE_SEC = 0.25            # gap between consecutive lookups
+IBKR_EXCHANGE_LOOKUP_MAX_PENDING = 400          # queue cap; excess waits for a later commit
+
 # ── Strategy: Five Pillars of Stock Selection ─────────────────────────────────
 # Signal-only thresholds (see backend/strategy/five_pillars.py). These never place
 # orders — they only score a candidate dict (same shape as gapper/gainer cache rows).

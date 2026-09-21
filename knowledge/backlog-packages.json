@@ -142,7 +142,7 @@
             276,
             131
           ],
-          "note": "No production code. Verification comments plus any CHANGELOG/doc correction; #276 still needs the operator's live-desk confirmation before closing.",
+          "note": "No production code. Verification comments plus any doc correction; #276's live-desk hold was lifted by the operator on 2026-09-20 -- it closes on the shipped shared-shell width lock, with desk confirmation afterwards.",
           "gated": false,
           "touches": [
             "backend/tests/",
@@ -631,8 +631,8 @@
             94,
             90
           ],
-          "note": "GATED on two one-line operator calls. Small implementations once answered; both touch the scanner hydrate path.",
-          "gated": true,
+          "note": "Ungated 2026-09-20: the operator answered both calls on the issues (#90 build the cold, paced lookup; #94 the slot policy). #90's cold Exchange backfill is implemented; both touch the scanner hydrate path.",
+          "gated": false,
           "touches": [
             "backend/ibkr/scanner_hydrate.py",
             "backend/hod_momo_universe.py",
