@@ -16,6 +16,7 @@ import {
 } from '../capture/sessionRecordStore';
 import { HoldToStopButton } from '../capture/HoldToStopButton';
 import { captureStopHoldLabel } from '../capture/constants';
+import { botSymbolMenuPosition } from './botSymbolMenuPlacement';
 
 export function BotSymbolMenuHost() {
   const [open, setOpen] = useState<BotSymbolMenuOpen>(null);
@@ -67,12 +68,20 @@ export function BotSymbolMenuHost() {
     closeBotSymbolMenu();
   };
 
+  // Below the app bar, never over the Sim session bar under the tabs.
+  const appBar = document.querySelector('[data-testid="global-app-bar"]');
+  const position = botSymbolMenuPosition({
+    x: open.x,
+    y: open.y,
+    appBarBottom: appBar ? appBar.getBoundingClientRect().bottom : null,
+    viewportWidth: window.innerWidth,
+  });
   return (
     <div
       className="bot-symbol-menu"
       role="menu"
       data-testid="bot-symbol-menu"
-      style={{ top: open.y, left: open.x }}
+      style={{ top: position.top, left: position.left }}
     >
       {recording ? (
         // A recording is locked: Stop takes a deliberate hold, never a slip.
