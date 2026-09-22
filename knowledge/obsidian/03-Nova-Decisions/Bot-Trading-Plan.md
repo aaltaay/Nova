@@ -75,7 +75,7 @@ Decision B (recommendation starred):
 
 Done when: one local Parquet / DuckDB store with a "was listed on that date" flag per symbol.
 
-### L2 -- Backtest `[x]` for A1 (§2b) and A2 (§2c); `[ ]` for A4 (§2d)
+### L2 -- Backtest `[x]` for A1 (§2b), A2 (§2c) and A4 (§2d); `[ ]` for A5 (§2e)
 
 Install vectorbt in a scratch environment, adapt `.cursor/skills/backtest/` to read the local
 store, code the ORB rules exactly as published. Charge IBKR commissions plus 1-3 c/share slippage
@@ -84,7 +84,7 @@ on small caps; no signal may read anything after its own minute.
 Done when: the ORB reproduces the paper's *shape* on 2016-2023 and the run reports trade count,
 expectancy in R, profit factor, max drawdown.
 
-### L3 -- Try to break it `[x]` for A1 (broke on the 2x-cost test, §2b) and A2 (broke on three of four, §2c); `[ ]` for A4
+### L3 -- Try to break it `[x]` for A1 (broke on the 2x-cost test, §2b), A2 (broke on three of four, §2c) and A4 (broke on three of four, §2d); `[ ]` for A5
 
 Walk-forward by year. Parameter neighbourhood: stop 5 / 10 / 15% ATR, top 10 / 20 / 30 by RVOL,
 5 / 15 / 30-minute ranges -- the neighbourhood must stay positive. 1,000-shuffle permutation
@@ -233,6 +233,65 @@ fixed here before any run:
 - Kill criteria unchanged: < 300 trades, edge in one year, neighbourhood (RSI 5/10/15,
   hold 5/10/20, MA 100/200) not mostly positive, dies at 2x costs. Concentration is reported.
 
+### Gate 1 result -- A4, 2026-09-22 (harness: `research/orb/build_daily.py`, `backtest_mr.py`)
+
+Data: split-adjusted daily bars for every US stock, 2021-09-21 .. 2026-09-21 (13.9M rows,
+20,757 tickers, delisted included); a held name whose bars end is closed at its last
+print. Account as in §2b ($25k cash, IBKR fixed commission, $0.01/share slippage).
+
+| Run | Signals | Trades | Win | PF | Per trade | CAGR | Max DD | Sharpe |
+|---|---|---|---|---|---|---|---|---|
+| **Pre-registered rule** ($20+, $50M ADV, > SMA200, RSI2 < 10, 5 names, 10-day hold) | 58,593 | 1,223 | 64.3% | **1.02** | +$1.93 | **1.75%** | **-31.7%** | 0.19 |
+| RSI2 < 5 | 27,968 | 1,172 | 64.5% | 1.07 | +$7 | 5.9% | -24.9% | 0.36 |
+| RSI2 < 15 | 88,035 | 1,235 | 64.0% | 1.00 | +$0 | 0.1% | -33.1% | 0.12 |
+| Hold 5 / 20 days | | 1,558 / 1,136 | 62% / 65% | 0.99 / 1.04 | -$0.4 / +$3.8 | -0.6% / 2.5% | -31% / -30% | 0.09 / 0.22 |
+| SMA100 trend | 48,485 | 1,220 | 64.0% | 1.14 | +$14 | 10.2% | -25.8% | 0.40 |
+| No trend filter | 131,967 | 1,217 | 62.7% | 0.96 | -$3 | -3.2% | -56.6% | 0.10 |
+| 3 / 10 names | | 748 / 2,408 | 64% / 65% | 1.00 / 1.04 | +$0.3 / +$1.9 | 0.1% / 2.9% | -39% / -29% | 0.13 / 0.25 |
+| $10+, $20M ADV | 92,337 | 1,198 | 61.9% | 1.06 | +$5 | 4.5% | -44.2% | 0.30 |
+| **$200M ADV (mega-caps)** | 24,067 | 1,214 | 65.7% | **1.19** | +$18 | **12.7%** | -23.5% | 0.66 |
+| Zero / $0.02 / $0.03 slippage | | 1,223 | 64% | 1.04 / 1.00 / 0.99 | +$4 / +$0 / -$1 | 3.4% / 0.3% / -1.3% | -31% / -33% / -33% | |
+| **2x costs** | | 1,223 | 64.0% | **1.00** | $0.00 | -0.1% | -32.6% | 0.11 |
+
+Years (base): 2022 +$369, 2023 -$4,404, 2024 +$8,212, 2025 +$587, 2026 -$2,406. Ten best
+trades = 476% of the profit; without them -$8,866. Months positive 28 of 51. Costs are
+*not* the killer here (fees $2.5k over five years): the rule itself is flat in this period
+on this universe, and its losses come from names that fall through the "washout" (CPRI
+-52%, RVSN -46%, VKTX -30% held to the time stop).
+
+**Kill criteria:** edge in one year -- **Fail** (2024 carries it); < 300 trades -- pass;
+neighbourhood mostly positive -- **Fail** (half the cells at or under 1.0); dies at 2x
+costs -- **Fail** (PF 1.00). **Verdict: not passed.**
+
+**A4b, recorded, not promoted:** the same rule on mega-caps only ($200M+ ADV) is the one
+robust cell -- PF 1.19, 12.7% CAGR, and it *survives* 2x costs (PF 1.17, 11.2%), 3 cents of
+slippage (PF 1.15) and every neighbour (RSI 5/15, hold 5/20, SMA100, 10 names, $500M ADV:
+PF 1.11-1.21). Years: 2022 +$33, 2023 +$5,248, 2024 +$7,894, 2025 +$231, 2026 +$7,994;
+ten best trades 58% of profit; months positive 33 of 51. It is an in-sample universe pick
+on five years, so it is not promoted from this run. It is the first cell of any candidate
+that passed the cost test, and it is the shape of a strategy that fits a cash account:
+one order a day at the close, in names with sub-cent spreads. Re-run it on the 30-year
+survivor-biased S&P history for a directional out-of-sample check before deciding.
+
+## 2e. Where this leaves gate 1 (2026-09-22, end of day)
+
+Three candidates, one day, one honest harness: the two small-cap open breakouts die on
+cents of slippage at $25k, the mid/large-cap daily mean reversion is flat. The only
+things that have passed anything are (a) the SPY swing rules, reproduced from a published
+33-year record (§3), and (b) the A4b mega-cap cell, in sample. Both are daily-bar,
+close-of-day, cash-account-friendly strategies -- the opposite of what Nova's desk was
+built to watch, and the operator's definition of done (paper evidence, then a live test)
+does not care which kind of rule makes the money.
+
+**Next candidate, pre-registered -- A5: SPY swing rules to gate 1's kill tests, then paper.**
+The five rules of §3 exactly as published (band + IBS, Turnaround Tuesday, 5-day low,
+volatility contraction, new high + low IBS; exit on a close above the prior high), on SPY,
+1993-2026. Kill tests: doubled costs (0.06% per side), per-year sign count, ten-trade
+concentration, and the 2021-2026 window on its own. If they pass, the paper stage needs a
+*daily-bar* bot pack (signal at 15:55 ET from daily bars, one limit order at the close,
+one exit order), which Nova's bot does not have yet; that becomes the engineering step.
+A4b's out-of-sample check runs beside it.
+
 ## 3. Reference numbers (from the 2026-09-22 research pass)
 
 - Good backtest: > 300 trades, profit factor 1.3-2.0 after costs, expectancy > 0.2R, max DD
@@ -262,3 +321,4 @@ blog.traderspost.io paper-to-live guide.
 | 2026-09-22 | **Decision A = A1** (5-minute ORB on stocks in play, long-only first), decided by the agent at the operator's request ("I just want to be profitable, I don't know") -- the only candidate with a replicated published backtest and a universe Nova's scanner already produces. A3 (SPY swing on free daily bars) runs alongside as the baseline; A2 (Gap and Go) follows on the same harness. Operator may veto. | Claude Fable 5.1 for the operator |
 | 2026-09-22 | **Gate 1 verdict for A1: not passed** (fails the 2x-cost kill test; profit carried by ~10 trades). Not promoted to paper. **Next candidate: A2 Gap and Go** on the same store once news + ticker details are in. Operator's definition of done unchanged: paper evidence, then their live test. | Claude Fable 5.1 for the operator |
 | 2026-09-22 | **Gate 1 verdict for A2 Gap and Go: not passed** (PF 1.00 without the survivor-biased float pillar; fails three of four kill tests). Not promoted. **Next candidate: A4 large-cap daily mean reversion**, rules pre-registered in §2d. L1 data complete; the Massive plan may be cancelled. | Claude Fable 5.1 for the operator |
+| 2026-09-22 | **Gate 1 verdict for A4: not passed** (PF 1.02, 2024 carries it, dies at 2x costs). A4b mega-cap cell recorded as the first cost-robust cell (PF 1.19, survives 2x costs) but in-sample -- not promoted. **Next: A5 SPY swing rules through the kill tests, then a daily-bar bot pack for paper** (§2e). | Claude Fable 5.1 for the operator |

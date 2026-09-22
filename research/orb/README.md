@@ -49,9 +49,17 @@ Gap and Go (second candidate, same store):
 | `backtest_gng.py` | buy stop at the pre-market high, $0.20 / 4% stop, half off at 2R with breakeven, rest at 4R or 11:30; `--grid` for the neighbourhood |
 | `run_gate1_gng.py` | chains news load, both selections, one extraction for their union, base run and grid |
 
-Gate-1 outcomes (2026-09-22): ORB not passed (§2b), Gap and Go not passed (§2c) -- see
-`knowledge/obsidian/03-Nova-Decisions/Bot-Trading-Plan.md`. The third candidate (large-cap
-daily mean reversion) is pre-registered in §2d.
+Large-cap daily mean reversion (third candidate, daily files):
+
+| Script | Purpose |
+|---|---|
+| `build_daily.py` | `daily` from `day_aggs_v1`, split-adjusted `daily_adj` (factor = product of later `split_from / split_to`), `daily_ind` (prev close / high, SMA100 / SMA200, 20-day dollar ADV) and `daily_rsi` (Wilder RSI(2) as an EWM) |
+| `backtest_mr.py` | buy the close on RSI2 < 10 above the 200-day, sell the first close above the prior high or after 10 days, 5 names at 20%; `--grid` for the neighbourhood, universe floors and costs; a delisted holding closes at its last print |
+
+Gate-1 outcomes (2026-09-22): ORB not passed (§2b), Gap and Go not passed (§2c),
+large-cap mean reversion not passed (§2d; its mega-cap cell A4b is recorded as the first
+cost-robust cell, in sample) -- see `knowledge/obsidian/03-Nova-Decisions/Bot-Trading-Plan.md`.
+The fourth candidate (the SPY swing rules through the kill tests) is pre-registered in §2e.
 
 ## Honesty
 
