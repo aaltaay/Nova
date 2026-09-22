@@ -2,18 +2,18 @@ import { test, expect } from '@playwright/test';
 import { attachErrorCollector } from './helpers/errorCollector';
 
 test.describe('Fund account', () => {
-  test('opens IBKR Client Portal from under the Account icon', async ({ page }, testInfo) => {
+  test('opens IBKR Client Portal from beside the rail Account item', async ({ page }, testInfo) => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/?view=sample');
 
-    // Slim header: Fund account lives in a popover under the Account icon.
+    // Fund account lives in a popover beside the nav rail's Account item.
     const fund = page.getByTestId('global-bar-fund-account');
     await expect(fund).toHaveCount(0);
-    const account = page.getByTestId('global-bar-account-nav');
+    const account = page.getByTestId('nav-rail-account');
     await expect(account).toBeVisible();
     await account.hover();
 
-    const menu = page.getByTestId('global-bar-account-menu');
+    const menu = page.getByTestId('nav-rail-account-menu');
     await expect(menu).toBeVisible();
     await expect(menu.getByTestId('global-bar-fund-account')).toBeVisible();
     await expect(fund).toHaveText('Fund account');
@@ -26,8 +26,8 @@ test.describe('Fund account', () => {
     await expect(popup).toHaveURL(/interactivebrokers\.com\/sso\/Login/);
     await popup.close();
 
-    await page.getByTestId('global-app-bar').screenshot({
-      path: testInfo.outputPath('global-bar-fund-account.png'),
+    await page.getByTestId('nav-rail').screenshot({
+      path: testInfo.outputPath('nav-rail-fund-account.png'),
     });
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });

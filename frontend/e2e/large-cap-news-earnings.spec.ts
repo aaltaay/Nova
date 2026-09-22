@@ -6,7 +6,7 @@ test.describe('Large Cap shared News and Earnings columns', () => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/?view=sample');
     await expect(page.getByTestId('sample-dashboard')).toBeVisible();
-    await page.getByTestId('scanner-nav-large_cap').click();
+    await page.getByTestId('nav-rail-tab-large_cap').click();
 
     const table = page.locator('main.panel table');
     await expect(table).toBeVisible();

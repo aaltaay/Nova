@@ -18,8 +18,8 @@ test.describe('scanner column width stability', () => {
   test('Gainers CHANGE/GAP ticks do not shift sibling columns', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/?view=sample');
-    await expect(page.getByTestId('scanner-nav-gainers')).toBeVisible();
-    await page.getByTestId('scanner-nav-gainers').click();
+    await expect(page.getByTestId('nav-rail-tab-gainers')).toBeVisible();
+    await page.getByTestId('nav-rail-tab-gainers').click();
     await expect(page.locator('.table-wrapper--scanner table')).toBeVisible();
     await expect(page.locator('td[data-col="change_pct"]').first()).toBeVisible();
     await expect(page.locator('th[data-col="change_pct"]')).toHaveClass(/scanner-col--pct/);
