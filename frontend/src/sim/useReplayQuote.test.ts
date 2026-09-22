@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SIM_REPLAY_PRICE_NONE, SIM_REPLAY_PRICE_NOT_RECORDED } from './simConstants';
 import type { SimClockState } from './simClockTypes';
-import { replayQuoteFor } from './useReplayQuote';
+import { replayQuoteFor, venuePriceFor } from './useReplayQuote';
 import type { HistoricalSnapshot } from './useHistoricalSnapshot';
 
 const capture = (quote: SimClockState['replay_quote']): SimClockState => ({
@@ -39,5 +39,19 @@ describe('replayQuoteFor (R10 / V24)', () => {
     expect(replayQuoteFor('GRML', none, null, true)).toMatchObject({ active: true, last: null, note: SIM_REPLAY_PRICE_NONE });
     expect(replayQuoteFor('SPY', capture(QUOTE), null, true).last).toBeNull();
     expect(replayQuoteFor('GRML', null, null, true)).toMatchObject({ active: true, last: null });
+  });
+});
+
+describe('venuePriceFor (the ticket reference, R10 / V24)', () => {
+  it('a replaying tab prices from the replay -- a missing replay price stays missing, never the live one', () => {
+    const replaying = replayQuoteFor('GRML', capture(QUOTE), null, true);
+    expect(venuePriceFor(replaying, 9.15)).toEqual({ price: 8.84, note: null });
+    const gap = replayQuoteFor('GRML', capture({ ...QUOTE, covered: false, last: null }), null, true);
+    expect(venuePriceFor(gap, 9.15)).toEqual({ price: null, note: SIM_REPLAY_PRICE_NOT_RECORDED });
+  });
+
+  it('off Sim or at the live edge the live price stands, with no note', () => {
+    const live = replayQuoteFor('GRML', capture(QUOTE), null, false);
+    expect(venuePriceFor(live, 9.15)).toEqual({ price: 9.15, note: null });
   });
 });

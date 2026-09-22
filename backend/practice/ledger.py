@@ -109,9 +109,7 @@ class Ledger:
 
     @staticmethod
     def _stamp(event: dict[str, Any]) -> str:
-        # A row's times are the venue's -- the replay playhead on Sim, the wall
-        # clock on Paper -- the same clock the rewind unwinds by, so a Sim row
-        # never reads like it happened at 01:50 tonight (QA 2026-09-22, R27).
+        # The venue's time (Sim: the playhead a rewind unwinds by), never wall time (R27).
         return iso_utc(event["ts"])
 
     def _apply_placed(self, event: dict[str, Any]) -> None:

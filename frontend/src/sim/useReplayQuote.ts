@@ -72,3 +72,12 @@ export function useReplayQuote(symbol: string): ReplayQuote {
   const historical = useHistoricalSnapshot(symbol, sim && clock?.replay_source === 'historical');
   return replayQuoteFor(symbol, clock, historical, sim);
 }
+
+/** What a ticket prices from: the replay's price off the live edge (with why it has none), else the live one. */
+export function venuePriceFor(replay: ReplayQuote, livePrice: number | null): { price: number | null; note: string | null } {
+  return replay.active ? { price: replay.last, note: replay.note } : { price: livePrice, note: null };
+}
+
+export function useVenuePrice(symbol: string, livePrice: number | null): { price: number | null; note: string | null } {
+  return venuePriceFor(useReplayQuote(symbol), livePrice);
+}
