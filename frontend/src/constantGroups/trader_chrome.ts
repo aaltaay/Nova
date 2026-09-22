@@ -180,3 +180,18 @@ export const TICKET_COST_NO_POSITION =
   'Nothing to sell: a SELL only reduces a held position, and Nova never opens a short from it.';
 /** The Sim venue tag's state word with nothing loaded off the edge (V38: it read "replay"). */
 export const TRADER_VENUE_TAG_NO_REPLAY = 'no replay';
+
+// ── QA batch: Scanner / HOD / desk honesty (2026-09-22) ────────────────────
+/** Venue names for the drawer's sample banner (QA V22). */
+const DRAWER_SAMPLE_VENUE: Record<string, string> = { live: 'Live', paper: 'Paper', sim: 'Sim' };
+/**
+ * The drawer's sample banner names the venue: sample rows replace this
+ * venue's real orders while they show -- they were mixed in and counted
+ * with them, and labelled "paper-style ... not from IBKR" even on Sim (QA V22).
+ */
+export function drawerSampleBanner(mode: string): string {
+  const venue = DRAWER_SAMPLE_VENUE[mode];
+  return venue
+    ? `Sample data -- not your ${venue} orders. Your real orders are hidden while the sample shows.`
+    : 'Sample data -- not real orders. Your real orders are hidden while the sample shows.';
+}

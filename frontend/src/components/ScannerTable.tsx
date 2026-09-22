@@ -69,7 +69,7 @@ export function ScannerTable({
                 <span className="th-inner">
                   {/* Clipped labels read "NEW:" / "EARNIN" -- the label ellipsizes and the th title carries it. */}
                   <span className="th-label">
-                    {key === 'volume' ? SCANNER_VOLUME_COLUMN_LABEL : SCANNER_HEADER_SHORT_LABEL[key] ?? label}
+                    {SCANNER_HEADER_SHORT_LABEL[key] ?? (key === 'volume' ? SCANNER_VOLUME_COLUMN_LABEL : label)}
                   </span>
                   <span className={`sort-arrow${sortState.key === key ? ' active' : ''}`}>
                     {sortState.key === key

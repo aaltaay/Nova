@@ -267,7 +267,7 @@ export function useScannerData(opts: {
       consecutiveFailuresRef.current = 0;
       retryAttemptRef.current = 0;
     }
-  }, [applyEnvelope, scheduleRetry]);
+  }, [scheduleRetry]);
   fetchDataRef.current = fetchData;
 
   const fetchCatalystsOnly = useCallback(async () => {

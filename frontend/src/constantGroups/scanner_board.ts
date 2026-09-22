@@ -146,6 +146,8 @@ export const SCANNER_VOLUME_HEADER_TITLE =
 /** A narrow icon column keeps a short header; the th title carries the full name. */
 export const SCANNER_HEADER_SHORT_LABEL: Record<string, string> = {
   earnings_day_offset: 'Earn',
+  volume: 'Vol·RVOL',
+  short_interest: 'Short',
 };
 /** A missing figure is a muted dash, never a red "N/A" (QA V21 / C67). */
 export const SCANNER_CELL_ABSENT = '—';

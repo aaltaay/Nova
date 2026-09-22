@@ -11,10 +11,10 @@ import {
   ORDERS_TODAY_TITLE,
   STOCK_VIEW_MODULE_NOVA_OS_TITLE,
   STOCK_VIEW_MODULE_POSITIONS_TITLE,
-  STOCK_VIEW_OPEN_ORDERS_SAMPLE_BANNER,
   type OrdersTodayFilterId,
   type StockViewDockSurface,
 } from '../constants';
+import { drawerSampleBanner } from '../constantGroups/trader_chrome';
 import { PositionsPanel } from '../ibkr/PositionsPanel';
 import { buildMockWorkingOrders } from '../ibkr/mockWorkingOrders';
 import type {
@@ -111,10 +111,15 @@ export function StockViewOpenOrdersDock({
     () => (usingSample ? buildMockWorkingOrders(symbolKey) : orders),
     [usingSample, symbolKey, orders],
   );
-  // Real closed only (never sample) — account-wide badge for active filter.
+  // While the sample shows, the list and every count are the sample alone:
+  // real closed rows were mixed in and counted with it ("12 SAMPLE") -- QA V22.
+  const displayClosed = useMemo(
+    () => (usingSample ? [] : closedOrders),
+    [usingSample, closedOrders],
+  );
   const openCount = ordersTodayBadgeCount(
     displayOrders,
-    closedOrders,
+    displayClosed,
     filter,
     null,
   );
@@ -122,10 +127,10 @@ export function StockViewOpenOrdersDock({
   const filterCounts = useMemo(() => {
     const out: Partial<Record<OrdersTodayFilterId, number>> = {};
     for (const f of ORDERS_TODAY_FILTERS) {
-      out[f.id] = ordersTodayBadgeCount(displayOrders, closedOrders, f.id, null);
+      out[f.id] = ordersTodayBadgeCount(displayOrders, displayClosed, f.id, null);
     }
     return out;
-  }, [displayOrders, closedOrders]);
+  }, [displayOrders, displayClosed]);
   const positionCount = positions.length;
 
   useEffect(() => {
@@ -271,15 +276,15 @@ export function StockViewOpenOrdersDock({
             ) : (
               <>
                 {usingSample && (
-                  <p className="sv-open-orders-dock__banner" role="status">
-                    {STOCK_VIEW_OPEN_ORDERS_SAMPLE_BANNER}
+                  <p className="sv-open-orders-dock__banner" role="status" data-testid="stock-view-open-orders-sample-banner">
+                    {drawerSampleBanner(mode)}
                   </p>
                 )}
                 <OrdersTodayView
                   symbol={symbolKey}
                   workingOrders={displayOrders}
                   usingWorkingSample={usingSample}
-                  closedOrders={closedOrders}
+                  closedOrders={displayClosed}
                   onCancelOrder={onCancelOrder}
                   onFillImmediately={onFillImmediately}
                   highlightOrderId={highlightOrderId}

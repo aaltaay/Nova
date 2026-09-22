@@ -228,6 +228,11 @@
   padding-right: 0.3em;
 }
 
+/* The News flame column is a touch wider so its header reads whole. */
+.table-wrapper--scanner .scanner-col--newest_headline_at {
+  width: 3.3rem;
+}
+
 .table-wrapper--scanner th.scanner-col--chrome:not(:hover) .sort-arrow:not(.active) {
   display: none;
 }
