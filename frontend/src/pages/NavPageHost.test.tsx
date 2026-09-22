@@ -1,0 +1,57 @@
+/**
+ * @vitest-environment jsdom
+ */
+import { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetNavRailStoreForTests, setNavPage } from '../workspace/navRailStore';
+import { NavPageHost } from './NavPageHost';
+
+vi.mock('./RecordsPage', () => ({
+  RecordsPage: () => <div data-testid="records-page" />,
+}));
+
+describe('NavPageHost', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    resetNavRailStoreForTests();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it('shows the dashboard by default and swaps in Desk / Records from the store', () => {
+    act(() => {
+      root.render(
+        <NavPageHost onOpenTrader={() => {}}>
+          <div data-testid="dashboard-stub" />
+        </NavPageHost>,
+      );
+    });
+    expect(container.querySelector('[data-testid="dashboard-stub"]')).toBeTruthy();
+    act(() => {
+      setNavPage('desk');
+    });
+    const desk = container.querySelector('[data-testid="desk-page"]');
+    expect(desk).toBeTruthy();
+    expect(desk!.textContent).toMatch(/Scanner \+ Trader hybrid lands in the next PR/);
+    expect(container.querySelector('[data-testid="dashboard-stub"]')).toBeNull();
+    act(() => {
+      setNavPage('records');
+    });
+    expect(container.querySelector('[data-testid="records-page"]')).toBeTruthy();
+    act(() => {
+      setNavPage('dashboard');
+    });
+    expect(container.querySelector('[data-testid="dashboard-stub"]')).toBeTruthy();
+  });
+});
