@@ -1,7 +1,7 @@
 """
 Risk / discipline engine — a pure state machine, signal-only.
 
-Tracks today's realized P&L and enforces the course's walk-away guardrails
+Tracks today's realized P&L and enforces the playbook's walk-away guardrails
 (daily max loss, 3-losses-in-a-row, giving back half of the day's peak
 profit). Also computes position size (100-share blocks, quarter size until
 a profit cushion, cut size after a meaningful loss) and validates a proposed

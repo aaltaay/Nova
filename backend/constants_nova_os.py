@@ -11,7 +11,7 @@ NOVA_OS_EVENTS_DEFAULT_LIMIT = 200                # default rows returned by the
 # Restart recovery scans this many newest events for executed_paper / closes.
 NOVA_OS_RECOVERY_EVENTS_LIMIT = 500
 
-# decide() tunables (course rules — Gap and Go first-minute volume + top ranks)
+# decide() tunables (Gap and Go first-minute volume + top ranks)
 NOVA_OS_MIN_FIRST_MINUTE_VOLUME = 100_000  # ebook: ≥100k shares in the 9:30 ET minute
 NOVA_OS_WATCHLIST_MAX_RANK = 4             # trade only the most-obvious top-ranked names
 NOVA_OS_CATALYST_MIN_CONFIDENCE = 0.45     # soft Gate 4 floor for news-impact confidence

@@ -3,8 +3,8 @@ ABCD setup detection — signal-only.
 
 Pattern (strategy specification): an impulsive A-to-B move of at least ABCD_MIN_AB_MOVE_PCT,
 a pullback to point C that holds the 9 EMA and doesn't retrace more than half
-the A-B move, with entry D on a break back above point B. Stop is the course's
-documented ~20 cent risk (see ABCD_MAX_STOP_DOLLARS).
+the A-B move, with entry D on a break back above point B. Stop is the playbook's
+~20 cent risk (see ABCD_MAX_STOP_DOLLARS).
 
 Like gap_and_go.py and bull_flag.py, this module never places an order.
 `would_execute` is hard-coded to False.

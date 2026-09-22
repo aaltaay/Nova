@@ -5333,7 +5333,7 @@ No `CHANGELOG.md` entry on purpose. This changes no behavior, endpoint, constant
 
 - **What:** Installed [graphify](https://github.com/Graphify-Labs/graphify) (`graphifyy` CLI) for this Windows/Cursor setup and built a knowledge graph over `knowledge/obsidian/` (52 nodes · 92 edges · 6 communities). Wired always-on Cursor rule, project skills, agent wiki, and Obsidian recall docs.
 - **Why:** User asked to read Graphify docs and implement it properly against the project knowledge / Obsidian vault (not a silent codebase-only install).
-- **How it works now:** Agents treat `graphify-out/` as a navigation layer over the vault. For “what connects X to Y?” decision questions, run `graphify query` / `path` / `explain` (or open `graphify-out/wiki/index.md`) before grepping notes. Exact decision wording still lives in Obsidian; course content still goes through Pinecone. Rebuild after vault edits with `/graphify knowledge/obsidian --update --wiki` in Cursor. Open `graphify-out/graph.html` for the interactive view. CLI install: `uv tool install graphifyy` then ensure `%USERPROFILE%\.local\bin` is on PATH.
+- **How it works now:** Agents treat `graphify-out/` as a navigation layer over the vault. For “what connects X to Y?” decision questions, run `graphify query` / `path` / `explain` (or open `graphify-out/wiki/index.md`) before grepping notes. Exact decision wording still lives in Obsidian; reference content still goes through Pinecone. Rebuild after vault edits with `/graphify knowledge/obsidian --update --wiki` in Cursor. Open `graphify-out/graph.html` for the interactive view. CLI install: `uv tool install graphifyy` then ensure `%USERPROFILE%\.local\bin` is on PATH.
 - **Verified by:** `graphify query` returns Gap-and-Go ↔ IBKR safety subgraph; `graphify path "Gap and Go Setup" "IBKR Safety Gates"` = 2 hops via Nova OS decide() gate pipeline; `graphify explain "Nova OS"`; wiki + HTML written; app launched via `Run Nova.bat`.
 - **Follow-ups:** Optional `/graphify . --wiki` to add backend/frontend code into a merged graph; optional MCP (`python -m graphify.serve graphify-out/graph.json`) if live tool calls are preferred over CLI.
 - **Related:** `knowledge/obsidian/00-System/Graphify-Knowledge-Graph.md`.
@@ -5830,9 +5830,9 @@ No `CHANGELOG.md` entry on purpose. This changes no behavior, endpoint, constant
 - **Verified by:** vitest window math; frontend build; UI scroll on HOD tab.
 - **Follow-ups:** Apply same pattern to other multi-thousand scanners if needed.
 
-## 2026-07-14 — HOD Momo empty: Ross focus universe + IBKR ticks
+## 2026-07-14 — HOD Momo empty: focus universe + IBKR ticks
 
-- **What:** HOD Momo now watches the Top Gainer/Gapper/Loser shortlist (Ross-style) instead of subscribing Alpaca IEX to ~6k symbols. IBKR 1Hz table reprice also feeds `on_trade_update` when discovery=ibkr. Alpaca WS subscribe/unsubscribe is chunked. Unit tests cover universe building and alert firing.
+- **What:** HOD Momo now watches the Top Gainer/Gapper/Loser shortlist (focus mode) instead of subscribing Alpaca IEX to ~6k symbols. IBKR 1Hz table reprice also feeds `on_trade_update` when discovery=ibkr. Alpaca WS subscribe/unsubscribe is chunked. Unit tests cover universe building and alert firing.
 - **Why:** Tab stayed empty (`total_trades_seen=0`) despite enriched snaps — free IEX cannot deliver a usable tape for a full-universe subscribe. Project decision note already required shrinking under IBKR.
 - **Files touched:** `backend/hod_momo_universe.py` (new), `backend/main.py`, `backend/constants.py`, `backend/hod_momo.py`, `backend/tests/test_hod_momo_universe.py`, `backend/tests/test_hod_momo_engine.py`, `frontend/src/constants.ts`, `frontend/src/hod_momo/HodMomoTab.tsx`.
 - **How it works now:** `HOD_MOMO_UNIVERSE_MODE=focus` (default) rebuilds watch set from scanner caches every 5s. Enrichment follows that set. IBKR table snapshots call `hod_momo.on_trade_update`. Debug counters expose `watch_universe_size` / `watch_universe_mode`.

@@ -29,7 +29,7 @@ but are not selectable. Undo = code change, not Settings.
 
 1. Morning workflow is **Top Gainer / Top Gapper list scanners**, not a custom full-universe poll.
 2. Those scanners already search the whole market and return a short list (~40–60 names meeting ≥5% etc.).
-3. Ross then focuses on the **top 3–4 leading gainers** after checking % gain, price, float, RVOL, news freshness, charts, L2.
+3. The operator then focuses on the **top 3–4 leading gainers** after checking % gain, price, float, RVOL, news freshness, charts, L2.
 4. Gap and Go stock finding = **Gap Scanner** → Five Pillars → charts → Level 2 entry.
 
 Nova only needs the **top of a universe-wide ranked list**, not 200 custom gapper rows. IBKR `reqScannerSubscription` (≤50 results, server-side universe search) matches that model.
@@ -74,7 +74,7 @@ QUOTE_STREAM_PROVIDER = "alpaca" | "ibkr"
 2. Data-line budget: ~50 L1 symbols + 3 L2 must fit account allotment (boosters if not).
 3. API/off-platform: some depth packages need EDS for non-TWS API — verify TotalView works via Gateway/`ib_async`.
 4. News remains Alpaca-free; if Alpaca news ever requires paid data, replace news provider separately.
-5. HOD Momo today listens to a broad Alpaca WS universe — under IBKR it must shrink to scanner shortlist + watched symbols (acceptable for Ross-style focus).
+5. HOD Momo today listens to a broad Alpaca WS universe — under IBKR it must shrink to scanner shortlist + watched symbols (acceptable for focus mode).
 
 ## Undo
 

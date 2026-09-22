@@ -45,7 +45,7 @@ HOD_RAW_MODE = _os.environ.get("HOD_RAW_MODE", "").strip().lower() in (
 # Persist at most this often — writing the full day list on every emit freezes the API.
 HOD_MOMO_ALERT_SAVE_INTERVAL_SEC = 5.0
 HOD_MOMO_UNIVERSE_INTERVAL_SEC = 300.0  # refresh cadence for broad (full-asset) mode
-# Ross-style focus: Top Gainer/Gapper shortlist + IBKR volume seeds — not the
+# Focus mode: Top Gainer/Gapper shortlist + IBKR volume seeds — not the
 # full US tape. Broad mode subscribed ~6k IEX symbols → zero trades (empty tab).
 # momentum scans the whole market; Nova approximates that by
 # unioning Top % Gain/Lose with HOT_BY_VOLUME / TOP_VOLUME_RATE / MOST_ACTIVE.
@@ -189,8 +189,8 @@ HOD_MOMO_MASTER_SURGE_WINDOW_MIN = 5  # minutes (used only when surge_pct > 0)
 # Per-strategy ``min_rvol`` is the RVOL gate (Float RelVol etc.). Soft bypass gone.
 # Tradeable floor (operator, 2026-09-22): "I need to see things I can trade." A
 # symbol on a roster with 13k shares traded and RVOL 0.19 (MI) still reached the
-# board on "Approaching HOD". Momentum scanners gate on volume first (Warrior's
-# HOD Momo suppresses alerts without volume and momentum together): below these
+# board on "Approaching HOD". Momentum scanners gate on volume first (a high-of-day
+# alert without volume and momentum together is noise): below these
 # floors nothing fires, whatever the strategy. Unknown volume is not ready.
 # Unknown RVOL passes the RVOL floor (the volume floor still holds); a known
 # RVOL under it does not. Per-strategy ``min_rvol`` stays the setup threshold.

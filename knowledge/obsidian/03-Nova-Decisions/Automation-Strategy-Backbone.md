@@ -2,7 +2,7 @@
 
 > This is the living master document for what the **Automate** button in Nova does.
 > It is the single source of truth for automation decisions. Append, never wipe.
-> Trust order: this file + `Active-Strategy.md` > Pinecone course citations > model guesses.
+> Trust order: this file + `Active-Strategy.md` > Pinecone reference citations > model guesses.
 
 **Status:** DRAFT — thinking/design phase. No live orders. No code yet.
 **Last updated:** 2026-07-10
@@ -11,7 +11,7 @@
 
 ## 0. Honest framing (read first)
 
-There is **no guarantee** of making money in day trading. Anyone (including a course) implying a
+There is **no guarantee** of making money in day trading. Anyone implying a
 guarantee is wrong. What we *can* engineer is a **positive-expectancy system**: a repeatable edge
 where average win × win rate > average loss × loss rate, executed with strict risk caps so a bad
 run can't blow up the account. "Guaranteeing money" is really **guaranteeing discipline**: the
@@ -32,7 +32,7 @@ take profits into strength at a 2:1 (or better) profit/loss ratio. Edge comes fr
 (only the best setups) + **risk asymmetry** (small stops, bigger targets) + **discipline**
 (few trades, walk away after losses).
 
-### The 5 Pillars of Stock Selection (course-verified)
+### The 5 Pillars of Stock Selection (operator's playbook)
 1. **Price** — best $2–$20 (exceptions allowed).
 2. **% Change Today** — up ≥10% vs prior close (or ≥10% off LOD on continuation).
 3. **Relative Volume** — at least **5x** average.
@@ -76,7 +76,7 @@ These are mechanical and map directly onto Nova's existing scanner data.
 
 - **Catalyst quality judgment** — "is this news *actually* meaningful?" LLM can *assist* triage,
   but blindly trusting headline scraping = false signals. Keep a human/LLM check before size.
-- **Level 2 / tape reading nuance** — Ross's exact entries/exits read the L2 order book and time &
+- **Level 2 / tape reading nuance** — the discretionary entries/exits read the L2 order book and time &
   sales ("big seller on the ask", "buying drying up"). Nova's Alpaca feed is IEX (thin); real L2
   needs the IBKR module. Until L2 is wired + tested, don't automate tape-based exits.
 - **Discretionary "feel" for market conditions** (hot vs cold day). Encode later as a regime flag;
@@ -156,7 +156,7 @@ These are mechanical and map directly onto Nova's existing scanner data.
   adds shared pure helpers (`ema()`, `is_green()`/`is_red()`) reused by two new pattern modules —
   `bull_flag.py` (flagpole of 3+ green candles -> shallow pullback holding the 9 EMA, retrace <50%,
   entry on break back above the flagpole high) and `abcd.py` (impulsive A-B move >=5%, pullback C
-  holding the 9 EMA, entry D on break back above point B, fixed 20c stop per the course material).
+  holding the 9 EMA, entry D on break back above point B, fixed 20c stop per the playbook).
   Both mirror `gap_and_go.py`'s contract exactly: pure functions, `would_execute` hard-coded `False`,
   full `notes` explaining why a signal isn't eligible yet. `setups.py` aggregates all three into one
   `evaluate_setups()` call. Exposed on-demand via `GET /api/strategy/setups/{symbol}` and live via a
@@ -172,7 +172,7 @@ These are mechanical and map directly onto Nova's existing scanner data.
   in-browser via headless screenshot.
 - **2026-07-11** — Implemented **Phase C (Risk / discipline engine)**: `backend/strategy/risk.py`
   is a pure `RiskState` state machine (no orders, ever) tracking today's realized P&L, win/loss
-  streaks, and a "peak" high-water mark. Position sizing follows the course exactly — 100-share
+  streaks, and a "peak" high-water mark. Position sizing follows the playbook exactly — 100-share
   blocks, quarter size (`RISK_QUARTER_SIZE_MULTIPLIER`) until a profit cushion of ¼ the daily goal
   (`RISK_PROFIT_CUSHION_FRACTION`) is reached, then a `RISK_SIZE_CUT_MULTIPLIER` cut after losing
   more than 10% of the daily goal — sizing reacts to *current* P&L, not the day's peak, so giving
@@ -260,7 +260,7 @@ These are mechanical and map directly onto Nova's existing scanner data.
   `l2.db` (`l2_snapshots` table, own SQLite file per the journal's one-db-per-domain pattern) via
   `l2/store.py`. `l2/features.py` is pure math, no I/O: `bid_ask_imbalance`, `is_ask_stacked`,
   `is_bid_heavy` (single-snapshot), and `is_buying_pressure_drying_up` (trailing-window comparison,
-  needs >= 2 snapshots) — these are the same qualitative reads Ross describes on the tape, turned into
+  needs >= 2 snapshots) — these are the same qualitative tape reads, turned into
   numbers. `l2/labeling.py` joins each recording's signal symbol/timestamp against
   `journal.store.get_trades()` (closest matching trade within `L2_LABEL_MATCH_TOLERANCE_SEC`, mock
   trades excluded by default) to tag each recording `win`/`loss`/`unlabeled` — this labeled set is the
