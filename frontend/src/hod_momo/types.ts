@@ -66,6 +66,9 @@ export interface MasterGateConfig {
   hod_required: boolean;
   surge_pct: number;
   surge_window_min: number;
+  /** Tradeable floor (2026-09-22): shares traded today, dollars, relative volume; 0 = off. */
+  min_volume: number;
+  min_price: number;
   min_rvol: number;
   premarket_min_rvol: number;
   afterhours_min_rvol: number;

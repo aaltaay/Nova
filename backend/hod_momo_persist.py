@@ -184,6 +184,21 @@ def _migrate_loaded_configs(data: dict) -> bool:
             "ensure Approaching HOD; repair price bands"
         )
         changed = True
+    if version < 10:
+        # Tradeable floor (2026-09-22). min_volume / min_price are new fields and
+        # take their defaults; a persisted master min_rvol of 0.0 is the retired
+        # "master RVOL off" value, not an operator choice -- it becomes the floor
+        # once. An operator who wants it off sets 0 again in the Master Gate panel.
+        from constants import HOD_MOMO_MASTER_MIN_RVOL
+
+        if float(state.master.min_rvol or 0.0) <= 0.0:
+            state.master.min_rvol = HOD_MOMO_MASTER_MIN_RVOL
+            logger.info(
+                "HOD Momo: schema v10 — master min_rvol 0 → %.2f (tradeable floor); "
+                "min_volume=%s min_price=%s",
+                HOD_MOMO_MASTER_MIN_RVOL, state.master.min_volume, state.master.min_price,
+            )
+        changed = True
     return changed
 
 

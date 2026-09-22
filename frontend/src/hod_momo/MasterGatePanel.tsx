@@ -22,6 +22,11 @@ export function MasterGatePanel({
         <NumField label="Momentum Surge %" value={master.surge_pct} onChange={v => onChange({ surge_pct: v })} step={0.5} />
         <NumField label="Surge Lookback (min)" value={master.surge_window_min} onChange={v => onChange({ surge_window_min: Math.round(v) })} step={1} />
       </div>
+      <div className="hod-cfg-section">Tradeable floor (nothing fires below it; 0 = off)</div>
+      <div className="hod-cfg-row">
+        <NumField label="Min volume today (shares)" value={master.min_volume} onChange={v => onChange({ min_volume: Math.max(0, Math.round(v)) })} step={10000} />
+        <NumField label="Min price ($)" value={master.min_price} onChange={v => onChange({ min_price: Math.max(0, v) })} step={0.5} />
+      </div>
       <NumField label="Minimum RVOL" value={master.min_rvol} onChange={v => onChange({ min_rvol: v })} step={0.1} />
       <div className="hod-cfg-section">Session RVOL Overrides</div>
       <div className="hod-cfg-row">

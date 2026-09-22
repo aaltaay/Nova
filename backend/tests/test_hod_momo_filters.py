@@ -102,15 +102,52 @@ def test_fails_hod_gate_allows_when_requires_hod_false():
     assert reason is None
 
 
-def test_passes_master_gate_ignores_rvol_master_retired():
-    """Master RVOL retired — unknown/low RVOL no longer blocks at master."""
+def test_passes_master_gate_unknown_rvol_passes_the_rvol_floor():
+    """Unknown RVOL passes the RVOL floor; the volume floor still guards."""
     master = MasterGateConfig(min_rvol=2.0)
-    snap = TickerSnap(price=1.0, rvol=None)
+    snap = TickerSnap(price=1.0, rvol=None, volume=250_000)
     ok, reason = passes_master_gate(
         snap, master, eff_min_rvol=2.0, in_rvol_warmup_grace=False, surge_buffer=None,
     )
     assert ok
     assert reason == ""
+
+
+def test_passes_master_gate_tradeable_floor_blocks_thin_names():
+    """Operator, 2026-09-22: MI reached the board on Approaching HOD with 13,544
+    shares traded and RVOL 0.19. Below the floor nothing fires, whatever the strategy."""
+    master = MasterGateConfig()  # defaults: 100k shares, $1, RVOL 1.5
+    thin = TickerSnap(price=2.496, rvol=0.19, volume=13_544)
+    ok, reason = passes_master_gate(thin, master, 0.0, False, None)
+    assert not ok
+    assert reason == "master_liquidity:volume(13544<100000)"
+
+    low_rvol = TickerSnap(price=2.496, rvol=0.19, volume=400_000)
+    ok, reason = passes_master_gate(low_rvol, master, 0.0, False, None)
+    assert not ok
+    assert reason == "master_liquidity:rvol(0.19<1.50)"
+
+    penny = TickerSnap(price=0.62, rvol=86.9, volume=50_700_000)
+    ok, reason = passes_master_gate(penny, master, 0.0, False, None)
+    assert not ok
+    assert reason.startswith("master_liquidity:price(0.62<1)")
+
+    no_volume = TickerSnap(price=5.0, rvol=3.0, volume=None)
+    ok, reason = passes_master_gate(no_volume, master, 0.0, False, None)
+    assert not ok
+    assert reason == "master_liquidity:no_volume"
+
+    tradeable = TickerSnap(price=5.81, rvol=12.0, volume=2_600_000)
+    ok, reason = passes_master_gate(tradeable, master, 0.0, False, None)
+    assert ok and reason == ""
+
+
+def test_passes_master_gate_floors_off_at_zero():
+    """0 turns a floor off (an operator who wants the raw firehose)."""
+    master = MasterGateConfig(min_volume=0, min_price=0, min_rvol=0)
+    snap = TickerSnap(price=0.3, rvol=0.1, volume=None)
+    ok, reason = passes_master_gate(snap, master, 0.0, False, None)
+    assert ok and reason == ""
 
 
 def test_passes_master_gate_blocks_missing_price():
