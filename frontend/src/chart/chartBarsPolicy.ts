@@ -20,12 +20,13 @@ export function emptyBarsMessage(discoveryProvider: string): string {
 export const CHART_EMPTY_NO_REPLAY = 'No replay loaded -- nothing to chart here';
 export const CHART_EMPTY_REPLAY_TIME = 'No bars at this replay time';
 export const CHART_EMPTY_REPLAY_FAILED = 'The replay did not load -- no bars to chart';
+export const CHART_EMPTY_REPLAY_LOADING = 'The recording is still loading -- no bars yet';
 export function chartEmptyOtherSymbol(replaySymbol: string): string {
   return `${replaySymbol} is the loaded replay -- no bars for this symbol`;
 }
 
 export type ChartEmptyTarget =
-  | { kind: 'ok' | 'live-edge' | 'none' }
+  | { kind: 'ok' | 'live-edge' | 'none' | 'loading' }
   | { kind: 'other-symbol'; replaySymbol: string }
   | { kind: 'failed'; error: string };
 
@@ -34,5 +35,6 @@ export function chartEmptyText(sim: boolean, target: ChartEmptyTarget, discovery
   if (target.kind === 'none') return CHART_EMPTY_NO_REPLAY;
   if (target.kind === 'other-symbol') return chartEmptyOtherSymbol(target.replaySymbol);
   if (target.kind === 'failed') return CHART_EMPTY_REPLAY_FAILED;
+  if (target.kind === 'loading') return CHART_EMPTY_REPLAY_LOADING;
   return CHART_EMPTY_REPLAY_TIME;
 }
