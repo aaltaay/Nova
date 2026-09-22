@@ -1,6 +1,12 @@
 /**
  * Live + history scanner data (gappers / movers / AH / large cap / catalysts)
  * and IBKR price stream. Extracted from App.tsx.
+ *
+ * Every row passes the shape gate in scanner/scannerRowShape before it is
+ * stored (QA C5 / C8); every REST reply is read through
+ * scanner/scannerRest so a failed route is named on the board and retried
+ * (QA C31), and persistent-authoritative desks keep their envelope fresh
+ * (QA C48).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -12,26 +18,43 @@ import {
   SCANNER_POLL_INTERVAL_IBKR_MS,
   SCANNER_POLL_INTERVAL_MS,
 } from '../constants';
+import { SCANNER_REST_RETRY_BASE_MS, SCANNER_REST_RETRY_MAX_MS } from '../constantGroups/scanner_board';
 import { isNovaApiDebug } from '../debug';
 import type { MarketMode } from '../components/AppHeader';
 import type { Afterhours, Gapper, Mover, ScannerRow } from '../types/scanner';
 import type { Catalyst } from '../types/catalyst';
 import type { HealthStatus } from '../types/health';
 import {
-  applyScannerPricePatch,
   useScannerPriceStream,
+  type ScannerPricePatchRow,
   type ScannerTableMeta,
 } from './useScannerPriceStream';
 import type { ScannerScanAges } from '../utils/scanAge';
 import { diagnoseBackend, healthAfterFailedRoute, logBackendDiagnosis } from '../utils/diagnoseBackend';
 import {
   applyRosterTable,
-  catalystsHttpError,
   feedErrorFromPayload,
-  mergeRestTableMeta,
   SCANNER_CATALYSTS_FETCH_FAILED,
 } from '../scanner/scannerHonesty';
-import { fetchScannerHistory } from '../scanner/scannerHistory';
+import { fetchScannerHistory, type HistoryTableKey } from '../scanner/scannerHistory';
+import {
+  nextRetryDelay,
+  SCANNER_ENVELOPE_TABLE_AGE,
+  scannerRestErrorText,
+  scannerRestTransportError,
+} from '../scanner/scannerRest';
+import {
+  applyEnvelopeTables,
+  applyScannerTableReplies,
+  readCatalystReply,
+  type ScannerRestSink,
+} from '../scanner/scannerRestApply';
+import {
+  applyHonestPricePatch,
+  normalizePatchRows,
+  normalizeScannerRows,
+} from '../scanner/scannerRowShape';
+import { useScannerEnvelopePoll } from '../scanner/useScannerEnvelopePoll';
 
 type Mode = MarketMode;
 
@@ -63,8 +86,12 @@ export function useScannerData(opts: {
   const [tableMeta, setTableMeta] = useState<Record<string, ScannerTableMeta>>({});
   const [lastGood, setLastGood] = useState<Record<string, boolean>>({});
   const [feedError, setFeedError] = useState<string | null>(null);
+  /** A scanner REST route failed (HTTP, unreadable body, no answer) -- QA C31. */
+  const [restError, setRestError] = useState<string | null>(null);
   const [catalystsError, setCatalystsError] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  /** History view: tables whose snapshot request failed (cleared, not live) -- QA C51. */
+  const [historyFailed, setHistoryFailed] = useState<HistoryTableKey[]>([]);
   const [scanAges, setScanAges] = useState<ScannerScanAges>({
     gappers: 0,
     movers: 0,
@@ -77,11 +104,21 @@ export function useScannerData(opts: {
   const consecutiveFailuresRef = useRef(0);
   const healthRef = useRef(health);
   healthRef.current = health;
+  const historyDateRef = useRef(historyDate);
+  historyDateRef.current = historyDate;
+  const pollingRef = useRef(false);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryAttemptRef = useRef(0);
+  const fetchDataRef = useRef<() => Promise<void>>(async () => {});
 
   const onScannerPricePatch = useCallback(
-    (rows: Parameters<typeof applyScannerPricePatch>[1], ts: number, table?: string | null) => {
+    (raw: ScannerPricePatchRow[], ts: number, table?: string | null) => {
+      // QA C5: the patch is applied inside a state updater, outside the
+      // socket's try/catch -- a row without a symbol must never get there.
+      const rows = normalizePatchRows(raw);
+      if (rows.length === 0) return;
       const apply = (setter: typeof setGappers, ageKey: keyof ScannerScanAges) => {
-        setter(prev => applyScannerPricePatch(prev, rows) as typeof prev);
+        setter(prev => applyHonestPricePatch(prev, rows));
         setScanAges(prev => ({ ...prev, [ageKey]: Math.max(prev[ageKey], ts) }));
       };
       // Table-scoped: never let a live Gainers tick mutate a frozen Gappers row.
@@ -92,10 +129,10 @@ export function useScannerData(opts: {
       else if (table === 'large_cap') apply(setLargeCap, 'largeCap');
       else {
         // Legacy patches without table — apply to all (shadow / older backends).
-        setGappers(prev => applyScannerPricePatch(prev, rows));
-        setGainers(prev => applyScannerPricePatch(prev, rows));
-        setLosers(prev => applyScannerPricePatch(prev, rows));
-        setAfterhours(prev => applyScannerPricePatch(prev, rows));
+        setGappers(prev => applyHonestPricePatch(prev, rows));
+        setGainers(prev => applyHonestPricePatch(prev, rows));
+        setLosers(prev => applyHonestPricePatch(prev, rows));
+        setAfterhours(prev => applyHonestPricePatch(prev, rows));
         setScanAges(prev => ({
           ...prev,
           gappers: Math.max(prev.gappers, ts),
@@ -115,14 +152,8 @@ export function useScannerData(opts: {
     else if (table === 'afterhours') applyRosterTable(setAfterhours, setLastGood, table, rows);
     else if (table === 'large_cap') applyRosterTable(setLargeCap, setLastGood, table, rows);
     const ts = meta.roster_ts || Date.now() / 1000;
-    if (table === 'gappers') setScanAges(prev => ({ ...prev, gappers: ts }));
-    else if (table === 'gainers' || table === 'losers') {
-      setScanAges(prev => ({ ...prev, movers: ts }));
-    } else if (table === 'afterhours') {
-      setScanAges(prev => ({ ...prev, afterhours: ts }));
-    } else if (table === 'large_cap') {
-      setScanAges(prev => ({ ...prev, largeCap: ts }));
-    }
+    const ageKey = SCANNER_ENVELOPE_TABLE_AGE[table];
+    if (ageKey) setScanAges(prev => ({ ...prev, [ageKey]: ts }));
   }, []);
 
   const onTableState = useCallback((table: string, meta: ScannerTableMeta) => {
@@ -138,102 +169,63 @@ export function useScannerData(opts: {
       onTableState,
     });
 
+  /** mode / health / data feed / feed_error, from any scanner envelope. */
+  const applyEnvelope = useCallback((data: Record<string, unknown>) => {
+    const nextHealth = data.health;
+    if (nextHealth && typeof nextHealth === 'object' && !Array.isArray(nextHealth)) {
+      setHealth(nextHealth as HealthStatus);
+      const fellBack = (nextHealth as { feed_fell_back?: unknown }).feed_fell_back;
+      if (typeof fellBack === 'boolean') onFeedFellBack?.(fellBack);
+    }
+    if (typeof data.mode === 'string' && data.mode) setMode(data.mode as Mode);
+    if (typeof data.data_feed === 'string' && data.data_feed) onActiveFeed?.(data.data_feed);
+    const feed = feedErrorFromPayload(data);
+    if (feed !== undefined) setFeedError(feed);
+  }, [onActiveFeed, onFeedFellBack]);
+
+  const sinkRef = useRef<ScannerRestSink>(null as unknown as ScannerRestSink);
+  sinkRef.current = {
+    applyEnvelope,
+    setGappers,
+    setGainers,
+    setLosers,
+    setAfterhours,
+    setLargeCap,
+    setLastGood,
+    setTableMeta,
+    setScanAges,
+  };
+
+  const scheduleRetry = useCallback(() => {
+    // A polling desk re-fetches on its own cadence; only the mount-once desk needs this.
+    if (pollingRef.current || retryTimerRef.current != null) return;
+    const delay = nextRetryDelay(retryAttemptRef.current, SCANNER_REST_RETRY_BASE_MS, SCANNER_REST_RETRY_MAX_MS);
+    retryAttemptRef.current += 1;
+    retryTimerRef.current = setTimeout(() => {
+      retryTimerRef.current = null;
+      if (historyDateRef.current === null) void fetchDataRef.current();
+    }, delay);
+  }, []);
+
   const fetchData = useCallback(async () => {
     const signal = AbortSignal.timeout(SCANNER_FETCH_TIMEOUT_MS);
+    let responses: Response[];
     try {
-      const [gr, moversRes, ahRes, largeCapRes, catalystRes] = await Promise.all([
+      responses = await Promise.all([
         fetch(`${API_URL}/gappers`, { signal }),
         fetch(`${API_URL}/movers`, { signal }),
         fetch(`${API_URL}/afterhours`, { signal }),
         fetch(`${API_URL}/large-cap`, { signal }),
         fetch(`${API_URL}/news-catalysts`, { signal }),
       ]);
-      consecutiveFailuresRef.current = 0;
-
-      let nextAges: Partial<ScannerScanAges> = {};
-
-      if (gr.ok) {
-        const data = await gr.json();
-        if (data.health) {
-          setHealth(data.health);
-          if (data.health.feed_fell_back != null) onFeedFellBack?.(data.health.feed_fell_back);
-        }
-        if (data.mode) setMode(data.mode as Mode);
-        if (data.data_feed) onActiveFeed?.(data.data_feed);
-        applyRosterTable(setGappers, setLastGood, 'gappers', data.gappers);
-        setTableMeta(prev => mergeRestTableMeta(prev, 'gappers', data.table_state, data.roster_ts));
-        const gapFeed = feedErrorFromPayload(data);
-        if (gapFeed !== undefined) setFeedError(gapFeed);
-        if (data.last_scan) nextAges = { ...nextAges, gappers: data.last_scan };
-      }
-
-      if (moversRes.ok) {
-        const data = await moversRes.json();
-        if (data.mode) setMode(data.mode as Mode);
-        if (data.last_scan) nextAges = { ...nextAges, movers: data.last_scan };
-        applyRosterTable(setGainers, setLastGood, 'gainers', data.gainers);
-        applyRosterTable(setLosers, setLastGood, 'losers', data.losers);
-        setTableMeta(prev => {
-          let next = mergeRestTableMeta(prev, 'gainers', data.table_state, data.roster_ts);
-          next = mergeRestTableMeta(next, 'losers', data.loser_table_state, data.loser_roster_ts);
-          return next;
-        });
-        const moversFeed = feedErrorFromPayload(data);
-        if (moversFeed !== undefined) setFeedError(moversFeed);
-      }
-
-      if (ahRes.ok) {
-        const data = await ahRes.json();
-        if (data.mode) setMode(data.mode as Mode);
-        if (data.last_scan) nextAges = { ...nextAges, afterhours: data.last_scan };
-        applyRosterTable(setAfterhours, setLastGood, 'afterhours', data.afterhours);
-        setTableMeta(prev => mergeRestTableMeta(prev, 'afterhours', data.table_state, data.roster_ts));
-        const ahFeed = feedErrorFromPayload(data);
-        if (ahFeed !== undefined) setFeedError(ahFeed);
-      }
-
-      if (largeCapRes.ok) {
-        const data = await largeCapRes.json();
-        if (data.mode) setMode(data.mode as Mode);
-        if (data.last_scan) nextAges = { ...nextAges, largeCap: data.last_scan };
-        applyRosterTable(setLargeCap, setLastGood, 'large_cap', data.large_cap);
-        setTableMeta(prev => mergeRestTableMeta(prev, 'large_cap', data.table_state, data.roster_ts));
-        const lcFeed = feedErrorFromPayload(data);
-        if (lcFeed !== undefined) setFeedError(lcFeed);
-      }
-
-      if (Object.keys(nextAges).length > 0) {
-        setScanAges(prev => ({ ...prev, ...nextAges }));
-      }
-
-      if (catalystRes.ok) {
-        const data = await catalystRes.json();
-        if (Array.isArray(data.catalysts)) {
-          setCatalysts(data.catalysts);
-          setCatalystsError(null);
-        }
-      } else {
-        setCatalystsError(catalystsHttpError(catalystRes.status));
-      }
-
-      if (isNovaApiDebug()) {
-        for (const [label, res] of [
-          ['gappers', gr],
-          ['movers', moversRes],
-          ['afterhours', ahRes],
-          ['large-cap', largeCapRes],
-          ['catalysts', catalystRes],
-        ] as const) {
-          if (!res.ok) {
-            console.warn(`[Nova] GET ${API_URL}/${label} -> HTTP ${res.status}`, res.statusText);
-          }
-        }
-      }
     } catch (e) {
       consecutiveFailuresRef.current += 1;
+      scheduleRetry();
       if (consecutiveFailuresRef.current < SCANNER_HEALTH_FAIL_GRACE_COUNT) {
+        console.warn('[Nova] Scanner REST fetch failed; retrying', e);
         return;
       }
+      setRestError(scannerRestTransportError(e));
       const diag = await diagnoseBackend();
       logBackendDiagnosis(diag);
       if (diag.ok) {
@@ -253,23 +245,38 @@ export function useScannerData(opts: {
         });
       }
       setHealth(healthAfterFailedRoute(healthRef.current, diag));
+      return;
     }
-  }, [onActiveFeed, onFeedFellBack]);
+    // A late answer must not paint live rows over a history view (QA C51).
+    if (historyDateRef.current !== null) return;
+    const [gr, moversRes, ahRes, largeCapRes, catalystRes] = responses;
+    const failures = await applyScannerTableReplies(
+      { gappers: gr, movers: moversRes, afterhours: ahRes, largeCap: largeCapRes },
+      sinkRef.current,
+    );
+    const cat = await readCatalystReply(catalystRes);
+    if (cat.rows) setCatalysts(cat.rows);
+    setCatalystsError(cat.error);
+
+    const errText = scannerRestErrorText(failures);
+    setRestError(errText);
+    if (errText) {
+      console.warn(`[Nova] ${errText}`);
+      scheduleRetry();
+    } else {
+      consecutiveFailuresRef.current = 0;
+      retryAttemptRef.current = 0;
+    }
+  }, [applyEnvelope, scheduleRetry]);
+  fetchDataRef.current = fetchData;
 
   const fetchCatalystsOnly = useCallback(async () => {
     try {
-      const catalystRes = await fetch(`${API_URL}/news-catalysts`, {
+      const cat = await readCatalystReply(await fetch(`${API_URL}/news-catalysts`, {
         signal: AbortSignal.timeout(SCANNER_FETCH_TIMEOUT_MS),
-      });
-      if (catalystRes.ok) {
-        const data = await catalystRes.json();
-        if (Array.isArray(data.catalysts)) {
-          setCatalysts(data.catalysts);
-          setCatalystsError(null);
-        }
-      } else {
-        setCatalystsError(catalystsHttpError(catalystRes.status));
-      }
+      }));
+      if (cat.rows) setCatalysts(cat.rows);
+      setCatalystsError(cat.error);
     } catch {
       setCatalystsError(SCANNER_CATALYSTS_FETCH_FAILED);
     }
@@ -280,29 +287,30 @@ export function useScannerData(opts: {
       const res = await fetch(`${API_URL}/history/dates?type=gappers`);
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data.dates)) setHistoryDates(data.dates);
+        if (Array.isArray(data?.dates)) setHistoryDates(data.dates.filter((d: unknown) => typeof d === 'string'));
       }
-    } catch {
-      // silent
+    } catch (err) {
+      console.warn('[Nova] Scanner history dates did not load', err);
     }
   }, []);
 
   const fetchHistoryData = useCallback(async (date: string) => {
-    const { tables, error } = await fetchScannerHistory(API_URL, date);
-    setLargeCap(tables.largeCap as ScannerRow[]);
-    if (error) {
-      setHistoryError(error);
-      return;
-    }
-    setHistoryError(null);
-    if (tables.gappers) setGappers(tables.gappers as Gapper[]);
-    if (tables.gainers) setGainers(tables.gainers as Mover[]);
-    if (tables.losers) setLosers(tables.losers as Mover[]);
-    if (tables.afterhours) setAfterhours(tables.afterhours as Afterhours[]);
+    const { tables, error, failed } = await fetchScannerHistory(API_URL, date);
+    if (historyDateRef.current !== date) return;
+    // Every table is replaced -- a failed one is cleared and named (QA C51).
+    setGappers(normalizeScannerRows(tables.gappers) ?? []);
+    setGainers(normalizeScannerRows(tables.gainers) ?? []);
+    setLosers(normalizeScannerRows(tables.losers) ?? []);
+    setAfterhours(normalizeScannerRows(tables.afterhours) ?? []);
+    setLargeCap(normalizeScannerRows(tables.largeCap) ?? []);
+    setHistoryError(error);
+    setHistoryFailed(failed);
   }, []);
 
   useEffect(() => {
     if (historyDate !== null) return;
+    setHistoryError(null);
+    setHistoryFailed([]);
     fetchData();
     const ibkr = discoveryProvider === 'ibkr';
     // ADR 008 cutover: when persistent scanner is authoritative, drop recurring
@@ -312,6 +320,7 @@ export function useScannerData(opts: {
       : scannerPersistentAuthoritative
         ? null
         : SCANNER_POLL_INTERVAL_IBKR_MS;
+    pollingRef.current = pollMs != null;
     const dataInterval =
       pollMs != null ? setInterval(fetchData, pollMs) : null;
     const catalystInterval =
@@ -323,6 +332,8 @@ export function useScannerData(opts: {
       if (dataInterval) clearInterval(dataInterval);
       if (catalystInterval) clearInterval(catalystInterval);
       clearInterval(clockInterval);
+      if (retryTimerRef.current != null) clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
     };
   }, [
     fetchData,
@@ -331,6 +342,16 @@ export function useScannerData(opts: {
     discoveryProvider,
     scannerPersistentAuthoritative,
   ]);
+
+  const onEnvelope = useCallback((data: Record<string, unknown>) => {
+    applyEnvelope(data);
+    applyEnvelopeTables(data, sinkRef.current);
+  }, [applyEnvelope]);
+
+  useScannerEnvelopePoll({
+    enabled: discoveryProvider === 'ibkr' && scannerPersistentAuthoritative && historyDate === null,
+    onEnvelope,
+  });
 
   useEffect(() => {
     fetchHistoryDates();
@@ -352,8 +373,10 @@ export function useScannerData(opts: {
     tableMeta,
     lastGood,
     feedError,
+    restError,
     catalystsError,
     historyError,
+    historyFailed,
     scanAges,
     now,
     historyDate,

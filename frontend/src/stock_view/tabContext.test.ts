@@ -25,7 +25,8 @@ describe('tabContextFor', () => {
   });
 
   it('reads the gap from the first list that names the symbol and falls back to the day change', () => {
-    const ctx = tabContextFor('grml', rows({ gainers: [row('GRML', { change_pct: 12.5, price: 8.9 })] }));
+    // The wire carries a fraction; the tab prints percent points (QA V2 / C17).
+    const ctx = tabContextFor('grml', rows({ gainers: [row('GRML', { change_pct: 0.125, price: 8.9 })] }));
     expect(ctx.gapPct).toBe(12.5);
     expect(ctx.price).toBe(8.9);
     expect(ctx.known).toBe(true);
@@ -34,13 +35,22 @@ describe('tabContextFor', () => {
 
   it('labels a company wire PR and everything else NEWS, with the headline for the tooltip', () => {
     const catalyst = {
-      symbol: 'QNME', previous_close: 1, current_price: 1, gap_percent: 3, volume: 0, has_news: true,
+      symbol: 'QNME', previous_close: 1, current_price: 1, gap_percent: 0.03, volume: 0, has_news: true,
       newest_headline_at: null, catalyst_headline: 'Guidance up', catalyst_url: null, catalyst_source: 'GlobeNewswire',
     };
     expect(tabContextFor('QNME', rows({ catalysts: [catalyst] })).catalyst).toBe('PR');
     expect(tabContextFor('QNME', rows({ catalysts: [{ ...catalyst, catalyst_source: 'Benzinga' }] })).headline).toBe('Guidance up');
     expect(tabContextFor('QNME', rows({ catalysts: [{ ...catalyst, catalyst_source: 'Benzinga' }] })).catalyst).toBe('NEWS');
     expect(tabContextFor('X', rows({ gappers: [row('X', { has_news: true })] })).catalyst).toBe('NEWS');
+  });
+});
+
+describe('gap units (QA V2 / C17)', () => {
+  it('reads GRML +156.49% from the live fraction 1.5649, not +1.6%', () => {
+    const ctx = tabContextFor('GRML', rows({ gappers: [row('GRML', { gap_percent: 1.5649, price: 9.42 })] }));
+    expect(ctx.gapPct).toBeCloseTo(156.49, 6);
+    expect(formatSignedPct(ctx.gapPct)).toBe('+156%');
+    expect(formatSignedPct(tabContextFor('X', rows({ losers: [row('X', { gap_percent: -0.054 })] })).gapPct)).toBe('−5.4%');
   });
 });
 

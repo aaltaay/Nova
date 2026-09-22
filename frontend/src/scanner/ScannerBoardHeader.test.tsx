@@ -10,7 +10,7 @@ import {
 } from '../components/scannerBarStore';
 import { SCANNER_BOARD_FILTERS_STORAGE_KEY } from '../constantGroups/scanner_board';
 import { ScannerBoardFooter } from './ScannerBoardFooter';
-import { ScannerBoardHeader } from './ScannerBoardHeader';
+import { fmtScannedAgo, ScannerBoardHeader } from './ScannerBoardHeader';
 import { useBoardFilters } from './useBoardFilters';
 
 const promptMock = vi.fn<(input: unknown) => Promise<string | null>>();
@@ -49,6 +49,21 @@ describe('ScannerBoardHeader', () => {
   it('states when the list never scanned', () => {
     render(<Harness scannedAgoSec={null} />);
     expect(screen.getByTestId('scanner-board-scanned').textContent).toBe('Not scanned yet');
+  });
+
+  it('says a scan age in minutes or hours, never raw seconds (QA V27 / C67)', () => {
+    expect(fmtScannedAgo(6)).toBe('6s');
+    expect(fmtScannedAgo(89)).toBe('89s');
+    expect(fmtScannedAgo(1455)).toBe('24m');
+    expect(fmtScannedAgo(3130)).toBe('52m');
+    expect(fmtScannedAgo(3 * 3600 + 5 * 60)).toBe('3h 05m');
+    render(<Harness scannedAgoSec={3130} />);
+    expect(screen.getByTestId('scanner-board-scanned').textContent).toBe('Scanned 52m ago');
+  });
+
+  it('names a failed scanner route on the board (QA C31)', () => {
+    render(<ScannerBoardHeader title="Gainers" filters={null} scannedAgoSec={null} feedFailure="Scanner feed failed: /api/movers answered HTTP 500" />);
+    expect(screen.getByTestId('scanner-board-feed-failed').textContent).toContain('/api/movers answered HTTP 500');
   });
 
   it('toggles chips as real filters (persisted) and ignores the unavailable one', () => {

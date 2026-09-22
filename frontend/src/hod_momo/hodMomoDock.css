@@ -279,6 +279,11 @@
   color: var(--text-muted, #9aa3b2);
 }
 
+/* An unreadable feed frame is stated, not shown as "No alerts yet" (QA C32). */
+.hod-strip__empty--error {
+  color: #fbbf24;
+}
+
 .hod-strip__row {
   display: flex;
   align-items: center;

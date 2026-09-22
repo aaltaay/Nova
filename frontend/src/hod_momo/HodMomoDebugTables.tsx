@@ -1,6 +1,15 @@
 /** Decision + snap tables for the HOD Momo debug panel. */
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { TICKER_OPEN_TRADER_TITLE } from '../constants';
+import {
+  fmtEnrichedAgo,
+  fmtPctPoints,
+  fmtTimes,
+  fmtTs,
+  fmtUsd,
+  fmtVol,
+  truncate,
+} from './hodMomoDebugFormat';
 
 export interface DebugDecisionRow {
   ts: number;
@@ -23,29 +32,6 @@ export interface DebugSnapRow {
   change_pct: number | null;
   volume: number | null;
   last_enriched: number;
-}
-
-function fmtTs(ts: number): string {
-  if (!ts) return '—';
-  return new Date(ts * 1000).toLocaleTimeString('en-US', {
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
-  });
-}
-
-function fmtNum(v: number | null | undefined, decimals = 2): string {
-  if (v == null) return '—';
-  return v.toFixed(decimals);
-}
-
-function fmtVol(v: number | null | undefined): string {
-  if (v == null) return '—';
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
-  return String(v);
-}
-
-function truncate(s: string, max: number): string {
-  return s.length > max ? s.slice(0, max) + '…' : s;
 }
 
 interface NavProps {
@@ -92,10 +78,10 @@ export function RecentDecisionsTable({
                 >
                   <td className="dbg-mono">{fmtTs(d.ts)}</td>
                   <td className="dbg-sym">{d.symbol}</td>
-                  <td className="dbg-mono">${fmtNum(d.price)}</td>
-                  <td className="dbg-mono">{fmtNum(d.rvol)}x</td>
-                  <td className="dbg-mono">{fmtNum(d.gap_pct)}%</td>
-                  <td className="dbg-mono">{fmtNum(d.change_pct)}%</td>
+                  <td className="dbg-mono">{fmtUsd(d.price)}</td>
+                  <td className="dbg-mono">{fmtTimes(d.rvol)}</td>
+                  <td className="dbg-mono">{fmtPctPoints(d.gap_pct)}</td>
+                  <td className="dbg-mono">{fmtPctPoints(d.change_pct)}</td>
                   <td className="dbg-gate" title={d.gate_blocked || ''}>{d.gate_blocked ? truncate(d.gate_blocked, 28) : '✓ passed'}</td>
                   <td>{d.strategies_fired.length > 0 ? d.strategies_fired.join(',') : '—'}</td>
                 </SelectableTableRow>
@@ -147,17 +133,15 @@ export function SnapsTable({
                   onOpenTrading={onOpenTrading}
                 >
                   <td className="dbg-sym">{s.symbol}</td>
-                  <td className="dbg-mono">${fmtNum(s.price)}</td>
-                  <td className="dbg-mono">{fmtNum(s.rvol)}x</td>
+                  <td className="dbg-mono">{fmtUsd(s.price)}</td>
+                  <td className="dbg-mono">{fmtTimes(s.rvol)}</td>
                   <td className="dbg-mono">{fmtVol(s.float_shares)}</td>
-                  <td className="dbg-mono">{fmtNum(s.gap_pct)}%</td>
-                  <td className={`dbg-mono ${s.change_pct != null && s.change_pct > 0 ? 'positive' : s.change_pct != null ? 'negative' : ''}`}>
-                    {fmtNum(s.change_pct)}%
+                  <td className="dbg-mono">{fmtPctPoints(s.gap_pct)}</td>
+                  <td className={`dbg-mono ${s.change_pct != null && s.change_pct > 0 ? 'positive' : s.change_pct != null && s.change_pct < 0 ? 'negative' : ''}`}>
+                    {fmtPctPoints(s.change_pct)}
                   </td>
                   <td className="dbg-mono">{fmtVol(s.volume)}</td>
-                  <td className="dbg-mono">
-                    {s.last_enriched ? `${Math.round(Date.now() / 1000 - s.last_enriched)}s ago` : '—'}
-                  </td>
+                  <td className="dbg-mono">{fmtEnrichedAgo(s.last_enriched, Date.now() / 1000)}</td>
                 </SelectableTableRow>
               ))
             )}

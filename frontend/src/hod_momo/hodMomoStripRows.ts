@@ -6,19 +6,18 @@ import {
   HOD_MOMO_STRIP_GATE_KEYS,
   HOD_MOMO_STRIP_GATE_LABEL,
   HOD_MOMO_STRIP_NO_GATE_VALUES,
+  HOD_MOMO_STRIP_PRINT_LAG_NOTE_SEC,
 } from './hodMomoStripConstants';
+import { alertIdentity, uniqueAlerts } from './hodMomoWire';
 import { partitionScannerAlerts } from './scannerPartition';
 import type { HodDockMode } from './scannerDockModes';
 import type { AlertObject } from './types';
 
 export type StripGateValue = { key: string; label: string; value: string };
 
-function alertDate(alert: Pick<AlertObject, 'timestamp' | 'created_ts'>): Date | null {
-  if (alert.timestamp) {
-    const parsed = new Date(alert.timestamp);
-    if (!Number.isNaN(parsed.getTime())) return parsed;
-  }
-  if (typeof alert.created_ts === 'number' && alert.created_ts > 0) {
+/** When Nova raised the alert (`created_ts`, seconds or ms). */
+function raisedDate(alert: Pick<AlertObject, 'created_ts'>): Date | null {
+  if (typeof alert.created_ts === 'number' && Number.isFinite(alert.created_ts) && alert.created_ts > 0) {
     const ms = alert.created_ts > 1e12 ? alert.created_ts : alert.created_ts * 1000;
     const d = new Date(ms);
     if (!Number.isNaN(d.getTime())) return d;
@@ -26,13 +25,53 @@ function alertDate(alert: Pick<AlertObject, 'timestamp' | 'created_ts'>): Date |
   return null;
 }
 
-/** HH:MM:SS, 24h, in the viewer's clock -- the same clock the old table used. */
-export function fmtStripClock(alert: Pick<AlertObject, 'timestamp' | 'created_ts'>): string {
-  const d = alertDate(alert);
-  if (!d) return '—';
+/** The print that triggered the alert (`timestamp`, ISO). */
+function printDate(alert: Pick<AlertObject, 'timestamp'>): Date | null {
+  if (!alert.timestamp) return null;
+  const parsed = new Date(alert.timestamp);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+/**
+ * The strip's clock and order are when Nova raised the alert: an alert raised
+ * now on a print hours old used to show the old print's time and sit out of
+ * order (QA V16). The print time rides in the row title (stripPrintNote).
+ */
+function alertDate(alert: Pick<AlertObject, 'timestamp' | 'created_ts'>): Date | null {
+  return raisedDate(alert) ?? printDate(alert);
+}
+
+function clockOf(d: Date): string {
   return d.toLocaleTimeString('en-US', {
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
   });
+}
+
+/** HH:MM:SS, 24h, in the viewer's clock -- the same clock the old table used. */
+export function fmtStripClock(alert: Pick<AlertObject, 'timestamp' | 'created_ts'>): string {
+  const d = alertDate(alert);
+  return d ? clockOf(d) : '—';
+}
+
+/** "print 19:53:32, 3h 47m before the alert" when the trigger print is older than the alert. */
+export function stripPrintNote(alert: Pick<AlertObject, 'timestamp' | 'created_ts'>): string | null {
+  const raised = raisedDate(alert);
+  const print = printDate(alert);
+  if (!raised || !print) return null;
+  const lagSec = Math.round((raised.getTime() - print.getTime()) / 1000);
+  if (lagSec < HOD_MOMO_STRIP_PRINT_LAG_NOTE_SEC) return null;
+  const m = Math.floor(lagSec / 60);
+  const lag = m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : m > 0 ? `${m}m` : `${lagSec}s`;
+  return `print ${clockOf(print)}, ${lag} before the alert`;
+}
+
+/** Newest raised first; ties keep the stream order (a stable sort). */
+export function newestFirst(alerts: readonly AlertObject[]): AlertObject[] {
+  const at = (a: AlertObject) => alertDate(a)?.getTime() ?? 0;
+  return alerts
+    .map((alert, index) => ({ alert, index, t: at(alert) }))
+    .sort((a, b) => b.t - a.t || a.index - b.index)
+    .map((x) => x.alert);
 }
 
 /** HH:MM of the oldest alert in the list -- what "since" means on the header. */
@@ -93,17 +132,21 @@ export function fmtStripPrice(v: number | null | undefined): string {
 }
 
 /**
- * Alerts the strip shows for a mode, newest first (the stream is newest-first
- * already; this keeps that order and never re-sorts by symbol). The strategy
- * filter applies to the HOD side only -- Running Up is one strategy.
+ * Alerts the strip shows for a mode: exact duplicates dropped, newest raised
+ * first (the stream is not reliably ordered -- QA V16), never re-sorted by
+ * symbol. The strategy filter applies to the HOD side only -- Running Up is
+ * one strategy.
  */
 export function stripAlertsForMode(
   alerts: readonly AlertObject[],
   mode: HodDockMode,
   visibleStrategies: ReadonlySet<number> | null,
 ): AlertObject[] {
-  const { hodMomentum, runningUp } = partitionScannerAlerts([...alerts]);
+  const { hodMomentum, runningUp } = partitionScannerAlerts(newestFirst(uniqueAlerts(alerts)));
   if (mode === 'running_up') return runningUp;
   if (!visibleStrategies) return hodMomentum;
   return hodMomentum.filter((a) => visibleStrategies.has(a.strategy_id));
 }
+
+/** React key for a strip row: id plus raise time (legacy ids could repeat). */
+export const stripAlertKey = alertIdentity;

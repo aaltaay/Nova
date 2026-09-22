@@ -1,5 +1,6 @@
 /** Scanner empty / loading / disconnected messages for the main feed area. */
 import { GAPPER_MIN_GAP_PCT } from '../constants';
+import { SCANNER_EMPTY_FEED_FAILED_HINT, scannerEmptyClosedCopy } from '../constantGroups/scanner_board';
 import { emptyIbkrDisconnectedMessage } from '../ibkr/disconnectCopy';
 import { EMPTY_IBKR_RECONNECT_WARMUP } from '../ibkr/gatewayUxConstants';
 import { useIbkrReconnectWarmup } from '../ibkr/useIbkrReconnectWarmup';
@@ -15,6 +16,7 @@ export function EmptyState({
   historyDate = null,
   historyError = null,
   honestyHint = null,
+  feedFailure = null,
 }: {
   health: HealthStatus;
   context: MarketMode;
@@ -27,11 +29,23 @@ export function EmptyState({
   historyError?: string | null;
   /** feed_error / unavailable -- do not sell this as a quiet market. */
   honestyHint?: string | null;
+  /** A scanner REST route failed (QA C31): stated first, in every session. */
+  feedFailure?: string | null;
 }) {
   const ibkr = useIbkrStatus();
   const isIbkr = discoveryProvider === 'ibkr';
   const warmingUp = useIbkrReconnectWarmup(isIbkr && ibkr.connected);
 
+  // A failed route is a failure, not a quiet or closed market -- and with every
+  // route failing the mode never loads, so it must come before "Loading".
+  if (feedFailure && !historyDate) {
+    return (
+      <div className="empty-state empty-state--feed-failed" role="alert">
+        {feedFailure}
+        <div className="empty-state-hint">{SCANNER_EMPTY_FEED_FAILED_HINT}</div>
+      </div>
+    );
+  }
   if (context === 'loading') {
     return <div className="empty-state">Loading market data…</div>;
   }
@@ -76,11 +90,8 @@ export function EmptyState({
     );
   }
   if (context === 'closed') {
-    return (
-      <div className="empty-state">
-        Market is closed — showing last available data. Scanning continues in the background.
-      </div>
-    );
+    // Never "showing last available data" over an empty table (QA V25).
+    return <div className="empty-state">{scannerEmptyClosedCopy(emptyLabel)}</div>;
   }
   if (honestyHint) {
     return (

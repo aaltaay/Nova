@@ -99,13 +99,17 @@ describe('ScannerTable row numbers', () => {
       );
     });
 
+    // The th title carries each column's full name; a narrow icon column may
+    // show a short label (QA: "EARNINGS" was clipped to "EARNIN").
     const headers = [...container.querySelectorAll('thead th')].map(
-      th => th.textContent?.replace(/[↑↓↕]/g, '').trim() ?? '',
+      th => th.getAttribute('title') || (th.textContent?.replace(/[↑↓↕]/g, '').trim() ?? ''),
     );
     expect(headers).toContain('News');
     expect(headers).toContain('Earnings');
     expect(headers).toContain('Days');
     expect(headers.filter(h => h === 'Earnings')).toHaveLength(1);
+    const earnings = container.querySelector('thead th[data-col="earnings_day_offset"] .th-label');
+    expect(earnings?.textContent).toBe('Earn');
     expect(container.querySelector('.earnings-dots')).not.toBeNull();
   });
 
@@ -138,5 +142,60 @@ describe('ScannerTable row numbers', () => {
     expect(container.querySelector('td[data-col="price"]')?.className).toContain(
       'scanner-col--price',
     );
+  });
+
+  const HONESTY_COLUMNS: [string, string][] = [
+    ['symbol', 'Symbol'],
+    ['price', 'Price'],
+    ['change_pct', 'Change'],
+    ['gap_percent', 'Gap %'],
+    ['volume', 'Volume · RVOL'],
+  ];
+
+  async function renderRows(data: ScannerRow[]) {
+    await act(() => {
+      root.render(
+        <ScannerTable
+          columns={HONESTY_COLUMNS}
+          data={data}
+          sortState={{ key: '', dir: null }}
+          onSort={() => {}}
+          selectedSymbol={null}
+          onSelect={() => {}}
+          onOpenTrading={() => {}}
+        />,
+      );
+    });
+  }
+
+  it('states a missing change, gap and name-only volume as muted dashes (QA V21 / C37)', async () => {
+    await renderRows([{ ...row('SMX'), price: null, change_pct: null, change_abs: null, gap_percent: null, volume: null }]);
+    const change = container.querySelector('td[data-col="change_pct"] .cell-stack-primary') as HTMLElement;
+    expect(change.textContent).toBe('—');
+    expect(change.className).not.toContain('negative');
+    expect(container.querySelector('td[data-col="gap_percent"]')?.textContent).toBe('—');
+    expect(container.querySelector('td[data-col="volume"] .cell-stack-primary')?.textContent).toBe('—');
+    expect(container.textContent).not.toContain('N/A');
+  });
+
+  it('names the RVOL source each row really divides by (QA C39)', async () => {
+    await renderRows([
+      { ...row('GRML'), rel_volume: 54.37, rvol_source: 'yfinance' },
+      { ...row('TOPS'), rel_volume: 54.29, rvol_source: 'alpaca' },
+      { ...row('OLD'), rel_volume: 2.5 },
+    ]);
+    const badges = [...container.querySelectorAll('.rvol-source-badge')].map((b) => b.textContent);
+    expect(badges).toEqual(['yf', 'IEX', 'avg?']);
+    expect((container.querySelectorAll('.rvol-source-badge')[1] as HTMLElement).title).toMatch(/Alpaca IEX/);
+  });
+
+  it('shows a prior-close fallback as a close, not a live price with 0.00% (QA C50)', async () => {
+    await renderRows([{ ...row('GDC'), price: 2, change_pct: 0, change_abs: 0, quote_quality: 'close_fallback' }]);
+    const price = container.querySelector('td[data-col="price"]') as HTMLElement;
+    expect(price.textContent).toContain('$2.00');
+    expect(price.textContent).toContain('close');
+    const change = container.querySelector('td[data-col="change_pct"]') as HTMLElement;
+    expect(change.textContent).not.toContain('0.00%');
+    expect(change.textContent).toContain('—');
   });
 });

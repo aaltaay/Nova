@@ -79,6 +79,40 @@ describe('EmptyState history', () => {
     expect(container.textContent).not.toMatch(/Unavailable -- no live roster/);
   });
 
+  it('never claims "showing last available data" over an empty closed-session list (QA V25)', async () => {
+    await act(() => {
+      root.render(
+        <EmptyState
+          health={{ status: 'ok', latency_ms: 1 }}
+          context="closed"
+          discoveryProvider="ibkr"
+          emptyLabel="gappers"
+        />,
+      );
+    });
+    expect(container.textContent).toMatch(/Market is closed/);
+    expect(container.textContent).not.toMatch(/showing last available data/);
+    expect(container.textContent).toMatch(/no gappers on this list/);
+  });
+
+  it('states a failed scanner route before any closed or loading copy (QA C31)', async () => {
+    for (const context of ['closed', 'loading', 'market'] as const) {
+      await act(() => {
+        root.render(
+          <EmptyState
+            health={{ status: 'ok', latency_ms: 1 }}
+            context={context}
+            discoveryProvider="ibkr"
+            emptyLabel="gainers"
+            feedFailure="Scanner feed failed: /api/movers answered HTTP 500"
+          />,
+        );
+      });
+      expect(container.textContent).toMatch(/\/api\/movers answered HTTP 500/);
+      expect(container.textContent).not.toMatch(/Market is closed|Loading market data/);
+    }
+  });
+
   it('does not point at the HOD integrity banner, and paints feed_error', async () => {
     await act(() => {
       root.render(

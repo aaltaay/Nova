@@ -79,7 +79,25 @@ describe('historyTablesFromResponses', () => {
     });
     expect(error).toBe(historyLoadError(DATE));
     expect(tables.largeCap).toEqual([]);
-    expect(tables.gappers).toBeUndefined();
+    // QA C51: every table is cleared -- today's live rows never stay under "Viewing <date>".
+    expect(tables.gappers).toEqual([]);
+    expect(tables.gainers).toEqual([]);
+    expect(tables.afterhours).toEqual([]);
+  });
+
+  it('clears and names each table whose request failed (QA C51)', () => {
+    const { tables, error, failed } = historyTablesFromResponses(DATE, {
+      gappers: { ok: true, json: { gappers: [{ symbol: 'CRE' }] } },
+      movers: { ok: false, json: {} },
+      afterhours: null,
+      largeCap: { ok: true, json: { large_cap: [] } },
+    });
+    expect(error).toBeNull();
+    expect(tables.gappers).toEqual([{ symbol: 'CRE' }]);
+    expect(tables.gainers).toEqual([]);
+    expect(tables.losers).toEqual([]);
+    expect(tables.afterhours).toEqual([]);
+    expect(failed).toEqual(['gainers', 'losers', 'afterhours']);
   });
 });
 

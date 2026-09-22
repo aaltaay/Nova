@@ -148,7 +148,7 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
           case 'change_pct':
             return (
               <td key={key}>
-                <span className={alert.change_pct >= 0 ? 'positive' : 'negative'}>
+                <span className={alert.change_pct == null ? 'na-muted' : alert.change_pct >= 0 ? 'positive' : 'negative'}>
                   {fmtPct(alert.change_pct)}
                 </span>
               </td>

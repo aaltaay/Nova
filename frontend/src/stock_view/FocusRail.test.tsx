@@ -36,9 +36,12 @@ vi.mock('../capture/sessionRecordStore', () => ({
   subscribeSessionRecord: () => () => {},
 }));
 
+/** Fixtures author the gap in percent; the wire carries a fraction (QA V2 / C17). */
+const frac = (pct: number | null): number | null => (pct == null ? null : pct / 100);
+
 function row(symbol: string, gap: number, price = 1, hasNews = false): ScannerRow {
   return {
-    symbol, price, prev_close: 1, change_pct: gap, change_abs: null, gap_percent: gap, volume: 0, rel_volume: null,
+    symbol, price, prev_close: 1, change_pct: frac(gap), change_abs: null, gap_percent: frac(gap), volume: 0, rel_volume: null,
     has_news: hasNews, newest_headline_at: null, market_cap: null, float: null, short_interest: null, short_ratio: null,
   };
 }

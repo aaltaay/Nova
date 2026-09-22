@@ -20,7 +20,14 @@ export function filterRowsBySelection<T extends { exchange?: string | null }>(
 ): T[] {
   // When all options are checked, skip filtering (show everything).
   if (selected.length === SCANNER_EXCHANGE_OPTIONS.length) return rows;
-  return rows.filter(r => !r.exchange || selected.includes(r.exchange));
+  // Drop a row only when its venue is one of the options and it is unselected.
+  // An unrecognised venue (Alpaca "OTC", a raw IB primaryExchange) fails open
+  // like a missing one -- it used to vanish the moment any box was cleared (QA C52).
+  const known = SCANNER_EXCHANGE_OPTIONS as readonly string[];
+  return rows.filter(r => {
+    const venue = typeof r.exchange === 'string' ? r.exchange.trim().toUpperCase() : '';
+    return !venue || !known.includes(venue) || selected.includes(venue);
+  });
 }
 
 function parseExchangeList(raw: unknown): string[] | null {

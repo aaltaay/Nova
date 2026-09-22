@@ -22,6 +22,9 @@ import {
   SCANNER_SAVED_PROMPT_MESSAGE,
   SCANNER_SAVED_PROMPT_TITLE,
   SCANNER_SAVED_SAVE_AS,
+  SCANNER_SCANNED_MINUTES_MAX,
+  SCANNER_SCANNED_SECONDS_MAX,
+  SCANNER_SESSION_FEED_FAILED_TITLE,
   SCANNER_SESSION_NOT_SCANNED,
   SCANNER_SESSION_SCANNED_PREFIX,
   SCANNER_SESSION_SCANNED_SUFFIX,
@@ -39,7 +42,18 @@ type Props = {
   /** Seconds since the active list's last scan; null when it never scanned;
    * undefined for a list that is not scanned at all (segment omitted). */
   scannedAgoSec: number | null | undefined;
+  /** A scanner REST route failed (QA C31) -- stated on the board, not only in the console. */
+  feedFailure?: string | null;
 };
+
+/** "45s" under 90 s, "12m" under 90 min, then "1h 05m" (QA V27 / C67: no raw 3130s). */
+export function fmtScannedAgo(sec: number): string {
+  const s = Math.max(0, Math.round(sec));
+  if (s < SCANNER_SCANNED_SECONDS_MAX) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < SCANNER_SCANNED_MINUTES_MAX) return `${m}m`;
+  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
+}
 
 function SavedSetsMenu({ filters, onClose }: { filters: BoardFilters; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -126,7 +140,7 @@ function HistoryDateSelect() {
   );
 }
 
-export function ScannerBoardHeader({ title, filters, scannedAgoSec }: Props) {
+export function ScannerBoardHeader({ title, filters, scannedAgoSec, feedFailure = null }: Props) {
   const session = useSessionCountdown();
   const [savedOpen, setSavedOpen] = useState(false);
 
@@ -185,7 +199,20 @@ export function ScannerBoardHeader({ title, filters, scannedAgoSec }: Props) {
             <span data-testid="scanner-board-scanned">
               {scannedAgoSec === null
                 ? SCANNER_SESSION_NOT_SCANNED
-                : <>{SCANNER_SESSION_SCANNED_PREFIX} <b>{Math.max(0, Math.round(scannedAgoSec))}s</b> {SCANNER_SESSION_SCANNED_SUFFIX}</>}
+                : <>{SCANNER_SESSION_SCANNED_PREFIX} <b>{fmtScannedAgo(scannedAgoSec)}</b> {SCANNER_SESSION_SCANNED_SUFFIX}</>}
+            </span>
+          </>
+        ) : null}
+        {feedFailure ? (
+          <>
+            <span className="scanner-board__sep" aria-hidden="true">·</span>
+            <span
+              className="scanner-board__feed-failed"
+              role="alert"
+              title={SCANNER_SESSION_FEED_FAILED_TITLE}
+              data-testid="scanner-board-feed-failed"
+            >
+              {feedFailure}
             </span>
           </>
         ) : null}

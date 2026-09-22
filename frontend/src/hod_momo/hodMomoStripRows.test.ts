@@ -5,7 +5,9 @@ import {
   fmtStripPrice,
   fmtStripSince,
   gateValuesAllAbsent,
+  stripAlertKey,
   stripAlertsForMode,
+  stripPrintNote,
 } from './hodMomoStripRows';
 import { hodMomoStripSinceLabel, hodMomoStripStrategyChip } from './hodMomoStripConstants';
 import type { AlertObject } from './types';
@@ -79,6 +81,27 @@ describe('hodMomoStripRows', () => {
     expect(fmtStripSince([])).toBeNull();
     expect(hodMomoStripSinceLabel(1, since)).toBe(`1 alert since ${since}`);
     expect(hodMomoStripSinceLabel(3, null)).toBe('3 alerts');
+  });
+
+  it('orders newest raised first and drops exact repeats (QA V16)', () => {
+    const t = (iso: string) => Date.parse(iso) / 1000;
+    const list = [
+      alert({ id: 'a', created_ts: t('2026-09-22T03:51:56Z') }),
+      // Raised at 03:40 on a print from 23:53 -- used to sit out of order.
+      alert({ id: 'stale', timestamp: '2026-09-21T23:53:32Z', created_ts: t('2026-09-22T03:40:53Z') }),
+      alert({ id: 'b', created_ts: t('2026-09-22T03:46:28Z') }),
+      alert({ id: 'b', created_ts: t('2026-09-22T03:46:28Z') }),
+      alert({ id: 'c', created_ts: t('2026-09-22T03:07:04Z') }),
+    ];
+    expect(stripAlertsForMode(list, 'hod_momo', null).map((a) => a.id)).toEqual(['a', 'b', 'stale', 'c']);
+    const stale = list[1];
+    expect(fmtStripClock(stale)).toBe(new Date(stale.created_ts! * 1000).toLocaleTimeString('en-US', {
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+    }));
+    expect(stripPrintNote(stale)).toMatch(/^print \d{2}:\d{2}:\d{2}, 3h 47m before the alert$/);
+    expect(stripPrintNote(alert({ id: 'fresh', created_ts: t('2026-09-22T12:39:55Z') }))).toBeNull();
+    // Two alerts that share a legacy id still get distinct React keys.
+    expect(stripAlertKey(alert({ id: 'x', created_ts: 1 }))).not.toBe(stripAlertKey(alert({ id: 'x', created_ts: 2 })));
   });
 
   it('formats clock, price and the strategy chip', () => {

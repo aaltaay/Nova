@@ -22,9 +22,12 @@ vi.mock('../capture/sessionRecordStore', () => ({
   subscribeSessionRecord: () => () => {},
 }));
 
+/** Fixtures author the gap in percent; the wire carries a fraction (QA V2 / C17). */
+const frac = (pct: number | null): number | null => (pct == null ? null : pct / 100);
+
 function row(symbol: string, gap: number | null, hasNews = false): ScannerDockRows['gappers'][number] {
   return {
-    symbol, price: 8.9, prev_close: 3.85, change_pct: gap, change_abs: null, gap_percent: gap, volume: 0,
+    symbol, price: 8.9, prev_close: 3.85, change_pct: frac(gap), change_abs: null, gap_percent: frac(gap), volume: 0,
     rel_volume: null, has_news: hasNews, newest_headline_at: null, market_cap: null, float: null,
     short_interest: null, short_ratio: null,
   };
@@ -200,7 +203,7 @@ describe('StockViewTabStrip', () => {
     mocks.rows = rows({
       gappers: [row('GRML', 131.2, true), row('QNME', 14.6)],
       catalysts: [{
-        symbol: 'QNME', previous_close: 13, current_price: 15.4, gap_percent: 14.6, volume: 0, has_news: true,
+        symbol: 'QNME', previous_close: 13, current_price: 15.4, gap_percent: 14.6 / 100, volume: 0, has_news: true,
         newest_headline_at: null, catalyst_headline: 'Raises guidance', catalyst_url: null, catalyst_source: 'PR Newswire',
       }],
     });

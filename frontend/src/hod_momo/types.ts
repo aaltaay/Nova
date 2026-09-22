@@ -15,7 +15,8 @@ export interface AlertObject {
   strategy_id: number;
   strategy_name: string;
   price: number;
-  change_pct: number;
+  /** Null when the snapshot had no change -- never an invented 0.0 (QA C33). */
+  change_pct: number | null;
   rvol: number | null;
   rvol_5min?: number | null;
   float_shares: number | null;

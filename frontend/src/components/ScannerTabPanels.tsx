@@ -8,7 +8,8 @@ import { EmptyState } from './EmptyState';
 import { ScannerTable } from './ScannerTable';
 import { type ScannerTableMeta } from '../hooks/useScannerPriceStream';
 import { pinFirst, usePinnedRows } from '../scanner/pinnedRowsStore';
-import { tableHonestyLabel } from '../scanner/scannerHonesty';
+import { historyTableLoadError, tableHonestyLabel } from '../scanner/scannerHonesty';
+import type { HistoryTableKey } from '../scanner/scannerHistory';
 import { useLiveScannerFeedOptional } from '../scanner/ScannerDataContext';
 import { LARGE_CAP_COLUMNS, SCANNER_COLUMNS } from '../constants';
 import type { Afterhours, Gapper, Mover, ScannerRow, SortConfig } from '../types/scanner';
@@ -75,6 +76,11 @@ export function ScannerTabPanels({
   const emptyHonesty =
     live?.feedError
     || (tableMeta[activeTab]?.state === 'unavailable' ? 'Unavailable -- no live roster' : null);
+  const feedFailure = live?.restError ?? null;
+  // History view: a table whose snapshot request failed says so (QA C51).
+  const historyErrorFor = (table: HistoryTableKey, label: string): string | null =>
+    live?.historyError
+    ?? (historyDate && live?.historyFailed?.includes(table) ? historyTableLoadError(historyDate, label) : null);
   const [gapperSort, setGapperSort] = useState<SortConfig>({ key: '', dir: null });
   const [gainerSort, setGainerSort] = useState<SortConfig>({ key: '', dir: null });
   const [loserSort, setLoserSort] = useState<SortConfig>({ key: '', dir: null });
@@ -140,8 +146,9 @@ export function ScannerTabPanels({
         context={mode === 'market' ? 'premarket' : mode}
         discoveryProvider={discoveryProvider}
         historyDate={historyDate}
-        historyError={live?.historyError}
+        historyError={historyErrorFor('gappers', 'gappers')}
         honestyHint={emptyHonesty}
+        feedFailure={feedFailure}
         emptyLabel="gappers"
       />
     );
@@ -180,8 +187,9 @@ export function ScannerTabPanels({
         discoveryProvider={discoveryProvider}
         emptyLabel="gainers"
         historyDate={historyDate}
-        historyError={live?.historyError}
+        historyError={historyErrorFor('gainers', 'gainers')}
         honestyHint={emptyHonesty}
+        feedFailure={feedFailure}
       />
     );
   } else if (activeTab === 'losers') {
@@ -206,8 +214,9 @@ export function ScannerTabPanels({
         discoveryProvider={discoveryProvider}
         emptyLabel="losers"
         historyDate={historyDate}
-        historyError={live?.historyError}
+        historyError={historyErrorFor('losers', 'losers')}
         honestyHint={emptyHonesty}
+        feedFailure={feedFailure}
       />
     );
   } else if (activeTab === 'afterhours') {
@@ -234,8 +243,9 @@ export function ScannerTabPanels({
             discoveryProvider={discoveryProvider}
             emptyLabel="after-hours movers"
             historyDate={historyDate}
-            historyError={live?.historyError}
+            historyError={historyErrorFor('afterhours', 'after-hours movers')}
             honestyHint={emptyHonesty}
+            feedFailure={feedFailure}
           />
         )}
       </>
@@ -264,8 +274,9 @@ export function ScannerTabPanels({
         discoveryProvider={discoveryProvider}
         emptyLabel="large cap movers"
         historyDate={historyDate}
-        historyError={live?.historyError}
+        historyError={historyErrorFor('large_cap', 'large cap movers')}
         honestyHint={emptyHonesty}
+        feedFailure={feedFailure}
       />
     );
   }

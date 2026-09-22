@@ -4,10 +4,8 @@ import { ScannerTableRow } from './ScannerTableRow';
 import { ScannerColGroup, ScannerRowNumHeader } from './ScannerTableChrome';
 import { SCANNER_TABLE_WRAPPER_CLASS, scannerColClass } from './scannerTableCol';
 import { isRowQuoteStale } from '../hooks/useScannerPriceStream';
-import {
-  SCANNER_RVOL_SOURCE_TITLE,
-  SCANNER_VOLUME_COLUMN_LABEL,
-} from '../constants';
+import { SCANNER_VOLUME_COLUMN_LABEL } from '../constants';
+import { SCANNER_HEADER_SHORT_LABEL, SCANNER_VOLUME_HEADER_TITLE } from '../constantGroups/scanner_board';
 import type { ScannerRow, SortConfig } from '../types/scanner';
 
 export { NewsCell } from './NewsCell';
@@ -61,7 +59,7 @@ export function ScannerTable({
                 data-col={key}
                 className={`sortable-th ${scannerColClass(key)}`}
                 onClick={() => onSort(key)}
-                title={key === 'volume' ? SCANNER_RVOL_SOURCE_TITLE : undefined}
+                title={key === 'volume' ? SCANNER_VOLUME_HEADER_TITLE : label}
                 aria-sort={
                   sortState.key === key
                     ? sortState.dir === 'asc' ? 'ascending' : 'descending'
@@ -69,7 +67,10 @@ export function ScannerTable({
                 }
               >
                 <span className="th-inner">
-                  {key === 'volume' ? SCANNER_VOLUME_COLUMN_LABEL : label}
+                  {/* Clipped labels read "NEW:" / "EARNIN" -- the label ellipsizes and the th title carries it. */}
+                  <span className="th-label">
+                    {key === 'volume' ? SCANNER_VOLUME_COLUMN_LABEL : SCANNER_HEADER_SHORT_LABEL[key] ?? label}
+                  </span>
                   <span className={`sort-arrow${sortState.key === key ? ' active' : ''}`}>
                     {sortState.key === key
                       ? sortState.dir === 'asc' ? '↑' : '↓'

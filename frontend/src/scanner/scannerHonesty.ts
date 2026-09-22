@@ -2,6 +2,8 @@
 
 import type { ScannerTableMeta } from '../hooks/useScannerPriceStream';
 import { frozenTableLabel } from '../hooks/useScannerPriceStream';
+import type { ScannerRow } from '../types/scanner';
+import { carryQuoteQuality, normalizeScannerRows } from './scannerRowShape';
 
 export const SCANNER_PRICE_NO_L1 = 'no L1 yet';
 export const SCANNER_HONESTY_UNAVAILABLE = 'unavailable';
@@ -11,6 +13,7 @@ export const SCANNER_HONESTY_LAST_GOOD_LABEL = 'Last-good -- empty update ignore
 export const SCANNER_CATALYSTS_EMPTY = 'No news catalysts on the IBKR roster right now.';
 export const SCANNER_CATALYSTS_FEED_DOWN = 'Catalysts feed is down.';
 export const SCANNER_CATALYSTS_FETCH_FAILED = 'Catalysts feed failed -- request did not complete.';
+export const SCANNER_CATALYSTS_UNREADABLE = 'Catalysts feed failed -- the reply was not readable.';
 
 export type HonestySignals = {
   feedError?: string | null;
@@ -31,18 +34,24 @@ export function applyLastGoodRows<T>(
   return { rows: incoming as T[], lastGood: false };
 }
 
-export function applyRosterTable<T>(
+/**
+ * Replace one table's rows from a REST / roster payload. Every row passes the
+ * shape gate first (scannerRowShape: a row without a symbol is dropped, a
+ * non-finite number is null), so a malformed row can never reach a renderer.
+ */
+export function applyRosterTable<T extends ScannerRow>(
   setter: (fn: (prev: T[]) => T[]) => void,
   setLastGood: (fn: (prev: Record<string, boolean>) => Record<string, boolean>) => void,
   table: string,
   incoming: unknown,
 ): void {
-  if (!Array.isArray(incoming)) return;
+  const rows = normalizeScannerRows(incoming) as T[] | null;
+  if (!rows) return;
   setter(prev => {
-    const next = applyLastGoodRows(prev, incoming);
+    const next = applyLastGoodRows(prev, rows);
     if (!next) return prev;
     setLastGood(map => (map[table] === next.lastGood ? map : { ...map, [table]: next.lastGood }));
-    return next.rows;
+    return next.lastGood ? next.rows : carryQuoteQuality(prev, next.rows);
   });
 }
 
@@ -140,4 +149,9 @@ export function catalystsHttpError(status: number): string {
 
 export function historyLoadError(date: string): string {
   return `Could not load snapshot for ${date}.`;
+}
+
+/** One table's snapshot failed while others loaded (QA C51). */
+export function historyTableLoadError(date: string, label: string): string {
+  return `Could not load the ${label} snapshot for ${date}.`;
 }

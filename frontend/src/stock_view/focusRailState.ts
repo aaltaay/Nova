@@ -8,7 +8,7 @@ import { FOCUS_RAIL_DEFAULT_LIST, FOCUS_RAIL_STORAGE_KEY } from '../constantGrou
 import type { LiveScannerFeed } from '../scanner/ScannerDataContext';
 import type { Catalyst } from '../types/catalyst';
 import type { ScannerRow } from '../types/scanner';
-import { catalystChipLabel, catalystFor } from './tabContext';
+import { catalystChipLabel, catalystFor, fractionToPercent } from './tabContext';
 
 export const FOCUS_RAIL_STATE_VERSION = 1;
 
@@ -76,7 +76,7 @@ function fromScannerRow(row: ScannerRow, catalysts: readonly Catalyst[]): FocusR
   return {
     symbol: row.symbol.toUpperCase(),
     price: row.price,
-    gapPct: typeof gap === 'number' && Number.isFinite(gap) ? gap : null,
+    gapPct: fractionToPercent(gap),
     catalyst: catalystChipLabel(catalyst, row),
     headline: catalyst?.catalyst_headline ?? null,
   };
@@ -86,7 +86,7 @@ function fromCatalyst(row: Catalyst): FocusRow {
   return {
     symbol: row.symbol.toUpperCase(),
     price: row.current_price,
-    gapPct: Number.isFinite(row.gap_percent) ? row.gap_percent : null,
+    gapPct: fractionToPercent(row.gap_percent),
     catalyst: catalystChipLabel(row, null),
     headline: row.catalyst_headline,
   };

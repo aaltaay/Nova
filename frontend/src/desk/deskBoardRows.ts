@@ -6,7 +6,7 @@
  */
 import { DESK_REL_VOL_SUFFIX, DESK_CELL_ABSENT } from '../constantGroups/desk';
 import type { LiveScannerFeed } from '../scanner/ScannerDataContext';
-import { catalystChipLabel, catalystFor } from '../stock_view/tabContext';
+import { catalystChipLabel, catalystFor, fractionToPercent } from '../stock_view/tabContext';
 import { formatCoverageClockEt } from '../tickerChartData';
 import type { Catalyst } from '../types/catalyst';
 import type { ScannerRow } from '../types/scanner';
@@ -14,7 +14,7 @@ import type { ScannerRow } from '../types/scanner';
 export interface DeskBoardRow {
   symbol: string;
   price: number | null;
-  /** Signed gap percent (falls back to the day change when the row has no gap). */
+  /** Signed gap in percent points (the row's fraction x100; falls back to the day change). */
   gapPct: number | null;
   volume: number | null;
   relVolume: number | null;
@@ -51,7 +51,7 @@ function fromScannerRow(row: ScannerRow, catalysts: readonly Catalyst[]): DeskBo
   return {
     symbol: row.symbol.toUpperCase(),
     price: finite(row.price),
-    gapPct: finite(row.gap_percent ?? row.change_pct),
+    gapPct: fractionToPercent(row.gap_percent ?? row.change_pct),
     volume: finite(row.volume),
     relVolume: finite(row.rel_volume ?? row.rvol),
     float: finite(row.float),
@@ -67,7 +67,7 @@ function fromCatalyst(row: Catalyst): DeskBoardRow {
   return {
     symbol: row.symbol.toUpperCase(),
     price: finite(row.current_price),
-    gapPct: finite(row.gap_percent),
+    gapPct: fractionToPercent(row.gap_percent),
     volume: finite(row.volume),
     relVolume: null,
     float: null,
