@@ -97,9 +97,10 @@ function AppShell() {
             <MwcbBannerHost />
             <NovaOsAttentionStrip global />
             <div className={branchClass}>
-              <AppErrorBoundary source="trader-dock">
-                <TraderDockLayer />
-              </AppErrorBoundary>
+              {/* No boundary here: its .app-shell-host wrapper takes a flex share of
+                  .nova-app-branch and blanked half the Trader (QA R39, regression
+                  from #451). The layer renders nothing in the branch's flow. */}
+              <TraderDockLayer />
               {hasTraderDesk && (
                 <div
                   className="nova-trader-desk-slot"
