@@ -6,7 +6,8 @@
  * = allowlisted and this desk holds the depth line -- a live Trader tab or a
  * recording; hollow = allowlisted, quiet), symbol, price, signed gap, catalyst
  * chip or `no news`. ↑ ↓ cycle, Enter opens. Data is the live scanner feed
- * the workspace already holds; without one the rail says so.
+ * the workspace already holds -- and, for HOD Momo / Running Up, the HOD
+ * stream the app shell keeps open -- without one the rail says so.
  */
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -30,7 +31,10 @@ import {
   focusRailEmpty,
   focusRailNotMirrored,
 } from '../constantGroups/trader_chrome';
-import { useLiveScannerFeedOptional } from '../scanner/ScannerDataContext';
+import { listFeedFailed } from '../constantGroups/scanner_board';
+import { useHodMomoOptional, type HodMomoContextValue } from '../hod_momo/HodMomoContext';
+import { HOD_MOMO_STRIP_EMPTY_CONNECTING } from '../hod_momo/hodMomoStripConstants';
+import { useLiveScannerFeedOptional, type LiveScannerFeed } from '../scanner/ScannerDataContext';
 import { listAbsenceText } from '../scanner/listAbsence';
 import { TRADER_TAB_GAP_TITLE } from '../constantGroups/trader_view';
 import { useSettingsOptional } from '../settings/SettingsContext';
@@ -39,13 +43,36 @@ import { useSimReplayDesk } from '../sim/useSimReplayDesk';
 import { listScannerListModules } from '../workspace/registry';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
-  focusRowsFor, readFocusRailState, stepCursor, writeFocusRailState, type FocusRailState,
+  focusRowsFor, hodFocusRows, isHodFocusList, readFocusRailState, stepCursor, writeFocusRailState,
+  type FocusRailState, type FocusRow,
 } from './focusRailState';
 import { formatSignedPct, pctTone } from './tabContext';
 import './focusRail.css';
 
+type HodStream = HodMomoContextValue['stream'];
+
+/** What an empty or missing list says. The HOD lists answer from their own
+ * stream (failed / connecting / empty), the rest from the scanner feed. */
+function absenceText(
+  title: string,
+  hodList: boolean,
+  hodStream: HodStream | null,
+  feed: LiveScannerFeed | null,
+  rows: FocusRow[] | null,
+): string {
+  if (hodList) {
+    if (!hodStream) return focusRailNotMirrored(title);
+    if (hodStream.feedError) return listFeedFailed(title, hodStream.feedError);
+    return hodStream.connected ? focusRailEmpty(title) : HOD_MOMO_STRIP_EMPTY_CONNECTING;
+  }
+  if (!feed) return FOCUS_RAIL_NO_FEED;
+  if (rows == null) return focusRailNotMirrored(title);
+  return listAbsenceText(title, { restError: feed.restError, healthStatus: feed.health?.status }, focusRailEmpty);
+}
+
 export function FocusRail() {
   const feed = useLiveScannerFeedOptional();
+  const hodStream = useHodMomoOptional()?.stream ?? null;
   const settings = useSettingsOptional();
   const { activeTraderSymbol, traderLiveTabs, openStockView } = useWorkspace();
   const { isAllowed } = useBotAllowlist();
@@ -58,10 +85,14 @@ export function FocusRail() {
   const modules = useMemo(() => listScannerListModules(), []);
   const module = modules.find(m => m.id === state.list) ?? modules[0];
   const filterRows = settings?.exchangeFilter?.filterRows;
-  const rows = useMemo(
-    () => focusRowsFor(state.list, feed, filterRows),
-    [state.list, feed, filterRows],
-  );
+  const hodList = isHodFocusList(state.list);
+  const hodAlerts = hodStream?.alerts;
+  const rows = useMemo(() => {
+    if (!isHodFocusList(state.list)) return focusRowsFor(state.list, feed, filterRows);
+    return hodAlerts ? hodFocusRows(state.list, hodAlerts, feed) : null;
+  }, [state.list, feed, filterRows, hodAlerts]);
+  const title = module?.title ?? state.list;
+  const absent = absenceText(title, hodList, hodStream, feed, rows);
 
   const update = useCallback((patch: Partial<FocusRailState>) => {
     setState(prev => {
@@ -116,17 +147,11 @@ export function FocusRail() {
         </button>
       </div>
       <div className="focus-rail__rows" role="listbox" aria-label={module?.title ?? state.list} data-testid="focus-rail-rows">
-        {replayDesk && feed && rows != null && rows.length > 0 && (
+        {replayDesk && rows != null && rows.length > 0 && (
           <p className="focus-rail__absent" data-testid="focus-rail-replay-note">{SIM_FOCUS_RAIL_REPLAY_NOTE}</p>
         )}
-        {!feed ? (
-          <p className="focus-rail__absent" data-testid="focus-rail-absent">{FOCUS_RAIL_NO_FEED}</p>
-        ) : rows == null ? (
-          <p className="focus-rail__absent" data-testid="focus-rail-absent">{focusRailNotMirrored(module?.title ?? state.list)}</p>
-        ) : rows.length === 0 ? (
-          <p className="focus-rail__absent" data-testid="focus-rail-absent">
-            {listAbsenceText(module?.title ?? state.list, { restError: feed.restError, healthStatus: feed.health?.status }, focusRailEmpty)}
-          </p>
+        {rows == null || rows.length === 0 ? (
+          <p className="focus-rail__absent" data-testid="focus-rail-absent">{absent}</p>
         ) : rows.map((row, index) => {
           const recording = isTabRecording(row.symbol);
           const allowed = isAllowed(row.symbol);
@@ -158,9 +183,9 @@ export function FocusRail() {
                   </span>
                   {row.catalyst ? (
                     <span className="focus-rail__chip" title={row.headline ? `${row.catalyst} · ${row.headline}` : row.catalyst}>{row.catalyst}</span>
-                  ) : (
+                  ) : row.newsKnown ? (
                     <span className="focus-rail__chip focus-rail__chip--none">{TRADER_CATALYST_NONE}</span>
-                  )}
+                  ) : null}
                 </>
               )}
             </div>
