@@ -48,10 +48,19 @@
 
 .sv-open-orders-dock__tabs {
   display: inline-flex;
+  /* Tabs never shrink: at narrow widths the filter chips scroll instead, so
+     a tab is always fully visible and clickable. */
+  flex: 0 0 auto;
   align-items: stretch;
   align-self: stretch;
   gap: 0;
   min-width: 0;
+  /* The row scrolls when the dock is narrower than its tabs (the Scanner
+     column beside an 820 px side panel), so a tab is never painted under
+     the trailing controls. */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
 }
 
 .sv-open-orders-dock__tab {
@@ -98,7 +107,11 @@
 
 /* Status chips ride on the same row while Orders is showing. */
 .sv-open-orders-dock .orders-today-filters {
-  flex: 0 1 auto;
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
   gap: 2px;
   margin-left: 16px;
   border: 0;
@@ -134,6 +147,8 @@
 }
 
 .sv-open-orders-dock__tools {
+  flex-shrink: 0;
+  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   gap: 4px;

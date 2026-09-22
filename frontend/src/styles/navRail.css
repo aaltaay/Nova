@@ -14,7 +14,10 @@
   border-right: 1px solid var(--nova-border, var(--border-color));
   color: var(--nova-text-muted);
   transition: width 0.12s ease;
-  z-index: 5;
+  /* No z-index here: a z-index on a flex item makes the rail a stacking
+     context, which trapped the fixed Fund account popover (z-index 60 below)
+     under the HOD dock (z-index 30) beside it. The rail and .nova-app-main are
+     siblings that never overlap, so the rail needs no layer of its own. */
 }
 
 .nav-rail__list {

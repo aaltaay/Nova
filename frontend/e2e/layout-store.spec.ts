@@ -27,7 +27,7 @@ test.describe('Phase 5 — Layout store panel order', () => {
       [LAYOUT_STORAGE_KEY, MODULE_VISIBILITY_STORAGE_KEY] as const,
     );
     await page.reload();
-    await expect(page.getByRole('navigation', { name: 'Scanner views' })).toBeVisible();
+    await expect(page.getByTestId('nav-rail')).toBeVisible();
 
     const stored = await page.evaluate((key) => localStorage.getItem(key), LAYOUT_STORAGE_KEY);
     expect(stored).toBeTruthy();
@@ -55,7 +55,7 @@ test.describe('Phase 5 — Layout store panel order', () => {
       );
     }, LAYOUT_STORAGE_KEY);
     await page.reload();
-    await expect(page.getByRole('navigation', { name: 'Scanner views' })).toBeVisible();
+    await expect(page.getByTestId('nav-rail')).toBeVisible();
 
     const search = page.locator('.side-panel .side-search-input');
     await expect(search).toBeVisible();
