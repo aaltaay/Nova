@@ -1,5 +1,8 @@
 /**
  * Trading prerequisites checklist.
+ * ADR 021: while the API answers, the body is the desk diagnostics checklist
+ * (`GET /api/diagnostics` -- which process, which .env, which fact failed);
+ * the derived rows below stay as the fallback when the API itself is down.
  * Auto-covers the desk only when Nova API is down. Gateway-only mornings
  * stay usable -- click the header Gateway chip to open this panel.
  */
@@ -25,6 +28,10 @@ import { refreshIbkrStatusNow, useIbkrStatus } from './useIbkrStatus';
 import { TRADING_PREREQ_OPEN_EVENT } from './tradingPrereqUi';
 import { launchIbGateway, type LaunchGatewayMode } from '../utils/launchIbGateway';
 import type { DeskLaunchGatewayMode } from './GatewayModeLaunchButtons';
+import { DiagnosticsChecklist } from './DiagnosticsChecklist';
+import { fetchDiagnosticsBundle, useDiagnostics } from './useDiagnostics';
+import { DIAG_UNREACHABLE } from '../constantGroups/diagnostics';
+import { canReloadLocalBackend, startLocalApi } from '../utils/startLocalApi';
 import './tradingPrerequisitesGate.css';
 
 export function TradingPrerequisitesGate() {
@@ -36,6 +43,7 @@ export function TradingPrerequisitesGate() {
   const [followBusy, setFollowBusy] = useState(false);
   const [freshLoginBusy, setFreshLoginBusy] = useState(false);
   const [launchHint, setLaunchHint] = useState<string | null>(null);
+  const [reloadBusy, setReloadBusy] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [autoDismissed, setAutoDismissed] = useState(false);
   const followTarget = gatewayPortMismatchHint(ibkr.disconnect_hint);
@@ -201,8 +209,20 @@ export function TradingPrerequisitesGate() {
     return () => window.removeEventListener('keydown', onKey);
   }, [closePanel]);
 
-  if (discovery !== 'ibkr') return null;
   const show = (prereqs.autoOverlay && !autoDismissed) || manualOpen;
+  // Hooks stay above the early returns; the poll only runs while the panel is open.
+  const diag = useDiagnostics(discovery === 'ibkr' && show);
+  const onReloadBackend = useCallback(async () => {
+    setReloadBusy(true);
+    try {
+      const result = await startLocalApi();
+      if (!result.ok) setLaunchHint(result.error);
+    } finally {
+      setReloadBusy(false);
+      await refreshIbkrStatusNow();
+    }
+  }, []);
+  if (discovery !== 'ibkr') return null;
   if (!show) return null;
 
   const modeHint =
@@ -243,6 +263,24 @@ export function TradingPrerequisitesGate() {
           {prereqs.autoOverlay ? PREREQ_LEAD_API : PREREQ_LEAD_MANUAL}
         </p>
         <p className="trading-prereq-gate__mode">{modeHint}</p>
+        {diag.data ? (
+          <DiagnosticsChecklist
+            data={diag.data}
+            onRefresh={diag.refresh}
+            copyBundle={fetchDiagnosticsBundle}
+            busy={{ reconnect_ibkr: reconnectBusy, launch_gateway: launchBusyMode !== null, reload_backend: reloadBusy }}
+            actions={{
+              reconnect_ibkr: () => void onReconnectIbkr(),
+              launch_gateway: () => void onLaunchGateway('live'),
+              refresh: diag.refresh,
+              ...(canReloadLocalBackend() ? { reload_backend: () => void onReloadBackend() } : {}),
+            }}
+          />
+        ) : (
+        <>
+        {diag.error && (
+          <p className="trading-prereq-gate__hint" data-testid="diag-unreachable">{DIAG_UNREACHABLE}</p>
+        )}
         <ul className="trading-prereq-list">
           {prereqs.items.map((item) => (
             <PrereqItemRow
@@ -262,6 +300,8 @@ export function TradingPrerequisitesGate() {
             />
           ))}
         </ul>
+        </>
+        )}
         {prereqs.warnings.map((warning) => (
           <div
             key={warning.id}

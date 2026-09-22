@@ -8,6 +8,12 @@
  * in flight (e.g. a manual button click racing browser auto-heal, or two
  * Vite dev servers) gets 409 instead of racing Stop-NovaPorts/Start-NovaApi
  * and hitting WinError 10048 (see PROBLEM_LOG 2026-07-23).
+ *
+ * ADR 021 guards (2026-09-22): a dev server running from a git worktree never
+ * starts an API (an agent's Playwright run once replaced the operator's backend
+ * with an env-less one from a worktree), a missing repo `.env` refuses the
+ * start and says which file, and the spawned API gets `NOVA_ENV_PATH` set
+ * explicitly. `GET /__nova/api-status` reports who this server would start.
  */
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -23,10 +29,43 @@ const API_HOST = '127.0.0.1';
 const API_PORT = 8000;
 const HEALTH_URL = `http://${API_HOST}:${API_PORT}/api/health`;
 const START_PATH = '/__nova/start-api';
+const STATUS_PATH = '/__nova/api-status';
 export const LOCK_PATH = path.join(repoRoot, 'backend', '.cache', 'start-api.lock');
 // A start attempt that has not released its lock within this long is treated
 // as abandoned (crashed Vite process, killed terminal) rather than active.
 const LOCK_STALE_MS = 60_000;
+
+/** A git worktree has a `.git` *file* (``gitdir: ...``); the main checkout has a `.git` directory. */
+export function isGitWorktree(root: string): boolean {
+  try {
+    return fs.statSync(path.join(root, '.git')).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/** Why this dev server must not start an API, or null when it may (ADR 021). */
+export function startRefusal(root: string): string | null {
+  if (isGitWorktree(root)) {
+    return (
+      `This dev server runs from a git worktree (${root}); it never starts an API. ` +
+      'Start Nova from the main checkout.'
+    );
+  }
+  const envPath = path.join(root, '.env');
+  if (!fs.existsSync(envPath)) {
+    return `No .env at ${envPath} -- the API would start with every integration off.`;
+  }
+  return null;
+}
+
+interface LastStart {
+  at: number;
+  ok: boolean;
+  error: string | null;
+}
+
+let lastStart: LastStart | null = null;
 
 export interface HealthProbe {
   ok: boolean;
@@ -185,6 +224,8 @@ async function startApiProcess(): Promise<void> {
       windowsHide: true,
       detached: true,
       stdio: 'ignore',
+      // ADR 021: the API reads exactly this file, whatever its cwd resolves.
+      env: { ...process.env, NOVA_ENV_PATH: path.join(repoRoot, '.env') },
     },
   ).unref();
 
@@ -204,6 +245,18 @@ export function novaStartApiPlugin(): Plugin {
       server.middlewares.use((req: IncomingMessage, res: ServerResponse, next: () => void) => {
         void (async () => {
           const url = req.url?.split('?')[0] || '';
+          if (url === STATUS_PATH) {
+            const envPath = path.join(repoRoot, '.env');
+            sendJson(res, 200, {
+              repoRoot,
+              worktree: isGitWorktree(repoRoot),
+              envPath,
+              envExists: fs.existsSync(envPath),
+              refusal: startRefusal(repoRoot),
+              lastStart,
+            });
+            return;
+          }
           if (url !== START_PATH) {
             next();
             return;
@@ -212,16 +265,25 @@ export function novaStartApiPlugin(): Plugin {
             sendJson(res, 405, { ok: false, error: 'POST required' });
             return;
           }
+          const refusal = startRefusal(repoRoot);
+          if (refusal) {
+            console.error('[nova-start-api] refused:', refusal);
+            lastStart = { at: Date.now(), ok: false, error: refusal };
+            sendJson(res, 409, { ok: false, error: refusal });
+            return;
+          }
           if (!acquireLock()) {
             sendJson(res, 409, { ok: false, error: 'API start already in progress' });
             return;
           }
           try {
             await startApiProcess();
+            lastStart = { at: Date.now(), ok: true, error: null };
             sendJson(res, 200, { ok: true, apiBase: `http://${API_HOST}:${API_PORT}` });
           } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             console.error('[nova-start-api]', message);
+            lastStart = { at: Date.now(), ok: false, error: message };
             sendJson(res, 500, { ok: false, error: message });
           } finally {
             releaseLock();

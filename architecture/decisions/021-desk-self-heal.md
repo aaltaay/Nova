@@ -126,3 +126,28 @@ start unless the operator asks for a restart.
   `test_gateway_heal_attach_retry.py`, `test_health_env_file.py`.
 - `frontend/src/diagnostics/*.test.ts(x)`, `frontend/scripts/nova-api-supervisor.test.ts`,
   `frontend/e2e/desk-diagnostics.spec.ts`.
+
+## Amendment -- the checklist UI and the dev-server guard (2026-09-22)
+
+1. **The checklist is the gate's body.** While the API answers, the Trading
+   prerequisites panel renders `GET /api/diagnostics` grouped by area: a state
+   dot, a one-line detail, and on expand the cause, the fix and the raw
+   evidence; a row's action renders only when the desk has a real handler
+   (Reconnect, Launch Gateway, Reload backend where the desk can spawn one,
+   Refresh). Copy diagnostics puts the plain-text bundle on the clipboard. When
+   the API itself is down the derived rows remain, because only they can offer
+   Start API.
+2. **The dev server never starts an API from a worktree or without `.env`.**
+   `POST /__nova/start-api` refuses with the reason when its checkout is a git
+   worktree (`.git` is a file) or the checkout has no `.env`; the spawned API
+   gets `NOVA_ENV_PATH` explicitly. `GET /__nova/api-status` reports the root,
+   worktree flag, `.env` path and the last start attempt. The guard takes
+   effect when the dev server next starts.
+3. **Supervision is the desk's existing auto-heal, made safe.** The UI already
+   re-starts a dead API through the dev server (`BackendStartButton` on API
+   down); with the guards above that heal can no longer produce a wrong-rooted
+   or env-less API. A separate long-running supervisor is not added.
+4. The backend logs an error at startup and `/api/health.integrations.ibkr`
+   says `no .env at <path>` when its `.env` is missing, instead of the silent
+   "IBKR_ENABLED not set".
+
