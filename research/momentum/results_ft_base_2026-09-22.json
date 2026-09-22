@@ -1,0 +1,102 @@
+{
+  "params": {
+    "setup": "flat_top",
+    "universe": "gng_selection_nofloat",
+    "bars_table": "minutes_pillars",
+    "session_start": "09:30",
+    "entry_cutoff": "11:30",
+    "flat_by": "15:55",
+    "leg_pct": 0.05,
+    "leg_window": 10,
+    "leg_lookback": 30,
+    "require_hod": true,
+    "min_pullback_bars": 1,
+    "max_pullback_bars": 3,
+    "max_retrace": 0.5,
+    "ft_impulse_pct": 0.03,
+    "ft_min_consol": 2,
+    "ft_max_consol": 6,
+    "ft_band": 0.02,
+    "ft_entry": "hold",
+    "ft_hold_bars": 3,
+    "r2g_min_red_bars": 1,
+    "r2g_cutoff": "10:30",
+    "r2g_target_hod": true,
+    "ema_period": 9,
+    "ema_tol": 0.0,
+    "macd_positive": true,
+    "stop_cap": 0.2,
+    "min_stop": 0.03,
+    "target_r": 2.0,
+    "bailout_bars": 5,
+    "max_trades_per_symbol_day": 2,
+    "gap_rank_max": null,
+    "risk_pct": 0.01,
+    "max_position_pct": 0.25,
+    "min_notional": 500.0,
+    "slippage": 0.01,
+    "commission_per_share": 0.005,
+    "commission_min": 1.0,
+    "commission_max_pct": 0.01,
+    "start_equity": 25000.0,
+    "top": 20,
+    "stop_atr": 0.0,
+    "date_from": null,
+    "date_to": null,
+    "tag": "ft_base"
+  },
+  "days": 1009,
+  "trades": 63,
+  "end_equity": 21242.16,
+  "total_return_pct": -15.03,
+  "cagr_pct": -3.25,
+  "max_drawdown_pct": -15.45,
+  "sharpe": -2.24,
+  "win_rate_pct": 17.5,
+  "avg_win": 82.81,
+  "avg_loss": -89.78,
+  "profit_factor": 0.2,
+  "expectancy_usd": -59.65,
+  "expectancy_r": -0.831,
+  "fees_total": 618.45,
+  "stopped_pct": 76.2,
+  "trades_per_day": 0.06,
+  "by_year": {
+    "2021": {
+      "trades": 2,
+      "pnl": 91.73,
+      "win_rate_pct": 50.0,
+      "expectancy_r": 0.668
+    },
+    "2022": {
+      "trades": 21,
+      "pnl": -1572.28,
+      "win_rate_pct": 9.5,
+      "expectancy_r": -0.901
+    },
+    "2023": {
+      "trades": 14,
+      "pnl": -556.68,
+      "win_rate_pct": 35.7,
+      "expectancy_r": -0.577
+    },
+    "2024": {
+      "trades": 8,
+      "pnl": -485.7,
+      "win_rate_pct": 12.5,
+      "expectancy_r": -0.972
+    },
+    "2025": {
+      "trades": 12,
+      "pnl": -1032.79,
+      "win_rate_pct": 0.0,
+      "expectancy_r": -1.289
+    },
+    "2026": {
+      "trades": 6,
+      "pnl": -202.1,
+      "win_rate_pct": 33.3,
+      "expectancy_r": -0.577
+    }
+  }
+}

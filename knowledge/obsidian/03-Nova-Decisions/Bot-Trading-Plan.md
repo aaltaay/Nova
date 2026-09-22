@@ -75,7 +75,7 @@ Decision B (recommendation starred):
 
 Done when: one local Parquet / DuckDB store with a "was listed on that date" flag per symbol.
 
-### L2 -- Backtest `[x]` for A1 (§2b), A2 (§2c), A4 (§2d) and S1 (§2e); A5 parked
+### L2 -- Backtest `[x]` for A1 (§2b), A2 (§2c), A4 (§2d), S1 (§2e) and P1-P3 (§2f); A5 parked
 
 Install vectorbt in a scratch environment, adapt `.cursor/skills/backtest/` to read the local
 store, code the ORB rules exactly as published. Charge IBKR commissions plus 1-3 c/share slippage
@@ -84,7 +84,7 @@ on small caps; no signal may read anything after its own minute.
 Done when: the ORB reproduces the paper's *shape* on 2016-2023 and the run reports trade count,
 expectancy in R, profit factor, max drawdown.
 
-### L3 -- Try to break it `[x]` for A1 (broke on the 2x-cost test, §2b), A2 (broke on three of four, §2c), A4 (broke on three of four, §2d) and S1 (broke on three of four, §2e); A5 parked
+### L3 -- Try to break it `[x]` for A1 (broke on the 2x-cost test, §2b), A2 (broke on three of four, §2c), A4 (broke on three of four, §2d), S1 (broke on three of four, §2e) and P1-P3 (negative in every ladder cell, §2f); A5 parked
 
 Walk-forward by year. Parameter neighbourhood: stop 5 / 10 / 15% ATR, top 10 / 20 / 30 by RVOL,
 5 / 15 / 30-minute ranges -- the neighbourhood must stay positive. 1,000-shuffle permutation
@@ -364,6 +364,83 @@ pillar's survivor bias stated).
   power, live IBKR enforces settled funds), and there is no pattern-day-trader limit on a
   cash account. Long-only throughout; shorts stay behind the parked Phase K.
 
+## 2f. The operator's setups on the store -- three minute-bar screens (2026-09-22, night)
+
+S4 is done off-repo: the operator's private material is catalogued on F: (every setup as a
+rule sheet, cited; the beginner plan; the material's own ranking). What belongs here is
+what was tested and what it said. Three of the taught setups are bar-definable; each was
+pre-registered privately before any run and screened on the same store, universe, costs
+and kill criteria as §2c (`research/momentum/backtest_setups.py`; results as produced in
+`research/momentum/results_*_2026-09-22.json`).
+
+- **P1 -- the first (and second) pullback.** Universe: the Five Pillars selection at 09:30
+  without the float pillar (2,717 symbol-days, 1,009 days; `minutes_pillars` carries their
+  04:00-16:00 bars). A fresh leg (a bar printing the day's high, at least 5% above the
+  lowest low of the prior 10 bars), a 1-3 bar pullback that makes no new high, retraces
+  under half the leg and closes on or above the 9 EMA; entry the minute a bar trades through
+  the last pullback bar's high (max(open, that high + $0.01) + slippage); stop at the pullback
+  low, the trade skipped if the risk exceeds $0.20; half off at max(leg high, entry + 2R)
+  with the stop moved to break-even, the rest on the first close under the 9 EMA; five bars
+  without a close above entry -> out; flat by 15:55; prior bar's MACD histogram > 0;
+  entries 09:30-11:30; up to two per symbol-day.
+- **P2 -- the high-of-day / flat-top breakout.** A 2-6 bar consolidation just under the
+  day's high (closes within 2%, lows on the 9 EMA) after a 3% impulse whose high *is* the
+  day's high; the break; entry, the taught way, on the first bar after the break that holds
+  the level and closes green, stop under that bar (variant: buy the break itself, stop at
+  the consolidation low); same exits.
+- **P3 -- red to green.** At least one 1-minute close below the 09:30 open, entry the minute
+  a bar trades back through the open, stop at the red-phase low (cap $0.20), first target
+  the day's high or 2R; entries 09:31-10:30; one per symbol-day.
+
+| Screen ($25k, 1% risk, IBKR costs, $0.01 slippage) | Trades | Win % | PF | Exp (R) | CAGR | Max DD | Verdict |
+|---|---|---|---|---|---|---|---|
+| P1 first / second pullback | 589 | 27.5 | 0.54 | -0.30 | -22.6% | -73% | **not passed** (negative in all six years) |
+| P2 flat-top breakout, hold entry | 63 | 17.5 | 0.20 | -0.83 | -3.3% | -15% | **not passed** (under 300 trades; negative) |
+| P3 red to green | 398 | 15.6 | 0.58 | -0.22 | -14.8% | -56% | **not passed** (negative in all six years) |
+
+Ladders, every cell negative: P1 19 cells between PF 0.37 and 0.75 -- zero slippage 0.72,
+the paper's costs 0.75, 2x costs 0.38, stop cap $0.10 / $0.30, leg 3% / 8%, pullback 2 / 5
+bars, MACD off, top-3 gappers only, 09:30-10:00 only, first pullback only (0.62, the best),
+1R target (41.6% win, 0.51), 2-bar bailout, 10:30 cutoff; P2 13 cells, the break entry
+133 trades at 0.63; P3 13 cells, best 0.80 at 921 trades without the MACD gate, zero
+slippage 0.74. By exit, P1: 46% stopped, 24% bailed out, 11% break-even after a half;
+second pullbacks worse than first (-0.50R vs -0.23R).
+
+**Verdict: none passed** -- and not for costs (negative at zero slippage) or parameters (a
+flat, negative neighbourhood). With §2b, §2c and S1, every bar-level reading of a small-cap
+momentum setup on this store loses at the minute the bar confirms it. What the taught
+versions add that bars cannot express: the entry is timed on the tape (the ask thinning at
+the level, green prints, no resting seller) and taken a cent or two early; the exit is
+discretionary and early, on the first sign of weakness; and the universe is "the most
+obvious stock in the market right now", 07:00-10:00, mostly before the bell since 2020 --
+our universe is fixed at 09:30 and our trades come after it. The operator's material says
+the same thing from the other side: its author's own filtered scans back-tested at ~90%
+and ran forward at 51-55%.
+
+### Decision (2026-09-22, night): master the first pullback -- by hand, and with the bot's eyes
+
+- **By hand, on Paper, as the operator's material prescribes** (the private catalogue §1b):
+  a leading gainer meeting the Five Pillars, $3-10, float under 10M, 07:00-10:00 ET, one
+  trade a day, fixed size, 20-cent target, 20-cent hard max loss, exit on the first tape
+  indicator; ten days, judged on profitability, accuracy and P/L ratio; then again with
+  real money at the same size. Nova's Paper venue and `/api/practice/history` are the
+  journal.
+- **S6 -- the bot's eyes on the same setup, with tape gates (the next Nova build).** The
+  P1 detector runs on the live universe (gappers / HOD Momo rosters, Five Pillars, top-3
+  gainers) and proposes an entry only when the live Level 2 / time & sales pass the taught
+  gates -- the ask at the level thinning, net green prints over the last N seconds, no
+  resting seller above a threshold at the level. It never places on its own (Eyes level).
+  Every signal, gated or not, is journaled with the fill the operator got and the fill the
+  bot would have got. Ten days of that journal answer what no backtest can: whether the
+  tape gate turns a -0.3R bar shape into a positive trade. Gate 2 stays what it was (100
+  trades, expectancy, measured slippage).
+- **S5 -- the rolling universe, offline (pre-registered).** "Top-3 % gainer with at least 5x
+  relative volume at the minute of the trade", built from the flat files, so 07:00-09:30
+  pullbacks can be tested without the 09:30 selection's hindsight; P1 re-run there, with the
+  micro pullback on one-second bars once the trades are known. If P1 is negative there too,
+  the bar shape is dead everywhere and only the tape hypothesis remains.
+- Halts stay last; shorts stay behind the parked Phase K; `auto_live` NO-GO.
+
 ## 3. Reference numbers (from the 2026-09-22 research pass)
 
 - Good backtest: > 300 trades, profit factor 1.3-2.0 after costs, expectancy > 0.2R, max DD
@@ -396,4 +473,6 @@ blog.traderspost.io paper-to-live guide.
 | 2026-09-22 | **Gate 1 verdict for A4: not passed** (PF 1.02, 2024 carries it, dies at 2x costs). A4b mega-cap cell recorded as the first cost-robust cell (PF 1.19, survives 2x costs) but in-sample -- not promoted. **Next: A5 SPY swing rules through the kill tests, then a daily-bar bot pack for paper** (§2e). | Claude Fable 5.1 for the operator |
 | 2026-09-22 | **Operator direction: small caps only** ("I want to focus on small cap stocks for my bots"). A5 parked unrun. Next is the small-cap track of §2e: S1 ORB on one-second bars, S2 the ORB bot pack on Paper to measure real slippage (the go/no-go is the measured cost), S3 halt-resume and VWAP-reclaim rules pre-registered on the same store. | Operator |
 | 2026-09-22 | **S1 verdict: not passed.** The ORB on one-second bars: PF 0.97 at 1c, 0.83 at 2c, 82% of trades stopped on a one-second low and half of those inside 60 s -- the published 10%-ATR stop is 0.4% of a $35 median entry, and §2b's minute-bar result was the entry-bar rule hiding intrabar stop-outs. **S2 dropped** (nothing alive to carry to Paper). | Claude Fable 5.1 for the operator |
+| 2026-09-22 | **P1 / P2 / P3 verdicts: not passed** (§2f). The first pullback, the flat-top breakout and red-to-green, read as minute-bar rules on the Five Pillars universe after 09:30, are negative in every ladder cell and at zero cost. The bar shape is not the edge. | Claude Fable 5.1 for the operator |
+| 2026-09-22 | **Decision: master the first pullback -- by hand on Paper as the operator's material prescribes, and with the bot in Eyes mode gated by the live tape (S6); S5 rolling-universe test offline in parallel.** Halts last. | Operator + Claude Fable 5.1 |
 | 2026-09-22 | **Operator: halts last; learn every setup in the private material first, then choose one to master together.** S3 halt-resume shelved to last. **S4** -- the catalogue (rule sheets with citations, mechanical-or-not, a ranked shortlist) is written off-repo on F:; the operator picks the first strategy to master. The vault's older summaries are not trusted. **Operator instruction, same night: the source material and the catalogue stay private on F:, off the public repo; the chosen strategy itself may be recorded here.** | Operator |

@@ -1,0 +1,92 @@
+{
+  "params": {
+    "universe": "gng_selection_nofloat",
+    "bars_table": "minutes_pillars",
+    "session_start": "09:30",
+    "entry_cutoff": "11:30",
+    "flat_by": "15:55",
+    "leg_pct": 0.05,
+    "leg_window": 10,
+    "leg_lookback": 30,
+    "require_hod": true,
+    "min_pullback_bars": 1,
+    "max_pullback_bars": 3,
+    "max_retrace": 0.5,
+    "ema_period": 9,
+    "ema_tol": 0.0,
+    "macd_positive": true,
+    "stop_cap": 0.2,
+    "min_stop": 0.03,
+    "target_r": 2.0,
+    "bailout_bars": 5,
+    "max_trades_per_symbol_day": 2,
+    "gap_rank_max": null,
+    "risk_pct": 0.01,
+    "max_position_pct": 0.25,
+    "min_notional": 500.0,
+    "slippage": 0.01,
+    "commission_per_share": 0.005,
+    "commission_min": 1.0,
+    "commission_max_pct": 0.01,
+    "start_equity": 25000.0,
+    "top": 20,
+    "stop_atr": 0.0,
+    "date_from": null,
+    "date_to": null,
+    "tag": "fp_base"
+  },
+  "days": 1009,
+  "trades": 589,
+  "end_equity": 7089.79,
+  "total_return_pct": -71.64,
+  "cagr_pct": -22.56,
+  "max_drawdown_pct": -72.57,
+  "sharpe": -2.51,
+  "win_rate_pct": 27.5,
+  "avg_win": 131.8,
+  "avg_loss": -91.95,
+  "profit_factor": 0.54,
+  "expectancy_usd": -30.41,
+  "expectancy_r": -0.296,
+  "fees_total": 4589.43,
+  "stopped_pct": 46.2,
+  "trades_per_day": 0.58,
+  "by_year": {
+    "2021": {
+      "trades": 28,
+      "pnl": -2312.05,
+      "win_rate_pct": 25.0,
+      "expectancy_r": -0.451
+    },
+    "2022": {
+      "trades": 169,
+      "pnl": -6564.35,
+      "win_rate_pct": 24.3,
+      "expectancy_r": -0.266
+    },
+    "2023": {
+      "trades": 185,
+      "pnl": -5182.54,
+      "win_rate_pct": 29.7,
+      "expectancy_r": -0.233
+    },
+    "2024": {
+      "trades": 105,
+      "pnl": -2834.57,
+      "win_rate_pct": 22.9,
+      "expectancy_r": -0.517
+    },
+    "2025": {
+      "trades": 72,
+      "pnl": -913.15,
+      "win_rate_pct": 31.9,
+      "expectancy_r": -0.236
+    },
+    "2026": {
+      "trades": 30,
+      "pnl": -103.61,
+      "win_rate_pct": 40.0,
+      "expectancy_r": -0.086
+    }
+  }
+}
