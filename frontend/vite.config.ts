@@ -112,7 +112,8 @@ export default defineConfig(({ command, mode }) => {
   // Playwright lives under e2e/; keep Vitest from loading those specs.
   test: {
     exclude: ['**/node_modules/**', '**/dist/**', '**/e2e/**'],
-    setupFiles: ['./src/testSetup/reactActEnvironment.ts'],
+    // noLiveBackend: tests never reach the operator's :8000 backend (2026-09-22).
+    setupFiles: ['./src/testSetup/reactActEnvironment.ts', './src/testSetup/noLiveBackend.ts'],
     // Pinned test env (#293). Belt to shouldInjectDevNovaApiKey's braces: a
     // key exported in the operator's shell would otherwise still reach
     // import.meta.env and beat localStorage in resolveNovaApiKey. Tests that
