@@ -147,9 +147,19 @@ export function ManualOrderTicket({
     spendLocked,
     needsPinUnlock,
     shortBlockReason,
+    qtyCap: ibkrStatus.qty_cap ?? null,
     onNeedsPin: () => setPinDialogOpen(true),
     onOrderPlaced,
   });
+  // MASTER TEST QTY GATE (#444): say the sent size whenever the typed size is
+  // above the door's cap, so the ticket never shows a size it will not send.
+  const qtyCap = ibkrStatus.qty_cap ?? null;
+  const typedShares =
+    displayQuantityMode === 'shares' ? Number(displayQuantityValue) : NaN;
+  const qtyCapNote =
+    qtyCap != null && Number.isFinite(typedShares) && typedShares > qtyCap
+      ? `Test cap: this order sends ${qtyCap} of ${typedShares} shares.`
+      : null;
 
   useEffect(() => {
     const next = applyTicketDefaults(symbol, referencePrice, topOfBook);
@@ -303,6 +313,7 @@ export function ManualOrderTicket({
         spendDisarmed={spendStatus === 'locked_disarmed'}
         quantityLocked={QTY_LOCKED}
         forcedQty={FORCED_QTY}
+        qtyCapNote={qtyCapNote}
         sessionUnlocked={sessionUnlocked}
         result={result}
         confirmSummary={confirmSummary}

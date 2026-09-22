@@ -72,6 +72,12 @@ export interface IbkrStatus {
   spend_permitted_reason?: string | null;
   /** Backend-authored reason for the spend lock (safety.py). */
   spend_locked_reason?: string | null;
+  /**
+   * MASTER TEST QTY GATE (#444): the most shares one place / bracket may send,
+   * on every venue; null or absent when the gate is off. The ticket states it
+   * so no surface shows a size the execution door will not send.
+   */
+  qty_cap?: number | null;
   /** Spend + Gateway -- same gate as place_order. PIN is AND-ed in the UI. */
   trading_allowed?: boolean;
   trading_allowed_reason?: string | null;

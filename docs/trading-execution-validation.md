@@ -33,7 +33,7 @@
 
 ## MASTER TEST QTY GATE (`IBKR_FORCE_ONE_SHARE`)
 
-**Intentional.** While `IBKR_FORCE_ONE_SHARE = True` in `backend/constants_ibkr.py`, every `place` / `bracket` through `execution.service.execute` is forced to **1 share** before validate/send. TRADE UI quantity presets can stay at 100/500/1000; the broker only receives 1. Protective sources (`flatten`, `kill`, `cancel_working`) are exempt: they size themselves from the held position so a desk can always get flat (QA R6, 2026-09-22).
+**Intentional.** While `IBKR_FORCE_ONE_SHARE = True` in `backend/constants_ibkr.py`, every `place` / `bracket` through `execution.service.execute` is **capped at `IBKR_QTY_CAP` shares** from the desk `.env` (default `IBKR_FORCE_ONE_SHARE_QTY` = 10 since 2026-09-22, #444; the gate forced exactly 1 share before that) before validate/send, on every venue. That `.env` line is the only place the number lives. A size at or under the cap goes as asked; a larger one is cut to the cap, the execution record stamps `forced_one_share`, and the ticket's confirm names the sent size. Protective sources (`flatten`, `kill`, `cancel_working`) are exempt: they size themselves from the held position so a desk can always get flat (QA R6, 2026-09-22).
 
 - **Not a bug** if fills are always 1 share while the form shows a larger qty.
 - **Disable (one line):** set `IBKR_FORCE_ONE_SHARE = False`.
