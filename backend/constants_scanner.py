@@ -383,3 +383,11 @@ IBKR_BARS_CACHE_MAX_KEYS = 256
 IBKR_BARS_WARM_TIMEFRAMES: tuple[str, ...] = ("1Min", "5Min", "1Day")
 
 
+# ── QA batch: Scanner / HOD / desk honesty (2026-09-22) ───────────────────────
+# Which average daily volume a row's ``rel_volume`` divides by (QA C39). The
+# row carries it as ``rvol_source`` so the desk names the real source instead
+# of printing "yf" on an Alpaca IEX average.
+SCANNER_RVOL_SOURCE_YFINANCE = "yfinance"
+SCANNER_RVOL_SOURCE_ALPACA = "alpaca"
+# HOD snapshot label for pace RVOL over an Alpaca daily-bar average.
+SCANNER_HOD_RVOL_SOURCE_ALPACA_PACE = "alpaca_pace"

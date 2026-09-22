@@ -103,3 +103,55 @@ export const SCANNER_ACTION_PIN_TITLE = 'Pin this row to the top of the list for
 export const SCANNER_ACTION_UNPIN_TITLE = 'Unpin this row';
 /** Gap bar width in px at the top row's gap. */
 export const SCANNER_GAP_BAR_MAX_PX = 60;
+
+// ── QA batch: Scanner / HOD / desk honesty (2026-09-22) ────────────────────
+/** Persistent-authoritative desks re-read the scanner envelope this often (QA C48). */
+export const SCANNER_ENVELOPE_POLL_MS = 15_000;
+/** A failed scanner REST fetch retries from this delay, doubling up to the max (QA C31). */
+export const SCANNER_REST_RETRY_BASE_MS = 2_000;
+export const SCANNER_REST_RETRY_MAX_MS = 30_000;
+export const SCANNER_EMPTY_FEED_FAILED_HINT =
+  'This is a load failure, not an empty market. Nova retries on its own; the rows appear when the route answers.';
+/** Closed-session empty copy: the list is empty, so nothing is being "shown" (QA V25). */
+export function scannerEmptyClosedCopy(label: string): string {
+  return `Market is closed — no ${label} on this list. Scanning resumes with the next session.`;
+}
+export const SCANNER_SESSION_FEED_FAILED_TITLE = 'A scanner route failed -- Nova is retrying';
+/** "Scanned 45s / 12m / 1h 05m ago": seconds only while under this many (QA V27 / C67). */
+export const SCANNER_SCANNED_SECONDS_MAX = 90;
+/** Minutes up to this many, then hours + minutes. */
+export const SCANNER_SCANNED_MINUTES_MAX = 90;
+
+/** Each row's RVOL mark names the average-volume source it divides by (QA C39). */
+export type ScannerRvolSourceMark = { badge: string; title: string };
+export const SCANNER_RVOL_SOURCE_MARKS: Record<string, ScannerRvolSourceMark> = {
+  yfinance: {
+    badge: 'yf',
+    title: 'Live volume is IBKR L1; relative volume divides it by the yfinance average daily volume (aux).',
+  },
+  alpaca: {
+    badge: 'IEX',
+    title:
+      'Live volume is IBKR L1; relative volume divides it by an Alpaca IEX daily-bar average (aux). '
+      + 'IEX sees only a sliver of consolidated volume, so thin names read high.',
+  },
+};
+export const SCANNER_RVOL_SOURCE_UNREPORTED: ScannerRvolSourceMark = {
+  badge: 'avg?',
+  title: 'Live volume is IBKR L1; the backend did not report which average volume this relative volume divides by.',
+};
+export const SCANNER_VOLUME_HEADER_TITLE =
+  'Volume · RVOL: live volume is IBKR L1; relative volume divides it by an average daily volume, and each '
+  + "row's mark names the source (yf = yfinance, IEX = Alpaca IEX daily bars). Study vs tape before trusting.";
+/** A narrow icon column keeps a short header; the th title carries the full name. */
+export const SCANNER_HEADER_SHORT_LABEL: Record<string, string> = {
+  earnings_day_offset: 'Earn',
+  volume: 'Vol·RVOL',
+  short_interest: 'Short',
+};
+/** A missing figure is a muted dash, never a red "N/A" (QA V21 / C67). */
+export const SCANNER_CELL_ABSENT = '—';
+export const SCANNER_PRICE_CLOSE_TAG = 'close';
+export const SCANNER_PRICE_CLOSE_TITLE =
+  "IBKR's prior close -- no trade has printed yet, so this is not a live price";
+export const SCANNER_CHANGE_CLOSE_TITLE = 'No trade yet -- a change against the prior close would be invented';

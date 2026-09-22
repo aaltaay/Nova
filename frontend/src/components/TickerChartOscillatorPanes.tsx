@@ -7,6 +7,7 @@ import {
   type ISeriesApi,
   type LogicalRange,
 } from 'lightweight-charts';
+import { removeChartAfterCleanups } from '../chart/chartDispose';
 import {
   CHART_INDICATOR_PANE_HEIGHT,
   CHART_OSCILLATOR_CLOSE_TITLE,
@@ -156,16 +157,19 @@ function OscillatorPane({
     lastPaintKeyRef.current = '';
     setSeriesGen(g => g + 1);
 
+    // Never resize a removed pane: toggling RSI / MACD rebuilt the chart while
+    // the old one's first-frame resize was still queued (QA V19).
+    let disposed = false;
     const ro = new ResizeObserver(() => {
-      if (!containerRef.current) return;
+      if (disposed || !containerRef.current) return;
       const el = containerRef.current;
       const h = el.clientHeight || CHART_INDICATOR_PANE_HEIGHT;
       chart.applyOptions({ width: el.clientWidth, height: h });
     });
     ro.observe(container);
     // Apply once after layout so grid CSS height (not createChart default) wins.
-    requestAnimationFrame(() => {
-      if (!containerRef.current || !chartRef.current) return;
+    const firstFrame = requestAnimationFrame(() => {
+      if (disposed || !containerRef.current || chartRef.current !== chart) return;
       const el = containerRef.current;
       chart.applyOptions({
         width: el.clientWidth,
@@ -174,8 +178,10 @@ function OscillatorPane({
     });
 
     return () => {
+      disposed = true;
+      cancelAnimationFrame(firstFrame);
       ro.disconnect();
-      chart.remove();
+      removeChartAfterCleanups(chart);
       chartRef.current = null;
       lineARef.current = null;
       lineBRef.current = null;

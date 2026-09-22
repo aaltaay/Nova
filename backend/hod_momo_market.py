@@ -193,7 +193,7 @@ def update_ticker_snapshot(
             symbol,
             snap.avg_volume,
         )
-    snap.last_enriched = time.monotonic()
+    snap.last_enriched = time.time()  # epoch seconds: served + aged by the desk (QA C34)
     enrichment_changed = (
         snap.avg_volume != prev_avg
         or snap.float_shares != prev_float

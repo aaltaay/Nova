@@ -102,8 +102,9 @@ def test_commit_table_persists_authoritative_roster(tmp_path, monkeypatch):
     async def fake_broadcast(*_a, **_k):
         return None
 
-    sys.modules.setdefault("scanner_push", MagicMock())
-    sys.modules["scanner_push"].broadcast_roster_replace = fake_broadcast
+    # monkeypatch, not a bare attribute write: the old write outlived the test
+    # and replaced the real broadcast for every test after it.
+    monkeypatch.setattr("scanner_push.broadcast_roster_replace", fake_broadcast)
     monkeypatch.setattr(hod_roster_hooks, "on_hod_roster_commit", lambda table: None)
     monkeypatch.setattr("hod_roster_hooks.on_hod_roster_commit", lambda table: None)
 

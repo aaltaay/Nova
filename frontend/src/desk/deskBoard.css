@@ -230,6 +230,7 @@
 }
 
 .desk-board__gap-num {
+  flex: none;
   font-weight: 600;
 }
 
@@ -250,8 +251,11 @@
   --desk-bar: var(--text-secondary, #9ca3af);
 }
 
+/* The bar gives way before the figure: a narrow cell shrinks the bar, never
+   clips the gap from the left. */
 .desk-board__bar {
-  flex: none;
+  flex: 0 1 30px;
+  min-width: 0;
   width: 30px;
   height: 4px;
   border-radius: 2px;
@@ -310,10 +314,21 @@
   transition: opacity 0.12s ease;
 }
 
+/* Under the pointer or with keyboard focus -- never left up by a mouse click
+   on the row or a button, where they covered the open row's Catalyst (QA V37). */
 .desk-board__row:hover .desk-board__acts,
-.desk-board__row:focus-within .desk-board__acts {
+.desk-board__row:focus-visible .desk-board__acts,
+.desk-board__acts:has(:focus-visible) {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* While they show, the actions stand in for the Catalyst cell: the text they
+   cover would otherwise peek out as a sliver beside the buttons. */
+.desk-board__row:hover .scanner-col--catalyst > *,
+.desk-board__row:focus-visible .scanner-col--catalyst > *,
+.desk-board__row:has(.desk-board__acts :focus-visible) .scanner-col--catalyst > * {
+  visibility: hidden;
 }
 
 .desk-board__act {
@@ -339,6 +354,11 @@
 .desk-board__act .desk-board__dot {
   width: 6px;
   height: 6px;
+}
+
+/* The narrow board swaps in the short labels (QA block below). */
+.desk-board__act-text--short {
+  display: none;
 }
 
 .desk-board__foot {
@@ -373,4 +393,87 @@
 
 .desk-board__legend .desk-board__dot {
   margin-right: 4px;
+}
+
+/* ── QA batch 2026-09-22 ────────────────────────────────────────────────── */
+/* Header labels ellipsize inside their pinned widths; the th title names them. */
+.desk-board .table-wrapper--scanner th {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* At or below 1600 px the board column is 480 px -- 464 px inside its
+   padding. The compact pinned widths add up to 27rem (432 px), which leaves the
+   state column room beside a classic scrollbar, and Float leaves the board for
+   the quote card beside it. The columns used to add up to more than the board,
+   so the row actions and the last cells were cut at its edge (QA V18, V37).
+   desk/deskLayout.test.ts holds this budget. */
+@media (max-width: 1600px) {
+  .desk-board .table-wrapper--scanner .scanner-col--rownum,
+  .desk-board .table-wrapper--scanner .scanner-row-num-th,
+  .desk-board .table-wrapper--scanner .scanner-row-num {
+    width: 1.7rem;
+  }
+
+  .desk-board .table-wrapper--scanner .scanner-col--symbol {
+    width: 5rem;
+  }
+
+  .desk-board .table-wrapper--scanner .scanner-col--price {
+    width: 3.7rem;
+  }
+
+  .desk-board .table-wrapper--scanner .scanner-col--gap_percent {
+    width: 4.7rem;
+  }
+
+  .desk-board .table-wrapper--scanner .scanner-col--volume {
+    width: 3.6rem;
+  }
+
+  .desk-board .table-wrapper--scanner .scanner-col--rel_volume {
+    width: 3.1rem;
+  }
+
+  .desk-board .table-wrapper--scanner .scanner-col--catalyst {
+    width: 5.2rem;
+  }
+
+  .desk-board .table-wrapper--scanner col.scanner-col--float {
+    width: 0;
+  }
+
+  /* The state column keeps room for its dash, not for the "State" label: the
+     header keeps its title and drops the clipped text (it read "ST"). */
+  .desk-board .table-wrapper--scanner th.scanner-col--state {
+    color: transparent;
+    text-overflow: clip;
+  }
+
+  /* Short action labels keep the hover actions inside Catalyst + State:
+     the full ones reached into RVOL and left its figure half covered. */
+  .desk-board__act {
+    padding: 0 5px;
+  }
+
+  .desk-board__act-text {
+    display: none;
+  }
+
+  .desk-board__act-text--short {
+    display: inline;
+  }
+
+  /* The Float cells stay in the row, zero-width and invisible, so every later
+     cell keeps its own column. Hiding them with display took them out of the
+     table grid and slid Catalyst into Float's 0 px column. */
+  .desk-board .table-wrapper--scanner th.scanner-col--float,
+  .desk-board .table-wrapper--scanner td.scanner-col--float {
+    width: 0;
+    max-width: 0;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    visibility: hidden;
+  }
 }

@@ -93,3 +93,7 @@ export function hodMomoStripSinceLabel(count: number, since: string | null): str
 export function hodMomoStripStrategyChip(strategyId: number): string {
   return `S${strategyId}`;
 }
+
+// ── QA batch: Scanner / HOD / desk honesty (2026-09-22) ────────────────────
+/** A trigger print this much older than its alert is named in the row title (QA V16). */
+export const HOD_MOMO_STRIP_PRINT_LAG_NOTE_SEC = 60;

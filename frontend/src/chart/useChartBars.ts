@@ -26,7 +26,8 @@ import {
   type RawBar,
 } from '../tickerChartData';
 import { useWorkspace } from '../workspace';
-import { allowMockBarsFallback, emptyBarsMessage } from './chartBarsPolicy';
+import { allowMockBarsFallback, chartEmptyText } from './chartBarsPolicy';
+import { useSimReplayTarget } from '../sim/useSimReplayTarget';
 import { paintBars } from './chartBarsPaint';
 import {
   snapshotChartViewport,
@@ -80,8 +81,11 @@ export function useChartBars({
 }: UseChartBarsOptions) {
   const { discoveryProvider } = useWorkspace();
   const sim = useIbkrStatus().mode === 'sim';
+  const replay = useSimReplayTarget(symbol);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** The pane answered with no bars -- a stated absence, not an error (QA V9). */
+  const [empty, setEmpty] = useState(false);
   const [usingMock, setUsingMock] = useState(false);
   const [filling, setFilling] = useState(false);
   const [coverageAsOf, setCoverageAsOf] = useState<string | null>(null);
@@ -123,6 +127,7 @@ export function useChartBars({
       if (opts.filling && !sim) {
         setUsingMock(false);
         setError(null);
+        setEmpty(false);
         return;
       }
       if (sim || !allowMockBarsFallback(discoveryProvider)) {
@@ -138,7 +143,8 @@ export function useChartBars({
         volSeriesRef.current?.setData([]);
         lastCandleRef.current = null;
         paintedBarsRef.current = [];
-        setError(sim ? 'No bars available at this replay time' : emptyBarsMessage(discoveryProvider));
+        setError(null);
+        setEmpty(true);
         return;
       }
       next = buildMockBars(CHART_MOCK_BAR_COUNT, CHART_MOCK_BASE_PRICE);
@@ -158,6 +164,7 @@ export function useChartBars({
     );
     pendingViewportRef.current = null;
     paintedBarsRef.current = next;
+    setEmpty(false);
     if (sim) {
       setIndicatorBars(rawBarsToIndicatorBars(next, timeframe));
     } else if (!painted.skipIndicatorCommit) {
@@ -216,6 +223,7 @@ export function useChartBars({
     paintedBarsRef.current = null;
     pendingViewportRef.current = null;
     setIndicatorBars([]);
+    setEmpty(false);
     setFilling(false);
     setCoverageAsOf(null);
     const existing = getBarsEntry(symbol, timeframe);
@@ -337,5 +345,6 @@ useEffect(() => {
     };
   }, [symbol, timeframe, chartActive, filling, indicatorBars.length, fetchBars]);
 
-  return { loading, error, usingMock, indicatorBars, filling, coverageAsOf };
+  const emptyText = empty ? chartEmptyText(sim, replay.target, discoveryProvider) : null;
+  return { loading, error, emptyText, usingMock, indicatorBars, filling, coverageAsOf };
 }

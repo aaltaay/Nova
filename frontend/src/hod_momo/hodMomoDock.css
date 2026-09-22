@@ -279,6 +279,11 @@
   color: var(--text-muted, #9aa3b2);
 }
 
+/* An unreadable feed frame is stated, not shown as "No alerts yet" (QA C32). */
+.hod-strip__empty--error {
+  color: #fbbf24;
+}
+
 .hod-strip__row {
   display: flex;
   align-items: center;
@@ -428,12 +433,15 @@
   padding: 0.35rem 0.5rem;
 }
 
-/* Trader: Stock View fills the main column (the strip stays on Scanner). */
+/* Trader: Stock View fills the main column (the strip stays on Scanner).
+   border-box: the column is width 100% plus padding, which ran the Trader
+   rail 5-12 px past the viewport and clipped its right edge (QA V17). */
 .main-col--trader-stack {
   display: flex;
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .main-col--trader-stack > .ticker-detail-main {

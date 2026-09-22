@@ -14,6 +14,10 @@ export interface NavRailItemProps {
   className?: string;
   /** Right-aligned count text; omitted when empty. */
   count?: string;
+  /** What the count counts (e.g. symbols, not alerts) -- QA V31. */
+  countTitle?: string;
+  /** Toggle-style item (strip focus) -- aria-pressed instead of aria-current. */
+  pressed?: boolean;
   /** Trailing node (recording badge dot). */
   trailing?: ReactNode;
   /** Rail-child ids for the module-registry e2e (`[data-tab=...]`). */
@@ -31,6 +35,8 @@ export function NavRailItem({
   onClick,
   className,
   count,
+  countTitle,
+  pressed,
   trailing,
   dataTab,
   ariaExpanded,
@@ -44,13 +50,14 @@ export function NavRailItem({
       data-tab={dataTab}
       title={title}
       aria-current={active ? 'page' : undefined}
+      aria-pressed={pressed}
       aria-expanded={ariaExpanded}
       aria-controls={ariaControls}
       onClick={onClick}
     >
       {icon}
       <span className="nav-rail__txt">{label}</span>
-      {count ? <em className="nav-rail__count">{count}</em> : null}
+      {count ? <em className="nav-rail__count" title={countTitle}>{count}</em> : null}
       {trailing}
     </button>
   );

@@ -83,3 +83,11 @@ export const RECORDS_PAGE_REPLAY_TITLE = 'Load this Session Record into the Sim 
 export const RECORDS_PAGE_REPLAY_FAILED = 'Replay did not load:';
 export const RECORDS_PAGE_MISSING_TITLE =
   'Seconds between the first and last segment that no segment covers -- restarts and failures; deliberate stops are not counted.';
+
+// ── QA batch: Scanner / HOD / desk honesty (2026-09-22) ────────────────────
+/** HOD Momo / Running Up focus the alert strip; the board keeps its list (QA V6). */
+export const NAV_RAIL_STRIP_FOCUS_TITLE = 'shows in the alert strip above the board';
+/** The HOD / Running Up counts are symbols, beside a strip that counts alerts (QA V31). */
+export function navRailAlertSymbolsTitle(count: number): string {
+  return `${count} symbol${count === 1 ? '' : 's'} alerted today`;
+}

@@ -13,6 +13,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 
+from scanner_wire import wire_safe
+
 from constants import (
     HOD_MOMO_MASTER_AFTERHOURS_MIN_RVOL,
     HOD_MOMO_MASTER_HOD_REQUIRED,
@@ -88,7 +90,7 @@ class AlertObject:
     strategy_id: int
     strategy_name: str
     price: float
-    change_pct: float
+    change_pct: float | None     # None when the snapshot had none -- never an invented 0.0
     rvol: float | None
     float_shares: float | None
     gap_pct: float | None
@@ -128,7 +130,10 @@ class TickerSnap:
     change_pct: float | None = None
     fifty_two_week_high: float | None = None
     rvol_source: str | None = None   # "alpaca" | "yfinance" | "yfinance_pace" | ...
-    last_enriched: float = 0.0   # monotonic timestamp of last enrichment update
+    # Epoch seconds (time.time()) of the last enrichment update. It is served
+    # by the debug endpoints and aged by the browser; a monotonic clock read
+    # "1790012783s ago" there (QA C34).
+    last_enriched: float = 0.0
 
 
 # ── Default config builder ─────────────────────────────────────────────────────
@@ -193,12 +198,52 @@ def _timestamp_or_from_created(timestamp: str | None, created_ts: float) -> str:
 
 
 def alert_to_dict(a: AlertObject) -> dict:
+    """Wire/persist shape of an alert; a non-finite float is None (QA C32)."""
     payload = asdict(a)
     payload["timestamp"] = _timestamp_or_from_created(
         payload.get("timestamp"),
         float(payload.get("created_ts") or 0.0),
     )
-    return payload
+    return wire_safe(payload)
+
+
+def new_alert(
+    *,
+    symbol: str,
+    strategy_id: int,
+    strategy_name: str,
+    price: float,
+    snap: TickerSnap,
+    momentum_pct: float | None,
+    trade_ts: float,
+    created_ts: float,
+) -> AlertObject:
+    """One freshly raised alert.
+
+    ``id`` comes from ``created_ts`` -- when Nova raised the alert -- not the
+    trade timestamp: a stale print re-evaluated minutes later reused the same
+    trade time, so distinct alerts shared an id (41 React duplicate-key errors
+    per strip walk, QA V16) and the dated archive, which merges by id, kept
+    only one of them. ``timestamp`` stays the trigger print's time.
+    ``change_pct`` is the snapshot's own value: None stays None (QA C33).
+    """
+    return AlertObject(
+        id=f"{int(created_ts * 1000)}-{symbol}-{strategy_id}",
+        timestamp=format_alert_timestamp(trade_ts),
+        ticker=symbol,
+        strategy_id=strategy_id,
+        strategy_name=strategy_name,
+        price=price,
+        change_pct=snap.change_pct,
+        rvol=snap.rvol,
+        float_shares=snap.float_shares,
+        gap_pct=snap.gap_pct,
+        volume=snap.volume,
+        momentum_pct=momentum_pct,
+        rvol_source=snap.rvol_source,
+        rvol_5min=snap.rvol_5min,
+        created_ts=created_ts,
+    )
 
 
 def alert_from_dict(d: dict) -> AlertObject:
@@ -210,7 +255,7 @@ def alert_from_dict(d: dict) -> AlertObject:
         strategy_id=d.get("strategy_id", 0),
         strategy_name=d.get("strategy_name", ""),
         price=d.get("price", 0.0),
-        change_pct=d.get("change_pct", 0.0),
+        change_pct=d.get("change_pct"),
         rvol=d.get("rvol"),
         float_shares=d.get("float_shares"),
         gap_pct=d.get("gap_pct"),

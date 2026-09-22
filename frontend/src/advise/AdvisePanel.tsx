@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { ADVISE_TITLE } from './constants';
 import { useAdvise } from './AdviseContext';
 import { AdviseControls } from './AdviseControls';
@@ -12,6 +13,17 @@ export function AdviseHost() {
 
 export function AdvisePanel() {
   const { closeAdvise, error } = useAdvise();
+  // Escape closes Advise like Settings (QA V29): capture phase, so it is the
+  // dialog that answers, not a desk hotkey underneath it.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      closeAdvise();
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [closeAdvise]);
   return (
     <div
       className="advise-overlay"

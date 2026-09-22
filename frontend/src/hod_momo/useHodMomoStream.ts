@@ -5,6 +5,7 @@ import {
   rememberHodMomoAlertSnapshot,
 } from './hodMomoAlertSound';
 import type { AlertObject } from './types';
+import { alertIdentity, HOD_FEED_UNREADABLE, parseHodFrame, uniqueAlerts } from './hodMomoWire';
 
 interface HodMomoStreamState {
   /** Newest-first full day list — table virtualizes; nothing is discarded. */
@@ -12,6 +13,8 @@ interface HodMomoStreamState {
   /** Same as alerts.length (kept for badge / header). */
   totalToday: number;
   connected: boolean;
+  /** A frame that could not be read -- stated, never an empty "No alerts yet" (QA C32). */
+  feedError?: string | null;
 }
 
 /**
@@ -23,6 +26,7 @@ export function useHodMomoStream(): HodMomoStreamState {
   const [alerts, setAlerts] = useState<AlertObject[]>([]);
   const [totalToday, setTotalToday] = useState(0);
   const [connected, setConnected] = useState(false);
+  const [feedError, setFeedError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const backoffRef = useRef(1000);
   const mountedRef = useRef(true);
@@ -75,31 +79,39 @@ export function useHodMomoStream(): HodMomoStreamState {
 
       ws.onmessage = (e) => {
         if (!mountedRef.current || wsRef.current !== ws) return;
+        // A bare NaN from an older backend must not drop the day (QA C32).
+        const msg = parseHodFrame(String(e.data)) as { type?: unknown; alerts?: unknown; alert?: unknown; total?: unknown } | undefined;
+        if (!msg || typeof msg !== 'object') {
+          console.warn(`[Nova] ${HOD_FEED_UNREADABLE}`);
+          setFeedError(HOD_FEED_UNREADABLE);
+          return;
+        }
         try {
-          const msg = JSON.parse(e.data as string);
           if (msg.type === 'initial') {
             pendingRef.current = [];
             if (flushTimerRef.current != null) {
               clearTimeout(flushTimerRef.current);
               flushTimerRef.current = null;
             }
-            const list = Array.isArray(msg.alerts) ? (msg.alerts as AlertObject[]) : [];
-            seenIdsRef.current = new Set(list.map(a => a.id));
+            const list = uniqueAlerts(Array.isArray(msg.alerts) ? (msg.alerts as AlertObject[]) : []);
+            seenIdsRef.current = new Set(list.map(alertIdentity));
             rememberHodMomoAlertSnapshot(list);
             setAlerts(list);
+            setFeedError(null);
             setTotalToday(
               typeof msg.total === 'number' && msg.total >= 0 ? msg.total : list.length,
             );
-          } else if (msg.type === 'alert' && msg.alert) {
+          } else if (msg.type === 'alert' && msg.alert && typeof msg.alert === 'object') {
             const alert = msg.alert as AlertObject;
-            if (seenIdsRef.current.has(alert.id)) return;
-            seenIdsRef.current.add(alert.id);
+            const key = alertIdentity(alert);
+            if (seenIdsRef.current.has(key)) return;
+            seenIdsRef.current.add(key);
             noteHodMomoLiveAlert(alert);
             pendingRef.current.push(alert);
             scheduleFlush();
           }
-        } catch {
-          // ignore parse errors
+        } catch (err) {
+          console.warn('[Nova] HOD Momo frame could not be applied', err);
         }
       };
 
@@ -138,5 +150,5 @@ export function useHodMomoStream(): HodMomoStreamState {
     };
   }, []);
 
-  return { alerts, totalToday, connected };
+  return { alerts, totalToday, connected, feedError };
 }

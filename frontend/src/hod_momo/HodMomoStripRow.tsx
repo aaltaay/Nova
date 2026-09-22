@@ -16,6 +16,7 @@ import {
   fmtStripPrice,
   gateValuesAllAbsent,
   HOD_MOMO_STRIP_GATE_ABSENT_TEXT,
+  stripPrintNote,
 } from './hodMomoStripRows';
 import { visibleStrategyTags } from './hodMomoRowLayout';
 import type { AlertObject } from './types';
@@ -39,6 +40,7 @@ export const HodMomoStripRow = memo(function HodMomoStripRow({
   const primary = tags[0] ?? { id: alert.strategy_id, name: alert.strategy_name };
   const extra = tags.length > 1 ? tags.length - 1 : 0;
   const gates = alertGateValues(alert);
+  const printNote = stripPrintNote(alert);
   const burst = alert.consolidation_count > 1
     ? `${alert.consolidation_count} in ${Math.max(1, alert.consolidation_span_sec ?? 1)}s`
     : null;
@@ -52,7 +54,7 @@ export const HodMomoStripRow = memo(function HodMomoStripRow({
       data-testid="hod-momo-strip-row"
       data-symbol={alert.ticker}
       data-new={isNew ? '1' : undefined}
-      title={HOD_MOMO_STRIP_ROW_TITLE}
+      title={printNote ? `${HOD_MOMO_STRIP_ROW_TITLE} · ${printNote}` : HOD_MOMO_STRIP_ROW_TITLE}
       onClick={() => onSelect(alert.ticker)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {

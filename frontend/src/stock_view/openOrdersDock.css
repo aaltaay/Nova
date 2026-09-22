@@ -105,7 +105,9 @@
   color: var(--sv-primary);
 }
 
-/* Status chips ride on the same row while Orders is showing. */
+/* Status chips ride on the same row while Orders is showing. They scroll in
+   their own box when the drawer is narrow -- a trailing `overflow: visible`
+   used to cancel that, so the chips ran under "Show sample" (QA V37). */
 .sv-open-orders-dock .orders-today-filters {
   flex: 1 1 0;
   min-width: 0;
@@ -117,7 +119,6 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-  overflow: visible;
 }
 
 .sv-open-orders-dock .orders-today-filters__btn {

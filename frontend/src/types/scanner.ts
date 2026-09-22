@@ -14,8 +14,13 @@ export interface ScannerRow {
   change_pct: number | null;
   change_abs: number | null;
   gap_percent: number | null;
-  volume: number;
+  /** Null when unknown -- a name-only row (no quote yet) has no volume, not 0. */
+  volume: number | null;
   rel_volume: number | null;
+  /** Which average-volume source `rel_volume` divides by ('yfinance' | 'alpaca'); absent when unreported. */
+  rvol_source?: string | null;
+  /** 'close_fallback' when the price is IBKR's prior close (no trade yet) -- never a live print. */
+  quote_quality?: string | null;
   has_news: boolean;
   newest_headline_at: string | null;
   market_cap: number | null;

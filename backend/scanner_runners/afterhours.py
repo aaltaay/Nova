@@ -5,6 +5,7 @@ import logging
 import time
 
 from constants import SCANNER_MIN_PRICE
+from constants_scanner import SCANNER_HOD_RVOL_SOURCE_ALPACA_PACE, SCANNER_RVOL_SOURCE_ALPACA
 from fundamentals import _fundamentals_cache, fetch_fundamentals_batch as _fetch_fundamentals_batch
 import afterhours_discovery as _ah_discovery
 import hod_momo as _hod_momo
@@ -75,6 +76,7 @@ def run_afterhours_discovery_scan() -> None:
             sr.ensure_avg_volume(syms, headers)
             news = sr._check_news(syms, headers)
             _fetch_fundamentals_batch(syms)
+        hod_rvol_sources: dict[str, str | None] = {}
         for r in rows:
             sym = r["symbol"]
             vol = int(r.get("volume") or 0)
@@ -83,12 +85,25 @@ def run_afterhours_discovery_scan() -> None:
             paced = _pace_rvol(vol, avg) if avg and vol else None
             raw_rvol = round(vol / avg, 2) if avg and avg > 0 and vol > 0 else None
             gainer_rvol = None
+            gainer_rvol_source = None
             for g in state.gainer_cache:
                 if g.get("symbol") == sym and g.get("rel_volume") is not None:
                     gainer_rvol = g.get("rel_volume")
+                    gainer_rvol_source = g.get("rvol_source")
                     break
             r["rel_volume"] = gainer_rvol if gainer_rvol is not None else (
                 paced if paced is not None else raw_rvol
+            )
+            # Name the average the RVOL divides by (QA C39): the paced / raw
+            # figure here divides by Alpaca IEX daily bars, never yfinance.
+            if gainer_rvol is not None:
+                r["rvol_source"] = gainer_rvol_source
+            else:
+                r["rvol_source"] = SCANNER_RVOL_SOURCE_ALPACA if r["rel_volume"] is not None else None
+            hod_rvol_sources[sym] = (
+                SCANNER_HOD_RVOL_SOURCE_ALPACA_PACE
+                if gainer_rvol is None and paced is not None
+                else r["rvol_source"]
             )
             r["has_news"] = sym in news
             r["newest_headline_at"] = None
@@ -127,7 +142,7 @@ def run_afterhours_discovery_scan() -> None:
                     change_pct=float(r["change_pct"]) * 100.0 if r.get("change_pct") is not None else None,
                     gap_pct=float(r["gap_percent"]) * 100.0 if r.get("gap_percent") is not None else None,
                     float_shares=r.get("float"),
-                    rvol_source="ibkr_pace" if r.get("rel_volume") is not None else None,
+                    rvol_source=hod_rvol_sources.get(sym) if r.get("rel_volume") is not None else None,
                     avg_volume=float(avg) if avg else None,
                 )
             except Exception:
@@ -246,6 +261,7 @@ def run_afterhours_focus_scan() -> None:
             "gap_percent": gap_frac,
             "volume": volume,
             "rel_volume": round(volume / avg_vol, 2) if avg_vol and avg_vol > 0 and volume > 0 else None,
+            "rvol_source": SCANNER_RVOL_SOURCE_ALPACA if avg_vol and avg_vol > 0 and volume > 0 else None,
             "has_news": sym in news,
             "newest_headline_at": news.get(sym),
         })

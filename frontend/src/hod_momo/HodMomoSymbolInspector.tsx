@@ -1,6 +1,16 @@
 import { useState } from 'react';
 import { API_BASE_URL } from '../constants';
-import { fmtNum, fmtTs, fmtVol, truncate } from './hodMomoDebugFormat';
+import {
+  fmtEnrichedAgo,
+  fmtPctPoints,
+  fmtTimes,
+  fmtTs,
+  fmtUsd,
+  fmtVol,
+  inspectErrorText,
+  readInspectReply,
+  truncate,
+} from './hodMomoDebugFormat';
 import type { SymbolInspect } from './hodMomoDebugTypes';
 
 const API = `${API_BASE_URL}/api`;
@@ -17,10 +27,20 @@ export function SymbolInspector() {
     setLoading(true);
     setError(null);
     try {
-      const resp = await fetch(`${API}/hod-momo/debug/symbol/${sym}`);
-      const data = await resp.json();
-      setResult(data);
+      // A ticker with "/" (BRK/B) is not a path segment the route can match;
+      // encode it and render the backend's own answer (QA C10).
+      const resp = await fetch(`${API}/hod-momo/debug/symbol/${encodeURIComponent(sym)}`);
+      let data: unknown = null;
+      try {
+        data = await resp.json();
+      } catch {
+        data = null;
+      }
+      const reply = resp.ok ? readInspectReply(data) : null;
+      setResult(reply);
+      if (!reply) setError(inspectErrorText(resp.status, data));
     } catch (e) {
+      setResult(null);
       setError(String(e));
     } finally {
       setLoading(false);
@@ -56,17 +76,17 @@ function SymbolResult({ data }: { data: SymbolInspect }) {
   return (
     <div className="dbg-inspector-result">
       <div className="dbg-snap-grid">
-        <SnapField label="Price" value={snap.price != null ? `$${snap.price.toFixed(2)}` : '—'} />
-        <SnapField label="RVOL" value={snap.rvol != null ? `${snap.rvol.toFixed(2)}x` : '—'} />
+        <SnapField label="Price" value={fmtUsd(snap.price)} />
+        <SnapField label="RVOL" value={fmtTimes(snap.rvol)} />
         <SnapField label="Float" value={fmtVol(snap.float_shares)} />
-        <SnapField label="Gap %" value={snap.gap_pct != null ? `${snap.gap_pct.toFixed(2)}%` : '—'} />
-        <SnapField label="Chg %" value={snap.change_pct != null ? `${snap.change_pct.toFixed(2)}%` : '—'} />
+        <SnapField label="Gap %" value={fmtPctPoints(snap.gap_pct)} />
+        <SnapField label="Chg %" value={fmtPctPoints(snap.change_pct)} />
         <SnapField label="Volume" value={fmtVol(snap.volume)} />
-        <SnapField label="52wk High" value={snap.fifty_two_week_high != null ? `$${snap.fifty_two_week_high.toFixed(2)}` : '—'} />
-        <SnapField label="Session HOD" value={data.session_high != null ? `$${data.session_high.toFixed(2)}` : '—'} />
+        <SnapField label="52wk High" value={fmtUsd(snap.fifty_two_week_high)} />
+        <SnapField label="Session HOD" value={fmtUsd(data.session_high)} />
         <SnapField
           label="Last enriched"
-          value={snap.last_enriched ? `${Math.round(Date.now() / 1000 - snap.last_enriched)}s ago` : 'never'}
+          value={snap.last_enriched ? fmtEnrichedAgo(snap.last_enriched, Date.now() / 1000) : 'never'}
         />
       </div>
 
@@ -78,7 +98,7 @@ function SymbolResult({ data }: { data: SymbolInspect }) {
           </div>
           {wf.gate === 'passed' && (
             <div className="dbg-strategy-list">
-              {wf.strategies.map(s => (
+              {(wf.strategies ?? []).map(s => (
                 <div key={s.id} className={`dbg-strategy-row ${s.passed ? 'dbg-s-pass' : 'dbg-s-block'}`}>
                   <span className="dbg-s-num">{s.id}</span>
                   <span className="dbg-s-name">{s.name}</span>
@@ -95,11 +115,11 @@ function SymbolResult({ data }: { data: SymbolInspect }) {
         {data.decisions.slice().reverse().map((d, i) => (
           <div key={i} className={`dbg-dec-row ${d.gate_blocked ? 'dbg-row-blocked' : d.would_fire ? 'dbg-row-fired' : ''}`}>
             <span className="dbg-mono">{fmtTs(d.ts)}</span>
-            <span>${fmtNum(d.price)}</span>
+            <span>{fmtUsd(d.price)}</span>
             <span className="dbg-gate">{d.gate_blocked ? truncate(d.gate_blocked, 35) : '✓ gate ok'}</span>
             {!d.gate_blocked && (
               <span className="dbg-strat-summary">
-                fired: [{d.strategies.filter(s => s.passed).map(s => s.id).join(',') || 'none'}]
+                fired: [{(d.strategies ?? []).filter(s => s.passed).map(s => s.id).join(',') || 'none'}]
               </span>
             )}
           </div>

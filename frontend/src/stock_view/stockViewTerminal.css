@@ -283,6 +283,8 @@
   min-height: 0;
   /* Flush rail to the right edge — padding only on the chart side */
   padding: 4px 0 4px 6px;
+  /* width 100% + that padding ran the rail past the viewport (QA V17). */
+  box-sizing: border-box;
   align-items: stretch;
   overflow: hidden;
 }
@@ -825,6 +827,23 @@
 .stock-view-page .ticker-trade-bar--rail .ticker-trade-bar-open {
   border-top: none;
   padding-top: 0;
+}
+
+/* Quick Trades in the rail: eleven buttons share ~350 px, so a label wider
+   than its ~28 px button ran into its neighbours ("Cxl symCxl+FlatFlatten...",
+   QA V12). A label now wraps to two short lines under the icon and is clipped
+   to its own button; the full name and key chord stay in the button title.
+   The row itself is styled in ibkr/tradeTicketCompact.css (.nova-qt). */
+.stock-view-page .nova-qt__btn > span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.05;
+  text-align: center;
 }
 
 /* Ticket density lives in ibkr/tradeTicketCompact.css (the compact ticket is

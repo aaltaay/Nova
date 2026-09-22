@@ -13,9 +13,12 @@ import { DeskBoard, type DeskBoardProps } from './DeskBoard';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
+/** Fixtures author the gap in percent; the wire carries a fraction (QA V2 / C17). */
+const frac = (pct: number | null): number | null => (pct == null ? null : pct / 100);
+
 function row(symbol: string, gap: number | null, price: number | null = 1, extra: Partial<ScannerRow> = {}): ScannerRow {
   return {
-    symbol, price, prev_close: 1, change_pct: gap, change_abs: null, gap_percent: gap, volume: 0, rel_volume: null,
+    symbol, price, prev_close: 1, change_pct: frac(gap), change_abs: null, gap_percent: frac(gap), volume: 0, rel_volume: null,
     has_news: false, newest_headline_at: null, market_cap: null, float: null, short_interest: null, short_ratio: null,
     ...extra,
   };
@@ -23,7 +26,7 @@ function row(symbol: string, gap: number | null, price: number | null = 1, extra
 
 function catalyst(symbol: string, headline: string, at: string): Catalyst {
   return {
-    symbol, previous_close: 9.64, current_price: 12.85, gap_percent: 33.3, volume: 4_820_000, has_news: true,
+    symbol, previous_close: 9.64, current_price: 12.85, gap_percent: 33.3 / 100, volume: 4_820_000, has_news: true,
     newest_headline_at: at, catalyst_headline: headline, catalyst_url: null, catalyst_source: 'GlobeNewswire',
   };
 }
@@ -182,17 +185,30 @@ describe('DeskBoard', () => {
     render(<DeskBoard {...props} />);
     fireEvent.click(screen.getByTestId('desk-board-record-GRML'));
     expect(props.onRecord).toHaveBeenCalledWith('GRML', false);
-    expect(screen.getByTestId('desk-board-record-GRML').textContent).toContain('Stop rec');
+    expect(screen.getByTestId('desk-board-record-GRML').getAttribute('aria-label')).toBe('Stop rec');
     fireEvent.click(screen.getByTestId('desk-board-record-VXTL'));
     expect(props.onRecord).toHaveBeenCalledWith('VXTL', true);
-    expect(screen.getByTestId('desk-board-record-VXTL').textContent).toContain('Record');
+    expect(screen.getByTestId('desk-board-record-VXTL').getAttribute('aria-label')).toBe('Record');
     fireEvent.click(screen.getByTestId('desk-board-allowlist-BRNQ'));
     expect(props.onAllowlist).toHaveBeenCalledWith('BRNQ', false);
-    expect(screen.getByTestId('desk-board-allowlist-BRNQ').textContent).toBe('Unlist');
+    expect(screen.getByTestId('desk-board-allowlist-BRNQ').getAttribute('aria-label')).toBe('Unlist');
     fireEvent.click(screen.getByTestId('desk-board-allowlist-VXTL'));
     expect(props.onAllowlist).toHaveBeenCalledWith('VXTL', true);
-    expect(screen.getByTestId('desk-board-allowlist-VXTL').textContent).toBe('Allowlist');
+    expect(screen.getByTestId('desk-board-allowlist-VXTL').getAttribute('aria-label')).toBe('Allowlist');
     expect(props.onOpen).not.toHaveBeenCalled();
+  });
+
+  it('names each hover action by its full label and carries the short one for the narrow board (QA V37)', () => {
+    render(<DeskBoard {...baseProps()} />);
+    const stopRec = screen.getByRole('button', { name: 'Stop rec' });
+    expect(stopRec.getAttribute('data-testid')).toBe('desk-board-record-GRML');
+    const short = stopRec.querySelector('.desk-board__act-text--short');
+    expect(short?.textContent).toBe('Stop');
+    expect(short?.getAttribute('aria-hidden')).toBe('true');
+    const allow = screen.getByTestId('desk-board-allowlist-VXTL');
+    expect(allow.querySelector('.desk-board__act-text:not(.desk-board__act-text--short)')?.textContent).toBe('Allowlist');
+    expect(allow.querySelector('.desk-board__act-text--short')?.textContent).toBe('Allow');
+    expect(screen.getAllByRole('button', { name: 'Record' }).length).toBe(2);
   });
 
   it('the footer counts shown of total, says when the exchange filter hides rows, and names the freeze only for Gappers', () => {

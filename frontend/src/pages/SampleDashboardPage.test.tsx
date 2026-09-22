@@ -115,8 +115,9 @@ describe('SampleDashboardPage', () => {
       requestScannerTab('large_cap');
     });
 
+    // A narrow column may show a short label; the th title names it in full.
     const headers = [...container.querySelectorAll('thead th')].map(
-      th => th.textContent?.replace(/[↑↓↕]/g, '').trim() ?? '',
+      th => th.getAttribute('title') || (th.textContent?.replace(/[↑↓↕]/g, '').trim() ?? ''),
     );
     expect(headers).toContain('News');
     expect(headers).toContain('Earnings');

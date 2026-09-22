@@ -9,12 +9,16 @@ import { ScannerRowNumCell } from '../components/ScannerTableChrome';
 import { scannerColClass } from '../components/scannerTableCol';
 import {
   DESK_ACTION_ALLOWLIST,
+  DESK_ACTION_ALLOWLIST_SHORT,
   DESK_ACTION_ALLOWLIST_TITLE,
   DESK_ACTION_RECORD,
+  DESK_ACTION_RECORD_SHORT,
   DESK_ACTION_RECORD_TITLE,
   DESK_ACTION_STOP_RECORD,
+  DESK_ACTION_STOP_RECORD_SHORT,
   DESK_ACTION_STOP_RECORD_TITLE,
   DESK_ACTION_UNLIST,
+  DESK_ACTION_UNLIST_SHORT,
   DESK_ACTION_UNLIST_TITLE,
   DESK_CELL_ABSENT,
   DESK_DOT_BOT_HELD_TITLE,
@@ -48,6 +52,16 @@ export interface DeskBoardRowProps {
 
 function stop(event: MouseEvent): void {
   event.stopPropagation();
+}
+
+/** The full label, plus the short one the narrow board swaps in (deskBoard.css). */
+function ActLabel({ full, short }: { full: string; short: string }) {
+  return (
+    <>
+      <span className="desk-board__act-text">{full}</span>
+      <span className="desk-board__act-text desk-board__act-text--short" aria-hidden="true">{short}</span>
+    </>
+  );
 }
 
 function DeskBoardRowImpl({
@@ -122,20 +136,28 @@ function DeskBoardRowImpl({
             type="button"
             className={`desk-board__act${recording ? ' desk-board__act--rec' : ''}`}
             title={recording ? DESK_ACTION_STOP_RECORD_TITLE : DESK_ACTION_RECORD_TITLE}
+            aria-label={recording ? DESK_ACTION_STOP_RECORD : DESK_ACTION_RECORD}
             data-testid={`desk-board-record-${sym}`}
             onClick={(event) => { stop(event); onRecord(sym, !recording); }}
           >
             <i className="desk-board__dot desk-board__dot--rec" aria-hidden="true" />
-            {recording ? DESK_ACTION_STOP_RECORD : DESK_ACTION_RECORD}
+            <ActLabel
+              full={recording ? DESK_ACTION_STOP_RECORD : DESK_ACTION_RECORD}
+              short={recording ? DESK_ACTION_STOP_RECORD_SHORT : DESK_ACTION_RECORD_SHORT}
+            />
           </button>
           <button
             type="button"
             className="desk-board__act"
             title={allowed ? DESK_ACTION_UNLIST_TITLE : DESK_ACTION_ALLOWLIST_TITLE}
+            aria-label={allowed ? DESK_ACTION_UNLIST : DESK_ACTION_ALLOWLIST}
             data-testid={`desk-board-allowlist-${sym}`}
             onClick={(event) => { stop(event); onAllowlist(sym, !allowed); }}
           >
-            {allowed ? DESK_ACTION_UNLIST : DESK_ACTION_ALLOWLIST}
+            <ActLabel
+              full={allowed ? DESK_ACTION_UNLIST : DESK_ACTION_ALLOWLIST}
+              short={allowed ? DESK_ACTION_UNLIST_SHORT : DESK_ACTION_ALLOWLIST_SHORT}
+            />
           </button>
         </span>
       </td>

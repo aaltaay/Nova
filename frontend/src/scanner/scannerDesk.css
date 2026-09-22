@@ -179,3 +179,68 @@
   color: #fca5a5;
   font-size: 10.5px;
 }
+
+/* ── QA batch 2026-09-22: stated failures and absences ─────────────────── */
+/* A failed scanner route, named on the board (QA C31). Amber, not red: the
+   desk keeps working and retries on its own. */
+.scanner-board__feed-failed {
+  max-width: 28rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #fbbf24;
+}
+
+.empty-state--feed-failed {
+  color: #fbbf24;
+}
+
+/* A price that is IBKR's prior close (no trade yet) reads as such (QA C50). */
+.scanner-price--close-fallback {
+  color: var(--text-muted, #9aa3b2);
+}
+
+/* Header labels never clip mid-word ("NEW:", "EARNIN"): the label ellipsizes
+   inside its locked width and the th title names it in full. Narrow icon
+   columns hand their inactive sort arrow's room to the label. */
+.table-wrapper--scanner th {
+  overflow: hidden;
+}
+
+.table-wrapper--scanner th .th-inner {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.table-wrapper--scanner th .th-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table-wrapper--scanner th .sort-arrow {
+  flex: none;
+}
+
+.table-wrapper--scanner th.scanner-col--chrome {
+  padding-left: 0.3em;
+  padding-right: 0.3em;
+}
+
+/* The News flame column is a touch wider so its header reads whole. */
+.table-wrapper--scanner .scanner-col--newest_headline_at {
+  width: 3.3rem;
+}
+
+.table-wrapper--scanner th.scanner-col--chrome:not(:hover) .sort-arrow:not(.active) {
+  display: none;
+}
+
+.scanner-price__close-tag {
+  margin-left: 0.3em;
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #9aa3b2);
+}

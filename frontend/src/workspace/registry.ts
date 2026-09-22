@@ -238,7 +238,9 @@ export const NOVA_MODULES: readonly NovaModule[] = [
   },
   {
     id: 'strategy',
-    title: 'Strategy',
+    // The rail calls this page Bots; its title says so too (QA V30: "Bots"
+    // opened a page titled "Strategy"). The id stays for persisted state.
+    title: 'Bots',
     component: host,
     feedDeps: ['none'],
     defaultPlacement: 'tab',
@@ -315,6 +317,15 @@ export function listTabModules(): NovaModule[] {
   return NOVA_MODULES.filter(
     m => m.defaultPlacement === 'tab' && m.showInTabNav !== false,
   );
+}
+
+/**
+ * Scanner lists a list picker may offer (Desk board, Focus rail): the rail's
+ * Scanner children. Bots / Account are pages, not lists (QA V30: the pickers
+ * offered "Strategy" as a scanner list).
+ */
+export function listScannerListModules(): NovaModule[] {
+  return listTabModules().filter(m => m.navGroup != null);
 }
 
 export type ScannerNavGroup = { group: NavGroup; modules: NovaModule[] };

@@ -8,7 +8,8 @@ import { EmptyState } from './EmptyState';
 import { ScannerTable } from './ScannerTable';
 import { type ScannerTableMeta } from '../hooks/useScannerPriceStream';
 import { pinFirst, usePinnedRows } from '../scanner/pinnedRowsStore';
-import { tableHonestyLabel } from '../scanner/scannerHonesty';
+import { historyTableLoadError, tableHonestyLabel } from '../scanner/scannerHonesty';
+import type { HistoryTableKey } from '../scanner/scannerHistory';
 import { useLiveScannerFeedOptional } from '../scanner/ScannerDataContext';
 import { LARGE_CAP_COLUMNS, SCANNER_COLUMNS } from '../constants';
 import type { Afterhours, Gapper, Mover, ScannerRow, SortConfig } from '../types/scanner';
@@ -75,6 +76,13 @@ export function ScannerTabPanels({
   const emptyHonesty =
     live?.feedError
     || (tableMeta[activeTab]?.state === 'unavailable' ? 'Unavailable -- no live roster' : null);
+  const feedFailure = live?.restError ?? null;
+  // History view: a table whose snapshot request failed says so (QA C51).
+  const historyErrorFor = (table: HistoryTableKey, label: string): string | null =>
+    live?.historyError
+    ?? (historyDate && live?.historyFailed?.includes(table) ? historyTableLoadError(historyDate, label) : null);
+  // Every table's empty state shares these; each adds its context, label and history error.
+  const emptyShared = { health, discoveryProvider, historyDate, honestyHint: emptyHonesty, feedFailure };
   const [gapperSort, setGapperSort] = useState<SortConfig>({ key: '', dir: null });
   const [gainerSort, setGainerSort] = useState<SortConfig>({ key: '', dir: null });
   const [loserSort, setLoserSort] = useState<SortConfig>({ key: '', dir: null });
@@ -136,13 +144,10 @@ export function ScannerTabPanels({
       />
     ) : (
       <EmptyState
-        health={health}
+        {...emptyShared}
         context={mode === 'market' ? 'premarket' : mode}
-        discoveryProvider={discoveryProvider}
-        historyDate={historyDate}
-        historyError={live?.historyError}
-        honestyHint={emptyHonesty}
         emptyLabel="gappers"
+        historyError={historyErrorFor('gappers', 'gappers')}
       />
     );
   } else if (activeTab === 'catalysts') {
@@ -175,13 +180,10 @@ export function ScannerTabPanels({
       />
     ) : (
       <EmptyState
-        health={health}
+        {...emptyShared}
         context={mode === 'premarket' ? 'market' : mode}
-        discoveryProvider={discoveryProvider}
         emptyLabel="gainers"
-        historyDate={historyDate}
-        historyError={live?.historyError}
-        honestyHint={emptyHonesty}
+        historyError={historyErrorFor('gainers', 'gainers')}
       />
     );
   } else if (activeTab === 'losers') {
@@ -201,13 +203,10 @@ export function ScannerTabPanels({
       />
     ) : (
       <EmptyState
-        health={health}
+        {...emptyShared}
         context={mode === 'premarket' ? 'market' : mode}
-        discoveryProvider={discoveryProvider}
         emptyLabel="losers"
-        historyDate={historyDate}
-        historyError={live?.historyError}
-        honestyHint={emptyHonesty}
+        historyError={historyErrorFor('losers', 'losers')}
       />
     );
   } else if (activeTab === 'afterhours') {
@@ -229,13 +228,10 @@ export function ScannerTabPanels({
           />
         ) : (
           <EmptyState
-            health={health}
+            {...emptyShared}
             context={mode === 'market' ? 'afterhours' : mode}
-            discoveryProvider={discoveryProvider}
             emptyLabel="after-hours movers"
-            historyDate={historyDate}
-            historyError={live?.historyError}
-            honestyHint={emptyHonesty}
+            historyError={historyErrorFor('afterhours', 'after-hours movers')}
           />
         )}
       </>
@@ -259,13 +255,10 @@ export function ScannerTabPanels({
       />
     ) : (
       <EmptyState
-        health={health}
+        {...emptyShared}
         context={mode === 'market' ? 'market' : mode}
-        discoveryProvider={discoveryProvider}
         emptyLabel="large cap movers"
-        historyDate={historyDate}
-        historyError={live?.historyError}
-        honestyHint={emptyHonesty}
+        historyError={historyErrorFor('large_cap', 'large cap movers')}
       />
     );
   }

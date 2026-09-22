@@ -6,6 +6,7 @@
 import { useEffect, useReducer, useRef } from 'react';
 import { HOD_MOMO_STRIP_NEW_MS } from './hodMomoStripConstants';
 import type { AlertObject } from './types';
+import { alertIdentity } from './hodMomoWire';
 
 export function useStripNewAlerts(
   alerts: readonly AlertObject[],
@@ -16,10 +17,11 @@ export function useStripNewAlerts(
 
   const at = now();
   if (seen.current === null) {
-    if (alerts.length > 0) seen.current = new Map(alerts.map((a) => [a.id, 0]));
+    if (alerts.length > 0) seen.current = new Map(alerts.map((a) => [alertIdentity(a), 0]));
   } else {
     for (const a of alerts) {
-      if (!seen.current.has(a.id)) seen.current.set(a.id, at);
+      const key = alertIdentity(a);
+      if (!seen.current.has(key)) seen.current.set(key, at);
     }
   }
 
@@ -27,9 +29,10 @@ export function useStripNewAlerts(
   let nextExpiry = Infinity;
   if (seen.current) {
     for (const a of alerts) {
-      const ts = seen.current.get(a.id) ?? 0;
+      const key = alertIdentity(a);
+      const ts = seen.current.get(key) ?? 0;
       if (ts > 0 && at - ts < HOD_MOMO_STRIP_NEW_MS) {
-        fresh.add(a.id);
+        fresh.add(key);
         nextExpiry = Math.min(nextExpiry, ts + HOD_MOMO_STRIP_NEW_MS);
       }
     }

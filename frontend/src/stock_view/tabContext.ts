@@ -13,7 +13,7 @@ import type { Catalyst } from '../types/catalyst';
 import type { ScannerRow } from '../types/scanner';
 
 export interface TabContext {
-  /** Signed gap percent (falls back to the day change when the row has no gap). */
+  /** Signed gap in percent points, 156.49 for +156.49% (falls back to the day change when the row has no gap). */
   gapPct: number | null;
   /** Chip label (NEWS / PR) or null when the symbol has no known catalyst. */
   catalyst: string | null;
@@ -25,6 +25,15 @@ export interface TabContext {
 }
 
 const NO_CONTEXT: TabContext = { gapPct: null, catalyst: null, headline: null, known: false, price: null };
+
+/**
+ * Scanner rows and catalysts carry `gap_percent` / `change_pct` as fractions
+ * (1.5649 = +156.49%); the tab, Focus rail and Desk board print percent
+ * points. Reading the fraction as percent showed GRML "+1.6%" (QA V2 / C17).
+ */
+export function fractionToPercent(value: number | null | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value * 100 : null;
+}
 
 /** Search order mirrors the desk's own priority: gappers first. */
 export function scannerRowFor(symbol: string, rows: Pick<ScannerDockRows, 'gappers' | 'gainers' | 'losers' | 'afterhours'> | null | undefined): ScannerRow | null {
@@ -61,7 +70,7 @@ export function tabContextFor(symbol: string, rows: ScannerDockRows | null | und
   if (!row && !catalyst) return NO_CONTEXT;
   const gap = row?.gap_percent ?? row?.change_pct ?? catalyst?.gap_percent ?? null;
   return {
-    gapPct: typeof gap === 'number' && Number.isFinite(gap) ? gap : null,
+    gapPct: fractionToPercent(gap),
     catalyst: catalystChipLabel(catalyst, row),
     headline: catalyst?.catalyst_headline ?? null,
     known: true,

@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import logging
-import logging.handlers
-import os
 import time
 from collections import deque
 
@@ -28,27 +26,15 @@ from hod_momo_filters import fails_hod_gate
 from hod_momo_filters import passes_master_gate
 from hod_momo_filters import price_surge
 from hod_momo_models import (
-    AlertObject,
     DecisionRecord,
     TickerSnap,
-    format_alert_timestamp,
     format_trade_log_timestamp,
+    new_alert,
 )
+from hod_momo_trade_log import trade_log as _trade_log
 from market import pace_relative_volume
-from paths import log_dir
 
 logger = logging.getLogger(__name__)
-_trade_log = logging.getLogger("hod_momo.trades")
-if not _trade_log.handlers:
-    _trade_handler = logging.handlers.RotatingFileHandler(
-        os.path.join(str(log_dir()), "hod_momo.log"),
-        maxBytes=10_000_000,
-        backupCount=3,
-    )
-    _trade_handler.setFormatter(logging.Formatter("%(message)s"))
-    _trade_log.addHandler(_trade_handler)
-    _trade_log.setLevel(logging.DEBUG)
-    _trade_log.propagate = False
 
 
 def _note_active_quote(symbol: str, ts: float) -> None:
@@ -309,21 +295,14 @@ def on_trade_update(
         any_fired = True
         if strategy_id == HOD_MOMO_APPROACH_STRATEGY_ID:
             _approach.mark_fired(symbol)
-        alert = AlertObject(
-            id=f"{int(ts * 1000)}-{symbol}-{strategy_id}",
-            timestamp=format_alert_timestamp(ts),
-            ticker=symbol,
+        alert = new_alert(
+            symbol=symbol,
             strategy_id=strategy_id,
             strategy_name=config.name,
             price=price,
-            change_pct=snap.change_pct or 0.0,
-            rvol=snap.rvol,
-            float_shares=snap.float_shares,
-            gap_pct=snap.gap_pct,
-            volume=snap.volume,
+            snap=snap,
             momentum_pct=surge,
-            rvol_source=snap.rvol_source,
-            rvol_5min=snap.rvol_5min,
+            trade_ts=ts,
             created_ts=now_ts,
         )
         if cooldown_sec > 0:

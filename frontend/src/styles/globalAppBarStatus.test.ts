@@ -44,6 +44,13 @@ describe('global app bar primary row', () => {
     expect(css).toMatch(/\n\.global-app-bar__right \{[^}]*justify-content:\s*flex-end/);
   });
 
+  it('never lets a cluster come out narrower than its chips (QA V8: the venue pills covered the search)', () => {
+    // A chip with flex-shrink 0 still reported a smaller min-content when its
+    // text could break at a space; the cluster box then shrank under its chips.
+    expect(block('.global-app-bar__left,\n.global-app-bar__right')).toMatch(/min-width:\s*max-content/);
+    expect(block('.global-app-bar__primary')).toMatch(/white-space:\s*nowrap/);
+  });
+
   it('lets only the centre search give way', () => {
     const center = block('.global-app-bar__center');
     expect(center).toMatch(/flex:\s*0\s+1\s+auto/);
@@ -74,6 +81,12 @@ describe('global app bar primary row', () => {
     expect(at(1280)).toContain('.global-app-bar__session');
     expect(at(1100)).toContain('.header-market-clock');
     expect(at(900)).toContain('.global-app-bar__wordmark');
+    // QA V8: at 1440 / 1280 the search was covered -- the low-value chrome
+    // leaves earlier so the search keeps real width with the rail open.
+    expect(at(1500)).toContain('.global-app-bar__session');
+    expect(at(1500)).toContain('.global-app-bar__wordmark');
+    expect(at(1400)).toContain('.header-market-clock');
+    expect(at(1600)).toMatch(/:has\(\.global-app-bar__rec\) \.header-market-clock/);
     for (const keep of [
       '__emergency-kill',
       '__conn',

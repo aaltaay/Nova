@@ -12,7 +12,8 @@ import { ScannerBoardHeader } from './ScannerBoardHeader';
 import { useBoardFilters } from './useBoardFilters';
 import { scanAgeKeyFor, useBoardRows, type BoardRows } from './useBoardRows';
 
-type Feed = Pick<LiveScannerFeed, 'gappers' | 'gainers' | 'losers' | 'afterhours' | 'largeCap' | 'scanAges' | 'now'>;
+type Feed = Pick<LiveScannerFeed, 'gappers' | 'gainers' | 'losers' | 'afterhours' | 'largeCap' | 'scanAges' | 'now'>
+  & { restError?: string | null };
 
 export interface ScannerBoard {
   rows: BoardRows['rows'];
@@ -53,6 +54,7 @@ export function useScannerBoard(
       title={moduleTitle}
       filters={boardList ? board : null}
       scannedAgoSec={scannedAgoSec}
+      feedFailure={scanner.restError ?? null}
     />
   );
   const footer = boardList ? (

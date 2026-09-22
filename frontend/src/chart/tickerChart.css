@@ -84,6 +84,12 @@
   color: var(--text-secondary);
 }
 
+/* No bars is a stated absence in muted text, never the red error (QA V9). */
+.chart-overlay--empty {
+  color: var(--text-muted, #9aa3b2);
+  font-size: 0.78rem;
+}
+
 .chart-filling-hint {
   font-size: 0.65rem;
   color: var(--text-secondary);

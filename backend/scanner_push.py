@@ -7,10 +7,11 @@ from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-import mover_enrich_view as _mover_enrich
 import scanner_tab_registry as _tabs
 from runtime_state import get_runtime_state
 from runtime_state.state import TableState
+from scanner_surface import surface_rows
+from scanner_wire import dumps_wire
 
 logger = logging.getLogger(__name__)
 
@@ -31,10 +32,14 @@ def _table_meta(ts: TableState) -> dict[str, Any]:
 
 
 async def broadcast(payload: dict[str, Any]) -> None:
-    """Send a scanner WS event to every /ws/scanner client."""
+    """Send a scanner WS event to every /ws/scanner client.
+
+    Non-finite floats go out as null (QA C32): a bare NaN token makes the
+    browser's JSON.parse drop the whole frame.
+    """
     if not _clients:
         return
-    text = json.dumps(payload)
+    text = dumps_wire(payload)
     dead: list[WebSocket] = []
     for ws in list(_clients):
         try:
@@ -49,14 +54,15 @@ async def broadcast(payload: dict[str, Any]) -> None:
 async def broadcast_roster_replace(table: str, rows: list[dict], ts: TableState) -> None:
     """Structural roster replace for one table (ADR 008).
 
-    Rows are decorated with reference columns on the way out (never in the
-    cache) so a roster replace cannot blank the RVOL / float / short interest /
-    market cap the REST surface is already showing.
+    Rows go through the same surface as REST (``scanner_surface``): blocklist
+    out, exchange + reference columns in, Large Cap scored -- so a roster
+    replace cannot bring back a blocklisted ticker or blank the Large Cap
+    Score the REST surface is already showing (QA C49).
     """
     await broadcast({
         "type": "roster_replace",
         "table": table,
-        "rows": _mover_enrich.decorate_rows(rows),
+        "rows": surface_rows(rows, table),
         "meta": _table_meta(ts),
         "ts": ts.roster_ts or time_now(),
     })
@@ -91,7 +97,7 @@ def _snapshot_payload() -> dict[str, Any]:
     out: dict[str, Any] = {}
     for name, (rows, meta) in tables.items():
         out[name] = {
-            "rows": _mover_enrich.decorate_rows(rows),
+            "rows": surface_rows(rows, name),
             "meta": _table_meta(meta),
         }
     return out
@@ -102,7 +108,7 @@ async def ws_scanner(websocket: WebSocket) -> None:
     await websocket.accept()
     _clients.add(websocket)
     try:
-        await websocket.send_text(json.dumps({
+        await websocket.send_text(dumps_wire({
             "type": "subscribed",
             "tab": "none",
             "tables": _snapshot_payload(),
@@ -122,7 +128,7 @@ async def ws_scanner(websocket: WebSocket) -> None:
                 if not isinstance(raw, list):
                     raw = [msg.get("tab") or "none"]
                 tabs = _tabs.set_tabs(websocket, [str(t) for t in raw])
-                await websocket.send_text(json.dumps({
+                await websocket.send_text(dumps_wire({
                     "type": "subscription_state",
                     "tab": tabs[0] if tabs else "none",
                     "tabs": tabs,

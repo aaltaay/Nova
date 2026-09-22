@@ -11,8 +11,9 @@ import { EarningsDots } from './EarningsDots';
 import { ScannerRowNumCell } from './ScannerTableChrome';
 import { scannerColClass } from './scannerTableCol';
 import { fmtMarketCap, fmtPct, fmtPrice, fmtVolume } from '../utils/quoteFormat';
-import { SCANNER_RVOL_SOURCE_BADGE, SCANNER_RVOL_SOURCE_TITLE } from '../constants';
-import { SCANNER_GAP_BAR_MAX_PX } from '../constantGroups/scanner_board';
+import { SCANNER_CELL_ABSENT, SCANNER_CHANGE_CLOSE_TITLE } from '../constantGroups/scanner_board';
+import { GapCell, fmtChangeAbs, pctClass, rvolSourceMark } from './ScannerRowCells';
+import { SCANNER_QUOTE_CLOSE_FALLBACK } from '../scanner/scannerRowShape';
 import type { ScannerRow } from '../types/scanner';
 import type { WatchlistEntry } from '../strategy/types';
 
@@ -65,34 +66,6 @@ export function scannerTableRowPropsEqual(
   );
 }
 
-/** Signed gap plus a bar scaled to the list's top row (drawn, not just printed). */
-function GapCell({ value, scaleMax }: { value: number | null; scaleMax: number | null }) {
-  const cls = value != null && value >= 0 ? 'positive' : value != null ? 'negative' : '';
-  const width = value != null && scaleMax != null && scaleMax > 0
-    ? Math.round(Math.min(1, Math.abs(value) / scaleMax) * SCANNER_GAP_BAR_MAX_PX)
-    : null;
-  return (
-    <span className="scanner-gap">
-      <span className={cls}>{fmtPct(value)}</span>
-      {width != null ? (
-        <span className="scanner-gap__bar" aria-hidden="true">
-          <i className={value != null && value >= 0 ? 'is-up' : 'is-down'} style={{ width }} />
-        </span>
-      ) : null}
-    </span>
-  );
-}
-
-function fmtChangeAbs(v: number | null | undefined): string {
-  if (v == null) return '—';
-  return `${v >= 0 ? '+' : '-'}$${Math.abs(v).toFixed(2)}`;
-}
-
-function pctClass(v: number | null | undefined): string {
-  if (v == null) return '';
-  return v >= 0 ? 'positive' : 'negative';
-}
-
 function renderCell(
   key: string,
   row: ScannerRow,
@@ -102,6 +75,7 @@ function renderCell(
 ): ReactNode {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const anyRow = row as any;
+  const closeFallback = row.quote_quality === SCANNER_QUOTE_CLOSE_FALLBACK;
   switch (key) {
     case 'symbol':
       return null;
@@ -112,14 +86,25 @@ function renderCell(
           price={row.price ?? anyRow.current_price}
           flash={flash}
           stale={stale}
+          closeFallback={closeFallback}
         />
       );
     case 'prev_close':
       return fmtPrice(row.prev_close ?? anyRow.previous_close);
     case 'change_pct':
+      // No trade yet: a change against the prior close would be invented (QA C50);
+      // an unknown change is a muted dash, never a red N/A (QA V21).
+      if (closeFallback || row.change_pct == null) {
+        return (
+          <span className="cell-stack" title={closeFallback ? SCANNER_CHANGE_CLOSE_TITLE : undefined}>
+            <span className="cell-stack-primary na-muted">{SCANNER_CELL_ABSENT}</span>
+            <span className="cell-stack-secondary">{closeFallback ? SCANNER_CELL_ABSENT : fmtChangeAbs(row.change_abs)}</span>
+          </span>
+        );
+      }
       return (
         <span className="cell-stack">
-          <span className={`cell-stack-primary ${row.change_pct != null && row.change_pct >= 0 ? 'positive' : 'negative'}`}>
+          <span className={`cell-stack-primary ${row.change_pct >= 0 ? 'positive' : 'negative'}`}>
             {fmtPct(row.change_pct)}
           </span>
           <span className="cell-stack-secondary">{fmtChangeAbs(row.change_abs)}</span>
@@ -127,24 +112,26 @@ function renderCell(
       );
     case 'gap_percent':
       return <GapCell value={row.gap_percent} scaleMax={gapScaleMax} />;
-    case 'volume':
+    case 'volume': {
+      const mark = rvolSourceMark(row.rvol_source);
       return (
-        <span className="cell-stack cell-stack--volume" title={SCANNER_RVOL_SOURCE_TITLE}>
-          <span className="cell-stack-primary">{fmtVolume(row.volume)}</span>
+        <span className="cell-stack cell-stack--volume" title={row.rel_volume != null ? mark.title : undefined}>
+          <span className={`cell-stack-primary${row.volume == null ? ' na-muted' : ''}`}>{fmtVolume(row.volume)}</span>
           <span className="cell-stack-secondary">
             {row.rel_volume != null ? (
               <>
                 {row.rel_volume}x
-                <span className="rvol-source-badge" title={SCANNER_RVOL_SOURCE_TITLE}>
-                  {SCANNER_RVOL_SOURCE_BADGE}
+                <span className="rvol-source-badge" title={mark.title} data-rvol-source={row.rvol_source ?? 'unreported'}>
+                  {mark.badge}
                 </span>
               </>
             ) : (
-              <span className="na-muted">N/A</span>
+              <span className="na-muted">{SCANNER_CELL_ABSENT}</span>
             )}
           </span>
         </span>
       );
+    }
     case 'newest_headline_at':
       return <NewsCell newest_headline_at={row.newest_headline_at} />;
     case 'earnings_day_offset':
@@ -169,7 +156,7 @@ function renderCell(
             {row.short_interest != null ? fmtVolume(row.short_interest) : <span className="na-muted">—</span>}
           </span>
           <span className="cell-stack-secondary">
-            {row.short_ratio != null ? `${row.short_ratio.toFixed(1)}x ratio` : <span className="na-muted">N/A</span>}
+            {row.short_ratio != null ? `${row.short_ratio.toFixed(1)}x ratio` : <span className="na-muted">{SCANNER_CELL_ABSENT}</span>}
           </span>
         </span>
       );

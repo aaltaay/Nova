@@ -28,7 +28,7 @@ import {
   hodMomoStripSinceLabel,
 } from './hodMomoStripConstants';
 import { stripRowsToPx } from './hodMomoStripPersist';
-import { fmtStripSince, stripAlertsForMode } from './hodMomoStripRows';
+import { fmtStripSince, stripAlertKey, stripAlertsForMode } from './hodMomoStripRows';
 import { isAlertDockMode } from './scannerDockModes';
 import { defaultHodMomentumVisibleStrategies } from './scannerPartition';
 import { useHodMomoIntegrity } from './useHodMomoIntegrity';
@@ -198,18 +198,23 @@ export function HodMomoDock({ onOpenTrading, onAlertSelect }: Props) {
                 onOpenTrading={openTrading}
               />
             ) : alerts.length === 0 ? (
-              <div className="hod-strip__empty" data-testid="hod-momo-strip-empty">
-                {stream.connected ? HOD_MOMO_STRIP_EMPTY_WAITING : HOD_MOMO_STRIP_EMPTY_CONNECTING}
+              <div
+                className={`hod-strip__empty${stream.feedError ? ' hod-strip__empty--error' : ''}`}
+                data-testid="hod-momo-strip-empty"
+                role={stream.feedError ? 'alert' : undefined}
+              >
+                {stream.feedError
+                  ?? (stream.connected ? HOD_MOMO_STRIP_EMPTY_WAITING : HOD_MOMO_STRIP_EMPTY_CONNECTING)}
               </div>
             ) : (
               <>
                 {range.topSpacerPx > 0 && <div style={{ height: range.topSpacerPx }} aria-hidden="true" />}
                 {rendered.map((alert) => (
                   <HodMomoStripRow
-                    key={alert.id}
+                    key={stripAlertKey(alert)}
                     alert={alert}
                     selected={selectedSymbol === alert.ticker}
-                    isNew={newIds.has(alert.id)}
+                    isNew={newIds.has(stripAlertKey(alert))}
                     onSelect={selectSymbol}
                     onOpenTrading={openTrading}
                   />

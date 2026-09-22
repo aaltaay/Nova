@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import time
 
+from constants_scanner import SCANNER_RVOL_SOURCE_ALPACA
 from ibkr_bridge import IbkrBridgeError
 from scanner_runners._facade import facade
 
@@ -115,6 +116,7 @@ def run_focus_scan() -> None:
             "gap_percent": gap_frac,
             "volume": volume,
             "rel_volume": round(volume / avg_vol, 2) if avg_vol and avg_vol > 0 and volume > 0 else None,
+            "rvol_source": SCANNER_RVOL_SOURCE_ALPACA if avg_vol and avg_vol > 0 and volume > 0 else None,
             "has_news": sym in news,
             "newest_headline_at": news.get(sym),
         })

@@ -8,9 +8,16 @@
   flex-direction: row;
 }
 
-@media (max-width: 1500px) {
+/* Narrower desks: compact board (deskBoard.css) and a capped Trader rail so
+   the chart grid keeps real width -- it had 293 px for four panes at 1440 and
+   133 px at 1280 (QA V18). Mirrors constantGroups/desk.ts. */
+@media (max-width: 1600px) {
   .nova-app-branch.nova-app-branch--desk {
-    --desk-board-width: 560px;
+    --desk-board-width: 480px;
+  }
+
+  .nova-app-branch--desk .stock-view-page .stock-view-body {
+    grid-template-columns: minmax(0, 1fr) 8px min(var(--ticker-trade-side-width, 360px), 320px);
   }
 }
 
@@ -46,8 +53,12 @@
   justify-content: center;
 }
 
-/* Scoped under .desk-page so these beat the .main-col / .panel base rules. */
+/* Scoped under .desk-page so these beat the .main-col / .panel base rules.
+   border-box: the column is --desk-board-width with its padding included.
+   Under content-box the padding pushed the board 12 px past its slot, under
+   the Trader beside it, and cut the row actions at the edge (QA V37). */
 .desk-page .desk-page__column {
+  box-sizing: border-box;
   flex: 0 0 var(--desk-board-width, 640px);
   width: var(--desk-board-width, 640px);
   padding: 0.5rem 0.25rem 0.5rem 0.75rem;

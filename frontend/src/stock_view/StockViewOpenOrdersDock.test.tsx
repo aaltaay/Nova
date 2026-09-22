@@ -161,6 +161,24 @@ describe('StockViewOpenOrdersDock', () => {
     ).toBe(false);
   });
 
+  it('Show sample replaces the real rows and counts, and names the venue (QA V22)', () => {
+    mockClosedOrdersState.orders = [CLOSED_AAPL];
+    act(() => {
+      root.render(<StockViewOpenOrdersDock {...baseProps} mode="sim" />);
+    });
+    const bar = () => container.querySelector('.sv-open-orders-dock__bar')!;
+    expect(bar().querySelector('[data-testid="orders-today-count-filled"]')?.textContent).toBe('1');
+    act(() => {
+      (container.querySelector('[data-testid="stock-view-open-orders-show-sample"]') as HTMLButtonElement).click();
+    });
+    // The real Filled row is hidden and not counted while the sample shows.
+    expect(bar().querySelector('[data-testid="orders-today-count-filled"]')?.textContent).toBe('0');
+    expect(container.textContent).not.toContain('501');
+    const banner = container.querySelector('[data-testid="stock-view-open-orders-sample-banner"]');
+    expect(banner?.textContent).toMatch(/not your Sim orders/);
+    expect(banner?.textContent).not.toMatch(/IBKR|paper-style/);
+  });
+
   it('auto-shows sample rows under SampleDataProvider', () => {
     act(() => {
       root.render(

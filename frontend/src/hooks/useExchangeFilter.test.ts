@@ -48,4 +48,15 @@ describe('exchange filterRows', () => {
     expect(out.find(r => r.symbol === 'NOXCH')).toBeDefined();
     expect(out.find(r => r.symbol === 'NOEXCH')).toBeDefined();
   });
+
+  it('keeps rows whose venue is not one of the options (QA C52: they vanished before)', () => {
+    const odd: Row[] = [
+      { symbol: 'OTCX', exchange: 'OTC' },
+      { symbol: 'PINK', exchange: 'PINK' },
+      { symbol: 'LOWER', exchange: 'nasdaq' },
+      { symbol: 'CPHI', exchange: 'AMEX' },
+    ];
+    const out = filterRowsBySelection(['NASDAQ'], odd).map(r => r.symbol);
+    expect(out).toEqual(['OTCX', 'PINK', 'LOWER']);
+  });
 });

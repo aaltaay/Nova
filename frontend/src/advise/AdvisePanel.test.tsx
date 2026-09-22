@@ -178,4 +178,24 @@ describe('AdvisePanel', () => {
     expect(place).not.toHaveBeenCalled();
     expect(container.querySelector('[data-testid="advise-open-ticket"]')).toBeNull();
   });
+
+  it('closes on Escape like Settings (QA V29)', async () => {
+    await act(async () => {
+      root.render(
+        <AdviseProvider>
+          <OpenOnMount />
+        </AdviseProvider>,
+      );
+    });
+    expect(container.querySelector('[data-testid="advise-overlay"]')).toBeTruthy();
+    const underneath = vi.fn();
+    window.addEventListener('keydown', underneath);
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    window.removeEventListener('keydown', underneath);
+    expect(container.querySelector('[data-testid="advise-overlay"]')).toBeNull();
+    // The dialog answers; a desk hotkey underneath does not also see the key.
+    expect(underneath).not.toHaveBeenCalled();
+  });
 });

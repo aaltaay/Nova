@@ -11,9 +11,12 @@ import {
   maxAbsGap,
 } from './deskBoardRows';
 
+/** Fixtures author the gap in percent; the wire carries a fraction (QA V2 / C17). */
+const frac = (pct: number | null): number | null => (pct == null ? null : pct / 100);
+
 function row(symbol: string, gap: number | null, extra: Partial<ScannerRow> = {}): ScannerRow {
   return {
-    symbol, price: 1, prev_close: 1, change_pct: gap, change_abs: null, gap_percent: gap, volume: 0, rel_volume: null,
+    symbol, price: 1, prev_close: 1, change_pct: frac(gap), change_abs: null, gap_percent: frac(gap), volume: 0, rel_volume: null,
     has_news: false, newest_headline_at: null, market_cap: null, float: null, short_interest: null, short_ratio: null,
     ...extra,
   };
@@ -21,7 +24,7 @@ function row(symbol: string, gap: number | null, extra: Partial<ScannerRow> = {}
 
 function catalyst(symbol: string, headline: string | null, at: string | null, source = 'GlobeNewswire'): Catalyst {
   return {
-    symbol, previous_close: 9.64, current_price: 12.85, gap_percent: 33.3, volume: 4_820_000, has_news: true,
+    symbol, previous_close: 9.64, current_price: 12.85, gap_percent: 33.3 / 100, volume: 4_820_000, has_news: true,
     newest_headline_at: at, catalyst_headline: headline, catalyst_url: null, catalyst_source: source,
   };
 }
@@ -30,7 +33,7 @@ describe('deskBoardRowsFor', () => {
   it('condenses every mirrored list to board rows and keeps unknown figures null', () => {
     const feed = makeLiveScannerFeedStub({
       gappers: [row('grml', 33.3, { price: 12.85, volume: 4_820_000, rel_volume: 6.4, float: 8_200_000, has_news: true, newest_headline_at: '2026-09-22T12:31:00Z' })],
-      gainers: [row('VXTL', null, { change_pct: 21.7 })],
+      gainers: [row('VXTL', null, { change_pct: 21.7 / 100 })],
       losers: [row('CBRX', -5.4)],
       afterhours: [row('NUVT', 12.4)],
       largeCap: [row('AAPL', 1.2, { rvol: 2.5 })],
