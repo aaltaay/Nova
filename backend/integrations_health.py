@@ -15,6 +15,10 @@ def build_integrations_status() -> dict[str, Any]:
     Status vocabulary: ok | off | error | unknown
     Never implies a chip is the live price feed. Alpaca is aux only and must
     not drive the top-level API chip (see health_status.mark_nova_process_health).
+
+    Details are ASCII (``--``, never an em dash): a client that decodes the
+    charset-less ``application/json`` reply as cp1252 printed the dash as
+    three garbage characters (QA C63).
     """
     from alpaca import _alpaca_headers, _env
     from ibkr import client as _ibkr_client
@@ -22,11 +26,11 @@ def build_integrations_status() -> dict[str, Any]:
 
     keys = bool(_alpaca_headers())
     if not keys:
-        alpaca = _chip("off", "APCA keys not configured — news/listing aux unavailable")
+        alpaca = _chip("off", "APCA keys not configured -- news/listing aux unavailable")
     else:
         alpaca = _chip(
             "ok",
-            "APCA keys present — news/listing/RVOL aux, not live prices or API health",
+            "APCA keys present -- news/listing/RVOL aux, not live prices or API health",
         )
 
     import loop_lag as _loop_lag
@@ -53,12 +57,12 @@ def build_integrations_status() -> dict[str, Any]:
     if not lincoln_enabled():
         openai = _chip(
             "off",
-            "Lincoln AI off (LINCOLN_AI_ENABLED) — no OpenAI calls",
+            "Lincoln AI off (LINCOLN_AI_ENABLED) -- no OpenAI calls",
         )
     elif not openai_key:
         openai = _chip("error", "Lincoln on but OPENAI_API_KEY missing")
     else:
-        openai = _chip("ok", "Lincoln enabled — OpenAI key present (no live ping)")
+        openai = _chip("ok", "Lincoln enabled -- OpenAI key present (no live ping)")
 
     try:
         import yfinance  # noqa: F401

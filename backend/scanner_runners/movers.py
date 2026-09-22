@@ -5,6 +5,7 @@ import logging
 import time
 
 from constants import SCANNER_MIN_PRICE
+from constants_scanner import SCANNER_RVOL_SOURCE_ALPACA
 from fundamentals import _fundamentals_cache, fetch_fundamentals_batch as _fetch_fundamentals_batch
 import exchanges as _exchanges
 from scanner import _check_news, _fetch_snapshots
@@ -42,6 +43,7 @@ def _build_mover_entry(raw: dict, snaps: dict, premarket_gap_map: dict) -> dict:
         "volume": volume,
         "gap_percent": gap_pct,
         "rel_volume": round(volume / avg_vol, 2) if avg_vol and avg_vol > 0 and volume > 0 else None,
+        "rvol_source": SCANNER_RVOL_SOURCE_ALPACA if avg_vol and avg_vol > 0 and volume > 0 else None,
         "has_news": False,
         "newest_headline_at": None,
         "market_cap": fund.get("market_cap"),

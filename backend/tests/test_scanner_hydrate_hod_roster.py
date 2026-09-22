@@ -86,8 +86,9 @@ def test_commit_table_live_hooks_hod_roster(monkeypatch):
 
     import sys
 
-    sys.modules.setdefault("scanner_push", MagicMock())
-    sys.modules["scanner_push"].broadcast_roster_replace = fake_broadcast
+    # monkeypatch, not a bare attribute write: the old write outlived the test
+    # and replaced the real broadcast for every test after it.
+    monkeypatch.setattr("scanner_push.broadcast_roster_replace", fake_broadcast)
 
     hooked: list[str] = []
     news_hooked: list[tuple[str, list]] = []

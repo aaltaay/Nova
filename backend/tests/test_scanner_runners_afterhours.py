@@ -52,6 +52,49 @@ def test_run_afterhours_discovery_scan_clears_sticky_bridge_error(monkeypatch):
     assert state.ibkr_bridge_last_error == ""
 
 
+def test_afterhours_rvol_names_its_alpaca_average(monkeypatch):
+    """QA C39: the AH RVOL divides by Alpaca IEX daily bars -- never label it yfinance."""
+    state = _fake_state()
+    state.avg_volume_cache = {"TOPS": 20_000.0}
+    seen: dict = {}
+
+    def fake_snapshot(sym, **kw):
+        seen[sym] = kw.get("rvol_source")
+
+    monkeypatch.setattr(scan_runners, "get_runtime_state", lambda: state)
+    monkeypatch.setattr(scan_runners, "_get_discovery_provider", lambda: "ibkr")
+    monkeypatch.setattr(scan_runners, "_alpaca_headers", lambda: None)
+    monkeypatch.setattr(scan_runners._ibkr_discovery, "get_afterhours_gainers", lambda: None)
+    monkeypatch.setattr(
+        scan_runners,
+        "run_ibkr",
+        lambda coro, on_error="none", label="ibkr": [
+            {"symbol": "TOPS", "price": 2.5, "prev_close": 1.5, "change_pct": 0.66, "volume": 1_000_000},
+            {"symbol": "NOAVG", "price": 3.0, "prev_close": 2.0, "change_pct": 0.5, "volume": 50_000},
+        ],
+    )
+    monkeypatch.setattr(scan_runners, "mark_resub", lambda: None)
+    monkeypatch.setattr(
+        afterhours, "_hod_momo",
+        type("M", (), {"update_ticker_snapshot": staticmethod(lambda sym, **kw: fake_snapshot(sym, **kw))})(),
+    )
+    monkeypatch.setattr(scan_runners, "save_afterhours_snapshot", lambda *a, **k: None)
+    import universe as _universe
+
+    monkeypatch.setattr(_universe, "refresh_hod_momo_universe", lambda: None)
+
+    afterhours.run_afterhours_discovery_scan()
+
+    rows = {r["symbol"]: r for r in state.afterhours_cache}
+    assert rows["TOPS"]["rel_volume"] is not None
+    assert rows["TOPS"]["rvol_source"] == "alpaca"
+    assert rows["NOAVG"]["rel_volume"] is None
+    assert rows["NOAVG"]["rvol_source"] is None
+    # The HOD snapshot no longer calls an Alpaca-average RVOL "ibkr_pace".
+    assert seen["TOPS"] in ("alpaca_pace", "alpaca")
+    assert "_hod_rvol_source" not in rows["TOPS"]
+
+
 def test_run_afterhours_focus_scan_clears_sticky_bridge_error(monkeypatch):
     state = _fake_state()
     state.afterhours_cache = [

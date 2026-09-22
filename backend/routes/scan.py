@@ -10,6 +10,7 @@ Endpoints:
   POST /api/large-cap/config
   GET  /api/large-cap/alerts
   GET  /api/news-catalysts
+  GET  /api/scan/envelope
   GET  /api/history/dates
   GET  /api/history/{cache_type}/{date}
 """
@@ -20,27 +21,25 @@ import re
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-import exchanges as _exchanges
-import hod_momo as _hod_momo
-import mover_enrich_view as _mover_enrich
 from alpaca import _get_feed
 from cache import list_history_dates, load_snapshot_for_date
 from constants import NOVA_API_REV
 from integrations_health import health_with_integrations
 from runtime_state import get_runtime_state
+from scanner_surface import surface_rows
 
 router = APIRouter(tags=["scan"])
 
 
-def _strip_blocked(rows: list[dict]) -> list[dict]:
+def _strip_blocked(rows: list[dict], table: str | None = None) -> list[dict]:
     """Remove blocklisted symbols, attach listing ``exchange``, fill reference columns.
 
     Reference columns (RVOL / float / short interest / market cap / NEWS)
     are decorated here rather than written into the cache so a frozen table's
-    stored values stay immutable (ADR 008). See ``mover_enrich_view``.
+    stored values stay immutable (ADR 008). ``/ws/scanner`` runs the same
+    pipeline (``scanner_surface``, QA C49).
     """
-    out = [r for r in rows if not _hod_momo.is_blocked(r.get("symbol", ""))]
-    return _mover_enrich.decorate_rows(_exchanges.attach_exchanges(out))
+    return surface_rows(rows, table)
 
 
 def _feed_error(state) -> str | None:
@@ -112,12 +111,8 @@ def get_afterhours():
 @router.get("/api/large-cap")
 def get_large_cap():
     """Large Cap swing table (ADR 014). Always-live -- never freezes."""
-    import large_cap_admin as _lc_admin
-    import large_cap_metrics as _lc_metrics
-
     state = get_runtime_state()
-    rows = _strip_blocked(state.large_cap_cache)
-    rows = _lc_metrics.compute_scores(rows, weights=_lc_admin.get_score_weights())
+    rows = _strip_blocked(state.large_cap_cache, "large_cap")
     return {
         "rev": NOVA_API_REV,
         "mode": state.current_mode,
@@ -172,6 +167,36 @@ def get_news_catalysts():
         "health": _scan_health(),
         "catalysts": _strip_blocked(state.news_catalyst_cache),
         "last_scan": state.news_catalyst_cache_ts,
+    }
+
+
+@router.get("/api/scan/envelope")
+def get_scan_envelope():
+    """Scanner envelope without rows (QA C48).
+
+    A persistent-authoritative desk (ADR 008) fetches rows once and then
+    follows /ws/scanner; its mode / health / feed_error and per-table state
+    came only from that first fetch and froze for the session. It polls this
+    instead of re-pulling every table's rows.
+    """
+    state = get_runtime_state()
+
+    def table(ts, last_scan) -> dict:
+        return {**_roster_surface(ts), "last_scan": last_scan}
+
+    return {
+        "rev": NOVA_API_REV,
+        "mode": state.current_mode,
+        "health": _scan_health(),
+        "data_feed": _get_feed(),
+        "feed_error": _feed_error(state),
+        "tables": {
+            "gappers": table(state.gapper_table, state.gapper_cache_ts),
+            "gainers": table(state.gainer_table, state.gainer_cache_ts),
+            "losers": table(state.loser_table, state.gainer_cache_ts),
+            "afterhours": table(state.afterhours_table, state.afterhours_cache_ts),
+            "large_cap": table(state.large_cap_table, state.large_cap_cache_ts),
+        },
     }
 
 

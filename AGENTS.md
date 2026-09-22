@@ -356,6 +356,35 @@ human_step_poll_sec, cleared_at, cleared_reason, recent[]}` from
 10 min, then a stated human step). `ibkr/session_errors.last_error()` is
 `{code, message, ts} | null` for the last IB errorEvent of any code.
 
+### Scanner rows and HOD Momo alerts on the wire (QA batch, 2026-09-22)
+
+The REST scanner routes and `/ws/scanner` (`roster_replace` and the connect
+snapshot) serve rows through one pipeline, `scanner_surface.surface_rows`:
+blocklisted symbols removed, listing `exchange` attached, reference columns
+decorated, Large Cap scored -- a roster push can no longer bring back a
+blocklisted ticker or drop `large_cap_score`. Each row may carry
+`rvol_source: "yfinance" | "alpaca" | null`, naming the average daily volume
+`rel_volume` divides by (null or absent when unreported; the desk then says
+so rather than guessing). A price-patch row's existing
+`quote_quality: "close_fallback"` means the price is IBKR's prior close with no
+trade yet; the desk shows it as such and states no change.
+`GET /api/scan/envelope` (owner `routes/scan.py`) answers `rev`, `mode`,
+`health` (with `integrations`), `data_feed`, `feed_error: string | null` and
+`tables: {gappers | gainers | losers | afterhours | large_cap: {table_state,
+roster_ts, last_scan}}` -- never rows. A persistent-authoritative desk (ADR
+008), whose rows follow `/ws/scanner`, polls it so mode, health and feed
+errors do not freeze at mount.
+
+No socket frame on `/ws/scanner` or `/ws/hod-momo` carries a bare `NaN` /
+`Infinity`: a non-finite float is `null` (`scanner_wire.dumps_wire`,
+`hod_momo_models.alert_to_dict`). A HOD Momo alert's `id` is
+`"<created_ms>-<SYMBOL>-<strategy_id>"`, taken from when Nova raised it
+(`created_ts`), so two alerts raised on one stale print never share an id;
+`timestamp` stays the trigger print's time. `change_pct` is `number | null`
+-- null when the snapshot had none, never an invented 0.0. The HOD debug
+snapshots' `last_enriched` is epoch seconds (`time.time()`), `0` when never
+enriched. Integration-health `detail` strings are ASCII.
+
 ### Input Payload (Raw)
 
 ```json
@@ -785,6 +814,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-22 | QA batch -- Scanner / HOD Momo / desk honesty: REST and `/ws/scanner` share one row pipeline (`scanner_surface`); rows carry `rvol_source`; `GET /api/scan/envelope` keeps a persistent-authoritative desk's mode / health / feed_error current; socket frames never carry a bare NaN; HOD alert ids come from the raise time, `change_pct` may be null, `last_enriched` is epoch seconds; integration details are ASCII. The desk gates every scanner row through one shape check, names failed routes, and states absences instead of inventing values. §3 amended. | User Directive + Claude Opus 5 |
 | 2026-09-22 | QA batch fix/qa-sim-replay (Sim venue, replay, recording, practice ticket): replay status adds `replay_loading` (`replay_ok: null` while a capture loads); `POST /api/sim/replay` answers the clock envelope; Sim clock payloads add `replay_quote` (a capture's market at the playhead, `covered: false` in a gap); capture reads never cross a gap and refuse practice orders there; recorded quote rows load; odd lots never fill; SIM1 rows unusable; print-less failed sessions unusable; listing counts / segments / spans include the running segment and data written past the last segment; `missing_sec` excludes operator stops; the restart finalizer stops at the last write; `/api/capture` `errors` and `/api/ibkr/status` `capture_errors` per symbol; complete candle jobs cover their window; a dead download reads `interrupted`; practice rows carry venue time; a paused forward scrub fills. §3 amended. | User Directive + Claude Opus 5 |
 | 2026-09-22 | QA batch (orders / account / safety): Orders (Today) belongs to the desk's venue -- the closed-orders overlay and the fill-audit join are scoped by the execution ledger's `mode` stamp, a practice desk lists its own ledger only (four filled Paper orders read "Inactive, filled 0" on Sim); leftover rows map the requested price by order type and never show placement as the fill time; practice rows carry `commission: null` until a fill, keep order ids unique across a Sim unwind, and release their in-flight commitment when resolved (a filled resting SELL used to stay "already sent"). The sample desk (`?view=sample`) sends nothing to the backend and reads none of its live state (`sample_data/sampleNetworkGate.ts`). §3 amended. | User Directive + Claude Opus 5 |
 | 2026-09-22 | Operator-reported desk fixes: `/api/capture/sessions` rows carry `spans` (whole epoch seconds per recorded segment) so the Sim scrubber draws a thin recorded lane under a downloaded replay; the playhead tag moves under the band so the header no longer hides it. §3 amended. | User Directive + Claude Opus 5 |
