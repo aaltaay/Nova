@@ -274,20 +274,9 @@ export const HOD_MOMO_ALERT_BATCH_MS = 150;
 /** Max stacked strategy pills per row before collapsing the rest into a "+N" chip. */
 export const HOD_MOMO_MAX_INLINE_STRATEGY_PILLS = 4;
 
-/** Middle-column HOD Momo / Running Up dock (Scanner main-col only). */
-export const HOD_MOMO_DOCK_COLLAPSED_KEY = 'nova.hodMomo.dock.v2.collapsed';
-export const HOD_MOMO_DOCK_HEIGHT_KEY = 'nova.hodMomo.dock.v2.heightPx';
-/** First visit: expanded in the middle column (side rails stay full height). */
-export const HOD_MOMO_DOCK_DEFAULT_COLLAPSED = false;
-/** Default expanded body height (~8 rows + table header chrome). */
-export const HOD_MOMO_DOCK_DEFAULT_ROWS = 8;
-export const HOD_MOMO_DOCK_DEFAULT_HEIGHT_PX =
-  HOD_MOMO_DOCK_DEFAULT_ROWS * HOD_MOMO_ROW_HEIGHT_PX + HOD_MOMO_HEADER_HEIGHT_PX + 48;
-export const HOD_MOMO_DOCK_MIN_HEIGHT_PX =
-  4 * HOD_MOMO_ROW_HEIGHT_PX + HOD_MOMO_HEADER_HEIGHT_PX + 48;
-export const HOD_MOMO_DOCK_MAX_HEIGHT_PX =
-  20 * HOD_MOMO_ROW_HEIGHT_PX + HOD_MOMO_HEADER_HEIGHT_PX + 96;
-export const HOD_MOMO_DOCK_COLLAPSED_HEIGHT_PX = 36;
+/** The Scanner HOD Momo strip's layout constants live in
+ * hod_momo/hodMomoStripConstants.ts (feature-local); the retired
+ * `nova.hodMomo.dock.v2.*` keys are not migrated on purpose. */
 
 /** Empty-state copy when the HOD Momo WS is connected but no alerts have fired yet. */
 export const HOD_MOMO_EMPTY_WAITING =

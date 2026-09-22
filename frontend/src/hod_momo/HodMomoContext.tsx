@@ -1,5 +1,7 @@
 /**
  * Shared HOD Momo context — live provider and sample fixture provider both use this.
+ * Strip layout (rows + folded) is one versioned localStorage blob owned by
+ * hodMomoStripPersist.ts.
  */
 import {
   createContext,
@@ -11,12 +13,11 @@ import {
 } from 'react';
 import { collapseAlertsBySymbol } from './collapseAlertsBySymbol';
 import {
-  clampDockHeightPx,
-  readDockCollapsed,
-  readDockHeightPx,
-  writeDockCollapsed,
-  writeDockHeightPx,
-} from './hodMomoDockPersist';
+  clampStripRows,
+  readStripLayout,
+  writeStripLayout,
+  type HodMomoStripLayout,
+} from './hodMomoStripPersist';
 import { type HodDockMode } from './scannerDockModes';
 import { partitionScannerAlerts } from './scannerPartition';
 import type { useHodMomoConfig } from './useHodMomoConfig';
@@ -34,11 +35,13 @@ export type HodMomoContextValue = {
   runningUpCount: number;
   dockMode: HodDockMode;
   setDockMode: (mode: HodDockMode) => void;
+  /** Folded to its header line. */
   collapsed: boolean;
   setCollapsed: (collapsed: boolean) => void;
   toggleCollapsed: () => void;
-  heightPx: number;
-  setHeightPx: (px: number) => void;
+  /** Whole alert rows the unfolded strip shows (persisted). */
+  rows: number;
+  setRows: (rows: number) => void;
   focusDock: (mode: HodDockMode) => void;
   showHodSettings: boolean;
   setShowHodSettings: (open: boolean) => void;
@@ -49,34 +52,34 @@ const HodMomoContext = createContext<HodMomoContextValue | null>(null);
 
 export function useHodMomoDockState(stream: HodStream) {
   const [dockMode, setDockMode] = useState<HodDockMode>('hod_momo');
-  const [collapsed, setCollapsedState] = useState(readDockCollapsed);
-  const [heightPx, setHeightState] = useState(readDockHeightPx);
+  const [layout, setLayout] = useState<HodMomoStripLayout>(readStripLayout);
   const [showHodSettings, setShowHodSettings] = useState(false);
 
-  const setCollapsed = useCallback((next: boolean) => {
-    setCollapsedState(next);
-    writeDockCollapsed(next);
-  }, []);
-
-  const toggleCollapsed = useCallback(() => {
-    setCollapsedState((prev) => {
-      const next = !prev;
-      writeDockCollapsed(next);
+  const updateLayout = useCallback((patch: (prev: HodMomoStripLayout) => HodMomoStripLayout) => {
+    setLayout((prev) => {
+      const next = patch(prev);
+      if (next.rows === prev.rows && next.folded === prev.folded) return prev;
+      writeStripLayout(next);
       return next;
     });
   }, []);
 
-  const setHeightPx = useCallback((px: number) => {
-    const next = clampDockHeightPx(px);
-    setHeightState(next);
-    writeDockHeightPx(next);
-  }, []);
+  const setCollapsed = useCallback((next: boolean) => {
+    updateLayout((prev) => ({ ...prev, folded: next }));
+  }, [updateLayout]);
+
+  const toggleCollapsed = useCallback(() => {
+    updateLayout((prev) => ({ ...prev, folded: !prev.folded }));
+  }, [updateLayout]);
+
+  const setRows = useCallback((rows: number) => {
+    updateLayout((prev) => ({ ...prev, rows: clampStripRows(rows) }));
+  }, [updateLayout]);
 
   const focusDock = useCallback((mode: HodDockMode) => {
     setDockMode(mode);
-    setCollapsedState(false);
-    writeDockCollapsed(false);
-  }, []);
+    updateLayout((prev) => ({ ...prev, folded: false }));
+  }, [updateLayout]);
 
   const toggleHodSettings = useCallback(() => {
     setShowHodSettings((s) => !s);
@@ -99,11 +102,11 @@ export function useHodMomoDockState(stream: HodStream) {
     () => ({
       dockMode,
       setDockMode,
-      collapsed,
+      collapsed: layout.folded,
       setCollapsed,
       toggleCollapsed,
-      heightPx,
-      setHeightPx,
+      rows: layout.rows,
+      setRows,
       focusDock,
       showHodSettings,
       setShowHodSettings,
@@ -113,11 +116,11 @@ export function useHodMomoDockState(stream: HodStream) {
     }),
     [
       dockMode,
-      collapsed,
+      layout.folded,
+      layout.rows,
       setCollapsed,
       toggleCollapsed,
-      heightPx,
-      setHeightPx,
+      setRows,
       focusDock,
       showHodSettings,
       toggleHodSettings,

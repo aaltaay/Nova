@@ -17,8 +17,10 @@ import { ScannerBarBridge } from '../components/ScannerBarBridge';
 import { setGlobalBarHistoryDate } from '../components/scannerBarStore';
 import { useWatchlist } from '../strategy/useWatchlist';
 import { useSidePanelWidth } from '../hooks/useSidePanelWidth';
+import { boardListForSymbol } from '../scanner/boardListForSymbol';
 import { useLiveScannerFeed } from '../scanner/ScannerDataContext';
 import { ScannerDesk } from '../scanner/ScannerDesk';
+import { useScannerBoard } from '../scanner/useScannerBoard';
 import { useSettings } from '../settings/SettingsContext';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
@@ -113,23 +115,6 @@ export function DashboardPage() {
     clear: scanner.historyDate !== null,
   });
 
-  const filteredGappers = exchangeFilter.filterRows(scanner.gappers);
-  const filteredGainers = exchangeFilter.filterRows(scanner.gainers);
-  const filteredLosers = exchangeFilter.filterRows(scanner.losers);
-  const filteredAfterhours = exchangeFilter.filterRows(scanner.afterhours);
-  const filteredLargeCap = exchangeFilter.filterRows(scanner.largeCap);
-
-  // Fail-loud (single-market-data-feed.mdc): a client-side filter must never
-  // hide rows in silence. 2026-08-25 the exchange filter blanked the desk to
-  // 1 row and nothing on screen said why.
-  const hiddenByExchangeFilter: Record<string, number> = {
-    gappers: scanner.gappers.length - filteredGappers.length,
-    gainers: scanner.gainers.length - filteredGainers.length,
-    losers: scanner.losers.length - filteredLosers.length,
-    afterhours: scanner.afterhours.length - filteredAfterhours.length,
-    large_cap: scanner.largeCap.length - filteredLargeCap.length,
-  };
-
   function handleTabClick(tab: ActiveTab) {
     if (!isTabModuleId(tab)) return;
     if (isDockTab(tab)) {
@@ -159,7 +144,36 @@ export function DashboardPage() {
   }, [visibility]);
 
   const mainTab = isMainScannerTab(activeTab) ? activeTab : DEFAULT_ACTIVE_TAB;
-  const activeHiddenCount = hiddenByExchangeFilter[mainTab] ?? 0;
+  const moduleTitle = getModule(mainTab)?.title ?? 'Scanner';
+
+  // Fail-loud (single-market-data-feed.mdc): a client-side filter must never
+  // hide rows in silence. 2026-08-25 the exchange filter blanked the desk to
+  // 1 row and nothing on screen said why. Board chips ride the same rule:
+  // the board hook counts what each filter hid and its footer states it.
+  const board = useScannerBoard(scanner, exchangeFilter.filterRows, mainTab, moduleTitle);
+  const {
+    gappers: filteredGappers,
+    gainers: filteredGainers,
+    losers: filteredLosers,
+    afterhours: filteredAfterhours,
+    large_cap: filteredLargeCap,
+  } = board.rows;
+  const activeHiddenCount = board.hiddenByExchange;
+
+  // HOD strip row: select for the side panel; if the symbol is not on the
+  // board's current list, show the first scanner list that holds it. No list
+  // holding it keeps the board as is -- the strip row is the selection.
+  function onAlertSelect(symbol: string) {
+    selectRowSymbol(symbol);
+    const target = boardListForSymbol(symbol, mainTab, {
+      gappers: filteredGappers,
+      gainers: filteredGainers,
+      losers: filteredLosers,
+      afterhours: filteredAfterhours,
+      large_cap: filteredLargeCap,
+    });
+    if (target && target !== mainTab) handleTabClick(target);
+  }
 
   // Declare the table actually on screen for IBKR L1, on mount as well as on
   // change. A click-only hint left `l1ActiveTab` at DEFAULT_ACTIVE_TAB after
@@ -208,10 +222,10 @@ export function DashboardPage() {
       <ScannerBarBridge activeTab={mainTab} scanner={scanner} />
 
       <div className="main-col main-col--scanner-stack">
-        <HodMomoDock />
+        <HodMomoDock onAlertSelect={onAlertSelect} />
 
         <ScannerDesk>
-        <SelectedScannerWidget title={getModule(mainTab)?.title ?? 'Scanner'}>
+        <SelectedScannerWidget title={moduleTitle} header={board.header} footer={board.footer}>
           <main className="panel">
             {scanner.historyDate && (
               <div className="history-banner">
