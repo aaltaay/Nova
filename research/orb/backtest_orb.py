@@ -193,8 +193,9 @@ def print_report(out: dict) -> None:
     keys = ["days", "trades", "trades_per_day", "win_rate_pct", "profit_factor", "expectancy_r",
             "expectancy_usd", "avg_win", "avg_loss", "stopped_pct", "fees_total",
             "total_return_pct", "cagr_pct", "max_drawdown_pct", "sharpe", "end_equity"]
-    print(f"\nORB long-only  tag={out['params']['tag']}  top={out['params']['top']}  "
-          f"stop={out['params']['stop_atr']}xATR  slip=${out['params']['slippage']}")
+    pr = out.get("params", {})
+    stop = f"stop={pr['stop_atr']}xATR" if "stop_atr" in pr else f"stop=${pr.get('stop_cents')}/{pr.get('stop_pct')}"
+    print(f"\n{pr.get('selection', 'ORB')} long-only  tag={pr.get('tag')}  top={pr.get('top')}  {stop}  slip=${pr.get('slippage')}")
     for k in keys:
         if k in out:
             print(f"  {k:18} {out[k]}")

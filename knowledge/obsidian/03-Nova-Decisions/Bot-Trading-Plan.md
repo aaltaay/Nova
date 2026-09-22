@@ -75,7 +75,7 @@ Decision B (recommendation starred):
 
 Done when: one local Parquet / DuckDB store with a "was listed on that date" flag per symbol.
 
-### L2 -- Backtest `[x]` for A1 (2026-09-22, see §2b); `[ ]` for A2
+### L2 -- Backtest `[x]` for A1 (§2b) and A2 (§2c); `[ ]` for A4 (§2d)
 
 Install vectorbt in a scratch environment, adapt `.cursor/skills/backtest/` to read the local
 store, code the ORB rules exactly as published. Charge IBKR commissions plus 1-3 c/share slippage
@@ -84,7 +84,7 @@ on small caps; no signal may read anything after its own minute.
 Done when: the ORB reproduces the paper's *shape* on 2016-2023 and the run reports trade count,
 expectancy in R, profit factor, max drawdown.
 
-### L3 -- Try to break it `[x]` for A1 (broke on the 2x-cost test, see §2b); `[ ]` for A2
+### L3 -- Try to break it `[x]` for A1 (broke on the 2x-cost test, §2b) and A2 (broke on three of four, §2c); `[ ]` for A4
 
 Walk-forward by year. Parameter neighbourhood: stop 5 / 10 / 15% ATR, top 10 / 20 / 30 by RVOL,
 5 / 15 / 30-minute ranges -- the neighbourhood must stay positive. 1,000-shuffle permutation
@@ -166,6 +166,73 @@ win rate, 43% time in market, max DD -23.7%, 1,045 trades; buy-and-hold 8.9% wit
 3. **One-second bars** for the selected symbol-days (09:30-11:00 ET) were pulled while the
    plan was active, so the entry-bar stop question can be settled if ORB is ever revisited.
 
+## 2c. Gate 1 result -- Gap and Go long-only, 2026-09-22 (harness: `research/orb/`)
+
+Rules were fixed in `select_gng.py` / `backtest_gng.py` before the run (Five Pillars at
+09:30: $2-20, gap >= 10% vs prior close, pre-market volume >= 5x its 14-day average and
+>= 100k shares, a news article for the ticker since the prior close, float <= 20M; buy stop
+at the pre-market high until 10:00; stop min($0.20, 4%); half off at 2R with the stop to
+breakeven; rest at 4R or an 11:30 time stop). Same account, costs and fills as §2b.
+
+**Float caveat found on the way:** the API returns share counts only for tickers that still
+exist (13,805 of 36,640), so the float pillar silently drops most delisted names -- the
+ones that lost. The five-pillar run is therefore a flattering upper bound; the run without
+the float pillar is the honest one.
+
+| Run | Cands | Trades | Win | PF | Exp | CAGR | Max DD | Sharpe |
+|---|---|---|---|---|---|---|---|---|
+| Five pillars (survivor-biased) | 549 | 154 | 40.9% | 1.15 | +0.12R / $24 | 2.9% | -17.1% | 0.61 |
+| **Without float pillar (honest)** | 2,682 | 778 | 36.9% | **1.00** | +0.05R / $0.64 | **0.4%** | **-34.4%** | 0.12 |
+| Stop $0.10 | 549 | 154 | 39.6% | 0.93 | +0.05R | -1.0% | -15.7% | -0.23 |
+| Stop $0.30 | 549 | 154 | 41.6% | 1.15 | +0.11R | 3.0% | -19.7% | 0.62 |
+| Half off at 1.5R | 549 | 154 | 45.5% | 1.03 | +0.04R | 0.5% | -16.0% | 0.18 |
+| Half off at 3R | 549 | 154 | 28.6% | 0.87 | -0.05R | -2.8% | -29.2% | -0.41 |
+| No second target, hold to close | 549 | 154 | 40.9% | 0.85 | -0.08R | -3.1% | -31.3% | -0.55 |
+| Entries until 10:30 | 549 | 173 | 41.0% | 1.13 | +0.12R | 2.9% | -20.4% | 0.59 |
+| Zero slippage | 549 | 154 | 42.2% | 1.31 | +0.22R | 5.8% | -14.3% | 1.14 |
+| Slippage $0.02 | 549 | 154 | 37.7% | 0.93 | -0.03R | -1.5% | -23.7% | -0.21 |
+| **2x costs** | 549 | 154 | 37.7% | **0.84** | -0.10R | -3.4% | -29.4% | -0.58 |
+
+Top 5 / 10 / 20 candidates per day give identical results (cash-bound). Years: the
+five-pillar run loses in 2023 (-$1.9k) and 2024 (-$2.2k); the honest run loses $7.5k in
+2024. Concentration: the five-pillar run's ten best trades are 278% of its profit (without
+them -$6.6k); the honest run's total profit over five years is $502.
+
+**Kill criteria:**
+
+| Criterion | Result |
+|---|---|
+| Fewer than 300 trades | **Fail** for the five-pillar run (154); pass for the honest run (778) |
+| Edge lives in one year | **Fail** -- 2022 carries the five-pillar run; the honest run is flat |
+| Neighbourhood mostly positive | **Fail** -- half the cells are negative |
+| Dies at 2x costs | **Fail** -- PF 0.84 |
+
+**Verdict: not passed.** The mechanical Gap and Go has no measurable edge after costs on
+five years of data. Whatever edge the course version has must live in the parts that are
+not mechanical -- catalyst quality, tape reading, when to skip -- and those cannot be tested
+here or handed to a bot. The two small-cap breakout entries at the open (§2b, §2c) are now
+both measured: a real but cost-fragile signal (ORB) and no signal (Gap and Go).
+
+## 2d. Third candidate, pre-registered 2026-09-22 -- A4 large-cap daily mean reversion
+
+Why this next: both small-cap breakout entries died on slippage at $25k; large caps trade at
+sub-cent spreads, daily-bar rules need one order a day at the close (no pattern-day-trader
+issue, fits a cash account), and the five years of daily files cover every US stock with
+delistings included -- a cross-sectional test the SPY baseline could not give. Rules are
+fixed here before any run:
+
+- Universe each day, from prior days only: close > $20, 20-day average dollar volume
+  >= $50M, 200-day history available, no split in the trailing 30 days, common stock / ADR.
+- Signal: close above the 200-day simple moving average (uptrend) and 2-day RSI < 10
+  (short-term washout); rank by RSI ascending; take up to 5 names.
+- Entry: buy at that day's close (the bot would send a market-on-close-style limit at 15:55).
+- Exit: sell at the close of the first day whose close is above the prior day's high, or
+  after 10 trading days, whichever first.
+- Sizing: 20% of equity per name, at most 5 names; costs IBKR fixed + $0.01/share
+  slippage each side (large-cap spreads are tighter; 1c stays for comparability).
+- Kill criteria unchanged: < 300 trades, edge in one year, neighbourhood (RSI 5/10/15,
+  hold 5/10/20, MA 100/200) not mostly positive, dies at 2x costs. Concentration is reported.
+
 ## 3. Reference numbers (from the 2026-09-22 research pass)
 
 - Good backtest: > 300 trades, profit factor 1.3-2.0 after costs, expectancy > 0.2R, max DD
@@ -194,3 +261,4 @@ blog.traderspost.io paper-to-live guide.
 | 2026-09-22 | **Decision B = B1.** Operator bought Massive (formerly Polygon) Stocks Starter for one month; flat files `us_stocks_sip/minute_aggs_v1` + `day_aggs_v1` from 2021-10-01 download to `F:\Nova\data\massive` (~24 GB, unadjusted -- splits pulled via REST before cancelling). S3 pair lives in the desk `.env` as `MASSIVE_S3_*`. | Operator |
 | 2026-09-22 | **Decision A = A1** (5-minute ORB on stocks in play, long-only first), decided by the agent at the operator's request ("I just want to be profitable, I don't know") -- the only candidate with a replicated published backtest and a universe Nova's scanner already produces. A3 (SPY swing on free daily bars) runs alongside as the baseline; A2 (Gap and Go) follows on the same harness. Operator may veto. | Claude Fable 5.1 for the operator |
 | 2026-09-22 | **Gate 1 verdict for A1: not passed** (fails the 2x-cost kill test; profit carried by ~10 trades). Not promoted to paper. **Next candidate: A2 Gap and Go** on the same store once news + ticker details are in. Operator's definition of done unchanged: paper evidence, then their live test. | Claude Fable 5.1 for the operator |
+| 2026-09-22 | **Gate 1 verdict for A2 Gap and Go: not passed** (PF 1.00 without the survivor-biased float pillar; fails three of four kill tests). Not promoted. **Next candidate: A4 large-cap daily mean reversion**, rules pre-registered in §2d. L1 data complete; the Massive plan may be cancelled. | Claude Fable 5.1 for the operator |
