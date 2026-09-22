@@ -71,12 +71,13 @@ def fetch_chart_bars(
     IBKR-sourced (store and/or live historical). There is no silent Alpaca
     fallback. An empty store while Gateway is down is still HTTP 503.
 
-    Sim reads obey the session knowledge boundary, including archived history.
+    Sim reads off the live edge obey the session knowledge boundary, including
+    archived history; at the live edge a Sim tab reads live bars like Paper.
     """
     symbol = symbol.upper()
-    from sim.mode import is_sim_mode
+    from sim.mode import is_replay_desk
 
-    if is_sim_mode():
+    if is_replay_desk():
         from sim.chart_replay import fetch_replay_bars
 
         return fetch_replay_bars(symbol, timeframe, limit)

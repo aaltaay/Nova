@@ -47,6 +47,10 @@ export type WorkspaceValue = {
   ibkrAccountKind: string | null;
   ibkrIntentionalMode: 'paper' | 'live' | null;
   openStockView: (symbol: string) => void;
+  /** Desk board row click: add or activate the tab and select the symbol
+   * without switching to the full Trader view (the Desk shows the workspace
+   * beside its board). */
+  openTraderTab: (symbol: string) => void;
   /** Row-body click on a table with a separate ticker button (ADR 011 §7a):
    * Quote Panel only on Scanner; adds or activates a tab on Trader. */
   selectRowSymbol: (symbol: string) => void;
@@ -128,6 +132,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       ibkrAccountKind: ibkrStatus.broker_account_kind ?? null,
       ibkrIntentionalMode: ibkrStatus.intentional_gateway_mode ?? null,
       openStockView: trader.openStockView,
+      openTraderTab: trader.openTraderTab,
       selectRowSymbol: trader.selectRowSymbol,
       extractTraderTab: trader.extractTraderTab,
       acceptTraderTabDrop: trader.acceptTraderTabDrop,

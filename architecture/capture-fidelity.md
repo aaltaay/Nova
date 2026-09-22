@@ -15,7 +15,21 @@ newest pending book even if the feed became quiet. Manifest fidelity describes
 offered/coalesced counts, configured maximum Hz, invalid timestamp and regression
 counts, and per-stream watermarks. A backward print fails visibly before it can
 enter bars. Forward Eastern date changes finalize the old directory and resume
-the event's date. Daily bars stay in
+the event's date; the recording continues across the swap, and recorder state is
+read under its lock so a status poll can never observe the swap half-done and
+drop Record mode. A day segment closed before its first print is marked empty.
+
+Session Record owns its IBKR lines (`capture/feed_hold.py`, #315). Starting a
+recording opens -- or joins -- the symbol's AllLast tape and a live depth line
+and holds a viewer reference on each until it stops, so no panel opening,
+closing or switching venue can pull its feed; stop releases through the same
+linger and grace paths the panels use. A refused tape line refuses the
+recording; a refused depth line records prints only, with a status warning.
+Record runs on any desk venue: on a Sim desk live ticks and books still reach
+the recorder and the stored book the print side is classified against, but are
+not broadcast to the practice desk's panels or sensors, and a switch to Sim no
+longer stops a recording (that stop guarded against SIM1 ticks, removed by
+ADR 019). Daily bars stay in
 memory until rollover/final flush, anchored to the shared Sim session opening
 hour on the actual event calendar; pre-open events use the preceding anchor so
 DST or early prints cannot produce a future timestamp.
@@ -74,3 +88,47 @@ combine the prior symbol's quote with the new symbol's trade. A regression holds
 capture alignment and historical publication concurrently to exercise the exact
 lock order rather than relying on scheduling luck.
 `latest_quote` uses canonical `bid_price`, `ask_price`, `bid_size`, and `ask_size` fields from recorded data, retaining `bid`/`ask` aliases for compatibility. Unknown values remain null.
+
+## Persistence: resume, then say so (operator decision, 2026-09-21)
+
+A Session Record is owned by the backend process -- up to three symbols at
+once (`CAPTURE_MAX_CONCURRENT`: IBKR allows three depth lines, Record holds one
+per symbol), each by the operator's choice, each its own recorder session with
+its own IBKR lines. Nothing on the page stops one: closing the panel, the tab
+or the window, reloading, switching desks. One symbol dying never touches the
+others; a fourth symbol is refused before any IBKR line is touched. The frontend keeps no recording state
+of its own -- `sessionRecordStore.ts` reads only fresh `/api/ibkr/status`
+snapshots -- so a reload simply shows what the backend is still doing.
+
+What *can* stop it, and the policy for each, lives in `capture/keepalive.py`:
+
+| Event | What happens | What the operator sees |
+|---|---|---|
+| Nova restart | Startup finalizes the orphan (`session_state.finalize_orphaned_session`, segment `reason: "restart"`). If it is today's session and its newest stream file is younger than `CAPTURE_RESUME_RESTART_WINDOW_SEC`, the keepalive resumes it into a new segment once IBKR is ready. | Toast "GRML recording was cut by a Nova restart", then quiet once it resumed. |
+| Recorder stops itself (disk, timestamp, writer backlog) | The next keepalive tick sees no recording and no operator stop: `capture_stopped` is set and a resume is scheduled with `CAPTURE_RESUME_BACKOFF_SEC`, at most `CAPTURE_RESUME_MAX_ATTEMPTS` tries; IBKR being down costs no attempt. | Toast with the reason and "Resuming on its own in 5s (attempt 1 of 5)"; "Gave up" plus a Resume now button after the last. |
+| IBKR line dropped with the Gateway | The recorder never stopped. When the client is ready again the keepalive releases and re-acquires the tape and depth lines (`capture_session.reacquired`). | Nothing loud: a quiet stretch inside the segment. |
+| Operator Stop / Record on another symbol | `routes.py` tells the keepalive first, so the stop is never read as a death and any pending resume is cancelled. | Nothing. |
+
+Resume never crosses the session day and never changes symbol. Every manifest
+segment carries `reason: operator | rotation | failure | restart`, so a gap can
+say what made it; `/api/capture/sessions` rows summarise `segments`,
+`missing_sec` and `last_reason`, and a capture loaded for replay exposes its
+segments in `replay_load` for the scrubber band.
+
+### What the operator sees (frontend/src/capture)
+
+Steady state is quiet; a change of state is loud:
+
+- **REC chips** in the header status cluster, one per recording symbol, none
+  otherwise: red dot, symbol, elapsed time of this segment; counts, segment
+  and last-write age in the tooltip; click opens that tab.
+- **Hairline**: 2px red along the top window edge while recording.
+- **Window title** leads with `REC GRML` (shared `electron/appTitle.mjs`), so
+  the taskbar says so with Nova behind other windows.
+- **Stop toast** (`RecordingSignals.tsx`): only for a stop the operator did not
+  ask for; stays until resumed or dismissed; one per stop, per symbol.
+- **Hold to stop** (`HoldToStopButton.tsx`): Stop in the tab menu takes a
+  `CAPTURE_STOP_HOLD_MS` hold; a click or an early release keeps recording.
+- **Capture band** under the Sim scrubber: recorded stretches solid, the gaps
+  between them striped with why in the tooltip (`simCoverage.captureBandSegments`).
+  A quiet stretch inside one recording is not a gap.

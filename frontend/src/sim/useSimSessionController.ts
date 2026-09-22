@@ -1,17 +1,27 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { replayPollResource } from './replayPollResource';
+import { simClockResource } from './simClockResource';
 import { historicalStatus } from './historicalStatusStore';
 import { useReplayActions } from './useReplayActions';
 import { emitSimClockScrub, SIM_CLOCK_SCRUB_EVENT, SIM_SEEK_CANCEL_EVENT, type SimClockScrubDetail } from './simClockEvents';
-import { SIM_CAPTURE_POLL_MS, SIM_HISTORY_POLL_MS, SIM_SCRUB_KEYBOARD_MS } from './simConstants';
+import { SIM_CAPTURE_POLL_MS, SIM_SCRUB_KEYBOARD_MS } from './simConstants';
 import type { SimClockState } from './simClockTypes';
-interface CaptureSessions {
+export interface CaptureSessions {
   days: { date: string; ticker_count: number }[];
-  tickers_by_day: Record<string, { symbol: string; prints: number; l2: number; usable?: boolean; empty?: boolean; unavailable_reason?: string | null }[]>;
+  tickers_by_day: Record<string, {
+    symbol: string; prints: number; l2: number; usable?: boolean; empty?: boolean; unavailable_reason?: string | null;
+    segments?: number; missing_sec?: number; last_reason?: string | null; status?: string;
+  }[]>;
 }
-const clockResource = replayPollResource<SimClockState>('/clock', () => SIM_HISTORY_POLL_MS);
-const capturesResource = replayPollResource<CaptureSessions>('/api/capture/sessions', () => SIM_CAPTURE_POLL_MS);
-export function useSimSessionController(active: boolean, openStockView: (symbol: string) => void) {
+const clockResource = simClockResource;
+export const capturesResource = replayPollResource<CaptureSessions>('/api/capture/sessions', () => SIM_CAPTURE_POLL_MS);
+/**
+ * ``activeSymbol`` is the tab the operator is looking at. It rides on every scrub so a
+ * move off the live edge with nothing loaded can select that tab's Session
+ * Record for today underneath the playhead (ADR 020 live-edge amendment); the
+ * backend cannot see UI tabs. Omitted when the desk has no active tab.
+ */
+export function useSimSessionController(active: boolean, openStockView: (symbol: string) => void, activeSymbol?: string | null) {
   const subscribeClock = useCallback((listener: () => void) => active ? clockResource.subscribe(listener) : () => {}, [active]);
   const subscribeCaptures = useCallback((listener: () => void) => active ? capturesResource.subscribe(listener) : () => {}, [active]);
   const clockState = useSyncExternalStore(subscribeClock, clockResource.getSnapshot);
@@ -47,6 +57,7 @@ export function useSimSessionController(active: boolean, openStockView: (symbol:
     return () => { sessionActive.current = false; seekPending.current = null; window.removeEventListener(SIM_CLOCK_SCRUB_EVENT, onSelection); window.removeEventListener(SIM_SEEK_CANCEL_EVENT, clearSeekIntent); window.clearTimeout(timer.current); };
   }, [active, clearSeekIntent]);
   const setClock = (value: SimClockState) => { clockResource.suspend(); clockResource.setData(value); };
+  const tabSymbol = activeSymbol?.trim().toUpperCase() || null;
   const postClock = useCallback(async (body: object, key = 'clock') => {
     clockResource.suspend();
     const next = await request<SimClockState>(key, '/clock', body, 'Could not change Sim time');
@@ -72,7 +83,7 @@ export function useSimSessionController(active: boolean, openStockView: (symbol:
       while (seekPending.current != null && sessionActive.current) {
         const requested = seekPending.current;
         seekPending.current = null;
-        await postClock({ minute_from_open: requested });
+        await postClock(tabSymbol ? { minute_from_open: requested, symbol: tabSymbol } : { minute_from_open: requested });
       }
     } finally {
       seekRunning.current = false;

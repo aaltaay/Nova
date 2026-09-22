@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { novaWindowTitle, resolveNovaTitleDesk } from '../../electron/appTitle.mjs';
+import { getRecordingSymbols, subscribeSessionRecord } from '../capture/sessionRecordStore';
 import { parseSampleSymbol } from '../sample_data/sampleNav';
 import { isElectronRenderer, nudgeElectronPaint } from './nudgeElectronPaint';
 import { novaRendererReleaseTag } from './novaReleaseTag';
@@ -10,16 +11,24 @@ export function useNovaWindowTitle(
   traderSymbol: string | null,
 ): void {
   const releaseTag = novaRendererReleaseTag();
+  // The OS title says REC while a recording runs -- the one signal that
+  // survives the app being behind other windows.
+  const recordingSymbol = useSyncExternalStore(
+    subscribeSessionRecord,
+    () => getRecordingSymbols().join(', '),
+    () => '',
+  );
   useEffect(() => {
     document.title = novaWindowTitle({
       traderActive,
       traderSymbol: traderSymbol ?? '',
       releaseTag,
+      recordingSymbol,
     });
     if (traderActive && isElectronRenderer()) {
       nudgeElectronPaint();
     }
-  }, [traderActive, traderSymbol, releaseTag]);
+  }, [traderActive, traderSymbol, releaseTag, recordingSymbol]);
 }
 
 /** Sample `?view=sample&symbol=` is Trader; live uses the Scanner|Trader switch. */

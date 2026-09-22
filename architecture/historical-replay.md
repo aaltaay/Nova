@@ -32,8 +32,15 @@ and resume at last timestamp + one second. Page rows and cursor commit in one
 transaction. A retry cannot append an already committed page. Status changes
 are atomic read-modify-writes, so a pause request is never overwritten.
 Errors, timeouts, invalid ordering or nonadvancing responses stop the job with
-resumable progress. Only a successful end-of-range response marks coverage
-complete. Completion describes the IBKR response range, not a claim of
+resumable progress. Coverage is a set of merged, half-open second ranges, not
+one cursor: a page covers [cursor, following) and is merged in. Playhead-first
+acquisition: scrubbing a selection whose trades job is running to an uncovered
+second records a seek; before its next request the worker moves its cursor to
+the start of that gap, then fetches forward. A page is clipped at the next
+already-covered second (no duplicate prints) and the cursor jumps past that
+range; reaching the window end wraps to the first gap from the start. Prints are
+read back in (timestamp, ordinal) order because insertion order is no longer
+time order. The job is complete only when one range spans the whole window. Completion describes the IBKR response range, not a claim of
 consolidated market completeness. Downloaded candles are kept in the archive
 with their job identity and are also upserted into the shared bars store.
 Coarser derived bars exclude incomplete window-edge buckets.
@@ -50,8 +57,10 @@ than retried in a loop.
 
 Playback loads an immutable in-memory snapshot of reached download coverage
 (very large windows load more slowly). Trade-derived bars take precedence only
-within completed download coverage; outside it archived OHLCV remains the
-fallback. Partial bars use reached trades; all same-second prints arrive
+for buckets that lie wholly inside one downloaded range; every other bucket --
+in a gap, or straddling a range edge -- uses archived OHLCV. Buckets are
+aggregated and flat-filled per range, never across a gap, so an undownloaded
+stretch is never drawn as a quiet one. Partial bars use reached trades; all same-second prints arrive
 together, in returned order. Candles, last price and volume use only prints
 IBKR reports as tape-eligible (`unreported` false); Time & Sales lists every
 reached print and marks unreported ones (IMCC: odd-lot/Form T `TI`/`FTI`

@@ -99,6 +99,16 @@ def is_subscribed(symbol: str) -> bool:
     return symbol in _subscriptions
 
 
+def is_live(symbol: str) -> bool:
+    """A real IBKR line (depth, or the shared L1 fallback), not a Sim replay slot.
+
+    On a Sim desk ``subscribe_async`` reserves a slot and serves the replayed
+    book, so ``is_subscribed`` alone cannot tell Session Record whether live
+    books are flowing.
+    """
+    return symbol in _contracts or is_shared_l1(symbol)
+
+
 def ws_viewer_opened(symbol: str) -> None:
     """Record that another WS client is now watching this symbol's book."""
     _ws_viewers[symbol] = _ws_viewers.get(symbol, 0) + 1

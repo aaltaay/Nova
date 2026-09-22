@@ -1,9 +1,10 @@
 /**
- * Fixed right rail: Stock Quote (stats + L2 + T&S) | drag | Trade ticket.
+ * Fixed right rail: Stock Quote (stats + L2 + T&S) | drag | Trade ticket | Bot Autonomy card.
  * Horizontal splitter reallocates height between quote/depth and Order Entry.
  * TRADE keeps a min-height floor (depth shrinks first) so Extended Hours stays reachable.
  */
 import { useRef, type CSSProperties } from 'react';
+import { BotAutonomyCard } from '../bot/BotAutonomyCard';
 import { ResizeHandle } from '../components/ResizeHandle';
 import { useResizableHeight } from '../hooks/useResizableHeight';
 import { TickerTradeActionBar } from '../ibkr/TickerTradeActionBar';
@@ -16,7 +17,6 @@ import {
   STOCK_VIEW_DEPTH_ORDER_SPLIT_MIN_PCT,
   STOCK_VIEW_DEPTH_ORDER_SPLIT_PCT,
   STOCK_VIEW_DEPTH_PANE_MIN_PX,
-  STOCK_VIEW_MODULE_OPEN_TITLE,
   STOCK_VIEW_ORDER_PANE_MIN_PX,
   STOCK_VIEW_TITLE,
 } from '../constants';
@@ -94,8 +94,8 @@ export function StockViewRail({
           label="Resize Stock Quote and Order Entry"
         />
 
+        {/* No card title: the compact ticket's own header reads TRADE · SYM · venue. */}
         <StockViewModuleCard
-          title={STOCK_VIEW_MODULE_OPEN_TITLE}
           className="sv-open-card"
           testId="stock-view-open-card"
           aria-label="Trade order"
@@ -115,6 +115,8 @@ export function StockViewRail({
           />
         </StockViewModuleCard>
       </div>
+      {/* Bot Autonomy: a quiet card at the bottom of the rail, not a bar over the page. */}
+      <BotAutonomyCard />
     </aside>
   );
 }

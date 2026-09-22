@@ -1,3 +1,7 @@
+/**
+ * Advise entry on the nav rail foot (above Settings). Renders nothing without
+ * an AdviseProvider so the sample desk and tests never show a dead door.
+ */
 import { scannerNavIcon } from '../scanner/scannerNavIcons';
 import { ADVISE_RAIL_LABEL } from './constants';
 import { useAdviseOptional } from './AdviseContext';
@@ -8,13 +12,13 @@ export function AdviseRailButton() {
   return (
     <button
       type="button"
-      className={`scanner-side-nav__item${advise.open ? ' is-active' : ''}`}
-      data-testid="scanner-nav-advise"
+      className={`nav-rail__item${advise.open ? ' is-active' : ''}`}
+      data-testid="nav-rail-advise"
       title={ADVISE_RAIL_LABEL}
       onClick={advise.openAdvise}
     >
-      <span className="scanner-side-nav__icon">{scannerNavIcon('advise')}</span>
-      <span className="scanner-side-nav__label">{ADVISE_RAIL_LABEL}</span>
+      {scannerNavIcon('advise')}
+      <span className="nav-rail__txt">{ADVISE_RAIL_LABEL}</span>
     </button>
   );
 }

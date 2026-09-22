@@ -78,12 +78,15 @@ def merge(
     counts: dict[str, int],
     segment_counts: dict[str, int],
     error: str | None = None,
+    reason: str | None = None,
 ) -> dict[str, Any]:
     """Fold one segment into ``prior`` without destroying what it already holds.
 
     ``counts`` is cumulative (matches rows on disk); ``segment_counts`` is this
     run's own delta.  The first ``started_et`` ever written is preserved, so the
     forensic record of when the session actually began survives a resume.
+    ``reason`` names why the segment ended (operator / rotation / failure /
+    restart) so a gap between segments can say what made it.
     """
     man: dict[str, Any] = dict(prior) if prior else {}
     man.update(base)
@@ -102,6 +105,7 @@ def merge(
             "started_et": started_et,
             "stopped_et": stopped_et,
             "status": status,
+            "reason": reason,
             "counts": dict(segment_counts),
         }
     )

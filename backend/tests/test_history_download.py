@@ -151,6 +151,31 @@ def test_gateway_tries_live_then_paper_port(monkeypatch):
     assert candidate_ports() == [4001]
 
 
+def test_both_ports_dark_names_the_shared_unreachable_prefix(monkeypatch):
+    """The Sim tab prompt auto-retries on exactly this prefix once Gateway is back."""
+    import ib_async
+
+    from constants_sim import SIM_HISTORY_GATEWAY_UNREACHABLE
+    from ibkr.replay_history_gateway import ReplayHistoryGateway
+
+    class RefusingIB:
+        RaiseRequestErrors = False
+
+        async def connectAsync(self, *args, **kwargs):
+            raise ConnectionRefusedError("[WinError 1225] refused")
+
+        def disconnect(self):
+            pass
+
+    monkeypatch.setattr(ib_async, "IB", RefusingIB)
+    monkeypatch.setenv("IBKR_LIVE_PORT", "4001")
+    monkeypatch.setenv("IBKR_PAPER_PORT", "4002")
+    with pytest.raises(ConnectionError) as refused:
+        asyncio.run(ReplayHistoryGateway().open("IMCC"))
+    assert str(refused.value).startswith(SIM_HISTORY_GATEWAY_UNREACHABLE)
+    assert "4001" in str(refused.value) and "4002" in str(refused.value)
+
+
 @pytest.mark.parametrize("now, expected", [
     ("2026-09-19T12:00", "2026-09-18"),  # Saturday -> Friday
     ("2026-09-18T19:59", "2026-09-17"),  # Friday before the default close
@@ -190,11 +215,17 @@ def test_eta_uses_this_run_coverage_and_never_invents_progress(job, monkeypatch)
     from sim.history_progress import progress
     queued = progress(job, now=job['updated'])
     assert queued['progress_pct'] == 0 and queued['eta_seconds'] is None
-    current = dict(job, started=100, updated=120, run_cursor=job['cursor'],
+    # Progress is covered time, and the ETA extrapolates coverage gained this run.
+    current = dict(job, started=100, updated=120, run_cursor=job['cursor'], run_covered=0,
+                   ranges=[[job['start_ts'], job['cursor'] + 1980]],
                    cursor=job['cursor'] + 1980, status='running')
     result = progress(current, now=130)
     assert result['progress_pct'] == 10 and result['eta_seconds'] == 180
     assert result['downloaded_through'] == current['cursor'] and result['age_seconds'] == 10
+    assert result['covered_seconds'] == 1980 and result['coverage'] == current['ranges']
+    # A job saved before coverage ranges reads its cursor as one contiguous range.
+    legacy = {k: v for k, v in current.items() if k != 'ranges'}
+    assert progress(legacy, now=130)['progress_pct'] == 10
     assert progress(current, now=500)['stale']
     assert progress(current, now=500)['eta_seconds'] is None
     for status in ('queued', 'paused', 'failed', 'complete', 'interrupted'):
@@ -203,4 +234,23 @@ def test_eta_uses_this_run_coverage_and_never_invents_progress(job, monkeypatch)
     store.save(dict(current, status='paused'))
     resumed = store.begin_run(job['id'])
     assert resumed['started'] == 1000 and resumed['run_cursor'] == current['cursor']
+    assert resumed['run_covered'] == 1980
     assert progress(resumed, now=1001)['eta_seconds'] is None
+
+
+def test_a_gateway_that_never_answers_says_so_instead_of_a_bare_timeout(job, monkeypatch):
+    """Seen live 2026-09-21 01:30 ET: 4002 accepted the socket, qualifyContracts hung 45 s."""
+    from constants_sim import SIM_HISTORY_GATEWAY_NOT_ANSWERING
+    monkeypatch.setattr(store, "REQUEST_TIMEOUT", 0.05)
+
+    class Silent:
+        async def open(self, symbol):
+            await asyncio.sleep(10)
+
+        def close(self):
+            pass
+
+    result = asyncio.run(run(job["id"], Silent(), threading.Event(), paced=False))
+    assert result["status"] == "failed"
+    assert result["error"].startswith(SIM_HISTORY_GATEWAY_NOT_ANSWERING)
+    assert "identifying IMCC" in result["error"] and "Gateway window" in result["error"]

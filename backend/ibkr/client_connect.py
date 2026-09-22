@@ -242,9 +242,17 @@ async def maybe_heal_from_port_probes(
     *,
     accept_session: AcceptSession,
 ) -> str | None:
-    """Fast path: preferred dark + alternate up → attach before preferred dial."""
+    """Fast path: preferred dark + alternate up → attach before preferred dial.
+
+    Never probes toward a target heal may not take (live -> paper without the
+    ``IBKR_PAPER_GATEWAY_FALLBACK`` opt-in, ADR 020): the preferred dial then
+    fails honestly instead of logging a heal that would be refused anyway.
+    """
+    alt_mode = _heal.alternate_mode(preferred_mode)
+    if not _heal.heal_target_allowed(from_mode=preferred_mode, to_mode=alt_mode):
+        return None
     preferred_port = _heal.port_for_mode(preferred_mode)
-    alt_port = _heal.port_for_mode(_heal.alternate_mode(preferred_mode))
+    alt_port = _heal.port_for_mode(alt_mode)
     preferred_up, alternate_up = _probe_pair(host, preferred_port, alt_port)
     if _heal.self_heal_suppressed(
         preferred_reachable=preferred_up,

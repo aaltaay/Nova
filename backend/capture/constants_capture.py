@@ -30,6 +30,14 @@ CAPTURE_STATUS_INTERRUPTED = "interrupted"
 CAPTURE_STATUS_FAILED = "failed"
 # Bound pending complete tick/bar batches, including the currently writing batch.
 CAPTURE_PENDING_BATCHES = 256
+# Prints are the one stream that outruns the writer, so they are batched before
+# they reach it: the bound above counts BATCHES, and one job per print turned a
+# fast tape into hundreds of jobs a second (GRML, 2026-09-21: 2439 prints in 52s,
+# then "backlog full" and a failed session). A batch is submitted when it fills
+# or when the interval has passed, so a lone print on a quiet tape still goes
+# straight through and a burst costs a handful of jobs instead of hundreds.
+CAPTURE_PRINT_BATCH_MAX = 200
+CAPTURE_PRINT_BATCH_SEC = 0.2
 
 # Capture owns v1 manifests/rows; session rollover resets writer state.
 CAPTURE_SCHEMA_VERSION = 1
@@ -38,3 +46,21 @@ CAPTURE_L2_LOAD_LIMIT = 30_000
 CAPTURE_CHART_DEFAULT_LIMIT = 300
 CAPTURE_CHART_MAX_LIMIT = 2000
 CAPTURE_FEED_EMIT_LIMIT = 20
+
+# --- Persistence: resume, then say so (operator decision, 2026-09-21) --------
+# The market only happens once. A recording knocked down by a restart, a recorder
+# failure or a lost IBKR line gets back up on its own into a new segment; the
+# operator is told, never asked. Bounded so a dead disk cannot loop forever.
+CAPTURE_KEEPALIVE_INTERVAL_SEC = 5.0
+CAPTURE_RESUME_BACKOFF_SEC = (2.0, 5.0, 10.0, 30.0, 60.0)
+CAPTURE_RESUME_MAX_ATTEMPTS = len(CAPTURE_RESUME_BACKOFF_SEC)
+# A restart resumes only a recording from today that died recently -- not one the
+# operator forgot about three hours ago.
+CAPTURE_RESUME_RESTART_WINDOW_SEC = 15 * 60
+# Symbols recording at once: IBKR allows three depth lines, Record holds one each.
+CAPTURE_MAX_CONCURRENT = 3
+# Why a segment ended (manifest segments[].reason).
+CAPTURE_STOP_OPERATOR = "operator"
+CAPTURE_STOP_ROTATION = "rotation"
+CAPTURE_STOP_FAILURE = "failure"
+CAPTURE_STOP_RESTART = "restart"

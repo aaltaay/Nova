@@ -7,17 +7,15 @@ import {
   type ManualOrderType,
   type QuantityMode,
 } from './orderEntry';
-import {
-  SHORTABILITY_NOT_SHORTABLE,
-  SHORTABILITY_SHORT_DISABLED,
-  SHORTABILITY_STALE,
-} from '../constantGroups/shortability';
 import { useTopOfBook } from '../hotkeys/TopOfBookContext';
 import type { IbkrListingFlags } from '../types/ticker';
 import { applyTicketDefaults, seedPricesForSide } from './applyTicketDefaults';
 import { ManualOrderFields } from './ManualOrderFields';
 import { ManualOrderFooter } from './ManualOrderFooter';
+import { ManualOrderTicketHeader } from './ManualOrderTicketHeader';
+import { useMarketOrdersRefused } from './marketOutsideRth';
 import { ManualOrderLegsNote } from './ManualOrderLegsNote';
+import { shortDisabledReason } from './shortDisabledReason';
 import {
   allowShortSide,
   clampTicketSide,
@@ -27,7 +25,6 @@ import {
 } from './ticketSide';
 import { subscribeOrderTicketPrefill } from './orderTicketPrefill';
 import type { PlaceOrderResult } from './placeOrder';
-import { resolveShortabilityState } from './ShortabilityChip';
 import { evaluateTradingAllowed } from './tradingAllowed';
 import {
   readTicketSessionUnlocked,
@@ -35,6 +32,7 @@ import {
   tryUnlockTicketSession,
 } from './ticketUnlock';
 import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from './types';
+import { useCompactTicket } from './useCompactTicket';
 import { useManualOrderSubmission } from './useManualOrderSubmission';
 import { useIbkrStatus } from './useIbkrStatus';
 
@@ -48,21 +46,6 @@ interface Props {
   referencePrice: number | null;
   listingIbkr?: IbkrListingFlags | null;
   onOrderPlaced?: (result: PlaceOrderResult) => void;
-}
-
-function shortDisabledReason(
-  shortEnabled: boolean | undefined,
-  listing: IbkrListingFlags | null | undefined,
-): string | null {
-  if (!shortEnabled) return SHORTABILITY_SHORT_DISABLED;
-  if (!listing) return SHORTABILITY_NOT_SHORTABLE;
-  if (listing.stale) return SHORTABILITY_STALE;
-  const state = resolveShortabilityState(listing);
-  // Explicit false only — missing orderable (legacy payloads) still OK when state is est.
-  if (state !== 'shortable_est' || listing.orderable === false) {
-    return SHORTABILITY_NOT_SHORTABLE;
-  }
-  return null;
 }
 
 const FORCED_QTY = forcedManualOrderQty();
@@ -107,9 +90,22 @@ export function ManualOrderTicket({
   }, []);
 
   const displayQuantityMode: QuantityMode = QTY_LOCKED ? 'shares' : quantityMode;
-  const displayQuantityValue = QTY_LOCKED
-    ? String(FORCED_QTY)
-    : quantityValue;
+  const displayQuantityValue = QTY_LOCKED ? String(FORCED_QTY) : quantityValue;
+  const ticketValues = {
+    symbol,
+    side,
+    shortEntry,
+    orderType,
+    quantityMode: displayQuantityMode,
+    quantityValue: displayQuantityValue,
+    limitPrice,
+    stopPrice,
+    outsideRth,
+    referencePrice,
+    summary,
+    position,
+  };
+  const { tif, selectTif, cost, practice } = useCompactTicket({ mode, ...ticketValues });
   const trading = evaluateTradingAllowed({
     connected,
     spendStatus,
@@ -132,23 +128,12 @@ export function ManualOrderTicket({
     setConfirmSummary,
     resetSubmission,
   } = useManualOrderSubmission({
-    symbol,
+    ...ticketValues,
     mode,
     connected,
     spendLocked,
     needsPinUnlock,
-    side,
-    shortEntry,
     shortBlockReason,
-    orderType,
-    quantityMode: displayQuantityMode,
-    quantityValue: displayQuantityValue,
-    limitPrice,
-    stopPrice,
-    outsideRth,
-    referencePrice,
-    summary,
-    position,
     onNeedsPin: () => setPinDialogOpen(true),
     onOrderPlaced,
   });
@@ -165,8 +150,7 @@ export function ManualOrderTicket({
     resetSubmission();
   }, [symbol]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Chart context menu stages an order here instead of placing one -- the PIN,
-  // spend-lock and confirm gates below stay the only way an order leaves Nova.
+  // The chart menu stages an order here; the PIN / spend / confirm gates still own the place.
   useEffect(() => {
     return subscribeOrderTicketPrefill(symbol, (req) => {
       setTicketSide(orderSideToTicketSide(req.side));
@@ -178,9 +162,7 @@ export function ManualOrderTicket({
     });
   }, [symbol]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    setTicketSide((current) => clampTicketSide(current, allowShort));
-  }, [allowShort]);
+  useEffect(() => setTicketSide((current) => clampTicketSide(current, allowShort)), [allowShort]);
 
   function selectTicketSide(next: TicketSide) {
     if (next === 'short' && (!allowShort || shortBlockReason)) return;
@@ -225,6 +207,13 @@ export function ManualOrderTicket({
     resetSubmission();
   }
 
+  // MKT_OUTSIDE_RTH: the default order type is Market, and after the close
+  // the backend refuses it -- move to Limit before the operator can Place.
+  const marketBlockedReason = useMarketOrdersRefused(mode);
+  useEffect(() => {
+    if (marketBlockedReason && orderType === 'MKT') selectOrderType('LMT');
+  }, [marketBlockedReason, orderType]); // eslint-disable-line react-hooks/exhaustive-deps
+
   function selectQuantityMode(next: QuantityMode) {
     if (QTY_LOCKED) return;
     setQuantityMode(next);
@@ -249,7 +238,17 @@ export function ManualOrderTicket({
 
   return (
     <form className="manual-order-ticket" onSubmit={submit}>
+      <ManualOrderTicketHeader
+        symbol={symbol}
+        mode={mode}
+        tif={tif}
+        disabled={submitting}
+        onTifChange={selectTif}
+      />
       <ManualOrderFields
+        symbol={symbol}
+        topOfBook={topOfBook}
+        cost={cost}
         ticketSide={ticketSide}
         allowShort={allowShort}
         orderType={orderType}
@@ -261,6 +260,7 @@ export function ManualOrderTicket({
         disabled={!connected || submitting}
         quantityLocked={QTY_LOCKED}
         shortDisabledReason={shortBlockReason}
+        marketDisabledReason={marketBlockedReason}
         onTicketSideChange={selectTicketSide}
         onOrderTypeChange={selectOrderType}
         onQuantityModeChange={selectQuantityMode}
@@ -274,6 +274,7 @@ export function ManualOrderTicket({
 
       <ManualOrderFooter
         isPaper={mode === 'paper'}
+        practice={practice}
         ticketSide={ticketSide}
         symbol={symbol}
         needsPinUnlock={needsPinUnlock}
@@ -281,6 +282,7 @@ export function ManualOrderTicket({
         submitting={submitting}
         spendLocked={spendLocked}
         spendLockReason={spendLockNote}
+        spendDisarmed={spendStatus === 'locked_disarmed'}
         quantityLocked={QTY_LOCKED}
         forcedQty={FORCED_QTY}
         sessionUnlocked={sessionUnlocked}

@@ -92,115 +92,27 @@
   color: var(--nova-text);
 }
 
-.global-app-bar__nav {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-  gap: 0.15rem;
-  padding: 0.1rem;
-  border: 1px solid var(--nova-border);
-  border-radius: var(--radius-control, 8px);
-  background: color-mix(in srgb, var(--nova-raised) 55%, transparent);
-}
-
-.global-app-bar__nav-btn {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: var(--nova-text-muted);
-  font: inherit;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  padding: 0.28rem 0.55rem;
-  border-radius: calc(var(--radius-control, 8px) - 2px);
-  cursor: pointer;
-}
-
-.global-app-bar__nav-btn:hover:not(:disabled) {
-  color: var(--nova-text);
-  background: var(--hover-bg);
-}
-
-.global-app-bar__nav-btn.is-active {
-  color: var(--nova-text);
-  background: color-mix(in srgb, var(--nova-accent) 18%, transparent);
-}
-
-.global-app-bar__nav-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.global-app-bar__trader-nav {
-  position: relative;
-  display: inline-flex;
-  align-items: stretch;
-}
-
-.global-app-bar__nav-chevron {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: var(--nova-text-muted);
-  font: inherit;
-  font-size: 0.65rem;
-  padding: 0 0.28rem;
-  border-radius: calc(var(--radius-control, 8px) - 2px);
-  cursor: pointer;
-}
-
-.global-app-bar__nav-chevron:hover,
-.global-app-bar__nav-chevron.is-open {
-  color: var(--nova-text);
-  background: var(--hover-bg);
-}
-
-.global-app-bar__trader-defaults {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 40;
-  display: flex;
-  flex-direction: column;
-  min-width: 5.5rem;
-  padding: 0.2rem;
-  border: 1px solid var(--nova-border);
-  border-radius: var(--radius-control, 8px);
-  background: var(--nova-raised, #1a1a1a);
-  box-shadow: 0 8px 20px color-mix(in srgb, #000 45%, transparent);
-}
-
-.global-app-bar__trader-default {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: var(--nova-text);
-  font: inherit;
-  font-weight: 650;
-  letter-spacing: 0.03em;
-  text-align: left;
-  padding: 0.28rem 0.5rem;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.global-app-bar__trader-default:hover {
-  background: color-mix(in srgb, var(--nova-accent) 18%, transparent);
-}
-
 .global-app-bar__account {
   position: relative;
   flex: 0 0 auto;
 }
 
+/* One compact row: Day's | Working | TAV | account pill (Webull order). */
 .global-app-bar__cluster {
   display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 0.45rem;
+  flex-wrap: nowrap;
+  gap: 0.35rem;
   padding: 0.1rem 0;
   color: inherit;
   font: inherit;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.global-app-bar__cluster .global-app-bar__metric > label::after,
+.global-app-bar__cluster .global-app-bar__metric-btn > label::after {
+  content: ':';
 }
 
 .global-app-bar__cluster--offline {
@@ -243,9 +155,19 @@
   font-size: 0.65rem;
 }
 
-.global-app-bar__metric--netliq span:last-child {
+.global-app-bar__metric-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.global-app-bar__metric--tav .global-app-bar__metric-value {
   font-weight: 650;
   color: var(--nova-text);
+}
+
+/* Day's percent rides beside the dollar figure in the same tone. */
+.global-app-bar__pct {
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .global-app-bar__sep {
@@ -534,27 +456,36 @@
   height: 1rem;
 }
 
-.global-app-bar__account-type {
+/* Account pill: structure + class + full id, e.g. "Individual Margin (U1234567)".
+   Last control of the cluster; the menu under it lists the managed accounts. */
+.global-app-bar__account-pill {
   flex-shrink: 0;
   border: 1px solid var(--nova-border);
-  border-radius: var(--radius-control, 8px);
-  padding: 0.25rem 0.55rem;
+  padding: 0.15rem 0.45rem;
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--nova-text-muted);
+  color: var(--nova-text);
   line-height: 1.2;
+  white-space: nowrap;
 }
 
-.global-app-bar__account-type--cash {
-  color: var(--nova-text);
+.global-app-bar__account-pill-label {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
 }
 
-.global-app-bar__account-type--margin {
-  color: var(--nova-text);
-  border-color: color-mix(in srgb, var(--nova-accent, #3b82f6) 40%, var(--nova-border));
+/* U… live account -- the money is real. */
+.global-app-bar__account-pill--live {
+  border-color: color-mix(in srgb, #f97316 55%, var(--nova-border));
+  color: #ea580c;
+  font-weight: 700;
 }
 
-.global-app-bar__account-nav,
+/* NOVA-PAPER / NOVA-SIM -- Nova-managed practice account, fake money (ADR 020). */
+.global-app-bar__account-pill--practice {
+  border-style: dashed;
+}
+
 .global-app-bar__fund,
 .global-app-bar__settings {
   flex-shrink: 0;
@@ -568,14 +499,12 @@
   cursor: pointer;
 }
 
-.global-app-bar__account-nav:hover,
 .global-app-bar__fund:hover,
 .global-app-bar__settings:hover {
   color: var(--nova-text);
   border-color: color-mix(in srgb, var(--nova-text-muted) 50%, var(--nova-border));
 }
 
-.global-app-bar__account-nav.is-active,
 .global-app-bar__settings.is-active {
   color: var(--nova-text);
   background: color-mix(in srgb, var(--nova-accent, #3b82f6) 18%, transparent);

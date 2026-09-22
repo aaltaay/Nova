@@ -1,4 +1,10 @@
-"""Selected capture session for Sim replay (day + ticker)."""
+"""Selected capture session for Sim replay (day + ticker).
+
+The Sim scratch account follows the capture (ADR 020 decision 3): unloading a
+loaded capture, or loading one, starts the account over through the lock-free
+``sim.broker.reset_scratch_account`` -- safe under the selection lock because
+it never reads the selection back.
+"""
 from __future__ import annotations
 
 import logging
@@ -16,12 +22,28 @@ _selection_lock = threading.RLock()
 
 def clear_capture() -> None:
     """Drop the captured day/ticker (historical selection is owned elsewhere)."""
+    _clear_capture(reset_account=True)
+
+
+def _clear_capture(*, reset_account: bool) -> None:
+    """``reset_account=False`` is the live-edge reload: today's recording being
+    re-read to fold in new prints is the same tape the scratch account already
+    traded, so the account stays (``sim.live_edge``)."""
     global _date, _symbol, _load_info, _generation
     from sim import capture_player as _player
     with _selection_lock:
         _generation += 1
+        had_capture = bool(_date and _symbol)
         _date = _symbol = _load_info = None
         _player.unload()
+    if had_capture and reset_account:
+        _scratch_account_starts_over("capture replay unloaded")
+
+
+def _scratch_account_starts_over(reason: str) -> None:
+    from sim import broker as _broker
+
+    _broker.reset_scratch_account(reason)
 
 
 def reset_for_tests() -> None:
@@ -57,8 +79,20 @@ def is_capture_replay() -> bool:
         return bool(_date and _symbol and _player.is_loaded())
 
 
-def set_replay(date: str | None, symbol: str | None) -> dict[str, Any]:
-    """Select a captured day/ticker, or clear both to unload the capture."""
+def set_replay(
+    date: str | None,
+    symbol: str | None,
+    *,
+    keep_account: bool = False,
+    keep_playhead: bool = False,
+) -> dict[str, Any]:
+    """Select a captured day/ticker, or clear both to unload the capture.
+
+    ``keep_account`` / ``keep_playhead`` are the live-edge selection
+    (``sim.live_edge``): the operator scrubbed off the edge and today's own
+    recording is loaded underneath where the playhead already is, and the
+    scratch account -- which traded that very tape live -- is kept.
+    """
     global _date, _symbol, _load_info
     from sim import capture_player as _player
     from sim import session_clock as _clock
@@ -70,7 +104,10 @@ def set_replay(date: str | None, symbol: str | None) -> dict[str, Any]:
     with history_playback.capture_transition() as previous:
         left_historical = _clock.now_et() if previous else None
         with _selection_lock:
-            clear_capture()
+            if keep_account:
+                _clear_capture(reset_account=False)
+            else:
+                clear_capture()
             generation = _generation
             _clock.set_window()
             if not d or not s:
@@ -97,7 +134,13 @@ def set_replay(date: str | None, symbol: str | None) -> dict[str, Any]:
                 _clock.set_session_date(None)
             else:
                 _date, _symbol, _load_info = d, s, info
-                _align_clock(d, info)
+                if keep_playhead:
+                    _date_under_playhead(d)
+                else:
+                    _align_clock(d, info)
+                if not keep_account:
+                    # A capture was loaded: the account starts over at its first print.
+                    _scratch_account_starts_over(f"capture {d} {s} loaded")
     _refresh_views(generation)
     # Never call historical status under the capture lock: history publication
     # owns its lock before it invalidates capture via clear_capture().
@@ -126,6 +169,13 @@ def _align_clock(date: str, info: dict) -> None:
         start, _end = clock.session_bounds_on(datetime.fromtimestamp(first, ZoneInfo("America/New_York")))
         minute = int(max(0, min((first - start.timestamp()) // 60, clock.session_seconds() // 60)))
         clock.scrub_to_minute(minute, notify=False)
+    player.seek_emit_cursor(clock.now_et().timestamp())
+
+
+def _date_under_playhead(date: str) -> None:
+    """The live-edge selection: today's recording under the playhead the operator already placed."""
+    from sim import capture_player as player, session_clock as clock
+    clock.set_session_date(date)
     player.seek_emit_cursor(clock.now_et().timestamp())
 
 

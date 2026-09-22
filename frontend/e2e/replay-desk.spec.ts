@@ -59,7 +59,12 @@ test('progress survives closing, controls stay reachable, and dragging commits o
   await expect(page.getByRole('textbox',{name:'Historical ticker'})).toHaveValue('IMCC');
   await panel.getByRole('button',{name:'Load replay',exact:true}).click();
   await expect(panel).not.toBeVisible();
+  // Load replay opens the Trader tab, so the SIM SESSION bar yields to the
+  // context-strip cluster and the selection line now sits in its ⋯ menu.
+  await page.getByTestId('sim-strip-menu').click();
   await expect(page.locator('.sim-history__selection')).toContainText('IMCC');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.sim-history__selection')).toHaveCount(0);
   const rect=await slider.boundingBox();
   expect(rect).not.toBeNull();
   const before=seeks;

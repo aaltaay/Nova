@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -70,6 +71,7 @@ def list_sessions() -> dict[str, Any]:
                     "source": man.get("source"),
                     "status": man.get("status"),
                     "partial_ok": man.get("partial_ok", True),
+                    **segment_summary(man.get("segments")),
                 }
             )
         if tickers:
@@ -84,3 +86,57 @@ def _count(value: Any) -> int:
         return max(0, int(value or 0))
     except (ValueError, TypeError, OverflowError):
         return 0
+
+
+def segment_summary(segments: Any) -> dict[str, Any]:
+    """How whole a recording is: segment count, seconds no segment covers, last reason.
+
+    ``missing_sec`` is the time between the first segment start and the last
+    segment stop that no segment covers -- the gaps a restart or a failure left.
+    A quiet stretch inside a segment is not missing: the recorder was up and the
+    tape said nothing. An open segment (``stopped_et`` null) is counted as
+    running to now.
+    """
+    spans = segment_spans(segments)
+    if not spans:
+        return {"segments": 0, "missing_sec": 0, "last_reason": None}
+    covered = 0.0
+    cursor = spans[0][0]
+    for start, stop in spans:
+        if stop > cursor:
+            covered += stop - max(start, cursor)
+            cursor = stop
+    total = spans[-1][1] - spans[0][0]
+    last = segments[-1] if isinstance(segments, list) and segments else {}
+    return {
+        "segments": len(spans),
+        "missing_sec": int(max(0.0, total - covered)),
+        "last_reason": last.get("reason") if isinstance(last, dict) else None,
+    }
+
+
+def segment_spans(segments: Any) -> list[tuple[float, float]]:
+    """``[(start_epoch, stop_epoch)]`` per segment, sorted; unparsable rows skipped."""
+    out: list[tuple[float, float]] = []
+    if not isinstance(segments, list):
+        return out
+    now = datetime.now().timestamp()
+    for segment in segments:
+        if not isinstance(segment, dict):
+            continue
+        start = _epoch(segment.get("started_et"))
+        if start is None:
+            continue
+        stop = _epoch(segment.get("stopped_et"))
+        out.append((start, max(start, stop if stop is not None else now)))
+    out.sort()
+    return out
+
+
+def _epoch(value: Any) -> float | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.fromisoformat(value).timestamp()
+    except ValueError:
+        return None

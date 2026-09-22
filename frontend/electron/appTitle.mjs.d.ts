@@ -2,10 +2,12 @@ export function withReleaseTag(base: string, releaseTag: string): string;
 export function formatScannerWindowTitle(releaseTag: string): string;
 export function formatTraderDocumentTitle(symbol: string, releaseTag: string): string;
 export function formatElectronTraderTitle(symbol: string, releaseTag: string): string;
+export function withRecording(base: string, recordingSymbol: string | null | undefined): string;
 export function novaWindowTitle(opts?: {
   traderActive?: boolean;
   traderSymbol?: string | null;
   releaseTag?: string;
+  recordingSymbol?: string | null;
 }): string;
 export function resolveNovaTitleDesk(opts?: {
   sampleMode?: boolean;

@@ -18,14 +18,22 @@ def _facade_attr(name: str):
     return getattr(facade, name)
 
 
-async def subscribe_async(symbol: str) -> dict:
+async def subscribe_async(symbol: str, *, live: bool = False) -> dict:
     """
     Qualify + subscribe to Level 2 (or L1 fallback).
     Safe under FastAPI's running event loop.
-    """
-    from sim.mode import is_sim_mode
 
-    if is_sim_mode():
+    ``live`` opens a real IBKR line even on a Sim desk, replacing a replay slot:
+    Session Record captures the live market whatever the desk is practising on
+    (#315). Panels never pass it, so a Sim desk off the live edge still shows
+    the replay. At the live edge (ADR 020 live-edge amendment) a Sim tab is a
+    Paper tab on the feed: it opens a real line the same way, replacing any
+    replay slot it reserved off the edge, so the backend holds the line a bot
+    needs (``bot.eligibility``).
+    """
+    from sim.mode import is_replay_desk, is_sim_mode
+
+    if is_replay_desk() and not live:
         from sim import market as _sim_market
 
         state.reserve_slot(symbol)
@@ -39,6 +47,8 @@ async def subscribe_async(symbol: str) -> dict:
         state._subscriptions[symbol] = book
         state.push_book(symbol, book)
         return {"ok": True, "error": None, "symbols": state.subscribed_symbols()}
+    if is_sim_mode():
+        live = True
 
     if not _client.is_ready():
         return {
@@ -48,8 +58,12 @@ async def subscribe_async(symbol: str) -> dict:
         }
 
     async with state.get_subscribe_lock():
-        if symbol in state._subscriptions:
+        if symbol in state._subscriptions and (not live or state.is_live(symbol)):
             return {"ok": True, "error": None, "symbols": state.subscribed_symbols()}
+        if symbol in state._subscriptions:
+            # A replay slot is not a line: it must not count against the cap
+            # or survive as the book a real subscription replaces.
+            state.drop_slot(symbol)
 
         if len(state._subscriptions) >= IBKR_MAX_DEPTH_SYMBOLS:
             await evict_for_capacity(symbol)
@@ -221,3 +235,18 @@ def unsubscribe(symbol: str) -> None:
         from ibkr import ticks as _ticks
 
         _ticks.drop_owner(symbol, _ticks.OWNER_DEPTH)
+
+
+def needs_subscribe(symbol: str) -> bool:
+    """Whether a viewer must (re)subscribe before streaming ``symbol``.
+
+    True with no entry at all, and on a Sim desk at the live edge when the
+    entry is a replay slot rather than a real line (ADR 020 live-edge
+    amendment): the tab remounting at the edge must get the market, not the
+    slot it reserved off it.
+    """
+    if not state.is_subscribed(symbol):
+        return True
+    from sim.mode import is_replay_desk, is_sim_mode
+
+    return is_sim_mode() and not is_replay_desk() and not state.is_live(symbol)

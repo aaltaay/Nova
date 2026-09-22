@@ -109,7 +109,10 @@ def tick() -> dict:
     if not history_playback.status():
         if not _replay.status_payload()["replay_ok"]:
             return {}  # Failed selection must be acknowledged by selecting a source.
-        if _replay.is_capture_replay():
+        # At the live edge the live feed owns the panels (ADR 020 live-edge
+        # amendment): today's recording stays loaded for the scrub back, but
+        # its prints are not forwarded on top of the live tape.
+        if _replay.is_capture_replay() and not _clock.live_edge():
             try:
                 payload = _capture_tick()
             except Exception:
@@ -117,7 +120,20 @@ def tick() -> dict:
                 _replay.fail_replay("Capture playback failed; select a recording or a historical window")
                 return {}
     match_practice_fills()
+    expire_practice_orders()
     return payload
+
+
+def expire_practice_orders() -> list[dict]:
+    """Expire DAY practice orders once the playhead reaches the replayed session's close.
+
+    Runs after the fill match so a print at the close itself still fills and a
+    print past it never does (``practice.order_rules``). The expiry event is
+    stamped at the close, so a scrub back before it restores the order.
+    """
+    if practice.loaded() is None:
+        return []
+    return _broker.expire_due(practice.playhead_ts())
 
 
 def match_practice_fills() -> list[dict]:
@@ -134,6 +150,24 @@ def match_practice_fills() -> list[dict]:
         return []
     prints = practice.prints_between(active.symbol, previous[1], now)
     return _broker.try_fill_working(active.symbol, prints) if prints else []
+
+
+def rewind_fill_cursor(ts: float) -> None:
+    """The account was unwound to ``ts``: the next match re-plays the tape from there.
+
+    Without this the cursor would still sit where the last match left it and
+    skip the stretch the operator is replaying. Lock-free (the cursor's own key
+    is kept; a stale key re-anchors on the next match as it always did).
+    """
+    global _fill_cursor
+    if _fill_cursor is not None and _fill_cursor[1] > float(ts):
+        _fill_cursor = (_fill_cursor[0], float(ts))
+
+
+def reset_fill_cursor() -> None:
+    """The account started over: the next match anchors afresh on what is loaded."""
+    global _fill_cursor
+    _fill_cursor = None
 
 
 def _capture_tick() -> dict:

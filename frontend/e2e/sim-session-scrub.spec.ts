@@ -45,7 +45,13 @@ test('scrubbing preserves IMCC with AAPL closed; explicit replay picks still nav
   await page.getByRole('button', { name: 'Open IMCC', exact: true }).click();
   await page.getByRole('button', { name: 'Close AAPL', exact: true }).click();
   await expect(page.getByTestId('desk-tabs')).toHaveText('IMCC');
+  // The Ticker picker sits in the Trader strip's ⋯ menu; the transport and the
+  // band are on the strip itself, so the menu is closed before touching them.
+  const menu = page.getByTestId('sim-strip-menu');
+  await menu.click();
   await expect(page.getByTestId('sim-replay-ticker')).toHaveValue('AAPL');
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('sim-replay-ticker')).toHaveCount(0);
   await page.getByRole('button', { name: 'Pause Sim time' }).click();
   await expect(page.getByRole('button', { name: 'Play Sim time' })).toBeVisible();
   const slider = page.getByTestId('sim-session-scrubber');
@@ -63,10 +69,12 @@ test('scrubbing preserves IMCC with AAPL closed; explicit replay picks still nav
   await expect.poll(() => scrubPosts).toBeGreaterThan(beforeKeyboard);
   await expect(page.getByTestId('desk-tabs')).toHaveText('IMCC');
   await expect(page.getByTestId('desk-active')).toHaveText('IMCC');
+  await menu.click();
   await page.getByTestId('sim-replay-ticker').selectOption('IMCC');
   await page.getByTestId('sim-replay-ticker').selectOption('AAPL');
   await expect(page.getByTestId('desk-active')).toHaveText('AAPL');
   await expect(page.getByTestId('desk-tabs')).toHaveText('IMCC,AAPL');
+  await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: 'Play Sim time' })).toBeVisible();
   await page.getByRole('button', { name: 'Play Sim time' }).click();
   await expect(page.getByRole('button', { name: 'Pause Sim time' })).toBeVisible();

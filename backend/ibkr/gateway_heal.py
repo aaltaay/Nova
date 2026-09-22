@@ -19,6 +19,12 @@ that door connects. Dual-Gateway desks leave the other port listening, so
 heal must not yank to it after a grace timer. Both ports dark keeps waiting -- that is a
 login blocker.
 
+**The paper Gateway is never an automatic target** (ADR 020, second pass):
+paper -> live heals as before, live -> paper only when
+``IBKR_PAPER_GATEWAY_FALLBACK`` opts in (default off -- a paper login beside a
+live session is read-only and carries no tape). ``POST /api/ibkr/gateway-mode
+{mode: "paper"}`` stays the by-hand legacy door.
+
 Never unlocks orders / live confirmation — safety.py remains SSOT for spend.
 Never auto-logins Gateway — if **neither** port is reachable, stay disconnected
 and warn (loud).
@@ -35,6 +41,7 @@ from typing import Any, Literal
 from constants import (
     IBKR_GATEWAY_SELF_HEAL_DEFAULT,
     IBKR_LIVE_PORT,
+    IBKR_PAPER_GATEWAY_FALLBACK,
     IBKR_PAPER_PORT,
 )
 
@@ -72,11 +79,28 @@ def alternate_mode(mode: str) -> GatewayMode:
     return "paper" if mode == "live" else "live"
 
 
+def paper_fallback_enabled() -> bool:
+    """May follow-Gateway attach to the legacy paper port on its own? Default no (ADR 020)."""
+    raw = os.environ.get("IBKR_PAPER_GATEWAY_FALLBACK")
+    if raw is None:
+        return IBKR_PAPER_GATEWAY_FALLBACK
+    return raw.strip().lower() in ("1", "true", "yes")
+
+
 def heal_target_allowed(*, from_mode: str, to_mode: str) -> bool:
-    """True when from/to are opposite paper/live modes (bidirectional heal)."""
+    """True when heal may attach to ``to_mode`` after ``from_mode`` went dark.
+
+    paper -> live is always allowed (live is the feed for every venue).
+    live -> paper needs the ``IBKR_PAPER_GATEWAY_FALLBACK`` opt-in: the paper
+    Gateway is legacy and, beside a live login, carries no tape.
+    """
     if from_mode == to_mode:
         return False
-    return {from_mode, to_mode} == {"paper", "live"}
+    if {from_mode, to_mode} != {"paper", "live"}:
+        return False
+    if to_mode == "paper" and not paper_fallback_enabled():
+        return False
+    return True
 
 
 def set_intentional_mode(mode: GatewayMode) -> None:
@@ -278,6 +302,7 @@ def heal_status() -> dict[str, Any]:
     """Fields merged into GET /api/ibkr/status."""
     return {
         "gateway_self_heal_enabled": self_heal_enabled(),
+        "paper_gateway_fallback_enabled": paper_fallback_enabled(),
         "gateway_self_heal": _last_heal,
         "intentional_gateway_mode": _intentional_mode,
         "intentional_gateway_mode_at": _intentional_at or None,

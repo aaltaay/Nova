@@ -7,6 +7,7 @@ from typing import get_args
 
 from constants import IBKR_FRACTIONAL_ORDER_API_MSG
 from execution import inflight as _inflight
+from execution import session_gate as _session_gate
 from execution.models import ExecutionCommand, Source
 from ibkr import account as _account
 from ibkr import client as _client
@@ -41,9 +42,9 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
     if cmd.operation == "cancel":
         if cmd.order_id is None:
             return False, "order_id required for cancel", "ORDER_ID_MISSING"
-        from sim.mode import is_sim_mode
+        from sim.mode import is_practice_venue
 
-        if is_sim_mode():
+        if is_practice_venue():
             return True, "OK", None
         ok, reason = _safety.assert_cancel_allowed(
             client_enabled=_client.is_enabled(),
@@ -77,9 +78,9 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
         if cmd.side is not None or cmd.qty is not None or cmd.symbol is not None:
             # Callers must not attempt to mutate immutable fields via replace.
             pass
-        from sim.mode import is_sim_mode
+        from sim.mode import is_practice_venue
 
-        if is_sim_mode():
+        if is_practice_venue():
             return True, "OK", None
         ok, reason = _safety.assert_orders_allowed(
             client_enabled=_client.is_enabled(),
@@ -113,6 +114,13 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
             return False, f"stop_price required for {typ}", "STOP_MISSING"
         if typ == "TRAIL" and (cmd.stop_price is None or cmd.stop_price <= 0):
             return False, "stop_price required for TRAIL (trail $)", "TRAIL_MISSING"
+        # Operator decision 2026-09-21: no exchange takes an unpriced order
+        # outside regular hours and IBKR would hold it until the next open, so
+        # a MKT is refused on every venue rather than filled (practice) or
+        # silently queued (Live). Protective sources are exempt.
+        refusal = _session_gate.mkt_outside_rth_refusal(typ, cmd.source)
+        if refusal is not None:
+            return False, refusal[0], refusal[1]
     elif cmd.operation == "bracket":
         if cmd.entry_price is None or cmd.stop_price is None or cmd.target_price is None:
             return False, "bracket requires entry/stop/target", "BRACKET_FIELDS"
@@ -130,20 +138,21 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
     if bad_tif:
         return False, bad_tif, "TIF_INVALID"
 
-    from sim.mode import is_sim_mode
+    from sim.mode import is_practice_venue
 
-    # The arm latch was checked above the operation branches, before Sim is
-    # consulted: being in Sim decides *where* an allowed order is routed, never
-    # *whether* one is allowed (ADR 018).
-    if is_sim_mode():
-        # Protective sources skip admission so a practice position can always
-        # be closed; the sim ledger bounds them to closing a held position.
-        if cmd.operation in ("place", "bracket") and cmd.source not in _safety.PROTECTIVE_SOURCES:
-            from sim.practice import admission
+    # The arm latch was checked above the operation branches, before the venue
+    # is consulted: being on Paper or Sim decides *where* an allowed order is
+    # routed, never *whether* one is allowed (ADR 018). The IBKR env gates
+    # below apply to Live only (ADR 020 decision 4).
+    if is_practice_venue():
+        # Admission by the venue's own market (protective sources skip it so a
+        # practice position can always be closed) and the no-shorts rule: a
+        # SELL is only ever risk-reducing (execution/practice_checks.py).
+        from execution.practice_checks import practice_refusal
 
-            ok, reason, code = admission(symbol or "")
-            if not ok:
-                return False, reason, code
+        refusal = practice_refusal(cmd)
+        if refusal is not None:
+            return False, refusal[0], refusal[1]
         return True, "OK", None
     ok, reason = _safety.assert_orders_allowed(
         client_enabled=_client.is_enabled(),
@@ -204,9 +213,11 @@ def check_account_and_position(cmd: ExecutionCommand) -> tuple[bool, str, str | 
     if cmd.operation in ("cancel",):
         return True, "OK", None
 
-    from sim.mode import desk_connected
+    from sim.mode import desk_connected, is_practice_venue
 
-    if not desk_connected():
+    # A practice account is a local ledger, readable with the Gateway dark
+    # (ADR 020); a protective close on Paper then settles at the last mark.
+    if not is_practice_venue() and not desk_connected():
         return False, "account checks require IBKR connection", "ACCOUNT_UNAVAILABLE"
 
     summary: dict | None = None

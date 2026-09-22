@@ -10,7 +10,7 @@ Sim is a **local practice harness**. It is not IBKR paper and not live.
 
 Load a replay: a **recorded capture** (Day + Ticker pickers) or a **Historical replay** window you downloaded. Quote, Time & Sales, Level 2 and the chart then play that real session. Place / cancel / flatten update a local practice ledger (positions, Orders Today, Day P&L, Net Liq / BP) without a Gateway.
 
-With nothing loaded the Sim desk is empty and says so. There is no synthetic instrument: Nova never invents a tape (ADR 019).
+With nothing loaded the Sim desk is empty and says so -- except at the **live edge**. While the Sim clock follows the wall clock on today's date (not paused, not scrubbed, no past day loaded) the session bar reads **Live edge** and a Sim tab shows the live IBKR feed exactly as a Paper tab does, filling the scratch account against it; scrub back and the tab shows the loaded replay (today's Session Record of that ticker loads by itself when one exists), **Follow wall clock** returns to the edge (ADR 020 live-edge amendment). There is no synthetic instrument: Nova never invents a tape (ADR 019).
 
 Real tickers (SPY, IMCC, ...) chart their archived IBKR bars up to the Sim
 clock. On a weekend or NYSE holiday the Sim session is the last open exchange

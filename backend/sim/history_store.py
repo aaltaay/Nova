@@ -19,6 +19,7 @@ from constants_sim import (
     SIM_HISTORY_REQUEST_TIMEOUT_SEC, SIM_HISTORY_RETRY_INTERVAL_SEC, SIM_SESSION_CLOSE_HOUR,
     SIM_HISTORY_SQLITE_TIMEOUT_SEC,
 )
+from sim import history_coverage as coverage
 from sim.trading_day import last_open_day, require_supported
 
 ET = ZoneInfo("America/New_York")
@@ -146,6 +147,7 @@ def find(spec: dict, kind: str) -> dict | None:
 
 def _new_job(spec: dict, kind: str) -> dict:
     return dict(spec, id=job_id_for(spec, kind), kind=kind, status="queued", cursor=spec["start_ts"],
+                ranges=[], seek=None,
                 count=0, volume=0, pages=0, error=None, contract=None,
                 storage=str(path()), precision="seconds", updated=time.time(), started=None)
 
@@ -197,36 +199,97 @@ def begin_run(job_id: str) -> dict:
         job = _load(db, job_id)
         if job["status"] != "complete":
             job.update(status="pause_requested" if job["status"] == "pause_requested" else "running",
-                       error=None, updated=time.time(), started=time.time(), run_cursor=job["cursor"])
+                       error=None, updated=time.time(), started=time.time(), run_cursor=job["cursor"],
+                       run_covered=coverage.covered_seconds(coverage.job_ranges(job)))
             save(job, db)
         return job
 
 
-def commit_page(job_id: str, cursor: int, rows: list[dict], next_cursor: int, complete: bool):
-    """Rows and cursor are one transaction; ordinal preserves identical prints."""
+def commit_page(job_id: str, cursor: int, rows: list[dict], next_cursor: int,
+                complete: bool | None = None):
+    """Rows, coverage and cursor are one transaction; ordinal preserves identical prints.
+
+    The page covers [cursor, next_cursor). It is clipped at the next range already
+    downloaded, so a jump-ahead can never store a print twice, and merged into the
+    job's coverage. The cursor then moves to the next gap -- forward first, then
+    wrapping to backfill from the window start. Completion is read off coverage
+    (one range spanning the window); ``complete`` is accepted for old callers.
+    """
+    del complete
     with connect() as db:
         db.execute("BEGIN IMMEDIATE")
         job = _load(db, job_id)
         if job["cursor"] != cursor:
             raise ValueError("Page cursor changed; committed page must not be replayed")
+        ranges = coverage.job_ranges(job)
+        stop = coverage.next_covered_start(ranges, cursor)
+        if stop is not None and next_cursor > stop:
+            next_cursor = stop
+        rows = [row for row in rows if row["ts"] < next_cursor and not coverage.contains(ranges, row["ts"])]
         for offset, row in enumerate(rows):
             db.execute("INSERT INTO prints VALUES (?,?,?,?)",
                        (job_id, job["count"] + offset, row["ts"], json.dumps(row)))
-        status = "complete" if complete else (
+        ranges = coverage.add(ranges, cursor, next_cursor)
+        target = coverage.next_fetch(ranges, next_cursor, job["start_ts"], job["end_ts"])
+        status = "complete" if target is None else (
             "pause_requested" if job["status"] == "pause_requested" else "running")
-        job.update(cursor=next_cursor, count=job["count"] + len(rows),
+        job.update(ranges=ranges, cursor=job["end_ts"] if target is None else target,
+                   count=job["count"] + len(rows),
                    volume=job["volume"] + sum(r["size"] for r in rows),
                    pages=job["pages"] + 1, status=status, error=None, updated=time.time())
         save(job, db)
     return job
 
 
-def read_prints(job_id: str, *, through: int | None = None, limit: int = -1) -> list[dict]:
-    """Stop materializing at the caller's bound, retaining original ordinal order."""
+def request_seek(job_id: str, ts: float) -> dict:
+    """Ask a running download to fetch at ``ts`` next (playhead-first acquisition).
+
+    Only records the wish; the worker moves its own cursor in ``apply_seek``
+    before its next request, so no in-flight page is ever invalidated. A second
+    already downloaded, outside the window, or a job that is not running is a
+    no-op.
+    """
+    second = int(ts)
     with connect() as db:
-        return [json.loads(r[0]) for r in db.execute(
-            "SELECT payload FROM prints WHERE job_id=? AND (? IS NULL OR ts<?) "
-            "ORDER BY ordinal LIMIT ?", (job_id, through, through, limit))]
+        db.execute("BEGIN IMMEDIATE")
+        job = _load(db, job_id)
+        if (job["status"] not in ACTIVE or job["kind"] != "trades"
+                or not job["start_ts"] <= second < job["end_ts"]
+                or coverage.contains(coverage.job_ranges(job), second)):
+            return job
+        job["seek"] = second
+        save(job, db)
+        return job
+
+
+def apply_seek(job_id: str) -> dict:
+    """Worker-side: move the cursor to the gap at the pending seek, if any."""
+    with connect() as db:
+        db.execute("BEGIN IMMEDIATE")
+        job = _load(db, job_id)
+        seek = job.get("seek")
+        if seek is None:
+            return job
+        target = coverage.next_fetch(coverage.job_ranges(job), seek, job["start_ts"], job["end_ts"])
+        job["seek"] = None
+        if target is not None:
+            job["cursor"] = target
+        save(job, db)
+        return job
+
+
+def read_prints(job_id: str, *, through: int | None = None, limit: int = -1) -> list[dict]:
+    """Prints in time order, same-second prints in their returned order.
+
+    Ordered by (ts, ordinal), not ordinal alone: once the worker can jump ahead
+    and backfill, insertion order stops being time order. A second is never split
+    across pages, so ordinal still preserves IBKR's order within one. ``seq`` is
+    the stored ordinal -- the print's stable identity within the job.
+    """
+    with connect() as db:
+        return [dict(json.loads(r[1]), seq=r[0]) for r in db.execute(
+            "SELECT ordinal, payload FROM prints WHERE job_id=? AND (? IS NULL OR ts<?) "
+            "ORDER BY ts, ordinal LIMIT ?", (job_id, through, through, limit))]
 
 
 def reserve_send() -> float:

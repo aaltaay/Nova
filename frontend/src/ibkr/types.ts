@@ -1,6 +1,7 @@
 // Shared TypeScript types for the IBKR trading module.
 // Mirrors the JSON shapes returned by backend/routes/trading.py.
 
+/** `paper` is Nova's practice account on the live feed, never the IBKR paper Gateway (ADR 020). */
 export type IbkrMode = 'paper' | 'live' | 'sim' | 'disconnected';
 
 export interface IbkrStatus {
@@ -17,15 +18,31 @@ export interface IbkrStatus {
   /** disconnected | connecting | synchronizing | ready | degraded (ibkr/session_state.py). */
   session_state?: string;
   mode: IbkrMode;
+  /** ADR 020 desk venue -- the same value as `mode` while connected, stated explicitly. */
+  venue?: 'live' | 'paper' | 'sim';
   /** True while the in-app Sim practice toggle is on. */
   sim?: boolean;
+  /** Sim venue only: the playhead follows the wall clock on today's date, so the tab is live (ADR 020 amendment). */
+  live_edge?: boolean;
   capture?: boolean;
+  /** The first recording symbol, for single-symbol readers; `capture_symbols` is the truth. */
   capture_symbol?: string | null;
+  /** Every recording symbol, in start order (up to three; AGENTS.md section 3). */
+  capture_symbols?: string[];
   recording?: boolean;
   capture_error?: string | null;
+  /** One per recording symbol (AGENTS.md section 3, recording persistence). */
+  capture_sessions?: RecordingSession[];
+  /** Resumes the backend is attempting after unrequested stops, per symbol. */
+  capture_resume?: RecordingResume[];
+  /** Per symbol, the last stop the operator did not ask for, until it records again or is stopped. */
+  capture_stopped?: RecordingStopped[];
   gateway_mode?: 'paper' | 'live';
   /** Session account classification from IB account ids (DU…=paper, U…=live). */
   broker_account_kind?: 'paper' | 'live' | 'unknown';
+  /** The IBKR account Nova is logged into (first managed account); null while disconnected. */
+  account_id?: string | null;
+  account_ids?: string[];
   /** Last requested IB market-data type (1=live); null before first READY. */
   market_data_type?: number | null;
   /** True after IB Error 10167 (delayed / non-entitled feed). */
@@ -194,4 +211,45 @@ export interface DepthBook {
   l1_fallback: boolean;
   /** Set by the depth WS / hook — used to reject cross-symbol stale books. */
   symbol?: string;
+}
+
+export interface RecordingSession {
+  symbol: string;
+  session_date: string | null;
+  /** When the session (first segment) began, ET ISO. */
+  started_et: string | null;
+  segment_started_et: string | null;
+  /** 1-based, counting segments already on disk. */
+  segment: number | null;
+  counts: Record<string, number>;
+  last_write_ts: number | null;
+  dir: string | null;
+  /** IBKR lines re-acquired after a Gateway drop, this session. */
+  reacquired: number;
+}
+
+export interface RecordingResume {
+  symbol: string;
+  reason: string;
+  error: string | null;
+  session_date: string;
+  attempt: number;
+  max_attempts: number;
+  /** Epoch seconds of the next automatic attempt. */
+  next_at: number;
+  gave_up: boolean;
+  gave_up_reason: string | null;
+  pending: boolean;
+}
+
+export interface RecordingStopped {
+  symbol: string;
+  /** Epoch seconds. */
+  at: number;
+  reason: string;
+  error: string | null;
+  dir: string | null;
+  counts: Record<string, number>;
+  /** True once the backend or the operator got it recording again. */
+  resumed: boolean;
 }

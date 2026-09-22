@@ -251,3 +251,22 @@ describe('workingOrderCells — Open Orders column contract', () => {
     expect(html).toContain('Nova → submit: 12ms');
   });
 });
+
+describe('workingOrderCells — practice fills are never read as real ones (ADR 020)', () => {
+  it('marks a partially filled practice order as estimated and names the basis', () => {
+    const { text, html } = renderCell('avg_fill', {
+      ...PARTIAL, fill_estimated: true, fill_basis: 'live_quote',
+    });
+    expect(text).toContain('$190.42');
+    expect(text).toContain('est');
+    expect(html).toContain('ibkr-fill-estimated');
+    expect(html).toContain('live IBKR bid/ask');
+    expect(html).toContain('not a recorded print');
+  });
+
+  it('leaves a real broker fill unmarked', () => {
+    const { text, html } = renderCell('avg_fill', PARTIAL);
+    expect(text).toBe('$190.42');
+    expect(html).not.toContain('ibkr-fill-estimated');
+  });
+});

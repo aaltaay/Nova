@@ -1,26 +1,28 @@
 /**
- * Side-by-side Open paper / Open live Gateway launchers.
+ * The live Gateway launcher. Live is the feed for every venue (ADR 020); the
+ * IBKR paper Gateway (4002) is legacy with no desk button -- by hand only via
+ * `POST /api/ibkr/gateway-mode {"mode":"paper"}` -- and is never offered as a
+ * fallback (beside a live login it is read-only and carries no tape).
  */
 import {
   GATEWAY_BANNER_CTA_BUSY_LABEL,
   PREREQ_OPEN_LIVE_LABEL,
-  PREREQ_OPEN_PAPER_LABEL,
+  PREREQ_OPEN_LIVE_TITLE,
 } from './gatewayUxConstants';
 import './gatewayModeLaunchButtons.css';
 
-type GatewayMode = 'paper' | 'live';
+/** The only Gateway a desk button may launch. */
+export type DeskLaunchGatewayMode = 'live';
 
 interface Props {
-  busyMode: GatewayMode | null;
-  onLaunch: (mode: GatewayMode) => void;
-  paperTestId?: string;
+  busyMode: DeskLaunchGatewayMode | null;
+  onLaunch: (mode: DeskLaunchGatewayMode) => void;
   liveTestId?: string;
 }
 
 export function GatewayModeLaunchButtons({
   busyMode,
   onLaunch,
-  paperTestId = 'open-gateway-paper',
   liveTestId = 'open-gateway-live',
 }: Props) {
   const busy = busyMode != null;
@@ -28,17 +30,9 @@ export function GatewayModeLaunchButtons({
     <div className="gateway-mode-launch-row">
       <button
         type="button"
-        className="trading-prereq-cta trading-prereq-cta--paper"
-        data-testid={paperTestId}
-        disabled={busy}
-        onClick={() => onLaunch('paper')}
-      >
-        {busyMode === 'paper' ? GATEWAY_BANNER_CTA_BUSY_LABEL : PREREQ_OPEN_PAPER_LABEL}
-      </button>
-      <button
-        type="button"
         className="trading-prereq-cta trading-prereq-cta--live"
         data-testid={liveTestId}
+        title={PREREQ_OPEN_LIVE_TITLE}
         disabled={busy}
         onClick={() => onLaunch('live')}
       >

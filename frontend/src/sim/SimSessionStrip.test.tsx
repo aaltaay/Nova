@@ -1,0 +1,121 @@
+/** @vitest-environment jsdom */
+import { act } from 'react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { SimSessionStrip } from './SimSessionStrip';
+
+const mocks = vi.hoisted(() => ({ fetch: vi.fn(), open: vi.fn(), activeSymbol: 'GRML' as string | null }));
+vi.mock('../api/novaFetch', () => ({ novaFetch: mocks.fetch }));
+vi.mock('../workspace/WorkspaceContext', () => ({
+  useWorkspace: () => ({ openStockView: mocks.open, activeTraderSymbol: mocks.activeSymbol }),
+}));
+vi.mock('../workspace', () => ({
+  useWorkspace: () => ({ openStockView: mocks.open, activeTraderSymbol: mocks.activeSymbol }),
+}));
+
+const session = {
+  session_open_et: '2026-09-21T04:00:00-04:00',
+  session_close_et: '2026-09-21T20:00:00-04:00',
+  session_date: '2026-09-21',
+};
+
+const edge = { sim: true, replay_source: 'none', live_edge: true, minute_from_open: 854, minute_max: 960,
+  sim_time_et: '2026-09-21T18:14:07-04:00', ...session };
+
+const capture = {
+  sim: true, replay_source: 'capture', replay_date: '2026-09-21', replay_symbol: 'GRML', live_edge: false,
+  scrubbed: true, minute_from_open: 462, minute_max: 960, sim_time_et: '2026-09-21T11:42:10-04:00', ...session,
+  replay_load: {
+    l2_total: 1, l2_loaded: 1, l2_decimated: false, malformed_rows: 0, invalid_timestamp_rows: 0, invalid_rows: 0,
+    legacy_schema: false,
+    segments: [
+      { started_et: '2026-09-21T07:30:00-04:00', stopped_et: '2026-09-21T09:48:00-04:00', reason: 'restart' },
+      { started_et: '2026-09-21T10:05:00-04:00', stopped_et: null },
+    ],
+  },
+};
+
+let clock: Record<string, unknown> = edge;
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
+  vi.setSystemTime(new Date('2026-09-21T22:14:07Z'));
+  clock = edge;
+  mocks.fetch.mockReset();
+  mocks.open.mockReset();
+  mocks.fetch.mockImplementation(async (url: string, init?: RequestInit) => ({
+    ok: true,
+    json: async () => url.endsWith('/history') ? { jobs: [], selection: null }
+      : url.endsWith('/sessions') ? { days: [{ date: '2026-09-21', ticker_count: 1 }], tickers_by_day: { '2026-09-21': [{ symbol: 'GRML', prints: 10, l2: 1 }] } }
+      : { ...clock, ...(init?.body ? JSON.parse(String(init.body)) : {}) },
+  }));
+});
+
+afterEach(() => { cleanup(); vi.useRealTimers(); });
+
+async function mount() { await act(async () => { render(<SimSessionStrip />); }); }
+const posts = () => mocks.fetch.mock.calls.filter(([, init]) => init?.method === 'POST')
+  .map(([url, init]) => ({ path: String(url).split('/api/sim')[1], body: JSON.parse(String(init.body)) }));
+
+describe('SimSessionStrip', () => {
+  it('at the live edge: green pill, no playhead tag, no clock block, the source lives in the menu', async () => {
+    await mount();
+    expect(screen.getByTestId('sim-live-edge').textContent).toBe('Live edge');
+    expect(screen.queryByTestId('sim-strip-playhead-tag')).toBeNull();
+    expect(screen.queryByTestId('sim-session-clock')).toBeNull();
+    expect(screen.queryByTestId('sim-replay-source')).toBeNull();
+    expect(screen.getByTestId('sim-strip-playhead')).toBeTruthy();
+    expect((screen.getByTestId('sim-strip-edge') as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => { fireEvent.click(screen.getByTestId('sim-strip-menu')); });
+    expect(screen.getByTestId('sim-replay-source').textContent).toBe('LIVE EDGE');
+    expect(screen.getByTestId('sim-replay-empty').textContent).toMatch(/^Live edge: practise on the live feed/);
+    expect(screen.getByTestId('sim-strip-follow-wall')).toBeTruthy();
+    expect(screen.getByTestId('sim-replay-day')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Historical replay' })).toBeTruthy();
+  });
+
+  it('off the edge: the band draws the recording and its gap, the tag rides above the playhead, ⏭ follows the wall clock', async () => {
+    clock = capture;
+    await mount();
+    expect(screen.getAllByTestId('sim-strip-seg-recorded')).toHaveLength(2);
+    expect(screen.getByTestId('sim-strip-seg-gap').title).toMatch(/cut by a Nova restart/);
+    expect(screen.getByTestId('sim-strip-playhead-tag').textContent).toBe('11:42:10');
+    expect(screen.getByTestId('sim-strip-replay-state').textContent).toBe('Replay');
+    expect(screen.queryByTestId('sim-live-edge')).toBeNull();
+    await act(async () => { fireEvent.click(screen.getByTestId('sim-strip-edge')); });
+    expect(posts().at(-1)).toEqual({ path: '/clock', body: { follow_wall: true } });
+  });
+
+  it('the transport steps a minute either way and carries the active tab, like a scrub', async () => {
+    clock = capture;
+    await mount();
+    await act(async () => { fireEvent.click(screen.getByTestId('sim-strip-back')); });
+    expect(posts().at(-1)).toEqual({ path: '/clock', body: { minute_from_open: 461, symbol: 'GRML' } });
+    await act(async () => { fireEvent.click(screen.getByTestId('sim-strip-forward')); });
+    expect(posts().at(-1)).toEqual({ path: '/clock', body: { minute_from_open: 462, symbol: 'GRML' } });
+    await act(async () => { fireEvent.click(screen.getByTestId('sim-strip-first')); });
+    expect(posts().at(-1)).toEqual({ path: '/clock', body: { minute_from_open: 210, symbol: 'GRML' } });
+  });
+
+  it('a failed replay is a red stretch in the band plus a dismissable chip, never a banner', async () => {
+    clock = { ...capture, replay_source: 'none', replay_ok: false, replay_error: 'Capture contains no usable prints' };
+    await mount();
+    expect(screen.getByTestId('sim-strip-seg-failed').title).toBe('Replay failed: Capture contains no usable prints');
+    expect(screen.getByTestId('sim-strip-toast').textContent).toContain('no usable prints');
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Dismiss' })); });
+    expect(screen.queryByTestId('sim-strip-toast')).toBeNull();
+    expect(screen.getByTestId('sim-strip-seg-failed')).toBeTruthy();
+  });
+
+  it('the scrubber commits one seek on pointer release', async () => {
+    clock = capture;
+    await mount();
+    const slider = screen.getByTestId('sim-session-scrubber');
+    await act(async () => {
+      fireEvent.pointerDown(slider);
+      fireEvent.change(slider, { target: { value: '240' } });
+      fireEvent.pointerUp(slider);
+    });
+    expect(posts()).toEqual([{ path: '/clock', body: { minute_from_open: 240, symbol: 'GRML' } }]);
+  });
+});

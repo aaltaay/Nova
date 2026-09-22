@@ -366,7 +366,7 @@ export const STOCK_VIEW_DISCONNECTED_LABEL = 'Disconnected';
 export const STOCK_VIEW_DISCONNECT_HINT_PAPER_LIVE_UP =
   'Nova targets Paper (4002) — not listening. Live (4001) is up — switch to Live?';
 export const STOCK_VIEW_DISCONNECT_HINT_LIVE_PAPER_UP =
-  'Nova targets Live (4001) — not listening. Paper (4002) is up — switch to Paper?';
+  'Nova targets Live (4001) — not listening. Only the legacy IBKR paper Gateway (4002) is up — it carries no tape. Log into the live Gateway.';
 export const STOCK_VIEW_DISCONNECT_HINT_BOTH_DOWN =
   'Gateway ports 4001/4002 not listening — start IB Gateway and log in.';
 export const STOCK_VIEW_DISCONNECT_HINT_PORT_OPEN =
@@ -475,7 +475,8 @@ export const CHART_PANEL_SLOT_MAX_PX = CHART_HEIGHT_PANEL + CHART_PANEL_CHROME_P
 export const CHART_HEIGHT_PAGE = 440;
 /** Minimum chart body height (px) per 2×2 grid cell — cells stretch to fill ~80% of the trading viewport. */
 export const CHART_HEIGHT_GRID = 180;
-export type ChartGridPanel = { id: string; label: string; note?: string };
+/** `simNote` replaces `note` on a Sim desk, where no pane is ever fed live. */
+export type ChartGridPanel = { id: string; label: string; note?: string; simNote?: string };
 
 /** Core grid panes (order rebuilt by ``buildChartGridPanels``). */
 export const CHART_GRID_PANELS: ChartGridPanel[] = [
@@ -488,6 +489,7 @@ export const CHART_GRID_OPTIONAL_PANEL: ChartGridPanel = {
   id: '10Sec',
   label: '10-Second',
   note: 'IBKR 10s -- 4h history on open, live tape after',
+  simNote: 'Sim 10s -- replay at the sim clock, not live',
 };
 export const CHART_GRID_OPTIONAL_STORAGE_KEY = 'nova.chartGrid.show10Sec';
 /** Fourth pane defaults ON (absent localStorage key means show). */

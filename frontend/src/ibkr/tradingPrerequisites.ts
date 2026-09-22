@@ -16,7 +16,7 @@ import {
   PREREQ_COMPLETED_ORDERS_STUCK_PREFIX,
   PREREQ_GATEWAY_CLIENT_ID_DETAIL,
   PREREQ_GATEWAY_FOLLOW_LIVE_DETAIL,
-  PREREQ_GATEWAY_FOLLOW_PAPER_DETAIL,
+  PREREQ_GATEWAY_LEGACY_PAPER_UP_DETAIL,
   PREREQ_GATEWAY_LOGIN_DETAIL,
   PREREQ_GATEWAY_PORT_OPEN_DETAIL,
   PREREQ_GATEWAY_READ_ONLY_DETAIL,
@@ -133,12 +133,24 @@ function novaApiDetail(health: HealthStatus | null | undefined): string {
   return health.message || health.flag_hint || `API status: ${health.status}`;
 }
 
+/** The only Gateway the checklist may switch Nova to. */
+export type GatewayFollowTarget = 'live' | null;
+
+/**
+ * Live is the one follow target (ADR 020). When Nova targets live and only the
+ * legacy paper Gateway (4002) answers, that is not a switch: beside a live
+ * login it is read-only and carries no tape, so the row asks for the live
+ * login instead (`legacyPaperGatewayUp`).
+ */
 export function gatewayPortMismatchHint(
   hint: string | null | undefined,
-): 'paper' | 'live' | null {
-  if (hint === 'live_port_refused_paper_listening') return 'paper';
+): GatewayFollowTarget {
   if (hint === 'paper_port_refused_live_listening') return 'live';
   return null;
+}
+
+export function legacyPaperGatewayUp(hint: string | null | undefined): boolean {
+  return hint === 'live_port_refused_paper_listening';
 }
 
 /**
@@ -176,9 +188,8 @@ function gatewayDetail(input: TradingPrerequisitesInput, gatewayOk: boolean): st
     const age = Math.round(input.secondFactorAgeSec ?? 0);
     return `${PREREQ_GATEWAY_STALE_SECOND_FACTOR_DETAIL} (open ${age}s -- IBKR's own limit is 180s.)`;
   }
-  const follow = gatewayPortMismatchHint(input.disconnectHint);
-  if (follow === 'paper') return PREREQ_GATEWAY_FOLLOW_PAPER_DETAIL;
-  if (follow === 'live') return PREREQ_GATEWAY_FOLLOW_LIVE_DETAIL;
+  if (legacyPaperGatewayUp(input.disconnectHint)) return PREREQ_GATEWAY_LEGACY_PAPER_UP_DETAIL;
+  if (gatewayPortMismatchHint(input.disconnectHint) === 'live') return PREREQ_GATEWAY_FOLLOW_LIVE_DETAIL;
   if (gatewayPortOpenButSessionDown(input)) {
     const reason = (input.sessionReason || '').trim();
     if (reason === 'client_id_in_use') {

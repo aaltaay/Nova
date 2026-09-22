@@ -14,6 +14,24 @@
 .sim-session-header > strong { letter-spacing: .04em; }
 .sim-session-header__scrubber { display: flex; align-items: center; gap: 8px; flex: 1 1 260px; }
 .sim-session-header__scrubber input { flex: 1; min-width: 80px; accent-color: var(--nova-accent); }
+/* Range + buffered band. The band sits under the native track (a video player's
+   "downloaded" bar) so the input keeps its native look and pointer handling. */
+.sim-session-header__range { position: relative; display: flex; flex: 1; min-width: 80px; }
+.sim-session-header__range input { width: 100%; }
+.sim-session-header__coverage {
+  position: absolute; bottom: -3px; height: 3px; border-radius: 2px;
+  background: color-mix(in srgb, var(--nova-accent) 55%, transparent);
+  pointer-events: none;
+}
+/* A loaded capture: recorded stretches solid, the gaps between them striped. */
+.sim-session-header__coverage--recorded {
+  background: color-mix(in srgb, var(--nova-danger) 70%, transparent);
+}
+.sim-session-header__coverage--gap {
+  pointer-events: auto;
+  background: repeating-linear-gradient(45deg,
+    color-mix(in srgb, var(--nova-danger) 60%, transparent) 0 3px, transparent 3px 6px);
+}
 .sim-session-header__picker { display: flex; align-items: center; gap: 4px; }
 .sim-session-header__picker select { max-width: 140px; }
 .sim-muted { color: var(--nova-text-muted); }
@@ -66,3 +84,5 @@
   font-variant-numeric: tabular-nums;
 }
 .sim-replay-l2-note--empty { font-variant-numeric: normal; }
+/* The live edge: the tabs are live, so the state reads like the LIVE badge, not like a note. */
+.sim-live-edge { color: var(--nova-accent); font-weight: 600; letter-spacing: .02em; cursor: help; }

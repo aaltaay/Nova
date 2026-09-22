@@ -1,0 +1,375 @@
+/* The Sim scrubber cluster on the Trader context strip (ADR 006: the feature owns its surface). */
+.sim-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 420px;
+  height: 100%;
+  padding: 0;
+  color: var(--nova-text, var(--text-primary));
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sim-strip > * {
+  flex-shrink: 0;
+}
+
+.sim-strip > .sim-strip__band {
+  flex: 1 1 auto;
+  min-width: 160px;
+}
+
+.sim-strip__transport {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--nova-border-strong, var(--border-color));
+  border-radius: 6px;
+  background: var(--nova-panel, var(--panel-bg));
+}
+
+.sim-strip__transport button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--nova-text-muted, var(--text-secondary));
+  cursor: pointer;
+}
+
+.sim-strip__transport button:hover:not(:disabled) {
+  color: var(--nova-text, var(--text-primary));
+  background: var(--nova-raised, rgba(255, 255, 255, 0.08));
+}
+
+.sim-strip__transport button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.sim-strip__band {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--nova-text-muted, var(--text-secondary));
+}
+
+.sim-strip__bound {
+  flex-shrink: 0;
+}
+
+.sim-strip__track {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--nova-raised, #2c2c2e);
+  margin-bottom: 10px;
+}
+
+.sim-strip__track > i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.sim-strip__rth {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.sim-strip__seg--recorded,
+.sim-strip__seg--downloaded {
+  background: var(--nova-accent, #0a84ff);
+  opacity: 0.9;
+  border-radius: 5px;
+}
+
+.sim-strip__seg--gap {
+  top: 1px !important;
+  bottom: 1px !important;
+  pointer-events: auto !important;
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.28) 0 2px, transparent 2px 6px);
+}
+
+.sim-strip__seg--failed {
+  background: var(--nova-danger, #ef4444);
+  opacity: 0.75;
+  border-radius: 5px;
+  pointer-events: auto !important;
+}
+
+.sim-strip__tick {
+  top: -2px !important;
+  width: 1px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.sim-strip__tick b {
+  position: absolute;
+  top: 14px;
+  left: -14px;
+  width: 28px;
+  text-align: center;
+  font-weight: 500;
+  font-size: 9px;
+  color: var(--nova-text-muted, var(--text-secondary));
+}
+
+.sim-strip__play {
+  top: -4px !important;
+  width: 2px;
+  height: 18px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--green, #22c55e);
+}
+
+.sim-strip__play::after {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: -5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--green, #22c55e);
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.22);
+}
+
+.sim-strip__tag {
+  position: absolute;
+  top: -20px;
+  transform: translateX(8px);
+  padding: 0 5px;
+  border-radius: 3px;
+  background: var(--nova-panel, var(--panel-bg));
+  border: 1px solid var(--nova-border-strong, var(--border-color));
+  color: var(--nova-text, var(--text-primary));
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.sim-strip__tag--flip {
+  transform: translateX(calc(-100% - 8px));
+}
+
+/* The range sits over the track, invisible, so the native slider handles the input. */
+.sim-strip__range {
+  position: absolute;
+  inset: -8px 0;
+  width: 100%;
+  height: calc(100% + 16px);
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.sim-strip__range:focus-visible {
+  opacity: 0.35;
+  accent-color: var(--nova-accent);
+  outline: 2px solid var(--nova-accent);
+  outline-offset: 2px;
+}
+
+.sim-strip__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 11px;
+  border: 1px solid var(--nova-border-strong, var(--border-color));
+  background: var(--nova-panel, var(--panel-bg));
+  color: var(--nova-text-muted, var(--text-secondary));
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.sim-strip__pill i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.sim-strip__pill--live {
+  color: var(--green, #22c55e);
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.08);
+  font-weight: 600;
+  cursor: help;
+}
+
+.sim-strip__pill--live i {
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+}
+
+.sim-strip__pill--replay {
+  cursor: pointer;
+  color: var(--nova-accent, #0a84ff);
+}
+
+.sim-strip__pill--replay:hover:not(:disabled) {
+  background: var(--nova-raised, rgba(255, 255, 255, 0.08));
+}
+
+.sim-strip__pill--failed {
+  color: var(--nova-danger, #ef4444);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.sim-strip__toast {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 22rem;
+  height: 22px;
+  padding: 0 4px 0 8px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--nova-danger, #ef4444) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--nova-danger, #ef4444) 45%, transparent);
+  color: var(--nova-danger, #ef4444);
+  font-size: 11px;
+}
+
+.sim-strip__toast-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sim-strip__toast button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0 3px;
+}
+
+.sim-strip__more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--nova-text-muted, var(--text-secondary));
+  cursor: pointer;
+}
+
+.sim-strip__more:hover,
+.sim-strip__more[data-state='open'] {
+  color: var(--nova-text, var(--text-primary));
+  background: var(--nova-raised, rgba(255, 255, 255, 0.08));
+}
+
+.sim-strip__menu {
+  z-index: 10060;
+  box-sizing: border-box;
+  width: min(360px, calc(100vw - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: var(--nova-panel, var(--panel-bg));
+  color: var(--nova-text, var(--text-primary));
+  border: 1px solid var(--nova-border-strong, var(--border-color));
+  border-radius: var(--radius-panel, 8px);
+  box-shadow: 0 8px 24px var(--header-overlay, rgba(0, 0, 0, 0.45));
+  font-size: 12px;
+}
+
+.sim-strip__menu-state {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--nova-border-strong, var(--border-color));
+}
+
+.sim-strip__menu-source {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--nova-text-muted, var(--text-secondary));
+}
+
+.sim-strip__menu-item {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sim-strip__menu-item em {
+  font-style: normal;
+  color: var(--nova-text-muted, var(--text-secondary));
+}
+
+.sim-strip__menu-item:hover:not(:disabled) {
+  background: var(--nova-raised, rgba(255, 255, 255, 0.08));
+}
+
+.sim-strip__menu-item:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.sim-strip__menu-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--nova-border-strong, var(--border-color));
+}
+
+.sim-strip__menu-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--nova-text-muted, var(--text-secondary));
+}
+
+.sim-strip__picker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sim-strip__picker select {
+  max-width: 220px;
+  background: var(--input-bg);
+  color: var(--nova-text);
+  border: 1px solid var(--nova-border-strong);
+  border-radius: var(--radius-control, 4px);
+  padding: 4px 6px;
+  font: inherit;
+}

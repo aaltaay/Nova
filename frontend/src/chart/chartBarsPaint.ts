@@ -74,11 +74,19 @@ export function paintBars(
   chartRef: ChartSeriesRefs['chartRef'],
   prevBars: RawBar[] | null,
   paintEpoch: { current: number },
+  /**
+   * Viewport captured before a transient empty refresh cleared the series.
+   * Without it the recovery paint sees `prevBars === []`, snapshots a chart
+   * with no bars (which reports null), and is mistaken for a first paint --
+   * i.e. fitContent, i.e. the operator's zoom thrown away.
+   */
+  viewportOverride: ChartViewportSnapshot | null = null,
 ): PaintBarsResult {
   const { candles, volumes } = rawBarsToSeries(bars, tf);
-  const snapshot = prevBars == null
-    ? null
-    : snapshotChartViewport(chartRef.current, prevBars.length);
+  const snapshot = viewportOverride
+    ?? (prevBars == null
+      ? null
+      : snapshotChartViewport(chartRef.current, prevBars.length));
   const canIncremental =
     prevBars != null
     && canIncrementalBarsUpdate(prevBars, bars)

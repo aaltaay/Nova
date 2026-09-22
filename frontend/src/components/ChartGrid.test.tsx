@@ -9,9 +9,13 @@ import { markChartFullscreen, takeEscapeConsumedForFullscreen } from '../chart/c
 import { ensureBarsBatch } from '../chart/barsStore';
 import { clearDrawings } from '../chart/chartDrawingsStore';
 
+const venue = vi.hoisted(() => ({ mode: 'live' as string }));
+vi.mock('../ibkr/useIbkrStatus', () => ({ useIbkrStatus: () => ({ mode: venue.mode }) }));
+
 vi.mock('../TickerChart', () => ({
   TickerChart: ({
     title,
+    subtitle,
     indicators,
     activeTool,
     compactChrome,
@@ -22,6 +26,7 @@ vi.mock('../TickerChart', () => ({
     onMaximizeChange,
   }: {
     title?: string;
+    subtitle?: string;
     indicators?: string[];
     activeTool?: string | null;
     compactChrome?: boolean;
@@ -39,6 +44,7 @@ vi.mock('../TickerChart', () => ({
       data-focused={focused ? '1' : '0'}
       data-maximized={maximized ? '1' : '0'}
       data-maximize-in-grid={maximizeInGrid ? '1' : '0'}
+      data-subtitle={subtitle ?? ''}
       onClick={onFocusPane}
     >
       <button
@@ -72,6 +78,7 @@ describe('ChartGrid', () => {
 
   beforeEach(() => {
     localStorage.clear();
+    venue.mode = 'live';
     vi.mocked(ensureBarsBatch).mockClear();
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -126,6 +133,17 @@ describe('ChartGrid', () => {
     ]);
     expect(JSON.parse(localStorage.getItem('nova.chartGrid.show10Sec') ?? '').value).toBe(false);
     expect(toggle.textContent).toBe('Show 10-Second');
+  });
+
+  it('never labels the 10s pane as live tape on a Sim desk', () => {
+    const subtitle = () => container
+      .querySelector('[data-testid="chart-grid-cell-10Sec"] [data-testid="ticker-chart"]')
+      ?.getAttribute('data-subtitle');
+    act(() => { root.render(<ChartGrid symbol="IMCC" />); });
+    expect(subtitle()).toContain('live tape after');
+    venue.mode = 'sim';
+    act(() => { root.render(<ChartGrid symbol="SPY" />); });
+    expect(subtitle()).toBe('Sim 10s -- replay at the sim clock, not live');
   });
 
   it('queues all visible panes including 10Sec', () => {

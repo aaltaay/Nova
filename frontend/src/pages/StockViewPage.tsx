@@ -18,7 +18,6 @@ import type { PlaceOrderResult } from '../ibkr/placeOrder';
 import type { IbkrOrder } from '../ibkr/types';
 import { useTopOfBook } from '../hotkeys/TopOfBookContext';
 import { computeQuoteMetrics } from '../modules/quoteMetrics';
-import { PaperTradingBanner } from '../ibkr/PaperTradingBanner';
 import { StockViewOpenOrdersDock } from '../stock_view/StockViewOpenOrdersDock';
 import { StockViewRail } from '../stock_view/StockViewRail';
 import {
@@ -146,7 +145,11 @@ export function StockViewPage({
       className="stock-view-page"
       style={{ ['--ticker-trade-side-width' as string]: `${sideWidth}px` }}
     >
-      <PaperTradingBanner mode={ibkrStatus.mode} />
+      {/*
+        No permanent banners (operator decision, 2026-09-21): the practice
+        venue is a tag on the quote card and a Sim tab's replay state lives
+        inside that card (StockViewDepthTape) and in the strip's menu.
+      */}
       {/*
         Positions / Orders / Nova OS dock must not wait on ticker WS -- account
         tables stay usable while charts/rail load (also keeps e2e stable).

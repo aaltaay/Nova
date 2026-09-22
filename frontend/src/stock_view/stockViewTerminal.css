@@ -483,6 +483,61 @@
   min-height: 0;
 }
 
+/* Quote head: price on the left, the practice-venue tag on the right. */
+.stock-view-page .sv-quote-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+
+.stock-view-page .sv-quote-head > .sv-quote-card__price {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.stock-view-page .sv-venue-tag {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  flex-shrink: 0;
+  font-size: 0.6rem;
+  color: var(--sv-muted);
+  white-space: nowrap;
+}
+
+.stock-view-page .sv-venue-tag__venue {
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--nova-raised, #2c2c2e);
+  color: var(--sv-primary);
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 15px;
+}
+
+.stock-view-page .sv-venue-tag--paper .sv-venue-tag__venue {
+  background: color-mix(in srgb, #ea580c 35%, transparent);
+}
+
+/* The honesty marker: every practice fill is an estimate. */
+.sv-est {
+  display: inline-block;
+  padding: 0 4px;
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  border-radius: 3px;
+  color: #f59e0b;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 13px;
+  text-transform: uppercase;
+  vertical-align: 1px;
+  cursor: help;
+}
+
 .stock-view-page .sv-quote-card__price {
   display: flex;
   flex-wrap: wrap;
@@ -772,56 +827,11 @@
   padding-top: 0;
 }
 
-/* Rail keeps Primer rhythm but slightly condensed (stack-gap-condensed-ish) */
-.stock-view-page .ticker-trade-bar--rail .manual-order-ticket {
-  --mot-space-3: 12px;
-  --mot-control-h: 30px;
-  gap: var(--mot-space-3);
-  padding: var(--mot-space-2) 6px var(--mot-space-3);
-}
-
-.stock-view-page .ticker-trade-bar--rail .manual-order-label {
-  display: block;
-  margin: 0 0 4px;
-  font-size: 0.62rem;
-  letter-spacing: 0.05em;
-}
-
-.stock-view-page .ticker-trade-bar--rail .manual-order-segment {
-  min-height: var(--mot-control-h);
-  border-radius: var(--mot-radius, 6px);
-}
-
-.stock-view-page .ticker-trade-bar--rail .manual-order-segment button {
-  font-size: 0.72rem;
-}
-
-.stock-view-page .ticker-trade-bar--rail .manual-order-ticket input:not(.manual-order-quantity-input):not(.manual-order-extended-check),
-.stock-view-page .ticker-trade-bar--rail .manual-order-ticket select {
-  min-height: var(--mot-control-h);
-  font-size: 0.72rem;
-  padding: 4px 10px;
-  border-radius: var(--mot-radius, 6px);
-}
-
-.stock-view-page .ticker-trade-bar--rail .manual-order-submit {
-  min-height: 36px;
-  margin-top: 4px;
-  font-size: 0.8rem;
-  padding: 8px 12px;
-  border-radius: var(--mot-radius, 6px);
-}
-
-.stock-view-page .ticker-trade-bar--rail .manual-order-lock-note {
-  display: none; /* unlock button text already signals locked state */
-}
-
-.stock-view-page .ticker-trade-bar--rail .manual-order-result {
-  font-size: 0.8rem;
-  line-height: 1.35;
-  font-weight: 600;
-  white-space: normal;
-  overflow: visible;
+/* Ticket density lives in ibkr/tradeTicketCompact.css (the compact ticket is
+   the same card in every host). The rail only hides the PIN note, which
+   repeats the Unlock Trading button. */
+.stock-view-page .ticker-trade-bar--rail .manual-order-lock-note:not(.manual-order-lock-note--spend):not(.mot-reason *) {
+  display: none;
 }
 
 .stock-view-page .ticker-trade-bar--rail .ticker-trade-close-btn {

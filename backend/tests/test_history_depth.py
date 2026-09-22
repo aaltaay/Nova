@@ -168,9 +168,15 @@ def test_repeated_polls_of_one_replayed_second_read_the_archive_once(monkeypatch
     import l2.store as l2_store
     monkeypatch.setattr(l2_store, "get_connection", counted)
     clock.scrub_to_second(60)
-    for _ in range(5):
+    assert playback.snapshot("IMCC")["depth_available"] is True
+    # The first poll reads the archive: the depth book, plus one read per unseen
+    # print second for recorded sides (history_sides). Both are memoized, so the
+    # repeated polls of the same second must cost nothing at all.
+    first_poll = len(reads)
+    assert first_poll >= 1
+    for _ in range(4):
         assert playback.snapshot("IMCC")["depth_available"] is True
-    assert len(reads) == 1
+    assert len(reads) == first_poll
 
 
 def test_selecting_a_window_again_picks_up_a_session_recorded_since():

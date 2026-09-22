@@ -41,20 +41,20 @@ test.describe('Phase 2 — WorkspaceContext', () => {
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 
-  test('header Trader keeps chrome and opens an in-app tab', async ({ page }) => {
+  test('rail Trader keeps chrome and opens an in-app tab', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/');
 
     await expect(page.getByTestId('global-app-bar')).toBeVisible();
-    await page.getByTestId('global-bar-nav-trader').click();
+    await page.getByTestId('nav-rail-trader').click();
 
     await expect(page.getByTestId('global-app-bar')).toBeVisible();
     await expect(page.getByTestId('sv-tabs-root')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('sv-tab-SPY')).toBeVisible();
     await expect(page.getByTestId('scanner-desk')).toHaveCount(0);
-    await expect(page.getByTestId('global-bar-nav-trader')).toHaveAttribute(
-      'aria-pressed',
-      'true',
+    await expect(page.getByTestId('nav-rail-trader')).toHaveAttribute(
+      'aria-current',
+      'page',
     );
     expect(page.url()).not.toMatch(/view=stock/);
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);

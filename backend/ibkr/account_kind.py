@@ -163,6 +163,7 @@ def accept_connected_session(ib: Any, mode_label: str) -> tuple[bool, str]:
     ids = read_managed_account_ids(ib)
     kind = classify_managed_accounts(ids)
     _client._broker_account_kind = kind
+    _client._managed_account_ids = list(ids)
     effective = _follow_paper_account_if_needed(kind, mode_label)
     ok, reason = accounts_match_mode(kind, effective)
     from ibkr.gateway_trail import append_event as _trail

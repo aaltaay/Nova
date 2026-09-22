@@ -2,19 +2,22 @@
  * IBKR Gateway login / reconnect UX copy and tunables.
  * Feature-local so market_ui.ts does not keep growing past its size floor.
  */
-
 /** Loud global banner (all scanner tabs) shown while discovery=ibkr and Gateway is down. */
 export const GATEWAY_BANNER_TITLE = 'ACTION REQUIRED -- IB Gateway login';
 export const GATEWAY_BANNER_CTA_LABEL = 'Open IB Gateway';
 export const GATEWAY_BANNER_CTA_BUSY_LABEL = 'Opening...';
-export const PREREQ_OPEN_PAPER_LABEL = 'Open paper Gateway';
+/** ADR 020 (second pass): the live Gateway is the one data door. The IBKR
+ * paper Gateway (4002) is legacy with no desk button -- by hand only via
+ * `POST /api/ibkr/gateway-mode {"mode":"paper"}`, never an automatic fallback. */
 export const PREREQ_OPEN_LIVE_LABEL = 'Open live Gateway';
+export const PREREQ_OPEN_LIVE_TITLE =
+  'Starts the IBC login for the live Gateway (port 4001) -- the data feed for Live, Paper and Sim alike.';
 export const PREREQ_CLOSE_LABEL = 'X';
 export const PREREQ_CLOSE_ARIA = 'Close checklist';
 export const HEADER_DESK_ROLE = 'Desk';
 export const HEADER_DESK_API_DOWN_LABEL = 'API down';
 export const PREREQ_LEAD_MANUAL =
-  'Pick paper (4002) or live (4001). Nova switches to that door and starts IBC. Approve IBKR Mobile 2FA if prompted.';
+  'Open live Gateway (4001) starts the IBC login for the live Gateway that feeds every venue. Approve IBKR Mobile 2FA if prompted.';
 export const PREREQ_LEAD_API =
   'Nova API is down. Start the API before trusting live data or placing orders.';
 
@@ -27,13 +30,15 @@ export const PREREQ_GATEWAY_RECONNECT_CTA_LABEL = 'Reconnect Nova to Gateway';
 export const PREREQ_GATEWAY_RECONNECT_CTA_BUSY_LABEL = 'Reconnecting...';
 /** Default when ports look dark / login needed. */
 export const PREREQ_GATEWAY_LOGIN_DETAIL =
-  'Log into IB Gateway (API port 4001 live / 4002 paper). Look at your desktop for 2FA.';
-/** Preferred port dark, the other Gateway is already logged in. */
-export const PREREQ_GATEWAY_FOLLOW_PAPER_DETAIL =
-  'Paper Gateway is already up on 4002. Nova is still targeting Live 4001 -- use Paper, or log into Live.';
+  'Log into the live IB Gateway (API port 4001). Look at your desktop for 2FA.';
+/** Live is targeted and dark while only the legacy paper Gateway (4002) is
+ * up. Never a follow target (ADR 020): beside a live login it is read-only
+ * and carries no tape, so the desk would look connected and stay dark. */
+export const PREREQ_GATEWAY_LEGACY_PAPER_UP_DETAIL =
+  'Only the legacy IBKR paper Gateway is up (4002) -- it carries no tape and is not the Paper venue. Nova targets Live 4001: log into the live Gateway.';
+/** Nova was pointed at the legacy paper door by hand and live is the one listening. */
 export const PREREQ_GATEWAY_FOLLOW_LIVE_DETAIL =
-  'Live Gateway is already up on 4001. Nova is still targeting Paper 4002 -- use Live, or log into Paper.';
-export const PREREQ_GATEWAY_FOLLOW_PAPER_CTA_LABEL = 'Use paper Gateway';
+  'Live Gateway is already up on 4001. Nova is still targeting the legacy paper Gateway 4002 -- use Live.';
 export const PREREQ_GATEWAY_FOLLOW_LIVE_CTA_LABEL = 'Use live Gateway';
 export const PREREQ_GATEWAY_FOLLOW_CTA_BUSY_LABEL = 'Switching...';
 

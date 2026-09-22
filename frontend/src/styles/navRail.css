@@ -1,0 +1,305 @@
+/* The one navigation rail: 200 px labelled, 56 px icon-only.
+   Owner: components/NavRail.tsx (ported from the approved prototype, Nova tokens). */
+
+.nav-rail {
+  width: 200px;
+  flex: none;
+  align-self: stretch;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0 0;
+  overflow: hidden;
+  background: var(--nova-panel, var(--panel-bg));
+  border-right: 1px solid var(--nova-border, var(--border-color));
+  color: var(--nova-text-muted);
+  transition: width 0.12s ease;
+  /* No z-index here: a z-index on a flex item makes the rail a stacking
+     context, which trapped the fixed Fund account popover (z-index 60 below)
+     under the HOD dock (z-index 30) beside it. The rail and .nova-app-main are
+     siblings that never overlap, so the rail needs no layer of its own. */
+}
+
+.nav-rail__list {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+}
+
+.nav-rail__row {
+  display: flex;
+  align-items: center;
+}
+
+.nav-rail__row > .nav-rail__item {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.nav-rail__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 32px;
+  margin: 0;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--nova-text-muted);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.nav-rail__item:hover {
+  color: var(--nova-text);
+}
+
+.nav-rail__item:focus-visible {
+  outline: 2px solid var(--nova-accent);
+  outline-offset: -2px;
+}
+
+.nav-rail__icon-svg,
+.nav-rail__item .scanner-side-nav__icon-svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  display: block;
+}
+
+.nav-rail__txt {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-rail__count {
+  margin-left: auto;
+  font-style: normal;
+  font-size: 11px;
+  color: var(--nova-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.nav-rail__section {
+  color: var(--nova-text);
+  font-weight: 600;
+}
+
+.nav-rail__section.is-active {
+  background: color-mix(in srgb, var(--nova-accent) 7%, transparent);
+}
+
+/* The chosen list carries the accent bar; the section reads active quietly. */
+.nav-rail:not(.nav-rail--collapsed) .nav-rail__section.is-active::before {
+  content: none;
+}
+
+.nav-rail__chev {
+  flex: none;
+  width: 28px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--nova-text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-rail__chev:hover {
+  color: var(--nova-text);
+}
+
+.nav-rail__chev-svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.12s ease;
+}
+
+.nav-rail--folded .nav-rail__chev-svg {
+  transform: rotate(-90deg);
+}
+
+.nav-rail__grp {
+  padding: 10px 12px 3px 40px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--nova-text-muted);
+}
+
+.nav-rail__child {
+  height: 28px;
+  padding-left: 40px;
+  gap: 8px;
+}
+
+.nav-rail__child .scanner-side-nav__icon-svg {
+  width: 15px;
+  height: 15px;
+}
+
+.nav-rail__item.is-active {
+  color: var(--nova-text);
+  background: color-mix(in srgb, var(--nova-accent) 14%, transparent);
+  font-weight: 600;
+}
+
+.nav-rail__item.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 5px;
+  bottom: 5px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--nova-accent);
+}
+
+.nav-rail__item.is-active .nav-rail__count {
+  color: var(--nova-text);
+}
+
+.nav-rail__tree {
+  padding-bottom: 8px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--nova-border) 50%, transparent);
+}
+
+.nav-rail__badge {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--nova-danger, var(--danger));
+}
+
+.nav-rail__foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding-right: 10px;
+  border-top: 1px solid var(--nova-border, var(--border-color));
+}
+
+.nav-rail__foot .nav-rail__item {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.nav-rail__collapse {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--nova-border, var(--border-color));
+  border-radius: 5px;
+  background: transparent;
+  color: var(--nova-text-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+}
+
+.nav-rail__collapse:hover {
+  color: var(--nova-text);
+}
+
+/* Fund account popover beside Account; fixed so the rail never clips it. */
+.nav-rail__account {
+  position: relative;
+}
+
+.nav-rail__account-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 0;
+  padding: 0.35rem;
+  border: 1px solid var(--nova-border);
+  border-radius: var(--radius-control, 8px);
+  background: var(--menu-bg, var(--nova-panel));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.nav-rail__account-menu .global-app-bar__fund {
+  width: 100%;
+  white-space: nowrap;
+}
+
+/* ── collapsed: 56 px icon-only, tooltips carry the labels ── */
+.nav-rail--collapsed {
+  width: 56px;
+}
+
+.nav-rail--collapsed .nav-rail__item {
+  justify-content: center;
+  padding: 0;
+  gap: 0;
+}
+
+.nav-rail--collapsed .nav-rail__txt,
+.nav-rail--collapsed .nav-rail__count,
+.nav-rail--collapsed .nav-rail__chev,
+.nav-rail--collapsed .nav-rail__grp {
+  display: none;
+}
+
+.nav-rail--collapsed .nav-rail__icon-svg,
+.nav-rail--collapsed .nav-rail__item .scanner-side-nav__icon-svg {
+  width: 20px;
+  height: 20px;
+}
+
+.nav-rail--collapsed .nav-rail__foot {
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 0;
+}
+
+.nav-rail--collapsed .nav-rail__foot .nav-rail__item {
+  flex: none;
+  width: 100%;
+}
+
+.nav-rail--collapsed .nav-rail__badge {
+  position: absolute;
+  top: 7px;
+  right: 15px;
+  margin: 0;
+}
+
+/* ── shell: the rail sits beside the header + views (prototype .nv-shell) ── */
+.nova-app-stack--rail {
+  flex-direction: row;
+}
+
+.nova-app-main {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}

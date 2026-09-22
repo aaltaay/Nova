@@ -1,0 +1,37 @@
+/*
+ * Header status chips as compact icons (operator decision, 2026-09-20).
+ *
+ * The dot carries the state, the icon names the chip, the tooltip carries the
+ * words. The role/value text stays in the DOM -- visually hidden, not removed --
+ * so screen readers and tests still read "Desk SIM" / "Prices no L1 yet".
+ */
+.status-chip--compact {
+  position: relative;
+  gap: 0.25rem;
+  padding: 0.2rem 0.38rem;
+}
+
+.status-chip--compact .status-chip__icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.status-chip--compact:hover .status-chip__icon,
+.status-chip--compact:focus-visible .status-chip__icon {
+  color: var(--text-primary, var(--text-secondary));
+}
+
+.status-chip--compact .status-chip__role,
+.status-chip--compact .status-chip__value {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

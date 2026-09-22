@@ -5,12 +5,17 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  ORDERS_TODAY_TITLE,
   STOCK_VIEW_MODULE_NOVA_OS_TITLE,
   STOCK_VIEW_MODULE_POSITIONS_TITLE,
   STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY,
   STOCK_VIEW_OPEN_ORDERS_SAMPLE_HIDDEN_KEY,
 } from '../constants';
+import {
+  DRAWER_LIVE_NOTE,
+  DRAWER_NO_POSITION,
+  DRAWER_PAPER_NOTE,
+  DRAWER_TAB_ORDERS,
+} from '../constantGroups/trader_chrome';
 import type { ClosedOrder } from '../closed_orders/types';
 import type { IbkrOrder, IbkrPosition } from '../ibkr/types';
 import { SampleDataProvider } from '../sample_data/SampleDataContext';
@@ -125,7 +130,7 @@ describe('StockViewOpenOrdersDock', () => {
     expect(dock?.getAttribute('data-dock-host')).toBe('trader');
     expect(dock?.getAttribute('data-dock-symbol')).toBe('AAPL');
     expect(dock?.getAttribute('data-sample')).not.toBe('1');
-    expect(container.textContent).toContain(ORDERS_TODAY_TITLE);
+    expect(container.textContent).toContain(DRAWER_TAB_ORDERS);
     expect(container.textContent).not.toContain('90001');
     expect(
       container.querySelector('[data-testid="stock-view-open-orders-show-sample"]')
@@ -202,7 +207,7 @@ describe('StockViewOpenOrdersDock', () => {
     expect(container.textContent).toContain('99');
   });
 
-  it('toggles when clicking the middle of the bar (hint area)', () => {
+  it('toggles when clicking bare bar space, and from the chevron at the right', () => {
     localStorage.setItem(STOCK_VIEW_OPEN_ORDERS_SAMPLE_HIDDEN_KEY, '1');
     localStorage.setItem(STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY, '1');
     act(() => {
@@ -211,13 +216,95 @@ describe('StockViewOpenOrdersDock', () => {
     expect(
       container.querySelector('[data-testid="orders-today-view"]'),
     ).toBeNull();
-    const hint = container.querySelector('.sv-open-orders-dock__hint');
+    const bar = container.querySelector('.sv-open-orders-dock__bar');
     act(() => {
-      hint?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      bar?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(
       container.querySelector('[data-testid="orders-today-view"]'),
     ).toBeTruthy();
+    const chevron = container.querySelector(
+      '[data-testid="stock-view-open-orders-toggle"]',
+    ) as HTMLButtonElement;
+    expect(chevron.getAttribute('aria-expanded')).toBe('true');
+    act(() => {
+      chevron.click();
+    });
+    expect(
+      container.querySelector('[data-testid="orders-today-view"]'),
+    ).toBeNull();
+    expect(chevron.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector('[data-testid="stock-view-dock-footer"]')).toBeNull();
+  });
+
+  it('keeps the status chips on the tab row with their counts, and no second copy in the body', () => {
+    localStorage.setItem(STOCK_VIEW_OPEN_ORDERS_SAMPLE_HIDDEN_KEY, '1');
+    mockClosedOrdersState.orders = [CLOSED_AAPL];
+    act(() => {
+      root.render(<StockViewOpenOrdersDock {...baseProps} orders={[ORDER]} />);
+    });
+    const bar = container.querySelector('.sv-open-orders-dock__bar')!;
+    expect(bar.querySelector('[data-testid="orders-today-filters"]')).toBeTruthy();
+    expect(
+      container.querySelector('.sv-open-orders-dock__body [data-testid="orders-today-filters"]'),
+    ).toBeNull();
+    expect(bar.querySelector('[data-testid="orders-today-count-working"]')?.textContent).toBe('1');
+    expect(bar.querySelector('[data-testid="orders-today-count-filled"]')?.textContent).toBe('1');
+    expect(bar.querySelector('[data-testid="orders-today-count-canceled"]')?.textContent).toBe('0');
+    expect(bar.querySelector('[data-testid="orders-today-count-all"]')?.textContent).toBe('2');
+    act(() => {
+      (bar.querySelector('[data-testid="orders-today-filter-filled"]') as HTMLButtonElement).click();
+    });
+    expect(
+      container
+        .querySelector('[data-testid="stock-view-open-orders-dock"]')
+        ?.getAttribute('data-orders-filter'),
+    ).toBe('filled');
+    expect(container.querySelector('[data-testid="stock-view-closed-orders"]')).toBeTruthy();
+    // The chips belong to Orders: Positions hides them.
+    act(() => {
+      (container.querySelector('[data-testid="stock-view-dock-tab-positions"]') as HTMLButtonElement).click();
+    });
+    expect(bar.querySelector('[data-testid="orders-today-filters"]')).toBeNull();
+  });
+
+  it('footer names the open position with the est chip on a practice venue and the venue note', () => {
+    act(() => {
+      root.render(
+        <StockViewOpenOrdersDock
+          {...baseProps}
+          positions={[POSITION]}
+          symbolPosition={POSITION}
+        />,
+      );
+    });
+    const foot = container.querySelector('[data-testid="stock-view-dock-footer"]')!;
+    expect(foot.textContent).toContain('Position AAPL +100 @ 185.00');
+    expect(foot.querySelector('[data-testid="est-chip"]')).toBeTruthy();
+    expect(foot.textContent).toContain('unrealized +$500.00');
+    expect(foot.textContent).toContain(DRAWER_PAPER_NOTE);
+  });
+
+  it('footer states a flat symbol and drops the est chip on Live', () => {
+    act(() => {
+      root.render(
+        <StockViewOpenOrdersDock
+          {...baseProps}
+          mode="live"
+          positions={[{ ...POSITION, unrealized_pnl: -12.5 }]}
+          symbolPosition={{ ...POSITION, unrealized_pnl: -12.5 }}
+        />,
+      );
+    });
+    let foot = container.querySelector('[data-testid="stock-view-dock-footer"]')!;
+    expect(foot.querySelector('[data-testid="est-chip"]')).toBeNull();
+    expect(foot.textContent).toContain('unrealized −$12.50');
+    expect(foot.textContent).toContain(DRAWER_LIVE_NOTE);
+    act(() => {
+      root.render(<StockViewOpenOrdersDock {...baseProps} mode="live" symbolPosition={null} />);
+    });
+    foot = container.querySelector('[data-testid="stock-view-dock-footer"]')!;
+    expect(foot.textContent).toContain(`${DRAWER_NO_POSITION} · AAPL`);
   });
 
   it('switches to Positions table and shows open positions', () => {

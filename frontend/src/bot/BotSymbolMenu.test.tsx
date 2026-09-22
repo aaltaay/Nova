@@ -1,6 +1,8 @@
 /** @vitest-environment jsdom */
 import { act } from 'react';
+import { fireEvent } from '@testing-library/react';
 import { createRoot, type Root } from 'react-dom/client';
+import { CAPTURE_STOP_HOLD_MS } from '../capture/constants';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BotSymbolMenuHost } from './BotSymbolMenu';
 import { closeBotSymbolMenu, openBotSymbolMenu } from './botSymbolMenuStore';
@@ -43,6 +45,18 @@ async function clickRecord() {
     (container.querySelector('[data-testid="bot-symbol-menu-record"]') as HTMLButtonElement).click();
   });
 }
+/** Stop is a hold, not a click (operator decision, 2026-09-21): press for the whole interval. */
+async function holdStop() {
+  const button = container.querySelector('[data-testid="bot-symbol-menu-record"]') as HTMLButtonElement;
+  vi.useFakeTimers();
+  try {
+    fireEvent.pointerDown(button, { button: 0 });
+    await act(async () => { vi.advanceTimersByTime(CAPTURE_STOP_HOLD_MS + 100); });
+  } finally {
+    vi.useRealTimers();
+  }
+  await act(async () => {});
+}
 
 describe('Record menu failures', () => {
   it('renders a start refusal and keeps the menu open', async () => {
@@ -55,8 +69,10 @@ describe('Record menu failures', () => {
   it('renders a stop failure instead of closing the menu', async () => {
     command.mockResolvedValue(response({ capture: true, error: 'Recorder stop failed' }));
     await open(true);
-    expect(container.textContent).toContain('Stop recording');
-    await clickRecord();
+    expect(container.textContent).toContain('Hold to stop recording AAPL');
+    await clickRecord();  // a click never stops a recording
+    expect(command).not.toHaveBeenCalled();
+    await holdStop();
     expect(container.querySelector('[role="alert"]')?.textContent).toBe('Recorder stop failed');
   });
   it('renders network failures and closes only after a successful retry', async () => {

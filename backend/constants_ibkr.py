@@ -8,7 +8,9 @@ NOVA_DESKTOP_API_PORT = 8000
 # ── Interactive Brokers (optional trading module) ──────────────────────────────
 # Set IBKR_ENABLED=true in .env to activate.
 # IBKR_GATEWAY_MODE=paper|live  → which Gateway port to connect (data / L2).
-# Default is live (4001). Paper (4002) is the fallback when live is dark.
+# Default is live (4001). The paper Gateway (4002) is legacy: by hand only
+# (POST /api/ibkr/gateway-mode {mode: "paper"}), never an automatic fallback
+# unless IBKR_PAPER_GATEWAY_FALLBACK opts in (ADR 020).
 # IBKR_ORDERS_ENABLED=false     → master kill switch; default OFF so live Gateway
 #                                 cannot place buys/sells until you opt in.
 # IBKR_LIVE_TRADING_CONFIRMED   → second key required when gateway/account is live.
@@ -242,9 +244,18 @@ IBKR_BENIGN_LOG_MESSAGE_SUBSTRINGS = (
 SENTRY_SESSION_UNUSABLE_COOLDOWN_SEC = 300.0
 IBKR_GATEWAY_MODE_DEFAULT = "live"
 IBKR_ORDERS_ENABLED_DEFAULT = False  # never spend until explicitly enabled
-# Follow the listening Gateway (paper↔live) when the preferred port is dark.
+# Follow the listening Gateway when the preferred port is dark (paper -> live
+# always; live -> paper only with the opt-in below).
 # Override with IBKR_GATEWAY_SELF_HEAL=false. Spend gates never auto-unlock.
 IBKR_GATEWAY_SELF_HEAL_DEFAULT = True
+# ADR 020 (second pass, 2026-09-21): the IBKR paper Gateway (4002) is legacy.
+# With market-data sharing on, a paper login beside a live session is
+# read-only and carries no tape, so a desk that silently followed it would
+# look connected while every scanner and Level 2 stayed dark. Follow-Gateway
+# therefore never falls back to the paper port on its own. Opt in with
+# IBKR_PAPER_GATEWAY_FALLBACK=true; POST /api/ibkr/gateway-mode
+# {mode: "paper"} stays the by-hand door either way.
+IBKR_PAPER_GATEWAY_FALLBACK = False
 # After a user Paper/Live click, do not auto-follow the other port immediately
 # (they may be launching the requested Gateway + 2FA). After this grace, if
 # the requested port is still dark and the other is up, follow-Gateway resumes.

@@ -12,10 +12,11 @@ from sensors import rings
 
 
 def _sim_on() -> bool:
+    """A Sim desk off the live edge -- the pipes carry the replay, so the label says so."""
     try:
-        from sim.mode import is_sim_mode
+        from sim.mode import is_replay_desk
 
-        return is_sim_mode()
+        return is_replay_desk()
     except Exception:
         return False
 

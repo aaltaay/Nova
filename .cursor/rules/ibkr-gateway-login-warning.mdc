@@ -42,11 +42,16 @@ other port after 2 minutes just because it is still listening. Status
 fields `disconnect_hint` / `preferred_port_reachable` /
 `alternate_port_reachable` still describe a mismatch while reconnect is
 in flight. The loud login banner must not fire for those mismatch hints --
-the prerequisites modal offers "Use paper/live Gateway" instead.
+the prerequisites modal offers "Use live Gateway" when live is the one
+listening, and "Open live Gateway" when only the legacy paper Gateway is
+up (ADR 020: it is never suggested as a fallback -- read-only beside a live
+login, no tape).
 
-**Open live/paper** (prerequisites) still attaches when that API port is
+**Open live Gateway** (prerequisites) still attaches when that API port is
 already listening -- do not Stop-Process a 2FA-in-progress Gateway.
-The header Paper/Live capsule is the door change: it dials 4001 or 4002.
+The header pills are venue pills (ADR 020); the live Gateway (4001) is the
+one data door. The legacy paper Gateway (4002) has no desk button: only
+`POST /api/ibkr/gateway-mode {"mode":"paper"}` by hand dials it.
 If that port is already up, do not kill. If it is dark, stop both
 listeners then IBC that door. 4001 LISTEN is still not live by itself
 (ADR 013).

@@ -11,8 +11,8 @@ from datetime import datetime, timezone
 
 from constants_ibkr import IBKR_HOST, IBKR_LIVE_PORT, IBKR_PAPER_PORT
 from constants_sim import (
-    SIM_HISTORY_CLIENT_ID, SIM_HISTORY_CONNECT_TIMEOUT_SEC, SIM_HISTORY_PAGE_SIZE,
-    SIM_HISTORY_REQUEST_TIMEOUT_SEC,
+    SIM_HISTORY_CLIENT_ID, SIM_HISTORY_CONNECT_TIMEOUT_SEC, SIM_HISTORY_GATEWAY_UNREACHABLE,
+    SIM_HISTORY_PAGE_SIZE, SIM_HISTORY_REQUEST_TIMEOUT_SEC,
 )
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ class ReplayHistoryGateway:
                 failures.append(f"{port}: {exc or type(exc).__name__}")
                 self.ib.disconnect()
         else:
-            raise ConnectionError("IB Gateway unreachable (" + "; ".join(failures) + ")")
+            raise ConnectionError(f"{SIM_HISTORY_GATEWAY_UNREACHABLE} (" + "; ".join(failures) + ")")
         qualified = await self.ib.qualifyContractsAsync(Stock(symbol, "SMART", "USD"))
         if len(qualified) != 1:
             raise ValueError("Ticker could not be uniquely qualified by IBKR")

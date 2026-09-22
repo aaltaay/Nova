@@ -20,6 +20,7 @@ from ibkr.order_build import (
     validation_error as _validation_error,
 )
 from ibkr.order_rows import trade_to_order_row as _trade_to_order_row
+from sim.account_hooks import practice_broker as _practice_broker, practice_refusal as _practice_refusal
 
 logger = logging.getLogger(__name__)
 
@@ -80,12 +81,12 @@ def place_order(
     TRAIL uses stop_price as the IBKR trail $ (auxPrice). Trail % is not sent.
     ``tif`` None means IBKR_ORDER_TIF_DEFAULT (DAY); only IBKR_ORDER_TIFS pass.
     """
-    from sim.mode import is_sim_mode
+    from sim.mode import is_practice_venue
 
-    if is_sim_mode():
+    if is_practice_venue():
         from sim.guard import refuse_place
 
-        return refuse_place()
+        return _practice_refusal(refuse_place())
 
     order_type = normalize_order_type(order_type)  # type: ignore[assignment]
     tif = normalize_tif(tif)
@@ -190,12 +191,12 @@ def place_bracket_order(
     linked STP loss. Uses ib_async's native IB.bracketOrder() helper.
     ``tif`` / ``outside_rth`` apply to all three legs (None tif = DAY).
     """
-    from sim.mode import is_sim_mode
+    from sim.mode import is_practice_venue
 
-    if is_sim_mode():
+    if is_practice_venue():
         from sim.guard import refuse_bracket
 
-        return refuse_bracket()
+        return _practice_refusal(refuse_bracket())
 
     tif = normalize_tif(tif)
     bad_tif = _tif_error(tif)
@@ -254,12 +255,12 @@ def cancel_order(order_id: int) -> dict:
     Cancel an open order by ID.
     Allowed whenever connected (does not require IBKR_ORDERS_ENABLED).
     """
-    from sim.mode import is_sim_mode
+    from sim.mode import is_practice_venue
 
-    if is_sim_mode():
+    if is_practice_venue():
         from sim.guard import refuse_cancel
 
-        return refuse_cancel()
+        return _practice_refusal(refuse_cancel())
 
     ok, reason = _safety.assert_cancel_allowed(
         client_enabled=_client.is_enabled(),
@@ -295,12 +296,9 @@ def open_orders() -> list[dict]:
     must never look like "no working orders" (cancel-all and the kill-switch
     reconciliation both depend on knowing the difference).
     """
-    from sim.mode import is_sim_mode
-
-    if is_sim_mode():
-        from sim import broker as _sim_broker
-
-        return _sim_broker.open_orders()
+    practice = _practice_broker()
+    if practice is not None:
+        return practice.working_orders()
 
     ib = _client.get_ib()
     if ib is None:
@@ -333,12 +331,9 @@ def closed_orders(limit: int | None = None) -> list[dict]:
         IBKR_CLOSED_ORDERS_LIMIT_DEFAULT,
     )
 
-    from sim.mode import is_sim_mode
-
-    if is_sim_mode():
-        from sim import broker as _sim_broker
-
-        return _sim_broker.closed_orders(limit)
+    practice = _practice_broker()
+    if practice is not None:
+        return practice.closed_orders(limit)
 
     cap = IBKR_CLOSED_ORDERS_LIMIT_DEFAULT if limit is None else max(1, int(limit))
     ib = _client.get_ib()

@@ -49,13 +49,7 @@ def _call_guarded(fn, timeout: float) -> tuple[bool, BaseException | None]:
 
 def _hard_reset_recorder() -> None:
     """Abandon a wedged lock so one deadlock does not hang every later test."""
-    recorder._lock = threading.Lock()
-    recorder._active = False
-    recorder._files = {}
-    recorder._started_et = None
-    recorder._write_failures = 0
-    recorder._error = None
-    recorder._last_write_ts = None
+    recorder._hard_reset_for_tests()
 
 
 def _reset_recorder() -> bool:
@@ -96,7 +90,7 @@ def _stop_within(timeout: float = STOP_TIMEOUT_SEC) -> None:
     """Stop the recorder, failing (not hanging) if the stop path deadlocks."""
     returned, error = _call_guarded(recorder.stop_recorder, timeout)
     if not returned:
-        held, active = recorder._lock.locked(), recorder._active
+        held, active = recorder._lock.locked(), recorder.is_recording()
         _hard_reset_recorder()
         pytest.fail(
             f"stop_recorder() did not return within {timeout}s — the stop path "
@@ -161,7 +155,7 @@ def test_stop_flushes_open_buckets_to_disk() -> None:
 
 
 def test_restart_on_second_symbol_returns() -> None:
-    """start_recorder stops the previous session inside the same lock (D-063)."""
+    """A second symbol starts inside the same lock the first holds (D-063), beside it."""
     recorder.start_recorder("ONE")
     _feed_prints("ONE", 3)
 
@@ -171,8 +165,10 @@ def test_restart_on_second_symbol_returns() -> None:
         pytest.fail("starting a second recording deadlocked (D-063 regression)")
     if error is not None:
         raise error
-    assert recorder.status()["symbol"] == "TWO"
+    assert sorted(recorder.recording_symbols()) == ["ONE", "TWO"]
+    assert recorder.status("TWO")["recording"] and recorder.status("ONE")["counts"]["prints"] == 3
     _stop_within()
+    assert recorder.recording_symbols() == []
 
 
 def test_recording_survives_concurrent_writers_during_stop() -> None:
@@ -272,9 +268,7 @@ def test_interrupted_session_is_finalized_on_restart(_capture_root) -> None:
 
     # Simulate SIGKILL: process globals vanish, nothing is flushed or finalized,
     # and the active-session marker is left on disk.
-    recorder._active = False
-    recorder._files.clear()
-    recorder._started_et = None
+    recorder._crash_for_tests()
     bar_buckets.reset_for_tests()
     assert (_capture_root / ".active_session.json").is_file()
     assert _manifest(session_dir).get("stopped_et") is None
@@ -294,9 +288,7 @@ def test_resume_after_interruption_keeps_recovered_counts(_capture_root) -> None
     recorder.start_recorder("RESUME")
     _feed_prints("RESUME", 4)
     session_dir = _session_dir()
-    recorder._active = False
-    recorder._files.clear()
-    recorder._started_et = None
+    recorder._crash_for_tests()
     bar_buckets.reset_for_tests()
     session_state.finalize_orphaned_session(_capture_root)
 
@@ -357,7 +349,7 @@ class _FullDisk:
 
 def _break_prints_stream() -> _FullDisk:
     broken = _FullDisk()
-    recorder._files["prints"] = broken
+    recorder._primary().files["prints"] = broken
     return broken
 
 
@@ -476,3 +468,71 @@ def test_drain_open_returns_bars_without_touching_the_recorder() -> None:
     assert {tf for tf, _ in drained} == {"10s", "1m", "5m", "1d"}
     assert bar_buckets.drain_open("PURE") == [], "buckets were not popped"
     assert not hasattr(bar_buckets, "flush_open"), "the re-entrant callback is back"
+
+
+# --------------------------------------------------------------------------
+# Segments carry why they ended (operator decision, 2026-09-21)
+# --------------------------------------------------------------------------
+
+
+def test_segments_carry_the_reason_they_ended() -> None:
+    recorder.start_recorder("WHY")
+    _feed_prints("WHY", 3)
+    _stop_within()
+    assert _manifest()["segments"][-1]["reason"] == "operator"
+    recorder.start_recorder("WHY")
+    _feed_prints("WHY", 2, start_ts=1_700_000_100.0)
+    recorder.fail_recorder("disk gone")
+    man = _manifest()
+    assert man["status"] == CAPTURE_STATUS_FAILED
+    assert [seg["reason"] for seg in man["segments"]] == ["operator", "failure"]
+    assert man["segments"][-1]["counts"]["prints"] == 2
+
+
+def test_a_restart_stamps_a_restart_segment_with_its_own_counts(_capture_root) -> None:
+    recorder.start_recorder("CRASH")
+    _feed_prints("CRASH", 3)
+    _stop_within()
+    recorder.start_recorder("CRASH")
+    _feed_prints("CRASH", 6, start_ts=1_700_000_100.0)
+    session_dir = _session_dir()
+    recorder._crash_for_tests()
+    bar_buckets.reset_for_tests()
+
+    summary = session_state.finalize_orphaned_session(_capture_root)
+
+    man = _manifest(session_dir)
+    assert [seg["reason"] for seg in man["segments"]] == ["operator", "restart"]
+    assert man["segments"][-1]["status"] == CAPTURE_STATUS_INTERRUPTED
+    assert man["segments"][-1]["counts"]["prints"] == 6      # this segment, not the day
+    assert man["counts"]["prints"] == 9                      # the day
+    assert summary["session_date"] == session_dir.parent.name
+    assert summary["last_write_ts"] is not None
+    assert recorder.status()["interrupted_session"]["symbol"] == "CRASH"
+
+
+def test_status_says_which_segment_and_when_the_session_began() -> None:
+    recorder.start_recorder("SEG")
+    _feed_prints("SEG", 1)
+    first = recorder.status()
+    assert first["segment"] == 1 and first["started_et"] == first["segment_started_et"]
+    _stop_within()
+    recorder.start_recorder("SEG")
+    second = recorder.status()
+    assert second["segment"] == 2
+    assert second["started_et"] == first["started_et"]      # the session, carried across
+    assert second["segment_started_et"] != first["segment_started_et"]
+
+
+def test_segment_summary_counts_the_gaps_between_segments() -> None:
+    from capture.sessions import segment_summary
+
+    segments = [
+        {"started_et": "2026-09-21T09:30:00-04:00", "stopped_et": "2026-09-21T09:40:00-04:00", "reason": "failure"},
+        {"started_et": "2026-09-21T09:42:00-04:00", "stopped_et": "2026-09-21T09:50:00-04:00", "reason": "restart"},
+        {"started_et": "2026-09-21T09:55:00-04:00", "stopped_et": "2026-09-21T10:00:00-04:00", "reason": "operator"},
+    ]
+    assert segment_summary(segments) == {"segments": 3, "missing_sec": 7 * 60, "last_reason": "operator"}
+    assert segment_summary(None) == {"segments": 0, "missing_sec": 0, "last_reason": None}
+    overlapping = segments[:1] + [{"started_et": "2026-09-21T09:35:00-04:00", "stopped_et": "2026-09-21T09:45:00-04:00"}]
+    assert segment_summary(overlapping)["missing_sec"] == 0

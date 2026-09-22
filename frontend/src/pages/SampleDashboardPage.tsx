@@ -1,23 +1,29 @@
 /**
  * Sample-data dashboard — fixtures only. Never mounts useScannerData / HOD WS / watchlist API.
  * Scanner chrome lives on GlobalAppBar (SampleShell); HOD dock is middle-column only.
+ * Navigation is the shell's nav rail: this page publishes its tab state to
+ * navRailStore and answers the rail's tab requests.
  */
-import { useEffect, useState } from 'react';
-import { ScannerSideNav } from '../components/TabNav';
+import { useEffect, useMemo, useState } from 'react';
 import { TabModuleHost } from '../components/TabModuleHost';
 import { SelectedScannerWidget } from '../components/SelectedScannerWidget';
 import { SidePanel } from '../components/SidePanel';
 import { PanelResizeHandle } from '../components/PanelResizeHandle';
+import { NAV_RAIL_SELECT_TAB_EVENT } from '../constantGroups/nav_rail';
 import { useExchangeFilter } from '../hooks/useExchangeFilter';
 import { useSidePanelWidth } from '../hooks/useSidePanelWidth';
 import { ScannerDesk } from '../scanner/ScannerDesk';
 import { useSampleData } from '../sample_data/SampleDataContext';
 import { DISCOVERY_PROVIDER_DEFAULT } from '../constants';
-import { setAccountNavActive } from '../components/accountNavActive';
 import { useHodMomo } from '../hod_momo/HodMomoContext';
 import { HodMomoDock } from '../hod_momo/HodMomoDock';
 import { usePublishScannerNews } from '../hod_momo/usePublishScannerNews';
 import { SAMPLE_VOLUME_BOOST_ROWS } from '../volume_boost/sampleRows';
+import {
+  clearScannerNavState,
+  consumeScannerTabRequest,
+  publishScannerNavState,
+} from '../workspace/navRailStore';
 import { getModule, isTabModuleId, type ActiveTab } from '../workspace/registry';
 import { isDockTab } from '../workspace/scannerTabs';
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
@@ -65,36 +71,54 @@ export function SampleDashboardPage({ onOpenTrader }: Props) {
     setRailHighlight(tab);
   }
 
+  // Nav rail → tab. The latch covers a request made before this page mounted.
+  useEffect(() => {
+    const apply = () => {
+      const tab = consumeScannerTabRequest();
+      if (!tab || visibility[tab] === false) return;
+      handleTabClick(tab);
+    };
+    apply();
+    window.addEventListener(NAV_RAIL_SELECT_TAB_EVENT, apply);
+    return () => window.removeEventListener(NAV_RAIL_SELECT_TAB_EVENT, apply);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
+  }, [visibility]);
+
   const mainTab = isDockTab(activeTab) ? 'gappers' : activeTab;
 
-  useEffect(() => {
-    setAccountNavActive(mainTab === 'trading' || mainTab === 'reports');
-    return () => setAccountNavActive(false);
-  }, [mainTab]);
+  const navCounts = useMemo(
+    () => ({
+      gappers: filteredGappers.length,
+      gainers: filteredGainers.length,
+      losers: filteredLosers.length,
+      afterhours: filteredAfterhours.length,
+      largeCap: filteredLargeCap.length,
+      catalysts: sample.catalysts.length,
+      hodMomo: hodCount,
+      runningUp: runningUpCount,
+      watchlist: sample.watchlist.length,
+      volumeBoost: SAMPLE_VOLUME_BOOST_ROWS.length,
+    }),
+    [
+      filteredGappers.length,
+      filteredGainers.length,
+      filteredLosers.length,
+      filteredAfterhours.length,
+      filteredLargeCap.length,
+      sample.catalysts.length,
+      hodCount,
+      runningUpCount,
+      sample.watchlist.length,
+    ],
+  );
 
-  const navCounts = {
-    gappers: filteredGappers.length,
-    gainers: filteredGainers.length,
-    losers: filteredLosers.length,
-    afterhours: filteredAfterhours.length,
-    largeCap: filteredLargeCap.length,
-    catalysts: sample.catalysts.length,
-    hodMomo: hodCount,
-    runningUp: runningUpCount,
-    watchlist: sample.watchlist.length,
-    volumeBoost: SAMPLE_VOLUME_BOOST_ROWS.length,
-  };
+  useEffect(() => {
+    publishScannerNavState({ activeTab: mainTab, railHighlight, counts: navCounts });
+  }, [mainTab, railHighlight, navCounts]);
+  useEffect(() => () => clearScannerNavState(), []);
 
   return (
-    <div className="nova-shell" data-testid="sample-dashboard">
-      <ScannerSideNav
-        activeTab={mainTab}
-        railHighlight={railHighlight}
-        onTabClick={handleTabClick}
-        counts={navCounts}
-        visibility={visibility}
-      />
-
+    <div className="nova-shell nova-shell--scanner" data-testid="sample-dashboard">
       <div className="main-col main-col--scanner-stack">
         <HodMomoDock onOpenTrading={onOpenTrader} />
 

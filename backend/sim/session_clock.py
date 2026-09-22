@@ -3,9 +3,23 @@
 Session bounds ignore early-close (13:00 ET) half-days: see sim/trading_day.py.
 The full 04:00–20:00 window opens on the day after Thanksgiving and the other
 half-days, so those replays look live but have an empty tape after 13:00.
+
+Every operator move of the playhead (``scrub_to_second`` / ``scrub_to_minute``,
+``keep_time_of_day``, ``clear_scrub``) fans out through
+``sim.market.rebuild_for_scrub`` with where the playhead *was*, so the Sim
+venue can reseed its tape and, on a backward move, unwind the scratch practice
+account to the new playhead (ADR 020 decision 3). ``notify=False`` callers are
+the replay selection transitions: they run under the selection locks and the
+loaded replay changes there anyway, which starts the account over.
+
+``live_edge`` (ADR 020 live-edge amendment, 2026-09-21 evening) is the one
+fact every Sim market read keys on: the playhead follows the wall clock on
+today's Eastern date inside the session window -- not paused, not scrubbed,
+no past day loaded. At the edge a Sim tab is live; off it, it is the replay.
 """
 from __future__ import annotations
 
+import logging
 import time as time_mod
 from datetime import datetime, time, timedelta
 from typing import Any
@@ -13,6 +27,8 @@ from zoneinfo import ZoneInfo
 
 from constants_sim import SIM_SESSION_CLOSE_HOUR, SIM_SESSION_OPEN_HOUR
 from sim.trading_day import last_open_day
+
+logger = logging.getLogger(__name__)
 
 ET = ZoneInfo("America/New_York")
 
@@ -125,6 +141,30 @@ def is_paused() -> bool:
     return _paused_at is not None
 
 
+def live_edge() -> bool:
+    """The playhead is *now*: following the wall clock on today's date, inside the session.
+
+    False while paused or scrubbed, on a closed exchange day (the session is
+    the last open day), outside today's 04:00-20:00 window (the playhead is
+    clamped, not following), and whenever a past day is loaded -- a capture
+    or historical window re-dates the session, so ``session_bounds_on`` no
+    longer lands on the wall date. Today's own recording loaded and followed
+    to the wall clock IS the edge: the recording is the scrubbed past, the
+    live feed is now.
+    """
+    if _paused_at is not None or _scrub_second is not None:
+        return False
+    wall = _wall_et_now()
+    start, end = session_bounds_on(wall)
+    return start.date() == wall.date() and start <= wall <= end
+
+
+# The conftest pins live_edge to False so a weekday-daytime test run cannot
+# turn every "nothing loaded" Sim test into a live desk; tests about the edge
+# restore this and fix the wall clock.
+live_edge_unpatched = live_edge
+
+
 def set_paused(paused: bool) -> dict[str, Any]:
     """Freeze exactly here, or resume here without catching up to wall time."""
     global _paused_at, _scrub_second, _scrub_anchor_mono, _resume_date
@@ -175,19 +215,21 @@ def scrub_to_minute(minute_from_open: int, *, notify: bool = True) -> dict[str, 
 
 
 def scrub_to_second(second_from_open: float, *, notify: bool = True) -> dict[str, Any]:
+    before = now_et() if notify else None
+    _place_playhead(second_from_open)
+    if notify:
+        _notify_moved(before)
+    return status_payload()
+
+
+def _place_playhead(second_from_open: float) -> None:
+    """Anchor the playhead ``second_from_open`` into the session; a pause stays a pause."""
     global _scrub_second, _scrub_anchor_mono, _paused_at
     _scrub_second = _clamp_sec(second_from_open)
     _scrub_anchor_mono = time_mod.monotonic()
     if _paused_at is not None:
         start, _ = session_bounds_on(_paused_at)
         _paused_at = start + timedelta(seconds=_scrub_second)
-    if notify:
-        try:
-            from sim import market as _market
-            _market.rebuild_for_scrub()
-        except Exception:
-            pass
-    return status_payload()
 
 
 def keep_time_of_day(at: datetime, *, notify: bool = True) -> dict[str, Any]:
@@ -196,26 +238,43 @@ def keep_time_of_day(at: datetime, *, notify: bool = True) -> dict[str, Any]:
     Used after the window/date changed (leaving historical replay); pause is kept.
     """
     global _paused_at
+    before = now_et() if notify else None
     start, _ = session_bounds_on(_wall_et_now())
     target = datetime.combine(start.date(), at.astimezone(ET).time(), tzinfo=ET)
     if _paused_at is not None:
-        _paused_at = start  # re-date the frozen position; scrub places it below
-    return scrub_to_second((target - start).total_seconds(), notify=notify)
+        _paused_at = start  # re-date the frozen position; the placement below finishes it
+    _place_playhead((target - start).total_seconds())
+    if notify:
+        _notify_moved(before)
+    return status_payload()
 
 
 def clear_scrub() -> dict[str, Any]:
     global _scrub_second, _scrub_anchor_mono, _paused_at, _resume_date
+    before = now_et()
     _paused_at = None
     _resume_date = None
     _scrub_second = None
     _scrub_anchor_mono = None
+    _notify_moved(before)
+    return status_payload()
+
+
+def _notify_moved(before: datetime | None) -> None:
+    """Fan the move out to the Sim venue, telling it where the playhead was.
+
+    The venue reseeds the capture tape/depth and, when the playhead went
+    backwards, unwinds the scratch practice account (``sim.market``). A failure
+    here must not break the clock, but it is never silent.
+    """
     try:
         from sim import market as _market
 
-        _market.rebuild_for_scrub()
+        _market.rebuild_for_scrub(
+            previous_playhead_ts=before.timestamp() if before is not None else None,
+        )
     except Exception:
-        pass
-    return status_payload()
+        logger.warning("SIM: playhead move fan-out failed", exc_info=True)
 
 
 def status_payload() -> dict[str, Any]:
@@ -236,6 +295,7 @@ def status_payload() -> dict[str, Any]:
         "second_max": session_seconds(),
         "scrubbed": _scrub_second is not None,
         "paused": is_paused(),
+        "live_edge": live_edge(),
         "volume_mult": phase_volume_mult(n),
         "tick_interval_sec": phase_tick_interval_sec(n),
     }

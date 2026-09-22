@@ -1,14 +1,14 @@
 /** @vitest-environment jsdom */
 import { act, useState } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SimSessionHeader } from './SimSessionHeader';
 import { SIM_CLOCK_SCRUB_EVENT } from './simClockEvents';
 
-const mocks = vi.hoisted(() => ({ fetch: vi.fn(), open: vi.fn() }));
+const mocks = vi.hoisted(() => ({ fetch: vi.fn(), open: vi.fn(), activeSymbol: null as string | null }));
 vi.mock('../api/novaFetch', () => ({ novaFetch: mocks.fetch }));
 vi.mock('../workspace/WorkspaceContext', () => ({
-  useWorkspace: () => ({ openStockView: mocks.open }),
+  useWorkspace: () => ({ openStockView: mocks.open, activeTraderSymbol: mocks.activeSymbol }),
 }));
 
 const clock = {
@@ -36,6 +36,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   mocks.open.mockReset();
   mocks.fetch.mockReset();
+  mocks.activeSymbol = null;
   mocks.fetch.mockImplementation(async (url: string, init?: RequestInit) => ({
     ok: true,
     json: async () => url.endsWith('/history') ? {jobs: []} : url.endsWith('/sessions') ? {
@@ -320,4 +321,72 @@ it('Close replay waits for a sent seek and cancels its queued keyboard successor
   const paths = mocks.fetch.mock.calls.filter(([, init]) => init?.method === 'POST').map(([url]) => String(url).split('/').pop());
   expect(paths).toEqual(['clock', 'replay']);
   expect(screen.getByTestId('sim-replay-source').textContent).toBe('NO REPLAY');
+});
+
+it('shows how far the loaded window is downloaded on the slider, like a buffered band', async () => {
+  const start = Date.parse('2026-09-18T13:15:00Z') / 1000;
+  const end = Date.parse('2026-09-18T15:30:00Z') / 1000;
+  const selection = { symbol: 'IMCC', date: '2026-09-18', start: '09:15', end: '11:30',
+    start_ts: start, end_ts: end, coverage_through: start + (end - start) / 4 };
+  mocks.fetch.mockImplementation(async (url: string) => ({
+    ok: true,
+    json: async () => url.endsWith('/history') ? { jobs: [], selection }
+      : url.endsWith('/sessions') ? { days: [], tickers_by_day: {} }
+      : { sim: true, replay_source: 'historical', replay_symbol: 'IMCC', minute_from_open: 10, minute_max: 135 },
+  }));
+  await mount();
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  const band = screen.getByTestId('sim-scrubber-coverage');
+  expect(parseFloat(band.style.width)).toBeCloseTo(25);
+  expect(band.parentElement?.getAttribute('title')).toMatch(/Trades downloaded: 09:15–09:48 ET/);
+});
+
+describe('the live edge (ADR 020 live-edge amendment)', () => {
+  it('reads Live edge with a tooltip and LIVE EDGE as the source, never "load a replay"', async () => {
+    mocks.fetch.mockImplementation(async (url: string) => ({
+      ok: true,
+      json: async () => url.endsWith('/history') ? { jobs: [] }
+        : url.endsWith('/sessions') ? { days: [], tickers_by_day: {} }
+        : { sim: true, replay_source: 'none', live_edge: true, session_date: '2026-09-21', minute_from_open: 360, minute_max: 960 },
+    }));
+    await mount();
+    const edge = screen.getByTestId('sim-live-edge');
+    expect(edge.textContent).toBe('Live edge');
+    expect(edge.getAttribute('title')).toMatch(/Scrub back to replay/);
+    expect(screen.getByTestId('sim-replay-source').textContent).toBe('LIVE EDGE');
+    expect(screen.getByTestId('sim-replay-empty').textContent).toMatch(/^Live edge: practise on the live feed/);
+    expect(screen.queryByRole('button', { name: 'Follow wall clock' })).toBeNull();
+  });
+
+  it("following the wall clock off today's session is not the edge, and says so", async () => {
+    mocks.fetch.mockImplementation(async (url: string) => ({
+      ok: true,
+      json: async () => url.endsWith('/history') ? { jobs: [] }
+        : url.endsWith('/sessions') ? { days: [], tickers_by_day: {} }
+        : { sim: true, replay_source: 'none', live_edge: false, session_date: '2026-09-18' },
+    }));
+    await mount();
+    expect(screen.getByTestId('sim-wall-clock').textContent).toBe('Wall clock');
+    expect(screen.queryByTestId('sim-live-edge')).toBeNull();
+    expect(screen.getByTestId('sim-replay-source').textContent).toBe('NO REPLAY');
+  });
+
+  it('a scrub and a pause carry the active tab so leaving the edge can load its recording', async () => {
+    mocks.activeSymbol = 'imcc';
+    await mount();
+    const slider = screen.getByTestId('sim-session-scrubber');
+    await act(async () => {
+      fireEvent.pointerDown(slider);
+      fireEvent.change(slider, { target: { value: '240' } });
+      fireEvent.pointerUp(slider);
+    });
+    expect(mocks.fetch).toHaveBeenCalledWith(expect.stringContaining('/api/sim/clock'),
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ minute_from_open: 240, symbol: 'IMCC' }) }));
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Pause Sim time' })); });
+    expect(mocks.fetch).toHaveBeenLastCalledWith(expect.stringContaining('/api/sim/clock'),
+      expect.objectContaining({ body: JSON.stringify({ paused: true, symbol: 'imcc' }) }));
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Follow wall clock' })));
+    expect(mocks.fetch).toHaveBeenLastCalledWith(expect.stringContaining('/api/sim/clock'),
+      expect.objectContaining({ body: JSON.stringify({ follow_wall: true }) }));
+  });
 });

@@ -64,7 +64,7 @@ notepad $env:USERPROFILE\.nova\ibc\config.ini
 Use the **local** `StartGateway.bat` in `.nova\ibc\` (not stock `C:\IBC\StartGateway.bat`).
 Stock IBC defaults to `Documents\IBC\config.ini` and an outdated `TWS_MAJOR_VRSN`.
 The Nova wrapper sets `CONFIG`, `TWS_MAJOR_VRSN=1045`, `TRADING_MODE=live` (match `.env`;
-paper 4002 is the fallback), and `TWOFA_TIMEOUT_ACTION=restart`.
+the paper Gateway on 4002 is legacy, by hand only -- ADR 020), and `TWOFA_TIMEOUT_ACTION=restart`.
 
 Optional template in-repo: `scripts/start_gateway_ibc.ps1.example`.
 
@@ -122,7 +122,7 @@ when the wrong local API port is listening:
 
 | Nova `IBKR_GATEWAY_MODE` | Listening port | Result |
 |---|---|---|
-| `live` | 4002 paper only | Follow-Gateway heal → paper (refuse, or timeout/probe when preferred dark) |
+| `live` | 4002 paper only | No heal by default -- the paper Gateway is legacy (read-only beside a live login, no tape; ADR 020). Stay disconnected, log into live. `IBKR_PAPER_GATEWAY_FALLBACK=true` opts back in. |
 | `paper` | 4001 live only | Follow-Gateway heal → live (refuse, or timeout/probe when preferred dark) |
 | either | preferred still listening, connect times out | No heal (wedged / Error 326) — auth backoff |
 | either | both down | Stay disconnected — loud-warn login blocker |

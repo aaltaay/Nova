@@ -26,6 +26,10 @@ export type FeedDep =
 
 export type DefaultPlacement = 'tab' | 'side_panel' | 'stock_view';
 
+/** Nav-rail Scanner tree groups, in rail order (approved UX redesign). */
+export const NAV_GROUP_ORDER = ['lists', 'signals', 'mine'] as const;
+export type NavGroup = (typeof NAV_GROUP_ORDER)[number];
+
 export type ModuleCountKey =
   | 'gappers'
   | 'gainers'
@@ -81,6 +85,11 @@ export type NovaModule = {
   defaultPlacement: DefaultPlacement;
   /** Shown in the scanner left rail when placement is `tab`. */
   showInTabNav?: boolean;
+  /**
+   * Nav-rail Scanner tree group. Only grouped tabs are Scanner children;
+   * Account (`trading`) and Strategy (`bots`) are rail items of their own.
+   */
+  navGroup?: NavGroup;
   countKey?: ModuleCountKey;
   badge?: string;
   defaultVisible?: boolean;
@@ -90,6 +99,8 @@ export type NovaModule = {
 const host = HostRenderedModule as ComponentType<any>;
 
 export const NOVA_MODULES: readonly NovaModule[] = [
+  // Tab order below is the nav-rail Scanner tree order within each navGroup:
+  // Lists, then Signals, then Mine (approved UX redesign).
   {
     id: 'gappers',
     title: 'Gappers',
@@ -97,6 +108,7 @@ export const NOVA_MODULES: readonly NovaModule[] = [
     feedDeps: ['scanner'],
     defaultPlacement: 'tab',
     showInTabNav: true,
+    navGroup: 'lists',
     countKey: 'gappers',
   },
   {
@@ -106,6 +118,7 @@ export const NOVA_MODULES: readonly NovaModule[] = [
     feedDeps: ['scanner'],
     defaultPlacement: 'tab',
     showInTabNav: true,
+    navGroup: 'lists',
     countKey: 'gainers',
   },
   {
@@ -115,7 +128,18 @@ export const NOVA_MODULES: readonly NovaModule[] = [
     feedDeps: ['scanner'],
     defaultPlacement: 'tab',
     showInTabNav: true,
+    navGroup: 'lists',
     countKey: 'losers',
+  },
+  {
+    id: 'running_up',
+    title: 'Running Up',
+    component: host,
+    feedDeps: ['hod_momo'],
+    defaultPlacement: 'tab',
+    showInTabNav: true,
+    navGroup: 'lists',
+    countKey: 'runningUp',
   },
   {
     id: 'afterhours',
@@ -124,7 +148,18 @@ export const NOVA_MODULES: readonly NovaModule[] = [
     feedDeps: ['scanner'],
     defaultPlacement: 'tab',
     showInTabNav: true,
+    navGroup: 'lists',
     countKey: 'afterhours',
+  },
+  {
+    id: 'large_cap',
+    title: 'Large Cap',
+    component: host,
+    feedDeps: ['scanner'],
+    defaultPlacement: 'tab',
+    showInTabNav: true,
+    navGroup: 'lists',
+    countKey: 'largeCap',
   },
   {
     id: 'volume_boost',
@@ -135,16 +170,28 @@ export const NOVA_MODULES: readonly NovaModule[] = [
     feedDeps: ['none'],
     defaultPlacement: 'tab',
     showInTabNav: true,
+    navGroup: 'signals',
     countKey: 'volumeBoost',
   },
   {
-    id: 'large_cap',
-    title: 'Large Cap',
+    id: 'hod_momo',
+    title: 'HOD Momo',
+    component: host,
+    feedDeps: ['hod_momo'],
+    defaultPlacement: 'tab',
+    showInTabNav: true,
+    navGroup: 'signals',
+    countKey: 'hodMomo',
+  },
+  {
+    id: 'catalysts',
+    title: 'Catalysts',
     component: host,
     feedDeps: ['scanner'],
     defaultPlacement: 'tab',
     showInTabNav: true,
-    countKey: 'largeCap',
+    navGroup: 'signals',
+    countKey: 'catalysts',
   },
   {
     id: 'earnings',
@@ -156,6 +203,7 @@ export const NOVA_MODULES: readonly NovaModule[] = [
     feedDeps: ['none'],
     defaultPlacement: 'tab',
     showInTabNav: true,
+    navGroup: 'signals',
     countKey: 'earnings',
   },
   {
@@ -166,34 +214,8 @@ export const NOVA_MODULES: readonly NovaModule[] = [
     feedDeps: ['news'],
     defaultPlacement: 'tab',
     showInTabNav: true,
+    navGroup: 'signals',
     countKey: 'novaNews',
-  },
-  {
-    id: 'catalysts',
-    title: 'Catalysts',
-    component: host,
-    feedDeps: ['scanner'],
-    defaultPlacement: 'tab',
-    showInTabNav: true,
-    countKey: 'catalysts',
-  },
-  {
-    id: 'hod_momo',
-    title: 'HOD Momo',
-    component: host,
-    feedDeps: ['hod_momo'],
-    defaultPlacement: 'tab',
-    showInTabNav: true,
-    countKey: 'hodMomo',
-  },
-  {
-    id: 'running_up',
-    title: 'Running Up',
-    component: host,
-    feedDeps: ['hod_momo'],
-    defaultPlacement: 'tab',
-    showInTabNav: true,
-    countKey: 'runningUp',
   },
   {
     id: 'trading',
@@ -211,6 +233,7 @@ export const NOVA_MODULES: readonly NovaModule[] = [
     feedDeps: ['watchlist'],
     defaultPlacement: 'tab',
     showInTabNav: true,
+    navGroup: 'mine',
     countKey: 'watchlist',
   },
   {
@@ -219,6 +242,7 @@ export const NOVA_MODULES: readonly NovaModule[] = [
     component: host,
     feedDeps: ['none'],
     defaultPlacement: 'tab',
+    // The rail's Bots item -- not a Scanner child, so no navGroup.
     showInTabNav: true,
   },
   {
@@ -291,6 +315,20 @@ export function listTabModules(): NovaModule[] {
   return NOVA_MODULES.filter(
     m => m.defaultPlacement === 'tab' && m.showInTabNav !== false,
   );
+}
+
+export type ScannerNavGroup = { group: NavGroup; modules: NovaModule[] };
+
+/**
+ * Nav-rail Scanner tree: grouped tab modules in registry order, groups in
+ * NAV_GROUP_ORDER. A group with no visible module is omitted by the rail.
+ */
+export function listScannerNavGroups(): ScannerNavGroup[] {
+  const tabs = listTabModules();
+  return NAV_GROUP_ORDER.map(group => ({
+    group,
+    modules: tabs.filter(m => m.navGroup === group),
+  }));
 }
 
 /** Runtime check — id is a registered tab module. */

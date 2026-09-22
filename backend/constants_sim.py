@@ -38,11 +38,44 @@ SIM_NO_IBKR_REASON = "SIM mode cannot place to IBKR"
 SIM_NO_IBKR_CODE = "SIM_NO_IBKR"
 
 
+# ADR 020: the desk venue is live | paper | sim. "live" is the IBKR door (real
+# money through the live Gateway, port 4001), "paper" is Nova's practice
+# account on the live feed, "sim" is the replay playground. These are the
+# values desk-venue.json, /api/desk/venue and /api/ibkr/status carry.
+DESK_VENUE_LIVE = "live"
+DESK_VENUE_PAPER = "paper"
+DESK_VENUE_SIM = "sim"
+DESK_VENUES = (DESK_VENUE_LIVE, DESK_VENUE_PAPER, DESK_VENUE_SIM)
+# The venues the practice broker (backend/practice/) serves.
+DESK_PRACTICE_VENUES = (DESK_VENUE_PAPER, DESK_VENUE_SIM)
+PAPER_MODE_LABEL = DESK_VENUE_PAPER
+# Effective spend status on the Paper venue while the ADR 018 latch is armed.
+# Shares the vocabulary ibkr.safety uses for the legacy IBKR paper door so one
+# word reaches every surface; the disarmed value is SIM_SPEND_LOCKED_DISARMED.
+PAPER_SPEND_STATUS = "paper_armed"
+DESK_PAPER_NO_IBKR_REASON = (
+    "Paper venue never places to IBKR -- practice orders fill locally against the live feed"
+)
+
+
 def nova_broker_from_env() -> str:
     raw = (os.environ.get(NOVA_BROKER_ENV) or "").strip().lower()
     if raw == NOVA_BROKER_SIM:
         return NOVA_BROKER_SIM
     return NOVA_BROKER_IBKR
+
+
+def desk_venue_from_env() -> str:
+    """The ``NOVA_BROKER`` bootstrap venue: ``sim`` / ``paper`` / ``live``.
+
+    ``sim`` is unchanged from ADR 018. ``ibkr`` and an unset variable mean the
+    IBKR door, which is the Live venue -- exactly what a process with no cache
+    file started on before ADR 020, so no existing gate moves.
+    """
+    raw = (os.environ.get(NOVA_BROKER_ENV) or "").strip().lower()
+    if raw in DESK_VENUES:
+        return raw
+    return DESK_VENUE_LIVE
 
 
 def _desk_venue_cache_root() -> str:
@@ -58,7 +91,14 @@ def _desk_venue_cache_root() -> str:
 # it. An in-flight gateway-mode switch is never stored here; that stays in
 # ibkr/gateway_heal.py process state (ADR 018 decision 7).
 DESK_VENUE_FILE = os.path.join(_desk_venue_cache_root(), "desk-venue.json")
-DESK_VENUE_SCHEMA_VERSION = 1
+# v2 (ADR 020): {"schema_version": 2, "venue": "live" | "paper" | "sim"}.
+DESK_VENUE_SCHEMA_VERSION = 2
+# v1 (ADR 018) stored {"venue": "sim" | "ibkr"}. "ibkr" meant the IBKR door
+# with whichever Gateway was connected -- in practice the paper one -- so it
+# migrates to Paper, the safe direction; Live is always an explicit click. A
+# v1 file is rewritten as v2 on first read; any other version refuses loud.
+DESK_VENUE_LEGACY_SCHEMA_VERSION = 1
+DESK_VENUE_V1_MIGRATION = {NOVA_BROKER_SIM: DESK_VENUE_SIM, NOVA_BROKER_IBKR: DESK_VENUE_PAPER}
 
 # Default replay session window (America/New_York clock).
 SIM_SESSION_OPEN_HOUR = 4
@@ -74,6 +114,15 @@ SIM_HISTORY_REQUEST_TIMEOUT_SEC = 45.0
 SIM_HISTORY_CONNECT_TIMEOUT_SEC = 15.0
 SIM_HISTORY_MAX_PAGES = 10000
 SIM_HISTORY_CLIENT_ID = 29420
+# Leading words of the refusal when neither Gateway port answers. The Sim tab
+# prompt keys its auto-retry on it (mirrored in frontend simConstants.ts), so
+# a Gateway that is simply not running heals on its own once it is back.
+SIM_HISTORY_GATEWAY_UNREACHABLE = "IB Gateway unreachable"
+# Leading words when Gateway accepted the connection but IBKR never answered a
+# request within SIM_HISTORY_REQUEST_TIMEOUT_SEC (Gateway logged out, awaiting
+# 2FA, or IBKR maintenance). Mirrored in frontend simConstants.ts: the Sim tab
+# retries these on a slow timer and offers a Gateway reconnect.
+SIM_HISTORY_GATEWAY_NOT_ANSWERING = "IBKR did not answer"
 SIM_HISTORY_TAPE_ROWS = 200
 SIM_TICK_INTERVAL_RTH_SEC = 0.08
 SIM_TICK_INTERVAL_EXT_SEC = 0.15
@@ -99,3 +148,7 @@ SIM_HISTORY_DEPTH_MAX_AGE_SEC = 2.0
 # panel, the chart and practice admission, so the archive is read at most once
 # per second no matter how many callers ask.
 SIM_HISTORY_DEPTH_CACHE_ENTRIES = 16
+# Per-print sides from the local L2 recording (AGENTS.md §3). Memoized per
+# (symbol, second) because the replay tape is re-polled every second.
+SIM_HISTORY_SIDE_SOURCE = "recorded_book"
+SIM_HISTORY_SIDE_CACHE_ENTRIES = 4096

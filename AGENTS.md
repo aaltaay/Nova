@@ -54,7 +54,7 @@ These rules CANNOT be violated under ANY circumstance:
 | 4 | **`.tmp/` is ephemeral** | Never treat `.tmp/` files as a source of truth. |
 | 5 | **SOP before code** | If logic changes, update `architecture/` or relevant `.cursor/rules/` FIRST, then write code. |
 | 6 | **Self-Annealing** | Any error -> Analyze -> Patch -> Test -> Update SOP/rules -> Record the cause, fix, and verification in the PR or issue. If the bug cannot be fixed this session (too big, wrong task, needs an ADR), **MUST** open or update a GitHub Issue labeled `deferred` instead of a band-aid (`deferred-log.mdc`). |
-| 7 | **Broker Execution Gate** | Alpaca-sourced scanning is permanently read-only. Trade execution is permitted ONLY through the explicit opt-in `backend/ibkr/` module. Gateway connection default is **live** (port 4001); paper (4002) is the fallback when live is dark. Spending still requires `IBKR_ENABLED=true` and `IBKR_ORDERS_ENABLED=true`; live money also requires `IBKR_LIVE_TRADING_CONFIRMED=true` in `.env`. No other module may place orders. **Short entry (Phase K / ADR 009):** every SELL is risk-reducing unless an explicit `short_entry` opt-in on the execution command is approved by the short gate (`IBKR_SHORT_ENABLED=true` + fresh IBKR tick-236 `shortable_est`). Never infer shorts from side + flat position. `auto_live` remains NO-GO. |
+| 7 | **Broker Execution Gate** | Alpaca-sourced scanning is permanently read-only. Trade execution is permitted ONLY through the explicit opt-in `backend/ibkr/` module. Gateway connection default is **live** (port 4001). The IBKR paper Gateway (4002) is **legacy**: by hand only (`POST /api/ibkr/gateway-mode {"mode":"paper"}`), never an automatic fallback -- `IBKR_PAPER_GATEWAY_FALLBACK` is off by default because a paper login beside a live session is read-only and carries no tape (ADR 020). Spending still requires `IBKR_ENABLED=true` and `IBKR_ORDERS_ENABLED=true`; live money also requires `IBKR_LIVE_TRADING_CONFIRMED=true` in `.env`. No other module may place orders. **Short entry (Phase K / ADR 009):** every SELL is risk-reducing unless an explicit `short_entry` opt-in on the execution command is approved by the short gate (`IBKR_SHORT_ENABLED=true` + fresh IBKR tick-236 `shortable_est`). Never infer shorts from side + flat position. `auto_live` remains NO-GO. |
 | 8 | **Constitution is Law** | No code change may contradict this document. If a contradiction is needed, update this document FIRST with a maintenance log entry, THEN write the code. |
 
 ---
@@ -198,6 +198,16 @@ Historical job responses add `progress_pct: number`, `downloaded_through: number
 (epoch seconds), `eta_seconds: number | null`, `stale: boolean`,
 `age_seconds: number`, and `started: number | null`; `updated` remains the durable
 checkpoint time. ETA is an estimate only after advancement in the current run.
+Trades jobs and the selection also carry `coverage: [[start, end], ...]` (sorted,
+merged, half-open epoch-second ranges of downloaded prints) and
+`covered_seconds: integer`; `progress_pct` is covered share of the window and
+`downloaded_through` / `coverage_through` stay the end of the range that starts
+at the window start. Coverage can have gaps: scrubbing a running download's
+selection to an uncovered second makes the worker fetch there next, continue
+forward, and backfill skipped gaps from the window start afterwards. The
+snapshot adds `covered: boolean` (the playhead's second is downloaded); an
+uncovered playhead returns no tape prints, and candles are never built or
+flat-filled across a gap.
 Historical snapshot prints include stable integer `ordinal` within the selected job.
 The historical SQLite store uses integer `PRAGMA user_version=1`, migrates known
 unversioned tables, and refuses unknown versions. Selection refuses oversized
@@ -212,6 +222,48 @@ migrated; unknown versions refuse loudly. Capture load diagnostics include
 `legacy_schema` / `l2_decimated` (booleans) and `last_stream_ts` (per-stream event timestamps).
 No automatic retention policy is selected by these additions.
 
+### Recording persistence and coverage (operator decision, 2026-09-21)
+
+A Session Record is owned by the backend process -- up to
+`CAPTURE_MAX_CONCURRENT` (3) symbols at once, each by the operator's choice,
+because IBKR allows three depth lines and Record holds one per symbol -- and
+no page event stops it. `/api/capture` and `/api/ibkr/status` carry
+`capture_symbols: string[]` (start order) with `capture_symbol` as its first
+entry for single-symbol readers; `/api/capture` adds `sessions: {SYMBOL: {producer,
+book, recorder, healthy, error?, warning?}}` and the recorder's own `sessions`
+map. A fourth symbol is refused 409 before any IBKR line is touched. What can stop it is a process
+restart, a recorder failure, or a lost IBKR line, and the policy for each is
+**resume, then say so** -- the market only happens once, so a gap in the
+middle beats nothing after it. `capture/keepalive.py` owns this: a restart
+whose active-session marker names today's Eastern date and is younger than
+`CAPTURE_RESUME_RESTART_WINDOW_SEC` resumes into a new segment once IBKR is
+ready; a recorder that stops itself is resumed with backoff
+(`CAPTURE_RESUME_BACKOFF_SEC`), at most `CAPTURE_RESUME_MAX_ATTEMPTS` times per
+unplanned stop; a recording whose tape line went `disconnected` re-acquires its
+IBKR lines when the client is ready again. Resume never crosses a day boundary,
+never changes symbol, and is cancelled by an operator Stop or by the operator
+starting another symbol.
+
+Every manifest segment carries `reason: "operator" | "rotation" | "failure" |
+"restart"` naming why it ended (`restart` is stamped by the startup finalizer).
+`/api/capture/sessions` rows add `segments: integer`, `missing_sec: integer`
+(seconds between the first segment start and the last segment stop that no
+segment covers) and `last_reason: string | null`. A capture selected for Sim
+replay exposes its `segments` list in `replay_load` so the scrubber can draw
+recorded stretches against the session and gaps as gaps; a quiet stretch inside
+a segment is not a gap -- the recorder was up and the tape said nothing.
+
+`/api/ibkr/status` adds `capture_sessions: object[]`, one per recording
+symbol (`symbol`, `session_date`, `started_et`, `segment_started_et`, `segment`,
+`counts`, `last_write_ts`, `dir`, `reacquired`), `capture_resume: object[]`
+(`symbol`, `pending`, `attempt`, `max_attempts`, `next_at`, `reason`, `gave_up`,
+`gave_up_reason`) and `capture_stopped: object[]` -- per symbol, the last stop
+the operator did not ask for (`symbol`, `at`, `reason`, `error`, `dir`,
+`counts`, `resumed`), kept until that symbol records again or the operator
+stops it. All three are empty lists while nothing is recording or pending. The UI treats a running recording
+as quiet state (chip, hairline, window title) and an unrequested stop as the
+loud one.
+
 ### Recorded depth in historical replay (#309)
 
 The historical replay snapshot carries `depth_available: boolean` and
@@ -225,6 +277,16 @@ rendered as a stated absence, never an empty or invented ladder. `bid` / `ask`
 stay null — a recorded book is not a quote stream. The lookup never reads ahead
 of the playhead, and an unreadable `l2.db` degrades to the unrecorded case
 instead of failing the snapshot.
+
+Each snapshot print carries `side: "ask" | "bid" | "between" | null`, `bid` and
+`ask` (`number | null`) and `side_source: "recorded_book" | null`, and the
+snapshot adds `sides_recorded: integer`. A print gets a side only when `l2.db`
+holds a book at or before its (whole-second) timestamp and one at or after the
+next second, within `SIM_HISTORY_DEPTH_MAX_AGE_SEC`, and every book in that span
+has the same top of book -- the quote provably held across the print's second --
+classified by the live tape's own rule (`ibkr/tape_side.py`). Otherwise the side
+is `null` and no bid/ask is attached. Unreported prints never get a side. No
+side is ever inferred from price movement.
 
 ### Input Payload (Raw)
 
@@ -265,15 +327,125 @@ is null unless a replay source provides it. Loading, failed, and pre-first-event
 capture selections have no market data to fall back to -- there is no synthetic
 instrument (ADR 019), and `replay_source` is `none` when nothing is loaded.
 
-### Practice fills (ADR 019)
+### Practice venues and fills (ADR 019, ADR 020)
 
-The Sim venue trades the loaded replay only. A filled practice row carries
-`fill_estimated: true` and `fill_basis: "quote" | "last_print" | "print_cross" |
-"stop_trigger" | "last_mark"`; a practice fill is never displayed as a recorded
-print. Refusals use `SIM_NO_REPLAY`, `SIM_SYMBOL_MISMATCH`, `SIM_NO_TRADES`,
-`SIM_NO_PRICE` and `SIM_ORDER_TYPE`. Recorded prints carry
+The desk venue is `live | paper | sim` (`desk-venue.json` `schema_version: 2`,
+`{"venue": ...}`; owner `sim/mode.py`). **Paper is Nova's practice account on
+the live feed** (ADR 020): orders enter `execution.service.execute` unchanged
+and are filled by the practice broker against the live reference (fresh L1
+last, live top of book, live tape prints for resting orders); the account is
+the persistent ledger `practice-paper.json` (operator cache, `schema_version`)
+with IBKR-like commissions and fees, enforced buying power, day P&L rolling at
+04:00 ET and per-source attribution. **Sim trades the loaded replay** (ADR
+019) on a scratch, event-sourced account: scrubbing backwards unwinds every
+order and fill placed after the new playhead; unloading clears it. The IBKR
+paper Gateway (4002) is legacy and never the meaning of the Paper venue.
+
+`GET /api/practice/account?venue=paper|sim` and `POST /api/practice/reset`
+carry the account (`account_id` `NOVA-PAPER` / `NOVA-SIM`, `starting_cash`,
+`cash`, `buying_power`, `net_liquidation`, `gross_position_value`,
+`realized_pnl`, `unrealized_pnl`, `day_pnl`, `day_started_et`,
+`commissions_today`, `positions[]`, `working[]`, `fills_today`,
+`schema_version`, `updated_at`; Sim adds `replay_key`); `/api/ibkr/account`
+and `/api/ibkr/positions` answer from it on the practice venues;
+`/api/ibkr/status` adds `venue` and reports `account_id` `NOVA-PAPER` /
+`NOVA-SIM` there. A filled practice row carries `fill_estimated: true` and
+`fill_basis: "quote" | "last_print" | "print_cross" | "stop_trigger" |
+"last_mark" | "live_quote" | "live_print"`; a practice fill is never displayed
+as a recorded print. Refusals: `SIM_NO_REPLAY`, `SIM_SYMBOL_MISMATCH`,
+`SIM_NO_TRADES`, `SIM_NO_PRICE`, `SIM_ORDER_TYPE` (Sim),
+`PRACTICE_NO_LIVE_PRINT` (Paper: no fresh last and no recent tape print --
+never a guess), `PRACTICE_BUYING_POWER` (both), `PRACTICE_NO_SHORTS` (both:
+a SELL is only ever risk-reducing -- a SELL beyond the held quantity or any
+`short_entry` is refused "Nova does not support short entries yet") and
+`PRACTICE_TIF_EXPIRED` (both: a `DAY` order expires at its session's close --
+20:00 ET on Paper, the replayed window's end on Sim -- as an `expired` ledger
+event with status `Expired`; `GTC` persists across days and restarts; the row
+and its `placed` event carry `tif` and `expires_ts`). Recorded prints carry
 `ts_source: "exchange" | "receive"` so a substituted arrival time is never read
-as the exchange's own. Rules and biases: `architecture/practice-fills.md`.
+as the exchange's own. Rules and biases: `architecture/practice-fills.md`;
+fees and margin: `architecture/practice-account.md`.
+
+**The ledger as history (the Account page):**
+`GET /api/practice/history?venue=paper|sim&range=1D|5D|1M|3M|YTD|ALL`
+(default `1D`; owner `practice/history.py`, a pure derivation from the ledger
+events -- no live mark is ever read or invented) answers `venue`,
+`account_id`, `range`, `range_start` (epoch of the first practice day the
+range covers, `null` for `ALL`), `schema_version: 1`, `starting_cash`,
+`ledger_opened_at` (ISO ET) and:
+
+- `equity[]` -- `{ts, net_liquidation, cash, realized, unrealized}`, one point
+  **after every `filled` and `rollover` event** inside the range, in event
+  order, every held position marked at its own last fill price. Nothing is
+  drawn between events, so a flat stretch is flat; the series is
+  event-marked, so its last point can differ from the live-marked
+  `net_liquidation` on `/api/practice/account`. The baseline before the first
+  point is `starting_cash` at `ledger_opened_at`.
+- `fills[]` -- `{ts, order_id, symbol, side, qty, price, source, bot_id,
+  commission, fees, realized, fill_estimated: true, fill_basis}`; `fees` is
+  the SEC + FINRA pass-through on that fill and `realized` that fill's own
+  contribution net of its fees, read from the ledger's cost basis.
+- `by_source[]` -- `{source, bot_id, realized, fills, commissions, fees}` per
+  distinct `(source, bot_id)` stamp, first-fill order; the `realized` values
+  sum to `components.realized`. Read from the stamps, never inferred.
+- `daily[]` -- `{date, realized, commissions, fees, fills, archived}` keyed on
+  the practice day (04:00 ET rollover, `practice/clock.day_start_ts`), dates
+  ascending; a day with no fill has no row. Archived Paper ledgers' days are
+  included flagged `archived: true`, so one date can carry two rows (a reset
+  mid-day) and the calendar sums them.
+- `archives[]` -- `{file, opened_at, closed_at, realized, days}` for every
+  `practice-paper-<stamp>.json` beside the Paper ledger under the operator
+  cache, read read-only, oldest first; `days` counts the practice days that
+  hold a fill. A damaged or unknown-version archive is skipped with a logged
+  warning and named in `warnings: string[]` -- never a 500.
+- `components` -- `{realized, unrealized, commissions, sec_finra_fees,
+  bot_realized}`; `bot_realized` is the realized on fills stamped `source:
+  "bot"` or carrying a `bot_id`; `unrealized` is the event-marked figure at
+  the end of the ledger.
+
+`range` bounds `equity` / `fills` / `daily` at the practice-day start that
+many **calendar** days before today's (`1D` = 1, `5D` = 5, `1M` = 30, `3M` =
+90 -- a weekend inside the window simply holds no session), Jan 1 04:00 ET of
+the practice day's year for `YTD`, nothing for `ALL`; today is the venue's
+clock (the replay playhead on Sim). `by_source` and `components` cover **this
+ledger's** fills inside the range -- an archived ledger is another account and
+contributes `daily` rows and its `archives` entry only. Sim answers from its
+scratch ledger with `archives: []`; nothing loaded is the shape with empty
+lists, never a guess. Unknown `venue` or `range` is a 400. Constants:
+`constants_practice.PRACTICE_HISTORY_*`.
+
+### Sim at now is live -- the live edge (ADR 020 amendment, operator decision 2026-09-21 evening)
+
+The Sim clock payload (`GET /api/sim/clock`) and `/api/ibkr/status` on the Sim
+venue carry `live_edge: boolean` -- true while the playhead follows the wall
+clock on today's Eastern date inside the session window (not paused, not
+scrubbed, no past-day replay loaded). It is the single truth for what a Sim
+tab shows and fills against. **At the edge** a Sim tab shows the live IBKR
+feed exactly as a Paper tab does (quote, Level 2, Time & Sales, live bars),
+holds a real depth line the way a Trader tab does (so `BOT_NO_DEPTH_LINE`
+gates a bot identically), and the Sim scratch account fills against Paper's
+live reference: any symbol with a live print is admitted
+(`PRACTICE_NO_LIVE_PRINT` otherwise), `fill_basis` `live_quote` / `live_print`
+at placement and `print_cross` / `stop_trigger` for resting orders on live
+tape prints; `SIM_NO_REPLAY` / `SIM_SYMBOL_MISMATCH` apply off the edge only;
+every fill stays `fill_estimated: true`. **Off the edge** every read is the
+loaded replay, and with nothing loaded the desk is a stated absence. Orders
+at the edge are stamped with the playhead (wall time there) and unwind like
+any other when the operator scrubs back past them. `POST /api/sim/clock` may
+carry `symbol` (the scrubbing tab): a scrub or pause that leaves the edge
+with nothing loaded selects that symbol's usable Session Record for today
+when one exists, keeping the playhead and the scratch account. "Follow wall
+clock" returns to the edge. Paper remains the persistent-ledger venue.
+Rules: `architecture/practice-fills.md` ("The live edge").
+
+### Account identity on `/api/ibkr/status` (operator ask, 2026-09-21)
+
+`account_id: string | null` is the first IBKR managed account of the connected
+session (`DU…` paper, `U…` live) and `account_ids: string[]` all of them; both
+are empty while disconnected. They name *what Nova is logged into*, next to
+`broker_account_kind`; the header shows the id beside Cash / Margin. IBKR's API
+never exposes the login username, so the account id is the identity Nova can
+state truthfully.
 
 ### Execution command (ADR 007 — sole broker mutation entry)
 
@@ -299,7 +471,7 @@ All buy/sell/cancel/replace requests enter `execution.service.execute` with:
 }
 ```
 
-`STP LMT` requires both `limit_price` and `stop_price`. `TRAIL` uses `stop_price` as the IBKR trail dollar amount (`auxPrice`); trail percent is not a ticket field. `tif` defaults to `DAY` (`IBKR_ORDER_TIF_DEFAULT`), so a caller that omits it is unchanged; anything outside `DAY | GTC` is refused `TIF_INVALID`. `place` and every `bracket` leg carry `tif` and `outside_rth`; `replace` keeps the working order's own TIF.
+`STP LMT` requires both `limit_price` and `stop_price`. `TRAIL` uses `stop_price` as the IBKR trail dollar amount (`auxPrice`); trail percent is not a ticket field. `tif` defaults to `DAY` (`IBKR_ORDER_TIF_DEFAULT`), so a caller that omits it is unchanged; anything outside `DAY | GTC` is refused `TIF_INVALID`. `place` and every `bracket` leg carry `tif` and `outside_rth`; `replace` keeps the working order's own TIF. **Market orders need regular hours** (operator decision, 2026-09-21): a `MKT` place from a non-protective source is refused `MKT_OUTSIDE_RTH` ("use a limit at the ask") whenever the venue's clock is outside weekday 09:30-16:00 ET, NYSE holidays excluded -- no US exchange takes an unpriced order then and IBKR would hold it until the next open (Warning 399) while ignoring `outsideRth` on it (Warning 2109). The clock is the venue's (the replay playhead on Sim). Owner `execution/session_gate.py`; the practice broker repeats the check (`practice/order_rules.py`). Protective sources are exempt (flatten plans an extended-hours limit); `STP` orders are unchanged.
 
 **Manual-ticket protective legs** (operator decision on #91, 2026-09-20 -- supersedes "OCO / bracket stay off the manual ticket"): OCO stays off the manual ticket. A bracket reaches it only as the operator's optional default take-profit / stop-loss from Settings > Trade (`nova.trade.defaults.v1`), **off by default**. When on, an opening **Limit** entry (BUY while not short, or SELL with `short_entry`) posts `take_profit_price` + `stop_loss_price` with its `/api/ibkr/order` request, and the route sends `operation: "bracket"` (`entry_price` = the limit) through the same `execution.service.execute` -- never a second place path. Other entry types are refused while the defaults are on rather than sent unprotected; exits never carry legs; protective sources (`flatten`, `kill`, `cancel_working`) are refused a `bracket`. A bracket is checked like a place: whole shares, side agrees with `short_entry`, leg prices on the correct side of the entry, BuyingPower for a long entry, and no long bracket while the account is short that symbol.
 
@@ -333,7 +505,7 @@ Master protection blocks force-push and deletion (including admins), with **no
 required status checks**. Trading runtime gates, opt-ins and `auto_live` NO-GO
 remain unchanged. Conditional coverage is specified in `.cursor/rules/ci-scope.mdc`.
 
-- **Market data / trading:** Scanner and prices are IBKR-only (see `single-market-data-feed.mdc`). Alpaca is news/listing metadata only. Orders are allowed only via gated `backend/ibkr/` (Invariant #7). Gateway port default is live (4001); paper (4002) is the fallback. Spend stays gated; `auto_live` remains NO-GO. Header Paper / Live / Sim may switch the desk to a practice venue that replays a **real recorded or downloaded session** and fills orders locally (no Gateway places, estimated fills, ADR 019). There is no synthetic instrument: with nothing loaded the Sim desk is empty. `NOVA_BROKER=sim` is bootstrap only. Switching off Sim restores the IBKR paths.
+- **Market data / trading:** Scanner and prices are IBKR-only (see `single-market-data-feed.mdc`). Alpaca is news/listing metadata only. Orders are allowed only via gated `backend/ibkr/` (Invariant #7). Gateway port default is live (4001); the paper Gateway (4002) is legacy, by hand only, never an automatic fallback (ADR 020). Spend stays gated; `auto_live` remains NO-GO. Header Live / Paper / Sim are **venue** pills (ADR 020): **Live** places to IBKR; **Paper** is Nova's practice account on the live feed -- fake money, full live data, fills estimated locally, never an IBKR place; **Sim** replays a **real recorded or downloaded session** and fills locally on a scratch account that unwinds when the playhead is scrubbed back (ADR 019); at the **live edge** -- the Sim clock following the wall clock on today's date, not paused, not scrubbed, no past day loaded (`live_edge` on the clock payload and on `/api/ibkr/status`) -- a Sim tab shows the live IBKR feed exactly as a Paper tab does and the scratch account fills against the live reference, and scrubbing back leaves the edge for the loaded replay (today's Session Record when one exists, a stated absence otherwise; ADR 020 live-edge amendment). The IBKR paper Gateway (4002) is legacy with no desk button -- `POST /api/ibkr/gateway-mode {"mode":"paper"}` by hand is its only door. The venue never changes the bot: operator and bots are gated identically everywhere, and a bot fires only on an allowlisted symbol whose depth line the backend itself holds (`409 BOT_NO_DEPTH_LINE` otherwise); after a Sim rewind (`practice_rewind`) bots re-read the ledger. There is no synthetic instrument: a Sim desk with nothing loaded is empty off the live edge, and live at it. `NOVA_BROKER=sim` is bootstrap only. Switching to Live restores the IBKR paths.
 - **Desk venue vs spend arming (ADR 018, #302):** two facts with opposite lifetimes, never one dial. The **venue** (Paper / Live / Sim) is durable -- `sim/mode.py` owns `desk-venue.json` under the operator cache (`schema_version`, unknown version refuses loud), and it wins over the `NOVA_BROKER` bootstrap default. **Spend arming never survives a process start**, in any venue: `IBKR_ORDERS_ENABLED` / `IBKR_LIVE_TRADING_CONFIRMED` say this desk is *permitted*, the runtime latch in `ibkr/safety.py` says it is currently *armed*, and a place needs both. Arming is an explicit operator act at the header padlock (`POST /api/ibkr/arm`) -- never an `.env` edit, never inferred from a connect, reconnect or self-heal, and never re-armed by any automatic path. A venue change disarms. Protective sources (`flatten`, `kill`, `cancel_working`) and cancel are exempt: a disarmed desk must always be able to get flat. Only the *settled* venue persists -- an in-flight gateway-mode switch stays process-local in `gateway_heal.py` so ADR 013's unattended reconnect is unchanged.
 - **Market Open Halt**: The gapper dashboard stops updating its data feed once the market formally opens.
 - **Configurable**: API keys and base URLs must be configurable via UI.
@@ -522,6 +694,10 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-21 | The practice ledger as history: `GET /api/practice/history?venue&range` (`practice/history.py`, pure derivation from the event-sourced ledger) serves the redesigned Account page an event-marked equity series (a point after every fill and rollover, held positions marked at their last fill price, nothing between events), the fills with their `source` / `bot_id` stamps, the by-source split, practice-day rows including archived Paper ledgers flagged `archived`, the archives list and the P&L components. Archives beside `practice-paper.json` are read read-only; a damaged one is a logged warning in `warnings[]`, never a 500. §3 amended. | User Directive + Claude Fable 5.1 |
+| 2026-09-21 | Market orders need regular hours: a non-protective `MKT` outside weekday 09:30-16:00 ET is refused `MKT_OUTSIDE_RTH` on every venue (`execution/session_gate.py`, repeated in `practice/order_rules.py`), judged by the venue's clock (Sim: the playhead). Nasdaq offers no unpriced orders in its extended sessions and IBKR holds an RTH-only MKT until the next open (399) while ignoring `outsideRth` on it (2109); the practice broker used to fill one instantly at the far quote (GRML at 8.86 after the close, a 3.6% spread), teaching a habit Live refuses. The ticket greys Market out outside regular hours and moves a Market default to Limit; a Sim tab with nothing loaded offers the operator's own Session Record before a download and says what Sim is. | User Directive + Claude Fable 5.1 |
+| 2026-09-21 | Sim at now is live -- the live edge (ADR 020 live-edge amendment, re-accepting ADR 019's withdrawn amendment; operator decision, evening). The Sim clock payload and `/api/ibkr/status` on Sim carry `live_edge`: while the playhead follows the wall clock on today's date a Sim tab shows the live IBKR feed as a Paper tab does and holds a real depth line, the scratch account fills against Paper's `LiveReference` (`practice/reference.SimReference`, `PRACTICE_NO_LIVE_PRINT` at the edge, `SIM_*` refusals off it), the live matcher fills its resting orders, and every market-data gate keys on `sim/mode.is_replay_desk` instead of `is_sim_mode`. Scrubbing back leaves the edge for the loaded replay; a scrub off the edge with nothing loaded selects the tab's Session Record for today (`sim/live_edge.py`, `POST /api/sim/clock {symbol}`) keeping the playhead and the account. "Live wall clamp" becomes "Live edge"; the empty-Sim notice is quiet at the edge. Paper stays the persistent-ledger venue. §3 and §5 amended. | User Directive + Claude Fable 5.1 |
+| 2026-09-21 | ADR 020 second pass: the IBKR paper Gateway (4002) is legacy, by hand only (`POST /api/ibkr/gateway-mode`), never an automatic fallback -- `IBKR_PAPER_GATEWAY_FALLBACK = False` gates follow-Gateway's live -> paper leg (a paper login beside a live session is read-only and carries no tape), and its desk button and "Use paper Gateway" CTA are removed. Bot scope is enforced in one place: a bot fires only on an allowlisted symbol whose depth line the backend holds (`409 BOT_NO_DEPTH_LINE`, "open its Level 2 or record it"). A Sim scratch-account unwind publishes `practice_rewind` on the bot audit stream and `last_rewind` on the session payload; bots re-read the ledger. Invariant #7 and §5 amended. | User Directive + Claude Fable 5.1 |
 | 2026-09-20 | Marketing site split out to [`aaltaay/nova-site`](https://github.com/aaltaay/nova-site): `site/`, the `ai_news_*` digest tooling, its tests, the `ai-news.yml` cron and the Vercel integration all leave this repo. They cost Nova a Vercel preview on every backend PR and a digest pull request **every ten minutes** -- bot churn on a trading repo, for a page that shares no code with the desk. The new repo commits the digest straight to `main` (no branch protection, so the PR workaround is gone) and is public, because a private repo cannot run ~4,300 Actions minutes a month. §4 drops the Vercel row; §8 points at the new home. | User Directive + Claude Opus 5 |
 | 2026-09-20 | Per-row scanner Exchange (#90): `backend/ibkr/exchange_lookup.py` buys `row["exchange"]` with ONE paced `qualifyContractsAsync` round trip per NEW symbol, modelled on `ibkr/listing_flags.py`. Never awaited on admit -- `hydrate_rows` only queues, so ADR 010 name-only admission is unchanged; once per symbol per session; backfill only when empty; unknown venues stay blank through `normalize_ib_exchange` so the filter keeps failing open. | User Directive + Claude Opus 5 |
 | 2026-09-20 | Scanner table width lock (#276) closed: the shared `.table-wrapper--scanner` `table-layout: fixed` shell already shipped in PR #278 and covers all seven surfaces; the operator lifted the live-desk `do-not-merge` hold. `scannerTableCol.test.ts` now enforces the two acceptance lines that were only stylesheet comments -- every surface uses the shared shell + colgroup, and every shipped column declares an explicit width role. | User Directive + Claude Opus 5 |

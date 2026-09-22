@@ -1,5 +1,5 @@
 /**
- * Settings > Trade — Stocks defaults + Order Preferences sub-tabs.
+ * Settings > Trade — Stocks defaults + Order Preferences + Practice Account sub-tabs.
  */
 import { useState } from 'react';
 import {
@@ -10,6 +10,7 @@ import {
   readTradeDefaultsPrefs,
   type TradeDefaultsPrefs,
 } from './tradeDefaultsPrefs';
+import { PracticeAccountSettings } from './PracticeAccountSettings';
 import { TradeOrderPreferencesForm } from './TradeOrderPreferencesForm';
 import { TradeStocksDefaultsForm } from './TradeStocksDefaultsForm';
 
@@ -35,6 +36,7 @@ export function TradeSettingsSection() {
         <TradeStocksDefaultsForm prefs={prefs} onChange={setPrefs} />
       )}
       {subTab === 'order_preferences' && <TradeOrderPreferencesForm />}
+      {subTab === 'practice' && <PracticeAccountSettings />}
     </div>
   );
 }

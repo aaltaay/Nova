@@ -145,12 +145,15 @@ def test_arming_is_not_persisted_to_the_venue_file() -> None:
 # ── Decision 4: protective paths are never gated ──────────────────────────────
 
 def _place(source: str) -> ExecutionCommand:
+    # A BUY: these tests are about the arm latch, and a SELL from a flat
+    # practice account is an opening short, refused PRACTICE_NO_SHORTS on
+    # every source (test_practice_no_shorts.py).
     return ExecutionCommand(
         operation="place",
         idempotency_key=f"adr018-{source}",
         source=source,
         symbol="AAPL",
-        side="SELL",
+        side="BUY",
         qty=1,
         order_type="MKT",
     )

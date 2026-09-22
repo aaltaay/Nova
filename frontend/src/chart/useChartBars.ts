@@ -29,6 +29,10 @@ import { useWorkspace } from '../workspace';
 import { allowMockBarsFallback, emptyBarsMessage } from './chartBarsPolicy';
 import { paintBars } from './chartBarsPaint';
 import {
+  snapshotChartViewport,
+  type ChartViewportSnapshot,
+} from './chartViewportPaint';
+import {
   ensureBars,
   getBarsEntry,
   isBarsEntryFresh,
@@ -86,6 +90,12 @@ export function useChartBars({
   const barsRequestVersionRef = useRef(0);
   const lastTradeRef = useRef<ChartTradeUpdate | null | undefined>(lastTrade);
   const paintedBarsRef = useRef<RawBar[] | null>(null);
+  /**
+   * Survives a transient empty refresh so the recovery paint restores the
+   * operator's window instead of refitting. Cleared by a real seek / retarget,
+   * which SHOULD refit -- the time window genuinely changed.
+   */
+  const pendingViewportRef = useRef<ChartViewportSnapshot | null>(null);
   const paintEpochRef = useRef(0);
   const chartActiveRef = useRef(chartActive);
 
@@ -116,6 +126,12 @@ export function useChartBars({
         return;
       }
       if (sim || !allowMockBarsFallback(discoveryProvider)) {
+        // Capture BEFORE the wipe: once the series is cleared the time scale
+        // reports nothing, and `paintedBarsRef = []` would make the next paint
+        // look like the first one. Consecutive empties keep the first capture.
+        pendingViewportRef.current =
+          snapshotChartViewport(chartRef.current, paintedBarsRef.current?.length ?? 0)
+          ?? pendingViewportRef.current;
         setUsingMock(false);
         setIndicatorBars([]);
         candleSeriesRef.current?.setData([]);
@@ -138,7 +154,9 @@ export function useChartBars({
       chartRef,
       paintedBarsRef.current,
       paintEpochRef,
+      pendingViewportRef.current,
     );
+    pendingViewportRef.current = null;
     paintedBarsRef.current = next;
     if (sim) {
       setIndicatorBars(rawBarsToIndicatorBars(next, timeframe));
@@ -196,6 +214,7 @@ export function useChartBars({
   useEffect(() => {
     onSeriesReset();
     paintedBarsRef.current = null;
+    pendingViewportRef.current = null;
     setIndicatorBars([]);
     setFilling(false);
     setCoverageAsOf(null);
@@ -254,6 +273,7 @@ export function useChartBars({
       barsRequestVersionRef.current += 1;
       onSeriesReset();
       paintedBarsRef.current = null;
+      pendingViewportRef.current = null;
       setIndicatorBars([]);
       candleSeriesRef.current?.setData([]);
       volSeriesRef.current?.setData([]);

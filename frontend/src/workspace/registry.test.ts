@@ -4,7 +4,9 @@ import {
   getModule,
   HostRenderedModule,
   listModules,
+  listScannerNavGroups,
   listTabModules,
+  NAV_GROUP_ORDER,
   NOVA_MODULES,
   isTabModuleId,
   tabUsesScannerPricePatch,
@@ -43,6 +45,26 @@ describe('module registry (Phase 4)', () => {
     expect(getModule('trading')?.title).toBe('Account');
     expect(getModule('trading')?.showInTabNav).toBe(false);
     expect(getModule('reports')?.showInTabNav).toBe(false);
+  });
+
+  it('groups the Scanner tree for the nav rail: Lists, Signals, Mine in the approved order', () => {
+    expect(NAV_GROUP_ORDER).toEqual(['lists', 'signals', 'mine']);
+    const groups = listScannerNavGroups();
+    expect(groups.map(g => g.group)).toEqual(['lists', 'signals', 'mine']);
+    expect(groups[0].modules.map(m => m.id)).toEqual([
+      'gappers', 'gainers', 'losers', 'running_up', 'afterhours', 'large_cap',
+    ]);
+    expect(groups[1].modules.map(m => m.id)).toEqual([
+      'volume_boost', 'hod_momo', 'catalysts', 'earnings', 'nova_news',
+    ]);
+    expect(groups[2].modules.map(m => m.id)).toEqual(['watchlist']);
+    // Account, Reports and Strategy are rail items of their own, never Scanner children.
+    for (const id of ['trading', 'reports', 'strategy'] as const) {
+      expect(getModule(id)?.navGroup).toBeUndefined();
+    }
+    // Every grouped module is a visible tab module.
+    const tabIds = new Set(listTabModules().map(t => t.id));
+    for (const g of groups) for (const m of g.modules) expect(tabIds.has(m.id)).toBe(true);
   });
 
   it('registers panel modules with real components', () => {

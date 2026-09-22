@@ -123,6 +123,8 @@ def is_kill_switch_tripped() -> bool:
 
 
 def status() -> dict:
+    from sim.mode import desk_mode_label, venue as _desk_venue
+
     effective, loss_reason = _control_mode.get_effective_mode_detail()
     _staged.expire_due()
     return {
@@ -133,7 +135,10 @@ def status() -> dict:
         "loss_policy_reason": loss_reason,
         "kill_switch_tripped": is_kill_switch_tripped(),
         "ibkr_connected": _ibkr_client.is_connected(),
-        "ibkr_mode": _ibkr_client.account_mode(),
+        # ADR 020: the desk venue on Paper / Sim (Auto Paper keys on "paper"),
+        # IBKR's port label on Live.
+        "ibkr_mode": desk_mode_label(),
+        "venue": _desk_venue(),
         "staged": [t.to_dict() for t in _staged.list_staged()],
         "open_positions": [
             {

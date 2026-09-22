@@ -1,17 +1,15 @@
 /**
- * Main dashboard shell — rail + middle stack + quote panel.
+ * Main dashboard shell — middle stack + quote panel (the nav rail is the shell's).
  * Scanner status chrome is merged into GlobalAppBar (primary header row).
  * HOD stream/config live in HodMomoProvider (AppShell); dock UI is middle-column only.
+ * Tab state is published to navRailStore; the rail's tab requests land here.
  */
-import { useEffect, useRef, useState } from 'react';
-import { ScannerSideNav } from '../components/TabNav';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { TabModuleHost } from '../components/TabModuleHost';
 import { SelectedScannerWidget } from '../components/SelectedScannerWidget';
 import { SidePanel } from '../components/SidePanel';
 import { PanelResizeHandle } from '../components/PanelResizeHandle';
-import { GLOBAL_BAR_OPEN_TRADING_TAB_EVENT } from '../constants';
-import { setAccountNavActive } from '../components/accountNavActive';
-import { consumeOpenTradingTabRequest } from '../components/openTradingTabNav';
+import { NAV_RAIL_SELECT_TAB_EVENT } from '../constantGroups/nav_rail';
 import { useHodMomo } from '../hod_momo/HodMomoContext';
 import { HodMomoDock } from '../hod_momo/HodMomoDock';
 import { usePublishScannerNews } from '../hod_momo/usePublishScannerNews';
@@ -19,10 +17,17 @@ import { ScannerBarBridge } from '../components/ScannerBarBridge';
 import { setGlobalBarHistoryDate } from '../components/scannerBarStore';
 import { useWatchlist } from '../strategy/useWatchlist';
 import { useSidePanelWidth } from '../hooks/useSidePanelWidth';
+import { boardListForSymbol } from '../scanner/boardListForSymbol';
 import { useLiveScannerFeed } from '../scanner/ScannerDataContext';
 import { ScannerDesk } from '../scanner/ScannerDesk';
+import { useScannerBoard } from '../scanner/useScannerBoard';
 import { useSettings } from '../settings/SettingsContext';
 import { useWorkspace } from '../workspace/WorkspaceContext';
+import {
+  clearScannerNavState,
+  consumeScannerTabRequest,
+  publishScannerNavState,
+} from '../workspace/navRailStore';
 import {
   DEFAULT_ACTIVE_TAB,
   getModule,
@@ -110,23 +115,6 @@ export function DashboardPage() {
     clear: scanner.historyDate !== null,
   });
 
-  const filteredGappers = exchangeFilter.filterRows(scanner.gappers);
-  const filteredGainers = exchangeFilter.filterRows(scanner.gainers);
-  const filteredLosers = exchangeFilter.filterRows(scanner.losers);
-  const filteredAfterhours = exchangeFilter.filterRows(scanner.afterhours);
-  const filteredLargeCap = exchangeFilter.filterRows(scanner.largeCap);
-
-  // Fail-loud (single-market-data-feed.mdc): a client-side filter must never
-  // hide rows in silence. 2026-08-25 the exchange filter blanked the desk to
-  // 1 row and nothing on screen said why.
-  const hiddenByExchangeFilter: Record<string, number> = {
-    gappers: scanner.gappers.length - filteredGappers.length,
-    gainers: scanner.gainers.length - filteredGainers.length,
-    losers: scanner.losers.length - filteredLosers.length,
-    afterhours: scanner.afterhours.length - filteredAfterhours.length,
-    large_cap: scanner.largeCap.length - filteredLargeCap.length,
-  };
-
   function handleTabClick(tab: ActiveTab) {
     if (!isTabModuleId(tab)) return;
     if (isDockTab(tab)) {
@@ -141,32 +129,51 @@ export function DashboardPage() {
     writePersistedScannerTab(tab);
   }
 
-  // Global Working menu / GlobalAppBar Account → Account / Trading tab.
+  // Nav rail / Working menu / Settings → a tab. The latch survives the
+  // Trader → Scanner remount (the request may have fired while unmounted).
   useEffect(() => {
-    const openTrading = () => {
-      if (visibility.trading === false) return;
-      handleTabClick('trading');
+    const apply = () => {
+      const tab = consumeScannerTabRequest();
+      if (!tab || visibility[tab] === false) return;
+      handleTabClick(tab);
     };
-    // Latch survives Trader → Scanner remount (event may have fired while unmounted).
-    if (consumeOpenTradingTabRequest()) openTrading();
-    const onOpenTrading = () => {
-      consumeOpenTradingTabRequest();
-      openTrading();
-    };
-    window.addEventListener(GLOBAL_BAR_OPEN_TRADING_TAB_EVENT, onOpenTrading);
-    return () => {
-      window.removeEventListener(GLOBAL_BAR_OPEN_TRADING_TAB_EVENT, onOpenTrading);
-    };
+    apply();
+    window.addEventListener(NAV_RAIL_SELECT_TAB_EVENT, apply);
+    return () => window.removeEventListener(NAV_RAIL_SELECT_TAB_EVENT, apply);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
-  }, [visibility.trading]);
-
-  useEffect(() => {
-    setAccountNavActive(activeTab === 'trading' || activeTab === 'reports');
-    return () => setAccountNavActive(false);
-  }, [activeTab]);
+  }, [visibility]);
 
   const mainTab = isMainScannerTab(activeTab) ? activeTab : DEFAULT_ACTIVE_TAB;
-  const activeHiddenCount = hiddenByExchangeFilter[mainTab] ?? 0;
+  const moduleTitle = getModule(mainTab)?.title ?? 'Scanner';
+
+  // Fail-loud (single-market-data-feed.mdc): a client-side filter must never
+  // hide rows in silence. 2026-08-25 the exchange filter blanked the desk to
+  // 1 row and nothing on screen said why. Board chips ride the same rule:
+  // the board hook counts what each filter hid and its footer states it.
+  const board = useScannerBoard(scanner, exchangeFilter.filterRows, mainTab, moduleTitle);
+  const {
+    gappers: filteredGappers,
+    gainers: filteredGainers,
+    losers: filteredLosers,
+    afterhours: filteredAfterhours,
+    large_cap: filteredLargeCap,
+  } = board.rows;
+  const activeHiddenCount = board.hiddenByExchange;
+
+  // HOD strip row: select for the side panel; if the symbol is not on the
+  // board's current list, show the first scanner list that holds it. No list
+  // holding it keeps the board as is -- the strip row is the selection.
+  function onAlertSelect(symbol: string) {
+    selectRowSymbol(symbol);
+    const target = boardListForSymbol(symbol, mainTab, {
+      gappers: filteredGappers,
+      gainers: filteredGainers,
+      losers: filteredLosers,
+      afterhours: filteredAfterhours,
+      large_cap: filteredLargeCap,
+    });
+    if (target && target !== mainTab) handleTabClick(target);
+  }
 
   // Declare the table actually on screen for IBKR L1, on mount as well as on
   // change. A click-only hint left `l1ActiveTab` at DEFAULT_ACTIVE_TAB after
@@ -179,34 +186,46 @@ export function DashboardPage() {
     setL1ActiveTab(mainTab);
   }, [mainTab, setL1ActiveTab]);
 
-  const navCounts = {
-    gappers: filteredGappers.length,
-    gainers: filteredGainers.length,
-    losers: filteredLosers.length,
-    afterhours: filteredAfterhours.length,
-    largeCap: filteredLargeCap.length,
-    catalysts: scanner.catalysts.length,
-    hodMomo: hodCount,
-    runningUp: runningUpCount,
-    watchlist: watchlist.entries.length,
-  };
+  const navCounts = useMemo(
+    () => ({
+      gappers: filteredGappers.length,
+      gainers: filteredGainers.length,
+      losers: filteredLosers.length,
+      afterhours: filteredAfterhours.length,
+      largeCap: filteredLargeCap.length,
+      catalysts: scanner.catalysts.length,
+      hodMomo: hodCount,
+      runningUp: runningUpCount,
+      watchlist: watchlist.entries.length,
+    }),
+    [
+      filteredGappers.length,
+      filteredGainers.length,
+      filteredLosers.length,
+      filteredAfterhours.length,
+      filteredLargeCap.length,
+      scanner.catalysts.length,
+      hodCount,
+      runningUpCount,
+      watchlist.entries.length,
+    ],
+  );
+
+  // The rail reads tab + highlight + counts from the store; it is not a child here.
+  useEffect(() => {
+    publishScannerNavState({ activeTab: mainTab, railHighlight, counts: navCounts });
+  }, [mainTab, railHighlight, navCounts]);
+  useEffect(() => () => clearScannerNavState(), []);
 
   return (
-    <div className="nova-shell">
+    <div className="nova-shell nova-shell--scanner">
       <ScannerBarBridge activeTab={mainTab} scanner={scanner} />
-      <ScannerSideNav
-        activeTab={mainTab}
-        railHighlight={railHighlight}
-        onTabClick={handleTabClick}
-        counts={navCounts}
-        visibility={visibility}
-      />
 
       <div className="main-col main-col--scanner-stack">
-        <HodMomoDock />
+        <HodMomoDock onAlertSelect={onAlertSelect} />
 
         <ScannerDesk>
-        <SelectedScannerWidget title={getModule(mainTab)?.title ?? 'Scanner'}>
+        <SelectedScannerWidget title={moduleTitle} header={board.header} footer={board.footer}>
           <main className="panel">
             {scanner.historyDate && (
               <div className="history-banner">

@@ -5,20 +5,20 @@ test.describe('Phase 0 baseline', () => {
   test('app loads', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/');
-    await expect(page.getByTestId('scanner-side-nav')).toBeVisible();
-    await expect(page.getByTestId('scanner-nav-gappers')).toBeVisible();
-    await expect(page.getByTestId('scanner-nav-gappers')).toHaveClass(/is-active/);
+    await expect(page.getByTestId('nav-rail')).toBeVisible();
+    await expect(page.getByTestId('nav-rail-tab-gappers')).toBeVisible();
+    await expect(page.getByTestId('nav-rail-tab-gappers')).toHaveClass(/is-active/);
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 
   test('tabs switch', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/');
-    const gainers = page.getByTestId('scanner-nav-gainers');
+    const gainers = page.getByTestId('nav-rail-tab-gainers');
     await gainers.click();
     await expect(gainers).toHaveClass(/is-active/);
 
-    const account = page.getByTestId('global-bar-account-nav');
+    const account = page.getByTestId('nav-rail-account');
     await account.click();
     await expect(account).toHaveClass(/active/);
     await expect(page.getByRole('region', { name: 'Account' })).toBeVisible();

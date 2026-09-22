@@ -31,6 +31,12 @@ vi.mock('./ticketUnlock', () => ({
   tryUnlockTicketSession: () => true,
 }));
 
+// This file tests the Extended Hours flag on a Market default; the market-order
+// clock gate has its own test (ManualOrderTicket.marketGate.test.tsx).
+vi.mock('./marketOutsideRth', () => ({
+  useMarketOrdersRefused: () => null,
+}));
+
 vi.mock('./useIbkrStatus', () => ({
   useIbkrStatus: () => ({
     connected: true,

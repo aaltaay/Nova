@@ -145,7 +145,9 @@ def test_worker_timeout_fails_with_cursor_preserved(client, monkeypatch):
     monkeypatch.setattr(store, 'REQUEST_TIMEOUT', .01)
     result = asyncio.run(download.run(job['id'], gateway, threading.Event(), paced=False))
     assert result['status'] == 'failed' and result['cursor'] == job['cursor']
-    assert result['error'] == 'TimeoutError' and gateway.closed
+    # A timeout names the stage and the likely cause instead of a bare 'TimeoutError'.
+    assert result['error'].startswith('IBKR did not answer within 0.01s while identifying BENCH')
+    assert gateway.closed
 
 
 def test_restart_does_not_claim_replay_loaded_and_durable_job_is_interrupted(client):

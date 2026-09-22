@@ -21,6 +21,12 @@ def _clean(x: float | None) -> float | None:
         return None
 
 
+def _practice_desk() -> bool:
+    """A Sim desk off the live edge: viewers read the replay, never the market."""
+    from sim.mode import is_replay_desk
+    return is_replay_desk()
+
+
 def on_tape_update(ticker: Any, symbol: str, push, depth) -> None:
     """Called on every updateEvent for the tick-by-tick ticker."""
     tbt_list = getattr(ticker, "tickByTicks", None)
@@ -72,7 +78,12 @@ def on_tape_update(ticker: Any, symbol: str, push, depth) -> None:
         from ibkr.tape_recording import dispatch
 
         dispatch(MappingProxyType(dict(payload)))
-        push(symbol, dict(payload))
+        # On a Sim desk off the live edge the only live line is one Session
+        # Record holds (#315): it feeds the recording above, but the practice
+        # desk's viewers and sensors read the replay through these same queues
+        # and must not see the market. At the edge the tab is live and does.
+        if not _practice_desk():
+            push(symbol, dict(payload))
         # P6 — durable local archive (non-fatal if archive package fails).
         # ADR 010: this runs inside the ib_async socket callback, so it must
         # only enqueue. A synchronous SQLite write here starved reqMktData for

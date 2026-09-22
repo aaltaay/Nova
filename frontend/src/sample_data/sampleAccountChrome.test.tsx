@@ -124,7 +124,7 @@ describe('sample desk account chrome (real GlobalAppBar)', () => {
       container.querySelector('[data-testid="global-bar-account-trigger"]')?.textContent,
     ).toContain('+$230.00');
     expect(
-      container.querySelector('.global-app-bar__metric--netliq')?.textContent,
+      container.querySelector('.global-app-bar__metric--tav')?.textContent,
     ).toContain('$100,000.00');
   });
 

@@ -1,4 +1,5 @@
 /** Left-rail categories for the Settings overlay. */
+import { PRACTICE_SETTINGS_SUBTAB_LABEL } from '../constantGroups/practice';
 
 export type SettingsSectionId =
   | 'general'
@@ -8,7 +9,7 @@ export type SettingsSectionId =
   | 'account'
   | 'sensors';
 
-export type TradeSettingsSubTab = 'stocks' | 'order_preferences';
+export type TradeSettingsSubTab = 'stocks' | 'order_preferences' | 'practice';
 
 export interface SettingsNavItem {
   id: SettingsSectionId;
@@ -30,6 +31,7 @@ export const TRADE_SETTINGS_SUB_TABS: readonly {
 }[] = [
   { id: 'stocks', label: 'Stocks' },
   { id: 'order_preferences', label: 'Order Preferences' },
+  { id: 'practice', label: PRACTICE_SETTINGS_SUBTAB_LABEL },
 ] as const;
 
 export const DEFAULT_SETTINGS_SECTION: SettingsSectionId = 'general';

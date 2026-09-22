@@ -25,6 +25,56 @@ Everything else is refused with a reason code:
 | `SIM_NO_PRICE` | The replay has not printed yet at the playhead. |
 | `SIM_ORDER_TYPE` | Practice supports `MKT`, `LMT` and `STP` only. |
 
+## Paper: the live reference (ADR 020)
+
+On the Paper venue the practice broker trades the **live tape**: any symbol
+with a live print is admitted (`PRACTICE_NO_LIVE_PRINT` otherwise -- never a
+guess), `last` is the fresh L1 last or the newest tape print, and `bid` / `ask`
+the live top of book. Fills follow the same rules below with `fill_basis`
+`live_quote` (a quote was present) or `live_print` (last print only); resting
+orders fill on live tape prints that arrive after they were placed, which
+needs the symbol's tape line open -- the practice broker holds one while an
+order rests. The venue never changes the bot -- gating is identical on Paper,
+Live and Sim. Fees and buying power: `architecture/practice-account.md`.
+
+## The live edge (ADR 020 amendment, operator decision 2026-09-21 evening)
+
+Sim is the time machine: at *now* it is live, dragging back is replay. The
+Sim clock's `live_edge` is true while the playhead follows the wall clock on
+today's Eastern date inside the session window -- not paused, not scrubbed,
+no past-day replay loaded -- and it is the single truth for what a Sim tab
+shows and fills against (`GET /api/sim/clock`, `/api/ibkr/status` on Sim).
+
+- **At the edge** a Sim tab shows the live IBKR feed exactly as a Paper tab
+  does (quote, Level 2, Time & Sales, live bars) and holds a real depth line
+  the way a Trader tab does, so bots gate identically (`BOT_NO_DEPTH_LINE`).
+  The Sim broker's market is Paper's live reference: any symbol with a live
+  print is admitted (`PRACTICE_NO_LIVE_PRINT` otherwise -- never a guess),
+  `last` is the fresh L1 last or newest tape print, `bid` / `ask` the live top
+  of book, `fill_basis` `live_quote` / `live_print` at placement, and resting
+  orders fill on live tape prints through the live matcher as `print_cross` /
+  `stop_trigger`. `SIM_NO_REPLAY` and `SIM_SYMBOL_MISMATCH` do not apply at
+  the edge. The `MKT_OUTSIDE_RTH` clock is wall time there.
+- **Off the edge** -- scrubbed, paused, or a past day loaded -- everything is
+  the loaded replay under the rules above and below, and with nothing loaded
+  the desk is a stated absence. Scrubbing or pausing off the edge with
+  nothing loaded selects the tab symbol's usable Session Record for today
+  when one exists, keeping the playhead where the operator put it and keeping
+  the scratch account, because that recording is the tape the account already
+  traded. "Follow wall clock" returns to the edge.
+- **The scratch account is unchanged.** An order placed at the edge is stamped
+  with the playhead (wall time there) and unwinds like any other when the
+  operator scrubs back past it; bots get `practice_rewind`. Paper stays the
+  persistent ledger; nothing at the edge writes to it.
+- **Still an estimate.** A live NBBO is a better reference than a replay
+  quote, but there is no queue: every biased rule in this document applies
+  and every fill carries `fill_estimated: true`.
+
+Owner: `backend/sim/session_clock.py` (`live_edge`), `backend/sim/mode.py`
+(`is_replay_desk`, the gate every market read keys on),
+`backend/practice/reference.py` (`SimReference`), `backend/sim/live_edge.py`
+(leaving the edge selects today's recording).
+
 ## The market at the playhead
 
 `practice.reference(symbol)` returns `last`, `bid` and `ask`, any of which may
@@ -51,6 +101,23 @@ A resting order only ever fills on prints **after** it was placed, so scrubbing
 backwards can never fill it, and moving the playhead forward fills it at the
 first crossing print in between. Unreported prints (odd-lot / Form T) never
 fill anything, matching their exclusion from candles, last and volume.
+
+## Market orders need regular hours (operator decision, 2026-09-21)
+
+A `MKT` from a non-protective source is refused `MKT_OUTSIDE_RTH` -- "use a
+limit at the ask" -- whenever the venue's clock is outside weekday
+09:30-16:00 ET (NYSE holidays excluded). The clock is the venue's: the wall
+clock on Paper, the replay playhead on Sim, so a replayed 10:00 is regular
+hours at any wall time. The rule mirrors the venues Nova imitates: no US
+exchange accepts an unpriced order in an extended session, and IBKR holds an
+RTH-only market order until the next open (Warning 399) while ignoring the
+extended-hours flag on it (Warning 2109). Filling such an order instantly at
+the far quote, as the practice broker did before, taught a habit Live refuses
+(GRML at 8.86 after the close, a 3.6% spread). Protective closes (`flatten`,
+`kill`, `cancel_working`) are exempt so a practice position can always get
+flat; `STP` orders are unchanged (they trigger only on prints). Owner:
+`backend/execution/session_gate.py`; the broker repeats the check in
+`practice/order_rules.py`.
 
 ## Known biases
 

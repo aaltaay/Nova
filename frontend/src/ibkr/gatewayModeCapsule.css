@@ -109,17 +109,6 @@
   font-weight: 800;
 }
 
-.gw-mode-capsule__sim-flag {
-  margin-left: 0.4rem;
-  padding: 0.12rem 0.45rem;
-  border-radius: 999px;
-  font-size: 0.62rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  color: #1a041f;
-  background: #e879f9;
-  white-space: nowrap;
-}
 
 .gw-mode-capsule__hint-cta {
   margin-left: 0.35rem;

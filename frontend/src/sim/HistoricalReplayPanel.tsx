@@ -1,14 +1,15 @@
 import { useRef, useState } from 'react';
 import { Popover } from 'radix-ui';
 import { useWorkspace } from '../workspace';
-import { cancelPendingSimSeek, emitSimClockScrub } from './simClockEvents';
 import { etTime, previousEtWeekday } from './historicalReplayFormat';
 import { SIM_HISTORY_LARGE_WINDOW_MINUTES, SIM_HISTORY_PAGE_INTERVAL_SEC, SIM_SESSION_CLOSE_LABEL, SIM_SESSION_OPEN_LABEL } from './simConstants';
 import { useHistoricalStatus, historicalStatus } from './historicalStatusStore';
 import { useReplayActions } from './useReplayActions';
+import { selectHistoricalReplay } from './historicalReplayLoad';
 import { HistoricalDownloads } from './HistoricalDownloads';
+import { coverageLabel } from './simCoverage';
 import { durationLabel, jobSummary, validateHistoricalWindow, windowLabel, windowMinutes } from './historicalProgress';
-import type { HistoricalJob, HistoricalSelection, HistoricalWindow } from './historicalTypes';
+import type { HistoricalJob, HistoricalWindow } from './historicalTypes';
 
 export function HistoricalReplayPanel() {
   const { openStockView } = useWorkspace();
@@ -33,12 +34,8 @@ export function HistoricalReplayPanel() {
   const update = (setter: (value: string) => void, value: string) => { setter(value); setFormError(''); };
   async function load() {
     if (!validate()) return;
-    cancelPendingSimSeek();
-    const selected = await request<HistoricalSelection>('select', '/history/select', spec);
-    if (!selected) return;
-    historicalStatus.invalidate({ ...historicalStatus.getSnapshot().data, jobs, selection: selected });
+    if (!await selectHistoricalReplay(request, spec)) return;
     openStockView(spec.symbol);
-    emitSimClockScrub(); // Selection changes also invalidate the previously replayed symbol.
     setOpen(false);
   }
   async function download(kind: 'bars' | 'trades') {
@@ -71,7 +68,7 @@ export function HistoricalReplayPanel() {
             <button type="button" disabled={busy.has('download:trades') || !spec.symbol} onClick={() => void download('trades')}>Download trades</button>
           </p>
           <p className="sim-muted">{windowMinutes(spec) >= SIM_HISTORY_LARGE_WINDOW_MINUTES && <strong>Large window ({(windowMinutes(spec) / 60).toFixed(1)} hours). </strong>}Trades are paced at least {SIM_HISTORY_PAGE_INTERVAL_SEC} seconds per page and can take many minutes. ETA starts after the first advancing checkpoint; choose a shorter window for a faster download.</p>
-          <p className="sim-muted">Reload after downloading to use new data; the same window keeps its playhead. Candles appear at interval close. Historical quotes and Level 2 are unavailable.</p>
+          <p className="sim-muted">Load any time: a window loaded mid-download picks up new prints by itself, and the playhead stays put. Candles appear at interval close. Historical quotes and Level 2 are unavailable.</p>
           {formError && <p role="alert" className="sim-error">{formError}</p>}
           {Object.entries(errors).map(([key, message]) => <p key={key} role="alert" className="sim-error">{message}</p>)}
           <HistoricalDownloads jobs={jobs} busy={busy} onPick={pick} onAction={(job, operation) => void action(job, operation)} />
@@ -84,7 +81,9 @@ export function HistoricalReplayPanel() {
     {selection && <span role="status" className="sim-history__selection" title={selectionLabel ?? undefined}>
       Selected: {selectionLabel}. {selection.download_status === 'missing'
         ? 'No downloaded trades for this window; candles appear only if stored.'
-        : <>Trades through {etTime(selection.coverage_through)} ET  -  {selection.download_status ?? 'coverage unknown'}.</>}
+        : (selection.coverage?.length ?? 0) > 1
+          ? <>Trades downloaded {coverageLabel(selection, ts => etTime(ts).slice(0, 5))} ET  -  {selection.download_status ?? 'coverage unknown'}.</>
+          : <>Trades through {etTime(selection.coverage_through)} ET  -  {selection.download_status ?? 'coverage unknown'}.</>}
     </span>}
   </div>;
 }

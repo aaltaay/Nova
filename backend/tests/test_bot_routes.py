@@ -122,6 +122,44 @@ def test_l2_active_action_reaches_execute(bot_iso, api_key, monkeypatch):
     assert seen["source"] == "bot"
 
 
+def test_l2_action_without_a_depth_line_is_409_bot_no_depth_line(bot_iso, api_key, monkeypatch):
+    """HTTP contract for the ADR 020 fire gate: allowlisted, live-reported, no held line."""
+    from constants_bot import BOT_REASON_NO_DEPTH_LINE
+
+    ready_l2(brain="brain-1", heartbeat=True, depth_line=False)
+    called = {"n": 0}
+
+    async def fake_execute(cmd, wait_ack=False):
+        called["n"] += 1
+        raise AssertionError("execution door must not be reached")
+
+    monkeypatch.setattr("bot.actions.execute", fake_execute)
+    res = client.post(
+        "/api/bot/action",
+        json={"kind": "buy_market", "symbol": "ABCD", "brain_session_id": "brain-1"},
+        headers=headers(api_key),
+    )
+    assert res.status_code == 409
+    detail = res.json()["detail"]
+    assert detail["reason"] == BOT_REASON_NO_DEPTH_LINE == "BOT_NO_DEPTH_LINE"
+    assert "open its Level 2 or record it" in detail["error"]
+    assert called["n"] == 0
+
+
+def test_session_payload_carries_last_rewind(bot_iso):
+    """A polling bot sees the last Sim unwind on the status payload (null until one happens)."""
+    from bot import rewind
+
+    assert client.get("/api/bot/session").json()["last_rewind"] is None
+    rewind.publish(venue="sim", playhead_ts=1_700_000_000.0, dropped_orders=2, dropped_fills=1)
+    seen = client.get("/api/bot/session").json()["last_rewind"]
+    assert {k: seen[k] for k in ("venue", "playhead_ts", "dropped_orders", "dropped_fills")} == {
+        "venue": "sim", "playhead_ts": 1_700_000_000.0, "dropped_orders": 2, "dropped_fills": 1,
+    }
+    audit = client.get("/api/bot/audit").json()["entries"]
+    assert audit[-1]["action"] == "practice_rewind" and audit[-1]["inputs"]["dropped_orders"] == 2
+
+
 def test_l0_action_dark(bot_iso, api_key):
     res = client.post(
         "/api/bot/action",

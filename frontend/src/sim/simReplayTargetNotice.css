@@ -1,0 +1,103 @@
+/* Sim tab truth -- a state block inside the quote / ladder card, not a page band. */
+.sim-replay-target {
+  flex-shrink: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.25rem 0.2rem 0;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--nova-text, var(--text-primary));
+  background: color-mix(in srgb, var(--nova-raised, #2c2c2e) 60%, transparent);
+  border: 1px solid var(--nova-border-strong, var(--border-color));
+  border-radius: 6px;
+}
+
+.sim-replay-target--failed {
+  border-color: color-mix(in srgb, var(--nova-danger, #ef4444) 55%, transparent);
+}
+
+.sim-replay-target__title {
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--nova-text-muted, var(--text-secondary));
+}
+
+.sim-replay-target--failed .sim-replay-target__title {
+  color: var(--nova-danger, #ef4444);
+}
+
+.sim-replay-target__body {
+  flex-basis: 100%;
+  opacity: 0.92;
+}
+
+.sim-replay-target__error {
+  color: var(--nova-danger, #ef4444);
+  font-weight: 600;
+}
+
+.sim-replay-target__actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.sim-replay-target__action {
+  padding: 0.15rem 0.6rem;
+  font: inherit;
+  font-weight: 700;
+  color: #fff;
+  background: var(--nova-accent, #0a84ff);
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.sim-replay-target__action:hover {
+  filter: brightness(1.1);
+}
+
+.sim-replay-target__action:focus-visible {
+  outline: 2px solid var(--nova-accent, #0a84ff);
+  outline-offset: 1px;
+}
+
+.sim-replay-target__action:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.sim-replay-target__action--secondary {
+  color: var(--nova-accent, #0a84ff);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--nova-accent, #0a84ff) 70%, transparent);
+}
+
+.sim-replay-target__action--secondary:hover {
+  background: color-mix(in srgb, var(--nova-accent, #0a84ff) 18%, transparent);
+}
+
+.sim-replay-target__dismiss {
+  padding: 0 0.35rem;
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  opacity: 0.75;
+  cursor: pointer;
+}
+
+.sim-replay-target__dismiss:hover,
+.sim-replay-target__dismiss:focus-visible {
+  opacity: 1;
+  background: color-mix(in srgb, #ffffff 12%, transparent);
+  outline: none;
+}

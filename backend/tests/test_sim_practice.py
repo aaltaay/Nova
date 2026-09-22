@@ -35,8 +35,8 @@ def _reset() -> None:
     feed.reset_for_tests()
 
 
-def historical(prints):
-    spec = store.window("IMCC", DAY, "04:00", "09:30")
+def historical(prints, day: str = DAY):
+    spec = store.window("IMCC", day, "04:00", "09:30")
     job = store.create(spec, "trades")
     a = spec["start_ts"]
     rows = [dict(ts=a + sec, price=price, size=100, **extra) for sec, price, extra in prints]
@@ -110,16 +110,19 @@ def test_unreported_prints_never_fill_a_practice_order() -> None:
     assert len(broker.open_orders()) == 1
 
 
-def test_scrubbing_back_never_fills_on_prints_before_the_order() -> None:
+def test_scrubbing_back_before_the_order_forgets_it_for_good() -> None:
+    """ADR 020 decision 3: an order placed after the new playhead never happened,
+    so no earlier print can fill it and moving forward again never re-places it."""
     historical(TAPE)
     clock.scrub_to_second(60)
     broker.place("IMCC", "BUY", 5, "LMT", limit_price=10.5)
     feed.match_practice_fills()
     clock.scrub_to_second(30)
+    assert broker.open_orders() == []
     assert feed.match_practice_fills() == []
     clock.scrub_to_second(50)
     assert feed.match_practice_fills() == []
-    assert len(broker.open_orders()) == 1
+    assert broker.open_orders() == [] and broker.closed_orders() == []
 
 
 def test_stop_protects_a_position_on_the_replay() -> None:
@@ -134,18 +137,18 @@ def test_stop_protects_a_position_on_the_replay() -> None:
     assert broker.positions() == []
 
 
-def test_flatten_closes_a_position_after_its_replay_is_unloaded() -> None:
+def test_unloading_the_replay_leaves_nothing_to_flatten() -> None:
+    """ADR 020 decision 3: unloading clears the scratch account, so the desk is flat
+    already -- a protective close has nothing to close (the last-mark close is the
+    Paper venue's path when its live feed goes dark, test_practice_broker)."""
     historical(TAPE)
     clock.scrub_to_second(30)
     broker.place("IMCC", "BUY", 5, "MKT")
     playback.clear()
-    assert broker.place("IMCC", "SELL", 5, "MKT")["reason_code"] == "SIM_NO_REPLAY"
-    raw = broker.place("IMCC", "SELL", 5, "MKT", protective=True)
-    assert raw["broker_status"] == "Filled"
-    row = broker.closed_orders()[0]
-    assert (row["avg_fill_price"], row["fill_basis"]) == (11.0, "last_mark")
     assert broker.positions() == []
-    assert broker.place("IMCC", "SELL", 1, "MKT", protective=True)["ok"] is False
+    assert broker.place("IMCC", "SELL", 5, "MKT")["reason_code"] == "SIM_NO_REPLAY"
+    assert broker.place("IMCC", "SELL", 5, "MKT", protective=True)["ok"] is False
+    assert broker.closed_orders() == []
 
 
 def test_recorded_capture_fills_market_orders_at_its_quote(isolated) -> None:

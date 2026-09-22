@@ -1,0 +1,152 @@
+/* Bot Autonomy as a compact card at the bottom of the Trader right rail. */
+.bot-card {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: var(--sv-rail-gap, 5px);
+  padding: 6px 8px;
+  border: 1px solid var(--sv-border, var(--border-color, #2a2f3a));
+  border-radius: var(--sv-card-radius, 6px);
+  background: var(--sv-bg-raised, var(--bg-secondary, #12151c));
+  font-size: 0.72rem;
+}
+
+.bot-card--armed {
+  border-color: #c9a227;
+}
+
+.bot-card--live {
+  border-color: #2ecc71;
+  animation: bot-arm-pulse 1.2s ease-in-out infinite;
+}
+
+.bot-card__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bot-card__row--pickers {
+  flex-wrap: wrap;
+}
+
+.bot-card__title {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sv-muted, var(--text-muted));
+  white-space: nowrap;
+}
+
+.bot-card__state {
+  margin-left: auto;
+  font-size: 0.68rem;
+  color: var(--sv-muted, var(--text-muted));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bot-card__state--active {
+  color: #f5d76e;
+  font-weight: 700;
+}
+
+.bot-card--live .bot-card__state--active {
+  color: #86efac;
+}
+
+.bot-card__act {
+  flex-shrink: 0;
+  height: 22px;
+  padding: 0 10px;
+  border: 1px solid var(--sv-accent, var(--accent, #3b82f6));
+  border-radius: 11px;
+  background: transparent;
+  color: var(--sv-accent, var(--accent, #3b82f6));
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bot-card__act:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.bot-card__kv {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 4px 0 7px;
+  border-radius: 11px;
+  background: var(--nova-raised, rgba(255, 255, 255, 0.06));
+  white-space: nowrap;
+}
+
+.bot-card__k {
+  color: var(--sv-muted, var(--text-muted));
+}
+
+.bot-card__kv select {
+  max-width: 9rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.7rem;
+}
+
+.bot-card__kv--pack select {
+  max-width: 8rem;
+}
+
+.bot-card__info {
+  display: inline-flex;
+  align-items: center;
+  color: var(--sv-accent, var(--accent, #3b82f6));
+  cursor: help;
+}
+
+/* Reuse the allowlist popover control from the bar, as a pill. */
+.bot-card .bot-arm__allowlist .bot-arm__btn {
+  height: 22px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 11px;
+  background: var(--nova-raised, rgba(255, 255, 255, 0.06));
+  color: inherit;
+  font-size: 0.7rem;
+}
+
+.bot-card .bot-arm__allowlist-panel {
+  bottom: calc(100% + 0.25rem);
+  top: auto;
+}
+
+.bot-card__error {
+  margin: 0;
+  color: #f87171;
+  font-weight: 600;
+}
+
+.bot-card__key {
+  display: flex;
+  gap: 4px;
+}
+
+.bot-card__key input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 1px solid var(--sv-border, var(--border-color));
+  border-radius: 4px;
+  background: var(--input-bg, var(--bg-secondary));
+  color: inherit;
+  font: inherit;
+  padding: 2px 6px;
+}

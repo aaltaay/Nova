@@ -84,8 +84,17 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
         "focus": list(row.get("focus") or []),
         "trader_live": list(row.get("trader_live") or []),
         "working": list(row.get("working") or []),
+        # Sim time travel (ADR 020): the last scratch-account unwind this
+        # process published, so a polling bot re-reads the ledger after it.
+        "last_rewind": _last_rewind(),
         "updated_ts": row.get("updated_ts"),
     }
+
+
+def _last_rewind() -> dict[str, Any] | None:
+    from bot.rewind import last
+
+    return last()
 
 
 def raw() -> dict[str, Any]:

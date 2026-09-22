@@ -62,3 +62,113 @@
   flex: 1 1 0;
   height: 100%;
 }
+
+/* ── Board rows: symbol marks, gap bar, hover actions ──────────────────── */
+.scanner-symbol-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.scanner-row-marks {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.scanner-gap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  width: 100%;
+}
+
+.scanner-gap__bar {
+  width: 60px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  flex: none;
+}
+
+.scanner-gap__bar i {
+  display: block;
+  height: 100%;
+  opacity: 0.7;
+}
+
+.scanner-gap__bar i.is-up { background: #22c55e; }
+.scanner-gap__bar i.is-down { background: #ef4444; }
+
+.scanner-row-actions-host {
+  position: relative;
+}
+
+.scanner-row-actions {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  z-index: 2;
+  display: none;
+  align-items: center;
+  gap: 4px;
+  transform: translateY(-50%);
+  padding: 2px 4px;
+  border-radius: 6px;
+  background: var(--surface-1, #12141a);
+  box-shadow: 0 0 0 1px var(--border-color, rgba(255, 255, 255, 0.12));
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.scanner-row:hover .scanner-row-actions,
+.scanner-row.row-selected .scanner-row-actions,
+.scanner-row:focus-within .scanner-row-actions {
+  display: inline-flex;
+}
+
+.scanner-row-actions__btn,
+.scanner-row-actions .hold-to-stop {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  border-radius: 5px;
+  background: var(--surface-1, #12141a);
+  color: var(--text-primary, #e8ecf4);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.scanner-row-actions__btn:hover,
+.scanner-row-actions .hold-to-stop:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.scanner-row-actions__btn.is-primary {
+  border-color: rgba(59, 130, 246, 0.55);
+  color: #93c5fd;
+}
+
+.scanner-row-actions__btn.is-state {
+  color: var(--text-muted, #9aa3b2);
+}
+
+.scanner-row-actions__btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.scanner-row-actions__error {
+  color: #fca5a5;
+  font-size: 10.5px;
+}

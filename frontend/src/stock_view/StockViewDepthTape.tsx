@@ -25,7 +25,11 @@ import { StockViewQuoteStats } from './StockViewQuoteStats';
 import { useHistoricalSnapshot } from '../sim/useHistoricalSnapshot';
 import { HistoricalTimeSales } from '../sim/HistoricalTimeSales';
 import { HistoricalDepth, HistoricalL2Chip } from '../sim/HistoricalDepth';
-import { historicalQuoteDetail } from '../sim/historicalQuoteDetail';
+import { historicalQuoteDetail, simEmptyQuoteDetail } from '../sim/historicalQuoteDetail';
+import { simRailNote } from '../sim/simReplayTarget';
+import { SimReplayTargetNotice } from '../sim/SimReplayTargetNotice';
+import { useSimReplayTarget } from '../sim/useSimReplayTarget';
+import { StockViewVenueTag } from './StockViewVenueTag';
 
 interface Props {
   selectedSymbol: string;
@@ -35,10 +39,14 @@ interface Props {
   uiActive?: boolean;
 }
 
-function QuoteHead({ detail }: { detail: TickerDetail }) {
+function QuoteHead({ detail, symbol }: { detail: TickerDetail; symbol: string }) {
   return (
     <>
-      <StockViewQuotePrice detail={detail} />
+      <div className="sv-quote-head">
+        <StockViewQuotePrice detail={detail} />
+        {/* Practice venue as a card tag, not a page banner. */}
+        <StockViewVenueTag symbol={symbol} />
+      </div>
       <StockViewQuoteStats detail={detail} />
     </>
   );
@@ -96,8 +104,15 @@ export function StockViewDepthTape({
   const showL2 = isVisible('level2');
   const showTape = isVisible('tape');
   const historical = useHistoricalSnapshot(depthSymbol, uiActive);
+  const { sim, clock } = useSimReplayTarget(depthSymbol);
+  // At the live edge a Sim tab is live whatever is loaded (ADR 020 live-edge
+  // amendment): the historical panes wait for the scrub back, and the live
+  // modules remount across the edge so they (re)open the real line rather
+  // than sit on the replay slot they held off it.
+  const liveEdge = sim && clock?.live_edge === true;
+  const feedKey = sim ? (liveEdge ? 'live-edge' : 'replay') : 'live';
 
-  if (historical?.active) {
+  if (historical?.active && !liveEdge) {
     const replayDetail = historicalQuoteDetail(detail, historical);
     return (
       <StockViewModuleCard
@@ -106,7 +121,7 @@ export function StockViewDepthTape({
         testId="stock-view-depth-stack"
         aria-label={STOCK_VIEW_MODULE_QUOTE_TITLE}
       >
-        <QuoteHead detail={replayDetail} />
+        <QuoteHead detail={replayDetail} symbol={depthSymbol} />
         {(showL2 || showTape) && (
           <DepthAndTapeColumns
             symbol={depthSymbol}
@@ -122,6 +137,25 @@ export function StockViewDepthTape({
     );
   }
 
+  // Sim with nothing for this ticker: say so, inside the card, with the one
+  // action that fixes it (SimReplayTargetNotice) -- never a band over the page.
+  // Falling through would render the live panes, badged LIVE, with today's
+  // halt and borrow chips, over a replay.
+  const simNote = simRailNote(depthSymbol, clock, sim);
+  if (simNote) {
+    return (
+      <StockViewModuleCard
+        title={STOCK_VIEW_MODULE_QUOTE_TITLE}
+        className="sv-quote-depth-card sv-quote-depth-card--empty"
+        testId="stock-view-depth-stack"
+      >
+        <QuoteHead detail={simEmptyQuoteDetail(detail, depthSymbol)} symbol={depthSymbol} />
+        <p className="sv-depth-stack__hint" data-testid="stock-view-sim-rail-note">{simNote}</p>
+        <SimReplayTargetNotice symbol={depthSymbol} />
+      </StockViewModuleCard>
+    );
+  }
+
   if (!ibkrConnected || !detailMatches) {
     return (
       <StockViewModuleCard
@@ -129,7 +163,7 @@ export function StockViewDepthTape({
         className="sv-quote-depth-card sv-quote-depth-card--empty"
         testId="stock-view-depth-stack"
       >
-        <QuoteHead detail={detail} />
+        <QuoteHead detail={detail} symbol={depthSymbol} />
         <p className="sv-depth-stack__hint">
           Connect IB Gateway for Level 2 and Time & Sales
         </p>
@@ -144,7 +178,7 @@ export function StockViewDepthTape({
         className="sv-quote-depth-card"
         testId="stock-view-depth-stack"
       >
-        <QuoteHead detail={detail} />
+        <QuoteHead detail={detail} symbol={depthSymbol} />
       </StockViewModuleCard>
     );
   }
@@ -156,7 +190,7 @@ export function StockViewDepthTape({
       testId="stock-view-depth-stack"
       aria-label={STOCK_VIEW_MODULE_QUOTE_TITLE}
     >
-      <QuoteHead detail={detail} />
+      <QuoteHead detail={detail} symbol={depthSymbol} />
       <DepthAndTapeColumns
         symbol={depthSymbol}
         chips={(
@@ -165,8 +199,8 @@ export function StockViewDepthTape({
             <ShortabilityChip ibkr={listingIbkr} />
           </>
         )}
-        level2={showL2 ? <Level2Module symbol={depthSymbol} uiActive={uiActive} /> : null}
-        tape={showTape ? <TimeSalesModule symbol={depthSymbol} embedded uiActive={uiActive} /> : null}
+        level2={showL2 ? <Level2Module key={feedKey} symbol={depthSymbol} uiActive={uiActive} /> : null}
+        tape={showTape ? <TimeSalesModule key={feedKey} symbol={depthSymbol} embedded uiActive={uiActive} /> : null}
       />
     </StockViewModuleCard>
   );

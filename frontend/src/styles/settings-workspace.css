@@ -734,76 +734,7 @@
 }
 
 
-.nova-trading-quick-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  margin-bottom: 0.35rem;
-}
-.nova-trading-quick-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  align-self: flex-start;
-  background: transparent;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  color: var(--text-secondary, #9ca3af);
-  font-size: 0.72rem;
-  font-weight: 600;
-  font-style: italic;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.nova-trading-quick-toggle:hover {
-  color: var(--text-primary, #e5e7eb);
-}
-.nova-trading-quick-caret {
-  font-style: normal;
-  font-size: 0.65rem;
-  width: 0.75rem;
-}
-.nova-trading-quick-title {
-  font-style: italic;
-}
-
-.nova-trading-quick-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  align-items: center;
-  margin-bottom: 0.5rem;
-}
-
-.nova-quick-btn {
-  font-size: 0.75rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 3px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-secondary, transparent);
-  cursor: pointer;
-}
-
-.nova-quick-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.nova-quick-btn--entry {
-  border-color: rgba(16, 185, 129, 0.5);
-  color: #10b981;
-}
-
-.nova-quick-btn--exit {
-  border-color: rgba(239, 68, 68, 0.5);
-  color: #ef4444;
-}
-
-.nova-quick-btn--cancel {
-  border-color: rgba(245, 158, 11, 0.55);
-  color: #f59e0b;
-}
+/* Quick Trades row: ibkr/tradeTicketCompact.css (.nova-qt). */
 
 .map-das-preview {
   margin: 0.75rem 0;

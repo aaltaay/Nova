@@ -7,6 +7,12 @@ import {
   type ChartOverlayId,
   type ChartOscillatorId,
 } from './market_ui';
+import {
+  DESK_VENUE_LIVE_TITLE,
+  DESK_VENUE_PAPER_BANNER_TEXT,
+  DESK_VENUE_PAPER_TITLE,
+  DESK_VENUE_SIM_TITLE,
+} from './desk_venue';
 
 export const CHART_INDICATORS: { id: ChartIndicatorId; label: string }[] = [
   { id: 'emas', label: 'EMAs' },
@@ -268,20 +274,9 @@ export const HOD_MOMO_ALERT_BATCH_MS = 150;
 /** Max stacked strategy pills per row before collapsing the rest into a "+N" chip. */
 export const HOD_MOMO_MAX_INLINE_STRATEGY_PILLS = 4;
 
-/** Middle-column HOD Momo / Running Up dock (Scanner main-col only). */
-export const HOD_MOMO_DOCK_COLLAPSED_KEY = 'nova.hodMomo.dock.v2.collapsed';
-export const HOD_MOMO_DOCK_HEIGHT_KEY = 'nova.hodMomo.dock.v2.heightPx';
-/** First visit: expanded in the middle column (side rails stay full height). */
-export const HOD_MOMO_DOCK_DEFAULT_COLLAPSED = false;
-/** Default expanded body height (~8 rows + table header chrome). */
-export const HOD_MOMO_DOCK_DEFAULT_ROWS = 8;
-export const HOD_MOMO_DOCK_DEFAULT_HEIGHT_PX =
-  HOD_MOMO_DOCK_DEFAULT_ROWS * HOD_MOMO_ROW_HEIGHT_PX + HOD_MOMO_HEADER_HEIGHT_PX + 48;
-export const HOD_MOMO_DOCK_MIN_HEIGHT_PX =
-  4 * HOD_MOMO_ROW_HEIGHT_PX + HOD_MOMO_HEADER_HEIGHT_PX + 48;
-export const HOD_MOMO_DOCK_MAX_HEIGHT_PX =
-  20 * HOD_MOMO_ROW_HEIGHT_PX + HOD_MOMO_HEADER_HEIGHT_PX + 96;
-export const HOD_MOMO_DOCK_COLLAPSED_HEIGHT_PX = 36;
+/** The Scanner HOD Momo strip's layout constants live in
+ * hod_momo/hodMomoStripConstants.ts (feature-local); the retired
+ * `nova.hodMomo.dock.v2.*` keys are not migrated on purpose. */
 
 /** Empty-state copy when the HOD Momo WS is connected but no alerts have fired yet. */
 export const HOD_MOMO_EMPTY_WAITING =
@@ -363,19 +358,17 @@ export const STOCK_VIEW_SYMBOL_EDIT_ARIA = 'Change symbol';
 /** Max length for ticker typed into the Stock View symbol chip. */
 export const STOCK_VIEW_SYMBOL_MAX_LEN = 12;
 
-/** Paper / Live account-mode capsule labels (GlobalAppBar GatewayModeCapsule).
- * Clicking these switches which IBKR Gateway port Nova targets and
- * reconnects (persisted to IBKR_GATEWAY_MODE) -- see POST /api/ibkr/gateway-mode.
- * Orders stay locked until IBKR_LIVE_TRADING_CONFIRMED is armed separately. */
+/** Paper / Live / Sim venue capsule labels (GlobalAppBar GatewayModeCapsule).
+ * Clicking these switches the desk venue (POST /api/desk/venue, ADR 020).
+ * Paper is Nova's practice account on the live feed -- it never launches a
+ * Gateway. Live also ensures the live Gateway (POST /api/ibkr/gateway-mode).
+ * Titles live in constantGroups/desk_venue.ts; these aliases keep old imports. */
 export const STOCK_VIEW_ACCOUNT_MODE_PAPER = 'Paper';
 export const STOCK_VIEW_ACCOUNT_MODE_LIVE = 'Live';
-export const STOCK_VIEW_ACCOUNT_MODE_PAPER_TITLE =
-  'Switch Nova to the paper Gateway (port 4002). If paper is already logged in, Nova only reconnects and does not close live. First paper login of the day may open a second Gateway window.';
-export const STOCK_VIEW_ACCOUNT_MODE_LIVE_TITLE =
-  'Switch Nova to the live Gateway (port 4001). If live is already logged in, Nova only reconnects -- no 2FA. 2FA is only if live is not running. Live spend stays locked until IBKR_LIVE_TRADING_CONFIRMED is set separately.';
+export const STOCK_VIEW_ACCOUNT_MODE_PAPER_TITLE = DESK_VENUE_PAPER_TITLE;
+export const STOCK_VIEW_ACCOUNT_MODE_LIVE_TITLE = DESK_VENUE_LIVE_TITLE;
 export const STOCK_VIEW_ACCOUNT_MODE_SIM = 'Sim';
-export const STOCK_VIEW_ACCOUNT_MODE_SIM_TITLE =
-  'Switch Nova to Sim practice. Replayed real sessions and local estimated fills. No IBKR Gateway places. Not paper. Not live.';
+export const STOCK_VIEW_ACCOUNT_MODE_SIM_TITLE = DESK_VENUE_SIM_TITLE;
 
 // ── Full ticker trading page (double-click / Full view) ───────────────────────
 /** Right-rail width (px) on Stock View -- charts keep the rest of the viewport. */
@@ -609,6 +602,15 @@ export const TICKER_TRADE_QTY_NUDGE_MINUS_LABEL = '-1';
 export const TICKER_TRADE_QTY_DECIMALS = 4;
 /** Primary CTA before local PIN unlock (does not bypass IBKR spend gates). */
 export const TICKER_TRADE_UNLOCK_LABEL = 'Unlock Trading';
+/** Place button while the backend refuses spends (env gate, account class). */
+export const TICKER_TRADE_ORDERS_LOCKED_LABEL = 'Orders locked';
+/** Place button while the desk is merely disarmed (ADR 018) -- the fix is the header padlock, not a setting. */
+export const TICKER_TRADE_DISARMED_LABEL = 'Desk disarmed — arm at the padlock';
+/** Ticket preflight of the backend's MKT_OUTSIDE_RTH refusal (backend/execution/session_gate.py). */
+export const TICKER_TRADE_MARKET_OUTSIDE_RTH_REASON =
+  'Market orders are not accepted outside regular hours (09:30–16:00 ET) — use a limit at the ask';
+/** How often the ticket re-reads the session clock for that preflight. */
+export const TICKER_TRADE_SESSION_POLL_MS = 30_000;
 /** GlobalAppBar lock icon — same PIN session gate as Place an order. */
 export const TICKER_TRADE_LOCK_ICON_UNLOCKED_TITLE =
   'Trading unlocked for this browser session. Click to lock.';
@@ -622,11 +624,8 @@ export const TICKER_TRADE_LOCK_ICON_ARIA_LOCKED = 'Unlock trading';
 export const TICKER_TRADE_PLACE_ORDER_LABEL = 'Place an order';
 /** Primary CTA after PIN unlock when IBKR Gateway mode is paper. */
 export const TICKER_TRADE_PLACE_PAPER_ORDER_LABEL = 'Place Paper order';
-/** Hot strip above Stock View / Trading when Gateway mode is paper. */
-export const PAPER_TRADING_BANNER_TEXT =
-  'PAPER TRADING — orders go to your IBKR paper account, not live money.';
-export const SIM_TRADING_BANNER_TEXT =
-  'SIM PRACTICE -- replayed real sessions and local estimated fills. Not IBKR paper. Not live money.';
+/** Hot strip above Stock View / Trading while the venue is Paper (ADR 020). */
+export const PAPER_TRADING_BANNER_TEXT = DESK_VENUE_PAPER_BANNER_TEXT;
 /**
  * Local UI unlock PIN for the Trade ticket (not a server secret).
  * Correct PIN switches the primary button to Place an order for this browser session.

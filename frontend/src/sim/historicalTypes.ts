@@ -21,7 +21,13 @@ export interface HistoricalDepthBook {
 
 export interface HistoricalWindow { symbol: string; date: string; start: string; end: string }
 export interface HistoricalSelection extends HistoricalWindow {
+  /** Window bounds, epoch seconds (the backend's `store.window` spec). */
+  start_ts?: number;
+  end_ts?: number;
   coverage_through: number;
+  /** Downloaded ranges, [start, end) epoch seconds -- may have gaps (playhead-first). */
+  coverage?: number[][];
+  covered_seconds?: number;
   trade_count?: number;
   download_status?: string;
   job_id?: string | null;
@@ -31,6 +37,7 @@ export interface HistoricalJob extends HistoricalWindow {
   cursor?: number; start_ts?: number; end_ts?: number; volume?: number; updated?: number;
   progress_pct?: number; downloaded_through?: number; eta_seconds?: number | null;
   stale?: boolean; age_seconds?: number; started?: number;
+  coverage?: number[][]; covered_seconds?: number;
 }
 export interface HistoricalStatus {
   jobs: HistoricalJob[];

@@ -25,6 +25,7 @@ import { claimChartDrawingHotkeyFocus } from './chartDrawingKeys';
 import { useChartInstance } from './useChartInstance';
 import { useChartLiveTrade } from './useChartLiveTrade';
 import { useChartSessionHighlight } from './useChartSessionHighlight';
+import { useChartDrawingAxisLabels } from './useChartDrawingAxisLabels';
 import { useTickerChartEscape } from './useTickerChartEscape';
 import { useTickerChartMaximize } from './useTickerChartMaximize';
 import { useVwapSourceBars } from './useVwapSourceBars';
@@ -221,6 +222,9 @@ function TickerChartInner({
     timeframe,
     barsRevision,
   });
+
+  // Price-level drawings put their price on the axis, not clipped in the plot.
+  useChartDrawingAxisLabels({ candleSeriesRef, symbol, seriesRevision: barsRevision });
 
   // One 04:00-anchored VWAP for every pane, not a per-timeframe accumulation.
   const vwapSource = useVwapSourceBars(symbol, chartActive);

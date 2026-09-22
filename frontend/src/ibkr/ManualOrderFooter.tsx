@@ -1,8 +1,12 @@
 import { Button } from '@/components/ui/button';
 import {
+  TICKER_TRADE_DISARMED_LABEL,
   TICKER_TRADE_FORCE_QTY,
+  TICKER_TRADE_ORDERS_LOCKED_LABEL,
   TICKER_TRADE_UNLOCK_LABEL,
 } from '../constants';
+import { TICKET_LAST_LABEL } from '../constantGroups/trader_chrome';
+import { EstChip } from '../stock_view/EstChip';
 import { PlaceOrderConfirmDialog } from './PlaceOrderConfirmDialog';
 import { writeSkipPlaceConfirm } from './placeConfirmPrefs';
 import { placeActionLabel, type TicketSide } from './ticketSide';
@@ -10,6 +14,8 @@ import { TradingPinDialog } from './TradingPinDialog';
 
 interface Props {
   isPaper: boolean;
+  /** Paper or Sim: a placed order's fill will be an estimate, so `Last:` carries the est chip. */
+  practice?: boolean;
   ticketSide?: TicketSide;
   symbol?: string;
   needsPinUnlock: boolean;
@@ -17,6 +23,8 @@ interface Props {
   submitting: boolean;
   spendLocked: boolean;
   spendLockReason?: string | null;
+  /** ADR 018: the env permits spending but this process is not armed -- a venue change or restart. */
+  spendDisarmed?: boolean;
   quantityLocked: boolean;
   forcedQty: number | null;
   sessionUnlocked: boolean;
@@ -31,6 +39,7 @@ interface Props {
 
 export function ManualOrderFooter({
   isPaper,
+  practice = false,
   ticketSide = 'buy',
   symbol = '',
   needsPinUnlock,
@@ -38,6 +47,7 @@ export function ManualOrderFooter({
   submitting,
   spendLocked,
   spendLockReason = null,
+  spendDisarmed = false,
   quantityLocked,
   forcedQty,
   sessionUnlocked,
@@ -60,7 +70,9 @@ export function ManualOrderFooter({
     : needsPinUnlock
       ? TICKER_TRADE_UNLOCK_LABEL
       : placeBlockedBySpend
-        ? 'Orders locked'
+        ? spendDisarmed
+          ? TICKER_TRADE_DISARMED_LABEL
+          : TICKER_TRADE_ORDERS_LOCKED_LABEL
         : submitting
           ? 'Placing…'
           : placeLabel;
@@ -73,7 +85,7 @@ export function ManualOrderFooter({
         : quantityLocked
           ? `Quantity locked to ${TICKER_TRADE_FORCE_QTY} share (temporary safety)`
           : isPaper
-            ? 'Review and place this order on the IBKR paper account'
+            ? "Review and place this order on Nova's practice account (fake money)"
             : 'Review and place this order';
 
   return (
@@ -102,7 +114,10 @@ export function ManualOrderFooter({
         </span>
       )}
       {spendLocked && (
-        <span className="manual-order-lock-note" data-testid="spend-lock-note">
+        <span
+          className="manual-order-lock-note manual-order-lock-note--spend"
+          data-testid="spend-lock-note"
+        >
           {lockReason}
         </span>
       )}
@@ -112,8 +127,18 @@ export function ManualOrderFooter({
         </span>
       )}
       {result && (
-        <span className={`manual-order-result ${result.ok ? 'ok' : 'err'}`}>
+        <span
+          className={`manual-order-result ${result.ok ? 'ok' : 'err'}`}
+          data-testid="manual-order-result"
+        >
+          <span className="mot-last__k">{TICKET_LAST_LABEL}</span>
           {result.text}
+          {practice && result.ok ? (
+            <>
+              {' '}
+              <EstChip />
+            </>
+          ) : null}
         </span>
       )}
 

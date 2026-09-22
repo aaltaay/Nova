@@ -1,60 +1,8 @@
-import { useEffect, useState } from 'react';
-import { API_BASE_URL, HOD_MOMO_INTEGRITY_POLL_MS } from '../constants';
-
-const API = `${API_BASE_URL}/api`;
-
-type IntegrityStatus = 'pass' | 'warn' | 'fail' | 'error';
-
-interface IntegrityCheck {
-  id: string;
-  status: string;
-  detail: string;
-}
-
-interface IntegrityReport {
-  status?: IntegrityStatus | string;
-  ok?: boolean;
-  checks?: IntegrityCheck[];
-  parts?: Record<string, string>;
-  hod?: { metrics?: Record<string, unknown> };
-}
+import { useHodMomoIntegrity, type IntegrityStatus } from './useHodMomoIntegrity';
 
 export function HodMomoIntegrityBanner() {
-  const [report, setReport] = useState<IntegrityReport | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function poll() {
-      try {
-        const resp = await fetch(`${API}/integrity`);
-        if (!resp.ok) {
-          throw new Error(`HTTP ${resp.status}`);
-        }
-        const data = (await resp.json()) as IntegrityReport;
-        if (!cancelled) {
-          setReport(data);
-          setError(null);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err));
-        }
-      }
-    }
-
-    poll();
-    const id = window.setInterval(poll, HOD_MOMO_INTEGRITY_POLL_MS);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, []);
-
-  const status: IntegrityStatus = error
-    ? 'error'
-    : ((report?.status as IntegrityStatus) || 'pass');
+  const { report, error, status: polled } = useHodMomoIntegrity();
+  const status: IntegrityStatus = polled === 'loading' ? 'pass' : polled;
 
   if (status === 'pass' && !error) {
     return null;

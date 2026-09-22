@@ -1,10 +1,19 @@
-"""ADR 007 send path for Sim Fill -- never calls ibkr.orders."""
+"""ADR 007 send path for the practice venues -- never calls ibkr.orders.
+
+``send_practice_broker`` is the one send path Paper and Sim share (ADR 020):
+the caller hands it the venue's ``PracticeBroker`` (``practice.broker.for_venue``)
+and the receipt's ``mode`` is that broker's venue label (``paper`` or ``sim``).
+Admission comes from the broker's own market reference -- the loaded replay on
+Sim, the live feed on Paper -- so the desk never guesses a price.
+``send_sim_broker`` keeps the Sim-only entry point every existing caller uses.
+"""
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from constants_sim import SIM_MODE_LABEL, SIM_ORDER_TYPE_CODE
+from constants_practice import PRACTICE_VENUE_SIM
+from constants_sim import SIM_ORDER_TYPE_CODE
 from execution import inflight
 from execution import store
 from execution import telemetry
@@ -12,14 +21,14 @@ from execution.models import ExecutionCommand, ExecutionReceipt, StageTimings
 from execution.nova_placed import persist_nova_placed_at
 from execution.store_facts import persist_successful_cancel
 from ibkr.safety import PROTECTIVE_SOURCES
-from sim import broker as _broker
-from sim import practice
 from sim.fill_model import SUPPORTED_ORDER_TYPES
 
 if TYPE_CHECKING:
     from execution.broker_send import RejectFn
+    from practice.broker import PracticeBroker
 else:
     RejectFn = object  # runtime: send_broker passes the real callable
+    PracticeBroker = Any
 
 
 async def send_sim_broker(
@@ -30,9 +39,27 @@ async def send_sim_broker(
     wait_ack: bool = True,
     reject,
 ) -> ExecutionReceipt:
+    """The Sim venue's send: ``send_practice_broker`` on the Sim broker."""
+    from practice.broker import for_venue
+
+    return await send_practice_broker(
+        cmd, execution_id, timings, broker=for_venue(PRACTICE_VENUE_SIM),
+        wait_ack=wait_ack, reject=reject,
+    )
+
+
+async def send_practice_broker(
+    cmd: ExecutionCommand,
+    execution_id: str,
+    timings: StageTimings,
+    *,
+    broker: PracticeBroker,
+    wait_ack: bool = True,
+    reject,
+) -> ExecutionReceipt:
     del wait_ack
     symbol = cmd.normalized_symbol()
-    mode = SIM_MODE_LABEL
+    mode = str(broker.venue)
 
     if cmd.operation == "bracket":
         return reject(
@@ -51,7 +78,7 @@ async def send_sim_broker(
         watch = telemetry.watch_order(
             cmd.order_id, execution_id, fresh=True, leg_role="cancel",
         )
-        raw = _broker.cancel(cmd.order_id)
+        raw = broker.cancel(cmd.order_id, source=cmd.source)
         if not raw.get("ok"):
             store.update_stages(
                 execution_id, status="failed", error=str(raw.get("error")),
@@ -82,7 +109,7 @@ async def send_sim_broker(
         )
 
     if cmd.operation == "replace":
-        raw = _broker.replace(
+        raw = broker.replace(
             int(cmd.order_id or 0),
             limit_price=cmd.limit_price,
             stop_price=cmd.stop_price,
@@ -99,7 +126,7 @@ async def send_sim_broker(
 
     protective = cmd.source in PROTECTIVE_SOURCES
     if not protective:
-        ok, reason, code = practice.admission(symbol or "")
+        ok, reason, code = broker.reference.admission(symbol or "")
         if not ok:
             return reject(execution_id, cmd, timings, reason, code)
 
@@ -116,7 +143,7 @@ async def send_sim_broker(
         execution_id, status="sent", broker_sent_ns=timings.broker_sent_ns,
         mode=mode, symbol=symbol,
     )
-    raw = _broker.place(
+    raw = broker.place(
         symbol=symbol or "",
         side=(cmd.side or "BUY").upper(),
         qty=float(cmd.qty or 0),
@@ -125,6 +152,9 @@ async def send_sim_broker(
         stop_price=cmd.stop_price,
         outside_rth=True,
         protective=protective,
+        source=cmd.source,
+        tif=cmd.tif,
+        short_entry=bool(cmd.short_entry),
     )
     return await _receipt_from_raw(cmd, execution_id, timings, raw, mode)
 
@@ -149,7 +179,7 @@ async def _receipt_from_raw(
                 else cmd.limit_price if cmd.limit_price is not None
                 else cmd.stop_price
             ),
-            reference_source="sim_fill",
+            reference_source=f"{mode}_fill",
         )
         if oid
         else None
@@ -157,6 +187,12 @@ async def _receipt_from_raw(
     receipt = await finish_place(
         execution_id, cmd, timings, raw, watch, mode, wait_ack=False,
     )
+    if not receipt.ok and raw.get("reason_code"):
+        # The venue refused in its own words (PRACTICE_NO_SHORTS,
+        # PRACTICE_BUYING_POWER, TIF_INVALID, SIM_*): keep that code on the
+        # receipt and the store instead of the generic BROKER_REJECT.
+        receipt.reason_code = str(raw["reason_code"])
+        store.update_stages(execution_id, reason_code=receipt.reason_code)
     if receipt.ok and not receipt.broker_status:
         receipt.broker_status = raw.get("broker_status")
         if receipt.broker_status == "Filled" and timings.filled_ns is None:

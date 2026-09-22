@@ -127,6 +127,9 @@ def load(date: str, symbol: str, *, generation: int | None = None) -> dict[str, 
         },
         "first_ts": first_ts,
         "last_ts": last_ts,
+        # Recorded stretches (with why each ended) so the scrubber can draw
+        # them against the session and a gap as a gap.
+        "segments": [dict(seg) for seg in _manifest.get("segments", []) if isinstance(seg, dict)],
     }
 
 

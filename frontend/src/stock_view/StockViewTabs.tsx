@@ -2,8 +2,10 @@
  * Trader View container — tab strip + one StockViewPage per tab.
  * Inactive live panes stay mounted (hidden) so L1/L2/tape sockets stay
  * subscribed. Tape/depth/chart UI apply pauses until the tab is shown again.
- * The tab strip portals into GlobalAppBar's trader row (under Bot Autonomy)
- * when that slot is mounted; else renders inline above the panes.
+ * The tab strip portals into GlobalAppBar's trader row when that slot is
+ * mounted; else renders inline above the panes. On the Sim venue the strip
+ * also carries the scrubber cluster, so the Trader view has exactly two rows
+ * of chrome: the global bar and this strip.
  */
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
@@ -21,15 +23,22 @@ import {
   isForeignTabDrag,
   takeForeignTraderTabDrop,
 } from '../workspace/traderDesk';
+import { SimSessionStrip } from '../sim/SimSessionStrip';
+import { FocusRail } from './FocusRail';
 import { StockViewTabStrip } from './StockViewTabStrip';
 import { TRADER_DRAFT_SYMBOL } from './traderTabsState';
 import './stockViewTabs.css';
 
 interface Props {
   detached: boolean;
+  /** Desk hybrid: the board is the focus, so the Focus rail stays hidden. */
+  hideFocusRail?: boolean;
+  /** The workspace is on screen. Defaults to the Trader view being active;
+   * the Desk passes true while it shows this workspace beside its board. */
+  active?: boolean;
 }
 
-export function StockViewTabs({ detached }: Props) {
+export function StockViewTabs({ detached, hideFocusRail = false, active }: Props) {
   const {
     traderTabs,
     traderLiveTabs,
@@ -52,6 +61,7 @@ export function StockViewTabs({ detached }: Props) {
     showScannerView,
     traderViewActive,
     setSelectedSymbol,
+    ibkrMode,
   } = useWorkspace();
 
   useEffect(() => {
@@ -89,6 +99,7 @@ export function StockViewTabs({ detached }: Props) {
     traderDockOffer && isForeignTabDrag(traderDockOffer.sourceWindowId, traderWindowId),
   );
   const headerSlot = useGlobalBarTraderSlot();
+  const onScreen = active ?? traderViewActive;
 
   const tabStrip = (
     <StockViewTabStrip
@@ -99,6 +110,8 @@ export function StockViewTabs({ detached }: Props) {
       showDock={traderDeskRole === 'float'}
       showExtract={canExtractFromDesk(traderDeskRole)}
       dropReady={dropReady}
+      // The Sim scrubber rides on this row (no SIM SESSION bar on the Trader view).
+      trailing={ibkrMode === 'sim' ? <SimSessionStrip /> : null}
       onActivate={onActivate}
       onClose={sym => {
         closeTraderTab(sym);
@@ -133,6 +146,9 @@ export function StockViewTabs({ detached }: Props) {
         </div>
       )}
       {headerSlot && traderViewActive && !detached ? createPortal(tabStrip, headerSlot) : tabStrip}
+      <div className="sv-tabs-body">
+      {/* One Focus rail for the whole Trader view, not one per tab; none beside the Desk board. */}
+      {!hideFocusRail && <FocusRail />}
       <div className="sv-tabs-panes">
         {traderTabs.map(symbol => {
           if (symbol === TRADER_DRAFT_SYMBOL) {
@@ -178,11 +194,12 @@ export function StockViewTabs({ detached }: Props) {
                 detached={detached}
                 onBack={onBack}
                 onSelectSymbol={next => onRename(symbol, next)}
-                chartActive={show && traderViewActive}
+                chartActive={show && onScreen}
               />
             </div>
           );
         })}
+      </div>
       </div>
       {/* Keep parse helper referenced so detached detection stays honest in tests */}
       <span className="sv-tabs-detached-flag" data-detached={detached || parseStockViewSymbol() != null ? '1' : '0'} hidden />

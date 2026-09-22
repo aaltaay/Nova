@@ -31,8 +31,7 @@ export const PREFS_BUNDLE_KEYS = [
   'nova_exchange_filter_v1',
   SCANNER_ACTIVE_TAB_STORAGE_KEY,
   'nova.chartGrid.show10Sec',
-  'nova.hodMomo.dock.v2.collapsed',
-  'nova.hodMomo.dock.v2.heightPx',
+  'nova.hodMomo.strip.v1',
   'nova_os_attention_muted',
   TAPE_MIN_SIZE_STORAGE_KEY,
 ] as const;

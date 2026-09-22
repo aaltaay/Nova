@@ -13,17 +13,24 @@ BASIS_LAST_PRINT = "last_print"
 BASIS_PRINT_CROSS = "print_cross"
 BASIS_STOP_TRIGGER = "stop_trigger"
 BASIS_LAST_MARK = "last_mark"
+# Paper venue (ADR 020): the same rules read the live feed; the basis says so.
+BASIS_LIVE_QUOTE = "live_quote"
+BASIS_LIVE_PRINT = "live_print"
 
 SUPPORTED_ORDER_TYPES = ("MKT", "LMT", "STP")
 
 
 @dataclass(frozen=True)
 class Reference:
-    """The replay's market at the playhead; any field may be unknown."""
+    """The venue's market now -- a replay at its playhead, or the live feed; any field may be unknown."""
 
     last: float | None
     bid: float | None = None
     ask: float | None = None
+    # True when the numbers come from the live IBKR feed (Paper), so a fill at
+    # placement is labelled ``live_quote`` / ``live_print`` rather than the
+    # replay's ``quote`` / ``last_print``.
+    live: bool = False
 
 
 @dataclass(frozen=True)
@@ -46,7 +53,10 @@ def at_placement(
     touch = quoted if quoted is not None else ref.last
     if touch is None:
         return None
-    basis = BASIS_QUOTE if quoted is not None else BASIS_LAST_PRINT
+    if quoted is not None:
+        basis = BASIS_LIVE_QUOTE if ref.live else BASIS_QUOTE
+    else:
+        basis = BASIS_LIVE_PRINT if ref.live else BASIS_LAST_PRINT
     typ = order_type.upper()
     if typ == "MKT":
         return Fill(touch, basis)

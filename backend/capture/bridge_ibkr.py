@@ -6,7 +6,11 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from capture import worker
-from capture.constants_capture import CAPTURE_L2_MAX_HZ
+from capture.constants_capture import (
+    CAPTURE_L2_MAX_HZ,
+    CAPTURE_PRINT_BATCH_MAX,
+    CAPTURE_PRINT_BATCH_SEC,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +24,10 @@ BOOK_MIN_INTERVAL_SEC = 1.0 / CAPTURE_L2_MAX_HZ
 _last_book_ts: dict[str, float] = {}
 _books_coalesced: dict[str, int] = {}
 _pending_book: dict[str, dict] = {}
+# Prints buffered since the last submit, and when that submit was. Unlike the
+# book, every buffered print is kept: a print is an event, not a snapshot.
+_pending_prints: dict[str, list[dict]] = {}
+_last_print_submit: dict[str, float] = {}
 # What the last *recorded* book actually was, so health describes what
 # reached disk rather than what some other module thinks is subscribed.
 _observed_book: dict[str, dict] = {}
@@ -30,12 +38,57 @@ def reset_for_tests() -> None:
     _books_coalesced.clear()
     _pending_book.clear()
     _observed_book.clear()
+    _pending_prints.clear()
+    _last_print_submit.clear()
 
 
 def enqueue_print(payload) -> None:
-    token = worker.session_token(payload["symbol"])
-    if token is not None:
-        worker.submit(_write_print, dict(payload), token=token)
+    """Buffer one AllLast print and submit the batch when it is due.
+
+    A fast tape delivers prints faster than the fenced worker drains them, and
+    the backlog bound counts jobs, so one job per print made a runner's own
+    volume stop its recording. Batching costs at most CAPTURE_PRINT_BATCH_SEC of
+    write latency during a burst and nothing at all on a quiet tape, where the
+    interval has always passed. A trailing partial batch is written by the next
+    print or by ``flush_prints`` when the recording stops.
+    """
+    symbol = payload["symbol"]
+    token = worker.session_token(symbol)
+    if token is None:
+        _pending_prints.pop(symbol, None)
+        return
+    batch = _pending_prints.setdefault(symbol, [])
+    batch.append(dict(payload))
+    now = time.time()
+    last = _last_print_submit.get(symbol)
+    if len(batch) < CAPTURE_PRINT_BATCH_MAX and last is not None and now - last < CAPTURE_PRINT_BATCH_SEC:
+        return
+    _submit_prints(symbol, token, now)
+
+
+def _submit_prints(symbol: str, token: int, now: float) -> None:
+    batch = _pending_prints.pop(symbol, None)
+    if not batch:
+        return
+    _last_print_submit[symbol] = now
+    if not worker.submit(_write_prints, batch, token=token):
+        # Refused: the session is finalizing. Reopening the interval keeps the
+        # next print from waiting on a submit time that never happened.
+        _last_print_submit.pop(symbol, None)
+
+
+def flush_prints(symbol: str) -> None:
+    """Persist buffered prints. Call while the worker still accepts."""
+    token = worker.session_token(symbol)
+    if token is None:
+        _pending_prints.pop(symbol, None)
+        return
+    _submit_prints(symbol, token, time.time())
+
+
+def _write_prints(payloads: list[dict]) -> None:
+    for payload in payloads:
+        _write_print(payload)
 
 
 def _write_print(payload: dict) -> None:
@@ -48,7 +101,7 @@ def _write_print(payload: dict) -> None:
         recorder.record_print(payload)
         return
     payload["session_date"] = datetime.fromtimestamp(payload["ts"], ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
-    recorder.ensure_event_day(payload["ts"])
+    recorder.ensure_event_day(payload["symbol"], payload["ts"])
     if not recorder.record_print(payload):
         return
     bar_buckets.on_print(

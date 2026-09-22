@@ -1,23 +1,21 @@
 /**
- * Editable symbol chips for Trader View. Strip is unbounded; live L2 tabs
- * stay bright and extras render gray / suspended.
- * + / type stays here. Extract pops out. Drag docks onto another Nova window.
+ * The Trader context strip: slim symbol tabs (REC dot · symbol · gap ·
+ * catalyst chip, pop-out / close on hover) and, on the Sim venue, the
+ * scrubber cluster on the same row (`trailing`). Strip is unbounded; live L2
+ * tabs stay bright and extras render gray / suspended. + / type stays here.
+ * Double-click pops out. Drag docks onto another Nova window (the strip's
+ * tooltip says so; the sentence no longer takes row space). When the tabs
+ * cannot fit beside the cluster a `›` chevron lists the rest -- the cluster
+ * never wraps.
  */
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { ChevronRight } from 'lucide-react';
 import {
+  TRADER_STRIP_OVERFLOW_ARIA,
+  TRADER_STRIP_OVERFLOW_TITLE,
+  TRADER_STRIP_TITLE,
+  TRADER_STRIP_TITLE_FLOAT,
   TRADER_TAB_ADD_TITLE,
-  TRADER_TAB_DOCK_ARIA,
-  TRADER_TAB_DOCK_LABEL,
-  TRADER_TAB_DOCK_TITLE,
-  TRADER_TAB_DRAG_TITLE,
-  TRADER_TAB_EXTRACT_ARIA,
-  TRADER_TAB_EXTRACT_LABEL,
-  TRADER_TAB_EXTRACT_TITLE,
-  TRADER_TAB_LABEL_TITLE,
-  TRADER_TAB_LABEL_TITLE_FLOAT,
-  TRADER_TAB_STRIP_HINT,
-  TRADER_TAB_STRIP_HINT_FLOAT,
-  TRADER_TAB_SUSPENDED_TITLE,
 } from '../constants';
 import {
   allowTraderTabDrop,
@@ -31,7 +29,11 @@ import {
   isTabRecording,
   subscribeSessionRecord,
 } from '../capture/sessionRecordStore';
+import { useScannerDockRows } from '../scanner/useScannerDockRows';
+import { StockViewTab } from './StockViewTab';
+import { tabContextFor } from './tabContext';
 import { TRADER_DRAFT_SYMBOL } from './traderTabsState';
+import { useStripOverflow } from './useStripOverflow';
 
 interface Props {
   tabs: string[];
@@ -41,6 +43,8 @@ interface Props {
   showDock?: boolean;
   showExtract?: boolean;
   dropReady?: boolean;
+  /** Right-hand cluster on the same row (the Sim scrubber); never wraps. */
+  trailing?: ReactNode;
   onActivate: (symbol: string) => void;
   onClose: (symbol: string) => void;
   onRename: (from: string, to: string) => void;
@@ -53,46 +57,38 @@ interface Props {
 }
 
 export function StockViewTabStrip({
-  tabs,
-  live,
-  active,
-  windowId = '',
-  showDock = false,
-  showExtract = true,
-  dropReady = false,
-  onActivate,
-  onClose,
-  onRename,
-  onAddDraft,
-  onExtract,
-  onDock,
-  onTabDragStart,
-  onTabDragEnd,
-  onTabDrop,
+  tabs, live, active, windowId = '', showDock = false, showExtract = true, dropReady = false, trailing,
+  onActivate, onClose, onRename, onAddDraft, onExtract, onDock, onTabDragStart, onTabDragEnd, onTabDrop,
 }: Props) {
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  const [overflowOpen, setOverflowOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const recordEpoch = useSyncExternalStore(
-    subscribeSessionRecord,
-    () => getRecordingSymbols().join(','),
-    () => '',
-  );
-  void recordEpoch;
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const overflowRef = useRef<HTMLDivElement>(null);
+  const scannerRows = useScannerDockRows();
+  // Re-render when the recording set changes; isTabRecording reads the store.
+  useSyncExternalStore(subscribeSessionRecord, () => getRecordingSymbols().join(','), () => '');
+  const overflowing = useStripOverflow(tabsRef, [tabs.join(','), active, Boolean(trailing)]);
 
   useEffect(() => {
-    if (active === TRADER_DRAFT_SYMBOL) {
-      setEditing(TRADER_DRAFT_SYMBOL);
-      setDraft('');
-    }
+    if (active === TRADER_DRAFT_SYMBOL) { setEditing(TRADER_DRAFT_SYMBOL); setDraft(''); }
   }, [active, tabs]);
 
   useEffect(() => {
-    if (editing != null) {
-      inputRef.current?.focus();
-      inputRef.current?.select();
-    }
+    if (editing != null) { inputRef.current?.focus(); inputRef.current?.select(); }
   }, [editing]);
+
+  useEffect(() => {
+    if (!overflowOpen) return undefined;
+    const onDown = (event: MouseEvent) => {
+      if (!overflowRef.current?.contains(event.target as Node)) setOverflowOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setOverflowOpen(false); };
+    window.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => { window.removeEventListener('mousedown', onDown); window.removeEventListener('keydown', onKey); };
+  }, [overflowOpen]);
 
   const commitEdit = () => {
     if (editing == null) return;
@@ -100,11 +96,8 @@ export function StockViewTabStrip({
     setEditing(null);
     onRename(from, draft);
   };
-
   const cancelEdit = () => {
-    if (editing === TRADER_DRAFT_SYMBOL) {
-      onClose(TRADER_DRAFT_SYMBOL);
-    }
+    if (editing === TRADER_DRAFT_SYMBOL) onClose(TRADER_DRAFT_SYMBOL);
     setEditing(null);
   };
 
@@ -112,9 +105,10 @@ export function StockViewTabStrip({
 
   return (
     <div
-      className={`sv-tab-strip${dropReady ? ' sv-tab-strip--drop-ready' : ''}`}
+      className={`sv-tab-strip${dropReady ? ' sv-tab-strip--drop-ready' : ''}${trailing ? ' sv-tab-strip--with-trailing' : ''}`}
       role="tablist"
       aria-label="Trader tabs"
+      title={showExtract ? TRADER_STRIP_TITLE : TRADER_STRIP_TITLE_FLOAT}
       data-testid="sv-tab-strip"
       onDragOver={allowTraderTabDrop}
       onDrop={(e) => {
@@ -122,151 +116,98 @@ export function StockViewTabStrip({
         if (payload) onTabDrop?.(payload);
       }}
     >
-      {tabs.map(symbol => {
-        const isActive = symbol === active;
-        const isEditing = editing === symbol;
-        const isDraft = symbol === TRADER_DRAFT_SYMBOL;
-        const suspended = !isDraft && !liveSet.has(symbol);
-        const label = isDraft ? 'New' : symbol;
-        return (
-          <div
-            key={isDraft ? '__draft__' : symbol}
-            className={`sv-tab${isActive ? ' sv-tab--active' : ''}${suspended ? ' sv-tab--suspended' : ''}${
-              !isDraft && isTabRecording(symbol) ? ' sv-tab--recording' : ''
-            }`}
-            role="tab"
-            aria-selected={isActive}
-            data-suspended={suspended ? '1' : '0'}
-            data-testid={`sv-tab-${label}`}
-            draggable={!isDraft && !isEditing}
-            onDragStart={(e) => {
-              if (isDraft || isEditing) {
+      <div className="sv-tab-strip__tabs" ref={tabsRef} data-testid="sv-tab-strip-tabs">
+        {tabs.map(symbol => {
+          const isActive = symbol === active;
+          const isEditing = editing === symbol;
+          const isDraft = symbol === TRADER_DRAFT_SYMBOL;
+          const suspended = !isDraft && !liveSet.has(symbol);
+          const recording = !isDraft && isTabRecording(symbol);
+          const label = isDraft ? 'New' : symbol;
+          return (
+            <div
+              key={isDraft ? '__draft__' : symbol}
+              className={`sv-tab${isActive ? ' sv-tab--active' : ''}${suspended ? ' sv-tab--suspended' : ''}${recording ? ' sv-tab--recording' : ''}`}
+              role="tab"
+              aria-selected={isActive}
+              data-suspended={suspended ? '1' : '0'}
+              data-testid={`sv-tab-${label}`}
+              draggable={!isDraft && !isEditing}
+              onDragStart={(e) => {
+                if (isDraft || isEditing) { e.preventDefault(); return; }
+                startTraderTabDrag(e, { symbol, sourceWindowId: windowId });
+                onTabDragStart?.(symbol);
+              }}
+              onDragEnd={() => onTabDragEnd?.()}
+              onContextMenu={(e) => {
+                if (isDraft) return;
                 e.preventDefault();
-                return;
-              }
-              startTraderTabDrag(e, { symbol, sourceWindowId: windowId });
-              onTabDragStart?.(symbol);
-            }}
-            onDragEnd={() => onTabDragEnd?.()}
-            onContextMenu={(e) => {
-              if (isDraft) return;
-              e.preventDefault();
-              openBotSymbolMenu(symbol, e.clientX, e.clientY);
-            }}
-          >
-            {isEditing ? (
-              <input
-                ref={inputRef}
-                className="sv-tab__input"
-                value={draft}
-                aria-label="Edit ticker"
-                spellCheck={false}
-                onChange={e => setDraft(e.target.value.toUpperCase())}
-                onBlur={commitEdit}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    commitEdit();
-                  } else if (e.key === 'Escape') {
-                    e.preventDefault();
-                    cancelEdit();
-                  }
-                }}
-              />
-            ) : (
-              <button
-                type="button"
-                className="sv-tab__label"
-                onClick={() => onActivate(symbol)}
-                onDoubleClick={e => {
-                  e.preventDefault();
-                  if (!isDraft && showExtract) onExtract(symbol);
-                }}
-                title={
-                  isDraft
-                    ? 'Type a ticker, then Enter'
-                    : suspended
-                      ? TRADER_TAB_SUSPENDED_TITLE
-                      : (showExtract ? TRADER_TAB_LABEL_TITLE : TRADER_TAB_LABEL_TITLE_FLOAT)
-                }
-              >
-                {label}
-              </button>
-            )}
-            {!isDraft && showDock && onDock && (
-              <button
-                type="button"
-                className="sv-tab__dock"
-                aria-label={`${TRADER_TAB_DOCK_ARIA} (${label})`}
-                title={TRADER_TAB_DOCK_TITLE}
-                data-testid={`sv-tab-dock-${label}`}
-                onClick={e => {
-                  e.stopPropagation();
-                  onDock(symbol);
-                }}
-              >
-                {TRADER_TAB_DOCK_LABEL}
-              </button>
-            )}
-            {!isDraft && showExtract && (
-              <button
-                type="button"
-                className="sv-tab__extract"
-                aria-label={`${TRADER_TAB_EXTRACT_ARIA} (${label})`}
-                title={TRADER_TAB_EXTRACT_TITLE}
-                data-testid={`sv-tab-extract-${label}`}
-                onClick={e => {
-                  e.stopPropagation();
-                  onExtract(symbol);
-                }}
-              >
-                {TRADER_TAB_EXTRACT_LABEL}
-              </button>
-            )}
-                        <button
-              type="button"
-              className="sv-tab__close"
-              aria-label={
-                !isDraft && isTabRecording(symbol)
-                  ? `Recording ${label} — stop recording before close`
-                  : `Close ${label}`
-              }
-              disabled={!isDraft && isTabRecording(symbol)}
-              title={
-                !isDraft && isTabRecording(symbol)
-                  ? 'Stop recording before closing this tab'
-                  : undefined
-              }
-              data-testid={`sv-tab-close-${label}`}
-              onClick={e => {
-                e.stopPropagation();
-                if (!isDraft && isTabRecording(symbol)) {
-                  e.preventDefault();
-                  return;
-                }
-                if (isEditing) cancelEdit();
-                else onClose(symbol);
+                openBotSymbolMenu(symbol, e.clientX, e.clientY);
               }}
             >
-              ×
-            </button>
-          </div>
-        );
-      })}
-      <button
-        type="button"
-        className="sv-tab-add"
-        aria-label="Add ticker tab"
-        title={TRADER_TAB_ADD_TITLE}
-        disabled={tabs.includes(TRADER_DRAFT_SYMBOL)}
-        onClick={onAddDraft}
-        data-testid="sv-tab-add"
-      >
-        +
-      </button>
-      <span className="sv-tab-strip__hint" data-testid="sv-tab-strip-hint" title={TRADER_TAB_DRAG_TITLE}>
-        {showExtract ? TRADER_TAB_STRIP_HINT : TRADER_TAB_STRIP_HINT_FLOAT}
-      </span>
+              <StockViewTab
+                label={label}
+                isActive={isActive}
+                isDraft={isDraft}
+                suspended={suspended}
+                recording={recording}
+                context={isDraft ? null : tabContextFor(symbol, scannerRows)}
+                showDock={showDock && Boolean(onDock)}
+                showExtract={showExtract}
+                editing={isEditing}
+                draft={draft}
+                inputRef={inputRef}
+                onDraftChange={setDraft}
+                onCommitEdit={commitEdit}
+                onCancelEdit={cancelEdit}
+                onActivate={() => onActivate(symbol)}
+                onExtract={() => onExtract(symbol)}
+                onDock={onDock ? () => onDock(symbol) : undefined}
+                onClose={() => onClose(symbol)}
+              />
+            </div>
+          );
+        })}
+        <button
+          type="button"
+          className="sv-tab-add"
+          aria-label="Add ticker tab"
+          title={TRADER_TAB_ADD_TITLE}
+          disabled={tabs.includes(TRADER_DRAFT_SYMBOL)}
+          onClick={onAddDraft}
+          data-testid="sv-tab-add"
+        >
+          +
+        </button>
+      </div>
+      {overflowing && (
+        <div className="sv-tab-strip__overflow" ref={overflowRef}>
+          <button
+            type="button"
+            className="sv-tab-strip__overflow-btn"
+            aria-label={TRADER_STRIP_OVERFLOW_ARIA}
+            title={TRADER_STRIP_OVERFLOW_TITLE}
+            aria-expanded={overflowOpen}
+            data-testid="sv-tab-strip-overflow"
+            onClick={() => setOverflowOpen(open => !open)}
+          >
+            <ChevronRight size={14} aria-hidden="true" />
+          </button>
+          {overflowOpen && (
+            <div className="sv-tab-strip__overflow-menu" role="menu" data-testid="sv-tab-strip-overflow-menu">
+              {tabs.filter(t => t !== TRADER_DRAFT_SYMBOL).map(symbol => (
+                <button key={symbol} type="button" role="menuitem"
+                  className={`sv-tab-strip__overflow-item${symbol === active ? ' is-active' : ''}`}
+                  onClick={() => { setOverflowOpen(false); onActivate(symbol); }}>
+                  {symbol}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {trailing && <div className="sv-tab-strip__sep" aria-hidden="true" />}
+      {trailing && <div className="sv-tab-strip__trailing" data-testid="sv-tab-strip-trailing">{trailing}</div>}
     </div>
   );
 }

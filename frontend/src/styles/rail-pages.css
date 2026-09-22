@@ -1,0 +1,101 @@
+/* Records page reached from the nav rail (the Desk has desk/desk.css).
+   Owner: pages/RecordsPage.tsx. */
+
+.rail-page {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--nova-border, var(--border-color));
+  border-radius: 8px;
+  background: var(--nova-panel, var(--panel-bg));
+  color: var(--nova-text);
+}
+
+.rail-page__calm {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--nova-text-muted);
+}
+
+.rail-page__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.rail-page__sub {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--nova-text-muted);
+}
+
+.rail-page__note {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--nova-text-muted);
+}
+
+.rail-page__note[role='alert'] {
+  color: var(--nova-danger);
+}
+
+.records-page__recording {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+}
+
+.records-page__recording::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--nova-danger);
+}
+
+.records-page__table {
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.records-page__table th,
+.records-page__table td {
+  padding: 0.35rem 0.75rem 0.35rem 0;
+  text-align: left;
+  border-bottom: 1px solid color-mix(in srgb, var(--nova-border) 60%, transparent);
+}
+
+.records-page__table th {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--nova-text-muted);
+}
+
+.records-page__table td.is-num {
+  text-align: right;
+}
+
+.records-page__open {
+  appearance: none;
+  border: 1px solid var(--nova-border);
+  border-radius: var(--radius-control, 8px);
+  background: transparent;
+  color: var(--nova-text);
+  font: inherit;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.55rem;
+  cursor: pointer;
+}
+
+.records-page__open:hover {
+  border-color: var(--nova-accent);
+  color: var(--nova-accent);
+}

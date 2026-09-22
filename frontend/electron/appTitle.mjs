@@ -8,6 +8,8 @@ const TITLE_SCANNER_VIEW = 'Stock Scanner';
 const TITLE_TRADER_VIEW = 'Trader';
 /** Matches the existing index.html / StockViewPage scanner title punctuation. */
 const TITLE_APP_VIEW_SEP = ' — ';
+/** A running Session Record leads the OS title, so the taskbar says so too. */
+const TITLE_RECORDING_PREFIX = '● REC';
 
 export function withReleaseTag(base, releaseTag) {
   const tag = String(releaseTag ?? '').trim();
@@ -31,13 +33,21 @@ export function formatElectronTraderTitle(symbol, releaseTag) {
   return withReleaseTag(`${TITLE_APP} -- ${sym}`, releaseTag);
 }
 
+export function withRecording(base, recordingSymbol) {
+  const sym = String(recordingSymbol ?? '').trim();
+  return sym ? `${TITLE_RECORDING_PREFIX} ${sym}${TITLE_APP_VIEW_SEP}${base}` : base;
+}
+
 export function novaWindowTitle({
   traderActive = false,
   traderSymbol = '',
   releaseTag = '',
+  recordingSymbol = '',
 } = {}) {
-  if (traderActive) return formatTraderDocumentTitle(traderSymbol, releaseTag);
-  return formatScannerWindowTitle(releaseTag);
+  const base = traderActive
+    ? formatTraderDocumentTitle(traderSymbol, releaseTag)
+    : formatScannerWindowTitle(releaseTag);
+  return withRecording(base, recordingSymbol);
 }
 
 /** Sample `?view=sample&symbol=` is a Trader desk; live uses the Scanner|Trader switch. */
