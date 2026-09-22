@@ -37,7 +37,8 @@ Also here:
 | `swing_baseline.py` | the five published SPY mean-reversion rules on free yfinance daily bars (comparison row) |
 | `massive_reference_dump.py` | everything else the plan serves: dividends, exchanges, ticker details, news archive, short data; writes `store/reference/manifest.json` with counts and anything refused |
 | `fetch_seconds.py` | one-second bars 09:30-11:00 ET for the selected symbol-days into `store/seconds.duckdb` (settles entry-bar stop ambiguity) |
-| `results_*_2026-09-22.json` | the gate-1 run, its robustness table and the SPY baseline, as produced |
+| `backtest_orb_seconds.py` | S1: the same ORB with the 09:30-11:00 window replayed on the one-second bars -- fill on the first second through the level, stop checked every second, minute bars after 11:00; `--ladder` for the cost ladder, 2x costs, stop 5% ATR and top 5 |
+| `results_*_2026-09-22.json` | the gate-1 runs, their robustness tables and the SPY baseline, as produced (`results_orb_seconds_*` are S1) |
 
 Gap and Go (second candidate, same store):
 
@@ -58,8 +59,10 @@ Large-cap daily mean reversion (third candidate, daily files):
 
 Gate-1 outcomes (2026-09-22): ORB not passed (§2b), Gap and Go not passed (§2c),
 large-cap mean reversion not passed (§2d; its mega-cap cell A4b is recorded as the first
-cost-robust cell, in sample) -- see `knowledge/obsidian/03-Nova-Decisions/Bot-Trading-Plan.md`.
-The fourth candidate (the SPY swing rules through the kill tests) is pre-registered in §2e.
+cost-robust cell, in sample), and the ORB on one-second bars not passed (§2e: the published
+stop is noise at that resolution -- 82% of trades stop on a one-second low) -- see
+`knowledge/obsidian/03-Nova-Decisions/Bot-Trading-Plan.md`. The SPY swing rules (A5) are
+parked; the next step is the operator's private strategy catalogue (§2e, S4, off-repo).
 
 ## Honesty
 

@@ -75,7 +75,7 @@ Decision B (recommendation starred):
 
 Done when: one local Parquet / DuckDB store with a "was listed on that date" flag per symbol.
 
-### L2 -- Backtest `[x]` for A1 (§2b), A2 (§2c) and A4 (§2d); `[ ]` for A5 (§2e)
+### L2 -- Backtest `[x]` for A1 (§2b), A2 (§2c), A4 (§2d) and S1 (§2e); A5 parked
 
 Install vectorbt in a scratch environment, adapt `.cursor/skills/backtest/` to read the local
 store, code the ORB rules exactly as published. Charge IBKR commissions plus 1-3 c/share slippage
@@ -84,7 +84,7 @@ on small caps; no signal may read anything after its own minute.
 Done when: the ORB reproduces the paper's *shape* on 2016-2023 and the run reports trade count,
 expectancy in R, profit factor, max drawdown.
 
-### L3 -- Try to break it `[x]` for A1 (broke on the 2x-cost test, §2b), A2 (broke on three of four, §2c) and A4 (broke on three of four, §2d); `[ ]` for A5
+### L3 -- Try to break it `[x]` for A1 (broke on the 2x-cost test, §2b), A2 (broke on three of four, §2c), A4 (broke on three of four, §2d) and S1 (broke on three of four, §2e); A5 parked
 
 Walk-forward by year. Parameter neighbourhood: stop 5 / 10 / 15% ATR, top 10 / 20 / 30 by RVOL,
 5 / 15 / 30-minute ranges -- the neighbourhood must stay positive. 1,000-shuffle permutation
@@ -288,29 +288,77 @@ swing rules) is parked, not run; the large-cap cell A4b stays recorded. What the
 evidence says is not "no edge" but "the edge lives inside the costs": the ORB's relative-
 volume ordering is real (§2b), its profit sits inside one to two cents per share of
 slippage and inside ~10 trades, and the entry-bar fill is the one thing a minute bar cannot
-settle. So the next work is about **fills and costs on small caps**, not another rule:
+settle. So the next work was about **fills and costs on small caps** -- S1 replayed the ORB on
+one-second bars to settle the entry-bar fill, S2 was to measure the real cost on Paper, S3
+pre-registered halt-resume and VWAP-reclaim rules. S1 ran the same night; what it found
+changed the track.
 
-- **S1 -- ORB on one-second bars (data already on disk).** Same published rule, same
-  selection, but the entry window 09:30-11:00 replayed at one-second resolution from
-  `store/seconds.duckdb`: the fill is the first second that trades through the level, the
-  stop is checked every second after it. This replaces the minute-bar guess about the entry
-  bar with what actually printed. Pre-planned splits reported, never re-selected: ranks 1-5
-  vs 6-10 by opening RVOL, price $2-10 vs $10+, and the same cost ladder as §2b.
-- **S2 -- measure the real cost on Nova's Paper venue.** Build the ORB as a bot pack
-  (long-only, top-5 by opening RVOL, the published 10% ATR stop, exit at the close) and run
-  it on Paper: Eyes level first (it proposes, the operator places), then Strategy level.
-  The number that decides is the **measured slippage per share** against the live quote and
-  the expectancy against S1: slippage at or under $0.015 and expectancy within 30% of S1
-  continues to gate 3; slippage over $0.02 stops it -- the edge cannot exist at this size,
-  and no amount of paper will make it. This is gate 2 doing what it exists for.
-- **S3 -- two more small-cap rules on the same store, pre-registered here:**
-  - **Halt-resume momentum.** In a stock-in-play (the §2b universe), a print gap of five
-    minutes or more during regular hours is a halt; enter on the first 1-minute close above
-    the pre-halt high after the resume, stop under the resume bar's low, half off at 2R,
-    rest at the close. Kill tests as §2b.
-  - **VWAP reclaim.** In the same universe, after 10:00 ET, buy the first 1-minute close
-    back above VWAP after at least 1% below it, stop under the reclaim bar's low, half off
-    at 2R, rest at the close or a close back under VWAP. Kill tests as §2b.
+### S1 result -- ORB on one-second bars (2026-09-22, night; `research/orb/backtest_orb_seconds.py`)
+
+Same published rule, same `selection`, top 10 by opening relative volume; the 09:30-11:00
+window replayed from `store/seconds.duckdb` (18,771 symbol-days, 32.0M one-second bars).
+The fill is the first second at or after 09:35 whose high reaches the 5-minute high, at
+max(second open, level) + slippage; the stop is checked every second after the fill (entry
+second: only a close at or below the stop; later: the first low at or below it, filled at
+min(second open, stop) - slippage); after 11:00 the position rides `minutes_selected` to the
+stop or the close. Costs, sizing and cash reservation as §2b. Results as produced:
+`results_orb_seconds_s1_2026-09-22.json`, `results_orb_seconds_robustness_2026-09-22.json`.
+
+| Run ($25k, top 10) | Trades | Win % | PF | Exp (R) | CAGR | Max DD |
+|---|---|---|---|---|---|---|
+| Base, $0.01 slippage | 3,384 | 10.1 | 0.97 | -0.04 | -4.0% | -51% |
+| $0 slippage | 3,385 | 10.9 | 1.08 | +0.12 | +9.4% | -33% |
+| $0.02 slippage | 3,388 | 8.9 | 0.83 | -0.28 | -20.4% | -75% |
+| $0.03 slippage | 3,385 | 8.2 | 0.73 | -0.53 | -33.4% | -88% |
+| 2x costs | 3,388 | 8.8 | 0.79 | -0.35 | -25.2% | -80% |
+| Stop 5% ATR | 3,387 | 5.0 | 0.75 | -0.42 | -15.6% | -60% |
+| Top 5 | 2,229 | 9.2 | 0.95 | -0.06 | -3.6% | -43% |
+| Paper's costs ($0.0035/sh, no minimum, no slippage) | 3,386 | 10.9 | 1.11 | +0.16 | +12.5% | -30% |
+
+Pre-planned splits (base run, reported, never re-selected): ranks 1-5 2,229 trades at
+-0.05R, ranks 6-10 1,155 at -0.02R; entries $2-10 275 trades at -0.05R, $10+ 3,109 at
+-0.04R -- no bucket is positive. Exit reasons: 2,776 trades (82%) stopped on a one-second
+low, 79 on the entry second, 165 on a minute bar after 11:00, and 364 (11%) rode to the
+close at +10.0R on average (94% of those were winners). Half of the one-second stops fire
+within 60 s of the fill (median 56 s); the median stop distance is $0.14 on a $35 median
+entry -- 0.4% of the price. The ten best trades made +$24,069 on a -$4,550 total; the other
+3,374 lost $28,620 between them. By year: 2022 +$9,283, every other year flat or negative.
+
+**Verdict: not passed** -- three of four kill tests (negative at the base cost, dies at 2x
+costs, profit inside ~10 trades; the neighbourhood is negative too). §2b's 26% CAGR was an
+artefact of the minute-bar entry-bar rule, which could not see the lows that print between
+a fill and the next minute's close: at one-second resolution the published 10%-ATR stop is
+noise, and the rule is a 10%-win lottery ticket on the ride to the close. It was not a
+fills-and-costs problem after all -- the stop is the problem, and §2b's grid already showed
+a wider stop does not rescue it. The run also states one thing plainly: the `selection`
+universe has a median entry price of $35 and only 8% of its trades under $10 -- "stocks in
+play" by relative volume is not the operator's small-cap universe.
+
+### Disposition of S2 and S3 (2026-09-22, night)
+
+- **S2 dropped.** The ORB bot pack on Paper existed to measure the real slippage of a rule
+  that was alive at one cent. It is not; measuring the cost of a dead rule proves nothing.
+- **S3 shelved to last** (operator: "there is a halt strategy but ... it's just the hardest
+  one"). Halt-resume stays pre-registered as written above and is the last small-cap rule to
+  run. VWAP reclaim is folded into the private catalogue (S4) -- it is one of the taught setups.
+
+### S4 -- the operator's strategy catalogue (operator ask, 2026-09-22, night)
+
+The operator asked that every momentum setup they trade by hand be written up first, then
+one chosen together to master. The source material and the catalogue stay **off this
+repository**, on the desk's F: drive (operator instruction, 2026-09-22: the material stays
+private; the chosen strategy itself may be recorded here). This note records only that the
+step exists and what closes it. The vault's older summaries (`Candidate-Strategies-for-Nova.md`, the backbone's pillars) are
+claims to check against the private material, not evidence -- the operator
+flagged them as possibly wrong.
+
+Done when: the catalogue lists every setup as a rule sheet -- universe, setup, entry, stop,
+target, management, time of day, as the operator trades it -- marks which are mechanical enough to pre-register on the store and
+what each needs that the store lacks (Level 2, the tape, news quality, halts), and ends in a
+ranked shortlist the operator chooses from. The chosen rule is then pre-registered in this
+note as Nova's own and run through the same kill tests on its own universe (with the float
+pillar's survivor bias stated).
+
 - **Cash account, stated once:** T+1 settlement means today's buying power is yesterday's
   settled cash; the bot sizes from settled cash (Nova's practice broker enforces buying
   power, live IBKR enforces settled funds), and there is no pattern-day-trader limit on a
@@ -347,3 +395,5 @@ blog.traderspost.io paper-to-live guide.
 | 2026-09-22 | **Gate 1 verdict for A2 Gap and Go: not passed** (PF 1.00 without the survivor-biased float pillar; fails three of four kill tests). Not promoted. **Next candidate: A4 large-cap daily mean reversion**, rules pre-registered in §2d. L1 data complete; the Massive plan may be cancelled. | Claude Fable 5.1 for the operator |
 | 2026-09-22 | **Gate 1 verdict for A4: not passed** (PF 1.02, 2024 carries it, dies at 2x costs). A4b mega-cap cell recorded as the first cost-robust cell (PF 1.19, survives 2x costs) but in-sample -- not promoted. **Next: A5 SPY swing rules through the kill tests, then a daily-bar bot pack for paper** (§2e). | Claude Fable 5.1 for the operator |
 | 2026-09-22 | **Operator direction: small caps only** ("I want to focus on small cap stocks for my bots"). A5 parked unrun. Next is the small-cap track of §2e: S1 ORB on one-second bars, S2 the ORB bot pack on Paper to measure real slippage (the go/no-go is the measured cost), S3 halt-resume and VWAP-reclaim rules pre-registered on the same store. | Operator |
+| 2026-09-22 | **S1 verdict: not passed.** The ORB on one-second bars: PF 0.97 at 1c, 0.83 at 2c, 82% of trades stopped on a one-second low and half of those inside 60 s -- the published 10%-ATR stop is 0.4% of a $35 median entry, and §2b's minute-bar result was the entry-bar rule hiding intrabar stop-outs. **S2 dropped** (nothing alive to carry to Paper). | Claude Fable 5.1 for the operator |
+| 2026-09-22 | **Operator: halts last; learn every setup in the private material first, then choose one to master together.** S3 halt-resume shelved to last. **S4** -- the catalogue (rule sheets with citations, mechanical-or-not, a ranked shortlist) is written off-repo on F:; the operator picks the first strategy to master. The vault's older summaries are not trusted. **Operator instruction, same night: the source material and the catalogue stay private on F:, off the public repo; the chosen strategy itself may be recorded here.** | Operator |

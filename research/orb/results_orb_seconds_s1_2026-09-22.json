@@ -1,0 +1,72 @@
+{
+  "params": {
+    "top": 10,
+    "stop_atr": 0.1,
+    "risk_pct": 0.01,
+    "max_position_pct": 0.25,
+    "min_notional": 500.0,
+    "slippage": 0.01,
+    "commission_per_share": 0.005,
+    "commission_min": 1.0,
+    "commission_max_pct": 0.01,
+    "entry_cutoff": "15:30",
+    "start_equity": 25000.0,
+    "date_from": null,
+    "date_to": null,
+    "tag": "s1"
+  },
+  "days": 1236,
+  "trades": 3384,
+  "end_equity": 20449.48,
+  "total_return_pct": -18.2,
+  "cagr_pct": -3.98,
+  "max_drawdown_pct": -51.13,
+  "sharpe": -0.12,
+  "win_rate_pct": 10.1,
+  "avg_win": 373.34,
+  "avg_loss": -43.47,
+  "profit_factor": 0.97,
+  "expectancy_usd": -1.34,
+  "expectancy_r": -0.041,
+  "fees_total": 11351.12,
+  "stopped_pct": 0.0,
+  "trades_per_day": 2.74,
+  "by_year": {
+    "2021": {
+      "trades": 155,
+      "pnl": -282.03,
+      "win_rate_pct": 12.9,
+      "expectancy_r": 0.07
+    },
+    "2022": {
+      "trades": 686,
+      "pnl": 9283.33,
+      "win_rate_pct": 11.5,
+      "expectancy_r": 0.068
+    },
+    "2023": {
+      "trades": 693,
+      "pnl": -1877.64,
+      "win_rate_pct": 11.1,
+      "expectancy_r": 0.046
+    },
+    "2024": {
+      "trades": 674,
+      "pnl": -470.64,
+      "win_rate_pct": 9.3,
+      "expectancy_r": -0.149
+    },
+    "2025": {
+      "trades": 682,
+      "pnl": -8093.67,
+      "win_rate_pct": 7.9,
+      "expectancy_r": -0.19
+    },
+    "2026": {
+      "trades": 494,
+      "pnl": -3109.8,
+      "win_rate_pct": 9.9,
+      "expectancy_r": 0.007
+    }
+  }
+}
