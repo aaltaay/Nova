@@ -288,6 +288,27 @@ classified by the live tape's own rule (`ibkr/tape_side.py`). Otherwise the side
 is `null` and no bid/ask is attached. Unreported prints never get a side. No
 side is ever inferred from price movement.
 
+### Desk diagnostics (ADR 021)
+
+`GET /api/diagnostics` (owner `backend/diagnostics/`) answers `schema_version: 1`,
+`generated_at`, `groups: [{id, title}]` (process, integrations, gateway,
+market_data, recorder, practice, frontend), `counts: {ok, warn, fail, off,
+unknown}`, `process: {pid, instance_id, release_tag, repo_root, env_file}` and
+`rows[]`, each `{id, group, title, state: "ok"|"warn"|"fail"|"off"|"unknown",
+detail, cause, fix, since: number | null, action: {kind, label} | null,
+evidence: object}`. `action.kind` is one of `reconnect_ibkr | launch_gateway |
+reload_backend | refresh` -- only actions that exist today. An `unknown` row
+always says why. `?ui=vNNN` lets the page report its revision for the
+`frontend_revision` row. `GET /api/diagnostics/bundle` is the same checklist
+as plain text. Rows judge from raw facts (`evidence`); no secret value is ever
+included, only presence and the file it was read from. `/api/ibkr/status`
+gains `attach: {attempts_in_window, window_sec, max_attempts_per_window,
+backoff_sec, last_attempt, next_delay_sec, human_step: string | null,
+human_step_poll_sec, cleared_at, cleared_reason, recent[]}` from
+`ibkr/attach_retry.py` (bounded attach retry: 1, 2, 5, 10, 30 s, at most 5 per
+10 min, then a stated human step). `ibkr/session_errors.last_error()` is
+`{code, message, ts} | null` for the last IB errorEvent of any code.
+
 ### Input Payload (Raw)
 
 ```json
@@ -694,6 +715,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-22 | Desk diagnostics (ADR 021): `GET /api/diagnostics` + `/bundle` -- a grouped checklist of facts (process root, `.env` path and whether it exists, integration keys and their source, Gateway ports / IBC 2FA / session / last IB error / attach retry, market-data entitlement and lines, recorder keepalive, practice files, UI-vs-API revision), each row with state, cause, fix and evidence. `ibkr/attach_retry.py` records every attach attempt on a bounded schedule and names the human step. Case: an agent-worktree API with no `.env` answered `:8000` and the checklist blamed the operator's configuration. UI and dev-server supervisor follow in a later PR. §3 amended. | User Directive + Claude Fable 5.1 |
 | 2026-09-21 | The practice ledger as history: `GET /api/practice/history?venue&range` (`practice/history.py`, pure derivation from the event-sourced ledger) serves the redesigned Account page an event-marked equity series (a point after every fill and rollover, held positions marked at their last fill price, nothing between events), the fills with their `source` / `bot_id` stamps, the by-source split, practice-day rows including archived Paper ledgers flagged `archived`, the archives list and the P&L components. Archives beside `practice-paper.json` are read read-only; a damaged one is a logged warning in `warnings[]`, never a 500. §3 amended. | User Directive + Claude Fable 5.1 |
 | 2026-09-21 | Market orders need regular hours: a non-protective `MKT` outside weekday 09:30-16:00 ET is refused `MKT_OUTSIDE_RTH` on every venue (`execution/session_gate.py`, repeated in `practice/order_rules.py`), judged by the venue's clock (Sim: the playhead). Nasdaq offers no unpriced orders in its extended sessions and IBKR holds an RTH-only MKT until the next open (399) while ignoring `outsideRth` on it (2109); the practice broker used to fill one instantly at the far quote (GRML at 8.86 after the close, a 3.6% spread), teaching a habit Live refuses. The ticket greys Market out outside regular hours and moves a Market default to Limit; a Sim tab with nothing loaded offers the operator's own Session Record before a download and says what Sim is. | User Directive + Claude Fable 5.1 |
 | 2026-09-21 | Sim at now is live -- the live edge (ADR 020 live-edge amendment, re-accepting ADR 019's withdrawn amendment; operator decision, evening). The Sim clock payload and `/api/ibkr/status` on Sim carry `live_edge`: while the playhead follows the wall clock on today's date a Sim tab shows the live IBKR feed as a Paper tab does and holds a real depth line, the scratch account fills against Paper's `LiveReference` (`practice/reference.SimReference`, `PRACTICE_NO_LIVE_PRINT` at the edge, `SIM_*` refusals off it), the live matcher fills its resting orders, and every market-data gate keys on `sim/mode.is_replay_desk` instead of `is_sim_mode`. Scrubbing back leaves the edge for the loaded replay; a scrub off the edge with nothing loaded selects the tab's Session Record for today (`sim/live_edge.py`, `POST /api/sim/clock {symbol}`) keeping the playhead and the account. "Live wall clamp" becomes "Live edge"; the empty-Sim notice is quiet at the edge. Paper stays the persistent-ledger venue. §3 and §5 amended. | User Directive + Claude Fable 5.1 |

@@ -20,6 +20,7 @@ from constants import (
     IBKR_AUTH_BACKOFF_SEC_MAX,
     IBKR_RECONNECT_DELAY_SEC,
 )
+from ibkr import attach_retry as _attach
 from ibkr import gateway_heal as _heal
 from ibkr import session_errors as _session_errors
 from ibkr import session_state as _session
@@ -103,10 +104,24 @@ async def handle_transport_up_unusable(client_mod: object, mode_label: str) -> N
     await client_mod._sleep_reconnect(1.0)  # type: ignore[attr-defined]
 
 
+def _open_port_stall_reason() -> str:
+    """``second_factor_pending`` while IBC shows an unanswered 2FA prompt, else ``gateway_authenticating``."""
+    try:
+        from ibkr import second_factor as _second_factor
+
+        if _second_factor.current_state().pending:
+            return "second_factor_pending"
+    except Exception:
+        logger.debug("IBKR: second-factor state unreadable for the attach ledger", exc_info=True)
+    return "gateway_authenticating"
+
+
 async def auth_backoff_sleep(
     client_mod: object, host: str, port: int, mode_label: str,
 ) -> None:
-    delay = bump_auth_backoff(client_mod)
+    # ADR 021: never retry faster than either schedule -- the existing auth
+    # backoff or the attach ledger (which turns a stall into a human step).
+    delay = max(bump_auth_backoff(client_mod), _attach.next_delay_sec())
     client_mod.set_session_reason("gateway_authenticating")  # type: ignore[attr-defined]
     logger.warning(
         "IBKR: preferred %s:%s open but connect timed out (%s) -- "
@@ -206,11 +221,13 @@ async def _reconnect_once(client_mod: object) -> None:
             )
             if earned:
                 reset_auth_backoff(client_mod)
+                _attach.clear(reason="ready")
                 return
             logger.error(
                 "IBKR: earn_usable failed after probe self-heal (%s)",
                 earn_detail,
             )
+            _attach.record_attempt("earn_usable_failed", port=port, detail=str(earn_detail)[:200])
             client_mod._safe_disconnect(client_mod._ib)  # type: ignore[attr-defined]
             client_mod._ib = client_mod.IB()  # type: ignore[attr-defined]
             client_mod._set_session(  # type: ignore[attr-defined]
@@ -253,11 +270,13 @@ async def _reconnect_once(client_mod: object) -> None:
                 )
                 if earned:
                     reset_auth_backoff(client_mod)
+                    _attach.clear(reason="ready")
                     return
                 logger.error(
                     "IBKR: earn_usable failed after connect (%s)",
                     earn_detail,
                 )
+                _attach.record_attempt("earn_usable_failed", port=port, detail=str(earn_detail)[:200])
                 client_mod._safe_disconnect(client_mod._ib)  # type: ignore[attr-defined]
                 client_mod._ib = client_mod.IB()  # type: ignore[attr-defined]
                 client_mod._set_session(  # type: ignore[attr-defined]
@@ -280,6 +299,7 @@ async def _reconnect_once(client_mod: object) -> None:
             _heal.record_connect_outcome(
                 "failed", reason=reject_reason or "account_kind_mismatch",
             )
+            _attach.record_attempt("account_kind_mismatch", port=port, detail=reject_reason)
             await client_mod._sleep_reconnect(IBKR_RECONNECT_DELAY_SEC)  # type: ignore[attr-defined]
             return
 
@@ -294,6 +314,7 @@ async def _reconnect_once(client_mod: object) -> None:
             )
             _session.set_disconnected()
             _heal.record_connect_outcome("failed", reason="client_id_in_use")
+            _attach.record_attempt("client_id_in_use", port=port)
             logger.error(
                 "IBKR: clientId %s already in use (Error 326) -- another Nova "
                 "API is holding the Gateway slot. One process on :8000 only.",
@@ -313,6 +334,7 @@ async def _reconnect_once(client_mod: object) -> None:
                 _heal.record_connect_outcome(
                     "failed", reason="gateway_authenticating",
                 )
+                _attach.record_attempt(_open_port_stall_reason(), port=port)
                 await auth_backoff_sleep(client_mod, host, port, mode_label)
                 return
 
@@ -334,11 +356,13 @@ async def _reconnect_once(client_mod: object) -> None:
             )
             if earned:
                 reset_auth_backoff(client_mod)
+                _attach.clear(reason="ready")
                 return
             logger.error(
                 "IBKR: earn_usable failed after self-heal (%s)",
                 earn_detail,
             )
+            _attach.record_attempt("earn_usable_failed", port=port, detail=str(earn_detail)[:200])
             client_mod._safe_disconnect(client_mod._ib)  # type: ignore[attr-defined]
             client_mod._ib = client_mod.IB()  # type: ignore[attr-defined]
         client_mod._set_session(  # type: ignore[attr-defined]

@@ -35,6 +35,7 @@ from capture.routes import router as capture_router
 from sensors.routes import router as sensors_router
 from practice.routes import router as practice_router
 from routes.desk import router as desk_router
+from diagnostics.routes import router as diagnostics_router
 
 
 def register_routers(app: FastAPI) -> None:
@@ -70,3 +71,4 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(sensors_router)
     app.include_router(practice_router)
     app.include_router(desk_router)
+    app.include_router(diagnostics_router)
