@@ -12,11 +12,11 @@ Update this note as Pinecone recall surfaces better evidence.
 
 ## Candidates (fill after first Pinecone queries)
 
-| Strategy | Course source | Automatable? | Fits Nova scanner? | Priority | Notes |
+| Strategy | Source | Automatable? | Fits Nova scanner? | Priority | Notes |
 |---|---|---|---|---|---|
-| HOD breakout | Basics / SS / HOD Momo | TBD | High | TBD | Overlaps existing HOD Momo module |
-| News catalyst spike | Basics + news module | TBD | High | TBD | Nova already has news catalyst panel |
-| Algo scalping (AS101) | Algo Scalping | TBD | Low–Med | TBD | May need faster data than IEX |
+| HOD breakout | operator's playbook / HOD Momo | TBD | High | TBD | Overlaps existing HOD Momo module |
+| News catalyst spike | operator's playbook + news module | TBD | High | TBD | Nova already has news catalyst panel |
+| Algo scalping | operator's playbook | TBD | Low–Med | TBD | May need faster data than IEX |
 
 ## Working recommendation (update after study)
 

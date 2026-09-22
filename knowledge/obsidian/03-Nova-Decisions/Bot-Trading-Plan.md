@@ -208,7 +208,7 @@ them -$6.6k); the honest run's total profit over five years is $502.
 | Dies at 2x costs | **Fail** -- PF 0.84 |
 
 **Verdict: not passed.** The mechanical Gap and Go has no measurable edge after costs on
-five years of data. Whatever edge the course version has must live in the parts that are
+five years of data. Whatever edge the discretionary version has must live in the parts that are
 not mechanical -- catalyst quality, tape reading, when to skip -- and those cannot be tested
 here or handed to a bot. The two small-cap breakout entries at the open (§2b, §2c) are now
 both measured: a real but cost-fragile signal (ORB) and no signal (Gap and Go).

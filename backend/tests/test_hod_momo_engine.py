@@ -1,4 +1,4 @@
-"""Tests for HOD Momo alert engine gates (Ross-style master + strategy fire)."""
+"""Tests for HOD Momo alert engine gates (master gate + strategy fire)."""
 from __future__ import annotations
 
 import time

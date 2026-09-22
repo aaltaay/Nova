@@ -1,6 +1,6 @@
 # Agent Dreaming (fleet memory consolidation)
 
-Nova-native sleep cycle for specialist living memory, course RAG, and decision hygiene. Inspired by OpenClaw light→REM→deep and open-second-brain nightly passes — **implemented in-repo**. Sibling tools (Claude Code Auto Dream, OpenClaw) are bridged, not vendored as Nova’s runtime.
+Nova-native sleep cycle for specialist living memory, reference RAG, and decision hygiene. Inspired by OpenClaw light→REM→deep and open-second-brain nightly passes — **implemented in-repo**. Sibling tools (Claude Code Auto Dream, OpenClaw) are bridged, not vendored as Nova’s runtime.
 
 
 ## Why the early “out of scope” cuts existed (and why they’re in now)

@@ -3,7 +3,7 @@ Tape/order-book feature math (Phase F). Pure functions only -- no I/O, no
 orders. Operates on the same {bids, asks, l1_fallback} book shape used by
 ibkr/depth.py and the /ws/ibkr/depth/{symbol} stream.
 
-These are the numeric features Ross describes qualitatively in the course
+These are the qualitative tape reads of the discretionary playbook
 (bid/ask imbalance, a seller stacked on the ask, spread width, buying
 pressure drying up) turned into codeable numbers, per
 Automation-Strategy-Backbone.md section 3: encode the *features*, but do not

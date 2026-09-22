@@ -26,7 +26,7 @@ Nova OS does **not** guarantee profitable trades. It guarantees **discipline**: 
 | Layer | What it is today | Role |
 |-------|------------------|------|
 | **Senses** | IBKR discovery/reprice, L2, tape, news impact, yfinance float | Facts about symbols |
-| **Nova OS (brain)** | Five Pillars + Gap-and-Go (signal-only) + course memory (Pinecone/Obsidian) + future risk state machine | **BUY / NO BUY / WAIT** + ticket fields |
+| **Nova OS (brain)** | Five Pillars + Gap-and-Go (signal-only) + reference memory (Pinecone/Obsidian) + future risk state machine | **BUY / NO BUY / WAIT** + ticket fields |
 | **Hands** | `backend/ibkr/` orders + safety gates | Paper/live execution when allowed |
 | **CLI / UI** | Trading tab, strategy APIs, optional future CLI | Same brain, different shell — **not** a second broker |
 
@@ -61,7 +61,7 @@ Default setup (direction set in backbone): **Gap and Go**
 - Time: 9:30–10:00 ET  
 - Premarket high marked; trigger = break of PM high (see `gap_and_go.py`)  
 - Prefer obvious flat-top / flag; watchlist 2–4 names only  
-- Entry requirements (course): early volume (e.g. ≥100k first minute), pattern clear, **≥2:1** achievable  
+- Entry requirements: early volume (e.g. ≥100k first minute), pattern clear, **≥2:1** achievable  
 
 Other setups (Bull Flag, ABCD) = later modules; do not mix into one blob.
 
@@ -95,7 +95,7 @@ If ticket invalid → **NO BUY**.
 | Paper | IBKR paper bracket (entry + stop + target) via `ibkr/` |
 | Live | Same, only after paper metrics bar + live flags |
 
-**Exit automation (when enabled):** scale half at first target → stop to BE; bail on heavy L2 sell / T&S sell flood; 5-min first red candle if entry was 5-min-based (course exit indicators). Until then: human manages exits or simple bracket only.
+**Exit automation (when enabled):** scale half at first target → stop to BE; bail on heavy L2 sell / T&S sell flood; 5-min first red candle if entry was 5-min-based (playbook exit indicators). Until then: human manages exits or simple bracket only.
 
 ## What Nova OS should output
 
@@ -107,7 +107,7 @@ symbol: XYZ
 ticket: { entry, stop, target, shares, risk_dollars, r_multiple }
 confidence: 0–1
 mode: signal | paper | live
-citations: [course chunk ids / pillar scores]
+citations: [reference chunk ids / pillar scores]
 ```
 
 ## Rules we feed Nova OS (summary checklist)

@@ -21,9 +21,9 @@ Corpus root for this graph: `knowledge/obsidian/` (see `graphify-out/.graphify_r
 |---|---|---|
 | **Obsidian notes** | Curated decisions / roadmap (source of truth) | Editing decisions; exact note body |
 | **Graphify graph** | Concepts + typed links across those notes | “What connects X to Y?”, architecture of *our* decisions |
-| **Pinecone** | Course PDFs + official caption chunks | “What does the course say…?” |
+| **Pinecone** | Private reference material (off-repo) | “What does the reference material say…?” |
 
-Trust order for automation advice is unchanged: Obsidian Active-Strategy / Roadmap → Pinecone course evidence → model prior. Graphify is a **navigation layer over Obsidian**, not a replacement and not course transcript storage.
+Trust order for automation advice is unchanged: Obsidian Active-Strategy / Roadmap → Pinecone reference evidence → model prior. Graphify is a **navigation layer over Obsidian**, not a replacement and not reference-material storage.
 
 ## Commands (from repo root)
 
