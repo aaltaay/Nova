@@ -49,6 +49,10 @@ class ExecutionCommand:
     # default keeps callers that never set it on DAY; validate refuses values
     # outside IBKR_ORDER_TIFS. Replace ignores it (keeps the order's own TIF).
     tif: str = IBKR_ORDER_TIF_DEFAULT
+    # QA R32 / R42: the ticket's Flatten ("flatten"), sent as source flatten.
+    # It cancels nothing first, so the door holds it to the position less the
+    # closes already working (execution.flatten_intent), under the lock.
+    intent: str | None = None
 
     def normalized_symbol(self) -> str | None:
         return self.symbol.upper() if self.symbol else None

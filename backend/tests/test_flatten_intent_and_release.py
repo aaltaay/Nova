@@ -31,8 +31,12 @@ def _order(**kw) -> route.OrderRequest:
     ],
 )
 def test_a_flatten_intent_must_close_the_held_position(monkeypatch, positions, order, expected):
+    from execution import flatten_intent
+
     monkeypatch.setattr("ibkr.account.get_positions", lambda: positions)
-    refusal = route._flatten_refusal(_order(intent="flatten", **order))
+    monkeypatch.setattr("ibkr.orders.open_orders", lambda: [])
+    cmd = route._manual_order_command(_order(intent="flatten", **order), "k", None, 0)
+    refusal = flatten_intent.refusal(cmd)  # the door owns the check since QA R42
     if expected is None:
         assert refusal is None
     else:
@@ -46,21 +50,24 @@ def test_the_flatten_intent_is_sent_as_the_protective_flatten_source():
     assert manual.source == "manual"
 
 
-def test_a_flatten_that_is_not_a_close_is_refused_before_any_send(monkeypatch):
-    monkeypatch.setattr("ibkr.account.get_positions", lambda: [])
+def test_the_route_hands_the_flatten_to_the_door_with_its_intent(monkeypatch):
+    """QA R42: the check runs in the execution door, inside the lock -- the route only passes it on."""
     sent: list = []
 
     async def fake_execute(cmd, **_kw):
         sent.append(cmd)
-        raise AssertionError("must not send")
+        return SimpleNamespace(
+            execution_id="e1", duplicate=False,
+            legacy_place_dict=lambda: {"ok": False, "reason_code": "FLATTEN_NOT_A_CLOSE"},
+        )
 
     monkeypatch.setattr(route._execution_service, "execute", fake_execute)
+    monkeypatch.setattr(route._execution_service, "finalize_http_response", lambda *a, **k: {})
     request = SimpleNamespace(headers={}, state=SimpleNamespace())
     monkeypatch.setattr(route, "ingress_stamps", lambda _req: (0, 0))
     out = asyncio.run(route.place_order(_order(intent="flatten"), request))
-    assert out["ok"] is False
     assert out["reason_code"] == "FLATTEN_NOT_A_CLOSE"
-    assert sent == []
+    assert [(cmd.source, cmd.intent) for cmd in sent] == [("flatten", "flatten")]
 
 
 # ---------------------------------------------------------------- R31: fill inside the send

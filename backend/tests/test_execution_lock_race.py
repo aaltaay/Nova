@@ -273,3 +273,41 @@ class TestBuyCoverGate:
         blocked = [r for r in (first, second) if not r.ok]
         assert len(blocked) == 1
         assert blocked[0].reason_code == "OVERCOVER"
+
+
+class TestFlattenIntentRace:
+    def test_two_concurrent_ticket_flattens_reach_the_broker_once(self, monkeypatch):
+        """QA R42: two ticket Flattens of one long, sent together -- one send, one FLATTEN_NOT_A_CLOSE.
+
+        Source ``flatten`` skips OVERSELL, so the ticket's Flatten is held in the
+        door, under the lock, against the closes already working: the first one
+        rests as a working SELL and the second sees it.
+        """
+        _arm_paper(monkeypatch, positions=[{"symbol": "AAPL", "qty": 100.0}])
+        working: list[dict] = []
+
+        def place(**kw):
+            order_id = 800 + len(working)
+            working.append({
+                "order_id": order_id, "symbol": "AAPL", "side": "SELL", "qty": 100.0,
+                "filled_qty": 0.0, "remaining_qty": 100.0, "status": "Submitted",
+            })
+            return {"ok": True, "order_id": order_id, "error": None, "mode": "paper"}
+
+        monkeypatch.setattr(orders_mod, "place_order", place)
+        monkeypatch.setattr(orders_mod, "open_orders", lambda: list(working))
+
+        def flatten(key: str) -> ExecutionCommand:
+            return _market(key, "SELL", 100, source="flatten", intent="flatten")
+
+        async def both():
+            return await asyncio.gather(
+                exec_svc.execute(flatten("flat-a")),
+                exec_svc.execute(flatten("flat-b")),
+            )
+
+        first, second = asyncio.run(both())
+        assert len(working) == 1, f"double flatten send: {working}"
+        blocked = [r for r in (first, second) if not r.ok]
+        assert len(blocked) == 1
+        assert blocked[0].reason_code == "FLATTEN_NOT_A_CLOSE"

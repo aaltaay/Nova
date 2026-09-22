@@ -218,6 +218,7 @@ class PracticeBroker:
     def account_summary(self) -> dict[str, Any]:
         """The shape ``/api/ibkr/account`` serves today, from the practice ledger."""
         self._refresh_marks()
+        self.rollover()  # the breakers compare DayPnL: never yesterday's (QA R45)
         ledger = self.ledger
         sim = self.venue == PRACTICE_VENUE_SIM
         return {
@@ -311,15 +312,15 @@ class PracticeBroker:
         }
 
     def _settle(self, oid: int, ts: float, fill: fill_model.Fill) -> dict[str, Any] | None:
-        """Fill a working order, or cancel it when buying power ran out since admission."""
+        """Fill a working order, or cancel it when it may no longer fill (``order_rules.fill_refusal``)."""
         row = self.ledger.working_row(oid)
         if row is None:
             return None
-        ok, needed, available = self.ledger.can_afford(row["symbol"], row["side"], float(row["qty"]), fill.price)
-        if not ok:
-            reason = f"{PRACTICE_BUYING_POWER_REASON} at the fill (needs {needed:,.2f}, has {available:,.2f})"
+        refused = order_rules.fill_refusal(self.ledger, row, fill.price)
+        if refused is not None:
+            reason, code = refused
             logger.warning("PRACTICE %s: order %s cancelled -- %s", self.venue, oid, reason)
-            closed = self.ledger.cancel(oid, ts=ts, reason=reason, code=PRACTICE_BUYING_POWER_CODE, source="venue")
+            closed = self.ledger.cancel(oid, ts=ts, reason=reason, code=code, source="venue")
         else:
             fees = for_fill(row["side"], float(row["qty"]), fill.price)
             closed = self.ledger.fill(oid, ts=ts, price=fill.price, basis=fill.basis, fees=fees)
