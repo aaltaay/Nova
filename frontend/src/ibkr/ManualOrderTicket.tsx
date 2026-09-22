@@ -7,17 +7,7 @@ import {
   type ManualOrderType,
   type QuantityMode,
 } from './orderEntry';
-import {
-  SHORTABILITY_NOT_SHORTABLE,
-  SHORTABILITY_SHORT_DISABLED,
-  SHORTABILITY_STALE,
-} from '../constantGroups/shortability';
-import type { TradeDefaultTif } from '../constantGroups/trade_defaults';
 import { useTopOfBook } from '../hotkeys/TopOfBookContext';
-import {
-  readTradeDefaultsPrefs,
-  writeTradeDefaultsPrefs,
-} from '../settings/tradeDefaultsPrefs';
 import type { IbkrListingFlags } from '../types/ticker';
 import { applyTicketDefaults, seedPricesForSide } from './applyTicketDefaults';
 import { ManualOrderFields } from './ManualOrderFields';
@@ -25,7 +15,7 @@ import { ManualOrderFooter } from './ManualOrderFooter';
 import { ManualOrderTicketHeader } from './ManualOrderTicketHeader';
 import { useMarketOrdersRefused } from './marketOutsideRth';
 import { ManualOrderLegsNote } from './ManualOrderLegsNote';
-import { estimateTicketCost } from './ticketCost';
+import { shortDisabledReason } from './shortDisabledReason';
 import {
   allowShortSide,
   clampTicketSide,
@@ -35,7 +25,6 @@ import {
 } from './ticketSide';
 import { subscribeOrderTicketPrefill } from './orderTicketPrefill';
 import type { PlaceOrderResult } from './placeOrder';
-import { resolveShortabilityState } from './ShortabilityChip';
 import { evaluateTradingAllowed } from './tradingAllowed';
 import {
   readTicketSessionUnlocked,
@@ -43,6 +32,7 @@ import {
   tryUnlockTicketSession,
 } from './ticketUnlock';
 import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from './types';
+import { useCompactTicket } from './useCompactTicket';
 import { useManualOrderSubmission } from './useManualOrderSubmission';
 import { useIbkrStatus } from './useIbkrStatus';
 
@@ -56,21 +46,6 @@ interface Props {
   referencePrice: number | null;
   listingIbkr?: IbkrListingFlags | null;
   onOrderPlaced?: (result: PlaceOrderResult) => void;
-}
-
-function shortDisabledReason(
-  shortEnabled: boolean | undefined,
-  listing: IbkrListingFlags | null | undefined,
-): string | null {
-  if (!shortEnabled) return SHORTABILITY_SHORT_DISABLED;
-  if (!listing) return SHORTABILITY_NOT_SHORTABLE;
-  if (listing.stale) return SHORTABILITY_STALE;
-  const state = resolveShortabilityState(listing);
-  // Explicit false only — missing orderable (legacy payloads) still OK when state is est.
-  if (state !== 'shortable_est' || listing.orderable === false) {
-    return SHORTABILITY_NOT_SHORTABLE;
-  }
-  return null;
 }
 
 const FORCED_QTY = forcedManualOrderQty();
@@ -105,16 +80,8 @@ export function ManualOrderTicket({
   const [limitPrice, setLimitPrice] = useState(initial.limitPrice);
   const [stopPrice, setStopPrice] = useState(initial.stopPrice);
   const [outsideRth, setOutsideRth] = useState(initial.outsideRth);
-  // #91: TIF is a Settings > Trade default; the header's DAY | GTC writes the
-  // same pref, so the next order (built from the pref) carries what is shown.
-  const [tif, setTif] = useState<TradeDefaultTif>(() => readTradeDefaultsPrefs().tif);
   const [sessionUnlocked, setSessionUnlocked] = useState(readTicketSessionUnlocked);
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
-
-  function selectTif(next: TradeDefaultTif) {
-    writeTradeDefaultsPrefs({ ...readTradeDefaultsPrefs(), tif: next });
-    setTif(next);
-  }
 
   useEffect(() => {
     const sync = () => setSessionUnlocked(readTicketSessionUnlocked());
@@ -123,9 +90,22 @@ export function ManualOrderTicket({
   }, []);
 
   const displayQuantityMode: QuantityMode = QTY_LOCKED ? 'shares' : quantityMode;
-  const displayQuantityValue = QTY_LOCKED
-    ? String(FORCED_QTY)
-    : quantityValue;
+  const displayQuantityValue = QTY_LOCKED ? String(FORCED_QTY) : quantityValue;
+  const ticketValues = {
+    symbol,
+    side,
+    shortEntry,
+    orderType,
+    quantityMode: displayQuantityMode,
+    quantityValue: displayQuantityValue,
+    limitPrice,
+    stopPrice,
+    outsideRth,
+    referencePrice,
+    summary,
+    position,
+  };
+  const { tif, selectTif, cost, practice } = useCompactTicket({ mode, ...ticketValues });
   const trading = evaluateTradingAllowed({
     connected,
     spendStatus,
@@ -148,23 +128,12 @@ export function ManualOrderTicket({
     setConfirmSummary,
     resetSubmission,
   } = useManualOrderSubmission({
-    symbol,
+    ...ticketValues,
     mode,
     connected,
     spendLocked,
     needsPinUnlock,
-    side,
-    shortEntry,
     shortBlockReason,
-    orderType,
-    quantityMode: displayQuantityMode,
-    quantityValue: displayQuantityValue,
-    limitPrice,
-    stopPrice,
-    outsideRth,
-    referencePrice,
-    summary,
-    position,
     onNeedsPin: () => setPinDialogOpen(true),
     onOrderPlaced,
   });
@@ -181,8 +150,7 @@ export function ManualOrderTicket({
     resetSubmission();
   }, [symbol]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Chart context menu stages an order here instead of placing one -- the PIN,
-  // spend-lock and confirm gates below stay the only way an order leaves Nova.
+  // The chart menu stages an order here; the PIN / spend / confirm gates still own the place.
   useEffect(() => {
     return subscribeOrderTicketPrefill(symbol, (req) => {
       setTicketSide(orderSideToTicketSide(req.side));
@@ -194,9 +162,7 @@ export function ManualOrderTicket({
     });
   }, [symbol]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    setTicketSide((current) => clampTicketSide(current, allowShort));
-  }, [allowShort]);
+  useEffect(() => setTicketSide((current) => clampTicketSide(current, allowShort)), [allowShort]);
 
   function selectTicketSide(next: TicketSide) {
     if (next === 'short' && (!allowShort || shortBlockReason)) return;
@@ -270,27 +236,6 @@ export function ManualOrderTicket({
     return ok;
   }
 
-  // The same sizing the Place path runs, priced at the order's own reference.
-  const cost = estimateTicketCost(
-    {
-      symbol,
-      side,
-      orderType,
-      quantityMode: displayQuantityMode,
-      quantityValue: displayQuantityValue,
-      limitPrice,
-      stopPrice,
-      outsideRth,
-      shortEntry,
-    },
-    {
-      marketReferencePrice: referencePrice,
-      buyingPower: summary?.BuyingPower ?? null,
-      positionQty: position?.qty ?? null,
-    },
-  );
-  const practice = mode === 'paper' || mode === 'sim';
-
   return (
     <form className="manual-order-ticket" onSubmit={submit}>
       <ManualOrderTicketHeader
@@ -302,6 +247,7 @@ export function ManualOrderTicket({
       />
       <ManualOrderFields
         symbol={symbol}
+        topOfBook={topOfBook}
         cost={cost}
         ticketSide={ticketSide}
         allowShort={allowShort}

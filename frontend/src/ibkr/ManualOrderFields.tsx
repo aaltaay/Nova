@@ -1,9 +1,7 @@
 /**
- * Compact ticket fields (approved Trader redesign, 2026-09-21): Buy / Sell /
- * Short and Limit / Market / Stop as segmented controls, the price with
- * Bid / Mid / Ask, the quantity row, then Extended hours beside the
- * `Cost · BP after` estimate. Same fields and test ids as before -- this is
- * layout and density, not new order semantics.
+ * Compact ticket fields (approved Trader redesign, 2026-09-21): segmented Buy /
+ * Sell / Short and Limit / Market / Stop, price with Bid / Mid / Ask, the qty
+ * row, Extended hours beside `Cost · BP after`. Same fields and test ids.
  */
 import {
   TICKER_TRADE_DEFAULT_ORDER_TYPE,
@@ -27,6 +25,7 @@ import {
   TICKET_TRAIL_LABEL,
 } from '../constantGroups/trader_chrome';
 import { formatMoney } from '../utils/formatMoney';
+import type { TopOfBookLike } from './applyTicketDefaults';
 import { ManualOrderPriceQuick } from './ManualOrderPriceQuick';
 import { ManualOrderQuantityRow } from './ManualOrderQuantityRow';
 import { ManualOrderStopControl } from './ManualOrderStopControl';
@@ -41,6 +40,8 @@ import type { TicketSide } from './ticketSide';
 interface Props {
   /** Symbol the Bid / Mid / Ask quick-set reads the book for. */
   symbol?: string;
+  /** Live top of book for the quick-set; absent means the buttons grey out. */
+  topOfBook?: TopOfBookLike | null;
   ticketSide: TicketSide;
   allowShort: boolean;
   orderType: ManualOrderType;
@@ -66,12 +67,8 @@ interface Props {
   onOutsideRthChange: (outsideRth: boolean) => void;
 }
 
-const PRIMARY_TYPES: readonly {
-  value: ManualOrderType;
-  label: string;
-  title: string;
-  testId: string;
-}[] = [
+type PrimaryType = { value: ManualOrderType; label: string; title: string; testId: string };
+const PRIMARY_TYPES: readonly PrimaryType[] = [
   { value: 'LMT', label: 'Limit', title: 'Limit order', testId: 'manual-order-type-lmt' },
   {
     value: 'MKT',
@@ -87,6 +84,7 @@ function money(value: number | null | undefined, decimals: number): string {
 
 export function ManualOrderFields({
   symbol = '',
+  topOfBook = null,
   ticketSide,
   allowShort,
   orderType,
@@ -217,6 +215,7 @@ export function ManualOrderFields({
           />
           <ManualOrderPriceQuick
             symbol={symbol}
+            book={topOfBook}
             value={limitPrice}
             disabled={disabled}
             onPick={onLimitPriceChange}

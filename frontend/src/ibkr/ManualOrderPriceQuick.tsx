@@ -11,7 +11,7 @@ import {
   TICKET_PRICE_QUICK_NO_BOOK,
   TICKET_PRICE_QUICK_TITLE,
 } from '../constantGroups/trader_chrome';
-import { useTopOfBook } from '../hotkeys/TopOfBookContext';
+import type { TopOfBookLike } from './applyTicketDefaults';
 import {
   QUICK_PRICE_KINDS,
   quickPriceFromBook,
@@ -26,14 +26,15 @@ const LABELS: Record<QuickPriceKind, string> = {
 
 interface Props {
   symbol: string;
+  /** The desk's live top of book (the ticket already reads TopOfBookContext). */
+  book: TopOfBookLike | null;
   /** Current price field text; the button whose price matches reads as selected. */
   value: string;
   disabled: boolean;
   onPick: (price: string) => void;
 }
 
-export function ManualOrderPriceQuick({ symbol, value, disabled, onPick }: Props) {
-  const { topOfBook } = useTopOfBook();
+export function ManualOrderPriceQuick({ symbol, book, value, disabled, onPick }: Props) {
   return (
     <div
       className="mot-mini"
@@ -42,7 +43,7 @@ export function ManualOrderPriceQuick({ symbol, value, disabled, onPick }: Props
       data-testid="manual-order-price-quick"
     >
       {QUICK_PRICE_KINDS.map((kind) => {
-        const price = quickPriceFromBook(kind, topOfBook, symbol);
+        const price = quickPriceFromBook(kind, book, symbol);
         const active = price != null && price === value;
         return (
           <button
