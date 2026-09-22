@@ -346,7 +346,7 @@ carry the account (`account_id` `NOVA-PAPER` / `NOVA-SIM`, `starting_cash`,
 `cash`, `buying_power`, `net_liquidation`, `gross_position_value`,
 `realized_pnl`, `unrealized_pnl`, `day_pnl`, `day_started_et`,
 `commissions_today`, `positions[]`, `working[]`, `fills_today`,
-`schema_version`, `updated_at`; Sim adds `replay_key`); `/api/ibkr/account`
+`schema_version`, `updated_at`; Sim adds `replay_key` -- the ledger's replay binding as a list `[source, symbol, date, start?, end?]`, e.g. `["historical", "GDC", "2026-09-21", "09:15", "11:30"]` or `["capture", "GRML", "2026-09-21"]`, `null` with nothing loaded; never a string a client may call string methods on); `/api/ibkr/account`
 and `/api/ibkr/positions` answer from it on the practice venues;
 `/api/ibkr/status` adds `venue` and reports `account_id` `NOVA-PAPER` /
 `NOVA-SIM` there. A filled practice row carries `fill_estimated: true` and

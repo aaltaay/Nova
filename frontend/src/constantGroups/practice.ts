@@ -45,6 +45,11 @@ export const PRACTICE_CARD_REPLAY_LABEL = 'Replay';
 export const PRACTICE_ACCOUNT_LOADING = 'Practice account loading';
 export const PRACTICE_ACCOUNT_UNAVAILABLE = 'Practice account unavailable';
 export const PRACTICE_NO_REPLAY = 'No replay loaded';
+/** How a replay_key's first member (the ledger's replay source) reads in the header. */
+export const PRACTICE_REPLAY_SOURCE_LABELS: Record<string, string> = {
+  historical: 'download',
+  capture: 'recording',
+};
 
 /** Tooltips -- every number says whose money it is. */
 export const practiceTavTitle = (venue: PracticeVenue, id: string): string =>
