@@ -1,11 +1,18 @@
-/** Collapsible Stock View Positions / Orders / Nova OS strip (WID-019 / 026 / 027). */
+/**
+ * The bottom drawer: Positions / Orders · today / Nova OS with the status
+ * chips on the tab row, the collapse chevron at the right and the open
+ * position in the footer (approved Trader redesign, 2026-09-21; WID-019 /
+ * 026 / 027 data and actions unchanged). Shared with the Scanner desk.
+ */
 import { useEffect, useMemo, useState } from 'react';
 import { useClosedOrders } from '../closed_orders/useClosedOrders';
 import {
+  ORDERS_TODAY_FILTERS,
   ORDERS_TODAY_TITLE,
   STOCK_VIEW_MODULE_NOVA_OS_TITLE,
   STOCK_VIEW_MODULE_POSITIONS_TITLE,
   STOCK_VIEW_OPEN_ORDERS_SAMPLE_BANNER,
+  type OrdersTodayFilterId,
   type StockViewDockSurface,
 } from '../constants';
 import { PositionsPanel } from '../ibkr/PositionsPanel';
@@ -23,6 +30,8 @@ import {
   parseDockRequest,
   STOCK_VIEW_DOCK_REQUEST_EVENT,
 } from './requestDockSurface';
+import { StockViewDockBar } from './StockViewDockBar';
+import { StockViewDockFooter } from './StockViewDockFooter';
 import {
   initialSampleHidden,
   readCollapsed,
@@ -109,6 +118,14 @@ export function StockViewOpenOrdersDock({
     filter,
     null,
   );
+  // One count per status chip, the same rule as the badge.
+  const filterCounts = useMemo(() => {
+    const out: Partial<Record<OrdersTodayFilterId, number>> = {};
+    for (const f of ORDERS_TODAY_FILTERS) {
+      out[f.id] = ordersTodayBadgeCount(displayOrders, closedOrders, f.id, null);
+    }
+    return out;
+  }, [displayOrders, closedOrders]);
   const positionCount = positions.length;
 
   useEffect(() => {
@@ -155,18 +172,21 @@ export function StockViewOpenOrdersDock({
     });
   };
 
+  const expand = () => {
+    setCollapsed(false);
+    writeCollapsed(false);
+  };
+
   const selectFilter = (next: OrdersTodayFilter) => {
     setFilter(next);
     writeFilter(next);
-    setCollapsed(false);
-    writeCollapsed(false);
+    expand();
   };
 
   const selectSurface = (next: StockViewDockSurface) => {
     setSurface(next);
     writeSurface(next);
-    setCollapsed(false);
-    writeCollapsed(false);
+    expand();
   };
 
   const hideSample = () => {
@@ -177,9 +197,17 @@ export function StockViewOpenOrdersDock({
   const showSample = () => {
     setSampleHidden(false);
     writeSampleHidden(false);
-    setCollapsed(false);
-    writeCollapsed(false);
+    expand();
   };
+
+  const sampleToggle =
+    surface !== 'orders'
+      ? null
+      : usingSample
+        ? 'hide'
+        : wantsWorkingSample && orders.length === 0
+          ? 'show'
+          : null;
 
   return (
     <section
@@ -200,159 +228,70 @@ export function StockViewOpenOrdersDock({
             : ORDERS_TODAY_TITLE
       }
     >
-      <header
-        className="sv-open-orders-dock__bar"
-        onClick={(e) => {
-          const el = e.target as HTMLElement;
-          if (el.closest('.sv-open-orders-dock__sample-btn')) return;
-          if (el.closest('.sv-open-orders-dock__tabs')) return;
-          if (el.closest('.orders-today-filters')) return;
-          toggle();
-        }}
-      >
-        <button
-          type="button"
-          className="sv-open-orders-dock__toggle"
-          onClick={(e) => {
-            e.stopPropagation();
-            toggle();
-          }}
-          aria-expanded={!collapsed}
-          data-testid="stock-view-open-orders-toggle"
-        >
-          <span className="sv-open-orders-dock__chevron" aria-hidden="true">
-            {collapsed ? '▸' : '▾'}
-          </span>
-        </button>
-        <div
-          className="sv-open-orders-dock__tabs"
-          role="tablist"
-          aria-label="Positions, orders, and Nova OS"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={surface === 'positions'}
-            className={
-              surface === 'positions'
-                ? 'sv-open-orders-dock__tab is-active'
-                : 'sv-open-orders-dock__tab'
-            }
-            data-testid="stock-view-dock-tab-positions"
-            onClick={() => selectSurface('positions')}
-          >
-            {STOCK_VIEW_MODULE_POSITIONS_TITLE}
-            <span className="sv-open-orders-dock__count">{positionCount}</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={surface === 'orders'}
-            className={
-              surface === 'orders'
-                ? 'sv-open-orders-dock__tab is-active'
-                : 'sv-open-orders-dock__tab'
-            }
-            data-testid="stock-view-dock-tab-orders"
-            onClick={() => selectSurface('orders')}
-          >
-            {ORDERS_TODAY_TITLE}
-            <span className="sv-open-orders-dock__count">{openCount}</span>
-            {usingSample && (
-              <span className="sv-open-orders-dock__sample-tag">Sample</span>
-            )}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={surface === 'nova_os'}
-            className={
-              surface === 'nova_os'
-                ? 'sv-open-orders-dock__tab is-active'
-                : 'sv-open-orders-dock__tab'
-            }
-            data-testid="stock-view-dock-tab-nova-os"
-            onClick={() => selectSurface('nova_os')}
-          >
-            {STOCK_VIEW_MODULE_NOVA_OS_TITLE}
-          </button>
-        </div>
-        {surface === 'orders' && usingSample ? (
-          <button
-            type="button"
-            className="sv-open-orders-dock__sample-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              hideSample();
-            }}
-          >
-            Hide sample
-          </button>
-        ) : surface === 'orders' &&
-          wantsWorkingSample &&
-          orders.length === 0 ? (
-          <button
-            type="button"
-            className="sv-open-orders-dock__sample-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              showSample();
-            }}
-            data-testid="stock-view-open-orders-show-sample"
-          >
-            Show sample
-          </button>
-        ) : null}
-        <span className="na-muted sv-open-orders-dock__hint">
-          {collapsed ? 'Expand' : 'Collapse'}
-        </span>
-      </header>
+      <StockViewDockBar
+        surface={surface}
+        filter={filter}
+        positionCount={positionCount}
+        openCount={openCount}
+        filterCounts={filterCounts}
+        collapsed={collapsed}
+        usingSample={usingSample}
+        sampleToggle={sampleToggle}
+        onSelectSurface={selectSurface}
+        onSelectFilter={selectFilter}
+        onToggle={toggle}
+        onShowSample={showSample}
+        onHideSample={hideSample}
+      />
       {!collapsed && (
-        <div className="sv-open-orders-dock__body">
-          {surface === 'positions' ? (
-            <div data-testid="stock-view-positions">
-              <PositionsPanel
-                summary={summary}
-                positions={positions}
-                orders={[]}
-                error={accountError}
-                selectedSymbol={symbolKey}
-                onSelectSymbol={onSelectSymbol}
-                onOpenTrading={onOpenTrading ?? onSelectSymbol}
-                mode={mode}
-                connected={connected}
-                spendStatus={spendStatus}
-                onPositionClosed={onPositionClosed}
-                compact
-                hideTitle
-              />
-            </div>
-          ) : surface === 'nova_os' ? (
-            <div data-testid="stock-view-nova-os">
-              <TraderNovaOsBrain symbol={symbolKey} position={symbolPosition} />
-            </div>
-          ) : (
-            <>
-              {usingSample && (
-                <p className="sv-open-orders-dock__banner" role="status">
-                  {STOCK_VIEW_OPEN_ORDERS_SAMPLE_BANNER}
-                </p>
-              )}
-              <OrdersTodayView
-                symbol={symbolKey}
-                workingOrders={displayOrders}
-                usingWorkingSample={usingSample}
-                closedOrders={closedOrders}
-                onCancelOrder={onCancelOrder}
-                onFillImmediately={onFillImmediately}
-                highlightOrderId={highlightOrderId}
-                filter={filter}
-                onFilterChange={selectFilter}
-              />
-            </>
-          )}
-        </div>
+        <>
+          <div className="sv-open-orders-dock__body">
+            {surface === 'positions' ? (
+              <div data-testid="stock-view-positions">
+                <PositionsPanel
+                  summary={summary}
+                  positions={positions}
+                  orders={[]}
+                  error={accountError}
+                  selectedSymbol={symbolKey}
+                  onSelectSymbol={onSelectSymbol}
+                  onOpenTrading={onOpenTrading ?? onSelectSymbol}
+                  mode={mode}
+                  connected={connected}
+                  spendStatus={spendStatus}
+                  onPositionClosed={onPositionClosed}
+                  compact
+                  hideTitle
+                />
+              </div>
+            ) : surface === 'nova_os' ? (
+              <div data-testid="stock-view-nova-os">
+                <TraderNovaOsBrain symbol={symbolKey} position={symbolPosition} />
+              </div>
+            ) : (
+              <>
+                {usingSample && (
+                  <p className="sv-open-orders-dock__banner" role="status">
+                    {STOCK_VIEW_OPEN_ORDERS_SAMPLE_BANNER}
+                  </p>
+                )}
+                <OrdersTodayView
+                  symbol={symbolKey}
+                  workingOrders={displayOrders}
+                  usingWorkingSample={usingSample}
+                  closedOrders={closedOrders}
+                  onCancelOrder={onCancelOrder}
+                  onFillImmediately={onFillImmediately}
+                  highlightOrderId={highlightOrderId}
+                  filter={filter}
+                  onFilterChange={selectFilter}
+                  hideFilters
+                />
+              </>
+            )}
+          </div>
+          <StockViewDockFooter symbol={symbolKey} mode={mode} position={symbolPosition} />
+        </>
       )}
     </section>
   );
