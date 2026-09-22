@@ -27,19 +27,28 @@ IBKR_ACCOUNT_CLASS_CASH_MAX_BP_RATIO = 1.15
 IBKR_ACCOUNT_CLASS_MARGIN_MIN_BP_RATIO = 1.5
 
 # ── MASTER TEST QTY GATE (intentional; remove with one flip) ───────────────────
-# When True, ADR 007 `execution.service.execute` rewrites every place/bracket
-# qty (and shares) to IBKR_FORCE_ONE_SHARE_QTY before validate/send — UI/hotkeys
-# may still show 100/500/1000; the broker only ever receives 1 share.
+# When True, ADR 007 `execution.service.execute` CAPS every place/bracket qty
+# (and shares) at IBKR_FORCE_ONE_SHARE_QTY before validate/send: a size at or
+# under the cap goes through as asked, a larger one is cut to the cap. The
+# ticket states the cap (`qty_cap` on /api/ibkr/status) and the execution record
+# stamps `forced_one_share` only when the cap actually changed the size.
 # Protective sources (flatten / kill / cancel_working) are never clamped: they
 # close the held position, and a clamped KILL left N-1 shares (QA R6).
 #
 # WHY: paper/live testing safety so a fat-finger preset cannot size a real send.
 # NOT A BUG: do not "fix" by deleting the clamp without flipping this off.
+# HISTORY: forced every order to exactly 1 share until 2026-09-22, when the
+# operator raised it to a cap of 10 on every venue (#444) to trade real sizes.
+# The constant names are kept so the execution record and its readers are stable.
 #
+# CHANGE THE CAP (one line, no code): `IBKR_QTY_CAP=25` in the desk .env; the
+#   default below applies when it is unset. The clamp, /api/ibkr/status `qty_cap`
+#   and the ticket's copy all read that one value (execution/qty_gate.py).
 # REMOVE (one line): set IBKR_FORCE_ONE_SHARE = False
 #   (or delete the `cmd = apply_force_one_share(cmd)` line in execution/service.py)
 IBKR_FORCE_ONE_SHARE = True
-IBKR_FORCE_ONE_SHARE_QTY = 1.0
+IBKR_FORCE_ONE_SHARE_QTY = 10.0  # default max shares per place / bracket while the gate is on
+IBKR_QTY_CAP_ENV = "IBKR_QTY_CAP"  # .env override of the default above (whole number >= 1)
 # Tick-236 shortability freshness for order gates (seconds).
 IBKR_SHORTABILITY_TTL_SEC = 60.0
 # Shares thresholds for shortability states (IBKR tick 236 estimate).

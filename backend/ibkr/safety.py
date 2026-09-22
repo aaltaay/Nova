@@ -226,7 +226,17 @@ def status_snapshot(broker_account_kind: str | None = None) -> dict:
         "spend_permitted_status": permitted,
         "spend_permitted_reason": permitted_reason or None,
         "armed": _armed,
+        # MASTER TEST QTY GATE: the most shares one place / bracket may send
+        # (None when the gate is off). The ticket states it so no surface shows
+        # a size the door will not send (#444).
+        "qty_cap": _qty_cap(),
     }
+
+
+def _qty_cap() -> float | None:
+    from execution.qty_gate import qty_cap  # local: execution imports this module
+
+    return qty_cap()
 
 
 def assert_orders_allowed(

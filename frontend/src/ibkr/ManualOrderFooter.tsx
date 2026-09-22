@@ -27,6 +27,8 @@ interface Props {
   spendDisarmed?: boolean;
   quantityLocked: boolean;
   forcedQty: number | null;
+  /** MASTER TEST QTY GATE (#444): "Test cap: sends N of M shares", or null. */
+  qtyCapNote?: string | null;
   sessionUnlocked: boolean;
   result: { ok: boolean; text: string } | null;
   confirmSummary: string | null;
@@ -50,6 +52,7 @@ export function ManualOrderFooter({
   spendDisarmed = false,
   quantityLocked,
   forcedQty,
+  qtyCapNote = null,
   sessionUnlocked,
   result,
   confirmSummary,
@@ -124,6 +127,11 @@ export function ManualOrderFooter({
       {quantityLocked && sessionUnlocked && (
         <span className="manual-order-lock-note">
           Quantity locked to {forcedQty} share for safety — presets ignored.
+        </span>
+      )}
+      {qtyCapNote && (
+        <span className="manual-order-lock-note" data-testid="qty-cap-note">
+          {qtyCapNote}
         </span>
       )}
       {result && (

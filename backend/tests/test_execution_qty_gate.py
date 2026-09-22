@@ -1,4 +1,8 @@
-"""MASTER TEST QTY GATE — IBKR_FORCE_ONE_SHARE (intentional; not a bug)."""
+"""MASTER TEST QTY GATE — IBKR_FORCE_ONE_SHARE (intentional; not a bug).
+
+Since 2026-09-22 (#444) the gate is a cap, not a fixed size: at or under
+IBKR_FORCE_ONE_SHARE_QTY goes through as asked, above it is cut to the cap.
+"""
 from __future__ import annotations
 
 import asyncio
@@ -64,7 +68,7 @@ def _arm_paper(monkeypatch):
 
 def test_apply_force_clamps_place_qty(monkeypatch):
     monkeypatch.setattr(qty_gate, "IBKR_FORCE_ONE_SHARE", True)
-    monkeypatch.setattr(qty_gate, "IBKR_FORCE_ONE_SHARE_QTY", 1.0)
+    monkeypatch.setattr(qty_gate, "IBKR_FORCE_ONE_SHARE_QTY", 10.0)
     cmd = ExecutionCommand(
         operation="place",
         idempotency_key="g1",
@@ -75,8 +79,28 @@ def test_apply_force_clamps_place_qty(monkeypatch):
         order_type="MKT",
     )
     out = qty_gate.apply_force_one_share(cmd)
-    assert out.qty == 1.0
+    assert out.qty == 10.0
     assert cmd.qty == 500
+
+
+def test_apply_force_keeps_sizes_at_or_under_the_cap(monkeypatch):
+    """#444: the gate is a cap. 5 shares stay 5; exactly the cap stays the cap."""
+    monkeypatch.setattr(qty_gate, "IBKR_FORCE_ONE_SHARE", True)
+    monkeypatch.setattr(qty_gate, "IBKR_FORCE_ONE_SHARE_QTY", 10.0)
+    for qty in (1, 5, 10):
+        cmd = ExecutionCommand(
+            operation="place",
+            idempotency_key=f"cap-{qty}",
+            source="manual",
+            symbol="AAPL",
+            side="BUY",
+            qty=qty,
+            order_type="MKT",
+        )
+        assert qty_gate.apply_force_one_share(cmd) is cmd
+    assert qty_gate.qty_cap() == 10.0
+    monkeypatch.setattr(qty_gate, "IBKR_FORCE_ONE_SHARE", False)
+    assert qty_gate.qty_cap() is None
 
 
 def test_apply_force_off_passthrough(monkeypatch):
@@ -96,7 +120,7 @@ def test_apply_force_off_passthrough(monkeypatch):
 def test_execute_sends_one_share_when_gate_on(monkeypatch):
     _arm_paper(monkeypatch)
     monkeypatch.setattr(qty_gate, "IBKR_FORCE_ONE_SHARE", True)
-    monkeypatch.setattr(qty_gate, "IBKR_FORCE_ONE_SHARE_QTY", 1.0)
+    monkeypatch.setattr(qty_gate, "IBKR_FORCE_ONE_SHARE_QTY", 10.0)
     monkeypatch.setattr(exec_svc, "IBKR_FORCE_ONE_SHARE", True)
     calls = []
 
@@ -123,10 +147,10 @@ def test_execute_sends_one_share_when_gate_on(monkeypatch):
     )
     assert r.ok is True
     assert len(calls) == 1
-    assert float(calls[0]["qty"]) == 1.0
+    assert float(calls[0]["qty"]) == 10.0
     row = store.get_by_id(r.execution_id)
     assert row["payload"]["requested_qty"] == 1000.0
-    assert row["payload"]["sent_qty"] == 1.0
+    assert row["payload"]["sent_qty"] == 10.0
     assert row["payload"]["forced_one_share"] is True
     assert row["payload"]["short_entry"] is False
     assert "orders_enabled" in row["payload"]
@@ -137,7 +161,7 @@ def test_execute_sends_one_share_when_gate_on(monkeypatch):
 def test_protective_sources_are_never_clamped(monkeypatch, source):
     """QA R6 (2026-09-22): a clamped flatten left N-1 shares after an Emergency KILL."""
     monkeypatch.setattr(qty_gate, "IBKR_FORCE_ONE_SHARE", True)
-    monkeypatch.setattr(qty_gate, "IBKR_FORCE_ONE_SHARE_QTY", 1.0)
+    monkeypatch.setattr(qty_gate, "IBKR_FORCE_ONE_SHARE_QTY", 1.0)  # a 1-share cap: 2 must still pass
     cmd = ExecutionCommand(
         operation="place",
         idempotency_key=f"protect-{source}",
@@ -185,3 +209,25 @@ def test_execute_sends_the_whole_flatten_and_stamps_no_clamp(monkeypatch):
     row = store.get_by_id(r.execution_id)
     assert row["payload"]["sent_qty"] == 3.0
     assert row["payload"]["forced_one_share"] is False
+
+
+def test_env_override_sets_the_cap(monkeypatch):
+    """#444 follow-up: one .env line changes the cap everywhere (clamp + status)."""
+    monkeypatch.setattr(qty_gate, "IBKR_FORCE_ONE_SHARE", True)
+    monkeypatch.setattr(qty_gate, "IBKR_FORCE_ONE_SHARE_QTY", 10.0)
+    monkeypatch.setenv("IBKR_QTY_CAP", "25")
+    cmd = ExecutionCommand(
+        operation="place",
+        idempotency_key="env-cap",
+        source="manual",
+        symbol="AAPL",
+        side="BUY",
+        qty=100,
+        order_type="MKT",
+    )
+    assert qty_gate.apply_force_one_share(cmd).qty == 25.0
+    assert qty_gate.qty_cap() == 25.0
+    monkeypatch.setenv("IBKR_QTY_CAP", "banana")
+    assert qty_gate.qty_cap() == 10.0  # a bad value falls back to the default, loudly
+    monkeypatch.setenv("IBKR_QTY_CAP", "0")
+    assert qty_gate.qty_cap() == 10.0

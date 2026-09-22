@@ -44,6 +44,8 @@ interface Params {
   referencePrice: number | null;
   summary: IbkrAccountSummary | null;
   position: IbkrPosition | null;
+  /** MASTER TEST QTY GATE (#444): most shares the door sends per order; null when off. */
+  qtyCap?: number | null;
   onNeedsPin: () => void;
   onOrderPlaced?: (result: PlaceOrderResult) => void;
 }
@@ -219,10 +221,18 @@ export function useManualOrderSubmission(params: Params) {
     // loud, because both outlive the click that placed them.
     const tifText = prefs.tif === 'DAY' ? '' : `, ${prefs.tif}`;
     const legsText = legsPlan.kind === 'attach' ? ` ${legsPlan.note}.` : '';
+    // MASTER TEST QTY GATE (#444): the door caps every place at `qty_cap`
+    // shares. Say the sent size here, so the confirm never names a size the
+    // backend will not send.
+    const cap = params.qtyCap ?? null;
+    const capText =
+      cap != null && Number(built.quantity) > cap
+        ? ` Test cap: sends ${cap} of ${built.quantity} shares.`
+        : '';
     const summaryText =
       `${direction} ${built.quantity} ${params.symbol.toUpperCase()} ` +
       `(${params.orderType}${priceText}${tifText})${hoursText} on the ` +
-      `${params.mode.toUpperCase()} account.${legsText}`;
+      `${params.mode.toUpperCase()} account.${legsText}${capText}`;
 
     // One key for this click, whether it places straight away or waits on the
     // confirm dialog — a double-clicked Confirm replays instead of re-placing.
