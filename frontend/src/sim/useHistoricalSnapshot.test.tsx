@@ -8,8 +8,10 @@ const mocks=vi.hoisted(()=>({fetch:vi.fn()}));
 vi.mock('../api/novaFetch',()=>({novaFetch:mocks.fetch}));
 vi.mock('../ibkr/useIbkrStatus',()=>({useIbkrStatus:()=>({mode:'sim'})}));
 afterEach(()=>{cleanup();mocks.fetch.mockReset();vi.useRealTimers();});
+/** A real print carries time, price and size; the boundary drops rows that do not (C9). */
+const PRINT = { time: '2026-09-18T13:30:00+00:00', price: 2, size: 100, exchange: 'ISLAND' };
 it('clears future quote and tape immediately on rewind, then shows errors',async()=>{
-  mocks.fetch.mockResolvedValueOnce({ok:true,json:async()=>({active:true,symbol:'IMCC',last:99,volume:900,prints:[{price:99}]})});
+  mocks.fetch.mockResolvedValueOnce({ok:true,json:async()=>({active:true,symbol:'IMCC',last:99,volume:900,prints:[{time:'2026-09-18T13:30:00+00:00',price:99,size:100,exchange:'ISLAND'}]})});
   const {result}=renderHook(()=>useHistoricalSnapshot('IMCC',true));
   await act(async()=>{});
   expect(result.current?.last).toBe(99);
@@ -42,7 +44,7 @@ it('never replaces the panels while no historical selection is known', async () 
 });
 
 it('switching tickers never shows the previous ticker tape', async () => {
-  mocks.fetch.mockResolvedValue({ ok: true, json: async () => ({ active: true, symbol: 'IMCC', last: 2, volume: 5, prints: [{ price: 2 }] }) });
+  mocks.fetch.mockResolvedValue({ ok: true, json: async () => ({ active: true, symbol: 'IMCC', last: 2, volume: 5, prints: [PRINT] }) });
   const { result, rerender } = renderHook(({ symbol }) => useHistoricalSnapshot(symbol, true), { initialProps: { symbol: 'IMCC' } });
   await act(async () => {});
   expect(result.current?.prints).toHaveLength(1);
@@ -67,7 +69,7 @@ it('shares one slow request across consumers and cancels on the final unsubscrib
 });
 it('retains reached data on a failed poll but clears it immediately on seek', async () => {
   vi.useFakeTimers();
-  mocks.fetch.mockResolvedValueOnce({ ok: true, json: async () => ({ active: true, symbol: 'IMCC', last: 2, prints: [{ price: 2 }] }) });
+  mocks.fetch.mockResolvedValueOnce({ ok: true, json: async () => ({ active: true, symbol: 'IMCC', last: 2, prints: [PRINT] }) });
   const { result } = renderHook(() => useHistoricalSnapshot('IMCC', true));
   await act(async () => {});
   mocks.fetch.mockRejectedValue(new Error('offline'));

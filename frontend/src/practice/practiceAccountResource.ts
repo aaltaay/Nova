@@ -8,6 +8,8 @@
 import { useCallback, useSyncExternalStore } from 'react';
 import {
   PRACTICE_ACCOUNT_POLL_MS,
+  PRACTICE_ACCOUNT_REQUEST_FAILED,
+  PRACTICE_ACCOUNT_STALE_MS,
   PRACTICE_RESET_API_PATH,
   practiceAccountPath,
   type PracticeVenue,
@@ -17,9 +19,15 @@ import { replayPost, replayRequest } from '../sim/replayRequest';
 import { isPracticeVenue } from './practiceAccountModel';
 import type { PracticeAccount } from './practiceTypes';
 
+/**
+ * A failed poll keeps the last ledger briefly (`stale` set, so a reader can
+ * mark it), then drops it: the header's Day's / TAV must not sit on figures
+ * from a dead poll, unmarked, as if current (QA 2026-09-22, C44).
+ */
+const options = { failure: PRACTICE_ACCOUNT_REQUEST_FAILED, maxStaleMs: PRACTICE_ACCOUNT_STALE_MS };
 const resources = {
-  paper: replayPollResource<PracticeAccount>(practiceAccountPath('paper'), () => PRACTICE_ACCOUNT_POLL_MS),
-  sim: replayPollResource<PracticeAccount>(practiceAccountPath('sim'), () => PRACTICE_ACCOUNT_POLL_MS),
+  paper: replayPollResource<PracticeAccount>(practiceAccountPath('paper'), () => PRACTICE_ACCOUNT_POLL_MS, options),
+  sim: replayPollResource<PracticeAccount>(practiceAccountPath('sim'), () => PRACTICE_ACCOUNT_POLL_MS, options),
 } as const;
 
 export const practiceAccountResource = (venue: PracticeVenue) => resources[venue];

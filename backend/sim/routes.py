@@ -96,8 +96,16 @@ def get_sim_replay() -> dict:
 
 @router.post("/api/sim/replay")
 def post_sim_replay(body: SimReplayRequest) -> dict:
-    """Select capture day+ticker for Sim, or clear both to unload it."""
+    """Select capture day+ticker for Sim, or clear both to unload it.
+
+    Answers the same envelope as ``GET /api/sim/clock``: the clock the selection
+    left (a capture aligns the playhead to its first print) plus the replay
+    fields. The replay fields alone made the desk read ``--:--:--`` and park the
+    thumb at the open until its next poll (QA 2026-09-22, C42).
+    """
     from sim import replay as _replay
+    from sim import session_clock as _clock
     from sim.mode import is_sim_mode
 
-    return {"sim": is_sim_mode(), **_replay.set_replay(body.date, body.symbol)}
+    replay_fields = _replay.set_replay(body.date, body.symbol)
+    return {"sim": is_sim_mode(), **_clock.status_payload(), **replay_fields}

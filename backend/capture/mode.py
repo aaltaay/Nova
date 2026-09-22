@@ -65,12 +65,32 @@ def set_capture_mode(
                 flush_book(sym)
     result = transition(lambda: _set_capture_mode(enabled, symbol=symbol, protect_active=protect_active))
     out = status_payload() | (result or {})
-    # Admission succeeded but the first write is pending. Report that on polls,
-    # not as a failed command (the UI retains command errors until next action).
-    started = requested or capture_symbol() or ""
-    if enabled and result is None and out.get("error") == _waiting_error(started):
-        out.pop("error", None)
+    if not (result or {}).get("error"):
+        out = _own_reply_error(out, enabled=enabled, symbol=requested or capture_symbol() or "")
     return out
+
+
+def _own_reply_error(out: dict[str, Any], *, enabled: bool, symbol: str) -> dict[str, Any]:
+    """A command that went through answers only for its own symbol (QA 2026-09-22, C55).
+
+    The status payload's top-level ``error`` is the first recording's trouble
+    (or a sticky dispatch error), so starting or stopping B used to come back
+    as a failure carrying A's tape error. The reply keeps just B's own error --
+    minus the "waiting for the first print" state right after admission, which
+    polls report, not the command -- and the writer's, which stops everything.
+    """
+    own = (out.get("errors") or {}).get(symbol) if enabled else None
+    if own == _waiting_error(symbol):
+        # Admission succeeded but the first write is pending. Report that on polls,
+        # not as a failed command (the UI retains command errors until next action).
+        own = None
+    error = own or (out.get("writer") or {}).get("error")
+    reply = dict(out)
+    if error:
+        reply["error"] = error
+    else:
+        reply.pop("error", None)
+    return reply
 
 
 def _set_capture_mode(
@@ -165,6 +185,9 @@ def status_payload() -> dict[str, Any]:
         "mode": "record" if on else None,
         "capture_symbol": symbols[0] if on else None,
         "capture_symbols": symbols,
+        # Each recording symbol's own trouble, so no reader pins one symbol's
+        # tape error on another (C55); ``error`` stays the legacy single value.
+        "errors": {},
     }
     if err:
         out["error"] = err
@@ -203,6 +226,9 @@ def status_payload() -> dict[str, Any]:
             if books["note"]:
                 entry["warning"] = books["note"]
             sessions[sym] = entry
+            own_error = entry.get("error") or rec["error"]
+            if own_error:
+                out["errors"][sym] = own_error
             all_healthy = all_healthy and entry["healthy"]
             first_error = first_error or entry.get("error")
             first_warning = first_warning or entry.get("warning")

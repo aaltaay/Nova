@@ -14,9 +14,11 @@ export function formatReplayKey(key: ReplayKeyWire): string {
   if (key == null) return '';
   if (typeof key === 'string') return key.trim();
   if (!Array.isArray(key)) return String(key).trim();
-  const parts = key.map((p) => (p == null ? '' : String(p).trim())).filter(Boolean);
-  if (parts.length === 0) return '';
-  const [source, symbol, date, start, end] = parts;
+  // Positional: `[source, symbol, date, start, end]`. A null member stays in its
+  // slot -- filtering first shifted the rest (C66: a null date read the start as the date).
+  const parts = key.map((p) => (p == null ? '' : String(p).trim()));
+  if (!parts.some(Boolean)) return '';
+  const [source = '', symbol = '', date = '', start = '', end = ''] = parts;
   const head = [symbol, date].filter(Boolean).join(' · ');
   const window = start && end ? ` · ${start}–${end}` : start ? ` · ${start}` : '';
   const kind = source ? PRACTICE_REPLAY_SOURCE_LABELS[source] ?? source : '';

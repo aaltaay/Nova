@@ -9,17 +9,21 @@ import { placeActionLabel } from './ticketSide';
 import type { IbkrAccountSummary } from './types';
 import type { IbkrListingFlags } from '../types/ticker';
 
+// The Sim venue reads its clock; no request leaves the test.
+vi.mock('../api/novaFetch', () => ({ novaFetch: vi.fn(async () => { throw new TypeError('offline'); }) }));
 vi.mock('./ticketUnlock', () => ({
   readTicketSessionUnlocked: () => true,
   tryUnlockTicketSession: () => true,
   subscribeTicketSessionUnlock: () => () => {},
 }));
 
+// Side vs account class is an IBKR (Live) question: the practice venues never short (below).
+const venue = vi.hoisted(() => ({ mode: 'live' as 'live' | 'paper' | 'sim' }));
 vi.mock('./useIbkrStatus', () => ({
   useIbkrStatus: () => ({
     connected: true,
-    mode: 'paper',
-    spend_status: 'paper_armed',
+    mode: venue.mode,
+    spend_status: `${venue.mode}_armed`,
     short_enabled: true,
   }),
 }));
@@ -38,6 +42,7 @@ describe('ManualOrderTicket Side vs account_class', () => {
 
   beforeEach(() => {
     localStorage.clear();
+    venue.mode = 'live';
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -55,9 +60,9 @@ describe('ManualOrderTicket Side vs account_class', () => {
       root.render(
         <ManualOrderTicket
           symbol="NVDA"
-          mode="paper"
+          mode={venue.mode}
           connected
-          spendStatus="paper_armed"
+          spendStatus={`${venue.mode}_armed`}
           summary={summary}
           position={null}
           referencePrice={100}
@@ -116,5 +121,21 @@ describe('ManualOrderTicket Side vs account_class', () => {
     const btn = container.querySelector('.manual-order-submit') as HTMLButtonElement;
     expect(btn.textContent).toBe(placeActionLabel('short', 'NVDA'));
     expect(btn.classList.contains('manual-order-submit--short')).toBe(true);
+  });
+
+  it.each(['paper', 'sim'] as const)('on %s the Short is refused with Nova\'s reason, however shortable the symbol (V13)', (mode) => {
+    venue.mode = mode;
+    render({
+      connected: true,
+      mode,
+      AccountType: 'INDIVIDUAL',
+      account_class: 'margin',
+      BuyingPower: 50_000,
+    });
+    const short = container.querySelector('[data-testid="manual-order-side-short"]') as HTMLButtonElement;
+    expect(short).toBeTruthy();
+    expect(short.disabled).toBe(true);
+    expect(short.title).toBe('Nova does not support short entries yet');
+    expect(container.textContent).not.toMatch(/check TWS/);
   });
 });

@@ -164,7 +164,12 @@ def _finalize_row(row: dict[str, Any], *, pid: Any) -> dict[str, Any] | None:
         name: max(0, int(counts.get(name, 0)) - int(base_counts.get(name) or 0))
         for name in CAPTURE_STREAM_NAMES
     }
-    stopped_et = datetime.now(ET).isoformat()
+    recovered_et = datetime.now(ET).isoformat()
+    # The dead segment ended when the dead process last wrote, not when this one
+    # started: stamping "now" drew the dead stretch before a restart as recorded
+    # (QA 2026-09-22, C41). No stream file at all falls back to now.
+    last_write = _last_write_ts(session_dir)
+    stopped_et = datetime.fromtimestamp(last_write, ET).isoformat() if last_write is not None else recovered_et
     segment_started = str(prior.get("segment_started_et") or row.get("started_et") or stopped_et)
     man = merge(
         prior,
@@ -178,7 +183,7 @@ def _finalize_row(row: dict[str, Any], *, pid: Any) -> dict[str, Any] | None:
         reason=CAPTURE_STOP_RESTART,
     )
     man["started_et"] = prior.get("started_et") or row.get("started_et") or segment_started
-    man["recovered_et"] = stopped_et
+    man["recovered_et"] = recovered_et
     man["recovered_from_pid"] = pid
     if torn:
         man["torn_tail"] = True
@@ -197,7 +202,7 @@ def _finalize_row(row: dict[str, Any], *, pid: Any) -> dict[str, Any] | None:
         "torn_tail": torn,
         # When the dead process last wrote: the newest stream file. This is what
         # a restart resume is bounded on -- not when the recording began.
-        "last_write_ts": _last_write_ts(session_dir),
+        "last_write_ts": last_write,
     }
     logger.warning(
         "CAPTURE: recording of %s was interrupted by a restart -- finalized "
@@ -210,11 +215,6 @@ def _finalize_row(row: dict[str, Any], *, pid: Any) -> dict[str, Any] | None:
 
 
 def _last_write_ts(session_dir: Path) -> float | None:
-    newest: float | None = None
-    for name in CAPTURE_STREAM_NAMES:
-        try:
-            mtime = (session_dir / f"{name}.jsonl").stat().st_mtime
-        except OSError:
-            continue
-        newest = mtime if newest is None else max(newest, mtime)
-    return newest
+    from capture.segments import last_write_ts
+
+    return last_write_ts(session_dir)

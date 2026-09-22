@@ -1,8 +1,9 @@
 import { useCallback, useSyncExternalStore } from 'react';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { matchesSimClockScrub, SIM_CLOCK_SCRUB_EVENT } from './simClockEvents';
-import { SIM_HISTORY_POLL_MS } from './simConstants';
+import { SIM_HISTORY_POLL_MS, SIM_HISTORY_REQUEST_FAILED } from './simConstants';
 import { replayPollResource } from './replayPollResource';
+import { parseHistoricalSnapshot } from './simPayloadParse';
 import type { HistoricalDepthBook, HistoricalSelection } from './historicalTypes';
 
 export interface HistoricalSnapshot {
@@ -36,7 +37,9 @@ function blank(symbol: string): HistoricalSnapshot {
 }
 const resources = new Map<string, ReturnType<typeof createResource>>();
 function createResource(symbol: string) {
-  const poller = replayPollResource<HistoricalSnapshot>(`/history/snapshot/${encodeURIComponent(symbol)}`, () => SIM_HISTORY_POLL_MS);
+  // Parsed at the boundary: `prints: null` or a junk row reads as no prints, never a crash (C9).
+  const poller = replayPollResource<HistoricalSnapshot>(`/history/snapshot/${encodeURIComponent(symbol)}`, () => SIM_HISTORY_POLL_MS,
+    { parse: parseHistoricalSnapshot, failure: SIM_HISTORY_REQUEST_FAILED });
   let count = 0;
   const seek = (event: Event) => {
     if (matchesSimClockScrub(event, symbol)) poller.invalidate(poller.getSnapshot().data?.active ? blank(symbol) : null);

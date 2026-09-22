@@ -4,13 +4,20 @@
  * header's DAY | GTC so what is shown is what is sent), the `Cost · BP after`
  * estimate from the same sizing the Place path runs, and whether this venue
  * estimates its fills.
+ *
+ * On Sim the tab's market reference is trusted only when the tab can fill:
+ * this symbol's replay is loaded, or the desk is at the live edge. Otherwise a
+ * Market order would be priced from a live last the quote card does not show
+ * (QA 2026-09-22, V24) -- the line is a dash with the reason instead.
  */
 import { useState } from 'react';
+import { TICKET_COST_NO_SIM_PRICE } from '../constantGroups/trader_chrome';
 import type { TradeDefaultTif } from '../constantGroups/trade_defaults';
 import {
   readTradeDefaultsPrefs,
   writeTradeDefaultsPrefs,
 } from '../settings/tradeDefaultsPrefs';
+import { useSimReplayTarget } from '../sim/useSimReplayTarget';
 import type { ManualOrderSide, ManualOrderType, QuantityMode } from './orderEntry';
 import { estimateTicketCost, type TicketCostEstimate } from './ticketCost';
 import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from './types';
@@ -38,12 +45,17 @@ export function useCompactTicket(p: Params): {
   practice: boolean;
 } {
   const [tif, setTif] = useState<TradeDefaultTif>(() => readTradeDefaultsPrefs().tif);
+  const { clock, target } = useSimReplayTarget(p.symbol);
 
   function selectTif(next: TradeDefaultTif) {
     writeTradeDefaultsPrefs({ ...readTradeDefaultsPrefs(), tif: next });
     setTif(next);
   }
 
+  const practice = p.mode === 'paper' || p.mode === 'sim';
+  // Sim: no clock yet is unknown, not trusted; the edge and this symbol's replay are.
+  const simPriceTrusted = p.mode !== 'sim'
+    || (clock != null && (target.kind === 'ok' || target.kind === 'live-edge'));
   const cost = estimateTicketCost(
     {
       symbol: p.symbol,
@@ -57,11 +69,13 @@ export function useCompactTicket(p: Params): {
       shortEntry: p.shortEntry,
     },
     {
-      marketReferencePrice: p.referencePrice,
+      marketReferencePrice: simPriceTrusted ? p.referencePrice : null,
       buyingPower: p.summary?.BuyingPower ?? null,
       positionQty: p.position?.qty ?? null,
     },
+    undefined,
+    { practice, priceNote: simPriceTrusted ? null : TICKET_COST_NO_SIM_PRICE },
   );
 
-  return { tif, selectTif, cost, practice: p.mode === 'paper' || p.mode === 'sim' };
+  return { tif, selectTif, cost, practice };
 }

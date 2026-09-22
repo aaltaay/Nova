@@ -3,12 +3,14 @@
  * of that symbol before a historical download: it carries the recorded book
  * and tape, and it is selectable while still recording.
  */
+import { recordingUsable } from './captureRowFormat';
 import type { CaptureSessions } from './useSimSessionController';
 
 export interface OwnRecording {
   date: string;
   symbol: string;
-  prints: number;
+  /** Recorded prints; null while Nova has not counted them (a first segment still recording). */
+  prints: number | null;
   recording: boolean;
 }
 
@@ -32,10 +34,11 @@ export function ownRecordingFor(
   const sym = symbol.trim().toUpperCase();
   const dates = Object.keys(sessions.tickers_by_day ?? {}).sort().reverse();
   for (const date of [today, ...dates.filter((d) => d !== today)]) {
-    const row = (sessions.tickers_by_day?.[date] ?? []).find(
-      (t) => t.symbol.toUpperCase() === sym && t.usable !== false && !t.empty,
+    const rows = sessions.tickers_by_day?.[date];
+    const row = (Array.isArray(rows) ? rows : []).find(
+      (t) => String(t.symbol ?? '').toUpperCase() === sym && recordingUsable(t),
     );
-    if (row) return { date, symbol: sym, prints: row.prints, recording: date === today && (row.status === 'recording') };
+    if (row) return { date, symbol: sym, prints: row.prints ?? null, recording: date === today && row.status === 'recording' };
   }
   return null;
 }

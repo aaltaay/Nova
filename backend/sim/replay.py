@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 _date: str | None = None
 _symbol: str | None = None
 _load_info: dict[str, Any] | None = None
+# While ``capture_player.load`` reads the directory: not ok, not failed.
+_LOADING: dict[str, Any] = {"ok": None, "loading": True, "error": None}
 _generation = 0
 _selection_lock = threading.RLock()
 
@@ -58,15 +60,20 @@ def status_payload() -> dict[str, Any]:
     if historical:
         return dict(replay_date=historical["date"], replay_symbol=historical["symbol"],
                     replay_source="historical", replay_load=historical,
-                    replay_ok=True, replay_error=None)
+                    replay_ok=True, replay_loading=False, replay_error=None)
     with _selection_lock:
         capture = is_capture_replay()
+        # A capture still being read from disk is neither loaded nor failed: it
+        # reports ``replay_loading`` with ``replay_ok: null`` -- it used to read
+        # as a red failure named "Loading capture" (QA 2026-09-22, C59).
+        loading = bool(_load_info and _load_info.get("loading"))
         out: dict[str, Any] = {
             "replay_date": _date,
             "replay_symbol": _symbol,
             "replay_source": "capture" if capture else "none",
-            "replay_ok": not _load_info or bool(_load_info.get("ok")),
-            "replay_error": _load_info.get("error") if _load_info else None,
+            "replay_ok": None if loading else (not _load_info or bool(_load_info.get("ok"))),
+            "replay_loading": loading,
+            "replay_error": None if loading else (_load_info.get("error") if _load_info else None),
         }
         if _load_info:
             out["replay_load"] = _load_info
@@ -116,7 +123,7 @@ def set_replay(
                     _clock.keep_time_of_day(left_historical, notify=False)
                 player_generation = None
             else:
-                _load_info = {"ok": False, "error": "Loading capture"}
+                _load_info = dict(_LOADING)
                 player_generation = _player.prepare_load()
     if not d or not s:
         _refresh_views(generation)

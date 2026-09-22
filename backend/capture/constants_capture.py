@@ -64,3 +64,11 @@ CAPTURE_STOP_OPERATOR = "operator"
 CAPTURE_STOP_ROTATION = "rotation"
 CAPTURE_STOP_FAILURE = "failure"
 CAPTURE_STOP_RESTART = "restart"
+
+# --- QA batch fix/qa-sim-replay (2026-09-22) ----------------------------------
+# The only manifest ``source`` a Session Record carries. ADR 019 removed the
+# synthetic SIM1 instrument; its old ``source: "sim"`` directories stay on disk
+# and must never be offered or loaded as a recording (C21). A manifest without
+# a source predates the stamp and is still an IBKR recording.
+CAPTURE_SOURCE_IBKR = "ibkr"
+CAPTURE_NOT_IBKR_REASON = "Not a Session Record: synthetic data from the removed SIM1 instrument (ADR 019)"

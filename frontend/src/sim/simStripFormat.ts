@@ -1,11 +1,21 @@
 /**
- * Pure helpers for the strip scrubber: clock text, the playhead tag, and the
- * band's segments (recorded / gap / downloaded / failed) as fractions of the
- * 04:00-20:00 session. Nothing here reads the DOM or a store.
+ * Pure helpers for the strip scrubber: clock text, the playhead tag, the
+ * band's scale (bound labels, regular-hours underlay and ticks) and its
+ * segments (recorded / gap / downloaded / failed) -- all as fractions of the
+ * clock's own session window: 04:00-20:00 by default, the loaded window
+ * (e.g. 09:15-11:30) once a historical replay narrows it. Nothing here reads
+ * the DOM or a store.
  */
-import { simStripFailedTitle } from '../constantGroups/trader_chrome';
+import { SESSION_RTH_CLOSE_MIN_ET, SESSION_RTH_OPEN_MIN_ET } from '../constantGroups/market_ui';
 import {
-  SIM_ET_TIME_ZONE, SIM_SESSION_MINUTES, SIM_SESSION_OPEN_LABEL, simCaptureGapTitle,
+  SIM_STRIP_RTH_CLOSE,
+  SIM_STRIP_RTH_CLOSE_FRACTION,
+  SIM_STRIP_RTH_OPEN,
+  SIM_STRIP_RTH_OPEN_FRACTION,
+  simStripFailedTitle,
+} from '../constantGroups/trader_chrome';
+import {
+  SIM_ET_TIME_ZONE, SIM_SESSION_CLOSE_LABEL, SIM_SESSION_MINUTES, SIM_SESSION_OPEN_LABEL, simCaptureGapTitle,
   simRecordedLaneNoneTitle, simRecordedLaneTitle,
 } from './simConstants';
 import { captureBandSegments, coverageRanges } from './simCoverage';
@@ -52,8 +62,67 @@ export function todayEt(now: Date = new Date()): string {
   }
 }
 
+/** "HH:MM" of an ET stamp, or null when it does not parse. */
+function etHourMinute(iso: string | null | undefined): string | null {
+  if (!iso || !Number.isFinite(Date.parse(iso))) return null;
+  const hhmm = formatClock(iso).slice(0, 5);
+  return /^\d{2}:\d{2}$/.test(hhmm) ? hhmm : null;
+}
+
 export function sessionOpeningLabel(clock: SimClockState | null | undefined): string {
-  return clock?.session_open_et ? formatClock(clock.session_open_et).slice(0, 5) : SIM_SESSION_OPEN_LABEL;
+  return etHourMinute(clock?.session_open_et) ?? SIM_SESSION_OPEN_LABEL;
+}
+
+export interface StripScale {
+  /** The band's bounds as the clock states them: "04:00" / "20:00", or the loaded window's. */
+  openLabel: string;
+  closeLabel: string;
+  /** Regular hours inside the band, as fractions; null when the band holds none of them. */
+  rth: { left: number; width: number } | null;
+  /** The 09:30 / 16:00 ticks that fall strictly inside the band. */
+  ticks: { left: number; label: string }[];
+}
+
+/** The default 04:00-20:00 band, for a clock that has not stated its window yet. */
+const DEFAULT_SCALE: StripScale = {
+  openLabel: SIM_SESSION_OPEN_LABEL,
+  closeLabel: SIM_SESSION_CLOSE_LABEL,
+  rth: { left: SIM_STRIP_RTH_OPEN_FRACTION, width: SIM_STRIP_RTH_CLOSE_FRACTION - SIM_STRIP_RTH_OPEN_FRACTION },
+  ticks: [
+    { left: SIM_STRIP_RTH_OPEN_FRACTION, label: SIM_STRIP_RTH_OPEN },
+    { left: SIM_STRIP_RTH_CLOSE_FRACTION, label: SIM_STRIP_RTH_CLOSE },
+  ],
+};
+
+/**
+ * The band's scale from the clock's own session bounds -- the same domain the
+ * playhead, the segments and the recorded lane are placed on (QA 2026-09-22,
+ * V10 / C27: a 09:15-11:30 window used to be labelled 04:00 ... 20:00 with the
+ * 09:30 / 16:00 ticks at their 04:00-20:00 positions). A tick outside the
+ * window is hidden; the underlay is clipped to it.
+ */
+export function stripScale(clock: SimClockState | null | undefined): StripScale {
+  const open = epoch(clock?.session_open_et);
+  const close = epoch(clock?.session_close_et);
+  const openLabel = etHourMinute(clock?.session_open_et);
+  const closeLabel = etHourMinute(clock?.session_close_et);
+  if (open == null || close == null || close <= open || !openLabel || !closeLabel) return DEFAULT_SCALE;
+  // Minutes since ET midnight of the open; a session never spans a DST change (04:00 at the earliest).
+  const openMinute = Number(openLabel.slice(0, 2)) * 60 + Number(openLabel.slice(3, 5));
+  const at = (minuteOfDay: number) => ((minuteOfDay - openMinute) * 60) / (close - open);
+  const rthOpen = at(SESSION_RTH_OPEN_MIN_ET);
+  const rthClose = at(SESSION_RTH_CLOSE_MIN_ET);
+  const left = Math.max(0, Math.min(1, rthOpen));
+  const right = Math.max(0, Math.min(1, rthClose));
+  return {
+    openLabel,
+    closeLabel,
+    rth: right > left ? { left, width: right - left } : null,
+    ticks: [
+      { left: rthOpen, label: SIM_STRIP_RTH_OPEN },
+      { left: rthClose, label: SIM_STRIP_RTH_CLOSE },
+    ].filter(tick => tick.left > 0 && tick.left < 1),
+  };
 }
 
 /**
@@ -85,6 +154,13 @@ function epoch(value: string | null | undefined): number | null {
   if (!value) return null;
   const ms = Date.parse(value);
   return Number.isFinite(ms) ? ms / 1000 : null;
+}
+
+/** The clock's session window as epoch seconds; null until the clock states both bounds. */
+export function clockWindow(clock: SimClockState | null | undefined): { open: number; close: number } | null {
+  const open = epoch(clock?.session_open_et);
+  const close = epoch(clock?.session_close_et);
+  return open != null && close != null && close > open ? { open, close } : null;
 }
 
 /** Session minute (from the open) of an epoch second; null when the clock has no session bounds. */

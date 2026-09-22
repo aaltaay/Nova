@@ -2,13 +2,18 @@ import { useRef, useState } from 'react';
 import { Popover } from 'radix-ui';
 import { useWorkspace } from '../workspace';
 import { etTime, previousEtWeekday } from './historicalReplayFormat';
-import { SIM_HISTORY_LARGE_WINDOW_MINUTES, SIM_HISTORY_PAGE_INTERVAL_SEC, SIM_SESSION_CLOSE_LABEL, SIM_SESSION_OPEN_LABEL } from './simConstants';
+import {
+  SIM_HISTORY_LARGE_WINDOW_MINUTES, SIM_HISTORY_NO_TRADES_YET, SIM_HISTORY_PAGE_INTERVAL_SEC, SIM_SESSION_CLOSE_LABEL,
+  SIM_SESSION_OPEN_LABEL,
+} from './simConstants';
 import { useHistoricalStatus, historicalStatus } from './historicalStatusStore';
 import { useReplayActions } from './useReplayActions';
 import { selectHistoricalReplay } from './historicalReplayLoad';
 import { HistoricalDownloads } from './HistoricalDownloads';
 import { coverageLabel } from './simCoverage';
-import { jobStatusLine, selectionStatusLine, validateHistoricalWindow, windowLabel, windowMinutes } from './historicalProgress';
+import {
+  currentJob, jobStatusLine, nothingDownloaded, selectionStatusLine, validateHistoricalWindow, windowLabel, windowMinutes,
+} from './historicalProgress';
 import type { HistoricalJob, HistoricalWindow } from './historicalTypes';
 
 export function HistoricalReplayPanel() {
@@ -27,9 +32,8 @@ export function HistoricalReplayPanel() {
   const jobs = Array.isArray(status.data?.jobs) ? status.data.jobs : [];
   const selection = status.data?.selection;
   const spec: HistoricalWindow = { symbol: symbol.trim().toUpperCase(), date: date ?? status.data?.default_date ?? previousEtWeekday(), start, end };
-  const primary = jobs.find(job => !job.stale && ['running', 'pause_requested'].includes(job.status))
-    ?? jobs.find(job => ['running', 'pause_requested'].includes(job.status))
-    ?? jobs.find(job => job.stale || job.error) ?? jobs[0];
+  // The summary states the current download only; an old failure stays in the list (V41).
+  const primary = currentJob(jobs);
   const validate = () => { const message = validateHistoricalWindow(spec); setFormError(message ?? ''); return !message; };
   const update = (setter: (value: string) => void, value: string) => { setter(value); setFormError(''); };
   async function load() {
@@ -51,9 +55,11 @@ export function HistoricalReplayPanel() {
     `${windowLabel(selection)}  -  ${selection.trade_count?.toLocaleString() ?? 'Unknown'} downloaded prints.`,
     selection.download_status === 'missing'
       ? 'No downloaded trades for this window; candles appear only if stored.'
-      : (selection.coverage?.length ?? 0) > 1
-        ? `Trades downloaded ${coverageLabel(selection, ts => etTime(ts).slice(0, 5))} ET  -  ${selection.download_status ?? 'coverage unknown'}.`
-        : `Trades through ${etTime(selection.coverage_through)} ET  -  ${selection.download_status ?? 'coverage unknown'}.`,
+      : nothingDownloaded(selection.covered_seconds)
+        ? `${SIM_HISTORY_NO_TRADES_YET}  -  ${selection.download_status ?? 'coverage unknown'}.`
+        : (selection.coverage?.length ?? 0) > 1
+          ? `Trades downloaded ${coverageLabel(selection, ts => etTime(ts).slice(0, 5))} ET  -  ${selection.download_status ?? 'coverage unknown'}.`
+          : `Trades through ${etTime(selection.coverage_through)} ET  -  ${selection.download_status ?? 'coverage unknown'}.`,
   ].join(' ');
   return <div className="sim-history">
     <Popover.Root open={open} onOpenChange={setOpen}>

@@ -12,9 +12,11 @@ from zoneinfo import ZoneInfo
 
 from capture.recorder import capture_root
 from capture.constants_capture import (
-    CAPTURE_CHART_DEFAULT_LIMIT, CAPTURE_CHART_MAX_LIMIT, CAPTURE_L2_LOAD_LIMIT,
+    CAPTURE_CHART_DEFAULT_LIMIT, CAPTURE_CHART_MAX_LIMIT, CAPTURE_L2_LOAD_LIMIT, CAPTURE_NOT_IBKR_REASON,
 )
 from capture.schema import read_manifest
+from capture.segments import with_open_segment
+from capture.sessions import is_ibkr_source
 from sim.capture_reader import read_jsonl as _read_jsonl, usable_rows, new_diagnostics, sample_l2
 
 logger = logging.getLogger(__name__)
@@ -86,6 +88,9 @@ def load(date: str, symbol: str, *, generation: int | None = None) -> dict[str, 
     diagnostics = new_diagnostics()
     try:
         _manifest, diagnostics["legacy_schema"] = read_manifest(root)
+        if not is_ibkr_source(_manifest):
+            # ADR 019 removed the synthetic instrument; its old directories are not recordings (C21).
+            return failure(CAPTURE_NOT_IBKR_REASON, diagnostics)
         def read(name: str, kind: str) -> list[dict]:
             return usable_rows(_read_jsonl(root / (name + ".jsonl"), diagnostics), kind, symbol, diagnostics)
         prints = read("prints", "prints")
@@ -128,9 +133,25 @@ def load(date: str, symbol: str, *, generation: int | None = None) -> dict[str, 
         "first_ts": first_ts,
         "last_ts": last_ts,
         # Recorded stretches (with why each ended) so the scrubber can draw
-        # them against the session and a gap as a gap.
-        "segments": [dict(seg) for seg in _manifest.get("segments", []) if isinstance(seg, dict)],
+        # them against the session and a gap as a gap -- the one still being
+        # written included (``stopped_et`` null while this process records it),
+        # or a live recording's latest stretch reads as a gap (C41).
+        "segments": with_open_segment(_manifest, root, live=_recording_here(root)),
     }
+
+
+def _recording_here(root: Path) -> bool:
+    """This process is recording ``root`` right now (the recorder's lock-free status)."""
+    try:
+        from capture.recorder import status as recorder_status
+
+        sessions = recorder_status().get("sessions") or {}
+    except Exception:
+        logger.warning("CAPTURE PLAY: recorder status unavailable; an open segment ends at its last write",
+                       exc_info=True)
+        return False
+    return any(isinstance(row, dict) and row.get("recording") and row.get("dir") == str(root)
+               for row in sessions.values())
 
 
 def unload() -> None:

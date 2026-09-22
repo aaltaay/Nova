@@ -30,10 +30,12 @@ def _recording_fields() -> dict[str, Any]:
         record_symbol = capture["capture_symbol"]
         record_symbols = list(capture.get("capture_symbols") or [])
         record_error = capture.get("error")
+        record_errors = dict(capture.get("errors") or {})
         persistence = keepalive.status_fields(recorder_status(), record_symbols)
     except Exception:
         logger.exception("RECORD: capture status unavailable")
         record_error = "Recording status unavailable"
+        record_errors = {}
         recording = False
         record_symbol = None
         record_symbols = []
@@ -43,6 +45,8 @@ def _recording_fields() -> dict[str, Any]:
         "capture_symbols": record_symbols,
         "recording": recording,
         "capture_error": record_error,
+        # Per recording symbol (C55): a reader about one symbol reads its own entry.
+        "capture_errors": record_errors,
         **persistence,
     }
 

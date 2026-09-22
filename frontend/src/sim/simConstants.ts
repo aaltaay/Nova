@@ -116,9 +116,16 @@ export const SIM_WALL_CLOCK_TITLE =
 /** The quiet per-tab line at the edge; dismissable, never an offer. */
 export const SIM_TAB_LIVE_EDGE_TITLE = 'Live edge';
 export const SIM_TAB_LIVE_EDGE_NOTE = 'Following the wall clock; scrub back to replay.';
-export const simTabOwnRecording = (symbol: string, date: string, prints: number, recording: boolean): string =>
-  `Your Session Record of ${symbol} (${date}, ${prints.toLocaleString()} prints${recording ? ', still recording' : ''}) `
-  + 'can replay now — pick it under Day / Ticker above.';
+/**
+ * The own-recording line in a Sim tab. The Day / Ticker pickers live in the Sim
+ * strip's ⋯ menu under Load recording (QA 2026-09-22, V20: the old copy pointed
+ * "above", where nothing is); an uncounted recording never reads "-1 prints" (C22).
+ */
+export const simTabOwnRecording = (symbol: string, date: string, prints: number | null, recording: boolean): string => {
+  const count = prints != null && Number.isFinite(prints) && prints >= 0 ? `${prints.toLocaleString()} prints` : 'prints recorded';
+  return `Your Session Record of ${symbol} (${date}, ${count}${recording ? ', still recording' : ''}) `
+    + 'can replay now — open ⋯ on the Sim strip and pick it under Load recording.';
+};
 export const simTabOtherSymbolLead = (tab: string, replaySymbol: string): string =>
   `${replaySymbol} is loaded, so ${tab} won't fill.`;
 export const simTabOfferDownload = (label: string, instead: boolean): string =>
@@ -141,10 +148,16 @@ export const simTabOfferGatewayWaiting = (label: string): string =>
   `Waiting for IB Gateway -- ${label} downloads as soon as it's up. Finish the login in the Gateway window if it asks.`;
 export const simTabOfferRetrying = (label: string): string =>
   `IB Gateway is back -- retrying ${label}.`;
-export const simTabOfferNotAnswering = (label: string, attempt: number, max: number): string =>
-  `IBKR isn't answering IB Gateway -- retrying ${label} every minute (${attempt} of ${max}).`;
-export const simTabOfferNotAnsweringGaveUp = (label: string): string =>
-  `IBKR isn't answering IB Gateway, so ${label} can't download. Check the Gateway window for a login, 2FA prompt or maintenance notice.`;
+/**
+ * A download that failed because IBKR did not answer: said in the past tense
+ * with when, because the failure is the last attempt's, not the Gateway's
+ * state now -- the header may well say READY (QA 2026-09-22, V38).
+ */
+export const simTabOfferNotAnswering = (label: string, attempt: number, max: number, failedAt?: string | null): string =>
+  `IBKR didn't answer IB Gateway ${failedAt ? `at ${failedAt}` : 'on the last try'} -- retrying ${label} every minute (${attempt} of ${max}).`;
+export const simTabOfferNotAnsweringGaveUp = (label: string, failedAt?: string | null): string =>
+  `IBKR didn't answer IB Gateway${failedAt ? ` (last try ${failedAt})` : ''}, so ${label} hasn't downloaded. `
+  + 'Check the Gateway window for a login, 2FA prompt or maintenance notice, then Reconnect.';
 export const SIM_TAB_ACTION_DOWNLOAD = 'Download';
 export const SIM_TAB_ACTION_LOAD = 'Load';
 export const SIM_TAB_ACTION_RESUME = 'Resume';
@@ -174,3 +187,41 @@ export const SIM_RAIL_LOADING_NOTE = 'Loading replay...';
 export const simRecordedLaneTitle = (symbol: string, ranges: string) => `Recorded by Nova: ${symbol} ${ranges} ET`;
 export const simRecordedLaneNoneTitle = (symbol: string, date: string) =>
   `Not recorded by Nova: no Session Record for ${symbol}${date ? ` on ${date}` : ''}`;
+
+/* ── QA batch fix/qa-sim-replay (2026-09-22): request failures, loading, records ── */
+
+/** A request failure with no server message says who failed -- never "Historical replay" for a clock or a listing. */
+export const SIM_REQUEST_FAILED_DEFAULT = 'Nova request failed';
+export const SIM_HISTORY_REQUEST_FAILED = 'Historical replay request failed';
+/** A plain-text error body (Starlette's "Internal Server Error") is quoted only when this short. */
+export const SIM_REQUEST_PLAIN_ERROR_MAX_CHARS = 160;
+
+/** Session Record rows (Records page, Day / Ticker pickers): words, never raw manifest codes or a -1. */
+export const CAPTURE_SOURCE_IBKR = 'ibkr';
+export const CAPTURE_NOT_IBKR_REASON = 'Not a Session Record: synthetic data from the removed SIM1 instrument';
+export const CAPTURE_EMPTY_REASON = 'Empty recording';
+export const CAPTURE_PRINTS_PRESENT = 'prints present';
+export const CAPTURE_PRINTS_PRESENT_SHORT = 'data present';
+export const CAPTURE_PRINTS_RECORDING = 'recording…';
+export const CAPTURE_STATUS_WORDS: Record<string, string> = {
+  recording: 'Recording',
+  stopped_partial_ok: 'Stopped',
+  interrupted: 'Cut by a Nova restart',
+  failed: 'Failed',
+  generated_full_day: 'Synthetic (not a recording)',
+};
+export const CAPTURE_REASON_WORDS: Record<string, string> = {
+  operator: 'Stopped',
+  rotation: 'Rolled to a new day',
+  failure: 'Stopped on its own',
+  restart: 'Cut by a Nova restart',
+};
+/** A download that holds no seconds of its window says so -- never "Downloaded through 09:15:00". */
+export const SIM_HISTORY_NOTHING_DOWNLOADED = 'nothing downloaded';
+export const SIM_HISTORY_NOTHING_DOWNLOADED_LINE = 'Nothing downloaded yet.';
+export const SIM_HISTORY_NO_TRADES_YET = 'No trades downloaded yet for this window';
+/** The Sim bar's download summary names a stopped / failed / finished job only this long after its last update. */
+export const SIM_HISTORY_SUMMARY_RECENT_SEC = 15 * 60;
+/** A capture selection still being read from disk: neither loaded nor failed (`replay_loading`). */
+export const SIM_REPLAY_LOADING = 'Loading recording…';
+export const SIM_REPLAY_LOADING_TITLE = 'Nova is reading this Session Record from disk; the desk shows it once it has loaded.';

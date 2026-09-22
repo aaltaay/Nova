@@ -6,6 +6,7 @@
  * Historical replay panel: same window defaults, same job row, same progress.
  */
 import { progressPercent, validateHistoricalWindow } from './historicalProgress';
+import { etTime } from './historicalReplayFormat';
 import {
   SIM_HISTORY_GATEWAY_NOT_ANSWERING,
   SIM_HISTORY_GATEWAY_UNREACHABLE,
@@ -35,6 +36,8 @@ export type ReplayOffer =
    */
   | { kind: 'failed'; window: HistoricalWindow; error: string;
       gatewayUnreachable: boolean; retryAt: number | null; healing?: boolean;
+      /** When the job last failed (epoch s) -- a failure is the past attempt's, not the Gateway's state now. */
+      failedAt?: number | null;
       /** Gateway took the connection but IBKR never answered: retried slowly, reconnect offered. */
       gatewayNotAnswering?: boolean;
       /** Set by the hook while a not-answering failure is being retried / after it gave up. */
@@ -128,6 +131,7 @@ export function replayOffer(
       gatewayUnreachable: error.startsWith(SIM_HISTORY_GATEWAY_UNREACHABLE),
       gatewayNotAnswering,
       retryAt: job.updated == null ? null : job.updated + wait,
+      failedAt: job.updated ?? null,
     };
   }
   if (job) return { kind: 'stopped', window, percent: progressPercent(job) };
@@ -159,8 +163,8 @@ type CopyText = {
   gatewayDown: (label: string) => string;
   gatewayWaiting: (label: string) => string;
   retrying: (label: string) => string;
-  notAnswering: (label: string, attempt: number, max: number) => string;
-  notAnsweringGaveUp: (label: string) => string;
+  notAnswering: (label: string, attempt: number, max: number, failedAt?: string | null) => string;
+  notAnsweringGaveUp: (label: string, failedAt?: string | null) => string;
   duration: (seconds: number) => string;
 };
 
@@ -184,9 +188,10 @@ export function offerCopy(offer: ReplayOffer, instead: boolean, t: CopyText): Of
     case 'stopped': return { text: t.stopped(label, offer.percent ? ` at ${offer.percent.toFixed(0)}%` : ''), action: 'resume' };
     case 'failed':
       if (offer.gatewayNotAnswering) {
+        const failedAt = offer.failedAt != null && Number.isFinite(offer.failedAt) ? etTime(offer.failedAt).slice(0, 5) : null;
         return offer.gaveUp || !offer.healing
-          ? { text: t.notAnsweringGaveUp(label), action: 'reconnect' }
-          : { text: t.notAnswering(label, offer.attempt ?? 1, offer.maxAttempts ?? 1), action: 'reconnect' };
+          ? { text: t.notAnsweringGaveUp(label, failedAt), action: 'reconnect' }
+          : { text: t.notAnswering(label, offer.attempt ?? 1, offer.maxAttempts ?? 1, failedAt), action: 'reconnect' };
       }
       return offer.healing
         ? { text: t.retrying(label), action: null }

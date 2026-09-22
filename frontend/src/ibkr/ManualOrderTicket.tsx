@@ -74,6 +74,7 @@ export function ManualOrderTicket({
   const shortBlockReason = shortDisabledReason(
     ibkrStatus.short_enabled,
     listingIbkr,
+    mode,
   );
   const [quantityMode, setQuantityMode] = useState<QuantityMode>('shares');
   const [quantityValue, setQuantityValue] = useState(initial.quantityValue);

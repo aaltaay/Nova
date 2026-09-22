@@ -19,4 +19,12 @@ describe('formatReplayKey', () => {
   it('never throws on an unknown source or odd members', () => {
     expect(formatReplayKey(['weird', 'ABCD', null, 5])).toBe('ABCD · 5 (weird)');
   });
+
+  it('maps members by position: a null one never shifts the rest (C66)', () => {
+    // The date is missing: the window must not read as the date.
+    expect(formatReplayKey(['historical', 'GDC', null, '09:15', '11:30'])).toBe('GDC · 09:15–11:30 (download)');
+    expect(formatReplayKey([null, 'GRML', '2026-09-21'])).toBe('GRML · 2026-09-21');
+    expect(formatReplayKey(['capture', null, '2026-09-21'])).toBe('2026-09-21 (recording)');
+    expect(formatReplayKey([null, null, null])).toBe('');
+  });
 });

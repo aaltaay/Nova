@@ -33,7 +33,8 @@ export interface HistoricalSelection extends HistoricalWindow {
   job_id?: string | null;
 }
 export interface HistoricalJob extends HistoricalWindow {
-  id: string; kind: string; status: string; count: number; pages: number; error: string | null;
+  /** `count` / `pages` are null when the payload did not carry a number (parsed at the boundary, C7). */
+  id: string; kind: string; status: string; count: number | null; pages: number | null; error: string | null;
   cursor?: number; start_ts?: number; end_ts?: number; volume?: number; updated?: number;
   progress_pct?: number; downloaded_through?: number; eta_seconds?: number | null;
   stale?: boolean; age_seconds?: number; started?: number;

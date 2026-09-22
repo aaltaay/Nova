@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   gatewayReachable, offerCopy, offerDateLabel, offerWindow, replayOffer, type ReplayOffer,
 } from './simReplayOffer';
+import { simTabOfferNotAnswering, simTabOfferNotAnsweringGaveUp } from './simConstants';
 import type { HistoricalJob, HistoricalWindow } from './historicalTypes';
 
 // Sunday 2026-09-20 22:00 ET -- Friday's 04:00-20:00 session is finished.
@@ -71,8 +72,25 @@ describe('replayOffer', () => {
     expect(replayOffer(W, [job({ status: 'failed', error: 'Ticker could not be uniquely qualified by IBKR', updated: 1000 })]))
       .toEqual({
         kind: 'failed', window: W, error: 'Ticker could not be uniquely qualified by IBKR',
-        gatewayUnreachable: false, gatewayNotAnswering: false, retryAt: 1016,
+        gatewayUnreachable: false, gatewayNotAnswering: false, retryAt: 1016, failedAt: 1000,
       });
+  });
+
+  it('dates a not-answering failure instead of claiming IBKR is silent now (V38)', () => {
+    const t = {
+      download: () => '', ready: () => '', downloading: () => '', stopped: () => '', failed: () => '',
+      busy: () => '', gatewayDown: () => '', gatewayWaiting: () => '', retrying: () => '', duration: () => '',
+      notAnswering: simTabOfferNotAnswering,
+      notAnsweringGaveUp: simTabOfferNotAnsweringGaveUp,
+    };
+    const updated = Date.parse('2026-09-22T05:23:00Z') / 1000; // 01:23 ET
+    const offer = replayOffer(W, [job({ status: 'failed', error: 'IBKR did not answer within 20s', updated })]);
+    expect(offer).toMatchObject({ kind: 'failed', gatewayNotAnswering: true, failedAt: updated });
+    const retrying = offerCopy({ ...offer, healing: true, attempt: 2, maxAttempts: 5 } as ReplayOffer, false, t).text;
+    expect(retrying).toMatch(/^IBKR didn't answer IB Gateway at 01:23 -- retrying/);
+    expect(retrying).not.toMatch(/isn't answering/);
+    const gaveUp = offerCopy({ ...offer, healing: false, gaveUp: true } as ReplayOffer, false, t).text;
+    expect(gaveUp).toMatch(/\(last try 01:23\), so IMCC .* hasn't downloaded/);
   });
 
   it('marks a Gateway-unreachable failure as one that heals by itself', () => {

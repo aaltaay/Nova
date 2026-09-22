@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { captureBandSegments, captureCoverageLabel, captureMissingSeconds, missingLabel } from './simCoverage';
 import type { SimClockState } from './simClockTypes';
 
@@ -32,12 +32,24 @@ describe('captureBandSegments', () => {
     expect(band[2]).toMatchObject({ kind: 'recorded' });
   });
 
-  it('an open segment runs to the session close; overlaps merge; nothing means nothing', () => {
-    const open = captureBandSegments(clock([
-      { started_et: '2026-09-21T19:00:00-04:00', stopped_et: null },
-    ]));
-    expect(open).toHaveLength(1);
-    expect(open[0].left + open[0].width).toBeCloseTo(1);
+  it('an open segment runs to now and never past the close (C41); overlaps merge; nothing means nothing', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      // Recording since 19:00, read at 19:30: recorded to 19:30, not to 20:00.
+      vi.setSystemTime(new Date('2026-09-21T19:30:00-04:00'));
+      const live = captureBandSegments(clock([{ started_et: '2026-09-21T19:00:00-04:00', stopped_et: null }]));
+      expect(live).toHaveLength(1);
+      expect(live[0].left + live[0].width).toBeCloseTo(15.5 * HOUR);
+      // A later day: the session is over, so it runs to the close.
+      vi.setSystemTime(new Date('2026-09-22T09:00:00-04:00'));
+      const open = captureBandSegments(clock([
+        { started_et: '2026-09-21T19:00:00-04:00', stopped_et: null },
+      ]));
+      expect(open).toHaveLength(1);
+      expect(open[0].left + open[0].width).toBeCloseTo(1);
+    } finally {
+      vi.useRealTimers();
+    }
     const overlapping = captureBandSegments(clock([
       { started_et: '2026-09-21T09:00:00-04:00', stopped_et: '2026-09-21T10:00:00-04:00' },
       { started_et: '2026-09-21T09:30:00-04:00', stopped_et: '2026-09-21T10:30:00-04:00' },
@@ -65,6 +77,23 @@ describe('captureMissingSeconds / captureCoverageLabel', () => {
   it('labels the recording and its gap with why', () => {
     expect(captureCoverageLabel(two, hhmm)).toBe('Recorded 11:46–11:47, 12:03–12:40 · 16m 12s missing (failure)');
     expect(captureCoverageLabel(clock([]), hhmm)).toBe('');
+  });
+
+  it('a gap the operator made by stopping is not "missing" (C64)', () => {
+    const stopped = clock([
+      { started_et: '2026-09-21T09:00:00-04:00', stopped_et: '2026-09-21T09:30:00-04:00', reason: 'operator' },
+      { started_et: '2026-09-21T14:42:00-04:00', stopped_et: '2026-09-21T15:00:00-04:00', reason: 'failure' },
+      { started_et: '2026-09-21T15:05:00-04:00', stopped_et: '2026-09-21T15:10:00-04:00', reason: 'operator' },
+    ]);
+    expect(captureMissingSeconds(stopped)).toBe(5 * 60);
+    expect(captureCoverageLabel(stopped, hhmm)).toMatch(/· 5m 00s missing \(failure\)$/);
+  });
+
+  it('segments that are not a list, or junk rows, read as no recording -- never a crash (C6)', () => {
+    const junk = { ...clock([]), replay_load: { segments: {} as never } } as SimClockState;
+    expect(captureBandSegments(junk)).toEqual([]);
+    expect(captureMissingSeconds(junk)).toBe(0);
+    expect(captureBandSegments(clock([null as never, 'x' as never, { started_et: 'bad', stopped_et: null }]))).toEqual([]);
   });
 
   it('missingLabel reads like a stopwatch', () => {

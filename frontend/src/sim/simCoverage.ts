@@ -12,10 +12,17 @@ import type { HistoricalSelection } from './historicalTypes';
 import type { HistoricalSnapshot } from './useHistoricalSnapshot';
 import type { CaptureSegment, SimClockState } from './simClockTypes';
 
-/** Downloaded ranges; a pre-range selection reads as its contiguous prefix. */
+/** A `[start, end)` pair of finite epoch seconds with end after start. */
+const isRange = (pair: unknown): pair is [number, number] => Array.isArray(pair) && pair.length === 2
+  && Number.isFinite(pair[0]) && Number.isFinite(pair[1]) && pair[1] > pair[0];
+
+/**
+ * Downloaded ranges; a pre-range selection reads as its contiguous prefix. Only
+ * well-formed pairs count -- one `null` element used to take the desk down (C6).
+ */
 export function coverageRanges(selection: HistoricalSelection | null | undefined): number[][] {
   if (!selection) return [];
-  if (Array.isArray(selection.coverage)) return selection.coverage;
+  if (Array.isArray(selection.coverage)) return selection.coverage.filter(isRange);
   const { start_ts: start, coverage_through: through } = selection;
   return start != null && through != null && through > start ? [[start, through]] : [];
 }
@@ -78,13 +85,26 @@ function epoch(value: string | null | undefined): number | null {
 
 interface Span { start: number; stop: number; reason: string | null }
 
-/** Recorded spans, merged where they overlap, in time order. */
-export function captureSpans(segments: CaptureSegment[] | null | undefined, sessionEnd: number): Span[] {
+/** Why a segment ended when the operator stopped it on purpose: the gap after it is not "missing". */
+const OPERATOR_STOP = 'operator';
+
+/**
+ * Recorded spans, merged where they overlap, in time order. An open segment
+ * (`stopped_et: null`, the one still recording) runs to now, never past the
+ * session end -- the future is not recorded (C41). Anything but a list of
+ * segment objects reads as no segments (C6).
+ */
+export function captureSpans(
+  segments: CaptureSegment[] | null | undefined,
+  sessionEnd: number,
+  now: number = Date.now() / 1000,
+): Span[] {
   const spans: Span[] = [];
-  for (const segment of segments ?? []) {
+  for (const segment of Array.isArray(segments) ? segments : []) {
+    if (!segment || typeof segment !== 'object') continue;
     const start = epoch(segment.started_et);
     if (start == null) continue;
-    const stop = Math.max(start, epoch(segment.stopped_et) ?? sessionEnd);
+    const stop = Math.max(start, epoch(segment.stopped_et) ?? Math.min(sessionEnd, now));
     spans.push({ start, stop, reason: segment.reason ?? null });
   }
   spans.sort((a, b) => a.start - b.start);
@@ -126,12 +146,19 @@ export function captureBandSegments(clock: SimClockState | null | undefined): Ca
   return out.filter(segment => segment.width > 0);
 }
 
-/** Seconds no recording covers between the first start and the last stop. */
+/**
+ * Seconds no recording covers between the first start and the last stop,
+ * except the gaps the operator made by stopping on purpose (C64) -- those
+ * were not recorded, but nothing went missing.
+ */
 export function captureMissingSeconds(clock: SimClockState | null | undefined): number {
   const close = epoch(clock?.session_close_et) ?? Number.MAX_SAFE_INTEGER;
   const spans = captureSpans(clock?.replay_load?.segments, close);
   let missing = 0;
-  for (let i = 1; i < spans.length; i += 1) missing += Math.max(0, spans[i].start - spans[i - 1].stop);
+  for (let i = 1; i < spans.length; i += 1) {
+    if (spans[i - 1].reason === OPERATOR_STOP) continue;
+    missing += Math.max(0, spans[i].start - spans[i - 1].stop);
+  }
   return Math.round(missing);
 }
 
@@ -156,7 +183,8 @@ export function captureCoverageLabel(
   if (!spans.length) return '';
   const ranges = spans.map(span => `${format(span.start)}–${format(span.stop)}`).join(', ');
   const missing = captureMissingSeconds(clock);
-  const reasons = Array.from(new Set(spans.slice(0, -1).map(span => span.reason).filter(Boolean))).join(', ');
+  const reasons = Array.from(new Set(spans.slice(0, -1).map(span => span.reason)
+    .filter(reason => reason && reason !== OPERATOR_STOP))).join(', ');
   return missing > 0
     ? `Recorded ${ranges} · ${missingLabel(missing)} missing${reasons ? ` (${reasons})` : ''}`
     : `Recorded ${ranges}`;

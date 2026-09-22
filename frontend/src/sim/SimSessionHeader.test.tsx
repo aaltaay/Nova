@@ -2,6 +2,7 @@
 import { act, useState } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { publishScannerNavState, resetNavRailStoreForTests, setNavPage } from '../workspace/navRailStore';
 import { SimSessionHeader } from './SimSessionHeader';
 import { SIM_CLOCK_SCRUB_EVENT } from './simClockEvents';
 
@@ -167,8 +168,10 @@ it('shows the session date the clock is replaying', async () => {
 
 it('failed capture selection shows an error without opening the rejected ticker, then retries', async () => {
   await mount();
+  // POST /api/sim/replay answers the whole clock (C42), a failed selection included.
   mocks.fetch.mockResolvedValueOnce({ ok: true, json: async () => ({
     sim: true, replay_source: 'none', replay_date: null, replay_symbol: null,
+    sim_time_et: '2026-09-19T06:00:00-04:00', minute_from_open: 120, minute_max: 960,
     replay_ok: false, replay_error: 'Capture contains no usable prints or quotes',
   }) });
   await act(async () => {
@@ -180,7 +183,9 @@ it('failed capture selection shows an error without opening the rejected ticker,
   expect(mocks.open).not.toHaveBeenCalled();
   expect((screen.getByTestId('sim-replay-day') as HTMLSelectElement).value).toBe('2026-09-19');
   expect((screen.getByTestId('sim-replay-ticker') as HTMLSelectElement).value).toBe('');
-  mocks.fetch.mockResolvedValueOnce({ ok: true, json: async () => ({ ...clock, replay_ok: true, replay_error: null }) });
+  mocks.fetch.mockResolvedValueOnce({ ok: true, json: async () => ({
+    ...clock, sim_time_et: '2026-09-19T06:00:00-04:00', replay_ok: true, replay_error: null,
+  }) });
   await act(async () => {
     fireEvent.change(screen.getByTestId('sim-replay-ticker'), { target: { value: 'AAPL' } });
   });
@@ -388,5 +393,90 @@ describe('the live edge (ADR 020 live-edge amendment)', () => {
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Follow wall clock' })));
     expect(mocks.fetch).toHaveBeenLastCalledWith(expect.stringContaining('/api/sim/clock'),
       expect.objectContaining({ body: JSON.stringify({ follow_wall: true }) }));
+  });
+});
+
+describe('QA 2026-09-22 batch (fix/qa-sim-replay)', () => {
+  afterEach(() => resetNavRailStoreForTests());
+
+  it('rides on the Scanner only -- Records, Account, the Desk and Bots carry no SIM SESSION bar (V41)', async () => {
+    await mount();
+    expect(screen.getByTestId('sim-session-header')).toBeTruthy();
+    for (const page of ['records', 'account', 'desk'] as const) {
+      act(() => setNavPage(page));
+      expect(screen.queryByTestId('sim-session-header')).toBeNull();
+    }
+    act(() => setNavPage('dashboard'));
+    expect(screen.getByTestId('sim-session-header')).toBeTruthy();
+    act(() => publishScannerNavState({ activeTab: 'strategy', railHighlight: 'strategy', counts: {} }));
+    expect(screen.queryByTestId('sim-session-header')).toBeNull();
+  });
+
+  it('places downloaded coverage on the clock window the slider spans, not the selection window (V10)', async () => {
+    // The clock spans the full 04:00-20:00 session while the (stale) selection says 09:15-11:30.
+    const start = Date.parse('2026-09-18T13:15:00Z') / 1000;
+    const end = Date.parse('2026-09-18T15:30:00Z') / 1000;
+    const selection = { symbol: 'IMCC', date: '2026-09-18', start: '09:15', end: '11:30',
+      start_ts: start, end_ts: end, coverage_through: start, coverage: [[start, start + 3600]] };
+    mocks.fetch.mockImplementation(async (url: string) => ({
+      ok: true,
+      json: async () => url.endsWith('/history') ? { jobs: [], selection }
+        : url.endsWith('/sessions') ? { days: [], tickers_by_day: {} }
+        : { sim: true, replay_source: 'historical', replay_symbol: 'IMCC', minute_from_open: 10, minute_max: 960,
+          session_open_et: '2026-09-18T04:00:00-04:00', session_close_et: '2026-09-18T20:00:00-04:00' },
+    }));
+    await mount();
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    const band = screen.getByTestId('sim-scrubber-coverage');
+    expect(parseFloat(band.style.left)).toBeCloseTo((5.25 / 16) * 100, 1);
+    expect(parseFloat(band.style.width)).toBeCloseTo((1 / 16) * 100, 1);
+    expect(screen.getByTestId('sim-session-bound-open').textContent).toBe('04:00');
+  });
+
+  it('a malformed segments list or coverage element never replaces the desk (C6)', async () => {
+    mocks.fetch.mockImplementation(async (url: string) => ({
+      ok: true,
+      json: async () => url.endsWith('/history') ? { jobs: [], selection: { symbol: 'IMCC', coverage: [null], start_ts: 1, end_ts: 2 } }
+        : url.endsWith('/sessions') ? { tickers_by_day: [] }
+        : { ...clock, replay_load: { segments: {} } },
+    }));
+    await mount();
+    expect(screen.getByTestId('sim-session-header')).toBeTruthy();
+    expect(screen.queryAllByTestId('sim-scrubber-recorded')).toHaveLength(0);
+  });
+
+  it('a replay reply without the clock never blanks it -- the clock is kept and re-read (C42)', async () => {
+    const full = { ...clock, sim_time_et: '2026-09-19T06:00:00-04:00', minute_from_open: 120 };
+    mocks.fetch.mockImplementation(async (url: string, init?: RequestInit) => ({
+      ok: true,
+      json: async () => url.endsWith('/history') ? { jobs: [] }
+        : url.endsWith('/sessions') ? { days: [{ date: '2026-09-19', ticker_count: 1 }], tickers_by_day: { '2026-09-19': [{ symbol: 'AAPL', prints: 100, l2: 10 }] } }
+        // An older backend's POST /api/sim/replay: the replay fields only.
+        : init?.method === 'POST' ? { sim: true, replay_source: 'capture', replay_date: '2026-09-19', replay_symbol: 'AAPL', replay_ok: true }
+          : full,
+    }));
+    await mount();
+    expect(screen.getByTestId('sim-session-clock').textContent).toBe('06:00:00 ET');
+    const gets = () => mocks.fetch.mock.calls.filter(([url, init]) => String(url).endsWith('/api/sim/clock') && !init?.method).length;
+    const before = gets();
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('sim-replay-ticker'), { target: { value: 'AAPL' } });
+    });
+    expect(screen.getByTestId('sim-session-clock').textContent).not.toMatch(/--:--:--/);
+    expect((screen.getByTestId('sim-session-scrubber') as HTMLInputElement).value).toBe('120');
+    expect(gets()).toBeGreaterThan(before);
+  });
+
+  it('a capture still loading reads as loading, never as a red failure (C59)', async () => {
+    mocks.fetch.mockImplementation(async (url: string) => ({
+      ok: true,
+      json: async () => url.endsWith('/history') ? { jobs: [] }
+        : url.endsWith('/sessions') ? { days: [], tickers_by_day: {} }
+        : { sim: true, replay_source: 'none', replay_ok: null, replay_loading: true, replay_error: null, minute_max: 960 },
+    }));
+    await mount();
+    expect(screen.getByTestId('sim-replay-loading').textContent).toBe('Loading recording…');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByTestId('sim-replay-empty')).toBeNull();
   });
 });

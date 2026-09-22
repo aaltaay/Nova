@@ -18,9 +18,11 @@ import {
   SIM_STRIP_MENU_TICKER,
 } from '../constantGroups/trader_chrome';
 import { HistoricalReplayPanel } from './HistoricalReplayPanel';
+import { recordingUnavailableReason, recordingUsable, recordPrintsShort } from './captureRowFormat';
 import { missingLabel } from './simCoverage';
 import {
-  SIM_LIVE_EDGE_EMPTY_NOTE, SIM_LIVE_EDGE_SOURCE, SIM_TAB_NO_REPLAY_TITLE, SIM_TAB_WHAT_SIM_IS, simCaptureMissingLabel,
+  SIM_LIVE_EDGE_EMPTY_NOTE, SIM_LIVE_EDGE_SOURCE, SIM_REPLAY_LOADING, SIM_REPLAY_LOADING_TITLE, SIM_TAB_NO_REPLAY_TITLE,
+  SIM_TAB_WHAT_SIM_IS, simCaptureMissingLabel,
 } from './simConstants';
 import type { SimClockState } from './simClockTypes';
 import type { CaptureSessions } from './useSimSessionController';
@@ -51,7 +53,8 @@ export function SimStripMenu({
   const invalid = diagnostics
     ? (diagnostics.malformed_rows ?? 0) + (diagnostics.invalid_timestamp_rows ?? 0) + (diagnostics.invalid_rows ?? 0)
     : 0;
-  const nothingLoaded = !historical && !capture && clock?.replay_ok !== false;
+  const loading = clock?.replay_loading === true && clock?.replay_ok !== false;
+  const nothingLoaded = !historical && !capture && clock?.replay_ok !== false && !loading;
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
@@ -68,6 +71,11 @@ export function SimStripMenu({
             {nothingLoaded && (
               <span className="sim-muted" data-testid="sim-replay-empty">
                 {liveEdge ? SIM_LIVE_EDGE_EMPTY_NOTE : `${SIM_TAB_NO_REPLAY_TITLE}. ${SIM_TAB_WHAT_SIM_IS}`}
+              </span>
+            )}
+            {loading && (
+              <span className="sim-muted" role="status" data-testid="sim-replay-loading" title={SIM_REPLAY_LOADING_TITLE}>
+                {SIM_REPLAY_LOADING}
               </span>
             )}
             {diagnostics && (
@@ -107,10 +115,8 @@ export function SimStripMenu({
                   }}>
                     <option value="">{day ? SIM_STRIP_MENU_PICK_TICKER : '--'}</option>
                     {tickers.map(ticker => (
-                      <option key={ticker.symbol} value={ticker.symbol} disabled={ticker.usable === false || ticker.empty}>
-                        {ticker.symbol} · {ticker.usable === false || ticker.empty
-                          ? ticker.unavailable_reason ?? 'Empty recording'
-                          : ticker.prints < 0 ? 'data present' : `${ticker.prints}p`}
+                      <option key={ticker.symbol} value={ticker.symbol} disabled={!recordingUsable(ticker)}>
+                        {ticker.symbol} · {recordingUnavailableReason(ticker) ?? recordPrintsShort(ticker.prints)}
                         {ticker.missing_sec ? ` · ${simCaptureMissingLabel(missingLabel(ticker.missing_sec))}` : ''}
                       </option>
                     ))}

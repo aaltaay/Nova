@@ -107,8 +107,10 @@ def tick() -> dict:
     from sim import replay as _replay
     payload: dict = {}
     if not history_playback.status():
+        # A failed selection must be acknowledged by selecting a source; a
+        # loading one (``replay_ok`` null) has nothing to tick yet.
         if not _replay.status_payload()["replay_ok"]:
-            return {}  # Failed selection must be acknowledged by selecting a source.
+            return {}
         # At the live edge the live feed owns the panels (ADR 020 live-edge
         # amendment): today's recording stays loaded for the scrub back, but
         # its prints are not forwarded on top of the live tape.

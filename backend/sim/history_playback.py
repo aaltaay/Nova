@@ -8,6 +8,7 @@ window (the download folding new ranges in) keeps it.
 from __future__ import annotations
 
 import bisect
+import logging
 import threading
 from array import array
 from contextlib import contextmanager
@@ -21,6 +22,8 @@ from sim import history_coverage as coverage, history_depth, history_sides
 from sim import history_store as store
 from sim.chart_replay import INTERVAL_SECONDS
 from sim.history_cache import CandleCache, previous_close
+
+logger = logging.getLogger(__name__)
 
 _lock = threading.RLock()
 _load_lock = threading.Lock()
@@ -78,6 +81,31 @@ def capture_transition():
 def status():
     with _lock:
         return dict(_selection.spec) if _selection else None
+
+
+def with_live_download_status(spec: dict, jobs: list[dict] | None = None) -> dict:
+    """``spec`` with its download status as of now, not as of the load (QA 2026-09-22, C38).
+
+    The selection copies the job's status when it loads, so a worker that died
+    left the tape saying "the download is fetching this moment now" for good.
+    Only an active label is re-read: from ``jobs`` (the listing, already
+    relabelled) when given, else from the store through the same rule.
+    """
+    job_id = spec.get("job_id")
+    if spec.get("download_status") not in store.ACTIVE or not job_id:
+        return spec
+    try:
+        if jobs is not None:
+            match = next((job for job in jobs if job.get("id") == job_id), None)
+            current = match["status"] if match else spec["download_status"]
+        else:
+            from sim import history_download
+
+            current = history_download.effective_status(store.get(job_id))
+    except Exception:
+        logger.warning("Historical replay: download status unavailable; keeping the loaded label", exc_info=True)
+        return spec
+    return spec if current == spec["download_status"] else dict(spec, download_status=current)
 
 
 def _load(spec: dict) -> Selection:
@@ -166,8 +194,9 @@ def snapshot(symbol: str):
     if not selected:
         return {'active': False}
     spec = selected.spec
+    selection = with_live_download_status(dict(spec)) if symbol == spec['symbol'] else dict(spec)
     result = dict(active=symbol == spec['symbol'], symbol=symbol, as_of=now.isoformat(),
-                  selection=dict(spec), prints=[], last=None, volume=None, source='completed_bars',
+                  selection=selection, prints=[], last=None, volume=None, source='completed_bars',
                   open=None, high=None, low=None, prev_close=None,
                   bid=None, ask=None, depth_available=False, depth=None, sides_recorded=0)
     if not result['active']:

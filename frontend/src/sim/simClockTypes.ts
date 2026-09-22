@@ -21,12 +21,15 @@ export interface SimClockState {
   replay_date?: string | null;
   replay_symbol?: string | null;
   replay_source?: string;
-  replay_ok?: boolean;
+  /** False: the selection failed. Null while a capture is still loading (`replay_loading`). */
+  replay_ok?: boolean | null;
+  /** A capture selection is being read from disk: neither loaded nor failed yet (C59). */
+  replay_loading?: boolean;
   replay_error?: string | null;
   replay_load?: {
-    l2_total: number; l2_loaded: number; l2_decimated: boolean;
-    malformed_rows: number; invalid_timestamp_rows: number; invalid_rows: number;
-    legacy_schema: boolean;
+    l2_total?: number; l2_loaded?: number; l2_decimated?: boolean;
+    malformed_rows?: number; invalid_timestamp_rows?: number; invalid_rows?: number;
+    legacy_schema?: boolean;
     /** Recorded stretches of a capture, with why each ended (manifest segments). */
     segments?: CaptureSegment[];
   };

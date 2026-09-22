@@ -23,7 +23,9 @@ interface Props {
 }
 
 export function historicalTapeFeed(snapshot: HistoricalSnapshot): TapeState {
-  const prints: TapePrint[] = snapshot.prints.map(p => ({
+  // The resource parses snapshots at the boundary; a hand-built one still never crashes the tape (C9).
+  const rows = Array.isArray(snapshot.prints) ? snapshot.prints : [];
+  const prints: TapePrint[] = rows.map(p => ({
     symbol: snapshot.symbol,
     replayId: p.ordinal == null ? undefined : `${snapshot.selection?.job_id ?? snapshot.symbol}:${p.ordinal}`,
     time: p.time,
@@ -56,7 +58,7 @@ export function HistoricalTimeSales({ symbol, snapshot, uiActive = true }: Props
     : noTrades ? SIM_REPLAY_TAPE_NO_TRADES : SIM_REPLAY_TAPE_EMPTY;
   return (
     <>
-    {snapshot.error && snapshot.prints.length > 0 && <p role="alert" className="sim-error">Replay update failed; showing last reached data. {snapshot.error}</p>}
+    {snapshot.error && feed.prints.length > 0 && <p role="alert" className="sim-error">Replay update failed; showing last reached data. {snapshot.error}</p>}
     <TimeSalesView
       symbol={symbol}
       feed={feed}

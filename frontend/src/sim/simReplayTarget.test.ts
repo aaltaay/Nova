@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { simRailNote, simReplayTarget } from './simReplayTarget';
+import { simRailNote, simReplayTarget, simVenueTagState } from './simReplayTarget';
 import { simEmptyQuoteDetail } from './historicalQuoteDetail';
 import type { TickerDetail } from '../types/ticker';
 import type { SimClockState } from './simClockTypes';
@@ -123,5 +123,26 @@ describe('the live edge (ADR 020 live-edge amendment)', () => {
   it('says "no replay" again the moment the desk leaves the edge', () => {
     expect(simRailNote('IMCC', clock({ live_edge: false, replay_source: 'none', scrubbed: true }), true))
       .toBe('No replay loaded -- no quote, Level 2 or Time & Sales.');
+  });
+});
+
+describe('a capture still loading (C59)', () => {
+  it('is its own state: neither failed nor empty, and the rail says it is loading', () => {
+    const loading = clock({ replay_source: 'none', replay_ok: null, replay_loading: true });
+    expect(simReplayTarget('IMCC', loading, true)).toEqual({ kind: 'loading' });
+    expect(simRailNote('IMCC', loading, true)).toBe('Loading replay...');
+    // A real failure still wins.
+    expect(simReplayTarget('IMCC', clock({ replay_ok: false, replay_error: 'x', replay_loading: true }), true))
+      .toEqual({ kind: 'failed', error: 'x' });
+  });
+});
+
+describe('simVenueTagState (V38)', () => {
+  it('says replay only while one is loaded, live edge at the edge, no replay otherwise', () => {
+    expect(simVenueTagState(clock({ replay_source: 'none' }))).toBe('no replay');
+    expect(simVenueTagState(clock({ replay_source: 'capture', replay_symbol: 'GRML' }))).toBe('replay');
+    expect(simVenueTagState(clock({ replay_source: 'none', replay_loading: true }))).toBe('replay');
+    expect(simVenueTagState(clock({ live_edge: true, replay_source: 'none' }))).toBe('live edge');
+    expect(simVenueTagState(null)).toBeNull();
   });
 });

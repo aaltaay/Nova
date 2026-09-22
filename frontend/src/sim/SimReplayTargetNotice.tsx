@@ -102,7 +102,8 @@ export function SimReplayTargetNotice({ symbol }: { symbol: string }) {
   const tab = symbol.trim().toUpperCase();
   const dismissKey = `${tab}|${target.kind}`;
   // The tab is live at the edge: the strip's pill says so; nothing to offer, nothing to fetch.
-  if (target.kind === 'ok' || target.kind === 'live-edge' || dismissed.has(dismissKey)) return null;
+  // A capture still loading is said by the strip's pill too -- never offered a download meanwhile.
+  if (target.kind === 'ok' || target.kind === 'live-edge' || target.kind === 'loading' || dismissed.has(dismissKey)) return null;
 
   const instead = target.kind === 'other-symbol';
   const title = target.kind === 'none'
