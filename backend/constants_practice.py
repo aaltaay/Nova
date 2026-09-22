@@ -113,6 +113,24 @@ PRACTICE_PAPER_ARCHIVE_STAMP = "%Y%m%d-%H%M%S"
 PRACTICE_MATCHER_INTERVAL_SEC = 1.0
 
 # ---------------------------------------------------------------------------
+# Ledger history (GET /api/practice/history, the Account page)
+# ---------------------------------------------------------------------------
+# The ranges are the Account page's tabs, Webull's set less the ones a
+# practice ledger opened days ago cannot fill (6M, 1Y). A range starts at the
+# practice-day start (PRACTICE_DAY_ROLLOVER_HOUR_ET) that many *calendar* days
+# before today's -- a weekend inside the window simply holds no session --
+# YTD at Jan 1 of the practice day's year, ALL at the ledger's open. Today is
+# the venue's clock: the playhead on Sim. Owner: practice/history.py.
+PRACTICE_HISTORY_SCHEMA_VERSION = 1
+PRACTICE_HISTORY_RANGE_DEFAULT = "1D"
+PRACTICE_HISTORY_RANGE_YTD = "YTD"
+PRACTICE_HISTORY_RANGE_ALL = "ALL"
+PRACTICE_HISTORY_RANGE_DAYS = {"1D": 1, "5D": 5, "1M": 30, "3M": 90}
+PRACTICE_HISTORY_RANGES = (
+    *PRACTICE_HISTORY_RANGE_DAYS, PRACTICE_HISTORY_RANGE_YTD, PRACTICE_HISTORY_RANGE_ALL,
+)
+
+# ---------------------------------------------------------------------------
 # Refusal codes (architecture/practice-fills.md, ADR 020 contract)
 # ---------------------------------------------------------------------------
 PRACTICE_NO_LIVE_PRINT_CODE = "PRACTICE_NO_LIVE_PRINT"
