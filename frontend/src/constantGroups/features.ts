@@ -298,15 +298,18 @@ export const NOVA_ACTION_ACCOUNT_ERROR_MESSAGE =
 export const NOVA_ACTION_IN_FLIGHT_MESSAGE =
   'That action is still running -- wait for the order receipt before firing again.';
 
-// ── Webull-style Hotkeys Settings shell (UI pass 1) ───────────────────────────
-export const HOTKEYS_LANDING_TITLE = 'Hot Keys';
-export const HOTKEYS_LANDING_SUBTITLE =
-  'Hotkey settings for single and group orders.';
-export const HOTKEYS_SETTINGS_CTA = 'Hotkeys Settings';
-export const HOTKEYS_SETTINGS_DIALOG_TITLE = 'Hotkeys Settings';
+// ── Settings > Hot Keys: the two-pane editor inline in the section ───────────
+export const HOTKEYS_SECTION_TITLE = 'Hot Keys';
+export const HOTKEYS_SECTION_SUBTITLE =
+  'Hotkey settings for single and group orders. Edits save as you make them.';
 export const HOTKEYS_SETTINGS_LIST_TITLE = 'Trading Hotkeys';
+export const HOTKEYS_EDITOR_GROUP_STOCKS = 'Stocks';
+export const HOTKEYS_EDITOR_EMPTY = 'Select a hotkey or press + to create one.';
+export const HOTKEYS_ROW_DISABLED_TITLE = 'Disabled -- turn it on in the editor';
+export const HOTKEYS_DELETE_HINT = 'Delete needs a second click';
 export const HOTKEYS_SETTINGS_DONE = 'Done';
 export const HOTKEYS_SETTINGS_RESET = 'Reset to Default';
+export const HOTKEYS_CREATE_ADD_LABEL = 'Create customized button';
 export const HOTKEYS_CREATE_DIALOG_TITLE = 'Create a Customized Button';
 export const HOTKEYS_CREATE_NAME_LABEL = 'Button Name';
 export const HOTKEYS_CREATE_APPLY_LABEL = 'Button Apply To';
@@ -314,12 +317,13 @@ export const HOTKEYS_CREATE_APPLY_STOCK = 'Stock';
 export const HOTKEYS_CREATE_SIDE_LABEL = 'Side';
 export const HOTKEYS_CREATE_SIDE_BUY = 'Buy';
 export const HOTKEYS_CREATE_SIDE_SELL = 'Sell';
+export const HOTKEYS_CREATE_ACTION_LABEL = 'Action';
 export const HOTKEYS_CREATE_CANCEL = 'Cancel';
 export const HOTKEYS_CREATE_SUBMIT = 'Create';
 export const HOTKEYS_ADVANCED_DAS_TITLE = 'Advanced: DAS import';
 export const HOTKEYS_ADVANCED_DAS_HINT =
   'Import .htk files and Map rows to typed Nova Actions. Raw DAS scripts never auto-run.';
-export const HOTKEYS_EMPTY_LIST = 'No Nova Actions yet -- open Hotkeys Settings to add one.';
+export const HOTKEYS_EMPTY_LIST = 'No Nova Actions yet -- press + to add one.';
 export const HOTKEYS_DEFAULT_CUSTOM_NAME = 'Custom1';
 
 /** Suspense copy while a lazy Settings / Account / Backtest chunk loads (D-031). */

@@ -8,7 +8,11 @@ import { SettingsWorkspace } from './SettingsWorkspace';
 import type { ExchangeFilter } from '../hooks/useExchangeFilter';
 
 vi.mock('../hotkeys/HotkeyManager', () => ({
-  HotkeyManager: () => <div data-testid="hotkey-manager-mock">Hotkey Manager Mock</div>,
+  HotkeyManager: ({ onDone }: { onDone?: () => void }) => (
+    <button type="button" data-testid="hotkey-manager-mock" onClick={onDone}>
+      Hotkey Manager Mock
+    </button>
+  ),
 }));
 
 vi.mock('./AlertChannelsSettings', () => ({
@@ -84,6 +88,23 @@ describe('SettingsWorkspace', () => {
     });
     expect(container.querySelector('[data-testid="hotkey-manager-mock"]')).toBeTruthy();
     expect(hotkeysBtn?.classList.contains('active')).toBe(true);
+  });
+
+  it('wires the Hot Keys editor Done to the one Settings close', () => {
+    const onCancel = vi.fn();
+    act(() => {
+      root.render(<SettingsWorkspace {...baseProps} onCancel={onCancel} />);
+    });
+    const hotkeysBtn = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.textContent === 'Hot Keys',
+    );
+    act(() => {
+      hotkeysBtn?.click();
+    });
+    act(() => {
+      (container.querySelector('[data-testid="hotkey-manager-mock"]') as HTMLButtonElement).click();
+    });
+    expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
   it('switches to Trade, Alerts, and Account', () => {

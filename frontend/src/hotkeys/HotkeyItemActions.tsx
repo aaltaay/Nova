@@ -21,10 +21,10 @@ export function HotkeyItemActions({
 }: Props) {
   return (
     <div className="hotkey-actions">
-      <button type="button" disabled={!selected} onClick={onEdit}>
+      <button type="button" className="btn-secondary" disabled={!selected} onClick={onEdit}>
         Edit Item
       </button>
-      <button type="button" onClick={onAdd}>
+      <button type="button" className="btn-secondary" onClick={onAdd}>
         Add New Item
       </button>
       <button

@@ -375,10 +375,9 @@
   color: var(--accent-color);
 }
 
-/* Scoped legacy form chrome — never bare form/label/input/button/table. */
-.settings-panel form,
-.dashboard-settings-form,
-.alert-channel-form,
+/* Scoped legacy form chrome — never bare form/label/input/button/table.
+   Settings sections style their own controls (styles/settings-workspace.css);
+   the only element-wide chrome left here is the side-panel search form. */
 .side-search-form {
   display: flex;
   flex-direction: column;
@@ -391,17 +390,11 @@
   gap: 0.5rem;
 }
 
-.settings-panel label,
-.dashboard-settings-form label,
-.alert-channel-form label,
 .form-group > label {
   font-size: 0.8rem;
   color: var(--text-secondary);
 }
 
-.settings-panel input,
-.dashboard-settings-form input,
-.alert-channel-form input,
 .form-group > input,
 .side-search-form input {
   background-color: var(--bg-color);
@@ -414,19 +407,15 @@
   transition: border-color 0.2s;
 }
 
-.settings-panel input:focus,
-.dashboard-settings-form input:focus,
-.alert-channel-form input:focus,
 .form-group > input:focus,
 .side-search-form input:focus {
   outline: none;
   border-color: var(--accent-color);
 }
 
-.settings-panel button,
-.dashboard-settings-form button,
-.alert-channel-form button,
-.form-actions button,
+/* A filled accent button is opt-in (.btn-primary). The descendant form of
+   this rule used to paint every <button> under a settings container --
+   list rows, ghost `+`, Reset -- because it outranked their class rules. */
 .side-search-form button {
   background-color: var(--accent-color);
   color: white;
@@ -439,10 +428,6 @@
   transition: background-color 0.2s;
 }
 
-.settings-panel button:hover,
-.dashboard-settings-form button:hover,
-.alert-channel-form button:hover,
-.form-actions button:hover,
 .side-search-form button:hover {
   background-color: var(--accent-hover);
 }

@@ -53,7 +53,7 @@ export function AccountSettingsSection({ onClose }: Props) {
       </dl>
       <button
         type="button"
-        className="settings-account-open-trading"
+        className="btn-secondary settings-account-open-trading"
         onClick={() => {
           requestOpenTradingTab();
           onClose();

@@ -1,0 +1,875 @@
+/* Hotkeys feature sheet. Owner: frontend/src/hotkeys.
+   1. Hold-Ctrl+Alt shortcuts cheat-sheet + row actions.
+   2. Settings > Hot Keys: the inline two-pane Nova Actions editor.
+   3. The DAS import manager behind Advanced, with its small row editor.
+   Loads after settings-workspace.css, whose Settings control rules these
+   share (inputs, selects, .btn-*). */
+
+/* ── Hold-Ctrl+Alt cheat-sheet ── */
+
+.shortcuts-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 4rem 1rem 2rem;
+  background: color-mix(in srgb, var(--bg-color) 35%, transparent);
+  pointer-events: none;
+}
+
+.shortcuts-menu-backdrop--pinned {
+  pointer-events: auto;
+  background: color-mix(in srgb, var(--bg-color) 55%, rgba(0, 0, 0, 0.35));
+}
+
+.shortcuts-menu-panel {
+  pointer-events: auto;
+  width: min(42rem, 100%);
+  max-height: min(70vh, 40rem);
+  overflow: auto;
+  border-radius: var(--radius-panel, 12px);
+  border: 1px solid var(--border-color);
+  background: var(--panel-bg);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.shortcuts-menu-header {
+  margin-bottom: 0.85rem;
+}
+
+.shortcuts-menu-title {
+  margin: 0 0 0.25rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.shortcuts-menu-hint {
+  margin: 0;
+  font-size: 0.75rem;
+}
+
+.shortcuts-menu-section {
+  margin-bottom: 0.85rem;
+}
+
+.shortcuts-menu-section-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.shortcuts-menu-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.shortcuts-menu-row {
+  display: grid;
+  grid-template-columns: 8.5rem 1fr auto;
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.28rem 0.2rem;
+  border-top: 1px solid var(--border-color);
+  font-size: 0.82rem;
+  user-select: none;
+}
+
+.shortcuts-menu-row kbd {
+  font-size: 0.72rem;
+  font-family: inherit;
+  background: var(--hover-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control, 8px);
+  padding: 0.12rem 0.4rem;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.shortcuts-menu-label {
+  color: var(--text-primary);
+}
+
+.shortcuts-menu-detail {
+  font-size: 0.75rem;
+}
+
+.shortcuts-menu-row--rebindable {
+  cursor: pointer;
+}
+
+.shortcuts-menu-row--rebindable:hover {
+  background: var(--hover-bg);
+}
+
+.shortcuts-menu-row--recording {
+  outline: 1px solid var(--accent-color);
+  outline-offset: 1px;
+  border-radius: var(--radius-control, 8px);
+}
+
+.shortcuts-menu-rebind {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.65rem 0 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-control, 8px);
+  border: 1px solid var(--accent-color);
+  background: color-mix(in srgb, var(--accent-color) 12%, var(--panel-bg));
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.shortcuts-menu-rebind-live {
+  color: var(--accent-color);
+}
+
+.shortcuts-menu-rebind-preview {
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.shortcuts-menu-rebind-cancel {
+  margin-left: auto;
+  font-size: 0.72rem;
+  padding: 0.2rem 0.55rem;
+}
+
+.shortcuts-menu-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.shortcuts-menu-key-btn,
+.shortcuts-menu-edit-btn {
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-control, 8px);
+  border: 1px solid var(--border-color);
+  background: var(--hover-bg);
+  color: var(--accent-color);
+  cursor: pointer;
+}
+
+.shortcuts-menu-key-btn:hover,
+.shortcuts-menu-edit-btn:hover {
+  border-color: var(--accent-color);
+}
+
+.shortcuts-menu-delete-slot {
+  margin-left: 0.45rem;
+  padding-left: 0.5rem;
+  border-left: 1px solid var(--border-color);
+}
+
+.shortcuts-menu-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 1.7rem;
+  min-height: 1.45rem;
+  padding: 0.12rem 0.35rem;
+  border-radius: var(--radius-control, 8px);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.68rem;
+  font-weight: 600;
+  font-family: inherit;
+  opacity: 0.72;
+}
+
+.shortcuts-menu-delete-btn:hover {
+  opacity: 1;
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.shortcuts-menu-delete-btn.is-armed {
+  opacity: 1;
+  color: var(--danger);
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, var(--panel-bg));
+}
+
+.shortcuts-menu-conflict {
+  margin: 0.4rem 0 0;
+  font-size: 0.78rem;
+  color: var(--danger);
+}
+
+/* ── DAS import manager (Settings > Hot Keys > Advanced) ───────────────────────────────────────── */
+
+.hotkey-inactive-banner {
+  background: rgba(234, 179, 8, 0.12);
+  border: 1px solid rgba(234, 179, 8, 0.45);
+  color: var(--text-primary);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.hotkey-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+}
+
+.hotkey-file-row,
+.hotkey-toolbar,
+.hotkey-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-end;
+  margin-bottom: 0.75rem;
+}
+
+.hotkey-file-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  flex: 1;
+  min-width: 160px;
+}
+
+.hotkey-toolbar select option,
+.hotkey-help-filters select option {
+  background: var(--menu-bg, var(--panel-bg));
+  color: var(--text-primary);
+}
+
+.hotkey-table-wrap {
+  overflow-x: auto;
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  margin-bottom: 0.75rem;
+}
+
+.hotkey-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.hotkey-table th,
+.hotkey-table td {
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: top;
+}
+
+.hotkey-table th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-secondary, #1a1a1a);
+  z-index: 1;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.hotkey-table tr {
+  cursor: pointer;
+}
+
+.hotkey-table tr.selected {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.hotkey-table tr:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.hotkey-cmd-cell {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+}
+
+.hotkey-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  border: 1px solid var(--border-color);
+  white-space: nowrap;
+}
+
+.hotkey-badge-translatable_later {
+  color: #86efac;
+  border-color: rgba(134, 239, 172, 0.4);
+}
+
+.hotkey-badge-backend_required {
+  color: #fde047;
+  border-color: rgba(253, 224, 71, 0.4);
+}
+
+.hotkey-badge-das_ibkr_specific {
+  color: #93c5fd;
+  border-color: rgba(147, 197, 253, 0.4);
+}
+
+.hotkey-badge-invalid_unsafe {
+  color: #fca5a5;
+  border-color: rgba(252, 165, 165, 0.5);
+}
+
+.hotkey-badge-nova_active {
+  color: #c4b5fd;
+  border-color: rgba(196, 181, 253, 0.45);
+}
+
+.hotkey-badge-evidence {
+  color: var(--text-secondary);
+  margin-left: 0.25rem;
+}
+
+.hotkey-detail,
+.hotkey-nova-active,
+.hotkey-import-preview {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+  font-size: 0.8rem;
+}
+
+.hotkey-import-preview {
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  border-radius: 4px;
+  padding: 0.75rem;
+}
+
+.executor-hotkeys-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+}
+
+.executor-hotkeys-list li {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  padding: 0.2rem 0;
+  font-size: 0.8rem;
+}
+
+.executor-hotkeys-list kbd,
+.hotkey-table kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  background: var(--bg-secondary, #1a1a1a);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  padding: 0.05rem 0.35rem;
+  min-width: 4.5rem;
+  text-align: center;
+}
+
+.executor-hotkeys-blocked {
+  opacity: 0.55;
+}
+
+.hotkey-editor-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 110;
+  padding: 1rem;
+}
+
+/* DAS row editor / Map-to-Nova confirm (behind Advanced): a small sheet in
+   desk tokens; its fields share the Settings control rules below. */
+.hotkey-editor {
+  background: var(--nova-panel, var(--panel-bg));
+  border: 1px solid var(--nova-border-strong, var(--border-color));
+  border-radius: 8px;
+  padding: 16px;
+  width: min(520px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+  font-size: 12px;
+}
+
+.hotkey-help-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.hotkey-help-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.hotkey-help-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.hotkey-help-item {
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 0.65rem 0.75rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.hotkey-help-item-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  margin-bottom: 0.35rem;
+}
+
+.hotkey-help-example {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.7rem;
+  overflow-x: auto;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.hotkey-help-safety {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  color: #fde047;
+}
+
+/* Phase G3 — Nova Actions + Trading quick-bar */
+.nova-actions-table {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.nova-actions-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.nova-action-depth-disabled {
+  opacity: 0.65;
+}
+
+.nova-defaults-help {
+  margin: 0.75rem 0 1rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+}
+
+
+/* Quick Trades row: ibkr/tradeTicketCompact.css (.nova-qt). */
+
+.map-das-preview {
+  margin: 0.75rem 0;
+  font-size: 0.85rem;
+}
+
+.map-das-preview > div {
+  display: grid;
+  grid-template-columns: 7rem 1fr;
+  gap: 0.35rem 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.map-das-preview dt {
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.map-das-preview dd {
+  margin: 0;
+}
+
+/* ── Hot Keys: the two-pane editor lives in the section, not a window ──── */
+
+.hk-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hk-section-head .settings-block-hint {
+  margin-bottom: 0;
+}
+
+.hk-editor {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  height: 420px;
+  border: 1px solid var(--nova-border, var(--border-color));
+  border-radius: 6px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--nova-canvas, #000) 20%, var(--nova-panel, #1c1c1e));
+}
+
+.hk-editor-list-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--nova-border, var(--border-color));
+}
+
+.hk-editor-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  height: 32px;
+  padding: 0 8px 0 12px;
+  border-bottom: 1px solid var(--nova-border, var(--border-color));
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--nova-text-muted, var(--text-secondary));
+}
+
+.hk-editor-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--nova-text-muted, var(--text-secondary));
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.hk-editor-add:hover {
+  color: var(--nova-text, var(--text-primary));
+  border-color: var(--nova-border, var(--border-color));
+  background: var(--hover-bg, rgba(255, 255, 255, 0.06));
+}
+
+.hk-editor-list-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.hk-editor-group-label {
+  padding: 6px 12px 2px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--nova-text-muted, var(--text-secondary));
+  opacity: 0.8;
+}
+
+.hk-editor-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.hk-editor-row {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 26px;
+  margin: 0;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--nova-text, var(--text-primary));
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hk-editor-row:hover {
+  background: var(--hover-bg, rgba(255, 255, 255, 0.06));
+}
+
+.hk-editor-row.is-selected {
+  background: color-mix(in srgb, var(--nova-accent, var(--accent-color)) 10%, transparent);
+}
+
+.hk-editor-row.is-selected::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 3px;
+  bottom: 3px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--nova-accent, var(--accent-color));
+}
+
+.hk-editor-row-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hk-editor-row.is-off .hk-editor-row-name {
+  color: var(--nova-text-muted, var(--text-secondary));
+}
+
+.hk-editor-row-key {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 18px;
+  color: var(--nova-text-muted, var(--text-secondary));
+}
+
+.hk-editor-detail-pane {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 16px 16px;
+}
+
+.hk-editor-empty {
+  margin: 0;
+  padding: 24px 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--nova-text-muted, var(--text-secondary));
+}
+
+.hk-editor-foot {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  height: 44px;
+  padding: 0 12px;
+  border-top: 1px solid var(--nova-border, var(--border-color));
+}
+
+.hk-editor-foot .btn-secondary {
+  margin-right: auto;
+}
+
+/* Detail pane + inline Create form share the field styling. */
+.hk-field > span,
+.hotkey-editor-field > span,
+.hotkey-file-row label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--nova-text-muted, var(--text-secondary));
+}
+
+.hk-detail-title {
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.hk-detail-desc {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--nova-text-muted, var(--text-secondary));
+}
+
+.hk-field,
+.hotkey-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+  color: var(--nova-text-muted, var(--text-secondary));
+}
+
+.hk-field-grow {
+  flex: 1;
+}
+
+.hk-key-row,
+.hotkey-editor-key-row {
+  display: flex;
+  gap: 8px;
+}
+
+.hk-key-row input,
+.hotkey-editor-key-row input {
+  flex: 1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.hk-qty-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.hk-qty-unit {
+  font-size: 14px;
+  padding-bottom: 5px;
+  opacity: 0.55;
+}
+
+.hk-qty-unit.is-active {
+  opacity: 1;
+  color: var(--nova-accent, var(--accent-color));
+}
+
+.hk-check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--nova-text, var(--text-primary));
+  cursor: pointer;
+}
+
+.hk-detail-conflict {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--nova-danger, var(--danger));
+}
+
+.hk-create-actions,
+.hotkey-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.hk-side-toggle {
+  display: inline-flex;
+  gap: 1px;
+  padding: 2px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.hk-side-toggle button {
+  height: 22px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--nova-text-muted, var(--text-secondary));
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.hk-side-buy.is-active {
+  background: color-mix(in srgb, var(--nova-success, var(--success)) 22%, transparent);
+  color: var(--nova-success, var(--success));
+  font-weight: 600;
+}
+
+.hk-side-sell.is-active {
+  background: color-mix(in srgb, var(--nova-danger, var(--danger)) 22%, transparent);
+  color: var(--nova-danger, var(--danger));
+  font-weight: 600;
+}
+
+/* Below the editor: active automation shortcuts, then the DAS import. */
+.hk-section .hotkey-nova-active {
+  margin-top: 0;
+  padding-top: 12px;
+  font-size: 12px;
+}
+
+.hk-advanced-das {
+  border-top: 1px solid var(--nova-border, var(--border-color));
+  padding-top: 12px;
+}
+
+.hk-advanced-das-summary {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nova-text-muted, var(--text-secondary));
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+.hk-advanced-das-summary:hover {
+  color: var(--nova-text, var(--text-primary));
+}
+
+@media (max-width: 720px) {
+  .hk-editor {
+    grid-template-columns: 1fr;
+    grid-template-rows: 180px minmax(0, 1fr) auto;
+    height: 560px;
+  }
+
+  .hk-editor-list-pane {
+    border-right: 0;
+    border-bottom: 1px solid var(--nova-border, var(--border-color));
+  }
+}
+
+.hk-detail-delete-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--nova-border, var(--border-color));
+  font-size: 12px;
+}
