@@ -93,6 +93,14 @@ export default defineConfig(({ command, mode }) => {
     host: '127.0.0.1',
     port: 5173,
     strictPort: true,
+    // The dev server's watcher holds directory handles on everything under
+    // frontend/. On Windows that blocks electron-builder's rename of
+    // release/win-unpacked.tmp -> release/win-unpacked with EPERM while the
+    // desk is running (2026-09-22: three packs failed on the same rename).
+    // Build outputs are never sources; leave them to the packager.
+    watch: {
+      ignored: ['**/release/**', '**/dist/**', '**/dist-electron/**'],
+    },
   },
   build: {
     rollupOptions: {
