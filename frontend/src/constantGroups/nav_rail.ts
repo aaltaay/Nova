@@ -49,18 +49,18 @@ export const navRailRecordingTitle = (count: number, max: number): string =>
 /**
  * Persisted rail chrome (collapse + Scanner fold). Owner: components/navRailPersist.ts.
  * Invalidation: schema bump -- an unknown schema_version is ignored, never migrated
- * by guesswork (persisted-state.mdc).
+ * by guesswork (persisted-state.mdc). v2 makes `collapsed` tri-state (null = the
+ * operator has not chosen, so the rail follows the view: icons on the Desk,
+ * labels elsewhere); v1 is migrated by a known rule, see readNavRailPrefs.
  */
 export const NAV_RAIL_STORAGE_KEY = 'nova.navRail.v1';
-export const NAV_RAIL_SCHEMA_VERSION = 1;
+export const NAV_RAIL_SCHEMA_VERSION = 2;
+export const NAV_RAIL_SCHEMA_VERSION_LEGACY = 1;
 
 /** CustomEvent name -- the rail asks the mounted dashboard to select a tab. */
 export const NAV_RAIL_SELECT_TAB_EVENT = 'nova:nav-rail-select-tab';
 
-/** Desk placeholder (the hybrid itself is the next slice). */
-export const DESK_PAGE_TITLE = 'Desk';
-export const DESK_PAGE_PLACEHOLDER =
-  'Desk -- the Scanner + Trader hybrid lands in the next PR';
+/** Desk labels live in constantGroups/desk.ts (the hybrid shipped). */
 
 /** Records placeholder page. */
 export const RECORDS_PAGE_TITLE = 'Records';

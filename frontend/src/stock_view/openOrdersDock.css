@@ -1,13 +1,21 @@
-/* Positions / Orders (Today) / Nova OS strip -- Trader and Scanner desks. */
+/* Positions / Orders · today / Nova OS drawer -- Trader and Scanner desks.
+   Approved Trader redesign (ux/mockup-trader.html): one 32px tab row with the
+   status chips on it, a chevron at the right, hairline tables, and the open
+   position in the footer. */
 
 .sv-open-orders-dock {
   --sv-border: var(--border-color, #2a2f3a);
+  --sv-hair: color-mix(in srgb, var(--border-color, #2a2f3a) 70%, transparent);
   --sv-bg: var(--bg-primary, #0b0d12);
   --sv-bg-raised: var(--bg-secondary, #12151c);
+  --sv-elev: var(--nova-elev, rgba(255, 255, 255, 0.06));
   --sv-accent: var(--accent, #3b82f6);
   --sv-muted: var(--text-muted, #6b7280);
   --sv-secondary: var(--text-secondary, #9ca3af);
   --sv-primary: var(--text-primary, #e5e7eb);
+  --sv-up: var(--green, #22c55e);
+  --sv-down: var(--red, #ef4444);
+  --sv-warn: #f59e0b;
 
   flex-shrink: 0;
   display: flex;
@@ -22,58 +30,31 @@
   max-height: none;
 }
 
+/* ---------- tab row */
 .sv-open-orders-dock__bar {
   display: flex;
-  align-items: stretch;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 2px;
   flex-shrink: 0;
-  padding: 0;
+  height: 32px;
+  padding: 0 6px 0 0;
   border-bottom: 1px solid transparent;
   cursor: pointer;
 }
 
-.sv-open-orders-dock__bar:hover {
-  background: var(--hover-bg, rgba(255, 255, 255, 0.04));
-}
-
 .sv-open-orders-dock:not(.sv-open-orders-dock--collapsed) .sv-open-orders-dock__bar {
-  border-bottom-color: var(--sv-border);
-}
-
-.sv-open-orders-dock__toggle {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 0.4rem;
-  min-width: 0;
-  margin: 0;
-  padding: 0.35rem 0.35rem 0.35rem 0.55rem;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  color: var(--sv-primary);
-  font: inherit;
-  font-size: 0.88rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  cursor: pointer;
-  text-align: left;
-}
-
-.sv-open-orders-dock__toggle:hover {
-  color: var(--sv-accent);
+  border-bottom-color: var(--sv-hair);
 }
 
 .sv-open-orders-dock__tabs {
   display: inline-flex;
-  flex: 1 1 auto;
-  align-items: center;
-  gap: 0.25rem;
+  align-items: stretch;
+  align-self: stretch;
+  gap: 0;
   min-width: 0;
   /* The row scrolls when the dock is narrower than its tabs (the Scanner
      column beside an 820 px side panel), so a tab is never painted under
-     the trailing "Hide sample" / Collapse controls. */
+     the trailing controls. */
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
@@ -82,19 +63,20 @@
 .sv-open-orders-dock__tab {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  margin: 0;
-  padding: 0.3rem 0.55rem;
-  border: 1px solid transparent;
-  border-radius: 4px;
+  gap: 6px;
+  height: 32px;
+  margin: 0 0 -1px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
   background: transparent;
-  color: var(--sv-secondary);
-  font: inherit;
-  font-size: 0.88rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
+  color: var(--sv-muted);
   cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .sv-open-orders-dock__tab:hover {
@@ -102,73 +84,118 @@
 }
 
 .sv-open-orders-dock__tab.is-active {
-  color: var(--sv-accent);
-  border-color: color-mix(in srgb, var(--sv-accent) 40%, var(--sv-border));
-  background: color-mix(in srgb, var(--sv-accent) 12%, transparent);
-}
-
-.sv-open-orders-dock__chevron {
-  width: 0.85rem;
-  color: var(--sv-muted);
+  color: var(--sv-primary);
+  border-bottom-color: var(--sv-accent);
 }
 
 .sv-open-orders-dock__count {
-  min-width: 1.25rem;
-  padding: 0.05rem 0.35rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--sv-accent) 18%, transparent);
-  color: var(--sv-accent);
-  font-size: 0.78rem;
-  text-align: center;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--sv-elev);
+  color: var(--sv-muted);
+  font-size: 0.66rem;
+  line-height: 16px;
 }
 
-.sv-open-orders-dock__body .ibkr-table--orders th,
-.sv-open-orders-dock__body .ibkr-table--orders td {
-  font-size: 0.85rem;
+.sv-open-orders-dock__tab.is-active .sv-open-orders-dock__count {
+  color: var(--sv-primary);
 }
 
-.sv-open-orders-dock__body .ibkr-table--orders th {
-  font-size: 0.8rem;
+/* Status chips ride on the same row while Orders is showing. */
+.sv-open-orders-dock .orders-today-filters {
+  flex: 0 1 auto;
+  gap: 2px;
+  margin-left: 16px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
 }
 
-.sv-open-orders-dock__body .ibkr-table--orders td.ibkr-col--time,
-.sv-open-orders-dock__body .ibkr-table--orders th.ibkr-col--time {
-  font-size: 0.9rem;
-}
-
-.sv-open-orders-dock__hint {
-  flex-shrink: 0;
-  margin-left: auto;
-  font-size: 0.65rem;
+.sv-open-orders-dock .orders-today-filters__btn {
+  height: 22px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 11px;
+  color: var(--sv-muted);
+  font-size: 0.69rem;
   font-weight: 500;
-  letter-spacing: 0;
-  text-transform: none;
+}
+
+.sv-open-orders-dock .orders-today-filters__btn:hover {
+  color: var(--sv-primary);
+}
+
+.sv-open-orders-dock .orders-today-filters__btn.is-active {
+  background: var(--sv-elev);
+  color: var(--sv-primary);
+  box-shadow: none;
+}
+
+.orders-today-filters__count {
+  margin-left: 3px;
+  color: var(--sv-muted, #6b7280);
+  font-style: normal;
+}
+
+.sv-open-orders-dock__tools {
+  flex-shrink: 0;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.sv-open-orders-dock__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--sv-muted);
+  cursor: pointer;
+  font: inherit;
+}
+
+.sv-open-orders-dock__toggle:hover {
+  background: var(--sv-elev);
+  color: var(--sv-primary);
+}
+
+.sv-open-orders-dock__chevron {
+  font-size: 0.8rem;
+  line-height: 1;
 }
 
 .sv-open-orders-dock__sample-tag {
   padding: 0.05rem 0.4rem;
   border-radius: 999px;
-  background: color-mix(in srgb, #f59e0b 22%, transparent);
+  background: color-mix(in srgb, var(--sv-warn) 22%, transparent);
   color: #fbbf24;
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
 }
 
 .sv-open-orders-dock__sample-btn {
-  align-self: center;
   flex-shrink: 0;
-  margin: 0 0.45rem 0 0;
+  margin: 0;
   padding: 0.12rem 0.45rem;
   border: 1px solid var(--sv-border);
   border-radius: 4px;
   background: transparent;
   color: var(--sv-secondary);
+  cursor: pointer;
   font: inherit;
   font-size: 0.65rem;
-  cursor: pointer;
 }
 
 .sv-open-orders-dock__sample-btn:hover {
@@ -176,12 +203,13 @@
   color: var(--sv-accent);
 }
 
+/* ---------- body */
 .sv-open-orders-dock__banner {
-  margin: 0 0 0.35rem;
+  margin: 0.35rem 0.6rem 0;
   padding: 0.25rem 0.4rem;
   border-radius: 4px;
-  border: 1px solid color-mix(in srgb, #f59e0b 45%, var(--sv-border));
-  background: color-mix(in srgb, #f59e0b 12%, var(--sv-bg));
+  border: 1px solid color-mix(in srgb, var(--sv-warn) 45%, var(--sv-border));
+  background: color-mix(in srgb, var(--sv-warn) 12%, var(--sv-bg));
   color: #fbbf24;
   font-size: 0.68rem;
 }
@@ -190,24 +218,109 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  padding: 0.25rem 0.45rem 0.4rem;
+  padding: 0;
 }
 
-.sv-open-orders-dock__body .ibkr-working-orders {
+.sv-open-orders-dock__body .ibkr-working-orders,
+.sv-open-orders-dock__body .orders-today-view {
   margin: 0;
+  gap: 0;
+}
+
+.sv-open-orders-dock__body .orders-today-view__toolbar {
+  padding: 0.3rem 0.6rem 0;
 }
 
 .sv-open-orders-dock__body .ibkr-table {
-  font-size: 0.72rem;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.74rem;
 }
 
-.sv-open-orders-dock__title {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.88rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: none;
+.sv-open-orders-dock__body .ibkr-table--orders th {
+  padding: 7px 12px 5px;
+  border-bottom: 1px solid var(--sv-hair);
+  color: var(--sv-muted);
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sv-open-orders-dock__body .ibkr-table--orders td {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--sv-hair);
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+
+.sv-open-orders-dock__body .ibkr-table--orders td.ibkr-col--time,
+.sv-open-orders-dock__body .ibkr-table--orders th.ibkr-col--time {
+  font-size: 0.74rem;
+}
+
+.sv-open-orders-dock__body .ibkr-table--orders td.ibkr-symbol {
+  font-weight: 600;
+}
+
+/* Row-end actions read as links, as in the mockup. */
+.sv-open-orders-dock__body .ibkr-order-actions button {
+  margin-right: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--sv-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.sv-open-orders-dock__body .ibkr-order-actions button:hover:not(:disabled) {
   color: var(--sv-primary);
+}
+
+.sv-open-orders-dock__body .ibkr-order-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.sv-open-orders-dock__body .ibkr-empty {
+  padding: 14px 12px;
+  color: var(--sv-muted);
+  font-size: 0.74rem;
+  text-align: center;
+}
+
+/* ---------- footer: the open position, readable on every tab */
+.sv-open-orders-dock__foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-shrink: 0;
+  margin-top: auto;
+  padding: 6px 12px;
+  border-top: 1px solid var(--sv-hair);
+  color: var(--sv-muted);
+  font-size: 0.69rem;
+  white-space: nowrap;
+}
+
+.sv-open-orders-dock__foot b {
+  font-weight: 600;
+}
+
+.sv-open-orders-dock__foot .is-up {
+  color: var(--sv-up);
+}
+
+.sv-open-orders-dock__foot .is-down {
+  color: var(--sv-down);
+}
+
+.sv-open-orders-dock__foot-note {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

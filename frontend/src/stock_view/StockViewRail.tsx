@@ -17,7 +17,6 @@ import {
   STOCK_VIEW_DEPTH_ORDER_SPLIT_MIN_PCT,
   STOCK_VIEW_DEPTH_ORDER_SPLIT_PCT,
   STOCK_VIEW_DEPTH_PANE_MIN_PX,
-  STOCK_VIEW_MODULE_OPEN_TITLE,
   STOCK_VIEW_ORDER_PANE_MIN_PX,
   STOCK_VIEW_TITLE,
 } from '../constants';
@@ -95,8 +94,8 @@ export function StockViewRail({
           label="Resize Stock Quote and Order Entry"
         />
 
+        {/* No card title: the compact ticket's own header reads TRADE · SYM · venue. */}
         <StockViewModuleCard
-          title={STOCK_VIEW_MODULE_OPEN_TITLE}
           className="sv-open-card"
           testId="stock-view-open-card"
           aria-label="Trade order"

@@ -31,9 +31,14 @@ import './stockViewTabs.css';
 
 interface Props {
   detached: boolean;
+  /** Desk hybrid: the board is the focus, so the Focus rail stays hidden. */
+  hideFocusRail?: boolean;
+  /** The workspace is on screen. Defaults to the Trader view being active;
+   * the Desk passes true while it shows this workspace beside its board. */
+  active?: boolean;
 }
 
-export function StockViewTabs({ detached }: Props) {
+export function StockViewTabs({ detached, hideFocusRail = false, active }: Props) {
   const {
     traderTabs,
     traderLiveTabs,
@@ -94,6 +99,7 @@ export function StockViewTabs({ detached }: Props) {
     traderDockOffer && isForeignTabDrag(traderDockOffer.sourceWindowId, traderWindowId),
   );
   const headerSlot = useGlobalBarTraderSlot();
+  const onScreen = active ?? traderViewActive;
 
   const tabStrip = (
     <StockViewTabStrip
@@ -141,8 +147,8 @@ export function StockViewTabs({ detached }: Props) {
       )}
       {headerSlot && traderViewActive && !detached ? createPortal(tabStrip, headerSlot) : tabStrip}
       <div className="sv-tabs-body">
-      {/* One Focus rail for the whole Trader view, not one per tab. */}
-      <FocusRail />
+      {/* One Focus rail for the whole Trader view, not one per tab; none beside the Desk board. */}
+      {!hideFocusRail && <FocusRail />}
       <div className="sv-tabs-panes">
         {traderTabs.map(symbol => {
           if (symbol === TRADER_DRAFT_SYMBOL) {
@@ -188,7 +194,7 @@ export function StockViewTabs({ detached }: Props) {
                 detached={detached}
                 onBack={onBack}
                 onSelectSymbol={next => onRename(symbol, next)}
-                chartActive={show && traderViewActive}
+                chartActive={show && onScreen}
               />
             </div>
           );

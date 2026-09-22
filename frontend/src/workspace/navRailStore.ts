@@ -19,7 +19,7 @@ import {
 } from './registry';
 
 /** What the dashboard slot shows while Trader is not up. */
-export type NavPage = 'dashboard' | 'desk' | 'records';
+export type NavPage = 'dashboard' | 'desk' | 'records' | 'account';
 
 export type NavCounts = Partial<Record<ModuleCountKey, number>>;
 
@@ -136,6 +136,15 @@ export function useNavRailSnapshot(): NavRailSnapshot {
 
 export function useNavPage(): NavPage {
   return useNavRailSnapshot().page;
+}
+
+/**
+ * Rail collapse while the operator has not chosen (navRailPersist `collapsed:
+ * null`): icons on the Desk, where the board needs the width; labels on every
+ * other view. Trader on top of the Desk page is the full Trader, not the Desk.
+ */
+export function navRailCollapsedDefault(page: NavPage, traderActive: boolean): boolean {
+  return page === 'desk' && !traderActive;
 }
 
 /** Test helper. */

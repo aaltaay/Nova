@@ -10,6 +10,12 @@ import { NavPageHost } from './NavPageHost';
 vi.mock('./RecordsPage', () => ({
   RecordsPage: () => <div data-testid="records-page" />,
 }));
+vi.mock('./DeskPage', () => ({
+  DeskPage: () => <div data-testid="desk-page" />,
+}));
+vi.mock('./AccountPage', () => ({
+  AccountPage: () => <div data-testid="account-page" />,
+}));
 
 describe('NavPageHost', () => {
   let container: HTMLDivElement;
@@ -41,9 +47,7 @@ describe('NavPageHost', () => {
     act(() => {
       setNavPage('desk');
     });
-    const desk = container.querySelector('[data-testid="desk-page"]');
-    expect(desk).toBeTruthy();
-    expect(desk!.textContent).toMatch(/Scanner \+ Trader hybrid lands in the next PR/);
+    expect(container.querySelector('[data-testid="desk-page"]')).toBeTruthy();
     expect(container.querySelector('[data-testid="dashboard-stub"]')).toBeNull();
     act(() => {
       setNavPage('records');
@@ -53,5 +57,23 @@ describe('NavPageHost', () => {
       setNavPage('dashboard');
     });
     expect(container.querySelector('[data-testid="dashboard-stub"]')).toBeTruthy();
+  });
+
+  it('routes the Account page (lazy) from the store', async () => {
+    await act(async () => {
+      root.render(
+        <NavPageHost onOpenTrader={() => {}}>
+          <div data-testid="dashboard-stub" />
+        </NavPageHost>,
+      );
+    });
+    await act(async () => {
+      setNavPage('account');
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[data-testid="account-page"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="dashboard-stub"]')).toBeNull();
   });
 });

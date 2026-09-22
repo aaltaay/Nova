@@ -4,8 +4,8 @@
  * (a foldable tree of the registry's grouped tab modules), Account, Bots,
  * Records, then Advise + Settings + collapse pinned at the foot.
  *
- * Routing: Trader is the workspace's Stock View; Desk / Records are shell
- * pages (navRailStore); Scanner children, Account and Bots are dashboard tabs
+ * Routing: Trader is the workspace's Stock View; Desk / Records / Account are
+ * shell pages (navRailStore); Scanner children and Bots are dashboard tabs
  * asked for through the store's latch so the request survives a remount.
  */
 import { useCallback, useMemo, useState } from 'react';
@@ -37,6 +37,7 @@ import { TRADER_DEFAULT_SYMBOL } from '../constants';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { formatScannerNavCount, scannerNavIcon } from '../scanner/scannerNavIcons';
 import {
+  navRailCollapsedDefault,
   requestScannerTab,
   setNavPage,
   useNavRailSnapshot,
@@ -76,13 +77,17 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
     status.capture === true && status.recording === true ? (status.capture_symbols ?? []) : [];
 
   const dashboardUp = !traderActive && page === 'dashboard';
-  const accountActive = dashboardUp && isAccountTab(scanner.activeTab);
+  // The Account page is a shell page; the legacy Account / Reports dashboard
+  // tabs still light the item when something else selects them.
+  const accountActive =
+    (!traderActive && page === 'account') || (dashboardUp && isAccountTab(scanner.activeTab));
   const botsActive = dashboardUp && scanner.activeTab === 'strategy';
   const scannerActive = dashboardUp && !accountActive && !botsActive;
   const childHighlight = dashboardUp ? scanner.railHighlight : null;
 
-  const collapsed = prefs.collapsed;
-  // Operator choice wins; otherwise the tree follows the view.
+  // Operator choice wins; otherwise the chrome follows the view (icons on the
+  // Desk so the board gets the width, tree open on the Scanner).
+  const collapsed = prefs.collapsed ?? navRailCollapsedDefault(page, traderActive);
   const folded = prefs.scannerFolded ?? !scannerActive;
 
   const persist = useCallback((next: NavRailPrefs) => {
@@ -96,7 +101,7 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
   const leaveTrader = () => {
     if (traderActive) onLeaveTrader();
   };
-  const goPage = (next: 'desk' | 'records') => {
+  const goPage = (next: 'desk' | 'records' | 'account') => {
     leaveTrader();
     setNavPage(next);
   };
@@ -204,7 +209,7 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
         </div>
 
         {visibility.trading !== false && (
-          <NavRailAccountItem active={accountActive} onOpen={() => goTab('trading')} />
+          <NavRailAccountItem active={accountActive} onOpen={() => goPage('account')} />
         )}
         {visibility.strategy !== false && (
           <NavRailItem

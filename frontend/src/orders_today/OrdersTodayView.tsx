@@ -34,6 +34,8 @@ interface Props {
   highlightOrderId?: number | null;
   filter: OrdersTodayFilter;
   onFilterChange: (next: OrdersTodayFilter) => void;
+  /** The Trader drawer hosts the status chips on its own tab row. */
+  hideFilters?: boolean;
 }
 
 export function OrdersTodayView({
@@ -46,6 +48,7 @@ export function OrdersTodayView({
   highlightOrderId = null,
   filter,
   onFilterChange,
+  hideFilters = false,
 }: Props) {
   const sample = useSampleDataOptional();
   const [preferClosedSample, setPreferClosedSample] = useState(() => Boolean(sample));
@@ -78,21 +81,25 @@ export function OrdersTodayView({
     ? ORDERS_TODAY_EMPTY_FILTER_MESSAGE
     : ORDERS_TODAY_EMPTY_MESSAGE;
 
+  const closedSampleToggle = showClosed && closedOrders.length === 0;
+
   return (
     <div className="orders-today-view" data-testid="orders-today-view">
-      <div className="orders-today-view__toolbar">
-        <OrdersTodayFilters value={filter} onChange={onFilterChange} />
-        {showClosed && closedOrders.length === 0 && (
-          <button
-            type="button"
-            className="orders-today-view__sample-btn"
-            data-testid="orders-today-closed-sample-toggle"
-            onClick={() => setPreferClosedSample((v) => !v)}
-          >
-            {preferClosedSample ? 'Hide closed sample' : 'Show closed sample'}
-          </button>
-        )}
-      </div>
+      {(!hideFilters || closedSampleToggle) && (
+        <div className="orders-today-view__toolbar">
+          {!hideFilters && <OrdersTodayFilters value={filter} onChange={onFilterChange} />}
+          {closedSampleToggle && (
+            <button
+              type="button"
+              className="orders-today-view__sample-btn"
+              data-testid="orders-today-closed-sample-toggle"
+              onClick={() => setPreferClosedSample((v) => !v)}
+            >
+              {preferClosedSample ? 'Hide closed sample' : 'Show closed sample'}
+            </button>
+          )}
+        </div>
+      )}
 
       {empty ? (
         <div className="ibkr-empty" data-testid="orders-today-empty">

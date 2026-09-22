@@ -1,0 +1,79 @@
+/* Desk -- the Scanner + Trader hybrid. Board column (fixed) beside the Trader's
+   own workspace (flex). Owner: pages/DeskPage.tsx + desk/DeskBoard.tsx;
+   App.tsx sets the branch modifiers. Widths mirror constantGroups/desk.ts. */
+
+/* Doubled class: beats the column-direction base rule whatever the sheet order. */
+.nova-app-branch.nova-app-branch--desk {
+  --desk-board-width: 640px;
+  flex-direction: row;
+}
+
+@media (max-width: 1500px) {
+  .nova-app-branch.nova-app-branch--desk {
+    --desk-board-width: 560px;
+  }
+}
+
+/* The dashboard slot becomes the board column; the trader slot follows it. */
+.nova-app-branch--desk > .nova-scanner-desk-slot {
+  order: 0;
+  flex: 0 0 var(--desk-board-width);
+  width: var(--desk-board-width);
+}
+
+.nova-app-branch--desk > .nova-trader-desk-slot {
+  order: 1;
+}
+
+/* No tab yet: the slot spans the branch and DeskPage draws the empty workspace. */
+.nova-app-branch--desk-empty > .nova-scanner-desk-slot {
+  flex: 1 1 0;
+  width: auto;
+}
+
+.desk-page {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  overflow: hidden;
+  color: var(--nova-text, var(--text-primary));
+}
+
+.desk-page--sample {
+  align-items: center;
+  justify-content: center;
+}
+
+/* Scoped under .desk-page so these beat the .main-col / .panel base rules. */
+.desk-page .desk-page__column {
+  flex: 0 0 var(--desk-board-width, 640px);
+  width: var(--desk-board-width, 640px);
+  padding: 0.5rem 0.25rem 0.5rem 0.75rem;
+}
+
+.desk-page .desk-page__empty {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0.5rem 0.5rem 0.5rem 0.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 1rem;
+}
+
+.desk-page__empty-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.desk-page__calm {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--nova-text-muted, var(--text-secondary));
+}
