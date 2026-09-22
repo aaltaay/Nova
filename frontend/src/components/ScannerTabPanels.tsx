@@ -7,6 +7,7 @@ import { CatalystsTable } from './CatalystsTable';
 import { EmptyState } from './EmptyState';
 import { ScannerTable } from './ScannerTable';
 import { type ScannerTableMeta } from '../hooks/useScannerPriceStream';
+import { pinFirst, usePinnedRows } from '../scanner/pinnedRowsStore';
 import { tableHonestyLabel } from '../scanner/scannerHonesty';
 import { useLiveScannerFeedOptional } from '../scanner/ScannerDataContext';
 import { LARGE_CAP_COLUMNS, SCANNER_COLUMNS } from '../constants';
@@ -87,27 +88,29 @@ export function ScannerTabPanels({
   const losersWithWatchlist = useWatchlistOverlay(losers, watchlistEntries);
   const afterhoursWithWatchlist = useWatchlistOverlay(afterhours, watchlistEntries);
 
+  // Pinned rows lead every list for the session, after the sort.
+  const pinned = usePinnedRows();
   const sortedGappers = useMemo(
-    () => sortedArray(gappersWithWatchlist, gapperSort),
-    [gappersWithWatchlist, gapperSort],
+    () => pinFirst(sortedArray(gappersWithWatchlist, gapperSort), pinned),
+    [gappersWithWatchlist, gapperSort, pinned],
   );
   const sortedGainers = useMemo(
-    () => sortedArray(gainersWithWatchlist, gainerSort),
-    [gainersWithWatchlist, gainerSort],
+    () => pinFirst(sortedArray(gainersWithWatchlist, gainerSort), pinned),
+    [gainersWithWatchlist, gainerSort, pinned],
   );
   const sortedLosers = useMemo(
-    () => sortedArray(losersWithWatchlist, loserSort),
-    [losersWithWatchlist, loserSort],
+    () => pinFirst(sortedArray(losersWithWatchlist, loserSort), pinned),
+    [losersWithWatchlist, loserSort, pinned],
   );
   const sortedAfterhours = useMemo(
-    () => sortedArray(afterhoursWithWatchlist, afterhoursSort),
-    [afterhoursWithWatchlist, afterhoursSort],
+    () => pinFirst(sortedArray(afterhoursWithWatchlist, afterhoursSort), pinned),
+    [afterhoursWithWatchlist, afterhoursSort, pinned],
   );
   // No watchlist overlay -- Five Pillars scoring (price $2-$20, float <20M) is a
   // day-trade fit test that does not apply to a large-cap swing table.
   const sortedLargeCap = useMemo(
-    () => sortedArray(largeCap, largeCapSort),
-    [largeCap, largeCapSort],
+    () => pinFirst(sortedArray(largeCap, largeCapSort), pinned),
+    [largeCap, largeCapSort, pinned],
   );
   const sortedCatalysts = useMemo(
     () => sortedArray(catalysts, catalystSort),

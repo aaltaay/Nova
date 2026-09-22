@@ -1,4 +1,5 @@
 /** Dense scanner table: Gappers / Movers / After Hours tabs share this rendering. */
+import { useMemo } from 'react';
 import { ScannerTableRow } from './ScannerTableRow';
 import { ScannerColGroup, ScannerRowNumHeader } from './ScannerTableChrome';
 import { SCANNER_TABLE_WRAPPER_CLASS, scannerColClass } from './scannerTableCol';
@@ -38,6 +39,15 @@ export function ScannerTable({
   rowQuoteTs = {},
   nowSec = 0,
 }: ScannerTableProps) {
+  // The gap bar scales to the largest |gap| on the list (the top row when
+  // sorted by gap). No gap anywhere: no bars, just the numbers.
+  const gapScaleMax = useMemo(() => {
+    let max = 0;
+    for (const r of data) {
+      if (r.gap_percent != null && Math.abs(r.gap_percent) > max) max = Math.abs(r.gap_percent);
+    }
+    return max > 0 ? max : null;
+  }, [data]);
   return (
     <div className={SCANNER_TABLE_WRAPPER_CLASS}>
       <table>
@@ -84,6 +94,7 @@ export function ScannerTable({
                 onOpenTrading={onOpenTrading}
                 flash={flashSymbols[sym]}
                 stale={isRowQuoteStale(row.symbol, rowQuoteTs, nowSec, pricesStale)}
+                gapScaleMax={gapScaleMax}
               />
             );
           })}

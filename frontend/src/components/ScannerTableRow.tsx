@@ -4,12 +4,15 @@ import { memo, type ReactNode } from 'react';
 import { SymbolSelectButton } from './SymbolSelectButton';
 import { SelectableTableRow } from './SelectableTableRow';
 import { ScannerPriceCell } from './ScannerPriceCell';
+import { ScannerRowActions } from './ScannerRowActions';
+import { ScannerRowMarks } from './ScannerRowMarks';
 import { NewsCell } from './NewsCell';
 import { EarningsDots } from './EarningsDots';
 import { ScannerRowNumCell } from './ScannerTableChrome';
 import { scannerColClass } from './scannerTableCol';
 import { fmtMarketCap, fmtPct, fmtPrice, fmtVolume } from '../utils/quoteFormat';
 import { SCANNER_RVOL_SOURCE_BADGE, SCANNER_RVOL_SOURCE_TITLE } from '../constants';
+import { SCANNER_GAP_BAR_MAX_PX } from '../constantGroups/scanner_board';
 import type { ScannerRow } from '../types/scanner';
 import type { WatchlistEntry } from '../strategy/types';
 
@@ -40,6 +43,8 @@ export type ScannerTableRowProps = {
   onOpenTrading: (symbol: string) => void;
   flash?: 'up' | 'down';
   stale: boolean;
+  /** Largest |gap_percent| on the list -- the gap bar scales to the top row. Null: no bar. */
+  gapScaleMax?: number | null;
 };
 
 /** True when this row can skip React reconciliation after a price_patch. */
@@ -55,7 +60,26 @@ export function scannerTableRowPropsEqual(
     prev.stale === next.stale &&
     prev.columns === next.columns &&
     prev.onSelect === next.onSelect &&
-    prev.onOpenTrading === next.onOpenTrading
+    prev.onOpenTrading === next.onOpenTrading &&
+    (prev.gapScaleMax ?? null) === (next.gapScaleMax ?? null)
+  );
+}
+
+/** Signed gap plus a bar scaled to the list's top row (drawn, not just printed). */
+function GapCell({ value, scaleMax }: { value: number | null; scaleMax: number | null }) {
+  const cls = value != null && value >= 0 ? 'positive' : value != null ? 'negative' : '';
+  const width = value != null && scaleMax != null && scaleMax > 0
+    ? Math.round(Math.min(1, Math.abs(value) / scaleMax) * SCANNER_GAP_BAR_MAX_PX)
+    : null;
+  return (
+    <span className="scanner-gap">
+      <span className={cls}>{fmtPct(value)}</span>
+      {width != null ? (
+        <span className="scanner-gap__bar" aria-hidden="true">
+          <i className={value != null && value >= 0 ? 'is-up' : 'is-down'} style={{ width }} />
+        </span>
+      ) : null}
+    </span>
   );
 }
 
@@ -74,6 +98,7 @@ function renderCell(
   row: ScannerRow,
   flash: 'up' | 'down' | undefined,
   stale: boolean,
+  gapScaleMax: number | null,
 ): ReactNode {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const anyRow = row as any;
@@ -101,11 +126,7 @@ function renderCell(
         </span>
       );
     case 'gap_percent':
-      return (
-        <span className={row.gap_percent != null && row.gap_percent >= 0 ? 'positive' : row.gap_percent != null ? 'negative' : ''}>
-          {fmtPct(row.gap_percent)}
-        </span>
-      );
+      return <GapCell value={row.gap_percent} scaleMax={gapScaleMax} />;
     case 'volume':
       return (
         <span className="cell-stack" title={SCANNER_RVOL_SOURCE_TITLE}>
@@ -205,7 +226,9 @@ function ScannerTableRowView({
   onOpenTrading,
   flash,
   stale,
+  gapScaleMax = null,
 }: ScannerTableRowProps) {
+  const last = columns.length - 1;
   return (
     <SelectableTableRow
       symbol={row.symbol}
@@ -214,22 +237,33 @@ function ScannerTableRowView({
       onOpenTrading={onOpenTrading}
       openOnRowClick={false}
       botAllowlistMenu
+      className="scanner-row"
     >
       <ScannerRowNumCell index={index} />
-      {columns.map(([key]) =>
+      {columns.map(([key], i) =>
         key === 'symbol' ? (
           <td key={key} data-col={key} className={scannerColClass(key)}>
-            <SymbolSelectButton
-              symbol={row.symbol}
-              exchange={row.exchange}
-              selected={selected}
-              onSelect={onSelect}
-              onOpenTrading={onOpenTrading}
-            />
+            <span className="scanner-symbol-cell">
+              <SymbolSelectButton
+                symbol={row.symbol}
+                exchange={row.exchange}
+                selected={selected}
+                onSelect={onSelect}
+                onOpenTrading={onOpenTrading}
+              />
+              <ScannerRowMarks symbol={row.symbol} />
+            </span>
           </td>
         ) : (
-          <td key={key} data-col={key} className={scannerColClass(key)}>
-            {renderCell(key, row, flash, stale)}
+          <td
+            key={key}
+            data-col={key}
+            className={`${scannerColClass(key)}${i === last ? ' scanner-row-actions-host' : ''}`}
+          >
+            {renderCell(key, row, flash, stale, gapScaleMax)}
+            {/* The last cell hosts the hover actions so no column is added
+                (the width roles are locked, #276). */}
+            {i === last ? <ScannerRowActions symbol={row.symbol} onOpenTrading={onOpenTrading} /> : null}
           </td>
         )
       )}
