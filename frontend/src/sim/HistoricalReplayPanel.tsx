@@ -8,7 +8,7 @@ import { useReplayActions } from './useReplayActions';
 import { selectHistoricalReplay } from './historicalReplayLoad';
 import { HistoricalDownloads } from './HistoricalDownloads';
 import { coverageLabel } from './simCoverage';
-import { durationLabel, jobSummary, validateHistoricalWindow, windowLabel, windowMinutes } from './historicalProgress';
+import { jobStatusLine, selectionStatusLine, validateHistoricalWindow, windowLabel, windowMinutes } from './historicalProgress';
 import type { HistoricalJob, HistoricalWindow } from './historicalTypes';
 
 export function HistoricalReplayPanel() {
@@ -46,7 +46,15 @@ export function HistoricalReplayPanel() {
   const action = async (job: HistoricalJob, operation: 'pause' | 'resume') => {
     if (await request(job.id, `/history/${encodeURIComponent(job.id)}/${operation}`)) void historicalStatus.refresh();
   };
-  const selectionLabel = selection && `${windowLabel(selection)}  -  ${selection.trade_count?.toLocaleString() ?? 'Unknown'} downloaded prints`;
+  // One short line each (operator ask, 2026-09-22); the long form rides the title.
+  const selectionDetail = selection && [
+    `${windowLabel(selection)}  -  ${selection.trade_count?.toLocaleString() ?? 'Unknown'} downloaded prints.`,
+    selection.download_status === 'missing'
+      ? 'No downloaded trades for this window; candles appear only if stored.'
+      : (selection.coverage?.length ?? 0) > 1
+        ? `Trades downloaded ${coverageLabel(selection, ts => etTime(ts).slice(0, 5))} ET  -  ${selection.download_status ?? 'coverage unknown'}.`
+        : `Trades through ${etTime(selection.coverage_through)} ET  -  ${selection.download_status ?? 'coverage unknown'}.`,
+  ].join(' ');
   return <div className="sim-history">
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Anchor virtualRef={anchor} />
@@ -76,14 +84,10 @@ export function HistoricalReplayPanel() {
       </Popover.Portal>
     </Popover.Root>
     <span role="status" className="sim-history__summary" title={primary ? `${primary.symbol} ${primary.date} ${primary.start} - ${primary.end}` : undefined}>
-      {status.error ? `Download status unavailable: ${status.error}` : primary ? `${jobSummary(primary)}${primary.eta_seconds != null ? ` - about ${durationLabel(primary.eta_seconds)} remaining` : ''}` : ''}
+      {status.error ? `Download status unavailable: ${status.error}` : primary ? jobStatusLine(primary) : ''}
     </span>
-    {selection && <span role="status" className="sim-history__selection" title={selectionLabel ?? undefined}>
-      Selected: {selectionLabel}. {selection.download_status === 'missing'
-        ? 'No downloaded trades for this window; candles appear only if stored.'
-        : (selection.coverage?.length ?? 0) > 1
-          ? <>Trades downloaded {coverageLabel(selection, ts => etTime(ts).slice(0, 5))} ET  -  {selection.download_status ?? 'coverage unknown'}.</>
-          : <>Trades through {etTime(selection.coverage_through)} ET  -  {selection.download_status ?? 'coverage unknown'}.</>}
+    {selection && <span role="status" className="sim-history__selection" title={selectionDetail ?? undefined}>
+      {selectionStatusLine(selection)}
     </span>}
   </div>;
 }

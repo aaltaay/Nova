@@ -5,7 +5,9 @@
  */
 export function formatMoney(n: number | null | undefined, decimals = 2): string {
   if (n == null || !Number.isFinite(n)) return '—';
-  return `$${n.toLocaleString('en-US', {
+  // A figure that rounds to zero is zero: never "$-0.00" (a -0 commission read that way).
+  const value = Number(Math.abs(n).toFixed(decimals)) === 0 ? 0 : n;
+  return `$${value.toLocaleString('en-US', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   })}`;

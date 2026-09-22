@@ -17,7 +17,8 @@ describe('accountDetailRows', () => {
     const history = paperHistoryFixture();
     const today = todayPracticeDate();
     const rows = accountDetailRows(figuresFromPractice(PAPER_ACCOUNT_TODAY), todayDailyRow(history, today), true);
-    expect(rows.realizedToday).toBe(97.5);
+    // Net of commissions and fees, as the ledger books it; never subtracted twice (QA V1).
+    expect(rows.realizedToday).toBe(87.1);
     expect(rows.openPnl).toBe(55);
     expect(rows.commissionsToday).toBe(10);
     expect(rows.feesToday).toBe(0.4);

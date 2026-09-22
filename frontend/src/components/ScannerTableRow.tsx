@@ -129,12 +129,12 @@ function renderCell(
       return <GapCell value={row.gap_percent} scaleMax={gapScaleMax} />;
     case 'volume':
       return (
-        <span className="cell-stack" title={SCANNER_RVOL_SOURCE_TITLE}>
+        <span className="cell-stack cell-stack--volume" title={SCANNER_RVOL_SOURCE_TITLE}>
           <span className="cell-stack-primary">{fmtVolume(row.volume)}</span>
           <span className="cell-stack-secondary">
             {row.rel_volume != null ? (
               <>
-                {row.rel_volume}x rel{' '}
+                {row.rel_volume}x
                 <span className="rvol-source-badge" title={SCANNER_RVOL_SOURCE_TITLE}>
                   {SCANNER_RVOL_SOURCE_BADGE}
                 </span>

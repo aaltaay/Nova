@@ -1,18 +1,44 @@
 /**
  * Global header Emergency KILL -- confirm, then compose existing doors.
+ *
+ * A red stop sign (operator ask, 2026-09-22: the text button read too loud);
+ * hovering or focusing it opens a card that says exactly what a click will do,
+ * and a click still asks for confirmation before anything runs.
  */
 import { useRef, useState } from 'react';
+import { Tooltip } from 'radix-ui';
 import {
   APP_DIALOG_EMERGENCY_KILL_LABEL,
   GLOBAL_BAR_EMERGENCY_KILL_BUSY_LABEL,
   GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_BODY,
   GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_TITLE,
   GLOBAL_BAR_EMERGENCY_KILL_FAIL_TITLE,
+  GLOBAL_BAR_EMERGENCY_KILL_HINT,
   GLOBAL_BAR_EMERGENCY_KILL_LABEL,
-  GLOBAL_BAR_EMERGENCY_KILL_TITLE,
+  GLOBAL_BAR_EMERGENCY_KILL_OPS,
+  GLOBAL_BAR_EMERGENCY_KILL_TOOLTIP_DELAY_MS,
 } from '../constants';
 import { runEmergencyKill } from '../ibkr/emergencyKill';
 import { alertApp, confirmApp } from '../ux';
+import { StopSignIcon } from './StopSignIcon';
+import './emergencyKill.css';
+
+/** What a click does, in the order it happens. */
+export function EmergencyKillCard({ busy }: { busy: boolean }) {
+  return (
+    <div className="global-app-bar__kill-card" data-testid="global-bar-emergency-kill-card">
+      <div className="global-app-bar__kill-card-title">
+        {busy ? GLOBAL_BAR_EMERGENCY_KILL_BUSY_LABEL : GLOBAL_BAR_EMERGENCY_KILL_LABEL}
+      </div>
+      <ul>
+        {GLOBAL_BAR_EMERGENCY_KILL_OPS.map((op) => (
+          <li key={op}>{op}</li>
+        ))}
+      </ul>
+      <p>{GLOBAL_BAR_EMERGENCY_KILL_HINT}</p>
+    </div>
+  );
+}
 
 export function EmergencyKillButton() {
   const [busy, setBusy] = useState(false);
@@ -47,19 +73,32 @@ export function EmergencyKillButton() {
     }
   }
 
+  const label = busy ? GLOBAL_BAR_EMERGENCY_KILL_BUSY_LABEL : GLOBAL_BAR_EMERGENCY_KILL_LABEL;
   return (
-    <button
-      type="button"
-      className="global-app-bar__emergency-kill"
-      title={GLOBAL_BAR_EMERGENCY_KILL_TITLE}
-      aria-label={GLOBAL_BAR_EMERGENCY_KILL_LABEL}
-      data-testid="global-bar-emergency-kill"
-      disabled={busy}
-      onClick={() => {
-        void onClick();
-      }}
-    >
-      {busy ? GLOBAL_BAR_EMERGENCY_KILL_BUSY_LABEL : GLOBAL_BAR_EMERGENCY_KILL_LABEL}
-    </button>
+    <Tooltip.Provider delayDuration={GLOBAL_BAR_EMERGENCY_KILL_TOOLTIP_DELAY_MS}>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <button
+            type="button"
+            className={`global-app-bar__emergency-kill${busy ? ' is-busy' : ''}`}
+            aria-label={label}
+            aria-busy={busy}
+            data-testid="global-bar-emergency-kill"
+            disabled={busy}
+            onClick={() => {
+              void onClick();
+            }}
+          >
+            <StopSignIcon />
+            <span className="sr-only">{label}</span>
+          </button>
+        </Tooltip.Trigger>
+        <Tooltip.Portal>
+          <Tooltip.Content className="global-app-bar__kill-tip" side="bottom" align="end" sideOffset={6} collisionPadding={8}>
+            <EmergencyKillCard busy={busy} />
+          </Tooltip.Content>
+        </Tooltip.Portal>
+      </Tooltip.Root>
+    </Tooltip.Provider>
   );
 }

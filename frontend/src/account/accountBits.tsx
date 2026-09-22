@@ -7,15 +7,9 @@ import { ACCOUNT_EST_CHIP, ACCOUNT_EST_TITLE } from '../constantGroups/account_p
 import { JOURNAL_CALENDAR_TIMEZONE } from '../constantGroups/market_ui';
 import { formatSignedMoney } from '../components/globalBarMoney';
 import { formatMoney } from '../utils/formatMoney';
+import { toneClass, toneOfKind, type MoneyKind, type Tone } from './accountTone';
 
-export type Tone = 'up' | 'down' | 'flat' | 'bot' | 'muted';
-
-export function toneOf(n: number | null | undefined): Tone {
-  if (n == null || !Number.isFinite(n) || n === 0) return 'flat';
-  return n > 0 ? 'up' : 'down';
-}
-
-export const toneClass = (tone: Tone): string => `acct-tone--${tone}`;
+export { toneClass, toneOf, toneOfKind, type MoneyKind, type Tone } from './accountTone';
 
 export function EstChip() {
   return (
@@ -25,9 +19,14 @@ export function EstChip() {
   );
 }
 
-/** Money cell: signed P&L in its tone, or a plain figure. */
-export function Money({ value, signed = false, decimals = 2 }: { value: number | null | undefined; signed?: boolean; decimals?: number }) {
-  const tone = signed ? toneOf(value) : 'flat';
+/**
+ * Money cell: a signed figure in its kind's tone (P&L past the floor is red /
+ * green, a cost is muted, cash moved is plain), or an unsigned figure.
+ */
+export function Money({
+  value, signed = false, decimals = 2, kind = 'pnl',
+}: { value: number | null | undefined; signed?: boolean; decimals?: number; kind?: MoneyKind }) {
+  const tone = signed ? toneOfKind(value, kind) : 'flat';
   return (
     <span className={`acct-num ${signed ? toneClass(tone) : ''}`.trim()}>
       {signed ? formatSignedMoney(value, decimals) : formatMoney(value, decimals)}

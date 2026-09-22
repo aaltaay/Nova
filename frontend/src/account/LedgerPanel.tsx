@@ -114,7 +114,7 @@ function RowCells({ row }: { row: LedgerRow }) {
           ) : null}
         </td>
         <td className="acct-num">{etDateTime(row.ts)}</td>
-        <td className="r"><Money value={row.amount} signed /></td>
+        <td className="r"><Money value={row.amount} signed kind="cash" /></td>
         <td className="r">{row.balance == null ? <span className="acct-muted">—</span> : <Money value={row.balance} />}</td>
       </>
     );
@@ -130,7 +130,7 @@ function RowCells({ row }: { row: LedgerRow }) {
       <td>{type}</td>
       <td>{action}</td>
       <td className="acct-num">{etDateTime(row.ts)}</td>
-      <td className="r">{row.amount == null ? '—' : <Money value={row.amount} signed />}</td>
+      <td className="r">{row.amount == null ? '—' : <Money value={row.amount} signed kind="cash" />}</td>
       <td className="r">{row.balance == null ? '—' : <Money value={row.balance} />}</td>
     </>
   );

@@ -302,7 +302,9 @@ describe('NavRail', () => {
     const rail = q('nav-rail')!;
     expect(rail.classList.contains('nav-rail--collapsed')).toBe(true);
     expect(rail.getAttribute('data-collapsed')).toBe('true');
-    expect(q('nav-rail-scanner-tree')).toBeNull();
+    // Operator ask, 2026-09-22: the Scanner children stay visible as icons.
+    expect(q('nav-rail-scanner-tree')).toBeTruthy();
+    expect(q('nav-rail-tab-gappers')!.getAttribute('title')).toMatch(/Gappers/);
     expect(q('nav-rail-scanner-chevron')).toBeNull();
     expect(q('nav-rail-desk')!.getAttribute('title')).toMatch(/Desk/);
     expect(q('nav-rail-collapse')!.getAttribute('aria-pressed')).toBe('true');

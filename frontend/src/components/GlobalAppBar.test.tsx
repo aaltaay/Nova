@@ -6,8 +6,6 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   GLOBAL_BAR_EMERGENCY_KILL_LABEL,
-  GLOBAL_BAR_EMERGENCY_KILL_OPS,
-  GLOBAL_BAR_EMERGENCY_KILL_TITLE,
 } from '../constants';
 import { GlobalAppBar } from './GlobalAppBar';
 import type { IbkrAccountState } from '../ibkr/IbkrAccountContext';
@@ -362,11 +360,9 @@ describe('GlobalAppBar', () => {
 
     const rightKids = Array.from(right.children) as HTMLElement[];
     expect(rightKids[0].dataset.testid).toBe('global-bar-emergency-kill');
-    expect(rightKids[0].textContent).toBe(GLOBAL_BAR_EMERGENCY_KILL_LABEL);
-    expect(rightKids[0].title).toBe(GLOBAL_BAR_EMERGENCY_KILL_TITLE);
-    for (const op of GLOBAL_BAR_EMERGENCY_KILL_OPS) {
-      expect(rightKids[0].title).toContain(op);
-    }
+    // A stop sign; its hover card (EmergencyKillButton.test) lists the operations.
+    expect(rightKids[0].getAttribute('aria-label')).toBe(GLOBAL_BAR_EMERGENCY_KILL_LABEL);
+    expect(rightKids[0].querySelector('[data-testid="stop-sign-icon"]')).toBeTruthy();
     expect(rightKids[1].dataset.testid).toBe('global-bar-account');
     expect(rightKids[2].dataset.testid).toBe('global-bar-trade-lock');
     expect(rightKids[3].querySelector('[data-testid="global-bar-gear"]')).toBeTruthy();

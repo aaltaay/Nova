@@ -221,7 +221,10 @@ export const SCANNER_ROW_NUM_TITLE =
  * volume for thin low-float names and blew RVOL up 100x-3000x (PROBLEM_LOG
  * 2026-07-16). Backend owner: mover_enrich_view + hod_momo_enrichment. */
 export const SCANNER_VOLUME_COLUMN_LABEL = 'Volume · RVOL';
-export const SCANNER_RVOL_SOURCE_BADGE = 'yfinance avg';
+// A two-letter source mark keeps the Volume cell narrow enough for a squeezed
+// Scanner (operator report, 2026-09-22: 'YFINANCE AVG' spilled into Watch);
+// the cell and header titles still spell the source out in full.
+export const SCANNER_RVOL_SOURCE_BADGE = 'yf';
 export const SCANNER_RVOL_SOURCE_TITLE =
   'Live volume is IBKR L1. Relative volume divides it by the yfinance average daily volume (aux) — not IBKR consolidated volume. Thin names can still look off; study vs tape before trusting.';
 
@@ -529,8 +532,15 @@ export const CHART_BARS_CLIENT_STALE_MS = 15_000;
 export const SIDE_PANEL_WIDTH_PX = 820;
 /** Minimum width when dragging the splitter (px). */
 export const SIDE_PANEL_MIN_WIDTH_PX = 360;
-/** Minimum dashboard width retained for scanner columns before the side panel stacks. */
-export const SCANNER_MIN_REMAINING_PX = 830;
+/**
+ * Minimum Scanner board width kept beside the side panel: every Scanner column
+ * at its locked width (#276, about 1,020 px) plus the board's padding and the
+ * splitter. Was 830, which predates the rail and let a fresh profile's 820 px
+ * panel squeeze the board to 202 px at 1280 (QA V7, 2026-09-22).
+ */
+export const SCANNER_MIN_REMAINING_PX = 1120;
+/** The labelled nav rail's width, reserved beside the board when clamping the side panel. */
+export const SIDE_PANEL_RAIL_RESERVE_PX = 200;
 /** Absolute max width when dragging (px); also clamped so the scanner stays usable. */
 export const SIDE_PANEL_MAX_WIDTH_PX = 1400;
 /** Side panel max share of viewport width used as an upper clamp while resizing. */

@@ -216,10 +216,10 @@ export function AccountDetailsPanel({
           {practice ? <span className="acct-muted" title={ACCOUNT_EXCESS_NA_PRACTICE}>n/a</span> : <Money value={rows.excessLiquidity} />}
         </Row>
         <Row label={ACCOUNT_ROW_COMMISSIONS_TODAY}>
-          {rows.commissionsToday == null ? <span className="acct-muted">—</span> : <Money value={-rows.commissionsToday} signed={rows.commissionsToday !== 0} />}
+          {rows.commissionsToday == null ? <span className="acct-muted">—</span> : <Money value={-rows.commissionsToday} signed={rows.commissionsToday !== 0} kind="cost" />}
         </Row>
         <Row label={ACCOUNT_ROW_FEES_TODAY}>
-          {rows.feesToday == null ? <span className="acct-muted">—</span> : <Money value={-rows.feesToday} signed={rows.feesToday !== 0} />}
+          {rows.feesToday == null ? <span className="acct-muted">—</span> : <Money value={-rows.feesToday} signed={rows.feesToday !== 0} kind="cost" />}
         </Row>
         {rows.reconcile !== 'unknown' && (
           <p className="acct-foot acct-foot--rows" data-testid="account-rows-reconcile" data-reconcile={rows.reconcile}>

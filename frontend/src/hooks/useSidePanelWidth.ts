@@ -7,31 +7,37 @@ import {
   SIDE_PANEL_MAX_VIEWPORT_PCT,
   SIDE_PANEL_MAX_WIDTH_PX,
   SIDE_PANEL_MIN_WIDTH_PX,
+  SIDE_PANEL_RAIL_RESERVE_PX,
   SCANNER_MIN_REMAINING_PX,
   SIDE_PANEL_STACK_BREAKPOINT_PX,
   SIDE_PANEL_WIDTH_PX,
   SIDE_PANEL_WIDTH_STORAGE_KEY,
 } from '../constants';
 
-function clampWidth(px: number, viewportW: number): number {
+/** The panel width that still leaves the board every Scanner column beside the rail. */
+export function clampSidePanelWidth(px: number, viewportW: number): number {
   const viewportCap = Math.floor((viewportW * SIDE_PANEL_MAX_VIEWPORT_PCT) / 100);
-  const leaveScanner = Math.max(SIDE_PANEL_MIN_WIDTH_PX, viewportW - SCANNER_MIN_REMAINING_PX);
+  const leaveScanner = Math.max(
+    SIDE_PANEL_MIN_WIDTH_PX,
+    viewportW - SIDE_PANEL_RAIL_RESERVE_PX - SCANNER_MIN_REMAINING_PX,
+  );
   const max = Math.min(SIDE_PANEL_MAX_WIDTH_PX, viewportCap, leaveScanner);
   return Math.max(SIDE_PANEL_MIN_WIDTH_PX, Math.min(max, Math.round(px)));
 }
 
+const clampWidth = clampSidePanelWidth;
+
+/** A stored width, clamped; with nothing stored the default is clamped too (QA V7). */
 function loadWidth(): number {
+  const viewportW = typeof window !== 'undefined' ? window.innerWidth : 1600;
   try {
     const raw = localStorage.getItem(SIDE_PANEL_WIDTH_STORAGE_KEY);
-    if (!raw) return SIDE_PANEL_WIDTH_PX;
-    const n = Number(raw);
-    if (Number.isFinite(n) && n > 0) {
-      return clampWidth(n, typeof window !== 'undefined' ? window.innerWidth : 1600);
-    }
+    const n = raw ? Number(raw) : NaN;
+    if (Number.isFinite(n) && n > 0) return clampWidth(n, viewportW);
   } catch {
-    // ignore
+    // Storage blocked (private window): fall through to the clamped default.
   }
-  return SIDE_PANEL_WIDTH_PX;
+  return clampWidth(SIDE_PANEL_WIDTH_PX, viewportW);
 }
 
 export function useSidePanelWidth() {

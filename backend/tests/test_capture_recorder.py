@@ -536,3 +536,25 @@ def test_segment_summary_counts_the_gaps_between_segments() -> None:
     assert segment_summary(None) == {"segments": 0, "missing_sec": 0, "last_reason": None}
     overlapping = segments[:1] + [{"started_et": "2026-09-21T09:35:00-04:00", "stopped_et": "2026-09-21T09:45:00-04:00"}]
     assert segment_summary(overlapping)["missing_sec"] == 0
+
+
+def test_spans_payload_lists_each_segment_in_whole_epoch_seconds() -> None:
+    """The listing's ``spans`` let the Sim scrubber mark where Nova recorded."""
+    from datetime import datetime
+
+    from capture.sessions import spans_payload
+
+    segments = [
+        {"started_et": "2026-09-21T09:42:00-04:00", "stopped_et": "2026-09-21T09:50:00.400000-04:00"},
+        {"started_et": "2026-09-21T09:30:00-04:00", "stopped_et": "2026-09-21T09:40:00-04:00"},
+        {"started_et": "not a time"},
+        "junk",
+    ]
+    start = int(datetime.fromisoformat("2026-09-21T09:30:00-04:00").timestamp())
+    assert spans_payload(segments) == [
+        [start, start + 600],
+        [start + 720, start + 1201],  # a fractional stop rounds up, never short
+    ]
+    assert spans_payload(None) == []
+    running = spans_payload([{"started_et": "2026-09-21T09:30:00-04:00", "stopped_et": None}])
+    assert running[0][0] == start and running[0][1] >= start  # open: runs to now

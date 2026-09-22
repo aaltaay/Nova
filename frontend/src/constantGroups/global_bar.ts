@@ -176,6 +176,10 @@ export const GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_BODY = [
 export const GLOBAL_BAR_EMERGENCY_KILL_FAIL_TITLE =
   'Emergency KILL did not finish cleanly';
 export const GLOBAL_BAR_EMERGENCY_KILL_BUSY_LABEL = 'KILL running…';
+/** The stop sign's hover card: what a click does before anything runs. */
+export const GLOBAL_BAR_EMERGENCY_KILL_HINT =
+  'Click to review and confirm -- nothing runs until you confirm.';
+export const GLOBAL_BAR_EMERGENCY_KILL_TOOLTIP_DELAY_MS = 120;
 
 /**
  * Redesigned global bar (approved mockup, 2026-09-22) -- one row on every view:

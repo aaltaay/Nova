@@ -3,6 +3,7 @@
  * Day's P&L, the per-symbol and per-source splits, and the component rings.
  * No React, no fetch. Every figure names its source; nothing is inferred.
  */
+import { toneOf } from './accountTone';
 import {
   ACCOUNT_ROWS_TOLERANCE_USD,
   ACCOUNT_SOURCE_AUTO_PAPER,
@@ -80,11 +81,14 @@ export function accountDetailRows(
   const dayPnl = figures.dayPnl;
   let reconcile: RowsReconcile = 'unknown';
   let residual: number | null = null;
+  // The ledger's realized is already net of commissions and fees
+  // (practice/ledger.py); subtracting them again showed -$0.89 for a -$0.53
+  // day (QA V1, 2026-09-22). Commissions and fees are shown, never re-subtracted.
   if (
     realizedToday != null && openPnl != null && dayPnl != null
     && commissionsToday != null && feesToday != null
   ) {
-    residual = realizedToday + openPnl - commissionsToday - feesToday - dayPnl;
+    residual = realizedToday + openPnl - dayPnl;
     reconcile = Math.abs(residual) < ACCOUNT_ROWS_TOLERANCE_USD ? 'ok' : 'residual';
   }
   return {
@@ -124,7 +128,9 @@ export function symbolPnlRows(
   };
   for (const fill of fills) {
     const row = rowFor(fill.symbol.toUpperCase());
-    row.realized += fill.realized;
+    // A fill's realized is net of its own costs; the table shows gross, costs
+    // and net side by side, so gross adds the costs back.
+    row.realized += fill.realized + fill.commission + fill.fees;
     row.costs += fill.commission + fill.fees;
   }
   for (const position of positions) {
@@ -193,7 +199,8 @@ export function sourceCards(bySource: HistoryBySource[]): SourceCard[] {
     realized: entry.realized,
     commissions: entry.commissions,
     fees: entry.fees,
-    net: entry.fills ? entry.realized - entry.commissions - entry.fees : null,
+    // by_source realized is already net of commissions and fees (QA V1).
+    net: entry.fills ? entry.realized : null,
     share: 0,
   }));
   const canonical: Array<[SourceKind, string]> = [
@@ -224,24 +231,30 @@ export interface ComponentRing {
   value: number;
   /** Share of |realized| + |unrealized| + commissions + fees; bot = share of gross realized. */
   share: number;
-  tone: 'up' | 'down' | 'flat' | 'bot';
+  tone: 'up' | 'down' | 'flat' | 'bot' | 'muted';
 }
 
 export function componentRings(components: HistoryComponents, fills: HistoryFill[]): ComponentRing[] {
-  const total = Math.abs(components.realized) + Math.abs(components.unrealized)
+  // Components add up: gross realized + unrealized - commissions - fees = net.
+  // The ledger's realized is net, so gross adds the costs back (QA V1).
+  const gross = components.realized + components.commissions + components.sec_finra_fees;
+  const total = Math.abs(gross) + Math.abs(components.unrealized)
     + Math.abs(components.commissions) + Math.abs(components.sec_finra_fees);
-  const grossRealized = fills.reduce((sum, f) => sum + Math.abs(f.realized), 0);
+  const fillGross = (f: HistoryFill): number => f.realized + f.commission + f.fees;
+  const grossRealized = fills.reduce((sum, f) => sum + Math.abs(fillGross(f)), 0);
+  const botGross = fills.filter(isBotFill).reduce((sum, f) => sum + fillGross(f), 0);
   const share = (n: number): number => (total > 0 ? Math.abs(n) / total : 0);
-  const tone = (n: number): 'up' | 'down' | 'flat' => (n > 0 ? 'up' : n < 0 ? 'down' : 'flat');
+  // P&L tints past the floor; a cost is never red (operator ask, 2026-09-22).
+  const tone = (n: number): 'up' | 'down' | 'flat' => toneOf(n) as 'up' | 'down' | 'flat';
   return [
-    { id: 'realized', value: components.realized, share: share(components.realized), tone: tone(components.realized) },
+    { id: 'realized', value: gross, share: share(gross), tone: tone(gross) },
     { id: 'unrealized', value: components.unrealized, share: share(components.unrealized), tone: tone(components.unrealized) },
-    { id: 'commissions', value: -components.commissions, share: share(components.commissions), tone: components.commissions ? 'down' : 'flat' },
-    { id: 'fees', value: -components.sec_finra_fees, share: share(components.sec_finra_fees), tone: components.sec_finra_fees ? 'down' : 'flat' },
+    { id: 'commissions', value: -components.commissions, share: share(components.commissions), tone: components.commissions ? 'muted' : 'flat' },
+    { id: 'fees', value: -components.sec_finra_fees, share: share(components.sec_finra_fees), tone: components.sec_finra_fees ? 'muted' : 'flat' },
     {
       id: 'bot',
       value: components.bot_realized,
-      share: grossRealized > 0 ? Math.abs(components.bot_realized) / grossRealized : 0,
+      share: grossRealized > 0 ? Math.abs(botGross) / grossRealized : 0,
       tone: 'bot',
     },
   ];
@@ -256,6 +269,7 @@ export function botIds(fills: HistoryFill[]): string[] {
 export const sellCount = (fills: HistoryFill[]): number => fills.filter((f) => f.side === 'SELL').length;
 
 /** Net P&L of the range on this ledger: realized + open, less commissions and fees. */
+/** Net P&L for the range: realized is already net of commissions and fees (QA V1). */
 export function rangeNetPnl(components: HistoryComponents): number {
-  return components.realized + components.unrealized - components.commissions - components.sec_finra_fees;
+  return components.realized + components.unrealized;
 }

@@ -31,7 +31,7 @@ import {
   simCaptureBandTitle,
 } from './simConstants';
 import {
-  firstReplayMinute, formatMinuteClock, playheadTag, sessionOpeningLabel, stripBandSegments,
+  firstReplayMinute, formatMinuteClock, playheadTag, recordedLane, sessionOpeningLabel, stripBandSegments,
 } from './simStripFormat';
 import { useProgressiveReplay } from './useProgressiveReplay';
 import { useSimSessionController } from './useSimSessionController';
@@ -52,6 +52,7 @@ export function SimSessionStrip() {
   const offWall = Boolean(clock?.scrubbed || clock?.paused || dragMinute != null);
   const failed = clock?.replay_ok === false;
   const segments = stripBandSegments(clock, selection, ts => etTime(ts).slice(0, 5));
+  const recorded = recordedLane(clock, controller.sessions, activeTraderSymbol, ts => etTime(ts).slice(0, 5));
   const bandTitle = clock?.replay_source === 'capture'
     ? simCaptureBandTitle(captureCoverageLabel(clock, ts => etTime(ts).slice(0, 5)))
     : undefined;
@@ -97,6 +98,7 @@ export function SimSessionStrip() {
         ariaValueText={`${formatMinuteClock(minute, sessionOpeningLabel(clock))} Eastern`}
         busy={seekBusy}
         title={bandTitle}
+        recorded={recorded}
         onPointerDown={controller.beginDrag}
         onChange={controller.onScrubInput}
         onRelease={value => { void controller.endDrag(value); }}

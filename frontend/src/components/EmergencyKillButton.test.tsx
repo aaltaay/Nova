@@ -8,10 +8,10 @@ import {
   APP_DIALOG_EMERGENCY_KILL_LABEL,
   GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_TITLE,
   GLOBAL_BAR_EMERGENCY_KILL_LABEL,
+  GLOBAL_BAR_EMERGENCY_KILL_HINT,
   GLOBAL_BAR_EMERGENCY_KILL_OPS,
-  GLOBAL_BAR_EMERGENCY_KILL_TITLE,
 } from '../constants';
-import { EmergencyKillButton } from './EmergencyKillButton';
+import { EmergencyKillButton, EmergencyKillCard } from './EmergencyKillButton';
 
 const confirmApp = vi.fn();
 const alertApp = vi.fn();
@@ -49,17 +49,44 @@ describe('EmergencyKillButton', () => {
     container.remove();
   });
 
-  it('is a red Emergency KILL control with the four-op hover list', () => {
+  it('is a red stop sign labelled Emergency KILL, with no native title to double the card', () => {
     const button = container.querySelector(
       '[data-testid="global-bar-emergency-kill"]',
     ) as HTMLButtonElement;
     expect(button).toBeTruthy();
+    expect(button.getAttribute('aria-label')).toBe(GLOBAL_BAR_EMERGENCY_KILL_LABEL);
     expect(button.textContent).toBe(GLOBAL_BAR_EMERGENCY_KILL_LABEL);
-    expect(button.title).toBe(GLOBAL_BAR_EMERGENCY_KILL_TITLE);
-    for (const op of GLOBAL_BAR_EMERGENCY_KILL_OPS) {
-      expect(button.title).toContain(op);
-    }
+    expect(button.querySelector('[data-testid="stop-sign-icon"]')).toBeTruthy();
+    expect(button.hasAttribute('title')).toBe(false);
     expect(button.className).toContain('global-app-bar__emergency-kill');
+  });
+
+  it('opens a card on focus that lists all four operations and says a click confirms first', async () => {
+    const button = container.querySelector(
+      '[data-testid="global-bar-emergency-kill"]',
+    ) as HTMLButtonElement;
+    await act(async () => {
+      button.focus();
+      await Promise.resolve();
+    });
+    const card = document.body.querySelector('[data-testid="global-bar-emergency-kill-card"]');
+    expect(card).toBeTruthy();
+    for (const op of GLOBAL_BAR_EMERGENCY_KILL_OPS) {
+      expect(card!.textContent).toContain(op);
+    }
+    expect(card!.textContent).toContain(GLOBAL_BAR_EMERGENCY_KILL_HINT);
+  });
+
+  it('the card names the running state while KILL runs', () => {
+    const host = document.createElement('div');
+    const cardRoot = createRoot(host);
+    act(() => {
+      cardRoot.render(<EmergencyKillCard busy />);
+    });
+    expect(host.textContent).toMatch(/KILL running/);
+    act(() => {
+      cardRoot.unmount();
+    });
   });
 
   it('confirms then runs the existing-door compose helper', async () => {
