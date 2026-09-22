@@ -17,7 +17,17 @@
   padding-left: 1.25rem;
 }
 
-/* Middle column: HOD dock (top) + titled selected scanner (bottom). */
+/* Side panel: the full height of the scanner shell (which already sits under
+   the global bar) -- not the viewport's, which clipped its bottom by the bar's
+   height now that the HOD strip lives in the middle column. */
+.nova-shell--scanner > .side-panel {
+  position: static;
+  height: auto;
+  min-height: 0;
+  align-self: stretch;
+}
+
+/* Middle column: HOD strip (top) + titled selected scanner (bottom). */
 .main-col--scanner-stack {
   display: flex;
   flex-direction: column;
@@ -26,13 +36,6 @@
   overflow: hidden;
   padding-top: 0.5rem;
   padding-bottom: 0.5rem;
-}
-
-.main-col--scanner-stack .hod-momo-dock {
-  flex-shrink: 0;
-  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
-  border-radius: 8px;
-  margin-bottom: 0.5rem;
 }
 
 .scanner-selected-widget {
@@ -70,4 +73,243 @@
   background: transparent;
   min-height: 0;
   height: 100%;
+}
+
+/* ── Board header: title · chips · Saved ▾ · session line ─────────────── */
+.scanner-board__head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 36px;
+  padding: 0.25rem 0.75rem;
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  font-size: 11px;
+  color: var(--text-muted, #9aa3b2);
+  white-space: nowrap;
+  flex-wrap: wrap;
+}
+
+.scanner-board__title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-primary, #e8ecf4);
+}
+
+.scanner-board__vdiv {
+  width: 1px;
+  height: 18px;
+  background: var(--border-color, rgba(255, 255, 255, 0.12));
+}
+
+.scanner-board__chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.scanner-board__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 9px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  border-radius: 11px;
+  background: transparent;
+  color: var(--text-muted, #9aa3b2);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.scanner-board__chip:hover {
+  color: var(--text-primary, #e8ecf4);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.scanner-board__chip.is-on {
+  color: var(--text-primary, #e8ecf4);
+  background: rgba(59, 130, 246, 0.16);
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+.scanner-board__chip.is-on::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-color, #3b82f6);
+}
+
+.scanner-board__chip.is-unavailable {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-style: dashed;
+}
+
+.scanner-board__chip i {
+  font-style: normal;
+  color: var(--text-muted, #9aa3b2);
+}
+
+.scanner-board__saved {
+  color: var(--text-primary, #e8ecf4);
+}
+
+.scanner-board__caret {
+  font-size: 9px;
+}
+
+.scanner-board__saved-host {
+  position: relative;
+  display: inline-flex;
+}
+
+.scanner-board__saved-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 40;
+  min-width: 13rem;
+  padding: 0.3rem;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  border-radius: 6px;
+  background: var(--surface-2, #1a1d25);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  color: var(--text-primary, #e8ecf4);
+}
+
+.scanner-board__saved-row {
+  display: flex;
+  align-items: center;
+}
+
+.scanner-board__saved-item,
+.scanner-board__saved-forget {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+}
+
+.scanner-board__saved-item {
+  flex: 1;
+}
+
+.scanner-board__saved-item:hover,
+.scanner-board__saved-forget:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.scanner-board__saved-item.is-active {
+  color: #93c5fd;
+}
+
+.scanner-board__saved-save {
+  margin-top: 0.2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0;
+  color: var(--text-muted, #9aa3b2);
+}
+
+.scanner-board__saved-empty {
+  padding: 0.3rem 0.5rem;
+  color: var(--text-muted, #9aa3b2);
+}
+
+.scanner-board__session {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.scanner-board__session b {
+  font-weight: 600;
+  color: var(--text-primary, #e8ecf4);
+}
+
+.scanner-board__cd {
+  margin-left: 0.35rem;
+  font-size: 15px;
+  letter-spacing: 0.01em;
+}
+
+.scanner-board__sep {
+  opacity: 0.4;
+}
+
+/* ── Board footer ──────────────────────────────────────────────────────── */
+.scanner-board__foot {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 28px;
+  padding: 0.2rem 0.75rem;
+  border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  font-size: 11px;
+  color: var(--text-muted, #9aa3b2);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.scanner-board__spacer {
+  flex: 1;
+}
+
+.scanner-board__link {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #93c5fd;
+  font: inherit;
+  cursor: pointer;
+}
+
+.scanner-board__link:hover {
+  text-decoration: underline;
+}
+
+.scanner-board__legend {
+  display: inline-flex;
+  gap: 0.9rem;
+}
+
+.scanner-board__legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* ── Row marks (REC / bot) ─────────────────────────────────────────────── */
+.scanner-mark {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  vertical-align: middle;
+}
+
+.scanner-mark--rec {
+  background: #ff3b30;
+}
+
+.scanner-mark--bot {
+  background: var(--accent-color, #3b82f6);
+}
+
+.scanner-mark--bot.is-quiet {
+  background: transparent;
+  border: 1.5px solid var(--accent-color, #3b82f6);
 }

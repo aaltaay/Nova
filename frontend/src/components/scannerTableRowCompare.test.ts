@@ -65,4 +65,14 @@ describe('scannerTableRowPropsEqual', () => {
     expect(scannerTableRowPropsEqual(base, { ...base, flash: 'up' })).toBe(false);
     expect(scannerTableRowPropsEqual(base, { ...base, stale: true })).toBe(false);
   });
+
+  it('re-renders when the list top gap changes (the gap bar rescales), not when it is merely absent', () => {
+    const shared = row('AAA');
+    const onSelect = vi.fn();
+    const onOpenTrading = vi.fn();
+    const columns: [string, string][] = [['gap_percent', 'Gap %']];
+    const base = props({ row: shared, onSelect, onOpenTrading, columns, gapScaleMax: 0.5 });
+    expect(scannerTableRowPropsEqual(base, { ...base, gapScaleMax: 0.9 })).toBe(false);
+    expect(scannerTableRowPropsEqual({ ...base, gapScaleMax: undefined }, { ...base, gapScaleMax: null })).toBe(true);
+  });
 });

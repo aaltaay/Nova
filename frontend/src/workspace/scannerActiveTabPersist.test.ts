@@ -2,11 +2,8 @@
  * @vitest-environment jsdom
  */
 import { beforeEach, describe, expect, it } from 'vitest';
-import {
-  HOD_MOMO_DOCK_COLLAPSED_KEY,
-  HOD_MOMO_DOCK_HEIGHT_KEY,
-  SCANNER_ACTIVE_TAB_STORAGE_KEY,
-} from '../constants';
+import { SCANNER_ACTIVE_TAB_STORAGE_KEY } from '../constants';
+import { HOD_MOMO_STRIP_STORAGE_KEY } from '../hod_momo/hodMomoStripConstants';
 import { PREFS_BUNDLE_KEYS } from '../settings/prefsBundle';
 import { PREF_SCHEMA_VERSION } from '../utils/prefStore';
 import { DEFAULT_ACTIVE_TAB } from './registry';
@@ -82,12 +79,12 @@ describe('scannerActiveTabPersist restore', () => {
     expect(initialScannerTabState().userPicked).toBe(false);
   });
 
-  it('does not touch HOD dock keys', () => {
-    localStorage.setItem(HOD_MOMO_DOCK_COLLAPSED_KEY, '1');
-    localStorage.setItem(HOD_MOMO_DOCK_HEIGHT_KEY, '320');
+  it('does not touch the HOD strip key', () => {
+    const strip = '{"schema_version":1,"rows":6,"folded":true}';
+    localStorage.setItem(HOD_MOMO_STRIP_STORAGE_KEY, strip);
     writePersistedScannerTab('catalysts');
-    expect(localStorage.getItem(HOD_MOMO_DOCK_COLLAPSED_KEY)).toBe('1');
-    expect(localStorage.getItem(HOD_MOMO_DOCK_HEIGHT_KEY)).toBe('320');
+    expect(localStorage.getItem(HOD_MOMO_STRIP_STORAGE_KEY)).toBe(strip);
+    expect(PREFS_BUNDLE_KEYS).toContain(HOD_MOMO_STRIP_STORAGE_KEY);
     expect(SCANNER_ACTIVE_TAB_STORAGE_KEY).not.toContain('hodMomo');
     expect(PREFS_BUNDLE_KEYS).toContain(SCANNER_ACTIVE_TAB_STORAGE_KEY);
   });
