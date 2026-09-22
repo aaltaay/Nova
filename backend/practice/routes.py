@@ -1,4 +1,4 @@
-"""``GET /api/practice/account`` and ``POST /api/practice/reset`` (ADR 020 contract)."""
+"""``GET /api/practice/account``, ``GET /api/practice/history`` and ``POST /api/practice/reset`` (ADR 020)."""
 from __future__ import annotations
 
 import math
@@ -6,7 +6,7 @@ import math
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from constants_practice import PRACTICE_VENUE_PAPER, PRACTICE_VENUE_SIM
+from constants_practice import PRACTICE_HISTORY_RANGE_DEFAULT, PRACTICE_VENUE_PAPER, PRACTICE_VENUE_SIM
 
 router = APIRouter(prefix="/api/practice", tags=["practice"])
 
@@ -33,6 +33,21 @@ def _broker(venue: str | None):
 def get_practice_account(venue: str = Query(..., description="paper | sim")) -> dict:
     """The venue's practice account: cash, buying power, P&L, positions, working orders."""
     return _broker(venue).snapshot()
+
+
+@router.get("/history")
+def get_practice_history(
+    venue: str = Query(..., description="paper | sim"),
+    range_: str = Query(PRACTICE_HISTORY_RANGE_DEFAULT, alias="range", description="1D | 5D | 1M | 3M | YTD | ALL"),
+) -> dict:
+    """The venue's ledger as history: equity after each event, fills, by-source split, daily rows, archives."""
+    from practice import history
+
+    try:
+        range_key = history.normalize_range(range_)
+    except history.RangeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return history.for_broker(_broker(venue), range_key)
 
 
 @router.post("/reset")

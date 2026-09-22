@@ -101,3 +101,17 @@ Named so nobody reads a practice P&L as a live one:
   the ones IBKR itemises on a Fixed statement.
 - **Rates go stale by hand.** SEC and FINRA rates change yearly; the constant
   carries the effective date in its comment and is edited, never fetched.
+
+## 5. The ledger as history
+
+`GET /api/practice/history` (`practice/history.py`, schema in AGENTS.md §3)
+replays the same events the account is derived from and never reads a live
+mark: the equity series holds one point after every fill and rollover, each
+held position marked at its own last fill price, so a quiet stretch is a flat
+line and the last point can differ from the live-marked account figure. The
+by-source split is read from the `source` / `bot_id` stamps on the fills.
+Archived Paper ledgers (`practice-paper-<stamp>.json`, written by a reset)
+are read read-only for their practice-day rows, flagged `archived`; a damaged
+one is skipped with a warning the payload names. Ranges (`1D` .. `ALL`) start
+at a practice-day boundary and count calendar days, so a weekend simply holds
+no session; nothing is interpolated to fill it.

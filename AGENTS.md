@@ -366,6 +366,54 @@ and its `placed` event carry `tif` and `expires_ts`). Recorded prints carry
 as the exchange's own. Rules and biases: `architecture/practice-fills.md`;
 fees and margin: `architecture/practice-account.md`.
 
+**The ledger as history (the Account page):**
+`GET /api/practice/history?venue=paper|sim&range=1D|5D|1M|3M|YTD|ALL`
+(default `1D`; owner `practice/history.py`, a pure derivation from the ledger
+events -- no live mark is ever read or invented) answers `venue`,
+`account_id`, `range`, `range_start` (epoch of the first practice day the
+range covers, `null` for `ALL`), `schema_version: 1`, `starting_cash`,
+`ledger_opened_at` (ISO ET) and:
+
+- `equity[]` -- `{ts, net_liquidation, cash, realized, unrealized}`, one point
+  **after every `filled` and `rollover` event** inside the range, in event
+  order, every held position marked at its own last fill price. Nothing is
+  drawn between events, so a flat stretch is flat; the series is
+  event-marked, so its last point can differ from the live-marked
+  `net_liquidation` on `/api/practice/account`. The baseline before the first
+  point is `starting_cash` at `ledger_opened_at`.
+- `fills[]` -- `{ts, order_id, symbol, side, qty, price, source, bot_id,
+  commission, fees, realized, fill_estimated: true, fill_basis}`; `fees` is
+  the SEC + FINRA pass-through on that fill and `realized` that fill's own
+  contribution net of its fees, read from the ledger's cost basis.
+- `by_source[]` -- `{source, bot_id, realized, fills, commissions, fees}` per
+  distinct `(source, bot_id)` stamp, first-fill order; the `realized` values
+  sum to `components.realized`. Read from the stamps, never inferred.
+- `daily[]` -- `{date, realized, commissions, fees, fills, archived}` keyed on
+  the practice day (04:00 ET rollover, `practice/clock.day_start_ts`), dates
+  ascending; a day with no fill has no row. Archived Paper ledgers' days are
+  included flagged `archived: true`, so one date can carry two rows (a reset
+  mid-day) and the calendar sums them.
+- `archives[]` -- `{file, opened_at, closed_at, realized, days}` for every
+  `practice-paper-<stamp>.json` beside the Paper ledger under the operator
+  cache, read read-only, oldest first; `days` counts the practice days that
+  hold a fill. A damaged or unknown-version archive is skipped with a logged
+  warning and named in `warnings: string[]` -- never a 500.
+- `components` -- `{realized, unrealized, commissions, sec_finra_fees,
+  bot_realized}`; `bot_realized` is the realized on fills stamped `source:
+  "bot"` or carrying a `bot_id`; `unrealized` is the event-marked figure at
+  the end of the ledger.
+
+`range` bounds `equity` / `fills` / `daily` at the practice-day start that
+many **calendar** days before today's (`1D` = 1, `5D` = 5, `1M` = 30, `3M` =
+90 -- a weekend inside the window simply holds no session), Jan 1 04:00 ET of
+the practice day's year for `YTD`, nothing for `ALL`; today is the venue's
+clock (the replay playhead on Sim). `by_source` and `components` cover **this
+ledger's** fills inside the range -- an archived ledger is another account and
+contributes `daily` rows and its `archives` entry only. Sim answers from its
+scratch ledger with `archives: []`; nothing loaded is the shape with empty
+lists, never a guess. Unknown `venue` or `range` is a 400. Constants:
+`constants_practice.PRACTICE_HISTORY_*`.
+
 ### Sim at now is live -- the live edge (ADR 020 amendment, operator decision 2026-09-21 evening)
 
 The Sim clock payload (`GET /api/sim/clock`) and `/api/ibkr/status` on the Sim
@@ -646,6 +694,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-21 | The practice ledger as history: `GET /api/practice/history?venue&range` (`practice/history.py`, pure derivation from the event-sourced ledger) serves the redesigned Account page an event-marked equity series (a point after every fill and rollover, held positions marked at their last fill price, nothing between events), the fills with their `source` / `bot_id` stamps, the by-source split, practice-day rows including archived Paper ledgers flagged `archived`, the archives list and the P&L components. Archives beside `practice-paper.json` are read read-only; a damaged one is a logged warning in `warnings[]`, never a 500. §3 amended. | User Directive + Claude Fable 5.1 |
 | 2026-09-21 | Market orders need regular hours: a non-protective `MKT` outside weekday 09:30-16:00 ET is refused `MKT_OUTSIDE_RTH` on every venue (`execution/session_gate.py`, repeated in `practice/order_rules.py`), judged by the venue's clock (Sim: the playhead). Nasdaq offers no unpriced orders in its extended sessions and IBKR holds an RTH-only MKT until the next open (399) while ignoring `outsideRth` on it (2109); the practice broker used to fill one instantly at the far quote (GRML at 8.86 after the close, a 3.6% spread), teaching a habit Live refuses. The ticket greys Market out outside regular hours and moves a Market default to Limit; a Sim tab with nothing loaded offers the operator's own Session Record before a download and says what Sim is. | User Directive + Claude Fable 5.1 |
 | 2026-09-21 | Sim at now is live -- the live edge (ADR 020 live-edge amendment, re-accepting ADR 019's withdrawn amendment; operator decision, evening). The Sim clock payload and `/api/ibkr/status` on Sim carry `live_edge`: while the playhead follows the wall clock on today's date a Sim tab shows the live IBKR feed as a Paper tab does and holds a real depth line, the scratch account fills against Paper's `LiveReference` (`practice/reference.SimReference`, `PRACTICE_NO_LIVE_PRINT` at the edge, `SIM_*` refusals off it), the live matcher fills its resting orders, and every market-data gate keys on `sim/mode.is_replay_desk` instead of `is_sim_mode`. Scrubbing back leaves the edge for the loaded replay; a scrub off the edge with nothing loaded selects the tab's Session Record for today (`sim/live_edge.py`, `POST /api/sim/clock {symbol}`) keeping the playhead and the account. "Live wall clamp" becomes "Live edge"; the empty-Sim notice is quiet at the edge. Paper stays the persistent-ledger venue. §3 and §5 amended. | User Directive + Claude Fable 5.1 |
 | 2026-09-21 | ADR 020 second pass: the IBKR paper Gateway (4002) is legacy, by hand only (`POST /api/ibkr/gateway-mode`), never an automatic fallback -- `IBKR_PAPER_GATEWAY_FALLBACK = False` gates follow-Gateway's live -> paper leg (a paper login beside a live session is read-only and carries no tape), and its desk button and "Use paper Gateway" CTA are removed. Bot scope is enforced in one place: a bot fires only on an allowlisted symbol whose depth line the backend holds (`409 BOT_NO_DEPTH_LINE`, "open its Level 2 or record it"). A Sim scratch-account unwind publishes `practice_rewind` on the bot audit stream and `last_rewind` on the session payload; bots re-read the ledger. Invariant #7 and §5 amended. | User Directive + Claude Fable 5.1 |

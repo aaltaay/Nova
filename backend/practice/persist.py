@@ -113,6 +113,19 @@ def archive_path(path: str, now: datetime | None = None, attempt: int = 0) -> st
     return f"{root}-{stamp}{suffix}{ext}"
 
 
+def list_archives(path: str) -> list[str]:
+    """Every archived sibling of ``path`` (``<root>-<stamp>[-n]<ext>``), oldest stamp first.
+
+    Never the live file and never a ``.practice-*.tmp`` write in flight. Raises
+    ``OSError`` when the directory cannot be listed; the caller says so.
+    """
+    directory = os.path.dirname(os.path.abspath(path))
+    root, ext = os.path.splitext(os.path.basename(path))
+    prefix = f"{root}-"
+    names = [n for n in os.listdir(directory) if n.startswith(prefix) and n.endswith(ext)]
+    return [os.path.join(directory, n) for n in sorted(names)]
+
+
 def archive(path: str, *, now: datetime | None = None) -> str | None:
     """Rename ``path`` to its stamped sibling; ``None`` when there is nothing to archive."""
     if not os.path.exists(path):
