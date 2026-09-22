@@ -3,13 +3,13 @@
  * Mount above Scanner/Trader so Trader dock pills keep the same rows.
  */
 import {
-  createContext,
   useCallback,
   useContext,
   useMemo,
   useState,
   type ReactNode,
 } from 'react';
+import { hmrStableContext } from '../utils/hmrStableContext';
 import { useScannerData } from '../hooks/useScannerData';
 import { useSettings } from '../settings/SettingsContext';
 import { DEFAULT_ACTIVE_TAB, type ActiveTab } from '../workspace/registry';
@@ -28,7 +28,7 @@ export type LiveScannerFeed = ReturnType<typeof useScannerData> & {
   setL1DockTab: (tab: ActiveTab | null) => void;
 };
 
-const ScannerDataContext = createContext<LiveScannerFeed | null>(null);
+const ScannerDataContext = hmrStableContext<LiveScannerFeed>(import.meta.hot, 'ScannerDataContext');
 
 export function ScannerDataProvider({ children }: { children: ReactNode }) {
   const { settings } = useSettings();

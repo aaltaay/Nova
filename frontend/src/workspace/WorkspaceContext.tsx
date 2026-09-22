@@ -4,13 +4,13 @@
  * Extract/dock lives in traderDesk/ (ADR 011).
  */
 import {
-  createContext,
   useContext,
   useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from 'react';
+import { hmrStableContext } from '../utils/hmrStableContext';
 import { API_URL } from '../constants';
 import { useIbkrStatus } from '../ibkr';
 import type { DeskVenue } from '../constantGroups/desk_venue';
@@ -94,7 +94,7 @@ export type WorkspaceValue = {
   showScannerView: () => void;
 };
 
-const WorkspaceContext = createContext<WorkspaceValue | null>(null);
+const WorkspaceContext = hmrStableContext<WorkspaceValue>(import.meta.hot, 'WorkspaceContext');
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);

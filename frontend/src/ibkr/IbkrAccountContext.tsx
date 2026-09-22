@@ -3,13 +3,13 @@
  * HTTP lives in ibkrAccountPoller (one owner, cross-window leader).
  */
 import {
-  createContext,
   useContext,
   useEffect,
   useMemo,
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
+import { hmrStableContext } from '../utils/hmrStableContext';
 import { SAMPLE_IBKR_ACCOUNT_STATE } from '../sample_data/sampleAccount';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { useWorkspace } from '../workspace/WorkspaceContext';
@@ -43,7 +43,7 @@ export interface IbkrAccountState {
 // (#357). Re-exported so existing importers keep their path.
 export { SAMPLE_IBKR_ACCOUNT_STATE };
 
-const IbkrAccountContext = createContext<IbkrAccountState | null>(null);
+const IbkrAccountContext = hmrStableContext<IbkrAccountState>(import.meta.hot, 'IbkrAccountContext');
 
 const EMPTY_SNAP: IbkrAccountPollSnap = {
   summary: null,

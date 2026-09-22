@@ -3,7 +3,6 @@
  * Estimate loads independently of the book so a book failure cannot hide cost.
  */
 import {
-  createContext,
   useCallback,
   useContext,
   useEffect,
@@ -11,6 +10,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { hmrStableContext } from '../utils/hmrStableContext';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
   fetchAdviseEstimate,
@@ -49,7 +49,7 @@ interface AdviseContextValue {
   retryDebate: () => Promise<void>;
 }
 
-const AdviseContext = createContext<AdviseContextValue | null>(null);
+const AdviseContext = hmrStableContext<AdviseContextValue>(import.meta.hot, 'AdviseContext');
 
 function deskSymbol(
   selected: string | null,

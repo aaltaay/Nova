@@ -4,13 +4,13 @@
  */
 
 import {
-  createContext,
   useCallback,
   useContext,
   useMemo,
   useState,
   type ReactNode,
 } from 'react';
+import { hmrStableContext } from '../utils/hmrStableContext';
 
 export interface TopOfBook {
   symbol: string;
@@ -25,7 +25,7 @@ interface TopOfBookContextValue {
   setTopOfBook: (next: TopOfBook | null) => void;
 }
 
-const TopOfBookContext = createContext<TopOfBookContextValue | null>(null);
+const TopOfBookContext = hmrStableContext<TopOfBookContextValue>(import.meta.hot, 'TopOfBookContext');
 
 export function TopOfBookProvider({ children }: { children: ReactNode }) {
   const [topOfBook, setTopOfBookState] = useState<TopOfBook | null>(null);

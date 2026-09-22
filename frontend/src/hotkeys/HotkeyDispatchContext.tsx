@@ -4,7 +4,6 @@
  */
 
 import {
-  createContext,
   useCallback,
   useContext,
   useEffect,
@@ -13,6 +12,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { hmrStableContext } from '../utils/hmrStableContext';
 import { NOVA_ACTION_IN_FLIGHT_MESSAGE, type HotkeyAction } from '../constants';
 import { notifyOrderRejected } from '../ibkr/notifyOrderRejected';
 import {
@@ -66,7 +66,7 @@ export interface HotkeyDispatchContextValue {
   runAction: (action: NovaActionRecord) => Promise<NovaActionResult>;
 }
 
-const HotkeyDispatchContext = createContext<HotkeyDispatchContextValue | null>(null);
+const HotkeyDispatchContext = hmrStableContext<HotkeyDispatchContextValue>(import.meta.hot, 'HotkeyDispatchContext');
 
 function readProfile(): HotkeyProfile {
   return loadProfile();
