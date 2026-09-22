@@ -6,8 +6,6 @@
  * show nothing -- a real venue needs no `est` marker.
  */
 import {
-  TRADER_EST_CHIP,
-  TRADER_EST_CHIP_TITLE,
   TRADER_VENUE_TAG_FILLS,
   TRADER_VENUE_TAG_LIVE_EDGE,
   TRADER_VENUE_TAG_PAPER,
@@ -18,10 +16,9 @@ import {
 } from '../constantGroups/trader_chrome';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { useSimReplayTarget } from '../sim/useSimReplayTarget';
+import { EstChip } from './EstChip';
 
-export function EstChip() {
-  return <b className="sv-est" title={TRADER_EST_CHIP_TITLE}>{TRADER_EST_CHIP}</b>;
-}
+export { EstChip } from './EstChip';
 
 export function StockViewVenueTag({ symbol }: { symbol: string }) {
   const mode = useIbkrStatus().mode;

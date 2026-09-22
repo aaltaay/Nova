@@ -10,11 +10,13 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
   type ReactNode,
 } from 'react';
 import { useExchangeFilter, type ExchangeFilter } from '../hooks/useExchangeFilter';
 import { useSettingsForm } from '../hooks/useSettingsForm';
 import { SETTINGS_OVERLAY_LOADING } from '../constants';
+import type { SettingsSectionId } from './settingsNav';
 
 const SettingsWorkspace = lazy(() =>
   import('../components/SettingsWorkspace').then(m => ({ default: m.SettingsWorkspace })),
@@ -25,7 +27,8 @@ type SettingsForm = ReturnType<typeof useSettingsForm>;
 interface SettingsContextValue {
   settings: SettingsForm;
   exchangeFilter: ExchangeFilter;
-  openSettings: () => void;
+  /** Open the overlay, optionally on a section (the quick-trade row's gear opens Hot Keys). */
+  openSettings: (section?: SettingsSectionId) => void;
   closeSettings: () => void;
   toggleSettings: () => void;
   registerOnConfigSaved: (fn: () => void) => void;
@@ -38,14 +41,21 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const settings = useSettingsForm(() => onSavedRef.current());
   const exchangeFilter = useExchangeFilter();
   const { showSettings, setShowSettings, fetchConfig } = settings;
+  const [initialSection, setInitialSection] = useState<SettingsSectionId | undefined>(
+    undefined,
+  );
 
   const registerOnConfigSaved = useCallback((fn: () => void) => {
     onSavedRef.current = fn;
   }, []);
 
-  const openSettings = useCallback(() => {
-    setShowSettings(true);
-  }, [setShowSettings]);
+  const openSettings = useCallback(
+    (section?: SettingsSectionId) => {
+      setInitialSection(section);
+      setShowSettings(true);
+    },
+    [setShowSettings],
+  );
 
   const closeSettings = useCallback(() => {
     setShowSettings(false);
@@ -90,6 +100,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           }
         >
           <SettingsWorkspace
+            initialSection={initialSection}
             filter={exchangeFilter}
             apiKey={settings.apiKey}
             onApiKeyChange={settings.setApiKey}

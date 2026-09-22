@@ -234,17 +234,6 @@
   cursor: pointer;
 }
 
-.manual-order-ticket input.manual-order-extended-check {
-  width: 1rem;
-  min-width: 1rem;
-  height: 1rem;
-  min-height: 1rem;
-  margin: 0;
-  padding: 0;
-  accent-color: var(--accent, #38bdf8);
-  cursor: pointer;
-}
-
 .manual-order-extended:has(input:disabled) {
   cursor: not-allowed;
   opacity: 0.55;
@@ -334,35 +323,8 @@
   border-color: color-mix(in srgb, var(--text-secondary, #a3a3a3) 55%, var(--border-color, #343434));
 }
 
-/* Layout tweak for shadcn Button primary CTA (color comes from Tailwind primary) */
-.manual-order-submit {
-  font-size: 0.88rem;
-  font-weight: 600;
-}
-
-/* Paper Gateway — orange CTA so Place is never mistaken for live */
-.manual-order-submit--paper {
-  background: #ea580c !important;
-  color: #fff !important;
-  border-color: #c2410c !important;
-}
-
-.manual-order-submit--paper:hover:not(:disabled) {
-  background: #f97316 !important;
-  color: #fff !important;
-}
-
-/* Short selected -- orange Place label (Webull-style Side). */
-.manual-order-submit--short {
-  background: #ea580c !important;
-  color: #fff !important;
-  border-color: #c2410c !important;
-}
-
-.manual-order-submit--short:hover:not(:disabled) {
-  background: #f97316 !important;
-  color: #fff !important;
-}
+/* Place button variants (paper / short orange), lock notes and the result
+   line live in tradeTicketCompact.css. */
 
 .manual-order-segment button:disabled,
 .manual-order-unit-toggle button:disabled,
@@ -375,28 +337,6 @@
 
 .manual-order-ticket input:read-only {
   opacity: 0.85;
-}
-
-.manual-order-lock-note,
-.manual-order-result {
-  font-size: 0.8rem;
-  line-height: 1.35;
-}
-
-.manual-order-result {
-  font-weight: 600;
-}
-
-.manual-order-lock-note {
-  color: var(--text-muted, #737373);
-}
-
-.manual-order-result.ok {
-  color: var(--green, #22c55e);
-}
-
-.manual-order-result.err {
-  color: var(--red, #ef4444);
 }
 
 .ticker-trade-bar--sidebar .ticker-trade-bar-open {
