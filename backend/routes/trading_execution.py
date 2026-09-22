@@ -48,9 +48,9 @@ class OrderRequest(BaseModel):
     stop_loss_price: float | None = Field(default=None, gt=0)
     idempotency_key: str | None = None
     client_timing: BrowserTimingRequest | None = None
-    # The ticket's Flatten (QA R32): a close of the whole held position. The
-    # route checks it against the venue's own position and sends it as a
-    # protective ``flatten`` -- never clamped by the one-share test gate.
+    # The ticket's Flatten (QA R32): a close of the held position, sent as a
+    # protective ``flatten`` -- never clamped by the one-share test gate. The
+    # door refuses it past the shares not already being closed (QA R42).
     intent: Literal["flatten"] | None = None
 
     @model_validator(mode="after")
@@ -99,40 +99,6 @@ def _response(receipt) -> dict:
     return result
 
 
-def _flatten_refusal(req: OrderRequest) -> str | None:
-    """Why this "flatten" is not a close of the held position, or None when it is.
-
-    The side must reduce the venue's own position and the size must not exceed
-    it, and no short entry or protective legs may ride along -- so the protective
-    source can never open or grow a position.
-    """
-    if req.short_entry or req.take_profit_price is not None:
-        return "A flatten closes a position; it cannot open one or carry legs"
-    try:
-        from ibkr import account as _account
-
-        positions = _account.get_positions()
-    except Exception as exc:  # noqa: BLE001 -- stated to the operator, logged below
-        logger.warning("flatten intent: positions unreadable: %s", exc)
-        return f"Positions unavailable ({exc}) -- cannot confirm the close"
-    symbol = req.symbol.strip().upper()
-    held = 0.0
-    for row in positions or []:
-        if str(row.get("symbol") or "").strip().upper() == symbol:
-            try:
-                held += float(row.get("qty") or 0)
-            except (TypeError, ValueError):
-                continue
-    side = req.side.strip().upper()
-    if abs(held) < 1e-9:
-        return f"No open {symbol} position to flatten"
-    if (held > 0 and side != "SELL") or (held < 0 and side != "BUY"):
-        return f"A {side} does not close the {symbol} position ({held:g})"
-    if float(req.qty) > abs(held) + 1e-9:
-        return f"Flatten size {float(req.qty):g} exceeds the {symbol} position ({abs(held):g})"
-    return None
-
-
 def _manual_order_command(
     req: OrderRequest, key: str, client_timing: dict | None, ingress_wall: int,
 ) -> ExecutionCommand:
@@ -140,6 +106,9 @@ def _manual_order_command(
     common = dict(
         idempotency_key=key,
         source="flatten" if req.intent == "flatten" else "manual",
+        # Checked in the door against the position less the closes already
+        # working, inside the execution lock (execution.flatten_intent, QA R42).
+        intent=req.intent,
         symbol=req.symbol.upper(),
         side=req.side.upper(),
         qty=req.qty,
@@ -175,13 +144,6 @@ def _manual_order_command(
 async def place_order(req: OrderRequest, request: Request) -> dict:
     ingress_perf, ingress_wall = ingress_stamps(request)
     key = (req.idempotency_key or "").strip() or str(uuid.uuid4())
-    if req.intent == "flatten":
-        refusal = _flatten_refusal(req)
-        if refusal:
-            return {
-                "ok": False, "order_id": None, "error": refusal,
-                "reason_code": "FLATTEN_NOT_A_CLOSE", "execution_id": None,
-            }
     receipt = await _execution_service.execute(
         _manual_order_command(
             req, key, _browser_timing(request, req.client_timing), ingress_wall,

@@ -6,6 +6,7 @@ import math
 from typing import get_args
 
 from constants import IBKR_FRACTIONAL_ORDER_API_MSG
+from execution import flatten_intent as _flatten_intent
 from execution import inflight as _inflight
 from execution import session_gate as _session_gate
 from execution.models import ExecutionCommand, Source
@@ -219,6 +220,11 @@ def check_account_and_position(cmd: ExecutionCommand) -> tuple[bool, str, str | 
     # (ADR 020); a protective close on Paper then settles at the last mark.
     if not is_practice_venue() and not desk_connected():
         return False, "account checks require IBKR connection", "ACCOUNT_UNAVAILABLE"
+
+    if getattr(cmd, "intent", None) == "flatten":
+        refused = _flatten_intent.refusal(cmd)  # QA R42: never a second close of the same shares
+        if refused:
+            return False, refused, _flatten_intent.REASON_CODE
 
     summary: dict | None = None
     summary_error: IbkrAccountError | None = None

@@ -49,6 +49,12 @@ export async function placeMarketExit(
   actionTiming: BrowserActionStamp,
   maybeConfirm: (runtime: NovaActionRuntime, summary: string) => Promise<boolean>,
   idempotencyKey?: string,
+  /**
+   * `'flatten'` for a whole-position close (QA R32): the server checks it
+   * closes the held shares not already being closed and sends it as the
+   * protective flatten, never clamped to 1 share. Partial exits omit it.
+   */
+  intent?: 'flatten',
 ): Promise<NovaActionResult> {
   const ticket = planFlattenExit(side, {
     book: {
@@ -79,6 +85,7 @@ export async function placeMarketExit(
         order_type: ticket.order_type,
         outside_rth: ticket.outside_rth,
         limit_price: ticket.limit_price,
+        ...(intent ? { intent } : {}),
       },
       idempotencyKey,
       {

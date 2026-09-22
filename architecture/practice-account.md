@@ -76,7 +76,11 @@ any order carrying `short_entry`, is an opening short and is refused
 `PRACTICE_NO_SHORTS` ("Nova does not support short entries yet") -- at
 admission in the execution door (`execution/practice_checks.py`) and again in
 `PracticeBroker.place`, on every source. Nothing is inferred from side plus a
-flat position beyond that arithmetic.
+flat position beyond that arithmetic. The rule holds at the fill too
+(`order_rules.fill_refusal`, QA R42): a resting SELL that would fill past what
+is held when its print arrives -- another close filled first -- is cancelled
+`PRACTICE_NO_SHORTS`, never filled, so two closes of the same shares can never
+leave the account short.
 
 ## 4. Known gaps Nova keeps
 

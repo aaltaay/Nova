@@ -36,6 +36,7 @@ def build_reserve_payload(
         "forced_one_share": bool(forced_one_share)
         and cmd.operation in ("place", "bracket"),
         "short_entry": bool(cmd.short_entry),
+        "intent": getattr(cmd, "intent", None),
         "tif": cmd.tif if cmd.operation in ("place", "bracket") else None,
         "requested_price": requested_price,
         "reference_price": (

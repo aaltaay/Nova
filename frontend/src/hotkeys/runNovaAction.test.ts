@@ -242,3 +242,24 @@ describe('runNovaAction Webull kinds', () => {
     expect(placeIbkrOrder).not.toHaveBeenCalled();
   });
 });
+
+describe('runNovaAction whole-position exits (QA R32)', () => {
+  beforeEach(() => {
+    placeIbkrOrder.mockReset();
+    placeIbkrOrder.mockResolvedValue({ ok: true, order_id: 9, error: null });
+  });
+
+  it('exit_pos sends the whole position as a flatten, never a manual exit', async () => {
+    const res = await runNovaAction(action({ kind: 'exit_pos' }), runtime());
+    expect(res.ok).toBe(true);
+    expect(placeIbkrOrder.mock.calls[0][0]).toMatchObject({
+      symbol: 'AAPL', side: 'SELL', qty: 4, intent: 'flatten',
+    });
+  });
+
+  it('a partial exit is not a flatten', async () => {
+    await runNovaAction(action({ kind: 'exit_pos_pct', params: { percent: 50 } }), runtime());
+    expect(placeIbkrOrder.mock.calls[0][0].intent).toBeUndefined();
+  });
+});
+

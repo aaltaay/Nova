@@ -24,6 +24,10 @@ from datetime import timedelta
 from typing import Any
 
 from constants_practice import (
+    PRACTICE_BUYING_POWER_CODE,
+    PRACTICE_BUYING_POWER_REASON,
+    PRACTICE_NO_SHORTS_CODE,
+    PRACTICE_NO_SHORTS_REASON,
     PRACTICE_SESSION_CLOSE_HOUR_ET,
     PRACTICE_TIF_DAY,
     PRACTICE_TIF_EXPIRED_CODE,
@@ -91,6 +95,31 @@ def opening_short(held_qty: float, side: str, qty: float, short_entry: bool = Fa
     if (side or "").strip().upper() != "SELL":
         return False
     return float(qty) > float(held_qty) + _EPS
+
+
+def fill_refusal(ledger: Any, row: dict[str, Any], price: float) -> tuple[str, str] | None:
+    """``(reason, code)`` when a working order may not fill at ``price`` now; ``None`` to fill it.
+
+    A SELL past the held quantity would open a short -- another close filled
+    first -- and a practice account never goes short (QA R42: two flattens both
+    rested and both filled, leaving the Sim account short). A BUY the account
+    can no longer afford is refused as at admission. Either way the order is
+    cancelled at the fill, never filled.
+    """
+    symbol, side, qty = str(row["symbol"]), str(row["side"]), float(row["qty"])
+    held = float(ledger.held_qty(symbol))
+    if opening_short(held, side, qty):
+        return (
+            f"{PRACTICE_NO_SHORTS_REASON} -- {held:g} held when this SELL {qty:g} would fill",
+            PRACTICE_NO_SHORTS_CODE,
+        )
+    ok, needed, available = ledger.can_afford(symbol, side, qty, price)
+    if not ok:
+        return (
+            f"{PRACTICE_BUYING_POWER_REASON} at the fill (needs {needed:,.2f}, has {available:,.2f})",
+            PRACTICE_BUYING_POWER_CODE,
+        )
+    return None
 
 
 def mkt_outside_rth(order_type: str | None, now_ts: float, protective: bool = False) -> bool:

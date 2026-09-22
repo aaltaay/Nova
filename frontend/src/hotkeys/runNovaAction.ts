@@ -192,6 +192,7 @@ export async function runNovaAction(
       actionTiming,
       maybeConfirm,
       idempotencyKey,
+      'flatten',
     );
     if (!exit.ok) {
       return {
@@ -223,6 +224,7 @@ export async function runNovaAction(
       actionTiming,
       maybeConfirm,
       idempotencyKey,
+      action.kind === 'exit_pos' ? 'flatten' : undefined,
     );
   }
 
