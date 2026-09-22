@@ -97,7 +97,9 @@ function AppShell() {
             <MwcbBannerHost />
             <NovaOsAttentionStrip global />
             <div className={branchClass}>
-              <TraderDockLayer />
+              <AppErrorBoundary source="trader-dock">
+                <TraderDockLayer />
+              </AppErrorBoundary>
               {hasTraderDesk && (
                 <div
                   className="nova-trader-desk-slot"

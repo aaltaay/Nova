@@ -130,7 +130,8 @@ export const accountPerfSubtitle = (range: AccountRange, opened: string | null):
 export const ACCOUNT_PERF_LEGEND_MANUAL = 'Manual fill';
 export const ACCOUNT_PERF_LEGEND_BOT = 'Bot fill';
 export const ACCOUNT_PERF_LEGEND_EST = 'all fills';
-export const ACCOUNT_PERF_LEGEND_EST_NOTE = 'practice fills are Nova estimates against the live feed';
+export const ACCOUNT_PERF_LEGEND_EST_NOTE =
+  'practice fills are Nova estimates (Paper: the live feed; Sim: the replay)';
 export const ACCOUNT_PERF_EMPTY = 'No fills in this range · nothing to draw';
 /**
  * The components cover this ledger's fills inside the range, so only ALL is
@@ -216,7 +217,8 @@ export const ACCOUNT_LEDGER_FEES = 'fees';
 export const accountLedgerFoot = (file: string, schema: number, opened: string | null, archives: number): string =>
   `Ledger ${file} · schema ${schema}${opened ? ` · opened ${opened}` : ''} · archived ledgers: ${archives} · amounts are cash movement: price × qty, less commission and fees.`;
 export const ACCOUNT_EST_CHIP = 'est';
-export const ACCOUNT_EST_TITLE = "Filled by Nova's practice broker against the live feed, never an IBKR fill.";
+export const ACCOUNT_EST_TITLE =
+  "Filled by Nova's practice broker (Paper: against the live feed; Sim: against the replay), never an IBKR fill.";
 
 /* ---------- Positions / Orders / Fills ---------- */
 export const ACCOUNT_POS_TAB_POSITIONS = 'Positions';
@@ -249,7 +251,7 @@ export const ACCOUNT_POSITIONS_EMPTY = 'Flat · no open positions';
 export const ACCOUNT_ORDERS_EMPTY = 'No orders today';
 export const ACCOUNT_FILLS_EMPTY = 'No fills in this range';
 export const ACCOUNT_POS_FOOT =
-  "Expired = a DAY order the session closed on at 20:00 ET; GTC orders persist. est = filled by Nova's practice broker against the live feed, never an IBKR fill.";
+  "Expired = a DAY order the session closed on at 20:00 ET; GTC orders persist. est = filled by Nova's practice broker (Paper: the live feed; Sim: the replay), never an IBKR fill.";
 export const ACCOUNT_POS_FOOT_LIVE = 'Working and closed orders as IBKR reports them for this session.';
 
 /* ---------- Live absence / states ---------- */

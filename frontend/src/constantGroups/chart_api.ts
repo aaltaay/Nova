@@ -447,7 +447,7 @@ export const STOCK_VIEW_MODULE_WORKING_ORDERS_TITLE = 'Open Orders';
 export const CLOSED_ORDERS_MODULE_ID = 'closed_orders';
 export const CLOSED_ORDERS_PANEL_TITLE = 'Closed Orders';
 export const CLOSED_ORDERS_EMPTY_MESSAGE =
-  'No filled or cancelled orders in this Gateway session.';
+  'No filled or cancelled orders this session.';
 export const CLOSED_ORDERS_SAMPLE_BANNER =
   'Sample preview — filled/cancelled rows (not from IBKR)';
 /** Closed rows completed within this window get a “just finished” highlight. */

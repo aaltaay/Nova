@@ -104,6 +104,10 @@ def dispatch(payload) -> None:
         except Exception:
             logger.exception("IBKR %s recording dispatch failed", name)
             dispatch_errors[name] = f"{name} recording dispatch failed"
+        else:
+            # A later print that dispatches cleanly clears the sticky error, so
+            # one bad print does not mark every recording failed forever (QA C55).
+            dispatch_errors.pop(name, None)
 
 
 def _enqueue_l2(payload):

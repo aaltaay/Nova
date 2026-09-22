@@ -613,3 +613,7 @@ L2_SESSION_REASON_DEPTH = "depth"          # record_sessions.reason when DepthLa
 # Does NOT bump NOVA_OS_POLICY_VERSION — archive schema is versioned separately.
 # Trim of unverified hot data stays blocked until remote verify (P8).
 ARCHIVE_SCHEMA_VERSION = "archive-v1-2026-07-15"
+
+# IB's UNSET_DOUBLE is 1.7976931348623157e308 -- an unused LMT/STP price field.
+# Any price at or above this floor is that sentinel, never a real price (QA C28).
+IB_UNSET_PRICE_FLOOR = 1e300
