@@ -9,6 +9,7 @@ import time
 from typing import Any
 
 from constants_diagnostics import (
+    IBKR_INFORMATIONAL_NOTICE_CODES,
     DIAG_ACTION_LAUNCH_GATEWAY,
     DIAG_ACTION_RECONNECT_IBKR,
     DIAG_GROUP_GATEWAY,
@@ -37,6 +38,14 @@ def _fmt_ts(ts: float | None) -> str:
 
 
 # ── Gateway ───────────────────────────────────────────────────────────────────
+
+def _is_notice(code: Any) -> bool:
+    """IB farm-status notices (2104 / 2106 / 2158 ...) are an OK, not an error."""
+    try:
+        return int(code) in IBKR_INFORMATIONAL_NOTICE_CODES
+    except (TypeError, ValueError):
+        return False
+
 
 def gateway_rows(
     *,
@@ -138,7 +147,11 @@ def gateway_rows(
         evidence={**session, "connect_last_result": heal.get("connect_last_result"), "connect_last_reason": heal.get("connect_last_reason"), "gateway_self_heal": heal.get("gateway_self_heal")},
     ))
 
-    if last_error:
+    if last_error and _is_notice(last_error.get("code")):
+        e_state = DIAG_STATE_OK
+        e_detail = f"last IB notice {last_error.get('code')} at {_fmt_ts(last_error.get('ts'))}: {last_error.get('message') or ''} (informational, not an error)".strip()
+        e_cause, e_fix = "A data-farm status notice from the Gateway -- IB reports farm connections through its error channel.", "Nothing to do."
+    elif last_error:
         e_state = DIAG_STATE_WARN
         e_detail = f"last IB error {last_error.get('code')} at {_fmt_ts(last_error.get('ts'))}: {last_error.get('message') or ''}".strip()
         e_cause, e_fix = "The most recent errorEvent from the Gateway, any code.", "Look the code up in the IBKR API docs if it is not one Nova names."
