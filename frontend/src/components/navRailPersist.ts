@@ -3,21 +3,28 @@
  *
  * Owner: this module (read + write). Invalidation: schema bump -- a payload
  * with an unknown `schema_version` is ignored and reported, never guessed at
- * (persisted-state.mdc). `scannerFolded: null` means the operator has not
- * chosen, so the rail follows the view (open on Scanner, folded elsewhere).
+ * (persisted-state.mdc). Both fields are tri-state: `null` means the operator
+ * has not chosen, so the rail follows the view (fold: open on Scanner, folded
+ * elsewhere; collapse: icons on the Desk, labels elsewhere -- see
+ * workspace/navRailStore.navRailCollapsedDefault).
+ *
+ * v1 -> v2 is a known rule, not a guess: v1 had no "not chosen" collapse state
+ * and wrote `collapsed: false` on every fold write, so v1 `true` is a choice and
+ * v1 `false` is not.
  */
 import {
   NAV_RAIL_SCHEMA_VERSION,
+  NAV_RAIL_SCHEMA_VERSION_LEGACY,
   NAV_RAIL_STORAGE_KEY,
 } from '../constantGroups/nav_rail';
 
 export type NavRailPrefs = {
-  collapsed: boolean;
+  collapsed: boolean | null;
   scannerFolded: boolean | null;
 };
 
 export const NAV_RAIL_DEFAULT_PREFS: NavRailPrefs = {
-  collapsed: false,
+  collapsed: null,
   scannerFolded: null,
 };
 
@@ -29,6 +36,10 @@ function storage(): Storage | null {
   } catch {
     return null;
   }
+}
+
+function boolOrNull(value: unknown): boolean | null {
+  return typeof value === 'boolean' ? value : null;
 }
 
 export function readNavRailPrefs(): NavRailPrefs {
@@ -44,6 +55,12 @@ export function readNavRailPrefs(): NavRailPrefs {
   try {
     const parsed = JSON.parse(raw) as Partial<Stored> | null;
     if (!parsed || typeof parsed !== 'object') return NAV_RAIL_DEFAULT_PREFS;
+    if (parsed.schema_version === NAV_RAIL_SCHEMA_VERSION_LEGACY) {
+      return {
+        collapsed: parsed.collapsed === true ? true : null,
+        scannerFolded: boolOrNull(parsed.scannerFolded),
+      };
+    }
     if (parsed.schema_version !== NAV_RAIL_SCHEMA_VERSION) {
       console.warn(
         `[Nova] ${NAV_RAIL_STORAGE_KEY}: unknown schema_version ${String(parsed.schema_version)} -- using defaults`,
@@ -51,8 +68,8 @@ export function readNavRailPrefs(): NavRailPrefs {
       return NAV_RAIL_DEFAULT_PREFS;
     }
     return {
-      collapsed: parsed.collapsed === true,
-      scannerFolded: typeof parsed.scannerFolded === 'boolean' ? parsed.scannerFolded : null,
+      collapsed: boolOrNull(parsed.collapsed),
+      scannerFolded: boolOrNull(parsed.scannerFolded),
     };
   } catch (err) {
     console.warn(`[Nova] ${NAV_RAIL_STORAGE_KEY}: unreadable -- using defaults`, err);

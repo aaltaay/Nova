@@ -8,6 +8,7 @@ import {
   consumeScannerTabRequest,
   getNavPage,
   getNavRailSnapshot,
+  navRailCollapsedDefault,
   peekScannerTabRequest,
   publishScannerNavState,
   requestScannerTab,
@@ -51,6 +52,13 @@ describe('navRailStore', () => {
     expect(getNavRailSnapshot().scanner.activeTab).toBe('strategy');
     publishScannerNavState({ activeTab: 'trading', railHighlight: 'trading', counts: {} });
     expect(getNavRailSnapshot().scanner.lastListTab).toBe('losers');
+  });
+
+  it('collapses the rail to icons on the Desk only, and not while the full Trader is on top of it', () => {
+    expect(navRailCollapsedDefault('desk', false)).toBe(true);
+    expect(navRailCollapsedDefault('desk', true)).toBe(false);
+    expect(navRailCollapsedDefault('dashboard', false)).toBe(false);
+    expect(navRailCollapsedDefault('records', false)).toBe(false);
   });
 
   it('does not emit a new snapshot for an identical publish', () => {

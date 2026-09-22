@@ -1,0 +1,376 @@
+/* Desk board panel: header + headline line + the compact column set on the
+   shared scanner table shell (issue #276 lock) + hover actions + footer.
+   Owner: desk/DeskBoard.tsx. Widths mirror constantGroups/desk.ts. */
+
+.desk-page .desk-board {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+}
+
+.desk-board__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  flex: 0 0 34px;
+  padding: 0 8px 0 10px;
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+}
+
+.desk-board__pick-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  height: 24px;
+  padding: 0 4px 0 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.desk-board__pick-wrap:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.desk-board__title {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.desk-board__count {
+  font-size: 11px;
+  color: var(--text-secondary, #9ca3af);
+}
+
+/* The native select sits invisibly over the label so the caret is a real picker. */
+.desk-board__pick {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.desk-board__link {
+  margin-left: auto;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: var(--accent-color, #3b82f6);
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.desk-board__link:hover {
+  text-decoration: underline;
+}
+
+.desk-board__headline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  flex: 0 0 28px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.desk-board__headline-time,
+.desk-board__headline-src {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--text-secondary, #9ca3af);
+}
+
+.desk-board__headline-sym {
+  flex: 0 0 auto;
+  font-weight: 700;
+}
+
+.desk-board__headline-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.desk-board__none {
+  color: var(--text-secondary, #9ca3af);
+}
+
+.desk-board__table {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.desk-board__absent {
+  margin: 0;
+  padding: 12px 10px;
+  font-size: 12px;
+  color: var(--text-secondary, #9ca3af);
+}
+
+/* Compact column set on the shared shell: every pinned width below is the
+   #276 contract for this surface; `state` is the one flex remainder. */
+.desk-board .table-wrapper--scanner table {
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
+.desk-board .table-wrapper--scanner th,
+.desk-board .table-wrapper--scanner td {
+  padding: 0.32rem 0.35rem;
+  white-space: nowrap;
+}
+
+.desk-board .table-wrapper--scanner .scanner-col--rownum,
+.desk-board .table-wrapper--scanner .scanner-row-num-th,
+.desk-board .table-wrapper--scanner .scanner-row-num {
+  width: 1.9rem;
+  color: var(--text-secondary, #9ca3af);
+  text-align: right;
+}
+
+.desk-board .table-wrapper--scanner .scanner-col--symbol {
+  width: 5.9rem;
+}
+
+.desk-board .table-wrapper--scanner .scanner-col--price {
+  width: 4.2rem;
+  text-align: right;
+}
+
+.desk-board .table-wrapper--scanner .scanner-col--gap_percent {
+  width: 5.8rem;
+  text-align: right;
+}
+
+.desk-board .table-wrapper--scanner .scanner-col--volume {
+  width: 4.1rem;
+  text-align: right;
+}
+
+.desk-board .table-wrapper--scanner .scanner-col--rel_volume {
+  width: 3.6rem;
+  text-align: right;
+}
+
+.desk-board .table-wrapper--scanner .scanner-col--float {
+  width: 4.1rem;
+  text-align: right;
+}
+
+.desk-board .table-wrapper--scanner .scanner-col--catalyst {
+  width: 5.9rem;
+}
+
+.desk-board .table-wrapper--scanner .scanner-col--state {
+  min-width: 0;
+  overflow: visible;
+}
+
+.desk-board__row {
+  cursor: pointer;
+}
+
+.desk-board__sym {
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
+.desk-board__dots {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 5px;
+  vertical-align: middle;
+}
+
+.desk-board__dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+
+.desk-board__dot--rec {
+  background: var(--rec, #ff3b30);
+}
+
+.desk-board__dot--bot {
+  background: var(--accent-color, #3b82f6);
+}
+
+.desk-board__dot--quiet {
+  background: transparent;
+  border: 1.5px solid var(--accent-color, #3b82f6);
+}
+
+.desk-board__gap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  width: 100%;
+}
+
+.desk-board__gap-num {
+  font-weight: 600;
+}
+
+.desk-board__gap-num--up,
+.desk-board__bar-fill--up {
+  color: var(--green, #22c55e);
+  --desk-bar: var(--green, #22c55e);
+}
+
+.desk-board__gap-num--down,
+.desk-board__bar-fill--down {
+  color: var(--red, #ef4444);
+  --desk-bar: var(--red, #ef4444);
+}
+
+.desk-board__gap-num--flat,
+.desk-board__bar-fill--flat {
+  --desk-bar: var(--text-secondary, #9ca3af);
+}
+
+.desk-board__bar {
+  flex: none;
+  width: 30px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.desk-board__bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--desk-bar, var(--text-secondary, #9ca3af));
+  opacity: 0.75;
+}
+
+.desk-board .is-stale {
+  color: var(--text-secondary, #9ca3af);
+}
+
+.desk-board__chip {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  background: rgba(59, 130, 246, 0.14);
+  color: #6db3ff;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.desk-board__chip-time {
+  margin-left: 5px;
+  font-size: 10.5px;
+  color: var(--text-secondary, #9ca3af);
+}
+
+/* Hover actions overlay the row's right edge; the row stays clickable around them. */
+.desk-board__state {
+  position: relative;
+}
+
+.desk-board__acts {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  padding-left: 6px;
+  background: var(--nova-raised, var(--bg-secondary, #1c1c1e));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.desk-board__row:hover .desk-board__acts,
+.desk-board__row:focus-within .desk-board__acts {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.desk-board__act {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid var(--border-color, #333);
+  border-radius: 6px;
+  background: var(--panel-bg, #12141a);
+  color: var(--text-primary, #e8eaed);
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.desk-board__act:hover {
+  border-color: var(--accent-color, #3b82f6);
+}
+
+.desk-board__act .desk-board__dot {
+  width: 6px;
+  height: 6px;
+}
+
+.desk-board__foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 28px;
+  flex: 0 0 28px;
+  margin-top: auto;
+  padding: 0 10px;
+  border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  font-size: 11px;
+  color: var(--text-secondary, #9ca3af);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.desk-board__foot-count {
+  color: var(--text-primary, #e8eaed);
+  font-weight: 600;
+}
+
+.desk-board__foot-warn {
+  color: var(--nova-warn, #f59e0b);
+}
+
+.desk-board__legend {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 10px;
+}
+
+.desk-board__legend .desk-board__dot {
+  margin-right: 4px;
+}

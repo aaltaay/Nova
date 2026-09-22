@@ -1,5 +1,5 @@
-/* Desk + Records placeholder pages reached from the nav rail.
-   Owner: pages/DeskPage.tsx and pages/RecordsPage.tsx. */
+/* Records page reached from the nav rail (the Desk has desk/desk.css).
+   Owner: pages/RecordsPage.tsx. */
 
 .rail-page {
   flex: 1 1 0;
@@ -12,11 +12,6 @@
   border-radius: 8px;
   background: var(--nova-panel, var(--panel-bg));
   color: var(--nova-text);
-}
-
-.rail-page--desk {
-  align-items: center;
-  justify-content: center;
 }
 
 .rail-page__calm {

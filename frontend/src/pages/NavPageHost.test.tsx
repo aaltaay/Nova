@@ -10,6 +10,9 @@ import { NavPageHost } from './NavPageHost';
 vi.mock('./RecordsPage', () => ({
   RecordsPage: () => <div data-testid="records-page" />,
 }));
+vi.mock('./DeskPage', () => ({
+  DeskPage: () => <div data-testid="desk-page" />,
+}));
 vi.mock('./AccountPage', () => ({
   AccountPage: () => <div data-testid="account-page" />,
 }));
@@ -44,9 +47,7 @@ describe('NavPageHost', () => {
     act(() => {
       setNavPage('desk');
     });
-    const desk = container.querySelector('[data-testid="desk-page"]');
-    expect(desk).toBeTruthy();
-    expect(desk!.textContent).toMatch(/Scanner \+ Trader hybrid lands in the next PR/);
+    expect(container.querySelector('[data-testid="desk-page"]')).toBeTruthy();
     expect(container.querySelector('[data-testid="dashboard-stub"]')).toBeNull();
     act(() => {
       setNavPage('records');
