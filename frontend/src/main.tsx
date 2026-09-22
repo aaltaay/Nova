@@ -18,6 +18,12 @@ async function bootstrap(): Promise<void> {
     console.info('[Nova] API base:', base, '| Try:', `${base}/api/health`);
   }
 
+  // Before any app module loads (V4): on ?view=sample the desk sends nothing
+  // to Nova, reads none of its live state and opens no backend socket.
+  // Dynamic, after the base is set, so the constants it reads resolve here.
+  const { installSampleNetworkGate } = await import('./sample_data/sampleNetworkGate');
+  installSampleNetworkGate(window);
+
   const { createRoot } = await import('react-dom/client');
   const { default: App } = await import('./App.tsx');
 

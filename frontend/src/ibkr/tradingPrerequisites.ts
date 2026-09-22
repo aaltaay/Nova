@@ -81,6 +81,12 @@ export interface TradingPrerequisitesInput {
   sessionRecording?: boolean;
   /** In-app Sim practice -- Gateway is not required. */
   simMode?: boolean;
+  /**
+   * Paper or Sim (ADR 020): orders come from Nova's practice ledger, so the
+   * IBKR completed-orders notice does not apply even though Paper needs the
+   * Gateway for its feed (QA C68).
+   */
+  practiceOrders?: boolean;
   /** status.completed_orders_unanswered_since (D-058), epoch seconds. */
   completedOrdersUnansweredSince?: number | null;
   /** status.gateway_read_only (D-076) -- the Gateway rejected an order with
@@ -300,7 +306,7 @@ export function buildTradingPrerequisites(
   const stuckNotice = completedOrdersStuckNotice({
     sinceEpochSec: input.completedOrdersUnansweredSince,
     gatewayReady: gatewayOk,
-    simMode: input.simMode,
+    simMode: input.simMode || input.practiceOrders,
   });
   if (stuckNotice) {
     warnings.push({

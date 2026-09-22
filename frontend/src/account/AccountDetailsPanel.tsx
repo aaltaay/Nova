@@ -56,6 +56,7 @@ import {
   accountRiskBreakers,
   accountRiskHardLine,
   accountRiskMaxPosition,
+  accountRiskMaxPositionNoCap,
   accountRiskSoftLine,
   type AccountRange,
 } from '../constantGroups/account_page';
@@ -90,6 +91,8 @@ interface Props {
   hidden: boolean;
   onToggleHidden: () => void;
   nowTs: number;
+  /** A stated absence that overrides the venue's own (the sample desk's, V4). */
+  absence?: string | null;
 }
 
 export function riskLevel(dayPnl: number | null): { label: string; tone: 'up' | 'down' | 'flat' | 'muted' } {
@@ -110,6 +113,7 @@ function Row({ label, children, note }: { label: string; children: React.ReactNo
 
 export function AccountDetailsPanel({
   venue, figures, rows, positions, history, range, onRange, breakers, maxSharesCap, hidden, onToggleHidden, nowTs,
+  absence = null,
 }: Props) {
   const practice = venue !== 'live';
   const tag = venue === 'live' ? ACCOUNT_TAG_LIVE : venue === 'sim' ? ACCOUNT_TAG_SIM_SCRATCH : ACCOUNT_TAG_PRACTICE;
@@ -190,7 +194,7 @@ export function AccountDetailsPanel({
         />
       ) : (
         <div className="acct-absent acct-absent--curve" data-testid="account-equity-absent">
-          {practice ? (history ? 'No ledger events in this range · nothing to draw' : ACCOUNT_ROWS_NO_HISTORY) : ACCOUNT_LIVE_NO_LEDGER}
+          {absence ?? (practice ? (history ? 'No ledger events in this range · nothing to draw' : ACCOUNT_ROWS_NO_HISTORY) : ACCOUNT_LIVE_NO_LEDGER)}
         </div>
       )}
       <div className="acct-cards">
@@ -275,7 +279,9 @@ export function AccountDetailsPanel({
         <div className="acct-rrow">
           <div className="acct-rrow__kv">
             <span className="acct-row__k">{ACCOUNT_RISK_MAX_POSITION}</span>
-            <span className="acct-num">{maxSharesCap == null ? formatShareQty(maxQty) : accountRiskMaxPosition(formatShareQty(maxQty), formatShareQty(maxSharesCap))}</span>
+            <span className={maxSharesCap == null ? 'acct-muted' : 'acct-num'} data-testid="account-max-position">
+              {maxSharesCap == null ? accountRiskMaxPositionNoCap(formatShareQty(maxQty)) : accountRiskMaxPosition(formatShareQty(maxQty), formatShareQty(maxSharesCap))}
+            </span>
           </div>
           <div className="acct-meter"><i style={{ width: `${maxSharesCap ? Math.min(100, (maxQty / maxSharesCap) * 100) : 0}%` }} /></div>
         </div>

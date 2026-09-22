@@ -142,3 +142,21 @@ def expire_due(ledger: Any, now_ts: float) -> list[dict[str, Any]]:
         if closed is not None:
             expired.append(closed)
     return expired
+
+
+def admission_price(
+    typ: str, side: str, limit_price: float | None, stop_price: float | None, ref: Any,
+) -> float | None:
+    """What an opening order is charged against buying power at admission.
+
+    ``ref`` is the venue's ``fill_model.Reference`` (or None when it has none).
+    """
+    if typ == "LMT" and limit_price is not None:
+        return float(limit_price)
+    if typ == "STP" and stop_price is not None:
+        return float(stop_price)
+    if ref is None:
+        return None
+    quoted = ref.ask if side == "BUY" else ref.bid
+    touch = quoted if quoted is not None else ref.last
+    return float(touch) if touch is not None else None

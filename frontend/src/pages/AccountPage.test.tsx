@@ -34,8 +34,17 @@ vi.mock('../ibkr/IbkrAccountContext', () => ({
   useOptionalIbkrAccountContext: () => mocks.ibkr,
 }));
 vi.mock('../bot/useBotSession', () => ({ useBotSession: () => mocks.bot }));
+// The page follows the status's own venue (C26); here it states none, so the workspace mode decides.
+vi.mock('../ibkr/useIbkrStatus', () => ({ useIbkrStatus: () => ({ mode: mocks.workspace.ibkrMode }) }));
 vi.mock('../ibkr/TradingTab', () => ({
-  TradingTab: ({ initialSection }: { initialSection?: string }) => <div data-testid="legacy-trading-tab" data-section={initialSection} />,
+  TradingTab: ({ initialSection, sections, showTicket }: { initialSection?: string; sections?: string[]; showTicket?: boolean }) => (
+    <div
+      data-testid="legacy-trading-tab"
+      data-section={initialSection}
+      data-sections={(sections ?? []).join(',')}
+      data-ticket={showTicket === false ? 'off' : 'on'}
+    />
+  ),
 }));
 
 const ORDER: IbkrOrder = {
@@ -177,5 +186,50 @@ describe('AccountPage', () => {
     await waitFor(() => expect(screen.getByTestId('legacy-trading-tab').getAttribute('data-section')).toBe('overview'));
     fireEvent.click(screen.getByTestId('account-page-tab-reports'));
     await waitFor(() => expect(screen.getByTestId('legacy-trading-tab').getAttribute('data-section')).toBe('reports'));
+  });
+
+  it('hosts no second order ticket or Level 2 book under Reports or Broker snapshot (V23)', async () => {
+    mocks.workspace.ibkrMode = 'live';
+    render(<AccountPage onOpenTrader={() => {}} />);
+    fireEvent.click(screen.getByTestId('account-page-tab-reports'));
+    const reports = await screen.findByTestId('legacy-trading-tab');
+    expect(reports.getAttribute('data-sections')).toBe('reports,activity,latency');
+    expect(reports.getAttribute('data-ticket')).toBe('off');
+    fireEvent.click(screen.getByTestId('account-page-tab-broker'));
+    await waitFor(() => expect(screen.getByTestId('legacy-trading-tab').getAttribute('data-sections')).toBe('overview'));
+    expect(screen.getByTestId('legacy-trading-tab').getAttribute('data-ticket')).toBe('off');
+  });
+
+  it('with no bot session the cap is unavailable, never the product ceiling (C35)', async () => {
+    mocks.workspace.ibkrMode = 'live';
+    mocks.bot.session = null;
+    render(<AccountPage onOpenTrader={() => {}} />);
+    expect(screen.getByTestId('account-max-position').textContent).toMatch(/cap unavailable/);
+    expect(screen.getByTestId('account-max-position').textContent).not.toMatch(/\/ 10 sh/);
+  });
+
+  it('with a bot session shows the session cap', async () => {
+    mocks.workspace.ibkrMode = 'live';
+    mocks.bot.session = { caps: { max_shares: 1 }, soft_breaker_fired: false, day_lock_active: false };
+    render(<AccountPage onOpenTrader={() => {}} />);
+    expect(screen.getByTestId('account-max-position').textContent).toBe('0 / 1 sh');
+  });
+
+  it('on the sample desk shows the sample account, polls no ledger and offers only Overview (V4)', async () => {
+    window.history.replaceState({}, '', '/?view=sample');
+    try {
+      mocks.workspace.ibkrMode = 'paper';
+      mocks.ibkr.summary = { connected: true, mode: 'paper', NetLiquidation: 100000, TotalCashValue: 99150 };
+      render(<AccountPage onOpenTrader={() => {}} />);
+      await act(async () => { await Promise.resolve(); });
+      expect(screen.getByTestId('account-page-venue').textContent).toBe('Nova Marketing Sample Data');
+      expect(screen.getByTestId('account-tav').textContent).toBe('$100,000.00');
+      expect(screen.queryByTestId('account-page-tab-reports')).toBeNull();
+      expect(screen.queryByTestId('account-page-tab-broker')).toBeNull();
+      expect(screen.getByTestId('account-performance-absent').textContent).toMatch(/sample desk has no ledger history/);
+      expect(mocks.fetch).not.toHaveBeenCalled();
+    } finally {
+      window.history.replaceState({}, '', '/');
+    }
   });
 });

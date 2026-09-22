@@ -30,10 +30,13 @@ import {
   GLOBAL_BAR_MODE_SIM,
 } from '../constants';
 import type { DeskVenue } from '../constantGroups/desk_venue';
+import { SAMPLE_VENUE_REFUSAL } from '../sample_data/sampleCopy';
+import { onSampleDesk } from '../sample_data/sampleOrderGuard';
 import { confirmApp } from '../ux';
+import { explicitVenueOf } from './deskVenue';
 import { disconnectHintSwitchTarget } from './disconnectCopy';
 import type { IbkrMode } from './types';
-import { refreshIbkrStatusNow } from './useIbkrStatus';
+import { refreshIbkrStatusNow, useIbkrStatus } from './useIbkrStatus';
 
 interface VenueResponse {
   ok?: boolean;
@@ -133,8 +136,12 @@ export function GatewayModeCapsule({
   className,
 }: GatewayModeCapsuleProps) {
   const [pending, setPending] = useState<CapsuleSelection | null>(null);
+  // ADR 020: the status `venue` is the one truth; `mode` is the Gateway port
+  // label on Live, so the by-hand paper Gateway must not read as Paper (C26).
+  const statusVenue = explicitVenueOf(useIbkrStatus());
   const selected =
-    pending ?? resolveCapsuleSelection(mode, gatewayMode, accountKind, intentionalMode, venue);
+    pending
+    ?? resolveCapsuleSelection(mode, gatewayMode, accountKind, intentionalMode, venue ?? statusVenue);
   const [switching, setSwitching] = useState<CapsuleSelection | null>(null);
   const [switchError, setSwitchError] = useState<string | null>(null);
   const hintTarget = disconnectHintSwitchTarget(disconnectHint);
@@ -174,6 +181,11 @@ export function GatewayModeCapsule({
 
   async function requestVenue(next: DeskVenue) {
     if (next === selected || switching) return;
+    // V4: the venue is the live desk's; the sample desk switches nothing.
+    if (onSampleDesk()) {
+      setSwitchError(SAMPLE_VENUE_REFUSAL);
+      return;
+    }
     const confirmed = await confirmApp({
       title: VENUE_CONFIRM_TITLE[next],
       message: VENUE_TITLE[next],

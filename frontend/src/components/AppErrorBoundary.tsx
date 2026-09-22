@@ -1,4 +1,9 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import {
+  APP_ERROR_SHELL_MESSAGE,
+  APP_ERROR_SHELL_SOURCE,
+  APP_ERROR_VIEW_MESSAGE,
+} from '../constantGroups/ux';
 import { reportClientError } from '../utils/reportClientError';
 import {
   clearShellAutoReloadSlot,
@@ -54,9 +59,13 @@ export class AppErrorBoundary extends Component<Props, State> {
     }
   }
 
+  /** The app-shell card offers a reload, like its copy says (C56). */
+  private reloads(): boolean {
+    return this.props.source === APP_ERROR_SHELL_SOURCE || shouldAutoReloadShell(this.props.source, this.state.error);
+  }
+
   private handleRetry = (): void => {
-    const { error } = this.state;
-    if (shouldAutoReloadShell(this.props.source, error)) {
+    if (this.reloads()) {
       window.location.reload();
       return;
     }
@@ -76,14 +85,16 @@ export class AppErrorBoundary extends Component<Props, State> {
             <p>Recovering — reloading Nova…</p>
           ) : (
             <>
-              <p>Something went wrong in this view. The rest of Nova may still work.</p>
+              <p data-testid="app-error-message">
+                {this.props.source === APP_ERROR_SHELL_SOURCE ? APP_ERROR_SHELL_MESSAGE : APP_ERROR_VIEW_MESSAGE}
+              </p>
               <p className="na-muted">{error.message}</p>
               <button
                 type="button"
                 className="history-banner-btn"
                 onClick={this.handleRetry}
               >
-                {shouldAutoReloadShell(this.props.source, error) ? 'Reload Nova' : 'Retry'}
+                {this.reloads() ? 'Reload Nova' : 'Retry'}
               </button>
             </>
           )}

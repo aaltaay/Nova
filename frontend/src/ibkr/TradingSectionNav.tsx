@@ -7,16 +7,21 @@ const SECTIONS: readonly { id: TradingTabSection; label: string }[] = [
   { id: 'latency', label: 'Latency' },
 ];
 
+/** Every section, in nav order -- a host may offer fewer (QA V23). */
+export const TRADING_TAB_SECTIONS: readonly TradingTabSection[] = SECTIONS.map(s => s.id);
+
 export function TradingSectionNav({
   section,
   onChange,
+  sections = TRADING_TAB_SECTIONS,
 }: {
   section: TradingTabSection;
   onChange: (section: TradingTabSection) => void;
+  sections?: readonly TradingTabSection[];
 }) {
   return (
     <div className="ibkr-section-toggle" role="tablist" aria-label="Account section">
-      {SECTIONS.map(item => (
+      {SECTIONS.filter(item => sections.includes(item.id)).map(item => (
         <button
           key={item.id}
           type="button"

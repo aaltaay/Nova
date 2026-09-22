@@ -1,12 +1,14 @@
 /**
  * One predicate the IBKR transport modules ask before any order mutation (#357).
  *
- * Scope, stated exactly: this covers the order doors under src/ibkr/ --
- * placeIbkrOrder, cancelIbkrOrder, cancelAllOrdersForSymbol,
+ * Scope, stated exactly: the refusals here give the order doors under
+ * src/ibkr/ -- placeIbkrOrder, cancelIbkrOrder, cancelAllOrdersForSymbol,
  * cancelAllWorkingOrders, flattenAccount -- plus the runEmergencyKill
- * composite that calls two of them. It is NOT a claim that nothing else on the
- * sample route writes to the backend: the bot session, settings and other
- * non-order endpoints are untouched here.
+ * composite their own copy, and `onSampleDesk` is what the other live-desk
+ * controls ask (venue pills, bot writes, desk arming, depth / tape lines).
+ * The guarantee that nothing at all leaves the sample desk is the transport
+ * gate underneath every caller (sampleNetworkGate, V4): a door missing from
+ * this list still sends nothing, it only loses the friendly copy.
  *
  * Direction matters: a false positive would silently block real order
  * placement, so this refuses only on an exact `view=sample` match and returns

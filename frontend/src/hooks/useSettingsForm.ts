@@ -9,7 +9,24 @@ import {
   DATA_FEED_DEFAULT,
   DISCOVERY_PROVIDER_DEFAULT,
 } from '../constants';
+import {
+  SETTINGS_SAVE_FAILED_TITLE,
+  SETTINGS_SAVE_UNREACHABLE,
+  settingsSaveRefused,
+} from '../constantGroups/ux';
 import { alertApp } from '../ux';
+
+/** The backend's own `detail` from an error answer, when it sent one. */
+async function responseDetail(res: Response): Promise<string | null> {
+  try {
+    const body = await res.json();
+    const detail = body && typeof body === 'object' ? (body as { detail?: unknown }).detail : null;
+    return typeof detail === 'string' && detail.trim() ? detail.trim() : null;
+  } catch (err) {
+    console.warn('[Nova] settings save: error body unreadable', err);
+    return null;
+  }
+}
 
 export function useSettingsForm(onSaved?: () => void) {
   const onSavedRef = useRef(onSaved);
@@ -54,8 +71,9 @@ export function useSettingsForm(onSaved?: () => void) {
         );
         setDiscoveryProviderOptions(opts.length ? opts : [DISCOVERY_PROVIDER_DEFAULT]);
       }
-    } catch {
-      // silent
+    } catch (err) {
+      // The form keeps its defaults; the save path reports its own failures.
+      console.warn('[Nova] /api/config read failed -- Settings shows defaults', err);
     }
   }, []);
 
@@ -82,11 +100,20 @@ export function useSettingsForm(onSaved?: () => void) {
         setFeedFellBack(false);
         // Stay open so multi-field Settings edits are not dismissed on save.
         onSavedRef.current?.();
+      } else {
+        // A refusal is not a save (QA C62): 401 / 422 / 500 used to leave the
+        // overlay open with nothing said. Say what Nova answered.
+        void alertApp({
+          title: SETTINGS_SAVE_FAILED_TITLE,
+          message: settingsSaveRefused(res.status, await responseDetail(res)),
+          tone: 'danger',
+        });
       }
-    } catch {
+    } catch (err) {
+      console.warn('[Nova] settings save failed', err);
       void alertApp({
-        title: 'Settings not saved',
-        message: 'Error updating configuration. Check the API is running and try again.',
+        title: SETTINGS_SAVE_FAILED_TITLE,
+        message: SETTINGS_SAVE_UNREACHABLE,
         tone: 'danger',
       });
     }

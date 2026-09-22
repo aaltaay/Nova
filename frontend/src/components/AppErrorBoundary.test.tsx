@@ -96,6 +96,32 @@ describe('AppErrorBoundary', () => {
     vi.useRealTimers();
   });
 
+  it('says the whole desk is down when the app-shell boundary fires, and offers a reload (C56)', async () => {
+    const reload = vi.fn();
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...window.location, reload },
+    });
+
+    await act(async () => {
+      root.render(
+        <AppErrorBoundary source="app-shell">
+          <Boom message="(status.capture_stopped ?? []).filter is not a function" />
+        </AppErrorBoundary>,
+      );
+    });
+
+    const message = container.querySelector('[data-testid="app-error-message"]')?.textContent ?? '';
+    expect(message).toMatch(/desk shell/);
+    expect(message).not.toMatch(/rest of Nova may still work/);
+    const button = container.querySelector('button');
+    expect(button?.textContent).toBe('Reload Nova');
+    await act(async () => {
+      button?.click();
+    });
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps Trader chrome on a fatal pane error instead of reloading', async () => {
     const reload = vi.fn();
     Object.defineProperty(window, 'location', {

@@ -241,3 +241,28 @@ export const GLOBAL_BAR_MENU_SAMPLE_EXIT_LABEL = 'Exit sample data';
 export const GLOBAL_BAR_MENU_SAMPLE_TITLE =
   'Isolated Nova Marketing Sample Data fixtures -- never mixed with live market data';
 export const GLOBAL_BAR_MENU_SETTINGS_LABEL = 'Settings…';
+
+/* ---------- QA batch: orders / account / safety (2026-09-22) ---------- */
+/**
+ * Gateway line of the connection tooltip on Paper (C25): the venue is Nova's
+ * practice account; the IBKR login behind the feed is a separate fact.
+ */
+export const headerGatewayTitlePracticePaper = (gatewayMode: 'paper' | 'live' | null): string =>
+  `PAPER -- Nova's practice account on the live feed: fake money, fills estimated by Nova, nothing reaches IBKR.${
+    gatewayMode ? ` Market data comes from IB Gateway on the ${gatewayMode} port.` : ''
+  }`;
+/** A failed /api/ibkr/status request says so -- the Gateway was not seen to go down (C58). */
+export const headerStatusRequestFailed = (reason: string | null): string =>
+  `Nova's status request failed${reason ? ` (${reason})` : ''} -- IB Gateway's state is unknown, not reported down.`;
+/** Sim with the Gateway down (C24): the replay needs no Gateway; the live edge does. */
+export const GLOBAL_BAR_CONNECTION_SIM_OFFLINE_TITLE =
+  'Sim replays recorded sessions without IB Gateway. The live edge -- Sim following the wall clock -- needs it.';
+/** The sample desk's KILL refusal title (V39) -- nothing ran, so nothing "did not finish". */
+export const GLOBAL_BAR_EMERGENCY_KILL_SAMPLE_TITLE = 'Emergency KILL is off on the sample desk';
+/** Roster chip wording for a raw scanner exception (V34), e.g. "ibkr: TimeoutError: TimeoutError()". */
+export const rosterScannerError = (source: string, error: string): string =>
+  /timeout/i.test(error)
+    ? `${source} scanner request timed out`
+    : /connection|refused|reset/i.test(error)
+      ? `${source} scanner connection failed`
+      : `${source} scanner failed (${error})`;

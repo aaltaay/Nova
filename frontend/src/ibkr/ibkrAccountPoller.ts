@@ -21,6 +21,11 @@ import {
   subscribeDeskPollSnap,
 } from './deskSharedPoll';
 import { fetchAccountCluster, fetchOrdersCluster } from './ibkrAccountFetch';
+import {
+  normalizeAccountSummary,
+  normalizeOrderList,
+  normalizePositionList,
+} from './orderRowNormalize';
 import type { IbkrAccountSummary, IbkrOrder, IbkrPosition } from './types';
 
 export interface IbkrAccountPollSnap {
@@ -82,9 +87,17 @@ function publishLocal(next: IbkrAccountPollSnap): void {
   }
 }
 
+/** Another window's snapshot is re-shaped before this one renders it (QA C2 / C3). */
 function applyRemote(remote: IbkrAccountPollSnap): void {
   if (!connected || sample) return;
-  applySnap({ ...remote, stale: false });
+  applySnap({
+    ...remote,
+    summary: normalizeAccountSummary(remote?.summary),
+    positions: normalizePositionList(remote?.positions) ?? [],
+    orders: normalizeOrderList(remote?.orders) ?? [],
+    closedOrders: normalizeOrderList(remote?.closedOrders) ?? [],
+    stale: false,
+  });
 }
 
 function isLeader(): boolean {

@@ -52,3 +52,18 @@ export const DESK_API_FAIL_STREAK_FOR_OVERLAY = 3;
 export const IBKR_SOFT_ORDER_WARNING_CODES = [
   2109, 399, 10349, 202, 2104, 2106, 2108,
 ] as const;
+
+/* ---------- QA batch: orders / account / safety (2026-09-22) ---------- */
+/** Error boundary copy: a view's boundary leaves the rest of the desk up... */
+export const APP_ERROR_VIEW_MESSAGE = 'Something went wrong in this view. The rest of Nova may still work.';
+/** ...the app-shell boundary does not -- nothing else is left on screen (C56). */
+export const APP_ERROR_SHELL_MESSAGE =
+  "Something went wrong in Nova's desk shell, so the rail, header and every view are down. Reload Nova to bring the desk back.";
+/** The boundary source that wraps the whole desk (App.tsx). */
+export const APP_ERROR_SHELL_SOURCE = 'app-shell';
+/** Settings "Update & Connect" answers (C62). */
+export const SETTINGS_SAVE_FAILED_TITLE = 'Settings not saved';
+export const SETTINGS_SAVE_UNREACHABLE =
+  'Error updating configuration. Check the API is running and try again.';
+export const settingsSaveRefused = (status: number, detail: string | null): string =>
+  `Nova refused the change (HTTP ${status})${detail ? `: ${detail}` : '.'} Nothing was saved.`;

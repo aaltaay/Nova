@@ -14,6 +14,10 @@ vi.mock('../ibkr/IbkrAccountContext', () => ({
   useOptionalIbkrAccountContext: () => ctxRef.current,
 }));
 
+// The desk's shared status poll is not this hook's request; Live unless a test says otherwise.
+const statusRef: { current: { mode: string; venue?: string; stale?: boolean } } = { current: { mode: 'live', venue: 'live' } };
+vi.mock('../ibkr/useIbkrStatus', () => ({ useIbkrStatus: () => statusRef.current }));
+
 function Probe({ connected }: { connected: boolean }) {
   const { orders, error } = useClosedOrders(connected);
   return (
@@ -88,5 +92,35 @@ describe('useClosedOrders', () => {
       '1:ok',
     );
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('on Paper a down Gateway is not "last known": the practice ledger still answers (C68)', async () => {
+    statusRef.current = { mode: 'paper', venue: 'paper', stale: false };
+    try {
+      await act(async () => {
+        root.render(<Probe connected={false} />);
+      });
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(container.querySelector('[data-testid="closed-probe"]')?.textContent).toBe('1:ok');
+    } finally {
+      statusRef.current = { mode: 'live', venue: 'live' };
+    }
+  });
+
+  it('a list that is not a list is a named failure, never a crash (C3)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({}) })));
+    await act(async () => {
+      root.render(<Probe connected />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[data-testid="closed-probe"]')?.textContent).toBe(
+      '0:closed orders unavailable (unexpected shape)',
+    );
   });
 });

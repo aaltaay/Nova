@@ -8,6 +8,7 @@
 import { useCallback, useSyncExternalStore } from 'react';
 import {
   ACCOUNT_HISTORY_POLL_MS,
+  ACCOUNT_HISTORY_UNREADABLE,
   accountHistoryPath,
   type AccountRange,
 } from '../constantGroups/account_page';
@@ -38,6 +39,45 @@ const IDLE: ReplayResourceState<PracticeHistory> = { data: null, error: null };
 const idleSnapshot = () => IDLE;
 const noop = () => {};
 
+type Loose = Record<string, unknown>;
+const isObject = (value: unknown): value is Loose =>
+  value != null && typeof value === 'object' && !Array.isArray(value);
+const rows = <T,>(value: unknown): T[] => (Array.isArray(value) ? (value.filter(isObject) as T[]) : []);
+
+/**
+ * The history the panels can render (QA C11): every list a list of rows, so
+ * `daily: null` can no longer replace the Account page. `components` is the
+ * money itself -- when it is missing the answer is unreadable, never zeros.
+ */
+export function normalizePracticeHistory(raw: unknown): PracticeHistory | null {
+  if (!isObject(raw) || !isObject(raw.components)) return null;
+  return {
+    ...(raw as unknown as PracticeHistory),
+    equity: rows(raw.equity),
+    fills: rows(raw.fills),
+    by_source: rows(raw.by_source),
+    daily: rows(raw.daily),
+    archives: rows(raw.archives),
+    warnings: Array.isArray(raw.warnings) ? raw.warnings.filter((w): w is string => typeof w === 'string') : [],
+  };
+}
+
+const normalized = new WeakMap<ReplayResourceState<PracticeHistory>, ReplayResourceState<PracticeHistory>>();
+
+/** One normalised snapshot per published state, so useSyncExternalStore sees a stable value. */
+function normalizedState(state: ReplayResourceState<PracticeHistory>): ReplayResourceState<PracticeHistory> {
+  if (state.data == null) return state;
+  let out = normalized.get(state);
+  if (!out) {
+    const data = normalizePracticeHistory(state.data);
+    out = data
+      ? { data, error: state.error }
+      : { data: null, error: state.error ?? ACCOUNT_HISTORY_UNREADABLE };
+    normalized.set(state, out);
+  }
+  return out;
+}
+
 /** The ledger history for `venue` + `range`, or an idle state off the practice venues. */
 export function useAccountHistory(
   venue: string | null | undefined,
@@ -48,8 +88,11 @@ export function useAccountHistory(
     (listener: () => void) => (resource ? resource.subscribe(listener) : noop),
     [resource],
   );
-  const getSnapshot = resource ? resource.getSnapshot : idleSnapshot;
-  return useSyncExternalStore(subscribe, getSnapshot);
+  const getSnapshot = useCallback(
+    () => (resource ? normalizedState(resource.getSnapshot()) : IDLE),
+    [resource],
+  );
+  return useSyncExternalStore(subscribe, resource ? getSnapshot : idleSnapshot);
 }
 
 /** After a reset every cached range for the venue refetches at once. */

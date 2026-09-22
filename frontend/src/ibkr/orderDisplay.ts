@@ -1,7 +1,17 @@
 /**
  * Webull-clean display labels for working / open orders (WID-026).
  * Wire data stays IBKR (LMT, PreSubmitted, …); the table never shows those raw.
+ *
+ * Every helper takes whatever the wire sent (QA C2): a null status or a
+ * numeric timestamp renders as "—" instead of throwing inside `.trim()`.
  */
+import {
+  ORDER_PRICE_PLAUSIBLE_MAX,
+  ORDER_SESSION_PRACTICE,
+  ORDER_SESSION_PRACTICE_TITLE,
+} from '../constantGroups/order_display';
+
+const asText = (value: unknown): string => (typeof value === 'string' ? value : '');
 
 export type OrderStatusTone =
   | 'working'
@@ -12,16 +22,17 @@ export type OrderStatusTone =
   | 'failed'
   | 'unknown';
 
-export function formatOrderSide(side: string): string {
-  const s = side.trim().toUpperCase();
+export function formatOrderSide(side: unknown): string {
+  const raw = asText(side);
+  const s = raw.trim().toUpperCase();
   if (s === 'BUY') return 'Buy';
   if (s === 'SELL') return 'Sell';
-  return side || '—';
+  return raw || '—';
 }
 
 /** Text tone for Buy/Sell — used instead of a Side column on order tables. */
-export function orderSideClass(side: string): 'ibkr-side--buy' | 'ibkr-side--sell' | '' {
-  const s = side.trim().toUpperCase();
+export function orderSideClass(side: unknown): 'ibkr-side--buy' | 'ibkr-side--sell' | '' {
+  const s = asText(side).trim().toUpperCase();
   if (s === 'BUY') return 'ibkr-side--buy';
   if (s === 'SELL') return 'ibkr-side--sell';
   return '';
@@ -29,9 +40,9 @@ export function orderSideClass(side: string): 'ibkr-side--buy' | 'ibkr-side--sel
 
 /** Full-row highlight class for Buy/Sell (Open + Closed order tables). */
 export function orderSideRowClass(
-  side: string,
+  side: unknown,
 ): 'ibkr-order-row--buy' | 'ibkr-order-row--sell' | '' {
-  const s = side.trim().toUpperCase();
+  const s = asText(side).trim().toUpperCase();
   if (s === 'BUY') return 'ibkr-order-row--buy';
   if (s === 'SELL') return 'ibkr-order-row--sell';
   return '';
@@ -52,8 +63,9 @@ export function positionSideRowClass(
   return qty > 0 ? 'ibkr-order-row--buy' : 'ibkr-order-row--sell';
 }
 
-export function formatOrderType(orderType: string): string {
-  const t = orderType.trim().toUpperCase().replace(/[\s_-]+/g, '');
+export function formatOrderType(orderType: unknown): string {
+  const raw = asText(orderType);
+  const t = raw.trim().toUpperCase().replace(/[\s_-]+/g, '');
   switch (t) {
     case 'LMT':
     case 'LIMIT':
@@ -71,16 +83,17 @@ export function formatOrderType(orderType: string): string {
     case 'TRAILINGSTOP':
       return 'Trailing Stop Order';
     default:
-      return orderType.trim() || '—';
+      return raw.trim() || '—';
   }
 }
 
 export function formatOrderStatus(
-  status: string,
+  status: unknown,
   filledQty: number,
   qty: number,
 ): string {
-  const s = status.trim().toLowerCase();
+  const rawStatus = asText(status);
+  const s = rawStatus.trim().toLowerCase();
   const hasPartial =
     Number.isFinite(filledQty) &&
     Number.isFinite(qty) &&
@@ -114,7 +127,7 @@ export function formatOrderStatus(
   if (s.includes('fill')) return 'Filled';
   if (s.includes('pend') || s.includes('presub')) return 'Pending';
 
-  return status.trim() || '—';
+  return rawStatus.trim() || '—';
 }
 
 export function orderStatusTone(label: string): OrderStatusTone {
@@ -144,6 +157,35 @@ export function formatExtendedHours(outsideRth: boolean): string {
 }
 
 /**
+ * A practice order (Paper / Sim, ADR 020): the practice broker stamps its
+ * rows with `venue` and marks every one `fill_estimated`; IBKR rows carry
+ * neither.
+ */
+export function isPracticeOrder(order: { venue?: unknown; fill_estimated?: unknown }): boolean {
+  return order.venue === 'paper' || order.venue === 'sim' || order.fill_estimated === true;
+}
+
+/** Session cell: a practice order works in every session, so it says so (C30). */
+export function formatOrderSession(order: {
+  outside_rth?: unknown;
+  venue?: unknown;
+  fill_estimated?: unknown;
+}): { label: string; title: string | undefined } {
+  if (isPracticeOrder(order)) return { label: ORDER_SESSION_PRACTICE, title: ORDER_SESSION_PRACTICE_TITLE };
+  return { label: formatExtendedHours(order.outside_rth === true), title: undefined };
+}
+
+/**
+ * A price worth printing: finite, positive and below ORDER_PRICE_PLAUSIBLE_MAX.
+ * IB's unset price (1.797e308) and any other placeholder read as null (C28).
+ */
+export function plausiblePrice(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 && value < ORDER_PRICE_PLAUSIBLE_MAX
+    ? value
+    : null;
+}
+
+/**
  * Exact Eastern Time Placed label for order rows.
  * Shows milliseconds whenever the ISO carries a fractional second (audit).
  * Machine truth stays on `<time dateTime={iso}>` (UTC ISO unchanged).
@@ -154,8 +196,8 @@ function parseOrderInstant(iso: string): Date {
   return new Date(hasZone ? text : `${text}Z`);
 }
 
-export function formatOrderDateTime(iso: string | null | undefined): string {
-  if (!iso) return '—';
+export function formatOrderDateTime(iso: unknown): string {
+  if (typeof iso !== 'string' || !iso.trim()) return '—';
   const d = parseOrderInstant(iso);
   if (Number.isNaN(d.getTime())) return '—';
   const hasFraction = /[T ]\d{2}:\d{2}:\d{2}\.\d/.test(iso);

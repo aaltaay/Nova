@@ -143,3 +143,9 @@ export const BOT_BREAKER_SOFT_LABEL = 'Bot trip $ (locked)';
 export const BOT_BREAKER_HARD_LABEL = 'All-stop $ (locked)';
 export const BOT_BREAKER_HINT =
   'Locked product thresholds. Session PATCH has no breaker fields. -$50 flattens and drops the bot to L0. -$200 flattens and locks bot plus manual buys until next ET midnight.';
+
+/* ---------- QA batch: orders / account / safety (2026-09-22) ---------- */
+/** Endpoint names in "unreadable response" errors (botPayload.botUnreadableMessage). */
+export const BOT_LABEL_SESSION = 'Bot session';
+export const BOT_LABEL_PROPOSALS = 'Bot proposals';
+export const BOT_LABEL_AUDIT = 'Bot audit';

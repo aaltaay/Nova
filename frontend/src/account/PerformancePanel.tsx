@@ -68,13 +68,21 @@ const TABS: Array<[PerfTab, string]> = [
   ['source', ACCOUNT_PERF_TAB_SOURCE],
 ];
 
+/**
+ * P&L % against the value the range started from. Null until the account has
+ * loaded: a missing net liquidation is not zero, and treating it as zero read
+ * as "-100.00%" for any loss (C47).
+ */
+export function rangePnlPercent(net: number, netLiquidation: number | null): number | null {
+  if (netLiquidation == null || !Number.isFinite(netLiquidation)) return null;
+  const base = netLiquidation - net;
+  return base > 0 ? (net / base) * 100 : null;
+}
+
 function bigNumber(history: PracticeHistory, mode: AccountPerfMode, netLiquidation: number | null): string {
   const net = rangeNetPnl(history.components);
   if (mode === 'value') return formatMoney(netLiquidation ?? history.equity[history.equity.length - 1]?.net_liquidation);
-  if (mode === 'pct') {
-    const base = (netLiquidation ?? 0) - net;
-    return formatSignedPercent(base > 0 ? (net / base) * 100 : null);
-  }
+  if (mode === 'pct') return formatSignedPercent(rangePnlPercent(net, netLiquidation));
   return formatSignedMoney(net);
 }
 
@@ -158,7 +166,7 @@ export function PerformancePanel({
           {tab === 'source' && <SourceTiles history={history} />}
 
           <div className="acct-rows acct-rows--perf">
-            <div className="acct-row"><span className="acct-row__k">{ACCOUNT_PERF_ROW_REALIZED(resetLabel)}</span><span className="acct-row__v"><Money value={history.components.realized} signed /></span></div>
+            <div className="acct-row"><span className="acct-row__k" data-testid="account-perf-realized-label">{ACCOUNT_PERF_ROW_REALIZED(range, resetLabel)}</span><span className="acct-row__v"><Money value={history.components.realized} signed /></span></div>
             <div className="acct-row"><span className="acct-row__k">{ACCOUNT_PERF_ROW_COSTS}</span><span className="acct-row__v"><Money value={-(history.components.commissions + history.components.sec_finra_fees)} signed={history.components.commissions + history.components.sec_finra_fees !== 0} kind="cost" /></span></div>
           </div>
         </>

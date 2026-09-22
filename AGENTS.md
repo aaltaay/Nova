@@ -390,6 +390,26 @@ and its `placed` event carry `tif` and `expires_ts`). Recorded prints carry
 as the exchange's own. Rules and biases: `architecture/practice-fills.md`;
 fees and margin: `architecture/practice-account.md`.
 
+**Orders (Today) belongs to the desk's venue** (QA batch, 2026-09-22):
+`/api/ibkr/orders/closed` on Paper and Sim is the practice ledger's own closed
+rows, newest first, with nothing joined or appended from the execution ledger
+(`execution/closed_blotter.py`) -- the execution ledger holds every venue's
+orders and its `mode` stamp is the venue for a practice send and the Gateway
+port label (`live` / `paper`) for an IBKR send. On Live only rows stamped with
+the session's own label (or unstamped legacy rows) are joined or listed, and
+on the by-hand paper Gateway a Paper practice row is told apart by its
+`(order_id, nova_placed_at)` pair. A leftover ledger row carries `limit_price`
+for LMT / STP LMT and `stop_price` for STP / TRAIL (the trail amount), never a
+stop as a limit; `filled_at: null` (the ledger keeps no wall-clock fill time)
+and `updated_at` its last activity; a ledger `filled` row is never
+`Inactive`. The fill-audit join (`execution/fill_audit_attach.py`) uses only
+this desk's execution rows, a remembered audit only when its symbol and venue
+stamp match the row, and a practice row's own `nova_placed_at`. A practice
+order row has `commission: null` until it fills (a cancelled or expired row
+keeps `null`); practice order ids are never reused after a Sim unwind; a
+resolved practice order -- filled, cancelled, expired, unwound or reset --
+releases its `execution.inflight` commitment.
+
 **The ledger as history (the Account page):**
 `GET /api/practice/history?venue=paper|sim&range=1D|5D|1M|3M|YTD|ALL`
 (default `1D`; owner `practice/history.py`, a pure derivation from the ledger
@@ -718,6 +738,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-22 | QA batch (orders / account / safety): Orders (Today) belongs to the desk's venue -- the closed-orders overlay and the fill-audit join are scoped by the execution ledger's `mode` stamp, a practice desk lists its own ledger only (four filled Paper orders read "Inactive, filled 0" on Sim); leftover rows map the requested price by order type and never show placement as the fill time; practice rows carry `commission: null` until a fill, keep order ids unique across a Sim unwind, and release their in-flight commitment when resolved (a filled resting SELL used to stay "already sent"). The sample desk (`?view=sample`) sends nothing to the backend and reads none of its live state (`sample_data/sampleNetworkGate.ts`). §3 amended. | User Directive + Claude Opus 5 |
 | 2026-09-22 | Operator-reported desk fixes: `/api/capture/sessions` rows carry `spans` (whole epoch seconds per recorded segment) so the Sim scrubber draws a thin recorded lane under a downloaded replay; the playhead tag moves under the band so the header no longer hides it. §3 amended. | User Directive + Claude Opus 5 |
 | 2026-09-22 | Desk diagnostics (ADR 021): `GET /api/diagnostics` + `/bundle` -- a grouped checklist of facts (process root, `.env` path and whether it exists, integration keys and their source, Gateway ports / IBC 2FA / session / last IB error / attach retry, market-data entitlement and lines, recorder keepalive, practice files, UI-vs-API revision), each row with state, cause, fix and evidence. `ibkr/attach_retry.py` records every attach attempt on a bounded schedule and names the human step. Case: an agent-worktree API with no `.env` answered `:8000` and the checklist blamed the operator's configuration. The checklist UI now renders it inside the Trading prerequisites gate (derived rows stay as the API-down fallback); the dev server refuses to start an API from a git worktree or without `.env`, passes `NOVA_ENV_PATH`, and reports `GET /__nova/api-status`; a missing `.env` is a startup error and a named health detail. §3 amended. | User Directive + Claude Fable 5.1 |
 | 2026-09-21 | The practice ledger as history: `GET /api/practice/history?venue&range` (`practice/history.py`, pure derivation from the event-sourced ledger) serves the redesigned Account page an event-marked equity series (a point after every fill and rollover, held positions marked at their last fill price, nothing between events), the fills with their `source` / `bot_id` stamps, the by-source split, practice-day rows including archived Paper ledgers flagged `archived`, the archives list and the P&L components. Archives beside `practice-paper.json` are read read-only; a damaged one is a logged warning in `warnings[]`, never a 500. §3 amended. | User Directive + Claude Fable 5.1 |

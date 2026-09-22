@@ -104,12 +104,10 @@ describe('GlobalWorkingMenu', () => {
     expect(menu?.textContent).toMatch(/Filled Today/);
     expect(menu?.textContent).toMatch(/Canceled & Failed/);
     expect(menu?.textContent).toMatch(/Cancel All \(Stocks\)/);
-    expect(menu?.textContent).toMatch(/Cancel All Single Options/);
     expect(menu?.textContent).toMatch(/View All Orders/);
-    expect(
-      (container.querySelector('[data-testid="global-working-cancel-options"]') as HTMLButtonElement)
-        .disabled,
-    ).toBe(true);
+    // Equities-only desk: no options action is offered, disabled or not (V34).
+    expect(menu?.textContent).not.toMatch(/Options/);
+    expect(container.querySelector('[data-testid="global-working-cancel-options"]')).toBeNull();
   });
 
   it('cancels all stock symbols after confirm', async () => {

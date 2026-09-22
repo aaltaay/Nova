@@ -9,6 +9,7 @@ import {
   DESK_POLL_LEADER_STALE_MS,
   DESK_POLL_SNAPSHOT_MAX_AGE_MS,
 } from '../constants';
+import { BOT_LABEL_SESSION } from '../constantGroups/bot';
 import {
   claimDeskPollLeader,
   heartbeatDeskPollLeader,
@@ -16,7 +17,10 @@ import {
   readDeskPollSnap,
   subscribeDeskPollSnap,
 } from '../ibkr/deskSharedPoll';
+import { SAMPLE_BOT_ABSENT } from '../sample_data/sampleCopy';
+import { isSampleView } from '../sample_data/sampleNav';
 import { fetchBotAudit, fetchBotProposals, fetchBotSession } from './api';
+import { botUnreadableMessage, parseBotAudit, parseBotProposals, parseBotSession } from './botPayload';
 import type { BotAuditEntry, BotProposal, BotSession } from './types';
 
 export interface BotSessionPollSnap {
@@ -34,6 +38,20 @@ const EMPTY: BotSessionPollSnap = {
   error: null,
   errorSticky: false,
 };
+
+/** V4: the sample desk has no bot -- a stated absence, never the live bot's session. */
+const SAMPLE_SNAP: BotSessionPollSnap = { ...EMPTY, error: SAMPLE_BOT_ABSENT, errorSticky: true };
+
+/** A snapshot shared by another window is re-checked before this one renders it (C12). */
+function normalizeSnap(raw: BotSessionPollSnap): BotSessionPollSnap {
+  return {
+    session: raw?.session == null ? null : parseBotSession(raw.session),
+    proposals: parseBotProposals({ proposals: raw?.proposals }) ?? [],
+    audit: parseBotAudit({ entries: raw?.audit }) ?? [],
+    error: typeof raw?.error === 'string' ? raw.error : null,
+    errorSticky: raw?.errorSticky === true,
+  };
+}
 
 type Listener = () => void;
 
@@ -70,11 +88,11 @@ function isLeader(): boolean {
 }
 
 export async function pollBotSessionOnce(): Promise<void> {
-  if (inflight) return;
+  if (inflight || isSampleView()) return;
   if (!isLeader()) {
     const env = readDeskPollSnap<BotSessionPollSnap>(DESK_POLL_BOT_SHARE);
     if (env && Date.now() - env.ts < DESK_POLL_SNAPSHOT_MAX_AGE_MS) {
-      applySnap(env.payload);
+      applySnap(normalizeSnap(env.payload));
     }
     return;
   }
@@ -126,7 +144,7 @@ function syncShare(): void {
   if (shareUnsub) return;
   shareUnsub = subscribeDeskPollSnap<BotSessionPollSnap>(DESK_POLL_BOT_SHARE, (env) => {
     if (Date.now() - env.ts > DESK_POLL_SNAPSHOT_MAX_AGE_MS) return;
-    applySnap(env.payload);
+    applySnap(normalizeSnap(env.payload));
   });
 }
 
@@ -156,7 +174,7 @@ export function voteBotPollInterval(pollMs: number): () => void {
 }
 
 export function getBotSessionSnapshot(): BotSessionPollSnap {
-  return snapshot;
+  return isSampleView() ? SAMPLE_SNAP : snapshot;
 }
 
 export function applyBotSessionLocal(session: BotSession): void {
@@ -172,7 +190,9 @@ export async function runBotSessionWrite(
   work: () => Promise<BotSession>,
 ): Promise<BotSession> {
   bumpApplyEpoch();
-  const next = await work();
+  // A write answer the page cannot render is refused, never applied (C12).
+  const next = parseBotSession(await work());
+  if (!next) throw new Error(botUnreadableMessage(BOT_LABEL_SESSION, 0));
   applyBotSessionLocal(next);
   return next;
 }

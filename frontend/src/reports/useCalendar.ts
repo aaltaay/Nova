@@ -1,5 +1,5 @@
 /** Fetches journal calendar aggregates for the Reports tab. */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { API_BASE_URL, JOURNAL_POLL_INTERVAL_MS } from '../constants';
 import type { MonthCalendarResponse, YearCalendarResponse } from './types';
 
@@ -23,11 +23,14 @@ export function useCalendar(
   const [monthData, setMonthData] = useState<MonthCalendarResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const inFlight = useRef(false);
 
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
+    // Per effect run, not a shared ref (QA V42): a shared flag let the first
+    // run's still-open request -- whose answer the cleanup discards -- block
+    // the next run's first poll, so the calendar waited a whole interval.
+    const inFlight = { current: false };
 
     async function poll() {
       if (inFlight.current) return;

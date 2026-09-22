@@ -39,7 +39,7 @@ from practice import order_rules
 from practice.fees import for_fill
 from practice.ledger import Ledger, iso_utc
 from practice.reference import LiveReference, MarketReference, SimReference
-from practice.watch import notify_watch
+from practice.watch import notify_watch, release_commitments
 from sim import fill_model
 
 logger = logging.getLogger(__name__)
@@ -113,7 +113,7 @@ class PracticeBroker:
         ref = None if at_mark else self.reference.reference(sym)
         now = self.reference.now_ts()
         self.ledger.rollover(now)
-        power_price = self._admission_price(typ, side_u, limit_price, stop_price, ref)
+        power_price = order_rules.admission_price(typ, side_u, limit_price, stop_price, ref)
         if power_price is not None:
             afford, needed, available = self.ledger.can_afford(sym, side_u, qty_f, power_price)
             if not afford:
@@ -249,8 +249,12 @@ class PracticeBroker:
         return rolled
 
     def unwind_to(self, ts: float) -> int:
+        before = self.ledger.working_orders()
         dropped = self.ledger.unwind_to(ts)
         if dropped:
+            # A working order placed after ``ts`` never happened: free its shares (R7).
+            still = {int(r["order_id"]) for r in self.ledger.working_orders()}
+            release_commitments(r for r in before if int(r["order_id"]) not in still)
             self._commit()
         return dropped
 
@@ -264,6 +268,7 @@ class PracticeBroker:
             from practice import persist
 
             archived = persist.archive(self.persist_path)
+        release_commitments(self.ledger.working_orders())  # a fresh account holds no orders (R7)
         self.ledger = Ledger(cash, created_ts=self.reference.now_ts())
         self._commit()
         logger.info("PRACTICE %s: account reset to %.2f (archived=%s)", self.venue, cash, archived)
@@ -279,21 +284,6 @@ class PracticeBroker:
             return held > _EPS and qty <= held + _EPS
         return held < -_EPS and qty <= -held + _EPS
 
-    @staticmethod
-    def _admission_price(
-        typ: str, side: str, limit_price: float | None, stop_price: float | None, ref: fill_model.Reference | None,
-    ) -> float | None:
-        """What an opening order is charged against buying power at admission."""
-        if typ == "LMT" and limit_price is not None:
-            return float(limit_price)
-        if typ == "STP" and stop_price is not None:
-            return float(stop_price)
-        if ref is None:
-            return None
-        quoted = ref.ask if side == "BUY" else ref.bid
-        touch = quoted if quoted is not None else ref.last
-        return float(touch) if touch is not None else None
-
     def _row(
         self, oid: int, sym: str, side: str, qty: float, typ: str, limit_price: float | None,
         stop_price: float | None, now: float, source: str, bot_id: str | None, tif: str,
@@ -306,7 +296,7 @@ class PracticeBroker:
             "stop_price": float(stop_price) if stop_price is not None else None,
             "avg_fill_price": None, "outside_rth": True, "status": "Submitted",
             "submitted_at": wall, "updated_at": wall, "filled_at": None, "held_until": None,
-            "commission": 0.0, "fees": None, "source": "nova", "order_source": source,
+            "commission": None, "fees": None, "source": "nova", "order_source": source,  # C30: the fill's own
             "bot_id": bot_id, "mode": self.venue, "venue": self.venue,
             "account_id": self.account_id, "nova_placed_at": wall, "placed_ts": float(now),
             "fill_estimated": True, "fill_basis": None,

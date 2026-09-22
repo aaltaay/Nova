@@ -5,6 +5,10 @@
  *
  * Priority (first match wins): SAMPLE DATA · API down · STALE (status poll) ·
  * IBKR offline · STALE <age> (late scanner prices) · IBKR delayed · IBKR live.
+ *
+ * On Sim `connected` is the Gateway socket (the backend forces the session
+ * `connected` there because the replay needs no Gateway), and an offline
+ * Gateway is amber, not red -- only the live edge needs it (C24).
  */
 import {
   DATA_FEED_LABELS,
@@ -21,6 +25,10 @@ import {
   GLOBAL_BAR_OFFLINE_CHIP,
   globalBarLegacyFeedTitle,
 } from '../constants';
+import {
+  GLOBAL_BAR_CONNECTION_SIM_OFFLINE_TITLE,
+  rosterScannerError,
+} from '../constantGroups/global_bar';
 import {
   SCANNER_HONESTY_CHIP_ROLE,
   priceAgeChipText,
@@ -60,6 +68,21 @@ export interface ConnectionChipInput {
   feedFellBack: boolean;
   /** Backend scanner mode ("Market Closed") -- tooltip only. */
   scannerModeLabel?: string | null;
+  /** ADR 020 desk venue; on Sim `connected` must be the Gateway socket (C24). */
+  venue?: 'live' | 'paper' | 'sim' | null;
+}
+
+const RAW_SCANNER_ERROR = /^\s*(ibkr|alpaca)\s*:\s*([A-Za-z]*(?:Error|Exception))\b/i;
+
+/**
+ * The Roster line in words, not a Python repr (V34): "ibkr: TimeoutError:
+ * TimeoutError()" reads "IBKR scanner request timed out". Text that is not a
+ * raw exception passes through unchanged.
+ */
+export function humanRosterText(text: string | null | undefined): string | null {
+  if (!text) return null;
+  const raw = RAW_SCANNER_ERROR.exec(text);
+  return raw ? rosterScannerError(raw[1].toUpperCase(), raw[2]) : text;
 }
 
 export interface ConnectionChipView {
@@ -113,7 +136,7 @@ export function connectionChipView(i: ConnectionChipInput): ConnectionChipView {
     const age = i.staleForSec != null ? ` ${compactAge(i.staleForSec)}` : '';
     [tone, state, label] = ['warn', 'stale', `${GLOBAL_BAR_CONNECTION_STALE_LABEL}${age}`];
   } else if (!i.connected) {
-    [tone, state, label] = ['bad', 'offline', GLOBAL_BAR_OFFLINE_CHIP];
+    [tone, state, label] = [i.venue === 'sim' ? 'warn' : 'bad', 'offline', GLOBAL_BAR_OFFLINE_CHIP];
   } else if (pricesLate) {
     const age = compactAge(i.secondsAgo as number);
     [tone, state, label] = ['warn', 'stale', `${GLOBAL_BAR_CONNECTION_STALE_LABEL} ${age}`];
@@ -128,9 +151,11 @@ export function connectionChipView(i: ConnectionChipInput): ConnectionChipView {
     lines.push(GLOBAL_BAR_CONNECTION_SAMPLE_TITLE);
   } else {
     lines.push(i.apiTitle, i.gatewayTitle);
+    if (state === 'offline' && i.venue === 'sim') lines.push(GLOBAL_BAR_CONNECTION_SIM_OFFLINE_TITLE);
   }
   lines.push(priceText ? `${GLOBAL_BAR_CONNECTION_PRICES_PREFIX} ${priceText}` : null);
-  lines.push(i.honestyText ? `${SCANNER_HONESTY_CHIP_ROLE}: ${i.honestyText}` : null);
+  const roster = humanRosterText(i.honestyText);
+  lines.push(roster ? `${SCANNER_HONESTY_CHIP_ROLE}: ${roster}` : null);
   lines.push(feedLine(i));
   lines.push(
     i.scannerModeLabel ? `${GLOBAL_BAR_CONNECTION_SCANNER_MODE_PREFIX} ${i.scannerModeLabel}` : null,

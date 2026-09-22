@@ -74,6 +74,28 @@ export function figuresFromPractice(account: PracticeAccount): HeaderAccountFigu
   };
 }
 
+const DAY_START_FORMAT = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/New_York',
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+});
+
+/**
+ * The practice day's start for the Day P&L tooltip, e.g. "Mon, Sep 21, 04:00 ET"
+ * -- never the raw ISO stamp the ledger sends (QA C61). Null when absent or
+ * unparseable, so the tooltip falls back to its own wording.
+ */
+export function formatDayStartEt(iso: string | null | undefined): string | null {
+  if (typeof iso !== 'string' || !iso.trim()) return null;
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return null;
+  return `${DAY_START_FORMAT.format(at)} ET`;
+}
+
 /**
  * Day's percent = dayPnl / (netLiquidation - dayPnl), i.e. against the value
  * the account started the day with. Null unless that base is > 0 -- a zero or

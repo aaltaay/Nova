@@ -47,6 +47,22 @@ describe('EmergencyKillButton', () => {
       root.unmount();
     });
     container.remove();
+    window.history.replaceState({}, '', '/');
+  });
+
+  it('on the sample desk refuses before the real confirm, under its own title (V39)', async () => {
+    window.history.replaceState({}, '', '/?view=sample');
+    await act(async () => {
+      (container.querySelector('[data-testid="global-bar-emergency-kill"]') as HTMLButtonElement).click();
+      await Promise.resolve();
+    });
+    expect(confirmApp).not.toHaveBeenCalled();
+    expect(runEmergencyKill).not.toHaveBeenCalled();
+    expect(alertApp).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Emergency KILL is off on the sample desk',
+      message: expect.stringMatching(/nothing was cancelled or flattened/i),
+    }));
+    expect(alertApp.mock.calls[0][0].title).not.toMatch(/did not finish cleanly/);
   });
 
   it('is a red stop sign labelled Emergency KILL, with no native title to double the card', () => {

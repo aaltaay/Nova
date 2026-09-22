@@ -85,3 +85,14 @@ export const SETTINGS_GENERAL_API_TITLE = 'Scanner & API';
 export const SETTINGS_ACCOUNT_TITLE = 'Account';
 export const SETTINGS_ACCOUNT_OPEN_TRADING = 'Open Trading tab';
 export const SETTINGS_ACCOUNT_DISCONNECTED = 'IB Gateway disconnected';
+
+/* ---------- QA batch: orders / account / safety (2026-09-22) ---------- */
+/** Settings > Account opens the rail's Account page, not the legacy Trading tab (V35). */
+export const SETTINGS_ACCOUNT_OPEN_ACCOUNT = 'Open Account page';
+export const SETTINGS_ACCOUNT_OPEN_ACCOUNT_TITLE =
+  'Account figures, positions, orders and the practice ledger -- the same page as the rail';
+export const SETTINGS_ACCOUNT_VENUE_LABELS: Record<'live' | 'paper' | 'sim', string> = {
+  live: 'Live',
+  paper: 'Paper (Nova practice account)',
+  sim: 'Sim practice',
+};

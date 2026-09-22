@@ -22,6 +22,7 @@ import {
   gatewayPortMismatchHint,
 } from './tradingPrerequisites';
 import { usePrereqOverlayInputs } from './usePrereqOverlayInputs';
+import { deskVenueOf, isPracticeDeskVenue } from './deskVenue';
 import { PrereqItemRow } from './PrereqItemRow';
 import { GatewayDoorTrail } from './GatewayDoorTrail';
 import { refreshIbkrStatusNow, useIbkrStatus } from './useIbkrStatus';
@@ -59,6 +60,7 @@ export function TradingPrerequisitesGate() {
         ibkrEnabled: ibkr.enabled,
         ibkrConnected: Boolean((ibkrConnected || ibkr.connected) && !ibkr.stale),
         simMode: ibkr.mode === 'sim' || ibkr.sim === true,
+        practiceOrders: isPracticeDeskVenue(deskVenueOf({ venue: ibkr.venue, mode: ibkr.mode })),
         ibkrTransportConnected: ibkr.transport_connected,
         preferredPortReachable: ibkr.preferred_port_reachable,
         disconnectHint: ibkr.disconnect_hint,
@@ -80,6 +82,7 @@ export function TradingPrerequisitesGate() {
       ibkr.enabled,
       ibkr.connected,
       ibkr.mode,
+      ibkr.venue,
       ibkr.sim,
       ibkr.stale,
       ibkr.transport_connected,

@@ -1,7 +1,22 @@
 /** Shared IBKR account REST reads for IbkrAccountProvider. */
+import {
+  normalizeAccountSummary,
+  normalizeOrderList,
+  normalizePositionList,
+} from './orderRowNormalize';
 import type { IbkrAccountSummary, IbkrOrder, IbkrPosition } from './types';
 
-export async function fetchJson<T>(url: string, label: string): Promise<{
+/**
+ * GET `url` and shape the body with `parse`. Every way the answer can be
+ * wrong -- an HTTP error, a body that does not parse, a body of the wrong
+ * shape -- is a named failure for the caller's banner, never a cast that a
+ * table later trips over (QA C2 / C3).
+ */
+export async function fetchJson<T>(
+  url: string,
+  label: string,
+  parse: (raw: unknown) => T | null = (raw) => raw as T,
+): Promise<{
   data: T | null;
   failure: string | null;
 }> {
@@ -9,7 +24,17 @@ export async function fetchJson<T>(url: string, label: string): Promise<{
   if (!res.ok) {
     return { data: null, failure: `${label} (HTTP ${res.status})` };
   }
-  return { data: (await res.json()) as T, failure: null };
+  let raw: unknown;
+  try {
+    raw = await res.json();
+  } catch (err) {
+    console.warn(`[Nova] ${label}: unreadable response`, err);
+    return { data: null, failure: `${label} (unreadable response)` };
+  }
+  const data = parse(raw);
+  return data == null
+    ? { data: null, failure: `${label} (unexpected shape)` }
+    : { data, failure: null };
 }
 
 export async function fetchAccountCluster(base: string): Promise<{
@@ -18,8 +43,8 @@ export async function fetchAccountCluster(base: string): Promise<{
   failures: string[];
 }> {
   const [sum, pos] = await Promise.all([
-    fetchJson<IbkrAccountSummary>(`${base}/api/ibkr/account`, 'account'),
-    fetchJson<IbkrPosition[]>(`${base}/api/ibkr/positions`, 'positions'),
+    fetchJson<IbkrAccountSummary>(`${base}/api/ibkr/account`, 'account', normalizeAccountSummary),
+    fetchJson<IbkrPosition[]>(`${base}/api/ibkr/positions`, 'positions', normalizePositionList),
   ]);
   return {
     summary: sum.data,
@@ -34,8 +59,8 @@ export async function fetchOrdersCluster(base: string): Promise<{
   failures: string[];
 }> {
   const [ord, closed] = await Promise.all([
-    fetchJson<IbkrOrder[]>(`${base}/api/ibkr/orders`, 'orders'),
-    fetchJson<IbkrOrder[]>(`${base}/api/ibkr/orders/closed`, 'closed orders'),
+    fetchJson<IbkrOrder[]>(`${base}/api/ibkr/orders`, 'orders', normalizeOrderList),
+    fetchJson<IbkrOrder[]>(`${base}/api/ibkr/orders/closed`, 'closed orders', normalizeOrderList),
   ]);
   return {
     orders: ord.data,

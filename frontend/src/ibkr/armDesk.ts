@@ -11,6 +11,7 @@
  */
 import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constants';
+import { onSampleDesk } from '../sample_data/sampleOrderGuard';
 import { refreshIbkrStatusNow } from './ibkrStatusPoller';
 
 /**
@@ -22,6 +23,8 @@ import { refreshIbkrStatusNow } from './ibkrStatusPoller';
  * status refresh below re-reads the server and the UI corrects itself.
  */
 export async function armDesk(armed: boolean): Promise<boolean> {
+  // V4: the arm latch is the live desk's; the sample desk never touches it.
+  if (onSampleDesk()) return false;
   try {
     const res = await novaFetch(`${API_BASE_URL}/api/ibkr/arm`, {
       method: 'POST',
@@ -29,7 +32,8 @@ export async function armDesk(armed: boolean): Promise<boolean> {
       body: JSON.stringify({ armed }),
     });
     return res.ok;
-  } catch {
+  } catch (err) {
+    console.warn('[Nova] desk arm request failed', err);
     return false;
   } finally {
     refreshIbkrStatusNow();

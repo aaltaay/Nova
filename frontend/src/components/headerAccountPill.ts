@@ -123,7 +123,8 @@ export function headerAccountPillView(opts: {
   if (isPracticeVenue(opts.venue)) return practicePill(opts.venue, opts.status, opts.practiceId ?? null);
   const { status, summary } = opts;
   if (!status.connected) return null;
-  const id = status.account_id?.trim() || null;
+  // The poller normalises these (C4); the guards keep any other caller safe too.
+  const id = typeof status.account_id === 'string' ? status.account_id.trim() || null : null;
   const structure = summary?.connected ? accountStructureLabel(summary.AccountType) : null;
   const accountClass = accountClassOf(summary);
   if (!id && !structure && !accountClass) return null;
@@ -132,7 +133,9 @@ export function headerAccountPillView(opts: {
   );
   const label = id ? (words.length ? `${words.join(' ')} (${id})` : id) : words.join(' ');
   const kind: HeaderAccountPillKind = status.broker_account_kind ?? 'unknown';
-  const listed = status.account_ids ?? [];
+  const listed = Array.isArray(status.account_ids)
+    ? status.account_ids.filter((acct): acct is string => typeof acct === 'string')
+    : [];
   const ids = id && !listed.includes(id) ? [id, ...listed] : listed;
   const others = ids.filter((other) => other !== id);
   const tooltip = [

@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL, IBKR_ORDERS_POLL_MS } from '../constants';
+import { practiceLedgerReachable } from '../ibkr/deskVenue';
 import { lastKnownAsOfMessage } from '../ibkr/disconnectCopy';
 import { useOptionalIbkrAccountContext } from '../ibkr/IbkrAccountContext';
+import { normalizeOrderList } from '../ibkr/orderRowNormalize';
+import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import type { ClosedOrder } from './types';
 
 interface State {
@@ -25,8 +28,15 @@ function useClosedOrdersPoll(enabled: boolean): State {
     try {
       const res = await novaFetch(`${API_BASE_URL}/api/ibkr/orders/closed`);
       if (res.ok) {
-        setOrders((await res.json()) as ClosedOrder[]);
-        setError(null);
+        // A body that is not a list of rows is a named failure, never a
+        // `.filter` crash further down (QA C3); rows are shaped once (C2).
+        const rows = normalizeOrderList(await res.json());
+        if (rows) {
+          setOrders(rows);
+          setError(null);
+        } else {
+          setError('closed orders unavailable (unexpected shape)');
+        }
       } else {
         setError(`closed orders unavailable (HTTP ${res.status})`);
       }
@@ -57,8 +67,14 @@ function useClosedOrdersPoll(enabled: boolean): State {
   return { orders, loading, error, refresh };
 }
 
-/** Session terminal orders -- prefer the shared account poller when mounted. */
-export function useClosedOrders(connected: boolean): State {
+/**
+ * Session terminal orders -- prefer the shared account poller when mounted.
+ * On a practice venue the ledger answers without the Gateway, so a down
+ * Gateway is not "last known" there (QA C68).
+ */
+export function useClosedOrders(gatewayConnected: boolean): State {
+  const status = useIbkrStatus();
+  const connected = gatewayConnected || practiceLedgerReachable(status);
   const ctx = useOptionalIbkrAccountContext();
   const fallback = useClosedOrdersPoll(connected && !ctx);
 

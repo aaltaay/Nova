@@ -14,7 +14,9 @@ import {
   globalBarLegacyFeedTitle,
 } from '../constants';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
+import { resolveDeskVenue } from '../ibkr/deskVenue';
 import type { IbkrMode } from '../ibkr/types';
+import { humanRosterText } from './globalBarConnectionModel';
 import type { HealthStatus } from '../types/health';
 import {
   formatScanAge,
@@ -139,7 +141,10 @@ export function HeaderConnectionStatus({
     launchOk: gatewayLaunchOk,
     launchHint: gatewayLaunchHint,
     completedOrdersUnansweredSince: ibkrStatusLive.completed_orders_unanswered_since,
+    venue: resolveDeskVenue(ibkrStatusLive, ibkrMode),
+    statusError: ibkrStatusLive.statusError ?? null,
   });
+  const rosterText = humanRosterText(honestyText);
 
   const deskValue = deskConnectionLabel({
     apiOk,
@@ -273,7 +278,7 @@ export function HeaderConnectionStatus({
 
       <HeaderIntegrationChips health={health} />
 
-      {honestyText ? <HeaderHonestyChip text={honestyText} compactClass={compactClass} /> : null}
+      {rosterText ? <HeaderHonestyChip text={rosterText} compactClass={compactClass} /> : null}
 
       {priceText != null && (
         <HeaderPricesChip

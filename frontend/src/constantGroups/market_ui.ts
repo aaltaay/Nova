@@ -381,7 +381,7 @@ export const GATEWAY_MODE_API_RESTART_HINT =
 
 /** Header Desk chip tooltip -- click opens the checklist; double-click launches. */
 export const HEADER_GATEWAY_LAUNCH_HINT =
-  'Click Desk for the API + Gateway checklist. X or Escape closes it. Open paper or Open live starts that IBC login. Double-click still launches the current target. Complete IBKR Mobile 2FA if prompted.';
+  'Click this chip for the API + Gateway checklist. X or Escape closes it. Double-click launches the current Gateway target. Complete IBKR Mobile 2FA if prompted.';
 
 /** Header Desk/Gateway chip visible states. Paper/Live lives on the mode capsule. */
 export const HEADER_GATEWAY_UP_LABEL = 'up';

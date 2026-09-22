@@ -15,6 +15,7 @@ import {
   GLOBAL_BAR_CONNECTION_ARIA,
   GLOBAL_BAR_CONNECTION_CLICK_HINT,
 } from '../constants';
+import { resolveDeskVenue } from '../ibkr/deskVenue';
 import type { IbkrMode } from '../ibkr/types';
 import { openTradingPrerequisites } from '../ibkr/tradingPrereqUi';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
@@ -76,23 +77,30 @@ export function GlobalBarConnectionChip({
   const staleForSec =
     statusStale && live.staleSince != null ? Math.floor((Date.now() - live.staleSince) / 1000) : null;
   const delayed = Boolean(live.market_data_delayed);
+  const venue = resolveDeskVenue(live, ibkrMode);
+  // Sim forces the session `connected` (the replay needs no Gateway); the chip
+  // is about IBKR, so on Sim it reads the Gateway socket itself (C24).
+  const connected = venue === 'sim' ? live.transport_connected === true && !statusStale : ibkrConnected;
   const { title: gatewayTitle } = deskGatewayView({
     ibkrMode,
     gatewayMode: ibkrGatewayMode,
     accountKind: ibkrAccountKind ?? live.broker_account_kind ?? null,
-    connected: ibkrConnected,
+    connected,
     delayed,
     statusStale,
     launchOk,
     launchHint,
     completedOrdersUnansweredSince: live.completed_orders_unanswered_since,
+    venue,
+    statusError: live.statusError ?? null,
   });
   const provider = scanner?.discoveryProvider ?? DISCOVERY_PROVIDER_DEFAULT;
   const view = connectionChipView({
     sampleDataActive: Boolean(scanner?.sampleDataActive),
     apiOk,
     apiTitle: apiTitleFor(health, apiOk),
-    connected: ibkrConnected,
+    connected,
+    venue,
     statusStale,
     staleForSec,
     delayed,

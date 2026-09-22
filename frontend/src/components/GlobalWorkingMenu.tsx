@@ -7,8 +7,6 @@ import {
   GLOBAL_BAR_CANCEL_ALL_CONFIRM_LABEL,
   GLOBAL_BAR_CANCEL_ALL_CONFIRM_TITLE,
   GLOBAL_BAR_CANCEL_ALL_EMPTY_TITLE,
-  GLOBAL_BAR_CANCEL_ALL_OPTIONS,
-  GLOBAL_BAR_CANCEL_ALL_OPTIONS_TITLE,
   GLOBAL_BAR_CANCEL_ALL_STOCKS,
   GLOBAL_BAR_CANCELED_FAILED_LABEL,
   GLOBAL_BAR_FILLED_TODAY_LABEL,
@@ -110,16 +108,6 @@ export function GlobalWorkingMenu({
         }}
       >
         {GLOBAL_BAR_CANCEL_ALL_STOCKS}
-      </button>
-      <button
-        type="button"
-        className="global-app-bar__menu-action"
-        role="menuitem"
-        disabled
-        title={GLOBAL_BAR_CANCEL_ALL_OPTIONS_TITLE}
-        data-testid="global-working-cancel-options"
-      >
-        {GLOBAL_BAR_CANCEL_ALL_OPTIONS}
       </button>
       <button
         type="button"

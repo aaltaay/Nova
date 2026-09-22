@@ -1,6 +1,7 @@
 /** Reports tab -- TraderVue-style P&L calendar from journal trades + file import. */
 import { useState } from 'react';
 import { AnalyticsSummary } from './AnalyticsSummary';
+import { REPORTS_SOURCE_NOTE } from './importConstants';
 import { DrawdownPanel } from './DrawdownPanel';
 import { MonthDetail } from './MonthDetail';
 import { ReportsImport } from './ReportsImport';
@@ -50,6 +51,9 @@ export function ReportsTab() {
           </div>
         </div>
       </div>
+
+      {/* Two calendars, two sources -- say which this one is (QA V42). */}
+      <p className="reports-source-note" data-testid="reports-source-note">{REPORTS_SOURCE_NOTE}</p>
 
       <ReportsImport onImported={() => setRefreshToken(n => n + 1)} />
 

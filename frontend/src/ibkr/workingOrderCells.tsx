@@ -3,10 +3,11 @@ import type { ReactNode } from 'react';
 import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
 import {
-  formatExtendedHours,
   formatOrderDateTime,
+  formatOrderSession,
   formatOrderType,
   orderSubmittedTimeTitle,
+  plausiblePrice,
 } from './orderDisplay';
 import { sessionKindNow } from './extendedSession';
 import { FillLatencyTd } from './FillLatencyCell';
@@ -88,25 +89,26 @@ export function renderWorkingOrderCell(
     case 'limit':
       return (
         <td key={col} className="ibkr-col--num">
-          {formatMoney(o.limit_price)}
+          {formatMoney(plausiblePrice(o.limit_price))}
         </td>
       );
     case 'stop': {
       const compact = (o.order_type || '').toUpperCase().replace(/[\s_-]+/g, '');
+      const stop = plausiblePrice(o.stop_price);
       const stopTitle =
         compact === 'TRAIL' || compact === 'TRAILINGSTOP'
-          ? `Trail ${formatMoney(o.stop_price ?? null)}`
+          ? `Trail ${formatMoney(stop)}`
           : undefined;
       return (
         <td key={col} className="ibkr-col--num" title={stopTitle}>
-          {formatMoney(o.stop_price ?? null)}
+          {formatMoney(stop)}
         </td>
       );
     }
     case 'avg_fill':
       return (
         <td key={col} className="ibkr-col--num">
-          {formatMoney(o.avg_fill_price ?? null)}
+          {formatMoney(plausiblePrice(o.avg_fill_price))}
           {o.fill_estimated && o.avg_fill_price != null && (
             <span className="ibkr-fill-estimated" title={practiceFillTitle(o.fill_basis)}>
               est
@@ -155,12 +157,14 @@ export function renderWorkingOrderCell(
           </time>
         </td>
       );
-    case 'session':
+    case 'session': {
+      const session = formatOrderSession(o);
       return (
-        <td key={col} className="ibkr-col--type ibkr-order-session">
-          {formatExtendedHours(Boolean(o.outside_rth))}
+        <td key={col} className="ibkr-col--type ibkr-order-session" title={session.title}>
+          {session.label}
         </td>
       );
+    }
     default:
       return null;
   }
