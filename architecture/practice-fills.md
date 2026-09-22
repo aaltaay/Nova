@@ -128,15 +128,17 @@ These are deliberate simplifications. Read a practice result with them in mind:
 2. **No size limit.** Full quantity fills on one print regardless of that
    print's size.
 3. **No partial fills.** An order is working or filled, never part-filled.
-4. **No slippage model** beyond the touch price, and no commission.
+4. **No slippage model** beyond the touch price. Commissions and regulatory
+   fees are charged as `architecture/practice-account.md` describes.
 5. **Stops do not model gap risk** beyond the triggering print's price.
 
 ## What is out of scope
 
-Brackets and OCO are not available on the practice desk — `bracket` is refused
-with `SIM_NO_BRACKET`. Practice orders never reach a broker: they are filled by
-`backend/sim/broker.py` in an in-memory ledger that a restart clears. The venue
-itself is durable (ADR 018); the ledger and the arming are not.
+Practice orders never reach a broker: `backend/practice/broker.py` fills them
+(ADR 020). The Paper ledger is persistent (`practice-paper.json`, owner
+`practice/ledger.py`, reset archives it); the Sim ledger is a scratch account
+that unwinds on rewind and clears when the replay unloads. The venue is
+durable (ADR 018); arming never survives a process start.
 
 ## Related
 

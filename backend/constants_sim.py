@@ -114,6 +114,9 @@ SIM_HISTORY_REQUEST_TIMEOUT_SEC = 45.0
 SIM_HISTORY_CONNECT_TIMEOUT_SEC = 15.0
 SIM_HISTORY_MAX_PAGES = 10000
 SIM_HISTORY_CLIENT_ID = 29420
+# A second Nova backend on the same Gateway (a test desk) must not share the
+# download client id -- IB answers the later connect with Error 326.
+SIM_HISTORY_CLIENT_ID_ENV = "NOVA_SIM_HISTORY_CLIENT_ID"
 # Leading words of the refusal when neither Gateway port answers. The Sim tab
 # prompt keys its auto-retry on it (mirrored in frontend simConstants.ts), so
 # a Gateway that is simply not running heals on its own once it is back.

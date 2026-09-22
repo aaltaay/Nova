@@ -49,7 +49,11 @@ One worker and a durable send timestamp serialize downloads and enforce a
 conservative 11-second request interval (16 seconds before retrying a failed
 request). Requests have timeouts and a bounded page count. A separate read-only
 Gateway connection (its own client id and event loop, no account/order fetches)
-tries the live port first and the paper port when live is dark (AGENTS.md §5).
+tries the live port only; the legacy paper port is tried only with the
+`IBKR_PAPER_GATEWAY_FALLBACK` opt-in (ADR 020, amendment 2). Its client id is
+`SIM_HISTORY_CLIENT_ID`, overridable with `NOVA_SIM_HISTORY_CLIENT_ID` so a
+second stack never shares it; a redirected `NOVA_SIM_CAPTURE_DIR` keeps the
+store inside that root unless `NOVA_SIM_HISTORY_DIR` names another.
 The IBKR adapter only fetches; the SIM downloader owns persistence. Tunables
 live in `backend/constants_sim.py`. This budget does not account for other
 applications; IBKR pacing rejections are surfaced as resumable failures rather
