@@ -10,7 +10,14 @@ export function resolveNovaApiKey(): string {
     ? window.novaDesktop?.apiKey?.trim()
     : '';
   if (fromDesktop) return fromDesktop;
-  const fromEnv = (import.meta.env.VITE_NOVA_API_KEY as string | undefined)?.trim();
+  // Only the dev server's key (QA R29): a local `vite build` or `electron:pack`
+  // used to inline VITE_NOVA_API_KEY from frontend/.env.local into shipped JS.
+  // import.meta.env.DEV is a build-time constant, so a production bundle drops
+  // this branch and the key string with it; the desktop app hands its key over
+  // at runtime (preload), and a browser build reads localStorage.
+  const fromEnv = import.meta.env.DEV
+    ? (import.meta.env.VITE_NOVA_API_KEY as string | undefined)?.trim()
+    : '';
   if (fromEnv) return fromEnv;
   if (typeof localStorage !== 'undefined') {
     const fromStorage = localStorage.getItem(NOVA_API_KEY_STORAGE)?.trim();

@@ -86,7 +86,8 @@ describe('planFillWorkingOrder', () => {
     });
     if (plan.ok) {
       expect(plan.confirmMessage).toMatch(/sweep SELL 1 FTFT at bid \$6\.67/);
-      expect(plan.confirmMessage).toMatch(/does not fill market orders/);
+      // True before the open and after the close (QA R28: it said "before the open" at 17:20).
+      expect(plan.confirmMessage).toMatch(/takes a market order outside regular hours/);
     }
   });
 

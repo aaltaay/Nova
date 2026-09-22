@@ -108,7 +108,7 @@ function lmtConfirmMessage(
   return (
     `Fill now will cancel the resting order and sweep ${side} ${qty} ${symbol} ` +
     `at ${quoteName} ${formatMoney(limitPrice)} (extended-hours limit). ` +
-    `IBKR does not fill market orders before the open.`
+    `No US exchange takes a market order outside regular hours.`
   );
 }
 

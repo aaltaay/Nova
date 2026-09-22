@@ -34,6 +34,14 @@ describe('novaFetch', () => {
     expect(resolveNovaApiKey()).toBe('vite-injected-key');
   });
 
+  it('ignores an env key outside the dev server, so no build carries it (QA R29)', () => {
+    vi.stubEnv('VITE_NOVA_API_KEY', 'would-be-baked-into-a-build');
+    vi.stubEnv('DEV', false);
+    expect(resolveNovaApiKey()).toBe('');
+    localStorage.setItem(NOVA_API_KEY_STORAGE, 'browser-stored-key');
+    expect(resolveNovaApiKey()).toBe('browser-stored-key');
+  });
+
   it('sends the desktop sidecar key first', async () => {
     window.novaDesktop = {
       isDesktop: true,

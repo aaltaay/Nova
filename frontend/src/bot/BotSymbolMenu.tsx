@@ -102,8 +102,8 @@ export function BotSymbolMenuHost() {
           Record -- {open.symbol}
         </button>
       )}
-      {(recordError || getSessionRecordError()) && (
-        <div role="alert">{recordError || getSessionRecordError()}</div>
+      {(recordError || getSessionRecordError(open.symbol)) && (
+        <div role="alert">{recordError || getSessionRecordError(open.symbol)}</div>
       )}
       <button
         type="button"

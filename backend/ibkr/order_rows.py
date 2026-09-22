@@ -1,16 +1,25 @@
 """Public IBKR order-row mapping and passive fill reconciliation evidence."""
 from __future__ import annotations
 
+import math
+
+from constants_ibkr import IB_UNSET_PRICE_FLOOR
+
 
 def _nonzero_price(value) -> float | None:
-    """IB often sends 0.0 for unused LMT/STP fields — expose as null."""
+    """IB sends 0.0, or its UNSET_DOUBLE (1.797e308), for unused LMT/STP fields -- expose as null.
+
+    The unset value once rendered as a 400-character dollar figure (QA C28).
+    """
     if value is None:
         return None
     try:
         price = float(value)
     except (TypeError, ValueError):
         return None
-    return price if price != 0.0 else None
+    if price == 0.0 or not math.isfinite(price) or abs(price) >= IB_UNSET_PRICE_FLOOR:
+        return None
+    return price
 
 
 def trade_to_order_row(trade) -> dict:
