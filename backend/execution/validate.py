@@ -301,9 +301,11 @@ def check_account_and_position(cmd: ExecutionCommand) -> tuple[bool, str, str | 
                 available = pos_qty - working
                 if sell_qty > available + 1e-6:
                     if working > 0:
+                        # Never a negative count (QA R35): more shares already
+                        # sent than held leaves none available, not "-5.0".
                         return (
                             False,
-                            f"SELL qty {sell_qty} exceeds {available} available "
+                            f"SELL qty {sell_qty} exceeds {max(0.0, available)} available "
                             f"(long {pos_qty}, {working} already sent)",
                             "OVERSELL",
                         )

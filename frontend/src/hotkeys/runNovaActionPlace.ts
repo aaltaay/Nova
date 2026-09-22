@@ -12,6 +12,7 @@ import {
 } from '../execution_latency';
 import { shouldUseOutsideRth } from '../ibkr/extendedSession';
 import { buildLongExitPercent } from '../ibkr/exitPosition';
+import { venueClockNow } from '../ibkr/marketOutsideRth';
 import { planFlattenExit } from '../ibkr/planFlattenExit';
 import { placeIbkrOrder } from '../ibkr/placeOrder';
 import type { TopOfBook } from './TopOfBookContext';
@@ -62,6 +63,8 @@ export async function placeMarketExit(
       ask: runtime.topOfBook?.ask,
       last: runtime.position?.market_price,
     },
+    // Regular hours by the venue's clock: the Sim playhead on Sim (QA R21).
+    now: venueClockNow(runtime.accountMode),
   });
   if (!ticket.ok) {
     return { ok: false, text: ticket.error };
