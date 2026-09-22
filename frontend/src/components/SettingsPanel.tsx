@@ -1,6 +1,7 @@
 /**
- * SettingsPanel — Alpaca news/listing credentials + feed tier.
- * Scanner discovery is IBKR-only (not selectable). Presentational only.
+ * SettingsPanel — Alpaca news/listing credentials + feed tier, rendered under
+ * Settings > General > Scanner & API. Scanner discovery is IBKR-only (not
+ * selectable). Presentational only.
  */
 import type { FormEvent } from 'react';
 import { DATA_FEED_LABELS, DISCOVERY_PROVIDER_LABELS } from '../constants';
@@ -43,8 +44,7 @@ export function SettingsPanel({
     DISCOVERY_PROVIDER_LABELS[discoveryProvider] || 'Interactive Brokers (Gateway)';
 
   return (
-    <div className="panel settings-panel">
-      <h2 className="panel-title">Settings</h2>
+    <div className="settings-api-form">
       <form onSubmit={onSubmit}>
         <div className="form-group">
           <label>Scanner</label>
@@ -101,7 +101,7 @@ export function SettingsPanel({
           </span>
         </div>
         <div className="form-row">
-          <button type="submit">Update &amp; Connect</button>
+          <button type="submit" className="btn-primary">Update &amp; Connect</button>
           <button type="button" className="btn-secondary" onClick={onCancel}>
             Cancel
           </button>

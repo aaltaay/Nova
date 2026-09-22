@@ -4,6 +4,7 @@
 
 import { useState } from 'react';
 import {
+  HOTKEYS_DELETE_HINT,
   NOVA_ACTION_KIND_LABELS,
   NOVA_ACTION_KINDS,
   type NovaActionKind,
@@ -28,9 +29,9 @@ export function HotkeysSettingsDetail({
   const [capturing, setCapturing] = useState(false);
 
   return (
-    <div className="hk-settings-detail" data-testid="hotkeys-settings-detail">
-      <h3 className="hk-settings-detail-title">{action.name}</h3>
-      <p className="na-muted hk-settings-detail-desc">{describeNovaAction(action)}</p>
+    <div className="hk-detail" data-testid="hotkeys-settings-detail">
+      <h3 className="hk-detail-title">{action.name}</h3>
+      <p className="hk-detail-desc">{describeNovaAction(action)}</p>
 
       <label className="hk-field">
         <span>Name</span>
@@ -42,7 +43,7 @@ export function HotkeysSettingsDetail({
 
       <label className="hk-field">
         <span>Hot Key</span>
-        <div className="hotkey-editor-key-row">
+        <div className="hk-key-row">
           <input
             value={formatKeyChord(action.key)}
             onChange={(e) => onChange({ ...action, key: parseKeyChord(e.target.value) })}
@@ -172,16 +173,16 @@ export function HotkeysSettingsDetail({
         <span>Show on Trading bar</span>
       </label>
 
-      {conflictMsg && <p className="empty-state" role="alert">{conflictMsg}</p>}
+      {conflictMsg && <p className="hk-detail-conflict" role="alert">{conflictMsg}</p>}
 
       {onDelete && (
-        <div className="hk-settings-delete-row">
+        <div className="hk-detail-delete-row">
           <ConfirmDeleteIconButton
             label={action.name}
             onConfirm={() => onDelete(action.id)}
             testId="hotkeys-settings-delete-btn"
           />
-          <span className="na-muted">Delete needs a second click</span>
+          <span className="hk-detail-desc">{HOTKEYS_DELETE_HINT}</span>
         </div>
       )}
 

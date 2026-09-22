@@ -94,7 +94,7 @@ export function SensorBoard() {
             autoCapitalize="characters"
           />
         </label>
-        <button type="submit" className="sensor-board-refresh">
+        <button type="submit" className="btn-secondary sensor-board-refresh">
           {SENSORS_REFRESH_LABEL}
         </button>
       </form>

@@ -121,7 +121,7 @@ export function SettingsWorkspace(props: SettingsWorkspaceProps) {
                 onCancel={props.onCancel}
               />
             )}
-            {section === 'hotkeys' && <HotkeyManager />}
+            {section === 'hotkeys' && <HotkeyManager onDone={props.onCancel} />}
             {section === 'trade' && <TradeSettingsSection />}
             {section === 'alerts' && <AlertChannelsSettings />}
             {section === 'account' && (

@@ -93,9 +93,13 @@ export function HotkeyRowEditor({ record, onSave, onCancel }: Props) {
             placeholder="ROUTE=LIMIT;Price=Ask+0.10;Share=100;TIF=DAY+;BUY=Send"
           />
         </label>
-        <div className="form-row">
+        <div className="hotkey-editor-actions">
+          <button type="button" className="btn-secondary" onClick={onCancel}>
+            Cancel
+          </button>
           <button
             type="button"
+            className="btn-primary"
             onClick={() =>
               onSave({
                 name: name.trim() || '(unnamed)',
@@ -105,9 +109,6 @@ export function HotkeyRowEditor({ record, onSave, onCancel }: Props) {
             }
           >
             Save
-          </button>
-          <button type="button" className="btn-secondary" onClick={onCancel}>
-            Cancel
           </button>
         </div>
       </div>
