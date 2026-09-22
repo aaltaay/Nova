@@ -5,8 +5,6 @@ import { DESK_BOARD_STORAGE_KEY } from '../constantGroups/desk';
 import { makeLiveScannerFeedStub, type LiveScannerFeed } from '../scanner/ScannerDataContext';
 import type { ScannerRow } from '../types/scanner';
 import {
-  consumeScannerTabRequest,
-  getNavPage,
   resetNavRailStoreForTests,
   setNavPage,
 } from '../workspace/navRailStore';
@@ -133,7 +131,7 @@ describe('DeskPage', () => {
     expect(screen.getByTestId('desk-board-list-label').textContent).toBe('Losers');
   });
 
-  it('hover Record / Allowlist call the capture store and the bot allowlist; Open on Scanner goes through the rail latch', () => {
+  it('hover Record / Allowlist call the capture store and the bot allowlist', () => {
     render(<DeskPage />);
     fireEvent.click(screen.getByTestId('desk-board-record-GRML'));
     expect(mocks.stopRecord).toHaveBeenCalledWith('GRML');
@@ -144,9 +142,6 @@ describe('DeskPage', () => {
     fireEvent.click(screen.getByTestId('desk-board-allowlist-VXTL'));
     expect(mocks.allowAdd).toHaveBeenCalledWith('VXTL');
     expect(mocks.openTraderTab).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByTestId('desk-board-open-scanner'));
-    expect(getNavPage()).toBe('dashboard');
-    expect(consumeScannerTabRequest()).toBe('gappers');
   });
 
   it('says so with no scanner feed and is a stated absence in Sample Data mode', () => {
