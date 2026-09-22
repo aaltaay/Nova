@@ -79,6 +79,17 @@ vi.mock('../closed_orders/useClosedOrders', () => ({
   }),
 }));
 
+const navSnap = vi.hoisted(() => ({ activeTab: 'gappers' as string }));
+vi.mock('../workspace/navRailStore', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../workspace/navRailStore')>();
+  return {
+    ...actual,
+    useNavRailSnapshot: () => ({
+      page: 'dashboard',
+      scanner: { activeTab: navSnap.activeTab, railHighlight: navSnap.activeTab, counts: {}, lastListTab: 'gappers' },
+    }),
+  };
+});
 vi.mock('../bot/BotArmControls', () => ({
   BotArmControls: () => <div data-testid="bot-arm-controls-stub" />,
 }));
@@ -341,8 +352,19 @@ describe('GlobalAppBar', () => {
     root = createRoot(container);
   });
 
-  it('places bot controls on a second header row, not in the primary right cluster', () => {
+  it('mounts the bot arm controls only on the Bots page; the Scanner gets the menu host alone', () => {
     renderBar();
+    expect(container.querySelector('[data-testid="global-bar-bot"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="bot-arm-controls-stub"]')).toBeNull();
+    expect(container.querySelector('[data-testid="bot-symbol-menu-host-stub"]')).toBeTruthy();
+    act(() => root.unmount());
+    container.remove();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    navSnap.activeTab = 'strategy';
+    renderBar();
+    navSnap.activeTab = 'gappers';
     const header = container.querySelector('[data-testid="global-app-bar"]');
     const primary = container.querySelector('[data-testid="global-bar-primary"]');
     const right = container.querySelector('.global-app-bar__right');
