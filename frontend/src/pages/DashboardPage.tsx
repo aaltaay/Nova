@@ -17,9 +17,13 @@ import { ScannerBarBridge } from '../components/ScannerBarBridge';
 import { setGlobalBarHistoryDate } from '../components/scannerBarStore';
 import { useWatchlist } from '../strategy/useWatchlist';
 import { useSidePanelWidth } from '../hooks/useSidePanelWidth';
-import { boardListForSymbol } from '../scanner/boardListForSymbol';
+import { boardListForSymbol, isBoardListId } from '../scanner/boardListForSymbol';
+import { ScannerBoardFooter } from '../scanner/ScannerBoardFooter';
+import { ScannerBoardHeader } from '../scanner/ScannerBoardHeader';
 import { useLiveScannerFeed } from '../scanner/ScannerDataContext';
 import { ScannerDesk } from '../scanner/ScannerDesk';
+import { useBoardFilters } from '../scanner/useBoardFilters';
+import { scanAgeKeyFor, useBoardRows } from '../scanner/useBoardRows';
 import { useSettings } from '../settings/SettingsContext';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
@@ -114,22 +118,29 @@ export function DashboardPage() {
     clear: scanner.historyDate !== null,
   });
 
-  const filteredGappers = exchangeFilter.filterRows(scanner.gappers);
-  const filteredGainers = exchangeFilter.filterRows(scanner.gainers);
-  const filteredLosers = exchangeFilter.filterRows(scanner.losers);
-  const filteredAfterhours = exchangeFilter.filterRows(scanner.afterhours);
-  const filteredLargeCap = exchangeFilter.filterRows(scanner.largeCap);
-
   // Fail-loud (single-market-data-feed.mdc): a client-side filter must never
   // hide rows in silence. 2026-08-25 the exchange filter blanked the desk to
-  // 1 row and nothing on screen said why.
-  const hiddenByExchangeFilter: Record<string, number> = {
-    gappers: scanner.gappers.length - filteredGappers.length,
-    gainers: scanner.gainers.length - filteredGainers.length,
-    losers: scanner.losers.length - filteredLosers.length,
-    afterhours: scanner.afterhours.length - filteredAfterhours.length,
-    large_cap: scanner.largeCap.length - filteredLargeCap.length,
-  };
+  // 1 row and nothing on screen said why. Board chips ride the same rule:
+  // useBoardRows counts what each filter hid and the footer states it.
+  const board = useBoardFilters();
+  const feedLists = useMemo(
+    () => ({
+      gappers: scanner.gappers,
+      gainers: scanner.gainers,
+      losers: scanner.losers,
+      afterhours: scanner.afterhours,
+      large_cap: scanner.largeCap,
+    }),
+    [scanner.gappers, scanner.gainers, scanner.losers, scanner.afterhours, scanner.largeCap],
+  );
+  const boardRows = useBoardRows(feedLists, exchangeFilter.filterRows, board);
+  const {
+    gappers: filteredGappers,
+    gainers: filteredGainers,
+    losers: filteredLosers,
+    afterhours: filteredAfterhours,
+    large_cap: filteredLargeCap,
+  } = boardRows.rows;
 
   function handleTabClick(tab: ActiveTab) {
     if (!isTabModuleId(tab)) return;
@@ -160,7 +171,12 @@ export function DashboardPage() {
   }, [visibility]);
 
   const mainTab = isMainScannerTab(activeTab) ? activeTab : DEFAULT_ACTIVE_TAB;
-  const activeHiddenCount = hiddenByExchangeFilter[mainTab] ?? 0;
+  const boardList = isBoardListId(mainTab) ? mainTab : null;
+  const activeHiddenCount = boardList ? boardRows.hiddenByExchange[boardList] : 0;
+  const moduleTitle = getModule(mainTab)?.title ?? 'Scanner';
+  const scanAgeKey = scanAgeKeyFor(mainTab);
+  const lastScanTs = scanAgeKey ? scanner.scanAges[scanAgeKey] : 0;
+  const scannedAgoSec = !boardList ? undefined : lastScanTs > 0 ? scanner.now - lastScanTs : null;
 
   // HOD strip row: select for the side panel; if the symbol is not on the
   // board's current list, show the first scanner list that holds it. No list
@@ -227,7 +243,26 @@ export function DashboardPage() {
         <HodMomoDock onAlertSelect={onAlertSelect} />
 
         <ScannerDesk>
-        <SelectedScannerWidget title={getModule(mainTab)?.title ?? 'Scanner'}>
+        <SelectedScannerWidget
+          title={moduleTitle}
+          header={(
+            <ScannerBoardHeader
+              title={moduleTitle}
+              filters={boardList ? board : null}
+              scannedAgoSec={scannedAgoSec}
+            />
+          )}
+          footer={boardList ? (
+            <ScannerBoardFooter
+              shown={boardRows.rows[boardList].length}
+              total={boardRows.totals[boardList]}
+              hiddenByChips={boardRows.hiddenByChips[boardList]}
+              hiddenByExchange={boardRows.hiddenByExchange[boardList]}
+              noun={moduleTitle.toLowerCase()}
+              onShowAll={board.clear}
+            />
+          ) : null}
+        >
           <main className="panel">
             {scanner.historyDate && (
               <div className="history-banner">
