@@ -6,6 +6,7 @@
  */
 import { DESK_REL_VOL_SUFFIX, DESK_CELL_ABSENT } from '../constantGroups/desk';
 import type { LiveScannerFeed } from '../scanner/ScannerDataContext';
+import { SCANNER_QUOTE_CLOSE_FALLBACK } from '../scanner/scannerRowShape';
 import { catalystChipLabel, catalystFor, fractionToPercent } from '../stock_view/tabContext';
 import { formatCoverageClockEt } from '../tickerChartData';
 import type { Catalyst } from '../types/catalyst';
@@ -48,10 +49,12 @@ function finite(value: number | null | undefined): number | null {
 
 function fromScannerRow(row: ScannerRow, catalysts: readonly Catalyst[]): DeskBoardRow {
   const catalyst = catalystFor(row.symbol, catalysts);
+  // IB's prior close as the price (no print yet): its 0.0% gap is invented (QA W12).
+  const closeFallback = row.quote_quality === SCANNER_QUOTE_CLOSE_FALLBACK;
   return {
     symbol: row.symbol.toUpperCase(),
     price: finite(row.price),
-    gapPct: fractionToPercent(row.gap_percent ?? row.change_pct),
+    gapPct: closeFallback ? null : fractionToPercent(row.gap_percent ?? row.change_pct),
     volume: finite(row.volume),
     relVolume: finite(row.rel_volume ?? row.rvol),
     float: finite(row.float),
@@ -147,6 +150,8 @@ export function maxAbsGap(rows: readonly DeskBoardRow[]): number {
 /** "6.4×"; unknown stays a dash, never 0.0×. */
 export function fmtRelVol(value: number | null): string {
   if (value == null) return DESK_CELL_ABSENT;
+  // A real ratio that prints as 0.0 reads "<0.1x", never "0.0x" (QA W22).
+  if (value < 0.05) return `<0.1${DESK_REL_VOL_SUFFIX}`;
   return `${value.toFixed(1)}${DESK_REL_VOL_SUFFIX}`;
 }
 

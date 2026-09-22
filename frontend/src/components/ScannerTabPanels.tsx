@@ -20,6 +20,9 @@ import { sortedArray, toggleSort } from '../utils/sortRows';
 import { useWatchlistOverlay } from '../strategy/useWatchlistOverlay';
 import type { WatchlistEntry } from '../strategy/types';
 
+/** Stable empty overlay for a history view (keeps useWatchlistOverlay's memo). */
+const NO_WATCHLIST_ENTRIES: WatchlistEntry[] = [];
+
 interface Props {
   activeTab: 'gappers' | 'gainers' | 'losers' | 'afterhours' | 'large_cap' | 'catalysts';
   mode: MarketMode;
@@ -91,10 +94,13 @@ export function ScannerTabPanels({
   const [largeCapSort, setLargeCapSort] = useState<SortConfig>({ key: 'rvol', dir: 'desc' });
   const [catalystSort, setCatalystSort] = useState<SortConfig>({ key: '', dir: null });
 
-  const gappersWithWatchlist = useWatchlistOverlay(gappers, watchlistEntries);
-  const gainersWithWatchlist = useWatchlistOverlay(gainers, watchlistEntries);
-  const losersWithWatchlist = useWatchlistOverlay(losers, watchlistEntries);
-  const afterhoursWithWatchlist = useWatchlistOverlay(afterhours, watchlistEntries);
+  // The watchlist grades today's rows: a past snapshot is not graded, so its
+  // WATCH column is a dash rather than today's score on an old row (QA W14).
+  const gradedEntries = historyDate ? NO_WATCHLIST_ENTRIES : watchlistEntries;
+  const gappersWithWatchlist = useWatchlistOverlay(gappers, gradedEntries);
+  const gainersWithWatchlist = useWatchlistOverlay(gainers, gradedEntries);
+  const losersWithWatchlist = useWatchlistOverlay(losers, gradedEntries);
+  const afterhoursWithWatchlist = useWatchlistOverlay(afterhours, gradedEntries);
 
   // Pinned rows lead every list for the session, after the sort.
   const pinned = usePinnedRows();

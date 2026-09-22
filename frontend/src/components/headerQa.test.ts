@@ -72,6 +72,15 @@ describe('connection chip', () => {
     expect(chip({ venue: 'live', connected: false }).tone).toBe('bad');
   });
 
+  it('says it is checking while the first status poll is pending, never "IBKR offline" (QA D10)', () => {
+    const view = chip({ connected: false, statusPending: true });
+    expect(view.label).toBe('Checking IBKR');
+    expect(view.state).toBe('checking');
+    expect(view.title).toMatch(/has not answered yet/);
+    // Once the status answers, a real outage is still an outage.
+    expect(chip({ connected: false, statusPending: false }).label).toBe('IBKR offline');
+  });
+
   it('puts the roster error in words (V34)', () => {
     expect(humanRosterText('ibkr: TimeoutError: TimeoutError()')).toBe('IBKR scanner request timed out');
     expect(humanRosterText('ibkr: ConnectionRefusedError: [Errno 111]')).toBe('IBKR scanner connection failed');

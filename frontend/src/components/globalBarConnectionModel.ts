@@ -26,6 +26,8 @@ import {
   globalBarLegacyFeedTitle,
 } from '../constants';
 import {
+  GLOBAL_BAR_CONNECTION_CHECKING_LABEL,
+  GLOBAL_BAR_CONNECTION_CHECKING_TITLE,
   GLOBAL_BAR_CONNECTION_SIM_OFFLINE_TITLE,
   rosterScannerError,
 } from '../constantGroups/global_bar';
@@ -40,6 +42,7 @@ export type ConnectionChipTone = 'ok' | 'warn' | 'bad';
 export type ConnectionChipState =
   | 'sample'
   | 'api-down'
+  | 'checking'
   | 'stale'
   | 'offline'
   | 'delayed'
@@ -53,6 +56,12 @@ export interface ConnectionChipInput {
   connected: boolean;
   /** /api/ibkr/status poll has gone stale (last-good answer is old). */
   statusStale: boolean;
+  /**
+   * The first status poll has not answered: nothing is known about IB
+   * Gateway yet, so the chip says it is checking -- "IBKR offline" before any
+   * answer blamed the Gateway for a request still in flight (QA D10).
+   */
+  statusPending?: boolean;
   /** Seconds since the status poll went stale; null when unknown. */
   staleForSec: number | null;
   delayed: boolean;
@@ -132,6 +141,8 @@ export function connectionChipView(i: ConnectionChipInput): ConnectionChipView {
     [tone, state, label] = ['warn', 'sample', GLOBAL_BAR_CONNECTION_SAMPLE_LABEL];
   } else if (!i.apiOk) {
     [tone, state, label] = ['bad', 'api-down', GLOBAL_BAR_CONNECTION_API_DOWN_LABEL];
+  } else if (i.statusPending && !i.connected) {
+    [tone, state, label] = ['warn', 'checking', GLOBAL_BAR_CONNECTION_CHECKING_LABEL];
   } else if (i.statusStale) {
     const age = i.staleForSec != null ? ` ${compactAge(i.staleForSec)}` : '';
     [tone, state, label] = ['warn', 'stale', `${GLOBAL_BAR_CONNECTION_STALE_LABEL}${age}`];
@@ -150,7 +161,7 @@ export function connectionChipView(i: ConnectionChipInput): ConnectionChipView {
   if (i.sampleDataActive) {
     lines.push(GLOBAL_BAR_CONNECTION_SAMPLE_TITLE);
   } else {
-    lines.push(i.apiTitle, i.gatewayTitle);
+    lines.push(i.apiTitle, state === 'checking' ? GLOBAL_BAR_CONNECTION_CHECKING_TITLE : i.gatewayTitle);
     if (state === 'offline' && i.venue === 'sim') lines.push(GLOBAL_BAR_CONNECTION_SIM_OFFLINE_TITLE);
   }
   lines.push(priceText ? `${GLOBAL_BAR_CONNECTION_PRICES_PREFIX} ${priceText}` : null);

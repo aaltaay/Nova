@@ -102,6 +102,8 @@ export function useScannerData(opts: {
   const [historyDate, setHistoryDate] = useState<string | null>(null);
   const [historyDates, setHistoryDates] = useState<string[]>([]);
   const consecutiveFailuresRef = useRef(0);
+  /** True once every scanner route answered: only then does the failure grace apply. */
+  const loadedOnceRef = useRef(false);
   const healthRef = useRef(health);
   healthRef.current = health;
   const historyDateRef = useRef(historyDate);
@@ -221,7 +223,10 @@ export function useScannerData(opts: {
     } catch (e) {
       consecutiveFailuresRef.current += 1;
       scheduleRetry();
-      if (consecutiveFailuresRef.current < SCANNER_HEALTH_FAIL_GRACE_COUNT) {
+      // The grace keeps a board that has rows from flapping on a blip. Before
+      // anything has loaded there is nothing to protect: "Loading market
+      // data…" over an API that never answers is a failure unstated (QA D10).
+      if (loadedOnceRef.current && consecutiveFailuresRef.current < SCANNER_HEALTH_FAIL_GRACE_COUNT) {
         console.warn('[Nova] Scanner REST fetch failed; retrying', e);
         return;
       }
@@ -266,6 +271,7 @@ export function useScannerData(opts: {
     } else {
       consecutiveFailuresRef.current = 0;
       retryAttemptRef.current = 0;
+      loadedOnceRef.current = true;
     }
   }, [scheduleRetry]);
   fetchDataRef.current = fetchData;

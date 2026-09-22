@@ -49,23 +49,25 @@ export function useHodMomoDebugPoll() {
     void fetchDecisions();
     void fetchSnaps();
 
+    // The age is the effect below's alone: this interval closed over the
+    // first render's countersUpdated (0) and overwrote the right age every 2 s
+    // with "1790069890s ago" (QA W15).
     timerRef.current = setInterval(() => {
       void fetchCounters();
       void fetchDecisions();
       void fetchSnaps();
-      setCountersAge(Math.round((Date.now() - countersUpdated) / 1000));
     }, 2000);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    const t = setInterval(() => {
-      setCountersAge(Math.round((Date.now() - countersUpdated) / 1000));
-    }, 1000);
+    if (!countersUpdated) return undefined;
+    const tick = () => setCountersAge(Math.max(0, Math.round((Date.now() - countersUpdated) / 1000)));
+    tick();
+    const t = setInterval(tick, 1000);
     return () => clearInterval(t);
   }, [countersUpdated]);
 

@@ -206,6 +206,30 @@ export function sampleVwapOntoBars(
   return out.some(hasVwapValue) ? out : [];
 }
 
+const SESSION_DAY_LABEL = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+
+/**
+ * "Sep 21" when a pane's newest bar is on an older ET day than the VWAP
+ * source's newest bar, else null. The pane then paints an earlier session's
+ * candles and that session's VWAP, which disagreed with the 1-minute pane's
+ * today (QA R28, 2026-09-22: TOPS 5-min $1.27, 1-min $1.35, 10-s $1.49 on one
+ * screen -- the 5-min and 10-s bars ended the evening before). The pane's VWAP
+ * title names its session so no two panes show two VWAPs for "now".
+ */
+export function paneSessionBehindLabel(
+  sourceBars: IndicatorBar[],
+  paneBars: IndicatorBar[],
+): string | null {
+  const sourceDay = latestDayKey(sourceBars);
+  const paneDay = latestDayKey(paneBars);
+  if (sourceDay < 0 || paneDay < 0 || paneDay >= sourceDay) return null;
+  for (let i = paneBars.length - 1; i >= 0; i -= 1) {
+    const time = paneBars[i].time;
+    if (Number.isFinite(time)) return SESSION_DAY_LABEL.format(new Date(time * 1000));
+  }
+  return null;
+}
+
 /**
  * Whether the source bars reach the newest day's 04:00 ET open. False means the store
  * window starts mid-session, so the line understates real session volume and has

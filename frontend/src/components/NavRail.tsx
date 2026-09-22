@@ -13,6 +13,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import '../styles/navRail.css';
 import { AdviseRailButton } from '../advise/AdviseRailButton';
+import { useRecordingSymbols } from '../capture/sessionRecordStore';
 import {
   NAV_RAIL_ARIA_LABEL,
   NAV_RAIL_COLLAPSE_TITLE,
@@ -38,7 +39,6 @@ import {
   navRailRecordingTitle,
 } from '../constantGroups/nav_rail';
 import { TRADER_DEFAULT_SYMBOL } from '../constants';
-import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { formatScannerNavCount, scannerNavIcon } from '../scanner/scannerNavIcons';
 import {
   navRailCollapsedDefault,
@@ -74,12 +74,11 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
   const { page, scanner } = useNavRailSnapshot();
   const { selectedSymbol } = useWorkspace();
   const { visibility } = useModuleVisibility();
-  const status = useIbkrStatus();
   const [prefs, setPrefs] = useState<NavRailPrefs>(readNavRailPrefs);
 
   const groups = useMemo(() => listScannerNavGroups(), []);
-  const recordingSymbols =
-    status.capture === true && status.recording === true ? (status.capture_symbols ?? []) : [];
+  // The guarded list: strings only, a stale status records nothing (QA C14 / C23).
+  const recordingSymbols = useRecordingSymbols();
 
   const dashboardUp = !traderActive && page === 'dashboard';
   // The Account page is a shell page; the legacy Account / Reports dashboard

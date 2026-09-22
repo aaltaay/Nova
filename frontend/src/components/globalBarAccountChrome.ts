@@ -13,7 +13,19 @@ export function resolveAccountChromeState(opts: {
   summaryConnected: boolean | undefined;
   loading: boolean;
   error: string | null;
+  /**
+   * False while /api/ibkr/status has not answered (first poll pending) or is
+   * failing: nothing is known about the Gateway then, so the cluster says it
+   * is waiting or unavailable -- a second "IBKR offline" beside the
+   * connection chip blamed the Gateway for an API that never answered (QA D10).
+   */
+  statusKnown?: boolean;
+  /** Why the status is unknown ("HTTP 500", "no answer"), when it failed. */
+  statusError?: string | null;
 }): AccountChromeState {
+  if (opts.statusKnown === false && !opts.ibkrConnected) {
+    return opts.statusError ? 'unavailable' : 'loading';
+  }
   if (!opts.ibkrConnected) return 'offline';
   if (opts.summaryConnected) return 'ready';
   // Gateway up but account snapshot missing or explicitly disconnected.

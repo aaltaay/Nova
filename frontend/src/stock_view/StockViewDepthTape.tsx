@@ -36,6 +36,7 @@ import {
   SIM_REPLAY_TAPE_STATUS,
 } from '../sim/simConstants';
 import { StockViewVenueTag } from './StockViewVenueTag';
+import { depthUnavailableHint } from './depthUnavailableHint';
 
 interface Props {
   selectedSymbol: string;
@@ -103,7 +104,7 @@ export function StockViewDepthTape({
   listingIbkr = null,
   uiActive = true,
 }: Props) {
-  const { ibkrConnected } = useWorkspace();
+  const { ibkrConnected, ibkrStatusKnown, ibkrStatusError } = useWorkspace();
   const { isVisible } = useModuleVisibility();
   const depthSymbol = selectedSymbol.toUpperCase();
   const detailMatches = detail.symbol.toUpperCase() === depthSymbol;
@@ -181,8 +182,8 @@ export function StockViewDepthTape({
         testId="stock-view-depth-stack"
       >
         <QuoteHead detail={quoteDetail} symbol={depthSymbol} />
-        <p className="sv-depth-stack__hint">
-          Connect IB Gateway for Level 2 and Time & Sales
+        <p className="sv-depth-stack__hint" data-testid="stock-view-depth-hint">
+          {depthUnavailableHint(ibkrStatusKnown, ibkrStatusError)}
         </p>
       </StockViewModuleCard>
     );

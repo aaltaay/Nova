@@ -19,6 +19,7 @@ import {
   TAPE_UNREPORTED_TITLE,
   TAPE_VIEWPORT_FALLBACK_ROWS,
 } from '../constants';
+import { STOCK_VIEW_CLOCK_TIMEZONE } from '../constantGroups/chart_api';
 import { SAMPLE_FEED_STATUS, SAMPLE_LIVE_FEED_ABSENT } from '../sample_data/sampleCopy';
 import { createRafCoalesce } from '../utils/rafCoalesce';
 import { TapeMinSizeFilterMenu } from './TapeMinSizeFilterMenu';
@@ -52,10 +53,14 @@ export interface TimeSalesViewProps {
   emptyLabel?: string;
 }
 
-function fmtTime(iso: string): string {
+/** HH:MM:SS Eastern whatever the browser's zone -- the desk's one clock (QA W24). */
+export function fmtTapeTime(iso: string): string {
   try {
     const d = new Date(iso);
-    return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return d.toLocaleTimeString('en-US', {
+      hourCycle: 'h23', hour: '2-digit', minute: '2-digit', second: '2-digit',
+      timeZone: STOCK_VIEW_CLOCK_TIMEZONE,
+    });
   } catch {
     return iso.slice(11, 19) || iso;
   }
@@ -90,7 +95,7 @@ const TapeRow = memo(function TapeRow({ print }: { print: TapePrint }) {
       title={print.unreported ? TAPE_UNREPORTED_TITLE : undefined}
       data-unreported={print.unreported ? '1' : undefined}
     >
-      <span className="ts-col--time">{fmtTime(print.time)}</span>
+      <span className="ts-col--time">{fmtTapeTime(print.time)}</span>
       <span className="ts-col--price">{fmtPrice(print.price)}</span>
       <span className="ts-col--size" data-testid="ts-size" data-size={print.size}>
         {fmtSize(print.size)}

@@ -1,5 +1,9 @@
 /* Stock View terminal layout — scoped under .stock-view-page only.
-   Scanner Quote Panel / Trading tab styles stay in stock-view.css / tradingTab.css. */
+   Scanner Quote Panel / Trading tab styles stay in stock-view.css / tradingTab.css.
+   The rail's quote stats, Level 2 and Time & Sales sizing: stockViewRailDepth.css;
+   a Trader column narrower than its chrome: stockViewNarrow.css. */
+@import "./stockViewRailDepth.css";
+@import "./stockViewNarrow.css";
 
 .stock-view-page {
   --sv-gap: 6px;

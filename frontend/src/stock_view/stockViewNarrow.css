@@ -1,0 +1,31 @@
+/* A Trader column narrower than its chrome (features layer; @imported at the
+   top of stockViewTerminal.css, after stock-view.css in the cascade).
+
+   QA D5 (2026-09-22): on the Desk at 1280 the Trader column is about 590 px
+   and its own controls went out of reach -- the desk chart toolbar ended at
+   "RS…" (RSI, MACD, the pane target and Hide 10-Second sat in a scroll box
+   with no scrollbar) and pane titles ran into their timeframe pills
+   ("5-MINUTE5Min"). The dock row and the tab strip have their own fixes
+   (openOrdersDock.css, stockViewTabs.css). */
+
+.chart-desk-toolbar__scroll {
+  flex-wrap: wrap;
+  row-gap: 0.15rem;
+  overflow-x: visible;
+}
+
+/* The pane note truncates first, then the title -- never under the badge. */
+.chart-card--grid .chart-header--compact .chart-title {
+  flex: 0 1 auto;
+  min-width: 2.5em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chart-card--grid .chart-header--compact .chart-subtitle {
+  flex-shrink: 20;
+}
+
+.chart-card--grid .chart-header--compact .chart-tf-badge {
+  flex-shrink: 0;
+}

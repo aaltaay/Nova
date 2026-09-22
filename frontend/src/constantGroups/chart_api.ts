@@ -509,9 +509,6 @@ export const STOCK_VIEW_OPEN_ORDERS_DEFAULT_COLLAPSED = true;
 /** localStorage: hide UI-only sample working orders (`1` = hidden). */
 export const STOCK_VIEW_OPEN_ORDERS_SAMPLE_HIDDEN_KEY =
   'nova.stockView.openOrders.sampleHidden';
-/** Banner when showing mock rows (never real broker orders). */
-export const STOCK_VIEW_OPEN_ORDERS_SAMPLE_BANNER =
-  'Sample preview — paper-style rows for this symbol (not from IBKR)';
 /**
  * Stock View Orders (Today) — Webull-style session strip (WID-026/027).
  * Segmented: Working | Filled | Canceled | Partial Filled | All.

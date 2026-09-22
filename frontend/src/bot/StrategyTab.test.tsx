@@ -121,7 +121,7 @@ describe('StrategyTab', () => {
       await Promise.resolve();
     });
 
-    expect(screen.getByText(/Strategy -- small-cap settings/)).toBeTruthy();
+    expect(screen.getByText(/Bots -- small-cap settings/)).toBeTruthy();
     expect(screen.getByText(/Live L2/)).toBeTruthy();
     expect(screen.queryByLabelText(/Strategy \(L2 small-cap\)/)).toBeNull();
     expect(screen.queryByRole('radio')).toBeNull();

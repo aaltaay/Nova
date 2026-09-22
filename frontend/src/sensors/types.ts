@@ -1,5 +1,6 @@
 export type SensorStatus = 'live' | 'stub' | 'computed_stub';
-export type SensorChipStatus = SensorStatus | 'error';
+/** `stale`: a live sensor whose 1-minute bars are old (QA W16). */
+export type SensorChipStatus = SensorStatus | 'error' | 'stale';
 
 export interface SensorCatalogRow {
   id: number;

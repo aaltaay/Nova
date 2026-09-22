@@ -11,6 +11,7 @@
 import { useMemo } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { ScannerColGroup, ScannerRowNumHeader } from '../components/ScannerTableChrome';
+import { listAbsenceText } from '../scanner/listAbsence';
 import { SCANNER_TABLE_WRAPPER_CLASS, scannerColClass } from '../components/scannerTableCol';
 import {
   DESK_BOARD_ARIA,
@@ -127,7 +128,9 @@ export function DeskBoard({
         ) : rows == null ? (
           <p className="desk-board__absent" data-testid="desk-board-absent">{deskBoardNotMirrored(title)}</p>
         ) : rows.length === 0 ? (
-          <p className="desk-board__absent" data-testid="desk-board-absent">{deskBoardEmpty(title)}</p>
+          <p className="desk-board__absent" data-testid="desk-board-absent">
+            {listAbsenceText(title, { restError: feed.restError, healthStatus: feed.health?.status }, deskBoardEmpty)}
+          </p>
         ) : (
           <table>
             <ScannerColGroup columns={DESK_BOARD_COLUMNS} />

@@ -1,5 +1,5 @@
 /** Small scanner-row cells and formatters (split from ScannerTableRow.tsx). */
-import { fmtPct } from '../utils/quoteFormat';
+import { fmtPct, pctToneClass, roundsToZero } from '../utils/quoteFormat';
 import {
   SCANNER_CELL_ABSENT,
   SCANNER_GAP_BAR_MAX_PX,
@@ -16,7 +16,7 @@ export function rvolSourceMark(source: string | null | undefined): ScannerRvolSo
 /** Signed gap plus a bar scaled to the list's top row (drawn, not just printed). */
 export function GapCell({ value, scaleMax }: { value: number | null; scaleMax: number | null }) {
   if (value == null) return <span className="na-muted">{SCANNER_CELL_ABSENT}</span>;
-  const cls = value >= 0 ? 'positive' : 'negative';
+  const cls = pctToneClass(value);
   const width = scaleMax != null && scaleMax > 0
     ? Math.round(Math.min(1, Math.abs(value) / scaleMax) * SCANNER_GAP_BAR_MAX_PX)
     : null;
@@ -33,11 +33,13 @@ export function GapCell({ value, scaleMax }: { value: number | null; scaleMax: n
 }
 
 export function fmtChangeAbs(v: number | null | undefined): string {
-  if (v == null) return '—';
-  return `${v >= 0 ? '+' : '-'}$${Math.abs(v).toFixed(2)}`;
+  if (v == null || !Number.isFinite(v)) return '—';
+  // A change that prints as $0.00 is flat: no sign (QA W21).
+  if (roundsToZero(v, 2)) return '$0.00';
+  return `${v > 0 ? '+' : '-'}$${Math.abs(v).toFixed(2)}`;
 }
 
+/** positive / negative, none when the figure prints as flat (QA W21). */
 export function pctClass(v: number | null | undefined): string {
-  if (v == null) return '';
-  return v >= 0 ? 'positive' : 'negative';
+  return pctToneClass(v);
 }

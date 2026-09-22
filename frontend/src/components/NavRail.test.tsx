@@ -29,6 +29,17 @@ vi.mock('../workspace/WorkspaceContext', () => ({
 vi.mock('../ibkr/useIbkrStatus', () => ({
   useIbkrStatus: () => status.current,
 }));
+// The rail reads the guarded list (QA C14 / C23): a fresh, recording status's symbols.
+vi.mock('../capture/sessionRecordStore', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../capture/sessionRecordStore')>();
+  return {
+    ...actual,
+    useRecordingSymbols: () => {
+      const s = status.current;
+      return s.capture === true && s.recording === true && !s.stale ? actual.recordingSymbolsIn(s) : [];
+    },
+  };
+});
 vi.mock('../workspace/useModuleVisibility', () => ({
   useModuleVisibility: () => ({ visibility: visibility.current, setVisible: () => {} }),
 }));

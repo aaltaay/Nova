@@ -1,4 +1,5 @@
 import { SENSORS_NO_VALUE } from '../constantGroups/sensors';
+import { humanAge } from './sensorFreshness';
 import type { SensorEnvelope } from './types';
 
 function num(value: unknown, digits = 2): string | null {
@@ -50,7 +51,9 @@ export function sensorSummary(row: SensorEnvelope): string {
       if (data.sweep && typeof data.sweep === 'object') return 'sweep yes';
       return printCount(data) ?? SENSORS_NO_VALUE;
     case 'last-move':
-      return data.seconds_ago != null ? `${num(data.seconds_ago, 0)}s ago` : SENSORS_NO_VALUE;
+      return typeof data.seconds_ago === 'number' && Number.isFinite(data.seconds_ago)
+        ? `${humanAge(data.seconds_ago)} ago`
+        : SENSORS_NO_VALUE;
     case 'liquidity':
       return data.adv != null ? `ADV ${data.adv}` : SENSORS_NO_VALUE;
     case 'emas': {

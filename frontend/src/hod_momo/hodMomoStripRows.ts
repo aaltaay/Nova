@@ -8,6 +8,7 @@ import {
   HOD_MOMO_STRIP_NO_GATE_VALUES,
   HOD_MOMO_STRIP_PRINT_LAG_NOTE_SEC,
 } from './hodMomoStripConstants';
+import { STOCK_VIEW_CLOCK_TIMEZONE } from '../constantGroups/chart_api';
 import { alertIdentity, uniqueAlerts } from './hodMomoWire';
 import { partitionScannerAlerts } from './scannerPartition';
 import type { HodDockMode } from './scannerDockModes';
@@ -41,13 +42,15 @@ function alertDate(alert: Pick<AlertObject, 'timestamp' | 'created_ts'>): Date |
   return raisedDate(alert) ?? printDate(alert);
 }
 
+/** ET, whatever the browser's zone: the header clock, orders and charts are ET (QA W24). */
 function clockOf(d: Date): string {
   return d.toLocaleTimeString('en-US', {
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+    timeZone: STOCK_VIEW_CLOCK_TIMEZONE,
   });
 }
 
-/** HH:MM:SS, 24h, in the viewer's clock -- the same clock the old table used. */
+/** HH:MM:SS, 24h, Eastern -- the desk's one clock. */
 export function fmtStripClock(alert: Pick<AlertObject, 'timestamp' | 'created_ts'>): string {
   const d = alertDate(alert);
   return d ? clockOf(d) : '—';
@@ -82,7 +85,9 @@ export function fmtStripSince(alerts: readonly AlertObject[]): string | null {
     if (d && (!oldest || d.getTime() < oldest.getTime())) oldest = d;
   }
   if (!oldest) return null;
-  return oldest.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return oldest.toLocaleTimeString('en-US', {
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: STOCK_VIEW_CLOCK_TIMEZONE,
+  });
 }
 
 function fmtPct(v: number): string {

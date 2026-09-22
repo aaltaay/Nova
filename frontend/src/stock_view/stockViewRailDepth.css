@@ -1,0 +1,75 @@
+/* Trader rail: the Stock Quote card's stats, Level 2 and Time & Sales
+   (features layer; @imported at the top of stockViewTerminal.css, so every
+   selector here is one class more specific than the rule it overrides there).
+
+   QA pass two, 2026-09-22:
+   - R28: the rail gave Level 2 205 px and Time & Sales 137 px at every
+     viewport; the book read "30010.10" for 300 @ 10.10 and the tape drew
+     Price over Size. Time & Sales now takes the width Time + Price + Size
+     need and Level 2 the rest; a narrow Level 2 drops its MM column and both
+     scale their figures to the pane (level2Montage.css / timeSales.css hold
+     the column rules).
+   - D3: at 1280x800 the Level 2 | Time & Sales block was 85 px tall -- one
+     row. The six quote stats sit on two short lines instead of three tall
+     ones, and on short viewports the card drops its "Stock Quote" caption
+     (the quote head names the symbol). */
+
+.stock-view-page .sv-rail .sv-depth-and-tape {
+  grid-template-columns: minmax(0, 1fr) clamp(126px, 40%, 220px);
+}
+
+.stock-view-page .sv-quote-depth-card .sv-quote-stats.compact-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 8px;
+}
+
+.stock-view-page .sv-quote-depth-card .sv-quote-stats .cq-cell {
+  padding: 1px 2px;
+  border: 0;
+  background: none;
+}
+
+/* Pane heads stay on one line: "TIME & SALES" wrapped under its LIVE badge. */
+.stock-view-page .sv-rail .sv-md-pane .sv-md-pane__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@container md-pane (max-width: 279px) {
+  .stock-view-page .sv-rail .sv-md-pane .sv-md-pane__head {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  .stock-view-page .sv-rail .sv-md-pane .sv-md-pane__title {
+    font-size: 0.68rem;
+  }
+
+  .stock-view-page .sv-rail .sv-md-pane .ts-panel__cols,
+  .stock-view-page .sv-rail .sv-md-pane .ts-row {
+    font-size: 0.7rem;
+  }
+}
+
+/* A narrow book scales with its pane: about 0.75rem in the Trader's 360 px
+   rail, about 0.66rem in the Desk's 320 px one -- six digits per column. */
+@container md-pane (max-width: 259px) {
+  .stock-view-page .sv-rail .sv-md-pane .das-l2-row {
+    padding: 0 2px;
+    font-size: clamp(0.64rem, calc(3.7px + 3.85cqi), 0.82rem);
+  }
+
+  .stock-view-page .sv-rail .sv-md-pane .das-l2-colhead {
+    padding-left: 2px;
+    padding-right: 2px;
+    font-size: 0.62rem;
+  }
+}
+
+@media (max-height: 860px) {
+  .stock-view-page .sv-rail .sv-quote-depth-card > .sv-module-card__head {
+    display: none;
+  }
+}

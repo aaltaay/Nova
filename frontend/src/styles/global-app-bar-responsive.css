@@ -11,12 +11,30 @@
      1100  TAV (and the search narrows)
       900  the REC word
    Recording adds a chip per symbol on the left, so a recording desk gives the
-   clock's room up first. The KILL pill, the connection chip, the venue pills,
-   the search, the account pill, the padlock and the gear stay. Under 820px the
-   search drops to a second line under the two clusters. */
+   clock's room up first, and every further chip moves the order up (QA D1,
+   2026-09-22: with two or three recordings the search sat under the KILL stop
+   sign at 1440 / 1280 and the padlock and gear left the screen):
+     two or more chips   1600  REC times, Day's    1280  TAV
+     three chips         1920  REC times           1440  the REC word
+   A chip keeps its red dot and symbol; the tooltip keeps the time. The KILL
+   pill, the connection chip, the venue pills, the search, the account pill,
+   the padlock and the gear stay. Under 820px the search drops to a second line
+   under the two clusters. */
+
+@media (max-width: 1920px) {
+  .global-app-bar__primary:has(.global-app-bar__rec ~ .global-app-bar__rec ~ .global-app-bar__rec) .global-app-bar__rec-time {
+    display: none;
+  }
+}
 
 @media (max-width: 1600px) {
   .global-app-bar__primary:has(.global-app-bar__rec) .header-market-clock {
+    display: none;
+  }
+
+  .global-app-bar__primary:has(.global-app-bar__rec ~ .global-app-bar__rec) .global-app-bar__rec-time,
+  .global-app-bar__primary:has(.global-app-bar__rec ~ .global-app-bar__rec) .global-app-bar__metric--day,
+  .global-app-bar__primary:has(.global-app-bar__rec ~ .global-app-bar__rec) .global-app-bar__metric--day + .global-app-bar__sep {
     display: none;
   }
 }
@@ -25,6 +43,12 @@
   .global-app-bar__trader-slot .sv-tab-strip__hint,
   .global-app-bar__wordmark,
   .global-app-bar__session {
+    display: none;
+  }
+}
+
+@media (max-width: 1440px) {
+  .global-app-bar__primary:has(.global-app-bar__rec ~ .global-app-bar__rec ~ .global-app-bar__rec) .global-app-bar__rec-role {
     display: none;
   }
 }
@@ -40,14 +64,21 @@
 
 @media (max-width: 1280px) {
   .global-app-bar__session,
-  .global-app-bar__metric--day {
+  .global-app-bar__metric--day,
+  .global-app-bar__metric--day + .global-app-bar__sep {
+    display: none;
+  }
+
+  .global-app-bar__primary:has(.global-app-bar__rec ~ .global-app-bar__rec) .global-app-bar__metric--tav,
+  .global-app-bar__primary:has(.global-app-bar__rec ~ .global-app-bar__rec) .global-app-bar__sep:has(+ .global-app-bar__metric--tav) {
     display: none;
   }
 }
 
 @media (max-width: 1100px) {
   .global-app-bar__primary .header-market-clock,
-  .global-app-bar__metric--tav {
+  .global-app-bar__metric--tav,
+  .global-app-bar__sep:has(+ .global-app-bar__metric--tav) {
     display: none;
   }
 

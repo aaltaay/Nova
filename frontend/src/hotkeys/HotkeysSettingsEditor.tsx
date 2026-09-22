@@ -102,7 +102,8 @@ export function HotkeysSettingsEditor({
                         setSelectedId(row.id);
                       }}
                     >
-                      <span className="hk-editor-row-name">
+                      {/* A truncated name reads whole on hover (QA V40). */}
+                      <span className="hk-editor-row-name" title={formatNovaActionListLabel(row)}>
                         {formatNovaActionListLabel(row)}
                       </span>
                       <kbd className="hk-editor-row-key">

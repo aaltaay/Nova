@@ -1,0 +1,173 @@
+/* DAS-style Level 2 montage (components layer). Imported by marketData.css. Owner: ibkr/DepthLadder.tsx. */
+/* ── DAS Level 2 montage (shared tokens; Stock View densifies in feature CSS) */
+.das-l2 {
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+
+.das-l2-montage {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  background: var(--nova-canvas, #0a0a0a);
+  border: 1px solid var(--nova-border-strong, #222);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.das-l2-side {
+  min-width: 0;
+}
+
+.das-l2-colhead {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0;
+  padding: 0.2rem 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--nova-text-muted, var(--text-secondary));
+  background: var(--nova-raised, #141414);
+  border-bottom: 1px solid var(--nova-border-strong, #2a2a2a);
+}
+
+.das-l2-side--bid .das-l2-colhead span:last-child,
+.das-l2-side--ask .das-l2-colhead span:first-child {
+  text-align: right;
+}
+
+.das-l2-side--bid .das-l2-colhead span:nth-child(2),
+.das-l2-side--ask .das-l2-colhead span:nth-child(2) {
+  text-align: right;
+}
+
+.das-l2-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: center;
+  min-height: 1.5rem;
+  padding: 0.1rem 0.25rem;
+  font-size: 0.88rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.das-l2-row--empty {
+  opacity: 0.25;
+  min-height: 1.15rem;
+}
+
+.das-l2-mm {
+  color: var(--nova-text, #e5e7eb);
+  font-size: 0.78rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.das-l2-size {
+  color: var(--nova-text, #f3f4f6);
+  text-align: right;
+  font-weight: 700;
+}
+
+.das-l2-price {
+  color: var(--nova-text, #f3f4f6);
+  font-weight: 700;
+  text-align: right;
+}
+
+/* DAS rainbow bands are bright -- ink goes dark for contrast (classic montage). */
+.das-l2-row--tiered .das-l2-mm,
+.das-l2-row--tiered .das-l2-size,
+.das-l2-row--tiered .das-l2-price {
+  color: #111827;
+  text-shadow: none;
+}
+
+.das-l2-side--ask .das-l2-mm {
+  text-align: right;
+}
+
+.das-l2-spread {
+  margin-top: 0.35rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--nova-text-muted, var(--text-secondary));
+}
+
+.das-l2-bbo {
+  color: var(--nova-text, #d1d5db);
+}
+
+.ibkr-depth-empty {
+  font-size: 0.8rem;
+  color: var(--nova-text-muted, var(--text-secondary));
+  text-align: center;
+  padding: 1.5rem 0;
+}
+
+.ibkr-depth-fallback-badge {
+  font-size: 0.65rem;
+  background: rgba(234, 179, 8, 0.1);
+  color: #ca8a04;
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  border-radius: 4px;
+  padding: 0.15rem 0.4rem;
+  margin-bottom: 0.4rem;
+  text-align: center;
+}
+
+.ibkr-depth-heuristics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-bottom: 0.4rem;
+  justify-content: center;
+  min-height: 1.35rem;
+  align-items: center;
+}
+
+.ibkr-heuristic-badge {
+  font-size: 0.62rem;
+  border-radius: 4px;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+/* Every value keeps its own box and a gap: a size never runs into its price
+   (QA R28, 2026-09-22: "30010.10" for 300 @ 10.10). */
+.das-l2-colhead,
+.das-l2-row {
+  column-gap: 4px;
+}
+
+.das-l2-size,
+.das-l2-price {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Narrow pane (the Trader rail): Size and Price only. The MM column was cut
+   to one letter ("A…", "O…") there anyway (QA V40); the pane shows it again
+   once it is wide enough to read. */
+@container md-pane (max-width: 259px) {
+  .das-l2-side .das-l2-colhead,
+  .das-l2-side .das-l2-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    padding-left: 2px;
+    padding-right: 2px;
+  }
+
+  .das-l2-mm,
+  .das-l2-side--bid .das-l2-colhead > span:first-child,
+  .das-l2-side--ask .das-l2-colhead > span:last-child {
+    display: none;
+  }
+}

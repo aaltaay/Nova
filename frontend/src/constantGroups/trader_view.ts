@@ -89,3 +89,20 @@ export const SCANNER_ACCOUNT_DOCK_SPLIT_PCT = 58;
 export const SCANNER_ACCOUNT_DOCK_SPLIT_MIN_PCT = 40;
 export const SCANNER_ACCOUNT_DOCK_SPLIT_MAX_PCT = 82;
 export const SCANNER_ACCOUNT_DOCK_RESIZE_LABEL = 'Resize scanner tables and Positions';
+
+// ── QA pass two (2026-09-22): Scanner / header / layout batch ────────────
+/** D10: the Stock Quote card's depth hint, by what the status actually knows. */
+export const TRADER_DEPTH_CONNECT_GATEWAY = 'Connect IB Gateway for Level 2 and Time & Sales';
+export const TRADER_DEPTH_STATUS_PENDING = "Checking IB Gateway -- Nova's status has not answered yet";
+export const TRADER_DEPTH_STATUS_FAILED =
+  "Nova's status request is failing, so IB Gateway's state is unknown -- Level 2 and Time & Sales wait for it";
+/**
+ * W30: the tab / Focus rail figure is the scanner's gap (price against the
+ * prior close); the quote card's Gap% is the opening gap (the open against
+ * the prior close), which reads -- until the open prints. Each says which.
+ */
+export const TRADER_TAB_GAP_TITLE =
+  "Scanner gap: the price against the prior close. The quote card's Gap% is the opening gap -- the open against the prior close -- so it reads -- before the open.";
+export const QUOTE_GAP_OPEN_TITLE =
+  "Opening gap: the day's open against the prior close -- it reads -- until the open prints. The tab's figure is the price against the prior close.";
+

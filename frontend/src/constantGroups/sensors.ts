@@ -16,3 +16,11 @@ export const SENSORS_STUB = 'stub';
 export const SENSORS_COMPUTED_STUB = 'computed_stub';
 export const SENSORS_ACCOUNT_HINT =
   'L2 Brain Sensor Board is Settings > Sensors -- read-only GET smoke tests.';
+
+// ── QA pass two (2026-09-22): Scanner / header / layout batch ────────────
+/** W16: a bar-derived reading whose newest 1-minute bar is older than this is stale. */
+export const SENSORS_BARS_STALE_SEC = 30 * 60;
+export const SENSORS_STALE = 'stale';
+export const SENSORS_STALE_TITLE_PREFIX = '1-minute bars end';
+export const SENSORS_STALE_TITLE_SUFFIX = 'ET -- open a chart for this symbol to refresh them';
+

@@ -266,3 +266,10 @@ export const rosterScannerError = (source: string, error: string): string =>
     : /connection|refused|reset/i.test(error)
       ? `${source} scanner connection failed`
       : `${source} scanner failed (${error})`;
+
+// ── QA pass two (2026-09-22): Scanner / header / layout batch ────────────
+/** D10: the connection chip while /api/ibkr/status has not answered yet. */
+export const GLOBAL_BAR_CONNECTION_CHECKING_LABEL = 'Checking IBKR';
+export const GLOBAL_BAR_CONNECTION_CHECKING_TITLE =
+  "Nova's status request has not answered yet -- IB Gateway's state is not known";
+

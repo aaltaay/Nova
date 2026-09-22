@@ -102,6 +102,7 @@ export function GlobalBarConnectionChip({
     connected,
     venue,
     statusStale,
+    statusPending: live.clientReady === false,
     staleForSec,
     delayed,
     gatewayTitle,

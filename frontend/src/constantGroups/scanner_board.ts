@@ -155,3 +155,11 @@ export const SCANNER_PRICE_CLOSE_TAG = 'close';
 export const SCANNER_PRICE_CLOSE_TITLE =
   "IBKR's prior close -- no trade has printed yet, so this is not a live price";
 export const SCANNER_CHANGE_CLOSE_TITLE = 'No trade yet -- a change against the prior close would be invented';
+
+// ── QA pass two (2026-09-22): Scanner / header / layout batch ────────────
+/** W12: a gap measured from IB's prior close (no print yet) is invented too. */
+export const SCANNER_GAP_CLOSE_TITLE = 'No trade yet -- a gap measured from the prior close would be invented';
+/** D10: a mirrored list (Desk board, Focus rail) whose feed is pending or failing. */
+export const listFeedLoading = (title: string): string => `${title}: waiting for the scanner feed…`;
+export const listFeedFailed = (title: string, error: string): string => `${title}: ${error}`;
+

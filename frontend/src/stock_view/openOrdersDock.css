@@ -36,9 +36,13 @@
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
+  min-width: 0;
   height: 32px;
   padding: 0 6px 0 0;
   border-bottom: 1px solid transparent;
+  /* The row stays inside its column: on the Desk at 1280 its tabs pushed
+     "Nova OS", "Show sample" and "Expand" under the Trader rail (QA D5). */
+  overflow: hidden;
   cursor: pointer;
 }
 
@@ -48,9 +52,10 @@
 
 .sv-open-orders-dock__tabs {
   display: inline-flex;
-  /* Tabs never shrink: at narrow widths the filter chips scroll instead, so
-     a tab is always fully visible and clickable. */
-  flex: 0 0 auto;
+  /* The filter chips (basis 0) give way first, so a tab stays whole while
+     they can; only a column narrower than the three tabs scrolls the tabs
+     themselves -- they used to overflow under the rail instead (QA D5). */
+  flex: 0 1 auto;
   align-items: stretch;
   align-self: stretch;
   gap: 0;

@@ -29,6 +29,7 @@ import {
 } from '../chartIndicators';
 import {
   coversSessionOpen,
+  paneSessionBehindLabel,
   sampleVwapOntoBars,
   sessionVwapPoints,
   vwapSourceForPane,
@@ -198,12 +199,13 @@ export function TickerChartOverlays({
         { extendToTime: liveTipTime ?? undefined },
       );
       vwapSeriesRef.current.setData(line);
-      vwapSeriesRef.current.applyOptions({
-        title: vwapAxisTitleFromLine(
-          line,
-          sourceBars.length > 0 ? !coversSessionOpen(sourceBars) : !vwapCoversOpen,
-        ),
-      });
+      const title = vwapAxisTitleFromLine(
+        line,
+        sourceBars.length > 0 ? !coversSessionOpen(sourceBars) : !vwapCoversOpen,
+      );
+      // A pane still on an earlier session names it (QA R28).
+      const behind = paneSessionBehindLabel(vwapSourceBars, bars);
+      vwapSeriesRef.current.applyOptions({ title: behind ? `${title} · ${behind}` : title });
     }
   }, [
     chart, bars, barsRevision, showEmas, showVwap, timeframe,
