@@ -131,3 +131,57 @@ def test_execute_sends_one_share_when_gate_on(monkeypatch):
     assert row["payload"]["short_entry"] is False
     assert "orders_enabled" in row["payload"]
     assert "gateway_mode" in row["payload"]
+
+
+@pytest.mark.parametrize("source", ["flatten", "kill", "cancel_working"])
+def test_protective_sources_are_never_clamped(monkeypatch, source):
+    """QA R6 (2026-09-22): a clamped flatten left N-1 shares after an Emergency KILL."""
+    monkeypatch.setattr(qty_gate, "IBKR_FORCE_ONE_SHARE", True)
+    monkeypatch.setattr(qty_gate, "IBKR_FORCE_ONE_SHARE_QTY", 1.0)
+    cmd = ExecutionCommand(
+        operation="place",
+        idempotency_key=f"protect-{source}",
+        source=source,
+        symbol="GRML",
+        side="SELL",
+        qty=2,
+        order_type="MKT",
+    )
+    assert qty_gate.apply_force_one_share(cmd).qty == 2
+
+
+def test_execute_sends_the_whole_flatten_and_stamps_no_clamp(monkeypatch):
+    _arm_paper(monkeypatch)
+    monkeypatch.setattr(qty_gate, "IBKR_FORCE_ONE_SHARE", True)
+    monkeypatch.setattr(qty_gate, "IBKR_FORCE_ONE_SHARE_QTY", 1.0)
+    monkeypatch.setattr(exec_svc, "IBKR_FORCE_ONE_SHARE", True)
+    monkeypatch.setattr(account_mod, "get_positions", lambda: [{"symbol": "AAPL", "qty": 3}])
+    calls = []
+
+    def place(**kw):
+        calls.append(kw)
+        return {"ok": True, "order_id": 43, "error": None, "mode": "paper"}
+
+    monkeypatch.setattr(orders_mod, "place_order", place)
+    r = asyncio.run(
+        exec_svc.execute(
+            ExecutionCommand(
+                operation="place",
+                idempotency_key="flatten-whole",
+                source="flatten",
+                symbol="AAPL",
+                side="SELL",
+                qty=3,
+                order_type="MKT",
+                skip_risk=True,
+                skip_concurrency=True,
+            ),
+            wait_ack=False,
+        )
+    )
+    assert r.ok is True, r.error
+    assert len(calls) == 1
+    assert float(calls[0]["qty"]) == 3.0
+    row = store.get_by_id(r.execution_id)
+    assert row["payload"]["sent_qty"] == 3.0
+    assert row["payload"]["forced_one_share"] is False

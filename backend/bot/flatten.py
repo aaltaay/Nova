@@ -52,7 +52,10 @@ async def _place_close(symbol: str, qty: float, side: str) -> dict[str, Any]:
         ),
         wait_ack=False,
     )
-    return receipt.legacy_place_dict()
+    out = receipt.legacy_place_dict()
+    # What the broker was actually sent, so the caller can prove a whole close.
+    out["sent_qty"] = (getattr(receipt, "payload", None) or {}).get("sent_qty")
+    return out
 
 
 async def _cancel_working() -> list[dict[str, Any]]:
@@ -83,6 +86,20 @@ async def _cancel_working() -> list[dict[str, Any]]:
         )
         results.append(receipt.legacy_place_dict())
     return results
+
+
+def _short_close(close: dict[str, Any], qty: float) -> str | None:
+    """Why a close did not cover the position, or None when it did (QA R6)."""
+    if not close.get("ok"):
+        return None  # already a failure; its own error says why
+    sent = close.get("sent_qty")
+    try:
+        sent_f = float(sent) if sent is not None else None
+    except (TypeError, ValueError):
+        sent_f = None
+    if sent_f is not None and sent_f + 1e-9 < abs(qty):
+        return f"flatten sent {sent_f:g} of {abs(qty):g} shares"
+    return None
 
 
 def _position_closes(positions: list[dict[str, Any]]) -> list[tuple[str, float, str]]:
@@ -122,11 +139,39 @@ async def flatten_account_once() -> dict[str, Any]:
     results: list[dict[str, Any]] = []
     for symbol, qty, side in _position_closes(positions):
         close = await _place_close(symbol, qty, side)
+        short = _short_close(close, qty)
+        if short:
+            close = {**close, "ok": False, "error": short, "reason_code": "FLATTEN_PARTIAL"}
+            logger.error("bot flatten: %s %s -- %s", side, symbol, short)
         results.append({"symbol": symbol, "qty": qty, "side": side, "close": close})
     ok = all((r.get("close") or {}).get("ok") for r in results) if results else True
     if cancels and not results:
         ok = all(c.get("ok") for c in cancels)
-    return {"ok": ok, "results": results, "cancels": cancels}
+    left = _practice_left_open(positions) if ok and results and is_practice_venue() else []
+    if left:
+        # The practice broker fills a protective close at placement, so any share
+        # still held means the close did not cover it -- never report success.
+        ok = False
+        logger.error("bot flatten: positions still open after close: %s", left)
+    out: dict[str, Any] = {"ok": ok, "results": results, "cancels": cancels}
+    if left:
+        out["error"] = "positions still open after flatten: " + ", ".join(left)
+        out["left_open"] = left
+    return out
+
+
+def _practice_left_open(before: list[dict[str, Any]]) -> list[str]:
+    """``["GRML 1"]`` for symbols the flatten closed that still hold shares."""
+    from ibkr import account as _account
+    from ibkr.errors import IbkrAccountError
+
+    closed = {symbol for symbol, _qty, _side in _position_closes(before)}
+    try:
+        after = _account.get_positions()
+    except IbkrAccountError as exc:
+        logger.warning("bot flatten: could not re-read positions after close: %s", exc)
+        return []
+    return [f"{symbol} {qty:g}" for symbol, qty, _side in _position_closes(after) if symbol in closed]
 
 
 async def flatten_account_with_retry() -> dict[str, Any]:

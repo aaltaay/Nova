@@ -39,7 +39,7 @@ Product fixes inside `backend/execution/` require an explicit ask each time.
 - **In-flight position gates:** `long_qty` / `short_qty` do not move until a fill, so `execution/inflight.py` holds what an unresolved place already sent and validation subtracts it (`OVERSELL` for SELL, `OVERCOVER` for BUY while short). One idempotency key per **user gesture** on the client, not per HTTP call.
 - **`auto_live` NO-GO:** never unlock live auto-trading from this domain. Live probes need a separate user-approved phase.
 - **Paper and live share the same code path** — only Gateway account/credentials and safety gates differ.
-- **MASTER TEST QTY GATE (`IBKR_FORCE_ONE_SHARE`):** when True (default during testing), `execution.qty_gate.apply_force_one_share` rewrites place/bracket `qty`/`shares` to 1 at `execute()` ingress. UI may show 100/500/1000 — broker send is always 1. **This is intentional, not a sizing bug.** Disable with one line: `IBKR_FORCE_ONE_SHARE = False` in `constants_ibkr.py` (or remove the `apply_force_one_share` call in `service.py`).
+- **MASTER TEST QTY GATE (`IBKR_FORCE_ONE_SHARE`):** when True (default during testing), `execution.qty_gate.apply_force_one_share` rewrites place/bracket `qty`/`shares` to 1 at `execute()` ingress. UI may show 100/500/1000 — broker send is always 1. **This is intentional, not a sizing bug.** Protective sources (`flatten` / `kill` / `cancel_working`) are never clamped: they close the held position, and a clamped Emergency KILL left N-1 shares while reporting success (QA R6, 2026-09-22); `bot/flatten` fails a close that sent less than the position. Disable with one line: `IBKR_FORCE_ONE_SHARE = False` in `constants_ibkr.py` (or remove the `apply_force_one_share` call in `service.py`).
 
 ## Out of scope (hand off)
 
