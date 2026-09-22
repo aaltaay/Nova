@@ -47,10 +47,12 @@ export function persistSymbolReplace(
 ): void {
   if (urlSym) {
     const active = nextState.active && nextState.active !== '' ? nextState.active : urlSym;
+    // A float window's one tab is the operator's deliberate choice: pinned.
     writeStoredTabs({
       tabs: [active],
       active,
       live: [active],
+      pinned: [active],
     });
     return;
   }
@@ -80,7 +82,7 @@ export function initialTraderState(): {
 } {
   const urlSym = parseStockViewSymbol();
   if (urlSym) {
-    const tabs: TraderTabsState = { tabs: [urlSym], active: urlSym, live: [urlSym] };
+    const tabs: TraderTabsState = { tabs: [urlSym], active: urlSym, live: [urlSym], pinned: [urlSym] };
     writeStoredTabs(tabs);
     return {
       tabs,
