@@ -5,8 +5,15 @@
  * row holds three tabs beside the Sim scrubber. Gap and chip are omitted when
  * the scanner has no row for the symbol -- never 0.00, never a guess.
  */
-import { ArrowLeftToLine, ExternalLink, X } from 'lucide-react';
+import { ArrowLeftToLine, ExternalLink, Pin, PinOff, X } from 'lucide-react';
 import type { RefObject } from 'react';
+import {
+  TRADER_TAB_PIN_ARIA,
+  TRADER_TAB_PIN_TITLE,
+  TRADER_TAB_PREVIEW_TITLE,
+  TRADER_TAB_UNPIN_ARIA,
+  TRADER_TAB_UNPIN_TITLE,
+} from '../constantGroups/trader_view';
 import {
   TRADER_TAB_CLOSE_ARIA,
   TRADER_TAB_CLOSE_RECORDING_TITLE,
@@ -28,6 +35,8 @@ export interface StockViewTabProps {
   isDraft: boolean;
   suspended: boolean;
   recording: boolean;
+  /** ADR 011 preview tabs: an unpinned symbol is replaced by the next ticker opened. */
+  pinned: boolean;
   context: TabContext | null;
   showDock: boolean;
   showExtract: boolean;
@@ -40,13 +49,14 @@ export interface StockViewTabProps {
   onActivate: () => void;
   onExtract: () => void;
   onDock?: () => void;
+  onTogglePin?: () => void;
   onClose: () => void;
 }
 
 export function StockViewTab({
-  label, isActive, isDraft, suspended, recording, context, showDock, showExtract,
+  label, isActive, isDraft, suspended, recording, pinned, context, showDock, showExtract,
   editing, draft, inputRef, onDraftChange, onCommitEdit, onCancelEdit,
-  onActivate, onExtract, onDock, onClose,
+  onActivate, onExtract, onDock, onTogglePin, onClose,
 }: StockViewTabProps) {
   const gap = context ? formatSignedPct(context.gapPct) : '';
   const chip = context?.catalyst ?? null;
@@ -55,7 +65,9 @@ export function StockViewTab({
     ? 'Type a ticker, then Enter'
     : suspended
       ? TRADER_TAB_SUSPENDED_TITLE
-      : showExtract ? TRADER_TAB_LABEL_TITLE : TRADER_TAB_LABEL_TITLE_FLOAT;
+      : !pinned
+        ? TRADER_TAB_PREVIEW_TITLE
+        : showExtract ? TRADER_TAB_LABEL_TITLE : TRADER_TAB_LABEL_TITLE_FLOAT;
   return (
     <>
       {recording && !isDraft && (
@@ -107,6 +119,19 @@ export function StockViewTab({
       )}
       {!isDraft && (
         <span className="sv-tab__hover">
+          {onTogglePin && (
+            <button
+              type="button"
+              className={`sv-tab__pin${pinned ? ' sv-tab__pin--on' : ''}`}
+              aria-label={`${pinned ? TRADER_TAB_UNPIN_ARIA : TRADER_TAB_PIN_ARIA} (${label})`}
+              aria-pressed={pinned}
+              title={pinned ? TRADER_TAB_UNPIN_TITLE : TRADER_TAB_PIN_TITLE}
+              data-testid={`sv-tab-pin-${label}`}
+              onClick={e => { e.stopPropagation(); onTogglePin(); }}
+            >
+              {pinned ? <PinOff size={12} aria-hidden="true" /> : <Pin size={12} aria-hidden="true" />}
+            </button>
+          )}
           {showDock && onDock && (
             <button type="button" className="sv-tab__dock" aria-label={`${TRADER_TAB_DOCK_ARIA} (${label})`}
               title={TRADER_TAB_DOCK_TITLE} data-testid={`sv-tab-dock-${label}`}

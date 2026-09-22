@@ -10,7 +10,7 @@ Trader View grew two one-way gestures, then a third operator request:
 
 1. Default: a ticker click opens Trader in this window (`openStockView`).
 2. Extract: `window.open` / Electron `BrowserWindow` + drop the tab here.
-3. Scanner clicks used to replace the active tab (2026-08-17). Amended 2026-09-17 (#201): ticker click adds or activates; live L2 stays capped at 3.
+3. Scanner clicks used to replace the active tab (2026-08-17). Amended 2026-09-17 (#201): ticker click adds or activates; live L2 stays capped at 3. Amended 2026-09-22 (operator: "be conscious with our opened tickers"): **preview tabs** -- a ticker click opens into the strip's one unpinned tab, replacing it; a tab the operator pins (pin icon on the tab, or right-click > Pin) stays until closed; a symbol typed into the strip, a rename and a docked tab arrive pinned; tabs stored before the rule are read back pinned. State: `pinned[]` in `traderTabsState.ts`, persisted beside `tabs` / `live`.
 
 There was no inverse. A popped-out window could only be closed. Session tab state lived in per-window `sessionStorage`, so windows could not agree on a move. `WorkspaceContext` was becoming the place every new windowing idea would get patched.
 

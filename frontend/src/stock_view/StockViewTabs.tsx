@@ -42,6 +42,9 @@ export function StockViewTabs({ detached, hideFocusRail = false, active }: Props
   const {
     traderTabs,
     traderLiveTabs,
+    traderPinnedTabs,
+    pinTraderTab,
+    unpinTraderTab,
     activeTraderSymbol,
     traderBlockNotice,
     dismissTraderBlockNotice,
@@ -105,6 +108,8 @@ export function StockViewTabs({ detached, hideFocusRail = false, active }: Props
     <StockViewTabStrip
       tabs={traderTabs}
       live={traderLiveTabs}
+      pinned={traderPinnedTabs}
+      onTogglePin={sym => (traderPinnedTabs.includes(sym) ? unpinTraderTab(sym) : pinTraderTab(sym))}
       active={activeTraderSymbol}
       windowId={traderWindowId}
       showDock={traderDeskRole === 'float'}

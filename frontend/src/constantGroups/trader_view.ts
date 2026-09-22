@@ -67,6 +67,15 @@ export const TRADER_TAB_STRIP_HINT =
   'Drag a tab onto another Nova window to dock it. Double-click to pop out.';
 export const TRADER_TAB_STRIP_HINT_FLOAT =
   'Drag this tab onto the main Nova window to dock it.';
+/** Preview tabs (ADR 011, 2026-09-22): the unpinned tab is where the next ticker opens. */
+export const TRADER_TAB_PREVIEW_TITLE =
+  'Preview tab -- the next ticker you open replaces it. Pin it to keep it.';
+export const TRADER_TAB_PIN_LABEL = 'Pin tab';
+export const TRADER_TAB_UNPIN_LABEL = 'Unpin tab';
+export const TRADER_TAB_PIN_TITLE = 'Pin this tab so the next ticker opens beside it, not over it';
+export const TRADER_TAB_UNPIN_TITLE = 'Unpin this tab -- the next ticker you open replaces it';
+export const TRADER_TAB_PIN_ARIA = 'Pin tab';
+export const TRADER_TAB_UNPIN_ARIA = 'Unpin tab';
 export const TRADER_TAB_DOCK_LABEL = 'Dock';
 export const TRADER_TAB_DOCK_TITLE =
   'Move this ticker back into the main Nova window';

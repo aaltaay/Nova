@@ -132,6 +132,16 @@
   opacity: 0.7;
 }
 
+/* Preview tab (ADR 011, 2026-09-22): the one unpinned symbol, replaced by the
+   next ticker opened. Italic like an editor's preview tab; pinned tabs are upright. */
+.sv-tab--preview .sv-tab__symbol {
+  font-style: italic;
+}
+
+.sv-tab__pin--on {
+  opacity: 1;
+}
+
 /* Recording: a red dot beside the name, quiet like the header chip. */
 .sv-tab__rec {
   flex: 0 0 7px;
@@ -240,6 +250,7 @@
   opacity: 1;
 }
 
+.sv-tab__pin,
 .sv-tab__dock,
 .sv-tab__extract,
 .sv-tab__close {

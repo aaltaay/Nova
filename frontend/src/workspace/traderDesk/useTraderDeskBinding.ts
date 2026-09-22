@@ -18,8 +18,10 @@ import {
   addTab,
   closeTab,
   isTabLive,
+  pinTab,
   releaseOldestLive,
   renameTab,
+  unpinTab,
   type TraderTabsState,
 } from '../../stock_view/traderTabsState';
 import {
@@ -86,10 +88,16 @@ export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => 
     applyTraderState(state);
   }, [applyTraderState, setSelectedSymbol]);
 
-  const tryAddTab = useCallback((symbol: string): boolean => {
+  /**
+   * Open a symbol here. A click lands in the preview tab (ADR 011, preview
+   * tabs); `pin` marks a deliberate arrival -- a docked tab -- which comes in
+   * beside the preview, pinned, so it stays and replaces nothing.
+   */
+  const tryAddTab = useCallback((symbol: string, pin = false): boolean => {
     const sym = symbol.trim().toUpperCase();
     if (!sym) return false;
-    const { state } = addTab(traderStateRef.current, sym, TRADER_MAX_LIVE_TABS);
+    let { state } = addTab(traderStateRef.current, sym, TRADER_MAX_LIVE_TABS, { replacePreview: !pin });
+    if (pin) state = pinTab(state, sym);
     applyOpen(state, sym);
     return true;
   }, [applyOpen]);
@@ -101,7 +109,7 @@ export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => 
     } catch {
       /* private mode -- still try to accept */
     }
-    const ok = tryAddTab(symbol);
+    const ok = tryAddTab(symbol, true);
     if (ok) {
       try {
         rememberLastHostWindow(localStorage, windowId);
@@ -202,7 +210,7 @@ export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => 
 
   const acceptTraderTabDrop = useCallback((payload: TraderTabDragPayload) => {
     if (!isForeignTabDrag(payload.sourceWindowId, windowId)) return false;
-    const ok = tryAddTab(payload.symbol);
+    const ok = tryAddTab(payload.symbol, true);
     if (ok) {
       try {
         rememberLastHostWindow(localStorage, windowId);
@@ -225,6 +233,23 @@ export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => 
     setTraderState((prev) => {
       if (!prev.tabs.includes(key)) return prev;
       const next = activateTab(prev, key, TRADER_MAX_LIVE_TABS);
+      if (!parseStockViewSymbol()) writeStoredTabs(next);
+      return next;
+    });
+  }, []);
+
+  const pinTraderTab = useCallback((symbol: string) => {
+    setTraderState((prev) => {
+      const next = pinTab(prev, symbol);
+      if (next === prev) return prev;
+      if (!parseStockViewSymbol()) writeStoredTabs(next);
+      return next;
+    });
+  }, []);
+
+  const unpinTraderTab = useCallback((symbol: string) => {
+    setTraderState((prev) => {
+      const next = unpinTab(prev, symbol);
       if (!parseStockViewSymbol()) writeStoredTabs(next);
       return next;
     });
@@ -303,6 +328,8 @@ export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => 
     dismissTraderBlockNotice,
     activateTraderTab,
     closeTraderTab,
+    pinTraderTab,
+    unpinTraderTab,
     renameTraderTab,
     addTraderDraftTab,
     closeTraderView,
