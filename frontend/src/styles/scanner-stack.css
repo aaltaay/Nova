@@ -17,7 +17,17 @@
   padding-left: 1.25rem;
 }
 
-/* Middle column: HOD dock (top) + titled selected scanner (bottom). */
+/* Side panel: the full height of the scanner shell (which already sits under
+   the global bar) -- not the viewport's, which clipped its bottom by the bar's
+   height now that the HOD strip lives in the middle column. */
+.nova-shell--scanner > .side-panel {
+  position: static;
+  height: auto;
+  min-height: 0;
+  align-self: stretch;
+}
+
+/* Middle column: HOD strip (top) + titled selected scanner (bottom). */
 .main-col--scanner-stack {
   display: flex;
   flex-direction: column;
