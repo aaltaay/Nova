@@ -179,10 +179,24 @@ def _spawn_runtime_tasks() -> list[asyncio.Task]:
     return spawn_runtime_tasks()
 
 
+def _warn_if_env_missing() -> None:
+    """ADR 021: an API with no .env runs with every integration off -- never silently."""
+    from paths import env_file_path
+
+    env_path = env_file_path()
+    if not env_path.is_file():
+        logger.error(
+            "lifespan: NO .env at %s -- every integration reads as unset; "
+            "GET /api/diagnostics names the process root (ADR 021)",
+            env_path,
+        )
+
+
 def _local_startup() -> None:
     """Sentry + disk restore + DB init. After HTTP yield, off the loop."""
     t0 = time.perf_counter()
     init_sentry()
+    _warn_if_env_missing()
     t_s = time.perf_counter()
     _restore_caches()
     t_c = time.perf_counter()

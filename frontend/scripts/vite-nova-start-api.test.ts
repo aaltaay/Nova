@@ -2,7 +2,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { acquireLock, isLockStale, LOCK_PATH, releaseLock } from './vite-nova-start-api';
+import {
+  acquireLock,
+  isGitWorktree,
+  isLockStale,
+  LOCK_PATH,
+  releaseLock,
+  startRefusal,
+} from './vite-nova-start-api';
 
 const TEST_LOCK_PATH = path.join(
   os.tmpdir(),
@@ -59,5 +66,38 @@ describe('isLockStale', () => {
   it('treats a missing/non-numeric ts as stale', () => {
     expect(isLockStale(JSON.stringify({ pid: 1 }), Date.now())).toBe(true);
     expect(isLockStale(JSON.stringify({ pid: 1, ts: 'x' }), Date.now())).toBe(true);
+  });
+});
+
+describe('startRefusal (ADR 021: never start an API from a worktree or without .env)', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'nova-start-api-root-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it('allows the main checkout with a .env', () => {
+    fs.mkdirSync(path.join(root, '.git'));
+    fs.writeFileSync(path.join(root, '.env'), 'IBKR_ENABLED=true');
+    expect(isGitWorktree(root)).toBe(false);
+    expect(startRefusal(root)).toBeNull();
+  });
+
+  it('refuses a git worktree even when it has a .env', () => {
+    fs.writeFileSync(path.join(root, '.git'), 'gitdir: C:/Nova/.git/worktrees/agent-x');
+    fs.writeFileSync(path.join(root, '.env'), 'IBKR_ENABLED=true');
+    expect(isGitWorktree(root)).toBe(true);
+    expect(startRefusal(root)).toMatch(/git worktree/);
+  });
+
+  it('refuses a checkout with no .env and names the path', () => {
+    fs.mkdirSync(path.join(root, '.git'));
+    const refusal = startRefusal(root);
+    expect(refusal).toMatch(/No \.env at/);
+    expect(refusal).toContain(path.join(root, '.env'));
   });
 });

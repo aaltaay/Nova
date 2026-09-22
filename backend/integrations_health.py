@@ -38,7 +38,16 @@ def build_integrations_status() -> dict[str, Any]:
     elif (_env("IBKR_ENABLED") or "").strip().lower() in ("1", "true", "yes"):
         ibkr = _chip("error", "IBKR enabled but Gateway offline")
     else:
-        ibkr = _chip("off", "IBKR_ENABLED not set")
+        from paths import env_file_path
+
+        env_path = env_file_path()
+        # ADR 021: a process with no .env reads every key as unset -- say which
+        # file is missing instead of blaming the key (2026-09-22, worktree API).
+        ibkr = (
+            _chip("off", "IBKR_ENABLED not set")
+            if env_path.is_file()
+            else _chip("error", f"no .env at {env_path} -- every integration reads as unset")
+        )
 
     openai_key = bool(os.environ.get("OPENAI_API_KEY"))
     if not lincoln_enabled():
