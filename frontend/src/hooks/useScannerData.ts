@@ -20,7 +20,7 @@ import {
 } from '../constants';
 import { SCANNER_REST_RETRY_BASE_MS, SCANNER_REST_RETRY_MAX_MS } from '../constantGroups/scanner_board';
 import { isNovaApiDebug } from '../debug';
-import type { MarketMode } from '../components/AppHeader';
+import type { MarketMode } from '../types/market';
 import type { Afterhours, Gapper, Mover, ScannerRow } from '../types/scanner';
 import type { Catalyst } from '../types/catalyst';
 import type { HealthStatus } from '../types/health';

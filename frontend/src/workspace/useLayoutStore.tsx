@@ -3,13 +3,13 @@
  * Persisted via layoutStore helpers (Phase 5); drag-drop writes here (Phase 6).
  */
 import {
-  createContext,
   useCallback,
   useContext,
   useMemo,
   useState,
   type ReactNode,
 } from 'react';
+import { hmrStableContext } from '../utils/hmrStableContext';
 import {
   getSlotOrder,
   loadLayout,
@@ -29,7 +29,7 @@ type LayoutStoreValue = {
   resetToDefault: () => void;
 };
 
-const LayoutStoreContext = createContext<LayoutStoreValue | null>(null);
+const LayoutStoreContext = hmrStableContext<LayoutStoreValue>(import.meta.hot, 'LayoutStoreContext');
 
 export function LayoutStoreProvider({ children }: { children: ReactNode }) {
   const [layout, setLayout] = useState<WorkspaceLayout>(() => loadLayout());

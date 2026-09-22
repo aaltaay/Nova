@@ -5,8 +5,8 @@ import { emptyIbkrDisconnectedMessage } from '../ibkr/disconnectCopy';
 import { EMPTY_IBKR_RECONNECT_WARMUP } from '../ibkr/gatewayUxConstants';
 import { useIbkrReconnectWarmup } from '../ibkr/useIbkrReconnectWarmup';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
-import type { MarketMode } from './AppHeader';
 import type { HealthStatus } from '../types/health';
+import type { MarketMode } from '../types/market';
 
 export function EmptyState({
   health,

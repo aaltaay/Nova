@@ -1,15 +1,21 @@
 /**
  * Header REC chips: one per recording symbol (up to three), none otherwise.
- * Red dot, symbol and elapsed time; the tooltip carries the counts. Click
+ * Red dot, symbol and elapsed time; the hover card carries the counts. Click
  * opens that tab. `variant="bar"` is the redesigned global bar's chip
  * (`● REC GRML 5:12`, words on screen); the default stays the compact
  * icon chip the status cluster uses.
+ *
+ * The card counts up every tick, so it is a rendered Radix tooltip updated in
+ * place -- a native `title` that changes each second makes the browser drop
+ * and redraw its tooltip, which flickered under the pointer.
  */
 import { Disc } from 'lucide-react';
+import { Tooltip } from 'radix-ui';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { getIbkrStatusSnapshot } from '../ibkr/ibkrStatusPoller';
 import {
   RECORDING_CHIP_ROLE,
+  RECORDING_CHIP_TOOLTIP_DELAY_MS,
   RECORDING_SIGNAL_TICK_MS,
   recordingChipTitle,
   recordingChipValue,
@@ -38,45 +44,38 @@ export function RecordingChip({ onOpenSymbol, variant = 'compact' }: Props) {
   if (!symbols.length) return null;
 
   return (
-    <>
+    <Tooltip.Provider delayDuration={RECORDING_CHIP_TOOLTIP_DELAY_MS}>
       {symbols.map((symbol) => {
         const view = recordingView(status, symbol, now);
         // "For how long" is this segment: after a resume the session began earlier
-        // than the recording has actually been running, and the tooltip says both.
+        // than the recording has actually been running, and the card says both.
         const segmentMs = view?.segmentSinceMs ?? view?.sinceMs ?? null;
         const elapsed = elapsedLabel(segmentMs);
         const value = recordingChipValue(symbol, elapsed);
-        const title = view
+        const card = view
           ? recordingChipTitle({ ...view, elapsed, sessionElapsed: elapsedLabel(view.sinceMs) })
           : `Recording ${symbol}`;
         const open = (e: React.MouseEvent) => { e.preventDefault(); onOpenSymbol?.(symbol); };
-        if (variant === 'bar') {
-          return (
-            <button
-              key={symbol}
-              type="button"
-              className="global-app-bar__rec"
-              data-testid="status-chip-recording"
-              data-symbol={symbol}
-              title={title}
-              aria-label={`${RECORDING_CHIP_ROLE} ${value}`}
-              onClick={open}
-            >
-              <span className="dot recording" aria-hidden="true" />
-              <span className="global-app-bar__rec-role">{RECORDING_CHIP_ROLE}</span>
-              <span className="global-app-bar__rec-symbol">{symbol}</span>
-              <span className="global-app-bar__rec-time">{elapsedClockLabel(segmentMs)}</span>
-            </button>
-          );
-        }
-        return (
+        const chip = variant === 'bar' ? (
           <button
-            key={symbol}
+            type="button"
+            className="global-app-bar__rec"
+            data-testid="status-chip-recording"
+            data-symbol={symbol}
+            aria-label={`${RECORDING_CHIP_ROLE} ${value}`}
+            onClick={open}
+          >
+            <span className="dot recording" aria-hidden="true" />
+            <span className="global-app-bar__rec-role">{RECORDING_CHIP_ROLE}</span>
+            <span className="global-app-bar__rec-symbol">{symbol}</span>
+            <span className="global-app-bar__rec-time">{elapsedClockLabel(segmentMs)}</span>
+          </button>
+        ) : (
+          <button
             type="button"
             className="status-chip status-chip--compact status-chip--recording"
             data-testid="status-chip-recording"
             data-symbol={symbol}
-            title={title}
             aria-label={`${RECORDING_CHIP_ROLE} ${value}`}
             onClick={open}
           >
@@ -86,7 +85,27 @@ export function RecordingChip({ onOpenSymbol, variant = 'compact' }: Props) {
             <span className="status-chip__value">{value}</span>
           </button>
         );
+        return (
+          <Tooltip.Root key={symbol}>
+            <Tooltip.Trigger asChild>{chip}</Tooltip.Trigger>
+            <Tooltip.Portal>
+              <Tooltip.Content
+                className="recording-chip-tip"
+                side="bottom"
+                align="start"
+                sideOffset={6}
+                collisionPadding={8}
+                data-testid="status-chip-recording-tip"
+                data-symbol={symbol}
+              >
+                {card.split('\n').map((line, i) => (
+                  <div key={i}>{line}</div>
+                ))}
+              </Tooltip.Content>
+            </Tooltip.Portal>
+          </Tooltip.Root>
+        );
       })}
-    </>
+    </Tooltip.Provider>
   );
 }

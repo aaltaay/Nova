@@ -2,7 +2,6 @@
  * AppShell-level Settings ownership: form, exchange filter, overlay open state.
  */
 import {
-  createContext,
   lazy,
   Suspense,
   useCallback,
@@ -13,6 +12,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { hmrStableContext } from '../utils/hmrStableContext';
 import { useExchangeFilter, type ExchangeFilter } from '../hooks/useExchangeFilter';
 import { useSettingsForm } from '../hooks/useSettingsForm';
 import { SETTINGS_OVERLAY_LOADING } from '../constants';
@@ -34,7 +34,7 @@ interface SettingsContextValue {
   registerOnConfigSaved: (fn: () => void) => void;
 }
 
-const SettingsContext = createContext<SettingsContextValue | null>(null);
+const SettingsContext = hmrStableContext<SettingsContextValue>(import.meta.hot, 'SettingsContext');
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const onSavedRef = useRef<() => void>(() => {});

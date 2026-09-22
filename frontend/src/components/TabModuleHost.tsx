@@ -30,7 +30,7 @@ import type { Afterhours, Gapper, Mover, ScannerRow } from '../types/scanner';
 import type { ScannerTableMeta } from '../hooks/useScannerPriceStream';
 import type { Catalyst } from '../types/catalyst';
 import type { HealthStatus } from '../types/health';
-import type { MarketMode } from './AppHeader';
+import type { MarketMode } from '../types/market';
 import type { WatchlistEntry } from '../strategy/types';
 
 export type TabModuleHostProps = {

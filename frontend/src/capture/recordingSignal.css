@@ -104,3 +104,20 @@
   line-height: 1;
   cursor: pointer;
 }
+
+/* The REC chip's hover card: a rendered tooltip so its live counts update in
+   place instead of re-opening a native title every second. */
+.recording-chip-tip {
+  z-index: 10080;
+  max-width: 340px;
+  padding: 8px 10px;
+  border: 1px solid var(--nova-border-strong, var(--nova-border));
+  border-radius: 8px;
+  background: var(--menu-bg, var(--nova-panel));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  color: var(--nova-text);
+  font-size: 12px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}

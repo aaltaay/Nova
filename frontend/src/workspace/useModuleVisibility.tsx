@@ -3,13 +3,13 @@
  * Persisted to localStorage via moduleVisibility helpers.
  */
 import {
-  createContext,
   useCallback,
   useContext,
   useMemo,
   useState,
   type ReactNode,
 } from 'react';
+import { hmrStableContext } from '../utils/hmrStableContext';
 import {
   isModuleVisible,
   loadModuleVisibility,
@@ -23,7 +23,7 @@ type ModuleVisibilityValue = {
   isVisible: (id: string) => boolean;
 };
 
-const ModuleVisibilityContext = createContext<ModuleVisibilityValue | null>(null);
+const ModuleVisibilityContext = hmrStableContext<ModuleVisibilityValue>(import.meta.hot, 'ModuleVisibilityContext');
 
 export function ModuleVisibilityProvider({ children }: { children: ReactNode }) {
   const [visibility, setVisibility] = useState<ModuleVisibilityMap>(() =>

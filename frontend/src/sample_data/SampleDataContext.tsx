@@ -2,7 +2,8 @@
  * Sample-data isolation boundary. Only SampleShell mounts this provider.
  * Live DashboardPage must never be a child — hooks return fixtures and skip network.
  */
-import { createContext, useContext, type ReactNode } from 'react';
+import { useContext, type ReactNode } from 'react';
+import { hmrStableContext } from '../utils/hmrStableContext';
 import type { AlertObject, HodMomoConfigState } from '../hod_momo/types';
 import type { HealthStatus } from '../types/health';
 import type { Afterhours, Gapper, Mover, ScannerRow } from '../types/scanner';
@@ -60,7 +61,7 @@ const SAMPLE_BUNDLE: SampleDataBundle = {
   tickerDetail: sampleTickerDetail,
 };
 
-const SampleDataContext = createContext<SampleDataBundle | null>(null);
+const SampleDataContext = hmrStableContext<SampleDataBundle>(import.meta.hot, 'SampleDataContext');
 
 export function SampleDataProvider({ children }: { children: ReactNode }) {
   return (

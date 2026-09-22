@@ -1,4 +1,4 @@
-/** Shared Nova mark used by GlobalAppBar and AppHeader. */
+/** Nova mark used by GlobalAppBar. */
 
 export function NovaLogo() {
   return (

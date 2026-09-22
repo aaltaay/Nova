@@ -148,6 +148,14 @@ describe('RecordingSignals with three symbols', () => {
 });
 
 describe('RecordingChip', () => {
+  /** The card is a rendered tooltip (a changing native title flickered); focus opens it. */
+  async function openCard(chip: HTMLElement): Promise<string> {
+    await act(async () => { chip.focus(); await Promise.resolve(); });
+    const card = document.body.querySelector(`[data-testid="status-chip-recording-tip"][data-symbol="${chip.dataset.symbol}"]`);
+    expect(card).toBeTruthy();
+    return card!.textContent ?? '';
+  }
+
   it('exists only while recording, and carries the counts in its tooltip', async () => {
     const open = vi.fn();
     await mount(<RecordingChip onOpenSymbol={open} />);
@@ -157,9 +165,11 @@ describe('RecordingChip', () => {
     const chip = screen.getByTestId('status-chip-recording');
     expect(chip.textContent).toContain('REC');
     expect(chip.textContent).toContain('GRML · 13m 25s');
-    expect(chip.title).toContain('Recording GRML for 13m 25s');
-    expect(chip.title).toContain('2,439 prints · 229 quotes · 229 L2 books');
-    expect(chip.title).toContain('Last write 1s ago');
+    expect(chip.hasAttribute('title')).toBe(false);
+    const card = await openCard(chip);
+    expect(card).toContain('Recording GRML for 13m 25s');
+    expect(card).toContain('2,439 prints · 229 quotes · 229 L2 books');
+    expect(card).toContain('Last write 1s ago');
     fireEvent.click(chip);
     expect(open).toHaveBeenCalledWith('GRML');
   });
@@ -173,7 +183,8 @@ describe('RecordingChip', () => {
     expect(chip.querySelector('.global-app-bar__rec-role')?.textContent).toBe('REC');
     expect(chip.querySelector('.global-app-bar__rec-symbol')?.textContent).toBe('GRML');
     expect(chip.querySelector('.global-app-bar__rec-time')?.textContent).toBe('13:25');
-    expect(chip.title).toContain('Recording GRML for 13m 25s');
+    expect(chip.hasAttribute('title')).toBe(false);
+    expect(await openCard(chip)).toContain('Recording GRML for 13m 25s');
     fireEvent.click(chip);
     expect(open).toHaveBeenCalledWith('GRML');
   });
@@ -185,6 +196,6 @@ describe('RecordingChip', () => {
     }] });
     const chip = screen.getByTestId('status-chip-recording');
     expect(chip.textContent).toContain('GRML · 40s');
-    expect(chip.title).toContain('Recording GRML for 40s -- segment 4 of a session that began 13m 25s ago');
+    expect(await openCard(chip)).toContain('Recording GRML for 40s -- segment 4 of a session that began 13m 25s ago');
   });
 });

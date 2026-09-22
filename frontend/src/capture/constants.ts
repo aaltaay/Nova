@@ -8,6 +8,9 @@ export const CAPTURE_STATUS_FRESH_MS = 15_000;
  */
 export const RECORDING_CHIP_ROLE = 'REC';
 export const RECORDING_SIGNAL_TICK_MS = 1000;
+/** Hover delay for the REC chip's card. The card is live (it counts up every tick),
+ * so it is a rendered tooltip: a native `title` that changes each second flickers. */
+export const RECORDING_CHIP_TOOLTIP_DELAY_MS = 200;
 export const recordingChipValue = (symbol: string, elapsed: string): string => `${symbol} · ${elapsed}`;
 export const recordingHairlineTitle = (symbol: string): string => `Recording ${symbol}`;
 export const recordingChipTitle = (args: {

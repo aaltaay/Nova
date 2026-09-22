@@ -15,7 +15,7 @@ import { LARGE_CAP_COLUMNS, SCANNER_COLUMNS } from '../constants';
 import type { Afterhours, Gapper, Mover, ScannerRow, SortConfig } from '../types/scanner';
 import type { Catalyst } from '../types/catalyst';
 import type { HealthStatus } from '../types/health';
-import type { MarketMode } from './AppHeader';
+import type { MarketMode } from '../types/market';
 import { sortedArray, toggleSort } from '../utils/sortRows';
 import { useWatchlistOverlay } from '../strategy/useWatchlistOverlay';
 import type { WatchlistEntry } from '../strategy/types';

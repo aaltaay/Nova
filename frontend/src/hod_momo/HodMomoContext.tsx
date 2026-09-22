@@ -4,13 +4,13 @@
  * hodMomoStripPersist.ts.
  */
 import {
-  createContext,
   useCallback,
   useContext,
   useMemo,
   useState,
   type ReactNode,
 } from 'react';
+import { hmrStableContext } from '../utils/hmrStableContext';
 import { collapseAlertsBySymbol } from './collapseAlertsBySymbol';
 import {
   clampStripRows,
@@ -48,7 +48,7 @@ export type HodMomoContextValue = {
   toggleHodSettings: () => void;
 };
 
-const HodMomoContext = createContext<HodMomoContextValue | null>(null);
+const HodMomoContext = hmrStableContext<HodMomoContextValue>(import.meta.hot, 'HodMomoContext');
 
 export function useHodMomoDockState(stream: HodStream) {
   const [dockMode, setDockMode] = useState<HodDockMode>('hod_momo');
