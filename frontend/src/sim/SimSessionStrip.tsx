@@ -28,7 +28,8 @@ import { SimStripBand } from './SimStripBand';
 import { SimStripMenu } from './SimStripMenu';
 import { captureCoverageLabel } from './simCoverage';
 import {
-  SIM_LIVE_EDGE_LABEL, SIM_LIVE_EDGE_TITLE, SIM_REPLAY_LOADING, SIM_REPLAY_LOADING_TITLE, SIM_SESSION_MINUTES,
+  SIM_LIVE_EDGE_LABEL, SIM_LIVE_EDGE_TITLE, SIM_REPLAY_LOADING, SIM_REPLAY_LOADING_TITLE,
+  SIM_REPLAY_PILL_FAILED_TITLE, SIM_REPLAY_PILL_TITLE, SIM_SESSION_MINUTES,
   SIM_WALL_CLOCK_LABEL, SIM_WALL_CLOCK_TITLE, simCaptureBandTitle,
 } from './simConstants';
 import {
@@ -123,7 +124,7 @@ export function SimSessionStrip() {
         </span>
       ) : offWall || failed ? (
         <button type="button" className={`sim-strip__pill sim-strip__pill--replay${failed ? ' sim-strip__pill--failed' : ''}`}
-          data-testid="sim-strip-replay-state" title={SIM_WALL_CLOCK_TITLE} disabled={busy.has('follow')}
+          data-testid="sim-strip-replay-state" title={failed ? SIM_REPLAY_PILL_FAILED_TITLE : SIM_REPLAY_PILL_TITLE} disabled={busy.has('follow')}
           onClick={() => { void controller.onFollowWall(); }}>
           <i aria-hidden="true" />{failed ? SIM_STRIP_REPLAY_FAILED : clock?.paused ? SIM_STRIP_REPLAY_PAUSED : SIM_STRIP_REPLAY_PLAYING}
         </button>

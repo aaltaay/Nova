@@ -3,10 +3,11 @@
  * price wears, the share ring, the panel header, tone classes and ET time.
  */
 import type { ReactNode } from 'react';
-import { ACCOUNT_EST_CHIP, ACCOUNT_EST_TITLE } from '../constantGroups/account_page';
+import { ACCOUNT_EST_CHIP, ACCOUNT_EST_TITLE, accountOrderStampOtherDay } from '../constantGroups/account_page';
 import { JOURNAL_CALENDAR_TIMEZONE } from '../constantGroups/market_ui';
 import { formatSignedMoney } from '../components/globalBarMoney';
 import { formatMoney } from '../utils/formatMoney';
+import { todayPracticeDate } from './accountFigures';
 import { toneClass, toneOfKind, type MoneyKind, type Tone } from './accountTone';
 
 export { toneClass, toneOf, toneOfKind, type MoneyKind, type Tone } from './accountTone';
@@ -132,6 +133,19 @@ export function etTimeIso(iso: string | null | undefined): string {
   if (!iso) return '—';
   const ms = Date.parse(iso);
   return Number.isFinite(ms) ? ET_TIME.format(new Date(ms)) : '—';
+}
+
+/**
+ * An order row's time: `HH:mm:ss` ET when it belongs to `today` (the practice
+ * day, 04:00 ET rollover), else `Sep 21 17:16:35` -- a bare time read an order
+ * from yesterday as today's (QA W4).
+ */
+export function etOrderStamp(iso: string | null | undefined, today: string | null): string {
+  const time = etTimeIso(iso);
+  if (!iso || time === '—' || !today) return time;
+  const day = todayPracticeDate(new Date(Date.parse(iso)));
+  if (day === today) return time;
+  return accountOrderStampOtherDay(etShortDate(iso) ?? day, time);
 }
 
 /** Short `Mon D` ET label of an ISO timestamp, for "since reset (Sep 18)". */

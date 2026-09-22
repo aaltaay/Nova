@@ -32,6 +32,8 @@ import {
 } from '../constantGroups/trader_chrome';
 import { useLiveScannerFeedOptional } from '../scanner/ScannerDataContext';
 import { useSettingsOptional } from '../settings/SettingsContext';
+import { SIM_FOCUS_RAIL_REPLAY_NOTE } from '../sim/simConstants';
+import { useSimReplayDesk } from '../sim/useSimReplayDesk';
 import { listScannerListModules } from '../workspace/registry';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
@@ -45,6 +47,9 @@ export function FocusRail() {
   const settings = useSettingsOptional();
   const { activeTraderSymbol, traderLiveTabs, openStockView } = useWorkspace();
   const { isAllowed } = useBotAllowlist();
+  // Sim off the live edge replays another moment: today's live price, gap and
+  // news stay off the rows; the list still opens tabs (QA W10).
+  const replayDesk = useSimReplayDesk();
   useSyncExternalStore(subscribeSessionRecord, () => getRecordingSymbols().join(','), () => '');
   const [state, setState] = useState<FocusRailState>(readFocusRailState);
   const [cursor, setCursor] = useState(-1);
@@ -109,6 +114,9 @@ export function FocusRail() {
         </button>
       </div>
       <div className="focus-rail__rows" role="listbox" aria-label={module?.title ?? state.list} data-testid="focus-rail-rows">
+        {replayDesk && feed && rows != null && rows.length > 0 && (
+          <p className="focus-rail__absent" data-testid="focus-rail-replay-note">{SIM_FOCUS_RAIL_REPLAY_NOTE}</p>
+        )}
         {!feed ? (
           <p className="focus-rail__absent" data-testid="focus-rail-absent">{FOCUS_RAIL_NO_FEED}</p>
         ) : rows == null ? (
@@ -138,12 +146,16 @@ export function FocusRail() {
                 )}
               </span>
               <span className="focus-rail__sym">{row.symbol}</span>
-              <span className="focus-rail__px">{row.price != null ? row.price.toFixed(2) : '—'}</span>
-              <span className={`focus-rail__gap focus-rail__gap--${pctTone(row.gapPct)}`}>{formatSignedPct(row.gapPct)}</span>
-              {row.catalyst ? (
-                <span className="focus-rail__chip" title={row.headline ? `${row.catalyst} · ${row.headline}` : row.catalyst}>{row.catalyst}</span>
-              ) : (
-                <span className="focus-rail__chip focus-rail__chip--none">{TRADER_CATALYST_NONE}</span>
+              {!replayDesk && (
+                <>
+                  <span className="focus-rail__px">{row.price != null ? row.price.toFixed(2) : '—'}</span>
+                  <span className={`focus-rail__gap focus-rail__gap--${pctTone(row.gapPct)}`}>{formatSignedPct(row.gapPct)}</span>
+                  {row.catalyst ? (
+                    <span className="focus-rail__chip" title={row.headline ? `${row.catalyst} · ${row.headline}` : row.catalyst}>{row.catalyst}</span>
+                  ) : (
+                    <span className="focus-rail__chip focus-rail__chip--none">{TRADER_CATALYST_NONE}</span>
+                  )}
+                </>
               )}
             </div>
           );

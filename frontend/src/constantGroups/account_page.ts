@@ -101,8 +101,6 @@ export const ACCOUNT_RISK_UNKNOWN = 'No day P&L';
 export const ACCOUNT_RISK_DAY_LOCK = 'Day P&L vs day lock';
 export const accountRiskSoftLine = (usd: string): string => `${usd} soft · flatten, drop to L0`;
 export const accountRiskHardLine = (usd: string): string => `${usd} hard · buys locked to midnight`;
-export const ACCOUNT_RISK_MAX_POSITION = 'Max position';
-export const accountRiskMaxPosition = (held: string, cap: string): string => `${held} / ${cap} sh`;
 export const ACCOUNT_RISK_BREAKERS = 'Breakers';
 export const accountRiskBreakers = (tripped: number, armed: number): string =>
   `${tripped} tripped · ${armed} armed`;
@@ -122,11 +120,15 @@ export const ACCOUNT_PERF_MODE_LABELS: Record<AccountPerfMode, string> = {
   pct: 'P&L %',
   value: 'Account value',
 };
-/** The headline is realized + open P&L (accountFigures.rangeNetPnl), so it says both (QA R20). */
+/**
+ * The headline is realized + open P&L (accountFigures.rangeNetPnl), so it says
+ * both (QA R20) -- and that "open" is the live mark, the same figure Day's P&L
+ * and the Symbol P&L total use (QA W1).
+ */
 export const accountPerfSubtitle = (range: AccountRange, opened: string | null): string =>
   range === 'ALL'
-    ? `Since the ledger opened${opened ? ` · ${opened}` : ''} · realized + open, net of commissions and fees`
-    : `${range} · realized + open, net of commissions and fees`;
+    ? `Since the ledger opened${opened ? ` · ${opened}` : ''} · realized + open at the live mark, net of commissions and fees`
+    : `${range} · realized + open at the live mark, net of commissions and fees`;
 export const ACCOUNT_PERF_LEGEND_MANUAL = 'Manual fill';
 export const ACCOUNT_PERF_LEGEND_BOT = 'Bot fill';
 export const ACCOUNT_PERF_LEGEND_EST = 'all fills';
@@ -170,7 +172,8 @@ export const ACCOUNT_COMP_FEES = 'SEC + FINRA fees';
 export const ACCOUNT_COMP_BOT = 'Bot share of P&L';
 export const accountCompRoundTrips = (n: number): string =>
   n ? `${n} sell${n === 1 ? '' : 's'} · gross, before commissions and fees` : 'no sells in this range';
-export const ACCOUNT_COMP_UNREALIZED_NOTE = 'held positions marked at their last fill price';
+/** Components' Unrealized is the account's live-marked open P&L, like the headline (QA W1). */
+export const ACCOUNT_COMP_UNREALIZED_NOTE = 'open positions at their live mark';
 export const accountCompCommissions = (n: number): string => `${n} fill${n === 1 ? '' : 's'}`;
 export const ACCOUNT_COMP_FEES_NOTE = 'sell-side pass-throughs';
 export const accountCompBotShare = (pct: number | null): string =>
@@ -186,7 +189,8 @@ export const ACCOUNT_CALENDAR_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fr
 export const ACCOUNT_CALENDAR_NO_SESSION = 'no session';
 export const ACCOUNT_CALENDAR_ARCHIVED = 'archived ledger';
 export const ACCOUNT_CALENDAR_THIS_LEDGER = 'this ledger';
-export const ACCOUNT_CALENDAR_BLANK = 'blank = no session';
+/** A blank weekday had no fill -- not "no session" (QA W5); weekends are dimmed and titled "no session". */
+export const ACCOUNT_CALENDAR_BLANK = 'blank = no fills';
 export const ACCOUNT_CALENDAR_EMPTY_MONTH = 'No ledger entries this month';
 
 /* ---------- Ledger ---------- */
@@ -252,6 +256,9 @@ export const ACCOUNT_ORDERS_EMPTY = 'No orders today';
 export const ACCOUNT_FILLS_EMPTY = 'No fills in this range';
 export const ACCOUNT_POS_FOOT =
   "Expired = a DAY order the session closed on at 20:00 ET; GTC orders persist. est = filled by Nova's practice broker (Paper: the live feed; Sim: the replay), never an IBKR fill.";
+/** On Sim a DAY order expires at the replayed window's end, not 20:00 ET (QA W25). */
+export const ACCOUNT_POS_FOOT_SIM =
+  "Expired = a DAY order the replayed window closed on at its end; GTC orders persist. est = filled by Nova's practice broker against the replay, never an IBKR fill.";
 export const ACCOUNT_POS_FOOT_LIVE = 'Working and closed orders as IBKR reports them for this session.';
 
 /* ---------- Live absence / states ---------- */
@@ -267,11 +274,50 @@ export const ACCOUNT_SIM_NOTHING_LOADED = 'Sim: nothing loaded · the scratch ac
 export const ACCOUNT_WARNINGS_PREFIX = 'Archive warnings:';
 
 /* ---------- QA batch: orders / account / safety (2026-09-22) ---------- */
-/** Max position with no bot session to read the cap from -- never the product ceiling (C35). */
-export const accountRiskMaxPositionNoCap = (held: string): string =>
-  `${held} sh · cap unavailable (bot session unavailable)`;
 /** Orders (Today) PRICE cell for an order with no price to show (a market order, unfilled) (V32). */
 export const ACCOUNT_PRICE_NONE = '—';
 export const ACCOUNT_PRICE_NONE_TITLE = 'Market order -- no limit price, and no fill price yet';
 /** A history answer with no `components` -- the money itself is missing (C11). */
 export const ACCOUNT_HISTORY_UNREADABLE = 'Nova answered an unreadable ledger history';
+
+/* ---------- QA batch fix/qa2-account-practice-sim (2026-09-22) ---------- */
+/**
+ * Orders / Fills Source for the ADR 007 sources that are not manual / bot /
+ * auto_paper -- each row names its own stamp, never a blanket "Nova" (QA W9).
+ * `venue` is the practice broker's own cancel (buying power ran out at the fill).
+ */
+export const ACCOUNT_SOURCE_OTHER_LABELS: Record<string, string> = {
+  flatten: 'Flatten',
+  kill: 'KILL',
+  cancel_working: 'Cancel working',
+  approve: 'Approve',
+  benchmark: 'Benchmark',
+  venue: 'Practice broker',
+  nova: 'Nova',
+  ibkr: 'IBKR',
+};
+/** Live Fills: IBKR's order rows, one per filled order (QA W17). */
+export const ACCOUNT_FILLS_FOOT_LIVE =
+  "Live fills: one row per filled order at IBKR's average fill price, with the commission IBKR reported. Regulatory fees are not split out by IBKR.";
+export const ACCOUNT_COMMISSIONS_PENDING_LIVE = 'IBKR has not reported every commission yet';
+/**
+ * Live Day's P&L is IBKR's RealizedPnL + UnrealizedPnL; the unrealized runs
+ * from each position's cost, not from the day start (QA W18). Said, not hidden.
+ */
+export const ACCOUNT_DAY_PNL_LIVE_NOTE =
+  "Live Day's P&L = IBKR realized today + open P&L from each position's cost: a position carried overnight counts its whole open P&L, not only today's move.";
+/**
+ * Risk: the bot's max-shares cap is the size of each bot order, not a position
+ * limit, so it is shown as that and the largest position is labelled as every
+ * source's (QA W11) -- the old "300 / 1 sh" meter compared the two.
+ */
+export const ACCOUNT_RISK_BOT_ORDER_SIZE = 'Bot order size';
+export const accountRiskBotOrderSize = (cap: string): string => `${cap} sh per bot order`;
+export const ACCOUNT_RISK_BOT_ORDER_SIZE_NONE = 'unavailable · bot session unavailable';
+export const ACCOUNT_RISK_LARGEST_POSITION = 'Largest position';
+export const accountRiskLargestPosition = (held: string, symbol: string | null): string =>
+  held === '0' || !symbol ? 'flat · every source' : `${held} sh ${symbol} · every source`;
+/** The sample desk's account is Nova Marketing Sample Data, not IBKR (QA W31). */
+export const ACCOUNT_TAG_SAMPLE = 'Sample';
+/** Orders (Today): a working order from an earlier day shows its date (QA W4). */
+export const accountOrderStampOtherDay = (date: string, time: string): string => `${date} ${time}`;

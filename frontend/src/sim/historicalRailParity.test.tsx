@@ -6,7 +6,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeDetail } from '../modules/quoteFixtures';
 import { StockViewDepthTape } from '../stock_view/StockViewDepthTape';
-import { historicalQuoteDetail } from './historicalQuoteDetail';
+import { captureQuoteDetail, historicalQuoteDetail } from './historicalQuoteDetail';
+import type { SimClockState } from './simClockTypes';
 import type { HistoricalSnapshot } from './useHistoricalSnapshot';
 
 const hooks = vi.hoisted(() => ({
@@ -151,9 +152,10 @@ describe('historical replay keeps the live Stock Quote structure', () => {
 describe('historicalQuoteDetail', () => {
   it('shows replay prices only, keeping fundamentals of the same ticker', () => {
     const live = makeDetail({ symbol: 'SPY', rel_volume: 3.2 });
-    const out = historicalQuoteDetail(live, replaySnapshot());
+    const out = historicalQuoteDetail(live, replaySnapshot({ session_open: 762.1, stats_scope: 'session' }));
     expect(out.snapshot.latest_trade?.price).toBe(763);
-    expect(out.snapshot.daily_bar).toMatchObject({ open: 762.5, high: 763.2, low: 762.4, volume: 47784 });
+    // Gap% reads the session's open, never the window's first print (QA W7).
+    expect(out.snapshot.daily_bar).toMatchObject({ open: 762.1, high: 763.2, low: 762.4, volume: 47784 });
     expect(out.snapshot.prev_close).toBe(760);
     expect(out.snapshot.latest_quote).toBeNull();
     expect(out.rel_volume).toBeNull();
@@ -166,5 +168,51 @@ describe('historicalQuoteDetail', () => {
     const out = historicalQuoteDetail(makeDetail({ symbol: 'AAPL' }), replaySnapshot());
     expect(out.symbol).toBe('SPY');
     expect(out.fundamentals).toBeNull();
+  });
+
+  it('a midday window states the session figures it cannot know instead of passing its own off (QA W7)', () => {
+    // GRML Sep 21, window 13:00-13:30: open 9.22 is the window's first print; 09:30 was not downloaded.
+    const out = historicalQuoteDetail(
+      makeDetail({ symbol: 'GRML' }),
+      replaySnapshot({ symbol: 'GRML', open: 9.22, high: 9.63, low: 9.02, volume: 812_340, prev_close: 2.85,
+        session_open: null, stats_scope: 'window' }),
+    );
+    expect(out.snapshot.daily_bar).toMatchObject({ open: null, high: null, low: null, volume: null });
+    expect(out.snapshot.prev_close).toBe(2.85);
+    // With the stored 09:30 bar the gap is the session's +156.49%, not +223.51%.
+    const known = historicalQuoteDetail(
+      makeDetail({ symbol: 'GRML' }),
+      replaySnapshot({ symbol: 'GRML', open: 9.22, prev_close: 2.85, session_open: 7.31, stats_scope: 'window' }),
+    );
+    const open = known.snapshot.daily_bar?.open ?? 0;
+    expect(((open - 2.85) / 2.85) * 100).toBeCloseTo(156.49, 2);
+  });
+});
+
+describe('captureQuoteDetail (QA W8)', () => {
+  const clock = (quote: SimClockState['replay_quote']): SimClockState => ({
+    sim: true, live_edge: false, replay_source: 'capture', replay_symbol: 'GRML', replay_quote: quote,
+  });
+
+  it('never carries the live ticker\'s volume, high, low or open into a recording replay', () => {
+    const live = makeDetail({ symbol: 'GRML', rel_volume: 12 });
+    live.snapshot.daily_bar = { open: 10.2, high: 10.9, low: 9.8, close: 10.46, volume: 3_502_196, trade_count: null, vwap: null, timestamp: null };
+    const out = captureQuoteDetail(live, clock({
+      symbol: 'GRML', ts: 1_790_010_000, covered: true, last: 8.84, bid: 8.82, ask: 8.85, bid_size: 100, ask_size: 200, prev_close: 2.85,
+    }), 'GRML');
+    expect(out.snapshot.daily_bar).toBeNull();
+    expect(out.rel_volume).toBeNull();
+    expect(out.snapshot.latest_trade?.price).toBe(8.84);
+    expect(out.snapshot.latest_quote).toMatchObject({ bid_price: 8.82, ask_price: 8.85 });
+    expect(out.snapshot.prev_close).toBe(2.85);
+  });
+
+  it('inside a recording gap there is no price either', () => {
+    const out = captureQuoteDetail(makeDetail({ symbol: 'GRML' }), clock({
+      symbol: 'GRML', ts: null, covered: false, last: null, bid: null, ask: null, bid_size: null, ask_size: null, prev_close: 2.85,
+    }), 'GRML');
+    expect(out.snapshot.latest_trade).toBeNull();
+    expect(out.snapshot.latest_quote).toBeNull();
+    expect(out.snapshot.daily_bar).toBeNull();
   });
 });

@@ -23,13 +23,21 @@ import {
   SIM_REPLAY_L2_RECORDED_VALUE,
 } from './simConstants';
 import type { HistoricalDepthBook } from './historicalTypes';
+import { useHistoricalDepthLine } from './useHistoricalDepthLine';
 
 interface Props {
   /** The recorded book at the playhead, or null when none was recorded. */
   depth?: HistoricalDepthBook | null;
+  /**
+   * The loaded historical window's symbol when this panel is its Level 2: the
+   * panel then holds the replay depth slot a bot's gate reads (QA R44). A
+   * capture gap renders this panel without one.
+   */
+  holdLineFor?: string | null;
 }
 
-export function HistoricalDepth({ depth = null }: Props) {
+export function HistoricalDepth({ depth = null, holdLineFor = null }: Props) {
+  useHistoricalDepthLine(holdLineFor ?? '', Boolean(holdLineFor));
   return (
     <div className="das-l2" data-testid="historical-l2" data-depth-source={depth?.source ?? 'none'}>
       {depth ? (

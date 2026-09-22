@@ -22,6 +22,7 @@ from sim import history_coverage as coverage, history_depth, history_sides
 from sim import history_store as store
 from sim.chart_replay import INTERVAL_SECONDS
 from sim.history_cache import CandleCache, previous_close
+from sim.history_session import session_open as _session_open, stats_scope as _stats_scope
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,8 @@ class Selection:
     lows: array
     prev_close: float | None
     candles: CandleCache
+    #: ``(ts, price)`` of the regular session's open (W7), or None when unknown.
+    session_open: tuple[float, float] | None = None
 
 
 _selection: Selection | None = None
@@ -131,7 +134,8 @@ def _load(spec: dict) -> Selection:
     prints, eligible_keys = tuple(rows), array('q', (row['ts'] for row in eligible))
     return Selection(selected, prints, array('q', (row['ts'] for row in rows)), eligible,
                      eligible_keys, volumes, highs, lows, previous_close(spec['symbol'], spec),
-                     CandleCache(selected, prints, eligible, eligible_keys))
+                     CandleCache(selected, prints, eligible, eligible_keys),
+                     _session_open(selected, eligible, eligible_keys, ranges))
 
 
 def select(spec: dict):
@@ -197,12 +201,17 @@ def snapshot(symbol: str):
     selection = with_live_download_status(dict(spec)) if symbol == spec['symbol'] else dict(spec)
     result = dict(active=symbol == spec['symbol'], symbol=symbol, as_of=now.isoformat(),
                   selection=selection, prints=[], last=None, volume=None, source='completed_bars',
-                  open=None, high=None, low=None, prev_close=None,
-                  bid=None, ask=None, depth_available=False, depth=None, sides_recorded=0)
+                  open=None, high=None, low=None, prev_close=None, session_open=None,
+                  stats_scope='window', bid=None, ask=None, depth_available=False, depth=None,
+                  sides_recorded=0)
     if not result['active']:
         return result
     result['prev_close'] = selected.prev_close
     cutoff = min(now.timestamp(), spec['end_ts'])
+    # The regular session's open once the playhead has reached it -- never the
+    # window's first print, which made a 13:00 window's Gap% 223% (W7).
+    if selected.session_open is not None and cutoff >= selected.session_open[0]:
+        result['session_open'] = selected.session_open[1]
     # Is the playhead's own second downloaded? Past the edge or in a gap it is not,
     # and the tape must not pass older prints off as this moment's. The window is
     # half-open, so at its end the playhead reads the window's last second -- a
@@ -247,4 +256,5 @@ def snapshot(symbol: str):
                           # Trades exist for this selection even when this second
                           # has none; only a trade-less selection is candles-only.
                           source='mixed' if selected.prints else 'completed_bars')
+    result['stats_scope'] = _stats_scope(spec, result['source'], in_range)
     return result

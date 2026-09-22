@@ -30,6 +30,7 @@ import {
   subscribeSessionRecord,
 } from '../capture/sessionRecordStore';
 import { useScannerDockRows } from '../scanner/useScannerDockRows';
+import { useSimReplayDesk } from '../sim/useSimReplayDesk';
 import { StockViewTab } from './StockViewTab';
 import { tabContextFor } from './tabContext';
 import { TRADER_DRAFT_SYMBOL } from './traderTabsState';
@@ -67,6 +68,8 @@ export function StockViewTabStrip({
   const tabsRef = useRef<HTMLDivElement>(null);
   const overflowRef = useRef<HTMLDivElement>(null);
   const scannerRows = useScannerDockRows();
+  // Off the live edge the Sim desk is another day: no live gap / news chip (QA W10).
+  const replayDesk = useSimReplayDesk();
   // Re-render when the recording set changes; isTabRecording reads the store.
   useSyncExternalStore(subscribeSessionRecord, () => getRecordingSymbols().join(','), () => '');
   const overflowing = useStripOverflow(tabsRef, [tabs.join(','), active, Boolean(trailing)]);
@@ -151,7 +154,7 @@ export function StockViewTabStrip({
                 isDraft={isDraft}
                 suspended={suspended}
                 recording={recording}
-                context={isDraft ? null : tabContextFor(symbol, scannerRows)}
+                context={isDraft || replayDesk ? null : tabContextFor(symbol, scannerRows)}
                 showDock={showDock && Boolean(onDock)}
                 showExtract={showExtract}
                 editing={isEditing}

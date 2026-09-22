@@ -43,6 +43,9 @@ def to_dict(ledger: Ledger) -> dict[str, Any]:
         "schema_version": PRACTICE_LEDGER_SCHEMA_VERSION,
         "starting_cash": ledger.starting_cash,
         "created_ts": ledger.created_ts,
+        # Additive and optional (a file without it reads as 1): a reset ledger
+        # keeps numbering after its archived predecessor across a restart (QA R41).
+        "first_order_id": ledger.first_order_id,
         "events": [dict(e) for e in ledger.events],
     }
 
@@ -72,6 +75,7 @@ def from_dict(data: Any) -> Ledger:
             float(data.get("starting_cash")),
             created_ts=float(data.get("created_ts")),
             events=events,
+            first_order_id=int(data.get("first_order_id") or 1),
         )
     except (TypeError, ValueError, KeyError) as exc:
         raise LedgerSchemaError(f"practice ledger body is malformed: {exc}") from exc

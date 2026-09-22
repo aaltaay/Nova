@@ -42,7 +42,7 @@ import { isBotFill, rangeNetPnl, sourceCards, symbolPnlRows } from './accountFig
 import type { PracticeHistory } from './accountHistoryTypes';
 import type { AccountPosition } from './accountPositions';
 import { EquityCurve, type CurveMarker } from './EquityCurve';
-import { equitySeries, seriesBaseline } from './equityPath';
+import { rangeSeries, tickDecimals } from './equityPath';
 
 export type PerfTab = 'account' | 'symbol' | 'source';
 
@@ -58,8 +58,10 @@ interface Props {
   tab: PerfTab;
   onTab: (tab: PerfTab) => void;
   nowTs: number;
-  /** Total account value, for the P&L % base. */
+  /** Total account value, for the P&L % base and the value curve's live end. */
   netLiquidation: number | null;
+  /** The account's open P&L at the live mark -- the headline's "open" (QA W1). */
+  openPnl: number | null;
 }
 
 const TABS: Array<[PerfTab, string]> = [
@@ -73,25 +75,40 @@ const TABS: Array<[PerfTab, string]> = [
  * loaded: a missing net liquidation is not zero, and treating it as zero read
  * as "-100.00%" for any loss (C47).
  */
-export function rangePnlPercent(net: number, netLiquidation: number | null): number | null {
-  if (netLiquidation == null || !Number.isFinite(netLiquidation)) return null;
+export function rangePnlPercent(net: number | null, netLiquidation: number | null): number | null {
+  if (net == null || netLiquidation == null || !Number.isFinite(netLiquidation)) return null;
   const base = netLiquidation - net;
   return base > 0 ? (net / base) * 100 : null;
 }
 
-function bigNumber(history: PracticeHistory, mode: AccountPerfMode, netLiquidation: number | null): string {
-  const net = rangeNetPnl(history.components);
-  if (mode === 'value') return formatMoney(netLiquidation ?? history.equity[history.equity.length - 1]?.net_liquidation);
+function bigNumber(net: number | null, mode: AccountPerfMode, netLiquidation: number | null): string {
+  if (mode === 'value') return formatMoney(netLiquidation);
   if (mode === 'pct') return formatSignedPercent(rangePnlPercent(net, netLiquidation));
   return formatSignedMoney(net);
 }
 
+/** Axis labels: whole dollars / tenths of a percent, cents when the ticks are closer (W13 / W26). */
+export function perfTick(mode: AccountPerfMode, value: number, step: number): string {
+  if (mode === 'pct') return `${value.toFixed(tickDecimals(step, 'pct'))}%`;
+  const d = tickDecimals(step, 'money');
+  if (mode === 'value') return value.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+  return formatSignedMoney(value, d);
+}
+
+/** The curve's end tag: the headline's own precision, never rounded to a dollar (W13). */
+function perfLastLabel(mode: AccountPerfMode, value: number): string {
+  if (mode === 'pct') return formatSignedPercent(value);
+  if (mode === 'value') return formatMoney(value);
+  return formatSignedMoney(value);
+}
+
 export function PerformancePanel({
-  history, absence, positions, range, onRange, mode, onMode, tab, onTab, nowTs, netLiquidation,
+  history, absence, positions, range, onRange, mode, onMode, tab, onTab, nowTs, netLiquidation, openPnl,
 }: Props) {
-  const net = history ? rangeNetPnl(history.components) : null;
-  const series = history ? equitySeries(history.equity, mode, history.starting_cash) : [];
-  const baseline = history ? seriesBaseline(mode, history.starting_cash) : 0;
+  const net = history ? rangeNetPnl(history.components, openPnl) : null;
+  const { series, baseline } = history
+    ? rangeSeries(history, mode, { openPnl, netLiquidation }, nowTs)
+    : { series: [], baseline: 0 };
   const markers: CurveMarker[] = history
     ? history.fills.map((f) => ({
         ts: f.ts,
@@ -103,8 +120,7 @@ export function PerformancePanel({
     ? etShortDate(history.archives[history.archives.length - 1].closed_at)
     : null;
   const botIds = history ? [...new Set(history.fills.filter(isBotFill).map((f) => f.bot_id).filter(Boolean))] : [];
-  const formatTick = (v: number): string =>
-    mode === 'pct' ? `${v.toFixed(1)}%` : mode === 'value' ? Math.round(v).toLocaleString('en-US') : formatSignedMoney(v, 0);
+  const formatTick = (v: number, step: number): string => perfTick(mode, v, step);
 
   return (
     <section className="acct-panel acct-panel--perf" data-testid="account-performance" aria-label={ACCOUNT_PERF_TITLE}>
@@ -135,7 +151,7 @@ export function PerformancePanel({
         <>
           <div className="acct-perf__top">
             <span className={`acct-hero__big acct-num ${mode === 'value' ? '' : toneClass(toneOf(net))}`} data-testid="account-perf-big">
-              {bigNumber(history, mode, netLiquidation)}
+              {bigNumber(net, mode, netLiquidation)}
             </span>
             <span className="acct-muted">{accountPerfSubtitle(range, etShortDate(history.ledger_opened_at))}</span>
             <div className="acct-ranges acct-ranges--right" role="tablist">
@@ -150,7 +166,7 @@ export function PerformancePanel({
           {tab === 'account' && (
             series.length ? (
               <>
-                <EquityCurve series={series} baseline={baseline} endTs={nowTs} formatTick={formatTick} lastLabel={series.length ? formatTick(series[series.length - 1].value) : null} markers={markers} height={150} padLeft={48} testId="account-perf-curve" />
+                <EquityCurve series={series} baseline={baseline} endTs={nowTs} formatTick={formatTick} lastLabel={series.length ? perfLastLabel(mode, series[series.length - 1].value) : null} markers={markers} height={150} padLeft={56} testId="account-perf-curve" />
                 <div className="acct-clegend">
                   <span><i className="acct-sw is-accent" />{ACCOUNT_PERF_LEGEND_MANUAL}</span>
                   <span><i className="acct-sw is-bot" />{ACCOUNT_PERF_LEGEND_BOT}{botIds.length ? ` · ${botIds.join(', ')}` : ''}</span>

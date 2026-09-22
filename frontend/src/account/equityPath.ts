@@ -1,12 +1,16 @@
 /**
  * SVG geometry for the equity / P&L line. Pure.
  *
- * The series is event-marked (one point after every fill and rollover), so
+ * The history is event-marked (one point after every fill and rollover), so
  * the value HOLDS between events: the line is a step, never a slope drawn
  * between two events, and the last value extends flat to the right edge.
+ * The curve is the selected range's (QA W13): P&L counts from the range's
+ * start, not from the day the ledger opened, and its last point is the
+ * account's live mark at the venue's now -- the same figure as the headline
+ * and Day's P&L -- rather than positions priced at their last fill (QA W1).
  */
 import type { AccountPerfMode } from '../constantGroups/account_page';
-import type { EquityPoint } from './accountHistoryTypes';
+import type { PracticeHistory } from './accountHistoryTypes';
 
 export interface SeriesPoint {
   ts: number;
@@ -18,10 +22,66 @@ export interface LineGeometry {
   area: string;
   min: number;
   max: number;
-  /** Y of the baseline (0 for P&L modes, starting cash for value) when inside the range. */
+  /** Y of the baseline (0 for P&L modes, the range's opening value for value) when inside the range. */
   baselineY: number | null;
   last: { x: number; y: number; value: number } | null;
   ticks: Array<{ y: number; value: number }>;
+  /** The tick step, so labels carry the decimals the step needs (W26). */
+  step: number;
+}
+
+/** What the account payload says now: open P&L and net liquidation at the live mark. */
+export interface LiveMarks {
+  openPnl: number | null;
+  netLiquidation: number | null;
+}
+
+const finiteOrNull = (n: number | null | undefined): number | null =>
+  n == null || !Number.isFinite(n) ? null : n;
+
+/**
+ * The curve for one display mode over the selected range.
+ *
+ * P&L: realized since the range began plus open P&L -- each event point's
+ * cumulative realized less what was realized before the range, plus its open
+ * P&L -- ending at `components.realized + live open P&L` (the headline).
+ * P&L %: the same over the value the range started from. Value: net
+ * liquidation, ending at the live figure; its baseline is the value before
+ * the range's P&L, so the value and P&L curves are the same line.
+ */
+export function rangeSeries(
+  history: PracticeHistory,
+  mode: AccountPerfMode,
+  live: LiveMarks,
+  nowTs: number,
+): { series: SeriesPoint[]; baseline: number } {
+  const points = history.equity;
+  const realizedBefore = points.length
+    ? points[points.length - 1].realized - history.components.realized
+    : 0;
+  const rangeBase = history.starting_cash + realizedBefore;
+  const lastTs = points.length ? points[points.length - 1].ts : null;
+  const append = (series: SeriesPoint[], value: number | null): SeriesPoint[] =>
+    value != null && lastTs != null && nowTs >= lastTs ? [...series, { ts: nowTs, value }] : series;
+  if (mode === 'value') {
+    const series = points.map((p) => ({ ts: p.ts, value: p.net_liquidation }));
+    return { series: append(series, finiteOrNull(live.netLiquidation)), baseline: rangeBase };
+  }
+  const open = finiteOrNull(live.openPnl);
+  const pnl = append(
+    points.map((p) => ({ ts: p.ts, value: p.realized - realizedBefore + p.unrealized })),
+    open == null ? null : history.components.realized + open,
+  );
+  if (mode === 'pnl') return { series: pnl, baseline: 0 };
+  if (!(rangeBase > 0)) return { series: [], baseline: 0 };
+  return { series: pnl.map((p) => ({ ts: p.ts, value: (p.value / rangeBase) * 100 })), baseline: 0 };
+}
+
+/** Decimals a tick label needs at `step`: money shows cents under a dollar (W26). */
+export function tickDecimals(step: number, kind: 'money' | 'pct'): number {
+  if (!(step > 0) || step >= 1) return 0;
+  if (kind === 'money') return 2;
+  return step >= 0.1 ? 1 : step >= 0.01 ? 2 : 3;
 }
 
 export interface Frame {
@@ -32,22 +92,6 @@ export interface Frame {
   padTop: number;
   padBottom: number;
 }
-
-/** Map equity points to the chart's series for one display mode. */
-export function equitySeries(points: EquityPoint[], mode: AccountPerfMode, startingCash: number): SeriesPoint[] {
-  return points.map((p) => ({
-    ts: p.ts,
-    value:
-      mode === 'value'
-        ? p.net_liquidation
-        : mode === 'pct'
-          ? startingCash > 0 ? ((p.net_liquidation - startingCash) / startingCash) * 100 : 0
-          : p.net_liquidation - startingCash,
-  }));
-}
-
-export const seriesBaseline = (mode: AccountPerfMode, startingCash: number): number =>
-  mode === 'value' ? startingCash : 0;
 
 /** A "nice" tick step covering roughly `target` ticks across `span`. */
 export function niceStep(span: number, target = 3): number {
@@ -65,7 +109,7 @@ export function lineGeometry(
   baseline: number,
   endTs: number | null = null,
 ): LineGeometry {
-  const empty: LineGeometry = { line: '', area: '', min: 0, max: 0, baselineY: null, last: null, ticks: [] };
+  const empty: LineGeometry = { line: '', area: '', min: 0, max: 0, baselineY: null, last: null, ticks: [], step: 1 };
   if (!series.length) return empty;
   const values = series.map((p) => p.value);
   let min = Math.min(...values, baseline);
@@ -114,6 +158,7 @@ export function lineGeometry(
     baselineY: baseline >= min && baseline <= max ? baseY : null,
     last: { x: lastX, y: Y(last.value), value: last.value },
     ticks,
+    step,
   };
 }
 

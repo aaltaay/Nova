@@ -5,12 +5,30 @@
  * Covers every terminal status in IBKR_CLOSED_ORDER_STATUSES:
  * Filled, Cancelled, ApiCancelled, Inactive — including cancel-after-partial.
  *
- * Time Placed (`submitted_at`) is always a fixed absolute ISO string.
- * Never call Date.now() / toISOString() inside buildMockClosedOrders — the
- * sample list rebuilds on poll/render and would make stamps crawl.
+ * Time Placed (`submitted_at`) is always a fixed absolute ISO string -- the
+ * recent-highlight row 9008's is frozen once at module load, 2.1 s before its
+ * fill (QA W31). Never call Date.now() / toISOString() inside
+ * buildMockClosedOrders — the sample list rebuilds on poll/render and would
+ * make stamps crawl.
  */
 
+import { samplePriceAt } from '../ibkr/mockWorkingOrders';
 import type { ClosedOrder } from './types';
+
+/**
+ * Activity stamp for row 9008 — frozen once per JS module load so rebuilds
+ * do not crawl milliseconds. Used only for the “recent completion” highlight.
+ */
+const MOCK_RECENT_ACTIVITY_AT = new Date().toISOString();
+/**
+ * 9008 is placed 2.1 s before that activity -- its own fill audit's
+ * place-to-fill -- so the demo row never reads "placed Jul 18, filled just
+ * now" (QA W31). Frozen at module load like the activity stamp.
+ */
+const MOCK_RECENT_PLACED_AT = new Date(Date.parse(MOCK_RECENT_ACTIVITY_AT) - 2_100).toISOString();
+
+/** The price the closed sample set is written around. */
+const MOCK_CLOSED_ANCHOR = 12.5;
 
 /** Terminal IBKR statuses for Closed Orders (mirrors backend constants_ibkr). */
 export const MOCK_CLOSED_IBKR_STATUSES = [
@@ -58,21 +76,30 @@ export const MOCK_CLOSED_TIMES = {
     updated_at: '2026-07-18T13:12:00.000Z',
     filled_at: null,
   },
-  /** Fixed Time Placed for the recent-highlight demo row. */
+  /** Time Placed for the recent-highlight demo row: 2.1 s before its fill, frozen at load. */
   9008: {
-    submitted_at: '2026-07-18T13:20:00.000Z',
-    updated_at: '2026-07-18T13:21:00.000Z',
+    submitted_at: MOCK_RECENT_PLACED_AT,
+    updated_at: MOCK_RECENT_ACTIVITY_AT,
   },
 } as const;
 
 /**
- * Activity stamp for row 9008 — frozen once per JS module load so rebuilds
- * do not crawl milliseconds. Used only for the “recent completion” highlight.
+ * The closed sample set for `symbol`; `anchor` (its own price) moves the
+ * sample prices next to it, so a $4.25 stock's sample fills are not at $12.48.
  */
-const MOCK_RECENT_ACTIVITY_AT = new Date().toISOString();
-
-export function buildMockClosedOrders(symbol?: string | null): ClosedOrder[] {
+export function buildMockClosedOrders(symbol?: string | null, anchor?: number | null): ClosedOrder[] {
   const sym = (symbol?.trim() || 'DEMO').toUpperCase();
+  const rows = writtenRows(sym);
+  if (anchor == null) return rows;
+  return rows.map((row) => (row.symbol !== sym ? row : {
+    ...row,
+    limit_price: samplePriceAt(row.limit_price, MOCK_CLOSED_ANCHOR, anchor),
+    stop_price: samplePriceAt(row.stop_price ?? null, MOCK_CLOSED_ANCHOR, anchor),
+    avg_fill_price: samplePriceAt(row.avg_fill_price ?? null, MOCK_CLOSED_ANCHOR, anchor),
+  }));
+}
+
+function writtenRows(sym: string): ClosedOrder[] {
   return [
     {
       order_id: 9001,

@@ -55,6 +55,17 @@ describe('buildMockClosedOrders', () => {
     expect(age).toBeLessThan(60_000);
   });
 
+  it('the just-completed demo row was placed 2.1 s before its fill, never "Jul 18, filled just now" (QA W31)', () => {
+    const row = buildMockClosedOrders('DEMO').find((r) => r.order_id === 9008)!;
+    expect(Date.parse(row.filled_at!) - Date.parse(row.submitted_at!)).toBe(2_100);
+  });
+
+  it('anchored to the sample symbol, its own rows sit next to its price; another symbol keeps its own', () => {
+    const rows = buildMockClosedOrders('SMPL', 4.25);
+    expect(rows.find((r) => r.order_id === 9001)!.avg_fill_price).toBeCloseTo(4.24, 2);
+    expect(rows.find((r) => r.order_id === 9003)!.limit_price).toBe(400); // the MSFT row
+  });
+
   it('sample fill_audit is fixture-only -- 9002 ok, 9008 warn, others missing', () => {
     const rows = buildMockClosedOrders('DEMO');
     const ok = rows.find((r) => r.order_id === 9002);

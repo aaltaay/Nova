@@ -108,4 +108,34 @@ describe('estimateTicketCost', () => {
     expect(estimateTicketCost(BASE, { ...CTX, marketReferencePrice: null }, { forceQty: null },
       { practice: true, priceNote: SIM_REPLAY_PRICE_NONE }).cost).toBe(890);
   });
+
+  it('prices a Market order at the far side of the quote, where it fills (QA R36)', () => {
+    // Capture at 12:36: last 8.82, bid 8.81, ask 8.84 -- the buy fills at the ask.
+    const mkt = { ...BASE, orderType: 'MKT' as const };
+    const buy = estimateTicketCost(mkt, { ...CTX, marketReferencePrice: 8.82 }, { forceQty: null }, { marketFillPrice: 8.84 });
+    expect(buy.price).toBe(8.84);
+    expect(buy.cost).toBeCloseTo(884, 6);
+    // A limit stays at its limit; no quote leaves the Market order at the reference.
+    expect(estimateTicketCost(BASE, CTX, { forceQty: null }, { marketFillPrice: 8.84 }).price).toBe(8.9);
+    expect(estimateTicketCost(mkt, { ...CTX, marketReferencePrice: 8.82 }, { forceQty: null }, { marketFillPrice: null }).price).toBe(8.82);
+  });
+
+  it('on a practice venue BP after follows the ledger: fees out of equity, the fill re-marks the position (QA W28)', () => {
+    const buy = estimateTicketCost(
+      { ...BASE, symbol: 'TOPS', limitPrice: '1.49' },
+      { marketReferencePrice: 1.49, buyingPower: 399_573, positionQty: null },
+      { forceQty: null },
+      { practice: true, ledger: { netLiquidation: 100_020, grossPositionValue: 507, heldMark: null } },
+    );
+    // (100,020 - $1.00 commission) x 4 - (507 + 149) = 399,420
+    expect(buy.buyingPowerAfter).toBeCloseTo(399_420, 6);
+    // Live keeps IBKR's own rule out of reach: BP - cost.
+    const live = estimateTicketCost(
+      { ...BASE, symbol: 'TOPS', limitPrice: '1.49' },
+      { marketReferencePrice: 1.49, buyingPower: 399_573, positionQty: null },
+      { forceQty: null },
+      { practice: false, ledger: { netLiquidation: 100_020, grossPositionValue: 507, heldMark: null } },
+    );
+    expect(live.buyingPowerAfter).toBeCloseTo(399_573 - 149, 6);
+  });
 });

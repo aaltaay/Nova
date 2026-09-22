@@ -1,9 +1,13 @@
 /**
  * Right bottom -- Positions | Orders (Today) | Fills with Nova's own statuses.
  * Filters are Working / Filled / Canceled / Expired / All with counts;
- * Expired is the DAY order expiry at 20:00 ET and the footer says so.
+ * Expired is the DAY order expiry (20:00 ET on Paper, the replayed window's
+ * end on Sim) and the footer says which. Every order row names its own source
+ * stamp (QA W9); a working order from an earlier day shows its date (W4). On
+ * Live the Fills tab reads IBKR's filled orders (W17).
  */
 import { useState } from 'react';
+import type { DeskVenue } from '../constantGroups/desk_venue';
 import {
   ACCOUNT_COL_AVG,
   ACCOUNT_COL_COMM,
@@ -20,12 +24,14 @@ import {
   ACCOUNT_COL_TYPE,
   ACCOUNT_COL_UNREALIZED,
   ACCOUNT_FILLS_EMPTY,
+  ACCOUNT_FILLS_FOOT_LIVE,
   ACCOUNT_ORDERS_EMPTY,
   ACCOUNT_ORDER_FILTERS,
   ACCOUNT_ORDER_FILTER_LABELS,
   ACCOUNT_POSITIONS_EMPTY,
   ACCOUNT_POS_FOOT,
   ACCOUNT_POS_FOOT_LIVE,
+  ACCOUNT_POS_FOOT_SIM,
   ACCOUNT_POS_TAB_FILLS,
   ACCOUNT_POS_TAB_ORDERS,
   ACCOUNT_POS_TAB_POSITIONS,
@@ -38,19 +44,38 @@ import { orderRowKeys, uniqueOrders } from '../ibkr/orderIdentity';
 import type { IbkrOrder } from '../ibkr/types';
 import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
-import { EstChip, Money, etTime, etTimeIso } from './accountBits';
+import { EstChip, Money, etOrderStamp, etTime } from './accountBits';
 import { sourceKind, sourceLabel } from './accountFigures';
-import type { HistoryFill } from './accountHistoryTypes';
+import type { AccountFillRow } from './accountLive';
 import type { AccountPosition } from './accountPositions';
 
 export type PosTab = 'positions' | 'orders' | 'fills';
 
 interface Props {
   practice: boolean;
+  /** Which footer the Expired rule reads (Sim: the replayed window's end). */
+  venue?: DeskVenue;
   positions: AccountPosition[];
   working: IbkrOrder[];
   closed: IbkrOrder[];
-  fills: HistoryFill[];
+  fills: AccountFillRow[];
+  /** Today's practice date (YYYY-MM-DD); rows from another day show their date. */
+  today?: string | null;
+}
+
+/**
+ * The Source cell: the row's own ADR 007 stamp (practice rows carry
+ * `order_source` / `bot_id`), else a fill's, else who placed it on Live --
+ * never a blanket "Nova" for a working or out-of-range order (QA W9).
+ */
+export function orderSourceCell(order: IbkrOrder, fill: { source: string | null; botId: string | null } | undefined): { label: string; bot: boolean } {
+  const stamped = typeof order.order_source === 'string' && order.order_source ? order.order_source : null;
+  const source = stamped ?? fill?.source ?? null;
+  const botId = (typeof order.bot_id === 'string' && order.bot_id) || fill?.botId || null;
+  if (source) return { label: sourceLabel(source, botId), bot: sourceKind(source) === 'bot' || botId != null };
+  if (order.source === 'ib_recovered') return { label: sourceLabel('ibkr', null), bot: false };
+  if (order.source === 'nova') return { label: sourceLabel('nova', null), bot: false };
+  return { label: '—', bot: false };
 }
 
 export type OrderBucket = 'working' | 'filled' | 'canceled' | 'expired';
@@ -92,17 +117,20 @@ function orderTs(order: IbkrOrder): number {
   return Number.isFinite(ms) ? ms : 0;
 }
 
-export function PositionsOrdersPanel({ practice, positions, working, closed, fills }: Props) {
+export function PositionsOrdersPanel({ practice, venue, positions, working, closed, fills, today = null }: Props) {
   const [tab, setTab] = useState<PosTab>('orders');
   const [filter, setFilter] = useState<AccountOrderFilter>('all');
   // One row per order by identity, not order_id: ids repeat (C29).
   const orders = uniqueOrders([...working, ...closed]).sort((a, b) => orderTs(b) - orderTs(a));
   const orderKeys = orderRowKeys(orders);
-  const fillSource = new Map(fills.map((f) => [f.order_id, f] as const));
+  const fillSource = new Map(fills.map((f) => [f.orderId, f] as const));
   const count = (bucket: AccountOrderFilter): number =>
     bucket === 'all' ? orders.length : orders.filter((o) => orderBucket(o) === bucket).length;
   const shown = filter === 'all' ? orders : orders.filter((o) => orderBucket(o) === filter);
-  const sortedFills = [...fills].sort((a, b) => b.ts - a.ts);
+  const sortedFills = [...fills].sort((a, b) => (b.ts ?? 0) - (a.ts ?? 0));
+  const foot = !practice
+    ? tab === 'fills' ? ACCOUNT_FILLS_FOOT_LIVE : ACCOUNT_POS_FOOT_LIVE
+    : venue === 'sim' ? ACCOUNT_POS_FOOT_SIM : ACCOUNT_POS_FOOT;
   const tabs: Array<[PosTab, string, number]> = [
     ['positions', ACCOUNT_POS_TAB_POSITIONS, positions.filter((p) => p.qty !== 0).length],
     ['orders', ACCOUNT_POS_TAB_ORDERS, orders.length],
@@ -157,11 +185,11 @@ export function PositionsOrdersPanel({ practice, positions, working, closed, fil
                 <tr><td colSpan={8} className="acct-muted">{ACCOUNT_ORDERS_EMPTY}</td></tr>
               ) : shown.map((o) => {
                 const bucket = orderBucket(o);
-                const fill = fillSource.get(o.order_id);
+                const src = orderSourceCell(o, fillSource.get(o.order_id));
                 const price = orderPriceCell(o);
                 return (
                   <tr key={orderKeys[orders.indexOf(o)]} data-testid={`account-order-${o.order_id}`} data-bucket={bucket}>
-                    <td className="acct-num">{etTimeIso(o.filled_at ?? o.updated_at ?? o.submitted_at)}</td>
+                    <td className="acct-num">{etOrderStamp(o.filled_at ?? o.updated_at ?? o.submitted_at, today)}</td>
                     <td>{o.symbol}</td>
                     <td className={o.side === 'BUY' ? 'acct-side--buy' : 'acct-side--sell'}>{o.side}</td>
                     <td className="r acct-num">{formatShareQty(o.qty)}</td>
@@ -173,8 +201,8 @@ export function PositionsOrdersPanel({ practice, positions, working, closed, fil
                       {price == null ? ACCOUNT_PRICE_NONE : price.toFixed(2)}{bucket === 'filled' && price != null && (o.fill_estimated || practice) && <EstChip />}
                     </td>
                     <td className={bucket === 'filled' || bucket === 'working' ? '' : 'acct-muted'}>{orderStatusLabel(o)}</td>
-                    <td className={`acct-src${fill && sourceKind(fill.source) === 'bot' ? ' is-bot' : ''}`}>
-                      {fill ? sourceLabel(fill.source, fill.bot_id) : o.source === 'ib_recovered' ? 'IBKR' : o.source === 'nova' ? 'Nova' : '—'}
+                    <td className={`acct-src${src.bot ? ' is-bot' : ''}`} data-testid={`account-order-source-${o.order_id}`}>
+                      {src.label}
                     </td>
                   </tr>
                 );
@@ -188,23 +216,23 @@ export function PositionsOrdersPanel({ practice, positions, working, closed, fil
             <tbody>
               {sortedFills.length === 0 ? (
                 <tr><td colSpan={8} className="acct-muted">{ACCOUNT_FILLS_EMPTY}</td></tr>
-              ) : sortedFills.map((f, i) => (
-                <tr key={`${f.order_id}-${f.ts}-${i}`} data-testid={`account-fill-${f.order_id}`}>
+              ) : sortedFills.map((f) => (
+                <tr key={f.key} data-testid={`account-fill-${f.orderId}`}>
                   <td className="acct-num">{etTime(f.ts)}</td>
                   <td>{f.symbol}</td>
                   <td className={f.side === 'BUY' ? 'acct-side--buy' : 'acct-side--sell'}>{f.side}</td>
                   <td className="r acct-num">{formatShareQty(f.qty)}</td>
-                  <td className="r acct-num">{f.price.toFixed(2)}<EstChip /></td>
+                  <td className="r acct-num">{f.price.toFixed(2)}{f.estimated && <EstChip />}</td>
                   <td className="r acct-num">{formatMoney(f.commission)}</td>
                   <td className="r acct-num">{formatMoney(f.fees)}</td>
-                  <td className={`acct-src${sourceKind(f.source) === 'bot' ? ' is-bot' : ''}`}>{sourceLabel(f.source, f.bot_id)}</td>
+                  <td className={`acct-src${sourceKind(f.source) === 'bot' || f.botId ? ' is-bot' : ''}`}>{sourceLabel(f.source, f.botId)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </div>
-      <p className="acct-foot">{practice ? ACCOUNT_POS_FOOT : ACCOUNT_POS_FOOT_LIVE}</p>
+      <p className="acct-foot">{foot}</p>
     </section>
   );
 }

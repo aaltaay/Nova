@@ -275,7 +275,8 @@ class PracticeBroker:
 
             archived = persist.archive(self.persist_path)
         release_commitments(self.ledger.working_orders())  # a fresh account holds no orders (R7)
-        self.ledger = Ledger(cash, created_ts=self.reference.now_ts())
+        # Ids continue past the old ledger's: an execution row for an old id never joins a new order (R41).
+        self.ledger = Ledger(cash, created_ts=self.reference.now_ts(), first_order_id=self.ledger.next_order_id())
         self._commit()
         logger.info("PRACTICE %s: account reset to %.2f (archived=%s)", self.venue, cash, archived)
         return {**self.snapshot(), "archived": archived}

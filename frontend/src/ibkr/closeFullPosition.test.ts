@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { simClockResource } from '../sim/simClockResource';
 import { closeFullPosition } from './closeFullPosition';
 import * as placeOrder from './placeOrder';
 
@@ -82,6 +83,25 @@ describe('closeFullPosition', () => {
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error).toMatch(/After-hours flatten/i);
     expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('on Sim plans regular hours from the playhead, not the wall clock (QA R21)', async () => {
+    const spy = vi.spyOn(placeOrder, 'placeIbkrOrder').mockResolvedValue({ ok: true, order_id: 3, error: null, mode: 'sim' });
+    // Playhead Mon 2026-09-21 13:05 ET (regular hours) while the wall clock is premarket.
+    simClockResource.setData({ sim: true, live_edge: false, sim_time_et: '2026-09-21T13:05:00-04:00' });
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-22T09:00:00Z')); // 05:00 ET
+    try {
+      const res = await closeFullPosition('GRML', 2, { mode: 'sim', book: { bid: 9.3, ask: 9.31, last: 9.305 } });
+      expect(res.ok && res.order_type).toBe('MKT');
+      expect(spy).toHaveBeenCalledWith(expect.objectContaining({ order_type: 'MKT', outside_rth: false }), undefined, expect.anything());
+      // The same wall clock on Paper plans the extended-hours limit.
+      const paper = await closeFullPosition('GRML', 2, { mode: 'paper', book: { bid: 9.3, ask: 9.31, last: 9.305 } });
+      expect(paper.ok && paper.order_type).toBe('LMT');
+    } finally {
+      vi.useRealTimers();
+      simClockResource.setData(null);
+    }
   });
 
   it('places a full BUY market cover for a short', async () => {

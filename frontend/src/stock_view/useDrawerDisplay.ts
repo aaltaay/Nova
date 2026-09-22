@@ -12,6 +12,7 @@ import { buildMockWorkingOrders } from '../ibkr/mockWorkingOrders';
 import type { IbkrOrder } from '../ibkr/types';
 import { ordersTodayBadgeCount } from '../orders_today';
 import type { OrdersTodayFilter } from '../orders_today';
+import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 
 const NO_CLOSED: ClosedOrder[] = [];
 
@@ -36,14 +37,18 @@ export interface DrawerDisplay {
 export function useDrawerDisplay({
   surface, filter, orders, closedOrders, sampleHidden, symbolKey,
 }: DrawerDisplayInput): DrawerDisplay {
+  const sampleDesk = useSampleDataOptional();
   const wantsWorkingSample =
     surface === 'orders' &&
     (filter === 'working' || filter === 'all' || filter === 'partial_filled');
   // Account-wide desk: sample only when the account has zero working orders.
   const usingSample = wantsWorkingSample && orders.length === 0 && !sampleHidden;
+  // On the sample desk the sample orders sit next to the sample symbol's own
+  // price, not $24 for a $4.25 stock (QA W31).
+  const anchor = sampleDesk && symbolKey ? sampleDesk.tickerDetail(symbolKey).snapshot.latest_trade?.price ?? null : null;
   const displayOrders = useMemo(
-    () => (usingSample ? buildMockWorkingOrders(symbolKey) : orders),
-    [usingSample, symbolKey, orders],
+    () => (usingSample ? buildMockWorkingOrders(symbolKey, anchor) : orders),
+    [usingSample, symbolKey, orders, anchor],
   );
   const displayClosed = usingSample ? NO_CLOSED : closedOrders;
   const openCount = ordersTodayBadgeCount(displayOrders, displayClosed, filter, null);

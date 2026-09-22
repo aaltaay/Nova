@@ -2,7 +2,12 @@
 
 The Sim venue has no synthetic instrument. A practice order is admitted only for
 the symbol of a loaded historical download (with trades) or recorded capture,
-and only once that replay has printed at the playhead (#310).
+and only once that replay has printed at the playhead (#310). A playhead whose
+own second is not in the data -- a gap in a recording (R11), or a stretch of a
+historical window the download has not covered (R34) -- has no market: the
+reference carries no price there, so an order is refused ``SIM_NO_PRICE`` and a
+protective close gets flat at the last mark (``last_mark``). A candle close is
+never passed off as a print.
 """
 from __future__ import annotations
 
@@ -11,6 +16,7 @@ from dataclasses import dataclass
 from constants_sim import (
     SIM_NO_PRICE_CODE,
     SIM_NO_PRICE_REASON,
+    SIM_NOT_DOWNLOADED_REASON,
     SIM_NOT_RECORDED_REASON,
     SIM_NO_REPLAY_CODE,
     SIM_NO_REPLAY_REASON,
@@ -52,6 +58,15 @@ def playhead_ts() -> float:
     return session_clock.now_et().timestamp()
 
 
+def _before_window(snap: dict) -> bool:
+    """The playhead has not reached the window yet: nothing has printed, rather than "not downloaded"."""
+    start = (snap.get("selection") or {}).get("start_ts")
+    try:
+        return start is not None and playhead_ts() < float(start)
+    except (TypeError, ValueError):
+        return False
+
+
 def reference(symbol: str) -> Reference:
     """Last / bid / ask at the playhead for ``symbol``; unknown fields are ``None``."""
     active = loaded()
@@ -61,7 +76,8 @@ def reference(symbol: str) -> Reference:
         from sim import history_playback
 
         snap = history_playback.snapshot(symbol)
-        if snap.get("source") == "completed_bars":
+        if snap.get("source") == "completed_bars" or snap.get("covered") is False:
+            # Not downloaded here: the snapshot's last is a candle close (R34).
             return Reference(None)
         return Reference(snap.get("last"))
     from sim import capture_player
@@ -85,8 +101,12 @@ def admission(symbol: str) -> tuple[bool, str, str | None]:
     if active.source == HISTORICAL:
         from sim import history_playback
 
-        if history_playback.snapshot(symbol).get("source") == "completed_bars":
+        snap = history_playback.snapshot(symbol)
+        if snap.get("source") == "completed_bars":
             return False, SIM_NO_TRADES_REASON, SIM_NO_TRADES_CODE
+        if snap.get("covered") is False and not _before_window(snap):
+            # An undownloaded stretch is a stated absence, never a candle close (R34).
+            return False, SIM_NOT_DOWNLOADED_REASON, SIM_NO_PRICE_CODE
     else:
         from sim import capture_player
 

@@ -523,8 +523,9 @@ export const ORDERS_TODAY_TITLE = 'Orders (Today)';
  * orders for the day — see `backend/ibkr/account.py:refresh_completed_orders_cache`.
  * Orders (Today) is account-wide (not scoped to the open Stock View ticker).
  */
+/** Venue-neutral: on Paper / Sim the practice ledger answers, not the Gateway (QA R35). */
 export const ORDERS_TODAY_EMPTY_MESSAGE =
-  'No completed orders from Gateway yet today.';
+  'No orders yet today on this venue.';
 export const ORDERS_TODAY_EMPTY_FILTER_MESSAGE =
   'No orders in this filter today (entire account).';
 /** @deprecated Symbol-scoped Orders (Today) retired — prefer ORDERS_TODAY_EMPTY_FILTER_MESSAGE. */
@@ -644,8 +645,13 @@ export const TICKER_TRADE_UNLOCK_FAIL = 'Incorrect unlock code.';
 /** localStorage: skip the place-order confirmation dialog. */
 export const TICKER_TRADE_SKIP_PLACE_CONFIRM_KEY = 'nova.tickerTrade.skipPlaceConfirm';
 export const TICKER_TRADE_PLACE_CONFIRM_TITLE = 'Confirm order';
+/**
+ * The skip is one preference for every venue (placeConfirmPrefs), so the label
+ * says so -- "a live order" read wrong on the Sim account, and hid that a Sim
+ * checkbox also skips the Live confirm (QA R35).
+ */
 export const TICKER_TRADE_PLACE_CONFIRM_SKIP_LABEL =
-  "Don't show this pop-up again to confirm placing a live order.";
+  "Don't show this pop-up again when placing orders -- on every venue, Live included.";
 export const TICKER_TRADE_PLACE_CONFIRM_SUBMIT = 'Confirm';
 export const TICKER_TRADE_PLACE_CONFIRM_CANCEL = 'Cancel';
 /** Plain-language disclosure under the trading action bar. */

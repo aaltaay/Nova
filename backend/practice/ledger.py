@@ -62,6 +62,7 @@ class Ledger:
         *,
         created_ts: float | None = None,
         events: list[dict[str, Any]] | None = None,
+        first_order_id: int = 1,
     ) -> None:
         cash = float(starting_cash)
         if not cash > 0:
@@ -69,6 +70,8 @@ class Ledger:
         self.starting_cash = cash
         self.created_ts = float(created_ts) if created_ts is not None else time.time()
         self.events: list[dict[str, Any]] = [dict(e) for e in (events or [])]
+        # A replacing ledger continues its predecessor's ids: an old id never joins a new order (R41).
+        self.first_order_id = max(1, int(first_order_id))
         self._derive()
 
     # ------------------------------------------------------------------ derive
@@ -79,7 +82,7 @@ class Ledger:
         self._working: dict[int, dict[str, Any]] = {}
         self._closed: list[dict[str, Any]] = []
         self._marks: dict[str, float] = {}
-        self._next_id = 1
+        self._next_id = self.first_order_id
         self.day_started_ts = day_start_ts(self.created_ts)
         self.day_start_equity = self.starting_cash
         # Realized P&L when the current practice day began; replayed, never stored.
@@ -202,6 +205,9 @@ class Ledger:
         oid = self._next_id
         self._next_id += 1
         return oid
+
+    def next_order_id(self) -> int:
+        return self._next_id  # a replacing ledger starts here (QA R41)
 
     def rollover(self, now_ts: float) -> bool:
         """Start a new practice day when ``now_ts`` has crossed the rollover hour."""

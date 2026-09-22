@@ -218,7 +218,10 @@ export function TradingTab({
 
       {/* ── Trading UI (shown only when connected) ─────────────────────── */}
       {status.connected && (
-        <div className="ibkr-trading-layout">
+        // Hosted without the ticket (the Account page's Broker snapshot) the
+        // account column is the only child: it takes the whole row instead of
+        // the first 240 px track of three (QA D20).
+        <div className={`ibkr-trading-layout${showTicket ? '' : ' ibkr-trading-layout--account-only'}`}>
           {showTicket && (
           <>
           {/* Left: depth ladder */}

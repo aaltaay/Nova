@@ -47,6 +47,11 @@ interface Props {
   referencePrice: number | null;
   listingIbkr?: IbkrListingFlags | null;
   onOrderPlaced?: (result: PlaceOrderResult) => void;
+  /**
+   * Another action's outcome for the Last line -- the rail's Flatten, whose
+   * own footer the rail hides (QA R32). `seq` changes with each new outcome.
+   */
+  externalResult?: { ok: boolean; text: string; seq: number } | null;
 }
 
 const FORCED_QTY = forcedManualOrderQty();
@@ -62,11 +67,16 @@ export function ManualOrderTicket({
   referencePrice: livePrice,
   listingIbkr = null,
   onOrderPlaced,
+  externalResult = null,
 }: Props) {
   const ibkrStatus = useIbkrStatus();
-  // Sim off the live edge prices from the replay at the playhead, never the live feed (R10 / V24).
-  const { price: referencePrice, note: priceNote } = useVenuePrice(symbol, livePrice);
   const { topOfBook } = useTopOfBook();
+  // Only this symbol's live book prices a Market order's Cost (R36).
+  const liveBook = topOfBook && topOfBook.symbol.toUpperCase() === symbol.trim().toUpperCase()
+    ? { bid: topOfBook.bid, ask: topOfBook.ask }
+    : null;
+  // Sim off the live edge prices from the replay at the playhead, never the live feed (R10 / V24).
+  const { price: referencePrice, note: priceNote, bid: quoteBid, ask: quoteAsk } = useVenuePrice(symbol, livePrice, liveBook);
   const initial = applyTicketDefaults(symbol, referencePrice, topOfBook);
   const allowShort = allowShortSide(summary);
   const [ticketSide, setTicketSide] = useState<TicketSide>(() =>
@@ -105,7 +115,9 @@ export function ManualOrderTicket({
     summary,
     position,
   };
-  const { tif, selectTif, cost, practice } = useCompactTicket({ mode, ...ticketValues, priceNote });
+  const { tif, selectTif, cost, practice } = useCompactTicket({
+    mode, ...ticketValues, priceNote, quote: { bid: quoteBid, ask: quoteAsk },
+  });
   const trading = evaluateTradingAllowed({
     connected,
     spendStatus,
@@ -127,6 +139,7 @@ export function ManualOrderTicket({
     executeOrder,
     setConfirmSummary,
     resetSubmission,
+    showResult,
   } = useManualOrderSubmission({
     ...ticketValues,
     mode,
@@ -163,6 +176,11 @@ export function ManualOrderTicket({
   }, [symbol]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => setTicketSide((current) => clampTicketSide(current, allowShort)), [allowShort]);
+
+  // The rail's Flatten reports here: its own footer is hidden in the rail (QA R32).
+  useEffect(() => {
+    if (externalResult) showResult({ ok: externalResult.ok, text: externalResult.text });
+  }, [externalResult?.seq]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function selectTicketSide(next: TicketSide) {
     if (next === 'short' && (!allowShort || shortBlockReason)) return;

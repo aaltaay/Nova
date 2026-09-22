@@ -143,7 +143,8 @@ describe('ChartGrid', () => {
     expect(subtitle()).toContain('live tape after');
     venue.mode = 'sim';
     act(() => { root.render(<ChartGrid symbol="SPY" />); });
-    expect(subtitle()).toBe('Sim 10s -- replay at the sim clock, not live');
+    // True on both sides of the live edge (QA R35): the replay off it, the live tape at it.
+    expect(subtitle()).toBe('Sim 10s -- follows the Sim clock: the replay off the live edge, the live tape at it');
   });
 
   it('queues all visible panes including 10Sec', () => {

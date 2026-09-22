@@ -109,6 +109,22 @@ def test_oversell_still_blocked(monkeypatch):
     assert reason == "OVERSELL"
 
 
+def test_oversell_never_states_a_negative_availability(monkeypatch):
+    """QA R35: six shares already sent against a one-share long read "-5.0 available"."""
+    monkeypatch.setattr(client_mod, "is_connected", lambda: True)
+    monkeypatch.setattr(account_mod, "long_qty", lambda _sym: 1.0)
+    monkeypatch.setattr(validate._inflight, "committed_qty", lambda _sym, _side: 6.0)
+    monkeypatch.setattr(
+        account_mod,
+        "get_account_summary",
+        lambda: {"connected": True, "BuyingPower": 100_000.0},
+    )
+    ok, detail, reason = validate.check_account_and_position(_sell_cmd(qty=1.0))
+    assert ok is False and reason == "OVERSELL"
+    assert "exceeds 0.0 available (long 1.0, 6.0 already sent)" in detail
+    assert "-" not in detail.split("exceeds", 1)[1].split("available", 1)[0]
+
+
 def test_source_flatten_skips_anti_short(monkeypatch):
     monkeypatch.setattr(client_mod, "is_connected", lambda: True)
 

@@ -197,4 +197,13 @@ async def _receipt_from_raw(
         receipt.broker_status = raw.get("broker_status")
         if receipt.broker_status == "Filled" and timings.filled_ns is None:
             timings.filled_ns = time.perf_counter_ns()
+    if receipt.ok and str(raw.get("broker_status") or "") == "Filled":
+        # Filled inside the send: the broker's own notice ran before this row
+        # carried its order id, so nothing marked it -- KILL / flatten / bot
+        # closes sat "sent" or "acked" for good (QA R41).
+        if timings.filled_ns is None:
+            timings.filled_ns = time.perf_counter_ns()
+        store.update_stages(
+            execution_id, status="filled", broker_status="Filled", filled_ns=timings.filled_ns,
+        )
     return receipt

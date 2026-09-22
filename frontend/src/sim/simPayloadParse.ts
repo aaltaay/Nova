@@ -232,6 +232,9 @@ export function parseHistoricalSnapshot(raw: unknown): HistoricalSnapshot {
     open: finiteOrNull(raw.open),
     high: finiteOrNull(raw.high),
     low: finiteOrNull(raw.low),
+    session_open: finiteOrNull(raw.session_open),
+    // Only an explicit "session" vouches for the day's figures; anything else is the window's.
+    stats_scope: raw.stats_scope === 'session' ? 'session' : 'window',
     prev_close: finiteOrNull(raw.prev_close),
     selection: isObject(raw.selection) ? parseHistoricalSelection(raw.selection) : undefined,
     covered: flag(raw.covered),

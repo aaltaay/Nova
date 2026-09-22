@@ -59,17 +59,27 @@
 .acct-panel--cal { grid-column: 3; grid-row: 2; }
 .acct-panel--pos { grid-column: 3; grid-row: 3; }
 
+/* At a main column of 1280 px or less (a 1280 or 1440 window) the panels
+   stack in two columns: the page scrolls and every panel takes its content's
+   height, so nothing is squeezed out of sight -- at 1440 the calendar used to
+   hide Sep 20-30 and Account details its last rows (QA D4). The two long
+   tables keep their own scroll inside a capped panel. */
 @container main-col (max-width: 1280px) {
+  .account-page {
+    overflow-y: auto;
+  }
   .account-page__grid {
+    flex: none;
     grid-template-columns: 300px minmax(0, 1fr);
     grid-template-rows: auto;
   }
-  .acct-panel--details { grid-column: 1; grid-row: 1 / 6; }
+  /* Its own height, not the whole stacked column's. */
+  .acct-panel--details { grid-column: 1; grid-row: 1 / 6; align-self: start; }
   .acct-panel--perf { grid-column: 2; grid-row: 1; }
   .acct-panel--comp { grid-column: 2; grid-row: 2; }
-  .acct-panel--ledger { grid-column: 2; grid-row: 3; }
+  .acct-panel--ledger { grid-column: 2; grid-row: 3; max-height: 26rem; min-height: 14rem; }
   .acct-panel--cal { grid-column: 2; grid-row: 4; }
-  .acct-panel--pos { grid-column: 2; grid-row: 5; }
+  .acct-panel--pos { grid-column: 2; grid-row: 5; max-height: 24rem; min-height: 12rem; }
 }
 
 .acct-panel {
@@ -81,7 +91,8 @@
   flex-direction: column;
   min-height: 0;
   min-width: 0;
-  overflow: hidden;
+  /* A panel shorter than its content scrolls rather than cutting it (D4). */
+  overflow: hidden auto;
 }
 
 .acct-panel__head {
@@ -322,8 +333,11 @@
 .acct-donut__v { font-size: 13px; font-weight: 600; fill: var(--nova-text); }
 
 .acct-legend { display: flex; flex-direction: column; gap: 5px; font-size: 11px; flex: 1; min-width: 0; }
-.acct-legend__li { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+.acct-legend__li { display: flex; align-items: baseline; gap: 7px; white-space: nowrap; min-width: 0; }
 .acct-legend__k { color: var(--nova-text-muted); flex: 1; }
+/* A long value ("none · no shorts on practice", big figures) wraps under its
+   key instead of running past the panel edge (QA D17). */
+.acct-legend__li > :last-child { white-space: normal; text-align: right; min-width: 0; overflow-wrap: anywhere; }
 
 /* ---------- risk ---------- */
 .acct-risk { padding-top: 6px; }
@@ -331,6 +345,8 @@
 .acct-rrow { padding: 4px 0; border-top: 1px solid var(--acct-hair); font-size: 11px; }
 .acct-rrow:first-child { border-top: 0; padding-top: 0; }
 .acct-rrow__kv { display: flex; justify-content: space-between; gap: 6px; white-space: nowrap; }
+.acct-rrow__kv + .acct-rrow__kv { margin-top: 3px; }
+.acct-rrow__kv > :last-child { white-space: normal; text-align: right; min-width: 0; }
 .acct-risk__lines { color: var(--nova-text-muted); font-size: 10px; margin-top: 3px; line-height: 12px; }
 
 .acct-meter { height: 4px; background: var(--nova-raised); border-radius: 2px; position: relative; margin-top: 4px; }

@@ -16,6 +16,7 @@ import {
   readTradeDefaultsPrefs,
   writeTradeDefaultsPrefs,
 } from '../settings/tradeDefaultsPrefs';
+import { marketFillPrice } from '../sim/useReplayQuote';
 import type { ManualOrderSide, ManualOrderType, QuantityMode } from './orderEntry';
 import { estimateTicketCost, type TicketCostEstimate } from './ticketCost';
 import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from './types';
@@ -36,6 +37,8 @@ interface Params {
   position: IbkrPosition | null;
   /** Why the venue has no market price right now, when it has none (Sim off the edge). */
   priceNote?: string | null;
+  /** The venue's quote for this symbol: a Market order's Cost uses its far side (R36). */
+  quote?: { bid: number | null; ask: number | null } | null;
 }
 
 export function useCompactTicket(p: Params): {
@@ -70,7 +73,19 @@ export function useCompactTicket(p: Params): {
       positionQty: p.position?.qty ?? null,
     },
     undefined,
-    { practice, priceNote: p.priceNote ?? null },
+    {
+      practice,
+      priceNote: p.priceNote ?? null,
+      marketFillPrice: p.quote ? marketFillPrice(p.side, p.quote) : null,
+      // The practice ledger's own BP rule needs its equity, gross and the position's mark (W28).
+      ledger: practice
+        ? {
+            netLiquidation: p.summary?.NetLiquidation ?? null,
+            grossPositionValue: p.summary?.GrossPositionValue ?? null,
+            heldMark: p.position?.market_price ?? null,
+          }
+        : null,
+    },
   );
 
   return { tif, selectTif, cost, practice };

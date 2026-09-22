@@ -77,6 +77,7 @@ export function ClosePositionButton({
       const res = await closeFullPosition(position.symbol, position.qty, {
         timingAction: actionTiming,
         referencePrice: position.market_price,
+        mode,
       });
       if (res.ok) onClosed?.();
       else await alertApp({ title: 'Flatten failed', message: res.error, tone: 'danger' });

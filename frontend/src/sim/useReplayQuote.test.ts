@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { SIM_REPLAY_PRICE_NONE, SIM_REPLAY_PRICE_NOT_RECORDED } from './simConstants';
+import { SIM_REPLAY_PRICE_NONE, SIM_REPLAY_PRICE_NOT_DOWNLOADED, SIM_REPLAY_PRICE_NOT_RECORDED } from './simConstants';
 import type { SimClockState } from './simClockTypes';
-import { replayQuoteFor, venuePriceFor } from './useReplayQuote';
+import { marketFillPrice, replayQuoteFor, venuePriceFor } from './useReplayQuote';
 import type { HistoricalSnapshot } from './useHistoricalSnapshot';
 
 const capture = (quote: SimClockState['replay_quote']): SimClockState => ({
@@ -26,12 +26,12 @@ describe('replayQuoteFor (R10 / V24)', () => {
     expect(gap).toMatchObject({ active: true, last: null, note: SIM_REPLAY_PRICE_NOT_RECORDED });
   });
 
-  it('a historical replay of this tab is priced from its snapshot', () => {
+  it('a historical replay of this tab is priced from its snapshot; an undownloaded stretch says so (W25)', () => {
     const clock: SimClockState = { sim: true, live_edge: false, replay_source: 'historical', replay_symbol: 'IMCC' };
     const snap = { active: true, symbol: 'IMCC', last: 5.1, volume: 10, source: 'trades', as_of: '', prints: [],
       prev_close: 4.9, covered: true } as HistoricalSnapshot;
     expect(replayQuoteFor('IMCC', clock, snap, true)).toMatchObject({ active: true, last: 5.1, prevClose: 4.9, note: null });
-    expect(replayQuoteFor('IMCC', clock, { ...snap, covered: false }, true).note).toBe(SIM_REPLAY_PRICE_NOT_RECORDED);
+    expect(replayQuoteFor('IMCC', clock, { ...snap, covered: false }, true).note).toBe(SIM_REPLAY_PRICE_NOT_DOWNLOADED);
   });
 
   it('nothing loaded, another symbol loaded, or no clock yet: no price -- never the live last', () => {
@@ -45,13 +45,26 @@ describe('replayQuoteFor (R10 / V24)', () => {
 describe('venuePriceFor (the ticket reference, R10 / V24)', () => {
   it('a replaying tab prices from the replay -- a missing replay price stays missing, never the live one', () => {
     const replaying = replayQuoteFor('GRML', capture(QUOTE), null, true);
-    expect(venuePriceFor(replaying, 9.15)).toEqual({ price: 8.84, note: null });
-    const gap = replayQuoteFor('GRML', capture({ ...QUOTE, covered: false, last: null }), null, true);
-    expect(venuePriceFor(gap, 9.15)).toEqual({ price: null, note: SIM_REPLAY_PRICE_NOT_RECORDED });
+    expect(venuePriceFor(replaying, 9.15, { bid: 9.1, ask: 9.2 })).toEqual({ price: 8.84, note: null, bid: 8.82, ask: 8.85 });
+    const gap = replayQuoteFor('GRML', capture({ ...QUOTE, covered: false, last: null, bid: null, ask: null }), null, true);
+    expect(venuePriceFor(gap, 9.15)).toEqual({ price: null, note: SIM_REPLAY_PRICE_NOT_RECORDED, bid: null, ask: null });
   });
 
-  it('off Sim or at the live edge the live price stands, with no note', () => {
+  it('off Sim or at the live edge the live price and book stand, with no note', () => {
     const live = replayQuoteFor('GRML', capture(QUOTE), null, false);
-    expect(venuePriceFor(live, 9.15)).toEqual({ price: 9.15, note: null });
+    expect(venuePriceFor(live, 9.15, { bid: 9.1, ask: 9.2 })).toEqual({ price: 9.15, note: null, bid: 9.1, ask: 9.2 });
+    expect(venuePriceFor(live, 9.15)).toEqual({ price: 9.15, note: null, bid: null, ask: null });
+  });
+});
+
+describe('marketFillPrice (QA R36)', () => {
+  it('is the far side of the quote -- where the practice broker fills a Market order', () => {
+    expect(marketFillPrice('BUY', { bid: 8.81, ask: 8.84 })).toBe(8.84);
+    expect(marketFillPrice('SELL', { bid: 8.81, ask: 8.84 })).toBe(8.81);
+  });
+
+  it('is unknown without that side, so the ticket falls back to the last', () => {
+    expect(marketFillPrice('BUY', { bid: 8.81, ask: null })).toBeNull();
+    expect(marketFillPrice('SELL', { bid: 0, ask: 8.84 })).toBeNull();
   });
 });
