@@ -10,7 +10,8 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 
 ## Current position
 
-- **Product NEXT:** **Phase K -- short entry**, `[~]` IN PROGRESS. Code K0-K2/K4 shipped; **K3 paper short days are human work**.
+- **Product NEXT:** **Phase L -- strategy proof (bot trading plan)**, `[ ]` L0 open. Plan and done-criteria in [[Bot-Trading-Plan]]; first step is the operator's Decision A (which strategy) and Decision B (which dataset).
+- **Phase K (short entry):** `[~]` **PARKED** 2026-09-22 by operator direction -- K0-K2/K4 code stays shipped; K3 paper days are stale (they name the legacy paper Gateway, ADR 020) and are not a next action.
 - **`auto_live`:** **NO-GO** -- rejected in `backend/nova_os/control_mode.py`. Do not enable or implement.
 - **Phase B (paper shadow ops):** **WAIVED** by user 2026-07-28 (0 evidence rows; not `[x]`). Do not block work on ≥5 shadow days.
 - **Phase C (durable archive):** `[~]` PARTIAL -- remainder is optional operator work (see below).
@@ -18,18 +19,31 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 - **Reliability track (WS0-WS7):** shipped 2026-08-18; only **WS1 proof** is open (first unattended 03:55 ET run).
 - **Closed:** Phases A, D, E, F, G, G2, G3, H, J · Nova OS P0-P10 · Maintenance Phases 0-13 -> [[Nova-Roadmap-Archive]]
 - **Last verified commit:** `aad9bf9` (architecture close remediation Phase 7). Tip SHA: `git rev-parse --short HEAD`.
-- **Last updated:** 2026-09-16 (K4 ticket Side Buy/Sell/Short; Direction removed)
+- **Last updated:** 2026-09-22 (Phase K parked; Phase L strategy proof promoted as product NEXT)
 
 ## Exact next action (human)
 
-1. **K3 paper short days:** set `IBKR_SHORT_ENABLED=true` on paper Gateway; place `short_entry` orders; fill K3 Evidence (≥3 days) + sign-off before any live short.
+1. **Phase L0 -- decide the strategy and the dataset:** answer Decision A (★ A1 5-minute ORB on stocks in play) and Decision B (★ B1 full-market 1-minute history incl. delisted names) in `Bot-Trading-Plan.md`; done when both rows are in its Decision log.
 2. **Reliability WS1:** configure a Discord/Telegram channel in Settings; run `.\scripts\Install-NovaDailyTask.ps1` once; leave the PC on overnight (wake timers). The first 03:55 ET line in `backend/logs/morning-check.log` closes the Jul 30 PROBLEM_LOG entry.
 3. **Optional Phase C remainder:** Cloudflare Bucket Lock + R2 token rotation + cold `walk_day`.
-4. **Hard ban:** no `auto_live`. Live short needs K3 sign-off **plus** `IBKR_LIVE_TRADING_CONFIRMED` on top of `IBKR_SHORT_ENABLED`.
+4. **Hard ban:** no `auto_live`. Any future live short still needs K3 sign-off **plus** `IBKR_LIVE_TRADING_CONFIRMED` on top of `IBKR_SHORT_ENABLED`; parking K changes none of the gates.
 
 ## Open phases
 
-### Phase K -- Short entry -- `[~]` IN PROGRESS
+### Phase L -- Strategy proof (bot trading plan) -- `[ ]` NEXT
+
+**User direction (2026-09-22):** the operator wants a bot that trades a proven strategy, and asked for the stale K3 step to stop being offered. Plan, decisions, stage done-criteria and reference numbers live in [[Bot-Trading-Plan]] (SSOT for this phase).
+
+- **L0 pick one strategy** `[ ]` -- Decision A (★ 5-minute ORB on stocks in play; Gap and Go second; large-cap swing baseline)
+- **L1 get the data** `[ ]` -- Decision B (★ full-market 1-minute history incl. delisted names); done when a local store carries a "listed on that date" flag
+- **L2 backtest** `[ ]` -- vectorbt offline, IBKR costs + slippage, no lookahead
+- **L3 try to break it** `[ ]` -- walk-forward, parameter neighbourhood, permutation test, 2x costs; kill criteria in the plan
+- **L4 paper on Nova** `[ ]` -- bot pack / Nova OS setup, L1 Eyes then L2 on the Paper venue; 100 trades within ~30% of backtest expectancy
+- **L5 tiny live** `[ ]` -- after #444; scale by 50-trade blocks; `auto_live` stays NO-GO
+
+### Phase K -- Short entry -- `[~]` PARKED (operator direction 2026-09-22)
+
+Parked, not closed: K0-K2/K4 code stays shipped and gated; K3 human paper short days never happened and the step as written is stale -- it names the legacy IBKR paper Gateway (4002), which ADR 020 (2026-09-21) made by-hand only, while Nova's Paper venue refuses every short with `PRACTICE_NO_SHORTS`. Re-opening K needs a rewritten K3 for the three-venue design plus user direction. None of the short gates changed.
 
 **User direction (2026-07-28):** shortable / HTB visibility next to Level 2, safe short entry on paper first, live later. Phase B gate removed. SSOT is this entry + ADR `architecture/decisions/009-short-entry.md`.
 
@@ -80,16 +94,17 @@ Closes the five PROBLEM_LOG root patterns. Not a Master Roadmap letter phase; pr
 | 6 Test isolation | `[x]` | conftest import-time `NOVA_CACHE_DIR` + paper Gateway pin |
 | 7 Blast-radius verification | `[x]` | Table in `verification-before-completion.mdc` |
 
-### Phases L-Z -- `[~]` DEFERRED (parking lot)
+### Phases M-Z -- `[~]` DEFERRED (parking lot)
 
-Conversational scans, Holly-like coach, L2 scrubber, SMS/email, multi-broker, cloud Gateway, community, native mobile, CI expansion, mission canvas, reserved U-Z. **Not scheduled** until explicitly promoted.
+L is promoted above (strategy proof). Still parked: conversational scans, Holly-like coach, L2 scrubber, SMS/email, multi-broker, cloud Gateway, community, native mobile, CI expansion, mission canvas, reserved U-Z. **Not scheduled** until explicitly promoted.
 
 ## Crash or blocker
 
-- **Phase K:** in progress; K3 needs human paper short sessions.
+- **Phase L:** L0 waits on the operator's Decision A and Decision B in [[Bot-Trading-Plan]]; nothing else is blocked.
+- **Phase K:** parked; K3 is stale against ADR 020 (see the Phase K entry).
 - **Phase B:** WAIVED (2026-07-28) -- not a blocker.
 - **Phase C remainder:** needs Cloudflare console work + a fresh session compact/walk (optional).
-- **Phase I verdict:** NO-GO; short metrics arrive after K3 paper days.
+- **Phase I verdict:** NO-GO; real paper metrics now come from Phase L4, not from K3.
 - **`auto_live`:** permanent NO-GO in this roadmap window.
 
 ## History (append-only)
@@ -98,6 +113,7 @@ Newest first. Append here; do not rewrite prior rows. Rows before 2026-07-28 are
 
 | Date | What | Commit |
 |------|------|--------|
+| 2026-09-22 | Phase K PARKED (operator: K3 is stale against ADR 020 and no longer wanted as the next step). Phase L -- strategy proof -- promoted from the parking lot as product NEXT; plan in `Bot-Trading-Plan.md`. No gate changed. `auto_live` NO-GO. | (this commit) |
 | 2026-09-16 | K4 ticket UI: Direction Long/Short removed. Side is Buy/Sell/Short on Margin (Buy/Sell on Cash) from IBKR AccountType. `short_entry` unchanged. `auto_live` NO-GO. | (this commit) |
 | 2026-09-11 | Public source home is `aaltaay/Nova`. Marketing CTA retargeted. `Nova-public` is a private archive. Phase NEXT unchanged (K3). `auto_live` NO-GO. | (this commit) |
 | 2026-09-08 | Roadmap note trimmed to a live status page; closed phases, verification baselines, maintenance track, and pre-2026-07-28 History moved verbatim to [[Nova-Roadmap-Archive]]. Task narratives now default to PR bodies. No phase state changed; `auto_live` NO-GO. | (this commit) |
