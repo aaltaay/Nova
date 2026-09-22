@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { SimClockState } from './simClockTypes';
-import { firstReplayMinute, formatMinuteClock, playheadTag, recordedLane, stripBandSegments } from './simStripFormat';
+import {
+  firstReplayMinute, firstReplaySecond, formatMinuteClock, playheadTag, recordedLane, stripBandSegments, stripScale,
+} from './simStripFormat';
 
 const session = {
   session_open_et: '2026-09-21T04:00:00-04:00',
   session_close_et: '2026-09-21T20:00:00-04:00',
   session_date: '2026-09-21',
 };
+const CLOSE_FOR_GARBAGE = '2026-09-21T11:30:00-04:00';
 
 const capture: SimClockState = {
   sim: true, replay_source: 'capture', minute_max: 960, ...session,
@@ -62,6 +65,54 @@ describe('stripBandSegments', () => {
   });
 });
 
+describe('stripScale (V10 / C27: the band is labelled on the scale it is drawn on)', () => {
+  it('the default 04:00-20:00 session: its bounds, regular hours and both ticks', () => {
+    const scale = stripScale({ sim: true, ...session });
+    expect(scale.openLabel).toBe('04:00');
+    expect(scale.closeLabel).toBe('20:00');
+    expect(scale.rth?.left).toBeCloseTo(5.5 / 16);
+    expect(scale.rth?.width).toBeCloseTo(6.5 / 16);
+    expect(scale.ticks.map(tick => tick.label)).toEqual(['09:30', '16:00']);
+    expect(scale.ticks[1].left).toBeCloseTo(12 / 16);
+  });
+
+  it('a loaded 09:15-11:30 window: its own bounds, the 09:30 tick where it falls, no 16:00 tick', () => {
+    const scale = stripScale({
+      sim: true, session_open_et: '2026-09-21T09:15:00-04:00', session_close_et: '2026-09-21T11:30:00-04:00',
+    });
+    expect(scale.openLabel).toBe('09:15');
+    expect(scale.closeLabel).toBe('11:30');
+    expect(scale.ticks).toHaveLength(1);
+    expect(scale.ticks[0].label).toBe('09:30');
+    expect(scale.ticks[0].left).toBeCloseTo(15 / 135);
+    expect(scale.rth?.left).toBeCloseTo(15 / 135);
+    expect((scale.rth?.left ?? 0) + (scale.rth?.width ?? 0)).toBeCloseTo(1);
+  });
+
+  it('a window wholly outside regular hours has no underlay and no ticks; no window reads as the default', () => {
+    const post = stripScale({
+      sim: true, session_open_et: '2026-09-21T16:30:00-04:00', session_close_et: '2026-09-21T19:00:00-04:00',
+    });
+    expect(post.rth).toBeNull();
+    expect(post.ticks).toEqual([]);
+    expect(stripScale(null).openLabel).toBe('04:00');
+    expect(stripScale({ sim: true, session_open_et: 'garbage', session_close_et: CLOSE_FOR_GARBAGE }).closeLabel).toBe('20:00');
+  });
+
+  it('places the playhead, the downloaded ranges and the scale on one domain', () => {
+    const openTs = Date.parse('2026-09-21T09:15:00-04:00') / 1000;
+    const clock: SimClockState = {
+      sim: true, replay_source: 'historical', minute_max: 135, minute_from_open: 58,
+      session_open_et: '2026-09-21T09:15:00-04:00', session_close_et: '2026-09-21T11:30:00-04:00',
+    };
+    const selection = { symbol: 'GRML', date: '2026-09-21', start: '09:15', end: '11:30', coverage_through: 0,
+      start_ts: openTs, end_ts: openTs + 135 * 60, coverage: [[openTs, openTs + 58 * 60]] };
+    const [downloaded] = stripBandSegments(clock, selection, () => '');
+    // The downloaded edge (10:13) and the playhead (minute 58 of 135) sit at the same fraction.
+    expect(downloaded.left + downloaded.width).toBeCloseTo(58 / 135);
+  });
+});
+
 describe('firstReplayMinute', () => {
   it('is the first recorded minute of a capture, the window start of a historical replay, else 0', () => {
     expect(firstReplayMinute(capture, null)).toBe(210);
@@ -69,6 +120,24 @@ describe('firstReplayMinute', () => {
     expect(firstReplayMinute({ sim: true, replay_source: 'historical', ...session },
       { symbol: 'X', date: '', start: '', end: '', coverage_through: 0, start_ts: open + 315 * 60 })).toBe(315);
     expect(firstReplayMinute({ sim: true, replay_source: 'none' }, null)).toBe(0);
+  });
+});
+
+describe('firstReplaySecond (R22: to the second, not the minute)', () => {
+  it('is the first recorded second of a capture, rounded into the recording', () => {
+    const late = { ...capture, replay_load: { ...capture.replay_load!,
+      segments: [{ started_et: '2026-09-21T11:46:35.300000-04:00', stopped_et: '2026-09-21T11:47:27-04:00' }] } };
+    expect(firstReplaySecond(late, null)).toBe(7 * 3600 + 46 * 60 + 36);
+    expect(firstReplaySecond(capture, null)).toBe(3.5 * 3600);
+  });
+
+  it('is the first downloaded second of a historical window, and null with nothing loaded', () => {
+    const open = Date.parse(session.session_open_et) / 1000;
+    const selection = { symbol: 'X', date: '', start: '', end: '', coverage_through: 0,
+      start_ts: open + 315 * 60, coverage: [[open + 315 * 60 + 20, open + 400 * 60]] };
+    expect(firstReplaySecond({ sim: true, replay_source: 'historical', ...session }, selection)).toBe(315 * 60 + 20);
+    expect(firstReplaySecond({ sim: true, replay_source: 'none', ...session }, null)).toBeNull();
+    expect(firstReplaySecond(null, null)).toBeNull();
   });
 });
 

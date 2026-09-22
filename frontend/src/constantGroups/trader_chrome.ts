@@ -47,7 +47,11 @@ export const SIM_STRIP_REPLAY_PLAYING = 'Replay';
 export const SIM_STRIP_REPLAY_FAILED = 'Replay failed';
 export const SIM_STRIP_RTH_OPEN = '09:30';
 export const SIM_STRIP_RTH_CLOSE = '16:00';
-/** Regular hours as fractions of the 04:00-20:00 session the band spans. */
+/**
+ * Regular hours as fractions of the default 04:00-20:00 session -- only while
+ * the clock has not stated its window; otherwise `stripScale` places the ticks
+ * on the clock's own bounds.
+ */
 export const SIM_STRIP_RTH_OPEN_FRACTION = (9.5 - 4) / 16;
 export const SIM_STRIP_RTH_CLOSE_FRACTION = (16 - 4) / 16;
 /** Past this fraction the playhead tag flips to the left of the marker. */
@@ -168,3 +172,11 @@ export const DRAWER_UNREALIZED_UNKNOWN = '—';
 export const DRAWER_SIM_NOTE = 'Sim scratch account · rewinds with the playhead';
 export const DRAWER_PAPER_NOTE = 'Nova Paper · fake money on the live feed';
 export const DRAWER_LIVE_NOTE = 'IBKR live account';
+
+/* ── QA batch fix/qa-sim-replay (2026-09-22): practice ticket cost line (V24) ── */
+
+/** A SELL only reduces a held long: from flat, or past the held quantity, nothing fills. */
+export const TICKET_COST_NO_POSITION =
+  'Nothing to sell: a SELL only reduces a held position, and Nova never opens a short from it.';
+/** The Sim venue tag's state word with nothing loaded off the edge (V38: it read "replay"). */
+export const TRADER_VENUE_TAG_NO_REPLAY = 'no replay';

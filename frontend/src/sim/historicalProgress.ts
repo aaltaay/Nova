@@ -1,5 +1,15 @@
-import { SIM_ET_TIME_ZONE, SIM_HISTORY_SYMBOL_PATTERN } from './simConstants';
+import {
+  SIM_ET_TIME_ZONE, SIM_HISTORY_NOTHING_DOWNLOADED, SIM_HISTORY_SUMMARY_RECENT_SEC, SIM_HISTORY_SYMBOL_PATTERN,
+} from './simConstants';
 import type { HistoricalJob, HistoricalWindow } from './historicalTypes';
+
+/** Backend `history_store.ACTIVE`: the statuses a worker may be advancing. */
+const ACTIVE_STATUSES = new Set(['running', 'pause_requested']);
+
+/** Nothing of the window is downloaded -- the backend said so (0 covered seconds). */
+export function nothingDownloaded(coveredSeconds: number | null | undefined): boolean {
+  return coveredSeconds === 0;
+}
 export const jobLabel = (job: HistoricalJob) => `${job.symbol} ${job.date} ${job.start} - ${job.end} ${job.kind}`;
 export const windowLabel = (spec: HistoricalWindow) => `${spec.symbol}  -  ${spec.date}  -  ${spec.start} - ${spec.end} ET`;
 export function progressPercent(job: HistoricalJob): number | null {
@@ -29,7 +39,29 @@ export function validateHistoricalWindow(spec: HistoricalWindow, now = new Date(
 export function jobSummary(job: HistoricalJob): string {
   const percent = progressPercent(job);
   const status = job.stale ? 'Stalled' : job.status === 'pause_requested' ? 'Pausing' : job.status;
+  // A stopped job that holds nothing says so, rather than "failed 0%" (QA 2026-09-22, V41 / C45).
+  if (!ACTIVE_STATUSES.has(job.status) && nothingDownloaded(job.covered_seconds)) {
+    return `${job.symbol} ${status} · ${SIM_HISTORY_NOTHING_DOWNLOADED}`;
+  }
   return `${job.symbol} ${status}${percent == null ? '' : ` ${percent.toFixed(0)}%`}`;
+}
+
+/**
+ * The download the Sim bar's one-line summary names: the one a worker is
+ * advancing, else a stopped, failed or finished one only while it is recent --
+ * a failure from hours ago is history in the panel's list, not the desk's
+ * current state (QA 2026-09-22, V41). Unknown age (an older API) counts as recent.
+ */
+export function currentJob(jobs: HistoricalJob[], recentSec: number = SIM_HISTORY_SUMMARY_RECENT_SEC): HistoricalJob | null {
+  const progressing = jobs.find(job => !job.stale && ACTIVE_STATUSES.has(job.status));
+  if (progressing) return progressing;
+  const recent = (job: HistoricalJob | undefined): job is HistoricalJob =>
+    job != null && (job.age_seconds == null || job.age_seconds <= recentSec);
+  return [
+    jobs.find(job => ACTIVE_STATUSES.has(job.status)),
+    jobs.find(job => job.stale || job.error),
+    jobs[0],
+  ].find(recent) ?? null;
 }
 
 /** "41.8k" / "1.2M" / "830" -- a print count short enough for one status line. */

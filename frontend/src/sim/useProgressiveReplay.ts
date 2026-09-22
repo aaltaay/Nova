@@ -12,7 +12,7 @@ import { historicalStatus } from './historicalStatusStore';
 import { replayPost, replayRequest } from './replayRequest';
 import { shouldRefreshSelection } from './simProgressiveReplay';
 import { windowKey } from './simReplayOffer';
-import { SIM_PROGRESSIVE_RELOAD_MS } from './simConstants';
+import { SIM_HISTORY_REQUEST_FAILED, SIM_PROGRESSIVE_RELOAD_MS } from './simConstants';
 import { serializeSimSessionMutation } from './simSessionMutations';
 import type { HistoricalSelection } from './historicalTypes';
 
@@ -38,7 +38,7 @@ export function useProgressiveReplay(active: boolean): void {
     lastAt.current = Date.now();
     const spec = { symbol: selection.symbol, date: selection.date, start: selection.start, end: selection.end };
     void serializeSimSessionMutation('/history/select', () =>
-      replayRequest<HistoricalSelection>('/history/select', replayPost(spec)))
+      replayRequest<HistoricalSelection>('/history/select', replayPost(spec), SIM_HISTORY_REQUEST_FAILED))
       .then(selected => {
         const current = historicalStatus.getSnapshot().data;
         historicalStatus.setData({

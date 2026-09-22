@@ -3,8 +3,9 @@
  * right of the symbol tabs: transport (⏮ ◀◀ ⏯ ▶▶ ⏭), the coverage band
  * stretched across the row, the `● Live edge` pill (muted Wall clock / replay
  * state off it) and the `⋯` menu. Errors are a dismissable chip here plus a
- * red stretch in the band -- never a banner. Resource / controller ownership
- * stays in useSimSessionController (ADR 005).
+ * red stretch in the band -- never a banner; a capture still loading is a
+ * neutral pill, never red. Resource / controller ownership stays in
+ * useSimSessionController (ADR 005).
  */
 import { useCallback, useState, useSyncExternalStore } from 'react';
 import { SkipBack, SkipForward, StepBack, StepForward } from 'lucide-react';
@@ -27,11 +28,12 @@ import { SimStripBand } from './SimStripBand';
 import { SimStripMenu } from './SimStripMenu';
 import { captureCoverageLabel } from './simCoverage';
 import {
-  SIM_LIVE_EDGE_LABEL, SIM_LIVE_EDGE_TITLE, SIM_SESSION_MINUTES, SIM_WALL_CLOCK_LABEL, SIM_WALL_CLOCK_TITLE,
-  simCaptureBandTitle,
+  SIM_LIVE_EDGE_LABEL, SIM_LIVE_EDGE_TITLE, SIM_REPLAY_LOADING, SIM_REPLAY_LOADING_TITLE, SIM_SESSION_MINUTES,
+  SIM_WALL_CLOCK_LABEL, SIM_WALL_CLOCK_TITLE, simCaptureBandTitle,
 } from './simConstants';
 import {
-  firstReplayMinute, formatMinuteClock, playheadTag, recordedLane, sessionOpeningLabel, stripBandSegments,
+  firstReplayMinute, firstReplaySecond, formatMinuteClock, playheadTag, recordedLane, sessionOpeningLabel,
+  stripBandSegments, stripScale,
 } from './simStripFormat';
 import { useProgressiveReplay } from './useProgressiveReplay';
 import { useSimSessionController } from './useSimSessionController';
@@ -51,10 +53,12 @@ export function SimSessionStrip() {
   const liveEdge = clock?.live_edge === true;
   const offWall = Boolean(clock?.scrubbed || clock?.paused || dragMinute != null);
   const failed = clock?.replay_ok === false;
-  const segments = stripBandSegments(clock, selection, ts => etTime(ts).slice(0, 5));
-  const recorded = recordedLane(clock, controller.sessions, activeTraderSymbol, ts => etTime(ts).slice(0, 5));
+  const loading = !failed && clock?.replay_loading === true;
+  const format = (ts: number) => etTime(ts).slice(0, 5);
+  const segments = stripBandSegments(clock, selection, format);
+  const recorded = recordedLane(clock, controller.sessions, activeTraderSymbol, format);
   const bandTitle = clock?.replay_source === 'capture'
-    ? simCaptureBandTitle(captureCoverageLabel(clock, ts => etTime(ts).slice(0, 5)))
+    ? simCaptureBandTitle(captureCoverageLabel(clock, format))
     : undefined;
   const errors = [
     ...controller.errors,
@@ -68,7 +72,12 @@ export function SimSessionStrip() {
       <div className="sim-strip__transport" role="group" aria-label={SIM_STRIP_LABEL}>
         <button type="button" title={SIM_STRIP_TRANSPORT_FIRST} aria-label={SIM_STRIP_TRANSPORT_FIRST}
           disabled={seekBusy || !clock?.sim} data-testid="sim-strip-first"
-          onClick={() => seekTo(firstReplayMinute(clock, selection))}>
+          onClick={() => {
+            // To the first recorded second itself, not its minute (R22).
+            const second = firstReplaySecond(clock, selection);
+            if (second == null) seekTo(firstReplayMinute(clock, selection));
+            else void controller.seekToSecond(second);
+          }}>
           <SkipBack size={13} aria-hidden="true" />
         </button>
         <button type="button" title={SIM_STRIP_TRANSPORT_BACK} aria-label={SIM_STRIP_TRANSPORT_BACK}
@@ -92,6 +101,7 @@ export function SimSessionStrip() {
       <SimStripBand
         minute={minute}
         max={max}
+        scale={stripScale(clock)}
         segments={segments}
         liveEdge={liveEdge}
         tag={playheadTag(clock, dragMinute)}
@@ -106,6 +116,10 @@ export function SimSessionStrip() {
       {liveEdge ? (
         <span className="sim-strip__pill sim-strip__pill--live" data-testid="sim-live-edge" title={SIM_LIVE_EDGE_TITLE}>
           <i aria-hidden="true" />{SIM_LIVE_EDGE_LABEL}
+        </span>
+      ) : loading ? (
+        <span className="sim-strip__pill" role="status" data-testid="sim-strip-replay-loading" title={SIM_REPLAY_LOADING_TITLE}>
+          {SIM_REPLAY_LOADING}
         </span>
       ) : offWall || failed ? (
         <button type="button" className={`sim-strip__pill sim-strip__pill--replay${failed ? ' sim-strip__pill--failed' : ''}`}

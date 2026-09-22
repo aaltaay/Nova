@@ -11,10 +11,13 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from capture.recorder import capture_root
-from capture.constants_capture import (
-    CAPTURE_CHART_DEFAULT_LIMIT, CAPTURE_CHART_MAX_LIMIT, CAPTURE_L2_LOAD_LIMIT,
-)
+from capture.constants_capture import CAPTURE_L2_LOAD_LIMIT, CAPTURE_NOT_IBKR_REASON
 from capture.schema import read_manifest
+from capture.sessions import is_ibkr_source
+from sim.capture_charts import chart_bars  # noqa: F401 -- the player's chart API (split out)
+from sim.capture_spans import (
+    is_odd_lot, load_spans, newest_in_span, previous_close_for, recording_here, span_start,
+)
 from sim.capture_reader import read_jsonl as _read_jsonl, usable_rows, new_diagnostics, sample_l2
 
 logger = logging.getLogger(__name__)
@@ -34,6 +37,10 @@ class CaptureData:
     bar_keys: dict[str, list[float]]
     print_bar_cache: dict = field(default_factory=dict)
     last_emit: float = 0.0
+    # Recorded stretches ``[(start, stop)]``; empty means unknown (every read unbounded).
+    spans: list = field(default_factory=list)
+    # The replayed session's previous close, from the bar archive; None when not stored.
+    prev_close: float | None = None
 
 
 _state: CaptureData | None = None
@@ -86,6 +93,9 @@ def load(date: str, symbol: str, *, generation: int | None = None) -> dict[str, 
     diagnostics = new_diagnostics()
     try:
         _manifest, diagnostics["legacy_schema"] = read_manifest(root)
+        if not is_ibkr_source(_manifest):
+            # ADR 019 removed the synthetic instrument; its old directories are not recordings (C21).
+            return failure(CAPTURE_NOT_IBKR_REASON, diagnostics)
         def read(name: str, kind: str) -> list[dict]:
             return usable_rows(_read_jsonl(root / (name + ".jsonl"), diagnostics), kind, symbol, diagnostics)
         prints = read("prints", "prints")
@@ -104,6 +114,9 @@ def load(date: str, symbol: str, *, generation: int | None = None) -> dict[str, 
                         [_ts(r) for r in l2], {k: [_ts(r) for r in v] for k, v in bars.items()})
     event_keys = state.print_keys + state.quote_keys
     first_ts, last_ts = min(event_keys), max(event_keys)
+    segments, state.spans = load_spans(_manifest, root, live=recording_here(root),
+                                       first_ts=first_ts, last_ts=last_ts)
+    state.prev_close = previous_close_for(symbol, date)
     l2_path = root / "l2.jsonl"
     l2_bytes = l2_path.stat().st_size if l2_path.is_file() else 0
     with _load_lock:
@@ -128,8 +141,10 @@ def load(date: str, symbol: str, *, generation: int | None = None) -> dict[str, 
         "first_ts": first_ts,
         "last_ts": last_ts,
         # Recorded stretches (with why each ended) so the scrubber can draw
-        # them against the session and a gap as a gap.
-        "segments": [dict(seg) for seg in _manifest.get("segments", []) if isinstance(seg, dict)],
+        # them against the session and a gap as a gap -- the one still being
+        # written included (``stopped_et`` null while this process records it,
+        # C41) and data written past the last segment (``unlisted``, R13).
+        "segments": segments,
     }
 
 
@@ -152,34 +167,30 @@ def asof_unix() -> float:
     return _clock.now_et().timestamp()
 
 
-def _bar_tf(timeframe: str) -> str:
-    tf = (timeframe or "").strip().lower().replace(" ", "")
-    if tf in ("10s", "10sec", "10"):
-        return "10s"
-    if tf in ("5m", "5min", "5minute"):
-        return "5m"
-    if tf in ("1d", "1day", "day", "daily"):
-        return "1d"
-    return "1m"
-
-
-def _to_chart_bar(row: dict[str, Any]) -> dict[str, Any]:
-    ts = _ts(row)
-    t_iso = datetime.fromtimestamp(ts, tz=ET).astimezone(timezone.utc).isoformat()
-    return {
-        "t": t_iso,
-        "o": float(row.get("open") or row.get("o") or 0),
-        "h": float(row.get("high") or row.get("h") or 0),
-        "l": float(row.get("low") or row.get("l") or 0),
-        "c": float(row.get("close") or row.get("c") or 0),
-        "v": float(row.get("volume") or row.get("v") or 0),
-    }
-
-
 def _asof_index(keys: list[float], asof: float) -> int:
     if not keys:
         return -1
     return bisect.bisect_right(keys, asof) - 1
+
+
+def _bounded_index(keys: list[float], state: CaptureData, t: float) -> int:
+    """Newest row at or before ``t`` -- inside ``t``'s recorded stretch when stretches are known."""
+    return newest_in_span(keys, state.spans, t) if state.spans else _asof_index(keys, t)
+
+
+def _span_floor(keys: list[float], state: CaptureData, t: float) -> int:
+    """First row index inside ``t``'s stretch (0 when stretches are unknown)."""
+    start = span_start(state.spans, t) if state.spans else None
+    return bisect.bisect_left(keys, start) if start is not None else 0
+
+
+def covered(asof: float | None = None, *, state: CaptureData | None = None) -> bool:
+    """The moment falls inside a recorded stretch (always, when stretches are unknown)."""
+    state = state or _state
+    if state is None:
+        return False
+    t = asof if asof is not None else asof_unix()
+    return not state.spans or span_start(state.spans, t) is not None
 
 
 def has_prints() -> bool:
@@ -187,58 +198,19 @@ def has_prints() -> bool:
     return bool(state and state.prints)
 
 
-def chart_bars(timeframe: str, limit: int, *, asof: float | None = None) -> list[dict[str, Any]]:
-    """Intraday bars from capture. Daily SSOT is IBKR (see chart_bars.py); 1d here is unused for desk."""
-    state = _state
-    if state is None:
-        return []
-    from sim.chart_replay import INTERVAL_SECONDS, aggregate_prints, print_candle
-    from ibkr.historical_derive import derive_from_1min
-
-    seconds = INTERVAL_SECONDS.get(timeframe)
-    if seconds is None:
-        return []
-    kind = _bar_tf(timeframe)
-    derive = timeframe in ("15Min", "30Min", "1Hour")
-    if derive:
-        kind = "1m"
-    rows = state.bars.get(kind) or []
-    keys = state.bar_keys.get(kind) or []
-    if not rows and state.prints:
-        if timeframe not in state.print_bar_cache:
-            aggregated = aggregate_prints(state.prints, seconds)
-            state.print_bar_cache[timeframe] = (aggregated, [_ts(r) for r in aggregated])
-        rows, keys = state.print_bar_cache[timeframe]
-        derive = False
-    asof = asof_unix() if asof is None else asof
-    bucket = int(asof // seconds) * seconds
-    # A bar's timestamp is its OPEN. Its final OHLCV is not known until close.
-    i = _asof_index(keys, bucket - (60 if derive else seconds))
-    cap = max(1, min(int(limit or CAPTURE_CHART_DEFAULT_LIMIT), CAPTURE_CHART_MAX_LIMIT))
-    source_cap = cap * (seconds // 60) if derive else cap
-    bars = list({r["t"]: r for r in (
-        _to_chart_bar(row) for row in rows[max(0, i - source_cap + 1):i + 1]
-    )}.values())
-    if derive:
-        bars = derive_from_1min(bars, timeframe)
-    lo = bisect.bisect_left(state.print_keys, bucket)
-    hi = bisect.bisect_right(state.print_keys, asof)
-    partial = print_candle(state.prints[lo:hi], bucket)
-    if partial:
-        bars.append(partial)
-    return bars[-cap:]
-
-
 def recent_prints(limit: int = 40, *, state: CaptureData | None = None) -> list[dict[str, Any]]:
     state = state or _state
     if state is None or not state.prints:
         return []
     asof = asof_unix()
-    i = _asof_index(state.print_keys, asof + 1e-6)
+    # The tape is the playhead's own stretch: in a gap it is empty, and it never
+    # reaches back across the gap before it (R11).
+    i = _bounded_index(state.print_keys, state, asof + 1e-6)
     if i < 0:
         return []
     cap = max(1, int(limit))
-    chunk = state.prints[max(0, i - cap + 1) : i + 1]
+    floor = _span_floor(state.print_keys, state, asof)
+    chunk = state.prints[max(floor, i - cap + 1) : i + 1]
     out: list[dict[str, Any]] = []
     for p in chunk:
         ts = _ts(p)
@@ -266,10 +238,13 @@ def quote_at(asof: float | None = None, *, state: CaptureData | None = None) -> 
         return None
     t = asof if asof is not None else asof_unix()
     if state.quotes:
-        i = _asof_index(state.quote_keys, t)
+        i = _bounded_index(state.quote_keys, state, t)
         if i >= 0:
             row = state.quotes[i]
-            last = float(row.get("last") or row.get("price") or 0)
+            # The recorder's quote rows carry the top of book, not a last (R12):
+            # the last is the newest reported print, never a zero.
+            recorded_last = row.get("last") or row.get("price")
+            last = float(recorded_last) if recorded_last else last_print_at(t, state=state)
             return {
                 "symbol": str(row.get("symbol") or "").upper(),
                 "bid": row.get("bid"),
@@ -282,7 +257,7 @@ def quote_at(asof: float | None = None, *, state: CaptureData | None = None) -> 
                 "ts": _ts(row),
                 "source": "capture",
             }
-    i = _asof_index(state.print_keys, t)
+    i = _bounded_index(state.print_keys, state, t)
     if i < 0:
         return None
     row = state.prints[i]
@@ -302,12 +277,22 @@ def quote_at(asof: float | None = None, *, state: CaptureData | None = None) -> 
 
 
 def last_print_at(asof: float, *, state: CaptureData | None = None) -> float | None:
-    """Price of the last recorded print at or before ``asof``."""
+    """Price of the last reported print at or before ``asof``, inside its recorded stretch.
+
+    Odd lots never set the last (the historical download's ``unreported`` rule,
+    R24), and a gap has none (R11) -- a practice order is refused there.
+    """
     state = state or _state
     if state is None or not state.prints:
         return None
-    i = _asof_index(state.print_keys, asof)
-    return float(state.prints[i]["price"]) if i >= 0 else None
+    i = _bounded_index(state.print_keys, state, asof)
+    floor = _span_floor(state.print_keys, state, asof)
+    while i >= max(0, floor):
+        row = state.prints[i]
+        if not is_odd_lot(row):
+            return float(row["price"])
+        i -= 1
+    return None
 
 
 def book_at(asof: float | None = None, *, state: CaptureData | None = None) -> dict[str, Any] | None:
@@ -315,9 +300,14 @@ def book_at(asof: float | None = None, *, state: CaptureData | None = None) -> d
     if state is None or not state.l2:
         return None
     t = asof if asof is not None else asof_unix()
-    i = _asof_index(state.l2_keys, t)
+    i = _bounded_index(state.l2_keys, state, t)
     if i < 0:
-        return None
+        if not state.spans:
+            return None
+        # Nothing recorded for this moment (a gap, or before this stretch's first
+        # book): an explicit empty book, so the last one never stands in for it (R11).
+        return {"symbol": state.symbol, "bids": [], "asks": [], "ts": t,
+                "source": "capture", "recorded": False}
     row = state.l2[i]
     return {
         "symbol": str(row.get("symbol") or "").upper(),
@@ -325,6 +315,32 @@ def book_at(asof: float | None = None, *, state: CaptureData | None = None) -> d
         "asks": list(row.get("asks") or []),
         "ts": _ts(row),
         "source": "capture",
+    }
+
+
+def replay_quote(*, state: CaptureData | None = None) -> dict[str, Any] | None:
+    """The loaded capture's market at the playhead, for the Sim clock payload (R10).
+
+    The quote head and the ticket read it on every clock poll, so a seek moves
+    them with the playhead. In a gap ``covered`` is false and every price is
+    null -- a stated absence, never the market from before the gap.
+    """
+    state = state or _state
+    if state is None:
+        return None
+    t = asof_unix()
+    inside = covered(t, state=state)
+    quote = quote_at(t, state=state) if inside else None
+    return {
+        "symbol": state.symbol,
+        "ts": t,
+        "covered": inside,
+        "last": last_print_at(t, state=state) if inside else None,
+        "bid": quote.get("bid") if quote else None,
+        "ask": quote.get("ask") if quote else None,
+        "bid_size": quote.get("bid_size") if quote else None,
+        "ask_size": quote.get("ask_size") if quote else None,
+        "prev_close": state.prev_close,
     }
 
 

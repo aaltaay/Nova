@@ -64,8 +64,8 @@ export const NAV_RAIL_SELECT_TAB_EVENT = 'nova:nav-rail-select-tab';
 
 /** Records placeholder page. */
 export const RECORDS_PAGE_TITLE = 'Records';
-export const RECORDS_PAGE_SUBTITLE = "Today's Session Records";
-export const RECORDS_PAGE_EMPTY = 'No Session Records today.';
+export const RECORDS_PAGE_SUBTITLE = 'Session Records, newest day first';
+export const RECORDS_PAGE_EMPTY = 'No Session Records yet.';
 export const RECORDS_PAGE_LOADING = 'Loading Session Records…';
 export const RECORDS_PAGE_ERROR_PREFIX = 'Session Records unavailable:';
 export const RECORDS_PAGE_RECORDING = 'Recording';
@@ -75,3 +75,11 @@ export const RECORDS_PAGE_COL_PRINTS = 'Prints';
 export const RECORDS_PAGE_COL_SEGMENTS = 'Segments';
 export const RECORDS_PAGE_COL_MISSING = 'Missing';
 export const RECORDS_PAGE_COL_STATUS = 'Status';
+
+/* ── QA batch fix/qa-sim-replay (2026-09-22): every day's records, replay from Records (V20) ── */
+export const RECORDS_PAGE_TODAY = 'today';
+export const RECORDS_PAGE_REPLAY = 'Replay in Sim';
+export const RECORDS_PAGE_REPLAY_TITLE = 'Load this Session Record into the Sim replay and open it in Trader';
+export const RECORDS_PAGE_REPLAY_FAILED = 'Replay did not load:';
+export const RECORDS_PAGE_MISSING_TITLE =
+  'Seconds between the first and last segment that no segment covers -- restarts and failures; deliberate stops are not counted.';

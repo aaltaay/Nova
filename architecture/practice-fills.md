@@ -81,7 +81,16 @@ Owner: `backend/sim/session_clock.py` (`live_edge`), `backend/sim/mode.py`
 be unknown:
 
 - **Recorded capture** — `bid`/`ask` come from the recorded quote at the
-  playhead, `last` from the last recorded print.
+  playhead (the recorder's quote rows carry the top of book with `last: null`,
+  and load as quotes), `last` from the last recorded print that is not an odd
+  lot (sale condition `I`). Every read stays inside the recorded stretch that
+  holds the playhead (the manifest's segments, the open one, and data written
+  past the last segment): **in a gap nothing was recorded, so there is no
+  quote, no book and no last** -- a practice order is refused `SIM_NO_PRICE`
+  ("not recorded at the replay playhead"), and the Level 2 pushed for that
+  moment is an explicit empty book, never the one from before the gap. A
+  capture whose manifest names no segment cannot say where the recorder was up
+  and reads unbounded, as before.
 - **Historical download** — `last` only. IBKR historical trades carry no
   bid/ask (see #311), so spread-aware fills are not available on this source.
 
@@ -99,8 +108,11 @@ be unknown:
 
 A resting order only ever fills on prints **after** it was placed, so scrubbing
 backwards can never fill it, and moving the playhead forward fills it at the
-first crossing print in between. Unreported prints (odd-lot / Form T) never
-fill anything, matching their exclusion from candles, last and volume.
+first crossing print in between -- **paused or playing**: the Sim feed streams
+nothing while paused, but it still matches (and expires `DAY` orders) across a
+stretch the operator scrubbed over. Unreported prints (odd-lot / Form T on a
+download, sale condition `I` on a capture) never fill anything, matching their
+exclusion from candles, last and volume.
 
 ## Market orders need regular hours (operator decision, 2026-09-21)
 

@@ -90,7 +90,15 @@ def next_fetch(ranges, cursor: int, start: int, end: int) -> int | None:
 
 
 def job_ranges(job: dict) -> Ranges:
-    """A job's coverage, reading pre-range jobs as their contiguous prefix."""
+    """A job's coverage, reading pre-range jobs as their contiguous prefix.
+
+    A candles job fetches its whole window in one request: complete, it covers
+    the window (jobs finished before that was stored carry ``ranges: []``,
+    which read "complete - 0%"); otherwise nothing (QA 2026-09-22, C40).
+    """
+    if job.get("kind") == "bars":
+        start, end = int(job["start_ts"]), int(job["end_ts"])
+        return [[start, end]] if job.get("status") == "complete" and end > start else []
     if "ranges" in job and job["ranges"] is not None:
         return normalize(job["ranges"])
     start, cursor = int(job["start_ts"]), int(job.get("cursor") or job["start_ts"])

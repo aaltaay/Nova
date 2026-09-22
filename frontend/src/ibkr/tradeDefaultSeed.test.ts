@@ -25,9 +25,10 @@ describe('tradeDefaultSeed', () => {
     expect(seedLimitPrice('last', 'SELL', book)).toBe(10);
   });
 
-  it('seeds protective stops', () => {
-    expect(seedStopPrice('BUY', 100, 1)).toBeCloseTo(99);
-    expect(seedStopPrice('SELL', 100, 1)).toBeCloseTo(101);
+  it('seeds a stop on the far side of the market for the order side (R18)', () => {
+    // A BUY stop triggers on a rise, a SELL stop on a fall: neither is through the market.
+    expect(seedStopPrice('BUY', 100, 1)).toBeCloseTo(101);
+    expect(seedStopPrice('SELL', 100, 1)).toBeCloseTo(99);
     expect(seedStopPrice('BUY', null, 1)).toBeNull();
   });
 

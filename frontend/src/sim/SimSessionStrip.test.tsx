@@ -94,7 +94,17 @@ describe('SimSessionStrip', () => {
     await act(async () => { fireEvent.click(screen.getByTestId('sim-strip-forward')); });
     expect(posts().at(-1)).toEqual({ path: '/clock', body: { minute_from_open: 462, symbol: 'GRML' } });
     await act(async () => { fireEvent.click(screen.getByTestId('sim-strip-first')); });
-    expect(posts().at(-1)).toEqual({ path: '/clock', body: { minute_from_open: 210, symbol: 'GRML' } });
+    // ⏮ lands on the first recorded second itself (07:30:00 = 3.5 h after the open), not its minute (R22).
+    expect(posts().at(-1)).toEqual({ path: '/clock', body: { second_from_open: 12_600, symbol: 'GRML' } });
+  });
+
+  it('⏮ reaches a recording that starts mid-minute to the second (R22)', async () => {
+    clock = { ...capture, replay_load: { ...capture.replay_load,
+      segments: [{ started_et: '2026-09-21T11:46:35.300000-04:00', stopped_et: '2026-09-21T11:47:27-04:00', reason: 'failure' }] } };
+    await mount();
+    await act(async () => { fireEvent.click(screen.getByTestId('sim-strip-first')); });
+    // 11:46:35.3 from a 04:00 open: 7 h 46 m 36 s, inside the recording, never 11:47:00.
+    expect(posts().at(-1)).toEqual({ path: '/clock', body: { second_from_open: 7 * 3600 + 46 * 60 + 36, symbol: 'GRML' } });
   });
 
   it('a failed replay is a red stretch in the band plus a dismissable chip, never a banner', async () => {
@@ -105,6 +115,44 @@ describe('SimSessionStrip', () => {
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Dismiss' })); });
     expect(screen.queryByTestId('sim-strip-toast')).toBeNull();
     expect(screen.getByTestId('sim-strip-seg-failed')).toBeTruthy();
+  });
+
+  it('a loaded 09:15-11:30 window is labelled with its own bounds and the ticks that fall in it (V10 / C27)', async () => {
+    clock = {
+      sim: true, replay_source: 'historical', replay_symbol: 'GRML', replay_date: '2026-09-21', live_edge: false,
+      scrubbed: true, minute_from_open: 58, minute_max: 135, sim_time_et: '2026-09-21T10:13:59-04:00',
+      session_open_et: '2026-09-21T09:15:00-04:00', session_close_et: '2026-09-21T11:30:00-04:00', session_date: '2026-09-21',
+    };
+    await mount();
+    expect(screen.getByTestId('sim-strip-bound-open').textContent).toBe('09:15');
+    expect(screen.getByTestId('sim-strip-bound-close').textContent).toBe('11:30');
+    const ticks = screen.getAllByTestId('sim-strip-tick');
+    expect(ticks.map(tick => tick.textContent)).toEqual(['09:30']);
+    expect(parseFloat(ticks[0].style.left)).toBeCloseTo((15 / 135) * 100, 1);
+    expect(parseFloat(screen.getByTestId('sim-strip-playhead').style.left)).toBeCloseTo((58 / 135) * 100, 1);
+    expect(screen.getByTestId('sim-strip-band').textContent).not.toMatch(/04:00|20:00|16:00/);
+  });
+
+  it('a capture still loading is a neutral pill, never a red failure (C59)', async () => {
+    clock = { ...edge, live_edge: false, replay_source: 'none', replay_ok: null, replay_loading: true, replay_error: null };
+    await mount();
+    expect(screen.getByTestId('sim-strip-replay-loading').textContent).toBe('Loading recording…');
+    expect(screen.queryByTestId('sim-strip-seg-failed')).toBeNull();
+    expect(screen.queryByTestId('sim-strip-toast')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('a malformed clock or listing never takes the strip down (C6 / C13)', async () => {
+    clock = { ...capture, replay_load: { segments: {} }, minute_max: 'x' };
+    mocks.fetch.mockImplementation(async (url: string) => ({
+      ok: true,
+      json: async () => url.endsWith('/history') ? { jobs: [{ id: 'j', count: null }], selection: { coverage: [null] } }
+        : url.endsWith('/sessions') ? { tickers_by_day: [] }
+        : clock,
+    }));
+    await mount();
+    expect(screen.getByTestId('sim-session-strip')).toBeTruthy();
+    expect(screen.queryAllByTestId('sim-strip-seg-recorded')).toHaveLength(0);
   });
 
   it('the scrubber commits one seek on pointer release', async () => {

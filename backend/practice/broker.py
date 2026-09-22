@@ -289,13 +289,15 @@ class PracticeBroker:
         stop_price: float | None, now: float, source: str, bot_id: str | None, tif: str,
     ) -> dict[str, Any]:
         wall = iso_utc(time.time())
+        # Placed at the venue's time (the playhead on Sim), like every other row stamp (R27).
+        placed = iso_utc(now)
         return {
             "order_id": oid, "perm_id": oid, "symbol": sym, "side": side, "qty": qty,
             "filled_qty": 0.0, "remaining_qty": qty, "order_type": typ,
             "limit_price": float(limit_price) if limit_price is not None else None,
             "stop_price": float(stop_price) if stop_price is not None else None,
             "avg_fill_price": None, "outside_rth": True, "status": "Submitted",
-            "submitted_at": wall, "updated_at": wall, "filled_at": None, "held_until": None,
+            "submitted_at": placed, "updated_at": placed, "filled_at": None, "held_until": None,
             "commission": None, "fees": None, "source": "nova", "order_source": source,  # C30: the fill's own
             "bot_id": bot_id, "mode": self.venue, "venue": self.venue,
             "account_id": self.account_id, "nova_placed_at": wall, "placed_ts": float(now),

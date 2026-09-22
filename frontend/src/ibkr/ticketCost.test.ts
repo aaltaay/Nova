@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { PRACTICE_NO_SHORTS_REASON } from '../constantGroups/practice';
+import { TICKET_COST_NO_POSITION } from '../constantGroups/trader_chrome';
+import { SIM_REPLAY_PRICE_NONE } from '../sim/simConstants';
 import { estimateTicketCost } from './ticketCost';
 import type { ManualOrderValues } from './orderEntry';
 
@@ -70,5 +73,39 @@ describe('estimateTicketCost', () => {
     const est = estimateTicketCost(BASE, CTX, { forceQty: 1 });
     expect(est.shares).toBe(1);
     expect(est.cost).toBe(8.9);
+  });
+
+  it('a SELL from flat or past the held quantity frees nothing -- it would be refused (V24)', () => {
+    for (const positionQty of [null, 0, -50]) {
+      const est = estimateTicketCost({ ...BASE, side: 'SELL' }, { ...CTX, positionQty }, { forceQty: null });
+      expect(est.cost).toBeNull();
+      expect(est.buyingPowerAfter).toBeNull();
+      expect(est.note).toBe(TICKET_COST_NO_POSITION);
+    }
+    const over = estimateTicketCost({ ...BASE, side: 'SELL' }, { ...CTX, positionQty: 40 }, { forceQty: null });
+    expect(over.buyingPowerAfter).toBeNull();
+    expect(over.note).toBe(TICKET_COST_NO_POSITION);
+  });
+
+  it('a practice venue refuses the short entry a Live margin account may open', () => {
+    const short = { ...BASE, side: 'SELL' as const, shortEntry: true };
+    const practice = estimateTicketCost(short, CTX, { forceQty: null }, { practice: true });
+    expect(practice.buyingPowerAfter).toBeNull();
+    expect(practice.note).toBe(PRACTICE_NO_SHORTS_REASON);
+    expect(estimateTicketCost(short, CTX, { forceQty: null }, { practice: false }).buyingPowerAfter).toBe(397_354 - 890);
+  });
+
+  it('says why there is no market price when the venue knows (Sim off the edge)', () => {
+    const est = estimateTicketCost(
+      { ...BASE, orderType: 'MKT' },
+      { ...CTX, marketReferencePrice: null },
+      { forceQty: null },
+      { practice: true, priceNote: SIM_REPLAY_PRICE_NONE },
+    );
+    expect(est.cost).toBeNull();
+    expect(est.note).toBe(SIM_REPLAY_PRICE_NONE);
+    // A limit is priced at its own limit whatever the venue's reference.
+    expect(estimateTicketCost(BASE, { ...CTX, marketReferencePrice: null }, { forceQty: null },
+      { practice: true, priceNote: SIM_REPLAY_PRICE_NONE }).cost).toBe(890);
   });
 });

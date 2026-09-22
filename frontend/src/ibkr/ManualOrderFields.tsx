@@ -285,7 +285,7 @@ export function ManualOrderFields({
           {TICKER_TRADE_LABEL_TRADING_HOURS}
         </label>
         {cost !== undefined && (
-          <span className="mot-cost" data-testid="manual-order-cost" title={TICKET_COST_TITLE}>
+          <span className="mot-cost" data-testid="manual-order-cost" title={cost?.note || TICKET_COST_TITLE}>
             {TICKET_COST_LABEL} <b>{money(cost?.cost, 2)}</b>
             {' · '}
             {TICKET_BP_AFTER_LABEL} <b>{money(cost?.buyingPowerAfter, 0)}</b>

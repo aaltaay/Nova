@@ -54,3 +54,7 @@ export const CAPTURE_STOP_HOLD_MS = 1200;
 export const CAPTURE_STOP_HOLD_STEP_MS = 50;
 export const captureStopHoldLabel = (symbol: string): string => `Hold to stop recording ${symbol}`;
 export const CAPTURE_STOP_HOLD_HINT = 'Press and hold. Letting go early keeps recording.';
+
+/* ── QA batch fix/qa-sim-replay (2026-09-22) ── */
+/** A plain-text Record error body is quoted only when this short ("Internal Server Error"); HTML never. */
+export const CAPTURE_COMMAND_PLAIN_ERROR_MAX_CHARS = 160;

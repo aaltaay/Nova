@@ -60,7 +60,7 @@ def test_scrub_while_paused_stays_paused(frozen_clock):
 
 
 @pytest.mark.parametrize("capture", [False, True])
-def test_paused_feed_does_not_emit_or_match(monkeypatch, capture):
+def test_paused_feed_does_not_emit_but_still_matches(monkeypatch, capture):
     monkeypatch.setattr(replay, "is_capture_replay", lambda: capture)
     emit = Mock(return_value={"type": "print"})
     match = Mock(return_value=[])
@@ -69,13 +69,15 @@ def test_paused_feed_does_not_emit_or_match(monkeypatch, capture):
     clock.set_paused(True)
     assert feed.tick() == {}
     emit.assert_not_called()
-    match.assert_not_called()
+    # QA 2026-09-22, R9: paused, the match still runs -- it fills only what a
+    # playhead moved forward crossed, and a still playhead crosses nothing.
+    match.assert_called_once()
     clock.set_paused(False)
     # Playing emits recorded prints only when a capture is loaded; practice
     # fills are matched either way (a historical window has no emitter).
     assert feed.tick() == ({"type": "print"} if capture else {})
     assert emit.call_count == (1 if capture else 0)
-    match.assert_called_once()
+    assert match.call_count == 2
 
 
 def test_api_pause_only_in_sim_and_validates_boolean(monkeypatch):

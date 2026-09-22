@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IBKR_STATUS_SESSION_KEY } from '../constants';
 import { CAPTURE_STATUS_FRESH_MS } from './constants';
 import {
-  getRecordingSymbols, getSessionRecordError, isTabRecording,
+  getRecordingSymbols, getSessionRecordError, isTabRecording, recordingSymbolsIn,
   startTabRecord, stopTabRecord, subscribeSessionRecord,
 } from './sessionRecordStore';
 import {
@@ -117,5 +117,46 @@ describe('server-owned recording store', () => {
     await pollIbkrStatusOnce();
     expect(getSessionRecordError()).toBe('disk full');
     expect(getRecordingSymbols()).toEqual([]);
+  });
+
+  it('reads recording symbols only from a list of strings (C14)', () => {
+    expect(recordingSymbolsIn({ capture_symbols: 'GRML' })).toEqual([]);
+    expect(recordingSymbolsIn({ capture_symbols: 'GRML', capture_symbol: 'grml' })).toEqual(['GRML']);
+    expect(recordingSymbolsIn({ capture_symbols: [' gdc ', 7, null, 'IMCC'] })).toEqual(['GDC', 'IMCC']);
+    expect(recordingSymbolsIn({})).toEqual([]);
+  });
+
+  it('a status with capture_symbols as a string records nothing rather than crashing', async () => {
+    _setIbkrStatusPollerFetchForTests(vi.fn().mockResolvedValue(response({
+      mode: 'paper', connected: false, enabled: true, capture: true, recording: true, capture_symbols: 'GRML',
+    })));
+    await pollIbkrStatusOnce();
+    expect(getRecordingSymbols()).toEqual([]);
+  });
+
+  it('a text/plain 500 to Record says Nova answered, never that it could not be reached (C65)', async () => {
+    command.mockResolvedValue({ ok: false, status: 500, text: async () => 'Internal Server Error' } as Response);
+    expect(await startTabRecord('GRML')).toBe('Nova answered 500 to Record start: Internal Server Error');
+    command.mockResolvedValue({ ok: false, status: 502, text: async () => '<html>Bad Gateway</html>' } as Response);
+    expect(await stopTabRecord('GRML')).toBe('Nova answered 502 to Record stop');
+    command.mockRejectedValue(new TypeError('Failed to fetch'));
+    expect(await stopTabRecord('GRML')).toMatch(/Could not reach Nova/);
+  });
+
+  it("names each symbol's own trouble: B's menu never shows A's tape or command error (C55)", async () => {
+    _setIbkrStatusPollerFetchForTests(vi.fn().mockResolvedValue(response({
+      ...state(null), capture: true, recording: true, capture_symbols: ['AAA', 'BBB'],
+      capture_error: 'IBKR AllLast stale; no recent prints for AAA',
+      capture_errors: { AAA: 'IBKR AllLast stale; no recent prints for AAA' },
+    })));
+    await pollIbkrStatusOnce();
+    expect(getSessionRecordError('AAA')).toMatch(/for AAA/);
+    expect(getSessionRecordError('BBB')).toBeNull();
+    // The legacy single value is unchanged for readers that name no symbol.
+    expect(getSessionRecordError()).toMatch(/for AAA/);
+    command.mockResolvedValue(response({ detail: 'Already recording 3 symbols' }, false));
+    await startTabRecord('CCC');
+    expect(getSessionRecordError('CCC')).toMatch(/Already recording/);
+    expect(getSessionRecordError('BBB')).toBeNull();
   });
 });

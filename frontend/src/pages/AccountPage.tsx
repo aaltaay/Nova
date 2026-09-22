@@ -51,6 +51,7 @@ import type { TradingTabSection } from '../ibkr/TradingSectionNav';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { isPracticeVenue } from '../practice/practiceAccountModel';
 import { usePracticeAccount } from '../practice/practiceAccountResource';
+import { useSimAccountClock } from '../practice/useSimAccountClock';
 import { SAMPLE_ACCOUNT_HISTORY_ABSENT, SAMPLE_MARKETING_LABEL } from '../sample_data/sampleCopy';
 import { useSampleRoute } from '../sample_data/useSampleRoute';
 import { useWorkspace } from '../workspace/WorkspaceContext';
@@ -104,10 +105,17 @@ export function AccountPage({ onOpenTrader }: Props) {
     () => (ledger ? positionsFromPractice(ledger.positions) : positionsFromIbkr(ibkr.positions)),
     [ledger, ibkr.positions],
   );
-  const today = todayPracticeDate();
-  const hist = history.data && history.data.venue === practiceVenue ? history.data : null;
+  // Sim's day and "now" are the replay playhead's, never the browser's (C20 / V32).
+  const simClock = useSimAccountClock(practiceVenue === 'sim');
+  const nowTs = simClock.nowTs ?? Date.now() / 1000;
+  const today = todayPracticeDate(new Date(nowTs * 1000));
+  const loadedHist = history.data && history.data.venue === practiceVenue ? history.data : null;
+  // Sim with nothing loaded and nothing traded: the panels say so instead of
+  // drawing an empty ledger ("No fills in this range") -- C69.
+  const simEmpty = simClock.nothingLoaded && !(Array.isArray(loadedHist?.fills) && loadedHist.fills.length > 0);
+  const hist = simEmpty ? null : loadedHist;
   const rows = accountDetailRows(figures, todayDailyRow(hist, today), hist != null);
-  const absence = sampleDesk
+  const historyAbsence = sampleDesk
     ? SAMPLE_ACCOUNT_HISTORY_ABSENT
     : practiceVenue
       ? hist
@@ -118,6 +126,7 @@ export function AccountPage({ onOpenTrader }: Props) {
             ? ACCOUNT_SIM_NOTHING_LOADED
             : ACCOUNT_HISTORY_LOADING
       : ACCOUNT_LIVE_NO_LEDGER;
+  const absence = simEmpty ? ACCOUNT_SIM_NOTHING_LOADED : historyAbsence;
   const breakers = session
     ? (() => {
         const tripped = (session.soft_breaker_fired ? 1 : 0) + (session.day_lock_active ? 1 : 0);
@@ -127,7 +136,6 @@ export function AccountPage({ onOpenTrader }: Props) {
   // The session's own cap, or none: the product ceiling is not this bot's cap (C35).
   const sessionCap = session?.caps?.max_shares;
   const maxSharesCap = typeof sessionCap === 'number' && Number.isFinite(sessionCap) ? sessionCap : null;
-  const nowTs = Date.now() / 1000;
   const fills = hist?.fills ?? [];
 
   const tabs: Array<[PageTab, string]> = sampleDesk

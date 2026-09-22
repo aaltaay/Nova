@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from constants_sim import (
     SIM_NO_PRICE_CODE,
     SIM_NO_PRICE_REASON,
+    SIM_NOT_RECORDED_REASON,
     SIM_NO_REPLAY_CODE,
     SIM_NO_REPLAY_REASON,
     SIM_NO_TRADES_CODE,
@@ -86,6 +87,12 @@ def admission(symbol: str) -> tuple[bool, str, str | None]:
 
         if history_playback.snapshot(symbol).get("source") == "completed_bars":
             return False, SIM_NO_TRADES_REASON, SIM_NO_TRADES_CODE
+    else:
+        from sim import capture_player
+
+        if not capture_player.covered(playhead_ts()):
+            # A gap in the recording is a stated absence, never the market from before it (R11).
+            return False, SIM_NOT_RECORDED_REASON, SIM_NO_PRICE_CODE
     if reference(symbol).last is None:
         return False, SIM_NO_PRICE_REASON, SIM_NO_PRICE_CODE
     return True, "OK", None
@@ -101,9 +108,11 @@ def prints_between(symbol: str, after_ts: float, through_ts: float) -> list[tupl
 
         return history_playback.prints_between(symbol, after_ts, through_ts)
     from sim import capture_player
+    from sim.capture_spans import is_odd_lot
 
+    # Odd lots never fill a practice order -- the historical path's ``unreported`` rule (R24).
     return [
         (float(row["ts"]), float(row["price"]))
         for row in capture_player.prints_since(after_ts, through_ts)
-        if row.get("price") is not None
+        if row.get("price") is not None and not is_odd_lot(row)
     ]

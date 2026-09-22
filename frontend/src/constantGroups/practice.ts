@@ -97,3 +97,11 @@ export const practiceStartingCashInvalid = (min: string, max: string): string =>
 /** Mirrors backend PRACTICE_STARTING_CASH: what a reset with no amount starts from (C43). */
 export const PRACTICE_STARTING_CASH_DEFAULT = 100_000;
 export const PRACTICE_STARTING_CASH_DEFAULT_LABEL = '$100,000';
+
+/* ── QA batch fix/qa-sim-replay (2026-09-22): stale money, practice-ticket copy ── */
+
+/** A failed practice poll keeps the last figures this long (a blip), then drops them -- money never outlives its source (C44). */
+export const PRACTICE_ACCOUNT_STALE_MS = 3 * PRACTICE_ACCOUNT_POLL_MS;
+export const PRACTICE_ACCOUNT_REQUEST_FAILED = 'Practice account request failed';
+/** Both practice venues refuse every short entry (`PRACTICE_NO_SHORTS`, AGENTS.md section 3). */
+export const PRACTICE_NO_SHORTS_REASON = 'Nova does not support short entries yet';

@@ -35,6 +35,7 @@ import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from './types';
 import { useCompactTicket } from './useCompactTicket';
 import { useManualOrderSubmission } from './useManualOrderSubmission';
 import { useIbkrStatus } from './useIbkrStatus';
+import { useVenuePrice } from '../sim/useReplayQuote';
 
 interface Props {
   symbol: string;
@@ -58,11 +59,13 @@ export function ManualOrderTicket({
   spendStatus,
   summary,
   position,
-  referencePrice,
+  referencePrice: livePrice,
   listingIbkr = null,
   onOrderPlaced,
 }: Props) {
   const ibkrStatus = useIbkrStatus();
+  // Sim off the live edge prices from the replay at the playhead, never the live feed (R10 / V24).
+  const { price: referencePrice, note: priceNote } = useVenuePrice(symbol, livePrice);
   const { topOfBook } = useTopOfBook();
   const initial = applyTicketDefaults(symbol, referencePrice, topOfBook);
   const allowShort = allowShortSide(summary);
@@ -71,10 +74,7 @@ export function ManualOrderTicket({
   );
   const { side, shortEntry } = ticketSideToOrder(ticketSide);
   const [orderType, setOrderType] = useState<ManualOrderType>(initial.orderType);
-  const shortBlockReason = shortDisabledReason(
-    ibkrStatus.short_enabled,
-    listingIbkr,
-  );
+  const shortBlockReason = shortDisabledReason(ibkrStatus.short_enabled, listingIbkr, mode);
   const [quantityMode, setQuantityMode] = useState<QuantityMode>('shares');
   const [quantityValue, setQuantityValue] = useState(initial.quantityValue);
   const [limitPrice, setLimitPrice] = useState(initial.limitPrice);
@@ -105,7 +105,7 @@ export function ManualOrderTicket({
     summary,
     position,
   };
-  const { tif, selectTif, cost, practice } = useCompactTicket({ mode, ...ticketValues });
+  const { tif, selectTif, cost, practice } = useCompactTicket({ mode, ...ticketValues, priceNote });
   const trading = evaluateTradingAllowed({
     connected,
     spendStatus,

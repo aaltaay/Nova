@@ -1,22 +1,33 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { replayPollResource } from './replayPollResource';
 import { simClockResource } from './simClockResource';
-import { historicalStatus } from './historicalStatusStore';
+import { CAPTURE_REPLAY_FAILURE, publishReplayReply } from './captureReplayLoad';
 import { useReplayActions } from './useReplayActions';
 import { emitSimClockScrub, SIM_CLOCK_SCRUB_EVENT, SIM_SEEK_CANCEL_EVENT, type SimClockScrubDetail } from './simClockEvents';
 import { SIM_CAPTURE_POLL_MS, SIM_SCRUB_KEYBOARD_MS } from './simConstants';
 import type { SimClockState } from './simClockTypes';
+import { parseCaptureSessions } from './captureSessionsParse';
+/** One Session Record row of `GET /api/capture/sessions`, as parsed at the boundary. */
+export interface CaptureSessionRow {
+  symbol: string;
+  /** Rows recorded; null when Nova has not counted them (the backend's `-1`) or does not know. */
+  prints: number | null;
+  l2: number | null;
+  usable?: boolean; empty?: boolean; unavailable_reason?: string | null;
+  segments?: number; missing_sec?: number; last_reason?: string | null; status?: string;
+  /** Who recorded it: `ibkr` for Session Record; anything else is not a real recording (ADR 019). */
+  source?: string | null;
+  /** `[[start, stop], ...]` whole epoch seconds per recorded segment (open: runs to now). */
+  spans?: number[][];
+}
 export interface CaptureSessions {
   days: { date: string; ticker_count: number }[];
-  tickers_by_day: Record<string, {
-    symbol: string; prints: number; l2: number; usable?: boolean; empty?: boolean; unavailable_reason?: string | null;
-    segments?: number; missing_sec?: number; last_reason?: string | null; status?: string;
-    /** `[[start, stop], ...]` whole epoch seconds per recorded segment (open: runs to now). */
-    spans?: number[][];
-  }[]>;
+  tickers_by_day: Record<string, CaptureSessionRow[]>;
 }
 const clockResource = simClockResource;
-export const capturesResource = replayPollResource<CaptureSessions>('/api/capture/sessions', () => SIM_CAPTURE_POLL_MS);
+export const capturesResource = replayPollResource<CaptureSessions>(
+  '/api/capture/sessions', () => SIM_CAPTURE_POLL_MS, { parse: parseCaptureSessions },
+);
 /**
  * ``activeSymbol`` is the tab the operator is looking at. It rides on every scrub so a
  * move off the live edge with nothing loaded can select that tab's Session
@@ -66,7 +77,9 @@ export function useSimSessionController(active: boolean, openStockView: (symbol:
     if (next) {
       clockResource.suspend();
       clockResource.setData(next);
-      emitSimClockScrub({ symbol: next.replay_symbol ?? undefined, minute: next.minute_from_open ?? 0 });
+      // Read back the parsed clock: the reply is raw JSON until it passes the boundary.
+      const parsed = clockResource.getSnapshot().data;
+      emitSimClockScrub({ symbol: parsed?.replay_symbol ?? undefined, minute: parsed?.minute_from_open ?? 0 });
     }
     clockResource.resume();
     return next;
@@ -100,16 +113,21 @@ export function useSimSessionController(active: boolean, openStockView: (symbol:
   };
   const beginDrag = () => { dragging.current = true; clockResource.suspend(); };
   const onFollowWall = async () => { clearSeekIntent(); await postClock({ follow_wall: true }, 'follow'); };
+  /** Seek to an exact second from the open (the slider is minute-grained; ⏮ is not, R22). */
+  const seekToSecond = async (second: number) => {
+    clearSeekIntent();
+    await postClock(tabSymbol ? { second_from_open: second, symbol: tabSymbol } : { second_from_open: second });
+  };
   const applyReplay = async (nextDay: string, nextSymbol: string) => {
     clearSeekIntent();
     clockResource.suspend();
-    const payload = await request<SimClockState>('replay', '/replay', nextDay && nextSymbol ? { date: nextDay, symbol: nextSymbol } : { date: null, symbol: null }, 'Could not select capture replay; selection was not confirmed');
+    const payload = await request<SimClockState>('replay', '/replay', nextDay && nextSymbol ? { date: nextDay, symbol: nextSymbol } : { date: null, symbol: null }, CAPTURE_REPLAY_FAILURE);
     if (payload) {
-      setClock(payload);
-      historicalStatus.invalidate({ ...historicalStatus.getSnapshot().data, jobs: historicalStatus.getSnapshot().data?.jobs ?? [], selection: null });
-      if (payload.replay_ok === false) setSymbol('');
+      // Folded over the clock we hold; a reply without the clock re-reads it (C42).
+      const { clock: next, complete } = publishReplayReply(payload);
+      if (next.replay_ok === false) setSymbol('');
       else if (nextSymbol) openStockView(nextSymbol.trim().toUpperCase());
-      emitSimClockScrub({ minute: payload.minute_from_open ?? 0 });
+      emitSimClockScrub(complete ? { minute: next.minute_from_open } : {});
     } else {
       setDay(clock?.replay_source === 'capture' ? clock.replay_date ?? '' : '');
       setSymbol(clock?.replay_source === 'capture' ? clock.replay_symbol ?? '' : '');
@@ -117,7 +135,7 @@ export function useSimSessionController(active: boolean, openStockView: (symbol:
     clockResource.resume();
   };
   return { clock, setClock, sessions: captureState.data, day, setDay, symbol, setSymbol,
-    dragMinute, beginDrag, onScrubInput, endDrag: commit, onFollowWall, applyReplay, busy,
+    dragMinute, beginDrag, onScrubInput, endDrag: commit, onFollowWall, seekToSecond, applyReplay, busy,
     suspendClock: clockResource.suspend, resumeClock: clockResource.resume,
     errors: [...Object.entries(errors).map(([key, error]) => key === 'replay' ? `Could not select capture replay; selection was not confirmed: ${error}` : error), ...(clockState.error ? [`Sim clock: ${clockState.error}`] : []),
       ...(captureState.error ? [`Capture sessions: ${captureState.error}`] : [])] };

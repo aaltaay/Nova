@@ -4,6 +4,11 @@
  * header's DAY | GTC so what is shown is what is sent), the `Cost · BP after`
  * estimate from the same sizing the Place path runs, and whether this venue
  * estimates its fills.
+ *
+ * The caller hands in the price the venue trades at -- on Sim off the live
+ * edge that is the replay's at the playhead (`useReplayQuote`), null with a
+ * `priceNote` when there is none, so a Market order is never priced from a
+ * live last the quote card does not show (QA 2026-09-22, V24 / R10).
  */
 import { useState } from 'react';
 import type { TradeDefaultTif } from '../constantGroups/trade_defaults';
@@ -29,6 +34,8 @@ interface Params {
   referencePrice: number | null;
   summary: IbkrAccountSummary | null;
   position: IbkrPosition | null;
+  /** Why the venue has no market price right now, when it has none (Sim off the edge). */
+  priceNote?: string | null;
 }
 
 export function useCompactTicket(p: Params): {
@@ -44,6 +51,7 @@ export function useCompactTicket(p: Params): {
     setTif(next);
   }
 
+  const practice = p.mode === 'paper' || p.mode === 'sim';
   const cost = estimateTicketCost(
     {
       symbol: p.symbol,
@@ -61,7 +69,9 @@ export function useCompactTicket(p: Params): {
       buyingPower: p.summary?.BuyingPower ?? null,
       positionQty: p.position?.qty ?? null,
     },
+    undefined,
+    { practice, priceNote: p.priceNote ?? null },
   );
 
-  return { tif, selectTif, cost, practice: p.mode === 'paper' || p.mode === 'sim' };
+  return { tif, selectTif, cost, practice };
 }

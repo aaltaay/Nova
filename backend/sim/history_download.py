@@ -86,8 +86,10 @@ async def run(job_id: str, gateway, stop: threading.Event, *, paced=True):
                     continue
             if job["kind"] == "bars":
                 bars = await _answered(gateway.bars(job), "fetching candles")
+                # One request fetches the whole window's candles, so a finished
+                # candle job covers it -- "complete - 0%" read otherwise (C40).
                 return store.update(job_id, status="complete", cursor=job["end_ts"], error=None,
-                                    **persist_candles(job, bars))
+                                    ranges=[[job["start_ts"], job["end_ts"]]], **persist_candles(job, bars))
             # Playhead-first: jump to where the operator scrubbed, just before the
             # request (never mid-page), then stop this page at data already held.
             job = store.apply_seek(job_id)
@@ -146,9 +148,20 @@ def start(job_id: str, *, reserved: bool = False) -> dict:
         _active[job_id] = stop
 
     def worker():
-        from ibkr.replay_history_gateway import ReplayHistoryGateway
+        # Everything the worker does is inside the try: a worker that dies before
+        # its first request (an import or gateway construction error) used to leave
+        # its id in ``_active`` and the job "running" -- a phantom that refused
+        # every other download until a restart (QA 2026-09-22, R23).
         try:
+            from ibkr.replay_history_gateway import ReplayHistoryGateway
+
             asyncio.run(run(job_id, ReplayHistoryGateway(), stop))
+        except Exception as exc:
+            logger.exception("Historical replay worker died before finishing: %s", job_id)
+            try:
+                store.update(job_id, status="failed", error=f"Download worker failed: {exc}")
+            except Exception:
+                logger.exception("Historical replay: could not mark job %s failed", job_id)
         finally:
             with _lock:
                 _active.pop(job_id, None)
@@ -163,13 +176,26 @@ def pause(job_id: str):
     return store.request_pause(job_id)
 
 
+def _interrupted(job: dict, active: set[str], now: float) -> bool:
+    """An active status no worker in this process is advancing, past its liveness window."""
+    return job["status"] in store.ACTIVE and job["id"] not in active and now - job["updated"] > store.stale_after()
+
+
+def effective_status(job: dict) -> str:
+    """The status the desk should read for ``job`` -- ``interrupted`` for a dead worker's
+    ``running`` (the rule ``list_jobs`` applies; also read by the replay snapshot, C38)."""
+    with _lock:
+        active = set(_active)
+    return "interrupted" if _interrupted(job, active, time.time()) else job["status"]
+
+
 def list_jobs():
     with _lock:
         active = set(_active)
     result = store.jobs()
+    now = time.time()
     for job in result:
-        if (job["status"] in store.ACTIVE and job["id"] not in active
-                and time.time() - job["updated"] > store.stale_after()):
+        if _interrupted(job, active, now):
             job["status"] = "interrupted"
     from sim.history_progress import progress
     return [progress(job) for job in result]

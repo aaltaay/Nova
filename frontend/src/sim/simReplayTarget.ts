@@ -13,6 +13,11 @@
  * testable without a DOM.
  */
 import {
+  TRADER_VENUE_TAG_LIVE_EDGE,
+  TRADER_VENUE_TAG_NO_REPLAY,
+  TRADER_VENUE_TAG_REPLAY,
+} from '../constantGroups/trader_chrome';
+import {
   SIM_RAIL_FAILED_NOTE,
   SIM_RAIL_LOADING_NOTE,
   SIM_RAIL_NO_REPLAY_NOTE,
@@ -32,6 +37,8 @@ export type SimReplayTarget =
   | { kind: 'none' }
   /** A replay is loaded, but of a different symbol than this tab. */
   | { kind: 'other-symbol'; replaySymbol: string }
+  /** A capture selection is still being read from disk: neither loaded nor failed (C59). */
+  | { kind: 'loading' }
   /** The selection was attempted and failed; the desk is empty, not loading. */
   | { kind: 'failed'; error: string };
 
@@ -52,6 +59,7 @@ export function simReplayTarget(
   if (clock.replay_ok === false) {
     return { kind: 'failed', error: clock.replay_error || 'Replay failed to load' };
   }
+  if (clock.replay_loading) return { kind: 'loading' };
   if (!LOADED_SOURCES.has(clock.replay_source ?? '')) return { kind: 'none' };
   const replaySymbol = (clock.replay_symbol ?? '').trim().toUpperCase();
   const tab = symbol.trim().toUpperCase();
@@ -59,6 +67,19 @@ export function simReplayTarget(
   // one mid-transition. Silence beats a notice we cannot substantiate.
   if (!replaySymbol || !tab || replaySymbol === tab) return { kind: 'ok' };
   return { kind: 'other-symbol', replaySymbol };
+}
+
+/**
+ * The state word of the quote card's Sim venue tag: `live edge` at the edge,
+ * `replay` only while a replay is loaded (or loading), `no replay` otherwise --
+ * the tag read "SIM · replay" with nothing loaded (QA 2026-09-22, V38). Null
+ * before the clock is read: say nothing rather than guess.
+ */
+export function simVenueTagState(clock: SimClockState | null | undefined): string | null {
+  if (!clock) return null;
+  if (clock.live_edge) return TRADER_VENUE_TAG_LIVE_EDGE;
+  if (clock.replay_loading || LOADED_SOURCES.has(clock.replay_source ?? '')) return TRADER_VENUE_TAG_REPLAY;
+  return TRADER_VENUE_TAG_NO_REPLAY;
 }
 
 /**
@@ -84,6 +105,7 @@ export function simRailNote(
   if (!clock) return SIM_RAIL_LOADING_NOTE;
   const target = simReplayTarget(symbol, clock, sim);
   if (target.kind === 'live-edge') return null;
+  if (target.kind === 'loading') return SIM_RAIL_LOADING_NOTE;
   if (target.kind === 'none') return SIM_RAIL_NO_REPLAY_NOTE;
   if (target.kind === 'failed') return SIM_RAIL_FAILED_NOTE;
   if (target.kind === 'other-symbol') {

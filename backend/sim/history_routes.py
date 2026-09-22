@@ -50,10 +50,18 @@ def _default_date() -> str | None:
         return None
 
 
+def _listing() -> dict:
+    jobs = download.list_jobs()
+    selection = playback.status()
+    if selection:
+        # The selection's download status as of now, from the listing it rides with (C38).
+        selection = playback.with_live_download_status(selection, jobs)
+    return {"jobs": jobs, "selection": selection, "storage": str(store.path()), "default_date": _default_date()}
+
+
 @router.get("")
 def list_downloads():
-    return checked(lambda: {"jobs": download.list_jobs(), "selection": playback.status(),
-                            "storage": str(store.path()), "default_date": _default_date()})
+    return checked(_listing)
 
 
 def _begin(body: Window):

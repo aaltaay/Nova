@@ -29,6 +29,12 @@ import { historicalQuoteDetail, simEmptyQuoteDetail } from '../sim/historicalQuo
 import { simRailNote } from '../sim/simReplayTarget';
 import { SimReplayTargetNotice } from '../sim/SimReplayTargetNotice';
 import { useSimReplayTarget } from '../sim/useSimReplayTarget';
+import { CaptureReplayL2Chip } from '../sim/CaptureReplayChip';
+import {
+  SIM_CAPTURE_TAPE_NOT_RECORDED,
+  SIM_CAPTURE_TAPE_TITLE,
+  SIM_REPLAY_TAPE_STATUS,
+} from '../sim/simConstants';
 import { StockViewVenueTag } from './StockViewVenueTag';
 
 interface Props {
@@ -183,6 +189,12 @@ export function StockViewDepthTape({
     );
   }
 
+  // A Session Record replaying for this tab, off the edge: the panes are the
+  // recording's, so they say REPLAY, show the recording's L2 state instead of
+  // today's halt / borrow chips, and state a gap as a gap (QA 2026-09-22, R16 / R11).
+  const captureReplay = sim && !liveEdge && clock?.replay_source === 'capture'
+    && (clock.replay_symbol ?? '').toUpperCase() === depthSymbol;
+  const gap = captureReplay && clock?.replay_quote?.covered === false;
   return (
     <StockViewModuleCard
       title={STOCK_VIEW_MODULE_QUOTE_TITLE}
@@ -193,14 +205,25 @@ export function StockViewDepthTape({
       <QuoteHead detail={detail} symbol={depthSymbol} />
       <DepthAndTapeColumns
         symbol={depthSymbol}
-        chips={(
+        chips={captureReplay ? <CaptureReplayL2Chip clock={clock} /> : (
           <>
             <HaltEtaChip halt={detail.halt} />
             <ShortabilityChip ibkr={listingIbkr} />
           </>
         )}
-        level2={showL2 ? <Level2Module key={feedKey} symbol={depthSymbol} uiActive={uiActive} /> : null}
-        tape={showTape ? <TimeSalesModule key={feedKey} symbol={depthSymbol} embedded uiActive={uiActive} /> : null}
+        level2={showL2 ? (gap ? <HistoricalDepth depth={null} />
+          : <Level2Module key={feedKey} symbol={depthSymbol} uiActive={uiActive} />) : null}
+        tape={showTape ? (
+          <TimeSalesModule
+            key={feedKey}
+            symbol={depthSymbol}
+            embedded
+            uiActive={uiActive}
+            connectedText={captureReplay ? SIM_REPLAY_TAPE_STATUS : undefined}
+            statusTitle={captureReplay ? SIM_CAPTURE_TAPE_TITLE : undefined}
+            emptyLabel={gap ? SIM_CAPTURE_TAPE_NOT_RECORDED : undefined}
+          />
+        ) : null}
       />
     </StockViewModuleCard>
   );

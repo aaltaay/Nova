@@ -10,9 +10,15 @@ interface Props {
   embedded?: boolean;
   /** False on live-but-hidden trader tabs. */
   uiActive?: boolean;
+  /** Badge text / tooltip / empty message -- a capture replay's instead of LIVE (R16). */
+  connectedText?: string;
+  statusTitle?: string;
+  emptyLabel?: string;
 }
 
-export function TimeSalesModule({ symbol, embedded = false, uiActive = true }: Props) {
+export function TimeSalesModule({
+  symbol, embedded = false, uiActive = true, connectedText, statusTitle, emptyLabel,
+}: Props) {
   return (
     <div
       className="nova-module nova-module--time-sales"
@@ -24,6 +30,9 @@ export function TimeSalesModule({ symbol, embedded = false, uiActive = true }: P
         symbol={symbol}
         embedded={embedded}
         uiActive={uiActive}
+        connectedText={connectedText}
+        statusTitle={statusTitle}
+        emptyLabel={emptyLabel}
       />
     </div>
   );
