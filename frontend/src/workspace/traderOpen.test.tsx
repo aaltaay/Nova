@@ -1,9 +1,11 @@
 /**
  * @vitest-environment jsdom
  *
- * A ticker click (openStockView) adds a tab or activates one already open.
- * Live L2 slots cap at 3; extras stay on the strip grayed. Extract / tab
- * double-click pops out. Dock-back must restore the tab on the host.
+ * A ticker click (openStockView) opens into the strip's preview tab -- the one
+ * unpinned symbol -- replacing it, or activates a symbol already open. A pinned
+ * tab stays; a docked tab arrives pinned beside the preview. Live L2 slots cap
+ * at 3; extras stay on the strip grayed. Extract / tab double-click pops out.
+ * Dock-back must restore the tab on the host. (ADR 011, amended 2026-09-22.)
  */
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -89,30 +91,60 @@ describe('Trader open vs extract', () => {
     });
   }
 
-  it('openStockView adds A then B then C instead of replacing', async () => {
+  /** Open by click, then pin -- how an operator keeps a tab on the strip. */
+  async function openPinned(sym: string): Promise<void> {
+    await act(async () => {
+      latest?.openStockView(sym);
+    });
+    await act(async () => {
+      latest?.pinTraderTab(sym);
+    });
+  }
+
+  it('openStockView opens into the preview tab: a second click replaces an unpinned first', async () => {
     await mount();
     await act(async () => {
       latest?.openStockView('A');
     });
+    expect(latest?.traderTabs).toEqual(['A']);
+    expect(latest?.traderPinnedTabs).toEqual([]);
     await act(async () => {
       latest?.openStockView('B');
     });
+    expect(latest?.traderTabs).toEqual(['B']);
+    expect(latest?.activeTraderSymbol).toBe('B');
+    expect(latest?.traderLiveTabs).toEqual(['B']);
+    expect(opened).toEqual([]);
+  });
+
+  it('pinned tabs accumulate; the preview follows the newest click', async () => {
+    await mount();
+    await openPinned('A');
+    await openPinned('B');
     await act(async () => {
       latest?.openStockView('C');
     });
     expect(latest?.traderTabs).toEqual(['A', 'B', 'C']);
-    expect(latest?.traderLiveTabs).toEqual(['A', 'B', 'C']);
-    expect(latest?.activeTraderSymbol).toBe('C');
-    expect(opened).toEqual([]);
+    expect(latest?.traderPinnedTabs).toEqual(['A', 'B']);
+    await act(async () => {
+      latest?.openStockView('D');
+    });
+    expect(latest?.traderTabs).toEqual(['A', 'B', 'D']);
+    expect(latest?.activeTraderSymbol).toBe('D');
+    await act(async () => {
+      latest?.unpinTraderTab('A');
+    });
+    expect(latest?.traderPinnedTabs).toEqual(['B']);
   });
 
-  it('openStockView D keeps four tabs, lives D, and grays the least-recent live', async () => {
+  it('openStockView D keeps four pinned-then-preview tabs, lives D, and grays the least-recent live', async () => {
     await mount();
-    for (const sym of ['A', 'B', 'C', 'D']) {
-      await act(async () => {
-        latest?.openStockView(sym);
-      });
+    for (const sym of ['A', 'B', 'C']) {
+      await openPinned(sym);
     }
+    await act(async () => {
+      latest?.openStockView('D');
+    });
     expect(latest?.traderTabs).toEqual(['A', 'B', 'C', 'D']);
     expect(latest?.activeTraderSymbol).toBe('D');
     expect(latest?.traderLiveTabs).toEqual(['B', 'C', 'D']);
@@ -121,9 +153,7 @@ describe('Trader open vs extract', () => {
   it('activating a gray tab promotes it and suspends the oldest live tab', async () => {
     await mount();
     for (const sym of ['A', 'B', 'C', 'D']) {
-      await act(async () => {
-        latest?.openStockView(sym);
-      });
+      await openPinned(sym);
     }
     await act(async () => {
       latest?.activateTraderTab('A');
@@ -163,7 +193,7 @@ describe('Trader open vs extract', () => {
     window.history.replaceState({}, '', '/');
   });
 
-  it('dock-request over the storage bus restores the ticker on the host desk', async () => {
+  it('dock-request over the storage bus restores the ticker on the host desk, pinned', async () => {
     await mount();
     await act(async () => {
       latest?.openStockView('F');
@@ -185,6 +215,7 @@ describe('Trader open vs extract', () => {
       }));
     });
     expect(latest?.traderTabs).toEqual(['F']);
+    expect(latest?.traderPinnedTabs).toEqual(['F']);
     expect(latest?.activeTraderSymbol).toBe('F');
     expect(latest?.traderViewActive).toBe(true);
   });
@@ -210,9 +241,7 @@ describe('Trader open vs extract', () => {
   it('acceptTraderTabDrop can add a 4th name instead of blocking', async () => {
     await mount();
     for (const sym of ['A', 'B', 'C']) {
-      await act(async () => {
-        latest?.openStockView(sym);
-      });
+      await openPinned(sym);
     }
     await act(async () => {
       latest?.acceptTraderTabDrop({ v: 1, symbol: 'D', sourceWindowId: 'float-other' });
@@ -221,7 +250,7 @@ describe('Trader open vs extract', () => {
     expect(latest?.traderLiveTabs).toEqual(['B', 'C', 'D']);
   });
 
-  it('acceptTraderTabDrop adds a foreign tab and ignores a self drag', async () => {
+  it('acceptTraderTabDrop adds a foreign tab beside the preview, pinned, and ignores a self drag', async () => {
     await mount();
     await act(async () => {
       latest?.openStockView('SPY');
@@ -234,6 +263,7 @@ describe('Trader open vs extract', () => {
       });
     });
     expect(latest?.traderTabs).toEqual(['SPY', 'IPST']);
+    expect(latest?.traderPinnedTabs).toEqual(['IPST']);
     const selfId = latest?.traderWindowId ?? '';
     await act(async () => {
       latest?.acceptTraderTabDrop({
@@ -255,7 +285,7 @@ describe('Trader open vs extract', () => {
     expect(latest?.traderViewActive).toBe(false);
   });
 
-  it('selectRowSymbol while Trader is showing adds or activates, never replaces', async () => {
+  it('selectRowSymbol while Trader is showing opens into the preview tab; a pinned tab is kept', async () => {
     await mount();
     await act(async () => {
       latest?.openStockView('SPY');
@@ -264,9 +294,32 @@ describe('Trader open vs extract', () => {
     await act(async () => {
       latest?.selectRowSymbol('IPST');
     });
-    expect(latest?.traderTabs).toEqual(['SPY', 'IPST']);
+    expect(latest?.traderTabs).toEqual(['IPST']);
     expect(latest?.activeTraderSymbol).toBe('IPST');
     expect(latest?.selectedSymbol).toBe('IPST');
+    await act(async () => {
+      latest?.pinTraderTab('IPST');
+    });
+    await act(async () => {
+      latest?.selectRowSymbol('QQQ');
+    });
+    expect(latest?.traderTabs).toEqual(['IPST', 'QQQ']);
+  });
+
+  it('a typed symbol arrives pinned, so the next click opens beside it', async () => {
+    await mount();
+    await act(async () => {
+      latest?.addTraderDraftTab();
+    });
+    await act(async () => {
+      latest?.renameTraderTab('', 'grml');
+    });
+    expect(latest?.traderTabs).toEqual(['GRML']);
+    expect(latest?.traderPinnedTabs).toEqual(['GRML']);
+    await act(async () => {
+      latest?.openStockView('CCL');
+    });
+    expect(latest?.traderTabs).toEqual(['GRML', 'CCL']);
   });
 
   it('showScannerView keeps tabs so Trader can return without a new subscribe', async () => {

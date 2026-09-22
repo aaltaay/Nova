@@ -277,3 +277,60 @@ describe('StockViewTabStrip', () => {
     expect(container.querySelector('[data-testid="sv-tab-strip-overflow"]')).toBeNull();
   });
 });
+
+describe('StockViewTabStrip preview tabs (ADR 011, 2026-09-22)', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    mocks.rows = null;
+    mocks.recording = [];
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => { root.unmount(); });
+    container.remove();
+  });
+
+  it('renders the unpinned tab as the preview and toggles the pin from its icon', () => {
+    const onTogglePin = vi.fn();
+    act(() => {
+      root.render(
+        <StockViewTabStrip
+          tabs={['GRML', 'JAGX']} live={['GRML', 'JAGX']} pinned={['GRML']} active="JAGX"
+          onActivate={() => {}} onClose={() => {}} onRename={() => {}} onAddDraft={() => {}}
+          onExtract={() => {}} onTogglePin={onTogglePin}
+        />,
+      );
+    });
+    const pinnedTab = container.querySelector('[data-testid="sv-tab-GRML"]') as HTMLElement;
+    const previewTab = container.querySelector('[data-testid="sv-tab-JAGX"]') as HTMLElement;
+    expect(pinnedTab.classList.contains('sv-tab--preview')).toBe(false);
+    expect(pinnedTab.dataset.pinned).toBe('1');
+    expect(previewTab.classList.contains('sv-tab--preview')).toBe(true);
+    expect(previewTab.dataset.pinned).toBe('0');
+    const pinBtn = container.querySelector('[data-testid="sv-tab-pin-JAGX"]') as HTMLButtonElement;
+    expect(pinBtn.getAttribute('aria-pressed')).toBe('false');
+    act(() => { pinBtn.click(); });
+    expect(onTogglePin).toHaveBeenCalledWith('JAGX');
+    const unpinBtn = container.querySelector('[data-testid="sv-tab-pin-GRML"]') as HTMLButtonElement;
+    expect(unpinBtn.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('treats every tab as pinned when no pinned list is given (no preview rule)', () => {
+    act(() => {
+      root.render(
+        <StockViewTabStrip
+          tabs={['GRML']} live={['GRML']} active="GRML"
+          onActivate={() => {}} onClose={() => {}} onRename={() => {}} onAddDraft={() => {}} onExtract={() => {}}
+        />,
+      );
+    });
+    const tab = container.querySelector('[data-testid="sv-tab-GRML"]') as HTMLElement;
+    expect(tab.classList.contains('sv-tab--preview')).toBe(false);
+    expect(container.querySelector('[data-testid="sv-tab-pin-GRML"]')).toBeNull();
+  });
+});

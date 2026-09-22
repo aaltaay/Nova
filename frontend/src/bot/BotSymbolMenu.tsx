@@ -1,5 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { BOT_ALLOWLIST_ADD, BOT_ALLOWLIST_REMOVE } from '../constantGroups/bot';
+import { TRADER_TAB_PIN_LABEL, TRADER_TAB_UNPIN_LABEL } from '../constantGroups/trader_view';
 import {
   closeBotSymbolMenu,
   subscribeBotSymbolMenu,
@@ -83,6 +84,20 @@ export function BotSymbolMenuHost() {
       data-testid="bot-symbol-menu"
       style={{ top: position.top, left: position.left }}
     >
+      {open.tab && (
+        // Opened from a Trader tab: pin / unpin it (ADR 011 preview tabs).
+        <button
+          type="button"
+          role="menuitem"
+          data-testid="bot-symbol-menu-pin"
+          onClick={() => {
+            open.tab?.onTogglePin();
+            closeBotSymbolMenu();
+          }}
+        >
+          {open.tab.pinned ? TRADER_TAB_UNPIN_LABEL : TRADER_TAB_PIN_LABEL} -- {open.symbol}
+        </button>
+      )}
       {recording ? (
         // A recording is locked: Stop takes a deliberate hold, never a slip.
         <HoldToStopButton

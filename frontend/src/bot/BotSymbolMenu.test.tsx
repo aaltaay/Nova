@@ -85,3 +85,21 @@ describe('Record menu failures', () => {
     expect(container.querySelector('[role="menu"]')).toBeNull();
   });
 });
+
+it('offers Pin / Unpin first when a Trader tab opened it (ADR 011 preview tabs)', async () => {
+  const onTogglePin = vi.fn();
+  _setIbkrStatusPollerFetchForTests(vi.fn().mockResolvedValue(response({
+    enabled: true, connected: true, mode: 'paper', capture: false, recording: false, capture_symbol: null,
+  })));
+  await act(async () => { root.render(<BotSymbolMenuHost />); });
+  act(() => openBotSymbolMenu('AAPL', 0, 0, { pinned: false, onTogglePin }));
+  const item = container.querySelector('[data-testid="bot-symbol-menu-pin"]') as HTMLButtonElement;
+  expect(item.textContent).toContain('Pin tab');
+  await act(async () => { item.click(); });
+  expect(onTogglePin).toHaveBeenCalledTimes(1);
+  expect(container.querySelector('[data-testid="bot-symbol-menu"]')).toBeNull();
+  act(() => openBotSymbolMenu('AAPL', 0, 0, { pinned: true, onTogglePin }));
+  expect((container.querySelector('[data-testid="bot-symbol-menu-pin"]') as HTMLButtonElement).textContent).toContain('Unpin tab');
+  act(() => openBotSymbolMenu('AAPL', 0, 0));
+  expect(container.querySelector('[data-testid="bot-symbol-menu-pin"]')).toBeNull();
+});

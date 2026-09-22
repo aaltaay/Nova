@@ -39,6 +39,8 @@ import { useStripOverflow } from './useStripOverflow';
 interface Props {
   tabs: string[];
   live?: string[];
+  /** Pinned symbols (ADR 011 preview tabs). Absent: every tab renders pinned. */
+  pinned?: string[];
   active: string | null;
   windowId?: string;
   showDock?: boolean;
@@ -52,14 +54,16 @@ interface Props {
   onAddDraft: () => void;
   onExtract: (symbol: string) => void;
   onDock?: (symbol: string) => void;
+  /** Pin / unpin a symbol tab (pin icon on the tab, or right-click > Pin). */
+  onTogglePin?: (symbol: string) => void;
   onTabDragStart?: (symbol: string) => void;
   onTabDragEnd?: () => void;
   onTabDrop?: (payload: TraderTabDragPayload) => void;
 }
 
 export function StockViewTabStrip({
-  tabs, live, active, windowId = '', showDock = false, showExtract = true, dropReady = false, trailing,
-  onActivate, onClose, onRename, onAddDraft, onExtract, onDock, onTabDragStart, onTabDragEnd, onTabDrop,
+  tabs, live, pinned, active, windowId = '', showDock = false, showExtract = true, dropReady = false, trailing,
+  onActivate, onClose, onRename, onAddDraft, onExtract, onDock, onTogglePin, onTabDragStart, onTabDragEnd, onTabDrop,
 }: Props) {
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -126,14 +130,19 @@ export function StockViewTabStrip({
           const isDraft = symbol === TRADER_DRAFT_SYMBOL;
           const suspended = !isDraft && !liveSet.has(symbol);
           const recording = !isDraft && isTabRecording(symbol);
+          // No pinned list means the caller has no preview rule: every tab is kept.
+          const isPinned = !isDraft && (pinned ? pinned.includes(symbol) : true);
+          const preview = !isDraft && !isPinned;
           const label = isDraft ? 'New' : symbol;
+          const togglePin = onTogglePin && !isDraft ? () => onTogglePin(symbol) : undefined;
           return (
             <div
               key={isDraft ? '__draft__' : symbol}
-              className={`sv-tab${isActive ? ' sv-tab--active' : ''}${suspended ? ' sv-tab--suspended' : ''}${recording ? ' sv-tab--recording' : ''}`}
+              className={`sv-tab${isActive ? ' sv-tab--active' : ''}${suspended ? ' sv-tab--suspended' : ''}${recording ? ' sv-tab--recording' : ''}${preview ? ' sv-tab--preview' : ''}`}
               role="tab"
               aria-selected={isActive}
               data-suspended={suspended ? '1' : '0'}
+              data-pinned={isDraft ? undefined : isPinned ? '1' : '0'}
               data-testid={`sv-tab-${label}`}
               draggable={!isDraft && !isEditing}
               onDragStart={(e) => {
@@ -145,7 +154,12 @@ export function StockViewTabStrip({
               onContextMenu={(e) => {
                 if (isDraft) return;
                 e.preventDefault();
-                openBotSymbolMenu(symbol, e.clientX, e.clientY);
+                openBotSymbolMenu(
+                  symbol,
+                  e.clientX,
+                  e.clientY,
+                  togglePin ? { pinned: isPinned, onTogglePin: togglePin } : undefined,
+                );
               }}
             >
               <StockViewTab
@@ -154,6 +168,8 @@ export function StockViewTabStrip({
                 isDraft={isDraft}
                 suspended={suspended}
                 recording={recording}
+                pinned={isPinned}
+                onTogglePin={togglePin}
                 context={isDraft || replayDesk ? null : tabContextFor(symbol, scannerRows)}
                 showDock={showDock && Boolean(onDock)}
                 showExtract={showExtract}

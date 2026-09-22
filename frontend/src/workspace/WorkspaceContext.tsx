@@ -82,11 +82,15 @@ export type WorkspaceValue = {
   publishTraderTabOfferEnd: () => void;
   traderTabs: string[];
   traderLiveTabs: string[];
+  /** Pinned symbols (ADR 011 preview tabs); every other symbol tab is the preview. */
+  traderPinnedTabs: string[];
   activeTraderSymbol: string | null;
   traderBlockNotice: string | null;
   dismissTraderBlockNotice: () => void;
   activateTraderTab: (symbol: string) => void;
   closeTraderTab: (symbol: string) => void;
+  pinTraderTab: (symbol: string) => void;
+  unpinTraderTab: (symbol: string) => void;
   renameTraderTab: (from: string, to: string) => void;
   addTraderDraftTab: () => void;
   closeTraderView: () => void;
@@ -164,11 +168,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       publishTraderTabOfferEnd: trader.desk.publishOfferEnd,
       traderTabs: trader.traderState.tabs,
       traderLiveTabs: trader.traderState.live,
+      traderPinnedTabs: trader.traderState.pinned,
       activeTraderSymbol: trader.traderState.active,
       traderBlockNotice: trader.traderBlockNotice,
       dismissTraderBlockNotice: trader.dismissTraderBlockNotice,
       activateTraderTab: trader.activateTraderTab,
       closeTraderTab: trader.closeTraderTab,
+      pinTraderTab: trader.pinTraderTab,
+      unpinTraderTab: trader.unpinTraderTab,
       renameTraderTab: trader.renameTraderTab,
       addTraderDraftTab: trader.addTraderDraftTab,
       closeTraderView: trader.closeTraderView,
