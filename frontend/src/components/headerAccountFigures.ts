@@ -8,6 +8,7 @@ import { GLOBAL_BAR_OFFLINE_PLACEHOLDER } from '../constantGroups/global_bar';
 import type { IbkrAccountSummary } from '../ibkr/types';
 import { dayPnlOf } from '../practice/practiceAccountModel';
 import type { PracticeAccount } from '../practice/practiceTypes';
+import { formatReplayKey } from '../practice/replayKeyLabel';
 import { formatMoney } from '../utils/formatMoney';
 import { dayPnlFromSummary } from './globalBarMoney';
 
@@ -69,7 +70,7 @@ export function figuresFromPractice(account: PracticeAccount): HeaderAccountFigu
     grossPositionValue: finite(account.gross_position_value),
     feesToday: finite(account.commissions_today),
     startingCash: finite(account.starting_cash),
-    replayKey: account.venue === 'sim' ? (account.replay_key?.trim() ?? '') : null,
+    replayKey: account.venue === 'sim' ? formatReplayKey(account.replay_key) : null,
   };
 }
 

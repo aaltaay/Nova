@@ -1,5 +1,153 @@
-/* Account / Working dropdowns for GlobalAppBar. */
+/* The account cluster (Day's | Working | TAV | account pill) and every
+   dropdown the global bar owns: the Day's / TAV cards, the Working menu, the
+   account pill menu and the gear menu. The row itself: global-app-bar.css. */
 
+.global-app-bar__account {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+/* One compact row: Day's | Working | TAV | account pill (Webull order). */
+.global-app-bar__cluster {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0.35rem;
+  padding: 0.1rem 0;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.global-app-bar__cluster .global-app-bar__metric > label::after,
+.global-app-bar__cluster .global-app-bar__metric-btn > label::after {
+  content: ':';
+}
+
+.global-app-bar__cluster--offline {
+  cursor: default;
+}
+
+.global-app-bar__metric,
+.global-app-bar__metric-btn {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+
+.global-app-bar__metric-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0.2rem 0.3rem;
+  border-radius: var(--radius-control, 8px);
+  cursor: pointer;
+}
+
+.global-app-bar__metric-btn:hover,
+.global-app-bar__metric-btn[aria-expanded='true'] {
+  background: var(--hover-bg);
+}
+
+.global-app-bar__metric label,
+.global-app-bar__metric-btn label {
+  color: var(--nova-text-muted);
+  font-weight: 500;
+  cursor: inherit;
+}
+
+.global-app-bar__caret {
+  margin-left: 0.1rem;
+  color: var(--nova-text-muted);
+  font-size: 0.65rem;
+}
+
+.global-app-bar__metric-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.global-app-bar__metric--tav .global-app-bar__metric-value {
+  font-weight: 650;
+  color: var(--nova-text);
+}
+
+/* Day's percent rides beside the dollar figure in the same tone. */
+.global-app-bar__pct {
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.global-app-bar__sep {
+  width: 1px;
+  height: 0.9rem;
+  background: var(--nova-border);
+  flex-shrink: 0;
+}
+
+.global-app-bar__working-count {
+  color: #f5a524;
+  font-weight: 650;
+}
+
+.global-app-bar__tone--up {
+  color: var(--nova-success);
+  font-weight: 650;
+}
+
+.global-app-bar__tone--down {
+  color: var(--nova-danger);
+  font-weight: 650;
+}
+
+.global-app-bar__tone--flat {
+  color: var(--nova-text);
+  font-weight: 600;
+}
+
+.global-app-bar__offline-chip {
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--nova-danger) 45%, var(--nova-border));
+  background: color-mix(in srgb, var(--nova-danger) 12%, transparent);
+  color: var(--nova-danger);
+  font-size: 0.68rem;
+  font-weight: 650;
+}
+
+/* Account pill: structure + class + full id, e.g. "Individual Margin (U1234567)".
+   Last control of the cluster; the menu under it lists the managed accounts. */
+.global-app-bar__account-pill {
+  flex-shrink: 0;
+  border: 1px solid var(--nova-border);
+  padding: 0.15rem 0.45rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--nova-text);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.global-app-bar__account-pill-label {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+/* U… live account -- the money is real. */
+.global-app-bar__account-pill--live {
+  border-color: color-mix(in srgb, #f97316 55%, var(--nova-border));
+  color: #ea580c;
+  font-weight: 700;
+}
+
+/* NOVA-PAPER / NOVA-SIM -- Nova-managed practice account, fake money (ADR 020). */
+.global-app-bar__account-pill--practice {
+  border-style: dashed;
+}
+
+/* ── Dropdowns ────────────────────────────────────────────────────────── */
 .global-app-bar__card {
   position: absolute;
   top: calc(100% + 0.35rem);
@@ -101,4 +249,61 @@
   font-size: 0.72rem;
   line-height: 1.35;
   white-space: normal;
+}
+
+/* Gear menu: Reload backend · Theme · Gateway & feed status (+ the status
+   cluster as details) · sample data · Settings… (redesign, 2026-09-22). */
+.global-app-bar__gear-menu {
+  min-width: 17rem;
+  max-width: 26rem;
+  white-space: nowrap;
+}
+
+.global-app-bar__gear-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.3rem 0.75rem;
+  color: var(--nova-text-muted);
+}
+
+.global-app-bar__gear-label {
+  color: var(--nova-text);
+}
+
+.global-app-bar__gear-row .backend-start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  white-space: normal;
+}
+
+.global-app-bar__gear-row .backend-start-btn {
+  appearance: none;
+  margin: 0;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--nova-border);
+  border-radius: var(--radius-control, 8px);
+  background: transparent;
+  color: var(--nova-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.global-app-bar__gear-row .backend-start-btn:hover:not(:disabled) {
+  background: var(--hover-bg);
+}
+
+.global-app-bar__gear-status {
+  padding: 0.2rem 0.75rem 0.45rem;
+  white-space: normal;
+}
+
+.global-app-bar__gear-status .status-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
 }

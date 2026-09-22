@@ -6,12 +6,12 @@
 
 @import "tailwindcss/theme.css" layer(tokens);
 @import "tailwindcss/utilities.css" layer(utilities);
-
 @import "./styles/tokens-shell.css" layer(tokens);
 @import "./styles/tailwind-theme.css" layer(tokens);
 @import "./styles/global-app-bar.css" layer(components);
 @import "./styles/global-app-bar-menus.css" layer(components);
 @import "./styles/global-app-bar-responsive.css" layer(components);
+@import "./styles/global-app-bar-trader.css" layer(components);
 @import "./ibkr/gatewayModeCapsule.css" layer(components);
 @import "./ibkr/marketData.css" layer(components);
 @import "./styles/settings-workspace.css" layer(features);

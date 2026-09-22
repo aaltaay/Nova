@@ -395,6 +395,35 @@ describe('HeaderConnectionStatus', () => {
     expect(chip?.textContent).toMatch(/L1 capacity/);
   });
 
+  it('embedded under the gear: words on the chips, no clock / capsule / REC / Reload (the bar has them)', () => {
+    act(() => {
+      root.render(
+        <HeaderConnectionStatus
+          embedded
+          health={healthy}
+          discoveryProvider="ibkr"
+          ibkrConnected
+          ibkrMode="paper"
+          ibkrGatewayMode="paper"
+          activeFeed="sip"
+          feedFellBack={false}
+          secondsAgo={12}
+          lastPriceTs={0}
+          historyDate={null}
+        />,
+      );
+    });
+    expect(container.querySelector('[data-testid="header-market-clock"]')).toBeNull();
+    expect(container.querySelector('[data-testid="header-gateway-mode-capsule"]')).toBeNull();
+    expect(container.textContent).not.toMatch(/Reload backend/);
+    const desk = container.querySelector('[data-testid="status-chip-desk"]');
+    expect(desk?.className).not.toMatch(/status-chip--compact/);
+    expect(desk?.textContent).toMatch(/Desk/);
+    const prices = container.querySelector('[data-testid="status-chip-prices"]');
+    expect(prices?.className).not.toMatch(/status-chip--compact/);
+    expect(prices?.textContent).toMatch(/no L1 yet/);
+  });
+
   it('shows Reload backend when API is up and local restart is available', () => {
     act(() => {
       root.render(

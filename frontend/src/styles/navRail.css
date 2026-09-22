@@ -303,3 +303,21 @@
   flex-direction: column;
   overflow: hidden;
 }
+
+/* Fund account (FundAccountButton) -- the account menu is its only host. */
+.global-app-bar__fund {
+  flex-shrink: 0;
+  background: transparent;
+  color: var(--nova-text-muted);
+  border: 1px solid var(--nova-border);
+  border-radius: var(--radius-control, 8px);
+  padding: 0.25rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.global-app-bar__fund:hover {
+  color: var(--nova-text);
+  border-color: color-mix(in srgb, var(--nova-text-muted) 50%, var(--nova-border));
+}

@@ -37,7 +37,7 @@ export const DESK_POLL_SNAP_KEY_PREFIX = 'nova.desk.poll.snap.';
 export const DESK_POLL_CHANNEL_PREFIX = 'nova-desk-poll-';
 export const DESK_POLL_TAB_SESSION_KEY = 'nova.desk.poll.tab';
 
-export const GLOBAL_BAR_BRAND = 'NOVA';
+export const GLOBAL_BAR_BRAND = 'Nova';
 export const GLOBAL_BAR_NAV_SCANNER = 'Scanner';
 export const GLOBAL_BAR_NAV_TRADER = 'Trader';
 export const GLOBAL_BAR_NAV_SCANNER_TITLE =
@@ -176,3 +176,64 @@ export const GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_BODY = [
 export const GLOBAL_BAR_EMERGENCY_KILL_FAIL_TITLE =
   'Emergency KILL did not finish cleanly';
 export const GLOBAL_BAR_EMERGENCY_KILL_BUSY_LABEL = 'KILL running…';
+
+/**
+ * Redesigned global bar (approved mockup, 2026-09-22) -- one row on every view:
+ * wordmark · session chip · ET clock · connection chip · venue pills · REC
+ * chips · [ticker search, centred] · KILL · Day's / Working / TAV / account
+ * pill · padlock · gear. The session chip reads the client's Eastern clock
+ * (ibkr/extendedSession.ts); the connection chip is the one quiet word about
+ * the desk, with the rest of the old status cluster in its tooltip and under
+ * the gear.
+ */
+export const GLOBAL_BAR_SESSION_LABELS = {
+  premarket: 'PREMARKET',
+  open: 'OPEN',
+  afterhours: 'AFTER HOURS',
+  closed: 'CLOSED',
+} as const;
+export const GLOBAL_BAR_SESSION_WORDS = {
+  premarket: 'Premarket session',
+  open: 'Regular session',
+  afterhours: 'After-hours session',
+  closed: 'No US equity session on the Eastern clock right now (overnight or weekend)',
+} as const;
+export const GLOBAL_BAR_SESSION_HOLIDAY_NOTE = 'NYSE holidays are not known to the client.';
+
+/** Connection chip -- one word about the desk, right after the ET clock. */
+export const GLOBAL_BAR_CONNECTION_ARIA = 'Connection and data freshness';
+export const GLOBAL_BAR_CONNECTION_LIVE_LABEL = 'IBKR live';
+export const GLOBAL_BAR_CONNECTION_DELAYED_LABEL = 'IBKR delayed';
+export const GLOBAL_BAR_CONNECTION_STALE_LABEL = 'STALE';
+export const GLOBAL_BAR_CONNECTION_SAMPLE_LABEL = 'SAMPLE DATA';
+export const GLOBAL_BAR_CONNECTION_API_DOWN_LABEL = 'API down';
+export const GLOBAL_BAR_CONNECTION_SAMPLE_TITLE =
+  'Nova Marketing Sample Data -- isolated fixtures, never live market data. Exit the sample desk to see the live Gateway.';
+export const GLOBAL_BAR_CONNECTION_API_UP_TITLE = 'Nova API process is reachable on port 8000.';
+export const GLOBAL_BAR_CONNECTION_API_DOWN_TITLE =
+  'Nova API is unreachable -- start the backend (port 8000).';
+export const GLOBAL_BAR_CONNECTION_CLICK_HINT =
+  'Click for the API and Gateway checklist. Double-click launches the current Gateway target.';
+export const GLOBAL_BAR_CONNECTION_PRICES_PREFIX = 'Prices:';
+export const GLOBAL_BAR_CONNECTION_SCANNER_MODE_PREFIX = 'Scanner mode:';
+export const GLOBAL_BAR_FEED_FALLBACK_TITLE =
+  'SIP feed was rejected; automatically fell back to IEX. Change in Settings if your plan supports SIP.';
+export const globalBarLegacyFeedTitle = (feedLabel: string): string =>
+  `Legacy Alpaca data feed: ${feedLabel} (not a product scanner source)`;
+
+/** Centre of the bar: the ticker search. Enter opens the symbol in the Trader. */
+export const GLOBAL_BAR_SEARCH_PLACEHOLDER = 'Symbol';
+export const GLOBAL_BAR_SEARCH_ARIA = 'Look up symbol';
+export const GLOBAL_BAR_SEARCH_TITLE = 'Type a symbol and press Enter to open it in the Trader';
+
+/** Gear menu -- the homes for what left the bar. */
+export const GLOBAL_BAR_GEAR_ARIA = 'Nova menu';
+export const GLOBAL_BAR_GEAR_TITLE = 'Reload backend · Theme · Gateway & feed status · Settings';
+export const GLOBAL_BAR_MENU_THEME_LABEL = 'Theme';
+export const GLOBAL_BAR_MENU_GATEWAY_LABEL = 'Gateway & feed status';
+export const GLOBAL_BAR_MENU_GATEWAY_TITLE = 'Open the API and Gateway checklist';
+export const GLOBAL_BAR_MENU_SAMPLE_OPEN_LABEL = 'Open sample data';
+export const GLOBAL_BAR_MENU_SAMPLE_EXIT_LABEL = 'Exit sample data';
+export const GLOBAL_BAR_MENU_SAMPLE_TITLE =
+  'Isolated Nova Marketing Sample Data fixtures -- never mixed with live market data';
+export const GLOBAL_BAR_MENU_SETTINGS_LABEL = 'Settings…';

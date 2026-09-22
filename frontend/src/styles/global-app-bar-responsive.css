@@ -1,31 +1,11 @@
-/* Zoom / narrow breakpoints for GlobalAppBar. Keep the base sheet under 400 lines.
-   Contract: the PRIMARY row stays one grid down to 820px. Narrow widths hide
-   low-value chips (hint copy, BP, Day P&L, Reload, session badge, Net Liq,
-   clock) in that order instead of pushing desk chrome onto a second row.
-   The bot-only row is always below primary and wraps/scrolls on its own. */
+/* Zoom / narrow breakpoints for the global bar. Keep the base sheet under 400
+   lines. Contract: the PRIMARY row stays one line down to 820px; the centre
+   search shrinks first, then low-value chrome leaves in this order --
+   tab-strip hint, REC elapsed time + BP, session chip + Day's, clock + TAV,
+   wordmark + the REC word. The KILL pill, the connection chip, the venue
+   pills, the search, the account pill, the padlock and the gear stay. Under
+   820px the search drops to a second line under the two clusters. */
 
-/* Scanner controls shed in priority order as their column narrows:
-   Sample (~5rem) -> history select (~8rem) -> symbol lookup (~12rem). The Quote
-   Panel keeps its own lookup box, so losing the header one is not a dead end. */
-@container app-bar-scanner (max-width: 26rem) {
-  .sample-data-switch {
-    display: none;
-  }
-}
-
-@container app-bar-scanner (max-width: 20rem) {
-  .history-select {
-    display: none;
-  }
-}
-
-@container app-bar-scanner (max-width: 12rem) {
-  .header-symbol-search {
-    display: none;
-  }
-}
-
-/* Tab-strip hint copy is the first thing to go (the title attribute keeps it). */
 @media (max-width: 1500px) {
   .global-app-bar__trader-slot .sv-tab-strip__hint {
     display: none;
@@ -33,53 +13,46 @@
 }
 
 @media (max-width: 1400px) {
+  .global-app-bar__rec-time,
   .global-app-bar__metric--bp,
-  .global-app-bar__sep--bp,
-  .global-app-bar__status .backend-start-btn--reload {
+  .global-app-bar__sep--bp {
     display: none;
   }
 }
 
-/* Session badge goes before the clock: the Desk chip already says whether the
-   desk is up, and the symbol lookup must survive down to ~1024. */
 @media (max-width: 1280px) {
-  .global-app-bar__metric--day,
-  .global-app-bar__status .mode-badge {
+  .global-app-bar__session,
+  .global-app-bar__metric--day {
     display: none;
   }
 }
 
 @media (max-width: 1100px) {
-  .global-app-bar__metric--tav,
-  .global-app-bar__status .header-market-clock {
+  .global-app-bar__primary .header-market-clock,
+  .global-app-bar__metric--tav {
+    display: none;
+  }
+
+  .global-app-bar__search {
+    width: 180px;
+  }
+}
+
+@media (max-width: 900px) {
+  .global-app-bar__wordmark,
+  .global-app-bar__rec-role {
     display: none;
   }
 }
 
 @media (max-width: 820px) {
   .global-app-bar__primary {
-    grid-template-columns: max-content minmax(0, 1fr);
-  }
-
-  .global-app-bar__left {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .global-app-bar__right {
-    grid-column: 2;
-    grid-row: 1;
-    justify-self: end;
+    flex-wrap: wrap;
   }
 
   .global-app-bar__center {
-    grid-column: 1 / -1;
-    grid-row: 2;
-  }
-}
-
-@media (max-width: 720px) {
-  .global-app-bar__wordmark {
-    display: none;
+    order: 3;
+    flex: 1 1 100%;
+    justify-content: flex-start;
   }
 }

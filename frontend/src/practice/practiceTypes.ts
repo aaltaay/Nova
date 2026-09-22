@@ -29,5 +29,6 @@ export interface PracticeAccount {
   schema_version: number;
   updated_at: string | null;
   /** Sim only: which replay this scratch ledger belongs to. */
-  replay_key?: string | null;
+  /** Sim only: the ledger's replay binding, `[source, symbol, date, start?, end?]` (or a legacy string). */
+  replay_key?: string | ReadonlyArray<string | number | null> | null;
 }
