@@ -28,13 +28,6 @@
   padding-bottom: 0.5rem;
 }
 
-.main-col--scanner-stack .hod-momo-dock {
-  flex-shrink: 0;
-  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
-  border-radius: 8px;
-  margin-bottom: 0.5rem;
-}
-
 .scanner-selected-widget {
   flex: 1 1 0;
   min-height: 0;

@@ -1,27 +1,50 @@
 /**
- * AppShell top dock — collapsed strip or expanded HOD / roster scanner table.
+ * HOD Momo strip -- the compact alert strip across the top of the Scanner
+ * board (approved UX redesign). One line per alert, newest on top; folds to
+ * its header; drag the bottom edge to resize (whole rows, at most 40% of the
+ * column). The component keeps the `HodMomoDock` name so the Scanner pages
+ * and the sample shell import one thing.
  */
-import { useCallback, useEffect, useRef } from 'react';
-import { ResizeHandle } from '../components/ResizeHandle';
-import { HOD_MOMO_DOCK_DEFAULT_HEIGHT_PX, API_BASE_URL } from '../constants';
-import { useWorkspace } from '../workspace/WorkspaceContext';
+import { useCallback, useMemo, useRef, useState, type UIEvent } from 'react';
+import { API_BASE_URL } from '../constants';
 import { novaFetch } from '../api/novaFetch';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
-import { useScannerDockRows } from '../scanner/useScannerDockRows';
+import { useWorkspace } from '../workspace/WorkspaceContext';
 import { alertApp, confirmApp } from '../ux';
-import { HodMomoDockModes } from './HodMomoDockModes';
-import { HodMomoDockRoster } from './HodMomoDockRoster';
+import { computeVisibleRowRange } from './HodMomoAlertTable';
+import { HodMomoDebugPanel } from './HodMomoDebugPanel';
+import { HodMomoSettings } from './HodMomoSettings';
+import { HodMomoStripHeader } from './HodMomoStripHeader';
+import { HodMomoStripMenu } from './HodMomoStripMenu';
+import { HodMomoStripRow } from './HodMomoStripRow';
 import { useHodMomo, type HodDockMode } from './HodMomoContext';
-import { HodMomoSection } from './HodMomoSection';
-import { HodMomoSoundToggle } from './HodMomoSoundToggle';
-import { isAlertDockMode, isRosterDockMode } from './scannerDockModes';
+import {
+  HOD_MOMO_STRIP_DEFAULT_ROWS,
+  HOD_MOMO_STRIP_EMPTY_CONNECTING,
+  HOD_MOMO_STRIP_EMPTY_WAITING,
+  HOD_MOMO_STRIP_GRIP_LABEL,
+  HOD_MOMO_STRIP_GRIP_TITLE,
+  HOD_MOMO_STRIP_ROW_PX,
+  hodMomoStripSinceLabel,
+} from './hodMomoStripConstants';
+import { stripRowsToPx } from './hodMomoStripPersist';
+import { fmtStripSince, stripAlertsForMode } from './hodMomoStripRows';
+import { isAlertDockMode } from './scannerDockModes';
+import { defaultHodMomentumVisibleStrategies } from './scannerPartition';
+import { useHodMomoIntegrity } from './useHodMomoIntegrity';
+import { useHodMomoStripResize } from './useHodMomoStripResize';
+import { useStripNewAlerts } from './useStripNewAlerts';
+
+const STRIP_OVERSCAN_ROWS = 6;
 
 type Props = {
   /** Sample shell: open fixture trader instead of live Stock View. */
   onOpenTrading?: (symbol: string) => void;
+  /** Row click. Defaults to the workspace's row selection (side panel follows). */
+  onAlertSelect?: (symbol: string) => void;
 };
 
-export function HodMomoDock({ onOpenTrading }: Props) {
+export function HodMomoDock({ onOpenTrading, onAlertSelect }: Props) {
   const {
     stream,
     config,
@@ -30,41 +53,52 @@ export function HodMomoDock({ onOpenTrading }: Props) {
     collapsed,
     setCollapsed,
     toggleCollapsed,
-    heightPx,
-    setHeightPx,
+    rows,
+    setRows,
     hodCount,
     runningUpCount,
     showHodSettings,
     setShowHodSettings,
     toggleHodSettings,
   } = useHodMomo();
-  const {
-    selectedSymbol,
-    setSelectedSymbol,
-    selectRowSymbol,
-    openStockView,
-  } = useWorkspace();
+  const { selectedSymbol, setSelectedSymbol, selectRowSymbol, openStockView } = useWorkspace();
   const sample = useSampleDataOptional();
-  const roster = useScannerDockRows();
-  const dragStart = useRef<{ y: number; h: number } | null>(null);
-  const openTrading = onOpenTrading ?? openStockView;
-  // Sample shell drives its own fixture Trader state (see SampleShell) --
-  // it must not read/mutate the live traderViewActive via selectRowSymbol.
-  const selectSymbol = onOpenTrading ? setSelectedSymbol : selectRowSymbol;
-  const alertMode = isAlertDockMode(dockMode);
+  const rootRef = useRef<HTMLElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [debugOpen, setDebugOpen] = useState(false);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [visibleStrategies, setVisibleStrategies] = useState<Set<number>>(
+    defaultHodMomentumVisibleStrategies,
+  );
+  const integrity = useHodMomoIntegrity();
+  const resize = useHodMomoStripResize({ rows, setRows, rootRef });
 
-  // Declare the dock's table for L1 streaming whenever it changes, including on
-  // mount: dockMode is restored from the previous session while the main tab
-  // resets to Gappers, so a click-only hint left a visible dock roster (e.g.
-  // Gainers) with no price_patch at all after every reload.
-  const setL1DockTab = roster?.setL1DockTab ?? null;
-  useEffect(() => {
-    if (!setL1DockTab) return;
-    setL1DockTab(isRosterDockMode(dockMode) ? dockMode : null);
-  }, [dockMode, setL1DockTab]);
+  const openTrading = onOpenTrading ?? openStockView;
+  // Sample shell drives its own fixture Trader state -- it must not touch the
+  // live traderViewActive via selectRowSymbol.
+  const selectSymbol = onAlertSelect ?? (onOpenTrading ? setSelectedSymbol : selectRowSymbol);
+  const mode: 'hod_momo' | 'running_up' = isAlertDockMode(dockMode) ? dockMode : 'hod_momo';
+
+  const alerts = useMemo(
+    () => stripAlertsForMode(stream.alerts, mode, mode === 'hod_momo' ? visibleStrategies : null),
+    [stream.alerts, mode, visibleStrategies],
+  );
+  const newIds = useStripNewAlerts(stream.alerts);
+  const since = useMemo(() => fmtStripSince(alerts), [alerts]);
+
+  const strategyCounts = useMemo(() => {
+    const c: Record<number, number> = {};
+    for (const a of stream.alerts) c[a.strategy_id] = (c[a.strategy_id] ?? 0) + 1;
+    return c;
+  }, [stream.alerts]);
+  const configColors = useMemo(() => {
+    const out: Record<number, string> = {};
+    for (const [sid, cfg] of Object.entries(config.state.strategies ?? {})) out[Number(sid)] = cfg.color;
+    return out;
+  }, [config.state.strategies]);
 
   const clearAlerts = useCallback(() => {
-    const label = dockMode === 'running_up' ? 'Running Up' : 'HOD Momentum';
+    const label = mode === 'running_up' ? 'Running Up' : 'HOD Momentum';
     if (sample) {
       void alertApp({
         title: 'Sample data',
@@ -81,158 +115,126 @@ export function HodMomoDock({ onOpenTrading }: Props) {
       tone: 'warning',
     }).then((ok) => {
       if (!ok) return;
-      novaFetch(`${API_BASE_URL}/api/hod-momo/alerts`, { method: 'DELETE' }).catch(
-        (err) => {
-          console.error('Clear HOD/Running Up alerts failed', err);
-        },
-      );
+      novaFetch(`${API_BASE_URL}/api/hod-momo/alerts`, { method: 'DELETE' }).catch((err) => {
+        console.error('Clear HOD/Running Up alerts failed', err);
+      });
     });
-  }, [dockMode, sample]);
+  }, [mode, sample]);
 
-  const onResizePointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      e.preventDefault();
-      const target = e.currentTarget as HTMLElement;
-      target.setPointerCapture(e.pointerId);
-      dragStart.current = { y: e.clientY, h: heightPx };
-
-      const onMove = (ev: PointerEvent) => {
-        if (!dragStart.current) return;
-        setHeightPx(dragStart.current.h + (ev.clientY - dragStart.current.y));
-      };
-      const onUp = (ev: PointerEvent) => {
-        target.releasePointerCapture(ev.pointerId);
-        dragStart.current = null;
-        target.removeEventListener('pointermove', onMove);
-        target.removeEventListener('pointerup', onUp);
-        target.removeEventListener('pointercancel', onUp);
-      };
-      target.addEventListener('pointermove', onMove);
-      target.addEventListener('pointerup', onUp);
-      target.addEventListener('pointercancel', onUp);
-    },
-    [heightPx, setHeightPx],
-  );
-
-  const selectMode = (mode: HodDockMode) => {
-    setDockMode(mode);
+  const selectMode = (next: HodDockMode) => {
+    setDockMode(next);
     if (collapsed) setCollapsed(false);
   };
 
-  const bodyIsRoster = isRosterDockMode(dockMode) && roster != null;
+  const toggleStrategy = (id: number) => {
+    setVisibleStrategies((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const onScroll = (e: UIEvent<HTMLDivElement>) => setScrollTop(e.currentTarget.scrollTop);
+  const bodyPx = stripRowsToPx(rows);
+  const range = computeVisibleRowRange(scrollTop, alerts.length, HOD_MOMO_STRIP_ROW_PX, bodyPx, STRIP_OVERSCAN_ROWS);
+  const rendered = alerts.slice(range.startIndex, range.endIndex);
 
   return (
     <section
-      className={`hod-momo-dock${collapsed ? ' hod-momo-dock--collapsed' : ''}`}
+      ref={rootRef}
+      className={`hod-strip${collapsed ? ' is-folded' : ''}${resize.dragging ? ' is-dragging' : ''}`}
       data-testid="hod-momo-dock"
-      data-dock-mode={dockMode}
+      data-dock-mode={mode}
       data-collapsed={collapsed ? '1' : '0'}
-      aria-label="Scanner dock"
+      aria-label="HOD Momo strip"
     >
-      <header
-        className="hod-momo-dock__bar"
-        onClick={(e) => {
-          const el = e.target as HTMLElement;
-          if (el.closest('button')) return;
-          toggleCollapsed();
-        }}
-      >
-        <button
-          type="button"
-          className="hod-momo-dock__toggle"
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleCollapsed();
-          }}
-          aria-expanded={!collapsed}
-          data-testid="hod-momo-dock-toggle"
-          title={collapsed ? 'Expand scanner dock' : 'Collapse scanner dock'}
-        >
-          <span className="hod-momo-dock__chevron" aria-hidden="true">
-            {collapsed ? '▸' : '▾'}
-          </span>
-        </button>
-
-        <HodMomoDockModes
-          dockMode={dockMode}
-          onSelect={selectMode}
-          hodCount={hodCount}
-          runningUpCount={runningUpCount}
-          rosterCounts={roster?.counts ?? null}
-        />
-
-        <span
-          className={`hod-momo-dock__live${stream.connected ? ' is-live' : ''}`}
-          title={stream.connected ? 'HOD feed connected' : 'HOD feed disconnected'}
-        >
-          {stream.connected ? 'Live' : 'Offline'}
-        </span>
-
-        {alertMode ? (
-          <div className="hod-momo-dock__actions" onClick={(e) => e.stopPropagation()}>
-            {dockMode === 'hod_momo' ? (
-              <HodMomoSoundToggle className="hod-momo-dock__action" />
-            ) : null}
-            <button
-              type="button"
-              className="hod-momo-dock__action"
-              onClick={clearAlerts}
-              title="Clear today's shared HOD / Running Up alerts"
-              data-testid="hod-momo-dock-clear"
-            >
-              Clear
-            </button>
-            <button
-              type="button"
-              className="hod-momo-dock__action"
-              onClick={toggleHodSettings}
-              title="Configure HOD Momentum strategies"
-              data-testid="hod-momo-dock-configure"
-            >
-              Configure
-            </button>
-          </div>
-        ) : (
-          <div className="hod-momo-dock__actions" />
+      <HodMomoStripHeader
+        sinceLabel={hodMomoStripSinceLabel(alerts.length, since)}
+        integrity={integrity}
+        connected={stream.connected}
+        dockMode={mode}
+        onSelectMode={selectMode}
+        hodCount={hodCount}
+        runningUpCount={runningUpCount}
+        collapsed={collapsed}
+        onToggleCollapsed={toggleCollapsed}
+        menuOpen={menuOpen}
+        onToggleMenu={() => setMenuOpen((v) => !v)}
+        menu={(
+          <HodMomoStripMenu
+            showStrategies={mode === 'hod_momo'}
+            visibleStrategies={visibleStrategies}
+            strategyCounts={strategyCounts}
+            configColors={configColors}
+            debugOpen={debugOpen}
+            onToggleStrategy={toggleStrategy}
+            onClear={clearAlerts}
+            onConfigure={toggleHodSettings}
+            onToggleDebug={() => {
+              setDebugOpen((v) => !v);
+              if (collapsed) setCollapsed(false);
+            }}
+            onClose={() => setMenuOpen(false)}
+          />
         )}
-      </header>
+      />
 
       {!collapsed && (
         <>
           <div
-            className="hod-momo-dock__body"
-            style={{ height: heightPx }}
+            className="hod-strip__body"
+            style={{ height: bodyPx }}
             data-testid="hod-momo-dock-body"
+            data-rows={rows}
+            data-total-count={alerts.length}
+            role="table"
+            onScroll={onScroll}
           >
-            {bodyIsRoster ? (
-              <HodMomoDockRoster
-                mode={dockMode}
-                rows={roster}
+            {debugOpen ? (
+              <HodMomoDebugPanel
                 selectedSymbol={selectedSymbol}
-                onSelect={selectSymbol}
+                onSelectSymbol={selectSymbol}
                 onOpenTrading={openTrading}
               />
+            ) : alerts.length === 0 ? (
+              <div className="hod-strip__empty" data-testid="hod-momo-strip-empty">
+                {stream.connected ? HOD_MOMO_STRIP_EMPTY_WAITING : HOD_MOMO_STRIP_EMPTY_CONNECTING}
+              </div>
             ) : (
-              <HodMomoSection
-                activeTab={alertMode ? dockMode : 'hod_momo'}
-                hodMomoStream={stream}
-                hodMomoConfig={config}
-                selectedSymbol={selectedSymbol}
-                onSelect={selectSymbol}
-                onOpenTrading={openTrading}
-                showHodSettings={showHodSettings}
-                onToggleHodSettings={toggleHodSettings}
-                onCloseHodSettings={() => setShowHodSettings(false)}
-              />
+              <>
+                {range.topSpacerPx > 0 && <div style={{ height: range.topSpacerPx }} aria-hidden="true" />}
+                {rendered.map((alert) => (
+                  <HodMomoStripRow
+                    key={alert.id}
+                    alert={alert}
+                    selected={selectedSymbol === alert.ticker}
+                    isNew={newIds.has(alert.id)}
+                    onSelect={selectSymbol}
+                    onOpenTrading={openTrading}
+                  />
+                ))}
+                {range.bottomSpacerPx > 0 && <div style={{ height: range.bottomSpacerPx }} aria-hidden="true" />}
+              </>
             )}
           </div>
-          <ResizeHandle
-            orientation="horizontal"
-            label="Resize scanner dock"
-            onPointerDown={onResizePointerDown}
-            onDoubleClick={() => setHeightPx(HOD_MOMO_DOCK_DEFAULT_HEIGHT_PX)}
+          <div
+            className="hod-strip__grip"
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label={HOD_MOMO_STRIP_GRIP_LABEL}
+            title={HOD_MOMO_STRIP_GRIP_TITLE}
+            data-testid="hod-momo-strip-grip"
+            onPointerDown={resize.onPointerDown}
+            onDoubleClick={() => setRows(HOD_MOMO_STRIP_DEFAULT_ROWS)}
           />
         </>
+      )}
+
+      {showHodSettings && (
+        <div className="hod-strip__settings">
+          <HodMomoSettings config={config} onClose={() => setShowHodSettings(false)} />
+        </div>
       )}
     </section>
   );

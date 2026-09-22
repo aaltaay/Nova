@@ -17,6 +17,7 @@ import { ScannerBarBridge } from '../components/ScannerBarBridge';
 import { setGlobalBarHistoryDate } from '../components/scannerBarStore';
 import { useWatchlist } from '../strategy/useWatchlist';
 import { useSidePanelWidth } from '../hooks/useSidePanelWidth';
+import { boardListForSymbol } from '../scanner/boardListForSymbol';
 import { useLiveScannerFeed } from '../scanner/ScannerDataContext';
 import { ScannerDesk } from '../scanner/ScannerDesk';
 import { useSettings } from '../settings/SettingsContext';
@@ -161,6 +162,21 @@ export function DashboardPage() {
   const mainTab = isMainScannerTab(activeTab) ? activeTab : DEFAULT_ACTIVE_TAB;
   const activeHiddenCount = hiddenByExchangeFilter[mainTab] ?? 0;
 
+  // HOD strip row: select for the side panel; if the symbol is not on the
+  // board's current list, show the first scanner list that holds it. No list
+  // holding it keeps the board as is -- the strip row is the selection.
+  function onAlertSelect(symbol: string) {
+    selectRowSymbol(symbol);
+    const target = boardListForSymbol(symbol, mainTab, {
+      gappers: filteredGappers,
+      gainers: filteredGainers,
+      losers: filteredLosers,
+      afterhours: filteredAfterhours,
+      large_cap: filteredLargeCap,
+    });
+    if (target && target !== mainTab) handleTabClick(target);
+  }
+
   // Declare the table actually on screen for IBKR L1, on mount as well as on
   // change. A click-only hint left `l1ActiveTab` at DEFAULT_ACTIVE_TAB after
   // every reload; Gappers freezes at 09:30, a frozen table contributes no
@@ -208,7 +224,7 @@ export function DashboardPage() {
       <ScannerBarBridge activeTab={mainTab} scanner={scanner} />
 
       <div className="main-col main-col--scanner-stack">
-        <HodMomoDock />
+        <HodMomoDock onAlertSelect={onAlertSelect} />
 
         <ScannerDesk>
         <SelectedScannerWidget title={getModule(mainTab)?.title ?? 'Scanner'}>
