@@ -55,6 +55,13 @@ _read_only_since: float | None = None
 _last_connectivity_code: int | None = None
 _last_connectivity_ts: float = 0.0
 _restore_pending: RestoreKind | None = None
+# ADR 021: the most recent errorEvent of any code, for the diagnostics row.
+_last_error: dict[str, Any] | None = None
+
+
+def last_error() -> dict[str, Any] | None:
+    """``{code, message, ts}`` of the last IB errorEvent, or None since the last reset."""
+    return dict(_last_error) if _last_error else None
 
 
 def is_delayed_data() -> bool:
@@ -167,9 +174,10 @@ def reset_for_tests() -> None:
     global _delayed_data, _live_md_blocked, _data_farm_status, _data_farm_status_ts
     global _max_tickers_hit, _max_tickers_ts
     global _unusable_since, _last_connectivity_code, _last_connectivity_ts
-    global _restore_pending, _read_only_since
+    global _restore_pending, _read_only_since, _last_error
     _error_hooked_ib_ids.clear()
     _read_only_since = None
+    _last_error = None
     _delayed_data = False
     _live_md_blocked = False
     _data_farm_status = None
@@ -224,11 +232,12 @@ def _on_ib_error(
     global _delayed_data, _live_md_blocked, _data_farm_status, _data_farm_status_ts
     global _max_tickers_hit, _max_tickers_ts
     global _restore_pending, _last_connectivity_code, _last_connectivity_ts
-    global _read_only_since
+    global _read_only_since, _last_error
 
     code = int(errorCode)
     msg = (errorString or "").strip()
     now = time.time()
+    _last_error = {"code": code, "message": msg, "ts": now}
 
     if is_read_only_rejection(code, msg):
         # Not a connectivity fault: prices and positions keep working, so the

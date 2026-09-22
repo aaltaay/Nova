@@ -27,6 +27,9 @@ Constitution (`gemini.md` / `AGENTS.md`) and `.cursor/rules/*` remain supreme fo
 | [016](./decisions/016-bot-localhost-api.md) | Localhost bot API (brain-agnostic) | Accepted |
 | [017](./decisions/017-single-replay-surface.md) | One Historical replay surface and IBKR print source | Accepted; live print fan-out implemented |
 | [018](./decisions/018-desk-venue-vs-spend-arming.md) | Desk venue persists, spend arming does not | Accepted; implementation open (#302) |
+| [019](./decisions/019-practice-fills-on-replayed-sessions.md) | Practice fills on replayed sessions | Accepted |
+| [020](./decisions/020-three-venues-one-feed.md) | Three venues on one feed | Accepted |
+| [021](./decisions/021-desk-self-heal.md) | Desk self-heal: what heals itself, what stays a human step | Accepted; backend shipped, UI + supervisor open |
 
 ## Rules and maps
 

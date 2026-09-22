@@ -15,6 +15,7 @@ here; OR all production callers import domain modules directly.
 from constants_advise import *  # noqa: F403
 from constants_archive_news import *  # noqa: F403
 from constants_bot import *  # noqa: F403
+from constants_diagnostics import *  # noqa: F403
 from constants_hod_momo import *  # noqa: F403
 from constants_ibkr import *  # noqa: F403
 from constants_metrics import *  # noqa: F403
