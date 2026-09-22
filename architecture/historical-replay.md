@@ -52,8 +52,10 @@ Gateway connection (its own client id and event loop, no account/order fetches)
 tries the live port only; the legacy paper port is tried only with the
 `IBKR_PAPER_GATEWAY_FALLBACK` opt-in (ADR 020, amendment 2). Its client id is
 `SIM_HISTORY_CLIENT_ID`, overridable with `NOVA_SIM_HISTORY_CLIENT_ID` so a
-second stack never shares it; a redirected `NOVA_SIM_CAPTURE_DIR` keeps the
-store inside that root unless `NOVA_SIM_HISTORY_DIR` names another.
+second stack never shares it. The store follows `NOVA_SIM_HISTORY_DIR`, else
+the durable `F:` archive, else the capture root. It never follows a redirected
+`NOVA_SIM_CAPTURE_DIR` while `F:` exists -- the operator's own `.env` sets that
+variable -- so an isolated test stack must set `NOVA_SIM_HISTORY_DIR`.
 The IBKR adapter only fetches; the SIM downloader owns persistence. Tunables
 live in `backend/constants_sim.py`. This budget does not account for other
 applications; IBKR pacing rejections are surfaced as resumable failures rather
