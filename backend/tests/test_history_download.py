@@ -167,13 +167,27 @@ def test_the_download_client_id_is_overridable_and_read_at_construction(monkeypa
     assert ReplayHistoryGateway(client_id=7).client_id == 7
 
 
-def test_a_redirected_capture_root_keeps_the_history_store_inside_it(monkeypatch, tmp_path):
+def test_the_durable_archive_wins_over_a_redirected_capture_root(monkeypatch, tmp_path):
+    """The operator's .env sets NOVA_SIM_CAPTURE_DIR; following it moved the desk
+    off its 181 MB download archive (regression from #441). Only
+    NOVA_SIM_HISTORY_DIR moves the store."""
     from sim import history_store
+    durable = tmp_path / "durable"
+    monkeypatch.setattr(history_store, "SIM_HISTORY_DEFAULT_ROOT_WIN", str(durable))
+    monkeypatch.setattr(history_store, "_durable_archive_available", lambda: True)
+    monkeypatch.delenv("NOVA_SIM_HISTORY_DIR", raising=False)
+    monkeypatch.setenv("NOVA_SIM_CAPTURE_DIR", str(tmp_path / "capture"))
+    assert history_store.path() == durable / "replay.sqlite3"
+    monkeypatch.setenv("NOVA_SIM_HISTORY_DIR", str(tmp_path / "hist"))
+    assert history_store.path() == tmp_path / "hist" / "replay.sqlite3"
+
+
+def test_without_the_durable_drive_the_store_sits_under_the_capture_root(monkeypatch, tmp_path):
+    from sim import history_store
+    monkeypatch.setattr(history_store, "_durable_archive_available", lambda: False)
     monkeypatch.delenv("NOVA_SIM_HISTORY_DIR", raising=False)
     monkeypatch.setenv("NOVA_SIM_CAPTURE_DIR", str(tmp_path / "capture"))
     assert history_store.path() == tmp_path / "capture" / "historical" / "replay.sqlite3"
-    monkeypatch.setenv("NOVA_SIM_HISTORY_DIR", str(tmp_path / "hist"))
-    assert history_store.path() == tmp_path / "hist" / "replay.sqlite3"
 
 
 def test_both_ports_dark_names_the_shared_unreachable_prefix(monkeypatch):
