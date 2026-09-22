@@ -30,6 +30,13 @@ describe('HistoricalDownloads', () => {
     expect(screen.getByRole('status').textContent).toMatch(/GRML failed · nothing downloaded/);
   });
 
+  it('a failed job offers a retry, never a "resume" of nothing (R28)', () => {
+    render(<HistoricalDownloads jobs={[job({ status: 'failed', error: 'Ticker could not be uniquely qualified by IBKR' })]}
+      busy={new Set()} onPick={() => {}} onAction={() => {}} />);
+    expect(screen.getByRole('button', { name: /^Retry download:/ }).textContent).toBe('Retry download');
+    expect(screen.queryByRole('button', { name: /^Resume download:/ })).toBeNull();
+  });
+
   it('a finished candle download reads complete at 100%, through the window end (C40)', () => {
     render(<HistoricalDownloads
       jobs={[job({ kind: 'bars', status: 'complete', progress_pct: 100, downloaded_through: START + 8100, covered_seconds: 8100 })]}

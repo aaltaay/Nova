@@ -100,11 +100,17 @@ async def _run() -> None:
 
 
 def tick() -> dict:
-    """One synchronous capture step + practice fill match. Used by tests."""
-    if _clock.is_paused():
-        return {}
+    """One synchronous capture step + practice fill match. Used by tests.
+
+    Paused, nothing is streamed -- but a playhead the operator moved forward
+    while paused still fills what crossed in between and expires what closed
+    (``architecture/practice-fills.md``: a forward move fills at the first
+    crossing print in between; QA 2026-09-22, R9). A playhead that did not move
+    matches nothing: the fill cursor only advances with it.
+    """
     from sim import history_playback
     from sim import replay as _replay
+    paused = _clock.is_paused()
     payload: dict = {}
     if not history_playback.status():
         # A failed selection must be acknowledged by selecting a source; a
@@ -114,7 +120,7 @@ def tick() -> dict:
         # At the live edge the live feed owns the panels (ADR 020 live-edge
         # amendment): today's recording stays loaded for the scrub back, but
         # its prints are not forwarded on top of the live tape.
-        if _replay.is_capture_replay() and not _clock.live_edge():
+        if not paused and _replay.is_capture_replay() and not _clock.live_edge():
             try:
                 payload = _capture_tick()
             except Exception:

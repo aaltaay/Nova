@@ -32,7 +32,8 @@ import {
   SIM_WALL_CLOCK_LABEL, SIM_WALL_CLOCK_TITLE, simCaptureBandTitle,
 } from './simConstants';
 import {
-  firstReplayMinute, formatMinuteClock, playheadTag, recordedLane, sessionOpeningLabel, stripBandSegments, stripScale,
+  firstReplayMinute, firstReplaySecond, formatMinuteClock, playheadTag, recordedLane, sessionOpeningLabel,
+  stripBandSegments, stripScale,
 } from './simStripFormat';
 import { useProgressiveReplay } from './useProgressiveReplay';
 import { useSimSessionController } from './useSimSessionController';
@@ -71,7 +72,12 @@ export function SimSessionStrip() {
       <div className="sim-strip__transport" role="group" aria-label={SIM_STRIP_LABEL}>
         <button type="button" title={SIM_STRIP_TRANSPORT_FIRST} aria-label={SIM_STRIP_TRANSPORT_FIRST}
           disabled={seekBusy || !clock?.sim} data-testid="sim-strip-first"
-          onClick={() => seekTo(firstReplayMinute(clock, selection))}>
+          onClick={() => {
+            // To the first recorded second itself, not its minute (R22).
+            const second = firstReplaySecond(clock, selection);
+            if (second == null) seekTo(firstReplayMinute(clock, selection));
+            else void controller.seekToSecond(second);
+          }}>
           <SkipBack size={13} aria-hidden="true" />
         </button>
         <button type="button" title={SIM_STRIP_TRANSPORT_BACK} aria-label={SIM_STRIP_TRANSPORT_BACK}

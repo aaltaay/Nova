@@ -2,7 +2,7 @@
 
 Events -- ``placed`` / ``replaced`` / ``cancelled`` / ``expired`` / ``filled`` /
 ``rollover`` -- carry ``ts`` (the venue's time: the replay playhead on Sim, the wall clock
-on Paper), ``wall_ts`` (when it really happened, for the row stamps), the ADR
+on Paper; the row stamps), ``wall_ts`` (when it really happened, kept for forensics), the ADR
 007 command ``source`` and the ``bot_id``. Every derived number -- cash,
 positions with average cost, realized P&L, marks, working and closed orders,
 the day figures -- is replayed from them, so ``unwind_to(ts)`` (Sim's time
@@ -109,7 +109,10 @@ class Ledger:
 
     @staticmethod
     def _stamp(event: dict[str, Any]) -> str:
-        return iso_utc(event.get("wall_ts", event["ts"]))
+        # A row's times are the venue's -- the replay playhead on Sim, the wall
+        # clock on Paper -- the same clock the rewind unwinds by, so a Sim row
+        # never reads like it happened at 01:50 tonight (QA 2026-09-22, R27).
+        return iso_utc(event["ts"])
 
     def _apply_placed(self, event: dict[str, Any]) -> None:
         row = dict(event["row"])

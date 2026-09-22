@@ -76,9 +76,12 @@ def usable_rows(rows: list[dict[str, Any]], kind: str, symbol: str,
             valid = (valid and _positive(row.get("price")) and _optional_numbers(row, ("size",))
                      and _optional_numbers(row, ("bid", "ask"), _positive))
         elif kind == "quotes":
-            valid = (valid and _positive(row.get("last") or row.get("price"))
+            # The recorder writes the top of book with ``last: null`` (``capture.bridge_ibkr``):
+            # a quote row needs one positive price of any kind, and every price it carries
+            # positive. Requiring a last discarded every recorded quote (QA 2026-09-22, R12).
+            valid = (valid and any(_positive(row.get(key)) for key in ("last", "price", "bid", "ask"))
                      and _optional_numbers(row, ("bid_size", "ask_size", "volume"))
-                     and _optional_numbers(row, ("bid", "ask", "prev_close"), _positive))
+                     and _optional_numbers(row, ("bid", "ask", "prev_close", "last", "price"), _positive))
         elif kind == "l2":
             valid = valid and all(_levels(row.get(side, [])) for side in ("bids", "asks"))
         else:

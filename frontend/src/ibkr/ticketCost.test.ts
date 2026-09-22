@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PRACTICE_NO_SHORTS_REASON } from '../constantGroups/practice';
-import { TICKET_COST_NO_POSITION, TICKET_COST_NO_SIM_PRICE } from '../constantGroups/trader_chrome';
+import { TICKET_COST_NO_POSITION } from '../constantGroups/trader_chrome';
+import { SIM_REPLAY_PRICE_NONE } from '../sim/simConstants';
 import { estimateTicketCost } from './ticketCost';
 import type { ManualOrderValues } from './orderEntry';
 
@@ -99,12 +100,12 @@ describe('estimateTicketCost', () => {
       { ...BASE, orderType: 'MKT' },
       { ...CTX, marketReferencePrice: null },
       { forceQty: null },
-      { practice: true, priceNote: TICKET_COST_NO_SIM_PRICE },
+      { practice: true, priceNote: SIM_REPLAY_PRICE_NONE },
     );
     expect(est.cost).toBeNull();
-    expect(est.note).toBe(TICKET_COST_NO_SIM_PRICE);
+    expect(est.note).toBe(SIM_REPLAY_PRICE_NONE);
     // A limit is priced at its own limit whatever the venue's reference.
     expect(estimateTicketCost(BASE, { ...CTX, marketReferencePrice: null }, { forceQty: null },
-      { practice: true, priceNote: TICKET_COST_NO_SIM_PRICE }).cost).toBe(890);
+      { practice: true, priceNote: SIM_REPLAY_PRICE_NONE }).cost).toBe(890);
   });
 });

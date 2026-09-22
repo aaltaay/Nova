@@ -72,3 +72,13 @@ CAPTURE_STOP_RESTART = "restart"
 # a source predates the stamp and is still an IBKR recording.
 CAPTURE_SOURCE_IBKR = "ibkr"
 CAPTURE_NOT_IBKR_REASON = "Not a Session Record: synthetic data from the removed SIM1 instrument (ADR 019)"
+# Data written past the manifest's last segment stop (R13) is listed as an
+# ``unlisted`` stretch once it reaches this far beyond the stop (the finalizer's
+# own close lands within a few seconds of the last write).
+CAPTURE_STATUS_UNLISTED = "unlisted"
+CAPTURE_UNLISTED_TOLERANCE_SEC = 30.0
+# A session whose every segment failed without one print is not a recording (R25).
+CAPTURE_NO_PRINTS_REASON = "No IBKR prints were recorded"
+# The consolidated-tape sale condition for an odd lot: like the historical
+# download's ``unreported`` prints, it never sets the last or fills a practice order (R24).
+CAPTURE_ODD_LOT_CONDITION = "I"

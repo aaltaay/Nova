@@ -35,6 +35,7 @@ import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from './types';
 import { useCompactTicket } from './useCompactTicket';
 import { useManualOrderSubmission } from './useManualOrderSubmission';
 import { useIbkrStatus } from './useIbkrStatus';
+import { useReplayQuote } from '../sim/useReplayQuote';
 
 interface Props {
   symbol: string;
@@ -58,11 +59,15 @@ export function ManualOrderTicket({
   spendStatus,
   summary,
   position,
-  referencePrice,
+  referencePrice: livePrice,
   listingIbkr = null,
   onOrderPlaced,
 }: Props) {
   const ibkrStatus = useIbkrStatus();
+  // Off the live edge a Sim tab prices from the replay at the playhead, never
+  // the live feed or a price frozen when the tab opened (R10 / V24).
+  const replay = useReplayQuote(symbol);
+  const referencePrice = replay.active ? replay.last : livePrice;
   const { topOfBook } = useTopOfBook();
   const initial = applyTicketDefaults(symbol, referencePrice, topOfBook);
   const allowShort = allowShortSide(summary);
@@ -106,7 +111,9 @@ export function ManualOrderTicket({
     summary,
     position,
   };
-  const { tif, selectTif, cost, practice } = useCompactTicket({ mode, ...ticketValues });
+  const { tif, selectTif, cost, practice } = useCompactTicket({
+    mode, ...ticketValues, priceNote: replay.active ? replay.note : null,
+  });
   const trading = evaluateTradingAllowed({
     connected,
     spendStatus,

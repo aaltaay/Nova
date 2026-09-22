@@ -155,3 +155,9 @@ SIM_HISTORY_DEPTH_CACHE_ENTRIES = 16
 # (symbol, second) because the replay tape is re-polled every second.
 SIM_HISTORY_SIDE_SOURCE = "recorded_book"
 SIM_HISTORY_SIDE_CACHE_ENTRIES = 4096
+
+# --- QA batch fix/qa-sim-replay (2026-09-22) -----------------------------------
+# A capture playhead inside a gap in the recording has no market (R11): a
+# practice order is refused ``SIM_NO_PRICE`` with this reason, never filled at
+# the book or tape from before the gap.
+SIM_NOT_RECORDED_REASON = "Not recorded at the replay playhead -- scrub into a recorded stretch to practise"

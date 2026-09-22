@@ -34,7 +34,13 @@ export function seedLimitPrice(
   return bid ?? last;
 }
 
-/** Protective stop: BUY below last, SELL above last. */
+/**
+ * A stop order's trigger on the far side of the market for the ORDER's side:
+ * a BUY stop above last (a breakout entry, or a short's protective stop), a
+ * SELL stop below last (a long's protective stop). The ticket passes the
+ * order's side; seeding a BUY stop below last put it through the market, so a
+ * Place with the default triggered at once (QA 2026-09-22, R18).
+ */
 export function seedStopPrice(
   side: ManualOrderSide,
   last: number | null,
@@ -44,7 +50,7 @@ export function seedStopPrice(
   if (px == null) return null;
   const pct = Number.isFinite(offsetPct) && offsetPct >= 0 ? offsetPct : 0;
   const factor = pct / 100;
-  const seeded = side === 'BUY' ? px * (1 - factor) : px * (1 + factor);
+  const seeded = side === 'BUY' ? px * (1 + factor) : px * (1 - factor);
   return seeded > 0 ? seeded : null;
 }
 

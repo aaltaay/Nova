@@ -18,7 +18,7 @@ import {
   SIM_ET_TIME_ZONE, SIM_SESSION_CLOSE_LABEL, SIM_SESSION_MINUTES, SIM_SESSION_OPEN_LABEL, simCaptureGapTitle,
   simRecordedLaneNoneTitle, simRecordedLaneTitle,
 } from './simConstants';
-import { captureBandSegments, coverageRanges } from './simCoverage';
+import { captureBandSegments, captureSpans, coverageRanges } from './simCoverage';
 import type { HistoricalSelection } from './historicalTypes';
 import type { SimClockState } from './simClockTypes';
 import type { CaptureSessions } from './useSimSessionController';
@@ -223,6 +223,28 @@ export function firstReplayMinute(
     return sessionMinuteOf(selection.start_ts, clock) ?? 0;
   }
   return 0;
+}
+
+/**
+ * First recorded / downloaded second, from the session open, for the ⏮
+ * transport -- to the second, not the minute: a recording starting at
+ * 11:46:35 used to land on 11:47:00, and one starting at :20 would round into
+ * the gap before it (QA 2026-09-22, R22). Null when nothing is loaded.
+ */
+export function firstReplaySecond(
+  clock: SimClockState | null | undefined,
+  selection: HistoricalSelection | null | undefined,
+): number | null {
+  const window = clockWindow(clock);
+  if (!window) return null;
+  let first: number | null = null;
+  if (clock?.replay_source === 'capture') {
+    first = captureSpans(clock.replay_load?.segments, window.close)[0]?.start ?? null;
+  } else if (clock?.replay_source === 'historical' && selection?.start_ts != null) {
+    first = coverageRanges(selection)[0]?.[0] ?? selection.start_ts;
+  }
+  if (first == null) return null;
+  return Math.max(0, Math.min(window.close - window.open, Math.ceil(first - window.open)));
 }
 
 export interface RecordedLane {

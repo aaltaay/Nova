@@ -178,8 +178,5 @@ export const DRAWER_LIVE_NOTE = 'IBKR live account';
 /** A SELL only reduces a held long: from flat, or past the held quantity, nothing fills. */
 export const TICKET_COST_NO_POSITION =
   'Nothing to sell: a SELL only reduces a held position, and Nova never opens a short from it.';
-/** Sim off the live edge without this symbol's replay has no price to estimate against. */
-export const TICKET_COST_NO_SIM_PRICE =
-  'No Sim price for this symbol: load its replay, or follow the wall clock to the live edge.';
 /** The Sim venue tag's state word with nothing loaded off the edge (V38: it read "replay"). */
 export const TRADER_VENUE_TAG_NO_REPLAY = 'no replay';

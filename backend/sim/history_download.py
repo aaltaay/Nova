@@ -148,9 +148,20 @@ def start(job_id: str, *, reserved: bool = False) -> dict:
         _active[job_id] = stop
 
     def worker():
-        from ibkr.replay_history_gateway import ReplayHistoryGateway
+        # Everything the worker does is inside the try: a worker that dies before
+        # its first request (an import or gateway construction error) used to leave
+        # its id in ``_active`` and the job "running" -- a phantom that refused
+        # every other download until a restart (QA 2026-09-22, R23).
         try:
+            from ibkr.replay_history_gateway import ReplayHistoryGateway
+
             asyncio.run(run(job_id, ReplayHistoryGateway(), stop))
+        except Exception as exc:
+            logger.exception("Historical replay worker died before finishing: %s", job_id)
+            try:
+                store.update(job_id, status="failed", error=f"Download worker failed: {exc}")
+            except Exception:
+                logger.exception("Historical replay: could not mark job %s failed", job_id)
         finally:
             with _lock:
                 _active.pop(job_id, None)

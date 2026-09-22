@@ -222,6 +222,16 @@ export const SIM_HISTORY_NOTHING_DOWNLOADED_LINE = 'Nothing downloaded yet.';
 export const SIM_HISTORY_NO_TRADES_YET = 'No trades downloaded yet for this window';
 /** The Sim bar's download summary names a stopped / failed / finished job only this long after its last update. */
 export const SIM_HISTORY_SUMMARY_RECENT_SEC = 15 * 60;
+/** A capture replay's own panes (R16): REPLAY on the tape, the recording's L2 state, a gap stated as one. */
+export const SIM_CAPTURE_TAPE_TITLE = 'Your Session Record, replayed at the playhead. Nothing here is live.';
+export const SIM_CAPTURE_TAPE_NOT_RECORDED = 'Not recorded at this moment -- a gap in the recording';
+export const SIM_CAPTURE_L2_TITLE =
+  'Level 2 from your Session Record, replayed at the playhead. Live halt and borrow state are hidden because they describe today, not this session.';
+export const SIM_CAPTURE_L2_NONE_TITLE =
+  'This Session Record holds no Level 2 for this moment. Live halt and borrow state are hidden because they describe today, not this session.';
+/** A Sim tab's price off the live edge is the replay's (R10): these say why there is none. */
+export const SIM_REPLAY_PRICE_NONE = 'No replay price for this symbol at the playhead';
+export const SIM_REPLAY_PRICE_NOT_RECORDED = 'Not recorded at this moment -- a gap in the recording';
 /** A capture selection still being read from disk: neither loaded nor failed (`replay_loading`). */
 export const SIM_REPLAY_LOADING = 'Loading recording…';
 export const SIM_REPLAY_LOADING_TITLE = 'Nova is reading this Session Record from disk; the desk shows it once it has loaded.';

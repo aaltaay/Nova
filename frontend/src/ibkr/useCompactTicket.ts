@@ -5,19 +5,17 @@
  * estimate from the same sizing the Place path runs, and whether this venue
  * estimates its fills.
  *
- * On Sim the tab's market reference is trusted only when the tab can fill:
- * this symbol's replay is loaded, or the desk is at the live edge. Otherwise a
- * Market order would be priced from a live last the quote card does not show
- * (QA 2026-09-22, V24) -- the line is a dash with the reason instead.
+ * The caller hands in the price the venue trades at -- on Sim off the live
+ * edge that is the replay's at the playhead (`useReplayQuote`), null with a
+ * `priceNote` when there is none, so a Market order is never priced from a
+ * live last the quote card does not show (QA 2026-09-22, V24 / R10).
  */
 import { useState } from 'react';
-import { TICKET_COST_NO_SIM_PRICE } from '../constantGroups/trader_chrome';
 import type { TradeDefaultTif } from '../constantGroups/trade_defaults';
 import {
   readTradeDefaultsPrefs,
   writeTradeDefaultsPrefs,
 } from '../settings/tradeDefaultsPrefs';
-import { useSimReplayTarget } from '../sim/useSimReplayTarget';
 import type { ManualOrderSide, ManualOrderType, QuantityMode } from './orderEntry';
 import { estimateTicketCost, type TicketCostEstimate } from './ticketCost';
 import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from './types';
@@ -36,6 +34,8 @@ interface Params {
   referencePrice: number | null;
   summary: IbkrAccountSummary | null;
   position: IbkrPosition | null;
+  /** Why the venue has no market price right now, when it has none (Sim off the edge). */
+  priceNote?: string | null;
 }
 
 export function useCompactTicket(p: Params): {
@@ -45,7 +45,6 @@ export function useCompactTicket(p: Params): {
   practice: boolean;
 } {
   const [tif, setTif] = useState<TradeDefaultTif>(() => readTradeDefaultsPrefs().tif);
-  const { clock, target } = useSimReplayTarget(p.symbol);
 
   function selectTif(next: TradeDefaultTif) {
     writeTradeDefaultsPrefs({ ...readTradeDefaultsPrefs(), tif: next });
@@ -53,9 +52,6 @@ export function useCompactTicket(p: Params): {
   }
 
   const practice = p.mode === 'paper' || p.mode === 'sim';
-  // Sim: no clock yet is unknown, not trusted; the edge and this symbol's replay are.
-  const simPriceTrusted = p.mode !== 'sim'
-    || (clock != null && (target.kind === 'ok' || target.kind === 'live-edge'));
   const cost = estimateTicketCost(
     {
       symbol: p.symbol,
@@ -69,12 +65,12 @@ export function useCompactTicket(p: Params): {
       shortEntry: p.shortEntry,
     },
     {
-      marketReferencePrice: simPriceTrusted ? p.referencePrice : null,
+      marketReferencePrice: p.referencePrice,
       buyingPower: p.summary?.BuyingPower ?? null,
       positionQty: p.position?.qty ?? null,
     },
     undefined,
-    { practice, priceNote: simPriceTrusted ? null : TICKET_COST_NO_SIM_PRICE },
+    { practice, priceNote: p.priceNote ?? null },
   );
 
   return { tif, selectTif, cost, practice };

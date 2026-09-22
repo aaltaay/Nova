@@ -13,11 +13,16 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from capture.constants_capture import CAPTURE_NOT_IBKR_REASON, CAPTURE_SOURCE_IBKR
+from capture.constants_capture import (
+    CAPTURE_NO_PRINTS_REASON,
+    CAPTURE_NOT_IBKR_REASON,
+    CAPTURE_SOURCE_IBKR,
+    CAPTURE_STATUS_FAILED,
+)
 from capture.recorder import capture_root
 from capture.schema import read_manifest
 from capture.segments import (  # noqa: F401 -- segment_spans / spans_payload / segment_summary are this module's API
-    finished_segments, segment_spans, segment_summary, spans_payload, with_open_segment,
+    finished_segments, has_unlisted, recorded_segments, segment_spans, segment_summary, spans_payload,
 )
 
 logger = logging.getLogger(__name__)
@@ -95,16 +100,25 @@ def _row(sym_dir: Path, live: dict[str, Any] | None) -> dict[str, Any] | None:
     has_quotes = _file_bytes(sym_dir / "quotes.jsonl") > 0
     has_events = has_prints or has_quotes
     synthetic = manifest_error is None and not is_ibkr_source(man)
-    usable = has_events and manifest_error is None and not synthetic
+    finished = finished_segments(man)
+    # Every segment failed and not one print landed: quotes alone are not a
+    # recording to practise on (R25).
+    printless = (not has_prints and bool(finished)
+                 and all(seg.get("status") == CAPTURE_STATUS_FAILED for seg in finished))
+    usable = has_events and manifest_error is None and not synthetic and not printless
+    # Skip empty dirs with no capture files
+    if not (has_events or has_l2 or man or manifest_error):
+        return None
+    segments = recorded_segments(man, sym_dir, live=live is not None)
+    if has_unlisted(segments):
+        # Rows landed after the last counted segment (R13): the manifest's counts understate.
+        prints_n, l2_n = 0, 0
     if prints_n == 0 and has_prints:
         prints_n = -1  # rows on disk, not counted yet
     if l2_n == 0 and has_l2:
         l2_n = -1
-    # Skip empty dirs with no capture files
-    if not (has_events or has_l2 or man or manifest_error):
-        return None
-    segments = with_open_segment(man, sym_dir, live=live is not None)
-    reason = manifest_error or (CAPTURE_NOT_IBKR_REASON if synthetic else None)
+    reason = manifest_error or (CAPTURE_NOT_IBKR_REASON if synthetic else None) or (
+        CAPTURE_NO_PRINTS_REASON if printless else None)
     return {
         "symbol": sym_dir.name.upper(),
         "empty": not has_events,
@@ -121,7 +135,7 @@ def _row(sym_dir: Path, live: dict[str, Any] | None) -> dict[str, Any] | None:
         "source": man.get("source"),
         "status": man.get("status"),
         "partial_ok": man.get("partial_ok", True),
-        **segment_summary(segments, finished=finished_segments(man)),
+        **segment_summary(segments, finished=finished),
         "spans": spans_payload(segments),
     }
 

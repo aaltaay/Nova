@@ -94,7 +94,17 @@ describe('SimSessionStrip', () => {
     await act(async () => { fireEvent.click(screen.getByTestId('sim-strip-forward')); });
     expect(posts().at(-1)).toEqual({ path: '/clock', body: { minute_from_open: 462, symbol: 'GRML' } });
     await act(async () => { fireEvent.click(screen.getByTestId('sim-strip-first')); });
-    expect(posts().at(-1)).toEqual({ path: '/clock', body: { minute_from_open: 210, symbol: 'GRML' } });
+    // ⏮ lands on the first recorded second itself (07:30:00 = 3.5 h after the open), not its minute (R22).
+    expect(posts().at(-1)).toEqual({ path: '/clock', body: { second_from_open: 12_600, symbol: 'GRML' } });
+  });
+
+  it('⏮ reaches a recording that starts mid-minute to the second (R22)', async () => {
+    clock = { ...capture, replay_load: { ...capture.replay_load,
+      segments: [{ started_et: '2026-09-21T11:46:35.300000-04:00', stopped_et: '2026-09-21T11:47:27-04:00', reason: 'failure' }] } };
+    await mount();
+    await act(async () => { fireEvent.click(screen.getByTestId('sim-strip-first')); });
+    // 11:46:35.3 from a 04:00 open: 7 h 46 m 36 s, inside the recording, never 11:47:00.
+    expect(posts().at(-1)).toEqual({ path: '/clock', body: { second_from_open: 7 * 3600 + 46 * 60 + 36, symbol: 'GRML' } });
   });
 
   it('a failed replay is a red stretch in the band plus a dismissable chip, never a banner', async () => {

@@ -204,8 +204,11 @@ def snapshot(symbol: str):
     result['prev_close'] = selected.prev_close
     cutoff = min(now.timestamp(), spec['end_ts'])
     # Is the playhead's own second downloaded? Past the edge or in a gap it is not,
-    # and the tape must not pass older prints off as this moment's.
-    in_range = coverage.range_at(spec.get('coverage') or [], int(cutoff))
+    # and the tape must not pass older prints off as this moment's. The window is
+    # half-open, so at its end the playhead reads the window's last second -- a
+    # finished download used to read "not downloaded" there (R28).
+    probe = min(int(cutoff), int(spec['end_ts']) - 1)
+    in_range = coverage.range_at(spec.get('coverage') or [], probe)
     result['covered'] = in_range is not None
     # An IBKR download carries no book, so depth is whatever the local recorder
     # happens to have archived for this second -- usually nothing (#309).
@@ -232,7 +235,10 @@ def snapshot(symbol: str):
                             for i, row in enumerate(selected.prints[start:end], start)][::-1]
         # Real sides only, from the local L2 recording where it decides them.
         result['sides_recorded'] = history_sides.attach_recorded_sides(symbol, result['prints'])
-    if result['source'] != 'trades' or cutoff >= spec['coverage_through']:
+    # Candles stand in only where the playhead's own second is not downloaded:
+    # `coverage_through` is the end of the FIRST range, so every later range
+    # used to price the last from a cent-rounded candle close (QA 2026-09-22, R19).
+    if result['source'] != 'trades' or in_range is None:
         candles = selected.candles.bars(symbol, '1Min', SIM_HISTORY_QUOTE_CANDLES, cutoff)
         if candles:
             result.update(last=candles[-1]['c'], volume=sum(row['v'] for row in candles),

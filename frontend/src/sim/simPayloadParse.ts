@@ -8,7 +8,7 @@
  */
 import type { DepthLevel } from '../ibkr/types';
 import type { HistoricalDepthBook, HistoricalJob, HistoricalSelection, HistoricalStatus } from './historicalTypes';
-import type { CaptureSegment, SimClockState } from './simClockTypes';
+import type { CaptureSegment, ReplayQuoteWire, SimClockState } from './simClockTypes';
 import type { HistoricalSnapshot } from './useHistoricalSnapshot';
 import {
   compact, finite, finiteOrNull, flag, isObject, objects, rangePairs, text, textOrNull, type Obj,
@@ -60,6 +60,22 @@ function parseReplayLoad(value: unknown): SimClockState['replay_load'] {
   }) as SimClockState['replay_load'];
 }
 
+function parseReplayQuote(value: unknown): ReplayQuoteWire | null | undefined {
+  if (value === undefined) return undefined;
+  if (!isObject(value)) return null;
+  return {
+    symbol: text(value.symbol) ?? '',
+    ts: finiteOrNull(value.ts),
+    covered: value.covered !== false,
+    last: finiteOrNull(value.last),
+    bid: finiteOrNull(value.bid),
+    ask: finiteOrNull(value.ask),
+    bid_size: finiteOrNull(value.bid_size),
+    ask_size: finiteOrNull(value.ask_size),
+    prev_close: finiteOrNull(value.prev_close),
+  };
+}
+
 /** `GET/POST /api/sim/clock` and `POST /api/sim/replay`. */
 export function parseSimClock(raw: unknown): SimClockState {
   if (!isObject(raw)) throw new Error(unreadable('Sim clock'));
@@ -82,6 +98,7 @@ export function parseSimClock(raw: unknown): SimClockState {
     replay_ok: raw.replay_ok === null ? null : flag(raw.replay_ok),
     replay_loading: flag(raw.replay_loading),
     replay_error: nullableText(raw.replay_error),
+    replay_quote: parseReplayQuote(raw.replay_quote),
     replay_load: parseReplayLoad(raw.replay_load),
   }) as SimClockState;
 }

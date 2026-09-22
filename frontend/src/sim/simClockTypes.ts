@@ -26,6 +26,12 @@ export interface SimClockState {
   /** A capture selection is being read from disk: neither loaded nor failed yet (C59). */
   replay_loading?: boolean;
   replay_error?: string | null;
+  /**
+   * A loaded capture's market at the playhead (null for anything else): the
+   * quote head and ticket follow it through every seek (QA 2026-09-22, R10).
+   * `covered` false is a gap in the recording -- every price null, stated as such.
+   */
+  replay_quote?: ReplayQuoteWire | null;
   replay_load?: {
     l2_total?: number; l2_loaded?: number; l2_decimated?: boolean;
     malformed_rows?: number; invalid_timestamp_rows?: number; invalid_rows?: number;
@@ -33,6 +39,18 @@ export interface SimClockState {
     /** Recorded stretches of a capture, with why each ended (manifest segments). */
     segments?: CaptureSegment[];
   };
+}
+
+export interface ReplayQuoteWire {
+  symbol: string;
+  ts: number | null;
+  covered: boolean;
+  last: number | null;
+  bid: number | null;
+  ask: number | null;
+  bid_size: number | null;
+  ask_size: number | null;
+  prev_close: number | null;
 }
 
 export interface CaptureSegment {

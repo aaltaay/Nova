@@ -192,6 +192,30 @@ A failed capture selection clears `replay_date` / `replay_symbol`, reports
 loaded. Capture session listing rows add `empty: boolean`, `usable: boolean`,
 and `unavailable_reason: string | null`; empty sessions cannot be selected.
 
+QA 2026-09-22 (fix/qa-sim-replay): replay status adds `replay_loading: boolean`
+-- true while a capture selection is still being read from disk, with
+`replay_ok: null` and `replay_error: null` (neither loaded nor failed; the feed
+matches nothing meanwhile). `POST /api/sim/replay` answers the same envelope as
+`GET /api/sim/clock` (clock fields plus replay fields), and the Sim clock
+payloads (`GET` / `POST /api/sim/clock`, `POST /api/sim/replay`) add
+`replay_quote: {symbol, ts, covered, last, bid, ask, bid_size, ask_size,
+prev_close} | null` -- a loaded capture's market at the playhead (null for
+anything else), so the Trader's quote head and ticket follow every seek;
+`covered: false` is a gap in the recording and every price is null. A capture
+read never crosses a gap: inside the stretch that holds the playhead (the
+manifest's segments, the open one, and data written past the last segment)
+quotes, books and the tape come from that stretch only; in a gap there is no
+quote or last, the pushed book is an explicit empty one (`recorded: false`) and
+a practice order is refused `SIM_NO_PRICE`. Recorded quote rows (top of book,
+`last: null`) load as quotes; odd-lot prints (sale condition `I`) never set a
+capture's last or fill a practice order. A listing row whose manifest `source`
+is not `ibkr` (the removed synthetic SIM1) is `usable: false` with a reason and
+the capture player refuses it; a session whose every segment `failed` without a
+print is `usable: false`. Row `prints` / `l2` are the manifest's counts -- the
+recorder's live counts while this process records the directory -- and `-1`
+when rows are on disk but not counted (rows written past the last segment
+included).
+
 ### Replay progress and capture fidelity (#321, #337)
 
 Historical job responses add `progress_pct: number`, `downloaded_through: number`
@@ -208,6 +232,12 @@ forward, and backfill skipped gaps from the window start afterwards. The
 snapshot adds `covered: boolean` (the playhead's second is downloaded); an
 uncovered playhead returns no tape prints, and candles are never built or
 flat-filled across a gap.
+A complete candles (`bars`) job covers its window (`coverage` is the window,
+`progress_pct` 100). The selection's `download_status` is its job's status now,
+in the listing and in the snapshot -- a worker that died leaves `running` in
+storage, which reads `interrupted`. At the window's (exclusive) end the snapshot
+reads the window's last second, and `last` falls back to candles only where the
+playhead's own second is not downloaded.
 Historical snapshot prints include stable integer `ordinal` within the selected job.
 The historical SQLite store uses integer `PRAGMA user_version=1`, migrates known
 unversioned tables, and refuses unknown versions. Selection refuses oversized
@@ -245,16 +275,30 @@ never changes symbol, and is cancelled by an operator Stop or by the operator
 starting another symbol.
 
 Every manifest segment carries `reason: "operator" | "rotation" | "failure" |
-"restart"` naming why it ended (`restart` is stamped by the startup finalizer).
+"restart"` naming why it ended (`restart` is stamped by the startup finalizer,
+whose `stopped_et` is the dead process's last write on disk -- `recovered_et`
+keeps when the recovery ran).
 `/api/capture/sessions` rows add `segments: integer`, `missing_sec: integer`
 (seconds between the first segment start and the last segment stop that no
-segment covers), `last_reason: string | null` and `spans: [[start, stop], ...]`
-(whole epoch seconds per segment, sorted; an open segment runs to now) -- the
+segment covers, except the gaps after a segment the operator stopped --
+`reason: "operator"` -- which were not recorded but went missing from nothing),
+`last_reason: string | null` and `spans: [[start, stop], ...]`
+(whole epoch seconds per segment, sorted; an open segment runs to now). Segment
+counts, spans and `replay_load.segments` include the segment still being
+written (`stopped_et: null` while this process records it; a manifest still
+saying `recording` that no process here advances ends at its last write) and
+data written past the last segment's stop (`status: "unlisted"`) -- the
 Sim scrubber draws `spans` as a thin recorded lane under the loaded replay, so a
 downloaded window shows where Nova itself recorded that symbol. A capture selected for Sim
 replay exposes its `segments` list in `replay_load` so the scrubber can draw
 recorded stretches against the session and gaps as gaps; a quiet stretch inside
 a segment is not a gap -- the recorder was up and the tape said nothing.
+
+`/api/capture` adds `errors: {SYMBOL: string}` and `/api/ibkr/status`
+`capture_errors: {SYMBOL: string}` -- each recording symbol's own trouble, so no
+reader pins one symbol's tape error on another; `error` / `capture_error` stay
+the legacy single value, and a `POST /api/capture` reply's `error` is only the
+requested symbol's own trouble (or the writer's).
 
 `/api/ibkr/status` adds `capture_sessions: object[]`, one per recording
 symbol (`symbol`, `session_date`, `started_et`, `segment_started_et`, `segment`,
@@ -387,7 +431,10 @@ a SELL is only ever risk-reducing -- a SELL beyond the held quantity or any
 event with status `Expired`; `GTC` persists across days and restarts; the row
 and its `placed` event carry `tif` and `expires_ts`). Recorded prints carry
 `ts_source: "exchange" | "receive"` so a substituted arrival time is never read
-as the exchange's own. Rules and biases: `architecture/practice-fills.md`;
+as the exchange's own. Practice order rows stamp `submitted_at` /
+`updated_at` / `filled_at` with the venue's time -- the replay playhead on Sim,
+the clock a rewind unwinds by -- and a paused Sim playhead scrubbed forward
+still fills resting orders on the prints it crossed. Rules and biases: `architecture/practice-fills.md`;
 fees and margin: `architecture/practice-account.md`.
 
 **Orders (Today) belongs to the desk's venue** (QA batch, 2026-09-22):
@@ -738,6 +785,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-22 | QA batch fix/qa-sim-replay (Sim venue, replay, recording, practice ticket): replay status adds `replay_loading` (`replay_ok: null` while a capture loads); `POST /api/sim/replay` answers the clock envelope; Sim clock payloads add `replay_quote` (a capture's market at the playhead, `covered: false` in a gap); capture reads never cross a gap and refuse practice orders there; recorded quote rows load; odd lots never fill; SIM1 rows unusable; print-less failed sessions unusable; listing counts / segments / spans include the running segment and data written past the last segment; `missing_sec` excludes operator stops; the restart finalizer stops at the last write; `/api/capture` `errors` and `/api/ibkr/status` `capture_errors` per symbol; complete candle jobs cover their window; a dead download reads `interrupted`; practice rows carry venue time; a paused forward scrub fills. §3 amended. | User Directive + Claude Opus 5 |
 | 2026-09-22 | QA batch (orders / account / safety): Orders (Today) belongs to the desk's venue -- the closed-orders overlay and the fill-audit join are scoped by the execution ledger's `mode` stamp, a practice desk lists its own ledger only (four filled Paper orders read "Inactive, filled 0" on Sim); leftover rows map the requested price by order type and never show placement as the fill time; practice rows carry `commission: null` until a fill, keep order ids unique across a Sim unwind, and release their in-flight commitment when resolved (a filled resting SELL used to stay "already sent"). The sample desk (`?view=sample`) sends nothing to the backend and reads none of its live state (`sample_data/sampleNetworkGate.ts`). §3 amended. | User Directive + Claude Opus 5 |
 | 2026-09-22 | Operator-reported desk fixes: `/api/capture/sessions` rows carry `spans` (whole epoch seconds per recorded segment) so the Sim scrubber draws a thin recorded lane under a downloaded replay; the playhead tag moves under the band so the header no longer hides it. §3 amended. | User Directive + Claude Opus 5 |
 | 2026-09-22 | Desk diagnostics (ADR 021): `GET /api/diagnostics` + `/bundle` -- a grouped checklist of facts (process root, `.env` path and whether it exists, integration keys and their source, Gateway ports / IBC 2FA / session / last IB error / attach retry, market-data entitlement and lines, recorder keepalive, practice files, UI-vs-API revision), each row with state, cause, fix and evidence. `ibkr/attach_retry.py` records every attach attempt on a bounded schedule and names the human step. Case: an agent-worktree API with no `.env` answered `:8000` and the checklist blamed the operator's configuration. The checklist UI now renders it inside the Trading prerequisites gate (derived rows stay as the API-down fallback); the dev server refuses to start an API from a git worktree or without `.env`, passes `NOVA_ENV_PATH`, and reports `GET /__nova/api-status`; a missing `.env` is a startup error and a named health detail. §3 amended. | User Directive + Claude Fable 5.1 |

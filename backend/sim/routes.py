@@ -1,6 +1,7 @@
 """In-app Sim toggle -- header Paper / Live / Sim posts here."""
 from __future__ import annotations
 
+import logging
 import math
 
 from fastapi import APIRouter, HTTPException
@@ -9,8 +10,29 @@ from pydantic import BaseModel, Field
 from sim.history_routes import router as history_router
 from sim.mode import set_sim_mode, status_payload
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(tags=["sim"])
 router.include_router(history_router)
+
+
+def _replay_quote_fields() -> dict:
+    """``replay_quote``: a loaded capture's market at the playhead, else null (R10).
+
+    The Trader's quote head and ticket read it on every clock poll, so they move
+    with a seek instead of freezing at the price the tab opened on. Never raises
+    into the clock: a failure is logged and reads as no quote.
+    """
+    from sim import capture_player
+    from sim import replay as _replay
+
+    if not _replay.is_capture_replay():
+        return {"replay_quote": None}
+    try:
+        return {"replay_quote": capture_player.replay_quote()}
+    except Exception:
+        logger.warning("SIM: capture replay quote unavailable", exc_info=True)
+        return {"replay_quote": None}
 
 
 class SimToggleRequest(BaseModel):
@@ -43,7 +65,7 @@ def get_sim_clock() -> dict:
     from sim import replay as _replay
     from sim.mode import is_sim_mode
 
-    return {"sim": is_sim_mode(), **_clock.status_payload(), **_replay.status_payload()}
+    return {"sim": is_sim_mode(), **_clock.status_payload(), **_replay.status_payload(), **_replay_quote_fields()}
 
 
 @router.post("/api/sim/clock")
@@ -83,7 +105,7 @@ def post_sim_clock(body: dict) -> dict:
         history_download.follow_playhead(_clock.now_et().timestamp())
     if _edge.select_recording_after_leaving(symbol if isinstance(symbol, str) else None, was_edge=was_edge):
         payload = _clock.status_payload()
-    return {"sim": is_sim_mode(), **payload, **_replay.status_payload()}
+    return {"sim": is_sim_mode(), **payload, **_replay.status_payload(), **_replay_quote_fields()}
 
 
 @router.get("/api/sim/replay")
@@ -108,4 +130,4 @@ def post_sim_replay(body: SimReplayRequest) -> dict:
     from sim.mode import is_sim_mode
 
     replay_fields = _replay.set_replay(body.date, body.symbol)
-    return {"sim": is_sim_mode(), **_clock.status_payload(), **replay_fields}
+    return {"sim": is_sim_mode(), **_clock.status_payload(), **replay_fields, **_replay_quote_fields()}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SimClockState } from './simClockTypes';
 import {
-  firstReplayMinute, formatMinuteClock, playheadTag, recordedLane, stripBandSegments, stripScale,
+  firstReplayMinute, firstReplaySecond, formatMinuteClock, playheadTag, recordedLane, stripBandSegments, stripScale,
 } from './simStripFormat';
 
 const session = {
@@ -120,6 +120,24 @@ describe('firstReplayMinute', () => {
     expect(firstReplayMinute({ sim: true, replay_source: 'historical', ...session },
       { symbol: 'X', date: '', start: '', end: '', coverage_through: 0, start_ts: open + 315 * 60 })).toBe(315);
     expect(firstReplayMinute({ sim: true, replay_source: 'none' }, null)).toBe(0);
+  });
+});
+
+describe('firstReplaySecond (R22: to the second, not the minute)', () => {
+  it('is the first recorded second of a capture, rounded into the recording', () => {
+    const late = { ...capture, replay_load: { ...capture.replay_load!,
+      segments: [{ started_et: '2026-09-21T11:46:35.300000-04:00', stopped_et: '2026-09-21T11:47:27-04:00' }] } };
+    expect(firstReplaySecond(late, null)).toBe(7 * 3600 + 46 * 60 + 36);
+    expect(firstReplaySecond(capture, null)).toBe(3.5 * 3600);
+  });
+
+  it('is the first downloaded second of a historical window, and null with nothing loaded', () => {
+    const open = Date.parse(session.session_open_et) / 1000;
+    const selection = { symbol: 'X', date: '', start: '', end: '', coverage_through: 0,
+      start_ts: open + 315 * 60, coverage: [[open + 315 * 60 + 20, open + 400 * 60]] };
+    expect(firstReplaySecond({ sim: true, replay_source: 'historical', ...session }, selection)).toBe(315 * 60 + 20);
+    expect(firstReplaySecond({ sim: true, replay_source: 'none', ...session }, null)).toBeNull();
+    expect(firstReplaySecond(null, null)).toBeNull();
   });
 });
 

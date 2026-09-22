@@ -22,7 +22,13 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from capture.constants_capture import CAPTURE_STATUS_RECORDING, CAPTURE_STOP_OPERATOR, CAPTURE_STREAM_NAMES
+from capture.constants_capture import (
+    CAPTURE_STATUS_RECORDING,
+    CAPTURE_STATUS_UNLISTED,
+    CAPTURE_STOP_OPERATOR,
+    CAPTURE_STREAM_NAMES,
+    CAPTURE_UNLISTED_TOLERANCE_SEC,
+)
 
 ET = ZoneInfo("America/New_York")
 
@@ -63,6 +69,41 @@ def with_open_segment(manifest: dict[str, Any], session_dir: Path, *, live: bool
         stop = datetime.fromtimestamp(written, ET).isoformat() if written is not None else started
     segments.append({"started_et": started, "stopped_et": stop, "status": CAPTURE_STATUS_RECORDING, "reason": None})
     return segments
+
+
+def recorded_segments(
+    manifest: dict[str, Any], session_dir: Path, *, live: bool, last_event_ts: float | None = None,
+) -> list[dict[str, Any]]:
+    """Every stretch the recording holds data for: finished, open, and unlisted.
+
+    A recorder can keep appending after its segment was closed (QA 2026-09-22,
+    R13: 57 % of a GRML session's prints landed after the manifest's last
+    stop), so the manifest alone understates the session. When data reaches
+    past the last segment's stop -- the newest event (``last_event_ts``, from a
+    loaded replay) or else the newest stream write -- by more than
+    ``CAPTURE_UNLISTED_TOLERANCE_SEC``, that stretch is listed too, with status
+    ``unlisted``: the rows are on disk, so it was recorded, but no segment
+    counted it.
+    """
+    segments = with_open_segment(manifest, session_dir, live=live)
+    if not segments or segments[-1].get("stopped_et") is None:
+        return segments  # nothing finished yet, or the last one is still open
+    last_stop = max((stop for _start, stop, _reason in segment_rows(segments)), default=None)
+    reached = last_event_ts if last_event_ts is not None else last_write_ts(session_dir)
+    if last_stop is None or reached is None or reached - last_stop <= CAPTURE_UNLISTED_TOLERANCE_SEC:
+        return segments
+    segments.append({
+        "started_et": datetime.fromtimestamp(last_stop, ET).isoformat(),
+        "stopped_et": datetime.fromtimestamp(reached, ET).isoformat(),
+        "status": CAPTURE_STATUS_UNLISTED,
+        "reason": None,
+    })
+    return segments
+
+
+def has_unlisted(segments: list[dict[str, Any]]) -> bool:
+    """A stretch no manifest segment counted: the manifest's row counts understate it."""
+    return any(isinstance(seg, dict) and seg.get("status") == CAPTURE_STATUS_UNLISTED for seg in segments)
 
 
 def _epoch(value: Any) -> float | None:

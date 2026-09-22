@@ -113,6 +113,11 @@ export function useSimSessionController(active: boolean, openStockView: (symbol:
   };
   const beginDrag = () => { dragging.current = true; clockResource.suspend(); };
   const onFollowWall = async () => { clearSeekIntent(); await postClock({ follow_wall: true }, 'follow'); };
+  /** Seek to an exact second from the open (the slider is minute-grained; ⏮ is not, R22). */
+  const seekToSecond = async (second: number) => {
+    clearSeekIntent();
+    await postClock(tabSymbol ? { second_from_open: second, symbol: tabSymbol } : { second_from_open: second });
+  };
   const applyReplay = async (nextDay: string, nextSymbol: string) => {
     clearSeekIntent();
     clockResource.suspend();
@@ -130,7 +135,7 @@ export function useSimSessionController(active: boolean, openStockView: (symbol:
     clockResource.resume();
   };
   return { clock, setClock, sessions: captureState.data, day, setDay, symbol, setSymbol,
-    dragMinute, beginDrag, onScrubInput, endDrag: commit, onFollowWall, applyReplay, busy,
+    dragMinute, beginDrag, onScrubInput, endDrag: commit, onFollowWall, seekToSecond, applyReplay, busy,
     suspendClock: clockResource.suspend, resumeClock: clockResource.resume,
     errors: [...Object.entries(errors).map(([key, error]) => key === 'replay' ? `Could not select capture replay; selection was not confirmed: ${error}` : error), ...(clockState.error ? [`Sim clock: ${clockState.error}`] : []),
       ...(captureState.error ? [`Capture sessions: ${captureState.error}`] : [])] };
