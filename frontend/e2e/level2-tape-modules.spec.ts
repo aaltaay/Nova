@@ -1,10 +1,24 @@
 import { test, expect, type Page } from '@playwright/test';
 import { attachErrorCollector } from './helpers/errorCollector';
 
-async function lookUpSymbol(page: Page, symbol: string) {
-  const input = page.getByLabel('Look up symbol');
-  await input.fill(symbol);
-  await page.getByRole('button', { name: 'Look Up' }).click();
+/**
+ * Switch the Trader the way the operator does: "+" opens a draft tab in the
+ * strip, type the ticker, Enter -- then close the old tab. The Trader has no
+ * Look Up form, and a live tab left open keeps its L2 / T&S mounted (hidden),
+ * so closing it is what retires the prior symbol.
+ */
+async function switchTraderSymbol(page: Page, from: string, to: string) {
+  await page.getByTestId('sv-tab-add').click();
+  const input = page.getByTestId('sv-tab-New').getByLabel('Edit ticker');
+  await input.fill(to);
+  await input.press('Enter');
+  await expect(page.getByTestId(`sv-tab-${to}`)).toHaveAttribute('aria-selected', 'true');
+  // A pop-out's URL follows its active tab; closing the tab the URL still
+  // names would close the window instead.
+  await expect(page).toHaveURL(new RegExp(`[?&]symbol=${to}(&|$)`));
+  await page.getByTestId(`sv-tab-${from}`).hover();
+  await page.getByTestId(`sv-tab-close-${from}`).click();
+  await expect(page.getByTestId(`sv-tab-${from}`)).toHaveCount(0);
 }
 
 test.describe('Phase 1 — Level 2 + Time & Sales modules', () => {
@@ -61,7 +75,7 @@ test.describe('Phase 1 — Level 2 + Time & Sales modules', () => {
     await expect(l2).toBeVisible({ timeout: 30_000 });
     await expect(tape).toHaveAttribute('data-symbol', 'AAPL');
 
-    await lookUpSymbol(page, 'MSFT');
+    await switchTraderSymbol(page, 'AAPL', 'MSFT');
     await expect(page).toHaveTitle(/MSFT/, { timeout: 15_000 });
 
     // Modules remount with the new symbol key — prior symbol must not linger.
