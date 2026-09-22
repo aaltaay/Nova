@@ -71,6 +71,12 @@
   align-items: center;
   gap: 0.25rem;
   min-width: 0;
+  /* The row scrolls when the dock is narrower than its tabs (the Scanner
+     column beside an 820 px side panel), so a tab is never painted under
+     the trailing "Hide sample" / Collapse controls. */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
 }
 
 .sv-open-orders-dock__tab {
@@ -131,11 +137,13 @@
 }
 
 .sv-open-orders-dock__hint {
+  flex-shrink: 0;
   margin-left: auto;
   font-size: 0.65rem;
   font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
+  white-space: nowrap;
 }
 
 .sv-open-orders-dock__sample-tag {

@@ -35,6 +35,9 @@ test('failed capture selection is visible and empty sessions cannot navigate the
   });
   await page.goto('/e2e/fixtures/sim-session.html');
   await page.getByRole('button', { name: 'Open IMCC', exact: true }).click();
+  // On the Trader view the Day / Ticker pickers live in the strip's ⋯ menu;
+  // the failed-selection alert is a chip on the strip itself, outside the menu.
+  await page.getByTestId('sim-strip-menu').click();
   await page.getByTestId('sim-replay-day').selectOption('2026-09-19');
   await expect(page.getByTestId('sim-replay-ticker').locator('option[value="EMPTY"]')).toHaveJSProperty('disabled', true);
   await page.getByTestId('sim-replay-ticker').selectOption('GONE');
