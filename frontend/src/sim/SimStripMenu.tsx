@@ -27,7 +27,7 @@ import type { CaptureSessions } from './useSimSessionController';
 
 interface Props {
   clock: SimClockState | null;
-  sessions: CaptureSessions | undefined;
+  sessions: CaptureSessions | null | undefined;
   day: string;
   symbol: string;
   busy: Set<string>;
