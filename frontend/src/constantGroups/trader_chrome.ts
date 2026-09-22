@@ -79,22 +79,54 @@ export const BOT_CARD_ALLOWLIST_TITLE = 'Symbols the bot may act on';
 /* ── Compact ticket ─────────────────────────────────────────────────────── */
 
 export const TICKET_HEADER_FILLS_ESTIMATED = 'fills estimated';
+/** The Live venue has no practice tag; the header still names where the order goes. */
+export const TICKET_VENUE_LIVE = 'LIVE';
+export const TICKET_VENUE_LIVE_TITLE = 'Live venue: a placed order goes to IBKR.';
 export const TICKET_TIF_LABEL = 'TIF';
 export const TICKET_TIF_DAY = 'DAY';
 export const TICKET_TIF_GTC = 'GTC';
 export const TICKET_TIF_TITLE = 'Time in force for the next order (also Settings > Trade)';
+export const TICKET_PRICE_LABEL = 'Price';
+export const TICKET_STOP_LABEL = 'Stop';
+export const TICKET_TRAIL_LABEL = 'Trail $';
 export const TICKET_PRICE_BID = 'Bid';
 export const TICKET_PRICE_MID = 'Mid';
 export const TICKET_PRICE_ASK = 'Ask';
+export const TICKET_PRICE_QUICK_ARIA = 'Set the price from the top of book';
 export const TICKET_PRICE_QUICK_TITLE = 'Set the limit from the live top of book';
 export const TICKET_PRICE_QUICK_NO_BOOK = 'No live bid / ask for this symbol';
+/** Lead of the one-line reason shown only while Market is greyed out. */
+export const TICKET_MARKET_UNAVAILABLE = 'Market unavailable';
 export const TICKET_COST_LABEL = 'Cost';
 export const TICKET_BP_AFTER_LABEL = 'BP after';
+export const TICKET_COST_TITLE =
+  'Estimate: shares × price before commissions; buying power after is a plain subtraction '
+  + '(margin not modelled). A dash means Nova cannot work it out yet.';
+export const TICKET_COST_UNKNOWN = '—';
 export const TICKET_LAST_LABEL = 'Last:';
-export const QUICK_TRADES_CUSTOMIZE_TITLE = 'Customize quick trades (Settings > Hotkeys)';
+export const QUICK_TRADES_ARIA = 'Quick trades';
+export const QUICK_TRADES_CUSTOMIZE_TITLE = 'Customize quick trades (Settings > Hot Keys)';
 export const QUICK_TRADES_CUSTOMIZE_ARIA = 'Customize quick trades';
-/** Icon-label buttons show at most this many words; the full name is the tooltip. */
-export const QUICK_TRADES_LABEL_WORDS = 2;
+/**
+ * Short labels under the quick-trade icons, one per action kind. The full
+ * action name (and its key chord) is the tooltip. `{n}` shares, `{p}` percent,
+ * `{c}` the offset in cents.
+ */
+export const QUICK_TRADES_SHORT_LABELS = {
+  cancel_symbol: 'Cxl sym',
+  cancel_and_exit: 'Cxl+Flat',
+  cancel_all_orders: 'Cxl all',
+  exit_pos: 'Flatten',
+  exit_pos_pct: 'Exit {p}%',
+  buy_market: 'B{n} MKT',
+  buy_limit_ask_offset: 'B{n} Ask+{c}',
+  sell_limit_bid_offset: 'S{n} Bid−{c}',
+  sell_limit_ask_offset: 'S{n} Ask+{c}',
+  sell_pos_pct_ask: 'Sell {p}%',
+  sell_pos_pct_bid_offset: 'S{p}% Bid−{c}',
+} as const;
+/** `Sell 100%` reads as one word at the rail's width. */
+export const QUICK_TRADES_SELL_ALL_LABEL = 'Sell all';
 
 /* ── Focus rail ─────────────────────────────────────────────────────────── */
 
@@ -123,10 +155,17 @@ export const FOCUS_RAIL_DEFAULT_LIST = 'gappers';
 /* ── Positions / Orders drawer ──────────────────────────────────────────── */
 
 export const DRAWER_TAB_ORDERS = 'Orders · today';
+export const DRAWER_TABS_ARIA = 'Positions, orders, and Nova OS';
+export const DRAWER_FILTERS_ARIA = 'Orders today filter';
 export const DRAWER_COLLAPSE = 'Collapse';
 export const DRAWER_EXPAND = 'Expand';
+export const DRAWER_SAMPLE_SHOW = 'Show sample';
+export const DRAWER_SAMPLE_HIDE = 'Hide sample';
+export const DRAWER_SAMPLE_TAG = 'Sample';
 export const DRAWER_POSITION_LABEL = 'Position';
 export const DRAWER_UNREALIZED_LABEL = 'unrealized';
 export const DRAWER_NO_POSITION = 'No open position';
+export const DRAWER_UNREALIZED_UNKNOWN = '—';
 export const DRAWER_SIM_NOTE = 'Sim scratch account · rewinds with the playhead';
 export const DRAWER_PAPER_NOTE = 'Nova Paper · fake money on the live feed';
+export const DRAWER_LIVE_NOTE = 'IBKR live account';

@@ -1,55 +1,28 @@
 /**
- * DAS-style hot buttons for Nova Actions with Show button enabled.
- * Collapsible "Quick Trades" strip (persisted).
+ * Quick Trades: one row of icon-labelled buttons above the ticket (approved
+ * Trader redesign, 2026-09-21). Every enabled Nova Action with Show button on
+ * is here with its original dispatch; the short label is built from the
+ * action's kind and params, the full name and key chord are the tooltip, and
+ * the gear at the row's end opens Settings > Hot Keys where the row is
+ * configured. Depth-dependent actions stay greyed until the L2 book is live.
  */
-
-import { useCallback, useEffect, useState } from 'react';
-import { NOVA_ACTION_NEEDS_DEPTH } from '../constants';
+import { NOVA_ACTION_DEPTH_DISABLED_REASON, NOVA_ACTION_NEEDS_DEPTH } from '../constants';
+import {
+  QUICK_TRADES_ARIA,
+  QUICK_TRADES_CUSTOMIZE_ARIA,
+  QUICK_TRADES_CUSTOMIZE_TITLE,
+} from '../constantGroups/trader_chrome';
+import { useSettingsOptional } from '../settings/SettingsContext';
 import { formatKeyChord } from './htkFormat';
 import { useHotkeyDispatchOptional } from './HotkeyDispatchContext';
+import { QuickTradeGearIcon, QuickTradeIcon } from './quickTradeIcons';
+import { quickTradeShortLabel, quickTradeTone } from './quickTradeLabel';
 import { useTopOfBook } from './TopOfBookContext';
-
-const COLLAPSE_KEY = 'nova.quickTrades.collapsed';
-
-function roleClass(kind: string): string {
-  if (kind === 'cancel_symbol' || kind === 'cancel_and_exit') {
-    return 'nova-quick-btn nova-quick-btn--cancel';
-  }
-  if (kind.startsWith('buy')) return 'nova-quick-btn nova-quick-btn--entry';
-  if (kind.startsWith('sell') || kind.startsWith('exit')) {
-    return 'nova-quick-btn nova-quick-btn--exit';
-  }
-  return 'nova-quick-btn';
-}
-
-function readCollapsed(): boolean {
-  try {
-    return localStorage.getItem(COLLAPSE_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
 
 export function TradingQuickBar() {
   const dispatch = useHotkeyDispatchOptional();
+  const settings = useSettingsOptional();
   const { topOfBook } = useTopOfBook();
-  const [collapsed, setCollapsed] = useState(readCollapsed);
-
-  const toggle = useCallback(() => {
-    setCollapsed(prev => {
-      const next = !prev;
-      try {
-        localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0');
-      } catch {
-        /* private mode */
-      }
-      return next;
-    });
-  }, []);
-
-  useEffect(() => {
-    setCollapsed(readCollapsed());
-  }, []);
 
   if (!dispatch) return null;
 
@@ -61,57 +34,58 @@ export function TradingQuickBar() {
   );
 
   return (
-    <div className="nova-trading-quick-wrap">
-      <button
-        type="button"
-        className="nova-trading-quick-toggle"
-        aria-expanded={!collapsed}
-        aria-controls="nova-quick-trades-body"
-        onClick={toggle}
-        data-testid="quick-trades-toggle"
+    <div className="nova-qt-wrap">
+      <div
+        className="nova-qt"
+        role="toolbar"
+        aria-label={QUICK_TRADES_ARIA}
+        data-testid="quick-trades-row"
       >
-        <span className="nova-trading-quick-caret" aria-hidden>
-          {collapsed ? '\u25b8' : '\u25be'}
-        </span>
-        <span className="nova-trading-quick-title">Quick Trades</span>
-      </button>
-      {!collapsed && (
-        <div
-          id="nova-quick-trades-body"
-          className="nova-trading-quick-bar"
-          role="toolbar"
-          aria-label="Quick Trades"
-          data-testid="quick-trades-body"
-        >
-          {buttons.map((action) => {
-            const needsDepth = NOVA_ACTION_NEEDS_DEPTH.includes(action.kind);
-            const disabled = needsDepth && !depthOk;
-            return (
-              <button
-                key={action.id}
-                type="button"
-                className={roleClass(action.kind)}
-                disabled={disabled}
-                title={
-                  disabled
-                    ? 'Needs live L2 bid/ask'
-                    : `${action.name} (${formatKeyChord(action.key)})`
-                }
-                onClick={() => { void dispatch.runAction(action); }}
-              >
-                {action.name}
-              </button>
-            );
-          })}
-          {dispatch.lastResult && (
-            <span
-              className={`manual-order-result ${dispatch.lastResult.ok ? 'ok' : 'err'}`}
-              role="status"
+        {buttons.map((action) => {
+          const needsDepth = NOVA_ACTION_NEEDS_DEPTH.includes(action.kind);
+          const disabled = needsDepth && !depthOk;
+          return (
+            <button
+              key={action.id}
+              type="button"
+              className={`nova-qt__btn nova-qt__btn--${quickTradeTone(action.kind)}`}
+              data-kind={action.kind}
+              disabled={disabled}
+              aria-label={action.name}
+              title={
+                disabled
+                  ? NOVA_ACTION_DEPTH_DISABLED_REASON
+                  : `${action.name} (${formatKeyChord(action.key)})`
+              }
+              onClick={() => {
+                void dispatch.runAction(action);
+              }}
             >
-              {dispatch.lastResult.text}
-            </span>
-          )}
-        </div>
+              <QuickTradeIcon kind={action.kind} />
+              <span>{quickTradeShortLabel(action.kind, action.params)}</span>
+            </button>
+          );
+        })}
+        {settings && (
+          <button
+            type="button"
+            className="nova-qt__btn nova-qt__gear"
+            title={QUICK_TRADES_CUSTOMIZE_TITLE}
+            aria-label={QUICK_TRADES_CUSTOMIZE_ARIA}
+            data-testid="quick-trades-customize"
+            onClick={() => settings.openSettings('hotkeys')}
+          >
+            <QuickTradeGearIcon />
+          </button>
+        )}
+      </div>
+      {dispatch.lastResult && (
+        <span
+          className={`manual-order-result nova-qt__status ${dispatch.lastResult.ok ? 'ok' : 'err'}`}
+          role="status"
+        >
+          {dispatch.lastResult.text}
+        </span>
       )}
     </div>
   );

@@ -19,7 +19,7 @@ import {
 } from './registry';
 
 /** What the dashboard slot shows while Trader is not up. */
-export type NavPage = 'dashboard' | 'desk' | 'records';
+export type NavPage = 'dashboard' | 'desk' | 'records' | 'account';
 
 export type NavCounts = Partial<Record<ModuleCountKey, number>>;
 
