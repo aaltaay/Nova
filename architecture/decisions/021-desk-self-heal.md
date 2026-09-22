@@ -61,7 +61,7 @@ on the client, because they must render while `/api/diagnostics` cannot answer
 | Failure | Who heals | Bound |
 |---------|-----------|-------|
 | The dev-server-started API process exits unexpectedly | the Vite dev server that spawned it (`frontend/scripts/nova-api-supervisor.ts`) | backoff 1, 2, 5, 10, 30 s; at most 5 restarts per 10 minutes, then it stops and says so |
-| Gateway API port open, Nova session not READY, connect times out (Gateway still authenticating) | the dialer (`ibkr/session_reconnect.py`) with the attach ledger (`ibkr/attach_retry.py`) | backoff 1, 2, 5, 10, 30 s; at most 5 attempts per 10 minutes, every attempt recorded on `/api/ibkr/status.attach` and the diagnostics row |
+| Gateway API port open, Nova session not READY, connect times out (Gateway still authenticating) | the dialer (`ibkr/session_reconnect.py`) with the attach ledger (`ibkr/attach_retry.py`) | never faster than the longer of the attach ledger (1, 2, 5, 10, 30 s) and the existing auth backoff (30-60 s); at most 5 attempts per 10 minutes before it is a human step polled every 30 s; every attempt recorded on `/api/ibkr/status.attach` and the diagnostics row |
 | Gateway API port dark, alternate listening | follow-Gateway heal (`ibkr/gateway_heal.py`, unchanged) | ADR 020 rules: paper -> live always, live -> paper only by opt-in |
 | Error 1100 with transport up, or a dead / frozen dialer | `ibkr/session_watchdog.py` (unchanged, ADR 010) | one reset per stuck episode |
 | Recorder stopped unrequested | `capture/keepalive.py` (unchanged) | `CAPTURE_RESUME_BACKOFF_SEC`, never across a day |
