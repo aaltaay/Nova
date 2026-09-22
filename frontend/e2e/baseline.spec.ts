@@ -21,7 +21,8 @@ test.describe('Phase 0 baseline', () => {
     const account = page.getByTestId('nav-rail-account');
     await account.click();
     await expect(account).toHaveClass(/active/);
-    await expect(page.getByRole('region', { name: 'Account' })).toBeVisible();
+    // The page is the region named exactly "Account"; "Account Details" is a panel inside it.
+    await expect(page.getByRole('region', { name: 'Account', exact: true })).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Reports' })).toBeVisible();
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
