@@ -19,6 +19,10 @@ env/
 
 # Ephemeral agent scratch (screenshots, browser dumps -- never commit)
 .tmp/
+# ...and the screenshots / a11y-snapshot dumps that piled up in frontend/'s root
+# (22 PNGs + snapf/snapg.txt, removed 2026-09-22). Anchored: public/ and src/assets keep theirs.
+/frontend/*.png
+/frontend/snap*.txt
 
 # Generated build artifact (tools/bump_version.py --sync); never committed -- see #344
 /VERSION

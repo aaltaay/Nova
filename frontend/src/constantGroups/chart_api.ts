@@ -351,12 +351,6 @@ export const STOCK_VIEW_WINDOW_FEATURES = [
 export const STOCK_VIEW_CHARTS_COLLAPSED_KEY = 'nova.stockView.chartsCollapsed';
 export const STOCK_VIEW_CHARTS_SHOW_LABEL = 'Show charts';
 export const STOCK_VIEW_CHARTS_HIDE_LABEL = 'Hide charts';
-/** Tooltip on the Stock View header symbol chip (double-click to rename). */
-export const STOCK_VIEW_SYMBOL_EDIT_TITLE = 'Double-click to change symbol';
-/** Aria label for the inline symbol editor after double-click. */
-export const STOCK_VIEW_SYMBOL_EDIT_ARIA = 'Change symbol';
-/** Max length for ticker typed into the Stock View symbol chip. */
-export const STOCK_VIEW_SYMBOL_MAX_LEN = 12;
 
 /** Paper / Live / Sim venue capsule labels (GlobalAppBar GatewayModeCapsule).
  * Clicking these switches the desk venue (POST /api/desk/venue, ADR 020).
