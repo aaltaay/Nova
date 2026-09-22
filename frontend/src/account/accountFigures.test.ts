@@ -57,6 +57,17 @@ describe('accountDetailRows', () => {
     expect(rows.reconcile).toBe('unknown');
   });
 
+  it('on Live shows the commissions IBKR reported on the session orders (QA W17)', () => {
+    const rows = accountDetailRows(
+      figuresFromSummary({ connected: true, mode: 'live', RealizedPnL: 12, UnrealizedPnL: -3 }),
+      null,
+      false,
+      9,
+    );
+    expect(rows.commissionsToday).toBe(9);
+    expect(rows.feesToday).toBeNull();
+  });
+
   it('never picks an archived row for today', () => {
     const history = paperHistoryFixture();
     const today = todayPracticeDate();
@@ -102,19 +113,46 @@ describe('sourceCards', () => {
     expect(sourceLabel('manual', null)).toBe('Manual');
     expect(sourceLabel('bot', 'x')).toBe('Bot · x');
     expect(sourceLabel('auto_paper', null)).toBe('Auto Paper');
-    expect(sourceLabel('flatten', null)).toBe('flatten');
+    expect(sourceLabel('flatten', null)).toBe('Flatten');
+    expect(sourceLabel('kill', null)).toBe('KILL');
+    expect(sourceLabel('strategy', 'hod-momo-1')).toBe('strategy · hod-momo-1');
   });
 });
 
 describe('componentRings', () => {
   it('shares are of the absolute total; the bot ring is share of gross realized', () => {
     const history = paperHistoryFixture();
-    const rings = componentRings(history.components, history.fills);
+    const rings = componentRings(history.components, history.fills, 55);
     const total = 97.5 + 55 + 10 + 0.4;
     expect(rings.find((r) => r.id === 'realized')!.share).toBeCloseTo(97.5 / total, 6);
     expect(rings.find((r) => r.id === 'fees')!.share).toBeCloseTo(0.4 / total, 6);
     expect(rings.find((r) => r.id === 'commissions')!.value).toBe(-10);
     expect(rings.find((r) => r.id === 'bot')!.share).toBeCloseTo(27.5 / (125 + 27.5), 6);
-    expect(rangeNetPnl(history.components)).toBeCloseTo(142.1, 6);
+  });
+
+  it('unrealized is the live-marked open P&L, and a dash before the account answers (QA W1)', () => {
+    const history = paperHistoryFixture();
+    // The history prices positions at their last fill (event-marked 12.00);
+    // the account marks them live (19.92): the ring follows the account.
+    history.components = { ...history.components, unrealized: 12 };
+    expect(componentRings(history.components, history.fills, 19.92).find((r) => r.id === 'unrealized')!.value).toBe(19.92);
+    const pending = componentRings(history.components, history.fills, null).find((r) => r.id === 'unrealized')!;
+    expect(pending.unknown).toBe(true);
+    expect(pending.share).toBe(0);
+  });
+});
+
+describe('rangeNetPnl (QA W1 / R37)', () => {
+  it('adds the live-marked open P&L to the range realized, never the last-fill figure', () => {
+    // QA seed: net realized 8.4774 + live open 19.92 = Day's P&L 28.40,
+    // where realized + the event-marked 12.00 read +$20.48.
+    const components = { realized: 8.4774, unrealized: 12, commissions: 3, sec_finra_fees: 0.02, bot_realized: 0 };
+    expect(rangeNetPnl(components, 19.92)).toBeCloseTo(28.3974, 6);
+  });
+
+  it('is unknown while the account has not answered -- never the event-marked stand-in', () => {
+    const components = { realized: 8.4774, unrealized: 12, commissions: 3, sec_finra_fees: 0.02, bot_realized: 0 };
+    expect(rangeNetPnl(components, null)).toBeNull();
+    expect(rangeNetPnl(components, Number.NaN)).toBeNull();
   });
 });

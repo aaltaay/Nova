@@ -20,6 +20,7 @@ import {
   todayPracticeDate,
 } from '../account/accountFigures';
 import { useAccountHistory } from '../account/accountHistoryResource';
+import { liveCommissionsToday, liveFillRows, practiceFillRows } from '../account/accountLive';
 import { positionsFromIbkr, positionsFromPractice } from '../account/accountPositions';
 import { readAccountRangePref, writeAccountRangePref } from '../account/accountRangePref';
 import { CalendarPanel } from '../account/CalendarPanel';
@@ -93,6 +94,9 @@ export function AccountPage({ onOpenTrader }: Props) {
   const [tab, setTab] = useState<PageTab>('overview');
   const [hidden, setHidden] = useState(false);
   const history = useAccountHistory(practiceVenue, range);
+  // The calendar shows whole months whatever the Performance range (QA W5):
+  // it reads every day the ledger (and its archives) hold.
+  const calendarHistory = useAccountHistory(practiceVenue, 'ALL');
 
   const setRange = useCallback((next: AccountRange) => {
     setRangeState(next);
@@ -114,7 +118,16 @@ export function AccountPage({ onOpenTrader }: Props) {
   // drawing an empty ledger ("No fills in this range") -- C69.
   const simEmpty = simClock.nothingLoaded && !(Array.isArray(loadedHist?.fills) && loadedHist.fills.length > 0);
   const hist = simEmpty ? null : loadedHist;
-  const rows = accountDetailRows(figures, todayDailyRow(hist, today), hist != null);
+  const loadedCalendar = calendarHistory.data && calendarHistory.data.venue === practiceVenue ? calendarHistory.data : null;
+  const calendarHist = simEmpty ? null : loadedCalendar;
+  // Live: commissions and fills are what IBKR reported on the session's orders (QA W17).
+  const liveOrders = practiceVenue || sampleDesk ? [] : [...ibkr.orders, ...closedOrders];
+  const rows = accountDetailRows(
+    figures,
+    todayDailyRow(hist, today),
+    hist != null,
+    practiceVenue ? null : liveCommissionsToday(liveOrders),
+  );
   const historyAbsence = sampleDesk
     ? SAMPLE_ACCOUNT_HISTORY_ABSENT
     : practiceVenue
@@ -127,6 +140,10 @@ export function AccountPage({ onOpenTrader }: Props) {
             : ACCOUNT_HISTORY_LOADING
       : ACCOUNT_LIVE_NO_LEDGER;
   const absence = simEmpty ? ACCOUNT_SIM_NOTHING_LOADED : historyAbsence;
+  const calendarAbsence = calendarHist
+    ? null
+    : absence
+      ?? (calendarHistory.error ? `${ACCOUNT_HISTORY_UNAVAILABLE}: ${calendarHistory.error}` : ACCOUNT_HISTORY_LOADING);
   const breakers = session
     ? (() => {
         const tripped = (session.soft_breaker_fired ? 1 : 0) + (session.day_lock_active ? 1 : 0);
@@ -136,7 +153,7 @@ export function AccountPage({ onOpenTrader }: Props) {
   // The session's own cap, or none: the product ceiling is not this bot's cap (C35).
   const sessionCap = session?.caps?.max_shares;
   const maxSharesCap = typeof sessionCap === 'number' && Number.isFinite(sessionCap) ? sessionCap : null;
-  const fills = hist?.fills ?? [];
+  const fills = practiceVenue ? practiceFillRows(hist?.fills ?? []) : liveFillRows(liveOrders);
 
   const tabs: Array<[PageTab, string]> = sampleDesk
     ? [['overview', ACCOUNT_TAB_OVERVIEW]]
@@ -181,7 +198,9 @@ export function AccountPage({ onOpenTrader }: Props) {
                 hidden={hidden}
                 onToggleHidden={() => setHidden((h) => !h)}
                 nowTs={nowTs}
-                absence={sampleDesk ? SAMPLE_ACCOUNT_HISTORY_ABSENT : null}
+                // Sim with nothing loaded says so here too, not "has not answered yet" (D17).
+                absence={sampleDesk ? SAMPLE_ACCOUNT_HISTORY_ABSENT : simEmpty ? ACCOUNT_SIM_NOTHING_LOADED : null}
+                sample={sampleDesk}
               />
               <PerformancePanel
                 history={hist}
@@ -195,8 +214,9 @@ export function AccountPage({ onOpenTrader }: Props) {
                 onTab={setPerfTab}
                 nowTs={nowTs}
                 netLiquidation={figures.netLiquidation}
+                openPnl={figures.openPnl}
               />
-              <ComponentsPanel history={hist} absence={absence} range={range} />
+              <ComponentsPanel history={hist} absence={absence} range={range} openPnl={figures.openPnl} />
               <LedgerPanel
                 venue={venue}
                 history={hist}
@@ -204,13 +224,15 @@ export function AccountPage({ onOpenTrader }: Props) {
                 accountId={ledger?.account_id ?? hist?.account_id ?? null}
                 startingCash={ledger?.starting_cash ?? hist?.starting_cash ?? null}
               />
-              <CalendarPanel history={hist} absence={absence} today={today} />
+              <CalendarPanel history={calendarHist} absence={calendarAbsence} today={today} />
               <PositionsOrdersPanel
                 practice={practiceVenue != null}
+                venue={venue}
                 positions={positions}
                 working={ibkr.orders}
                 closed={closedOrders}
                 fills={fills}
+                today={today}
               />
             </div>
           ) : (

@@ -29,9 +29,34 @@ export const MOCK_WORKING_SUBMITTED = {
   90008: '2026-07-18T15:00:00.000Z',
 } as const;
 
-/** Paper-style working rows for the open symbol — preview only. */
-export function buildMockWorkingOrders(symbol: string): IbkrOrder[] {
+/** The price the sample ladder is written around. */
+export const MOCK_WORKING_ANCHOR = 24.1;
+
+/**
+ * A sample price moved onto `anchor` (the symbol's own price), keeping the
+ * ladder's shape: the sample desk showed $24.10 / $24.25 / $23.50 orders for a
+ * $4.25 stock (QA W31). No anchor keeps the written prices.
+ */
+export function samplePriceAt(price: number | null, base: number, anchor?: number | null): number | null {
+  if (price == null || anchor == null || !Number.isFinite(anchor) || !(anchor > 0)) return price;
+  const places = anchor >= 1 ? 2 : 4;
+  return Number(((price * anchor) / base).toFixed(places));
+}
+
+/** Paper-style working rows for the open symbol — preview only; `anchor` puts them near its price. */
+export function buildMockWorkingOrders(symbol: string, anchor?: number | null): IbkrOrder[] {
   const sym = symbol.trim().toUpperCase() || 'DEMO';
+  const rows = writtenRows(sym);
+  if (anchor == null) return rows;
+  return rows.map((row) => ({
+    ...row,
+    limit_price: samplePriceAt(row.limit_price, MOCK_WORKING_ANCHOR, anchor),
+    stop_price: samplePriceAt(row.stop_price ?? null, MOCK_WORKING_ANCHOR, anchor),
+    avg_fill_price: samplePriceAt(row.avg_fill_price ?? null, MOCK_WORKING_ANCHOR, anchor),
+  }));
+}
+
+function writtenRows(sym: string): IbkrOrder[] {
   return [
     {
       order_id: 90001,

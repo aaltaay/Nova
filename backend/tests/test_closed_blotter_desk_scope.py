@@ -68,6 +68,28 @@ def test_a_practice_desks_rows_come_back_untouched_newest_first() -> None:
     assert all("execution_id" not in row for row in out)
 
 
+def test_a_practice_desk_lists_only_the_orders_its_practice_day_closed() -> None:
+    """QA W4: "Orders . today 13" listed orders from Sep 17, 18 and 21 on the Paper ledger."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    day_start = datetime(2026, 9, 22, 4, 0, tzinfo=ZoneInfo("America/New_York")).timestamp()
+    yesterday = _practice_row(order_id=1, perm_id=1, submitted_at="2026-09-21T21:05:00+00:00",
+                              updated_at="2026-09-21T21:16:35+00:00")
+    before_rollover = _practice_row(order_id=2, perm_id=2, submitted_at="2026-09-22T07:50:00+00:00",
+                                    updated_at="2026-09-22T07:59:59+00:00")
+    today = _practice_row(order_id=3, perm_id=3, submitted_at="2026-09-22T08:30:00+00:00",
+                          updated_at="2026-09-22T08:31:00+00:00")
+    out = overlay_closed_orders([yesterday, before_rollover, today], ledger_rows=[], desk=PAPER,
+                                practice_day=day_start)
+    assert [row["order_id"] for row in out] == [3]
+
+
+def test_a_practice_row_with_no_close_stamp_is_shown_not_hidden() -> None:
+    row = _practice_row(order_id=4, perm_id=4)
+    assert overlay_closed_orders([row], ledger_rows=[], desk=SIM, practice_day=4e9) == [row]
+
+
 def test_live_leaves_practice_stamped_rows_out() -> None:
     rows = [
         _ledger(id="e-paper", order_id=11, mode="paper"),

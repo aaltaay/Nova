@@ -13,8 +13,12 @@ export interface HistoricalSnapshot {
   depth_available?: boolean;
   /** That book, or null/undefined when depth was not recorded for this moment. */
   depth?: HistoricalDepthBook | null;
-  /** Session open/high/low from reached reported prints (or reached candles). */
+  /** Open / high / low from the window's first reached print (or reached candles) -- the window's, not the day's. */
   open?: number | null; high?: number | null; low?: number | null;
+  /** The regular session's opening print once reached, null when not known (QA W7). */
+  session_open?: number | null;
+  /** `session`: volume / high / low are the day's so far; `window`: only the downloaded window's (QA W7). */
+  stats_scope?: 'session' | 'window';
   /** Close of the last daily bar before the session date. */
   prev_close?: number | null;
   selection?: HistoricalSelection;

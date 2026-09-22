@@ -179,9 +179,13 @@
   color: color-mix(in srgb, var(--accent, #38bdf8) 80%, var(--text-muted, #6b7280));
 }
 
+/* The row wraps rather than squeezing its groups into each other: at 1280 /
+   1440 "$" sat under the "10" preset and "-1" was cut by the card's scrollbar
+   (QA D7). The unit toggle and presets keep their own width; presets that do
+   not fit drop to the next line. */
 .manual-order-quantity-row {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   gap: 3px;
   min-width: 0;
@@ -267,9 +271,17 @@
   flex-wrap: nowrap;
   align-items: center;
   gap: 3px;
-  min-width: 0;
+  flex: 0 0 auto;
+  min-width: max-content;
   border: none;
   background: transparent;
+}
+
+/* Presets may wrap among themselves in a very narrow ticket, never overlap (D7). */
+.manual-order-presets {
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .manual-order-quantity-rule {

@@ -5,6 +5,7 @@
  *
  * Weekday RTH: MKT outside_rth=false.
  * After hours / weekend: EH LMT at bid/ask/last (same ticket as Fill now).
+ * "RTH" is judged by the venue's clock -- the Sim playhead on Sim (QA R21).
  */
 import {
   beginBrowserExecutionTiming,
@@ -12,6 +13,7 @@ import {
 } from '../execution_latency';
 import { beginDeskAction } from './deskActionFlight';
 import { buildExitFullPosition } from './exitPosition';
+import { venueClockNow } from './marketOutsideRth';
 import { planFlattenExit, type FlattenExitBook } from './planFlattenExit';
 import { placeIbkrOrder, type PlaceOrderResult } from './placeOrder';
 
@@ -35,6 +37,8 @@ export async function closeFullPosition(
     timingAction?: BrowserActionStamp;
     referencePrice?: number | null;
     book?: FlattenExitBook | null;
+    /** The desk's venue: on Sim the flatten plans against the playhead, not the wall clock (R21). */
+    mode?: string | null;
   },
 ): Promise<CloseFullPositionResult> {
   const built = buildExitFullPosition(positionQty);
@@ -53,6 +57,7 @@ export async function closeFullPosition(
   const ticket = planFlattenExit(built.side, {
     outsideRth: options?.outsideRth,
     book,
+    now: venueClockNow(options?.mode),
   });
   if (!ticket.ok) {
     return { ok: false, error: ticket.error };

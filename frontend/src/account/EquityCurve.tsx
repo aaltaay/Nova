@@ -17,7 +17,8 @@ interface Props {
   baseline: number;
   /** Extend the last value flat to this timestamp (the venue's now). */
   endTs: number | null;
-  formatTick: (value: number) => string;
+  /** Axis label; `step` is the tick spacing, so a small range can show cents (W26). */
+  formatTick: (value: number, step: number) => string;
   lastLabel: string | null;
   markers?: CurveMarker[];
   height?: number;
@@ -73,7 +74,7 @@ export function EquityCurve({
               y2={tick.y}
             />
             <text className="acct-curve__tick" x={frame.padLeft - 6} y={tick.y + 3.5} textAnchor="end">
-              {formatTick(tick.value)}
+              {formatTick(tick.value, geo.step)}
             </text>
           </g>
         ))}

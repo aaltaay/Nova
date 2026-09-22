@@ -15,6 +15,7 @@ from execution import store
 from execution import telemetry
 from execution import validate as _validate
 from execution import evidence_store
+from execution.desk_mode import desk_mode
 from execution import timing as _timing
 from execution.broker_send import send_broker, wait_broker_ack
 from execution.latency import latency_summary
@@ -105,12 +106,13 @@ def _reject(
     detail: str,
     reason_code: str,
 ) -> ExecutionReceipt:
+    mode = desk_mode()  # the venue on Paper / Sim (QA R38)
     store.update_stages(
         execution_id,
         status="rejected",
         reason_code=reason_code,
         error=detail,
-        mode=_client.account_mode(),
+        mode=mode,
         validation_completed_ns=timings.validation_completed_ns,
         persisted_ns=timings.persisted_ns,
     )
@@ -122,7 +124,7 @@ def _reject(
         idempotency_key=cmd.idempotency_key,
         error=detail,
         reason_code=reason_code,
-        mode=_client.account_mode(),
+        mode=mode,
         symbol=cmd.normalized_symbol(),
         timings=timings,
     )
@@ -318,7 +320,7 @@ async def execute(
             execution_id,
             status="validated",
             validation_completed_ns=timings.validation_completed_ns,
-            mode=_client.account_mode(),
+            mode=desk_mode(),
         )
 
         if _loop_lag.is_wedged() and cmd.operation in (

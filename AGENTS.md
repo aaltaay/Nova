@@ -237,7 +237,23 @@ A complete candles (`bars`) job covers its window (`coverage` is the window,
 in the listing and in the snapshot -- a worker that died leaves `running` in
 storage, which reads `interrupted`. At the window's (exclusive) end the snapshot
 reads the window's last second, and `last` falls back to candles only where the
-playhead's own second is not downloaded.
+playhead's own second is not downloaded. That candle close is never a
+practice price (QA R34): at an uncovered playhead a Sim practice order is
+refused `SIM_NO_PRICE` ("Not downloaded at the replay playhead ...", before
+the window has printed it stays "No trade has printed yet") and a protective
+close gets flat at the last mark (`fill_basis: "last_mark"`), never
+`last_print`.
+The snapshot's `open` / `high` / `low` / `volume` count from the window's first
+reported print. It adds `session_open: number | null` -- the regular session's
+opening print once the playhead has reached 09:30 ET: the first reported print
+at or after 09:30:00 inside the downloaded range that covers 09:30:00, else the
+stored 1-minute bar that starts at 09:30, else null -- and `stats_scope:
+"session" | "window"`: `session` only when the window starts at the session
+start (04:00 ET) and the playhead's trades are unbroken from there, so `volume`
+/ `high` / `low` are the day's so far; `window` otherwise. The quote card's
+Gap% uses `session_open` against `prev_close` and shows Vol / High / Low only
+for `session`; anything else is a stated absence, never the window passed off
+as the day (QA W7).
 Historical snapshot prints include stable integer `ordinal` within the selected job.
 The historical SQLite store uses integer `PRAGMA user_version=1`, migrates known
 unversioned tables, and refuses unknown versions. Selection refuses oversized
@@ -472,8 +488,15 @@ fees and margin: `architecture/practice-account.md`.
 
 **Orders (Today) belongs to the desk's venue** (QA batch, 2026-09-22):
 `/api/ibkr/orders/closed` on Paper and Sim is the practice ledger's own closed
-rows, newest first, with nothing joined or appended from the execution ledger
-(`execution/closed_blotter.py`) -- the execution ledger holds every venue's
+rows **that closed during the venue's practice day** -- at or after the 04:00 ET
+rollover of the venue's clock, the wall clock on Paper and the replay playhead
+on Sim, judged by each row's `updated_at` (its close stamp; `practice/today.py`,
+QA W4) -- newest first, with nothing joined or appended from the execution ledger
+(`execution/closed_blotter.py`); the ledger itself keeps every row for the
+Account history and the startup sweep, and working orders are never day-scoped.
+A refused execution row and its receipt carry `mode` = the practice venue
+(`paper` / `sim`) on Paper and Sim, like a filled practice row -- never the
+Gateway label (QA R38, `execution/desk_mode.py`). The execution ledger holds every venue's
 orders and its `mode` stamp is the venue for a practice send and the Gateway
 port label (`live` / `paper`) for an IBKR send. On Live only rows stamped with
 the session's own label (or unstamped legacy rows) are joined or listed, and
@@ -486,9 +509,15 @@ and `updated_at` its last activity; a ledger `filled` row is never
 this desk's execution rows, a remembered audit only when its symbol and venue
 stamp match the row, and a practice row's own `nova_placed_at`. A practice
 order row has `commission: null` until it fills (a cancelled or expired row
-keeps `null`); practice order ids are never reused after a Sim unwind; a
-resolved practice order -- filled, cancelled, expired, unwound or reset --
-releases its `execution.inflight` commitment.
+keeps `null`); practice order ids are never reused -- not after a Sim unwind,
+and not after a reset or a replay unload / load either: a replacing ledger
+continues its predecessor's ids, and `practice-paper.json` carries an optional
+`first_order_id` (read as 1 when absent) so they continue across a restart (QA
+R41); a resolved practice order -- filled, cancelled, expired, unwound, reset,
+or dropped with its ledger when the replay is unloaded or another one loaded
+(QA R40) -- releases its `execution.inflight` commitment; and an order the
+practice broker fills inside the send marks its own execution row `filled`,
+since the broker's notice ran before that row carried the order id (QA R41).
 
 **The ledger as history (the Account page):**
 `GET /api/practice/history?venue=paper|sim&range=1D|5D|1M|3M|YTD|ALL`
@@ -561,6 +590,17 @@ with nothing loaded selects that symbol's usable Session Record for today
 when one exists, keeping the playhead and the scratch account. "Follow wall
 clock" returns to the edge. Paper remains the persistent-ledger venue.
 Rules: `architecture/practice-fills.md` ("The live edge").
+
+Off the edge a capture replay's Level 2 socket reserves the replay depth slot
+the bot gate reads; a historical replay's Level 2 reads the snapshot instead,
+so it holds the slot explicitly (QA R44): `POST /api/sim/history/depth-line
+{symbol, hold: boolean}` (owner `sim/history_depth_line.py`) answers `{ok,
+held, reason, symbols}`. `hold: true` reserves the slot only on a replay desk
+and only for the loaded historical window's symbol (`ok: false` with the
+`reason` otherwise); `hold: false` drops it unless a depth socket, a live line
+or a recording still uses it. It opens no IBKR line and pushes or records no
+book. The panel holds it while mounted and re-asserts it every
+`SIM_HISTORY_DEPTH_LINE_REFRESH_MS`.
 
 ### Account identity on `/api/ibkr/status` (operator ask, 2026-09-21)
 
@@ -821,6 +861,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-22 | QA pass two -- Account page, practice ledger, Sim / replay, the ticket: `/api/ibkr/orders/closed` on Paper / Sim lists only the rows closed in the venue's practice day (W4, `practice/today.py`); a refused practice execution is stamped with its venue (R38, `execution/desk_mode.py`); an undownloaded stretch of a historical window is refused `SIM_NO_PRICE` and a protective close there fills at the last mark (R34); the historical snapshot adds `session_open` and `stats_scope` so the quote card's Gap% is the session's and Vol / High / Low are stated absent for a midday window (W7); a replay unload frees its working orders' commitments (R40), practice order ids continue across a reset / unload (`first_order_id` in `practice-paper.json`) and an order filled inside the practice send marks its row `filled` (R41); `POST /api/sim/history/depth-line` lets the historical Level 2 hold the replay depth slot the bot gate reads (R44). §3 and `architecture/practice-fills.md` amended. | User Directive + Claude Opus 5 |
 | 2026-09-22 | The ticket's Flatten never closes the same shares twice (QA R42, P0 regression from #454): the check moves from the route into the execution door (`execution/flatten_intent.py`, inside the execution lock) and subtracts the closing orders already working or committed, so a second Flatten while the first rests is refused `FLATTEN_NOT_A_CLOSE` instead of filling the account short; `ExecutionCommand` gains `intent`. The practice broker cancels a SELL that would fill past the held quantity (`order_rules.fill_refusal`). The quick-bar Flatten / `exit_pos` / `cancel_and_exit` send the intent too, so they are no longer clamped to 1 share (R32). The practice account summary rolls to the venue's practice day before answering, so the breaker's first poll of a new day never reads yesterday's day P&L (R45). §3 amended. | User Directive + Claude Opus 5 |
 | 2026-09-22 | Practice day P&L for the breakers (QA W2, W3): the practice `/api/ibkr/account` summary's `RealizedPnL` is today's realized (IBKR's daily meaning, was lifetime since reset) and it carries `DayPnL`; `bot/day_pnl` compares `DayPnL` with the day lock on practice venues without subtracting commissions again, so a ledger down $50 since its reset can no longer trip the soft breaker at the first poll of a new day. `/api/practice/account` adds `realized_today`; the header's Day's Realized and its hover use it. §3 amended. | User Directive + Claude Opus 5 |
 | 2026-09-22 | The ticket's Flatten is a protective flatten: `POST /api/ibkr/order` `intent: "flatten"` is checked against the venue's own position and sent as source `flatten` (never clamped by the one-share gate), refused `FLATTEN_NOT_A_CLOSE` otherwise (QA R32). A practice order that fills inside the send frees its commitment at once, so KILL / flatten / bot sells no longer leave shares "already sent" (R31); the flatten partial-close guard reads the sent size from the execution record (R33). §3 amended. | User Directive + Claude Opus 5 |

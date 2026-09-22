@@ -12,6 +12,7 @@
  */
 import {
   SIM_REPLAY_PRICE_NONE,
+  SIM_REPLAY_PRICE_NOT_DOWNLOADED,
   SIM_REPLAY_PRICE_NOT_RECORDED,
 } from './simConstants';
 import type { SimClockState } from './simClockTypes';
@@ -56,8 +57,10 @@ export function replayQuoteFor(
     };
   }
   if (clock.replay_source === 'historical' && replaySymbol === tab && snapshot?.active) {
+    // A download's uncovered stretch was not downloaded -- not a recording gap (W25);
+    // the backend refuses practice orders there too (R34).
     if (snapshot.covered === false && snapshot.source !== 'completed_bars') {
-      return { ...NONE, prevClose: snapshot.prev_close ?? null, note: SIM_REPLAY_PRICE_NOT_RECORDED };
+      return { ...NONE, prevClose: snapshot.prev_close ?? null, note: SIM_REPLAY_PRICE_NOT_DOWNLOADED };
     }
     return {
       active: true, last: snapshot.last, bid: null, ask: null, prevClose: snapshot.prev_close ?? null,
@@ -73,11 +76,43 @@ export function useReplayQuote(symbol: string): ReplayQuote {
   return replayQuoteFor(symbol, clock, historical, sim);
 }
 
-/** What a ticket prices from: the replay's price off the live edge (with why it has none), else the live one. */
-export function venuePriceFor(replay: ReplayQuote, livePrice: number | null): { price: number | null; note: string | null } {
-  return replay.active ? { price: replay.last, note: replay.note } : { price: livePrice, note: null };
+/** What a ticket prices from: the price, why there is none, and the quote a Market order fills against. */
+export interface VenuePrice {
+  price: number | null;
+  note: string | null;
+  bid: number | null;
+  ask: number | null;
 }
 
-export function useVenuePrice(symbol: string, livePrice: number | null): { price: number | null; note: string | null } {
-  return venuePriceFor(useReplayQuote(symbol), livePrice);
+/**
+ * The replay's price and quote off the live edge (with why it has none), else
+ * the live last and the live top of book (`liveBook`, this symbol's only).
+ */
+export function venuePriceFor(
+  replay: ReplayQuote,
+  livePrice: number | null,
+  liveBook: { bid: number | null; ask: number | null } | null = null,
+): VenuePrice {
+  return replay.active
+    ? { price: replay.last, note: replay.note, bid: replay.bid, ask: replay.ask }
+    : { price: livePrice, note: null, bid: liveBook?.bid ?? null, ask: liveBook?.ask ?? null };
+}
+
+/**
+ * Where a Market order fills: the far side of a known quote -- the ask to buy,
+ * the bid to sell -- exactly as the practice broker fills it
+ * (architecture/practice-fills.md). Null without one; the ticket then prices
+ * from the last. The Cost line used the last while the fill took the ask (QA R36).
+ */
+export function marketFillPrice(side: 'BUY' | 'SELL', venue: Pick<VenuePrice, 'bid' | 'ask'>): number | null {
+  const px = side === 'BUY' ? venue.ask : venue.bid;
+  return px != null && Number.isFinite(px) && px > 0 ? px : null;
+}
+
+export function useVenuePrice(
+  symbol: string,
+  livePrice: number | null,
+  liveBook: { bid: number | null; ask: number | null } | null = null,
+): VenuePrice {
+  return venuePriceFor(useReplayQuote(symbol), livePrice, liveBook);
 }

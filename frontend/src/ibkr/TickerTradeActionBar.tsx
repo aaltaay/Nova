@@ -60,7 +60,12 @@ export function TickerTradeActionBar({
   variant = 'footer',
 }: Props) {
   const [closing, setClosing] = useState(false);
-  const [resultMsg, setResultMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // `seq` lets the ticket's Last line show each new Flatten outcome: the rail
+  // hides this bar's own footer, so a result or refusal written only there
+  // was never seen (QA R32).
+  const [resultMsg, setResultMsgState] = useState<{ ok: boolean; text: string; seq: number } | null>(null);
+  const setResultMsg = (next: { ok: boolean; text: string } | null) =>
+    setResultMsgState((prev) => (next ? { ...next, seq: (prev?.seq ?? 0) + 1 } : null));
   const { ensureUnlocked, pinDialog } = useTradingPinGate();
 
   const disabledReason = !connected
@@ -100,6 +105,7 @@ export function TickerTradeActionBar({
     try {
       const data = await closeFullPosition(symbol, position.qty, {
         referencePrice: position.market_price,
+        mode,
       });
       if (data.ok) {
         setResultMsg({
@@ -195,6 +201,7 @@ export function TickerTradeActionBar({
             referencePrice={referencePrice}
             listingIbkr={listingIbkr}
             onOrderPlaced={(result) => onOrderPlaced?.(result)}
+            externalResult={resultMsg}
           />
         </div>
 

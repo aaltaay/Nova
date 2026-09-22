@@ -54,9 +54,11 @@ export function OrdersTodayView({
   const [preferClosedSample, setPreferClosedSample] = useState(() => Boolean(sample));
 
   const usingClosedSample = closedOrders.length === 0 && preferClosedSample;
+  // The sample desk's closed sample sits at the sample symbol's own price (QA W31).
+  const anchor = sample && symbol ? sample.tickerDetail(symbol).snapshot.latest_trade?.price ?? null : null;
   const closedSource = useMemo(
-    () => (usingClosedSample ? buildMockClosedOrders(symbol) : closedOrders),
-    [usingClosedSample, closedOrders, symbol],
+    () => (usingClosedSample ? buildMockClosedOrders(symbol, anchor) : closedOrders),
+    [usingClosedSample, closedOrders, symbol, anchor],
   );
 
   // Account-wide: do not scope Orders (Today) to the open Stock View ticker.

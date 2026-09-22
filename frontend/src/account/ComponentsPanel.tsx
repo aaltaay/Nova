@@ -28,6 +28,8 @@ interface Props {
   history: PracticeHistory | null;
   absence: string | null;
   range: AccountRange;
+  /** The account's open P&L at the live mark -- the headline's "open" (QA W1). */
+  openPnl: number | null;
 }
 
 function labelOf(ring: ComponentRing, history: PracticeHistory): { k: string; s: string } {
@@ -49,7 +51,7 @@ function labelOf(ring: ComponentRing, history: PracticeHistory): { k: string; s:
   }
 }
 
-export function ComponentsPanel({ history, absence, range }: Props) {
+export function ComponentsPanel({ history, absence, range, openPnl }: Props) {
   return (
     <section className="acct-panel acct-panel--comp" data-testid="account-components" aria-label={ACCOUNT_COMPONENTS_TITLE}>
       <PanelHead title={`${ACCOUNT_COMPONENTS_TITLE} · ${range}`}>
@@ -59,7 +61,7 @@ export function ComponentsPanel({ history, absence, range }: Props) {
         <div className="acct-absent" data-testid="account-components-absent">{absence}</div>
       ) : (
         <div className="acct-comp">
-          {componentRings(history.components, history.fills).map((ring) => {
+          {componentRings(history.components, history.fills, openPnl).map((ring) => {
             const { k, s } = labelOf(ring, history);
             const tone: Tone = ring.tone;
             const none = ring.id === 'bot' && ring.share === 0 && !history.fills.some((f) => f.source === 'bot' || f.bot_id != null);
@@ -67,8 +69,8 @@ export function ComponentsPanel({ history, absence, range }: Props) {
               <div key={ring.id} className="acct-crow" data-testid={`account-comp-${ring.id}`}>
                 <Ring share={ring.share} tone={tone} size={42} testId={`account-comp-ring-${ring.id}`} />
                 <div className="acct-crow__k">{k}<small>{s}</small></div>
-                <div className={`acct-crow__v acct-num ${none ? 'acct-muted' : toneClass(tone === 'bot' ? toneOf(ring.value) : tone)}`}>
-                  {none ? 'none' : formatSignedMoney(ring.value)}
+                <div className={`acct-crow__v acct-num ${none || ring.unknown ? 'acct-muted' : toneClass(tone === 'bot' ? toneOf(ring.value) : tone)}`}>
+                  {none ? 'none' : ring.unknown ? '—' : formatSignedMoney(ring.value)}
                 </div>
               </div>
             );

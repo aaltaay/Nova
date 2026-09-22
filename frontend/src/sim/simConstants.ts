@@ -232,6 +232,22 @@ export const SIM_CAPTURE_L2_NONE_TITLE =
 /** A Sim tab's price off the live edge is the replay's (R10): these say why there is none. */
 export const SIM_REPLAY_PRICE_NONE = 'No replay price for this symbol at the playhead';
 export const SIM_REPLAY_PRICE_NOT_RECORDED = 'Not recorded at this moment -- a gap in the recording';
+/* ── QA batch fix/qa2-account-practice-sim (2026-09-22) ── */
+/** A historical window's undownloaded stretch is not a recording gap (QA W25 / R34). */
+export const SIM_REPLAY_PRICE_NOT_DOWNLOADED = 'Not downloaded at this moment -- scrub into a downloaded stretch';
+/**
+ * The strip's Replay pill (paused or scrubbed off the wall clock) is a button
+ * back to the wall clock; its tooltip said "Following the wall clock" while
+ * the playhead was paused (QA W25).
+ */
+export const SIM_REPLAY_PILL_TITLE =
+  'Replaying the loaded session at the playhead -- paused or scrubbed off the wall clock. Click to follow the wall clock again.';
+export const SIM_REPLAY_PILL_FAILED_TITLE = 'The replay did not load. Click to follow the wall clock again.';
+/** The historical Level 2 holds the replay depth slot a bot's gate reads (QA R44); re-asserted this often. */
+export const SIM_HISTORY_DEPTH_LINE_PATH = '/history/depth-line';
+export const SIM_HISTORY_DEPTH_LINE_REFRESH_MS = 30_000;
+/** Focus rail on Sim off the live edge (QA W10): the rows are today's live scanner, so their live values are hidden. */
+export const SIM_FOCUS_RAIL_REPLAY_NOTE = "Today's live scanner -- Sim is replaying another moment, so live price, gap and news are hidden. Enter still opens a tab.";
 /** A capture selection still being read from disk: neither loaded nor failed (`replay_loading`). */
 export const SIM_REPLAY_LOADING = 'Loading recording…';
 export const SIM_REPLAY_LOADING_TITLE = 'Nova is reading this Session Record from disk; the desk shows it once it has loaded.';

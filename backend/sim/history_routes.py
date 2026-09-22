@@ -87,6 +87,19 @@ def snapshot(symbol: str):
     return checked(lambda: playback.snapshot(symbol.strip().upper())) if is_sim_mode() else {"active": False}
 
 
+class DepthLine(BaseModel):
+    symbol: str
+    hold: bool = True
+
+
+@router.post("/depth-line")
+def depth_line(body: DepthLine):
+    """The historical Level 2 holds (or lets go of) the replay depth slot a bot's gate reads (QA R44)."""
+    from sim import history_depth_line
+
+    return history_depth_line.hold(body.symbol) if body.hold else history_depth_line.release(body.symbol)
+
+
 @router.post("/{job_id}/resume")
 def resume(job_id: str):
     return checked(lambda: download.start(job_id))

@@ -8,6 +8,9 @@ and a practice id could join another venue's execution row. On Live only rows
 whose ``mode`` stamp matches the Gateway session are eligible. The stamp is
 what the send wrote: the venue for a practice send (``sim/execution.py``),
 the Gateway port label for an IBKR send (``ibkr.client.account_mode``).
+
+On a practice venue "today" is the venue's practice day (QA W4,
+``practice.today``): only rows closed since its clock's rollover are listed.
 """
 from __future__ import annotations
 
@@ -132,17 +135,22 @@ def overlay_closed_orders(
     ledger_rows: list[dict] | None = None,
     limit: int | None = None,
     desk: DeskLedger | None = None,
+    practice_day: float | None = None,
 ) -> list[dict]:
     """Heal IB orderId/qty zeros from Nova-placed ledger rows of this desk.
 
     ``ib_rows`` are the venue broker's closed rows. On a practice venue they
     are the practice ledger's own and come back untouched (capped, newest
-    first); ``desk`` defaults to the settled venue (``current_desk``).
+    first), limited to the ones that closed in the venue's practice day
+    (``practice_day``, the rollover epoch; read from the venue's clock when
+    omitted -- QA W4). ``desk`` defaults to the settled venue (``current_desk``).
     """
     cap = IBKR_CLOSED_ORDERS_LIMIT_DEFAULT if limit is None else max(1, int(limit))
     scope = desk if desk is not None else current_desk()
     if scope.practice:
-        rows = [dict(row) for row in ib_rows]
+        from practice.today import closed_today
+
+        rows = closed_today([dict(row) for row in ib_rows], practice_day, scope.mode)
         rows.sort(key=_sort_key, reverse=True)
         return rows[:cap]
     source = ledger_rows if ledger_rows is not None else load_session_ledger()

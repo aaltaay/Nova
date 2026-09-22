@@ -34,7 +34,10 @@
 .acct-seg__item.is-on { background: var(--nova-raised); color: var(--nova-text); }
 
 .acct-srcs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
-.acct-src { display: flex; align-items: center; gap: 12px; background: var(--nova-raised); border-radius: 6px; padding: 10px 12px; min-width: 0; }
+/* The By-source tile only: the same class names a ledger / orders / fills
+   Source cell, which took the tile's raised block and padding -- a "Manual"
+   slab across the Ledger's Action column. */
+.acct-srcs > .acct-src { display: flex; align-items: center; gap: 12px; background: var(--nova-raised); border-radius: 6px; padding: 10px 12px; min-width: 0; }
 .acct-src__k { font-size: 12px; line-height: 15px; }
 .acct-src__v { font-size: 18px; font-weight: 600; line-height: 24px; }
 .acct-src__v.acct-muted { font-size: 13px; }

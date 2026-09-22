@@ -260,5 +260,7 @@ export function useManualOrderSubmission(params: Params) {
     executeOrder,
     setConfirmSummary,
     resetSubmission,
+    /** Put another action's outcome on the ticket's Last line (the rail's Flatten, QA R32). */
+    showResult: setResult,
   };
 }

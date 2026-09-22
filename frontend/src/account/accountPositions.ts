@@ -82,8 +82,15 @@ export function shortMarketValue(positions: AccountPosition[]): number | null {
   return any ? sum : null;
 }
 
-export const maxPositionQty = (positions: AccountPosition[]): number =>
-  positions.reduce((max, p) => Math.max(max, Math.abs(p.qty)), 0);
+/** The largest open position by share count, of every source; null when flat (QA W11). */
+export function largestPosition(positions: AccountPosition[]): { symbol: string; qty: number } | null {
+  let best: { symbol: string; qty: number } | null = null;
+  for (const p of positions) {
+    const qty = Math.abs(p.qty);
+    if (qty > 0 && (best == null || qty > best.qty)) best = { symbol: p.symbol, qty };
+  }
+  return best;
+}
 
 export const positionSymbols = (positions: AccountPosition[]): string[] =>
   positions.filter((p) => p.qty !== 0).map((p) => p.symbol);

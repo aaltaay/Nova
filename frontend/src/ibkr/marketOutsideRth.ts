@@ -40,6 +40,22 @@ export function marketOrdersRefusedNow(
   return isWeekdayRegularHoursNow(clock) ? null : TICKER_TRADE_MARKET_OUTSIDE_RTH_REASON;
 }
 
+/**
+ * The venue's clock for a one-off decision -- a flatten's regular-hours MKT vs
+ * extended-hours LMT plan: the Sim playhead on Sim, the wall clock elsewhere
+ * and whenever the playhead is not known yet (QA R21: at a 13:05 playhead the
+ * flatten planned "LMT extended hours" from a 05:00 wall clock). Reads the
+ * shared clock poll a Sim tab already holds.
+ */
+export function venueClockNow(
+  mode: string | null | undefined,
+  clock: SimClockState | null | undefined = simClockResource.getSnapshot().data,
+  now: Date = new Date(),
+): Date {
+  if (mode !== 'sim') return now;
+  return simPlayhead(clock) ?? now;
+}
+
 const noSubscription = () => () => {};
 
 export function useMarketOrdersRefused(mode: IbkrMode): string | null {

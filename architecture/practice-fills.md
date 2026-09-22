@@ -22,7 +22,7 @@ Everything else is refused with a reason code:
 | `SIM_NO_REPLAY` | No recording or historical window is loaded. |
 | `SIM_SYMBOL_MISMATCH` | The order names a symbol other than the loaded replay's. |
 | `SIM_NO_TRADES` | The historical window holds candles only; its trades were never downloaded. |
-| `SIM_NO_PRICE` | The replay has not printed yet at the playhead. |
+| `SIM_NO_PRICE` | The replay has not printed yet at the playhead, or the playhead sits in a recording gap or an undownloaded stretch. |
 | `SIM_ORDER_TYPE` | Practice supports `MKT`, `LMT` and `STP` only. |
 
 ## Paper: the live reference (ADR 020)
@@ -93,6 +93,12 @@ be unknown:
   and reads unbounded, as before.
 - **Historical download** — `last` only. IBKR historical trades carry no
   bid/ask (see #311), so spread-aware fills are not available on this source.
+  **A stretch the download has not covered has no last** (QA R34): the
+  snapshot prices an uncovered playhead from a 1-minute candle close so the
+  chart can draw, but that close is never a practice price -- an order there is
+  refused `SIM_NO_PRICE` ("not downloaded at the replay playhead"), and a
+  protective close gets flat at the last known mark (`last_mark`), exactly as
+  a capture gap does.
 
 ## The rules
 
@@ -104,7 +110,7 @@ be unknown:
 | `LMT` resting, a later print reaches the limit | the limit | `print_cross` |
 | `STP` already through the market on arrival | the touch | `stop_trigger` |
 | `STP` resting, a later print crosses the stop | that print | `stop_trigger` |
-| Protective close with the replay unloaded | the last known mark | `last_mark` |
+| Protective close with the replay unloaded, or in a gap / undownloaded stretch | the last known mark | `last_mark` |
 
 A resting order only ever fills on prints **after** it was placed, so scrubbing
 backwards can never fill it, and moving the playhead forward fills it at the

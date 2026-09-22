@@ -25,7 +25,7 @@ import { StockViewQuoteStats } from './StockViewQuoteStats';
 import { useHistoricalSnapshot } from '../sim/useHistoricalSnapshot';
 import { HistoricalTimeSales } from '../sim/HistoricalTimeSales';
 import { HistoricalDepth, HistoricalL2Chip } from '../sim/HistoricalDepth';
-import { historicalQuoteDetail, simEmptyQuoteDetail } from '../sim/historicalQuoteDetail';
+import { captureQuoteDetail, historicalQuoteDetail, simEmptyQuoteDetail } from '../sim/historicalQuoteDetail';
 import { simRailNote } from '../sim/simReplayTarget';
 import { SimReplayTargetNotice } from '../sim/SimReplayTargetNotice';
 import { useSimReplayTarget } from '../sim/useSimReplayTarget';
@@ -133,7 +133,8 @@ export function StockViewDepthTape({
             symbol={depthSymbol}
             // Today's halt and borrow state are not the replayed session's.
             chips={<HistoricalL2Chip depth={historical.depth} />}
-            level2={showL2 ? <HistoricalDepth depth={historical.depth} /> : null}
+            // Holds the replay depth slot a bot needs while shown (QA R44).
+            level2={showL2 ? <HistoricalDepth depth={historical.depth} holdLineFor={depthSymbol} /> : null}
             tape={showTape ? (
               <HistoricalTimeSales symbol={depthSymbol} snapshot={historical} uiActive={uiActive} />
             ) : null}
@@ -162,6 +163,16 @@ export function StockViewDepthTape({
     );
   }
 
+  // A Session Record replaying for this tab, off the edge: the panes are the
+  // recording's, so they say REPLAY, show the recording's L2 state instead of
+  // today's halt / borrow chips, and state a gap as a gap (QA 2026-09-22, R16 / R11).
+  // Its quote stats are the recording's too -- never today's live Vol / High /
+  // Low / Gap% (QA W8).
+  const captureReplay = sim && !liveEdge && clock?.replay_source === 'capture'
+    && (clock.replay_symbol ?? '').toUpperCase() === depthSymbol;
+  const gap = captureReplay && clock?.replay_quote?.covered === false;
+  const quoteDetail = captureReplay && clock ? captureQuoteDetail(detail, clock, depthSymbol) : detail;
+
   if (!ibkrConnected || !detailMatches) {
     return (
       <StockViewModuleCard
@@ -169,7 +180,7 @@ export function StockViewDepthTape({
         className="sv-quote-depth-card sv-quote-depth-card--empty"
         testId="stock-view-depth-stack"
       >
-        <QuoteHead detail={detail} symbol={depthSymbol} />
+        <QuoteHead detail={quoteDetail} symbol={depthSymbol} />
         <p className="sv-depth-stack__hint">
           Connect IB Gateway for Level 2 and Time & Sales
         </p>
@@ -184,17 +195,11 @@ export function StockViewDepthTape({
         className="sv-quote-depth-card"
         testId="stock-view-depth-stack"
       >
-        <QuoteHead detail={detail} symbol={depthSymbol} />
+        <QuoteHead detail={quoteDetail} symbol={depthSymbol} />
       </StockViewModuleCard>
     );
   }
 
-  // A Session Record replaying for this tab, off the edge: the panes are the
-  // recording's, so they say REPLAY, show the recording's L2 state instead of
-  // today's halt / borrow chips, and state a gap as a gap (QA 2026-09-22, R16 / R11).
-  const captureReplay = sim && !liveEdge && clock?.replay_source === 'capture'
-    && (clock.replay_symbol ?? '').toUpperCase() === depthSymbol;
-  const gap = captureReplay && clock?.replay_quote?.covered === false;
   return (
     <StockViewModuleCard
       title={STOCK_VIEW_MODULE_QUOTE_TITLE}
@@ -202,7 +207,7 @@ export function StockViewDepthTape({
       testId="stock-view-depth-stack"
       aria-label={STOCK_VIEW_MODULE_QUOTE_TITLE}
     >
-      <QuoteHead detail={detail} symbol={depthSymbol} />
+      <QuoteHead detail={quoteDetail} symbol={depthSymbol} />
       <DepthAndTapeColumns
         symbol={depthSymbol}
         chips={captureReplay ? <CaptureReplayL2Chip clock={clock} /> : (

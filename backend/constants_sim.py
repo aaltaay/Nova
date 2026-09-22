@@ -161,3 +161,17 @@ SIM_HISTORY_SIDE_CACHE_ENTRIES = 4096
 # practice order is refused ``SIM_NO_PRICE`` with this reason, never filled at
 # the book or tape from before the gap.
 SIM_NOT_RECORDED_REASON = "Not recorded at the replay playhead -- scrub into a recorded stretch to practise"
+
+# --- QA batch fix/qa2-account-practice-sim (2026-09-22) ------------------------
+# A historical playhead in a stretch the download has not covered has no print
+# (R34): a practice order is refused ``SIM_NO_PRICE`` with this reason instead of
+# filling at a 1-minute candle close labelled ``last_print``. A protective close
+# still gets flat at the last mark (``last_mark``), as on any unpriced symbol.
+SIM_NOT_DOWNLOADED_REASON = (
+    "Not downloaded at the replay playhead -- scrub into a downloaded stretch "
+    "(or let the download reach it) to practise"
+)
+# The historical quote card's session figures (W7): the regular session opens at
+# 09:30 ET (the Gap% open); the day's volume / high / low count from 04:00 ET.
+SIM_HISTORY_SESSION_OPEN_HHMM = (9, 30)
+SIM_HISTORY_SESSION_START_HHMM = (4, 0)

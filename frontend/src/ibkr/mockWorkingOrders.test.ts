@@ -48,6 +48,21 @@ describe('mockWorkingOrders', () => {
     expect(partial.stop_price).toBeNull();
   });
 
+  it('anchored to a $4.25 sample symbol, the ladder sits next to its price (QA W31)', () => {
+    const rows = buildMockWorkingOrders('SMPL', 4.25);
+    const first = rows.find((o) => o.order_id === 90001)!;
+    const stop = rows.find((o) => o.order_id === 90003)!;
+    expect(first.limit_price).toBe(4.25);
+    expect(stop.stop_price).toBeCloseTo(4.14, 2);
+    for (const row of rows) {
+      for (const px of [row.limit_price, row.stop_price, row.avg_fill_price]) {
+        if (px != null) expect(px).toBeLessThan(5);
+      }
+    }
+    // Unanchored rows keep the written prices.
+    expect(buildMockWorkingOrders('SMPL')[0].limit_price).toBe(24.1);
+  });
+
   it('stop sample exposes stop_price and null limit', () => {
     const stop = buildMockWorkingOrders('XYZ').find((o) => o.order_id === 90003)!;
     expect(stop.order_type).toBe('STP');

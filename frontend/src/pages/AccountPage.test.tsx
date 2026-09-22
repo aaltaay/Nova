@@ -200,19 +200,77 @@ describe('AccountPage', () => {
     expect(screen.getByTestId('legacy-trading-tab').getAttribute('data-ticket')).toBe('off');
   });
 
-  it('with no bot session the cap is unavailable, never the product ceiling (C35)', async () => {
+  it('with no bot session the order size is unavailable, never the product ceiling (C35)', async () => {
     mocks.workspace.ibkrMode = 'live';
     mocks.bot.session = null;
     render(<AccountPage onOpenTrader={() => {}} />);
-    expect(screen.getByTestId('account-max-position').textContent).toMatch(/cap unavailable/);
-    expect(screen.getByTestId('account-max-position').textContent).not.toMatch(/\/ 10 sh/);
+    expect(screen.getByTestId('account-bot-order-size').textContent).toMatch(/unavailable/);
+    expect(screen.getByTestId('account-bot-order-size').textContent).not.toMatch(/10 sh/);
   });
 
-  it('with a bot session shows the session cap', async () => {
-    mocks.workspace.ibkrMode = 'live';
+  it('shows the bot cap as the size of each bot order and the largest position as every source\'s (W11)', async () => {
     mocks.bot.session = { caps: { max_shares: 1 }, soft_breaker_fired: false, day_lock_active: false };
     render(<AccountPage onOpenTrader={() => {}} />);
-    expect(screen.getByTestId('account-max-position').textContent).toBe('0 / 1 sh');
+    await waitFor(() => expect(screen.getByTestId('account-largest-position').textContent).toBe('400 sh GRML · every source'));
+    expect(screen.getByTestId('account-bot-order-size').textContent).toBe('1 sh per bot order');
+    // Nothing reads "400 / 1 sh": the two figures are not compared.
+    expect(screen.getByTestId('account-risk').textContent).not.toMatch(/\/ 1 sh/);
+  });
+
+  it('the Performance headline adds the live open P&L, agreeing with Day\'s P&L (W1)', async () => {
+    // The history prices GRML at its last fill (event-marked open 12.00); the account marks it live (55.00).
+    mocks.fetch.mockImplementation(async (url: string) => {
+      const u = String(url);
+      if (u.includes('/api/practice/history')) {
+        const h = paperHistoryFixture();
+        return { ok: true, status: 200, json: async () => ({ ...h, components: { ...h.components, unrealized: 12 } }) };
+      }
+      if (u.includes('/api/practice/account')) return { ok: true, status: 200, json: async () => PAPER_ACCOUNT_TODAY };
+      return { ok: false, status: 404, json: async () => ({}) };
+    });
+    render(<AccountPage onOpenTrader={() => {}} />);
+    await waitFor(() => expect(screen.getByTestId('account-perf-big').textContent).toBe('+$142.10'));
+    expect(screen.getByTestId('account-day-line').textContent).toContain('+$142.10');
+    expect(screen.getByTestId('account-comp-unrealized').textContent).toContain('+$55.00');
+  });
+
+  it('the calendar shows the whole month whatever the range (W5)', async () => {
+    render(<AccountPage onOpenTrader={() => {}} />);
+    await waitFor(() => expect(screen.getByTestId('account-calendar-grid')).toBeTruthy());
+    expect(mocks.fetch.mock.calls.some((c) => String(c[0]).includes('range=ALL'))).toBe(true);
+    expect(screen.getByTestId('account-calendar-foot').textContent).toContain('blank = no fills');
+  });
+
+  it('Orders name each row\'s own source stamp, never a blanket "Nova" (W9)', async () => {
+    mocks.ibkr.orders = [{
+      order_id: 9, symbol: 'GRML', side: 'BUY', qty: 1, order_type: 'LMT', limit_price: 8, status: 'Submitted',
+      source: 'nova', order_source: 'manual', bot_id: null, submitted_at: new Date().toISOString(),
+    }];
+    mocks.ibkr.closedOrders = [{
+      order_id: 10, symbol: 'GRML', side: 'SELL', qty: 1, order_type: 'MKT', limit_price: null, status: 'Filled',
+      filled_qty: 1, avg_fill_price: 9, source: 'nova', order_source: 'bot', bot_id: 'hod-momo-1',
+      filled_at: new Date().toISOString(),
+    }];
+    render(<AccountPage onOpenTrader={() => {}} />);
+    await waitFor(() => expect(screen.getByTestId('account-order-source-9').textContent).toBe('Manual'));
+    expect(screen.getByTestId('account-order-source-10').textContent).toBe('Bot · hod-momo-1');
+  });
+
+  it('on Live the Fills tab and commissions read IBKR\'s filled orders (W17), and Day\'s P&L says what it counts (W18)', async () => {
+    mocks.workspace.ibkrMode = 'live';
+    mocks.ibkr.summary = { connected: true, mode: 'live', NetLiquidation: 25000, RealizedPnL: 12, UnrealizedPnL: -3 };
+    const filledOrder = (order_id: number, commission: number): IbkrOrder => ({
+      order_id, perm_id: 100 + order_id, symbol: 'TOPS', side: 'BUY', qty: 100, filled_qty: 100, order_type: 'MKT',
+      limit_price: null, avg_fill_price: 1.49, status: 'Filled', commission, source: 'nova',
+      filled_at: new Date().toISOString(),
+    });
+    mocks.ibkr.closedOrders = [filledOrder(1, 7.5), filledOrder(2, 1.5)];
+    render(<AccountPage onOpenTrader={() => {}} />);
+    expect(screen.getByTestId('account-rows').textContent).toContain('-$9.00');
+    fireEvent.click(screen.getByTestId('account-pos-tab-fills'));
+    expect(screen.getAllByTestId(/account-fill-/)).toHaveLength(2);
+    expect(screen.getByTestId('account-fills-table').querySelector('[data-testid="acct-est"]')).toBeNull();
+    expect(screen.getByTestId('account-day-pnl-live-note').textContent).toMatch(/carried overnight/);
   });
 
   it('on the sample desk shows the sample account, polls no ledger and offers only Overview (V4)', async () => {

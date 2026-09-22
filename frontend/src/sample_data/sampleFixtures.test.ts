@@ -25,6 +25,18 @@ describe('sample fixtures populate every major surface', () => {
     expect(SAMPLE_DECISIONS.length).toBeGreaterThanOrEqual(3);
   });
 
+  it('carries percent fields as fractions, like the live wire (QA W19: SMPL read "+5178.57%")', () => {
+    const smpl = SAMPLE_GAPPERS.find((r) => r.symbol === 'SMPL')!;
+    expect(smpl.change_pct).toBeCloseTo((4.25 - 2.8) / 2.8, 9);
+    expect(smpl.gap_percent).toBeCloseTo(0.5179, 4);
+    for (const row of [...SAMPLE_GAPPERS, ...SAMPLE_GAINERS, ...SAMPLE_LOSERS, ...SAMPLE_AFTERHOURS]) {
+      expect(Math.abs(row.change_pct ?? 0)).toBeLessThan(5);
+      expect(Math.abs(row.gap_percent ?? 0)).toBeLessThan(5);
+    }
+    for (const row of SAMPLE_LARGE_CAP) expect(Math.abs(row.change_5d_pct ?? 0)).toBeLessThan(1);
+    for (const c of SAMPLE_CATALYSTS) expect(Math.abs(c.gap_percent)).toBeLessThan(5);
+  });
+
   it('includes news_impact on catalysts and decide catalyst gates', () => {
     expect(SAMPLE_CATALYSTS.every((c) => c.news_impact != null)).toBe(true);
     const buy = SAMPLE_DECISIONS.find((d) => d.decision === 'BUY');

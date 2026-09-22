@@ -195,3 +195,13 @@ export function drawerSampleBanner(mode: string): string {
     ? `Sample data -- not your ${venue} orders. Your real orders are hidden while the sample shows.`
     : 'Sample data -- not real orders. Your real orders are hidden while the sample shows.';
 }
+
+/* ── QA batch fix/qa2-account-practice-sim (2026-09-22): drawer footer ── */
+/**
+ * The footer with no symbol selected (the Scanner before a row is picked):
+ * it read "No open position ·" with nothing after it while the Positions tab
+ * listed three (QA W29).
+ */
+export const DRAWER_NO_SYMBOL = 'No symbol selected';
+export const drawerOpenPositions = (n: number): string =>
+  n === 0 ? 'flat' : `${n} open position${n === 1 ? '' : 's'} in Positions`;

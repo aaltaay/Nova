@@ -15,7 +15,10 @@ const mocks = vi.hoisted(() => ({
   active: 'GRML' as string | null,
   open: vi.fn(),
   scanner: vi.fn(),
+  replayDesk: false,
 }));
+
+vi.mock('../sim/useSimReplayDesk', () => ({ useSimReplayDesk: () => mocks.replayDesk }));
 
 vi.mock('../scanner/ScannerDataContext', async importOriginal => {
   const actual = await importOriginal<typeof import('../scanner/ScannerDataContext')>();
@@ -55,10 +58,24 @@ beforeEach(() => {
   mocks.active = 'GRML';
   mocks.open.mockReset();
   mocks.scanner.mockReset();
+  mocks.replayDesk = false;
 });
 afterEach(cleanup);
 
 describe('FocusRail', () => {
+  it('on Sim off the live edge hides today\'s live price, gap and news, and still opens tabs (QA W10)', () => {
+    mocks.replayDesk = true;
+    render(<FocusRail />);
+    expect(screen.getByTestId('focus-rail-replay-note').textContent).toMatch(/live price, gap and news are hidden/);
+    const grml = screen.getByTestId('focus-rail-row-GRML');
+    expect(grml.textContent).not.toContain('+131%');
+    expect(grml.textContent).not.toContain('NEWS');
+    expect(grml.textContent).not.toContain('8.90');
+    expect(screen.getByTestId('focus-rail-row-CBRX').textContent).not.toContain('no news');
+    fireEvent.click(grml);
+    expect(mocks.open).toHaveBeenCalledWith('GRML');
+  });
+
   it('mirrors Gappers with REC and bot dots, highlights the active symbol, and opens on click', () => {
     render(<FocusRail />);
     expect(screen.getByTestId('focus-rail-list-label').textContent).toBe('· Gappers 3');

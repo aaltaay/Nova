@@ -47,7 +47,9 @@ function row(
   extras: Partial<Gapper> = {},
 ): Gapper {
   const change_abs = price - prev;
-  const change_pct = prev > 0 ? (change_abs / prev) * 100 : 0;
+  // Fractions, as the live wire carries them (0.5179 = +51.79%): percent units
+  // here read SMPL "+5178.57%" on the sample desk (QA W19).
+  const change_pct = prev > 0 ? change_abs / prev : 0;
   return {
     symbol,
     exchange: 'NASDAQ',
@@ -106,8 +108,8 @@ export const SAMPLE_LARGE_CAP: ScannerRow[] = [
     float: 11_200_000_000,
     rvol: 1.8,
     atr_expansion: 0.9,
-    change_5d_pct: 2.1,
-    change_20d_pct: 4.8,
+    change_5d_pct: 0.021,
+    change_20d_pct: 0.048,
     high_20d: 172.4,
     low_20d: 154.1,
     large_cap_score: 72,
@@ -123,8 +125,8 @@ export const SAMPLE_LARGE_CAP: ScannerRow[] = [
     market_cap: 2_900_000_000_000,
     rvol: 2.4,
     atr_expansion: 1.3,
-    change_5d_pct: 3.6,
-    change_20d_pct: 8.2,
+    change_5d_pct: 0.036,
+    change_20d_pct: 0.082,
     high_20d: 124.0,
     low_20d: 102.5,
     large_cap_score: 88,
@@ -140,8 +142,8 @@ export const SAMPLE_LARGE_CAP: ScannerRow[] = [
     market_cap: 450_000_000_000,
     rvol: 0.7,
     atr_expansion: 0.4,
-    change_5d_pct: -1.1,
-    change_20d_pct: 1.4,
+    change_5d_pct: -0.011,
+    change_20d_pct: 0.014,
     high_20d: 169.5,
     low_20d: 148.0,
     large_cap_score: 41,
@@ -153,9 +155,9 @@ export const SAMPLE_LARGE_CAP: ScannerRow[] = [
 ];
 
 export const SAMPLE_AFTERHOURS: Afterhours[] = [
-  row('AHOT', 5.1, 4.4, 2_200_000, { gap_percent: 15.9, rel_volume: 3.2 }),
-  row('NITE', 11.8, 10.9, 1_100_000, { gap_percent: 8.3 }),
-  row('LATE', 0.77, 0.7, 4_800_000, { gap_percent: 10 }),
+  row('AHOT', 5.1, 4.4, 2_200_000, { gap_percent: 0.159, rel_volume: 3.2 }),
+  row('NITE', 11.8, 10.9, 1_100_000, { gap_percent: 0.083 }),
+  row('LATE', 0.77, 0.7, 4_800_000, { gap_percent: 0.1 }),
 ];
 
 export const SAMPLE_CATALYSTS: Catalyst[] = [
@@ -164,7 +166,7 @@ export const SAMPLE_CATALYSTS: Catalyst[] = [
     exchange: 'NASDAQ',
     previous_close: 2.8,
     current_price: 4.25,
-    gap_percent: 51.8,
+    gap_percent: 0.518,
     volume: 12_400_000,
     has_news: true,
     newest_headline_at: '2026-07-19T11:58:00Z',
@@ -178,7 +180,7 @@ export const SAMPLE_CATALYSTS: Catalyst[] = [
     exchange: 'NYSE',
     previous_close: 1.1,
     current_price: 1.92,
-    gap_percent: 74.5,
+    gap_percent: 0.745,
     volume: 28_000_000,
     has_news: true,
     newest_headline_at: '2026-07-19T12:02:00Z',
@@ -192,7 +194,7 @@ export const SAMPLE_CATALYSTS: Catalyst[] = [
     exchange: 'NASDAQ',
     previous_close: 5.9,
     current_price: 7.4,
-    gap_percent: 25.4,
+    gap_percent: 0.254,
     volume: 6_200_000,
     has_news: true,
     newest_headline_at: '2026-07-19T10:40:00Z',
@@ -206,7 +208,7 @@ export const SAMPLE_CATALYSTS: Catalyst[] = [
     exchange: 'AMEX',
     previous_close: 9.8,
     current_price: 12.3,
-    gap_percent: 25.5,
+    gap_percent: 0.255,
     volume: 3_100_000,
     has_news: true,
     newest_headline_at: '2026-07-19T09:15:00Z',
@@ -220,7 +222,7 @@ export const SAMPLE_CATALYSTS: Catalyst[] = [
     exchange: 'NASDAQ',
     previous_close: 2.4,
     current_price: 3.15,
-    gap_percent: 31.3,
+    gap_percent: 0.313,
     volume: 19_500_000,
     has_news: true,
     newest_headline_at: '2026-07-19T12:10:00Z',

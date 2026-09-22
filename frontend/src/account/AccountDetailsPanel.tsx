@@ -29,12 +29,16 @@ import {
   ACCOUNT_RISK_BREAKERS,
   ACCOUNT_RISK_BREAKERS_NOT_EXPOSED,
   ACCOUNT_RISK_DAY_LOCK,
+  ACCOUNT_RISK_BOT_ORDER_SIZE,
+  ACCOUNT_RISK_BOT_ORDER_SIZE_NONE,
+  ACCOUNT_RISK_LARGEST_POSITION,
   ACCOUNT_RISK_LOCKED,
-  ACCOUNT_RISK_MAX_POSITION,
   ACCOUNT_RISK_SAFE,
   ACCOUNT_RISK_SOFT,
   ACCOUNT_RISK_TITLE,
   ACCOUNT_RISK_UNKNOWN,
+  ACCOUNT_COMMISSIONS_PENDING_LIVE,
+  ACCOUNT_DAY_PNL_LIVE_NOTE,
   ACCOUNT_ROWS_NO_HISTORY,
   ACCOUNT_ROWS_RECONCILE,
   ACCOUNT_ROWS_RESIDUAL,
@@ -49,14 +53,15 @@ import {
   ACCOUNT_ROW_SHORT_VALUE,
   ACCOUNT_TAG_LIVE,
   ACCOUNT_TAG_PRACTICE,
+  ACCOUNT_TAG_SAMPLE,
   ACCOUNT_TAG_SIM_SCRATCH,
   ACCOUNT_TAV_HIDDEN,
   ACCOUNT_TAV_LABEL,
   ACCOUNT_TODAY_SUFFIX,
+  accountRiskBotOrderSize,
   accountRiskBreakers,
   accountRiskHardLine,
-  accountRiskMaxPosition,
-  accountRiskMaxPositionNoCap,
+  accountRiskLargestPosition,
   accountRiskSoftLine,
   type AccountRange,
 } from '../constantGroups/account_page';
@@ -69,9 +74,9 @@ import { formatShareQty } from '../utils/formatShareQty';
 import { Money, PanelHead, toneClass, toneOf } from './accountBits';
 import type { AccountDetailRows } from './accountFigures';
 import type { PracticeHistory } from './accountHistoryTypes';
-import { longMarketValue, maxPositionQty, positionSymbols, shortMarketValue, type AccountPosition } from './accountPositions';
+import { largestPosition, longMarketValue, positionSymbols, shortMarketValue, type AccountPosition } from './accountPositions';
 import { EquityCurve } from './EquityCurve';
-import { equitySeries } from './equityPath';
+import { rangeSeries, tickDecimals } from './equityPath';
 
 export interface RiskBreakers {
   tripped: number;
@@ -91,8 +96,16 @@ interface Props {
   hidden: boolean;
   onToggleHidden: () => void;
   nowTs: number;
-  /** A stated absence that overrides the venue's own (the sample desk's, V4). */
+  /** A stated absence that overrides the venue's own (the sample desk's V4, Sim with nothing loaded D17). */
   absence?: string | null;
+  /** The sample desk: its account is Nova Marketing Sample Data, never "IBKR" (W31). */
+  sample?: boolean;
+}
+
+/** `100,014.74`: cents only while the ticks are closer than a dollar (W26). */
+function valueTick(value: number, step: number): string {
+  const d = tickDecimals(step, 'money');
+  return value.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
 export function riskLevel(dayPnl: number | null): { label: string; tone: 'up' | 'down' | 'flat' | 'muted' } {
@@ -113,10 +126,13 @@ function Row({ label, children, note }: { label: string; children: React.ReactNo
 
 export function AccountDetailsPanel({
   venue, figures, rows, positions, history, range, onRange, breakers, maxSharesCap, hidden, onToggleHidden, nowTs,
-  absence = null,
+  absence = null, sample = false,
 }: Props) {
   const practice = venue !== 'live';
-  const tag = venue === 'live' ? ACCOUNT_TAG_LIVE : venue === 'sim' ? ACCOUNT_TAG_SIM_SCRATCH : ACCOUNT_TAG_PRACTICE;
+  const live = venue === 'live' && !sample;
+  const tag = sample
+    ? ACCOUNT_TAG_SAMPLE
+    : venue === 'live' ? ACCOUNT_TAG_LIVE : venue === 'sim' ? ACCOUNT_TAG_SIM_SCRATCH : ACCOUNT_TAG_PRACTICE;
   const dayPct = dayPnlPercent(figures.dayPnl, figures.netLiquidation);
   const symbols = positionSymbols(positions);
   const cash = figures.cash;
@@ -124,10 +140,13 @@ export function AccountDetailsPanel({
   const donutTotal = cash != null && posValue != null ? cash + posValue : null;
   const cashShare = donutTotal && donutTotal > 0 && cash != null ? cash / donutTotal : null;
   const risk = riskLevel(figures.dayPnl);
-  const maxQty = maxPositionQty(positions);
+  const largest = largestPosition(positions);
   const longValue = longMarketValue(positions);
   const shortValue = shortMarketValue(positions);
-  const series = history ? equitySeries(history.equity, 'value', history.starting_cash) : [];
+  // The range's curve, ending at the account's live value (the TAV above), W13 / W26.
+  const { series, baseline } = history
+    ? rangeSeries(history, 'value', { openPnl: figures.openPnl, netLiquidation: figures.netLiquidation }, nowTs)
+    : { series: [], baseline: 0 };
 
   const r = 37;
   const c = 2 * Math.PI * r;
@@ -186,9 +205,9 @@ export function AccountDetailsPanel({
       {history && series.length ? (
         <EquityCurve
           series={series}
-          baseline={history.starting_cash}
+          baseline={baseline}
           endTs={nowTs}
-          formatTick={(v) => Math.round(v).toLocaleString('en-US')}
+          formatTick={hidden ? () => '' : valueTick}
           lastLabel={hidden ? null : formatMoney(series[series.length - 1].value)}
           testId="account-equity-curve"
         />
@@ -220,7 +239,9 @@ export function AccountDetailsPanel({
           {practice ? <span className="acct-muted" title={ACCOUNT_EXCESS_NA_PRACTICE}>n/a</span> : <Money value={rows.excessLiquidity} />}
         </Row>
         <Row label={ACCOUNT_ROW_COMMISSIONS_TODAY}>
-          {rows.commissionsToday == null ? <span className="acct-muted">—</span> : <Money value={-rows.commissionsToday} signed={rows.commissionsToday !== 0} kind="cost" />}
+          {rows.commissionsToday == null
+            ? <span className="acct-muted" title={live ? ACCOUNT_COMMISSIONS_PENDING_LIVE : undefined}>—</span>
+            : <Money value={-rows.commissionsToday} signed={rows.commissionsToday !== 0} kind="cost" />}
         </Row>
         <Row label={ACCOUNT_ROW_FEES_TODAY}>
           {rows.feesToday == null ? <span className="acct-muted">—</span> : <Money value={-rows.feesToday} signed={rows.feesToday !== 0} kind="cost" />}
@@ -229,6 +250,9 @@ export function AccountDetailsPanel({
           <p className="acct-foot acct-foot--rows" data-testid="account-rows-reconcile" data-reconcile={rows.reconcile}>
             {rows.reconcile === 'ok' ? ACCOUNT_ROWS_RECONCILE : ACCOUNT_ROWS_RESIDUAL(formatSignedMoney(rows.residual))}
           </p>
+        )}
+        {live && (
+          <p className="acct-foot acct-foot--rows" data-testid="account-day-pnl-live-note">{ACCOUNT_DAY_PNL_LIVE_NOTE}</p>
         )}
       </div>
 
@@ -276,14 +300,20 @@ export function AccountDetailsPanel({
             {accountRiskHardLine(formatSignedMoney(BOT_HARD_BREAKER_USD, 0))}
           </div>
         </div>
+        {/* The cap sizes each bot order; it is not a position limit, so no meter compares the two (W11). */}
         <div className="acct-rrow">
           <div className="acct-rrow__kv">
-            <span className="acct-row__k">{ACCOUNT_RISK_MAX_POSITION}</span>
-            <span className={maxSharesCap == null ? 'acct-muted' : 'acct-num'} data-testid="account-max-position">
-              {maxSharesCap == null ? accountRiskMaxPositionNoCap(formatShareQty(maxQty)) : accountRiskMaxPosition(formatShareQty(maxQty), formatShareQty(maxSharesCap))}
+            <span className="acct-row__k">{ACCOUNT_RISK_BOT_ORDER_SIZE}</span>
+            <span className={maxSharesCap == null ? 'acct-muted' : 'acct-num'} data-testid="account-bot-order-size">
+              {maxSharesCap == null ? ACCOUNT_RISK_BOT_ORDER_SIZE_NONE : accountRiskBotOrderSize(formatShareQty(maxSharesCap))}
             </span>
           </div>
-          <div className="acct-meter"><i style={{ width: `${maxSharesCap ? Math.min(100, (maxQty / maxSharesCap) * 100) : 0}%` }} /></div>
+          <div className="acct-rrow__kv">
+            <span className="acct-row__k">{ACCOUNT_RISK_LARGEST_POSITION}</span>
+            <span className="acct-num" data-testid="account-largest-position">
+              {accountRiskLargestPosition(formatShareQty(largest?.qty ?? 0), largest?.symbol ?? null)}
+            </span>
+          </div>
         </div>
         <div className="acct-rrow">
           <div className="acct-rrow__kv">

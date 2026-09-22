@@ -21,6 +21,7 @@ from typing import Any
 from constants_practice import PRACTICE_VENUE_SIM
 from practice.broker import PracticeBroker, notify_watch  # noqa: F401 -- re-exported
 from practice.ledger import Ledger
+from practice.watch import release_commitments
 
 logger = logging.getLogger(__name__)
 
@@ -171,10 +172,20 @@ def reset_scratch_account(reason: str) -> None:
     this never reads the selection back (``PracticeBroker.reset`` would, via
     its snapshot). Never raises: the replay engine must not die over scratch
     bookkeeping, but the failure is logged loud.
+
+    The discarded working orders free their in-flight commitments, as an
+    unwind's do -- a SELL resting at Close replay kept its shares "already
+    sent" until a restart, through later trades and a Sim reset (QA R40) --
+    and the new ledger continues the old one's order ids, so an execution row
+    for an old id never joins a new order (R41).
     """
     try:
         broker = _sim()
-        broker.ledger = Ledger(broker.ledger.starting_cash, created_ts=broker.reference.now_ts())
+        old = broker.ledger
+        release_commitments(old.working_orders())
+        broker.ledger = Ledger(
+            old.starting_cash, created_ts=broker.reference.now_ts(), first_order_id=old.next_order_id(),
+        )
         from sim import feed as _feed
 
         _feed.reset_fill_cursor()

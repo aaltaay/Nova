@@ -1,6 +1,13 @@
-/* Sim tab truth -- a state block inside the quote / ladder card, not a page band. */
+/* Sim tab truth -- a state block inside the quote / ladder card, not a page band.
+   The card body is height-bounded with overflow hidden, so the block shrinks
+   into the space it has and scrolls its own text, and its actions ride on the
+   title line: at 1280 / 1440 the text was cut mid-line and "Reconnect Gateway
+   & retry" / "Dismiss" sat under the quick-trade bar (QA D8). */
 .sim-replay-target {
-  flex-shrink: 0;
+  flex: 0 1 auto;
+  min-height: 2.2rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   display: flex;
   align-items: baseline;
   gap: 0.35rem 0.5rem;
@@ -20,6 +27,7 @@
 }
 
 .sim-replay-target__title {
+  order: 0;
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -31,18 +39,24 @@
 }
 
 .sim-replay-target__body {
+  order: 2;
   flex-basis: 100%;
   opacity: 0.92;
 }
 
 .sim-replay-target__error {
+  order: 2;
   color: var(--nova-danger, #ef4444);
   font-weight: 600;
 }
 
+/* On the title line, before the text: always reachable, however short the card. */
 .sim-replay-target__actions {
+  order: 1;
   margin-left: auto;
   display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
   gap: 0.4rem;
 }

@@ -266,7 +266,12 @@ export function StockViewOpenOrdersDock({
               </>
             )}
           </div>
-          <StockViewDockFooter symbol={symbolKey} mode={mode} position={symbolPosition} />
+          <StockViewDockFooter
+            symbol={symbolKey}
+            mode={mode}
+            position={symbolPosition}
+            openPositions={positions.filter((p) => p.qty !== 0).length}
+          />
         </>
       )}
     </section>

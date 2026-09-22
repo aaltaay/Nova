@@ -492,7 +492,8 @@ export const CHART_GRID_OPTIONAL_PANEL: ChartGridPanel = {
   id: '10Sec',
   label: '10-Second',
   note: 'IBKR 10s -- 4h history on open, live tape after',
-  simNote: 'Sim 10s -- replay at the sim clock, not live',
+  // True on both sides of the live edge, where a Sim tab is live (QA R35 / W25).
+  simNote: 'Sim 10s -- follows the Sim clock: the replay off the live edge, the live tape at it',
 };
 export const CHART_GRID_OPTIONAL_STORAGE_KEY = 'nova.chartGrid.show10Sec';
 /** Fourth pane defaults ON (absent localStorage key means show). */

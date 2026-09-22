@@ -9,6 +9,7 @@ import {
   ACCOUNT_SOURCE_AUTO_PAPER,
   ACCOUNT_SOURCE_BOT,
   ACCOUNT_SOURCE_MANUAL,
+  ACCOUNT_SOURCE_OTHER_LABELS,
 } from '../constantGroups/account_page';
 import { JOURNAL_CALENDAR_TIMEZONE } from '../constantGroups/market_ui';
 import type { HeaderAccountFigures } from '../components/headerAccountFigures';
@@ -64,18 +65,20 @@ export interface AccountDetailRows {
  * The rows under the two cards. On a practice venue realized / commissions /
  * fees are today's ledger-history row (a day with no fill has no row, so a
  * loaded history with no row is an honest zero). On Live the IBKR summary's
- * RealizedPnL is the day's; IBKR exposes no fee split, so those stay null.
+ * RealizedPnL is the day's and commissions are what IBKR reported on the
+ * session's orders (`liveCommissions`, QA W17); IBKR exposes no fee split.
  */
 export function accountDetailRows(
   figures: HeaderAccountFigures,
   today: HistoryDaily | null,
   historyLoaded: boolean,
+  liveCommissions: number | null = null,
 ): AccountDetailRows {
   const practice = figures.source === 'practice';
   const fromHistory = (n: number | undefined): number | null =>
     today ? finite(n) : historyLoaded ? 0 : null;
   const realizedToday = practice ? fromHistory(today?.realized) : figures.realizedPnl;
-  const commissionsToday = practice ? fromHistory(today?.commissions) : null;
+  const commissionsToday = practice ? fromHistory(today?.commissions) : finite(liveCommissions);
   const feesToday = practice ? fromHistory(today?.fees) : null;
   const openPnl = figures.openPnl;
   const dayPnl = figures.dayPnl;
@@ -185,6 +188,8 @@ export function sourceLabel(source: string | null, botId: string | null): string
   if (kind === 'manual') return ACCOUNT_SOURCE_MANUAL;
   if (kind === 'bot') return botId ? `${ACCOUNT_SOURCE_BOT} · ${botId}` : ACCOUNT_SOURCE_BOT;
   if (kind === 'auto_paper') return ACCOUNT_SOURCE_AUTO_PAPER;
+  if (source && ACCOUNT_SOURCE_OTHER_LABELS[source]) return ACCOUNT_SOURCE_OTHER_LABELS[source];
+  if (botId) return `${source ?? ACCOUNT_SOURCE_BOT} · ${botId}`;
   return source ?? '—';
 }
 
@@ -232,13 +237,26 @@ export interface ComponentRing {
   /** Share of |realized| + |unrealized| + commissions + fees; bot = share of gross realized. */
   share: number;
   tone: 'up' | 'down' | 'flat' | 'bot' | 'muted';
+  /** The figure is not known yet (the account's open P&L before it answers): shown as a dash. */
+  unknown?: boolean;
 }
 
-export function componentRings(components: HistoryComponents, fills: HistoryFill[]): ComponentRing[] {
+/**
+ * The component rings. Unrealized is the account's open P&L at the live mark
+ * (`openPnl`), the same figure as the Performance headline and Day's P&L --
+ * not the history's last-fill figure (QA W1); null while it is unknown.
+ */
+export function componentRings(
+  components: HistoryComponents,
+  fills: HistoryFill[],
+  openPnl: number | null,
+): ComponentRing[] {
   // Components add up: gross realized + unrealized - commissions - fees = net.
   // The ledger's realized is net, so gross adds the costs back (QA V1).
+  const open = finite(openPnl);
+  const unrealized = open ?? 0;
   const gross = components.realized + components.commissions + components.sec_finra_fees;
-  const total = Math.abs(gross) + Math.abs(components.unrealized)
+  const total = Math.abs(gross) + Math.abs(unrealized)
     + Math.abs(components.commissions) + Math.abs(components.sec_finra_fees);
   const fillGross = (f: HistoryFill): number => f.realized + f.commission + f.fees;
   const grossRealized = fills.reduce((sum, f) => sum + Math.abs(fillGross(f)), 0);
@@ -248,7 +266,9 @@ export function componentRings(components: HistoryComponents, fills: HistoryFill
   const tone = (n: number): 'up' | 'down' | 'flat' => toneOf(n) as 'up' | 'down' | 'flat';
   return [
     { id: 'realized', value: gross, share: share(gross), tone: tone(gross) },
-    { id: 'unrealized', value: components.unrealized, share: share(components.unrealized), tone: tone(components.unrealized) },
+    open == null
+      ? { id: 'unrealized', value: 0, share: 0, tone: 'muted', unknown: true }
+      : { id: 'unrealized', value: open, share: share(open), tone: tone(open) },
     { id: 'commissions', value: -components.commissions, share: share(components.commissions), tone: components.commissions ? 'muted' : 'flat' },
     { id: 'fees', value: -components.sec_finra_fees, share: share(components.sec_finra_fees), tone: components.sec_finra_fees ? 'muted' : 'flat' },
     {
@@ -268,8 +288,15 @@ export function botIds(fills: HistoryFill[]): string[] {
 
 export const sellCount = (fills: HistoryFill[]): number => fills.filter((f) => f.side === 'SELL').length;
 
-/** Net P&L of the range on this ledger: realized + open, less commissions and fees. */
-/** Net P&L for the range: realized is already net of commissions and fees (QA V1). */
-export function rangeNetPnl(components: HistoryComponents): number {
-  return components.realized + components.unrealized;
+/**
+ * Net P&L for the range: realized (already net of commissions and fees, QA
+ * V1) plus the open positions at their live mark -- the account's own
+ * `unrealized_pnl`, the figure Day's P&L and the Symbol P&L total use. The
+ * history's `components.unrealized` prices each position at its last fill,
+ * so the headline disagreed with both on the same page (QA W1 / R37). Null
+ * while the account has not answered: an unknown open P&L is not zero.
+ */
+export function rangeNetPnl(components: HistoryComponents, openPnl: number | null): number | null {
+  const open = finite(openPnl);
+  return open == null ? null : components.realized + open;
 }
