@@ -8,8 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   HOTKEY_MANAGER_INACTIVE_BANNER,
   HOTKEYS_CREATE_DIALOG_TITLE,
-  HOTKEYS_SETTINGS_CTA,
-  HOTKEYS_SETTINGS_DIALOG_TITLE,
+  HOTKEYS_SETTINGS_LIST_TITLE,
 } from '../constants';
 import { HotkeyManager } from './HotkeyManager';
 import { serializeHtk } from './htkFormat';
@@ -24,6 +23,10 @@ function openAdvancedDas(container: HTMLElement) {
     details!.open = true;
     details!.dispatchEvent(new Event('toggle', { bubbles: true }));
   });
+}
+
+function listRows(container: HTMLElement): HTMLButtonElement[] {
+  return Array.from(container.querySelectorAll<HTMLButtonElement>('.hk-editor-row'));
 }
 
 describe('HotkeyManager', () => {
@@ -45,12 +48,17 @@ describe('HotkeyManager', () => {
     vi.restoreAllMocks();
   });
 
-  it('shows landing CTA, summary list, and active Nova shortcuts', () => {
+  it('renders the two-pane editor inline -- no dialog, no landing CTA', () => {
     act(() => {
-      root.render(<HotkeyManager />);
+      root.render(<HotkeyManager onDone={() => {}} />);
     });
-    expect(container.textContent).toContain(HOTKEYS_SETTINGS_CTA);
-    expect(container.querySelector('[data-testid="hotkeys-landing-list"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="hotkeys-settings-editor"]')).toBeTruthy();
+    expect(container.textContent).toContain(HOTKEYS_SETTINGS_LIST_TITLE);
+    expect(listRows(container).length).toBeGreaterThan(0);
+    expect(container.querySelector('[data-testid="hotkeys-settings-detail"]')).toBeTruthy();
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(container.querySelector('[aria-modal="true"]')).toBeNull();
+    expect(container.querySelector('[data-testid="hotkeys-settings-cta"]')).toBeNull();
     expect(container.textContent).toContain('Active Nova shortcuts');
     expect(container.textContent).toContain('Approve first staged bracket');
     const advanced = container.querySelector(
@@ -59,32 +67,58 @@ describe('HotkeyManager', () => {
     expect(advanced.open).toBe(false);
   });
 
-
-  it('opens Hotkeys Settings from CTA and closes on Escape', async () => {
+  it('selects the first action, marks the row, and switches on click', async () => {
     act(() => {
       root.render(<HotkeyManager />);
     });
-    const cta = container.querySelector(
-      '[data-testid="hotkeys-settings-cta"]',
-    ) as HTMLButtonElement;
-    await act(async () => {
-      cta.click();
-    });
-    expect(container.textContent).toContain(HOTKEYS_SETTINGS_DIALOG_TITLE);
-    expect(container.querySelector('[data-testid="hotkeys-settings-dialog"]')).toBeTruthy();
+    const rows = listRows(container);
+    expect(rows[0].classList.contains('is-selected')).toBe(true);
+    expect(rows[0].getAttribute('aria-current')).toBe('true');
+    // The list label is "<name> · <context>"; the detail title is the bare name.
+    const detailTitle = () =>
+      container.querySelector('[data-testid="hotkeys-settings-detail"] h3')?.textContent ?? '';
+    const rowLabel = (row: HTMLButtonElement) =>
+      row.querySelector('.hk-editor-row-name')?.textContent ?? '';
+    expect(detailTitle().length).toBeGreaterThan(0);
+    expect(rowLabel(rows[0]).startsWith(detailTitle())).toBe(true);
 
+    await act(async () => {
+      rows[1].click();
+    });
+    expect(listRows(container)[1].classList.contains('is-selected')).toBe(true);
+    expect(listRows(container)[0].classList.contains('is-selected')).toBe(false);
+    expect(rowLabel(rows[1]).startsWith(detailTitle())).toBe(true);
+    expect(rowLabel(rows[1])).not.toBe(rowLabel(rows[0]));
+  });
+
+  it('Done hands back to Settings; Escape is not handled by the editor', async () => {
+    const onDone = vi.fn();
+    act(() => {
+      root.render(<HotkeyManager onDone={onDone} />);
+    });
     await act(async () => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     });
-    expect(container.querySelector('[data-testid="hotkeys-settings-dialog"]')).toBeNull();
+    expect(container.querySelector('[data-testid="hotkeys-settings-editor"]')).toBeTruthy();
+    expect(onDone).not.toHaveBeenCalled();
+
+    await act(async () => {
+      (container.querySelector('[data-testid="hotkeys-settings-done"]') as HTMLButtonElement).click();
+    });
+    expect(onDone).toHaveBeenCalledTimes(1);
   });
 
-  it('requires a second click to delete a Nova Action in settings', async () => {
+  it('omits Done when nothing hands back', () => {
     act(() => {
       root.render(<HotkeyManager />);
     });
-    await act(async () => {
-      (container.querySelector('[data-testid="hotkeys-settings-cta"]') as HTMLButtonElement).click();
+    expect(container.querySelector('[data-testid="hotkeys-settings-done"]')).toBeNull();
+    expect(container.textContent).toContain('Reset to Default');
+  });
+
+  it('requires a second click to delete a Nova Action', async () => {
+    act(() => {
+      root.render(<HotkeyManager />);
     });
     expect(container.textContent).toContain('Cancel symbol orders');
     const trash = container.querySelector(
@@ -101,17 +135,18 @@ describe('HotkeyManager', () => {
     expect(container.textContent).not.toContain('Cancel symbol orders');
   });
 
-  it('creates a customized button from + and appends to list', async () => {
+  it('+ opens the Create form in the right pane; Create appends and selects it', async () => {
     act(() => {
       root.render(<HotkeyManager />);
     });
-    await act(async () => {
-      (container.querySelector('[data-testid="hotkeys-settings-cta"]') as HTMLButtonElement).click();
-    });
+    const before = listRows(container).length;
     await act(async () => {
       (container.querySelector('[data-testid="hotkeys-settings-add"]') as HTMLButtonElement).click();
     });
     expect(container.textContent).toContain(HOTKEYS_CREATE_DIALOG_TITLE);
+    expect(container.querySelector('[data-testid="hotkeys-create-form"]')).toBeTruthy();
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(container.querySelector('[data-testid="hotkeys-settings-detail"]')).toBeNull();
 
     const nameInput = container.querySelector(
       '[data-testid="hotkeys-create-name"]',
@@ -123,10 +158,33 @@ describe('HotkeyManager', () => {
     await act(async () => {
       (container.querySelector('[data-testid="hotkeys-create-submit"]') as HTMLButtonElement).click();
     });
-    expect(container.querySelector('[data-testid="hotkeys-create-dialog"]')).toBeNull();
-    expect(container.textContent).toContain('My Ask Entry');
+    expect(container.querySelector('[data-testid="hotkeys-create-form"]')).toBeNull();
+    const rows = listRows(container);
+    expect(rows.length).toBe(before + 1);
+    const created = rows[rows.length - 1];
+    expect(created.textContent).toContain('My Ask Entry');
+    expect(created.classList.contains('is-selected')).toBe(true);
+    expect(
+      container.querySelector('[data-testid="hotkeys-settings-detail"] h3')?.textContent,
+    ).toBe('My Ask Entry');
   });
 
+  it('Cancel on the Create form returns to the selected action', async () => {
+    act(() => {
+      root.render(<HotkeyManager />);
+    });
+    await act(async () => {
+      (container.querySelector('[data-testid="hotkeys-settings-add"]') as HTMLButtonElement).click();
+    });
+    const cancel = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.textContent === 'Cancel' && b.closest('[data-testid="hotkeys-create-form"]'),
+    );
+    await act(async () => {
+      cancel?.click();
+    });
+    expect(container.querySelector('[data-testid="hotkeys-create-form"]')).toBeNull();
+    expect(container.querySelector('[data-testid="hotkeys-settings-detail"]')).toBeTruthy();
+  });
 
   it('hides unused category tabs and Coming soon chrome', () => {
     act(() => {
@@ -136,8 +194,7 @@ describe('HotkeyManager', () => {
     expect(container.querySelector('[data-testid="hotkeys-tab-soon"]')).toBeNull();
     expect(container.textContent).not.toContain('Coming soon');
     expect(container.textContent).not.toContain('Paper Trading');
-    expect(container.querySelector('[data-testid="hotkeys-settings-cta"]')).toBeTruthy();
-    expect(container.querySelector('[data-testid="hotkeys-landing-list"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="hotkeys-settings-list"]')).toBeTruthy();
   });
 
   it('imports .htk via Advanced DAS preview then replace without fetch', async () => {
@@ -200,7 +257,7 @@ describe('HotkeyManager', () => {
     await act(async () => {
       closeBtn?.click();
     });
-    expect(container.querySelector('[data-testid="hotkeys-landing"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="hotkeys-section"]')).toBeTruthy();
   });
 
   it('maps a selected DAS cancel row to a disabled Nova Action without fetch', async () => {

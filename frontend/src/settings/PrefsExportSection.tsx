@@ -16,10 +16,10 @@ export function PrefsExportSection() {
         Download or restore layout, hotkeys, theme, and trade defaults stored in this
         browser. Session-only trader tabs are not included.
       </p>
-      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+      <div className="settings-actions">
         <button
           type="button"
-          className="ibkr-btn-secondary"
+          className="btn-secondary"
           onClick={() => {
             downloadPrefsBundle();
             setStatus('Downloaded nova-prefs.json');
@@ -29,7 +29,7 @@ export function PrefsExportSection() {
         </button>
         <button
           type="button"
-          className="ibkr-btn-secondary"
+          className="btn-secondary"
           onClick={() => inputRef.current?.click()}
         >
           Import prefs

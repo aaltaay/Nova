@@ -102,9 +102,9 @@ export function AlertChannelsSettings() {
   };
 
   return (
-    <div className="panel settings-panel alert-channels-panel">
-      <h2 className="panel-title">Alert channels</h2>
-      <p className="panel-subtitle">
+    <div className="settings-alerts" data-testid="settings-alerts">
+      <h3 className="settings-block-title">Alert channels</h3>
+      <p className="settings-block-hint">
         Outbound HOD Momo + Nova OS notifications. Secrets are stored locally and masked in the API.
       </p>
 

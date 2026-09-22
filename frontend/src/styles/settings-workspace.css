@@ -1,15 +1,18 @@
 /* Extracted from index.css lines 437-915 (Phase 2 mechanical split). */
 /* Owner: features/settings. Do not reorder relative to sibling imports. */
-/* ── Settings overlay (Webull-style left rail) ───────────────────────────── */
+/* ── Settings sheet (redesigned desk, 2026-09-22): nav rail + one section ──
+   Tokens only -- panel #1c1c1e, raised #2c2c2e, hairlines, 12 px type, 11 px
+   uppercase labels, 6 px radius, 8 px grid. Accent is reserved for the active
+   rail item and .btn-primary; every other button is a ghost. */
 
 .settings-overlay {
   position: fixed;
   inset: 0;
   z-index: 85;
   display: flex;
-  align-items: stretch;
+  align-items: center;
   justify-content: center;
-  padding: 1.25rem;
+  padding: 24px;
 }
 
 .settings-overlay-backdrop {
@@ -18,7 +21,7 @@
   border: 0;
   padding: 0;
   margin: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.6);
   cursor: pointer;
 }
 
@@ -27,44 +30,33 @@
   z-index: 1;
   display: flex;
   flex-direction: column;
-  width: min(960px, 100%);
-  max-height: calc(100vh - 2.5rem);
-  background: var(--bg-secondary, var(--nova-panel));
-  border: 1px solid var(--border-color);
+  width: min(1040px, 100%);
+  height: min(680px, 100%);
+  background: var(--nova-panel, var(--panel-bg));
+  border: 1px solid var(--nova-border-strong, var(--border-color));
   border-radius: 8px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
   overflow: hidden;
+  color: var(--nova-text, var(--text-primary));
+  font-size: 12px;
 }
 
 .settings-overlay-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--border-color);
+  gap: 8px;
+  height: 40px;
+  padding: 0 12px 0 16px;
+  border-bottom: 1px solid var(--nova-border, var(--border-color));
   flex-shrink: 0;
 }
 
 .settings-overlay-title {
   margin: 0;
-  font-size: 1rem;
-  font-weight: 650;
-  color: var(--text-primary);
-}
-
-.settings-overlay-close {
-  background: transparent;
-  color: var(--text-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  padding: 0.3rem 0.7rem;
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.settings-overlay-close:hover {
-  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--nova-text, var(--text-primary));
 }
 
 .settings-overlay-body {
@@ -76,459 +68,169 @@
 .settings-rail {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  width: 220px;
+  gap: 2px;
+  width: 176px;
   flex-shrink: 0;
-  padding: 0.75rem 0.5rem;
-  border-right: 1px solid var(--border-color);
+  padding: 8px 0;
+  border-right: 1px solid var(--nova-border, var(--border-color));
   overflow-y: auto;
-  background: color-mix(in srgb, var(--bg-primary, #0f1115) 65%, transparent);
+  background: color-mix(in srgb, var(--nova-canvas, #000) 30%, var(--nova-panel, #1c1c1e));
 }
 
 .settings-rail-item {
-  text-align: left;
-  background: transparent;
-  color: var(--text-secondary);
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 28px;
+  margin: 0;
+  padding: 0 16px;
   border: 0;
-  border-radius: 4px;
-  padding: 0.55rem 0.75rem;
-  font-size: 0.85rem;
+  border-radius: 0;
+  background: transparent;
+  color: var(--nova-text-muted, var(--text-secondary));
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
   cursor: pointer;
 }
 
 .settings-rail-item:hover {
-  color: var(--text-primary);
-  background: var(--hover-bg, rgba(255, 255, 255, 0.04));
+  color: var(--nova-text, var(--text-primary));
+  background: var(--hover-bg, rgba(255, 255, 255, 0.06));
+}
+
+.settings-rail-item:focus-visible {
+  outline: 2px solid var(--nova-accent, var(--accent-color));
+  outline-offset: -2px;
 }
 
 .settings-rail-item.active {
-  color: var(--text-primary);
-  background: var(--border-color);
+  color: var(--nova-text, var(--text-primary));
   font-weight: 600;
+  background: color-mix(in srgb, var(--nova-accent, var(--accent-color)) 10%, transparent);
+}
+
+.settings-rail-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--nova-accent, var(--accent-color));
 }
 
 .settings-overlay-content {
   flex: 1;
   min-width: 0;
   overflow-y: auto;
-  padding: 1rem 1.25rem 1.5rem;
+  padding: 16px 20px 24px;
 }
 
+/* ── Section blocks ──────────────────────────────────────────────────────── */
+
 .settings-block {
-  margin-bottom: 1.5rem;
+  margin-bottom: 24px;
 }
 
 .settings-block-title {
-  margin: 0 0 0.35rem;
-  font-size: 0.95rem;
-  font-weight: 650;
-  color: var(--text-primary);
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--nova-text-muted, var(--text-secondary));
 }
 
 .settings-block-hint {
-  margin: 0 0 0.75rem;
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-  line-height: 1.4;
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--nova-text-muted, var(--text-secondary));
 }
 
-.settings-subnav {
+.settings-actions {
   display: flex;
-  gap: 0.35rem;
-  margin-bottom: 1rem;
   flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Trade sub-tabs: one track, one raised segment (matches the compact ticket). */
+.settings-subnav {
+  display: inline-flex;
+  gap: 1px;
+  padding: 2px;
+  margin-bottom: 16px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .settings-subnav-tab {
-  background: transparent;
-  color: var(--text-secondary);
-  border: 1px solid var(--border-color);
-  padding: 0.3rem 0.75rem;
-  font-size: 0.8rem;
-  cursor: pointer;
+  height: 22px;
+  padding: 0 10px;
+  border: 0;
   border-radius: 4px;
+  background: transparent;
+  color: var(--nova-text-muted, var(--text-secondary));
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
 }
 
 .settings-subnav-tab:hover {
-  color: var(--text-primary);
+  color: var(--nova-text, var(--text-primary));
 }
 
 .settings-subnav-tab.active {
-  background: var(--border-color);
-  color: var(--text-primary);
+  background: var(--nova-raised, #2c2c2e);
+  color: var(--nova-text, var(--text-primary));
   font-weight: 600;
 }
 
+/* Account */
 .settings-account-dl {
-  margin: 0 0 1rem;
+  margin: 0 0 16px;
   display: grid;
-  gap: 0.55rem;
+  gap: 6px;
 }
 
 .settings-account-dl div {
   display: grid;
-  grid-template-columns: 7rem 1fr;
-  gap: 0.5rem;
-  font-size: 0.85rem;
+  grid-template-columns: 96px 1fr;
+  gap: 8px;
+  font-size: 12px;
 }
 
 .settings-account-dl dt {
-  color: var(--text-secondary);
   margin: 0;
+  color: var(--nova-text-muted, var(--text-secondary));
 }
 
 .settings-account-dl dd {
   margin: 0;
-  color: var(--text-primary);
+  color: var(--nova-text, var(--text-primary));
 }
 
-.settings-account-open-trading {
-  font-size: 0.85rem;
-  padding: 0.4rem 0.85rem;
-  cursor: pointer;
+/* General > Scanner & API */
+.settings-api-form {
+  max-width: 480px;
+  margin-top: 12px;
 }
 
-/* Legacy horizontal tabs (kept for any residual class use) */
-.settings-workspace {
-  margin-bottom: 1.5rem;
-}
-
-.settings-workspace-nav {
-  display: flex;
-  gap: 0.35rem;
-  margin-bottom: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.settings-workspace-tab {
-  background: transparent;
-  color: var(--text-secondary);
-  border: 1px solid var(--border-color);
-  padding: 0.35rem 0.85rem;
-  font-size: 0.8rem;
-  cursor: pointer;
-  border-radius: 4px;
-}
-
-.settings-workspace-tab:hover {
-  color: var(--text-primary);
-  border-color: var(--text-secondary);
-}
-
-.settings-workspace-tab.active {
-  background: var(--border-color);
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-/* ── DAS-compatible hotkey manager ───────────────────────────────────────── */
-
-.hotkey-manager.settings-panel {
-  max-width: min(960px, 100%);
-}
-
-.hotkey-inactive-banner {
-  background: rgba(234, 179, 8, 0.12);
-  border: 1px solid rgba(234, 179, 8, 0.45);
-  color: var(--text-primary);
-  padding: 0.55rem 0.75rem;
-  border-radius: 4px;
-  font-size: 0.82rem;
-  margin-bottom: 0.75rem;
-}
-
-.hotkey-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  margin-bottom: 0.75rem;
-}
-
-.hotkey-file-row,
-.hotkey-toolbar,
-.hotkey-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: flex-end;
-  margin-bottom: 0.75rem;
-}
-
-.hotkey-file-row label {
+.settings-api-form form {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  flex: 1;
-  min-width: 160px;
+  gap: 12px;
 }
 
-.hotkey-file-row input[type='text'],
-.hotkey-toolbar input,
-.hotkey-toolbar select,
-.hotkey-help-filters input,
-.hotkey-help-filters select {
-  background: var(--input-bg, var(--panel-bg));
-  border: 1px solid var(--border-color);
-  color: var(--text-primary);
-  padding: 0.35rem 0.5rem;
-  font-size: 0.8rem;
-  border-radius: 4px;
+.settings-overlay .form-row {
+  gap: 8px;
 }
 
-.hotkey-toolbar select option,
-.hotkey-help-filters select option {
-  background: var(--menu-bg, var(--panel-bg));
-  color: var(--text-primary);
-}
-
-.hotkey-table-wrap {
-  overflow-x: auto;
-  max-height: 320px;
-  overflow-y: auto;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  margin-bottom: 0.75rem;
-}
-
-.hotkey-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.78rem;
-}
-
-.hotkey-table th,
-.hotkey-table td {
-  padding: 0.35rem 0.5rem;
-  text-align: left;
-  border-bottom: 1px solid var(--border-color);
-  vertical-align: top;
-}
-
-.hotkey-table th {
-  position: sticky;
-  top: 0;
-  background: var(--bg-secondary, #1a1a1a);
-  z-index: 1;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.hotkey-table tr {
-  cursor: pointer;
-}
-
-.hotkey-table tr.selected {
-  background: rgba(59, 130, 246, 0.12);
-}
-
-.hotkey-table tr:hover {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.hotkey-cmd-cell {
-  max-width: 280px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.72rem;
-}
-
-.hotkey-badge {
-  display: inline-block;
-  font-size: 0.68rem;
-  padding: 0.1rem 0.4rem;
-  border-radius: 3px;
-  border: 1px solid var(--border-color);
-  white-space: nowrap;
-}
-
-.hotkey-badge-translatable_later {
-  color: #86efac;
-  border-color: rgba(134, 239, 172, 0.4);
-}
-
-.hotkey-badge-backend_required {
-  color: #fde047;
-  border-color: rgba(253, 224, 71, 0.4);
-}
-
-.hotkey-badge-das_ibkr_specific {
-  color: #93c5fd;
-  border-color: rgba(147, 197, 253, 0.4);
-}
-
-.hotkey-badge-invalid_unsafe {
-  color: #fca5a5;
-  border-color: rgba(252, 165, 165, 0.5);
-}
-
-.hotkey-badge-nova_active {
-  color: #c4b5fd;
-  border-color: rgba(196, 181, 253, 0.45);
-}
-
-.hotkey-badge-evidence {
-  color: var(--text-secondary);
-  margin-left: 0.25rem;
-}
-
-.hotkey-detail,
-.hotkey-nova-active,
-.hotkey-import-preview {
-  margin-top: 1rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--border-color);
-  font-size: 0.8rem;
-}
-
-.hotkey-import-preview {
-  background: rgba(59, 130, 246, 0.08);
-  border: 1px solid rgba(59, 130, 246, 0.35);
-  border-radius: 4px;
-  padding: 0.75rem;
-}
-
-.executor-hotkeys-list {
-  list-style: none;
-  padding: 0;
-  margin: 0.5rem 0 0;
-}
-
-.executor-hotkeys-list li {
-  display: flex;
-  gap: 0.75rem;
-  align-items: baseline;
-  padding: 0.2rem 0;
-  font-size: 0.8rem;
-}
-
-.executor-hotkeys-list kbd,
-.hotkey-table kbd {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.72rem;
-  background: var(--bg-secondary, #1a1a1a);
-  border: 1px solid var(--border-color);
-  border-radius: 3px;
-  padding: 0.05rem 0.35rem;
-  min-width: 4.5rem;
-  text-align: center;
-}
-
-.executor-hotkeys-blocked {
-  opacity: 0.55;
-}
-
-.hotkey-editor-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 110;
-  padding: 1rem;
-}
-
-.hotkey-editor {
-  background: var(--bg-primary, #111);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 1rem 1.25rem;
-  width: min(520px, 100%);
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
-.hotkey-editor-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  margin-bottom: 0.75rem;
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-}
-
-.hotkey-editor-field input,
-.hotkey-editor-field textarea {
-  background: var(--bg-secondary, #1a1a1a);
-  border: 1px solid var(--border-color);
-  color: var(--text-primary);
-  padding: 0.4rem 0.5rem;
-  font-size: 0.85rem;
-  border-radius: 4px;
-  font-family: inherit;
-}
-
-.hotkey-editor-field textarea {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  resize: vertical;
-}
-
-.hotkey-editor-key-row {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.hotkey-editor-key-row input {
-  flex: 1;
-}
-
-.hotkey-help-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.hotkey-help-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin: 0.75rem 0;
-}
-
-.hotkey-help-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  max-height: 420px;
-  overflow-y: auto;
-}
-
-.hotkey-help-item {
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  padding: 0.65rem 0.75rem;
-  margin-bottom: 0.5rem;
-  font-size: 0.8rem;
-}
-
-.hotkey-help-item-title {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  align-items: center;
-  margin-bottom: 0.35rem;
-}
-
-.hotkey-help-example {
-  display: block;
-  margin-top: 0.35rem;
-  font-size: 0.7rem;
-  overflow-x: auto;
-  white-space: nowrap;
-  color: var(--text-secondary);
-}
-
-.hotkey-help-safety {
-  margin: 0.35rem 0 0;
-  font-size: 0.72rem;
-  color: #fde047;
+.settings-overlay .form-row button {
+  flex: 0 0 auto;
 }
 
 .form-row {
@@ -653,8 +355,9 @@
   border: 1px solid var(--border-color);
 }
 
-.btn-secondary:hover {
-  background: var(--border-color);
+.btn-secondary:hover:not(:disabled) {
+  background: var(--hover-bg, var(--border-color));
+  border-color: var(--nova-border-strong, var(--border-color));
   color: var(--text-primary);
 }
 
@@ -708,378 +411,240 @@
   transition: color 0.05s ease;
 }
 
-/* Phase G3 — Nova Actions + Trading quick-bar */
-.nova-actions-table {
-  margin-top: 1rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--border-color);
-}
+/* Hot Keys editor, DAS import manager and cheat-sheet: hotkeys/hotkeys.css */
 
-.nova-actions-table-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
+/* ── Settings form controls: one look for every section ──────────────────
+   Scoped to the sheet so the scanner's legacy .form-group chrome stays put. */
 
-.nova-action-depth-disabled {
-  opacity: 0.65;
-}
-
-.nova-defaults-help {
-  margin: 0.75rem 0 1rem;
-  padding: 0.75rem;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-}
-
-
-/* Quick Trades row: ibkr/tradeTicketCompact.css (.nova-qt). */
-
-.map-das-preview {
-  margin: 0.75rem 0;
-  font-size: 0.85rem;
-}
-
-.map-das-preview > div {
-  display: grid;
-  grid-template-columns: 7rem 1fr;
-  gap: 0.35rem 0.75rem;
-  margin-bottom: 0.35rem;
-}
-
-.map-das-preview dt {
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-.map-das-preview dd {
-  margin: 0;
-}
-
-/* Shortcuts cheat-sheet styles live in styles/shortcuts-menu.css */
-
-/* ── Webull-style Hot Keys landing + settings shell ───────────────────────── */
-
-.hk-landing-subtitle {
-  margin: -0.35rem 0 0.85rem;
-  font-size: 0.82rem;
-  color: var(--text-secondary);
-}
-
-.hk-landing-cta-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.85rem;
-}
-
-.hk-landing-list {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 1rem;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  max-height: 280px;
-  overflow-y: auto;
-}
-
-.hk-landing-row {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.45rem 0.65rem;
-  border: 0;
-  border-bottom: 1px solid var(--border-color);
-  background: transparent;
-  color: var(--text-primary);
+.settings-overlay-content input:not([type='checkbox']),
+.settings-overlay-content select,
+.settings-overlay-content textarea {
+  box-sizing: border-box;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--nova-border, var(--border-color));
+  border-radius: 6px;
+  background: var(--nova-raised, #2c2c2e);
+  color: var(--nova-text, var(--text-primary));
   font: inherit;
-  font-size: 0.8rem;
-  text-align: left;
+  font-size: 12px;
+  line-height: 24px;
+  transition: border-color 0.12s;
+}
+
+.settings-overlay-content textarea {
+  height: auto;
+  min-height: 72px;
+  padding: 6px 8px;
+  line-height: 1.4;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  resize: vertical;
+}
+
+.settings-overlay-content input:not([type='checkbox']):focus,
+.settings-overlay-content select:focus,
+.settings-overlay-content textarea:focus {
+  outline: none;
+  border-color: var(--nova-accent, var(--accent-color));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--nova-accent, var(--accent-color)) 25%, transparent);
+}
+
+.settings-overlay-content input:read-only:not([type='checkbox']),
+.settings-overlay-content input:disabled,
+.settings-overlay-content select:disabled {
+  opacity: 0.6;
+}
+
+.settings-overlay-content input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--nova-accent, var(--accent-color));
+}
+
+.settings-overlay-content .form-group {
+  gap: 4px;
+}
+
+/* Field labels sit one step under the 11 px block titles. */
+.settings-overlay-content .form-group > label,
+.settings-overlay-content .sensor-board-symbol > span {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--nova-text-muted, var(--text-secondary));
+}
+
+.settings-overlay-content .form-hint {
+  opacity: 1;
+  font-size: 12px;
+}
+
+.settings-overlay .exchange-filter-btn {
+  height: 26px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+/* ── Buttons: primary is the only filled one ─────────────────────────────── */
+
+.btn-primary {
+  background: var(--nova-accent, var(--accent-color));
+  color: #fff;
+  border: 1px solid transparent;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover, var(--nova-accent));
+}
+
+.btn-danger {
+  background: transparent;
+  color: var(--nova-danger, var(--danger));
+  border: 1px solid color-mix(in srgb, var(--nova-danger, var(--danger)) 45%, transparent);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--nova-danger, var(--danger)) 12%, transparent);
+}
+
+.btn-secondary.active {
+  border-color: var(--nova-accent, var(--accent-color));
+  color: var(--nova-accent, var(--accent-color));
+}
+
+.settings-overlay .btn-primary,
+.settings-overlay .btn-secondary,
+.settings-overlay .btn-danger {
+  appearance: none;
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
   cursor: pointer;
 }
 
-.hk-landing-list li:last-child .hk-landing-row {
+.settings-overlay .btn-primary {
+  font-weight: 600;
+}
+
+.settings-overlay .btn-primary:disabled,
+.settings-overlay .btn-secondary:disabled,
+.settings-overlay .btn-danger:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── Alerts ──────────────────────────────────────────────────────────────── */
+
+.settings-alerts .alert-channel-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 520px;
+  margin-bottom: 16px;
+}
+
+.settings-alerts .alert-channel-form .form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.settings-alerts .form-error,
+.settings-alerts .alert-status-warning {
+  margin: 0 0 8px;
+  font-size: 12px;
+}
+
+.settings-alerts .form-error {
+  color: var(--nova-danger, var(--danger));
+}
+
+.settings-alerts .alert-status-warning {
+  color: #eab308;
+}
+
+.settings-alerts .checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--nova-text, var(--text-primary));
+  cursor: pointer;
+}
+
+.settings-alerts .form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.alert-channel-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--nova-border, var(--border-color));
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.alert-channel-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--nova-border, var(--border-color));
+}
+
+.alert-channel-item:last-child {
   border-bottom: 0;
 }
 
-.hk-landing-row:hover {
-  background: rgba(255, 255, 255, 0.04);
+.alert-channel-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
 }
 
-.hk-landing-chord {
+.alert-channel-secrets {
+  grid-column: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.72rem;
-  background: var(--bg-secondary, #1a1a1a);
-  border: 1px solid var(--border-color);
-  border-radius: 3px;
-  padding: 0.05rem 0.35rem;
-  min-width: 3.5rem;
-  text-align: center;
+  color: var(--nova-text-muted, var(--text-secondary));
 }
 
-.hk-advanced-das {
-  margin-top: 1rem;
-  border-top: 1px solid var(--border-color);
-  padding-top: 0.75rem;
+.alert-channel-item .form-actions {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
 }
 
-.hk-advanced-das-summary {
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 0.85rem;
-  margin-bottom: 0.5rem;
-}
-
-.hk-settings-backdrop {
-  z-index: 90;
-}
-
-.hk-create-backdrop {
-  z-index: 100;
-}
-
-.hk-settings-dialog,
-.hk-create-dialog {
-  background: var(--bg-primary, #111);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  width: min(860px, 100%);
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.hk-create-dialog {
-  width: min(420px, 100%);
-  padding: 0 0 0.75rem;
-}
-
-.hk-dialog-header {
-  display: flex;
-  justify-content: space-between;
+.badge {
+  display: inline-flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.hk-dialog-header h3 {
-  margin: 0;
-  font-size: 1rem;
-}
-
-.hk-dialog-close {
-  border: 0;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 1.35rem;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0.15rem 0.4rem;
-}
-
-.hk-settings-body {
-  display: grid;
-  grid-template-columns: minmax(200px, 280px) 1fr;
-  gap: 0;
-  min-height: 360px;
-  max-height: calc(90vh - 8rem);
-  overflow: hidden;
-}
-
-.hk-settings-list-pane {
-  border-right: 1px solid var(--border-color);
-  overflow-y: auto;
-  padding: 0.5rem 0;
-}
-
-.hk-settings-list-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.25rem 0.75rem 0.5rem;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.hk-settings-add {
-  width: 1.6rem;
-  height: 1.6rem;
+  height: 16px;
+  padding: 0 6px;
+  border: 1px solid var(--nova-border, var(--border-color));
   border-radius: 4px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-secondary, #1a1a1a);
-  color: var(--text-primary);
-  font-size: 1.1rem;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.hk-settings-group-label {
-  padding: 0.35rem 0.75rem;
-  font-size: 0.7rem;
-  text-transform: uppercase;
+  font-size: 10px;
+  font-weight: 600;
   letter-spacing: 0.04em;
-  color: var(--text-secondary);
+  text-transform: uppercase;
+  color: var(--nova-text-muted, var(--text-secondary));
 }
 
-.hk-settings-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.hk-settings-list-item {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.4rem 0.75rem;
-  border: 0;
-  background: transparent;
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 0.78rem;
-  text-align: left;
-  cursor: pointer;
-}
-
-.hk-settings-list-item.is-selected,
-.hk-settings-list-item:hover {
-  background: rgba(59, 130, 246, 0.12);
-}
-
-.hk-settings-list-item kbd {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.68rem;
-  color: var(--text-secondary);
-}
-
-.hk-settings-detail-pane {
-  padding: 0.85rem 1rem;
-  overflow-y: auto;
-}
-
-.hk-settings-detail-title {
-  margin: 0 0 0.25rem;
-  font-size: 1rem;
-}
-
-.hk-settings-detail-desc {
-  margin: 0 0 0.85rem;
-  font-size: 0.78rem;
-}
-
-.hk-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  margin-bottom: 0.75rem;
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-}
-
-.hk-field input,
-.hk-field select {
-  background: var(--bg-secondary, #1a1a1a);
-  border: 1px solid var(--border-color);
-  color: var(--text-primary);
-  padding: 0.4rem 0.5rem;
-  font-size: 0.85rem;
-  border-radius: 4px;
-  font-family: inherit;
-}
-
-.hk-field-grow {
-  flex: 1;
-}
-
-.hk-qty-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-}
-
-.hk-qty-unit {
-  font-size: 1.1rem;
-  padding-bottom: 0.45rem;
-  opacity: 0.55;
-}
-
-.hk-qty-unit.is-active {
-  opacity: 1;
-  color: var(--accent-color);
-}
-
-.hk-check-row {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  margin-bottom: 0.5rem;
-  font-size: 0.8rem;
-  color: var(--text-primary);
-}
-
-.hk-dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  border-top: 1px solid var(--border-color);
-}
-
-.hk-create-dialog .hk-field,
-.hk-create-dialog .hk-side-toggle {
-  margin-left: 1rem;
-  margin-right: 1rem;
-}
-
-.hk-side-toggle {
-  display: flex;
-  gap: 0;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  overflow: hidden;
-  width: fit-content;
-}
-
-.hk-side-toggle button {
-  border: 0;
-  padding: 0.4rem 1rem;
-  font: inherit;
-  font-size: 0.8rem;
-  cursor: pointer;
-  background: var(--bg-secondary, #1a1a1a);
-  color: var(--text-secondary);
-}
-
-.hk-side-buy.is-active {
-  background: rgba(34, 197, 94, 0.25);
-  color: #86efac;
-  font-weight: 600;
-}
-
-.hk-side-sell.is-active {
-  background: rgba(239, 68, 68, 0.25);
-  color: #fca5a5;
-  font-weight: 600;
-}
-
-@media (max-width: 700px) {
-  .hk-settings-body {
-    grid-template-columns: 1fr;
-  }
-
-  .hk-settings-list-pane {
-    border-right: 0;
-    border-bottom: 1px solid var(--border-color);
-    max-height: 180px;
-  }
+.badge-ok {
+  color: var(--nova-success, var(--success));
+  border-color: color-mix(in srgb, var(--nova-success, var(--success)) 45%, transparent);
 }
 

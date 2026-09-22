@@ -84,7 +84,7 @@ export function PracticeResetAction({ venue }: { venue: PracticeVenue }) {
       </div>
       <button
         type="button"
-        className="practice-reset__button"
+        className="btn-secondary practice-reset__button"
         disabled={busy}
         onClick={() => void reset()}
         data-testid={`practice-reset-button-${venue}`}

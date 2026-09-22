@@ -1,26 +1,20 @@
 /**
- * Settings → Hot Keys landing (Webull-style shell).
- * Opens Hotkeys Settings manager; DAS import stays under Advanced.
+ * Settings > Hot Keys: the Nova Actions editor inline in the section, the
+ * active automation shortcuts under it, and the DAS import under Advanced.
  */
 
 import { useMemo, useState } from 'react';
-import {
-  HOTKEYS_LANDING_SUBTITLE,
-  HOTKEYS_LANDING_TITLE,
-  HOTKEYS_SETTINGS_CTA,
-  HOTKEYS_SETTINGS_RESET,
-} from '../constants';
+import { HOTKEYS_SECTION_SUBTITLE, HOTKEYS_SECTION_TITLE } from '../constants';
 import { HotkeyHelpCatalog } from './HotkeyHelpCatalog';
 import { HotkeysDasAdvanced } from './HotkeysDasAdvanced';
-import { HotkeysLandingList } from './HotkeysLandingList';
-import { HotkeysSettingsDialog } from './HotkeysSettingsDialog';
+import { HotkeysSettingsEditor } from './HotkeysSettingsEditor';
 import { formatKeyChord } from './htkFormat';
 import { NovaActiveShortcuts } from './NovaActiveShortcuts';
 import type { HotkeySortKey } from './HotkeyFilterToolbar';
 import { useHotkeyProfile } from './useHotkeyProfile';
 import type { HotkeyCompatStatus } from './types';
 
-export function HotkeyManager() {
+export function HotkeyManager({ onDone }: { onDone?: () => void }) {
   const {
     profile,
     analysisById,
@@ -41,8 +35,6 @@ export function HotkeyManager() {
     deleteNovaAction,
   } = useHotkeyProfile();
 
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsFocusId, setSettingsFocusId] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<HotkeySortKey>('name');
@@ -97,41 +89,23 @@ export function HotkeyManager() {
     URL.revokeObjectURL(url);
   };
 
-  function openSettings(focusId?: string | null) {
-    setSettingsFocusId(focusId ?? null);
-    setSettingsOpen(true);
-  }
-
   if (showHelp) {
     return <HotkeyHelpCatalog onClose={() => setShowHelp(false)} />;
   }
 
   return (
-    <div className="hotkey-manager panel settings-panel hk-landing" data-testid="hotkeys-landing">
-      <h2 className="panel-title">{HOTKEYS_LANDING_TITLE}</h2>
-      <p className="hk-landing-subtitle">{HOTKEYS_LANDING_SUBTITLE}</p>
-
-      <div className="hk-landing-cta-row">
-        <button
-          type="button"
-          className="btn-primary"
-          data-testid="hotkeys-settings-cta"
-          onClick={() => openSettings(null)}
-        >
-          {HOTKEYS_SETTINGS_CTA}
-        </button>
-        <button
-          type="button"
-          className="btn-secondary"
-          onClick={restoreNovaDefaults}
-        >
-          {HOTKEYS_SETTINGS_RESET}
-        </button>
+    <div className="hk-section" data-testid="hotkeys-section">
+      <div className="hk-section-head">
+        <h3 className="settings-block-title">{HOTKEYS_SECTION_TITLE}</h3>
+        <p className="settings-block-hint">{HOTKEYS_SECTION_SUBTITLE}</p>
       </div>
 
-      <HotkeysLandingList
+      <HotkeysSettingsEditor
         actions={profile.novaActions}
-        onOpenAction={(id) => openSettings(id)}
+        onChange={setNovaActions}
+        onRestoreDefaults={restoreNovaDefaults}
+        onDelete={deleteNovaAction}
+        onDone={onDone}
       />
 
       <NovaActiveShortcuts />
@@ -164,17 +138,6 @@ export function HotkeyManager() {
         confirmImportReplace={confirmImportReplace}
         cancelImport={cancelImport}
       />
-
-      {settingsOpen && (
-        <HotkeysSettingsDialog
-          actions={profile.novaActions}
-          initialSelectedId={settingsFocusId}
-          onChange={setNovaActions}
-          onRestoreDefaults={restoreNovaDefaults}
-          onDelete={deleteNovaAction}
-          onClose={() => setSettingsOpen(false)}
-        />
-      )}
     </div>
   );
 }

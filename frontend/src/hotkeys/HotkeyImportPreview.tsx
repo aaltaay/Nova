@@ -25,7 +25,7 @@ export function HotkeyImportPreview({ preview, onConfirm, onCancel }: Props) {
         </ul>
       )}
       <div className="form-row">
-        <button type="button" onClick={onConfirm}>
+        <button type="button" className="btn-primary" onClick={onConfirm}>
           Replace profile
         </button>
         <button type="button" className="btn-secondary" onClick={onCancel}>
