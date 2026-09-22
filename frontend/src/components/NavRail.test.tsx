@@ -217,8 +217,7 @@ describe('NavRail', () => {
     const onEvent = (e: Event) => seen.push((e as CustomEvent<{ tab: string }>).detail.tab);
     window.addEventListener('nova:nav-rail-select-tab', onEvent);
     render({ traderActive: true });
-    // Folded off the Scanner view -- unfold, then pick Gainers.
-    click('nav-rail-scanner-chevron');
+    // The tree is open on every view (operator ask, 2026-09-22): pick Gainers straight away.
     click('nav-rail-tab-gainers');
     window.removeEventListener('nova:nav-rail-select-tab', onEvent);
     expect(onLeaveTrader).toHaveBeenCalled();
@@ -243,8 +242,7 @@ describe('NavRail', () => {
     expect(getNavPage()).toBe('records');
     expect(q('nav-rail-records')!.classList.contains('is-active')).toBe(true);
     expect(q('nav-rail-desk')!.classList.contains('is-active')).toBe(false);
-    // Off the Scanner view the tree is folded; unfold, then a child returns the shell to the dashboard.
-    click('nav-rail-scanner-chevron');
+    // The tree stays open off the Scanner view; a child returns the shell to the dashboard.
     click('nav-rail-tab-losers');
     expect(getNavPage()).toBe('dashboard');
     expect(consumeScannerTabRequest()).toBe('losers');
@@ -268,15 +266,15 @@ describe('NavRail', () => {
     expect(consumeScannerTabRequest()).toBeNull();
   });
 
-  it('expands the tree on the Scanner view and folds it elsewhere until the operator chooses', () => {
+  it('keeps the tree open on every view until the operator folds it (2026-09-22)', () => {
     render();
     expect(q('nav-rail-scanner-tree')).toBeTruthy();
     expect(q('nav-rail-scanner')!.getAttribute('aria-expanded')).toBe('true');
     act(() => {
       setNavPage('desk');
     });
-    expect(q('nav-rail-scanner-tree')).toBeNull();
-    expect(q('nav-rail')!.classList.contains('nav-rail--folded')).toBe(true);
+    expect(q('nav-rail-scanner-tree')).toBeTruthy();
+    expect(q('nav-rail')!.classList.contains('nav-rail--folded')).toBe(false);
     expect(localStorage.getItem(NAV_RAIL_STORAGE_KEY)).toBeNull();
   });
 
@@ -320,44 +318,43 @@ describe('NavRail', () => {
     expect(q('nav-rail-scanner')!.classList.contains('is-active')).toBe(true);
   });
 
-  it('starts collapsed on the Desk and expanded elsewhere until the operator chooses; the choice then wins everywhere', () => {
+  it('shows labels on every view until the operator collapses it; that choice then wins everywhere (2026-09-22)', () => {
     render();
     expect(q('nav-rail')!.getAttribute('data-collapsed')).toBe('false');
     act(() => {
       setNavPage('desk');
     });
-    expect(q('nav-rail')!.classList.contains('nav-rail--collapsed')).toBe(true);
-    expect(q('nav-rail-collapse')!.getAttribute('aria-pressed')).toBe('true');
+    expect(q('nav-rail')!.classList.contains('nav-rail--collapsed')).toBe(false);
+    expect(q('nav-rail-collapse')!.getAttribute('aria-pressed')).toBe('false');
     // A view default is not a choice: nothing is written.
     expect(localStorage.getItem(NAV_RAIL_STORAGE_KEY)).toBeNull();
-    // The full Trader on top of the Desk page is the Trader: labels again.
     render({ traderActive: true });
     expect(q('nav-rail')!.getAttribute('data-collapsed')).toBe('false');
+    // Collapsing is a choice that persists and follows the operator to other views.
     render({ traderActive: false });
-    expect(q('nav-rail')!.getAttribute('data-collapsed')).toBe('true');
-    // Expanding on the Desk is a choice that persists and follows the operator to other views.
     click('nav-rail-collapse');
-    expect(q('nav-rail')!.getAttribute('data-collapsed')).toBe('false');
+    expect(q('nav-rail')!.getAttribute('data-collapsed')).toBe('true');
     expect(JSON.parse(localStorage.getItem(NAV_RAIL_STORAGE_KEY)!)).toEqual({
-      schema_version: NAV_RAIL_SCHEMA_VERSION, collapsed: false, scannerFolded: null,
+      schema_version: NAV_RAIL_SCHEMA_VERSION, collapsed: true, scannerFolded: null,
     });
     act(() => {
       setNavPage('records');
     });
-    expect(q('nav-rail')!.getAttribute('data-collapsed')).toBe('false');
+    expect(q('nav-rail')!.getAttribute('data-collapsed')).toBe('true');
     act(() => {
-      setNavPage('desk');
+      setNavPage('dashboard');
     });
-    expect(q('nav-rail')!.getAttribute('data-collapsed')).toBe('false');
+    expect(q('nav-rail')!.getAttribute('data-collapsed')).toBe('true');
   });
 
-  it('migrates a v1 payload: collapsed true stays a choice, false becomes "not chosen" so the Desk default applies', () => {
+  it('migrates a v1 payload: collapsed true stays a choice, false becomes "not chosen" so the default (labels) applies', () => {
     localStorage.setItem(NAV_RAIL_STORAGE_KEY, JSON.stringify({ schema_version: 1, collapsed: false, scannerFolded: true }));
     act(() => {
       setNavPage('desk');
     });
     render();
-    expect(q('nav-rail')!.classList.contains('nav-rail--collapsed')).toBe(true);
+    // v1 `collapsed: false` is "not chosen": the default (labels) applies; the fold choice is kept.
+    expect(q('nav-rail')!.classList.contains('nav-rail--collapsed')).toBe(false);
     expect(q('nav-rail')!.classList.contains('nav-rail--folded')).toBe(true);
     act(() => {
       root.unmount();

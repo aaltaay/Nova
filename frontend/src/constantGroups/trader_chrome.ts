@@ -133,7 +133,6 @@ export const QUICK_TRADES_SELL_ALL_LABEL = 'Sell all';
 export const FOCUS_RAIL_TITLE = 'Focus';
 export const FOCUS_RAIL_ARIA = 'Focus list';
 export const FOCUS_RAIL_PICK_ARIA = 'Mirror a scanner list';
-export const FOCUS_RAIL_OPEN_SCANNER = 'Open Scanner';
 export const FOCUS_RAIL_COLLAPSE = 'Collapse focus list';
 export const FOCUS_RAIL_EXPAND = 'Expand focus list';
 export const FOCUS_RAIL_FOOTER_KEYS = '↑ ↓';

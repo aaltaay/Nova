@@ -54,8 +54,8 @@ describe('navRailStore', () => {
     expect(getNavRailSnapshot().scanner.lastListTab).toBe('losers');
   });
 
-  it('collapses the rail to icons on the Desk only, and not while the full Trader is on top of it', () => {
-    expect(navRailCollapsedDefault('desk', false)).toBe(true);
+  it('never collapses the rail by default -- labels on every view (operator ask, 2026-09-22)', () => {
+    expect(navRailCollapsedDefault('desk', false)).toBe(false);
     expect(navRailCollapsedDefault('desk', true)).toBe(false);
     expect(navRailCollapsedDefault('dashboard', false)).toBe(false);
     expect(navRailCollapsedDefault('records', false)).toBe(false);

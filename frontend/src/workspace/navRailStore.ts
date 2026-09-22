@@ -140,11 +140,11 @@ export function useNavPage(): NavPage {
 
 /**
  * Rail collapse while the operator has not chosen (navRailPersist `collapsed:
- * null`): icons on the Desk, where the board needs the width; labels on every
- * other view. Trader on top of the Desk page is the full Trader, not the Desk.
+ * null`): labels on every view (operator ask, 2026-09-22 -- "make this show by
+ * default"). Collapsing to icons is always the operator's own click, persisted.
  */
-export function navRailCollapsedDefault(page: NavPage, traderActive: boolean): boolean {
-  return page === 'desk' && !traderActive;
+export function navRailCollapsedDefault(_page: NavPage, _traderActive: boolean): boolean {
+  return false;
 }
 
 /** Test helper. */

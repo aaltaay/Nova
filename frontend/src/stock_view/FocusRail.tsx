@@ -2,7 +2,7 @@
  * Focus list rail (approved redesign rev. 2 / 7): a collapsible ~220 px strip
  * between the navigation rail and the charts that mirrors any scanner list.
  * Header `FOCUS · <list> N ▾` (the caret picks a scanner tab module from the
- * registry), `Open Scanner`, collapse chevron. Rows: REC dot, bot dot (filled
+ * registry), collapse chevron (the rail already leads to the Scanner). Rows: REC dot, bot dot (filled
  * = allowlisted and this desk holds the depth line -- a live Trader tab or a
  * recording; hollow = allowlisted, quiet), symbol, price, signed gap, catalyst
  * chip or `no news`. ↑ ↓ cycle, Enter opens. Data is the live scanner feed
@@ -23,7 +23,6 @@ import {
   FOCUS_RAIL_FOOTER_KEYS,
   FOCUS_RAIL_FOOTER_OPENS,
   FOCUS_RAIL_NO_FEED,
-  FOCUS_RAIL_OPEN_SCANNER,
   FOCUS_RAIL_PICK_ARIA,
   FOCUS_RAIL_REC_TITLE,
   FOCUS_RAIL_TITLE,
@@ -34,7 +33,6 @@ import {
 import { useLiveScannerFeedOptional } from '../scanner/ScannerDataContext';
 import { useSettingsOptional } from '../settings/SettingsContext';
 import { listTabModules } from '../workspace/registry';
-import { writePersistedScannerTab } from '../workspace/scannerActiveTabPersist';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
   focusRowsFor, readFocusRailState, stepCursor, writeFocusRailState, type FocusRailState,
@@ -45,7 +43,7 @@ import './focusRail.css';
 export function FocusRail() {
   const feed = useLiveScannerFeedOptional();
   const settings = useSettingsOptional();
-  const { activeTraderSymbol, traderLiveTabs, openStockView, showScannerView } = useWorkspace();
+  const { activeTraderSymbol, traderLiveTabs, openStockView } = useWorkspace();
   const { isAllowed } = useBotAllowlist();
   useSyncExternalStore(subscribeSessionRecord, () => getRecordingSymbols().join(','), () => '');
   const [state, setState] = useState<FocusRailState>(readFocusRailState);
@@ -105,10 +103,6 @@ export function FocusRail() {
             {modules.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
           </select>
         </label>
-        <button type="button" className="focus-rail__link" data-testid="focus-rail-open-scanner"
-          onClick={() => { writePersistedScannerTab(state.list as Parameters<typeof writePersistedScannerTab>[0]); showScannerView(); }}>
-          {FOCUS_RAIL_OPEN_SCANNER}
-        </button>
         <button type="button" className="focus-rail__collapse" aria-label={FOCUS_RAIL_COLLAPSE} title={FOCUS_RAIL_COLLAPSE}
           data-testid="focus-rail-collapse" onClick={() => update({ collapsed: true })}>
           <ChevronLeft size={14} aria-hidden="true" />
