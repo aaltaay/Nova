@@ -30,30 +30,49 @@ export async function clickThroughOverlay(page: Page, locator: Locator): Promise
   }
 }
 
-/** Rail Account -> Activity section, past docks and the prereq overlay. */
-export async function openAccountActivity(page: Page): Promise<void> {
+/**
+ * Rail Account -> the Account page, past docks and the prereq overlay.
+ * The page is the region named exactly "Account"; its left column is a
+ * second region, "Account Details", so the name must not substring-match.
+ */
+export async function openAccountPage(page: Page): Promise<void> {
   const account = page.getByTestId('nav-rail-account');
   await expect(account).toBeVisible();
   await dismissTradingPrereqIfOpen(page, 8000);
   await clickThroughOverlay(page, account);
-  await expect(page.getByRole('region', { name: 'Account' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Account', exact: true })).toBeVisible();
   await dismissTradingPrereqIfOpen(page, 2000);
+}
+
+/**
+ * The old Account module (Overview / Reports / Activity / Latency section
+ * nav) is hosted under the page's Reports tab on every venue and under
+ * Broker snapshot on Live only, so Reports is the door that always exists.
+ */
+export async function openHostedAccountModule(page: Page): Promise<void> {
+  const reportsTab = page.getByTestId('account-page-tab-reports');
+  await expect(reportsTab).toBeVisible();
+  await clickThroughOverlay(page, reportsTab);
+  await expect(page.getByTestId('account-section-reports')).toBeVisible();
+}
+
+/** Rail Account -> Reports tab -> Activity section, past docks and the prereq overlay. */
+export async function openAccountActivity(page: Page): Promise<void> {
+  await openAccountPage(page);
+  await openHostedAccountModule(page);
   const activity = page.getByTestId('account-section-activity');
   await expect(activity).toBeVisible();
   await clickThroughOverlay(page, activity);
   await expect(page.getByTestId('activity-trail')).toBeVisible();
 }
 
-/** Rail Account -> Reports section, past docks and the prereq overlay. */
+/** Rail Account -> Reports tab (the Reports section is its initial section). */
 export async function openAccountReports(page: Page): Promise<void> {
-  const account = page.getByTestId('nav-rail-account');
-  await expect(account).toBeVisible();
-  await dismissTradingPrereqIfOpen(page, 8000);
-  await clickThroughOverlay(page, account);
-  await expect(page.getByRole('region', { name: 'Account' })).toBeVisible();
-  await dismissTradingPrereqIfOpen(page, 2000);
-  const reports = page.getByTestId('account-section-reports');
-  await expect(reports).toBeVisible();
-  await clickThroughOverlay(page, reports);
+  await openAccountPage(page);
+  await openHostedAccountModule(page);
+  await expect(page.getByTestId('account-section-reports')).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
   await expect(page.getByTestId('reports-import')).toBeVisible();
 }
