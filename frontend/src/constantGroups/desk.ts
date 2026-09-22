@@ -7,7 +7,7 @@
 
 /* ── Layout ─────────────────────────────────────────────────────────────── */
 
-/** Board column width; the Trader workspace to its right flexes (desk/desk.css). */
+/** Board column width, its padding included (the board sits inside it); the Trader workspace to its right flexes (desk/desk.css). */
 export const DESK_BOARD_WIDTH_PX = 640;
 /**
  * At or below this viewport width the board steps down (compact columns, Float
@@ -60,6 +60,12 @@ export const DESK_ACTION_RECORD = 'Record';
 export const DESK_ACTION_STOP_RECORD = 'Stop rec';
 export const DESK_ACTION_ALLOWLIST = 'Allowlist';
 export const DESK_ACTION_UNLIST = 'Unlist';
+/** Short labels the narrow board (<= 1600 px) shows, so the hover actions stay
+ *  inside Catalyst + State; the full label stays the accessible name (QA V37). */
+export const DESK_ACTION_RECORD_SHORT = 'Rec';
+export const DESK_ACTION_STOP_RECORD_SHORT = 'Stop';
+export const DESK_ACTION_ALLOWLIST_SHORT = 'Allow';
+export const DESK_ACTION_UNLIST_SHORT = 'Unlist';
 export const DESK_ACTION_RECORD_TITLE = 'Start a Session Record for this symbol';
 export const DESK_ACTION_STOP_RECORD_TITLE = 'Stop recording this symbol';
 export const DESK_ACTION_ALLOWLIST_TITLE = 'Let the bot act on this symbol';
