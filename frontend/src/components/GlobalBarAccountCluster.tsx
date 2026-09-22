@@ -5,6 +5,10 @@
  * practice ledger, which is THE account there even though Paper runs on the
  * live Gateway (ADR 020). Separate from the GATEWAY market-data chip -- never
  * label "IBKR offline" while Gateway is up (globalBarAccountChrome).
+ *
+ * The venue is the status's own `venue` (C26); the sample desk shows only the
+ * Nova Marketing Sample Data summary its provider hands in and never polls a
+ * practice account (V4). Hover opens a card, a click pins it (V15).
  */
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ClosedOrder } from '../closed_orders/types';
@@ -27,20 +31,26 @@ import {
   practiceDayPnlTitle,
   practiceTavTitle,
 } from '../constantGroups/practice';
+import { resolveDeskVenue } from '../ibkr/deskVenue';
 import type { IbkrAccountSummary, IbkrMode, IbkrOrder } from '../ibkr/types';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { isPracticeVenue } from '../practice/practiceAccountModel';
 import { usePracticeAccount } from '../practice/practiceAccountResource';
+import { useSampleRoute } from '../sample_data/useSampleRoute';
 import { AccountPillButton, AccountPillMenu } from './GlobalBarAccountPill';
 import { DayPnlButton, DayPnlCard } from './GlobalBarDayPnl';
 import { TavButton, TavCard } from './GlobalBarTav';
 import { GlobalWorkingMenu } from './GlobalWorkingMenu';
 import { resolvePracticeChromeState, type AccountChromeState } from './globalBarAccountChrome';
+import {
+  CLUSTER_MENU_CLOSED,
+  clusterMenuOnClick,
+  clusterMenuOnHover,
+  type ClusterMenu,
+} from './globalBarMenuToggle';
 import { formatSignedMoney } from './globalBarMoney';
-import { figuresFromPractice, figuresFromSummary } from './headerAccountFigures';
+import { figuresFromPractice, figuresFromSummary, formatDayStartEt } from './headerAccountFigures';
 import { headerAccountPillView } from './headerAccountPill';
-
-type ClusterMenu = 'day' | 'tav' | 'working' | 'pill' | null;
 
 interface Props {
   /** IBKR account chrome from GlobalAppBar; the practice venues follow their own poll instead. */
@@ -86,11 +96,18 @@ export function GlobalBarAccountCluster({
   traderActive,
   closeTraderView,
   refresh,
-  venue = null,
+  venue: venueProp = null,
 }: Props) {
   const status = useIbkrStatus();
+  const sampleDesk = useSampleRoute();
+  // The sample desk's account is the sample summary its provider hands in;
+  // its venue never selects a practice poll (V4). Live reads `venue` first (C26).
+  const venue = sampleDesk ? null : resolveDeskVenue(status, venueProp);
   const practice = usePracticeAccount(venue);
-  const [openMenu, setOpenMenu] = useState<ClusterMenu>(null);
+  const [menu, setMenu] = useState(CLUSTER_MENU_CLOSED);
+  const openMenu = menu.open;
+  const setOpenMenu = (next: ClusterMenu | null) =>
+    setMenu(next ? { open: next, pinned: true } : CLUSTER_MENU_CLOSED);
   const wrapRef = useRef<HTMLDivElement>(null);
   const dayCardId = useId();
   const tavCardId = useId();
@@ -100,10 +117,10 @@ export function GlobalBarAccountCluster({
   useEffect(() => {
     if (!openMenu) return;
     const onDoc = (e: MouseEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpenMenu(null);
+      if (!wrapRef.current?.contains(e.target as Node)) setMenu(CLUSTER_MENU_CLOSED);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpenMenu(null);
+      if (e.key === 'Escape') setMenu(CLUSTER_MENU_CLOSED);
     };
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('keydown', onKey);
@@ -130,13 +147,13 @@ export function GlobalBarAccountCluster({
     ? practiceDayPnlTitle(
         formatSignedMoney(ledger.realized_pnl),
         formatSignedMoney(ledger.unrealized_pnl),
-        ledger.day_started_et,
+        formatDayStartEt(ledger.day_started_et),
       )
     : GLOBAL_BAR_DAY_PNL_TITLE;
   const tavTitle = ledger && practiceVenue ? practiceTavTitle(practiceVenue, ledger.account_id) : GLOBAL_BAR_TAV_TITLE;
   const ready = chrome === 'ready';
-  const toggle = (menu: ClusterMenu) => () => setOpenMenu((cur) => (cur === menu ? null : menu));
-  const hover = (menu: ClusterMenu) => () => setOpenMenu(menu);
+  const toggle = (which: ClusterMenu) => () => setMenu((cur) => clusterMenuOnClick(cur, which));
+  const hover = (which: ClusterMenu) => () => setMenu((cur) => clusterMenuOnHover(cur, which));
 
   const pillControl = pill && (
     <>

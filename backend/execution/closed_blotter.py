@@ -1,6 +1,18 @@
-"""Merge IB closed-order replay with the ADR 007 ledger (Orders Today)."""
+"""Merge IB closed-order replay with the ADR 007 ledger (Orders Today).
+
+The execution ledger is one table for every venue, so the overlay is scoped
+to the desk's own rows (QA V5 / C18 / C53, 2026-09-22). On Paper and Sim the
+practice broker's ledger is the whole truth and nothing is joined or appended
+-- four filled Paper orders used to be listed on Sim as "Inactive, filled 0",
+and a practice id could join another venue's execution row. On Live only rows
+whose ``mode`` stamp matches the Gateway session are eligible. The stamp is
+what the send wrote: the venue for a practice send (``sim/execution.py``),
+the Gateway port label for an IBKR send (``ibkr.client.account_mode``).
+"""
 from __future__ import annotations
 
+import logging
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from constants import (
@@ -10,7 +22,89 @@ from constants import (
 from constants_ibkr import IBKR_CLOSED_ORDER_STATUSES
 from market import ET, session_key_et
 
+logger = logging.getLogger(__name__)
+
 _PLACE_OPS = frozenset({"place", "bracket"})
+_GATEWAY_STAMPS = frozenset({"live", "paper"})
+_PRACTICE_PAPER = "paper"
+_PRACTICE_SIM = "sim"
+# payload.order_type spellings whose requested_price is the limit / the stop.
+_LIMIT_TYPES = frozenset({"LMT", "STPLMT", "LIMIT", "STOPLIMIT"})
+_STOP_TYPES = frozenset({"STP", "TRAIL", "STOP", "TRAILINGSTOP"})
+
+
+@dataclass(frozen=True)
+class DeskLedger:
+    """Which execution-ledger rows belong to the desk right now."""
+
+    practice: bool
+    #: The ``mode`` stamp of this desk's rows; None when it cannot be told.
+    mode: str | None
+
+
+def current_desk() -> DeskLedger:
+    """The settled venue's ledger scope; Live reads the Gateway session's label."""
+    try:
+        from sim.mode import is_practice_venue, venue
+
+        if is_practice_venue():
+            return DeskLedger(practice=True, mode=venue())
+        from ibkr import client as _client
+
+        mode = _client.account_mode()
+    except Exception:
+        logger.exception("closed_blotter: desk venue unavailable -- no ledger rows joined")
+        return DeskLedger(practice=False, mode=None)
+    return DeskLedger(practice=False, mode=mode if mode in _GATEWAY_STAMPS else None)
+
+
+def _practice_paper_stamps() -> set[tuple[int, str]]:
+    """(order_id, nova_placed_at) of every Paper practice order, for the legacy-Gateway case.
+
+    On Live over the by-hand paper Gateway (ADR 020) an IBKR send and a Paper
+    practice send both stamp ``paper``; a practice row's ``nova_placed_at`` is
+    the practice ledger's own stamp, so the pair tells them apart exactly.
+    """
+    try:
+        from practice.broker import for_venue
+
+        ledger = for_venue(_PRACTICE_PAPER).ledger
+        rows = [*ledger.working_orders(), *ledger.closed_orders()]
+    except Exception:
+        logger.exception("closed_blotter: Paper practice ledger unreadable -- paper-stamped rows kept")
+        return set()
+    return {
+        (_as_int(r.get("order_id")), str(r.get("nova_placed_at") or ""))
+        for r in rows
+        if _as_int(r.get("order_id")) > 0
+    }
+
+
+def ledger_rows_for_desk(rows: list[dict], desk: DeskLedger) -> list[dict]:
+    """The execution rows this desk may join or list (none on a practice venue).
+
+    A row with no stamp (older ledgers) stays eligible on Live, as before.
+    """
+    if desk.practice:
+        return []
+    practice_stamps: set[tuple[int, str]] | None = None
+    out: list[dict] = []
+    for row in rows:
+        stamp = str(row.get("mode") or "").strip().lower()
+        if stamp == _PRACTICE_SIM:
+            continue
+        if stamp in _GATEWAY_STAMPS and desk.mode is not None and stamp != desk.mode:
+            continue
+        if stamp == _PRACTICE_PAPER and desk.mode is None:
+            continue
+        if stamp == _PRACTICE_PAPER and desk.mode == _PRACTICE_PAPER:
+            if practice_stamps is None:
+                practice_stamps = _practice_paper_stamps()
+            placed = str((row.get("payload") or {}).get("nova_placed_at") or "")
+            if (_as_int(row.get("order_id")), placed) in practice_stamps:
+                continue
+        out.append(row)
+    return out
 
 
 def session_start_ts(now: datetime | None = None) -> float:
@@ -37,13 +131,22 @@ def overlay_closed_orders(
     *,
     ledger_rows: list[dict] | None = None,
     limit: int | None = None,
+    desk: DeskLedger | None = None,
 ) -> list[dict]:
-    """Heal IB orderId/qty zeros from Nova-placed ledger rows."""
+    """Heal IB orderId/qty zeros from Nova-placed ledger rows of this desk.
+
+    ``ib_rows`` are the venue broker's closed rows. On a practice venue they
+    are the practice ledger's own and come back untouched (capped, newest
+    first); ``desk`` defaults to the settled venue (``current_desk``).
+    """
     cap = IBKR_CLOSED_ORDERS_LIMIT_DEFAULT if limit is None else max(1, int(limit))
-    ledger = [
-        row for row in (ledger_rows if ledger_rows is not None else load_session_ledger())
-        if _matchable_ledger(row)
-    ]
+    scope = desk if desk is not None else current_desk()
+    if scope.practice:
+        rows = [dict(row) for row in ib_rows]
+        rows.sort(key=_sort_key, reverse=True)
+        return rows[:cap]
+    source = ledger_rows if ledger_rows is not None else load_session_ledger()
+    ledger = [row for row in ledger_rows_for_desk(source, scope) if _matchable_ledger(row)]
     unused = list(ledger)
     out: list[dict] = []
     for ib in ib_rows:
@@ -212,6 +315,36 @@ def _iso_from_ts(ts: float) -> str | None:
     )
 
 
+def _leftover_status(led: dict, filled: float) -> str:
+    """The row's closed status; a ledger fill is never "Inactive" (V5).
+
+    The execution ledger's own ``filled`` wins unless the broker reported a
+    different closed status and no fill size was recorded.
+    """
+    broker = str(led.get("broker_status") or "")
+    closed_by_broker = broker in IBKR_CLOSED_ORDER_STATUSES
+    if str(led.get("status") or "") == "filled" and (filled > 0 or not closed_by_broker):
+        return "Filled"
+    if closed_by_broker:
+        return broker
+    return "Filled" if filled > 0 else (broker or "Inactive")
+
+
+def _leftover_prices(payload: dict) -> tuple[float | None, float | None]:
+    """(limit, stop) from the one requested price the ledger keeps (C54).
+
+    ``requested_price`` is the limit when there is one, else the stop (for a
+    TRAIL, the trail amount): a stop is never shown as a limit.
+    """
+    kind = str(payload.get("order_type") or "MKT").upper().replace(" ", "").replace("_", "")
+    price = _as_float(payload.get("requested_price"))
+    if kind in _LIMIT_TYPES:
+        return price, None
+    if kind in _STOP_TYPES:
+        return None, price
+    return None, None
+
+
 def _row_from_ledger(led: dict) -> dict:
     payload = led.get("payload") or {}
     qty = _requested_qty_from_ledger(led) or 0.0
@@ -219,16 +352,12 @@ def _row_from_ledger(led: dict) -> dict:
     side = _ledger_side(led) or "BUY"
     if side not in ("BUY", "SELL"):
         side = "BUY"
-    status = str(led.get("broker_status") or "")
-    ledger_filled = str(led.get("status") or "") == "filled" and filled > 0
-    if ledger_filled:
-        status = "Filled"
-    elif status not in IBKR_CLOSED_ORDER_STATUSES:
-        status = "Filled" if filled > 0 else (status or "Inactive")
     from execution.nova_placed import ledger_placed_iso
 
     iso = ledger_placed_iso(led)
     created_iso = _iso_from_ts(float(led.get("created_ts") or 0))
+    updated_iso = _iso_from_ts(float(led.get("updated_ts") or 0)) or created_iso
+    limit_price, stop_price = _leftover_prices(payload)
     perm = _as_int(led.get("perm_id"))
     return {
         "order_id": _as_int(led.get("order_id")),
@@ -239,14 +368,15 @@ def _row_from_ledger(led: dict) -> dict:
         "filled_qty": filled,
         "remaining_qty": max(qty - filled, 0.0),
         "order_type": str(payload.get("order_type") or "MKT"),
-        "limit_price": payload.get("requested_price"),
-        "stop_price": None,
+        "limit_price": limit_price,
+        "stop_price": stop_price,
         "avg_fill_price": _as_float(led.get("avg_fill_price")) if filled > 0 else None,
         "outside_rth": False,
-        "status": status,
+        "status": _leftover_status(led, filled),
         "submitted_at": iso,
-        "updated_at": created_iso,
-        "filled_at": created_iso if filled > 0 else None,
+        "updated_at": updated_iso,
+        # The ledger keeps no wall-clock fill time; placement is not one (C54).
+        "filled_at": None,
         "held_until": None,
         "source": "nova",
         "execution_id": led.get("id"),

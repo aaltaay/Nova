@@ -14,8 +14,11 @@ import { NOVA_API_KEY_HEADER, NOVA_API_KEY_STORAGE } from '../constantGroups/api
 const refreshIbkrStatusNow = vi.fn();
 const confirmAppMock = vi.fn();
 
+const statusVenue: { venue?: 'live' | 'paper' | 'sim'; mode: string } = { mode: 'disconnected' };
+
 vi.mock('./useIbkrStatus', () => ({
   refreshIbkrStatusNow: () => refreshIbkrStatusNow(),
+  useIbkrStatus: () => statusVenue,
 }));
 
 vi.mock('../ux', () => ({
@@ -254,6 +257,33 @@ describe('GatewayModeCapsule — venue switch', () => {
     expect(hint).toBeTruthy();
     expect(hint!.textContent).toMatch(/switching to live/i);
     expect(container.querySelector('[data-testid="sv-disconnect-hint-cta"]')).toBeNull();
+  });
+
+  it('on the sample desk switches nothing: no confirm, no request, the refusal said (V4)', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    window.history.replaceState({}, '', '/?view=sample');
+    try {
+      render('paper');
+      await click(1);
+      expect(confirmAppMock).not.toHaveBeenCalled();
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(errorText()).toMatch(/Sample desk — venue switching is off/);
+    } finally {
+      window.history.replaceState({}, '', '/');
+    }
+  });
+
+  it('follows the status venue over a Gateway-label mode: Live on the paper Gateway is Live (C26)', () => {
+    statusVenue.venue = 'live';
+    statusVenue.mode = 'paper';
+    try {
+      render('paper', 'paper');
+      expect(seg(1).classList.contains('is-selected')).toBe(true);
+      expect(seg(0).classList.contains('is-selected')).toBe(false);
+    } finally {
+      delete statusVenue.venue;
+      statusVenue.mode = 'disconnected';
+    }
   });
 
   it('drops the disconnect hint once the hinted mode is selected', () => {

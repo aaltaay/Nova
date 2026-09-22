@@ -295,6 +295,8 @@ describe('GlobalAppBar', () => {
 
   it('shows the Paper | Live | Sim venue pills on every view, after the connection chip', () => {
     workspace = baseWorkspace({ ibkrMode: 'paper', ibkrGatewayMode: 'paper', ibkrAccountKind: 'paper' });
+    // The pills follow the status's own venue (ADR 020, QA C26); the workspace mode agrees here.
+    status.current = baseStatus({ mode: 'paper', venue: 'paper', broker_account_kind: 'paper' });
     renderBar();
     const capsule = container.querySelector('[data-testid="header-gateway-mode-capsule"]');
     expect(capsule).toBeTruthy();

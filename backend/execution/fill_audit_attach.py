@@ -5,6 +5,12 @@ Invalidation: process-lifetime store + session ledger nova_placed_at / created_t
 schema_version: 1 -- public payload is a subset of fill_audit SCHEMA_VERSION.
 
 Never invent milliseconds. Collapsed ledger clocks (place == fill) stay blank.
+
+Order ids are not unique across venues -- practice ids restart at 1 per venue
+and per reset -- so the join is scoped (QA C53, 2026-09-22): the placed-at
+index holds only this desk's execution rows (closed_blotter.ledger_rows_for_desk),
+a remembered audit is used only when its symbol and venue stamp match the row,
+and a practice row times itself from its own ``nova_placed_at``.
 """
 from __future__ import annotations
 
@@ -157,17 +163,47 @@ def _clocks_usable(
     return not same_clock_instant(placed, end)
 
 
+_PRACTICE_VENUES = frozenset({"paper", "sim"})
+
+
+def _is_practice_row(row: dict[str, Any]) -> bool:
+    return str(row.get("venue") or "") in _PRACTICE_VENUES or row.get("fill_estimated") is True
+
+
+def _same_order(stored: dict[str, Any], row: dict[str, Any], expect_mode: str | None) -> bool:
+    """A remembered audit is this row's only when symbol and venue stamp agree (C53)."""
+    symbol = str(row.get("symbol") or "").strip().upper()
+    stored_symbol = str(stored.get("symbol") or "").strip().upper()
+    if symbol and stored_symbol and symbol != stored_symbol:
+        return False
+    mode = str(row.get("mode") or expect_mode or "").strip().lower()
+    stored_mode = str(stored.get("mode") or "").strip().lower()
+    return not (mode and stored_mode and mode != stored_mode)
+
+
 def resolve_fill_audit(
     row: dict[str, Any],
     placed_index: dict[tuple[str, int], str] | None = None,
+    expect_mode: str | None = None,
 ) -> dict[str, Any] | None:
-    """Build the public fill_audit object, or None when clocks are incomplete."""
+    """Build the public fill_audit object, or None when clocks are incomplete.
+
+    ``expect_mode`` is the desk's execution ``mode`` stamp for rows that carry
+    none (IBKR rows); practice rows carry their own.
+    """
     oid = _as_int(row.get("order_id"))
     perm = _as_int(row.get("perm_id"))
     stored, stored_placed = lookup_fill_audit(oid or None, perm or None)
+    if stored is not None and not _same_order(stored, row, expect_mode):
+        stored, stored_placed = None, None
     idx = placed_index or {}
+    own_placed = str(row.get("nova_placed_at") or "") or None if _is_practice_row(row) else None
+    if own_placed and stored_placed and stored_placed != own_placed:
+        # Same venue, same id, another order: a reset or a Sim unwind (R14).
+        stored, stored_placed = None, None
     placed = (
-        stored_placed
+        own_placed
+        or stored_placed
         or idx.get(("order", oid) if oid > 0 else ("order", 0))
         or idx.get(("perm", perm) if perm > 0 else ("perm", 0))
     )
@@ -220,8 +256,14 @@ def attach_fill_audit(
     rows: list[dict],
     *,
     ledger_rows: list[dict] | None = None,
+    desk: Any = None,
 ) -> list[dict]:
-    """Copy rows and set ``fill_audit`` (object or null). Never scrapes JSONL."""
+    """Copy rows and set ``fill_audit`` (object or null). Never scrapes JSONL.
+
+    ``desk`` (a ``closed_blotter.DeskLedger``) defaults to the settled venue.
+    """
+    from execution.closed_blotter import current_desk, ledger_rows_for_desk
+
     ledgers = ledger_rows
     if ledgers is None:
         try:
@@ -231,10 +273,11 @@ def attach_fill_audit(
         except Exception:
             logger.exception("fill_audit_attach: session ledger read failed")
             ledgers = []
-    index = placed_index_from_ledger(ledgers)
+    scope = desk if desk is not None else current_desk()
+    index = placed_index_from_ledger(ledger_rows_for_desk(ledgers, scope))
     out: list[dict] = []
     for row in rows:
         copy = dict(row)
-        copy["fill_audit"] = resolve_fill_audit(copy, index)
+        copy["fill_audit"] = resolve_fill_audit(copy, index, scope.mode)
         out.append(copy)
     return out

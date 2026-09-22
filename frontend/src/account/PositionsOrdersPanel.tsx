@@ -29,9 +29,12 @@ import {
   ACCOUNT_POS_TAB_FILLS,
   ACCOUNT_POS_TAB_ORDERS,
   ACCOUNT_POS_TAB_POSITIONS,
+  ACCOUNT_PRICE_NONE,
+  ACCOUNT_PRICE_NONE_TITLE,
   type AccountOrderFilter,
 } from '../constantGroups/account_page';
-import { formatOrderStatus } from '../ibkr/orderDisplay';
+import { formatOrderStatus, plausiblePrice } from '../ibkr/orderDisplay';
+import { orderRowKeys, uniqueOrders } from '../ibkr/orderIdentity';
 import type { IbkrOrder } from '../ibkr/types';
 import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
@@ -52,10 +55,12 @@ interface Props {
 
 export type OrderBucket = 'working' | 'filled' | 'canceled' | 'expired';
 
+const isExpired = (order: IbkrOrder): boolean =>
+  typeof order.status === 'string' && order.status.trim().toLowerCase() === 'expired';
+
 /** Nova's own status buckets; `Expired` is the DAY expiry the practice broker stamps. */
 export function orderBucket(order: IbkrOrder): OrderBucket {
-  const raw = order.status.trim().toLowerCase();
-  if (raw === 'expired') return 'expired';
+  if (isExpired(order)) return 'expired';
   const label = formatOrderStatus(order.status, order.filled_qty ?? 0, order.qty);
   if (label === 'Filled') return 'filled';
   if (label === 'Cancelled' || label === 'Cancelled (partial fill)' || label === 'Failed') return 'canceled';
@@ -63,9 +68,22 @@ export function orderBucket(order: IbkrOrder): OrderBucket {
 }
 
 export function orderStatusLabel(order: IbkrOrder): string {
-  if (order.status.trim().toLowerCase() === 'expired') return 'Expired';
+  if (isExpired(order)) return 'Expired';
   const label = formatOrderStatus(order.status, order.filled_qty ?? 0, order.qty);
   return label === 'Cancelled' ? 'Canceled' : label;
+}
+
+/**
+ * PRICE cell: the fill price, else the limit / stop, never IB's unset price
+ * (C28); an unfilled market order has no price to show, so "—", not "MKT" --
+ * the Type column already says MKT (V32).
+ */
+export function orderPriceCell(order: IbkrOrder): number | null {
+  return (
+    plausiblePrice(order.avg_fill_price)
+    ?? plausiblePrice(order.limit_price)
+    ?? plausiblePrice(order.stop_price)
+  );
 }
 
 function orderTs(order: IbkrOrder): number {
@@ -77,10 +95,9 @@ function orderTs(order: IbkrOrder): number {
 export function PositionsOrdersPanel({ practice, positions, working, closed, fills }: Props) {
   const [tab, setTab] = useState<PosTab>('orders');
   const [filter, setFilter] = useState<AccountOrderFilter>('all');
-  const seen = new Set<number>();
-  const orders = [...working, ...closed]
-    .filter((o) => (seen.has(o.order_id) ? false : (seen.add(o.order_id), true)))
-    .sort((a, b) => orderTs(b) - orderTs(a));
+  // One row per order by identity, not order_id: ids repeat (C29).
+  const orders = uniqueOrders([...working, ...closed]).sort((a, b) => orderTs(b) - orderTs(a));
+  const orderKeys = orderRowKeys(orders);
   const fillSource = new Map(fills.map((f) => [f.order_id, f] as const));
   const count = (bucket: AccountOrderFilter): number =>
     bucket === 'all' ? orders.length : orders.filter((o) => orderBucket(o) === bucket).length;
@@ -141,16 +158,19 @@ export function PositionsOrdersPanel({ practice, positions, working, closed, fil
               ) : shown.map((o) => {
                 const bucket = orderBucket(o);
                 const fill = fillSource.get(o.order_id);
-                const price = o.avg_fill_price ?? o.limit_price ?? o.stop_price ?? null;
+                const price = orderPriceCell(o);
                 return (
-                  <tr key={`${o.order_id}-${o.perm_id ?? ''}`} data-testid={`account-order-${o.order_id}`} data-bucket={bucket}>
+                  <tr key={orderKeys[orders.indexOf(o)]} data-testid={`account-order-${o.order_id}`} data-bucket={bucket}>
                     <td className="acct-num">{etTimeIso(o.filled_at ?? o.updated_at ?? o.submitted_at)}</td>
                     <td>{o.symbol}</td>
                     <td className={o.side === 'BUY' ? 'acct-side--buy' : 'acct-side--sell'}>{o.side}</td>
                     <td className="r acct-num">{formatShareQty(o.qty)}</td>
                     <td>{o.order_type}</td>
-                    <td className={`r acct-num${bucket === 'canceled' || bucket === 'expired' ? ' acct-muted' : ''}`}>
-                      {price == null ? 'MKT' : price.toFixed(2)}{bucket === 'filled' && (o.fill_estimated || practice) && <EstChip />}
+                    <td
+                      className={`r acct-num${bucket === 'canceled' || bucket === 'expired' || price == null ? ' acct-muted' : ''}`}
+                      title={price == null ? ACCOUNT_PRICE_NONE_TITLE : undefined}
+                    >
+                      {price == null ? ACCOUNT_PRICE_NONE : price.toFixed(2)}{bucket === 'filled' && price != null && (o.fill_estimated || practice) && <EstChip />}
                     </td>
                     <td className={bucket === 'filled' || bucket === 'working' ? '' : 'acct-muted'}>{orderStatusLabel(o)}</td>
                     <td className={`acct-src${fill && sourceKind(fill.source) === 'bot' ? ' is-bot' : ''}`}>

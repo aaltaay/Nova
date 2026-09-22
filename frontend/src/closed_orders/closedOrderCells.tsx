@@ -5,6 +5,7 @@ import {
   formatOrderType,
   orderFilledTimeTitle,
   orderSubmittedTimeTitle,
+  plausiblePrice,
 } from '../ibkr/orderDisplay';
 import type { ClosedOrderColumnId } from '../ibkr/orderTableColumns';
 import { FillLatencyTd } from '../ibkr/FillLatencyCell';
@@ -84,13 +85,13 @@ export function renderClosedOrderCell(
     case 'limit':
       return (
         <td key={col} className="ibkr-col--num">
-          {formatMoney(o.limit_price)}
+          {formatMoney(plausiblePrice(o.limit_price))}
         </td>
       );
     case 'avg_fill':
       return (
         <td key={col} className="ibkr-col--num">
-          {formatMoney(o.avg_fill_price ?? null)}
+          {formatMoney(plausiblePrice(o.avg_fill_price))}
           {o.fill_estimated && o.avg_fill_price != null && (
             <span className="ibkr-fill-estimated" title={practiceFillTitle(o.fill_basis)}>
               est

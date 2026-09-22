@@ -19,6 +19,7 @@ import {
   TAPE_UNREPORTED_TITLE,
   TAPE_VIEWPORT_FALLBACK_ROWS,
 } from '../constants';
+import { SAMPLE_FEED_STATUS, SAMPLE_LIVE_FEED_ABSENT } from '../sample_data/sampleCopy';
 import { createRafCoalesce } from '../utils/rafCoalesce';
 import { TapeMinSizeFilterMenu } from './TapeMinSizeFilterMenu';
 import {
@@ -240,7 +241,10 @@ export function TimeSalesView({
   }, [error, connected, prints.length, filtered.length, minSize, emptyLabel]);
 
   const statusClass = `ts-panel__status ${connected ? 'ts-panel__status--live' : 'ts-panel__status--off'}`;
-  const statusText = connected ? connectedText : (error ? 'ERROR' : '…');
+  // The sample desk's stated absence is not a fault (V4).
+  const statusText = connected
+    ? connectedText
+    : error ? (error === SAMPLE_LIVE_FEED_ABSENT ? SAMPLE_FEED_STATUS : 'ERROR') : '…';
   const headMeta = (
     <TapeHeadMeta
       badge={badge}

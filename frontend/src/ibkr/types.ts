@@ -162,6 +162,10 @@ export interface IbkrOrder {
   perm_id?: number | null;
   /** nova = placed through ADR 007; ib_recovered = IB-only / TWS. */
   source?: 'nova' | 'ib_recovered';
+  /** Practice rows only: the venue whose ledger holds the order (ADR 020). */
+  venue?: 'paper' | 'sim' | 'live' | null;
+  /** Execution-ledger row id when the blotter joined one (closed rows). */
+  execution_id?: string | null;
   symbol: string;
   side: 'BUY' | 'SELL';
   qty: number;

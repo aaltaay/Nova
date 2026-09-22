@@ -18,7 +18,9 @@ import {
   GLOBAL_BAR_EMERGENCY_KILL_OPS,
   GLOBAL_BAR_EMERGENCY_KILL_TOOLTIP_DELAY_MS,
 } from '../constants';
+import { GLOBAL_BAR_EMERGENCY_KILL_SAMPLE_TITLE } from '../constantGroups/global_bar';
 import { runEmergencyKill } from '../ibkr/emergencyKill';
+import { sampleKillRefusal } from '../sample_data/sampleOrderGuard';
 import { alertApp, confirmApp } from '../ux';
 import { StopSignIcon } from './StopSignIcon';
 import './emergencyKill.css';
@@ -48,6 +50,13 @@ export function EmergencyKillButton() {
     if (inflight.current) return;
     inflight.current = true;
     try {
+      // The sample desk refuses before the real kill's confirm, under its own
+      // title -- never "did not finish cleanly" over a kill that never ran (V39).
+      const sampleRefusal = sampleKillRefusal();
+      if (sampleRefusal) {
+        await alertApp({ title: GLOBAL_BAR_EMERGENCY_KILL_SAMPLE_TITLE, message: sampleRefusal, tone: 'warning' });
+        return;
+      }
       const ok = await confirmApp({
         title: GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_TITLE,
         message: GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_BODY,

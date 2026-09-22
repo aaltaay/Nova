@@ -17,10 +17,23 @@ export interface AccountPosition {
 }
 
 const finite = (n: number | null | undefined): number | null =>
-  n == null || !Number.isFinite(n) ? null : n;
+  typeof n !== 'number' || !Number.isFinite(n) ? null : n;
 
-export function positionsFromPractice(rows: PracticePosition[]): AccountPosition[] {
-  return rows.map((row) => {
+/**
+ * Rows that can be shown: a list of objects that name a symbol with a numeric
+ * quantity. A `positions: null` answer used to replace the Account page with
+ * "Cannot read properties of null (reading 'map')" (QA C11).
+ */
+function usableRows<T extends { symbol: unknown; qty: unknown }>(rows: unknown): T[] {
+  if (!Array.isArray(rows)) return [];
+  return rows.filter(
+    (row): row is T =>
+      row != null && typeof row === 'object' && typeof row.symbol === 'string' && finite(row.qty) != null,
+  );
+}
+
+export function positionsFromPractice(rows: PracticePosition[] | null | undefined): AccountPosition[] {
+  return usableRows<PracticePosition>(rows).map((row) => {
     const mark = finite(row.mark);
     return {
       symbol: row.symbol.toUpperCase(),
@@ -34,8 +47,8 @@ export function positionsFromPractice(rows: PracticePosition[]): AccountPosition
   });
 }
 
-export function positionsFromIbkr(rows: IbkrPosition[]): AccountPosition[] {
-  return rows.map((row) => ({
+export function positionsFromIbkr(rows: IbkrPosition[] | null | undefined): AccountPosition[] {
+  return usableRows<IbkrPosition>(rows).map((row) => ({
     symbol: row.symbol.toUpperCase(),
     qty: row.qty,
     avgCost: finite(row.avg_cost),

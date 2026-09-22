@@ -37,6 +37,7 @@ import { cancelIbkrOrderWithFeedback } from './cancelOrder';
 import { confirmAndFillWorkingOrder } from './fillWorkingOrderImmediately';
 import type { PlaceOrderResult } from './placeOrder';
 import {
+  TRADING_TAB_SECTIONS,
   TradingSectionNav,
   type TradingTabSection,
 } from './TradingSectionNav';
@@ -48,6 +49,13 @@ interface TradingTabProps {
   onOpenTrading: (symbol: string) => void;
   /** Reports is nested under the Account header, not a top-level tab (see workspace/registry.ts). */
   initialSection?: TradingTabSection;
+  /** Sections this host offers; the nav hides when there is only one (QA V23). */
+  sections?: readonly TradingTabSection[];
+  /**
+   * False on the Account page: the Level 2 book and order ticket belong to the
+   * Trader, and the Account page places nothing (QA V23).
+   */
+  showTicket?: boolean;
 }
 
 export function TradingTab({
@@ -55,8 +63,12 @@ export function TradingTab({
   onSelectSymbol,
   onOpenTrading,
   initialSection = 'overview',
+  sections = TRADING_TAB_SECTIONS,
+  showTicket = true,
 }: TradingTabProps) {
-  const [section, setSection] = useState<TradingTabSection>(initialSection);
+  const [section, setSection] = useState<TradingTabSection>(
+    sections.includes(initialSection) ? initialSection : sections[0] ?? 'overview',
+  );
   const status = useIbkrStatus();
   const {
     summary,
@@ -106,7 +118,9 @@ export function TradingTab({
     <div className="ibkr-trading-tab">
       <PaperTradingBanner mode={status.mode} />
       {/* ── Section toggle: Reports is nested here, not a top-level tab ── */}
-      <TradingSectionNav section={section} onChange={setSection} />
+      {sections.length > 1 && (
+        <TradingSectionNav section={section} onChange={setSection} sections={sections} />
+      )}
       {section === 'reports' ? (
         <Suspense fallback={<TabLazyFallback />}>
           <ReportsTab />
@@ -205,6 +219,8 @@ export function TradingTab({
       {/* ── Trading UI (shown only when connected) ─────────────────────── */}
       {status.connected && (
         <div className="ibkr-trading-layout">
+          {showTicket && (
+          <>
           {/* Left: depth ladder */}
           <div className="ibkr-depth-col">
             <h4 className="ibkr-section-title">
@@ -244,6 +260,8 @@ export function TradingTab({
               onOrderPlaced={handleOrderPlaced}
             />
           </div>
+          </>
+          )}
 
           {/* Right / bottom: positions + working + isolated Closed Orders module */}
           <div className="ibkr-account-col" data-testid="trading-working-orders-host">

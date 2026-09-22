@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { WS_BASE_URL } from '../constants';
+import { SAMPLE_LIVE_FEED_ABSENT } from '../sample_data/sampleCopy';
+import { onSampleDesk } from '../sample_data/sampleOrderGuard';
 import { shouldKeepPriorBook } from './depthBookGuards';
 import type { DepthBook } from './types';
 
@@ -82,6 +84,13 @@ export function useIbkrDepth(symbol: string | null, uiActive = true): DepthState
     setState(EMPTY);
 
     if (!symKey) {
+      return;
+    }
+
+    // V4: the sample desk takes no live IBKR depth line -- a stated absence instead.
+    if (onSampleDesk()) {
+      errorRef.current = SAMPLE_LIVE_FEED_ABSENT;
+      setState({ ...EMPTY, error: SAMPLE_LIVE_FEED_ABSENT });
       return;
     }
 

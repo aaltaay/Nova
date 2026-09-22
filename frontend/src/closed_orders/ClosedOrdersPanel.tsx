@@ -27,6 +27,7 @@ import {
   orderSubmittedIso,
 } from '../ibkr/orderDisplay';
 import { displayFilledQty } from '../ibkr/orderFillHonesty';
+import { orderRowKeys } from '../ibkr/orderIdentity';
 import {
   CLOSED_COLUMN_META,
   DEFAULT_CLOSED_ORDER_COLUMNS,
@@ -95,6 +96,8 @@ export function ClosedOrdersPanel({
     const filtered = filterClosedOrders(orders, filter, filterSymbol);
     return sortOrders(filtered, sortState, 'closed');
   }, [orders, filter, filterSymbol, sortState]);
+  // Not order_id: completed IB orders replay as orderId 0 (C29).
+  const rowKeys = useMemo(() => orderRowKeys(rows), [rows]);
 
   useEffect(() => {
     const id = window.setInterval(
@@ -170,7 +173,7 @@ export function ClosedOrdersPanel({
             />
           </thead>
           <tbody>
-            {rows.map((o) => {
+            {rows.map((o, rowIndex) => {
               const statusLabel = formatOrderStatus(
                 o.status,
                 displayFilledQty(o),
@@ -202,7 +205,7 @@ export function ClosedOrdersPanel({
               if (onSelectSymbol && onOpenTrading) {
                 return (
                   <SelectableTableRow
-                    key={o.order_id}
+                    key={rowKeys[rowIndex]}
                     symbol={o.symbol}
                     selected={selectedSymbol === o.symbol}
                     onSelect={onSelectSymbol}
@@ -217,7 +220,7 @@ export function ClosedOrdersPanel({
               }
               return (
                 <tr
-                  key={o.order_id}
+                  key={rowKeys[rowIndex]}
                   className={rowClass || undefined}
                   data-side={o.side}
                   data-recent={recent ? '1' : undefined}

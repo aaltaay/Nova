@@ -20,6 +20,7 @@ import {
   orderSubmittedIso,
 } from './orderDisplay';
 import { displayFilledQty } from './orderFillHonesty';
+import { orderRowKeys } from './orderIdentity';
 import { WORKING_COLUMN_META, visibleWorkingColumns } from './orderTableColumns';
 import { sortOrders } from './orderTableSort';
 import { remainingShares } from './orderQtyMath';
@@ -75,6 +76,8 @@ export function WorkingOrdersPanel({
       : orders;
     return sortOrders(filtered, sortState, 'working');
   }, [orders, filterKey, sortState]);
+  // Not order_id: practice ids repeat across venues and resets (C29).
+  const rowKeys = useMemo(() => orderRowKeys(rows), [rows]);
   const showActions = Boolean(onCancelOrder || onFillImmediately);
 
   return (
@@ -113,7 +116,7 @@ export function WorkingOrdersPanel({
             />
           </thead>
           <tbody>
-            {rows.map((o) => {
+            {rows.map((o, rowIndex) => {
               const highlighted = highlightOrderId === o.order_id;
               const statusLabel = formatOrderStatus(
                 o.status,
@@ -179,7 +182,7 @@ export function WorkingOrdersPanel({
               if (onSelectSymbol && onOpenTrading) {
                 return (
                   <SelectableTableRow
-                    key={o.order_id}
+                    key={rowKeys[rowIndex]}
                     symbol={o.symbol}
                     selected={selectedSymbol === o.symbol || highlighted}
                     onSelect={onSelectSymbol}
@@ -193,7 +196,7 @@ export function WorkingOrdersPanel({
 
               return (
                 <tr
-                  key={o.order_id}
+                  key={rowKeys[rowIndex]}
                   className={rowClass || undefined}
                   data-order-id={o.order_id}
                   data-side={o.side}

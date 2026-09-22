@@ -68,7 +68,8 @@ export const PRACTICE_SETTINGS_TITLE = 'Reset practice account';
 export const PRACTICE_SETTINGS_HINT =
   "Start Nova's practice ledger over: cash back to the starting balance, positions and working orders cleared. Fake money only -- nothing reaches IBKR.";
 export const PRACTICE_STARTING_CASH_LABEL = 'Starting cash (optional)';
-export const PRACTICE_STARTING_CASH_PLACEHOLDER = 'Keep the current starting cash';
+/** Blank resets to the default, never "the current" (C43: backend PracticeResetRequest.starting_cash). */
+export const PRACTICE_STARTING_CASH_PLACEHOLDER = 'Blank = $100,000 (the default)';
 export const PRACTICE_PAPER_ARCHIVE_NOTE =
   'Paper archives the old ledger as practice-paper-<date-time>.json before starting over.';
 export const PRACTICE_SIM_RESET_NOTE =
@@ -78,7 +79,10 @@ export const practiceResetButtonLabel = (venue: PracticeVenue): string =>
 export const practiceResetConfirmTitle = (venue: PracticeVenue): string =>
   `Reset the ${PRACTICE_VENUE_LABELS[venue]} practice account?`;
 export const practiceResetConfirmMessage = (venue: PracticeVenue, startingCash: string | null): string => {
-  const cash = startingCash ? `Starting cash will be ${startingCash}.` : 'Starting cash is unchanged.';
+  // A blank amount resets to PRACTICE_STARTING_CASH_DEFAULT, whatever the old starting cash was (C43).
+  const cash = startingCash
+    ? `Starting cash will be ${startingCash}.`
+    : `Starting cash resets to ${PRACTICE_STARTING_CASH_DEFAULT_LABEL}.`;
   const tail = venue === 'paper' ? PRACTICE_PAPER_ARCHIVE_NOTE : PRACTICE_SIM_RESET_NOTE;
   return `Positions, working orders and today's P&L are cleared. ${cash} ${tail}`;
 };
@@ -88,3 +92,8 @@ export const practiceResetDone = (venue: PracticeVenue, cash: string): string =>
 export const PRACTICE_RESET_FAILED = 'Reset failed';
 export const practiceStartingCashInvalid = (min: string, max: string): string =>
   `Starting cash must be a whole-dollar amount between ${min} and ${max}, or left blank.`;
+
+/* ---------- QA batch: orders / account / safety (2026-09-22) ---------- */
+/** Mirrors backend PRACTICE_STARTING_CASH: what a reset with no amount starts from (C43). */
+export const PRACTICE_STARTING_CASH_DEFAULT = 100_000;
+export const PRACTICE_STARTING_CASH_DEFAULT_LABEL = '$100,000';

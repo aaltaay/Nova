@@ -15,6 +15,11 @@ import {
   HEADER_GATEWAY_UP_LABEL,
   SCANNER_DATA_SOURCE_TITLES,
 } from '../constants';
+import {
+  headerGatewayTitlePracticePaper,
+  headerStatusRequestFailed,
+} from '../constantGroups/global_bar';
+import type { DeskVenue } from '../constantGroups/desk_venue';
 import { emptyIbkrDisconnectedMessage } from '../ibkr/disconnectCopy';
 import {
   HEADER_DESK_API_DOWN_LABEL,
@@ -30,6 +35,12 @@ export type HeaderChipTone = 'ok' | 'bad' | 'warn' | 'live';
  * Gateway half of the Desk chip: tooltip lines + tone. The D-058 notice
  * ("Completed orders not answering since …") is amber like delayed data and
  * uses the same helper as the Trading prerequisites panel.
+ *
+ * `venue` (ADR 020) wins over the mode tag: on Paper the backend writes the
+ * venue into `broker_account_kind`, which read as "IBKR account class: PAPER"
+ * over a live login (C25), and a practice venue's orders come from Nova's
+ * ledger, so the IBKR completed-orders notice does not apply there (C68). A
+ * stale status is a failed request, not a Gateway that went down (C58).
  */
 export function deskGatewayView(args: {
   ibkrMode: IbkrMode;
@@ -41,26 +52,35 @@ export function deskGatewayView(args: {
   launchOk: boolean | null;
   launchHint: string | null;
   completedOrdersUnansweredSince?: number | null;
+  venue?: DeskVenue | null;
+  /** Why the last /api/ibkr/status poll failed (ibkrStatusPoller.statusError). */
+  statusError?: string | null;
 }): { tone: HeaderChipTone; title: string } {
-  const sim = args.ibkrMode === 'sim';
+  const venue = args.venue ?? (args.ibkrMode === 'sim' ? 'sim' : null);
+  const sim = venue === 'sim';
+  const practice = sim || venue === 'paper';
   const modeTag = resolveGatewayModeTag(args.ibkrMode, args.gatewayMode, args.accountKind);
   const modeTitle = sim
     ? HEADER_GATEWAY_TITLE_SIM
-    : modeTag === 'live'
-      ? HEADER_GATEWAY_TITLE_LIVE
-      : modeTag === 'paper'
-        ? HEADER_GATEWAY_TITLE_PAPER
-        : HEADER_GATEWAY_TITLE_UNKNOWN;
+    : venue === 'paper'
+      ? headerGatewayTitlePracticePaper(args.gatewayMode)
+      : modeTag === 'live'
+        ? HEADER_GATEWAY_TITLE_LIVE
+        : modeTag === 'paper'
+          ? HEADER_GATEWAY_TITLE_PAPER
+          : HEADER_GATEWAY_TITLE_UNKNOWN;
   const notice = completedOrdersStuckNotice({
     sinceEpochSec: args.completedOrdersUnansweredSince,
     gatewayReady: args.connected && !args.statusStale,
-    simMode: sim,
+    simMode: practice,
   });
   const title = [
     modeTitle,
-    args.connected
-      ? SCANNER_DATA_SOURCE_TITLES.ibkr
-      : emptyIbkrDisconnectedMessage(args.gatewayMode),
+    args.statusStale
+      ? headerStatusRequestFailed(args.statusError ?? null)
+      : args.connected
+        ? SCANNER_DATA_SOURCE_TITLES.ibkr
+        : emptyIbkrDisconnectedMessage(args.gatewayMode),
     args.delayed ? HEADER_GATEWAY_TITLE_DELAYED : null,
     notice ? `${notice}. ${PREREQ_COMPLETED_ORDERS_STUCK_DETAIL}` : null,
     HEADER_GATEWAY_LAUNCH_HINT,

@@ -22,6 +22,9 @@ vi.mock('../workspace/WorkspaceContext', () => ({
   useWorkspace: () => workspace,
 }));
 
+// The desk's shared status poll is not the account poller's request (Live here).
+vi.mock('./useIbkrStatus', () => ({ useIbkrStatus: () => ({ mode: 'live', venue: 'live', stale: false }) }));
+
 vi.mock('../constants', async () => {
   const actual = await vi.importActual<typeof import('../constants')>('../constants');
   return {

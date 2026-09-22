@@ -122,17 +122,24 @@ export const ACCOUNT_PERF_MODE_LABELS: Record<AccountPerfMode, string> = {
   pct: 'P&L %',
   value: 'Account value',
 };
+/** The headline is realized + open P&L (accountFigures.rangeNetPnl), so it says both (QA R20). */
 export const accountPerfSubtitle = (range: AccountRange, opened: string | null): string =>
   range === 'ALL'
-    ? `Since the ledger opened${opened ? ` · ${opened}` : ''} · realized, net of commissions and fees`
-    : `${range} · realized, net of commissions and fees`;
+    ? `Since the ledger opened${opened ? ` · ${opened}` : ''} · realized + open, net of commissions and fees`
+    : `${range} · realized + open, net of commissions and fees`;
 export const ACCOUNT_PERF_LEGEND_MANUAL = 'Manual fill';
 export const ACCOUNT_PERF_LEGEND_BOT = 'Bot fill';
 export const ACCOUNT_PERF_LEGEND_EST = 'all fills';
 export const ACCOUNT_PERF_LEGEND_EST_NOTE = 'practice fills are Nova estimates against the live feed';
 export const ACCOUNT_PERF_EMPTY = 'No fills in this range · nothing to draw';
-export const ACCOUNT_PERF_ROW_REALIZED = (since: string | null): string =>
-  since ? `Net realized since reset (${since})` : 'Net realized since the ledger opened';
+/**
+ * The components cover this ledger's fills inside the range, so only ALL is
+ * "since reset / since the ledger opened"; every other range says its range (C46).
+ */
+export const ACCOUNT_PERF_ROW_REALIZED = (range: AccountRange, since: string | null): string =>
+  range !== 'ALL'
+    ? `Net realized · ${range}`
+    : since ? `Net realized since reset (${since})` : 'Net realized since the ledger opened';
 export const ACCOUNT_PERF_ROW_COSTS = 'Of which commissions + fees';
 export const ACCOUNT_SYMBOL_COL_SYMBOL = 'Symbol';
 export const ACCOUNT_SYMBOL_COL_REALIZED = 'Gross';
@@ -256,3 +263,13 @@ export const ACCOUNT_PRACTICE_UNAVAILABLE = 'Practice account unavailable';
 export const ACCOUNT_LIVE_UNAVAILABLE = 'IBKR account unavailable';
 export const ACCOUNT_SIM_NOTHING_LOADED = 'Sim: nothing loaded · the scratch account starts with the replay';
 export const ACCOUNT_WARNINGS_PREFIX = 'Archive warnings:';
+
+/* ---------- QA batch: orders / account / safety (2026-09-22) ---------- */
+/** Max position with no bot session to read the cap from -- never the product ceiling (C35). */
+export const accountRiskMaxPositionNoCap = (held: string): string =>
+  `${held} sh · cap unavailable (bot session unavailable)`;
+/** Orders (Today) PRICE cell for an order with no price to show (a market order, unfilled) (V32). */
+export const ACCOUNT_PRICE_NONE = '—';
+export const ACCOUNT_PRICE_NONE_TITLE = 'Market order -- no limit price, and no fill price yet';
+/** A history answer with no `components` -- the money itself is missing (C11). */
+export const ACCOUNT_HISTORY_UNREADABLE = 'Nova answered an unreadable ledger history';

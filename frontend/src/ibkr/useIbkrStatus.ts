@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
+import { SAMPLE_IBKR_STATUS } from '../sample_data/sampleStatus';
 import {
   DEFAULT_IBKR_STATUS,
   getIbkrStatusSnapshot,
@@ -10,24 +11,6 @@ import {
 
 export type { IbkrClientStatus };
 export { refreshIbkrStatusNow };
-
-const SAMPLE_STATUS: IbkrClientStatus = {
-  enabled: true,
-  connected: true,
-  transport_connected: true,
-  session_reason: 'ok',
-  mode: 'paper',
-  orders_enabled: true,
-  short_enabled: true,
-  spend_status: 'paper_armed',
-  trading_allowed: true,
-  trading_allowed_reason: null,
-  market_data_type: 1,
-  market_data_delayed: false,
-  clientReady: true,
-  stale: false,
-  staleSince: null,
-};
 
 const EMPTY: IbkrClientStatus = {
   ...DEFAULT_IBKR_STATUS,
@@ -41,10 +24,15 @@ function noopSubscribe(_onStoreChange: () => void): () => void {
 }
 
 function getSampleSnapshot(): IbkrClientStatus {
-  return SAMPLE_STATUS;
+  return SAMPLE_IBKR_STATUS;
 }
 
-/** Shared /api/ibkr/status -- one poller, every caller reads the same snapshot. */
+/**
+ * Shared /api/ibkr/status -- one poller, every caller reads the same snapshot.
+ * Under SampleDataProvider the sample status, with no subscription; above it
+ * (WorkspaceProvider) the poller itself answers the sample status on
+ * ?view=sample and makes no request (V4).
+ */
 export function useIbkrStatus(): IbkrClientStatus {
   const sample = useSampleDataOptional();
   return useSyncExternalStore(

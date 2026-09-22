@@ -4,7 +4,11 @@
  * history-driven panels have no practice ledger; Paper / Sim read Nova's
  * practice account and GET /api/practice/history. The old Account tab module
  * stays reachable as "Broker snapshot" (Live) and Reports is hosted as a tab
- * so nothing is lost.
+ * so nothing is lost -- neither hosts the Level 2 book or the order ticket,
+ * which belong to the Trader (QA V23).
+ *
+ * The venue is the status's own `venue` (C26). On the sample desk the page
+ * shows the Nova Marketing Sample Data account and polls nothing (V4).
  */
 import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
 import '../account/account.css';
@@ -39,17 +43,27 @@ import {
   type AccountPerfMode,
   type AccountRange,
 } from '../constantGroups/account_page';
-import { BOT_MAX_SHARES_CAP } from '../constantGroups/bot';
 import type { DeskVenue } from '../constantGroups/desk_venue';
 import { PRACTICE_VENUE_LABELS } from '../constantGroups/practice';
+import { resolveDeskVenue } from '../ibkr/deskVenue';
 import { useIbkrAccountContext } from '../ibkr/IbkrAccountContext';
+import type { TradingTabSection } from '../ibkr/TradingSectionNav';
+import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { isPracticeVenue } from '../practice/practiceAccountModel';
 import { usePracticeAccount } from '../practice/practiceAccountResource';
+import { SAMPLE_ACCOUNT_HISTORY_ABSENT, SAMPLE_MARKETING_LABEL } from '../sample_data/sampleCopy';
+import { useSampleRoute } from '../sample_data/useSampleRoute';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 
 const TradingTab = lazy(() => import('../ibkr/TradingTab').then((m) => ({ default: m.TradingTab })));
 
 type PageTab = 'overview' | 'broker' | 'reports';
+
+/** What each hosted tab offers of the old Account module: never its ticket or book (V23). */
+const HOSTED_SECTIONS: Record<Exclude<PageTab, 'overview'>, readonly TradingTabSection[]> = {
+  broker: ['overview'],
+  reports: ['reports', 'activity', 'latency'],
+};
 
 interface Props {
   onOpenTrader: (symbol: string) => void;
@@ -62,8 +76,12 @@ export function pageVenue(mode: string | null | undefined): DeskVenue {
 
 export function AccountPage({ onOpenTrader }: Props) {
   const { ibkrMode, selectedSymbol, setSelectedSymbol, ibkrConnected } = useWorkspace();
-  const venue = pageVenue(ibkrMode);
-  const practiceVenue = isPracticeVenue(venue) ? venue : null;
+  const sampleDesk = useSampleRoute();
+  const status = useIbkrStatus();
+  // The sample desk's account is the sample IBKR-style summary; it never
+  // selects a practice ledger or polls one (V4).
+  const venue = sampleDesk ? 'live' : pageVenue(resolveDeskVenue(status, ibkrMode));
+  const practiceVenue = !sampleDesk && isPracticeVenue(venue) ? venue : null;
   const ibkr = useIbkrAccountContext();
   const practice = usePracticeAccount(practiceVenue);
   const { orders: closedOrders } = useClosedOrders(ibkrConnected);
@@ -89,31 +107,37 @@ export function AccountPage({ onOpenTrader }: Props) {
   const today = todayPracticeDate();
   const hist = history.data && history.data.venue === practiceVenue ? history.data : null;
   const rows = accountDetailRows(figures, todayDailyRow(hist, today), hist != null);
-  const absence = practiceVenue
-    ? hist
-      ? null
-      : history.error
-        ? `${ACCOUNT_HISTORY_UNAVAILABLE}: ${history.error}`
-        : practiceVenue === 'sim' && ledger && !ledger.replay_key
-          ? ACCOUNT_SIM_NOTHING_LOADED
-          : ACCOUNT_HISTORY_LOADING
-    : ACCOUNT_LIVE_NO_LEDGER;
+  const absence = sampleDesk
+    ? SAMPLE_ACCOUNT_HISTORY_ABSENT
+    : practiceVenue
+      ? hist
+        ? null
+        : history.error
+          ? `${ACCOUNT_HISTORY_UNAVAILABLE}: ${history.error}`
+          : practiceVenue === 'sim' && ledger && !ledger.replay_key
+            ? ACCOUNT_SIM_NOTHING_LOADED
+            : ACCOUNT_HISTORY_LOADING
+      : ACCOUNT_LIVE_NO_LEDGER;
   const breakers = session
     ? (() => {
         const tripped = (session.soft_breaker_fired ? 1 : 0) + (session.day_lock_active ? 1 : 0);
         return { tripped, armed: 2 - tripped };
       })()
     : null;
-  const maxSharesCap = session?.caps?.max_shares ?? BOT_MAX_SHARES_CAP;
+  // The session's own cap, or none: the product ceiling is not this bot's cap (C35).
+  const sessionCap = session?.caps?.max_shares;
+  const maxSharesCap = typeof sessionCap === 'number' && Number.isFinite(sessionCap) ? sessionCap : null;
   const nowTs = Date.now() / 1000;
   const fills = hist?.fills ?? [];
 
-  const tabs: Array<[PageTab, string]> = [
-    ['overview', ACCOUNT_TAB_OVERVIEW],
-    ...(venue === 'live' ? ([['broker', ACCOUNT_TAB_BROKER]] as Array<[PageTab, string]>) : []),
-    ['reports', ACCOUNT_TAB_REPORTS],
-  ];
-  const activeTab: PageTab = tab === 'broker' && venue !== 'live' ? 'overview' : tab;
+  const tabs: Array<[PageTab, string]> = sampleDesk
+    ? [['overview', ACCOUNT_TAB_OVERVIEW]]
+    : [
+        ['overview', ACCOUNT_TAB_OVERVIEW],
+        ...(venue === 'live' ? ([['broker', ACCOUNT_TAB_BROKER]] as Array<[PageTab, string]>) : []),
+        ['reports', ACCOUNT_TAB_REPORTS],
+      ];
+  const activeTab: PageTab = tabs.some(([id]) => id === tab) ? tab : 'overview';
 
   return (
     <div className="nova-shell nova-shell--scanner">
@@ -126,7 +150,11 @@ export function AccountPage({ onOpenTrader }: Props) {
               </button>
             ))}
             <span className="account-page__venue" data-testid="account-page-venue">
-              {practiceVenue ? `${PRACTICE_VENUE_LABELS[practiceVenue]} · ${ledger?.account_id ?? '—'}` : 'Live · IBKR'}
+              {sampleDesk
+                ? SAMPLE_MARKETING_LABEL
+                : practiceVenue
+                  ? `${PRACTICE_VENUE_LABELS[practiceVenue]} · ${ledger?.account_id ?? '—'}`
+                  : 'Live · IBKR'}
             </span>
           </div>
 
@@ -145,6 +173,7 @@ export function AccountPage({ onOpenTrader }: Props) {
                 hidden={hidden}
                 onToggleHidden={() => setHidden((h) => !h)}
                 nowTs={nowTs}
+                absence={sampleDesk ? SAMPLE_ACCOUNT_HISTORY_ABSENT : null}
               />
               <PerformancePanel
                 history={hist}
@@ -180,10 +209,13 @@ export function AccountPage({ onOpenTrader }: Props) {
             <div className="account-page__host" data-testid={`account-page-host-${activeTab}`}>
               <Suspense fallback={<TabLazyFallback />}>
                 <TradingTab
+                  key={activeTab}
                   selectedSymbol={selectedSymbol}
                   onSelectSymbol={setSelectedSymbol}
                   onOpenTrading={onOpenTrader}
                   initialSection={activeTab === 'reports' ? 'reports' : 'overview'}
+                  sections={HOSTED_SECTIONS[activeTab === 'reports' ? 'reports' : 'broker']}
+                  showTicket={false}
                 />
               </Suspense>
             </div>

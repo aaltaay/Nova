@@ -117,6 +117,8 @@ class Ledger:
         if oid in self._working:
             logger.warning("PRACTICE ledger: duplicate placed event for order %s ignored", oid)
             return
+        if not float(row.get("filled_qty") or 0):
+            row["commission"] = None  # no fill, no commission -- older events stamped 0.0 (QA C30)
         self._working[oid] = row
         self._next_id = max(self._next_id, oid + 1)
 
@@ -266,9 +268,10 @@ class Ledger:
     def unwind_to(self, ts: float) -> int:
         """Drop every event after ``ts`` (it never happened) and re-derive; returns the count dropped."""
         keep = [e for e in self.events if float(e["ts"]) <= float(ts) + _EPS]
-        dropped = len(self.events) - len(keep)
+        dropped, next_id = len(self.events) - len(keep), self._next_id
         self.events = keep
         self._derive()
+        self._next_id = max(self._next_id, next_id)  # an unwound order's id is never handed out again (QA R14)
         return dropped
 
     def mark(self, symbol: str, price: float) -> None:

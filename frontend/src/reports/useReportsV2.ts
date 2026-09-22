@@ -1,5 +1,5 @@
 /** Fetches Reports v2 analytics (tags, R-multiples, drawdown). */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { API_BASE_URL, JOURNAL_POLL_INTERVAL_MS } from '../constants';
 import type { DrawdownResponse, RMultiplesResponse, TagsResponse } from './types';
 
@@ -23,11 +23,13 @@ export function useReportsV2(
   const [drawdown, setDrawdown] = useState<DrawdownResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const inFlight = useRef(false);
 
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
+    // Per effect run (QA V42): see useCalendar -- a shared flag made the first
+    // poll wait out a whole interval after any re-run.
+    const inFlight = { current: false };
 
     async function poll() {
       if (inFlight.current) return;

@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { WS_BASE_URL } from '../constants';
 import { upsertTapePrint10SecBar } from '../chart/barsStore';
+import { SAMPLE_LIVE_FEED_ABSENT } from '../sample_data/sampleCopy';
+import { onSampleDesk } from '../sample_data/sampleOrderGuard';
 import { createRafCoalesce } from '../utils/rafCoalesce';
 import {
   appendTapePrint,
@@ -75,6 +77,13 @@ export function useIbkrTape(symbol: string | null, uiActive = true): TapeState {
     errorRef.current = null;
     raf.cancel();
     setState(emptyTapeState());
+
+    // V4: the sample desk opens no live tape line -- a stated absence instead.
+    if (onSampleDesk()) {
+      errorRef.current = SAMPLE_LIVE_FEED_ABSENT;
+      setState({ ...emptyTapeState(), error: SAMPLE_LIVE_FEED_ABSENT });
+      return;
+    }
 
     function connect() {
       if (!mountedRef.current) return;
