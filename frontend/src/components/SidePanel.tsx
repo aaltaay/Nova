@@ -6,6 +6,11 @@ import {
   STOCK_VIEW_OPEN_LABEL,
   STOCK_VIEW_OPEN_TITLE,
 } from '../constants';
+import {
+  QUOTE_PANEL_LOOKUP_ARIA,
+  QUOTE_PANEL_LOOKUP_LABEL,
+  QUOTE_PANEL_LOOKUP_PLACEHOLDER,
+} from '../constantGroups/scanner_board';
 import { useTickerStream } from '../hooks/useTickerStream';
 import type { WatchlistEntry } from '../strategy/types';
 import { useWorkspace } from '../workspace/WorkspaceContext';
@@ -64,12 +69,12 @@ export function SidePanel({
             type="text"
             value={input}
             onChange={e => setInput(e.target.value.toUpperCase())}
-            placeholder="Symbol, e.g. AAPL"
+            placeholder={QUOTE_PANEL_LOOKUP_PLACEHOLDER}
             autoComplete="off"
             spellCheck={false}
-            aria-label="Look up symbol"
+            aria-label={QUOTE_PANEL_LOOKUP_ARIA}
           />
-          <button type="submit" className="side-search-btn">Look Up</button>
+          <button type="submit" className="side-search-btn">{QUOTE_PANEL_LOOKUP_LABEL}</button>
         </form>
         {selectedSymbol && (
           <button

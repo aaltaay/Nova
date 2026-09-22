@@ -163,3 +163,14 @@ export const SCANNER_GAP_CLOSE_TITLE = 'No trade yet -- a gap measured from the 
 export const listFeedLoading = (title: string): string => `${title}: waiting for the scanner feed…`;
 export const listFeedFailed = (title: string, error: string): string => `${title}: ${error}`;
 
+// ── Quote Panel look-up (QA V36, operator decision 2026-09-22) ────────────
+/**
+ * Two symbol doors on the Scanner: the global bar's search opens the Trader,
+ * the side panel's look-up loads the Quote Panel in place. The side panel's
+ * button and accessible name say where the symbol goes, so the two never read
+ * as the same control.
+ */
+export const QUOTE_PANEL_LOOKUP_LABEL = 'Quote panel: look up';
+export const QUOTE_PANEL_LOOKUP_ARIA = 'Symbol to load in the quote panel on this page';
+export const QUOTE_PANEL_LOOKUP_PLACEHOLDER = 'Symbol, e.g. AAPL';
+

@@ -1,4 +1,8 @@
 import { test, expect } from '@playwright/test';
+import {
+  QUOTE_PANEL_LOOKUP_ARIA,
+  QUOTE_PANEL_LOOKUP_LABEL,
+} from '../src/constantGroups/scanner_board';
 import { attachErrorCollector } from './helpers/errorCollector';
 
 test.describe('Phase 2 — WorkspaceContext', () => {
@@ -24,9 +28,9 @@ test.describe('Phase 2 — WorkspaceContext', () => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/');
 
-    const sideInput = page.locator('.side-panel').getByLabel('Look up symbol');
+    const sideInput = page.locator('.side-panel').getByLabel(QUOTE_PANEL_LOOKUP_ARIA);
     await sideInput.fill('AAPL');
-    await page.locator('.side-panel').getByRole('button', { name: 'Look Up' }).click();
+    await page.locator('.side-panel').getByRole('button', { name: QUOTE_PANEL_LOOKUP_LABEL }).click();
 
     const openBtn = page.locator('.side-panel').getByRole('button', { name: /Trader/i });
     await expect(openBtn).toBeVisible({ timeout: 15_000 });
