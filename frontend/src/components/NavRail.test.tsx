@@ -227,10 +227,12 @@ describe('NavRail', () => {
     expect(getNavPage()).toBe('dashboard');
   });
 
-  it('Account asks for the trading tab, Bots for strategy, Desk and Records switch the shell page', () => {
+  it('Account switches to the Account page, Bots asks for strategy, Desk and Records switch the shell page', () => {
     render();
     click('nav-rail-account');
-    expect(consumeScannerTabRequest()).toBe('trading');
+    expect(getNavPage()).toBe('account');
+    expect(consumeScannerTabRequest()).toBeNull();
+    expect(q('nav-rail-account')!.classList.contains('is-active')).toBe(true);
     click('nav-rail-bots');
     expect(consumeScannerTabRequest()).toBe('strategy');
     click('nav-rail-desk');

@@ -1,0 +1,126 @@
+/* Account page -- the Performance, Components, Calendar, Ledger and
+   Positions / Orders panels. Owner: the panels under account/. The shell,
+   the Account Details column and the curve live in account.css. */
+
+/* ---------- performance ---------- */
+.acct-perf__top { display: flex; align-items: baseline; gap: 12px; margin-top: 2px; flex-wrap: wrap; }
+
+.acct-ptabs { display: inline-flex; gap: 14px; font-size: 12px; }
+.acct-ptabs__item {
+  appearance: none;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--nova-text-muted);
+  padding: 0 0 2px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.acct-ptabs__item.is-on { color: var(--nova-text); box-shadow: 0 2px 0 var(--nova-accent); }
+
+.acct-seg { display: inline-flex; border: 1px solid var(--nova-border); border-radius: 4px; overflow: hidden; height: 20px; font-size: 11px; }
+.acct-seg__item {
+  appearance: none;
+  border: 0;
+  background: none;
+  font: inherit;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  color: var(--nova-text-muted);
+  cursor: pointer;
+}
+.acct-seg__item + .acct-seg__item { border-left: 1px solid var(--nova-border); }
+.acct-seg__item.is-on { background: var(--nova-raised); color: var(--nova-text); }
+
+.acct-srcs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
+.acct-src { display: flex; align-items: center; gap: 12px; background: var(--nova-raised); border-radius: 6px; padding: 10px 12px; min-width: 0; }
+.acct-src__k { font-size: 12px; line-height: 15px; }
+.acct-src__v { font-size: 18px; font-weight: 600; line-height: 24px; }
+.acct-src__v.acct-muted { font-size: 13px; }
+.acct-src__s { font-size: 11px; color: var(--nova-text-muted); line-height: 14px; }
+
+/* ---------- rings / components ---------- */
+.acct-ring__track { stroke: var(--nova-raised); }
+.acct-ring__arc { stroke: currentColor; }
+.acct-ring.acct-tone--up { color: var(--nova-success); }
+.acct-ring.acct-tone--down { color: var(--nova-danger); }
+.acct-ring.acct-tone--bot { color: var(--acct-bot); }
+.acct-ring.acct-tone--muted, .acct-ring.acct-tone--flat { color: var(--nova-text-muted); }
+.acct-ring__pct { fill: var(--nova-text); }
+.acct-ring__pct.is-zero { fill: var(--nova-text-muted); }
+
+.acct-comp { display: flex; flex-direction: column; }
+.acct-crow { display: flex; align-items: center; gap: 12px; min-height: 52px; border-top: 1px solid var(--acct-hair); }
+.acct-crow:first-child { border-top: 0; }
+.acct-crow svg { flex: none; }
+.acct-crow__k { flex: 1; font-size: 12px; line-height: 15px; min-width: 0; }
+.acct-crow__k small { display: block; font-size: 11px; color: var(--nova-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.acct-crow__v { font-size: 15px; font-weight: 600; }
+
+/* ---------- calendar ---------- */
+.acct-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.acct-cal__wd { font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--nova-text-muted); text-align: center; height: 13px; }
+.acct-cal__d { min-height: 29px; border-radius: 4px; padding: 2px 4px; background: var(--nova-raised); position: relative; }
+.acct-cal__d.is-off { background: transparent; }
+.acct-cal__n { display: block; font-size: 9px; line-height: 10px; color: var(--nova-text-muted); }
+.acct-cal__p { display: block; font-size: 11px; line-height: 14px; font-weight: 500; text-align: right; }
+.acct-cal__d.is-arch .acct-cal__p { opacity: 0.55; }
+.acct-cal__d.is-arch::after { content: ''; position: absolute; right: 4px; top: 3px; width: 4px; height: 4px; border-radius: 50%; border: 1px solid var(--nova-text-muted); }
+.acct-cal__d.is-today { box-shadow: inset 0 0 0 1px var(--nova-accent); }
+.acct-cal__d.is-today .acct-cal__n { color: var(--nova-accent); }
+.acct-cal__nav { appearance: none; border: 0; background: none; color: var(--nova-text-muted); font: inherit; font-size: 14px; cursor: pointer; padding: 0 4px; }
+.acct-cal__title { color: var(--nova-text); }
+.acct-dot-hollow { display: inline-block; width: 4px; height: 4px; border-radius: 50%; border: 1px solid var(--nova-text-muted); vertical-align: 1px; }
+
+/* ---------- ledger ---------- */
+.acct-reset-bar { display: flex; align-items: center; gap: 12px; min-height: 32px; margin-bottom: 6px; flex-wrap: wrap; }
+.acct-btn-primary {
+  white-space: nowrap;
+  height: 28px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--nova-accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  padding: 0 12px;
+  cursor: pointer;
+}
+.acct-btn-primary:disabled { opacity: 0.6; cursor: wait; }
+.acct-field { white-space: nowrap; display: inline-flex; align-items: center; height: 28px; border: 1px solid var(--nova-border); border-radius: 5px; background: var(--nova-raised); padding: 0 8px; gap: 8px; font-size: 12px; }
+.acct-hint { font-size: 11px; color: var(--nova-text-muted); line-height: 13px; }
+.acct-notice--ok { color: var(--nova-success); }
+.acct-notice--error { color: var(--nova-danger); }
+
+.acct-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
+
+.acct-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.acct-table th { text-align: left; font-weight: 500; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--nova-text-muted); height: 22px; border-bottom: 1px solid var(--nova-border); padding: 0 6px; white-space: nowrap; }
+.acct-table td { height: 22px; vertical-align: middle; line-height: 16px; padding: 0 6px; border-bottom: 1px solid var(--acct-hair); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.acct-table td.r, .acct-table th.r { text-align: right; }
+.acct-table__sys td { color: var(--nova-text-muted); }
+.acct-table__total td { font-weight: 600; border-top: 1px solid var(--nova-border); }
+.acct-src { color: var(--nova-text-muted); }
+.acct-src.is-bot { color: var(--acct-bot); }
+.acct-side--buy { color: var(--nova-success); }
+.acct-side--sell { color: var(--nova-danger); }
+
+/* ---------- positions / orders ---------- */
+.acct-filters { display: flex; gap: 6px; margin: 2px 0 8px; flex-wrap: wrap; }
+.acct-filters__item {
+  appearance: none;
+  font: inherit;
+  font-size: 11px;
+  color: var(--nova-text-muted);
+  border: 1px solid var(--nova-border);
+  background: none;
+  border-radius: 10px;
+  padding: 1px 8px;
+  cursor: pointer;
+}
+.acct-filters__item.is-on { background: var(--nova-raised); color: var(--nova-text); }
+.acct-filters__item b { font-weight: 500; margin-left: 3px; }
+
+/* Hosted legacy modules (Broker snapshot / Reports) keep their own styles. */
+.account-page__host { flex: 1 1 0; min-height: 0; overflow: auto; }
