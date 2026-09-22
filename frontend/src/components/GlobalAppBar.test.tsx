@@ -124,9 +124,12 @@ function baseWorkspace(overrides: Partial<WorkspaceValue> = {}): WorkspaceValue 
     setAlpacaFeed: () => {},
     scannerPersistentAuthoritative: true,
     ibkrConnected: true,
+    ibkrStatusKnown: true,
+    ibkrStatusError: null,
     ibkrTransportConnected: true,
     // Live: the header shows the IBKR account. Paper / Sim show Nova's ledger (ADR 020).
     ibkrMode: 'live',
+    deskVenue: 'live',
     ibkrGatewayMode: 'live',
     ibkrAccountKind: 'live',
     ibkrIntentionalMode: null,
@@ -293,8 +296,17 @@ describe('GlobalAppBar', () => {
     expect(container.textContent).not.toMatch(/IBKR offline/);
   });
 
+  it('selects the desk venue, not the Gateway port label, on the by-hand paper Gateway (ADR 020)', () => {
+    workspace = baseWorkspace({ ibkrMode: 'paper', deskVenue: 'live', ibkrGatewayMode: 'paper', ibkrAccountKind: 'paper' });
+    status.current = baseStatus({ mode: 'paper', venue: 'live', broker_account_kind: 'paper' });
+    renderBar();
+    const capsule = container.querySelector('[data-testid="header-gateway-mode-capsule"]');
+    expect(capsule!.classList.contains('is-live')).toBe(true);
+    expect(capsule!.classList.contains('is-paper')).toBe(false);
+  });
+
   it('shows the Paper | Live | Sim venue pills on every view, after the connection chip', () => {
-    workspace = baseWorkspace({ ibkrMode: 'paper', ibkrGatewayMode: 'paper', ibkrAccountKind: 'paper' });
+    workspace = baseWorkspace({ ibkrMode: 'paper', deskVenue: 'paper', ibkrGatewayMode: 'paper', ibkrAccountKind: 'paper' });
     // The pills follow the status's own venue (ADR 020, QA C26); the workspace mode agrees here.
     status.current = baseStatus({ mode: 'paper', venue: 'paper', broker_account_kind: 'paper' });
     renderBar();
@@ -599,7 +611,7 @@ describe('GlobalAppBar', () => {
   });
 
   it('shows NOVA-PAPER figures on Paper even though the live Gateway has an IBKR summary too (ADR 020)', () => {
-    workspace = baseWorkspace({ ibkrMode: 'paper', ibkrGatewayMode: 'live', ibkrAccountKind: 'live' });
+    workspace = baseWorkspace({ ibkrMode: 'paper', deskVenue: 'paper', ibkrGatewayMode: 'live', ibkrAccountKind: 'live' });
     status.current = baseStatus({
       mode: 'paper',
       venue: 'paper',

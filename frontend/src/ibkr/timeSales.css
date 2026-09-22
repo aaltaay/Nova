@@ -1,0 +1,246 @@
+/* Time & Sales tape (components layer). Imported by marketData.css. Owner: ibkr/TimeSalesView.tsx. */
+/* ── Time & Sales ────────────────────────────────────────────────────────── */
+.ts-panel {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+  background: var(--nova-panel, var(--panel-bg));
+  border: 1px solid var(--nova-border, var(--border-color));
+  border-radius: 4px;
+  overflow: hidden;
+  min-height: 200px;
+  max-height: 360px;
+  height: 100%;
+}
+
+.ts-panel--embedded {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  min-height: 0;
+  max-height: none;
+}
+
+.ts-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background: var(--nova-raised, #1a1d27);
+  border-bottom: 1px solid var(--nova-border, var(--border-color));
+  flex-shrink: 0;
+}
+
+.ts-panel__title {
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--nova-text-muted, var(--text-secondary));
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ts-panel__status {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.ts-panel__status--live {
+  color: var(--nova-success, var(--success));
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.ts-panel__status--off {
+  color: var(--nova-text-muted, var(--text-secondary));
+  background: rgba(139, 146, 165, 0.12);
+}
+
+.ts-panel__header-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ts-panel__filter-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--nova-accent, #93c5fd);
+  background: rgba(59, 130, 246, 0.14);
+  border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+  white-space: nowrap;
+}
+
+.ts-filter-menu {
+  position: fixed;
+  z-index: 10050;
+  box-sizing: border-box;
+  padding: 0.55rem 0.75rem 0.45rem;
+  border: 1px solid var(--nova-border, #2a3040);
+  border-radius: 8px;
+  background: #1c212c;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+.ts-filter-menu__label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--nova-text-muted, #8b93a7);
+  margin-bottom: 0.3rem;
+}
+
+.ts-filter-menu__input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--nova-border, #2a3040);
+  border-radius: 4px;
+  background: var(--nova-canvas, #0f1218);
+  color: var(--nova-text, #e8eaed);
+  font: inherit;
+}
+
+.ts-filter-menu__hint {
+  margin: 0.35rem 0 0;
+  color: var(--nova-text-dim, #8b93a7);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.ts-panel__cols {
+  display: grid;
+  /* Time | Price | Size | Exch — Side is row tint only */
+  grid-template-columns: 72px 62px 48px 1fr;
+  column-gap: 8px;
+  padding: 3px 8px;
+  background: var(--nova-raised, #1a1d27);
+  border-bottom: 1px solid var(--nova-border, var(--border-color));
+  color: var(--nova-text-muted, var(--text-secondary));
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.ts-panel__rows {
+  overflow-y: auto;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.ts-panel__empty {
+  padding: 12px 8px;
+  color: var(--nova-text-muted, var(--text-secondary));
+  text-align: center;
+  font-size: 0.8rem;
+}
+
+.ts-row {
+  display: grid;
+  grid-template-columns: 72px 62px 48px 1fr;
+  column-gap: 8px;
+  box-sizing: border-box;
+  height: 22px;
+  align-items: center;
+  padding: 0 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  color: var(--nova-text, var(--text-primary));
+}
+
+.ts-row:hover {
+  filter: brightness(1.06);
+}
+
+/* Aggressor tint — subtle wash; side encoded by tint when compact */
+.ts-row--ask {
+  background: rgba(34, 197, 94, 0.14);
+  color: var(--nova-text, var(--text-primary));
+}
+
+.ts-row--ask .ts-col--price {
+  color: #86efac;
+  font-weight: 700;
+}
+
+.ts-row--bid {
+  background: rgba(239, 68, 68, 0.14);
+  color: var(--nova-text, var(--text-primary));
+}
+
+.ts-row--bid .ts-col--price {
+  color: #fca5a5;
+  font-weight: 700;
+}
+
+.ts-row--mid {
+  background: rgba(0, 0, 0, 0.35);
+  color: #c4c4c4;
+}
+
+.ts-row--mid .ts-col--price {
+  color: var(--nova-text, var(--text-primary));
+  font-weight: 600;
+}
+
+.ts-row--unknown {
+  background: transparent;
+  color: var(--nova-text, var(--text-primary));
+}
+
+/* IBKR unreported (odd lot / Form T): listed, excluded from candles and volume */
+.ts-row--unreported {
+  opacity: 0.5;
+  font-style: italic;
+}
+
+.ts-col--time {
+  color: inherit;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+
+.ts-col--exch {
+  color: inherit;
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Narrow pane (the Trader rail): Time / Price / Size only, side via the row
+   tint. Every column keeps a real width and a gap, so Price never collapses
+   under Size (QA R28, 2026-09-22: at 137 px the old 68px + 40px grid left
+   Price 0 px and the tape drew Price over Size). Time is fixed (tabular
+   HH:MM:SS); Price and Size split the rest (Size a little wider: "12,345")
+   and right-align so digits line up. */
+@container md-pane (max-width: 279px) {
+  .ts-panel__cols,
+  .ts-row {
+    grid-template-columns: 7.6ch minmax(0, 0.9fr) minmax(0, 1.1fr);
+    column-gap: 4px;
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  .ts-col--price,
+  .ts-col--size {
+    min-width: 0;
+    overflow: hidden;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ts-col--exch {
+    display: none;
+  }
+}

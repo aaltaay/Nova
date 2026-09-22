@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   coversSessionOpen,
+  paneSessionBehindLabel,
   sampleVwapOntoBars,
   sessionVwapPoints,
   vwapSourceForPane,
@@ -414,5 +415,21 @@ describe('coversSessionOpen', () => {
 
   it('is false with no usable bars', () => {
     expect(coversSessionOpen([])).toBe(false);
+  });
+});
+
+describe('paneSessionBehindLabel (QA R28)', () => {
+  const today = [bar(etTime(2026, 8, 22, 5, 5), 1.35, 1_000), bar(etTime(2026, 8, 22, 5, 6), 1.5, 1_000)];
+  const yesterdayEvening = [bar(etTime(2026, 8, 21, 19, 55), 1.2, 1_000)];
+
+  it("names the pane's session when its bars end on an earlier day than the source", () => {
+    expect(paneSessionBehindLabel(today, yesterdayEvening)).toBe('Sep 21');
+  });
+
+  it('is null when the pane is on the same session, ahead, or unknown', () => {
+    expect(paneSessionBehindLabel(today, today)).toBeNull();
+    expect(paneSessionBehindLabel(yesterdayEvening, today)).toBeNull();
+    expect(paneSessionBehindLabel([], yesterdayEvening)).toBeNull();
+    expect(paneSessionBehindLabel(today, [])).toBeNull();
   });
 });

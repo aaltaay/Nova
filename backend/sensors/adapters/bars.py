@@ -13,7 +13,7 @@ from constants_sensors import (
     SENSOR_VWAP_SLOPE_SHORT,
 )
 from sensors.envelope import build_envelope
-from sensors.feeds import get_bars
+from sensors.feeds import bars_as_of, get_bars
 from sensors.math_indicators import last_ema, macd_from_closes, session_vwap, slope_last
 
 
@@ -46,6 +46,7 @@ def read_vwap(symbol: str) -> dict[str, Any]:
         status="live",
         data={
             "source": source,
+            "bars_as_of": bars_as_of(bars),
             **stats,
             "distance_ticks": ticks,
             "tick_dollars": SENSOR_TICK_DOLLARS,
@@ -70,6 +71,7 @@ def read_macd(symbol: str) -> dict[str, Any]:
         status="live",
         data={
             "source": source,
+            "bars_as_of": bars_as_of(bars),
             "fast": SENSOR_MACD_FAST,
             "slow": SENSOR_MACD_SLOW,
             "signal_period": SENSOR_MACD_SIGNAL,
@@ -91,6 +93,7 @@ def read_emas(symbol: str) -> dict[str, Any]:
         status="live",
         data={
             "source": source,
+            "bars_as_of": bars_as_of(bars),
             "last": last,
             **emas,
             "note": "1Min closes. EMA 200 stays ready=false until 200 bars exist.",

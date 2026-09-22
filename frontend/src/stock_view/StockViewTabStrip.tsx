@@ -171,18 +171,20 @@ export function StockViewTabStrip({
             </div>
           );
         })}
-        <button
-          type="button"
-          className="sv-tab-add"
-          aria-label="Add ticker tab"
-          title={TRADER_TAB_ADD_TITLE}
-          disabled={tabs.includes(TRADER_DRAFT_SYMBOL)}
-          onClick={onAddDraft}
-          data-testid="sv-tab-add"
-        >
-          +
-        </button>
       </div>
+      {/* Outside the tabs box, which clips: with four or more tabs "+" was cut
+          off with the last tab and sat under the overflow chevron (QA D12). */}
+      <button
+        type="button"
+        className="sv-tab-add"
+        aria-label="Add ticker tab"
+        title={TRADER_TAB_ADD_TITLE}
+        disabled={tabs.includes(TRADER_DRAFT_SYMBOL)}
+        onClick={onAddDraft}
+        data-testid="sv-tab-add"
+      >
+        +
+      </button>
       {overflowing && (
         <div className="sv-tab-strip__overflow" ref={overflowRef}>
           <button

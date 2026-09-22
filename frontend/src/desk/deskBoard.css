@@ -448,6 +448,9 @@
   .desk-board .table-wrapper--scanner th.scanner-col--state {
     color: transparent;
     text-overflow: clip;
+    /* The column rule's overflow: visible let the invisible label spill 16 px
+       past the table, so the board scrolled sideways (QA D21). */
+    overflow: hidden;
   }
 
   /* Short action labels keep the hover actions inside Catalyst + State:

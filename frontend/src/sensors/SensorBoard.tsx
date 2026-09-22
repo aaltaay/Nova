@@ -10,6 +10,7 @@ import {
   SENSORS_SYMBOL_LABEL,
 } from '../constantGroups/sensors';
 import { fetchSensorCatalog, fetchSensorSnapshot } from '../api/sensorApi';
+import { sensorBarsStaleLabel } from './sensorFreshness';
 import { SensorStatusChip } from './SensorStatusChip';
 import { sensorSummary } from './sensorSummary';
 import type { SensorCatalogRow, SensorEnvelope } from './types';
@@ -38,6 +39,8 @@ export function SensorBoard() {
   const [readings, setReadings] = useState<SensorEnvelope[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // When the readings were taken: a set of bars goes stale while the board is open.
+  const [nowSec, setNowSec] = useState(() => Date.now() / 1000);
 
   useEffect(() => {
     setSymbol(defaultSymbol);
@@ -53,6 +56,7 @@ export function SensorBoard() {
       ]);
       setCatalog(cat.sensors || []);
       setReadings(snap.sensors || []);
+      setNowSec(Date.now() / 1000);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : SENSORS_LOAD_ERROR);
@@ -124,7 +128,11 @@ export function SensorBoard() {
             >
               {sensorSummary(row)}
             </span>
-            <SensorStatusChip status={row.status} error={row.error} />
+            <SensorStatusChip
+              status={row.status}
+              error={row.error}
+              staleSince={sensorBarsStaleLabel(row, nowSec)}
+            />
           </li>
         ))}
       </ul>

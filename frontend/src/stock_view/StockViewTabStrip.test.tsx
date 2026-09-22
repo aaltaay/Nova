@@ -99,6 +99,8 @@ describe('StockViewTabStrip', () => {
     expect(strip.title).toMatch(/Drag a tab onto another Nova window/i);
     const add = container.querySelector('[data-testid="sv-tab-add"]') as HTMLButtonElement;
     expect(add.title).toMatch(/this window/i);
+    // "+" is outside the clipped tabs box, so four or more tabs never cut it off (QA D12).
+    expect(container.querySelector('[data-testid="sv-tab-strip-tabs"]')?.contains(add)).toBe(false);
     await act(async () => {
       add.click();
     });

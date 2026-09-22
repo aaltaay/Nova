@@ -6,9 +6,10 @@ import {
   REL_VOLUME_HIGH,
 } from '../constants';
 import type { TickerDetail } from '../types/ticker';
-import { fmtSessionPrice, fmtVolume } from '../utils/quoteFormat';
+import { fmtSessionPrice, fmtVolume, pctToneClass } from '../utils/quoteFormat';
 import { useWorkspace } from '../workspace';
 import { computeQuoteMetrics } from '../modules/quoteMetrics';
+import { QUOTE_GAP_OPEN_TITLE } from '../constantGroups/trader_view';
 
 interface Props {
   detail: TickerDetail;
@@ -40,9 +41,8 @@ export function StockViewQuoteStats({ detail }: Props) {
       <CompactGridCell
         label="Gap%"
         value={m.gapPct != null ? `${(m.gapPct * 100).toFixed(2)}` : '--'}
-        valueClass={
-          m.gapPct != null ? (m.gapPct >= 0 ? 'positive' : 'negative') : undefined
-        }
+        valueClass={pctToneClass(m.gapPct) || undefined}
+        title={QUOTE_GAP_OPEN_TITLE}
       />
       <CompactGridCell label="High" value={fmtSessionPrice(daily?.high)} />
       <CompactGridCell label="Low" value={fmtSessionPrice(daily?.low)} />

@@ -6,7 +6,7 @@ from typing import Any
 
 from constants_sensors import SENSOR_LAST_MOVE_LOOKBACK, SENSOR_TAPE_PRINTS
 from sensors.envelope import build_envelope
-from sensors.feeds import get_bars, get_prints
+from sensors.feeds import bars_as_of, get_bars, get_prints
 from sensors.math_indicators import median
 
 
@@ -121,6 +121,7 @@ def read_last_move(symbol: str) -> dict[str, Any]:
         status="live",
         data={
             "source": source,
+            "bars_as_of": bars_as_of(bars),
             "seconds_ago": age,
             "median_range": med,
             "bar": significant,

@@ -43,7 +43,8 @@ export function StrategyTab() {
     <div className="bot-strategy">
       <header className="bot-strategy__header">
         <div>
-          <h2>Strategy -- small-cap settings</h2>
+          {/* The page is Bots (rail + header); the card says so too (QA V30). */}
+          <h2>Bots -- small-cap settings</h2>
           <p className="form-hint">
             Autonomy, Activate, and pack live on the header. This tab is risk
             sleeve, Advise, proposals, and audit only. Brains cannot raise L2.

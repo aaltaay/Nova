@@ -49,7 +49,16 @@ vi.mock('../bot/useBotAllowlist', () => ({
     symbols: mocks.allow, isAllowed: (s: string) => mocks.allow.includes(s.toUpperCase()), add: mocks.allowAdd, remove: mocks.allowRemove,
   }),
 }));
-vi.mock('../capture/sessionRecordStore', () => ({ startTabRecord: mocks.startRecord, stopTabRecord: mocks.stopRecord }));
+vi.mock('../capture/sessionRecordStore', () => ({
+  startTabRecord: mocks.startRecord,
+  stopTabRecord: mocks.stopRecord,
+  // The Desk reads the guarded list (QA C14 / C23): strings from a recording status.
+  useRecordingSymbols: () => {
+    const s = mocks.status;
+    const list = Array.isArray(s.capture_symbols) ? s.capture_symbols : [];
+    return s.capture === true && s.recording === true ? list.filter((x): x is string => typeof x === 'string') : [];
+  },
+}));
 vi.mock('../hod_momo/usePublishScannerNews', () => ({ usePublishScannerNews: mocks.publish }));
 vi.mock('../hod_momo/HodMomoDock', () => ({
   HodMomoDock: (props: Record<string, unknown>) => { mocks.dockProps = props; return <div data-testid="hod-momo-dock" />; },

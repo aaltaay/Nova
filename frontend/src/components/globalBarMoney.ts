@@ -3,6 +3,15 @@ import { GLOBAL_BAR_OFFLINE_PLACEHOLDER } from '../constants';
 import { PNL_TONE_MIN_USD } from '../constantGroups/account_page';
 import { formatMoney } from '../utils/formatMoney';
 
+/**
+ * Live Day's P&L: IBKR's RealizedPnL (today's) + UnrealizedPnL. IBKR's
+ * unrealized runs from each position's average cost, not from the day's
+ * start, so a position carried overnight adds its whole open P&L; the header
+ * title (GLOBAL_BAR_DAY_PNL_TITLE) and the Account page
+ * (ACCOUNT_DAY_PNL_LIVE_NOTE) say so (QA W18). IBKR's account summary carries
+ * no daily P&L tag; the practice venues use the ledger's own day P&L
+ * (practiceAccountModel.dayPnlOf).
+ */
 export function dayPnlFromSummary(
   realized: number | null | undefined,
   unrealized: number | null | undefined,

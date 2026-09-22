@@ -72,7 +72,9 @@ export function HodMomoStripHeader({
         title={integrityTitle(integrity)}
       >
         <i className="hod-strip__dot" aria-hidden="true" />
-        {HOD_MOMO_STRIP_INTEGRITY_LABEL[integrity.status] ?? integrity.status}
+        <span className="hod-strip__integrity-text">
+          {HOD_MOMO_STRIP_INTEGRITY_LABEL[integrity.status] ?? integrity.status}
+        </span>
       </span>
       <HodMomoDockModes
         dockMode={dockMode}

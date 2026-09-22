@@ -64,3 +64,11 @@ export const SAMPLE_ACCOUNT_HISTORY_ABSENT =
 
 /** Reason code on refused requests, mirroring the order doors' SAMPLE_VIEW. */
 export const SAMPLE_VIEW_REASON_CODE = 'SAMPLE_VIEW';
+
+/**
+ * D11 (QA pass two, 2026-09-22): a chart pane on the sample desk says in one
+ * muted line that it has no candles -- the full refusal paragraph, in the red
+ * error style, filled every pane and ran over the position label.
+ */
+export const SAMPLE_CHART_NO_BARS = 'Sample desk -- no candles here (it reads only its own sample data)';
+

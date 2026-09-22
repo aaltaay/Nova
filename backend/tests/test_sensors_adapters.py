@@ -50,6 +50,11 @@ def test_vwap_macd_emas_from_bars(monkeypatch):
     emas = bars.read_emas("AAPL")
     assert emas["data"]["ema_9"]["ready"] is True
     assert emas["data"]["ema_200"]["ready"] is False
+    # Each reading names its newest bar, so a week-old set is never read as live (QA W16).
+    newest = float(bars_1m[-1]["t"])
+    assert vwap["data"]["bars_as_of"] == newest
+    assert macd["data"]["bars_as_of"] == newest
+    assert emas["data"]["bars_as_of"] == newest
 
 
 def test_rvol_marks_missing_20d(monkeypatch):
@@ -128,6 +133,7 @@ def test_last_move_uses_median_range(monkeypatch):
     body = tapeish.read_last_move("AAPL")
     assert body["data"]["bar"]["h"] == 10.50
     assert body["data"]["median_range"] is not None
+    assert body["data"]["bars_as_of"] == 1_700_001_140.0
 
 
 def test_liquidity_does_not_invent_typical_spread(monkeypatch):

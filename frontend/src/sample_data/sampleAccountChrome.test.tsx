@@ -58,6 +58,10 @@ function backendlessWorkspace(overrides: Partial<WorkspaceValue> = {}): Workspac
     selectedSymbol: 'SMPL',
     setSelectedSymbol: () => {},
     ibkrConnected: false,
+    // A status answer that says the Gateway is down (known), not an API that
+    // never answered -- that one is "Checking IBKR" / unavailable (QA D10).
+    ibkrStatusKnown: true,
+    ibkrStatusError: null,
     ibkrTransportConnected: false,
     ibkrMode: 'disconnected',
     ibkrGatewayMode: null,

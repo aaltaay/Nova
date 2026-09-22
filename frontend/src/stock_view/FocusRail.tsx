@@ -31,6 +31,8 @@ import {
   focusRailNotMirrored,
 } from '../constantGroups/trader_chrome';
 import { useLiveScannerFeedOptional } from '../scanner/ScannerDataContext';
+import { listAbsenceText } from '../scanner/listAbsence';
+import { TRADER_TAB_GAP_TITLE } from '../constantGroups/trader_view';
 import { useSettingsOptional } from '../settings/SettingsContext';
 import { SIM_FOCUS_RAIL_REPLAY_NOTE } from '../sim/simConstants';
 import { useSimReplayDesk } from '../sim/useSimReplayDesk';
@@ -122,7 +124,9 @@ export function FocusRail() {
         ) : rows == null ? (
           <p className="focus-rail__absent" data-testid="focus-rail-absent">{focusRailNotMirrored(module?.title ?? state.list)}</p>
         ) : rows.length === 0 ? (
-          <p className="focus-rail__absent" data-testid="focus-rail-absent">{focusRailEmpty(module?.title ?? state.list)}</p>
+          <p className="focus-rail__absent" data-testid="focus-rail-absent">
+            {listAbsenceText(module?.title ?? state.list, { restError: feed.restError, healthStatus: feed.health?.status }, focusRailEmpty)}
+          </p>
         ) : rows.map((row, index) => {
           const recording = isTabRecording(row.symbol);
           const allowed = isAllowed(row.symbol);
@@ -149,7 +153,9 @@ export function FocusRail() {
               {!replayDesk && (
                 <>
                   <span className="focus-rail__px">{row.price != null ? row.price.toFixed(2) : '—'}</span>
-                  <span className={`focus-rail__gap focus-rail__gap--${pctTone(row.gapPct)}`}>{formatSignedPct(row.gapPct)}</span>
+                  <span className={`focus-rail__gap focus-rail__gap--${pctTone(row.gapPct)}`} title={TRADER_TAB_GAP_TITLE}>
+                    {formatSignedPct(row.gapPct)}
+                  </span>
                   {row.catalyst ? (
                     <span className="focus-rail__chip" title={row.headline ? `${row.catalyst} · ${row.headline}` : row.catalyst}>{row.catalyst}</span>
                   ) : (

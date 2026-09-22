@@ -49,7 +49,10 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
     closeTraderView,
     showScannerView,
     ibkrConnected,
+    ibkrStatusKnown,
+    ibkrStatusError,
     ibkrMode,
+    deskVenue,
     ibkrGatewayMode,
     ibkrAccountKind,
     ibkrIntentionalMode,
@@ -81,6 +84,9 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
     summaryConnected: summary?.connected,
     loading: accountLoading,
     error: accountError,
+    // Only an explicit false is "unknown" (resolveAccountChromeState's own contract).
+    statusKnown: isSampleView() || ibkrStatusKnown,
+    statusError: ibkrStatusError,
   });
   return (
     <header className="global-app-bar" data-testid="global-app-bar">
@@ -102,6 +108,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
           />
           <GatewayModeCapsule
             mode={ibkrMode}
+            venue={deskVenue}
             gatewayMode={ibkrGatewayMode ?? undefined}
             accountKind={ibkrAccountKind}
             intentionalMode={ibkrIntentionalMode}
@@ -126,7 +133,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
             traderActive={traderActive}
             closeTraderView={leaveTraderToScanner}
             refresh={refresh}
-            venue={ibkrMode}
+            venue={deskVenue}
           />
           <TradingSessionLockButton />
           <GlobalBarGearMenu
@@ -146,7 +153,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
           data-testid="global-bar-trader-slot"
         />
       ) : null}
-      <SimSessionHeader active={ibkrMode === 'sim'} />
+      <SimSessionHeader active={deskVenue === 'sim'} />
     </header>
   );
 }

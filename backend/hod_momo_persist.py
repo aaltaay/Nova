@@ -24,6 +24,7 @@ from hod_momo_models import (
     config_to_dict,
     master_from_dict,
     master_to_dict,
+    restored_change_pct,
 )
 
 logger = logging.getLogger(__name__)
@@ -345,4 +346,9 @@ def merge_archive_session_alerts(date_str: str, alerts: list) -> None:
 
 def get_history_alerts(date_str: str) -> list[dict]:
     data = _cache.load_hod_momo_snapshot_for_date(date_str)
-    return data.get("alerts", [])
+    # A past day's archive keeps the pre-fix "CHG 0.0%" fill-in on disk; it is
+    # read as unknown here, like today's restore (QA C33).
+    return [
+        {**raw, "change_pct": restored_change_pct(raw)} if isinstance(raw, dict) else raw
+        for raw in data.get("alerts", [])
+    ]

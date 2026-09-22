@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ScannerBarBridge } from '../components/ScannerBarBridge';
 import { useBotAllowlist } from '../bot/useBotAllowlist';
-import { startTabRecord, stopTabRecord } from '../capture/sessionRecordStore';
+import { startTabRecord, stopTabRecord, useRecordingSymbols } from '../capture/sessionRecordStore';
 import {
   DESK_SAMPLE_UNAVAILABLE,
   DESK_WORKSPACE_EMPTY_HINT,
@@ -19,7 +19,6 @@ import { DeskBoard } from '../desk/DeskBoard';
 import { DESK_BOARD_STATE_VERSION, readDeskBoardState, writeDeskBoardState } from '../desk/deskBoardState';
 import { HodMomoDock } from '../hod_momo/HodMomoDock';
 import { usePublishScannerNews } from '../hod_momo/usePublishScannerNews';
-import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { useLiveScannerFeedOptional } from '../scanner/ScannerDataContext';
 import { useSettingsOptional } from '../settings/SettingsContext';
@@ -46,7 +45,6 @@ export function DeskPage() {
 function LiveDesk() {
   const feed = useLiveScannerFeedOptional();
   const settings = useSettingsOptional();
-  const status = useIbkrStatus();
   const { visibility } = useModuleVisibility();
   const { isAllowed, add, remove } = useBotAllowlist();
   const {
@@ -85,8 +83,8 @@ function LiveDesk() {
   }, [l1Tab, setL1ActiveTab]);
 
   const modules = listTabModules().filter(m => visibility[m.id] !== false);
-  const recordingSymbols =
-    status.capture === true && status.recording === true ? (status.capture_symbols ?? []) : [];
+  // The guarded list: strings only, a stale status records nothing (QA C14 / C23).
+  const recordingSymbols = useRecordingSymbols();
   const active = activeTraderSymbol && activeTraderSymbol !== TRADER_DRAFT_SYMBOL ? activeTraderSymbol : null;
   const boardSelected = active ?? selectedSymbol;
 

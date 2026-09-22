@@ -198,4 +198,21 @@ describe('ScannerTable row numbers', () => {
     expect(change.textContent).not.toContain('0.00%');
     expect(change.textContent).toContain('—');
   });
+
+  it('states no gap for a prior-close fallback either (QA W12)', async () => {
+    await renderRows([{ ...row('CLSF'), price: 2, change_pct: 0, change_abs: 0, gap_percent: 0, quote_quality: 'close_fallback' }]);
+    const gap = container.querySelector('td[data-col="gap_percent"]') as HTMLElement;
+    expect(gap.textContent).toBe('—');
+    expect(gap.querySelector('.positive')).toBeNull();
+    expect((gap.firstElementChild as HTMLElement).title).toMatch(/No trade yet/);
+  });
+
+  it('writes a flat move without a sign or a tone (QA W21)', async () => {
+    await renderRows([{ ...row('NEGZ'), change_pct: -0.000025, change_abs: -0.0001, gap_percent: 0 }]);
+    const change = container.querySelector('td[data-col="change_pct"]') as HTMLElement;
+    expect(change.textContent).toContain('0.00%');
+    expect(change.textContent).not.toContain('-0.00%');
+    expect(change.textContent).toContain('$0.00');
+    expect(change.querySelector('.negative, .positive')).toBeNull();
+  });
 });

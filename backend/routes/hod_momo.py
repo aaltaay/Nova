@@ -133,7 +133,9 @@ def hod_momo_add_block(body: HodMomoBlocklistUpdate):
     return {"symbols": _hod_momo.add_block(body.symbol)}
 
 
-@router.delete("/api/hod-momo/blocklist/{symbol}")
+# ``:path`` so a class-share ticker (BRK/B) reaches the handler instead of a
+# routing 404 (QA C10, 2026-09-22).
+@router.delete("/api/hod-momo/blocklist/{symbol:path}")
 def hod_momo_remove_block(symbol: str):
     return {"symbols": _hod_momo.remove_block(symbol)}
 
@@ -151,9 +153,12 @@ def hod_momo_debug_counters():
     return out
 
 
-@router.get("/api/hod-momo/debug/symbol/{sym}")
+@router.get("/api/hod-momo/debug/symbol/{sym:path}")
 def hod_momo_debug_symbol(sym: str):
-    """Current snapshot + last 20 decisions for a specific symbol."""
+    """Current snapshot + last 20 decisions for a specific symbol.
+
+    ``:path``: BRK/B used to miss the route and answer FastAPI's 404 (QA C10).
+    """
     return _hod_momo.get_debug_symbol(sym.upper())
 
 

@@ -24,7 +24,9 @@ def test_rebinding_owner_is_visible_to_existing_consumers():
 
         assert ticker._find_ibkr_cache_row("OLD") is None
         assert ticker._find_ibkr_cache_row("NEW") is replacement.gapper_cache[0]
-        assert strategy_routes._gapper_cache() is replacement.gapper_cache
+        # The Strategy routes grade the surfaced rows (QA W6): copies of the
+        # replacement owner's rows, never the old owner's.
+        assert [r["symbol"] for r in strategy_routes._gapper_cache()] == ["NEW"]
     finally:
         set_runtime_state_for_testing(previous)
 

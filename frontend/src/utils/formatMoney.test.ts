@@ -22,6 +22,12 @@ describe('formatMoney', () => {
     expect(formatMoney(-0.4, 0)).toBe('$0');
   });
 
+  it('puts the minus before the dollar sign (QA W20)', () => {
+    expect(formatMoney(-5)).toBe('-$5.00');
+    expect(formatMoney(-46432000.5)).toBe('-$46,432,000.50');
+    expect(formatMoney(-12.75, 0)).toBe('-$13');
+  });
+
   it('handles null / non-finite', () => {
     expect(formatMoney(null)).toBe('—');
     expect(formatMoney(undefined)).toBe('—');

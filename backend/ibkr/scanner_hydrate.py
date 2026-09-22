@@ -44,8 +44,9 @@ def reset_roster_push_failed_for_tests() -> None:
 def stub_row(sym: str, rank: int, exchange: str | None = None) -> dict:
     """Newly admitted name with no quote yet.
 
-    ``None`` (not ``0.0``) for every price field so the UI can render "waiting
-    for L1" instead of a fabricated flat quote. ``exchange`` comes free from
+    ``None`` (not ``0.0``) for every price field -- and for volume -- so the
+    UI can render "waiting for L1" instead of a fabricated flat quote (a
+    placeholder ``volume: 0`` read "Volume 0" on every name-only row, QA C37). ``exchange`` comes free from
     the same IB scan row (``contract.primaryExchange``) when IB supplied one;
     otherwise ``hydrate_rows`` fills it later from ``ibkr/exchange_lookup.py``
     (issue #90). Either way this stub is built and returned without waiting.
@@ -65,7 +66,7 @@ def stub_row(sym: str, rank: int, exchange: str | None = None) -> dict:
         "change_pct": None,
         "change_abs": None,
         "gap_percent": None,
-        "volume": 0,
+        "volume": None,
         "exchange": exchange,
         "admitted_ts": time.time(),
     }

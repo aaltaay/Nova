@@ -34,6 +34,7 @@ import { ChartPaneOverlays } from './ChartPaneOverlays';
 import { findOpenPosition } from './positionOverlay';
 import { chartHeightForVariant, tickerChartCardClass } from './tickerChartCard';
 import { formatCoverageClockEt } from '../tickerChartData';
+import { SAMPLE_CHART_NO_BARS, SAMPLE_NETWORK_REFUSAL } from '../sample_data/sampleCopy';
 import type { ChartTradeUpdate } from './types';
 
 export type { ChartTradeUpdate } from './types';
@@ -303,7 +304,12 @@ function TickerChartInner({
           </div>
         )}
         {!loading && error && indicatorBars.length === 0 && (
-          <div className="chart-overlay chart-overlay--error">{error}</div>
+          error === SAMPLE_NETWORK_REFUSAL ? (
+            // The sample desk's refusal is not a fault: one muted line (QA D11).
+            <div className="chart-overlay chart-overlay--empty" data-testid="chart-empty">{SAMPLE_CHART_NO_BARS}</div>
+          ) : (
+            <div className="chart-overlay chart-overlay--error">{error}</div>
+          )
         )}
         {!loading && !error && emptyText && indicatorBars.length === 0 && (
           <div className="chart-overlay chart-overlay--empty" data-testid="chart-empty">{emptyText}</div>

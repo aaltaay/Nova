@@ -48,6 +48,18 @@ def _lookup(table: str, rows: list[dict] | None, sym: str) -> int | None:
     return at
 
 
+def _stamp_quality(row: dict, quote_quality: str | None) -> dict:
+    """The cached row says whether its price is a print or IB's prior close.
+
+    QA C50: only the WebSocket patch carried ``quote_quality``, so a REST
+    reload served IB's prior close as a live price with an invented 0.00%
+    change / gap. ``None`` after a real print is kept as a key: the row then
+    states "a print", which the client never relabels as a fallback.
+    """
+    row["quote_quality"] = quote_quality or None
+    return row
+
+
 def _patch_fields(patch: dict, row: dict, volume) -> None:
     patch.update({
         "change_pct": row.get("change_pct"),
@@ -110,9 +122,12 @@ def apply_l1_quote(
     q = {
         "price": float(price),
         "prev_close": prev_close,
-        "volume": volume if volume is not None else 0,
         "open": open_price,
     }
+    # An unknown volume is left out, so the row keeps what it knew; it used to
+    # be written as 0 -- "Volume 0" on a row that had never traded (QA C37).
+    if volume is not None:
+        q["volume"] = volume
     now = float(ts_unix)
     patch: dict = {
         "symbol": sym,
@@ -126,7 +141,7 @@ def apply_l1_quote(
     if state.gainer_cache and not _ss.is_table_frozen(state, _ss.TABLE_GAINERS):
         at = _lookup(_ss.TABLE_GAINERS, state.gainer_cache, sym)
         if at is not None:
-            row = _ibkr_discovery.reprice_mover_row(state.gainer_cache[at], q)
+            row = _stamp_quality(_ibkr_discovery.reprice_mover_row(state.gainer_cache[at], q), quote_quality)
             state.gainer_cache[at] = row
             state.gainer_cache_ts = now
             _patch_fields(patch, row, volume)
@@ -135,8 +150,8 @@ def apply_l1_quote(
     if state.loser_cache and not _ss.is_table_frozen(state, _ss.TABLE_LOSERS):
         at = _lookup(_ss.TABLE_LOSERS, state.loser_cache, sym)
         if at is not None:
-            state.loser_cache[at] = _ibkr_discovery.reprice_mover_row(
-                state.loser_cache[at], q,
+            state.loser_cache[at] = _stamp_quality(
+                _ibkr_discovery.reprice_mover_row(state.loser_cache[at], q), quote_quality,
             )
             state.loser_cache_ts = now
 
@@ -147,7 +162,7 @@ def apply_l1_quote(
     ):
         at = _lookup(_ss.TABLE_GAPPERS, state.gapper_cache, sym)
         if at is not None:
-            row = _ibkr_discovery.reprice_gapper_row(state.gapper_cache[at], q)
+            row = _stamp_quality(_ibkr_discovery.reprice_gapper_row(state.gapper_cache[at], q), quote_quality)
             state.gapper_cache[at] = row
             state.gapper_cache_ts = now
             _patch_fields(patch, row, volume)
@@ -163,7 +178,7 @@ def apply_l1_quote(
                 state.afterhours_cache[at], q, state.avg_volume_cache,
             )
             if row is not None:
-                state.afterhours_cache[at] = row
+                state.afterhours_cache[at] = _stamp_quality(row, quote_quality)
                 state.afterhours_cache_ts = now
                 _patch_fields(patch, row, volume)
 

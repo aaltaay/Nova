@@ -401,6 +401,30 @@ No socket frame on `/ws/scanner` or `/ws/hod-momo` carries a bare `NaN` /
 snapshots' `last_enriched` is epoch seconds (`time.time()`), `0` when never
 enriched. Integration-health `detail` strings are ASCII.
 
+QA pass two (2026-09-22, Scanner / header / layout batch): a cached scanner
+row -- and so every REST reply -- carries `quote_quality: "close_fallback" |
+null` once an L1 tick has touched it (`ibkr/l1_apply.py`): `close_fallback`
+means the price is IBKR's prior close with no print yet, `null` states a
+print; a row no tick has touched has no key. A name-only row's `volume` is
+`null` until a quote carries one (never a placeholder `0`), and an L1 tick
+without a volume leaves the row's volume as it was. The universe gapper
+enrichment and the after-hours L1 reprice stamp `rvol_source: "alpaca"` on
+the RVOL they divide by the Alpaca IEX average. A gapper / after-hours row
+restored from a snapshot has `change_pct` / `change_abs` measured from its
+price against the prior close (`null` when either is unknown) -- never its
+gap. A HOD alert restored from disk (today's restore and
+`/api/hod-momo/history/{date}`) created before `HOD_MOMO_INVENTED_CHANGE_BEFORE_TS`
+with `change_pct` exactly `0` reads `change_pct: null` (the pre-fix fill-in);
+the archive file is not rewritten. `/api/hod-momo/debug/symbol/{sym}` and
+`DELETE /api/hod-momo/blocklist/{symbol}` accept a symbol with a slash
+(`BRK/B`). `/api/strategy/*` grades the rows the Scanner shows
+(`scanner_surface.surface_rows`: blocklist out, RVOL / float / news in), and a
+move past +100% reaches the graders in percent so it is never read as a
+fraction under 1.0. Bar-derived sensor readings (`vwap`, `macd`, `emas`,
+`last-move`) add `data.bars_as_of` -- epoch seconds of the newest 1-minute bar
+they were computed from, `null` without bars -- so the board can say a
+reading is stale.
+
 ### Input Payload (Raw)
 
 ```json
@@ -861,6 +885,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-22 | QA pass two -- Scanner / header / layout batch: cached scanner rows keep `quote_quality` so a REST reload never serves IBKR's prior close as a live price (C50); name-only rows state `volume: null` (C37); the universe and after-hours rows name their RVOL source; restored after-hours rows measure change from price, not gap (C36); pre-fix HOD alerts restore their invented 0.0% change as null; the HOD inspector and blocklist routes take a slash; the Strategy grades read the surfaced rows (W6); bar-derived sensors carry `bars_as_of` (W16). The desk: the header sheds per REC chip (D1), scanner row actions stick to the board edge (D2), the Trader rail's Level 2 and Time & Sales fit their panes (D3, R28), an unknown status is never a Gateway outage (D10). §3 amended. | User Directive + Claude Opus 5 |
 | 2026-09-22 | QA pass two -- Account page, practice ledger, Sim / replay, the ticket: `/api/ibkr/orders/closed` on Paper / Sim lists only the rows closed in the venue's practice day (W4, `practice/today.py`); a refused practice execution is stamped with its venue (R38, `execution/desk_mode.py`); an undownloaded stretch of a historical window is refused `SIM_NO_PRICE` and a protective close there fills at the last mark (R34); the historical snapshot adds `session_open` and `stats_scope` so the quote card's Gap% is the session's and Vol / High / Low are stated absent for a midday window (W7); a replay unload frees its working orders' commitments (R40), practice order ids continue across a reset / unload (`first_order_id` in `practice-paper.json`) and an order filled inside the practice send marks its row `filled` (R41); `POST /api/sim/history/depth-line` lets the historical Level 2 hold the replay depth slot the bot gate reads (R44). §3 and `architecture/practice-fills.md` amended. | User Directive + Claude Opus 5 |
 | 2026-09-22 | The ticket's Flatten never closes the same shares twice (QA R42, P0 regression from #454): the check moves from the route into the execution door (`execution/flatten_intent.py`, inside the execution lock) and subtracts the closing orders already working or committed, so a second Flatten while the first rests is refused `FLATTEN_NOT_A_CLOSE` instead of filling the account short; `ExecutionCommand` gains `intent`. The practice broker cancels a SELL that would fill past the held quantity (`order_rules.fill_refusal`). The quick-bar Flatten / `exit_pos` / `cancel_and_exit` send the intent too, so they are no longer clamped to 1 share (R32). The practice account summary rolls to the venue's practice day before answering, so the breaker's first poll of a new day never reads yesterday's day P&L (R45). §3 amended. | User Directive + Claude Opus 5 |
 | 2026-09-22 | Practice day P&L for the breakers (QA W2, W3): the practice `/api/ibkr/account` summary's `RealizedPnL` is today's realized (IBKR's daily meaning, was lifetime since reset) and it carries `DayPnL`; `bot/day_pnl` compares `DayPnL` with the day lock on practice venues without subtracting commissions again, so a ledger down $50 since its reset can no longer trip the soft breaker at the first poll of a new day. `/api/practice/account` adds `realized_today`; the header's Day's Realized and its hover use it. §3 amended. | User Directive + Claude Opus 5 |

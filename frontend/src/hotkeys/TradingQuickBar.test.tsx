@@ -95,6 +95,17 @@ describe('TradingQuickBar', () => {
     expect(mount.querySelector('[data-testid="quick-trades-toggle"]')).toBeNull();
   });
 
+  it('renders each label word as its own box, so a label never breaks inside a word (QA D14)', () => {
+    render();
+    const words = (kind: string) =>
+      Array.from(buttons().find((b) => b.dataset.kind === kind)!.querySelectorAll('.nova-qt__label > .nova-qt__word'))
+        .map((w) => w.textContent);
+    expect(words('cancel_and_exit')).toEqual(['Cxl+', 'Flat']);
+    expect(words('exit_pos')).toEqual(['Flatten']);
+    expect(words('cancel_symbol')).toEqual(['Cxl', 'sym']);
+    expect(buttons().find((b) => b.dataset.kind === 'cancel_symbol')!.textContent).toBe('Cxl sym');
+  });
+
   it('keeps every dispatch: a click runs that action', () => {
     render();
     const cancelAll = buttons().find((b) => b.dataset.kind === 'cancel_all_orders')!;

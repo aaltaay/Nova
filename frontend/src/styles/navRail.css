@@ -220,6 +220,12 @@
   gap: 6px;
 }
 
+/* An open foot item keeps its weight -- the tint and the accent bar mark it;
+   bold widened "Settings" past its room and cut it to "Settin..." (QA V28). */
+.nav-rail__foot .nav-rail__item.is-active {
+  font-weight: inherit;
+}
+
 .nav-rail__collapse {
   flex: none;
   width: 22px;

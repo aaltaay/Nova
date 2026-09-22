@@ -42,12 +42,16 @@ def age_gate(
 ) -> dict[str, str]:
     if p95 is None or mx is None:
         return check(cid, "warn", f"{label}: no samples yet")
+    # Judge the figures the detail prints: a max of 3.004 s printed "3.00s"
+    # beside "need max<=3s" and a red "fail" (QA W27, 2026-09-22).
+    p95 = round(float(p95), 2)
+    mx = round(float(mx), 2)
     if mx > max_limit or p95 > p95_limit:
         return check(
             cid,
             "fail",
             f"{label}: p95={p95:.2f}s max={mx:.2f}s "
-            f"(need p95<={p95_limit:.0f}s max<={max_limit:.0f}s)",
+            f"(need p95<={p95_limit:g}s max<={max_limit:g}s)",
         )
     if p95 > p95_limit * 0.75:
         return check(

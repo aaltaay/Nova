@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 
-from constants import GAPPER_MIN_GAP_PCT, SCANNER_MIN_PRICE
+from constants import GAPPER_MIN_GAP_PCT, SCANNER_MIN_PRICE, SCANNER_RVOL_SOURCE_ALPACA
 from market import pace_relative_volume
 
 logger = logging.getLogger(__name__)
@@ -108,7 +108,8 @@ def reprice_afterhours_row_ibkr(
         prior_gap_f = None
     avg = avg_volume_by_symbol.get(row["symbol"])
     paced = pace_relative_volume(vol, avg) if avg and vol else None
-    raw_rvol = round(vol / avg, 2) if avg and avg > 0 and vol > 0 else row.get("rel_volume")
+    measured = bool(avg and avg > 0 and vol > 0)
+    raw_rvol = round(vol / avg, 2) if measured else row.get("rel_volume")
     return {
         **row,
         "price": price_f,
@@ -121,6 +122,9 @@ def reprice_afterhours_row_ibkr(
         "gap_percent": _session_gap_frac(open_f, prev_f, prior_gap_f),
         "volume": vol,
         "rel_volume": paced if paced is not None else raw_rvol,
+        # Measured here against the Alpaca IEX average; otherwise the row keeps
+        # its own value and its own source (QA C39).
+        "rvol_source": SCANNER_RVOL_SOURCE_ALPACA if measured else row.get("rvol_source"),
     }
 
 

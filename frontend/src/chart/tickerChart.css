@@ -291,9 +291,18 @@
   background: rgba(239, 68, 68, 0.15);
 }
 
+/* The chart's canvases carry their own z-index (2) and come after the label in
+   the DOM, so they took the x's clicks (QA D6, 2026-09-22). The body is its
+   own stacking context under the label; the label sits above it. */
 .chart-oscillator-body {
+  position: relative;
+  z-index: 0;
   width: 100%;
   height: 110px;
+}
+
+.chart-oscillator-pane > .chart-oscillator-label {
+  z-index: 3;
 }
 
 /* ── Chart Maximized Overlay ────────────────────────────────────────────── */

@@ -52,8 +52,16 @@ export const GLOBAL_BAR_NAV_TRADER_DISABLED_TITLE =
  * One row on every venue; the cards under Day's / TAV hold the rest.
  */
 export const GLOBAL_BAR_DAY_PNL_LABEL = "Day's";
+/**
+ * The Day's title on Live (and the sample desk): IBKR's RealizedPnL +
+ * UnrealizedPnL (globalBarMoney.dayPnlFromSummary). IBKR's unrealized runs from
+ * each position's average cost, not from the day's start, so the title says so
+ * instead of promising "since the day started" -- and the percent's base is the
+ * account value less this figure (dayPnlPercent). Same wording as the Account
+ * page's ACCOUNT_DAY_PNL_LIVE_NOTE (QA W18). Paper / Sim: practiceDayPnlTitle.
+ */
 export const GLOBAL_BAR_DAY_PNL_TITLE =
-  "Day's P&L -- realized plus unrealized since the day started. The percent is against the account value at the start of the day.";
+  "Day's P&L -- realized today plus open P&L from each position's cost: a position carried overnight counts its whole open P&L, not only today's move. The percent is against the account value less this figure.";
 export const GLOBAL_BAR_TAV_LABEL = 'TAV';
 export const GLOBAL_BAR_TAV_TITLE = 'Total Account Value -- IBKR NetLiquidation';
 export const GLOBAL_BAR_WORKING_LABEL = 'Working';
@@ -266,3 +274,10 @@ export const rosterScannerError = (source: string, error: string): string =>
     : /connection|refused|reset/i.test(error)
       ? `${source} scanner connection failed`
       : `${source} scanner failed (${error})`;
+
+// ── QA pass two (2026-09-22): Scanner / header / layout batch ────────────
+/** D10: the connection chip while /api/ibkr/status has not answered yet. */
+export const GLOBAL_BAR_CONNECTION_CHECKING_LABEL = 'Checking IBKR';
+export const GLOBAL_BAR_CONNECTION_CHECKING_TITLE =
+  "Nova's status request has not answered yet -- IB Gateway's state is not known";
+

@@ -94,6 +94,9 @@ describe('desk board geometry', () => {
 
   it('drops the clipped State label on the narrow board, keeping the header title', () => {
     expect(ruleBody(narrow, 'th.scanner-col--state')).toMatch(/color:\s*transparent/);
+    // The invisible label must not spill past the table either (QA D21: a
+    // 16 px sideways scroll under the board).
+    expect(ruleBody(narrow, 'th.scanner-col--state')).toMatch(/overflow:\s*hidden/);
   });
 
   it('swaps in the short action labels on the narrow board', () => {

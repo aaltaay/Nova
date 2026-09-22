@@ -244,3 +244,24 @@
   text-transform: uppercase;
   color: var(--text-muted, #9aa3b2);
 }
+
+/* ── QA pass two (2026-09-22, D2): the row actions show at every width ──── */
+/* The actions pill lives in the last cell so no column is added (#276), and
+   that cell clips its own text -- which cut the pill to the cell, and on a
+   board narrower than its table (1280 / 1440 with the side panel open) the
+   cell sat off to the right. While a row is hovered, selected or focused its
+   host cell stops clipping and sticks to the board's visible right edge, so
+   Trader / Record / Allowlist / Pin are whole and clickable, scrolled or not.
+   The header stays above a sticky cell scrolling under it. */
+.table-wrapper--scanner .scanner-row:hover > .scanner-row-actions-host,
+.table-wrapper--scanner .scanner-row.row-selected > .scanner-row-actions-host,
+.table-wrapper--scanner .scanner-row:focus-within > .scanner-row-actions-host {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  overflow: visible;
+}
+
+.table-wrapper--scanner thead th {
+  z-index: 3;
+}

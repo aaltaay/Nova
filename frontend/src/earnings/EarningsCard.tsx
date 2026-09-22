@@ -10,9 +10,11 @@ import { ROW_SELECT_QUOTE_TITLE } from '../constants';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
 import { fmtMarketCap } from '../utils/quoteFormat';
 import type { EarningsRow } from '../types/earnings';
+import { formatMoney } from '../utils/formatMoney';
 
+/** EPS through the shared money formatter: "-$0.33", never "$-0.33" (QA W20). */
 function fmtEps(v: number | null): string {
-  return v == null ? '—' : `$${v.toFixed(2)}`;
+  return formatMoney(v);
 }
 
 function EarningsLogo({ symbol, logoUrl }: { symbol: string; logoUrl: string | null }) {

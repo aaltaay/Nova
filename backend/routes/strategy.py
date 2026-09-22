@@ -20,6 +20,7 @@ from pydantic import BaseModel
 
 from alpaca import _get_discovery_provider
 from chart_bars import fetch_chart_bars as _fetch_chart_bars
+from scanner_surface import surface_rows
 from strategy.five_pillars import evaluate_many
 from strategy.gap_and_go import evaluate_gap_and_go
 from strategy.risk import get_state as _get_risk_state, validate_trade_plan
@@ -33,14 +34,39 @@ _TRANSPARENCY_NOTE = (
     "Signal only. This endpoint never places, modifies, or cancels orders."
 )
 
+# The wire carries a move as a fraction (0.978 = +97.8%). The graders take a
+# fraction up to 1.0 or a percent above it, so a move past +100% (1.56) would
+# be read as 1.56% -- it is handed over in percent instead.
+_GRADED_PCT_KEYS = ("change_pct", "gap_percent")
+
+
+def _graded(row: dict) -> dict:
+    """A surfaced row in the units the Five Pillars / watchlist graders read."""
+    out = dict(row)
+    for key in _GRADED_PCT_KEYS:
+        value = out.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and abs(value) > 1.0:
+            out[key] = value * 100
+    return out
+
+
+def _surfaced(rows: list[dict] | None) -> list[dict]:
+    """Rows as the Scanner shows them (QA W6, 2026-09-22).
+
+    The raw caches carry no RVOL, float or news -- those are added at read
+    time by ``surface_rows`` (ADR 008), so grading the raw rows marked every
+    name "no relative volume data / float unknown / no news" while the same
+    row on the board showed all three.
+    """
+    return [_graded(r) for r in surface_rows(rows)]
+
 
 def _gapper_cache() -> list[dict]:
-    return get_runtime_state().gapper_cache
-
+    return _surfaced(get_runtime_state().gapper_cache)
 
 
 def _gainer_cache() -> list[dict]:
-    return get_runtime_state().gainer_cache
+    return _surfaced(get_runtime_state().gainer_cache)
 
 
 def _find_gapper(symbol: str) -> dict | None:

@@ -13,7 +13,9 @@ import {
 } from 'react';
 import { API_URL } from '../constants';
 import { useIbkrStatus } from '../ibkr';
+import type { DeskVenue } from '../constantGroups/desk_venue';
 import type { IbkrMode } from '../ibkr/types';
+import { ibkrStatusView } from './ibkrStatusView';
 import {
   useTraderDeskBinding,
   type TraderDeskRole,
@@ -34,7 +36,17 @@ export type WorkspaceValue = {
   setAlpacaFeed: (feed: string) => void;
   scannerPersistentAuthoritative: boolean;
   ibkrConnected: boolean;
-  ibkrTransportConnected: boolean;
+  /**
+   * True once /api/ibkr/status answered and the answer is current. While the
+   * first poll is pending or the route is failing, nothing is known about IB
+   * Gateway -- the transport, ports and hint below are then undefined / false
+   * / null, never a proven outage (QA D10).
+   */
+  ibkrStatusKnown: boolean;
+  /** Why the status is not known: "HTTP 500", "no answer"... null when known or still loading. */
+  ibkrStatusError: string | null;
+  /** Raw Gateway socket; undefined while the status is not known. */
+  ibkrTransportConnected: boolean | undefined;
   ibkrSessionReason: string | null;
   ibkrPortsDark: boolean;
   ibkrDisconnectHint: string | null;
@@ -42,7 +54,13 @@ export type WorkspaceValue = {
    * an approval now will be silently discarded (PROBLEM_LOG 2026-08-25). */
   ibkrSecondFactorStale: boolean;
   ibkrSecondFactorAgeSec: number | null;
+  /**
+   * The status `mode`: on Live it is the Gateway port label ('paper' on the
+   * by-hand paper Gateway), so it is not the desk venue -- read `deskVenue`.
+   */
   ibkrMode: IbkrMode;
+  /** ADR 020's one truth for Live / Paper / Sim: the status `venue` (then `mode`). */
+  deskVenue: DeskVenue | null;
   ibkrGatewayMode: 'paper' | 'live' | null;
   ibkrAccountKind: string | null;
   ibkrIntentionalMode: 'paper' | 'live' | null;
@@ -109,6 +127,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const statusView = ibkrStatusView(ibkrStatus);
   const value = useMemo<WorkspaceValue>(
     () => ({
       selectedSymbol,
@@ -119,15 +138,16 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setAlpacaFeed,
       scannerPersistentAuthoritative,
       ibkrConnected: ibkrStatus.connected && !ibkrStatus.stale,
-      ibkrTransportConnected: ibkrStatus.transport_connected === true,
+      ibkrStatusKnown: statusView.ibkrStatusKnown,
+      ibkrStatusError: statusView.ibkrStatusError,
+      ibkrTransportConnected: statusView.ibkrTransportConnected,
       ibkrSessionReason: ibkrStatus.session_reason ?? null,
-      ibkrPortsDark:
-        ibkrStatus.preferred_port_reachable === false
-        && ibkrStatus.alternate_port_reachable === false,
-      ibkrDisconnectHint: ibkrStatus.disconnect_hint ?? null,
+      ibkrPortsDark: statusView.ibkrPortsDark,
+      ibkrDisconnectHint: statusView.ibkrDisconnectHint,
       ibkrSecondFactorStale: ibkrStatus.second_factor_stale === true,
       ibkrSecondFactorAgeSec: ibkrStatus.second_factor_age_sec ?? null,
       ibkrMode: ibkrStatus.mode,
+      deskVenue: statusView.deskVenue,
       ibkrGatewayMode: ibkrStatus.gateway_mode ?? null,
       ibkrAccountKind: ibkrStatus.broker_account_kind ?? null,
       ibkrIntentionalMode: ibkrStatus.intentional_gateway_mode ?? null,
@@ -162,11 +182,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       scannerPersistentAuthoritative,
       ibkrStatus.connected,
       ibkrStatus.stale,
-      ibkrStatus.transport_connected,
+      statusView.ibkrStatusKnown,
+      statusView.ibkrStatusError,
+      statusView.ibkrTransportConnected,
+      statusView.ibkrPortsDark,
+      statusView.ibkrDisconnectHint,
+      statusView.deskVenue,
       ibkrStatus.session_reason,
-      ibkrStatus.preferred_port_reachable,
-      ibkrStatus.alternate_port_reachable,
-      ibkrStatus.disconnect_hint,
       ibkrStatus.second_factor_stale,
       ibkrStatus.second_factor_age_sec,
       ibkrStatus.mode,

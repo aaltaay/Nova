@@ -78,17 +78,19 @@ export function tabContextFor(symbol: string, rows: ScannerDockRows | null | und
   };
 }
 
-/** "+131%" above a hundred, "+14.6%" / "−5.4%" below; null stays empty. */
+/** "+131%" above a hundred, "+14.6%" / "−5.4%" below; null stays empty; a
+ * move that prints as 0.0% has no sign, never "−0.0%" (QA W21). */
 export function formatSignedPct(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return '';
   const abs = Math.abs(value);
   const digits = abs >= 100 ? 0 : 1;
-  const sign = value > 0 ? '+' : value < 0 ? '−' : '';
+  if (Number(abs.toFixed(digits)) === 0) return `${(0).toFixed(digits)}%`;
+  const sign = value > 0 ? '+' : '−';
   return `${sign}${abs.toFixed(digits)}%`;
 }
 
 export function pctTone(value: number | null | undefined): 'up' | 'down' | 'flat' {
-  if (value == null || !Number.isFinite(value) || value === 0) return 'flat';
+  if (value == null || !Number.isFinite(value) || Number(Math.abs(value).toFixed(1)) === 0) return 'flat';
   return value > 0 ? 'up' : 'down';
 }
 

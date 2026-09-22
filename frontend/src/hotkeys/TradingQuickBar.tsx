@@ -6,6 +6,7 @@
  * the gear at the row's end opens Settings > Hot Keys where the row is
  * configured. Depth-dependent actions stay greyed until the L2 book is live.
  */
+import { Fragment } from 'react';
 import { NOVA_ACTION_DEPTH_DISABLED_REASON, NOVA_ACTION_NEEDS_DEPTH } from '../constants';
 import {
   QUICK_TRADES_ARIA,
@@ -16,7 +17,7 @@ import { useSettingsOptional } from '../settings/SettingsContext';
 import { formatKeyChord } from './htkFormat';
 import { useHotkeyDispatchOptional } from './HotkeyDispatchContext';
 import { QuickTradeGearIcon, QuickTradeIcon } from './quickTradeIcons';
-import { quickTradeShortLabel, quickTradeTone } from './quickTradeLabel';
+import { quickTradeLabelPieces, quickTradeShortLabel, quickTradeTone } from './quickTradeLabel';
 import { useTopOfBook } from './TopOfBookContext';
 
 export function TradingQuickBar() {
@@ -62,7 +63,16 @@ export function TradingQuickBar() {
               }}
             >
               <QuickTradeIcon kind={action.kind} />
-              <span>{quickTradeShortLabel(action.kind, action.params)}</span>
+              {/* Each word is its own box so a label wraps only between words
+                  and a word too wide for its button ends in an ellipsis (QA D14). */}
+              <span className="nova-qt__label">
+                {quickTradeLabelPieces(quickTradeShortLabel(action.kind, action.params)).map((piece, index) => (
+                  <Fragment key={index}>
+                    {piece.spaced && ' '}
+                    <span className="nova-qt__word">{piece.text}</span>
+                  </Fragment>
+                ))}
+              </span>
             </button>
           );
         })}

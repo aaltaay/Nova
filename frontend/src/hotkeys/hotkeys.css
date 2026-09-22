@@ -538,7 +538,8 @@
 
 .hk-editor {
   display: grid;
-  grid-template-columns: 264px minmax(0, 1fr);
+  /* The list widens with the page so action names are not cut (QA V40). */
+  grid-template-columns: minmax(264px, 34%) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) auto;
   height: 420px;
   border: 1px solid var(--nova-border, var(--border-color));

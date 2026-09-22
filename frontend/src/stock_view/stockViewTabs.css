@@ -85,14 +85,19 @@
   margin: 0 2px;
 }
 
+/* The scrubber keeps its controls on the row (QA D12, D5): it never shrinks
+   below its content -- the tabs clip instead -- and it never wraps (the old
+   bar's class put the session menu on a hidden second line). */
 .sv-tab-strip__trailing {
   display: flex;
   align-items: center;
   flex: 1 1 auto;
-  min-width: 0;
+  min-width: min-content;
   height: 100%;
   white-space: nowrap;
 }
+
+.sv-tab-strip__trailing > .sim-strip { flex-wrap: nowrap; }
 
 .sv-tab {
   position: relative;

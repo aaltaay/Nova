@@ -61,7 +61,7 @@ export function StockViewTabs({ detached, hideFocusRail = false, active }: Props
     showScannerView,
     traderViewActive,
     setSelectedSymbol,
-    ibkrMode,
+    deskVenue,
   } = useWorkspace();
 
   useEffect(() => {
@@ -111,7 +111,7 @@ export function StockViewTabs({ detached, hideFocusRail = false, active }: Props
       showExtract={canExtractFromDesk(traderDeskRole)}
       dropReady={dropReady}
       // The Sim scrubber rides on this row (no SIM SESSION bar on the Trader view).
-      trailing={ibkrMode === 'sim' ? <SimSessionStrip /> : null}
+      trailing={deskVenue === 'sim' ? <SimSessionStrip /> : null}
       onActivate={onActivate}
       onClose={sym => {
         closeTraderTab(sym);

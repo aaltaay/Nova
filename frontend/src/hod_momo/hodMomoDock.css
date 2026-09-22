@@ -1,5 +1,8 @@
 /* HOD Momo strip -- compact alert strip across the top of the Scanner board.
    Owner: hod_momo/HodMomoDock.tsx (+ HodMomoStripHeader / Row / Menu). */
+/* The popover menu and the alert rows: hodMomoStripRows.css (split to stay
+   under the 400-line limit, QA pass two 2026-09-22; no selector is shared). */
+@import "./hodMomoStripRows.css";
 
 .hod-strip {
   --hod-strip-row: 22px;
@@ -182,221 +185,6 @@
   transform: rotate(-90deg);
 }
 
-/* ── popover menu ────────────────────────────────────────────────────────── */
-.hod-strip__menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 40;
-  min-width: 15rem;
-  padding: 0.35rem;
-  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
-  border-radius: 6px;
-  background: var(--surface-2, #1a1d25);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-  font-size: 11.5px;
-  color: var(--text-primary, #e8ecf4);
-  cursor: default;
-  white-space: nowrap;
-}
-
-.hod-strip__menu-row,
-.hod-strip__menu-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  width: 100%;
-  padding: 0.3rem 0.5rem;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.hod-strip__menu-row {
-  cursor: default;
-}
-
-.hod-strip__menu-item:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.hod-strip__menu-strategies {
-  margin-top: 0.25rem;
-  padding-top: 0.25rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.hod-strip__menu-label {
-  padding: 0.2rem 0.5rem;
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-muted, #9aa3b2);
-}
-
-.hod-strip__menu-strategy {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.15rem 0.5rem;
-  cursor: pointer;
-}
-
-.hod-strip__menu-strategy:hover {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.hod-strip__menu-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.hod-strip__menu-count {
-  margin-left: auto;
-  color: var(--text-muted, #9aa3b2);
-  font-variant-numeric: tabular-nums;
-}
-
-/* ── rows ───────────────────────────────────────────────────────────────── */
-.hod-strip__body {
-  overflow-y: auto;
-  overflow-x: hidden;
-  min-height: 0;
-  background: var(--surface-0, #0d0f14);
-}
-
-.hod-strip__empty {
-  height: var(--hod-strip-row);
-  line-height: var(--hod-strip-row);
-  padding: 0 0.75rem;
-  font-size: 11px;
-  color: var(--text-muted, #9aa3b2);
-}
-
-/* An unreadable feed frame is stated, not shown as "No alerts yet" (QA C32). */
-.hod-strip__empty--error {
-  color: #fbbf24;
-}
-
-.hod-strip__row {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  height: var(--hod-strip-row);
-  padding: 0 0.75rem;
-  font-size: 11.5px;
-  line-height: var(--hod-strip-row);
-  white-space: nowrap;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-  cursor: pointer;
-  font-variant-numeric: tabular-nums;
-}
-
-.hod-strip__row:hover {
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.hod-strip__row.is-selected {
-  background: rgba(59, 130, 246, 0.12);
-  box-shadow: inset 3px 0 0 var(--accent-color, #3b82f6);
-}
-
-.hod-strip__row.is-new {
-  background: rgba(59, 130, 246, 0.06);
-  animation: hod-strip-flash 2.6s ease-out 1;
-}
-
-@keyframes hod-strip-flash {
-  0% { background: rgba(59, 130, 246, 0.34); }
-  100% { background: rgba(59, 130, 246, 0.06); }
-}
-
-.hod-strip__row:focus-visible {
-  outline: 1px solid var(--accent-color, #3b82f6);
-  outline-offset: -1px;
-}
-
-.hod-strip__time {
-  flex: 0 0 4.4rem;
-  color: var(--text-muted, #9aa3b2);
-}
-
-.hod-strip__sym {
-  flex: 0 0 3.6rem;
-  font-size: 12px;
-  text-align: left;
-}
-
-.hod-strip__price {
-  flex: 0 0 3.2rem;
-  text-align: right;
-  font-weight: 600;
-  color: var(--text-primary, #e8ecf4);
-}
-
-.hod-strip__new {
-  flex: 0 0 2rem;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: #93c5fd;
-}
-
-.hod-strip__strat {
-  flex: 0 0 11rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--text-primary, #e8ecf4);
-}
-
-.hod-strip__strat-more,
-.hod-strip__burst {
-  color: var(--text-muted, #9aa3b2);
-  font-size: 10px;
-}
-
-.hod-strip__sid {
-  flex: none;
-  padding: 0 4px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.05);
-  font-size: 10px;
-  line-height: 14px;
-  color: var(--text-muted, #9aa3b2);
-}
-
-.hod-strip__gate {
-  flex: 1 1 0;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--text-muted, #9aa3b2);
-}
-
-.hod-strip__gate b {
-  font-weight: 500;
-  color: var(--text-primary, #e8ecf4);
-}
-
-.hod-strip__gate b.is-absent,
-.hod-strip__gate-absent {
-  color: var(--text-muted, #9aa3b2);
-  font-weight: 400;
-}
-
-.hod-strip__gate-k {
-  font-size: 10px;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-}
-
 /* ── grip ───────────────────────────────────────────────────────────────── */
 .hod-strip__grip {
   position: relative;
@@ -503,4 +291,34 @@ body:has(.nova-app-stack) #root .app-shell-host {
   min-height: 0;
   width: 100%;
   overflow: hidden;
+}
+
+/* ── narrow strip (QA D9, 2026-09-22) ────────────────────────────────────── */
+/* In the Desk's 480 px board column the header ran out of room: the HOD Momo
+   | Running Up segments were clipped to "HOD N" and "feed live" sat on top of
+   them, so Running Up could not be clicked. The segments never shrink; the
+   "N alerts since" count and the integrity word give way first (the dot and
+   its tooltip stay). */
+.hod-strip {
+  container-type: inline-size;
+  container-name: hod-strip;
+}
+
+.hod-strip__head .hod-momo-dock__modes,
+.hod-strip__head .hod-strip__feed {
+  flex-shrink: 0;
+}
+
+.hod-strip__head .hod-strip__since {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@container hod-strip (max-width: 620px) {
+  .hod-strip__head .hod-strip__since,
+  .hod-strip__head .hod-strip__since + .hod-strip__sep,
+  .hod-strip__head .hod-strip__integrity-text {
+    display: none;
+  }
 }

@@ -24,6 +24,7 @@ from constants import (
     HOD_MOMO_MASTER_SURGE_WINDOW_MIN,
     HOD_MOMO_COOLDOWN_SEC,
     HOD_MOMO_CONSOLIDATION_SEC,
+    HOD_MOMO_INVENTED_CHANGE_BEFORE_TS,
     HOD_MOMO_STRATEGY_AUDIO_DEFAULT,
     HOD_MOMO_STRATEGY_COLORS,
     HOD_MOMO_STRATEGY_DEFAULTS,
@@ -246,6 +247,25 @@ def new_alert(
     )
 
 
+def restored_change_pct(d: dict) -> float | None:
+    """A stored alert's change, with the pre-fix fill-in read as unknown.
+
+    Before QA C33's fix an alert stored ``snap.change_pct or 0.0``: 626 of
+    one morning's alerts said "CHG 0.0%" for a snapshot that had no change.
+    An exact 0.0 on an alert created before the cutoff is that fill-in.
+    """
+    change = d.get("change_pct")
+    if isinstance(change, bool) or not isinstance(change, (int, float)):
+        return None if change is None else change
+    try:
+        created = float(d.get("created_ts") or 0.0)
+    except (TypeError, ValueError):
+        created = 0.0
+    if change == 0 and created < HOD_MOMO_INVENTED_CHANGE_BEFORE_TS:
+        return None
+    return change
+
+
 def alert_from_dict(d: dict) -> AlertObject:
     created_ts = float(d.get("created_ts") or 0.0)
     return AlertObject(
@@ -255,7 +275,7 @@ def alert_from_dict(d: dict) -> AlertObject:
         strategy_id=d.get("strategy_id", 0),
         strategy_name=d.get("strategy_name", ""),
         price=d.get("price", 0.0),
-        change_pct=d.get("change_pct"),
+        change_pct=restored_change_pct(d),
         rvol=d.get("rvol"),
         float_shares=d.get("float_shares"),
         gap_pct=d.get("gap_pct"),

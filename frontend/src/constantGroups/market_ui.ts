@@ -221,12 +221,7 @@ export const SCANNER_ROW_NUM_TITLE =
  * volume for thin low-float names and blew RVOL up 100x-3000x (PROBLEM_LOG
  * 2026-07-16). Backend owner: mover_enrich_view + hod_momo_enrichment. */
 export const SCANNER_VOLUME_COLUMN_LABEL = 'Volume · RVOL';
-// A two-letter source mark keeps the Volume cell narrow enough for a squeezed
-// Scanner (operator report, 2026-09-22: 'YFINANCE AVG' spilled into Watch);
-// the cell and header titles still spell the source out in full.
-export const SCANNER_RVOL_SOURCE_BADGE = 'yf';
-export const SCANNER_RVOL_SOURCE_TITLE =
-  'Live volume is IBKR L1. Relative volume divides it by the yfinance average daily volume (aux) — not IBKR consolidated volume. Thin names can still look off; study vs tape before trusting.';
+// Per-row RVOL source marks and titles: SCANNER_RVOL_SOURCE_MARKS (scanner_board.ts, QA C39).
 
 /** Ticker detail / Stock View RVOL still divides by Alpaca daily-bar average
  * (`ticker_detail.fetch_ticker_avg_volume` reads `avg_volume_cache`), so it

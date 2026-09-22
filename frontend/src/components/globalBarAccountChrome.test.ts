@@ -54,4 +54,13 @@ describe('resolveAccountChromeState', () => {
       }),
     ).toBe('ready');
   });
+
+  it('never says "IBKR offline" while the status itself is unknown (QA D10)', () => {
+    const unknown = { ibkrConnected: false, summaryConnected: undefined, loading: false, error: null };
+    expect(resolveAccountChromeState({ ...unknown, statusKnown: false, statusError: null })).toBe('loading');
+    expect(resolveAccountChromeState({ ...unknown, statusKnown: false, statusError: 'HTTP 500' })).toBe('unavailable');
+    // A current answer that says the Gateway is down is still offline.
+    expect(resolveAccountChromeState({ ...unknown, statusKnown: true, statusError: null })).toBe('offline');
+  });
 });
+

@@ -67,4 +67,20 @@ describe('useHodMomoDebugPoll', () => {
     });
     expect(fetchMock.mock.calls.length).toBe(afterUnmount);
   });
+
+  it('keeps the counters age the time since the last answer, never epoch seconds (QA W15)', async () => {
+    vi.setSystemTime(new Date('2026-09-22T09:00:00Z'));
+    let latest: ReturnType<typeof useHodMomoDebugPoll> | null = null;
+    await act(async () => {
+      root.render(<PollProbe onReady={(api) => { latest = api; }} />);
+    });
+    const ages: number[] = [];
+    for (let i = 0; i < 6; i += 1) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      ages.push(latest!.countersAge);
+    }
+    expect(Math.max(...ages)).toBeLessThan(5);
+  });
 });

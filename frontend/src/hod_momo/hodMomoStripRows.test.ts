@@ -77,7 +77,8 @@ describe('hodMomoStripRows', () => {
     ];
     expect(stripAlertsForMode(list, 'hod_momo', null)[0].id).toBe('new');
     const since = fmtStripSince(list);
-    expect(since).toBe(new Date('2026-09-22T11:05:00Z').toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }));
+    // Eastern whatever the browser's zone (QA W24): 11:05Z is 07:05 ET.
+    expect(since).toBe('07:05');
     expect(fmtStripSince([])).toBeNull();
     expect(hodMomoStripSinceLabel(1, since)).toBe(`1 alert since ${since}`);
     expect(hodMomoStripSinceLabel(3, null)).toBe('3 alerts');
@@ -95,9 +96,7 @@ describe('hodMomoStripRows', () => {
     ];
     expect(stripAlertsForMode(list, 'hod_momo', null).map((a) => a.id)).toEqual(['a', 'b', 'stale', 'c']);
     const stale = list[1];
-    expect(fmtStripClock(stale)).toBe(new Date(stale.created_ts! * 1000).toLocaleTimeString('en-US', {
-      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
-    }));
+    expect(fmtStripClock(stale)).toBe('23:40:53');
     expect(stripPrintNote(stale)).toMatch(/^print \d{2}:\d{2}:\d{2}, 3h 47m before the alert$/);
     expect(stripPrintNote(alert({ id: 'fresh', created_ts: t('2026-09-22T12:39:55Z') }))).toBeNull();
     // Two alerts that share a legacy id still get distinct React keys.

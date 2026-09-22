@@ -117,3 +117,10 @@
   color: #e06666;
   border-color: #e06666;
 }
+
+/* A live sensor computed from old 1-minute bars (QA W16). */
+.sensor-chip--stale {
+  color: #f0b429;
+  border-color: #f0b429;
+}
+

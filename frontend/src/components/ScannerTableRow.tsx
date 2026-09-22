@@ -10,8 +10,12 @@ import { NewsCell } from './NewsCell';
 import { EarningsDots } from './EarningsDots';
 import { ScannerRowNumCell } from './ScannerTableChrome';
 import { scannerColClass } from './scannerTableCol';
-import { fmtMarketCap, fmtPct, fmtPrice, fmtVolume } from '../utils/quoteFormat';
-import { SCANNER_CELL_ABSENT, SCANNER_CHANGE_CLOSE_TITLE } from '../constantGroups/scanner_board';
+import { fmtMarketCap, fmtPct, fmtPrice, fmtRvol, fmtVolume, pctToneClass } from '../utils/quoteFormat';
+import {
+  SCANNER_CELL_ABSENT,
+  SCANNER_CHANGE_CLOSE_TITLE,
+  SCANNER_GAP_CLOSE_TITLE,
+} from '../constantGroups/scanner_board';
 import { GapCell, fmtChangeAbs, pctClass, rvolSourceMark } from './ScannerRowCells';
 import { SCANNER_QUOTE_CLOSE_FALLBACK } from '../scanner/scannerRowShape';
 import type { ScannerRow } from '../types/scanner';
@@ -104,13 +108,17 @@ function renderCell(
       }
       return (
         <span className="cell-stack">
-          <span className={`cell-stack-primary ${row.change_pct >= 0 ? 'positive' : 'negative'}`}>
+          <span className={`cell-stack-primary ${pctToneClass(row.change_pct)}`}>
             {fmtPct(row.change_pct)}
           </span>
           <span className="cell-stack-secondary">{fmtChangeAbs(row.change_abs)}</span>
         </span>
       );
     case 'gap_percent':
+      // IB's prior close as the price: the gap it yields (0.00%) is invented too (QA W12).
+      if (closeFallback) {
+        return <span className="na-muted" title={SCANNER_GAP_CLOSE_TITLE}>{SCANNER_CELL_ABSENT}</span>;
+      }
       return <GapCell value={row.gap_percent} scaleMax={gapScaleMax} />;
     case 'volume': {
       const mark = rvolSourceMark(row.rvol_source);
@@ -120,7 +128,7 @@ function renderCell(
           <span className="cell-stack-secondary">
             {row.rel_volume != null ? (
               <>
-                {row.rel_volume}x
+                {fmtRvol(row.rel_volume)}
                 <span className="rvol-source-badge" title={mark.title} data-rvol-source={row.rvol_source ?? 'unreported'}>
                   {mark.badge}
                 </span>
@@ -169,9 +177,12 @@ function renderCell(
         <span className={row.atr_expansion >= 1 ? 'positive' : ''}>{row.atr_expansion.toFixed(1)}x</span>
       ) : <span className="na-muted">—</span>;
     case 'change_5d_pct':
-      return <span className={pctClass(row.change_5d_pct)}>{fmtPct(row.change_5d_pct ?? null)}</span>;
-    case 'change_20d_pct':
-      return <span className={pctClass(row.change_20d_pct)}>{fmtPct(row.change_20d_pct ?? null)}</span>;
+    case 'change_20d_pct': {
+      // An absent figure is the muted dash every other cell uses, not "N/A" (QA W21).
+      const value = row[key] ?? null;
+      if (value == null) return <span className="na-muted">{SCANNER_CELL_ABSENT}</span>;
+      return <span className={pctClass(value)}>{fmtPct(value, SCANNER_CELL_ABSENT)}</span>;
+    }
     case 'high_20d':
       return (
         <span className="cell-stack">
