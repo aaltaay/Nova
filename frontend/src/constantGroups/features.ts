@@ -1,11 +1,7 @@
 /** Phase 3 domain group (features.ts). */
 import { API_URL } from './chart_api';
 
-// ── Account — former Trading tab + Reports (GlobalAppBar + sample AppHeader) ─
-/** Account control label (GlobalAppBar; sample AppHeader). */
-export const ACCOUNT_NAV_LABEL = 'Account';
-export const ACCOUNT_NAV_TITLE =
-  'Account overview — positions, orders, and trading habit reports';
+// ── Account — former Trading tab + Reports ───────────────────────────────────
 /** Account page sections (Overview = IBKR positions/orders; Reports = P&L habits). */
 export const ACCOUNT_SECTION_OVERVIEW = 'Overview';
 export const ACCOUNT_SECTION_REPORTS = 'Reports';

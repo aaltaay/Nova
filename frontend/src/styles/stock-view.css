@@ -103,12 +103,6 @@ body:has(.nova-shell--ticker-detail) #root .app-shell-host {
   overflow: hidden;
 }
 
-.nova-shell--ticker-detail .app-header {
-  margin-bottom: 0.25rem;
-  padding: 0.35rem 0.65rem;
-  flex-shrink: 0;
-}
-
 .main-col--full {
   width: 100%;
   max-width: none;
@@ -899,7 +893,6 @@ body:has(.nova-shell--ticker-detail) #root .app-shell-host {
 
 /* ── Tab bar additions ─────────────────────────────────────────────────────── */
 
-.header-data-source,
 .tab-data-source-badge {
   font-size: 0.65rem;
   color: var(--text-muted, #666);

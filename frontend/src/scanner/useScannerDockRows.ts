@@ -2,7 +2,6 @@
  * Rows + counts for scanner-dock roster pills (live feed or sample fixtures).
  */
 import { useMemo } from 'react';
-import type { MarketMode } from '../components/AppHeader';
 import { DISCOVERY_PROVIDER_DEFAULT } from '../constants';
 import type { ScannerTableMeta } from '../hooks/useScannerPriceStream';
 import type { ScannerDockRosterMode } from '../hod_momo/scannerDockModes';
@@ -11,6 +10,7 @@ import { useSettingsOptional } from '../settings/SettingsContext';
 import type { WatchlistEntry } from '../strategy/types';
 import type { Catalyst } from '../types/catalyst';
 import type { HealthStatus } from '../types/health';
+import type { MarketMode } from '../types/market';
 import type { Afterhours, Gapper, Mover } from '../types/scanner';
 import type { ActiveTab } from '../workspace/registry';
 import { useLiveScannerFeedOptional } from './ScannerDataContext';
