@@ -30,9 +30,9 @@ export async function clickThroughOverlay(page: Page, locator: Locator): Promise
   }
 }
 
-/** Account header -> Activity section, past docks and the prereq overlay. */
+/** Rail Account -> Activity section, past docks and the prereq overlay. */
 export async function openAccountActivity(page: Page): Promise<void> {
-  const account = page.getByTestId('global-bar-account-nav');
+  const account = page.getByTestId('nav-rail-account');
   await expect(account).toBeVisible();
   await dismissTradingPrereqIfOpen(page, 8000);
   await clickThroughOverlay(page, account);
@@ -44,9 +44,9 @@ export async function openAccountActivity(page: Page): Promise<void> {
   await expect(page.getByTestId('activity-trail')).toBeVisible();
 }
 
-/** Account header -> Reports section, past docks and the prereq overlay. */
+/** Rail Account -> Reports section, past docks and the prereq overlay. */
 export async function openAccountReports(page: Page): Promise<void> {
-  const account = page.getByTestId('global-bar-account-nav');
+  const account = page.getByTestId('nav-rail-account');
   await expect(account).toBeVisible();
   await dismissTradingPrereqIfOpen(page, 8000);
   await clickThroughOverlay(page, account);

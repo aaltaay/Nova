@@ -1,0 +1,73 @@
+/* Scanner dashboard shell + middle stack (HOD dock over the selected scanner).
+   The left rail itself is styles/navRail.css (components/NavRail.tsx). */
+
+.nova-shell--scanner {
+  align-items: stretch;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.nova-app-branch .nova-shell--scanner {
+  flex: 1 1 0;
+}
+
+.nova-shell--scanner .main-col {
+  padding-left: 1.25rem;
+}
+
+/* Middle column: HOD dock (top) + titled selected scanner (bottom). */
+.main-col--scanner-stack {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.main-col--scanner-stack .hod-momo-dock {
+  flex-shrink: 0;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+}
+
+.scanner-selected-widget {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  border-radius: 8px;
+  background: var(--nova-panel, var(--panel-bg, #12141a));
+}
+
+.scanner-selected-widget__title {
+  flex-shrink: 0;
+  padding: 0.45rem 0.75rem;
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-primary, #e8ecf4);
+}
+
+.scanner-selected-widget__body {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.35rem 0.5rem 0.5rem;
+}
+
+.scanner-selected-widget__body > .panel {
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  min-height: 0;
+  height: 100%;
+}

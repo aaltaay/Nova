@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HodMomoFixtureProvider } from '../hod_momo/HodMomoFixtureProvider';
 import { IbkrAccountProvider } from '../ibkr/IbkrAccountContext';
 import { SampleDataProvider } from '../sample_data/SampleDataContext';
+import { requestScannerTab, resetNavRailStoreForTests } from '../workspace/navRailStore';
 import { LayoutStoreProvider } from '../workspace/useLayoutStore';
 import { ModuleVisibilityProvider } from '../workspace/useModuleVisibility';
 import { SampleDashboardPage } from './SampleDashboardPage';
@@ -49,6 +50,7 @@ describe('SampleDashboardPage', () => {
 
   beforeEach(() => {
     Element.prototype.scrollTo = vi.fn();
+    resetNavRailStoreForTests();
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -108,8 +110,9 @@ describe('SampleDashboardPage', () => {
       );
     });
 
+    // The nav rail lives in the shell; it selects tabs through the store's latch.
     await act(async () => {
-      (container.querySelector('[data-testid="scanner-nav-large_cap"]') as HTMLButtonElement).click();
+      requestScannerTab('large_cap');
     });
 
     const headers = [...container.querySelectorAll('thead th')].map(

@@ -5,14 +5,9 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  GLOBAL_BAR_ACCOUNT_LABEL,
-  GLOBAL_BAR_DAY_CARD_ARIA,
   GLOBAL_BAR_EMERGENCY_KILL_LABEL,
-  GLOBAL_BAR_FUND_ACCOUNT_LABEL,
   GLOBAL_BAR_EMERGENCY_KILL_OPS,
   GLOBAL_BAR_EMERGENCY_KILL_TITLE,
-  TRADER_DEFAULT_SYMBOL,
-  TRADER_DEFAULT_SYMBOLS,
 } from '../constants';
 import { GlobalAppBar } from './GlobalAppBar';
 import type { IbkrAccountState } from '../ibkr/IbkrAccountContext';
@@ -284,101 +279,6 @@ describe('GlobalAppBar', () => {
     expect(container.textContent).not.toMatch(/IBKR offline/);
   });
 
-  it('marks Scanner active and opens Trader from selected symbol', () => {
-    renderBar();
-    const scanner = container.querySelector(
-      '[data-testid="global-bar-nav-scanner"]',
-    ) as HTMLButtonElement;
-    const trader = container.querySelector(
-      '[data-testid="global-bar-nav-trader"]',
-    ) as HTMLButtonElement;
-    expect(scanner.getAttribute('aria-pressed')).toBe('true');
-    expect(trader.disabled).toBe(false);
-    act(() => {
-      trader.click();
-    });
-    expect(openStockView).toHaveBeenCalledWith('AAPL');
-  });
-
-  it('marks Trader active and returns to Scanner without closing tabs', () => {
-    workspace = baseWorkspace({
-      traderTabs: ['AAPL'],
-      activeTraderSymbol: 'AAPL',
-      traderViewActive: true,
-    });
-    renderBar();
-    const scanner = container.querySelector(
-      '[data-testid="global-bar-nav-scanner"]',
-    ) as HTMLButtonElement;
-    const trader = container.querySelector(
-      '[data-testid="global-bar-nav-trader"]',
-    ) as HTMLButtonElement;
-    expect(trader.getAttribute('aria-pressed')).toBe('true');
-    act(() => {
-      scanner.click();
-    });
-    expect(showScannerView).toHaveBeenCalled();
-    expect(closeTraderView).not.toHaveBeenCalled();
-  });
-
-  it('reopens Trader from Scanner when tabs are already open', () => {
-    workspace = baseWorkspace({
-      traderTabs: ['AAPL'],
-      activeTraderSymbol: 'AAPL',
-      traderViewActive: false,
-      selectedSymbol: 'AAPL',
-    });
-    renderBar();
-    const scanner = container.querySelector(
-      '[data-testid="global-bar-nav-scanner"]',
-    ) as HTMLButtonElement;
-    const trader = container.querySelector(
-      '[data-testid="global-bar-nav-trader"]',
-    ) as HTMLButtonElement;
-    expect(scanner.getAttribute('aria-pressed')).toBe('true');
-    expect(trader.getAttribute('aria-pressed')).toBe('false');
-    act(() => {
-      trader.click();
-    });
-    expect(openStockView).toHaveBeenCalledWith('AAPL');
-  });
-
-  it('opens Trader on the default index symbol when none is selected', () => {
-    workspace = baseWorkspace({ selectedSymbol: null, traderTabs: [] });
-    renderBar();
-    const trader = container.querySelector(
-      '[data-testid="global-bar-nav-trader"]',
-    ) as HTMLButtonElement;
-    expect(trader.disabled).toBe(false);
-    act(() => {
-      trader.click();
-    });
-    expect(openStockView).toHaveBeenCalledWith(TRADER_DEFAULT_SYMBOL);
-  });
-
-  it('lets the operator pick QQQ or IWM from Trader index defaults', () => {
-    workspace = baseWorkspace({ selectedSymbol: null, traderTabs: [] });
-    renderBar();
-    const toggle = container.querySelector(
-      '[data-testid="global-bar-nav-trader-defaults"]',
-    ) as HTMLButtonElement;
-    expect(toggle).toBeTruthy();
-    act(() => {
-      toggle.click();
-    });
-    const labels = TRADER_DEFAULT_SYMBOLS.map((sym) => {
-      const btn = container.querySelector(
-        `[data-testid="trader-default-${sym}"]`,
-      ) as HTMLButtonElement;
-      expect(btn?.textContent).toBe(sym);
-      return btn;
-    });
-    act(() => {
-      labels[1].click();
-    });
-    expect(openStockView).toHaveBeenCalledWith('QQQ');
-  });
-
   it('shows Paper | Live capsule when the scanner cluster is absent', () => {
     workspace = baseWorkspace({ ibkrMode: 'paper', ibkrGatewayMode: 'paper', ibkrAccountKind: 'paper' });
     renderBar();
@@ -441,84 +341,6 @@ describe('GlobalAppBar', () => {
     root = createRoot(container);
   });
 
-  it('renders Account as a labelled icon that opens the trading tab', () => {
-    renderBar();
-    const accountBtn = container.querySelector(
-      '[data-testid="global-bar-account-nav"]',
-    ) as HTMLButtonElement;
-    expect(accountBtn).toBeTruthy();
-    expect(accountBtn.getAttribute('aria-label')).toBe(GLOBAL_BAR_ACCOUNT_LABEL);
-    expect(accountBtn.textContent).not.toMatch(/Account/);
-    act(() => {
-      accountBtn.click();
-    });
-    expect(requestOpenTradingTab).toHaveBeenCalled();
-  });
-
-  function hoverAccount() {
-    const wrap = container.querySelector(
-      '[data-testid="global-bar-account-menu-wrap"]',
-    ) as HTMLElement;
-    expect(wrap).toBeTruthy();
-    act(() => {
-      wrap.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-    });
-    return wrap;
-  }
-
-  it("shows Fund account under the Account icon on hover, not in the Day's card", () => {
-    renderBar();
-    expect(container.querySelector('[data-testid="global-bar-fund-account"]')).toBeNull();
-
-    const wrap = hoverAccount();
-    const menu = container.querySelector('[data-testid="global-bar-account-menu"]');
-    const fund = container.querySelector(
-      '[data-testid="global-bar-fund-account"]',
-    ) as HTMLButtonElement;
-    expect(menu).toBeTruthy();
-    expect(fund).toBeTruthy();
-    expect(wrap.contains(menu)).toBe(true);
-    expect(menu!.contains(fund)).toBe(true);
-    expect(fund.textContent).toBe(GLOBAL_BAR_FUND_ACCOUNT_LABEL);
-
-    act(() => {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-    });
-    expect(container.querySelector('[data-testid="global-bar-account-menu"]')).toBeNull();
-
-    const trigger = container.querySelector(
-      '[data-testid="global-bar-account-trigger"]',
-    ) as HTMLButtonElement;
-    act(() => {
-      trigger.click();
-    });
-    // jsdom's selector engine cannot match an attribute value holding `'` and `&`
-    // (the card's aria-label), so the card is found by testid and its name checked.
-    const card = container.querySelector('[data-testid="global-bar-day-card"]');
-    expect(card).toBeTruthy();
-    expect(card!.getAttribute('aria-label')).toBe(GLOBAL_BAR_DAY_CARD_ARIA);
-    expect(card!.querySelector('[data-testid="global-bar-fund-account"]')).toBeNull();
-  });
-
-  it('opens the Fund account popover on keyboard focus', () => {
-    renderBar();
-    const accountBtn = container.querySelector(
-      '[data-testid="global-bar-account-nav"]',
-    ) as HTMLButtonElement;
-    act(() => {
-      accountBtn.focus();
-    });
-    expect(container.querySelector('[data-testid="global-bar-fund-account"]')).toBeTruthy();
-  });
-
-  it('keeps Fund account reachable while IBKR is disconnected', () => {
-    workspace = baseWorkspace({ ibkrConnected: false, ibkrMode: 'disconnected' });
-    account = baseAccount({ summary: null, orders: [] });
-    renderBar();
-    hoverAccount();
-    expect(container.querySelector('[data-testid="global-bar-fund-account"]')).toBeTruthy();
-  });
-
   it('places bot controls on a second header row, not in the primary right cluster', () => {
     renderBar();
     const header = container.querySelector('[data-testid="global-app-bar"]');
@@ -559,7 +381,6 @@ describe('GlobalAppBar', () => {
     const wrap = right.querySelector('[data-testid="global-bar-account"]') as HTMLElement;
     const cluster = right.querySelector('[data-testid="global-bar-cluster"]') as HTMLElement;
     const lock = right.querySelector('[data-testid="global-bar-trade-lock"]') as HTMLElement;
-    const accountNav = right.querySelector('[data-testid="global-bar-account-menu-wrap"]') as HTMLElement;
     const pill = cluster.querySelector('[data-testid="global-bar-account-pill"]') as HTMLElement;
     expect(pill).toBeTruthy();
     expect(pill.textContent).toContain('Individual Margin (U1234567)');
@@ -571,10 +392,12 @@ describe('GlobalAppBar', () => {
       'global-bar-tav-trigger',
       'global-bar-account-pill',
     ]);
-    expect(accountNav.querySelector('[data-testid="global-bar-account-nav"]')).toBeTruthy();
+    // View navigation and the Account icon live on the nav rail now.
+    expect(container.querySelector('[data-testid="global-bar-account-nav"]')).toBeNull();
+    expect(container.querySelector('[data-testid="global-bar-nav-scanner"]')).toBeNull();
+    expect(container.querySelector('[data-testid="global-bar-nav-trader"]')).toBeNull();
     const kids = Array.from(right.children);
     expect(kids.indexOf(wrap)).toBeLessThan(kids.indexOf(lock));
-    expect(kids.indexOf(lock)).toBeLessThan(kids.indexOf(accountNav));
     // The two chips this pill replaces are gone.
     expect(container.querySelector('[data-testid="global-bar-account-type"]')).toBeNull();
     expect(container.querySelector('[data-testid="global-bar-account-id"]')).toBeNull();

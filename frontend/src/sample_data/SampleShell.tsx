@@ -1,12 +1,15 @@
 /**
  * Hard-gated sample route shell — never mounts live DashboardPage / scanner hooks.
  * ?view=sample → dashboard fixtures; ?view=sample&symbol=X → Trader with sample ticker.
+ * Carries the nav rail like the live shell so the sample desk navigates the same way.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { AppErrorBoundary } from '../components/AppErrorBoundary';
 import { GlobalAppBar } from '../components/GlobalAppBar';
+import { NavRail } from '../components/NavRail';
 import { HodMomoFixtureProvider } from '../hod_momo/HodMomoFixtureProvider';
 import { IbkrAccountProvider } from '../ibkr/IbkrAccountContext';
+import { NavPageHost } from '../pages/NavPageHost';
 import { StockViewPage } from '../pages/StockViewPage';
 import { SampleDashboardPage } from '../pages/SampleDashboardPage';
 import {
@@ -77,26 +80,38 @@ function SampleShellInner() {
     },
   };
 
+  const rail = (
+    <NavRail
+      traderActive={traderSymbol != null}
+      onOpenTrader={openTrader}
+      onLeaveTrader={backToSampleDash}
+      settings={null}
+    />
+  );
+
   if (traderSymbol) {
     return (
-      <div className="nova-app-stack">
-        <GlobalAppBar scanner={sampleScannerBar} />
-        <SampleModeBadge onExit={leaveSampleView} />
-        <div className="nova-app-branch">
-          <AppErrorBoundary source="sample-trader">
-            <div className="nova-shell nova-shell--ticker-detail">
-              <div className="main-col main-col--full main-col--trader-stack">
-                <main className="ticker-detail-main">
-                  <StockViewPage
-                    symbol={traderSymbol}
-                    detached
-                    onBack={backToSampleDash}
-                    onSelectSymbol={openTrader}
-                  />
-                </main>
+      <div className="nova-app-stack nova-app-stack--rail">
+        {rail}
+        <div className="nova-app-main">
+          <GlobalAppBar scanner={sampleScannerBar} />
+          <SampleModeBadge onExit={leaveSampleView} />
+          <div className="nova-app-branch">
+            <AppErrorBoundary source="sample-trader">
+              <div className="nova-shell nova-shell--ticker-detail">
+                <div className="main-col main-col--full main-col--trader-stack">
+                  <main className="ticker-detail-main">
+                    <StockViewPage
+                      symbol={traderSymbol}
+                      detached
+                      onBack={backToSampleDash}
+                      onSelectSymbol={openTrader}
+                    />
+                  </main>
+                </div>
               </div>
-            </div>
-          </AppErrorBoundary>
+            </AppErrorBoundary>
+          </div>
         </div>
       </div>
     );
@@ -104,13 +119,18 @@ function SampleShellInner() {
 
   return (
     <HodMomoFixtureProvider>
-      <div className="nova-app-stack">
-        <GlobalAppBar scanner={sampleScannerBar} />
-        <SampleModeBadge onExit={leaveSampleView} />
-        <div className="nova-app-branch">
-          <AppErrorBoundary source="sample-dashboard">
-            <SampleDashboardPage onOpenTrader={openTrader} />
-          </AppErrorBoundary>
+      <div className="nova-app-stack nova-app-stack--rail">
+        {rail}
+        <div className="nova-app-main">
+          <GlobalAppBar scanner={sampleScannerBar} />
+          <SampleModeBadge onExit={leaveSampleView} />
+          <div className="nova-app-branch">
+            <AppErrorBoundary source="sample-dashboard">
+              <NavPageHost onOpenTrader={openTrader}>
+                <SampleDashboardPage onOpenTrader={openTrader} />
+              </NavPageHost>
+            </AppErrorBoundary>
+          </div>
         </div>
       </div>
     </HodMomoFixtureProvider>

@@ -2,20 +2,16 @@
  * Webull-style chrome shared by Scanner and Trader View (parent + pop-out).
  * Mounted once in AppShell so every live page inherits it automatically.
  *
- * Primary row = brand, Scanner/Trader, status, theme, account cluster (Day's /
- * Working / TAV / account pill -- GlobalBarAccountCluster), lock, Account
- * (icon; Fund account on hover), Settings (icon).
+ * Primary row = brand, status, theme, account cluster (Day's / Working / TAV /
+ * account pill -- GlobalBarAccountCluster), lock, Settings (icon). View
+ * navigation (Desk / Trader / Scanner / Account / ...) is the nav rail's.
  * Bot row = BotArmControls + BotSymbolMenuHost (issue #230).
  * Trader tabs row = symbol strip under Bot Autonomy, above the chart.
  * Narrow widths hide low-value chips on the primary row
  * (global-app-bar-responsive.css); the bot row wraps/scrolls on its own.
  */
-import { useEffect, useState } from 'react';
 import {
   GLOBAL_BAR_BRAND,
-  GLOBAL_BAR_NAV_SCANNER,
-  GLOBAL_BAR_NAV_SCANNER_TITLE,
-  TRADER_DEFAULT_SYMBOL,
   GLOBAL_BAR_SETTINGS_LABEL,
   GLOBAL_BAR_SETTINGS_TITLE,
 } from '../constants';
@@ -24,15 +20,9 @@ import { useIbkrAccountContext } from '../ibkr/IbkrAccountContext';
 import { TradingSessionLockButton } from '../ibkr/TradingSessionLockButton';
 import { isSampleView } from '../sample_data/sampleNav';
 import { useSettingsOptional } from '../settings/SettingsContext';
-import { useModuleVisibility } from '../workspace/useModuleVisibility';
 import { parseStockViewSymbol } from '../utils/stockViewNav';
 import { useWorkspace } from '../workspace/WorkspaceContext';
-import {
-  getAccountNavActive,
-  subscribeAccountNavActive,
-} from './accountNavActive';
 import { GlobalBarAccountCluster } from './GlobalBarAccountCluster';
-import { GlobalBarAccountNav } from './GlobalBarAccountNav';
 import { resolveAccountChromeState } from './globalBarAccountChrome';
 import { NovaLogo } from './NovaLogo';
 import { GatewayModeCapsule } from '../ibkr/GatewayModeCapsule';
@@ -44,8 +34,6 @@ import { GlobalBarBotRow } from '../bot/GlobalBarBotRow';
 import { SimSessionHeader } from '../sim/SimSessionHeader';
 import { GlobalBarScannerCluster } from './GlobalBarScannerCluster';
 import { ThemeToggle } from './ThemeToggle';
-import { requestOpenTradingTab } from './openTradingTabNav';
-import { TraderNavButton } from './TraderNavButton';
 import { useScannerBarProps } from './scannerBarStore';
 import {
   SCANNER_MODE_LABELS,
@@ -58,7 +46,6 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
   const liveScanner = useScannerBarProps();
   const scanner = scannerProp ?? liveScanner ?? undefined;
   const {
-    selectedSymbol,
     traderTabs,
     traderViewActive,
     openStockView,
@@ -75,8 +62,6 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
     useIbkrAccountContext();
   const { orders: closedOrders } = useClosedOrders(ibkrConnected);
   const settingsApi = useSettingsOptional();
-  const { visibility } = useModuleVisibility();
-  const [accountNavActive, setAccountNavActive] = useState(getAccountNavActive);
 
   const traderActive = traderViewActive;
   const detachedTrader = traderTabs.length > 0 && parseStockViewSymbol() != null;
@@ -86,10 +71,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
     else showScannerView();
   };
   const settingsOpen = settingsApi?.settings.showSettings ?? false;
-  const showAccountNav = visibility.trading !== false;
 
-  useEffect(() => subscribeAccountNavActive(setAccountNavActive), []);
-  const traderSymbol = (selectedSymbol?.trim() || TRADER_DEFAULT_SYMBOL).toUpperCase();
   const accountChrome = resolveAccountChromeState({
     // The sample desk owns its own account snapshot (#357). WorkspaceProvider
     // sits above the sample gate, so ibkrConnected is false there with no
@@ -110,25 +92,6 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
           <NovaLogo />
           <span className="global-app-bar__wordmark">{GLOBAL_BAR_BRAND}</span>
         </div>
-        <nav className="global-app-bar__nav" aria-label="Primary views">
-          <button
-            type="button"
-            className={`global-app-bar__nav-btn${!traderActive ? ' is-active' : ''}`}
-            aria-pressed={!traderActive}
-            title={GLOBAL_BAR_NAV_SCANNER_TITLE}
-            data-testid="global-bar-nav-scanner"
-            onClick={() => {
-              leaveTraderToScanner();
-            }}
-          >
-            {GLOBAL_BAR_NAV_SCANNER}
-          </button>
-          <TraderNavButton
-            traderActive={traderActive}
-            traderSymbol={traderSymbol}
-            onOpen={openStockView}
-          />
-        </nav>
       </div>
 
       <div className="global-app-bar__center" data-testid="global-bar-center">
@@ -189,16 +152,6 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
         )}
 
         <TradingSessionLockButton />
-
-        {showAccountNav && (
-          <GlobalBarAccountNav
-            active={accountNavActive}
-            onOpenAccount={() => {
-              requestOpenTradingTab();
-              leaveTraderToScanner();
-            }}
-          />
-        )}
 
         {settingsApi && (
           <button
