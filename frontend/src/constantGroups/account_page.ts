@@ -35,6 +35,13 @@ export const ACCOUNT_ROWS_TOLERANCE_USD = 0.005;
 
 /** Bot positions cap the Risk block reads against (mirrors bot caps.max_shares default). */
 export const ACCOUNT_RISK_GAUGE_SPAN_USD = 200;
+/**
+ * P&L smaller than this many dollars either way reads neutral, not red or
+ * green (operator ask, 2026-09-22: a -$0.53 scratch trade should not look like
+ * an alarm). Costs and cash movements are never tinted at all. The sign and
+ * the figure are always shown; only the colour waits for a real move.
+ */
+export const PNL_TONE_MIN_USD = 5;
 
 export const ACCOUNT_PAGE_TITLE = 'Account';
 export const ACCOUNT_TAB_OVERVIEW = 'Overview';
@@ -62,13 +69,14 @@ export const ACCOUNT_CASH_SUB: Record<PracticeVenue | 'live', string> = {
 };
 export const ACCOUNT_ROW_OPEN_PNL = 'Open P&L';
 export const ACCOUNT_ROW_DAY_PNL = "Day's P&L";
-export const ACCOUNT_ROW_REALIZED_TODAY = 'Realized today';
+export const ACCOUNT_ROW_REALIZED_TODAY = 'Realized today (net)';
 export const ACCOUNT_ROW_BUYING_POWER = 'Buying power';
 export const ACCOUNT_ROW_EXCESS_LIQUIDITY = 'Excess liquidity';
 export const ACCOUNT_ROW_COMMISSIONS_TODAY = 'Commissions today';
 export const ACCOUNT_ROW_FEES_TODAY = 'Regulatory fees today';
 export const ACCOUNT_EXCESS_NA_PRACTICE = 'n/a · practice ledger has no maintenance margin';
-export const ACCOUNT_ROWS_RECONCILE = "Realized + open − commissions − fees = Day's P&L";
+export const ACCOUNT_ROWS_RECONCILE =
+  "Realized is after commissions and fees: realized + open = Day's P&L";
 export const ACCOUNT_ROWS_RESIDUAL = (diff: string): string =>
   `Rows differ from Day's P&L by ${diff}: Day's is measured from the 04:00 ET boundary, so a position carried in counts only its move since then.`;
 export const ACCOUNT_ROWS_NO_HISTORY = "Realized, commissions and fees today come from the ledger history; it has not answered yet.";
@@ -124,10 +132,10 @@ export const ACCOUNT_PERF_LEGEND_EST = 'all fills';
 export const ACCOUNT_PERF_LEGEND_EST_NOTE = 'practice fills are Nova estimates against the live feed';
 export const ACCOUNT_PERF_EMPTY = 'No fills in this range · nothing to draw';
 export const ACCOUNT_PERF_ROW_REALIZED = (since: string | null): string =>
-  since ? `Realized since reset (${since})` : 'Realized since the ledger opened';
-export const ACCOUNT_PERF_ROW_COSTS = 'Commissions + fees since reset';
+  since ? `Net realized since reset (${since})` : 'Net realized since the ledger opened';
+export const ACCOUNT_PERF_ROW_COSTS = 'Of which commissions + fees';
 export const ACCOUNT_SYMBOL_COL_SYMBOL = 'Symbol';
-export const ACCOUNT_SYMBOL_COL_REALIZED = 'Realized';
+export const ACCOUNT_SYMBOL_COL_REALIZED = 'Gross';
 export const ACCOUNT_SYMBOL_COL_OPEN = 'Open';
 export const ACCOUNT_SYMBOL_COL_COSTS = 'Costs';
 export const ACCOUNT_SYMBOL_COL_NET = 'Net';
@@ -153,7 +161,7 @@ export const ACCOUNT_COMP_COMMISSIONS = 'Commissions';
 export const ACCOUNT_COMP_FEES = 'SEC + FINRA fees';
 export const ACCOUNT_COMP_BOT = 'Bot share of P&L';
 export const accountCompRoundTrips = (n: number): string =>
-  n ? `${n} sell${n === 1 ? '' : 's'} · realized on the ledger's cost basis` : 'no sells in this range';
+  n ? `${n} sell${n === 1 ? '' : 's'} · gross, before commissions and fees` : 'no sells in this range';
 export const ACCOUNT_COMP_UNREALIZED_NOTE = 'held positions marked at their last fill price';
 export const accountCompCommissions = (n: number): string => `${n} fill${n === 1 ? '' : 's'}`;
 export const ACCOUNT_COMP_FEES_NOTE = 'sell-side pass-throughs';

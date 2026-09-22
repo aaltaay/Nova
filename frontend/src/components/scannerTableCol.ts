@@ -13,10 +13,14 @@ export const SCANNER_COL_WIDTH = {
   pct: 'calc(10ch + 1.2rem)',
   num: 'calc(9ch + 1.2rem)',
   compact: 'calc(5ch + 1.1rem)',
+  // Two-line stacked figures (Volume over RVOL): a real width, never the
+  // leftover -- as the leftover it collapsed to 0 px on a squeezed board and
+  // drew under Watch (operator report + QA V3, 2026-09-22).
+  stack: 'calc(9ch + 1.6rem)',
   rownum: '2.4em',
 } as const;
 
-export type ScannerColRole = 'num' | 'pct' | 'price' | 'compact' | 'flex' | 'chrome';
+export type ScannerColRole = 'num' | 'pct' | 'price' | 'compact' | 'stack' | 'flex' | 'chrome';
 
 /** Column key -> layout role. Unknown keys fail open as flex (absorb leftover). */
 export const SCANNER_COL_ROLE: Record<string, ScannerColRole> = {
@@ -34,7 +38,7 @@ export const SCANNER_COL_ROLE: Record<string, ScannerColRole> = {
   gap_percent: 'pct',
   change_5d_pct: 'pct',
   change_20d_pct: 'pct',
-  volume: 'flex',
+  volume: 'stack',
   catalyst_headline: 'flex',
   float: 'num',
   short_interest: 'num',

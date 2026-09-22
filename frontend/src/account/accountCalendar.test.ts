@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { monthGrid, monthLabel, parseIsoDate, shiftMonth } from './accountCalendar';
 import type { HistoryDaily } from './accountHistoryTypes';
 
+// realized is net of commissions and fees, as GET /api/practice/history sends it.
 const DAILY: HistoryDaily[] = [
-  { date: '2026-09-10', realized: 96.35, commissions: 2, fees: 0.2, fills: 2, archived: true },
-  { date: '2026-09-18', realized: 84.6, commissions: 1, fees: 0.1, fills: 1, archived: true },
-  { date: '2026-09-18', realized: 10, commissions: 1, fees: 0, fills: 1, archived: false },
-  { date: '2026-09-21', realized: 97.5, commissions: 10, fees: 0.4, fills: 6, archived: false },
-  { date: '2026-10-01', realized: 5, commissions: 1, fees: 0, fills: 1, archived: false },
+  { date: '2026-09-10', realized: 94.15, commissions: 2, fees: 0.2, fills: 2, archived: true },
+  { date: '2026-09-18', realized: 83.5, commissions: 1, fees: 0.1, fills: 1, archived: true },
+  { date: '2026-09-18', realized: 9, commissions: 1, fees: 0, fills: 1, archived: false },
+  { date: '2026-09-21', realized: 87.1, commissions: 10, fees: 0.4, fills: 6, archived: false },
+  { date: '2026-10-01', realized: 4, commissions: 1, fees: 0, fills: 1, archived: false },
 ];
 
 describe('monthGrid', () => {
@@ -24,11 +25,11 @@ describe('monthGrid', () => {
     expect(byDay.get(7)!.pnl).toBeNull();
     const d10 = byDay.get(10)!;
     expect(d10.archived).toBe(true);
-    expect(d10.pnl).toBeCloseTo(96.35 - 2 - 0.2, 6);
+    expect(d10.pnl).toBeCloseTo(94.15, 6); // the day's net, never costs subtracted twice (QA V1)
     // A reset mid-day: two rows on one date sum, and the cell is not "archived".
     const d18 = byDay.get(18)!;
     expect(d18.archived).toBe(false);
-    expect(d18.pnl).toBeCloseTo(84.6 - 1.1 + 9, 6);
+    expect(d18.pnl).toBeCloseTo(83.5 + 9, 6);
     expect(d18.fills).toBe(2);
     const d21 = byDay.get(21)!;
     expect(d21.today).toBe(true);

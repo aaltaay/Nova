@@ -72,6 +72,7 @@ def list_sessions() -> dict[str, Any]:
                     "status": man.get("status"),
                     "partial_ok": man.get("partial_ok", True),
                     **segment_summary(man.get("segments")),
+                    "spans": spans_payload(man.get("segments")),
                 }
             )
         if tickers:
@@ -113,6 +114,15 @@ def segment_summary(segments: Any) -> dict[str, Any]:
         "missing_sec": int(max(0.0, total - covered)),
         "last_reason": last.get("reason") if isinstance(last, dict) else None,
     }
+
+
+def spans_payload(segments: Any) -> list[list[int]]:
+    """``[[start, stop], ...]`` whole epoch seconds per segment for the listing.
+
+    The Sim scrubber draws these under a downloaded replay so the operator sees
+    where Nova itself recorded that symbol; an open segment runs to now.
+    """
+    return [[int(start), int(-(-stop // 1))] for start, stop in segment_spans(segments)]
 
 
 def segment_spans(segments: Any) -> list[tuple[float, float]]:

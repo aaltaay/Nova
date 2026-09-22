@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   dayPnlFromSummary,
   formatSignedMoney,
+  formatSignedPercent,
   pnlToneClass,
 } from './globalBarMoney';
 
@@ -20,10 +21,22 @@ describe('globalBarMoney', () => {
     expect(formatSignedMoney(null)).toBe('--');
   });
 
-  it('picks tone classes for up / down / flat', () => {
-    expect(pnlToneClass(1)).toBe('global-app-bar__tone--up');
-    expect(pnlToneClass(-1)).toBe('global-app-bar__tone--down');
+  it('picks tone classes for up / down / flat, neutral under the $5 floor', () => {
+    expect(pnlToneClass(5)).toBe('global-app-bar__tone--up');
+    expect(pnlToneClass(-12.5)).toBe('global-app-bar__tone--down');
+    // A scratch trade or a commission-sized move is not an alarm (2026-09-22).
+    expect(pnlToneClass(-0.53)).toBe('global-app-bar__tone--flat');
+    expect(pnlToneClass(4.99)).toBe('global-app-bar__tone--flat');
     expect(pnlToneClass(0)).toBe('global-app-bar__tone--flat');
     expect(pnlToneClass(null)).toBe('global-app-bar__tone--flat');
+    expect(pnlToneClass(-1, 1)).toBe('global-app-bar__tone--down');
+  });
+
+  it('never prints a sign on a figure that rounds to zero', () => {
+    expect(formatSignedMoney(-0)).toBe('$0.00');
+    expect(formatSignedMoney(-0.004)).toBe('$0.00');
+    expect(formatSignedMoney(-0.006)).toBe('-$0.01');
+    expect(formatSignedPercent(-0.0004)).toBe('0.00%');
+    expect(formatSignedPercent(-0.53)).toBe('-0.53%');
   });
 });

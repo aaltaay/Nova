@@ -77,7 +77,8 @@ describe('AccountPage', () => {
     await waitFor(() => expect(screen.getByTestId('account-rows-reconcile').getAttribute('data-reconcile')).toBe('ok'));
     expect(screen.getByTestId('account-page').getAttribute('data-venue')).toBe('paper');
     expect(screen.getByTestId('account-page-venue').textContent).toContain('NOVA-PAPER');
-    expect(screen.getByTestId('account-rows').textContent).toContain('+$97.50');
+    // Realized today is net of commissions and fees, as the ledger books it (QA V1).
+    expect(screen.getByTestId('account-rows').textContent).toContain('+$87.10');
     expect(screen.getByTestId('account-rows').textContent).toContain('-$10.00');
     expect(screen.getByTestId('account-rows').textContent).toContain('-$0.40');
     expect(screen.getByTestId('account-equity-curve')).toBeTruthy();

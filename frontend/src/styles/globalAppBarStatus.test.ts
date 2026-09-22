@@ -15,8 +15,11 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const css = readFileSync(resolve(here, './global-app-bar.css'), 'utf8');
-const responsive = readFileSync(resolve(here, './global-app-bar-responsive.css'), 'utf8');
+// CRLF on a Windows checkout (core.autocrlf) must not break the selector match.
+const read = (file: string) => readFileSync(resolve(here, file), 'utf8').replace(/\r\n/g, '\n');
+const css = read('./global-app-bar.css');
+const killCss = read('../components/emergencyKill.css');
+const responsive = read('./global-app-bar-responsive.css');
 
 /** The declaration block for exactly one selector (or selector list). */
 function block(selector: string): string {
@@ -55,7 +58,8 @@ describe('global app bar primary row', () => {
     expect(block('.global-app-bar__session,\n.global-app-bar__conn,\n.global-app-bar__rec')).toMatch(
       /flex-shrink:\s*0/,
     );
-    expect(block('.global-app-bar__emergency-kill')).toMatch(/flex-shrink:\s*0/);
+    // The stop sign lives in its own sheet (components/emergencyKill.css).
+    expect(killCss).toMatch(/\n\.global-app-bar__emergency-kill \{[^}]*flex-shrink:\s*0/);
     expect(block('.global-app-bar__brand')).toMatch(/flex-shrink:\s*0/);
     expect(block('.global-app-bar__primary .header-market-clock')).toMatch(/flex-shrink:\s*0/);
   });

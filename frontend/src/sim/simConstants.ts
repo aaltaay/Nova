@@ -169,3 +169,8 @@ export const simRailOtherSymbolNote = (tab: string, replaySymbol: string): strin
   `${replaySymbol} is the loaded replay -- no ${tab} quote, Level 2 or Time & Sales.`;
 export const SIM_RAIL_FAILED_NOTE = 'Replay failed to load -- nothing to show.';
 export const SIM_RAIL_LOADING_NOTE = 'Loading replay...';
+
+/** The thin lane under the scrubber band: where Nova itself recorded the band's symbol. */
+export const simRecordedLaneTitle = (symbol: string, ranges: string) => `Recorded by Nova: ${symbol} ${ranges} ET`;
+export const simRecordedLaneNoneTitle = (symbol: string, date: string) =>
+  `Not recorded by Nova: no Session Record for ${symbol}${date ? ` on ${date}` : ''}`;

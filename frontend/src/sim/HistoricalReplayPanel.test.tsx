@@ -68,7 +68,7 @@ it('loads, closes, restores trigger focus and describes missing trades truthfull
     expect(mocks.openStockView).toHaveBeenCalledExactlyOnceWith('AAPL');
     expect(scrub).toHaveBeenCalledOnce();
     expect(screen.queryByRole('dialog')).toBeNull();
-    expect(screen.getByText(/No downloaded trades for this window/)).toBeTruthy();
+    expect(screen.getByText(/Selected: AAPL .* · no trades downloaded/)).toBeTruthy();
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Historical replay' }));
     await click('Historical replay');
@@ -148,7 +148,5 @@ it('Escape dismisses the portal and closed polling remains available', async () 
 it('keeps the current download visible ahead of an older failure', async () => {
   jobs = [{ ...job('failed'), symbol: 'OLD', error: 'Gateway offline' }, { ...job('running'), progress_pct: 25, eta_seconds: 120 }];
   await mount(false);
-  expect(screen.getByRole('status').textContent).toContain('IMCC running');
-  expect(screen.getByRole('status').textContent).toContain('25%');
-  expect(screen.getByRole('status').textContent).toContain('2m remaining');
+  expect(screen.getByRole('status').textContent).toBe('IMCC running 25% · 2m left');
 });

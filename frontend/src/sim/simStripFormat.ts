@@ -4,10 +4,14 @@
  * 04:00-20:00 session. Nothing here reads the DOM or a store.
  */
 import { simStripFailedTitle } from '../constantGroups/trader_chrome';
-import { SIM_ET_TIME_ZONE, SIM_SESSION_MINUTES, SIM_SESSION_OPEN_LABEL, simCaptureGapTitle } from './simConstants';
+import {
+  SIM_ET_TIME_ZONE, SIM_SESSION_MINUTES, SIM_SESSION_OPEN_LABEL, simCaptureGapTitle,
+  simRecordedLaneNoneTitle, simRecordedLaneTitle,
+} from './simConstants';
 import { captureBandSegments, coverageRanges } from './simCoverage';
 import type { HistoricalSelection } from './historicalTypes';
 import type { SimClockState } from './simClockTypes';
+import type { CaptureSessions } from './useSimSessionController';
 
 export function formatClock(iso?: string | null): string {
   if (!iso) return '--:--:--';
@@ -143,4 +147,64 @@ export function firstReplayMinute(
     return sessionMinuteOf(selection.start_ts, clock) ?? 0;
   }
   return 0;
+}
+
+export interface RecordedLane {
+  symbol: string;
+  date: string;
+  segments: { left: number; width: number }[];
+  title: string;
+}
+
+/** Sorted spans with overlaps merged. */
+function mergeSpans(spans: number[][]): number[][] {
+  const sorted = spans
+    .filter(span => Array.isArray(span) && span.length >= 2 && Number.isFinite(span[0]) && Number.isFinite(span[1]))
+    .map(([a, b]) => [a, Math.max(a, b)])
+    .sort((x, y) => x[0] - y[0]);
+  const merged: number[][] = [];
+  for (const span of sorted) {
+    const last = merged[merged.length - 1];
+    if (last && span[0] <= last[1]) last[1] = Math.max(last[1], span[1]);
+    else merged.push([...span]);
+  }
+  return merged;
+}
+
+/**
+ * Where Nova itself recorded the band's symbol on the band's date, for the thin
+ * lane under the band (operator ask, 2026-09-22): blue says what is loaded, this
+ * says what Nova recorded. The symbol is the loaded replay's, else the active
+ * tab's; the date is the replay's, else the session's. Null when either is unknown.
+ */
+export function recordedLane(
+  clock: SimClockState | null | undefined,
+  sessions: CaptureSessions | null | undefined,
+  activeSymbol: string | null | undefined,
+  format: (epochSeconds: number) => string,
+): RecordedLane | null {
+  if (!clock) return null;
+  const symbol = (clock.replay_symbol || activeSymbol || '').trim().toUpperCase();
+  const date = clock.replay_date || clock.session_date || '';
+  const open = epoch(clock.session_open_et);
+  const close = epoch(clock.session_close_et);
+  if (!symbol || !date || open == null || close == null || close <= open) return null;
+  const row = sessions?.tickers_by_day?.[date]?.find(r => (r.symbol || '').toUpperCase() === symbol);
+  // A recording the listing cannot place in time (an older API without spans,
+  // or a manifest without segments) is unknown -- never claimed as not recorded.
+  if (row && (!Array.isArray(row.spans) || row.spans.length === 0)) return null;
+  const spans = mergeSpans(row?.spans ?? []);
+  const segments = spans
+    .map(([a, b]) => ({
+      left: (Math.max(a, open) - open) / (close - open),
+      width: (Math.min(b, close) - Math.max(a, open)) / (close - open),
+    }))
+    .filter(segment => segment.width > 0);
+  const ranges = spans.map(([a, b]) => `${format(a)}–${format(b)}`).join(', ');
+  return {
+    symbol,
+    date,
+    segments,
+    title: segments.length ? simRecordedLaneTitle(symbol, ranges) : simRecordedLaneNoneTitle(symbol, formatShortDate(date)),
+  };
 }

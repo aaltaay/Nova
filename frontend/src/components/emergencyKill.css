@@ -1,0 +1,85 @@
+/* Header Emergency KILL stop sign + hover card. Owner: components/EmergencyKillButton.tsx. */
+/* Emergency KILL: a red stop sign; the hover card says what a click does. */
+.global-app-bar__emergency-kill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--gbar-chip-h);
+  height: var(--gbar-chip-h);
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: var(--gbar-radius);
+  background: transparent;
+  cursor: pointer;
+}
+
+.global-app-bar__emergency-kill:hover:not(:disabled),
+.global-app-bar__emergency-kill[data-state='delayed-open'],
+.global-app-bar__emergency-kill[data-state='instant-open'] {
+  background: color-mix(in srgb, var(--nova-danger, #ef4444) 16%, transparent);
+}
+
+.global-app-bar__emergency-kill:focus-visible {
+  outline: 2px solid var(--nova-danger, #ef4444);
+  outline-offset: 1px;
+}
+
+.global-app-bar__emergency-kill:disabled {
+  cursor: wait;
+}
+
+.global-app-bar__emergency-kill.is-busy .stop-sign-icon {
+  animation: global-bar-kill-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes global-bar-kill-pulse {
+  50% { opacity: 0.45; }
+}
+
+.stop-sign-icon__plate {
+  fill: var(--nova-danger, #ef4444);
+  stroke: #fff;
+  stroke-width: 1.3;
+  stroke-linejoin: round;
+}
+
+.stop-sign-icon__hand {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Portaled to <body>, so it is never clipped by the header's scroll box. */
+.global-app-bar__kill-tip {
+  z-index: 10080;
+  max-width: 270px;
+  padding: 8px 10px;
+  border: 1px solid var(--nova-border-strong, var(--nova-border));
+  border-radius: 8px;
+  background: var(--menu-bg, var(--nova-panel));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  color: var(--nova-text);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.global-app-bar__kill-card-title {
+  margin-bottom: 4px;
+  color: var(--nova-danger, #ef4444);
+  font-weight: 700;
+}
+
+.global-app-bar__kill-card ul {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.global-app-bar__kill-card p {
+  margin: 6px 0 0;
+  color: var(--nova-text-muted);
+}

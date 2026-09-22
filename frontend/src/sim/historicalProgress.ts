@@ -29,5 +29,34 @@ export function validateHistoricalWindow(spec: HistoricalWindow, now = new Date(
 export function jobSummary(job: HistoricalJob): string {
   const percent = progressPercent(job);
   const status = job.stale ? 'Stalled' : job.status === 'pause_requested' ? 'Pausing' : job.status;
-  return `${job.symbol} ${status}${percent == null ? '' : `  -  ${percent.toFixed(0)}%`}`;
+  return `${job.symbol} ${status}${percent == null ? '' : ` ${percent.toFixed(0)}%`}`;
+}
+
+/** "41.8k" / "1.2M" / "830" -- a print count short enough for one status line. */
+export function compactCount(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return '?';
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 10_000) return `${Math.round(n / 1000)}k`;
+  if (n >= 1_000) return `${(n / 1000).toFixed(1)}k`;
+  return String(Math.round(n));
+}
+
+/**
+ * The download line, short (operator ask, 2026-09-22: the old two lines were
+ * too much): "GRML running 16% · 38m left". The full window rides the title.
+ */
+export function jobStatusLine(job: HistoricalJob): string {
+  return `${jobSummary(job)}${job.eta_seconds != null ? ` · ${durationLabel(job.eta_seconds)} left` : ''}`;
+}
+
+/**
+ * The loaded window, short: "Selected: GRML 09:15–11:30 · 41.8k prints". The
+ * downloaded stretches are drawn on the scrubber band, so the text does not
+ * list them; the title keeps the long form.
+ */
+export function selectionStatusLine(selection: HistoricalWindow & { trade_count?: number | null; download_status?: string | null }): string {
+  const prints = selection.download_status === 'missing'
+    ? 'no trades downloaded'
+    : `${compactCount(selection.trade_count)} prints`;
+  return `Selected: ${selection.symbol} ${selection.start}–${selection.end} · ${prints}`;
 }

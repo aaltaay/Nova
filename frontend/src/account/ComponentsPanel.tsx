@@ -20,7 +20,7 @@ import {
   type AccountRange,
 } from '../constantGroups/account_page';
 import { formatSignedMoney } from '../components/globalBarMoney';
-import { PanelHead, Ring, toneClass, type Tone } from './accountBits';
+import { PanelHead, Ring, toneClass, toneOf, type Tone } from './accountBits';
 import { botIds, componentRings, sellCount, type ComponentRing } from './accountFigures';
 import type { PracticeHistory } from './accountHistoryTypes';
 
@@ -67,7 +67,7 @@ export function ComponentsPanel({ history, absence, range }: Props) {
               <div key={ring.id} className="acct-crow" data-testid={`account-comp-${ring.id}`}>
                 <Ring share={ring.share} tone={tone} size={42} testId={`account-comp-ring-${ring.id}`} />
                 <div className="acct-crow__k">{k}<small>{s}</small></div>
-                <div className={`acct-crow__v acct-num ${none ? 'acct-muted' : toneClass(tone === 'bot' ? (ring.value > 0 ? 'up' : ring.value < 0 ? 'down' : 'flat') : tone)}`}>
+                <div className={`acct-crow__v acct-num ${none ? 'acct-muted' : toneClass(tone === 'bot' ? toneOf(ring.value) : tone)}`}>
                   {none ? 'none' : formatSignedMoney(ring.value)}
                 </div>
               </div>

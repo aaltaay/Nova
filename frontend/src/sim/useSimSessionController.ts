@@ -11,6 +11,8 @@ export interface CaptureSessions {
   tickers_by_day: Record<string, {
     symbol: string; prints: number; l2: number; usable?: boolean; empty?: boolean; unavailable_reason?: string | null;
     segments?: number; missing_sec?: number; last_reason?: string | null; status?: string;
+    /** `[[start, stop], ...]` whole epoch seconds per recorded segment (open: runs to now). */
+    spans?: number[][];
   }[]>;
 }
 const clockResource = simClockResource;

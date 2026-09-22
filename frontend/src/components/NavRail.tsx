@@ -1,6 +1,8 @@
 /**
  * The one navigation rail (approved UX redesign, first slice): 200 px
- * labelled, 56 px icon-only. Shared by every view -- Desk, Trader, Scanner
+ * labelled, 56 px icon-only. The Scanner tree stays open in both widths --
+ * collapsed it is a tray of child icons with a hairline between groups
+ * (operator ask, 2026-09-22) -- until folded by hand. Shared by every view -- Desk, Trader, Scanner
  * (a foldable tree of the registry's grouped tab modules), Account, Bots,
  * Records, then Advise + Settings + collapse pinned at the foot.
  *
@@ -123,7 +125,8 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
   };
 
   const treeId = 'nav-rail-scanner-tree';
-  const showTree = !collapsed && !folded;
+  // Collapsed keeps the children as icons (tooltips carry the labels).
+  const showTree = !folded;
 
   return (
     <nav

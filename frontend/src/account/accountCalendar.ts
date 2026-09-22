@@ -51,7 +51,8 @@ export function shiftMonth(year: number, month: number, delta: number): { year: 
   return { year: Math.floor(index / 12), month: ((index % 12) + 12) % 12 };
 }
 
-export const dayNet = (row: HistoryDaily): number => row.realized - row.commissions - row.fees;
+/** A day's net: the ledger's realized is already after commissions and fees (QA V1). */
+export const dayNet = (row: HistoryDaily): number => row.realized;
 
 export function monthGrid(year: number, month: number, daily: HistoryDaily[], today: string): CalendarMonth {
   const prefix = isoDate(year, month, 1).slice(0, 7);

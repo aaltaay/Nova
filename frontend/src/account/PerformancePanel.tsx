@@ -159,7 +159,7 @@ export function PerformancePanel({
 
           <div className="acct-rows acct-rows--perf">
             <div className="acct-row"><span className="acct-row__k">{ACCOUNT_PERF_ROW_REALIZED(resetLabel)}</span><span className="acct-row__v"><Money value={history.components.realized} signed /></span></div>
-            <div className="acct-row"><span className="acct-row__k">{ACCOUNT_PERF_ROW_COSTS}</span><span className="acct-row__v"><Money value={-(history.components.commissions + history.components.sec_finra_fees)} signed={history.components.commissions + history.components.sec_finra_fees !== 0} /></span></div>
+            <div className="acct-row"><span className="acct-row__k">{ACCOUNT_PERF_ROW_COSTS}</span><span className="acct-row__v"><Money value={-(history.components.commissions + history.components.sec_finra_fees)} signed={history.components.commissions + history.components.sec_finra_fees !== 0} kind="cost" /></span></div>
           </div>
         </>
       )}
@@ -182,7 +182,7 @@ function SymbolTable({ history, positions }: { history: PracticeHistory; positio
               <td>{row.symbol}</td>
               <td className="r"><Money value={row.realized} signed /></td>
               <td className="r">{row.open == null ? <span className="acct-muted">—</span> : <Money value={row.open} signed />}</td>
-              <td className="r"><Money value={-row.costs} signed={row.costs !== 0} /></td>
+              <td className="r"><Money value={-row.costs} signed={row.costs !== 0} kind="cost" /></td>
               <td className="r"><Money value={row.net} signed /></td>
             </tr>
           ))}
@@ -190,7 +190,7 @@ function SymbolTable({ history, positions }: { history: PracticeHistory; positio
             <td>{ACCOUNT_SYMBOL_TOTAL}</td>
             <td className="r"><Money value={total.realized} signed /></td>
             <td className="r">{total.open == null ? <span className="acct-muted">—</span> : <Money value={total.open} signed />}</td>
-            <td className="r"><Money value={-total.costs} signed={total.costs !== 0} /></td>
+            <td className="r"><Money value={-total.costs} signed={total.costs !== 0} kind="cost" /></td>
             <td className="r"><Money value={total.net} signed /></td>
           </tr>
         </tbody>

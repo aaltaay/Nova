@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SimClockState } from './simClockTypes';
-import { firstReplayMinute, formatMinuteClock, playheadTag, stripBandSegments } from './simStripFormat';
+import { firstReplayMinute, formatMinuteClock, playheadTag, recordedLane, stripBandSegments } from './simStripFormat';
 
 const session = {
   session_open_et: '2026-09-21T04:00:00-04:00',
@@ -76,5 +76,50 @@ describe('formatMinuteClock', () => {
   it('offsets from the session open', () => {
     expect(formatMinuteClock(462)).toBe('11:42:00');
     expect(formatMinuteClock(0, '09:30')).toBe('09:30:00');
+  });
+});
+
+describe('recordedLane (operator ask, 2026-09-22: show where Nova recorded)', () => {
+  const open = Date.parse(session.session_open_et) / 1000;
+  const hhmm = (ts: number) => new Date(ts * 1000).toISOString().slice(11, 16);
+  const sessions = {
+    days: [{ date: '2026-09-21', ticker_count: 1 }],
+    tickers_by_day: {
+      '2026-09-21': [
+        { symbol: 'GRML', prints: 10, l2: 0, spans: [[open + 5 * 3600, open + 6 * 3600], [open + 5.5 * 3600, open + 7 * 3600]] },
+      ],
+    },
+  };
+
+  it('draws the recorded spans of the loaded replay symbol, merged, as fractions of the session', () => {
+    const clock: SimClockState = { sim: true, replay_source: 'historical', replay_symbol: 'GRML', replay_date: '2026-09-21', ...session };
+    const lane = recordedLane(clock, sessions, 'TOPS', hhmm)!;
+    expect(lane.symbol).toBe('GRML');
+    expect(lane.segments).toHaveLength(1);
+    expect(lane.segments[0].left).toBeCloseTo(5 / 16);
+    expect(lane.segments[0].width).toBeCloseTo(2 / 16);
+    expect(lane.title).toMatch(/^Recorded by Nova: GRML /);
+  });
+
+  it('falls back to the active tab and says plainly when nothing was recorded', () => {
+    const clock: SimClockState = { sim: true, live_edge: true, ...session };
+    const lane = recordedLane(clock, sessions, 'tops', hhmm)!;
+    expect(lane.symbol).toBe('TOPS');
+    expect(lane.segments).toEqual([]);
+    expect(lane.title).toMatch(/Not recorded by Nova: no Session Record for TOPS on Sep 21/);
+  });
+
+  it('says nothing, rather than "not recorded", for a recording it cannot place in time', () => {
+    const clock: SimClockState = { sim: true, replay_symbol: 'GRML', replay_date: '2026-09-21', ...session };
+    const older = { days: [], tickers_by_day: { '2026-09-21': [{ symbol: 'GRML', prints: 3, l2: 0 }] } };
+    expect(recordedLane(clock, older, null, hhmm)).toBeNull();
+    const noSegments = { days: [], tickers_by_day: { '2026-09-21': [{ symbol: 'GRML', prints: 3, l2: 0, spans: [] }] } };
+    expect(recordedLane(clock, noSegments, null, hhmm)).toBeNull();
+  });
+
+  it('is null without a symbol or session bounds', () => {
+    expect(recordedLane(null, sessions, 'GRML', hhmm)).toBeNull();
+    expect(recordedLane({ sim: true, ...session }, sessions, null, hhmm)).toBeNull();
+    expect(recordedLane({ sim: true, session_date: '2026-09-21' }, sessions, 'GRML', hhmm)).toBeNull();
   });
 });

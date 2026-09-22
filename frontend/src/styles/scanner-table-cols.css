@@ -39,6 +39,11 @@
   width: calc(5ch + 1.1rem);
 }
 
+.table-wrapper--scanner .scanner-col--stack {
+  width: calc(9ch + 1.6rem);
+  overflow: hidden;
+}
+
 .table-wrapper--scanner .scanner-col--rownum,
 .table-wrapper--scanner .scanner-row-num-th,
 .table-wrapper--scanner .scanner-row-num {
@@ -63,4 +68,22 @@
 
 .table-wrapper--scanner .scanner-col--flex {
   min-width: 0;
+  overflow: hidden;
+}
+
+/* A stacked or flex cell clips its own text with an ellipsis; it never spills
+   into the next column (operator report, 2026-09-22: Volume over Watch). */
+.table-wrapper--scanner .scanner-col--stack .cell-stack,
+.table-wrapper--scanner .scanner-col--flex .cell-stack {
+  display: flex;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.table-wrapper--scanner .scanner-col--stack .cell-stack > span,
+.table-wrapper--scanner .scanner-col--flex .cell-stack > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

@@ -16,6 +16,12 @@ describe('formatMoney', () => {
     expect(formatMoney(12345.6, 0)).toBe('$12,346');
   });
 
+  it('never prints a negative zero', () => {
+    expect(formatMoney(-0)).toBe('$0.00');
+    expect(formatMoney(-0.004)).toBe('$0.00');
+    expect(formatMoney(-0.4, 0)).toBe('$0');
+  });
+
   it('handles null / non-finite', () => {
     expect(formatMoney(null)).toBe('—');
     expect(formatMoney(undefined)).toBe('—');

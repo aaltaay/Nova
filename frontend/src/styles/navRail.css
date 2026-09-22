@@ -261,15 +261,53 @@
 
 .nav-rail--collapsed .nav-rail__txt,
 .nav-rail--collapsed .nav-rail__count,
-.nav-rail--collapsed .nav-rail__chev,
-.nav-rail--collapsed .nav-rail__grp {
+.nav-rail--collapsed .nav-rail__chev {
   display: none;
+}
+
+/* The Scanner tree stays open collapsed: a quiet tray of child icons, a
+   hairline where a group label would be (tooltips carry every label). */
+.nav-rail--collapsed #nav-rail-scanner-tree {
+  margin: 2px 6px 0;
+  padding: 2px 0;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--nova-raised, #2c2c2e) 45%, transparent);
+}
+
+.nav-rail--collapsed .nav-rail__grp {
+  height: 0;
+  margin: 3px 8px;
+  padding: 0;
+  overflow: hidden;
+  border-top: 1px solid color-mix(in srgb, var(--nova-border) 80%, transparent);
+  font-size: 0;
+  line-height: 0;
+}
+
+.nav-rail--collapsed .nav-rail__group:first-child .nav-rail__grp {
+  display: none;
+}
+
+.nav-rail--collapsed .nav-rail__child {
+  height: 26px;
+  padding: 0;
+  border-radius: 4px;
+}
+
+.nav-rail--collapsed .nav-rail__child.is-active::before {
+  top: 4px;
+  bottom: 4px;
 }
 
 .nav-rail--collapsed .nav-rail__icon-svg,
 .nav-rail--collapsed .nav-rail__item .scanner-side-nav__icon-svg {
   width: 20px;
   height: 20px;
+}
+
+.nav-rail--collapsed .nav-rail__child .scanner-side-nav__icon-svg {
+  width: 17px;
+  height: 17px;
 }
 
 .nav-rail--collapsed .nav-rail__foot {

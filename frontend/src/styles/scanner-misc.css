@@ -121,10 +121,10 @@
   margin-left: 0.2rem;
   padding: 0 0.28rem;
   border-radius: 3px;
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--text-secondary);
   background: color-mix(in srgb, var(--border-color) 55%, transparent);
   opacity: 1;

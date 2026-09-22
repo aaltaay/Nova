@@ -325,33 +325,6 @@
 }
 
 /* ── Right cluster ────────────────────────────────────────────────────── */
-.global-app-bar__emergency-kill {
-  flex-shrink: 0;
-  height: var(--gbar-chip-h);
-  margin: 0;
-  padding: 0 0.55rem;
-  box-sizing: border-box;
-  border: 1px solid color-mix(in srgb, var(--nova-danger, #ef4444) 70%, var(--nova-border));
-  border-radius: var(--gbar-radius);
-  background: var(--nova-danger, #ef4444);
-  color: #fff;
-  font-size: 0.66rem;
-  font-weight: 750;
-  letter-spacing: 0.02em;
-  line-height: 1;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.global-app-bar__emergency-kill:hover:not(:disabled) {
-  filter: brightness(1.08);
-}
-
-.global-app-bar__emergency-kill:disabled {
-  opacity: 0.7;
-  cursor: wait;
-}
-
 .global-app-bar__trade-lock,
 .global-app-bar__icon-btn {
   display: inline-flex;
