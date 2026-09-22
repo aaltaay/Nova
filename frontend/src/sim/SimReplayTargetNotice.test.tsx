@@ -262,16 +262,13 @@ describe('SimReplayTargetNotice', () => {
     expect(notice()).toBeNull();
   });
 
-  it('at the live edge says the tab is following the wall clock, offers nothing and fetches nothing', async () => {
+  it('at the live edge renders nothing (the strip pill says the tab is live) and fetches nothing', async () => {
     setClock({ sim: true, replay_source: 'none', live_edge: true, session_date: '2026-09-21' });
     await mount();
-    expect(notice()?.className).toContain('sim-replay-target--live-edge');
-    expect(body()).toBe('Following the wall clock; scrub back to replay.');
+    expect(notice()).toBeNull();
     expect(action()).toBeNull();
     expect(screen.queryByTestId('sim-replay-what-sim-is')).toBeNull();
     expect(mocks.fetch).not.toHaveBeenCalled();
-    await act(async () => { fireEvent.click(screen.getByTestId('sim-replay-target-dismiss')); });
-    expect(notice()).toBeNull();
     // Leaving the edge is a new situation: the empty-desk prompt is back.
     setClock({ sim: true, replay_source: 'none', live_edge: false, session_date: '2026-09-18', scrubbed: true });
     await rerender();

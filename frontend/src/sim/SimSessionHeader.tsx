@@ -56,8 +56,14 @@ function formatMinuteClock(minuteFromOpen: number, opening: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
 }
 
-export function SimSessionHeader({ active }: { active: boolean }) {
-  const { openStockView, activeTraderSymbol } = useWorkspace();
+/**
+ * The Scanner desk's Sim session bar. On the Trader view the scrubber rides
+ * on the context strip instead (`SimSessionStrip`), so this renders nothing
+ * there and leaves the clock resource to the strip's controller.
+ */
+export function SimSessionHeader({ active: activeProp }: { active: boolean }) {
+  const { openStockView, activeTraderSymbol, traderViewActive } = useWorkspace();
+  const active = activeProp && !traderViewActive;
   const controller = useSimSessionController(active, openStockView, activeTraderSymbol);
   useProgressiveReplay(active);
   // Subscribe only on a Sim desk: this header renders on every desk and returns

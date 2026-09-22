@@ -483,6 +483,61 @@
   min-height: 0;
 }
 
+/* Quote head: price on the left, the practice-venue tag on the right. */
+.stock-view-page .sv-quote-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+
+.stock-view-page .sv-quote-head > .sv-quote-card__price {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.stock-view-page .sv-venue-tag {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  flex-shrink: 0;
+  font-size: 0.6rem;
+  color: var(--sv-muted);
+  white-space: nowrap;
+}
+
+.stock-view-page .sv-venue-tag__venue {
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--nova-raised, #2c2c2e);
+  color: var(--sv-primary);
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 15px;
+}
+
+.stock-view-page .sv-venue-tag--paper .sv-venue-tag__venue {
+  background: color-mix(in srgb, #ea580c 35%, transparent);
+}
+
+/* The honesty marker: every practice fill is an estimate. */
+.sv-est {
+  display: inline-block;
+  padding: 0 4px;
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  border-radius: 3px;
+  color: #f59e0b;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 13px;
+  text-transform: uppercase;
+  vertical-align: 1px;
+  cursor: help;
+}
+
 .stock-view-page .sv-quote-card__price {
   display: flex;
   flex-wrap: wrap;

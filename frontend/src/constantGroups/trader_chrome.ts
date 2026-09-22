@@ -1,0 +1,132 @@
+/**
+ * Trader chrome labels (approved UX redesign, 2026-09-21): the one context
+ * strip under the global bar, the Sim scrubber that rides on it, the Focus
+ * rail, the compact Bot Autonomy card, the compact ticket and the drawer.
+ * Every visible string lives here so the surfaces cannot drift apart.
+ */
+
+/* ── Context strip: symbol tabs ─────────────────────────────────────────── */
+
+/** Tooltip on the whole strip -- replaces the permanent drag-hint sentence. */
+export const TRADER_STRIP_TITLE =
+  'Drag a tab onto another Nova window to dock it. Double-click a tab to pop it out.';
+export const TRADER_STRIP_TITLE_FLOAT =
+  'Drag a tab onto the main Nova window to dock it.';
+export const TRADER_TAB_RECORDING_TITLE = 'Recording';
+export const TRADER_TAB_CLOSE_ARIA = 'Close';
+export const TRADER_TAB_CLOSE_RECORDING_TITLE = 'Stop recording before closing this tab';
+/** Catalyst chip on a tab or a Focus row. Nova has a headline, not a category. */
+export const TRADER_CATALYST_NEWS = 'NEWS';
+export const TRADER_CATALYST_PR = 'PR';
+export const TRADER_CATALYST_NONE = 'no news';
+/** Wire names whose headlines are the company's own release. */
+export const TRADER_CATALYST_PR_SOURCES = [
+  'pr newswire', 'prnewswire', 'globenewswire', 'business wire', 'businesswire', 'accesswire',
+] as const;
+export const TRADER_STRIP_OVERFLOW_TITLE = 'More tabs';
+export const TRADER_STRIP_OVERFLOW_ARIA = 'Show tabs that do not fit';
+
+/* ── Context strip: Sim scrubber ────────────────────────────────────────── */
+
+export const SIM_STRIP_LABEL = 'Sim session';
+export const SIM_STRIP_TRANSPORT_FIRST = 'Jump to the first recorded second';
+export const SIM_STRIP_TRANSPORT_BACK = 'Back 1 minute';
+export const SIM_STRIP_TRANSPORT_FORWARD = 'Forward 1 minute';
+export const SIM_STRIP_TRANSPORT_EDGE = 'Jump to the live edge (follow the wall clock)';
+export const SIM_STRIP_STEP_MINUTES = 1;
+export const SIM_STRIP_MENU_ARIA = 'Sim session menu';
+export const SIM_STRIP_MENU_FOLLOW = 'Follow wall clock';
+export const SIM_STRIP_MENU_LOAD_RECORDING = 'Load recording';
+export const SIM_STRIP_MENU_CLOSE_REPLAY = 'Close replay';
+export const SIM_STRIP_MENU_DAY = 'Day';
+export const SIM_STRIP_MENU_TICKER = 'Ticker';
+export const SIM_STRIP_MENU_NO_RECORDING = 'No recording';
+export const SIM_STRIP_MENU_PICK_TICKER = 'Pick ticker';
+export const SIM_STRIP_REPLAY_PAUSED = 'Replay · paused';
+export const SIM_STRIP_REPLAY_PLAYING = 'Replay';
+export const SIM_STRIP_REPLAY_FAILED = 'Replay failed';
+export const SIM_STRIP_RTH_OPEN = '09:30';
+export const SIM_STRIP_RTH_CLOSE = '16:00';
+/** Regular hours as fractions of the 04:00-20:00 session the band spans. */
+export const SIM_STRIP_RTH_OPEN_FRACTION = (9.5 - 4) / 16;
+export const SIM_STRIP_RTH_CLOSE_FRACTION = (16 - 4) / 16;
+/** Past this fraction the playhead tag flips to the left of the marker. */
+export const SIM_STRIP_TAG_FLIP_FRACTION = 0.84;
+export const simStripFailedTitle = (error: string): string => `Replay failed: ${error}`;
+
+/* ── Quote card venue tag ───────────────────────────────────────────────── */
+
+export const TRADER_VENUE_TAG_PAPER = 'PAPER';
+export const TRADER_VENUE_TAG_SIM = 'SIM';
+export const TRADER_VENUE_TAG_LIVE_EDGE = 'live edge';
+export const TRADER_VENUE_TAG_REPLAY = 'replay';
+export const TRADER_VENUE_TAG_FILLS = 'fills';
+export const TRADER_EST_CHIP = 'est';
+export const TRADER_EST_CHIP_TITLE =
+  'Practice fill, estimated locally against the reference tape -- never a broker execution.';
+export const TRADER_VENUE_TAG_PAPER_TITLE =
+  "Nova's practice account on the live feed: fake money, fills estimated locally, never an IBKR place.";
+export const TRADER_VENUE_TAG_SIM_TITLE =
+  'Sim scratch account: fills estimated against the loaded replay (the live feed at the live edge); '
+  + 'scrubbing back unwinds them.';
+
+/* ── Bot Autonomy card ──────────────────────────────────────────────────── */
+
+export const BOT_CARD_TITLE = 'Bot autonomy';
+export const BOT_CARD_PACK_INFO_ARIA = 'What this pack does';
+export const BOT_CARD_ALLOWLIST_TITLE = 'Symbols the bot may act on';
+
+/* ── Compact ticket ─────────────────────────────────────────────────────── */
+
+export const TICKET_HEADER_FILLS_ESTIMATED = 'fills estimated';
+export const TICKET_TIF_LABEL = 'TIF';
+export const TICKET_TIF_DAY = 'DAY';
+export const TICKET_TIF_GTC = 'GTC';
+export const TICKET_TIF_TITLE = 'Time in force for the next order (also Settings > Trade)';
+export const TICKET_PRICE_BID = 'Bid';
+export const TICKET_PRICE_MID = 'Mid';
+export const TICKET_PRICE_ASK = 'Ask';
+export const TICKET_PRICE_QUICK_TITLE = 'Set the limit from the live top of book';
+export const TICKET_PRICE_QUICK_NO_BOOK = 'No live bid / ask for this symbol';
+export const TICKET_COST_LABEL = 'Cost';
+export const TICKET_BP_AFTER_LABEL = 'BP after';
+export const TICKET_LAST_LABEL = 'Last:';
+export const QUICK_TRADES_CUSTOMIZE_TITLE = 'Customize quick trades (Settings > Hotkeys)';
+export const QUICK_TRADES_CUSTOMIZE_ARIA = 'Customize quick trades';
+/** Icon-label buttons show at most this many words; the full name is the tooltip. */
+export const QUICK_TRADES_LABEL_WORDS = 2;
+
+/* ── Focus rail ─────────────────────────────────────────────────────────── */
+
+export const FOCUS_RAIL_TITLE = 'Focus';
+export const FOCUS_RAIL_ARIA = 'Focus list';
+export const FOCUS_RAIL_PICK_ARIA = 'Mirror a scanner list';
+export const FOCUS_RAIL_OPEN_SCANNER = 'Open Scanner';
+export const FOCUS_RAIL_COLLAPSE = 'Collapse focus list';
+export const FOCUS_RAIL_EXPAND = 'Expand focus list';
+export const FOCUS_RAIL_FOOTER_KEYS = '↑ ↓';
+export const FOCUS_RAIL_FOOTER_CYCLE = 'to cycle ·';
+export const FOCUS_RAIL_FOOTER_ENTER = 'Enter';
+export const FOCUS_RAIL_FOOTER_OPENS = 'opens';
+export const FOCUS_RAIL_NO_FEED = 'No scanner feed in this window';
+export const focusRailNotMirrored = (title: string): string =>
+  `${title} is not mirrored here yet -- open it on the Scanner`;
+export const focusRailEmpty = (title: string): string => `${title}: no rows right now`;
+export const focusRailMore = (count: number): string => `${count} more ↓`;
+export const FOCUS_RAIL_BOT_HELD_TITLE = 'Allowlisted · depth line held';
+export const FOCUS_RAIL_BOT_QUIET_TITLE = 'Allowlisted · quiet (no depth line)';
+export const FOCUS_RAIL_REC_TITLE = 'Recording';
+/** localStorage: collapsed flag + mirrored list (versioned; older shapes are ignored). */
+export const FOCUS_RAIL_STORAGE_KEY = 'nova.trader.focusRail.v1';
+export const FOCUS_RAIL_DEFAULT_LIST = 'gappers';
+
+/* ── Positions / Orders drawer ──────────────────────────────────────────── */
+
+export const DRAWER_TAB_ORDERS = 'Orders · today';
+export const DRAWER_COLLAPSE = 'Collapse';
+export const DRAWER_EXPAND = 'Expand';
+export const DRAWER_POSITION_LABEL = 'Position';
+export const DRAWER_UNREALIZED_LABEL = 'unrealized';
+export const DRAWER_NO_POSITION = 'No open position';
+export const DRAWER_SIM_NOTE = 'Sim scratch account · rewinds with the playhead';
+export const DRAWER_PAPER_NOTE = 'Nova Paper · fake money on the live feed';
