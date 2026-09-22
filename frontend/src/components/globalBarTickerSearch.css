@@ -1,0 +1,56 @@
+/* The bar search's suggestion list, portalled under the input (the input
+   itself: global-app-bar.css). */
+.global-bar-search-list {
+  z-index: 10080;
+  min-width: var(--radix-popper-anchor-width);
+  max-width: 360px;
+  padding: 4px;
+  border: 1px solid var(--nova-border-strong, var(--nova-border));
+  border-radius: 8px;
+  background: var(--menu-bg, var(--nova-panel));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  color: var(--nova-text);
+  font-size: 12px;
+}
+
+.global-bar-search-list ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.global-bar-search-list__row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 4px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.global-bar-search-list__row.is-active {
+  background: color-mix(in srgb, var(--nova-accent) 18%, transparent);
+}
+
+.global-bar-search-list__symbol {
+  min-width: 3.5rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.global-bar-search-list__source {
+  flex: 1 1 auto;
+  color: var(--nova-text-muted);
+}
+
+.global-bar-search-list__move {
+  font-variant-numeric: tabular-nums;
+}
+
+.global-bar-search-list__move--up {
+  color: var(--green, #22c55e);
+}
+
+.global-bar-search-list__move--down {
+  color: var(--red, #ef4444);
+}

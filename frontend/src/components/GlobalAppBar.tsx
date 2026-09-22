@@ -58,7 +58,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
     ibkrIntentionalMode,
     ibkrDisconnectHint,
   } = useWorkspace();
-  const { summary, orders, refresh, loading: accountLoading, error: accountError } =
+  const { summary, orders, positions, refresh, loading: accountLoading, error: accountError } =
     useIbkrAccountContext();
   const { orders: closedOrders } = useClosedOrders(ibkrConnected);
 
@@ -119,7 +119,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
         </div>
 
         <div className="global-app-bar__center" data-testid="global-bar-center">
-          <GlobalBarTickerSearch onLookup={lookup} />
+          <GlobalBarTickerSearch onLookup={lookup} tabs={traderTabs} positions={positions} />
         </div>
 
         <div className="global-app-bar__right" data-testid="global-bar-right">

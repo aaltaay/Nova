@@ -3,6 +3,7 @@
  * Mounted once in AppShell so every live page inherits the same chrome.
  * Primary row is desk chrome; bot controls live on a second row (#230).
  */
+import type { TickerSuggestionSource } from '../components/tickerSearchSuggestions';
 
 /** Fixed height of the Webull-style top status row (px). Bot row is extra. */
 export const GLOBAL_APP_BAR_HEIGHT_PX = 40;
@@ -236,7 +237,22 @@ export const globalBarLegacyFeedTitle = (feedLabel: string): string =>
 /** Centre of the bar: the ticker search. Enter opens the symbol in the Trader. */
 export const GLOBAL_BAR_SEARCH_PLACEHOLDER = 'Symbol';
 export const GLOBAL_BAR_SEARCH_ARIA = 'Look up symbol';
-export const GLOBAL_BAR_SEARCH_TITLE = 'Type a symbol and press Enter to open it in the Trader';
+export const GLOBAL_BAR_SEARCH_TITLE =
+  'Type a symbol, then Enter or pick a suggestion to open it in the Trader';
+/** Suggestions under the search: symbols the desk already holds (tabs, positions, scanner). */
+export const GLOBAL_BAR_SEARCH_MAX_SUGGESTIONS = 8;
+export const GLOBAL_BAR_SEARCH_LIST_ARIA = 'Symbol suggestions';
+/** The row for exactly what was typed -- Enter's default, so AA never opens AAPL. */
+export const GLOBAL_BAR_SEARCH_TYPED_HINT = 'Open in the Trader';
+export const GLOBAL_BAR_SEARCH_SOURCE_LABELS: Record<TickerSuggestionSource, string> = {
+  tab: 'Trader tab',
+  position: 'Position',
+  gappers: 'Gappers',
+  gainers: 'Gainers',
+  losers: 'Losers',
+  afterhours: 'After hours',
+  catalysts: 'Catalysts',
+};
 
 /** Gear menu -- the homes for what left the bar. */
 export const GLOBAL_BAR_GEAR_ARIA = 'Nova menu';
