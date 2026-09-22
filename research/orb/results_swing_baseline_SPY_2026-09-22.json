@@ -1,0 +1,73 @@
+{
+  "symbol": "SPY",
+  "from": "1993-02-01",
+  "to": "2026-09-22",
+  "cost_pct_per_side": 0.0003,
+  "rules": {
+    "band_ibs": {
+      "trades": 410,
+      "win_rate_pct": 75.4,
+      "avg_trade_pct": 0.674,
+      "profit_factor": 2.45,
+      "cagr_pct": 8.2,
+      "total_return_pct": 1317.0,
+      "max_drawdown_pct": -23.7,
+      "time_in_market_pct": 18.2
+    },
+    "turnaround": {
+      "trades": 310,
+      "win_rate_pct": 76.8,
+      "avg_trade_pct": 0.784,
+      "profit_factor": 3.53,
+      "cagr_pct": 7.28,
+      "total_return_pct": 962.2,
+      "max_drawdown_pct": -16.8,
+      "time_in_market_pct": 12.1
+    },
+    "low5": {
+      "trades": 479,
+      "win_rate_pct": 72.9,
+      "avg_trade_pct": 0.529,
+      "profit_factor": 2.06,
+      "cagr_pct": 7.44,
+      "total_return_pct": 1019.2,
+      "max_drawdown_pct": -23.7,
+      "time_in_market_pct": 22.0
+    },
+    "vol_contr": {
+      "trades": 495,
+      "win_rate_pct": 72.5,
+      "avg_trade_pct": 0.261,
+      "profit_factor": 1.71,
+      "cagr_pct": 3.75,
+      "total_return_pct": 245.5,
+      "max_drawdown_pct": -16.8,
+      "time_in_market_pct": 17.8
+    },
+    "newhigh_ibs": {
+      "trades": 176,
+      "win_rate_pct": 76.1,
+      "avg_trade_pct": 0.555,
+      "profit_factor": 3.45,
+      "cagr_pct": 2.9,
+      "total_return_pct": 161.4,
+      "max_drawdown_pct": -8.9,
+      "time_in_market_pct": 7.2
+    },
+    "combined_any": {
+      "trades": 1045,
+      "win_rate_pct": 72.2,
+      "avg_trade_pct": 0.331,
+      "profit_factor": 1.79,
+      "cagr_pct": 10.27,
+      "total_return_pct": 2583.2,
+      "max_drawdown_pct": -23.7,
+      "time_in_market_pct": 43.0
+    },
+    "buy_and_hold": {
+      "cagr_pct": 8.88,
+      "max_drawdown_pct": -56.5,
+      "time_in_market_pct": 100.0
+    }
+  }
+}
