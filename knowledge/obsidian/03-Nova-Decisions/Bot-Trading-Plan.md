@@ -273,7 +273,7 @@ that passed the cost test, and it is the shape of a strategy that fits a cash ac
 one order a day at the close, in names with sub-cent spreads. Re-run it on the 30-year
 survivor-biased S&P history for a directional out-of-sample check before deciding.
 
-## 2e. Where this leaves gate 1 (2026-09-22, end of day)
+## 2e. Where this leaves gate 1 (2026-09-22, end of day) -- small-cap track
 
 Three candidates, one day, one honest harness: the two small-cap open breakouts die on
 cents of slippage at $25k, the mid/large-cap daily mean reversion is flat. The only
@@ -283,14 +283,38 @@ close-of-day, cash-account-friendly strategies -- the opposite of what Nova's de
 built to watch, and the operator's definition of done (paper evidence, then a live test)
 does not care which kind of rule makes the money.
 
-**Next candidate, pre-registered -- A5: SPY swing rules to gate 1's kill tests, then paper.**
-The five rules of §3 exactly as published (band + IBS, Turnaround Tuesday, 5-day low,
-volatility contraction, new high + low IBS; exit on a close above the prior high), on SPY,
-1993-2026. Kill tests: doubled costs (0.06% per side), per-year sign count, ten-trade
-concentration, and the 2021-2026 window on its own. If they pass, the paper stage needs a
-*daily-bar* bot pack (signal at 15:55 ET from daily bars, one limit order at the close,
-one exit order), which Nova's bot does not have yet; that becomes the engineering step.
-A4b's out-of-sample check runs beside it.
+**Operator direction (2026-09-22, evening): the bots are for small caps.** A5 (the SPY
+swing rules) is parked, not run; the large-cap cell A4b stays recorded. What the small-cap
+evidence says is not "no edge" but "the edge lives inside the costs": the ORB's relative-
+volume ordering is real (§2b), its profit sits inside one to two cents per share of
+slippage and inside ~10 trades, and the entry-bar fill is the one thing a minute bar cannot
+settle. So the next work is about **fills and costs on small caps**, not another rule:
+
+- **S1 -- ORB on one-second bars (data already on disk).** Same published rule, same
+  selection, but the entry window 09:30-11:00 replayed at one-second resolution from
+  `store/seconds.duckdb`: the fill is the first second that trades through the level, the
+  stop is checked every second after it. This replaces the minute-bar guess about the entry
+  bar with what actually printed. Pre-planned splits reported, never re-selected: ranks 1-5
+  vs 6-10 by opening RVOL, price $2-10 vs $10+, and the same cost ladder as §2b.
+- **S2 -- measure the real cost on Nova's Paper venue.** Build the ORB as a bot pack
+  (long-only, top-5 by opening RVOL, the published 10% ATR stop, exit at the close) and run
+  it on Paper: Eyes level first (it proposes, the operator places), then Strategy level.
+  The number that decides is the **measured slippage per share** against the live quote and
+  the expectancy against S1: slippage at or under $0.015 and expectancy within 30% of S1
+  continues to gate 3; slippage over $0.02 stops it -- the edge cannot exist at this size,
+  and no amount of paper will make it. This is gate 2 doing what it exists for.
+- **S3 -- two more small-cap rules on the same store, pre-registered here:**
+  - **Halt-resume momentum.** In a stock-in-play (the §2b universe), a print gap of five
+    minutes or more during regular hours is a halt; enter on the first 1-minute close above
+    the pre-halt high after the resume, stop under the resume bar's low, half off at 2R,
+    rest at the close. Kill tests as §2b.
+  - **VWAP reclaim.** In the same universe, after 10:00 ET, buy the first 1-minute close
+    back above VWAP after at least 1% below it, stop under the reclaim bar's low, half off
+    at 2R, rest at the close or a close back under VWAP. Kill tests as §2b.
+- **Cash account, stated once:** T+1 settlement means today's buying power is yesterday's
+  settled cash; the bot sizes from settled cash (Nova's practice broker enforces buying
+  power, live IBKR enforces settled funds), and there is no pattern-day-trader limit on a
+  cash account. Long-only throughout; shorts stay behind the parked Phase K.
 
 ## 3. Reference numbers (from the 2026-09-22 research pass)
 
@@ -322,3 +346,4 @@ blog.traderspost.io paper-to-live guide.
 | 2026-09-22 | **Gate 1 verdict for A1: not passed** (fails the 2x-cost kill test; profit carried by ~10 trades). Not promoted to paper. **Next candidate: A2 Gap and Go** on the same store once news + ticker details are in. Operator's definition of done unchanged: paper evidence, then their live test. | Claude Fable 5.1 for the operator |
 | 2026-09-22 | **Gate 1 verdict for A2 Gap and Go: not passed** (PF 1.00 without the survivor-biased float pillar; fails three of four kill tests). Not promoted. **Next candidate: A4 large-cap daily mean reversion**, rules pre-registered in §2d. L1 data complete; the Massive plan may be cancelled. | Claude Fable 5.1 for the operator |
 | 2026-09-22 | **Gate 1 verdict for A4: not passed** (PF 1.02, 2024 carries it, dies at 2x costs). A4b mega-cap cell recorded as the first cost-robust cell (PF 1.19, survives 2x costs) but in-sample -- not promoted. **Next: A5 SPY swing rules through the kill tests, then a daily-bar bot pack for paper** (§2e). | Claude Fable 5.1 for the operator |
+| 2026-09-22 | **Operator direction: small caps only** ("I want to focus on small cap stocks for my bots"). A5 parked unrun. Next is the small-cap track of §2e: S1 ORB on one-second bars, S2 the ORB bot pack on Paper to measure real slippage (the go/no-go is the measured cost), S3 halt-resume and VWAP-reclaim rules pre-registered on the same store. | Operator |
