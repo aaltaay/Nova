@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   acquireLock,
+  apiBaseRefusal,
   isGitWorktree,
   isLockStale,
   LOCK_PATH,
@@ -99,5 +100,36 @@ describe('startRefusal (ADR 021: never start an API from a worktree or without .
     const refusal = startRefusal(root);
     expect(refusal).toMatch(/No \.env at/);
     expect(refusal).toContain(path.join(root, '.env'));
+  });
+});
+
+describe('apiBaseRefusal (a page on another API never restarts :8000)', () => {
+  it('allows an unset base and the local :8000 API', () => {
+    expect(apiBaseRefusal(undefined)).toBeNull();
+    expect(apiBaseRefusal('')).toBeNull();
+    expect(apiBaseRefusal('http://127.0.0.1:8000')).toBeNull();
+    expect(apiBaseRefusal('http://localhost:8000/')).toBeNull();
+  });
+
+  it('refuses a test stack on another port and names it', () => {
+    const refusal = apiBaseRefusal('http://127.0.0.1:8010');
+    expect(refusal).toMatch(/talks to http:\/\/127\.0\.0\.1:8010/);
+  });
+
+  it('refuses a remote API and a malformed base', () => {
+    expect(apiBaseRefusal('https://api.example.com')).toMatch(/talks to/);
+    expect(apiBaseRefusal('not a url')).toMatch(/is not a URL/);
+  });
+
+  it('is part of startRefusal, after the worktree check', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nova-start-api-base-'));
+    try {
+      fs.mkdirSync(path.join(root, '.git'));
+      fs.writeFileSync(path.join(root, '.env'), 'IBKR_ENABLED=true');
+      expect(startRefusal(root, 'http://127.0.0.1:8000')).toBeNull();
+      expect(startRefusal(root, 'http://127.0.0.1:8010')).toMatch(/8010/);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 });

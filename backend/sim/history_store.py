@@ -82,10 +82,17 @@ def default_date(now: datetime | None = None) -> str:
 
 
 def path():
+    """``NOVA_SIM_HISTORY_DIR``; else, when the capture root was redirected
+    (``NOVA_SIM_CAPTURE_DIR``), inside it -- an isolated stack must never write
+    the operator's archive; else the durable F: archive, else the capture root."""
     configured = os.environ.get(SIM_HISTORY_DIR_ENV)
     default = Path(SIM_HISTORY_DEFAULT_ROOT_WIN)
-    root = Path(configured) if configured else (
-        default if Path("F:/").exists() else capture_root() / "historical")
+    if configured:
+        root = Path(configured)
+    elif (os.environ.get("NOVA_SIM_CAPTURE_DIR") or "").strip():
+        root = capture_root() / "historical"
+    else:
+        root = default if Path("F:/").exists() else capture_root() / "historical"
     root.mkdir(parents=True, exist_ok=True)
     return root / "replay.sqlite3"
 

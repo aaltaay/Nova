@@ -142,13 +142,38 @@ def test_bars_job_persists_candles_in_archive_and_chart_store(tmp_path, monkeypa
     assert len(bars_store.read("F", "5Min", 100)["bars"]) == 2
 
 
-def test_gateway_tries_live_then_paper_port(monkeypatch):
+def test_gateway_tries_the_live_port_only_unless_the_paper_fallback_opts_in(monkeypatch):
+    """ADR 020 amendment 2: the paper Gateway is never an automatic fallback."""
     from ibkr.replay_history_gateway import candidate_ports
     monkeypatch.setenv("IBKR_LIVE_PORT", "4001")
     monkeypatch.setenv("IBKR_PAPER_PORT", "4002")
+    monkeypatch.delenv("IBKR_PAPER_GATEWAY_FALLBACK", raising=False)
+    assert candidate_ports() == [4001]
+    monkeypatch.setenv("IBKR_PAPER_GATEWAY_FALLBACK", "true")
     assert candidate_ports() == [4001, 4002]
     monkeypatch.setenv("IBKR_PAPER_PORT", "4001")
     assert candidate_ports() == [4001]
+
+
+def test_the_download_client_id_is_overridable_and_read_at_construction(monkeypatch):
+    from constants_sim import SIM_HISTORY_CLIENT_ID
+    from ibkr.replay_history_gateway import ReplayHistoryGateway
+    monkeypatch.delenv("NOVA_SIM_HISTORY_CLIENT_ID", raising=False)
+    assert ReplayHistoryGateway().client_id == SIM_HISTORY_CLIENT_ID
+    monkeypatch.setenv("NOVA_SIM_HISTORY_CLIENT_ID", "29421")
+    assert ReplayHistoryGateway().client_id == 29421
+    monkeypatch.setenv("NOVA_SIM_HISTORY_CLIENT_ID", "not-a-number")
+    assert ReplayHistoryGateway().client_id == SIM_HISTORY_CLIENT_ID
+    assert ReplayHistoryGateway(client_id=7).client_id == 7
+
+
+def test_a_redirected_capture_root_keeps_the_history_store_inside_it(monkeypatch, tmp_path):
+    from sim import history_store
+    monkeypatch.delenv("NOVA_SIM_HISTORY_DIR", raising=False)
+    monkeypatch.setenv("NOVA_SIM_CAPTURE_DIR", str(tmp_path / "capture"))
+    assert history_store.path() == tmp_path / "capture" / "historical" / "replay.sqlite3"
+    monkeypatch.setenv("NOVA_SIM_HISTORY_DIR", str(tmp_path / "hist"))
+    assert history_store.path() == tmp_path / "hist" / "replay.sqlite3"
 
 
 def test_both_ports_dark_names_the_shared_unreachable_prefix(monkeypatch):
@@ -170,10 +195,17 @@ def test_both_ports_dark_names_the_shared_unreachable_prefix(monkeypatch):
     monkeypatch.setattr(ib_async, "IB", RefusingIB)
     monkeypatch.setenv("IBKR_LIVE_PORT", "4001")
     monkeypatch.setenv("IBKR_PAPER_PORT", "4002")
+    monkeypatch.delenv("IBKR_PAPER_GATEWAY_FALLBACK", raising=False)
     with pytest.raises(ConnectionError) as refused:
         asyncio.run(ReplayHistoryGateway().open("IMCC"))
     assert str(refused.value).startswith(SIM_HISTORY_GATEWAY_UNREACHABLE)
-    assert "4001" in str(refused.value) and "4002" in str(refused.value)
+    assert "4001" in str(refused.value) and "4002" not in str(refused.value)
+    # With the legacy paper fallback opted in, both dark ports are named.
+    monkeypatch.setenv("IBKR_PAPER_GATEWAY_FALLBACK", "true")
+    with pytest.raises(ConnectionError) as both:
+        asyncio.run(ReplayHistoryGateway().open("IMCC"))
+    assert str(both.value).startswith(SIM_HISTORY_GATEWAY_UNREACHABLE)
+    assert "4001" in str(both.value) and "4002" in str(both.value)
 
 
 @pytest.mark.parametrize("now, expected", [

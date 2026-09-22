@@ -1,7 +1,8 @@
 """Read-only, separately identified Gateway connection for replay acquisition.
 
 Fetch-only adapter: the SIM downloader (backend/sim/history_download.py) owns
-pagination, pacing and persistence. Live port first, paper when live is dark.
+pagination, pacing and persistence. The live port only; the legacy paper
+port only with the IBKR_PAPER_GATEWAY_FALLBACK opt-in (ADR 020, amendment 2).
 """
 from __future__ import annotations
 
@@ -11,7 +12,7 @@ from datetime import datetime, timezone
 
 from constants_ibkr import IBKR_HOST, IBKR_LIVE_PORT, IBKR_PAPER_PORT
 from constants_sim import (
-    SIM_HISTORY_CLIENT_ID, SIM_HISTORY_CONNECT_TIMEOUT_SEC, SIM_HISTORY_GATEWAY_UNREACHABLE,
+    SIM_HISTORY_CLIENT_ID, SIM_HISTORY_CLIENT_ID_ENV, SIM_HISTORY_CONNECT_TIMEOUT_SEC, SIM_HISTORY_GATEWAY_UNREACHABLE,
     SIM_HISTORY_PAGE_SIZE, SIM_HISTORY_REQUEST_TIMEOUT_SEC,
 )
 
@@ -19,16 +20,33 @@ logger = logging.getLogger(__name__)
 
 
 def candidate_ports() -> list[int]:
+    """Live first; the paper port only with the ADR 020 fallback opt-in."""
+    from ibkr.gateway_heal import paper_fallback_enabled
+
     live = int(os.environ.get("IBKR_LIVE_PORT", str(IBKR_LIVE_PORT)))
-    paper = int(os.environ.get("IBKR_PAPER_PORT", str(IBKR_PAPER_PORT)))
-    return list(dict.fromkeys([live, paper]))
+    ports = [live]
+    if paper_fallback_enabled():
+        ports.append(int(os.environ.get("IBKR_PAPER_PORT", str(IBKR_PAPER_PORT))))
+    return list(dict.fromkeys(ports))
+
+
+def history_client_id() -> int:
+    """``NOVA_SIM_HISTORY_CLIENT_ID`` when set to an integer, else the domain default."""
+    raw = (os.environ.get(SIM_HISTORY_CLIENT_ID_ENV) or "").strip()
+    if raw:
+        try:
+            return int(raw)
+        except ValueError:
+            logger.warning("Historical replay: %s=%r is not an integer -- using %s", SIM_HISTORY_CLIENT_ID_ENV, raw, SIM_HISTORY_CLIENT_ID)
+    return SIM_HISTORY_CLIENT_ID
 
 
 class ReplayHistoryGateway:
-    def __init__(self, client_id: int = SIM_HISTORY_CLIENT_ID):
+    def __init__(self, client_id: int | None = None):
         self.ib = None
         self.contract = None
-        self.client_id = client_id
+        # Read at construction, not bound at class definition, so the env wins.
+        self.client_id = client_id if client_id is not None else history_client_id()
 
     async def open(self, symbol):
         from ib_async import IB, Stock, StartupFetch

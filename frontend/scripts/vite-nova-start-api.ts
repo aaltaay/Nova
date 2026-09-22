@@ -13,7 +13,10 @@
  * starts an API (an agent's Playwright run once replaced the operator's backend
  * with an env-less one from a worktree), a missing repo `.env` refuses the
  * start and says which file, and the spawned API gets `NOVA_ENV_PATH` set
- * explicitly. `GET /__nova/api-status` reports who this server would start.
+ * explicitly. A dev server whose page talks to another API (a test stack on
+ * another port) never restarts the operator's :8000 either -- it would not help
+ * that page and would replace the desk's backend. `GET /__nova/api-status`
+ * reports who this server would start.
  */
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -44,14 +47,36 @@ export function isGitWorktree(root: string): boolean {
   }
 }
 
+const LOCAL_API_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]', '::1']);
+
+/** Null when the page's API base is unset or is this plugin's own :8000, else why not. */
+export function apiBaseRefusal(apiBase: string | null | undefined): string | null {
+  const raw = (apiBase ?? '').trim();
+  if (!raw) return null;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return `VITE_API_BASE_URL=${raw} is not a URL; this dev server will not restart the API on :${API_PORT}.`;
+  }
+  const port = url.port ? Number(url.port) : url.protocol === 'https:' ? 443 : 80;
+  if (LOCAL_API_HOSTS.has(url.hostname) && port === API_PORT) return null;
+  return (
+    `This dev server's page talks to ${raw}, not the API on ${API_HOST}:${API_PORT}; ` +
+    `restarting :${API_PORT} would not help it and would replace the desk's backend.`
+  );
+}
+
 /** Why this dev server must not start an API, or null when it may (ADR 021). */
-export function startRefusal(root: string): string | null {
+export function startRefusal(root: string, apiBase?: string | null): string | null {
   if (isGitWorktree(root)) {
     return (
       `This dev server runs from a git worktree (${root}); it never starts an API. ` +
       'Start Nova from the main checkout.'
     );
   }
+  const elsewhere = apiBaseRefusal(apiBase);
+  if (elsewhere) return elsewhere;
   const envPath = path.join(root, '.env');
   if (!fs.existsSync(envPath)) {
     return `No .env at ${envPath} -- the API would start with every integration off.`;
@@ -242,6 +267,12 @@ export function novaStartApiPlugin(): Plugin {
   return {
     name: 'nova-start-api',
     configureServer(server) {
+      // The API this dev server's page talks to (frontend .env files, then the shell).
+      const apiBase =
+        server.config.env?.VITE_API_BASE_URL ||
+        process.env.VITE_API_BASE_URL ||
+        process.env.NOVA_API_BASE ||
+        '';
       server.middlewares.use((req: IncomingMessage, res: ServerResponse, next: () => void) => {
         void (async () => {
           const url = req.url?.split('?')[0] || '';
@@ -252,7 +283,8 @@ export function novaStartApiPlugin(): Plugin {
               worktree: isGitWorktree(repoRoot),
               envPath,
               envExists: fs.existsSync(envPath),
-              refusal: startRefusal(repoRoot),
+              apiBase: apiBase || null,
+              refusal: startRefusal(repoRoot, apiBase),
               lastStart,
             });
             return;
@@ -265,7 +297,7 @@ export function novaStartApiPlugin(): Plugin {
             sendJson(res, 405, { ok: false, error: 'POST required' });
             return;
           }
-          const refusal = startRefusal(repoRoot);
+          const refusal = startRefusal(repoRoot, apiBase);
           if (refusal) {
             console.error('[nova-start-api] refused:', refusal);
             lastStart = { at: Date.now(), ok: false, error: refusal };
