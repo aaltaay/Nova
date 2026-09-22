@@ -1,9 +1,10 @@
 /**
- * Fixed right rail: Stock Quote (stats + L2 + T&S) | drag | Trade ticket.
+ * Fixed right rail: Stock Quote (stats + L2 + T&S) | drag | Trade ticket | Bot Autonomy card.
  * Horizontal splitter reallocates height between quote/depth and Order Entry.
  * TRADE keeps a min-height floor (depth shrinks first) so Extended Hours stays reachable.
  */
 import { useRef, type CSSProperties } from 'react';
+import { BotAutonomyCard } from '../bot/BotAutonomyCard';
 import { ResizeHandle } from '../components/ResizeHandle';
 import { useResizableHeight } from '../hooks/useResizableHeight';
 import { TickerTradeActionBar } from '../ibkr/TickerTradeActionBar';
@@ -115,6 +116,8 @@ export function StockViewRail({
           />
         </StockViewModuleCard>
       </div>
+      {/* Bot Autonomy: a quiet card at the bottom of the rail, not a bar over the page. */}
+      <BotAutonomyCard />
     </aside>
   );
 }
