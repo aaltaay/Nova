@@ -138,6 +138,15 @@ export function useNavPage(): NavPage {
   return useNavRailSnapshot().page;
 }
 
+/**
+ * Rail collapse while the operator has not chosen (navRailPersist `collapsed:
+ * null`): icons on the Desk, where the board needs the width; labels on every
+ * other view. Trader on top of the Desk page is the full Trader, not the Desk.
+ */
+export function navRailCollapsedDefault(page: NavPage, traderActive: boolean): boolean {
+  return page === 'desk' && !traderActive;
+}
+
 /** Test helper. */
 export function resetNavRailStoreForTests(): void {
   snapshot = { page: 'dashboard', scanner: INITIAL_SCANNER };

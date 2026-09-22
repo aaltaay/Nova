@@ -1,5 +1,6 @@
 /** Sim clock composition; resource/controller ownership lives in the feature hook (ADR 005). */
 import { useCallback, useSyncExternalStore } from 'react';
+import { useNavPage } from '../workspace/navRailStore';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { SimPlaybackButton } from './SimPlaybackButton';
 import type { SimClockState } from './simClockTypes';
@@ -57,13 +58,15 @@ function formatMinuteClock(minuteFromOpen: number, opening: number): string {
 }
 
 /**
- * The Scanner desk's Sim session bar. On the Trader view the scrubber rides
+ * The Scanner desk's Sim session bar. On the Trader view -- and on the Desk
+ * while it shows the Trader workspace beside its board -- the scrubber rides
  * on the context strip instead (`SimSessionStrip`), so this renders nothing
  * there and leaves the clock resource to the strip's controller.
  */
 export function SimSessionHeader({ active: activeProp }: { active: boolean }) {
-  const { openStockView, activeTraderSymbol, traderViewActive } = useWorkspace();
-  const active = activeProp && !traderViewActive;
+  const { openStockView, activeTraderSymbol, traderViewActive, traderTabs } = useWorkspace();
+  const deskWorkspaceUp = useNavPage() === 'desk' && traderTabs.length > 0;
+  const active = activeProp && !traderViewActive && !deskWorkspaceUp;
   const controller = useSimSessionController(active, openStockView, activeTraderSymbol);
   useProgressiveReplay(active);
   // Subscribe only on a Sim desk: this header renders on every desk and returns

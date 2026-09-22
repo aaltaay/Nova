@@ -37,6 +37,7 @@ import { TRADER_DEFAULT_SYMBOL } from '../constants';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { formatScannerNavCount, scannerNavIcon } from '../scanner/scannerNavIcons';
 import {
+  navRailCollapsedDefault,
   requestScannerTab,
   setNavPage,
   useNavRailSnapshot,
@@ -81,8 +82,9 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
   const scannerActive = dashboardUp && !accountActive && !botsActive;
   const childHighlight = dashboardUp ? scanner.railHighlight : null;
 
-  const collapsed = prefs.collapsed;
-  // Operator choice wins; otherwise the tree follows the view.
+  // Operator choice wins; otherwise the chrome follows the view (icons on the
+  // Desk so the board gets the width, tree open on the Scanner).
+  const collapsed = prefs.collapsed ?? navRailCollapsedDefault(page, traderActive);
   const folded = prefs.scannerFolded ?? !scannerActive;
 
   const persist = useCallback((next: NavRailPrefs) => {

@@ -32,6 +32,11 @@ type Snapshot = {
   ibkrMode: string;
   ibkrGatewayMode: 'paper' | 'live' | null;
   setSelectedSymbol: (sym: string | null) => void;
+  traderTabs: string[];
+  activeTraderSymbol: string | null;
+  traderViewActive: boolean;
+  openTraderTab: (sym: string) => void;
+  openStockView: (sym: string) => void;
 };
 
 let latest: Snapshot | null = null;
@@ -46,6 +51,11 @@ function Probe() {
     ibkrMode: ws.ibkrMode,
     ibkrGatewayMode: ws.ibkrGatewayMode,
     setSelectedSymbol: ws.setSelectedSymbol,
+    traderTabs: ws.traderTabs,
+    activeTraderSymbol: ws.activeTraderSymbol,
+    traderViewActive: ws.traderViewActive,
+    openTraderTab: ws.openTraderTab,
+    openStockView: ws.openStockView,
   };
   return null;
 }
@@ -134,6 +144,46 @@ describe('WorkspaceProvider', () => {
     expect(latest?.discoveryProvider).toBe('ibkr');
     expect(latest?.alpacaFeed).toBe('sip');
     expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/\/api\/config$/));
+  });
+
+  it('openTraderTab adds or activates the tab and selects the symbol without switching the view; openStockView switches', async () => {
+    localStorage.clear();
+    act(() => {
+      root.render(
+        <WorkspaceProvider>
+          <Probe />
+        </WorkspaceProvider>,
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(latest?.traderTabs).toEqual([]);
+    expect(latest?.traderViewActive).toBe(false);
+    await act(async () => {
+      latest?.openTraderTab('grml');
+    });
+    expect(latest?.traderTabs).toEqual(['GRML']);
+    expect(latest?.activeTraderSymbol).toBe('GRML');
+    expect(latest?.selectedSymbol).toBe('GRML');
+    expect(latest?.traderViewActive).toBe(false);
+    await act(async () => {
+      latest?.openTraderTab('vxtl');
+    });
+    expect(latest?.traderTabs).toEqual(['GRML', 'VXTL']);
+    expect(latest?.activeTraderSymbol).toBe('VXTL');
+    await act(async () => {
+      latest?.openTraderTab('GRML');
+    });
+    expect(latest?.traderTabs).toEqual(['GRML', 'VXTL']);
+    expect(latest?.activeTraderSymbol).toBe('GRML');
+    expect(latest?.traderViewActive).toBe(false);
+    await act(async () => {
+      latest?.openStockView('GRML');
+    });
+    expect(latest?.traderViewActive).toBe(true);
+    localStorage.clear();
   });
 
   it('updates selectedSymbol via setSelectedSymbol', async () => {

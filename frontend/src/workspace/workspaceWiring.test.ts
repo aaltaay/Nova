@@ -15,8 +15,13 @@ describe('WorkspaceContext wiring (Phase 2)', () => {
     expect(app).toMatch(/LayoutStoreProvider/);
     expect(app).toMatch(/<DashboardPage\s*\/>/);
     expect(app).toMatch(/nova-scanner-desk-slot/);
-    expect(app).toMatch(/\{!showTrader && \(/);
+    // The dashboard slot stays up beside the Desk board; only the full Trader replaces it.
+    expect(app).toMatch(/\{!traderUp && \(/);
     expect(app).toMatch(/inert=\{!showTrader\}/);
+    // One Trader workspace: the Desk shows the same slot (no second StockViewTabs mount).
+    expect(app).toMatch(/hideFocusRail=\{deskUp\}/);
+    expect(app).toMatch(/active=\{showTrader\}/);
+    expect(app.match(/<LazyStockViewTabs\b/g) ?? []).toHaveLength(1);
     expect(dash).toMatch(/useWorkspace\(/);
     expect(dash).not.toMatch(/interface Props/);
   });

@@ -55,6 +55,7 @@ function baseWorkspace(overrides: Partial<WorkspaceValue> = {}): WorkspaceValue 
     ibkrSessionReason: 'ok',
     ibkrPortsDark: false,
     openStockView: () => {},
+    openTraderTab: () => {},
     selectRowSymbol: () => {},
     traderTabs: ['AAPL', 'MSFT'],
     traderLiveTabs: ['AAPL', 'MSFT'],
@@ -182,6 +183,36 @@ describe('StockViewTabs tab-strip placement', () => {
     expect(container.querySelector('[data-testid="sv-tab-pane-MSFT"]')?.hasAttribute('inert')).toBe(
       true,
     );
+  });
+
+  it('beside the Desk board: no Focus rail, strip inline, charts active although the Trader view is not', () => {
+    workspace = baseWorkspace({ traderViewActive: false });
+    act(() => {
+      setGlobalBarTraderSlot(headerSlot);
+    });
+    act(() => {
+      root.render(<StockViewTabs detached={false} hideFocusRail active />);
+    });
+    expect(container.querySelector('[data-testid="focus-rail"]')).toBeNull();
+    expect(container.querySelector('.sv-tab-strip')).toBeTruthy();
+    expect(headerSlot.querySelector('.sv-tab-strip')).toBeNull();
+    expect(
+      container.querySelector('[data-testid="stock-view-page-AAPL"]')?.getAttribute('data-chart-active'),
+    ).toBe('1');
+    expect(
+      container.querySelector('[data-testid="stock-view-page-MSFT"]')?.getAttribute('data-chart-active'),
+    ).toBe('0');
+  });
+
+  it('without the Desk props, a hidden Trader keeps its Focus rail and pauses every chart', () => {
+    workspace = baseWorkspace({ traderViewActive: false });
+    act(() => {
+      root.render(<StockViewTabs detached={false} />);
+    });
+    expect(container.querySelector('[data-testid="focus-rail"]')).toBeTruthy();
+    expect(
+      container.querySelector('[data-testid="stock-view-page-AAPL"]')?.getAttribute('data-chart-active'),
+    ).toBe('0');
   });
 
   it('does not mount a StockViewPage for a gray / suspended tab', () => {

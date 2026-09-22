@@ -283,7 +283,7 @@ describe('NavRail', () => {
     click('nav-rail-scanner-chevron');
     expect(q('nav-rail-scanner-tree')).toBeNull();
     const stored = JSON.parse(localStorage.getItem(NAV_RAIL_STORAGE_KEY)!);
-    expect(stored).toEqual({ schema_version: NAV_RAIL_SCHEMA_VERSION, collapsed: false, scannerFolded: true });
+    expect(stored).toEqual({ schema_version: NAV_RAIL_SCHEMA_VERSION, collapsed: null, scannerFolded: true });
 
     act(() => {
       root.unmount();
@@ -316,6 +316,57 @@ describe('NavRail', () => {
     expect(q('nav-rail')!.classList.contains('nav-rail--collapsed')).toBe(true);
     // Collapsed, the Scanner section itself reads active on the Scanner view.
     expect(q('nav-rail-scanner')!.classList.contains('is-active')).toBe(true);
+  });
+
+  it('starts collapsed on the Desk and expanded elsewhere until the operator chooses; the choice then wins everywhere', () => {
+    render();
+    expect(q('nav-rail')!.getAttribute('data-collapsed')).toBe('false');
+    act(() => {
+      setNavPage('desk');
+    });
+    expect(q('nav-rail')!.classList.contains('nav-rail--collapsed')).toBe(true);
+    expect(q('nav-rail-collapse')!.getAttribute('aria-pressed')).toBe('true');
+    // A view default is not a choice: nothing is written.
+    expect(localStorage.getItem(NAV_RAIL_STORAGE_KEY)).toBeNull();
+    // The full Trader on top of the Desk page is the Trader: labels again.
+    render({ traderActive: true });
+    expect(q('nav-rail')!.getAttribute('data-collapsed')).toBe('false');
+    render({ traderActive: false });
+    expect(q('nav-rail')!.getAttribute('data-collapsed')).toBe('true');
+    // Expanding on the Desk is a choice that persists and follows the operator to other views.
+    click('nav-rail-collapse');
+    expect(q('nav-rail')!.getAttribute('data-collapsed')).toBe('false');
+    expect(JSON.parse(localStorage.getItem(NAV_RAIL_STORAGE_KEY)!)).toEqual({
+      schema_version: NAV_RAIL_SCHEMA_VERSION, collapsed: false, scannerFolded: null,
+    });
+    act(() => {
+      setNavPage('records');
+    });
+    expect(q('nav-rail')!.getAttribute('data-collapsed')).toBe('false');
+    act(() => {
+      setNavPage('desk');
+    });
+    expect(q('nav-rail')!.getAttribute('data-collapsed')).toBe('false');
+  });
+
+  it('migrates a v1 payload: collapsed true stays a choice, false becomes "not chosen" so the Desk default applies', () => {
+    localStorage.setItem(NAV_RAIL_STORAGE_KEY, JSON.stringify({ schema_version: 1, collapsed: false, scannerFolded: true }));
+    act(() => {
+      setNavPage('desk');
+    });
+    render();
+    expect(q('nav-rail')!.classList.contains('nav-rail--collapsed')).toBe(true);
+    expect(q('nav-rail')!.classList.contains('nav-rail--folded')).toBe(true);
+    act(() => {
+      root.unmount();
+    });
+    root = createRoot(container);
+    localStorage.setItem(NAV_RAIL_STORAGE_KEY, JSON.stringify({ schema_version: 1, collapsed: true, scannerFolded: false }));
+    act(() => {
+      setNavPage('dashboard');
+    });
+    render();
+    expect(q('nav-rail')!.classList.contains('nav-rail--collapsed')).toBe(true);
   });
 
   it('ignores a persisted payload with an unknown schema_version', () => {
