@@ -4,26 +4,23 @@
  * position in the footer (approved Trader redesign, 2026-09-21; WID-019 /
  * 026 / 027 data and actions unchanged). Shared with the Scanner desk.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useClosedOrders } from '../closed_orders/useClosedOrders';
 import {
-  ORDERS_TODAY_FILTERS,
   ORDERS_TODAY_TITLE,
   STOCK_VIEW_MODULE_NOVA_OS_TITLE,
   STOCK_VIEW_MODULE_POSITIONS_TITLE,
-  type OrdersTodayFilterId,
   type StockViewDockSurface,
 } from '../constants';
 import { drawerSampleBanner } from '../constantGroups/trader_chrome';
 import { PositionsPanel } from '../ibkr/PositionsPanel';
-import { buildMockWorkingOrders } from '../ibkr/mockWorkingOrders';
 import type {
   IbkrAccountSummary,
   IbkrMode,
   IbkrOrder,
   IbkrPosition,
 } from '../ibkr/types';
-import { OrdersTodayView, ordersTodayBadgeCount } from '../orders_today';
+import { OrdersTodayView } from '../orders_today';
 import type { OrdersTodayFilter } from '../orders_today';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import {
@@ -43,6 +40,7 @@ import {
   writeSurface,
 } from './stockViewDockPersist';
 import { TraderNovaOsBrain } from './TraderNovaOsBrain';
+import { useDrawerDisplay } from './useDrawerDisplay';
 
 type Props = {
   symbol: string;
@@ -101,36 +99,9 @@ export function StockViewOpenOrdersDock({
   const { orders: closedOrders } = useClosedOrders(connected);
 
   const symbolKey = symbol.toUpperCase();
-  const wantsWorkingSample =
-    surface === 'orders' &&
-    (filter === 'working' || filter === 'all' || filter === 'partial_filled');
-  // Account-wide desk: sample only when the account has zero working orders.
-  const usingSample =
-    wantsWorkingSample && orders.length === 0 && !sampleHidden;
-  const displayOrders = useMemo(
-    () => (usingSample ? buildMockWorkingOrders(symbolKey) : orders),
-    [usingSample, symbolKey, orders],
-  );
-  // While the sample shows, the list and every count are the sample alone:
-  // real closed rows were mixed in and counted with it ("12 SAMPLE") -- QA V22.
-  const displayClosed = useMemo(
-    () => (usingSample ? [] : closedOrders),
-    [usingSample, closedOrders],
-  );
-  const openCount = ordersTodayBadgeCount(
-    displayOrders,
-    displayClosed,
-    filter,
-    null,
-  );
-  // One count per status chip, the same rule as the badge.
-  const filterCounts = useMemo(() => {
-    const out: Partial<Record<OrdersTodayFilterId, number>> = {};
-    for (const f of ORDERS_TODAY_FILTERS) {
-      out[f.id] = ordersTodayBadgeCount(displayOrders, displayClosed, f.id, null);
-    }
-    return out;
-  }, [displayOrders, displayClosed]);
+  // The sample, the rows shown and every count (QA V22): useDrawerDisplay.
+  const { wantsWorkingSample, usingSample, displayOrders, displayClosed, openCount, filterCounts } =
+    useDrawerDisplay({ surface, filter, orders, closedOrders, sampleHidden, symbolKey });
   const positionCount = positions.length;
 
   useEffect(() => {

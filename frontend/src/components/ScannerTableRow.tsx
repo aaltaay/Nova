@@ -11,14 +11,8 @@ import { EarningsDots } from './EarningsDots';
 import { ScannerRowNumCell } from './ScannerTableChrome';
 import { scannerColClass } from './scannerTableCol';
 import { fmtMarketCap, fmtPct, fmtPrice, fmtVolume } from '../utils/quoteFormat';
-import {
-  SCANNER_CELL_ABSENT,
-  SCANNER_CHANGE_CLOSE_TITLE,
-  SCANNER_GAP_BAR_MAX_PX,
-  SCANNER_RVOL_SOURCE_MARKS,
-  SCANNER_RVOL_SOURCE_UNREPORTED,
-  type ScannerRvolSourceMark,
-} from '../constantGroups/scanner_board';
+import { SCANNER_CELL_ABSENT, SCANNER_CHANGE_CLOSE_TITLE } from '../constantGroups/scanner_board';
+import { GapCell, fmtChangeAbs, pctClass, rvolSourceMark } from './ScannerRowCells';
 import { SCANNER_QUOTE_CLOSE_FALLBACK } from '../scanner/scannerRowShape';
 import type { ScannerRow } from '../types/scanner';
 import type { WatchlistEntry } from '../strategy/types';
@@ -70,40 +64,6 @@ export function scannerTableRowPropsEqual(
     prev.onOpenTrading === next.onOpenTrading &&
     (prev.gapScaleMax ?? null) === (next.gapScaleMax ?? null)
   );
-}
-
-/** The RVOL mark for a row: the source it names, or a stated "not reported" (QA C39). */
-export function rvolSourceMark(source: string | null | undefined): ScannerRvolSourceMark {
-  return (source && SCANNER_RVOL_SOURCE_MARKS[source]) || SCANNER_RVOL_SOURCE_UNREPORTED;
-}
-
-/** Signed gap plus a bar scaled to the list's top row (drawn, not just printed). */
-function GapCell({ value, scaleMax }: { value: number | null; scaleMax: number | null }) {
-  if (value == null) return <span className="na-muted">{SCANNER_CELL_ABSENT}</span>;
-  const cls = value >= 0 ? 'positive' : 'negative';
-  const width = scaleMax != null && scaleMax > 0
-    ? Math.round(Math.min(1, Math.abs(value) / scaleMax) * SCANNER_GAP_BAR_MAX_PX)
-    : null;
-  return (
-    <span className="scanner-gap">
-      <span className={cls}>{fmtPct(value)}</span>
-      {width != null ? (
-        <span className="scanner-gap__bar" aria-hidden="true">
-          <i className={value >= 0 ? 'is-up' : 'is-down'} style={{ width }} />
-        </span>
-      ) : null}
-    </span>
-  );
-}
-
-function fmtChangeAbs(v: number | null | undefined): string {
-  if (v == null) return '—';
-  return `${v >= 0 ? '+' : '-'}$${Math.abs(v).toFixed(2)}`;
-}
-
-function pctClass(v: number | null | undefined): string {
-  if (v == null) return '';
-  return v >= 0 ? 'positive' : 'negative';
 }
 
 function renderCell(
