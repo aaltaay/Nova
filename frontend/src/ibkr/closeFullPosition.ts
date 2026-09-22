@@ -71,6 +71,7 @@ export async function closeFullPosition(
         order_type: ticket.order_type,
         outside_rth: ticket.outside_rth,
         limit_price: ticket.limit_price,
+        intent: 'flatten',
       },
       undefined,
       { timing, referencePrice: options?.referencePrice },
