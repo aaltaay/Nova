@@ -186,7 +186,8 @@ export function ScannerBoardHeader({ title, filters, scannedAgoSec, feedFailure 
         </>
       ) : null}
       <span className="scanner-board__session" title={SCANNER_SESSION_TITLE} data-testid="scanner-board-session">
-        <HistoryDateSelect />
+        {/* Snapshots exist for scanner lists only -- not on Bots / Watchlist (QA V30). */}
+        {filters ? <HistoryDateSelect /> : null}
         <span>{session.dateLabel}</span>
         <span className="scanner-board__sep" aria-hidden="true">·</span>
         <span data-testid="scanner-board-phase">

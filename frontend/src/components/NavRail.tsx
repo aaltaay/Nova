@@ -32,7 +32,9 @@ import {
   NAV_RAIL_TITLE_SCANNER,
   NAV_RAIL_TITLE_SETTINGS,
   NAV_RAIL_TITLE_TRADER,
+  NAV_RAIL_STRIP_FOCUS_TITLE,
   NAV_RAIL_UNFOLD_TITLE,
+  navRailAlertSymbolsTitle,
   navRailRecordingTitle,
 } from '../constantGroups/nav_rail';
 import { TRADER_DEFAULT_SYMBOL } from '../constants';
@@ -45,6 +47,7 @@ import {
   useNavRailSnapshot,
 } from '../workspace/navRailStore';
 import { listScannerNavGroups, type ActiveTab } from '../workspace/registry';
+import { isDockTab } from '../workspace/scannerTabs';
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { NavRailAccountItem } from './NavRailAccountItem';
@@ -85,7 +88,11 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
     (!traderActive && page === 'account') || (dashboardUp && isAccountTab(scanner.activeTab));
   const botsActive = dashboardUp && scanner.activeTab === 'strategy';
   const scannerActive = dashboardUp && !accountActive && !botsActive;
-  const childHighlight = dashboardUp ? scanner.railHighlight : null;
+  // The list on the board keeps the highlight. HOD Momo / Running Up focus the
+  // alert strip above it, so they get a quiet strip mark instead -- the rail
+  // used to say "Running Up" over a board still reading "Losers" (QA V6).
+  const childHighlight = dashboardUp ? scanner.activeTab : null;
+  const stripFocus = dashboardUp && isDockTab(scanner.railHighlight) ? scanner.railHighlight : null;
 
   // Operator choice wins; otherwise the chrome follows the view (icons on the
   // Desk so the board gets the width, tree open on the Scanner).
@@ -191,20 +198,26 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
                 return (
                   <div key={group} className="nav-rail__group" data-testid={`nav-rail-group-${group}`}>
                     <div className="nav-rail__grp">{NAV_RAIL_GROUP_LABELS[group]}</div>
-                    {visible.map((m) => (
-                      <NavRailItem
-                        key={m.id}
-                        testId={`nav-rail-tab-${m.id}`}
-                        className="nav-rail__child"
-                        dataTab={m.id}
-                        icon={scannerNavIcon(m.id)}
-                        label={m.title}
-                        title={m.title}
-                        count={formatScannerNavCount(m.countKey ? (scanner.counts[m.countKey] ?? 0) : 0)}
-                        active={childHighlight === m.id}
-                        onClick={() => goTab(m.id as ActiveTab)}
-                      />
-                    ))}
+                    {visible.map((m) => {
+                      const dock = isDockTab(m.id as ActiveTab);
+                      const n = m.countKey ? (scanner.counts[m.countKey] ?? 0) : 0;
+                      return (
+                        <NavRailItem
+                          key={m.id}
+                          testId={`nav-rail-tab-${m.id}`}
+                          className={`nav-rail__child${stripFocus === m.id ? ' is-strip-focus' : ''}`}
+                          dataTab={m.id}
+                          icon={scannerNavIcon(m.id)}
+                          label={m.title}
+                          title={dock ? `${m.title}: ${NAV_RAIL_STRIP_FOCUS_TITLE}` : m.title}
+                          count={formatScannerNavCount(n)}
+                          countTitle={dock ? navRailAlertSymbolsTitle(n) : undefined}
+                          active={!dock && childHighlight === m.id}
+                          pressed={dock ? stripFocus === m.id : undefined}
+                          onClick={() => goTab(m.id as ActiveTab)}
+                        />
+                      );
+                    })}
                   </div>
                 );
               })}

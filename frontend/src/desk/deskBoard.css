@@ -374,3 +374,55 @@
 .desk-board__legend .desk-board__dot {
   margin-right: 4px;
 }
+
+/* ── QA batch 2026-09-22 ────────────────────────────────────────────────── */
+/* Header labels ellipsize inside their pinned widths; the th title names them. */
+.desk-board .table-wrapper--scanner th {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* At or below 1600 px the board is 480 px: compact pinned widths that add up
+   to less than the board (28rem), and Float leaves the board for the quote
+   card beside it. The columns used to add up to more than the board, so the
+   row actions and the last cells were cut at its edge (QA V18, V37). */
+@media (max-width: 1600px) {
+  .desk-board .table-wrapper--scanner .scanner-col--rownum,
+  .desk-board .table-wrapper--scanner .scanner-row-num-th,
+  .desk-board .table-wrapper--scanner .scanner-row-num {
+    width: 1.8rem;
+  }
+
+  .desk-board .table-wrapper--scanner .scanner-col--symbol {
+    width: 5rem;
+  }
+
+  .desk-board .table-wrapper--scanner .scanner-col--price {
+    width: 3.9rem;
+  }
+
+  .desk-board .table-wrapper--scanner .scanner-col--gap_percent {
+    width: 5rem;
+  }
+
+  .desk-board .table-wrapper--scanner .scanner-col--volume {
+    width: 3.8rem;
+  }
+
+  .desk-board .table-wrapper--scanner .scanner-col--rel_volume {
+    width: 3.2rem;
+  }
+
+  .desk-board .table-wrapper--scanner .scanner-col--catalyst {
+    width: 5.3rem;
+  }
+
+  .desk-board .table-wrapper--scanner col.scanner-col--float {
+    width: 0;
+  }
+
+  .desk-board .table-wrapper--scanner th.scanner-col--float,
+  .desk-board .table-wrapper--scanner td.scanner-col--float {
+    display: none;
+  }
+}

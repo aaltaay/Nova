@@ -5,6 +5,7 @@ import {
   HostRenderedModule,
   listModules,
   listScannerNavGroups,
+  listScannerListModules,
   listTabModules,
   NAV_GROUP_ORDER,
   NOVA_MODULES,
@@ -131,7 +132,10 @@ describe('module registry (Phase 4)', () => {
 
   it('registers Strategy as a left-rail settings tab, not a scanner feed', () => {
     const strategy = getModule('strategy');
-    expect(strategy?.title).toBe('Strategy');
+    // The rail item is Bots and the page it opens says Bots (QA V30).
+    expect(strategy?.title).toBe('Bots');
+    expect(listScannerListModules().map(t => t.id)).not.toContain('strategy');
+    expect(listScannerListModules().map(t => t.id)).toContain('gainers');
     expect(strategy?.defaultPlacement).toBe('tab');
     expect(strategy?.feedDeps).toEqual(['none']);
     expect(listTabModules().map(t => t.id)).toContain('strategy');

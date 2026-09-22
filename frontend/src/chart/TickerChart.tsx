@@ -175,7 +175,7 @@ function TickerChartInner({
     symbol,
   );
 
-  const { loading, error, usingMock, indicatorBars, filling, coverageAsOf } = useChartBars({
+  const { loading, error, emptyText, usingMock, indicatorBars, filling, coverageAsOf } = useChartBars({
     symbol,
     timeframe,
     chartRef,
@@ -304,6 +304,9 @@ function TickerChartInner({
         )}
         {!loading && error && indicatorBars.length === 0 && (
           <div className="chart-overlay chart-overlay--error">{error}</div>
+        )}
+        {!loading && !error && emptyText && indicatorBars.length === 0 && (
+          <div className="chart-overlay chart-overlay--empty" data-testid="chart-empty">{emptyText}</div>
         )}
         <ChartPaneOverlays
           symbol={symbol}

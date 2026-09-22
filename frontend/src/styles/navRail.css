@@ -176,6 +176,18 @@
   color: var(--nova-text);
 }
 
+/* HOD Momo / Running Up focus the alert strip, not the board: the list on the
+   board keeps the highlight and the strip item gets a quiet mark (QA V6). */
+.nav-rail__child.is-strip-focus {
+  color: var(--nova-text);
+}
+
+.nav-rail__child.is-strip-focus .nav-rail__txt {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--nova-accent) 70%, transparent);
+  text-underline-offset: 3px;
+}
+
 .nav-rail__tree {
   padding-bottom: 4px;
   margin-bottom: 2px;
@@ -199,9 +211,13 @@
   border-top: 1px solid var(--nova-border, var(--border-color));
 }
 
+/* Each foot item takes its own width: sharing the row equally clipped the
+   longer label to "Setti..." at every viewport (QA V28). */
 .nav-rail__foot .nav-rail__item {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
+  padding: 0 8px;
+  gap: 6px;
 }
 
 .nav-rail__collapse {

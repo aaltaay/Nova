@@ -30,7 +30,13 @@
 /* One row that never wraps. The centre search is the only thing that gives
    way (min-width: 0); the side clusters keep every chip whole and the
    responsive sheet sheds the low-value ones as the viewport narrows, so
-   nothing is ever painted over the brand. */
+   nothing is ever painted over the brand.
+
+   The clusters are never narrower than their own chips (min-width:
+   max-content, no text wrapping in the row): a chip with flex-shrink 0 still
+   reported a smaller min-content ("After hours", "07:41 PM ET" can break at a
+   space), so the cluster box came out narrower than its chips and the venue
+   pills spilled over the search at 1440 and 1280 (QA V8). */
 .global-app-bar__primary {
   display: flex;
   flex-wrap: nowrap;
@@ -38,6 +44,7 @@
   gap: 0.6rem;
   min-width: 0;
   min-height: 32px;
+  white-space: nowrap;
 }
 
 .global-app-bar__left,
@@ -47,6 +54,7 @@
   align-items: center;
   flex-wrap: nowrap;
   gap: 0.6rem;
+  min-width: max-content;
 }
 
 .global-app-bar__right {
@@ -279,7 +287,7 @@
   gap: 0.4rem;
   width: 260px;
   max-width: 100%;
-  min-width: 6rem;
+  min-width: 4.5rem;
   height: 26px;
   margin: 0;
   padding: 0 0.5rem 0 0.55rem;

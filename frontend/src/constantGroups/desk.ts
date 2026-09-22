@@ -9,9 +9,15 @@
 
 /** Board column width; the Trader workspace to its right flexes (desk/desk.css). */
 export const DESK_BOARD_WIDTH_PX = 640;
-/** Below this viewport width the board steps down once so 1440 x 860 has no page scroll. */
-export const DESK_BOARD_NARROW_VIEWPORT_PX = 1500;
-export const DESK_BOARD_NARROW_WIDTH_PX = 560;
+/**
+ * At or below this viewport width the board steps down (compact columns, Float
+ * left to the quote card) and the Trader rail beside it caps at
+ * DESK_TRADER_RAIL_NARROW_PX, so the chart grid keeps real width: at 1440 it
+ * had 293 px for four panes, at 1280 133 px (QA V18). Mirrors desk/desk.css.
+ */
+export const DESK_BOARD_NARROW_VIEWPORT_PX = 1600;
+export const DESK_BOARD_NARROW_WIDTH_PX = 480;
+export const DESK_TRADER_RAIL_NARROW_PX = 320;
 
 /* ── Board chrome ───────────────────────────────────────────────────────── */
 
@@ -77,13 +83,20 @@ export const DESK_BOARD_COLUMNS: [string, string][] = [
   ['price', 'Price'],
   ['gap_percent', 'Gap %'],
   ['volume', 'Vol'],
-  ['rel_volume', 'Rel vol'],
+  ['rel_volume', 'RVOL'],
   ['float', 'Float'],
   ['catalyst', 'Catalyst'],
   ['state', 'State'],
 ];
 /** The one column that absorbs leftover width; every other one is pinned. */
 export const DESK_BOARD_FLEX_COLUMN = 'state';
+/** Header titles -- a pinned column's label may be short ("REL VOL" read "REL ..."). */
+export const DESK_BOARD_COLUMN_TITLE: Record<string, string> = {
+  volume: 'Volume',
+  rel_volume: 'Relative volume',
+  gap_percent: 'Gap % vs prior close',
+  state: 'Halt state',
+};
 
 /* ── Workspace area with no tab yet ─────────────────────────────────────── */
 

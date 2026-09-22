@@ -17,6 +17,7 @@ import {
   chartRightPriceScaleOptions,
   formatChartVolumeLabel,
 } from './chartPriceScale';
+import { removeChartAfterCleanups } from './chartDispose';
 import { measureChartFillHeight } from './measureChartFillHeight';
 import { isSubMinuteTimeframe } from '../tickerChartData';
 
@@ -131,8 +132,12 @@ export function useChartInstance({
     volSeriesRef.current = volSeries;
     setChartApi(chart);
 
+    // A resize that lands after chart.remove() -- the first-frame rAF, or a
+    // pane rebuilt by a replay seek / tab close / MACD toggle -- touched the
+    // disposed canvas: uncaught "Object is disposed" (QA V19, R30).
+    let disposed = false;
     const applySize = () => {
-      if (!containerRef.current || !chartActiveRef.current) return;
+      if (disposed || !containerRef.current || !chartActiveRef.current) return;
       const ch = chartHeightRef.current;
       const h = fillParentHeightRef.current
         ? measureChartFillHeight(containerRef.current, ch)
@@ -149,11 +154,14 @@ export function useChartInstance({
     const portalHost = container.closest('.chart-portal-host');
     if (card) ro.observe(card);
     if (portalHost && portalHost !== card) ro.observe(portalHost);
-    requestAnimationFrame(applySize);
+    const firstFrame = requestAnimationFrame(applySize);
 
     return () => {
+      disposed = true;
+      cancelAnimationFrame(firstFrame);
       ro.disconnect();
-      chart.remove();
+      // After the overlays' own cleanups, not before them (chartDispose.ts).
+      removeChartAfterCleanups(chart);
       setChartApi(null);
       chartRef.current = null;
       candleSeriesRef.current = null;
@@ -166,14 +174,17 @@ export function useChartInstance({
     const chart = chartRef.current;
     if (!container || !chart || !chartActive) return;
     const apply = () => {
-      if (!containerRef.current || !chartRef.current || !chartActiveRef.current) return;
+      // Only the instance this effect saw, and only while it is still the
+      // live one: a remounted pane leaves a new chart in chartRef.
+      if (!containerRef.current || chartRef.current !== chart || !chartActiveRef.current) return;
       const next = fillParentHeightRef.current
         ? measureChartFillHeight(containerRef.current, chartHeightRef.current)
         : chartHeightRef.current;
       chart.applyOptions({ width: containerRef.current.clientWidth, height: next });
     };
     apply();
-    requestAnimationFrame(apply);
+    const frame = requestAnimationFrame(apply);
+    return () => cancelAnimationFrame(frame);
   }, [
     containerRef,
     chartRef,

@@ -176,6 +176,23 @@ describe('NavRail', () => {
     expect(q('nav-rail-account')!.classList.contains('is-active')).toBe(false);
   });
 
+  it('keeps the board list highlighted while HOD Momo / Running Up focus the strip (QA V6, V31)', () => {
+    render();
+    act(() => {
+      publishScannerNavState({ activeTab: 'losers', railHighlight: 'running_up', counts: { runningUp: 59 } });
+    });
+    // The board still shows Losers -- the rail says so.
+    expect(q('nav-rail-tab-losers')!.classList.contains('is-active')).toBe(true);
+    const runningUp = q('nav-rail-tab-running_up')!;
+    expect(runningUp.classList.contains('is-active')).toBe(false);
+    expect(runningUp.classList.contains('is-strip-focus')).toBe(true);
+    expect(runningUp.getAttribute('aria-pressed')).toBe('true');
+    expect(runningUp.getAttribute('title')).toMatch(/alert strip/);
+    // The count is symbols, and it says so.
+    expect(runningUp.querySelector('.nav-rail__count')!.getAttribute('title')).toBe('59 symbols alerted today');
+    expect(q('nav-rail-tab-hod_momo')!.getAttribute('aria-pressed')).toBe('false');
+  });
+
   it('marks Account / Bots active from the dashboard tab and Trader while traderActive', () => {
     render();
     act(() => {

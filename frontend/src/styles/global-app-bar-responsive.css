@@ -1,13 +1,30 @@
 /* Zoom / narrow breakpoints for the global bar. Keep the base sheet under 400
-   lines. Contract: the PRIMARY row stays one line down to 820px; the centre
-   search shrinks first, then low-value chrome leaves in this order --
-   tab-strip hint, REC elapsed time + BP, session chip + Day's, clock + TAV,
-   wordmark + the REC word. The KILL pill, the connection chip, the venue
-   pills, the search, the account pill, the padlock and the gear stay. Under
-   820px the search drops to a second line under the two clusters. */
+   lines. Contract: the PRIMARY row stays one line down to 820px and nothing
+   is ever painted over the search -- the side clusters never shrink below
+   their chips (global-app-bar.css), so chrome must LEAVE before the search
+   is squeezed. Low-value chrome leaves in this order (QA V8 moved it earlier:
+   at 1440 and 1280 the search was covered):
+     1500  tab-strip hint, wordmark, session chip (the Scanner session line
+           and the clock say the phase)
+     1400  REC elapsed time, BP, ET clock
+     1280  Day's
+     1100  TAV (and the search narrows)
+      900  the REC word
+   Recording adds a chip per symbol on the left, so a recording desk gives the
+   clock's room up first. The KILL pill, the connection chip, the venue pills,
+   the search, the account pill, the padlock and the gear stay. Under 820px the
+   search drops to a second line under the two clusters. */
+
+@media (max-width: 1600px) {
+  .global-app-bar__primary:has(.global-app-bar__rec) .header-market-clock {
+    display: none;
+  }
+}
 
 @media (max-width: 1500px) {
-  .global-app-bar__trader-slot .sv-tab-strip__hint {
+  .global-app-bar__trader-slot .sv-tab-strip__hint,
+  .global-app-bar__wordmark,
+  .global-app-bar__session {
     display: none;
   }
 }
@@ -15,7 +32,8 @@
 @media (max-width: 1400px) {
   .global-app-bar__rec-time,
   .global-app-bar__metric--bp,
-  .global-app-bar__sep--bp {
+  .global-app-bar__sep--bp,
+  .global-app-bar__primary .header-market-clock {
     display: none;
   }
 }

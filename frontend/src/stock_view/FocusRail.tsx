@@ -32,7 +32,7 @@ import {
 } from '../constantGroups/trader_chrome';
 import { useLiveScannerFeedOptional } from '../scanner/ScannerDataContext';
 import { useSettingsOptional } from '../settings/SettingsContext';
-import { listTabModules } from '../workspace/registry';
+import { listScannerListModules } from '../workspace/registry';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
   focusRowsFor, readFocusRailState, stepCursor, writeFocusRailState, type FocusRailState,
@@ -48,7 +48,7 @@ export function FocusRail() {
   useSyncExternalStore(subscribeSessionRecord, () => getRecordingSymbols().join(','), () => '');
   const [state, setState] = useState<FocusRailState>(readFocusRailState);
   const [cursor, setCursor] = useState(-1);
-  const modules = useMemo(() => listTabModules(), []);
+  const modules = useMemo(() => listScannerListModules(), []);
   const module = modules.find(m => m.id === state.list) ?? modules[0];
   const filterRows = settings?.exchangeFilter?.filterRows;
   const rows = useMemo(

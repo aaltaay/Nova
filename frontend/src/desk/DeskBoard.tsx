@@ -15,6 +15,7 @@ import { SCANNER_TABLE_WRAPPER_CLASS, scannerColClass } from '../components/scan
 import {
   DESK_BOARD_ARIA,
   DESK_BOARD_COLUMNS,
+  DESK_BOARD_COLUMN_TITLE,
   DESK_BOARD_FREEZE_LISTS,
   DESK_BOARD_FREEZE_NOTE,
   DESK_BOARD_NO_FEED,
@@ -62,7 +63,11 @@ export function DeskBoard({
   feed, list, onListChange, modules, selectedSymbol, recordingSymbols, isAllowed, liveTabs,
   filterRows, onOpen, onPopOut, onRecord, onAllowlist,
 }: DeskBoardProps) {
-  const options = useMemo(() => modules ?? listTabModules(), [modules]);
+  // Only scanner lists -- a page (Bots, Account) is not a board list (QA V30).
+  const options = useMemo(
+    () => (modules ?? listTabModules()).filter(m => m.navGroup != null),
+    [modules],
+  );
   const module = options.find(m => m.id === list) ?? options[0];
   const title = module?.title ?? list;
   const board = useMemo(() => deskBoardRowsFor(list, feed, filterRows), [list, feed, filterRows]);
@@ -130,7 +135,7 @@ export function DeskBoard({
               <tr>
                 <ScannerRowNumHeader />
                 {DESK_BOARD_COLUMNS.map(([key, label]) => (
-                  <th key={key} data-col={key} className={scannerColClass(key)}>{label}</th>
+                  <th key={key} data-col={key} className={scannerColClass(key)} title={DESK_BOARD_COLUMN_TITLE[key] ?? label}>{label}</th>
                 ))}
               </tr>
             </thead>
