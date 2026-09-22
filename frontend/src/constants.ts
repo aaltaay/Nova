@@ -21,3 +21,4 @@ export * from './constantGroups/bot';
 export * from './constantGroups/sensors';
 export * from './constantGroups/desk_venue';
 export * from './constantGroups/practice';
+export * from './constantGroups/trader_chrome';

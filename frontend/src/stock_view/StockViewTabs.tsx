@@ -2,8 +2,10 @@
  * Trader View container — tab strip + one StockViewPage per tab.
  * Inactive live panes stay mounted (hidden) so L1/L2/tape sockets stay
  * subscribed. Tape/depth/chart UI apply pauses until the tab is shown again.
- * The tab strip portals into GlobalAppBar's trader row (under Bot Autonomy)
- * when that slot is mounted; else renders inline above the panes.
+ * The tab strip portals into GlobalAppBar's trader row when that slot is
+ * mounted; else renders inline above the panes. On the Sim venue the strip
+ * also carries the scrubber cluster, so the Trader view has exactly two rows
+ * of chrome: the global bar and this strip.
  */
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
@@ -21,6 +23,7 @@ import {
   isForeignTabDrag,
   takeForeignTraderTabDrop,
 } from '../workspace/traderDesk';
+import { SimSessionStrip } from '../sim/SimSessionStrip';
 import { StockViewTabStrip } from './StockViewTabStrip';
 import { TRADER_DRAFT_SYMBOL } from './traderTabsState';
 import './stockViewTabs.css';
@@ -52,6 +55,7 @@ export function StockViewTabs({ detached }: Props) {
     showScannerView,
     traderViewActive,
     setSelectedSymbol,
+    ibkrMode,
   } = useWorkspace();
 
   useEffect(() => {
@@ -99,6 +103,8 @@ export function StockViewTabs({ detached }: Props) {
       showDock={traderDeskRole === 'float'}
       showExtract={canExtractFromDesk(traderDeskRole)}
       dropReady={dropReady}
+      // The Sim scrubber rides on this row (no SIM SESSION bar on the Trader view).
+      trailing={ibkrMode === 'sim' ? <SimSessionStrip /> : null}
       onActivate={onActivate}
       onClose={sym => {
         closeTraderTab(sym);
