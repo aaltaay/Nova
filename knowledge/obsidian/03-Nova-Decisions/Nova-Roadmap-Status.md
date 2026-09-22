@@ -10,7 +10,7 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 
 ## Current position
 
-- **Product NEXT:** **Phase L -- strategy proof (bot trading plan)**, `[ ]` L0 open. Plan and done-criteria in [[Bot-Trading-Plan]]; first step is the operator's Decision A (which strategy) and Decision B (which dataset).
+- **Product NEXT:** **Phase L -- strategy proof (bot trading plan)**, `[~]` L0 decided (A1 ORB, B1 Massive data), L1 download running. Plan and done-criteria in [[Bot-Trading-Plan]]; next is the first honest backtest number.
 - **Phase K (short entry):** `[~]` **PARKED** 2026-09-22 by operator direction -- K0-K2/K4 code stays shipped; K3 paper days are stale (they name the legacy paper Gateway, ADR 020) and are not a next action.
 - **`auto_live`:** **NO-GO** -- rejected in `backend/nova_os/control_mode.py`. Do not enable or implement.
 - **Phase B (paper shadow ops):** **WAIVED** by user 2026-07-28 (0 evidence rows; not `[x]`). Do not block work on ≥5 shadow days.
@@ -23,19 +23,19 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 
 ## Exact next action (human)
 
-1. **Phase L0 -- decide the strategy and the dataset:** answer Decision A (★ A1 5-minute ORB on stocks in play) and Decision B (★ B1 full-market 1-minute history incl. delisted names) in `Bot-Trading-Plan.md`; done when both rows are in its Decision log.
+1. **Phase L1-L2 -- the first honest number:** finish the Massive flat-file download on `F:\Nova\data\massive`, pull splits + ticker reference via REST, then cancel the plan; build the local bar store and run the long-only 5-minute ORB backtest with IBKR costs; done when `Bot-Trading-Plan.md` carries the trades / profit-factor / drawdown table.
 2. **Reliability WS1:** configure a Discord/Telegram channel in Settings; run `.\scripts\Install-NovaDailyTask.ps1` once; leave the PC on overnight (wake timers). The first 03:55 ET line in `backend/logs/morning-check.log` closes the Jul 30 PROBLEM_LOG entry.
 3. **Optional Phase C remainder:** Cloudflare Bucket Lock + R2 token rotation + cold `walk_day`.
 4. **Hard ban:** no `auto_live`. Any future live short still needs K3 sign-off **plus** `IBKR_LIVE_TRADING_CONFIRMED` on top of `IBKR_SHORT_ENABLED`; parking K changes none of the gates.
 
 ## Open phases
 
-### Phase L -- Strategy proof (bot trading plan) -- `[ ]` NEXT
+### Phase L -- Strategy proof (bot trading plan) -- `[~]` NEXT
 
 **User direction (2026-09-22):** the operator wants a bot that trades a proven strategy, and asked for the stale K3 step to stop being offered. Plan, decisions, stage done-criteria and reference numbers live in [[Bot-Trading-Plan]] (SSOT for this phase).
 
-- **L0 pick one strategy** `[ ]` -- Decision A (★ 5-minute ORB on stocks in play; Gap and Go second; large-cap swing baseline)
-- **L1 get the data** `[ ]` -- Decision B (★ full-market 1-minute history incl. delisted names); done when a local store carries a "listed on that date" flag
+- **L0 pick one strategy** `[x]` -- Decision A = A1 (5-minute ORB on stocks in play, long-only first; SPY swing baseline alongside; Gap and Go second), 2026-09-22
+- **L1 get the data** `[~]` -- Decision B = B1 (Massive Stocks Starter, one month; minute + day flat files 2021-10 onward to `F:\Nova\data\massive`); done when a local store carries a "listed on that date" flag and the splits list
 - **L2 backtest** `[ ]` -- vectorbt offline, IBKR costs + slippage, no lookahead
 - **L3 try to break it** `[ ]` -- walk-forward, parameter neighbourhood, permutation test, 2x costs; kill criteria in the plan
 - **L4 paper on Nova** `[ ]` -- bot pack / Nova OS setup, L1 Eyes then L2 on the Paper venue; 100 trades within ~30% of backtest expectancy
@@ -77,11 +77,11 @@ Do not fake Phase C `[x]`.
 ### Phase I -- Live-readiness evidence -- `[~]` framework ready / verdict NO-GO
 
 - [x] GO/NO-GO thresholds in [[Nova-OS-Live-Readiness-Review]]; `auto_live` stays rejected in code
-- [ ] Re-run the review against real paper metrics (now sourced from K3 short days, not waived Phase B)
+- [ ] Re-run the review against real paper metrics (now sourced from Phase L4 paper trades, not waived Phase B or parked K3)
 
 ### Reliability track -- problem-root elimination (2026-08-18)
 
-Closes the five PROBLEM_LOG root patterns. Not a Master Roadmap letter phase; product NEXT stays Phase K.
+Closes the five PROBLEM_LOG root patterns. Not a Master Roadmap letter phase; product NEXT stays Phase L.
 
 | WS | Status | Closes |
 |----|--------|--------|
@@ -100,7 +100,7 @@ L is promoted above (strategy proof). Still parked: conversational scans, Holly-
 
 ## Crash or blocker
 
-- **Phase L:** L0 waits on the operator's Decision A and Decision B in [[Bot-Trading-Plan]]; nothing else is blocked.
+- **Phase L:** nothing blocked; L1 download runs detached on the operator's F: drive (`run_download.ps1`, resumes on crash), then L2 backtest.
 - **Phase K:** parked; K3 is stale against ADR 020 (see the Phase K entry).
 - **Phase B:** WAIVED (2026-07-28) -- not a blocker.
 - **Phase C remainder:** needs Cloudflare console work + a fresh session compact/walk (optional).
@@ -113,6 +113,7 @@ Newest first. Append here; do not rewrite prior rows. Rows before 2026-07-28 are
 
 | Date | What | Commit |
 |------|------|--------|
+| 2026-09-22 | Phase L0 decided: A1 (5-min ORB, long-only first) + B1 (Massive minute + day flat files, one month). L1 download running to F:. `auto_live` NO-GO. | (this commit) |
 | 2026-09-22 | Phase K PARKED (operator: K3 is stale against ADR 020 and no longer wanted as the next step). Phase L -- strategy proof -- promoted from the parking lot as product NEXT; plan in `Bot-Trading-Plan.md`. No gate changed. `auto_live` NO-GO. | (this commit) |
 | 2026-09-16 | K4 ticket UI: Direction Long/Short removed. Side is Buy/Sell/Short on Margin (Buy/Sell on Cash) from IBKR AccountType. `short_entry` unchanged. `auto_live` NO-GO. | (this commit) |
 | 2026-09-11 | Public source home is `aaltaay/Nova`. Marketing CTA retargeted. `Nova-public` is a private archive. Phase NEXT unchanged (K3). `auto_live` NO-GO. | (this commit) |

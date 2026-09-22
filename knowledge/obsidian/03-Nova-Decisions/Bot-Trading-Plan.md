@@ -30,7 +30,7 @@ The first three rows are the gap. Everything after them is built.
 
 ## 2. Stages and done-criteria
 
-### L0 -- Pick one strategy `[ ]`
+### L0 -- Pick one strategy `[x]` (A1, 2026-09-22 -- see Decision log)
 
 Decision A (recommendation starred):
 
@@ -62,7 +62,7 @@ shorting is gated behind the parked Phase K.
 
 Done when: Decision A recorded in this note's Decision log with the operator's choice.
 
-### L1 -- Get the data `[ ]`
+### L1 -- Get the data `[~]` (B1 bought 2026-09-22; download running to `F:\Nova\data\massive`)
 
 Decision B (recommendation starred):
 
@@ -130,3 +130,5 @@ blog.traderspost.io paper-to-live guide.
 | Date | Decision | By |
 |---|---|---|
 | 2026-09-22 | Plan authored; Phase K parked; this note is product NEXT. Decisions A and B open. | Operator + Claude Fable 5.1 |
+| 2026-09-22 | **Decision B = B1.** Operator bought Massive (formerly Polygon) Stocks Starter for one month; flat files `us_stocks_sip/minute_aggs_v1` + `day_aggs_v1` from 2021-10-01 download to `F:\Nova\data\massive` (~24 GB, unadjusted -- splits pulled via REST before cancelling). S3 pair lives in the desk `.env` as `MASSIVE_S3_*`. | Operator |
+| 2026-09-22 | **Decision A = A1** (5-minute ORB on stocks in play, long-only first), decided by the agent at the operator's request ("I just want to be profitable, I don't know") -- the only candidate with a replicated published backtest and a universe Nova's scanner already produces. A3 (SPY swing on free daily bars) runs alongside as the baseline; A2 (Gap and Go) follows on the same harness. Operator may veto. | Claude Fable 5.1 for the operator |
