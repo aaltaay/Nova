@@ -12,11 +12,16 @@ export interface BarData {
   timestamp: string | null;
 }
 
+/** Where a live trade update came from: a print, a Level 1 snapshot (a last price, not a print), or a replayed print. */
+export type TradeUpdateSource = 'stream' | 'snapshot' | 'sim';
+
 export interface TradeData {
   price: number | null;
   size: number | null;
   exchange: string | null;
   timestamp: string | null;
+  /** Absent on REST snapshots; set from the socket's trade updates. */
+  source?: TradeUpdateSource;
 }
 
 export interface QuoteData {
@@ -141,6 +146,12 @@ export interface TickerTradeUpdate {
   size: number | null;
   timestamp: string | null;
   volume: number | null;
+  /**
+   * `snapshot` is IBKR's Level 1 last at request time -- after the close that
+   * can be the regular session's last while the tape trades elsewhere. It may
+   * update the quote box; it must never paint a candle (QA 2026-09-22).
+   */
+  source?: TradeUpdateSource;
   /** IBKR reprice ticks include this so gap % stays aligned with the scanner row. */
   prev_close?: number | null;
 }

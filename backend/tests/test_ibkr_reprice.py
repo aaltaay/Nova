@@ -29,14 +29,16 @@ def test_reprice_detail_symbols_noop_when_no_symbols():
     assert calls == []
 
 
-def test_reprice_detail_symbols_falls_back_to_cache_row_when_quote_empty():
-    """If snapshot_quotes() comes back empty (pacing/timeout), still broadcast
-    using the last known cache price instead of silently dropping the tick —
-    this is the exact failure mode that made the panel look frozen."""
+def test_reprice_detail_symbols_never_broadcasts_a_cache_row_price_as_a_trade():
+    """QA 2026-09-22: when snapshot_quotes() comes back empty, the old fallback
+    re-sent the scanner row's cached price (at worst IBKR's prior close with no
+    trade yet) stamped with "now". The chart merged it into the live candle and
+    drew a $4 wick on a $6.9 stock that no exchange printed. No quote price,
+    no trade update -- the panel keeps its last real print instead."""
     broadcasts = []
 
-    def schedule_broadcast(sym, price, size, ts, volume, prev_close):
-        broadcasts.append((sym, price, volume, prev_close))
+    def schedule_broadcast(sym, price, size, ts, volume, prev_close, source):
+        broadcasts.append((sym, price, volume, prev_close, source))
 
     def run_ibkr(coro):
         if asyncio.iscoroutine(coro):
@@ -48,7 +50,28 @@ def test_reprice_detail_symbols_falls_back_to_cache_row_when_quote_empty():
 
     reprice.reprice_detail_symbols(["SHPH"], run_ibkr, schedule_broadcast, find_cache_row)
 
-    assert broadcasts == [("SHPH", 4.45, 12345, 2.96)]
+    assert broadcasts == []
+
+
+def test_reprice_detail_symbols_stamps_a_snapshot_price_as_snapshot_not_a_print():
+    """A price the snapshot itself answered still goes out (quote-box backstop),
+    labelled ``snapshot`` so the chart never paints it as a print."""
+    broadcasts = []
+
+    def schedule_broadcast(sym, price, size, ts, volume, prev_close, source):
+        broadcasts.append((sym, price, size, volume, prev_close, source))
+
+    def run_ibkr(coro):
+        if asyncio.iscoroutine(coro):
+            coro.close()
+        return {"SHPH": {"price": 4.1, "prev_close": 2.96}}
+
+    def find_cache_row(sym):
+        return {"symbol": sym, "current_price": 4.45, "volume": 12345, "previous_close": 2.96}
+
+    reprice.reprice_detail_symbols(["SHPH"], run_ibkr, schedule_broadcast, find_cache_row)
+
+    assert broadcasts == [("SHPH", 4.1, None, 12345, 2.96, "snapshot")]
 
 
 def test_reprice_detail_symbols_skips_symbol_with_no_price_anywhere():
@@ -97,7 +120,7 @@ def test_reprice_detail_symbols_backstops_only_non_fresh_symbols():
             coro.close()
         return {"STALE": {"price": 1.23, "prev_close": 1.0, "volume": 500, "open": 1.1}}
 
-    def schedule_broadcast(sym, price, size, ts, volume, prev_close):
+    def schedule_broadcast(sym, price, size, ts, volume, prev_close, source):
         snapshotted.append(sym)
 
     def is_fresh(sym):

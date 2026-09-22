@@ -223,7 +223,7 @@ def _broadcast_capture(payload: dict) -> None:
             from websocket import broadcast_trade_update
             await broadcast_trade_update(
                 payload["symbol"], payload["price"], payload["size"], payload["time"],
-                None, None,
+                None, None, "sim",
             )
         except Exception:
             logger.warning("SIM: captured trade broadcast failed", exc_info=True)

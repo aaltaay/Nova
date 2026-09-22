@@ -206,6 +206,11 @@ async def broadcast_halt_update(sym: str, halt: dict | None) -> None:
         clients.discard(ws)
 
 
+TRADE_UPDATE_SOURCE_STREAM = "stream"      # a print from the live trade stream
+TRADE_UPDATE_SOURCE_SNAPSHOT = "snapshot"  # a Level 1 quote snapshot -- a last price, not a print
+TRADE_UPDATE_SOURCE_SIM = "sim"            # a replayed recorded print
+
+
 async def broadcast_trade_update(
     sym: str,
     price: float,
@@ -213,8 +218,16 @@ async def broadcast_trade_update(
     timestamp: str | None,
     volume: int | None = None,
     prev_close: float | None = None,
+    source: str = TRADE_UPDATE_SOURCE_STREAM,
 ) -> None:
-    """Push a lightweight trade update to ticker-detail WS clients watching this symbol."""
+    """Push a lightweight trade update to ticker-detail WS clients watching this symbol.
+
+    ``source`` says what the price is. A ``snapshot`` is IBKR's Level 1 last at
+    the moment of the request -- after the close that can be the regular
+    session's last while the tape trades elsewhere -- so it may update the
+    quote box but must never paint a candle (QA 2026-09-22: a $6.9 stock grew
+    a 10-second wick to $4 that no exchange printed).
+    """
     clients = _ticker_ws_clients.get(sym)
     if not clients:
         return
@@ -225,6 +238,7 @@ async def broadcast_trade_update(
         "size": size,
         "timestamp": timestamp,
         "volume": volume,
+        "source": source,
     }
     if prev_close is not None:
         payload_obj["prev_close"] = prev_close
@@ -366,6 +380,8 @@ async def stream_loop() -> None:
                                         msg.get("s"),
                                         msg.get("t"),
                                         updated_vol,
+                                        None,
+                                        TRADE_UPDATE_SOURCE_STREAM,
                                     ))
                     except asyncio.TimeoutError:
                         pass

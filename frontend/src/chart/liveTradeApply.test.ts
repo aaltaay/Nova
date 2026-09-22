@@ -90,3 +90,26 @@ describe('mergeLiveTradeCandle', () => {
     expect(older).toBeNull();
   });
 });
+
+describe('mergeLiveTradeCandle sources (QA 2026-09-22)', () => {
+  it('never paints a Level 1 snapshot price: a last is not a print', () => {
+    clearEtOffsetCacheForTests();
+    const bucket = tradeBucket('2026-09-22T20:07:35Z', '10Sec');
+    expect(bucket).not.toBeNull();
+    const prev = tip(bucket as Time, 6.9);
+    expect(
+      mergeLiveTradeCandle(prev, { price: 4.0, timestamp: '2026-09-22T20:07:36Z', source: 'snapshot' }, '10Sec'),
+    ).toBeNull();
+    // the same price from the print stream (or a replayed print) still paints
+    expect(
+      mergeLiveTradeCandle(prev, { price: 4.0, timestamp: '2026-09-22T20:07:36Z', source: 'stream' }, '10Sec')?.low,
+    ).toBe(4.0);
+    expect(
+      mergeLiveTradeCandle(prev, { price: 4.0, timestamp: '2026-09-22T20:07:36Z', source: 'sim' }, '10Sec')?.low,
+    ).toBe(4.0);
+    // an older backend sends no source: a print, as before
+    expect(
+      mergeLiveTradeCandle(prev, { price: 4.0, timestamp: '2026-09-22T20:07:36Z' }, '10Sec')?.low,
+    ).toBe(4.0);
+  });
+});

@@ -202,6 +202,8 @@ export function useTickerStream(symbol: string | null): TickerStreamState {
                   size: update.size ?? prev.snapshot?.latest_trade?.size ?? null,
                   timestamp: update.timestamp ?? prev.snapshot?.latest_trade?.timestamp ?? null,
                   exchange: prev.snapshot?.latest_trade?.exchange ?? null,
+                  // Older backends send no source: treat as a print, as before.
+                  source: update.source ?? 'stream',
                 },
               };
               const dailyVol = newDailyBar?.volume ?? null;

@@ -11,10 +11,14 @@ import {
 
 export function mergeLiveTradeCandle(
   prev: CandlestickData<Time> | null,
-  trade: { price: number; timestamp: string },
+  trade: { price: number; timestamp: string; source?: string },
   timeframe: string,
 ): CandlestickData<Time> | null {
   if (!trade.price || !trade.timestamp) return null;
+  // A Level 1 snapshot is a last price, not a print. After the close it can be
+  // the regular session's last while the tape trades a dollar away; painting
+  // it drew a wick no exchange printed (QA 2026-09-22). Candles take prints only.
+  if (trade.source === 'snapshot') return null;
   const bucket = tradeBucket(trade.timestamp, timeframe);
   if (bucket === null) return null;
   if (isOutOfOrderTrade(prev, bucket)) return null;
