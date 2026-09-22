@@ -1,10 +1,13 @@
 /**
- * Sim tab prompt -- sits at the top of a Sim tab.
+ * Sim tab prompt -- a state inside the quote / ladder card (never a band over
+ * the page, operator decision 2026-09-21).
  *
  * A Sim tab without its replay says so in one line and offers the one action
  * that fixes it: Download (then it loads itself), Load, Resume, Retry -- or, with
  * Gateway not running, Start Gateway & download. The × hides the prompt for this
- * tab and situation; it never cancels a download or a queued heal.
+ * tab and situation; it never cancels a download or a queued heal. At the live
+ * edge the strip's `Live edge` pill already says the tab is live, so this
+ * renders nothing there.
  */
 import { useCallback, useState, useSyncExternalStore } from 'react';
 import { useWorkspace } from '../workspace';
@@ -27,8 +30,6 @@ import {
   SIM_TAB_ACTION_STOP_OTHER,
   SIM_TAB_CHARTS_ARCHIVED,
   SIM_TAB_DISMISS_LABEL,
-  SIM_TAB_LIVE_EDGE_NOTE,
-  SIM_TAB_LIVE_EDGE_TITLE,
   SIM_TAB_NO_REPLAY_TITLE,
   SIM_TAB_NO_WINDOW,
   SIM_TAB_OTHER_SYMBOL_TITLE,
@@ -100,33 +101,8 @@ export function SimReplayTargetNotice({ symbol }: { symbol: string }) {
 
   const tab = symbol.trim().toUpperCase();
   const dismissKey = `${tab}|${target.kind}`;
-  if (target.kind === 'ok' || dismissed.has(dismissKey)) return null;
-
-  if (target.kind === 'live-edge') {
-    // The tab is live: one quiet line, no offer, nothing to fetch.
-    return (
-      <div
-        className="sim-replay-target sim-replay-target--live-edge"
-        role="status"
-        data-testid="sim-replay-target-notice"
-      >
-        <strong className="sim-replay-target__title">{SIM_TAB_LIVE_EDGE_TITLE}</strong>
-        <span className="sim-replay-target__body" data-testid="sim-replay-target-body">{SIM_TAB_LIVE_EDGE_NOTE}</span>
-        <span className="sim-replay-target__actions">
-          <button
-            type="button"
-            className="sim-replay-target__dismiss"
-            data-testid="sim-replay-target-dismiss"
-            aria-label={SIM_TAB_DISMISS_LABEL}
-            title={SIM_TAB_DISMISS_LABEL}
-            onClick={() => { dismissed.add(dismissKey); setDismissTick(n => n + 1); }}
-          >
-            ×
-          </button>
-        </span>
-      </div>
-    );
-  }
+  // The tab is live at the edge: the strip's pill says so; nothing to offer, nothing to fetch.
+  if (target.kind === 'ok' || target.kind === 'live-edge' || dismissed.has(dismissKey)) return null;
 
   const instead = target.kind === 'other-symbol';
   const title = target.kind === 'none'

@@ -27,7 +27,9 @@ import { HistoricalTimeSales } from '../sim/HistoricalTimeSales';
 import { HistoricalDepth, HistoricalL2Chip } from '../sim/HistoricalDepth';
 import { historicalQuoteDetail, simEmptyQuoteDetail } from '../sim/historicalQuoteDetail';
 import { simRailNote } from '../sim/simReplayTarget';
+import { SimReplayTargetNotice } from '../sim/SimReplayTargetNotice';
 import { useSimReplayTarget } from '../sim/useSimReplayTarget';
+import { StockViewVenueTag } from './StockViewVenueTag';
 
 interface Props {
   selectedSymbol: string;
@@ -37,10 +39,14 @@ interface Props {
   uiActive?: boolean;
 }
 
-function QuoteHead({ detail }: { detail: TickerDetail }) {
+function QuoteHead({ detail, symbol }: { detail: TickerDetail; symbol: string }) {
   return (
     <>
-      <StockViewQuotePrice detail={detail} />
+      <div className="sv-quote-head">
+        <StockViewQuotePrice detail={detail} />
+        {/* Practice venue as a card tag, not a page banner. */}
+        <StockViewVenueTag symbol={symbol} />
+      </div>
       <StockViewQuoteStats detail={detail} />
     </>
   );
@@ -115,7 +121,7 @@ export function StockViewDepthTape({
         testId="stock-view-depth-stack"
         aria-label={STOCK_VIEW_MODULE_QUOTE_TITLE}
       >
-        <QuoteHead detail={replayDetail} />
+        <QuoteHead detail={replayDetail} symbol={depthSymbol} />
         {(showL2 || showTape) && (
           <DepthAndTapeColumns
             symbol={depthSymbol}
@@ -131,8 +137,10 @@ export function StockViewDepthTape({
     );
   }
 
-  // Sim with nothing for this ticker: say so. Falling through would render the
-  // live panes, badged LIVE, with today's halt and borrow chips, over a replay.
+  // Sim with nothing for this ticker: say so, inside the card, with the one
+  // action that fixes it (SimReplayTargetNotice) -- never a band over the page.
+  // Falling through would render the live panes, badged LIVE, with today's
+  // halt and borrow chips, over a replay.
   const simNote = simRailNote(depthSymbol, clock, sim);
   if (simNote) {
     return (
@@ -141,8 +149,9 @@ export function StockViewDepthTape({
         className="sv-quote-depth-card sv-quote-depth-card--empty"
         testId="stock-view-depth-stack"
       >
-        <QuoteHead detail={simEmptyQuoteDetail(detail, depthSymbol)} />
+        <QuoteHead detail={simEmptyQuoteDetail(detail, depthSymbol)} symbol={depthSymbol} />
         <p className="sv-depth-stack__hint" data-testid="stock-view-sim-rail-note">{simNote}</p>
+        <SimReplayTargetNotice symbol={depthSymbol} />
       </StockViewModuleCard>
     );
   }
@@ -154,7 +163,7 @@ export function StockViewDepthTape({
         className="sv-quote-depth-card sv-quote-depth-card--empty"
         testId="stock-view-depth-stack"
       >
-        <QuoteHead detail={detail} />
+        <QuoteHead detail={detail} symbol={depthSymbol} />
         <p className="sv-depth-stack__hint">
           Connect IB Gateway for Level 2 and Time & Sales
         </p>
@@ -169,7 +178,7 @@ export function StockViewDepthTape({
         className="sv-quote-depth-card"
         testId="stock-view-depth-stack"
       >
-        <QuoteHead detail={detail} />
+        <QuoteHead detail={detail} symbol={depthSymbol} />
       </StockViewModuleCard>
     );
   }
@@ -181,7 +190,7 @@ export function StockViewDepthTape({
       testId="stock-view-depth-stack"
       aria-label={STOCK_VIEW_MODULE_QUOTE_TITLE}
     >
-      <QuoteHead detail={detail} />
+      <QuoteHead detail={detail} symbol={depthSymbol} />
       <DepthAndTapeColumns
         symbol={depthSymbol}
         chips={(

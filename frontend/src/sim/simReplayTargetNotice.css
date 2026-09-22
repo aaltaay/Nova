@@ -1,36 +1,42 @@
-/* Sim tab truth strip -- top of a Sim tab. */
+/* Sim tab truth -- a state block inside the quote / ladder card, not a page band. */
 .sim-replay-target {
   flex-shrink: 0;
   display: flex;
   align-items: baseline;
-  gap: 0.5rem;
+  gap: 0.35rem 0.5rem;
   flex-wrap: wrap;
-  padding: 0.3rem 0.75rem;
+  margin: 0.25rem 0.2rem 0;
+  padding: 0.4rem 0.55rem;
   font-size: 0.72rem;
   line-height: 1.35;
-  color: #f8e6c0;
-  background: color-mix(in srgb, #78350f 55%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, #b45309 50%, transparent);
+  color: var(--nova-text, var(--text-primary));
+  background: color-mix(in srgb, var(--nova-raised, #2c2c2e) 60%, transparent);
+  border: 1px solid var(--nova-border-strong, var(--border-color));
+  border-radius: 6px;
 }
 
 .sim-replay-target--failed {
-  color: #fee2e2;
-  background: color-mix(in srgb, #7f1d1d 60%, transparent);
-  border-bottom-color: color-mix(in srgb, #dc2626 55%, transparent);
+  border-color: color-mix(in srgb, var(--nova-danger, #ef4444) 55%, transparent);
 }
 
 .sim-replay-target__title {
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
+  color: var(--nova-text-muted, var(--text-secondary));
+}
+
+.sim-replay-target--failed .sim-replay-target__title {
+  color: var(--nova-danger, #ef4444);
 }
 
 .sim-replay-target__body {
+  flex-basis: 100%;
   opacity: 0.92;
 }
 
 .sim-replay-target__error {
-  color: #fecaca;
+  color: var(--nova-danger, #ef4444);
   font-weight: 600;
 }
 
@@ -45,19 +51,19 @@
   padding: 0.15rem 0.6rem;
   font: inherit;
   font-weight: 700;
-  color: #1a1208;
-  background: #fbbf24;
+  color: #fff;
+  background: var(--nova-accent, #0a84ff);
   border: 0;
-  border-radius: 3px;
+  border-radius: 4px;
   cursor: pointer;
 }
 
 .sim-replay-target__action:hover {
-  background: #fcd34d;
+  filter: brightness(1.1);
 }
 
 .sim-replay-target__action:focus-visible {
-  outline: 2px solid #fde68a;
+  outline: 2px solid var(--nova-accent, #0a84ff);
   outline-offset: 1px;
 }
 
@@ -67,13 +73,13 @@
 }
 
 .sim-replay-target__action--secondary {
-  color: #fde68a;
+  color: var(--nova-accent, #0a84ff);
   background: transparent;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, #fbbf24 70%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--nova-accent, #0a84ff) 70%, transparent);
 }
 
 .sim-replay-target__action--secondary:hover {
-  background: color-mix(in srgb, #fbbf24 18%, transparent);
+  background: color-mix(in srgb, var(--nova-accent, #0a84ff) 18%, transparent);
 }
 
 .sim-replay-target__dismiss {
@@ -94,11 +100,4 @@
   opacity: 1;
   background: color-mix(in srgb, #ffffff 12%, transparent);
   outline: none;
-}
-
-/* The live edge: a quiet line, not a warning -- the tab is live, nothing is missing. */
-.sim-replay-target--live-edge {
-  color: var(--nova-text-muted);
-  background: transparent;
-  border-bottom-color: var(--nova-border-strong);
 }
