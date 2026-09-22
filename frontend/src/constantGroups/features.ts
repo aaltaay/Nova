@@ -1,13 +1,6 @@
 /** Phase 3 domain group (features.ts). */
 import { API_URL } from './chart_api';
 
-// ── Account — former Trading tab + Reports ───────────────────────────────────
-/** Account page sections (Overview = IBKR positions/orders; Reports = P&L habits). */
-export const ACCOUNT_SECTION_OVERVIEW = 'Overview';
-export const ACCOUNT_SECTION_REPORTS = 'Reports';
-export type AccountSectionId = 'overview' | 'reports';
-export const ACCOUNT_SECTION_DEFAULT: AccountSectionId = 'overview';
-
 export const L2_DAS_MM_FALLBACK = '—';
 /** IBKR overnight / extended session market-maker id on thin closed-market books. */
 export const L2_MM_OVERNIGHT = 'OVERNIGHT';

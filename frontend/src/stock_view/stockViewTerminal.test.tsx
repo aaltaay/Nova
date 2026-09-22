@@ -9,7 +9,6 @@ import { makeDetail } from '../modules/quoteFixtures';
 import { StockViewQuoteCard } from './StockViewQuoteCard';
 import { StockViewRail } from './StockViewRail';
 import { StockViewDepthTape } from './StockViewDepthTape';
-import { StockViewSymbolChip } from './StockViewSymbolChip';
 import { StockViewPage } from '../pages/StockViewPage';
 import { TickerTradeActionBar } from '../ibkr/TickerTradeActionBar';
 import type { IbkrAccountSummary } from '../ibkr/types';
@@ -18,7 +17,6 @@ import {
   STOCK_VIEW_MODULE_OPEN_TITLE,
   STOCK_VIEW_MODULE_QUOTE_TITLE,
   STOCK_VIEW_MODULE_TAPE_TITLE,
-  STOCK_VIEW_SYMBOL_EDIT_TITLE,
 } from '../constants';
 
 vi.mock('../ibkr/useIbkrStatus', () => ({
@@ -372,116 +370,6 @@ describe('TickerTradeActionBar rail', () => {
   });
 });
 
-describe('StockViewSymbolChip edit', () => {
-  let container: HTMLDivElement;
-  let root: Root;
-
-  beforeEach(() => {
-    container = document.createElement('div');
-    document.body.appendChild(container);
-    root = createRoot(container);
-  });
-
-  afterEach(() => {
-    act(() => {
-      root.unmount();
-    });
-    container.remove();
-  });
-
-  function setInputValue(input: HTMLInputElement, value: string) {
-    const tracker = (
-      input as unknown as { _valueTracker?: { setValue: (v: string) => void } }
-    )._valueTracker;
-    const prev = input.value;
-    input.value = value;
-    tracker?.setValue(prev);
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-  }
-
-  function renderChip(onCommit = vi.fn()) {
-    act(() => {
-      root.render(
-        <div className="stock-view-page">
-          <StockViewSymbolChip
-            symbol="AAPL"
-            mainPrice={190.12}
-            mainChangeAbs={1.5}
-            mainChangePct={0.8}
-            isPositive
-            refreshing={false}
-            onCommit={onCommit}
-          />
-        </div>,
-      );
-    });
-    return onCommit;
-  }
-
-  function openEditor() {
-    const chip = container.querySelector(
-      '[data-testid="stock-view-symbol-chip"]',
-    ) as HTMLElement;
-    act(() => {
-      chip.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
-    });
-    return container.querySelector(
-      '[data-testid="stock-view-symbol-chip-edit"] input',
-    ) as HTMLInputElement;
-  }
-
-  it('exposes double-click affordances and has no Look Up form', () => {
-    renderChip();
-    const chip = container.querySelector(
-      '[data-testid="stock-view-symbol-chip"]',
-    ) as HTMLElement;
-    expect(chip).toBeTruthy();
-    expect(chip.getAttribute('title')).toBe(STOCK_VIEW_SYMBOL_EDIT_TITLE);
-    expect(container.textContent).not.toMatch(/Look Up/i);
-    expect(container.querySelector('.sv-header__lookup')).toBeNull();
-  });
-
-  it('double-click enters edit; Enter commits uppercase symbol', () => {
-    const onCommit = renderChip();
-    const input = openEditor();
-    expect(input).toBeTruthy();
-    act(() => {
-      setInputValue(input, '  tsla ');
-      input.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
-      );
-    });
-    expect(onCommit).toHaveBeenCalledTimes(1);
-    expect(onCommit).toHaveBeenCalledWith('TSLA');
-  });
-
-  it('Escape cancels without committing', () => {
-    const onCommit = renderChip();
-    const input = openEditor();
-    act(() => {
-      setInputValue(input, 'MSFT');
-      input.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
-      );
-    });
-    expect(onCommit).not.toHaveBeenCalled();
-    expect(container.querySelector('[data-testid="stock-view-symbol-chip"]')).toBeTruthy();
-    expect(container.textContent).toMatch(/AAPL/);
-  });
-
-  it('rejects empty commit', () => {
-    const onCommit = renderChip();
-    const input = openEditor();
-    act(() => {
-      setInputValue(input, '   ');
-      input.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
-      );
-    });
-    expect(onCommit).not.toHaveBeenCalled();
-  });
-});
-
 describe('StockViewPage symbol gate', () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -524,7 +412,6 @@ describe('StockViewPage symbol gate', () => {
     });
     expect(container.querySelector('.stock-view-page')).toBeTruthy();
     expect(container.querySelector('[data-testid="stock-view-header"]')).toBeNull();
-    expect(container.querySelector('[data-testid="stock-view-symbol-chip"]')).toBeNull();
     expect(container.querySelector('[data-testid="sv-account-mode-capsule"]')).toBeNull();
     expect(container.querySelector('[data-testid="sv-operator-mode-capsule"]')).toBeNull();
     expect(container.querySelector('[data-testid="sv-trading-lock"]')).toBeNull();
