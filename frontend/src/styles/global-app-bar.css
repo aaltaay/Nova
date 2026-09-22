@@ -1,9 +1,16 @@
-/* Shared Webull-style chrome -- mount once above every live page.
-   Header is a column: primary desk row + bot-only second row (#230).
-   Primary uses grid columns (not a shrinking flex row) so zoom cannot
-   paint chips on neighbors. */
+/* The global bar (approved redesign, 2026-09-22): one 40px row of desk chrome
+   mounted once above every view. Left cluster (wordmark · session · ET clock ·
+   connection · venue pills · REC) · centred ticker search · right cluster
+   (KILL · account cluster · padlock · gear). The bot row and the Trader tab
+   row sit under it. Account cluster + every dropdown: global-app-bar-menus.css.
+   Trader tab strip: global-app-bar-trader.css. Narrow widths:
+   global-app-bar-responsive.css. */
 
 .global-app-bar {
+  --gbar-warn: #f59e0b;
+  --gbar-rec: #ff3b30;
+  --gbar-chip-h: 22px;
+  --gbar-radius: 6px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -20,16 +27,40 @@
   z-index: 40;
 }
 
+/* One row that never wraps. The centre search is the only thing that gives
+   way (min-width: 0); the side clusters keep every chip whole and the
+   responsive sheet sheds the low-value ones as the viewport narrows, so
+   nothing is ever painted over the brand. */
 .global-app-bar__primary {
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  display: flex;
+  flex-wrap: nowrap;
   align-items: center;
-  column-gap: 0.75rem;
-  row-gap: 0.35rem;
+  gap: 0.6rem;
   min-width: 0;
   min-height: 32px;
 }
 
+.global-app-bar__left,
+.global-app-bar__right {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0.6rem;
+}
+
+.global-app-bar__right {
+  justify-content: flex-end;
+}
+
+.global-app-bar__center {
+  display: flex;
+  flex: 0 1 auto;
+  justify-content: center;
+  min-width: 0;
+}
+
+/* ── Bot row (issue #230) ─────────────────────────────────────────────── */
 .global-app-bar__bot {
   display: flex;
   align-items: center;
@@ -53,29 +84,11 @@
   min-width: 0;
 }
 
-.global-app-bar__left,
-.global-app-bar__right {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.45rem 0.65rem;
-  min-width: 0;
-}
-
-.global-app-bar__left {
-  grid-column: 1;
-}
-
-.global-app-bar__right {
-  grid-column: 3;
-  justify-content: flex-end;
-  max-width: 100%;
-}
-
+/* ── Brand ────────────────────────────────────────────────────────────── */
 .global-app-bar__brand {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
   flex-shrink: 0;
 }
 
@@ -86,327 +99,246 @@
 }
 
 .global-app-bar__wordmark {
-  font-size: 0.8rem;
+  font-size: 0.95rem;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.01em;
   color: var(--nova-text);
 }
 
-.global-app-bar__account {
-  position: relative;
-  flex: 0 0 auto;
-}
-
-/* One compact row: Day's | Working | TAV | account pill (Webull order). */
-.global-app-bar__cluster {
+/* ── Chips: session · connection · REC share one 22px shell ───────────── */
+.global-app-bar__session,
+.global-app-bar__conn,
+.global-app-bar__rec {
   display: inline-flex;
   align-items: center;
-  flex-wrap: nowrap;
   gap: 0.35rem;
-  padding: 0.1rem 0;
-  color: inherit;
-  font: inherit;
-  font-size: 0.8rem;
+  height: var(--gbar-chip-h);
+  padding: 0 0.5rem;
+  box-sizing: border-box;
+  border: 1px solid var(--nova-border);
+  border-radius: var(--gbar-radius);
+  font-size: 0.69rem;
+  line-height: 1;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.global-app-bar__cluster .global-app-bar__metric > label::after,
-.global-app-bar__cluster .global-app-bar__metric-btn > label::after {
-  content: ':';
+.global-app-bar__session {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--nova-text-muted);
 }
 
-.global-app-bar__cluster--offline {
-  cursor: default;
+.global-app-bar__session--premarket {
+  color: var(--gbar-warn);
+  border-color: color-mix(in srgb, var(--gbar-warn) 40%, transparent);
+  background: color-mix(in srgb, var(--gbar-warn) 12%, transparent);
 }
 
-.global-app-bar__metric,
-.global-app-bar__metric-btn {
+.global-app-bar__session--open {
+  color: var(--nova-success);
+  border-color: color-mix(in srgb, var(--nova-success) 40%, transparent);
+  background: color-mix(in srgb, var(--nova-success) 10%, transparent);
+}
+
+/* ET clock: plain tabular text beside the session chip. */
+.global-app-bar__primary .header-market-clock {
   display: inline-flex;
-  align-items: baseline;
-  gap: 0.3rem;
-}
-
-.global-app-bar__metric-btn {
-  appearance: none;
+  align-items: center;
+  margin: 0;
+  padding: 0;
   border: 0;
   background: transparent;
-  color: inherit;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--nova-text);
+  line-height: 1.2;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Connection chip: one quiet word; the tooltip carries the rest. */
+.global-app-bar__conn {
+  appearance: none;
+  margin: 0;
+  background: transparent;
+  color: var(--nova-text-muted);
   font: inherit;
-  padding: 0.2rem 0.3rem;
-  border-radius: var(--radius-control, 8px);
+  font-size: 0.69rem;
+  font-weight: 600;
+  line-height: 1;
   cursor: pointer;
 }
 
-.global-app-bar__metric-btn:hover,
-.global-app-bar__metric-btn[aria-expanded='true'] {
+.global-app-bar__conn:hover,
+.global-app-bar__conn:focus-visible {
+  color: var(--nova-text);
   background: var(--hover-bg);
 }
 
-.global-app-bar__metric label,
-.global-app-bar__metric-btn label {
-  color: var(--nova-text-muted);
-  font-weight: 500;
-  cursor: inherit;
-}
-
-.global-app-bar__caret {
-  margin-left: 0.1rem;
-  color: var(--nova-text-muted);
-  font-size: 0.65rem;
-}
-
-.global-app-bar__metric-value {
-  font-variant-numeric: tabular-nums;
-}
-
-.global-app-bar__metric--tav .global-app-bar__metric-value {
-  font-weight: 650;
-  color: var(--nova-text);
-}
-
-/* Day's percent rides beside the dollar figure in the same tone. */
-.global-app-bar__pct {
-  font-size: 0.72rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.global-app-bar__sep {
-  width: 1px;
-  height: 0.9rem;
-  background: var(--nova-border);
-  flex-shrink: 0;
-}
-
-.global-app-bar__working-count {
-  color: #f5a524;
-  font-weight: 650;
-}
-
-.global-app-bar__tone--up {
-  color: var(--nova-success);
-  font-weight: 650;
-}
-
-.global-app-bar__tone--down {
-  color: var(--nova-danger);
-  font-weight: 650;
-}
-
-.global-app-bar__tone--flat {
-  color: var(--nova-text);
-  font-weight: 600;
-}
-
-.global-app-bar__offline-chip {
-  padding: 0.15rem 0.4rem;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--nova-danger) 45%, var(--nova-border));
-  background: color-mix(in srgb, var(--nova-danger) 12%, transparent);
-  color: var(--nova-danger);
-  font-size: 0.68rem;
-  font-weight: 650;
-}
-
-.global-app-bar__mode {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.2rem 0.45rem;
-  border: 1px solid var(--nova-border);
-  border-radius: 999px;
-  color: var(--nova-text-muted);
-  font-weight: 600;
-  flex-shrink: 0;
-}
-
-.global-app-bar__mode--paper {
-  color: var(--nova-accent);
-  border-color: color-mix(in srgb, var(--nova-accent) 40%, var(--nova-border));
-}
-
-.global-app-bar__mode--live {
-  color: var(--nova-danger);
-  border-color: color-mix(in srgb, var(--nova-danger) 40%, var(--nova-border));
-}
-
-.global-app-bar__dot {
-  width: 0.45rem;
-  height: 0.45rem;
+.global-app-bar__conn-dot {
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--nova-text-muted);
+  flex: none;
 }
 
-.global-app-bar__dot.is-on {
+.global-app-bar__conn--ok {
+  color: color-mix(in srgb, var(--nova-success) 65%, var(--nova-text-muted));
+}
+
+.global-app-bar__conn--ok .global-app-bar__conn-dot {
   background: var(--nova-success);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--nova-success) 25%, transparent);
 }
 
-/* Middle column: context (Trader tabs | scanner controls) + status cluster.
-   Primary row stays one grid; narrow widths hide chips
-   (global-app-bar-responsive.css). Bot chrome is the header's second row. */
-.global-app-bar__center {
-  grid-column: 2;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.6rem;
-  min-width: 0;
-  min-height: 28px;
+.global-app-bar__conn--warn {
+  color: var(--gbar-warn);
+  border-color: color-mix(in srgb, var(--gbar-warn) 40%, transparent);
+  background: color-mix(in srgb, var(--gbar-warn) 12%, transparent);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-.global-app-bar__context {
-  flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem 0.5rem;
-  min-width: 0;
-  overflow: hidden;
-  container-type: inline-size;
-  container-name: app-bar-scanner;
+.global-app-bar__conn--warn .global-app-bar__conn-dot {
+  background: var(--gbar-warn);
 }
 
-/* Chips wrap onto a second line instead of overflowing. The middle grid column
-   is minmax(0, 1fr), so a cluster that cannot shrink overflows *leftward* under
-   justify-content: flex-end and paints over the brand and nav. Whether it fits
-   depends on the live P&L / Net Liq widths and which badges are showing, not on
-   the viewport, so the width-based media queries below cannot catch it. */
-.global-app-bar__status {
-  flex: 0 1 auto;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  min-width: 0;
-  white-space: nowrap;
+.global-app-bar__conn--bad {
+  color: var(--nova-danger);
+  border-color: color-mix(in srgb, var(--nova-danger) 45%, transparent);
+  background: color-mix(in srgb, var(--nova-danger) 10%, transparent);
 }
 
-.global-app-bar__status .status-cluster {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.4rem;
-  min-width: 0;
-  flex-wrap: wrap;
+.global-app-bar__conn--bad .global-app-bar__conn-dot {
+  background: var(--nova-danger);
 }
 
-.global-app-bar__status .status-chip,
-.global-app-bar__status .mode-badge,
-.global-app-bar__status .header-market-clock {
-  flex-shrink: 0;
+/* Venue pills: the ADR 020 capsule as a 22px segmented control here. */
+.global-app-bar__left .gw-mode-capsule {
+  height: var(--gbar-chip-h);
+  box-sizing: border-box;
+  border-radius: var(--gbar-radius);
 }
 
-/* Trader tab strip lives here (portal from StockViewTabs). Chips, not tabs. */
-.global-app-bar__trader-slot,
-.global-app-bar__trader-row {
-  align-self: stretch;
+.global-app-bar__left .gw-mode-capsule::before {
+  border-radius: 4px;
 }
 
-.global-app-bar__trader-slot .sv-tab-strip {
-  flex: 1 1 auto;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0;
-  border-bottom: none;
-  background: transparent;
-  min-width: 0;
-  scrollbar-width: none;
+.global-app-bar__left .gw-mode-capsule__seg {
+  padding: 0 0.6rem;
+  font-size: 0.69rem;
+  line-height: 20px;
 }
 
-.global-app-bar__trader-slot .sv-tab-strip::-webkit-scrollbar {
-  display: none;
-}
-
-.global-app-bar__trader-slot .sv-tab {
-  border: 1px solid var(--nova-border);
-  border-radius: var(--radius-control, 8px);
-  background: color-mix(in srgb, var(--nova-raised) 55%, transparent);
-  max-width: 150px;
-}
-
-.global-app-bar__trader-slot .sv-tab--active {
-  background: color-mix(in srgb, var(--nova-accent) 18%, transparent);
-  border-color: color-mix(in srgb, var(--nova-accent) 45%, var(--nova-border));
+/* REC chips: ● REC GRML 5:12 -- one per recording symbol, counting up. */
+.global-app-bar__rec {
+  appearance: none;
+  margin: 0;
+  border-color: color-mix(in srgb, var(--gbar-rec) 40%, transparent);
+  background: color-mix(in srgb, var(--gbar-rec) 12%, transparent);
   color: var(--nova-text);
+  font: inherit;
+  font-size: 0.69rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
 }
 
-.global-app-bar__trader-slot .sv-tab__label {
-  padding: 0.22rem 0.35rem 0.22rem 0.55rem;
-  font-size: 0.75rem;
+.global-app-bar__rec:hover {
+  filter: brightness(1.12);
 }
 
-.global-app-bar__trader-slot .sv-tab__input {
-  margin: 0.1rem 0 0.1rem 0.3rem;
+.global-app-bar__rec .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
 }
 
-.global-app-bar__trader-slot .sv-tab__close {
-  padding: 0.15rem 0.4rem 0.2rem 0.1rem;
+.global-app-bar__rec-role {
+  font-size: 0.62rem;
+  letter-spacing: 0.05em;
 }
 
-.global-app-bar__trader-slot .sv-tab-add {
-  width: 1.6rem;
-  height: 1.6rem;
-  margin: 0;
-}
-
-.global-app-bar__trader-slot .sv-tab-strip__hint {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 24rem;
-}
-
-.header-market-clock {
-  display: inline-flex;
-  align-items: center;
-  margin: 0;
-  padding: 0.15rem 0.45rem;
-  border: 1px solid var(--nova-border);
-  border-radius: 999px;
-  background: transparent;
+.global-app-bar__rec-time {
   font-variant-numeric: tabular-nums;
-  font-size: 0.75rem;
-  font-weight: 650;
-  letter-spacing: 0.02em;
-  color: var(--nova-text);
-  line-height: 1.2;
-  white-space: nowrap;
+  color: var(--nova-text-muted);
 }
 
-.global-app-bar__scanner .history-select {
-  max-width: 8rem;
-}
-
-/* Header symbol lookup. Lives in this (components) layer so the container-query
-   hide in global-app-bar-responsive.css can win -- a `display:flex` in the
-   features layer used to override it and clip the input instead. */
-.header-symbol-search {
+/* ── Centre: the ticker search (Enter opens the Trader) ───────────────── */
+.global-app-bar__search {
   display: flex;
-  gap: 0.35rem;
   align-items: center;
+  gap: 0.4rem;
+  width: 260px;
+  max-width: 100%;
+  min-width: 6rem;
+  height: 26px;
+  margin: 0;
+  padding: 0 0.5rem 0 0.55rem;
+  box-sizing: border-box;
+  border: 1px solid var(--nova-border);
+  border-radius: var(--gbar-radius);
+  background: color-mix(in srgb, var(--nova-raised) 45%, transparent);
+  color: var(--nova-text-muted);
 }
 
-.header-symbol-input {
-  width: 7.5rem;
+.global-app-bar__search:focus-within {
+  border-color: color-mix(in srgb, var(--nova-accent) 55%, var(--nova-border));
+  color: var(--nova-text);
+}
+
+.global-app-bar__search-icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.global-app-bar__search-input {
+  flex: 1 1 auto;
   min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--nova-text);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  outline: none;
 }
 
-.global-app-bar__scanner .header-symbol-input {
-  min-width: 0;
-  max-width: 10rem;
+.global-app-bar__search-input::placeholder {
+  color: var(--nova-text-muted);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
+/* ── Right cluster ────────────────────────────────────────────────────── */
 .global-app-bar__emergency-kill {
   flex-shrink: 0;
+  height: var(--gbar-chip-h);
   margin: 0;
-  padding: 0.18rem 0.5rem;
+  padding: 0 0.55rem;
+  box-sizing: border-box;
   border: 1px solid color-mix(in srgb, var(--nova-danger, #ef4444) 70%, var(--nova-border));
-  border-radius: var(--radius-control, 8px);
+  border-radius: var(--gbar-radius);
   background: var(--nova-danger, #ef4444);
   color: #fff;
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   font-weight: 750;
   letter-spacing: 0.02em;
-  line-height: 1.2;
+  line-height: 1;
   white-space: nowrap;
   cursor: pointer;
 }
@@ -420,118 +352,45 @@
   cursor: wait;
 }
 
-.global-app-bar__trade-lock {
+.global-app-bar__trade-lock,
+.global-app-bar__icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 1.85rem;
-  height: 1.85rem;
+  width: 26px;
+  height: 26px;
   padding: 0;
-  border: 1px solid var(--nova-border);
-  border-radius: var(--radius-control, 8px);
+  border: 0;
+  border-radius: var(--gbar-radius);
   background: transparent;
   color: var(--nova-text-muted);
   cursor: pointer;
-  flex-shrink: 0;
 }
 
-.global-app-bar__trade-lock:hover {
+.global-app-bar__trade-lock:hover,
+.global-app-bar__icon-btn:hover,
+.global-app-bar__icon-btn.is-active {
   color: var(--nova-text);
-  border-color: color-mix(in srgb, var(--nova-text-muted) 50%, var(--nova-border));
+  background: var(--hover-bg);
 }
 
+/* Locked is the quiet default; an unlocked (armed) desk is the loud one. */
 .global-app-bar__trade-lock.is-locked {
-  color: var(--nova-danger, #ef4444);
-  border-color: color-mix(in srgb, var(--nova-danger, #ef4444) 45%, var(--nova-border));
+  color: var(--nova-text-muted);
 }
 
 .global-app-bar__trade-lock.is-unlocked {
   color: var(--nova-success, #22c55e);
-  border-color: color-mix(in srgb, var(--nova-success, #22c55e) 45%, var(--nova-border));
 }
 
-.global-app-bar__trade-lock-icon {
-  width: 1rem;
-  height: 1rem;
+.global-app-bar__trade-lock-icon,
+.global-app-bar__icon {
+  width: 16px;
+  height: 16px;
 }
 
-/* Account pill: structure + class + full id, e.g. "Individual Margin (U1234567)".
-   Last control of the cluster; the menu under it lists the managed accounts. */
-.global-app-bar__account-pill {
+.global-app-bar__gear {
+  position: relative;
   flex-shrink: 0;
-  border: 1px solid var(--nova-border);
-  padding: 0.15rem 0.45rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--nova-text);
-  line-height: 1.2;
-  white-space: nowrap;
-}
-
-.global-app-bar__account-pill-label {
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.01em;
-}
-
-/* U… live account -- the money is real. */
-.global-app-bar__account-pill--live {
-  border-color: color-mix(in srgb, #f97316 55%, var(--nova-border));
-  color: #ea580c;
-  font-weight: 700;
-}
-
-/* NOVA-PAPER / NOVA-SIM -- Nova-managed practice account, fake money (ADR 020). */
-.global-app-bar__account-pill--practice {
-  border-style: dashed;
-}
-
-.global-app-bar__fund,
-.global-app-bar__settings {
-  flex-shrink: 0;
-  background: transparent;
-  color: var(--nova-text-muted);
-  border: 1px solid var(--nova-border);
-  border-radius: var(--radius-control, 8px);
-  padding: 0.25rem 0.65rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.global-app-bar__fund:hover,
-.global-app-bar__settings:hover {
-  color: var(--nova-text);
-  border-color: color-mix(in srgb, var(--nova-text-muted) 50%, var(--nova-border));
-}
-
-.global-app-bar__settings.is-active {
-  color: var(--nova-text);
-  background: color-mix(in srgb, var(--nova-accent, #3b82f6) 18%, transparent);
-  border-color: color-mix(in srgb, var(--nova-accent, #3b82f6) 45%, var(--nova-border));
-}
-
-
-/* Symbol tabs under Bot Autonomy, above the chart */
-.global-app-bar__trader-row {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  width: 100%;
-  padding: 0.2rem 0 0.15rem;
-  border-top: 1px solid color-mix(in srgb, var(--nova-border) 70%, transparent);
-}
-.global-app-bar__trader-row .sv-tab-strip {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  flex: 1;
-  min-width: 0;
-  overflow-x: auto;
-}
-.global-app-bar__icon-btn {
-  min-width: 2rem;
-  padding: 0.35rem 0.45rem;
-  font-size: 0.95rem;
-  line-height: 1;
 }

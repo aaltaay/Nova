@@ -7,10 +7,6 @@
   align-items: center;
 }
 
-.global-app-bar__scanner .gw-mode-capsule-wrap {
-  flex-shrink: 0;
-}
-
 .gw-mode-capsule {
   position: relative;
   display: inline-grid;

@@ -1,12 +1,20 @@
 /**
  * Board header: list title · filter chips · Saved: <name> ▾ · session line.
- * The health chip stays in the global bar (not duplicated here).
+ * The session line leads with the history-date picker (Today (Live) ▾ --
+ * Scanner-only, so it left the global bar in the 2026-09-22 redesign) and
+ * the health chip stays in the global bar (not duplicated here).
  */
 import { useEffect, useRef, useState } from 'react';
+import { fmtHistoryDateShort } from '../components/globalAppBarScanner';
+import { useScannerBarProps } from '../components/scannerBarStore';
 import {
   SCANNER_CHIP_IDS,
   SCANNER_CHIP_LABEL,
   SCANNER_CHIP_TITLE,
+  SCANNER_HISTORY_SAMPLE_LABEL,
+  SCANNER_HISTORY_SELECT_ARIA,
+  SCANNER_HISTORY_SELECT_TITLE,
+  SCANNER_HISTORY_TODAY_LABEL,
   SCANNER_SAVED_DELETE_TITLE,
   SCANNER_SAVED_EMPTY,
   SCANNER_SAVED_LABEL,
@@ -90,6 +98,34 @@ function SavedSetsMenu({ filters, onClose }: { filters: BoardFilters; onClose: (
   );
 }
 
+/** Today (Live) ▾ -- the same select the global bar used to carry, unchanged in behaviour. */
+function HistoryDateSelect() {
+  const bar = useScannerBarProps();
+  if (!bar) return null;
+  return (
+    <>
+      <select
+        className={`history-select scanner-board__history${bar.historyDate ? ' history-select--active' : ''}`}
+        value={bar.historyDate ?? ''}
+        onChange={bar.onHistoryChange}
+        title={SCANNER_HISTORY_SELECT_TITLE}
+        aria-label={SCANNER_HISTORY_SELECT_ARIA}
+        disabled={bar.sampleDataActive}
+        data-testid="scanner-board-history"
+      >
+        <option value="">{bar.sampleDataActive ? SCANNER_HISTORY_SAMPLE_LABEL : SCANNER_HISTORY_TODAY_LABEL}</option>
+        {!bar.sampleDataActive &&
+          bar.historyDates.map((d) => (
+            <option key={d} value={d}>
+              {fmtHistoryDateShort(d)}
+            </option>
+          ))}
+      </select>
+      <span className="scanner-board__sep" aria-hidden="true">·</span>
+    </>
+  );
+}
+
 export function ScannerBoardHeader({ title, filters, scannedAgoSec }: Props) {
   const session = useSessionCountdown();
   const [savedOpen, setSavedOpen] = useState(false);
@@ -136,6 +172,7 @@ export function ScannerBoardHeader({ title, filters, scannedAgoSec }: Props) {
         </>
       ) : null}
       <span className="scanner-board__session" title={SCANNER_SESSION_TITLE} data-testid="scanner-board-session">
+        <HistoryDateSelect />
         <span>{session.dateLabel}</span>
         <span className="scanner-board__sep" aria-hidden="true">·</span>
         <span data-testid="scanner-board-phase">

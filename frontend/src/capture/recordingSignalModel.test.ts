@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { IbkrStatus } from '../ibkr/types';
-import { elapsedLabel, recordingView, stoppedViews } from './recordingSignalModel';
+import { elapsedClockLabel, elapsedLabel, recordingView, stoppedViews } from './recordingSignalModel';
 
 const NOW = Date.parse('2026-09-21T12:00:00-04:00');
 
@@ -86,5 +86,15 @@ describe('elapsedLabel', () => {
     expect(elapsedLabel(12_000)).toBe('12s');
     expect(elapsedLabel(4 * 60_000 + 5_000)).toBe('4m 05s');
     expect(elapsedLabel(72 * 60_000)).toBe('1h 12m');
+  });
+});
+
+describe('elapsedClockLabel', () => {
+  it('counts up as m:ss on the bar chip, h:mm:ss past an hour', () => {
+    expect(elapsedClockLabel(null)).toBe('--:--');
+    expect(elapsedClockLabel(0)).toBe('0:00');
+    expect(elapsedClockLabel(12_000)).toBe('0:12');
+    expect(elapsedClockLabel(5 * 60_000 + 12_000)).toBe('5:12');
+    expect(elapsedClockLabel(62 * 60_000 + 7_000)).toBe('1:02:07');
   });
 });

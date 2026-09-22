@@ -63,6 +63,11 @@ export const SCANNER_SESSION_NOT_SCANNED = 'Not scanned yet';
 export const SCANNER_SESSION_TICK_MS = 1000;
 export const SCANNER_SESSION_TITLE =
   'Eastern session clock (weekday 09:30-16:00). Holidays are not known here; a holiday counts down to a closed open.';
+/** The history-date picker leads the session line (moved off the global bar, 2026-09-22). */
+export const SCANNER_HISTORY_TODAY_LABEL = 'Today (Live)';
+export const SCANNER_HISTORY_SAMPLE_LABEL = 'Sample (fixtures)';
+export const SCANNER_HISTORY_SELECT_TITLE = 'Browse historical snapshots';
+export const SCANNER_HISTORY_SELECT_ARIA = 'Scanner snapshot date';
 
 // ── Footer ─────────────────────────────────────────────────────────────────
 export function scannerFooterMatch(shown: number, total: number, noun: string): string {

@@ -1,0 +1,79 @@
+/* The Trader tab strip row under the global bar (portal from StockViewTabs,
+   below the bot row, above the chart). Chips, not tabs. The row itself:
+   global-app-bar.css. */
+
+.global-app-bar__trader-slot,
+.global-app-bar__trader-row {
+  align-self: stretch;
+}
+
+.global-app-bar__trader-slot .sv-tab-strip {
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0;
+  border-bottom: none;
+  background: transparent;
+  min-width: 0;
+  scrollbar-width: none;
+}
+
+.global-app-bar__trader-slot .sv-tab-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.global-app-bar__trader-slot .sv-tab {
+  border: 1px solid var(--nova-border);
+  border-radius: var(--radius-control, 8px);
+  background: color-mix(in srgb, var(--nova-raised) 55%, transparent);
+  max-width: 150px;
+}
+
+.global-app-bar__trader-slot .sv-tab--active {
+  background: color-mix(in srgb, var(--nova-accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--nova-accent) 45%, var(--nova-border));
+  color: var(--nova-text);
+}
+
+.global-app-bar__trader-slot .sv-tab__label {
+  padding: 0.22rem 0.35rem 0.22rem 0.55rem;
+  font-size: 0.75rem;
+}
+
+.global-app-bar__trader-slot .sv-tab__input {
+  margin: 0.1rem 0 0.1rem 0.3rem;
+}
+
+.global-app-bar__trader-slot .sv-tab__close {
+  padding: 0.15rem 0.4rem 0.2rem 0.1rem;
+}
+
+.global-app-bar__trader-slot .sv-tab-add {
+  width: 1.6rem;
+  height: 1.6rem;
+  margin: 0;
+}
+
+.global-app-bar__trader-slot .sv-tab-strip__hint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 24rem;
+}
+
+.global-app-bar__trader-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  width: 100%;
+  padding: 0.2rem 0 0.15rem;
+  border-top: 1px solid color-mix(in srgb, var(--nova-border) 70%, transparent);
+}
+
+.global-app-bar__trader-row .sv-tab-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+}

@@ -3,6 +3,11 @@
  */
 import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  publishGlobalBarCore,
+  resetScannerBarStoreForTests,
+  setGlobalBarHistoryDates,
+} from '../components/scannerBarStore';
 import { SCANNER_BOARD_FILTERS_STORAGE_KEY } from '../constantGroups/scanner_board';
 import { ScannerBoardFooter } from './ScannerBoardFooter';
 import { ScannerBoardHeader } from './ScannerBoardHeader';
@@ -27,6 +32,7 @@ afterEach(() => {
   cleanup();
   localStorage.removeItem(SCANNER_BOARD_FILTERS_STORAGE_KEY);
   promptMock.mockReset();
+  resetScannerBarStoreForTests();
 });
 
 describe('ScannerBoardHeader', () => {
@@ -74,6 +80,30 @@ describe('ScannerBoardHeader', () => {
     fireEvent.click(screen.getByTestId('scanner-board-saved-item'));
     expect(screen.getByTestId('active').textContent).toBe('gap');
     expect(screen.queryByTestId('scanner-board-saved-menu')).toBeNull();
+  });
+
+  it('leads the session line with the Today (Live) history picker once the bar has published', () => {
+    render(<Harness />);
+    expect(screen.queryByTestId('scanner-board-history')).toBeNull();
+    const onHistoryChange = vi.fn();
+    act(() => {
+      publishGlobalBarCore({
+        mode: 'premarket',
+        health: { status: 'connected', latency_ms: 1 },
+        activeFeed: 'ibkr',
+        feedFellBack: false,
+        onHistoryChange,
+        onLookup: () => {},
+      });
+      setGlobalBarHistoryDates(['2026-09-18']);
+    });
+    const select = screen.getByTestId('scanner-board-history') as HTMLSelectElement;
+    expect(select.options[0].textContent).toBe('Today (Live)');
+    expect(select.options[1].textContent).toMatch(/Sep 18/);
+    expect(select.disabled).toBe(false);
+    expect(screen.getByTestId('scanner-board-session').firstElementChild).toBe(select);
+    fireEvent.change(select, { target: { value: '2026-09-18' } });
+    expect(onHistoryChange).toHaveBeenCalledTimes(1);
   });
 
   it('renders without chips for a non-scanner list', () => {

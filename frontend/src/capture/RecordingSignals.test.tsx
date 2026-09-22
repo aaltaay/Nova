@@ -164,6 +164,20 @@ describe('RecordingChip', () => {
     expect(open).toHaveBeenCalledWith('GRML');
   });
 
+  it('on the global bar it reads REC GRML 13:25, counting up, and still opens the tab', async () => {
+    const open = vi.fn();
+    await mount(<RecordingChip variant="bar" onOpenSymbol={open} />);
+    await poll(recording);
+    const chip = screen.getByTestId('status-chip-recording');
+    expect(chip.className).toBe('global-app-bar__rec');
+    expect(chip.querySelector('.global-app-bar__rec-role')?.textContent).toBe('REC');
+    expect(chip.querySelector('.global-app-bar__rec-symbol')?.textContent).toBe('GRML');
+    expect(chip.querySelector('.global-app-bar__rec-time')?.textContent).toBe('13:25');
+    expect(chip.title).toContain('Recording GRML for 13m 25s');
+    fireEvent.click(chip);
+    expect(open).toHaveBeenCalledWith('GRML');
+  });
+
   it('after a resume, "for" is this segment and the tooltip says when the session began', async () => {
     await mount(<RecordingChip />);
     await poll({ ...recording, capture_sessions: [{
