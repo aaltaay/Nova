@@ -51,3 +51,25 @@ export function quickTradeShortLabel(
     .replace(/\s+/g, ' ')
     .trim();
 }
+
+/** One piece of a short label, and whether a space separates it from the piece before. */
+export interface QuickTradeLabelPiece {
+  text: string;
+  spaced: boolean;
+}
+
+/**
+ * The short label cut where it may wrap (QA D14): at its spaces and after a
+ * "+" that joins two words ("Cxl+Flat" -> "Cxl+" / "Flat") -- never inside a
+ * word, which read "Cxl+Fl / at" and "Flatte / n" in the rail. "Ask+5" stays
+ * whole: "+5" is an amount, not a second word.
+ */
+export function quickTradeLabelPieces(label: string): QuickTradeLabelPiece[] {
+  const pieces: QuickTradeLabelPiece[] = [];
+  label.split(' ').filter(Boolean).forEach((word, wordIndex) => {
+    word.split(/(?<=\+)(?=\p{L})/u).forEach((text, partIndex) => {
+      pieces.push({ text, spaced: wordIndex > 0 && partIndex === 0 });
+    });
+  });
+  return pieces;
+}

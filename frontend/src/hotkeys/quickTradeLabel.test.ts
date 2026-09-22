@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultNovaActions } from './novaActionDefaults';
-import { quickTradeShortLabel, quickTradeTone } from './quickTradeLabel';
+import { quickTradeLabelPieces, quickTradeShortLabel, quickTradeTone } from './quickTradeLabel';
 
 describe('quickTradeShortLabel', () => {
   it('builds the mockup labels from the default actions', () => {
@@ -27,6 +27,28 @@ describe('quickTradeShortLabel', () => {
       quickTradeShortLabel('sell_pos_pct_bid_offset', { percent: 25, offsetDollars: 0.03 }),
     ).toBe('S25% Bid−3');
     expect(quickTradeShortLabel('buy_market', {})).toBe('B MKT');
+  });
+});
+
+describe('quickTradeLabelPieces (QA D14: a label wraps between words, never inside one)', () => {
+  const texts = (label: string) => quickTradeLabelPieces(label).map((p) => (p.spaced ? ` ${p.text}` : p.text));
+
+  it('cuts at spaces and after a "+" that joins two words', () => {
+    expect(texts('Cxl sym')).toEqual(['Cxl', ' sym']);
+    expect(texts('Cxl+Flat')).toEqual(['Cxl+', 'Flat']);
+    expect(texts('Flatten')).toEqual(['Flatten']);
+  });
+
+  it('keeps an amount after "+" or "−" with its word', () => {
+    expect(texts('B1 Ask+5')).toEqual(['B1', ' Ask+5']);
+    expect(texts('S25% Bid−3')).toEqual(['S25%', ' Bid−3']);
+  });
+
+  it('puts every default label back together unchanged', () => {
+    for (const action of createDefaultNovaActions().filter((a) => a.showButton)) {
+      const label = quickTradeShortLabel(action.kind, action.params);
+      expect(texts(label).join('')).toBe(label);
+    }
   });
 });
 

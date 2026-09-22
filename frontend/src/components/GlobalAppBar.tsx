@@ -84,7 +84,8 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
     summaryConnected: summary?.connected,
     loading: accountLoading,
     error: accountError,
-    statusKnown: ibkrStatusKnown || isSampleView(),
+    // Only an explicit false is "unknown" (resolveAccountChromeState's own contract).
+    statusKnown: isSampleView() || ibkrStatusKnown,
     statusError: ibkrStatusError,
   });
   return (

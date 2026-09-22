@@ -18,6 +18,7 @@ const scannerDesk = read('../scanner/scannerDesk.css');
 const railDepth = read('../stock_view/stockViewRailDepth.css');
 const terminal = read('../stock_view/stockViewTerminal.css');
 const narrow = read('../stock_view/stockViewNarrow.css');
+const quickTrades = read('../stock_view/stockViewQuickTrades.css');
 const marketData = read('../ibkr/marketData.css');
 const timeSales = read('../ibkr/timeSales.css');
 const level2 = read('../ibkr/level2Montage.css');
@@ -153,5 +154,28 @@ describe('D12: the tab strip keeps "+" and the Sim session menu', () => {
 describe('V28: an open rail foot item keeps its width', () => {
   it('does not bold the open Settings item into truncation', () => {
     expect(navRail).toMatch(/\.nav-rail__foot \.nav-rail__item\.is-active \{\s*font-weight:\s*inherit;/);
+  });
+});
+
+describe('D14: Quick Trades labels wrap between words, never inside one', () => {
+  it('imports the Quick Trades sheet at the top of the terminal sheet (features layer)', () => {
+    expect(terminal.indexOf('@import "./stockViewQuickTrades.css";')).toBeGreaterThanOrEqual(0);
+    expect(terminal.indexOf('@import "./stockViewQuickTrades.css";')).toBeLessThan(terminal.indexOf('.stock-view-page {'));
+  });
+
+  it('never breaks anywhere inside a word, and ellipsizes a word too wide for its button', () => {
+    expect(quickTrades).not.toMatch(/overflow-wrap:\s*anywhere|word-break:\s*break-all/);
+    expect(terminal).not.toMatch(/\.nova-qt__btn > span\b/);
+    const label = quickTrades.slice(quickTrades.indexOf('.nova-qt__btn > .nova-qt__label {'));
+    expect(label).toMatch(/^[^}]*-webkit-line-clamp:\s*2;/);
+    expect(label).toMatch(/^[^}]*overflow-wrap:\s*normal;/);
+    const word = quickTrades.slice(quickTrades.indexOf('.nova-qt__label > .nova-qt__word {'));
+    expect(word).toMatch(/^[^}]*white-space:\s*nowrap;/);
+    expect(word).toMatch(/^[^}]*text-overflow:\s*ellipsis;/);
+  });
+
+  it('lets the type follow the button width, never below 7 px', () => {
+    expect(quickTrades).toMatch(/\.nova-qt__btn\[data-kind\] \{\s*container-type:\s*inline-size;/);
+    expect(quickTrades).toMatch(/font-size:\s*clamp\(7px, \d+cqi, 9px\);/);
   });
 });

@@ -1,0 +1,40 @@
+/* Quick Trades in the Trader rail (features layer; @imported at the top of
+   stockViewTerminal.css). The row itself is styled in
+   ibkr/tradeTicketCompact.css (.nova-qt).
+
+   Ten or eleven buttons share the ~340 px rail, so each is ~27 px wide. A
+   label wider than its button ran into its neighbours (QA V12); the V12 fix
+   wrapped it anywhere, which broke words ("Cxl+Fl / at", "Flatte / n", QA
+   D14). Each word is now its own box (TradingQuickBar, quickTradeLabelPieces):
+   a label wraps only between words -- at a space or after a "+" joining two
+   words -- and stays inside its own button. The type follows the button's
+   width (8.5 px at the Trader's 27 px, 7.25 px at the Desk column's 23 px), so
+   "Flatten" fits whole in both; a word that still does not fit (a row with
+   more buttons) ends in an ellipsis. The full name and key chord stay in the
+   button title. */
+.stock-view-page .nova-qt__btn[data-kind] {
+  container-type: inline-size;
+}
+
+.stock-view-page .nova-qt__btn > .nova-qt__label {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: clamp(7px, 31cqi, 9px);
+  line-height: 1.05;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.stock-view-page .nova-qt__label > .nova-qt__word {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
+  white-space: nowrap;
+}

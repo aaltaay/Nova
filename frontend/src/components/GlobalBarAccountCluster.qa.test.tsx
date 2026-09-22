@@ -5,7 +5,8 @@
  * the hover that opened a card keeps it open (V15); the status's own venue
  * wins over a Gateway-label mode (C26); the sample desk shows only its sample
  * summary and never polls a practice account (V4); the Day P&L tooltip names
- * its day start in ET (C61).
+ * its day start in ET (C61); the Live Day's title says a carried position
+ * counts its whole open P&L (W18, QA pass two).
  */
 import { act } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
@@ -86,6 +87,15 @@ describe('GlobalBarAccountCluster (QA batch)', () => {
     const title = screen.getByTestId('global-bar-account-trigger').getAttribute('title') ?? '';
     expect(title).toContain('Mon, Sep 21, 04:00 ET');
     expect(title).not.toContain('2026-09-21T04:00:00');
+  });
+
+  it("on Live the Day's title says a carried position counts its whole open P&L (W18)", () => {
+    status.current = { ...status.current, mode: 'live', venue: 'live', account_id: 'U1234567', account_ids: ['U1234567'] };
+    mount('live');
+    const title = screen.getByTestId('global-bar-account-trigger').getAttribute('title') ?? '';
+    expect(title).toContain("open P&L from each position's cost");
+    expect(title).toContain('carried overnight');
+    expect(title).not.toContain('since the day started');
   });
 
   it('Live on the by-hand paper Gateway shows the IBKR account, not NOVA-PAPER (C26)', () => {

@@ -1,9 +1,11 @@
 /* Stock View terminal layout — scoped under .stock-view-page only.
    Scanner Quote Panel / Trading tab styles stay in stock-view.css / tradingTab.css.
    The rail's quote stats, Level 2 and Time & Sales sizing: stockViewRailDepth.css;
-   a Trader column narrower than its chrome: stockViewNarrow.css. */
+   a Trader column narrower than its chrome: stockViewNarrow.css; the rail's
+   Quick Trades labels: stockViewQuickTrades.css. */
 @import "./stockViewRailDepth.css";
 @import "./stockViewNarrow.css";
+@import "./stockViewQuickTrades.css";
 
 .stock-view-page {
   --sv-gap: 6px;
@@ -831,23 +833,6 @@
 .stock-view-page .ticker-trade-bar--rail .ticker-trade-bar-open {
   border-top: none;
   padding-top: 0;
-}
-
-/* Quick Trades in the rail: eleven buttons share ~350 px, so a label wider
-   than its ~28 px button ran into its neighbours ("Cxl symCxl+FlatFlatten...",
-   QA V12). A label now wraps to two short lines under the icon and is clipped
-   to its own button; the full name and key chord stay in the button title.
-   The row itself is styled in ibkr/tradeTicketCompact.css (.nova-qt). */
-.stock-view-page .nova-qt__btn > span {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  max-width: 100%;
-  overflow: hidden;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  line-height: 1.05;
-  text-align: center;
 }
 
 /* Ticket density lives in ibkr/tradeTicketCompact.css (the compact ticket is
