@@ -341,6 +341,13 @@ async def execute(
         )
         if receipt.ok:
             inflight.attach_order(execution_id, receipt.order_id)
+            # A practice order can fill inside the send (ADR 020), so its
+            # terminal notice ran before the order id was attached and found
+            # nothing to free. The ack wait frees it for wait_ack=True; KILL,
+            # flatten, bot and strategy sends skip that wait and kept their
+            # shares "already sent" until a restart (QA R31, 2026-09-22).
+            if receipt.timings.filled_ns or str(receipt.broker_status or "") == "Filled":
+                inflight.release_execution(execution_id)
         else:
             inflight.release_execution(execution_id)
 

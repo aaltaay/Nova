@@ -54,8 +54,32 @@ async def _place_close(symbol: str, qty: float, side: str) -> dict[str, Any]:
     )
     out = receipt.legacy_place_dict()
     # What the broker was actually sent, so the caller can prove a whole close.
-    out["sent_qty"] = (getattr(receipt, "payload", None) or {}).get("sent_qty")
+    out["sent_qty"] = _sent_qty(receipt)
     return out
+
+
+def _sent_qty(receipt: Any) -> float | None:
+    """The size execute() sent for this receipt, from its record (QA R33).
+
+    A receipt's own payload does not carry ``sent_qty``; the execution record
+    does (``execution.record_payload``). Unknown stays None -- never a guess.
+    """
+    payload = getattr(receipt, "payload", None) or {}
+    sent = payload.get("sent_qty")
+    execution_id = getattr(receipt, "execution_id", None)
+    if sent is None and execution_id:
+        try:
+            from execution import store
+
+            row = store.get_by_id(str(execution_id)) or {}
+            sent = (row.get("payload") or {}).get("sent_qty")
+        except Exception:
+            logger.exception("bot flatten: execution record unreadable for %s", execution_id)
+            return None
+    try:
+        return float(sent) if sent is not None else None
+    except (TypeError, ValueError):
+        return None
 
 
 async def _cancel_working() -> list[dict[str, Any]]:

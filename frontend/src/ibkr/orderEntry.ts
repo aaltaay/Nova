@@ -57,6 +57,11 @@ export interface ManualOrderPayload {
   /** #91: default protective legs -- both or neither; they make this a bracket. */
   take_profit_price?: number;
   stop_loss_price?: number;
+  /**
+   * The ticket's Flatten (QA R32): the server checks it closes the held
+   * position and sends it as a protective flatten, never clamped to 1 share.
+   */
+  intent?: 'flatten';
 }
 
 export type BuildOrderResult =

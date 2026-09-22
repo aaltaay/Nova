@@ -37,6 +37,8 @@ describe('closeFullPosition', () => {
         qty: 150,
         order_type: 'MKT',
         outside_rth: false,
+        // QA R32: a protective flatten, never clamped to 1 share.
+        intent: 'flatten',
       }),
       undefined,
       expect.objectContaining({
