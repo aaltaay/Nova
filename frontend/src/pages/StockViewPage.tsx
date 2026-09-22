@@ -103,6 +103,7 @@ export function StockViewPage({
       ? {
           price: detail.snapshot.latest_trade.price,
           timestamp: detail.snapshot.latest_trade.timestamp ?? null,
+          source: detail.snapshot.latest_trade.source,
         }
       : undefined;
 

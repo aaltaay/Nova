@@ -85,13 +85,16 @@ def reprice_detail_symbols(
         volume = (q or {}).get("volume")
         prev_close = (q or {}).get("prev_close")
         if row:
-            price = price if price is not None else (row.get("current_price") or row.get("price"))
             volume = volume if volume is not None else row.get("volume")
             prev_close = (row.get("previous_close") or row.get("prev_close")) or prev_close
+        # Only a price the snapshot itself answered goes out, and it goes out
+        # as a ``snapshot``, never as a print: a scanner row's cached price (at
+        # worst IBKR's prior close with no trade yet, ``close_fallback``) stamped
+        # with "now" painted a candle wick no exchange printed (QA 2026-09-22).
         if price is None:
             continue
         schedule_broadcast(
-            sym, price, None, datetime.now(timezone.utc).isoformat(), volume, prev_close,
+            sym, price, None, datetime.now(timezone.utc).isoformat(), volume, prev_close, "snapshot",
         )
 
 

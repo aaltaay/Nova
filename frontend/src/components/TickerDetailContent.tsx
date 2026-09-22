@@ -76,6 +76,7 @@ export function TickerDetailContent({
                 price: trade.price,
                 timestamp: trade.timestamp ?? null,
                 symbol: chartSymbol,
+                source: trade.source,
               }
             : undefined
         }

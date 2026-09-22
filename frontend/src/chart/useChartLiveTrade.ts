@@ -28,6 +28,7 @@ export function useChartLiveTrade(
     const next = mergeLiveTradeCandle(lastCandleRef.current, {
       price: trade.price,
       timestamp: trade.timestamp,
+      source: trade.source,
     }, tf);
     if (!next) return;
 
