@@ -20,7 +20,7 @@
 @import "./styles/shortcuts-menu.css" layer(features);
 @import "./styles/scanner-l2.css" layer(features);
 @import "./styles/scanner-table-cols.css" layer(features);
-@import "./styles/scanner-side-nav.css" layer(features);
+@import "./styles/scanner-stack.css" layer(features);
 @import "./advise/advisePanel.css" layer(features);
 @import "./scanner/scannerDesk.css" layer(features);
 @import "./styles/scanner-misc.css" layer(features);

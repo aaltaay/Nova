@@ -5,11 +5,14 @@
  * HOD stream owner lives here so Trader does not tear down the WS.
  * Trader stays mounted (hidden + inert) on Scanner so L2/tape stay up.
  * Dashboard unmounts on Trader. Each live pane owns a trader Orders dock.
+ * The nav rail (NavRailHost) is the one navigation, beside the header and
+ * the views; the dashboard slot hosts Desk / Records / Dashboard via NavPageHost.
  */
 import { Suspense, useEffect, useState } from 'react';
 import { LazySampleShell, LazyStockViewTabs } from './appLazy';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { GlobalAppBar } from './components/GlobalAppBar';
+import { NavRailHost } from './components/NavRailHost';
 import { FloatDeskChrome } from './stock_view/FloatDeskChrome';
 import './styles/float-desk.css';
 import { GlobalBarStatusBridge } from './components/GlobalBarStatusBridge';
@@ -23,6 +26,7 @@ import { GatewayDisconnectedBannerHost } from './ibkr/GatewayDisconnectedBannerH
 import { MwcbBannerHost } from './ibkr/MwcbBannerHost';
 import { TradingPrerequisitesGate } from './ibkr/TradingPrerequisitesGate';
 import { DashboardPage } from './pages/DashboardPage';
+import { NavPageHost } from './pages/NavPageHost';
 import { isSampleView } from './sample_data/sampleNav';
 import { SettingsProvider } from './settings/SettingsContext';
 import { NovaOsAttentionStrip } from './strategy/NovaOsAttentionStrip';
@@ -38,7 +42,7 @@ import { LayoutStoreProvider } from './workspace/useLayoutStore';
 import { ModuleVisibilityProvider } from './workspace/useModuleVisibility';
 
 function AppShell() {
-  const { traderTabs, traderViewActive, activeTraderSymbol } = useWorkspace();
+  const { traderTabs, traderViewActive, activeTraderSymbol, openStockView } = useWorkspace();
   const [sampleMode, setSampleMode] = useState(() => isSampleView());
   const hasTraderDesk = traderTabs.length > 0;
   const showTrader = hasTraderDesk && traderViewActive;
@@ -71,8 +75,10 @@ function AppShell() {
       <SettingsProvider>
         <ScannerDataProvider>
           <HodMomoProvider>
-            <div className={`nova-app-stack${detached ? ' nova-app-stack--float' : ''}`}>
-            {/* Parent desk keeps full chrome. Pop-out floats are child trade desks — no main header. */}
+            <div className={`nova-app-stack${detached ? ' nova-app-stack--float' : ' nova-app-stack--rail'}`}>
+            {/* Parent desk keeps the rail + full chrome. Pop-out floats are child trade desks — neither. */}
+            {!detached && <NavRailHost />}
+            <div className="nova-app-main">
             {!detached && <GlobalBarStatusBridge />}
             {!detached && <GlobalAppBar />}
             {detached && <FloatDeskChrome />}
@@ -111,10 +117,13 @@ function AppShell() {
               {!showTrader && (
                 <div className="nova-scanner-desk-slot">
                   <AppErrorBoundary source="dashboard">
-                    <DashboardPage />
+                    <NavPageHost onOpenTrader={openStockView}>
+                      <DashboardPage />
+                    </NavPageHost>
                   </AppErrorBoundary>
                 </div>
               )}
+            </div>
             </div>
             </div>
           </HodMomoProvider>

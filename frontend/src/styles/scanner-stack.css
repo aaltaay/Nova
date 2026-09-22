@@ -1,100 +1,7 @@
-/* Webull-style left scanner rail — Gappers…Watchlist only. */
+/* Scanner dashboard shell + middle stack (HOD dock over the selected scanner).
+   The left rail itself is styles/navRail.css (components/NavRail.tsx). */
 
-.scanner-side-nav {
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  width: 72px;
-  min-height: 0;
-  align-self: stretch;
-  border-right: 1px solid var(--border-color);
-  background: var(--nova-panel, var(--panel-bg));
-  z-index: 5;
-}
-
-.scanner-side-nav__list {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  gap: 0.15rem;
-  padding: 0.45rem 0.3rem;
-  overflow-y: auto;
-  scrollbar-width: thin;
-}
-
-.scanner-side-nav__footer {
-  flex-shrink: 0;
-  padding: 0.3rem 0.3rem 0.5rem;
-  border-top: 1px solid var(--border-color);
-}
-
-.scanner-side-nav__item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.2rem;
-  width: 100%;
-  margin: 0;
-  padding: 0.45rem 0.2rem 0.4rem;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-family: inherit;
-  line-height: 1.15;
-}
-
-.scanner-side-nav__item:hover {
-  color: var(--text-primary);
-  background: var(--hover-bg, rgba(255, 255, 255, 0.04));
-}
-
-.scanner-side-nav__item.is-active {
-  color: var(--text-primary);
-  background: color-mix(in srgb, var(--accent, #3b82f6) 18%, transparent);
-}
-
-.scanner-side-nav__icon {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.6rem;
-  height: 1.6rem;
-}
-
-.scanner-side-nav__icon-svg {
-  display: block;
-}
-
-.scanner-side-nav__count {
-  position: absolute;
-  top: -0.35rem;
-  right: -0.55rem;
-  min-width: 1rem;
-  padding: 0.05rem 0.25rem;
-  border-radius: 999px;
-  background: var(--accent, #3b82f6);
-  color: #fff;
-  font-size: 0.58rem;
-  font-weight: 700;
-  line-height: 1.2;
-  text-align: center;
-}
-
-.scanner-side-nav__label {
-  display: block;
-  max-width: 100%;
-  font-size: 0.62rem;
-  font-weight: 600;
-  text-align: center;
-  white-space: normal;
-  word-break: break-word;
-}
-
-.nova-shell:has(.scanner-side-nav) {
+.nova-shell--scanner {
   align-items: stretch;
   min-height: 0;
   height: 100%;
@@ -102,11 +9,11 @@
   overflow: hidden;
 }
 
-.nova-app-branch .nova-shell:has(.scanner-side-nav) {
+.nova-app-branch .nova-shell--scanner {
   flex: 1 1 0;
 }
 
-.nova-shell:has(.scanner-side-nav) .main-col {
+.nova-shell--scanner .main-col {
   padding-left: 1.25rem;
 }
 

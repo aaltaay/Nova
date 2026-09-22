@@ -1,17 +1,15 @@
 /**
- * Main dashboard shell — rail + middle stack + quote panel.
+ * Main dashboard shell — middle stack + quote panel (the nav rail is the shell's).
  * Scanner status chrome is merged into GlobalAppBar (primary header row).
  * HOD stream/config live in HodMomoProvider (AppShell); dock UI is middle-column only.
+ * Tab state is published to navRailStore; the rail's tab requests land here.
  */
-import { useEffect, useRef, useState } from 'react';
-import { ScannerSideNav } from '../components/TabNav';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { TabModuleHost } from '../components/TabModuleHost';
 import { SelectedScannerWidget } from '../components/SelectedScannerWidget';
 import { SidePanel } from '../components/SidePanel';
 import { PanelResizeHandle } from '../components/PanelResizeHandle';
-import { GLOBAL_BAR_OPEN_TRADING_TAB_EVENT } from '../constants';
-import { setAccountNavActive } from '../components/accountNavActive';
-import { consumeOpenTradingTabRequest } from '../components/openTradingTabNav';
+import { NAV_RAIL_SELECT_TAB_EVENT } from '../constantGroups/nav_rail';
 import { useHodMomo } from '../hod_momo/HodMomoContext';
 import { HodMomoDock } from '../hod_momo/HodMomoDock';
 import { usePublishScannerNews } from '../hod_momo/usePublishScannerNews';
@@ -23,6 +21,11 @@ import { useLiveScannerFeed } from '../scanner/ScannerDataContext';
 import { ScannerDesk } from '../scanner/ScannerDesk';
 import { useSettings } from '../settings/SettingsContext';
 import { useWorkspace } from '../workspace/WorkspaceContext';
+import {
+  clearScannerNavState,
+  consumeScannerTabRequest,
+  publishScannerNavState,
+} from '../workspace/navRailStore';
 import {
   DEFAULT_ACTIVE_TAB,
   getModule,
@@ -141,29 +144,19 @@ export function DashboardPage() {
     writePersistedScannerTab(tab);
   }
 
-  // Global Working menu / GlobalAppBar Account → Account / Trading tab.
+  // Nav rail / Working menu / Settings → a tab. The latch survives the
+  // Trader → Scanner remount (the request may have fired while unmounted).
   useEffect(() => {
-    const openTrading = () => {
-      if (visibility.trading === false) return;
-      handleTabClick('trading');
+    const apply = () => {
+      const tab = consumeScannerTabRequest();
+      if (!tab || visibility[tab] === false) return;
+      handleTabClick(tab);
     };
-    // Latch survives Trader → Scanner remount (event may have fired while unmounted).
-    if (consumeOpenTradingTabRequest()) openTrading();
-    const onOpenTrading = () => {
-      consumeOpenTradingTabRequest();
-      openTrading();
-    };
-    window.addEventListener(GLOBAL_BAR_OPEN_TRADING_TAB_EVENT, onOpenTrading);
-    return () => {
-      window.removeEventListener(GLOBAL_BAR_OPEN_TRADING_TAB_EVENT, onOpenTrading);
-    };
+    apply();
+    window.addEventListener(NAV_RAIL_SELECT_TAB_EVENT, apply);
+    return () => window.removeEventListener(NAV_RAIL_SELECT_TAB_EVENT, apply);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
-  }, [visibility.trading]);
-
-  useEffect(() => {
-    setAccountNavActive(activeTab === 'trading' || activeTab === 'reports');
-    return () => setAccountNavActive(false);
-  }, [activeTab]);
+  }, [visibility]);
 
   const mainTab = isMainScannerTab(activeTab) ? activeTab : DEFAULT_ACTIVE_TAB;
   const activeHiddenCount = hiddenByExchangeFilter[mainTab] ?? 0;
@@ -179,28 +172,40 @@ export function DashboardPage() {
     setL1ActiveTab(mainTab);
   }, [mainTab, setL1ActiveTab]);
 
-  const navCounts = {
-    gappers: filteredGappers.length,
-    gainers: filteredGainers.length,
-    losers: filteredLosers.length,
-    afterhours: filteredAfterhours.length,
-    largeCap: filteredLargeCap.length,
-    catalysts: scanner.catalysts.length,
-    hodMomo: hodCount,
-    runningUp: runningUpCount,
-    watchlist: watchlist.entries.length,
-  };
+  const navCounts = useMemo(
+    () => ({
+      gappers: filteredGappers.length,
+      gainers: filteredGainers.length,
+      losers: filteredLosers.length,
+      afterhours: filteredAfterhours.length,
+      largeCap: filteredLargeCap.length,
+      catalysts: scanner.catalysts.length,
+      hodMomo: hodCount,
+      runningUp: runningUpCount,
+      watchlist: watchlist.entries.length,
+    }),
+    [
+      filteredGappers.length,
+      filteredGainers.length,
+      filteredLosers.length,
+      filteredAfterhours.length,
+      filteredLargeCap.length,
+      scanner.catalysts.length,
+      hodCount,
+      runningUpCount,
+      watchlist.entries.length,
+    ],
+  );
+
+  // The rail reads tab + highlight + counts from the store; it is not a child here.
+  useEffect(() => {
+    publishScannerNavState({ activeTab: mainTab, railHighlight, counts: navCounts });
+  }, [mainTab, railHighlight, navCounts]);
+  useEffect(() => () => clearScannerNavState(), []);
 
   return (
-    <div className="nova-shell">
+    <div className="nova-shell nova-shell--scanner">
       <ScannerBarBridge activeTab={mainTab} scanner={scanner} />
-      <ScannerSideNav
-        activeTab={mainTab}
-        railHighlight={railHighlight}
-        onTabClick={handleTabClick}
-        counts={navCounts}
-        visibility={visibility}
-      />
 
       <div className="main-col main-col--scanner-stack">
         <HodMomoDock />

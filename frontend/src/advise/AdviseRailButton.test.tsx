@@ -4,18 +4,16 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ScannerSideNav } from '../components/TabNav';
+import { AdviseRailButton } from './AdviseRailButton';
 
 const openAdvise = vi.fn();
+const advise = vi.hoisted(() => ({ current: null as null | { open: boolean; openAdvise: () => void } }));
 
 vi.mock('./AdviseContext', () => ({
-  useAdviseOptional: () => ({
-    open: false,
-    openAdvise,
-  }),
+  useAdviseOptional: () => advise.current,
 }));
 
-describe('AdviseRailButton on the left rail', () => {
+describe('AdviseRailButton on the nav rail foot', () => {
   let container: HTMLDivElement;
   let root: Root;
 
@@ -24,6 +22,7 @@ describe('AdviseRailButton on the left rail', () => {
     document.body.appendChild(container);
     root = createRoot(container);
     openAdvise.mockClear();
+    advise.current = { open: false, openAdvise };
   });
 
   afterEach(() => {
@@ -31,27 +30,25 @@ describe('AdviseRailButton on the left rail', () => {
     container.remove();
   });
 
-  it('renders Advise at the rail footer and does not change scanner tabs', () => {
-    const onTabClick = vi.fn();
+  it('renders as a rail item and opens Advise', () => {
     act(() => {
-      root.render(
-        <ScannerSideNav
-          activeTab="gappers"
-          onTabClick={onTabClick}
-          counts={{}}
-          visibility={{ gappers: true, gainers: true }}
-        />,
-      );
+      root.render(<AdviseRailButton />);
     });
-    const button = container.querySelector(
-      '[data-testid="scanner-nav-advise"]',
-    ) as HTMLButtonElement;
+    const button = container.querySelector('[data-testid="nav-rail-advise"]') as HTMLButtonElement;
     expect(button).toBeTruthy();
+    expect(button.classList.contains('nav-rail__item')).toBe(true);
     expect(button.textContent).toMatch(/Advise/);
     act(() => {
       button.click();
     });
     expect(openAdvise).toHaveBeenCalled();
-    expect(onTabClick).not.toHaveBeenCalled();
+  });
+
+  it('stays off the rail without a provider', () => {
+    advise.current = null;
+    act(() => {
+      root.render(<AdviseRailButton />);
+    });
+    expect(container.querySelector('[data-testid="nav-rail-advise"]')).toBeNull();
   });
 });

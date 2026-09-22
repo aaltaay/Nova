@@ -1,21 +1,21 @@
 /**
  * Ask the dashboard shell to show Account / Trading (orders).
- * Uses a pending latch so the request survives Trader → Scanner remount
- * (DashboardPage is unmounted while Trader tabs are open).
+ * Thin alias over the nav-rail tab latch (workspace/navRailStore) so the
+ * Working menu and Settings keep one door; the latch survives a Trader →
+ * Scanner remount (DashboardPage is unmounted while Trader tabs are open).
  */
-import { GLOBAL_BAR_OPEN_TRADING_TAB_EVENT } from '../constants';
-
-let pendingOpenTradingTab = false;
+import {
+  consumeScannerTabRequest,
+  peekScannerTabRequest,
+  requestScannerTab,
+} from '../workspace/navRailStore';
 
 export function requestOpenTradingTab(): void {
-  pendingOpenTradingTab = true;
-  if (typeof window === 'undefined') return;
-  window.dispatchEvent(new Event(GLOBAL_BAR_OPEN_TRADING_TAB_EVENT));
+  requestScannerTab('trading');
 }
 
-/** True once; DashboardPage calls this on mount and on the event. */
+/** True once when the pending request is the trading tab. */
 export function consumeOpenTradingTabRequest(): boolean {
-  if (!pendingOpenTradingTab) return false;
-  pendingOpenTradingTab = false;
-  return true;
+  if (peekScannerTabRequest() !== 'trading') return false;
+  return consumeScannerTabRequest() === 'trading';
 }
