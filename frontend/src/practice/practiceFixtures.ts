@@ -10,6 +10,7 @@ export const PAPER_ACCOUNT: PracticeAccount = {
   net_liquidation: 101200.25,
   gross_position_value: 2449.75,
   realized_pnl: 350.25,
+  realized_today: 350.25,
   unrealized_pnl: -100,
   day_pnl: 250.25,
   day_started_et: '2026-09-21T04:00:00-04:00',

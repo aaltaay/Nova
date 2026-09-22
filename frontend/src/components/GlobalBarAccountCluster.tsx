@@ -145,8 +145,12 @@ export function GlobalBarAccountCluster({
   });
   const dayTitle = ledger
     ? practiceDayPnlTitle(
-        formatSignedMoney(ledger.realized_pnl),
-        formatSignedMoney(ledger.unrealized_pnl),
+        // Today's realized and the open move since 04:00 ET: the two add up to
+        // day_pnl by construction (QA W3; realized_pnl is lifetime).
+        formatSignedMoney(ledger.realized_today),
+        formatSignedMoney(
+          ledger.realized_today == null ? null : ledger.day_pnl - ledger.realized_today,
+        ),
         formatDayStartEt(ledger.day_started_et),
       )
     : GLOBAL_BAR_DAY_PNL_TITLE;

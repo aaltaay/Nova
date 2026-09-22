@@ -21,6 +21,8 @@ export interface PracticeAccount {
   realized_pnl: number;
   unrealized_pnl: number;
   day_pnl: number;
+  /** Realized P&L (net of fees) since the 04:00 ET practice-day boundary. */
+  realized_today?: number | null;
   day_started_et: string | null;
   commissions_today: number;
   positions: PracticePosition[];

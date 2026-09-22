@@ -55,8 +55,9 @@ export const PRACTICE_REPLAY_SOURCE_LABELS: Record<string, string> = {
 export const practiceTavTitle = (venue: PracticeVenue, id: string): string =>
   `Net liquidation of Nova's ${PRACTICE_VENUE_LABELS[venue]} practice account ${id} -- fake money: cash plus positions at their last mark.`;
 export const PRACTICE_DAY_START_FALLBACK = 'the day start';
-export const practiceDayPnlTitle = (realized: string, unrealized: string, since: string | null): string =>
-  `Day P&L = realized ${realized} + unrealized ${unrealized}, since ${since || PRACTICE_DAY_START_FALLBACK}.`;
+/** Adds up by construction: open change = day P&L - realized today (QA W3). */
+export const practiceDayPnlTitle = (realized: string, openChange: string, since: string | null): string =>
+  `Day P&L = realized today ${realized} + open P&L change ${openChange}, since ${since || PRACTICE_DAY_START_FALLBACK}.`;
 export const practiceFeesTitle = (fills: number): string =>
   `Simulated commissions and fees charged today across ${fills} fill${fills === 1 ? '' : 's'}.`;
 export const PRACTICE_REPLAY_KEY_TITLE =

@@ -82,6 +82,8 @@ class Ledger:
         self._next_id = 1
         self.day_started_ts = day_start_ts(self.created_ts)
         self.day_start_equity = self.starting_cash
+        # Realized P&L when the current practice day began; replayed, never stored.
+        self.realized_at_day_start = 0.0
         for event in self.events:
             self._apply(event)
 
@@ -98,6 +100,7 @@ class Ledger:
         elif kind == EVENT_ROLLOVER:
             self.day_started_ts = float(event["ts"])
             self.day_start_equity = float(event["equity"])
+            self.realized_at_day_start = self.realized
         else:
             raise ValueError(f"unknown ledger event {kind!r}")
 
@@ -364,6 +367,10 @@ class Ledger:
     def day_pnl(self) -> float:
         return self.net_liquidation() - self.day_start_equity
 
+    def realized_today(self) -> float:
+        """Realized P&L (net of fees) since the practice-day boundary (QA W3)."""
+        return self.realized - self.realized_at_day_start
+
     def last_event_ts(self) -> float:
         return float(self.events[-1].get("wall_ts", self.events[-1]["ts"])) if self.events else self.created_ts
 
@@ -380,6 +387,7 @@ class Ledger:
             "realized_pnl": round(self.realized, 2),
             "unrealized_pnl": round(self.unrealized_pnl(), 2),
             "day_pnl": round(self.day_pnl(), 2),
+            "realized_today": round(self.realized_today(), 2),
             "day_started_et": iso_et(self.day_started_ts),
             "commissions_today": round(self.commissions_today(), 2),
             "positions": [

@@ -227,7 +227,12 @@ class PracticeBroker:
             "TotalCashValue": round(ledger.cash, 2),
             "BuyingPower": round(ledger.buying_power(), 2),
             "UnrealizedPnL": round(ledger.unrealized_pnl(), 2),
-            "RealizedPnL": round(ledger.realized, 2),
+            # Today's realized, as IBKR's own RealizedPnL means (QA W2 / W3); the
+            # lifetime figure stays on /api/practice/account as realized_pnl.
+            "RealizedPnL": round(ledger.realized_today(), 2),
+            # The practice day's P&L: net liquidation less the 04:00 ET equity,
+            # already net of every fee. The bot breakers compare this (W2).
+            "DayPnL": round(ledger.day_pnl(), 2),
             "GrossPositionValue": round(ledger.gross_position_value(), 2),
             "account_class": "margin",
             "AccountType": PRACTICE_ACCOUNT_TYPE_SIM if sim else PRACTICE_ACCOUNT_TYPE_PAPER,
