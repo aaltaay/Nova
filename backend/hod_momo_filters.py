@@ -133,17 +133,32 @@ def passes_master_gate(
     in_rvol_warmup_grace: bool,
     surge_buffer: "deque[tuple[float, float]] | None",
 ) -> tuple[bool, str]:
-    """Global pre-check: data-ready + optional master surge.
+    """Global pre-check: data-ready, the tradeable floor, optional master surge.
 
-    Master RVOL was retired (2026-07-17) — per-strategy ``min_rvol`` is the
-    RVOL gate. ``eff_min_rvol`` / ``in_rvol_warmup_grace`` kept for call-site
-    compatibility; unused.
+    The tradeable floor (operator, 2026-09-22): a symbol must have traded at
+    least ``master.min_volume`` shares today, be priced at or above
+    ``master.min_price``, and -- when its RVOL is known -- clear
+    ``master.min_rvol``. Unknown volume is not ready; unknown RVOL passes the
+    RVOL floor because the volume floor still holds. Per-strategy ``min_rvol``
+    stays the setup threshold on top. ``eff_min_rvol`` /
+    ``in_rvol_warmup_grace`` are kept for call-site compatibility; unused.
 
     HOD is per-strategy via ``fails_hod_gate`` (Running Up can skip HOD).
     """
-    del eff_min_rvol, in_rvol_warmup_grace  # master RVOL retired
+    del eff_min_rvol, in_rvol_warmup_grace  # session RVOL overrides retired
     if snap.price is None or float(snap.price or 0) <= 0:
         return False, "master_data:no_price"
+
+    price = float(snap.price)
+    if master.min_price > 0 and price < float(master.min_price):
+        return False, f"master_liquidity:price({price:.4g}<{float(master.min_price):.4g})"
+    if master.min_volume > 0:
+        if snap.volume is None:
+            return False, "master_liquidity:no_volume"
+        if float(snap.volume) < float(master.min_volume):
+            return False, f"master_liquidity:volume({int(snap.volume)}<{int(master.min_volume)})"
+    if master.min_rvol > 0 and snap.rvol is not None and float(snap.rvol) < float(master.min_rvol):
+        return False, f"master_liquidity:rvol({float(snap.rvol):.2f}<{float(master.min_rvol):.2f})"
 
     if master.surge_pct > 0 and master.surge_window_min > 0:
         surge = price_surge(surge_buffer, master.surge_window_min, "low_to_current")

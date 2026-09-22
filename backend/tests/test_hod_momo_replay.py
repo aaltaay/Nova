@@ -56,6 +56,8 @@ def _squeeze11_only(state) -> None:
     state.master.hod_required = True
     state.master.surge_pct = 0.0
     state.master.min_rvol = 0.0
+    state.master.min_volume = 0.0  # synthetic tapes are thin; the tradeable floor is pinned by the full-day test
+    state.master.min_price = 0.0
     state.master.premarket_min_rvol = 0.0
     state.master.afterhours_min_rvol = 0.0
 
@@ -101,6 +103,11 @@ def test_replay_disabled_strategies_silent(day_fixture):
     def _all_off(state) -> None:
         for cfg in state.configs.values():
             cfg.enabled = False
+        # the 2,000-tick slice sits under the tradeable floor's volume; the
+        # floor is pinned by the full-day test, not here
+        state.master.min_volume = 0.0
+        state.master.min_price = 0.0
+        state.master.min_rvol = 0.0
 
     result = replay_session(_sdot_slice(day_fixture, 2_000), configure=_all_off)
     assert result.alerts == []
@@ -348,27 +355,24 @@ def test_full_day_alert_shape_is_pinned(full_day_result):
     under pytest (conftest points NOVA_CACHE_DIR at a fresh temp dir, so
     ``load_state()`` gets built-in defaults).
     """
-    assert len(full_day_result.alerts) == 309
+    # Tradeable floor (2026-09-22): 309 -> 242. CNF, KLRS and VEEE never clear
+    # 100k shares on this day, and every first alert moves to the minute the
+    # symbol's cumulative volume crosses the floor (SDOT 16:09:04 -> 16:10:43).
+    assert len(full_day_result.alerts) == 242
     assert full_day_result.alerts_by_symbol_strategy() == {
         "BIYA": [5, 7, 11, 12, 13],
         "CJMB": [5, 7, 11, 12, 13],
-        "CNF": [5, 7],
-        "KLRS": [13],
         "SDOT": [4, 5, 7, 10, 11, 12, 13],
         "SLND": [6, 13],
-        "VEEE": [3, 13],
     }
     first: dict[str, tuple] = {}
     for alert in sorted(full_day_result.alerts, key=lambda a: a["timestamp"]):
         first.setdefault(alert["ticker"], (alert["strategy_id"], alert["timestamp"]))
     assert first == {
-        "BIYA": (5, "2026-07-17T16:05:32.000Z"),
-        "CJMB": (5, "2026-07-17T16:05:33.000Z"),
-        "CNF": (5, "2026-07-17T17:19:12.000Z"),
-        "KLRS": (13, "2026-07-17T17:00:21.000Z"),
-        "SDOT": (4, "2026-07-17T16:09:04.000Z"),
-        "SLND": (6, "2026-07-17T17:10:00.000Z"),
-        "VEEE": (3, "2026-07-17T17:47:38.000Z"),
+        "BIYA": (5, "2026-07-17T16:22:11.000Z"),
+        "CJMB": (5, "2026-07-17T16:11:06.000Z"),
+        "SDOT": (13, "2026-07-17T16:10:43.000Z"),
+        "SLND": (6, "2026-07-17T17:10:19.000Z"),
     }
 
 

@@ -187,8 +187,17 @@ HOD_MOMO_MASTER_SURGE_PCT = 0.0      # 0 = disabled; squeeze strategies keep the
 HOD_MOMO_MASTER_SURGE_WINDOW_MIN = 5  # minutes (used only when surge_pct > 0)
 # Master RVOL retired (2026-07-17): master = data-ready (+ optional master surge).
 # Per-strategy ``min_rvol`` is the RVOL gate (Float RelVol etc.). Soft bypass gone.
-HOD_MOMO_MASTER_MIN_RVOL = 0.0
-HOD_MOMO_MASTER_PREMARKET_MIN_RVOL = 0.0   # master RVOL retired — strategy-level only
+# Tradeable floor (operator, 2026-09-22): "I need to see things I can trade." A
+# symbol on a roster with 13k shares traded and RVOL 0.19 (MI) still reached the
+# board on "Approaching HOD". Momentum scanners gate on volume first (Warrior's
+# HOD Momo suppresses alerts without volume and momentum together): below these
+# floors nothing fires, whatever the strategy. Unknown volume is not ready.
+# Unknown RVOL passes the RVOL floor (the volume floor still holds); a known
+# RVOL under it does not. Per-strategy ``min_rvol`` stays the setup threshold.
+HOD_MOMO_MASTER_MIN_VOLUME = 100_000   # shares traded today, from the L1 quote
+HOD_MOMO_MASTER_MIN_PRICE = 1.0        # dollars
+HOD_MOMO_MASTER_MIN_RVOL = 1.5         # relative volume floor; 0 = off
+HOD_MOMO_MASTER_PREMARKET_MIN_RVOL = 0.0   # session overrides retired -- strategy-level only
 HOD_MOMO_MASTER_AFTERHOURS_MIN_RVOL = 0.0
 
 # Pace RVOL (momentum "Relative Volume (Daily Rate)"): today_vol / (avg * elapsed_frac).
@@ -218,7 +227,7 @@ HOD_MOMO_RVOL_5MIN_TOD_CUM_FRAC: tuple[tuple[int, float], ...] = (
 # so the scanner can fire while yfinance data loads progressively.
 HOD_MOMO_RVOL_WARMUP_GRACE_SEC = 300            # 5 min: skip RVOL gate while yfinance warms up
 # Bump when master/strategy defaults change so persisted configs migrate once.
-HOD_MOMO_CONFIG_SCHEMA_VERSION = 9
+HOD_MOMO_CONFIG_SCHEMA_VERSION = 10  # v10: tradeable floor -- a persisted min_rvol of 0 becomes the floor once
 
 # Strategy names (canonical order 1–13)
 HOD_MOMO_STRATEGY_NAMES: dict[int, str] = {

@@ -88,9 +88,13 @@ def test_on_trade_update_blocked_by_strategy_rvol(monkeypatch):
 
 
 def test_squeeze_fires_with_low_pace_rvol(monkeypatch):
-    """momentum Squeeze can fire below 2× pace RVOL (TRT live evidence)."""
+    """momentum Squeeze can fire below 2× pace RVOL (TRT live evidence).
+
+    The tradeable floor (2026-09-22) would refuse RVOL 0.32 at the master gate;
+    it is switched off here because this test isolates the per-strategy path."""
     _reset_engine(monkeypatch)
     state = hm.get_state()
+    state.master.min_rvol = 0.0
     for sid, cfg in state.configs.items():
         cfg.enabled = sid in (10, 11)
         if sid in (10, 11):
@@ -151,6 +155,7 @@ def test_former_momo_empty_list_never_fires(monkeypatch):
 def test_former_momo_fires_when_on_list(monkeypatch):
     _reset_engine(monkeypatch)
     state = hm.get_state()
+    state.master.min_price = 0.0  # the fixture trades at $0.65; the tradeable floor is not under test here
     for sid, cfg in state.configs.items():
         cfg.enabled = sid == 1
         if sid == 1:
@@ -325,6 +330,7 @@ def test_would_fire_now_queues_symbol_being_debugged_not_stale_active_symbol(mon
     on_trade_update last left there instead of the symbol actually being debugged."""
     _reset_engine(monkeypatch)
     state = hm.get_state()
+    state.master.min_volume = 0.0  # snapshots here carry no volume; the tradeable floor is not under test
     for sid, cfg in state.configs.items():
         cfg.enabled = sid == 9  # Medium Float strategy requires min_float
     state.master.min_rvol = 0.0

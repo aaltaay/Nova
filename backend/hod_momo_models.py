@@ -18,7 +18,9 @@ from scanner_wire import wire_safe
 from constants import (
     HOD_MOMO_MASTER_AFTERHOURS_MIN_RVOL,
     HOD_MOMO_MASTER_HOD_REQUIRED,
+    HOD_MOMO_MASTER_MIN_PRICE,
     HOD_MOMO_MASTER_MIN_RVOL,
+    HOD_MOMO_MASTER_MIN_VOLUME,
     HOD_MOMO_MASTER_PREMARKET_MIN_RVOL,
     HOD_MOMO_MASTER_SURGE_PCT,
     HOD_MOMO_MASTER_SURGE_WINDOW_MIN,
@@ -76,6 +78,10 @@ class MasterGateConfig:
     hod_required: bool = HOD_MOMO_MASTER_HOD_REQUIRED
     surge_pct: float = HOD_MOMO_MASTER_SURGE_PCT
     surge_window_min: int = HOD_MOMO_MASTER_SURGE_WINDOW_MIN
+    # Tradeable floor (2026-09-22): volume today, price and a known RVOL must
+    # clear these before any strategy is evaluated. 0 turns a floor off.
+    min_volume: float = HOD_MOMO_MASTER_MIN_VOLUME
+    min_price: float = HOD_MOMO_MASTER_MIN_PRICE
     min_rvol: float = HOD_MOMO_MASTER_MIN_RVOL
     premarket_min_rvol: float = HOD_MOMO_MASTER_PREMARKET_MIN_RVOL
     afterhours_min_rvol: float = HOD_MOMO_MASTER_AFTERHOURS_MIN_RVOL
