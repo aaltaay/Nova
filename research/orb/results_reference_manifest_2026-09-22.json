@@ -1,0 +1,26 @@
+{
+  "fetched_at": "2026-09-22T14:57:31",
+  "window_start": "2021-09-22",
+  "counts": {
+    "dividends": 1039898,
+    "exchanges": 27,
+    "ticker_types": 24,
+    "short_interest": 2420895,
+    "short_volume": 9078656,
+    "ticker_details": 36640,
+    "news": 742650
+  },
+  "refused": {},
+  "files": {
+    "dividends.json": 290498042,
+    "dump.log": 7827,
+    "exchanges.json": 5588,
+    "short_interest.jsonl": 309386196,
+    "short_volume.jsonl": 3992388328,
+    "splits.json": 1148453,
+    "tickers.json": 11377464,
+    "ticker_details.jsonl": 13531973,
+    "ticker_types.json": 2304
+  },
+  "news_months": 61
+}

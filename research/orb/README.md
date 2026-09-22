@@ -39,8 +39,19 @@ Also here:
 | `fetch_seconds.py` | one-second bars 09:30-11:00 ET for the selected symbol-days into `store/seconds.duckdb` (settles entry-bar stop ambiguity) |
 | `results_*_2026-09-22.json` | the gate-1 run, its robustness table and the SPY baseline, as produced |
 
-Gate-1 outcome for the ORB (2026-09-22): not passed -- see
-`knowledge/obsidian/03-Nova-Decisions/Bot-Trading-Plan.md` §2b.
+Gap and Go (second candidate, same store):
+
+| Script | Purpose |
+|---|---|
+| `build_premarket.py` | per symbol-day pre-market high / low / last / volume and the 09:30-10:00 range (`premarket`) |
+| `build_news.py` | loads the news archive (`news_tickers`, with the Eastern session each article is a catalyst for) and ticker details (`ticker_details`) from the reference dump |
+| `select_gng.py` | the Five Pillars at 09:30, ranked by pre-market relative volume; `--no-float` for the survivorship-safe variant |
+| `backtest_gng.py` | buy stop at the pre-market high, $0.20 / 4% stop, half off at 2R with breakeven, rest at 4R or 11:30; `--grid` for the neighbourhood |
+| `run_gate1_gng.py` | chains news load, both selections, one extraction for their union, base run and grid |
+
+Gate-1 outcomes (2026-09-22): ORB not passed (§2b), Gap and Go not passed (§2c) -- see
+`knowledge/obsidian/03-Nova-Decisions/Bot-Trading-Plan.md`. The third candidate (large-cap
+daily mean reversion) is pre-registered in §2d.
 
 ## Honesty
 
