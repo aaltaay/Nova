@@ -62,7 +62,7 @@ shorting is gated behind the parked Phase K.
 
 Done when: Decision A recorded in this note's Decision log with the operator's choice.
 
-### L1 -- Get the data `[~]` (B1 bought 2026-09-22; download running to `F:\Nova\data\massive`)
+### L1 -- Get the data `[x]` (B1 bought 2026-09-22; everything the plan includes is on `F:\Nova\data\massive`: minute + day flat files 2021-09-21..2026-09-21, tickers, splits, dividends, ticker details, news archive, short data where served, one-second bars for the selected symbol-days; `research/orb/massive_reference_dump.py` manifest lists counts and anything refused)
 
 Decision B (recommendation starred):
 
@@ -75,7 +75,7 @@ Decision B (recommendation starred):
 
 Done when: one local Parquet / DuckDB store with a "was listed on that date" flag per symbol.
 
-### L2 -- Backtest `[ ]`
+### L2 -- Backtest `[x]` for A1 (2026-09-22, see §2b); `[ ]` for A2
 
 Install vectorbt in a scratch environment, adapt `.cursor/skills/backtest/` to read the local
 store, code the ORB rules exactly as published. Charge IBKR commissions plus 1-3 c/share slippage
@@ -84,7 +84,7 @@ on small caps; no signal may read anything after its own minute.
 Done when: the ORB reproduces the paper's *shape* on 2016-2023 and the run reports trade count,
 expectancy in R, profit factor, max drawdown.
 
-### L3 -- Try to break it `[ ]`
+### L3 -- Try to break it `[x]` for A1 (broke on the 2x-cost test, see §2b); `[ ]` for A2
 
 Walk-forward by year. Parameter neighbourhood: stop 5 / 10 / 15% ATR, top 10 / 20 / 30 by RVOL,
 5 / 15 / 30-minute ranges -- the neighbourhood must stay positive. 1,000-shuffle permutation
@@ -104,6 +104,67 @@ Done when: 100 trades with expectancy within ~30% of the backtest and slippage m
 Under the existing gates, after #444 (one-share test gate on practice venues) is answered.
 Double size only after each 50-trade block stays positive; pause when live drawdown exceeds the
 backtest's worst. `auto_live` stays NO-GO -- live orders stay operator-armed.
+
+## 2b. Gate 1 result -- ORB long-only, 2026-09-22 (harness: `research/orb/`)
+
+Data: every US stock, 1-minute bars 2021-09-21 .. 2026-09-21 (1,255 days), delisted names
+included, funds / warrants / units and split-window days excluded via the reference tables.
+Account modelled: $25,000 cash, no margin, IBKR fixed commission ($0.005/share, min $1) plus
+$0.01/share slippage on every fill, 1% risk per position, notional capped at 25% of equity.
+
+| Run | Trades | Win | PF | Exp | CAGR | Max DD | Sharpe |
+|---|---|---|---|---|---|---|---|
+| **Published rule** (top 20, stop 0.10 ATR) | 3,919 | 12.1% | 1.20 | +0.23R / $14 | 26.4% | -20.1% | 1.05 |
+| Zero slippage, same commission | 3,917 | 13.1% | 1.36 | +0.40R | 47.6% | -12.3% | 1.66 |
+| Paper's costs ($0.0035, no slippage) | 3,918 | 13.1% | 1.40 | +0.43R | 51.6% | -11.6% | 1.77 |
+| Slippage $0.02 | 3,917 | 11.1% | 1.06 | +0.05R | 7.6% | -30.6% | 0.41 |
+| Slippage $0.03 | 3,922 | 10.5% | 0.95 | -0.12R | -6.8% | -50.7% | -0.17 |
+| **2x costs** ($0.01/share, $0.02 slip) | 3,918 | 11.1% | 1.00 | -0.02R | -0.2% | -36.6% | 0.11 |
+| Stop 0.05 ATR (best neighbour) | 3,915 | 7.8% | 1.41 | +0.53R | 28.2% | -10.9% | 1.30 |
+| Stop 0.20 ATR | 3,945 | 20.6% | 1.07 | +0.05R | 13.8% | -34.8% | 0.60 |
+| Stop 0.50 ATR | 4,247 | 37.2% | 1.02 | +0.01R | 5.9% | -47.9% | 0.34 |
+
+Top 10 / 20 / 30 by relative volume give the same numbers: with a cash account the first
+four or five orders use all the buying power, so rank 11+ rarely trades. Entry cutoff 10:30
+vs 15:30 and 0.5% vs 1% risk change nothing material. Every calendar year is positive
+(2023: +$334 and 2026 YTD: +$189 are effectively flat).
+
+**Structure of the profit (base run):** the 10 best trades out of 3,919 are 123% of the
+total P&L -- without them the five years lose $12,324; the best 25 are 199%. Winners hold
+all day (median 383 min), losers are gone in 2 minutes. 96% of days sit below the previous
+equity peak; the worst drawdown ran 14 months (2025-05 to 2026-07). Months positive: 29 of
+60. Rank buckets: ranks 1-5 carry +0.25R, 6-10 +0.20R, 11-20 negative -- the relative-volume
+ordering is real information, not noise.
+
+**Kill criteria, pre-registered in §2, L3:**
+
+| Criterion | Result |
+|---|---|
+| Edge lives in one year | Pass -- five of six years positive, two flat |
+| Fewer than 300 trades | Pass -- 3,919 |
+| Neighbourhood mostly positive | Pass -- all 12 stop x top cells positive, decaying past 0.2 ATR |
+| **Dies at 2x costs** | **Fail** -- profit factor 1.00, CAGR -0.2% |
+
+**Verdict: the published rule does not pass gate 1 for this account.** The signal is real
+(rank structure, +0.4R at zero slippage, the paper's shape reproduced), but the whole edge
+sits inside one to two cents per share of slippage, and it is carried by about ten trades
+in five years. At $25k with no leverage that is a bet on catching the next ten runners
+without a halt, a bad fill or a missed morning. It is not something to put money behind.
+
+**Comparison row:** the free SPY swing baseline (five published mean-reversion rules,
+1993-2026, 0.03% per side) reproduces its source within a point: combined 10.3% CAGR, 72%
+win rate, 43% time in market, max DD -23.7%, 1,045 trades; buy-and-hold 8.9% with -56.5%.
+
+**What follows (agent decisions, standing veto):**
+
+1. **A2 Gap and Go on the same store** as the second candidate, once the news archive and
+   the per-ticker details (float, market cap) finish downloading -- its catalyst and float
+   pillars need exactly those. Same harness, same costs, same kill criteria.
+2. The **0.05 ATR ORB variant** is recorded as the best neighbour but is *not* promoted: it is
+   an in-sample pick, it keeps 88% of its profit in the ten best trades, and it fails the
+   same cost test at 2x.
+3. **One-second bars** for the selected symbol-days (09:30-11:00 ET) were pulled while the
+   plan was active, so the entry-bar stop question can be settled if ORB is ever revisited.
 
 ## 3. Reference numbers (from the 2026-09-22 research pass)
 
@@ -132,3 +193,4 @@ blog.traderspost.io paper-to-live guide.
 | 2026-09-22 | Plan authored; Phase K parked; this note is product NEXT. Decisions A and B open. | Operator + Claude Fable 5.1 |
 | 2026-09-22 | **Decision B = B1.** Operator bought Massive (formerly Polygon) Stocks Starter for one month; flat files `us_stocks_sip/minute_aggs_v1` + `day_aggs_v1` from 2021-10-01 download to `F:\Nova\data\massive` (~24 GB, unadjusted -- splits pulled via REST before cancelling). S3 pair lives in the desk `.env` as `MASSIVE_S3_*`. | Operator |
 | 2026-09-22 | **Decision A = A1** (5-minute ORB on stocks in play, long-only first), decided by the agent at the operator's request ("I just want to be profitable, I don't know") -- the only candidate with a replicated published backtest and a universe Nova's scanner already produces. A3 (SPY swing on free daily bars) runs alongside as the baseline; A2 (Gap and Go) follows on the same harness. Operator may veto. | Claude Fable 5.1 for the operator |
+| 2026-09-22 | **Gate 1 verdict for A1: not passed** (fails the 2x-cost kill test; profit carried by ~10 trades). Not promoted to paper. **Next candidate: A2 Gap and Go** on the same store once news + ticker details are in. Operator's definition of done unchanged: paper evidence, then their live test. | Claude Fable 5.1 for the operator |
