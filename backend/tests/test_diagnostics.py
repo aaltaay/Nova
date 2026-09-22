@@ -80,3 +80,29 @@ def test_the_bundle_is_plain_text_for_copy_paste():
     assert res.status_code == 200 and res.headers["content-type"].startswith("text/plain")
     assert "Nova desk diagnostics" in res.text and "## Process" in res.text
     assert gather_mod.gather()["schema_version"] >= 1
+
+
+def _gateway(last_error):
+    from diagnostics.collect_gateway import gateway_rows
+
+    rows = gateway_rows(
+        enabled=True,
+        session={"state": "ready", "usable": True, "transport_up": True, "reason": "ok", "generation": 1, "mode": "live"},
+        ports={"live_port": 4001, "paper_port": 4002, "live_reachable": True, "paper_reachable": False, "host": "127.0.0.1"},
+        ibc={"second_factor_pending": False, "launcher_present": True},
+        last_error=last_error,
+        attach={"attempts_in_window": 0},
+        heal={},
+    )
+    return _by_id(rows)["gateway_last_error"]
+
+
+def test_a_farm_ok_notice_is_not_reported_as_an_error():
+    row = _gateway({"code": 2158, "message": "Sec-def data farm connection is OK:secdefnj", "ts": 1790055399.0})
+    assert row["state"] == "ok" and "informational" in row["detail"]
+
+
+def test_a_real_ib_error_still_warns():
+    row = _gateway({"code": 1100, "message": "Connectivity between IB and TWS has been lost.", "ts": 1790055399.0})
+    assert row["state"] == "warn" and "1100" in row["detail"]
+

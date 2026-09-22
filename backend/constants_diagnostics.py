@@ -107,3 +107,7 @@ IBKR_ATTACH_HUMAN_STEP_REASONS = frozenset({
 IBKR_ATTACH_CAP_REASON = "attach_cap"
 # Attempts kept for /api/ibkr/status.attach.recent (newest last).
 IBKR_ATTACH_LEDGER_MAX = 20
+# IB farm-status notices: errorEvent codes that report a data farm connecting or
+# connected. They are the Gateway saying "OK", never an error to warn about.
+IBKR_INFORMATIONAL_NOTICE_CODES = frozenset({2104, 2106, 2107, 2108, 2119, 2158})
+
