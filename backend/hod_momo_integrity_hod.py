@@ -127,9 +127,12 @@ def evaluate_hod_integrity(snap: dict[str, Any]) -> dict[str, Any]:
             f"active_set empty while discovery universe={universe}",
         ))
     else:
+        # "uncovered" counts discovery names outside the active set; coverage
+        # below is the quoted share OF the active set -- two measures, named
+        # apart so 95% never reads against 11 of 51 (QA W27).
         detail = (
-            f"active={active_n}/{capacity} uncovered={uncovered_n} "
-            f"discovery={universe}"
+            f"active={active_n}/{capacity} discovery={universe} "
+            f"(not in the active set: {uncovered_n})"
         )
         if active_coverage is not None and float(active_coverage) < 100.0 and active_n > 0:
             cov = float(active_coverage)
@@ -142,7 +145,7 @@ def evaluate_hod_integrity(snap: dict[str, Any]) -> dict[str, Any]:
             checks.append(check(
                 "hod_active_set",
                 status,
-                f"{detail}; coverage={cov:.0f}% "
+                f"{detail}; quoted={cov:.0f}% of the active set "
                 f"(fail below {float(HOD_MOMO_INTEGRITY_ACTIVE_COVERAGE_FAIL_PCT):.0f}%; "
                 f"quote/eval age gates enforce SLO)",
             ))

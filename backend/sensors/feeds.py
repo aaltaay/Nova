@@ -99,6 +99,20 @@ def get_bars(
     return _normalize_bars(list(stored["bars"])), str(stored.get("source") or "bars_store")
 
 
+def bars_as_of(bars: list[dict[str, Any]]) -> float | None:
+    """Epoch seconds of the newest 1Min bar a reading was computed from.
+
+    QA W16 (2026-09-22): VWAP / MACD / EMA read "live" from a week-old bar set;
+    the reading now names how old its bars are so the board can say so.
+    """
+    if not bars:
+        return None
+    try:
+        return float(bars[-1]["t"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 def peek_avg_volume(symbol: str) -> float | None:
     try:
         from fundamentals import peek_cached

@@ -14,6 +14,7 @@ import hod_momo as _hod_momo
 import hod_momo_universe as _hod_uni
 from alpaca import ALPACA_DATA_URL as _DATA_URL, _alpaca_headers, _env
 from constants import (
+    SCANNER_RVOL_SOURCE_ALPACA,
     ASSETS_CACHE_TTL_SEC,
     HOD_MOMO_FOCUS_REFRESH_SEC,
     HOD_MOMO_UNIVERSE_INTERVAL_SEC,
@@ -99,6 +100,8 @@ def enrich_gappers(gappers: list[dict], news: dict[str, str]) -> list[dict]:
         avg_vol = state.avg_volume_cache.get(sym)
         vol = g["volume"]
         g["rel_volume"] = round(vol / avg_vol, 2) if avg_vol and avg_vol > 0 and vol > 0 else None
+        # The average is Alpaca IEX daily bars (avg_volume_cache): say so (QA C39).
+        g["rvol_source"] = SCANNER_RVOL_SOURCE_ALPACA if g["rel_volume"] is not None else None
         g["has_news"] = sym in news
         g["newest_headline_at"] = news.get(sym)
         fund = _fundamentals_cache.get(sym, {})

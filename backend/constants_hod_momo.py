@@ -337,3 +337,11 @@ HOD_MOMO_STRATEGY_DEFAULTS: dict[int, dict] = {
 
 # ── Desktop (Electron) local API ──────────────────────────────────────────────
 # Sidecar binds here; Electron UI always talks to this loopback address.
+
+# ── QA pass two (2026-09-22): Scanner / header / layout batch ────────────────
+# Alerts raised before QA C33's fix stored ``change_pct = snap.change_pct or
+# 0.0``, so a snapshot with no change read "CHG 0.0%". An exact 0.0 on an
+# alert created before this instant (2026-09-23 00:00 ET, when every desk runs
+# the fix) is that fill-in and is restored as unknown. Later alerts are read
+# as stored.
+HOD_MOMO_INVENTED_CHANGE_BEFORE_TS = 1_790_136_000

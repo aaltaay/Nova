@@ -211,6 +211,10 @@ def load_snapshot_for_date(cache_type: str, date: str) -> dict:
 
 # ── Normalisation (backward compat for old on-disk shapes) ───────────────────
 
+def _positive(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0
+
+
 def _normalize_gapper_row(row: dict) -> dict:
     """Ensure every gapper dict carries both the legacy and current field names.
 
@@ -221,9 +225,16 @@ def _normalize_gapper_row(row: dict) -> dict:
     """
     price = row.get("price") or row.get("current_price", 0)
     prev_close = row.get("prev_close") or row.get("previous_close", 0)
-    gap_pct = row.get("gap_percent", 0)
-    change_abs = (price - prev_close) if (price and prev_close) else 0
-    change_pct = gap_pct  # for gappers change == gap
+    if _positive(price) and _positive(prev_close):
+        # The change is the price against the prior close. It is NOT the gap:
+        # an after-hours row restored here read "-16.71%" over "+$0.44" when
+        # its gap was copied into its change (QA C36, 2026-09-22).
+        change_abs = price - prev_close
+        change_pct = change_abs / prev_close
+    else:
+        # Nothing to measure from: keep what the row says, never invent a 0.
+        change_abs = row.get("change_abs")
+        change_pct = row.get("change_pct")
     return {
         **row,
         "price": price,
