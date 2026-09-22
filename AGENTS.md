@@ -441,10 +441,14 @@ paper Gateway (4002) is legacy and never the meaning of the Paper venue.
 `GET /api/practice/account?venue=paper|sim` and `POST /api/practice/reset`
 carry the account (`account_id` `NOVA-PAPER` / `NOVA-SIM`, `starting_cash`,
 `cash`, `buying_power`, `net_liquidation`, `gross_position_value`,
-`realized_pnl`, `unrealized_pnl`, `day_pnl`, `day_started_et`,
+`realized_pnl` (lifetime, since the ledger opened), `unrealized_pnl`, `day_pnl`,
+`realized_today` (net of fees, since the 04:00 ET practice-day boundary), `day_started_et`,
 `commissions_today`, `positions[]`, `working[]`, `fills_today`,
 `schema_version`, `updated_at`; Sim adds `replay_key` -- the ledger's replay binding as a list `[source, symbol, date, start?, end?]`, e.g. `["historical", "GDC", "2026-09-21", "09:15", "11:30"]` or `["capture", "GRML", "2026-09-21"]`, `null` with nothing loaded; never a string a client may call string methods on); `/api/ibkr/account`
-and `/api/ibkr/positions` answer from it on the practice venues;
+and `/api/ibkr/positions` answer from it on the practice venues, where the
+summary's `RealizedPnL` is **today's** realized (IBKR's own daily meaning) and
+`DayPnL` is the ledger's day P&L -- the figure the bot breakers compare with
+the day lock there, with no commission subtracted twice (QA W2);
 `/api/ibkr/status` adds `venue` and reports `account_id` `NOVA-PAPER` /
 `NOVA-SIM` there. A filled practice row carries `fill_estimated: true` and
 `fill_basis: "quote" | "last_print" | "print_cross" | "stop_trigger" |
@@ -816,6 +820,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-22 | Practice day P&L for the breakers (QA W2, W3): the practice `/api/ibkr/account` summary's `RealizedPnL` is today's realized (IBKR's daily meaning, was lifetime since reset) and it carries `DayPnL`; `bot/day_pnl` compares `DayPnL` with the day lock on practice venues without subtracting commissions again, so a ledger down $50 since its reset can no longer trip the soft breaker at the first poll of a new day. `/api/practice/account` adds `realized_today`; the header's Day's Realized and its hover use it. §3 amended. | User Directive + Claude Opus 5 |
 | 2026-09-22 | The ticket's Flatten is a protective flatten: `POST /api/ibkr/order` `intent: "flatten"` is checked against the venue's own position and sent as source `flatten` (never clamped by the one-share gate), refused `FLATTEN_NOT_A_CLOSE` otherwise (QA R32). A practice order that fills inside the send frees its commitment at once, so KILL / flatten / bot sells no longer leave shares "already sent" (R31); the flatten partial-close guard reads the sent size from the execution record (R33). §3 amended. | User Directive + Claude Opus 5 |
 | 2026-09-22 | QA batch -- Scanner / HOD Momo / desk honesty: REST and `/ws/scanner` share one row pipeline (`scanner_surface`); rows carry `rvol_source`; `GET /api/scan/envelope` keeps a persistent-authoritative desk's mode / health / feed_error current; socket frames never carry a bare NaN; HOD alert ids come from the raise time, `change_pct` may be null, `last_enriched` is epoch seconds; integration details are ASCII. The desk gates every scanner row through one shape check, names failed routes, and states absences instead of inventing values. §3 amended. | User Directive + Claude Opus 5 |
 | 2026-09-22 | QA batch fix/qa-sim-replay (Sim venue, replay, recording, practice ticket): replay status adds `replay_loading` (`replay_ok: null` while a capture loads); `POST /api/sim/replay` answers the clock envelope; Sim clock payloads add `replay_quote` (a capture's market at the playhead, `covered: false` in a gap); capture reads never cross a gap and refuse practice orders there; recorded quote rows load; odd lots never fill; SIM1 rows unusable; print-less failed sessions unusable; listing counts / segments / spans include the running segment and data written past the last segment; `missing_sec` excludes operator stops; the restart finalizer stops at the last write; `/api/capture` `errors` and `/api/ibkr/status` `capture_errors` per symbol; complete candle jobs cover their window; a dead download reads `interrupted`; practice rows carry venue time; a paused forward scrub fills. §3 amended. | User Directive + Claude Opus 5 |

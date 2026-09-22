@@ -61,7 +61,8 @@ export function figuresFromPractice(account: PracticeAccount): HeaderAccountFigu
   return {
     source: 'practice',
     openPnl: finite(account.unrealized_pnl),
-    realizedPnl: finite(account.realized_pnl),
+    // Today's realized (QA W3): realized_pnl is the ledger's lifetime figure.
+    realizedPnl: finite(account.realized_today),
     dayPnl: dayPnlOf(account),
     netLiquidation: finite(account.net_liquidation),
     cash: finite(account.cash),
