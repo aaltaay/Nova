@@ -207,6 +207,8 @@ describe('no transport outside the gate', () => {
     ];
     for (const file of sourceFiles(SRC)) {
       if (file.endsWith(join('sample_data', 'sampleNetworkGate.ts'))) continue;
+      // Test-only setup that walls tests off from the live backend; not app code.
+      if (file.includes(join('src', 'testSetup'))) continue;
       const text = readFileSync(file, 'utf8');
       if (patterns.some((re) => re.test(text))) offenders.push(relative(SRC, file));
     }
