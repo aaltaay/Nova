@@ -198,7 +198,12 @@ async def execute(
                 sent_qty=sent_qty,
                 requested_price=requested_price,
                 measurement=measurement,
-                forced_one_share=bool(IBKR_FORCE_ONE_SHARE),
+                # Truthful stamp: only when the gate actually changed the size
+                # (a protective order or an order already at 1 share is not clamped).
+                forced_one_share=bool(IBKR_FORCE_ONE_SHARE)
+                and requested_qty is not None
+                and sent_qty is not None
+                and sent_qty != requested_qty,
             ),
         )
         timings.persisted_ns = time.perf_counter_ns()

@@ -30,6 +30,8 @@ IBKR_ACCOUNT_CLASS_MARGIN_MIN_BP_RATIO = 1.5
 # When True, ADR 007 `execution.service.execute` rewrites every place/bracket
 # qty (and shares) to IBKR_FORCE_ONE_SHARE_QTY before validate/send — UI/hotkeys
 # may still show 100/500/1000; the broker only ever receives 1 share.
+# Protective sources (flatten / kill / cancel_working) are never clamped: they
+# close the held position, and a clamped KILL left N-1 shares (QA R6).
 #
 # WHY: paper/live testing safety so a fat-finger preset cannot size a real send.
 # NOT A BUG: do not "fix" by deleting the clamp without flipping this off.
