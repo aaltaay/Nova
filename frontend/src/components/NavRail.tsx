@@ -88,7 +88,8 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
   // Operator choice wins; otherwise the chrome follows the view (icons on the
   // Desk so the board gets the width, tree open on the Scanner).
   const collapsed = prefs.collapsed ?? navRailCollapsedDefault(page, traderActive);
-  const folded = prefs.scannerFolded ?? !scannerActive;
+  // Operator ask, 2026-09-22: the Scanner tree is open on every view until folded by hand.
+  const folded = prefs.scannerFolded ?? false;
 
   const persist = useCallback((next: NavRailPrefs) => {
     setPrefs(next);

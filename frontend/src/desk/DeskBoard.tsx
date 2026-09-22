@@ -1,6 +1,6 @@
 /**
  * The Desk board: the Scanner condensed to one column beside the Trader's
- * workspace. Header = list picker (any registry tab module) + Open on Scanner;
+ * workspace. Header = list picker (any registry tab module);
  * one headline line for the selected row; the rows through the shared scanner
  * table shell with an explicit compact column set (issue #276 lock); footer =
  * `N of M · board freezes at the open` and the dots legend.
@@ -18,8 +18,6 @@ import {
   DESK_BOARD_FREEZE_LISTS,
   DESK_BOARD_FREEZE_NOTE,
   DESK_BOARD_NO_FEED,
-  DESK_BOARD_OPEN_SCANNER,
-  DESK_BOARD_OPEN_SCANNER_TITLE,
   DESK_BOARD_PICK_ARIA,
   DESK_BOARD_PICK_TITLE,
   DESK_HEADLINE_NONE,
@@ -58,12 +56,11 @@ export interface DeskBoardProps {
   onPopOut: (symbol: string) => void;
   onRecord: (symbol: string, start: boolean) => void;
   onAllowlist: (symbol: string, add: boolean) => void;
-  onOpenScanner: (list: string) => void;
 }
 
 export function DeskBoard({
   feed, list, onListChange, modules, selectedSymbol, recordingSymbols, isAllowed, liveTabs,
-  filterRows, onOpen, onPopOut, onRecord, onAllowlist, onOpenScanner,
+  filterRows, onOpen, onPopOut, onRecord, onAllowlist,
 }: DeskBoardProps) {
   const options = useMemo(() => modules ?? listTabModules(), [modules]);
   const module = options.find(m => m.id === list) ?? options[0];
@@ -94,15 +91,6 @@ export function DeskBoard({
             {options.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
           </select>
         </label>
-        <button
-          type="button"
-          className="desk-board__link"
-          title={DESK_BOARD_OPEN_SCANNER_TITLE}
-          data-testid="desk-board-open-scanner"
-          onClick={() => onOpenScanner(module?.id ?? list)}
-        >
-          {DESK_BOARD_OPEN_SCANNER}
-        </button>
       </header>
 
       <div className="desk-board__headline" data-testid="desk-board-headline">

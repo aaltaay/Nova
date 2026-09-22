@@ -24,7 +24,6 @@ import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { useLiveScannerFeedOptional } from '../scanner/ScannerDataContext';
 import { useSettingsOptional } from '../settings/SettingsContext';
 import { TRADER_DRAFT_SYMBOL } from '../stock_view/traderTabsState';
-import { requestScannerTab } from '../workspace/navRailStore';
 import { DEFAULT_ACTIVE_TAB, isTabModuleId, listTabModules } from '../workspace/registry';
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
 import { useWorkspace } from '../workspace/WorkspaceContext';
@@ -97,10 +96,6 @@ function LiveDesk() {
   const onAllowlist = useCallback((symbol: string, addIt: boolean) => {
     void (addIt ? add(symbol) : remove(symbol));
   }, [add, remove]);
-  const onOpenScanner = useCallback((tab: string) => {
-    if (isTabModuleId(tab)) requestScannerTab(tab);
-  }, []);
-
   return (
     <div className="desk-page" data-testid="desk-page">
       {feed && <ScannerBarBridge activeTab={l1Tab} scanner={feed} />}
@@ -120,7 +115,6 @@ function LiveDesk() {
           onPopOut={openStockView}
           onRecord={onRecord}
           onAllowlist={onAllowlist}
-          onOpenScanner={onOpenScanner}
         />
       </div>
       {traderTabs.length === 0 && (

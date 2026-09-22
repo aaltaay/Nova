@@ -53,7 +53,6 @@ function baseProps(overrides: Partial<DeskBoardProps> = {}): DeskBoardProps {
     onPopOut: vi.fn(),
     onRecord: vi.fn(),
     onAllowlist: vi.fn(),
-    onOpenScanner: vi.fn(),
     ...overrides,
   };
 }
@@ -176,8 +175,6 @@ describe('DeskBoard', () => {
     expect(screen.getByTestId('desk-board-absent').textContent).toMatch(/HOD Momo is not mirrored on the Desk yet/);
     view.rerender(<DeskBoard {...props} list="hod_momo" feed={null} />);
     expect(screen.getByTestId('desk-board-absent').textContent).toBe('No scanner feed in this window');
-    fireEvent.click(screen.getByTestId('desk-board-open-scanner'));
-    expect(props.onOpenScanner).toHaveBeenCalledWith('hod_momo');
   });
 
   it('hover actions call the capture and allowlist commands without opening the row', () => {

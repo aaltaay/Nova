@@ -19,8 +19,6 @@ export const DESK_PAGE_TITLE = 'Desk';
 export const DESK_BOARD_ARIA = 'Desk board';
 export const DESK_BOARD_PICK_ARIA = 'Pick the scanner list the board shows';
 export const DESK_BOARD_PICK_TITLE = 'Board list -- any Scanner list, same rows, condensed';
-export const DESK_BOARD_OPEN_SCANNER = 'Open on Scanner';
-export const DESK_BOARD_OPEN_SCANNER_TITLE = 'Open this list on the Scanner view';
 export const DESK_BOARD_NO_FEED = 'No scanner feed in this window';
 export const deskBoardNotMirrored = (title: string): string =>
   `${title} is not mirrored on the Desk yet -- open it on the Scanner`;

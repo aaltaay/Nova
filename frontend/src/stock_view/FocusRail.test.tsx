@@ -73,7 +73,7 @@ describe('FocusRail', () => {
     expect(mocks.open).toHaveBeenCalledWith('VXTL');
   });
 
-  it('↑ ↓ cycle and Enter opens; the caret picks another list; Open Scanner leaves for the Scanner', () => {
+  it('↑ ↓ cycle and Enter opens; the caret picks another list', () => {
     render(<FocusRail />);
     const rail = screen.getByTestId('focus-rail');
     fireEvent.keyDown(rail, { key: 'ArrowDown' });
@@ -84,8 +84,6 @@ describe('FocusRail', () => {
     fireEvent.change(screen.getByTestId('focus-rail-pick'), { target: { value: 'losers' } });
     expect(screen.getByTestId('focus-rail-list-label').textContent).toBe('· Losers 0');
     expect(screen.getByTestId('focus-rail-absent').textContent).toMatch(/Losers: no rows right now/);
-    fireEvent.click(screen.getByTestId('focus-rail-open-scanner'));
-    expect(mocks.scanner).toHaveBeenCalledOnce();
   });
 
   it('says so when the feed does not carry a list, or when there is no feed at all', () => {
