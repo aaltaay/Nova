@@ -10,7 +10,7 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 
 ## Current position
 
-- **Product NEXT:** **Phase L -- strategy proof (bot trading plan)**, `[~]` L1 data complete; A1 (ORB), A2 (Gap and Go) and A4 (large-cap mean reversion) all failed gate 1 -- none promoted; A4b mega-cap cell is the first cost-robust cell, in sample. Next candidate A5: the SPY swing rules through the kill tests, then a daily-bar bot pack for paper. Plan, results and done-criteria in [[Bot-Trading-Plan]].
+- **Product NEXT:** **Phase L -- strategy proof (bot trading plan)**, `[~]` small-cap track (operator direction 2026-09-22 evening): three candidates failed gate 1 on one honest harness; the ORB's signal is real but its edge sits inside the costs, so the next work is fills and costs on small caps -- S1 ORB on one-second bars, S2 the ORB bot pack on Paper to measure real slippage, S3 halt-resume and VWAP-reclaim rules. A5 (SPY) parked unrun. Plan, results and done-criteria in [[Bot-Trading-Plan]].
 - **Phase K (short entry):** `[~]` **PARKED** 2026-09-22 by operator direction -- K0-K2/K4 code stays shipped; K3 paper days are stale (they name the legacy paper Gateway, ADR 020) and are not a next action.
 - **`auto_live`:** **NO-GO** -- rejected in `backend/nova_os/control_mode.py`. Do not enable or implement.
 - **Phase B (paper shadow ops):** **WAIVED** by user 2026-07-28 (0 evidence rows; not `[x]`). Do not block work on ≥5 shadow days.
@@ -23,7 +23,7 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 
 ## Exact next action (human)
 
-1. **Phase L2 fourth candidate -- A5 SPY swing rules through gate 1's kill tests** (doubled costs, per-year sign count, ten-trade concentration, the 2021-2026 window alone; §2e of `Bot-Trading-Plan.md`), with A4b's 30-year out-of-sample check beside it; done when both tables are in the plan. If A5 passes, the paper stage needs a daily-bar bot pack (15:55 ET signal, one limit order at the close), which Nova's bot does not have yet.
+1. **Phase L2 small-cap track (§2e of `Bot-Trading-Plan.md`):** S1 -- replay the ORB entry window on the one-second bars already in `store/seconds.duckdb` and report the pre-planned splits (rank 1-5 vs 6-10, $2-10 vs $10+, cost ladder); S3 -- run the pre-registered halt-resume and VWAP-reclaim rules on the same store; then S2 -- build the ORB bot pack and run it on Paper, where the measured slippage per share is the go/no-go (at or under $0.015 continues, over $0.02 stops). Done when the S1 and S3 tables are in the plan and the pack PR is open.
 2. **Reliability WS1:** configure a Discord/Telegram channel in Settings; run `.\scripts\Install-NovaDailyTask.ps1` once; leave the PC on overnight (wake timers). The first 03:55 ET line in `backend/logs/morning-check.log` closes the Jul 30 PROBLEM_LOG entry.
 3. **Optional Phase C remainder:** Cloudflare Bucket Lock + R2 token rotation + cold `walk_day`.
 4. **Hard ban:** no `auto_live`. Any future live short still needs K3 sign-off **plus** `IBKR_LIVE_TRADING_CONFIRMED` on top of `IBKR_SHORT_ENABLED`; parking K changes none of the gates.
@@ -100,7 +100,7 @@ L is promoted above (strategy proof). Still parked: conversational scans, Holly-
 
 ## Crash or blocker
 
-- **Phase L:** nothing blocked; three candidates failed their own kill tests, which is the process working. A5 needs only the harness and free daily SPY bars; a paper stage would need a daily-bar bot pack.
+- **Phase L:** nothing blocked; small-cap track only (operator). S1 and S3 need the store already on F:; S2 needs a bot pack PR, then Paper days.
 - **Phase K:** parked; K3 is stale against ADR 020 (see the Phase K entry).
 - **Phase B:** WAIVED (2026-07-28) -- not a blocker.
 - **Phase C remainder:** needs Cloudflare console work + a fresh session compact/walk (optional).
@@ -113,6 +113,7 @@ Newest first. Append here; do not rewrite prior rows. Rows before 2026-07-28 are
 
 | Date | What | Commit |
 |------|------|--------|
+| 2026-09-22 | Operator direction: the bots are for small caps. A5 (SPY swing) parked unrun; the small-cap track of `Bot-Trading-Plan.md` §2e replaces it -- S1 ORB on one-second bars, S2 ORB bot pack on Paper to measure real slippage, S3 halt-resume and VWAP-reclaim pre-registered. `auto_live` NO-GO. | (this commit) |
 | 2026-09-22 | Gate 1 for A4 large-cap daily mean reversion (split-adjusted daily bars for every US stock, RSI2 < 10 above the 200-day, 5 names, 10-day hold): PF 1.02, 1.75% CAGR, 2024 carries it, PF 1.00 at 2x costs -- not promoted. A4b ($200M+ ADV mega-caps) is the first cell of any candidate to survive doubled costs (PF 1.17, 11% CAGR) but is in sample; recorded, not promoted. A5 SPY swing rules pre-registered as the fourth candidate; a paper stage would need a daily-bar bot pack. `auto_live` NO-GO. | (this commit) |
 | 2026-09-22 | Gate 1 for A2 Gap and Go, mechanical Five Pillars + pre-market-high break on the same store with the news archive as the catalyst pillar: PF 1.00 and 0.4% CAGR on 778 trades without the survivor-biased float pillar, fails three of four kill tests -- not promoted. Reference dump complete (dividends, details, news, short data, one-second bars), nothing refused; the Massive plan may be cancelled. A4 large-cap daily mean reversion pre-registered as the third candidate. `auto_live` NO-GO. | (this commit) |
 | 2026-09-22 | Phase L1 complete (five years of minute bars + reference on F:) and gate 1 run for A1: the published ORB rule reproduces the paper's shape but fails the pre-registered 2x-cost test and rests on ~10 trades -- not promoted to paper. Harness `research/orb/` (DuckDB + numpy, honest fills, IBKR costs). SPY swing baseline reproduced its source. Next candidate A2 Gap and Go. `auto_live` NO-GO. | (this commit) |
