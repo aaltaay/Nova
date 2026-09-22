@@ -238,6 +238,15 @@
   color: var(--text-primary, #e8ecf4);
 }
 
+/* Today (Live) ▾ leads the session line (moved off the global bar, 2026-09-22). */
+.scanner-board__session .scanner-board__history {
+  height: 22px;
+  padding: 0 0.4rem;
+  font-size: 11px;
+  line-height: 1;
+  border-radius: 4px;
+}
+
 .scanner-board__cd {
   margin-left: 0.35rem;
   font-size: 15px;

@@ -2,7 +2,7 @@
  * Header connection cluster -- Desk (API + Gateway), Paper/Live, and freshness.
  * One Desk chip opens the same checklist; do not show API and Gateway as twins.
  */
-import { Activity, ListOrdered, Monitor } from 'lucide-react';
+import { Monitor } from 'lucide-react';
 import './headerStatusCompact.css';
 import { useCallback, useState } from 'react';
 import { BackendStartButton } from './BackendStartButton';
@@ -10,12 +10,12 @@ import { BackendReloadButton } from './BackendReloadButton';
 import {
   DATA_FEED_LABELS,
   DISCOVERY_PROVIDER_DEFAULT,
-  HEADER_INTEGRATION_CHIP_LABELS,
-  HEADER_INTEGRATION_CHIP_ORDER,
+  GLOBAL_BAR_FEED_FALLBACK_TITLE,
+  globalBarLegacyFeedTitle,
 } from '../constants';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import type { IbkrMode } from '../ibkr/types';
-import type { HealthStatus, IntegrationChipStatus } from '../types/health';
+import type { HealthStatus } from '../types/health';
 import {
   formatScanAge,
 } from '../utils/formatScanAge';
@@ -26,11 +26,7 @@ import { RecordingChip } from '../capture/RecordingChip';
 import { StockViewMarketClock } from '../stock_view/StockViewMarketClock';
 import { HEADER_DESK_ROLE } from '../ibkr/gatewayUxConstants';
 import { openTradingPrerequisites } from '../ibkr/tradingPrereqUi';
-import {
-  SCANNER_HONESTY_CHIP_ROLE,
-  priceAgeChipText,
-  showPriceAgeChip,
-} from '../scanner/scannerHonesty';
+import { priceAgeChipText, showPriceAgeChip } from '../scanner/scannerHonesty';
 import {
   apiLabel,
   apiProcessOk,
@@ -39,10 +35,10 @@ import {
   deskConnectionLabel,
   deskGatewayView,
   healthLatencyLabel,
-  integrationTone,
   toneDot,
   type HeaderChipTone,
 } from './headerConnectionStatusModel';
+import { HeaderHonestyChip, HeaderIntegrationChips, HeaderPricesChip } from './HeaderStatusChips';
 
 interface Props {
   health: HealthStatus;
@@ -66,6 +62,12 @@ interface Props {
   onBackendStarted?: () => void;
   /** Opens a symbol tab; the REC chip uses it. Hosts without a desk pass nothing. */
   onOpenSymbol?: (symbol: string) => void;
+  /**
+   * Rendered inside the global bar's gear menu (redesign, 2026-09-22): the bar
+   * already shows the ET clock, the venue pills, the REC chips, Reload backend
+   * and Start API, so those stay out here and the chips keep their words.
+   */
+  embedded?: boolean;
 }
 
 export function HeaderConnectionStatus({
@@ -86,7 +88,9 @@ export function HeaderConnectionStatus({
   showScannerSource = true,
   onBackendStarted,
   onOpenSymbol,
+  embedded = false,
 }: Props) {
+  const compactClass = embedded ? '' : ' status-chip--compact';
   const ibkrStatusLive = useIbkrStatus();
   const marketDataDelayed = Boolean(ibkrStatusLive.market_data_delayed);
   const [gatewayLaunchHint, setGatewayLaunchHint] = useState<string | null>(null);
@@ -137,11 +141,6 @@ export function HeaderConnectionStatus({
     completedOrdersUnansweredSince: ibkrStatusLive.completed_orders_unanswered_since,
   });
 
-  const pricesTitle = lastPriceTs === 0
-    ? 'No IBKR L1 price_patch has arrived for the active scanner tab.'
-    : pricesStale
-      ? 'Last successful table price tick is late or skipped -- prices are not live right now.'
-      : 'Age of the last successful table price tick for the active scanner tab.';
   const deskValue = deskConnectionLabel({
     apiOk,
     connected: ibkrConnected,
@@ -171,7 +170,7 @@ export function HeaderConnectionStatus({
         <>
           <button
             type="button"
-            className={`status-chip status-chip--compact status-chip--action status-chip--${deskTone}${
+            className={`status-chip${compactClass} status-chip--action status-chip--${deskTone}${
               gatewayLaunchBusy ? ' status-chip--busy' : ''
             }`}
             title={`${HEADER_DESK_ROLE}: ${deskValue}${latencyLabel ? ` · ${latencyLabel}` : ''}\n\n${deskTitle}`}
@@ -201,7 +200,7 @@ export function HeaderConnectionStatus({
               {latencyLabel ? ` · ${latencyLabel}` : ''}
             </span>
           </button>
-          <StockViewMarketClock />
+          {!embedded && <StockViewMarketClock />}
           {gatewayLaunchHint && (
             <span
               className={`status-hint status-hint--gateway${
@@ -215,16 +214,18 @@ export function HeaderConnectionStatus({
                 : gatewayLaunchHint}
             </span>
           )}
-          <GatewayModeCapsule
-            mode={ibkrMode}
-            gatewayMode={ibkrGatewayMode ?? undefined}
-            accountKind={ibkrAccountKind ?? ibkrStatusLive.broker_account_kind ?? null}
-            intentionalMode={
-              ibkrIntentionalMode ?? ibkrStatusLive.intentional_gateway_mode ?? null
-            }
-            disconnectHint={ibkrStatusLive.disconnect_hint}
-            testId="header-gateway-mode-capsule"
-          />
+          {!embedded && (
+            <GatewayModeCapsule
+              mode={ibkrMode}
+              gatewayMode={ibkrGatewayMode ?? undefined}
+              accountKind={ibkrAccountKind ?? ibkrStatusLive.broker_account_kind ?? null}
+              intentionalMode={
+                ibkrIntentionalMode ?? ibkrStatusLive.intentional_gateway_mode ?? null
+              }
+              disconnectHint={ibkrStatusLive.disconnect_hint}
+              testId="header-gateway-mode-capsule"
+            />
+          )}
         </>
       )}
 
@@ -254,8 +255,8 @@ export function HeaderConnectionStatus({
           className={`status-chip status-chip--${feedFellBack ? 'warn' : 'ok'}`}
           title={
             feedFellBack
-              ? 'SIP feed was rejected; automatically fell back to IEX. Change in Settings if your plan supports SIP.'
-              : `Legacy Alpaca data feed: ${DATA_FEED_LABELS[activeFeed] || activeFeed.toUpperCase()} (not a product scanner source)`
+              ? GLOBAL_BAR_FEED_FALLBACK_TITLE
+              : globalBarLegacyFeedTitle(DATA_FEED_LABELS[activeFeed] || activeFeed.toUpperCase())
           }
           data-testid="status-chip-feed"
         >
@@ -268,53 +269,20 @@ export function HeaderConnectionStatus({
         </span>
       )}
 
-      <RecordingChip onOpenSymbol={onOpenSymbol} />
+      {!embedded && <RecordingChip onOpenSymbol={onOpenSymbol} />}
 
-      {HEADER_INTEGRATION_CHIP_ORDER.map((key) => {
-        const chip: IntegrationChipStatus | undefined = health.integrations?.[key];
-        if (!chip) return null;
-        const tone = integrationTone(chip.status);
-        const role = HEADER_INTEGRATION_CHIP_LABELS[key] || key;
-        return (
-          <span
-            key={key}
-            className={`status-chip status-chip--${tone}`}
-            title={chip.detail || `${role} integration status`}
-            data-testid={`status-chip-integration-${key}`}
-          >
-            <span className={`dot ${toneDot(tone)}`} />
-            <span className="status-chip__role">{role}</span>
-            <span className="status-chip__value">{chip.status}</span>
-          </span>
-        );
-      })}
+      <HeaderIntegrationChips health={health} />
 
-      {honestyText ? (
-        <span
-          className="status-chip status-chip--compact status-chip--warn"
-          title={`${SCANNER_HONESTY_CHIP_ROLE}: ${honestyText}`}
-          aria-label={`${SCANNER_HONESTY_CHIP_ROLE}: ${honestyText}`}
-          data-testid="status-chip-honesty"
-        >
-          <span className="dot loading" />
-          <ListOrdered className="status-chip__icon" aria-hidden="true" />
-          <span className="status-chip__role">{SCANNER_HONESTY_CHIP_ROLE}</span>
-          <span className="status-chip__value">{honestyText}</span>
-        </span>
-      ) : null}
+      {honestyText ? <HeaderHonestyChip text={honestyText} compactClass={compactClass} /> : null}
 
       {priceText != null && (
-        <span
-          className={`status-chip status-chip--compact status-chip--${priceTone}`}
-          aria-label={`Prices: ${priceText}`}
-          title={`Prices: ${priceText}\n\n${pricesTitle}`}
-          data-testid="status-chip-prices"
-        >
-          <span className={`dot ${lastPriceTs === 0 || pricesStale ? 'loading' : 'connected'}`} />
-          <Activity className="status-chip__icon" aria-hidden="true" />
-          <span className="status-chip__role">Prices</span>
-          <span className="status-chip__value">{priceText}</span>
-        </span>
+        <HeaderPricesChip
+          text={priceText}
+          tone={priceTone}
+          lastPriceTs={lastPriceTs}
+          pricesStale={pricesStale}
+          compactClass={compactClass}
+        />
       )}
 
       {health.flag && !apiOk && (
@@ -334,10 +302,10 @@ export function HeaderConnectionStatus({
       )}
       {/* Always show in GlobalAppBar (compact): reload picks up backend code /
           resets cached_health; Start API recovers API_DOWN only (not WEDGED). */}
-      {apiOk && canReloadLocalBackend() && (
+      {!embedded && apiOk && canReloadLocalBackend() && (
         <BackendReloadButton onReloaded={onBackendStarted} />
       )}
-      {(health.status === 'disconnected' || health.status === 'error') && (
+      {!embedded && (health.status === 'disconnected' || health.status === 'error') && (
         <BackendStartButton
           onStarted={onBackendStarted}
           flag={health.flag}

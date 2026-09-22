@@ -111,6 +111,11 @@ vi.mock('./openTradingTabNav', () => ({
   requestOpenTradingTab,
 }));
 
+vi.mock('../utils/startLocalApi', () => ({
+  canReloadLocalBackend: () => true,
+  startLocalApi: vi.fn(),
+}));
+
 function baseWorkspace(overrides: Partial<WorkspaceValue> = {}): WorkspaceValue {
   return {
     selectedSymbol: 'AAPL',
@@ -290,7 +295,7 @@ describe('GlobalAppBar', () => {
     expect(container.textContent).not.toMatch(/IBKR offline/);
   });
 
-  it('shows Paper | Live capsule when the scanner cluster is absent', () => {
+  it('shows the Paper | Live | Sim venue pills on every view, after the connection chip', () => {
     workspace = baseWorkspace({ ibkrMode: 'paper', ibkrGatewayMode: 'paper', ibkrAccountKind: 'paper' });
     renderBar();
     const capsule = container.querySelector('[data-testid="header-gateway-mode-capsule"]');
@@ -301,11 +306,12 @@ describe('GlobalAppBar', () => {
     expect(segs[1].textContent).toMatch(/Live/i);
     expect(segs[2].textContent).toMatch(/Sim/i);
     expect(segs[0].classList.contains('is-paper')).toBe(true);
+    expect(container.querySelectorAll('[data-testid="header-gateway-mode-capsule"]')).toHaveLength(1);
   });
 
   const scannerProps = {
     mode: 'closed' as const,
-    health: { status: 'ok', latency_ms: 1 },
+    health: { status: 'connected', latency_ms: 1 },
     activeFeed: 'ibkr' as const,
     feedFellBack: false,
     secondsAgo: 1,
@@ -315,20 +321,75 @@ describe('GlobalAppBar', () => {
     onLookup: () => {},
   };
 
-  it('keeps scanner controls + status in the single middle column (no spacer)', () => {
+  it('lays the row out to the mockup: brand · session · clock · connection · venue · REC | search | KILL · account · lock · gear', () => {
     act(() => {
       root.render(<GlobalAppBar scanner={scannerProps} />);
     });
-    const center = container.querySelector('[data-testid="global-bar-center"]');
-    expect(center).toBeTruthy();
-    expect(center!.querySelector('[data-testid="global-bar-scanner"]')).toBeTruthy();
-    expect(center!.querySelector('[data-testid="global-bar-status"]')).toBeTruthy();
-    expect(container.querySelector('[data-testid="global-bar-trader-slot"]')).toBeNull();
-    expect(container.querySelector('.global-app-bar__spacer')).toBeNull();
-    expect(container.textContent).toMatch(/Market Closed/);
+    const primary = container.querySelector('[data-testid="global-bar-primary"]') as HTMLElement;
+    const left = primary.querySelector('[data-testid="global-bar-left"]') as HTMLElement;
+    const center = primary.querySelector('[data-testid="global-bar-center"]') as HTMLElement;
+    const right = primary.querySelector('.global-app-bar__right') as HTMLElement;
+    expect(Array.from(primary.children)).toEqual([left, center, right]);
+
+    const leftKids = Array.from(left.children) as HTMLElement[];
+    expect(leftKids[0].classList.contains('global-app-bar__brand')).toBe(true);
+    expect(leftKids[0].textContent).toBe('Nova');
+    expect(leftKids[1].dataset.testid).toBe('global-bar-session');
+    expect(leftKids[1].textContent).toMatch(/^(PREMARKET|OPEN|AFTER HOURS|CLOSED)$/);
+    expect(leftKids[2].dataset.testid).toBe('header-market-clock');
+    expect(leftKids[2].textContent).toMatch(/\d{2}:\d{2}:\d{2} ET/);
+    expect(leftKids[3].dataset.testid).toBe('global-bar-connection');
+    expect(leftKids[4].querySelector('[data-testid="header-gateway-mode-capsule"]')).toBeTruthy();
+    // Nothing recording: no REC chip, and none of the old cluster either.
+    expect(left.querySelector('[data-testid="status-chip-recording"]')).toBeNull();
+    expect(container.querySelector('.mode-badge')).toBeNull();
+    expect(container.querySelector('[data-testid="global-bar-scanner"]')).toBeNull();
+    expect(container.querySelector('[data-testid="global-bar-status"]')).toBeNull();
+    expect(container.querySelector('.history-select')).toBeNull();
+    expect(container.querySelector('.theme-toggle-btn')).toBeNull();
+
+    // The scanner mode is a tooltip fact now, not a badge.
+    const conn = leftKids[3] as HTMLButtonElement;
+    expect(conn.textContent).toBe('IBKR live');
+    expect(conn.dataset.state).toBe('live');
+    expect(conn.title).toContain('Scanner mode: Market Closed');
+    expect(container.textContent).not.toMatch(/Market Closed/);
+
+    // Centre: the ticker search, no Look Up button.
+    const input = center.querySelector('[data-testid="global-bar-search-input"]') as HTMLInputElement;
+    expect(input.getAttribute('aria-label')).toBe('Look up symbol');
+    expect(center.querySelector('button')).toBeNull();
+
+    const rightKids = Array.from(right.children) as HTMLElement[];
+    expect(rightKids[0].dataset.testid).toBe('global-bar-emergency-kill');
+    expect(rightKids[0].textContent).toBe(GLOBAL_BAR_EMERGENCY_KILL_LABEL);
+    expect(rightKids[0].title).toBe(GLOBAL_BAR_EMERGENCY_KILL_TITLE);
+    for (const op of GLOBAL_BAR_EMERGENCY_KILL_OPS) {
+      expect(rightKids[0].title).toContain(op);
+    }
+    expect(rightKids[1].dataset.testid).toBe('global-bar-account');
+    expect(rightKids[2].dataset.testid).toBe('global-bar-trade-lock');
+    expect(rightKids[3].querySelector('[data-testid="global-bar-gear"]')).toBeTruthy();
+    expect(rightKids).toHaveLength(4);
   });
 
-  it('offers the Trader tab-strip slot instead of scanner controls while Trader is showing', async () => {
+  it('Enter in the ticker search opens the symbol in the Trader', () => {
+    renderBar();
+    const form = container.querySelector('[data-testid="global-bar-search"]') as HTMLFormElement;
+    const input = form.querySelector('input') as HTMLInputElement;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+    act(() => {
+      setter.call(input, ' grml ');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    act(() => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+    expect(openStockView).toHaveBeenCalledWith('GRML');
+    expect(input.value).toBe('GRML');
+  });
+
+  it('keeps the ticker search and Emergency KILL on the Trader view, with the tab row under Bot Autonomy', async () => {
     const { getGlobalBarTraderSlot, resetGlobalBarSlotsForTests } = await import('./globalBarSlots');
     resetGlobalBarSlotsForTests();
     workspace = baseWorkspace({
@@ -339,17 +400,84 @@ describe('GlobalAppBar', () => {
     act(() => {
       root.render(<GlobalAppBar scanner={scannerProps} />);
     });
-    const slot = container.querySelector('[data-testid="global-bar-trader-slot"]');
+    const header = container.querySelector('[data-testid="global-app-bar"]') as HTMLElement;
+    const primary = container.querySelector('[data-testid="global-bar-primary"]') as HTMLElement;
+    expect(primary.querySelector('[data-testid="global-bar-search-input"]')).toBeTruthy();
+    expect(primary.querySelector('[data-testid="global-bar-emergency-kill"]')).toBeTruthy();
+    expect(primary.querySelector('[data-testid="global-bar-connection"]')).toBeTruthy();
+    const slot = container.querySelector('[data-testid="global-bar-trader-slot"]') as HTMLElement;
     expect(slot).toBeTruthy();
     expect(getGlobalBarTraderSlot()).toBe(slot);
-    // Scanner-only controls leave; the status cluster stays so the clock/desk chips survive.
-    expect(container.querySelector('[data-testid="global-bar-scanner"]')).toBeNull();
-    expect(container.querySelector('[data-testid="global-bar-status"]')).toBeTruthy();
+    expect(primary.contains(slot)).toBe(false);
+    const botRow = container.querySelector('[data-testid="global-bar-bot"]') as HTMLElement;
+    const kids = Array.from(header.children);
+    expect(kids.indexOf(slot)).toBe(kids.indexOf(botRow) + 1);
     act(() => {
       root.unmount();
     });
     expect(getGlobalBarTraderSlot()).toBeNull();
     root = createRoot(container);
+  });
+
+  it('says SAMPLE DATA on the sample desk and opens the Gateway checklist on click', () => {
+    const opened: string[] = [];
+    const onOpen = () => opened.push('open');
+    window.addEventListener('nova-trading-prereq-open', onOpen);
+    act(() => {
+      root.render(<GlobalAppBar scanner={{ ...scannerProps, sampleDataActive: true }} />);
+    });
+    const conn = container.querySelector('[data-testid="global-bar-connection"]') as HTMLButtonElement;
+    expect(conn.textContent).toBe('SAMPLE DATA');
+    expect(conn.dataset.state).toBe('sample');
+    expect(conn.className).toContain('global-app-bar__conn--warn');
+    expect(conn.title).toContain('Nova Marketing Sample Data');
+    act(() => {
+      conn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    window.removeEventListener('nova-trading-prereq-open', onOpen);
+    expect(opened).toEqual(['open']);
+  });
+
+  it('says IBKR offline in red on a live route with the Gateway down', () => {
+    workspace = baseWorkspace({ ibkrConnected: false, ibkrMode: 'disconnected' });
+    account = baseAccount({ summary: null, orders: [] });
+    act(() => {
+      root.render(<GlobalAppBar scanner={{ ...scannerProps, ibkrConnected: false, ibkrMode: 'disconnected' }} />);
+    });
+    const conn = container.querySelector('[data-testid="global-bar-connection"]') as HTMLButtonElement;
+    expect(conn.textContent).toBe('IBKR offline');
+    expect(conn.className).toContain('global-app-bar__conn--bad');
+  });
+
+  it('moves Reload backend, Theme, Gateway & feed status and the sample door under the gear', () => {
+    const onSampleDataToggle = vi.fn();
+    act(() => {
+      root.render(<GlobalAppBar scanner={{ ...scannerProps, onSampleDataToggle }} />);
+    });
+    expect(container.querySelector('[data-testid="global-bar-gear-menu"]')).toBeNull();
+    const gear = container.querySelector('[data-testid="global-bar-gear"]') as HTMLButtonElement;
+    act(() => {
+      gear.click();
+    });
+    const menu = container.querySelector('[data-testid="global-bar-gear-menu"]') as HTMLElement;
+    expect(menu).toBeTruthy();
+    expect(menu.textContent).toContain('Reload backend');
+    expect(menu.querySelector('[data-testid="global-bar-theme-row"] .theme-toggle-btn')).toBeTruthy();
+    expect(menu.querySelector('[data-testid="global-bar-gateway-status"]')?.textContent).toBe('Gateway & feed status');
+    // The old status cluster is the details block -- words on, and none of what the row already shows.
+    const details = menu.querySelector('[data-testid="global-bar-gear-status"]') as HTMLElement;
+    expect(details.querySelector('[data-testid="status-chip-desk"]')).toBeTruthy();
+    expect(details.querySelector('[data-testid="status-chip-desk"]')?.className).not.toContain('status-chip--compact');
+    expect(details.querySelector('[data-testid="header-market-clock"]')).toBeNull();
+    expect(details.querySelector('[data-testid="header-gateway-mode-capsule"]')).toBeNull();
+    expect(details.querySelector('[data-testid="backend-reload-btn"]')).toBeNull();
+    const sample = menu.querySelector('[data-testid="global-bar-sample-data"]') as HTMLButtonElement;
+    expect(sample.textContent).toBe('Open sample data');
+    act(() => {
+      sample.click();
+    });
+    expect(onSampleDataToggle).toHaveBeenCalledWith(true);
+    expect(container.querySelector('[data-testid="global-bar-gear-menu"]')).toBeNull();
   });
 
   it('mounts the bot arm controls only on the Bots page; the Scanner gets the menu host alone', () => {
@@ -522,52 +650,6 @@ describe('GlobalAppBar', () => {
     expect(container.querySelector('[data-testid="global-bar-card-replay"]')?.textContent).toContain(
       'capture:AAPL:2026-09-19',
     );
-  });
-
-  it('places Emergency KILL immediately after Look Up with the four-op hover', () => {
-    act(() => {
-      root.render(<GlobalAppBar scanner={scannerProps} />);
-    });
-    const cluster = container.querySelector('[data-testid="global-bar-scanner"]') as HTMLElement;
-    expect(cluster).toBeTruthy();
-    const search = cluster.querySelector('.header-symbol-search') as HTMLElement;
-    const lookUp = search?.querySelector('.side-search-btn') as HTMLButtonElement;
-    const kill = cluster.querySelector(
-      '[data-testid="global-bar-emergency-kill"]',
-    ) as HTMLButtonElement;
-    expect(lookUp?.textContent).toBe('Look Up');
-    expect(kill).toBeTruthy();
-    expect(kill.textContent).toBe(GLOBAL_BAR_EMERGENCY_KILL_LABEL);
-    expect(kill.title).toBe(GLOBAL_BAR_EMERGENCY_KILL_TITLE);
-    for (const op of GLOBAL_BAR_EMERGENCY_KILL_OPS) {
-      expect(kill.title).toContain(op);
-    }
-    const kids = Array.from(cluster.children);
-    expect(kids.indexOf(kill)).toBe(kids.indexOf(search) + 1);
-  });
-
-  it('keeps Emergency KILL in the header when Trader hides Look Up', () => {
-    workspace = baseWorkspace({
-      traderTabs: ['AAPL'],
-      activeTraderSymbol: 'AAPL',
-      traderViewActive: true,
-    });
-    act(() => {
-      root.render(<GlobalAppBar scanner={scannerProps} />);
-    });
-    expect(container.querySelector('[data-testid="global-bar-scanner"]')).toBeNull();
-    const center = container.querySelector('[data-testid="global-bar-center"]') as HTMLElement;
-    const kill = center.querySelector(
-      '[data-testid="global-bar-emergency-kill"]',
-    ) as HTMLButtonElement;
-    expect(kill).toBeTruthy();
-    // KILL leads the center column; the status cluster follows it.
-    const kids = Array.from(center.children);
-    const status = center.querySelector('[data-testid="global-bar-status"]') as HTMLElement;
-    expect(kids.indexOf(kill)).toBe(0);
-    expect(kids.indexOf(status)).toBe(1);
-    // Symbol tabs moved out of the center column to their own row under Bot Autonomy.
-    expect(center.querySelector('[data-testid="global-bar-trader-slot"]')).toBeNull();
   });
 
   it('puts the Trader tab row under Bot Autonomy, outside the primary row', () => {

@@ -25,7 +25,9 @@ const EMPTY_HEALTH: HealthStatus = { status: 'loading', latency_ms: 0 };
 
 export function GlobalBarStatusBridge() {
   const { settings } = useSettings();
-  const { ibkrConnected, ibkrMode, ibkrGatewayMode, setSelectedSymbol } = useWorkspace();
+  // The bar's ticker search opens the symbol in the Trader (operator ask,
+  // 2026-09-22), not the side quote panel.
+  const { ibkrConnected, ibkrMode, ibkrGatewayMode, openStockView } = useWorkspace();
   const bar = useScannerBarProps();
   const [mode, setMode] = useState<GlobalAppBarScanner['mode']>('loading');
   const [health, setHealth] = useState<HealthStatus>(EMPTY_HEALTH);
@@ -116,7 +118,7 @@ export function GlobalBarStatusBridge() {
       ibkrMode,
       ibkrGatewayMode,
       onHistoryChange,
-      onLookup: setSelectedSymbol,
+      onLookup: openStockView,
       showScannerSource: true,
       discoveryProvider: settings.discoveryProvider,
       sampleDataActive: false,
@@ -135,7 +137,7 @@ export function GlobalBarStatusBridge() {
     ibkrGatewayMode,
     historyDate,
     historyDates,
-    setSelectedSymbol,
+    openStockView,
   ]);
 
   return null;

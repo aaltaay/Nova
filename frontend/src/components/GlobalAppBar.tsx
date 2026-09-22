@@ -1,50 +1,47 @@
 /**
- * Webull-style chrome shared by Scanner and Trader View (parent + pop-out).
- * Mounted once in AppShell so every live page inherits it automatically.
+ * The global bar (approved redesign, 2026-09-22), mounted once in AppShell so
+ * every live page inherits it. One row, left to right on every view:
  *
- * Primary row = brand, status, theme, account cluster (Day's / Working / TAV /
- * account pill -- GlobalBarAccountCluster), lock, Settings (icon). View
- * navigation (Desk / Trader / Scanner / Account / ...) is the nav rail's.
- * Bot row = BotArmControls + BotSymbolMenuHost (issue #230).
- * Trader tabs row = symbol strip under Bot Autonomy, above the chart.
- * Narrow widths hide low-value chips on the primary row
- * (global-app-bar-responsive.css); the bot row wraps/scrolls on its own.
+ *   wordmark · session chip · ET clock · connection chip · venue pills · REC
+ *   chips · [ticker search, centred] · Emergency KILL · Day's / Working / TAV
+ *   / account pill · padlock · gear
+ *
+ * Reload backend, the theme toggle, the full Gateway & feed status cluster and
+ * the sample-data door live under the gear (GlobalBarGearMenu); the Scanner's
+ * history-date picker moved to the board header's session line. View
+ * navigation is the nav rail's. Bot row = BotArmControls + BotSymbolMenuHost
+ * (issue #230); the Trader tab row sits under it, above the chart.
  */
-import {
-  GLOBAL_BAR_BRAND,
-  GLOBAL_BAR_SETTINGS_LABEL,
-  GLOBAL_BAR_SETTINGS_TITLE,
-} from '../constants';
+import { GLOBAL_BAR_BRAND } from '../constants';
+import { RecordingChip } from '../capture/RecordingChip';
+import { RecordingSignals } from '../capture/RecordingSignals';
+import { GlobalBarBotRow } from '../bot/GlobalBarBotRow';
 import { useClosedOrders } from '../closed_orders/useClosedOrders';
+import { GatewayModeCapsule } from '../ibkr/GatewayModeCapsule';
 import { useIbkrAccountContext } from '../ibkr/IbkrAccountContext';
 import { TradingSessionLockButton } from '../ibkr/TradingSessionLockButton';
 import { isSampleView } from '../sample_data/sampleNav';
-import { useSettingsOptional } from '../settings/SettingsContext';
+import { SimSessionHeader } from '../sim/SimSessionHeader';
+import { StockViewMarketClock } from '../stock_view/StockViewMarketClock';
 import { parseStockViewSymbol } from '../utils/stockViewNav';
 import { useWorkspace } from '../workspace/WorkspaceContext';
-import { GlobalBarAccountCluster } from './GlobalBarAccountCluster';
-import { resolveAccountChromeState } from './globalBarAccountChrome';
-import { NovaLogo } from './NovaLogo';
-import { GatewayModeCapsule } from '../ibkr/GatewayModeCapsule';
-import { setGlobalBarTraderSlot } from './globalBarSlots';
-import { HeaderConnectionStatus } from './HeaderConnectionStatus';
-import { RecordingSignals } from '../capture/RecordingSignals';
 import { EmergencyKillButton } from './EmergencyKillButton';
-import { GlobalBarBotRow } from '../bot/GlobalBarBotRow';
-import { SimSessionHeader } from '../sim/SimSessionHeader';
-import { GlobalBarScannerCluster } from './GlobalBarScannerCluster';
-import { ThemeToggle } from './ThemeToggle';
+import { GlobalBarAccountCluster } from './GlobalBarAccountCluster';
+import { GlobalBarConnectionChip } from './GlobalBarConnectionChip';
+import { GlobalBarGearMenu } from './GlobalBarGearMenu';
+import { GlobalBarSessionChip } from './GlobalBarSessionChip';
+import { GlobalBarTickerSearch } from './GlobalBarTickerSearch';
+import { resolveAccountChromeState } from './globalBarAccountChrome';
+import { setGlobalBarTraderSlot } from './globalBarSlots';
+import { NovaLogo } from './NovaLogo';
 import { useScannerBarProps } from './scannerBarStore';
-import {
-  SCANNER_MODE_LABELS,
-  type GlobalAppBarScanner,
-} from './globalAppBarScanner';
+import type { GlobalAppBarScanner } from './globalAppBarScanner';
 
 export type { GlobalAppBarScanner };
 
 export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarScanner }) {
   const liveScanner = useScannerBarProps();
-  const scanner = scannerProp ?? liveScanner ?? undefined;
+  const scanner = scannerProp ?? liveScanner ?? null;
   const {
     traderTabs,
     traderViewActive,
@@ -61,7 +58,6 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
   const { summary, orders, refresh, loading: accountLoading, error: accountError } =
     useIbkrAccountContext();
   const { orders: closedOrders } = useClosedOrders(ibkrConnected);
-  const settingsApi = useSettingsOptional();
 
   const traderActive = traderViewActive;
   const detachedTrader = traderTabs.length > 0 && parseStockViewSymbol() != null;
@@ -70,7 +66,10 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
     if (detachedTrader) closeTraderView();
     else showScannerView();
   };
-  const settingsOpen = settingsApi?.settings.showSettings ?? false;
+  // The host's lookup opens the symbol in its Trader (the live bridge publishes
+  // openStockView; the sample shell its own); with nothing published yet, the
+  // workspace's Trader is the door.
+  const lookup = scanner?.onLookup ?? openStockView;
 
   const accountChrome = resolveAccountChromeState({
     // The sample desk owns its own account snapshot (#357). WorkspaceProvider
@@ -87,60 +86,20 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
     <header className="global-app-bar" data-testid="global-app-bar">
       <RecordingSignals onOpenSymbol={openStockView} />
       <div className="global-app-bar__primary" data-testid="global-bar-primary">
-      <div className="global-app-bar__left">
-        <div className="global-app-bar__brand" aria-label={GLOBAL_BAR_BRAND}>
-          <NovaLogo />
-          <span className="global-app-bar__wordmark">{GLOBAL_BAR_BRAND}</span>
-        </div>
-      </div>
-
-      <div className="global-app-bar__center" data-testid="global-bar-center">
-        {!traderActive && scanner && <GlobalBarScannerCluster scanner={scanner} />}
-        {(traderActive || !scanner) && <EmergencyKillButton />}
-        {scanner && (
-          <div className="global-app-bar__status" data-testid="global-bar-status">
-            <span className={`mode-badge mode-${scanner.mode}`}>
-              {scanner.sampleDataActive ? 'Sample data' : SCANNER_MODE_LABELS[scanner.mode]}
-            </span>
-            <HeaderConnectionStatus
-              health={scanner.health}
-              discoveryProvider={scanner.discoveryProvider}
-              ibkrConnected={scanner.ibkrConnected}
-              ibkrMode={scanner.ibkrMode}
-              ibkrGatewayMode={scanner.ibkrGatewayMode}
-              ibkrAccountKind={ibkrAccountKind}
-              ibkrIntentionalMode={ibkrIntentionalMode}
-              activeFeed={scanner.activeFeed}
-              feedFellBack={scanner.feedFellBack}
-              secondsAgo={scanner.secondsAgo}
-              lastPriceTs={scanner.lastPriceTs}
-              pricesStale={scanner.pricesStale}
-              honestyText={scanner.honestyText}
-              historyDate={scanner.historyDate}
-              compact
-              showScannerSource={scanner.showScannerSource ?? true}
-              onBackendStarted={scanner.onBackendStarted}
-              onOpenSymbol={openStockView}
-            />
+        <div className="global-app-bar__left" data-testid="global-bar-left">
+          <div className="global-app-bar__brand" aria-label={GLOBAL_BAR_BRAND}>
+            <NovaLogo />
+            <span className="global-app-bar__wordmark">{GLOBAL_BAR_BRAND}</span>
           </div>
-        )}
-      </div>
-
-      <div className="global-app-bar__right">
-        <ThemeToggle />
-        <GlobalBarAccountCluster
-          accountChrome={accountChrome}
-          accountError={accountError}
-          summary={summary}
-          orders={orders}
-          closedOrders={closedOrders}
-          traderActive={traderActive}
-          closeTraderView={leaveTraderToScanner}
-          refresh={refresh}
-          venue={ibkrMode}
-        />
-
-        {!scanner && (
+          <GlobalBarSessionChip />
+          <StockViewMarketClock />
+          <GlobalBarConnectionChip
+            scanner={scanner}
+            ibkrConnected={Boolean(scanner?.ibkrConnected ?? ibkrConnected)}
+            ibkrMode={scanner?.ibkrMode ?? ibkrMode}
+            ibkrGatewayMode={scanner?.ibkrGatewayMode ?? ibkrGatewayMode}
+            ibkrAccountKind={ibkrAccountKind}
+          />
           <GatewayModeCapsule
             mode={ibkrMode}
             gatewayMode={ibkrGatewayMode ?? undefined}
@@ -149,24 +108,34 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
             disconnectHint={ibkrDisconnectHint}
             testId="header-gateway-mode-capsule"
           />
-        )}
+          <RecordingChip variant="bar" onOpenSymbol={openStockView} />
+        </div>
 
-        <TradingSessionLockButton />
+        <div className="global-app-bar__center" data-testid="global-bar-center">
+          <GlobalBarTickerSearch onLookup={lookup} />
+        </div>
 
-        {settingsApi && (
-          <button
-            type="button"
-            className={`global-app-bar__settings global-app-bar__icon-btn${settingsOpen ? ' is-active' : ''}`}
-            title={GLOBAL_BAR_SETTINGS_TITLE}
-            aria-label={GLOBAL_BAR_SETTINGS_LABEL}
-            aria-pressed={settingsOpen}
-            data-testid="global-bar-settings"
-            onClick={() => settingsApi.toggleSettings()}
-          >
-            <span aria-hidden="true">⚙</span>
-          </button>
-        )}
-      </div>
+        <div className="global-app-bar__right" data-testid="global-bar-right">
+          <EmergencyKillButton />
+          <GlobalBarAccountCluster
+            accountChrome={accountChrome}
+            accountError={accountError}
+            summary={summary}
+            orders={orders}
+            closedOrders={closedOrders}
+            traderActive={traderActive}
+            closeTraderView={leaveTraderToScanner}
+            refresh={refresh}
+            venue={ibkrMode}
+          />
+          <TradingSessionLockButton />
+          <GlobalBarGearMenu
+            scanner={scanner}
+            ibkrAccountKind={ibkrAccountKind}
+            ibkrIntentionalMode={ibkrIntentionalMode}
+            onOpenSymbol={openStockView}
+          />
+        </div>
       </div>
       <GlobalBarBotRow />
       {/* Host desk only — pop-out floats render tabs inline above the chart. */}
