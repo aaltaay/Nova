@@ -1,10 +1,14 @@
+/**
+ * Compact ticket fields (approved Trader redesign, 2026-09-21): Buy / Sell /
+ * Short and Limit / Market / Stop as segmented controls, the price with
+ * Bid / Mid / Ask, the quantity row, then Extended hours beside the
+ * `Cost · BP after` estimate. Same fields and test ids as before -- this is
+ * layout and density, not new order semantics.
+ */
 import {
   TICKER_TRADE_DEFAULT_ORDER_TYPE,
-  TICKER_TRADE_LABEL_LIMIT_PRICE,
   TICKER_TRADE_LABEL_ORDER_TYPE,
   TICKER_TRADE_LABEL_SIDE,
-  TICKER_TRADE_LABEL_STOP_PRICE,
-  TICKER_TRADE_LABEL_TRAIL_AMOUNT,
   TICKER_TRADE_LABEL_TRADING_HOURS,
 } from '../constants';
 import {
@@ -12,6 +16,18 @@ import {
   TICKER_TRADE_LABEL_SELL,
   TICKER_TRADE_LABEL_SHORT,
 } from '../constantGroups/shortability';
+import {
+  TICKET_BP_AFTER_LABEL,
+  TICKET_COST_LABEL,
+  TICKET_COST_TITLE,
+  TICKET_COST_UNKNOWN,
+  TICKET_MARKET_UNAVAILABLE,
+  TICKET_PRICE_LABEL,
+  TICKET_STOP_LABEL,
+  TICKET_TRAIL_LABEL,
+} from '../constantGroups/trader_chrome';
+import { formatMoney } from '../utils/formatMoney';
+import { ManualOrderPriceQuick } from './ManualOrderPriceQuick';
 import { ManualOrderQuantityRow } from './ManualOrderQuantityRow';
 import { ManualOrderStopControl } from './ManualOrderStopControl';
 import {
@@ -19,9 +35,12 @@ import {
   type ManualOrderType,
   type QuantityMode,
 } from './orderEntry';
+import type { TicketCostEstimate } from './ticketCost';
 import type { TicketSide } from './ticketSide';
 
 interface Props {
+  /** Symbol the Bid / Mid / Ask quick-set reads the book for. */
+  symbol?: string;
   ticketSide: TicketSide;
   allowShort: boolean;
   orderType: ManualOrderType;
@@ -36,6 +55,8 @@ interface Props {
   shortDisabledReason?: string | null;
   /** Set while the backend would refuse a MKT (MKT_OUTSIDE_RTH): Market greys out with this title. */
   marketDisabledReason?: string | null;
+  /** `Cost · BP after` estimate; omitted (undefined) hides the line. */
+  cost?: TicketCostEstimate | null;
   onTicketSideChange: (side: TicketSide) => void;
   onOrderTypeChange: (orderType: ManualOrderType) => void;
   onQuantityModeChange: (mode: QuantityMode) => void;
@@ -45,19 +66,27 @@ interface Props {
   onOutsideRthChange: (outsideRth: boolean) => void;
 }
 
-const PRIMARY_TYPES: readonly { value: ManualOrderType; label: string; title?: string }[] = [
-  { value: 'LMT', label: 'Limit', title: 'Limit order' },
+const PRIMARY_TYPES: readonly {
+  value: ManualOrderType;
+  label: string;
+  title: string;
+  testId: string;
+}[] = [
+  { value: 'LMT', label: 'Limit', title: 'Limit order', testId: 'manual-order-type-lmt' },
   {
     value: 'MKT',
     label: 'Market',
-    title:
-      TICKER_TRADE_DEFAULT_ORDER_TYPE === 'MKT'
-        ? 'Market (default)'
-        : 'Market order',
+    title: TICKER_TRADE_DEFAULT_ORDER_TYPE === 'MKT' ? 'Market (default)' : 'Market order',
+    testId: 'manual-order-type-mkt',
   },
 ];
 
+function money(value: number | null | undefined, decimals: number): string {
+  return value == null ? TICKET_COST_UNKNOWN : formatMoney(value, decimals);
+}
+
 export function ManualOrderFields({
+  symbol = '',
   ticketSide,
   allowShort,
   orderType,
@@ -70,6 +99,7 @@ export function ManualOrderFields({
   quantityLocked = false,
   shortDisabledReason = null,
   marketDisabledReason = null,
+  cost,
   onTicketSideChange,
   onOrderTypeChange,
   onQuantityModeChange,
@@ -82,7 +112,6 @@ export function ManualOrderFields({
 
   return (
     <>
-      <label className="manual-order-label">{TICKER_TRADE_LABEL_SIDE}</label>
       <div
         className={`manual-order-segment manual-order-side${allowShort ? ' manual-order-side--with-short' : ''}`}
         role="group"
@@ -125,38 +154,33 @@ export function ManualOrderFields({
         )}
       </div>
       {allowShort && shortBlocked && (
-        <p className="manual-order-hint" data-testid="manual-order-short-reason">
+        <p className="manual-order-hint mot-reason" data-testid="manual-order-short-reason">
           {shortDisabledReason}
         </p>
       )}
 
-      <label className="manual-order-label">{TICKER_TRADE_LABEL_ORDER_TYPE}</label>
       <div
         className="manual-order-segment manual-order-types"
         role="group"
         aria-label={TICKER_TRADE_LABEL_ORDER_TYPE}
       >
-        {PRIMARY_TYPES.map(item => {
-          const isDefault = item.value === TICKER_TRADE_DEFAULT_ORDER_TYPE;
+        {PRIMARY_TYPES.map((item) => {
           const isActive = orderType === item.value;
           const blocked = item.value === 'MKT' && Boolean(marketDisabledReason);
           return (
             <button
               key={item.value}
               type="button"
-              className={`${isActive ? 'is-active' : ''}${isDefault ? ' is-default' : ''}`}
+              className={isActive ? 'is-active' : ''}
               aria-pressed={isActive}
               title={blocked ? marketDisabledReason ?? undefined : item.title}
-              onClick={() => { if (!blocked) onOrderTypeChange(item.value); }}
+              onClick={() => {
+                if (!blocked) onOrderTypeChange(item.value);
+              }}
               disabled={disabled || blocked}
-              data-testid={item.value === 'MKT' ? 'manual-order-type-mkt' : undefined}
+              data-testid={item.testId}
             >
               {item.label}
-              {isDefault ? (
-                <span className="manual-order-default-tag" aria-hidden>
-                  Default
-                </span>
-              ) : null}
             </button>
           );
         })}
@@ -167,24 +191,19 @@ export function ManualOrderFields({
         />
       </div>
       {marketDisabledReason && (
-        <span className="manual-order-lock-note" data-testid="market-outside-rth-note">
-          {marketDisabledReason}
-        </span>
+        <p className="mot-reason" data-testid="manual-order-market-reason">
+          <b>{TICKET_MARKET_UNAVAILABLE}</b>
+          {' -- '}
+          <span className="manual-order-lock-note" data-testid="market-outside-rth-note">
+            {marketDisabledReason}
+          </span>
+        </p>
       )}
 
-      <ManualOrderQuantityRow
-        quantityMode={quantityMode}
-        quantityValue={quantityValue}
-        disabled={disabled}
-        quantityLocked={quantityLocked}
-        onQuantityModeChange={onQuantityModeChange}
-        onQuantityValueChange={onQuantityValueChange}
-      />
-
       {usesLimitPrice(orderType) && (
-        <>
-          <label className="manual-order-label" htmlFor="manual-order-limit">
-            {TICKER_TRADE_LABEL_LIMIT_PRICE}
+        <div className="mot-field mot-field--price">
+          <label className="mot-field__k" htmlFor="manual-order-limit">
+            {TICKET_PRICE_LABEL}
           </label>
           <input
             id="manual-order-limit"
@@ -193,16 +212,22 @@ export function ManualOrderFields({
             min="0"
             step="0.01"
             value={limitPrice}
-            onChange={event => onLimitPriceChange(event.target.value)}
+            onChange={(event) => onLimitPriceChange(event.target.value)}
             disabled={disabled}
           />
-        </>
+          <ManualOrderPriceQuick
+            symbol={symbol}
+            value={limitPrice}
+            disabled={disabled}
+            onPick={onLimitPriceChange}
+          />
+        </div>
       )}
 
       {(orderType === 'STP' || orderType === 'STP LMT') && (
-        <>
-          <label className="manual-order-label" htmlFor="manual-order-stop">
-            {TICKER_TRADE_LABEL_STOP_PRICE}
+        <div className="mot-field mot-field--price">
+          <label className="mot-field__k" htmlFor="manual-order-stop">
+            {TICKET_STOP_LABEL}
           </label>
           <input
             id="manual-order-stop"
@@ -211,16 +236,16 @@ export function ManualOrderFields({
             min="0"
             step="0.01"
             value={stopPrice}
-            onChange={event => onStopPriceChange(event.target.value)}
+            onChange={(event) => onStopPriceChange(event.target.value)}
             disabled={disabled}
           />
-        </>
+        </div>
       )}
 
       {orderType === 'TRAIL' && (
-        <>
-          <label className="manual-order-label" htmlFor="manual-order-trail">
-            {TICKER_TRADE_LABEL_TRAIL_AMOUNT}
+        <div className="mot-field mot-field--price">
+          <label className="mot-field__k" htmlFor="manual-order-trail">
+            {TICKET_TRAIL_LABEL}
           </label>
           <input
             id="manual-order-trail"
@@ -229,25 +254,45 @@ export function ManualOrderFields({
             min="0"
             step="0.01"
             value={stopPrice}
-            onChange={event => onStopPriceChange(event.target.value)}
+            onChange={(event) => onStopPriceChange(event.target.value)}
             disabled={disabled}
             data-testid="manual-order-trail"
           />
-        </>
+        </div>
       )}
 
-      <label className="manual-order-extended" htmlFor="manual-order-extended">
-        <input
-          id="manual-order-extended"
-          className="manual-order-extended-check"
-          type="checkbox"
-          checked={outsideRth}
-          onChange={event => onOutsideRthChange(event.target.checked)}
+      <div className="mot-field mot-field--qty">
+        <ManualOrderQuantityRow
+          quantityMode={quantityMode}
+          quantityValue={quantityValue}
           disabled={disabled}
-          data-testid="manual-order-extended"
+          quantityLocked={quantityLocked}
+          onQuantityModeChange={onQuantityModeChange}
+          onQuantityValueChange={onQuantityValueChange}
         />
-        {TICKER_TRADE_LABEL_TRADING_HOURS}
-      </label>
+      </div>
+
+      <div className="mot-row mot-row--foot">
+        <label className="manual-order-extended" htmlFor="manual-order-extended">
+          <input
+            id="manual-order-extended"
+            className="manual-order-extended-check"
+            type="checkbox"
+            checked={outsideRth}
+            onChange={(event) => onOutsideRthChange(event.target.checked)}
+            disabled={disabled}
+            data-testid="manual-order-extended"
+          />
+          {TICKER_TRADE_LABEL_TRADING_HOURS}
+        </label>
+        {cost !== undefined && (
+          <span className="mot-cost" data-testid="manual-order-cost" title={TICKET_COST_TITLE}>
+            {TICKET_COST_LABEL} <b>{money(cost?.cost, 2)}</b>
+            {' · '}
+            {TICKET_BP_AFTER_LABEL} <b>{money(cost?.buyingPowerAfter, 0)}</b>
+          </span>
+        )}
+      </div>
     </>
   );
 }

@@ -12,13 +12,20 @@ import {
   SHORTABILITY_SHORT_DISABLED,
   SHORTABILITY_STALE,
 } from '../constantGroups/shortability';
+import type { TradeDefaultTif } from '../constantGroups/trade_defaults';
 import { useTopOfBook } from '../hotkeys/TopOfBookContext';
+import {
+  readTradeDefaultsPrefs,
+  writeTradeDefaultsPrefs,
+} from '../settings/tradeDefaultsPrefs';
 import type { IbkrListingFlags } from '../types/ticker';
 import { applyTicketDefaults, seedPricesForSide } from './applyTicketDefaults';
 import { ManualOrderFields } from './ManualOrderFields';
 import { ManualOrderFooter } from './ManualOrderFooter';
+import { ManualOrderTicketHeader } from './ManualOrderTicketHeader';
 import { useMarketOrdersRefused } from './marketOutsideRth';
 import { ManualOrderLegsNote } from './ManualOrderLegsNote';
+import { estimateTicketCost } from './ticketCost';
 import {
   allowShortSide,
   clampTicketSide,
@@ -98,8 +105,16 @@ export function ManualOrderTicket({
   const [limitPrice, setLimitPrice] = useState(initial.limitPrice);
   const [stopPrice, setStopPrice] = useState(initial.stopPrice);
   const [outsideRth, setOutsideRth] = useState(initial.outsideRth);
+  // #91: TIF is a Settings > Trade default; the header's DAY | GTC writes the
+  // same pref, so the next order (built from the pref) carries what is shown.
+  const [tif, setTif] = useState<TradeDefaultTif>(() => readTradeDefaultsPrefs().tif);
   const [sessionUnlocked, setSessionUnlocked] = useState(readTicketSessionUnlocked);
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
+
+  function selectTif(next: TradeDefaultTif) {
+    writeTradeDefaultsPrefs({ ...readTradeDefaultsPrefs(), tif: next });
+    setTif(next);
+  }
 
   useEffect(() => {
     const sync = () => setSessionUnlocked(readTicketSessionUnlocked());
@@ -255,9 +270,39 @@ export function ManualOrderTicket({
     return ok;
   }
 
+  // The same sizing the Place path runs, priced at the order's own reference.
+  const cost = estimateTicketCost(
+    {
+      symbol,
+      side,
+      orderType,
+      quantityMode: displayQuantityMode,
+      quantityValue: displayQuantityValue,
+      limitPrice,
+      stopPrice,
+      outsideRth,
+      shortEntry,
+    },
+    {
+      marketReferencePrice: referencePrice,
+      buyingPower: summary?.BuyingPower ?? null,
+      positionQty: position?.qty ?? null,
+    },
+  );
+  const practice = mode === 'paper' || mode === 'sim';
+
   return (
     <form className="manual-order-ticket" onSubmit={submit}>
+      <ManualOrderTicketHeader
+        symbol={symbol}
+        mode={mode}
+        tif={tif}
+        disabled={submitting}
+        onTifChange={selectTif}
+      />
       <ManualOrderFields
+        symbol={symbol}
+        cost={cost}
         ticketSide={ticketSide}
         allowShort={allowShort}
         orderType={orderType}
@@ -283,6 +328,7 @@ export function ManualOrderTicket({
 
       <ManualOrderFooter
         isPaper={mode === 'paper'}
+        practice={practice}
         ticketSide={ticketSide}
         symbol={symbol}
         needsPinUnlock={needsPinUnlock}
