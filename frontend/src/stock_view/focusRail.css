@@ -1,0 +1,266 @@
+/* Focus list rail between the navigation rail and the Trader panes. */
+.focus-rail {
+  --focus-w: 220px;
+  flex: 0 0 var(--focus-w);
+  width: var(--focus-w);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin: 4px 0 4px 4px;
+  border: 1px solid var(--border-color, #2a2f3a);
+  border-radius: 6px;
+  background: var(--bg-secondary, #12151c);
+  color: var(--text-primary, #e5e7eb);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  outline: none;
+}
+
+.focus-rail:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--accent, #3b82f6);
+}
+
+.focus-rail--collapsed {
+  --focus-w: 24px;
+  align-items: stretch;
+  padding: 0;
+}
+
+.focus-rail__expand {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted, #6b7280);
+  cursor: pointer;
+}
+
+.focus-rail__expand:hover {
+  color: var(--text-primary, #e5e7eb);
+}
+
+.focus-rail__vertical {
+  writing-mode: vertical-rl;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.focus-rail__head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  flex: 0 0 30px;
+  padding: 0 4px 0 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.focus-rail__src {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  height: 22px;
+  padding-right: 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.focus-rail__src:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.focus-rail__title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-primary, #e5e7eb);
+}
+
+.focus-rail__list {
+  font-size: 11px;
+  color: var(--text-muted, #9ca3af);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The native select sits invisibly over the label so the caret is a real picker. */
+.focus-rail__pick {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.focus-rail__link {
+  margin-left: auto;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: var(--accent, #3b82f6);
+  font: inherit;
+  font-size: 10.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.focus-rail__link:hover {
+  text-decoration: underline;
+}
+
+.focus-rail__collapse {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 22px;
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted, #6b7280);
+  cursor: pointer;
+}
+
+.focus-rail__collapse:hover {
+  color: var(--text-primary, #e5e7eb);
+}
+
+.focus-rail__rows {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.focus-rail__absent {
+  margin: 0;
+  padding: 10px 8px;
+  color: var(--text-muted, #6b7280);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.focus-rail__row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 8px;
+  border-left: 2px solid transparent;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.focus-rail__row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.focus-rail__row.is-active {
+  background: var(--nova-raised, #2c2c2e);
+  border-left-color: var(--accent, #3b82f6);
+}
+
+.focus-rail__row.is-cursor {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #3b82f6) 60%, transparent);
+}
+
+.focus-rail__dots {
+  flex: 0 0 16px;
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.focus-rail__dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.focus-rail__dot--rec {
+  background: var(--rec, #ff3b30);
+}
+
+.focus-rail__dot--bot {
+  background: var(--accent, #3b82f6);
+}
+
+.focus-rail__dot--quiet {
+  background: transparent;
+  border: 1px solid var(--accent, #3b82f6);
+}
+
+.focus-rail__sym {
+  flex: 0 0 42px;
+  font-weight: 600;
+}
+
+.focus-rail__px {
+  flex: 0 0 40px;
+  text-align: right;
+}
+
+.focus-rail__gap {
+  flex: 0 0 44px;
+  text-align: right;
+  font-weight: 600;
+}
+
+.focus-rail__gap--up {
+  color: var(--green, #22c55e);
+}
+
+.focus-rail__gap--down {
+  color: var(--red, #ef4444);
+}
+
+.focus-rail__chip {
+  flex: 0 0 auto;
+  margin-left: auto;
+  max-width: 60px;
+  overflow: hidden;
+  height: 14px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--nova-raised, #3a3a3c);
+  color: var(--text-primary, #e5e7eb);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 14px;
+  text-transform: uppercase;
+}
+
+.focus-rail__chip--none {
+  background: transparent;
+  color: var(--text-muted, #6b7280);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 10px;
+}
+
+.focus-rail__foot {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-muted, #6b7280);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.focus-rail__foot b {
+  color: var(--text-primary, #e5e7eb);
+  font-weight: 600;
+}

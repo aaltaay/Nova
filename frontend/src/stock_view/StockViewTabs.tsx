@@ -24,6 +24,7 @@ import {
   takeForeignTraderTabDrop,
 } from '../workspace/traderDesk';
 import { SimSessionStrip } from '../sim/SimSessionStrip';
+import { FocusRail } from './FocusRail';
 import { StockViewTabStrip } from './StockViewTabStrip';
 import { TRADER_DRAFT_SYMBOL } from './traderTabsState';
 import './stockViewTabs.css';
@@ -139,6 +140,9 @@ export function StockViewTabs({ detached }: Props) {
         </div>
       )}
       {headerSlot && traderViewActive && !detached ? createPortal(tabStrip, headerSlot) : tabStrip}
+      <div className="sv-tabs-body">
+      {/* One Focus rail for the whole Trader view, not one per tab. */}
+      <FocusRail />
       <div className="sv-tabs-panes">
         {traderTabs.map(symbol => {
           if (symbol === TRADER_DRAFT_SYMBOL) {
@@ -189,6 +193,7 @@ export function StockViewTabs({ detached }: Props) {
             </div>
           );
         })}
+      </div>
       </div>
       {/* Keep parse helper referenced so detached detection stays honest in tests */}
       <span className="sv-tabs-detached-flag" data-detached={detached || parseStockViewSymbol() != null ? '1' : '0'} hidden />
