@@ -6,7 +6,7 @@ routine announcements, then dilution, then the positive classes strongest first.
 """
 from __future__ import annotations
 
-CATALYST_RULES_VERSION = "catalyst-rules-v4-2026-09-23"
+CATALYST_RULES_VERSION = "catalyst-rules-v5-2026-09-23"
 
 # Verdicts for one symbol-day.
 CATALYST_VERDICT_CATALYST = "catalyst"      # a real, company-specific positive catalyst
@@ -39,6 +39,11 @@ CATALYST_SUMMARY_CHARS = 600
 # Live desk: symbols per Alpaca request and how often a roster's catalysts are re-read.
 CATALYST_LIVE_BATCH = 50
 CATALYST_LIVE_TTL_SEC = 120.0
+# Scanner rows: how often the board's verdicts are recomputed from what the live reads hold (in memory).
+CATALYST_BOARD_INTERVAL_SEC = 15.0
+# The Trader's News panel (GET /api/catalysts/{symbol}): items listed, newest first; the payload's version.
+CATALYST_PANEL_MAX_ITEMS = 40
+CATALYST_PANEL_SCHEMA_VERSION = 1
 
 # -- noise ---------------------------------------------------------------------------------------
 CATALYST_LAW_FIRM_RE = (
@@ -77,7 +82,11 @@ CATALYST_MOVERS_RE = (
     r"slides|gains|drops|rall(y|ies))|deal dispatch|biotech pulse|^watching\b"
 )
 # Exchange halt notices: the halt is not the news (the news, if any, follows as its own item).
-CATALYST_HALT_RE = r"^trading halt|halt news pending|halted at \d|quotation resumption|luld pause|halted,? (pending|news)|news pending"
+CATALYST_HALT_RE = (
+    r"^trading halt|halt news pending|halted at \d|quotation resumption|luld pause|halted,? (pending|news)|news pending|"
+    # v5: Benzinga's circuit-breaker notices ("Digital World Acquisition Shares Halted On Circuit Breaker").
+    r"\bshares? (are )?halted\b|halted on circuit breaker|\bshares? (to )?resumes? trad(e|ing)\b"
+)
 # Analyst notes: not the company's own news.
 CATALYST_ANALYST_RE = (
     r"price target|initiates? coverage|(upgrades?|downgrades?)\b.{0,60}\b(to|from)\b|maintains (buy|hold|sell|"
@@ -128,16 +137,19 @@ CATALYST_REBRAND_RE = r"rebrand\w*|name change|chang\w+ (its )?(trading )?symbol
 CATALYST_OFFERING_RE = (
     r"(public|registered direct|underwritten|best[- ]efforts|follow-on|secondary)\s+offering|"
     r"private placement|pricing of|prices? .{0,60}offering|proposed offering|warrant (inducement|exercise)|"
-    r"at[- ]the[- ]market|\batm\b (program|offering|facility|agreement)|equity line|"
+    r"\bat[- ]the[- ]market|\batm\b (program|offering|facility|agreement)|equity line|"  # v5: not "wh-at the market"
     r"securities purchase agreement|shelf registration|convertible (notes?|preferred|debentures?)|"
     r"placement agent|underwriting agreement|announces? (an? |its )?offering|offering of [\d.,]+ ?(m|k|million)?\b|"
     r"shares and warrants|\bwarrants? to purchase"
 )
-CATALYST_OFFERING_ENDED_RE = r"terminat\w*.{0,40}(at[- ]the[- ]market|\batm\b|equity line|offering)"
+CATALYST_OFFERING_ENDED_RE = r"terminat\w*.{0,40}(\bat[- ]the[- ]market|\batm\b|equity line|offering)"
 CATALYST_DELISTING_RE = (
     r"delist|(nasdaq|nyse|listing|bid price|equity).{0,40}deficiency|deficiency (letter|notice)|"
     r"notice of non-?compliance|minimum bid price (notice|deficiency)|"
-    r"reverse (stock |share )?split|going concern|bankruptcy|chapter 11"
+    r"reverse (stock |share )?split|going concern|bankruptcy|chapter 11|"
+    # v5: a share consolidation is a reverse split by another name ("1-for-6 Share Consolidation"); 1-for-1 is not.
+    r"share consolidation|consolidation of (the company'?s |its )?(issued |outstanding )?(ordinary |common )?shares|"
+    r"\b1[- ]for[- ]([2-9]|\d{2,4})\b"
 )
 # -- positive, strongest first ------------------------------------------------------------------
 CATALYST_FDA_STRONG_RE = (
@@ -177,7 +189,10 @@ CATALYST_CONTRACT_STRONG_RE = (
 CATALYST_CONTRACT_WEAK_RE = (
     r"partner(s|ship)?\b|collaborat|memorandum of understanding|\bmou\b|letter of intent|\bloi\b|"
     r"strategic alliance|joint venture|integrat(es|ion) with|\bintegration\b|agreement with|pilot (program|deployment)|"
-    r"\bgrant\b|funding (from|to|award)|selected (for|to)|accepted into"
+    r"\bgrant\b|funding (from|to|award)|selected (for|to)|accepted into|"
+    # v5: a named customer win ("Adds Second OperatorOS Customer"), not "Won't Win This Important Customer".
+    r"\b(adds?|signs?|wins?|lands?|secures?|onboards?)\s+(its\s+)?(first|second|third|another|new|major|large|key|"
+    r"enterprise|largest|\d[\d,]*)\b.{0,40}\bcustomers?\b|\bcustomer wins?\b"
 )
 CATALYST_PRODUCT_RE = r"launch(es|ed)?\b|unveil|introduc(es|ed)|patent|commercial(ly)? (launch|availability)|expands? .{0,30}(into|to)"
 CATALYST_EARNINGS_STRONG_RE = (
@@ -195,7 +210,8 @@ CATALYST_EARNINGS_WEAK_RE = (
 )
 CATALYST_FINANCE_POSITIVE_RE = (
     r"buyback|(share|stock) repurchase|special (cash )?dividend|strategic investment|investment (from|by)|"
-    r"non-dilutive|debt (free|elimination|extinguish)|(ceo|director|insider|chairman).{0,40}(buys|purchase|"
+    r"non-dilutive|debt (free|elimination|extinguish)|eliminat\w*.{0,40}\bdebt\b|"
+    r"(pays? (off|down)|retir(es|ed|ing)|extinguish\w*).{0,40}\bdebt\b|(ceo|director|insider|chairman).{0,40}(buys|purchase|"
     r"acquires|accumulates)|regains?.{0,40}complian|uplist|approved (for|to) list|begin(s)? trading on"
 )
 CATALYST_THEME_RE = (

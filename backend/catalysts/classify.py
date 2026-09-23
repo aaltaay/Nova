@@ -61,6 +61,7 @@ from constants_catalysts import (
     CATALYST_STRONG,
     CATALYST_SUMMARY_CHARS,
     CATALYST_THEME_RE,
+    CATALYST_UNCLASSIFIED,
     CATALYST_VERDICT_CATALYST,
     CATALYST_VERDICT_NEGATIVE,
     CATALYST_VERDICT_NOISE,
@@ -69,7 +70,7 @@ from constants_catalysts import (
     CATALYST_VERDICT_ROUTINE,
     CATALYST_WEAK,
 )
-from news.junk import is_junk_headline
+from news.junk import is_junk_headline, is_movers_url
 
 
 def _rx(pattern: str) -> re.Pattern[str]:
@@ -81,6 +82,8 @@ _HALT, _ANALYST = _rx(CATALYST_HALT_RE), _rx(CATALYST_ANALYST_RE)
 _REBRAND, _REGAINED, _THEME = _rx(CATALYST_REBRAND_RE), _rx(CATALYST_REGAINED_RE), _rx(CATALYST_THEME_RE)
 _FLUFF, _SEC_COVER, _EARN_WEAK = _rx(CATALYST_FLUFF_RE), _rx(CATALYST_SEC_COVER_RE), _rx(CATALYST_EARNINGS_WEAK_RE)
 _OFFER, _OFFER_ENDED, _DELIST = _rx(CATALYST_OFFERING_RE), _rx(CATALYST_OFFERING_ENDED_RE), _rx(CATALYST_DELISTING_RE)
+# Categories that name no event: a movers-section article that lands on one of these stays a movers list.
+_UNPLACED = frozenset({CATALYST_UNCLASSIFIED, "theme_pivot"})
 # (category, strength, pattern), strongest first. The first match names the item.
 _POSITIVE = (
     ("fda_regulatory", CATALYST_STRONG, _rx(CATALYST_FDA_STRONG_RE)),
@@ -114,6 +117,18 @@ def classify_item(title: str | None, summary: str | None = None, *, source: str 
                   n_tickers: int | None = None, form: str | None = None, sec_items: str | None = None,
                   url: str = "") -> Label:
     """Label one article or filing. EDGAR items also read the opening of the filed release."""
+    label = _classify(title, summary, source=source, publisher=publisher, n_tickers=n_tickers, form=form,
+                      sec_items=sec_items)
+    if source != "edgar" and is_movers_url(url) and label.kind != CATALYST_KIND_NOISE and not (
+            label.kind in (CATALYST_KIND_CATALYST, CATALYST_KIND_NEGATIVE) and label.category not in _UNPLACED):
+        # Benzinga's movers section is mostly lists, halt notices and commentary, but it also carries real
+        # rewrites ("Surf Air Mobility Adds Second OperatorOS Customer"): its address alone no longer decides (v5).
+        return Label(CATALYST_KIND_NOISE, "movers_list")
+    return label
+
+
+def _classify(title: str | None, summary: str | None, *, source: str, publisher: str, n_tickers: int | None,
+              form: str | None, sec_items: str | None) -> Label:
     title = (title or "").strip()
     is_sec = source == "edgar"
     # An EDGAR title is "<form: items> | <release headline>"; without a release there is no headline,
@@ -127,7 +142,7 @@ def classify_item(title: str | None, summary: str | None = None, *, source: str 
             return Label(CATALYST_KIND_NOISE, "halt_notice")
         if _LAW.search(head):
             return Label(CATALYST_KIND_NOISE, "law_firm")
-        if is_junk_headline(head, url=url) or _MOVERS.search(head):
+        if is_junk_headline(head) or _MOVERS.search(head):
             return Label(CATALYST_KIND_NOISE, "movers_list")
         if _OPINION.search(head):
             return Label(CATALYST_KIND_NOISE, "opinion")

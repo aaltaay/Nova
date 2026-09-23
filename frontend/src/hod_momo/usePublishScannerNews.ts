@@ -6,9 +6,10 @@ import {
   setScannerNews,
   type ScannerNewsSource,
 } from '../components/scannerNewsStore';
-import { buildNewsBySymbol } from './newsBySymbol';
+import type { CatalystVerdict } from '../types/catalystVerdict';
+import { buildCatalystBySymbol, buildNewsBySymbol } from './newsBySymbol';
 
-type NewsRow = { symbol: string; newest_headline_at: string | null };
+type NewsRow = { symbol: string; newest_headline_at: string | null; catalyst?: CatalystVerdict | null };
 
 export function usePublishScannerNews(opts: {
   source: ScannerNewsSource;
@@ -35,15 +36,7 @@ export function usePublishScannerNews(opts: {
       setScannerNews(source, new Map());
       return;
     }
-    setScannerNews(
-      source,
-      buildNewsBySymbol([
-        ...gappers,
-        ...gainers,
-        ...losers,
-        ...afterhours,
-        ...catalysts,
-      ]),
-    );
+    const rows = [...gappers, ...gainers, ...losers, ...afterhours, ...catalysts];
+    setScannerNews(source, buildNewsBySymbol(rows), buildCatalystBySymbol(rows));
   }, [source, gappers, gainers, losers, afterhours, catalysts, clear]);
 }

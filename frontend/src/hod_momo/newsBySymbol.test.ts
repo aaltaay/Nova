@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildNewsBySymbol } from './newsBySymbol';
+import { buildCatalystBySymbol, buildNewsBySymbol } from './newsBySymbol';
 
 describe('buildNewsBySymbol', () => {
   it('returns empty map for empty input', () => {
@@ -24,5 +24,23 @@ describe('buildNewsBySymbol', () => {
       { symbol: 'SMTI', newest_headline_at: '2026-07-30T12:00:00Z' },
     ]);
     expect(map.get('SMTI')).toBe('2026-07-30T14:00:00Z');
+  });
+});
+
+describe('buildCatalystBySymbol', () => {
+  const verdict = {
+  verdict: 'catalyst', category: 'merger_acquisition', strength: 'weak', title: 'Acme to Acquire Widget Co',
+  source: 'prnewswire', published_ts: 1_790_000_000, url: null, negative_too: false, rules_version: 'v5',
+} as const;
+  it('keeps only rows that carry the field, and a read verdict beats an unread one', () => {
+    const map = buildCatalystBySymbol([
+      { symbol: 'acme', catalyst: null },
+      { symbol: 'ACME', catalyst: verdict },
+      { symbol: 'OLD' },
+      { symbol: 'NEW', catalyst: null },
+    ]);
+    expect(map.get('ACME')).toEqual(verdict);
+    expect(map.has('OLD')).toBe(false);
+    expect(map.has('NEW') && map.get('NEW')).toBe(null);
   });
 });

@@ -70,3 +70,25 @@ describe('formatting', () => {
     expect(catalystInitial('guidance')).toBe('G');
   });
 });
+
+describe('the chip from the catalyst verdict (ADR 024)', () => {
+  const verdict = {
+  verdict: 'catalyst', category: 'merger_acquisition', strength: 'weak', title: 'Acme to Acquire Widget Co',
+  source: 'prnewswire', published_ts: 1_790_000_000, url: null, negative_too: false, rules_version: 'v5',
+} as const;
+  it('says PR for a wire release and carries its headline', () => {
+    const ctx = tabContextFor('ACME', rows({ gainers: [row('ACME', { has_news: true, catalyst: verdict })] }));
+    expect(ctx.catalyst).toBe('PR');
+    expect(ctx.headline).toBe('Acme to Acquire Widget Co');
+  });
+  it('names bad news and gives a market wrap no chip', () => {
+    const split = { ...verdict, verdict: 'negative' as const, category: 'delisting_split', source: 'edgar',
+      title: '6-K | Acme Announces 1-for-6 Share Consolidation' };
+    const ctx = tabContextFor('ACME', rows({ gainers: [row('ACME', { catalyst: split })] }));
+    expect(ctx.catalyst).toBe('SPLIT');
+    expect(ctx.headline).toBe('Acme Announces 1-for-6 Share Consolidation');
+    const wrap = tabContextFor('ACME', rows({ gainers: [row('ACME', { has_news: true, catalyst: { ...verdict, verdict: 'noise_only' } })] }));
+    expect(wrap.catalyst).toBeNull();
+    expect(wrap.known).toBe(true);
+  });
+});

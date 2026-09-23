@@ -27,6 +27,12 @@ def _has_signal(text: str) -> bool:
     return any(key in text for key in _SIGNALS)
 
 
+def is_movers_url(url: str) -> bool:
+    """True for an article filed under a publisher's movers section (Benzinga ``/trading-ideas/movers/``)."""
+    url_l = (url or "").strip().lower()
+    return any(frag in url_l for frag in _URL_FRAGMENTS)
+
+
 def is_junk_headline(headline: str, url: str = "", source: str = "") -> bool:
     """True for movers listicles / sector recaps that are not a single-name catalyst.
 
@@ -34,8 +40,7 @@ def is_junk_headline(headline: str, url: str = "", source: str = "") -> bool:
     """
     del source
     text = (headline or "").strip().lower()
-    url_l = (url or "").strip().lower()
-    if any(frag in url_l for frag in _URL_FRAGMENTS):
+    if is_movers_url(url):
         return True
     if not text:
         return False

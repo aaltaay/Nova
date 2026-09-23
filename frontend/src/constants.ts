@@ -23,3 +23,4 @@ export * from './constantGroups/desk_venue';
 export * from './constantGroups/practice';
 export * from './constantGroups/trader_chrome';
 export * from './constantGroups/setups';
+export * from './constantGroups/catalysts';

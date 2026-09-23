@@ -35,7 +35,8 @@ export const SCANNER_CHIP_TITLE: Record<ScannerChipId, string> = {
   gap: `Keep rows whose gap vs prior close is at least ${SCANNER_CHIP_GAP_MIN_PCT}% (a row with no gap yet is kept)`,
   float: `Keep rows whose reported float is at most ${SCANNER_CHIP_FLOAT_MAX_SHARES / 1_000_000}M shares (unreported float is kept)`,
   relvol: `Keep rows whose relative volume is at least ${SCANNER_CHIP_RELVOL_MIN}x (unreported RVOL is kept)`,
-  news: 'Keep rows with at least one headline today',
+  news: 'Keep rows with company news since the prior close: a catalyst, dilution / a reverse split, or a halt for news. '
+    + 'A movers list or a market wrap naming the ticker does not count; a row whose news is not read yet is kept.',
   halted: 'Halt state is not carried on scanner rows yet -- the Trader Level 2 header shows it. This chip cannot filter.',
 };
 

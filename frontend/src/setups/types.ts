@@ -1,4 +1,5 @@
 /** Wire shapes of `/ws/setups` and `/api/setups/*` (backend `setup_scanner/`, ADR 022). */
+import type { CatalystVerdict } from '../types/catalystVerdict';
 
 export type SetupState = 'near' | 'armed' | 'triggered' | 'pullback' | 'leg' | 'failed' | 'watching';
 export type TapeVerdict = 'go' | 'wait' | 'veto' | 'blind';
@@ -45,22 +46,7 @@ export interface SetupProposal {
 }
 
 /** The catalyst classifier's verdict at arm time (ADR 024): the same rules as the backfilled history. */
-export interface SetupCatalyst {
-  verdict: 'catalyst' | 'negative' | 'routine_only' | 'noise_only' | 'none_found' | 'not_checked';
-  category: string | null;
-  strength: 'strong' | 'weak' | null;
-  title: string | null;
-  source: string | null;
-  published_ts: number | null;
-  url: string | null;
-  negative_too: boolean;
-  rules_version: string;
-  /** Sources that looked across the whole window (alpaca, edgar, globenewswire, prnewswire, newsfile). */
-  sources_answered?: string[];
-  /** A Nasdaq T1 / T12 halt inside the window with no resumption yet: the news is coming. */
-  news_pending?: boolean;
-  halt_code?: string | null;
-}
+export type SetupCatalyst = CatalystVerdict;
 
 export interface SetupPillars {
   price: number | null;

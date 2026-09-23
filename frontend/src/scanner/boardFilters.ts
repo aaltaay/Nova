@@ -15,8 +15,9 @@ import {
   type ScannerChipId,
 } from '../constantGroups/scanner_board';
 import type { ScannerRow } from '../types/scanner';
+import { isCompanyNews } from '../utils/catalystVerdict';
 
-export type ChipRow = Pick<ScannerRow, 'gap_percent' | 'float' | 'rel_volume' | 'has_news' | 'news_unknown' | 'rvol_source'>;
+export type ChipRow = Pick<ScannerRow, 'gap_percent' | 'float' | 'rel_volume' | 'has_news' | 'news_unknown' | 'rvol_source' | 'catalyst'>;
 
 /** A Sim playback row's time-of-day RVOL is another basis than the chip's day multiple (ADR 023): unknown here. */
 const OTHER_RVOL_BASIS = 'time_of_day_20';
@@ -39,6 +40,9 @@ export function chipPasses(id: ScannerChipId, row: ChipRow): boolean {
     case 'relvol':
       return row.rel_volume == null || row.rvol_source === OTHER_RVOL_BASIS || row.rel_volume >= SCANNER_CHIP_RELVOL_MIN;
     case 'news':
+      // A live row with a verdict (ADR 024): company news only -- a movers list or a market wrap
+      // naming the ticker is not news about it. A verdict not read yet is unknown, and unknowns pass.
+      if (row.catalyst !== undefined) return row.catalyst === null || isCompanyNews(row.catalyst);
       // A played-back row that did not record its news is unknown, and unknowns pass.
       return row.has_news === true || row.news_unknown === true;
     case 'halted':

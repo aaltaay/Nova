@@ -8,15 +8,21 @@
  * (leaveSampleView is pushState -- no page reload).
  */
 import { useSyncExternalStore } from 'react';
+import type { CatalystVerdict } from '../types/catalystVerdict';
 
 export type ScannerNewsSource = 'live' | 'sample';
+
+/** Symbol -> the row's catalyst verdict (ADR 024); only symbols whose row carries the field. */
+export type CatalystBySymbol = Map<string, CatalystVerdict | null>;
 
 type Payload = {
   source: ScannerNewsSource;
   map: Map<string, string>;
+  catalysts: CatalystBySymbol;
 };
 
 const EMPTY = new Map<string, string>();
+const EMPTY_CATALYSTS: CatalystBySymbol = new Map();
 
 let current: Payload | null = null;
 const listeners = new Set<() => void>();
@@ -24,8 +30,9 @@ const listeners = new Set<() => void>();
 export function setScannerNews(
   source: ScannerNewsSource,
   map: Map<string, string>,
+  catalysts: CatalystBySymbol = EMPTY_CATALYSTS,
 ): void {
-  current = { source, map };
+  current = { source, map, catalysts };
   listeners.forEach((l) => l());
 }
 
@@ -54,4 +61,11 @@ export function useScannerNews(expected: ScannerNewsSource): Map<string, string>
   const payload = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   if (!payload || payload.source !== expected) return EMPTY;
   return payload.map;
+}
+
+/** The rows' catalyst verdicts, on the same source rule as `useScannerNews`. */
+export function useScannerCatalysts(expected: ScannerNewsSource): CatalystBySymbol {
+  const payload = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  if (!payload || payload.source !== expected) return EMPTY_CATALYSTS;
+  return payload.catalysts;
 }

@@ -83,3 +83,38 @@ Rejected: scraping Business Wire / Accesswire newsroom pages (not an official fe
 rule "official feed, never HTML scrape" applies) and company IR pages (they repeat the release the
 wire and EDGAR already carry). FDA's feed names drugs, not tickers: it maps a release only when a
 listed company's full name appears, so it adds no coverage claim.
+
+## Amendment 2026-09-23 (evening) -- the verdict on the desk, rules v5
+
+The operator opened the Gainers board and the Trader's News panel and found "garbage": the top
+three gainers all showed the same Benzinga market wrap ("Dow Falls 100 Points; General Mills Posts
+Upbeat Q1 Earnings", seven tickers named in passing), IPDN's panel read it as "moved price 90%",
+and HCTI's real PR Newswire release (a letter of intent to buy a robotics business) showed nothing.
+An audit of the top 15 found real company news on 5; the desk showed none of the 5, because the
+verdict fed only the setup scanner and every other surface still read "an article exists".
+
+1. **Decision 5 is reversed for the desk, kept for the record.** Every scanner row carries
+   `catalyst` -- the verdict (`catalysts/live.compact`), `null` while unread -- stamped at read time
+   from a map `catalysts/board.py` recomputes off the loop every `CATALYST_BOARD_INTERVAL_SEC`. The
+   News column, the "Has news" chip, the Trader tab's chip, the HOD strip's flame and the Watchlist's
+   Five Pillars / catalyst score read it. `has_news` keeps its meaning (an article exists) because
+   the leaderboard records it and the research rebuilds compare against it; a row without
+   `catalyst` (a played-back board, the Catalysts list, an older API) keeps the headline flame.
+2. **The Trader's News panel reads the verdict** (`GET /api/catalysts/{symbol}`, polled): the
+   catalyst, its source and age, what was checked, then every item read with its label, movers
+   lists and wraps folded away. The rules-v1 impact read no longer leads the panel -- it judged the
+   newest article, whatever it was; it stays on the Catalysts list.
+3. **Rules v5** (`catalyst-rules-v5-2026-09-23`), measured against the 255,006 backfilled items:
+   1,951 labels change. A "share consolidation" / "1-for-N" is a reverse split (negative);
+   Benzinga circuit-breaker notices ("Shares Halted On Circuit Breaker", "Resume Trading") are halt
+   notices, not company news (1,074 Alpaca items had been weak catalysts); `at-the-market` needs a
+   word boundary ("Beat the Market" was an offering); debt elimination and named customer wins are
+   positive; a Benzinga movers-section URL keeps an item only when a specific class places it.
+   `sec_text.headline` joins a line cut on a connecting word ("... HCLP Debt and" / "Heppner Equity
+   Interests"). Verdicts are stored per version; the research store needs a v5 re-run.
+
+Rejected: filtering the Alpaca outlets harder (for these names Alpaca's feed is Benzinga lists and
+wraps -- filtering it harder reaches "nothing", which the verdict already says with its sources);
+dropping the movers-URL rule outright (588 of its items would have become "company news", mostly
+halt notices and commentary); and turning an unplaced Regulation FD exhibit into company news (the
+backfill showed slide-deck text, e.g. a photo credit, under 7.01).

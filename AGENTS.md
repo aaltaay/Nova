@@ -613,8 +613,25 @@ Alpaca since the prior close, fetched in the background, plus the live catalyst 
 when no source looked and nothing was found); `pillars.news` is `true` only for a classified
 catalyst, `null` when unknown (nothing read, `news_pending`, or only an unplaced
 `company_news` headline) and `false` otherwise; `pillars.headline` is the catalyst's headline
-(it was a timestamp). The scanner News flame and the leaderboard's `has_news` keep their
-meaning (an article exists).
+(it was a timestamp). The leaderboard's `has_news` keeps its meaning (an article exists).
+
+**The verdict on the desk** (ADR 024 amendment, operator report 2026-09-23): every scanner row
+(REST and `/ws/scanner`, through `scanner_surface.surface_rows`) carries `catalyst: verdict |
+null` -- the live verdict as `{verdict, category, strength, title, source, published_ts, url,
+negative_too, rules_version, sources_answered, n_items, news_pending, halt_code}`
+(`catalysts/live.WIRE_KEYS`), `null` while no source has read the symbol (unknown, never "no
+news"). Owner `catalysts/board.py`: an in-memory map recomputed off the loop every
+`CATALYST_BOARD_INTERVAL_SEC` for the current rosters and stamped at read time. `has_news` /
+`newest_headline_at` stay on the row with their old meaning. The News column, the "Has news"
+chip (company news: a catalyst, dilution / a reverse split, or a halt for news; unread rows
+kept), the Trader tab's chip, the HOD strip's flame and `/api/strategy/*`'s catalyst pillar and
+score read `catalyst` when the row has it; a row without the key keeps the headline flame.
+`GET /api/catalysts/{symbol}` (owner `catalysts/routes.py`, read-only; reads Alpaca for the
+symbol first when its read is missing or stale) answers the Trader's News panel: `{schema_version:
+1, symbol, generated_at, window_start, verdict: verdict | null, items: [{item_id, source,
+publisher, published_ts, title, url, kind: "catalyst" | "negative" | "routine" | "noise",
+category, strength, dilution}], items_total}` -- items since the prior close, newest first, at
+most `CATALYST_PANEL_MAX_ITEMS`.
 
 **The live catalyst feed** (`backend/catalysts/feed.py`, always on; `NOVA_CATALYST_FEED=0`
 off; ADR 024 amendment) records SEC EDGAR's latest filings, GlobeNewswire, PR Newswire,
@@ -1228,6 +1245,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-23 | The catalyst verdict on the desk (ADR 024 amendment, operator report: "still just seeing garbage"): the Gainers' top three all showed one Benzinga market wrap as their news, IPDN's panel called it "moved price 90%", and real releases (HCTI's PR Newswire LOI, BENF's 8-K) showed nothing -- the verdict fed only the setup scanner. Scanner rows now carry `catalyst` (`catalysts/board.py`); the News column, "Has news" chip, Trader tab chip, HOD flame and the Watchlist pillar read it; the Trader's News panel reads `GET /api/catalysts/{symbol}` (verdict + labelled items, lists folded away). Rules v5: share consolidations are reverse splits, circuit-breaker notices are halts not news, "beat the market" is not an ATM offering, debt elimination and customer wins count, a movers-section URL needs a placed class; the SEC headline joiner stops cutting on "and". `has_news` keeps its meaning. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | The bot plays the operator's setups (ADR 027, operator decision: "no, I don't think we need the old packs -- remove"; "keep the Strategy L2 + all setups from my material"; approved Bots mockup v4): the halt-luld / quote-spike / volume / llm-decide packs, `POST /api/bot/llm/spend` and the `nova-brain` sidecar (Electron, `Run Nova.bat`, `Start-NovaBrain.ps1`) are removed; the session (schema 4) carries `setup`, `setups`, `readout` and `gates`. Strategy waits on the pre-registered first-pullback read-out (`setup_scanner/readout.py`, Bot-Trading-Plan §2g): raising to Strategy lands not active, Activate at Strategy and every L2 fire are refused `BOT_READOUT_NOT_PASSED` until 50 triggered go setups beat +0.2R net and blind / wait; L2 entries keep the material's 07:00-10:00 ET window and one trade a day. The Bots page is rebuilt (hero with level, gates and Activate; the playbook with first pullback's rules, tape gate and read-out; symbols with Level 2; sleeve and breakers; one proposals inbox; the activity timeline; today and the scoreboard) and the header's second bot row is gone. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Watchlist redesign (approved mockup v2): rows add the scanner row's market facts (`price`, `change_pct`, `rel_volume`, `rvol_source`, `float_shares`, `has_news`) and today's catalyst verdict (`strategy/watchlist_catalyst.py`, ADR 024); the table shows pillar letters with n/5, Last, % Chg, RVOL, Float, News, a score bar, the setup state from `/ws/setups` and the bot allowlist dot, with filter chips and a summary line; the side panel lists the pillars with reasons, the setup block and the allowlist toggle. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Why the Gateway needed a phone login (#14): a Windows Update restart at 02:29 ET ended the Gateway's saved login and Windows waited at the sign-in screen until 09:22, so no morning task ran and nothing said why. `ibkr/relogin_reason.py` + `ibkr/windows_restarts.py` name the cause (a restart and who asked, or a fresh start) in `/api/diagnostics`, the morning scripts' logs and alerts, and `tools/premarket_verify.py relogin`; `tools/premarket_verify.py` reads #14's two criteria; Nova's IBC launchers set `DAYOFWEEK` so IBC keeps a week of logs on Windows 11. §3 amended. | User Directive + Claude Opus 5.5 |

@@ -261,3 +261,42 @@ def test_an_edgar_cover_page_is_not_a_headline():
 ])
 def test_rules_v4(title, expected_kind):
     assert label(title)[0] == expected_kind
+
+
+_MOVERS_URL = "https://www.benzinga.com/trading-ideas/movers/26/09/61946086/story"
+
+
+@pytest.mark.parametrize("title,kw,expected", [
+    # The top gainers of 2026-09-23 (operator report: "still just seeing garbage").
+    ("6-K | Circle Decarbonize Technology Limited Announces 1-for-6 Share Consolidation to Become Effective on "
+     "October 7, 2026", {"source": "edgar", "form": "6-K"}, ("negative", "delisting_split")),
+    ("8-K: Regulation FD | Beneficient Announces Strategy to Eliminate HCLP Debt and Heppner Equity Interests",
+     {"source": "edgar", "form": "8-K", "sec_items": "7.01,9.01"}, ("catalyst", "listing_financing")),
+    ("Surf Air Mobility Adds Second OperatorOS Customer With SkyDance Air",
+     {"n_tickers": 2, "url": _MOVERS_URL}, ("catalyst", "contract_partnership")),
+    ("Dow Falls 100 Points; General Mills Posts Upbeat Q1 Earnings", {"n_tickers": 7}, ("noise", "movers_list")),
+    ("BullFrog AI Stock Surges Wednesday: What's Happening?", {"n_tickers": 1, "url": _MOVERS_URL},
+     ("noise", "movers_list")),
+    # A movers-section article with no named event stays a movers list; a halt notice stays a halt notice.
+    ("Will Palantir, Pfizer And Oracle Stocks Continue Higher In This Trend?", {"n_tickers": 3, "url": _MOVERS_URL},
+     ("noise", "movers_list")),
+    ("Digital World Acquisition Shares Halted On Circuit Breaker To Upside; Up 110%", {"url": _MOVERS_URL},
+     ("noise", "halt_notice")),
+    ("Hoth Therapeutics Shares Resume Trading, Continue Higher", {}, ("noise", "halt_notice")),
+    ("Workhorse Lands Order For 100 EV Vans From Purolator", {"url": _MOVERS_URL}, ("catalyst", "contract_partnership")),
+    # "wh-at the market" is not an at-the-market offering; a forward split is not a reverse split.
+    ("Can ChargePoint and Blink Charging Beat the Market?", {"publisher": "The Motley Fool"}, ("noise", "opinion")),
+    ("Today's Tesla Buzz: What The Market Is Watching", {}, ("catalyst", "company_news")),
+    ("Acme Announces 3-for-1 Stock Split", {}, ("catalyst", "company_news")),
+    ("Eshallgo Announces 1 for 16 Share Consolidation", {}, ("negative", "delisting_split")),
+    ("These 2 Stocks Likely Won't Win This Important Customer Anytime Soon", {"publisher": "The Motley Fool"},
+     ("noise", "opinion")),
+])
+def test_rules_v5(title, kw, expected):
+    assert label(title, **kw)[:2] == expected
+
+
+def test_a_regulation_fd_deck_with_no_named_event_is_still_slides():
+    lb = classify_item("8-K: Regulation FD | Technologies. Improved Outcomes. Forward Looking Statements Notice", "",
+                       source="edgar", form="8-K", sec_items="7.01,9.01")
+    assert (lb.kind, lb.category) == ("routine", "presentation")
