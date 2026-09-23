@@ -20,6 +20,7 @@ import strategy.risk as _risk
 import setup_scanner.engine as _setup_scanner
 from catalysts import board as _catalyst_board
 from catalysts import feed as _catalyst_feed
+from move_reason import borrow_feed as _borrow_feed
 from alpaca import _get_discovery_provider
 from archive.scheduler import archive_maintenance_loop, maintenance_enabled
 import archive.write_queue as _archive_write_queue
@@ -118,6 +119,8 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         ("leaderboard.auto_record", _leaderboard_auto_record.run),
         # Catalysts (ADR 024): SEC filings and the press-release wires, recorded as they publish.
         ("catalysts.feed", _catalyst_feed.run),
+        # Why it's moving (ADR 028): IBKR's short-stock file, recorded as it changes.
+        ("move_reason.borrow_feed", _borrow_feed.run),
     ]
     if maintenance_enabled():
         factories.append(("archive.maintenance", archive_maintenance_loop))

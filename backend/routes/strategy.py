@@ -28,7 +28,7 @@ from strategy.five_pillars import evaluate_many
 from strategy.gap_and_go import evaluate_gap_and_go
 from strategy.risk import get_state as _get_risk_state, validate_trade_plan
 from strategy.setups import evaluate_setups
-from strategy.symbol_pillars import SOURCE_QUOTE, find_board_row, quote_row, with_catalyst
+from strategy.symbol_pillars import SOURCE_QUOTE, find_board_row, live_quote, quote_row, raw_boards, with_catalyst
 from strategy.watchlist import build_watchlist, score_watchlist_entry
 from strategy.watchlist_catalyst import attach as _attach_catalysts
 from runtime_state import get_runtime_state
@@ -143,27 +143,6 @@ def watchlist() -> dict:
     }
 
 
-def _raw_boards() -> dict[str, list[dict]]:
-    state = get_runtime_state()
-    return {
-        "gappers": state.gapper_cache,
-        "gainers": state.gainer_cache,
-        "losers": state.loser_cache,
-        "afterhours": state.afterhours_cache,
-        "large_cap": state.large_cap_cache,
-    }
-
-
-def _live_quote(symbol: str) -> dict | None:
-    try:
-        from ibkr import ticks as _ticks
-
-        return _ticks.last_quotes([symbol]).get(symbol)
-    except Exception:
-        logger.warning("watchlist/%s: L1 quote unreadable", symbol, exc_info=True)
-        return None
-
-
 @router.get("/watchlist/{symbol:path}")
 def watchlist_one(symbol: str) -> dict:
     """One symbol's Five Pillars, whether or not the ranked watchlist holds it.
@@ -175,9 +154,9 @@ def watchlist_one(symbol: str) -> dict:
     sym = symbol.strip().upper()
     if not sym:
         raise HTTPException(status_code=400, detail="symbol required")
-    raw, source = find_board_row(sym, _raw_boards())
+    raw, source = find_board_row(sym, raw_boards())
     if raw is None:
-        raw, source = quote_row(sym, _live_quote(sym)), SOURCE_QUOTE
+        raw, source = quote_row(sym, live_quote(sym)), SOURCE_QUOTE
     # A blocklisted symbol leaves the boards, not the quote panel: grade its row as is.
     surfaced = surface_rows([raw]) or [dict(raw)]
     row = with_catalyst(_graded(surfaced[0]))

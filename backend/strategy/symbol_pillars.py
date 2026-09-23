@@ -32,6 +32,31 @@ def _number(value: Any) -> float | None:
     return number if number == number else None  # NaN is unknown
 
 
+def raw_boards() -> dict[str, list[dict]]:
+    """Every scanner board's cached rows, by name (raw: ``scanner_surface.surface_rows`` decorates them)."""
+    from runtime_state import get_runtime_state
+
+    state = get_runtime_state()
+    return {
+        "gappers": state.gapper_cache,
+        "gainers": state.gainer_cache,
+        "losers": state.loser_cache,
+        "afterhours": state.afterhours_cache,
+        "large_cap": state.large_cap_cache,
+    }
+
+
+def live_quote(symbol: str) -> dict | None:
+    """The symbol's IBKR L1 quote row, or None when no line holds it."""
+    try:
+        from ibkr import ticks as _ticks
+
+        return _ticks.last_quotes([symbol]).get(symbol)
+    except Exception:
+        logger.warning("symbol pillars: L1 quote unreadable for %s", symbol, exc_info=True)
+        return None
+
+
 def find_board_row(symbol: str, boards: dict[str, list[dict]]) -> tuple[dict | None, str | None]:
     """The first board row for ``symbol`` in ``BOARD_ORDER``, with the board's name."""
     for name in BOARD_ORDER:

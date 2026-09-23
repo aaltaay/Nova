@@ -53,6 +53,8 @@ os.environ["IBKR_GATEWAY_MODE"] = os.environ.get("IBKR_GATEWAY_MODE") or "paper"
 # watcher and writer threads running for the rest of the session; the perf
 # tests drive those modules directly (and runtime.start under their own switch).
 os.environ["NOVA_PERF"] = "0"
+# ADR 028: an app a test boots must not poll IBKR's short-stock file; the borrow tests drive the feed directly.
+os.environ["NOVA_BORROW_FEED"] = "0"
 
 import pytest
 
