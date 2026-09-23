@@ -1,3 +1,5 @@
+/** @vitest-environment jsdom */
+// The socket case needs a WebSocket global: Node 20 (CI) has none, jsdom does.
 import { describe, expect, it } from 'vitest';
 import { LIVE_BACKEND_REFUSAL } from './noLiveBackend';
 
