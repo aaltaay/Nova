@@ -7,15 +7,22 @@
 #   3. Prove Nova-Setup-vNNN.exe, its .blockmap and latest.yml exist and agree on
 #      the version, then upload the three as one workflow artifact.
 #
-# Master merges (pushed, or dispatched by PR delivery after an Actions merge,
-# #346) build and verify only -- they publish nothing. A Release is now an update
-# prompt on the operator's desk, so one per merged PR would train dismissal.
+# Every commit that lands on master is released (operator decision 2026-09-23,
+# superseding #347's operator-tag-only publishing). A master run -- a human
+# push, or PR delivery's dispatch after an Actions merge (#346) -- does two things:
+#   - `tag-commit` tags the commit vNNN through the API, for every commit,
+#     docs/site-only included (those get the tag and no Release: a Release
+#     without latest.yml would break the in-app update feed);
+#   - `publish-release` creates the vNNN GitHub Release with
+#     Nova-Setup-vNNN.exe + .blockmap + latest.yml -- the feed electron-updater
+#     reads -- whenever the installer was packed.
+# A Release is marked latest only when no higher vNNN Release exists, so an
+# older run that finishes late never rolls the update feed back.
+# The tag is pushed with GITHUB_TOKEN, which by design starts no second run.
 #
-# Publishing is a deliberate operator act (#347): on an up-to-date master run
+# A hand tag still publishes: on an up-to-date master run
 #   py -3 tools/bump_version.py --ensure-tag --push-tag
-# and this workflow packs that tagged commit and creates the GitHub Release with
-# Nova-Setup-vNNN.exe + .blockmap + latest.yml -- the feed electron-updater reads.
-# A tag pushed by Actions would start no run, so nothing automated can cut one.
+# and the pack refuses a tag that is not that commit's revision.
 # Re-run a publish with: gh workflow run desktop-pack.yml --ref vNNN
 # (A tag push has no diff base, and `tools/ci_scope.py` selects full verification
 # whenever the diff is unavailable, so a release always packs.)
@@ -33,7 +40,10 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: desktop-pack-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # PRs group by number (a new push cancels the old run); everything else groups
+  # by commit, so a burst of master merges is never collapsed into the newest
+  # one's run -- a superseded pending run would leave its commit untagged.
+  group: desktop-pack-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -178,14 +188,56 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  tag-commit:
+    name: Tag vNNN on master
+    timeout-minutes: 10
+    # Every master commit, whatever it changed (operator decision 2026-09-23).
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Tag this commit with its revision
+        id: tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          TAG="$(python3 tools/bump_version.py --print-tag | tr -d '[:space:]')"
+          test -n "$TAG"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          # vNNN is the commit count, so an existing tag must already be ours.
+          if EXISTING="$(gh api "repos/$GH_REPO/git/ref/tags/$TAG" --jq .object.sha 2>/dev/null)"; then
+            if [ "$EXISTING" != "$SHA" ]; then
+              echo "::error::$TAG already points at $EXISTING, not $SHA"
+              exit 1
+            fi
+            echo "$TAG already on $SHA"
+          else
+            gh api -X POST "repos/$GH_REPO/git/refs" -f "ref=refs/tags/$TAG" -f "sha=$SHA" >/dev/null
+            echo "tagged $SHA as $TAG"
+          fi
+          echo "Tagged \`$TAG\` on \`$SHA\`." >> "$GITHUB_STEP_SUMMARY"
+
   publish-release:
     name: Publish vNNN installer
     timeout-minutes: 10
-    # Release tags only (#347). A master push -- human, or PR delivery's
-    # dispatch after an Actions merge (#346) -- builds and verifies above and
-    # stops here. `workflow_dispatch` on a tag ref re-runs a publish.
-    if: needs.changes.outputs.desktop == 'true' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && startsWith(github.ref, 'refs/tags/v')
-    needs: [changes, desktop-pack]
+    # A packed master commit (tagged by tag-commit above), or a pushed release
+    # tag. `workflow_dispatch` on a tag ref re-runs a publish.
+    if: >-
+      always() && needs.desktop-pack.result == 'success' && needs.changes.outputs.desktop == 'true' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      (startsWith(github.ref, 'refs/tags/v') || (github.ref == 'refs/heads/master' && needs.tag-commit.result == 'success'))
+    needs: [changes, desktop-pack, tag-commit]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -201,19 +253,32 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ needs.desktop-pack.outputs.tag }}
+          REF_TYPE: ${{ github.ref_type }}
           REF_TAG: ${{ github.ref_name }}
+          COMMIT_TAG: ${{ needs.tag-commit.outputs.tag }}
         run: |
           set -euo pipefail
           # The pack refuses a mismatched tag; refuse it again before publishing.
-          test "$TAG" = "$REF_TAG"
+          if [ "$REF_TYPE" = tag ]; then
+            test "$TAG" = "$REF_TAG"
+          else
+            test "$TAG" = "$COMMIT_TAG"
+          fi
           SETUP="dist-win/Nova-Setup-${TAG}.exe"
           test -f "$SETUP"
           test -f "${SETUP}.blockmap"
           test -f dist-win/latest.yml
           NOTES="$(printf 'Nova %s Windows desktop.\n\n- Installer: Nova-Setup-%s.exe (NSIS, x64)\n- latest.yml + .blockmap are the in-app update feed; installed desks offer this build and install it when you choose Restart to update.\n\nBuilds are unsigned, so SmartScreen warns on a fresh download.\nGitHub also attaches Source code zip/tar automatically. Those are not the app.' "$TAG" "$TAG")"
+          # Master runs no longer queue behind each other, so an older commit's
+          # run can finish last. Only the highest vNNN may become latest -- the
+          # release electron-updater reads -- or the feed would roll back.
+          NEWEST="$(gh release list --limit 100 --json tagName --jq '[.[].tagName | select(test("^v[0-9]+$")) | ltrimstr("v") | tonumber] | max // 0')"
+          LATEST=false
+          if [ "${TAG#v}" -ge "$NEWEST" ]; then LATEST=true; fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$SETUP" "${SETUP}.blockmap" dist-win/latest.yml --clobber
           else
             gh release create "$TAG" "$SETUP" "${SETUP}.blockmap" dist-win/latest.yml \
-              --title "$TAG" --notes "$NOTES" --verify-tag --latest
+              --title "$TAG" --notes "$NOTES" --verify-tag --latest="$LATEST"
           fi
+          echo "Released \`$TAG\` (latest: $LATEST)." >> "$GITHUB_STEP_SUMMARY"

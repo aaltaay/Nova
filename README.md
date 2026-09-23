@@ -95,7 +95,7 @@ Output: `frontend/release/Nova-Setup-vNNN.exe` plus `latest.yml` and a `.blockma
 
 Public revision is **`vNNN`**: `v` plus the git commit count, at least three digits. Git history is the source of truth — `VERSION` and `frontend/package.json`'s `0.1.N` are **generated build artifacts**, not repo content. `VERSION` is gitignored and `package.json` stays `0.0.0-dev` in git; CI regenerates both with `py -3 tools/bump_version.py --sync` before packing. A working clone derives the tag from git automatically, so there is nothing to install and no commit ever diffs a version file (see [#344](https://github.com/aaltaay/Nova/issues/344)).
 
-Pushes to `master` and pull requests build and verify the installer as a workflow artifact; they publish nothing. A Release is deliberate: on an up-to-date `master` run `py -3 tools/bump_version.py --ensure-tag --push-tag`, and the pushed `vNNN` tag publishes the installer, its `.blockmap` and `latest.yml`. The automatic Source code zip is not the app.
+Pull requests build and verify the installer as a workflow artifact. Every commit that lands on `master` is tagged `vNNN`, and an application-affecting one is published as that GitHub Release with the installer, its `.blockmap` and `latest.yml`. The automatic Source code zip is not the app.
 
 Installed desks check that feed shortly after launch, download a newer installer in the background, and offer **Restart to update** / **Later** -- they never install or restart on their own. Set `NOVA_UPDATE_CHECK=0` to stop the automatic check (Help > Check for Updates still works). Builds are unsigned, so SmartScreen warns on a fresh download.
 

@@ -35,6 +35,7 @@ To reverse this policy, update those two policy tools, the workflow dependency,
 the constitution/rules and the live branch setting together.
 
 Packaging attempts the Windows installer for relevant changes without delaying
-merge, and verifies its `latest.yml` update feed. Master merges publish nothing:
-since #347 a GitHub Release is cut only by an operator-pushed `vNNN` tag. Broader
+merge, and verifies its `latest.yml` update feed. Every master commit is tagged
+`vNNN`, and an application-affecting one is published as that GitHub Release
+(operator decision 2026-09-23, superseding #347's tag-only publishing). Broader
 CI audit follow-ups remain in #342.

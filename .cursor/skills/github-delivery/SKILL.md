@@ -103,7 +103,7 @@ Also run `py -3 tools/doc_invariants.py`, the agent contract for rules/skills, a
 
 Application-affecting PRs run advisory Desktop pack to attempt the Windows installer. Do not wait for it before merging; report actual results truthfully.
 
-Merging publishes nothing (#347). A release is a deliberate operator act: `py -3 tools/bump_version.py --ensure-tag --push-tag` on an up-to-date `master`, and the pushed tag `vNNN` (commit count from the first commit) publishes a GitHub Release with `Nova-Setup-vNNN.exe`, its `.blockmap` and `latest.yml`. GitHub's Source code zip/tar is automatic and is not the app.
+Every commit that lands on master is tagged `vNNN` (commit count from the first commit) by `Desktop pack`, and an application-affecting one is published as that GitHub Release with `Nova-Setup-vNNN.exe`, its `.blockmap` and `latest.yml` (operator decision 2026-09-23, superseding #347's tag-only publishing). Docs/site-only commits get the tag and no Release. GitHub's Source code zip/tar is automatic and is not the app.
 
 Do not claim a check passed without evidence. Failed checks remain visible but do not block merge.
 

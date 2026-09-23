@@ -144,23 +144,44 @@ def test_npm_electron_pack_uses_the_stamping_script():
     assert not script.rstrip().endswith("nsis")
 
 
-def test_only_a_release_tag_publishes():
-    """#347: master merges build and verify; a Release is a deliberate tag.
+def test_every_master_commit_is_tagged_and_released():
+    """Operator decision 2026-09-23 (supersedes #347's tag-only publishing).
 
-    A Release is now an update prompt on the operator's desk, so one per merged
-    PR -- docs included -- would train dismissal. The pack still runs on master
-    (including PR delivery's dispatch after an Actions merge, #346) so a broken
-    installer is still caught on the commit that broke it.
+    Every commit on master gets its vNNN tag -- docs included -- and a packed
+    one gets its Release. The run must fire for PR delivery's dispatch too,
+    since an Actions merge starts no `push:` run (#346).
     """
     text = WORKFLOW.read_text(encoding="utf-8")
     assert "workflow_dispatch:" in text, "pack cannot be dispatched at all"
-    assert 'tags: ["v[0-9]+"]' in text, "a pushed release tag does not start the pack"
-    assert "startsWith(github.ref, 'refs/tags/v')" in text, (
-        "publish-release does not require a release tag"
+    assert 'tags: ["v[0-9]+"]' in text, "a hand-pushed release tag no longer packs"
+    assert "tag-commit:" in text, "master commits are not tagged"
+    tag_job = text[text.index("tag-commit:"):text.index("publish-release:")]
+    assert "github.ref == 'refs/heads/master'" in tag_job
+    assert "github.event_name == 'workflow_dispatch'" in tag_job, (
+        "an Actions merge (dispatched pack) would never be tagged"
     )
-    assert "github.ref == 'refs/heads/master'" not in text, (
-        "a master push still publishes a Release"
+    assert "needs.changes" not in tag_job, "docs-only commits would go untagged"
+    assert "git/refs" in tag_job
+    publish = text[text.index("publish-release:"):]
+    assert "startsWith(github.ref, 'refs/tags/v')" in publish
+    assert "needs.tag-commit.result == 'success'" in publish
+    assert "needs.desktop-pack.result == 'success'" in publish, (
+        "a Release could publish without a verified installer"
     )
+
+
+def test_master_runs_are_not_collapsed_into_one():
+    """Grouping master by ref would drop a pending run and leave its commit untagged."""
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert "github.event.pull_request.number || github.sha" in text
+    assert "github.event.pull_request.number || github.ref }}" not in text
+
+
+def test_a_late_run_never_rolls_the_update_feed_back():
+    """Only the highest vNNN Release may be `latest` -- electron-updater reads it."""
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert '--latest="$LATEST"' in text
+    assert "--latest\n" not in text and "--verify-tag --latest\n" not in text
 
 
 def test_a_release_tag_must_match_its_commit_revision():
