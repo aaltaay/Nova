@@ -6,6 +6,7 @@
  */
 import { useState } from 'react';
 import {
+  CATALYST_AGGREGATOR_SOURCES,
   CATALYST_NEWS_ALSO_NEGATIVE,
   CATALYST_NEWS_CHECKED_PREFIX,
   CATALYST_NEWS_PENDING_TITLE,
@@ -37,7 +38,8 @@ function verdictHeadline(v: CatalystVerdict | null): string {
 }
 
 function itemMeta(item: CatalystItem, nowMs: number): string {
-  const publisher = item.publisher && item.source === 'alpaca' ? item.publisher : '';
+  const aggregated = !!item.source && CATALYST_AGGREGATOR_SOURCES.includes(item.source);
+  const publisher = item.publisher && aggregated ? item.publisher : '';
   return [sourceLabel(item.source), publisher, agoLabel(item.published_ts, nowMs)].filter(Boolean).join(' · ');
 }
 

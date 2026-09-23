@@ -45,6 +45,12 @@ CREATE TABLE IF NOT EXISTS verdicts (
 """
 
 
+# Finnhub stamps its Benzinga copies with Eastern wall-clock time read as UTC -- four hours early (#516), so a
+# verdict could read one before it existed. Alpaca carries the same articles with the right clock: every reader
+# leaves them out (``items`` aliased ``i``); the rows stay on disk and fetch_finnhub stores no new ones.
+HONEST_CLOCK_SQL = "NOT (i.source = 'finnhub' AND lower(coalesce(i.publisher, '')) = 'benzinga')"
+
+
 def connect(path: Path = DB_PATH) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(str(path), timeout=60)

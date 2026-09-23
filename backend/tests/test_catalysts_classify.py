@@ -300,3 +300,81 @@ def test_a_regulation_fd_deck_with_no_named_event_is_still_slides():
     lb = classify_item("8-K: Regulation FD | Technologies. Improved Outcomes. Forward Looking Statements Notice", "",
                        source="edgar", form="8-K", sec_items="7.01,9.01")
     assert (lb.kind, lb.category) == ("routine", "presentation")
+
+
+# -- v6: the operator's second news report (2026-09-23: "most stocks don't have news, and they are moving") --
+
+@pytest.mark.parametrize("title,summary,expected", [
+    # Benzinga's one-ticker "what's going on" pieces name the cause in their summary.
+    ("Beneficient Stock Skyrockets Wednesday: What's Going On?",
+     "Beneficient is surging Wednesday after the company unveiled a plan to eliminate contested debt and preferred "
+     "equity tied to its former CEO.", ("catalyst", "listing_financing")),
+    ("BullFrog AI Holdings Stock Climbs Over 24% Pre-Market: Here's What You Need to Know",
+     "BullFrog AI Holdings shares jumped over 24% in pre-market trading Wednesday after CEO and CFO both bought "
+     "company stock.", ("catalyst", "listing_financing")),
+    ("BullFrog AI Stock Surges Wednesday: What's Happening?",
+     "BullFrog AI Holdings is trading higher Wednesday after SEC filings revealed substantial open-market share "
+     "purchases by its CEO and CFO.", ("catalyst", "listing_financing")),
+    ("Why Is Singularity Future Tech Stock Soaring Today?",
+     "Singularity Future Technology shares surged nearly 35% after the company priced a $5 million registered direct "
+     "offering to institutional investors.", ("negative", "offering_dilution")),
+    ("Ming Shing Group (MSW) Stock Surges Over 200% After Hours: What's Going On?",
+     "Ming Shing Group Holdings shares soared 203.62% after hours after completing its $110 million graphene "
+     "acquisition.", ("catalyst", "merger_acquisition")),
+    # No cause, a stated "no news", someone else's news, or only a routine reading: still a movers list.
+    ("BullFrog AI Stock Surges Wednesday: What's Happening?", "", ("noise", "movers_list")),
+    ("Acme Stock Is Soaring: What's Going On?",
+     "Acme shares are trading higher Tuesday. There is no company-specific news after the close.",
+     ("noise", "movers_list")),
+    ("Acme Stock Is Soaring: What's Going On?",
+     "Acme shares are trading higher in sympathy with Beta after Beta received FDA approval.", ("noise", "movers_list")),
+    ("Why Target Hospitality Shares Are Shooting Higher Today",
+     "Shares are trading higher after the workforce lodging company's board met.", ("noise", "movers_list")),
+    ("Lucid Stock Rebounds After EV Maker Denies Bankruptcy Report: 'Completely False'",
+     "Lucid Group shares are bouncing back Wednesday after the company pushed back against a report claiming it was "
+     "considering going private or filing for Chapter 11 bankruptcy protection.", ("noise", "movers_list")),
+    # "Days after" dates something else; an analyst piece is not the company's news.
+    ("Chegg Shares Dip On Analyst Warnings About Subscriber Numbers",
+     "Shares of Chegg were falling on Monday, just days after the company announced a $150 million buyback.",
+     ("noise", "movers_list")),
+])
+def test_a_one_ticker_rewrite_is_judged_by_the_cause_it_names(title, summary, expected):
+    assert label(title, summary, n_tickers=1, url=_MOVERS_URL)[:2] == expected
+
+
+@pytest.mark.parametrize("title,n_tickers", [
+    # One company's cause must never be pinned on every name a list carries (Finnhub gives no ticker count).
+    ("Why Worthington Enterprises Shares Are Trading Higher By Around 16%; Here Are 20 Stocks Moving Premarket", None),
+    ("Market-Moving News for October 21st", None),
+    ("12 Health Care Stocks Moving In Wednesday's Pre-Market Session", 12),
+])
+def test_a_list_gives_no_ticker_its_first_names_cause(title, n_tickers):
+    summary = "Worthington shares are trading higher after the company reported better-than-expected Q1 results."
+    assert label(title, summary, n_tickers=n_tickers)[:2] == ("noise", "movers_list")
+
+
+@pytest.mark.parametrize("title,kw,expected", [
+    # ChartMill screens, filed by Finnhub under every ticker they list; its one-company recaps are rewrites.
+    ("Let's take a look at the stocks that are in motion in today's session.", {"publisher": "ChartMill"},
+     ("noise", "movers_list")),
+    ("Unusual volume stocks in Wednesday's session", {"publisher": "ChartMill"}, ("noise", "movers_list")),
+    ("Top stock movements in today's session.", {"publisher": "ChartMill"}, ("noise", "movers_list")),
+    ("Pagaya Technologies (NASDAQ:PGY) Soars After Q1 Earnings Beat and Raised Guidance", {"publisher": "ChartMill"},
+     ("catalyst", "earnings_guidance")),
+    # Movers lists the v5 rules let through as company news.
+    ("Why Did SOC, HTZ, COSM Stocks Tumble To 52-Week Lows?", {}, ("noise", "movers_list")),
+    ("These stocks are moving in today's after hours session", {}, ("noise", "movers_list")),
+    ("Nasdaq Surges 200 Points; Nvidia Posts Upbeat Q2 Results", {}, ("noise", "movers_list")),
+    # CPOP's 6-K: the extractor caught the cover-page address, and the filing is a registered direct offering.
+    ("6-K | Room 1207-08, No. 2488 Huandao East Road Huli District, Xiamen City, Fujian Province",
+     {"source": "edgar", "form": "6-K", "summary": "Securities Purchase Agreement dated September 22, 2026 for "
+      "665,000 Class A ordinary shares in a registered direct offering"}, ("negative", "offering_dilution")),
+    # An appointment is routine, even with "the" left out.
+    ("OKYO Pharma Announces Appointment of William A. Clementi as Chief Operating Officer", {},
+     ("routine", "corporate_routine")),
+    ("Utebzi (tebipenem pivoxil) approved in the US for adults with complicated urinary tract infections", {},
+     ("catalyst", "fda_regulatory")),
+])
+def test_rules_v6(title, kw, expected):
+    summary = kw.pop("summary", None)
+    assert label(title, summary, **kw)[:2] == expected

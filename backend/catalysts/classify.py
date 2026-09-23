@@ -2,8 +2,9 @@
 
 ``classify_item`` labels one article or filing:
 
-  noise     movers lists and "why is it moving" pieces, law-firm adverts, opinion mills,
-            roundups naming many tickers -- never the company's own news
+  noise     movers lists and "why is it moving" pieces, law-firm adverts, opinion mills, stock
+            screens, roundups naming many tickers -- never the company's own news (a one-ticker
+            "why is it moving" piece is judged by the cause its summary names, when it names one)
   routine   company items that are not catalysts: an earnings date, a conference, an officer
             change, a periodic report
   negative  dilution (offerings, warrants, ATM programs, shelf registrations) and delisting /
@@ -24,6 +25,7 @@ from typing import Iterable, Mapping
 
 from constants_catalysts import (
     CATALYST_ANALYST_RE,
+    CATALYST_CAUSE_RE,
     CATALYST_CLINICAL_STRONG_RE,
     CATALYST_CLINICAL_WEAK_RE,
     CATALYST_CONTRACT_STRONG_RE,
@@ -45,6 +47,8 @@ from constants_catalysts import (
     CATALYST_MERGER_STRONG_RE,
     CATALYST_MERGER_WEAK_RE,
     CATALYST_MOVERS_RE,
+    CATALYST_MULTI_STOCK_RE,
+    CATALYST_NO_CAUSE_RE,
     CATALYST_OFFERING_ENDED_RE,
     CATALYST_OFFERING_RE,
     CATALYST_OPINION_PUBLISHERS,
@@ -54,6 +58,7 @@ from constants_catalysts import (
     CATALYST_REGAINED_RE,
     CATALYST_ROUTINE_RE,
     CATALYST_RULES_VERSION,
+    CATALYST_SCREEN_PUBLISHERS,
     CATALYST_SEC_COVER_RE,
     CATALYST_SEC_FORM_CLASS,
     CATALYST_SEC_ITEM_FALLBACK,
@@ -61,6 +66,7 @@ from constants_catalysts import (
     CATALYST_STRONG,
     CATALYST_SUMMARY_CHARS,
     CATALYST_THEME_RE,
+    CATALYST_TICKER_RE,
     CATALYST_UNCLASSIFIED,
     CATALYST_VERDICT_CATALYST,
     CATALYST_VERDICT_NEGATIVE,
@@ -82,6 +88,9 @@ _HALT, _ANALYST = _rx(CATALYST_HALT_RE), _rx(CATALYST_ANALYST_RE)
 _REBRAND, _REGAINED, _THEME = _rx(CATALYST_REBRAND_RE), _rx(CATALYST_REGAINED_RE), _rx(CATALYST_THEME_RE)
 _FLUFF, _SEC_COVER, _EARN_WEAK = _rx(CATALYST_FLUFF_RE), _rx(CATALYST_SEC_COVER_RE), _rx(CATALYST_EARNINGS_WEAK_RE)
 _OFFER, _OFFER_ENDED, _DELIST = _rx(CATALYST_OFFERING_RE), _rx(CATALYST_OFFERING_ENDED_RE), _rx(CATALYST_DELISTING_RE)
+_CAUSE, _NO_CAUSE, _MULTI_STOCK = _rx(CATALYST_CAUSE_RE), _rx(CATALYST_NO_CAUSE_RE), _rx(CATALYST_MULTI_STOCK_RE)
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s")
+_TICKER_TAG = re.compile(CATALYST_TICKER_RE)  # "(NASDAQ:PGY)": a screen publisher writing about one company
 # Categories that name no event: a movers-section article that lands on one of these stays a movers list.
 _UNPLACED = frozenset({CATALYST_UNCLASSIFIED, "theme_pivot"})
 # (category, strength, pattern), strongest first. The first match names the item.
@@ -123,8 +132,35 @@ def classify_item(title: str | None, summary: str | None = None, *, source: str 
             label.kind in (CATALYST_KIND_CATALYST, CATALYST_KIND_NEGATIVE) and label.category not in _UNPLACED):
         # Benzinga's movers section is mostly lists, halt notices and commentary, but it also carries real
         # rewrites ("Surf Air Mobility Adds Second OperatorOS Customer"): its address alone no longer decides (v5).
-        return Label(CATALYST_KIND_NOISE, "movers_list")
+        label = Label(CATALYST_KIND_NOISE, "movers_list")
+    if (source != "edgar" and label.kind == CATALYST_KIND_NOISE and label.category == "movers_list"
+            and (n_tickers is None or n_tickers <= 1) and not _MULTI_STOCK.search(title or "")
+            and not _ANALYST.search(title or "") and not _is_screen(title, publisher)):
+        cause = _stated_cause(summary)
+        if cause:
+            # Only a placed event or dilution is taken from a rewrite; a "routine" reading of a cause clause
+            # was mostly a stray word ("workforce lodging company", "Friday's advances").
+            why = _classify(cause, None, source=source, publisher="", n_tickers=1, form=None, sec_items=None)
+            if why.kind in (CATALYST_KIND_CATALYST, CATALYST_KIND_NEGATIVE) and why.category not in _UNPLACED:
+                return why
     return label
+
+
+def _is_screen(title: str | None, publisher: str) -> bool:
+    return (publisher or "").strip().lower() in CATALYST_SCREEN_PUBLISHERS and not _TICKER_TAG.search(title or "")
+
+
+def _stated_cause(summary: str | None) -> str | None:
+    """The cause a one-ticker "why is it moving" summary names: the sentence after its first "after" /
+    "following" (v6). BENF 2026-09-23: "Beneficient is surging Wednesday after the company unveiled a plan to
+    eliminate contested debt ...". None when it names none, says there is no news, or credits someone else."""
+    text = re.sub(r"\s+", " ", summary or "").strip()
+    if not text or _NO_CAUSE.search(text):
+        return None
+    m = _CAUSE.search(text)
+    if not m:
+        return None
+    return _SENTENCE_END.split(text[m.end():], maxsplit=1)[0].strip() or None
 
 
 def _classify(title: str | None, summary: str | None, *, source: str, publisher: str, n_tickers: int | None,
@@ -142,7 +178,7 @@ def _classify(title: str | None, summary: str | None, *, source: str, publisher:
             return Label(CATALYST_KIND_NOISE, "halt_notice")
         if _LAW.search(head):
             return Label(CATALYST_KIND_NOISE, "law_firm")
-        if is_junk_headline(head) or _MOVERS.search(head):
+        if is_junk_headline(head) or _MOVERS.search(head) or _is_screen(head, publisher):
             return Label(CATALYST_KIND_NOISE, "movers_list")
         if _OPINION.search(head):
             return Label(CATALYST_KIND_NOISE, "opinion")

@@ -60,7 +60,11 @@ export const CATALYST_SOURCE_LABELS: Record<string, string> = {
   newsfile: 'Newsfile',
   fda: 'FDA',
   alpaca: 'Alpaca',
+  finnhub: 'Finnhub',
 };
+
+/** Sources that carry other publishers' articles: the News panel names the publisher beside them. */
+export const CATALYST_AGGREGATOR_SOURCES: readonly string[] = ['alpaca', 'finnhub'];
 
 /** Sources that are the company's own release (a filing or a wire), not a rewrite of it. */
 export const CATALYST_PRIMARY_SOURCES: readonly string[] = ['edgar', 'globenewswire', 'prnewswire', 'newsfile', 'fda'];

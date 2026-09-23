@@ -14,7 +14,7 @@ import json
 from collections import Counter, defaultdict
 
 from cat_config import RESULTS_DIR
-from store import connect
+from store import HONEST_CLOCK_SQL, connect
 
 from catalysts.classify import verdict  # the live desk's module (cat_config puts backend/ on the path)
 from constants_catalysts import CATALYST_RULES_VERSION
@@ -37,7 +37,8 @@ def main() -> int:
                            "published_ts", "item_id"), r, strict=True)) for r in con.execute(
             "SELECT i.title, i.summary, i.source, i.publisher, i.n_tickers, i.form, i.sec_items, i.url, "
             "i.published_ts, i.item_id FROM item_tickers t JOIN items i USING (item_id) "
-            "WHERE t.ticker = ? AND t.published_ts > ? AND t.published_ts <= ?", [ticker, w0, cut])]
+            f"WHERE t.ticker = ? AND t.published_ts > ? AND t.published_ts <= ? AND {HONEST_CLOCK_SQL}",
+            [ticker, w0, cut])]
         v = verdict(items, window_start=w0, cutoff=cut, sources_answered=answered.get((ticker, day), ()))
         best = next((it["item_id"] for it in items if it["title"] == v["title"] and it["source"] == v["source"]), None)
         rows.append((ticker, day, CUTOFF_KIND, CATALYST_RULES_VERSION, v["verdict"], v["category"], v["strength"],

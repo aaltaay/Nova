@@ -118,3 +118,45 @@ wraps -- filtering it harder reaches "nothing", which the verdict already says w
 dropping the movers-URL rule outright (588 of its items would have become "company news", mostly
 halt notices and commentary); and turning an unplaced Regulation FD exhibit into company news (the
 backfill showed slide-deck text, e.g. a photo credit, under 7.01).
+
+## Amendment 2026-09-23 (night) -- the cause a rewrite names, Finnhub live, honest clocks
+
+Operator report: "most stocks don't have news, and they are moving". The day's boards were audited
+against each mover's own press releases and SEC filings: 24 of 28 checked movers had no release or
+filing in the window, so an empty News column was mostly the truth. The desk's own misses were
+narrower. The backend still ran code from before the verdict reached the rows (a restart was
+pending). A Windows Update restart at 02:29 ET cost the wire feed 02:29-09:00 ET, which the RSS
+feeds cannot recover (ARTL's 07:35 GlobeNewswire release, DCOY's PR Newswire correction of the
+evening before). Benzinga's one-ticker "what's going on" pieces named the cause in their summary
+(BENF debt elimination, BFRG insider buying, ARTL's patent) and were filed as movers lists. And
+screens, plural lists and a 6-K's cover-page address (CPOP, really a registered direct offering)
+were mislabelled.
+
+1. **Rules v6** (`catalyst-rules-v6-2026-09-23`): a non-SEC movers-list item about one ticker is
+   labelled by the sentence after its summary's first "after" / "following" when that clause places
+   a catalyst or dilution. It stays noise when the summary names no cause, says there is no news,
+   credits a peer ("sympathy", "rival"), reports a denial, or when the headline is a list, a market
+   wrap or an analyst piece; "days after" is not a cause, and a "routine" reading of a clause is not
+   taken (it was mostly a stray word). On the 255,006 backfilled items 1,700 rewrites gain a label;
+   a random 30 were right 28 times, and the hand labels hold (86-97% agreement, unchanged). Also:
+   stock screens (ChartMill without a ticker tag), "Why ... Stocks", "stocks are moving", index
+   wraps that "surge", insider buying as Benzinga words it, "announces appointment of", "approved in
+   the US", and street addresses as SEC cover-page lines.
+2. **Finnhub company news joins the live verdict** (`catalysts/live_finnhub.py`). It is the one
+   free source that answers for a window after the fact, so a restart no longer loses the
+   premarket, and its Yahoo items are copies of GlobeNewswire, PR Newswire, ACCESS Newswire and
+   Business Wire releases -- the last two had no source at all. On the rebuilt leaderboard's movers
+   (honest clocks) it raised the share with a placed catalyst from 22% to 29%. Paced at 30 calls a
+   minute (the free tier's 60 are shared with the earnings calendar and the logos), never-read
+   symbols first; a read counts as having looked for 15 minutes.
+3. **Finnhub's Benzinga copies are dropped** (#516): Finnhub stamps them with Eastern wall-clock
+   time read as UTC, four hours early (4,072 of 5,568 title matches with Alpaca). The live reader
+   and `fetch_finnhub.py` skip them and every research reader excludes the stored ones
+   (`store.HONEST_CLOCK_SQL`). Re-run: leaderboard movers' "none found" is 40% (was 23%) and "noise
+   only" 16% (was 29%); the first-pullback split does not move (strong catalyst at 09:30 -0.21R).
+
+Rejected: polling ACCESS Newswire / Business Wire directly (no free feed); backfilling the wires'
+RSS after a restart (the feeds list only their latest items; Finnhub covers the gap per symbol);
+reading every summary, not only one-ticker rewrites (a list's summary gives its first name's cause,
+which Finnhub's missing ticker count would pin on every name); and a Form 4 source for insider
+buys (#517 -- Benzinga's summary names them the next morning; the filing itself stays open).

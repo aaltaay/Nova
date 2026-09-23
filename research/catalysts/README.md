@@ -36,6 +36,21 @@ answered found nothing; a source that could not reach the date did not answer.
 Results as produced: `results_*_2026-09-23.json` beside this file (numbers only -- the labelled
 headlines stay on F:, they are publishers' text).
 
+## Correction, 2026-09-23 evening (rules v6, #516)
+
+Finnhub stamps its Benzinga copies with Eastern time read as UTC -- four hours early -- so the v4
+numbers below let some verdicts read an article before it was published. Every reader now leaves
+those copies out (`store.HONEST_CLOCK_SQL`; Alpaca carries the same articles with the right clock),
+and rules v6 reads the cause a one-ticker "why is it moving" piece names in its summary. The
+`results_*` files beside this README are the v6 run.
+
+- **Leaderboard movers (2,243):** 40% none found (was 23%), 16% noise only (was 29%), 38% a
+  catalyst (was 44%: 11% strong, 27% weak). Most of the old "noise only" and part of the old
+  catalysts were Benzinga items that had not been published yet at the mover's cutoff.
+- **Pillar universe at 09:30:** 2% of verdicts changed.
+- **First pullback:** unchanged -- strong catalyst at 09:30 -0.21R (187 trades, PF 0.81), weak
+  -0.36R, noise only -0.47R, none found -0.41R.
+
 ## Findings, 2026-09-23 (rules v4)
 
 **Coverage.** 7,976 symbol-days (5,733 pillar candidates, 1,931 leaderboard movers, 312 both), every

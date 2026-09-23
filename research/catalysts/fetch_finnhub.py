@@ -18,6 +18,8 @@ from cat_config import ET, FINNHUB_CALLS_PER_MIN, FINNHUB_HISTORY_DAYS, load_env
 from http_util import HttpRefused, Pacer, get
 from store import connect, pending, put_check, put_items
 
+from constants_catalysts import CATALYST_FINNHUB_SKIP_PUBLISHERS  # the live desk's list (cat_config: backend/ on the path)
+
 SOURCE = "finnhub"
 
 
@@ -58,7 +60,9 @@ def main() -> int:
             "item_id": f"finnhub:{r.get('id')}", "source": SOURCE, "published_ts": float(r["datetime"]),
             "title": r.get("headline"), "summary": (r.get("summary") or "")[:2000], "url": r.get("url"),
             "publisher": r.get("source"), "tickers": [ticker], "n_tickers": None,
-        } for r in (rows if isinstance(rows, list) else []) if r.get("datetime") and w0 < float(r["datetime"]) <= w1]
+        } for r in (rows if isinstance(rows, list) else []) if r.get("datetime") and w0 < float(r["datetime"]) <= w1
+            # Benzinga copies carry Eastern time read as UTC, four hours early (#516); Alpaca has them right.
+            and str(r.get("source") or "").strip().lower() not in CATALYST_FINNHUB_SKIP_PUBLISHERS]
         with con:
             put_items(con, items)
             put_check(con, ticker, day, SOURCE, "ok", n_items=len(items))

@@ -1,64 +1,60 @@
 {
-  "rules_version": "catalyst-rules-v4-2026-09-23",
+  "rules_version": "catalyst-rules-v6-2026-09-23",
   "targets": 7976,
   "verdicts": {
     "pillars": {
-      "catalyst:weak": 2351,
-      "catalyst:strong": 1344,
-      "noise_only": 1216,
-      "none_found": 529,
-      "routine_only": 191,
-      "negative": 102
+      "catalyst:weak": 2250,
+      "catalyst:strong": 1355,
+      "noise_only": 1243,
+      "none_found": 582,
+      "routine_only": 194,
+      "negative": 109
     },
     "all": {
-      "catalyst:weak": 3060,
-      "noise_only": 1871,
-      "catalyst:strong": 1604,
-      "none_found": 1038,
-      "routine_only": 261,
-      "negative": 142
+      "catalyst:weak": 2854,
+      "noise_only": 1603,
+      "catalyst:strong": 1601,
+      "none_found": 1490,
+      "routine_only": 268,
+      "negative": 160
     },
     "both": {
-      "catalyst:weak": 138,
-      "catalyst:strong": 74,
-      "noise_only": 72,
-      "none_found": 17,
-      "negative": 6,
-      "routine_only": 5
+      "catalyst:weak": 121,
+      "none_found": 73,
+      "catalyst:strong": 69,
+      "noise_only": 37,
+      "negative": 9,
+      "routine_only": 3
     },
     "leaderboard": {
-      "noise_only": 583,
-      "catalyst:weak": 571,
-      "none_found": 492,
-      "catalyst:strong": 186,
-      "routine_only": 65,
-      "negative": 34
+      "none_found": 835,
+      "catalyst:weak": 483,
+      "noise_only": 323,
+      "catalyst:strong": 177,
+      "routine_only": 71,
+      "negative": 42
     }
   },
   "catalyst_categories": {
-    "earnings_guidance": 991,
-    "company_news": 930,
-    "merger_acquisition": 925,
-    "contract_partnership": 728,
-    "clinical_data": 373,
+    "earnings_guidance": 976,
+    "merger_acquisition": 907,
+    "company_news": 768,
+    "contract_partnership": 714,
+    "clinical_data": 378,
     "fda_regulatory": 279,
-    "theme_pivot": 228,
-    "product_news": 118,
-    "listing_financing": 92
+    "theme_pivot": 219,
+    "product_news": 116,
+    "listing_financing": 98
   },
   "representative_source": {
-    "alpaca": 3399,
-    "edgar": 2366,
-    "finnhub": 1061,
-    "massive": 112
+    "alpaca": 3528,
+    "edgar": 2367,
+    "finnhub": 471,
+    "massive": 120
   },
   "sources_answered_per_target": {
     "2": 7,
     "3": 4479,
     "4": 3490
-  },
-  "finnhub_checks": {
-    "ok": 3490,
-    "out_of_range": 4486
   }
 }

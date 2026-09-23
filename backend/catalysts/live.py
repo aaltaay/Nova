@@ -3,10 +3,11 @@
 The same window and classifier as the backfilled history: a symbol's items published after the
 prior session's 16:00 ET close, judged by ``catalysts.classify.verdict`` at the moment asked --
 Alpaca articles (fetched here in the background; ``request`` queues symbols, never on the
-caller's thread) plus everything the live catalyst feed recorded (``catalysts/feed.py``: SEC
-filings, GlobeNewswire, PR Newswire, Newsfile, FDA). A source counts as having looked only when
-its fetch or its unbroken feed span covers the window; with no source looking and nothing found
-the answer is ``None`` (unknown), never "no news" (a replay playhead on another day included).
+caller's thread), Finnhub company news (``catalysts/live_finnhub.py``, paced, the same way) and
+everything the live catalyst feed recorded (``catalysts/feed.py``: SEC filings, GlobeNewswire,
+PR Newswire, Newsfile, FDA). A source counts as having looked only when its fetch or its unbroken
+feed span covers the window; with no source looking and nothing found the answer is ``None``
+(unknown), never "no news" (a replay playhead on another day included).
 A Nasdaq T1 / T12 halt inside the window with no resumption yet adds ``news_pending``.
 
 ``panel`` answers the Trader's News panel: the verdict plus every item read, each with its label
@@ -25,6 +26,7 @@ from datetime import datetime, time as dtime, timedelta, timezone
 from typing import Iterable
 from zoneinfo import ZoneInfo
 
+from catalysts import live_finnhub
 from catalysts.classify import classify_item, verdict
 from constants_catalysts import (
     CATALYST_LIVE_BATCH,
@@ -32,6 +34,7 @@ from constants_catalysts import (
     CATALYST_NEWS_PENDING_CODES,
     CATALYST_PANEL_MAX_ITEMS,
     CATALYST_PANEL_SCHEMA_VERSION,
+    CATALYST_SOURCE_RANK,
 )
 
 logger = logging.getLogger(__name__)
@@ -76,16 +79,19 @@ def compact(v: dict | None) -> dict | None:
 def panel(symbol: str, now: float | None = None) -> dict:
     """The Trader's News panel: the verdict and every item it read since the prior close, newest first.
 
-    Reads Alpaca for this symbol first when its read is missing or stale, on the caller's thread (a
-    route's worker), so a panel opened on a name no board carries is never "not checked" for long.
+    Reads Alpaca and Finnhub for this symbol first when a read is missing or stale, on the caller's
+    thread (a route's worker), so a panel opened on a name no board carries is never "not checked" for
+    long. One release carried by several sources (the wire, and its Yahoo copy on Finnhub) is listed
+    once, from the source that ranks first.
     """
     now = time.time() if now is None else now
     sym = (symbol or "").strip().upper()
     start = window_start(now)
     ensure([sym], now)
+    live_finnhub.ensure(sym, start, now)
     items, answered = _gather(sym, start, now)
     rows = []
-    for it in items:
+    for it in _one_per_release(items):
         ts = float(it.get("published_ts") or 0.0)
         if not start < ts <= now:
             continue
@@ -121,15 +127,31 @@ def ensure(symbols: Iterable[str], now: float | None = None) -> None:
 
 
 def _gather(sym: str, start: float, now: float) -> tuple[list[dict], list[str]]:
-    """Every item held for ``sym`` (Alpaca + the feed) and the sources whose reading covers (start, now]."""
+    """Every item held for ``sym`` (Alpaca, Finnhub, the feed) and the sources whose reading covers (start, now]."""
     with _lock:
         span = _fetched.get(sym)
         items = list((_items.get(sym) or {}).values())
     answered = []
     if span is not None and span[0] <= start and span[1] >= now - CATALYST_LIVE_TTL_SEC:
         answered.append("alpaca")
+    fh_items, fh_answered = live_finnhub.gather(sym, start, now)
+    if fh_answered:
+        answered.append(live_finnhub.SOURCE)
     feed_items, feed_answered = _feed_view(sym, start, now)
-    return items + feed_items, answered + feed_answered
+    return items + fh_items + feed_items, answered + feed_answered
+
+
+def _one_per_release(items: list[dict]) -> list[dict]:
+    """One item per headline, from the best-ranked source (``CATALYST_SOURCE_RANK``)."""
+    def rank(it: dict) -> int:
+        src = str(it.get("source") or "")
+        return CATALYST_SOURCE_RANK.index(src) if src in CATALYST_SOURCE_RANK else len(CATALYST_SOURCE_RANK)
+
+    best: dict[str, dict] = {}
+    for it in sorted(items, key=rank):
+        key = "".join(ch for ch in str(it.get("title") or "").lower() if ch.isalnum())[:80] or str(it.get("item_id"))
+        best.setdefault(key, it)
+    return list(best.values())
 
 
 def _verdict(sym: str, items: list[dict], answered: list[str], start: float, now: float) -> dict | None:
@@ -182,15 +204,17 @@ def _halt_view(symbol: str, start: float, now: float) -> dict:
 
 
 def request(symbols: Iterable[str]) -> None:
-    """Queue symbols whose fetch is missing or stale; a daemon thread drains them."""
+    """Queue symbols whose fetch is missing or stale (Alpaca and Finnhub); daemon threads drain them."""
     global _worker
     now = time.time()
     start = window_start(now)
+    wanted = _norm(symbols)
+    live_finnhub.request(wanted, start, now)
     with _lock:
         for sym in [s for s, span in _fetched.items() if span[1] <= start]:  # an earlier session's reads
             _fetched.pop(sym, None)
             _items.pop(sym, None)
-        _pending.update(s for s in _norm(symbols) if _stale(s, start, now))
+        _pending.update(s for s in wanted if _stale(s, start, now))
         if not _pending or (_worker is not None and _worker.is_alive()):
             return
         _worker = threading.Thread(target=_drain, daemon=True, name="catalysts_live")
@@ -278,3 +302,4 @@ def reset_for_testing() -> None:
         _fetched.clear()
         _pending.clear()
         _worker = None
+    live_finnhub.reset_for_testing()
