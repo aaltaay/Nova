@@ -1,0 +1,68 @@
+{
+  "rules_version": "catalyst-rules-v3-2026-09-23",
+  "labeller": "Claude (blind to predictions); operator labels pending",
+  "note": "sample and holdout were used to tune the rules; holdout2 was scored once against v3 and never tuned on",
+  "sets": {
+    "sample_claude": {
+      "tuned_on": true,
+      "items": 200,
+      "kind_agreement": 0.97,
+      "catalyst_precision": 0.954,
+      "catalyst_recall": 0.99,
+      "strong_precision": 1.0,
+      "weak_precision": 0.933,
+      "confusion": {
+        "catalyst->catalyst": 104,
+        "catalyst->routine": 1,
+        "negative->negative": 16,
+        "noise->noise": 40,
+        "routine->catalyst": 5,
+        "routine->routine": 34
+      }
+    },
+    "holdout_claude": {
+      "tuned_on": true,
+      "items": 200,
+      "kind_agreement": 0.955,
+      "catalyst_precision": 0.947,
+      "catalyst_recall": 0.968,
+      "strong_precision": 0.909,
+      "weak_precision": 0.959,
+      "confusion": {
+        "catalyst->catalyst": 90,
+        "catalyst->negative": 1,
+        "catalyst->noise": 1,
+        "catalyst->routine": 1,
+        "negative->catalyst": 1,
+        "negative->negative": 14,
+        "noise->catalyst": 3,
+        "noise->noise": 43,
+        "routine->catalyst": 1,
+        "routine->noise": 1,
+        "routine->routine": 44
+      }
+    },
+    "holdout2_claude": {
+      "tuned_on": false,
+      "items": 200,
+      "kind_agreement": 0.83,
+      "catalyst_precision": 0.774,
+      "catalyst_recall": 0.937,
+      "strong_precision": 0.92,
+      "weak_precision": 0.733,
+      "confusion": {
+        "catalyst->catalyst": 89,
+        "catalyst->negative": 1,
+        "catalyst->noise": 4,
+        "catalyst->routine": 1,
+        "negative->negative": 17,
+        "noise->catalyst": 5,
+        "noise->negative": 1,
+        "noise->noise": 27,
+        "routine->catalyst": 21,
+        "routine->noise": 1,
+        "routine->routine": 33
+      }
+    }
+  }
+}

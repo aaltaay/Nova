@@ -11,7 +11,7 @@ import {
   TAPE_VERDICT_TITLES,
 } from '../constants';
 import {
-  distanceLabel, fmtCents, fmtPx, fmtR, isActionable, outcomeLabel, rowClass, stagedLimit,
+  catalystTitle, distanceLabel, fmtCents, fmtPx, fmtR, isActionable, outcomeLabel, rowClass, stagedLimit,
 } from './setupsFormat';
 import { stageSetupTicket } from './stageSetupTicket';
 import type { SetupRow } from './types';
@@ -79,7 +79,7 @@ function SetupBoardRow({ row, selected, onSelectSymbol, onOpenTrading }: {
       <td className="num" title="Target 1: the leg high or 2R, whichever is higher">{fmtPx(s?.target1)}</td>
       <td className="num setups-distance">{distanceLabel(row) || outcomeLabel(row) || '—'}</td>
       <td><TapeCell row={row} onOpenTrading={onOpenTrading} /></td>
-      <td title={row.pillars?.headline ?? undefined}>{row.grade ?? '—'}</td>
+      <td title={catalystTitle(row.pillars)}>{row.grade ?? '—'}</td>
       <td className="num">{row.state === 'triggered' ? fmtR(row.bar_r) : '—'}</td>
       <td className="setups-reason" title={row.reason}>{row.reason}</td>
       <td>
@@ -121,7 +121,7 @@ export function SetupsBoard({ rows, selectedSymbol, onSelectSymbol, onOpenTradin
             <th>Target</th>
             <th title="How far under the trigger price is, or how a triggered setup went">Distance</th>
             <th title="The bot's read of the Level 2 and time and sales at the trigger">Tape</th>
-            <th title="Five Pillars at the moment it armed: A = all five, B = four, C = three or fewer or unknown">Grade</th>
+            <th title="Five Pillars at the moment it armed: A = all five, B = four, C = three or fewer or unknown. News passes only for a real catalyst since the prior close.">Grade</th>
             <th title="What the backtest's exit rules made of it, in R (gross)">R</th>
             <th>Why</th>
             <th />

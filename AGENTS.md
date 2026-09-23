@@ -539,7 +539,7 @@ and `proposals[]` (the open ones). A row is `{symbol, state: "watching" |
 leg_low, leg_pct, armed_bar_t, armed_at, kind, triggered_at?, trigger_price?,
 nth?} | null, leg: {t, high, low, pct} | null, last_price, distance: number |
 null (trigger minus last, armed and near only), grade: "A" | "B" | "C" | null,
-pillars: {price, change_pct, rvol, float, news, headline} | null, tape:
+pillars: {price, change_pct, rvol, float, news, headline, catalyst} | null, tape:
 {verdict: "go" | "wait" | "veto" | "blind", reasons: string[], line, metrics}
 | null, proposal | null, outcome: "target_first" | "stop_first" | "open" |
 null, bar_r, mfe, mae}`. An unknown pillar is `null`, never a failed one, and
@@ -563,6 +563,33 @@ to open and the board reports `scoreboard_error`), one per armed setup: levels,
 grade and pillars at arm time, `near_tape` / `trigger_tape`, the first touch,
 MFE / MAE over 15 minutes and `bar_r` under the research exit rules --
 scores, never fills.
+
+### Catalysts (ADR 024)
+
+One pure classifier, `backend/catalysts/classify.py` (rules and `CATALYST_RULES_VERSION` in
+`constants_catalysts.py`), for the backfilled history and the live desk. An item is
+`catalyst` (`strength: "strong" | "weak"`), `negative` (dilution, delisting), `routine` or
+`noise` (movers lists, "why is it moving", law-firm adverts, opinion, roundups of more than
+three tickers). A **verdict** for a symbol-day reads only items published after the prior
+session's 16:00 ET close and at or before its cutoff: `{verdict: "catalyst" | "negative" |
+"routine_only" | "noise_only" | "none_found" | "not_checked", category, strength, title,
+source, published_ts, url, negative_too, rules_version}` (plus `sources_answered`, `n_items`).
+`none_found` only when a source looked; `not_checked` when none did.
+
+The setup board's `pillars.catalyst` is that verdict at arm time (`catalysts/live.py`:
+Alpaca since the prior close, fetched in the background, `null` when no fetch covers the
+moment); `pillars.news` is `true` only for `verdict: "catalyst"` and `null` when unknown;
+`pillars.headline` is the catalyst's headline (it was a timestamp). The scanner News flame
+and the leaderboard's `has_news` keep their meaning (an article exists).
+
+The research store `F:\Nova\catalysts\catalysts.sqlite3` (`NOVA_CATALYST_DIR`; `PRAGMA
+user_version = 1`, unknown versions refuse; owner `research/catalysts/`, never read by the
+backend) holds `targets (ticker, session_date, window_start, cutoff, window_end, origin)`,
+`items (item_id "<source>:<id>", source edgar | alpaca | finnhub | massive, published_ts,
+title, summary, url, publisher, n_tickers, form, sec_items, fetched_ts)`, `item_tickers`,
+`checks (ticker, session_date, source, status ok | error | unavailable | out_of_range,
+n_items, detail, checked_ts)` and `verdicts` per rules version. SEC's bulk
+`submissions.zip` is kept beside it under `edgar/`.
 
 ### Input Payload (Raw)
 
@@ -1040,6 +1067,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-23 | Catalysts (ADR 024): one pure classifier (`backend/catalysts/classify.py`, `constants_catalysts.py`) for the backfilled history and the live desk -- noise (movers lists, law firms, opinion, roundups), routine, negative (dilution, delisting) and catalyst (strong / weak by class); a symbol-day's verdict reads only items published after the prior 16:00 ET close and by its cutoff, and says `none_found` only when a source looked. The setup scanner's News pillar passes only on a real catalyst and is `null` when unknown (`catalysts/live.py`); `pillars.headline` is the headline, not a timestamp. The history is backfilled onto `F:\Nova\catalysts` from SEC EDGAR (bulk index + filed press releases), Alpaca, Finnhub's free year and the Massive archive (`research/catalysts/`), and the first pullback is re-run by catalyst class. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Header ticker search gets smarter (operator ask): `GET /api/symbols/directory` serves every listed US symbol with its company name (Alpaca listing metadata, cached 6 h); the search matches by ticker or company name across the whole listing after the desk's own symbols, filters with `/regex/` and `A*X` wildcards over symbols, shows recent look-ups on focus (Shift+Del forgets), and Tab completes. Enter still opens exactly what was typed when it could be a ticker; only a name-only match (APPLE -> AAPL) moves the default. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-22 | Scanner leaderboard (ADR 023, operator decisions 2026-09-22): one row per symbol per minute per board, recorded always (no button; 04:00-20:00 ET exchange days; enqueue-only, a worker writes) and rebuilt offline from the Massive minute flat files (`research/leaderboard/`, no hindsight: prior-20-session time-of-day RVOL, float only as known that day). Gaps are stated with their reason (`not_running` / `feed_down` / `not_recorded` / `outside_session`) and never carried across; halts come only from a new halt / LULD log (IBKR tick 49 + Nasdaq RSS). One pure ranking (`leaderboard/ranking.py`) for playback leaders, S5 and auto-record; auto-record records the leaders 07:00-10:00 on free Level 2 lines only and yields the moment the operator opens Level 2 or Record elsewhere. `POST /api/sim/clock {session_date}` moves Sim to a past day with nothing loaded; the Scanner and HOD strip follow the playhead off the live edge. `/api/history/dates?type=all`; `movers` reads the split files. Segment reason `auto`. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-22 | The setup scanner (ADR 022): one live first-pullback scanner replaces the old setups stream (`/ws/strategy`) and the Watchlist's Signals sub-tab. It follows the HOD Momo names on Nova's own one-minute bars through Watching, Leg up, Armed, Near, Triggered or Failed on the pre-registered P1 rules (94.9% parity with the research harness), reads the Level 2 and the tape the desk already holds at the trigger (`go` / `wait` / `veto` / `blind`; it opens no IBKR line), and raises a proposal only when a live setup is near and the tape says go: a ping, an alert card on every tab, a staged ticket at most. Nothing in `setup_scanner/` imports an order path. Every armed setup is scored in `setups.db` the way the backtest scored its trades. The Phase D executor no longer receives signals. §3 amended. | User Directive + Claude Opus 5.5 |

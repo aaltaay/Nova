@@ -1,0 +1,64 @@
+{
+  "rules_version": "catalyst-rules-v3-2026-09-23",
+  "targets": 7976,
+  "verdicts": {
+    "pillars": {
+      "catalyst:weak": 2273,
+      "catalyst:strong": 1280,
+      "noise_only": 1272,
+      "none_found": 620,
+      "routine_only": 178,
+      "negative": 110
+    },
+    "all": {
+      "catalyst:weak": 2921,
+      "noise_only": 1846,
+      "catalyst:strong": 1516,
+      "none_found": 1299,
+      "routine_only": 245,
+      "negative": 149
+    },
+    "both": {
+      "catalyst:weak": 125,
+      "catalyst:strong": 69,
+      "noise_only": 66,
+      "none_found": 39,
+      "routine_only": 7,
+      "negative": 6
+    },
+    "leaderboard": {
+      "none_found": 640,
+      "catalyst:weak": 523,
+      "noise_only": 508,
+      "catalyst:strong": 167,
+      "routine_only": 60,
+      "negative": 33
+    }
+  },
+  "catalyst_categories": {
+    "earnings_guidance": 978,
+    "merger_acquisition": 896,
+    "company_news": 808,
+    "contract_partnership": 701,
+    "clinical_data": 366,
+    "fda_regulatory": 274,
+    "theme_pivot": 209,
+    "product_news": 114,
+    "listing_financing": 91
+  },
+  "representative_source": {
+    "alpaca": 3529,
+    "edgar": 2426,
+    "finnhub": 592,
+    "massive": 130
+  },
+  "sources_answered_per_target": {
+    "2": 7,
+    "3": 6298,
+    "4": 1671
+  },
+  "finnhub_checks_at_snapshot": {
+    "ok": 1709
+  },
+  "note": "Finnhub (free tier, one year) was still filling when this was written; re-run fetch_finnhub.py then build_verdicts.py"
+}
