@@ -9,7 +9,7 @@ import {
 } from './orderEntry';
 import { useTopOfBook } from '../hotkeys/TopOfBookContext';
 import type { IbkrListingFlags } from '../types/ticker';
-import { applyTicketDefaults, seedPricesForSide } from './applyTicketDefaults';
+import { applyTicketDefaults, seedFollow, seedPricesForSide } from './applyTicketDefaults';
 import { ManualOrderFields } from './ManualOrderFields';
 import { ManualOrderFooter } from './ManualOrderFooter';
 import { ManualOrderTicketHeader } from './ManualOrderTicketHeader';
@@ -32,7 +32,9 @@ import {
   tryUnlockTicketSession,
 } from './ticketUnlock';
 import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from './types';
+import type { QuickPriceKind } from './ticketPriceQuick';
 import { useCompactTicket } from './useCompactTicket';
+import { useTicketPriceFollow } from './useTicketPriceFollow';
 import { useManualOrderSubmission } from './useManualOrderSubmission';
 import { useIbkrStatus } from './useIbkrStatus';
 import { useVenuePrice } from '../sim/useReplayQuote';
@@ -151,6 +153,16 @@ export function ManualOrderTicket({
     onNeedsPin: () => setPinDialogOpen(true),
     onOrderPlaced,
   });
+  // The limit follows the side of the Level 2 book it was taken from, and
+  // holds while a confirm is open or an order is in flight.
+  const priceFollow = useTicketPriceFollow({
+    symbol,
+    book: topOfBook,
+    initial: seedFollow(initial.side, initial.orderType),
+    active: usesLimitPrice(orderType),
+    frozen: submitting || confirmSummary != null,
+    setLimitPrice,
+  });
   // MASTER TEST QTY GATE (#444): say the sent size whenever the typed size is
   // above the door's cap, so the ticket never shows a size it will not send.
   // The cap binds Live only; Paper and Sim report null and stay quiet.
@@ -169,6 +181,7 @@ export function ManualOrderTicket({
     setQuantityMode('shares');
     setQuantityValue(next.quantityValue);
     setLimitPrice(next.limitPrice);
+    priceFollow.setFollowing(seedFollow(next.side, next.orderType));
     setStopPrice(next.stopPrice);
     setOutsideRth(next.outsideRth);
     resetSubmission();
@@ -182,6 +195,7 @@ export function ManualOrderTicket({
       setQuantityMode('shares');
       if (!QTY_LOCKED) setQuantityValue(req.quantityValue);
       setLimitPrice(req.limitPrice);
+      priceFollow.setFollowing(null);
       resetSubmission();
     });
   }, [symbol]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -205,6 +219,7 @@ export function ManualOrderTicket({
       topOfBook,
     );
     if (usesLimitPrice(orderType)) setLimitPrice(seeded.limitPrice);
+    priceFollow.setFollowing(seedFollow(mapped.side, orderType));
     if (usesStopPrice(orderType)) setStopPrice(seeded.stopPrice);
     resetSubmission();
   }
@@ -232,8 +247,20 @@ export function ManualOrderTicket({
       topOfBook,
     );
     if (usesLimitPrice(next)) setLimitPrice(seeded.limitPrice);
+    priceFollow.setFollowing(seedFollow(side, next));
     if (usesStopPrice(next)) setStopPrice(seeded.stopPrice);
     resetSubmission();
+  }
+
+  /** A typed price is the operator's own: the limit stops following the book. */
+  function typeLimitPrice(next: string) {
+    priceFollow.setFollowing(null);
+    setLimitPrice(next);
+  }
+
+  function followBook(kind: QuickPriceKind | null, price: string | null) {
+    priceFollow.setFollowing(kind);
+    if (price != null) setLimitPrice(price);
   }
 
   // MKT_OUTSIDE_RTH: the default order type is Market, and after the close
@@ -277,6 +304,8 @@ export function ManualOrderTicket({
       <ManualOrderFields
         symbol={symbol}
         topOfBook={topOfBook}
+        priceFollowing={priceFollow.following}
+        onPriceFollow={followBook}
         cost={cost}
         ticketSide={ticketSide}
         allowShort={allowShort}
@@ -294,7 +323,7 @@ export function ManualOrderTicket({
         onOrderTypeChange={selectOrderType}
         onQuantityModeChange={selectQuantityMode}
         onQuantityValueChange={onQuantityValueChange}
-        onLimitPriceChange={setLimitPrice}
+        onLimitPriceChange={typeLimitPrice}
         onStopPriceChange={setStopPrice}
         onOutsideRthChange={setOutsideRth}
       />

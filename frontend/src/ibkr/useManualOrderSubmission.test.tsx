@@ -89,6 +89,26 @@ describe('useManualOrderSubmission gesture identity', () => {
     expect(key).toMatch(/^manual:/);
   });
 
+  it('places the limit the confirm named, even when the price moved behind it', async () => {
+    skipConfirm = false;
+    const { result, rerender } = renderHook(
+      (props: { limitPrice: string }) =>
+        useManualOrderSubmission({ ...params(), orderType: 'LMT', limitPrice: props.limitPrice }),
+      { initialProps: { limitPrice: '10.00' } },
+    );
+    await act(async () => {
+      result.current.submit({ preventDefault: () => undefined } as never);
+    });
+    expect(result.current.confirmSummary).toContain('10.00');
+    // The limit follows the live ask; a tick lands before Confirm.
+    rerender({ limitPrice: '10.05' });
+    await act(async () => {
+      await result.current.executeOrder();
+    });
+    expect(placeIbkrOrder).toHaveBeenCalledTimes(1);
+    expect(placeIbkrOrder.mock.calls[0][0].limit_price).toBe(10);
+  });
+
   it('confirm copy says SHORT when short_entry is set', async () => {
     skipConfirm = false;
     const { result } = renderHook(() =>

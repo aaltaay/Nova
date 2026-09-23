@@ -99,9 +99,14 @@ export const TICKET_TRAIL_LABEL = 'Trail $';
 export const TICKET_PRICE_BID = 'Bid';
 export const TICKET_PRICE_MID = 'Mid';
 export const TICKET_PRICE_ASK = 'Ask';
-export const TICKET_PRICE_QUICK_ARIA = 'Set the price from the top of book';
-export const TICKET_PRICE_QUICK_TITLE = 'Set the limit from the live top of book';
+export const TICKET_PRICE_QUICK_ARIA = 'Keep the price on the top of book';
+/** `${TITLE} ask: 5.14` -- a click keeps the limit on that side as Level 2 moves. */
+export const TICKET_PRICE_QUICK_TITLE = 'Follow the live';
+export const TICKET_PRICE_FOLLOWING_TITLE = 'Following the live';
+export const TICKET_PRICE_FOLLOW_STOP = 'type a price, or click again, to stop';
 export const TICKET_PRICE_QUICK_NO_BOOK = 'No live bid / ask for this symbol';
+/** Said while the ticket follows a side the book has stopped showing. */
+export const TICKET_PRICE_FOLLOW_HOLDING = 'the price holds until the book returns';
 /** Lead of the one-line reason shown only while Market is greyed out. */
 export const TICKET_MARKET_UNAVAILABLE = 'Market unavailable';
 export const TICKET_COST_LABEL = 'Cost';
