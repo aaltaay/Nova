@@ -98,6 +98,15 @@ def _reset_kill_switch():
     kill_switch.reset_for_tests()
 
 
+class _EveryVenue(str):
+    """A venue stamp equal to every venue -- the suite's default arm only."""
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, str)
+
+    __hash__ = str.__hash__
+
+
 @pytest.fixture(autouse=True)
 def _isolate_operator_state(tmp_path, monkeypatch):
     cache_root = tmp_path / "nova_cache"
@@ -216,6 +225,10 @@ def _isolate_operator_state(tmp_path, monkeypatch):
     import ibkr.safety as _safety
 
     monkeypatch.setattr(_safety, "_armed", True)
+    # The latch carries the venue it was armed on (ADR 018 amendment); this
+    # default arm holds on whichever venue a test pins. A test that arms or
+    # disarms through ``set_armed`` / ``arm`` gets the real venue binding.
+    monkeypatch.setattr(_safety, "_armed_venue", _EveryVenue("any"))
     monkeypatch.setattr(
         _nasdaq_halt_feed,
         "_default_fetch",

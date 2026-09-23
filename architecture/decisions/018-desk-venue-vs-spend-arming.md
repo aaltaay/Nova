@@ -72,8 +72,36 @@ Under these latches the failure that started this ADR is unreachable from either
 - **Persist the venue in `.env`.** No `schema_version`, shares a file with secrets and hand edits, and makes a safety choice depend on rewriting the file that also configures the spend gates.
 - **Infer the arm state from a healthy Gateway connection.** Would re-arm on exactly the event the watchdog generates.
 
+## Amendment (2026-09-23): who may arm, by venue
+
+**Operator decision:** "I like the gate for sim/paper but I want the bot to be able to unlock it themselves through an endpoint, but I don't want the live trade to ever get unlocked without my permission." Then: the Live PIN is checked by the backend, and Paper / Sim unlock in one click.
+
+**What was wrong.** The PIN was a constant in the public frontend source, compared in the browser. `POST /api/ibkr/arm` armed any venue for any local caller with the API key. So "only the operator arms Live" was a browser speed bump, and a bot or agent on the machine could arm Live. On top of that, "unlocked" had two truths: a per-tab `sessionStorage` flag, synced across windows by BroadcastChannel and localStorage, AND-ed with this latch.
+
+**Decision.**
+
+1. **One door, one rule.** `POST /api/ibkr/arm` is the only way to set the latch, for the padlock and for bots alike. `ibkr/safety.arm` holds the rule, by venue (`ARM_PIN_VENUES`):
+   - **Live:** arms only with the operator's PIN. `ibkr/arm_pin.py` checks it against a salted PBKDF2 hash in `.env` (`NOVA_LIVE_ARM_PIN_HASH`, written by `tools/set_live_arm_pin.py` from a hidden prompt). With no hash set, Live refuses to arm. Five wrong PINs in a row lock Live arming for five minutes.
+   - **Paper / Sim:** arm with no PIN.
+   - **Disarm:** always open.
+
+   `actor` (`operator` | `bot`) is a label stamped on the latch as `armed_by`, never a permission.
+2. **The latch carries its venue.** `armed()` answers true only on the venue the latch was armed on, and an unreadable venue reads as Live. The venue-change disarm stays. This makes "a practice arm is never a Live arm" structural rather than dependent on every venue path remembering to disarm.
+3. **The frontend keeps no unlock state.** The padlock, ticket, Bots page, quick bar and close buttons all read `/api/ibkr/status.armed` and use one flow (`useTradingPinGate`):
+   - On Paper / Sim, arm in one call.
+   - On Live, open the PIN dialog and send the PIN to the backend, showing the backend's refusal.
+
+**Consequences.** After this ships, Live cannot be armed until the operator runs `py -3 tools/set_live_arm_pin.py` once on the desk PC. The rest of this ADR is unchanged: a process start lands disarmed, a venue change disarms, protective sources are exempt, and the env gates still decide what Live is permitted to do.
+
+**Rejected.**
+
+- Removing the gate from Paper / Sim: an earlier ask that same day, withdrawn by the operator.
+- A separate bot arm endpoint: a second door means a second rule to keep in step.
+- Trusting a self-declared `actor: "operator"`: any caller can send that.
+
 ## Related
 
+- `backend/ibkr/arm_pin.py` · `tools/set_live_arm_pin.py`
 - `backend/sim/mode.py` · `backend/sim/routes.py` · `backend/constants_sim.py`
 - `backend/ibkr/safety.py` · `backend/ibkr/trading_allowed.py` · `backend/ibkr/gateway_heal.py` · `backend/ibkr/client_ops.py`
 - `backend/cache_schema.py` · `backend/paths.py`

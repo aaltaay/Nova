@@ -37,7 +37,9 @@ from constants import (
     IBKR_ORDERS_ENABLED_DEFAULT,
     IBKR_SHORT_ENABLED_DEFAULT,
 )
+from constants_ibkr import ARM_PIN_VENUES
 from constants_sim import (
+    DESK_VENUE_LIVE,
     DESK_VENUE_SIM,
     PAPER_SPEND_STATUS,
     SIM_SPEND_LOCKED_DISARMED,
@@ -108,6 +110,12 @@ def normalize_account_kind(broker_account_kind: str | None) -> str:
 # global, so a fresh process is disarmed by construction) and any venue change
 # (sim.mode.set_sim_mode). Nothing persists it -- that is the whole point.
 _armed: bool = False
+# The venue the latch was armed on, and who armed it. `armed()` answers true
+# only while the desk is still on that venue, so an arm given on Paper or Sim
+# can never be read as an arm on Live -- even by a path that forgot the venue
+# change's disarm (ADR 018 amendment, 2026-09-23).
+_armed_venue: str | None = None
+_armed_by: str | None = None
 
 DISARMED_REASON = (
     "Desk is disarmed -- arm trading in this session before placing "
@@ -120,34 +128,81 @@ DISARMED_REASON = (
 PROTECTIVE_SOURCES = frozenset({"kill", "cancel_working", "flatten"})
 
 
+def _current_venue() -> str:
+    """The desk venue now; an unreadable one is Live, the venue that needs the PIN."""
+    try:
+        from sim.mode import venue
+
+        return venue()
+    except Exception:
+        logger.exception("IBKR: desk venue unavailable -- the arm latch answers as Live")
+        return DESK_VENUE_LIVE
+
+
 def armed() -> bool:
-    """Whether this process is currently armed to open positions."""
-    return _armed
+    """Whether this process is armed to open positions on the venue it is on now."""
+    return _armed and _armed_venue == _current_venue()
 
 
-def set_armed(value: bool, *, reason: str = "") -> bool:
-    """Arm or disarm this process. Returns the new state.
+def armed_by() -> str | None:
+    """``operator`` | ``bot`` while armed, else ``None``."""
+    return _armed_by if armed() else None
 
-    Only an explicit operator action should arm. Never call this from a
-    connect, reconnect or self-heal path -- re-arming on a healthy Gateway
-    would re-arm on exactly the event the watchdog generates.
+
+def arm_requires_pin() -> bool:
+    return _current_venue() in ARM_PIN_VENUES
+
+
+def set_armed(value: bool, *, reason: str = "", venue: str | None = None,
+              actor: str | None = None) -> bool:
+    """Set or clear the latch -- the primitive under ``arm``. Returns the new state.
+
+    Only an explicit operator or bot request (``arm``) should arm. Never call
+    this from a connect, reconnect or self-heal path -- re-arming on a healthy
+    Gateway would re-arm on exactly the event the watchdog generates.
     """
-    global _armed
-    was = _armed
+    global _armed, _armed_venue, _armed_by
+    was = armed()
     _armed = bool(value)
-    if was != _armed:
+    _armed_venue = (venue or _current_venue()) if _armed else None
+    _armed_by = (actor or "operator") if _armed else None
+    if was != armed():
         logger.info(
             "IBKR: desk %s%s", "ARMED" if _armed else "DISARMED",
             f" ({reason})" if reason else "",
         )
-    return _armed
+    return armed()
+
+
+def arm(value: bool, *, pin: str | None = None, actor: str = "operator") -> tuple[str | None, str]:
+    """The one door to the latch: ``(None, "")`` when done, else ``(code, reason)``.
+
+    Who may arm is one rule, by venue (``ARM_PIN_VENUES``): Live only with the
+    operator's PIN, checked here against the hash in ``.env``; Paper and Sim
+    with no PIN, from the padlock or a bot. Disarm is always open. The venue is
+    read once and stamped on the latch, so a venue change between the check and
+    the arm leaves the desk disarmed on the new venue.
+    """
+    if not value:
+        set_armed(False, reason=f"{actor} disarm")
+        return None, ""
+    venue_now = _current_venue()
+    if venue_now in ARM_PIN_VENUES:
+        from ibkr import arm_pin
+
+        code, reason = arm_pin.check(pin)
+        if code:
+            logger.warning("IBKR: %s arm on %s refused -- %s", actor, venue_now, code)
+            return code, reason
+    set_armed(True, reason=f"{actor} on {venue_now}", venue=venue_now, actor=actor)
+    return None, ""
 
 
 def assert_armed_for(source: str | None) -> tuple[bool, str]:
     """(ok, reason) for an opening order from *source*."""
     if (source or "") in PROTECTIVE_SOURCES:
         return True, ""
-    if not _armed:
+    if not armed():
         return False, DISARMED_REASON
     return True, ""
 
@@ -195,7 +250,7 @@ def spend_state(broker_account_kind: str | None) -> tuple[str, str]:
     a permitted-but-disarmed desk reads locked, not armed.
     """
     status, locked_reason = spend_permitted(broker_account_kind)
-    if status in ARMED_SPEND_STATUSES and not _armed:
+    if status in ARMED_SPEND_STATUSES and not armed():
         return SIM_SPEND_LOCKED_DISARMED, DISARMED_REASON
     return status, locked_reason
 
@@ -225,12 +280,21 @@ def status_snapshot(broker_account_kind: str | None = None) -> dict:
         "spend_permitted": permitted in ARMED_SPEND_STATUSES,
         "spend_permitted_status": permitted,
         "spend_permitted_reason": permitted_reason or None,
-        "armed": _armed,
+        "armed": armed(),
+        "armed_by": armed_by(),
+        "arm_requires_pin": arm_requires_pin(),
+        "live_arm_pin_set": _live_arm_pin_set(),
         # MASTER TEST QTY GATE: the most shares one place / bracket may send
         # (None when the gate is off). The ticket states it so no surface shows
         # a size the door will not send (#444).
         "qty_cap": _qty_cap(),
     }
+
+
+def _live_arm_pin_set() -> bool:
+    from ibkr.arm_pin import pin_is_set
+
+    return pin_is_set()
 
 
 def _qty_cap() -> float | None:

@@ -106,7 +106,8 @@ calls existing doors in this order:
    uses an EH LMT at bid/ask/last (`outside_rth=true`) -- IBKR ignores
    outsideRth on MKT (Warning 2109) and would hold an RTH-only MKT until the
    next regular session (Warning 399). Place/Activate/padlock share one
-   `trading_allowed` gate (spend + Gateway + desk PIN). Flatten / KILL /
+   `trading_allowed` gate (spend + Gateway + the backend arm latch; Live arms
+   only with the operator's PIN, checked by the backend -- ADR 018 amendment). Flatten / KILL /
    cancel stay protective and do not use that gate to refuse an exit.
 4. Bot Autonomy L0 + desk lock again (reaffirm; L0 retries if the first PATCH
    failed)
