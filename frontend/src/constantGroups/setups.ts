@@ -51,7 +51,7 @@ export const TAPE_VERDICT_TITLES: Record<string, string> = {
   blind: 'Nova holds no Level 2 line for this symbol. Open it in the Trader so the bot can read the tape.',
 };
 
-/* Catalyst labels (CATALYST_CATEGORY_LABELS / CATALYST_VERDICT_TITLES) live in constantGroups/catalysts.ts. */
+/* Catalyst labels (CATALYST_CATEGORY_LABELS / _SHORT / CATALYST_VERDICT_TITLES) live in constantGroups/catalysts.ts. */
 
 /** Scoreboard splits, in the order they answer the question: does the tape
  * gate turn the bar shape into a winning trade? */

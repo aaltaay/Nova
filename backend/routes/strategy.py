@@ -26,6 +26,7 @@ from strategy.gap_and_go import evaluate_gap_and_go
 from strategy.risk import get_state as _get_risk_state, validate_trade_plan
 from strategy.setups import evaluate_setups
 from strategy.watchlist import build_watchlist
+from strategy.watchlist_catalyst import attach as _attach_catalysts
 from runtime_state import get_runtime_state
 
 router = APIRouter(prefix="/api/strategy", tags=["strategy"])
@@ -133,7 +134,7 @@ def watchlist() -> dict:
     return {
         "note": _TRANSPARENCY_NOTE,
         "count": len(entries),
-        "entries": [e.to_dict() for e in entries],
+        "entries": _attach_catalysts([e.to_dict() for e in entries]),
     }
 
 

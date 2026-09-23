@@ -163,7 +163,8 @@ Signals sub-tab (and its hook, panel and sample rows). The Watchlist's
   whether the tape agrees -- on every tab, with the ticket one click away.
 - The scanner is a measuring instrument as much as an alert: after enough
   sessions the scoreboard says whether "tape: go" turns the bar shape into a
-  winning trade. Only then does a firing bot (L2) get a first-pullback pack.
+  winning trade. Only then does the bot's Strategy level open for the first
+  pullback (ADR 027 gates Activate and every L2 fire on this read-out).
 - A symbol without a held depth line is never judged; its tape is `blind`.
   Seeing more symbols means holding more lines, which IBKR caps at three.
 - Live minute bars come from Level 1 last and cumulative volume, not the

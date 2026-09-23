@@ -54,6 +54,19 @@ export const SAMPLE_HOD_ALERTS: AlertObject[] = [
   alert('s-hod-2', 'SPIK', 3, '5min Surge', 1.45, 52.6, 5, {
     rvol: 28,
     float_shares: 1_200_000,
+    momentum_pct: 9.1,
+  }),
+  // Three strategies fired for SPIK together: the strip shows one row with a count bubble.
+  alert('s-hod-2b', 'SPIK', 4, 'Low Float Runner', 1.45, 52.6, 5, {
+    rvol: 28,
+    float_shares: 1_200_000,
+  }),
+  alert('s-hod-2c', 'SPIK', 2, 'Premarket HOD', 1.45, 52.6, 5, {
+    rvol: 28,
+    float_shares: 1_200_000,
+    consolidation_count: 4,
+    consolidated_ids: ['s-hod-2c1', 's-hod-2c2', 's-hod-2c3', 's-hod-2c'],
+    consolidation_span_sec: 3,
   }),
   alert('s-hod-3', 'GAPX', 2, 'Premarket HOD', 1.92, 74.5, 8, {
     rvol: 40,

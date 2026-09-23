@@ -35,9 +35,6 @@ vi.mock('../closed_orders/useClosedOrders', () => ({
   useClosedOrders: () => ({ orders: [], loading: false, error: null, refresh: () => {} }),
 }));
 
-vi.mock('../bot/BotArmControls', () => ({
-  BotArmControls: () => <div data-testid="bot-arm-controls-stub" />,
-}));
 vi.mock('../bot/BotSymbolMenu', () => ({
   BotSymbolMenuHost: () => <div data-testid="bot-symbol-menu-host-stub" />,
 }));

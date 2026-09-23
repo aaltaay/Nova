@@ -3,7 +3,7 @@
  */
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { botAllowlistStripLabel, packDescription } from '../constantGroups/bot';
+import { BOT_SETUP_BLURBS, botAllowlistStripLabel } from '../constantGroups/bot';
 import { _resetDeskPollShareForTests } from '../ibkr/deskSharedPoll';
 import { writeTicketSessionUnlocked } from '../ibkr/ticketUnlock';
 import { BotAutonomyCard } from './BotAutonomyCard';
@@ -22,11 +22,14 @@ vi.mock('../ibkr/useIbkrStatus', () => ({ useIbkrStatus: () => ibkrStatus }));
 
 function session(partial: Partial<BotSession> = {}): BotSession {
   return {
-    level: 0, armed: false, has_desk_arm: false, strategy: null, active_pack: 'halt-luld',
-    packs: [
-      { id: 'halt-luld', label: 'Halt / LULD resume', status: 'live', description: packDescription('halt-luld') },
-      { id: 'quote-spike', label: 'Quote spike', status: 'live', description: packDescription('quote-spike') },
-    ],
+    level: 0, armed: false, has_desk_arm: false, strategy: null, setup: 'first_pullback',
+    setups: [{ id: 'first_pullback', scanner: true }, { id: 'gap_and_go', scanner: false }],
+    readout: {
+      state: 'collecting', passed: false, reason: '12 of 50 go setups triggered',
+      go: { triggered: 12, scored: 12, win_pct: 58, avg_net_r: 0.31 },
+      control: { triggered: 40, scored: 40, win_pct: 30, avg_net_r: -0.18 },
+      rules: { min_go: 50 },
+    },
     symbol_allowlist: ['GRML', 'VXTL'], brain_session_id: null, brain_alive: false, live_fire_ready: false,
     caps: { max_shares: 1, bp_budget_usd: 50, working_ttl_sec: 3, extended_hours: false, allowlist: [] },
     advise: { enabled: false, usd_cap: 2, call_cap: 10, usd_spent: 0, calls_used: 0 },
@@ -67,16 +70,16 @@ afterEach(() => {
 });
 
 describe('BotAutonomyCard', () => {
-  it('shows Level, Pack (with the description as the i tooltip), Allowlist count and Not active · Activate', async () => {
+  it('shows Level, the Setup (what it trades as the i tooltip), Allowlist count and Not active · Activate', async () => {
     mockFetch(() => session());
     await act(async () => { render(<BotAutonomyCard />); });
     expect(screen.getByTestId('bot-card-state').textContent).toBe('Not active');
     expect(screen.getByTestId('bot-card-activate')).toBeTruthy();
     expect((screen.getByTestId('bot-card-level') as HTMLSelectElement).value).toBe('0');
-    expect((screen.getByTestId('bot-card-pack') as HTMLSelectElement).value).toBe('halt-luld');
-    expect(screen.getByTestId('bot-card-pack-info').title).toBe(packDescription('halt-luld'));
+    expect(screen.getByTestId('bot-card-setup').textContent).toBe('First pullback');
+    expect(screen.getByTestId('bot-card-setup-info').title).toBe(BOT_SETUP_BLURBS.first_pullback);
     // The long sentence is a tooltip, not card text.
-    expect(screen.queryByText(packDescription('halt-luld'))).toBeNull();
+    expect(screen.queryByText(BOT_SETUP_BLURBS.first_pullback)).toBeNull();
     expect(screen.getByTestId('bot-arm-allowlist-toggle').textContent).toBe(botAllowlistStripLabel(2));
   });
 
@@ -98,5 +101,15 @@ describe('BotAutonomyCard', () => {
     const activate = screen.getByTestId('bot-card-activate') as HTMLButtonElement;
     expect(activate.disabled).toBe(true);
     expect(activate.title).toBe('Spend locked');
+  });
+
+  it('refuses Activate at Strategy until the first-pullback read-out passes, and says why', async () => {
+    mockFetch(() => session({ level: 2 }));
+    await act(async () => { render(<BotAutonomyCard />); });
+    const activate = screen.getByTestId('bot-card-activate') as HTMLButtonElement;
+    expect(activate.disabled).toBe(true);
+    expect(activate.title).toContain('12 of 50 go setups triggered');
+    await act(async () => { fireEvent.click(activate); });
+    expect(posts.some(p => p.href.includes('/session/arm'))).toBe(false);
   });
 });

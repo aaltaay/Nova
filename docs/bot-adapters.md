@@ -9,7 +9,7 @@ server inside Nova. Do not marry Grok or any other model vendor.
 - Spec: `GET http://127.0.0.1:8000/openapi.json` (tag `bot`)
 - Human map: `docs/bot-localhost-api.md`
 - Python client: `from bot.sdk import BotApiClient` (re-exports
-  `nova_brain.client.BotApiClient`)
+  `bot.client.BotApiClient`)
 - Tool map: `from bot.mcp_adapter import TOOLS, DESK_ONLY`
 
 `TOOLS` are what a brain/MCP host may call. `DESK_ONLY` (`/session/arm`,

@@ -45,10 +45,16 @@ def test_session_get_l0_open_without_key(bot_iso):
     assert body["armed"] is False
     assert body["live_fire_ready"] is False
     assert "desk_arm_token" not in body
-    packs = {row["id"]: row for row in body["packs"]}
-    assert packs["volume"]["status"] == "live"
-    assert "stub" not in packs["volume"]["description"].lower()
-    assert body["pack_settings"]["volume"]["min_mult"] == 5.0
+    # ADR 027: the playbook replaces the packs.
+    assert "packs" not in body and "active_pack" not in body and "llm" not in body
+    assert body["setup"] == "first_pullback"
+    setups = {row["id"]: row["scanner"] for row in body["setups"]}
+    assert setups == {"first_pullback": True, "gap_and_go": False, "flat_top_breakout": False,
+                      "red_to_green": False, "micro_pullback": False}
+    assert {g["id"] for g in body["gates"]} == {
+        "level", "allowlist", "desk_armed", "depth_lines", "readout", "bot_trip", "day_lock",
+        "kill_switch", "window"}
+    assert body["readout"]["passed"] is True  # the test baseline (conftest)
     alias = client.get("/bot/session")
     assert alias.status_code == 200
 
@@ -320,7 +326,7 @@ def test_allowlist_and_watch(bot_iso, api_key):
     watch = client.get("/api/bot/watch")
     assert watch.status_code == 200
     assert "symbols" in watch.json()
-    assert watch.json()["active_pack"] == "halt-luld"
+    assert watch.json()["setup"] == "first_pullback"
 
 
 def test_focus_sync_and_pnl(bot_iso, api_key, monkeypatch):

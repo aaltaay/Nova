@@ -1,4 +1,4 @@
-"""Optional MCP/SDK adapter contract -- not imported by routes or nova_brain.
+"""Optional MCP/SDK adapter contract -- not imported by routes.
 
 Maps MCP-style tool names to the localhost OpenAPI. Adapters never raise
 autonomy and never place except via POST /api/bot/action. Do not start an
@@ -6,7 +6,7 @@ MCP server from this module. Do not marry a model vendor.
 """
 from __future__ import annotations
 
-from nova_brain.client import BotApiClient
+from bot.client import BotApiClient
 
 TOOLS = (
     {"name": "bot_session_get", "method": "GET", "path": "/api/bot/session", "auth": False},
@@ -15,7 +15,6 @@ TOOLS = (
     {"name": "bot_heartbeat", "method": "POST", "path": "/api/bot/session/heartbeat", "auth": True},
     {"name": "bot_action", "method": "POST", "path": "/api/bot/action", "auth": True},
     {"name": "bot_propose", "method": "POST", "path": "/api/bot/proposals", "auth": True},
-    {"name": "bot_llm_spend", "method": "POST", "path": "/api/bot/llm/spend", "auth": True},
 )
 
 DESK_ONLY = (

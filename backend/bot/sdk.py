@@ -7,6 +7,6 @@ call the same HTTP contract documented in docs/bot-localhost-api.md.
 from __future__ import annotations
 
 from bot.mcp_adapter import DESK_ONLY, TOOLS, client
-from nova_brain.client import BotApiClient
+from bot.client import BotApiClient
 
 __all__ = ["BotApiClient", "DESK_ONLY", "TOOLS", "client"]

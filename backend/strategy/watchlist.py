@@ -13,7 +13,7 @@ places orders. See five_pillars.py for pillar semantics.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from constants import (
@@ -37,6 +37,9 @@ class WatchlistEntry:
     five_pillars: FivePillarsResult
     composite_score: float
     sub_scores: dict[str, float]
+    # The market columns the Watchlist table shows, read from the same scanner
+    # row the pillars were scored on. Every unknown is None, never a placeholder.
+    market: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -44,7 +47,11 @@ class WatchlistEntry:
             "composite_score": round(self.composite_score, 1),
             "sub_scores": {k: round(v, 1) for k, v in self.sub_scores.items()},
             "five_pillars": self.five_pillars.to_dict(),
+            **{key: self.market.get(key) for key in MARKET_KEYS},
         }
+
+
+MARKET_KEYS = ("price", "change_pct", "rel_volume", "rvol_source", "float_shares", "has_news")
 
 
 def _clamp(value: float, low: float = 0.0, high: float = 100.0) -> float:
@@ -118,7 +125,36 @@ def score_watchlist_entry(candidate: dict) -> WatchlistEntry:
         + sub_scores["float"] * WATCHLIST_WEIGHT_FLOAT
         + sub_scores["catalyst"] * WATCHLIST_WEIGHT_CATALYST
     )
-    return WatchlistEntry(symbol=symbol, five_pillars=pillars, composite_score=composite, sub_scores=sub_scores)
+    return WatchlistEntry(
+        symbol=symbol, five_pillars=pillars, composite_score=composite,
+        sub_scores=sub_scores, market=_market_columns(candidate, change_pct),
+    )
+
+
+def _number(value) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value) if value == value else None  # NaN is unknown
+
+
+def _market_columns(candidate: dict, change_pct) -> dict:
+    """The row's own market facts for the table (fractions, like the scanner wire).
+
+    ``change_pct`` arrives graded (a move past +100% is in percent, QA W6), so
+    anything over 1.0 is converted back to a fraction.
+    """
+    change = _number(change_pct)
+    if change is not None and abs(change) > 1.0:
+        change = change / 100.0
+    has_news = candidate.get("has_news")
+    return {
+        "price": _number(candidate.get("price", candidate.get("current_price"))),
+        "change_pct": change,
+        "rel_volume": _number(candidate.get("rel_volume")),
+        "rvol_source": candidate.get("rvol_source") or None,
+        "float_shares": _number(candidate.get("float", candidate.get("float_shares"))),
+        "has_news": has_news if isinstance(has_news, bool) else None,
+    }
 
 
 def build_watchlist(candidates: list[dict], limit: int = WATCHLIST_MAX_ROWS) -> list[WatchlistEntry]:

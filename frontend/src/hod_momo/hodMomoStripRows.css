@@ -221,3 +221,80 @@
   letter-spacing: 0.03em;
   text-transform: uppercase;
 }
+
+/* ── grouped row: strategies that fired together (operator ask, 2026-09-23) ── */
+.hod-strip__strat--group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: help;
+}
+
+.hod-strip__bubble {
+  flex: none;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--accent-color, #3b82f6);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+.hod-strip__card {
+  position: fixed;
+  z-index: 60;
+  min-width: 16rem;
+  max-width: min(32rem, calc(100vw - 16px));
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  border-radius: 6px;
+  background: var(--surface-2, #1a1d25);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  font-size: 11.5px;
+  color: var(--text-primary, #e8ecf4);
+  pointer-events: none;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.hod-strip__card-title {
+  padding-bottom: 0.3rem;
+  margin-bottom: 0.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #9aa3b2);
+}
+
+.hod-strip__card-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.15rem 0;
+}
+
+.hod-strip__card-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted, #9aa3b2);
+}
+
+.hod-strip__card-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hod-strip__card-detail {
+  flex: none;
+  margin-left: 0.75rem;
+  font-size: 10.5px;
+  color: var(--text-muted, #9aa3b2);
+}

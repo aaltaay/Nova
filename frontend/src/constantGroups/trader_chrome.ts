@@ -80,7 +80,7 @@ export const TRADER_VENUE_TAG_SIM_TITLE =
 /* ── Bot Autonomy card ──────────────────────────────────────────────────── */
 
 export const BOT_CARD_TITLE = 'Bot autonomy';
-export const BOT_CARD_PACK_INFO_ARIA = 'What this pack does';
+export const BOT_CARD_SETUP_INFO_ARIA = 'What this setup trades';
 export const BOT_CARD_ALLOWLIST_TITLE = 'Symbols the bot may act on';
 
 /* ── Compact ticket ─────────────────────────────────────────────────────── */

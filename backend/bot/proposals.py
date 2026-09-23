@@ -1,4 +1,4 @@
-"""L1 Eyes proposals -- human places. Fixed schema."""
+"""Bot proposals at Eyes or Strategy -- a human places. Fixed schema (ADR 016, ADR 027)."""
 from __future__ import annotations
 
 import time
@@ -9,10 +9,8 @@ from bot.audit import record as audit
 from bot.autonomy import assert_not_dark
 from bot.eligibility import assert_symbol_eligible
 from bot.errors import BotError
-from bot.packs import normalize_pack
 from bot.persist import load_proposals, load_session, save_proposals
 from bot.risk import assert_kind
-from constants_bot import BOT_LEVEL_STRATEGY, BOT_PACK_LLM_DECIDE, BOT_REASON_L1_NO_FIRE
 
 
 def _validate_proposal(body: dict[str, Any]) -> dict[str, Any]:
@@ -60,14 +58,8 @@ def list_proposals() -> list[dict[str, Any]]:
 
 
 def submit(body: dict[str, Any], *, brain_session_id: str | None) -> dict[str, Any]:
-    row = assert_not_dark()
-    pack = normalize_pack(row.get("active_pack"))
-    if int(row.get("level") or 0) >= BOT_LEVEL_STRATEGY and pack != BOT_PACK_LLM_DECIDE:
-        raise BotError(
-            "L2 fires actions -- proposals are L1 Eyes only",
-            409,
-            BOT_REASON_L1_NO_FIRE,
-        )
+    # Eyes or Strategy: until Strategy's read-out passes the bot proposes like Eyes (ADR 027).
+    assert_not_dark()
     item = _validate_proposal(body)
     item["brain_session_id"] = (brain_session_id or "").strip() or None
     store = load_proposals()

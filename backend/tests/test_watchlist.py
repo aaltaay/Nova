@@ -5,6 +5,8 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from strategy.watchlist import build_watchlist, score_watchlist_entry
@@ -56,7 +58,29 @@ class TestScoreWatchlistEntry:
 
     def test_to_dict_shape(self):
         payload = score_watchlist_entry(_mock_candidate()).to_dict()
-        assert set(payload) == {"symbol", "composite_score", "sub_scores", "five_pillars"}
+        assert set(payload) == {
+            "symbol", "composite_score", "sub_scores", "five_pillars",
+            "price", "change_pct", "rel_volume", "rvol_source", "float_shares", "has_news",
+        }
+
+    def test_market_columns_come_from_the_scored_row(self):
+        payload = score_watchlist_entry(_mock_candidate(rvol_source="yfinance")).to_dict()
+        assert payload["price"] == 5.0
+        assert payload["change_pct"] == 0.15
+        assert payload["rel_volume"] == 6.0
+        assert payload["rvol_source"] == "yfinance"
+        assert payload["float_shares"] == 8_000_000
+        assert payload["has_news"] is True
+
+    def test_market_columns_state_unknowns_as_none(self):
+        payload = score_watchlist_entry({"symbol": "BARE", "rel_volume": float("nan"), "has_news": "yes"}).to_dict()
+        for key in ("price", "change_pct", "rel_volume", "rvol_source", "float_shares", "has_news"):
+            assert payload[key] is None, key
+
+    def test_a_graded_move_past_100_percent_is_a_fraction_again(self):
+        # routes.strategy._graded hands the graders 230.51 for a +230.51% move.
+        payload = score_watchlist_entry(_mock_candidate(change_pct=230.51)).to_dict()
+        assert payload["change_pct"] == pytest.approx(2.3051)
 
 
 class TestBuildWatchlist:

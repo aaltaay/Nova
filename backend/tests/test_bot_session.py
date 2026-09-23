@@ -119,7 +119,7 @@ def test_l2_arms_small_cap_and_clamps_caps():
     assert view["level"] == 2
     assert view["armed"] is True
     assert view["strategy"] == "small-cap"
-    assert view["active_pack"] == "halt-luld"
+    assert view["setup"] == "first_pullback"
     assert view["has_desk_arm"] is True
     assert view["caps"]["max_shares"] == BOT_MAX_SHARES_CAP
     assert view["caps"]["bp_budget_usd"] == 50.0

@@ -54,21 +54,35 @@ export const NEWS_IMPACT_FACTOR_TOOLTIPS = {
 
 // ── Strategy / Watchlist tab (mirrors backend constants.py WATCHLIST_*) ────
 export const WATCHLIST_POLL_INTERVAL_MS = 3000;
-/** Composite score column headers, in display order. */
-export const WATCHLIST_SUBSCORE_LABELS: Record<string, string> = {
-  change_pct: '% Chg',
-  relative_volume: 'RVOL',
-  float: 'Float',
-  catalyst: 'News',
+/** Five Pillars as one-letter chips, in the order the backend grades them. */
+export const WATCHLIST_PILLAR_LETTERS: Record<string, string> = {
+  price: 'P',
+  change_pct: '%',
+  relative_volume: 'R',
+  catalyst: 'N',
+  float: 'F',
 };
 
-/** Hover tooltips explaining each composite sub-score, 0-100 scale. */
-export const WATCHLIST_SUBSCORE_TOOLTIPS: Record<string, string> = {
-  change_pct: "0-100 score from today's % price change — bigger moves score higher, capped at WATCHLIST_CHANGE_PCT_SCORE_CAP.",
-  relative_volume: "0-100 score from volume vs. this symbol's own average — higher relative volume scores higher, capped at WATCHLIST_REL_VOLUME_SCORE_CAP.",
-  float: '0-100 score for a tighter (smaller) share float — tighter floats move faster and score higher.',
-  catalyst: "0-100 score for how fresh the news catalyst is — a headline within the last few minutes scores highest, fading to 0 once it's stale.",
+/** Five Pillars by name, for the side-panel list. */
+export const WATCHLIST_PILLAR_NAMES: Record<string, string> = {
+  price: 'Price',
+  change_pct: '% change',
+  relative_volume: 'Relative volume',
+  catalyst: 'Catalyst',
+  float: 'Float',
 };
+
+export const WATCHLIST_FILTER_LABELS: Record<string, string> = {
+  all: 'All',
+  pillars5: '5/5 pillars',
+  setup_live: 'Setup live',
+  allowlist: 'On bot allowlist',
+};
+
+export const WATCHLIST_FOOTNOTE =
+  'Click a row for pillars and setup in the side panel · click the ticker to open Trader · Bot ● adds or removes it from the bot allowlist.';
+export const WATCHLIST_BOT_ON_TITLE = 'On the bot allowlist -- click to remove';
+export const WATCHLIST_BOT_OFF_TITLE = 'Add to the bot allowlist (the bot only ever looks at these symbols)';
 
 /** Side-panel strip under News Headline — mirrors Watchlist tab columns without Symbol. */
 export const TICKER_WATCHLIST_STRIP_TITLE = 'Watchlist';

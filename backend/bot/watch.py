@@ -1,10 +1,9 @@
-"""Halt/LULD + shared-quote snapshots for allowlist ∩ live focus (brain Eyes)."""
+"""Halt / LULD + shared-quote snapshots for allowlist ∩ live focus (a brain's Eyes)."""
 from __future__ import annotations
 
 from typing import Any
 
 from bot.eligibility import eligible_symbols
-from bot.packs import catalog
 from bot.session import public_view
 
 
@@ -58,8 +57,7 @@ def halt_watch(row: dict[str, Any]) -> dict[str, Any]:
     view = public_view(row)
     return {
         "symbols": items,
-        "active_pack": view.get("active_pack"),
-        "packs": catalog(),
+        "setup": view.get("setup"),
         "live_fire_ready": bool(view.get("live_fire_ready")),
         "eligible": symbols,
     }

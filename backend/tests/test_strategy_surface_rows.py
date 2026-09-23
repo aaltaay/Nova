@@ -25,6 +25,8 @@ from runtime_state import get_runtime_state  # noqa: E402
 def desk(monkeypatch):
     monkeypatch.setattr("alpaca._get_discovery_provider", lambda: "ibkr")
     monkeypatch.setattr(scanner_surface._hod_momo, "is_blocked", lambda s: (s or "").upper() == "BLOK")
+    monkeypatch.setattr("catalysts.live.request", lambda symbols: None)
+    monkeypatch.setattr("catalysts.live.verdict_for", lambda symbol, now=None: None)
     snb.reset_for_testing()
     state = get_runtime_state()
     prev = (state.gapper_cache, state.gainer_cache)
@@ -93,3 +95,40 @@ def test_one_symbol_lookup_grades_the_surfaced_row(desk, monkeypatch):
 
     assert _pillars(body)["relative_volume"]["passed"] is True
     assert _pillars(body)["float"]["passed"] is True
+
+
+def test_watchlist_rows_carry_the_table_columns(desk, monkeypatch):
+    monkeypatch.setitem(_fundamentals_cache, "GRML", {"average_volume": 100_000.0, "float_shares": 3_100_000})
+    desk.gapper_cache = [
+        {"symbol": "GRML", "price": 8.61, "change_pct": 2.3051, "gap_percent": 1.5649, "volume": 1_820_000},
+    ]
+
+    [entry] = strategy_routes.watchlist()["entries"]
+
+    assert entry["price"] == 8.61
+    assert entry["change_pct"] == pytest.approx(2.3051)  # a fraction on the wire, never 1.2%
+    assert entry["rel_volume"] == pytest.approx(18.2)
+    assert entry["float_shares"] == 3_100_000
+    assert entry["catalyst"] is None  # no source looked: unknown, not "no news"
+
+
+def test_watchlist_rows_carry_todays_catalyst_verdict(desk, monkeypatch):
+    seen = []
+    verdict = {"verdict": "catalyst", "category": "fda_regulatory", "strength": "strong", "title": "FDA clears",
+               "source": "globenewswire", "published_ts": 1_790_000_000.0, "news_pending": False,
+               "url": "https://example.test", "sources_answered": ["alpaca"], "rules_version": 4}
+    monkeypatch.setattr("catalysts.live.request", lambda symbols: seen.extend(symbols))
+    monkeypatch.setattr("catalysts.live.verdict_for", lambda symbol, now=None: verdict if symbol == "GRML" else None)
+    desk.gapper_cache = [
+        {"symbol": "GRML", "price": 8.61, "change_pct": 0.42, "volume": 10},
+        {"symbol": "QUIET", "price": 5.0, "change_pct": 0.2, "volume": 10},
+    ]
+
+    entries = {e["symbol"]: e for e in strategy_routes.watchlist()["entries"]}
+
+    assert sorted(seen) == ["GRML", "QUIET"]  # the fetch is queued, never awaited
+    assert entries["GRML"]["catalyst"] == {
+        "verdict": "catalyst", "category": "fda_regulatory", "strength": "strong", "title": "FDA clears",
+        "source": "globenewswire", "published_ts": 1_790_000_000.0, "news_pending": False,
+    }
+    assert entries["QUIET"]["catalyst"] is None

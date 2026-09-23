@@ -8,15 +8,16 @@ from bot.autonomy import apply_patch
 from bot.errors import BotError
 from bot.persist import load_session
 from constants_bot import (
-    BOT_PACK_QUOTE_SPIKE,
-    BOT_PACK_VOLUME,
+    BOT_REASON_DAY_TRADE_CAP,
     BOT_REASON_FREE_FORM_QTY,
     BOT_REASON_L0_DARK,
     BOT_REASON_L1_NO_FIRE,
     BOT_REASON_NO_DEPTH_LINE,
     BOT_REASON_NOT_ACTIVE,
+    BOT_REASON_OUTSIDE_WINDOW,
+    BOT_REASON_READOUT_NOT_PASSED,
 )
-from tests.bot_helpers import hold_depth_line, ready_l2
+from tests.bot_helpers import hold_depth_line, open_entry_window, ready_l2
 from execution.models import ExecutionReceipt
 
 
@@ -53,8 +54,8 @@ async def test_l1_cannot_fire():
 
 
 @pytest.mark.asyncio
-async def test_l2_pack_allowlist_not_active_rejects(monkeypatch):
-    """L2 + live pack + allowlist is not enough -- Activate is a separate axis."""
+async def test_l2_allowlist_not_active_rejects(monkeypatch):
+    """L2 + allowlist is not enough -- Activate is a separate axis."""
     from bot.arming import disarm_session
 
     ready_l2(brain="brain-1", heartbeat=True)
@@ -208,35 +209,60 @@ async def test_eh_follows_session(monkeypatch, l2_brain):
     assert seen["eh"] is True
 
 
-@pytest.mark.asyncio
-async def test_volume_pack_can_fire(monkeypatch, l2_brain):
-    apply_patch({"active_pack": BOT_PACK_VOLUME}, desk=True)
-    seen = {}
+def _count_places(monkeypatch, order_id: int = 62) -> dict:
+    seen = {"n": 0}
 
     async def fake_execute(cmd, wait_ack=False):
+        seen["n"] += 1
         seen["source"] = cmd.source
-        return _ok(62)
+        return _ok(order_id)
 
     monkeypatch.setattr("bot.actions.execute", fake_execute)
     monkeypatch.setattr("bot.risk.last_quote", lambda _s: {"price": 2.0})
     monkeypatch.setattr("bot.risk.top_of_book", lambda _s: (1.9, 2.1))
-    result = await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="brain-1")
-    assert result["ok"] is True
-    assert seen["source"] == "bot"
+    return seen
 
 
 @pytest.mark.asyncio
-async def test_quote_spike_pack_can_fire(monkeypatch, l2_brain):
-    apply_patch({"active_pack": BOT_PACK_QUOTE_SPIKE}, desk=True)
-    seen = {}
+async def test_strategy_waits_on_the_readout_whatever_brain_fires(monkeypatch, l2_brain):
+    """ADR 027: no L2 order of any kind until the first-pullback read-out passes."""
+    from bot.gates import set_readout_for_tests
+    from setup_scanner.readout import evaluate
 
-    async def fake_execute(cmd, wait_ack=False):
-        seen["source"] = cmd.source
-        return _ok(61)
+    seen = _count_places(monkeypatch)
+    set_readout_for_tests(evaluate([]))
+    with pytest.raises(BotError) as exc:
+        await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="brain-1")
+    assert exc.value.reason == BOT_REASON_READOUT_NOT_PASSED
+    assert "0 of 50" in str(exc.value)
+    assert seen["n"] == 0
 
-    monkeypatch.setattr("bot.actions.execute", fake_execute)
-    monkeypatch.setattr("bot.risk.last_quote", lambda _s: {"price": 2.0})
-    monkeypatch.setattr("bot.risk.top_of_book", lambda _s: (1.9, 2.1))
+
+@pytest.mark.asyncio
+async def test_entries_keep_the_material_window(monkeypatch, l2_brain):
+    seen = _count_places(monkeypatch)
+    open_entry_window(hour=10, minute=0)  # the window is 07:00 up to 10:00
+    with pytest.raises(BotError) as exc:
+        await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="brain-1")
+    assert exc.value.reason == BOT_REASON_OUTSIDE_WINDOW
+    assert seen["n"] == 0
+
+
+@pytest.mark.asyncio
+async def test_one_trade_a_day(monkeypatch, l2_brain):
+    seen = _count_places(monkeypatch)
     result = await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="brain-1")
     assert result["ok"] is True
     assert seen["source"] == "bot"
+    with pytest.raises(BotError) as exc:
+        await fire({"kind": "buy_market", "symbol": "ABCD"}, brain_session_id="brain-1")
+    assert exc.value.reason == BOT_REASON_DAY_TRADE_CAP
+    assert seen["n"] == 1
+
+
+def test_exits_are_never_held_by_the_entry_rules():
+    from bot.entry_rules import assert_entry_allowed
+
+    open_entry_window(hour=15, minute=30)
+    for kind in ("exit_pos", "exit_pos_pct", "cancel_symbol", "sell_limit_bid_offset", "sell_pos_pct_ask"):
+        assert_entry_allowed(kind)
