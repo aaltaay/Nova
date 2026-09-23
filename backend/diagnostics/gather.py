@@ -84,6 +84,12 @@ def _gateway_inputs() -> dict[str, Any]:
         "second_factor_stale": sf.stale,
         "launcher_present": _ibc_launcher() is not None,
     }
+    if sf.pending or sf.stale:
+        # Only while a phone prompt is open: why the saved login was lost.
+        # One wevtutil per boot at most (cached in ibkr.windows_restarts).
+        from ibkr import relogin_reason as _relogin
+
+        ibc["relogin"] = _relogin.current()
     return {
         "enabled": enabled,
         "session": _client.session_snapshot(),

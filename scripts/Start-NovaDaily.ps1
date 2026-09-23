@@ -256,8 +256,31 @@ function Repair-IbcAutoRestartConfig {
     }
 }
 
+function Get-ReloginReason {
+    # One line from tools/premarket_verify.py: why the Gateway's latest start
+    # needed (or did not need) a phone login -- a Windows restart and who
+    # asked for it, or a fresh start (#14). Empty when Python is unavailable.
+    $tool = Join-Path $RepoRoot "tools\premarket_verify.py"
+    if (-not (Test-Path $tool)) { return "" }
+    try {
+        $line = & py -3 $tool relogin 2>$null | Select-Object -Last 1
+        return [string]$line
+    } catch {
+        return ""
+    }
+}
+
+function Set-IbcDayOfWeek {
+    # IBC names its log after the weekday it reads from wmic, which Windows 11
+    # no longer ships: every log became IBC-..._.txt and each cold start
+    # deleted the last one, so no login history survived a day. IBC keeps an
+    # inherited DAYOFWEEK when wmic prints nothing (constants_relogin.py).
+    $env:DAYOFWEEK = (Get-Date).DayOfWeek.ToString().ToUpperInvariant()
+}
+
 function Start-IbGateway {
     Repair-IbcAutoRestartConfig
+    Set-IbcDayOfWeek
     $ibcPs1 = Join-Path $env:USERPROFILE ".nova\ibc\start_gateway.ps1"
     $ibcBat = Join-Path $env:USERPROFILE ".nova\ibc\StartGateway.bat"
     $gatewayExe = $env:IBKR_GATEWAY_EXE
@@ -376,9 +399,11 @@ function Write-FinalStatus {
     )
     if (-not $gw4001 -and -not $gw4002) {
         Write-DailyLog (
-            "IB Gateway API ports are down. First login of the day may need " +
-            "IBKR Mobile 2FA -- scanners stay empty until the API port opens."
+            "IB Gateway API ports are down -- approve the IBKR Mobile login on your phone; " +
+            "scanners stay empty until the API port opens."
         ) "WARN"
+        $why = Get-ReloginReason
+        if ($why) { Write-DailyLog "WHY: $why" "WARN" }
     }
     elseif ($usable -ne $true) {
         Write-DailyLog (

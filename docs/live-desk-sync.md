@@ -52,10 +52,15 @@ Do this **after** the sync, and in this order:
    still want the stuck-request state diagnosed. The `.ibgzenc` logs are
    encrypted and are the only evidence of a "another pending request" stall --
    a cold restart destroys it.
-3. Cold restart through IBC and approve the IBKR Mobile 2FA prompt.
-4. Optional, worth doing once: enable the IBC command server
-   (`CommandServerPort`) so `ReconnectAccount.bat` becomes a soft reconnect and
-   the next wedge does not need a full restart plus 2FA.
+3. Cold restart through IBC and approve the IBKR Mobile 2FA prompt within
+   three minutes (IBC drops a prompt older than its 180 s timeout).
+4. Optional, worth doing once: enable the IBC command server so
+   `C:\IBC\ReconnectAccount.bat` becomes a soft reconnect and the next wedge
+   does not need a full restart plus 2FA. In
+   `%USERPROFILE%\.nova\ibc\config.ini` set `CommandServerPort=7462` and
+   `ControlFrom=127.0.0.1` (the desk's IBC log still showed
+   `CommandServerPort=0` on 2026-09-23). It takes effect on the next Gateway
+   start, so do it before step 3.
 
 **It worked if** Nova's log shows `completed-orders cache refreshed`, there is
 no `completed orders request timed out`, and the amber Desk warning clears
@@ -65,7 +70,48 @@ Known open risk, accepted: the trading PC is Wi-Fi only, and a Wi-Fi
 re-association coincided with a Gateway 1100 disconnect on 2026-09-17. Moving
 it to wired Ethernet removes that class of morning disconnect.
 
-## 3. Arm the unattended premarket (#14)
+## 3. Keep Windows from restarting the desk
+
+IB Gateway's saved login survives only Gateway's own 11:45 PM restart. **A PC
+restart ends it**, and the next start needs your phone
+(`docs/ibc-gateway-setup.md`, "What the saved login survives"). Worse, after a
+restart Windows waits at the sign-in screen, and Nova's scheduled tasks only
+run while you are signed in -- so nothing starts and nothing alerts until you
+sign in.
+
+That is what happened on 2026-09-23: Windows Update restarted the desk at 02:29
+ET to install an optional preview update (KB5124010). The desk's settings made
+that possible:
+
+- **Active hours were 8 AM to 2 AM**, so Windows treated 2 AM to 8 AM --
+  premarket -- as free time to restart.
+- **"Get the latest updates as soon as they're available" was on**, which is
+  why an optional preview update installed at all.
+
+Change, in Settings > Windows Update (Nova does not change Windows settings for
+you):
+
+1. **Advanced options** > turn off *Get the latest updates as soon as they're
+   available*.
+2. **Pause updates** (up to five weeks at a time) and install them yourself on
+   a weekend, then restart by hand. IBKR asks for your phone once a week at the
+   weekend anyway, so a weekend restart costs no extra login.
+3. **Advanced options** > turn on *Notify me when a restart is required*, so a
+   pending restart is visible before it happens.
+
+Active hours alone do not fix this: Windows caps them at 18 hours, and a
+restart at any hour still costs a phone login.
+
+To see what happened on a given night, run:
+
+```powershell
+py -3 tools\premarket_verify.py relogin
+```
+
+It prints one line: a Windows restart (who asked for it, when, and when you next
+signed in), or a fresh Gateway start.
+
+## 4. Arm the unattended premarket (#14)
 
 If the API or Gateway comes up after 09:30 ET, that day's Gappers table stays
 empty for the whole session by design (ADR 008 freeze) -- so every late or
@@ -87,17 +133,33 @@ machine should be on ET), a 06:00 backstop, logon/unlock, plus
   `POST /api/alerts/system-event`, with a direct Discord/webhook POST as the
   fallback when the API itself is down.
 
-**Evidence that closes #14** (an agent can check these for you the next
-morning):
+**Evidence that closes #14:**
 
-1. A real unattended `03:55` line in `backend/logs/morning-check.log` from a run
-   nobody started by hand.
-2. One week with no unexpected IBC `Login attempt` other than the weekly 2FA.
+1. An unattended `03:55` run in `backend/logs/morning-check.log` (one nobody
+   started by hand) that ended `RESULT PASS`.
+2. One week with no phone login other than IBKR's weekly one at the weekend.
 
-Until both exist, #14 stays open no matter how the code looks.
+Check both in one command, from `C:\Users\aalta\github\Nova`:
+
+```powershell
+py -3 tools\premarket_verify.py            # text; exit 0 only when both are met
+py -3 tools\premarket_verify.py --json     # the same, for an agent
+```
+
+It lists every weekday phone login and every morning the check did not run,
+each with its reason -- a Windows restart and who asked for it, or a fresh
+Gateway start -- read from the IBC logs, `daily-start.log` and the Windows
+event log. Until it prints `RESULT MET`, #14 stays open no matter how the code
+looks.
+
+The first criterion was met on 2026-09-22 (`03:55:03 RESULT PASS`). The second
+was not: in the week to 2026-09-23 the desk needed the phone on weekdays after
+an unrecorded restart and an unexpected shutdown (09-21), a Start-menu restart
+(09-22) and the Windows Update restart (09-23).
 
 ## Related
 
 - `scripts/Install-NovaDailyTask.ps1` · `scripts/Invoke-NovaMorningCheck.ps1`
+- `tools/premarket_verify.py` (#14 evidence, `relogin`) · `backend/ibkr/relogin_reason.py` · `backend/ibkr/windows_restarts.py`
 - `architecture/decisions/018-desk-venue-vs-spend-arming.md` (venue persists, arming never does)
 - `docs/paper-shadow-protocol.md` · `AGENTS.md` §8
