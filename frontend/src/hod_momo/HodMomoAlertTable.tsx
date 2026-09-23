@@ -10,7 +10,7 @@ import {
   STRATEGY_META,
   type StrategyMeta,
 } from '../constants';
-import { useScannerNews } from '../components/scannerNewsStore';
+import { useScannerCatalysts, useScannerNews } from '../components/scannerNewsStore';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { HOD_MOMO_COLUMNS, HOD_MOMO_COLUMN_TOOLTIPS } from './hodMomoColumns';
 import type { AlertObject } from './types';
@@ -126,7 +126,9 @@ export function HodMomoAlertTable({
   const scrollRef = useRef<HTMLDivElement>(null);
   const rafIdRef = useRef<number | null>(null);
   const pendingScrollTopRef = useRef(0);
-  const newsBySymbol = useScannerNews(useSampleDataOptional() ? 'sample' : 'live');
+  const newsSource = useSampleDataOptional() ? 'sample' : 'live';
+  const newsBySymbol = useScannerNews(newsSource);
+  const catalystBySymbol = useScannerCatalysts(newsSource);
   const empty = alerts.length === 0;
   // Always reserve the full 30-row scanner window (like Gappers/Gainers height),
   // even when only a few alerts have fired — shrinking to 1 row made the table look broken.
@@ -242,6 +244,11 @@ export function HodMomoAlertTable({
                   consolidationSec={consolidationSec}
                   newsHeadlineAt={
                     newsBySymbol.get(alert.ticker.toUpperCase()) ?? null
+                  }
+                  newsCatalyst={
+                    catalystBySymbol.has(alert.ticker.toUpperCase())
+                      ? catalystBySymbol.get(alert.ticker.toUpperCase()) ?? null
+                      : undefined
                   }
                 />
               ))}

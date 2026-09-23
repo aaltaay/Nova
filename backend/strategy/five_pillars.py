@@ -98,6 +98,35 @@ def _check_relative_volume(rel_volume: float | None) -> PillarCheck:
     )
 
 
+_VERDICT_FAIL_DETAIL = {
+    "negative": "only dilution / reverse-split news",
+    "routine_only": "only routine company items",
+    "noise_only": "only movers lists and market wraps -- no company news",
+    "none_found": "no company news since the prior close",
+}
+
+
+def catalyst_read(catalyst: dict | None) -> bool:
+    """True when a scanner row carries a classified verdict (ADR 024), not merely that an article exists."""
+    return isinstance(catalyst, dict) and catalyst.get("verdict") not in (None, "not_checked")
+
+
+def _check_catalyst_verdict(catalyst: dict, technical_breakout: bool = False) -> PillarCheck:
+    """The pillar from the classifier's verdict: a market wrap naming the ticker is not its catalyst."""
+    title = str(catalyst.get("title") or "")[:90]
+    if catalyst.get("verdict") == "catalyst":
+        what = ("company headline, not classified" if catalyst.get("category") == "company_news"
+                else f"catalyst: {str(catalyst.get('category') or '').replace('_', ' ')}")
+        return PillarCheck("catalyst", True, f"{what} -- {title}" if title else what)
+    if catalyst.get("news_pending"):
+        detail = f"news pending (halted {catalyst.get('halt_code') or ''})".replace(" )", ")")
+    else:
+        detail = _VERDICT_FAIL_DETAIL.get(str(catalyst.get("verdict")), "no catalyst")
+    if technical_breakout:
+        return PillarCheck("catalyst", True, f"technical breakout ({detail})")
+    return PillarCheck("catalyst", False, detail)
+
+
 def _check_catalyst(has_news: bool | None, technical_breakout: bool = False) -> PillarCheck:
     passed = bool(has_news) or bool(technical_breakout)
     if has_news:
@@ -132,13 +161,15 @@ def evaluate_five_pillars(candidate: dict, technical_breakout: bool = False) -> 
     change_pct = candidate.get("change_pct", candidate.get("gap_percent"))
     rel_volume = candidate.get("rel_volume")
     has_news = candidate.get("has_news")
+    catalyst = candidate.get("catalyst")
     float_shares = candidate.get("float", candidate.get("float_shares"))
 
     checks = (
         _check_price(price),
         _check_change_pct(change_pct),
         _check_relative_volume(rel_volume),
-        _check_catalyst(has_news, technical_breakout),
+        _check_catalyst_verdict(catalyst, technical_breakout) if catalyst_read(catalyst)
+        else _check_catalyst(has_news, technical_breakout),
         _check_float(float_shares),
     )
     return FivePillarsResult(symbol=symbol, checks=checks)

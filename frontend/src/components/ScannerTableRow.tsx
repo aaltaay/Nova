@@ -142,7 +142,7 @@ function renderCell(
       );
     }
     case 'newest_headline_at':
-      return <NewsCell newest_headline_at={row.newest_headline_at} />;
+      return <NewsCell newest_headline_at={row.newest_headline_at} catalyst={row.catalyst} />;
     case 'earnings_day_offset':
       return (
         <EarningsDots

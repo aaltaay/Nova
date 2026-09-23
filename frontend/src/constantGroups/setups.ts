@@ -51,37 +51,7 @@ export const TAPE_VERDICT_TITLES: Record<string, string> = {
   blind: 'Nova holds no Level 2 line for this symbol. Open it in the Trader so the bot can read the tape.',
 };
 
-/** Catalyst classes (backend ``constants_catalysts``) as the grade tooltip names them. */
-export const CATALYST_CATEGORY_LABELS: Record<string, string> = {
-  fda_regulatory: 'FDA / regulatory',
-  clinical_data: 'Clinical data',
-  merger_acquisition: 'Merger / acquisition',
-  contract_partnership: 'Contract / partnership',
-  earnings_guidance: 'Earnings / guidance',
-  listing_financing: 'Listing / financing',
-  theme_pivot: 'Theme pivot (AI, crypto ...)',
-  product_news: 'Product news',
-  company_news: 'Company news',
-  offering_dilution: 'Offering / dilution',
-  delisting_split: 'Delisting / reverse split',
-  corporate_routine: 'Routine company item',
-  periodic_report: 'Periodic report',
-  movers_list: 'Movers list',
-  law_firm: 'Law-firm advert',
-  opinion: 'Opinion piece',
-  roundup: 'Multi-stock roundup',
-  halt_notice: 'Halt notice',
-  analyst_action: 'Analyst note',
-};
-
-export const CATALYST_VERDICT_TITLES: Record<string, string> = {
-  catalyst: 'Catalyst',
-  negative: 'Only dilution / delisting news',
-  routine_only: 'Only routine company items -- no catalyst',
-  noise_only: 'Only movers lists, law firms or opinion -- no catalyst',
-  none_found: 'No news for this symbol since the prior close',
-  not_checked: 'Catalyst not checked',
-};
+/* Catalyst labels (CATALYST_CATEGORY_LABELS / CATALYST_VERDICT_TITLES) live in constantGroups/catalysts.ts. */
 
 /** Scoreboard splits, in the order they answer the question: does the tape
  * gate turn the bar shape into a winning trade? */

@@ -28,7 +28,7 @@ from constants import (
     WATCHLIST_WEIGHT_FLOAT,
     WATCHLIST_WEIGHT_REL_VOLUME,
 )
-from strategy.five_pillars import FivePillarsResult, evaluate_five_pillars
+from strategy.five_pillars import FivePillarsResult, catalyst_read, evaluate_five_pillars
 
 
 @dataclass(frozen=True)
@@ -89,6 +89,16 @@ def _catalyst_score(has_news: bool | None, newest_headline_at: str | None) -> fl
     return _clamp(100.0 * (1 - (age_minutes - WATCHLIST_CATALYST_FRESH_MINUTES) / span))
 
 
+def _verdict_score(catalyst: dict) -> float:
+    """Aged like a headline, but only a classified catalyst scores (ADR 024): a market wrap scores 0."""
+    if catalyst.get("verdict") != "catalyst":
+        return 0.0
+    ts = catalyst.get("published_ts")
+    if not isinstance(ts, (int, float)):
+        return 100.0
+    return _catalyst_score(True, datetime.fromtimestamp(float(ts), timezone.utc).isoformat())
+
+
 def score_watchlist_entry(candidate: dict) -> WatchlistEntry:
     """Score one candidate: Five Pillars pass/fail + weighted composite score."""
     symbol = candidate.get("symbol", "?")
@@ -99,7 +109,8 @@ def score_watchlist_entry(candidate: dict) -> WatchlistEntry:
         "change_pct": _change_pct_score(change_pct),
         "relative_volume": _rel_volume_score(candidate.get("rel_volume")),
         "float": _float_score(candidate.get("float", candidate.get("float_shares"))),
-        "catalyst": _catalyst_score(candidate.get("has_news"), candidate.get("newest_headline_at")),
+        "catalyst": (_verdict_score(candidate["catalyst"]) if catalyst_read(candidate.get("catalyst"))
+                     else _catalyst_score(candidate.get("has_news"), candidate.get("newest_headline_at"))),
     }
     composite = (
         sub_scores["change_pct"] * WATCHLIST_WEIGHT_CHANGE_PCT

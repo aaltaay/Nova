@@ -84,5 +84,7 @@ def decorate_rows(rows: list[dict] | None) -> list[dict]:
             entry["earnings_session"] = earnings_session(fund.get("earnings_ts"))
         from scanner_news_badge import stamp_row
         stamp_row(entry)
+        from catalysts.board import stamp_row as stamp_catalyst
+        stamp_catalyst(entry)
         out.append(entry)
     return out

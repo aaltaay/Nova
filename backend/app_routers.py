@@ -40,6 +40,7 @@ from diagnostics.routes import router as diagnostics_router
 from leaderboard.routes import router as leaderboard_router
 from setup_scanner.routes import router as setups_router
 from perf.routes import router as perf_router
+from catalysts.routes import router as catalysts_router
 
 
 def register_routers(app: FastAPI) -> None:
@@ -80,3 +81,4 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(leaderboard_router)
     app.include_router(setups_router)
     app.include_router(perf_router)
+    app.include_router(catalysts_router)

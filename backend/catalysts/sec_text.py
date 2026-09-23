@@ -32,6 +32,10 @@ _BOILER_RE = re.compile(r"^(ex(hibit)?[- ]?99|for immediate release|press releas
 _LEAD_VERB_RE = re.compile(r"^(announces|agrees|reports|secures|receives|enters|signs|completes|launches|regains|"
                            r"closes|prices|expands|awarded|wins|partners|provides|to acquire|acquires)\b", re.I)
 _DATELINE_RE = re.compile(r"^[A-Z][A-Za-z .,'-]+,\s+[A-Z][a-z]+\.? \d{1,2},? \d{4}")
+# A headline line ending on one of these was cut by the layout, not finished ("... HCLP Debt and").
+_CONTINUES = frozenset({"and", "or", "of", "to", "the", "for", "with", "in", "on", "a", "an", "&", "its", "at", "by",
+                        "from", "as", "into", "over", "their", "new"})
+_HEADLINE_MAX_WORDS = 45
 _ITEM_TEXT_RE = re.compile(r"Item\s+[1-8]\.0\d.{0,1400}")
 _OPENING_RE = re.compile(r"[^.]{0,200}\b(announce[sd]?|today|reported|entered into)\b.{0,1200}", re.I)
 
@@ -49,14 +53,16 @@ def headline(lines: list[str]) -> tuple[str | None, str]:
     title = None
     for k, ln in enumerate(lines[:80]):
         words = ln.split()
-        if len(words) < 3 or len(words) > 45 or _BOILER_RE.search(ln) or _DATELINE_RE.match(ln):
+        if len(words) < 3 or len(words) > _HEADLINE_MAX_WORDS or _BOILER_RE.search(ln) or _DATELINE_RE.match(ln):
             continue
         prev = lines[k - 1] if k else ""
         if _LEAD_VERB_RE.match(ln) and 0 < len(prev.split()) <= 6 and not _BOILER_RE.search(prev):
             ln = f"{prev} {ln}"  # the company name sat on its own line
         nxt = lines[k + 1] if k + 1 < len(lines) else ""
-        if (len(ln.split()) < 8 and nxt and len(nxt.split()) <= 30 and not _BOILER_RE.search(nxt)
-                and not _DATELINE_RE.match(nxt)):
+        joined = ln.split()
+        wrapped = len(joined) < 8 or joined[-1].lower() in _CONTINUES
+        if (wrapped and nxt and len(nxt.split()) <= 30 and len(joined) + len(nxt.split()) <= _HEADLINE_MAX_WORDS
+                and not _BOILER_RE.search(nxt) and not _DATELINE_RE.match(nxt)):
             ln = f"{ln} {nxt}"  # the headline wrapped
         if len(ln.split()) < 5:
             continue

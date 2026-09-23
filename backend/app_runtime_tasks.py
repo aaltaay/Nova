@@ -18,6 +18,7 @@ import scanner_news_badge as _scanner_news_badge
 import scanner_tab_registry as _scanner_tabs
 import strategy.risk as _risk
 import setup_scanner.engine as _setup_scanner
+from catalysts import board as _catalyst_board
 from catalysts import feed as _catalyst_feed
 from alpaca import _get_discovery_provider
 from archive.scheduler import archive_maintenance_loop, maintenance_enabled
@@ -90,6 +91,8 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         ("hod_momo.fundamentals_enrichment", _hod_momo_enrichment.fundamentals_enrichment_loop),
         ("integrity_live", _integrity_live.integrity_loop),
         ("scanner_news_badge", _scanner_news_badge.refresh_loop),
+        # The catalyst verdict on every scanner row (ADR 024 amendment): what the news is, not only that it exists.
+        ("catalysts.board", _catalyst_board.refresh_loop),
         # Setup scanner (ADR 022): replaces the old setups_stream loop. Never places.
         ("setup_scanner", _setup_scanner.run),
         ("risk.session_reset", _risk.session_reset_loop),

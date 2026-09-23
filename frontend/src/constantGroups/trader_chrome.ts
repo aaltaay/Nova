@@ -18,6 +18,9 @@ export const TRADER_TAB_CLOSE_RECORDING_TITLE = 'Stop recording before closing t
 /** Catalyst chip on a tab or a Focus row. Nova has a headline, not a category. */
 export const TRADER_CATALYST_NEWS = 'NEWS';
 export const TRADER_CATALYST_PR = 'PR';
+/** Bad news from the catalyst verdict (ADR 024): an offering, or a delisting / reverse split. */
+export const TRADER_CATALYST_DILUTION = 'DILUTION';
+export const TRADER_CATALYST_SPLIT = 'SPLIT';
 export const TRADER_CATALYST_NONE = 'no news';
 /** Wire names whose headlines are the company's own release. */
 export const TRADER_CATALYST_PR_SOURCES = [

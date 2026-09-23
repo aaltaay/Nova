@@ -16,6 +16,7 @@ import type { ScannerPricePatchRow } from '../hooks/useScannerPriceStream';
 import { applyScannerPricePatch } from '../hooks/useScannerPriceStream';
 import type { Catalyst } from '../types/catalyst';
 import type { ScannerRow } from '../types/scanner';
+import { normalizeCatalystVerdict } from '../utils/catalystVerdict';
 
 /** Numeric fields every row carries (null when unknown). */
 const ROW_NUMBERS = [
@@ -117,6 +118,8 @@ export function normalizeScannerRow(raw: unknown): ScannerRow | null {
   out.exchange = textOrNull(raw.exchange);
   out.newest_headline_at = textOrNull(raw.newest_headline_at);
   out.has_news = raw.has_news === true;
+  // Present (object or null) only from a backend that reads catalysts; absent keeps the headline flame.
+  if ('catalyst' in raw) out.catalyst = normalizeCatalystVerdict(raw.catalyst);
   if ('earnings_date' in raw) out.earnings_date = textOrNull(raw.earnings_date);
   if ('earnings_session' in raw) {
     out.earnings_session = EARNINGS_SESSIONS.has(raw.earnings_session as string)

@@ -1,4 +1,5 @@
 import type { WatchlistEntry } from '../strategy/types';
+import type { CatalystVerdict } from './catalystVerdict';
 
 /** Shared row shape for Gappers / Movers / After Hours / Large Cap tables. */
 export interface ScannerRow {
@@ -27,6 +28,8 @@ export interface ScannerRow {
   /** Sim playback (ADR 023): halted at the board's minute per the halt log; null = unknown. Absent on live rows. */
   halted?: boolean | null;
   newest_headline_at: string | null;
+  /** What the news since the prior close is (ADR 024): null = not read yet; absent on played-back rows. */
+  catalyst?: CatalystVerdict | null;
   market_cap: number | null;
   float: number | null;
   short_interest: number | null;

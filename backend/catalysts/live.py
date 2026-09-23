@@ -9,9 +9,12 @@ its fetch or its unbroken feed span covers the window; with no source looking an
 the answer is ``None`` (unknown), never "no news" (a replay playhead on another day included).
 A Nasdaq T1 / T12 halt inside the window with no resumption yet adds ``news_pending``.
 
+``panel`` answers the Trader's News panel: the verdict plus every item read, each with its label
+(``GET /api/catalysts/{symbol}``); ``catalysts/board.py`` puts the verdict on every scanner row.
+
 Owner: this module (in-memory only). Invalidation: a fetch older than
-``CATALYST_LIVE_TTL_SEC`` is refreshed on the next request; the ET session rolls the window.
-No disk state.
+``CATALYST_LIVE_TTL_SEC`` is refreshed on the next request; the ET session rolls the window and
+drops the reads of an earlier one. No disk state.
 """
 from __future__ import annotations
 
@@ -22,13 +25,23 @@ from datetime import datetime, time as dtime, timedelta, timezone
 from typing import Iterable
 from zoneinfo import ZoneInfo
 
-from catalysts.classify import verdict
-from constants_catalysts import CATALYST_LIVE_BATCH, CATALYST_LIVE_TTL_SEC, CATALYST_NEWS_PENDING_CODES
+from catalysts.classify import classify_item, verdict
+from constants_catalysts import (
+    CATALYST_LIVE_BATCH,
+    CATALYST_LIVE_TTL_SEC,
+    CATALYST_NEWS_PENDING_CODES,
+    CATALYST_PANEL_MAX_ITEMS,
+    CATALYST_PANEL_SCHEMA_VERSION,
+)
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
 _PAGE_LIMIT = 50
 _MAX_PAGES = 6
+# The verdict as a scanner row and the News panel carry it (the classifier's full answer minus nothing a
+# reader needs: n_items stays so "none found" can say how much was read).
+WIRE_KEYS = ("verdict", "category", "strength", "title", "source", "published_ts", "url", "negative_too",
+             "rules_version", "sources_answered", "n_items", "news_pending", "halt_code")
 
 _lock = threading.Lock()
 _items: dict[str, dict[str, dict]] = {}          # symbol -> item id -> item
@@ -51,6 +64,64 @@ def verdict_for(symbol: str, now: float | None = None) -> dict | None:
     now = time.time() if now is None else now
     sym = (symbol or "").strip().upper()
     start = window_start(now)
+    items, answered = _gather(sym, start, now)
+    return _verdict(sym, items, answered, start, now)
+
+
+def compact(v: dict | None) -> dict | None:
+    """A verdict as it goes on the wire (``WIRE_KEYS``); None stays None -- unknown, never "no news"."""
+    return None if v is None else {k: v.get(k) for k in WIRE_KEYS}
+
+
+def panel(symbol: str, now: float | None = None) -> dict:
+    """The Trader's News panel: the verdict and every item it read since the prior close, newest first.
+
+    Reads Alpaca for this symbol first when its read is missing or stale, on the caller's thread (a
+    route's worker), so a panel opened on a name no board carries is never "not checked" for long.
+    """
+    now = time.time() if now is None else now
+    sym = (symbol or "").strip().upper()
+    start = window_start(now)
+    ensure([sym], now)
+    items, answered = _gather(sym, start, now)
+    rows = []
+    for it in items:
+        ts = float(it.get("published_ts") or 0.0)
+        if not start < ts <= now:
+            continue
+        lb = classify_item(it.get("title"), it.get("summary"), source=str(it.get("source") or ""),
+                           publisher=str(it.get("publisher") or ""), n_tickers=it.get("n_tickers"),
+                           form=it.get("form"), sec_items=it.get("sec_items"), url=str(it.get("url") or ""))
+        rows.append({"item_id": it.get("item_id"), "source": it.get("source"), "publisher": it.get("publisher"),
+                     "published_ts": ts, "title": it.get("title"), "url": it.get("url"), "kind": lb.kind,
+                     "category": lb.category, "strength": lb.strength, "dilution": lb.dilution})
+    rows.sort(key=lambda r: r["published_ts"], reverse=True)
+    return {"schema_version": CATALYST_PANEL_SCHEMA_VERSION, "symbol": sym, "generated_at": now,
+            "window_start": start, "verdict": compact(_verdict(sym, items, answered, start, now)),
+            "items": rows[:CATALYST_PANEL_MAX_ITEMS], "items_total": len(rows)}
+
+
+def ensure(symbols: Iterable[str], now: float | None = None) -> None:
+    """Read Alpaca now, on the caller's thread, for the symbols whose read is missing or stale."""
+    now = time.time() if now is None else now
+    start = window_start(now)
+    with _lock:
+        stale = sorted({s for s in _norm(symbols) if _stale(s, start, now)})
+    if not stale:
+        return
+    from alpaca import _alpaca_headers
+
+    headers = _alpaca_headers()
+    if not headers:
+        return
+    try:
+        _fetch(stale, headers)
+    except Exception:
+        logger.warning("catalysts.live: read failed for %s", ",".join(stale), exc_info=True)
+
+
+def _gather(sym: str, start: float, now: float) -> tuple[list[dict], list[str]]:
+    """Every item held for ``sym`` (Alpaca + the feed) and the sources whose reading covers (start, now]."""
     with _lock:
         span = _fetched.get(sym)
         items = list((_items.get(sym) or {}).values())
@@ -58,13 +129,25 @@ def verdict_for(symbol: str, now: float | None = None) -> dict | None:
     if span is not None and span[0] <= start and span[1] >= now - CATALYST_LIVE_TTL_SEC:
         answered.append("alpaca")
     feed_items, feed_answered = _feed_view(sym, start, now)
-    items += feed_items
-    answered += feed_answered
+    return items + feed_items, answered + feed_answered
+
+
+def _verdict(sym: str, items: list[dict], answered: list[str], start: float, now: float) -> dict | None:
     if not answered and not any(start < float(it.get("published_ts") or 0) <= now for it in items):
         return None
     out = verdict(items, window_start=start, cutoff=now, sources_answered=answered)
     out.update(_halt_view(sym, start, now))
     return out
+
+
+def _norm(symbols: Iterable[str]) -> set[str]:
+    return {s for s in ((x or "").strip().upper() for x in symbols) if s}
+
+
+def _stale(sym: str, start: float, now: float) -> bool:
+    """Caller holds ``_lock``. A read that misses the window's opening or is past half its TTL."""
+    span = _fetched.get(sym)
+    return span is None or span[0] > start or span[1] < now - CATALYST_LIVE_TTL_SEC / 2
 
 
 def _feed_view(symbol: str, start: float, now: float) -> tuple[list[dict], list[str]]:
@@ -104,11 +187,10 @@ def request(symbols: Iterable[str]) -> None:
     now = time.time()
     start = window_start(now)
     with _lock:
-        for s in symbols:
-            sym = (s or "").strip().upper()
-            span = _fetched.get(sym)
-            if sym and (span is None or span[0] > start or span[1] < now - CATALYST_LIVE_TTL_SEC / 2):
-                _pending.add(sym)
+        for sym in [s for s, span in _fetched.items() if span[1] <= start]:  # an earlier session's reads
+            _fetched.pop(sym, None)
+            _items.pop(sym, None)
+        _pending.update(s for s in _norm(symbols) if _stale(s, start, now))
         if not _pending or (_worker is not None and _worker.is_alive()):
             return
         _worker = threading.Thread(target=_drain, daemon=True, name="catalysts_live")

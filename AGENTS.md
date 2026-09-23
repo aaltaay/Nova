@@ -613,8 +613,25 @@ Alpaca since the prior close, fetched in the background, plus the live catalyst 
 when no source looked and nothing was found); `pillars.news` is `true` only for a classified
 catalyst, `null` when unknown (nothing read, `news_pending`, or only an unplaced
 `company_news` headline) and `false` otherwise; `pillars.headline` is the catalyst's headline
-(it was a timestamp). The scanner News flame and the leaderboard's `has_news` keep their
-meaning (an article exists).
+(it was a timestamp). The leaderboard's `has_news` keeps its meaning (an article exists).
+
+**The verdict on the desk** (ADR 024 amendment, operator report 2026-09-23): every scanner row
+(REST and `/ws/scanner`, through `scanner_surface.surface_rows`) carries `catalyst: verdict |
+null` -- the live verdict as `{verdict, category, strength, title, source, published_ts, url,
+negative_too, rules_version, sources_answered, n_items, news_pending, halt_code}`
+(`catalysts/live.WIRE_KEYS`), `null` while no source has read the symbol (unknown, never "no
+news"). Owner `catalysts/board.py`: an in-memory map recomputed off the loop every
+`CATALYST_BOARD_INTERVAL_SEC` for the current rosters and stamped at read time. `has_news` /
+`newest_headline_at` stay on the row with their old meaning. The News column, the "Has news"
+chip (company news: a catalyst, dilution / a reverse split, or a halt for news; unread rows
+kept), the Trader tab's chip, the HOD strip's flame and `/api/strategy/*`'s catalyst pillar and
+score read `catalyst` when the row has it; a row without the key keeps the headline flame.
+`GET /api/catalysts/{symbol}` (owner `catalysts/routes.py`, read-only; reads Alpaca for the
+symbol first when its read is missing or stale) answers the Trader's News panel: `{schema_version:
+1, symbol, generated_at, window_start, verdict: verdict | null, items: [{item_id, source,
+publisher, published_ts, title, url, kind: "catalyst" | "negative" | "routine" | "noise",
+category, strength, dilution}], items_total}` -- items since the prior close, newest first, at
+most `CATALYST_PANEL_MAX_ITEMS`.
 
 **The live catalyst feed** (`backend/catalysts/feed.py`, always on; `NOVA_CATALYST_FEED=0`
 off; ADR 024 amendment) records SEC EDGAR's latest filings, GlobeNewswire, PR Newswire,
@@ -1183,6 +1200,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-23 | The catalyst verdict on the desk (ADR 024 amendment, operator report: "still just seeing garbage"): the Gainers' top three all showed one Benzinga market wrap as their news, IPDN's panel called it "moved price 90%", and real releases (HCTI's PR Newswire LOI, BENF's 8-K) showed nothing -- the verdict fed only the setup scanner. Scanner rows now carry `catalyst` (`catalysts/board.py`); the News column, "Has news" chip, Trader tab chip, HOD flame and the Watchlist pillar read it; the Trader's News panel reads `GET /api/catalysts/{symbol}` (verdict + labelled items, lists folded away). Rules v5: share consolidations are reverse splits, circuit-breaker notices are halts not news, "beat the market" is not an ATM offering, debt elimination and customer wins count, a movers-section URL needs a placed class; the SEC headline joiner stops cutting on "and". `has_news` keeps its meaning. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Why the Gateway needed a phone login (#14): a Windows Update restart at 02:29 ET ended the Gateway's saved login and Windows waited at the sign-in screen until 09:22, so no morning task ran and nothing said why. `ibkr/relogin_reason.py` + `ibkr/windows_restarts.py` name the cause (a restart and who asked, or a fresh start) in `/api/diagnostics`, the morning scripts' logs and alerts, and `tools/premarket_verify.py relogin`; `tools/premarket_verify.py` reads #14's two criteria; Nova's IBC launchers set `DAYOFWEEK` so IBC keeps a week of logs on Windows 11. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Prints that set a price (operator report: PLTR's 10-second chart grew wicks Webull does not show): the wicks were FINRA `4 W` (derivatively priced, average price) and odd-lot prints $2-3 under the market, reported for volume and painted by Nova as prices. One pure rule (`backend/sale_conditions.py`: IBKR's `unreported` flag plus the non-price sale-condition codes) now feeds every candle built from prints -- the client 10Sec bar, `ibkr/tape_10sec`, the archive 1m builder, the recorder's bar buckets, capture replay -- and the tape print payload carries `unreported` / `sets_price`. The L1 last is IBKR's tick 4 Last, not the `ticker.last` that ib_async overwrites from RTVolume and every AllLast print. Tape-built bars now match IBKR's own 10-second TRADES bars (worst miss $8.50 -> $0.18 on AAPL; volume ratio 1.00). §3 and ADR 012 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Performance recorder (ADR 026, operator ask: "measure the laginess ... figure out what the bottlenecks are"): `backend/perf/` records, every second, each loop's CPU share and worst callback delay, the process CPU (one GIL for every thread), busy time per hot handler (`op_metrics` gains a running total), queue depths and drops (the depth / tape viewer queues' silent drop-oldest now counts) and GC pauses; a watchdog samples a stalled loop's stack until it recovers and keeps the report with 30 s either side. Every desk window and the Electron main process post a 5 s report (frame pacing, long animation frames with the script named, socket rates, render counts, per-process CPU). Kept 7 days under `<cache_dir>/perf/`, written by one writer thread, never from a loop; `/api/perf/*`, a Performance group in `/api/diagnostics`, and `tools/perf_report.py` read it. Its first live run caught `second_factor.current_state()` starting PowerShell (~250 ms) on the HTTP loop on every `/api/ibkr/status` poll; the IBC log now decides first and the process is checked only while a 2FA prompt is open. Code-read suspects stay unfixed until a recorded open ranks them. §3 amended. | User Directive + Claude Opus 5.5 |

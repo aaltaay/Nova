@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
 import { NewsCell } from '../components/NewsCell';
+import type { CatalystVerdict } from '../types/catalystVerdict';
 import {
   HOD_MOMO_MAX_INLINE_STRATEGY_PILLS,
   STRATEGY_META_MAP,
@@ -81,6 +82,7 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
   onSelect,
   onOpenTrading,
   newsHeadlineAt = null,
+  newsCatalyst,
 }: {
   alert: AlertObject;
   configColors?: Record<number, string>;
@@ -89,6 +91,8 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
   onOpenTrading: (symbol: string) => void;
   consolidationSec?: number;
   newsHeadlineAt?: string | null;
+  /** The symbol's scanner-row catalyst verdict; undefined when no row carries one (headline flame). */
+  newsCatalyst?: CatalystVerdict | null;
 }) {
   const isConsolidated = alert.consolidation_count > 1;
   const spanSec = Math.max(1, alert.consolidation_span_sec ?? 1);
@@ -113,7 +117,7 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
           case 'news':
             return (
               <td key={key} className="hod-news-cell">
-                <NewsCell newest_headline_at={newsHeadlineAt} />
+                <NewsCell newest_headline_at={newsHeadlineAt} catalyst={newsCatalyst} />
               </td>
             );
           case 'time':

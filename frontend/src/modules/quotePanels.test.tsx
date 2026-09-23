@@ -13,6 +13,14 @@ import { WatchlistStripPanel } from './WatchlistStripPanel';
 import { computeQuoteMetrics } from './quoteMetrics';
 import { makeDetail } from './quoteFixtures';
 import { TICKER_WATCHLIST_STRIP_EMPTY, QUOTE_CARD_TITLE } from '../constants';
+import type { CatalystPanelState } from '../hooks/useCatalystPanel';
+
+// The News panel reads the catalyst verdict when the API answers (ADR 024); these tests cover the
+// fallback an older API or the sample desk takes unless a test sets a panel.
+const catalystPanel = vi.hoisted(() => ({
+  current: { panel: null, loading: false, unavailable: true, error: null } as CatalystPanelState,
+}));
+vi.mock('../hooks/useCatalystPanel', () => ({ useCatalystPanel: () => catalystPanel.current }));
 
 vi.mock('../ibkr/useIbkrStatus', () => ({
   useIbkrStatus: () => ({
@@ -265,6 +273,31 @@ describe('NewsPanel', () => {
     expect(container.querySelector('[data-module="news"]')?.getAttribute('data-news-empty')).toBe(
       'true',
     );
+  });
+
+  it('leads with the catalyst verdict when the API answers, never the rules-v1 impact', () => {
+    const now = Date.now() / 1000;
+    catalystPanel.current = {
+      loading: false, unavailable: false, error: null,
+      panel: {
+        schema_version: 1, symbol: 'AAPL', generated_at: now, window_start: now - 3600, items: [], items_total: 0,
+        verdict: {
+          verdict: 'noise_only', category: 'movers_list', strength: null, title: 'Dow Falls 100 Points',
+          source: 'alpaca', published_ts: now - 60, url: null, negative_too: false, rules_version: 'v5',
+        },
+      },
+    };
+    try {
+      act(() => {
+        root.render(<NewsPanel detail={makeDetail({ news: [] })} />);
+      });
+      expect(container.querySelector('[data-news-source="catalyst"]')).not.toBeNull();
+      expect(container.querySelector('.news-impact-panel')).toBeNull();
+      expect(container.textContent).toContain('Only movers lists');
+      expect(container.querySelector('[data-module="news"]')?.getAttribute('data-news-empty')).toBe('false');
+    } finally {
+      catalystPanel.current = { panel: null, loading: false, unavailable: true, error: null };
+    }
   });
 });
 

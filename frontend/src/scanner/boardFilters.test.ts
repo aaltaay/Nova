@@ -68,3 +68,21 @@ describe('boardFilters', () => {
     expect(sameChips(new Set(['gap']), ['news', 'gap'])).toBe(false);
   });
 });
+
+describe('Has news reads the catalyst verdict (ADR 024)', () => {
+  const verdict = {
+  verdict: 'catalyst', category: 'merger_acquisition', strength: 'weak', title: 'Acme to Acquire Widget Co',
+  source: 'prnewswire', published_ts: 1_790_000_000, url: null, negative_too: false, rules_version: 'v5',
+} as const;
+  it('keeps company news and drops a movers list or a market wrap', () => {
+    expect(chipPasses('news', row({ symbol: 'A', catalyst: verdict }))).toBe(true);
+    expect(chipPasses('news', row({ symbol: 'B', catalyst: { ...verdict, verdict: 'negative', category: 'delisting_split' } }))).toBe(true);
+    expect(chipPasses('news', row({ symbol: 'C', has_news: true, catalyst: { ...verdict, verdict: 'noise_only' } }))).toBe(false);
+    expect(chipPasses('news', row({ symbol: 'D', catalyst: { ...verdict, verdict: 'routine_only' } }))).toBe(false);
+    expect(chipPasses('news', row({ symbol: 'E', catalyst: { ...verdict, verdict: 'none_found', news_pending: true } }))).toBe(true);
+  });
+  it('keeps a row whose news is not read yet, and a row without the field keeps the old rule', () => {
+    expect(chipPasses('news', row({ symbol: 'F', has_news: false, catalyst: null }))).toBe(true);
+    expect(chipPasses('news', row({ symbol: 'G', has_news: false }))).toBe(false);
+  });
+});

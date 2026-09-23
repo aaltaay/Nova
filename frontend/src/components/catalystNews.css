@@ -1,0 +1,167 @@
+/* Catalyst verdict on the desk (ADR 024): the News column's marks and the Trader's News panel. */
+
+/* ── News column marks (NewsCell) ─────────────────────────────────────── */
+
+/* A company headline no rule placed: the age colour as a ring, not a filled flame. */
+.news-flame.news-flame--ring {
+  box-sizing: border-box;
+  background-color: transparent;
+  box-shadow: none;
+  border: 2px solid currentColor;
+}
+.news-flame--ring.flame-hot { color: #ff1a1a; }
+.news-flame--ring.flame-warm { color: #ff7a00; }
+.news-flame--ring.flame-cool { color: #eab308; }
+
+.news-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: middle;
+  cursor: default;
+  flex-shrink: 0;
+}
+.table-wrapper .news-mark {
+  width: calc(var(--scanner-table-fs, 1rem) * 1.1);
+  height: calc(var(--scanner-table-fs, 1rem) * 1.1);
+  font-size: calc(var(--scanner-table-fs, 1rem) * 0.7);
+}
+/* Dilution / a reverse split: bad news the trader must see, never a flame. */
+.news-mark--negative {
+  border: 2px solid var(--danger);
+  color: var(--danger);
+}
+/* Halted for news: the release is still to come. */
+.news-mark--pending {
+  border: 2px dashed var(--accent-color);
+  color: var(--accent-color);
+}
+/* Only routine company items: a small grey dot. */
+.news-mark--routine::before {
+  content: '';
+  width: 40%;
+  height: 40%;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+/* ── The Trader's News panel (CatalystNewsSection) ────────────────────── */
+
+.cn-section.cn-tone--catalyst { border-left: 3px solid var(--success); }
+.cn-section.cn-tone--negative { border-left: 3px solid var(--danger); }
+
+.cn-body {
+  padding: 0.5rem 0.75rem;
+  gap: 0.5rem;
+}
+
+.cn-error {
+  font-size: 0.72rem;
+  color: var(--danger);
+}
+
+.cn-verdict {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+}
+.cn-verdict--unread,
+.cn-empty {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+.cn-verdict-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.cn-verdict-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-secondary);
+}
+.cn-verdict--catalyst .cn-verdict-badge { color: var(--success); }
+.cn-verdict--negative .cn-verdict-badge { color: var(--danger); }
+.cn-verdict-meta,
+.cn-verdict-checked,
+.cn-verdict-note {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+.cn-verdict-note--negative,
+.cn-verdict-pending {
+  color: var(--danger);
+  font-weight: 600;
+}
+.cn-verdict-headline {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+a.cn-verdict-headline:hover { text-decoration: underline; }
+
+.cn-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.cn-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.5rem;
+  row-gap: 0.1rem;
+  font-size: 0.75rem;
+  min-width: 0;
+}
+.cn-item-tag {
+  grid-row: span 2;
+  align-self: start;
+  padding: 0.05rem 0.35rem;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  white-space: nowrap;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+.cn-item--catalyst .cn-item-tag { border-color: var(--success); color: var(--success); }
+.cn-item--negative .cn-item-tag { border-color: var(--danger); color: var(--danger); }
+.cn-item-headline {
+  min-width: 0;
+  color: var(--text-primary);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+a.cn-item-headline:hover { text-decoration: underline; }
+.cn-item-meta {
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+}
+.cn-items--noise .cn-item-headline { color: var(--text-secondary); }
+
+.cn-noise-toggle {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.cn-noise-toggle:hover { color: var(--text-primary); }
+.cn-noise .cn-items { margin-top: 0.35rem; }

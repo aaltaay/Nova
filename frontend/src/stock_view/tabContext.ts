@@ -4,13 +4,17 @@
  * Pure: unknown stays null, never 0.00 or an invented category.
  */
 import {
+  TRADER_CATALYST_DILUTION,
   TRADER_CATALYST_NEWS,
   TRADER_CATALYST_PR,
   TRADER_CATALYST_PR_SOURCES,
+  TRADER_CATALYST_SPLIT,
 } from '../constantGroups/trader_chrome';
 import type { ScannerDockRows } from '../scanner/useScannerDockRows';
 import type { Catalyst } from '../types/catalyst';
+import type { CatalystVerdict } from '../types/catalystVerdict';
 import type { ScannerRow } from '../types/scanner';
+import { catalystHeadline, isCompanyNews, isPrimarySource, isVerdictRead } from '../utils/catalystVerdict';
 
 export interface TabContext {
   /** Signed gap in percent points, 156.49 for +156.49% (falls back to the day change when the row has no gap). */
@@ -52,8 +56,18 @@ export function catalystFor(symbol: string, catalysts: readonly Catalyst[] | nul
   return catalysts?.find(row => row.symbol.toUpperCase() === key) ?? null;
 }
 
+/** The chip from the row's catalyst verdict (ADR 024): only company news earns one. */
+function verdictChipLabel(v: CatalystVerdict): string | null {
+  if (v.verdict === 'negative') {
+    return v.category === 'delisting_split' ? TRADER_CATALYST_SPLIT : TRADER_CATALYST_DILUTION;
+  }
+  if (v.verdict !== 'catalyst') return null;
+  return isPrimarySource(v.source) ? TRADER_CATALYST_PR : TRADER_CATALYST_NEWS;
+}
+
 /** PR for a company wire, NEWS for anything else with a headline. */
 export function catalystChipLabel(catalyst: Catalyst | null, row: ScannerRow | null): string | null {
+  if (isVerdictRead(row?.catalyst)) return verdictChipLabel(row.catalyst);
   if (catalyst?.catalyst_headline || catalyst?.has_news) {
     const source = (catalyst.catalyst_source ?? '').toLowerCase();
     return TRADER_CATALYST_PR_SOURCES.some(wire => source.includes(wire))
@@ -69,10 +83,13 @@ export function tabContextFor(symbol: string, rows: ScannerDockRows | null | und
   const catalyst = catalystFor(symbol, rows?.catalysts);
   if (!row && !catalyst) return NO_CONTEXT;
   const gap = row?.gap_percent ?? row?.change_pct ?? catalyst?.gap_percent ?? null;
+  const verdict = isVerdictRead(row?.catalyst) ? row.catalyst : null;
   return {
     gapPct: fractionToPercent(gap),
     catalyst: catalystChipLabel(catalyst, row),
-    headline: catalyst?.catalyst_headline ?? null,
+    headline: verdict
+      ? (isCompanyNews(verdict) ? catalystHeadline(verdict.title, verdict.source) || null : null)
+      : catalyst?.catalyst_headline ?? null,
     known: true,
     price: row?.price ?? catalyst?.current_price ?? null,
   };
