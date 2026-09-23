@@ -19,7 +19,10 @@ import {
 } from './registry';
 
 /** What the dashboard slot shows while Trader is not up. */
-export type NavPage = 'dashboard' | 'desk' | 'records' | 'account';
+export type NavPage = 'dashboard' | 'desk' | 'records' | 'account' | 'bots';
+
+/** The registry id the Bots page kept from when it was a dashboard tab (persisted state, visibility). */
+export const BOTS_MODULE_ID = 'strategy';
 
 export type NavCounts = Partial<Record<ModuleCountKey, number>>;
 
@@ -113,6 +116,11 @@ export function clearScannerNavState(): void {
  */
 export function requestScannerTab(tab: ActiveTab): void {
   if (!isTabModuleId(tab)) return;
+  // Bots is a shell page now (approved mockup v4): an old request for its tab opens the page.
+  if (tab === BOTS_MODULE_ID) {
+    setNavPage('bots');
+    return;
+  }
   pendingTab = tab;
   setNavPage('dashboard');
   if (typeof window === 'undefined') return;

@@ -69,6 +69,10 @@ def last_quotes(
         day_high = _as_float(sub.get("day_high"))
         if day_high is not None:
             row["day_high"] = day_high
+        # IBKR tick 9, the prior session's close, on the line's own ticker (NaN until sent).
+        prev_close = _as_float(getattr(sub.get("ticker"), "close", None))
+        if prev_close is not None and prev_close > 0:
+            row["prev_close"] = prev_close
         cum = sub.get("last_cum_volume")
         if cum is not None:
             try:

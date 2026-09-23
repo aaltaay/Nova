@@ -6,10 +6,14 @@
  */
 import { useEffect } from 'react';
 import { BOT_ERROR_READOUT } from '../constantGroups/bot';
+import { BOTS_ERROR_UNLOCK_FIRST } from '../constantGroups/bots_page';
 import { DESK_BOT_POLL_MS } from '../constants';
 import { botArmDisplayState } from '../ibkr/tradingAllowed';
 import { useDeskTradingAllowed } from '../ibkr/useDeskTradingAllowed';
+import { setBotSessionError } from './botSessionPoller';
 import { useBotSession } from './useBotSession';
+
+export type BotArm = ReturnType<typeof useBotArm>;
 
 export function useBotArm() {
   const bot = useBotSession(DESK_BOT_POLL_MS);
@@ -37,7 +41,11 @@ export function useBotArm() {
     // Raising to Strategy needs the desk token from Activate; with the
     // read-out closed the backend then lands it not active (ADR 027).
     if (next >= 2 && !armed) {
-      if (!gate.allowed) return;
+      // Say why instead of doing nothing: a click that changes nothing reads as a broken button.
+      if (!gate.allowed) {
+        setBotSessionError(`${BOTS_ERROR_UNLOCK_FIRST}${gate.reason ? ` (${gate.reason})` : ''}`);
+        return;
+      }
       if (!(await activate())) return;
     }
     await patch({ level: next });
@@ -46,7 +54,10 @@ export function useBotArm() {
   async function onControl(next: boolean) {
     if (level < 2) return;
     if (next) {
-      if (activateBlocked) return;
+      if (activateBlocked) {
+        if (activateReason) setBotSessionError(activateReason);
+        return;
+      }
       await activate();
     } else await stop();
   }

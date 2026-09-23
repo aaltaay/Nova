@@ -10,7 +10,7 @@
  * Nova Marketing Sample Data summary its provider hands in and never polls a
  * practice account (V4). Hover opens a card, a click pins it (V15).
  */
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { ClosedOrder } from '../closed_orders/types';
 import {
   GLOBAL_BAR_ACCOUNT_LOADING_CHIP,
@@ -64,6 +64,8 @@ interface Props {
   refresh: () => void;
   /** Desk venue (ADR 020): live = the IBKR account; paper / sim = Nova's practice ledger. */
   venue?: IbkrMode | null;
+  /** Rides between TAV and the account pill, bringing its own separator (the bot pill, approved Bots mockup v4). */
+  beforePill?: ReactNode;
 }
 
 function offlineChip(
@@ -97,6 +99,7 @@ export function GlobalBarAccountCluster({
   closeTraderView,
   refresh,
   venue: venueProp = null,
+  beforePill = null,
 }: Props) {
   const status = useIbkrStatus();
   const sampleDesk = useSampleRoute();
@@ -159,16 +162,19 @@ export function GlobalBarAccountCluster({
   const toggle = (which: ClusterMenu) => () => setMenu((cur) => clusterMenuOnClick(cur, which));
   const hover = (which: ClusterMenu) => () => setMenu((cur) => clusterMenuOnHover(cur, which));
 
-  const pillControl = pill && (
+  const pillControl = (
     <>
-      <span className="global-app-bar__sep" aria-hidden />
-      <AccountPillButton
-        view={pill}
-        open={openMenu === 'pill'}
-        menuId={pillMenuId}
-        onToggle={toggle('pill')}
-        onHover={hover('pill')}
-      />
+      {beforePill}
+      {pill && <span className="global-app-bar__sep" aria-hidden />}
+      {pill && (
+        <AccountPillButton
+          view={pill}
+          open={openMenu === 'pill'}
+          menuId={pillMenuId}
+          onToggle={toggle('pill')}
+          onHover={hover('pill')}
+        />
+      )}
     </>
   );
 

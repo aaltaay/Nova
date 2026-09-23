@@ -7,9 +7,9 @@
  * modules), Account, Bots,
  * Records, then Advise + Settings + collapse pinned at the foot.
  *
- * Routing: Trader is the workspace's Stock View; Desk / Records / Account are
- * shell pages (navRailStore); Scanner children and Bots are dashboard tabs
- * asked for through the store's latch so the request survives a remount.
+ * Routing: Trader is the workspace's Stock View; Desk / Records / Account / Bots
+ * are shell pages (navRailStore); Scanner children are dashboard tabs asked for
+ * through the store's latch so the request survives a remount.
  */
 import { useCallback, useMemo, useState } from 'react';
 import '../styles/navRail.css';
@@ -49,6 +49,7 @@ import { listScannerNavGroups, type ActiveTab } from '../workspace/registry';
 import { isDockTab } from '../workspace/scannerTabs';
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
 import { useWorkspace } from '../workspace/WorkspaceContext';
+import { NavRailBotDot } from '../bot/NavRailBotDot';
 import { NavRailAccountItem } from './NavRailAccountItem';
 import { navRailIcon } from './navRailIcons';
 import { NavRailItem } from './NavRailItem';
@@ -84,7 +85,7 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
   // tabs still light the item when something else selects them.
   const accountActive =
     (!traderActive && page === 'account') || (dashboardUp && isAccountTab(scanner.activeTab));
-  const botsActive = dashboardUp && scanner.activeTab === 'strategy';
+  const botsActive = !traderActive && page === 'bots';
   const scannerActive = dashboardUp && !accountActive && !botsActive;
   // The list on the board keeps the highlight. HOD Momo / Running Up focus the
   // alert strip above it, so they get a quiet strip mark instead -- the rail
@@ -106,7 +107,7 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
   const leaveTrader = () => {
     if (traderActive) onLeaveTrader();
   };
-  const goPage = (next: 'desk' | 'records' | 'account') => {
+  const goPage = (next: 'desk' | 'records' | 'account' | 'bots') => {
     leaveTrader();
     setNavPage(next);
   };
@@ -205,7 +206,8 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
             label={NAV_RAIL_LABEL_BOTS}
             title={NAV_RAIL_TITLE_BOTS}
             active={botsActive}
-            onClick={() => goTab('strategy')}
+            onClick={() => goPage('bots')}
+            trailing={<NavRailBotDot />}
           />
         )}
         <NavRailItem

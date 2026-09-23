@@ -75,17 +75,34 @@ export const BOT_SETUP_BLURBS: Record<string, string> = {
   first_pullback: 'The first 1-3 candle dip after a 5%+ leg to a new high, bought over the pullback high.',
   gap_and_go: 'Buy the break of the pre-market high on a gapper at the open.',
   flat_top_breakout: '2-6 tight candles just under the high of day, then the break.',
-  red_to_green: 'Trades below the open, then back through it -- buy the reclaim.',
+  red_to_green: 'Trades below the open, then back through it — buy the reclaim.',
   micro_pullback: 'A 1-2 candle dip inside a fast move, read on seconds.',
 };
 
-/** What the research said about each setup on bars alone (Bot-Trading-Plan). */
-export const BOT_SETUP_RESEARCH: Record<string, { verdict: 'failed' | 'not_tested' | 'testing'; text: string }> = {
-  first_pullback: { verdict: 'failed', text: 'Bars alone (P1): -0.30R. Live with the tape gate: the read-out decides.' },
-  gap_and_go: { verdict: 'failed', text: 'Bars alone: failed -- dies on a few cents of slippage (A2).' },
-  flat_top_breakout: { verdict: 'failed', text: 'Bars alone: failed, -0.83R on 63 trades (P2).' },
-  red_to_green: { verdict: 'failed', text: 'Bars alone: failed, -0.22R on 398 trades (P3).' },
-  micro_pullback: { verdict: 'not_tested', text: 'Not tested -- planned on one-second bars (S5).' },
+/**
+ * What the research said about each setup on bars alone (Bot-Trading-Plan):
+ * the verdict badge, the whole line, and the detail the card prints after the badge.
+ */
+export const BOT_SETUP_RESEARCH: Record<string, { verdict: 'failed' | 'not_tested' | 'testing'; text: string; detail: string }> = {
+  first_pullback: {
+    verdict: 'failed',
+    text: 'Bars alone (P1): -0.30R. Live with the tape gate: the read-out decides.',
+    detail: 'Bars alone (P1): −0.30R',
+  },
+  gap_and_go: {
+    verdict: 'failed',
+    text: 'Bars alone: failed -- dies on a few cents of slippage (A2).',
+    detail: 'dies on a few cents of slippage (A2)',
+  },
+  flat_top_breakout: {
+    verdict: 'failed', text: 'Bars alone: failed, -0.83R on 63 trades (P2).', detail: '−0.83R on 63 trades (P2)',
+  },
+  red_to_green: {
+    verdict: 'failed', text: 'Bars alone: failed, -0.22R on 398 trades (P3).', detail: '−0.22R on 398 trades (P3)',
+  },
+  micro_pullback: {
+    verdict: 'not_tested', text: 'Not tested -- planned on one-second bars (S5).', detail: 'planned on one-second bars (S5)',
+  },
 };
 
 export const BOT_SETUP_NEXT: Record<string, string> = {
@@ -99,7 +116,7 @@ export const BOT_SETUP_NEXT: Record<string, string> = {
 export const BOT_FIRST_PULLBACK_RULES: ReadonlyArray<readonly [string, string]> = [
   ['Stock', 'Leading gainer · Five Pillars · $3-10 · float < 10M'],
   ['Setup', 'Leg >= 5% to a new high · 1-3 red candles hold the 9 EMA and half the leg'],
-  ['Entry', "Over the last pullback candle's high (+1c) -- only when the tape says GO"],
+  ['Entry', "Over the last pullback candle's high (+1c) — only when the tape says GO"],
   ['Trade', '07:00-10:00 · one a day · fixed size · 20c target · 20c max loss'],
 ];
 
@@ -110,18 +127,13 @@ export const BOT_TAPE_GATE_LINES: ReadonlyArray<readonly [string, string]> = [
   ['blind', 'no Level 2'],
 ];
 
-export const BOT_ADD_SETUP_TITLE = 'Add a setup from your catalogue';
-export const BOT_ADD_SETUP_HINT =
-  'The full list is on your desk PC (F:). Each one lands here with its rules, a backtest and a scanner.';
-export const BOT_STRATEGIES_TITLE = 'Strategies from your Warrior Trading material';
-export const BOT_STRATEGIES_SUB = 'one setup plays at a time';
 export const BOT_CHOSEN_BADGE = 'Chosen';
 export const BOT_NO_SCANNER_TITLE = 'No scanner yet -- it cannot play until it has one and its read-out passes';
 
 /* ---------- The Bots page hero (ADR 027) ---------- */
 export const BOT_LEVEL_BLURBS = {
-  0: 'Dark -- no watching, no proposals',
-  1: 'Watches your setups and proposes -- you place',
+  0: 'Dark — no watching, no proposals',
+  1: 'Watches your setups and proposes — you place',
   2: 'Places your setups on its own, under every gate below',
 } as const;
 
@@ -149,8 +161,6 @@ export const BOT_READOUT_STATE_LABELS: Record<string, string> = {
 export const BOT_READOUT_RULE =
   'Needs 50 go setups triggered, average net R above +0.2 and above blind / wait. Judged on the first 100.';
 export const BOT_ERROR_READOUT = 'Strategy waits on the first-pullback read-out';
-
-export const BOT_IN_CONTROL_LABEL = 'Bot is in control';
 
 export const BOT_DESK_ARM_HEADER = 'X-Nova-Desk-Arm';
 export const BOT_DESK_ARM_STORAGE = 'nova_bot_desk_arm';

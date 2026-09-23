@@ -4,7 +4,7 @@
  *
  *   wordmark · session chip · ET clock · connection chip · venue pills · REC
  *   chips · [ticker search, centred] · Emergency KILL · Day's / Working / TAV
- *   / account pill · padlock · gear
+ *   / bot pill / account pill · padlock · gear
  *
  * Reload backend, the theme toggle, the full Gateway & feed status cluster and
  * the sample-data door live under the gear (GlobalBarGearMenu); the Scanner's
@@ -16,6 +16,7 @@
 import { GLOBAL_BAR_BRAND } from '../constants';
 import { RecordingChip } from '../capture/RecordingChip';
 import { RecordingSignals } from '../capture/RecordingSignals';
+import { GlobalBarBotPill } from '../bot/GlobalBarBotPill';
 import { GlobalBarBotRow } from '../bot/GlobalBarBotRow';
 import { useClosedOrders } from '../closed_orders/useClosedOrders';
 import { GatewayModeCapsule } from '../ibkr/GatewayModeCapsule';
@@ -137,6 +138,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
             closeTraderView={leaveTraderToScanner}
             refresh={refresh}
             venue={deskVenue}
+            beforePill={<GlobalBarBotPill />}
           />
           <TradingSessionLockButton />
           <GlobalBarGearMenu

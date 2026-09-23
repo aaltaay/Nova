@@ -118,7 +118,13 @@ def test_a_rearm_withdraws_the_proposal_and_a_fresh_read_raises_one_at_the_new_l
     # go, so the same tick raises a fresh proposal at the new levels.
     fresh = eng.board(clock["t"])["proposals"]
     assert len(fresh) == 1 and fresh[0]["trigger"] == 4.34 and fresh[0]["entry"] == 4.35
-    assert fresh[0]["id"] != first["id"] and len(audits) == 2
+    assert fresh[0]["id"] != first["id"]
+    # The withdrawn proposal is on the audit stream: the fresh one replaces it in the engine.
+    assert [a["outcome"] for a in audits] == ["proposed", "rearmed", "proposed"]
+    withdrawn = audits[1]
+    assert withdrawn["action"] == "setup_proposal" and withdrawn["inputs"]["id"] == first["id"]
+    assert withdrawn["inputs"]["trigger"] == 4.37 and withdrawn["inputs"]["closed_at"]
+    assert withdrawn["reason"].startswith("re-armed at new levels")
 
 
 def test_no_proposal_when_the_tape_is_red(tmp_path):

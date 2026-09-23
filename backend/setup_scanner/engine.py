@@ -34,6 +34,14 @@ from constants_setups import (
 from setup_scanner import grade as _grade
 from setup_scanner.bars import Bar, MinuteBars, bar_from, minute_start
 from setup_scanner.board import build_board
+from setup_scanner.hooks import (
+    default_audit as _default_audit,
+    default_replay_desk as _default_replay_desk,
+    default_seed as _default_seed,
+    default_universe as _default_universe,
+    live_catalysts as _live_catalysts,
+    no_catalysts as _no_catalysts,
+)
 from setup_scanner.pullback import PullbackDetector, ema
 from setup_scanner.scoring import ScoreTracker
 from setup_scanner.store import SetupStore, StoreVersionError, session_date
@@ -43,53 +51,18 @@ logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
 TICK_SEC = 0.25
 WATCH_STATES = (SETUP_STATE_ARMED, SETUP_STATE_NEAR)
+# Why an open proposal closed, as the Bots page timeline says it.
+PROPOSAL_CLOSE_REASONS = {
+    "rearmed": "re-armed at new levels -- the next go raises a fresh one",
+    "disarmed": "the setup disarmed",
+    "failed": "the setup failed before its trigger",
+    "triggered": "the trigger printed",
+}
 
 
 def session_start_ts(now: float) -> float:
     d = datetime.fromtimestamp(now, ET).date()
     return datetime.combine(d, dtime(4, 0), ET).timestamp()
-
-
-def _default_universe() -> Iterable[str]:
-    from hod_momo_active import get_active_symbols
-
-    return get_active_symbols()
-
-
-def _default_seed(symbol: str, from_ts: float) -> list[Bar]:
-    import bars_store
-
-    res = bars_store.read(symbol, "1Min", 960, from_ts=from_ts)
-    return [b for b in (bar_from(r) for r in (res or {}).get("bars") or []) if b is not None]
-
-
-def _default_replay_desk() -> bool:
-    try:
-        from sim.mode import is_replay_desk
-
-        return bool(is_replay_desk())
-    except Exception:
-        logger.debug("setup scanner: venue check failed", exc_info=True)
-        return False
-
-
-def _default_audit(**kw: Any) -> None:
-    try:
-        from bot.audit import record
-
-        record(**kw)
-    except Exception:
-        logger.warning("setup scanner: bot audit write failed", exc_info=True)
-
-
-def _no_catalysts(symbols: Iterable[str]) -> None:
-    """Tests and replays: no catalyst fetch (the live one is wired in ``get_engine``)."""
-
-
-def _live_catalysts(symbols: Iterable[str]) -> None:
-    from catalysts import live as catalyst_live
-
-    catalyst_live.request(symbols)
 
 
 class SetupEngine:
@@ -364,6 +337,9 @@ class SetupEngine:
         if prop is not None and prop["status"] == "open":
             prop["status"] = status
             prop["closed_at"] = self._clock()
+            # The close is on the audit stream too: a re-arm replaces this entry.
+            self._audit_fn(action="setup_proposal", outcome=status,
+                           reason=PROPOSAL_CLOSE_REASONS.get(status, status), inputs=dict(prop))
 
     # -- output ------------------------------------------------------------------
     def board(self, now: float | None = None) -> dict[str, Any]:

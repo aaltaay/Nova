@@ -156,8 +156,10 @@ export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => 
     return () => window.removeEventListener('beforeunload', onUnload);
   }, []);
 
-  const openStockView = useCallback((symbol: string) => {
-    tryAddTab(symbol);
+  /** `pin` opens beside the preview tab, pinned, replacing nothing -- e.g. a bot
+   * symbol's Level 2 must not close the depth line another tab holds. */
+  const openStockView = useCallback((symbol: string, opts?: { pin?: boolean }) => {
+    tryAddTab(symbol, Boolean(opts?.pin));
   }, [tryAddTab]);
 
   /** Desk board row click: the symbol becomes the workspace's active tab

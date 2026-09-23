@@ -204,18 +204,18 @@ describe('NavRail', () => {
     expect(q('nav-rail-tab-hod_momo')!.getAttribute('aria-pressed')).toBe('false');
   });
 
-  it('marks Account / Bots active from the dashboard tab and Trader while traderActive', () => {
+  it('marks Account from the dashboard tab, Bots from its page, and Trader while traderActive', () => {
     render();
     act(() => {
       publishScannerNavState({ activeTab: 'trading', railHighlight: 'trading', counts: {} });
     });
     expect(q('nav-rail-account')!.classList.contains('is-active')).toBe(true);
     expect(q('nav-rail-scanner')!.classList.contains('is-active')).toBe(false);
-    act(() => {
-      publishScannerNavState({ activeTab: 'strategy', railHighlight: 'strategy', counts: {} });
-    });
+    // Bots is a shell page (approved mockup v4), no longer a dashboard tab.
+    act(() => setNavPage('bots'));
     expect(q('nav-rail-bots')!.classList.contains('is-active')).toBe(true);
     expect(q('nav-rail-account')!.classList.contains('is-active')).toBe(false);
+    expect(q('nav-rail-scanner')!.classList.contains('is-active')).toBe(false);
 
     render({ traderActive: true });
     expect(q('nav-rail-trader')!.classList.contains('is-active')).toBe(true);
@@ -254,14 +254,16 @@ describe('NavRail', () => {
     expect(getNavPage()).toBe('dashboard');
   });
 
-  it('Account switches to the Account page, Bots asks for strategy, Desk and Records switch the shell page', () => {
+  it('Account, Bots, Desk and Records each switch the shell page', () => {
     render();
     click('nav-rail-account');
     expect(getNavPage()).toBe('account');
     expect(consumeScannerTabRequest()).toBeNull();
     expect(q('nav-rail-account')!.classList.contains('is-active')).toBe(true);
     click('nav-rail-bots');
-    expect(consumeScannerTabRequest()).toBe('strategy');
+    expect(getNavPage()).toBe('bots');
+    expect(consumeScannerTabRequest()).toBeNull();
+    expect(q('nav-rail-bots')!.classList.contains('is-active')).toBe(true);
     click('nav-rail-desk');
     expect(getNavPage()).toBe('desk');
     expect(q('nav-rail-desk')!.classList.contains('is-active')).toBe(true);
