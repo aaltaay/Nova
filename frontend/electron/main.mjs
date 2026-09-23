@@ -59,6 +59,8 @@ function windowOptions() {
     minHeight: 700,
     title: formatScannerWindowTitle(novaDesktopReleaseTag(app)),
     backgroundColor: '#0b0f14',
+    // Title bar and taskbar; the packed exe carries the same icon (electron-builder).
+    icon: path.join(__dirname, 'build', 'icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,

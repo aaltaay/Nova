@@ -21,6 +21,7 @@
     "electron:dev": "concurrently -k -n vite,electron -c cyan,magenta \"vite\" \"wait-on http://127.0.0.1:5173 && cross-env NOVA_VITE_URL=http://127.0.0.1:5173 electron .\"",
     "build:api": "node scripts/build-api-sidecar.mjs",
     "electron:pack": "npm run build:api && npm run build:electron-renderer && node scripts/run-electron-pack.mjs",
+    "icons": "node scripts/build-icons.mjs",
     "electron:dir": "npm run build:api && npm run build:electron-renderer && node scripts/run-electron-pack.mjs dir"
   },
   "dependencies": {
@@ -106,7 +107,7 @@
           ]
         }
       ],
-      "signAndEditExecutable": false
+      "signExecutable": false
     },
     "nsis": {
       "artifactName": "Nova-Setup-${env.NOVA_RELEASE_TAG}.${ext}",
