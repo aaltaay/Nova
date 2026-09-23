@@ -372,6 +372,36 @@ human_step_poll_sec, cleared_at, cleared_reason, recent[]}` from
 10 min, then a stated human step). `ibkr/session_errors.last_error()` is
 `{code, message, ts} | null` for the last IB errorEvent of any code.
 
+### Why the Gateway needed a phone login; premarket evidence (#14)
+
+IB Gateway's saved login survives only its own `AutoRestartTime` restart; any
+end of the process (a PC restart, a crash, closing it) costs a phone login.
+`ibkr/relogin_reason.py` explains the latest Gateway start from the IBC log's
+`autorestart file (not) found` line and the Windows System event log
+(`ibkr/windows_restarts.py`, read-only `wevtutil`, cached per boot):
+`{schema_version: 1, reason: "token_reused" | "pc_restarted" |
+"gateway_started_fresh" | "unknown", text, login_ts: number | null, restart:
+{boot_ts, cause: "windows_update" | "start_menu" | "app" | "unexpected" |
+"unknown", label, initiated_ts, process, windows_reason, first_signin_ts} |
+null}` (epoch seconds; `null` for anything unrecorded). A restart is claimed
+only when one is on record within `RELOGIN_BOOT_WINDOW_SEC` before the login;
+an unreadable event log is never read as "no restart". While a 2FA prompt is
+open, `/api/diagnostics`'s `gateway_ibc_login` row carries it as
+`evidence.relogin` and leads its `cause` with `text`.
+
+`tools/premarket_verify.py` (read-only) answers #14's two criteria:
+`{schema_version: 1, generated_at, days, morning_runs: [{date, started,
+unattended, result: "PASS" | "FAIL" | null, failed_leg}], missed_mornings:
+[{date, reason}], full_logins: [{ts, source: "ibc_log" | "daily_start",
+weekday, expected, relogin}], restarts: [restart], restarts_readable,
+criteria: {unattended_pass: {met, date}, no_unexpected_logins: {met, count}},
+met}` -- `unattended` is a run whose first line falls in 03:50-04:05 local,
+`expected` a phone login at the weekend (IBKR's weekly re-auth). `relogin`
+prints the explanation's `text` (`--json` the object); `Start-NovaDaily.ps1`
+logs it as `WHY:` and `Invoke-NovaMorningCheck.ps1` adds it to a failed
+Gateway leg's alert. Nova's IBC launchers set `DAYOFWEEK` so IBC's weekday
+log names survive Windows 11's missing `wmic`.
+
 ### Scanner rows and HOD Momo alerts on the wire (QA batch, 2026-09-22)
 
 The REST scanner routes and `/ws/scanner` (`roster_replace` and the connect
@@ -1138,6 +1168,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-23 | Why the Gateway needed a phone login (#14): a Windows Update restart at 02:29 ET ended the Gateway's saved login and Windows waited at the sign-in screen until 09:22, so no morning task ran and nothing said why. `ibkr/relogin_reason.py` + `ibkr/windows_restarts.py` name the cause (a restart and who asked, or a fresh start) in `/api/diagnostics`, the morning scripts' logs and alerts, and `tools/premarket_verify.py relogin`; `tools/premarket_verify.py` reads #14's two criteria; Nova's IBC launchers set `DAYOFWEEK` so IBC keeps a week of logs on Windows 11. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Performance recorder (ADR 026, operator ask: "measure the laginess ... figure out what the bottlenecks are"): `backend/perf/` records, every second, each loop's CPU share and worst callback delay, the process CPU (one GIL for every thread), busy time per hot handler (`op_metrics` gains a running total), queue depths and drops (the depth / tape viewer queues' silent drop-oldest now counts) and GC pauses; a watchdog samples a stalled loop's stack until it recovers and keeps the report with 30 s either side. Every desk window and the Electron main process post a 5 s report (frame pacing, long animation frames with the script named, socket rates, render counts, per-process CPU). Kept 7 days under `<cache_dir>/perf/`, written by one writer thread, never from a loop; `/api/perf/*`, a Performance group in `/api/diagnostics`, and `tools/perf_report.py` read it. Its first live run caught `second_factor.current_state()` starting PowerShell (~250 ms) on the HTTP loop on every `/api/ibkr/status` poll; the IBC log now decides first and the process is checked only while a 2FA prompt is open. Code-read suspects stay unfixed until a recorded open ranks them. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Nova OS retired (ADR 025, operator decision on #481, option a): the BUY / WAIT / NO BUY verdict (judged on Gap and Go, which failed gate 1), the `signal` / `confirm` / `auto_paper` ladder, the staged approval queue, the Phase D executor and its restart recovery, the decision replay (`/api/archive/replay|walk|review`) and the Automation hotkeys are removed; Watchlist keeps Watchlist / Setups / Journal / Backtest and the Trader dock loses its Nova OS tab. The kill switch latch moves unchanged in meaning to `backend/kill_switch/` with `/api/kill-switch` and a card on the Bots page. Execution sources `approve` / `auto_paper` are refused `SOURCE_INVALID`. The event log, the NYSE holiday table and the walk-away rules stay; who the walk-away rules gate is left to the operator. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Catalysts, the primary sources (ADR 024 amendment): an always-on live catalyst feed records SEC EDGAR's latest filings (with the 8-K / 6-K press release), GlobeNewswire, PR Newswire, Newsfile and FDA into `catalyst_feed.sqlite3` with proven coverage spans (a poll extends a span only when it reached back to the previous one), merged into the live verdict; a Nasdaq T1 / T12 halt sets `news_pending`; the News pillar is unknown for news pending or an unplaced `company_news` headline; `/api/diagnostics` adds `catalyst_feed`. Nasdaq's halt history (2021-10 on) is in the leaderboard's `halt_events`; research gains point-in-time SEC shares outstanding and FINRA short interest. Business Wire / Accesswire have no free feed and stay indirect. Rules v4. §3 amended. | User Directive + Claude Opus 5.5 |

@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import subprocess
+from datetime import datetime
 from pathlib import Path
 
 from constants_ibkr import (
@@ -13,6 +14,7 @@ from constants_ibkr import (
     IBKR_LIVE_PORT,
     IBKR_PAPER_PORT,
 )
+from constants_relogin import IBC_DAYOFWEEK_ENV
 from ibkr.gateway_paths import _ibc_launcher, _resolve_gateway_exe
 
 logger = logging.getLogger(__name__)
@@ -196,6 +198,10 @@ def _start_process(
     extra_args: list[str] | None = None,
 ) -> None:
     extra = list(extra_args or [])
+    # IBC names its log after DAYOFWEEK, which it reads from wmic -- gone on
+    # Windows 11, so every start overwrote one IBC-..._.txt. An inherited
+    # value survives (constants_relogin.IBC_DAYOFWEEK_ENV).
+    env = {**os.environ, IBC_DAYOFWEEK_ENV: datetime.now().strftime("%A").upper()}
     if via_powershell:
         subprocess.Popen(
             [
@@ -209,12 +215,14 @@ def _start_process(
             ],
             cwd=str(path.parent),
             close_fds=True,
+            env=env,
         )
         return
     subprocess.Popen(
         [str(path), *extra],
         cwd=str(path.parent),
         close_fds=True,
+        env=env,
     )
 
 

@@ -371,6 +371,23 @@ if (Test-Path $ibcIni) {
     Write-CheckLog "IBC config.ini not found (optional)" "WARN"
 }
 
+if ($failedLeg -in @("gateway_port", "ibkr_status")) {
+    # Say why the Gateway is not logged in -- a Windows restart and who asked
+    # for it, or a fresh start -- instead of leaving the operator to dig (#14).
+    $tool = Join-Path $RepoRoot "tools\premarket_verify.py"
+    if (Test-Path $tool) {
+        try {
+            $why = [string](& py -3 $tool relogin 2>$null | Select-Object -Last 1)
+            if ($why) {
+                Write-CheckLog "why: $why" "WARN"
+                $failedDetail = "$failedDetail`nWhy: $why"
+            }
+        } catch {
+            Write-CheckLog "premarket_verify relogin failed: $($_.Exception.Message)" "WARN"
+        }
+    }
+}
+
 if ($failedLeg) {
     Send-SystemAlert -Leg $failedLeg -Ok $false -Detail $failedDetail | Out-Null
     Write-CheckLog "RESULT FAIL leg=$failedLeg" "ERROR"
