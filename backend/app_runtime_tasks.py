@@ -19,6 +19,7 @@ import scanner_tab_registry as _scanner_tabs
 import strategy.executor as _executor
 import strategy.risk as _risk
 import setup_scanner.engine as _setup_scanner
+from catalysts import feed as _catalyst_feed
 from alpaca import _get_discovery_provider
 from archive.scheduler import archive_maintenance_loop, maintenance_enabled
 import archive.write_queue as _archive_write_queue
@@ -116,6 +117,8 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         ("leaderboard.recorder", _leaderboard_recorder.run),
         # 07:00-10:00 ET: record the leaders on free Level 2 lines only.
         ("leaderboard.auto_record", _leaderboard_auto_record.run),
+        # Catalysts (ADR 024): SEC filings and the press-release wires, recorded as they publish.
+        ("catalysts.feed", _catalyst_feed.run),
     ]
     if maintenance_enabled():
         factories.append(("archive.maintenance", archive_maintenance_loop))

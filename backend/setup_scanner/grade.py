@@ -12,7 +12,7 @@ import logging
 import math
 from typing import Any
 
-from constants_catalysts import CATALYST_VERDICT_CATALYST
+from constants_catalysts import CATALYST_UNCLASSIFIED, CATALYST_VERDICT_CATALYST
 from constants_setups import (
     SETUPS_GRADE_A,
     SETUPS_GRADE_B,
@@ -37,7 +37,17 @@ def _finite(value: Any) -> float | None:
 
 
 _CATALYST_KEYS = ("verdict", "category", "strength", "title", "source", "published_ts", "url", "negative_too",
-                  "rules_version")
+                  "rules_version", "sources_answered", "news_pending", "halt_code")
+
+
+def news_pillar(catalyst: dict[str, Any] | None) -> bool | None:
+    """True for a classified catalyst; None when unknown -- nothing read, news pending behind a halt, or
+    only an unclassified company headline (right about half the time on the labelled samples); else False."""
+    if catalyst is None:
+        return None
+    if catalyst.get("verdict") == CATALYST_VERDICT_CATALYST:
+        return None if catalyst.get("category") == CATALYST_UNCLASSIFIED else True
+    return None if catalyst.get("news_pending") else False
 
 
 def read_pillars(symbol: str, now: float | None = None) -> dict[str, Any]:
@@ -60,7 +70,7 @@ def read_pillars(symbol: str, now: float | None = None) -> dict[str, Any]:
         "change_pct": _finite(getattr(snap, "change_pct", None)),
         "rvol": _finite(getattr(snap, "rvol", None)),
         "float": _finite(getattr(snap, "float_shares", None)),
-        "news": None if catalyst is None else catalyst.get("verdict") == CATALYST_VERDICT_CATALYST,
+        "news": news_pillar(catalyst),
         "headline": (catalyst or {}).get("title"),
         "catalyst": None if catalyst is None else {k: catalyst.get(k) for k in _CATALYST_KEYS},
     }

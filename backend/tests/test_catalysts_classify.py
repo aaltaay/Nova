@@ -236,3 +236,28 @@ def test_a_catalyst_with_its_financing_stays_a_catalyst_and_flags_dilution():
 def test_an_edgar_cover_page_is_not_a_headline():
     lb = classify_item("6-K | (Translation of registrant's name into English) Second Floor North", "", source="edgar", form="6-K")
     assert lb.kind == "routine"
+
+
+@pytest.mark.parametrize("title,expected_kind", [
+    ("Silo Pharma Submits Pre-Investigational New Drug Application to FDA for SPC-15", "routine"),
+    ("XORTX Outlines Anticipated FDA IND Submission For XRx-026 Gout Program", "routine"),
+    ("FDA Conditionally Accepts Acurx Pharmaceuticals' Brand Name CIFBEZY", "routine"),
+    ("First Wave BioPharma Reaches Enrollment Target for Phase 2 SPAN Trial", "routine"),
+    ("Bone Biologics CEO Issues Letter to Stockholders Highlighting Company Update", "routine"),
+    ("EXCLUSIVE: OLB CEO Ronny Yakov Says Co. Will Have Capacity For Added $1.1M In Monthly Sales", "routine"),
+    ("Emergent BioSolutions Announces Strategic Operational Changes to Stabilize Financial Position", "routine"),
+    ("Ardelyx Announces Amendment of Debt Financing Agreement with SLR Capital Partners", "routine"),
+    ("Holdings Inc. Expands its Strategic Vision into the Enterprise", "routine"),
+    ("Silo Pharma Announces Filing of Patent for Treatment of Alzheimer's", "routine"),
+    ("Why Cathie Wood Favorite Ginkgo Bioworks Is Surging After Hours", "noise"),
+    ("Lucid Stock Rebounds After EV Maker Denies Bankruptcy Report", "noise"),
+    ("Wall Street Week Ahead", "noise"),
+    ("Triterras Announces Audit Committee Investigation Has Concluded Allegations Lack Support", "catalyst"),
+    ("Some Breather For Novavax, Inks Multibillion-Dollar Deal With Sanofi And Erases Going Concern Doubts", "catalyst"),
+    ("Velo3D Earnings Call Highlights: Revenue Surges 52% as Backlog Doubles", "catalyst"),
+    ("Intermex Posts Mixed Results in Q2", "catalyst"),
+    ("Affimed Presents Updated Clinical Data from Phase 1/2 Study at AACR Annual Meeting", "catalyst"),
+    ("Linkers Industries Stock Jumps Over 32% After Hours: Here's What Is Going On", "noise"),
+])
+def test_rules_v4(title, expected_kind):
+    assert label(title)[0] == expected_kind
