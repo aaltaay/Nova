@@ -1,6 +1,6 @@
 /** The bot's timeline: what it proposed, fired, was refused, and who changed it (bot audit stream). */
 import { useState } from 'react';
-import { ACTIVITY_FILTER_LABELS, ACTIVITY_FILTERS, activityLines, type ActivityFilter } from './botActivity';
+import { ACTIVITY_FILTER_LABELS, ACTIVITY_FILTERS, activityLines, type ActivityFilter } from './botActivityLines';
 import type { BotAuditEntry } from './types';
 
 function clock(ts: number): string {
