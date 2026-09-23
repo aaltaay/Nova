@@ -1,23 +1,22 @@
-import {
-  BOT_ACTION_KINDS,
-  BOT_ADVISE_DEFAULT_CALL_CAP,
-  BOT_ADVISE_DEFAULT_USD_CAP,
-  BOT_BP_BUDGET_HARD_MAX_USD,
-  BOT_BP_BUDGET_MIN_USD,
-  BOT_BP_BUDGET_STEP_USD,
-  BOT_DEFAULT_MAX_SHARES,
-  BOT_MAX_SHARES_CAP,
-  BOT_PACK_LABELS,
-  BOT_WORKING_TTL_MAX_SEC,
-  BOT_WORKING_TTL_MIN_SEC,
-  packDescription,
-  quoteSpikeSettingsLine,
-  volumeSettingsLine,
-} from '../constantGroups/bot';
+/**
+ * The Bots page (approved mockup v4, ADR 027): your playbook, run by the bot --
+ * what it watches, what it may risk, what it proposed and did. The hero holds
+ * the level, every gate and Activate; the strategies card holds the setups
+ * from the operator's material; the right column is the proposals inbox, the
+ * activity timeline and the scoreboard. Nothing on this page places an order
+ * except through the bot's own gated path.
+ */
+import { BOT_ACTION_KINDS } from '../constantGroups/bot';
+import { BotActivity } from './BotActivity';
+import { BotHero } from './BotHero';
+import { BotProposalsInbox } from './BotProposalsInbox';
+import { BotRiskCard } from './BotRiskCard';
+import { BotStrategiesCard } from './BotStrategiesCard';
+import { BotSymbolsCard } from './BotSymbolsCard';
+import { BotTodayCard } from './BotTodayCard';
 import { KillSwitchCard } from './KillSwitchCard';
-import { StrategyAllowlistCard } from './StrategyAllowlistCard';
-import { StrategyBreakersCard } from './StrategyBreakersCard';
 import { useBotSession } from './useBotSession';
+import './botsPage.css';
 
 export function StrategyTab() {
   const { session, proposals, audit, error, busy, patch, resolve } = useBotSession();
@@ -26,35 +25,13 @@ export function StrategyTab() {
     return <div className="bot-strategy empty-state">{error || 'Loading bot session…'}</div>;
   }
 
-  const pending = proposals.filter(p => p.status === 'pending');
-  const pack = String(session.active_pack || 'halt-luld');
-  const packLabel = BOT_PACK_LABELS[pack as keyof typeof BOT_PACK_LABELS] || pack;
-  const selectedPack = session.packs?.find(row => row.id === pack);
-  const description = selectedPack?.description || packDescription(pack);
-  const llm = session.llm ?? {
-    configured: false,
-    live_fire: false,
-    call_cap: 10,
-    usd_cap: 2,
-    usd_spent: 0,
-    calls_used: 0,
-  };
-
   return (
-    <div className="bot-strategy">
-      <header className="bot-strategy__header">
-        <div>
-          {/* The page is Bots (rail + header); the card says so too (QA V30). */}
-          <h2>Bots -- small-cap settings</h2>
-          <p className="form-hint">
-            Autonomy, Activate, and pack live on the header. This tab is risk
-            sleeve, Advise, proposals, and audit only. Brains cannot raise L2.
-          </p>
-        </div>
-        {busy ? <span className="form-hint">Saving…</span> : null}
+    <div className="bot-strategy bots-page" data-testid="bots-page">
+      {/* The tab host already titles the page "Bots" (QA V30). */}
+      <header className="bots-page__head">
+        <p className="bots-muted">Your playbook, run by the bot: what it watches, what it may risk, what it proposed and did.</p>
+        {busy ? <span className="bots-muted">Saving…</span> : null}
       </header>
-
-      {error ? <div className="empty-state">{error}</div> : null}
 
       {session.day_lock_active ? (
         <div className="bot-strategy__banner bot-strategy__banner--hard" role="alert">
@@ -62,215 +39,35 @@ export function StrategyTab() {
           America/New_York ({session.hard_lock_until_date}). Flatten / kill still work.
         </div>
       ) : null}
-
       {session.soft_breaker_fired && !session.day_lock_active ? (
         <div className="bot-strategy__banner" role="status">
           -$50 breaker flattened the account and dropped the bot to L0.
-          Desk can still trade. Re-arm from the header Activate control.
+          Desk can still trade. Activate re-enables it.
         </div>
       ) : null}
 
-      <section className="bot-strategy__card">
-        <h3>Status (read-only)</h3>
-        <p className="form-hint">
-          Level {session.level} · {session.armed ? 'Active' : 'Not active'} · pack {packLabel}
-          {session.live_fire_ready ? ' · live-fire ready' : ''}
-        </p>
-        <p className="form-hint">
-          Brain: {session.brain_session_id || 'none'}
-          {session.brain_alive ? ' (heartbeat alive)' : ' (heartbeat stale or missing)'}
-        </p>
-      </section>
+      <BotHero />
 
-      <KillSwitchCard />
-
-      <StrategyAllowlistCard />
-
-      <section className="bot-strategy__card">
-        <h3>Small-cap filters</h3>
-        <div className="bot-strategy__grid">
-          <label>
-            Max shares (1-10)
-            <input
-              type="number"
-              data-testid="bot-strategy-max-shares"
-              min={BOT_DEFAULT_MAX_SHARES}
-              max={BOT_MAX_SHARES_CAP}
-              value={session.caps.max_shares}
-              onChange={e => void patch({ caps: { max_shares: Number(e.target.value) } })}
-            />
-          </label>
-          <label>
-            BP budget $ (hard max {BOT_BP_BUDGET_HARD_MAX_USD})
-            <input
-              type="number"
-              data-testid="bot-strategy-bp-budget"
-              min={BOT_BP_BUDGET_MIN_USD}
-              max={BOT_BP_BUDGET_HARD_MAX_USD}
-              step={BOT_BP_BUDGET_STEP_USD}
-              value={session.caps.bp_budget_usd}
-              onChange={e => void patch({ caps: { bp_budget_usd: Number(e.target.value) } })}
-            />
-          </label>
-          <label>
-            Working TTL seconds (1-10)
-            <input
-              type="number"
-              data-testid="bot-strategy-ttl"
-              min={BOT_WORKING_TTL_MIN_SEC}
-              max={BOT_WORKING_TTL_MAX_SEC}
-              value={session.caps.working_ttl_sec}
-              onChange={e => void patch({ caps: { working_ttl_sec: Number(e.target.value) } })}
-            />
-          </label>
-          <label className="bot-strategy__check">
-            <input
-              type="checkbox"
-              data-testid="bot-strategy-eh"
-              checked={session.caps.extended_hours}
-              onChange={e => void patch({ caps: { extended_hours: e.target.checked } })}
-            />
-            Extended hours (off unless you enable it)
-          </label>
+      <div className="bots-grid">
+        <div className="bots-col">
+          <BotStrategiesCard session={session} />
+          <div className="bots-row2">
+            <BotSymbolsCard session={session} />
+            <BotRiskCard session={session} patch={patch} />
+          </div>
         </div>
-        <p className="form-hint">
-          Action kinds: {BOT_ACTION_KINDS.join(', ')}. Free-form qty is refused.
-          New buys block while a bot working order exists.
-        </p>
-        <p className="form-hint">
-          Live L2 (max 3, shared with Trader): {session.trader_live.join(', ') || 'none'}
-        </p>
-        <p className="form-hint" data-testid="bot-pack-desc">
-          {description}
-        </p>
-        {pack === 'quote-spike' ? (
-          <p className="form-hint" data-testid="bot-quote-spike-settings">
-            {quoteSpikeSettingsLine(session.pack_settings?.['quote-spike'])}
-          </p>
-        ) : null}
-        {pack === 'volume' ? (
-          <p className="form-hint" data-testid="bot-volume-settings">
-            {volumeSettingsLine(session.pack_settings?.volume)}
-          </p>
-        ) : null}
-      </section>
-
-      <section className="bot-strategy__card">
-        <h3>LLM decide</h3>
-        <p className="form-hint" data-testid="bot-llm-fire-status">
-          {llm.live_fire
-            ? 'LLM may live-fire when Activate is on.'
-            : 'LLM may live-fire when Activate -- currently propose-only or idle.'}
-          {llm.configured ? '' : ' Pack is idle until OPENROUTER_API_KEY (same key as Advise) is set.'}
-        </p>
-        <div className="bot-strategy__grid">
-          <label>
-            LLM USD cap
-            <input
-              type="number"
-              min={0}
-              step={0.25}
-              value={llm.usd_cap}
-              onChange={e => void patch({ llm: { usd_cap: Number(e.target.value) } })}
-            />
-          </label>
-          <label>
-            LLM call cap
-            <input
-              type="number"
-              min={0}
-              value={llm.call_cap}
-              onChange={e => void patch({ llm: { call_cap: Number(e.target.value) } })}
-            />
-          </label>
+        <div className="bots-col">
+          <BotProposalsInbox proposals={proposals} resolve={resolve} />
+          <KillSwitchCard />
+          <BotActivity audit={audit} />
+          <BotTodayCard />
         </div>
-        <p className="form-hint">
-          Spent ${llm.usd_spent.toFixed(2)} / {llm.calls_used} calls
-        </p>
-      </section>
+      </div>
 
-      <section className="bot-strategy__card">
-        <h3>Advise</h3>
-        <label className="bot-strategy__check">
-          <input
-            type="checkbox"
-            data-testid="bot-strategy-advise-enabled"
-            checked={session.advise.enabled}
-            onChange={e => void patch({ advise: { enabled: e.target.checked } })}
-          />
-          Enable Advise for the bot (off by default, never places)
-        </label>
-        <div className="bot-strategy__grid">
-          <label>
-            USD cap
-            <input
-              type="number"
-              data-testid="bot-strategy-advise-usd"
-              min={0}
-              step={0.25}
-              value={session.advise.usd_cap}
-              onChange={e => void patch({ advise: { usd_cap: Number(e.target.value) } })}
-            />
-          </label>
-          <label>
-            Call cap
-            <input
-              type="number"
-              data-testid="bot-strategy-advise-calls"
-              min={0}
-              value={session.advise.call_cap}
-              onChange={e => void patch({ advise: { call_cap: Number(e.target.value) } })}
-            />
-          </label>
-        </div>
-        <p className="form-hint">
-          Spent ${session.advise.usd_spent.toFixed(2)} / {session.advise.calls_used} calls
-          {` (defaults $${BOT_ADVISE_DEFAULT_USD_CAP} / ${BOT_ADVISE_DEFAULT_CALL_CAP} calls)`}
-        </p>
-      </section>
-
-      <StrategyBreakersCard />
-
-      <section className="bot-strategy__card">
-        <h3>L1 proposals -- human places</h3>
-        {pending.length === 0 ? (
-          <p className="form-hint">No pending proposals. Accept does not send an order.</p>
-        ) : (
-          <ul className="bot-strategy__list">
-            {pending.map(item => (
-              <li key={item.id}>
-                <strong>{item.symbol}</strong> {item.side} {item.kind} x{item.preset_qty}
-                <span className="form-hint"> -- {item.reason}</span>
-                <div className="bot-strategy__row-actions">
-                  <button type="button" onClick={() => void resolve(item.id, 'accept')}>
-                    Mark accepted
-                  </button>
-                  <button type="button" onClick={() => void resolve(item.id, 'reject')}>
-                    Reject
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="bot-strategy__card">
-        <h3>Audit</h3>
-        {audit.length === 0 ? (
-          <p className="form-hint">No bot audit rows yet.</p>
-        ) : (
-          <ul className="bot-strategy__audit">
-            {audit.slice().reverse().slice(0, 20).map((row, idx) => (
-              <li key={`${row.timestamp}-${idx}`}>
-                {row.action} · {row.outcome}
-                {row.reason ? ` · ${row.reason}` : ''}
-                {row.order_id != null ? ` · order ${row.order_id}` : ''}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <footer className="bots-foot">
+        <span>{session.working.length} bot working order{session.working.length === 1 ? '' : 's'}</span>
+        <span>Order kinds the bot may send: {BOT_ACTION_KINDS.join(' · ')}. Free-form quantity is refused.</span>
+      </footer>
     </div>
   );
 }

@@ -9,8 +9,6 @@ from bot.clock import lock_is_active
 from bot.eligibility import normalize_symbols
 from bot.errors import BotError
 from bot.kinds import default_allowlist
-from bot.llm_guard import public_llm
-from bot.packs import catalog, merge_pack_settings, normalize_pack
 from constants_bot import (
     BOT_ADVISE_DEFAULT_CALL_CAP,
     BOT_ADVISE_DEFAULT_USD_CAP,
@@ -20,6 +18,9 @@ from constants_bot import (
     BOT_MAX_SHARES_CAP,
     BOT_REASON_ARM_REQUIRED,
     BOT_REASON_BRAIN_EXCLUSIVE,
+    BOT_SETUP_DEFAULT,
+    BOT_SETUPS,
+    BOT_SETUPS_WITH_SCANNER,
     BOT_WORKING_TTL_MAX_SEC,
     BOT_WORKING_TTL_MIN_SEC,
 )
@@ -42,15 +43,20 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
     from ibkr.trading_allowed import places_allowed
 
     places_ok, places_reason = places_allowed()
+    from bot.gates import gates, readout
+
+    out = readout()
     return {
         "level": level,
         "armed": armed,
         "has_desk_arm": token_on,
         "strategy": row.get("strategy") if level >= BOT_LEVEL_STRATEGY else None,
-        "active_pack": normalize_pack(row.get("active_pack")),
-        "packs": catalog(),
+        # ADR 027: the operator's playbook; one setup plays at a time.
+        "setup": row.get("setup") or BOT_SETUP_DEFAULT,
+        "setups": [{"id": sid, "scanner": sid in BOT_SETUPS_WITH_SCANNER} for sid in BOT_SETUPS],
+        "readout": out,
+        "gates": gates(row),
         "symbol_allowlist": normalize_symbols(row.get("symbol_allowlist")),
-        "pack_settings": merge_pack_settings(row.get("pack_settings")),
         "brain_session_id": brain_id,
         "brain_heartbeat_ts": row.get("brain_heartbeat_ts") if brain_id else None,
         "brain_alive": alive,
@@ -62,6 +68,7 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
             and alive
             and bool(brain_id)
             and places_ok
+            and bool(out.get("passed"))
         ),
         "caps": {
             "max_shares": int(caps.get("max_shares") or 1),
@@ -77,7 +84,6 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
             "usd_spent": float(advise.get("usd_spent") or 0),
             "calls_used": int(advise.get("calls_used") or 0),
         },
-        "llm": public_llm(row),
         "soft_breaker_fired": bool(row.get("soft_breaker_fired")),
         "hard_lock_until_date": lock_until,
         "day_lock_active": lock_is_active(lock_until),

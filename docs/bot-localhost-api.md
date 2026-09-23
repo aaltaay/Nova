@@ -1,8 +1,8 @@
 # Bot localhost API (ADR 016)
 
-Brain-agnostic HTTP + WebSocket on loopback. `nova-brain` is the day-one
-Windows/Linux client started with Nova. MCP / Astra / Fable stay optional
-adapters (`docs/bot-adapters.md`). Advise never places. Every order goes
+Brain-agnostic HTTP + WebSocket on loopback. Nova ships no brain process
+(ADR 027 retired `nova-brain`); any client may use the API under every gate
+below. MCP / Astra / Fable stay optional adapters (`docs/bot-adapters.md`). Advise never places. Every order goes
 through `execution.service.execute` with `source=bot`. No SendKeys. No
 free-form qty.
 
@@ -49,12 +49,12 @@ L1 -> L2 is **desk UI only**:
 `POST /arm` with `X-Nova-Brain-Session` is `403 BOT_ARM_DESK_ONLY`.
 Setting `armed` in a PATCH body is refused.
 
-Level and Active are separate. L2 + pack + allowlist with the desk
+Level and Active are separate. L2 + allowlist with the desk
 **Not active** (`armed` / `has_desk_arm` false) is `409 BOT_NOT_ACTIVE`
 on fire. Eyes never fire (`409 BOT_L1_NO_FIRE`). L2 → Eyes or L0
 disarms so `live_fire_ready` cannot stay true.
 
-Header owns L0/L1/L2, pack, and arming. At L2 the header shows a
+Header owns L0/L1/L2 and arming. At L2 the header shows a
 **Bot is in control** checkbox (checked = Activate / armed, unchecked =
 Stop). L0/L1 hide that checkbox. The chip flashes when `live_fire_ready`
 (L2 + armed + brain heartbeat). Strategy left tab is settings only.
@@ -63,16 +63,33 @@ Heartbeat older than 15s (`BOT_HEARTBEAT_STALE_SEC`) fail-closes fire
 (`409 BOT_HEARTBEAT_STALE`). Same-day -$50 re-arm is allowed (Activate
 sends `reenable`).
 
-## Packs (one active)
+## The playbook and the read-out (ADR 027)
 
-Risk sleeve stays `small-cap`. Packs are a separate picker:
+The old packs (halt-luld, quote-spike, volume, llm-decide) and the
+`nova-brain` sidecar are retired. The session carries the operator's setups
+instead: `setup` (the one that plays, `first_pullback`) and `setups: [{id,
+scanner}]` -- `first_pullback` (the ADR 022 scanner), `gap_and_go`,
+`flat_top_breakout`, `red_to_green`, `micro_pullback`. Only a setup with a
+scanner can be chosen (`PATCH {"setup": ...}`, else `400
+BOT_SETUP_NO_SCANNER`). Risk sleeve stays `small-cap`.
 
-| Pack | Status | Behavior |
-|---|---|---|
-| `halt-luld` | live | Fire `resume_kind` once on halted -> clear, cooldown 30s. |
-| `quote-spike` | live | Last (or bid/ask mid) up `min_pct` (default 3%) in `window_sec` (default 5s) on the shared L1/quote stream. Eyes proposes. L2 + Activate fires `spike_kind` once, then `cooldown_sec` (default 30). |
-| `volume` | live | Last-60s day-volume rate >= `min_mult` (default 5x) vs the prior `baseline_sec` (default 600s) on the shared L1/quote stream. Eyes proposes. L2 + Activate fires `volume_kind` once, then `cooldown_sec` (default 60). Thin history fails closed. |
-| `llm-decide` | live | OpenRouter posts fixed-schema decisions from the Sensor Board snapshot. Live fire needs L2 + Activate + claim + heartbeat + allowlist ∩ focus. No hidden `LLM_LIVE_FIRE` flag. Idle if `OPENROUTER_API_KEY` (or `NOVA_LLM_API_KEY`) is missing. |
+**Strategy waits on the read-out.** `readout` on the session is the
+first-pullback read-out from `setups.db` (Bot-Trading-Plan §2g: 50 triggered
+go setups, average net R above +0.2 and above blind / wait). Until it passes:
+
+- choosing Strategy is allowed but lands **not active**;
+- `POST /session/arm` at Strategy is `409 BOT_READOUT_NOT_PASSED`;
+- every `POST /action` is `409 BOT_READOUT_NOT_PASSED`;
+- `live_fire_ready` is false. Proposals still work at Eyes and Strategy.
+
+**Entries keep the material's rules.** At Strategy a `buy_*` kind is refused
+outside 07:00-10:00 ET on the venue's clock (`409 BOT_OUTSIDE_WINDOW`) and
+after one bot entry that venue day (`409 BOT_DAY_TRADE_CAP`). Exits and
+cancels are never held by either.
+
+`gates: [{id, ok, stage, detail}]` on the session lists every gate the Bots
+page draws: `level`, `allowlist`, `desk_armed`, `depth_lines`, `readout`,
+`bot_trip`, `day_lock`, `kill_switch`, `window`.
 
 ## Symbol gate
 
@@ -149,31 +166,11 @@ Action-kind allowlist: `buy_market`, `buy_limit_ask_offset`,
 - `-$200`: flatten all, then lock bot **and** manual BUY until the next
   America/New_York midnight. Flatten / kill / cancel_working still spend.
 
-## LLM env
+## Your own brain
 
-OpenRouter is the v1 decision vendor. The worker reuses `OPENROUTER_API_KEY`
-(same key as Advise). Optional overrides:
-
-```text
-#OPENROUTER_API_KEY=
-#NOVA_LLM_API_KEY=
-#NOVA_LLM_BASE_URL=https://openrouter.ai/api/v1
-#NOVA_LLM_MODEL=
-#NOVA_BRAIN_MODEL=openai/gpt-4o-mini
-```
-
-Default model is `openai/gpt-4o-mini` (cheap / fast). Do not hard-require
-Sonnet for the loop. Session call + USD caps live on Strategy
-(Advise-style). Brain charges `POST /api/bot/llm/spend` before each call.
-Missing key = idle, never place. Tests mock HTTP. No paid LLM in CI.
-
-## nova-brain
-
-Standing process: Desktop sidecar + `Run Nova.bat` (`python -m nova_brain`).
-Windows script: `scripts/Start-NovaBrain.ps1`. How-to: [nova-brain.md](nova-brain.md).
-Localhost only. Needs `NOVA_API_KEY`. Exclusive claim `nova-brain`. Never
-PATCHes level. Each tick reads `/api/health`, session, watch, and
-`/sensors/snapshot` for focus names. Skip with `NOVA_BRAIN_DISABLED=1`.
+Nova ships no brain process. A brain of your own is a client of this API
+(`bot/client.py`, `bot/sdk.py`): localhost only, `NOVA_API_KEY`, exclusive
+claim + heartbeat, never PATCHes level, and every gate above applies to it.
 
 ## Curl (localhost)
 

@@ -26,9 +26,9 @@ export function botUnreadableMessage(label: string, status: number): string {
   return `${label}: Nova answered an unreadable response${status ? ` (HTTP ${status})` : ''}`;
 }
 
-/** String lists the page joins or searches; `working` / `packs` are lists of rows. */
+/** String lists the page joins or searches; `working` / `setups` / `gates` are lists of rows. */
 const STRING_LISTS = ['focus', 'trader_live', 'symbol_allowlist'] as const;
-const ROW_LISTS = ['working', 'packs'] as const;
+const ROW_LISTS = ['working', 'setups', 'gates'] as const;
 
 /** The session the Bots page can render, or null when the body is not one. */
 export function parseBotSession(body: unknown): BotSession | null {
@@ -41,6 +41,9 @@ export function parseBotSession(body: unknown): BotSession | null {
   for (const key of ROW_LISTS) {
     if (key in body || key === 'working') out[key] = asList(body[key]).filter(isPlainObject);
   }
+  // The read-out gates Strategy (ADR 027): a malformed one is absent, never a pass.
+  const readout = body.readout;
+  if (!isPlainObject(readout) || !isPlainObject(readout.go) || !isPlainObject(readout.control)) delete out.readout;
   return out as unknown as BotSession;
 }
 

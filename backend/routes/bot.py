@@ -14,7 +14,6 @@ from bot.api_models import (
     FocusBody,
     HeartbeatBody,
     LiveSyncBody,
-    LlmSpendBody,
     ProposalBody,
     SessionPatch,
 )
@@ -25,12 +24,14 @@ from bot.arming import (
     record_heartbeat,
 )
 from bot.audit import list_entries
+from bot.audit import record as audit_record
 from bot.autonomy import apply_patch
 from bot.day_pnl import read_account_day_pnl
 from bot.eligibility import add_symbol, remove_symbol
 from bot.errors import BotError
 from bot.focus import add_focus, set_focus, snapshot as focus_snapshot
 from bot.focus import sync_trader_live
+from bot.gates import assert_can_activate
 from bot.http import brain_id, desk_arm_token, http_error, require_loopback
 from bot.persist import load_session, save_session
 from bot.proposals import accept, list_proposals, reject, submit
@@ -64,7 +65,9 @@ def bot_arm(request: Request, body: ArmBody | None = None) -> dict:
     payload = body.model_dump(exclude_none=True) if body else {}
     try:
         assert_desk_activate(brain_id(request, payload))
+        assert_can_activate(load_session())
         token = issue_arm_token(reenable=bool(payload.get("reenable")))
+        audit_record(action="activate", outcome="ok", reason="desk")
         view = get_session()
         view["desk_arm_token"] = token
         return view
@@ -79,6 +82,7 @@ def bot_disarm(request: Request, body: ArmBody | None = None) -> dict:
     try:
         assert_desk_activate(brain_id(request, payload))
         disarm_session()
+        audit_record(action="deactivate", outcome="ok", reason="desk")
         return get_session()
     except BotError as exc:
         raise http_error(exc) from exc
@@ -196,17 +200,6 @@ def bot_focus_set(body: FocusBody) -> dict:
 @router.post("/bot/focus/sync", dependencies=_write)
 def bot_focus_sync(body: LiveSyncBody) -> dict:
     return sync_trader_live(body.live)
-
-
-@router.post("/api/bot/llm/spend", dependencies=_write)
-@router.post("/bot/llm/spend", dependencies=_write)
-def bot_llm_spend(body: LlmSpendBody) -> dict:
-    from bot.llm_guard import assert_and_charge
-
-    try:
-        return assert_and_charge(body.usd)
-    except BotError as exc:
-        raise http_error(exc) from exc
 
 
 @router.get("/api/bot/advise/latest")

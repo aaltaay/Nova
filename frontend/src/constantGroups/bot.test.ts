@@ -1,44 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import {
-  BOT_PACKS,
-  BOT_PACK_DESCRIPTIONS,
-  BOT_PACK_LLM_DECIDE,
+  BOT_GATE_LABELS,
+  BOT_SETUP_BLURBS,
+  BOT_SETUP_IDS,
+  BOT_SETUP_LABELS,
+  BOT_SETUP_RESEARCH,
   BOT_SYMBOL_ALLOWLIST_CAP,
   botAllowlistStripLabel,
-  packDescription,
-  packStatus,
-  quoteSpikeSettingsLine,
-  volumeSettingsLine,
 } from './bot';
 
-describe('bot pack copy', () => {
-  it('has one sentence per pack id', () => {
-    expect(BOT_PACKS).toContain(BOT_PACK_LLM_DECIDE);
-    for (const id of BOT_PACKS) {
-      const text = BOT_PACK_DESCRIPTIONS[id];
-      expect(text.length).toBeGreaterThan(24);
-      expect(text.includes('.')).toBe(true);
-      expect(packDescription(id)).toBe(text);
+describe('bot playbook copy (ADR 027)', () => {
+  it('names, describes and grades every setup the backend lists', () => {
+    // Mirrors backend/constants_bot.py BOT_SETUPS.
+    expect([...BOT_SETUP_IDS]).toEqual(['first_pullback', 'gap_and_go', 'flat_top_breakout', 'red_to_green', 'micro_pullback']);
+    for (const id of BOT_SETUP_IDS) {
+      expect(BOT_SETUP_LABELS[id].length).toBeGreaterThan(3);
+      expect(BOT_SETUP_BLURBS[id].length).toBeGreaterThan(20);
+      expect(BOT_SETUP_RESEARCH[id].text.length).toBeGreaterThan(10);
     }
-    expect(BOT_PACK_DESCRIPTIONS['halt-luld'].toLowerCase()).toMatch(/halt|luld/);
-    expect(BOT_PACK_DESCRIPTIONS['quote-spike'].toLowerCase()).not.toMatch(/stub/);
-    expect(BOT_PACK_DESCRIPTIONS['quote-spike'].toLowerCase()).toMatch(/3%|last|mid/);
-    expect(BOT_PACK_DESCRIPTIONS.volume.toLowerCase()).not.toMatch(/stub/);
-    expect(BOT_PACK_DESCRIPTIONS.volume.toLowerCase()).toMatch(/5x|day-volume|60/);
-    expect(BOT_PACK_DESCRIPTIONS['llm-decide']).toMatch(/L2 \+ Activate/);
-    expect(BOT_PACK_DESCRIPTIONS['llm-decide']).not.toMatch(/LLM_LIVE_FIRE/);
   });
 
-  it('updates when the pack id changes', () => {
-    expect(packDescription('halt-luld')).not.toBe(packDescription('llm-decide'));
-    expect(packDescription('volume')).not.toBe(packDescription('quote-spike'));
-    expect(packStatus('quote-spike')).toBe('live');
-    expect(packStatus('volume')).toBe('live');
-    expect(quoteSpikeSettingsLine({ min_pct: 3, window_sec: 5, spike_kind: 'buy_market', cooldown_sec: 30 }))
-      .toMatch(/3% in 5s/);
-    expect(volumeSettingsLine({
-      min_mult: 5, window_sec: 60, baseline_sec: 600, volume_kind: 'buy_market', cooldown_sec: 60,
-    })).toMatch(/5x/);
+  it('labels every gate backend/bot/gates.py returns', () => {
+    expect(Object.keys(BOT_GATE_LABELS).sort()).toEqual(
+      ['allowlist', 'bot_trip', 'day_lock', 'depth_lines', 'desk_armed', 'kill_switch', 'level', 'readout', 'window'],
+    );
   });
 
   it('mirrors the backend symbol-allowlist cap and strip count label', () => {

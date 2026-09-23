@@ -1,4 +1,8 @@
-"""HTTP client for the localhost bot API. Never places except via /action."""
+"""HTTP client for the localhost bot API (ADR 016). Never places except via /action.
+
+Moved from the retired ``nova_brain`` package (ADR 027): the SDK and the MCP
+adapter contract are clients of the same OpenAPI.
+"""
 from __future__ import annotations
 
 import os
@@ -81,6 +85,3 @@ class BotApiClient:
         payload.pop("shares", None)
         payload["brain_session_id"] = self.brain_id
         return self.post("/api/bot/proposals", payload)
-
-    def charge_llm(self, usd: float) -> dict[str, Any]:
-        return self.post("/api/bot/llm/spend", {"usd": usd})

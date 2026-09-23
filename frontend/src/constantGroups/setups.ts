@@ -74,6 +74,21 @@ export const CATALYST_CATEGORY_LABELS: Record<string, string> = {
   analyst_action: 'Analyst note',
 };
 
+/** The Watchlist's News column: a catalyst class in a word (full names above). */
+export const CATALYST_CATEGORY_SHORT: Record<string, string> = {
+  fda_regulatory: 'FDA',
+  clinical_data: 'Clinical',
+  merger_acquisition: 'M&A',
+  contract_partnership: 'Contract',
+  earnings_guidance: 'Earnings',
+  listing_financing: 'Financing',
+  theme_pivot: 'Theme',
+  product_news: 'Product',
+  company_news: 'News',
+  offering_dilution: 'Dilution',
+  delisting_split: 'Delisting',
+};
+
 export const CATALYST_VERDICT_TITLES: Record<string, string> = {
   catalyst: 'Catalyst',
   negative: 'Only dilution / delisting news',

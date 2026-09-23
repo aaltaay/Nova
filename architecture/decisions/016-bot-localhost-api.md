@@ -130,6 +130,16 @@ free-form qty, REST quote polls, a second broker path) was rejected.
     never places. This does not add a second order door or a specialty UX
     agent.
 
+## Amendment 2026-09-23 -- packs retired (ADR 027)
+
+20. **Items 11, 13 and 17-19 are superseded.** The pack catalog (halt-luld,
+    quote-spike, volume, llm-decide), `POST /api/bot/llm/spend` and the
+    `nova-brain` sidecar are removed. The bot plays the operator's setups
+    (`setup`, `setups` on the session); Strategy -- Activate and every L2
+    fire -- waits on the first-pullback read-out
+    (`409 BOT_READOUT_NOT_PASSED`), and L2 entries keep the material's
+    07:00-10:00 ET window and one trade a day. Items 1-10, 12, 14-16 stand.
+
 ## Consequences
 
 - `source="bot"` is a first-class ADR 007 source. Kill / flatten /

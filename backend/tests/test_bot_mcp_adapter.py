@@ -15,7 +15,7 @@ from auth import require_bot_auth
 from bot import mcp_adapter, sdk
 from bot.http import require_loopback
 from main import app
-from nova_brain.client import BotApiClient
+from bot.client import BotApiClient
 
 BOT_ACTION_PATH = "/api/bot/action"
 _BACKEND = Path(__file__).resolve().parents[1]
@@ -115,7 +115,8 @@ def test_sdk_reexports_the_same_objects():
     [
         _BACKEND / "routes" / "bot.py",
         _BACKEND / "routes" / "bot_ws.py",
-        *sorted((_BACKEND / "nova_brain").glob("*.py")),
+        _BACKEND / "bot" / "actions.py",
+        _BACKEND / "bot" / "client.py",
     ],
     ids=lambda p: f"{p.parent.name}/{p.name}",
 )

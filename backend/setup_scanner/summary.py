@@ -67,6 +67,16 @@ def _stats(rows: list[dict]) -> dict[str, Any]:
     }
 
 
+def stats(rows: Iterable[dict]) -> dict[str, Any]:
+    """One stats block over ``rows`` (the read-out pools blind and wait this way,
+    never by averaging two group averages)."""
+    return _stats(list(rows))
+
+
+def tape_at_trigger(row: dict) -> str:
+    return _tape(row)
+
+
 def summarize(rows: Iterable[dict]) -> dict[str, Any]:
     rows = list(rows)
     out: dict[str, Any] = {"all": _stats(rows), "by": {}}

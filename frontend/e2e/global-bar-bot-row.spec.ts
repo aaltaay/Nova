@@ -1,9 +1,9 @@
 /**
- * Bot Autonomy chrome after the approved redesign (2026-09-21): the bar's
- * arm controls (Level / Pack / Allowlist / Activate) mount only on the Bots
- * page, as a second row under the primary desk chrome; the Trader carries
- * them in its right-rail Bot Autonomy card; every other view keeps the bar
- * to desk chrome and the symbol-menu host.
+ * Bot Autonomy chrome after ADR 027 (2026-09-23): the bar never carries arm
+ * controls -- the Bots page hero owns the level and Activate, the Trader
+ * carries them in its right-rail Bot Autonomy card (Level / Setup /
+ * Allowlist / Activate), and every view keeps the bar to desk chrome and the
+ * symbol-menu host.
  */
 import { test, expect, type Page } from '@playwright/test';
 import { clickThroughOverlay } from './helpers/accountReports';
@@ -12,17 +12,16 @@ import { attachErrorCollector } from './helpers/errorCollector';
 const BAR_ARM_CONTROL_IDS = [
   'bot-arm-controls',
   'bot-arm-level',
-  'bot-arm-pack',
-  'bot-arm-pack-desc',
   'bot-arm-allowlist',
   'bot-arm-allowlist-toggle',
   'bot-arm-status',
+  'bots-activate',
 ] as const;
 
 const CARD_CONTROL_IDS = [
   'bot-card-level',
-  'bot-card-pack',
-  'bot-card-pack-info',
+  'bot-card-setup',
+  'bot-card-setup-info',
   'bot-arm-allowlist',
   'bot-arm-allowlist-toggle',
   'bot-card-state',
@@ -39,23 +38,7 @@ async function expectDeskChromeOnRowOne(page: Page) {
   await expect(right.getByTestId('global-bar-trade-lock')).toBeVisible();
 }
 
-/** Bots page: the arm controls are the bar's second row, under the primary row. */
-async function expectBotRowBelowPrimary(page: Page) {
-  await expectDeskChromeOnRowOne(page);
-  const primary = page.getByTestId('global-bar-primary');
-  const bot = page.getByTestId('global-bar-bot');
-  await expect(bot).toBeVisible();
-  for (const id of BAR_ARM_CONTROL_IDS) {
-    await expect(bot.getByTestId(id)).toBeVisible();
-  }
-  const primaryBox = await primary.boundingBox();
-  const botBox = await bot.boundingBox();
-  expect(primaryBox).toBeTruthy();
-  expect(botBox).toBeTruthy();
-  expect(botBox!.y).toBeGreaterThan(primaryBox!.y);
-}
-
-/** Every other view: the bar's bot row is only the symbol-menu host -- no arm control anywhere in the bar. */
+/** Every view: the bar's bot row is only the symbol-menu host -- no arm control anywhere in the bar. */
 async function expectBarHostOnly(page: Page) {
   await expectDeskChromeOnRowOne(page);
   const bar = page.getByTestId('global-app-bar');
@@ -66,7 +49,7 @@ async function expectBarHostOnly(page: Page) {
 }
 
 test.describe('GlobalAppBar bot row', () => {
-  test('sample scanner keeps the bar to desk chrome; the Bots page adds the arm controls on row 2', async ({
+  test('sample scanner and the Bots page keep the bar to desk chrome -- the hero owns the level', async ({
     page,
   }, testInfo) => {
     const { errors } = attachErrorCollector(page);
@@ -79,18 +62,11 @@ test.describe('GlobalAppBar bot row', () => {
     const bots = page.getByTestId('nav-rail-bots');
     await clickThroughOverlay(page, bots);
     await expect(bots).toHaveClass(/is-active/);
-    await expectBotRowBelowPrimary(page);
+    await expectBarHostOnly(page);
     await page.getByTestId('global-app-bar').screenshot({
       path: testInfo.outputPath('global-app-bar-sample-bots.png'),
     });
 
-    await page.setViewportSize({ width: 900, height: 720 });
-    await expectBotRowBelowPrimary(page);
-    await page.getByTestId('global-app-bar').screenshot({
-      path: testInfo.outputPath('global-app-bar-sample-bots-narrow.png'),
-    });
-
-    // Back on a Scanner list the bar drops the row's controls again.
     const gappers = page.getByTestId('nav-rail-tab-gappers');
     await clickThroughOverlay(page, gappers);
     await expect(gappers).toHaveClass(/is-active/);

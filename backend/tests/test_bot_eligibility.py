@@ -13,7 +13,6 @@ from bot.eligibility import (
     remove_symbol,
 )
 from bot.errors import BotError
-from bot.packs import assert_pack_can_fire, catalog, normalize_pack
 from bot.persist import default_session
 from constants_bot import (
     BOT_NO_DEPTH_LINE_HINT,
@@ -118,20 +117,33 @@ def test_schema_1_file_gains_v2_defaults():
     persist._session = None
     loaded = persist.load_session()
     assert loaded["symbol_allowlist"] == []
-    assert loaded["active_pack"] == "halt-luld"
+    assert loaded["setup"] == "first_pullback"
     assert loaded.get("desk_arm_token") is None
     persist.save_session(loaded)
     from constants_bot import BOT_SCHEMA_VERSION
 
     assert persist.load_session()["schema_version"] == BOT_SCHEMA_VERSION
-    assert loaded["llm"]["call_cap"] == 10
+    assert "llm" not in loaded
 
 
-def test_pack_catalog_marks_stubs():
-    ids = {row["id"]: row["status"] for row in catalog()}
-    assert ids["halt-luld"] == "live"
-    assert ids["llm-decide"] == "live"
-    assert ids["quote-spike"] == "live"
-    assert ids["volume"] == "live"
-    assert normalize_pack(None) == "halt-luld"
-    assert_pack_can_fire("volume")
+def test_a_v3_session_loads_with_the_retired_pack_fields_stripped():
+    """ADR 027: the packs are gone; a schema 3 file must not bring them back."""
+    import json
+
+    from bot import persist
+
+    persist.reset_for_tests()
+    persist._session_path().write_text(
+        json.dumps({
+            "schema_version": 3, "level": 1, "active_pack": "llm-decide",
+            "pack_settings": {"quote-spike": {"min_pct": 3}}, "llm": {"call_cap": 10},
+            "symbol_allowlist": ["GRML"],
+        }),
+        encoding="utf-8",
+    )
+    persist._session = None
+    loaded = persist.load_session()
+    for key in ("active_pack", "pack_settings", "llm"):
+        assert key not in loaded
+    assert loaded["symbol_allowlist"] == ["GRML"]
+    assert loaded["setup"] == "first_pullback"

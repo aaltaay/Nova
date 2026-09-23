@@ -88,9 +88,6 @@ vi.mock('../workspace/navRailStore', async (importOriginal) => {
     }),
   };
 });
-vi.mock('../bot/BotArmControls', () => ({
-  BotArmControls: () => <div data-testid="bot-arm-controls-stub" />,
-}));
 vi.mock('../bot/BotSymbolMenu', () => ({
   BotSymbolMenuHost: () => <div data-testid="bot-symbol-menu-host-stub" />,
 }));
@@ -490,40 +487,25 @@ describe('GlobalAppBar', () => {
     expect(container.querySelector('[data-testid="global-bar-gear-menu"]')).toBeNull();
   });
 
-  it('mounts the bot arm controls only on the Bots page; the Scanner gets the menu host alone', () => {
-    renderBar();
-    expect(container.querySelector('[data-testid="global-bar-bot"]')).toBeTruthy();
-    expect(container.querySelector('[data-testid="bot-arm-controls-stub"]')).toBeNull();
-    expect(container.querySelector('[data-testid="bot-symbol-menu-host-stub"]')).toBeTruthy();
-    act(() => root.unmount());
-    container.remove();
-    container = document.createElement('div');
-    document.body.appendChild(container);
-    root = createRoot(container);
-    navSnap.activeTab = 'strategy';
-    renderBar();
+  it('keeps the bot row to the symbol-menu host on every view -- the Bots page hero owns the level (ADR 027)', () => {
+    for (const tab of ['gappers', 'strategy']) {
+      navSnap.activeTab = tab;
+      renderBar();
+      const header = container.querySelector('[data-testid="global-app-bar"]');
+      const primary = container.querySelector('[data-testid="global-bar-primary"]');
+      const botRow = container.querySelector('[data-testid="global-bar-bot"]');
+      expect(botRow).toBeTruthy();
+      expect(botRow!.querySelector('[data-testid="bot-symbol-menu-host-stub"]')).toBeTruthy();
+      expect(container.querySelector('[data-testid="bot-arm-controls"]')).toBeNull();
+      const kids = Array.from(header!.children);
+      expect(kids.indexOf(primary as Element)).toBeLessThan(kids.indexOf(botRow as Element));
+      act(() => root.unmount());
+      container.remove();
+      container = document.createElement('div');
+      document.body.appendChild(container);
+      root = createRoot(container);
+    }
     navSnap.activeTab = 'gappers';
-    const header = container.querySelector('[data-testid="global-app-bar"]');
-    const primary = container.querySelector('[data-testid="global-bar-primary"]');
-    const right = container.querySelector('.global-app-bar__right');
-    const botRow = container.querySelector('[data-testid="global-bar-bot"]');
-    const stub = container.querySelector('[data-testid="bot-arm-controls-stub"]');
-    const menuHost = container.querySelector('[data-testid="bot-symbol-menu-host-stub"]');
-    expect(header).toBeTruthy();
-    expect(primary).toBeTruthy();
-    expect(right).toBeTruthy();
-    expect(botRow).toBeTruthy();
-    expect(stub).toBeTruthy();
-    expect(menuHost).toBeTruthy();
-    expect(primary!.contains(right!)).toBe(true);
-    expect(botRow!.contains(stub!)).toBe(true);
-    expect(botRow!.contains(menuHost!)).toBe(true);
-    expect(right!.contains(stub!)).toBe(false);
-    expect(primary!.contains(stub!)).toBe(false);
-    expect(right!.querySelector('[data-testid="global-bar-account"]')).toBeTruthy();
-    expect(right!.querySelector('[data-testid="global-bar-trade-lock"]')).toBeTruthy();
-    const kids = Array.from(header!.children);
-    expect(kids.indexOf(primary as Element)).toBeLessThan(kids.indexOf(botRow as Element));
   });
 
   it('ends the cluster with the account pill -- structure, class, full id -- before the trade lock', () => {

@@ -164,11 +164,6 @@
   opacity: 0.7;
 }
 
-.watchlist-composite-cell {
-  font-weight: 700;
-  color: var(--accent-color);
-}
-
 /* ── Attention strip (desk event log) ───────────────────────────────────── */
 
 .nova-os-attention-strip {

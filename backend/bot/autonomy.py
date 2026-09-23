@@ -13,7 +13,6 @@ from bot.arming import (
 from bot.errors import BotError
 from bot.persist import load_session, save_session
 from bot.eligibility import normalize_symbols
-from bot.packs import merge_pack_settings, normalize_pack
 from bot.session import clamp_caps
 from constants_bot import (
     BOT_LEVEL_EYES,
@@ -22,6 +21,9 @@ from constants_bot import (
     BOT_LEVEL_UNRESTRICTED,
     BOT_REASON_ARM_REQUIRED,
     BOT_REASON_L3_PARKED,
+    BOT_REASON_SETUP_NO_SCANNER,
+    BOT_SETUPS,
+    BOT_SETUPS_WITH_SCANNER,
     BOT_STRATEGIES,
     BOT_STRATEGY_SMALL_CAP,
 )
@@ -39,6 +41,19 @@ def _validate_level(level: int) -> int:
     return level
 
 
+def _validate_setup(name: str) -> str:
+    """One setup plays at a time, and only one with a live scanner can (ADR 027)."""
+    if name not in BOT_SETUPS:
+        raise BotError(f"unknown setup {name!r}", 400)
+    if name not in BOT_SETUPS_WITH_SCANNER:
+        raise BotError(
+            f"{name} has no scanner yet -- it cannot be played until it has one and its read-out passes",
+            400,
+            BOT_REASON_SETUP_NO_SCANNER,
+        )
+    return name
+
+
 def apply_patch(
     body: dict[str, Any],
     *,
@@ -47,6 +62,7 @@ def apply_patch(
 ) -> dict[str, Any]:
     """Desk/strategy controls. Raising above L1 needs a desk arm token."""
     row = load_session()
+    level_before = int(row.get("level") or BOT_LEVEL_OFF)
     if "armed" in body:
         raise BotError(
             "armed is desk Activate/Stop only -- POST /api/bot/session/arm or /disarm",
@@ -71,20 +87,16 @@ def apply_patch(
                 row["strategy"] = None
         if level == BOT_LEVEL_STRATEGY:
             row["strategy"] = row.get("strategy") or BOT_STRATEGY_SMALL_CAP
-            row["active_pack"] = normalize_pack(row.get("active_pack"))
-    if "active_pack" in body:
-        row["active_pack"] = normalize_pack(str(body.get("active_pack")))
+            from bot.gates import readout_passed
+
+            if not readout_passed():
+                # ADR 027: Strategy can be chosen before its read-out passes, but
+                # it lands not active -- the bot proposes like Eyes until then.
+                clear_arm_fields(row)
+    if "setup" in body:
+        row["setup"] = _validate_setup(str(body.get("setup") or ""))
     if "symbol_allowlist" in body:
         row["symbol_allowlist"] = normalize_symbols(body.get("symbol_allowlist"))
-    if "pack_settings" in body and isinstance(body["pack_settings"], dict):
-        current = merge_pack_settings(row.get("pack_settings"))
-        incoming = body["pack_settings"]
-        for key, value in incoming.items():
-            if isinstance(value, dict):
-                merged = dict(current.get(key) or {})
-                merged.update(value)
-                current[key] = merged
-        row["pack_settings"] = merge_pack_settings(current)
     if "strategy" in body and int(row.get("level") or 0) >= BOT_LEVEL_STRATEGY:
         name = str(body.get("strategy") or "").strip()
         if name and name not in BOT_STRATEGIES:
@@ -104,19 +116,27 @@ def apply_patch(
         if "call_cap" in patch:
             advise["call_cap"] = max(0, int(patch["call_cap"]))
         row["advise"] = advise
-    if "llm" in body and isinstance(body["llm"], dict):
-        from bot.llm_guard import default_llm
-
-        llm = {**default_llm(), **dict(row.get("llm") or {})}
-        patch = body["llm"]
-        if "usd_cap" in patch:
-            llm["usd_cap"] = max(0.0, float(patch["usd_cap"]))
-        if "call_cap" in patch:
-            llm["call_cap"] = max(0, int(patch["call_cap"]))
-        row["llm"] = llm
     if body.get("reenable") and desk:
         row["soft_breaker_fired"] = False
-    return save_session(row)
+    saved = save_session(row)
+    if level_before != int(saved.get("level") or BOT_LEVEL_OFF):
+        _audit_level(level_before, saved)
+    return saved
+
+
+def _audit_level(before: int, row: dict[str, Any]) -> None:
+    """The Bots page timeline shows who moved the level (ADR 027)."""
+    from bot.audit import record
+
+    try:
+        record(action="level", outcome=f"{before}->{int(row.get('level') or 0)}",
+               reason=None if row.get("armed") or int(row.get("level") or 0) < BOT_LEVEL_STRATEGY
+               else "Strategy lands not active until the read-out passes",
+               inputs={"from": before, "to": int(row.get("level") or 0)})
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).warning("bot audit: level change not recorded", exc_info=True)
 
 
 def apply_desk_level(level: int, **extra: Any) -> dict[str, Any]:
@@ -156,6 +176,9 @@ def assert_can_fire(row: dict[str, Any] | None = None) -> dict[str, Any]:
             409,
             BOT_REASON_L1_NO_FIRE,
         )
+    from bot.gates import assert_readout_passed
+
+    assert_readout_passed()
     if not is_desk_active(current):
         raise BotError(
             "desk is Not active -- Activate before live fire",
