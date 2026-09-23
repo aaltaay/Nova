@@ -1,4 +1,9 @@
-/** Trade-ticket PIN unlock — shadcn Dialog + InputOTP. */
+/**
+ * Live PIN prompt -- shadcn Dialog + InputOTP.
+ *
+ * The dialog only collects digits: the backend checks the PIN against the hash
+ * in `.env` (`POST /api/ibkr/arm`), and whatever it answers is shown as-is.
+ */
 import { useEffect, useState } from 'react';
 import { Lock } from 'lucide-react';
 import {
@@ -15,38 +20,54 @@ import {
 } from '@/components/ui/input-otp';
 import {
   TICKER_TRADE_UNLOCK_DIALOG_CANCEL,
+  TICKER_TRADE_UNLOCK_DIALOG_CHECKING,
   TICKER_TRADE_UNLOCK_DIALOG_SUBTITLE,
   TICKER_TRADE_UNLOCK_DIALOG_TITLE,
-  TICKER_TRADE_UNLOCK_FAIL,
   TICKER_TRADE_UNLOCK_PIN_LENGTH,
 } from '../constants';
 
 interface Props {
   open: boolean;
-  onSubmit: (pin: string) => boolean;
+  /** Resolves null when the backend accepted the PIN, else the reason to show. */
+  onSubmit: (pin: string) => Promise<string | null>;
   onCancel: () => void;
+  /** Shown before any PIN is typed (e.g. the Live PIN is not set). */
+  notice?: string | null;
 }
 
-export function TradingPinDialog({ open, onSubmit, onCancel }: Props) {
+export function TradingPinDialog({ open, onSubmit, onCancel, notice = null }: Props) {
   const [value, setValue] = useState('');
-  const [failed, setFailed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
   const [resetKey, setResetKey] = useState(0);
 
   useEffect(() => {
     if (open) {
       setValue('');
-      setFailed(false);
+      setError(null);
+      setPending(false);
       setResetKey(k => k + 1);
     }
   }, [open]);
 
-  function trySubmit(pin: string) {
-    if (pin.length !== TICKER_TRADE_UNLOCK_PIN_LENGTH) return;
-    if (onSubmit(pin)) return;
-    setFailed(true);
+  async function trySubmit(pin: string) {
+    if (pin.length !== TICKER_TRADE_UNLOCK_PIN_LENGTH || pending) return;
+    setPending(true);
+    let refusal: string | null;
+    try {
+      refusal = await onSubmit(pin);
+    } catch (err) {
+      console.warn('[Nova] PIN submit failed', err);
+      refusal = err instanceof Error && err.message ? err.message : String(err);
+    }
+    setPending(false);
+    if (refusal == null) return;
+    setError(refusal);
     setValue('');
     setResetKey(k => k + 1);
   }
+
+  const message = error ?? notice;
 
   return (
     <Dialog open={open} onOpenChange={next => !next && onCancel()}>
@@ -67,16 +88,17 @@ export function TradingPinDialog({ open, onSubmit, onCancel }: Props) {
             key={resetKey}
             maxLength={TICKER_TRADE_UNLOCK_PIN_LENGTH}
             value={value}
+            disabled={pending}
             onChange={next => {
               setValue(next);
-              setFailed(false);
+              setError(null);
               if (next.length === TICKER_TRADE_UNLOCK_PIN_LENGTH) {
-                trySubmit(next);
+                void trySubmit(next);
               }
             }}
             autoFocus
           >
-            <InputOTPGroup className={failed ? '[&_[data-slot=input-otp-slot]]:border-destructive' : undefined}>
+            <InputOTPGroup className={error ? '[&_[data-slot=input-otp-slot]]:border-destructive' : undefined}>
               {Array.from({ length: TICKER_TRADE_UNLOCK_PIN_LENGTH }, (_, index) => (
                 <InputOTPSlot key={index} index={index} />
               ))}
@@ -84,9 +106,15 @@ export function TradingPinDialog({ open, onSubmit, onCancel }: Props) {
           </InputOTP>
         </div>
 
-        {failed && (
-          <p className="text-center text-sm text-destructive">{TICKER_TRADE_UNLOCK_FAIL}</p>
-        )}
+        {pending ? (
+          <p className="text-center text-sm text-muted-foreground" role="status">
+            {TICKER_TRADE_UNLOCK_DIALOG_CHECKING}
+          </p>
+        ) : message ? (
+          <p className="text-center text-sm text-destructive" role="alert" data-testid="trading-pin-error">
+            {message}
+          </p>
+        ) : null}
 
         <Button type="button" variant="outline" className="w-full" onClick={onCancel}>
           {TICKER_TRADE_UNLOCK_DIALOG_CANCEL}

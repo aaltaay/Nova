@@ -10,9 +10,7 @@ test.describe('sample shortability (Phase K)', () => {
   test('SMPL Stock View shows Short on Side for the sample margin desk', async ({
     page,
   }) => {
-    await page.addInitScript(() => {
-      sessionStorage.setItem('nova.tickerTrade.sessionUnlocked', '1');
-    });
+    // The sample status is an armed Paper desk, so the ticket shows Place without an unlock.
     await page.goto('/?view=sample&symbol=SMPL');
 
     await expect(page.getByText('Direction', { exact: true })).toHaveCount(0);

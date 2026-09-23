@@ -458,9 +458,9 @@ export const CLOSE_POSITION_ACCOUNT_ERROR_TITLE =
   'IBKR account/positions read failed — Flatten disabled until the poll recovers';
 export const CLOSE_POSITION_VS_CANCEL_HINT =
   'Flatten closes the entire position with a market order (extended hours when pre/after-market). Cancel only removes a working order. Fill now cancels the rest of one order and fills that remainder -- market in regular hours, or a bid/ask limit sweep in pre/after-market when that symbol has a live Trader book.';
-/** Flatten is a user spend action — same PIN session as Place an order. */
+/** Flatten is a user spend action — same padlock as Place an order. */
 export const CLOSE_POSITION_PIN_LOCKED_TITLE =
-  'Unlock trading (PIN) before Flatten — same lock as Place an order.';
+  'Unlock trading at the padlock before Flatten — same lock as Place an order.';
 /** Working-order remainder fill (RTH market / EH limit sweep). */
 export const FILL_WORKING_ORDER_BUTTON_LABEL = 'Fill now';
 export const FILL_WORKING_ORDER_BUTTON_TITLE =
@@ -590,7 +590,7 @@ export const TICKER_TRADE_QTY_NUDGE_MINUS_LABEL = '-1';
  * Aligns with Webull’s fractional floor (>0.00001) at practical table precision.
  */
 export const TICKER_TRADE_QTY_DECIMALS = 4;
-/** Primary CTA before local PIN unlock (does not bypass IBKR spend gates). */
+/** Primary CTA before the padlock is unlocked (does not bypass IBKR spend gates). */
 export const TICKER_TRADE_UNLOCK_LABEL = 'Unlock Trading';
 /** Place button while the backend refuses spends (env gate, account class). */
 export const TICKER_TRADE_ORDERS_LOCKED_LABEL = 'Orders locked';
@@ -601,36 +601,53 @@ export const TICKER_TRADE_MARKET_OUTSIDE_RTH_REASON =
   'Market orders are not accepted outside regular hours (09:30–16:00 ET) — use a limit at the ask';
 /** How often the ticket re-reads the session clock for that preflight. */
 export const TICKER_TRADE_SESSION_POLL_MS = 30_000;
-/** GlobalAppBar lock icon — same PIN session gate as Place an order. */
+/**
+ * GlobalAppBar padlock -- the backend arm latch (ADR 018), the same gate as
+ * Place an order. Unlocked is the whole desk (every window, and a bot), not a tab.
+ */
 export const TICKER_TRADE_LOCK_ICON_UNLOCKED_TITLE =
-  'Trading unlocked for this browser session. Click to lock.';
+  'Trading unlocked -- the desk is armed. Click to lock.';
+export const TICKER_TRADE_LOCK_ICON_UNLOCKED_BY_BOT_TITLE =
+  'Trading unlocked by a bot -- the desk is armed. Click to lock.';
+/** Armed, but the backend still refuses places (Gateway, env gate); the click locks. */
+export const TICKER_TRADE_LOCK_ICON_ARMED_BLOCKED_TITLE =
+  'Desk armed, but places are blocked. Click to lock.';
 export const TICKER_TRADE_LOCK_ICON_LOCKED_TITLE =
-  'Trading locked. Click and enter PIN to unlock Place an order / Nova Actions.';
+  'Trading locked. Click and enter your Live PIN to unlock Place an order / Nova Actions.';
+/** Paper / Sim: no PIN, one click arms. */
+export const TICKER_TRADE_LOCK_ICON_LOCKED_NO_PIN_TITLE =
+  'Trading locked. Click to unlock Place an order / Nova Actions.';
+/** Live with no PIN hash in `.env`: the backend cannot arm Live until one is set. */
+export const TICKER_TRADE_LIVE_PIN_NOT_SET =
+  'The Live PIN is not set -- run py -3 tools/set_live_arm_pin.py, then unlock.';
+export const TICKER_TRADE_LOCK_ICON_PIN_NOT_SET_TITLE =
+  `Trading locked. ${TICKER_TRADE_LIVE_PIN_NOT_SET}`;
 export const FLATTEN_EH_NO_MARK =
   'After-hours flatten needs a live bid/ask or last -- refusing an RTH-only MKT that IBKR would hold until the next regular session';
 export const TICKER_TRADE_LOCK_ICON_ARIA_UNLOCKED = 'Lock trading';
 export const TICKER_TRADE_LOCK_ICON_ARIA_LOCKED = 'Unlock trading';
-/** Primary CTA after PIN unlock — submits the built order (live / offline). */
+/** Primary CTA after unlock — submits the built order (live / offline). */
 export const TICKER_TRADE_PLACE_ORDER_LABEL = 'Place an order';
-/** Primary CTA after PIN unlock when IBKR Gateway mode is paper. */
+/** Primary CTA after unlock when IBKR Gateway mode is paper. */
 export const TICKER_TRADE_PLACE_PAPER_ORDER_LABEL = 'Place Paper order';
 /** Hot strip above Stock View / Trading while the venue is Paper (ADR 020). */
 export const PAPER_TRADING_BANNER_TEXT = DESK_VENUE_PAPER_BANNER_TEXT;
 /**
- * Local UI unlock PIN for the Trade ticket (not a server secret).
- * Correct PIN switches the primary button to Place an order for this browser session.
+ * Live PIN length. The PIN itself lives only as a hash in `.env`, checked by
+ * the backend on POST /api/ibkr/arm (mirrors backend ARM_PIN_LENGTH).
  */
-export const TICKER_TRADE_UNLOCK_PIN = '123456';
-export const TICKER_TRADE_UNLOCK_PIN_LENGTH = TICKER_TRADE_UNLOCK_PIN.length;
-export const TICKER_TRADE_UNLOCK_SESSION_KEY = 'nova.tickerTrade.sessionUnlocked';
-/** localStorage echo so Electron pop-outs hear lock/unlock (BroadcastChannel is silent there). */
-export const TICKER_TRADE_UNLOCK_SYNC_KEY = 'nova.tickerTrade.sessionUnlocked.sync';
-export const TICKER_TRADE_UNLOCK_CHANNEL = 'nova-ticket-session-unlock';
+export const TICKER_TRADE_UNLOCK_PIN_LENGTH = 6;
 /** PIN dialog copy (`TradingPinDialog`). */
 export const TICKER_TRADE_UNLOCK_DIALOG_TITLE = 'Trading Verification';
-export const TICKER_TRADE_UNLOCK_DIALOG_SUBTITLE = `Please Enter ${TICKER_TRADE_UNLOCK_PIN_LENGTH} Digit Password`;
+export const TICKER_TRADE_UNLOCK_DIALOG_SUBTITLE = `Enter your ${TICKER_TRADE_UNLOCK_PIN_LENGTH}-digit Live PIN`;
 export const TICKER_TRADE_UNLOCK_DIALOG_CANCEL = 'Cancel';
-export const TICKER_TRADE_UNLOCK_FAIL = 'Incorrect unlock code.';
+export const TICKER_TRADE_UNLOCK_DIALOG_CHECKING = 'Checking…';
+/** Paper / Sim one-click unlock the backend refused; the body is its own reason. */
+export const TICKER_TRADE_UNLOCK_REFUSED_TITLE = 'Trading stays locked';
+/** POST /api/ibkr/arm answers (armDesk). */
+export const DESK_ARM_REFUSED_MESSAGE = 'Nova refused to arm the desk';
+export const DESK_ARM_NO_ANSWER_MESSAGE =
+  'The Nova API did not answer -- trading stays locked.';
 /** localStorage: skip the place-order confirmation dialog. */
 export const TICKER_TRADE_SKIP_PLACE_CONFIRM_KEY = 'nova.tickerTrade.skipPlaceConfirm';
 export const TICKER_TRADE_PLACE_CONFIRM_TITLE = 'Confirm order';

@@ -24,7 +24,6 @@ const status = vi.hoisted(() => ({
 
 vi.mock('./ticketUnlock', () => ({
   readTicketSessionUnlocked: () => true,
-  tryUnlockTicketSession: () => true,
   subscribeTicketSessionUnlock: () => () => {},
 }));
 

@@ -43,6 +43,15 @@ const ROW_LIST_FIELDS = ['capture_sessions', 'capture_resume', 'capture_stopped'
 /** Lists of plain strings (symbols, account ids). */
 const STRING_LIST_FIELDS = ['capture_symbols', 'account_ids'] as const;
 
+/**
+ * Optional booleans: dropped when present but not a boolean, so a malformed
+ * `armed` can never read as unlocked and a malformed `arm_requires_pin` reads
+ * as unknown (Live: ask for the PIN).
+ */
+const OPTIONAL_BOOLEAN_FIELDS = ['armed', 'arm_requires_pin', 'live_arm_pin_set'] as const;
+
+const ARMED_BY = ['operator', 'bot'] as const;
+
 type Loose = Record<string, unknown>;
 
 function isPlainObject(value: unknown): value is Loose {
@@ -83,6 +92,10 @@ export function normalizeIbkrStatus(raw: unknown): IbkrStatus | null {
   for (const key of STRING_LIST_FIELDS) {
     if (key in raw) out[key] = stringList(raw[key]);
   }
+  for (const key of OPTIONAL_BOOLEAN_FIELDS) {
+    if (key in raw && typeof raw[key] !== 'boolean') delete out[key];
+  }
+  if ('armed_by' in raw && !oneOf(raw.armed_by, ARMED_BY)) out.armed_by = null;
   for (const key of ROW_LIST_FIELDS) {
     if (key in raw) out[key] = rowList(raw[key]);
   }

@@ -28,7 +28,6 @@ vi.mock('./placeConfirmPrefs', () => ({
 vi.mock('./ticketUnlock', () => ({
   readTicketSessionUnlocked: () => true,
   subscribeTicketSessionUnlock: () => () => {},
-  tryUnlockTicketSession: () => true,
 }));
 
 // This file tests the Extended Hours flag on a Market default; the market-order

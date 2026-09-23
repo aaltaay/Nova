@@ -3,7 +3,7 @@
  *
  * Money SSOT (ADR 007): chart menus never build or send an order themselves.
  * They stage side / qty / limit price on the already-mounted ManualOrderTicket,
- * so PIN unlock, spend lock, the confirm dialog and paper/live all stay in
+ * so the padlock, spend lock, the confirm dialog and paper/live all stay in
  * `useManualOrderSubmission` -> `placeIbkrOrder`. `auto_live` is unaffected --
  * a human still presses Place.
  *

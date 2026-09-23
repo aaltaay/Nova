@@ -5,7 +5,6 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BOT_SETUP_BLURBS, botAllowlistStripLabel } from '../constantGroups/bot';
 import { _resetDeskPollShareForTests } from '../ibkr/deskSharedPoll';
-import { writeTicketSessionUnlocked } from '../ibkr/ticketUnlock';
 import { BotAutonomyCard } from './BotAutonomyCard';
 import { _resetBotSessionPollerForTests } from './botSessionPoller';
 import type { BotSession } from './types';
@@ -16,9 +15,19 @@ const ibkrStatus = {
   spend_locked_reason: null as string | null,
   trading_allowed: true as boolean,
   trading_allowed_reason: null as string | null,
+  armed: true as boolean,
 };
 
 vi.mock('../ibkr/useIbkrStatus', () => ({ useIbkrStatus: () => ibkrStatus }));
+// The padlock is the backend latch (ADR 018): this status's `armed` is the one answer.
+vi.mock('../ibkr/ticketUnlock', () => ({
+  readTicketSessionUnlocked: () => ibkrStatus.armed === true,
+  subscribeTicketSessionUnlock: () => () => {},
+  unlockNeedsPin: () => true,
+  livePinMissing: () => false,
+  unlockTicketSession: async () => ({ ok: true, code: null, message: null }),
+  lockTicketSession: async () => ({ ok: true, code: null, message: null }),
+}));
 
 function session(partial: Partial<BotSession> = {}): BotSession {
   return {
@@ -52,8 +61,7 @@ function mockFetch(current: () => BotSession) {
 }
 
 beforeEach(() => {
-  sessionStorage.clear();
-  writeTicketSessionUnlocked(true);
+  ibkrStatus.armed = true;
   ibkrStatus.trading_allowed = true;
   ibkrStatus.trading_allowed_reason = null;
   posts.length = 0;

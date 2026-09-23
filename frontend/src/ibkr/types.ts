@@ -66,9 +66,20 @@ export interface IbkrStatus {
   /**
    * ADR 018 -- the runtime arm latch, separate from the env capability below.
    * False on every fresh backend process, in every venue, so a watchdog restart
-   * can never hand back an armed desk. Set by the padlock, never persisted.
+   * can never hand back an armed desk. Set by the padlock (or, on Paper / Sim,
+   * by a bot through the same endpoint), never persisted.
    */
   armed?: boolean;
+  /**
+   * True when arming this venue needs the operator's Live PIN (Live); false on
+   * Paper / Sim, where the padlock arms in one click. Absent from an older API:
+   * readers treat that as Live and ask for the PIN.
+   */
+  arm_requires_pin?: boolean;
+  /** Whether `.env` holds the Live PIN hash (`py -3 tools/set_live_arm_pin.py`). */
+  live_arm_pin_set?: boolean;
+  /** Who armed the desk -- the operator at the padlock or a bot -- null while disarmed. */
+  armed_by?: 'operator' | 'bot' | null;
   /** Whether env + account class *permit* spending, ignoring the arm latch. */
   spend_permitted?: boolean;
   /** The spend_status the env alone would produce (`live_armed`, `locked`, ...). */
@@ -82,7 +93,7 @@ export interface IbkrStatus {
    * ticket states it so no surface shows a size the execution door will not send.
    */
   qty_cap?: number | null;
-  /** Spend + Gateway -- same gate as place_order. PIN is AND-ed in the UI. */
+  /** Spend + Gateway -- same gate as place_order. The arm latch (`armed`) is AND-ed in the UI. */
   trading_allowed?: boolean;
   trading_allowed_reason?: string | null;
   preferred_port?: number;

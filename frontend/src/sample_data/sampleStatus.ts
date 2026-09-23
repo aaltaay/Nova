@@ -20,6 +20,11 @@ export const SAMPLE_IBKR_STATUS: IbkrClientStatus = {
   orders_enabled: true,
   short_enabled: true,
   spend_status: 'paper_armed',
+  // An armed Paper desk: the padlock reads the latch, and the sample desk
+  // never posts to it (armDesk refuses there), so the sample ticket shows Place.
+  armed: true,
+  armed_by: 'operator',
+  arm_requires_pin: false,
   trading_allowed: true,
   trading_allowed_reason: null,
   market_data_type: 1,

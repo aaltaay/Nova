@@ -27,7 +27,6 @@ vi.mock('./placeConfirmPrefs', () => ({ readSkipPlaceConfirm: () => true }));
 vi.mock('./ticketUnlock', () => ({
   readTicketSessionUnlocked: () => true,
   subscribeTicketSessionUnlock: () => () => {},
-  tryUnlockTicketSession: () => true,
 }));
 vi.mock('./marketOutsideRth', () => ({ useMarketOrdersRefused: () => null }));
 vi.mock('./useIbkrStatus', () => ({

@@ -4,7 +4,7 @@ const cancelAllWorkingOrders = vi.fn();
 const flattenAccount = vi.fn();
 const patchBotSession = vi.fn();
 const refreshBotSessionNow = vi.fn();
-const writeTicketSessionUnlocked = vi.fn();
+const lockTicketSession = vi.fn();
 
 vi.mock('./placeOrder', () => ({
   cancelAllWorkingOrders: (...args: unknown[]) => cancelAllWorkingOrders(...args),
@@ -19,7 +19,7 @@ vi.mock('../bot/botSessionPoller', () => ({
   refreshBotSessionNow: (...args: unknown[]) => refreshBotSessionNow(...args),
 }));
 vi.mock('./ticketUnlock', () => ({
-  writeTicketSessionUnlocked: (...args: unknown[]) => writeTicketSessionUnlocked(...args),
+  lockTicketSession: (...args: unknown[]) => lockTicketSession(...args),
 }));
 
 import { runEmergencyKill } from './emergencyKill';
@@ -30,7 +30,8 @@ describe('runEmergencyKill', () => {
     flattenAccount.mockReset();
     patchBotSession.mockReset();
     refreshBotSessionNow.mockReset();
-    writeTicketSessionUnlocked.mockReset();
+    lockTicketSession.mockReset();
+    lockTicketSession.mockResolvedValue({ ok: true, code: null, message: null });
     cancelAllWorkingOrders.mockResolvedValue({
       ok: true,
       cancelled: [1],
@@ -55,19 +56,20 @@ describe('runEmergencyKill', () => {
       order.push(`autonomy:${body.level}`);
       return { level: 0 };
     });
-    writeTicketSessionUnlocked.mockImplementation((unlocked: boolean) => {
-      order.push(`lock:${unlocked}`);
+    lockTicketSession.mockImplementation(async () => {
+      order.push('lock');
+      return { ok: true, code: null, message: null };
     });
 
     const result = await runEmergencyKill();
 
     expect(result).toEqual({ ok: true, errors: [] });
     expect(order).toEqual([
-      'lock:false',
+      'lock',
       'autonomy:0',
       'cancel',
       'flatten',
-      'lock:false',
+      'lock',
     ]);
     expect(patchBotSession).toHaveBeenCalledOnce();
     expect(refreshBotSessionNow).toHaveBeenCalledOnce();
@@ -105,7 +107,7 @@ describe('runEmergencyKill', () => {
     expect(result.errors).toContain('1 cancel(s) failed');
     expect(flattenAccount).toHaveBeenCalledOnce();
     expect(patchBotSession).toHaveBeenCalledWith({ level: 0 });
-    expect(writeTicketSessionUnlocked).toHaveBeenCalledWith(false);
+    expect(lockTicketSession).toHaveBeenCalledTimes(2);
   });
 
   it('still cancels and flattens when Bot Autonomy PATCH fails', async () => {
@@ -115,9 +117,19 @@ describe('runEmergencyKill', () => {
 
     expect(cancelAllWorkingOrders).toHaveBeenCalledOnce();
     expect(flattenAccount).toHaveBeenCalledOnce();
-    expect(writeTicketSessionUnlocked).toHaveBeenCalledWith(false);
+    expect(lockTicketSession).toHaveBeenCalledTimes(2);
     expect(result.ok).toBe(false);
     expect(result.errors).toContain('Need Nova API key');
     expect(patchBotSession).toHaveBeenCalledTimes(2);
+  });
+
+  it('never waits on the desk lock: a lock that hangs does not hold the cancel', async () => {
+    lockTicketSession.mockImplementation(() => new Promise(() => {}));
+
+    const result = await runEmergencyKill();
+
+    expect(cancelAllWorkingOrders).toHaveBeenCalledOnce();
+    expect(flattenAccount).toHaveBeenCalledOnce();
+    expect(result).toEqual({ ok: true, errors: [] });
   });
 });

@@ -17,11 +17,8 @@ const BASE = {
   sessionUnlocked: true,
   result: null,
   confirmSummary: null,
-  pinDialogOpen: false,
   onConfirmClose: () => {},
   onConfirmPlace: () => {},
-  onPinSubmit: () => true,
-  onPinClose: () => {},
 };
 
 describe('ManualOrderFooter spend lock (D-013)', () => {

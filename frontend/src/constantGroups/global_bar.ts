@@ -180,7 +180,7 @@ export const GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_BODY = [
   '',
   ...GLOBAL_BAR_EMERGENCY_KILL_OPS.map((op) => `- ${op}`),
   '',
-  'Unlock afterwards with the header lock (PIN). Place stays blocked until you unlock.',
+  'Unlock afterwards with the header padlock. Place stays blocked until you unlock.',
 ].join('\n');
 export const GLOBAL_BAR_EMERGENCY_KILL_FAIL_TITLE =
   'Emergency KILL did not finish cleanly';

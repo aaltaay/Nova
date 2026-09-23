@@ -234,7 +234,7 @@ export const NOVA_ACTION_DEPTH_DISABLED_REASON =
 
 export const NOVA_ACTION_NO_SYMBOL_MESSAGE = 'Open a symbol first.';
 export const NOVA_ACTION_PIN_LOCKED_MESSAGE =
-  'Unlock the trading session (PIN) before hotkey orders.';
+  'Unlock trading at the padlock before hotkey orders.';
 export const NOVA_ACTION_SPEND_LOCKED_MESSAGE =
   'Orders remain locked by Nova environment safety settings.';
 export const EXECUTION_TRANSPORT_TIMEOUT_MESSAGE =

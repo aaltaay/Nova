@@ -26,8 +26,7 @@ import {
   BOTS_KILL_TRIPPED_NOTE,
   BOTS_STALE_API,
 } from '../constantGroups/bots_page';
-import { TradingPinDialog } from '../ibkr/TradingPinDialog';
-import { tryUnlockTicketSession } from '../ibkr/ticketUnlock';
+import { useTradingPinGate } from '../ibkr/useTradingPinGate';
 import { BotGateChips, type GateHandlers } from './BotGateChips';
 import { closedActivateGates, gateLines, heroSentence, playingLine, prose } from './botsPageFormat';
 import type { BotArm } from './useBotArm';
@@ -52,7 +51,7 @@ export function BotHero({ arm, killSwitch, dayPnl, onOpenL2, onReadout, onAddSym
     showKeyField, onLevel, onControl, activate, gate,
   } = arm;
   const [keyDraft, setKeyDraft] = useState('');
-  const [pinOpen, setPinOpen] = useState(false);
+  const { ensureUnlocked, pinDialog } = useTradingPinGate();
   if (!session) return null;
 
   const gatesKnown = Array.isArray(session.gates);
@@ -64,7 +63,7 @@ export function BotHero({ arm, killSwitch, dayPnl, onOpenL2, onReadout, onAddSym
   const playing = playingLine(session);
   const tripped = killSwitch.status?.tripped === true;
   const handlers: GateHandlers = {
-    onUnlock: () => setPinOpen(true),
+    onUnlock: () => void ensureUnlocked(),
     onOpenL2,
     onReadout,
     onAddSymbol,
@@ -180,15 +179,7 @@ export function BotHero({ arm, killSwitch, dayPnl, onOpenL2, onReadout, onAddSym
           </form>
         ) : null}
       </div>
-      <TradingPinDialog
-        open={pinOpen}
-        onCancel={() => setPinOpen(false)}
-        onSubmit={pin => {
-          const ok = tryUnlockTicketSession(pin);
-          if (ok) setPinOpen(false);
-          return ok;
-        }}
-      />
+      {pinDialog}
     </section>
   );
 }

@@ -2,7 +2,8 @@
  * The bot's level and Activate, one logic for every surface that drives them
  * (the Bots page hero, the Trader rail card). Level 2 arms first; Activate is
  * refused while the desk gate blocks places or -- at Strategy -- while the
- * first-pullback read-out has not passed (ADR 027); a PIN lock disarms.
+ * first-pullback read-out has not passed (ADR 027); locking the padlock
+ * (disarming the desk) stops the bot.
  */
 import { useEffect } from 'react';
 import { BOT_ERROR_READOUT } from '../constantGroups/bot';
@@ -33,9 +34,12 @@ export function useBotArm() {
       ? `${BOT_ERROR_READOUT}: ${session?.readout?.reason ?? 'not read yet'}`
       : null;
 
+  // Only a fresh read that says "disarmed" stops the bot: a cached or failed
+  // status cannot tell, and a bot may have armed the desk since (Paper / Sim).
+  const deskDisarmed = gate.armKnown && gate.blockers.includes('pin');
   useEffect(() => {
-    if (gate.blockers.includes('pin') && armed) void stop();
-  }, [gate.blockers, armed, stop]);
+    if (deskDisarmed && armed) void stop();
+  }, [deskDisarmed, armed, stop]);
 
   async function onLevel(next: number) {
     // Raising to Strategy needs the desk token from Activate; with the

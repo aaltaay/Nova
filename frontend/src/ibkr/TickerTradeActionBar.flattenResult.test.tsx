@@ -24,7 +24,6 @@ vi.mock('../hotkeys/TradingQuickBar', () => ({ TradingQuickBar: () => null }));
 vi.mock('./ticketUnlock', () => ({
   readTicketSessionUnlocked: () => true,
   subscribeTicketSessionUnlock: () => () => {},
-  tryUnlockTicketSession: () => true,
 }));
 vi.mock('./useIbkrStatus', () => ({
   useIbkrStatus: () => ({ connected: true, mode: 'paper', spend_status: 'paper_armed', short_enabled: false }),
