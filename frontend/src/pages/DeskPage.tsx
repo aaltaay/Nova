@@ -61,6 +61,12 @@ function LiveDesk() {
     setList(next);
     writeDeskBoardState({ v: DESK_BOARD_STATE_VERSION, list: next });
   }, []);
+  // Opens from the board carry its list, which the Trader's Focus rail follows.
+  const openFromBoard = useCallback((symbol: string) => openTraderTab(symbol, list), [list, openTraderTab]);
+  const popOutFromBoard = useCallback(
+    (symbol: string) => openStockView(symbol, { from: list }),
+    [list, openStockView],
+  );
 
   // The HOD dock's News flames and the board's headline line read the scanner
   // news published per symbol; the Dashboard is unmounted here, so publish it.
@@ -109,8 +115,8 @@ function LiveDesk() {
           isAllowed={isAllowed}
           liveTabs={traderLiveTabs}
           filterRows={settings?.exchangeFilter?.filterRows}
-          onOpen={openTraderTab}
-          onPopOut={openStockView}
+          onOpen={openFromBoard}
+          onPopOut={popOutFromBoard}
           onRecord={onRecord}
           onAllowlist={onAllowlist}
         />

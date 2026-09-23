@@ -10,3 +10,8 @@ export {
   ModuleVisibilityProvider,
 } from './useModuleVisibility';
 export { useLayoutStore, LayoutStoreProvider } from './useLayoutStore';
+export {
+  consumeFocusListRequest,
+  requestFocusList,
+  subscribeFocusListRequest,
+} from './focusListRequest';

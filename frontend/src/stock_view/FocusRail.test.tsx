@@ -5,8 +5,9 @@ import { FOCUS_RAIL_STORAGE_KEY } from '../constantGroups/trader_chrome';
 import type { AlertObject } from '../hod_momo/types';
 import { makeLiveScannerFeedStub, type LiveScannerFeed } from '../scanner/ScannerDataContext';
 import type { ScannerRow } from '../types/scanner';
+import { consumeFocusListRequest, requestFocusList } from '../workspace/focusListRequest';
 import { FocusRail } from './FocusRail';
-import { focusRowsFor, hodFocusRows, readFocusRailState, stepCursor } from './focusRailState';
+import { followedFocusList, focusRowsFor, hodFocusRows, readFocusRailState, stepCursor } from './focusRailState';
 
 const mocks = vi.hoisted(() => ({
   feed: null as LiveScannerFeed | null,
@@ -75,6 +76,7 @@ beforeEach(() => {
   mocks.open.mockReset();
   mocks.scanner.mockReset();
   mocks.replayDesk = false;
+  consumeFocusListRequest();
 });
 afterEach(cleanup);
 
@@ -191,6 +193,27 @@ describe('FocusRail', () => {
     expect(readFocusRailState().list).toBe('gappers');
   });
 
+  it('follows the list a symbol was opened from, including an open made before it mounted', () => {
+    mocks.feed = makeLiveScannerFeedStub({ gainers: [row('GNRX', 40, 2)], losers: [row('CBRX', -5.4)] });
+    requestFocusList('gainers');
+    render(<FocusRail />);
+    expect(screen.getByTestId('focus-rail-list-label').textContent).toBe('· Gainers 1');
+    act(() => { requestFocusList('losers'); });
+    expect(screen.getByTestId('focus-rail-list-label').textContent).toBe('· Losers 1');
+    expect(readFocusRailState().list).toBe('losers');
+  });
+
+  it('a manual pick holds until the next open from a list; an unmirrored list leaves it as it was', () => {
+    render(<FocusRail />);
+    act(() => { requestFocusList('gainers'); });
+    fireEvent.change(screen.getByTestId('focus-rail-pick'), { target: { value: 'afterhours' } });
+    expect(screen.getByTestId('focus-rail-list-label').textContent).toMatch(/^· After Hours/);
+    act(() => { requestFocusList('watchlist'); });
+    expect(screen.getByTestId('focus-rail-list-label').textContent).toMatch(/^· After Hours/);
+    act(() => { requestFocusList('hod_momo'); });
+    expect(screen.getByTestId('focus-rail-list-label').textContent).toMatch(/^· HOD Momo/);
+  });
+
   it('declares its list for live prices only while its rows are on screen', async () => {
     const setL1FocusTab = vi.fn();
     mocks.feed = makeLiveScannerFeedStub({ setL1FocusTab });
@@ -222,6 +245,13 @@ describe('focusRowsFor / stepCursor', () => {
     const feed = makeLiveScannerFeedStub({ gappers: [row('CBRX', -5.4)] });
     const rows = hodFocusRows('hod_momo', [alert('CBRX', 2, 2), alert('NEWX', 2, 1)], feed);
     expect(rows.map(r => [r.symbol, r.catalyst, r.newsKnown])).toEqual([['CBRX', null, true], ['NEWX', null, false]]);
+  });
+
+  it('follows only a list the rail mirrors', () => {
+    expect(followedFocusList('gainers')).toBe('gainers');
+    expect(followedFocusList('running_up')).toBe('running_up');
+    expect(followedFocusList('watchlist')).toBeNull();
+    expect(followedFocusList(null)).toBeNull();
   });
 
   it('steps the cursor within bounds', () => {

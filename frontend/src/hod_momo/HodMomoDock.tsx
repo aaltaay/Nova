@@ -10,6 +10,7 @@ import { useCallback, useMemo, useRef, useState, type UIEvent } from 'react';
 import { API_BASE_URL } from '../constants';
 import { novaFetch } from '../api/novaFetch';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
+import { requestFocusList } from '../workspace';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { alertApp, confirmApp } from '../ux';
 import { computeVisibleRowRange } from './HodMomoAlertTable';
@@ -45,8 +46,9 @@ const NO_ALERTS: AlertObject[] = [];
 const NO_NEW_IDS: ReadonlySet<string> = new Set();
 
 type Props = {
-  /** Sample shell: open fixture trader instead of live Stock View. */
-  onOpenTrading?: (symbol: string) => void;
+  /** Sample shell / Desk: open the symbol their own way. `from` is the strip's
+   * list (HOD Momo or Running Up), which the Trader's Focus rail follows. */
+  onOpenTrading?: (symbol: string, from?: HodDockMode) => void;
   /** Row click. Defaults to the workspace's row selection (side panel follows). */
   onAlertSelect?: (symbol: string) => void;
 };
@@ -81,11 +83,19 @@ export function HodMomoDock({ onOpenTrading, onAlertSelect }: Props) {
   const integrity = useHodMomoIntegrity();
   const resize = useHodMomoStripResize({ rows, setRows, rootRef });
 
-  const openTrading = onOpenTrading ?? openStockView;
+  const mode: 'hod_momo' | 'running_up' = isAlertDockMode(dockMode) ? dockMode : 'hod_momo';
+  const openTrading = useCallback((symbol: string) => {
+    if (onOpenTrading) onOpenTrading(symbol, mode);
+    else openStockView(symbol, { from: mode });
+  }, [onOpenTrading, openStockView, mode]);
   // Sample shell drives its own fixture Trader state -- it must not touch the
   // live traderViewActive via selectRowSymbol.
-  const selectSymbol = onAlertSelect ?? (onOpenTrading ? setSelectedSymbol : selectRowSymbol);
-  const mode: 'hod_momo' | 'running_up' = isAlertDockMode(dockMode) ? dockMode : 'hod_momo';
+  const select = onAlertSelect ?? (onOpenTrading ? setSelectedSymbol : selectRowSymbol);
+  // A strip pick takes the Trader's Focus rail to this list, as an open does.
+  const selectSymbol = useCallback((symbol: string) => {
+    requestFocusList(mode);
+    select(symbol);
+  }, [select, mode]);
 
   const alerts = useMemo(
     () => stripAlertsForMode(stream.alerts, mode, mode === 'hod_momo' ? visibleStrategies : null),

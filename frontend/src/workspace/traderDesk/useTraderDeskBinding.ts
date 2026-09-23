@@ -32,6 +32,7 @@ import {
   isForeignTabDrag,
   rememberLastHostWindow,
 } from './commands';
+import { requestFocusList } from '../focusListRequest';
 import {
   initialTraderState,
   persistSymbolReplace,
@@ -158,19 +159,20 @@ export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => 
 
   /** `pin` opens beside the preview tab, pinned, replacing nothing -- e.g. a bot
    * symbol's Level 2 must not close the depth line another tab holds. */
-  const openStockView = useCallback((symbol: string, opts?: { pin?: boolean }) => {
-    tryAddTab(symbol, Boolean(opts?.pin));
+  const openStockView = useCallback((symbol: string, opts?: { pin?: boolean; from?: string }) => {
+    if (tryAddTab(symbol, Boolean(opts?.pin))) requestFocusList(opts?.from);
   }, [tryAddTab]);
 
   /** Desk board row click: the symbol becomes the workspace's active tab
    * (added when missing) and the selected symbol, without leaving the Desk
    * for the full Trader view -- `openStockView` does that on double-click. */
-  const openTraderTab = useCallback((symbol: string) => {
+  const openTraderTab = useCallback((symbol: string, from?: string) => {
     const sym = symbol.trim().toUpperCase();
     if (!sym) return;
     const { state } = addTab(traderStateRef.current, sym, TRADER_MAX_LIVE_TABS);
     setSelectedSymbol(sym);
     applyTraderState(state);
+    requestFocusList(from);
   }, [applyTraderState, setSelectedSymbol]);
 
   /** Row-body click (not the ticker) on tables that also render a

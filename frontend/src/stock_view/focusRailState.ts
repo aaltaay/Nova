@@ -84,6 +84,13 @@ export const FOCUS_RAIL_MIRRORED_LISTS: readonly string[] = [
   'gappers', 'gainers', 'losers', 'afterhours', 'large_cap', 'catalysts', ...FOCUS_RAIL_HOD_LISTS,
 ];
 
+/** The list a pick from `requested` moves the rail to, or null to stay put:
+ * only a list the rail mirrors, so an open from the Watchlist or Earnings
+ * never swaps a working list for a "not mirrored" notice. */
+export function followedFocusList(requested: string | null): string | null {
+  return requested && FOCUS_RAIL_MIRRORED_LISTS.includes(requested) ? requested : null;
+}
+
 function fromScannerRow(row: ScannerRow, catalysts: readonly Catalyst[]): FocusRow {
   const catalyst = catalystFor(row.symbol, catalysts);
   const gap = row.gap_percent ?? row.change_pct ?? null;

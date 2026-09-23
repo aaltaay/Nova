@@ -5,7 +5,9 @@
  * registry), collapse chevron (the rail already leads to the Scanner). Rows: REC dot, bot dot (filled
  * = allowlisted and this desk holds the depth line -- a live Trader tab or a
  * recording; hollow = allowlisted, quiet), symbol, price, signed gap, catalyst
- * chip or `no news`. ↑ ↓ cycle, Enter opens. Data is the live scanner feed
+ * chip or `no news`. ↑ ↓ cycle, Enter opens. Opening a symbol from a
+ * scanner list (a Gainers row, the HOD strip, the Desk board) moves the rail
+ * to that list when it mirrors it. Data is the live scanner feed
  * the workspace already holds -- and, for HOD Momo / Running Up, the HOD
  * stream the app shell keeps open -- without one the rail says so.
  */
@@ -41,10 +43,11 @@ import { TRADER_TAB_GAP_TITLE } from '../constantGroups/trader_view';
 import { useSettingsOptional } from '../settings/SettingsContext';
 import { SIM_FOCUS_RAIL_REPLAY_NOTE } from '../sim/simConstants';
 import { useSimReplayDesk } from '../sim/useSimReplayDesk';
+import { consumeFocusListRequest, subscribeFocusListRequest } from '../workspace';
 import { isTabModuleId, listScannerListModules } from '../workspace/registry';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
-  focusRowsFor, hodFocusRows, isHodFocusList, readFocusRailState, stepCursor, writeFocusRailState,
+  followedFocusList, focusRowsFor, hodFocusRows, isHodFocusList, readFocusRailState, stepCursor, writeFocusRailState,
   type FocusRailState, type FocusRow,
 } from './focusRailState';
 import { formatSignedPct, pctTone } from './tabContext';
@@ -106,6 +109,16 @@ export function FocusRail({ active: onScreen = true }: { active?: boolean } = {}
       return next;
     });
   }, []);
+
+  // Follow the list the last symbol was picked from; the request may predate this mount.
+  useEffect(() => {
+    const follow = () => {
+      const list = followedFocusList(consumeFocusListRequest());
+      if (list) update({ list });
+    };
+    follow();
+    return subscribeFocusListRequest(follow);
+  }, [update]);
 
   useEffect(() => { setCursor(-1); }, [state.list]);
 
