@@ -4,6 +4,8 @@
  * The installed desk downloads a newer installer in the background, then asks.
  * It never installs or restarts on its own: not on quit, not on a timer, not
  * after a failed check. Installing is one operator click, "Restart to update".
+ * It checks shortly after launch and again every two hours while it stays open,
+ * except in weekday trading hours, when a re-check neither downloads nor asks.
  *
  * autoUpdate.mjs owns the electron-updater instance and feeds its events through
  * reduceUpdateState(); every decision about what to show or do lives here.
@@ -14,6 +16,19 @@ import { releaseTagFromText } from './releaseTag.mjs';
 export const UPDATE_CHECK_ENV = 'NOVA_UPDATE_CHECK';
 /** Let the desk finish starting (engine, Gateway attach) before touching the network. */
 export const UPDATE_FIRST_CHECK_DELAY_MS = 15_000;
+/** While the desk stays open, ask GitHub again this often. */
+export const UPDATE_RECHECK_INTERVAL_MS = 2 * 60 * 60_000;
+/** How often the open desk looks whether a re-check, or a held prompt, is due. */
+export const UPDATE_RECHECK_TICK_MS = 10 * 60_000;
+/**
+ * Weekday trading hours on the Eastern clock, as minutes of the day: the
+ * premarket window's open (07:00, ADR 027) to the regular close (16:00). A
+ * re-check neither downloads nor asks in them -- the 150 MB download shares the
+ * desk's link with the market data, and the prompt takes keyboard focus, so a
+ * hotkey pressed mid-trade would land in it.
+ */
+export const UPDATE_QUIET_START_MIN_ET = 7 * 60;
+export const UPDATE_QUIET_END_MIN_ET = 16 * 60;
 
 export const RESTART_BUTTON = 0;
 export const LATER_BUTTON = 1;
@@ -144,6 +159,44 @@ export function shouldPromptRestart(state) {
 export function shouldAutoCheck(state, gate) {
   if (!gate?.updater || !gate.automatic) return false;
   return state.phase !== 'ready' && !BUSY_PHASES.has(state.phase);
+}
+
+const EASTERN = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/New_York',
+  weekday: 'short',
+  hour: 'numeric',
+  minute: 'numeric',
+  hourCycle: 'h23',
+});
+
+/** Weekday (`Mon`..`Sun`) and minute of the day on the Eastern clock. */
+export function easternClock(nowMs) {
+  const parts = {};
+  for (const part of EASTERN.formatToParts(new Date(nowMs))) parts[part.type] = part.value;
+  return { weekday: parts.weekday, minute: Number(parts.hour) * 60 + Number(parts.minute) };
+}
+
+/** Weekday 07:00-16:00 ET. A holiday is not special: it only delays a re-check. */
+export function inUpdateQuietHours(nowMs) {
+  const { weekday, minute } = easternClock(nowMs);
+  if (weekday === 'Sat' || weekday === 'Sun') return false;
+  return minute >= UPDATE_QUIET_START_MIN_ET && minute < UPDATE_QUIET_END_MIN_ET;
+}
+
+/** A re-check while the desk stays open: as the startup check allows, once per interval, never in trading hours. */
+export function shouldRecheck(state, gate, { now, lastCheckAt } = {}) {
+  if (!shouldAutoCheck(state, gate) || inUpdateQuietHours(now)) return false;
+  return now - (Number(lastCheckAt) || 0) >= UPDATE_RECHECK_INTERVAL_MS;
+}
+
+/**
+ * Offer a downloaded update now? A launch or Help-menu check asks at once (the
+ * operator is starting up, or asked); a re-check's download waits out trading hours.
+ * `origin`: 'launch' | 'manual' | 'recheck'.
+ */
+export function shouldPromptNow(state, { origin, now } = {}) {
+  if (!shouldPromptRestart(state)) return false;
+  return origin !== 'recheck' || !inUpdateQuietHours(now);
 }
 
 /** Help > Check for Updates: re-offer a ready installer, else check unless busy. */

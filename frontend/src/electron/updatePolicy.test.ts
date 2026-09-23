@@ -3,8 +3,11 @@ import {
   INITIAL_UPDATE_STATE,
   LATER_BUTTON,
   RESTART_BUTTON,
+  UPDATE_RECHECK_INTERVAL_MS,
   displayTag,
+  easternClock,
   errorText,
+  inUpdateQuietHours,
   isRestartChoice,
   manualCheckAction,
   manualCheckResult,
@@ -12,7 +15,9 @@ import {
   resolveUpdateSetting,
   restartPrompt,
   shouldAutoCheck,
+  shouldPromptNow,
   shouldPromptRestart,
+  shouldRecheck,
   taskbarProgress,
   updateCheckSetting,
   updateGate,
@@ -149,6 +154,49 @@ describe('prompt policy', () => {
     expect(shouldAutoCheck(readyAt('0.1.832'), AUTO)).toBe(false);
     expect(manualCheckAction(run({ type: 'checking' }), AUTO)).toBe('busy');
     expect(manualCheckAction(INITIAL_UPDATE_STATE, { updater: false, automatic: false })).toBe('unavailable');
+  });
+});
+
+describe('re-checks while the desk stays open', () => {
+  const at = (iso: string) => Date.parse(iso);
+
+  it('holds weekday 07:00-16:00 on the Eastern clock, daylight time or not', () => {
+    expect(easternClock(at('2026-09-23T11:00:00Z'))).toEqual({ weekday: 'Wed', minute: 7 * 60 });
+    expect(inUpdateQuietHours(at('2026-09-23T10:59:00Z'))).toBe(false); // Wed 06:59 EDT
+    expect(inUpdateQuietHours(at('2026-09-23T11:00:00Z'))).toBe(true); // 07:00 EDT
+    expect(inUpdateQuietHours(at('2026-09-23T19:59:00Z'))).toBe(true); // 15:59 EDT
+    expect(inUpdateQuietHours(at('2026-09-23T20:00:00Z'))).toBe(false); // 16:00 EDT
+    expect(inUpdateQuietHours(at('2026-12-02T11:30:00Z'))).toBe(false); // Wed 06:30 EST
+    expect(inUpdateQuietHours(at('2026-12-02T12:30:00Z'))).toBe(true); // 07:30 EST
+    expect(inUpdateQuietHours(at('2026-09-26T14:00:00Z'))).toBe(false); // Saturday 10:00
+  });
+
+  it('re-checks once per interval outside trading hours, and never while busy or ready', () => {
+    const evening = at('2026-09-23T22:00:00Z'); // Wed 18:00 EDT
+    const since = (ms: number) => ({ now: evening, lastCheckAt: evening - ms });
+    const current = run({ type: 'checking' }, { type: 'not-available' });
+    expect(shouldRecheck(current, AUTO, since(UPDATE_RECHECK_INTERVAL_MS))).toBe(true);
+    expect(shouldRecheck(current, AUTO, since(UPDATE_RECHECK_INTERVAL_MS - 1))).toBe(false);
+    expect(shouldRecheck(current, { ...AUTO, automatic: false }, since(UPDATE_RECHECK_INTERVAL_MS))).toBe(false);
+    expect(shouldRecheck(run({ type: 'checking' }), AUTO, since(UPDATE_RECHECK_INTERVAL_MS))).toBe(false);
+    expect(shouldRecheck(readyAt('0.1.832'), AUTO, since(UPDATE_RECHECK_INTERVAL_MS))).toBe(false);
+    // A failed check, or a download that stopped, is tried again.
+    const failed = run({ type: 'checking' }, { type: 'error', message: 'offline' });
+    expect(shouldRecheck(failed, AUTO, since(UPDATE_RECHECK_INTERVAL_MS))).toBe(true);
+    const tradingHours = at('2026-09-23T14:00:00Z'); // Wed 10:00 EDT
+    expect(shouldRecheck(current, AUTO, { now: tradingHours, lastCheckAt: 0 })).toBe(false);
+  });
+
+  it("asks at once after a launch or Help-menu check, and holds a re-check's prompt until 16:00", () => {
+    const ready = readyAt('0.1.832');
+    const tradingHours = at('2026-09-23T14:00:00Z'); // Wed 10:00 EDT
+    const afterClose = at('2026-09-23T20:10:00Z'); // 16:10 EDT
+    expect(shouldPromptNow(ready, { origin: 'launch', now: tradingHours })).toBe(true);
+    expect(shouldPromptNow(ready, { origin: 'manual', now: tradingHours })).toBe(true);
+    expect(shouldPromptNow(ready, { origin: 'recheck', now: tradingHours })).toBe(false);
+    expect(shouldPromptNow(ready, { origin: 'recheck', now: afterClose })).toBe(true);
+    const prompted = reduceUpdateState(ready, { type: 'prompted', version: '0.1.832' });
+    expect(shouldPromptNow(prompted, { origin: 'recheck', now: afterClose })).toBe(false);
   });
 });
 
