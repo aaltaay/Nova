@@ -1,0 +1,87 @@
+/* The bot pill in the global bar (approved mockup v4). The bar's contract
+   (global-app-bar-responsive.css) is that chrome leaves before the search is
+   squeezed, so the pill gives its words up first and then itself -- the nav
+   rail's Bots dot keeps the state, and the tooltip keeps the whole sentence:
+     1880px and up   ● Bot L2 First pullback · Not active
+     1601-1879       ● Bot L2          (also while any symbol records)
+     1600 and under  gone              (also while two or more symbols record)
+   Owner: bot/GlobalBarBotPill.tsx. */
+
+.global-bar-bot-pill-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: none;
+}
+
+.global-bar-bot-pill {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: none;
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--nova-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--nova-text);
+  font: inherit;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.global-bar-bot-pill:hover {
+  background: var(--hover-bg);
+  border-color: var(--nova-border-strong, var(--nova-border));
+}
+
+.global-bar-bot-pill__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  background: #f5a524;
+}
+
+.global-bar-bot-pill--on .global-bar-bot-pill__dot {
+  background: var(--nova-success);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--nova-success) 30%, transparent);
+}
+
+.global-bar-bot-pill--off .global-bar-bot-pill__dot {
+  background: color-mix(in srgb, var(--nova-text-muted) 70%, transparent);
+}
+
+.global-bar-bot-pill__label,
+.global-bar-bot-pill__state {
+  color: var(--nova-text-muted);
+}
+
+.global-bar-bot-pill__level,
+.global-bar-bot-pill__name {
+  font-weight: 650;
+}
+
+/* At Off there is no level: the name ("Off") stays with the compact pill. */
+@media (max-width: 1879px) {
+  .global-bar-bot-pill__level + .global-bar-bot-pill__name,
+  .global-bar-bot-pill__state {
+    display: none;
+  }
+}
+
+.global-app-bar__primary:has(.global-app-bar__rec) .global-bar-bot-pill__level + .global-bar-bot-pill__name,
+.global-app-bar__primary:has(.global-app-bar__rec) .global-bar-bot-pill__state {
+  display: none;
+}
+
+@media (max-width: 1600px) {
+  .global-bar-bot-pill-slot {
+    display: none;
+  }
+}
+
+.global-app-bar__primary:has(.global-app-bar__rec ~ .global-app-bar__rec) .global-bar-bot-pill-slot {
+  display: none;
+}

@@ -64,7 +64,8 @@ export type WorkspaceValue = {
   ibkrGatewayMode: 'paper' | 'live' | null;
   ibkrAccountKind: string | null;
   ibkrIntentionalMode: 'paper' | 'live' | null;
-  openStockView: (symbol: string) => void;
+  /** Open the Trader on `symbol`; `pin` lands it beside the preview tab instead of replacing it. */
+  openStockView: (symbol: string, opts?: { pin?: boolean }) => void;
   /** Desk board row click: add or activate the tab and select the symbol
    * without switching to the full Trader view (the Desk shows the workspace
    * beside its board). */

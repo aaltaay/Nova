@@ -95,7 +95,8 @@ describe('scannerActiveTabPersist session auto-switch', () => {
     expect(applySessionAutoSwitch('gappers', 'market', false)).toBe('gappers');
     expect(applySessionAutoSwitch('gappers', 'afterhours', false)).toBe('gappers');
     expect(applySessionAutoSwitch('gainers', 'premarket', false)).toBe('gainers');
-    expect(applySessionAutoSwitch('strategy', 'market', false)).toBe('strategy');
+    // Bots is a shell page now, never a dashboard tab the session switch must leave alone.
+    expect(applySessionAutoSwitch('strategy', 'market', false)).toBe('gainers');
     expect(applySessionAutoSwitch('large_cap', 'market', false)).toBe('gainers');
     expect(applySessionAutoSwitch('catalysts', 'afterhours', false)).toBe(
       'afterhours',

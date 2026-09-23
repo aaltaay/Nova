@@ -1,5 +1,7 @@
 /** The selected ticker's watchlist read in the side panel: the Five Pillars with their
- * reasons, where the first-pullback scanner has it, and the bot allowlist toggle. */
+ * reasons, where the first-pullback scanner has it, and the bot allowlist toggle.
+ * Any symbol gets its pillars (operator ask, 2026-09-23): a ranked one from the
+ * watchlist poll, any other graded by the backend from its board row or live quote. */
 import {
   SETUP_STATE_LABELS,
   TAPE_VERDICT_LABELS,
@@ -13,11 +15,22 @@ import { useBotAllowlist } from '../bot/useBotAllowlist';
 import { useSetupsBoard } from '../setups/SetupsStreamContext';
 import { fmtPx } from '../setups/setupsFormat';
 import type { SetupRow } from '../setups/types';
+import {
+  WATCHLIST_STRIP_GRADING,
+  WATCHLIST_STRIP_SOURCES,
+  watchlistStripRank,
+} from '../constantGroups/watchlist_strip';
 import type { WatchlistEntry } from '../strategy/types';
+import { useSymbolPillars } from '../strategy/useSymbolPillars';
 import { newsCell } from '../strategy/watchlistFormat';
 
 interface Props {
+  /** The symbol's ranked watchlist entry, when the watchlist holds it. */
   entry: WatchlistEntry | null | undefined;
+  /** The symbol on screen: graded on demand when the watchlist does not rank it. */
+  symbol?: string | null;
+  /** 1-based place on the ranked watchlist, when known. */
+  rank?: number | null;
 }
 
 function SetupBlock({ row }: { row: SetupRow }) {
@@ -48,20 +61,31 @@ function SetupBlock({ row }: { row: SetupRow }) {
   );
 }
 
-export function TickerWatchlistStrip({ entry }: Props) {
+function emptyText(loading: boolean, error: string | null): string {
+  if (error) return `${TICKER_WATCHLIST_STRIP_EMPTY} ${error}`;
+  return loading ? WATCHLIST_STRIP_GRADING : TICKER_WATCHLIST_STRIP_EMPTY;
+}
+
+export function TickerWatchlistStrip({ entry: ranked, symbol, rank = null }: Props) {
   const stream = useSetupsBoard();
   const { isAllowed, add, remove } = useBotAllowlist();
+  const graded = useSymbolPillars(symbol ?? ranked?.symbol ?? null, ranked ?? null, rank);
+  const entry = graded.entry;
   const setup = entry ? stream?.board?.rows.find(r => r.symbol === entry.symbol) : undefined;
   const allowed = entry ? isAllowed(entry.symbol) : false;
   const p = entry?.five_pillars;
+  const source = graded.source === 'watchlist' && graded.rank
+    ? watchlistStripRank(graded.rank)
+    : graded.source ? WATCHLIST_STRIP_SOURCES[graded.source] ?? '' : '';
   return (
-    <section className="cq-watchlist-strip" aria-label={TICKER_WATCHLIST_STRIP_TITLE}>
+    <section className="cq-watchlist-strip" aria-label={TICKER_WATCHLIST_STRIP_TITLE} data-testid="watchlist-strip">
       <div className="cq-section-title">
         {TICKER_WATCHLIST_STRIP_TITLE}
         {p && <span className="cq-wl-count"> · {p.pass_count} / {p.total} pillars</span>}
       </div>
+      {p && source ? <div className="cq-wl-source" data-testid="watchlist-strip-source">{source}</div> : null}
       {!entry || !p ? (
-        <div className="cq-watchlist-strip-empty">{TICKER_WATCHLIST_STRIP_EMPTY}</div>
+        <div className="cq-watchlist-strip-empty">{emptyText(graded.loading, graded.error)}</div>
       ) : (
         <>
           <ul className="cq-wl-pillars">

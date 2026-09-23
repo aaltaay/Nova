@@ -1,102 +1,197 @@
-/** Pure helpers for the Bots page (ADR 027): gate lines, the headline, read-out numbers. */
+/** Pure helpers for the Bots page (ADR 027): gate chips, the headline, read-out numbers. */
 import {
   BOT_GATE_LABELS,
   BOT_LEVEL_LABELS,
   BOT_SETUP_LABELS,
   BOT_SOFT_BREAKER_USD,
 } from '../constantGroups/bot';
+import {
+  BOTS_GATE_ADD_SYMBOL,
+  BOTS_GATE_OPEN_L2,
+  BOTS_GATE_READOUT_LINK,
+  BOTS_GATE_RESET_KILL,
+  BOTS_GATE_UNLOCK,
+  BOTS_HERO_NO_GATES,
+} from '../constantGroups/bots_page';
+import type { TradingBlocker } from '../ibkr/tradingAllowed';
 import type { BotGate, BotReadout, BotSession } from './types';
+
+/** How many missing depth lines a chip names before "+N more". */
+const OPEN_L2_NAMED = 2;
+
+export type GateActionKind = 'unlock' | 'open_l2' | 'readout' | 'add_symbol' | 'reset_kill';
+
+export interface GateAction {
+  kind: GateActionKind;
+  label: string;
+  symbol?: string;
+}
 
 export interface GateLine {
   id: string;
   ok: boolean;
   stage: string;
   text: string;
+  actions: GateAction[];
+  /** Missing depth lines past the ones the chip names. */
+  more: number;
+}
+
+export interface GateContext {
+  /** The account's day P&L the breakers compare; null when unknown. */
+  dayPnl?: number | null;
+  /** Why the desk's own gate refuses places (padlock PIN, Gateway, spend). */
+  blockers?: readonly TradingBlocker[];
 }
 
 function list(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
 }
 
-/** "Depth lines 1 / 2 held -- open IMCC Level 2" and friends, from the backend's facts. */
-export function gateLine(g: BotGate): GateLine {
+function levelName(level: number): string {
+  return BOT_LEVEL_LABELS[(level > 2 ? 2 : level < 0 ? 0 : level) as 0 | 1 | 2] ?? String(level);
+}
+
+/** "Depth line 1 / 2 held" with "open IMCC Level 2" and friends, from the backend's facts. */
+export function gateLine(g: BotGate, ctx: GateContext = {}): GateLine {
   const d = g.detail ?? {};
   const label = BOT_GATE_LABELS[g.id] ?? g.id;
-  let text = label;
+  const out: GateLine = { id: g.id, ok: Boolean(g.ok), stage: g.stage, text: label, actions: [], more: 0 };
   switch (g.id) {
-    case 'level': {
-      const lvl = Number(d.level ?? 0);
-      text = `${label} ${BOT_LEVEL_LABELS[(lvl > 2 ? 2 : lvl) as 0 | 1 | 2] ?? lvl}`;
+    case 'level':
+      out.text = `${label} ${levelName(Number(d.level ?? 0))}`;
+      break;
+    case 'allowlist': {
+      const n = Number(d.count ?? 0);
+      out.text = n > 0 ? `${label} · ${n}` : `${label} empty`;
+      if (!out.ok) out.actions.push({ kind: 'add_symbol', label: BOTS_GATE_ADD_SYMBOL });
       break;
     }
-    case 'allowlist':
-      text = `${label} · ${Number(d.count ?? 0)}${g.ok ? '' : ' -- empty list = the bot does nothing'}`;
+    case 'desk_armed': {
+      if (out.ok) break;
+      const reason = String(d.reason ?? '');
+      const blockers = ctx.blockers ?? [];
+      if (blockers.includes('disconnected')) {
+        out.text = 'IBKR disconnected';
+      } else if (blockers.includes('pin') || /disarm/i.test(reason) || !reason) {
+        out.text = 'Desk disarmed';
+        out.actions.push({ kind: 'unlock', label: BOTS_GATE_UNLOCK });
+      } else {
+        out.text = prose(reason);
+      }
       break;
-    case 'desk_armed':
-      // The backend's reason already names the state ("Desk is disarmed -- ...").
-      text = g.ok ? label : String(d.reason ?? 'Desk disarmed -- unlock the padlock');
-      break;
+    }
     case 'depth_lines': {
       const held = list(d.held);
       const missing = list(d.missing);
       const total = held.length + missing.length;
-      text = `Depth line ${held.length} / ${total} held${missing.length ? ` -- open ${missing.join(', ')} Level 2` : ''}`;
+      out.text = total === 0 ? 'Depth lines · no symbols' : `Depth line${total === 1 ? '' : 's'} ${held.length} / ${total} held`;
+      for (const sym of missing.slice(0, OPEN_L2_NAMED)) {
+        out.actions.push({ kind: 'open_l2', label: BOTS_GATE_OPEN_L2(sym), symbol: sym });
+      }
+      out.more = Math.max(0, missing.length - OPEN_L2_NAMED);
       break;
     }
     case 'readout': {
-      const n = Number(d.go_triggered ?? 0);
-      const min = Number(d.min_go ?? 50);
-      text = g.ok ? `${label} passed` : `${label} ${n} / ${min} -- first pullback not proven yet`;
+      const state = String(d.state ?? '');
+      if (out.ok) {
+        out.text = `${label} passed`;
+      } else if (state === 'failed') {
+        out.text = `${label} failed`;
+      } else if (state === 'unavailable') {
+        out.text = `${label} unavailable — the scoreboard is not open`;
+      } else {
+        out.text = `${label} ${Number(d.go_triggered ?? 0)} / ${Number(d.min_go ?? 50)}`;
+        out.actions.push({ kind: 'readout', label: BOTS_GATE_READOUT_LINK });
+      }
       break;
     }
     case 'bot_trip':
-      text = g.ok ? `${label} (${fmtUsd(BOT_SOFT_BREAKER_USD)} trips it)` : 'Bot trip fired -- Activate re-enables it';
+      out.text = out.ok
+        ? `${label} (${ctx.dayPnl == null ? '—' : fmtUsdCents(ctx.dayPnl)} / ${fmtUsd(BOT_SOFT_BREAKER_USD)})`
+        : 'Bot trip fired — Activate re-enables it';
       break;
     case 'day_lock':
-      text = g.ok ? label : `Day lock until ${String(d.until ?? 'ET midnight')}`;
+      out.text = out.ok ? label : `Day lock until ${String(d.until ?? 'ET midnight')}`;
       break;
     case 'kill_switch':
-      text = g.ok ? label : 'Kill switch tripped -- reset it below';
+      out.text = out.ok ? label : 'Kill switch tripped';
+      if (!out.ok) out.actions.push({ kind: 'reset_kill', label: BOTS_GATE_RESET_KILL });
       break;
     case 'window': {
-      const start = String(d.start ?? '07:00');
-      const end = String(d.end ?? '10:00');
       const used = Number(d.entries_today ?? 0);
       const max = Number(d.max_entries ?? 1);
-      text = `${label} ${start}-${end} · ${used} / ${max} trade today`;
+      const shut = d.open === false ? ' · closed now' : '';
+      out.text = `${label} ${String(d.start ?? '07:00')}–${String(d.end ?? '10:00')}${shut} · ${used} / ${max} trade today`;
       break;
     }
     default:
       break;
   }
-  return { id: g.id, ok: Boolean(g.ok), stage: g.stage, text };
+  return out;
 }
 
-export function closedActivateGates(gates: BotGate[] | undefined): GateLine[] {
-  return (gates ?? []).filter(g => !g.ok && g.stage === 'activate').map(gateLine);
+export function gateLines(gates: BotGate[] | undefined, ctx: GateContext = {}): GateLine[] {
+  return (gates ?? []).map(g => gateLine(g, ctx));
+}
+
+/** Gates Activate at Strategy needs that are closed. */
+export function closedActivateGates(gates: BotGate[] | undefined): BotGate[] {
+  return (gates ?? []).filter(g => !g.ok && g.stage === 'activate');
+}
+
+export interface HeroSentence {
+  lead: string;
+  /** "3 of 9 gates", drawn bold; empty when the sentence has no count. */
+  count: string;
+  tail: string;
 }
 
 /** The hero's one-line state under the headline. */
-export function heroSentence(session: BotSession, closed: number): string {
+export function heroSentence(session: BotSession): HeroSentence {
   const level = session.level;
-  if (level <= 0) return 'The bot is off: it watches nothing and proposes nothing.';
-  if (level === 1) return 'Eyes: the bot watches your setups and proposes. You place.';
-  if (session.live_fire_ready) return 'Strategy is live: the bot may place your setup under every gate below.';
-  if (closed > 0) {
-    return `Strategy is chosen, but the bot can't fire yet: ${closed} gate${closed === 1 ? ' is' : 's are'} closed. Until then it proposes like Eyes.`;
+  if (level <= 0) return { lead: 'The bot is off: it watches nothing and proposes nothing.', count: '', tail: '' };
+  if (level === 1) return { lead: 'Eyes: the bot watches your setups and proposes. You place.', count: '', tail: '' };
+  if (!Array.isArray(session.gates)) return { lead: BOTS_HERO_NO_GATES, count: '', tail: '' };
+  if (session.live_fire_ready) {
+    return { lead: 'Strategy is live: the bot may place your setup under every gate below.', count: '', tail: '' };
   }
-  return 'Strategy is chosen and every gate is open. Activate to let it fire.';
+  const closed = session.gates.filter(g => !g.ok).length;
+  if (closed > 0) {
+    return {
+      lead: 'Strategy is chosen, but the bot can\'t fire yet: ',
+      count: `${closed} of ${session.gates.length} gates`,
+      tail: ` ${closed === 1 ? 'is' : 'are'} closed. Until then it proposes like Eyes.`,
+    };
+  }
+  return { lead: 'Strategy is chosen and every gate is open. Activate to let it fire.', count: '', tail: '' };
 }
 
-export function playingLine(session: BotSession): string {
+export interface PlayingLine {
+  setup: string;
+  rest: string;
+}
+
+export function playingLine(session: BotSession): PlayingLine {
   const setup = BOT_SETUP_LABELS[session.setup ?? ''] ?? session.setup ?? 'First pullback';
   const n = session.symbol_allowlist?.length ?? 0;
-  return `Playing ${setup} · ${n} symbol${n === 1 ? '' : 's'} · max ${session.caps.max_shares} share${session.caps.max_shares === 1 ? '' : 's'} · $${session.caps.bp_budget_usd.toFixed(0)} budget`;
+  const shares = session.caps.max_shares;
+  return {
+    setup,
+    rest: ` · ${n} symbol${n === 1 ? '' : 's'} · max ${shares} share${shares === 1 ? '' : 's'} · $${session.caps.bp_budget_usd.toFixed(0)} budget`,
+  };
 }
 
 /** Whole dollars with a real minus sign: -50 -> "−$50". */
 export function fmtUsd(v: number): string {
   return `${v < 0 ? '−' : ''}$${Math.abs(v).toLocaleString('en-US')}`;
+}
+
+/** Dollars and cents with a real minus sign: -9.5 -> "−$9.50"; unknown -> "—". */
+export function fmtUsdCents(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return '—';
+  const text = Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${v < 0 ? '−' : ''}$${text}`;
 }
 
 export function fmtR(v: number | null | undefined): string {
@@ -110,4 +205,15 @@ export function readoutProgress(r: BotReadout | undefined): number {
   if (!r) return 0;
   const min = r.rules?.min_go || 50;
   return Math.max(0, Math.min(100, (100 * (r.go?.triggered ?? 0)) / min));
+}
+
+/** Backend prose writes ASCII " -- "; the page sets it as a dash. */
+export function prose(text: string | null | undefined): string {
+  return (text ?? '').replace(/ -- /g, ' — ');
+}
+
+/** Eastern wall-clock time of an epoch second, HH:MM:SS; blank when unknown. */
+export function etClock(ts: number | null | undefined): string {
+  if (!ts || !Number.isFinite(ts)) return '';
+  return new Date(ts * 1000).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour12: false });
 }

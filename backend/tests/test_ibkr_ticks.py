@@ -313,6 +313,21 @@ def test_last_quotes_exposes_shared_day_volume():
     row = ticks.last_quotes(["ABCD"])["ABCD"]
     assert row["price"] == 1.25
     assert row["volume"] == 44000
+    assert "prev_close" not in row  # no ticker on the line: unknown, never 0
+    _reset()
+
+
+def test_last_quotes_carries_the_lines_prior_close_once_ibkr_sent_it():
+    from types import SimpleNamespace
+
+    _reset()
+    ticks._subs["ABCD"] = {
+        "owners": {ticks.OWNER_DETAIL}, "last_price": 1.25, "last_update_ts": 12.0,
+        "ticker": SimpleNamespace(close=float("nan")),
+    }
+    assert "prev_close" not in ticks.last_quotes(["ABCD"])["ABCD"]  # tick 9 not sent yet
+    ticks._subs["ABCD"]["ticker"] = SimpleNamespace(close=1.07)
+    assert ticks.last_quotes(["ABCD"])["ABCD"]["prev_close"] == 1.07
     _reset()
 
 

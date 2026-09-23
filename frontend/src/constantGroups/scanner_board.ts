@@ -183,6 +183,10 @@ export const listFeedFailed = (title: string, error: string): string => `${title
 export const QUOTE_PANEL_LOOKUP_LABEL = 'Quote panel: look up';
 export const QUOTE_PANEL_LOOKUP_ARIA = 'Symbol to load in the quote panel on this page';
 export const QUOTE_PANEL_LOOKUP_PLACEHOLDER = 'Symbol, e.g. AAPL';
+/** The quote panel folds to a strip on the right, like the Trader's Focus list folds left. */
+export const QUOTE_PANEL_COLLAPSE = 'Collapse the quote panel';
+export const QUOTE_PANEL_EXPAND = 'Expand the quote panel';
+export const QUOTE_PANEL_COLLAPSED_STORAGE_KEY = 'nova.quotePanel.v1';
 
 // ── Scanner leaderboard (ADR 023, 2026-09-22) ─────────────────────────────
 /**

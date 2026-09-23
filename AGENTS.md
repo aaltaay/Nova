@@ -563,8 +563,12 @@ status: "open" | "triggered" | "failed" | "disarmed" | "rearmed", tape_now}`
 -- raised only when a live setup is `near` and the tape says `go` (a re-arm at
 new levels withdraws the open one, and the next `go` raises a fresh one), pushed once as
 `{"type": "alerts", "alerts": [...]}` and recorded on the bot audit stream as
-`setup_proposal` / `proposed`. `blind` means Nova holds no depth line for the
-symbol; the scanner opens none.
+`setup_proposal` / `proposed`. Its close is recorded there too (a re-arm
+replaces the engine's own copy): `setup_proposal` with outcome `rearmed` |
+`disarmed` | `failed` | `triggered`, `reason` the plain-words cause, and
+`inputs` the proposal with its `status` and `closed_at` -- the Bots page lists
+the last half hour's withdrawn proposals from it. `blind` means Nova holds no
+depth line for the symbol; the scanner opens none.
 `GET /api/setups/scoreboard?days=N` (default 5, `0` = all) answers `{days,
 date_from, row_count, rows[] (at most 500), summary: {all, by: {tape_at_trigger,
 grade, session, kind}}}`, each stats block `{armed, triggered, trigger_rate,
@@ -704,6 +708,20 @@ source has looked (unknown, not "no news"). Asking queues the Alpaca fetch in
 the background (`strategy/watchlist_catalyst.py`); the route never waits on
 the network. The Watchlist table joins the setup board (`/ws/setups`) and the
 bot allowlist by symbol on the client; nothing on the Watchlist places.
+
+**Any symbol's pillars (operator ask 2026-09-23).** `GET
+/api/strategy/watchlist/{symbol}` (owner `strategy/symbol_pillars.py`,
+read-only, no network wait) answers `{note, symbol, source, rank, entry}` --
+`entry` a watchlist entry as above, graded from the symbol's own scanner row
+when a board holds it (`source`: `gappers` | `gainers` | `losers` |
+`afterhours` | `large_cap`, surfaced exactly as the Scanner shows it), else from
+its live L1 quote decorated the same way (`source: "quote"`: price, volume and
+the line's tick-9 prior close from `ibkr.ticks.last_quotes`, whose rows add
+`prev_close` once IBKR sends it; float / RVOL from the fundamentals cache; the
+catalyst verdict read before grading). `rank` is its 1-based place on the
+ranked watchlist, else `null`. A fact nobody holds stays `null` and its pillar
+fails with that reason. The quote panel's Watchlist strip uses the ranked entry
+when there is one and this route for every other symbol.
 
 ### Bot playbook and the read-out gate (ADR 027, operator decision 2026-09-23)
 
@@ -1241,6 +1259,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 | Date | Change | Author |
 |------|--------|--------|
 | 2026-09-23 | Code-shape rules measure behavior, not a snapshot (operator ask: "'All files are under 400 lines' -- is this an actual rule? ... how do we create better rules to manage the scalability of this project?"). §2 rewritten: the hand-kept file trees become ownership statements next to the code (backend package docstrings, `frontend/src/FOLDERS.md`) that the checker keeps complete, printed by `tools/module_map.py`; the hard 400-line cliff -- which bunched ten files at 395-400 lines -- becomes a soft limit that asks for a one-concern reason, a no-growth check without one, and an 800-line ceiling; constants tables are exempt; the .tsx 300 rule (which contradicted §2.3) is gone; feature-slice deep imports are frozen per file (311) instead of checked for 9 of 34 slices. §6.3: silent failures on the money path fail the gate; 22 sites fixed or given a reason, three of them real misreports (a practice flatten reported flat when its re-read failed, the startup sweep could call a filled order abandoned when `ib.fills()` failed, a partly unreadable commission total was shown as the total). CI runs `maintainer_checks.py --gate`. | User Directive + Claude Opus 5.5 |
+| 2026-09-23 | The Bots page as approved (mockup v4; operator report: "my screen looks nothing like the mock up + half of buttons don't work", "I want to see that L2 stuff in my header"): Bots is a shell page like Account, not a tab squeezed between the HOD strip, the positions dock and the quote panel. Every control works or says why not: the gate chips carry the link that opens them (unlock the padlock, open a symbol's Level 2 in a pinned Trader tab, see the read-out, add a symbol, reset the kill switch), choosing Strategy with the padlock locked says so, the setup radios and each setup's level switch are real (disabled with the reason where no scanner exists), "+ Add a setup" explains the door and copies the catalogue path, the sleeve is sliders that PATCH once let go, and the breakers draw today's P&L. Symbols say who holds the line with Last and Change; proposals keep the ones the scanner withdrew (closes now on the audit stream); the timeline adds the setup scanner's own day (setups.db); Today adds bot P&L from the practice ledger. The header carries the bot pill ("Bot L2 First pullback · Not active") and the rail a state dot. The quote panel folds to a strip on the right like the Focus list, streaming nothing while folded, and grades any symbol's Five Pillars (`GET /api/strategy/watchlist/{symbol}`). An API older than ADR 027 is named as such instead of "every gate is open". The course vendor's name left the UI. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Automatic release tags (operator ask: "after every commit we make to master, can we create a release tag"): `Desktop pack` tags every master commit `vNNN` and publishes an application-affecting one as a GitHub Release with the installer and update feed; docs/site-only commits get the tag only. Master runs group by commit so a burst of merges tags every one, and a Release is marked latest only when it is the highest. Supersedes #347's operator-tag-only publishing; the installed desk now offers an update after each application merge. §8 amended. | User Directive + Claude Code |
 | 2026-09-23 | The catalyst verdict on the desk (ADR 024 amendment, operator report: "still just seeing garbage"): the Gainers' top three all showed one Benzinga market wrap as their news, IPDN's panel called it "moved price 90%", and real releases (HCTI's PR Newswire LOI, BENF's 8-K) showed nothing -- the verdict fed only the setup scanner. Scanner rows now carry `catalyst` (`catalysts/board.py`); the News column, "Has news" chip, Trader tab chip, HOD flame and the Watchlist pillar read it; the Trader's News panel reads `GET /api/catalysts/{symbol}` (verdict + labelled items, lists folded away). Rules v5: share consolidations are reverse splits, circuit-breaker notices are halts not news, "beat the market" is not an ATM offering, debt elimination and customer wins count, a movers-section URL needs a placed class; the SEC headline joiner stops cutting on "and". `has_news` keeps its meaning. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | The bot plays the operator's setups (ADR 027, operator decision: "no, I don't think we need the old packs -- remove"; "keep the Strategy L2 + all setups from my material"; approved Bots mockup v4): the halt-luld / quote-spike / volume / llm-decide packs, `POST /api/bot/llm/spend` and the `nova-brain` sidecar (Electron, `Run Nova.bat`, `Start-NovaBrain.ps1`) are removed; the session (schema 4) carries `setup`, `setups`, `readout` and `gates`. Strategy waits on the pre-registered first-pullback read-out (`setup_scanner/readout.py`, Bot-Trading-Plan §2g): raising to Strategy lands not active, Activate at Strategy and every L2 fire are refused `BOT_READOUT_NOT_PASSED` until 50 triggered go setups beat +0.2R net and blind / wait; L2 entries keep the material's 07:00-10:00 ET window and one trade a day. The Bots page is rebuilt (hero with level, gates and Activate; the playbook with first pullback's rules, tape gate and read-out; symbols with Level 2; sleeve and breakers; one proposals inbox; the activity timeline; today and the scoreboard) and the header's second bot row is gone. §3 amended. | User Directive + Claude Opus 5.5 |

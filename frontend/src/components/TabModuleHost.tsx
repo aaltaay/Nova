@@ -1,7 +1,8 @@
 /**
  * Renders the active tab body via registry id lookup (Phase 4).
  * Keeps DashboardPage under the component size limit.
- * HOD Momo / Running Up live in the AppShell dock — not hosted here.
+ * HOD Momo / Running Up live in the AppShell dock — not hosted here; Bots is a
+ * shell page (pages/NavPageHost), never a dashboard tab.
  */
 import { lazy, Suspense } from 'react';
 import { ScannerTabPanels } from './ScannerTabPanels';
@@ -22,9 +23,6 @@ const NovaNewsPanel = lazy(() =>
 );
 const VolumeBoostPanel = lazy(() =>
   import('../volume_boost/VolumeBoostPanel').then(m => ({ default: m.VolumeBoostPanel })),
-);
-const StrategyTab = lazy(() =>
-  import('../bot/StrategyTab').then(m => ({ default: m.StrategyTab })),
 );
 import type { Afterhours, Gapper, Mover, ScannerRow } from '../types/scanner';
 import type { ScannerTableMeta } from '../hooks/useScannerPriceStream';
@@ -201,17 +199,6 @@ export function TabModuleHost(props: TabModuleHostProps) {
           onOpenTrading={onOpenTrading}
           sampleMode={sampleMode}
         />
-      </Suspense>
-    );
-  }
-
-  if (activeTab === 'strategy') {
-    if (sampleMode) {
-      return <div className="empty-state">Bot Strategy settings are not available in Sample Data mode.</div>;
-    }
-    return (
-      <Suspense fallback={<TabLazyFallback />}>
-        <StrategyTab />
       </Suspense>
     );
   }

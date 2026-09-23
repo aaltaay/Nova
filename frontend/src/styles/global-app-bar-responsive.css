@@ -16,6 +16,9 @@
    sign at 1440 / 1280 and the padlock and gear left the screen):
      two or more chips   1600  REC times, Day's    1280  TAV
      three chips         1920  REC times           1440  the REC word
+   The bot pill (bot/globalBarBotPill.css) sheds its setup and state at 1880
+   or with any REC chip, and leaves at 1600 or with two -- the rail's Bots
+   dot keeps the state.
    A chip keeps its red dot and symbol; the tooltip keeps the time. The KILL
    pill, the connection chip, the venue pills, the search, the account pill,
    the padlock and the gear stay. Under 820px the search drops to a second line

@@ -9,11 +9,14 @@ Endpoints:
   GET /api/strategy/five-pillars/{symbol}    -- score one symbol's latest gapper row
   GET /api/strategy/gap-and-go/{symbol}      -- Gap and Go signal for one symbol
   GET /api/strategy/watchlist                -- ranked Five Pillars watchlist (gappers + gainers)
+  GET /api/strategy/watchlist/{symbol}       -- one symbol's Five Pillars, ranked or not (quote panel)
   GET /api/strategy/setups/{symbol}          -- Gap and Go + Bull Flag + ABCD signals for one symbol
   GET /api/strategy/risk                     -- current discipline state (P&L, streaks, size, halt)
   POST /api/strategy/risk/validate-trade     -- check a proposed entry/stop/target against risk rules
 """
 from __future__ import annotations
+
+import logging
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -25,11 +28,13 @@ from strategy.five_pillars import evaluate_many
 from strategy.gap_and_go import evaluate_gap_and_go
 from strategy.risk import get_state as _get_risk_state, validate_trade_plan
 from strategy.setups import evaluate_setups
-from strategy.watchlist import build_watchlist
+from strategy.symbol_pillars import SOURCE_QUOTE, find_board_row, quote_row, with_catalyst
+from strategy.watchlist import build_watchlist, score_watchlist_entry
 from strategy.watchlist_catalyst import attach as _attach_catalysts
 from runtime_state import get_runtime_state
 
 router = APIRouter(prefix="/api/strategy", tags=["strategy"])
+logger = logging.getLogger(__name__)
 
 _TRANSPARENCY_NOTE = (
     "Signal only. This endpoint never places, modifies, or cancels orders."
@@ -136,6 +141,52 @@ def watchlist() -> dict:
         "count": len(entries),
         "entries": _attach_catalysts([e.to_dict() for e in entries]),
     }
+
+
+def _raw_boards() -> dict[str, list[dict]]:
+    state = get_runtime_state()
+    return {
+        "gappers": state.gapper_cache,
+        "gainers": state.gainer_cache,
+        "losers": state.loser_cache,
+        "afterhours": state.afterhours_cache,
+        "large_cap": state.large_cap_cache,
+    }
+
+
+def _live_quote(symbol: str) -> dict | None:
+    try:
+        from ibkr import ticks as _ticks
+
+        return _ticks.last_quotes([symbol]).get(symbol)
+    except Exception:
+        logger.warning("watchlist/%s: L1 quote unreadable", symbol, exc_info=True)
+        return None
+
+
+@router.get("/watchlist/{symbol:path}")
+def watchlist_one(symbol: str) -> dict:
+    """One symbol's Five Pillars, whether or not the ranked watchlist holds it.
+
+    Graded from the symbol's own scanner row when a board holds it (surfaced as
+    the Scanner shows it), else from its live L1 quote decorated the same way.
+    ``rank`` is its 1-based place on the ranked watchlist, or null.
+    """
+    sym = symbol.strip().upper()
+    if not sym:
+        raise HTTPException(status_code=400, detail="symbol required")
+    raw, source = find_board_row(sym, _raw_boards())
+    if raw is None:
+        raw, source = quote_row(sym, _live_quote(sym)), SOURCE_QUOTE
+    # A blocklisted symbol leaves the boards, not the quote panel: grade its row as is.
+    surfaced = surface_rows([raw]) or [dict(raw)]
+    row = with_catalyst(_graded(surfaced[0]))
+    rank = None
+    if source in ("gappers", "gainers"):
+        ranked = [e.symbol for e in build_watchlist(_watchlist_universe())]
+        rank = ranked.index(sym) + 1 if sym in ranked else None
+    [entry] = _attach_catalysts([score_watchlist_entry(row).to_dict()])
+    return {"note": _TRANSPARENCY_NOTE, "symbol": sym, "source": source, "rank": rank, "entry": entry}
 
 
 @router.get("/setups/{symbol}")
