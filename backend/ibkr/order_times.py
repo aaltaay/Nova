@@ -83,7 +83,7 @@ def _to_iso(value: Any) -> str | None:
         if parsed.tzinfo is None:
             parsed = parsed.replace(tzinfo=timezone.utc)
         return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
-    except ValueError:
+    except ValueError:  # maintainer: allow-swallow not ISO; falls through to the IB formats below
         pass
 
     # Common IB execution string: "20260718  09:41:23" or "20260918-14:06:10".

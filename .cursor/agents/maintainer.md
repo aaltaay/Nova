@@ -52,9 +52,9 @@ Run the deterministic script first. Then layer judgment. Score each dimension 0�
 
 ### 1. Constitution / file limits
 
-- `backend/main.py` ≤ 200 lines; `frontend/src/App.tsx` ≤ 150.
-- New Python modules ≤ 400; new React components ≤ 300; other new TS ≤ 400.
-- Compare against **Accepted baselines** in memory — documented over-limit files (`hod_momo.py`, `executor.py`) are baseline, not new CRITICAL findings. Flag **growth** past the last baseline line count as WARNING.
+- `backend/main.py` ≤ 200 logical lines; `frontend/src/App.tsx` ≤ 150 logical lines.
+- AGENTS.md §2.3: code over 400 lines is split or carries `maintainer: one-concern <reason>`; nothing passes 800 (`file_size_ceiling`); growth without a reason is `file_size_growth` (run with `--base origin/master`). Judge the stated reasons -- "legacy" is not one.
+- `--gate` failures are CRITICAL; advisory `file_size` is a WARNING unless the file is on the money path (`maintainer_lib/swallow.py` `MONEY_PATH_PREFIXES`).
 
 ### 2. Modularity & constants
 

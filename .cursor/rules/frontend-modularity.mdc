@@ -14,36 +14,13 @@ alwaysApply: false
 
 Everything else lives in a purpose-built module. When adding or refactoring code, always place it in the correct module.
 
-## Module Layout
+## Where code goes
 
-```text
-frontend/src/
-  App.tsx             # root layout + router ONLY (target: <150 lines)
-  main.tsx            # entry point
-  constants.ts        # all tunables
-  index.css           # global styles + design tokens
-  App.css             # app-specific styles
-  components/         # reusable UI components
-    GapperTable.tsx
-    GainerTable.tsx
-    LoserTable.tsx
-    NewsCatalystPanel.tsx
-    TickerDetail.tsx
-    SettingsPanel.tsx
-    HealthBadge.tsx
-  hooks/              # custom React hooks
-    useWebSocket.ts
-    useGappers.ts
-    useGainers.ts
-    useTicker.ts
-  pages/              # page-level components (one per tab/view)
-    DashboardPage.tsx
-    SettingsPage.tsx
-  types/              # shared TypeScript types
-    scanner.ts
-    ticker.ts
-  hod_momo/           # HOD Momo feature module (already modular ✅)
-```
+A file tree used to live here; it went stale. `frontend/src/FOLDERS.md` says what
+each folder owns and its ADR 005 kind (`feature` / `shared` / `app`), and the
+checker keeps it complete; `py -3 tools/module_map.py [word]` searches it. New code
+goes in the folder that owns its concept; nothing owns it -> a new folder plus its
+row. A feature imports another feature only through its barrel (AGENTS.md §2.2).
 
 ## Rules
 
@@ -53,7 +30,7 @@ frontend/src/
 
 3. **Cross-component communication goes through hooks or context, not prop drilling through App.tsx.** If a child needs data, it imports a hook. Do not pass data through App.tsx as a middleman.
 
-4. **Components are focused and reusable.** Each `.tsx` file = one component. One concern per file. If a component exceeds 300 lines, break it up.
+4. **Components are focused and reusable.** Each `.tsx` file = one component. One concern per file. Past 400 lines, split it or state why it is one concern (`file-size-limits.mdc`).
 
 5. **New features = new component or new hook.** Do not add a new domain (e.g. watchlist, alerts UI) into an existing component; create a new file.
 

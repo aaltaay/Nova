@@ -83,7 +83,7 @@ def read_managed_account_ids(ib: Any) -> list[str]:
     """Normalize ib_async managedAccounts() to a list of account id strings."""
     try:
         raw = ib.managedAccounts()
-    except Exception:
+    except Exception:  # maintainer: allow-swallow [] classifies as unknown and the session is refused (fail-closed)
         logger.warning("IBKR: managedAccounts() failed", exc_info=True)
         return []
     if raw is None:

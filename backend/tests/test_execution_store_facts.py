@@ -239,6 +239,28 @@ def test_mark_place_cancelled_does_not_overwrite_fill():
     assert row["status"] == "filled"
 
 
+def test_mark_place_cancelled_leaves_a_row_whose_fill_qty_is_unreadable():
+    """An unreadable filled_qty cannot prove "no fill", so the cancel mark must
+    not overwrite the row (it used to fall through as if the qty were 0)."""
+    execution_id, _ = store.reserve(
+        idempotency_key="garbled-qty",
+        operation="place",
+        source="manual",
+        symbol="SPCX",
+        received_ns=1,
+        payload={"qty": 1, "sent_qty": 1.0, "side": "BUY"},
+    )
+    store.update_stages(execution_id, order_id=115729, status="sent", broker_status="Submitted")
+    conn = store.get_connection()
+    try:
+        conn.execute("UPDATE executions SET filled_qty = 'garbled' WHERE id = ?", (execution_id,))
+        conn.commit()
+    finally:
+        conn.close()
+    assert facts.mark_place_cancelled(order_id=115729) is None
+    assert store.get_by_id(execution_id)["broker_status"] == "Submitted"
+
+
 def test_live_presubmitted_place_plus_ib_cancel_overlay_uses_nova_placed():
     """Windows paper: place stays PreSubmitted; IB cancel is order_id=0 + perm_id."""
     from execution.closed_blotter import overlay_closed_orders

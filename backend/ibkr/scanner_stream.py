@@ -294,7 +294,7 @@ def _cancel_lease(table: str, *, freeze_first: bool = False) -> None:
             if hasattr(lease.data_list, "updateEvent"):
                 lease.data_list.updateEvent -= lease.listener
         except Exception:
-            pass
+            logger.debug("scanner_stream: listener detach on cancel failed", exc_info=True)
     if ib is not None and lease.data_list is not None:
         try:
             ib.cancelScannerSubscription(lease.data_list)

@@ -59,114 +59,98 @@ These rules CANNOT be violated under ANY circumstance:
 
 ---
 
-## 2. 📐 Modularity Laws (Enforced File Structure)
+## 2. 📐 Modularity Laws (Enforced by the checker)
 
-### 2.1 Backend Modularity
-
-`backend/main.py` is the **app entry point ONLY**. It must contain:
-
-- FastAPI app creation + middleware
-- `lifespan` / startup hooks that wire together modules
-- Route registrations (via `app.include_router` or thin `@app.get` calls that delegate immediately)
-
-**NOTHING ELSE.** All logic lives in purpose-built modules:
+These rules describe behavior, not a snapshot of the tree. A hand-kept file tree
+and hand-copied line counts lived here and went stale (11 of 24 listed files were
+gone by 2026-09-20); the statements now live next to the code and the checker
+keeps them honest. One command answers every rule in this section -- it is the
+CI gate (`deploy.yml`; kinds in `tools/maintainer_lib/gate.py`), so run it
+before you push:
 
 ```text
-backend/
-  main.py            # app factory + lifespan ONLY (target: <200 lines)
-  constants.py       # all tunables (centralized constants rule)
-  market.py          # _now_et, _in_premarket, _in_market_hours, _get_mode
-  alpaca.py          # _alpaca_headers, _env, all Alpaca REST + WS client calls
-  cache.py           # shared in-memory cache dicts, TTL helpers, invalidation
-  scanner.py         # gapper / gainer / loser discovery and scoring logic
-  news.py            # news fetch, dedup, scoring
-  fundamentals.py    # yfinance fetch + TTL cache wrapper
-  websocket.py       # WS connection manager, subscription state, streaming loop
-  hod_momo.py        # HOD Momo engine: state, on_trade_update, config/blocklist CRUD, load_state
-  hod_momo_models.py   # HOD Momo dataclasses + pure serialization + timestamp helpers
-  hod_momo_filters.py  # HOD Momo pure per-strategy gate evaluation (no module state)
-  hod_momo_debug.py    # HOD Momo pure debug-payload builders (no module state)
-  hod_momo_enrichment.py  # HOD Momo enrichment pipeline
-  bars.py            # bar data fetching
-  routes/
-    health.py        # /health endpoint
-    scan.py          # /gappers, /gainers, /losers endpoints
-    ticker.py        # /ticker/{symbol} + ticker detail WS
-    settings.py      # /settings GET/POST
+py -3 tools/maintainer_checks.py --gate --base origin/master
 ```
 
-### 2.2 Frontend Modularity
+### 2.1 Where code goes
 
-`frontend/src/App.tsx` is the **root layout + router ONLY**. It must contain:
+- **Entry points hold wiring only.** `backend/main.py`: app factory, middleware,
+  `lifespan`, router registration. `frontend/src/App.tsx`: providers, shell,
+  route definitions. Anything else belongs to a module (§2.3 caps both).
+- **New code goes where its concept is owned.** `py -3 tools/module_map.py [word]`
+  prints what every backend package and frontend folder owns, from the code.
+- **Nothing owns it? Make an owner in the same change.** A backend package's
+  `__init__.py` opens with a docstring whose first line names what it owns
+  (`package_owner_missing`). A frontend folder gets a row in
+  `frontend/src/FOLDERS.md` with its ADR 005 kind -- `feature`, `shared` or `app`
+  (`folder_owner_missing` / `folder_owner_stale`).
+- **Prefer a package to a new top-level `backend/*.py` module.** The backend root
+  already holds about a hundred modules; a flat namespace is the hardest place to
+  find anything.
 
-- Provider wrappers, theme, top-level layout shell
-- Route definitions that delegate to page-level components
+### 2.2 Feature boundaries (ADR 005)
 
-**NOTHING ELSE.** All logic lives in purpose-built modules:
+- A frontend feature imports another feature only through its barrel
+  (`../chart`, never `../chart/barsStore`); `shared` code imports no feature
+  internals. A deep import into another feature is a `cross_feature_import`.
+- The 311 that existed on 2026-09-23 are frozen, per file, in
+  `tools/maintainer_lib/baselines.json`; one more fails the gate. The slice has no
+  barrel yet? Add an `index.ts` exporting what you need.
+- Frozen counts only go down. `--update-baselines` rewrites them to the tree; a
+  PR that raises one says why.
 
-```text
-frontend/src/
-  App.tsx             # root layout + router ONLY (target: <150 lines)
-  main.tsx            # entry point
-  constants.ts        # all tunables
-  index.css           # global styles + design tokens
-  App.css             # app-specific styles
-  debug.ts            # debug utilities
-  components/         # reusable UI components
-    GapperTable.tsx
-    GainerTable.tsx
-    LoserTable.tsx
-    NewsCatalystPanel.tsx
-    TickerDetail.tsx
-    SettingsPanel.tsx
-    HealthBadge.tsx
-    ...
-  hooks/              # custom React hooks
-    useWebSocket.ts
-    useGappers.ts
-    useGainers.ts
-    useTicker.ts
-    ...
-  pages/              # page-level components (one per tab/view)
-    DashboardPage.tsx
-    SettingsPage.tsx
-    ...
-  types/              # shared TypeScript types
-    scanner.ts
-    ticker.ts
-    ...
-  hod_momo/           # HOD Momo feature module (already modular ✅)
+### 2.3 File size
+
+A line count is a proxy for "an agent can read this file in one pass and see one
+concern". It prompts a judgment; it is not a target. **Never squeeze a file to
+fit a number** -- deleting blank lines, joining statements or moving code to an
+arbitrary sibling. The old hard 400 made agents do exactly that: on 2026-09-23
+ten Python / TS files sat at 395-400 lines, against seven in the fifteen lines
+below.
+
+| Files | Rule | Kind |
+|-------|------|------|
+| `backend/main.py` | 200 **logical** lines | `file_size_hard` (gate) |
+| `frontend/src/App.tsx` | 150 **logical** lines | `file_size_hard` (gate) |
+| `frontend/src/index.css` | 50 raw lines (import-only barrel) | `file_size_hard` (gate) |
+| Code (`.py` `.ts` `.tsx` `.js` `.jsx`) over 400 lines | split it, or state why it is one concern | `file_size` (advisory) |
+| ... that grew in this change without that reason | split it or state the reason | `file_size_growth` (gate) |
+| Any code file over 800 lines | split it; no reason covers this | `file_size_ceiling` (gate) |
+| Constants tables (`backend/constants*.py`, `frontend/src/constantGroups/`) | exempt from 400; 800 still applies | -- |
+| Stylesheets | advisory at 1000, prefer 700 or less | `file_size` |
+| Tests | exempt | -- |
+
+**Stating the reason:** one line in the file's first 40 lines, next to what the
+file owns:
+
+```python
+"""Scanner discovery.
+
+maintainer: one-concern the never-leak-a-scanner-slot invariant must live in one place
+"""
 ```
 
-### 2.3 File Size Limits
-
-No counts are maintained here -- a hand-copied number goes stale and then
-misleads the next agent (#393: this table claimed 73 lines for an `App.tsx`
-that held 152). **The tree is the truth and the checker is the gate.**
-
-| File | Limit | Measured as | CI kind |
-|------|-------|-------------|---------|
-| `backend/main.py` | 200 | **logical** lines | `file_size_hard` (blocking) |
-| `frontend/src/App.tsx` | 150 | **logical** lines | `file_size_hard` (blocking) |
-| `frontend/src/index.css` | 50 | raw lines (import-only barrel) | `file_size_hard` (blocking) |
-| Any other module | 400 | raw lines | `file_size` (advisory) |
+A reason names the one invariant or state the file owns. "Legacy" or "too big to
+split now" is not a reason -- split it, or leave the advisory finding and open a
+`deferred` issue. **Growth** is judged against `--base` (in CI, the PR's target
+branch); a new file over 400 counts as growth.
 
 **Logical lines** exclude imports, comments and blank lines, so an entry point
 is capped on the wiring it holds rather than on how many providers it imports
-(`tools/maintainer_lib/sizes.py`). Current counts:
-`py -3 tools/maintainer_checks.py --json` -> `logical_line_counts`.
-
-**Rule:** No single file may exceed 400 lines for new code. Existing violations must be addressed when any task touches the violating file.
+(`tools/maintainer_lib/sizes.py`). No counts are maintained here: a hand-copied
+number goes stale (#393). `py -3 tools/maintainer_checks.py --json` ->
+`logical_line_counts`, and the human report lists every oversize file.
 
 ### 2.4 Refactoring Protocol
 
-When touching ANY function currently in a monolith file:
+When you split a file or move a function out of an oversize one:
 
-1. **Move** it to the correct module (see layout above).
+1. **Move** it to the module that owns its concept (§2.1).
 2. **Import** it back in the original file if still referenced there.
-3. **Do NOT leave the old copy** in the monolith.
+3. **Do NOT leave the old copy** behind.
 4. **Update all callers** in the same commit.
 5. **Never make a monolith worse.** If you're adding to `main.py` or `App.tsx`, extract first.
+6. **Split along a seam** -- one concern per file -- never at an arbitrary line to pass a check.
 
 ---
 
@@ -1114,6 +1098,17 @@ Always-on copies: `.cursor/rules/commit-push-deploy.mdc`, `.cursor/rules/github-
 
 - Use structured logging (`logging.getLogger(__name__)`) in Python.
 - Never swallow exceptions silently — at minimum log a warning.
+- **The money path fails the gate on silence.** In `backend/execution/`,
+  `backend/ibkr/`, `backend/practice/`, `backend/sim/`, `backend/kill_switch/`,
+  `backend/bot/` and `frontend/src/ibkr/` an `except …: pass`, an
+  `except …: return []` / `{}`, or an empty `catch` is a `*_money` finding, because
+  a desk that swallows an order, position or account read is lying about its
+  state. Log it, turn "unknown" into a stated unknown (never "empty", "flat" or
+  "abandoned"), or -- when silence is the correct behavior (a timeout that ends a
+  wait, an idempotent `list.remove`, a parse that falls through to the next
+  format) -- say so at the site:
+  `except asyncio.TimeoutError:  # maintainer: allow-swallow the timeout ends the wait`.
+  File-wide allowlists never apply there (`tools/maintainer_lib/swallow.py`).
 - Frontend: surface errors in UI debug panels, not just console.
 
 ### 6.4 Testing
@@ -1245,6 +1240,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-23 | Code-shape rules measure behavior, not a snapshot (operator ask: "'All files are under 400 lines' -- is this an actual rule? ... how do we create better rules to manage the scalability of this project?"). §2 rewritten: the hand-kept file trees become ownership statements next to the code (backend package docstrings, `frontend/src/FOLDERS.md`) that the checker keeps complete, printed by `tools/module_map.py`; the hard 400-line cliff -- which bunched ten files at 395-400 lines -- becomes a soft limit that asks for a one-concern reason, a no-growth check without one, and an 800-line ceiling; constants tables are exempt; the .tsx 300 rule (which contradicted §2.3) is gone; feature-slice deep imports are frozen per file (311) instead of checked for 9 of 34 slices. §6.3: silent failures on the money path fail the gate; 22 sites fixed or given a reason, three of them real misreports (a practice flatten reported flat when its re-read failed, the startup sweep could call a filled order abandoned when `ib.fills()` failed, a partly unreadable commission total was shown as the total). CI runs `maintainer_checks.py --gate`. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Automatic release tags (operator ask: "after every commit we make to master, can we create a release tag"): `Desktop pack` tags every master commit `vNNN` and publishes an application-affecting one as a GitHub Release with the installer and update feed; docs/site-only commits get the tag only. Master runs group by commit so a burst of merges tags every one, and a Release is marked latest only when it is the highest. Supersedes #347's operator-tag-only publishing; the installed desk now offers an update after each application merge. §8 amended. | User Directive + Claude Code |
 | 2026-09-23 | The catalyst verdict on the desk (ADR 024 amendment, operator report: "still just seeing garbage"): the Gainers' top three all showed one Benzinga market wrap as their news, IPDN's panel called it "moved price 90%", and real releases (HCTI's PR Newswire LOI, BENF's 8-K) showed nothing -- the verdict fed only the setup scanner. Scanner rows now carry `catalyst` (`catalysts/board.py`); the News column, "Has news" chip, Trader tab chip, HOD flame and the Watchlist pillar read it; the Trader's News panel reads `GET /api/catalysts/{symbol}` (verdict + labelled items, lists folded away). Rules v5: share consolidations are reverse splits, circuit-breaker notices are halts not news, "beat the market" is not an ATM offering, debt elimination and customer wins count, a movers-section URL needs a placed class; the SEC headline joiner stops cutting on "and". `has_news` keeps its meaning. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | The bot plays the operator's setups (ADR 027, operator decision: "no, I don't think we need the old packs -- remove"; "keep the Strategy L2 + all setups from my material"; approved Bots mockup v4): the halt-luld / quote-spike / volume / llm-decide packs, `POST /api/bot/llm/spend` and the `nova-brain` sidecar (Electron, `Run Nova.bat`, `Start-NovaBrain.ps1`) are removed; the session (schema 4) carries `setup`, `setups`, `readout` and `gates`. Strategy waits on the pre-registered first-pullback read-out (`setup_scanner/readout.py`, Bot-Trading-Plan §2g): raising to Strategy lands not active, Activate at Strategy and every L2 fire are refused `BOT_READOUT_NOT_PASSED` until 50 triggered go setups beat +0.2R net and blind / wait; L2 entries keep the material's 07:00-10:00 ET window and one trade a day. The Bots page is rebuilt (hero with level, gates and Activate; the playbook with first pullback's rules, tape gate and read-out; symbols with Level 2; sleeve and breakers; one proposals inbox; the activity timeline; today and the scoreboard) and the header's second bot row is gone. §3 amended. | User Directive + Claude Opus 5.5 |
@@ -1427,7 +1423,7 @@ Live rule bodies live only under `.cursor/rules/*.mdc`. Do **not** paste full ru
 
 - `backend-modularity.mdc` -- `backend/**/*.py` -- no logic in `main.py`
 - `frontend-modularity.mdc` -- `frontend/src/**/*.{ts,tsx}` -- no logic in `App.tsx`
-- `file-size-limits.mdc` -- backend + frontend src -- max lines / extract-first
+- `file-size-limits.mdc` -- backend + frontend src -- soft 400 with a one-concern reason, no growth without one, 800 ceiling
 - `centralized-constants.mdc` -- backend + frontend src -- tunables in domain modules
 - Continuity rules (already glob): `hotkeys-continuity`, `docs-continuity`, `execution-continuity`, `widgets-continuity`, `security-continuity`
 

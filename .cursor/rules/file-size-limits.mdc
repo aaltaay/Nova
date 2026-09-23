@@ -1,43 +1,62 @@
 ---
-description: Enforce maximum file size limits to prevent monolith files
+description: File size is a prompt for judgment -- soft 400 with a one-concern reason, no growth without one, 800 ceiling (AGENTS.md §2.3)
 globs:
   - "backend/**/*.py"
   - "frontend/src/**/*.ts"
   - "frontend/src/**/*.tsx"
+  - "tools/**/*.py"
 alwaysApply: false
 ---
 
-# File Size Limits
+# File Size
 
-No single source file may grow beyond the limits below. When a file approaches or exceeds its limit, the agent MUST refactor before adding more code.
+A line count is a proxy for "an agent can read this file in one pass and see
+one concern". It is not a target. AGENTS.md §2.3 holds the table; this rule is
+how to act on it.
 
-## Limits
+## Before you push
 
-| File Category | Max Lines | Action |
-|---------------|-----------|--------|
-| `backend/main.py` | 200 | Extract logic to modules |
-| `frontend/src/App.tsx` | 150 | Extract to components/pages |
-| `frontend/src/index.css` | 50 | Import-only barrel (Phase 2) |
-| Domain stylesheets (`.css`) | 1000 | Prefer ≤700; shared under `styles/`, features co-located |
-| Any domain stylesheet (`.css`) | 1000 | Prefer ≤700; split by shared/feature owner |
-| Any new Python module | 400 | Split into sub-modules |
-| Any new React component | 300 | Break into child components |
-| Any new TypeScript file | 400 | Split into focused modules |
+```text
+py -3 tools/maintainer_checks.py --gate --base origin/master
+```
 
-Accepted baselines in `tools/maintainer_checks.py` (`BASELINE_OVER_LIMIT` / `BASELINE_ACCEPTED_LINES`) may exceed 400 but **must not grow** past the accepted line count. As of 2026-07-20 both `hod_momo.py` and `executor.py` are under the hard limit (dicts empty). See `architecture/dependency-rules.md`.
+That is the CI gate. It fails on `file_size_hard` (entry points),
+`file_size_ceiling` (any code file past 800 lines) and `file_size_growth` (a
+file past 400 that grew in your change without a stated reason). A plain
+`file_size` finding is advisory.
 
-## Enforcement
+## When a file you touch is, or becomes, over 400 lines
 
-1. **Before adding code to ANY file**, check its current line count.
-2. If the file is at or above its limit, **extract first, add second.**
-3. If you are creating a new file and it will exceed 400 lines, design it as multiple files from the start.
-4. **Never make a monolith worse.** If touching a file that already violates limits, extract at least one function/component to its correct module before adding new code.
+Decide, in this order:
 
-## Known Violations (must be addressed incrementally)
+1. **Is there a seam?** Two concerns in one file -- a state machine and its
+   formatting, a route and its domain logic, a component and a hook it grew --
+   split along it (AGENTS.md §2.4: move, import back, update callers, one commit).
+2. **Is it genuinely one concern?** Say so in the file's first 40 lines:
+   `maintainer: one-concern <reason>`. The reason names the one invariant or
+   state the file owns ("the never-leak-a-scanner-slot invariant must live in one
+   place"). "Legacy", "too big to split now" and "tests monkeypatch its
+   globals" are not reasons.
+3. **Neither, and no time now?** Do not grow it. Leave the advisory finding and
+   open a `deferred` issue naming the seam you would cut.
 
-- `backend/main.py` (194 lines → target 200) — ✅ met (Phases 1–6, 2026-07-14; CORS middleware extracted to `app_lifespan.py`, 2026-07-15)
-- `frontend/src/App.tsx` (73 lines → target 150) — ✅ met (Phase 7, 2026-07-14)
-- `backend/hod_momo.py` (1226 → 716 lines, 2026-07-15) — Split dataclasses/serialization into `hod_momo_models.py`, pure per-strategy gate evaluation into `hod_momo_filters.py`, and debug-payload formatting into `hod_momo_debug.py` (all <200 lines). `hod_momo.py` remains over 400 lines by design: `backend/tests/test_hod_momo_engine.py` and `test_hod_momo_persist.py` monkeypatch its module-level globals directly (`_configs`, `_master`, `_pending_consolidation`, `_ticker_snaps`, `_cache`, etc.), and several of those globals are *reassigned* (not just mutated) by `load_state()` / `reset_all()` / `_check_and_reset_session()`. Moving the reassigning functions to a different module would leave stale aliases behind and silently break both the test monkeypatches and live config/session resets. Further splitting would require introducing a shared-state module accessed via qualified attribute lookups everywhere — out of scope for a pure structural refactor on live alert logic.
-- `backend/strategy/executor.py` (462 → 428 lines, 2026-07-15, Nova OS hardening pass) — Deliberate-flatten logic (`flatten_preview`, `flatten_positions`, IBKR real-position reconciliation, protective-leg cancellation) extracted to `backend/strategy/executor_flatten.py` (151 lines), re-exported as `executor.flatten_preview`/`flatten_positions` so existing callers/tests are unaffected. `executor.py` stays over 400 by design: `_open_positions` and `_kill_switch_tripped` are mutated in place by `arm`/`disarm`/`kill_switch`/`on_signal`/`place_from_ticket`/`_check_fills_once`, and `backend/tests/test_executor.py` monkeypatches those globals directly. Splitting `place_from_ticket`'s gate chain (kill/concurrency/auto_paper/risk/plan checks) or the kill-switch cancel path into another module would fragment a single audited order-safety decision into cross-module state lookups — the every-rejection-leaves-a-receipt guarantee is easier to verify correct in one place. Net effect of this pass is still a reduction versus the 547 lines the safety hardening would have reached unextracted.
-- `backend/strategy/executor.py` (376 → 366 lines, 2026-09-11, D-037 kill-switch latch) — the kill latch + working-order sweep would have pushed the file to 457 lines, so the three stateless cancel helpers (`cancel_via_service`, `cancel_bracket_if_parent_unfilled`, `cancel_remaining_open_orders`) moved to `backend/strategy/executor_cancel.py` (109 lines). They take a position/ids argument and own no module state, so they extract cleanly; `kill_switch()` and `cancel_working_entry()` stayed behind because they mutate `_open_positions` and the kill latch that `backend/tests/test_executor.py` monkeypatches directly.
-- `backend/ibkr/discovery.py` (~503 → 614 lines, 2026-07-23, surgical scanner-slot recovery) and `backend/ibkr/client.py` (~566 → 588 lines, same date) — both already over 400 before this pass from a same-day Error 322 leak fix. Added Error-322 detection (`errorEvent` listener + `IbkrScannerSlotExhaustedError`), `recover_scanner_slots()`, and `_scan_once_with_recovery()` to `discovery.py` because they read/mutate the same `_inflight_scan_reqids` / `_scan_lock` / `_ScanDataList` module state as `_one_shot_scanner()` and `scan_symbols()` — splitting them out would spread one audited "never leak an IBKR scanner slot" invariant across two files for no isolation benefit. Added `_clear_sticky_bridge_error_on_ready()` to `client.py` because it must run at both `session_state.set_ready()` call sites inside `reconnect_loop()`, the same function that already owns `_ib`/`_mode`/`_broker_account_kind`. Follow-up: both files are due for a proper split (e.g. discovery.py's scanner-vs-snapshot-vs-mover-shaping concerns; client.py's connect/reconnect/mode-switch concerns) the next time either is touched for a reason unrelated to a live incident.
+## Never
+
+- Squeeze a file to fit a number: delete blank lines or comments, join
+  statements, shorten names, or move code to an arbitrary sibling. The hard 400
+  that preceded this rule made agents do exactly that (ten files at 395-400
+  lines on 2026-09-23).
+- Split at an arbitrary line so each half passes. A split that needs the reader
+  to open both files to follow one decision is worse than one long file with a
+  reason.
+
+## Exempt
+
+Tests; constants tables (`backend/constants*.py`, `frontend/src/constantGroups/`)
+up to the 800 ceiling. Stylesheets have their own advisory 1000 (prefer 700).
+
+## Related
+
+- AGENTS.md §2 (ownership, feature boundaries, size) and §6.3 (money-path silence)
+- `tools/maintainer_lib/size_policy.py` (the rule as code), `gate.py` (what CI fails on)
+- `engineering-standards.mdc` (name the refactoring: Extract Function, Move Function, Split Phase)

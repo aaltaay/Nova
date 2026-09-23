@@ -208,7 +208,7 @@ def close_viewer_queue(symbol: str, q: asyncio.Queue) -> None:
         return
     try:
         queues.remove(q)
-    except ValueError:
+    except ValueError:  # maintainer: allow-swallow closing an already-closed viewer queue is a no-op
         pass
     if not queues:
         _viewer_queues.pop(symbol, None)

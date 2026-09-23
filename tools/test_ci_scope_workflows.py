@@ -57,7 +57,7 @@ def test_housekeeping_is_scheduled_and_security_coverage_remains():
     agent = str(ci["jobs"]["agent-contract"])
     assert "python tools/stale_pr_branches.py" not in agent
     assert "python tools/master_branch_protection.py check" not in agent
-    assert "maintainer_checks.py --fail-on-kind ib_loop_sync_io" in agent
+    assert "maintainer_checks.py --gate" in agent
     assert "if" not in ci["jobs"]["gitleaks"]
     for name in ("security-scans.yml", "repository-maintenance.yml"):
         wf = workflow(name)

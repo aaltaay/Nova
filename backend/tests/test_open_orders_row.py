@@ -288,3 +288,33 @@ def test_filled_commission_report_is_surfaced():
     assert row["filled_qty"] == 1.0
     assert row["avg_fill_price"] == 150.48
     assert row["commission"] == 1.0
+
+
+def test_an_unreadable_commission_report_states_no_commission():
+    """A total missing one fill's commission is a guess -- the row says none."""
+    trade = SimpleNamespace(
+        order=SimpleNamespace(
+            orderId=115730,
+            action="BUY",
+            totalQuantity=2,
+            orderType="MKT",
+            lmtPrice=0.0,
+            auxPrice=0.0,
+            outsideRth=False,
+        ),
+        contract=SimpleNamespace(symbol="SPCX"),
+        orderStatus=SimpleNamespace(status="Filled", filled=2, remaining=0, avgFillPrice=150.5),
+        fills=[
+            SimpleNamespace(
+                execution=SimpleNamespace(shares=1.0, price=150.48),
+                commissionReport=SimpleNamespace(commission=1.0),
+            ),
+            SimpleNamespace(
+                execution=SimpleNamespace(shares=1.0, price=150.52),
+                commissionReport=SimpleNamespace(commission="n/a"),
+            ),
+        ],
+    )
+    row = _trade_to_order_row(trade)
+    assert row["filled_qty"] == 2.0
+    assert row["commission"] is None

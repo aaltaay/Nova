@@ -244,7 +244,7 @@ def freeze_table(
                 loop = asyncio.get_running_loop()
                 loop.create_task(broadcast_table_state(table, ts))
             except RuntimeError:
-                pass
+                logger.debug("scanner session: no running loop; table-state push skipped")
 
         if is_ib_loop():
             publish_to_http(_after_freeze)

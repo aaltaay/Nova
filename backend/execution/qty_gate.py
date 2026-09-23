@@ -46,7 +46,7 @@ def _cap_shares() -> float:
             value = float(raw)
             if value >= 1:
                 return float(int(value))
-        except ValueError:
+        except ValueError:  # maintainer: allow-swallow falls through to the warning below
             pass
         logger.warning("%s=%r is not a whole number >= 1; using the default %s",
                        IBKR_QTY_CAP_ENV, raw, IBKR_FORCE_ONE_SHARE_QTY)

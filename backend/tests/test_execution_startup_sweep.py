@@ -164,6 +164,23 @@ def test_unknown_order_is_abandoned_not_invented(monkeypatch):
     assert row["reason_code"] == "SWEEP_UNRESOLVED"
 
 
+def test_unknown_order_is_unverified_when_executions_cannot_be_read(monkeypatch):
+    """ib.fills() failing used to read as "no executions", so an order the
+    sweep could not prove either way was called abandoned. A failed read of a
+    proof source is not evidence of absence."""
+    class _BrokenFillsIb:
+        def fills(self):
+            raise RuntimeError("socket closed mid-read")
+
+    execution_id = _stale_row("stale-fills-unreadable", order_id=31)
+    _arm_connected(monkeypatch, working=[], closed=[])
+    monkeypatch.setattr(client_mod, "get_ib", lambda: _BrokenFillsIb())
+    summary = sweep.run_startup_sweep()
+    assert summary["unverified"] == [execution_id]
+    assert summary["abandoned"] == []
+    assert store.get_by_id(execution_id)["status"] == "sent"
+
+
 def test_unknown_order_left_untouched_while_history_not_loaded(monkeypatch):
     """PROBLEM_LOG 2026-09-19: the Gateway stopped answering reqCompletedOrders
     for hours, so an order that filled while Nova was down is missing from

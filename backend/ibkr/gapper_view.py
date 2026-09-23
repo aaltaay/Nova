@@ -101,7 +101,7 @@ def _publish(table: str, rows: list[dict], ts, wall: float) -> None:
         else:
             _send()
     except RuntimeError:
-        pass
+        logger.debug("gapper_view: no running loop; roster push skipped")
     except Exception:
         logger.debug("gapper_view: roster publish failed", exc_info=True)
 

@@ -38,6 +38,7 @@ def trade_to_order_row(trade) -> dict:
     notional = 0.0
     commission_total = 0.0
     has_commission = False
+    commission_unreadable = False
     for fill in fills:
         note_reconciliation_fill(
             fill,
@@ -64,7 +65,8 @@ def trade_to_order_row(trade) -> dict:
                 commission_total += float(getattr(report, "commission", 0) or 0)
                 has_commission = True
             except (TypeError, ValueError):
-                pass
+                # A total missing one fill's commission is a guess: state none.
+                commission_unreadable = True
     if filled_qty > 0:
         avg_fill = notional / filled_qty
     elif fills:
@@ -154,5 +156,5 @@ def trade_to_order_row(trade) -> dict:
         "updated_at": updated_at,
         "filled_at": filled_at,
         "held_until": held_until_iso_from_trade(trade),
-        "commission": commission_total if has_commission else None,
+        "commission": commission_total if has_commission and not commission_unreadable else None,
     }

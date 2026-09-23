@@ -176,14 +176,19 @@ async def flatten_account_once() -> dict[str, Any]:
         ok = False
         logger.error("bot flatten: positions still open after close: %s", left)
     out: dict[str, Any] = {"ok": ok, "results": results, "cancels": cancels}
-    if left:
+    if left is None:
+        # The re-read failed: the closes were sent, but flat is unproven.
+        out["ok"] = False
+        out["error"] = "flatten sent, but positions could not be re-read to confirm it"
+    elif left:
         out["error"] = "positions still open after flatten: " + ", ".join(left)
         out["left_open"] = left
     return out
 
 
-def _practice_left_open(before: list[dict[str, Any]]) -> list[str]:
-    """``["GRML 1"]`` for symbols the flatten closed that still hold shares."""
+def _practice_left_open(before: list[dict[str, Any]]) -> list[str] | None:
+    """``["GRML 1"]`` for symbols the flatten closed that still hold shares;
+    None when the positions cannot be re-read (unproven, never "flat")."""
     from ibkr import account as _account
     from ibkr.errors import IbkrAccountError
 
@@ -192,7 +197,7 @@ def _practice_left_open(before: list[dict[str, Any]]) -> list[str]:
         after = _account.get_positions()
     except IbkrAccountError as exc:
         logger.warning("bot flatten: could not re-read positions after close: %s", exc)
-        return []
+        return None
     return [f"{symbol} {qty:g}" for symbol, qty, _side in _position_closes(after) if symbol in closed]
 
 

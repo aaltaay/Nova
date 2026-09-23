@@ -326,7 +326,7 @@ async def reconcile_loop(
         ev = _ensure_reconcile_event()
         try:
             await asyncio.wait_for(ev.wait(), timeout=float(IBKR_L1_RECONCILE_SEC))
-        except asyncio.TimeoutError:
+        except asyncio.TimeoutError:  # maintainer: allow-swallow the interval elapsing starts the next reconcile
             pass
         else:
             ev.clear()

@@ -100,7 +100,7 @@ Declared order (specificity from general → specific):
 | Check | Phase |
 |-------|-------|
 | CSS line limits + `index.css` hard cap | 1–2 |
-| Accepted-baseline **growth** (hod_momo, executor) | 1 |
+| File growth past 400 lines without a one-concern reason (`file_size_growth`, AGENTS.md §2.3) | gate |
 | Production `import main` for state | 1 warn → 7 eliminate |
-| Cross-feature deep imports | blocking via public feature barrels (`workspace/`, `modules/`, `ibkr/`, `chart/`) |
+| Cross-feature deep imports (every `feature` in `frontend/src/FOLDERS.md`) | gate past the frozen per-file counts in `tools/maintainer_lib/baselines.json` |
 | Layer import direction (representative) | 1 warn |
