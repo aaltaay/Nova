@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HOD_MOMO_ALERT_SOUND_KEY } from './hodMomoAlertSoundConstants';
 import { resetHodMomoAlertSoundForTests } from './hodMomoAlertSound';
 import { HOD_MOMO_STRIP_ROW_PX, HOD_MOMO_STRIP_STORAGE_KEY } from './hodMomoStripConstants';
+import { consumeFocusListRequest } from '../workspace/focusListRequest';
 import { HodMomoDock } from './HodMomoDock';
 import type { HodMomoContextValue } from './HodMomoContext';
 import { HodMomoContextProvider } from './HodMomoContext';
@@ -155,7 +156,18 @@ describe('HodMomoDock (strip)', () => {
     expect(workspaceMock.selectRowSymbol).toHaveBeenCalledWith('BRNQ');
     expect(workspaceMock.openStockView).not.toHaveBeenCalled();
     fireEvent.click(rows[0].querySelector('button.symbol-btn') as HTMLElement);
-    expect(workspaceMock.openStockView).toHaveBeenCalledWith('GRML');
+    expect(workspaceMock.openStockView).toHaveBeenCalledWith('GRML', { from: 'hod_momo' });
+  });
+
+  it("a pick or an open names the strip's list for the Trader's Focus rail", () => {
+    consumeFocusListRequest();
+    const onOpenTrading = vi.fn();
+    renderStrip(makeValue({ dockMode: 'running_up' }), { onOpenTrading });
+    const row = screen.getAllByTestId('hod-momo-strip-row')[0];
+    fireEvent.click(row);
+    expect(consumeFocusListRequest()).toBe('running_up');
+    fireEvent.click(row.querySelector('button.symbol-btn') as HTMLElement);
+    expect(onOpenTrading).toHaveBeenCalledWith('QNME', 'running_up');
   });
 
   it('routes a row click through onAlertSelect when the page provides it', () => {

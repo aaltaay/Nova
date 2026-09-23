@@ -4,7 +4,7 @@
  * HOD stream/config live in HodMomoProvider (AppShell); dock UI is middle-column only.
  * Tab state is published to navRailStore; the rail's tab requests land here.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TabModuleHost } from '../components/TabModuleHost';
 import { SelectedScannerWidget } from '../components/SelectedScannerWidget';
 import { SidePanel } from '../components/SidePanel';
@@ -23,6 +23,7 @@ import { useLiveScannerFeed } from '../scanner/ScannerDataContext';
 import { ScannerDesk } from '../scanner/ScannerDesk';
 import { useScannerBoard } from '../scanner/useScannerBoard';
 import { useSettings } from '../settings/SettingsContext';
+import { requestFocusList } from '../workspace';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
   clearScannerNavState,
@@ -151,6 +152,17 @@ export function DashboardPage() {
   const mainTab = isMainScannerTab(activeTab) ? activeTab : DEFAULT_ACTIVE_TAB;
   const moduleTitle = getModule(mainTab)?.title ?? 'Scanner';
 
+  // A symbol picked or opened from the board takes the Trader's Focus rail to
+  // this list: a row body only selects, and the rail's Trader item opens it.
+  const selectFromBoard = useCallback((symbol: string) => {
+    requestFocusList(mainTab);
+    selectRowSymbol(symbol);
+  }, [mainTab, selectRowSymbol]);
+  const openFromBoard = useCallback(
+    (symbol: string) => openStockView(symbol, { from: mainTab }),
+    [mainTab, openStockView],
+  );
+
   // Fail-loud (single-market-data-feed.mdc): a client-side filter must never
   // hide rows in silence. 2026-08-25 the exchange filter blanked the desk to
   // 1 row and nothing on screen said why. Board chips ride the same rule:
@@ -273,8 +285,8 @@ export function DashboardPage() {
               watchlistLoading={watchlist.loading}
               watchlistError={watchlist.error}
               selectedSymbol={selectedSymbol}
-              onSelect={selectRowSymbol}
-              onOpenTrading={openStockView}
+              onSelect={selectFromBoard}
+              onOpenTrading={openFromBoard}
               pricesStale={scanner.replay ? false : scanner.pricesStale}
               flashSymbols={scanner.flashSymbols}
               rowQuoteTs={scanner.rowQuoteTs}

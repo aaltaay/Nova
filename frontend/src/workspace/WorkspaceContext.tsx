@@ -64,12 +64,14 @@ export type WorkspaceValue = {
   ibkrGatewayMode: 'paper' | 'live' | null;
   ibkrAccountKind: string | null;
   ibkrIntentionalMode: 'paper' | 'live' | null;
-  /** Open the Trader on `symbol`; `pin` lands it beside the preview tab instead of replacing it. */
-  openStockView: (symbol: string, opts?: { pin?: boolean }) => void;
+  /** Open the Trader on `symbol`; `pin` lands it beside the preview tab instead
+   * of replacing it; `from` is the scanner list it was picked from, which the
+   * Focus rail follows. */
+  openStockView: (symbol: string, opts?: { pin?: boolean; from?: string }) => void;
   /** Desk board row click: add or activate the tab and select the symbol
    * without switching to the full Trader view (the Desk shows the workspace
-   * beside its board). */
-  openTraderTab: (symbol: string) => void;
+   * beside its board). `from` as for `openStockView`. */
+  openTraderTab: (symbol: string, from?: string) => void;
   /** Row-body click on a table with a separate ticker button (ADR 011 §7a):
    * Quote Panel only on Scanner; adds or activates a tab on Trader. */
   selectRowSymbol: (symbol: string) => void;

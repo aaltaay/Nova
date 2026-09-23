@@ -108,10 +108,11 @@ describe('DeskPage', () => {
     expect(screen.getByTestId('desk-board')).toBeTruthy();
     expect(screen.getByTestId('desk-workspace-empty').textContent).toMatch(/No symbol open/);
     fireEvent.click(screen.getByTestId('desk-board-row-VXTL'));
-    expect(mocks.openTraderTab).toHaveBeenCalledWith('VXTL');
+    // Both carry the board's list, which the Trader's Focus rail follows.
+    expect(mocks.openTraderTab).toHaveBeenCalledWith('VXTL', 'gappers');
     expect(mocks.openStockView).not.toHaveBeenCalled();
     fireEvent.doubleClick(screen.getByTestId('desk-board-row-VXTL'));
-    expect(mocks.openStockView).toHaveBeenCalledWith('VXTL');
+    expect(mocks.openStockView).toHaveBeenCalledWith('VXTL', { from: 'gappers' });
   });
 
   it('highlights the active tab as the board row, hides the empty note, and shows REC / bot dots from status + allowlist', () => {
