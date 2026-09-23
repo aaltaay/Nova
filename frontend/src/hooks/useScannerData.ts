@@ -36,7 +36,7 @@ import {
   feedErrorFromPayload,
   SCANNER_CATALYSTS_FETCH_FAILED,
 } from '../scanner/scannerHonesty';
-import { fetchScannerHistory, type HistoryTableKey } from '../scanner/scannerHistory';
+import { fetchScannerHistory, historyDatesUrl, type HistoryTableKey } from '../scanner/scannerHistory';
 import {
   nextRetryDelay,
   SCANNER_ENVELOPE_TABLE_AGE,
@@ -290,7 +290,7 @@ export function useScannerData(opts: {
 
   const fetchHistoryDates = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/history/dates?type=gappers`);
+      const res = await fetch(historyDatesUrl(API_URL));
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data?.dates)) setHistoryDates(data.dates.filter((d: unknown) => typeof d === 'string'));

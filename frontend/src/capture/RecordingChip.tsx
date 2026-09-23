@@ -21,6 +21,7 @@ import {
   recordingChipValue,
 } from './constants';
 import { elapsedClockLabel, elapsedLabel, recordingView } from './recordingSignalModel';
+import { AUTO_RECORD_CHIP_LINE } from '../leaderboard/leaderboardConstants';
 import { getRecordingSymbols, getSessionRecordVersion, subscribeSessionRecord } from './sessionRecordStore';
 import './recordingSignal.css';
 
@@ -52,9 +53,11 @@ export function RecordingChip({ onOpenSymbol, variant = 'compact' }: Props) {
         const segmentMs = view?.segmentSinceMs ?? view?.sinceMs ?? null;
         const elapsed = elapsedLabel(segmentMs);
         const value = recordingChipValue(symbol, elapsed);
+        // Auto-record stays quiet (ADR 022): its symbols are marked "auto" in the card, nowhere else.
+        const auto = (status.auto_record?.symbols ?? []).includes(symbol);
         const card = view
-          ? recordingChipTitle({ ...view, elapsed, sessionElapsed: elapsedLabel(view.sinceMs) })
-          : `Recording ${symbol}`;
+          ? recordingChipTitle({ ...view, elapsed, sessionElapsed: elapsedLabel(view.sinceMs), auto })
+          : `Recording ${symbol}${auto ? ` (${AUTO_RECORD_CHIP_LINE})` : ''}`;
         const open = (e: React.MouseEvent) => { e.preventDefault(); onOpenSymbol?.(symbol); };
         const chip = variant === 'bar' ? (
           <button

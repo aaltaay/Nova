@@ -22,6 +22,10 @@ export interface ScannerRow {
   /** 'close_fallback' when the price is IBKR's prior close (no trade yet) -- never a live print. */
   quote_quality?: string | null;
   has_news: boolean;
+  /** Sim playback (ADR 022): the recorded row did not know whether there was news -- `has_news` is not "no news". */
+  news_unknown?: boolean;
+  /** Sim playback (ADR 022): halted at the board's minute per the halt log; null = unknown. Absent on live rows. */
+  halted?: boolean | null;
   newest_headline_at: string | null;
   market_cap: number | null;
   float: number | null;

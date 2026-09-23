@@ -7,6 +7,7 @@ import { emitSimClockScrub, SIM_CLOCK_SCRUB_EVENT, SIM_SEEK_CANCEL_EVENT, type S
 import { SIM_CAPTURE_POLL_MS, SIM_SCRUB_KEYBOARD_MS } from './simConstants';
 import type { SimClockState } from './simClockTypes';
 import { parseCaptureSessions } from './captureSessionsParse';
+import { SIM_DAY_PICKER_FAILED } from '../leaderboard/leaderboardConstants';
 /** One Session Record row of `GET /api/capture/sessions`, as parsed at the boundary. */
 export interface CaptureSessionRow {
   symbol: string;
@@ -71,9 +72,9 @@ export function useSimSessionController(active: boolean, openStockView: (symbol:
   }, [active, clearSeekIntent]);
   const setClock = (value: SimClockState) => { clockResource.suspend(); clockResource.setData(value); };
   const tabSymbol = activeSymbol?.trim().toUpperCase() || null;
-  const postClock = useCallback(async (body: object, key = 'clock') => {
+  const postClock = useCallback(async (body: object, key = 'clock', failure = 'Could not change Sim time') => {
     clockResource.suspend();
-    const next = await request<SimClockState>(key, '/clock', body, 'Could not change Sim time');
+    const next = await request<SimClockState>(key, '/clock', body, failure);
     if (next) {
       clockResource.suspend();
       clockResource.setData(next);
@@ -113,6 +114,11 @@ export function useSimSessionController(active: boolean, openStockView: (symbol:
   };
   const beginDrag = () => { dragging.current = true; clockResource.suspend(); };
   const onFollowWall = async () => { clearSeekIntent(); await postClock({ follow_wall: true }, 'follow'); };
+  /** Move Sim to a day (nothing loaded, parked at 07:00 ET); null returns to today (ADR 022). */
+  const jumpToDay = async (date: string | null) => {
+    clearSeekIntent();
+    await postClock({ session_date: date }, 'day', SIM_DAY_PICKER_FAILED);
+  };
   /** Seek to an exact second from the open (the slider is minute-grained; ⏮ is not, R22). */
   const seekToSecond = async (second: number) => {
     clearSeekIntent();
@@ -135,8 +141,9 @@ export function useSimSessionController(active: boolean, openStockView: (symbol:
     clockResource.resume();
   };
   return { clock, setClock, sessions: captureState.data, day, setDay, symbol, setSymbol,
-    dragMinute, beginDrag, onScrubInput, endDrag: commit, onFollowWall, seekToSecond, applyReplay, busy,
+    dragMinute, beginDrag, onScrubInput, endDrag: commit, onFollowWall, jumpToDay, seekToSecond, applyReplay, busy,
     suspendClock: clockResource.suspend, resumeClock: clockResource.resume,
-    errors: [...Object.entries(errors).map(([key, error]) => key === 'replay' ? `Could not select capture replay; selection was not confirmed: ${error}` : error), ...(clockState.error ? [`Sim clock: ${clockState.error}`] : []),
+    errors: [...Object.entries(errors).map(([key, error]) => key === 'replay' ? `Could not select capture replay; selection was not confirmed: ${error}`
+      : key === 'day' && error !== SIM_DAY_PICKER_FAILED ? `${SIM_DAY_PICKER_FAILED}: ${error}` : error),...(clockState.error ? [`Sim clock: ${clockState.error}`] : []),
       ...(captureState.error ? [`Capture sessions: ${captureState.error}`] : [])] };
 }

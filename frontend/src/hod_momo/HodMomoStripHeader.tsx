@@ -20,6 +20,8 @@ type Props = {
   sinceLabel: string;
   integrity: HodMomoIntegrityState;
   connected: boolean;
+  /** Sim playback (ADR 022): the feed word names the playhead instead of the live socket. */
+  feedLabel?: { text: string; title: string } | null;
   dockMode: HodDockMode;
   onSelectMode: (mode: HodDockMode) => void;
   hodCount: number;
@@ -42,6 +44,7 @@ export function HodMomoStripHeader({
   sinceLabel,
   integrity,
   connected,
+  feedLabel = null,
   dockMode,
   onSelectMode,
   hodCount,
@@ -83,12 +86,19 @@ export function HodMomoStripHeader({
         runningUpCount={runningUpCount}
         rosterCounts={null}
       />
-      <span
-        className={`hod-strip__feed${connected ? ' is-live' : ''}`}
-        title={connected ? 'HOD feed connected' : 'HOD feed disconnected'}
-      >
-        {connected ? HOD_MOMO_STRIP_FEED_LIVE : HOD_MOMO_STRIP_FEED_OFFLINE}
-      </span>
+      {feedLabel ? (
+        <span className="hod-strip__feed is-replay" title={feedLabel.title} data-testid="hod-momo-strip-feed">
+          {feedLabel.text}
+        </span>
+      ) : (
+        <span
+          className={`hod-strip__feed${connected ? ' is-live' : ''}`}
+          title={connected ? 'HOD feed connected' : 'HOD feed disconnected'}
+          data-testid="hod-momo-strip-feed"
+        >
+          {connected ? HOD_MOMO_STRIP_FEED_LIVE : HOD_MOMO_STRIP_FEED_OFFLINE}
+        </span>
+      )}
       <span className="hod-strip__spacer" />
       <span className="hod-strip__menu-host">
         <button

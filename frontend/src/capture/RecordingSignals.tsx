@@ -20,6 +20,7 @@ import {
   recordingStoppedTitle,
 } from './constants';
 import { stoppedViews, type StoppedView } from './recordingSignalModel';
+import { LeaderboardRecorderToast } from '../leaderboard/LeaderboardRecorderToast';
 import {
   dismissRecordingStop,
   getRecordingSymbols,
@@ -123,6 +124,8 @@ export function RecordingSignals({ onOpenSymbol }: { onOpenSymbol?: (symbol: str
           </div>
         </div>
       ))}
+      {/* The Scanner board recorder's one loud case (ADR 022), stacked under any stop toast. */}
+      <LeaderboardRecorderToast stackIndex={shownList.length} />
     </>
   );
 }

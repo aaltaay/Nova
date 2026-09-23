@@ -36,6 +36,7 @@ import { useHodMomoOptional, type HodMomoContextValue } from '../hod_momo/HodMom
 import { HOD_MOMO_STRIP_EMPTY_CONNECTING } from '../hod_momo/hodMomoStripConstants';
 import { useLiveScannerFeedOptional, type LiveScannerFeed } from '../scanner/ScannerDataContext';
 import { listAbsenceText } from '../scanner/listAbsence';
+import { replayListAbsence } from '../leaderboard/leaderboardRows';
 import { TRADER_TAB_GAP_TITLE } from '../constantGroups/trader_view';
 import { useSettingsOptional } from '../settings/SettingsContext';
 import { SIM_FOCUS_RAIL_REPLAY_NOTE } from '../sim/simConstants';
@@ -59,6 +60,7 @@ function absenceText(
   hodStream: HodStream | null,
   feed: LiveScannerFeed | null,
   rows: FocusRow[] | null,
+  list: string,
 ): string {
   if (hodList) {
     if (!hodStream) return focusRailNotMirrored(title);
@@ -67,6 +69,8 @@ function absenceText(
   }
   if (!feed) return FOCUS_RAIL_NO_FEED;
   if (rows == null) return focusRailNotMirrored(title);
+  // The feed follows the Sim playhead (ADR 022): its absence is the playhead's.
+  if (feed.replay) return replayListAbsence(feed.replay, list);
   return listAbsenceText(title, { restError: feed.restError, healthStatus: feed.health?.status }, focusRailEmpty);
 }
 
@@ -77,8 +81,9 @@ export function FocusRail() {
   const { activeTraderSymbol, traderLiveTabs, openStockView } = useWorkspace();
   const { isAllowed } = useBotAllowlist();
   // Sim off the live edge replays another moment: today's live price, gap and
-  // news stay off the rows; the list still opens tabs (QA W10).
-  const replayDesk = useSimReplayDesk();
+  // news stay off the rows; the list still opens tabs (QA W10). A feed that
+  // follows the playhead (ADR 022) is that moment's, so its values show.
+  const replayDesk = useSimReplayDesk() && !feed?.replay;
   useSyncExternalStore(subscribeSessionRecord, () => getRecordingSymbols().join(','), () => '');
   const [state, setState] = useState<FocusRailState>(readFocusRailState);
   const [cursor, setCursor] = useState(-1);
@@ -92,7 +97,7 @@ export function FocusRail() {
     return hodAlerts ? hodFocusRows(state.list, hodAlerts, feed) : null;
   }, [state.list, feed, filterRows, hodAlerts]);
   const title = module?.title ?? state.list;
-  const absent = absenceText(title, hodList, hodStream, feed, rows);
+  const absent = absenceText(title, hodList, hodStream, feed, rows, state.list);
 
   const update = useCallback((patch: Partial<FocusRailState>) => {
     setState(prev => {

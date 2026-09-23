@@ -14,7 +14,11 @@ import {
   captureBandSegments, captureCoverageLabel, coverageFraction, coverageLabel, coverageSegments, missingLabel,
 } from './simCoverage';
 import { etTime } from './historicalReplayFormat';
-import { clockWindow, formatClock, formatMinuteClock, stripBandSegments, stripScale } from './simStripFormat';
+import { clockWindow, formatClock, formatMinuteClock, stripBandSegments, stripScale, todayEt } from './simStripFormat';
+import { SimDayPicker } from './SimDayPicker';
+import { leaderboardLane } from '../leaderboard/leaderboardLane';
+import { useLeaderboardCoverage } from '../leaderboard/useLeaderboardCoverage';
+import { useLeaderboardDays } from '../leaderboard/useLeaderboardDays';
 import { simCaptureBandTitle, simCaptureGapTitle, simCaptureMissingLabel, simScrubberCoverageTitle } from './simConstants';
 import {
   SIM_LIVE_EDGE_EMPTY_NOTE, SIM_LIVE_EDGE_LABEL, SIM_LIVE_EDGE_SOURCE, SIM_LIVE_EDGE_TITLE, SIM_REPLAY_LOADING,
@@ -66,6 +70,10 @@ export function SimSessionHeader({ active: activeProp }: { active: boolean }) {
   const historicalSelection = useSyncExternalStore(subscribeHistory, historicalStatus.getSnapshot)
     .data?.selection ?? null;
   const { clock, sessions, day, symbol, dragMinute, setDay, setSymbol, applyReplay, busy } = controller;
+  // ADR 022: watching a past day's Scanner starts here -- the Day picker and the board lane.
+  const days = useLeaderboardDays(active);
+  const today = todayEt();
+  const boardCoverage = useLeaderboardCoverage(active && clock?.sim ? clock.session_date ?? null : null, today);
   if (!active) return null;
   const max = clock?.minute_max ?? SIM_SESSION_MINUTES;
   const minute = dragMinute ?? clock?.minute_from_open ?? 0;
@@ -96,6 +104,7 @@ export function SimSessionHeader({ active: activeProp }: { active: boolean }) {
       : coverageSegments(historicalSelection);
   // A loaded capture: where it recorded, and the gaps a restart or failure left.
   const captureBand = capture ? captureBandSegments(clock) : [];
+  const boardLane = leaderboardLane(clock, boardCoverage, etMinute);
   const rangeTitle = showCoverage
     ? simScrubberCoverageTitle(coverageLabel(historicalSelection, etMinute) || 'none yet')
     : captureBand.length ? simCaptureBandTitle(captureCoverageLabel(clock, etMinute)) : undefined;
@@ -106,9 +115,11 @@ export function SimSessionHeader({ active: activeProp }: { active: boolean }) {
     <span data-testid="sim-session-clock">{clockLabel}</span>
     {sessionDate && <span data-testid="sim-session-date" className="sim-muted" title="Session date being replayed">{sessionDate}</span>}
     <span className="sim-muted">{(clock?.phase || '--').toUpperCase()}</span>
+    <SimDayPicker clock={clock} days={days.days} error={days.error} busy={busy.has('day')} today={today}
+      onOpen={days.refresh} onPick={date => { void controller.jumpToDay(date); }} />
     <label className="sim-session-header__scrubber">
       <span data-testid="sim-session-bound-open">{scale.openLabel}</span>
-      <span className="sim-session-header__range" title={rangeTitle}>
+      <span className="sim-session-header__range" title={[rangeTitle, boardLane?.title].filter(Boolean).join('\n') || undefined}>
         <input data-testid="sim-session-scrubber" aria-label="Sim replay time" aria-valuetext={`${formatMinuteClock(minute, scale.openLabel)} Eastern`}
           type="range" min={0} max={max} value={minute} aria-busy={busy.has('clock') || busy.has('follow')}
           onPointerDown={controller.beginDrag}
@@ -122,6 +133,10 @@ export function SimSessionHeader({ active: activeProp }: { active: boolean }) {
           className={`sim-session-header__coverage sim-session-header__coverage--${kind}`}
           data-testid={`sim-scrubber-${kind}`}
           title={kind === 'gap' ? simCaptureGapTitle(reason) : undefined}
+          style={{ left: `${(left * 100).toFixed(2)}%`, width: `${(width * 100).toFixed(2)}%` }} />)}
+        {boardLane?.segments.map(({ left, width, kind, title }) => <span key={`board-${kind}-${left}`}
+          className={`sim-session-header__board sim-session-header__board--${kind}`}
+          data-testid={`sim-scrubber-board-${kind}`} title={title}
           style={{ left: `${(left * 100).toFixed(2)}%`, width: `${(width * 100).toFixed(2)}%` }} />)}
       </span>
       <span data-testid="sim-session-bound-close">{scale.closeLabel}</span>

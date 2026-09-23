@@ -40,8 +40,14 @@
   cursor: default;
 }
 
-.hod-strip__menu-item:hover {
+.hod-strip__menu-item:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.06);
+}
+
+/* Sim playback (ADR 022): Clear has nothing to clear in the alert history. */
+.hod-strip__menu-item:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .hod-strip__menu-strategies {

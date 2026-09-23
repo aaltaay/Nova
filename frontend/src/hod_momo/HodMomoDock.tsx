@@ -34,8 +34,12 @@ import { defaultHodMomentumVisibleStrategies } from './scannerPartition';
 import { useHodMomoIntegrity } from './useHodMomoIntegrity';
 import { useHodMomoStripResize } from './useHodMomoStripResize';
 import { useStripNewAlerts } from './useStripNewAlerts';
+import { hodReplayEmptyText, hodReplayFeed } from './hodMomoReplayCopy';
+import type { AlertObject } from './types';
 
 const STRIP_OVERSCAN_ROWS = 6;
+const NO_ALERTS: AlertObject[] = [];
+const NO_NEW_IDS: ReadonlySet<string> = new Set();
 
 type Props = {
   /** Sample shell: open fixture trader instead of live Stock View. */
@@ -60,6 +64,7 @@ export function HodMomoDock({ onOpenTrading, onAlertSelect }: Props) {
     showHodSettings,
     setShowHodSettings,
     toggleHodSettings,
+    replay = null,
   } = useHodMomo();
   const { selectedSymbol, setSelectedSymbol, selectRowSymbol, openStockView } = useWorkspace();
   const sample = useSampleDataOptional();
@@ -83,7 +88,9 @@ export function HodMomoDock({ onOpenTrading, onAlertSelect }: Props) {
     () => stripAlertsForMode(stream.alerts, mode, mode === 'hod_momo' ? visibleStrategies : null),
     [stream.alerts, mode, visibleStrategies],
   );
-  const newIds = useStripNewAlerts(stream.alerts);
+  // Past alerts at the Sim playhead are never NEW: they arrive as the playhead reaches them.
+  const liveNewIds = useStripNewAlerts(replay ? NO_ALERTS : stream.alerts);
+  const newIds = replay ? NO_NEW_IDS : liveNewIds;
   const since = useMemo(() => fmtStripSince(alerts), [alerts]);
 
   const strategyCounts = useMemo(() => {
@@ -98,6 +105,7 @@ export function HodMomoDock({ onOpenTrading, onAlertSelect }: Props) {
   }, [config.state.strategies]);
 
   const clearAlerts = useCallback(() => {
+    if (replay) return;
     const label = mode === 'running_up' ? 'Running Up' : 'HOD Momentum';
     if (sample) {
       void alertApp({
@@ -119,7 +127,7 @@ export function HodMomoDock({ onOpenTrading, onAlertSelect }: Props) {
         console.error('Clear HOD/Running Up alerts failed', err);
       });
     });
-  }, [mode, sample]);
+  }, [mode, sample, replay]);
 
   const selectMode = (next: HodDockMode) => {
     setDockMode(next);
@@ -153,6 +161,7 @@ export function HodMomoDock({ onOpenTrading, onAlertSelect }: Props) {
         sinceLabel={hodMomoStripSinceLabel(alerts.length, since)}
         integrity={integrity}
         connected={stream.connected}
+        feedLabel={replay ? hodReplayFeed(replay) : null}
         dockMode={mode}
         onSelectMode={selectMode}
         hodCount={hodCount}
@@ -170,6 +179,7 @@ export function HodMomoDock({ onOpenTrading, onAlertSelect }: Props) {
             debugOpen={debugOpen}
             onToggleStrategy={toggleStrategy}
             onClear={clearAlerts}
+            clearDisabled={replay != null}
             onConfigure={toggleHodSettings}
             onToggleDebug={() => {
               setDebugOpen((v) => !v);
@@ -201,10 +211,13 @@ export function HodMomoDock({ onOpenTrading, onAlertSelect }: Props) {
               <div
                 className={`hod-strip__empty${stream.feedError ? ' hod-strip__empty--error' : ''}`}
                 data-testid="hod-momo-strip-empty"
+                data-replay={replay ? '1' : undefined}
                 role={stream.feedError ? 'alert' : undefined}
               >
-                {stream.feedError
-                  ?? (stream.connected ? HOD_MOMO_STRIP_EMPTY_WAITING : HOD_MOMO_STRIP_EMPTY_CONNECTING)}
+                {replay
+                  ? hodReplayEmptyText(replay)
+                  : stream.feedError
+                    ?? (stream.connected ? HOD_MOMO_STRIP_EMPTY_WAITING : HOD_MOMO_STRIP_EMPTY_CONNECTING)}
               </div>
             ) : (
               <>

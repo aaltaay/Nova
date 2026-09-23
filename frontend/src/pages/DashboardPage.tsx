@@ -112,7 +112,8 @@ export function DashboardPage() {
     losers: scanner.losers,
     afterhours: scanner.afterhours,
     catalysts: scanner.catalysts,
-    clear: scanner.historyDate !== null,
+    // A past snapshot or the Sim playhead's board: past headlines never decorate live alerts.
+    clear: scanner.historyDate !== null || scanner.replay != null,
   });
 
   function handleTabClick(tab: ActiveTab) {
@@ -270,7 +271,7 @@ export function DashboardPage() {
               selectedSymbol={selectedSymbol}
               onSelect={selectRowSymbol}
               onOpenTrading={openStockView}
-              pricesStale={scanner.pricesStale}
+              pricesStale={scanner.replay ? false : scanner.pricesStale}
               flashSymbols={scanner.flashSymbols}
               rowQuoteTs={scanner.rowQuoteTs}
               nowSec={scanner.now}

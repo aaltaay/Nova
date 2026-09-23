@@ -16,7 +16,10 @@ import {
 } from '../constantGroups/scanner_board';
 import type { ScannerRow } from '../types/scanner';
 
-export type ChipRow = Pick<ScannerRow, 'gap_percent' | 'float' | 'rel_volume' | 'has_news'>;
+export type ChipRow = Pick<ScannerRow, 'gap_percent' | 'float' | 'rel_volume' | 'has_news' | 'news_unknown' | 'rvol_source'>;
+
+/** A Sim playback row's time-of-day RVOL is another basis than the chip's day multiple (ADR 022): unknown here. */
+const OTHER_RVOL_BASIS = 'time_of_day_20';
 
 export function isChipId(value: unknown): value is ScannerChipId {
   return typeof value === 'string' && (SCANNER_CHIP_IDS as readonly string[]).includes(value);
@@ -34,9 +37,10 @@ export function chipPasses(id: ScannerChipId, row: ChipRow): boolean {
     case 'float':
       return row.float == null || row.float <= SCANNER_CHIP_FLOAT_MAX_SHARES;
     case 'relvol':
-      return row.rel_volume == null || row.rel_volume >= SCANNER_CHIP_RELVOL_MIN;
+      return row.rel_volume == null || row.rvol_source === OTHER_RVOL_BASIS || row.rel_volume >= SCANNER_CHIP_RELVOL_MIN;
     case 'news':
-      return row.has_news === true;
+      // A played-back row that did not record its news is unknown, and unknowns pass.
+      return row.has_news === true || row.news_unknown === true;
     case 'halted':
       // Not a row fact -- never filters (stated in the chip's title).
       return true;

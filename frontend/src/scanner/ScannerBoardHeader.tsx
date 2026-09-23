@@ -32,6 +32,8 @@ import {
 } from '../constantGroups/scanner_board';
 import { promptApp } from '../ux';
 import { isChipAvailable } from './boardFilters';
+import { useLiveScannerFeedOptional } from './ScannerDataContext';
+import { ScannerReplayLabel } from './ScannerReplayLabel';
 import { useSessionCountdown } from './sessionCountdown';
 import type { BoardFilters } from './useBoardFilters';
 
@@ -142,6 +144,8 @@ function HistoryDateSelect() {
 
 export function ScannerBoardHeader({ title, filters, scannedAgoSec, feedFailure = null }: Props) {
   const session = useSessionCountdown();
+  // Sim off the live edge (ADR 022): the board is the playhead's, so the line names that moment.
+  const replay = useLiveScannerFeedOptional()?.replay ?? null;
   const [savedOpen, setSavedOpen] = useState(false);
 
   return (
@@ -185,39 +189,45 @@ export function ScannerBoardHeader({ title, filters, scannedAgoSec, feedFailure 
           </div>
         </>
       ) : null}
-      <span className="scanner-board__session" title={SCANNER_SESSION_TITLE} data-testid="scanner-board-session">
-        {/* Snapshots exist for scanner lists only -- not on Bots / Watchlist (QA V30). */}
-        {filters ? <HistoryDateSelect /> : null}
-        <span>{session.dateLabel}</span>
-        <span className="scanner-board__sep" aria-hidden="true">·</span>
-        <span data-testid="scanner-board-phase">
-          {session.phaseLabel}
-          {session.countdown ? <b className="scanner-board__cd">{session.countdown}</b> : null}
+      {replay ? (
+        <span className="scanner-board__session" data-testid="scanner-board-session">
+          <ScannerReplayLabel replay={replay} />
         </span>
-        {scannedAgoSec !== undefined ? (
-          <>
-            <span className="scanner-board__sep" aria-hidden="true">·</span>
-            <span data-testid="scanner-board-scanned">
-              {scannedAgoSec === null
-                ? SCANNER_SESSION_NOT_SCANNED
-                : <>{SCANNER_SESSION_SCANNED_PREFIX} <b>{fmtScannedAgo(scannedAgoSec)}</b> {SCANNER_SESSION_SCANNED_SUFFIX}</>}
-            </span>
-          </>
-        ) : null}
-        {feedFailure ? (
-          <>
-            <span className="scanner-board__sep" aria-hidden="true">·</span>
-            <span
-              className="scanner-board__feed-failed"
-              role="alert"
-              title={SCANNER_SESSION_FEED_FAILED_TITLE}
-              data-testid="scanner-board-feed-failed"
-            >
-              {feedFailure}
-            </span>
-          </>
-        ) : null}
-      </span>
+      ) : (
+        <span className="scanner-board__session" title={SCANNER_SESSION_TITLE} data-testid="scanner-board-session">
+          {/* Snapshots exist for scanner lists only -- not on Bots / Watchlist (QA V30). */}
+          {filters ? <HistoryDateSelect /> : null}
+          <span>{session.dateLabel}</span>
+          <span className="scanner-board__sep" aria-hidden="true">·</span>
+          <span data-testid="scanner-board-phase">
+            {session.phaseLabel}
+            {session.countdown ? <b className="scanner-board__cd">{session.countdown}</b> : null}
+          </span>
+          {scannedAgoSec !== undefined ? (
+            <>
+              <span className="scanner-board__sep" aria-hidden="true">·</span>
+              <span data-testid="scanner-board-scanned">
+                {scannedAgoSec === null
+                  ? SCANNER_SESSION_NOT_SCANNED
+                  : <>{SCANNER_SESSION_SCANNED_PREFIX} <b>{fmtScannedAgo(scannedAgoSec)}</b> {SCANNER_SESSION_SCANNED_SUFFIX}</>}
+              </span>
+            </>
+          ) : null}
+          {feedFailure ? (
+            <>
+              <span className="scanner-board__sep" aria-hidden="true">·</span>
+              <span
+                className="scanner-board__feed-failed"
+                role="alert"
+                title={SCANNER_SESSION_FEED_FAILED_TITLE}
+                data-testid="scanner-board-feed-failed"
+              >
+                {feedFailure}
+              </span>
+            </>
+          ) : null}
+        </span>
+      )}
     </header>
   );
 }

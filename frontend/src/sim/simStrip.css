@@ -57,8 +57,9 @@
 
 /* The band block fits the 36 px row (operator report, 2026-09-22: the tag hid
    behind the header): a 14 px lane above the band holds the playhead tag and
-   the 09:30 / 16:00 labels, the band is 8 px, and 5 px below hold the thin
-   recorded lane. Every piece is positioned from the band's top edge. */
+   the 09:30 / 16:00 labels, the band is 8 px, and 9 px below hold the thin
+   recorded lane and, under it, the Scanner board lane (ADR 022): 31 px in
+   all. Every piece is positioned from the band's top edge. */
 .sim-strip__band {
   display: flex;
   align-items: flex-start;
@@ -78,7 +79,7 @@
   flex: 1 1 auto;
   min-width: 0;
   height: 8px;
-  margin: 14px 0 5px;
+  margin: 14px 0 9px;
   border-radius: 4px;
   background: var(--nova-raised, #2c2c2e);
 }
@@ -120,6 +121,56 @@
   min-width: 2px;
   border-radius: 2px;
   background: var(--sim-recorded, #f5a524);
+}
+
+/* Where the Scanner board was recorded / rebuilt that day (ADR 022): a thin
+   violet lane under the recorded lane; its gaps are striped, never filled. */
+.sim-strip__lb {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 15px;
+  height: 3px;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.sim-strip__lb > i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 2px;
+  border-radius: 2px;
+  background: var(--sim-leaderboard, #a78bfa);
+}
+
+.sim-strip__lb > i.is-gap {
+  background: repeating-linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--sim-leaderboard, #a78bfa) 45%, transparent) 0 2px,
+    transparent 2px 4px
+  );
+}
+
+/* The Day picker between the transport and the band: a compact select. */
+.sim-strip__day {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--nova-text-muted, var(--text-secondary));
+  font-size: 11px;
+}
+
+.sim-strip__day select {
+  height: 22px;
+  max-width: 132px;
+  padding: 0 4px;
+  background: var(--input-bg, var(--nova-panel));
+  color: var(--nova-text, var(--text-primary));
+  border: 1px solid var(--nova-border-strong, var(--border-color));
+  border-radius: var(--radius-control, 4px);
+  font: inherit;
+  font-size: 11px;
 }
 
 .sim-strip__seg--gap {
@@ -202,7 +253,7 @@
 /* The range sits over the track, invisible, so the native slider handles the input. */
 .sim-strip__range {
   position: absolute;
-  inset: -6px 0 -8px;
+  inset: -6px 0 -11px;
   width: 100%;
   height: auto;
   margin: 0;

@@ -1,3 +1,5 @@
+import { AUTO_RECORD_CHIP_LINE } from '../leaderboard/leaderboardConstants';
+
 /** Maximum age of server recording evidence before tabs release their close lock. */
 export const CAPTURE_STATUS_FRESH_MS = 15_000;
 
@@ -16,6 +18,8 @@ export const recordingHairlineTitle = (symbol: string): string => `Recording ${s
 export const recordingChipTitle = (args: {
   symbol: string; elapsed: string; sessionElapsed: string; segment: number | null; prints: number; quotes: number;
   l2: number; lastWriteAgeSec: number | null; reacquired: number; dir: string | null;
+  /** Started by auto-record (ADR 022), not by hand. */
+  auto?: boolean;
 }): string => {
   const resumed = Boolean(args.segment && args.segment > 1);
   const lines = [
@@ -25,6 +29,7 @@ export const recordingChipTitle = (args: {
     `${args.prints.toLocaleString()} prints · ${args.quotes.toLocaleString()} quotes · ${args.l2.toLocaleString()} L2 books`,
     args.lastWriteAgeSec == null ? 'Nothing written yet' : `Last write ${args.lastWriteAgeSec}s ago`,
   ];
+  if (args.auto) lines.push(AUTO_RECORD_CHIP_LINE);
   if (args.reacquired) lines.push(`IBKR lines re-acquired ${args.reacquired}x after a Gateway drop`);
   if (args.dir) lines.push(args.dir);
   lines.push('Click to open the tab. Stop from the tab menu (hold).');
@@ -37,7 +42,13 @@ export const RECORDING_STOP_REASONS: Record<string, string> = {
   restart: 'was cut by a Nova restart',
   operator: 'was stopped',
   rotation: 'rolled to a new day',
+  auto: 'was stopped by auto-record (window ended or line yielded)',
 };
+/**
+ * Stops somebody planned -- the operator's Stop, auto-record's own stop
+ * (ADR 022) -- are quiet: never a toast, and the gap after them is not "missing".
+ */
+export const RECORDING_PLANNED_STOP_REASONS: ReadonlySet<string> = new Set(['operator', 'auto']);
 export const recordingStoppedTitle = (symbol: string, reason: string): string =>
   `${symbol} recording ${RECORDING_STOP_REASONS[reason] ?? 'stopped'}`;
 export const recordingStoppedBody = (error: string | null, prints: number): string =>

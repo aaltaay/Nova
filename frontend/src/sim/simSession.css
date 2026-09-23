@@ -32,6 +32,19 @@
   background: repeating-linear-gradient(45deg,
     color-mix(in srgb, var(--nova-danger) 60%, transparent) 0 3px, transparent 3px 6px);
 }
+/* ADR 022: where the Scanner board was kept on this day (recorded or rebuilt); gaps as gaps. */
+.sim-session-header__board {
+  position: absolute;
+  bottom: -7px;
+  height: 2px;
+  pointer-events: none;
+  background: var(--sim-leaderboard, #a78bfa);
+}
+.sim-session-header__board--gap {
+  pointer-events: auto;
+  background: repeating-linear-gradient(90deg,
+    color-mix(in srgb, var(--sim-leaderboard, #a78bfa) 45%, transparent) 0 2px, transparent 2px 4px);
+}
 .sim-session-header__picker { display: flex; align-items: center; gap: 4px; }
 .sim-session-header__picker select { max-width: 140px; }
 .sim-muted { color: var(--nova-text-muted); }

@@ -37,6 +37,10 @@ export interface IbkrStatus {
   capture_resume?: RecordingResume[];
   /** Per symbol, the last stop the operator did not ask for, until it records again or is stopped. */
   capture_stopped?: RecordingStopped[];
+  /** The always-on Scanner board recorder (ADR 022); quiet unless `ok` is false. */
+  leaderboard_recorder?: LeaderboardRecorderStatus | null;
+  /** 07:00-10:00 ET auto-record of the top leaders on free Level 2 lines (ADR 022). */
+  auto_record?: AutoRecordStatus | null;
   gateway_mode?: 'paper' | 'live';
   /** Session account classification from IB account ids (DU…=paper, U…=live). */
   broker_account_kind?: 'paper' | 'live' | 'unknown';
@@ -112,6 +116,26 @@ export interface IbkrStatus {
     healed_port?: number;
     persisted?: boolean;
   } | null;
+}
+
+/** `/api/ibkr/status` `leaderboard_recorder` (AGENTS.md section 3, ADR 022). */
+export interface LeaderboardRecorderStatus {
+  recording: boolean;
+  /** False when the store cannot be written: the one loud case. */
+  ok: boolean;
+  error: string | null;
+  /** Epoch seconds the current state began; null when unknown. */
+  since: number | null;
+  run_id: string | null;
+}
+
+/** `/api/ibkr/status` `auto_record` (ADR 022). */
+export interface AutoRecordStatus {
+  active: boolean;
+  window: string;
+  symbols: string[];
+  yielded: string[];
+  last_error: string | null;
 }
 
 export interface IbkrAccountSummary {

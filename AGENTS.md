@@ -459,8 +459,10 @@ and writes, each minute 04:00-20:00 ET on exchange days, one `minutes` row
 (`state: live | frozen | unavailable | feed_down`, `row_count`); a
 reconstructed day writes `coverage` with `state: rebuilt`. A minute without a
 `minutes` row was not recorded. Playback never carries a board across a gap:
-the board at a playhead inside one is `null` with `gap: {reason, start, end}`,
-`reason` one of `not_running | feed_down | not_recorded | outside_session`.
+the board at a playhead inside one is `null` with `gap: {reason, start, end,
+stop}`, `reason` one of `not_running | feed_down | not_recorded |
+outside_session` (`start` / `end` null for `outside_session`), `stop` --
+for `not_running` -- `shutdown` (Nova was closed) | `unexpected` | null.
 `runs` rows (`run_id`, `started_ts`, `last_beat_ts`, `stopped_ts`,
 `stop_reason`) say whether Nova closed or stopped unexpectedly. Rows are
 enqueued, never written on the IB loop (ADR 010).
@@ -490,7 +492,7 @@ one, else `reconstructed`. `GET /api/leaderboard/{date}/coverage?source=` ->
 gaps: [{start, end, reason}]}` (whole epoch seconds). `GET
 /api/leaderboard/{date}/halts?until=<epoch>` -> `{date, events[]}`. `GET
 /api/hod-momo/history/{date}` accepts `?until=<epoch>` (alerts raised at or
-before it). `GET /api/history/dates?type=all` lists every date with any saved
+before it, by `created_ts`, else `timestamp`; the reply stays a bare list). `GET /api/history/dates?type=all` lists every date with any saved
 board; `type=movers` reads the `gainers-` / `losers-` files. `/api/ibkr/status`
 adds `leaderboard_recorder: {recording, ok, error, since, run_id}`.
 

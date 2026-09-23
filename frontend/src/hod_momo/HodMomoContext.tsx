@@ -22,6 +22,7 @@ import { type HodDockMode } from './scannerDockModes';
 import { partitionScannerAlerts } from './scannerPartition';
 import type { useHodMomoConfig } from './useHodMomoConfig';
 import type { useHodMomoStream } from './useHodMomoStream';
+import type { HodMomoReplayState } from './useHodMomoReplay';
 
 export type { HodDockMode } from './scannerDockModes';
 
@@ -46,6 +47,11 @@ export type HodMomoContextValue = {
   showHodSettings: boolean;
   setShowHodSettings: (open: boolean) => void;
   toggleHodSettings: () => void;
+  /**
+   * Sim off the live edge (ADR 022): `stream.alerts` are the day's history up
+   * to the playhead, not the live socket. Null / absent on Live and Paper.
+   */
+  replay?: HodMomoReplayState | null;
 };
 
 const HodMomoContext = hmrStableContext<HodMomoContextValue>(import.meta.hot, 'HodMomoContext');

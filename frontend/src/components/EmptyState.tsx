@@ -17,6 +17,7 @@ export function EmptyState({
   historyError = null,
   honestyHint = null,
   feedFailure = null,
+  replayAbsence = null,
 }: {
   health: HealthStatus;
   context: MarketMode;
@@ -31,10 +32,17 @@ export function EmptyState({
   honestyHint?: string | null;
   /** A scanner REST route failed (QA C31): stated first, in every session. */
   feedFailure?: string | null;
+  /** Sim playback (ADR 022): why this list has no rows at the playhead -- a gap, a load, a failure. */
+  replayAbsence?: string | null;
 }) {
   const ibkr = useIbkrStatus();
   const isIbkr = discoveryProvider === 'ibkr';
   const warmingUp = useIbkrReconnectWarmup(isIbkr && ibkr.connected);
+
+  // The board follows the Sim playhead: its absence is the playhead's, never live copy.
+  if (replayAbsence) {
+    return <div className="empty-state empty-state--replay" role="status" data-testid="scanner-replay-absence">{replayAbsence}</div>;
+  }
 
   // A failed route is a failure, not a quiet or closed market -- and with every
   // route failing the mode never loads, so it must come before "Loading".

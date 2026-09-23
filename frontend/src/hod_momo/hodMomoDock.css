@@ -144,6 +144,12 @@
   color: #3dd68c;
 }
 
+/* Sim playback (ADR 022): the strip reads the alert history at the playhead. */
+.hod-strip__feed.is-replay {
+  color: var(--nova-accent, #0a84ff);
+  cursor: help;
+}
+
 .hod-strip__spacer {
   flex: 1;
 }
