@@ -235,24 +235,59 @@ export const globalBarLegacyFeedTitle = (feedLabel: string): string =>
   `Legacy Alpaca data feed: ${feedLabel} (not a product scanner source)`;
 
 /** Centre of the bar: the ticker search. Enter opens the symbol in the Trader. */
-export const GLOBAL_BAR_SEARCH_PLACEHOLDER = 'Symbol';
+export const GLOBAL_BAR_SEARCH_PLACEHOLDER = 'Symbol, company, /regex/';
 export const GLOBAL_BAR_SEARCH_ARIA = 'Look up symbol';
 export const GLOBAL_BAR_SEARCH_TITLE =
-  'Type a symbol, then Enter or pick a suggestion to open it in the Trader';
-/** Suggestions under the search: symbols the desk already holds (tabs, positions, scanner). */
+  'Symbol or company name · /regex/ or A*X wildcard over every listed symbol · Tab completes · Enter opens in the Trader';
+/** Suggestions under the search: desk symbols first, then every listed symbol. */
 export const GLOBAL_BAR_SEARCH_MAX_SUGGESTIONS = 8;
+/** A regex / wildcard lists more (the list scrolls); the footer states the full count. */
+export const GLOBAL_BAR_SEARCH_MAX_PATTERN_SUGGESTIONS = 40;
+/** Company-name matching starts at this many typed characters. */
+export const GLOBAL_BAR_SEARCH_NAME_MIN_CHARS = 2;
+/** Longest regex / wildcard accepted (patterns only ever run over symbols). */
+export const GLOBAL_BAR_SEARCH_PATTERN_MAX_CHARS = 64;
 export const GLOBAL_BAR_SEARCH_LIST_ARIA = 'Symbol suggestions';
 /** The row for exactly what was typed -- Enter's default, so AA never opens AAPL. */
 export const GLOBAL_BAR_SEARCH_TYPED_HINT = 'Open in the Trader';
+/** The typed row when the directory is loaded and does not list it. */
+export const GLOBAL_BAR_SEARCH_TYPED_UNLISTED_HINT = 'Not a listed symbol · open anyway';
 export const GLOBAL_BAR_SEARCH_SOURCE_LABELS: Record<TickerSuggestionSource, string> = {
   tab: 'Trader tab',
   position: 'Position',
+  recent: 'Recent',
   gappers: 'Gappers',
   gainers: 'Gainers',
   losers: 'Losers',
   afterhours: 'After hours',
   catalysts: 'Catalysts',
+  listed: 'Listed',
 };
+
+/** Recently opened symbols (search look-ups and new Trader tabs), newest first. */
+export const GLOBAL_BAR_SEARCH_RECENTS_STORAGE_KEY = 'nova.search.recent';
+export const GLOBAL_BAR_SEARCH_RECENTS_SCHEMA_VERSION = 1;
+export const GLOBAL_BAR_SEARCH_RECENTS_MAX = 12;
+export const GLOBAL_BAR_SEARCH_RECENTS_HEADING = 'Recent';
+export const GLOBAL_BAR_SEARCH_REMOVE_RECENT_ARIA = (symbol: string): string => `Remove ${symbol} from recent`;
+export const GLOBAL_BAR_SEARCH_TIPS = 'Company name · /regex/ · A*X wildcard · Tab completes · Shift+Del forgets';
+
+/** Listed-symbol directory (GET /api/symbols/directory), fetched on first focus. */
+export const SYMBOL_DIRECTORY_PATH = '/api/symbols/directory';
+/** Refetch after this long -- the backend caches it for hours anyway. */
+export const SYMBOL_DIRECTORY_REFRESH_MS = 60 * 60 * 1000;
+/** After a failed load, try again on the next focus no sooner than this. */
+export const SYMBOL_DIRECTORY_RETRY_MS = 60 * 1000;
+export const GLOBAL_BAR_SEARCH_DIRECTORY_LOADING = 'Loading listed symbols… desk symbols only for now';
+export const globalBarSearchDirectoryUnavailable = (error: string | null): string =>
+  `Listed symbols unavailable${error ? ` (${error})` : ''} -- desk symbols only`;
+export const globalBarSearchPatternSummary = (total: number, shown: number, flavor: 'regex' | 'wildcard'): string => {
+  const what = flavor === 'regex' ? 'Regex' : 'Wildcard';
+  if (total === 0) return `${what}: no symbol matches`;
+  const noun = total === 1 ? 'symbol matches' : 'symbols match';
+  return `${what}: ${total.toLocaleString('en-US')} ${noun}${total > shown ? ` · showing ${shown}` : ''}`;
+};
+export const GLOBAL_BAR_SEARCH_NO_MATCH = 'No symbol or company matches';
 
 /** Gear menu -- the homes for what left the bar. */
 export const GLOBAL_BAR_GEAR_ARIA = 'Nova menu';
