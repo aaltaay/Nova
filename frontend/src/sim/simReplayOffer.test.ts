@@ -38,6 +38,26 @@ describe('offerWindow', () => {
   });
 });
 
+describe('offerWindow around the playhead (ADR 022)', () => {
+  const at = (time: string, extra: Record<string, unknown> = {}) =>
+    ({ sim: true, session_date: '2026-09-18', live_edge: false, sim_time_et: `2026-09-18T${time}:10-04:00`, ...extra });
+
+  it('a board clicked at 07:42 offers a window that holds 07:42', () => {
+    expect(offerWindow('GRML', at('07:42'), null, SUNDAY)).toEqual({ symbol: 'GRML', date: '2026-09-18', start: '07:15', end: '09:30' });
+  });
+
+  it('keeps the default window when the playhead is inside it, at the live edge, or unknown', () => {
+    expect(offerWindow('GRML', at('10:05'), null, SUNDAY)).toMatchObject({ start: '09:15', end: '11:30' });
+    expect(offerWindow('GRML', at('07:42', { live_edge: true }), null, SUNDAY)).toMatchObject({ start: '09:15', end: '11:30' });
+    expect(offerWindow('GRML', { sim: true, session_date: '2026-09-18' }, null, SUNDAY)).toMatchObject({ start: '09:15' });
+  });
+
+  it('stays inside the 04:00-20:00 session', () => {
+    expect(offerWindow('GRML', at('04:05'), null, SUNDAY)).toMatchObject({ start: '04:00', end: '06:15' });
+    expect(offerWindow('GRML', at('19:50'), null, SUNDAY)).toMatchObject({ start: '17:45', end: '20:00' });
+  });
+});
+
 describe('replayOffer', () => {
   it('offers Download when nothing exists for the window', () => {
     expect(replayOffer(W, [])).toEqual({ kind: 'download', window: W });
