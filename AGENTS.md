@@ -511,9 +511,11 @@ symbols[], leaders[], yielded[], last_error}`; `/api/diagnostics` adds the
 `leaderboard_recorder` and `auto_record` rows (group `recorder`).
 
 **Sim day.** `POST /api/sim/clock {session_date: "YYYY-MM-DD" | null}`
-re-dates the Sim clock with nothing loaded (unloading a replay of another
-date) and parks it paused at `SIM_DAY_JUMP_PARK_MIN_ET`; `null` returns to
-today. Off the live edge the Scanner board and the HOD Momo strip read the
+re-dates the Sim clock with nothing loaded -- any loaded replay, of that day or
+another, is unloaded (never deleted) so the clock opens the full 04:00-20:00
+session (operator decision 2026-09-22) -- and parks it paused at
+`SIM_DAY_JUMP_PARK_MIN_ET`; `null` returns to today, unloading a replay of
+another date. Off the live edge the Scanner board and the HOD Momo strip read the
 leaderboard and the alert history at the playhead; Live and Paper stay on now.
 The Sim Day calendar marks, per day and each from its own source, a board
 recorded by Nova, the operator's usable Session Records (`/api/capture/sessions`)
