@@ -17,6 +17,9 @@ section 3, "Catalysts"). SEC's bulk `submissions.zip` lives beside it under `edg
 | `py -3 research/catalysts/fetch_alpaca.py` | Alpaca / Benzinga newsroom, one session day per request batch |
 | `py -3 research/catalysts/fetch_finnhub.py` | Finnhub free tier (one year back; older days recorded `out_of_range`) |
 | `py -3 research/catalysts/fetch_edgar.py` | SEC filings in each window, with the filed press release (EX-99) of every 8-K / 6-K; needs `edgar/submissions.zip` from `https://www.sec.gov/Archives/edgar/daily-index/bulkdata/submissions.zip` |
+| `py -3 research/catalysts/backfill_halts.py` | Nasdaq's halt page per date into `halts/raw/`, then the leaderboard's `halt_events` (Sim playback shows them) |
+| `py -3 research/catalysts/build_shares.py` | `sec_shares` (shares outstanding as filed, from SEC's `companyfacts.zip` on F:) and `short_interest` (FINRA) into `orb.duckdb` |
+| `py -3 research/catalysts/import_feed.py` | the desk's live catalyst feed (SEC + wires, `catalyst_feed.sqlite3`) folded into this store |
 | `py -3 research/catalysts/build_verdicts.py` | a verdict per target with the current rules version; coverage to `results/coverage.json` |
 | `py -3 research/catalysts/labels.py export` / `score <csv>` | the hand-labelled accuracy check (blind sample; labels in `label_kind`) |
 | `py -3 research/momentum/backtest_setups.py --tag fp_all --set universe=pillars_all bars_table=minutes_pillars_all` | the first pullback on the no-news universe |
@@ -33,21 +36,31 @@ answered found nothing; a source that could not reach the date did not answer.
 Results as produced: `results_*_2026-09-23.json` beside this file (numbers only -- the labelled
 headlines stay on F:, they are publishers' text).
 
-## Findings, 2026-09-23 (rules v3)
+## Findings, 2026-09-23 (rules v4)
 
-**Coverage.** 7,976 symbol-days (5,733 pillar candidates, 1,931 leaderboard movers, 312 both).
-Of the 2,243 rebuilt-leaderboard top-10 movers, the Massive archive alone had no article for 95%;
-with the four sources 30% have none found, 236 carry a strong catalyst and 648 a weak one. EDGAR's
-filed release is the representative item for 2,426 symbol-days. Finnhub (one year) was still
-filling (1,709 of about 3,500 in reach) -- re-run `fetch_finnhub.py` then `build_verdicts.py`.
+**Coverage.** 7,976 symbol-days (5,733 pillar candidates, 1,931 leaderboard movers, 312 both), every
+source answered (Finnhub for its one year: 3,490 in reach, 4,486 out of range). Of the 2,243
+rebuilt-leaderboard top-10 movers, the Massive archive alone had no article for 95%; with the four
+sources 23% have none found, 260 carry a strong catalyst and 709 a weak one. Nasdaq's halt history adds 91,695 events (2021-10 on) to the
+leaderboard's halt log -- 36,320 LULD pauses, 5,089 resolved news halts (T3).
 
 **Accuracy** (`results_labels_2026-09-23.json`; labeller: Claude, blind -- operator labels are the
-real test). On 200 items never used to tune the rules: 83% agree on kind; catalyst precision
-77%, recall 94%; **strong catalyst precision 92%**, weak 73% (the misses are minor company items --
-pre-IND filings, enrollment milestones, CEO letters -- rather than noise).
+real test). Each holdout was scored once before the rules were tuned on it. On the last, never
+tuned on: 85% agree on kind; catalyst precision 77%, recall 99%; **strong catalyst precision
+92%**, weak 73%. The weak tier plateaus: each round fixes the fluff it sees and new fluff appears.
+An unplaced single-company headline (`company_news`) was right about half the time over all 800
+labels, so the live News pillar treats it as unknown.
 
-**First pullback by catalyst** (`results_split_fp_all_2026-09-23.json`; 1,017 trades on the
-no-news universe, all -0.37R): strong catalyst at 09:30 -0.19R (180 trades, PF 0.84); weak -0.37R;
-noise only -0.47R; none found -0.44R (PF 0.27); a strong catalyst with dilution the same morning
--0.60R; clinical data +0.05R (55 trades). A real catalyst roughly halves the loss (about 1.6
-standard errors -- suggestive, not proof); it does not make the mechanical pullback pay.
+**First pullback** (`results_split_fp_all_2026-09-23.json`; 1,017 trades on the no-news universe,
+all -0.37R), each fact as known before the trade:
+
+- catalyst at 09:30: strong -0.21R (187, PF 0.83) · weak -0.37R · noise only -0.45R · none found
+  -0.44R (PF 0.26) · strong with same-morning dilution -0.56R · clinical data about break-even.
+- shares outstanding (SEC, filed before the day): 5-20M the worst (-0.61R, 15-20% winners); low
+  shares with no news -0.82R (37 trades, 11% winners); 20-50M -0.20R.
+- short interest (FINRA, lagged 14 days): 5-15% of shares -0.25R; days to cover 3+ -0.26R vs 1-3
+  -0.45R.
+- halts before the entry: a news halt only 6 trades (too few to read); a LULD pause -0.30R.
+
+A real catalyst roughly halves the loss (about 1.6 standard errors -- suggestive, not proof); a low
+share count without news is the worst cell. None of it makes the mechanical pullback pay.

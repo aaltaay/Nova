@@ -21,7 +21,7 @@ from constants_diagnostics import (
     DIAG_PORT_PROBE_TIMEOUT_SEC,
     DIAG_SCHEMA_VERSION,
 )
-from diagnostics import collect, collect_gateway, collect_leaderboard, process_info
+from diagnostics import collect, collect_catalysts, collect_gateway, collect_leaderboard, process_info
 from diagnostics.rows import counts, unknown_row
 
 logger = logging.getLogger(__name__)
@@ -113,6 +113,12 @@ def _leaderboard_inputs() -> dict[str, Any]:
     return {"recorder": recorder.status(), "auto": auto_record.status(), "store_path": str(store.path())}
 
 
+def _catalyst_feed_status() -> dict[str, Any]:
+    from catalysts import feed
+
+    return feed.get_feed().status()
+
+
 def _recorder_inputs() -> dict[str, Any]:
     from capture import keepalive as _keepalive
     from capture import mode as _mode
@@ -162,6 +168,8 @@ def gather(*, ui_tag: str | None = None, now: float | None = None) -> dict[str, 
     rows += _safe(DIAG_GROUP_RECORDER, "recorder", "Recorder", lambda: collect_gateway.recorder_rows(**_recorder_inputs()))
     rows += _safe(DIAG_GROUP_RECORDER, "leaderboard_recorder", "Scanner board recorder",
                   lambda: collect_leaderboard.leaderboard_rows(**_leaderboard_inputs()))
+    rows += _safe(DIAG_GROUP_RECORDER, "catalyst_feed", "Catalyst feed",
+                  lambda: collect_catalysts.catalyst_feed_rows(status=_catalyst_feed_status(), now=ts))
     rows += _safe(DIAG_GROUP_PRACTICE, "practice", "Practice", lambda: collect.practice_rows(**_practice_inputs()))
     rows += collect.frontend_rows(ui_tag=ui_tag, backend_tag=facts.get("release_tag"))
     return {

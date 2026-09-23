@@ -49,3 +49,37 @@ The operator asked for data kept on the drive, from sources that name a real cat
   sources (recorded forward, like the leaderboard). The backfill measures what they would add.
 - Rules change by bumping `CATALYST_RULES_VERSION`; verdicts are stored per version, and a
   hand-labelled sample (`research/catalysts/labels.py`) measures each version.
+
+## Amendment 2026-09-23 -- the primary sources live, halts, and the pillar's unknowns
+
+The operator asked for the primary sources, not only an aggregator: SEC EDGAR, the press-release
+wires, Nasdaq halts and FDA.
+
+1. **A live catalyst feed** (`backend/catalysts/feed.py`, always on, `NOVA_CATALYST_FEED=0` turns
+   it off) records SEC EDGAR's latest filings (8-K, 6-K, 424B, S-1, S-3, F-1, F-3, SC TO-T; an
+   8-K / 6-K read for its press release by the shared `catalysts/sec_text.py`), GlobeNewswire,
+   PR Newswire, Newsfile's small-cap industry feeds and FDA press announcements into
+   `catalyst_feed.sqlite3` beside the research store (owner `catalysts/feed_store.py`,
+   `PRAGMA user_version = 1`). Business Wire and Accesswire publish no free all-news feed Nova
+   can read; they reach the desk only through Benzinga (Alpaca) and the EDGAR copy.
+2. **Coverage is proven.** A poll extends its source's span only when its oldest item is no newer
+   than the previous poll; a burst larger than the page, an error or a stopped process breaks it.
+   The live verdict lists a feed source in `sources_answered` only when an unbroken span covers
+   the whole window -- so "none found" is never claimed across a gap.
+3. **News pending.** A Nasdaq T1 / T12 halt inside the window with no resumption yet sets
+   `news_pending` on the verdict; the News pillar is then unknown, not failed.
+4. **The pillar's unknowns.** The verdict keeps an unplaced single-company headline as a weak
+   catalyst (`company_news`) so the history stays one classifier, but the live News pillar treats
+   it as unknown: on 800 labelled items it was right about half the time.
+5. **Halt history.** Nasdaq Trader's halt page per date (2021-10 on) is loaded into the
+   leaderboard's `halt_events` with the live desk's parser (`research/catalysts/backfill_halts.py`),
+   so Sim playback of a rebuilt day shows its halts. The history shows a halt's final code: a news
+   halt that opened T1 reads T3 once resolved.
+6. **Research reference data** in `orb.duckdb`: `sec_shares` (shares outstanding as filed, from
+   SEC's bulk `companyfacts.zip` on F:) and `short_interest` (FINRA, from the Massive dump), read
+   with no hindsight by `split_trades.py`.
+
+Rejected: scraping Business Wire / Accesswire newsroom pages (not an official feed; the halt-RSS
+rule "official feed, never HTML scrape" applies) and company IR pages (they repeat the release the
+wire and EDGAR already carry). FDA's feed names drugs, not tickers: it maps a release only when a
+listed company's full name appears, so it adds no coverage claim.

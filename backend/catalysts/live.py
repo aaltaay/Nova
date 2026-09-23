@@ -1,11 +1,13 @@
 """Today's catalyst verdict per symbol on the live desk (ADR 024).
 
-The same window and classifier as the backfilled history: a symbol's Alpaca articles published
-after the prior session's 16:00 ET close, judged by ``catalysts.classify.verdict`` at the moment
-asked. ``request`` queues symbols for a background fetch (never on the caller's thread);
-``verdict_for`` answers only from a fetch that covers the asked window -- otherwise ``None``
-(unknown), never "no news" for a window nobody looked at (a replay playhead on another day
-included).
+The same window and classifier as the backfilled history: a symbol's items published after the
+prior session's 16:00 ET close, judged by ``catalysts.classify.verdict`` at the moment asked --
+Alpaca articles (fetched here in the background; ``request`` queues symbols, never on the
+caller's thread) plus everything the live catalyst feed recorded (``catalysts/feed.py``: SEC
+filings, GlobeNewswire, PR Newswire, Newsfile, FDA). A source counts as having looked only when
+its fetch or its unbroken feed span covers the window; with no source looking and nothing found
+the answer is ``None`` (unknown), never "no news" (a replay playhead on another day included).
+A Nasdaq T1 / T12 halt inside the window with no resumption yet adds ``news_pending``.
 
 Owner: this module (in-memory only). Invalidation: a fetch older than
 ``CATALYST_LIVE_TTL_SEC`` is refreshed on the next request; the ET session rolls the window.
@@ -21,7 +23,7 @@ from typing import Iterable
 from zoneinfo import ZoneInfo
 
 from catalysts.classify import verdict
-from constants_catalysts import CATALYST_LIVE_BATCH, CATALYST_LIVE_TTL_SEC
+from constants_catalysts import CATALYST_LIVE_BATCH, CATALYST_LIVE_TTL_SEC, CATALYST_NEWS_PENDING_CODES
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
@@ -45,16 +47,55 @@ def window_start(now: float) -> float:
 
 
 def verdict_for(symbol: str, now: float | None = None) -> dict | None:
-    """The verdict at ``now``, or None when no fetch covers (prior close, now]."""
+    """The verdict at ``now``, or None when no source looked across (prior close, now] and none spoke."""
     now = time.time() if now is None else now
     sym = (symbol or "").strip().upper()
     start = window_start(now)
     with _lock:
         span = _fetched.get(sym)
         items = list((_items.get(sym) or {}).values())
-    if span is None or span[0] > start or span[1] < now - CATALYST_LIVE_TTL_SEC:
+    answered = []
+    if span is not None and span[0] <= start and span[1] >= now - CATALYST_LIVE_TTL_SEC:
+        answered.append("alpaca")
+    feed_items, feed_answered = _feed_view(sym, start, now)
+    items += feed_items
+    answered += feed_answered
+    if not answered and not any(start < float(it.get("published_ts") or 0) <= now for it in items):
         return None
-    return verdict(items, window_start=start, cutoff=now, sources_answered=["alpaca"])
+    out = verdict(items, window_start=start, cutoff=now, sources_answered=answered)
+    out.update(_halt_view(sym, start, now))
+    return out
+
+
+def _feed_view(symbol: str, start: float, now: float) -> tuple[list[dict], list[str]]:
+    try:
+        from catalysts import feed
+
+        if not feed.enabled():
+            return [], []
+        f = feed.get_feed()
+        return f.items_for(symbol, start, now), f.covered_sources(start, now)
+    except Exception:
+        logger.warning("catalysts.live: feed read failed for %s", symbol, exc_info=True)
+        return [], []
+
+
+def _halt_view(symbol: str, start: float, now: float) -> dict:
+    """A news-pending halt (T1 / T12) that started inside the window and has not resumed."""
+    try:
+        from ibkr import nasdaq_halt_feed
+
+        ov = nasdaq_halt_feed.overlay_for(symbol)
+    except Exception:
+        logger.debug("catalysts.live: no halt overlay for %s", symbol, exc_info=True)
+        return {"news_pending": False, "halt_code": None}
+    code = (ov.get("reason_code") or "").strip().upper() or None
+    halted = ov.get("official_halt_start")
+    resumed = ov.get("trade_resume")
+    in_window = isinstance(halted, (int, float)) and start < float(halted) <= now
+    open_halt = resumed is None or float(resumed) > now
+    return {"news_pending": bool(in_window and open_halt and code in CATALYST_NEWS_PENDING_CODES),
+            "halt_code": code if in_window else None}
 
 
 def request(symbols: Iterable[str]) -> None:

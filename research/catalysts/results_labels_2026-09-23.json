@@ -1,7 +1,7 @@
 {
-  "rules_version": "catalyst-rules-v3-2026-09-23",
+  "rules_version": "catalyst-rules-v4-2026-09-23",
   "labeller": "Claude (blind to predictions); operator labels pending",
-  "note": "sample and holdout were used to tune the rules; holdout2 was scored once against v3 and never tuned on",
+  "note": "rules were tuned on sample, holdout and holdout2 in turn; each holdout was scored once, before tuning on it. holdout3 was never tuned on: its numbers are the honest ones for this version. v3 on holdout2 (unseen then): 83% kind agreement, catalyst precision 77%, recall 94%.",
   "sets": {
     "sample_claude": {
       "tuned_on": true,
@@ -24,17 +24,17 @@
       "tuned_on": true,
       "items": 200,
       "kind_agreement": 0.955,
-      "catalyst_precision": 0.947,
-      "catalyst_recall": 0.968,
-      "strong_precision": 0.909,
+      "catalyst_precision": 0.948,
+      "catalyst_recall": 0.978,
+      "strong_precision": 0.913,
       "weak_precision": 0.959,
       "confusion": {
-        "catalyst->catalyst": 90,
-        "catalyst->negative": 1,
+        "catalyst->catalyst": 91,
         "catalyst->noise": 1,
         "catalyst->routine": 1,
         "negative->catalyst": 1,
-        "negative->negative": 14,
+        "negative->negative": 13,
+        "negative->routine": 1,
         "noise->catalyst": 3,
         "noise->noise": 43,
         "routine->catalyst": 1,
@@ -43,25 +43,42 @@
       }
     },
     "holdout2_claude": {
+      "tuned_on": true,
+      "items": 200,
+      "kind_agreement": 0.97,
+      "catalyst_precision": 0.95,
+      "catalyst_recall": 1.0,
+      "strong_precision": 0.929,
+      "weak_precision": 0.958,
+      "confusion": {
+        "catalyst->catalyst": 95,
+        "negative->negative": 17,
+        "noise->catalyst": 2,
+        "noise->noise": 31,
+        "routine->catalyst": 3,
+        "routine->noise": 1,
+        "routine->routine": 51
+      }
+    },
+    "holdout3_claude": {
       "tuned_on": false,
       "items": 200,
-      "kind_agreement": 0.83,
-      "catalyst_precision": 0.774,
-      "catalyst_recall": 0.937,
+      "kind_agreement": 0.85,
+      "catalyst_precision": 0.773,
+      "catalyst_recall": 0.988,
       "strong_precision": 0.92,
-      "weak_precision": 0.733,
+      "weak_precision": 0.729,
       "confusion": {
-        "catalyst->catalyst": 89,
-        "catalyst->negative": 1,
-        "catalyst->noise": 4,
-        "catalyst->routine": 1,
+        "catalyst->catalyst": 85,
+        "catalyst->noise": 1,
+        "negative->catalyst": 1,
         "negative->negative": 17,
-        "noise->catalyst": 5,
-        "noise->negative": 1,
-        "noise->noise": 27,
-        "routine->catalyst": 21,
-        "routine->noise": 1,
-        "routine->routine": 33
+        "negative->routine": 1,
+        "noise->catalyst": 7,
+        "noise->negative": 3,
+        "noise->noise": 33,
+        "routine->catalyst": 17,
+        "routine->routine": 35
       }
     }
   }
