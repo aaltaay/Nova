@@ -72,9 +72,8 @@ def dispatch_desktop_pack(gh: GhFn, repo: str, ref: str = RELEASE_BRANCH) -> boo
     one of the two documented exceptions to that rule, so the same token can
     start the pack on purpose. Keeping `GITHUB_TOKEN` here means no release PAT.
 
-    This dispatch builds and verifies the installer for the merged commit. It
-    publishes nothing: since #347 only an operator-pushed `vNNN` release tag
-    cuts a GitHub Release.
+    This dispatch tags the merged commit `vNNN` and, when the installer packs,
+    publishes it as that GitHub Release (operator decision 2026-09-23).
     """
     proc = gh(
         [
