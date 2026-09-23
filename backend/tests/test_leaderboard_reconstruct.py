@@ -1,4 +1,4 @@
-"""The offline leaderboard rebuild (research/leaderboard, ADR 022): the minute
+"""The offline leaderboard rebuild (research/leaderboard, ADR 023): the minute
 boundary, the split-adjusted prior close, the top-N-plus-presets store and its
 ranks, the universe, idempotence, the S5 read-back and the independent spot check."""
 from __future__ import annotations

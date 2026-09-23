@@ -1,4 +1,4 @@
-"""Tunables for the offline leaderboard rebuild (ADR 022) -- research only.
+"""Tunables for the offline leaderboard rebuild (ADR 023) -- research only.
 
 Nothing here is imported by backend/. The row vocabulary, the ranking presets and
 the store live in ``backend/leaderboard`` and ``backend/constants_leaderboard.py``;

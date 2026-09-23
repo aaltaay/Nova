@@ -23,7 +23,7 @@ type Props = {
   debugOpen: boolean;
   onToggleStrategy: (id: number) => void;
   onClear: () => void;
-  /** Sim playback (ADR 022): past alerts are history; there is nothing to clear. */
+  /** Sim playback (ADR 023): past alerts are history; there is nothing to clear. */
   clearDisabled?: boolean;
   onConfigure: () => void;
   onToggleDebug: () => void;

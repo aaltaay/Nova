@@ -144,7 +144,7 @@ function HistoryDateSelect() {
 
 export function ScannerBoardHeader({ title, filters, scannedAgoSec, feedFailure = null }: Props) {
   const session = useSessionCountdown();
-  // Sim off the live edge (ADR 022): the board is the playhead's, so the line names that moment.
+  // Sim off the live edge (ADR 023): the board is the playhead's, so the line names that moment.
   const replay = useLiveScannerFeedOptional()?.replay ?? null;
   const [savedOpen, setSavedOpen] = useState(false);
 

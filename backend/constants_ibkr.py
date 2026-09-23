@@ -28,27 +28,32 @@ IBKR_ACCOUNT_CLASS_MARGIN_MIN_BP_RATIO = 1.5
 
 # ── MASTER TEST QTY GATE (intentional; remove with one flip) ───────────────────
 # When True, ADR 007 `execution.service.execute` CAPS every place/bracket qty
-# (and shares) at IBKR_FORCE_ONE_SHARE_QTY before validate/send: a size at or
-# under the cap goes through as asked, a larger one is cut to the cap. The
-# ticket states the cap (`qty_cap` on /api/ibkr/status) and the execution record
+# (and shares) on the **Live** venue at IBKR_FORCE_ONE_SHARE_QTY before
+# validate/send: a size at or under the cap goes through as asked, a larger one
+# is cut to the cap, and the IBKR send refuses anything still above it
+# (`QTY_CAP_LIVE`). Paper and Sim -- Nova's practice accounts, fake money with
+# buying power enforced -- send the size asked. The ticket states the cap
+# (`qty_cap` on /api/ibkr/status, null on Paper / Sim) and the execution record
 # stamps `forced_one_share` only when the cap actually changed the size.
 # Protective sources (flatten / kill / cancel_working) are never clamped: they
 # close the held position, and a clamped KILL left N-1 shares (QA R6).
 #
-# WHY: paper/live testing safety so a fat-finger preset cannot size a real send.
+# WHY: so a fat-finger preset can never size a real-money send.
 # NOT A BUG: do not "fix" by deleting the clamp without flipping this off.
-# HISTORY: forced every order to exactly 1 share until 2026-09-22, when the
-# operator raised it to a cap of 10 on every venue (#444) to trade real sizes.
-# The constant names are kept so the execution record and its readers are stable.
+# HISTORY: forced every order to exactly 1 share until 2026-09-22; that day it
+# became a cap of 10 on every venue, then the operator settled #444: one share
+# on Live, no cap on Paper / Sim. The names are kept so the execution record
+# and its readers are stable.
 #
-# CHANGE THE CAP (one line, no code): `IBKR_QTY_CAP=25` in the desk .env; the
-#   default below applies when it is unset. The clamp, /api/ibkr/status `qty_cap`
-#   and the ticket's copy all read that one value (execution/qty_gate.py).
+# CHANGE THE LIVE CAP (one line, no code): `IBKR_QTY_CAP=10` in the desk .env;
+#   the default below applies when it is unset. The clamp, the IBKR send check,
+#   /api/ibkr/status `qty_cap` and the ticket's copy all read that one value
+#   (execution/qty_gate.py).
 # REMOVE (one line): set IBKR_FORCE_ONE_SHARE = False
 #   (or delete the `cmd = apply_force_one_share(cmd)` line in execution/service.py)
 IBKR_FORCE_ONE_SHARE = True
-IBKR_FORCE_ONE_SHARE_QTY = 10.0  # default max shares per place / bracket while the gate is on
-IBKR_QTY_CAP_ENV = "IBKR_QTY_CAP"  # .env override of the default above (whole number >= 1)
+IBKR_FORCE_ONE_SHARE_QTY = 1.0  # default max shares per Live place / bracket while the gate is on
+IBKR_QTY_CAP_ENV = "IBKR_QTY_CAP"  # .env override of the Live default above (whole number >= 1)
 # Tick-236 shortability freshness for order gates (seconds).
 IBKR_SHORTABILITY_TTL_SEC = 60.0
 # Shares thresholds for shortability states (IBKR tick 236 estimate).
@@ -520,15 +525,6 @@ WATCHLIST_REL_VOLUME_SCORE_CAP = 50.0    # RVOL multiple that maps to a perfect 
 WATCHLIST_CATALYST_FRESH_MINUTES = 60.0  # headline age considered "fully fresh"
 WATCHLIST_CATALYST_STALE_MINUTES = 24 * 60.0  # headline age at which freshness hits 0
 WATCHLIST_MAX_ROWS = 60                  # cap on rows returned to the UI
-
-# ── Setup signal stream (Phase B, /ws/strategy) ─────────────────────────────
-SETUPS_SCAN_INTERVAL_SEC = 15.0     # how often the background loop re-scans (Alpaca discovery)
-SETUPS_SCAN_INTERVAL_IBKR_SEC = 60.0  # slower under IBKR — historical pacing is shared with charts
-SETUPS_SCAN_TOP_N = 15              # only fetch bars for this many top-ranked watchlist symbols
-SETUPS_SCAN_TOP_N_IBKR = 3          # fewer concurrent historical pulls when discovery=ibkr
-SETUPS_IBKR_INTER_SYMBOL_DELAY_SEC = 2.0  # gap between IBKR historical pulls in one cycle
-SETUPS_ALERT_COOLDOWN_SEC = 120.0   # suppress a repeat alert for the same symbol+setup
-SETUPS_MAX_HISTORY = 200            # cap on in-memory signal history for the initial WS payload
 
 # ── Risk / discipline engine (Phase C) ──────────────────────────────────────
 # Source: strategy specification Ch.2, Ch.12; Basics Ch.15. This is a pure state machine — no

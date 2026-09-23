@@ -92,7 +92,7 @@ async def fetch_bars_async(
     """Fetch OHLCV bars via ``reqHistoricalDataAsync``. Same shape as Alpaca bars.
 
     ``interactive=True`` for the open ticker chart -- takes priority over
-    background setups_stream fetches (see ``historical_gate``).
+    background bar fetches (see ``historical_gate``).
 
     Fresh TTL cache + single-flight live in ``bars_cache`` (never serves expired).
     """

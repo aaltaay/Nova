@@ -38,7 +38,7 @@ describe('offerWindow', () => {
   });
 });
 
-describe('offerWindow around the playhead (ADR 022)', () => {
+describe('offerWindow around the playhead (ADR 023)', () => {
   const at = (time: string, extra: Record<string, unknown> = {}) =>
     ({ sim: true, session_date: '2026-09-18', live_edge: false, sim_time_et: `2026-09-18T${time}:10-04:00`, ...extra });
 

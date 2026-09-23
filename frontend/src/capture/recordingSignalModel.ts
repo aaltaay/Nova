@@ -77,7 +77,7 @@ export function stoppedKey(stopped: RecordingStopped): string {
 
 /**
  * The stops to shout about -- one per symbol, gone once that symbol resumed.
- * A planned stop (the operator's, or auto-record's own, ADR 022) is never one.
+ * A planned stop (the operator's, or auto-record's own, ADR 023) is never one.
  */
 export function stoppedViews(status: IbkrStatus, nowMs: number): StoppedView[] {
   return (status.capture_stopped ?? [])

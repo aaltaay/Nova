@@ -97,7 +97,7 @@ export function SimReplayTargetNotice({ symbol }: { symbol: string }) {
     [wantsOwn],
   );
   const captures = useSyncExternalStore(subscribeCaptures, capturesResource.getSnapshot);
-  // The desk's day first: after a Day jump the playhead is on a past day, not today (ADR 022).
+  // The desk's day first: after a Day jump the playhead is on a past day, not today (ADR 023).
   const own = wantsOwn ? ownRecordingFor(captures.data, symbol, etDateToday(), clock?.session_date) : null;
 
   const tab = symbol.trim().toUpperCase();

@@ -18,7 +18,7 @@ export const recordingHairlineTitle = (symbol: string): string => `Recording ${s
 export const recordingChipTitle = (args: {
   symbol: string; elapsed: string; sessionElapsed: string; segment: number | null; prints: number; quotes: number;
   l2: number; lastWriteAgeSec: number | null; reacquired: number; dir: string | null;
-  /** Started by auto-record (ADR 022), not by hand. */
+  /** Started by auto-record (ADR 023), not by hand. */
   auto?: boolean;
 }): string => {
   const resumed = Boolean(args.segment && args.segment > 1);
@@ -46,7 +46,7 @@ export const RECORDING_STOP_REASONS: Record<string, string> = {
 };
 /**
  * Stops somebody planned -- the operator's Stop, auto-record's own stop
- * (ADR 022) -- are quiet: never a toast, and the gap after them is not "missing".
+ * (ADR 023) -- are quiet: never a toast, and the gap after them is not "missing".
  */
 export const RECORDING_PLANNED_STOP_REASONS: ReadonlySet<string> = new Set(['operator', 'auto']);
 export const recordingStoppedTitle = (symbol: string, reason: string): string =>

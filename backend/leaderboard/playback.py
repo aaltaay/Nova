@@ -1,4 +1,4 @@
-"""Reading the leaderboard back (ADR 022): the board at a moment, its gaps, the days.
+"""Reading the leaderboard back (ADR 023): the board at a moment, its gaps, the days.
 
 Never after the playhead: a recorded snapshot stamped ``m`` was taken within
 ``LEADERBOARD_RECORD_SETTLE_SEC`` after ``m``, so the playhead sees it only

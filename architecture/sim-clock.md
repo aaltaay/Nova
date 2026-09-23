@@ -38,7 +38,7 @@ Pause/play requests are rejected when Sim is off.
 - One Sim-header button changes between Pause and Play icons with accessible
   action labels. Failed requests show an inline error, never a false paused UI.
 - Clock controls preserve Trader tab selection (ADR 011 section 7b).
-- `{session_date: "YYYY-MM-DD"}` (ADR 022) re-dates the clock with nothing
+- `{session_date: "YYYY-MM-DD"}` (ADR 023) re-dates the clock with nothing
   loaded -- a replay of another date is unloaded first, and its scratch account
   starts over as any unload does -- and parks paused at
   `SIM_DAY_JUMP_PARK_MIN_ET` (07:00 ET). A weekend, holiday, future or

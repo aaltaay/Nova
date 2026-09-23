@@ -1,4 +1,4 @@
-"""Rebuild the whole-market per-minute leaderboard from the Massive minute flat files (ADR 022).
+"""Rebuild the whole-market per-minute leaderboard from the Massive minute flat files (ADR 023).
 
 Writes ``source="reconstructed"``, ``board="market"`` rows into the leaderboard store
 (``backend/leaderboard/store.py``; default F:\\Nova\\leaderboard\\leaderboard.sqlite3), one

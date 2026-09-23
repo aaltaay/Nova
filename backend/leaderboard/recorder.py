@@ -1,4 +1,4 @@
-"""Always-on leaderboard recorder (ADR 022): one board snapshot per list per minute.
+"""Always-on leaderboard recorder (ADR 023): one board snapshot per list per minute.
 
 No button: the loop runs whenever the backend runs, and records 04:00-20:00 ET
 on exchange days. Each minute it writes a heartbeat (``minutes``), one

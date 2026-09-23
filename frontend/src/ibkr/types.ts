@@ -37,9 +37,9 @@ export interface IbkrStatus {
   capture_resume?: RecordingResume[];
   /** Per symbol, the last stop the operator did not ask for, until it records again or is stopped. */
   capture_stopped?: RecordingStopped[];
-  /** The always-on Scanner board recorder (ADR 022); quiet unless `ok` is false. */
+  /** The always-on Scanner board recorder (ADR 023); quiet unless `ok` is false. */
   leaderboard_recorder?: LeaderboardRecorderStatus | null;
-  /** 07:00-10:00 ET auto-record of the top leaders on free Level 2 lines (ADR 022). */
+  /** 07:00-10:00 ET auto-record of the top leaders on free Level 2 lines (ADR 023). */
   auto_record?: AutoRecordStatus | null;
   gateway_mode?: 'paper' | 'live';
   /** Session account classification from IB account ids (DU…=paper, U…=live). */
@@ -77,9 +77,9 @@ export interface IbkrStatus {
   /** Backend-authored reason for the spend lock (safety.py). */
   spend_locked_reason?: string | null;
   /**
-   * MASTER TEST QTY GATE (#444): the most shares one place / bracket may send,
-   * on every venue; null or absent when the gate is off. The ticket states it
-   * so no surface shows a size the execution door will not send.
+   * MASTER TEST QTY GATE (#444): the most shares one Live place / bracket may
+   * send; null on Paper and Sim (not capped) and when the gate is off. The
+   * ticket states it so no surface shows a size the execution door will not send.
    */
   qty_cap?: number | null;
   /** Spend + Gateway -- same gate as place_order. PIN is AND-ed in the UI. */
@@ -118,7 +118,7 @@ export interface IbkrStatus {
   } | null;
 }
 
-/** `/api/ibkr/status` `leaderboard_recorder` (AGENTS.md section 3, ADR 022). */
+/** `/api/ibkr/status` `leaderboard_recorder` (AGENTS.md section 3, ADR 023). */
 export interface LeaderboardRecorderStatus {
   recording: boolean;
   /** False when the store cannot be written: the one loud case. */
@@ -129,7 +129,7 @@ export interface LeaderboardRecorderStatus {
   run_id: string | null;
 }
 
-/** `/api/ibkr/status` `auto_record` (ADR 022). */
+/** `/api/ibkr/status` `auto_record` (ADR 023). */
 export interface AutoRecordStatus {
   active: boolean;
   window: string;

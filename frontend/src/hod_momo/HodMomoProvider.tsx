@@ -2,7 +2,7 @@
  * Live AppShell owner of HOD Momo stream + config + dock prefs.
  * Mount above Scanner/Trader fork so Trader does not tear down the WS.
  * On Sim off the live edge the strip reads the alert history at the playhead
- * instead of the live socket (ADR 022, one desk, one clock); the socket stays
+ * instead of the live socket (ADR 023, one desk, one clock); the socket stays
  * open underneath so the live edge is instant.
  */
 import { useMemo, type ReactNode } from 'react';

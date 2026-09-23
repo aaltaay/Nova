@@ -1,7 +1,7 @@
-# ADR 022 -- The scanner leaderboard: one row per symbol per minute, recorded and rebuilt
+# ADR 023 -- The scanner leaderboard: one row per symbol per minute, recorded and rebuilt
 
 **Status:** Accepted · **Date:** 2026-09-22
-**Builds on:** [[008-persistent-ibkr-scanner-rosters]] · [[010-ib-loop-isolation]] · [[017-single-replay-surface]] · [[019-practice-fills-on-replayed-sessions]] · [[020-three-venues-one-feed]]
+**Builds on:** [[008-persistent-ibkr-scanner-rosters]] · [[022-setup-scanner-tape-gate]] · [[010-ib-loop-isolation]] · [[017-single-replay-surface]] · [[019-practice-fills-on-replayed-sessions]] · [[020-three-venues-one-feed]]
 
 ## Context
 

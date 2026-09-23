@@ -21,7 +21,7 @@ def _observe_halt(symbol: str, ticker: Any) -> None:
     if not changed:
         return
     try:
-        # Halt / LULD log (ADR 022): enqueue only -- this can run on the IB loop.
+        # Halt / LULD log (ADR 023): enqueue only -- this can run on the IB loop.
         from leaderboard import halts as _halt_log
 
         _halt_log.observe_ibkr(symbol, _snap)

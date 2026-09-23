@@ -18,7 +18,7 @@ import type { ScannerRow } from '../types/scanner';
 
 export type ChipRow = Pick<ScannerRow, 'gap_percent' | 'float' | 'rel_volume' | 'has_news' | 'news_unknown' | 'rvol_source'>;
 
-/** A Sim playback row's time-of-day RVOL is another basis than the chip's day multiple (ADR 022): unknown here. */
+/** A Sim playback row's time-of-day RVOL is another basis than the chip's day multiple (ADR 023): unknown here. */
 const OTHER_RVOL_BASIS = 'time_of_day_20';
 
 export function isChipId(value: unknown): value is ScannerChipId {

@@ -70,7 +70,7 @@ export function SimSessionHeader({ active: activeProp }: { active: boolean }) {
   const historicalSelection = useSyncExternalStore(subscribeHistory, historicalStatus.getSnapshot)
     .data?.selection ?? null;
   const { clock, sessions, day, symbol, dragMinute, setDay, setSymbol, applyReplay, busy } = controller;
-  // ADR 022: watching a past day's Scanner starts here -- the Day picker and the board lane.
+  // ADR 023: watching a past day's Scanner starts here -- the Day picker and the board lane.
   const days = useLeaderboardDays(active);
   const today = todayEt();
   const boardCoverage = useLeaderboardCoverage(active && clock?.sim ? clock.session_date ?? null : null, today);

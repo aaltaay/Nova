@@ -1,4 +1,4 @@
-/* Scanner leaderboard playback (ADR 022): the board at the Sim playhead. Owner: leaderboard/. */
+/* Scanner leaderboard playback (ADR 023): the board at the Sim playhead. Owner: leaderboard/. */
 
 /* The board header's session line while it follows the playhead. */
 .scanner-board__replay {

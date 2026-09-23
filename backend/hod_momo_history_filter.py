@@ -1,4 +1,4 @@
-"""HOD Momo alert history up to a moment (ADR 022) -- pure."""
+"""HOD Momo alert history up to a moment (ADR 023) -- pure."""
 from __future__ import annotations
 
 from datetime import datetime

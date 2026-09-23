@@ -26,7 +26,7 @@ export function etDateToday(now: Date = new Date()): string {
 
 /**
  * The newest usable recording of `symbol`: the desk's day first (the Sim
- * clock's `session_date` -- a past day after a Day jump, ADR 022), else
+ * clock's `session_date` -- a past day after a Day jump, ADR 023), else
  * today's, else the newest; null when there is none.
  */
 export function ownRecordingFor(

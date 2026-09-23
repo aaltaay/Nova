@@ -1,7 +1,7 @@
 """Level 2 depth WebSocket handler (split from ``routes.trading`` for the 400-line rule).
 
 ``/ws/ibkr/depth/{symbol}`` stays registered on ``routes.trading.ws_router``;
-this module holds its body and the auto-record yield (ADR 022): the operator
+this module holds its body and the auto-record yield (ADR 023): the operator
 never loses Level 2 to auto-record, which gives back a line before the
 subscribe runs.
 """

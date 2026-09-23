@@ -1,4 +1,4 @@
-"""Spot-check a rebuilt leaderboard day against the flat files, independently (ADR 022).
+"""Spot-check a rebuilt leaderboard day against the flat files, independently (ADR 023).
 
 For each chosen minute the whole-market board is recomputed from scratch with pandas --
 the minute file, the prior session's day-aggregate file, reference/tickers.json and

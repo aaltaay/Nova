@@ -1,6 +1,6 @@
 /**
  * The Scanner board recorder runs whenever Nova does -- no button, no chip
- * (ADR 022). The one thing it says is a write failure: ONE toast when
+ * (ADR 023). The one thing it says is a write failure: ONE toast when
  * `leaderboard_recorder.ok` flips to false, in the same toast the Session
  * Record uses for an unrequested stop. Dismissed, it stays gone until the
  * recorder recovers and fails again; a recovery clears it quietly.

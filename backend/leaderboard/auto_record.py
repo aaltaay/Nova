@@ -1,4 +1,4 @@
-"""Auto-record the leaders 07:00-10:00 ET (ADR 022) -- on free Level 2 lines only.
+"""Auto-record the leaders 07:00-10:00 ET (ADR 023) -- on free Level 2 lines only.
 
 The leaders are ``ranking.leader_symbols(rows, LEADERS_RULES)`` over the live
 Gainers board, the same call playback makes on the recorded minute. Rules the

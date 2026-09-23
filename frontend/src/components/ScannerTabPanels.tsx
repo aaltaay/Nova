@@ -74,7 +74,7 @@ export function ScannerTabPanels({
   historyDate = null,
 }: Props) {
   const live = useLiveScannerFeedOptional();
-  // Sim playback (ADR 022) is a past board like a history date: no live freeze chrome, no grading.
+  // Sim playback (ADR 023) is a past board like a history date: no live freeze chrome, no grading.
   const replay = live?.replay ?? null;
   const honestyBadge =
     !historyDate && !replay && activeTab !== 'catalysts'

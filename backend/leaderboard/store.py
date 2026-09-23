@@ -1,4 +1,4 @@
-"""SQLite store for the scanner leaderboard (ADR 022). Blocking -- never on the IB loop.
+"""SQLite store for the scanner leaderboard (ADR 023). Blocking -- never on the IB loop.
 
 Owner: backend/leaderboard/. Schema: ``leaderboard.schema``. Rows are history
 and immutable; a reconstruction rebuild replaces only its own (date, source).

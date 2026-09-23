@@ -1,6 +1,6 @@
 /**
  * The board header's session line while the Scanner follows the Sim playhead
- * (ADR 022): `Sim · 2026-09-21 07:42 ET · recorded` (or `rebuilt`), plus the
+ * (ADR 023): `Sim · 2026-09-21 07:42 ET · recorded` (or `rebuilt`), plus the
  * reason when there is no board -- in place of `Today (Live) ▾` and today's
  * session countdown, which describe now, not the playhead.
  */

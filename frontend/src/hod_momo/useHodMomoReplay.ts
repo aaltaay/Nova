@@ -1,5 +1,5 @@
 /**
- * The HOD Momo strip at the Sim playhead (ADR 022, "one desk, one clock").
+ * The HOD Momo strip at the Sim playhead (ADR 023, "one desk, one clock").
  *
  * Null on Live, Paper and at the live edge -- the strip stays on the live
  * socket. Off the edge it reads the day's alert history once per board minute

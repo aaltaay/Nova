@@ -1,4 +1,4 @@
-"""Versioned leaderboard schema (ADR 022). Unknown versions refuse loudly."""
+"""Versioned leaderboard schema (ADR 023). Unknown versions refuse loudly."""
 from __future__ import annotations
 
 import sqlite3

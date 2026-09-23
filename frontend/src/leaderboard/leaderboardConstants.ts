@@ -1,5 +1,5 @@
 /**
- * Scanner leaderboard playback (ADR 022) -- feature-local constants
+ * Scanner leaderboard playback (ADR 023) -- feature-local constants
  * (AGENTS.md section 6.1): paths, tunables and every word the desk says about
  * a board it shows at the Sim playhead.
  *

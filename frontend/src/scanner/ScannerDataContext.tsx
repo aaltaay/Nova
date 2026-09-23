@@ -30,7 +30,7 @@ export type LiveScannerFeed = ReturnType<typeof useScannerData> & {
   l1DockTab: ActiveTab | null;
   setL1DockTab: (tab: ActiveTab | null) => void;
   /**
-   * Sim off the live edge (ADR 022): the five tables are the leaderboard at
+   * Sim off the live edge (ADR 023): the five tables are the leaderboard at
    * the playhead, and this says which minute, from which source, or why there
    * is no board. Null / absent on Live, Paper and at the live edge.
    */

@@ -1,4 +1,4 @@
-"""Enqueue-only writes for the leaderboard (ADR 010, ADR 022).
+"""Enqueue-only writes for the leaderboard (ADR 010, ADR 023).
 
 Producers -- the minute recorder on the HTTP loop and the halt hooks, which
 can fire inside ``ib_async`` callbacks on the IB loop -- only append to a

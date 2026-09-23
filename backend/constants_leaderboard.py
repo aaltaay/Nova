@@ -1,6 +1,6 @@
 """Scanner leaderboard tunables: the per-minute board, its gaps, halts and auto-record.
 
-Owner: backend/leaderboard/ (ADR 022). The store keeps one row per symbol per
+Owner: backend/leaderboard/ (ADR 023). The store keeps one row per symbol per
 minute for the boards the desk showed ("recorded") and for boards rebuilt from
 minute flat files ("reconstructed"). Nothing here places an order.
 """

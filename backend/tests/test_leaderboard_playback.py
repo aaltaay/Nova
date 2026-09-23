@@ -1,4 +1,4 @@
-"""Recorded boards played back: no hindsight, never across a gap, halts from the log (ADR 022)."""
+"""Recorded boards played back: no hindsight, never across a gap, halts from the log (ADR 023)."""
 from __future__ import annotations
 
 from datetime import datetime

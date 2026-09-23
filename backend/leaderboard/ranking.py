@@ -1,4 +1,4 @@
-"""The one leaderboard ranking (ADR 022) -- pure, no I/O, no clock.
+"""The one leaderboard ranking (ADR 023) -- pure, no I/O, no clock.
 
 Three callers share it so they can never disagree about who led:
 

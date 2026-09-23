@@ -1,4 +1,4 @@
-"""Sim moves to another day with nothing loaded; the board's date menu and HOD history (ADR 022)."""
+"""Sim moves to another day with nothing loaded; the board's date menu and HOD history (ADR 023)."""
 from __future__ import annotations
 
 import json

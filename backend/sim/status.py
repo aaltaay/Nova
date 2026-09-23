@@ -52,7 +52,7 @@ def _recording_fields() -> dict[str, Any]:
 
 
 def _leaderboard_fields() -> dict[str, Any]:
-    """The always-on scanner recorder and auto-record (ADR 022) -- quiet unless broken."""
+    """The always-on scanner recorder and auto-record (ADR 023) -- quiet unless broken."""
     out: dict[str, Any] = {}
     try:
         from leaderboard import recorder as leaderboard_recorder

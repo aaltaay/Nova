@@ -20,7 +20,7 @@ type Props = {
   sinceLabel: string;
   integrity: HodMomoIntegrityState;
   connected: boolean;
-  /** Sim playback (ADR 022): the feed word names the playhead instead of the live socket. */
+  /** Sim playback (ADR 023): the feed word names the playhead instead of the live socket. */
   feedLabel?: { text: string; title: string } | null;
   dockMode: HodDockMode;
   onSelectMode: (mode: HodDockMode) => void;

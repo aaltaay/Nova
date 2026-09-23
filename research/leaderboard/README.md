@@ -1,4 +1,4 @@
-# Rebuilt leaderboard (ADR 022) and the S5 rolling universe
+# Rebuilt leaderboard (ADR 023) and the S5 rolling universe
 
 Offline research tool. It rebuilds the **whole-market, per-minute** scanner
 leaderboard from the Massive minute flat files and writes it into Nova's

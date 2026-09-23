@@ -1,4 +1,4 @@
-"""S5, the rolling universe, read back from the rebuilt leaderboard (ADR 022).
+"""S5, the rolling universe, read back from the rebuilt leaderboard (ADR 023).
 
 "Top-3 % gainer with at least 5x relative volume at the minute of the trade"
 (knowledge/obsidian/03-Nova-Decisions/Bot-Trading-Plan.md section 2f): for each

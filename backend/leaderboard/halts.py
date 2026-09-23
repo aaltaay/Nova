@@ -1,4 +1,4 @@
-"""The halt / LULD event log (ADR 022). Enqueue-only; safe on the IB loop.
+"""The halt / LULD event log (ADR 023). Enqueue-only; safe on the IB loop.
 
 Two real sources, each logged under its own name: IBKR ``ticker.halted``
 (incoming tick type 49) transitions observed by ``ibkr.halt_status``, and the

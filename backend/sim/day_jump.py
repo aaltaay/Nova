@@ -1,4 +1,4 @@
-"""Move the Sim clock to another day with nothing loaded (ADR 022).
+"""Move the Sim clock to another day with nothing loaded (ADR 023).
 
 ``POST /api/sim/clock {session_date}``: the Scanner board and the HOD Momo
 strip follow the playhead through the leaderboard, so a past day needs no

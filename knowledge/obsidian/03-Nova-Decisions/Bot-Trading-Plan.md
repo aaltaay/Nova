@@ -92,7 +92,7 @@ test. Double the costs. Split by regime (2021 vs 2022-23).
 
 Kill criteria: edge lives in one year, dies at 2x costs, < 300 trades, or permutation p > 0.05.
 
-### L4 -- Paper on Nova `[ ]`
+### L4 -- Paper on Nova `[ ]` (S6 Eyes on the first pullback live since 2026-09-22, §2g)
 
 Encode the surviving rules as a bot pack or Nova OS setup. Run L1 Eyes (bot proposes, human
 places), then L2 Strategy on the Paper venue. Journal through `/api/practice/history`.
@@ -441,6 +441,55 @@ and ran forward at 51-55%.
   the bar shape is dead everywhere and only the tape hypothesis remains.
 - Halts stay last; shorts stay behind the parked Phase K; `auto_live` NO-GO.
 
+## 2g. S6 built -- the setup scanner (2026-09-22, ADR 022)
+
+The bot's eyes on the first pullback are live in the desk: **Watchlist > Setups**, with the
+full rules in `architecture/decisions/022-setup-scanner-tape-gate.md`.
+
+- **One scanner, one state per symbol.** It follows the HOD Momo names (the tradeable floor
+  applies) on Nova's own one-minute bars: Watching, Leg up, Pulling back (blocked, with the
+  reason), Armed (trigger, entry, stop, target known), Near (within max(3c, 0.3%) of the
+  trigger), Triggered or Failed. The rules are P1 exactly (§2f), so the live board and the
+  backtest agree: on the 450 selection symbol-days where either side took a first trade, the
+  live detector took the same trade -- same minute, same entry -- on 427 (**94.9%**). The two
+  residual edges are a risk exactly at the 20c cap (float arithmetic) and a gap-open entry
+  whose planned risk was under 3c.
+- **The tape gate** reads the Level 2 and time and sales the desk already holds (a Trader
+  tab, a Session Record) and never opens a line. Verdicts: **go** (green on the tape, nothing
+  holding the level), **wait** (a 25k+ seller at the level that is not thinning, a burst of
+  red, no green), **veto** (spread over max(5c, 1%), a 100k+ seller at the level, a hidden
+  seller absorbing the buying), **blind** (no depth line). The 100k / 25k sizes come from the
+  operator's method; the other numbers are ours and marked `CHOSEN` in `constants_setups.py`.
+- **Eyes propose, never place.** Near + go on the live feed raises a proposal: a ping, an
+  alert card on every tab with the levels and the tape's reasons, and "Stage ticket" (a BUY
+  limit at the entry on the manual ticket; the operator presses Place). Nothing in
+  `setup_scanner/` imports an order path.
+- **The scoreboard** (`setups.db`, **Setups > Scoreboard**) scores every armed setup the way
+  §2f scored its trades -- first touch of target 1 or the stop, MFE / MAE over 15 minutes,
+  and the R of the research exit rules -- split by the tape at the trigger, the grade, the
+  session and the setup kind. Scores, not fills.
+
+Against the S6 plan in the decision above: the universe is the HOD Momo roster rather than
+the gapper and top-3 rosters (the rolling universe is S5's job); the join of the operator's
+own Paper fills onto each setup is not built yet -- the scoreboard holds the bot's would-be
+entry and its scored outcome; and only symbols whose Level 2 the desk holds (three lines at
+most) can ever read go -- the rest are blind, which makes them the control group.
+
+**Pre-registered read-out (the tape hypothesis for P1).** Read the scoreboard once at least
+**50 triggered setups had the tape at go** at the trigger. The hypothesis passes when those
+setups' average **net R is above +0.2** (the §3 expectancy line) **and above the average of
+the triggered setups whose tape was blind or wait** over the same days. Pass -> an L2
+first-pullback pack on the Paper venue under gate 2 (100 trades, expectancy within ~30% of
+this read-out, slippage measured). Fail at 100 triggered go setups -> the tape gate as coded
+does not rescue P1; revisit the gates against the operator's own ten-day hand journal before
+any retune. Blind rows are expected to repeat §2f's negative result; if they do not, suspect
+the live bars before the gate.
+
+**How to run it (operator).** Keep the Level 2 of the names you are watching open in Trader
+tabs (or record them) -- the scanner can only read what the desk holds. When the ping sounds,
+the card shows the setup, levels and tape; Stage ticket fills the ticket, you decide. Trade
+your ten-day hand run as prescribed; the scanner keeps score either way.
+
 ## 3. Reference numbers (from the 2026-09-22 research pass)
 
 - Good backtest: > 300 trades, profit factor 1.3-2.0 after costs, expectancy > 0.2R, max DD
@@ -476,3 +525,4 @@ blog.traderspost.io paper-to-live guide.
 | 2026-09-22 | **P1 / P2 / P3 verdicts: not passed** (§2f). The first pullback, the flat-top breakout and red-to-green, read as minute-bar rules on the Five Pillars universe after 09:30, are negative in every ladder cell and at zero cost. The bar shape is not the edge. | Claude Fable 5.1 for the operator |
 | 2026-09-22 | **Decision: master the first pullback -- by hand on Paper as the operator's material prescribes, and with the bot in Eyes mode gated by the live tape (S6); S5 rolling-universe test offline in parallel.** Halts last. | Operator + Claude Fable 5.1 |
 | 2026-09-22 | **Operator: halts last; learn every setup in the private material first, then choose one to master together.** S3 halt-resume shelved to last. **S4** -- the catalogue (rule sheets with citations, mechanical-or-not, a ranked shortlist) is written off-repo on F:; the operator picks the first strategy to master. The vault's older summaries are not trusted. **Operator instruction, same night: the source material and the catalogue stay private on F:, off the public repo; the chosen strategy itself may be recorded here.** | Operator |
+| 2026-09-22 | **S6 built (ADR 022): the setup scanner.** One live first-pullback scanner on the HOD Momo names replaces the old setups stream; the tape gate reads the held Level 2 / time and sales at the trigger; near + go raises an Eyes proposal (ping, alert card, staged ticket -- never a place); every armed setup is scored in `setups.db`. Live detector parity with P1: 94.9%. Read-out criterion pre-registered in §2g (50 triggered go setups, net R above +0.2 and above blind / wait). The Phase D executor no longer receives signals. | Claude Opus 5.5 for the operator |

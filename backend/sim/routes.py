@@ -111,7 +111,7 @@ def post_sim_clock(body: dict) -> dict:
 
 
 def _post_day(value: object) -> dict:
-    """Move Sim to another day with nothing loaded; null returns to today (ADR 022)."""
+    """Move Sim to another day with nothing loaded; null returns to today (ADR 023)."""
     from sim import day_jump
     from sim import replay as _replay
     from sim.mode import is_sim_mode

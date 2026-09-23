@@ -88,7 +88,7 @@ interface Span { start: number; stop: number; reason: string | null }
 
 /**
  * A segment somebody stopped on purpose -- the operator, or auto-record's own
- * planned stop (ADR 022): the gap after it is not "missing".
+ * planned stop (ADR 023): the gap after it is not "missing".
  */
 const isPlannedStop = (reason: string | null): boolean => reason != null && RECORDING_PLANNED_STOP_REASONS.has(reason);
 

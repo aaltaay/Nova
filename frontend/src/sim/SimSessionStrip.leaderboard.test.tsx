@@ -60,7 +60,7 @@ async function mount() { await act(async () => { render(<SimSessionStrip />); })
 const posts = () => mocks.fetch.mock.calls.filter(([, init]) => init?.method === 'POST')
   .map(([url, init]) => ({ path: String(url).split('/api/sim')[1], body: JSON.parse(String(init.body)) }));
 
-describe('Sim strip: the Scanner board day and lane (ADR 022)', () => {
+describe('Sim strip: the Scanner board day and lane (ADR 023)', () => {
   it('lists days with a board, marked recorded / rebuilt, and posts session_date on a pick', async () => {
     await mount();
     const picker = screen.getByTestId('sim-strip-day') as HTMLSelectElement;

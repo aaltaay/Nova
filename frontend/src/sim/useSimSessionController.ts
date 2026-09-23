@@ -114,7 +114,7 @@ export function useSimSessionController(active: boolean, openStockView: (symbol:
   };
   const beginDrag = () => { dragging.current = true; clockResource.suspend(); };
   const onFollowWall = async () => { clearSeekIntent(); await postClock({ follow_wall: true }, 'follow'); };
-  /** Move Sim to a day (nothing loaded, parked at 07:00 ET); null returns to today (ADR 022). */
+  /** Move Sim to a day (nothing loaded, parked at 07:00 ET); null returns to today (ADR 023). */
   const jumpToDay = async (date: string | null) => {
     clearSeekIntent();
     await postClock({ session_date: date }, 'day', SIM_DAY_PICKER_FAILED);

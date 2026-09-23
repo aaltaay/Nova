@@ -1,4 +1,4 @@
-"""Auto-record 07:00-10:00 ET: free lines only, yields to the operator, never touches theirs (ADR 022)."""
+"""Auto-record 07:00-10:00 ET: free lines only, yields to the operator, never touches theirs (ADR 023)."""
 from __future__ import annotations
 
 import asyncio

@@ -3,7 +3,7 @@ Journal routes -- READ + append only. No route here places, modifies, or
 cancels an order.
 
 Endpoints:
-  GET /api/journal/signals   -- recent detected setups (from setups_stream.py)
+  GET /api/journal/signals   -- setups recorded by the retired setups_stream loop (history)
   GET /api/journal/trades    -- recent closed round-trips (empty until Phase D)
   GET /api/journal/metrics   -- win rate, avg win/loss, P/L ratio, go/no-go bar
   GET /api/journal/calendar  -- year/month daily P&L aggregates (Reports tab)

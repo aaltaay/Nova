@@ -32,7 +32,7 @@
   background: repeating-linear-gradient(45deg,
     color-mix(in srgb, var(--nova-danger) 60%, transparent) 0 3px, transparent 3px 6px);
 }
-/* ADR 022: where the Scanner board was kept on this day (recorded or rebuilt); gaps as gaps. */
+/* ADR 023: where the Scanner board was kept on this day (recorded or rebuilt); gaps as gaps. */
 .sim-session-header__board {
   position: absolute;
   bottom: -7px;

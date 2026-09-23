@@ -1,5 +1,5 @@
 /**
- * Wire shapes of the scanner leaderboard routes (AGENTS.md section 3, ADR 022)
+ * Wire shapes of the scanner leaderboard routes (AGENTS.md section 3, ADR 023)
  * and the playback state the Scanner board reads. Every unknown is null.
  */
 import type { ScannerRow } from '../types/scanner';

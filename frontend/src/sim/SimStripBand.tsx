@@ -8,7 +8,7 @@
  * recorded the symbol (operator ask, 2026-09-22), so a downloaded window shows
  * its Session Record too -- on the same scale. A second thin lane below it
  * marks where the Scanner board was recorded / rebuilt that day, gaps drawn
- * as gaps with their reason (ADR 022). A native range input lies over
+ * as gaps with their reason (ADR 023). A native range input lies over
  * the track so pointer and keyboard scrubbing keep the controller's exact
  * semantics (drag locally, commit on release; keys debounce into one seek).
  * Off the live edge a small tag rides above the marker with the playhead time

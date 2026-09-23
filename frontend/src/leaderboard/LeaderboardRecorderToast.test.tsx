@@ -46,7 +46,7 @@ describe('LeaderboardRecorderToast', () => {
   });
 });
 
-describe('status fields and the planned "auto" stop (ADR 022)', () => {
+describe('status fields and the planned "auto" stop (ADR 023)', () => {
   it('parses the recorder and auto-record blocks; a malformed block is unknown, never a failure', () => {
     const parsed = normalizeIbkrStatus({
       connected: true, mode: 'sim',

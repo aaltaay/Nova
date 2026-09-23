@@ -1,4 +1,4 @@
-"""The offline leaderboard rebuild (ADR 022) without hindsight: time-of-day RVOL
+"""The offline leaderboard rebuild (ADR 023) without hindsight: time-of-day RVOL
 from the prior 20 sessions only, split-adjusted, and news first seen after the
 prior close and at or before the minute."""
 from __future__ import annotations

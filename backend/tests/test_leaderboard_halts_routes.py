@@ -1,4 +1,4 @@
-"""The halt / LULD log and the leaderboard route shapes (ADR 022)."""
+"""The halt / LULD log and the leaderboard route shapes (ADR 023)."""
 from __future__ import annotations
 
 from datetime import datetime

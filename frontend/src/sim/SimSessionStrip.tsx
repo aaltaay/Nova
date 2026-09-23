@@ -1,7 +1,7 @@
 /**
  * The Sim scrubber cluster that rides on the Trader context strip, to the
  * right of the symbol tabs: transport (⏮ ◀◀ ⏯ ▶▶ ⏭), the Day picker (a day
- * with a Scanner board, ADR 022), the coverage band
+ * with a Scanner board, ADR 023), the coverage band
  * stretched across the row, the `● Live edge` pill (muted Wall clock / replay
  * state off it) and the `⋯` menu. Errors are a dismissable chip here plus a
  * red stretch in the band -- never a banner; a capture still loading is a
@@ -63,7 +63,7 @@ export function SimSessionStrip() {
   const format = (ts: number) => etTime(ts).slice(0, 5);
   const segments = stripBandSegments(clock, selection, format);
   const recorded = recordedLane(clock, controller.sessions, activeTraderSymbol, format);
-  // ADR 022: the day picker lists every day with a Scanner board; the lane shows where it was kept.
+  // ADR 023: the day picker lists every day with a Scanner board; the lane shows where it was kept.
   const days = useLeaderboardDays(true);
   const today = todayEt();
   const coverage = useLeaderboardCoverage(clock?.sim ? clock.session_date ?? null : null, today);

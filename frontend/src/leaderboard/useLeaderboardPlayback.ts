@@ -1,5 +1,5 @@
 /**
- * The Scanner board at the Sim playhead (ADR 022, "one desk, one clock").
+ * The Scanner board at the Sim playhead (ADR 023, "one desk, one clock").
  *
  * Null on Live and Paper and at the Sim live edge -- the Scanner stays live.
  * Off the edge it reads `GET /api/leaderboard/{date}?at=` once per board

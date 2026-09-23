@@ -48,7 +48,7 @@ export type HodMomoContextValue = {
   setShowHodSettings: (open: boolean) => void;
   toggleHodSettings: () => void;
   /**
-   * Sim off the live edge (ADR 022): `stream.alerts` are the day's history up
+   * Sim off the live edge (ADR 023): `stream.alerts` are the day's history up
    * to the playhead, not the live socket. Null / absent on Live and Paper.
    */
   replay?: HodMomoReplayState | null;

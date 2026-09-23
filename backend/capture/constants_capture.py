@@ -64,7 +64,7 @@ CAPTURE_STOP_OPERATOR = "operator"
 CAPTURE_STOP_ROTATION = "rotation"
 CAPTURE_STOP_FAILURE = "failure"
 CAPTURE_STOP_RESTART = "restart"
-# Auto-record (ADR 022) rotated or yielded the line: planned, like an operator stop.
+# Auto-record (ADR 023) rotated or yielded the line: planned, like an operator stop.
 CAPTURE_STOP_AUTO = "auto"
 # Stops that were asked for -- the gap after one is not "missing".
 CAPTURE_PLANNED_STOPS = frozenset({CAPTURE_STOP_OPERATOR, CAPTURE_STOP_AUTO})

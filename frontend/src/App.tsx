@@ -22,6 +22,7 @@ import { TabLazyFallback } from './components/TabLazyFallback';
 import { HotkeyDispatchProvider } from './hotkeys/HotkeyDispatchContext';
 import { TopOfBookProvider } from './hotkeys/TopOfBookContext';
 import { HodMomoProvider } from './hod_momo/HodMomoProvider';
+import { SetupsStreamProvider } from './setups/SetupsStreamContext';
 import { ScannerDataProvider } from './scanner/ScannerDataContext';
 import { IbkrAccountProvider } from './ibkr/IbkrAccountContext';
 import { GatewayDisconnectedBannerHost } from './ibkr/GatewayDisconnectedBannerHost';
@@ -85,6 +86,7 @@ function AppShell() {
       <SettingsProvider>
         <ScannerDataProvider>
           <HodMomoProvider>
+          <SetupsStreamProvider enabled={!detached}>
             <div className={`nova-app-stack${detached ? ' nova-app-stack--float' : ' nova-app-stack--rail'}`}>
             {/* Parent desk keeps the rail + full chrome. Pop-out floats are child trade desks — neither. */}
             {!detached && <NavRailHost />}
@@ -143,6 +145,7 @@ function AppShell() {
             </div>
             </div>
             </div>
+          </SetupsStreamProvider>
           </HodMomoProvider>
         </ScannerDataProvider>
       </SettingsProvider>

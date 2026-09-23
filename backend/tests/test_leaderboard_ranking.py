@@ -1,4 +1,4 @@
-"""The one leaderboard ranking and the row builder (ADR 022) -- pure."""
+"""The one leaderboard ranking and the row builder (ADR 023) -- pure."""
 from __future__ import annotations
 
 import math

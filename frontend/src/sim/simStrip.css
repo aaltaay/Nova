@@ -58,7 +58,7 @@
 /* The band block fits the 36 px row (operator report, 2026-09-22: the tag hid
    behind the header): a 14 px lane above the band holds the playhead tag and
    the 09:30 / 16:00 labels, the band is 8 px, and 9 px below hold the thin
-   recorded lane and, under it, the Scanner board lane (ADR 022): 31 px in
+   recorded lane and, under it, the Scanner board lane (ADR 023): 31 px in
    all. Every piece is positioned from the band's top edge. */
 .sim-strip__band {
   display: flex;
@@ -123,7 +123,7 @@
   background: var(--sim-recorded, #f5a524);
 }
 
-/* Where the Scanner board was recorded / rebuilt that day (ADR 022): a thin
+/* Where the Scanner board was recorded / rebuilt that day (ADR 023): a thin
    violet lane under the recorded lane; its gaps are striped, never filled. */
 .sim-strip__lb {
   position: absolute;

@@ -32,7 +32,7 @@ export function EmptyState({
   honestyHint?: string | null;
   /** A scanner REST route failed (QA C31): stated first, in every session. */
   feedFailure?: string | null;
-  /** Sim playback (ADR 022): why this list has no rows at the playhead -- a gap, a load, a failure. */
+  /** Sim playback (ADR 023): why this list has no rows at the playhead -- a gap, a load, a failure. */
   replayAbsence?: string | null;
 }) {
   const ibkr = useIbkrStatus();

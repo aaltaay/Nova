@@ -135,7 +135,7 @@ export const SCANNER_RVOL_SOURCE_MARKS: Record<string, ScannerRvolSourceMark> = 
       'Live volume is IBKR L1; relative volume divides it by an Alpaca IEX daily-bar average (aux). '
       + 'IEX sees only a sliver of consolidated volume, so thin names read high.',
   },
-  // Sim playback (ADR 022): a leaderboard row names its RVOL basis; two bases are never compared.
+  // Sim playback (ADR 023): a leaderboard row names its RVOL basis; two bases are never compared.
   daily_avg: {
     badge: 'day',
     title: 'Recorded RVOL: the desk\'s volume at this minute over the average daily volume.',
@@ -183,7 +183,7 @@ export const QUOTE_PANEL_LOOKUP_LABEL = 'Quote panel: look up';
 export const QUOTE_PANEL_LOOKUP_ARIA = 'Symbol to load in the quote panel on this page';
 export const QUOTE_PANEL_LOOKUP_PLACEHOLDER = 'Symbol, e.g. AAPL';
 
-// ── Scanner leaderboard (ADR 022, 2026-09-22) ─────────────────────────────
+// ── Scanner leaderboard (ADR 023, 2026-09-22) ─────────────────────────────
 /**
  * The past-day menu lists every date with any saved board (`type=all`), not
  * only the days that kept a Gappers snapshot -- a day whose gappers file is

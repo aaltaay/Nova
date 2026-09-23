@@ -1,4 +1,4 @@
-"""Helpers (no tests) for the leaderboard-rebuild tests (ADR 022): tiny synthetic
+"""Helpers (no tests) for the leaderboard-rebuild tests (ADR 023): tiny synthetic
 Massive flat files and a one-call rebuild into a tmp store.
 
 Writes ``minute_aggs_v1`` / ``day_aggs_v1`` csv.gz files into a tmp dir in the

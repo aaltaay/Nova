@@ -1,4 +1,4 @@
-/** Pure: what the HOD strip says while it follows the Sim playhead (ADR 022). */
+/** Pure: what the HOD strip says while it follows the Sim playhead (ADR 023). */
 import {
   HOD_REPLAY_FEED_TITLE,
   LEADERBOARD_RECORD_SETTLE_SEC,

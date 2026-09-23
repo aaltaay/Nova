@@ -1,4 +1,4 @@
-"""Leaderboard playback routes (ADR 022; shapes in AGENTS.md section 3)."""
+"""Leaderboard playback routes (ADR 023; shapes in AGENTS.md section 3)."""
 from __future__ import annotations
 
 import asyncio

@@ -55,7 +55,7 @@ async def get_capture() -> dict:
 
 
 def _auto_record_hook(name: str, symbol: str | None) -> None:
-    """Hand a symbol to the operator: auto-record never stops or retakes it (ADR 022)."""
+    """Hand a symbol to the operator: auto-record never stops or retakes it (ADR 023)."""
     try:
         from leaderboard import auto_record
 
@@ -71,7 +71,7 @@ async def post_capture(body: CaptureToggleRequest) -> dict:
     if body.enabled:
         target = requested or (recording[0] if recording else "")
         if target and target not in recording:
-            # The operator's Record outranks auto-record's (ADR 022).
+            # The operator's Record outranks auto-record's (ADR 023).
             try:
                 from leaderboard import auto_record
 

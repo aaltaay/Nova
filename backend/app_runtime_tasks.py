@@ -18,7 +18,7 @@ import scanner_news_badge as _scanner_news_badge
 import scanner_tab_registry as _scanner_tabs
 import strategy.executor as _executor
 import strategy.risk as _risk
-import strategy.setups_stream as _setups_stream
+import setup_scanner.engine as _setup_scanner
 from alpaca import _get_discovery_provider
 from archive.scheduler import archive_maintenance_loop, maintenance_enabled
 import archive.write_queue as _archive_write_queue
@@ -90,7 +90,8 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         ("hod_momo.fundamentals_enrichment", _hod_momo_enrichment.fundamentals_enrichment_loop),
         ("integrity_live", _integrity_live.integrity_loop),
         ("scanner_news_badge", _scanner_news_badge.refresh_loop),
-        ("setups_stream", _setups_stream.scan_loop),
+        # Setup scanner (ADR 022): replaces the old setups_stream loop. Never places.
+        ("setup_scanner", _setup_scanner.run),
         ("risk.session_reset", _risk.session_reset_loop),
         # Name is fill_poll_loop (singular). The old fills_poll_loop typo raised
         # AttributeError mid-list and aborted spawn before scanner_l1.
@@ -110,7 +111,7 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         ("capture.keepalive", _capture_keepalive.run),
         # Paper venue (ADR 020): resting practice orders fill on live tape prints.
         ("practice.matcher", _practice_matcher.run),
-        # Scanner leaderboard (ADR 022): always recording, enqueue + one writer.
+        # Scanner leaderboard (ADR 023): always recording, enqueue + one writer.
         ("leaderboard.write_queue", _leaderboard_queue.drain_loop),
         ("leaderboard.recorder", _leaderboard_recorder.run),
         # 07:00-10:00 ET: record the leaders on free Level 2 lines only.

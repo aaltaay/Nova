@@ -96,7 +96,7 @@ const finiteOrNull = (value: unknown): number | null =>
   typeof value === 'number' && Number.isFinite(value) ? value : null;
 const textOrNull = (value: unknown): string | null => (typeof value === 'string' ? value : null);
 
-/** ADR 022 recorder health: only an explicit `ok: false` is a failure; a malformed block is unknown (null). */
+/** ADR 023 recorder health: only an explicit `ok: false` is a failure; a malformed block is unknown (null). */
 function leaderboardRecorder(value: unknown): LeaderboardRecorderStatus | null {
   if (!isPlainObject(value)) return null;
   return {

@@ -62,12 +62,6 @@ export interface SetupsResponse {
   abcd: SetupSignalDetail;
 }
 
-/** One broadcast frame from /ws/strategy: the triggering setup's detail + metadata. */
-export interface SetupSignal extends SetupSignalDetail {
-  setup: SetupName;
-  timestamp: number; // unix seconds
-}
-
 /** Mirrors backend/journal/*.py row + metrics shapes. */
 export interface JournalSignalRow {
   id: number;
@@ -237,15 +231,3 @@ export interface NovaOsDecision {
 }
 
 /** Optional Nova OS summary attached to WS decision / signal payloads (P2+). */
-export interface NovaOsSignalMeta {
-  decision?: string;
-  reason_codes?: string[];
-  mode?: string;
-  would_execute?: boolean;
-  receipt_id?: number | null;
-}
-
-export interface SetupSignalWithNovaOs extends SetupSignal {
-  nova_os?: NovaOsSignalMeta;
-  shares?: number | null;
-}

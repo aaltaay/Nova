@@ -1,5 +1,5 @@
 /**
- * The Sim strip's Day picker (ADR 022): every day with a Scanner board --
+ * The Sim strip's Day picker (ADR 023): every day with a Scanner board --
  * recorded by Nova, rebuilt from minute bars, or both -- plus Today. Picking a
  * day posts `/api/sim/clock {session_date}`: Sim moves there with nothing
  * loaded, parked paused at 07:00 ET, and the Scanner board and HOD strip

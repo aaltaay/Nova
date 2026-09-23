@@ -124,7 +124,7 @@ export function RecordingSignals({ onOpenSymbol }: { onOpenSymbol?: (symbol: str
           </div>
         </div>
       ))}
-      {/* The Scanner board recorder's one loud case (ADR 022), stacked under any stop toast. */}
+      {/* The Scanner board recorder's one loud case (ADR 023), stacked under any stop toast. */}
       <LeaderboardRecorderToast stackIndex={shownList.length} />
     </>
   );

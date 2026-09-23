@@ -69,7 +69,7 @@ function absenceText(
   }
   if (!feed) return FOCUS_RAIL_NO_FEED;
   if (rows == null) return focusRailNotMirrored(title);
-  // The feed follows the Sim playhead (ADR 022): its absence is the playhead's.
+  // The feed follows the Sim playhead (ADR 023): its absence is the playhead's.
   if (feed.replay) return replayListAbsence(feed.replay, list);
   return listAbsenceText(title, { restError: feed.restError, healthStatus: feed.health?.status }, focusRailEmpty);
 }
@@ -82,7 +82,7 @@ export function FocusRail() {
   const { isAllowed } = useBotAllowlist();
   // Sim off the live edge replays another moment: today's live price, gap and
   // news stay off the rows; the list still opens tabs (QA W10). A feed that
-  // follows the playhead (ADR 022) is that moment's, so its values show.
+  // follows the playhead (ADR 023) is that moment's, so its values show.
   const replayDesk = useSimReplayDesk() && !feed?.replay;
   useSyncExternalStore(subscribeSessionRecord, () => getRecordingSymbols().join(','), () => '');
   const [state, setState] = useState<FocusRailState>(readFocusRailState);

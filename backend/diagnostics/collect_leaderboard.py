@@ -1,4 +1,4 @@
-"""Diagnostics rows for the always-on scanner recorder and auto-record (ADR 022)."""
+"""Diagnostics rows for the always-on scanner recorder and auto-record (ADR 023)."""
 from __future__ import annotations
 
 from typing import Any

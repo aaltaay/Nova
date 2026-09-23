@@ -55,7 +55,7 @@ afterEach(() => { cleanup(); resetNavRailStoreForTests(); vi.useRealTimers(); })
 const posts = () => mocks.fetch.mock.calls.filter(([, init]) => init?.method === 'POST')
   .map(([url, init]) => ({ path: String(url).split('/api/sim')[1], body: JSON.parse(String(init.body)) }));
 
-describe('Scanner Sim bar: watch a past day (ADR 022)', () => {
+describe('Scanner Sim bar: watch a past day (ADR 023)', () => {
   it('offers the days with a board and moves Sim there with nothing loaded', async () => {
     await act(async () => { render(<SimSessionHeader active />); });
     const picker = screen.getByTestId('sim-strip-day') as HTMLSelectElement;

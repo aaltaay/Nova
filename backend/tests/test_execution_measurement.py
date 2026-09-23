@@ -291,6 +291,11 @@ def test_bracket_children_cannot_corrupt_parent_fill_or_slippage(monkeypatch):
         },
     )
     monkeypatch.setattr(client_mod, "account_mode", lambda: "paper")
+    # Leg attribution, not sizing: 5 shares straight into the IBKR send would
+    # meet the Live test quantity gate's own refusal (QTY_CAP_LIVE, #444).
+    import execution.qty_gate as qty_gate
+
+    monkeypatch.setattr(qty_gate, "IBKR_FORCE_ONE_SHARE", False)
     monkeypatch.setattr(
         orders_mod,
         "place_bracket_order",

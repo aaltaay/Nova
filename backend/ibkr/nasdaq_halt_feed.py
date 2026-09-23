@@ -148,7 +148,7 @@ def refresh(
 
     try:
         # Every row, not just the per-symbol overlay kept below: a symbol can
-        # halt more than once a day (halt / LULD log, ADR 022).
+        # halt more than once a day (halt / LULD log, ADR 023).
         from leaderboard import halts as _halt_log
 
         _halt_log.observe_rss(parsed["rows"])

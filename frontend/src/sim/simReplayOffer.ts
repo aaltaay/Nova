@@ -87,7 +87,7 @@ const toHhmm = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart
 
 /**
  * The default window, moved to hold the playhead when it sits outside it: a
- * past day's board clicked at 07:42 (ADR 022) must offer a download that
+ * past day's board clicked at 07:42 (ADR 023) must offer a download that
  * covers 07:42, not the 09:15 open. Same length as the default, starting a
  * quarter hour before the playhead, inside 04:00-20:00.
  */
