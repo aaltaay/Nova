@@ -6,13 +6,20 @@
  * there is no timer, and a failed check or download only changes the Help menu.
  * Decisions live in updatePolicy.mjs; this file is the Electron wiring.
  *
+ * electron-updater checks and installs; the installer itself is fetched by
+ * updateDownload.mjs in resumable chunks and handed back through electron-updater's
+ * cache, because its own one-shot download never finished on a lossy link.
+ * Every line of this is also written to update.log (updateLog.mjs).
+ *
  * electron-updater loads lazily and only in a packaged Windows build, so a dev
  * checkout never loads it. Every failure here is logged and swallowed -- the desk
  * keeps running on the version it has.
  */
 import fs from 'node:fs';
-import { app, dialog, Menu } from 'electron';
+import { app, dialog, Menu, net } from 'electron';
 import { readEnvValue } from './envMerge.mjs';
+import { downloadInstaller, installerTarget } from './updateDownload.mjs';
+import { createUpdateLogger } from './updateLog.mjs';
 import {
   INITIAL_UPDATE_STATE,
   UPDATE_CHECK_ENV,
@@ -32,13 +39,15 @@ import {
   updateMenuItems,
 } from './updatePolicy.mjs';
 
-const LOG = '[nova-update]';
-const logger = {
-  info: (msg) => console.log(LOG, String(msg)),
-  warn: (msg) => console.warn(LOG, String(msg)),
-  error: (msg) => console.error(LOG, String(msg)),
-  debug: () => {},
-};
+function logsDir() {
+  try {
+    return app.getPath('logs');
+  } catch {
+    return '';
+  }
+}
+
+const logger = createUpdateLogger({ prefix: '[nova-update]', dir: logsDir });
 
 let updater = null;
 let gate = { updater: false, automatic: false, reason: 'not started' };
@@ -189,13 +198,55 @@ async function checkNow(manual) {
   }
   if (action !== 'check') return;
   manualPending = manual;
+  let result = null;
   try {
-    const result = await updater.checkForUpdates();
-    // Download failures are also emitted as 'error'; only keep this promise from going unhandled.
-    result?.downloadPromise?.catch(() => {});
+    result = await updater.checkForUpdates();
   } catch (err) {
+    // electron-updater also emits 'error', which is what the menu shows.
     logger.warn(`check failed: ${errorText(err)}`);
+    return;
   }
+  if (result?.isUpdateAvailable) await fetchUpdate(result.updateInfo);
+}
+
+/** Where and what to download, exactly as electron-updater would; null if it cannot say. */
+async function planDownload(info) {
+  try {
+    const provider = updater.updateInfoAndProvider?.provider;
+    const target = installerTarget(provider?.resolveFiles(info), info?.version);
+    const cacheDir = (await updater.getOrCreateDownloadHelper())?.cacheDir;
+    return target && cacheDir ? { target, cacheDir } : null;
+  } catch (err) {
+    logger.warn(`cannot plan a resumable download: ${errorText(err)}`);
+    return null;
+  }
+}
+
+async function fetchUpdate(info) {
+  const plan = await planDownload(info);
+  if (!plan) {
+    logger.warn('resumable download unavailable; falling back to electron-updater\'s own download');
+    // Its failures arrive as 'error' events; only keep the promise from going unhandled.
+    await updater.downloadUpdate().catch(() => {});
+    return;
+  }
+  try {
+    await downloadInstaller({
+      ...plan,
+      fetch: (url, init) => net.fetch(url, init),
+      logger,
+      onProgress: (percent) => dispatch({ type: 'progress', percent }),
+      onRetry: ({ attempt }) => dispatch({ type: 'retrying', attempt }),
+    });
+  } catch (err) {
+    logger.error(`download failed: ${errorText(err)}`);
+    dispatch({ type: 'error', message: errorText(err) });
+    void reportManualResult();
+    return;
+  }
+  // electron-updater finds the verified installer in its cache, hashes it again,
+  // and emits 'update-downloaded' (or 'error'), which drive the prompt.
+  await updater.downloadUpdate().catch(() => {});
 }
 
 function wireEvents(instance) {
@@ -227,7 +278,8 @@ async function loadUpdater() {
   // Reads resources/app-update.yml (GitHub provider, written by electron-builder).
   const instance = new NsisUpdater();
   instance.logger = logger;
-  instance.autoDownload = true;
+  // fetchUpdate() downloads; electron-updater's one-shot download is only the fallback.
+  instance.autoDownload = false;
   instance.autoInstallOnAppQuit = false;
   instance.autoRunAppAfterInstall = true;
   instance.allowPrerelease = false;

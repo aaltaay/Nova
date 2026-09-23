@@ -77,6 +77,36 @@ describe('update state', () => {
     expect(manualCheckResult(failed)?.type).toBe('warning');
   });
 
+  it('names a stopped download as a download, keeps its percent, and offers Resume', () => {
+    const failed = run(
+      { type: 'checking' },
+      { type: 'available', version: '0.1.961' },
+      { type: 'progress', percent: 45.7 },
+      { type: 'error', message: 'net::ERR_SSL_PROTOCOL_ERROR' },
+    );
+    expect(failed).toMatchObject({ phase: 'failed', failedStage: 'download', percent: 45.7 });
+    expect(updateMenuItems(failed).slice(0, 2)).toEqual([
+      { label: 'Download of v961 stopped at 45% — Resume', action: 'check' },
+      { label: 'net::ERR_SSL_PROTOCOL_ERROR' },
+    ]);
+    expect(manualCheckAction(failed, AUTO)).toBe('check');
+    expect(manualCheckResult(failed)?.message).toBe('Nova could not finish downloading v961.');
+    expect(manualCheckResult(failed)?.detail).toContain('What already arrived is kept');
+    // The next attempt is a fresh check, not a download failure.
+    const again = reduceUpdateState(failed, { type: 'checking' });
+    expect(again).toMatchObject({ phase: 'checking', failedStage: '' });
+  });
+
+  it('shows a chunk retry while downloading and clears it once bytes arrive', () => {
+    const downloading = run({ type: 'checking' }, { type: 'available', version: '0.1.961' }, { type: 'progress', percent: 10 });
+    const retrying = reduceUpdateState(downloading, { type: 'retrying', attempt: 2 } as UpdateEvent);
+    expect(updateMenuItems(retrying)[1]).toEqual({ label: 'Connection dropped; retrying (attempt 2)' });
+    const moving = reduceUpdateState(retrying, { type: 'progress', percent: 20 });
+    expect(moving.retry).toBe(0);
+    // A retry outside a download means nothing.
+    expect(reduceUpdateState(INITIAL_UPDATE_STATE, { type: 'retrying', attempt: 1 } as UpdateEvent)).toBe(INITIAL_UPDATE_STATE);
+  });
+
   it('returns to ready when an install attempt fails, so the operator can retry', () => {
     const installing = reduceUpdateState(readyAt('0.1.832'), { type: 'installing' });
     expect(installing.phase).toBe('installing');

@@ -65,14 +65,20 @@ export function errorText(err) {
 
 /**
  * phase: idle | checking | downloading | ready | current | failed | installing.
- * `promptedVersion` remembers the version already offered this session, so Later
- * is not re-asked until the next launch or an explicit Help-menu request.
+ * `failedStage` says which step a `failed` phase failed in: `check` (asking
+ * GitHub for the latest release) or `download` (fetching the installer, whose
+ * part is kept for Resume). `retry` is the chunk retry in progress while
+ * downloading, 0 when none. `promptedVersion` remembers the version already
+ * offered this session, so Later is not re-asked until the next launch or an
+ * explicit Help-menu request.
  */
 export const INITIAL_UPDATE_STATE = Object.freeze({
   phase: 'idle',
   version: '',
   percent: 0,
   error: '',
+  failedStage: '',
+  retry: 0,
   promptedVersion: '',
 });
 
@@ -87,13 +93,15 @@ export function reduceUpdateState(state, event) {
   switch (event?.type) {
     case 'checking':
       // An installer already on disk stays offered; a re-check cannot lose it.
-      return ready ? state : { ...state, phase: 'checking', error: '' };
+      return ready ? state : { ...state, phase: 'checking', error: '', failedStage: '', retry: 0 };
     case 'available':
-      return { ...state, phase: 'downloading', version: String(event.version || ''), percent: 0, error: '' };
+      return { ...state, phase: 'downloading', version: String(event.version || ''), percent: 0, error: '', retry: 0 };
     case 'not-available':
       return ready ? state : { ...state, phase: 'current', percent: 0, error: '' };
     case 'progress':
-      return state.phase === 'downloading' ? { ...state, percent: clampPercent(event.percent) } : state;
+      return state.phase === 'downloading' ? { ...state, percent: clampPercent(event.percent), retry: 0 } : state;
+    case 'retrying':
+      return state.phase === 'downloading' ? { ...state, retry: Math.max(1, Number(event.attempt) || 1) } : state;
     case 'downloaded':
       return {
         ...state,
@@ -102,9 +110,19 @@ export function reduceUpdateState(state, event) {
         percent: 100,
         error: '',
       };
-    case 'error':
+    case 'error': {
       if (ready) return { ...state, error: errorText(event.message) };
-      return { ...state, phase: 'failed', percent: 0, error: errorText(event.message) };
+      // A download that stopped keeps its percent: Resume continues from there.
+      const download = state.phase === 'downloading';
+      return {
+        ...state,
+        phase: 'failed',
+        failedStage: download ? 'download' : 'check',
+        percent: download ? state.percent : 0,
+        retry: 0,
+        error: errorText(event.message),
+      };
+    }
     case 'prompted':
       return { ...state, promptedVersion: String(event.version || '') };
     case 'installing':
@@ -154,6 +172,7 @@ export function updateMenuItems(state, { currentTag = '', automatic = true } = {
       break;
     case 'downloading':
       rows.push({ label: `Downloading ${tag}… ${Math.round(clampPercent(state.percent))}%` });
+      if (state.retry) rows.push({ label: `Connection dropped; retrying (attempt ${state.retry})` });
       break;
     case 'ready':
       rows.push({ label: `Restart to Update (${tag})`, action: 'restart' });
@@ -163,7 +182,12 @@ export function updateMenuItems(state, { currentTag = '', automatic = true } = {
       rows.push({ label: `Installing ${tag}…` });
       break;
     case 'failed':
-      rows.push({ label: 'Update check failed — Retry', action: 'check' });
+      if (state.failedStage === 'download') {
+        const pct = Math.floor(clampPercent(state.percent));
+        rows.push({ label: `Download of ${tag} stopped at ${pct}% — Resume`, action: 'check' });
+      } else {
+        rows.push({ label: 'Update check failed — Retry', action: 'check' });
+      }
       rows.push({ label: state.error || 'unknown error' });
       break;
     case 'current':
@@ -205,6 +229,15 @@ export function manualCheckResult(state, currentTag = '') {
     return {
       type: 'info',
       message: currentTag ? `Nova ${currentTag} is the latest release.` : 'Nova is up to date.',
+    };
+  }
+  if (state.phase === 'failed' && state.failedStage === 'download') {
+    return {
+      type: 'warning',
+      message: `Nova could not finish downloading ${displayTag(state.version)}.`,
+      detail:
+        `${state.error}\n\nWhat already arrived is kept. Nova keeps running on its current version; `
+        + 'Help > Resume continues the download from where it stopped.',
     };
   }
   if (state.phase === 'failed') {
