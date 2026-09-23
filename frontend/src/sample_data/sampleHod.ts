@@ -75,6 +75,8 @@ const SAMPLE_MASTER: MasterGateConfig = {
   hod_required: true,
   surge_pct: 3,
   surge_window_min: 5,
+  min_volume: 100_000,
+  min_price: 1,
   min_rvol: 2,
   premarket_min_rvol: 1,
   afterhours_min_rvol: 1,
