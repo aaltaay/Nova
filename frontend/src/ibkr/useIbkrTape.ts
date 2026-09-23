@@ -139,6 +139,8 @@ export function useIbkrTape(symbol: string | null, uiActive = true): TapeState {
               time: print.time,
               price: print.price,
               size: print.size,
+              // Older backends send no verdict: treat the print as a price, as before.
+              setsPrice: msg.sets_price !== false,
             });
             if (uiActiveRef.current) raf.schedule();
           } else if (msg.type === 'error') {

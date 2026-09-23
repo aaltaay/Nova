@@ -9,6 +9,7 @@ from types import MappingProxyType
 from typing import Any
 from ibkr.tape_side import best_bid_ask, classify_print_side
 from metrics.op_metrics import timed_fn
+from sale_conditions import sets_price
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,10 @@ def on_tape_update(ticker: Any, symbol: str, push, depth) -> None:
 
         exchange = getattr(tbt, "exchange", None) or ""
         conditions = getattr(tbt, "specialConditions", None) or ""
+        # Reported for volume only (odd lot, average price, ...): Time & Sales
+        # shows it, no candle takes it (sale_conditions.py).
+        unreported = bool(getattr(getattr(tbt, "tickAttribLast", None), "unreported", False))
+        price_ok = sets_price(conditions, unreported=unreported)
 
         # Classify against the open symbol's live BBO (depth / L1). Never use
         # another symbol's book — current_book is keyed by the tape symbol.
@@ -69,6 +74,8 @@ def on_tape_update(ticker: Any, symbol: str, push, depth) -> None:
             "size": size_i,
             "exchange": exchange,
             "conditions": conditions,
+            "unreported": unreported,
+            "sets_price": price_ok,
             "side": side,
             "bid": bid,
             "ask": ask,
@@ -108,6 +115,8 @@ def on_tape_update(ticker: Any, symbol: str, push, depth) -> None:
                 receive_ts=payload["receive_ts"],
                 source=ARCHIVE_SOURCE_IBKR,
             )
+            if not price_ok:
+                continue
             # 1m OHLCV for archive/replay (same IBKR tape source — not Alpaca).
             from archive.bar_builder import on_tape_print
 

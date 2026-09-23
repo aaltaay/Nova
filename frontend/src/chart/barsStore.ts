@@ -113,11 +113,17 @@ export function setBars(
   return next;
 }
 
+/**
+ * `setsPrice: false` is a print reported for volume only (odd lot, average
+ * price, derivatively priced ...): Time & Sales lists it, no candle takes it --
+ * its price can sit dollars from the market (backend `sale_conditions.py`).
+ */
 export function upsertTapePrint10SecBar(
   symbol: string,
-  print: { time: string; price: number; size: number },
+  print: { time: string; price: number; size: number; setsPrice?: boolean },
 ): boolean {
   const sym = symbol.trim().toUpperCase();
+  if (print.setsPrice === false) return false;
   if (getIbkrStatusSnapshot().mode === 'sim' || getBarsEntry(sym, '10Sec')?.coverage?.replay) {
     return false;
   }

@@ -2,7 +2,9 @@
 
 Daily SSOT is IBKR (see chart_bars.py); 1d here is unused for the desk. A bar's
 timestamp is its OPEN and its final OHLCV is not known until it closes; the
-partial candle is built only from prints at or before the playhead.
+partial candle is built only from prints at or before the playhead. Candles
+take only prints that set a price (``sale_conditions.py``); Time & Sales
+replays them all.
 """
 from __future__ import annotations
 
@@ -12,6 +14,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from capture.constants_capture import CAPTURE_CHART_DEFAULT_LIMIT, CAPTURE_CHART_MAX_LIMIT
+from sale_conditions import row_sets_price
 
 ET = ZoneInfo("America/New_York")
 
@@ -66,7 +69,7 @@ def chart_bars(timeframe: str, limit: int, *, asof: float | None = None) -> list
     keys = state.bar_keys.get(kind) or []
     if not rows and state.prints:
         if timeframe not in state.print_bar_cache:
-            aggregated = aggregate_prints(state.prints, seconds)
+            aggregated = aggregate_prints([r for r in state.prints if row_sets_price(r)], seconds)
             state.print_bar_cache[timeframe] = (aggregated, [player._ts(r) for r in aggregated])
         rows, keys = state.print_bar_cache[timeframe]
         derive = False
@@ -83,7 +86,7 @@ def chart_bars(timeframe: str, limit: int, *, asof: float | None = None) -> list
         bars = derive_from_1min(bars, timeframe)
     lo = bisect.bisect_left(state.print_keys, bucket)
     hi = bisect.bisect_right(state.print_keys, asof)
-    partial = print_candle(state.prints[lo:hi], bucket)
+    partial = print_candle([r for r in state.prints[lo:hi] if row_sets_price(r)], bucket)
     if partial:
         bars.append(partial)
     return bars[-cap:]

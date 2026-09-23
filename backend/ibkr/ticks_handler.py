@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
 from constants import IBKR_QUOTE_QUALITY_CLOSE_FALLBACK
+from constants_tape import IBKR_LAST_TICK_TYPES
 from metrics.op_metrics import timed_fn
 
 logger = logging.getLogger(__name__)
@@ -94,6 +95,30 @@ def exchange_ts_unix(ticker: Any) -> float:
         except (TypeError, ValueError, OSError, OverflowError):
             continue
     return time.time()
+
+
+def reportable_last(ticker: Any, sub: dict[str, Any] | None) -> float | None:
+    """IBKR's Last (tick 4 / 68) from this update, else the last one this line delivered.
+
+    ib_async keeps one Ticker per contract and writes ``ticker.last`` from
+    tick 4, from RTVolume 233 (unreported trades included) and from every
+    AllLast print, so an odd lot or an average-price print $2 away became the
+    desk's last and painted a candle wick (2026-09-23). Only tick 4 is a last.
+    A line that has not delivered one yet (a seed) keeps ``ticker.last``.
+    """
+    fresh = None
+    for tick in getattr(ticker, "ticks", None) or ():
+        if getattr(tick, "tickType", None) in IBKR_LAST_TICK_TYPES:
+            price = clean(getattr(tick, "price", None))
+            if price is not None and price > 0:
+                fresh = price
+    if fresh is not None:
+        if sub is not None:
+            sub["reportable_last"] = fresh
+        return fresh
+    if sub is not None and sub.get("reportable_last") is not None:
+        return sub["reportable_last"]
+    return clean(getattr(ticker, "last", None))
 
 
 def l1_size_fields(ticker: Any) -> tuple[float | None, float | None]:
@@ -185,7 +210,7 @@ def on_ticker_update(
         sub["last_update_ts"] = time.time()
     # ticker.halted can arrive with no last. Observe before the price-none return.
     _observe_halt(symbol, ticker)
-    last = clean(getattr(ticker, "last", None))
+    last = reportable_last(ticker, sub)
     close = clean(getattr(ticker, "close", None))
     # Tick type 14 = session OPEN. IB sends it on the same streaming ticker, so
     # Gap % costs no extra request (the COLD snapshot path already reads it --

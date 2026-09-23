@@ -192,6 +192,24 @@ describe('barsStore', () => {
     ]);
   });
 
+  it('keeps a volume-only print (odd lot, average price) out of the 10Sec candle', () => {
+    // PLTR 2026-09-23: a FINRA `4 W` print $2.40 under the market drew a wick.
+    upsertTapePrint10SecBar('PLTR', { time: '2026-09-23T13:45:01.000Z', price: 192.75, size: 200 });
+    expect(upsertTapePrint10SecBar('PLTR', {
+      time: '2026-09-23T13:45:02.000Z',
+      price: 190.38,
+      size: 100,
+      setsPrice: false,
+    })).toBe(false);
+    upsertTapePrint10SecBar('PLTR', {
+      time: '2026-09-23T13:45:03.000Z', price: 192.8, size: 100, setsPrice: true,
+    });
+
+    expect(getBarsEntry('PLTR', '10Sec')?.bars).toEqual([
+      { t: '2026-09-23T13:45:00.000Z', o: 192.75, h: 192.8, l: 192.75, c: 192.8, v: 300 },
+    ]);
+  });
+
   it('does not let a late empty HTTP response erase a live tape candle', async () => {
     let resolveFetch: (v: unknown) => void = () => {};
     (fetch as ReturnType<typeof vi.fn>).mockReturnValue(new Promise((resolve) => {
