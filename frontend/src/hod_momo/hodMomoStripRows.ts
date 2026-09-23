@@ -42,6 +42,11 @@ function alertDate(alert: Pick<AlertObject, 'timestamp' | 'created_ts'>): Date |
   return raisedDate(alert) ?? printDate(alert);
 }
 
+/** Epoch ms the strip orders and groups by (raise time, else print time); null when neither parses. */
+export function stripAlertMs(alert: Pick<AlertObject, 'timestamp' | 'created_ts'>): number | null {
+  return alertDate(alert)?.getTime() ?? null;
+}
+
 /** ET, whatever the browser's zone: the header clock, orders and charts are ET (QA W24). */
 function clockOf(d: Date): string {
   return d.toLocaleTimeString('en-US', {
@@ -100,28 +105,53 @@ function fmtShares(v: number): string {
   return String(Math.round(v));
 }
 
+function fmtGateValue(key: (typeof HOD_MOMO_STRIP_GATE_KEYS)[number], v: number): string {
+  switch (key) {
+    case 'change_pct':
+    case 'gap_pct':
+    case 'momentum_pct':
+      return fmtPct(v);
+    case 'rvol':
+    case 'rvol_5min':
+      return `${v.toFixed(1)}×`;
+    case 'float_shares':
+    case 'volume':
+      return fmtShares(v);
+    default:
+      return String(v);
+  }
+}
+
+/**
+ * The gate values a set of alerts carries, in a fixed order. One alert reads
+ * its own values; several (one ticker's strategies fired together) read the
+ * shared value, or the low-high range where they differ -- momentum is
+ * measured over each strategy's own window. A field no member carries is a
+ * stated dash, never a guess.
+ */
+export function gateValuesOf(alerts: readonly AlertObject[]): StripGateValue[] {
+  return HOD_MOMO_STRIP_GATE_KEYS.map((key) => {
+    const label = HOD_MOMO_STRIP_GATE_LABEL[key];
+    const known = alerts
+      .map((a) => a[key])
+      .filter((v): v is number => v != null && Number.isFinite(v));
+    if (known.length === 0) return { key, label, value: '—' };
+    const lo = fmtGateValue(key, Math.min(...known));
+    const hi = fmtGateValue(key, Math.max(...known));
+    return { key, label, value: lo === hi ? lo : `${lo}–${hi}` };
+  });
+}
+
 /** The gate values the alert carries, in a fixed order; a null field is a
  * stated dash, never a guess. */
 export function alertGateValues(alert: AlertObject): StripGateValue[] {
-  return HOD_MOMO_STRIP_GATE_KEYS.map((key) => {
-    const raw = alert[key];
-    const label = HOD_MOMO_STRIP_GATE_LABEL[key];
-    if (raw == null || !Number.isFinite(raw)) return { key, label, value: '—' };
-    switch (key) {
-      case 'change_pct':
-      case 'gap_pct':
-      case 'momentum_pct':
-        return { key, label, value: fmtPct(raw) };
-      case 'rvol':
-      case 'rvol_5min':
-        return { key, label, value: `${raw.toFixed(1)}×` };
-      case 'float_shares':
-      case 'volume':
-        return { key, label, value: fmtShares(raw) };
-      default:
-        return { key, label, value: String(raw) };
-    }
-  });
+  return gateValuesOf([alert]);
+}
+
+/** The backend's burst badge: "22 in 5s" when it consolidated repeat fires, else null. */
+export function stripBurstText(alert: Pick<AlertObject, 'consolidation_count' | 'consolidation_span_sec'>): string | null {
+  if (!(alert.consolidation_count > 1)) return null;
+  return `${alert.consolidation_count} in ${Math.max(1, alert.consolidation_span_sec ?? 1)}s`;
 }
 
 /** True when every gate value is absent -- the row says so instead of showing seven dashes. */
