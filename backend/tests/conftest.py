@@ -37,6 +37,17 @@ os.environ["NOVA_LOG_DIR"] = str(_SESSION_LOGS)
 # point -- importing main.py must not pull the operator's .env into os.environ.
 os.environ["NOVA_ENV_PATH"] = str(_SESSION_CACHE / "pytest-never-written.env")
 os.environ.pop("NOVA_API_KEY", None)
+# The operator's data archives default to F:\Nova\... when F: is mounted. A
+# test run on the desk machine resolved the live capture root there and its
+# startup finalizer stamped the desk's live recordings "restart" (2026-09-23).
+_OPERATOR_DATA_DIRS = {
+    "NOVA_SIM_CAPTURE_DIR": "sim_capture",
+    "NOVA_SIM_HISTORY_DIR": "sim_history",
+    "NOVA_CATALYST_DIR": "catalysts",
+    "NOVA_LEADERBOARD_DIR": "leaderboard",
+}
+for _env, _name in _OPERATOR_DATA_DIRS.items():
+    os.environ[_env] = str(_SESSION_CACHE / _name)
 os.environ["IBKR_GATEWAY_MODE"] = os.environ.get("IBKR_GATEWAY_MODE") or "paper"
 # ADR 026: a test that boots the app must not leave the performance recorder's
 # watcher and writer threads running for the rest of the session; the perf
@@ -99,9 +110,11 @@ def _isolate_operator_state(tmp_path, monkeypatch):
     # earlier test wrote os.environ directly.
     monkeypatch.setenv("NOVA_LOG_DIR", str(log_root))
     monkeypatch.setenv("NOVA_ENV_PATH", str(tmp_path / "nova.env"))
-    # The leaderboard store defaults to F:\Nova\leaderboard when F: is mounted;
-    # a test must never write the operator's archive (ADR 023).
-    monkeypatch.setenv("NOVA_LEADERBOARD_DIR", str(tmp_path / "leaderboard"))
+    # The leaderboard store, the capture root, the historical downloads and the
+    # catalyst stores default to F:\Nova\... when F: is mounted; a test must
+    # never read or write the operator's archives (ADR 023, 2026-09-23).
+    for env, name in _OPERATOR_DATA_DIRS.items():
+        monkeypatch.setenv(env, str(tmp_path / name))
     monkeypatch.delenv("NOVA_API_KEY", raising=False)
     # A developer shell's Finnhub key would send the catalyst reads (catalysts/live_finnhub.py) to the network.
     monkeypatch.delenv("FINNHUB_API_KEY", raising=False)

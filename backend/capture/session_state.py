@@ -13,6 +13,12 @@ finding one at startup means exactly one thing: the previous process died
 mid-recording.  Startup then recounts each named session from disk, stamps a
 terminal ``restart`` segment, and hands the summaries to ``capture.keepalive``.
 
+Unless the process that wrote the marker is still running: every process on
+the desk machine resolves the same capture root, so a second one starting
+(a pytest run, a second API launch) must never finalize the recordings the
+first is still writing (2026-09-23: a 09:48 start stamped the live IPDN and
+WHLR recordings ``restart`` while their owner kept writing to 10:00).
+
 Owner: ``capture.recorder``.  Invalidation: rewritten on every lifecycle change,
 consumed and removed by ``finalize_orphaned_sessions`` at startup.
 ``schema_version`` is carried so a future shape change can be detected rather
@@ -131,6 +137,15 @@ def finalize_orphaned_sessions(root: Path) -> list[dict[str, Any]]:
     """
     state = read_active(root)
     rows = active_rows(state)
+    owner = _live_owner(state)
+    if owner is not None:
+        logger.warning(
+            "CAPTURE: the active-session marker in %s belongs to running process "
+            "pid=%s (this is pid=%s) -- its recordings are live, not orphans; "
+            "left untouched",
+            root, owner, os.getpid(),
+        )
+        return []
     clear_active(root)
     summaries: list[dict[str, Any]] = []
     for row in rows:
@@ -139,6 +154,31 @@ def finalize_orphaned_sessions(root: Path) -> list[dict[str, Any]]:
             summaries.append(summary)
             _interrupted.append(summary)
     return summaries
+
+
+def _live_owner(state: dict[str, Any]) -> int | None:
+    """The marker's writer when it is another process that is still running.
+
+    Our own pid means a dead writer's pid came back to us, so the marker is an
+    orphan like any other. A live pid that is not a Python process is a dead
+    writer's pid reused by something else -- also an orphan.
+    """
+    try:
+        pid = int(state.get("pid") or 0)
+    except (TypeError, ValueError):
+        return None
+    if pid <= 0 or pid == os.getpid():
+        return None
+    from api_instance_lock import pid_alive, pid_image_name
+
+    if not pid_alive(pid):
+        return None
+    image = pid_image_name(pid)
+    # An unreadable image name leaves the live answer standing: finalizing a
+    # recording that is still being written is the worse mistake.
+    if image is not None and "python" not in image.lower():
+        return None
+    return pid
 
 
 def _finalize_row(row: dict[str, Any], *, pid: Any) -> dict[str, Any] | None:

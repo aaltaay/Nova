@@ -78,6 +78,36 @@ def _pid_alive(pid: int) -> bool:
     return True
 
 
+def pid_alive(pid: int) -> bool:
+    """Whether *pid* is a running process (shared with the capture marker)."""
+    return _pid_alive(int(pid))
+
+
+def pid_image_name(pid: int) -> str | None:
+    """The executable path of *pid*, or ``None`` when it cannot be read."""
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+
+        process_query_limited = 0x1000
+        handle = ctypes.windll.kernel32.OpenProcess(process_query_limited, False, int(pid))
+        if not handle:
+            return None
+        try:
+            size = wintypes.DWORD(1024)
+            buf = ctypes.create_unicode_buffer(size.value)
+            ok = ctypes.windll.kernel32.QueryFullProcessImageNameW(
+                handle, 0, buf, ctypes.byref(size)
+            )
+            return buf.value if ok else None
+        finally:
+            ctypes.windll.kernel32.CloseHandle(handle)
+    try:
+        return os.readlink(f"/proc/{int(pid)}/exe")
+    except OSError:
+        return None
+
+
 def classify_holder(
     *,
     alive: bool,
