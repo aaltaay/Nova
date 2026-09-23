@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import json
 import logging
+import subprocess
+import sys
 import threading
 from pathlib import Path
 
@@ -282,6 +284,63 @@ def test_interrupted_session_is_finalized_on_restart(_capture_root) -> None:
     assert man["counts"]["prints"] == 6
     assert not (_capture_root / ".active_session.json").exists(), "marker not consumed"
     assert recorder.status()["interrupted_session"]["symbol"] == "CRASH"
+
+
+def _crash_with_marker_pid(root: Path, symbol: str, pid: int) -> Path:
+    """Record, crash, and name *pid* as the marker's writer."""
+    recorder.start_recorder(symbol)
+    _feed_prints(symbol, 3)
+    session_dir = _session_dir()
+    recorder._crash_for_tests()
+    bar_buckets.reset_for_tests()
+    marker = root / ".active_session.json"
+    state = json.loads(marker.read_text(encoding="utf-8"))
+    state["pid"] = pid
+    marker.write_text(json.dumps(state), encoding="utf-8")
+    return session_dir
+
+
+def test_a_running_owner_keeps_its_recording(_capture_root) -> None:
+    """2026-09-23: a second process's startup stamped live recordings ``restart``."""
+    owner = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    try:
+        session_dir = _crash_with_marker_pid(_capture_root, "LIVE", owner.pid)
+
+        assert session_state.finalize_orphaned_sessions(_capture_root) == []
+
+        assert (_capture_root / ".active_session.json").is_file(), "marker consumed"
+        man = _manifest(session_dir)
+        assert man.get("stopped_et") is None
+        assert "recovered_from_pid" not in man
+    finally:
+        owner.kill()
+        owner.wait()
+
+
+def test_a_dead_owner_is_finalized(_capture_root) -> None:
+    dead = subprocess.Popen([sys.executable, "-c", "pass"])
+    dead.wait()
+    session_dir = _crash_with_marker_pid(_capture_root, "GONE", dead.pid)
+
+    summaries = session_state.finalize_orphaned_sessions(_capture_root)
+
+    assert [row["symbol"] for row in summaries] == ["GONE"]
+    assert _manifest(session_dir)["recovered_from_pid"] == dead.pid
+
+
+def test_a_reused_pid_that_is_not_python_is_an_orphan(_capture_root, monkeypatch) -> None:
+    import api_instance_lock
+
+    owner = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    try:
+        monkeypatch.setattr(api_instance_lock, "pid_image_name", lambda pid: r"C:\Windows\notepad.exe")
+        session_dir = _crash_with_marker_pid(_capture_root, "REUSED", owner.pid)
+
+        assert [row["symbol"] for row in session_state.finalize_orphaned_sessions(_capture_root)] == ["REUSED"]
+        assert _manifest(session_dir)["status"] == CAPTURE_STATUS_INTERRUPTED
+    finally:
+        owner.kill()
+        owner.wait()
 
 
 def test_resume_after_interruption_keeps_recovered_counts(_capture_root) -> None:

@@ -35,7 +35,7 @@ Use this protocol for work on DAS-compatible hotkeys and executable Nova Actions
 - **Shortcuts menu:** menu chord (default Ctrl+M) peek / double-tap pin lives in the same dispatcher — do not add a parallel window listener.
 - **Rebind on the go:** double-click a menu row → TanStack `useHotkeyRecorder` captures; conflicts via TanStack-normalized strings (`findShortcutConflict`). Do not hand-roll a second capture stack. The menu chord override persists on the hotkey profile (`shortcutsMenuKey`); an old `automationBindings` key is ignored on load.
 - **Key-repeat guard:** `event.repeat` must short-circuit before any callback.
-- **Manual safety gates:** System 2 reuses PIN unlock, spend lock, and place-confirm preference — never bypass.
+- **Manual safety gates:** System 2 reuses the desk unlock (`useTradingPinGate`: the backend arm latch, PIN on Live), spend lock, and place-confirm preference — never bypass.
 - **Bid/Ask honesty:** Ask±/Bid± actions use L2 top-of-book only; never silently substitute last trade.
 - **Cancel-all is orchestration:** symbol cancel loops existing per-order `execution.service.execute(operation="cancel")` — no broker SDK bypass.
 - **`auto_live` NO-GO:** never unlock live auto-trading from this domain.

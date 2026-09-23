@@ -52,6 +52,20 @@ describe('normalizeIbkrStatus (QA C1 / C4)', () => {
     expect(out).toEqual({ connected: false, mode: 'disconnected' });
   });
 
+  it('carries the arm latch facts and never reads a malformed one as unlocked', () => {
+    const good = normalizeIbkrStatus({
+      ...GOOD, armed: true, arm_requires_pin: false, live_arm_pin_set: true, armed_by: 'bot',
+    });
+    expect(good).toMatchObject({ armed: true, arm_requires_pin: false, live_arm_pin_set: true, armed_by: 'bot' });
+    const bad = normalizeIbkrStatus({
+      ...GOOD, armed: 'true', arm_requires_pin: 0, live_arm_pin_set: 'no', armed_by: 'someone',
+    });
+    expect(bad).not.toHaveProperty('armed');
+    expect(bad).not.toHaveProperty('arm_requires_pin');
+    expect(bad).not.toHaveProperty('live_arm_pin_set');
+    expect(bad?.armed_by).toBeNull();
+  });
+
   it('refuses a body that is not an object at all', () => {
     for (const body of [null, [], 'ok', 3]) expect(normalizeIbkrStatus(body)).toBeNull();
   });

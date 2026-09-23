@@ -9,7 +9,6 @@ import { placeActionLabel } from './ticketSide';
 
 vi.mock('./ticketUnlock', () => ({
   readTicketSessionUnlocked: () => true,
-  tryUnlockTicketSession: () => true,
   subscribeTicketSessionUnlock: () => () => {},
 }));
 

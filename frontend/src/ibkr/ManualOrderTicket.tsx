@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import {
   forcedManualOrderQty,
   presetsForQuantityMode,
@@ -29,7 +29,6 @@ import { evaluateTradingAllowed } from './tradingAllowed';
 import {
   readTicketSessionUnlocked,
   subscribeTicketSessionUnlock,
-  tryUnlockTicketSession,
 } from './ticketUnlock';
 import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from './types';
 import type { QuickPriceKind } from './ticketPriceQuick';
@@ -37,6 +36,7 @@ import { useCompactTicket } from './useCompactTicket';
 import { useTicketPriceFollow } from './useTicketPriceFollow';
 import { useManualOrderSubmission } from './useManualOrderSubmission';
 import { useIbkrStatus } from './useIbkrStatus';
+import { useTradingPinGate } from './useTradingPinGate';
 import { useVenuePrice } from '../sim/useReplayQuote';
 
 interface Props {
@@ -92,14 +92,9 @@ export function ManualOrderTicket({
   const [limitPrice, setLimitPrice] = useState(initial.limitPrice);
   const [stopPrice, setStopPrice] = useState(initial.stopPrice);
   const [outsideRth, setOutsideRth] = useState(initial.outsideRth);
-  const [sessionUnlocked, setSessionUnlocked] = useState(readTicketSessionUnlocked);
-  const [pinDialogOpen, setPinDialogOpen] = useState(false);
-
-  useEffect(() => {
-    const sync = () => setSessionUnlocked(readTicketSessionUnlocked());
-    sync();
-    return subscribeTicketSessionUnlock(sync);
-  }, []);
+  // The padlock is the backend arm latch (ADR 018); one flow unlocks it for every door.
+  const sessionUnlocked = useSyncExternalStore(subscribeTicketSessionUnlock, readTicketSessionUnlocked, () => false);
+  const { ensureUnlocked, pinDialog } = useTradingPinGate();
 
   const displayQuantityMode: QuantityMode = QTY_LOCKED ? 'shares' : quantityMode;
   const displayQuantityValue = QTY_LOCKED ? String(FORCED_QTY) : quantityValue;
@@ -150,7 +145,12 @@ export function ManualOrderTicket({
     needsPinUnlock,
     shortBlockReason,
     qtyCap: ibkrStatus.qty_cap ?? null,
-    onNeedsPin: () => setPinDialogOpen(true),
+    // Place while locked unlocks and stops there: the operator presses Place again.
+    onNeedsPin: () => {
+      void ensureUnlocked().then((ok) => {
+        if (ok) resetSubmission();
+      });
+    },
     onOrderPlaced,
   });
   // The limit follows the side of the Level 2 book it was taken from, and
@@ -282,16 +282,6 @@ export function ManualOrderTicket({
     setQuantityValue(next);
   }
 
-  function submitPin(pin: string): boolean {
-    const ok = tryUnlockTicketSession(pin);
-    if (ok) {
-      setSessionUnlocked(true);
-      resetSubmission();
-      setPinDialogOpen(false);
-    }
-    return ok;
-  }
-
   return (
     <form className="manual-order-ticket" onSubmit={submit}>
       <ManualOrderTicketHeader
@@ -347,12 +337,10 @@ export function ManualOrderTicket({
         sessionUnlocked={sessionUnlocked}
         result={result}
         confirmSummary={confirmSummary}
-        pinDialogOpen={pinDialogOpen}
         onConfirmClose={() => setConfirmSummary(null)}
         onConfirmPlace={() => void executeOrder()}
-        onPinSubmit={submitPin}
-        onPinClose={() => setPinDialogOpen(false)}
       />
+      {pinDialog}
     </form>
   );
 }

@@ -8,7 +8,6 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { _resetDeskPollShareForTests } from '../ibkr/deskSharedPoll';
-import { writeTicketSessionUnlocked } from '../ibkr/ticketUnlock';
 import { _resetBotSessionPollerForTests } from './botSessionPoller';
 import { BotsPage } from './BotsPage';
 import { botsFetchRouter, CLOSED_READOUT, gates, session, type BotsFetchOpts } from './botsPageFixtures';
@@ -19,8 +18,20 @@ const ibkrStatus = {
   spend_locked_reason: null as string | null,
   trading_allowed: true as boolean,
   trading_allowed_reason: null as string | null,
+  armed: true as boolean,
+  lastSuccessAt: 1 as number | null,
+  stale: false,
 };
 vi.mock('../ibkr/useIbkrStatus', () => ({ useIbkrStatus: () => ibkrStatus }));
+// The padlock is the backend latch (ADR 018): this status's `armed` is the one answer.
+vi.mock('../ibkr/ticketUnlock', () => ({
+  readTicketSessionUnlocked: () => ibkrStatus.armed === true,
+  subscribeTicketSessionUnlock: () => () => {},
+  unlockNeedsPin: () => true,
+  livePinMissing: () => false,
+  unlockTicketSession: async () => ({ ok: true, code: null, message: null }),
+  lockTicketSession: async () => ({ ok: true, code: null, message: null }),
+}));
 const openStockView = vi.fn();
 vi.mock('../workspace/WorkspaceContext', () => ({
   useWorkspace: () => ({ openStockView, traderLiveTabs: ['GRML'], selectedSymbol: null, ibkrMode: 'paper' }),
@@ -33,8 +44,8 @@ const confirmApp = vi.fn(async () => true);
 vi.mock('../ux/appDialogApi', () => ({ confirmApp: (...args: unknown[]) => confirmApp(...(args as [])) }));
 
 beforeEach(() => {
-  sessionStorage.clear();
-  writeTicketSessionUnlocked(true);
+  ibkrStatus.armed = true;
+  ibkrStatus.lastSuccessAt = 1;
   ibkrStatus.trading_allowed = true;
   ibkrStatus.trading_allowed_reason = null;
   _resetBotSessionPollerForTests();
@@ -99,7 +110,7 @@ describe('Bots page hero (approved mockup v4)', () => {
   });
 
   it('offers the padlock PIN from a disarmed desk gate', async () => {
-    writeTicketSessionUnlocked(false);
+    ibkrStatus.armed = false;
     mockFetch({ session: session({ level: 1, gates: gates({
       desk_armed: { ok: false, detail: { reason: 'Desk is disarmed -- arm trading in this session before placing' } },
     }) }) });
@@ -146,7 +157,7 @@ describe('Bots page hero (approved mockup v4)', () => {
   });
 
   it('says why Strategy cannot be chosen while the padlock is locked, instead of doing nothing', async () => {
-    writeTicketSessionUnlocked(false);
+    ibkrStatus.armed = false;
     const fetchMock = mockFetch();
     await renderPage();
     await act(async () => { fireEvent.click(screen.getByTestId('bots-level-2')); await flush(); });
@@ -180,11 +191,20 @@ describe('Bots page hero (approved mockup v4)', () => {
   });
 
   it('disarms when armed while the padlock is locked', async () => {
-    writeTicketSessionUnlocked(false);
+    ibkrStatus.armed = false;
     const fetchMock = mockFetch({ session: session({ level: 2, armed: true, has_desk_arm: true }) });
     await renderPage();
     await act(async () => { await flush(); });
     expect(called(fetchMock, '/session/disarm')).toBe(true);
+  });
+
+  it('never stops the bot on a status this window has not read yet (a bot may have armed the desk)', async () => {
+    ibkrStatus.armed = false;
+    ibkrStatus.lastSuccessAt = null;
+    const fetchMock = mockFetch({ session: session({ level: 2, armed: true, has_desk_arm: true }) });
+    await renderPage();
+    await act(async () => { await flush(); });
+    expect(called(fetchMock, '/session/disarm')).toBe(false);
   });
 
   it('trips the kill switch from the hero, then offers the reset on the button and the chip', async () => {

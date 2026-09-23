@@ -2,7 +2,8 @@
  * Desk SSOT for whether places are allowed (looks vs is).
  *
  * Backend `/api/ibkr/status.trading_allowed` is spend + Gateway (same as
- * place_order). This helper AND-s the local PIN session so Activate, padlock,
+ * place_order). This helper AND-s the padlock (the backend arm latch,
+ * `/api/ibkr/status.armed`, read through ticketUnlock) so Activate, padlock,
  * ticket, and Nova Actions read one gate. Flatten / KILL stay protective.
  */
 import {

@@ -740,13 +740,23 @@ def test_launch_gateway_route_does_not_rebuild_when_not_already_listening():
 
 # ── ADR 018: the arm latch endpoint the header padlock posts to ───────────────
 
-def test_arm_route_arms_and_disarms_this_process():
+def test_arm_route_arms_and_disarms_this_process(monkeypatch):
+    from constants_ibkr import ARM_PIN_HASH_ENV
+    from ibkr import arm_pin
+
+    monkeypatch.setenv(ARM_PIN_HASH_ENV, arm_pin.hash_pin("482915", iterations=1_000))
+    monkeypatch.setattr("sim.mode.venue", lambda: "live")
     res = client.post("/api/ibkr/arm", json={"armed": False})
     assert res.status_code == 200
     assert res.json()["armed"] is False
     assert safety_mod.armed() is False
 
+    # Live: the padlock's PIN is checked here, never only in the browser.
     res = client.post("/api/ibkr/arm", json={"armed": True})
+    assert res.status_code == 403 and res.json()["code"] == "ARM_PIN_REQUIRED"
+    assert safety_mod.armed() is False
+
+    res = client.post("/api/ibkr/arm", json={"armed": True, "pin": "482915"})
     assert res.status_code == 200
     assert res.json()["armed"] is True
     assert safety_mod.armed() is True

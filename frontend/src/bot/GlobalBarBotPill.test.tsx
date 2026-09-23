@@ -7,22 +7,27 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { _resetDeskPollShareForTests } from '../ibkr/deskSharedPoll';
-import { writeTicketSessionUnlocked } from '../ibkr/ticketUnlock';
 import { getNavPage, resetNavRailStoreForTests } from '../workspace/navRailStore';
 import { _resetBotSessionPollerForTests } from './botSessionPoller';
 import { botsFetchRouter, session, type BotsFetchOpts } from './botsPageFixtures';
 import { GlobalBarBotPill } from './GlobalBarBotPill';
 import { NavRailBotDot } from './NavRailBotDot';
 
-vi.mock('../ibkr/useIbkrStatus', () => ({
-  useIbkrStatus: () => ({ connected: true, spend_status: 'paper_armed', trading_allowed: true, trading_allowed_reason: null }),
+const ibkrStatus = { connected: true, spend_status: 'paper_armed', trading_allowed: true, trading_allowed_reason: null, armed: true };
+vi.mock('../ibkr/useIbkrStatus', () => ({ useIbkrStatus: () => ibkrStatus }));
+// The padlock is the backend latch (ADR 018): this status's `armed` is the one answer.
+vi.mock('../ibkr/ticketUnlock', () => ({
+  readTicketSessionUnlocked: () => ibkrStatus.armed === true,
+  subscribeTicketSessionUnlock: () => () => {},
+  unlockNeedsPin: () => true,
+  livePinMissing: () => false,
+  unlockTicketSession: async () => ({ ok: true, code: null, message: null }),
+  lockTicketSession: async () => ({ ok: true, code: null, message: null }),
 }));
 const workspace = vi.hoisted(() => ({ traderViewActive: false, showScannerView: vi.fn() }));
 vi.mock('../workspace/WorkspaceContext', () => ({ useWorkspace: () => workspace }));
 
 beforeEach(() => {
-  sessionStorage.clear();
-  writeTicketSessionUnlocked(true);
   resetNavRailStoreForTests();
   _resetBotSessionPollerForTests();
   _resetDeskPollShareForTests();

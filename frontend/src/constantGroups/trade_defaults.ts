@@ -69,7 +69,7 @@ export const TICKET_LEGS_OFFSET_ERROR =
 export const TRADE_ORDER_PREFS_SKIP_CONFIRM_LABEL =
   'Skip place-order confirmation dialog';
 export const TRADE_ORDER_PREFS_SKIP_CONFIRM_HINT =
-  'When on, Place submits immediately after PIN unlock (still respects IBKR spend gates).';
+  'When on, Place submits immediately once trading is unlocked (still respects IBKR spend gates).';
 
 export const SETTINGS_GEAR_LABEL = 'Settings';
 export const SETTINGS_GEAR_TITLE = 'Open Settings';

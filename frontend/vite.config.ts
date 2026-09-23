@@ -56,6 +56,12 @@ export default defineConfig(({ command, mode }) => {
   return {
   // Relative asset URLs required for Electron file:// loads; web/Vercel keep absolute `/`.
   base: isElectronBuild ? './' : '/',
+  // The dependency cache belongs to this checkout, never to node_modules.
+  // Agent worktrees link frontend/node_modules to the main checkout's, so the
+  // default (node_modules/.vite) let a worktree dev server rewrite the live
+  // desk's optimized React under the running :5173 server -- two React copies,
+  // and every fresh load of the desk blank (twice on 2026-09-23).
+  cacheDir: path.resolve(__dirname, '.vite-cache'),
   define: {
     __NOVA_RELEASE_TAG__: JSON.stringify(novaReleaseTag),
   },
@@ -99,7 +105,7 @@ export default defineConfig(({ command, mode }) => {
     // desk is running (2026-09-22: three packs failed on the same rename).
     // Build outputs are never sources; leave them to the packager.
     watch: {
-      ignored: ['**/release/**', '**/dist/**', '**/dist-electron/**'],
+      ignored: ['**/release/**', '**/dist/**', '**/dist-electron/**', '**/.vite-cache/**'],
     },
   },
   build: {

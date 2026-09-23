@@ -1,135 +1,44 @@
 /**
- * Local Open-ticket session unlock (PIN gate).
- * Does not bypass IBKR_ORDERS_ENABLED / live confirmation -- only the UI submit affordance.
- * Same-window listeners use a CustomEvent. Peer desk windows (pop-out) get
- * BroadcastChannel plus a localStorage storage-event echo.
+ * The desk padlock, read from the one place it lives: the backend arm latch
+ * (ADR 018, `/api/ibkr/status.armed`).
+ *
+ * "Unlocked" is the status poller's snapshot, which every window shares, so
+ * two desk windows cannot disagree and nothing per tab can drift from the
+ * server. Unlocking is `POST /api/ibkr/arm`: Live needs the operator's PIN,
+ * checked by the backend against a hash in `.env`; Paper and Sim unlock in
+ * one click, and a bot may unlock them through the same endpoint. Nothing
+ * here stores a flag or a PIN. Unlock gates the UI's place affordance only;
+ * it never bypasses the env spend gates.
  */
-import {
-  TICKER_TRADE_UNLOCK_CHANNEL,
-  TICKER_TRADE_UNLOCK_PIN,
-  TICKER_TRADE_UNLOCK_SESSION_KEY,
-  TICKER_TRADE_UNLOCK_SYNC_KEY,
-} from '../constants';
+import { armDesk, type ArmDeskResult } from './armDesk';
+import { getIbkrStatusSnapshot, subscribeIbkrStatus } from './ibkrStatusPoller';
 
-const CHANGE_EVENT = 'nova-ticket-session-unlock';
-
-type UnlockChannel = {
-  postMessage: (data: unknown) => void;
-  addEventListener: (type: 'message', fn: (ev: MessageEvent) => void) => void;
-};
-
-let syncChannel: UnlockChannel | null | undefined;
-
+/** True only while the backend reports the desk armed. */
 export function readTicketSessionUnlocked(): boolean {
-  try {
-    return sessionStorage.getItem(TICKER_TRADE_UNLOCK_SESSION_KEY) === '1';
-  } catch {
-    return false;
-  }
+  return getIbkrStatusSnapshot().armed === true;
 }
 
-/** Notify header lock icon + Manual Order ticket after unlock/lock. */
-export function notifyTicketSessionUnlockChanged(): void {
-  window.dispatchEvent(new Event(CHANGE_EVENT));
+/** Called on every status snapshot change (lock, unlock, restart, venue). */
+export function subscribeTicketSessionUnlock(listener: () => void): () => void {
+  return subscribeIbkrStatus(listener);
 }
 
-export function subscribeTicketSessionUnlock(
-  listener: () => void,
-): () => void {
-  ensureUnlockSync();
-  window.addEventListener(CHANGE_EVENT, listener);
-  return () => window.removeEventListener(CHANGE_EVENT, listener);
+/** Live asks for the PIN; an unreported answer (older API, no status yet) counts as Live. */
+export function unlockNeedsPin(): boolean {
+  return getIbkrStatusSnapshot().arm_requires_pin !== false;
 }
 
-export function writeTicketSessionUnlocked(unlocked: boolean): void {
-  applyUnlocked(unlocked, true);
+/** True only when the backend says the Live PIN hash is missing from `.env`. */
+export function livePinMissing(): boolean {
+  return getIbkrStatusSnapshot().live_arm_pin_set === false;
 }
 
-/** Returns true when `pin` matches the configured local unlock code. */
-export function tryUnlockTicketSession(pin: string): boolean {
-  const ok = pin.trim() === TICKER_TRADE_UNLOCK_PIN;
-  if (ok) writeTicketSessionUnlocked(true);
-  return ok;
+/** Arm the desk; `pin` is required on Live and ignored elsewhere. */
+export function unlockTicketSession(pin?: string): Promise<ArmDeskResult> {
+  return armDesk(true, pin);
 }
 
-function applyUnlocked(unlocked: boolean, echo: boolean): void {
-  try {
-    if (unlocked) {
-      sessionStorage.setItem(TICKER_TRADE_UNLOCK_SESSION_KEY, '1');
-    } else {
-      sessionStorage.removeItem(TICKER_TRADE_UNLOCK_SESSION_KEY);
-    }
-  } catch {
-    /* private mode / quota */
-  }
-  notifyTicketSessionUnlockChanged();
-  // ADR 018: the PIN is the challenge, the backend latch is the gate. Only the
-  // window the operator acted in posts -- peers apply the echo locally, so a
-  // BroadcastChannel round trip cannot arm a desk nobody touched.
-  if (echo) {
-    void armDeskBestEffort(unlocked);
-    echoUnlocked(unlocked);
-  }
-}
-
-function armDeskBestEffort(unlocked: boolean): Promise<unknown> {
-  // Imported lazily so unit tests that exercise the local session flag do not
-  // need a fetch stub, and a missing backend never breaks the padlock.
-  return import('./armDesk')
-    .then((m) => m.armDesk(unlocked))
-    .catch(() => false);
-}
-
-function echoUnlocked(unlocked: boolean): void {
-  const channel = ensureUnlockSync();
-  try {
-    channel?.postMessage({ unlocked });
-  } catch {
-    /* channel closed */
-  }
-  try {
-    localStorage.setItem(
-      TICKER_TRADE_UNLOCK_SYNC_KEY,
-      JSON.stringify({ unlocked, t: Date.now() }),
-    );
-  } catch {
-    /* private mode / quota */
-  }
-}
-
-function onPeerMessage(ev: MessageEvent): void {
-  const unlocked = ev.data?.unlocked;
-  if (unlocked === true || unlocked === false) {
-    applyUnlocked(unlocked, false);
-  }
-}
-
-function onPeerStorage(ev: StorageEvent): void {
-  if (ev.key !== TICKER_TRADE_UNLOCK_SYNC_KEY || !ev.newValue) return;
-  try {
-    const parsed = JSON.parse(ev.newValue) as { unlocked?: unknown };
-    if (parsed.unlocked === true || parsed.unlocked === false) {
-      applyUnlocked(parsed.unlocked, false);
-    }
-  } catch {
-    /* ignore malformed peer payload */
-  }
-}
-
-function ensureUnlockSync(): UnlockChannel | null {
-  if (syncChannel !== undefined) return syncChannel;
-  syncChannel = null;
-  if (typeof BroadcastChannel !== 'undefined') {
-    try {
-      const channel = new BroadcastChannel(TICKER_TRADE_UNLOCK_CHANNEL);
-      channel.addEventListener('message', onPeerMessage);
-      syncChannel = channel;
-    } catch {
-      syncChannel = null;
-    }
-  }
-  if (typeof window !== 'undefined') {
-    window.addEventListener('storage', onPeerStorage);
-  }
-  return syncChannel;
+/** Disarm the desk. Always allowed; never throws. */
+export function lockTicketSession(): Promise<ArmDeskResult> {
+  return armDesk(false);
 }

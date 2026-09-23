@@ -1,6 +1,6 @@
 /**
  * Flatten / close full position — ADR 007 place path (not cancel-working-order).
- * Requires the same PIN session unlock as Place an order / header lock.
+ * Requires the same padlock unlock (the backend arm latch) as Place an order.
  */
 import { useState, type MouseEvent } from 'react';
 import {

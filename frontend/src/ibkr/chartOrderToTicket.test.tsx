@@ -33,7 +33,6 @@ vi.mock('./placeConfirmPrefs', () => ({
 vi.mock('./ticketUnlock', () => ({
   readTicketSessionUnlocked: () => true,
   subscribeTicketSessionUnlock: () => () => {},
-  tryUnlockTicketSession: () => true,
 }));
 
 vi.mock('./useIbkrStatus', () => ({

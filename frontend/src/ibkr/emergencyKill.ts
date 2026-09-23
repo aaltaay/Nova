@@ -15,7 +15,7 @@ import { refreshBotSessionNow } from '../bot/botSessionPoller';
 import { sampleKillRefusal } from '../sample_data/sampleOrderGuard';
 import { flattenAccount } from './flattenAccount';
 import { cancelAllWorkingOrders } from './placeOrder';
-import { writeTicketSessionUnlocked } from './ticketUnlock';
+import { lockTicketSession } from './ticketUnlock';
 
 export interface EmergencyKillResult {
   ok: boolean;
@@ -34,9 +34,16 @@ function pushError(errors: string[], message: string): void {
   if (!errors.includes(message)) errors.push(message);
 }
 
+/**
+ * Disarm the backend latch. Fire and forget: the kill never waits on it, and
+ * the cancel / flatten legs are exempt from the latch anyway. armDesk never
+ * rejects; a refusal is logged, and the padlock shows the server's answer.
+ */
 function lockDesk(errors: string[]): void {
   try {
-    writeTicketSessionUnlocked(false);
+    void lockTicketSession().then((res) => {
+      if (!res.ok) console.warn('[Nova] Emergency KILL could not lock the desk', res.code, res.message);
+    });
   } catch (error) {
     pushError(errors, asError(error, 'Lock trading failed'));
   }

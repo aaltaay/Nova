@@ -1,7 +1,7 @@
 /**
- * Live desk read of trading_allowed -- status poll + PIN session.
+ * Live desk read of trading_allowed -- the status poll, whose `armed` is the padlock.
  */
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { evaluateTradingAllowed, type TradingAllowed } from './tradingAllowed';
 import {
   readTicketSessionUnlocked,
@@ -9,15 +9,23 @@ import {
 } from './ticketUnlock';
 import { useIbkrStatus } from './useIbkrStatus';
 
-export function useDeskTradingAllowed(): TradingAllowed & { sessionUnlocked: boolean } {
-  const status = useIbkrStatus();
-  const [sessionUnlocked, setSessionUnlocked] = useState(readTicketSessionUnlocked);
+const LOCKED_ON_SERVER_RENDER = () => false;
 
-  useEffect(() => {
-    const sync = () => setSessionUnlocked(readTicketSessionUnlocked());
-    sync();
-    return subscribeTicketSessionUnlock(sync);
-  }, []);
+export function useDeskTradingAllowed(): TradingAllowed & {
+  sessionUnlocked: boolean;
+  /**
+   * True once this window has its own fresh status read. A hydrated cache or
+   * a failed poll cannot say whether the desk is armed now, so nothing should
+   * act on "locked" (stop a bot, say) until this is true.
+   */
+  armKnown: boolean;
+} {
+  const status = useIbkrStatus();
+  const sessionUnlocked = useSyncExternalStore(
+    subscribeTicketSessionUnlock,
+    readTicketSessionUnlocked,
+    LOCKED_ON_SERVER_RENDER,
+  );
 
   const gate = evaluateTradingAllowed({
     connected: status.connected,
@@ -27,5 +35,6 @@ export function useDeskTradingAllowed(): TradingAllowed & { sessionUnlocked: boo
     backendAllowed: status.trading_allowed,
     backendReason: status.trading_allowed_reason,
   });
-  return { ...gate, sessionUnlocked };
+  const armKnown = status.lastSuccessAt != null && !status.stale && typeof status.armed === 'boolean';
+  return { ...gate, sessionUnlocked, armKnown };
 }

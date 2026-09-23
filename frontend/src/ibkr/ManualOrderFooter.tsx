@@ -10,7 +10,6 @@ import { EstChip } from '../stock_view/EstChip';
 import { PlaceOrderConfirmDialog } from './PlaceOrderConfirmDialog';
 import { writeSkipPlaceConfirm } from './placeConfirmPrefs';
 import { placeActionLabel, type TicketSide } from './ticketSide';
-import { TradingPinDialog } from './TradingPinDialog';
 
 interface Props {
   isPaper: boolean;
@@ -32,11 +31,8 @@ interface Props {
   sessionUnlocked: boolean;
   result: { ok: boolean; text: string } | null;
   confirmSummary: string | null;
-  pinDialogOpen: boolean;
   onConfirmClose: () => void;
   onConfirmPlace: () => void;
-  onPinSubmit: (pin: string) => boolean;
-  onPinClose: () => void;
 }
 
 export function ManualOrderFooter({
@@ -56,16 +52,13 @@ export function ManualOrderFooter({
   sessionUnlocked,
   result,
   confirmSummary,
-  pinDialogOpen,
   onConfirmClose,
   onConfirmPlace,
-  onPinSubmit,
-  onPinClose,
 }: Props) {
   const placeLabel = placeActionLabel(ticketSide, symbol);
   const lockReason =
     spendLockReason ?? 'IBKR orders remain gated by environment safety settings';
-  // Unlock is not a place — keep the PIN affordance reachable while locked so
+  // Unlock is not a place — keep the unlock affordance reachable while locked so
   // the operator is never stuck, but never offer Place into a certain reject.
   const placeBlockedBySpend = spendLocked && !needsPinUnlock;
   const buttonText = !connected
@@ -82,7 +75,7 @@ export function ManualOrderFooter({
   const buttonTitle = !connected
     ? 'Connect IB Gateway first'
     : needsPinUnlock
-      ? `Enter unlock code, then ${placeLabel}`
+      ? `Unlock trading, then ${placeLabel}`
       : spendLocked
         ? lockReason
         : quantityLocked
@@ -113,7 +106,7 @@ export function ManualOrderFooter({
 
       {needsPinUnlock && connected && (
         <span className="manual-order-lock-note">
-          Enter the unlock code to enable {placeLabel}.
+          Unlock trading to enable {placeLabel}.
         </span>
       )}
       {spendLocked && (
@@ -159,12 +152,6 @@ export function ManualOrderFooter({
           onConfirmClose();
           onConfirmPlace();
         }}
-      />
-
-      <TradingPinDialog
-        open={pinDialogOpen}
-        onSubmit={onPinSubmit}
-        onCancel={onPinClose}
       />
     </>
   );

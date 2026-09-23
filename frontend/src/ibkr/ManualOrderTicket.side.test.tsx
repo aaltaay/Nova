@@ -13,7 +13,6 @@ import type { IbkrListingFlags } from '../types/ticker';
 vi.mock('../api/novaFetch', () => ({ novaFetch: vi.fn(async () => { throw new TypeError('offline'); }) }));
 vi.mock('./ticketUnlock', () => ({
   readTicketSessionUnlocked: () => true,
-  tryUnlockTicketSession: () => true,
   subscribeTicketSessionUnlock: () => () => {},
 }));
 

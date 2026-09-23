@@ -260,6 +260,18 @@ IBKR_BENIGN_LOG_MESSAGE_SUBSTRINGS = (
 SENTRY_SESSION_UNUSABLE_COOLDOWN_SEC = 300.0
 IBKR_GATEWAY_MODE_DEFAULT = "live"
 IBKR_ORDERS_ENABLED_DEFAULT = False  # never spend until explicitly enabled
+# ── Who may arm the desk latch (ADR 018 amendment, operator decision 2026-09-23)
+# One rule, by venue: Live arms only with the operator's PIN, checked by the
+# backend against a PBKDF2 hash in .env (set with tools/set_live_arm_pin.py);
+# Paper / Sim arm with no PIN -- the padlock in one click, a bot through the
+# same POST /api/ibkr/arm. Disarm is always open.
+ARM_PIN_VENUES = frozenset({"live"})
+ARM_PIN_HASH_ENV = "NOVA_LIVE_ARM_PIN_HASH"
+ARM_PIN_LENGTH = 6
+ARM_PIN_PBKDF2_ITERATIONS = 200_000
+ARM_PIN_MAX_FAILURES = 5          # wrong PINs in a row before the lockout
+ARM_PIN_LOCKOUT_SEC = 300.0
+ARM_ACTORS = ("operator", "bot")
 # Follow the listening Gateway when the preferred port is dark (paper -> live
 # always; live -> paper only with the opt-in below).
 # Override with IBKR_GATEWAY_SELF_HEAL=false. Spend gates never auto-unlock.

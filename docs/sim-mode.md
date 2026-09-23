@@ -47,7 +47,9 @@ Two separate facts, with deliberately opposite lifetimes:
   localhost watchdog bouncing the API mid-session -- comes back on the venue you
   chose. Sim now behaves like Paper and Live, which were already sticky.
 - **Arming** is never remembered. Every backend start is **disarmed**, in every
-  venue. Unlock the header padlock to arm this session; the PIN is unchanged.
+  venue. Unlock the header padlock to arm this session: one click on Paper and
+  Sim (a bot may arm them through `POST /api/ibkr/arm`), your PIN on Live --
+  checked by the backend (set it once with `py -3 tools/set_live_arm_pin.py`).
 
 That pairing is what closes the old hole: a restart used to drop the desk from
 Sim back to an armed live Gateway with nothing on screen to say so. Now, if the

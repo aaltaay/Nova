@@ -23,9 +23,11 @@ Endpoints:
 from __future__ import annotations
 
 import logging
+from typing import Literal
 
 from fastapi import APIRouter, Body, HTTPException, WebSocket
-from pydantic import BaseModel, StrictBool
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field, StrictBool
 
 from execution import closed_blotter as _closed_blotter
 from execution.fill_audit_attach import attach_fill_audit
@@ -197,15 +199,19 @@ class ArmRequest(BaseModel):
     # True, so a sloppy client could arm a live desk with a string. An arming
     # request must be an unambiguous boolean.
     armed: StrictBool
+    # Live only: the operator's PIN, checked against the hash in .env.
+    pin: str | None = Field(default=None, max_length=32)
+    # Who is asking -- stamped on the latch (`armed_by`), never a permission.
+    actor: Literal["operator", "bot"] = "operator"
 
 
 @router.post("/arm")
-def ibkr_arm(body: ArmRequest) -> dict:
-    """Arm / disarm this process for opening orders (ADR 018).
+def ibkr_arm(body: ArmRequest):
+    """Arm / disarm this process for opening orders (ADR 018 and its amendment).
 
-    The header padlock posts here. The client PIN stays the human challenge in
-    front of it; this latch is the truth behind it, so pop-out windows and the
-    localhost bot API all read one answer instead of a per-tab flag.
+    The one door for the padlock and for bots. ``ibkr.safety.arm`` holds the
+    rule: Live arms only with the operator's PIN (403 otherwise, with a
+    ``code``), Paper / Sim with none; disarm always.
 
     `armed` is required rather than defaulted: a malformed body must never be
     read as a request to arm.
@@ -215,7 +221,9 @@ def ibkr_arm(body: ArmRequest) -> dict:
     """
     from ibkr import safety as _safety
 
-    _safety.set_armed(body.armed, reason="operator")
+    code, reason = _safety.arm(body.armed, pin=body.pin, actor=body.actor)
+    if code:
+        return JSONResponse(status_code=403, content={"detail": reason, "code": code})
     return _client_safety_status()
 
 

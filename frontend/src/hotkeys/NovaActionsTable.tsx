@@ -82,7 +82,7 @@ export function NovaActionsTable({ actions, onChange, onRestoreDefaults }: Props
         </button>
       </div>
       <p className="na-muted">
-        Typed intents only — PIN unlock, spend lock, and place-confirm still apply.
+        Typed intents only — the padlock, spend lock, and place-confirm still apply.
         Ask±/Bid± require live L2 depth for the open symbol.
       </p>
 
