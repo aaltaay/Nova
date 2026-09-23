@@ -526,15 +526,6 @@ WATCHLIST_CATALYST_FRESH_MINUTES = 60.0  # headline age considered "fully fresh"
 WATCHLIST_CATALYST_STALE_MINUTES = 24 * 60.0  # headline age at which freshness hits 0
 WATCHLIST_MAX_ROWS = 60                  # cap on rows returned to the UI
 
-# ── Setup signal stream (Phase B, /ws/strategy) ─────────────────────────────
-SETUPS_SCAN_INTERVAL_SEC = 15.0     # how often the background loop re-scans (Alpaca discovery)
-SETUPS_SCAN_INTERVAL_IBKR_SEC = 60.0  # slower under IBKR — historical pacing is shared with charts
-SETUPS_SCAN_TOP_N = 15              # only fetch bars for this many top-ranked watchlist symbols
-SETUPS_SCAN_TOP_N_IBKR = 3          # fewer concurrent historical pulls when discovery=ibkr
-SETUPS_IBKR_INTER_SYMBOL_DELAY_SEC = 2.0  # gap between IBKR historical pulls in one cycle
-SETUPS_ALERT_COOLDOWN_SEC = 120.0   # suppress a repeat alert for the same symbol+setup
-SETUPS_MAX_HISTORY = 200            # cap on in-memory signal history for the initial WS payload
-
 # ── Risk / discipline engine (Phase C) ──────────────────────────────────────
 # Source: strategy specification Ch.2, Ch.12; Basics Ch.15. This is a pure state machine — no
 # orders are ever placed by backend/strategy/risk.py.

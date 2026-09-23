@@ -337,7 +337,7 @@ IBKR_BAR_DURATION: dict[str, str] = {
     # IBKR step-size table: 14400 S (4h) allows bar size 10 secs.
     "10Sec": "14400 S",
     # Keep 1Min short — 5 D of extended-hours 1-min bars is huge and often times out
-    # when Gateway is also serving scanners / setups_stream.
+    # when Gateway is also serving scanners and background bar seeds.
     "1Min": "1 D",
     "5Min": "5 D",
     "15Min": "1 M",
@@ -350,7 +350,7 @@ IBKR_BAR_DURATION: dict[str, str] = {
 }
 IBKR_HISTORICAL_USE_RTH = False          # include extended hours (match chart live session)
 IBKR_HISTORICAL_TIMEOUT_SEC = 20.0       # per-request IB budget once dequeued
-IBKR_HISTORICAL_BACKGROUND_TIMEOUT_SEC = 12.0  # setups_stream / surge seed
+IBKR_HISTORICAL_BACKGROUND_TIMEOUT_SEC = 12.0  # background bar fetches (surge seed)
 IBKR_HISTORICAL_WHAT_TO_SHOW = "TRADES"
 
 # ADR 012 -- IB's real historical limits (not a mutex). Official TWS pacing:

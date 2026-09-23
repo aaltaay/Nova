@@ -107,7 +107,7 @@ def nova_os_decide_one(symbol: str) -> dict:
     (useNovaOsDecide.ts) — it must not write an append-only receipt on every
     poll tick, or the audit trail fills with near-duplicate rows for a symbol
     nobody acted on. `record=False`: the authoritative, receipt-writing
-    decide() call for a symbol lives in strategy.setups_stream's scan loop.
+    decide() call for a symbol used to live in the retired strategy.setups_stream loop.
     Uses the REAL current control mode (not a hardcoded default) so the
     displayed would_execute/mode matches what the scan loop just journaled.
     """

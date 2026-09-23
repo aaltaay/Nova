@@ -2,7 +2,8 @@
 HOD Momo REST + WebSocket routes.
 
 Extracted from ``main.py`` — thin handlers that delegate entirely to
-``hod_momo.py`` and ``strategy/setups_stream.py``.
+``hod_momo.py``. (The old ``/ws/strategy`` setup socket is retired; the setup
+scanner serves ``/ws/setups`` from ``setup_scanner/routes.py``, ADR 022.)
 
 Endpoints:
   GET  /api/hod-momo/alerts
@@ -18,7 +19,6 @@ Endpoints:
   GET  /api/hod-momo/debug/recent
   GET  /api/hod-momo/debug/snaps
   WS   /ws/hod-momo
-  WS   /ws/strategy
 """
 from __future__ import annotations
 
@@ -33,7 +33,6 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 
 import hod_momo as _hod_momo
-import strategy.setups_stream as _setups_stream
 from cache import list_history_dates as _list_history_dates
 from hod_momo_session import current_date_et
 from runtime_state import get_runtime_state
@@ -204,30 +203,3 @@ async def ws_hod_momo(websocket: WebSocket):
         logger.exception("HOD Momo WS loop failed")
     finally:
         _hod_momo.remove_ws_client(websocket)
-
-
-@ws_router.websocket("/ws/strategy")
-async def ws_strategy(websocket: WebSocket):
-    """WebSocket: Gap and Go / Bull Flag / ABCD signals. Signal only — never places orders."""
-    await websocket.accept()
-    _setups_stream.add_ws_client(websocket)
-    try:
-        initial = json.dumps({
-            "type": "initial",
-            "note": "Signal only. This stream never places, modifies, or cancels orders.",
-            "signals": _setups_stream.get_signal_history(),
-        })
-        await websocket.send_text(initial)
-        while True:
-            try:
-                await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
-            except asyncio.TimeoutError:
-                await websocket.send_text(json.dumps({"type": "ping"}))
-    except WebSocketDisconnect:
-        logger.debug("Strategy WS client disconnected")
-    except asyncio.CancelledError:
-        raise
-    except Exception:
-        logger.exception("Strategy WS loop failed")
-    finally:
-        _setups_stream.remove_ws_client(websocket)

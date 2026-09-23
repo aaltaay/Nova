@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import Callable
 
 from archive.write_queue import enqueue_intraday_bar
 
@@ -34,6 +35,29 @@ class _Bucket:
 
 _open: dict[str, _Bucket] = {}
 _last_cum_volume: dict[str, float] = {}
+# Consumers of live minutes (the setup scanner, ADR 022). Called on the IB loop:
+# a listener must only enqueue -- never block, never touch SQLite (ADR 010).
+Listener = Callable[[str, str, dict], None]
+_listeners: list[Listener] = []
+
+
+def add_listener(fn: Listener) -> None:
+    """Hear ``("last", SYM, {price, ts, bar_open})`` and ``("bar", SYM, {t,o,h,l,c,v})``."""
+    if fn not in _listeners:
+        _listeners.append(fn)
+
+
+def remove_listener(fn: Listener) -> None:
+    if fn in _listeners:
+        _listeners.remove(fn)
+
+
+def _emit(kind: str, symbol: str, payload: dict) -> None:
+    for fn in list(_listeners):
+        try:
+            fn(kind, symbol, payload)
+        except Exception:
+            logger.exception("l1_minute: listener failed for %s %s", kind, symbol)
 
 
 def _minute_floor(ts: float) -> float:
@@ -97,6 +121,7 @@ def on_last(
             low=float(price), close=float(price),
             volume=increment,
         )
+        _emit_last(sym, price, ts)
         return
     if minute_ts > bucket.minute_ts:
         _flush(bucket)
@@ -106,6 +131,7 @@ def on_last(
             low=float(price), close=float(price),
             volume=increment,
         )
+        _emit_last(sym, price, ts)
         return
     if minute_ts < bucket.minute_ts:
         return
@@ -113,6 +139,14 @@ def on_last(
     bucket.low = min(bucket.low, float(price))
     bucket.close = float(price)
     bucket.volume += increment
+    _emit_last(sym, price, ts)
+
+
+def _emit_last(sym: str, price: float, ts: float) -> None:
+    if _listeners:
+        bucket = _open.get(sym)
+        _emit("last", sym, {"price": float(price), "ts": float(ts),
+                            "bar_open": bucket.open if bucket else float(price)})
 
 
 def flush_elapsed(now: float) -> None:
@@ -125,6 +159,9 @@ def flush_elapsed(now: float) -> None:
 
 
 def _flush(bucket: _Bucket) -> None:
+    if _listeners:
+        _emit("bar", bucket.symbol, {"t": bucket.minute_ts, "o": bucket.open, "h": bucket.high,
+                                     "l": bucket.low, "c": bucket.close, "v": float(bucket.volume)})
     try:
         enqueue_intraday_bar(
             symbol=bucket.symbol,

@@ -1,0 +1,60 @@
+/* Setups board, scoreboard and alert card (ADR 022). Colours come from the theme tokens. */
+.setups-panel { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.setups-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.setups-status { color: var(--text-secondary); font-size: 12px; margin-left: 8px; }
+.setups-status--down { color: var(--danger); }
+.setups-note { color: var(--text-secondary); font-size: 12px; margin: 2px 0 4px; }
+
+.setups-link {
+  background: none; border: none; padding: 0 4px; cursor: pointer;
+  color: var(--accent-color); font: inherit; font-size: 12px;
+}
+.setups-link:hover { text-decoration: underline; }
+
+.setups-stage {
+  border: 1px solid var(--success); color: var(--success); background: transparent;
+  border-radius: 4px; padding: 1px 8px; font-size: 12px; cursor: pointer; white-space: nowrap;
+}
+.setups-stage:hover:not(:disabled) { background: color-mix(in srgb, var(--success) 14%, transparent); }
+.setups-stage:disabled { opacity: 0.5; cursor: default; }
+
+.setups-table td.num, .setups-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.setups-reason { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); }
+.setups-kind, .setups-distance { white-space: nowrap; }
+.setups-tape { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+
+.setups-state--near { color: var(--accent-color); border-color: var(--accent-color); }
+.setups-state--armed { color: var(--text-primary); }
+.setups-state--triggered { color: var(--success); border-color: var(--success); }
+.setups-state--failed { color: var(--danger); border-color: var(--danger); }
+.setups-state--leg, .setups-state--pullback, .setups-state--watching { color: var(--text-secondary); }
+
+.setups-tape--go { color: var(--success); border-color: var(--success); }
+.setups-tape--wait { color: var(--text-secondary); }
+.setups-tape--veto { color: var(--danger); border-color: var(--danger); }
+.setups-tape--blind { color: var(--text-secondary); border-style: dashed; }
+
+.setups-row--near { background: color-mix(in srgb, var(--accent-color) 7%, transparent); }
+.setups-row--proposal { box-shadow: inset 3px 0 0 var(--success); }
+.setups-row--failed { opacity: 0.6; }
+
+.setups-split-head th {
+  text-align: left; padding-top: 10px; color: var(--text-secondary);
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.setups-split-total th, .setups-split-total td { font-weight: 600; }
+.setups-scoreboard tbody th[scope='row'] {
+  text-align: left; font-weight: normal; white-space: nowrap;
+  text-transform: none; letter-spacing: normal; font-size: inherit; color: inherit;
+}
+.setups-split-total th[scope='row'] { font-weight: 600; }
+
+.setups-alert {
+  position: fixed; right: 16px; bottom: 16px; z-index: 60; max-width: min(420px, calc(100vw - 32px));
+  display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 6px;
+  background: var(--panel-bg); color: var(--text-primary);
+  border: 1px solid var(--success); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35); font-size: 13px;
+}
+.setups-alert-body { flex: 1; min-width: 0; line-height: 1.4; }
+.setups-alert-reasons { color: var(--text-secondary); font-size: 12px; margin-top: 2px; }
+.setups-alert-actions { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }

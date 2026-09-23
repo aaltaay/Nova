@@ -6,7 +6,7 @@ it survives restarts locally, on Railway (mounted volume), and in the
 Electron desktop build, without being git-tracked.
 
 Two tables for now:
-  signals -- every setup the bot detected as eligible (from setups_stream.py),
+  signals -- every setup the old setups_stream loop detected as eligible (retired, ADR 022),
              whether or not a human or Phase D ever acted on it.
   trades  -- closed round-trips. Empty until Phase D (paper execution) starts
              calling store.record_trade(). Metrics honestly report "no data
