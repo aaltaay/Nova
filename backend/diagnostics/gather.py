@@ -128,9 +128,9 @@ def _leaderboard_inputs() -> dict[str, Any]:
 
 
 def _catalyst_feed_status() -> dict[str, Any]:
-    from catalysts import feed
+    from catalysts import feed, live_finnhub
 
-    return feed.get_feed().status()
+    return {**feed.get_feed().status(), "finnhub": live_finnhub.status()}
 
 
 def _recorder_inputs() -> dict[str, Any]:

@@ -6,7 +6,7 @@ routine announcements, then dilution, then the positive classes strongest first.
 """
 from __future__ import annotations
 
-CATALYST_RULES_VERSION = "catalyst-rules-v5-2026-09-23"
+CATALYST_RULES_VERSION = "catalyst-rules-v6-2026-09-23"
 
 # Verdicts for one symbol-day.
 CATALYST_VERDICT_CATALYST = "catalyst"      # a real, company-specific positive catalyst
@@ -32,6 +32,11 @@ CATALYST_MAX_TICKERS = 3
 # Opinion mills: their headlines are never a company's own catalyst.
 CATALYST_OPINION_PUBLISHERS = ("the motley fool", "zacks investment research", "zacks", "investorplace", "seeking alpha",
                                "seekingalpha")
+# v6: stock screens ("Unusual volume stocks in Wednesday's session", "Let's take a look at the stocks that
+# are in motion"): Finnhub files them under every ticker the screen lists. A screen publisher's headline that
+# tags no ticker is a screen; one that does ("Pagaya Technologies (NASDAQ:PGY) Soars After Q1 Earnings Beat")
+# is judged like any rewrite.
+CATALYST_SCREEN_PUBLISHERS = ("chartmill",)
 # Sources ranked for the representative item of a verdict (a filing beats a rewrite of it).
 CATALYST_SOURCE_RANK = ("edgar", "globenewswire", "prnewswire", "newsfile", "fda", "alpaca", "finnhub", "massive")
 # How much of a press release's opening the classifier reads besides its headline.
@@ -39,6 +44,17 @@ CATALYST_SUMMARY_CHARS = 600
 # Live desk: symbols per Alpaca request and how often a roster's catalysts are re-read.
 CATALYST_LIVE_BATCH = 50
 CATALYST_LIVE_TTL_SEC = 120.0
+# Live desk, Finnhub company news (catalysts/live_finnhub.py). The free tier's 60 calls / min is shared with the
+# earnings calendar and the logos, so the reads take half; a read counts as having looked for its TTL and is
+# renewed at half of it (a board of ~140 symbols is ~19 calls / min).
+CATALYST_FINNHUB_URL = "https://finnhub.io/api/v1/company-news"
+CATALYST_FINNHUB_KEY_ENV = "FINNHUB_API_KEY"
+CATALYST_FINNHUB_CALLS_PER_MIN = 30.0
+CATALYST_FINNHUB_TTL_SEC = 900.0
+CATALYST_FINNHUB_HTTP_TIMEOUT_SEC = 10.0
+# Publishers whose Finnhub copies are dropped: Alpaca carries Benzinga's articles, and Finnhub stamps them with
+# Eastern wall-clock time read as UTC -- four hours early (#516; 4,072 of 5,568 title matches on the research store).
+CATALYST_FINNHUB_SKIP_PUBLISHERS = ("benzinga",)
 # Scanner rows: how often the board's verdicts are recomputed from what the live reads hold (in memory).
 CATALYST_BOARD_INTERVAL_SEC = 15.0
 # The Trader's News panel (GET /api/catalysts/{symbol}): items listed, newest first; the payload's version.
@@ -57,7 +73,10 @@ CATALYST_LAW_FIRM_RE = (
     r"encouraged to contact|secure counsel|losses? in (excess|of)|investor scrutiny|\bhbss\b"
 )
 CATALYST_MOVERS_RE = (
-    r"\bwhy\b.{0,80}\b(shares?|stock)\b|\bwhy\b.{0,80}\b(is|are) (surging|soaring|jumping|falling|plunging|sinking|"
+    # v6: "Why Did SOC, HTZ, COSM Stocks Tumble", "These stocks are moving in today's after hours session".
+    r"\bwhy\b.{0,80}\b(shares?|stocks?)\b|stocks? (that )?(are )?(moving|showing activity|in motion|on the move)\b|"
+    r"unusual (volume|options activity)|most active (stocks|names)|"
+    r"\bwhy\b.{0,80}\b(is|are) (surging|soaring|jumping|falling|plunging|sinking|"
     r"rising|rallying|tanking|trading)|what'?s going on|here'?s why|here'?s what('?s| is) (going on|happening)|"
     r"what you should know|week ahead|"
     r"\b(shares?|stock)\s+(is\s+)?(jumps?|soars?|surges?|spikes?|rall(y|ies)|plunges?|tumbles?|skyrockets?|"
@@ -79,13 +98,38 @@ CATALYST_MOVERS_RE = (
     r"climbs?|rises?|falls?|drops?|plunges?|tumbles?|spikes?|slides?|rebounds?|moves? (higher|lower))\b.{0,12}\b(on|after|as|amid|"
     r"following)\b|\b(jumps|soars|surges|slumps|pops|rallies|crashes|tumbles|plunges) on\b|"
     r"\b(drops|rises|rebounds|gains|falls) \d+(\.\d+)?%|^(dow|s&p 500|nasdaq|stocks)\b.{0,20}\b(jumps|falls|rises|"
-    r"slides|gains|drops|rall(y|ies))|deal dispatch|biotech pulse|^watching\b"
+    # v6: "Nasdaq Surges 200 Points; Nvidia Posts Upbeat Q2 Results" is a market wrap, not PPCB's earnings.
+    r"slides|gains|drops|rall(y|ies)|surges|soars|tumbles|sinks|climbs|slumps|plunges|dips|edges)|deal dispatch|"
+    r"biotech pulse|^watching\b"
 )
 # Exchange halt notices: the halt is not the news (the news, if any, follows as its own item).
 CATALYST_HALT_RE = (
     r"^trading halt|halt news pending|halted at \d|quotation resumption|luld pause|halted,? (pending|news)|news pending|"
     # v5: Benzinga's circuit-breaker notices ("Digital World Acquisition Shares Halted On Circuit Breaker").
     r"\bshares? (are )?halted\b|halted on circuit breaker|\bshares? (to )?resumes? trad(e|ing)\b"
+)
+# v6: a one-ticker "why is it moving" piece names its cause in the summary ("... are surging Wednesday after the
+# company announced the filing of a new provisional patent application"). The clause after the first of these
+# markers is judged like a headline; the piece keeps its movers-list label unless that clause is placed.
+CATALYST_CAUSE_RE = (
+    # "just days after the company announced a buyback" dates something else; it is not the cause.
+    # (\b: "Wednesday after the company announced" is a cause).
+    r"(?<!\bdays )(?<!\bday )(?<!\bweeks )(?<!\bweek )(?<!\bmonths )(?<!\bmonth )"
+    r"\b(after|following|on the heels of|in response to|on news (that|of)|as investors (react|respond) to)\b"
+)
+# ... and only for a one-ticker piece: a headline naming several stocks ("Here Are 20 Stocks Moving Premarket")
+# gives the first one's cause, which Finnhub (no ticker count) would pin on every name in the list.
+CATALYST_MULTI_STOCK_RE = (
+    r"\bstocks\b|\bmovers\b|\bgainers\b|\blosers\b|\bround-?up\b|stock market|market-moving|futures|"
+    r"^(dow|s&p|nasdaq)\b"
+)
+# ... unless the summary says there is no news, or that the move is someone else's news.
+CATALYST_NO_CAUSE_RE = (
+    r"\bno (company[- ]specific |apparent |obvious |clear |fresh |new |specific )?(news|catalyst|announcement)s?\b|"
+    r"\bwithout (any )?(company[- ]specific |fresh |new )?news\b|absence of (any )?news|sympathy|"
+    r"\b(rival|peer|competitor)s?\b|"
+    # "... after the company pushed back against a report claiming it was considering going private" (Lucid).
+    r"\b(den(y|ies|ied)|refut\w+|pushed back against|dismiss(es|ed) (a |the )?reports?)\b"
 )
 # Analyst notes: not the company's own news.
 CATALYST_ANALYST_RE = (
@@ -103,7 +147,7 @@ CATALYST_ROUTINE_RE = (
     r"conference|meeting|summit)|conference call|to present at|to participate in|fireside chat|"
     r"investor (conference|day)|annual (general )?meeting of (share|stock)holders|\bagm\b|results of (the )?annual|"
     r"earnings release date|"
-    r"(appoints|names|welcomes|announces the appointment of) .{0,60}(director|officer|board|ceo|cfo|president)|"
+    r"(appoints|names|welcomes|announces (the )?appointment of) .{0,60}(director|officer|board|ceo|cfo|president)|"
     r"(resign|retire)(s|ment)|annual report|notification of|form 20-f filing|earnings call (presentation|transcript)|"
     r"call transcript|(files?|filed|submits?|submitted) .{0,40}patent application|provisional patent|\bcro agreement|"
     r"planned .{0,30}(submission|filing)|plans to (submit|file)|quarterly (cash )?dividend|regular (quarterly )?dividend|"
@@ -129,7 +173,9 @@ CATALYST_FLUFF_RE = (
 CATALYST_SEC_COVER_RE = (
     r"name of registrant|translation of registrant|exact name|specified in its charter|^n/?a$|"
     r"^\(?address|principal executive offices|\d+(st|nd|rd|th) floor|office park|take no responsibility|"
-    r"exchanges and clearing"
+    r"exchanges and clearing|"
+    # v6: a street address ("Room 1207-08, No. 2488 Huandao East Road Huli District, Xiamen City" -- CPOP's 6-K).
+    r"^(room|suite|unit|flat|floor|no\.)\s*[\d-]+|\b(road|street|avenue|boulevard)\b.{0,60}\b(district|city|province)\b"
 )
 # A rebrand or ticker change is routine unless it names a theme pivot (AI, crypto ...).
 CATALYST_REBRAND_RE = r"rebrand\w*|name change|chang\w+ (its )?(trading )?symbol|ticker change"
@@ -155,7 +201,9 @@ CATALYST_DELISTING_RE = (
 CATALYST_FDA_STRONG_RE = (
     r"(fda|ema|european commission|health canada|nmpa|pmda|mhra)\b.{0,60}(approv|clear(s|ed|ance)|authori[sz])|"
     r"(approv\w*|clear(s|ed|ance)|authori[sz]\w*)\b.{0,40}\b(fda|ema|health canada|nmpa|pmda|mhra)\b|"
-    r"510\(k\) clearance|marketing authori[sz]ation|\bce mark\b|emergency use authori[sz]ation"
+    r"510\(k\) clearance|marketing authori[sz]ation|\bce mark\b|emergency use authori[sz]ation|"
+    # v6: "Utebzi (tebipenem pivoxil) approved in the US for adults with ..." names no agency.
+    r"\bapproved (in|for use in) the (u\.?s\.?|united states|european union|eu)\b"
 )
 CATALYST_FDA_WEAK_RE = (
     r"\bfda\b|breakthrough (therapy|device) designation|fast track|orphan drug|rare pediatric|pdufa|"
@@ -212,7 +260,12 @@ CATALYST_FINANCE_POSITIVE_RE = (
     r"buyback|(share|stock) repurchase|special (cash )?dividend|strategic investment|investment (from|by)|"
     r"non-dilutive|debt (free|elimination|extinguish)|eliminat\w*.{0,40}\bdebt\b|"
     r"(pays? (off|down)|retir(es|ed|ing)|extinguish\w*).{0,40}\bdebt\b|(ceo|director|insider|chairman).{0,40}(buys|purchase|"
-    r"acquires|accumulates)|regains?.{0,40}complian|uplist|approved (for|to) list|begin(s)? trading on"
+    r"acquires|accumulates)|regains?.{0,40}complian|uplist|approved (for|to) list|begin(s)? trading on|"
+    # v6: insider buying as Benzinga says it ("after CEO and CFO both bought company stock", "open-market share
+    # purchases by its CEO and CFO").
+    r"\b(ceo|cfo|chief executive|chief financial|insiders?|officers|executives)\b.{0,30}\b(bought|purchased)\b|"
+    r"(share|stock) purchases? by (its |the company'?s )?(ceo|cfo|chief|director|insider|chairman|officers|executives)|"
+    r"insider (buying|purchases)"
 )
 CATALYST_THEME_RE = (
     r"bitcoin|\bbtc\b|ethereum|solana|crypto|digital asset|\btoken|treasury (strategy|reserve)|"

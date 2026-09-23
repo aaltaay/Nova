@@ -588,8 +588,11 @@ scores, never fills.
 One pure classifier, `backend/catalysts/classify.py` (rules and `CATALYST_RULES_VERSION` in
 `constants_catalysts.py`), for the backfilled history and the live desk. An item is
 `catalyst` (`strength: "strong" | "weak"`), `negative` (dilution, delisting), `routine` or
-`noise` (movers lists, "why is it moving", law-firm adverts, opinion, roundups of more than
-three tickers). A **verdict** for a symbol-day reads only items published after the prior
+`noise` (movers lists, "why is it moving", law-firm adverts, opinion, stock screens, roundups of
+more than three tickers). Rules v6: a one-ticker "why is it moving" rewrite is labelled by the
+cause its summary names ("... after the company priced a $5 million offering") when that cause
+is a placed catalyst or dilution, and stays noise otherwise (no cause, "no news", a peer's news,
+a denial, a list of stocks, an analyst piece). A **verdict** for a symbol-day reads only items published after the prior
 session's 16:00 ET close and at or before its cutoff: `{verdict: "catalyst" | "negative" |
 "routine_only" | "noise_only" | "none_found" | "not_checked", category, strength, title,
 source, published_ts, url, negative_too, rules_version}` (plus `sources_answered`, `n_items`).
@@ -598,7 +601,11 @@ source, published_ts, url, negative_too, rules_version}` (plus `sources_answered
 `halt_code: string | null`.
 
 The setup board's `pillars.catalyst` is that verdict at arm time (`catalysts/live.py`:
-Alpaca since the prior close, fetched in the background, plus the live catalyst feed; `null`
+Alpaca since the prior close, fetched in the background, Finnhub company news since the prior
+close (`catalysts/live_finnhub.py`, paced at `CATALYST_FINNHUB_CALLS_PER_MIN` inside the free
+tier's shared budget; its Benzinga copies dropped -- Finnhub stamps them four hours early, #516;
+`sources_answered` names `finnhub` while a read younger than `CATALYST_FINNHUB_TTL_SEC` covers
+the window), plus the live catalyst feed; `null`
 when no source looked and nothing was found); `pillars.news` is `true` only for a classified
 catalyst, `null` when unknown (nothing read, `news_pending`, or only an unplaced
 `company_news` headline) and `false` otherwise; `pillars.headline` is the catalyst's headline
@@ -615,8 +622,9 @@ news"). Owner `catalysts/board.py`: an in-memory map recomputed off the loop eve
 chip (company news: a catalyst, dilution / a reverse split, or a halt for news; unread rows
 kept), the Trader tab's chip, the HOD strip's flame and `/api/strategy/*`'s catalyst pillar and
 score read `catalyst` when the row has it; a row without the key keeps the headline flame.
-`GET /api/catalysts/{symbol}` (owner `catalysts/routes.py`, read-only; reads Alpaca for the
-symbol first when its read is missing or stale) answers the Trader's News panel: `{schema_version:
+`GET /api/catalysts/{symbol}` (owner `catalysts/routes.py`, read-only; reads Alpaca and Finnhub
+for the symbol first when a read is missing or stale; one release carried by several sources is
+listed once, from the best-ranked source) answers the Trader's News panel: `{schema_version:
 1, symbol, generated_at, window_start, verdict: verdict | null, items: [{item_id, source,
 publisher, published_ts, title, url, kind: "catalyst" | "negative" | "routine" | "noise",
 category, strength, dilution}], items_total}` -- items since the prior close, newest first, at
@@ -631,7 +639,8 @@ Newsfile and FDA into `catalyst_feed.sqlite3` under `NOVA_CATALYST_DIR`, else
 unbroken reading of a source, extended only when a poll reached back to the previous one. A
 feed source counts in `sources_answered` only where a span covers the whole window.
 `/api/diagnostics` adds the `catalyst_feed` row (group `recorder`) with
-`evidence.sources: {name: {last_ok, last_error, items, gaps, covering_since}}`.
+`evidence.sources: {name: {last_ok, last_error, items, gaps, covering_since}}` and
+`evidence.finnhub: {enabled, pending, symbols, last_ok, last_error, reads}` (the Finnhub reader).
 
 The research store `F:\Nova\catalysts\catalysts.sqlite3` (`NOVA_CATALYST_DIR`; `PRAGMA
 user_version = 1`, unknown versions refuse; owner `research/catalysts/`, never read by the
@@ -1260,6 +1269,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-23 | Movers get the news that moved them (operator report: "most stocks don't have news, and they are moving"). Audit of the day's boards: 24 of 28 checked movers had no release or filing at all, so an empty News column is often the truth; the desk's own misses were a backend still running code from before the verdict reached the rows, a Windows Update restart that cost the wire feed the whole premarket, Benzinga "what's going on" pieces whose summaries named the cause (BENF, ARTL, BFRG) filed as movers lists, and screens / plural lists / cover-page addresses mislabelled. Rules v6 reads a one-ticker rewrite's stated cause; Finnhub company news joins the live verdict (`catalysts/live_finnhub.py`: answers for the window after the fact, carries Yahoo copies of GlobeNewswire / PR Newswire / ACCESS / Business Wire releases; its Benzinga copies are dropped for their four-hours-early clock, #516, in research too). Honest clocks move the research's leaderboard coverage (none found 23% -> 40%) but not the first-pullback split. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | In-app updates survive a lossy link (operator report: "Update check failed -- net::ERR_SSL_PROTOCOL_ERROR" on v959): the check worked, the 150 MB installer download failed every time. This PC's Wi-Fi corrupts a TLS record every few dozen MB (Windows curl `SEC_E_DECRYPT_FAILURE` from GitHub, Hetzner and OVH; 6 GB over loopback TLS clean), and electron-updater restarts a failed download from zero. `frontend/electron/updateDownload.mjs` now fetches it in resumable, individually retried chunks, keeps the part, checks the release sha512 and hands the file to electron-updater's cache; the Help menu names a stopped download as one ("stopped at N% -- Resume"); `update.log` records every step. §8 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Code-shape rules measure behavior, not a snapshot (operator ask: "'All files are under 400 lines' -- is this an actual rule? ... how do we create better rules to manage the scalability of this project?"). §2 rewritten: the hand-kept file trees become ownership statements next to the code (backend package docstrings, `frontend/src/FOLDERS.md`) that the checker keeps complete, printed by `tools/module_map.py`; the hard 400-line cliff -- which bunched ten files at 395-400 lines -- becomes a soft limit that asks for a one-concern reason, a no-growth check without one, and an 800-line ceiling; constants tables are exempt; the .tsx 300 rule (which contradicted §2.3) is gone; feature-slice deep imports are frozen per file (340 on the day) instead of checked for 9 of 34 slices. §6.3: silent failures on the money path fail the gate; 22 sites fixed or given a reason, three of them real misreports (a practice flatten reported flat when its re-read failed, the startup sweep could call a filled order abandoned when `ib.fills()` failed, a partly unreadable commission total was shown as the total). CI runs `maintainer_checks.py --gate`. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | The Bots page as approved (mockup v4; operator report: "my screen looks nothing like the mock up + half of buttons don't work", "I want to see that L2 stuff in my header"): Bots is a shell page like Account, not a tab squeezed between the HOD strip, the positions dock and the quote panel. Every control works or says why not: the gate chips carry the link that opens them (unlock the padlock, open a symbol's Level 2 in a pinned Trader tab, see the read-out, add a symbol, reset the kill switch), choosing Strategy with the padlock locked says so, the setup radios and each setup's level switch are real (disabled with the reason where no scanner exists), "+ Add a setup" explains the door and copies the catalogue path, the sleeve is sliders that PATCH once let go, and the breakers draw today's P&L. Symbols say who holds the line with Last and Change; proposals keep the ones the scanner withdrew (closes now on the audit stream); the timeline adds the setup scanner's own day (setups.db); Today adds bot P&L from the practice ledger. The header carries the bot pill ("Bot L2 First pullback · Not active") and the rail a state dot. The quote panel folds to a strip on the right like the Focus list, streaming nothing while folded, and grades any symbol's Five Pillars (`GET /api/strategy/watchlist/{symbol}`). An API older than ADR 027 is named as such instead of "every gate is open". The course vendor's name left the UI. §3 amended. | User Directive + Claude Opus 5.5 |

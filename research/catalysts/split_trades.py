@@ -30,7 +30,7 @@ import duckdb
 import pandas as pd
 
 from cat_config import ET, LEADERBOARD_DB, MASSIVE_ROOT, RESEARCH_CUTOFF_ET, RESEARCH_DB, RESULTS_DIR, et_ts
-from store import connect
+from store import HONEST_CLOCK_SQL, connect
 
 from catalysts.classify import verdict
 
@@ -112,7 +112,8 @@ def main() -> int:
         entry_ts = datetime.combine(d, dtime.fromisoformat(tr.entry_t), ET).timestamp()
         items = [dict(zip(ITEM_COLS, r, strict=True)) for r in con.execute(
             f"SELECT {', '.join('i.' + c for c in ITEM_COLS)} FROM item_tickers t JOIN items i USING (item_id) "
-            "WHERE t.ticker = ? AND t.published_ts > ? AND t.published_ts <= ?", [tr.ticker, w0, entry_ts])]
+            f"WHERE t.ticker = ? AND t.published_ts > ? AND t.published_ts <= ? AND {HONEST_CLOCK_SQL}",
+            [tr.ticker, w0, entry_ts])]
         src = answered.get(key, ())
         v_open = verdict(items, window_start=w0, cutoff=et_ts(d, RESEARCH_CUTOFF_ET), sources_answered=src)
         v_entry = verdict(items, window_start=w0, cutoff=entry_ts, sources_answered=src)

@@ -103,6 +103,8 @@ def _isolate_operator_state(tmp_path, monkeypatch):
     # a test must never write the operator's archive (ADR 023).
     monkeypatch.setenv("NOVA_LEADERBOARD_DIR", str(tmp_path / "leaderboard"))
     monkeypatch.delenv("NOVA_API_KEY", raising=False)
+    # A developer shell's Finnhub key would send the catalyst reads (catalysts/live_finnhub.py) to the network.
+    monkeypatch.delenv("FINNHUB_API_KEY", raising=False)
     monkeypatch.setenv("IBKR_GATEWAY_MODE", "paper")
     monkeypatch.setattr(cache_mod, "_CACHE_DIR", str(cache_root), raising=False)
     monkeypatch.setattr(
