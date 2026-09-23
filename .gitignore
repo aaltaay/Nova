@@ -48,6 +48,8 @@ frontend/test-results/
 frontend/playwright-report/
 frontend/blob-report/
 frontend/playwright/.cache/
+# Vite's dependency cache, one per checkout (vite.config.ts cacheDir)
+frontend/.vite-cache/
 
 # PyInstaller / desktop sidecar
 backend/dist/
