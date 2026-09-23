@@ -15,11 +15,12 @@
   cursor: pointer;
 }
 .sim-day__button:disabled { opacity: 0.55; cursor: default; }
+/* Portalled to <body> at a fixed spot under its button (SimDayPicker), above
+   every pane -- the Trader's charts drew over it when it lived in the strip. */
 .sim-day__pop {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 60;
+  position: fixed;
+  z-index: 10050;
+  box-sizing: border-box;
   width: 248px;
   padding: 8px;
   background: var(--nova-panel, var(--bg-secondary));

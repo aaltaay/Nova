@@ -69,3 +69,13 @@ describe('month navigation', () => {
     expect(shiftMonth({ year: 2025, month0: 11 }, 1)).toEqual({ year: 2026, month0: 0 });
   });
 });
+
+describe('calendarPlacement', () => {
+  it('sits under its button, inside the window, and flips up when the bottom is short', async () => {
+    const { calendarPlacement } = await import('./SimDayPicker');
+    const view = { width: 1500, height: 950 };
+    expect(calendarPlacement({ top: 60, bottom: 82, left: 600 }, view)).toEqual({ top: 86, left: 600 });
+    expect(calendarPlacement({ top: 60, bottom: 82, left: 1400 }, view).left).toBe(1500 - 248 - 8);
+    expect(calendarPlacement({ top: 800, bottom: 822, left: 600 }, view)).toEqual({ top: 800 - 300 - 4, left: 600 });
+  });
+});

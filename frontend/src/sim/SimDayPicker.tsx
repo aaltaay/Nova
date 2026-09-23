@@ -8,9 +8,11 @@
  * posts `{session_date: null}` (the live edge). The ⋯ menu's Day select stays
  * the Session Record picker for replay loads.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   SIM_DAY_CAL_CLOSED,
+  SIM_DAY_CAL_HEIGHT_PX,
   SIM_DAY_CAL_NEXT,
   SIM_DAY_CAL_NOTHING,
   SIM_DAY_CAL_PREV,
@@ -18,6 +20,7 @@ import {
   SIM_DAY_CAL_RECORDED,
   SIM_DAY_CAL_SESSIONS,
   SIM_DAY_CAL_TODAY,
+  SIM_DAY_CAL_WIDTH_PX,
   SIM_DAY_CAL_WEEKDAYS,
   SIM_DAY_CAL_YEAR,
   SIM_DAY_PICKER_LABEL,
@@ -58,6 +61,24 @@ interface Props {
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const EDGE_PX = 8;
+
+/**
+ * Where the calendar sits: under its button, kept inside the window, flipped
+ * above when there is no room below. It is portalled to the page body so no
+ * pane (the Trader's charts) can draw over it.
+ */
+export function calendarPlacement(
+  button: { top: number; bottom: number; left: number },
+  viewport: { width: number; height: number },
+): { top: number; left: number } {
+  const left = Math.max(EDGE_PX, Math.min(button.left, viewport.width - SIM_DAY_CAL_WIDTH_PX - EDGE_PX));
+  const below = button.bottom + 4;
+  const top = below + SIM_DAY_CAL_HEIGHT_PX > viewport.height - EDGE_PX
+    ? Math.max(EDGE_PX, button.top - SIM_DAY_CAL_HEIGHT_PX - 4)
+    : below;
+  return { top, left };
+}
 
 /** "Sep 21 · rec", "Sep 18 · rebuilt", "Sep 22 · rec + rebuilt". */
 export function dayOptionLabel(day: LeaderboardDay): string {
@@ -84,19 +105,36 @@ export function SimDayPicker({ clock, days, sessions = null, error = null, busy,
   // Today at the live edge is "Today"; today scrubbed back is that day like any other.
   const selected = date && !(date === today && clock?.live_edge) ? date : null;
   const [view, setView] = useState<MonthRef>(() => monthOf(selected ?? today));
+  const [place, setPlace] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const root = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const pop = useRef<HTMLDivElement>(null);
+
+  const reposition = useCallback(() => {
+    const rect = button.current?.getBoundingClientRect();
+    if (rect) setPlace(calendarPlacement(rect, { width: window.innerWidth, height: window.innerHeight }));
+  }, []);
 
   useEffect(() => {
     if (!open) return undefined;
+    reposition();
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
-    const onDown = (e: MouseEvent) => { if (root.current && !root.current.contains(e.target as Node)) setOpen(false); };
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (root.current?.contains(target) || pop.current?.contains(target)) return;
+      setOpen(false);
+    };
     window.addEventListener('keydown', onKey);
     window.addEventListener('mousedown', onDown);
+    window.addEventListener('resize', reposition);
+    window.addEventListener('scroll', reposition, true);
     return () => {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('mousedown', onDown);
+      window.removeEventListener('resize', reposition);
+      window.removeEventListener('scroll', reposition, true);
     };
-  }, [open]);
+  }, [open, reposition]);
 
   const toggle = () => {
     if (!open) {
@@ -123,6 +161,7 @@ export function SimDayPicker({ clock, days, sessions = null, error = null, busy,
     <div className="sim-strip__day sim-day" ref={root} title={error ? `${SIM_DAY_PICKER_TITLE}\n${error}` : SIM_DAY_PICKER_TITLE}>
       <span>{SIM_DAY_PICKER_LABEL}</span>
       <button
+        ref={button}
         type="button"
         className="sim-day__button"
         data-testid="sim-strip-day"
@@ -133,8 +172,9 @@ export function SimDayPicker({ clock, days, sessions = null, error = null, busy,
       >
         {selected ? `${formatShortDate(selected)}${factsWord(facts.get(selected))}` : SIM_DAY_PICKER_TODAY} ▾
       </button>
-      {open ? (
-        <div className="sim-day__pop" role="dialog" aria-label={SIM_DAY_PICKER_LABEL} data-testid="sim-day-calendar">
+      {open ? createPortal(
+        <div ref={pop} className="sim-day__pop" role="dialog" aria-label={SIM_DAY_PICKER_LABEL} data-testid="sim-day-calendar"
+          style={{ top: place.top, left: place.left, width: SIM_DAY_CAL_WIDTH_PX }}>
           <div className="sim-day__head">
             <button type="button" aria-label={SIM_DAY_CAL_PREV} data-testid="sim-day-prev"
               disabled={monthIndex(view) <= monthIndex(range.first)} onClick={() => setView(clamp(shiftMonth(view, -1)))}>‹</button>
@@ -182,7 +222,8 @@ export function SimDayPicker({ clock, days, sessions = null, error = null, busy,
           <button type="button" className="sim-day__today" data-testid="sim-day-today" onClick={() => pick(null)}>
             {SIM_DAY_CAL_TODAY}
           </button>
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </div>
   );
