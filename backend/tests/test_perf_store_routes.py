@@ -218,6 +218,13 @@ def test_live_and_stalls_routes(client):
     assert client.get("/api/perf/stalls/..%2Fsecret").status_code == 404
 
 
+
+def test_a_stall_report_on_disk_is_served_by_id(client, store):
+    store.stalls_dir.mkdir(parents=True)
+    store.stall_path("1790000000000-ib").write_text(json.dumps({"id": "1790000000000-ib", "stacks": []}))
+    assert client.get("/api/perf/stalls/1790000000000-ib").json()["id"] == "1790000000000-ib"
+    assert client.get("/api/perf/stalls/1790000000001-ib").status_code == 404
+
 # -- runtime ---------------------------------------------------------------
 
 def test_runtime_starts_and_stops_its_threads(monkeypatch, tmp_path):

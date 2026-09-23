@@ -6,6 +6,7 @@ import json
 import logging
 import re
 import time
+from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -19,6 +20,7 @@ from constants_perf import (
     PERF_LIVE_DEFAULT_SEC,
     PERF_RING_SEC,
     PERF_SCHEMA_VERSION,
+    PERF_STALLS_DIR_NAME,
 )
 from perf import recorder
 
@@ -122,15 +124,32 @@ async def perf_stall(stall_id: str) -> dict:
         return report
     root = recorder.status().get("dir")
     if root:
-        from perf.store import PerfStore
-
-        path = PerfStore(root).stall_path(stall_id)
-        if path.is_file():
-            try:
-                return json.loads(await asyncio.to_thread(path.read_text, encoding="utf-8"))
-            except (OSError, ValueError):
-                logger.warning("perf: unreadable stall report %s", path, exc_info=True)
+        report = await asyncio.to_thread(_read_stall_file, Path(root) / PERF_STALLS_DIR_NAME, stall_id)
+        if report is not None:
+            return report
     raise HTTPException(status_code=404, detail="unknown stall id")
+
+
+def _read_stall_file(stalls_dir: Path, stall_id: str) -> dict | None:
+    """A stall report kept on disk, found by listing its folder.
+
+    The request's id is only compared with file names; it never becomes part
+    of a path (CodeQL py/path-injection).
+    """
+    try:
+        paths = list(stalls_dir.glob("*.json"))
+    except OSError:
+        logger.warning("perf: cannot list %s", stalls_dir, exc_info=True)
+        return None
+    for path in paths:
+        if path.stem != stall_id:
+            continue
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            logger.warning("perf: unreadable stall report %s", path, exc_info=True)
+            return None
+    return None
 
 
 @router.post("/client")
