@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   formatReleaseTag,
   loadNovaReleaseTag,
+  packageVersionFromTag,
   releaseTagFromText,
 } from '../../electron/releaseTag.mjs';
 
@@ -31,6 +32,25 @@ describe('formatReleaseTag', () => {
     expect(formatReleaseTag(42)).toBe('v042');
     expect(formatReleaseTag(477)).toBe('v477');
     expect(formatReleaseTag(1000)).toBe('v1000');
+  });
+});
+
+describe('packageVersionFromTag', () => {
+  it('maps vNNN to the 0.1.N semver tools/bump_version.py stamps', () => {
+    expect(packageVersionFromTag('v933')).toBe('0.1.933');
+    expect(packageVersionFromTag('v042')).toBe('0.1.42');
+    expect(packageVersionFromTag('v1000')).toBe('0.1.1000');
+  });
+
+  it('round-trips through releaseTagFromText', () => {
+    expect(releaseTagFromText(packageVersionFromTag('v042'))).toBe('v042');
+  });
+
+  it('refuses anything that is not a revision tag', () => {
+    expect(packageVersionFromTag('')).toBe('');
+    expect(packageVersionFromTag('v000')).toBe('');
+    expect(packageVersionFromTag('0.1.933')).toBe('');
+    expect(packageVersionFromTag('0.0.0-dev')).toBe('');
   });
 });
 

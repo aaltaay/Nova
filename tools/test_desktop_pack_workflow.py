@@ -96,6 +96,14 @@ def test_pack_script_builds_the_installer_and_never_publishes():
     assert "'--publish', 'never'" in text
 
 
+def test_pack_script_stamps_the_revision_as_the_app_version():
+    # A hand pack leaves package.json at 0.0.0-dev; without this the installed
+    # desk reports 0.0.0-dev in Help and to the update feed.
+    text = PACK_SCRIPT.read_text(encoding="utf-8")
+    assert "packageVersionFromTag(tag)" in text
+    assert "`-c.extraMetadata.version=${version}`" in text
+
+
 def test_windows_case_collisions_detects_mwcb_banner_pair():
     hits = windows_module_stem_collisions(
         [

@@ -12,6 +12,17 @@ export function formatReleaseTag(count) {
   return `v${String(n).padStart(TAG_MIN_WIDTH, '0')}`;
 }
 
+/**
+ * vNNN -> the 0.1.N semver electron-builder stamps (tools/bump_version.py
+ * format_package_version), or '' for anything else.
+ */
+export function packageVersionFromTag(tag) {
+  const raw = String(tag ?? '').trim();
+  if (!TAG_RE.test(raw)) return '';
+  const count = Number(raw.slice(1));
+  return count >= 1 ? `0.1.${count}` : '';
+}
+
 export function releaseTagFromText(text) {
   const raw = String(text ?? '').trim();
   if (TAG_RE.test(raw)) return raw;
