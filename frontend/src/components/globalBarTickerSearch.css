@@ -3,7 +3,7 @@
 .global-bar-search-list {
   z-index: 10080;
   min-width: var(--radix-popper-anchor-width);
-  max-width: 360px;
+  max-width: min(480px, calc(100vw - 16px));
   padding: 4px;
   border: 1px solid var(--nova-border-strong, var(--nova-border));
   border-radius: 8px;
@@ -17,6 +17,33 @@
   margin: 0;
   padding: 0;
   list-style: none;
+  /* A regex can list dozens of symbols: the list scrolls, the footer stays. */
+  max-height: min(420px, 60vh);
+  overflow-y: auto;
+}
+
+.global-bar-search-list__heading {
+  padding: 2px 8px 4px;
+  color: var(--nova-text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.global-bar-search-list__footer {
+  margin-top: 4px;
+  padding: 4px 8px 2px;
+  border-top: 1px solid var(--nova-border);
+  font-size: 11px;
+}
+
+.global-bar-search-list__footer--muted {
+  color: var(--nova-text-muted);
+}
+
+.global-bar-search-list__footer--warn {
+  color: var(--amber, #f59e0b);
 }
 
 .global-bar-search-list__row {
@@ -38,12 +65,69 @@
   letter-spacing: 0.04em;
 }
 
-.global-bar-search-list__source {
+.global-bar-search-list__name {
   flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
   color: var(--nova-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.global-bar-search-list__row.is-typed .global-bar-search-list__name {
+  font-style: italic;
+}
+
+.global-bar-search-list__source,
+.global-bar-search-list__exchange {
+  flex: 0 0 auto;
+  color: var(--nova-text-muted);
+  font-size: 10px;
+}
+
+.global-bar-search-list__exchange {
+  padding: 0 4px;
+  border: 1px solid var(--nova-border);
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+}
+
+.global-bar-search-list__mark {
+  background: none;
+  color: var(--nova-accent);
+  font-weight: 700;
+}
+
+.global-bar-search-list__forget {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 1px;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: var(--nova-text-muted);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.global-bar-search-list__forget svg {
+  width: 12px;
+  height: 12px;
+}
+
+.global-bar-search-list__row.is-active .global-bar-search-list__forget,
+.global-bar-search-list__forget:focus-visible {
+  opacity: 1;
+}
+
+.global-bar-search-list__forget:hover {
+  color: var(--nova-text);
+  background: color-mix(in srgb, var(--nova-text) 12%, transparent);
 }
 
 .global-bar-search-list__move {
+  flex: 0 0 auto;
   font-variant-numeric: tabular-nums;
 }
 
