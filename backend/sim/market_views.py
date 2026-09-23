@@ -41,7 +41,8 @@ def last_quotes(symbols: list[str] | None = None) -> dict[str, dict[str, Any]]:
     if row is None:
         return {}
     return {selected.symbol: {"price": row["last"], "last_update_ts": market._now_iso(),
-                              "owners": {"capture"}, "volume": row.get("volume")}}
+                              "owners": {"capture"}, "volume": row.get("volume"),
+                              "prev_close": row.get("prev_close")}}
 
 
 def book() -> dict[str, Any]:

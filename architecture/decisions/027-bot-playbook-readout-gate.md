@@ -15,8 +15,8 @@ trading material and none was ever backtested. They ran in a separate
 `nova-brain` process (`backend/nova_brain/`) that the Desktop app and
 `Run Nova.bat` started beside the API.
 
-The operator's own playbook is the Warrior Trading material (the source
-material stays off the repo on `F:\Nova`): first pullback, Gap and Go,
+The operator's own playbook is their private course material (it stays off
+the repo on `F:\Nova`): first pullback, Gap and Go,
 flat-top breakout, red to green, micro pullback, and more in the catalogue.
 The research (Bot-Trading-Plan §2b-2f) failed the bar-only versions of Gap
 and Go (A2), the first pullback (P1), flat top (P2) and red to green (P3).

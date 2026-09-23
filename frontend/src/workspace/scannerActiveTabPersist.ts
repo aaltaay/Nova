@@ -86,6 +86,5 @@ export function applySessionAutoSwitch(
 ): ActiveTab {
   if (userPicked) return current;
   if (SESSION_STICKY_TABS.has(current)) return current;
-  if (current === 'strategy') return current;
   return sessionDefaultScannerTab(mode);
 }

@@ -33,6 +33,8 @@ interface Props {
   layoutSlot?: LayoutSlotId;
   /** Five Pillars / sub-scores for this symbol when ranked on the watchlist. */
   watchlistEntry?: WatchlistEntry | null;
+  /** Its 1-based place on the ranked watchlist, when ranked. */
+  watchlistRank?: number | null;
   /** Inserted immediately under the quote / fundamentals block (e.g. news bump). */
   afterQuote?: ReactNode;
   /** When true, skip the news block (parent renders it elsewhere, e.g. Stock View footer). */
@@ -47,6 +49,7 @@ export function TickerDetailContent({
   layout = 'stack',
   layoutSlot = 'side_panel',
   watchlistEntry = null,
+  watchlistRank = null,
   afterQuote = null,
   omitNews = false,
 }: Props) {
@@ -116,7 +119,9 @@ export function TickerDetailContent({
             {chartEl}
           </div>,
         );
-        nodes.push(<WatchlistStripPanel key="watchlist-strip" entry={watchlistEntry} />);
+        nodes.push(
+          <WatchlistStripPanel key="watchlist-strip" entry={watchlistEntry} symbol={chartSymbol} rank={watchlistRank} />,
+        );
       } else if (block === 'depth_tape') {
         // Level 2 / T&S live in Trader View tabs only (IBKR depth plan cap).
         continue;

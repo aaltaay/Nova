@@ -2,6 +2,8 @@
 
 export const SETUPS_WS_PATH = '/ws/setups';
 export const SETUPS_SCOREBOARD_PATH = '/api/setups/scoreboard';
+/** One day's armed setups from setups.db (`?date=YYYY-MM-DD`). */
+export const SETUPS_ROWS_PATH = '/api/setups/rows';
 export const SETUPS_RECONNECT_MAX_MS = 30_000;
 export const SETUPS_SCOREBOARD_POLL_MS = 30_000;
 export const SETUPS_SCOREBOARD_DAYS = [1, 5, 20, 0] as const;   // 0 = all

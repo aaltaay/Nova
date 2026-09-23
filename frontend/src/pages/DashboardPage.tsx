@@ -16,6 +16,7 @@ import { usePublishScannerNews } from '../hod_momo/usePublishScannerNews';
 import { ScannerBarBridge } from '../components/ScannerBarBridge';
 import { setGlobalBarHistoryDate } from '../components/scannerBarStore';
 import { useWatchlist } from '../strategy/useWatchlist';
+import { useQuotePanelCollapsed } from '../hooks/useQuotePanelCollapsed';
 import { useSidePanelWidth } from '../hooks/useSidePanelWidth';
 import { boardListForSymbol } from '../scanner/boardListForSymbol';
 import { useLiveScannerFeed } from '../scanner/ScannerDataContext';
@@ -61,6 +62,7 @@ export function DashboardPage() {
   const { visibility } = useModuleVisibility();
   const { settings, exchangeFilter, registerOnConfigSaved } = useSettings();
   const sidePanel = useSidePanelWidth();
+  const quotePanel = useQuotePanelCollapsed();
   const watchlist = useWatchlist(true);
 
   const fetchDataRef = useRef<() => void>(() => {});
@@ -284,13 +286,17 @@ export function DashboardPage() {
         </SelectedScannerWidget>
         </ScannerDesk>
       </div>
-      <PanelResizeHandle
-        onPointerDown={sidePanel.onHandlePointerDown}
-        dragging={sidePanel.dragging}
-      />
+      {!quotePanel.collapsed && (
+        <PanelResizeHandle
+          onPointerDown={sidePanel.onHandlePointerDown}
+          dragging={sidePanel.dragging}
+        />
+      )}
       <SidePanel
         watchlistEntries={watchlist.entries}
         widthPx={sidePanel.widthPx}
+        collapsed={quotePanel.collapsed}
+        onToggleCollapsed={quotePanel.toggle}
       />
     </div>
   );

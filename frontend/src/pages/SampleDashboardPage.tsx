@@ -11,6 +11,7 @@ import { SidePanel } from '../components/SidePanel';
 import { PanelResizeHandle } from '../components/PanelResizeHandle';
 import { NAV_RAIL_SELECT_TAB_EVENT } from '../constantGroups/nav_rail';
 import { useExchangeFilter } from '../hooks/useExchangeFilter';
+import { useQuotePanelCollapsed } from '../hooks/useQuotePanelCollapsed';
 import { useSidePanelWidth } from '../hooks/useSidePanelWidth';
 import { ScannerDesk } from '../scanner/ScannerDesk';
 import { useSampleData } from '../sample_data/SampleDataContext';
@@ -44,6 +45,7 @@ export function SampleDashboardPage({ onOpenTrader }: Props) {
   const { visibility } = useModuleVisibility();
   const exchangeFilter = useExchangeFilter();
   const sidePanel = useSidePanelWidth();
+  const quotePanel = useQuotePanelCollapsed();
 
   const filteredGappers = exchangeFilter.filterRows(sample.gappers);
   const filteredGainers = exchangeFilter.filterRows(sample.gainers);
@@ -152,13 +154,17 @@ export function SampleDashboardPage({ onOpenTrader }: Props) {
         </SelectedScannerWidget>
         </ScannerDesk>
       </div>
-      <PanelResizeHandle
-        onPointerDown={sidePanel.onHandlePointerDown}
-        dragging={sidePanel.dragging}
-      />
+      {!quotePanel.collapsed && (
+        <PanelResizeHandle
+          onPointerDown={sidePanel.onHandlePointerDown}
+          dragging={sidePanel.dragging}
+        />
+      )}
       <SidePanel
         watchlistEntries={sample.watchlist}
         widthPx={sidePanel.widthPx}
+        collapsed={quotePanel.collapsed}
+        onToggleCollapsed={quotePanel.toggle}
       />
     </div>
   );
