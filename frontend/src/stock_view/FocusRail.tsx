@@ -41,7 +41,7 @@ import { TRADER_TAB_GAP_TITLE } from '../constantGroups/trader_view';
 import { useSettingsOptional } from '../settings/SettingsContext';
 import { SIM_FOCUS_RAIL_REPLAY_NOTE } from '../sim/simConstants';
 import { useSimReplayDesk } from '../sim/useSimReplayDesk';
-import { listScannerListModules } from '../workspace/registry';
+import { isTabModuleId, listScannerListModules } from '../workspace/registry';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
   focusRowsFor, hodFocusRows, isHodFocusList, readFocusRailState, stepCursor, writeFocusRailState,
@@ -74,7 +74,7 @@ function absenceText(
   return listAbsenceText(title, { restError: feed.restError, healthStatus: feed.health?.status }, focusRailEmpty);
 }
 
-export function FocusRail() {
+export function FocusRail({ active: onScreen = true }: { active?: boolean } = {}) {
   const feed = useLiveScannerFeedOptional();
   const hodStream = useHodMomoOptional()?.stream ?? null;
   const settings = useSettingsOptional();
@@ -108,6 +108,16 @@ export function FocusRail() {
   }, []);
 
   useEffect(() => { setCursor(-1); }, [state.list]);
+
+  // Declare the mirrored list for IBKR L1 (ADR 008) while its rows are on
+  // screen: an undeclared table gets no price patches, so a Large Cap rail
+  // beside a Scanner left on Gappers showed a dash for every price.
+  const setL1FocusTab = feed?.setL1FocusTab;
+  const focusTab = onScreen && !state.collapsed && isTabModuleId(state.list) ? state.list : null;
+  useEffect(() => {
+    setL1FocusTab?.(focusTab);
+  }, [focusTab, setL1FocusTab]);
+  useEffect(() => () => setL1FocusTab?.(null), [setL1FocusTab]);
 
   const open = (symbol: string) => openStockView(symbol);
   const onKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {

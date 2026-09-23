@@ -153,7 +153,7 @@ export function StockViewTabs({ detached, hideFocusRail = false, active }: Props
       {headerSlot && traderViewActive && !detached ? createPortal(tabStrip, headerSlot) : tabStrip}
       <div className="sv-tabs-body">
       {/* One Focus rail for the whole Trader view, not one per tab; none beside the Desk board. */}
-      {!hideFocusRail && <FocusRail />}
+      {!hideFocusRail && <FocusRail active={onScreen} />}
       <div className="sv-tabs-panes">
         {traderTabs.map(symbol => {
           if (symbol === TRADER_DRAFT_SYMBOL) {
