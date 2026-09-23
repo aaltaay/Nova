@@ -226,6 +226,52 @@ describe('HodMomoDock (strip)', () => {
     expect(screen.queryByTestId('hod-momo-strip-menu')).toBeNull();
   });
 
+  it('folds strategies one ticker fired together into one row with a count bubble named on hover', () => {
+    const at = Date.parse('2026-09-22T12:45:00Z') / 1000;
+    const together: AlertObject[] = [
+      alert({ id: 'm7', ticker: 'MSS', created_ts: at }),
+      alert({ id: 'm10', ticker: 'MSS', strategy_id: 10, strategy_name: 'Squeeze Alert - Up 10% in 10min', created_ts: at, momentum_pct: 34.5 }),
+      alert({ id: 'm11', ticker: 'MSS', strategy_id: 11, strategy_name: 'Squeeze Alert - Up 5% in 5min', created_ts: at - 2, momentum_pct: 31.9 }),
+    ];
+    const value = makeValue();
+    renderStrip({
+      ...value,
+      stream: { ...value.stream, alerts: [...together, ...ALERTS] },
+      config: {
+        ...value.config,
+        state: { ...value.config.state, strategies: { 10: { color: '#f97316' } } } as unknown as HodMomoContextValue['config']['state'],
+      },
+    });
+    const rows = screen.getAllByTestId('hod-momo-strip-row');
+    expect(rows.map((r) => r.getAttribute('data-symbol'))).toEqual(['MSS', 'GRML', 'BRNQ']);
+    expect(rows[0].getAttribute('data-strategies')).toBe('3');
+    expect(screen.getByTestId('hod-momo-strip-bubble').textContent).toBe('3');
+    expect(rows[0].textContent).toContain('S7');
+    expect(rows[0].textContent).toContain('S10');
+    expect(rows[0].textContent).toContain('S11');
+    expect(rows[0].textContent).toContain('+31.9%–+34.5%');
+    expect(screen.getByTestId('hod-momo-strip-since').textContent).toMatch(/^5 alerts since/);
+    expect(screen.getByTestId('hod-momo-dock-body').getAttribute('data-row-count')).toBe('3');
+
+    expect(screen.queryByTestId('hod-momo-strip-card')).toBeNull();
+    fireEvent.mouseEnter(screen.getByTestId('hod-momo-strip-group'));
+    const card = screen.getByTestId('hod-momo-strip-card');
+    expect(card.getAttribute('role')).toBe('tooltip');
+    expect(card.textContent).toContain('MSS · 3 strategies at');
+    const cardRows = screen.getAllByTestId('hod-momo-strip-card-row');
+    expect(cardRows.map((r) => r.querySelector('.hod-strip__card-name')?.textContent)).toEqual([
+      'Low Float - High Rel Vol',
+      'Squeeze Alert - Up 10% in 10min',
+      'Squeeze Alert - Up 5% in 5min',
+    ]);
+    expect(cardRows[1].textContent).toContain('momo +34.5%');
+    // S11 was raised two seconds before the row's time: its own clock is named.
+    expect(cardRows[2].querySelector('.hod-strip__card-detail')?.textContent).toMatch(/\d{2}:\d{2}:\d{2}$/);
+    expect((cardRows[1].querySelector('.hod-strip__card-dot') as HTMLElement).style.background).toBeTruthy();
+    fireEvent.mouseLeave(screen.getByTestId('hod-momo-strip-group'));
+    expect(screen.queryByTestId('hod-momo-strip-card')).toBeNull();
+  });
+
   it('states an empty feed instead of showing nothing', () => {
     renderStrip(makeValue({ stream: { alerts: [], totalToday: 0, connected: false } }));
     expect(screen.getByTestId('hod-momo-strip-empty').textContent).toContain('Connecting');

@@ -97,3 +97,34 @@ export function hodMomoStripStrategyChip(strategyId: number): string {
 // ── QA batch: Scanner / HOD / desk honesty (2026-09-22) ────────────────────
 /** A trigger print this much older than its alert is named in the row title (QA V16). */
 export const HOD_MOMO_STRIP_PRINT_LAG_NOTE_SEC = 60;
+
+// ── One row per ticker per batch (operator ask, 2026-09-23) ────────────────
+/**
+ * Strategies that fire for one ticker together share a row with a count
+ * bubble. "Together" is the backend's consolidation batch: a symbol's alerts
+ * wait `master.consolidation_sec` and leave at once, one per strategy, each
+ * stamped with its own newest fire, so one batch spans up to that window plus
+ * the flush loop's tick. Fallback mirrors backend
+ * constants_hod_momo.HOD_MOMO_CONSOLIDATION_SEC for when config is not loaded.
+ */
+export const HOD_MOMO_STRIP_GROUP_FALLBACK_SEC = 10;
+/** backend hod_momo_alerts.flush_consolidated_loop sleeps 1 s between flushes. */
+export const HOD_MOMO_STRIP_GROUP_SLACK_SEC = 1;
+/** Hover card: gap below the bubble, and the least distance kept from the viewport edge. */
+export const HOD_MOMO_STRIP_CARD_GAP_PX = 4;
+export const HOD_MOMO_STRIP_CARD_MARGIN_PX = 8;
+
+export function hodMomoStripGroupWindowSec(consolidationSec: number | null | undefined): number {
+  const base = typeof consolidationSec === 'number' && Number.isFinite(consolidationSec) && consolidationSec > 0
+    ? consolidationSec
+    : HOD_MOMO_STRIP_GROUP_FALLBACK_SEC;
+  return base + HOD_MOMO_STRIP_GROUP_SLACK_SEC;
+}
+
+export function hodMomoStripGroupTitle(ticker: string, count: number, clock: string): string {
+  return `${ticker} · ${count} strategies at ${clock}`;
+}
+
+export function hodMomoStripBubbleLabel(count: number, names: readonly string[]): string {
+  return `${count} strategies fired together: ${names.join(', ')}`;
+}

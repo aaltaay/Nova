@@ -1,6 +1,7 @@
 /**
  * HOD Momo strip -- the compact alert strip across the top of the Scanner
- * board (approved UX redesign). One line per alert, newest on top; folds to
+ * board (approved UX redesign). One line per ticker per batch -- strategies
+ * that fire together share a row with a count bubble -- newest on top; folds to
  * its header; drag the bottom edge to resize (whole rows, at most 40% of the
  * column). The component keeps the `HodMomoDock` name so the Scanner pages
  * and the sample shell import one thing.
@@ -25,10 +26,12 @@ import {
   HOD_MOMO_STRIP_GRIP_LABEL,
   HOD_MOMO_STRIP_GRIP_TITLE,
   HOD_MOMO_STRIP_ROW_PX,
+  hodMomoStripGroupWindowSec,
   hodMomoStripSinceLabel,
 } from './hodMomoStripConstants';
+import { groupIsNew, groupStripAlerts } from './hodMomoStripGroups';
 import { stripRowsToPx } from './hodMomoStripPersist';
-import { fmtStripSince, stripAlertKey, stripAlertsForMode } from './hodMomoStripRows';
+import { fmtStripSince, stripAlertsForMode } from './hodMomoStripRows';
 import { isAlertDockMode } from './scannerDockModes';
 import { defaultHodMomentumVisibleStrategies } from './scannerPartition';
 import { useHodMomoIntegrity } from './useHodMomoIntegrity';
@@ -88,6 +91,8 @@ export function HodMomoDock({ onOpenTrading, onAlertSelect }: Props) {
     () => stripAlertsForMode(stream.alerts, mode, mode === 'hod_momo' ? visibleStrategies : null),
     [stream.alerts, mode, visibleStrategies],
   );
+  const groupWindowSec = hodMomoStripGroupWindowSec(config.state.master?.consolidation_sec);
+  const groups = useMemo(() => groupStripAlerts(alerts, groupWindowSec), [alerts, groupWindowSec]);
   // Past alerts at the Sim playhead are never NEW: they arrive as the playhead reaches them.
   const liveNewIds = useStripNewAlerts(replay ? NO_ALERTS : stream.alerts);
   const newIds = replay ? NO_NEW_IDS : liveNewIds;
@@ -145,8 +150,8 @@ export function HodMomoDock({ onOpenTrading, onAlertSelect }: Props) {
 
   const onScroll = (e: UIEvent<HTMLDivElement>) => setScrollTop(e.currentTarget.scrollTop);
   const bodyPx = stripRowsToPx(rows);
-  const range = computeVisibleRowRange(scrollTop, alerts.length, HOD_MOMO_STRIP_ROW_PX, bodyPx, STRIP_OVERSCAN_ROWS);
-  const rendered = alerts.slice(range.startIndex, range.endIndex);
+  const range = computeVisibleRowRange(scrollTop, groups.length, HOD_MOMO_STRIP_ROW_PX, bodyPx, STRIP_OVERSCAN_ROWS);
+  const rendered = groups.slice(range.startIndex, range.endIndex);
 
   return (
     <section
@@ -198,6 +203,7 @@ export function HodMomoDock({ onOpenTrading, onAlertSelect }: Props) {
             data-testid="hod-momo-dock-body"
             data-rows={rows}
             data-total-count={alerts.length}
+            data-row-count={groups.length}
             role="table"
             onScroll={onScroll}
           >
@@ -222,12 +228,13 @@ export function HodMomoDock({ onOpenTrading, onAlertSelect }: Props) {
             ) : (
               <>
                 {range.topSpacerPx > 0 && <div style={{ height: range.topSpacerPx }} aria-hidden="true" />}
-                {rendered.map((alert) => (
+                {rendered.map((group) => (
                   <HodMomoStripRow
-                    key={stripAlertKey(alert)}
-                    alert={alert}
-                    selected={selectedSymbol === alert.ticker}
-                    isNew={newIds.has(stripAlertKey(alert))}
+                    key={group.key}
+                    group={group}
+                    selected={selectedSymbol === group.ticker}
+                    isNew={groupIsNew(group, newIds)}
+                    strategyColors={configColors}
                     onSelect={selectSymbol}
                     onOpenTrading={openTrading}
                   />

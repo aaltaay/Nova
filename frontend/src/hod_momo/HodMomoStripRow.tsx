@@ -1,6 +1,8 @@
 /**
  * One HOD Momo strip row -- a single 22 px line, never wrapped:
  * time · ticker · price · NEW · strategy · S<id> · gate values (muted).
+ * Strategies that fired for the ticker together share the row: a count bubble
+ * and their chips, named on hover (HodMomoStripStrategies).
  * Row click selects (side panel follows); the ticker opens Trader (ADR 011 §7a).
  */
 import { memo } from 'react';
@@ -10,40 +12,65 @@ import {
   HOD_MOMO_STRIP_ROW_TITLE,
   hodMomoStripStrategyChip,
 } from './hodMomoStripConstants';
+import { sameGroup, type StripAlertGroup } from './hodMomoStripGroups';
 import {
-  alertGateValues,
   fmtStripClock,
   fmtStripPrice,
   gateValuesAllAbsent,
+  gateValuesOf,
   HOD_MOMO_STRIP_GATE_ABSENT_TEXT,
+  stripBurstText,
   stripPrintNote,
 } from './hodMomoStripRows';
+import { HodMomoStripStrategies } from './HodMomoStripStrategies';
 import { visibleStrategyTags } from './hodMomoRowLayout';
-import type { AlertObject } from './types';
 
 type Props = {
-  alert: AlertObject;
+  group: StripAlertGroup;
   selected: boolean;
   isNew: boolean;
+  strategyColors: Readonly<Record<number, string>>;
   onSelect: (symbol: string) => void;
   onOpenTrading: (symbol: string) => void;
 };
 
+function SingleStrategy({ group }: { group: StripAlertGroup }) {
+  const tags = visibleStrategyTags(group.lead);
+  const primary = tags[0] ?? { id: group.lead.strategy_id, name: group.lead.strategy_name };
+  const extra = tags.length > 1 ? tags.length - 1 : 0;
+  return (
+    <>
+      <span className="hod-strip__strat" title={tags.map((t) => t.name).join(' · ') || primary.name}>
+        {primary.name}
+        {extra > 0 ? <span className="hod-strip__strat-more"> +{extra}</span> : null}
+      </span>
+      <span className="hod-strip__sid" title={primary.name}>
+        {hodMomoStripStrategyChip(primary.id)}
+      </span>
+    </>
+  );
+}
+
+/** The biggest burst in the group -- the other members' ride in the hover card. */
+function groupBurst(group: StripAlertGroup): string | null {
+  let top = group.members[0];
+  for (const m of group.members) if (m.consolidation_count > top.consolidation_count) top = m;
+  return stripBurstText(top);
+}
+
 export const HodMomoStripRow = memo(function HodMomoStripRow({
-  alert,
+  group,
   selected,
   isNew,
+  strategyColors,
   onSelect,
   onOpenTrading,
 }: Props) {
-  const tags = visibleStrategyTags(alert);
-  const primary = tags[0] ?? { id: alert.strategy_id, name: alert.strategy_name };
-  const extra = tags.length > 1 ? tags.length - 1 : 0;
-  const gates = alertGateValues(alert);
-  const printNote = stripPrintNote(alert);
-  const burst = alert.consolidation_count > 1
-    ? `${alert.consolidation_count} in ${Math.max(1, alert.consolidation_span_sec ?? 1)}s`
-    : null;
+  const { lead, ticker } = group;
+  const grouped = group.members.length > 1;
+  const gates = gateValuesOf(group.members);
+  const printNote = stripPrintNote(lead);
+  const burst = groupBurst(group);
 
   return (
     <div
@@ -52,39 +79,36 @@ export const HodMomoStripRow = memo(function HodMomoStripRow({
       tabIndex={0}
       aria-selected={selected}
       data-testid="hod-momo-strip-row"
-      data-symbol={alert.ticker}
+      data-symbol={ticker}
+      data-strategies={group.members.length}
       data-new={isNew ? '1' : undefined}
       title={printNote ? `${HOD_MOMO_STRIP_ROW_TITLE} · ${printNote}` : HOD_MOMO_STRIP_ROW_TITLE}
-      onClick={() => onSelect(alert.ticker)}
+      onClick={() => onSelect(ticker)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          onSelect(alert.ticker);
+          onSelect(ticker);
         }
       }}
     >
-      <span className="hod-strip__time">{fmtStripClock(alert)}</span>
+      <span className="hod-strip__time">{fmtStripClock(lead)}</span>
       <button
         type="button"
         className={`symbol-btn hod-strip__sym${selected ? ' active' : ''}`}
         title={TICKER_OPEN_TRADER_TITLE}
         onClick={(e) => {
           e.stopPropagation();
-          onSelect(alert.ticker);
-          onOpenTrading(alert.ticker);
+          onSelect(ticker);
+          onOpenTrading(ticker);
         }}
       >
-        {alert.ticker}
+        {ticker}
       </button>
-      <span className="hod-strip__price">{fmtStripPrice(alert.price)}</span>
+      <span className="hod-strip__price">{fmtStripPrice(lead.price)}</span>
       <span className="hod-strip__new">{isNew ? HOD_MOMO_STRIP_NEW_FLAG : ''}</span>
-      <span className="hod-strip__strat" title={tags.map((t) => t.name).join(' · ') || primary.name}>
-        {primary.name}
-        {extra > 0 ? <span className="hod-strip__strat-more"> +{extra}</span> : null}
-      </span>
-      <span className="hod-strip__sid" title={primary.name}>
-        {hodMomoStripStrategyChip(primary.id)}
-      </span>
+      {grouped
+        ? <HodMomoStripStrategies group={group} strategyColors={strategyColors} />
+        : <SingleStrategy group={group} />}
       {burst ? <span className="hod-strip__burst" title={`${burst} (consolidated)`}>{burst}</span> : null}
       <span className="hod-strip__gate">
         {gateValuesAllAbsent(gates) ? (
@@ -101,4 +125,11 @@ export const HodMomoStripRow = memo(function HodMomoStripRow({
       </span>
     </div>
   );
-});
+}, (prev, next) => (
+  sameGroup(prev.group, next.group)
+  && prev.selected === next.selected
+  && prev.isNew === next.isNew
+  && prev.strategyColors === next.strategyColors
+  && prev.onSelect === next.onSelect
+  && prev.onOpenTrading === next.onOpenTrading
+));
