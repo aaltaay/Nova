@@ -27,8 +27,9 @@ import { isAllowedRendererUrl, loadHostWindow } from './traderWindowLoad.mjs';
 import { openOrFocusTraderWindow } from './traderWindows.mjs';
 import {
   WINDOW_ID_MAIN,
+  applyStoredPlacement,
   bindWindowBoundsPersist,
-  restoreWindowBounds,
+  restoreWindowPlacement,
 } from './windowBounds.mjs';
 import { formatScannerWindowTitle } from './appTitle.mjs';
 import { novaDesktopReleaseTag } from './loadReleaseTag.mjs';
@@ -98,12 +99,13 @@ function mainRecoverOpts() {
 
 function createWindow() {
   const userData = app.getPath('userData');
-  const saved = restoreWindowBounds(userData, WINDOW_ID_MAIN, displayWorkAreas());
+  const saved = restoreWindowPlacement(userData, WINDOW_ID_MAIN, displayWorkAreas());
   mainWindow = new BrowserWindow({
     ...windowOptions(),
-    ...(saved || {}),
+    ...(saved?.bounds || {}),
     show: false,
   });
+  applyStoredPlacement(mainWindow, saved);
   bindWindowBoundsPersist(mainWindow, userData, WINDOW_ID_MAIN);
   const recover = mainRecoverOpts();
   attachRendererGuards(mainWindow, { ...recover, retryFail: true });
