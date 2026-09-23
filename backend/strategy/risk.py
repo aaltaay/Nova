@@ -8,9 +8,13 @@ a profit cushion, cut size after a meaningful loss) and validates a proposed
 trade plan's stop distance and profit/loss ratio.
 
 This module NEVER places, modifies, or cancels an order — it only answers
-"is it OK to trade right now, and how big." `backend/strategy/executor.py`
-(Phase D paper execution) calls `can_trade()` and `position_size_shares()`
-before sizing a bracket, and `record_trade_result()` after a fill closes.
+"is it OK to trade right now, and how big." Every closed round trip feeds
+`record_trade_result()` (journal/round_trip.py, journal/net_pnl.py) and the
+Journal's risk card reads the state. `execution.service` consults
+`can_trade()` only for commands without `skip_risk`; since the Phase D
+executor was retired (ADR 025) no current source sends one -- the manual
+ticket and the bot both skip it. Who these rules should gate is an open
+operator decision.
 """
 
 from __future__ import annotations

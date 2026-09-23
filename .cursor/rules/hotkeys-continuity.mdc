@@ -29,11 +29,11 @@ Use this protocol for work on DAS-compatible hotkeys and executable Nova Actions
 
 ## Hard invariants
 
-- **Two systems:** Automation six (executor ladder) ≠ Nova Actions (manual discretionary). Do not gate System 2 on `signal`/`confirm`/`auto_paper`.
+- **One system:** Nova Actions (manual discretionary). The Automation six (executor ladder) were retired with the Nova OS mode ladder (ADR 025); their chords are free.
 - **No raw DAS execution:** imported `.htk` Command strings never register with the dispatcher until mapped to a typed Nova Action.
 - **One dispatcher:** single shell-level keydown listener; never mount a second independent `useHotkeys` that can double-fire.
 - **Shortcuts menu:** menu chord (default Ctrl+M) peek / double-tap pin lives in the same dispatcher — do not add a parallel window listener.
-- **Rebind on the go:** double-click a menu row → TanStack `useHotkeyRecorder` captures; conflicts via TanStack-normalized strings (`findShortcutConflict`). Do not hand-roll a second capture stack. Automation overrides persist on the hotkey profile (`automationBindings` / `shortcutsMenuKey`).
+- **Rebind on the go:** double-click a menu row → TanStack `useHotkeyRecorder` captures; conflicts via TanStack-normalized strings (`findShortcutConflict`). Do not hand-roll a second capture stack. The menu chord override persists on the hotkey profile (`shortcutsMenuKey`); an old `automationBindings` key is ignored on load.
 - **Key-repeat guard:** `event.repeat` must short-circuit before any callback.
 - **Manual safety gates:** System 2 reuses PIN unlock, spend lock, and place-confirm preference — never bypass.
 - **Bid/Ask honesty:** Ask±/Bid± actions use L2 top-of-book only; never silently substitute last trade.

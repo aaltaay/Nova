@@ -15,7 +15,7 @@ export interface StockViewDockRequest {
 export function parseDockRequest(detail: unknown): StockViewDockRequest | null {
   if (!detail || typeof detail !== 'object') return null;
   const surface = (detail as StockViewDockRequest).surface;
-  if (surface !== 'positions' && surface !== 'orders' && surface !== 'nova_os') {
+  if (surface !== 'positions' && surface !== 'orders') {
     return null;
   }
   const filter = (detail as StockViewDockRequest).filter;

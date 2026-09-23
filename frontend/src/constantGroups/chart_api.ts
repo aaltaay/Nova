@@ -523,13 +523,11 @@ export const ORDERS_TODAY_EMPTY_FILTER_MESSAGE =
 export function ordersTodayEmptySymbolMessage(symbol: string): string {
   return `No orders for ${symbol} in this filter today.`;
 }
-/** Stock View bottom dock: Positions | Orders (Today) | Nova OS. */
-export type StockViewDockSurface = 'positions' | 'orders' | 'nova_os';
+/** Stock View bottom dock: Positions | Orders (Today). */
+export type StockViewDockSurface = 'positions' | 'orders';
 export const STOCK_VIEW_DOCK_SURFACE_KEY = 'nova.stockView.dock.surface';
 export const STOCK_VIEW_DOCK_SURFACE_DEFAULT: StockViewDockSurface = 'orders';
 export const STOCK_VIEW_MODULE_POSITIONS_TITLE = 'Positions';
-/** Nova OS decide band (gates / news / ticket) — dock tab, not header strip. */
-export const STOCK_VIEW_MODULE_NOVA_OS_TITLE = 'Nova OS';
 export type OrdersTodayFilterId =
   | 'working'
   | 'filled'

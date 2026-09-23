@@ -1,5 +1,5 @@
 /**
- * The bottom drawer: Positions / Orders · today / Nova OS with the status
+ * The bottom drawer: Positions / Orders · today with the status
  * chips on the tab row, the collapse chevron at the right and the open
  * position in the footer (approved Trader redesign, 2026-09-21; WID-019 /
  * 026 / 027 data and actions unchanged). Shared with the Scanner desk.
@@ -8,7 +8,6 @@ import { useEffect, useState } from 'react';
 import { useClosedOrders } from '../closed_orders/useClosedOrders';
 import {
   ORDERS_TODAY_TITLE,
-  STOCK_VIEW_MODULE_NOVA_OS_TITLE,
   STOCK_VIEW_MODULE_POSITIONS_TITLE,
   type StockViewDockSurface,
 } from '../constants';
@@ -39,7 +38,6 @@ import {
   writeSampleHidden,
   writeSurface,
 } from './stockViewDockPersist';
-import { TraderNovaOsBrain } from './TraderNovaOsBrain';
 import { useDrawerDisplay } from './useDrawerDisplay';
 
 type Props = {
@@ -197,11 +195,7 @@ export function StockViewOpenOrdersDock({
       data-orders-filter={filter}
       data-sample={usingSample ? '1' : undefined}
       aria-label={
-        surface === 'positions'
-          ? STOCK_VIEW_MODULE_POSITIONS_TITLE
-          : surface === 'nova_os'
-            ? STOCK_VIEW_MODULE_NOVA_OS_TITLE
-            : ORDERS_TODAY_TITLE
+        surface === 'positions' ? STOCK_VIEW_MODULE_POSITIONS_TITLE : ORDERS_TODAY_TITLE
       }
     >
       <StockViewDockBar
@@ -239,10 +233,6 @@ export function StockViewOpenOrdersDock({
                   compact
                   hideTitle
                 />
-              </div>
-            ) : surface === 'nova_os' ? (
-              <div data-testid="stock-view-nova-os">
-                <TraderNovaOsBrain symbol={symbolKey} position={symbolPosition} />
               </div>
             ) : (
               <>

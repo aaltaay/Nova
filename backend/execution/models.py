@@ -9,8 +9,6 @@ from constants_ibkr import IBKR_ORDER_TIF_DEFAULT
 Operation = Literal["place", "bracket", "cancel", "replace"]
 Source = Literal[
     "manual",
-    "approve",
-    "auto_paper",
     "kill",
     "cancel_working",
     "flatten",
@@ -39,7 +37,6 @@ class ExecutionCommand:
     setup: str | None = None
     shares: int | None = None
     skip_risk: bool = False
-    skip_concurrency: bool = False
     reference_price: float | None = None
     client_timing: dict[str, Any] | None = None
     backend_ingress_wall_ns: int | None = None

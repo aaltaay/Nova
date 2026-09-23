@@ -1,6 +1,6 @@
 /**
- * Settings > Hot Keys: the Nova Actions editor inline in the section, the
- * active automation shortcuts under it, and the DAS import under Advanced.
+ * Settings > Hot Keys: the Nova Actions editor inline in the section and the
+ * DAS import under Advanced.
  */
 
 import { useMemo, useState } from 'react';
@@ -9,7 +9,6 @@ import { HotkeyHelpCatalog } from './HotkeyHelpCatalog';
 import { HotkeysDasAdvanced } from './HotkeysDasAdvanced';
 import { HotkeysSettingsEditor } from './HotkeysSettingsEditor';
 import { formatKeyChord } from './htkFormat';
-import { NovaActiveShortcuts } from './NovaActiveShortcuts';
 import type { HotkeySortKey } from './HotkeyFilterToolbar';
 import { useHotkeyProfile } from './useHotkeyProfile';
 import type { HotkeyCompatStatus } from './types';
@@ -107,8 +106,6 @@ export function HotkeyManager({ onDone }: { onDone?: () => void }) {
         onDelete={deleteNovaAction}
         onDone={onDone}
       />
-
-      <NovaActiveShortcuts />
 
       <HotkeysDasAdvanced
         profile={profile}

@@ -1,13 +1,12 @@
 /**
  * The drawer's one tab row (approved Trader redesign, 2026-09-21):
- * `Positions N · Orders · today N · Nova OS`, the Working / Filled / Canceled /
+ * `Positions N · Orders · today N`, the Working / Filled / Canceled /
  * Partial / All chips on the same row while Orders is showing, then the
  * sample toggle and the collapse chevron at the right. Clicking bare bar
  * space toggles the drawer, as before.
  */
 import type { MouseEvent } from 'react';
 import {
-  STOCK_VIEW_MODULE_NOVA_OS_TITLE,
   STOCK_VIEW_MODULE_POSITIONS_TITLE,
   type OrdersTodayFilterId,
   type StockViewDockSurface,
@@ -115,13 +114,6 @@ export function StockViewDockBar({
           {usingSample && (
             <span className="sv-open-orders-dock__sample-tag">{DRAWER_SAMPLE_TAG}</span>
           )}
-        </Tab>
-        <Tab
-          active={surface === 'nova_os'}
-          testId="stock-view-dock-tab-nova-os"
-          onClick={() => onSelectSurface('nova_os')}
-        >
-          {STOCK_VIEW_MODULE_NOVA_OS_TITLE}
         </Tab>
       </div>
       {surface === 'orders' && (

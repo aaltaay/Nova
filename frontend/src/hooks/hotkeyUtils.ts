@@ -1,14 +1,6 @@
-import {
-  HOTKEY_DEFAULTS,
-  HOTKEY_ORDER_ACTIONS,
-  HOTKEY_SIGNAL_BLOCKED_MESSAGE,
-  type HotkeyAction,
-  type HotkeyBinding,
-} from '../constants';
+import type { HotkeyBinding } from '../constants';
 import type { HotkeyKeyChord } from '../hotkeys/types';
 import type { NovaActionRecord } from '../hotkeys/novaActionTypes';
-
-export type HotkeyCallbacks = Partial<Record<HotkeyAction, () => void>>;
 
 /** True when the focused element is a text field — hotkeys must not fire. */
 export function isEditableTarget(target: EventTarget | null): boolean {
@@ -17,14 +9,6 @@ export function isEditableTarget(target: EventTarget | null): boolean {
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
   if (target.isContentEditable) return true;
   return Boolean(target.closest('[contenteditable="true"]'));
-}
-
-/** Order hotkeys are no-ops in signal mode; emergency / mode-drop keys stay available. */
-export function hotkeysAllowed(mode: string, action: HotkeyAction): boolean {
-  if (mode === 'signal' && HOTKEY_ORDER_ACTIONS.includes(action)) {
-    return false;
-  }
-  return true;
 }
 
 const MODIFIER_ONLY_KEYS = new Set(['control', 'shift', 'alt', 'meta']);
@@ -198,17 +182,6 @@ export function eventMatchesChord(event: KeyboardEvent, chord: HotkeyKeyChord): 
   return eventMatchesBinding(event, { ...binding, key });
 }
 
-/** Resolve which hotkey action (if any) a keydown event maps to. */
-export function resolveHotkeyAction(
-  event: KeyboardEvent,
-  bindings: Record<HotkeyAction, HotkeyBinding> = HOTKEY_DEFAULTS,
-): HotkeyAction | null {
-  for (const action of Object.keys(bindings) as HotkeyAction[]) {
-    if (eventMatchesBinding(event, bindings[action])) return action;
-  }
-  return null;
-}
-
 /** First enabled Nova Action whose chord matches the event. */
 export function resolveNovaAction(
   event: KeyboardEvent,
@@ -252,49 +225,19 @@ export function chordsConflict(a: HotkeyKeyChord, b: HotkeyKeyChord): boolean {
   );
 }
 
-/** Pure keydown handler — used by useHotkeys and unit tests. */
+/** Pure keydown handler for Nova Actions — used by the shell dispatcher and unit tests. */
 export function createHotkeyKeydownHandler(options: {
-  mode: string;
-  callbacks: HotkeyCallbacks;
-  onBlocked?: (action: HotkeyAction, message: string) => void;
-  /** Optional Nova Actions resolved after Automation six. */
-  novaActions?: NovaActionRecord[];
-  onNovaAction?: (action: NovaActionRecord) => void;
-  /** Live Automation bindings (defaults to HOTKEY_DEFAULTS). */
-  automationBindings?: Record<HotkeyAction, HotkeyBinding>;
+  novaActions: NovaActionRecord[];
+  onNovaAction: (action: NovaActionRecord) => void;
 }): (event: KeyboardEvent) => void {
-  const {
-    mode,
-    callbacks,
-    onBlocked,
-    novaActions,
-    onNovaAction,
-    automationBindings = HOTKEY_DEFAULTS,
-  } = options;
+  const { novaActions, onNovaAction } = options;
   return (event: KeyboardEvent) => {
     if (event.repeat) return;
     if (isEditableTarget(event.target)) return;
-
-    const action = resolveHotkeyAction(event, automationBindings);
-    if (action) {
-      if (!hotkeysAllowed(mode, action)) {
-        event.preventDefault();
-        onBlocked?.(action, HOTKEY_SIGNAL_BLOCKED_MESSAGE);
-        return;
-      }
-      const handler = callbacks[action];
-      if (!handler) return;
+    const nova = resolveNovaAction(event, novaActions);
+    if (nova) {
       event.preventDefault();
-      handler();
-      return;
-    }
-
-    if (novaActions && onNovaAction) {
-      const nova = resolveNovaAction(event, novaActions);
-      if (nova) {
-        event.preventDefault();
-        onNovaAction(nova);
-      }
+      onNovaAction(nova);
     }
   };
 }

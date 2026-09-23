@@ -19,10 +19,9 @@ import ibkr.account as account_mod
 import ibkr.client as client_mod
 import ibkr.orders as orders_mod
 import ibkr.safety as safety_mod
-import strategy.executor as executor
+import kill_switch
 import strategy.risk as risk_mod
 from execution.models import ExecutionCommand
-from nova_os import control_mode, staged_tickets
 from paths import cache_dir as _real_cache_dir  # noqa: F401 — patched via paths
 
 
@@ -35,18 +34,12 @@ def isolated_execution(tmp_path, monkeypatch):
     monkeypatch.setattr(broker_send, "EXECUTION_ACK_WAIT_SEC", 0.05)
     store.init_db()
     telemetry.reset_for_tests()
-    control_mode.reset_for_tests()
-    staged_tickets.reset_for_tests()
     risk_mod.reset_day()
-    executor._kill_switch_tripped = False
-    executor._open_positions.clear()
+    kill_switch._tripped = False
     yield
     telemetry.reset_for_tests()
-    control_mode.reset_for_tests()
-    staged_tickets.reset_for_tests()
     risk_mod.reset_day()
-    executor._kill_switch_tripped = False
-    executor._open_positions.clear()
+    kill_switch._tripped = False
 
 
 def _arm_paper(monkeypatch, *, buying_power: float = 100_000.0, positions: list | None = None):
@@ -81,7 +74,6 @@ def _limit_buy(key: str = "k1", **kw) -> ExecutionCommand:
         order_type="LMT",
         limit_price=1.0,
         skip_risk=True,
-        skip_concurrency=True,
     )
     base.update(kw)
     return ExecutionCommand(**base)
@@ -217,7 +209,6 @@ class TestAccountAndRiskGates:
                     qty=1,
                     order_type="MKT",
                     skip_risk=True,
-                    skip_concurrency=True,
                 ),
                 wait_ack=False,
             )
@@ -245,7 +236,6 @@ class TestAccountAndRiskGates:
                     qty=5,
                     order_type="MKT",
                     skip_risk=True,
-                    skip_concurrency=True,
                 ),
                 wait_ack=False,
             )
@@ -253,20 +243,10 @@ class TestAccountAndRiskGates:
         assert r.ok is True
         assert len(calls) == 1
 
-    def test_max_concurrent_rejects_second_bracket(self, monkeypatch):
-        from constants import NOVA_OS_MAX_CONCURRENT_POSITIONS
-
+    @pytest.mark.parametrize("source", ["approve", "auto_paper"])
+    def test_retired_executor_sources_are_refused(self, monkeypatch, source):
+        """ADR 025: the Phase D executor's sources no longer place anything."""
         _arm_paper(monkeypatch)
-        monkeypatch.setattr(risk_mod, "can_trade", lambda: (True, "OK"))
-        monkeypatch.setattr(risk_mod, "validate_trade_plan", lambda e, s, t: (True, []))
-        monkeypatch.setattr(control_mode, "auto_paper_gate_status", lambda: (True, "OK"))
-        for i in range(NOVA_OS_MAX_CONCURRENT_POSITIONS):
-            executor._open_positions[f"S{i}"] = executor.OpenPosition(
-                symbol=f"S{i}", setup="gap_and_go", qty=1,
-                entry_price=5, stop_price=4.9, target_price=5.2,
-                parent_order_id=i, target_order_id=i + 100, stop_order_id=i + 200,
-                opened_ts=time.time(),
-            )
         called = []
         monkeypatch.setattr(
             orders_mod, "place_bracket_order", lambda *a, **k: called.append(1)
@@ -275,8 +255,8 @@ class TestAccountAndRiskGates:
             exec_svc.execute(
                 ExecutionCommand(
                     operation="bracket",
-                    idempotency_key="mc-1",
-                    source="approve",
+                    idempotency_key=f"retired-{source}",
+                    source=source,
                     symbol="NEWSYM",
                     entry_price=5.0,
                     stop_price=4.9,
@@ -287,7 +267,7 @@ class TestAccountAndRiskGates:
             )
         )
         assert r.ok is False
-        assert r.reason_code == "MAX_CONCURRENT"
+        assert r.reason_code == "SOURCE_INVALID"
         assert called == []
 
 
@@ -296,7 +276,7 @@ class TestKillSwitchBlocksAllPlaces:
 
     def test_manual_place_with_skip_risk_is_refused(self, monkeypatch):
         _arm_paper(monkeypatch)
-        executor._kill_switch_tripped = True
+        kill_switch._tripped = True
         called = []
         monkeypatch.setattr(
             orders_mod, "place_order", lambda **k: called.append(1) or {"ok": True}
@@ -309,9 +289,9 @@ class TestKillSwitchBlocksAllPlaces:
         assert row is not None and row["status"] == "rejected"
 
     def test_hotkey_market_place_is_refused(self, monkeypatch):
-        """Nova Actions hit the same manual route (skip_risk + skip_concurrency)."""
+        """Nova Actions hit the same manual route (skip_risk)."""
         _arm_paper(monkeypatch)
-        executor._kill_switch_tripped = True
+        kill_switch._tripped = True
         called = []
         monkeypatch.setattr(
             orders_mod, "place_order", lambda **k: called.append(1) or {"ok": True}
@@ -328,7 +308,7 @@ class TestKillSwitchBlocksAllPlaces:
 
     def test_bracket_with_skip_risk_is_refused(self, monkeypatch):
         _arm_paper(monkeypatch)
-        executor._kill_switch_tripped = True
+        kill_switch._tripped = True
         r = asyncio.run(
             exec_svc.execute(
                 ExecutionCommand(
@@ -342,7 +322,6 @@ class TestKillSwitchBlocksAllPlaces:
                     stop_price=9.0,
                     target_price=12.0,
                     skip_risk=True,
-                    skip_concurrency=True,
                 ),
                 wait_ack=False,
             )
@@ -353,7 +332,7 @@ class TestKillSwitchBlocksAllPlaces:
     def test_protective_sources_still_reach_the_broker(self, monkeypatch):
         """Flatten must be able to sell out of a position after a kill."""
         _arm_paper(monkeypatch)
-        executor._kill_switch_tripped = True
+        kill_switch._tripped = True
         called = []
         monkeypatch.setattr(
             orders_mod,
@@ -371,7 +350,7 @@ class TestKillSwitchBlocksAllPlaces:
 
     def test_cancel_is_never_blocked_by_kill(self, monkeypatch):
         _arm_paper(monkeypatch)
-        executor._kill_switch_tripped = True
+        kill_switch._tripped = True
         called = []
         monkeypatch.setattr(
             orders_mod, "cancel_order", lambda oid: called.append(1) or {"ok": True}
@@ -385,7 +364,6 @@ class TestKillSwitchBlocksAllPlaces:
                     source="manual",
                     order_id=42,
                     skip_risk=True,
-                    skip_concurrency=True,
                 ),
                 wait_ack=False,
             )
@@ -402,7 +380,7 @@ class TestKillSwitchBlocksAllPlaces:
         from execution import inflight
 
         _arm_paper(monkeypatch)
-        executor._kill_switch_tripped = True
+        kill_switch._tripped = True
         monkeypatch.setattr(
             orders_mod, "place_order", lambda **k: {"ok": True, "order_id": 5}
         )
@@ -413,7 +391,7 @@ class TestKillSwitchBlocksAllPlaces:
 
     def test_place_allowed_again_after_reset(self, monkeypatch):
         _arm_paper(monkeypatch)
-        executor._kill_switch_tripped = True
+        kill_switch._tripped = True
         called = []
         monkeypatch.setattr(
             orders_mod,
@@ -424,7 +402,7 @@ class TestKillSwitchBlocksAllPlaces:
             exec_svc.execute(_limit_buy("kill-before"), wait_ack=False)
         )
         assert blocked.reason_code == "KILL_SWITCH"
-        executor.reset_kill_switch()
+        kill_switch.reset()
         allowed = asyncio.run(
             exec_svc.execute(_limit_buy("kill-after"), wait_ack=False)
         )
@@ -507,7 +485,6 @@ class TestReplaceConstraints:
                     order_id=123,
                     limit_price=9.5,
                     skip_risk=True,
-                    skip_concurrency=True,
                 ),
                 wait_ack=False,
             )
@@ -548,7 +525,6 @@ class TestReplaceConstraints:
                     order_id=5,
                     limit_price=9.5,
                     skip_risk=True,
-                    skip_concurrency=True,
                 ),
                 wait_ack=False,
             )
@@ -672,7 +648,6 @@ def test_cancel_without_symbol_copies_prior_ledger_symbol(monkeypatch):
                 source="manual",
                 order_id=19112,
                 skip_risk=True,
-                skip_concurrency=True,
             ),
             wait_ack=False,
         )

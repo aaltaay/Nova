@@ -8,10 +8,10 @@ import {
   SAMPLE_LARGE_CAP,
   SAMPLE_LOSERS,
 } from './sampleRows';
-import { SAMPLE_DECISIONS, SAMPLE_WATCHLIST } from './sampleStrategy';
+import { SAMPLE_WATCHLIST } from './sampleStrategy';
 
 describe('sample fixtures populate every major surface', () => {
-  it('has non-empty scanner / catalyst / HOD / watchlist / decide sets', () => {
+  it('has non-empty scanner / catalyst / HOD / watchlist sets', () => {
     expect(SAMPLE_GAPPERS.length).toBeGreaterThanOrEqual(5);
     expect(SAMPLE_GAINERS.length).toBeGreaterThanOrEqual(5);
     expect(SAMPLE_LOSERS.length).toBeGreaterThanOrEqual(4);
@@ -22,7 +22,6 @@ describe('sample fixtures populate every major surface', () => {
     expect(SAMPLE_CATALYSTS.length).toBeGreaterThanOrEqual(4);
     expect(SAMPLE_HOD_ALERTS.length).toBeGreaterThanOrEqual(5);
     expect(SAMPLE_WATCHLIST.length).toBeGreaterThanOrEqual(4);
-    expect(SAMPLE_DECISIONS.length).toBeGreaterThanOrEqual(3);
   });
 
   it('carries percent fields as fractions, like the live wire (QA W19: SMPL read "+5178.57%")', () => {
@@ -37,10 +36,7 @@ describe('sample fixtures populate every major surface', () => {
     for (const c of SAMPLE_CATALYSTS) expect(Math.abs(c.gap_percent)).toBeLessThan(5);
   });
 
-  it('includes news_impact on catalysts and decide catalyst gates', () => {
+  it('includes news_impact on catalysts', () => {
     expect(SAMPLE_CATALYSTS.every((c) => c.news_impact != null)).toBe(true);
-    const buy = SAMPLE_DECISIONS.find((d) => d.decision === 'BUY');
-    const cat = buy?.gates.find((g) => g.name === 'catalyst');
-    expect(cat?.evidence?.news_impact).toBeTruthy();
   });
 });

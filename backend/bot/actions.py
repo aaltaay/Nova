@@ -75,7 +75,6 @@ async def _cancel_symbol(symbol: str) -> dict[str, Any]:
                 order_id=int(order_id),
                 symbol=symbol,
                 skip_risk=True,
-                skip_concurrency=True,
             ),
             wait_ack=False,
         )
@@ -121,7 +120,6 @@ async def fire(
             order_type="MKT",
             outside_rth=eh,
             skip_risk=True,
-            skip_concurrency=True,
         )
         receipt = await execute(cmd, wait_ack=False)
         if receipt.ok:
@@ -142,7 +140,6 @@ async def fire(
             order_type="MKT",
             outside_rth=eh,
             skip_risk=True,
-            skip_concurrency=True,
         )
         receipt = await execute(cmd, wait_ack=False)
         if receipt.ok:
@@ -163,7 +160,6 @@ async def fire(
             order_type="MKT",
             outside_rth=eh,
             skip_risk=True,
-            skip_concurrency=True,
         )
         receipt = await execute(cmd, wait_ack=False)
         if receipt.ok:
@@ -188,7 +184,6 @@ async def fire(
             reference_price=limit,
             outside_rth=eh,
             skip_risk=True,
-            skip_concurrency=True,
         )
         receipt = await execute(cmd, wait_ack=False)
         if receipt.ok and receipt.order_id is not None:
@@ -217,7 +212,6 @@ async def fire(
         reference_price=limit,
         outside_rth=eh,
         skip_risk=True,
-        skip_concurrency=True,
     )
     receipt = await execute(cmd, wait_ack=False)
     if receipt.ok and receipt.order_id is not None:

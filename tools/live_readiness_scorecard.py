@@ -48,7 +48,6 @@ def build_scorecard() -> dict:
         JOURNAL_MIN_TRADES_FOR_GO_LIVE,
         SLIPPAGE_MAX_ADVERSE_BPS,
     )
-    from nova_os import control_mode
 
     cache = ROOT / "backend" / ".cache"
     journal_db = cache / "journal.db"
@@ -57,7 +56,7 @@ def build_scorecard() -> dict:
     ibkr = _get_json("/api/ibkr/status") or {}
     metrics = _get_json("/api/journal/metrics") or {}
     archive = _get_json("/api/archive/health") or {}
-    executor = _get_json("/api/strategy/executor/status") or {}
+    kill = _get_json("/api/kill-switch") or {}
 
     closed = int(metrics.get("total_closed_trades") or 0)
     if not metrics:
@@ -79,22 +78,17 @@ def build_scorecard() -> dict:
     ).read_text(encoding="utf-8", errors="ignore")
     shadow_note = "0/5" in roadmap or "0 / 5" in roadmap
 
-    auto_live_blocked = True
-    try:
-        control_mode.reset_for_tests()
-        try:
-            control_mode.set_mode("auto_live")
-            auto_live_blocked = False
-        except ValueError:
-            auto_live_blocked = True
-    except Exception:
-        auto_live_blocked = True
+    # ADR 007 / ADR 025: auto_live is not an execution source, so the one
+    # order door refuses it SOURCE_INVALID.
+    from constants import EXECUTION_SOURCES
+
+    auto_live_blocked = "auto_live" not in EXECUTION_SOURCES
 
     items = [
         {
             "id": "auto_live_rejected",
             "status": "PASS" if auto_live_blocked else "FAIL",
-            "detail": "control_mode rejects auto_live",
+            "detail": "auto_live is not an execution source (SOURCE_INVALID)",
         },
         {
             "id": "live_confirm_flag_off",
@@ -163,14 +157,10 @@ def build_scorecard() -> dict:
             "detail": str(archive.get("r2")),
         },
         {
-            # Restart default is signal; confirm/auto_paper are valid Phase B ladder steps.
-            "id": "executor_ladder_ok",
-            "status": (
-                "PASS"
-                if executor.get("control_mode", "signal") in ("signal", "confirm", "auto_paper")
-                else "FAIL"
-            ),
-            "detail": f"control_mode={executor.get('control_mode')}",
+            # The kill switch (D-037, ADR 025) must answer; a tripped latch blocks every place.
+            "id": "kill_switch_readable",
+            "status": "PASS" if "tripped" in kill else "FAIL",
+            "detail": f"tripped={kill.get('tripped')}",
         },
     ]
 

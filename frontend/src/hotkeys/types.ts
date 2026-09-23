@@ -3,7 +3,6 @@
  * Imported DAS records stay inactive until mapped to a typed Nova Action.
  */
 
-import type { HotkeyAction } from '../constants';
 import type { NovaActionRecord } from './novaActionTypes';
 
 export const HOTKEY_PROFILE_SCHEMA_VERSION = 3 as const;
@@ -36,7 +35,6 @@ export const HOTKEY_CAPABILITY_CATEGORIES = [
   'linked_orders',
   'workspace',
   'composite',
-  'automation',
 ] as const;
 
 export type HotkeyCapabilityCategory = (typeof HOTKEY_CAPABILITY_CATEGORIES)[number];
@@ -73,7 +71,6 @@ export interface HotkeyRecordAnalysis {
   evidence: HotkeyEvidenceLevel;
   tokens: DasCommandToken[];
   diagnostics: HotkeyDiagnostic[];
-  conflictsWithNova?: string[];
   duplicateKeyIds?: string[];
 }
 
@@ -84,8 +81,6 @@ export interface HotkeyProfile {
   records: HotkeyRecord[];
   /** Typed executable actions (Phase G3). */
   novaActions: NovaActionRecord[];
-  /** Optional overrides for Automation six (Phase G / rebind-on-the-go). */
-  automationBindings?: Partial<Record<HotkeyAction, HotkeyKeyChord>>;
   /** Optional override for the shortcuts cheat-sheet chord (default Ctrl+Alt). */
   shortcutsMenuKey?: HotkeyKeyChord;
   /**

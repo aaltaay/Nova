@@ -352,7 +352,6 @@
 }
 
 .hotkey-detail,
-.hotkey-nova-active,
 .hotkey-import-preview {
   margin-top: 1rem;
   padding-top: 0.75rem;
@@ -391,10 +390,6 @@
   padding: 0.05rem 0.35rem;
   min-width: 4.5rem;
   text-align: center;
-}
-
-.executor-hotkeys-blocked {
-  opacity: 0.55;
 }
 
 .hotkey-editor-backdrop {
@@ -499,7 +494,6 @@
   border: 1px solid var(--border-color);
   border-radius: 4px;
 }
-
 
 /* Quick Trades row: ibkr/tradeTicketCompact.css (.nova-qt). */
 
@@ -828,13 +822,7 @@
   font-weight: 600;
 }
 
-/* Below the editor: active automation shortcuts, then the DAS import. */
-.hk-section .hotkey-nova-active {
-  margin-top: 0;
-  padding-top: 12px;
-  font-size: 12px;
-}
-
+/* Below the editor: the DAS import. */
 .hk-advanced-das {
   border-top: 1px solid var(--nova-border, var(--border-color));
   padding-top: 12px;

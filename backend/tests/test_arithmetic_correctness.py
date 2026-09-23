@@ -44,7 +44,7 @@ from strategy.bull_flag import evaluate_bull_flag
 from strategy.five_pillars import evaluate_five_pillars
 from strategy.gap_and_go import evaluate_gap_and_go
 from strategy.risk import RiskState, validate_trade_plan
-import strategy.executor as executor
+import kill_switch
 import l2.features as features
 import journal.db as db
 
@@ -440,55 +440,11 @@ class TestJournalMetricsArithmetic:
         assert m["go_no_go"]["overall_go"] is True
 
 
-# ── Executor transparency / disarmed-by-default ──────────────────────────────
+# ── Round-trip P&L arithmetic ────────────────────────────────────────────────
 
 
-@pytest.fixture(autouse=False)
-def reset_executor():
-    from nova_os import control_mode, staged_tickets
-
-    control_mode.reset_for_tests()
-    staged_tickets.reset_for_tests()
-    executor._kill_switch_tripped = False
-    executor._open_positions.clear()
-    yield
-    control_mode.reset_for_tests()
-    staged_tickets.reset_for_tests()
-    executor._kill_switch_tripped = False
-    executor._open_positions.clear()
-
-
-class TestExecutorTransparencyContracts:
-    def test_status_disclosure_names_modes_and_signal_default(self, reset_executor):
-        status = executor.status()
-        assert status["armed"] is False
-        assert status["control_mode"] == "signal"
-        assert status["kill_switch_tripped"] is False
-        assert executor.is_armed() is False
-        text = status["disclosure"]
-        assert "signal" in text.lower()
-        assert "confirm" in text.lower()
-        assert "restart" in text.lower()
-        assert status["open_positions"] == []
-
-    def test_disarmed_on_signal_never_places_and_returns_none(self, reset_executor, monkeypatch):
-        called = []
-        monkeypatch.setattr(
-            "ibkr.orders.place_bracket_order",
-            lambda *a, **k: called.append(1),
-        )
-        result = asyncio.run(
-            executor.on_signal(
-                "AAPL",
-                "gap_and_go",
-                {"entry_price": 5.0, "stop_price": 4.9, "target_price": 5.2},
-            )
-        )
-        assert result is None
-        assert called == []
-        assert executor.is_armed() is False
-
-    def test_fill_pnl_math_is_exit_minus_entry_times_qty(self, reset_executor):
+class TestRoundTripPnlContracts:
+    def test_fill_pnl_math_is_exit_minus_entry_times_qty(self):
         """Document the exact PnL formula used when a bracket closes."""
         entry, exit_px, qty = 5.00, 5.20, 100
         assert (exit_px - entry) * qty == pytest.approx(20.0)

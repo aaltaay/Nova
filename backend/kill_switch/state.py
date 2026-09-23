@@ -1,10 +1,11 @@
 """Durable kill-switch latch (D-037).
 
 Owner
-    ``strategy.executor`` — the only module that reads or writes this file.
+    ``kill_switch`` (the package ``__init__``) — the only module that reads or
+    writes this file.
 
 Invalidation trigger
-    An explicit ``executor.reset_kill_switch()`` and nothing else. A tripped
+    An explicit ``kill_switch.reset()`` and nothing else. A tripped
     kill deliberately survives process restart: "restart clears kill" is how an
     operator who killed the desk came back to an armed desk.
 

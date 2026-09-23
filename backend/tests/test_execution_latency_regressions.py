@@ -66,7 +66,6 @@ def _place_command(key: str) -> ExecutionCommand:
         order_type="LMT",
         limit_price=0.01,
         skip_risk=True,
-        skip_concurrency=True,
     )
 
 
@@ -129,7 +128,6 @@ def test_slow_ack_does_not_hold_send_lock(monkeypatch):
                     source="kill",
                     order_id=501,
                     skip_risk=True,
-                    skip_concurrency=True,
                 ),
                 wait_ack=False,
             ),

@@ -168,7 +168,7 @@ def test_protective_sources_place_while_disarmed(source: str) -> None:
     assert reason is None
 
 
-@pytest.mark.parametrize("source", ["manual", "bot", "auto_paper", "approve"])
+@pytest.mark.parametrize("source", ["manual", "bot"])
 def test_opening_sources_are_refused_while_disarmed(source: str) -> None:
     set_sim_mode(True)
     ok, _detail, reason = validate_command(_place(source))
@@ -218,7 +218,7 @@ def _replace(source: str) -> ExecutionCommand:
     )
 
 
-@pytest.mark.parametrize("source", ["manual", "bot", "approve"])
+@pytest.mark.parametrize("source", ["manual", "bot"])
 def test_replace_is_refused_while_disarmed(source: str) -> None:
     """Repricing a resting BUY limit up through the market opens exposure just
     as surely as a fresh place, so `replace` is not a free pass while disarmed."""

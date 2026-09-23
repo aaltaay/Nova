@@ -62,6 +62,16 @@ def _reset_bot_persist():
 
 
 @pytest.fixture(autouse=True)
+def _reset_kill_switch():
+    # The latch is cached in memory; re-read it from each test's own cache dir.
+    import kill_switch
+
+    kill_switch.reset_for_tests()
+    yield
+    kill_switch.reset_for_tests()
+
+
+@pytest.fixture(autouse=True)
 def _isolate_operator_state(tmp_path, monkeypatch):
     cache_root = tmp_path / "nova_cache"
     cache_root.mkdir()

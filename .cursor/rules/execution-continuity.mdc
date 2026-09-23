@@ -44,7 +44,7 @@ Product fixes inside `backend/execution/` require an explicit ask each time.
 
 ## Out of scope (hand off)
 
-- Nova OS control modes / arm / kill / staged tickets → `backend/strategy/executor*.py` + `nova-os-continuity.mdc` / Roadmap-Status (not this agent).
+- Kill switch latch → `backend/kill_switch/` (`/api/kill-switch`, ADR 025). The Nova OS control modes, staged tickets and Phase D executor were retired (ADR 025).
 - IB Gateway login / IBC / port health → `ibkr-ops`.
 - Full-repo security posture / SEC-NNN → `security`.
 

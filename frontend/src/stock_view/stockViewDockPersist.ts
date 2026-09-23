@@ -1,5 +1,5 @@
 /**
- * localStorage helpers for Stock View Positions / Orders / Nova OS dock.
+ * localStorage helpers for the Stock View Positions / Orders dock.
  */
 import {
   ORDERS_TODAY_FILTER_DEFAULT,
@@ -89,7 +89,8 @@ export function writeFilter(filter: OrdersTodayFilterId): void {
 }
 
 function parseSurface(raw: unknown): StockViewDockSurface | null {
-  if (raw === 'positions' || raw === 'orders' || raw === 'nova_os') return raw;
+  // A stored 'nova_os' (the retired Nova OS tab, ADR 025) falls back to the default.
+  if (raw === 'positions' || raw === 'orders') return raw;
   return null;
 }
 

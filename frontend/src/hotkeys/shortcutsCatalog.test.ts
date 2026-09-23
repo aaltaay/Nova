@@ -3,7 +3,7 @@ import { buildShortcutsCatalog } from './shortcutsCatalog';
 import type { NovaActionRecord } from './novaActionTypes';
 
 describe('buildShortcutsCatalog', () => {
-  it('includes menu, automation, and enabled nova actions with rebind targets', () => {
+  it('includes the menu and enabled nova actions with rebind targets', () => {
     const actions: NovaActionRecord[] = [
       {
         id: 'a1',
@@ -16,18 +16,12 @@ describe('buildShortcutsCatalog', () => {
       },
     ];
     const sections = buildShortcutsCatalog(actions);
-    expect(sections.map((s) => s.id)).toEqual([
-      'menu',
-      'automation',
-      'nova_actions',
-    ]);
+    expect(sections.map((s) => s.id)).toEqual(['menu', 'nova_actions']);
     expect(sections[0].rows[0].rebind).toEqual({ type: 'menu' });
-    expect(sections[1].rows).toHaveLength(6);
-    expect(sections[1].rows[0].rebind?.type).toBe('automation');
-    expect(sections[2].rows[0].rebind).toEqual({ type: 'nova', id: 'a1' });
-    expect(sections[2].rows[0].canEditAction).toBe(true);
-    expect(sections[2].rows[0].canDelete).toBe(true);
+    expect(sections[1].rows[0].rebind).toEqual({ type: 'nova', id: 'a1' });
+    expect(sections[1].rows[0].canEditAction).toBe(true);
+    expect(sections[1].rows[0].canDelete).toBe(true);
     expect(sections[0].rows[0].canEditAction).toBeUndefined();
-    expect(sections[1].rows[0].canDelete).toBeUndefined();
+    expect(sections[0].rows[0].canDelete).toBeUndefined();
   });
 });

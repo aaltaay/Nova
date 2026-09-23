@@ -1,6 +1,6 @@
 /**
  * Scanner middle stack: selected table on top, Trader account dock below.
- * Same Positions / Orders (Today) / Nova OS strip (WID-019 / 026 / 027).
+ * Same Positions / Orders (Today) strip (WID-019 / 026 / 027).
  */
 import { useCallback, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ResizeHandle } from '../components/ResizeHandle';

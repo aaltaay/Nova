@@ -8,7 +8,6 @@ import time
 from constants import (
     IBKR_FORCE_ONE_SHARE,
     IBKR_LOOP_WEDGED_ORDER_MSG,
-    NOVA_OS_MAX_CONCURRENT_POSITIONS,
 )
 from execution import inflight
 from execution import store
@@ -235,9 +234,9 @@ async def execute(
         if cmd.operation in ("place", "bracket") and cmd.source not in (
             "kill", "flatten", "cancel_working",
         ):
-            from strategy import executor as _executor
+            import kill_switch as _kill_switch
 
-            if _executor.is_kill_switch_tripped():
+            if _kill_switch.is_tripped():
                 timings.validation_completed_ns = time.perf_counter_ns()
                 return _reject(
                     execution_id, cmd, timings,
@@ -255,28 +254,12 @@ async def execute(
                     lock_reason or "BOT_DAY_LOCK",
                 )
 
+        # Walk-away rules (strategy/risk.py). The manual ticket and the bot pass
+        # skip_risk=True, so since the Phase D executor was retired (ADR 025) no
+        # current source reaches this block; who these rules gate is an open
+        # operator decision, not changed here.
         if not cmd.skip_risk and cmd.operation in ("place", "bracket"):
             from strategy import risk as _risk
-            from nova_os import control_mode as _control_mode
-            from strategy import executor as _executor
-
-            if cmd.operation == "bracket" and not cmd.skip_concurrency:
-                concurrent = len(_executor.open_positions()) + len(
-                    __import__("nova_os.staged_tickets", fromlist=["list_staged"]).list_staged()
-                )
-                if symbol and symbol in _executor.open_positions():
-                    timings.validation_completed_ns = time.perf_counter_ns()
-                    return _reject(
-                        execution_id, cmd, timings,
-                        f"{symbol} already has a tracked open position", "ALREADY_OPEN",
-                    )
-                if concurrent >= NOVA_OS_MAX_CONCURRENT_POSITIONS:
-                    timings.validation_completed_ns = time.perf_counter_ns()
-                    return _reject(
-                        execution_id, cmd, timings,
-                        f"at max concurrent ({NOVA_OS_MAX_CONCURRENT_POSITIONS})",
-                        "MAX_CONCURRENT",
-                    )
 
             can_trade, halt = _risk.can_trade()
             if not can_trade and cmd.source not in ("flatten", "kill"):
@@ -290,14 +273,6 @@ async def execute(
                 if not plan_ok:
                     timings.validation_completed_ns = time.perf_counter_ns()
                     return _reject(execution_id, cmd, timings, "; ".join(issues), "PLAN_INVALID")
-
-            if cmd.source == "auto_paper":
-                gate_ok, gate_reason = _control_mode.auto_paper_gate_status()
-                if not gate_ok:
-                    timings.validation_completed_ns = time.perf_counter_ns()
-                    return _reject(
-                        execution_id, cmd, timings, gate_reason, "AUTO_PAPER_GATE",
-                    )
 
         ok, detail, reason = _validate.check_account_and_position(cmd)
         if not ok:

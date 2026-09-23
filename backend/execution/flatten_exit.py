@@ -1,6 +1,6 @@
 """Plan flatten / KILL / close tickets so after-hours exits are not RTH MKTs.
 
-Owner: bot.flatten + strategy.executor_flatten + UI closeFullPosition (mirror).
+Owner: bot.flatten + UI closeFullPosition (mirror).
 Invalidation: none -- pure clock + quote inputs.
 schema_version: n/a.
 

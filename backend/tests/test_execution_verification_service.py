@@ -27,7 +27,6 @@ def _place(key: str, side: str, *, source: str = "manual") -> ExecutionCommand:
         qty=1,
         order_type="MKT",
         skip_risk=True,
-        skip_concurrency=True,
     )
 
 

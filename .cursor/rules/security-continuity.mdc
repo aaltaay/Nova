@@ -5,7 +5,7 @@ globs:
   - "backend/strategy/**"
   - "backend/alerts/**"
   - "backend/nova_os/control_mode.py"
-  - "backend/routes/executor.py"
+  - "backend/routes/kill_switch.py"
   - "backend/routes/health.py"
   - "backend/app_lifespan.py"
   - "security/**"
@@ -42,7 +42,7 @@ The `security` subagent only reports findings. It never fixes product code. If a
 No change to the files in this glob scope may:
 
 - Disable or weaken `IBKR_ENABLED` / `IBKR_LIVE_TRADING_CONFIRMED` gate checks.
-- Bypass the kill-switch or auto-paper guard in `backend/strategy/executor.py`.
+- Bypass the kill-switch latch (`backend/kill_switch/`) checked in `backend/execution/service.py`.
 - Move order-placing logic outside `backend/ibkr/` or `backend/strategy/`.
 
 If a proposed change would do any of the above, stop and ask the user explicitly before proceeding.

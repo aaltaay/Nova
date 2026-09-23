@@ -3,20 +3,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import strategy.executor as executor
 
-
-def test_executor_fill_poll_loop_name() -> None:
-    """app_lifespan must call fill_poll_loop (singular) — the old typo
-    fills_poll_loop raised AttributeError mid-spawn and skipped scanner_l1,
-    so HOD never got L1 and Squeeze stayed surge:None.
+def test_runtime_task_targets_exist() -> None:
+    """A spawn entry naming a missing attribute (the old ``fills_poll_loop``
+    typo) raised AttributeError mid-list and skipped scanner_l1, so HOD never
+    got L1. The Phase D executor's fill loop is gone (ADR 025); the loops that
+    remain must still resolve.
     """
-    assert hasattr(executor, "fill_poll_loop")
-    assert not hasattr(executor, "fills_poll_loop")
     src = Path(__file__).resolve().parents[1] / "app_runtime_tasks.py"
     text = src.read_text(encoding="utf-8")
-    assert "_executor.fill_poll_loop" in text
-    assert "_executor.fills_poll_loop" not in text
+    assert "_executor." not in text
     assert "nasdaq_halt_rss" in text
     assert "bot.ttl" in text
     assert "bot.breakers" in text

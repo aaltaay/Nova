@@ -95,18 +95,23 @@ describe('symbolPnlRows', () => {
 });
 
 describe('sourceCards', () => {
-  it('always shows Manual, Bot and Auto Paper -- a source with no fills is stated, not zero', () => {
+  it('always shows Manual and Bot; the retired Auto Paper only with fills (ADR 025)', () => {
     const cards = sourceCards(paperHistoryFixture().by_source);
-    expect(cards.map((c) => c.kind)).toEqual(['manual', 'bot', 'auto_paper']);
+    expect(cards.map((c) => c.kind)).toEqual(['manual', 'bot']);
     const manual = cards[0];
     const bot = cards[1];
-    const auto = cards[2];
     expect(manual.net).toBeCloseTo(125 - 7.5 - 0.2, 6);
     expect(bot.net).toBeCloseTo(-27.5 - 2.5 - 0.2, 6);
     expect(bot.label).toBe('Bot · momo-1');
-    expect(auto.net).toBeNull();
-    expect(auto.share).toBe(0);
     expect(manual.share + bot.share).toBeCloseTo(1, 6);
+  });
+
+  it('keeps an Auto Paper card when old fills carry the stamp', () => {
+    const cards = sourceCards([
+      { source: 'auto_paper', bot_id: null, realized: 5, fills: 1, commissions: 1, fees: 0 },
+    ]);
+    expect(cards.map((c) => c.kind)).toEqual(['manual', 'bot', 'auto_paper']);
+    expect(cards[2].net).toBe(5);
   });
 
   it('labels sources from the stamp', () => {

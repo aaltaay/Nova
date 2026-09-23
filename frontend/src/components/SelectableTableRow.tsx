@@ -24,7 +24,7 @@ interface Props {
   dataRecent?: boolean;
   /** False when a sibling `SymbolSelectButton` owns opening Trader; the row
    * body then only calls `onSelect`. Defaults to true for rows with no
-   * ticker button (Positions, Orders, Journal, Executor, ...). */
+   * ticker button (Positions, Orders, Journal, ...). */
   openOnRowClick?: boolean;
   /** Scanner rows: right-click opens Add/Remove bot allowlist. */
   botAllowlistMenu?: boolean;

@@ -3,15 +3,12 @@
  * Compatibility status ≠ evidence confidence (tracked separately).
  */
 
-import { HOTKEY_DEFAULTS, type HotkeyAction, type HotkeyBinding } from '../constants';
-import { formatHotkeyLabel } from '../hooks/hotkeyUtils';
 import { tokenizeDasCommand } from './dasCommandParser';
 import type {
   DasCommandToken,
   HotkeyCompatStatus,
   HotkeyDiagnostic,
   HotkeyEvidenceLevel,
-  HotkeyKeyChord,
   HotkeyRecord,
   HotkeyRecordAnalysis,
 } from './types';
@@ -36,34 +33,6 @@ const BACKEND_ASSIGNMENTS = new Set([
 ]);
 
 const COMMUNITY_ACTIONS = new Set(['REVERSE']);
-
-function chordMatchesBinding(chord: HotkeyKeyChord, binding: HotkeyBinding): boolean {
-  if (!chord.key) return false;
-  if (chord.key.toLowerCase() !== binding.key.toLowerCase()) return false;
-  return (
-    Boolean(chord.ctrl) === Boolean(binding.ctrl)
-    && Boolean(chord.shift) === Boolean(binding.shift)
-    && Boolean(chord.alt) === Boolean(binding.alt)
-    && Boolean(chord.meta) === Boolean(binding.meta)
-  );
-}
-
-/** Return Nova action IDs whose defaults conflict with this chord. */
-export function findNovaKeyConflicts(chord: HotkeyKeyChord): string[] {
-  const hits: string[] = [];
-  for (const action of Object.keys(HOTKEY_DEFAULTS) as HotkeyAction[]) {
-    if (chordMatchesBinding(chord, HOTKEY_DEFAULTS[action])) {
-      hits.push(action);
-    }
-  }
-  return hits;
-}
-
-export function formatNovaConflictLabel(action: string): string {
-  const binding = HOTKEY_DEFAULTS[action as HotkeyAction];
-  if (!binding) return action;
-  return `${action} (${formatHotkeyLabel(binding)})`;
-}
 
 function tokenEvidence(token: DasCommandToken): HotkeyEvidenceLevel {
   const name = token.name.toUpperCase();
@@ -252,7 +221,6 @@ export function analyzeRecord(
 ): HotkeyRecordAnalysis {
   const tokens = tokenizeDasCommand(record.command);
   const { status, diagnostics, evidence } = classifyTokens(tokens);
-  const conflictsWithNova = findNovaKeyConflicts(record.key);
   const duplicateKeyIds = allRecords
     .filter(
       (r) =>
@@ -264,15 +232,6 @@ export function analyzeRecord(
     .map((r) => r.id);
 
   const diags = [...diagnostics];
-  if (conflictsWithNova.length) {
-    diags.push({
-      code: 'nova_key_conflict',
-      message: `Key conflicts with active Nova shortcut(s): ${conflictsWithNova
-        .map(formatNovaConflictLabel)
-        .join(', ')}`,
-      evidence: 'das_verified',
-    });
-  }
   if (duplicateKeyIds.length) {
     diags.push({
       code: 'duplicate_key',
@@ -293,7 +252,6 @@ export function analyzeRecord(
     evidence,
     tokens,
     diagnostics: diags,
-    conflictsWithNova: conflictsWithNova.length ? conflictsWithNova : undefined,
     duplicateKeyIds: duplicateKeyIds.length ? duplicateKeyIds : undefined,
   };
 }
@@ -322,7 +280,7 @@ export function summarizeAnalyses(analyses: HotkeyRecordAnalysis[]): CompatSumma
   };
   for (const a of analyses) {
     summary[a.status] += 1;
-    if (a.conflictsWithNova?.length || a.duplicateKeyIds?.length) {
+    if (a.duplicateKeyIds?.length) {
       summary.conflicts += 1;
     }
   }

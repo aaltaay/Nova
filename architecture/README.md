@@ -32,6 +32,7 @@ Constitution (`gemini.md` / `AGENTS.md`) and `.cursor/rules/*` remain supreme fo
 | [021](./decisions/021-desk-self-heal.md) | Desk self-heal: what heals itself, what stays a human step | Accepted; backend shipped, UI + supervisor open |
 | [022](./decisions/022-setup-scanner-tape-gate.md) | Setup scanner and tape gate: one live first-pullback scanner; Eyes read the tape and propose, never place | Accepted |
 | [023](./decisions/023-scanner-leaderboard.md) | Scanner leaderboard: one row per symbol per minute, recorded and rebuilt; halt log; one ranking; auto-record on free lines | Accepted |
+| [025](./decisions/025-retire-nova-os.md) | Retire Nova OS: the verdict, the Signal / Confirm / Auto Paper ladder, the approval queue and the Phase D executor; the kill switch moves to `backend/kill_switch/` | Accepted |
 
 ## Rules and maps
 

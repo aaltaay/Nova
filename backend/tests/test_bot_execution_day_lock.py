@@ -21,7 +21,6 @@ def _buy(source: str, key: str) -> ExecutionCommand:
         qty=1,
         order_type="MKT",
         skip_risk=True,
-        skip_concurrency=True,
     )
 
 
@@ -62,7 +61,6 @@ def test_day_lock_blocks_manual_and_bot_buy(monkeypatch):
                 qty=1,
                 order_type="MKT",
                 skip_risk=True,
-                skip_concurrency=True,
             ),
             wait_ack=False,
         )

@@ -149,3 +149,18 @@ export const BOT_BREAKER_HINT =
 export const BOT_LABEL_SESSION = 'Bot session';
 export const BOT_LABEL_PROPOSALS = 'Bot proposals';
 export const BOT_LABEL_AUDIT = 'Bot audit';
+
+/* ---------- Kill switch (D-037, ADR 025) ---------- */
+/** The one kill latch: every new order from every source is refused until reset. */
+export const KILL_SWITCH_TITLE = 'Kill switch';
+export const KILL_SWITCH_HINT =
+  'Stops every new order from every source -- you, hotkeys and the bot -- and cancels everything working. Flatten and cancel still work. It stays on across a restart until you reset it here. The red KILL button at the top of the desk is separate: it drops the bot to L0, locks the desk, cancels and flattens.';
+export const KILL_SWITCH_CLEAR = 'Off -- orders can be placed';
+export const KILL_SWITCH_TRIPPED = 'TRIPPED -- every new order is refused';
+export const KILL_SWITCH_UNKNOWN = 'Unknown -- the kill switch did not answer';
+export const KILL_SWITCH_TRIP_LABEL = 'Stop all orders';
+export const KILL_SWITCH_RESET_LABEL = 'Reset kill switch';
+export const KILL_SWITCH_TRIP_CONFIRM =
+  'Trip the kill switch? Every new order is refused until you reset it, and every working order is cancelled.';
+export const KILL_SWITCH_RESET_CONFIRM = 'Reset the kill switch? New orders will be allowed again.';
+export const KILL_SWITCH_POLL_MS = 5000;

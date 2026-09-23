@@ -178,7 +178,7 @@ def check_no_api_auth_middleware() -> list[RawFinding]:
                     "No FastAPI auth patterns (APIKeyHeader, HTTPBearer, OAuth2, or a "
                     "global Depends with a known auth guard name) were found across the "
                     "backend Python files. All API routes are effectively unauthenticated, "
-                    "including sensitive /api/config, /api/strategy/executor, and "
+                    "including sensitive /api/config, /api/kill-switch, and "
                     "/api/trading endpoints."
                 ),
                 severity="high",

@@ -16,7 +16,6 @@ import integrity_live as _integrity_live
 import l2.db as _l2_db
 import scanner_news_badge as _scanner_news_badge
 import scanner_tab_registry as _scanner_tabs
-import strategy.executor as _executor
 import strategy.risk as _risk
 import setup_scanner.engine as _setup_scanner
 from catalysts import feed as _catalyst_feed
@@ -94,9 +93,6 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         # Setup scanner (ADR 022): replaces the old setups_stream loop. Never places.
         ("setup_scanner", _setup_scanner.run),
         ("risk.session_reset", _risk.session_reset_loop),
-        # Name is fill_poll_loop (singular). The old fills_poll_loop typo raised
-        # AttributeError mid-list and aborted spawn before scanner_l1.
-        ("executor.fill", _executor.fill_poll_loop),
         ("l2.flush", _l2_batch.flush_loop),
         ("l2.retention", _l2_retention_loop),
         ("archive.write_queue", _archive_write_queue.drain_loop),

@@ -3,13 +3,9 @@
  */
 
 import {
-  HOTKEY_ACTION_LABELS,
-  HOTKEY_ACTIONS,
-  HOTKEY_DEFAULTS,
   NOVA_ACTION_KIND_LABELS,
   SHORTCUTS_MENU_BINDING,
   SHORTCUTS_MENU_TITLE,
-  type HotkeyAction,
   type HotkeyBinding,
 } from '../constants';
 import { formatHotkeyLabel } from '../hooks/hotkeyUtils';
@@ -19,7 +15,6 @@ import type { HotkeyKeyChord } from './types';
 
 export type ShortcutRebindTarget =
   | { type: 'menu' }
-  | { type: 'automation'; action: HotkeyAction }
   | { type: 'nova'; id: string };
 
 export type ShortcutCatalogRow = {
@@ -42,7 +37,6 @@ export type ShortcutCatalogSection = {
 
 export function buildShortcutsCatalog(
   novaActions: NovaActionRecord[],
-  automationBindings: Record<HotkeyAction, HotkeyBinding> = HOTKEY_DEFAULTS,
   menuBinding: HotkeyBinding = SHORTCUTS_MENU_BINDING,
 ): ShortcutCatalogSection[] {
   const menu: ShortcutCatalogSection = {
@@ -57,17 +51,6 @@ export function buildShortcutsCatalog(
         rebind: { type: 'menu' },
       },
     ],
-  };
-
-  const automation: ShortcutCatalogSection = {
-    id: 'automation',
-    title: 'Automation (System 1)',
-    rows: HOTKEY_ACTIONS.map((action: HotkeyAction) => ({
-      id: `auto_${action}`,
-      chord: formatHotkeyLabel(automationBindings[action]),
-      label: HOTKEY_ACTION_LABELS[action],
-      rebind: { type: 'automation', action },
-    })),
   };
 
   const enabled = novaActions.filter((a) => a.enabled && a.key.key);
@@ -92,13 +75,12 @@ export function buildShortcutsCatalog(
       })),
   };
 
-  return [menu, automation, nova];
+  return [menu, nova];
 }
 
 export function catalogRowChord(
   target: ShortcutRebindTarget,
   novaActions: NovaActionRecord[],
-  automation: Record<HotkeyAction, HotkeyBinding>,
   menu: HotkeyBinding,
 ): HotkeyKeyChord | null {
   if (target.type === 'menu') {
@@ -109,17 +91,6 @@ export function catalogRowChord(
       shift: menu.shift,
       alt: menu.alt,
       meta: menu.meta,
-    };
-  }
-  if (target.type === 'automation') {
-    const b = automation[target.action];
-    return {
-      label: formatHotkeyLabel(b),
-      key: b.key,
-      ctrl: b.ctrl,
-      shift: b.shift,
-      alt: b.alt,
-      meta: b.meta,
     };
   }
   const row = novaActions.find((a) => a.id === target.id);

@@ -22,11 +22,10 @@ import ibkr.account as account_mod
 import ibkr.client as client_mod
 import ibkr.orders as orders_mod
 import ibkr.safety as safety_mod
-import strategy.executor as executor
+import kill_switch
 import sim.mode as sim_mode
 import strategy.risk as risk_mod
 from execution.models import ExecutionCommand
-from nova_os import control_mode, staged_tickets
 
 
 @pytest.fixture(autouse=True)
@@ -39,18 +38,12 @@ def isolated_execution(tmp_path, monkeypatch):
     store.init_db()
     _venue(monkeypatch, "live")
     telemetry.reset_for_tests()
-    control_mode.reset_for_tests()
-    staged_tickets.reset_for_tests()
     risk_mod.reset_day()
-    executor._kill_switch_tripped = False
-    executor._open_positions.clear()
+    kill_switch._tripped = False
     yield
     telemetry.reset_for_tests()
-    control_mode.reset_for_tests()
-    staged_tickets.reset_for_tests()
     risk_mod.reset_day()
-    executor._kill_switch_tripped = False
-    executor._open_positions.clear()
+    kill_switch._tripped = False
 
 
 def _venue(monkeypatch, label: str) -> None:
@@ -161,7 +154,6 @@ def test_execute_sends_one_share_when_gate_on(monkeypatch):
                 qty=1000,
                 order_type="MKT",
                 skip_risk=True,
-                skip_concurrency=True,
             ),
             wait_ack=False,
         )
@@ -219,7 +211,6 @@ def test_execute_sends_the_whole_flatten_and_stamps_no_clamp(monkeypatch):
                 qty=3,
                 order_type="MKT",
                 skip_risk=True,
-                skip_concurrency=True,
             ),
             wait_ack=False,
         )
@@ -341,7 +332,7 @@ def test_ibkr_send_refuses_a_size_above_the_live_cap(monkeypatch):
     assert placed.ok is False and placed.reason_code == "QTY_CAP_LIVE"
     # A bracket with no size is sized at the send from strategy risk (40 here).
     bracket = send(ExecutionCommand(
-        operation="bracket", idempotency_key="b", source="approve", symbol="AAPL",
+        operation="bracket", idempotency_key="b", source="manual", symbol="AAPL",
         side="BUY", entry_price=10.0, stop_price=9.5, target_price=11.0,
     ))
     assert bracket.ok is False and bracket.reason_code == "QTY_CAP_LIVE"
@@ -396,7 +387,7 @@ def test_execute_on_paper_sends_the_size_asked(monkeypatch):
             ExecutionCommand(
                 operation="place", idempotency_key="paper-100", source="manual",
                 symbol="AAPL", side="BUY", qty=100, order_type="LMT", limit_price=10.0,
-                skip_risk=True, skip_concurrency=True,
+                skip_risk=True,
             ),
             wait_ack=False,
         ))

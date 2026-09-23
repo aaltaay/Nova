@@ -82,7 +82,6 @@ async def _synthetic(samples: int, *, run_id: str | None = None) -> dict:
                 order_type="LMT",
                 limit_price=0.01,
                 skip_risk=True,
-                skip_concurrency=True,
             ),
             wait_ack=False,
         )
@@ -105,7 +104,6 @@ async def _synthetic(samples: int, *, run_id: str | None = None) -> dict:
                     source="benchmark",
                     order_id=int(r.order_id),
                     skip_risk=True,
-                    skip_concurrency=True,
                 ),
                 wait_ack=False,
             )
@@ -158,7 +156,6 @@ async def _paper_gateway(
                 order_type="LMT",
                 limit_price=0.01,  # intentionally non-marketable
                 skip_risk=True,
-                skip_concurrency=True,
             ),
             wait_ack=True,
         )
@@ -171,7 +168,6 @@ async def _paper_gateway(
                     source="benchmark",
                     order_id=int(r.order_id),
                     skip_risk=True,
-                    skip_concurrency=True,
                 ),
                 wait_ack=False,
             )
