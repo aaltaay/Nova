@@ -107,35 +107,6 @@
   content: none;
 }
 
-.nav-rail__chev {
-  flex: none;
-  width: 28px;
-  height: 26px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--nova-text-muted);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.nav-rail__chev:hover {
-  color: var(--nova-text);
-}
-
-.nav-rail__chev-svg {
-  width: 14px;
-  height: 14px;
-  transition: transform 0.12s ease;
-}
-
-.nav-rail--folded .nav-rail__chev-svg {
-  transform: rotate(-90deg);
-}
-
 .nav-rail__grp {
   padding: 6px 10px 1px 34px;
   font-size: 11px;
@@ -282,8 +253,7 @@
 }
 
 .nav-rail--collapsed .nav-rail__txt,
-.nav-rail--collapsed .nav-rail__count,
-.nav-rail--collapsed .nav-rail__chev {
+.nav-rail--collapsed .nav-rail__count {
   display: none;
 }
 

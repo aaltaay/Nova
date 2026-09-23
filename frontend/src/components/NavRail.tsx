@@ -1,9 +1,10 @@
 /**
  * The one navigation rail (approved UX redesign, first slice): 200 px
- * labelled, 56 px icon-only. The Scanner tree stays open in both widths --
+ * labelled, 56 px icon-only. The Scanner tree is always open in both widths --
  * collapsed it is a tray of child icons with a hairline between groups
- * (operator ask, 2026-09-22) -- until folded by hand. Shared by every view -- Desk, Trader, Scanner
- * (a foldable tree of the registry's grouped tab modules), Account, Bots,
+ * (operator ask, 2026-09-22); it no longer folds (operator ask, 2026-09-23).
+ * Shared by every view -- Desk, Trader, Scanner (the registry's grouped tab
+ * modules), Account, Bots,
  * Records, then Advise + Settings + collapse pinned at the foot.
  *
  * Routing: Trader is the workspace's Stock View; Desk / Records / Account are
@@ -18,7 +19,6 @@ import {
   NAV_RAIL_ARIA_LABEL,
   NAV_RAIL_COLLAPSE_TITLE,
   NAV_RAIL_EXPAND_TITLE,
-  NAV_RAIL_FOLD_TITLE,
   NAV_RAIL_GROUP_LABELS,
   NAV_RAIL_LABEL_BOTS,
   NAV_RAIL_LABEL_DESK,
@@ -34,7 +34,6 @@ import {
   NAV_RAIL_TITLE_SETTINGS,
   NAV_RAIL_TITLE_TRADER,
   NAV_RAIL_STRIP_FOCUS_TITLE,
-  NAV_RAIL_UNFOLD_TITLE,
   navRailAlertSymbolsTitle,
   navRailRecordingTitle,
 } from '../constantGroups/nav_rail';
@@ -51,7 +50,7 @@ import { isDockTab } from '../workspace/scannerTabs';
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { NavRailAccountItem } from './NavRailAccountItem';
-import { navRailIcon, NavRailChevron } from './navRailIcons';
+import { navRailIcon } from './navRailIcons';
 import { NavRailItem } from './NavRailItem';
 import { readNavRailPrefs, writeNavRailPrefs, type NavRailPrefs } from './navRailPersist';
 
@@ -96,15 +95,12 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
   // Operator choice wins; otherwise the chrome follows the view (icons on the
   // Desk so the board gets the width, tree open on the Scanner).
   const collapsed = prefs.collapsed ?? navRailCollapsedDefault(page, traderActive);
-  // Operator ask, 2026-09-22: the Scanner tree is open on every view until folded by hand.
-  const folded = prefs.scannerFolded ?? false;
 
   const persist = useCallback((next: NavRailPrefs) => {
     setPrefs(next);
     writeNavRailPrefs(next);
   }, []);
 
-  const toggleFold = () => persist({ ...prefs, scannerFolded: !folded });
   const toggleCollapse = () => persist({ ...prefs, collapsed: !collapsed });
 
   const leaveTrader = () => {
@@ -118,25 +114,18 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
     leaveTrader();
     requestScannerTab(tab);
   };
-  const goScanner = () => {
-    if (scannerActive && !collapsed) {
-      toggleFold();
-      return;
-    }
-    goTab(scanner.lastListTab);
-  };
+  const goScanner = () => goTab(scanner.lastListTab);
   const goTrader = () => {
     if (traderActive) return;
     onOpenTrader((selectedSymbol?.trim() || TRADER_DEFAULT_SYMBOL).toUpperCase());
   };
 
+  // Always open; collapsed keeps the children as icons (tooltips carry the labels).
   const treeId = 'nav-rail-scanner-tree';
-  // Collapsed keeps the children as icons (tooltips carry the labels).
-  const showTree = !folded;
 
   return (
     <nav
-      className={`nav-rail${collapsed ? ' nav-rail--collapsed' : ''}${folded ? ' nav-rail--folded' : ''}`}
+      className={`nav-rail${collapsed ? ' nav-rail--collapsed' : ''}`}
       aria-label={NAV_RAIL_ARIA_LABEL}
       data-testid="nav-rail"
       data-collapsed={collapsed ? 'true' : 'false'}
@@ -170,58 +159,40 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
               label={NAV_RAIL_LABEL_SCANNER}
               title={NAV_RAIL_TITLE_SCANNER}
               active={scannerActive}
-              ariaExpanded={showTree}
-              ariaControls={treeId}
               onClick={goScanner}
             />
-            {!collapsed && (
-              <button
-                type="button"
-                className="nav-rail__chev"
-                data-testid="nav-rail-scanner-chevron"
-                aria-label={folded ? NAV_RAIL_UNFOLD_TITLE : NAV_RAIL_FOLD_TITLE}
-                aria-expanded={showTree}
-                aria-controls={treeId}
-                title={folded ? NAV_RAIL_UNFOLD_TITLE : NAV_RAIL_FOLD_TITLE}
-                onClick={toggleFold}
-              >
-                <NavRailChevron />
-              </button>
-            )}
           </div>
-          {showTree && (
-            <div id={treeId} data-testid={treeId}>
-              {groups.map(({ group, modules }) => {
-                const visible = modules.filter((m) => visibility[m.id] !== false);
-                if (!visible.length) return null;
-                return (
-                  <div key={group} className="nav-rail__group" data-testid={`nav-rail-group-${group}`}>
-                    <div className="nav-rail__grp">{NAV_RAIL_GROUP_LABELS[group]}</div>
-                    {visible.map((m) => {
-                      const dock = isDockTab(m.id as ActiveTab);
-                      const n = m.countKey ? (scanner.counts[m.countKey] ?? 0) : 0;
-                      return (
-                        <NavRailItem
-                          key={m.id}
-                          testId={`nav-rail-tab-${m.id}`}
-                          className={`nav-rail__child${stripFocus === m.id ? ' is-strip-focus' : ''}`}
-                          dataTab={m.id}
-                          icon={scannerNavIcon(m.id)}
-                          label={m.title}
-                          title={dock ? `${m.title}: ${NAV_RAIL_STRIP_FOCUS_TITLE}` : m.title}
-                          count={formatScannerNavCount(n)}
-                          countTitle={dock ? navRailAlertSymbolsTitle(n) : undefined}
-                          active={!dock && childHighlight === m.id}
-                          pressed={dock ? stripFocus === m.id : undefined}
-                          onClick={() => goTab(m.id as ActiveTab)}
-                        />
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <div id={treeId} data-testid={treeId}>
+            {groups.map(({ group, modules }) => {
+              const visible = modules.filter((m) => visibility[m.id] !== false);
+              if (!visible.length) return null;
+              return (
+                <div key={group} className="nav-rail__group" data-testid={`nav-rail-group-${group}`}>
+                  <div className="nav-rail__grp">{NAV_RAIL_GROUP_LABELS[group]}</div>
+                  {visible.map((m) => {
+                    const dock = isDockTab(m.id as ActiveTab);
+                    const n = m.countKey ? (scanner.counts[m.countKey] ?? 0) : 0;
+                    return (
+                      <NavRailItem
+                        key={m.id}
+                        testId={`nav-rail-tab-${m.id}`}
+                        className={`nav-rail__child${stripFocus === m.id ? ' is-strip-focus' : ''}`}
+                        dataTab={m.id}
+                        icon={scannerNavIcon(m.id)}
+                        label={m.title}
+                        title={dock ? `${m.title}: ${NAV_RAIL_STRIP_FOCUS_TITLE}` : m.title}
+                        count={formatScannerNavCount(n)}
+                        countTitle={dock ? navRailAlertSymbolsTitle(n) : undefined}
+                        active={!dock && childHighlight === m.id}
+                        pressed={dock ? stripFocus === m.id : undefined}
+                        onClick={() => goTab(m.id as ActiveTab)}
+                      />
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {visibility.trading !== false && (

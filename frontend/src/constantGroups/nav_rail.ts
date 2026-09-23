@@ -27,8 +27,6 @@ export const NAV_RAIL_TITLE_BOTS = 'Bots -- strategy and bot autonomy';
 export const NAV_RAIL_TITLE_RECORDS = 'Records -- Session Records';
 export const NAV_RAIL_TITLE_SETTINGS = 'Open Settings';
 
-export const NAV_RAIL_FOLD_TITLE = 'Fold the Scanner lists';
-export const NAV_RAIL_UNFOLD_TITLE = 'Unfold the Scanner lists';
 export const NAV_RAIL_COLLAPSE_TITLE = 'Collapse to icons';
 export const NAV_RAIL_EXPAND_TITLE = 'Expand the rail';
 
