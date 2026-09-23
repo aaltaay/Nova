@@ -125,6 +125,26 @@ def test_the_door_answers_flatten_not_a_close(venue, monkeypatch) -> None:
     assert (ok, code) == (False, "FLATTEN_NOT_A_CLOSE") and "#17" in detail
 
 
+def test_a_flatten_on_a_flat_practice_position_says_it_is_not_a_close(venue, monkeypatch) -> None:
+    """2026-09-23 test run: Flatten pressed while flat on Paper read "no short entries"."""
+    from execution import practice_checks, validate
+
+    fake = SimpleNamespace(
+        reference=SimpleNamespace(admission=lambda symbol: (True, "OK", None)),
+        ledger=SimpleNamespace(held_qty=lambda symbol: 0.0),
+    )
+    monkeypatch.setattr(practice_checks, "venue_broker", lambda: fake)
+    monkeypatch.setattr("sim.mode.is_practice_venue", lambda: True)
+    venue["positions"] = []
+
+    assert practice_checks.practice_refusal(_flatten()) is None
+    ok, _detail, code = validate.check_account_and_position(_flatten())
+    assert (ok, code) == (False, "FLATTEN_NOT_A_CLOSE")
+    # A manual SELL from flat is still an opening short.
+    manual = _flatten(source="manual", intent=None)
+    assert practice_checks.practice_refusal(manual)[1] == PRACTICE_NO_SHORTS_CODE
+
+
 def test_the_route_sends_the_intent_to_the_door() -> None:
     from routes import trading_execution as route
 

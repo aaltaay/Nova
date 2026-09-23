@@ -47,6 +47,13 @@ def practice_refusal(cmd: ExecutionCommand) -> tuple[str, str] | None:
         ok, reason, code = broker.reference.admission(symbol)
         if not ok:
             return reason, code
+    if getattr(cmd, "intent", None) == "flatten":
+        # The ticket's Flatten is answered in the account stage, under the
+        # execution lock (execution.flatten_intent): FLATTEN_NOT_A_CLOSE says why
+        # a close was refused. "No short entries" misnamed a Flatten pressed on
+        # a flat position (2026-09-23 test run). The practice broker still
+        # cancels, at the fill, any SELL past what is held.
+        return None
     short = bool(getattr(cmd, "short_entry", False))
     side = "SELL" if (cmd.operation == "bracket" and short) else (cmd.side or "")
     qty = float(cmd.qty or cmd.shares or 0)
