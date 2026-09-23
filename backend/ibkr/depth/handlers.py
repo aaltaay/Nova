@@ -7,6 +7,7 @@ from typing import Any
 from constants import IBKR_DEPTH_SMART, IBKR_ERROR_DEPTH_NOT_SUPPORTED
 from ibkr import client as _client
 from ibkr.depth import state
+from metrics.op_metrics import timed_fn
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,7 @@ def _broadcast_live(symbol: str, book: dict) -> None:
         state.push_book(symbol, book)
 
 
+@timed_fn("ib.depth")
 def on_update_book(ticker: Any, symbol: str) -> None:
     bids = [
         {

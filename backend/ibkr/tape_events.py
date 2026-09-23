@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from types import MappingProxyType
 from typing import Any
 from ibkr.tape_side import best_bid_ask, classify_print_side
+from metrics.op_metrics import timed_fn
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ def _practice_desk() -> bool:
     return is_replay_desk()
 
 
+@timed_fn("ib.tape")
 def on_tape_update(ticker: Any, symbol: str, push, depth) -> None:
     """Called on every updateEvent for the tick-by-tick ticker."""
     tbt_list = getattr(ticker, "tickByTicks", None)

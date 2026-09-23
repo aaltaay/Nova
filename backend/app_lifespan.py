@@ -50,6 +50,7 @@ from observability import init_sentry
 from runtime_state import get_runtime_state
 import instance_identity
 import loop_lag as _loop_lag
+from perf import runtime as _perf_runtime
 from metrics.http_middleware import HttpOperationMetricsMiddleware
 
 logger = logging.getLogger(__name__)
@@ -237,6 +238,8 @@ async def _bootstrap_runtime() -> None:
     start_ib_loop()
     await _ibkr_client.startup()
     spawn_ib("observability.ib_loop_lag", _loop_lag.sample_ib_loop_lag_loop)
+    # ADR 026: who used the time -- loop CPU, stall stacks, handler busy time.
+    perf_tasks = _perf_runtime.start(spawn_ib)
     # Sibling task to the dialer, not inside it -- see session_watchdog
     # module docstring / PROBLEM_LOG 2026-08-31.
     spawn_ib("ibkr.session_watchdog", _session_watchdog.run)
@@ -254,7 +257,7 @@ async def _bootstrap_runtime() -> None:
 
     run_startup_reconciliation()
 
-    _runtime_tasks = _spawn_runtime_tasks()
+    _runtime_tasks = _spawn_runtime_tasks() + perf_tasks
     global _bootstrap_complete
     _bootstrap_complete = True
     from sim.mode import is_sim_mode
@@ -311,6 +314,10 @@ async def lifespan(app: FastAPI):
         except asyncio.CancelledError:
             pass
     _runtime_tasks = []
+    try:
+        _perf_runtime.stop()
+    except Exception:
+        logger.exception("perf recorder: stop failed")
 
     try:
         from l2 import batch as _l2_batch

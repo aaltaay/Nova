@@ -15,13 +15,21 @@ from typing import Any, Callable
 from constants_diagnostics import (
     DIAG_GROUP_GATEWAY,
     DIAG_GROUP_MARKET_DATA,
+    DIAG_GROUP_PERFORMANCE,
     DIAG_GROUP_PRACTICE,
     DIAG_GROUP_RECORDER,
     DIAG_GROUPS,
     DIAG_PORT_PROBE_TIMEOUT_SEC,
     DIAG_SCHEMA_VERSION,
 )
-from diagnostics import collect, collect_catalysts, collect_gateway, collect_leaderboard, process_info
+from diagnostics import (
+    collect,
+    collect_catalysts,
+    collect_gateway,
+    collect_leaderboard,
+    collect_perf,
+    process_info,
+)
 from diagnostics.rows import counts, unknown_row
 
 logger = logging.getLogger(__name__)
@@ -156,6 +164,22 @@ def _practice_inputs() -> dict[str, Any]:
     }
 
 
+def _perf_rows(now: float) -> list[dict[str, Any]]:
+    from constants_perf import PERF_DIAG_DROP_RECENT_SEC, PERF_DIAG_WINDOW_SEC
+    from perf import recorder
+
+    return collect_perf.perf_rows(
+        running=bool(recorder.status()["running"]),
+        window=recorder.samples(PERF_DIAG_WINDOW_SEC, now=now),
+        drop_window=recorder.samples(PERF_DIAG_DROP_RECENT_SEC, now=now),
+        stalls=recorder.stall_summaries(),
+        clients=recorder.clients(),
+        now=now,
+        window_sec=PERF_DIAG_WINDOW_SEC,
+        drop_window_sec=PERF_DIAG_DROP_RECENT_SEC,
+    )
+
+
 def gather(*, ui_tag: str | None = None, now: float | None = None) -> dict[str, Any]:
     """The full ``GET /api/diagnostics`` payload."""
     ts = time.time() if now is None else float(now)
@@ -172,6 +196,7 @@ def gather(*, ui_tag: str | None = None, now: float | None = None) -> dict[str, 
                   lambda: collect_catalysts.catalyst_feed_rows(status=_catalyst_feed_status(), now=ts))
     rows += _safe(DIAG_GROUP_PRACTICE, "practice", "Practice", lambda: collect.practice_rows(**_practice_inputs()))
     rows += collect.frontend_rows(ui_tag=ui_tag, backend_tag=facts.get("release_tag"))
+    rows += _safe(DIAG_GROUP_PERFORMANCE, "perf_recorder", "Performance recorder", lambda: _perf_rows(ts))
     return {
         "schema_version": DIAG_SCHEMA_VERSION,
         "generated_at": ts,

@@ -11,6 +11,7 @@ import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import type { BarData, TickerDetail, TickerTradeUpdate } from '../types/ticker';
 import { parseBarsCoverage, setBars } from '../chart/barsStore';
 import { tickerDetailFromHttp, tickerDetailFromWsInitial } from './tickerStreamHttp';
+import { countSocketMessage, frameBytes } from '../perf/perfCounters';
 
 const WS_URL = `${WS_BASE_URL}/ws`;
 
@@ -116,6 +117,7 @@ export function useTickerStream(symbol: string | null): TickerStreamState {
       };
 
       ws.onmessage = (e) => {
+        countSocketMessage('ticker', frameBytes(e.data));
         if (cancelled || !mountedRef.current || ws !== wsRef.current) return;
         try {
           const msg = JSON.parse(e.data);

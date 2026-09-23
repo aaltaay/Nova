@@ -18,6 +18,7 @@ import { useSettings } from '../settings/SettingsContext';
 import { DEFAULT_ACTIVE_TAB, type ActiveTab } from '../workspace/registry';
 import { declaresScannerL1 } from '../workspace/scannerTabs';
 import { useWorkspace } from '../workspace/WorkspaceContext';
+import { useRenderCount } from '../perf/useRenderCount';
 
 export type LiveScannerFeed = ReturnType<typeof useScannerData> & {
   l1ActiveTab: ActiveTab;
@@ -40,6 +41,7 @@ export type LiveScannerFeed = ReturnType<typeof useScannerData> & {
 const ScannerDataContext = hmrStableContext<LiveScannerFeed>(import.meta.hot, 'ScannerDataContext');
 
 export function ScannerDataProvider({ children }: { children: ReactNode }) {
+  useRenderCount('ScannerDataProvider');
   const { settings } = useSettings();
   const { scannerPersistentAuthoritative } = useWorkspace();
   const [l1ActiveTab, setL1ActiveTabState] = useState<ActiveTab>(DEFAULT_ACTIVE_TAB);

@@ -24,6 +24,12 @@ async function bootstrap(): Promise<void> {
   const { installSampleNetworkGate } = await import('./sample_data/sampleNetworkGate');
   installSampleNetworkGate(window);
 
+  // ADR 026: this window's 5 s performance report (the sample desk sends none).
+  void import('./perf/perfReporter').then(
+    ({ startPerfReporter }) => startPerfReporter(),
+    (err) => console.debug('[Nova] perf reporter did not start', err),
+  );
+
   const { createRoot } = await import('react-dom/client');
   const { default: App } = await import('./App.tsx');
 

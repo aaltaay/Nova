@@ -19,6 +19,7 @@ from constants import (
     TAPE_BATCH_SIZE,
 )
 from l2.db import get_connection
+from metrics.op_metrics import timed_fn
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,7 @@ def pending_counts() -> dict[str, int]:
         return {"snapshots": len(_l2_queue), "tape": len(_tape_queue)}
 
 
+@timed_fn("l2.flush")
 def flush() -> dict[str, int]:
     """Write all pending rows. Safe to call from any thread."""
     with _lock:

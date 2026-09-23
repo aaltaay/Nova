@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from constants import IBKR_DEPTH_RELEASE_GRACE_SEC
+from perf.counters import incr as _count_drop
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +146,7 @@ def _broadcast(symbol: str, payload: dict) -> None:
         try:
             q.put_nowait(payload)
         except asyncio.QueueFull:
+            _count_drop("depth.viewer_dropped")
             try:
                 q.get_nowait()
                 q.put_nowait(payload)

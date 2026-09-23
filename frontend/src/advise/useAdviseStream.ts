@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { adviseWsUrl, fetchAdviseRun } from './adviseApi';
 import type { AdviseEvent, AdviseRun } from './types';
+import { countSocketMessage, frameBytes } from '../perf/perfCounters';
 
 export function useAdviseStream(
   run: AdviseRun | null,
@@ -16,6 +17,7 @@ export function useAdviseStream(
     let closed = false;
     const ws = new WebSocket(adviseWsUrl(runId));
     ws.onmessage = (ev) => {
+      countSocketMessage('advise', frameBytes(ev.data));
       let payload: AdviseEvent & { run?: AdviseRun };
       try {
         payload = JSON.parse(String(ev.data));

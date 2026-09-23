@@ -5,6 +5,7 @@ import {
   SCANNER_PRICE_STALE_SEC,
   WS_BASE_URL,
 } from '../constants';
+import { countSocketMessage, frameBytes } from '../perf/perfCounters';
 
 export type ScannerPricePatchRow = {
   symbol: string;
@@ -152,6 +153,7 @@ export function useScannerPriceStream({
       };
 
       ws.onmessage = (e) => {
+        countSocketMessage('scanner', frameBytes(e.data));
         if (cancelled) return;
         try {
           const msg = JSON.parse(e.data as string);

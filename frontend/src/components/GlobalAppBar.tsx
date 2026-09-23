@@ -36,10 +36,12 @@ import { setGlobalBarTraderSlot } from './globalBarSlots';
 import { NovaLogo } from './NovaLogo';
 import { useScannerBarProps } from './scannerBarStore';
 import type { GlobalAppBarScanner } from './globalAppBarScanner';
+import { useRenderCount } from '../perf/useRenderCount';
 
 export type { GlobalAppBarScanner };
 
 export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarScanner }) {
+  useRenderCount('GlobalAppBar');
   const liveScanner = useScannerBarProps();
   const scanner = scannerProp ?? liveScanner ?? null;
   const {

@@ -26,6 +26,7 @@ from constants import (
 )
 from hod_momo_metrics import cum_volume_samples, update_cum_volume
 from volume_boost_detect import SpikeTracker, measure_spike, step_tracker
+from metrics.op_metrics import timed_fn
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ def reset_for_tests() -> None:
     _watched.clear()
 
 
+@timed_fn("volume_boost.observe")
 def observe_l1(
     symbol: str,
     cum_volume: int | None,

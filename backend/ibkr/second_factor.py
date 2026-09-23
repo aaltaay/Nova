@@ -97,16 +97,14 @@ def current_state(
 ) -> SecondFactorState:
     """Read the newest IBC log and report the live 2FA prompt state.
 
-    ``gateway_process_running`` defaults to a live check -- pass it in from
-    a caller that already knows the answer to avoid a redundant probe.
+    The log decides first; the Gateway process is checked only when the log
+    shows an open prompt (a prompt left behind by a Gateway that exited is
+    not one the operator can act on). That check starts PowerShell, which
+    blocked the HTTP loop ~265 ms on every ``/api/ibkr/status`` poll while it
+    ran first (ADR 026, measured 2026-09-23). ``gateway_process_running``
+    defaults to that live check -- pass it in from a caller that already
+    knows the answer.
     """
-    running = (
-        gateway_process_running
-        if gateway_process_running is not None
-        else _gateway_process_running()
-    )
-    if not running:
-        return _EMPTY
     directory = log_dir or _IBC_LOG_DIR
     newest = _newest_log(directory)
     if newest is None:
@@ -116,7 +114,15 @@ def current_state(
     except Exception:
         logger.warning("IBKR: second_factor log read failed", exc_info=True)
         return _EMPTY
-    return parse_second_factor_state(text, now=now)
+    state = parse_second_factor_state(text, now=now)
+    if not state.pending:
+        return state
+    running = (
+        gateway_process_running
+        if gateway_process_running is not None
+        else _gateway_process_running()
+    )
+    return state if running else _EMPTY
 
 
 def _gateway_process_running() -> bool:
