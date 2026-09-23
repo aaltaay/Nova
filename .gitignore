@@ -7,6 +7,8 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+# electron-builder's buildResources: the app icon lives here (source, not output)
+!frontend/electron/build/
 
 # Virtual environments
 .venv/

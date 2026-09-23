@@ -97,7 +97,7 @@ Public revision is **`vNNN`**: `v` plus the git commit count, at least three dig
 
 Pull requests build and verify the installer as a workflow artifact. Every commit that lands on `master` is tagged `vNNN`, and an application-affecting one is published as that GitHub Release with the installer, its `.blockmap` and `latest.yml`. The automatic Source code zip is not the app.
 
-Installed desks check that feed shortly after launch, download a newer installer in the background, and offer **Restart to update** / **Later** -- they never install or restart on their own. Set `NOVA_UPDATE_CHECK=0` to stop the automatic check (Help > Check for Updates still works). Builds are unsigned, so SmartScreen warns on a fresh download.
+Installed desks check that feed shortly after launch and again every two hours while open (never 07:00-16:00 ET on a weekday, so nothing downloads or asks mid-trade), download a newer installer in the background, and offer **Restart to update** / **Later** -- they never install or restart on their own. Set `NOVA_UPDATE_CHECK=0` to stop the automatic checks (Help > Check for Updates still works). Builds are unsigned, so SmartScreen warns on a fresh download.
 
 ## Configuration
 

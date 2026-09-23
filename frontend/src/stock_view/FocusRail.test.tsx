@@ -7,7 +7,9 @@ import { makeLiveScannerFeedStub, type LiveScannerFeed } from '../scanner/Scanne
 import type { ScannerRow } from '../types/scanner';
 import { consumeFocusListRequest, requestFocusList } from '../workspace/focusListRequest';
 import { FocusRail } from './FocusRail';
-import { followedFocusList, focusRowsFor, hodFocusRows, readFocusRailState, stepCursor } from './focusRailState';
+import { focusCardPosition } from './FocusRailHoverCard';
+import { followedFocusList, focusRowsFor, hodFocusRows, readFocusRailState, stepCursor, type FocusRow } from './focusRailState';
+import { focusNewsRank, nextFocusSort, parseFocusSort, sortFocusRows } from './focusRailSort';
 
 const mocks = vi.hoisted(() => ({
   feed: null as LiveScannerFeed | null,
@@ -19,6 +21,11 @@ const mocks = vi.hoisted(() => ({
   scanner: vi.fn(),
   replayDesk: false,
   hod: null as { alerts: AlertObject[]; connected: boolean; feedError: string | null; totalToday: number } | null,
+  panel: null as unknown,
+}));
+
+vi.mock('../hooks/useCatalystPanel', () => ({
+  useCatalystPanel: () => ({ panel: mocks.panel, loading: mocks.panel == null, unavailable: false, error: null }),
 }));
 
 vi.mock('../sim/useSimReplayDesk', () => ({ useSimReplayDesk: () => mocks.replayDesk }));
@@ -48,12 +55,19 @@ vi.mock('../capture/sessionRecordStore', () => ({
 /** Fixtures author the gap in percent; the wire carries a fraction (QA V2 / C17). */
 const frac = (pct: number | null): number | null => (pct == null ? null : pct / 100);
 
-function row(symbol: string, gap: number, price = 1, hasNews = false): ScannerRow {
+/** An ISO time `minutes` ago, for the news circle's age. */
+const ago = (minutes: number): string => new Date(Date.now() - minutes * 60_000).toISOString();
+
+function row(symbol: string, gap: number, price = 1, headlineAt: string | null = null): ScannerRow {
   return {
     symbol, price, prev_close: 1, change_pct: frac(gap), change_abs: null, gap_percent: frac(gap), volume: 0, rel_volume: null,
-    has_news: hasNews, newest_headline_at: null, market_cap: null, float: null, short_interest: null, short_ratio: null,
+    has_news: headlineAt != null, newest_headline_at: headlineAt, market_cap: null, float: null, short_interest: null, short_ratio: null,
   };
 }
+
+/** The rail's rows, top to bottom. */
+const order = (): string[] => Array.from(screen.getByTestId('focus-rail-rows').querySelectorAll('[role="option"]'))
+  .map(r => (r.getAttribute('data-testid') ?? '').replace('focus-rail-row-', ''));
 
 /** A HOD alert raised at `raised` (epoch s); HOD percents are percent points. */
 function alert(ticker: string, strategyId: number, raised: number, extra: Partial<AlertObject> = {}): AlertObject {
@@ -68,7 +82,7 @@ function alert(ticker: string, strategyId: number, raised: number, extra: Partia
 beforeEach(() => {
   localStorage.clear();
   mocks.hod = { alerts: [], connected: true, feedError: null, totalToday: 0 };
-  mocks.feed = makeLiveScannerFeedStub({ gappers: [row('GRML', 131.2, 8.9, true), row('VXTL', 38.2, 3.42), row('CBRX', -5.4, 4.56)] });
+  mocks.feed = makeLiveScannerFeedStub({ gappers: [row('GRML', 131.2, 8.9, ago(30)), row('VXTL', 38.2, 3.42), row('CBRX', -5.4, 4.56)] });
   mocks.allow = ['GRML', 'VXTL'];
   mocks.recording = ['GRML'];
   mocks.live = ['GRML'];
@@ -76,6 +90,7 @@ beforeEach(() => {
   mocks.open.mockReset();
   mocks.scanner.mockReset();
   mocks.replayDesk = false;
+  mocks.panel = null;
   consumeFocusListRequest();
 });
 afterEach(cleanup);
@@ -87,9 +102,12 @@ describe('FocusRail', () => {
     expect(screen.getByTestId('focus-rail-replay-note').textContent).toMatch(/live price, gap and news are hidden/);
     const grml = screen.getByTestId('focus-rail-row-GRML');
     expect(grml.textContent).not.toContain('+131%');
-    expect(grml.textContent).not.toContain('NEWS');
     expect(grml.textContent).not.toContain('8.90');
-    expect(screen.getByTestId('focus-rail-row-CBRX').textContent).not.toContain('no news');
+    expect(screen.getByTestId('focus-rail-news-GRML').childElementCount).toBe(0);
+    expect(screen.getByTestId('focus-rail-news-CBRX').childElementCount).toBe(0);
+    expect(screen.getByTestId('focus-rail-sort-symbol')).toBeTruthy();
+    expect(screen.queryByTestId('focus-rail-sort-gap')).toBeNull();
+    expect(screen.queryByTestId('focus-rail-sort-news')).toBeNull();
     fireEvent.click(grml);
     expect(mocks.open).toHaveBeenCalledWith('GRML');
   });
@@ -105,8 +123,11 @@ describe('FocusRail', () => {
     expect(screen.getByTestId('focus-rail-bot-VXTL').getAttribute('data-held')).toBe('0');
     expect(screen.queryByTestId('focus-rail-bot-CBRX')).toBeNull();
     expect(grml.textContent).toContain('+131%');
-    expect(grml.textContent).toContain('NEWS');
-    expect(screen.getByTestId('focus-rail-row-CBRX').textContent).toContain('no news');
+    // The Scanner's news circle leads the row: red for a headline under 2 h old.
+    expect(grml.firstElementChild?.getAttribute('data-testid')).toBe('focus-rail-news-GRML');
+    expect(screen.getByTestId('focus-rail-news-GRML').querySelector('.news-flame.flame-hot')).toBeTruthy();
+    expect(screen.getByTestId('focus-rail-news-GRML').querySelector('[title]')).toBeNull();
+    expect(screen.getByTestId('focus-rail-news-CBRX').textContent).toBe('—');
     fireEvent.click(screen.getByTestId('focus-rail-row-VXTL'));
     expect(mocks.open).toHaveBeenCalledWith('VXTL');
   });
@@ -149,12 +170,12 @@ describe('FocusRail', () => {
     const grml = screen.getByTestId('focus-rail-row-GRML');
     expect(grml.textContent).toContain('8.90');
     expect(grml.textContent).toContain('+131%');
-    // GRML is on Gappers with news, so the scanner feed supplies its chip.
-    expect(grml.textContent).toContain('NEWS');
+    // GRML is on Gappers with news, so the scanner feed supplies its circle.
+    expect(screen.getByTestId('focus-rail-news-GRML').querySelector('.news-flame')).toBeTruthy();
     // ZZZX is on no scanner list: its news is unknown, never "no news".
     const zzzx = screen.getByTestId('focus-rail-row-ZZZX');
     expect(zzzx.textContent).toContain('+45.0%');
-    expect(zzzx.textContent).not.toContain('no news');
+    expect(screen.getByTestId('focus-rail-news-ZZZX').childElementCount).toBe(0);
     expect(screen.queryByTestId('focus-rail-row-OLDM')).toBeNull();
     fireEvent.click(zzzx);
     expect(mocks.open).toHaveBeenCalledWith('ZZZX');
@@ -186,9 +207,14 @@ describe('FocusRail', () => {
     fireEvent.change(screen.getByTestId('focus-rail-pick'), { target: { value: 'gainers' } });
     await act(async () => { fireEvent.click(screen.getByTestId('focus-rail-collapse')); });
     expect(screen.getByTestId('focus-rail').getAttribute('data-collapsed')).toBe('1');
-    expect(JSON.parse(localStorage.getItem(FOCUS_RAIL_STORAGE_KEY) ?? '{}')).toEqual({ v: 1, collapsed: true, list: 'gainers' });
+    expect(JSON.parse(localStorage.getItem(FOCUS_RAIL_STORAGE_KEY) ?? '{}')).toEqual({ v: 1, collapsed: true, list: 'gainers', sort: null });
     await act(async () => { fireEvent.click(screen.getByTestId('focus-rail-expand')); });
-    expect(readFocusRailState()).toEqual({ v: 1, collapsed: false, list: 'gainers' });
+    expect(readFocusRailState()).toEqual({ v: 1, collapsed: false, list: 'gainers', sort: null });
+    // A v1 file from before sorting reads with no sort; a malformed sort is dropped.
+    localStorage.setItem(FOCUS_RAIL_STORAGE_KEY, JSON.stringify({ v: 1, collapsed: false, list: 'losers' }));
+    expect(readFocusRailState().sort).toBeNull();
+    localStorage.setItem(FOCUS_RAIL_STORAGE_KEY, JSON.stringify({ v: 1, collapsed: false, list: 'losers', sort: { key: 'vol', dir: 'up' } }));
+    expect(readFocusRailState().sort).toBeNull();
     localStorage.setItem(FOCUS_RAIL_STORAGE_KEY, JSON.stringify({ v: 0, collapsed: true, list: 'losers' }));
     expect(readFocusRailState().list).toBe('gappers');
   });
@@ -231,6 +257,92 @@ describe('FocusRail', () => {
     view.unmount();
     expect(setL1FocusTab).toHaveBeenLastCalledWith(null);
   });
+
+  it('sorts by a column header: first click, flip, then back to the list order -- remembered', () => {
+    const view = render(<FocusRail />);
+    expect(order()).toEqual(['GRML', 'VXTL', 'CBRX']);
+    fireEvent.click(screen.getByTestId('focus-rail-sort-gap'));
+    expect(order()).toEqual(['GRML', 'VXTL', 'CBRX']);
+    expect(screen.getByTestId('focus-rail-sort-gap').getAttribute('data-dir')).toBe('desc');
+    fireEvent.click(screen.getByTestId('focus-rail-sort-gap'));
+    expect(order()).toEqual(['CBRX', 'VXTL', 'GRML']);
+    expect(screen.getByTestId('focus-rail-sort-gap').getAttribute('aria-sort')).toBe('ascending');
+    fireEvent.click(screen.getByTestId('focus-rail-sort-symbol'));
+    expect(order()).toEqual(['CBRX', 'GRML', 'VXTL']);
+    expect(readFocusRailState().sort).toEqual({ key: 'symbol', dir: 'asc' });
+    view.unmount();
+    render(<FocusRail />);
+    expect(order()).toEqual(['CBRX', 'GRML', 'VXTL']);
+    fireEvent.click(screen.getByTestId('focus-rail-sort-symbol'));
+    fireEvent.click(screen.getByTestId('focus-rail-sort-symbol'));
+    expect(order()).toEqual(['GRML', 'VXTL', 'CBRX']);
+    expect(readFocusRailState().sort).toBeNull();
+  });
+
+  it('the news header puts news first, freshest first, ties by the biggest %', () => {
+    mocks.feed = makeLiveScannerFeedStub({ gainers: [
+      row('AAAA', 50), row('OLDN', 10, 1, ago(600)), row('BBBB', 80), row('HOTN', 5, 1, ago(20)), row('HOT2', 30, 1, ago(40)),
+    ] });
+    render(<FocusRail />);
+    fireEvent.change(screen.getByTestId('focus-rail-pick'), { target: { value: 'gainers' } });
+    fireEvent.click(screen.getByTestId('focus-rail-sort-news'));
+    expect(order()).toEqual(['HOT2', 'HOTN', 'OLDN', 'BBBB', 'AAAA']);
+  });
+
+  it('a stored %-sort does not reorder a Sim replay desk, which shows no live %', () => {
+    localStorage.setItem(FOCUS_RAIL_STORAGE_KEY, JSON.stringify({ v: 1, collapsed: false, list: 'gappers', sort: { key: 'gap', dir: 'asc' } }));
+    mocks.replayDesk = true;
+    render(<FocusRail />);
+    expect(order()).toEqual(['GRML', 'VXTL', 'CBRX']);
+  });
+
+  it('hovering the news circle opens the news beside the rail; leaving the row closes it', () => {
+    vi.useFakeTimers();
+    try {
+      mocks.panel = {
+        schema_version: 1, symbol: 'GRML', generated_at: 0, window_start: 0, items_total: 2,
+        verdict: {
+          verdict: 'catalyst', category: 'contract', strength: 'strong', title: 'GRML wins a Navy contract', source: 'globenewswire',
+          published_ts: Date.now() / 1000 - 1800, url: null, negative_too: false, rules_version: 'v6',
+        },
+        items: [
+          { item_id: 'a', source: 'globenewswire', publisher: null, published_ts: Date.now() / 1000 - 1800, title: 'GRML wins a Navy contract',
+            url: null, kind: 'catalyst', category: 'contract', strength: 'strong', dilution: false },
+          { item_id: 'b', source: 'alpaca', publisher: 'Benzinga', published_ts: Date.now() / 1000 - 600, title: '12 stocks moving',
+            url: null, kind: 'noise', category: 'movers_list', strength: null, dilution: false },
+        ],
+      };
+      render(<FocusRail />);
+      fireEvent.mouseEnter(screen.getByTestId('focus-rail-news-GRML'));
+      const card = screen.getByTestId('focus-rail-card-news');
+      expect(card.textContent).toContain('GRML · News since the prior close');
+      expect(card.textContent).toContain('GRML wins a Navy contract');
+      expect(card.textContent).toContain('1 movers lists / market wraps hidden');
+      // Moving into the card keeps it; leaving the row and the card closes it.
+      fireEvent.mouseLeave(screen.getByTestId('focus-rail-row-GRML'));
+      fireEvent.mouseEnter(card);
+      act(() => { vi.advanceTimersByTime(500); });
+      expect(screen.getByTestId('focus-rail-card-news')).toBeTruthy();
+      fireEvent.mouseLeave(card);
+      act(() => { vi.advanceTimersByTime(500); });
+      expect(screen.queryByTestId('focus-rail-card-news')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('hovering the REC / bot dots says what they mean in plain words', () => {
+    render(<FocusRail />);
+    fireEvent.mouseEnter(screen.getByTestId('focus-rail-dots-GRML'));
+    const card = screen.getByTestId('focus-rail-card-status');
+    expect(screen.getByTestId('focus-rail-card-rec').textContent).toMatch(/recording this symbol's tape and Level 2/);
+    expect(screen.getByTestId('focus-rail-card-bot').getAttribute('data-held')).toBe('1');
+    expect(card.textContent).toMatch(/so the bot can see it/);
+    fireEvent.mouseEnter(screen.getByTestId('focus-rail-dots-VXTL'));
+    expect(screen.getByTestId('focus-rail-card-bot').getAttribute('data-held')).toBe('0');
+    expect(screen.getByTestId('focus-rail-card-status').textContent).toMatch(/cannot act on it/);
+    expect(screen.queryByTestId('focus-rail-card-rec')).toBeNull();
+  });
 });
 
 describe('focusRowsFor / stepCursor', () => {
@@ -244,7 +356,7 @@ describe('focusRowsFor / stepCursor', () => {
   it('HOD rows say "no news" only for a symbol the scanner feed knows', () => {
     const feed = makeLiveScannerFeedStub({ gappers: [row('CBRX', -5.4)] });
     const rows = hodFocusRows('hod_momo', [alert('CBRX', 2, 2), alert('NEWX', 2, 1)], feed);
-    expect(rows.map(r => [r.symbol, r.catalyst, r.newsKnown])).toEqual([['CBRX', null, true], ['NEWX', null, false]]);
+    expect(rows.map(r => [r.symbol, r.headlineAt, r.newsKnown])).toEqual([['CBRX', null, true], ['NEWX', null, false]]);
   });
 
   it('follows only a list the rail mirrors', () => {
@@ -260,5 +372,52 @@ describe('focusRowsFor / stepCursor', () => {
     expect(stepCursor(2, 1, 3)).toBe(2);
     expect(stepCursor(0, -1, 3)).toBe(0);
     expect(stepCursor(0, 1, 0)).toBe(-1);
+  });
+});
+
+describe('focus rail sorting and the hover card position', () => {
+  const focusRow = (symbol: string, patch: Partial<FocusRow> = {}): FocusRow => ({
+    symbol, price: 1, gapPct: 0, headlineAt: null, newsKnown: true, ...patch,
+  });
+
+  it('cycles a column: its first direction, flipped, then none', () => {
+    expect(nextFocusSort(null, 'gap')).toEqual({ key: 'gap', dir: 'desc' });
+    expect(nextFocusSort({ key: 'gap', dir: 'desc' }, 'gap')).toEqual({ key: 'gap', dir: 'asc' });
+    expect(nextFocusSort({ key: 'gap', dir: 'asc' }, 'gap')).toBeNull();
+    expect(nextFocusSort(null, 'symbol')).toEqual({ key: 'symbol', dir: 'asc' });
+    expect(nextFocusSort({ key: 'symbol', dir: 'asc' }, 'price')).toEqual({ key: 'price', dir: 'desc' });
+    expect(parseFocusSort({ key: 'news', dir: 'desc' })).toEqual({ key: 'news', dir: 'desc' });
+    expect(parseFocusSort('gap')).toBeNull();
+  });
+
+  it('keeps an unknown value last in either direction, never read as zero', () => {
+    const rows = [focusRow('NULL', { price: null }), focusRow('LOW', { price: 1 }), focusRow('HIGH', { price: 9 })];
+    expect(sortFocusRows(rows, { key: 'price', dir: 'desc' }).map(r => r.symbol)).toEqual(['HIGH', 'LOW', 'NULL']);
+    expect(sortFocusRows(rows, { key: 'price', dir: 'asc' }).map(r => r.symbol)).toEqual(['LOW', 'HIGH', 'NULL']);
+    expect(sortFocusRows(rows, null)).toBe(rows);
+  });
+
+  it('ranks news the way the circle reads: catalyst by age, bad news, nothing, unknown', () => {
+    const now = Date.UTC(2026, 8, 23, 14);
+    const verdict = (patch: object) => ({
+      verdict: 'catalyst', category: 'contract', strength: 'strong', title: 't', source: 'edgar', published_ts: now / 1000 - 600,
+      url: null, negative_too: false, rules_version: 'v6', ...patch,
+    }) as FocusRow['verdict'];
+    const hot = focusNewsRank(focusRow('A', { verdict: verdict({}) }), now)!;
+    const cool = focusNewsRank(focusRow('B', { verdict: verdict({ published_ts: now / 1000 - 20 * 3600 }) }), now)!;
+    const negative = focusNewsRank(focusRow('C', { verdict: verdict({ verdict: 'negative', category: 'offering' }) }), now)!;
+    const none = focusNewsRank(focusRow('D', { verdict: verdict({ verdict: 'none_found' }) }), now)!;
+    expect(hot).toBeGreaterThan(cool);
+    expect(cool).toBeGreaterThan(negative);
+    expect(negative).toBeGreaterThan(none);
+    expect(focusNewsRank(focusRow('E', { verdict: null }), now)).toBeNull();
+    expect(focusNewsRank(focusRow('F', { newsKnown: false }), now)).toBeNull();
+  });
+
+  it('places the card right of the row, or left when the screen ends', () => {
+    const anchor = { left: 50, top: 100, right: 270, bottom: 124 };
+    expect(focusCardPosition(anchor, { width: 320, height: 200 }, { width: 1200, height: 800 })).toEqual({ left: 278, top: 100 });
+    expect(focusCardPosition(anchor, { width: 320, height: 200 }, { width: 500, height: 800 }).left).toBe(8);
+    expect(focusCardPosition({ ...anchor, top: 750 }, { width: 320, height: 200 }, { width: 1200, height: 800 }).top).toBe(592);
   });
 });

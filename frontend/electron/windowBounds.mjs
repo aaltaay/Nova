@@ -3,7 +3,17 @@
  *
  * Owner: this module (main + traderWindows callers).
  * Invalidation: schema_version bump, or bounds that no longer overlap a display.
- * schema_version: 1
+ * schema_version: 1 -- entries are {x, y, width, height, maximized?}; the rect
+ * is the window's normal (restored) bounds and `maximized` whether it closed
+ * maximized (absent in older files: read as false).
+ *
+ * Restoring on a mixed-DPI desk: Electron scales constructor bounds that land
+ * on a display whose scale factor differs from the primary's (a 1600x1000 rect
+ * on a 150% monitor opens 2400x1500). Saving that and restoring it again grew
+ * the window every launch until it spanned every monitor. So a restored rect
+ * is clamped to the display it sits on and applied again with setBounds once
+ * the window exists (which lands exactly), and a maximized window is saved as
+ * its normal bounds plus the flag, never as its maximized size.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -79,7 +89,32 @@ export function writeBoundsStore(userDataDir, store) {
   fs.writeFileSync(file, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
 }
 
-export function pickStoredBounds(store, windowId, displays) {
+/** The display the rect overlaps most, or null when it overlaps none. */
+export function displayForBounds(bounds, displays) {
+  let best = null;
+  let bestArea = 0;
+  for (const d of Array.isArray(displays) ? displays : []) {
+    if (!isFiniteRect(d)) continue;
+    const area = overlapArea(bounds, d);
+    if (area > bestArea) {
+      best = d;
+      bestArea = area;
+    }
+  }
+  return best;
+}
+
+/** Shrink the rect to fit one display and move it fully onto that display. */
+export function clampBoundsToDisplay(bounds, display) {
+  const width = Math.min(bounds.width, display.width);
+  const height = Math.min(bounds.height, display.height);
+  const x = Math.min(Math.max(bounds.x, display.x), display.x + display.width - width);
+  const y = Math.min(Math.max(bounds.y, display.y), display.y + display.height - height);
+  return { x, y, width, height };
+}
+
+/** @returns {{bounds: {x: number, y: number, width: number, height: number}, maximized: boolean} | null} */
+export function pickStoredPlacement(store, windowId, displays) {
   const raw = store?.windows?.[windowId];
   if (!isFiniteRect(raw)) return null;
   const bounds = {
@@ -89,10 +124,18 @@ export function pickStoredBounds(store, windowId, displays) {
     height: Math.round(raw.height),
   };
   if (!boundsVisibleOnDisplays(bounds, displays)) return null;
-  return bounds;
+  const display = displayForBounds(bounds, displays);
+  return {
+    bounds: display ? clampBoundsToDisplay(bounds, display) : bounds,
+    maximized: raw.maximized === true,
+  };
 }
 
-export function upsertWindowBounds(store, windowId, bounds) {
+export function pickStoredBounds(store, windowId, displays) {
+  return pickStoredPlacement(store, windowId, displays)?.bounds ?? null;
+}
+
+export function upsertWindowBounds(store, windowId, bounds, maximized = false) {
   if (!windowId || !isFiniteRect(bounds)) return parseBoundsStore(store);
   const next = parseBoundsStore(store);
   next.windows[windowId] = {
@@ -100,17 +143,52 @@ export function upsertWindowBounds(store, windowId, bounds) {
     y: Math.round(bounds.y),
     width: Math.round(bounds.width),
     height: Math.round(bounds.height),
+    maximized: maximized === true,
   };
   return next;
 }
 
-export function persistWindowBounds(userDataDir, windowId, bounds) {
-  const store = upsertWindowBounds(readBoundsStore(userDataDir), windowId, bounds);
+export function persistWindowBounds(userDataDir, windowId, bounds, maximized = false) {
+  const store = upsertWindowBounds(readBoundsStore(userDataDir), windowId, bounds, maximized);
   writeBoundsStore(userDataDir, store);
 }
 
-export function restoreWindowBounds(userDataDir, windowId, displays) {
-  return pickStoredBounds(readBoundsStore(userDataDir), windowId, displays);
+export function restoreWindowPlacement(userDataDir, windowId, displays) {
+  return pickStoredPlacement(readBoundsStore(userDataDir), windowId, displays);
+}
+
+/** Restored bounds per window, so a DIP rounding echo is not saved as a resize. */
+const appliedBounds = new WeakMap();
+export const WINDOW_BOUNDS_ROUNDING_PX = 1;
+
+/**
+ * The rect to save: the one restored, when the window reports it back within a
+ * pixel. On a 150% display a 1000 px tall window reads back 1001, and saving
+ * that grew it a pixel every launch.
+ */
+export function settleRoundTrip(applied, current) {
+  if (!applied || !isFiniteRect(current)) return current;
+  const near = ['x', 'y', 'width', 'height'].every(
+    (k) => Math.abs(current[k] - applied[k]) <= WINDOW_BOUNDS_ROUNDING_PX,
+  );
+  return near ? applied : current;
+}
+
+/**
+ * Re-apply a restored placement to a window built with its bounds. This second
+ * setBounds is what lands the size on a display whose scale factor differs
+ * from the primary's; a window saved maximized maximizes when first shown.
+ */
+export function applyStoredPlacement(win, placement) {
+  if (!placement) return;
+  appliedBounds.set(win, placement.bounds);
+  win.setBounds(placement.bounds);
+  if (placement.maximized) {
+    win.once('show', () => {
+      if (typeof win.isDestroyed === 'function' && win.isDestroyed()) return;
+      win.maximize();
+    });
+  }
 }
 
 export function bindWindowBoundsPersist(win, userDataDir, idGetter, debounceMs = 250) {
@@ -118,7 +196,10 @@ export function bindWindowBoundsPersist(win, userDataDir, idGetter, debounceMs =
   const flush = () => {
     if (typeof win.isDestroyed === 'function' && win.isDestroyed()) return;
     const id = typeof idGetter === 'function' ? idGetter() : idGetter;
-    persistWindowBounds(userDataDir, id, win.getBounds());
+    // Normal bounds, never the maximized rect: restored as a plain window,
+    // a maximized size covers its whole display and then some.
+    const normal = settleRoundTrip(appliedBounds.get(win), win.getNormalBounds());
+    persistWindowBounds(userDataDir, id, normal, win.isMaximized());
   };
   const save = () => {
     clearTimeout(timer);
@@ -126,6 +207,8 @@ export function bindWindowBoundsPersist(win, userDataDir, idGetter, debounceMs =
   };
   win.on('moved', save);
   win.on('resized', save);
+  win.on('maximize', save);
+  win.on('unmaximize', save);
   win.on('close', () => {
     clearTimeout(timer);
     flush();

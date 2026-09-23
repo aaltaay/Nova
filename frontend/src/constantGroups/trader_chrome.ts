@@ -160,6 +160,37 @@ export const FOCUS_RAIL_BOT_HELD_TITLE = 'Allowlisted · depth line held';
 export const FOCUS_RAIL_BOT_QUIET_TITLE = 'Allowlisted · quiet (no depth line)';
 export const FOCUS_RAIL_REC_TITLE = 'Recording';
 /** localStorage: collapsed flag + mirrored list (versioned; older shapes are ignored). */
+/** Focus rail column headers: click sorts, again flips, a third click returns
+ * to the list's own order. */
+export const FOCUS_RAIL_SORT_LABELS = { symbol: 'Sym', price: 'Last', gap: '%', news: '●' } as const;
+export const FOCUS_RAIL_SORT_TITLES = {
+  symbol: 'Sort by symbol',
+  price: 'Sort by last price',
+  gap: 'Sort by % change',
+  news: 'Sort by news: freshest catalyst first (ties: biggest % first)',
+} as const;
+export const FOCUS_RAIL_SORT_RESET = "click again for the list's own order";
+/** Focus rail hover cards: what a row's circles mean, in plain words. */
+export const FOCUS_RAIL_CARD_HIDE_MS = 200;
+export const FOCUS_RAIL_CARD_MAX_ITEMS = 5;
+export const FOCUS_RAIL_CARD_GAP_PX = 8;
+export const focusRailNewsCardTitle = (symbol: string): string => `${symbol} · News since the prior close`;
+export const focusRailCardMoreItems = (count: number): string => `+${count} more in the Trader's News panel`;
+export const FOCUS_RAIL_CARD_NEWS_UNAVAILABLE = 'This desk cannot read the news list; showing what the scanner row carries.';
+export const FOCUS_RAIL_CARD_NO_HEADLINE = 'No headline in the last 24 hours on the scanner row.';
+export const focusRailCardNewestHeadline = (ago: string): string => `Newest headline ${ago}`;
+export const focusRailStatusCardTitle = (symbol: string): string => `${symbol} · Status`;
+export const FOCUS_RAIL_CARD_REC_HEAD = 'Recording';
+export const FOCUS_RAIL_CARD_REC_BODY =
+  'Nova is recording this symbol\'s tape and Level 2 to disk (Session Record), so the session can be replayed in Sim.';
+export const FOCUS_RAIL_CARD_BOT_HELD_HEAD = 'Bot allowlist · watching';
+export const FOCUS_RAIL_CARD_BOT_HELD_BODY =
+  'On the bot allowlist, and Nova holds its Level 2 line (an open Trader tab or a recording), so the bot can see it. '
+  + 'Any bot entry still passes the gates on the Bots page.';
+export const FOCUS_RAIL_CARD_BOT_QUIET_HEAD = 'Bot allowlist · quiet';
+export const FOCUS_RAIL_CARD_BOT_QUIET_BODY =
+  'On the bot allowlist, but Nova holds no Level 2 line for it, so the bot cannot act on it. '
+  + 'Open it in a Trader tab or record it to give the bot eyes.';
 export const FOCUS_RAIL_STORAGE_KEY = 'nova.trader.focusRail.v1';
 export const FOCUS_RAIL_DEFAULT_LIST = 'gappers';
 

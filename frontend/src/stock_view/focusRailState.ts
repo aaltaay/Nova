@@ -1,6 +1,6 @@
 /**
- * Focus rail state: which scanner list it mirrors and whether it is
- * collapsed, persisted under one versioned localStorage key; and the pure
+ * Focus rail state: which scanner list it mirrors, how it is sorted and
+ * whether it is collapsed, persisted under one versioned localStorage key; and the pure
  * row mapping from the live scanner feed. Lists the feed does not carry are
  * a stated absence, never an empty table.
  */
@@ -10,8 +10,10 @@ import { defaultHodMomentumVisibleStrategies } from '../hod_momo/scannerPartitio
 import type { AlertObject } from '../hod_momo/types';
 import type { LiveScannerFeed } from '../scanner/ScannerDataContext';
 import type { Catalyst } from '../types/catalyst';
+import type { CatalystVerdict } from '../types/catalystVerdict';
 import type { ScannerRow } from '../types/scanner';
-import { catalystChipLabel, catalystFor, fractionToPercent, scannerRowFor } from './tabContext';
+import { parseFocusSort, type FocusSort } from './focusRailSort';
+import { catalystFor, fractionToPercent, scannerRowFor } from './tabContext';
 
 export const FOCUS_RAIL_STATE_VERSION = 1;
 
@@ -19,10 +21,13 @@ export interface FocusRailState {
   v: typeof FOCUS_RAIL_STATE_VERSION;
   collapsed: boolean;
   list: string;
+  /** Column sort the operator chose; null is the list's own order. Optional
+   * on disk (older v1 files have none), so the version does not change. */
+  sort: FocusSort | null;
 }
 
 export const FOCUS_RAIL_DEFAULT_STATE: FocusRailState = {
-  v: FOCUS_RAIL_STATE_VERSION, collapsed: false, list: FOCUS_RAIL_DEFAULT_LIST,
+  v: FOCUS_RAIL_STATE_VERSION, collapsed: false, list: FOCUS_RAIL_DEFAULT_LIST, sort: null,
 };
 
 export function readFocusRailState(storage: Pick<Storage, 'getItem'> | null = safeStorage()): FocusRailState {
@@ -35,6 +40,7 @@ export function readFocusRailState(storage: Pick<Storage, 'getItem'> | null = sa
       v: FOCUS_RAIL_STATE_VERSION,
       collapsed: parsed.collapsed === true,
       list: typeof parsed.list === 'string' && parsed.list ? parsed.list : FOCUS_RAIL_DEFAULT_LIST,
+      sort: parseFocusSort(parsed.sort),
     };
   } catch {
     return FOCUS_RAIL_DEFAULT_STATE;
@@ -61,11 +67,13 @@ export interface FocusRow {
   symbol: string;
   price: number | null;
   gapPct: number | null;
-  /** NEWS / PR, null when the row has no known catalyst. */
-  catalyst: string | null;
-  headline: string | null;
-  /** True when the desk knows this symbol's news, so a null catalyst may say
-   * "no news"; false for a HOD symbol no scanner list carries (blank chip). */
+  /** The newest headline's time, for the scanner's age circle. */
+  headlineAt: string | null;
+  /** The row's catalyst verdict (ADR 024); `undefined` when the row carries
+   * none, so the circle falls back to the headline's age like the Scanner's. */
+  verdict?: CatalystVerdict | null;
+  /** True when the desk knows this symbol's news; false for a HOD symbol no
+   * scanner list carries, whose news cell stays blank (unknown, not "none"). */
   newsKnown: boolean;
 }
 
@@ -91,15 +99,20 @@ export function followedFocusList(requested: string | null): string | null {
   return requested && FOCUS_RAIL_MIRRORED_LISTS.includes(requested) ? requested : null;
 }
 
+/** The news cell of a row the scanner feed knows: its verdict when it carries
+ * one, else the newest headline from the row or the Catalysts list. */
+function newsOf(row: ScannerRow | null, catalyst: Catalyst | null): Pick<FocusRow, 'headlineAt' | 'verdict'> {
+  const headlineAt = row?.newest_headline_at ?? catalyst?.newest_headline_at ?? null;
+  return row && row.catalyst !== undefined ? { headlineAt, verdict: row.catalyst } : { headlineAt };
+}
+
 function fromScannerRow(row: ScannerRow, catalysts: readonly Catalyst[]): FocusRow {
-  const catalyst = catalystFor(row.symbol, catalysts);
   const gap = row.gap_percent ?? row.change_pct ?? null;
   return {
     symbol: row.symbol.toUpperCase(),
     price: row.price,
     gapPct: fractionToPercent(gap),
-    catalyst: catalystChipLabel(catalyst, row),
-    headline: catalyst?.catalyst_headline ?? null,
+    ...newsOf(row, catalystFor(row.symbol, catalysts)),
     newsKnown: true,
   };
 }
@@ -109,8 +122,7 @@ function fromCatalyst(row: Catalyst): FocusRow {
     symbol: row.symbol.toUpperCase(),
     price: row.current_price,
     gapPct: fractionToPercent(row.gap_percent),
-    catalyst: catalystChipLabel(row, null),
-    headline: row.catalyst_headline,
+    headlineAt: row.newest_headline_at,
     newsKnown: true,
   };
 }
@@ -123,7 +135,7 @@ function finite(value: number | null | undefined): number | null {
  * HOD Momo / Running Up rows: what the Scanner's strip shows by default
  * (exact duplicates dropped, newest raised first, Former Momo off), one row
  * per ticker from its newest alert. Alerts carry percent points already, so
- * the gap is not converted. They carry no news, so the chip comes from the
+ * the gap is not converted. They carry no news, so the circle comes from the
  * scanner feed; a symbol no scanner list carries has no known news.
  */
 export function hodFocusRows(
@@ -144,8 +156,7 @@ export function hodFocusRows(
       symbol,
       price: finite(alert.price),
       gapPct: finite(alert.gap_pct) ?? finite(alert.change_pct),
-      catalyst: catalystChipLabel(catalyst, scannerRow),
-      headline: catalyst?.catalyst_headline ?? null,
+      ...newsOf(scannerRow, catalyst),
       newsKnown: Boolean(scannerRow || catalyst),
     });
   }

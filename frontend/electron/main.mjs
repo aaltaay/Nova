@@ -27,8 +27,9 @@ import { isAllowedRendererUrl, loadHostWindow } from './traderWindowLoad.mjs';
 import { openOrFocusTraderWindow } from './traderWindows.mjs';
 import {
   WINDOW_ID_MAIN,
+  applyStoredPlacement,
   bindWindowBoundsPersist,
-  restoreWindowBounds,
+  restoreWindowPlacement,
 } from './windowBounds.mjs';
 import { formatScannerWindowTitle } from './appTitle.mjs';
 import { novaDesktopReleaseTag } from './loadReleaseTag.mjs';
@@ -58,6 +59,8 @@ function windowOptions() {
     minHeight: 700,
     title: formatScannerWindowTitle(novaDesktopReleaseTag(app)),
     backgroundColor: '#0b0f14',
+    // Title bar and taskbar; the packed exe carries the same icon (electron-builder).
+    icon: path.join(__dirname, 'build', 'icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -98,12 +101,13 @@ function mainRecoverOpts() {
 
 function createWindow() {
   const userData = app.getPath('userData');
-  const saved = restoreWindowBounds(userData, WINDOW_ID_MAIN, displayWorkAreas());
+  const saved = restoreWindowPlacement(userData, WINDOW_ID_MAIN, displayWorkAreas());
   mainWindow = new BrowserWindow({
     ...windowOptions(),
-    ...(saved || {}),
+    ...(saved?.bounds || {}),
     show: false,
   });
+  applyStoredPlacement(mainWindow, saved);
   bindWindowBoundsPersist(mainWindow, userData, WINDOW_ID_MAIN);
   const recover = mainRecoverOpts();
   attachRendererGuards(mainWindow, { ...recover, retryFail: true });
