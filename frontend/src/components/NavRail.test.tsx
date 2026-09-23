@@ -276,7 +276,7 @@ describe('NavRail', () => {
     expect(consumeScannerTabRequest()).toBe('losers');
   });
 
-  it('Scanner from Account returns to the last list shown; on the Scanner view it folds the tree', () => {
+  it('Scanner from Account returns to the last list shown; on the Scanner view it never folds the tree', () => {
     render();
     act(() => {
       publishScannerNavState({ activeTab: 'losers', railHighlight: 'losers', counts: {} });
@@ -290,38 +290,33 @@ describe('NavRail', () => {
     });
     expect(q('nav-rail-scanner-tree')).toBeTruthy();
     click('nav-rail-scanner');
-    expect(q('nav-rail-scanner-tree')).toBeNull();
-    expect(consumeScannerTabRequest()).toBeNull();
+    expect(q('nav-rail-scanner-tree')).toBeTruthy();
+    expect(consumeScannerTabRequest()).toBe('losers');
   });
 
-  it('keeps the tree open on every view until the operator folds it (2026-09-22)', () => {
+  it('keeps the tree open on every view with no fold control (2026-09-23)', () => {
     render();
     expect(q('nav-rail-scanner-tree')).toBeTruthy();
-    expect(q('nav-rail-scanner')!.getAttribute('aria-expanded')).toBe('true');
+    expect(q('nav-rail-scanner')!.hasAttribute('aria-expanded')).toBe(false);
+    expect(q('nav-rail-scanner-chevron')).toBeNull();
     act(() => {
       setNavPage('desk');
     });
     expect(q('nav-rail-scanner-tree')).toBeTruthy();
-    expect(q('nav-rail')!.classList.contains('nav-rail--folded')).toBe(false);
     expect(localStorage.getItem(NAV_RAIL_STORAGE_KEY)).toBeNull();
   });
 
-  it('persists the fold choice under the versioned key and restores it on remount', () => {
+  it('ignores a fold saved by an earlier build and drops it on the next write', () => {
+    localStorage.setItem(
+      NAV_RAIL_STORAGE_KEY,
+      JSON.stringify({ schema_version: NAV_RAIL_SCHEMA_VERSION, collapsed: null, scannerFolded: true }),
+    );
     render();
-    click('nav-rail-scanner-chevron');
-    expect(q('nav-rail-scanner-tree')).toBeNull();
-    const stored = JSON.parse(localStorage.getItem(NAV_RAIL_STORAGE_KEY)!);
-    expect(stored).toEqual({ schema_version: NAV_RAIL_SCHEMA_VERSION, collapsed: null, scannerFolded: true });
-
-    act(() => {
-      root.unmount();
-    });
-    root = createRoot(container);
-    render();
-    expect(q('nav-rail-scanner-tree')).toBeNull();
-    click('nav-rail-scanner-chevron');
     expect(q('nav-rail-scanner-tree')).toBeTruthy();
-    expect(JSON.parse(localStorage.getItem(NAV_RAIL_STORAGE_KEY)!).scannerFolded).toBe(false);
+    click('nav-rail-collapse');
+    expect(JSON.parse(localStorage.getItem(NAV_RAIL_STORAGE_KEY)!)).toEqual({
+      schema_version: NAV_RAIL_SCHEMA_VERSION, collapsed: true,
+    });
   });
 
   it('collapses to the icon-only rail, keeps tooltips, persists, and restores on remount', () => {
@@ -365,7 +360,7 @@ describe('NavRail', () => {
     click('nav-rail-collapse');
     expect(q('nav-rail')!.getAttribute('data-collapsed')).toBe('true');
     expect(JSON.parse(localStorage.getItem(NAV_RAIL_STORAGE_KEY)!)).toEqual({
-      schema_version: NAV_RAIL_SCHEMA_VERSION, collapsed: true, scannerFolded: null,
+      schema_version: NAV_RAIL_SCHEMA_VERSION, collapsed: true,
     });
     act(() => {
       setNavPage('records');
@@ -383,9 +378,9 @@ describe('NavRail', () => {
       setNavPage('desk');
     });
     render();
-    // v1 `collapsed: false` is "not chosen": the default (labels) applies; the fold choice is kept.
+    // v1 `collapsed: false` is "not chosen": the default (labels) applies; its fold is ignored.
     expect(q('nav-rail')!.classList.contains('nav-rail--collapsed')).toBe(false);
-    expect(q('nav-rail')!.classList.contains('nav-rail--folded')).toBe(true);
+    expect(q('nav-rail-scanner-tree')).toBeTruthy();
     act(() => {
       root.unmount();
     });

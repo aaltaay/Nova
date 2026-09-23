@@ -17,26 +17,31 @@ describe('navRailPersist', () => {
     vi.restoreAllMocks();
   });
 
-  it('defaults to "not chosen" for both the collapse and the fold', () => {
-    expect(readNavRailPrefs()).toEqual({ collapsed: null, scannerFolded: null });
-    expect(NAV_RAIL_DEFAULT_PREFS).toEqual({ collapsed: null, scannerFolded: null });
+  it('defaults to "not chosen" for the collapse', () => {
+    expect(readNavRailPrefs()).toEqual({ collapsed: null });
+    expect(NAV_RAIL_DEFAULT_PREFS).toEqual({ collapsed: null });
   });
 
   it('round-trips tri-state choices under the current schema', () => {
-    writeNavRailPrefs({ collapsed: false, scannerFolded: true });
+    writeNavRailPrefs({ collapsed: false });
     expect(JSON.parse(localStorage.getItem(NAV_RAIL_STORAGE_KEY)!)).toEqual({
-      schema_version: NAV_RAIL_SCHEMA_VERSION, collapsed: false, scannerFolded: true,
+      schema_version: NAV_RAIL_SCHEMA_VERSION, collapsed: false,
     });
-    expect(readNavRailPrefs()).toEqual({ collapsed: false, scannerFolded: true });
-    writeNavRailPrefs({ collapsed: null, scannerFolded: null });
-    expect(readNavRailPrefs()).toEqual({ collapsed: null, scannerFolded: null });
+    expect(readNavRailPrefs()).toEqual({ collapsed: false });
+    writeNavRailPrefs({ collapsed: null });
+    expect(readNavRailPrefs()).toEqual({ collapsed: null });
+  });
+
+  it('reads past a Scanner fold saved by an earlier build (the tree no longer folds)', () => {
+    localStorage.setItem(NAV_RAIL_STORAGE_KEY, JSON.stringify({ schema_version: NAV_RAIL_SCHEMA_VERSION, collapsed: true, scannerFolded: true }));
+    expect(readNavRailPrefs()).toEqual({ collapsed: true });
   });
 
   it('migrates v1 by its known rule: collapsed true was a choice, false was the default it always wrote', () => {
     localStorage.setItem(NAV_RAIL_STORAGE_KEY, JSON.stringify({ schema_version: NAV_RAIL_SCHEMA_VERSION_LEGACY, collapsed: false, scannerFolded: true }));
-    expect(readNavRailPrefs()).toEqual({ collapsed: null, scannerFolded: true });
+    expect(readNavRailPrefs()).toEqual({ collapsed: null });
     localStorage.setItem(NAV_RAIL_STORAGE_KEY, JSON.stringify({ schema_version: NAV_RAIL_SCHEMA_VERSION_LEGACY, collapsed: true, scannerFolded: false }));
-    expect(readNavRailPrefs()).toEqual({ collapsed: true, scannerFolded: false });
+    expect(readNavRailPrefs()).toEqual({ collapsed: true });
   });
 
   it('ignores an unknown schema_version loudly and an unreadable payload quietly', () => {
