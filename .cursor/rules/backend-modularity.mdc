@@ -14,25 +14,14 @@ alwaysApply: false
 
 Everything else lives in a purpose-built module. When adding or refactoring code, always place it in the correct module below.
 
-## Module Layout
+## Where code goes
 
-```text
-backend/
-  main.py            # app factory + lifespan only
-  constants.py       # all tunables (see centralized-constants rule)
-  market.py          # _now_et, _in_premarket, _in_market_hours, _get_mode
-  alpaca.py          # _alpaca_headers, _env, all Alpaca REST + WS client calls
-  cache.py           # shared in-memory cache dicts, TTL helpers, invalidation
-  scanner.py         # gapper / gainer / loser discovery and scoring logic
-  news.py            # news fetch, dedup, scoring
-  fundamentals.py    # yfinance fetch + TTL cache wrapper
-  websocket.py       # WS connection manager, subscription state, streaming loop
-  routes/
-    health.py        # /health endpoint
-    scan.py          # /gappers, /gainers, /losers endpoints
-    ticker.py        # /ticker/{symbol} + ticker detail WS
-    settings.py      # /settings GET/POST
-```
+A file tree used to live here; it went stale (it listed modules that no longer
+exist). Ask the code instead: `py -3 tools/module_map.py [word]` prints what every
+backend package owns, from each package's `__init__.py` docstring. New code goes in
+the package that owns its concept; nothing owns it -> a new package whose docstring
+says what it owns (AGENTS.md §2.1). Prefer a package to another top-level
+`backend/*.py` module.
 
 ## Rules
 

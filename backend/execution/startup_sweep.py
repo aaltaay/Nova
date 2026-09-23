@@ -83,8 +83,8 @@ def _row_qty(row: dict) -> float:
         return 0.0
 
 
-def _executed_shares_by_order() -> dict[int, float]:
-    """Executed shares per broker order id, from ``ib.fills()``.
+def _executed_shares_by_order() -> dict[int, float] | None:
+    """Executed shares per broker order id, from ``ib.fills()``; None when unreadable.
 
     `reqExecutions` still answers while `reqCompletedOrders` is stuck, so this
     is the only proof of a fill available during that window (D-077). Uses
@@ -98,8 +98,10 @@ def _executed_shares_by_order() -> dict[int, float]:
     try:
         fills = list(fills_fn() or [])
     except Exception:
+        # None, not {}: "no executions" would let the sweep call a filled order
+        # abandoned. The caller treats every unresolved row as unverified.
         logger.warning("execution sweep: ib.fills() read failed", exc_info=True)
-        return {}
+        return None
     cumulative: dict[int, float] = {}
     summed: dict[int, float] = {}
     for fill in fills:
@@ -182,7 +184,7 @@ def run_startup_sweep() -> dict:
             )
             summary["resolved"].append(execution_id)
             continue
-        executed = executed_shares.get(order_id, 0.0)
+        executed = (executed_shares or {}).get(order_id, 0.0)
         ordered = _row_qty(row)
         if executed > 0.0 and ordered > 0.0 and executed + 1e-9 >= ordered:
             # Executions prove the fill even when completed orders never
@@ -197,10 +199,10 @@ def run_startup_sweep() -> dict:
             summary["resolved"].append(execution_id)
             summary["resolved_by_executions"].append(execution_id)
             continue
-        if not history_loaded or executed > 0.0:
-            # No history, or a partial execution with no terminal record:
-            # something happened at the broker, so this is unknown, not
-            # abandoned.
+        if not history_loaded or executed > 0.0 or executed_shares is None:
+            # No history, a partial execution with no terminal record, or no
+            # executions to check: something may have happened at the broker,
+            # so this is unknown, not abandoned.
             summary["unverified"].append(execution_id)
             continue
         store.update_stages(

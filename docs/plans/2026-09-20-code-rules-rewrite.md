@@ -1,5 +1,7 @@
 # Code Rules Rewrite Implementation Plan
 
+> **Status (2026-09-23): done, with changes.** Task 1's logical-line entry points shipped with #393; the rest landed in the file-size / scalability rules PR. Differences from this plan: size is a soft 400 that asks for a one-concern reason plus a growth check and an 800 ceiling on every file (not a money-path size tier); the money-path list is `execution/`, `ibkr/`, `practice/`, `sim/`, `kill_switch/`, `bot/`, `frontend/src/ibkr/` (Nova OS was retired by ADR 025); cross-feature imports are frozen per file for every `feature` in `frontend/src/FOLDERS.md`; §3 contracts stayed in AGENTS.md. Read AGENTS.md §2 and §6.3, not this plan.
+
 **Goal:** Replace the code-shape rules in `AGENTS.md` §2 and the invariants that feed them with behavior rules that cannot go stale, tier size and error-handling strictness by whether a module touches money, and make `tools/maintainer_checks.py` the single enforced source of those rules in CI. Closes #393 as a consequence, not as the point.
 
 **Architecture:** No product behavior changes except in Task 3, where 18 silent `except` sites on the money path gain, at minimum, a logged warning. Everything else is tooling (`tools/maintainer_checks.py`, its tests, one CI step), constitution text (`AGENTS.md`, five `.cursor/rules/*.mdc`), and a doc move (`AGENTS.md` §3 → `architecture/contracts/`).

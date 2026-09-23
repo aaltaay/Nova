@@ -47,8 +47,6 @@ def test_hard_limit_main_py_flagged_when_over(mc, tmp_path: Path, monkeypatch):
 
     monkeypatch.setattr(mc, "REPO_ROOT", fake_root)
     monkeypatch.setattr(mc, "HARD_LIMIT_FILES", {"backend/main.py": 200})
-    monkeypatch.setattr(mc, "BASELINE_OVER_LIMIT", {})
-    monkeypatch.setattr(mc, "BASELINE_ACCEPTED_LINES", {})
 
     findings = mc.check_file_sizes([main])
     assert len(findings) == 1
@@ -56,7 +54,7 @@ def test_hard_limit_main_py_flagged_when_over(mc, tmp_path: Path, monkeypatch):
     assert findings[0].baseline is False
 
 
-def test_baseline_over_limit_marked_baseline(mc, tmp_path: Path, monkeypatch):
+def test_oversize_file_is_advisory_until_it_states_a_reason(mc, tmp_path: Path, monkeypatch):
     fake_root = tmp_path / "repo"
     backend = fake_root / "backend"
     backend.mkdir(parents=True)
@@ -65,29 +63,17 @@ def test_baseline_over_limit_marked_baseline(mc, tmp_path: Path, monkeypatch):
 
     monkeypatch.setattr(mc, "REPO_ROOT", fake_root)
     monkeypatch.setattr(mc, "HARD_LIMIT_FILES", {})
-    monkeypatch.setattr(mc, "BASELINE_OVER_LIMIT", {"backend/hod_momo.py": 400})
-    monkeypatch.setattr(mc, "BASELINE_ACCEPTED_LINES", {"backend/hod_momo.py": 1079})
 
     findings = mc.check_file_sizes([target])
-    assert len(findings) == 1
-    assert findings[0].baseline is True
-    assert findings[0].kind == "file_size_baseline"
+    assert [f.kind for f in findings] == ["file_size"]
+    assert "soft limit 400" in findings[0].detail
 
-
-def test_baseline_growth_flagged_when_past_accepted(mc, tmp_path: Path, monkeypatch):
-    fake_root = tmp_path / "repo"
-    backend = fake_root / "backend"
-    backend.mkdir(parents=True)
-    target = backend / "hod_momo.py"
-    target.write_text("\n".join(f"x = {i}" for i in range(1100)) + "\n", encoding="utf-8")
-
-    monkeypatch.setattr(mc, "REPO_ROOT", fake_root)
-    monkeypatch.setattr(mc, "HARD_LIMIT_FILES", {})
-    monkeypatch.setattr(mc, "BASELINE_OVER_LIMIT", {"backend/hod_momo.py": 400})
-    monkeypatch.setattr(mc, "BASELINE_ACCEPTED_LINES", {"backend/hod_momo.py": 1079})
-
-    findings = mc.check_file_sizes([target])
-    assert any(f.kind == "baseline_growth" and not f.baseline for f in findings)
+    target.write_text(
+        '"""Engine.\n\nmaintainer: one-concern the alert state machine shares one lock\n"""\n'
+        + "\n".join(f"x = {i}" for i in range(450)) + "\n",
+        encoding="utf-8",
+    )
+    assert mc.check_file_sizes([target]) == []
 
 
 def test_index_css_hard_limit(mc, tmp_path: Path, monkeypatch):
@@ -99,7 +85,6 @@ def test_index_css_hard_limit(mc, tmp_path: Path, monkeypatch):
 
     monkeypatch.setattr(mc, "REPO_ROOT", fake_root)
     monkeypatch.setattr(mc, "HARD_LIMIT_FILES", {"frontend/src/index.css": 1000})
-    monkeypatch.setattr(mc, "BASELINE_OVER_LIMIT", {})
 
     findings = mc.check_file_sizes([css])
     assert len(findings) == 1
@@ -116,7 +101,6 @@ def test_domain_css_over_limit(mc, tmp_path: Path, monkeypatch):
 
     monkeypatch.setattr(mc, "REPO_ROOT", fake_root)
     monkeypatch.setattr(mc, "HARD_LIMIT_FILES", {})
-    monkeypatch.setattr(mc, "BASELINE_OVER_LIMIT", {})
 
     findings = mc.check_file_sizes([css])
     assert any(f.kind == "file_size" and "CSS" in f.detail for f in findings)
@@ -131,7 +115,6 @@ def test_test_files_exempt_from_size(mc, tmp_path: Path, monkeypatch):
 
     monkeypatch.setattr(mc, "REPO_ROOT", fake_root)
     monkeypatch.setattr(mc, "HARD_LIMIT_FILES", {})
-    monkeypatch.setattr(mc, "BASELINE_OVER_LIMIT", {})
 
     assert mc.check_file_sizes([big]) == []
 
@@ -237,14 +220,18 @@ def test_except_return_empty_allowlist_path_skipped(mc, tmp_path: Path, monkeypa
     assert mc.check_swallowed_errors([p]) == []
 
 
-def test_swallowed_exception_allowlist_path_skipped(mc, tmp_path: Path, monkeypatch):
-    """ibkr/ticks.py + ibkr/order_times.py: idempotent cleanup / parse-then-
-    fall-through, already triaged as intentional — not a silent failure."""
+def test_swallowed_exception_with_a_site_reason_is_skipped(mc, tmp_path: Path, monkeypatch):
+    """ibkr/ticks.py: an idempotent list.remove says why at the site. The old
+    file-wide allowlist hid every future site in the file as well."""
     fake_root = tmp_path / "repo"
     ibkr = fake_root / "backend" / "ibkr"
     ibkr.mkdir(parents=True)
     p = ibkr / "ticks.py"
-    p.write_text("try:\n    x()\nexcept ValueError:\n    pass\n", encoding="utf-8")
+    p.write_text(
+        "try:\n    x()\n"
+        "except ValueError:  # maintainer: allow-swallow removing twice is a no-op\n    pass\n",
+        encoding="utf-8",
+    )
     monkeypatch.setattr(mc, "REPO_ROOT", fake_root)
     assert mc.check_swallowed_errors([p]) == []
 
@@ -259,7 +246,7 @@ def test_non_allowlisted_backend_module_still_flagged(mc, tmp_path: Path, monkey
     p.write_text("try:\n    x()\nexcept Exception:\n    return []\n", encoding="utf-8")
     monkeypatch.setattr(mc, "REPO_ROOT", fake_root)
     findings = mc.check_swallowed_errors([p])
-    assert any(f.kind == "except_return_empty" for f in findings)
+    assert any(f.kind == "except_return_empty_money" for f in findings)
 
 
 def test_run_checks_on_real_repo_swallow_noise_excludes_tools_and_tests(mc):
@@ -276,8 +263,8 @@ def test_run_checks_on_real_repo_swallow_noise_excludes_tools_and_tests(mc):
         assert not posix.startswith("tests/"), f
 
 
-def test_import_main_detected_non_baseline_until_fingerprinted(mc, tmp_path: Path):
-    from maintainer_lib.baselines import apply_baseline_fingerprints, fingerprint
+def test_import_main_detected_non_baseline_until_frozen(mc, tmp_path: Path):
+    from maintainer_lib.baselines import apply_baseline_counts, build_counts
     from maintainer_lib.deps import check_import_main
 
     p = tmp_path / "scan_runners.py"
@@ -286,15 +273,12 @@ def test_import_main_detected_non_baseline_until_fingerprinted(mc, tmp_path: Pat
     assert findings
     assert findings[0].kind == "import_main"
     assert findings[0].baseline is False
-    fp = fingerprint(
-        findings[0].kind, findings[0].path, findings[0].line, findings[0].detail
-    )
-    apply_baseline_fingerprints(findings, {fp})
+    apply_baseline_counts(findings, build_counts(findings))
     assert findings[0].baseline is True
 
 
 def test_cross_feature_new_violation_not_baselined(mc, tmp_path: Path):
-    from maintainer_lib.baselines import apply_baseline_fingerprints
+    from maintainer_lib.baselines import apply_baseline_counts
     from maintainer_lib.deps import check_cross_feature_imports
 
     feat = tmp_path / "frontend" / "src" / "hotkeys"
@@ -302,11 +286,11 @@ def test_cross_feature_new_violation_not_baselined(mc, tmp_path: Path):
     p = feat / "X.tsx"
     p.write_text("import { y } from '../hod_momo/secret'\n", encoding="utf-8")
     findings = check_cross_feature_imports(
-        [p], lambda x: "frontend/src/hotkeys/X.tsx", mc.Finding
+        [p], lambda x: "frontend/src/hotkeys/X.tsx", mc.Finding, ("hod_momo", "hotkeys")
     )
     assert findings
     assert findings[0].kind == "cross_feature_import"
-    apply_baseline_fingerprints(findings, set())
+    apply_baseline_counts(findings, {})
     assert findings[0].baseline is False
 
 
@@ -351,12 +335,6 @@ def test_run_checks_on_real_repo_reports_index_css(mc):
         if f["kind"] == "file_size_hard" and f["path"] == "frontend/src/index.css"
     ]
     assert hard_css == [], f"index.css should be within import-only limit: {hard_css}"
-    baseline_paths = {
-        f["path"] for f in report["findings"] if f["kind"] == "file_size_baseline"
-    }
-    # No accepted oversize baselines currently (executor + hod_momo facades under limit).
-    assert "backend/strategy/executor.py" not in baseline_paths
-    assert "backend/hod_momo.py" not in baseline_paths
     hard_app = [
         f
         for f in report["findings"]

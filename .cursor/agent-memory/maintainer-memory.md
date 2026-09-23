@@ -68,14 +68,19 @@ not a blanket "no except: pass anywhere" rule. Two exclusions:
    findings — they aren't the live read-path this heuristic protects, and
    flagging them only drowns the signal.
 2. **Path allowlist** (`EXCEPT_RETURN_EMPTY_ALLOWLIST` /
-   `SWALLOWED_EXCEPTION_ALLOWLIST` in `tools/maintainer_checks.py`): specific
-   modules whose empty-on-error behavior is already deliberate and either
-   logged or fail-closed elsewhere (disk/JSON loaders, `managedAccounts()`
-   paper-pin refusal, idempotent tick/listener cleanup, already-loud-logged
-   Alpaca snapshot/news degrades). See the module docstring comment above
-   the allowlist for the never-add-here rule: scanner discovery and IBKR
-   positions/orders reads must never be added to this allowlist — they raise
-   or 503 instead (bucket A of the fail-loud remainder plan).
+   `SWALLOWED_EXCEPTION_ALLOWLIST` in `tools/maintainer_lib/swallow.py`):
+   off the money path only -- modules whose empty-on-error behavior is
+   deliberate and logged (disk/JSON loaders, already-loud-logged Alpaca
+   snapshot/news degrades). Scanner discovery and IBKR positions/orders reads
+   must never be added -- they raise or 503 instead (bucket A of the
+   fail-loud remainder plan).
+3. **Money path (2026-09-23, AGENTS.md §6.3):** in `execution/`, `ibkr/`,
+   `practice/`, `sim/`, `kill_switch/`, `bot/` and `frontend/src/ibkr/` the
+   kinds are `*_money` and fail `--gate`; file allowlists do not apply. A
+   deliberately silent site (a timeout that ends a wait, idempotent
+   `list.remove`, parse fall-through, `managedAccounts()` fail-closed) carries
+   `# maintainer: allow-swallow <reason>` on its `except` line. Judge those
+   reasons on every audit.
 
 Do not add a new path to either allowlist without confirming the failure
 mode still fails loud somewhere (a log line, a raised error, or a fail-closed

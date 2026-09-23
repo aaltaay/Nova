@@ -49,7 +49,7 @@ def apply_l1_position_mark(row: dict, l1_last: float | None) -> dict:
     if avg is not None:
         try:
             out["unrealized_pnl"] = (last - float(avg)) * qty
-        except (TypeError, ValueError):
+        except (TypeError, ValueError):  # maintainer: allow-swallow an unreadable avg cost keeps IBKR's own unrealized P&L
             pass
     return out
 
@@ -95,6 +95,6 @@ def overlay_account_summary(summary: dict, positions: list[dict]) -> dict:
         ib_nl = out.get("NetLiquidation")
         if ib_nl is not None and ib_u is not None:
             out["NetLiquidation"] = float(ib_nl) + (u_sum - float(ib_u))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError):  # maintainer: allow-swallow an unreadable IBKR figure keeps IBKR's own NetLiquidation
         pass
     return out

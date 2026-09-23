@@ -60,7 +60,7 @@ async def _wait_for_status(watch, timeout: float) -> None:
     watch.add_status_listener(_on_status)
     try:
         await asyncio.wait_for(changed, timeout=timeout)
-    except asyncio.TimeoutError:
+    except asyncio.TimeoutError:  # maintainer: allow-swallow the timeout is the normal end of the wait
         pass
     finally:
         watch.remove_status_listener(_on_status)

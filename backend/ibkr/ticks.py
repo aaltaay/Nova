@@ -65,7 +65,7 @@ def add_quote_listener(listener: QuoteListenerFn) -> None:
 def remove_quote_listener(listener: QuoteListenerFn) -> None:
     try:
         _quote_listeners.remove(listener)
-    except ValueError:
+    except ValueError:  # maintainer: allow-swallow removing a listener twice is a no-op
         pass
 
 

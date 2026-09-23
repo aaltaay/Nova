@@ -79,7 +79,7 @@ def recent(limit: int = 40) -> list[dict[str, Any]]:
     cap = max(1, min(int(limit), IBKR_GATEWAY_TRAIL_MAX_EVENTS))
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
-    except Exception:
+    except Exception:  # maintainer: allow-swallow a diagnostics trail, logged; no account or order state rides on it
         logger.warning("IBKR: gateway trail read failed", exc_info=True)
         return []
     rows: list[dict[str, Any]] = []

@@ -114,6 +114,17 @@ INVARIANTS: tuple[tuple[str, re.Pattern[str], str], ...] = (
         "Live docs still treat Nova-public as the public source (aaltaay/Nova is the source home).",
     ),
     (
+        "hard_400_line_cliff",
+        re.compile(r"(?i)no (?:single )?(?:source )?file (?:may|should|can) exceed 400|no file > 400"),
+        "Restates the retired hard 400-line cliff (AGENTS.md §2.3: over 400 needs a one-concern "
+        "reason, 800 is the ceiling) -- the cliff made agents squeeze files to 399.",
+    ),
+    (
+        "component_300_line_limit",
+        re.compile(r"(?i)(?:React )?components? (?:exceeds|over|>)\s*300 lines|new React components? ≤ 300"),
+        "Restates the retired 300-line .tsx limit, which contradicted AGENTS.md §2.3.",
+    ),
+    (
         "portable_exe_shipped",
         re.compile(r"Nova-Portable-"),
         "Names the retired portable EXE (installer only since #347 -- it could never self-update).",

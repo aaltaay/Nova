@@ -1,10 +1,12 @@
 """Deterministic maintainability / danger checks for the Nova maintainer subagent.
 
 Side-effect-free: reads the repo, prints a human report or JSON, exits 0 always
-(unless --fail-on-findings). The LLM triage layer decides severity policy;
-this script only measures.
+(unless --fail-on-findings / --fail-on-kind). The LLM triage layer decides
+severity policy; this script only measures. ``--update-baselines`` is the one
+write: it rewrites ``maintainer_lib/baselines.json`` to the tree.
 
-Architecture dependency rules: architecture/dependency-rules.md (ADR track).
+Rules it measures: AGENTS.md §2 (ownership, size, feature imports) and §6.3
+(silent failures). Architecture dependency rules: architecture/dependency-rules.md.
 """
 
 from __future__ import annotations
@@ -21,25 +23,26 @@ _TOOLS_DIR = str(REPO_ROOT / "tools")
 if _TOOLS_DIR not in sys.path:
     sys.path.insert(0, _TOOLS_DIR)
 
-from maintainer_lib.artifacts import ARTIFACT_PATHS, check_artifacts as _check_artifacts  # noqa: E402
-from maintainer_lib.baselines import apply_baseline_fingerprints  # noqa: E402
+from maintainer_lib import size_policy, swallow  # noqa: E402
+from maintainer_lib.artifacts import check_artifacts as _check_artifacts  # noqa: E402
+from maintainer_lib.baselines import (  # noqa: E402
+    apply_baseline_counts,
+    build_counts,
+    load_counts,
+    write_counts,
+)
 from maintainer_lib.deps import check_cross_feature_imports, check_import_main  # noqa: E402
+from maintainer_lib.gate import GATE_KINDS  # noqa: E402
 from maintainer_lib.ib_loop import check_ib_loop_purity as _check_ib_loop_purity  # noqa: E402
+from maintainer_lib.owners import check_owners as _check_owners  # noqa: E402
+from maintainer_lib.size_policy import count_lines  # noqa: E402,F401  (re-exported)
 from maintainer_lib.sizes import LOGICAL_LIMIT_FILES, count_logical_lines  # noqa: E402
 
 MAIN_PY_LIMIT = 200
 APP_TSX_LIMIT = 150
-NEW_PY_LIMIT = 400
-NEW_TSX_LIMIT = 300
-NEW_TS_LIMIT = 400
 INDEX_CSS_LIMIT = 50  # import-only barrel after Phase 2
-DOMAIN_CSS_LIMIT = 1000
-
-# Limit for "over size" reporting; accepted_lines tracks growth (Phase 0 baseline).
-# executor.py is under the hard 400-line limit again — keep dicts empty until a
-# new deliberate oversize baseline is accepted (see file-size-limits.mdc).
-BASELINE_OVER_LIMIT: dict[str, int] = {}
-BASELINE_ACCEPTED_LINES: dict[str, int] = {}
+SOFT_LIMIT = size_policy.SOFT_LIMIT
+CEILING = size_policy.CEILING
 
 HARD_LIMIT_FILES: dict[str, int] = {
     "backend/main.py": MAIN_PY_LIMIT,
@@ -80,51 +83,6 @@ SECRET_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
         re.compile(r"""(?i)['"]sk[_-](?:live|test)[_-][A-Za-z0-9]{16,}['"]"""),
     ),
 ]
-
-# Single-name, bare, and tuple handlers that only pass / ...
-# e.g. `except Exception: pass`, `except (A, B):\n    pass`
-SWALLOW_PY = re.compile(
-    r"^[ \t]*except\s*(?:\([^)]+\)|\w+(?:\s+as\s+\w+)?)?\s*:\s*(?:pass|\.\.\.)\s*(?:#.*)?$"
-    r"|^[ \t]*except\s*(?:\([^)]+\)|\w+(?:\s+as\s+\w+)?)?\s*:\s*\n[ \t]+(?:pass|\.\.\.)\s*(?:#.*)?$",
-    re.MULTILINE,
-)
-BARE_EXCEPT_PY = re.compile(r"^[ \t]*except\s*:\s*", re.MULTILINE)
-EMPTY_CATCH_JS = re.compile(r"catch\s*\([^)]*\)\s*\{\s*\}", re.MULTILINE)
-# Promise .catch(() => {}) / .catch(() => {/* silent */})
-EMPTY_CATCH_PROMISE_JS = re.compile(
-    r"\.catch\(\s*\([^)]*\)\s*=>\s*\{\s*(?:/\*[^*]*\*/\s*)?\}\s*\)",
-    re.MULTILINE,
-)
-# except …: return [] / {}  (failure disguised as empty market / empty state)
-EXCEPT_RETURN_EMPTY_PY = re.compile(
-    r"^[ \t]*except\b[^\n]*:\s*(?:#.*)?\n"
-    r"(?:[ \t]+(?:logger\.[a-z_]+\([^\n]*\)|#[^\n]*)\n)*"
-    r"[ \t]+return\s+(\[\s*\]|\{\s*\})\s*(?:#.*)?$",
-    re.MULTILINE,
-)
-
-# Policy (bucket B, fail-loud remainder plan): swallow heuristics target
-# unlogged product-code silence — not tools/tests, and not paths where an
-# empty/disk-load failure is already deliberate and logged. See
-# docs/agent-operations.md "Swallow heuristic policy" for the one-paragraph
-# rationale. Do not add entries here for read paths that can silently
-# disguise a real market/account failure as empty success (e.g. scanner
-# discovery, IBKR positions/orders) — those must raise or log loudly instead.
-EXCEPT_RETURN_EMPTY_ALLOWLIST = {
-    "backend/cache.py",  # corrupt disk cache -> empty, already logged
-    "backend/alerts/channels_store.py",  # corrupt channels config -> empty, already logged
-    "backend/journal/tags.py",  # bad tag JSON -> no tags (non-trading, cosmetic)
-    "backend/ibkr/client.py",  # managedAccounts() failure -> [] then paper-pin refuses (fail-closed)
-    "backend/scanner.py",  # Alpaca snapshot/news chunk failures — already loud-logged degrades
-    "backend/capture/manifest_io.py",  # corrupt capture manifest -> empty, already warn-logged
-}
-
-# except: pass sites already triaged as intentional (idempotent cleanup /
-# parse-then-try-next-format) rather than a silently swallowed failure.
-SWALLOWED_EXCEPTION_ALLOWLIST = {
-    "backend/ibkr/ticks.py",  # idempotent listener/list.remove + skip a malformed tick field
-    "backend/ibkr/order_times.py",  # ISO parse fails -> fall through to next known format
-}
 
 SOURCE_SUFFIXES = {".py", ".ts", ".tsx", ".js", ".jsx", ".css"}
 
@@ -167,13 +125,6 @@ def logical_line_counts(files: list[Path]) -> dict[str, int]:
             for path in files if (rel := _rel(path)) in LOGICAL_LIMIT_FILES}
 
 
-def count_lines(path: Path) -> int:
-    text = path.read_text(encoding="utf-8", errors="replace")
-    if not text:
-        return 0
-    return text.count("\n") + (0 if text.endswith("\n") else 1)
-
-
 def iter_source_files() -> list[Path]:
     roots = [REPO_ROOT / "backend", REPO_ROOT / "frontend" / "src", REPO_ROOT / "tools"]
     out: list[Path] = []
@@ -205,88 +156,19 @@ def _is_generated_path(path: Path) -> bool:
     return bool(parts & {"dist", "coverage", "graphify-out", ".cache"})
 
 
-def check_file_sizes(files: list[Path]) -> list[Finding]:
-    findings: list[Finding] = []
-    for path in files:
-        rel = _rel(path)
-        if _is_generated_path(path):
-            continue
-        if _is_test_path(path) and rel not in HARD_LIMIT_FILES and rel not in BASELINE_OVER_LIMIT:
-            continue
-        lines = count_lines(path)
+def _size_exempt(path: Path) -> bool:
+    return _is_generated_path(path) or _is_test_path(path)
 
-        if rel in HARD_LIMIT_FILES:
-            limit = HARD_LIMIT_FILES[rel]
-            # Entry points are capped on wiring, not on imports and comments.
-            logical = rel in LOGICAL_LIMIT_FILES
-            counted = count_logical_lines(path) if logical else lines
-            if counted > limit:
-                detail = (
-                    f"{counted} logical lines > entry-point limit {limit} ({lines} raw)"
-                    if logical
-                    else f"{counted} lines > hard limit {limit}"
-                )
-                findings.append(
-                    Finding(kind="file_size_hard", path=rel, detail=detail, baseline=False)
-                )
-            continue
 
-        if rel in BASELINE_OVER_LIMIT:
-            limit = BASELINE_OVER_LIMIT[rel]
-            accepted = BASELINE_ACCEPTED_LINES.get(rel, limit)
-            if lines > accepted:
-                findings.append(
-                    Finding(
-                        kind="baseline_growth",
-                        path=rel,
-                        detail=f"{lines} lines > accepted baseline {accepted}",
-                        baseline=False,
-                    )
-                )
-            elif lines > limit:
-                findings.append(
-                    Finding(
-                        kind="file_size_baseline",
-                        path=rel,
-                        detail=f"{lines} lines > limit {limit} (accepted baseline <={accepted})",
-                        baseline=True,
-                    )
-                )
-            continue
-
-        if path.suffix == ".css" and lines > DOMAIN_CSS_LIMIT:
-            findings.append(
-                Finding(
-                    kind="file_size",
-                    path=rel,
-                    detail=f"{lines} lines > CSS stylesheet limit {DOMAIN_CSS_LIMIT}",
-                )
-            )
-        elif path.suffix == ".py" and lines > NEW_PY_LIMIT:
-            findings.append(
-                Finding(
-                    kind="file_size",
-                    path=rel,
-                    detail=f"{lines} lines > Python module limit {NEW_PY_LIMIT}",
-                )
-            )
-        elif path.suffix == ".tsx" and lines > NEW_TSX_LIMIT:
-            findings.append(
-                Finding(
-                    kind="file_size",
-                    path=rel,
-                    detail=f"{lines} lines > React component limit {NEW_TSX_LIMIT}",
-                )
-            )
-        elif path.suffix in {".ts", ".js", ".jsx"} and lines > NEW_TS_LIMIT:
-            findings.append(
-                Finding(
-                    kind="file_size",
-                    path=rel,
-                    detail=f"{lines} lines > TypeScript limit {NEW_TS_LIMIT}",
-                )
-            )
-    return findings
+def check_file_sizes(files: list[Path], base: str | None = None) -> list[Finding]:
+    """AGENTS.md §2.3. ``base`` (a resolved commit) turns on the growth check."""
+    base_lines = None
+    if base:
+        def base_lines(rel: str) -> int | None:
+            return size_policy.lines_at(REPO_ROOT, base, rel)
+    return size_policy.check_file_sizes(
+        files, _rel, Finding, HARD_LIMIT_FILES, _size_exempt, base_lines
+    )
 
 
 def check_secrets(files: list[Path]) -> list[Finding]:
@@ -318,81 +200,16 @@ def _is_tools_path(path: Path) -> bool:
 
 
 def check_swallowed_errors(files: list[Path]) -> list[Finding]:
-    findings: list[Finding] = []
-    for path in files:
-        if path.suffix == ".css":
-            continue
-        rel = _rel(path)
-        rel_posix = rel.replace("\\", "/")
-        try:
-            text = path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        if path.suffix == ".py":
-            # tools/ scripts and tests are deterministic/idempotent one-offs,
-            # not the product read-paths this heuristic exists to protect
-            # (see EXCEPT_RETURN_EMPTY_ALLOWLIST docstring policy note).
-            skip_py_swallow_checks = _is_tools_path(path) or _is_test_path(path)
-            if not skip_py_swallow_checks:
-                for match in SWALLOW_PY.finditer(text):
-                    line = text.count("\n", 0, match.start()) + 1
-                    if rel_posix in SWALLOWED_EXCEPTION_ALLOWLIST:
-                        continue
-                    findings.append(
-                        Finding(
-                            kind="swallowed_exception",
-                            path=rel,
-                            detail="except …: pass/… swallow",
-                            line=line,
-                        )
-                    )
-                for match in BARE_EXCEPT_PY.finditer(text):
-                    line = text.count("\n", 0, match.start()) + 1
-                    snippet = text[match.start() : match.start() + 40]
-                    if "pass" in snippet or "..." in snippet:
-                        continue
-                    findings.append(
-                        Finding(
-                            kind="bare_except",
-                            path=rel,
-                            detail="bare except:",
-                            line=line,
-                        )
-                    )
-                for match in EXCEPT_RETURN_EMPTY_PY.finditer(text):
-                    line = text.count("\n", 0, match.start()) + 1
-                    if rel_posix in EXCEPT_RETURN_EMPTY_ALLOWLIST:
-                        continue
-                    findings.append(
-                        Finding(
-                            kind="except_return_empty",
-                            path=rel,
-                            detail=f"except …: return {match.group(1)} — failure may look like empty market",
-                            line=line,
-                        )
-                    )
-        elif path.suffix in {".ts", ".tsx", ".js", ".jsx"}:
-            for match in EMPTY_CATCH_JS.finditer(text):
-                line = text.count("\n", 0, match.start()) + 1
-                findings.append(
-                    Finding(
-                        kind="empty_catch",
-                        path=rel,
-                        detail="empty catch { }",
-                        line=line,
-                    )
-                )
-            for match in EMPTY_CATCH_PROMISE_JS.finditer(text):
-                line = text.count("\n", 0, match.start()) + 1
-                findings.append(
-                    Finding(
-                        kind="empty_promise_catch",
-                        path=rel,
-                        detail="empty .catch(() => {})",
-                        line=line,
-                    )
-                )
-    return findings
+    """AGENTS.md §6.3; ``*_money`` kinds on the money path (maintainer_lib/swallow.py)."""
+    # tools/ scripts and tests are deterministic one-offs, not the product
+    # read paths this heuristic exists to protect.
+    return swallow.check_swallowed_errors(
+        files, _rel, Finding, lambda p: _is_tools_path(p) or _is_test_path(p)
+    )
+
+
+def check_owners() -> list[Finding]:
+    return _check_owners(REPO_ROOT, Finding)
 
 
 def check_artifacts() -> list[Finding]:
@@ -440,10 +257,9 @@ def check_ib_loop_purity(files: list[Path]) -> list[Finding]:
     return _check_ib_loop_purity(files, _rel, Finding)
 
 
-def run_checks() -> dict:
-    files = iter_source_files()
-    findings = (
-        check_file_sizes(files)
+def _collect(files: list[Path], base: str | None) -> list[Finding]:
+    return (
+        check_file_sizes(files, base)
         + check_secrets(files)
         + check_swallowed_errors(files)
         + check_artifacts()
@@ -451,8 +267,28 @@ def run_checks() -> dict:
         + check_cross_feature_imports(files, _rel, Finding)
         + check_css_design_contract(files)
         + check_ib_loop_purity(files)
+        + check_owners()
     )
-    apply_baseline_fingerprints(findings)
+
+
+def run_checks(base: str | None = None) -> dict:
+    """``base`` is a ref (e.g. ``origin/master``); growth is judged against its
+    merge-base with HEAD. Without it, growth is not judged."""
+    files = iter_source_files()
+    resolved = size_policy.resolve_base(REPO_ROOT, base)
+    findings = _collect(files, resolved)
+    if base and resolved is None:
+        findings.append(Finding(
+            kind="size_base_unavailable", path=".",
+            detail=f"--base {base!r} has no merge-base with HEAD; file growth was not judged",
+        ))
+    for kind, key, allowed, actual in apply_baseline_counts(findings, load_counts()):
+        findings.append(Finding(
+            kind="baseline_stale", path="tools/maintainer_lib/baselines.json",
+            detail=(f"{kind} {key}: frozen at {allowed}, tree has {actual} -- "
+                    "lower it with --update-baselines"),
+            baseline=True,
+        ))
     non_baseline = [f for f in findings if not f.baseline]
     css_report = {
         _rel(p): count_lines(p)
@@ -464,10 +300,18 @@ def run_checks() -> dict:
         "files_scanned": len(files),
         "finding_count": len(findings),
         "non_baseline_count": len(non_baseline),
+        "size_base": resolved,
         "css_line_counts": css_report,
         "logical_line_counts": logical_line_counts(files),
         "findings": [asdict(f) for f in findings],
     }
+
+
+def update_baselines() -> dict[str, dict[str, int]]:
+    """Rewrite baselines.json to the tree's current counts."""
+    counts = build_counts(_collect(iter_source_files(), None))
+    write_counts(counts)
+    return counts
 
 
 def print_human(report: dict) -> None:
@@ -507,8 +351,28 @@ def main(argv: list[str] | None = None) -> int:
         default=[],
         help="Exit 1 if a non-baseline finding of this kind exists (repeatable)",
     )
+    parser.add_argument(
+        "--gate",
+        action="store_true",
+        help="Exit 1 on any non-baseline finding of the CI gate kinds (maintainer_lib/gate.py)",
+    )
+    parser.add_argument(
+        "--base",
+        default="",
+        help="Judge file growth against this ref's merge-base with HEAD (e.g. origin/master)",
+    )
+    parser.add_argument(
+        "--update-baselines",
+        action="store_true",
+        help="Rewrite tools/maintainer_lib/baselines.json to the current tree and exit",
+    )
     args = parser.parse_args(argv)
-    report = run_checks()
+    if args.update_baselines:
+        counts = update_baselines()
+        total = sum(sum(rows.values()) for rows in counts.values())
+        print(f"baselines.json: {total} frozen finding(s) across {len(counts)} kind(s)")
+        return 0
+    report = run_checks(args.base or None)
     if args.json:
         json.dump(report, sys.stdout, indent=2)
         print()
@@ -516,7 +380,7 @@ def main(argv: list[str] | None = None) -> int:
         print_human(report)
     if args.fail_on_findings and report["non_baseline_count"] > 0:
         return 1
-    fail_kinds = set(args.fail_on_kind or [])
+    fail_kinds = set(args.fail_on_kind or []) | (set(GATE_KINDS) if args.gate else set())
     if fail_kinds:
         hits = [
             f

@@ -280,3 +280,36 @@ async def test_practice_flatten_that_leaves_nothing_open_succeeds(monkeypatch):
 
     assert result["ok"] is True
     assert "left_open" not in result
+
+
+@pytest.mark.asyncio
+async def test_practice_flatten_that_cannot_reread_positions_is_not_reported_flat(monkeypatch):
+    """The re-read is the proof: when it fails, the closes were sent but flat
+    is unproven -- never ``ok`` (it used to read as "nothing left open")."""
+    from bot import flatten as flatten_mod
+    from ibkr.errors import IbkrAccountError
+
+    async def fake_cancel() -> list[dict]:
+        return []
+
+    async def whole_place(symbol: str, qty: float, side: str) -> dict:
+        return {"ok": True, "order_id": 11, "sent_qty": qty}
+
+    reads = iter([[{"symbol": "GRML", "qty": 2}], IbkrAccountError("ledger unreadable")])
+
+    def get_positions():
+        item = next(reads)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+    monkeypatch.setattr(flatten_mod, "_cancel_working", fake_cancel)
+    monkeypatch.setattr(flatten_mod, "_place_close", whole_place)
+    monkeypatch.setattr("sim.mode.is_practice_venue", lambda: True)
+    monkeypatch.setattr("ibkr.account.get_positions", get_positions)
+
+    result = await flatten_mod.flatten_account_once()
+
+    assert result["ok"] is False
+    assert "could not be re-read" in result["error"]
+    assert "left_open" not in result

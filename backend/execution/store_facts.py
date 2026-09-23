@@ -1,9 +1,12 @@
 """Write IB durable ids and fill qty onto an existing execution row."""
 from __future__ import annotations
 
+import logging
 import time
 
 from execution import store
+
+logger = logging.getLogger(__name__)
 
 
 def record_broker_facts(
@@ -228,7 +231,10 @@ def mark_place_cancelled(
             if float(led.get("filled_qty") or 0) > 0:
                 return None
         except (TypeError, ValueError):
-            pass
+            # An unreadable fill quantity cannot prove "no fill": leave the row.
+            logger.warning("execution store: row %s has unreadable filled_qty %r; cancel mark skipped",
+                           exec_id, led.get("filled_qty"))
+            return None
         fields = ["updated_ts = ?"]
         update_values: list = [time.time()]
         current = str(led.get("broker_status") or "")

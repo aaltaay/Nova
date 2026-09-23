@@ -223,7 +223,7 @@ async def _sleep_reconnect(delay: float) -> None:
     ev.clear()
     try:
         await asyncio.wait_for(ev.wait(), timeout=max(0.0, delay))
-    except asyncio.TimeoutError:
+    except asyncio.TimeoutError:  # maintainer: allow-swallow the delay elapsing is the normal end of the sleep
         pass
 
 
@@ -468,7 +468,7 @@ async def shutdown() -> None:
         _reconnect_task.cancel()
         try:
             await _reconnect_task
-        except asyncio.CancelledError:
+        except asyncio.CancelledError:  # maintainer: allow-swallow we cancelled this task two lines up
             pass
         _reconnect_task = None
     if _ib and _ib.isConnected():

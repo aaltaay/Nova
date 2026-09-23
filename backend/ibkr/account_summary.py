@@ -18,7 +18,11 @@ for tooltip/debug. ``account_class`` is cash|margin on a connected snapshot
 """
 from __future__ import annotations
 
+import logging
+
 from ibkr.account_class import attach_account_class
+
+logger = logging.getLogger(__name__)
 
 _SUMMARY_NUMERIC_TAGS = frozenset({
     "NetLiquidation",
@@ -87,19 +91,26 @@ def summary_from_items(items: list, *, mode: str) -> dict:
 
 
 def account_values_items(ib: object) -> list:
-    """Cached reqAccountUpdates rows. Empty on failure -- never raise here."""
+    """Cached reqAccountUpdates rows. Empty on failure -- never raise here.
+
+    These rows only fill tags ``accountSummary`` left out
+    (``overlay_missing_tags``), so a failed read leaves those tags absent; it
+    never replaces a figure IBKR did send.
+    """
     getter = getattr(ib, "accountValues", None)
     if getter is None:
         return []
     try:
         raw = getter()
-    except Exception:
+    except Exception:  # maintainer: allow-swallow overlay only; missing tags stay absent, never invented
+        logger.debug("IBKR: accountValues() read failed", exc_info=True)
         return []
     if raw is None:
         return []
     try:
         return list(raw)
-    except TypeError:
+    except TypeError:  # maintainer: allow-swallow overlay only; missing tags stay absent, never invented
+        logger.debug("IBKR: accountValues() returned a non-iterable %r", type(raw).__name__)
         return []
 
 
