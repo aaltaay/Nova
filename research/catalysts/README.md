@@ -30,4 +30,24 @@ Rules: a window opens at the prior session's 16:00 ET close; an item counts only
 at or before the cutoff (never later -- no hindsight). `none_found` means the sources that
 answered found nothing; a source that could not reach the date did not answer.
 
-Results as produced: `results_*_2026-09-23.json` beside this file.
+Results as produced: `results_*_2026-09-23.json` beside this file (numbers only -- the labelled
+headlines stay on F:, they are publishers' text).
+
+## Findings, 2026-09-23 (rules v3)
+
+**Coverage.** 7,976 symbol-days (5,733 pillar candidates, 1,931 leaderboard movers, 312 both).
+Of the 2,243 rebuilt-leaderboard top-10 movers, the Massive archive alone had no article for 95%;
+with the four sources 30% have none found, 236 carry a strong catalyst and 648 a weak one. EDGAR's
+filed release is the representative item for 2,426 symbol-days. Finnhub (one year) was still
+filling (1,709 of about 3,500 in reach) -- re-run `fetch_finnhub.py` then `build_verdicts.py`.
+
+**Accuracy** (`results_labels_2026-09-23.json`; labeller: Claude, blind -- operator labels are the
+real test). On 200 items never used to tune the rules: 83% agree on kind; catalyst precision
+77%, recall 94%; **strong catalyst precision 92%**, weak 73% (the misses are minor company items --
+pre-IND filings, enrollment milestones, CEO letters -- rather than noise).
+
+**First pullback by catalyst** (`results_split_fp_all_2026-09-23.json`; 1,017 trades on the
+no-news universe, all -0.37R): strong catalyst at 09:30 -0.19R (180 trades, PF 0.84); weak -0.37R;
+noise only -0.47R; none found -0.44R (PF 0.27); a strong catalyst with dilution the same morning
+-0.60R; clinical data +0.05R (55 trades). A real catalyst roughly halves the loss (about 1.6
+standard errors -- suggestive, not proof); it does not make the mechanical pullback pay.

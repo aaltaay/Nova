@@ -1,0 +1,203 @@
+{
+  "tag": "fp_all",
+  "trades": {
+    "trades": 1017,
+    "win_pct": 26.5,
+    "avg_r": -0.365,
+    "median_r": -1.121,
+    "profit_factor": 0.53,
+    "pnl": -23012.0
+  },
+  "by_verdict_at_open": {
+    "catalyst:strong": {
+      "trades": 180,
+      "win_pct": 30.6,
+      "avg_r": -0.188,
+      "median_r": -1.118,
+      "profit_factor": 0.84,
+      "pnl": -1484.0
+    },
+    "catalyst:weak": {
+      "trades": 440,
+      "win_pct": 26.1,
+      "avg_r": -0.374,
+      "median_r": -1.118,
+      "profit_factor": 0.54,
+      "pnl": -9227.0
+    },
+    "negative": {
+      "trades": 14,
+      "win_pct": 28.6,
+      "avg_r": -0.351,
+      "median_r": -1.109,
+      "profit_factor": 0.44,
+      "pnl": -326.0
+    },
+    "noise_only": {
+      "trades": 215,
+      "win_pct": 24.7,
+      "avg_r": -0.474,
+      "median_r": -1.133,
+      "profit_factor": 0.36,
+      "pnl": -8453.0
+    },
+    "none_found": {
+      "trades": 127,
+      "win_pct": 22.8,
+      "avg_r": -0.441,
+      "median_r": -1.125,
+      "profit_factor": 0.27,
+      "pnl": -3285.0
+    },
+    "routine_only": {
+      "trades": 41,
+      "win_pct": 34.1,
+      "avg_r": -0.243,
+      "median_r": -1.118,
+      "profit_factor": 0.8,
+      "pnl": -237.0
+    }
+  },
+  "by_verdict_at_entry": {
+    "catalyst:strong": {
+      "trades": 182,
+      "win_pct": 30.2,
+      "avg_r": -0.196,
+      "median_r": -1.118,
+      "profit_factor": 0.83,
+      "pnl": -1570.0
+    },
+    "catalyst:weak": {
+      "trades": 456,
+      "win_pct": 26.5,
+      "avg_r": -0.369,
+      "median_r": -1.118,
+      "profit_factor": 0.53,
+      "pnl": -9767.0
+    },
+    "negative": {
+      "trades": 15,
+      "win_pct": 33.3,
+      "avg_r": -0.265,
+      "median_r": -1.1,
+      "profit_factor": 0.48,
+      "pnl": -304.0
+    },
+    "noise_only": {
+      "trades": 206,
+      "win_pct": 24.8,
+      "avg_r": -0.46,
+      "median_r": -1.133,
+      "profit_factor": 0.37,
+      "pnl": -8130.0
+    },
+    "none_found": {
+      "trades": 117,
+      "win_pct": 22.2,
+      "avg_r": -0.478,
+      "median_r": -1.138,
+      "profit_factor": 0.27,
+      "pnl": -2946.0
+    },
+    "routine_only": {
+      "trades": 41,
+      "win_pct": 29.3,
+      "avg_r": -0.306,
+      "median_r": -1.118,
+      "profit_factor": 0.76,
+      "pnl": -296.0
+    }
+  },
+  "catalyst_class_at_open": {
+    "clinical_data": {
+      "trades": 55,
+      "win_pct": 30.9,
+      "avg_r": 0.053,
+      "median_r": -1.125,
+      "profit_factor": 1.15,
+      "pnl": 448.0
+    },
+    "company_news": {
+      "trades": 92,
+      "win_pct": 22.8,
+      "avg_r": -0.493,
+      "median_r": -1.129,
+      "profit_factor": 0.41,
+      "pnl": -3397.0
+    },
+    "contract_partnership": {
+      "trades": 88,
+      "win_pct": 23.9,
+      "avg_r": -0.392,
+      "median_r": -1.118,
+      "profit_factor": 0.44,
+      "pnl": -2886.0
+    },
+    "earnings_guidance": {
+      "trades": 231,
+      "win_pct": 29.4,
+      "avg_r": -0.315,
+      "median_r": -1.118,
+      "profit_factor": 0.68,
+      "pnl": -2140.0
+    },
+    "fda_regulatory": {
+      "trades": 45,
+      "win_pct": 26.7,
+      "avg_r": -0.25,
+      "median_r": -1.133,
+      "profit_factor": 1.15,
+      "pnl": 396.0
+    },
+    "listing_financing": {
+      "trades": 11,
+      "win_pct": 27.3,
+      "avg_r": -0.415,
+      "median_r": -0.64,
+      "profit_factor": 0.33,
+      "pnl": -353.0
+    },
+    "merger_acquisition": {
+      "trades": 63,
+      "win_pct": 30.2,
+      "avg_r": -0.344,
+      "median_r": -1.115,
+      "profit_factor": 0.55,
+      "pnl": -1439.0
+    },
+    "product_news": {
+      "trades": 12,
+      "win_pct": 25.0,
+      "avg_r": -0.324,
+      "median_r": -0.746,
+      "profit_factor": 0.4,
+      "pnl": -605.0
+    },
+    "theme_pivot": {
+      "trades": 23,
+      "win_pct": 26.1,
+      "avg_r": -0.317,
+      "median_r": -0.636,
+      "profit_factor": 0.42,
+      "pnl": -734.0
+    }
+  },
+  "catalyst_with_dilution_at_open": {
+    "False": {
+      "trades": 589,
+      "win_pct": 27.7,
+      "avg_r": -0.305,
+      "median_r": -1.118,
+      "profit_factor": 0.65,
+      "pnl": -9715.0
+    },
+    "True": {
+      "trades": 31,
+      "win_pct": 22.6,
+      "avg_r": -0.598,
+      "median_r": -1.125,
+      "profit_factor": 0.3,
+      "pnl": -996.0
+    }
+  }
+}
