@@ -1,4 +1,4 @@
-/** Watchlist tab — Five Pillars ranked table + live setup Signals + Nova OS Decision audit. Signal-only; no orders placed. */
+/** Watchlist tab — Five Pillars ranked table + the live Setups scanner + Nova OS Decision audit. Signal-only; no orders placed. */
 import { lazy, Suspense, useState } from 'react';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { ScannerRowNumCell, ScannerRowNumHeader } from '../components/ScannerTable';
@@ -14,8 +14,8 @@ const BacktestPanel = lazy(() =>
 import { ExecutorPanel } from './ExecutorPanel';
 import { JournalPanel } from './JournalPanel';
 import { PillarChips } from './PillarChips';
-import { SignalsPanel } from './SignalsPanel';
-import { useSignalsStream } from './useSignalsStream';
+import { SetupsPanel } from '../setups/SetupsPanel';
+import { SetupsTabCount } from '../setups/SetupsTabCount';
 import type { WatchlistEntry } from './types';
 
 function fmtScore(v: number): string {
@@ -78,13 +78,12 @@ interface WatchlistTabProps {
   onOpenTrading: (symbol: string) => void;
 }
 
-type WatchlistSubTab = 'watchlist' | 'signals' | 'decision' | 'journal' | 'automation' | 'archive' | 'backtest';
+type WatchlistSubTab = 'watchlist' | 'setups' | 'decision' | 'journal' | 'automation' | 'archive' | 'backtest';
 
 export function WatchlistTab({
   entries, loading, error, selectedSymbol, onSelectSymbol, onOpenTrading,
 }: WatchlistTabProps) {
   const [subTab, setSubTab] = useState<WatchlistSubTab>('watchlist');
-  const signalsStream = useSignalsStream();
 
   return (
     <div className="watchlist-tab">
@@ -98,12 +97,12 @@ export function WatchlistTab({
           {entries.length > 0 && <span className="tab-count">{entries.length}</span>}
         </button>
         <button
-          className={`sub-tab ${subTab === 'signals' ? 'active' : ''}`}
-          onClick={() => setSubTab('signals')}
-          title="Live feed of Gap and Go / Bull Flag / ABCD triggers as the background scanner finds them. No orders are placed."
+          className={`sub-tab ${subTab === 'setups' ? 'active' : ''}`}
+          onClick={() => setSubTab('setups')}
+          title="Live first-pullback scanner: leg up, armed, near the trigger, triggered or failed, with the bot's read of the tape. It proposes; it never places."
         >
-          Signals
-          {signalsStream.signals.length > 0 && <span className="tab-count">{signalsStream.signals.length}</span>}
+          Setups
+          <SetupsTabCount />
         </button>
         <button
           className={`sub-tab ${subTab === 'decision' ? 'active' : ''}`}
@@ -187,10 +186,8 @@ export function WatchlistTab({
         </>
       )}
 
-      {subTab === 'signals' && (
-        <SignalsPanel
-          signals={signalsStream.signals}
-          connected={signalsStream.connected}
+      {subTab === 'setups' && (
+        <SetupsPanel
           selectedSymbol={selectedSymbol}
           onSelectSymbol={onSelectSymbol}
           onOpenTrading={onOpenTrading}

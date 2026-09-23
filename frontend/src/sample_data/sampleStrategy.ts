@@ -1,8 +1,7 @@
-/** Sample watchlist, decide, and signals for the isolated sample route. */
+/** Sample watchlist and decide rows for the isolated sample route. */
 import type {
   NovaOsDecision,
   NovaOsGateResult,
-  SetupSignal,
   WatchlistEntry,
 } from '../strategy/types';
 
@@ -181,50 +180,6 @@ export const SAMPLE_DECISIONS: NovaOsDecision[] = [
     reasons: ['thin_news'],
     ticket: false,
   }),
-];
-
-export const SAMPLE_SIGNALS: SetupSignal[] = [
-  {
-    symbol: 'SMPL',
-    setup: 'gap_and_go',
-    eligible: true,
-    would_execute: false,
-    triggered: true,
-    current_price: 4.25,
-    entry_price: 4.2,
-    stop_price: 3.9,
-    target_price: 5.1,
-    five_pillars: pillars('SMPL', true),
-    notes: ['Sample Gap & Go trigger'],
-    timestamp: Date.now() / 1000 - 120,
-    nova_os: {
-      decision: 'BUY',
-      reason_codes: ['CATALYST_STRONG'],
-      mode: 'signal',
-      would_execute: false,
-      receipt_id: null,
-    },
-  },
-  {
-    symbol: 'GAPX',
-    setup: 'bull_flag',
-    eligible: true,
-    would_execute: false,
-    triggered: true,
-    current_price: 1.92,
-    entry_price: 1.88,
-    stop_price: 1.7,
-    target_price: 2.3,
-    five_pillars: pillars('GAPX', true),
-    notes: ['Sample bull flag'],
-    timestamp: Date.now() / 1000 - 300,
-    nova_os: {
-      decision: 'WAIT',
-      reason_codes: ['CATALYST_WEAK'],
-      mode: 'signal',
-      would_execute: false,
-    },
-  },
 ];
 
 export function sampleDecisionForSymbol(symbol: string): NovaOsDecision | null {

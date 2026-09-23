@@ -2,7 +2,8 @@
 Level 2 / tape recording routes — READ-ONLY for trading.
 
 Recordings start from:
-  - setups_stream.py → l2.recorder.on_signal (signal windows)
+  - l2.recorder.on_signal (signal windows; its only caller, the old setups_stream
+    loop, is retired -- ADR 022)
   - routes/trading.py depth subscribe → l2.continuous (ticker open)
 
 Endpoints:

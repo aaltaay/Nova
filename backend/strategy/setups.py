@@ -4,7 +4,8 @@ reports which (if any) are eligible right now. Signal-only, no orders.
 
 Used by:
   - GET /api/strategy/setups/{symbol}  (on-demand, one symbol)
-  - setups_stream.py's background scan loop (periodic, whole watchlist)
+  (the old setups_stream background loop is retired; the live scanner is
+    setup_scanner/, ADR 022)
 """
 
 from __future__ import annotations
