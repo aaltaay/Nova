@@ -2,10 +2,15 @@
 
 ``POST /api/sim/clock {session_date}``: the Scanner board and the HOD Momo
 strip follow the playhead through the leaderboard, so a past day needs no
-symbol to be watched. A replay of another date is unloaded first (its scratch
-account starts over, as any unload does); the clock parks paused at
+symbol to be watched. Picking a day means "watch the whole day" (operator
+decision, 2026-09-22): any loaded replay -- a historical download or a Session
+Record, of that day or another -- is unloaded first, so the clock opens the full
+04:00-20:00 session instead of a download's narrow window. Unloading never
+deletes: the download or recording stays on disk and reloads at once; the Sim
+scratch account starts over, as any unload does. The clock parks paused at
 ``SIM_DAY_JUMP_PARK_MIN_ET`` so nothing runs off before the operator presses
-play. ``None`` returns to today and follows the wall clock again.
+play. ``None`` returns to today, unloading a replay of another date, and follows
+the wall clock again.
 """
 from __future__ import annotations
 
@@ -25,14 +30,18 @@ def _today_et() -> date_cls:
     return datetime.now(ET).date()
 
 
-def _unload_other_date(day: str | None) -> None:
+def _unload(day: str | None, *, same_day_too: bool) -> None:
+    """Unload the loaded replay: always when ``same_day_too``, else only one of another date."""
     from sim import replay
 
     loaded = replay.status_payload()
     loaded_date = loaded.get("replay_date")
-    if loaded_date and loaded_date != day:
+    if loaded_date and (same_day_too or loaded_date != day):
         replay.set_replay(None, None)
-        logger.info("SIM day: unloaded the %s replay to move to %s", loaded_date, day or "today")
+        logger.info(
+            "SIM day: unloaded the %s %s replay to open %s",
+            loaded_date, loaded.get("replay_source"), day or "today",
+        )
 
 
 def jump_to_day(day: str | None) -> dict[str, Any]:
@@ -41,7 +50,7 @@ def jump_to_day(day: str | None) -> dict[str, Any]:
     from sim import trading_day
 
     if day is None:
-        _unload_other_date(None)
+        _unload(_today_et().isoformat(), same_day_too=False)
         clock.set_session_date(None)
         return clock.clear_scrub()
     target = date_cls.fromisoformat(day)
@@ -50,7 +59,7 @@ def jump_to_day(day: str | None) -> dict[str, Any]:
         raise ValueError(f"{day} has not happened yet")
     if not trading_day.is_trading_day(target):
         raise ValueError(f"{day} is not an exchange day")
-    _unload_other_date(day)
+    _unload(day, same_day_too=True)
     before = clock.now_et()
     clock.set_session_date(day)
     park_second = (SIM_DAY_JUMP_PARK_MIN_ET - SIM_SESSION_OPEN_HOUR * 60) * 60

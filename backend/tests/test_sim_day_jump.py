@@ -64,14 +64,36 @@ def test_moving_to_another_day_needs_sim(client):
     assert client.post("/api/sim/clock", json={"session_date": "2026-09-18"}).status_code == 409
 
 
-def test_moving_days_unloads_a_replay_of_another_date(client, monkeypatch):
+def _loaded(monkeypatch, date: str, source: str = "historical") -> list:
     from sim import replay
 
-    calls = []
-    monkeypatch.setattr(replay, "status_payload", lambda: {"replay_date": "2026-09-17", "replay_source": "capture"})
+    calls: list = []
+    monkeypatch.setattr(replay, "status_payload", lambda: {"replay_date": date, "replay_source": source})
     monkeypatch.setattr(replay, "set_replay", lambda d, s, **_k: calls.append((d, s)) or {})
+    return calls
+
+
+def test_moving_days_unloads_a_replay_of_another_date(client, monkeypatch):
+    calls = _loaded(monkeypatch, "2026-09-17", "capture")
     client.post("/api/sim/clock", json={"session_date": "2026-09-18"})
     assert calls == [(None, None)]
+
+
+def test_picking_the_loaded_replays_own_day_opens_the_whole_day(client, monkeypatch):
+    # A download of SPY 06:45-09:00 on Sep 18 narrowed the clock; picking Sep 18
+    # in the calendar means "watch the whole day", so it is unloaded (not deleted).
+    calls = _loaded(monkeypatch, "2026-09-18")
+    out = client.post("/api/sim/clock", json={"session_date": "2026-09-18"}).json()
+    assert calls == [(None, None)]
+    assert datetime.fromisoformat(out["session_open_et"]).strftime("%H:%M") == "04:00"
+    assert datetime.fromisoformat(out["session_close_et"]).strftime("%H:%M") == "20:00"
+
+
+def test_returning_to_today_keeps_todays_own_replay(client, monkeypatch):
+    today = datetime.now(ET).date().isoformat()
+    calls = _loaded(monkeypatch, today, "capture")
+    client.post("/api/sim/clock", json={"session_date": None})
+    assert calls == []
 
 
 def _write_snapshot(cache_dir, prefix, day, key, rows):
