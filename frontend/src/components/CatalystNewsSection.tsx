@@ -43,7 +43,7 @@ function itemMeta(item: CatalystItem, nowMs: number): string {
   return [sourceLabel(item.source), publisher, agoLabel(item.published_ts, nowMs)].filter(Boolean).join(' · ');
 }
 
-function ItemRow({ item, nowMs }: { item: CatalystItem; nowMs: number }) {
+export function ItemRow({ item, nowMs }: { item: CatalystItem; nowMs: number }) {
   const headline = catalystHeadline(item.title, item.source) || categoryLabel(item.category);
   const tag = `${categoryLabel(item.category)}${item.strength ? ` (${item.strength})` : ''}`;
   return (
@@ -61,7 +61,7 @@ function ItemRow({ item, nowMs }: { item: CatalystItem; nowMs: number }) {
   );
 }
 
-function VerdictBlock({ v, nowMs }: { v: CatalystVerdict | null; nowMs: number }) {
+export function VerdictBlock({ v, nowMs }: { v: CatalystVerdict | null; nowMs: number }) {
   if (!v) return <div className="cn-verdict cn-verdict--unread">{CATALYST_PANEL_UNREAD}</div>;
   const placed = v.verdict === 'catalyst' || v.verdict === 'negative';
   const badge = placed

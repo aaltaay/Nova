@@ -136,6 +136,60 @@
   color: var(--text-primary, #e5e7eb);
 }
 
+/* Sortable column headers, aligned to the row columns below. */
+.focus-rail__cols {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 20px;
+  height: 20px;
+  padding: 0 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-left: 2px solid transparent;
+}
+
+.focus-rail__th {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted, #6b7280);
+  font: inherit;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.focus-rail__th:hover,
+.focus-rail__th.is-sorted {
+  color: var(--text-primary, #e5e7eb);
+}
+
+.focus-rail__th--symbol {
+  flex: 0 0 42px;
+}
+
+.focus-rail__th--price {
+  flex: 0 0 40px;
+  justify-content: flex-end;
+}
+
+.focus-rail__th--gap {
+  flex: 0 0 44px;
+  justify-content: flex-end;
+}
+
+.focus-rail__th--news {
+  flex: 0 0 14px;
+  justify-content: center;
+}
+
 .focus-rail__rows {
   flex: 1 1 auto;
   min-height: 0;
@@ -225,29 +279,30 @@
   color: var(--red, #ef4444);
 }
 
-.focus-rail__chip {
-  flex: 0 0 auto;
-  margin-left: auto;
-  max-width: 60px;
-  overflow: hidden;
-  height: 14px;
-  padding: 0 4px;
-  border-radius: 3px;
-  background: var(--nova-raised, #3a3a3c);
-  color: var(--text-primary, #e5e7eb);
-  font-size: 8.5px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  line-height: 14px;
-  text-transform: uppercase;
+/* The Scanner's news circle, sized to the rail's 24 px rows. */
+.focus-rail__news {
+  flex: 0 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.focus-rail__chip--none {
-  background: transparent;
+.focus-rail__news .news-flame,
+.focus-rail__news .news-mark {
+  width: 11px;
+  height: 11px;
+  font-size: 7.5px;
+  box-shadow: none;
+}
+
+.focus-rail__news .news-flame--ring,
+.focus-rail__news .news-mark--negative,
+.focus-rail__news .news-mark--pending {
+  border-width: 1.5px;
+}
+
+.focus-rail__news .na-muted {
   color: var(--text-muted, #6b7280);
-  font-weight: 500;
-  letter-spacing: 0;
-  text-transform: none;
   font-size: 10px;
 }
 
@@ -263,4 +318,60 @@
 .focus-rail__foot b {
   color: var(--text-primary, #e5e7eb);
   font-weight: 600;
+}
+
+/* Hover card beside the rail: a row's news, or what its dots mean. */
+.focus-rail-card {
+  position: fixed;
+  z-index: 1000;
+  width: 320px;
+  max-height: min(420px, calc(100vh - 16px));
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color, #2a2f3a);
+  border-radius: 6px;
+  background: var(--bg-secondary, #12151c);
+  color: var(--text-primary, #e5e7eb);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.focus-rail-card__title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-primary, #e5e7eb);
+}
+
+.focus-rail-card__muted {
+  color: var(--text-muted, #6b7280);
+  font-size: 10.5px;
+}
+
+.focus-rail-card__text {
+  white-space: pre-line;
+}
+
+.focus-rail-card__status {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.focus-rail-card__status .focus-rail__dot {
+  flex: 0 0 auto;
+  margin-top: 4px;
+}
+
+.focus-rail-card__status b {
+  font-weight: 600;
+}
+
+.focus-rail-card__status p {
+  margin: 2px 0 0;
+  color: var(--text-secondary, #9ca3af);
 }
