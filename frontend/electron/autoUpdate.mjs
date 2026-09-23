@@ -3,7 +3,8 @@
  *
  * Downloads a newer installer in the background, then offers "Restart to update"
  * / "Later". Installing is always an operator click: autoInstallOnAppQuit is off,
- * there is no timer, and a failed check or download only changes the Help menu.
+ * the only timer re-checks (every two hours while the desk stays open, never in
+ * weekday trading hours), and a failed check or download only changes the Help menu.
  * Decisions live in updatePolicy.mjs; this file is the Electron wiring.
  *
  * electron-updater checks and installs; the installer itself is fetched by
@@ -24,6 +25,7 @@ import {
   INITIAL_UPDATE_STATE,
   UPDATE_CHECK_ENV,
   UPDATE_FIRST_CHECK_DELAY_MS,
+  UPDATE_RECHECK_TICK_MS,
   displayTag,
   errorText,
   isRestartChoice,
@@ -33,7 +35,9 @@ import {
   resolveUpdateSetting,
   restartPrompt,
   shouldAutoCheck,
+  shouldPromptNow,
   shouldPromptRestart,
+  shouldRecheck,
   taskbarProgress,
   updateGate,
   updateMenuItems,
@@ -53,6 +57,9 @@ let updater = null;
 let gate = { updater: false, automatic: false, reason: 'not started' };
 let state = INITIAL_UPDATE_STATE;
 let manualPending = false;
+// Which check is running ('launch' | 'manual' | 'recheck') and when the last one began.
+let checkOrigin = 'launch';
+let lastCheckAt = 0;
 let currentTag = '';
 let lastMenuKey = '';
 let hooks = {
@@ -85,7 +92,7 @@ function renderMenu() {
   const key = JSON.stringify(rows);
   if (key === lastMenuKey) return;
   lastMenuKey = key;
-  const clicks = { restart: () => void restartToUpdate(), check: () => void checkNow(true) };
+  const clicks = { restart: () => void restartToUpdate(), check: () => void checkNow('manual') };
   const submenu = rows.map((row) => ({
     label: row.label,
     enabled: Boolean(row.action),
@@ -189,8 +196,10 @@ async function restartToUpdate() {
   }
 }
 
-async function checkNow(manual) {
+/** @param {'launch' | 'manual' | 'recheck'} origin */
+async function checkNow(origin) {
   if (!updater) return;
+  const manual = origin === 'manual';
   const action = manual ? manualCheckAction(state, gate) : shouldAutoCheck(state, gate) ? 'check' : 'skip';
   if (action === 'prompt') {
     await promptRestart();
@@ -198,6 +207,9 @@ async function checkNow(manual) {
   }
   if (action !== 'check') return;
   manualPending = manual;
+  checkOrigin = origin;
+  lastCheckAt = Date.now();
+  if (origin === 'recheck') logger.info('re-checking while the desk stays open');
   let result = null;
   try {
     result = await updater.checkForUpdates();
@@ -260,7 +272,10 @@ function wireEvents(instance) {
   instance.on('update-downloaded', (info) => {
     manualPending = false;
     dispatch({ type: 'downloaded', version: info?.version });
-    if (shouldPromptRestart(state)) void promptRestart();
+    if (shouldPromptNow(state, { origin: checkOrigin, now: Date.now() })) void promptRestart();
+    else if (shouldPromptRestart(state)) {
+      logger.info(`${displayTag(state.version)} is ready; the prompt waits until trading hours end`);
+    }
   });
   instance.on('error', (err) => {
     const wasInstalling = state.phase === 'installing';
@@ -321,6 +336,15 @@ async function startUnguarded(deps) {
     logger.info(`automatic update check off: ${gate.reason}`);
     return;
   }
-  const timer = setTimeout(() => void checkNow(false), UPDATE_FIRST_CHECK_DELAY_MS);
+  const timer = setTimeout(() => void checkNow('launch'), UPDATE_FIRST_CHECK_DELAY_MS);
   timer.unref?.();
+  const clock = setInterval(tick, UPDATE_RECHECK_TICK_MS);
+  clock.unref?.();
+}
+
+/** The open desk's clock: a re-check that is due, or a re-check's held prompt once trading hours end. */
+function tick() {
+  const now = Date.now();
+  if (shouldRecheck(state, gate, { now, lastCheckAt })) void checkNow('recheck');
+  else if (shouldPromptNow(state, { origin: checkOrigin, now })) void promptRestart();
 }
