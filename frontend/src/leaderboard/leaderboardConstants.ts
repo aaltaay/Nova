@@ -120,6 +120,19 @@ export const SIM_DAY_PICKER_RECORDED = 'rec';
 export const SIM_DAY_PICKER_REBUILT = 'rebuilt';
 export const SIM_DAY_PICKER_FAILED = 'Could not move Sim to that day';
 
+/** The Day calendar: what each day has on file, each from its own source. */
+export const SIM_DAY_CAL_RECORDED = 'Scanner board recorded by Nova';
+export const SIM_DAY_CAL_SESSIONS = 'Your Session Records';
+export const SIM_DAY_CAL_REBUILT = 'Scanner board rebuilt from minute bars';
+export const SIM_DAY_CAL_NOTHING = 'Nothing on file';
+export const SIM_DAY_CAL_CLOSED = 'Exchange closed -- cannot be opened in Sim';
+export const simDayCalSessions = (symbols: string[]): string => `${SIM_DAY_CAL_SESSIONS}: ${symbols.join(', ')}`;
+export const SIM_DAY_CAL_TODAY = 'Today (live edge)';
+export const SIM_DAY_CAL_PREV = 'Previous month';
+export const SIM_DAY_CAL_NEXT = 'Next month';
+export const SIM_DAY_CAL_YEAR = 'Year';
+export const SIM_DAY_CAL_WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const;
+
 /** The leaderboard recorder runs whenever Nova does; only a write failure speaks (one toast). */
 export const LEADERBOARD_RECORDER_FAILED_TITLE = 'Scanner board recording failed';
 export const leaderboardRecorderFailedBody = (error: string | null): string =>

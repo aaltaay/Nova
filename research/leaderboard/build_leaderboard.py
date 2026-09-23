@@ -12,21 +12,33 @@ Usage (from the repo root):
     py -3 research/leaderboard/build_leaderboard.py --date 2026-09-21
     py -3 research/leaderboard/build_leaderboard.py --start 2026-09-08 --end 2026-09-21
     py -3 research/leaderboard/build_leaderboard.py --date 2026-09-21 --dry-run
+    py -3 research/leaderboard/build_leaderboard.py --all --newest-first --skip-complete --avoid-session
+
+The last form is the unattended five-year rebuild: newest day first, days already
+complete in the store skipped (a day cut off mid-way is rebuilt), and it stops
+before the desk's session (03:45 ET on an exchange day) so it never competes with
+the live recorder for the store. Run it again the next evening to continue.
 """
 from __future__ import annotations
 
 import argparse
 import sys
 import time
+from datetime import datetime
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from lb_config import (  # noqa: E402
     ARCHIVE_DB,
+    AVOID_FROM_MIN_ET,
+    AVOID_UNTIL_MIN_ET,
+    CHUNK_DAYS_DEFAULT,
+    EXPECTED_MINUTES,
     DATA_ROOT,
     DAY_SUBDIR,
     MINUTE_SUBDIR,
@@ -60,6 +72,8 @@ from lb_io import (  # noqa: E402
 from constants_leaderboard import LEADERBOARD_SOURCE_RECONSTRUCTED  # noqa: E402  (backend on sys.path via lb_core)
 from leaderboard import store  # noqa: E402
 from leaderboard.ranking import S5_RULES, leader_symbols  # noqa: E402
+
+ET = ZoneInfo("America/New_York")
 
 
 def assemble(
@@ -181,6 +195,28 @@ def _dates(args, minute: dict[date, Path]) -> list[date]:
     return [d for d in minute if start <= d <= end]
 
 
+def complete_days(database: Path | None) -> set[str]:
+    """Days whose rebuilt board covers every minute (a day cut off mid-way is not complete)."""
+    with store.connect(database) as db:
+        rows = db.execute(
+            "SELECT session_date, COUNT(*) FROM coverage WHERE source = ? AND board = 'market'"
+            " GROUP BY session_date",
+            (LEADERBOARD_SOURCE_RECONSTRUCTED,),
+        ).fetchall()
+    return {day for day, minutes in rows if minutes >= EXPECTED_MINUTES}
+
+
+def in_desk_session(now: datetime | None = None) -> bool:
+    """03:45-20:05 ET on a weekday: the live recorder owns the store then."""
+    at = (now or datetime.now(ET)).astimezone(ET)
+    minutes = at.hour * 60 + at.minute
+    return at.weekday() < 5 and AVOID_FROM_MIN_ET <= minutes < AVOID_UNTIL_MIN_ET
+
+
+def _chunks(dates: list[date], size: int) -> list[list[date]]:
+    return [dates[i:i + size] for i in range(0, len(dates), max(1, size))]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--date", help="one session, YYYY-MM-DD")
@@ -190,14 +226,38 @@ def main() -> int:
     ap.add_argument("--db", type=Path, default=None, help=f"leaderboard store (default {store.path()})")
     ap.add_argument("--data-root", type=Path, default=DATA_ROOT, help="Massive flat-file root")
     ap.add_argument("--dry-run", action="store_true", help="build and report, write nothing")
+    ap.add_argument("--all", action="store_true", help="every session in the flat files")
+    ap.add_argument("--newest-first", action="store_true", help="build the most recent sessions first")
+    ap.add_argument("--skip-complete", action="store_true", help="skip sessions already complete in the store")
+    ap.add_argument("--avoid-session", action="store_true",
+                    help="stop before 03:45 ET on a weekday; the live recorder owns the store until 20:05")
+    ap.add_argument("--chunk-days", type=int, default=CHUNK_DAYS_DEFAULT,
+                    help="sessions per reference / news load (bounds memory)")
     args = ap.parse_args()
-    if not (args.date or args.start or args.end):
-        ap.error("give --date or --start/--end")
+    if not (args.date or args.start or args.end or args.all):
+        ap.error("give --date, --start/--end or --all")
 
     minute = files_by_date(args.data_root / MINUTE_SUBDIR)
     dates = _dates(args, minute)
     if not dates:
         ap.error("no minute files in that range")
+    if args.skip_complete and not args.dry_run:
+        done = complete_days(args.db)
+        dates = [d for d in dates if d.isoformat() not in done]
+        print(f"{len(done)} sessions already complete; {len(dates)} to build", flush=True)
+    if args.newest_first:
+        dates = sorted(dates, reverse=True)
+    for chunk in _chunks(dates, args.chunk_days):
+        if args.avoid_session and in_desk_session():
+            print("stopped: the desk's session is near -- run again after 20:05 ET", flush=True)
+            return 0
+        if _build(args, minute, chunk) != 0:
+            return 1
+    return 0
+
+
+def _build(args, minute: dict[date, Path], dates: list[date]) -> int:
+    """One chunk: load reference and news for its span, then rebuild each session."""
     ref_dir = args.data_root / REFERENCE_SUBDIR
     research, note = open_research_db(args.data_root / RESEARCH_DB.relative_to(DATA_ROOT))
     print(note, flush=True)
@@ -219,6 +279,9 @@ def main() -> int:
     print(f"store {'(dry run)' if args.dry_run else (args.db or store.path())}", flush=True)
     con = work_db()
     for d in dates:
+        if args.avoid_session and in_desk_session():
+            print("stopped: the desk's session is near -- run again after 20:05 ET", flush=True)
+            return 0
         stats = rebuild_day(
             d, top_n=args.top, database=args.db, dry_run=args.dry_run,
             data_root=args.data_root, reference=reference, splits=splits,

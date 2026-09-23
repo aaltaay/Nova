@@ -21,8 +21,21 @@ py -3 research/leaderboard/build_leaderboard.py --date 2026-09-21 --dry-run     
 py -3 research/leaderboard/build_leaderboard.py --date 2026-09-21 --top 200 --db C:\tmp\lb.sqlite3
 py -3 research/leaderboard/s5_universe.py --date 2026-09-21 --from 07:00 --to 09:30
 py -3 research/leaderboard/spot_check.py --date 2026-09-21 --minutes 07:05 07:42 08:30 09:31 09:58
-cd backend && py -3 -m pytest tests/test_leaderboard_reconstruct*.py -q
+cd backend && py -3 -m pytest tests/test_leaderboard_reconstruct*.py tests/test_leaderboard_rebuild_runner.py -q
 ```
+
+**The five-year rebuild** runs unattended, a night at a time:
+
+```text
+py -3 research/leaderboard/build_leaderboard.py --all --newest-first --skip-complete --avoid-session >> F:\Nova\leaderboard\rebuild.log 2>&1
+```
+
+Newest session first; sessions already complete in the store (all 960 minutes)
+are skipped, so a run cut off mid-day rebuilds that day next time; it stops
+before 03:45 ET on a weekday (`--avoid-session`) because the live recorder writes
+the same store 04:00-20:00 and the desk needs the machine. Run it again after
+20:05 ET to continue. Reference and news load per `--chunk-days` sessions (20) to
+bound memory. All 1,255 sessions: about 21 hours of building, about 23 GB of store.
 
 The store defaults to `leaderboard.store.path()` -- `NOVA_LEADERBOARD_DIR`, else
 `F:\Nova\leaderboard\leaderboard.sqlite3`. A rebuild is idempotent: it deletes that

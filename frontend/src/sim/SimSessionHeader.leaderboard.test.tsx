@@ -21,6 +21,7 @@ const parked = { sim: true, replay_source: 'none', live_edge: false, paused: tru
   minute_max: 960, sim_time_et: '2026-09-18T07:00:00-04:00', ...day('2026-09-18') };
 
 let clock: Record<string, unknown> = edge;
+let sessions: Record<string, unknown> = { days: [], tickers_by_day: {} };
 const DAYS = {
   schema_version: 1, store: { path: 'F:/Nova/leaderboard', ok: true, error: null },
   days: [
@@ -39,13 +40,14 @@ beforeEach(() => {
   resetNavRailStoreForTests();
   setNavPage('dashboard');
   clock = edge;
+  sessions = { days: [], tickers_by_day: {} };
   mocks.fetch.mockReset().mockImplementation(async (url: string, init?: RequestInit) => {
     const posted = init?.method === 'POST' ? JSON.parse(String(init.body)) : null;
     if (posted && 'session_date' in posted) clock = posted.session_date ? parked : edge;
     const body = url.endsWith('/api/leaderboard/days') ? DAYS
       : url.includes('/coverage') ? coverage(url.match(/leaderboard\/([\d-]+)\/coverage/)![1])
         : url.endsWith('/history') ? { jobs: [], selection: null }
-          : url.endsWith('/sessions') ? { days: [], tickers_by_day: {} }
+          : url.endsWith('/sessions') ? sessions
             : clock;
     return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) };
   });
@@ -58,10 +60,25 @@ const posts = () => mocks.fetch.mock.calls.filter(([, init]) => init?.method ===
 describe('Scanner Sim bar: watch a past day (ADR 023)', () => {
   it('offers the days with a board and moves Sim there with nothing loaded', async () => {
     await act(async () => { render(<SimSessionHeader active />); });
-    const picker = screen.getByTestId('sim-strip-day') as HTMLSelectElement;
-    expect(Array.from(picker.options).map(o => o.textContent)).toEqual(['Today', 'Sep 18 · rebuilt']);
-    await act(async () => { fireEvent.change(picker, { target: { value: '2026-09-18' } }); });
+    await act(async () => { fireEvent.click(screen.getByTestId('sim-strip-day')); });
+    const cell = screen.getByTestId('sim-day-cell-2026-09-18');
+    expect(cell.dataset.rebuilt).toBe('1');
+    await act(async () => { fireEvent.click(cell); });
     expect(posts().at(-1)).toEqual({ path: '/clock', body: { session_date: '2026-09-18' } });
+  });
+
+  it('marks the days the operator recorded a Session Record', async () => {
+    sessions = { days: [{ date: '2026-09-18', ticker_count: 2 }], tickers_by_day: { '2026-09-18': [
+      { symbol: 'GRML', prints: 10, l2: 5, usable: true, empty: false },
+      { symbol: 'NULL', prints: 0, l2: 0, usable: false, empty: true },
+    ] } };
+    await act(async () => { render(<SimSessionHeader active />); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    await act(async () => { fireEvent.click(screen.getByTestId('sim-strip-day')); });
+    const cell = screen.getByTestId('sim-day-cell-2026-09-18');
+    expect(cell.dataset.sessions).toBe('1');
+    expect(cell.title).toContain('Your Session Records: GRML');
+    expect(cell.title).not.toContain('NULL');
   });
 
   it('draws the board lane for the day under the scrubber', async () => {

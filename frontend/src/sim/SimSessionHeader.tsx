@@ -115,7 +115,7 @@ export function SimSessionHeader({ active: activeProp }: { active: boolean }) {
     <span data-testid="sim-session-clock">{clockLabel}</span>
     {sessionDate && <span data-testid="sim-session-date" className="sim-muted" title="Session date being replayed">{sessionDate}</span>}
     <span className="sim-muted">{(clock?.phase || '--').toUpperCase()}</span>
-    <SimDayPicker clock={clock} days={days.days} error={days.error} busy={busy.has('day')} today={today}
+    <SimDayPicker clock={clock} days={days.days} sessions={sessions} error={days.error} busy={busy.has('day')} today={today}
       onOpen={days.refresh} onPick={date => { void controller.jumpToDay(date); }} />
     <label className="sim-session-header__scrubber">
       <span data-testid="sim-session-bound-open">{scale.openLabel}</span>
