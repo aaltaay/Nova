@@ -9,7 +9,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { TopOfBookProvider, useTopOfBook, type TopOfBook } from '../hotkeys/TopOfBookContext';
-import { readTradeDefaultsPrefs } from '../settings/tradeDefaultsPrefs';
+import {
+  defaultTradeDefaultsPrefs,
+  readTradeDefaultsPrefs,
+  writeTradeDefaultsPrefs,
+} from '../settings/tradeDefaultsPrefs';
 import { ManualOrderTicket } from './ManualOrderTicket';
 import type { IbkrAccountSummary, IbkrMode } from './types';
 
@@ -145,6 +149,70 @@ describe('ManualOrderTicket compact layout', () => {
     });
     expect(limit().value).toBe('8.91');
     expect(q<HTMLButtonElement>('[data-testid="manual-order-price-mid"]').getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('keeps the limit on the chosen side as the Level 2 book moves', () => {
+    renderTicket({ book: BOOK });
+    act(() => {
+      q<HTMLButtonElement>('[data-testid="manual-order-type-lmt"]').click();
+    });
+    const limit = () => q<HTMLInputElement>('#manual-order-limit');
+    const ask = () => q<HTMLButtonElement>('[data-testid="manual-order-price-ask"]');
+    act(() => {
+      q<HTMLButtonElement>('[data-testid="manual-order-price-bid"]').click();
+    });
+    act(() => ask().click());
+    expect(limit().value).toBe('8.91');
+    renderTicket({ book: { ...BOOK, bid: 8.92, ask: 8.95 } });
+    expect(limit().value).toBe('8.95');
+    expect(ask().getAttribute('aria-pressed')).toBe('true');
+    expect(ask().title).toMatch(/^Following the live ask: 8\.95/);
+
+    act(() => {
+      q<HTMLButtonElement>('[data-testid="manual-order-price-bid"]').click();
+    });
+    renderTicket({ book: { ...BOOK, bid: 8.97, ask: 8.99 } });
+    expect(limit().value).toBe('8.97');
+
+    // Clicking the lit button stops following and leaves the price.
+    act(() => {
+      q<HTMLButtonElement>('[data-testid="manual-order-price-bid"]').click();
+    });
+    renderTicket({ book: { ...BOOK, bid: 9.01, ask: 9.03 } });
+    expect(limit().value).toBe('8.97');
+    expect(q<HTMLButtonElement>('[data-testid="manual-order-price-bid"]').getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('a typed price stops following the book', () => {
+    renderTicket({ book: BOOK });
+    act(() => {
+      q<HTMLButtonElement>('[data-testid="manual-order-type-lmt"]').click();
+    });
+    act(() => {
+      q<HTMLButtonElement>('[data-testid="manual-order-price-ask"]').click();
+    });
+    const input = q<HTMLInputElement>('#manual-order-limit');
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      setter?.call(input, '8.80');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    renderTicket({ book: { ...BOOK, bid: 8.92, ask: 8.95 } });
+    expect(q<HTMLInputElement>('#manual-order-limit').value).toBe('8.80');
+    expect(q<HTMLButtonElement>('[data-testid="manual-order-price-ask"]').getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('a Limit seeded from the ask keeps following it, and holds when the book goes', () => {
+    writeTradeDefaultsPrefs({ ...defaultTradeDefaultsPrefs(), orderType: 'LMT' });
+    renderTicket({ book: BOOK });
+    const limit = () => q<HTMLInputElement>('#manual-order-limit');
+    expect(limit().value).toBe('8.91');
+    expect(q<HTMLButtonElement>('[data-testid="manual-order-price-ask"]').getAttribute('aria-pressed')).toBe('true');
+    renderTicket({ book: { ...BOOK, bid: 8.92, ask: 8.94 } });
+    expect(limit().value).toBe('8.94');
+    renderTicket({ book: { ...BOOK, ask: null } });
+    expect(limit().value).toBe('8.94');
+    expect(q<HTMLButtonElement>('[data-testid="manual-order-price-ask"]').title).toMatch(/holds until the book returns/);
   });
 
   it('greys Bid / Mid / Ask with the reason when there is no live book for the symbol', () => {

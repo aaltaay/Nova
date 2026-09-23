@@ -59,6 +59,9 @@ export function useManualOrderSubmission(params: Params) {
   // idempotency key for the whole click → confirm → place gesture (D-011).
   const inFlightRef = useRef(false);
   const gestureKeyRef = useRef<string | null>(null);
+  // The order the confirm names. The limit can follow the live book, so a
+  // tick between the click and Confirm must not change what is sent.
+  const confirmedRef = useRef<BuildOrderResult | null>(null);
 
   // #91: Settings owns TIF and the optional default TP/SL. Read per render
   // (localStorage, like the ticket's other defaults) so a Settings change
@@ -136,6 +139,8 @@ export function useManualOrderSubmission(params: Params) {
   }
 
   async function executeOrder() {
+    const confirmed = confirmedRef.current;
+    confirmedRef.current = null;
     if (!params.connected || submitting || inFlightRef.current) return;
     if (params.spendLocked) {
       fail('Orders remain locked by Nova environment safety settings.', 'ORDERS_GATE');
@@ -145,7 +150,7 @@ export function useManualOrderSubmission(params: Params) {
       'manual_place',
       captureBrowserAction('user_action'),
     );
-    const built = build();
+    const built = confirmed ?? build();
     if (!built.ok) {
       fail(built.error);
       return;
@@ -237,6 +242,7 @@ export function useManualOrderSubmission(params: Params) {
     // One key for this click, whether it places straight away or waits on the
     // confirm dialog — a double-clicked Confirm replays instead of re-placing.
     gestureKeyRef.current = newGestureKey('manual');
+    confirmedRef.current = built;
     if (readSkipPlaceConfirm()) {
       void executeOrder();
       return;
@@ -256,6 +262,7 @@ export function useManualOrderSubmission(params: Params) {
 
   function resetSubmission() {
     gestureKeyRef.current = null;
+    confirmedRef.current = null;
     setResult(null);
     setConfirmSummary(null);
   }

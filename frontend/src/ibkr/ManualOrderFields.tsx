@@ -35,6 +35,7 @@ import {
   type QuantityMode,
 } from './orderEntry';
 import type { TicketCostEstimate } from './ticketCost';
+import type { QuickPriceKind } from './ticketPriceQuick';
 import type { TicketSide } from './ticketSide';
 
 interface Props {
@@ -42,6 +43,10 @@ interface Props {
   symbol?: string;
   /** Live top of book for the quick-set; absent means the buttons grey out. */
   topOfBook?: TopOfBookLike | null;
+  /** The book side the limit follows (lit); null when the operator typed a price. */
+  priceFollowing?: QuickPriceKind | null;
+  /** Bid / Mid / Ask: follow that side (`kind` null stops). Without it a click only sets the price. */
+  onPriceFollow?: (kind: QuickPriceKind | null, price: string | null) => void;
   ticketSide: TicketSide;
   allowShort: boolean;
   orderType: ManualOrderType;
@@ -85,6 +90,8 @@ function money(value: number | null | undefined, decimals: number): string {
 export function ManualOrderFields({
   symbol = '',
   topOfBook = null,
+  priceFollowing = null,
+  onPriceFollow,
   ticketSide,
   allowShort,
   orderType,
@@ -216,9 +223,14 @@ export function ManualOrderFields({
           <ManualOrderPriceQuick
             symbol={symbol}
             book={topOfBook}
-            value={limitPrice}
+            following={priceFollowing}
             disabled={disabled}
-            onPick={onLimitPriceChange}
+            onFollow={
+              onPriceFollow ??
+              ((_kind, price) => {
+                if (price != null) onLimitPriceChange(price);
+              })
+            }
           />
         </div>
       )}

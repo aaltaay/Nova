@@ -8,6 +8,7 @@ import {
 } from './orderEntry';
 import type { ManualOrderSide, ManualOrderType } from './orderEntry';
 import { readTradeDefaultsPrefs } from '../settings/tradeDefaultsPrefs';
+import { followKindForSeed, type QuickPriceKind } from './ticketPriceQuick';
 import {
   formatSeedPrice,
   seedLimitPrice,
@@ -96,4 +97,12 @@ export function seedPricesForSide(
             )
           : '',
   };
+}
+
+/** The book side a Settings seed reads, so a seeded Limit keeps following it. */
+export function seedFollow(
+  side: ManualOrderSide,
+  orderType: ManualOrderType,
+): QuickPriceKind | null {
+  return followKindForSeed(readTradeDefaultsPrefs().limitPriceSource, side, orderType);
 }
