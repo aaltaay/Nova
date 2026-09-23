@@ -2,6 +2,31 @@
 
 Nova is a local-first Interactive Brokers workstation. Changes that touch trading, market data, or delivery must stay inside the project constitution.
 
+## Your first contribution in 10 minutes
+
+Most of Nova can be worked on without an Interactive Brokers account, IB Gateway, API keys or a `.env`. Both test suites run without any of them.
+
+1. Fork the repository and clone your fork.
+2. Backend (Python 3.13):
+
+   ```bash
+   pip install -r backend/requirements-dev.txt
+   pytest backend/ -q
+   ```
+
+3. Frontend (Node.js 20):
+
+   ```bash
+   cd frontend
+   npm ci
+   npm test -- --run
+   ```
+
+4. See the UI on the sample desk, which uses built-in sample data and needs no broker: follow [Try it without a broker](README.md#try-it-without-a-broker).
+5. Pick an issue labelled [`good first issue`](https://github.com/aaltaay/Nova/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). Leave a comment that you are on it, so nobody else starts it.
+
+[AGENTS.md](AGENTS.md) is long because it also steers the AI coding agents that work on this repo. For a first pull request, the four rules below are the ones that matter. The rest applies once you touch trading, market data or delivery.
+
 ## Before you open a pull request
 
 1. Read [AGENTS.md](AGENTS.md). That file is the law for feed ownership, order gates, and modularity.
