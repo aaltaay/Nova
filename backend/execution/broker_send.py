@@ -21,6 +21,7 @@ from execution.broker_ack import wait_broker_ack
 from execution.fill_audit import audit_place_watch
 from execution.nova_placed import persist_nova_placed_at
 from execution.place_reject_guard import confirm_terminal_reject
+from execution.qty_gate import live_cap_refusal
 from execution.store_facts import persist_successful_cancel
 from ibkr import client as _client
 from ibkr import orders as _orders
@@ -158,6 +159,9 @@ async def send_broker(
         from strategy import risk as _risk
         if qty <= 0:
             qty = int(_risk.position_size_shares())
+        refusal = live_cap_refusal(cmd, qty)
+        if refusal is not None:
+            return reject(execution_id, cmd, timings, refusal, "QTY_CAP_LIVE")
         timings.broker_sent_ns = time.perf_counter_ns()
         store.update_stages(
             execution_id, status="sent", broker_sent_ns=timings.broker_sent_ns,
@@ -237,6 +241,11 @@ async def send_broker(
             timings=timings,
         )
 
+    # MASTER TEST QTY GATE: nothing above the Live cap reaches IBKR, even a
+    # size that got past the clamp (a venue switched to Live mid-command).
+    refusal = live_cap_refusal(cmd, cmd.qty)
+    if refusal is not None:
+        return reject(execution_id, cmd, timings, refusal, "QTY_CAP_LIVE")
     timings.broker_sent_ns = time.perf_counter_ns()
     store.update_stages(
         execution_id, status="sent", broker_sent_ns=timings.broker_sent_ns,

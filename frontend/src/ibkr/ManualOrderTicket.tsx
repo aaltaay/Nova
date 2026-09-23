@@ -153,12 +153,13 @@ export function ManualOrderTicket({
   });
   // MASTER TEST QTY GATE (#444): say the sent size whenever the typed size is
   // above the door's cap, so the ticket never shows a size it will not send.
+  // The cap binds Live only; Paper and Sim report null and stay quiet.
   const qtyCap = ibkrStatus.qty_cap ?? null;
   const typedShares =
     displayQuantityMode === 'shares' ? Number(displayQuantityValue) : NaN;
   const qtyCapNote =
     qtyCap != null && Number.isFinite(typedShares) && typedShares > qtyCap
-      ? `Test cap: this order sends ${qtyCap} of ${typedShares} shares.`
+      ? `Live cap: this order sends ${qtyCap} of ${typedShares} shares.`
       : null;
 
   useEffect(() => {
