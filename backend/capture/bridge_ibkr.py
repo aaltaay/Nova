@@ -94,6 +94,7 @@ def _write_prints(payloads: list[dict]) -> None:
 def _write_print(payload: dict) -> None:
     from capture import bar_buckets, recorder
     from capture.schema import valid_timestamp
+    from sale_conditions import row_sets_price
 
     if not valid_timestamp(payload.get("ts")):
         # Let the recorder diagnose it: converting here would raise inside the
@@ -103,6 +104,9 @@ def _write_print(payload: dict) -> None:
     payload["session_date"] = datetime.fromtimestamp(payload["ts"], ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
     recorder.ensure_event_day(payload["symbol"], payload["ts"])
     if not recorder.record_print(payload):
+        return
+    # The row keeps every print; its bars take only prints that set a price.
+    if not row_sets_price(payload):
         return
     bar_buckets.on_print(
         payload["symbol"],

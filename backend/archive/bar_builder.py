@@ -12,6 +12,7 @@ from typing import Any
 
 from archive.capture import record_bar, session_date_for_ts
 from constants import ARCHIVE_SOURCE_IBKR
+from sale_conditions import row_sets_price
 
 logger = logging.getLogger(__name__)
 
@@ -153,11 +154,14 @@ def _flush(bucket: _Bucket, *, queued: bool = False) -> None:
 
 
 def backfill_from_tape_rows(rows: list[dict[str, Any]]) -> int:
-    """Build bars from ordered tape rows. Returns number of bars flushed."""
+    """Build bars from ordered tape rows. Returns number of bars flushed.
+
+    Only prints that set a price make a bar (``sale_conditions.py``), as live.
+    """
     reset_for_tests()
     # Sort by symbol then ts so buckets roll correctly.
     ordered = sorted(
-        rows,
+        (r for r in rows if row_sets_price(r)),
         key=lambda r: (str(r.get("symbol") or ""), float(r.get("ts") or 0)),
     )
     for r in ordered:
@@ -182,7 +186,7 @@ def backfill_session_date(session_date: str) -> int:
     try:
         cur = conn.execute(
             """
-            SELECT symbol, ts, price, size, source
+            SELECT symbol, ts, price, size, conditions, source
             FROM tape_ibkr
             WHERE session_date = ?
             ORDER BY symbol, ts

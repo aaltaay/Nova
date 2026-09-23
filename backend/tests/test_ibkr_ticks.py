@@ -314,3 +314,56 @@ def test_last_quotes_exposes_shared_day_volume():
     assert row["price"] == 1.25
     assert row["volume"] == 44000
     _reset()
+
+
+def _last_tick(price, tick_type=4):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(tickType=tick_type, price=price, size=100)
+
+
+def test_last_is_ibkrs_tick_4_not_an_alllast_or_rtvolume_print():
+    """ib_async writes ``ticker.last`` from every AllLast print and from RTVolume
+    (unreported trades included) on the one Ticker it keeps per contract. A PLTR
+    ``4 W`` print at 190.38 became the desk's last and a candle wick (2026-09-23)."""
+    _reset()
+    ticks._subs["PLTR"] = {
+        "owners": {ticks.OWNER_DETAIL}, "last_price": None, "last_update_ts": None,
+    }
+    ticks._broadcast = None
+    ticks._quote_listeners.clear()
+    seen: list[float] = []
+    ticks._quote_listeners.append(lambda sym, price, *_a, **_kw: seen.append(price))
+
+    first = _FakeTicker(last=192.75)
+    first.ticks = [_last_tick(192.75)]
+    ticks._on_ticker_update(first, "PLTR")
+
+    # The average-price print lands in ticker.last with no IBKR Last behind it.
+    wick = _FakeTicker(last=190.38)
+    wick.ticks = [_last_tick(190.38, tick_type=48)]
+    ticks._on_ticker_update(wick, "PLTR")
+
+    moved = _FakeTicker(last=190.37)
+    moved.ticks = [_last_tick(192.80)]
+    ticks._on_ticker_update(moved, "PLTR")
+
+    assert seen == [192.75, 192.80]
+    assert ticks.last_quotes(["PLTR"])["PLTR"]["price"] == 192.80
+
+
+def test_last_falls_back_to_ticker_last_until_the_line_delivers_tick_4():
+    _reset()
+    ticks._subs["ABC"] = {
+        "owners": {ticks.OWNER_SCANNER}, "last_price": None, "last_update_ts": None,
+    }
+    ticks._broadcast = None
+    ticks._quote_listeners.clear()
+    seen: list[float] = []
+    ticks._quote_listeners.append(lambda sym, price, *_a, **_kw: seen.append(price))
+
+    ticks._on_ticker_update(_FakeTicker(last=3.10), "ABC")  # a seed: no ticks yet
+    delayed = _FakeTicker(last=3.20)
+    delayed.ticks = [_last_tick(3.15, tick_type=68)]
+    ticks._on_ticker_update(delayed, "ABC")
+    assert seen == [3.10, 3.15]

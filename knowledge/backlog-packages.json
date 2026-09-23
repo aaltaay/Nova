@@ -436,7 +436,8 @@
         320,
         337,
         385,
-        386
+        386,
+        511
       ],
       "done": [
         "Captures carry a schema_version and a loader refuses an unknown one instead of guessing.",
@@ -502,6 +503,20 @@
             "backend/sim/history_cache.py",
             "backend/tests/test_history_audit.py",
             "backend/tests/test_sim_trading_day.py"
+          ]
+        },
+        {
+          "title": "fix(practice): practice fills only on prints that set a price",
+          "issues": [
+            511
+          ],
+          "note": "Paper's resting-order matcher and the Sim capture last / matcher still fill on odd-lot, average-price and derivatively priced prints dollars from the market. Route both through backend/sale_conditions.py (row_sets_price), which the candle fix already uses; update architecture/practice-fills.md first. The old-recording bar question in #511 step 4 is an operator call.",
+          "gated": false,
+          "touches": [
+            "backend/practice/reference.py",
+            "backend/sim/capture_player.py",
+            "backend/sim/practice.py",
+            "architecture/practice-fills.md"
           ]
         }
       ]
