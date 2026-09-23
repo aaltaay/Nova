@@ -27,8 +27,9 @@ Use IBC’s sample config as a base. Set at least:
 - `AcceptIncomingConnectionAction=accept` (or prompt -- your choice)
 - `AutoRestartTime=11:45 PM` -- must be `HH:MM AM/PM` (a bare `23:45` is
   ignored). IBC sets Gateway **Auto restart** (week-long token path), not
-  Auto log off, for **both** Live and Paper. Phone 2FA may still be required
-  after IBKR's own weekly forced re-auth.
+  Auto log off, for **both** Live and Paper. Phone 2FA is still required
+  after IBKR's own weekly forced re-auth **and after anything that ends the
+  Gateway process** -- see "What the saved login survives" below.
 - `ReloginAfterSecondFactorAuthenticationTimeout=no` -- an unanswered 2FA
   prompt sits inert instead of IBC auto-retrying (that retry loop hit
   IBKR's own login rate limit twice on 2026-08-20). Use Nova's "Start fresh
@@ -39,6 +40,33 @@ Never commit `config.ini`. Add to your global gitignore if needed:
 ```gitignore
 **/.nova/ibc/
 ```
+
+## What the saved login survives
+
+The week-long token is not a file you can keep. Gateway writes an
+`autorestart` marker only while it restarts **itself** at `AutoRestartTime`,
+and the relaunched Gateway consumes it at once; otherwise the login lives only
+inside the running process. So:
+
+| Event | Phone login? |
+|---|---|
+| Gateway's own 11:45 PM restart | No -- IBC logs `autorestart file found ...: authentication will not be required` |
+| IBKR's weekly re-auth (weekend) | Yes |
+| **PC restart** (Windows Update, the Start menu, a power cut) | **Yes** |
+| Gateway closed, crashed, or killed | Yes |
+| Nova's "Start fresh login" | Yes (on purpose) |
+
+Every one of those shows `autorestart file not found: full authentication will
+be required` in the IBC log. Nova now says which it was:
+`py -3 tools/premarket_verify.py relogin` prints one line (a Windows restart,
+who asked for it and when you next signed in -- or a fresh Gateway start), the
+morning scripts log it as `WHY:` / `why:`, and `/api/diagnostics` puts it at
+the front of the "IBC login / 2FA" row while a prompt is open.
+
+On 2026-09-23 Windows Update restarted the desk at 02:29 ET to install an
+optional preview update. The 11:45 PM restart had worked; the reboot ended it.
+To keep Windows from doing that, see `docs/live-desk-sync.md`, "Keep Windows
+from restarting the desk".
 
 ## Open live / Open paper from Nova
 
@@ -62,6 +90,15 @@ notepad $env:USERPROFILE\.nova\ibc\config.ini
 ```
 
 Use the **local** `StartGateway.bat` in `.nova\ibc\` (not stock `C:\IBC\StartGateway.bat`).
+
+**IBC log names on Windows 11.** IBC names its log after the weekday it reads
+from `wmic` (`C:\IBC\scripts\getDayOfWeek.bat`), and Windows 11 no longer
+ships `wmic`. The name became `IBC-3.24.1_GATEWAY-1045_.txt`, and each cold
+start deleted it, so no login history outlived the day. IBC keeps an inherited
+`DAYOFWEEK` when `wmic` prints nothing, so both Nova launchers
+(`Start-NovaDaily.ps1` and `POST /api/ibkr/launch-gateway`) set it; the logs
+are `..._MONDAY.txt` ... `..._SUNDAY.txt` again. A Gateway you start by hand
+outside Nova still writes `_.txt`.
 Stock IBC defaults to `Documents\IBC\config.ini` and an outdated `TWS_MAJOR_VRSN`.
 The Nova wrapper sets `CONFIG`, `TWS_MAJOR_VRSN=1045`, `TRADING_MODE=live` (match `.env`;
 the paper Gateway on 4002 is legacy, by hand only -- ADR 020), and `TWOFA_TIMEOUT_ACTION=restart`.
@@ -173,12 +210,19 @@ registers:
 `backend/logs/daily-start.log` and `backend/logs/morning-check.log`.
 With the week-long `AutoRestartTime` token on both doors, a routine 03:40
 start should NOT need IBKR Mobile 2FA most mornings -- only IBKR's own
-mandatory weekly re-auth does. If the prompt sits unanswered past 180s, it
+mandatory weekly re-auth does, **provided the Gateway ran all night**. A PC
+restart overnight costs a phone login (see "What the saved login survives"). If the prompt sits unanswered past 180s, it
 goes stale (see PROBLEM_LOG 2026-08-25); use Nova's "Start fresh login" CTA
 rather than approving a dead prompt.
 
 If the PC is asleep at 03:40, enable wake timers in Windows power settings
 or rely on the AtLogon / session-unlock triggers when you unlock.
+
+The tasks use the Interactive logon type: they run only while you are signed
+in to Windows. After a restart, Windows waits at the sign-in screen and
+**nothing runs** -- no 03:40 start, no 03:55 check, no alert -- until someone
+signs in. (The Gateway is a desktop window, so running the tasks without a
+session would not help; and it would still need your phone after a restart.)
 
 `AutoRestartTime` in `%USERPROFILE%\.nova\ibc\config.ini` must be `11:45 PM`
 (AM/PM). A bare `23:45` is ignored by IBC.
@@ -189,5 +233,6 @@ or rely on the AtLogon / session-unlock triggers when you unlock.
 - `scripts/Start-NovaDaily.ps1` / `Install-NovaDailyTask.ps1` -- morning auto-start
 - `scripts/Invoke-NovaMorningCheck.ps1` -- pre-open self-check + loud alert
 - `scripts/smoke_check.ps1` -- post-login API smoke
+- `tools/premarket_verify.py` -- #14 evidence; `relogin` says why the Gateway last needed your phone
 - `IBKR_GATEWAY_MODE` / `IBKR_LIVE_PORT` / `IBKR_PAPER_PORT` in `.env`
 - `.cursor/rules/ibkr-gateway-login-warning.mdc` -- loud-warn vs bidirectional self-heal

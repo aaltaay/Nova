@@ -99,6 +99,11 @@ def gateway_rows(
     else:
         i_state, i_detail = DIAG_STATE_OK, "IBC launcher present; no 2FA prompt pending"
         i_cause, i_fix = "Login automation is available.", "Nothing to do."
+    relogin_text = str((ibc.get("relogin") or {}).get("text") or "")
+    if (stale or pending) and relogin_text:
+        # Why the saved login was lost (a PC restart, a fresh start) -- the
+        # operator's first question when a prompt appears overnight (#14).
+        i_cause = f"{relogin_text} {i_cause}"
     rows.append(row(
         id="gateway_ibc_login",
         group=DIAG_GROUP_GATEWAY,
