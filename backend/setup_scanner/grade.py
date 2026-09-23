@@ -1,7 +1,9 @@
 """The Five Pillars at the moment a setup arms, and the grade they give it.
 
 Read from what HOD Momo already enriched for the symbol (IBKR price, % change,
-relative volume, float) and the scanner's news badge (a headline today). A
+relative volume, float) and the catalyst classifier (ADR 024): the News pillar
+passes only for a real, company-specific catalyst published since the prior
+close -- the same verdict the backfilled history uses, never "any article". A
 pillar Nova does not know is ``None`` and never counts as a pass.
 """
 from __future__ import annotations
@@ -10,6 +12,7 @@ import logging
 import math
 from typing import Any
 
+from constants_catalysts import CATALYST_VERDICT_CATALYST
 from constants_setups import (
     SETUPS_GRADE_A,
     SETUPS_GRADE_B,
@@ -33,7 +36,11 @@ def _finite(value: Any) -> float | None:
     return x if math.isfinite(x) else None
 
 
-def read_pillars(symbol: str) -> dict[str, Any]:
+_CATALYST_KEYS = ("verdict", "category", "strength", "title", "source", "published_ts", "url", "negative_too",
+                  "rules_version")
+
+
+def read_pillars(symbol: str, now: float | None = None) -> dict[str, Any]:
     snap = None
     try:
         import hod_momo
@@ -41,20 +48,21 @@ def read_pillars(symbol: str) -> dict[str, Any]:
         snap = hod_momo.get_ticker_snapshot(symbol)
     except Exception:
         logger.debug("setup grade: no HOD snapshot for %s", symbol, exc_info=True)
-    headline = None
+    catalyst = None
     try:
-        import scanner_news_badge
+        from catalysts import live as catalyst_live
 
-        headline = scanner_news_badge.headline_for(symbol)
+        catalyst = catalyst_live.verdict_for(symbol, now)
     except Exception:
-        logger.debug("setup grade: no news badge for %s", symbol, exc_info=True)
+        logger.warning("setup grade: catalyst verdict failed for %s", symbol, exc_info=True)
     return {
         "price": _finite(getattr(snap, "price", None)) or None,
         "change_pct": _finite(getattr(snap, "change_pct", None)),
         "rvol": _finite(getattr(snap, "rvol", None)),
         "float": _finite(getattr(snap, "float_shares", None)),
-        "news": headline is not None,
-        "headline": headline,
+        "news": None if catalyst is None else catalyst.get("verdict") == CATALYST_VERDICT_CATALYST,
+        "headline": (catalyst or {}).get("title"),
+        "catalyst": None if catalyst is None else {k: catalyst.get(k) for k in _CATALYST_KEYS},
     }
 
 

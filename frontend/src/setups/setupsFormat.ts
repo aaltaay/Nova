@@ -1,5 +1,6 @@
 /** Pure helpers for the Setups board. */
-import type { SetupRow } from './types';
+import { CATALYST_CATEGORY_LABELS, CATALYST_VERDICT_TITLES } from '../constants';
+import type { SetupPillars, SetupRow } from './types';
 
 export function fmtPx(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return '—';
@@ -50,4 +51,16 @@ export function outcomeLabel(row: SetupRow): string {
   if (row.outcome === 'target_first') return 'Target first';
   if (row.outcome === 'stop_first') return 'Stop first';
   return 'Open';
+}
+
+/** The grade cell's tooltip: what the News pillar rested on (ADR 024). */
+export function catalystTitle(p: SetupPillars | null | undefined): string {
+  const c = p?.catalyst;
+  if (!c) return 'Catalyst: not read when this armed (unknown, not a fail)';
+  const head = CATALYST_VERDICT_TITLES[c.verdict] ?? c.verdict;
+  if (c.verdict !== 'catalyst' && c.verdict !== 'negative') return head;
+  const cat = c.category ? (CATALYST_CATEGORY_LABELS[c.category] ?? c.category) : '';
+  const strength = c.strength ? ` (${c.strength})` : '';
+  const dilution = c.negative_too ? '\nAlso: an offering / dilution item' : '';
+  return `${head}: ${cat}${strength}${c.title ? `\n${c.title}` : ''}${dilution}`;
 }

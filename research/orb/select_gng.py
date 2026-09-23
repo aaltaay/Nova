@@ -7,6 +7,8 @@ A symbol-day is a candidate when, using only what is known by 09:30 ET that day:
             sessions and at least --min-pm-volume shares (a floor so 5 x nothing is nothing)
   catalyst  at least one news article tagged with the ticker, published after the prior
             session's close and before 09:30 (``news_tickers.session_d = d``)
+            ``--no-news`` drops this pillar (``news_n`` is still reported) so a split by
+            catalyst class (research/catalysts) can compare real catalysts with none
   float     shares outstanding at or under --max-float (20M) from ticker details -- current
             values, not point-in-time; ``--no-float`` runs the variant without this pillar
 Funds / derivatives and split-window days are excluded as in the ORB selection. Candidates
@@ -15,6 +17,7 @@ are ranked per day by pre-market relative volume; ``--top`` kept wide for robust
 Usage:
     py -3 research/orb/select_gng.py --top 20
     py -3 research/orb/select_gng.py --top 20 --no-float --table gng_selection_nofloat
+    py -3 research/orb/select_gng.py --top 10000 --no-float --no-news --table pillars_all
 """
 from __future__ import annotations
 
@@ -57,7 +60,7 @@ WITH base AS (
 ), pillars AS (
     SELECT *, CASE WHEN o5_close > o5_open THEN 'long' WHEN o5_close < o5_open THEN 'short' ELSE 'doji' END AS o5_dir
     FROM cand
-    WHERE news_n >= 1
+    WHERE ({no_news} OR news_n >= 1)
       AND ({no_float} OR (float_shares IS NOT NULL AND float_shares <= ?))
 ), ranked AS (
     SELECT *, row_number() OVER (PARTITION BY d ORDER BY rvol_pm DESC, ticker) AS rank FROM pillars
@@ -78,10 +81,12 @@ def main() -> int:
     ap.add_argument("--min-pm-volume", type=float, default=100_000)
     ap.add_argument("--max-float", type=float, default=20e6)
     ap.add_argument("--no-float", action="store_true")
+    ap.add_argument("--no-news", action="store_true", help="drop the any-article catalyst pillar")
     a = ap.parse_args()
     con = connect()
     t0 = time.time()
-    sql = SELECT_SQL.format(table=a.table, no_float="TRUE" if a.no_float else "FALSE")
+    sql = SELECT_SQL.format(table=a.table, no_float="TRUE" if a.no_float else "FALSE",
+                            no_news="TRUE" if a.no_news else "FALSE")
     con.execute(sql, [a.min_price, a.max_price, a.min_gap, a.min_pm_volume, a.min_rvol, a.max_float, a.top])
     row = con.execute(
         f"SELECT count(*), count(DISTINCT d), min(d), max(d), median(gap), median(rvol_pm), "

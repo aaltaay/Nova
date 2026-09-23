@@ -44,13 +44,28 @@ export interface SetupProposal {
   tape_now?: TapeVerdict;
 }
 
+/** The catalyst classifier's verdict at arm time (ADR 024): the same rules as the backfilled history. */
+export interface SetupCatalyst {
+  verdict: 'catalyst' | 'negative' | 'routine_only' | 'noise_only' | 'none_found' | 'not_checked';
+  category: string | null;
+  strength: 'strong' | 'weak' | null;
+  title: string | null;
+  source: string | null;
+  published_ts: number | null;
+  url: string | null;
+  negative_too: boolean;
+  rules_version: string;
+}
+
 export interface SetupPillars {
   price: number | null;
   change_pct: number | null;
   rvol: number | null;
   float: number | null;
-  news: boolean;
+  /** True only for a real catalyst; null when no catalyst read covered the moment. */
+  news: boolean | null;
   headline: string | null;
+  catalyst?: SetupCatalyst | null;
   checks?: Record<string, boolean | null>;
 }
 

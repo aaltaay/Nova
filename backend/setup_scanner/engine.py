@@ -82,18 +82,30 @@ def _default_audit(**kw: Any) -> None:
         logger.warning("setup scanner: bot audit write failed", exc_info=True)
 
 
+def _no_catalysts(symbols: Iterable[str]) -> None:
+    """Tests and replays: no catalyst fetch (the live one is wired in ``get_engine``)."""
+
+
+def _live_catalysts(symbols: Iterable[str]) -> None:
+    from catalysts import live as catalyst_live
+
+    catalyst_live.request(symbols)
+
+
 class SetupEngine:
     def __init__(self, *, store: SetupStore | None = None, tape: Any = None,
                  universe: Callable[[], Iterable[str]] = _default_universe,
                  seed: Callable[[str, float], list[Bar]] = _default_seed,
                  replay_desk: Callable[[], bool] = _default_replay_desk,
                  audit: Callable[..., None] = _default_audit,
-                 clock: Callable[[], float] = time.time):
+                 clock: Callable[[], float] = time.time,
+                 catalysts: Callable[[Iterable[str]], None] = _no_catalysts):
         self.store = store
         self.store_error: str | None = None
         self.tape = tape
         self._universe_fn, self._seed_fn = universe, seed
         self._replay_fn, self._audit_fn, self._clock = replay_desk, audit, clock
+        self._catalysts_fn = catalysts
         self.inbox: deque = deque()
         self.bars: dict[str, MinuteBars] = {}
         self.det: dict[str, PullbackDetector] = {}
@@ -163,6 +175,10 @@ class SetupEngine:
         busy = {s for s, d in self.det.items() if d.state in WATCH_STATES} | {
             self.rows[sid]["symbol"] for sid in self.trackers}
         self.universe = wanted | busy
+        try:
+            self._catalysts_fn(self.universe)   # queues stale / missing catalyst reads; never blocks
+        except Exception:
+            logger.warning("setup scanner: catalyst request failed", exc_info=True)
         for sym in list(self.det):
             if sym not in self.universe:
                 self.det.pop(sym, None)
@@ -232,7 +248,7 @@ class SetupEngine:
             row = self.rows.get(sid)
             if kind == "armed":
                 if row is None:
-                    pillars = _grade.read_pillars(sym)
+                    pillars = _grade.read_pillars(sym, now)
                     g, checks = _grade.grade(pillars)
                     row = {"id": sid, "session_date": self.session, "symbol": sym, "leg_t": view["setup_key"],
                            "armed_at": setup.get("armed_at") or now, "grade": g,
@@ -378,7 +394,7 @@ _engine: SetupEngine | None = None
 def get_engine() -> SetupEngine:
     global _engine
     if _engine is None:
-        _engine = SetupEngine()
+        _engine = SetupEngine(catalysts=_live_catalysts)
     return _engine
 
 
