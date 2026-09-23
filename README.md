@@ -7,6 +7,23 @@ Local-first Interactive Brokers trading workstation. Scanner, charts, Trader Vie
 
 **Site:** [nova.altaystudio.com](https://nova.altaystudio.com) (built from [nova-site](https://github.com/aaltaay/nova-site)) · **Releases:** [GitHub Releases](https://github.com/aaltaay/Nova/releases)
 
+![Nova's Scanner: HOD Momo alerts over the Gappers board, the day's orders below, and the quote panel and watchlist on the right](docs/images/nova-scanner.png)
+
+*The Scanner on the built-in sample desk (Nova Marketing Sample Data): every symbol and figure is sample data, not a live market or account.*
+
+## Try it without a broker
+
+The sample desk runs the real UI on built-in sample data. It needs only Node.js 20: no IB Gateway, no API keys, no backend, and it sends nothing anywhere.
+
+```bash
+cd frontend
+npm install
+npm run build
+npm run preview
+```
+
+Then open <http://localhost:4173/?view=sample>. **Exit sample** in the header leaves it.
+
 ## What it is
 
 Nova is a single-operator desk for US equities:
