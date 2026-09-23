@@ -1,0 +1,90 @@
+/* Sim Day calendar (ADR 023): what each day has on file, each from its own source. */
+.sim-day { position: relative; }
+.sim-day__button {
+  height: 22px;
+  max-width: 170px;
+  padding: 0 6px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  background: var(--input-bg, var(--nova-panel));
+  color: var(--nova-text, var(--text-primary));
+  border: 1px solid var(--nova-border-strong, var(--border-color));
+  border-radius: var(--radius-control, 4px);
+  font: inherit;
+  cursor: pointer;
+}
+.sim-day__button:disabled { opacity: 0.55; cursor: default; }
+.sim-day__pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 60;
+  width: 248px;
+  padding: 8px;
+  background: var(--nova-panel, var(--bg-secondary));
+  border: 1px solid var(--nova-border-strong, var(--border-color));
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+  color: var(--nova-text, var(--text-primary));
+}
+.sim-day__head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.sim-day__head button {
+  width: 22px; height: 22px; padding: 0;
+  background: transparent; color: inherit;
+  border: 1px solid var(--nova-border, var(--border-color)); border-radius: 4px; cursor: pointer;
+}
+.sim-day__head button:disabled { opacity: 0.35; cursor: default; }
+.sim-day__month { flex: 1; font-weight: 600; text-align: right; }
+.sim-day__head select { min-width: 66px; height: 22px; font: inherit; background: var(--input-bg, var(--nova-panel)); color: inherit; }
+.sim-day__grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.sim-day__dow { font-size: 10px; text-align: center; color: var(--nova-text-muted, var(--text-secondary)); }
+.sim-day__cell {
+  position: relative;
+  height: 26px;
+  padding: 0;
+  font: inherit;
+  font-size: 11px;
+  background: transparent;
+  color: var(--nova-text, var(--text-primary));
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.sim-day__cell:disabled { color: var(--nova-text-muted, var(--text-secondary)); opacity: 0.35; cursor: default; }
+.sim-day__cell.is-other { opacity: 0.25; }
+.sim-day__cell.is-rebuilt { background: color-mix(in srgb, var(--sim-leaderboard, #a78bfa) 16%, transparent); }
+.sim-day__cell.is-recorded {
+  background: color-mix(in srgb, var(--nova-accent, #3b82f6) 32%, transparent);
+  font-weight: 700;
+}
+.sim-day__cell.is-today { border-color: var(--nova-text-muted, var(--text-secondary)); }
+.sim-day__cell.is-selected { border-color: var(--nova-accent, #3b82f6); box-shadow: 0 0 0 1px var(--nova-accent, #3b82f6); }
+.sim-day__cell:not(:disabled):hover { border-color: var(--nova-border-strong, var(--border-color)); }
+/* The operator's own Session Records: the REC chip's red dot. */
+.sim-day__rec {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--nova-danger, #ef4444);
+}
+.sim-day__rec--legend { position: static; display: inline-block; margin-right: 5px; }
+.sim-day__legend { display: grid; gap: 3px; margin-top: 8px; font-size: 10px; color: var(--nova-text-muted, var(--text-secondary)); }
+.sim-day__legend span { display: flex; align-items: center; }
+.sim-day__swatch { display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 2px; }
+.sim-day__swatch.is-recorded { background: color-mix(in srgb, var(--nova-accent, #3b82f6) 45%, transparent); }
+.sim-day__swatch.is-rebuilt { background: color-mix(in srgb, var(--sim-leaderboard, #a78bfa) 30%, transparent); }
+.sim-day__today {
+  width: 100%;
+  margin-top: 8px;
+  height: 24px;
+  font: inherit;
+  background: transparent;
+  color: inherit;
+  border: 1px solid var(--nova-border-strong, var(--border-color));
+  border-radius: 4px;
+  cursor: pointer;
+}

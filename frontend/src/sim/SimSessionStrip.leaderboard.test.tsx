@@ -61,19 +61,21 @@ const posts = () => mocks.fetch.mock.calls.filter(([, init]) => init?.method ===
   .map(([url, init]) => ({ path: String(url).split('/api/sim')[1], body: JSON.parse(String(init.body)) }));
 
 describe('Sim strip: the Scanner board day and lane (ADR 023)', () => {
-  it('lists days with a board, marked recorded / rebuilt, and posts session_date on a pick', async () => {
+  it('opens a calendar marking recorded / rebuilt days, and posts session_date on a pick', async () => {
     await mount();
-    const picker = screen.getByTestId('sim-strip-day') as HTMLSelectElement;
-    const options = Array.from(picker.options).map(o => [o.value, o.textContent]);
-    expect(options).toEqual([
-      ['', 'Today'],
-      ['2026-09-18', 'Sep 18 · rec + rebuilt'],
-      ['2026-09-17', 'Sep 17 · rebuilt'],
-    ]);
-    await act(async () => { fireEvent.change(picker, { target: { value: '2026-09-18' } }); });
+    await act(async () => { fireEvent.click(screen.getByTestId('sim-strip-day')); });
+    expect(screen.getByTestId('sim-day-calendar')).toBeTruthy();
+    expect(screen.getByTestId('sim-day-month').textContent).toBe('Sep');
+    const both = screen.getByTestId('sim-day-cell-2026-09-18');
+    expect([both.dataset.recorded, both.dataset.rebuilt]).toEqual(['1', '1']);
+    const rebuilt = screen.getByTestId('sim-day-cell-2026-09-17');
+    expect([rebuilt.dataset.recorded, rebuilt.dataset.rebuilt]).toEqual(['0', '1']);
+    expect((screen.getByTestId('sim-day-cell-2026-09-16') as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => { fireEvent.click(both); });
     expect(posts().at(-1)).toEqual({ path: '/clock', body: { session_date: '2026-09-18' } });
-    expect((screen.getByTestId('sim-strip-day') as HTMLSelectElement).value).toBe('2026-09-18');
-    await act(async () => { fireEvent.change(screen.getByTestId('sim-strip-day'), { target: { value: '' } }); });
+    expect(screen.getByTestId('sim-strip-day').textContent).toContain('Sep 18 · rec + rebuilt');
+    await act(async () => { fireEvent.click(screen.getByTestId('sim-strip-day')); });
+    await act(async () => { fireEvent.click(screen.getByTestId('sim-day-today')); });
     expect(posts().at(-1)).toEqual({ path: '/clock', body: { session_date: null } });
   });
 

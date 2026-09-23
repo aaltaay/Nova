@@ -109,7 +109,7 @@ export function SimSessionStrip() {
           <SkipForward size={13} aria-hidden="true" />
         </button>
       </div>
-      <SimDayPicker clock={clock} days={days.days} error={days.error} busy={busy.has('day')} today={today}
+      <SimDayPicker clock={clock} days={days.days} sessions={controller.sessions} error={days.error} busy={busy.has('day')} today={today}
         onOpen={days.refresh} onPick={date => { void controller.jumpToDay(date); }} />
       <SimStripBand
         minute={minute}

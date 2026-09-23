@@ -515,6 +515,10 @@ re-dates the Sim clock with nothing loaded (unloading a replay of another
 date) and parks it paused at `SIM_DAY_JUMP_PARK_MIN_ET`; `null` returns to
 today. Off the live edge the Scanner board and the HOD Momo strip read the
 leaderboard and the alert history at the playhead; Live and Paper stay on now.
+The Sim Day calendar marks, per day and each from its own source, a board
+recorded by Nova, the operator's usable Session Records (`/api/capture/sessions`)
+and a rebuilt board; a day with none, a weekend or a future day cannot be picked.
+`/api/leaderboard/days` lists every day on file (`LEADERBOARD_DAYS_LIMIT` 2,500).
 
 ### Setup scanner and tape gate (ADR 022)
 

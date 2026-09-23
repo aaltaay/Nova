@@ -54,3 +54,13 @@ RVOL_MIN_PRIOR_SESSIONS = 10
 # ── Output ──────────────────────────────────────────────────────────────────
 TOP_N_DEFAULT = 100
 WRITE_CHUNK_MINUTES = 60
+
+# --- Unattended five-year rebuild (build_leaderboard.py --all) ---
+# A complete rebuilt session covers every minute boundary 04:01-20:00 ET.
+EXPECTED_MINUTES = 960
+# Sessions per reference / news load: bounds memory over five years.
+CHUNK_DAYS_DEFAULT = 20
+# --avoid-session: never build 03:45-20:05 ET on a weekday -- the live recorder
+# writes the same store 04:00-20:00 and the desk needs the machine.
+AVOID_FROM_MIN_ET = 3 * 60 + 45
+AVOID_UNTIL_MIN_ET = 20 * 60 + 5

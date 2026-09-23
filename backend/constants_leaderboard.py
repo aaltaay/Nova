@@ -109,4 +109,5 @@ LEADERBOARD_AUTO_RECORD_MIN_HOLD_SEC = 120.0
 LEADERBOARD_AUTO_RECORD_TICK_SEC = 15.0
 
 # ── Playback API ────────────────────────────────────────────────────────────
-LEADERBOARD_DAYS_LIMIT = 400
+# Every day on file: five years of rebuilt sessions plus recorded ones (~330 ms at 1,255 days).
+LEADERBOARD_DAYS_LIMIT = 2_500
