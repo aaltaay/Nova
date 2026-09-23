@@ -12,8 +12,9 @@ import { app, BrowserWindow, screen } from 'electron';
 import { attachRendererGuards } from './rendererGuards.mjs';
 import { isAllowedRendererUrl, loadTraderWindow } from './traderWindowLoad.mjs';
 import {
+  applyStoredPlacement,
   bindWindowBoundsPersist,
-  restoreWindowBounds,
+  restoreWindowPlacement,
   traderWindowId,
 } from './windowBounds.mjs';
 import { formatElectronTraderTitle } from './appTitle.mjs';
@@ -87,14 +88,15 @@ export async function openOrFocusTraderWindow(url, windowOptions, attachHandler)
   }
   const userData = app.getPath('userData');
   const displays = displayWorkAreas();
-  const saved = restoreWindowBounds(userData, traderWindowId(sym), displays);
-  const bounds = saved || boundsForTraderWindow(
+  const saved = restoreWindowPlacement(userData, traderWindowId(sym), displays);
+  const bounds = saved?.bounds || boundsForTraderWindow(
     displays,
     traderWindows.size,
     windowOptions.width ?? 1440,
     windowOptions.height ?? 900,
   );
   const child = new BrowserWindow({ ...windowOptions, ...bounds, show: false });
+  applyStoredPlacement(child, saved);
   attachRendererGuards(child, { allowedBase: url, reloadUrl: url });
   let currentSym = sym;
   bindWindowBoundsPersist(child, userData, () => traderWindowId(currentSym));
