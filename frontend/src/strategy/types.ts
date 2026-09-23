@@ -22,11 +22,34 @@ export interface WatchlistSubScores {
   catalyst: number;
 }
 
+/** Today's catalyst verdict for a watchlist row (backend strategy/watchlist_catalyst.py, ADR 024). */
+export interface WatchlistCatalyst {
+  verdict: 'catalyst' | 'negative' | 'routine_only' | 'noise_only' | 'none_found' | 'not_checked';
+  category: string | null;
+  strength: 'strong' | 'weak' | null;
+  title: string | null;
+  source: string | null;
+  published_ts: number | null;
+  news_pending: boolean | null;
+}
+
 export interface WatchlistEntry {
   symbol: string;
   composite_score: number;
   sub_scores: WatchlistSubScores;
   five_pillars: FivePillarsResult;
+  /** The scanner row's own market facts; every unknown is null, never a placeholder.
+   * Optional so an older API (or a test fixture) without them still renders. */
+  price?: number | null;
+  /** Fraction against the prior close (0.427 = +42.7%). */
+  change_pct?: number | null;
+  rel_volume?: number | null;
+  rvol_source?: string | null;
+  float_shares?: number | null;
+  /** The scanner's news flag (an article exists), not a catalyst verdict. */
+  has_news?: boolean | null;
+  /** Null when no source has looked yet: unknown, never "no news". */
+  catalyst?: WatchlistCatalyst | null;
 }
 
 export interface WatchlistResponse {

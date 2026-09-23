@@ -690,6 +690,20 @@ adds group `performance` (rows `perf_process_cpu`, `perf_ib_loop`,
 `perf_http_loop`, `perf_stalls`, `perf_queues`, `perf_windows`,
 `perf_handlers`; one `unknown` row while the recorder has no samples).
 
+### Watchlist rows (operator decision 2026-09-23)
+
+`GET /api/strategy/watchlist` entries keep `symbol`, `composite_score`,
+`sub_scores` and `five_pillars`, and add the scanner row's own market facts --
+`price`, `change_pct` (a fraction against the prior close, also past +100%),
+`rel_volume`, `rvol_source`, `float_shares`, `has_news` (the scanner's article
+flag) -- each `null` when unknown, never a placeholder, and `catalyst:
+{verdict, category, strength, title, source, published_ts, news_pending} |
+null`: today's verdict from `catalysts/live.py` (ADR 024), `null` while no
+source has looked (unknown, not "no news"). Asking queues the Alpaca fetch in
+the background (`strategy/watchlist_catalyst.py`); the route never waits on
+the network. The Watchlist table joins the setup board (`/ws/setups`) and the
+bot allowlist by symbol on the client; nothing on the Watchlist places.
+
 ### Input Payload (Raw)
 
 ```json
