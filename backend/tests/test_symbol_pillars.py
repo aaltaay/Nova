@@ -30,7 +30,7 @@ def desk(monkeypatch):
     monkeypatch.setattr(scanner_surface._hod_momo, "is_blocked", lambda s: (s or "").upper() == "BLOK")
     monkeypatch.setattr("catalysts.live.request", lambda symbols: None)
     monkeypatch.setattr("catalysts.live.verdict_for", lambda symbol, now=None: None)
-    monkeypatch.setattr(strategy_routes, "_live_quote", lambda symbol: None)
+    monkeypatch.setattr(strategy_routes, "live_quote", lambda symbol: None)
     snb.reset_for_testing()
     state = get_runtime_state()
     prev = {name: getattr(state, name) for name in BOARDS}
@@ -76,7 +76,7 @@ def test_a_loser_is_graded_from_its_own_row_and_is_not_ranked(desk):
 def test_a_symbol_on_no_board_is_graded_from_its_live_quote(desk, monkeypatch):
     monkeypatch.setitem(_fundamentals_cache, "WHLR", {"average_volume": 300_000.0, "float_shares": 53_650})
     monkeypatch.setattr(
-        strategy_routes, "_live_quote",
+        strategy_routes, "live_quote",
         lambda symbol: {"price": 5.13, "prev_close": 1.87, "volume": 82_900_000} if symbol == "WHLR" else None,
     )
     verdict = {"verdict": "catalyst", "category": "contract", "strength": "strong", "title": "Wins contract",

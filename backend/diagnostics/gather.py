@@ -24,6 +24,7 @@ from constants_diagnostics import (
 )
 from diagnostics import (
     collect,
+    collect_borrow,
     collect_catalysts,
     collect_gateway,
     collect_leaderboard,
@@ -133,6 +134,12 @@ def _catalyst_feed_status() -> dict[str, Any]:
     return {**feed.get_feed().status(), "finnhub": live_finnhub.status()}
 
 
+def _borrow_feed_status() -> dict[str, Any]:
+    from move_reason import borrow_feed
+
+    return borrow_feed.get_feed().status()
+
+
 def _recorder_inputs() -> dict[str, Any]:
     from capture import keepalive as _keepalive
     from capture import mode as _mode
@@ -200,6 +207,8 @@ def gather(*, ui_tag: str | None = None, now: float | None = None) -> dict[str, 
                   lambda: collect_leaderboard.leaderboard_rows(**_leaderboard_inputs()))
     rows += _safe(DIAG_GROUP_RECORDER, "catalyst_feed", "Catalyst feed",
                   lambda: collect_catalysts.catalyst_feed_rows(status=_catalyst_feed_status(), now=ts))
+    rows += _safe(DIAG_GROUP_RECORDER, "borrow_feed", "Borrow feed",
+                  lambda: collect_borrow.borrow_feed_rows(status=_borrow_feed_status(), now=ts))
     rows += _safe(DIAG_GROUP_PRACTICE, "practice", "Practice", lambda: collect.practice_rows(**_practice_inputs()))
     rows += collect.frontend_rows(ui_tag=ui_tag, backend_tag=facts.get("release_tag"))
     rows += _safe(DIAG_GROUP_PERFORMANCE, "perf_recorder", "Performance recorder", lambda: _perf_rows(ts))

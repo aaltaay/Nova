@@ -51,6 +51,8 @@ _EMPTY: dict = {
     "earnings_estimated": None,
     "earnings_next_date": None,
     "recent_split": None,
+    "last_split_factor": None,
+    "last_split_ts": None,
     "average_volume": None,
     "current_volume": None,
 }
@@ -124,6 +126,11 @@ def peek_cached(symbol: str) -> dict | None:
     key = (symbol or "").strip().upper()
     row = _fundamentals_cache.get(key)
     return dict(row) if row else None
+
+
+def fetch_failed(symbol: str) -> bool:
+    """True when the cached row is the placeholder of a failed Yahoo read (every field unknown)."""
+    return _is_negative_cache((symbol or "").strip().upper())
 
 
 def cache_size() -> int:
@@ -211,6 +218,9 @@ def fetch_fundamentals(symbol: str) -> dict:
                 info.get("lastSplitFactor"),
                 info.get("lastSplitDate"),
             ),
+            # Raw, for the "Why it's moving" read (ADR 028): "1:9" is a 1-for-9 reverse split.
+            "last_split_factor": info.get("lastSplitFactor"),
+            "last_split_ts": _yf_epoch(info.get("lastSplitDate")),
             "average_volume": info.get("averageVolume"),
             "current_volume": info.get("volume"),
         }

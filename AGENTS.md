@@ -1005,6 +1005,35 @@ The owner is `backend/sale_conditions.py`; the codes live in `constants_tape.py`
 
 The L1 last every quote reader takes (`ibkr/ticks_handler.py`) is IBKR's Last (tick 4, or 68 delayed). It is never the RTVolume or AllLast price that ib_async also writes into the one `ticker.last` it keeps per contract. A line that has not yet delivered a tick 4 falls back to `ticker.last`.
 
+### Why it's moving (ADR 028, operator ask 2026-09-23)
+
+`GET /api/why/{symbol}` (owner `backend/move_reason/`, read-only, no network wait; rules
+`move_reason/rules.py`, pure, thresholds in `constants_move_reason.py`) answers the Trader tab's
+"Why it's moving" section: `{schema_version: 1, symbol, generated_at, session_date, rules_version,
+likely: {kind: "not_moving" | "news_pending" | "news" | "short_squeeze" | "routine_news" |
+"split_squeeze" | "low_float_momentum" | "thin_trading" | "unexplained", label, detail,
+confidence: "likely" | "possible"}, checks: [{id: "news" | "halts" | "float" | "float_rotation" |
+"reverse_split" | "short_interest" | "borrow" | "volume", label, state: "yes" | "no" | "unknown",
+value: string | null, detail: string | null, source, as_of: number | null}], facts: {price,
+change_pct, volume, rel_volume, float_shares, float_rotation, short_interest, short_pct_float,
+days_to_cover, split: {factor, ts, reverse, days_ago} | null, halts: {news, luld, volatility,
+other, source} | null, borrow: {listed, fee_rate, rebate_rate, available, available_capped,
+as_of, since, open, prior, max_fee_today, min_available_today} | null, catalyst: verdict | null}}`.
+`fee_rate` / `rebate_rate` are IBKR's annual percent; `open` / `prior` are `{listed, fee_rate,
+available, as_of}` at the day's first poll at or after 04:00 ET and the last poll before it (null
+when not recorded); `since` is the first poll the store holds. A symbol IBKR's file does not list is
+`listed: false` (nothing to lend). Every unknown is `null` and its check `unknown`, never guessed;
+`confidence` is `possible` when a deciding input is unknown. Descriptive only: nothing places or
+gates on it.
+
+The borrow feed (`move_reason/borrow_feed.py`, always on; `NOVA_BORROW_FEED=0` off) polls IBKR's
+public short-stock file (`ftp://ftp2.interactivebrokers.com/usa.txt`, USD rows) every
+`MOVE_BORROW_POLL_SEC` into `<cache_dir>/move_reason/borrow.sqlite3` (owner
+`move_reason/borrow_store.py`; `PRAGMA user_version = 1`, unknown versions refuse): `polls (ts,
+file_ts, rows)` and `changes (symbol, ts, listed, fee_rate, rebate_rate, available, capped)` -- a
+row only when a symbol's listing, fee or availability changed, pruned after
+`MOVE_BORROW_RETENTION_DAYS`. `/api/diagnostics` adds the `borrow_feed` row (group `recorder`).
+
 ### Symbol directory for the header search (operator ask, 2026-09-23)
 
 `GET /api/symbols/directory` (owner `backend/symbol_directory.py`, read-only)
@@ -1285,6 +1314,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-23 | Why it's moving (ADR 028, operator ask: "I want to know why from the user interface ... especially if it's squeezing and without news"; "run that through data and analytics where we don't need to consume tokens"): `GET /api/why/{symbol}` and a section at the top of the Trader tab's News panel give a rules read -- company news, halts, float and its turnover, a recent reverse split, short interest and IBKR's borrow market -- each check yes / no / unknown with its source, and a likely cause (news, short squeeze, supply squeeze after a split, low-float momentum, routine item, thin trading, nothing found) that says `possible` when a deciding fact is unknown. No model, no tokens. The borrow market is new data: IBKR's public short-stock file, polled every 15 minutes into `borrow.sqlite3` (changes only) so a restart keeps the day's fee and availability history. On 2026-09-23's gainers it named MSS and WHLR squeezes, VSA / IPDN / ONCO low-float momentum on tight borrow, and ARTL a routine item on a low float -- matching the hand audit. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | The open desk re-checks for updates (operator ask: "Should Nova also check for updates every few hours while it's open, still asking before it restarts?" -- "go"): a desk left running all day checked only at launch and missed every release until it was reopened. It now re-checks every two hours while open, never 07:00-16:00 ET on a weekday -- a 150 MB download mid-trade shares the lossy link with the market data, and the restart prompt takes keyboard focus from the hotkeys; an update found as trading starts is offered after 16:00. Installing is still only the operator's Restart to update. Same day, on the desk: v962's one-shot download failed 3 of 3 on the lossy link, and v964's resumable one fetched v965 through a dropped chunk in 11 s, then installed and reopened in 26 s. §8 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Who may arm the desk (ADR 018 amendment, operator decision: "I want the bot to be able to unlock [Paper / Sim] themselves through an endpoint, but I don't want the live trade to ever get unlocked without my permission"): one door (`POST /api/ibkr/arm`) and one rule (`ibkr/safety.arm`) -- Live arms only with the operator's PIN, now checked by the backend against a PBKDF2 hash in `.env` (`tools/set_live_arm_pin.py`), with a lockout after wrong PINs; Paper and Sim arm with no PIN, from the padlock in one click or a bot. The PIN had been a constant in the public frontend source, compared in the browser, while the endpoint armed Live for any local caller. The latch is stamped with its venue, so a practice arm never reads as a Live arm. The frontend's per-tab unlock flag and its cross-window sync are gone: every window reads the backend latch. Also from the same after-hours test run: a running recording is never finalized by another process's startup, tests never resolve the F: archives, Vite's dependency cache moved out of the shared `node_modules`, and Flatten on a flat practice position says it is not a close. §3 and §5 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Movers get the news that moved them (operator report: "most stocks don't have news, and they are moving"). Audit of the day's boards: 24 of 28 checked movers had no release or filing at all, so an empty News column is often the truth; the desk's own misses were a backend still running code from before the verdict reached the rows, a Windows Update restart that cost the wire feed the whole premarket, Benzinga "what's going on" pieces whose summaries named the cause (BENF, ARTL, BFRG) filed as movers lists, and screens / plural lists / cover-page addresses mislabelled. Rules v6 reads a one-ticker rewrite's stated cause; Finnhub company news joins the live verdict (`catalysts/live_finnhub.py`: answers for the window after the fact, carries Yahoo copies of GlobeNewswire / PR Newswire / ACCESS / Business Wire releases; its Benzinga copies are dropped for their four-hours-early clock, #516, in research too). Honest clocks move the research's leaderboard coverage (none found 23% -> 40%) but not the first-pullback split. §3 amended. | User Directive + Claude Opus 5.5 |

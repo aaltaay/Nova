@@ -21,6 +21,10 @@ const catalystPanel = vi.hoisted(() => ({
   current: { panel: null, loading: false, unavailable: true, error: null } as CatalystPanelState,
 }));
 vi.mock('../hooks/useCatalystPanel', () => ({ useCatalystPanel: () => catalystPanel.current }));
+// Why it's moving (ADR 028) has its own tests (WhyMovingSection.test.tsx); here it is an older API's absence.
+vi.mock('../hooks/useWhyMoving', () => ({
+  useWhyMoving: () => ({ read: null, loading: false, unavailable: true, error: null }),
+}));
 
 vi.mock('../ibkr/useIbkrStatus', () => ({
   useIbkrStatus: () => ({
