@@ -55,6 +55,15 @@ def test_active_tables_orders_by_client_demand():
     assert registry.get_dominant_tab() == "gainers"
 
 
+def test_equal_demand_keeps_the_clients_own_order():
+    # One desk: the Trader's Focus rail (Large Cap) is declared first, the
+    # Scanner tab it left behind (Gappers) second. Name order would put
+    # Gappers first and let it take the active-tab budget.
+    ws = FakeWS()
+    registry.set_tabs(ws, ["large_cap", "gappers"])
+    assert registry.get_active_tables() == ["large_cap", "gappers"]
+
+
 def test_clear_removes_the_client_hint():
     ws = FakeWS()
     registry.set_tabs(ws, ["gainers"])

@@ -31,6 +31,13 @@ export type LiveScannerFeed = ReturnType<typeof useScannerData> & {
   l1DockTab: ActiveTab | null;
   setL1DockTab: (tab: ActiveTab | null) => void;
   /**
+   * List the Trader's Focus rail mirrors while it is on screen, or null. It
+   * leads the declared set: the Scanner tab left behind is not on screen, and
+   * without this the rail's rows (Large Cap) got no L1 price patches at all.
+   */
+  l1FocusTab: ActiveTab | null;
+  setL1FocusTab: (tab: ActiveTab | null) => void;
+  /**
    * Sim off the live edge (ADR 023): the five tables are the leaderboard at
    * the playhead, and this says which minute, from which source, or why there
    * is no board. Null / absent on Live, Paper and at the live edge.
@@ -46,6 +53,7 @@ export function ScannerDataProvider({ children }: { children: ReactNode }) {
   const { scannerPersistentAuthoritative } = useWorkspace();
   const [l1ActiveTab, setL1ActiveTabState] = useState<ActiveTab>(DEFAULT_ACTIVE_TAB);
   const [l1DockTab, setL1DockTabState] = useState<ActiveTab | null>(null);
+  const [l1FocusTab, setL1FocusTabState] = useState<ActiveTab | null>(null);
   const setL1ActiveTab = useCallback((tab: ActiveTab) => {
     // Volume boost is derived from day-volume already on the watch. Declaring
     // it as the active table sends set_active_tab=[] and drops scanner L1.
@@ -55,9 +63,12 @@ export function ScannerDataProvider({ children }: { children: ReactNode }) {
   const setL1DockTab = useCallback((tab: ActiveTab | null) => {
     setL1DockTabState(tab);
   }, []);
+  const setL1FocusTab = useCallback((tab: ActiveTab | null) => {
+    setL1FocusTabState(tab && declaresScannerL1(tab) ? tab : null);
+  }, []);
   const activeTabs = useMemo(
-    () => (l1DockTab && l1DockTab !== l1ActiveTab ? [l1ActiveTab, l1DockTab] : [l1ActiveTab]),
-    [l1ActiveTab, l1DockTab],
+    () => [...new Set([l1FocusTab, l1ActiveTab, l1DockTab].filter((t): t is ActiveTab => t != null))],
+    [l1FocusTab, l1ActiveTab, l1DockTab],
   );
   const scanner = useScannerData({
     discoveryProvider: settings.discoveryProvider,
@@ -69,8 +80,10 @@ export function ScannerDataProvider({ children }: { children: ReactNode }) {
   // One desk, one clock: off the Sim live edge the board follows the playhead.
   const replay = useLeaderboardPlayback();
   const value = useMemo<LiveScannerFeed>(
-    () => withScannerReplay({ ...scanner, l1ActiveTab, setL1ActiveTab, l1DockTab, setL1DockTab }, replay),
-    [scanner, replay, l1ActiveTab, setL1ActiveTab, l1DockTab, setL1DockTab],
+    () => withScannerReplay({
+      ...scanner, l1ActiveTab, setL1ActiveTab, l1DockTab, setL1DockTab, l1FocusTab, setL1FocusTab,
+    }, replay),
+    [scanner, replay, l1ActiveTab, setL1ActiveTab, l1DockTab, setL1DockTab, l1FocusTab, setL1FocusTab],
   );
   return (
     <ScannerDataContext.Provider value={value}>{children}</ScannerDataContext.Provider>
@@ -135,6 +148,8 @@ export function makeLiveScannerFeedStub(
     setL1ActiveTab: () => {},
     l1DockTab: null,
     setL1DockTab: () => {},
+    l1FocusTab: null,
+    setL1FocusTab: () => {},
     replay: null,
     ...overrides,
   };

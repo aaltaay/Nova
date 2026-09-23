@@ -58,16 +58,21 @@ def clear(websocket: WebSocket) -> None:
 def get_active_tables() -> list[str]:
     """Union of displayed tables across clients, most-demanded first.
 
-    Order is deterministic (count desc, then name) so the L1 planner fills its
-    active-tab budget from the table the most desks are actually watching.
+    Order is deterministic (count desc, then the earliest place any client
+    declared it, then name) so the L1 planner fills its active-tab budget from
+    the table the most desks are actually watching. A client lists the table
+    it has on screen first, so with one desk its own order wins -- the Trader's
+    Focus rail is not starved by the Scanner tab it left behind.
     """
     counts: dict[str, int] = {}
+    first: dict[str, int] = {}
     for tabs in _client_tabs.values():
-        for tab in tabs:
+        for index, tab in enumerate(tabs):
             counts[tab] = counts.get(tab, 0) + 1
+            first[tab] = min(first.get(tab, index), index)
     if not counts:
         return []
-    return [tab for tab, _ in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
+    return sorted(counts, key=lambda tab: (-counts[tab], first[tab], tab))
 
 
 def get_dominant_tab() -> str:

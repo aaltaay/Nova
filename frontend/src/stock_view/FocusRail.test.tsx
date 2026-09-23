@@ -190,6 +190,24 @@ describe('FocusRail', () => {
     localStorage.setItem(FOCUS_RAIL_STORAGE_KEY, JSON.stringify({ v: 0, collapsed: true, list: 'losers' }));
     expect(readFocusRailState().list).toBe('gappers');
   });
+
+  it('declares its list for live prices only while its rows are on screen', async () => {
+    const setL1FocusTab = vi.fn();
+    mocks.feed = makeLiveScannerFeedStub({ setL1FocusTab });
+    const view = render(<FocusRail />);
+    fireEvent.change(screen.getByTestId('focus-rail-pick'), { target: { value: 'large_cap' } });
+    expect(setL1FocusTab).toHaveBeenLastCalledWith('large_cap');
+    view.rerender(<FocusRail active={false} />);
+    expect(setL1FocusTab).toHaveBeenLastCalledWith(null);
+    view.rerender(<FocusRail active />);
+    expect(setL1FocusTab).toHaveBeenLastCalledWith('large_cap');
+    await act(async () => { fireEvent.click(screen.getByTestId('focus-rail-collapse')); });
+    expect(setL1FocusTab).toHaveBeenLastCalledWith(null);
+    await act(async () => { fireEvent.click(screen.getByTestId('focus-rail-expand')); });
+    expect(setL1FocusTab).toHaveBeenLastCalledWith('large_cap');
+    view.unmount();
+    expect(setL1FocusTab).toHaveBeenLastCalledWith(null);
+  });
 });
 
 describe('focusRowsFor / stepCursor', () => {
