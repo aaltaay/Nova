@@ -704,6 +704,37 @@ the background (`strategy/watchlist_catalyst.py`); the route never waits on
 the network. The Watchlist table joins the setup board (`/ws/setups`) and the
 bot allowlist by symbol on the client; nothing on the Watchlist places.
 
+### Bot playbook and the read-out gate (ADR 027, operator decision 2026-09-23)
+
+The bot packs (halt-luld, quote-spike, volume, llm-decide), `POST
+/api/bot/llm/spend` and the `nova-brain` sidecar are retired. The bot session
+file is `schema_version: 4`; a v1-3 file loads with `active_pack`,
+`pack_settings` and `llm` stripped. `GET /api/bot/session` drops those keys
+and adds `setup` (the setup that plays: `first_pullback`), `setups: [{id,
+scanner: boolean}]` (`first_pullback`, `gap_and_go`, `flat_top_breakout`,
+`red_to_green`, `micro_pullback`; only a setup with a scanner can be chosen --
+`PATCH {setup}` otherwise `400 BOT_SETUP_NO_SCANNER`), `readout` and `gates`.
+
+`readout` (owner `setup_scanner/readout.py`, cached 30 s) is `{state:
+"collecting" | "passed" | "not_passed" | "failed" | "unavailable", passed,
+reason, go: {triggered, scored, win_pct, avg_net_r}, control: {...}, rules:
+{kind, min_go, fail_go, min_net_r}}` over every `setups.db` row of kind
+`first_pullback` that triggered: `go` are those whose tape was go at the
+trigger, `control` those blind or wait (pooled). It passes when at least 50 go
+setups triggered and their average net R is above +0.2 and above the
+control's; it is judged on the first 100 go setups, and 100 without a pass is
+`failed`. A closed store is `unavailable`. While it has not passed, raising to
+Strategy lands not active, `POST /api/bot/session/arm` at Strategy and every
+`POST /api/bot/action` are refused `409 BOT_READOUT_NOT_PASSED`, and
+`live_fire_ready` is false. At Strategy a `buy_*` kind is also refused outside
+07:00-10:00 ET on the venue's clock (`409 BOT_OUTSIDE_WINDOW`) and after one
+bot entry that venue day (`409 BOT_DAY_TRADE_CAP`; entry audit rows carry
+`inputs.venue_day`); exits and cancels are never held by either. Proposals
+are accepted at Eyes and Strategy. `gates: [{id, ok, stage: "activate" |
+"fire", detail}]` (owner `bot/gates.py`) are `level`, `allowlist`,
+`desk_armed`, `depth_lines`, `readout`, `bot_trip`, `day_lock`,
+`kill_switch`, `window`.
+
 ### Input Payload (Raw)
 
 ```json
@@ -1197,6 +1228,8 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-23 | The bot plays the operator's setups (ADR 027, operator decision: "no, I don't think we need the old packs -- remove"; "keep the Strategy L2 + all setups from my material"; approved Bots mockup v4): the halt-luld / quote-spike / volume / llm-decide packs, `POST /api/bot/llm/spend` and the `nova-brain` sidecar (Electron, `Run Nova.bat`, `Start-NovaBrain.ps1`) are removed; the session (schema 4) carries `setup`, `setups`, `readout` and `gates`. Strategy waits on the pre-registered first-pullback read-out (`setup_scanner/readout.py`, Bot-Trading-Plan §2g): raising to Strategy lands not active, Activate at Strategy and every L2 fire are refused `BOT_READOUT_NOT_PASSED` until 50 triggered go setups beat +0.2R net and blind / wait; L2 entries keep the material's 07:00-10:00 ET window and one trade a day. The Bots page is rebuilt (hero with level, gates and Activate; the playbook with first pullback's rules, tape gate and read-out; symbols with Level 2; sleeve and breakers; one proposals inbox; the activity timeline; today and the scoreboard) and the header's second bot row is gone. §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-09-23 | Watchlist redesign (approved mockup v2): rows add the scanner row's market facts (`price`, `change_pct`, `rel_volume`, `rvol_source`, `float_shares`, `has_news`) and today's catalyst verdict (`strategy/watchlist_catalyst.py`, ADR 024); the table shows pillar letters with n/5, Last, % Chg, RVOL, Float, News, a score bar, the setup state from `/ws/setups` and the bot allowlist dot, with filter chips and a summary line; the side panel lists the pillars with reasons, the setup block and the allowlist toggle. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Why the Gateway needed a phone login (#14): a Windows Update restart at 02:29 ET ended the Gateway's saved login and Windows waited at the sign-in screen until 09:22, so no morning task ran and nothing said why. `ibkr/relogin_reason.py` + `ibkr/windows_restarts.py` name the cause (a restart and who asked, or a fresh start) in `/api/diagnostics`, the morning scripts' logs and alerts, and `tools/premarket_verify.py relogin`; `tools/premarket_verify.py` reads #14's two criteria; Nova's IBC launchers set `DAYOFWEEK` so IBC keeps a week of logs on Windows 11. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Prints that set a price (operator report: PLTR's 10-second chart grew wicks Webull does not show): the wicks were FINRA `4 W` (derivatively priced, average price) and odd-lot prints $2-3 under the market, reported for volume and painted by Nova as prices. One pure rule (`backend/sale_conditions.py`: IBKR's `unreported` flag plus the non-price sale-condition codes) now feeds every candle built from prints -- the client 10Sec bar, `ibkr/tape_10sec`, the archive 1m builder, the recorder's bar buckets, capture replay -- and the tape print payload carries `unreported` / `sets_price`. The L1 last is IBKR's tick 4 Last, not the `ticker.last` that ib_async overwrites from RTVolume and every AllLast print. Tape-built bars now match IBKR's own 10-second TRADES bars (worst miss $8.50 -> $0.18 on AAPL; volume ratio 1.00). §3 and ADR 012 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Performance recorder (ADR 026, operator ask: "measure the laginess ... figure out what the bottlenecks are"): `backend/perf/` records, every second, each loop's CPU share and worst callback delay, the process CPU (one GIL for every thread), busy time per hot handler (`op_metrics` gains a running total), queue depths and drops (the depth / tape viewer queues' silent drop-oldest now counts) and GC pauses; a watchdog samples a stalled loop's stack until it recovers and keeps the report with 30 s either side. Every desk window and the Electron main process post a 5 s report (frame pacing, long animation frames with the script named, socket rates, render counts, per-process CPU). Kept 7 days under `<cache_dir>/perf/`, written by one writer thread, never from a loop; `/api/perf/*`, a Performance group in `/api/diagnostics`, and `tools/perf_report.py` read it. Its first live run caught `second_factor.current_state()` starting PowerShell (~250 ms) on the HTTP loop on every `/api/ibkr/status` poll; the IBC log now decides first and the process is checked only while a 2FA prompt is open. Code-read suspects stay unfixed until a recorded open ranks them. §3 amended. | User Directive + Claude Opus 5.5 |

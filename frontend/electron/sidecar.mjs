@@ -17,7 +17,6 @@ import {
 } from './envMerge.mjs';
 import { SIDECAR_PORT_FREE_TIMEOUT_MS, waitForPortFree } from './portWait.mjs';
 import { createSerialQueue } from './serialQueue.mjs';
-import { startBrainSidecar, stopBrainSidecar } from './brainSidecar.mjs';
 import { skipApiSidecar } from './sidecarSkip.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -235,7 +234,6 @@ async function startApiSidecarUnlocked() {
       '[nova-api] NOVA_SKIP_API_SIDECAR=1 -- attach only, will not spawn or recycle',
       API_BASE,
     );
-    startBrainSidecar(sidecarEnv());
     return;
   }
 
@@ -243,7 +241,6 @@ async function startApiSidecarUnlocked() {
   try {
     await waitForHealth(2_500);
     console.log('[nova-api] reusing existing healthy API at', API_BASE);
-    startBrainSidecar(sidecarEnv());
     return;
   } catch {
     // nothing listening -- start our own
@@ -272,11 +269,9 @@ async function startApiSidecarUnlocked() {
   apiChild.on('error', (err) => {
     console.error('[nova-api] spawn error', err);
   });
-  startBrainSidecar(env);
 }
 
 function stopApiSidecarUnlocked() {
-  stopBrainSidecar();
   if (!apiChild) return;
   const child = apiChild;
   apiChild = null;
@@ -326,10 +321,7 @@ export function stopApiSidecar() {
 export function stopApiSidecarForUpdate(timeoutMs = SIDECAR_PORT_FREE_TIMEOUT_MS) {
   return sidecarQueue.enqueue(async () => {
     const child = apiChild;
-    if (!child) {
-      stopBrainSidecar();
-      return true;
-    }
+    if (!child) return true;
     let timer = null;
     const exited = new Promise((resolve) => {
       if (child.exitCode !== null || child.signalCode !== null) resolve(true);

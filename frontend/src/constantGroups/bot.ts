@@ -28,7 +28,6 @@ export const BOT_HARD_BREAKER_USD = -200;
 
 export const BOT_AUTONOMY_LABEL = 'Bot Autonomy';
 export const BOT_LEVEL_FIELD_LABEL = 'Level';
-export const BOT_PACK_FIELD_LABEL = 'Pack';
 export const BOT_LEVEL_LABELS = {
   0: 'Off',
   1: 'Eyes',
@@ -50,74 +49,106 @@ export const BOT_ERROR_NEED_API_KEY =
 export const BOT_ERROR_ARM_REQUIRED = 'Activate first, then choose Strategy';
 export const BOT_ERROR_NOT_ACTIVE = 'Not active -- Activate before live fire';
 
-export const BOT_PACK_HALT_LULD = 'halt-luld';
-export const BOT_PACK_QUOTE_SPIKE = 'quote-spike';
-export const BOT_PACK_VOLUME = 'volume';
-export const BOT_PACK_LLM_DECIDE = 'llm-decide';
-export const BOT_PACKS = [
-  BOT_PACK_HALT_LULD,
-  BOT_PACK_QUOTE_SPIKE,
-  BOT_PACK_VOLUME,
-  BOT_PACK_LLM_DECIDE,
+/* ---------- The playbook (ADR 027): the operator's setups ---------- */
+/** Mirrors backend/constants_bot.py BOT_SETUPS; only a setup with a scanner can play. */
+export const BOT_SETUP_FIRST_PULLBACK = 'first_pullback';
+export const BOT_SETUP_IDS = [
+  'first_pullback',
+  'gap_and_go',
+  'flat_top_breakout',
+  'red_to_green',
+  'micro_pullback',
 ] as const;
-export type BotPackId = (typeof BOT_PACKS)[number];
+export type BotSetupId = (typeof BOT_SETUP_IDS)[number];
+export const BOT_SETUP_FIELD_LABEL = 'Setup';
 
-export const BOT_PACK_LABELS: Record<BotPackId, string> = {
-  'halt-luld': 'Halt / LULD resume',
-  'quote-spike': 'Quote spike',
-  volume: 'Volume boost',
-  'llm-decide': 'LLM decide',
+export const BOT_SETUP_LABELS: Record<string, string> = {
+  first_pullback: 'First pullback',
+  gap_and_go: 'Gap and Go',
+  flat_top_breakout: 'Flat-top breakout',
+  red_to_green: 'Red to green',
+  micro_pullback: 'Micro pullback',
 };
 
-export const BOT_PACK_STUBS: readonly BotPackId[] = [];
-
-export const BOT_QUOTE_SPIKE_MIN_PCT = 3;
-export const BOT_QUOTE_SPIKE_WINDOW_SEC = 5;
-export const BOT_QUOTE_SPIKE_COOLDOWN_SEC = 30;
-export const BOT_VOLUME_MIN_MULT = 5;
-export const BOT_VOLUME_WINDOW_SEC = 60;
-export const BOT_VOLUME_BASELINE_SEC = 600;
-export const BOT_VOLUME_COOLDOWN_SEC = 60;
-
-export const BOT_PACK_DESCRIPTIONS: Record<BotPackId, string> = {
-  'halt-luld':
-    'When an allowlisted live-focus symbol resumes from halt or LULD, Eyes proposes and L2 plus Activate fires buy_market (or the configured kind) once, then waits the cooldown.',
-  'quote-spike':
-    `When an allowlisted live-focus last (or bid/ask mid when both sides exist) rises ${BOT_QUOTE_SPIKE_MIN_PCT}% within ${BOT_QUOTE_SPIKE_WINDOW_SEC}s on the shared L1/quote stream, Eyes proposes and L2 plus Activate fires buy_market (or spike_kind) once, then waits the cooldown. No new reqMktData.`,
-  volume:
-    `When an allowlisted live-focus day-volume rate over the last ${BOT_VOLUME_WINDOW_SEC}s is ${BOT_VOLUME_MIN_MULT}x the prior ${BOT_VOLUME_BASELINE_SEC}s baseline on the shared L1/quote stream, Eyes proposes and L2 plus Activate fires buy_market (or volume_kind) once, then waits the cooldown. Thin history fails closed. No new reqMktData.`,
-  'llm-decide':
-    'OpenRouter posts fixed-schema decisions from the Sensor Board snapshot for allowlisted live-focus names and live-fires those kinds only when L2 + Activate are on. Idle if OPENROUTER_API_KEY (or NOVA_LLM_API_KEY) is missing.',
+/** One line on what each setup trades. */
+export const BOT_SETUP_BLURBS: Record<string, string> = {
+  first_pullback: 'The first 1-3 candle dip after a 5%+ leg to a new high, bought over the pullback high.',
+  gap_and_go: 'Buy the break of the pre-market high on a gapper at the open.',
+  flat_top_breakout: '2-6 tight candles just under the high of day, then the break.',
+  red_to_green: 'Trades below the open, then back through it -- buy the reclaim.',
+  micro_pullback: 'A 1-2 candle dip inside a fast move, read on seconds.',
 };
 
-export function packDescription(id: string): string {
-  return BOT_PACK_DESCRIPTIONS[id as BotPackId] || '';
-}
+/** What the research said about each setup on bars alone (Bot-Trading-Plan). */
+export const BOT_SETUP_RESEARCH: Record<string, { verdict: 'failed' | 'not_tested' | 'testing'; text: string }> = {
+  first_pullback: { verdict: 'failed', text: 'Bars alone (P1): -0.30R. Live with the tape gate: the read-out decides.' },
+  gap_and_go: { verdict: 'failed', text: 'Bars alone: failed -- dies on a few cents of slippage (A2).' },
+  flat_top_breakout: { verdict: 'failed', text: 'Bars alone: failed, -0.83R on 63 trades (P2).' },
+  red_to_green: { verdict: 'failed', text: 'Bars alone: failed, -0.22R on 398 trades (P3).' },
+  micro_pullback: { verdict: 'not_tested', text: 'Not tested -- planned on one-second bars (S5).' },
+};
 
-export function packStatus(id: string): 'live' | 'stub' {
-  return (BOT_PACK_STUBS as readonly string[]).includes(id) ? 'stub' : 'live';
-}
+export const BOT_SETUP_NEXT: Record<string, string> = {
+  gap_and_go: 'No scanner yet · next: a pre-market-high detector + the same tape gate',
+  flat_top_breakout: 'No scanner yet · could reuse the first-pullback detector',
+  red_to_green: 'No scanner yet',
+  micro_pullback: 'No scanner yet',
+};
 
-export function quoteSpikeSettingsLine(
-  settings: Record<string, unknown> | undefined,
-): string {
-  const minPct = Number(settings?.min_pct ?? BOT_QUOTE_SPIKE_MIN_PCT);
-  const windowSec = Number(settings?.window_sec ?? BOT_QUOTE_SPIKE_WINDOW_SEC);
-  const kind = String(settings?.spike_kind || 'buy_market');
-  const cool = Number(settings?.cooldown_sec ?? BOT_QUOTE_SPIKE_COOLDOWN_SEC);
-  return `Signal: last or bid/ask mid up ${minPct}% in ${windowSec}s, fire ${kind} once, cooldown ${cool}s.`;
-}
+/** The chosen setup's rules card (first pullback, Bot-Trading-Plan §3). */
+export const BOT_FIRST_PULLBACK_RULES: ReadonlyArray<readonly [string, string]> = [
+  ['Stock', 'Leading gainer · Five Pillars · $3-10 · float < 10M'],
+  ['Setup', 'Leg >= 5% to a new high · 1-3 red candles hold the 9 EMA and half the leg'],
+  ['Entry', "Over the last pullback candle's high (+1c) -- only when the tape says GO"],
+  ['Trade', '07:00-10:00 · one a day · fixed size · 20c target · 20c max loss'],
+];
 
-export function volumeSettingsLine(
-  settings: Record<string, unknown> | undefined,
-): string {
-  const minMult = Number(settings?.min_mult ?? BOT_VOLUME_MIN_MULT);
-  const windowSec = Number(settings?.window_sec ?? BOT_VOLUME_WINDOW_SEC);
-  const baselineSec = Number(settings?.baseline_sec ?? BOT_VOLUME_BASELINE_SEC);
-  const kind = String(settings?.volume_kind || 'buy_market');
-  const cool = Number(settings?.cooldown_sec ?? BOT_VOLUME_COOLDOWN_SEC);
-  return `Signal: last-${windowSec}s day-volume rate >= ${minMult}x the prior ${baselineSec}s baseline, fire ${kind} once, cooldown ${cool}s.`;
-}
+export const BOT_TAPE_GATE_LINES: ReadonlyArray<readonly [string, string]> = [
+  ['go', 'green prints, nothing holding the level'],
+  ['wait', '25k+ seller not thinning'],
+  ['veto', 'wide spread / 100k+ seller'],
+  ['blind', 'no Level 2'],
+];
+
+export const BOT_ADD_SETUP_TITLE = 'Add a setup from your catalogue';
+export const BOT_ADD_SETUP_HINT =
+  'The full list is on your desk PC (F:). Each one lands here with its rules, a backtest and a scanner.';
+export const BOT_STRATEGIES_TITLE = 'Strategies from your Warrior Trading material';
+export const BOT_STRATEGIES_SUB = 'one setup plays at a time';
+export const BOT_CHOSEN_BADGE = 'Chosen';
+export const BOT_NO_SCANNER_TITLE = 'No scanner yet -- it cannot play until it has one and its read-out passes';
+
+/* ---------- The Bots page hero (ADR 027) ---------- */
+export const BOT_LEVEL_BLURBS = {
+  0: 'Dark -- no watching, no proposals',
+  1: 'Watches your setups and proposes -- you place',
+  2: 'Places your setups on its own, under every gate below',
+} as const;
+
+/** Gate ids from backend/bot/gates.py, in the order the page lists them. */
+export const BOT_GATE_LABELS: Record<string, string> = {
+  level: 'Level',
+  allowlist: 'Allowlist',
+  desk_armed: 'Desk armed',
+  depth_lines: 'Depth lines',
+  readout: 'Read-out',
+  bot_trip: 'Bot trip clear',
+  day_lock: 'No day lock',
+  kill_switch: 'Kill switch off',
+  window: 'Window',
+};
+
+export const BOT_READOUT_TITLE = 'Read-out to unlock Strategy';
+export const BOT_READOUT_STATE_LABELS: Record<string, string> = {
+  collecting: 'Collecting',
+  passed: 'Passed',
+  not_passed: 'Not passed yet',
+  failed: 'Failed',
+  unavailable: 'Scoreboard not open',
+};
+export const BOT_READOUT_RULE =
+  'Needs 50 go setups triggered, average net R above +0.2 and above blind / wait. Judged on the first 100.';
+export const BOT_ERROR_READOUT = 'Strategy waits on the first-pullback read-out';
 
 export const BOT_IN_CONTROL_LABEL = 'Bot is in control';
 

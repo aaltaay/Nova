@@ -46,8 +46,8 @@ read is healthy. Empty / missing feed is still HTTP 200 with a loud
 `error` string -- fail loud, not a fake zero.
 
 Catalog: `GET /sensors`. Board snapshot: `GET /sensors/snapshot?symbol=`.
-Brain write: `POST /sensors/memory`. The `nova-brain` `llm-decide` pack
-reads the snapshot as compact prompt context (see [nova-brain.md](nova-brain.md)).
+Brain write: `POST /sensors/memory`. Any brain of your own may read the
+snapshot as context (the `nova-brain` worker was retired by ADR 027).
 Sensors stay read-only. They still never Place.
 
 Existing Advice feature docs: [advise-rail.md](advise-rail.md).

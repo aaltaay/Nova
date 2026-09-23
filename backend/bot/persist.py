@@ -13,7 +13,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-from bot.packs import default_pack_settings, merge_pack_settings
 from constants_bot import (
     BOT_ACTION_KINDS,
     BOT_ADVISE_DEFAULT_CALL_CAP,
@@ -24,13 +23,12 @@ from constants_bot import (
     BOT_DEFAULT_WORKING_TTL_SEC,
     BOT_LEVEL_OFF,
     BOT_LEVEL_UNRESTRICTED,
-    BOT_LLM_DEFAULT_CALL_CAP,
-    BOT_LLM_DEFAULT_USD_CAP,
-    BOT_PACK_DEFAULT,
     BOT_PROPOSALS_FILENAME,
+    BOT_RETIRED_SESSION_KEYS,
     BOT_SCHEMA_VERSION,
     BOT_SCHEMA_VERSIONS,
     BOT_SESSION_FILENAME,
+    BOT_SETUP_DEFAULT,
 )
 from paths import cache_dir
 
@@ -63,9 +61,8 @@ def default_session() -> dict[str, Any]:
         "desk_arm_token": None,
         "claim_arm_token": None,
         "brain_heartbeat_ts": None,
-        "active_pack": BOT_PACK_DEFAULT,
+        "setup": BOT_SETUP_DEFAULT,
         "symbol_allowlist": [],
-        "pack_settings": default_pack_settings(),
         "caps": {
             "max_shares": BOT_DEFAULT_MAX_SHARES,
             "bp_budget_usd": BOT_DEFAULT_BP_BUDGET_USD,
@@ -77,12 +74,6 @@ def default_session() -> dict[str, Any]:
             "enabled": False,
             "usd_cap": BOT_ADVISE_DEFAULT_USD_CAP,
             "call_cap": BOT_ADVISE_DEFAULT_CALL_CAP,
-            "usd_spent": 0.0,
-            "calls_used": 0,
-        },
-        "llm": {
-            "call_cap": BOT_LLM_DEFAULT_CALL_CAP,
-            "usd_cap": BOT_LLM_DEFAULT_USD_CAP,
             "usd_spent": 0.0,
             "calls_used": 0,
         },
@@ -149,8 +140,8 @@ def load_session() -> dict[str, Any]:
         merged.update(raw)
         merged["caps"] = {**default_session()["caps"], **(raw.get("caps") or {})}
         merged["advise"] = {**default_session()["advise"], **(raw.get("advise") or {})}
-        merged["llm"] = {**default_session()["llm"], **(raw.get("llm") or {})}
-        merged["pack_settings"] = merge_pack_settings(raw.get("pack_settings"))
+        for key in BOT_RETIRED_SESSION_KEYS:  # ADR 027: the packs are gone (schema 4)
+            merged.pop(key, None)
         _refuse_parked_level(merged)
         _session = merged
         return _session

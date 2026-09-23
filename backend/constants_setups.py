@@ -90,6 +90,21 @@ SETUP_STATES = (
 SETUP_KIND_FIRST_PULLBACK = "first_pullback"
 SETUP_KIND_SECOND_PULLBACK = "second_pullback"
 
+# -- The pre-registered read-out (Bot-Trading-Plan §2g, ADR 027): read once
+# READOUT_MIN_GO triggered first-pullback setups had the tape at go at the
+# trigger; they pass when their average net R is above READOUT_MIN_NET_R and
+# above the blind / wait average. No pass by READOUT_FAIL_GO -> failed.
+SETUPS_READOUT_KIND = SETUP_KIND_FIRST_PULLBACK
+SETUPS_READOUT_MIN_GO = 50
+SETUPS_READOUT_FAIL_GO = 100
+SETUPS_READOUT_MIN_NET_R = 0.2
+SETUPS_READOUT_CACHE_SEC = 30.0
+SETUPS_READOUT_COLLECTING = "collecting"
+SETUPS_READOUT_PASSED = "passed"
+SETUPS_READOUT_NOT_PASSED = "not_passed"
+SETUPS_READOUT_FAILED = "failed"
+SETUPS_READOUT_UNAVAILABLE = "unavailable"
+
 # -- Scoreboard outcomes.
 SETUP_OUTCOME_TARGET_FIRST = "target_first"
 SETUP_OUTCOME_STOP_FIRST = "stop_first"

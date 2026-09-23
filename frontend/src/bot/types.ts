@@ -1,21 +1,31 @@
-import type { BotActionKind, BotPackId } from '../constantGroups/bot';
+import type { BotActionKind } from '../constantGroups/bot';
 
-export type BotPackStatus = 'live' | 'stub';
+/** One setup of the operator's playbook (ADR 027); only one with a scanner can play. */
+export type BotSetupInfo = { id: string; scanner: boolean };
 
-export type BotPackInfo = {
-  id: BotPackId | string;
-  label: string;
-  status: BotPackStatus | string;
-  description?: string;
+export type BotReadoutBlock = {
+  triggered: number;
+  scored: number;
+  win_pct: number | null;
+  avg_net_r: number | null;
 };
 
-export type BotLlmSpend = {
-  configured: boolean;
-  live_fire: boolean;
-  call_cap: number;
-  usd_cap: number;
-  usd_spent: number;
-  calls_used: number;
+/** The first-pullback read-out that unlocks Strategy (backend setup_scanner/readout.py). */
+export type BotReadout = {
+  state: 'collecting' | 'passed' | 'not_passed' | 'failed' | 'unavailable' | string;
+  passed: boolean;
+  reason: string;
+  go: BotReadoutBlock;
+  control: BotReadoutBlock;
+  rules: { kind?: string; min_go: number; fail_go?: number; min_net_r?: number };
+};
+
+/** One gate between the bot and a fire (backend bot/gates.py). */
+export type BotGate = {
+  id: string;
+  ok: boolean;
+  stage: 'activate' | 'fire' | string;
+  detail: Record<string, unknown>;
 };
 
 export type BotSession = {
@@ -23,10 +33,12 @@ export type BotSession = {
   armed: boolean;
   has_desk_arm?: boolean;
   strategy: string | null;
-  active_pack?: BotPackId | string;
-  packs?: BotPackInfo[];
+  /** ADR 027: the setup that plays, the playbook, its read-out and every gate. */
+  setup?: string;
+  setups?: BotSetupInfo[];
+  readout?: BotReadout;
+  gates?: BotGate[];
   symbol_allowlist?: string[];
-  pack_settings?: Record<string, Record<string, unknown>>;
   brain_session_id: string | null;
   brain_heartbeat_ts?: number | null;
   brain_alive?: boolean;
@@ -47,7 +59,6 @@ export type BotSession = {
     usd_spent: number;
     calls_used: number;
   };
-  llm?: BotLlmSpend;
   soft_breaker_fired: boolean;
   hard_lock_until_date: string | null;
   day_lock_active: boolean;

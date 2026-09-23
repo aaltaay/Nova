@@ -102,8 +102,9 @@
   font-size: 0.7rem;
 }
 
-.bot-card__kv--pack select {
-  max-width: 8rem;
+.bot-card__v {
+  color: var(--text-primary);
+  white-space: nowrap;
 }
 
 .bot-card__info {

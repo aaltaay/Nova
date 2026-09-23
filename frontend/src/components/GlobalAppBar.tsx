@@ -9,8 +9,9 @@
  * Reload backend, the theme toggle, the full Gateway & feed status cluster and
  * the sample-data door live under the gear (GlobalBarGearMenu); the Scanner's
  * history-date picker moved to the board header's session line. View
- * navigation is the nav rail's. Bot row = BotArmControls + BotSymbolMenuHost
- * (issue #230); the Trader tab row sits under it, above the chart.
+ * navigation is the nav rail's. Bot row = BotSymbolMenuHost only (issue #230;
+ * ADR 027 moved the level and Activate to the Bots page hero); the Trader tab
+ * row sits under it, above the chart.
  */
 import { GLOBAL_BAR_BRAND } from '../constants';
 import { RecordingChip } from '../capture/RecordingChip';

@@ -27,7 +27,7 @@ from bot.risk import (
     resolve_shares,
 )
 from bot.eligibility import assert_symbol_can_fire
-from bot.packs import assert_pack_can_fire, normalize_pack
+from bot.entry_rules import assert_entry_allowed, venue_day
 from bot.session import require_l2_brain
 from constants_bot import BOT_REASON_DAY_LOCK
 from execution.models import ExecutionCommand
@@ -92,12 +92,12 @@ async def fire(
     brain_session_id: str | None,
 ) -> dict[str, Any]:
     row = assert_can_fire()
-    assert_pack_can_fire(normalize_pack(row.get("active_pack")))
     require_l2_brain(brain_session_id, claim=True)
     kind = assert_kind(str(body.get("kind") or body.get("action") or ""), row)
     symbol = assert_symbol_can_fire(str(body.get("symbol") or ""), row)
     if day_lock_active() and kind.startswith("buy_"):
         raise BotError("-$200 day lock -- buys locked until next ET midnight", 409, BOT_REASON_DAY_LOCK)
+    assert_entry_allowed(kind)  # ADR 027: the material's window and one trade a day
 
     assert_no_working_buy(kind, row)
     eh = outside_rth(row)
@@ -164,7 +164,7 @@ async def fire(
         receipt = await execute(cmd, wait_ack=False)
         if receipt.ok:
             adjust_bot_qty(symbol, qty)
-        audit(action=kind, outcome="ok" if receipt.ok else "failed", order_id=receipt.order_id, reason=receipt.reason_code, inputs={"symbol": symbol, "qty": qty}, brain_session_id=brain_session_id)
+        audit(action=kind, outcome="ok" if receipt.ok else "failed", order_id=receipt.order_id, reason=receipt.reason_code, inputs={"symbol": symbol, "qty": qty, "venue_day": venue_day()}, brain_session_id=brain_session_id)
         return receipt.legacy_place_dict()
 
     offset = resolve_offset(kind, body)
@@ -216,5 +216,8 @@ async def fire(
     receipt = await execute(cmd, wait_ack=False)
     if receipt.ok and receipt.order_id is not None:
         remember_working(order_id=int(receipt.order_id), symbol=symbol, side=side, qty=qty, price=limit, kind=kind, ttl_sec=ttl)
-    audit(action=kind, outcome="ok" if receipt.ok else "failed", order_id=receipt.order_id, reason=receipt.reason_code, inputs={"symbol": symbol, "qty": qty, "limit": limit}, brain_session_id=brain_session_id)
+    inputs = {"symbol": symbol, "qty": qty, "limit": limit}
+    if side == "BUY":
+        inputs["venue_day"] = venue_day()
+    audit(action=kind, outcome="ok" if receipt.ok else "failed", order_id=receipt.order_id, reason=receipt.reason_code, inputs=inputs, brain_session_id=brain_session_id)
     return receipt.legacy_place_dict()

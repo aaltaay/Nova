@@ -1,6 +1,6 @@
 /**
  * Single owner for bot session / proposals / audit HTTP.
- * Header BotArmControls and StrategyTab share one snapshot. Across
+ * The Bots page hero, the Trader rail card and the page's cards share one snapshot. Across
  * Electron+Vite windows, one leader polls; followers apply the share.
  */
 import {

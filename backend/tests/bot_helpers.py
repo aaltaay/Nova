@@ -1,6 +1,8 @@
 """Shared bot test setup -- Activate + L2 + optional claim/heartbeat.
 
-``ready_l2`` also holds a depth line for each symbol (a reserved slot in
+``ready_l2`` pins the first-pullback read-out to passed and the venue clock
+inside the entry window (ADR 027) -- tests about those gates set their own.
+It also holds a depth line for each symbol (a reserved slot in
 ``ibkr.depth.state``), because a bot fires only on an allowlisted symbol whose
 line the backend holds (``BOT_NO_DEPTH_LINE``, ADR 020 second pass). Lines are
 released by the autouse bot fixture in ``conftest.py``.
@@ -58,7 +60,11 @@ def ready_l2(
     heartbeat: bool = True,
     symbols: tuple[str, ...] = ("ABCD",),
     depth_line: bool = True,
+    readout_passed: bool = True,
 ) -> str:
+    if readout_passed:
+        pass_readout()
+    open_entry_window()
     token = issue_arm_token()
     apply_patch({"level": 2}, desk=True, arm_token=token)
     row = load_session()
@@ -72,6 +78,23 @@ def ready_l2(
         if heartbeat:
             record_heartbeat(brain)
     return token
+
+
+def pass_readout() -> None:
+    from bot.gates import passed_readout_for_tests, set_readout_for_tests
+
+    set_readout_for_tests(passed_readout_for_tests())
+
+
+def open_entry_window(hour: int = 9, minute: int = 0) -> None:
+    """Pin the venue clock inside the material's 07:00-10:00 ET entry window."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from bot import entry_rules
+
+    at = datetime.now(ZoneInfo("America/New_York")).replace(hour=hour, minute=minute, second=0, microsecond=0)
+    entry_rules.set_clock_for_tests(lambda: at)
 
 
 def headers(api_key: str, *, arm: str | None = None, brain: str | None = None) -> dict[str, str]:
@@ -90,6 +113,8 @@ __all__ = [
     "apply_desk_level",
     "headers",
     "hold_depth_line",
+    "open_entry_window",
+    "pass_readout",
     "ready_l2",
     "release_depth_lines",
 ]

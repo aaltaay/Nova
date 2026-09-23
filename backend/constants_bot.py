@@ -4,8 +4,11 @@ Owner: backend/bot/. Re-exported from the constants barrel.
 """
 from __future__ import annotations
 
-BOT_SCHEMA_VERSION = 3
-BOT_SCHEMA_VERSIONS = (1, 2, 3)
+# 4 (ADR 027): the pack fields (active_pack, pack_settings, llm) are gone; a v1-3
+# file loads with them stripped.
+BOT_SCHEMA_VERSION = 4
+BOT_SCHEMA_VERSIONS = (1, 2, 3, 4)
+BOT_RETIRED_SESSION_KEYS = ("active_pack", "pack_settings", "llm")
 BOT_SESSION_FILENAME = "bot-session.json"
 BOT_PROPOSALS_FILENAME = "bot-proposals.json"
 BOT_AUDIT_FILENAME = "bot-audit.jsonl"
@@ -19,71 +22,30 @@ BOT_LEVEL_UNRESTRICTED = 3  # parked -- refuse
 BOT_STRATEGY_SMALL_CAP = "small-cap"
 BOT_STRATEGIES = (BOT_STRATEGY_SMALL_CAP,)
 
-BOT_PACK_HALT_LULD = "halt-luld"
-BOT_PACK_QUOTE_SPIKE = "quote-spike"
-BOT_PACK_VOLUME = "volume"
-BOT_PACK_LLM_DECIDE = "llm-decide"
-BOT_PACK_DEFAULT = BOT_PACK_HALT_LULD
-BOT_PACKS = (
-    BOT_PACK_HALT_LULD,
-    BOT_PACK_QUOTE_SPIKE,
-    BOT_PACK_VOLUME,
-    BOT_PACK_LLM_DECIDE,
+# -- The playbook (ADR 027): the operator's setups from their trading material.
+# One plays at a time; only a setup with a live scanner can be chosen.
+BOT_SETUP_FIRST_PULLBACK = "first_pullback"
+BOT_SETUP_GAP_AND_GO = "gap_and_go"
+BOT_SETUP_FLAT_TOP = "flat_top_breakout"
+BOT_SETUP_RED_TO_GREEN = "red_to_green"
+BOT_SETUP_MICRO_PULLBACK = "micro_pullback"
+BOT_SETUPS = (
+    BOT_SETUP_FIRST_PULLBACK,
+    BOT_SETUP_GAP_AND_GO,
+    BOT_SETUP_FLAT_TOP,
+    BOT_SETUP_RED_TO_GREEN,
+    BOT_SETUP_MICRO_PULLBACK,
 )
-BOT_PACK_STUBS = frozenset()
-BOT_PACK_LABELS = {
-    BOT_PACK_HALT_LULD: "Halt / LULD resume",
-    BOT_PACK_QUOTE_SPIKE: "Quote spike",
-    BOT_PACK_VOLUME: "Volume boost",
-    BOT_PACK_LLM_DECIDE: "LLM decide",
-}
-BOT_QUOTE_SPIKE_MIN_PCT = 3.0
-BOT_QUOTE_SPIKE_WINDOW_SEC = 5.0
-BOT_QUOTE_SPIKE_COOLDOWN_SEC = 30
-BOT_VOLUME_MIN_MULT = 5.0
-BOT_VOLUME_WINDOW_SEC = 60
-BOT_VOLUME_BASELINE_SEC = 600
-BOT_VOLUME_COOLDOWN_SEC = 60
-BOT_PACK_DESCRIPTIONS = {
-    BOT_PACK_HALT_LULD: (
-        "When an allowlisted live-focus symbol resumes from halt or LULD, "
-        "Eyes proposes and L2 plus Activate fires buy_market (or the configured "
-        "kind) once, then waits the cooldown."
-    ),
-    BOT_PACK_QUOTE_SPIKE: (
-        f"When an allowlisted live-focus last (or bid/ask mid when both sides "
-        f"exist) rises {BOT_QUOTE_SPIKE_MIN_PCT:g}% within "
-        f"{BOT_QUOTE_SPIKE_WINDOW_SEC:g}s on the shared L1/quote stream, Eyes "
-        f"proposes and L2 plus Activate fires buy_market (or spike_kind) once, "
-        f"then waits the cooldown. No new reqMktData."
-    ),
-    BOT_PACK_VOLUME: (
-        f"When an allowlisted live-focus day-volume rate over the last "
-        f"{BOT_VOLUME_WINDOW_SEC:g}s is {BOT_VOLUME_MIN_MULT:g}x the prior "
-        f"{BOT_VOLUME_BASELINE_SEC:g}s baseline on the shared L1/quote stream, "
-        f"Eyes proposes and L2 plus Activate fires buy_market (or volume_kind) "
-        f"once, then waits the cooldown. Thin history fails closed. No new "
-        f"reqMktData."
-    ),
-    BOT_PACK_LLM_DECIDE: (
-        "OpenRouter posts fixed-schema decisions from the Sensor Board "
-        "snapshot for allowlisted live-focus names and live-fires those "
-        "kinds only when L2 + Activate are on. Idle if OPENROUTER_API_KEY "
-        "(or NOVA_LLM_API_KEY) is missing."
-    ),
-}
-BOT_LLM_MIN_INTERVAL_SEC = 15
-BOT_LLM_USD_PER_CALL_EST = 0.02
-BOT_LLM_HTTP_TIMEOUT_SEC = 20
-BOT_LLM_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-BOT_LLM_DEFAULT_MODEL = "openai/gpt-4o-mini"
-BOT_LLM_QTY_PRESETS = ("default",)
-BOT_LLM_HTTP_REFERER = "https://github.com/aaltaay/Nova"
-BOT_LLM_HTTP_TITLE = "Nova Brain"
+BOT_SETUPS_WITH_SCANNER = frozenset({BOT_SETUP_FIRST_PULLBACK})
+BOT_SETUP_DEFAULT = BOT_SETUP_FIRST_PULLBACK
+# The material's trading window and one trade a day: entries (buy_* kinds) at
+# Strategy only. Venue clock (the replay playhead on Sim).
+BOT_ENTRY_WINDOW_START_ET = "07:00"
+BOT_ENTRY_WINDOW_END_ET = "10:00"
+BOT_ENTRIES_PER_DAY = 1
 BOT_SYMBOL_ALLOWLIST_CAP = 50
-BOT_HALT_RESUME_COOLDOWN_SEC = 30
+# Default brain id for the SDK client (bot/client.py); any brain may send its own.
 BOT_BRAIN_SESSION_ID = "nova-brain"
-BOT_BRAIN_POLL_SEC = 1.0
 
 BOT_ACTION_KINDS = (
     "buy_market",
@@ -121,8 +83,6 @@ BOT_DEFAULT_BID_EXIT_OFFSET_USD = 0.03
 
 BOT_ADVISE_DEFAULT_USD_CAP = 2.0
 BOT_ADVISE_DEFAULT_CALL_CAP = 10
-BOT_LLM_DEFAULT_USD_CAP = BOT_ADVISE_DEFAULT_USD_CAP
-BOT_LLM_DEFAULT_CALL_CAP = BOT_ADVISE_DEFAULT_CALL_CAP
 
 BOT_SOFT_BREAKER_USD = -50.0
 BOT_HARD_BREAKER_USD = -200.0
@@ -165,7 +125,10 @@ BOT_AUDIT_ACTION_PRACTICE_REWIND = "practice_rewind"
 BOT_REASON_NOT_LOOPBACK = "BOT_NOT_LOOPBACK"
 BOT_REASON_TTL_EXPIRED = "working_ttl_expired"
 BOT_REASON_SYMBOL_BLOCKED = "BOT_SYMBOL_BLOCKED"
-BOT_REASON_PACK_STUB = "BOT_PACK_STUB"
-BOT_REASON_LLM_CAP = "BOT_LLM_CAP"
-BOT_REASON_LLM_IDLE = "BOT_LLM_IDLE"
 BOT_REASON_TRADING_LOCKED = "BOT_TRADING_LOCKED"
+# ADR 027: Strategy waits on the setup's pre-registered read-out; entries keep
+# the material's window and one trade a day.
+BOT_REASON_READOUT_NOT_PASSED = "BOT_READOUT_NOT_PASSED"
+BOT_REASON_OUTSIDE_WINDOW = "BOT_OUTSIDE_WINDOW"
+BOT_REASON_DAY_TRADE_CAP = "BOT_DAY_TRADE_CAP"
+BOT_REASON_SETUP_NO_SCANNER = "BOT_SETUP_NO_SCANNER"
