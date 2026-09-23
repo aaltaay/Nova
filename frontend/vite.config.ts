@@ -105,6 +105,11 @@ export default defineConfig(({ command, mode }) => {
   build: {
     rollupOptions: {
       output: {
+        // Keep function and class names through minification so a long
+        // animation frame's script attribution names the code (ADR 026).
+        // Vite 8 drops `esbuild.keepNames` from production builds; this is
+        // Rolldown's own switch.
+        keepNames: true,
         // Split vendor deps into their own cacheable chunks so an app-code
         // change doesn't force re-downloading React/charting libs, and the
         // app chunk stays under Vite's 500 kB warning threshold.

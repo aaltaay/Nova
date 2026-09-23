@@ -91,3 +91,24 @@ def test_current_state_no_log_dir_is_empty(tmp_path):
     missing = tmp_path / "does-not-exist"
     state = sf.current_state(log_dir=missing, gateway_process_running=True)
     assert state.pending is False
+
+
+def _no_process_check():
+    raise AssertionError("the Gateway process check must not run")
+
+
+def test_no_open_prompt_never_starts_the_process_check(tmp_path, monkeypatch):
+    """ADR 026: the check starts PowerShell and blocked the HTTP loop ~265 ms on
+    every /api/ibkr/status poll; only an open prompt in the log needs it."""
+    monkeypatch.setattr(sf, "_gateway_process_running", _no_process_check)
+    (tmp_path / "IBC-x.txt").write_text("", encoding="utf-8")
+    assert sf.current_state(log_dir=tmp_path).pending is False
+    assert sf.current_state(log_dir=tmp_path / "missing").pending is False
+
+
+def test_open_prompt_still_asks_whether_gateway_runs(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(sf, "_gateway_process_running", lambda: calls.append(1) or False)
+    (tmp_path / "IBC-x.txt").write_text(FRESH_PROMPT, encoding="utf-8")
+    assert sf.current_state(log_dir=tmp_path).pending is False
+    assert calls == [1]

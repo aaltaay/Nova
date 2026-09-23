@@ -6,6 +6,7 @@ import {
 } from './hodMomoAlertSound';
 import type { AlertObject } from './types';
 import { alertIdentity, HOD_FEED_UNREADABLE, parseHodFrame, uniqueAlerts } from './hodMomoWire';
+import { countSocketMessage, frameBytes } from '../perf/perfCounters';
 
 interface HodMomoStreamState {
   /** Newest-first full day list — table virtualizes; nothing is discarded. */
@@ -78,6 +79,7 @@ export function useHodMomoStream(): HodMomoStreamState {
       };
 
       ws.onmessage = (e) => {
+        countSocketMessage('hod_momo', frameBytes(e.data));
         if (!mountedRef.current || wsRef.current !== ws) return;
         // A bare NaN from an older backend must not drop the day (QA C32).
         const msg = parseHodFrame(String(e.data)) as { type?: unknown; alerts?: unknown; alert?: unknown; total?: unknown } | undefined;

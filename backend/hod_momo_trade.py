@@ -33,6 +33,7 @@ from hod_momo_models import (
 )
 from hod_momo_trade_log import trade_log as _trade_log
 from market import pace_relative_volume
+from metrics.op_metrics import timed_fn
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,7 @@ def _note_active_evaluation(symbol: str) -> None:
         logger.debug("HOD Momo active evaluation note failed", exc_info=True)
 
 
+@timed_fn("hod.on_trade")
 def on_trade_update(
     symbol: str,
     price: float,

@@ -18,6 +18,7 @@ import {
   waitForHealth,
 } from './sidecar.mjs';
 import { startAutoUpdate } from './autoUpdate.mjs';
+import { startPerfMetrics } from './perfMetrics.mjs';
 import { applyGpuPolicy } from './gpuPolicy.mjs';
 import { attachRendererGuards, recoverWindowIfErrorPage } from './rendererGuards.mjs';
 import { applySingleInstance, focusExistingWindow } from './singleInstance.mjs';
@@ -177,6 +178,15 @@ if (
       await openEnvFileIfNeeded();
       await waitForHealth();
       createWindow();
+      // ADR 026: CPU / memory per window process, every 5 s. Measures only.
+      const stopPerfMetrics = startPerfMetrics({
+        app,
+        BrowserWindow,
+        apiBase: API_BASE,
+        apiKey: getDesktopApiKey,
+        releaseTag: novaDesktopReleaseTag(app),
+      });
+      app.on('will-quit', stopPerfMetrics);
       // Packaged Windows only; downloads in the background, installs only on
       // the operator's "Restart to update" (#347). Never throws.
       void startAutoUpdate({

@@ -36,6 +36,7 @@ import { chartHeightForVariant, tickerChartCardClass } from './tickerChartCard';
 import { formatCoverageClockEt } from '../tickerChartData';
 import { SAMPLE_CHART_NO_BARS, SAMPLE_NETWORK_REFUSAL } from '../sample_data/sampleCopy';
 import type { ChartTradeUpdate } from './types';
+import { useRenderCount } from '../perf/useRenderCount';
 
 export type { ChartTradeUpdate } from './types';
 
@@ -105,6 +106,7 @@ function TickerChartInner({
   maximizeInGrid = false,
   layoutEpoch = null,
 }: TickerChartProps) {
+  useRenderCount('TickerChart');
   const chartHeight = chartHeightForVariant(variant);
 
   const containerRef = useRef<HTMLDivElement>(null);

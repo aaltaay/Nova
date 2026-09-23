@@ -608,6 +608,58 @@ n_items, detail, checked_ts)` and `verdicts` per rules version. SEC's bulk
 pages under `halts/raw/`. Nasdaq's halt history (2021-10 on) is loaded into the leaderboard's
 `halt_events` (source `nasdaq_trade_halt_rss`) by `research/catalysts/backfill_halts.py`.
 
+### Performance recorder (ADR 026)
+
+Owner `backend/perf/`; always on, read-only (it measures, never throttles or
+sheds). One **sample** per second, in memory for `PERF_RING_SEC` (1800 s):
+
+`{schema_version: 1, ts, interval_sec, process: {cpu_pct: number | null,
+threads}, loops: {ib | http: {cpu_pct: number | null, delay_max_ms: number |
+null, stalled: boolean}}, ops: {NAME: {calls, busy_ms}}, gauges: {NAME:
+number}, gc: {collections: [gen0, gen1, gen2], pause_ms, max_pause_ms}}` --
+`cpu_pct` is CPU time over wall time (100 = one core; `process` covers every
+thread, which share one GIL); `delay_max_ms` is the longest a 50 ms watchdog
+callback waited on that loop in the interval (`null` before the watcher runs);
+`ops` are the interval's deltas of `op_metrics` operations that ran (a sync
+op's `busy_ms` is time on its thread, an async `ws.*` op's is fan-out wall
+time; operations nest); `gauges` are queue depths and cumulative drop counters
+(`*.dropped` never decreases in a process). A loop whose callback waited more
+than `PERF_STALL_MS` is **stalled**; its **stall report** is `{schema_version:
+1, id: "<started_ms>-<loop>", loop, started_ts, ended_ts, duration_ms,
+samples, truncated, top_frame: string | null, stacks: [{count, frames:
+["path:line function", ...]}], before: sample[], after: sample[]}` -- frames
+outermost first, `top_frame` the most-sampled innermost frame inside the repo,
+`before` / `after` the samples 30 s either side. A **stall summary** is the
+report without `stacks` / `before` / `after`, plus `file: string | null`.
+
+`POST /api/perf/client` takes one window's 5 s report (at most
+`PERF_CLIENT_MAX_BODY_BYTES`; the sample desk never sends): `{schema_version:
+1, window_id, role: "main" | "popout" | "browser" | "electron", visible:
+boolean | null, interval_sec, ui_tag: string | null, frames: {count, slow,
+p95_ms} | null, long_frames: {count, blocking_ms, max_ms, top: [{source,
+invoker, ms}]} | null, sockets: {NAME: {messages, bytes}}, renders: {NAME:
+count}, heap_mb: number | null, dom_nodes: number | null, processes: [{type,
+window_id, pid, cpu_pct, working_set_mb}] | null}` -- `frames` counts
+animation frames while visible (`slow` > `PERF_SLOW_FRAME_MS`), `null` while
+hidden; `processes` only from the Electron main process. The server stamps
+`received_ts` and answers `{ok: true}`.
+
+`GET /api/perf/live?seconds=N` (default 300) -> `{schema_version, generated_at,
+recorder: {running, since, dir, write_dropped, stall_files_skipped,
+write_error}, samples[],
+stalls: summary[], clients: {window_id: report}}`. `GET /api/perf/stalls` ->
+`{schema_version, stalls: summary[]}` (this process, newest first); `GET
+/api/perf/stalls/{id}` -> the report (404 unknown). Kept under
+`<cache_dir>/perf/`: `YYYY-MM-DD.jsonl` (Eastern date), one JSON object per
+line with `schema_version` and `kind: "sample" | "client" | "stall"` -- a
+`sample` line aggregates `PERF_PERSIST_EVERY_SEC` (5) seconds (ops and gc
+summed, `cpu_pct` averaged, `delay_max_ms` maxed, gauges last) -- and
+`stalls/<id>.json`; both removed after `PERF_RETENTION_DAYS`. A reader skips
+and counts a line of unknown `schema_version`, never guesses. `/api/diagnostics`
+adds group `performance` (rows `perf_process_cpu`, `perf_ib_loop`,
+`perf_http_loop`, `perf_stalls`, `perf_queues`, `perf_windows`,
+`perf_handlers`; one `unknown` row while the recorder has no samples).
+
 ### Input Payload (Raw)
 
 ```json
@@ -1086,6 +1138,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-23 | Performance recorder (ADR 026, operator ask: "measure the laginess ... figure out what the bottlenecks are"): `backend/perf/` records, every second, each loop's CPU share and worst callback delay, the process CPU (one GIL for every thread), busy time per hot handler (`op_metrics` gains a running total), queue depths and drops (the depth / tape viewer queues' silent drop-oldest now counts) and GC pauses; a watchdog samples a stalled loop's stack until it recovers and keeps the report with 30 s either side. Every desk window and the Electron main process post a 5 s report (frame pacing, long animation frames with the script named, socket rates, render counts, per-process CPU). Kept 7 days under `<cache_dir>/perf/`, written by one writer thread, never from a loop; `/api/perf/*`, a Performance group in `/api/diagnostics`, and `tools/perf_report.py` read it. Its first live run caught `second_factor.current_state()` starting PowerShell (~250 ms) on the HTTP loop on every `/api/ibkr/status` poll; the IBC log now decides first and the process is checked only while a 2FA prompt is open. Code-read suspects stay unfixed until a recorded open ranks them. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Nova OS retired (ADR 025, operator decision on #481, option a): the BUY / WAIT / NO BUY verdict (judged on Gap and Go, which failed gate 1), the `signal` / `confirm` / `auto_paper` ladder, the staged approval queue, the Phase D executor and its restart recovery, the decision replay (`/api/archive/replay|walk|review`) and the Automation hotkeys are removed; Watchlist keeps Watchlist / Setups / Journal / Backtest and the Trader dock loses its Nova OS tab. The kill switch latch moves unchanged in meaning to `backend/kill_switch/` with `/api/kill-switch` and a card on the Bots page. Execution sources `approve` / `auto_paper` are refused `SOURCE_INVALID`. The event log, the NYSE holiday table and the walk-away rules stay; who the walk-away rules gate is left to the operator. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Catalysts, the primary sources (ADR 024 amendment): an always-on live catalyst feed records SEC EDGAR's latest filings (with the 8-K / 6-K press release), GlobeNewswire, PR Newswire, Newsfile and FDA into `catalyst_feed.sqlite3` with proven coverage spans (a poll extends a span only when it reached back to the previous one), merged into the live verdict; a Nasdaq T1 / T12 halt sets `news_pending`; the News pillar is unknown for news pending or an unplaced `company_news` headline; `/api/diagnostics` adds `catalyst_feed`. Nasdaq's halt history (2021-10 on) is in the leaderboard's `halt_events`; research gains point-in-time SEC shares outstanding and FINRA short interest. Business Wire / Accesswire have no free feed and stay indirect. Rules v4. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Catalysts (ADR 024): one pure classifier (`backend/catalysts/classify.py`, `constants_catalysts.py`) for the backfilled history and the live desk -- noise (movers lists, law firms, opinion, roundups), routine, negative (dilution, delisting) and catalyst (strong / weak by class); a symbol-day's verdict reads only items published after the prior 16:00 ET close and by its cutoff, and says `none_found` only when a source looked. The setup scanner's News pillar passes only on a real catalyst and is `null` when unknown (`catalysts/live.py`); `pillars.headline` is the headline, not a timestamp. The history is backfilled onto `F:\Nova\catalysts` from SEC EDGAR (bulk index + filed press releases), Alpaca, Finnhub's free year and the Massive archive (`research/catalysts/`), and the first pullback is re-run by catalyst class. §3 amended. | User Directive + Claude Opus 5.5 |

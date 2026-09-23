@@ -22,6 +22,7 @@ import {
 import { computeL2Heuristics } from './l2Heuristics';
 import { useIbkrDepth } from './useIbkrDepth';
 import type { DepthLevel } from './types';
+import { useRenderCount } from '../perf/useRenderCount';
 
 interface Props {
   symbol: string | null;
@@ -126,6 +127,7 @@ export function MontageSide({
 }
 
 export function DepthLadder({ symbol, uiActive = true }: Props) {
+  useRenderCount('DepthLadder');
   const { book, connected, l1Fallback, error } = useIbkrDepth(symbol, uiActive);
   const { setTopOfBook } = useTopOfBook();
 

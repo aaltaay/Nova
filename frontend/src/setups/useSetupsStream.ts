@@ -6,6 +6,7 @@ import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { SAMPLE_SETUPS_BOARD } from '../sample_data/sampleSetups';
 import { noteSetupProposal } from './setupsSound';
 import type { SetupProposal, SetupsBoard } from './types';
+import { countSocketMessage, frameBytes } from '../perf/perfCounters';
 
 const GENERATED_AT = /"generated_at":\s*[-0-9.eE+]+/;
 
@@ -37,6 +38,7 @@ export function useSetupsStream(enabled = true): SetupsStreamState {
         backoff.current = 1000;
       };
       ws.onmessage = (e) => {
+        countSocketMessage('setups', frameBytes(e.data));
         if (!mounted.current) return;
         const raw = String(e.data);
         // A board frame is pushed every second; one that differs only in its

@@ -20,11 +20,14 @@ class _OpState:
     )
     count: int = 0
     error_count: int = 0
+    total_ns: int = 0
     last_sample_ns: int | None = None
 
 
 _lock = threading.Lock()
 _operations: dict[str, _OpState] = {}
+# Bumped by reset_for_tests so a timed_fn wrapper re-resolves its state.
+_generation = 0
 
 
 def _percentile(values: list[int], percentile: int) -> float | None:
@@ -49,6 +52,7 @@ def record(op_name: str, duration_ns: int, ok: bool = True) -> None:
         state = _operations.setdefault(name, _OpState())
         state.durations_ns.append(duration)
         state.count += 1
+        state.total_ns += duration
         if not ok:
             state.error_count += 1
         state.last_sample_ns = observed_ns
@@ -69,12 +73,13 @@ def snapshot() -> dict:
                 state.count,
                 state.error_count,
                 state.last_sample_ns,
+                state.total_ns,
             )
             for name, state in _operations.items()
         }
 
     operations: dict[str, dict] = {}
-    for name, (durations, count, error_count, last_sample_ns) in sorted(copied.items()):
+    for name, (durations, count, error_count, last_sample_ns, total_ns) in sorted(copied.items()):
         age_ms = (
             max(0, now_ns - last_sample_ns) / 1_000_000
             if last_sample_ns is not None
@@ -88,6 +93,7 @@ def snapshot() -> dict:
             "p95_ms": _percentile(durations, 95),
             "p99_ms": _percentile(durations, 99),
             "max_ms": max(durations) / 1_000_000 if durations else None,
+            "total_ms": total_ns / 1_000_000,
             "last_sample_age_ms": age_ms,
         }
     return {
@@ -134,6 +140,57 @@ def timed_async(op_name: str):
     return decorate
 
 
+def totals() -> dict[str, tuple[int, int]]:
+    """``{op: (count, total_ns)}`` -- process-lifetime running totals (ADR 026).
+
+    The performance recorder diffs two readings to get calls and busy time
+    per interval; cheap enough to call once a second.
+    """
+    with _lock:
+        return {name: (state.count, state.total_ns) for name, state in _operations.items()}
+
+
+def timed_fn(op_name: str):
+    """Decorate a synchronous hot-path function (IB callbacks, per-tick work).
+
+    Same contract as :func:`timed_sync`, but resolves the operation's state
+    once instead of on every call -- it runs thousands of times a second.
+    """
+    name = str(op_name).strip()
+    if not name:
+        raise ValueError("op_name must not be empty")
+
+    def decorate(func):
+        cached: list = [None, -1]  # [state, generation]
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            started_ns = time.perf_counter_ns()
+            ok = False
+            try:
+                result = func(*args, **kwargs)
+                ok = True
+                return result
+            finally:
+                ended_ns = time.perf_counter_ns()
+                duration = ended_ns - started_ns
+                with _lock:
+                    if cached[1] != _generation:
+                        cached[0] = _operations.setdefault(name, _OpState())
+                        cached[1] = _generation
+                    state = cached[0]
+                    state.durations_ns.append(duration)
+                    state.count += 1
+                    state.total_ns += duration
+                    if not ok:
+                        state.error_count += 1
+                    state.last_sample_ns = ended_ns
+        return wrapper
+    return decorate
+
+
 def reset_for_tests() -> None:
+    global _generation
     with _lock:
         _operations.clear()
+        _generation += 1

@@ -4,6 +4,7 @@ import { SAMPLE_LIVE_FEED_ABSENT } from '../sample_data/sampleCopy';
 import { onSampleDesk } from '../sample_data/sampleOrderGuard';
 import { shouldKeepPriorBook } from './depthBookGuards';
 import type { DepthBook } from './types';
+import { countSocketMessage, frameBytes } from '../perf/perfCounters';
 
 interface DepthState {
   book: DepthBook | null;
@@ -105,6 +106,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true): DepthState
       };
 
       ws.onmessage = (e) => {
+        countSocketMessage('depth', frameBytes(e.data));
         if (!mountedRef.current || ws !== wsRef.current) return;
         try {
           const msg = JSON.parse(e.data as string);

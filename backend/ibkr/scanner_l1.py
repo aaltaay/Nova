@@ -26,6 +26,7 @@ from ibkr import tape_10sec as _tape_10sec
 from ibkr.scanner_l1_apply import apply_quote_compat, stamp_l1_minute
 from ibkr.scanner_l1_plan import count_tab_contributions, plan_stream_symbols
 from metrics.op_metrics import record_since
+from metrics.op_metrics import timed_fn
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +108,7 @@ def get_last_ok_ts() -> float | None:
     return _last_ok_ts
 
 
+@timed_fn("ib.l1.scanner")
 def on_l1_quote(
     symbol: str,
     price: float,

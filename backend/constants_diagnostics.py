@@ -23,6 +23,7 @@ DIAG_GROUP_MARKET_DATA = "market_data"
 DIAG_GROUP_RECORDER = "recorder"
 DIAG_GROUP_PRACTICE = "practice"
 DIAG_GROUP_FRONTEND = "frontend"
+DIAG_GROUP_PERFORMANCE = "performance"  # ADR 026
 DIAG_GROUPS: tuple[tuple[str, str], ...] = (
     (DIAG_GROUP_PROCESS, "Process"),
     (DIAG_GROUP_INTEGRATIONS, "Integrations"),
@@ -31,6 +32,7 @@ DIAG_GROUPS: tuple[tuple[str, str], ...] = (
     (DIAG_GROUP_RECORDER, "Recorder"),
     (DIAG_GROUP_PRACTICE, "Practice"),
     (DIAG_GROUP_FRONTEND, "Frontend"),
+    (DIAG_GROUP_PERFORMANCE, "Performance"),
 )
 
 # Actions the UI may attach to a row. Only actions that exist today.

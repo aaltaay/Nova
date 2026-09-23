@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
 from constants import IBKR_QUOTE_QUALITY_CLOSE_FALLBACK
+from metrics.op_metrics import timed_fn
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +165,7 @@ def notify_quote_listeners(
             logger.exception("IBKR ticks: quote listener failed for %s", symbol)
 
 
+@timed_fn("ib.l1")
 def on_ticker_update(
     ticker: Any,
     symbol: str,

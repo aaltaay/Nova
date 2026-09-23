@@ -12,6 +12,7 @@ from runtime_state import get_runtime_state
 from runtime_state.state import TableState
 from scanner_surface import surface_rows
 from scanner_wire import dumps_wire
+from metrics.op_metrics import timed_async
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ def _table_meta(ts: TableState) -> dict[str, Any]:
     }
 
 
+@timed_async("ws.scanner.broadcast")
 async def broadcast(payload: dict[str, Any]) -> None:
     """Send a scanner WS event to every /ws/scanner client.
 

@@ -41,8 +41,10 @@ import {
 } from '../workspace/scannerActiveTabPersist';
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
 import { isDockTab, isMainScannerTab } from '../workspace/scannerTabs';
+import { useRenderCount } from '../perf/useRenderCount';
 
 export function DashboardPage() {
+  useRenderCount('DashboardPage');
   const {
     selectedSymbol,
     openStockView,

@@ -26,6 +26,7 @@ from hod_momo_models import (
     master_to_dict,
     restored_change_pct,
 )
+from metrics.op_metrics import timed_fn
 
 logger = logging.getLogger(__name__)
 
@@ -282,6 +283,7 @@ def _load_highs_from_disk() -> None:
         logger.warning("HOD Momo: failed to restore session highs from disk", exc_info=True)
 
 
+@timed_fn("hod.save_highs")
 def save_highs(*, force: bool = False) -> None:
     """Persist current HOD-high truth fields with the established hot-session rate limit."""
     state = _state.get_state()
@@ -308,6 +310,7 @@ def flush_pending_highs_save() -> None:
         save_highs(force=True)
 
 
+@timed_fn("hod.save_alerts")
 def save_alerts(*, force: bool = False) -> None:
     """Persist current alerts with the established hot-session rate limit."""
     state = _state.get_state()

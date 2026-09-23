@@ -38,6 +38,10 @@ os.environ["NOVA_LOG_DIR"] = str(_SESSION_LOGS)
 os.environ["NOVA_ENV_PATH"] = str(_SESSION_CACHE / "pytest-never-written.env")
 os.environ.pop("NOVA_API_KEY", None)
 os.environ["IBKR_GATEWAY_MODE"] = os.environ.get("IBKR_GATEWAY_MODE") or "paper"
+# ADR 026: a test that boots the app must not leave the performance recorder's
+# watcher and writer threads running for the rest of the session; the perf
+# tests drive those modules directly (and runtime.start under their own switch).
+os.environ["NOVA_PERF"] = "0"
 
 import pytest
 

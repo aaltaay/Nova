@@ -22,6 +22,7 @@ from constants import (
 from ibkr import client as _client
 from ibkr import depth as _depth
 from metrics.op_metrics import timed_sync
+from perf.counters import incr as _count_drop
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,7 @@ def _push_queue(symbol: str, payload: dict) -> None:
         try:
             q.put_nowait(payload)
         except asyncio.QueueFull:
+            _count_drop("tape.viewer_dropped")
             try:
                 q.get_nowait()
                 q.put_nowait(payload)

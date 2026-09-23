@@ -34,6 +34,7 @@ import {
 } from '../constants';
 import { alertApp } from '../ux';
 import { useWorkspace } from '../workspace/WorkspaceContext';
+import { useRenderCount } from '../perf/useRenderCount';
 
 interface Props {
   symbol: string;
@@ -52,6 +53,7 @@ export function StockViewPage({
   onSelectSymbol,
   chartActive = true,
 }: Props) {
+  useRenderCount('StockViewPage');
   const { discoveryProvider } = useWorkspace();
   const { topOfBook } = useTopOfBook();
   const { detail, loading, refreshing, fetchFailed } = useTickerStream(symbol);

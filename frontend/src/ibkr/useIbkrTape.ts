@@ -12,6 +12,7 @@ import {
   type TapePrint,
   type TapeState,
 } from './tapeFeed';
+import { countSocketMessage, frameBytes } from '../perf/perfCounters';
 
 export type { TapePrint, TapeState, TapeSide } from './tapeFeed';
 
@@ -96,6 +97,7 @@ export function useIbkrTape(symbol: string | null, uiActive = true): TapeState {
       };
 
       ws.onmessage = (e) => {
+        countSocketMessage('tape', frameBytes(e.data));
         if (!mountedRef.current || ws !== wsRef.current) return;
         try {
           const msg = JSON.parse(e.data as string);

@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from 'react';
 import { hmrStableContext } from '../utils/hmrStableContext';
+import { useRenderCount } from '../perf/useRenderCount';
 
 export interface TopOfBook {
   symbol: string;
@@ -28,6 +29,7 @@ interface TopOfBookContextValue {
 const TopOfBookContext = hmrStableContext<TopOfBookContextValue>(import.meta.hot, 'TopOfBookContext');
 
 export function TopOfBookProvider({ children }: { children: ReactNode }) {
+  useRenderCount('TopOfBookProvider');
   const [topOfBook, setTopOfBookState] = useState<TopOfBook | null>(null);
   const setTopOfBook = useCallback((next: TopOfBook | null) => {
     setTopOfBookState(next);
