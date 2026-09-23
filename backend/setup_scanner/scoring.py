@@ -100,7 +100,7 @@ class ScoreTracker:
         self.bars_seen += 1
         if _flat_by(bar.t):
             return self._exit(bar.c, bar, "close")
-        if bar.l <= self.bar_stop:
+        if bar.lo <= self.bar_stop:
             return self._exit(min(bar.o, self.bar_stop), bar, "breakeven" if self.half_done else "stop")
         if not self.half_done and bar.h >= self.target1:
             self.half_done, self.half_px, self.bar_stop = True, max(bar.o, self.target1), self.entry

@@ -20,7 +20,7 @@
 
 .setups-table td.num, .setups-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .setups-reason { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); }
-.setups-kind { white-space: nowrap; }
+.setups-kind, .setups-distance { white-space: nowrap; }
 .setups-tape { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 
 .setups-state--near { color: var(--accent-color); border-color: var(--accent-color); }
@@ -43,7 +43,11 @@
   font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
 }
 .setups-split-total th, .setups-split-total td { font-weight: 600; }
-.setups-scoreboard tbody th[scope='row'] { text-align: left; font-weight: normal; white-space: nowrap; }
+.setups-scoreboard tbody th[scope='row'] {
+  text-align: left; font-weight: normal; white-space: nowrap;
+  text-transform: none; letter-spacing: normal; font-size: inherit; color: inherit;
+}
+.setups-split-total th[scope='row'] { font-weight: 600; }
 
 .setups-alert {
   position: fixed; right: 16px; bottom: 16px; z-index: 60; max-width: min(420px, calc(100vw - 32px));

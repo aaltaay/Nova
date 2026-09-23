@@ -58,7 +58,7 @@ def run(eng, now):
 
 
 def bar_msg(b):
-    return {"t": b.t, "o": b.o, "h": b.h, "l": b.l, "c": b.c, "v": b.v}
+    return {"t": b.t, "o": b.o, "h": b.h, "l": b.lo, "c": b.c, "v": b.v}
 
 
 def test_seed_leg_then_armed_near_proposal_trigger_score(tmp_path):
@@ -98,6 +98,27 @@ def test_seed_leg_then_armed_near_proposal_trigger_score(tmp_path):
     eng.on_l1_minute("last", SYM, {"price": 4.55, "ts": clock["t"], "bar_open": 4.32})
     run(eng, clock["t"])
     assert eng.store.rows()[0]["outcome"] == "target_first"
+
+
+def test_a_rearm_withdraws_the_proposal_and_a_fresh_read_raises_one_at_the_new_levels(tmp_path):
+    bars = add(leg_up(base_morning(), [4.08, 4.18, 4.28, 4.38]), 4.38, 4.37, 4.30, 4.32, 30_000)
+    eng, audits, clock = make(tmp_path, bars)
+    run(eng, clock["t"])
+    eng.on_l1_minute("last", SYM, {"price": 4.35, "ts": clock["t"], "bar_open": 4.32})
+    run(eng, clock["t"])
+    first = next(iter(eng.proposals.values()))
+    assert first["trigger"] == 4.37 and first["status"] == "open"
+
+    pb2 = add(list(bars), 4.32, 4.34, 4.27, 4.30, 20_000)[-1]      # the trigger moves down
+    eng.on_l1_minute("bar", SYM, bar_msg(pb2))
+    clock["t"] = pb2.t + 61
+    run(eng, clock["t"])
+    assert first["status"] == "rearmed"
+    # The last price (4.35) is already at the new trigger and the tape still says
+    # go, so the same tick raises a fresh proposal at the new levels.
+    fresh = eng.board(clock["t"])["proposals"]
+    assert len(fresh) == 1 and fresh[0]["trigger"] == 4.34 and fresh[0]["entry"] == 4.35
+    assert fresh[0]["id"] != first["id"] and len(audits) == 2
 
 
 def test_no_proposal_when_the_tape_is_red(tmp_path):
@@ -143,8 +164,26 @@ def test_symbols_outside_the_universe_are_ignored(tmp_path):
     assert not any(k[1] == "ZZZZ" for k in eng.inbox)
 
 
-def test_engine_never_imports_the_execution_door():
-    import setup_scanner.engine as eng_mod
-    src = open(eng_mod.__file__, encoding="utf-8").read()
-    for banned in ("execution.service", "place_order", "ExecutionCommand", "actions.fire"):
-        assert banned not in src
+def test_scanner_package_never_imports_an_order_path():
+    """ADR 022: Eyes propose; nothing in setup_scanner/ can place, cancel or fire."""
+    import ast
+    import pathlib
+
+    import setup_scanner
+
+    banned = ("execution", "ibkr.orders", "ibkr.order_build", "practice", "strategy.executor",
+              "bot.actions", "bot.flatten", "bot.proposals", "bot.loops")
+    pkg = pathlib.Path(setup_scanner.__file__).parent
+    seen = []
+    for path in sorted(pkg.glob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                names = [node.module]
+            elif isinstance(node, ast.Import):
+                names = [a.name for a in node.names]
+            else:
+                continue
+            for name in names:
+                seen.append(name)
+                assert not any(name == b or name.startswith(b + ".") for b in banned), (path.name, name)
+    assert "bot.audit" in seen      # the one bot module it may touch: the audit record

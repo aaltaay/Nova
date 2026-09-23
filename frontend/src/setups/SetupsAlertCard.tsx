@@ -2,7 +2,7 @@
  * tape go". It floats on every tab until the setup triggers, fails or is
  * dismissed. It stages a ticket at most; nothing here places an order. */
 import { useState } from 'react';
-import { SETUP_KIND_LABELS } from '../constants';
+import { SETUP_KIND_LABELS, TAPE_VERDICT_LABELS, TAPE_VERDICT_TITLES } from '../constants';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { fmtCents, fmtPx } from './setupsFormat';
 import { stageSetupTicket } from './stageSetupTicket';
@@ -20,12 +20,16 @@ export function SetupsAlertCard({ board }: { board: SetupsBoard | null }) {
   const kind = top.kind ? (SETUP_KIND_LABELS[top.kind] ?? top.kind) : 'Setup';
   const entry = top.entry != null ? top.entry.toFixed(2) : '';
   const dismiss = () => setDismissed(prev => new Set(prev).add(top.id));
+  const tapeNow = top.tape_now ?? 'go';
   return (
     <div className="setups-alert" role="status" aria-live="polite">
       <div className="setups-alert-body">
         <strong>{top.symbol}</strong> {kind.toLowerCase()} near the {fmtPx(top.trigger)} trigger.
         {' '}Stop {fmtPx(top.stop)}, risk {fmtCents(top.risk)}, target {fmtPx(top.target1)}.
-        {' '}<span className="setups-tape--go">Tape: go</span>
+        {' '}<span className={`setups-tape--${tapeNow}`} title={TAPE_VERDICT_TITLES[tapeNow]}>
+          {TAPE_VERDICT_LABELS[tapeNow] ?? tapeNow}
+        </span>
+        {tapeNow !== 'go' ? <span className="na-muted"> (it said go when this was raised)</span> : null}
         {top.grade ? <span className="na-muted"> · grade {top.grade}</span> : null}
         {open.length > 1 ? <span className="na-muted"> · {open.length - 1} more on the Setups board</span> : null}
         {top.reasons && top.reasons.length > 0 ? (

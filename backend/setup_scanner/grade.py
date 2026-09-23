@@ -7,6 +7,7 @@ pillar Nova does not know is ``None`` and never counts as a pass.
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any
 
 from constants_setups import (
@@ -21,6 +22,15 @@ from constants_setups import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _finite(value: Any) -> float | None:
+    """A snapshot number, or None when it is missing or not finite (unknown, never failed)."""
+    try:
+        x = float(value)
+    except (TypeError, ValueError):
+        return None
+    return x if math.isfinite(x) else None
 
 
 def read_pillars(symbol: str) -> dict[str, Any]:
@@ -39,10 +49,10 @@ def read_pillars(symbol: str) -> dict[str, Any]:
     except Exception:
         logger.debug("setup grade: no news badge for %s", symbol, exc_info=True)
     return {
-        "price": getattr(snap, "price", None) or None,
-        "change_pct": getattr(snap, "change_pct", None),
-        "rvol": getattr(snap, "rvol", None),
-        "float": getattr(snap, "float_shares", None),
+        "price": _finite(getattr(snap, "price", None)) or None,
+        "change_pct": _finite(getattr(snap, "change_pct", None)),
+        "rvol": _finite(getattr(snap, "rvol", None)),
+        "float": _finite(getattr(snap, "float_shares", None)),
         "news": headline is not None,
         "headline": headline,
     }

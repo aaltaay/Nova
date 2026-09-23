@@ -95,11 +95,14 @@ class SetupStore:
              symbol: str | None = None, limit: int | None = None) -> list[dict[str, Any]]:
         where, args = [], []
         if date_from:
-            where.append("session_date >= ?"); args.append(date_from)
+            where.append("session_date >= ?")
+            args.append(date_from)
         if date_to:
-            where.append("session_date <= ?"); args.append(date_to)
+            where.append("session_date <= ?")
+            args.append(date_to)
         if symbol:
-            where.append("symbol = ?"); args.append(symbol.upper())
+            where.append("symbol = ?")
+            args.append(symbol.upper())
         sql = "SELECT * FROM setups" + (f" WHERE {' AND '.join(where)}" if where else "") + " ORDER BY armed_at DESC"
         if limit:
             sql += f" LIMIT {int(limit)}"

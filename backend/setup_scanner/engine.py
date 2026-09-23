@@ -24,7 +24,6 @@ from zoneinfo import ZoneInfo
 from constants_setups import (
     SETUP_STATE_ARMED,
     SETUP_STATE_NEAR,
-    SETUP_STATE_PULLBACK,
     SETUP_STATE_TRIGGERED,
     SETUPS_BOARD_PUSH_SEC,
     SETUPS_EMA_PERIOD,
@@ -128,7 +127,7 @@ class SetupEngine:
                 self.store = SetupStore()
             except (StoreVersionError, OSError) as exc:
                 self.store_error = str(exc)
-                logger.error("setup scanner: scoreboard disabled -- %s", exc)
+                logger.exception("setup scanner: scoreboard disabled -- %s", exc)
         l1_minute.add_listener(self.on_l1_minute)
         try:
             while True:
@@ -239,12 +238,15 @@ class SetupEngine:
                            "armed_at": setup.get("armed_at") or now, "grade": g,
                            "pillars": {**pillars, "checks": checks}}
                     self.rows[sid] = row
+                elif row.get("disarmed_at"):
+                    row["disarmed_at"] = None          # the same leg armed again
                 self._copy_setup(row, view)
                 self.active_id[sym] = sid
             elif row is None:
                 continue
             elif kind == "rearmed":
                 self._copy_setup(row, view)
+                self._close_proposal(sid, "rearmed")   # its levels are stale; a new read proposes again
             elif kind == "near":
                 row["state"] = view["state"]
                 if not row.get("near_at"):
@@ -318,10 +320,12 @@ class SetupEngine:
             self.tape_view[sym] = res
             sid = self.active_id.get(sym)
             prop = self.proposals.get(sid) if sid else None
-            if prop is not None:
+            if prop is not None and prop["status"] == "open":
                 prop["tape_now"] = res["verdict"]
             elif (sid and self.det[sym].state == SETUP_STATE_NEAR and res["verdict"] == TAPE_VERDICT_GO
                   and not replay):
+                # No open proposal: none yet, or the last one was withdrawn when the
+                # setup re-armed at new levels or was disarmed and armed again.
                 self._propose(sym, sid, res, now)
 
     def _propose(self, sym: str, sid: str, res: dict, now: float) -> None:
@@ -351,14 +355,14 @@ class SetupEngine:
         return build_board(self, now)
 
     async def _push(self, now: float) -> None:
-        import json
+        from scanner_wire import dumps_wire
 
         self._last_push = now
         frames = []
         if self.alerts:
-            frames.append(json.dumps({"type": "alerts", "alerts": self.alerts}, default=str))
+            frames.append(dumps_wire({"type": "alerts", "alerts": self.alerts}))
             self.alerts = []
-        frames.append(json.dumps({"type": "board", **self.board(now)}, default=str))
+        frames.append(dumps_wire({"type": "board", **self.board(now)}))
         for ws in list(self.clients):
             try:
                 for f in frames:

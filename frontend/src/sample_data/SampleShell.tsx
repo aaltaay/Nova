@@ -24,6 +24,7 @@ import {
 } from './sampleNav';
 import { SampleDataProvider, useSampleData } from './SampleDataContext';
 import { SampleModeBadge } from './SampleModeBadge';
+import { SetupsStreamProvider } from '../setups/SetupsStreamContext';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 
 function SampleShellInner() {
@@ -144,7 +145,10 @@ export function SampleShell() {
   return (
     <SampleDataProvider>
       <IbkrAccountProvider>
-        <SampleShellInner />
+        {/* The Setups board reads the sample board; the provider never opens a socket here. */}
+        <SetupsStreamProvider enabled>
+          <SampleShellInner />
+        </SetupsStreamProvider>
       </IbkrAccountProvider>
     </SampleDataProvider>
   );

@@ -24,12 +24,12 @@ class Bar:
     t: float      # epoch seconds, start of the minute
     o: float
     h: float
-    l: float
+    lo: float     # the bar's low (wire key "l")
     c: float
     v: float = 0.0
 
     def as_dict(self) -> dict:
-        return {"t": self.t, "o": self.o, "h": self.h, "l": self.l, "c": self.c, "v": self.v}
+        return {"t": self.t, "o": self.o, "h": self.h, "l": self.lo, "c": self.c, "v": self.v}
 
 
 def minute_start(ts: float) -> float:
@@ -48,7 +48,7 @@ def bar_from(raw: dict[str, Any]) -> Bar | None:
                   float(raw.get("v") or 0.0))
     except (KeyError, TypeError, ValueError):
         return None
-    if not (bar.h >= bar.l > 0):
+    if not (bar.h >= bar.lo > 0):
         return None
     return bar
 

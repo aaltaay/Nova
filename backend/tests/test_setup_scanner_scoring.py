@@ -20,8 +20,8 @@ def tracker(**kw):
     return ScoreTracker(**base)
 
 
-def bar(i: int, o, h, l, c) -> Bar:
-    return Bar(T0 + 60 * i, o, h, l, c, 10_000)
+def bar(i: int, o, h, lo, c) -> Bar:
+    return Bar(T0 + 60 * i, o, h, lo, c, 10_000)
 
 
 def test_first_touch_target_and_excursions():

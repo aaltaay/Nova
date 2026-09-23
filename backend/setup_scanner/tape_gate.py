@@ -18,6 +18,7 @@ the material filters them.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any, Iterable
 
@@ -57,13 +58,27 @@ class GateParams:
     red_mult: float = TAPE_GATE_RED_BURST_MULT
 
 
+DEFAULT_GATE = GateParams()
+
+
+def _num(value: object) -> float | None:
+    """A finite number, else None: IBKR sends NaN for an unknown size or price."""
+    try:
+        x = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    return x if math.isfinite(x) else None
+
+
 def _levels(book: dict | None, side: str) -> list[tuple[float, float]]:
     out = []
     for lvl in (book or {}).get(side) or []:
-        try:
-            out.append((float(lvl["price"]), float(lvl.get("size") or 0)))
-        except (KeyError, TypeError, ValueError):
+        if not isinstance(lvl, dict):
             continue
+        price, size = _num(lvl.get("price")), _num(lvl.get("size") or 0)
+        if price is None or price <= 0 or size is None or size < 0:
+            continue
+        out.append((price, size))
     return out
 
 
@@ -81,7 +96,7 @@ def _size_at(book: dict | None, price: float) -> float:
 
 
 def evaluate(*, trigger: float, now: float, books: Iterable[tuple[float, dict]],
-             prints: Iterable[dict], p: GateParams = GateParams()) -> dict[str, Any]:
+             prints: Iterable[dict], p: GateParams = DEFAULT_GATE) -> dict[str, Any]:
     """Judge the tape at ``trigger`` from the samples inside the window ending at ``now``."""
     window = [(ts, b) for ts, b in books if now - p.window_sec <= ts <= now and b]
     reasons: list[str] = []
@@ -132,12 +147,14 @@ def evaluate(*, trigger: float, now: float, books: Iterable[tuple[float, dict]],
     ask_vol = bid_vol = 0.0
     ask_n = bid_n = 0
     for pr in prints:
-        ts = float(pr.get("ts") or 0)
-        if not (now - p.window_sec <= ts <= now):
+        ts = _num(pr.get("ts") or 0)
+        if ts is None or not (now - p.window_sec <= ts <= now):
             continue
         if str(pr.get("exchange") or "").upper() in OFF_EXCHANGE:
             continue
-        size = float(pr.get("size") or 0)
+        size = _num(pr.get("size") or 0)
+        if size is None or size <= 0:
+            continue
         side = pr.get("side")
         if side == "ask":
             ask_vol += size

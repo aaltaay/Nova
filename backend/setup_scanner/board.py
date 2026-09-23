@@ -18,6 +18,7 @@ from constants_setups import (
     SETUPS_BOARD_MAX_ROWS,
     SETUPS_SCHEMA_VERSION,
 )
+from scanner_wire import wire_safe
 
 ORDER = {SETUP_STATE_NEAR: 0, SETUP_STATE_ARMED: 1, SETUP_STATE_TRIGGERED: 2,
          SETUP_STATE_PULLBACK: 3, SETUP_STATE_LEG: 4, SETUP_STATE_FAILED: 5}
@@ -61,7 +62,7 @@ def build_board(engine: Any, now: float) -> dict[str, Any]:
         })
     rows.sort(key=lambda r: (ORDER.get(r["state"], 9),
                              r["distance"] if r["distance"] is not None else 9e9, r["symbol"]))
-    return {
+    return wire_safe({
         "schema_version": SETUPS_SCHEMA_VERSION,
         "generated_at": now,
         "session_date": engine.session,
@@ -72,4 +73,4 @@ def build_board(engine: Any, now: float) -> dict[str, Any]:
         "proposing": not engine._replay_fn(),
         "rows": rows[:SETUPS_BOARD_MAX_ROWS],
         "proposals": [p for p in engine.proposals.values() if p.get("status") == "open"],
-    }
+    })

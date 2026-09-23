@@ -73,6 +73,8 @@ describe('SetupsScoreboard', () => {
     expect(screen.getByText('Tape at the trigger')).toBeTruthy();
     expect(screen.getByText('Tape said go')).toBeTruthy();
     expect(screen.getByText('14 armed since 2026-09-18')).toBeTruthy();
+    const labels = screen.getAllByRole('rowheader').map(th => th.textContent);
+    expect(labels.slice(0, 5)).toEqual(['All armed setups', 'Tape said go', 'Tape said wait', 'No Level 2 line', 'Never triggered']);
   });
 
   it('states an error instead of an empty table', () => {
@@ -95,6 +97,14 @@ describe('SetupsAlertCard', () => {
     expect(openStockView).toHaveBeenCalledWith('NVXA');
     expect(staged[0]).toMatchObject({ symbol: 'NVXA', limitPrice: '4.38' });
     expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('shows the tape as it reads now, not as it read when raised', () => {
+    const turned: Board = { ...WITH_PROPOSAL, proposals: WITH_PROPOSAL.proposals.map(p => ({ ...p, tape_now: 'veto' })) };
+    render(<SetupsAlertCard board={turned} />);
+    const card = screen.getByRole('status');
+    expect(card.textContent).toContain('Tape: no');
+    expect(card.textContent).toContain('it said go when this was raised');
   });
 
   it('shows nothing without an open proposal', () => {

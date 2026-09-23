@@ -59,10 +59,10 @@ export const SAMPLE_SETUPS_BOARD: SetupsBoard = {
 };
 
 const stat = (armed: number, triggered: number, tf: number, sf: number, win: number | null,
-              r: number | null, net: number | null): ScoreStats => ({
+              r: number | null, net: number | null, mfe: number | null = null, mae: number | null = null): ScoreStats => ({
   armed, triggered, trigger_rate: armed ? Math.round((triggered / armed) * 1000) / 1000 : null,
   target_first: tf, stop_first: sf, open: triggered - tf - sf, scored: triggered,
-  win_pct: win, avg_r: r, avg_net_r: net, avg_mfe_r: null, avg_mae_r: null,
+  win_pct: win, avg_r: r, avg_net_r: net, avg_mfe_r: mfe, avg_mae_r: mae,
 });
 
 /** Nova Marketing Sample Data: the scoreboard's shape with illustrative counts. */
@@ -71,16 +71,27 @@ export const SAMPLE_SETUPS_SCOREBOARD: Scoreboard = {
   date_from: '2026-09-18',
   row_count: 14,
   summary: {
-    all: stat(14, 9, 4, 4, 44.4, 0.12, -0.05),
+    all: stat(14, 9, 4, 4, 44.4, 0.12, -0.05, 0.93, -0.61),
     by: {
+      // Only a triggered setup has a tape at the trigger; the rest are "none".
       tape_at_trigger: {
-        go: stat(5, 5, 3, 1, 60.0, 0.41, 0.22),
-        wait: stat(3, 2, 0, 2, 0.0, -0.71, -0.93),
-        blind: stat(6, 2, 1, 1, 50.0, 0.20, 0.02),
+        go: stat(5, 5, 3, 1, 60.0, 0.41, 0.22, 1.24, -0.48),
+        wait: stat(2, 2, 0, 2, 0.0, -0.71, -0.93, 0.35, -1.02),
+        blind: stat(2, 2, 1, 1, 50.0, 0.20, 0.02, 0.81, -0.66),
+        none: stat(5, 0, 0, 0, null, null, null),
       },
-      grade: { A: stat(6, 4, 2, 1, 50.0, 0.30, 0.11), B: stat(8, 5, 2, 3, 40.0, -0.02, -0.19) },
-      session: { premarket: stat(5, 3, 1, 2, 33.3, -0.10, -0.31), regular: stat(9, 6, 3, 2, 50.0, 0.23, 0.05) },
-      kind: { first_pullback: stat(10, 7, 4, 2, 57.1, 0.33, 0.14), second_pullback: stat(4, 2, 0, 2, 0.0, -0.61, -0.80) },
+      grade: {
+        A: stat(6, 4, 2, 1, 50.0, 0.30, 0.11, 1.10, -0.52),
+        B: stat(8, 5, 2, 3, 40.0, -0.02, -0.19, 0.79, -0.68),
+      },
+      session: {
+        premarket: stat(5, 3, 1, 2, 33.3, -0.10, -0.31, 0.70, -0.74),
+        regular: stat(9, 6, 3, 2, 50.0, 0.23, 0.05, 1.05, -0.55),
+      },
+      kind: {
+        first_pullback: stat(10, 7, 4, 2, 57.1, 0.33, 0.14, 1.08, -0.52),
+        second_pullback: stat(4, 2, 0, 2, 0.0, -0.61, -0.80, 0.41, -0.93),
+      },
     },
   },
 };

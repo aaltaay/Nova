@@ -16,6 +16,7 @@ import time
 
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 
+from scanner_wire import dumps_wire
 from setup_scanner.engine import get_engine
 from setup_scanner.store import session_date
 from setup_scanner.summary import summarize
@@ -59,7 +60,7 @@ async def ws_setups(websocket: WebSocket) -> None:
     eng = get_engine()
     eng.clients.add(websocket)
     try:
-        await websocket.send_text(json.dumps({"type": "board", **eng.board()}, default=str))
+        await websocket.send_text(dumps_wire({"type": "board", **eng.board()}))
         while True:
             try:
                 await asyncio.wait_for(websocket.receive_text(), timeout=WS_IDLE_PING_SEC)

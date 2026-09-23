@@ -108,9 +108,9 @@ def ema(values: list[float], n: int) -> list[float]:
 
 def macd_hist(closes: list[float]) -> list[float]:
     fast, slow = ema(closes, SETUPS_MACD_FAST), ema(closes, SETUPS_MACD_SLOW)
-    line = [f - s for f, s in zip(fast, slow)]
+    line = [f - s for f, s in zip(fast, slow, strict=True)]
     sig = ema(line, SETUPS_MACD_SIGNAL)
-    return [x - y for x, y in zip(line, sig)]
+    return [x - y for x, y in zip(line, sig, strict=True)]
 
 
 def et_time(ts: float) -> dtime:
@@ -141,7 +141,7 @@ class PullbackDetector:
                 self.reason = f"warming up ({n}/{self.p.leg_lookback + 2} bars)"
             return []
         h = [b.h for b in bars]
-        l = [b.l for b in bars]
+        lows = [b.lo for b in bars]
         c = [b.c for b in bars]
         e9 = ema(c, self.p.ema_period)
         hist = macd_hist(c)
@@ -151,11 +151,11 @@ class PullbackDetector:
         cand, first_fail = None, None
         for m in range(1, self.p.max_pullback_bars + 1):
             H = last - m
-            leg = self._qualify_leg(bars, h, l, H)
+            leg = self._qualify_leg(bars, h, lows, H)
             if leg is None:
                 continue
             pb = range(H + 1, last + 1)
-            pb_low = min(l[i] for i in pb)
+            pb_low = min(lows[i] for i in pb)
             why = None
             if max(h[i] for i in pb) > leg["high"]:
                 why = "made a new high without a fresh 5% leg"
@@ -170,7 +170,7 @@ class PullbackDetector:
             break
 
         if self.state == SETUP_STATE_TRIGGERED:
-            fresh = self._qualify_leg(bars, h, l, last)
+            fresh = self._qualify_leg(bars, h, lows, last)
             new_leg = (cand and cand[1]["t"] != self.triggered.get("leg_t")) or (
                 fresh and fresh["t"] != self.triggered.get("leg_t"))
             if not new_leg:
@@ -180,7 +180,7 @@ class PullbackDetector:
             return self._arm(bars, h, hist, last, cand, prev)
 
         events: list[tuple[str, dict]] = []
-        fresh = self._qualify_leg(bars, h, l, last)
+        fresh = self._qualify_leg(bars, h, lows, last)
         if fresh is not None:
             self.leg, self.armed = fresh, None
             was = self.state
@@ -190,7 +190,7 @@ class PullbackDetector:
             if was != SETUP_STATE_LEG:
                 events.append(("leg", self.view()))
             return events
-        fail = first_fail or self._stale_leg(bars, h, l, last)
+        fail = first_fail or self._stale_leg(bars, h, lows, last)
         self.armed = None
         if fail is not None:
             self.leg = fail[0]
@@ -285,7 +285,7 @@ class PullbackDetector:
         return []
 
     # -- helpers ------------------------------------------------------------
-    def _qualify_leg(self, bars: list[Bar], h: list[float], l: list[float], H: int) -> dict | None:
+    def _qualify_leg(self, bars: list[Bar], h: list[float], lows: list[float], H: int) -> dict | None:
         p = self.p
         if H < p.leg_lookback:
             return None
@@ -294,15 +294,15 @@ class PullbackDetector:
             return None
         if p.require_hod and H > 0 and leg_high < max(h[:H]):
             return None
-        leg_low = min(l[max(0, H - p.leg_window + 1):H + 1])
+        leg_low = min(lows[max(0, H - p.leg_window + 1):H + 1])
         if leg_low <= 0 or leg_high / leg_low - 1 < p.leg_pct:
             return None
         return {"t": bars[H].t, "high": leg_high, "low": leg_low, "pct": round(leg_high / leg_low - 1, 4)}
 
-    def _stale_leg(self, bars, h, l, last) -> tuple[dict, str] | None:
+    def _stale_leg(self, bars, h, lows, last) -> tuple[dict, str] | None:
         """A leg 4-10 bars back with no higher high since: the pullback ran too long."""
         for H in range(last - self.p.max_pullback_bars - 1, max(last - STALE_LEG_BARS, -1), -1):
-            leg = self._qualify_leg(bars, h, l, H)
+            leg = self._qualify_leg(bars, h, lows, H)
             if leg is not None:
                 if max(h[H + 1:last + 1]) <= leg["high"]:
                     return leg, f"pullback ran past {self.p.max_pullback_bars} candles"

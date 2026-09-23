@@ -425,6 +425,48 @@ fraction under 1.0. Bar-derived sensor readings (`vwap`, `macd`, `emas`,
 they were computed from, `null` without bars -- so the board can say a
 reading is stale.
 
+### Setup scanner and tape gate (ADR 022)
+
+`GET /api/setups/board` and the `{"type": "board", ...}` frames of `/ws/setups`
+(owner `backend/setup_scanner/`; read-only -- nothing there places, stages or
+cancels an order) answer `schema_version: 1`, `generated_at`, `session_date`
+(Eastern `YYYY-MM-DD` or null), `universe` (symbols followed: the HOD Momo
+active set), `seeding` (symbols still loading today's bars), `scoreboard:
+boolean`, `scoreboard_error: string | null`, `proposing: boolean` (false on a
+replay desk), `rows[]` (at most `SETUPS_BOARD_MAX_ROWS`; near, armed, triggered
+within 30 min, pullback, leg, failed within 5 min, then nearest the trigger)
+and `proposals[]` (the open ones). A row is `{symbol, state: "watching" |
+"leg" | "pullback" | "armed" | "near" | "triggered" | "failed", reason, kind:
+"first_pullback" | "second_pullback", nth, setup_id: string | null, setup:
+{leg_t, trigger, entry, stop, risk, target1, pullback_bars, leg_high,
+leg_low, leg_pct, armed_bar_t, armed_at, kind, triggered_at?, trigger_price?,
+nth?} | null, leg: {t, high, low, pct} | null, last_price, distance: number |
+null (trigger minus last, armed and near only), grade: "A" | "B" | "C" | null,
+pillars: {price, change_pct, rvol, float, news, headline} | null, tape:
+{verdict: "go" | "wait" | "veto" | "blind", reasons: string[], line, metrics}
+| null, proposal | null, outcome: "target_first" | "stop_first" | "open" |
+null, bar_r, mfe, mae}`. An unknown pillar is `null`, never a failed one, and
+no frame carries a bare `NaN` (`scanner_wire`). A proposal is `{id, setup_id,
+symbol, kind, trigger, entry, stop, target1, risk, grade, reasons, created_at,
+status: "open" | "triggered" | "failed" | "disarmed" | "rearmed", tape_now}`
+-- raised only when a live setup is `near` and the tape says `go` (a re-arm at
+new levels withdraws the open one, and the next `go` raises a fresh one), pushed once as
+`{"type": "alerts", "alerts": [...]}` and recorded on the bot audit stream as
+`setup_proposal` / `proposed`. `blind` means Nova holds no depth line for the
+symbol; the scanner opens none.
+`GET /api/setups/scoreboard?days=N` (default 5, `0` = all) answers `{days,
+date_from, row_count, rows[] (at most 500), summary: {all, by: {tape_at_trigger,
+grade, session, kind}}}`, each stats block `{armed, triggered, trigger_rate,
+target_first, stop_first, open, scored, win_pct, avg_r, avg_net_r, avg_mfe_r,
+avg_mae_r}`; `GET /api/setups/rows?date=YYYY-MM-DD&symbol=` one day's rows.
+Both answer 503 with the reason while the store is not open. Rows live in
+`setups.db` under the operator cache (SQLite, `PRAGMA user_version = 1`; an
+unknown version, or an unversioned file that already holds the table, refuses
+to open and the board reports `scoreboard_error`), one per armed setup: levels,
+grade and pillars at arm time, `near_tape` / `trigger_tape`, the first touch,
+MFE / MAE over 15 minutes and `bar_r` under the research exit rules --
+scores, never fills.
+
 ### Input Payload (Raw)
 
 ```json
@@ -885,6 +927,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-22 | The setup scanner (ADR 022): one live first-pullback scanner replaces the old setups stream (`/ws/strategy`) and the Watchlist's Signals sub-tab. It follows the HOD Momo names on Nova's own one-minute bars through Watching, Leg up, Armed, Near, Triggered or Failed on the pre-registered P1 rules (94.9% parity with the research harness), reads the Level 2 and the tape the desk already holds at the trigger (`go` / `wait` / `veto` / `blind`; it opens no IBKR line), and raises a proposal only when a live setup is near and the tape says go: a ping, an alert card on every tab, a staged ticket at most. Nothing in `setup_scanner/` imports an order path. Every armed setup is scored in `setups.db` the way the backtest scored its trades. The Phase D executor no longer receives signals. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-22 | Test quantity gate binds Live only (operator decision on #444, option 1: "keep enforcing one quantity for the live so we never mess it up, and remove that restriction for paper and sim"): the Live default cap is 1 share (`IBKR_FORCE_ONE_SHARE_QTY`, `IBKR_QTY_CAP` in `.env` still overrides it); Paper and Sim send the size asked, buying power still enforced. An unreadable venue counts as Live, and the IBKR send refuses a size still above the cap (`QTY_CAP_LIVE`) -- a venue switched mid-command, or a bracket sized at the send from strategy risk. `/api/ibkr/status` `qty_cap` is null on Paper / Sim; the Live ticket says "Live cap: sends N of M shares". Supersedes the same day's 10-share cap on every venue. | User Directive + Claude Opus 5.5 |
 | 2026-09-22 | HOD Momo tradeable floor (operator: "I need to see things I can trade"): the master gate refuses any symbol under `min_volume` shares today (100k), `min_price` ($1) or, when RVOL is known, `min_rvol` (1.5) before any strategy runs -- reasons `master_liquidity:volume|price|rvol|no_volume`; `GET/POST /api/hod-momo/config` `master` carries the three floors and the Master Gate panel edits them; a persisted `min_rvol` of 0 from the retired master RVOL migrates to the floor once. MI (13k shares, RVOL 0.19) no longer reaches the board on "Approaching HOD". | User Directive + Claude Fable 5.1 |
 | 2026-09-22 | Test quantity gate becomes a cap of 10 shares on every venue (operator decision on #444: "max 10 shares, still ignore 100"): `execution/qty_gate.py` sends a size at or under `IBKR_FORCE_ONE_SHARE_QTY` as asked and cuts a larger one to it; `/api/ibkr/status` adds `qty_cap`; the ticket's confirm and footer say "sends N of M shares". Constant names kept for the execution record's `forced_one_share` stamp. Protective sources stay exempt. | User Directive + Claude Fable 5.1 |

@@ -102,12 +102,16 @@ export function SetupsScoreboard({ data, error, loading, days, onDays }: Props) 
 
 function SplitRows({ split, groups }: { split: string; groups: Record<string, ScoreStats> }) {
   const labels = SETUPS_SPLIT_KEY_LABELS[split] ?? {};
+  // Known groups in reading order (go before wait before blind), anything new after them.
+  const order = Object.keys(labels);
+  const rank = (key: string) => (order.includes(key) ? order.indexOf(key) : order.length);
+  const entries = Object.entries(groups).sort(([a], [b]) => rank(a) - rank(b));
   return (
     <>
       <tr className="setups-split-head">
         <th colSpan={11}>{SETUPS_SPLIT_TITLES[split] ?? split}</th>
       </tr>
-      {Object.entries(groups).map(([key, s]) => (
+      {entries.map(([key, s]) => (
         <tr key={`${split}-${key}`}>
           <th scope="row">{labels[key] ?? key}</th>
           <StatCells s={s} />

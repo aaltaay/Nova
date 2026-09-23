@@ -26,9 +26,9 @@ def base_morning(start_hh: int = 8, start_mm: int = 20, n: int = 40, price: floa
     return bars
 
 
-def add(bars: list[Bar], o: float, h: float, l: float, c: float, v: float = 50_000) -> list[Bar]:
+def add(bars: list[Bar], o: float, h: float, lo: float, c: float, v: float = 50_000) -> list[Bar]:
     t = bars[-1].t + 60
-    bars.append(Bar(t, o, h, l, c, v))
+    bars.append(Bar(t, o, h, lo, c, v))
     return bars
 
 

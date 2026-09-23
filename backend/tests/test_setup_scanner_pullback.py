@@ -115,9 +115,9 @@ def test_a_bar_that_ties_the_high_can_start_the_next_reading():
 
 def test_fourth_pullback_candle_fails():
     bars = _leg()
-    for o, h, l, c in [(4.38, 4.37, 4.32, 4.34), (4.34, 4.36, 4.31, 4.33),
+    for o, h, lo, c in [(4.38, 4.37, 4.32, 4.34), (4.34, 4.36, 4.31, 4.33),
                        (4.33, 4.35, 4.30, 4.32), (4.32, 4.34, 4.29, 4.31)]:
-        add(bars, o, h, l, c, 20_000)
+        add(bars, o, h, lo, c, 20_000)
     d = PullbackDetector("TEST")
     _feed(d, bars)
     assert d.state == "failed" and "3 candles" in d.reason
