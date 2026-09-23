@@ -221,13 +221,13 @@ export function useManualOrderSubmission(params: Params) {
     // loud, because both outlive the click that placed them.
     const tifText = prefs.tif === 'DAY' ? '' : `, ${prefs.tif}`;
     const legsText = legsPlan.kind === 'attach' ? ` ${legsPlan.note}.` : '';
-    // MASTER TEST QTY GATE (#444): the door caps every place at `qty_cap`
-    // shares. Say the sent size here, so the confirm never names a size the
-    // backend will not send.
+    // MASTER TEST QTY GATE (#444): the door caps every Live place at
+    // `qty_cap` shares (null on Paper / Sim). Say the sent size here, so the
+    // confirm never names a size the backend will not send.
     const cap = params.qtyCap ?? null;
     const capText =
       cap != null && Number(built.quantity) > cap
-        ? ` Test cap: sends ${cap} of ${built.quantity} shares.`
+        ? ` Live cap: sends ${cap} of ${built.quantity} shares.`
         : '';
     const summaryText =
       `${direction} ${built.quantity} ${params.symbol.toUpperCase()} ` +

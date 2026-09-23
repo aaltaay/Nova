@@ -33,9 +33,9 @@
 
 ## MASTER TEST QTY GATE (`IBKR_FORCE_ONE_SHARE`)
 
-**Intentional.** While `IBKR_FORCE_ONE_SHARE = True` in `backend/constants_ibkr.py`, every `place` / `bracket` through `execution.service.execute` is **capped at `IBKR_QTY_CAP` shares** from the desk `.env` (default `IBKR_FORCE_ONE_SHARE_QTY` = 10 since 2026-09-22, #444; the gate forced exactly 1 share before that) before validate/send, on every venue. That `.env` line is the only place the number lives. A size at or under the cap goes as asked; a larger one is cut to the cap, the execution record stamps `forced_one_share`, and the ticket's confirm names the sent size. Protective sources (`flatten`, `kill`, `cancel_working`) are exempt: they size themselves from the held position so a desk can always get flat (QA R6, 2026-09-22).
+**Intentional.** While `IBKR_FORCE_ONE_SHARE = True` in `backend/constants_ibkr.py`, every `place` / `bracket` through `execution.service.execute` **on the Live venue** is **capped at `IBKR_QTY_CAP` shares** from the desk `.env` (default `IBKR_FORCE_ONE_SHARE_QTY` = 1) before validate/send, and the IBKR send refuses anything still above it (`QTY_CAP_LIVE`). **Paper and Sim are not capped** (operator decision on #444, 2026-09-22 -- practice is fake money with buying power enforced; earlier that day the cap was 10 on every venue, and exactly 1 share before that). That `.env` line is the only place the number lives. A size at or under the cap goes as asked; a larger one is cut to the cap, the execution record stamps `forced_one_share`, and the Live ticket's confirm names the sent size. Protective sources (`flatten`, `kill`, `cancel_working`) are exempt: they size themselves from the held position so a desk can always get flat (QA R6, 2026-09-22).
 
-- **Not a bug** if fills are always 1 share while the form shows a larger qty.
+- **Not a bug** if Live fills are always 1 share while the form shows a larger qty.
 - **Disable (one line):** set `IBKR_FORCE_ONE_SHARE = False`.
 - **Code:** `execution/qty_gate.py` + one call at the top of `execute()`.
 - Ledger payload may include `"forced_one_share": true`.

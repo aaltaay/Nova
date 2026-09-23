@@ -27,7 +27,7 @@ interface Props {
   spendDisarmed?: boolean;
   quantityLocked: boolean;
   forcedQty: number | null;
-  /** MASTER TEST QTY GATE (#444): "Test cap: sends N of M shares", or null. */
+  /** MASTER TEST QTY GATE (#444): "Live cap: sends N of M shares", or null (Paper / Sim). */
   qtyCapNote?: string | null;
   sessionUnlocked: boolean;
   result: { ok: boolean; text: string } | null;
