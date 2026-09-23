@@ -132,6 +132,9 @@ export const SIM_DAY_CAL_PREV = 'Previous month';
 export const SIM_DAY_CAL_NEXT = 'Next month';
 export const SIM_DAY_CAL_YEAR = 'Year';
 export const SIM_DAY_CAL_WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const;
+/** The calendar's box, for placing it inside the window (matches simDayCalendar.css). */
+export const SIM_DAY_CAL_WIDTH_PX = 248;
+export const SIM_DAY_CAL_HEIGHT_PX = 300;
 
 /** The leaderboard recorder runs whenever Nova does; only a write failure speaks (one toast). */
 export const LEADERBOARD_RECORDER_FAILED_TITLE = 'Scanner board recording failed';
