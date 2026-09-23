@@ -41,8 +41,8 @@ Nova's backend is flat Python modules with dataclasses/functions; the frontend i
 
 | Pattern | Where it already lives | Why naming it (only) helps |
 |---|---|---|
-| Strategy | `hod_momo_filters.py` per-strategy gates; `executor.py` gate chain | Recognize the shape when extending — don't reinvent |
-| Chain of Responsibility | `executor.py` order gate chain (kill switch → concurrency → auto_paper → risk → plan) | Keep gates thin and ordered; don't collapse into one `if` |
+| Strategy | `hod_momo_filters.py` per-strategy gates | Recognize the shape when extending — don't reinvent |
+| Chain of Responsibility | `execution/service.py` order gate chain (validate → kill switch → day lock → risk → account) | Keep gates thin and ordered; don't collapse into one `if` |
 | Facade | `routes/*.py` thin handlers delegating to service modules | Already mandated by `backend-modularity.mdc` |
 | Observer | `/ws/scanner`, `/ws/ibkr/tape/{symbol}` broadcast | Plain callbacks/asyncio queues are enough — no new class hierarchy |
 | Adapter | IBKR-vs-Alpaca seam (`single-market-data-feed.mdc`) | Keep the seam at the provider boundary only |

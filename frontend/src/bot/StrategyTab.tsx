@@ -14,6 +14,7 @@ import {
   quoteSpikeSettingsLine,
   volumeSettingsLine,
 } from '../constantGroups/bot';
+import { KillSwitchCard } from './KillSwitchCard';
 import { StrategyAllowlistCard } from './StrategyAllowlistCard';
 import { StrategyBreakersCard } from './StrategyBreakersCard';
 import { useBotSession } from './useBotSession';
@@ -80,6 +81,8 @@ export function StrategyTab() {
           {session.brain_alive ? ' (heartbeat alive)' : ' (heartbeat stale or missing)'}
         </p>
       </section>
+
+      <KillSwitchCard />
 
       <StrategyAllowlistCard />
 

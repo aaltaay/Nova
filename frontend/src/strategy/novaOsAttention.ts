@@ -8,18 +8,9 @@ import {
   NOVA_OS_ATTENTION_MUTED_DEFAULT,
 } from '../constants';
 
-export type NovaOsAttentionKind =
-  | 'decision_buy'
-  | 'decision_wait'
-  | 'decision_no_buy'
-  | 'mode_reset'
-  | 'risk_halt'
-  | 'staged'
-  | 'expired'
-  | 'fill'
-  | 'stop'
-  | 'kill'
-  | 'archive_fail';
+/** The verdict, staged-ticket, fill and mode-reset kinds went with the Nova OS
+ * verdict and the executor (ADR 025); these three still come from the event log. */
+export type NovaOsAttentionKind = 'risk_halt' | 'kill' | 'archive_fail';
 
 export interface NovaOsAttentionEvent {
   id: string;
@@ -54,7 +45,8 @@ function emit() {
   for (const listener of listeners) listener(snapshot);
 }
 
-function playCue(kind: NovaOsAttentionKind) {
+/** One low alarm tone: every remaining kind (kill, risk halt, archive failure) is a warning. */
+function playCue() {
   if (muted) return;
   try {
     if (!audioCtx) audioCtx = new AudioContext();
@@ -63,15 +55,7 @@ function playCue(kind: NovaOsAttentionKind) {
     const gain = ctx.createGain();
     osc.connect(gain);
     gain.connect(ctx.destination);
-    const freq =
-      kind === 'decision_buy' || kind === 'fill'
-        ? 880
-        : kind === 'risk_halt' || kind === 'kill' || kind === 'archive_fail'
-          ? 220
-          : kind === 'decision_wait' || kind === 'expired'
-            ? 520
-            : 440;
-    osc.frequency.value = freq;
+    osc.frequency.value = 220;
     gain.gain.value = 0.04;
     osc.start();
     gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
@@ -115,7 +99,7 @@ export function pushNovaOsAttention(
     ts: Date.now(),
   };
   events = [event, ...events].slice(0, MAX_EVENTS);
-  playCue(kind);
+  playCue();
   emit();
 }
 
@@ -127,11 +111,4 @@ export function dismissNovaOsAttention(id: string): void {
 export function clearNovaOsAttention(): void {
   events = [];
   emit();
-}
-
-/** Map a decide() verdict to an attention kind (signal-mode receipts). */
-export function attentionKindForDecision(decision: string): NovaOsAttentionKind {
-  if (decision === 'BUY') return 'decision_buy';
-  if (decision === 'WAIT') return 'decision_wait';
-  return 'decision_no_buy';
 }

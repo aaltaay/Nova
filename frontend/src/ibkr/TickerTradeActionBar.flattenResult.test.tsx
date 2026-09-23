@@ -21,7 +21,6 @@ vi.mock('./closeFullPosition', () => ({ closeFullPosition: (...args: unknown[]) 
 vi.mock('./notifyOrderRejected', () => ({ notifyOrderRejected: (...args: unknown[]) => mocks.notify(...args) }));
 vi.mock('../hotkeys/NovaActionRuntimeSync', () => ({ NovaActionRuntimeSync: () => null }));
 vi.mock('../hotkeys/TradingQuickBar', () => ({ TradingQuickBar: () => null }));
-vi.mock('./TickerTradeAutomateControls', () => ({ TickerTradeAutomateControls: () => null }));
 vi.mock('./ticketUnlock', () => ({
   readTicketSessionUnlocked: () => true,
   subscribeTicketSessionUnlock: () => () => {},

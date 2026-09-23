@@ -158,13 +158,4 @@ export const HOTKEY_CAPABILITY_CATALOG: HotkeyCapabilityEntry[] = [
     evidence: 'community_version_sensitive',
     status: 'backend_required',
   },
-  {
-    id: 'nova_automation',
-    category: 'automation',
-    label: 'Nova automation shortcuts',
-    description: 'Approve/reject staged, Confirm/Signal, flatten prompt, kill switch — already active in Automation panel.',
-    evidence: 'das_verified',
-    status: 'nova_active',
-    safetyNote: 'Separate from imported DAS scripts; not driven by .htk in this phase.',
-  },
 ];

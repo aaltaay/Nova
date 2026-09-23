@@ -47,7 +47,6 @@ async def _place_close(symbol: str, qty: float, side: str) -> dict[str, Any]:
             side=side,
             qty=abs(float(qty)),
             skip_risk=True,
-            skip_concurrency=True,
             **ticket_to_command_fields(ticket),
         ),
         wait_ack=False,
@@ -104,7 +103,6 @@ async def _cancel_working() -> list[dict[str, Any]]:
                 source="cancel_working",
                 order_id=int(order_id),
                 skip_risk=True,
-                skip_concurrency=True,
             ),
             wait_ack=False,
         )

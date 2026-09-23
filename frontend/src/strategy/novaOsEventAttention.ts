@@ -2,11 +2,9 @@
  * Maps append-only Nova OS event receipts (GET /api/nova-os/events) to
  * attention-strip pushes, and a hook that polls the feed globally.
  *
- * This is the missing link the P3 attention framework never had: kinds like
- * `staged`/`expired`/`fill`/`stop`/`kill`/`archive_fail` existed in copy/type
- * unions but nothing ever pushed them — only decide() BUY/WAIT/NO_BUY verdicts
- * reached the strip (see DecisionPanel.tsx). Runs independent of which tab is
- * open so a kill switch or an expired approval is never silently missed.
+ * Runs independent of which tab is open so a kill switch trip, a risk halt or
+ * an archive upload failure is never silently missed. The staged / fill /
+ * mode-reset receipts went with the executor (ADR 025).
  */
 import { useEffect, useRef } from 'react';
 import {
@@ -29,33 +27,12 @@ export interface MappedAttention {
  * skip). Kept separate from the hook so the mapping is unit-testable without
  * fetch/timers. */
 export function mapNovaOsEventToAttention(event: NovaOsReceipt): MappedAttention | null {
-  const symbol = event.symbol ?? undefined;
   const payloadEvent = event.payload?.['event'];
-
-  if (event.kind === 'action') {
-    if (event.action === 'staged') return { kind: 'staged', symbol };
-    if (event.action === 'executed_paper' || event.action === 'executed_live') {
-      return { kind: 'fill', symbol };
-    }
-    if (event.action === 'declined' && payloadEvent === 'staged_expired') {
-      return { kind: 'expired', symbol };
-    }
-    if (payloadEvent === 'bracket_closed' || payloadEvent === 'bracket_closed_unverified') {
-      return { kind: 'stop', symbol };
-    }
-    return null;
-  }
 
   if (event.kind === 'system') {
     if (payloadEvent === 'kill_switch') return { kind: 'kill' };
     if (payloadEvent === 'risk_halt') return { kind: 'risk_halt' };
     if (payloadEvent === 'archive_upload_failed') return { kind: 'archive_fail' };
-    if (
-      (payloadEvent === 'mode_change' || payloadEvent === 'force_signal') &&
-      event.payload?.['to'] === 'signal'
-    ) {
-      return { kind: 'mode_reset' };
-    }
   }
 
   return null;

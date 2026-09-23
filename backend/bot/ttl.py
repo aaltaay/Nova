@@ -46,7 +46,6 @@ async def cancel_due() -> list[dict[str, Any]]:
                 order_id=int(order_id),
                 symbol=str(item.get("symbol") or "") or None,
                 skip_risk=True,
-                skip_concurrency=True,
             ),
             wait_ack=False,
         )

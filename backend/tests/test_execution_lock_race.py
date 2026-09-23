@@ -23,10 +23,9 @@ import ibkr.account as account_mod
 import ibkr.client as client_mod
 import ibkr.orders as orders_mod
 import ibkr.safety as safety_mod
-import strategy.executor as executor
+import kill_switch
 import strategy.risk as risk_mod
 from execution.models import ExecutionCommand
-from nova_os import control_mode, staged_tickets
 
 
 @pytest.fixture(autouse=True)
@@ -43,19 +42,13 @@ def isolated_execution(tmp_path, monkeypatch):
     store.init_db()
     telemetry.reset_for_tests()
     inflight.reset_for_tests()
-    control_mode.reset_for_tests()
-    staged_tickets.reset_for_tests()
     risk_mod.reset_day()
-    executor._kill_switch_tripped = False
-    executor._open_positions.clear()
+    kill_switch._tripped = False
     yield
     telemetry.reset_for_tests()
     inflight.reset_for_tests()
-    control_mode.reset_for_tests()
-    staged_tickets.reset_for_tests()
     risk_mod.reset_day()
-    executor._kill_switch_tripped = False
-    executor._open_positions.clear()
+    kill_switch._tripped = False
 
 
 def _arm_paper(monkeypatch, *, positions: list | None = None):
@@ -84,7 +77,6 @@ def _market(key: str, side: str, qty: float, **kw) -> ExecutionCommand:
         qty=qty,
         order_type="MKT",
         skip_risk=True,
-        skip_concurrency=True,
     )
     base.update(kw)
     return ExecutionCommand(**base)

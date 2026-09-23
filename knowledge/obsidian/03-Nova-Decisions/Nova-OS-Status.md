@@ -1,5 +1,7 @@
 # Nova OS Status
 
+> **Retired 2026-09-23 (ADR 025, operator decision on #481).** The `decide()` verdict (judged on Gap and Go, which failed gate 1), the `signal | confirm | auto_paper` ladder, the staged approval queue, the Phase D executor and its restart recovery, and the decision replay were removed. What remains: the kill switch latch (now `backend/kill_switch/`, `/api/kill-switch`, a card on the Bots page), the event log (`nova_os/events.py`: kill switch trips, risk halts, archive-health failures) and the NYSE holiday table. The setup scanner (ADR 022) and the bot ladder (ADR 016) are the live path. Everything below is history.
+
 ## Definition
 
 Nova OS is Nova's auditable trading decision and operations layer. It combines scanner/watchlist facts, strategy rules, catalyst quality, risk/session state, market microstructure, account safety, and user-selected control mode into an explicit `BUY | WAIT | NO_BUY` decision with evidence. It then either displays, stages, or executes the approved ticket according to `signal | confirm | auto_paper | auto_live`. Nova OS also owns the learning loop: durable market/journal history, replay, review, policy versioning, and a visible audit trail. It is not an unconstrained chatbot, not a promise of profit, and never bypasses IBKR/risk gates.

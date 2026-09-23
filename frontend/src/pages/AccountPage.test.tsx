@@ -114,7 +114,9 @@ describe('AccountPage', () => {
     fireEvent.click(screen.getByTestId('account-perf-tab-symbol'));
     expect(screen.getByTestId('account-symbol-row-GRML').textContent).toContain('+$125.00');
     fireEvent.click(screen.getByTestId('account-perf-tab-source'));
-    expect(screen.getByTestId('account-source-auto_paper').textContent).toContain('no fills');
+    expect(screen.getByTestId('account-source-manual')).toBeTruthy();
+    // The retired Phase D executor's Auto Paper card is gone unless old fills carry it (ADR 025).
+    expect(screen.queryByTestId('account-source-auto_paper')).toBeNull();
     fireEvent.click(screen.getByTestId('account-eye'));
     expect(screen.getByTestId('account-tav').textContent).toBe('$•••,•••.••');
     fireEvent.click(screen.getByTestId('account-range-1M'));

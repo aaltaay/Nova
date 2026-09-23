@@ -157,7 +157,7 @@ export const ACCOUNT_SOURCE_BOT = 'Bot';
 export const ACCOUNT_SOURCE_AUTO_PAPER = 'Auto Paper';
 export const ACCOUNT_SOURCE_NO_FILLS = 'no fills';
 export const ACCOUNT_SOURCE_NO_FILLS_NOTE = 'placed nothing in this range · stated, not zero';
-export const ACCOUNT_SOURCE_AUTO_PAPER_NOTE = 'paper-shadow source (signal → confirm → auto_paper)';
+export const ACCOUNT_SOURCE_AUTO_PAPER_NOTE = 'retired Phase D executor (ADR 025) · earlier fills only';
 export const accountSourceFills = (n: number): string => `${n} fill${n === 1 ? '' : 's'}`;
 export const ACCOUNT_SOURCE_FOOT =
   'Nova stamps every fill with source and bot_id, so this split is read from the ledger, not inferred.';

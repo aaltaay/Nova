@@ -8,15 +8,10 @@ NOVA_OS_POLICY_VERSION = "nova-os-p5-2026-07-15"  # bump when decision semantics
 
 NOVA_OS_EVENTS_DB_FILENAME = "nova_os_events.db"  # lives under paths.cache_dir(), not git-tracked
 NOVA_OS_EVENTS_DEFAULT_LIMIT = 200                # default rows returned by the read API
-# Restart recovery scans this many newest events for executed_paper / closes.
-NOVA_OS_RECOVERY_EVENTS_LIMIT = 500
 
-# decide() tunables (Gap and Go first-minute volume + top ranks)
-NOVA_OS_MIN_FIRST_MINUTE_VOLUME = 100_000  # ebook: ≥100k shares in the 9:30 ET minute
-NOVA_OS_WATCHLIST_MAX_RANK = 4             # trade only the most-obvious top-ranked names
-NOVA_OS_CATALYST_MIN_CONFIDENCE = 0.45     # soft Gate 4 floor for news-impact confidence
-NOVA_OS_PRIMARY_SETUP = "gap_and_go"       # v1 strategy scope
-NOVA_OS_DECIDE_DEFAULT_LIMIT = 4           # GET /api/nova-os/decide watchlist batch size
+# The decide() verdict, its tunables and the control-mode ladder were retired
+# (ADR 025). The vocabulary below stays: historical receipts in the event log
+# carry these codes and nova_os.codes validates new receipts against them.
 NOVA_OS_CITATIONS = (
     "Gap and Go — Five Pillars gate",
     "Gap and Go — first-minute volume ≥100k",
@@ -42,12 +37,6 @@ NOVA_OS_MODES = (
     NOVA_OS_MODE_AUTO_PAPER,
     NOVA_OS_MODE_AUTO_LIVE,
 )
-NOVA_OS_DEFAULT_MODE = NOVA_OS_MODE_SIGNAL  # safest default; never persisted as anything else on restart
-
-# P4/P5 — confirm + auto_paper controls (never persist mode across restart)
-NOVA_OS_CONFIRM_TIMEOUT_SEC = 45           # staged ticket TTL; Gap and Go moves fast
-NOVA_OS_MAX_CONCURRENT_POSITIONS = 2       # open executor positions + staged tickets combined
-NOVA_OS_FLATTEN_CONFIRM_TOKEN = "FLATTEN"  # typed confirm for flatten_positions()
 
 # ── Centralized execution path (ADR 007) ────────────────────────────────────
 # Single receive→validate→persist→send→ack→fill pipeline. Paper and live share
@@ -78,8 +67,6 @@ IBKR_VERIFICATION_REQUIRED_MARKERS = (
 )
 EXECUTION_SOURCES = (
     "manual",
-    "approve",
-    "auto_paper",
     "kill",
     "cancel_working",
     "flatten",
@@ -88,8 +75,8 @@ EXECUTION_SOURCES = (
 )
 EXECUTION_OPS = ("place", "bracket", "cancel", "replace")
 # ── NYSE exchange calendar ───────────────────────────────────────────────────
-# Full-day closures (ISO dates). Gate 0, set_mode(auto_paper), the Sim session
-# clock and historical replay all read this one table, so it must answer for
+# Full-day closures (ISO dates). The market clock, the Sim session clock,
+# historical replay and the leaderboard recorder all read this one table, so it must answer for
 # every year those consumers can be asked about — not only the current one.
 #
 # Policy (#386): the table is DERIVED BY RULE across a declared, closed year
@@ -198,8 +185,7 @@ NOVA_OS_NYSE_HOLIDAY_NAMES = _MappingProxyType({
     for day, name in sorted(_nyse_holidays(year).items())
 })
 # Same name and same frozenset-of-ISO-strings contract as the 2026-only literal
-# it replaces, so nova_os.gates and execution.flatten_exit become year-correct
-# with no edit of their own.
+# it replaces, so its readers became year-correct with no edit of their own.
 NOVA_OS_NYSE_HOLIDAYS = frozenset(NOVA_OS_NYSE_HOLIDAY_NAMES)
 
 # Action codes — what Nova OS actually did with a decision. The "no silent
@@ -261,16 +247,6 @@ NOVA_OS_REASON_CODES = (
     "ALL_GATES_PASS",
 )
 
-# Temporary loss policy — decide() applies this via codes.loss_policy_mode().
-# Graduated response to losing trades THIS SESSION (RiskState.losses_today —
-# a daily count, NOT consecutive_losses; an intervening win does not reset it):
-#   first loss  → downgrade control mode to `confirm` (require human per trade)
-#   third loss  → halt for the day (mirrors RISK_MAX_CONSECUTIVE_LOSSES)
-# These are intentionally separate from the risk-engine walk-away guardrails so
-# the mode-downgrade step (which the risk engine has no concept of) is explicit.
-NOVA_OS_LOSS_POLICY_DOWNGRADE_AFTER_LOSSES = 1  # first loss → force `confirm`
-NOVA_OS_LOSS_POLICY_HALT_AFTER_LOSSES = 3       # third loss → halt (== RISK_MAX_CONSECUTIVE_LOSSES)
-
 # ── Local API auth (SEC-002 / SEC-004 / D-040) ────────────────────────────────
 # Mutating /api/* routes require this header when NOVA_API_KEY is set, or when
 # the bind host is not loopback (see backend/auth.py).
@@ -282,7 +258,7 @@ NOVA_CONFIG_MUTATE_PATH = "/api/config"
 
 # ── Kill switch latch (D-037) ───────────────────────────────────────────────────
 # Persisted so an API restart cannot silently re-arm spending. Owner +
-# invalidation trigger are documented in strategy/kill_switch_state.py.
+# invalidation trigger are documented in kill_switch/state.py.
 KILL_SWITCH_STATE_FILENAME = "kill_switch_state.json"
 KILL_SWITCH_STATE_SCHEMA_VERSION = 1
 

@@ -59,8 +59,9 @@ describe('HotkeyManager', () => {
     expect(container.querySelector('[role="dialog"]')).toBeNull();
     expect(container.querySelector('[aria-modal="true"]')).toBeNull();
     expect(container.querySelector('[data-testid="hotkeys-settings-cta"]')).toBeNull();
-    expect(container.textContent).toContain('Active Nova shortcuts');
-    expect(container.textContent).toContain('Approve first staged bracket');
+    // The Automation six went with the Nova OS mode ladder (ADR 025).
+    expect(container.textContent).not.toContain('Active Nova shortcuts');
+    expect(container.textContent).not.toContain('Approve first staged bracket');
     const advanced = container.querySelector(
       '[data-testid="hotkeys-advanced-das"]',
     ) as HTMLDetailsElement;

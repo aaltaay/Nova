@@ -131,8 +131,7 @@ class TestWalkAwayGuardrails:
 
 class TestLossesTodayIsNotConsecutive:
     def test_losses_today_survives_an_intervening_win(self):
-        """losses_today is the daily-loss-policy counter Nova OS uses
-        (codes.loss_policy_mode) — unlike consecutive_losses, a win in
+        """losses_today is a daily count — unlike consecutive_losses, a win in
         between must NOT reset it."""
         state = RiskState()
         state.record_trade_result(-10.0)

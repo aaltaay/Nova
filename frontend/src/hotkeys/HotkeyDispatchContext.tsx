@@ -1,6 +1,7 @@
 /**
  * Single shell-level hotkey dispatcher (Phase G3).
- * Automation + Nova Actions + shortcuts menu / rebind — one keydown listener.
+ * Nova Actions + shortcuts menu / rebind — one keydown listener. (The
+ * Automation six went with the Nova OS mode ladder, ADR 025.)
  */
 
 import {
@@ -13,18 +14,10 @@ import {
   type ReactNode,
 } from 'react';
 import { hmrStableContext } from '../utils/hmrStableContext';
-import { NOVA_ACTION_IN_FLIGHT_MESSAGE, type HotkeyAction } from '../constants';
+import { NOVA_ACTION_IN_FLIGHT_MESSAGE } from '../constants';
 import { notifyOrderRejected } from '../ibkr/notifyOrderRejected';
-import {
-  chordToBinding,
-  createHotkeyKeydownHandler,
-  type HotkeyCallbacks,
-} from '../hooks/hotkeyUtils';
-import {
-  collectOccupiedSlots,
-  getEffectiveAutomationBindings,
-  getEffectiveMenuBinding,
-} from './effectiveBindings';
+import { chordToBinding, createHotkeyKeydownHandler } from '../hooks/hotkeyUtils';
+import { collectOccupiedSlots, getEffectiveMenuBinding } from './effectiveBindings';
 import {
   deleteNovaActionFromProfile,
   deskAskBidEpochNeedsApply,
@@ -50,15 +43,7 @@ import { ShortcutsMenuOverlay } from './ShortcutsMenuOverlay';
 import { useTopOfBook } from './TopOfBookContext';
 import type { HotkeyKeyChord, HotkeyProfile } from './types';
 
-interface AutomationRegistration {
-  enabled: boolean;
-  mode: string;
-  callbacks: HotkeyCallbacks;
-  onBlocked?: (action: HotkeyAction, message: string) => void;
-}
-
 export interface HotkeyDispatchContextValue {
-  registerAutomation: (reg: AutomationRegistration | null) => void;
   novaActions: NovaActionRecord[];
   reloadNovaActions: () => void;
   lastResult: NovaActionResult | null;
@@ -73,13 +58,6 @@ function readProfile(): HotkeyProfile {
 }
 
 export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
-  const [automationEnabled, setAutomationEnabled] = useState(false);
-  const [automationMode, setAutomationMode] = useState('signal');
-  const automationCallbacksRef = useRef<HotkeyCallbacks>({});
-  const automationBlockedRef = useRef<
-    ((action: HotkeyAction, message: string) => void) | undefined
-  >(undefined);
-
   const [profile, setProfile] = useState<HotkeyProfile>(() => readProfile());
   const [lastResult, setLastResult] = useState<NovaActionResult | null>(null);
   const [menuState, setMenuState] = useState<ShortcutsMenuState>(
@@ -114,31 +92,12 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
     runtimeRef.current = { ...runtimeRef.current, topOfBook };
   }, [topOfBook]);
 
-  const automationBindings = useMemo(
-    () => getEffectiveAutomationBindings(profile),
-    [profile],
-  );
   const menuBinding = useMemo(
     () => getEffectiveMenuBinding(profile),
     [profile],
   );
-  const automationBindingsRef = useRef(automationBindings);
-  automationBindingsRef.current = automationBindings;
   const menuBindingRef = useRef(menuBinding);
   menuBindingRef.current = menuBinding;
-
-  const registerAutomation = useCallback((reg: AutomationRegistration | null) => {
-    if (!reg || !reg.enabled) {
-      setAutomationEnabled(false);
-      automationCallbacksRef.current = {};
-      automationBlockedRef.current = undefined;
-      return;
-    }
-    setAutomationEnabled(true);
-    setAutomationMode(reg.mode);
-    automationCallbacksRef.current = reg.callbacks;
-    automationBlockedRef.current = reg.onBlocked;
-  }, []);
 
   const reloadNovaActions = useCallback(() => {
     setProfile(readProfile());
@@ -211,11 +170,7 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
       }
 
       createHotkeyKeydownHandler({
-        mode: automationEnabled ? automationMode : 'signal',
-        callbacks: automationEnabled ? automationCallbacksRef.current : {},
-        onBlocked: automationBlockedRef.current,
         novaActions: novaActionsRef.current,
-        automationBindings: automationBindingsRef.current,
         onNovaAction: (action) => {
           void runAction(action);
         },
@@ -247,16 +202,16 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('keydown', onKeyDown, true);
       window.removeEventListener('keyup', onKeyUp, true);
     };
-  }, [automationEnabled, automationMode, runAction]);
+  }, [runAction]);
 
   const catalog = useMemo(
-    () => buildShortcutsCatalog(profile.novaActions, automationBindings, menuBinding),
-    [profile.novaActions, automationBindings, menuBinding],
+    () => buildShortcutsCatalog(profile.novaActions, menuBinding),
+    [profile.novaActions, menuBinding],
   );
 
   const occupied = useMemo(
-    () => collectOccupiedSlots(automationBindings, profile.novaActions, menuBinding),
-    [automationBindings, profile.novaActions, menuBinding],
+    () => collectOccupiedSlots(profile.novaActions, menuBinding),
+    [profile.novaActions, menuBinding],
   );
 
   const onStartRebind = useCallback((target: ShortcutRebindTarget, excludeId: string) => {
@@ -325,14 +280,6 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
       let next: HotkeyProfile = { ...prev };
       if (target.type === 'menu') {
         next = { ...prev, shortcutsMenuKey: chord };
-      } else if (target.type === 'automation') {
-        next = {
-          ...prev,
-          automationBindings: {
-            ...prev.automationBindings,
-            [target.action]: chord,
-          },
-        };
       } else {
         next = {
           ...prev,
@@ -351,7 +298,6 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(
     () => ({
-      registerAutomation,
       novaActions: profile.novaActions,
       reloadNovaActions,
       lastResult,
@@ -359,7 +305,6 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
       runAction,
     }),
     [
-      registerAutomation,
       profile.novaActions,
       reloadNovaActions,
       lastResult,

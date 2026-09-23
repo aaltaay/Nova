@@ -69,24 +69,6 @@ R2_PREFIX = "nova-os/archive/"                  # content-addressed keys under t
 R2_ENDPOINT_HOST_SUFFIX = "r2.cloudflarestorage.com"
 ARCHIVE_R2_VERIFIED_INDEX = "_r2_verified.json"  # under archive_cold/
 ARCHIVE_R2_VERIFIED_INDEX_L2 = "_r2_verified_l2.json"  # under archive_cold/ (l2_bridge)
-# Replay / evening review (P9)
-ARCHIVE_EVENING_REVIEW_HORIZON_MIN = 5         # minutes after decision for outcome heuristic
-# v2 (2026-07-15 hardening): v1 fed decide() the *entire* archived day's bars
-# for one decision per symbol (hindsight — decide() could see the close before
-# "deciding"), and scored outcome by looking backward from the day's last bar
-# instead of forward from the actual decision moment. v2 walked the day in
-# ARCHIVE_REPLAY_WALK_STEP_MIN steps and scored outcome forward from the same
-# as_of it decided at.
-# v3 (2026-09-20, #385): a bar is visible only once its minute has CLOSED
-# (ts + ARCHIVE_BAR_1M_INTERVAL_SEC <= as_of), so each step sees one fewer
-# minute than v2 did and reference_price/entry/pnl_pct/aligned_with_decision
-# are re-derived from that same slice. v2 and v3 findings for the same day are
-# NOT comparable — hence the bump.
-ARCHIVE_EVENING_REVIEW_VERSION = "evening-review-v3-2026-09-20"
-ARCHIVE_REPLAY_MAX_SYMBOLS = 50
-ARCHIVE_REPLAY_WALK_STEP_MIN = 5               # minutes between as-of snapshots in walk_day
-ARCHIVE_REPLAY_WALK_MAX_STEPS = 200            # hard cap on snapshots per walk (safety)
-ARCHIVE_EVENING_REVIEW_MAX_SYMBOLS = 10        # walk_day is O(steps x symbols); keep review scoped
 # An archived 1m bar is stamped with the minute's OPENING ts; its final OHLCV is
 # only known at bar_start + this. Replay projections must not reveal it earlier.
 ARCHIVE_BAR_1M_INTERVAL_SEC = 60.0

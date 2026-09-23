@@ -1,5 +1,5 @@
-/** Trading action bar — Open / Close / Automate.
- * Reuses IBKR order API + useExecutor; does not invent a second order path. */
+/** Trading action bar — Open / Close.
+ * Reuses the IBKR order API; does not invent a second order path. */
 import { useState } from 'react';
 import {
   APP_DIALOG_FLATTEN_LABEL,
@@ -20,7 +20,6 @@ import { notifyOrderRejected } from './notifyOrderRejected';
 import { spendLockReason } from './spendLock';
 import type { PlaceOrderResult } from './placeOrder';
 import { readTicketSessionUnlocked } from './ticketUnlock';
-import { TickerTradeAutomateControls } from './TickerTradeAutomateControls';
 import { useTradingPinGate } from './useTradingPinGate';
 import type { IbkrListingFlags } from '../types/ticker';
 import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from './types';
@@ -81,7 +80,6 @@ export function TickerTradeActionBar({
   const hasPosition = position != null && position.qty !== 0;
   const compactChrome = variant === 'rail';
   const showAccount = !compactChrome;
-  const showAutomate = !compactChrome;
 
   async function handleClose() {
     if (!canFlatten || !position || position.qty === 0) return;
@@ -229,8 +227,6 @@ export function TickerTradeActionBar({
                 : 'No position'}
           </button>
         </div>
-
-        {showAutomate && <TickerTradeAutomateControls enabled />}
       </div>
 
       <div className="ticker-trade-bar-footer">

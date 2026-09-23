@@ -87,58 +87,22 @@ export const JOURNAL_RECENT_SIGNALS_LIMIT = 25;
 /** Mirrors backend JOURNAL_CALENDAR_TIMEZONE — calendar days are America/New_York. */
 export const JOURNAL_CALENDAR_TIMEZONE = 'America/New_York';
 
-/** Executor (Phase D) status poll interval — armed state and open positions can change
- * quickly once a bracket fills, so this polls faster than the Journal panel. */
-export const EXECUTOR_POLL_INTERVAL_MS = 5000;
-
-// ── Nova OS Decision UX (mirrors backend/constants.py NOVA_OS_*) ────────────
-/** Poll interval for DecisionPanel watchlist/symbol decide fetches. */
-export const NOVA_OS_DECIDE_POLL_INTERVAL_MS = 5000;
-/** Faster poll for Trader Nova OS dock tab (single symbol, while mounted). */
-export const NOVA_OS_TRADER_DECIDE_POLL_MS = 2000;
-
-/** Education strip under Trader Nova OS brain (rules brain, not chat AI). */
-export const NOVA_OS_TRADER_BRAIN_DISCLOSURE =
-  'Nova OS rules brain (not chat AI). You are watching live ratings. Signal-only — nothing places from Trader. Like the calls? Watchlist → Automation → Confirm / Auto Paper.';
-/** Exit context when Trader shows an open position for the symbol. */
-export const NOVA_OS_TRADER_EXIT_NOTE =
-  'exits use stop/Flatten/hotkeys, not a sell decide().';
+// ── Desk event log attention strip (GET /api/nova-os/events) ────────────────
 /** Poll interval for the global Nova OS event-attention feed (GET /api/nova-os/events). */
 export const NOVA_OS_EVENT_ATTENTION_POLL_INTERVAL_MS = 5000;
 /** How many recent events to fetch per poll — must comfortably exceed the
  * number of receipts one poll interval could produce so nothing is missed. */
 export const NOVA_OS_EVENT_ATTENTION_POLL_LIMIT = 25;
-/** Default watchlist batch size for GET /api/nova-os/decide (mirrors NOVA_OS_DECIDE_DEFAULT_LIMIT). */
-export const NOVA_OS_DECIDE_DEFAULT_LIMIT = 4;
 /** localStorage key for the muteable attention-sound preference. */
 export const NOVA_OS_ATTENTION_MUTE_STORAGE_KEY = 'nova_os_attention_muted';
 /** When true, attention cues are silent by default until the user unmutes. */
 export const NOVA_OS_ATTENTION_MUTED_DEFAULT = false;
-/** Short labels for BUY | WAIT | NO_BUY verdict chips. */
-export const NOVA_OS_DECISION_LABELS: Record<string, string> = {
-  BUY: 'BUY',
-  WAIT: 'WAIT',
-  NO_BUY: 'NO BUY',
-};
 /** Plain-language subtitles for the attention strip event kinds. */
 export const NOVA_OS_ATTENTION_COPY: Record<string, string> = {
-  decision_buy: 'Nova OS: BUY decision — review the ticket (signal only; nothing placed).',
-  decision_wait: 'Nova OS: WAIT — catalyst or soft gate held the entry.',
-  decision_no_buy: 'Nova OS: NO BUY — see the first failing gate.',
-  mode_reset: 'Automation reset to Signal — nothing will place until you raise the mode.',
-  risk_halt: 'Risk halt — new entries blocked for the session.',
-  staged: 'Ticket staged — Approve before the countdown expires to place the paper bracket.',
-  expired: 'Staged ticket expired unapproved — nothing was placed.',
-  fill: 'Paper bracket placed — entry order working on IBKR.',
-  stop: 'Position closed — see Journal for exit price and P&L.',
-  kill: 'Kill switch tripped — automation forced to Signal.',
+  risk_halt: 'Walk-away rule hit — see Journal › Risk. It does not block manual or bot orders.',
+  kill: 'Kill switch tripped — every new order is blocked until you reset it on the Bots page.',
   archive_fail: 'Archive upload failed for a prior day — see Archive health.',
 };
-
-/** Mirrors backend NOVA_OS_FLATTEN_CONFIRM_TOKEN — typed confirm for flatten. */
-export const NOVA_OS_FLATTEN_CONFIRM_TOKEN = 'FLATTEN';
-/** Mirrors backend NOVA_OS_CONFIRM_TIMEOUT_SEC (display only). */
-export const NOVA_OS_CONFIRM_TIMEOUT_SEC = 45;
 
 /** Level 2 heuristic badge thresholds (Phase F). Mirrors backend/constants.py
  * L2_ASK_STACKED_RATIO / L2_BID_HEAVY_RATIO / L2_SPREAD_WIDE_DOLLARS — kept in

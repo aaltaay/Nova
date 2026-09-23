@@ -5,7 +5,6 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  STOCK_VIEW_MODULE_NOVA_OS_TITLE,
   STOCK_VIEW_MODULE_POSITIONS_TITLE,
   STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY,
   STOCK_VIEW_OPEN_ORDERS_SAMPLE_HIDDEN_KEY,
@@ -40,11 +39,6 @@ vi.mock('../closed_orders/useClosedOrders', () => ({
   }),
 }));
 
-vi.mock('./TraderNovaOsBrain', () => ({
-  TraderNovaOsBrain: ({ symbol }: { symbol: string }) => (
-    <div data-testid="trader-nova-os-brain">Nova OS mock {symbol}</div>
-  ),
-}));
 
 const ORDER: IbkrOrder = {
   order_id: 99,
@@ -373,28 +367,11 @@ describe('StockViewOpenOrdersDock', () => {
     expect(container.textContent).toContain('AAPL');
   });
 
-  it('switches to Nova OS tab and mounts the judgment panel', () => {
+  it('has no Nova OS tab (retired, ADR 025)', () => {
     act(() => {
       root.render(<StockViewOpenOrdersDock {...baseProps} />);
     });
-    const tab = container.querySelector(
-      '[data-testid="stock-view-dock-tab-nova-os"]',
-    ) as HTMLButtonElement;
-    expect(tab).toBeTruthy();
-    expect(container.textContent).toContain(STOCK_VIEW_MODULE_NOVA_OS_TITLE);
-    act(() => {
-      tab.click();
-    });
-    expect(
-      container.querySelector('[data-testid="stock-view-nova-os"]'),
-    ).toBeTruthy();
-    expect(
-      container.querySelector('[data-testid="trader-nova-os-brain"]'),
-    ).toBeTruthy();
-    expect(
-      container
-        .querySelector('[data-testid="stock-view-open-orders-dock"]')
-        ?.getAttribute('data-dock-surface'),
-    ).toBe('nova_os');
+    expect(container.querySelector('[data-testid="stock-view-dock-tab-nova-os"]')).toBeNull();
+    expect(container.textContent).not.toContain('Nova OS');
   });
 });

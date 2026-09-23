@@ -27,7 +27,7 @@ def test_domain_modules_importable():
 
     assert constants_scanner.SCANNER_MIN_PRICE == constants_ibkr.IBKR_SCAN_ABOVE_PRICE
     assert constants_hod_momo.HOD_MOMO_CONFIG_FILE.endswith("hod-momo-config.json")
-    assert constants_nova_os.NOVA_OS_DEFAULT_MODE == "signal"
+    assert constants_nova_os.NOVA_OS_MODE_SIGNAL == "signal"
     assert constants_archive_news.ARCHIVE_HOT_RETENTION_DAYS > 0
 
 

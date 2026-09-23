@@ -3,7 +3,7 @@
 > **Canonical product roadmap ledger** for the Master Roadmap A-Z. Short by design -- closed phases, verification baselines, and older History rows live in [[Nova-Roadmap-Archive]].
 > **Continuity rule:** `.cursor/rules/nova-roadmap-continuity.mdc`
 > **Canvas (project homepage):** `canvases/nova-home.canvas.tsx`
-> **Nova OS engine status (closed map):** [[Nova-OS-Status]]
+> **Nova OS engine status (retired, ADR 025):** [[Nova-OS-Status]]
 > **Live gate (Phase I):** [[Nova-OS-Live-Readiness-Review]] · **Productization (Phase J):** [[Productization-Decision]] · **Idea bank:** [[Nova-Expansion-Ideas]]
 
 Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
@@ -52,7 +52,7 @@ Parked, not closed: K0-K2/K4 code stays shipped and gated; K3 human paper short 
 - **K2 execution gate** `[x]` -- explicit `ExecutionCommand.short_entry`, inverse bracket legs, flatten covers shorts, `account.short_qty` SSOT
   - [ ] Journal `side="short"` + side-aware R-multiples on live short fills (follow-up when short automation setups exist)
 - **K3 paper proof -> live unlock** `[~]` -- code drills + live criteria written; **human days open**
-  - [ ] ≥3 clean paper short days (`confirm` then `auto_paper`) with borrow state captured in receipts
+  - [ ] ≥3 clean paper short days (by hand, or the bot at L1 then L2 -- the `confirm` / `auto_paper` ladder was retired by ADR 025) with borrow state captured in receipts
   - [ ] Phase I scorecard re-run including short metrics
   - [ ] Operator sign-off after those days
 - **K4 UI** `[x]` -- Shortability chip beside L2 title; ticket Side Buy/Sell/Short on Margin (Buy/Sell on Cash); `SHORT_*` reasons. Direction Long/Short removed (#184).
@@ -113,6 +113,7 @@ Newest first. Append here; do not rewrite prior rows. Rows before 2026-07-28 are
 
 | Date | What | Commit |
 |------|------|--------|
+| 2026-09-23 | Nova OS retired (ADR 025, #481 option a): the verdict, the `signal` / `confirm` / `auto_paper` ladder, the staged queue, the Phase D executor and the decision replay are removed; Watchlist is Watchlist / Setups / Journal / Backtest. The kill switch moves to `backend/kill_switch/` with a card on the Bots page. The bot ladder (ADR 016) is the one automation path. `auto_live` NO-GO. | (this commit) |
 | 2026-09-22 | S6 built: the setup scanner (ADR 022). One live first-pullback scanner on the HOD Momo names (Watching, Leg up, Armed, Near, Triggered, Failed; P1 rules, 94.9% parity with the research harness) replaces the old setups stream and the Signals sub-tab; its tape gate reads the Level 2 / time and sales the desk holds (go / wait / veto / blind, no new IBKR line); near + go raises an Eyes proposal -- ping, alert card, staged ticket, never a place; every armed setup is scored in `setups.db`. Read-out pre-registered in `Bot-Trading-Plan.md` §2g. The Phase D executor no longer receives signals. `auto_live` NO-GO. | (this commit) |
 | 2026-09-22 | P1 / P2 / P3: the first pullback, the flat-top breakout and red-to-green as minute-bar rules on the Five Pillars universe after 09:30 -- not passed, negative in every ladder cell and at zero cost (`research/momentum/`). The private catalogue of the operator's material is done on F: (S4). Decision: master the first pullback -- by hand on Paper as prescribed (one trade a day, 20c / 20c, 07:00-10:00), and with the bot in Eyes mode gated by the live Level 2 / tape (S6); S5 rolling-universe screen offline. `auto_live` NO-GO. | (this commit) |
 | 2026-09-22 | S1: the ORB replayed on one-second bars is not passed (PF 0.97 at 1c, 0.83 at 2c; 82% of trades stop on a one-second low, half inside 60 s -- the published 10%-ATR stop is 0.4% of a $35 median entry, and §2b's minute-bar result was the entry-bar rule hiding intrabar stop-outs). S2 dropped; S3 halts shelved to last (operator). Next S4: catalogue every setup in the operator's private material, off-repo on F:, then choose one to master together; the material stays private, the chosen strategy may be recorded in the plan. `auto_live` NO-GO. | (this commit) |

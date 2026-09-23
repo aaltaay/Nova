@@ -11,7 +11,7 @@ import {
   HTK_SHORT_SCRIPT_MAX_BYTES,
 } from './htkFormat';
 import { tokenizeDasCommand } from './dasCommandParser';
-import { analyzeProfile, findNovaKeyConflicts } from './compatibility';
+import { analyzeProfile } from './compatibility';
 import { migrateProfile, HOTKEY_STORAGE_KEY } from './hotkeyStorage';
 import { HOTKEY_CAPABILITY_CATALOG } from './capabilityCatalog';
 import { HOTKEY_COMPAT_STATUSES, HOTKEY_CAPABILITY_CATEGORIES } from './types';
@@ -100,11 +100,6 @@ describe('tokenizeDasCommand', () => {
 });
 
 describe('compatibility', () => {
-  it('flags Nova key conflicts for Shift+A', () => {
-    const conflicts = findNovaKeyConflicts(parseKeyChord('Shift+A'));
-    expect(conflicts).toContain('approve_staged');
-  });
-
   it('classifies market buy as translatable_later', () => {
     const analyses = analyzeProfile([
       {
@@ -171,12 +166,12 @@ describe('execution isolation', () => {
   // turned an otherwise green suite red. Same root cause class as #326 -- a
   // fixed time budget betting on machine speed. Nothing here is expected to
   // block; the ceiling only needs to be well clear of a cold transform.
-  it('hotkey manager modules do not import useHotkeys', async () => {
+  it('hotkey manager modules do not register a key listener', async () => {
     // Static guarantee: importing the profile hook must not pull runtime registration.
     const mod = await import('./useHotkeyProfile');
     expect(typeof mod.useHotkeyProfile).toBe('function');
-    // useHotkeys is a separate module — profile path never registers window listeners.
-    const hk = await import('../hooks/useHotkeys');
-    expect(typeof hk.useHotkeys).toBe('function');
+    // The keydown handler lives apart from the profile hook — loading a profile never listens.
+    const hk = await import('../hooks/hotkeyUtils');
+    expect(typeof hk.createHotkeyKeydownHandler).toBe('function');
   }, 30_000);
 });

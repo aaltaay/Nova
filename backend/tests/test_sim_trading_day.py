@@ -265,22 +265,22 @@ def test_no_supported_closed_run_is_long_enough_to_need_an_iteration_bound():
     assert longest == 3
 
 
-# ── Shared Nova OS consumers of the same table (issue NEXT item 2) ────────────
-# gates.is_nyse_holiday, flatten_exit.flatten_needs_extended_hours and the Sim
-# session clock all read NOVA_OS_NYSE_HOLIDAYS. All three answered "open" on
-# every non-2026 holiday before #386; nothing pinned them.
+# ── Shared consumers of the same table (issue NEXT item 2) ─────────────────────
+# market.regular_hours_at, flatten_exit.flatten_needs_extended_hours and the Sim
+# session clock all read NOVA_OS_NYSE_HOLIDAYS. They answered "open" on every
+# non-2026 holiday before #386; nothing pinned them. (Gate 0 of the retired
+# Nova OS verdict read it too, ADR 025.)
 
 @pytest.mark.parametrize("iso, holiday", [
     ("2025-07-04", True), ("2025-07-03", False),   # the issue's year
     ("2019-12-25", True), ("2019-12-26", False),   # far below the once-hardcoded year
     ("2032-05-31", True), ("2032-06-01", False),   # far above it
 ])
-def test_gate_zero_sees_every_year_of_holidays(iso, holiday):
-    from nova_os.gates import is_nyse_holiday, session_allows_trading
+def test_regular_hours_see_every_year_of_holidays(iso, holiday):
+    from market import regular_hours_at
     noon = datetime.combine(date.fromisoformat(iso), datetime.min.time(), tzinfo=ET).replace(hour=12)
-    assert is_nyse_holiday(noon) is holiday
-    # Gate 0 reads the same table, so a holiday closes the session window too.
-    assert session_allows_trading(noon) is (not holiday)
+    # A weekday noon is regular hours unless the table names it a holiday.
+    assert regular_hours_at(noon) is (not holiday)
 
 
 @pytest.mark.parametrize("iso, extended", [

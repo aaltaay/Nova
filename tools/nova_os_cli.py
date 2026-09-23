@@ -1,10 +1,9 @@
-"""Thin read-only Nova OS CLI — HTTP client only; never places orders.
+"""Thin read-only CLI for the desk event log — HTTP client only; never places orders.
+
+The Nova OS policy / decide commands were retired with the verdict (ADR 025).
 
 Usage (from repo root, with API running):
-  py tools/nova_os_cli.py policy
-  py tools/nova_os_cli.py events [--limit N] [--symbol XYZ]
-  py tools/nova_os_cli.py decide [SYMBOL] [--limit N]
-  py tools/nova_os_cli.py decide --limit 4 --json
+  py tools/nova_os_cli.py events [--limit N] [--symbol XYZ] [--json]
 """
 from __future__ import annotations
 
@@ -69,35 +68,22 @@ def _print(data: object, as_json: bool) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Nova OS read-only CLI (policy / events / decide). Never places orders.",
+        description="Desk event log read-only CLI. Never places orders.",
     )
     parser.add_argument("--base", default=DEFAULT_BASE, help="API base URL")
     parser.add_argument("--json", action="store_true", help="Raw JSON output")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    sub.add_parser("policy", help="Show policy version + vocabulary")
-
     p_events = sub.add_parser("events", help="Recent audit receipts")
     p_events.add_argument("--limit", type=int, default=20)
     p_events.add_argument("--symbol", default=None)
 
-    p_decide = sub.add_parser("decide", help="Run decide for symbol or top watchlist")
-    p_decide.add_argument("symbol", nargs="?", default=None)
-    p_decide.add_argument("--limit", type=int, default=4)
-
     args = parser.parse_args()
-    if args.cmd == "policy":
-        _print(_get(args.base, "/api/nova-os/policy"), args.json)
-    elif args.cmd == "events":
+    if args.cmd == "events":
         params: dict = {"limit": args.limit}
         if args.symbol:
             params["symbol"] = args.symbol.upper()
         _print(_get(args.base, "/api/nova-os/events", params), args.json)
-    elif args.cmd == "decide":
-        if args.symbol:
-            _print(_get(args.base, f"/api/nova-os/decide/{args.symbol.upper()}"), args.json)
-        else:
-            _print(_get(args.base, "/api/nova-os/decide", {"limit": args.limit}), args.json)
     else:
         parser.error(f"unknown command {args.cmd}")
 

@@ -15,13 +15,11 @@ __all__ = ["run_startup_reconciliation"]
 
 def run_startup_reconciliation() -> None:
     from execution.startup_sweep import run_startup_sweep
-    from nova_os.recovery import run_startup_recovery
     from strategy import risk as _risk
 
     steps = (
         ("Risk engine journal reconstruction", _risk.reconstruct_from_journal),
         ("Execution ledger startup sweep", run_startup_sweep),
-        ("Nova OS startup recovery", run_startup_recovery),
     )
     for label, step in steps:
         try:

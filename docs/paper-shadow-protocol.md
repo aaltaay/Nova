@@ -7,8 +7,7 @@ Ops-only window (historical). **No product features. No `auto_live`. No live mon
 Canonical status: `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`  
 Plan: `nova_master_roadmap_a_z.plan.md`  
 Day log template: `docs/shadow-day-log-template.md`  
-UI: Executor control ladder in `frontend/src/strategy/ExecutorPanel.tsx`  
-Mode gate: `backend/nova_os/control_mode.py`
+UI / mode gate: **removed** -- the executor control ladder (`ExecutorPanel.tsx`) and `backend/nova_os/control_mode.py` were retired by ADR 025 (2026-09-23). This protocol cannot be run as written; it is kept as history.
 
 ---
 

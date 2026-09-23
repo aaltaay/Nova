@@ -8,7 +8,7 @@ watches the symbol for IBKR time & sales during the window -- the single
 trade-print source (ADR 017). Alpaca never feeds a recording.
 
 Read-only with respect to trading -- this module never places, modifies, or
-cancels an order, and nothing here feeds backend/strategy/executor.py.
+cancels an order.
 
 Known limitation: IBKR market depth has no historical API -- only a live
 subscription -- so a recording only ever covers the window AFTER a signal

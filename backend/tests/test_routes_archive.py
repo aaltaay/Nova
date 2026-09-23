@@ -1,9 +1,8 @@
 """Tests for the archive REST routes (backend/routes/archive.py).
 
-Covers the P9 hardening additions: /replay?as_of= (no-hindsight point-in-time
-decisions), /walk/{day} (rewind timeline), /review/{day} (evening review),
-and /ask (journal + archive index lookup) — none of these except /replay
-(whole-day, hindsight) had HTTP exposure before.
+Covers /days and /ask (journal + archive index lookup). The decide() replay
+routes (/replay, /walk, /review) were retired with the Nova OS verdict
+(ADR 025).
 """
 from __future__ import annotations
 
@@ -21,7 +20,6 @@ import archive.db as archive_db
 import journal.db as journal_db
 from constants import ARCHIVE_SOURCE_IBKR
 from main import app
-from nova_os.gates import GateResult
 
 client = TestClient(app)
 
@@ -37,11 +35,6 @@ def isolated_archive(tmp_path, monkeypatch):
     archive_db.init_db()
     journal_db.init_db()
     capture.clear_l2_stub_for_tests()
-
-    def _pass_session(risk_state, requested_mode):
-        return (GateResult("session", True, True, ["SESSION_OK"], {}), requested_mode, [])
-
-    monkeypatch.setattr("nova_os.decide.gate_session", _pass_session)
     yield tmp_path
 
 
@@ -63,79 +56,19 @@ def _seed_day() -> None:
     compact.compact_day(_SESSION_DATE)
 
 
-class TestReplayRoute:
-    def test_replay_without_as_of_is_hindsight(self):
+class TestDaysRoute:
+    def test_days_lists_a_compacted_day(self):
         _seed_day()
-        res = client.get(f"/api/archive/replay/{_SESSION_DATE}", params={"limit": 5})
+        res = client.get("/api/archive/days")
         assert res.status_code == 200
-        body = res.json()
-        assert body["hindsight"] is True
-        assert body["decisions"][0]["replay"]["bar_count"] == 20
-
-    def test_replay_with_as_of_slices_bars(self):
-        _seed_day()
-        as_of = _BASE_TS + 4 * 60
-        res = client.get(f"/api/archive/replay/{_SESSION_DATE}", params={"limit": 5, "as_of": as_of})
-        assert res.status_code == 200
-        body = res.json()
-        assert body["hindsight"] is False
-        assert body["as_of_ts"] == as_of
-        # Interval-close contract (#385): at the 5th bar's OPEN only the first
-        # four minutes have closed, so the route reports 4, not 5.
-        assert body["decisions"][0]["replay"]["bar_count"] == 4
-
-    def test_replay_as_of_is_inclusive_at_the_minute_close(self):
-        """The other half of the contract the route now documents: one minute
-        later that 5th bar HAS closed, so it is counted. Suppressed lookahead,
-        not a dropped bar (#385)."""
-        _seed_day()
-        as_of = _BASE_TS + 5 * 60
-        res = client.get(f"/api/archive/replay/{_SESSION_DATE}", params={"limit": 5, "as_of": as_of})
-        assert res.status_code == 200
-        assert res.json()["decisions"][0]["replay"]["bar_count"] == 5
-
-    def test_replay_bad_date_400(self):
-        res = client.get("/api/archive/replay/not-a-date")
-        assert res.status_code == 400
-
-    def test_replay_missing_day_404(self):
-        res = client.get("/api/archive/replay/1999-01-01")
-        assert res.status_code == 404
+        assert _SESSION_DATE in res.json()["days"]
 
 
-class TestWalkRoute:
-    def test_walk_returns_scrubbable_timeline(self):
-        _seed_day()
-        res = client.get(f"/api/archive/walk/{_SESSION_DATE}", params={"limit": 5, "step_min": 5})
-        assert res.status_code == 200
-        body = res.json()
-        assert body["hindsight"] is False
-        assert body["step_count"] >= 2
-        ts_seq = [s["as_of_ts"] for s in body["steps"]]
-        assert ts_seq == sorted(ts_seq)
-        assert len(set(ts_seq)) == len(ts_seq)  # strictly increasing, no dupes
-
-    def test_walk_bad_date_400(self):
-        res = client.get("/api/archive/walk/nope")
-        assert res.status_code == 400
-
-    def test_walk_missing_day_404(self):
-        res = client.get("/api/archive/walk/1999-01-01")
-        assert res.status_code == 404
-
-
-class TestReviewRoute:
-    def test_review_returns_versioned_findings(self):
-        _seed_day()
-        res = client.get(f"/api/archive/review/{_SESSION_DATE}", params={"limit": 5})
-        assert res.status_code == 200
-        body = res.json()
-        assert body["version"].startswith("evening-review-")
-        assert body["finding_count"] >= 1
-
-    def test_review_bad_date_400(self):
-        res = client.get("/api/archive/review/nope")
-        assert res.status_code == 400
+class TestRetiredDecisionReplay:
+    @pytest.mark.parametrize("path", ["replay", "walk", "review"])
+    def test_decision_replay_routes_are_gone(self, path):
+        """ADR 025 retired the decide() replay with the Nova OS verdict."""
+        assert client.get(f"/api/archive/{path}/{_SESSION_DATE}").status_code == 404
 
 
 class TestAskRoute:

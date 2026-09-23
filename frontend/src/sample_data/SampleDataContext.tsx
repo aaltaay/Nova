@@ -8,7 +8,7 @@ import type { AlertObject, HodMomoConfigState } from '../hod_momo/types';
 import type { HealthStatus } from '../types/health';
 import type { Afterhours, Gapper, Mover, ScannerRow } from '../types/scanner';
 import type { Catalyst } from '../types/catalyst';
-import type { NovaOsDecision, WatchlistEntry } from '../strategy/types';
+import type { WatchlistEntry } from '../strategy/types';
 import { SAMPLE_HOD_ALERTS, SAMPLE_HOD_CONFIG } from './sampleHod';
 import {
   SAMPLE_AFTERHOURS,
@@ -18,11 +18,7 @@ import {
   SAMPLE_LARGE_CAP,
   SAMPLE_LOSERS,
 } from './sampleRows';
-import {
-  SAMPLE_DECISIONS,
-  SAMPLE_WATCHLIST,
-  sampleDecisionForSymbol,
-} from './sampleStrategy';
+import { SAMPLE_WATCHLIST } from './sampleStrategy';
 import { sampleTickerDetail } from './sampleTicker';
 import type { TickerDetail } from '../types/ticker';
 
@@ -36,9 +32,7 @@ export type SampleDataBundle = {
   hodAlerts: AlertObject[];
   hodConfig: HodMomoConfigState;
   watchlist: WatchlistEntry[];
-  decisions: NovaOsDecision[];
   health: HealthStatus;
-  decisionForSymbol: (symbol: string) => NovaOsDecision | null;
   tickerDetail: (symbol: string) => TickerDetail;
 };
 
@@ -52,9 +46,7 @@ const SAMPLE_BUNDLE: SampleDataBundle = {
   hodAlerts: SAMPLE_HOD_ALERTS,
   hodConfig: SAMPLE_HOD_CONFIG,
   watchlist: SAMPLE_WATCHLIST,
-  decisions: SAMPLE_DECISIONS,
   health: { status: 'ok', latency_ms: 12 },
-  decisionForSymbol: sampleDecisionForSymbol,
   tickerDetail: sampleTickerDetail,
 };
 

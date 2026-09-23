@@ -136,53 +136,6 @@ export interface RiskStatus {
   daily_goal_dollars: number;
 }
 
-/** Mirrors backend/strategy/executor.py OpenPosition (as returned by status()). */
-export interface ExecutorOpenPosition {
-  symbol: string;
-  setup: string;
-  qty: number;
-  entry_price: number;
-  stop_price: number;
-  target_price: number;
-  opened_ts: number;
-}
-
-/** Mirrors backend/strategy/executor.py status() — Nova OS P4 fields included. */
-export interface ExecutorStagedTicket {
-  id: string;
-  symbol: string;
-  setup: string;
-  entry: number;
-  stop: number;
-  target: number;
-  shares: number;
-  expires_at: number;
-  created_at: number;
-  [key: string]: unknown;
-}
-
-export interface ExecutorStatus {
-  disclosure: string;
-  armed: boolean;
-  control_mode?: string;
-  effective_mode?: string;
-  loss_policy_reason?: string | null;
-  kill_switch_tripped: boolean;
-  ibkr_connected: boolean;
-  ibkr_mode: string;
-  staged?: ExecutorStagedTicket[];
-  open_positions: ExecutorOpenPosition[];
-}
-
-/** Mirrors backend/nova_os/gates.py GateResult.to_dict(). */
-export interface NovaOsGateResult {
-  name: string;
-  passed: boolean;
-  hard: boolean;
-  reason_codes: string[];
-  evidence: Record<string, unknown>;
-}
-
 /** Mirrors backend/nova_os/events.py receipt shape. */
 export interface NovaOsReceipt {
   id: number | null;
@@ -198,36 +151,3 @@ export interface NovaOsReceipt {
   executed: boolean;
   payload: Record<string, unknown>;
 }
-
-/** Ticket fields from Gate 3 (may be null when hard gates failed early). */
-export interface NovaOsTicket {
-  entry?: number | null;
-  stop?: number | null;
-  target?: number | null;
-  shares?: number | null;
-  risk_dollars?: number | null;
-  r_multiple?: number | null;
-  issues?: string[];
-  [key: string]: unknown;
-}
-
-/** Mirrors backend/nova_os/decide.py NovaOsDecision.to_dict(). */
-export interface NovaOsDecision {
-  symbol: string;
-  decision: 'BUY' | 'WAIT' | 'NO_BUY' | string;
-  reason_codes: string[];
-  mode: string;
-  requested_mode: string;
-  setup: string | null;
-  ticket: NovaOsTicket | null;
-  confidence: number;
-  gates: NovaOsGateResult[];
-  citations: string[];
-  would_execute: boolean;
-  executed: boolean;
-  policy_version: string;
-  receipt: NovaOsReceipt;
-  note?: string;
-}
-
-/** Optional Nova OS summary attached to WS decision / signal payloads (P2+). */

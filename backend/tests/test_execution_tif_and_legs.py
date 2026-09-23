@@ -20,11 +20,10 @@ import ibkr.account as account_mod
 import ibkr.client as client_mod
 import ibkr.orders as orders_mod
 import ibkr.safety as safety_mod
-import strategy.executor as executor
+import kill_switch
 import strategy.risk as risk_mod
 from execution.models import ExecutionCommand
 from ibkr.order_build import build_ib_order, normalize_tif, tif_error
-from nova_os import control_mode, staged_tickets
 
 
 @pytest.fixture(autouse=True)
@@ -36,18 +35,12 @@ def isolated_execution(tmp_path, monkeypatch):
     monkeypatch.setattr(broker_send, "EXECUTION_ACK_WAIT_SEC", 0.05)
     store.init_db()
     telemetry.reset_for_tests()
-    control_mode.reset_for_tests()
-    staged_tickets.reset_for_tests()
     risk_mod.reset_day()
-    executor._kill_switch_tripped = False
-    executor._open_positions.clear()
+    kill_switch._tripped = False
     yield
     telemetry.reset_for_tests()
-    control_mode.reset_for_tests()
-    staged_tickets.reset_for_tests()
     risk_mod.reset_day()
-    executor._kill_switch_tripped = False
-    executor._open_positions.clear()
+    kill_switch._tripped = False
 
 
 def _arm_paper(monkeypatch, *, buying_power: float = 100_000.0, positions=None):
@@ -95,7 +88,7 @@ def _limit_buy(key: str, **kw) -> ExecutionCommand:
     base = dict(
         operation="place", idempotency_key=key, source="manual", symbol="AAPL",
         side="BUY", qty=1, order_type="LMT", limit_price=1.0,
-        skip_risk=True, skip_concurrency=True,
+        skip_risk=True,
     )
     base.update(kw)
     return ExecutionCommand(**base)
@@ -105,7 +98,7 @@ def _bracket(key: str, **kw) -> ExecutionCommand:
     base = dict(
         operation="bracket", idempotency_key=key, source="manual", symbol="AAPL",
         side="BUY", qty=1, order_type="LMT", limit_price=10.0, entry_price=10.0,
-        stop_price=9.5, target_price=11.0, skip_risk=True, skip_concurrency=True,
+        stop_price=9.5, target_price=11.0, skip_risk=True,
     )
     base.update(kw)
     return ExecutionCommand(**base)
@@ -217,7 +210,7 @@ class TestTifDefaultAndGtc:
                 ExecutionCommand(
                     operation="replace", idempotency_key="replace-gtc",
                     source="manual", order_id=77, limit_price=9.5,
-                    skip_risk=True, skip_concurrency=True,
+                    skip_risk=True,
                 ),
                 wait_ack=False,
             )
@@ -372,7 +365,7 @@ class TestGatesStayIntact:
                     ExecutionCommand(
                         operation="place", idempotency_key=key, source=source,
                         symbol="AAPL", side="SELL", qty=5, order_type="MKT",
-                        skip_risk=True, skip_concurrency=True,
+                        skip_risk=True,
                     ),
                     wait_ack=False,
                 )
@@ -393,7 +386,7 @@ class TestGatesStayIntact:
     def test_kill_switch_refuses_a_bracket(self, monkeypatch):
         _arm_paper(monkeypatch)
         brackets = _spy_bracket(monkeypatch)
-        executor._kill_switch_tripped = True
+        kill_switch._tripped = True
         receipt = asyncio.run(exec_svc.execute(_bracket("legs-kill"), wait_ack=False))
         assert receipt.ok is False
         assert receipt.reason_code == "KILL_SWITCH"
@@ -403,11 +396,10 @@ class TestGatesStayIntact:
         _arm_paper(monkeypatch)
         places = _spy_place(monkeypatch)
         brackets = _spy_bracket(monkeypatch)
-        with pytest.raises(ValueError, match="auto_live is not enabled"):
-            control_mode.set_mode("auto_live")
         for cmd in (
             _limit_buy("auto-live-place", source="auto_live"),
             _bracket("auto-live-bracket", source="auto_live"),
+            _bracket("auto-paper-bracket", source="auto_paper"),
         ):
             receipt = asyncio.run(exec_svc.execute(cmd, wait_ack=False))
             assert receipt.ok is False

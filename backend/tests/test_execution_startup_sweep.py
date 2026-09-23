@@ -317,7 +317,6 @@ def test_disconnected_sweep_rewrites_nothing(monkeypatch):
 
 
 def test_one_failing_reconciliation_step_does_not_skip_the_rest(monkeypatch):
-    import nova_os.recovery as recovery_mod
     import startup_reconciliation
     import strategy.risk as risk_mod
 
@@ -330,11 +329,8 @@ def test_one_failing_reconciliation_step_does_not_skip_the_rest(monkeypatch):
     monkeypatch.setattr(
         sweep, "run_startup_sweep", lambda: ran.append("sweep") or {},
     )
-    monkeypatch.setattr(
-        recovery_mod, "run_startup_recovery", lambda: ran.append("recovery") or {},
-    )
     startup_reconciliation.run_startup_reconciliation()
-    assert ran == ["sweep", "recovery"]
+    assert ran == ["sweep"]
 
 
 def test_broker_read_failure_rewrites_nothing(monkeypatch):

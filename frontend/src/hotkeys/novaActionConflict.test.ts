@@ -2,8 +2,6 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest';
-import { HOTKEY_DEFAULTS } from '../constants';
-import { formatHotkeyLabel } from '../hooks/hotkeyUtils';
 import { novaActionConflictMessage } from './novaActionConflict';
 import type { NovaActionRecord } from './novaActionTypes';
 
@@ -39,22 +37,12 @@ describe('novaActionConflictMessage', () => {
     expect(novaActionConflictMessage(b, [a, b])).toContain('A');
   });
 
-  it('detects conflict with Automation default', () => {
-    const b = HOTKEY_DEFAULTS.approve_staged;
+  it('leaves the retired Automation chords free (ADR 025)', () => {
     const draft = action({
       id: 'x',
       name: 'X',
-      key: {
-        label: formatHotkeyLabel(b),
-        key: b.key,
-        ctrl: b.ctrl,
-        shift: b.shift,
-        alt: b.alt,
-        meta: b.meta,
-      },
+      key: { label: 'Shift+A', key: 'a', shift: true },
     });
-    expect(novaActionConflictMessage(draft, [draft])).toMatch(
-      /Conflicts with Automation shortcut/,
-    );
+    expect(novaActionConflictMessage(draft, [draft])).toBeNull();
   });
 });

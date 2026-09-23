@@ -570,21 +570,15 @@ JOURNAL_IBKR_IMPORT_MAX_ROWS = 500
 JOURNAL_IMPORT_MAX_BYTES = 262144
 JOURNAL_IMPORT_ACCEPTED_SUFFIXES = (".csv", ".json")
 
-# ── Paper execution / Arm Automation (Phase D) ──────────────────────────────
-# backend/strategy/executor.py places IBKR bracket orders ONLY when armed
-# (always resets to disarmed on backend restart) AND risk.can_trade() AND
-# risk.validate_trade_plan() both approve the signal. Every current setup
+# ── Bracket entry side (ADR 007 broker send) ────────────────────────────────
 # Default bracket entry is long; short_entry commands use SELL / journal "short"
 # (Phase K / ADR 009). Automation setups remain long-only until a short setup ships.
 EXECUTOR_ENTRY_SIDE_IBKR = "BUY"        # default ibkr.orders.OrderSide for bracket entry
-EXECUTOR_ENTRY_SIDE_JOURNAL = "long"    # default journal.store side ("long"/"short")
 EXECUTOR_ENTRY_SIDE_IBKR_SHORT = "SELL"
-EXECUTOR_ENTRY_SIDE_JOURNAL_SHORT = "short"
-EXECUTOR_FILL_POLL_INTERVAL_SEC = 10.0  # how often the background loop checks for bracket fills
 
 # ── Level 2 recorder / tape features (Phase F) ──────────────────────────────
 # Source: Automation-Strategy-Backbone.md section 3 — tape-reading nuance is
-# explicitly NOT automated into the executor. backend/l2/ only records,
+# explicitly NOT automated. backend/l2/ only records,
 # scores, and labels; nothing here ever places, modifies, or cancels an order.
 # IBKR depth has no historical API, so a recording only covers the window
 # AFTER a signal fires, never before it.

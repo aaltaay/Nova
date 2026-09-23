@@ -193,7 +193,8 @@ export function sourceLabel(source: string | null, botId: string | null): string
   return source ?? '—';
 }
 
-/** Manual, Bot and Auto Paper are always shown -- a source that placed nothing is stated. */
+/** Manual and Bot are always shown -- a source that placed nothing is stated. Auto Paper
+ * (retired with the Phase D executor, ADR 025) appears only where old fills carry it. */
 export function sourceCards(bySource: HistoryBySource[]): SourceCard[] {
   const cards: SourceCard[] = bySource.map((entry) => ({
     kind: sourceKind(entry.source),
@@ -211,7 +212,6 @@ export function sourceCards(bySource: HistoryBySource[]): SourceCard[] {
   const canonical: Array<[SourceKind, string]> = [
     ['manual', 'manual'],
     ['bot', 'bot'],
-    ['auto_paper', 'auto_paper'],
   ];
   for (const [kind, source] of canonical) {
     if (!cards.some((c) => c.kind === kind)) {

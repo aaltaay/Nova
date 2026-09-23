@@ -87,32 +87,6 @@ vi.mock('../modules/TimeSalesModule', () => ({
   ),
 }));
 
-vi.mock('../ibkr/TickerTradeAutomateControls', () => ({
-  TickerTradeAutomateControls: () => <div data-testid="automate">Automate</div>,
-}));
-
-vi.mock('../strategy/useExecutor', () => ({
-  useExecutor: () => ({
-    status: null,
-    actionError: null,
-    setMode: vi.fn(),
-    disarm: vi.fn(),
-    killSwitch: vi.fn(),
-    resetKillSwitch: vi.fn(),
-  }),
-}));
-
-vi.mock('../strategy/useNovaOsDecideSymbol', () => ({
-  useNovaOsDecideSymbol: () => ({
-    decision: null,
-    loading: false,
-    error: null,
-    errorStatus: null,
-    updatedAt: null,
-    refresh: vi.fn(),
-  }),
-}));
-
 vi.mock('../workspace', async () => {
   const actual = await vi.importActual<typeof import('../workspace')>('../workspace');
   return {

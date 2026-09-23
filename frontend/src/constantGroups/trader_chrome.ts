@@ -158,7 +158,7 @@ export const FOCUS_RAIL_DEFAULT_LIST = 'gappers';
 /* ── Positions / Orders drawer ──────────────────────────────────────────── */
 
 export const DRAWER_TAB_ORDERS = 'Orders · today';
-export const DRAWER_TABS_ARIA = 'Positions, orders, and Nova OS';
+export const DRAWER_TABS_ARIA = 'Positions and orders';
 export const DRAWER_FILTERS_ARIA = 'Orders today filter';
 export const DRAWER_COLLAPSE = 'Collapse';
 export const DRAWER_EXPAND = 'Expand';

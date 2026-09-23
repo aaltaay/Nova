@@ -119,12 +119,12 @@ def _probe_account_pin(client, rep: Report, client_mod, sent: list) -> None:
 
 def _probe_kill_latch(client, rep: Report, cache: Path, sent: list) -> None:
     """D-037 -- kill is a spend latch across every source and a restart."""
-    import strategy.executor as executor
+    import kill_switch
 
     rep.section("D-037  manual place under a tripped kill (skip_risk=True route)")
     sent.clear()
-    kill = client.post("/api/strategy/executor/kill-switch").json()
-    rep.fact("kill_switch_tripped", kill["kill_switch_tripped"])
+    kill = client.post("/api/kill-switch").json()
+    rep.fact("tripped", kill["tripped"])
     result = _place(client, "probe-kill-manual")
     rep.fact("place reason_code", result["reason_code"])
     rep.fact("place error", result["error"])
@@ -160,8 +160,8 @@ def _probe_kill_latch(client, rep: Report, cache: Path, sent: list) -> None:
         (cache / "kill_switch_state.json").read_text(encoding="utf-8")
     )
     rep.fact("latch file", json.dumps(latch))
-    executor._kill_switch_tripped = None  # what a fresh process sees
-    rep.fact("is_kill_switch_tripped()", executor.is_kill_switch_tripped())
+    kill_switch.reset_for_tests()  # what a fresh process sees
+    rep.fact("kill_switch.is_tripped()", kill_switch.is_tripped())
     sent.clear()
     result = _place(client, "probe-kill-after-restart")
     rep.fact("place reason_code after restart", result["reason_code"])
@@ -169,13 +169,13 @@ def _probe_kill_latch(client, rep: Report, cache: Path, sent: list) -> None:
         "a restart does not silently re-arm the desk",
         latch["schema_version"] == 1
         and latch["tripped"] is True
-        and executor.is_kill_switch_tripped() is True
+        and kill_switch.is_tripped() is True
         and result["reason_code"] == "KILL_SWITCH",
     )
 
     rep.section("D-037  an explicit reset is the only way back")
-    reset = client.post("/api/strategy/executor/reset-kill-switch").json()
-    rep.fact("kill_switch_tripped", reset["kill_switch_tripped"])
+    reset = client.post("/api/kill-switch/reset").json()
+    rep.fact("tripped", reset["tripped"])
     sent.clear()
     result = _place(client, "probe-after-reset")
     rep.fact("place ok", result["ok"])
@@ -194,8 +194,9 @@ def main() -> int:
     import ibkr.client as client_mod
     import ibkr.orders as orders_mod
     import journal.db as journal_db
+    import ibkr.safety as safety_mod
+    import kill_switch
     import nova_os.events_db as events_db
-    import strategy.executor as executor
     from main import app
 
     exec_store.init_db()
@@ -231,7 +232,10 @@ def main() -> int:
             patch.object(account_mod, "get_positions", lambda: []), \
             TestClient(app) as client:
         client_mod._enabled = True
-        executor._kill_switch_tripped = False
+        kill_switch.reset_for_tests()
+        # ADR 018: a process never starts armed; the operator's padlock arms it.
+        # Without this every place is refused DISARMED before the gates probed here.
+        safety_mod.set_armed(True, reason="execution_safety_probe")
         _probe_account_pin(client, rep, client_mod, sent)
         client_mod.broker_account_kind = staticmethod(lambda: "live")
         _probe_kill_latch(client, rep, cache, sent)

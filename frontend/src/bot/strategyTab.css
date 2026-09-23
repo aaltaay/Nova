@@ -78,6 +78,18 @@
   background: rgba(208, 75, 75, 0.1);
 }
 
+/* Kill switch (ADR 025): a tripped latch is the loud state. */
+.bot-strategy__card--killed {
+  border-color: var(--danger, #d04b4b);
+  background: rgba(208, 75, 75, 0.1);
+}
+
+.bot-strategy__row-actions .bot-strategy__danger {
+  margin-left: 0;
+  color: var(--danger, #d04b4b);
+  border-color: var(--danger, #d04b4b);
+}
+
 .bot-strategy__btn,
 .bot-strategy__row-actions button {
   margin-left: 0.6rem;

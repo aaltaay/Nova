@@ -5,8 +5,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from constants import (
-    NOVA_OS_LOSS_POLICY_DOWNGRADE_AFTER_LOSSES,
-    NOVA_OS_LOSS_POLICY_HALT_AFTER_LOSSES,
     NOVA_OS_MODE_AUTO_PAPER,
     NOVA_OS_MODE_CONFIRM,
     NOVA_OS_MODE_SIGNAL,
@@ -35,31 +33,3 @@ class TestVocabulary:
     def test_policy_version_is_nonempty_string(self):
         assert isinstance(codes.policy_version(), str)
         assert codes.policy_version()
-
-
-class TestLossPolicy:
-    def test_no_losses_keeps_requested_mode(self):
-        mode, reason = codes.loss_policy_mode(0, NOVA_OS_MODE_AUTO_PAPER)
-        assert mode == NOVA_OS_MODE_AUTO_PAPER
-        assert reason is None
-
-    def test_first_loss_downgrades_to_confirm(self):
-        mode, reason = codes.loss_policy_mode(
-            NOVA_OS_LOSS_POLICY_DOWNGRADE_AFTER_LOSSES, NOVA_OS_MODE_AUTO_PAPER
-        )
-        assert mode == NOVA_OS_MODE_CONFIRM
-        assert reason == "LOSS_POLICY_DOWNGRADE"
-
-    def test_halt_threshold_flags_halt_and_confirm(self):
-        mode, reason = codes.loss_policy_mode(
-            NOVA_OS_LOSS_POLICY_HALT_AFTER_LOSSES, NOVA_OS_MODE_AUTO_PAPER
-        )
-        assert mode == NOVA_OS_MODE_CONFIRM
-        assert reason == "LOSS_POLICY_HALT"
-
-    def test_policy_never_escalates_autonomy(self):
-        # A signal-mode session (never acts) must stay signal even on a losing
-        # streak -- the loss policy only lowers autonomy, never raises it.
-        mode, reason = codes.loss_policy_mode(5, NOVA_OS_MODE_SIGNAL)
-        assert mode == NOVA_OS_MODE_SIGNAL
-        assert reason == "LOSS_POLICY_HALT"

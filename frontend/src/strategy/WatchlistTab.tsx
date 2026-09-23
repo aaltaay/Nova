@@ -1,17 +1,14 @@
-/** Watchlist tab — Five Pillars ranked table + the live Setups scanner + Nova OS Decision audit. Signal-only; no orders placed. */
+/** Watchlist tab — Five Pillars ranked table, the live Setups scanner, the Journal and the Backtest. Signal-only; no orders placed. */
 import { lazy, Suspense, useState } from 'react';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { ScannerRowNumCell, ScannerRowNumHeader } from '../components/ScannerTable';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
 import { TabLazyFallback } from '../components/TabLazyFallback';
 import { WATCHLIST_SUBSCORE_LABELS, WATCHLIST_SUBSCORE_TOOLTIPS } from '../constants';
-import { ArchiveRewind } from './ArchiveRewind';
-import { DecisionPanel } from './DecisionPanel';
 
 const BacktestPanel = lazy(() =>
   import('./BacktestPanel').then(m => ({ default: m.BacktestPanel })),
 );
-import { ExecutorPanel } from './ExecutorPanel';
 import { JournalPanel } from './JournalPanel';
 import { PillarChips } from './PillarChips';
 import { SetupsPanel } from '../setups/SetupsPanel';
@@ -78,7 +75,7 @@ interface WatchlistTabProps {
   onOpenTrading: (symbol: string) => void;
 }
 
-type WatchlistSubTab = 'watchlist' | 'setups' | 'decision' | 'journal' | 'automation' | 'archive' | 'backtest';
+type WatchlistSubTab = 'watchlist' | 'setups' | 'journal' | 'backtest';
 
 export function WatchlistTab({
   entries, loading, error, selectedSymbol, onSelectSymbol, onOpenTrading,
@@ -105,32 +102,11 @@ export function WatchlistTab({
           <SetupsTabCount />
         </button>
         <button
-          className={`sub-tab ${subTab === 'decision' ? 'active' : ''}`}
-          onClick={() => setSubTab('decision')}
-          title="Nova OS gate-by-gate BUY / WAIT / NO BUY audit for top watchlist names. Signal only — nothing is placed."
-        >
-          Decision
-        </button>
-        <button
           className={`sub-tab ${subTab === 'journal' ? 'active' : ''}`}
           onClick={() => setSubTab('journal')}
           title="Trade log, win-rate/profit-loss metrics, today's risk state, and the live-money go/no-go bar. Includes an optional 'Show demo data' toggle for testing before real trades exist."
         >
           Journal
-        </button>
-        <button
-          className={`sub-tab ${subTab === 'automation' ? 'active' : ''}`}
-          onClick={() => setSubTab('automation')}
-          title="Control mode ladder (signal/confirm/auto_paper/auto_live) for automated paper bracket orders on IBKR, plus the kill switch. Starts at signal by default and on every backend restart."
-        >
-          Automation
-        </button>
-        <button
-          className={`sub-tab ${subTab === 'archive' ? 'active' : ''}`}
-          onClick={() => setSubTab('archive')}
-          title="Local cold-archive days and decide(record=False) replay (Nova OS P9). No orders."
-        >
-          Archive
         </button>
         <button
           className={`sub-tab ${subTab === 'backtest' ? 'active' : ''}`}
@@ -194,15 +170,6 @@ export function WatchlistTab({
         />
       )}
 
-      {subTab === 'decision' && (
-        <DecisionPanel
-          active={subTab === 'decision'}
-          selectedSymbol={selectedSymbol}
-          onSelectSymbol={onSelectSymbol}
-          onOpenTrading={onOpenTrading}
-        />
-      )}
-
       {subTab === 'journal' && (
         <JournalPanel
           active={subTab === 'journal'}
@@ -211,17 +178,6 @@ export function WatchlistTab({
           onOpenTrading={onOpenTrading}
         />
       )}
-
-      {subTab === 'automation' && (
-        <ExecutorPanel
-          active={subTab === 'automation'}
-          selectedSymbol={selectedSymbol}
-          onSelectSymbol={onSelectSymbol}
-          onOpenTrading={onOpenTrading}
-        />
-      )}
-
-      {subTab === 'archive' && <ArchiveRewind active={subTab === 'archive'} />}
 
       {subTab === 'backtest' && (
         <Suspense fallback={<TabLazyFallback />}>

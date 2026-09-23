@@ -58,11 +58,6 @@ vi.mock('../closed_orders/useClosedOrders', () => ({
   }),
 }));
 
-vi.mock('../stock_view/TraderNovaOsBrain', () => ({
-  TraderNovaOsBrain: ({ symbol }: { symbol: string }) => (
-    <div data-testid="trader-nova-os-brain">Nova OS mock {symbol}</div>
-  ),
-}));
 
 describe('ScannerDesk', () => {
   let container: HTMLDivElement;
