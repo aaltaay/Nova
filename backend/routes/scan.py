@@ -223,8 +223,8 @@ _HISTORY_CACHE_TYPES = {"gappers", "movers", "afterhours", "large_cap"}
 
 @router.get("/api/history/dates")
 def get_history_dates(type: str = "gappers"):
-    """Return available past dates for a cache type. ?type=gappers|movers|afterhours|large_cap"""
-    if type not in _HISTORY_CACHE_TYPES:
+    """Past dates for a cache type. ?type=gappers|movers|afterhours|large_cap|all"""
+    if type not in _HISTORY_CACHE_TYPES and type != "all":
         return {"dates": []}
     return {"dates": list_history_dates(type)}
 

@@ -135,32 +135,49 @@ def cleanup_old_snapshots(retention_days: int) -> None:
 
 # ── History helpers ───────────────────────────────────────────────────────────
 
+_HISTORY_ALL_PREFIXES = ("gappers", "gainers", "losers", "movers", "afterhours", "large_cap")
+
+
+def _dates_with_rows(prefix: str, row_key: str) -> set[str]:
+    """Past dates (not today -- today is live) whose ``prefix`` snapshot holds rows."""
+    if not os.path.isdir(_CACHE_DIR):
+        return set()
+    pattern = re.compile(rf"^{re.escape(prefix)}-(\d{{4}}-\d{{2}}-\d{{2}})\.json$")
+    today = _today_et()
+    dates: set[str] = set()
+    for fname in os.listdir(_CACHE_DIR):
+        m = pattern.match(fname)
+        if not m or m.group(1) == today:
+            continue
+        rows = _read_dated_json(prefix, m.group(1)).get(row_key)
+        if isinstance(rows, list) and not rows:
+            continue
+        dates.add(m.group(1))
+    return dates
+
+
 def list_history_dates(cache_type: str, extra_allowed: set[str] | None = None) -> list[str]:
     """
     Return all dates for which a snapshot of *cache_type* exists on disk,
     sorted descending (newest first). Does not include today — today is live.
     Empty snapshots are omitted so the date picker does not offer a blank day.
+
+    ``movers`` reads the split ``gainers-`` / ``losers-`` files (ADR 008) and the
+    legacy combined file; ``all`` is every scanner list, so the board's date
+    menu offers a day that saved Gainers but no Gappers.
     """
-    if not os.path.isdir(_CACHE_DIR):
-        return []
-    pattern = re.compile(rf"^{re.escape(cache_type)}-(\d{{4}}-\d{{2}}-\d{{2}})\.json$")
     _ = extra_allowed  # reserved for future use
-    today = _today_et()
-    dates = []
+    if cache_type == "all":
+        found: set[str] = set()
+        for prefix in _HISTORY_ALL_PREFIXES:
+            found |= set(list_history_dates(prefix))
+        return sorted(found, reverse=True)
+    if cache_type == "movers":
+        found = _dates_with_rows("gainers", "gainers") | _dates_with_rows("losers", "losers")
+        found |= _dates_with_rows("movers", "movers")
+        return sorted(found, reverse=True)
     row_key = cache_type if cache_type != "hod-momo" else "alerts"
-    for fname in os.listdir(_CACHE_DIR):
-        m = pattern.match(fname)
-        if m:
-            d = m.group(1)
-            if d == today:
-                continue
-            data = _read_dated_json(cache_type, d)
-            rows = data.get(row_key)
-            if isinstance(rows, list) and not rows:
-                continue
-            dates.append(d)
-    dates.sort(reverse=True)
-    return dates
+    return sorted(_dates_with_rows(cache_type, row_key), reverse=True)
 
 
 def _write_dated(prefix: str, date: str, payload: dict) -> None:

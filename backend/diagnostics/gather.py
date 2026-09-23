@@ -21,7 +21,7 @@ from constants_diagnostics import (
     DIAG_PORT_PROBE_TIMEOUT_SEC,
     DIAG_SCHEMA_VERSION,
 )
-from diagnostics import collect, collect_gateway, process_info
+from diagnostics import collect, collect_gateway, collect_leaderboard, process_info
 from diagnostics.rows import counts, unknown_row
 
 logger = logging.getLogger(__name__)
@@ -107,6 +107,12 @@ def _market_data_inputs() -> dict[str, Any]:
     }
 
 
+def _leaderboard_inputs() -> dict[str, Any]:
+    from leaderboard import auto_record, recorder, store
+
+    return {"recorder": recorder.status(), "auto": auto_record.status(), "store_path": str(store.path())}
+
+
 def _recorder_inputs() -> dict[str, Any]:
     from capture import keepalive as _keepalive
     from capture import mode as _mode
@@ -154,6 +160,8 @@ def gather(*, ui_tag: str | None = None, now: float | None = None) -> dict[str, 
     rows += _safe(DIAG_GROUP_GATEWAY, "gateway", "Gateway", lambda: collect_gateway.gateway_rows(**_gateway_inputs()))
     rows += _safe(DIAG_GROUP_MARKET_DATA, "market_data", "Market data", lambda: collect_gateway.market_data_rows(**_market_data_inputs()))
     rows += _safe(DIAG_GROUP_RECORDER, "recorder", "Recorder", lambda: collect_gateway.recorder_rows(**_recorder_inputs()))
+    rows += _safe(DIAG_GROUP_RECORDER, "leaderboard_recorder", "Scanner board recorder",
+                  lambda: collect_leaderboard.leaderboard_rows(**_leaderboard_inputs()))
     rows += _safe(DIAG_GROUP_PRACTICE, "practice", "Practice", lambda: collect.practice_rows(**_practice_inputs()))
     rows += collect.frontend_rows(ui_tag=ui_tag, backend_tag=facts.get("release_tag"))
     return {

@@ -102,6 +102,9 @@ DESK_VENUE_V1_MIGRATION = {NOVA_BROKER_SIM: DESK_VENUE_SIM, NOVA_BROKER_IBKR: DE
 
 # Default replay session window (America/New_York clock).
 SIM_SESSION_OPEN_HOUR = 4
+# POST /api/sim/clock {session_date} parks a moved-to day here, paused (ADR 022):
+# the first pullback's window opens at 07:00 ET.
+SIM_DAY_JUMP_PARK_MIN_ET = 7 * 60
 SIM_SESSION_CLOSE_HOUR = 20
 
 # Historical replay acquisition (architecture/historical-replay.md).

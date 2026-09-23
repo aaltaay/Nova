@@ -38,6 +38,9 @@ from ibkr_bridge import (
     symbols_for_tab,
 )
 import loop_lag as _loop_lag
+from leaderboard import auto_record as _leaderboard_auto_record
+from leaderboard import queue as _leaderboard_queue
+from leaderboard import recorder as _leaderboard_recorder
 from practice import matcher as _practice_matcher
 from scan_loop import scan_loop
 from scanner_push import broadcast as _scanner_broadcast
@@ -107,6 +110,11 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         ("capture.keepalive", _capture_keepalive.run),
         # Paper venue (ADR 020): resting practice orders fill on live tape prints.
         ("practice.matcher", _practice_matcher.run),
+        # Scanner leaderboard (ADR 022): always recording, enqueue + one writer.
+        ("leaderboard.write_queue", _leaderboard_queue.drain_loop),
+        ("leaderboard.recorder", _leaderboard_recorder.run),
+        # 07:00-10:00 ET: record the leaders on free Level 2 lines only.
+        ("leaderboard.auto_record", _leaderboard_auto_record.run),
     ]
     if maintenance_enabled():
         factories.append(("archive.maintenance", archive_maintenance_loop))

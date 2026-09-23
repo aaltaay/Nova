@@ -25,7 +25,7 @@ from zoneinfo import ZoneInfo
 from capture.constants_capture import (
     CAPTURE_STATUS_RECORDING,
     CAPTURE_STATUS_UNLISTED,
-    CAPTURE_STOP_OPERATOR,
+    CAPTURE_PLANNED_STOPS,
     CAPTURE_STREAM_NAMES,
     CAPTURE_UNLISTED_TOLERANCE_SEC,
 )
@@ -150,7 +150,7 @@ def spans_payload(segments: Any) -> list[list[int]]:
 
 def missing_seconds(segments: Any) -> int:
     """Seconds no segment covers between the first start and the last stop, except
-    the gaps after a segment the operator stopped on purpose."""
+    the gaps after a segment stopped on purpose (the operator, or auto-record)."""
     rows = segment_rows(segments)
     if not rows:
         return 0
@@ -158,7 +158,7 @@ def missing_seconds(segments: Any) -> int:
     cursor, cursor_reason = rows[0][1], rows[0][2]
     for start, stop, reason in rows[1:]:
         if start > cursor:
-            if cursor_reason != CAPTURE_STOP_OPERATOR:
+            if cursor_reason not in CAPTURE_PLANNED_STOPS:
                 missing += start - cursor
             cursor, cursor_reason = stop, reason
         elif stop > cursor:

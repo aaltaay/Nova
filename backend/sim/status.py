@@ -51,6 +51,32 @@ def _recording_fields() -> dict[str, Any]:
     }
 
 
+def _leaderboard_fields() -> dict[str, Any]:
+    """The always-on scanner recorder and auto-record (ADR 022) -- quiet unless broken."""
+    out: dict[str, Any] = {}
+    try:
+        from leaderboard import recorder as leaderboard_recorder
+
+        out["leaderboard_recorder"] = leaderboard_recorder.status()
+    except Exception:
+        logger.exception("LEADERBOARD: recorder status unavailable")
+        out["leaderboard_recorder"] = {
+            "recording": False, "ok": False, "error": "Recorder status unavailable",
+            "since": None, "run_id": None,
+        }
+    try:
+        from leaderboard import auto_record
+
+        out["auto_record"] = auto_record.status()
+    except Exception:
+        logger.exception("LEADERBOARD: auto-record status unavailable")
+        out["auto_record"] = {
+            "active": False, "window": "", "symbols": [], "yielded": [],
+            "last_error": "Auto-record status unavailable",
+        }
+    return out
+
+
 def _practice_fields(current: str) -> dict[str, Any]:
     """What a practice venue overrides on the IBKR status payload."""
     from ibkr.safety import DISARMED_REASON, armed as _armed_now
@@ -103,7 +129,7 @@ def overlay_ibkr_status(payload: dict[str, Any]) -> dict[str, Any]:
         is_practice_venue = lambda: False  # noqa: E731
         venue = lambda: DESK_VENUE_LIVE  # noqa: E731
 
-    recording = _recording_fields()
+    recording = {**_recording_fields(), **_leaderboard_fields()}
     out = dict(payload)
     current = venue()
     if is_practice_venue():

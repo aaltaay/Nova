@@ -73,6 +73,9 @@ def _isolate_operator_state(tmp_path, monkeypatch):
     # earlier test wrote os.environ directly.
     monkeypatch.setenv("NOVA_LOG_DIR", str(log_root))
     monkeypatch.setenv("NOVA_ENV_PATH", str(tmp_path / "nova.env"))
+    # The leaderboard store defaults to F:\Nova\leaderboard when F: is mounted;
+    # a test must never write the operator's archive (ADR 022).
+    monkeypatch.setenv("NOVA_LEADERBOARD_DIR", str(tmp_path / "leaderboard"))
     monkeypatch.delenv("NOVA_API_KEY", raising=False)
     monkeypatch.setenv("IBKR_GATEWAY_MODE", "paper")
     monkeypatch.setattr(cache_mod, "_CACHE_DIR", str(cache_root), raising=False)
