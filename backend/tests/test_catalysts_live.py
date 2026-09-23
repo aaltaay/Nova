@@ -67,3 +67,11 @@ def test_grade_reads_the_catalyst_verdict(monkeypatch):
     # Not fetched: the pillar is unknown, never a failed "no news".
     q = grade_mod.read_pillars("OTHER", NOW)
     assert q["news"] is None and q["catalyst"] is None
+
+
+def test_the_news_pillar_passes_only_a_classified_catalyst():
+    assert grade_mod.news_pillar(None) is None
+    assert grade_mod.news_pillar({"verdict": "catalyst", "category": "fda_regulatory"}) is True
+    assert grade_mod.news_pillar({"verdict": "catalyst", "category": "company_news"}) is None
+    assert grade_mod.news_pillar({"verdict": "noise_only", "news_pending": True}) is None
+    assert grade_mod.news_pillar({"verdict": "none_found"}) is False

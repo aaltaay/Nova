@@ -57,10 +57,13 @@ export function outcomeLabel(row: SetupRow): string {
 export function catalystTitle(p: SetupPillars | null | undefined): string {
   const c = p?.catalyst;
   if (!c) return 'Catalyst: not read when this armed (unknown, not a fail)';
+  const pending = c.news_pending ? `News pending: halted ${c.halt_code ?? ''} for news\n` : '';
+  const checked = c.sources_answered?.length ? `\nChecked: ${c.sources_answered.join(', ')}` : '';
   const head = CATALYST_VERDICT_TITLES[c.verdict] ?? c.verdict;
-  if (c.verdict !== 'catalyst' && c.verdict !== 'negative') return head;
+  if (c.verdict !== 'catalyst' && c.verdict !== 'negative') return `${pending}${head}${checked}`;
   const cat = c.category ? (CATALYST_CATEGORY_LABELS[c.category] ?? c.category) : '';
   const strength = c.strength ? ` (${c.strength})` : '';
   const dilution = c.negative_too ? '\nAlso: an offering / dilution item' : '';
-  return `${head}: ${cat}${strength}${c.title ? `\n${c.title}` : ''}${dilution}`;
+  const via = c.source ? ` via ${c.source}` : '';
+  return `${pending}${head}: ${cat}${strength}${via}${c.title ? `\n${c.title}` : ''}${dilution}${checked}`;
 }

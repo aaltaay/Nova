@@ -12,8 +12,15 @@ const pillars = (catalyst: SetupCatalyst | null) => ({
 });
 
 describe('catalystTitle', () => {
-  it('names the class, strength and headline a News pass rested on', () => {
-    expect(catalystTitle(pillars(base))).toBe('Catalyst: FDA / regulatory (strong)\nAcme Receives FDA Approval');
+  it('names the class, strength, source and headline a News pass rested on', () => {
+    expect(catalystTitle(pillars(base))).toBe('Catalyst: FDA / regulatory (strong) via alpaca\nAcme Receives FDA Approval');
+  });
+
+  it('says a news-pending halt and which sources looked', () => {
+    const t = catalystTitle(pillars({ ...base, verdict: 'none_found', category: null, strength: null, title: null,
+      news_pending: true, halt_code: 'T1', sources_answered: ['edgar', 'globenewswire'] }));
+    expect(t).toContain('News pending: halted T1 for news');
+    expect(t).toContain('Checked: edgar, globenewswire');
   });
 
   it('flags dilution beside a catalyst', () => {

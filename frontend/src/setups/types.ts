@@ -55,6 +55,11 @@ export interface SetupCatalyst {
   url: string | null;
   negative_too: boolean;
   rules_version: string;
+  /** Sources that looked across the whole window (alpaca, edgar, globenewswire, prnewswire, newsfile). */
+  sources_answered?: string[];
+  /** A Nasdaq T1 / T12 halt inside the window with no resumption yet: the news is coming. */
+  news_pending?: boolean;
+  halt_code?: string | null;
 }
 
 export interface SetupPillars {

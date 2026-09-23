@@ -10,20 +10,20 @@
   },
   "by_verdict_at_open": {
     "catalyst:strong": {
-      "trades": 180,
-      "win_pct": 30.6,
-      "avg_r": -0.188,
+      "trades": 187,
+      "win_pct": 29.9,
+      "avg_r": -0.208,
       "median_r": -1.118,
-      "profit_factor": 0.84,
-      "pnl": -1484.0
+      "profit_factor": 0.83,
+      "pnl": -1588.0
     },
     "catalyst:weak": {
-      "trades": 440,
-      "win_pct": 26.1,
-      "avg_r": -0.374,
+      "trades": 445,
+      "win_pct": 26.5,
+      "avg_r": -0.366,
       "median_r": -1.118,
       "profit_factor": 0.54,
-      "pnl": -9227.0
+      "pnl": -9084.0
     },
     "negative": {
       "trades": 14,
@@ -34,46 +34,46 @@
       "pnl": -326.0
     },
     "noise_only": {
-      "trades": 215,
-      "win_pct": 24.7,
-      "avg_r": -0.474,
+      "trades": 217,
+      "win_pct": 25.3,
+      "avg_r": -0.454,
       "median_r": -1.133,
       "profit_factor": 0.36,
-      "pnl": -8453.0
+      "pnl": -8394.0
     },
     "none_found": {
-      "trades": 127,
-      "win_pct": 22.8,
-      "avg_r": -0.441,
-      "median_r": -1.125,
-      "profit_factor": 0.27,
-      "pnl": -3285.0
+      "trades": 115,
+      "win_pct": 22.6,
+      "avg_r": -0.444,
+      "median_r": -1.13,
+      "profit_factor": 0.26,
+      "pnl": -3262.0
     },
     "routine_only": {
-      "trades": 41,
-      "win_pct": 34.1,
-      "avg_r": -0.243,
-      "median_r": -1.118,
-      "profit_factor": 0.8,
-      "pnl": -237.0
+      "trades": 39,
+      "win_pct": 28.2,
+      "avg_r": -0.378,
+      "median_r": -1.125,
+      "profit_factor": 0.72,
+      "pnl": -358.0
     }
   },
   "by_verdict_at_entry": {
     "catalyst:strong": {
-      "trades": 182,
-      "win_pct": 30.2,
-      "avg_r": -0.196,
+      "trades": 189,
+      "win_pct": 29.6,
+      "avg_r": -0.215,
       "median_r": -1.118,
-      "profit_factor": 0.83,
-      "pnl": -1570.0
+      "profit_factor": 0.82,
+      "pnl": -1674.0
     },
     "catalyst:weak": {
-      "trades": 456,
-      "win_pct": 26.5,
-      "avg_r": -0.369,
+      "trades": 461,
+      "win_pct": 26.9,
+      "avg_r": -0.362,
       "median_r": -1.118,
       "profit_factor": 0.53,
-      "pnl": -9767.0
+      "pnl": -9624.0
     },
     "negative": {
       "trades": 15,
@@ -84,28 +84,28 @@
       "pnl": -304.0
     },
     "noise_only": {
-      "trades": 206,
-      "win_pct": 24.8,
-      "avg_r": -0.46,
+      "trades": 208,
+      "win_pct": 25.5,
+      "avg_r": -0.44,
       "median_r": -1.133,
       "profit_factor": 0.37,
-      "pnl": -8130.0
+      "pnl": -8071.0
     },
     "none_found": {
-      "trades": 117,
-      "win_pct": 22.2,
-      "avg_r": -0.478,
-      "median_r": -1.138,
-      "profit_factor": 0.27,
-      "pnl": -2946.0
+      "trades": 105,
+      "win_pct": 21.9,
+      "avg_r": -0.486,
+      "median_r": -1.154,
+      "profit_factor": 0.26,
+      "pnl": -2923.0
     },
     "routine_only": {
-      "trades": 41,
-      "win_pct": 29.3,
-      "avg_r": -0.306,
-      "median_r": -1.118,
-      "profit_factor": 0.76,
-      "pnl": -296.0
+      "trades": 39,
+      "win_pct": 23.1,
+      "avg_r": -0.444,
+      "median_r": -1.125,
+      "profit_factor": 0.68,
+      "pnl": -417.0
     }
   },
   "catalyst_class_at_open": {
@@ -118,28 +118,28 @@
       "pnl": 448.0
     },
     "company_news": {
-      "trades": 92,
+      "trades": 101,
       "win_pct": 22.8,
-      "avg_r": -0.493,
-      "median_r": -1.129,
+      "avg_r": -0.495,
+      "median_r": -1.126,
       "profit_factor": 0.41,
-      "pnl": -3397.0
+      "pnl": -3372.0
     },
     "contract_partnership": {
-      "trades": 88,
-      "win_pct": 23.9,
-      "avg_r": -0.392,
+      "trades": 87,
+      "win_pct": 24.1,
+      "avg_r": -0.389,
       "median_r": -1.118,
       "profit_factor": 0.44,
-      "pnl": -2886.0
+      "pnl": -2868.0
     },
     "earnings_guidance": {
-      "trades": 231,
-      "win_pct": 29.4,
-      "avg_r": -0.315,
-      "median_r": -1.118,
+      "trades": 233,
+      "win_pct": 30.0,
+      "avg_r": -0.3,
+      "median_r": -1.105,
       "profit_factor": 0.68,
-      "pnl": -2140.0
+      "pnl": -2096.0
     },
     "fda_regulatory": {
       "trades": 45,
@@ -174,30 +174,248 @@
       "pnl": -605.0
     },
     "theme_pivot": {
-      "trades": 23,
-      "win_pct": 26.1,
-      "avg_r": -0.317,
-      "median_r": -0.636,
-      "profit_factor": 0.42,
-      "pnl": -734.0
+      "trades": 25,
+      "win_pct": 24.0,
+      "avg_r": -0.388,
+      "median_r": -0.766,
+      "profit_factor": 0.4,
+      "pnl": -783.0
     }
   },
   "catalyst_with_dilution_at_open": {
     "False": {
-      "trades": 589,
+      "trades": 600,
       "win_pct": 27.7,
-      "avg_r": -0.305,
+      "avg_r": -0.307,
       "median_r": -1.118,
       "profit_factor": 0.65,
-      "pnl": -9715.0
+      "pnl": -9691.0
     },
     "True": {
-      "trades": 31,
-      "win_pct": 22.6,
-      "avg_r": -0.598,
+      "trades": 32,
+      "win_pct": 25.0,
+      "avg_r": -0.556,
+      "median_r": -1.122,
+      "profit_factor": 0.31,
+      "pnl": -981.0
+    }
+  },
+  "halt_before_entry": {
+    "news halt (T1-T3)": {
+      "trades": 6,
+      "win_pct": 16.7,
+      "avg_r": -0.788,
+      "median_r": -1.166,
+      "profit_factor": 0.09,
+      "pnl": -240.0
+    },
+    "no halt": {
+      "trades": 955,
+      "win_pct": 26.2,
+      "avg_r": -0.366,
+      "median_r": -1.123,
+      "profit_factor": 0.52,
+      "pnl": -21825.0
+    },
+    "volatility pause (LULD)": {
+      "trades": 56,
+      "win_pct": 33.9,
+      "avg_r": -0.302,
+      "median_r": -1.108,
+      "profit_factor": 0.6,
+      "pnl": -947.0
+    }
+  },
+  "shares_outstanding": {
+    "10-20M": {
+      "trades": 85,
+      "win_pct": 20.0,
+      "avg_r": -0.61,
+      "median_r": -1.133,
+      "profit_factor": 0.32,
+      "pnl": -4829.0
+    },
+    "20-50M": {
+      "trades": 188,
+      "win_pct": 28.7,
+      "avg_r": -0.204,
+      "median_r": -1.12,
+      "profit_factor": 0.7,
+      "pnl": -2654.0
+    },
+    "5-10M": {
+      "trades": 65,
+      "win_pct": 15.4,
+      "avg_r": -0.618,
+      "median_r": -1.133,
+      "profit_factor": 0.29,
+      "pnl": -3570.0
+    },
+    "<5M": {
+      "trades": 90,
+      "win_pct": 27.8,
+      "avg_r": -0.432,
+      "median_r": -1.118,
+      "profit_factor": 0.52,
+      "pnl": -1998.0
+    },
+    ">50M": {
+      "trades": 441,
+      "win_pct": 28.1,
+      "avg_r": -0.347,
+      "median_r": -1.118,
+      "profit_factor": 0.54,
+      "pnl": -6850.0
+    },
+    "unknown": {
+      "trades": 148,
+      "win_pct": 27.0,
+      "avg_r": -0.329,
+      "median_r": -1.118,
+      "profit_factor": 0.63,
+      "pnl": -3111.0
+    }
+  },
+  "short_interest_pct": {
+    "5-15%": {
+      "trades": 292,
+      "win_pct": 30.1,
+      "avg_r": -0.252,
+      "median_r": -1.117,
+      "profit_factor": 0.64,
+      "pnl": -3704.0
+    },
+    "<5%": {
+      "trades": 443,
+      "win_pct": 24.8,
+      "avg_r": -0.405,
       "median_r": -1.125,
-      "profit_factor": 0.3,
-      "pnl": -996.0
+      "profit_factor": 0.47,
+      "pnl": -13529.0
+    },
+    ">=15%": {
+      "trades": 130,
+      "win_pct": 24.6,
+      "avg_r": -0.5,
+      "median_r": -1.139,
+      "profit_factor": 0.48,
+      "pnl": -2202.0
+    },
+    "unknown": {
+      "trades": 152,
+      "win_pct": 26.3,
+      "avg_r": -0.35,
+      "median_r": -1.118,
+      "profit_factor": 0.59,
+      "pnl": -3578.0
+    }
+  },
+  "days_to_cover": {
+    "1-3d": {
+      "trades": 548,
+      "win_pct": 25.0,
+      "avg_r": -0.448,
+      "median_r": -1.125,
+      "profit_factor": 0.44,
+      "pnl": -16869.0
+    },
+    ">=3d": {
+      "trades": 464,
+      "win_pct": 28.7,
+      "avg_r": -0.258,
+      "median_r": -1.118,
+      "profit_factor": 0.68,
+      "pnl": -5533.0
+    },
+    "unknown": {
+      "trades": 5,
+      "win_pct": 0.0,
+      "avg_r": -1.162,
+      "median_r": -1.118,
+      "profit_factor": 0.0,
+      "pnl": -611.0
+    }
+  },
+  "catalyst_x_shares": {
+    "catalyst / 20M+ or unknown": {
+      "trades": 499,
+      "win_pct": 28.5,
+      "avg_r": -0.272,
+      "median_r": -1.118,
+      "profit_factor": 0.76,
+      "pnl": -4635.0
+    },
+    "catalyst / <20M": {
+      "trades": 133,
+      "win_pct": 24.1,
+      "avg_r": -0.499,
+      "median_r": -1.12,
+      "profit_factor": 0.38,
+      "pnl": -6037.0
+    },
+    "negative / 20M+ or unknown": {
+      "trades": 9,
+      "win_pct": 33.3,
+      "avg_r": -0.262,
+      "median_r": -1.125,
+      "profit_factor": 0.65,
+      "pnl": -117.0
+    },
+    "negative / <20M": {
+      "trades": 5,
+      "win_pct": 20.0,
+      "avg_r": -0.512,
+      "median_r": -0.762,
+      "profit_factor": 0.18,
+      "pnl": -209.0
+    },
+    "noise_only / 20M+ or unknown": {
+      "trades": 160,
+      "win_pct": 26.9,
+      "avg_r": -0.423,
+      "median_r": -1.138,
+      "profit_factor": 0.35,
+      "pnl": -5825.0
+    },
+    "noise_only / <20M": {
+      "trades": 57,
+      "win_pct": 21.1,
+      "avg_r": -0.54,
+      "median_r": -1.133,
+      "profit_factor": 0.38,
+      "pnl": -2569.0
+    },
+    "none_found / 20M+ or unknown": {
+      "trades": 78,
+      "win_pct": 28.2,
+      "avg_r": -0.265,
+      "median_r": -1.107,
+      "profit_factor": 0.29,
+      "pnl": -1681.0
+    },
+    "none_found / <20M": {
+      "trades": 37,
+      "win_pct": 10.8,
+      "avg_r": -0.823,
+      "median_r": -1.154,
+      "profit_factor": 0.22,
+      "pnl": -1581.0
+    },
+    "routine_only / 20M+ or unknown": {
+      "trades": 31,
+      "win_pct": 25.8,
+      "avg_r": -0.449,
+      "median_r": -1.125,
+      "profit_factor": 0.65,
+      "pnl": -356.0
+    },
+    "routine_only / <20M": {
+      "trades": 8,
+      "win_pct": 37.5,
+      "avg_r": -0.103,
+      "median_r": -1.109,
+      "profit_factor": 0.99,
+      "pnl": -2.0
     }
   }
 }

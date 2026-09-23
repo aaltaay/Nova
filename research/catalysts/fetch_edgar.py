@@ -16,9 +16,7 @@ Usage:  py -3 research/catalysts/fetch_edgar.py [--limit N]
 from __future__ import annotations
 
 import argparse
-import html
 import json
-import re
 import zipfile
 from collections import defaultdict
 from datetime import datetime
@@ -27,32 +25,10 @@ from cat_config import EDGAR_DIR, REFERENCE_DIR, SEC_CALLS_PER_SEC, load_env, se
 from http_util import HttpRefused, Pacer, get
 from store import connect, pending, put_check, put_items
 
+from catalysts.sec_text import KEEP_FORMS, PRESS_FORMS, describe, release_text  # shared with the live feed
+
 SOURCE = "edgar"
 ZIP = EDGAR_DIR / "submissions.zip"
-PRESS_FORMS = {"8-K", "6-K"}
-KEEP_FORMS = PRESS_FORMS | {"8-K/A", "6-K/A", "424B1", "424B3", "424B4", "424B5", "S-1", "F-1", "S-3", "F-3",
-                            "425", "8-A12B", "SC TO-T", "SC 14D9", "DEFM14A", "10-Q", "10-K", "20-F", "S-4", "F-4"}
-ITEM_NAMES = {
-    "1.01": "Material agreement", "1.02": "Agreement terminated", "1.03": "Bankruptcy", "2.01": "Acquisition completed",
-    "2.02": "Results of operations", "2.03": "Financial obligation", "3.01": "Delisting notice",
-    "3.02": "Unregistered equity sale", "3.03": "Rights modified", "5.01": "Change in control",
-    "5.02": "Officer / director change", "5.03": "Charter / bylaws (e.g. reverse split)", "5.07": "Shareholder vote",
-    "7.01": "Regulation FD", "8.01": "Other events", "9.01": "Exhibits",
-}
-EXHIBIT_RE = re.compile(r"(ex|exhibit|dex)[-_ ]?99", re.I)
-BLOCK_RE = re.compile(r"<\s*(br|/p|/div|/tr|/h[1-6]|/li|/td)\b[^>]*>", re.I)
-BOILER_RE = re.compile(r"^(ex(hibit)?[- ]?99|for immediate release|press release|news release|source:|contact|"
-                       r"investor|media|nasdaq:|nyse|page \d|\(?[a-z .]+,? ?(inc|corp|ltd)\.?\)?$)|"
-                       r"pursuant to|securities exchange act|report of foreign private issuer|form (6|8)-k|"
-                       r"commission file|indicate by check mark|washington, d\.?c|united states securities|"
-                       r"current report|date of report|incorporated by reference|forward-looking|"
-                       r"for the month of|commission file number|address of principal|name of registrant|"
-                       r"translation of registrant|exact name|specified in its charter", re.I)
-LEAD_VERB_RE = re.compile(r"^(announces|agrees|reports|secures|receives|enters|signs|completes|launches|regains|"
-                          r"closes|prices|expands|awarded|wins|partners|provides|to acquire|acquires)\b", re.I)
-DATELINE_RE = re.compile(r"^[A-Z][A-Za-z .,'-]+,\s+[A-Z][a-z]+\.? \d{1,2},? \d{4}")
-
-
 def cik_map() -> dict[str, str]:
     out: dict[str, str] = {}
     for row in json.loads((REFERENCE_DIR / "tickers.json").read_text(encoding="utf-8")):
@@ -92,56 +68,11 @@ def filings(z: zipfile.ZipFile, cik: str) -> list[dict]:
     return out
 
 
-def text_of(raw: str) -> list[str]:
-    raw = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", raw)
-    raw = BLOCK_RE.sub("\n", raw)
-    raw = html.unescape(re.sub(r"<[^>]+>", " ", raw))
-    return [re.sub(r"\s+", " ", ln).strip() for ln in raw.splitlines() if ln.strip()]
-
-
-def headline(lines: list[str]) -> tuple[str | None, str]:
-    """The release's headline (first real sentence-length line) and its opening text."""
-    title = None
-    for k, ln in enumerate(lines[:80]):
-        words = ln.split()
-        if len(words) < 3 or len(words) > 45 or BOILER_RE.search(ln) or DATELINE_RE.match(ln):
-            continue
-        prev = lines[k - 1] if k else ""
-        if LEAD_VERB_RE.match(ln) and 0 < len(prev.split()) <= 6 and not BOILER_RE.search(prev):
-            ln = f"{prev} {ln}"  # the company name sat on its own line
-        nxt = lines[k + 1] if k + 1 < len(lines) else ""
-        if len(ln.split()) < 8 and nxt and len(nxt.split()) <= 30 and not BOILER_RE.search(nxt) and not DATELINE_RE.match(nxt):
-            ln = f"{ln} {nxt}"  # the headline wrapped
-        if len(ln.split()) < 5:
-            continue
-        title = ln
-        break
-    body = " ".join(lines)
-    m = re.search(r"[^.]{0,200}\b(announce[sd]?|today|reported|entered into)\b.{0,1200}", body, re.I)
-    return title, (m.group(0) if m else body[:1400])
-
-
 def press_release(cik: str, f: dict, ua: dict, pacer: Pacer) -> tuple[str | None, str]:
     base = f"https://www.sec.gov/Archives/edgar/data/{cik}/{f['acc'].replace('-', '')}"
     listing = get(f"{base}/index.json", ua, pacer)
-    names = [it["name"] for it in listing.get("directory", {}).get("item", []) if it["name"].lower().endswith((".htm", ".html", ".txt"))]
-    ex = sorted(n for n in names if EXHIBIT_RE.search(n))
-    doc = ex[0] if ex else f["doc"]
-    if not doc:
-        return None, ""
-    lines = text_of(get(f"{base}/{doc}", ua, pacer, as_json=False))
-    if not ex and f["form"].startswith("8-K"):
-        # No press release attached: the form itself. Keep what the Item says, never its cover as a headline.
-        body = " ".join(lines)
-        m = re.search(r"Item\s+[1-8]\.0\d.{0,1400}", body)
-        return None, (m.group(0) if m else "")
-    return headline(lines)
-
-
-def describe(f: dict) -> str:
-    codes = [c.strip() for c in f["items"].split(",") if c.strip() and c.strip() != "9.01"]
-    names = "; ".join(ITEM_NAMES.get(c, c) for c in codes)
-    return f"{f['form']}{': ' + names if names else ''}"
+    names = [it["name"] for it in listing.get("directory", {}).get("item", [])]
+    return release_text(f["form"], names, f["doc"], lambda doc: get(f"{base}/{doc}", ua, pacer, as_json=False))
 
 
 def main() -> int:
@@ -176,11 +107,11 @@ def main() -> int:
                 if not (w0 < f["ts"] <= w1) or f["form"] not in KEEP_FORMS:
                     continue
                 item_id = f"edgar:{f['acc']}"
-                title, summary = describe(f), ""
+                title, summary = describe(f["form"], f["items"]), ""
                 if f["form"] in PRESS_FORMS and item_id not in fetched:
                     try:
                         head, summary = press_release(cik, f, ua, pacer)
-                        title = f"{describe(f)} | {head}" if head else title
+                        title = f"{describe(f['form'], f['items'])} | {head}" if head else title
                     except HttpRefused as e:
                         summary = f"(exhibit unavailable: {e})"
                     except Exception as e:  # noqa: BLE001 -- the target is retried next run

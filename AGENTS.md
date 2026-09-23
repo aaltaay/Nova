@@ -574,13 +574,28 @@ three tickers). A **verdict** for a symbol-day reads only items published after 
 session's 16:00 ET close and at or before its cutoff: `{verdict: "catalyst" | "negative" |
 "routine_only" | "noise_only" | "none_found" | "not_checked", category, strength, title,
 source, published_ts, url, negative_too, rules_version}` (plus `sources_answered`, `n_items`).
-`none_found` only when a source looked; `not_checked` when none did.
+`none_found` only when a source looked; `not_checked` when none did. The live verdict adds
+`news_pending: boolean` (a Nasdaq T1 / T12 halt inside the window with no resumption yet) and
+`halt_code: string | null`.
 
 The setup board's `pillars.catalyst` is that verdict at arm time (`catalysts/live.py`:
-Alpaca since the prior close, fetched in the background, `null` when no fetch covers the
-moment); `pillars.news` is `true` only for `verdict: "catalyst"` and `null` when unknown;
-`pillars.headline` is the catalyst's headline (it was a timestamp). The scanner News flame
-and the leaderboard's `has_news` keep their meaning (an article exists).
+Alpaca since the prior close, fetched in the background, plus the live catalyst feed; `null`
+when no source looked and nothing was found); `pillars.news` is `true` only for a classified
+catalyst, `null` when unknown (nothing read, `news_pending`, or only an unplaced
+`company_news` headline) and `false` otherwise; `pillars.headline` is the catalyst's headline
+(it was a timestamp). The scanner News flame and the leaderboard's `has_news` keep their
+meaning (an article exists).
+
+**The live catalyst feed** (`backend/catalysts/feed.py`, always on; `NOVA_CATALYST_FEED=0`
+off; ADR 024 amendment) records SEC EDGAR's latest filings, GlobeNewswire, PR Newswire,
+Newsfile and FDA into `catalyst_feed.sqlite3` under `NOVA_CATALYST_DIR`, else
+`F:\Nova\catalysts` when F: is mounted, else `<cache>/catalysts` (owner
+`catalysts/feed_store.py`; `PRAGMA user_version = 1`, unknown versions refuse): `items` and
+`item_tickers` in the research store's shape, and `coverage (source, start_ts, end_ts)` --
+unbroken reading of a source, extended only when a poll reached back to the previous one. A
+feed source counts in `sources_answered` only where a span covers the whole window.
+`/api/diagnostics` adds the `catalyst_feed` row (group `recorder`) with
+`evidence.sources: {name: {last_ok, last_error, items, gaps, covering_since}}`.
 
 The research store `F:\Nova\catalysts\catalysts.sqlite3` (`NOVA_CATALYST_DIR`; `PRAGMA
 user_version = 1`, unknown versions refuse; owner `research/catalysts/`, never read by the
@@ -589,7 +604,9 @@ backend) holds `targets (ticker, session_date, window_start, cutoff, window_end,
 title, summary, url, publisher, n_tickers, form, sec_items, fetched_ts)`, `item_tickers`,
 `checks (ticker, session_date, source, status ok | error | unavailable | out_of_range,
 n_items, detail, checked_ts)` and `verdicts` per rules version. SEC's bulk
-`submissions.zip` is kept beside it under `edgar/`.
+`submissions.zip` and `companyfacts.zip` are kept beside it under `edgar/`, Nasdaq's halt
+pages under `halts/raw/`. Nasdaq's halt history (2021-10 on) is loaded into the leaderboard's
+`halt_events` (source `nasdaq_trade_halt_rss`) by `research/catalysts/backfill_halts.py`.
 
 ### Input Payload (Raw)
 
@@ -1070,6 +1087,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 | Date | Change | Author |
 |------|--------|--------|
 | 2026-09-23 | Nova OS retired (ADR 025, operator decision on #481, option a): the BUY / WAIT / NO BUY verdict (judged on Gap and Go, which failed gate 1), the `signal` / `confirm` / `auto_paper` ladder, the staged approval queue, the Phase D executor and its restart recovery, the decision replay (`/api/archive/replay|walk|review`) and the Automation hotkeys are removed; Watchlist keeps Watchlist / Setups / Journal / Backtest and the Trader dock loses its Nova OS tab. The kill switch latch moves unchanged in meaning to `backend/kill_switch/` with `/api/kill-switch` and a card on the Bots page. Execution sources `approve` / `auto_paper` are refused `SOURCE_INVALID`. The event log, the NYSE holiday table and the walk-away rules stay; who the walk-away rules gate is left to the operator. §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-09-23 | Catalysts, the primary sources (ADR 024 amendment): an always-on live catalyst feed records SEC EDGAR's latest filings (with the 8-K / 6-K press release), GlobeNewswire, PR Newswire, Newsfile and FDA into `catalyst_feed.sqlite3` with proven coverage spans (a poll extends a span only when it reached back to the previous one), merged into the live verdict; a Nasdaq T1 / T12 halt sets `news_pending`; the News pillar is unknown for news pending or an unplaced `company_news` headline; `/api/diagnostics` adds `catalyst_feed`. Nasdaq's halt history (2021-10 on) is in the leaderboard's `halt_events`; research gains point-in-time SEC shares outstanding and FINRA short interest. Business Wire / Accesswire have no free feed and stay indirect. Rules v4. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Catalysts (ADR 024): one pure classifier (`backend/catalysts/classify.py`, `constants_catalysts.py`) for the backfilled history and the live desk -- noise (movers lists, law firms, opinion, roundups), routine, negative (dilution, delisting) and catalyst (strong / weak by class); a symbol-day's verdict reads only items published after the prior 16:00 ET close and by its cutoff, and says `none_found` only when a source looked. The setup scanner's News pillar passes only on a real catalyst and is `null` when unknown (`catalysts/live.py`); `pillars.headline` is the headline, not a timestamp. The history is backfilled onto `F:\Nova\catalysts` from SEC EDGAR (bulk index + filed press releases), Alpaca, Finnhub's free year and the Massive archive (`research/catalysts/`), and the first pullback is re-run by catalyst class. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Header ticker search gets smarter (operator ask): `GET /api/symbols/directory` serves every listed US symbol with its company name (Alpaca listing metadata, cached 6 h); the search matches by ticker or company name across the whole listing after the desk's own symbols, filters with `/regex/` and `A*X` wildcards over symbols, shows recent look-ups on focus (Shift+Del forgets), and Tab completes. Enter still opens exactly what was typed when it could be a ticker; only a name-only match (APPLE -> AAPL) moves the default. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-22 | Scanner leaderboard (ADR 023, operator decisions 2026-09-22): one row per symbol per minute per board, recorded always (no button; 04:00-20:00 ET exchange days; enqueue-only, a worker writes) and rebuilt offline from the Massive minute flat files (`research/leaderboard/`, no hindsight: prior-20-session time-of-day RVOL, float only as known that day). Gaps are stated with their reason (`not_running` / `feed_down` / `not_recorded` / `outside_session`) and never carried across; halts come only from a new halt / LULD log (IBKR tick 49 + Nasdaq RSS). One pure ranking (`leaderboard/ranking.py`) for playback leaders, S5 and auto-record; auto-record records the leaders 07:00-10:00 on free Level 2 lines only and yields the moment the operator opens Level 2 or Record elsewhere. `POST /api/sim/clock {session_date}` moves Sim to a past day with nothing loaded; the Scanner and HOD strip follow the playhead off the live edge. `/api/history/dates?type=all`; `movers` reads the split files. Segment reason `auto`. §3 amended. | User Directive + Claude Opus 5.5 |
