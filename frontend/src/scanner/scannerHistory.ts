@@ -1,6 +1,12 @@
 /** Shared scanner history fetch -- one date, every persisted table. */
 
+import { SCANNER_HISTORY_DATES_TYPE } from '../constantGroups/scanner_board';
 import { historyLoadError } from './scannerHonesty';
+
+/** The past-day menu's list: every date with any saved board (`type=all`, ADR 023). */
+export function historyDatesUrl(apiUrl: string): string {
+  return `${apiUrl}/history/dates?type=${SCANNER_HISTORY_DATES_TYPE}`;
+}
 
 export const SCANNER_HISTORY_PATHS = [
   'gappers',

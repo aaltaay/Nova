@@ -11,6 +11,8 @@ import { pinFirst, usePinnedRows } from '../scanner/pinnedRowsStore';
 import { historyTableLoadError, tableHonestyLabel } from '../scanner/scannerHonesty';
 import type { HistoryTableKey } from '../scanner/scannerHistory';
 import { useLiveScannerFeedOptional } from '../scanner/ScannerDataContext';
+import { LEADERBOARD_CATALYSTS_NOT_RECORDED } from '../leaderboard/leaderboardConstants';
+import { replayListAbsence } from '../leaderboard/leaderboardRows';
 import { LARGE_CAP_COLUMNS, SCANNER_COLUMNS } from '../constants';
 import type { Afterhours, Gapper, Mover, ScannerRow, SortConfig } from '../types/scanner';
 import type { Catalyst } from '../types/catalyst';
@@ -72,8 +74,10 @@ export function ScannerTabPanels({
   historyDate = null,
 }: Props) {
   const live = useLiveScannerFeedOptional();
+  // Sim playback (ADR 023) is a past board like a history date: no live freeze chrome, no grading.
+  const replay = live?.replay ?? null;
   const honestyBadge =
-    !historyDate && activeTab !== 'catalysts'
+    !historyDate && !replay && activeTab !== 'catalysts'
       ? tableHonestyLabel(tableMeta[activeTab], live?.lastGood?.[activeTab])
       : null;
   const emptyHonesty =
@@ -86,6 +90,11 @@ export function ScannerTabPanels({
     ?? (historyDate && live?.historyFailed?.includes(table) ? historyTableLoadError(historyDate, label) : null);
   // Every table's empty state shares these; each adds its context, label and history error.
   const emptyShared = { health, discoveryProvider, historyDate, honestyHint: emptyHonesty, feedFailure };
+  const emptyFor = (table: HistoryTableKey, label: string) => ({
+    ...emptyShared,
+    historyError: historyErrorFor(table, label),
+    replayAbsence: replay ? replayListAbsence(replay, table) : null,
+  });
   const [gapperSort, setGapperSort] = useState<SortConfig>({ key: '', dir: null });
   const [gainerSort, setGainerSort] = useState<SortConfig>({ key: '', dir: null });
   const [loserSort, setLoserSort] = useState<SortConfig>({ key: '', dir: null });
@@ -96,7 +105,7 @@ export function ScannerTabPanels({
 
   // The watchlist grades today's rows: a past snapshot is not graded, so its
   // WATCH column is a dash rather than today's score on an old row (QA W14).
-  const gradedEntries = historyDate ? NO_WATCHLIST_ENTRIES : watchlistEntries;
+  const gradedEntries = historyDate || replay ? NO_WATCHLIST_ENTRIES : watchlistEntries;
   const gappersWithWatchlist = useWatchlistOverlay(gappers, gradedEntries);
   const gainersWithWatchlist = useWatchlistOverlay(gainers, gradedEntries);
   const losersWithWatchlist = useWatchlistOverlay(losers, gradedEntries);
@@ -150,10 +159,9 @@ export function ScannerTabPanels({
       />
     ) : (
       <EmptyState
-        {...emptyShared}
+        {...emptyFor('gappers', 'gappers')}
         context={mode === 'market' ? 'premarket' : mode}
         emptyLabel="gappers"
-        historyError={historyErrorFor('gappers', 'gappers')}
       />
     );
   } else if (activeTab === 'catalysts') {
@@ -166,7 +174,7 @@ export function ScannerTabPanels({
         onSelect={onSelect}
         onOpenTrading={onOpenTrading}
         health={health}
-        fetchError={live?.catalystsError}
+        fetchError={replay ? LEADERBOARD_CATALYSTS_NOT_RECORDED : live?.catalystsError}
       />
     );
   } else if (activeTab === 'gainers') {
@@ -186,10 +194,9 @@ export function ScannerTabPanels({
       />
     ) : (
       <EmptyState
-        {...emptyShared}
+        {...emptyFor('gainers', 'gainers')}
         context={mode === 'premarket' ? 'market' : mode}
         emptyLabel="gainers"
-        historyError={historyErrorFor('gainers', 'gainers')}
       />
     );
   } else if (activeTab === 'losers') {
@@ -209,10 +216,9 @@ export function ScannerTabPanels({
       />
     ) : (
       <EmptyState
-        {...emptyShared}
+        {...emptyFor('losers', 'losers')}
         context={mode === 'premarket' ? 'market' : mode}
         emptyLabel="losers"
-        historyError={historyErrorFor('losers', 'losers')}
       />
     );
   } else if (activeTab === 'afterhours') {
@@ -234,10 +240,9 @@ export function ScannerTabPanels({
           />
         ) : (
           <EmptyState
-            {...emptyShared}
+            {...emptyFor('afterhours', 'after-hours movers')}
             context={mode === 'market' ? 'afterhours' : mode}
             emptyLabel="after-hours movers"
-            historyError={historyErrorFor('afterhours', 'after-hours movers')}
           />
         )}
       </>
@@ -261,10 +266,9 @@ export function ScannerTabPanels({
       />
     ) : (
       <EmptyState
-        {...emptyShared}
+        {...emptyFor('large_cap', 'large cap movers')}
         context={mode === 'market' ? 'market' : mode}
         emptyLabel="large cap movers"
-        historyError={historyErrorFor('large_cap', 'large cap movers')}
       />
     );
   }

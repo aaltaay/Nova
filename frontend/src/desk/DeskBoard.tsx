@@ -12,6 +12,7 @@ import { useMemo } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { ScannerColGroup, ScannerRowNumHeader } from '../components/ScannerTableChrome';
 import { listAbsenceText } from '../scanner/listAbsence';
+import { replayListAbsence } from '../leaderboard/leaderboardRows';
 import { SCANNER_TABLE_WRAPPER_CLASS, scannerColClass } from '../components/scannerTableCol';
 import {
   DESK_BOARD_ARIA,
@@ -129,7 +130,9 @@ export function DeskBoard({
           <p className="desk-board__absent" data-testid="desk-board-absent">{deskBoardNotMirrored(title)}</p>
         ) : rows.length === 0 ? (
           <p className="desk-board__absent" data-testid="desk-board-absent">
-            {listAbsenceText(title, { restError: feed.restError, healthStatus: feed.health?.status }, deskBoardEmpty)}
+            {feed.replay
+              ? replayListAbsence(feed.replay, list)
+              : listAbsenceText(title, { restError: feed.restError, healthStatus: feed.health?.status }, deskBoardEmpty)}
           </p>
         ) : (
           <table>
@@ -156,7 +159,7 @@ export function DeskBoard({
                     recording={rec}
                     allowed={allowed}
                     held={allowed && (rec || live.has(row.symbol))}
-                    stale={isRowQuoteStale(row.symbol, feed.rowQuoteTs, feed.now, feed.pricesStale)}
+                    stale={!feed.replay && isRowQuoteStale(row.symbol, feed.rowQuoteTs, feed.now, feed.pricesStale)}
                     flash={feed.flashSymbols[row.symbol]}
                     onOpen={onOpen}
                     onPopOut={onPopOut}

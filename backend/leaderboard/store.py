@@ -1,0 +1,227 @@
+"""SQLite store for the scanner leaderboard (ADR 023). Blocking -- never on the IB loop.
+
+Owner: backend/leaderboard/. Schema: ``leaderboard.schema``. Rows are history
+and immutable; a reconstruction rebuild replaces only its own (date, source).
+"""
+from __future__ import annotations
+
+import os
+import sqlite3
+from collections.abc import Iterable, Iterator, Sequence
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any
+
+from constants_leaderboard import (
+    LEADERBOARD_DB_FILENAME,
+    LEADERBOARD_DEFAULT_ROOT_WIN,
+    LEADERBOARD_DIR_ENV,
+    LEADERBOARD_SQLITE_TIMEOUT_SEC,
+)
+from leaderboard.schema import (
+    COVERAGE_COLUMNS,
+    HALT_COLUMNS,
+    MINUTE_COLUMNS,
+    ROW_COLUMNS,
+    initialize,
+)
+
+
+def _durable_archive_available() -> bool:
+    return Path("F:/").exists()
+
+
+def root() -> Path:
+    """``NOVA_LEADERBOARD_DIR``; else ``F:\\Nova\\leaderboard``; else ``<cache>/leaderboard``."""
+    configured = (os.environ.get(LEADERBOARD_DIR_ENV) or "").strip()
+    if configured:
+        return Path(configured)
+    if _durable_archive_available():
+        return Path(LEADERBOARD_DEFAULT_ROOT_WIN)
+    from paths import cache_dir
+
+    return Path(cache_dir()) / "leaderboard"
+
+
+def path() -> Path:
+    return root() / LEADERBOARD_DB_FILENAME
+
+
+@contextmanager
+def connect(database: Path | None = None) -> Iterator[sqlite3.Connection]:
+    target = database or path()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    db = sqlite3.connect(target, timeout=LEADERBOARD_SQLITE_TIMEOUT_SEC)
+    db.row_factory = sqlite3.Row
+    try:
+        initialize(db)
+        yield db
+    finally:
+        db.close()
+
+
+def _insert_sql(table: str, columns: Sequence[str], verb: str = "INSERT OR REPLACE") -> str:
+    marks = ", ".join("?" for _ in columns)
+    return f"{verb} INTO {table} ({', '.join(columns)}) VALUES ({marks})"
+
+
+def _tuples(items: Iterable[dict[str, Any]], columns: Sequence[str]) -> list[tuple]:
+    return [tuple(item.get(column) for column in columns) for item in items]
+
+
+# ── Writes ──────────────────────────────────────────────────────────────────
+
+def write_batch(
+    db: sqlite3.Connection,
+    *,
+    rows: Iterable[dict[str, Any]] = (),
+    coverage: Iterable[dict[str, Any]] = (),
+    minutes: Iterable[dict[str, Any]] = (),
+    halts: Iterable[dict[str, Any]] = (),
+) -> dict[str, int]:
+    """One transaction. Rows / coverage / minutes upsert; halt events are idempotent."""
+    row_t = _tuples(rows, ROW_COLUMNS)
+    cov_t = _tuples(coverage, COVERAGE_COLUMNS)
+    min_t = _tuples(minutes, MINUTE_COLUMNS)
+    halt_t = _tuples(halts, HALT_COLUMNS)
+    with db:
+        if row_t:
+            db.executemany(_insert_sql("rows", ROW_COLUMNS), row_t)
+        if cov_t:
+            db.executemany(_insert_sql("coverage", COVERAGE_COLUMNS), cov_t)
+        if min_t:
+            db.executemany(_insert_sql("minutes", MINUTE_COLUMNS), min_t)
+        if halt_t:
+            db.executemany(_insert_sql("halt_events", HALT_COLUMNS, "INSERT OR IGNORE"), halt_t)
+    return {"rows": len(row_t), "coverage": len(cov_t), "minutes": len(min_t), "halts": len(halt_t)}
+
+
+def replace_day(db: sqlite3.Connection, session_date: str, source: str) -> None:
+    """Drop one (date, source) before a rebuild writes it again."""
+    with db:
+        db.execute("DELETE FROM rows WHERE session_date = ? AND source = ?", (session_date, source))
+        db.execute("DELETE FROM coverage WHERE session_date = ? AND source = ?", (session_date, source))
+
+
+def start_run(db: sqlite3.Connection, run_id: str, ts: float) -> None:
+    with db:
+        db.execute(
+            "INSERT OR REPLACE INTO runs (run_id, started_ts, last_beat_ts, stopped_ts, stop_reason)"
+            " VALUES (?, ?, ?, NULL, NULL)",
+            (run_id, ts, ts),
+        )
+
+
+def beat_run(db: sqlite3.Connection, run_id: str, ts: float) -> None:
+    with db:
+        db.execute("UPDATE runs SET last_beat_ts = ? WHERE run_id = ?", (ts, run_id))
+
+
+def stop_run(db: sqlite3.Connection, run_id: str, ts: float, reason: str) -> None:
+    with db:
+        db.execute(
+            "UPDATE runs SET stopped_ts = ?, stop_reason = ?, last_beat_ts = MAX(last_beat_ts, ?)"
+            " WHERE run_id = ?",
+            (ts, reason, ts, run_id),
+        )
+
+
+# ── Reads ───────────────────────────────────────────────────────────────────
+
+def days(db: sqlite3.Connection, limit: int) -> list[dict[str, Any]]:
+    """Per (date, source): minute count, first / last minute and the boards seen."""
+    out = db.execute(
+        "SELECT session_date, source, COUNT(DISTINCT minute_ts) AS minutes,"
+        " MIN(minute_ts) AS first_ts, MAX(minute_ts) AS last_ts,"
+        " GROUP_CONCAT(DISTINCT board) AS boards"
+        " FROM coverage GROUP BY session_date, source"
+        " ORDER BY session_date DESC LIMIT ?",
+        (int(limit) * 2,),
+    ).fetchall()
+    return [dict(row) for row in out]
+
+
+def latest_minute(db: sqlite3.Connection, session_date: str, source: str, at_or_before: int) -> int | None:
+    row = db.execute(
+        "SELECT MAX(minute_ts) FROM coverage WHERE session_date = ? AND source = ? AND minute_ts <= ?",
+        (session_date, source, int(at_or_before)),
+    ).fetchone()
+    return int(row[0]) if row and row[0] is not None else None
+
+
+def has_source(db: sqlite3.Connection, session_date: str, source: str) -> bool:
+    row = db.execute(
+        "SELECT 1 FROM coverage WHERE session_date = ? AND source = ? LIMIT 1",
+        (session_date, source),
+    ).fetchone()
+    return row is not None
+
+
+def coverage_at(db: sqlite3.Connection, session_date: str, source: str, minute_ts: int) -> list[dict[str, Any]]:
+    out = db.execute(
+        "SELECT board, state, row_count, run_id FROM coverage"
+        " WHERE session_date = ? AND source = ? AND minute_ts = ? ORDER BY board",
+        (session_date, source, int(minute_ts)),
+    ).fetchall()
+    return [dict(row) for row in out]
+
+
+def rows_at(db: sqlite3.Connection, session_date: str, source: str, minute_ts: int) -> list[dict[str, Any]]:
+    out = db.execute(
+        f"SELECT {', '.join(ROW_COLUMNS)} FROM rows"
+        " WHERE session_date = ? AND source = ? AND minute_ts = ? ORDER BY board, rank",
+        (session_date, source, int(minute_ts)),
+    ).fetchall()
+    return [dict(row) for row in out]
+
+
+def minute_row(db: sqlite3.Connection, session_date: str, minute_ts: int) -> dict[str, Any] | None:
+    row = db.execute(
+        f"SELECT {', '.join(MINUTE_COLUMNS)} FROM minutes WHERE session_date = ? AND minute_ts = ?",
+        (session_date, int(minute_ts)),
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def minutes_for_day(db: sqlite3.Connection, session_date: str) -> list[dict[str, Any]]:
+    out = db.execute(
+        f"SELECT {', '.join(MINUTE_COLUMNS)} FROM minutes WHERE session_date = ? ORDER BY minute_ts",
+        (session_date,),
+    ).fetchall()
+    return [dict(row) for row in out]
+
+
+def coverage_minutes(db: sqlite3.Connection, session_date: str, source: str) -> list[int]:
+    out = db.execute(
+        "SELECT DISTINCT minute_ts FROM coverage WHERE session_date = ? AND source = ? ORDER BY minute_ts",
+        (session_date, source),
+    ).fetchall()
+    return [int(row[0]) for row in out]
+
+
+def runs_between(db: sqlite3.Connection, start: float, end: float) -> list[dict[str, Any]]:
+    out = db.execute(
+        "SELECT run_id, started_ts, last_beat_ts, stopped_ts, stop_reason FROM runs"
+        " WHERE started_ts <= ? AND last_beat_ts >= ? ORDER BY started_ts",
+        (float(end), float(start)),
+    ).fetchall()
+    return [dict(row) for row in out]
+
+
+def halt_events(
+    db: sqlite3.Connection,
+    session_date: str,
+    *,
+    until: float | None = None,
+    symbols: Sequence[str] | None = None,
+) -> list[dict[str, Any]]:
+    sql = f"SELECT {', '.join(HALT_COLUMNS)} FROM halt_events WHERE session_date = ?"
+    args: list[Any] = [session_date]
+    if until is not None:
+        sql += " AND ts <= ?"
+        args.append(float(until))
+    if symbols:
+        sql += f" AND symbol IN ({', '.join('?' for _ in symbols)})"
+        args.extend(symbols)
+    sql += " ORDER BY ts, symbol"
+    return [dict(row) for row in db.execute(sql, args).fetchall()]

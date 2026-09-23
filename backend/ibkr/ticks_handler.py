@@ -20,6 +20,13 @@ def _observe_halt(symbol: str, ticker: Any) -> None:
     _snap, changed = halt_status.observe_from_ticker(symbol, ticker)
     if not changed:
         return
+    try:
+        # Halt / LULD log (ADR 023): enqueue only -- this can run on the IB loop.
+        from leaderboard import halts as _halt_log
+
+        _halt_log.observe_ibkr(symbol, _snap)
+    except Exception:
+        logger.warning("IBKR halt: event log enqueue failed for %s", symbol, exc_info=True)
     _broadcast_halt(symbol, _snap)
 
 

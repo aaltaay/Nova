@@ -7,6 +7,7 @@
  * in one place and dead in another.
  */
 import type { IbkrStatus, RecordingStopped } from '../ibkr/types';
+import { RECORDING_PLANNED_STOP_REASONS } from './constants';
 
 export interface RecordingView {
   symbol: string;
@@ -74,10 +75,13 @@ export function stoppedKey(stopped: RecordingStopped): string {
   return `${stopped.symbol}|${stopped.at}`;
 }
 
-/** The stops to shout about -- one per symbol, gone once that symbol resumed. */
+/**
+ * The stops to shout about -- one per symbol, gone once that symbol resumed.
+ * A planned stop (the operator's, or auto-record's own, ADR 023) is never one.
+ */
 export function stoppedViews(status: IbkrStatus, nowMs: number): StoppedView[] {
   return (status.capture_stopped ?? [])
-    .filter(stopped => !stopped.resumed)
+    .filter(stopped => !stopped.resumed && !RECORDING_PLANNED_STOP_REASONS.has(stopped.reason))
     .map(stopped => stoppedViewOf(stopped, status, nowMs));
 }
 

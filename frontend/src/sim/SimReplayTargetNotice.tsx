@@ -15,7 +15,7 @@ import { durationLabel } from './historicalProgress';
 import { useSimReplayTarget } from './useSimReplayTarget';
 import { offerCopy, type OfferAction } from './simReplayOffer';
 import { useSimReplayOffer } from './useSimReplayOffer';
-import { ownRecordingFor } from './ownRecording';
+import { etDateToday, ownRecordingFor } from './ownRecording';
 import { capturesResource } from './useSimSessionController';
 import {
   SIM_TAB_ACTION_DOWNLOAD,
@@ -97,7 +97,8 @@ export function SimReplayTargetNotice({ symbol }: { symbol: string }) {
     [wantsOwn],
   );
   const captures = useSyncExternalStore(subscribeCaptures, capturesResource.getSnapshot);
-  const own = wantsOwn ? ownRecordingFor(captures.data, symbol) : null;
+  // The desk's day first: after a Day jump the playhead is on a past day, not today (ADR 023).
+  const own = wantsOwn ? ownRecordingFor(captures.data, symbol, etDateToday(), clock?.session_date) : null;
 
   const tab = symbol.trim().toUpperCase();
   const dismissKey = `${tab}|${target.kind}`;

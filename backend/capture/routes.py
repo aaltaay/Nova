@@ -54,12 +54,31 @@ async def get_capture() -> dict:
     return {**out, "recorder": recorder_status()}
 
 
+def _auto_record_hook(name: str, symbol: str | None) -> None:
+    """Hand a symbol to the operator: auto-record never stops or retakes it (ADR 023)."""
+    try:
+        from leaderboard import auto_record
+
+        getattr(auto_record, name)(symbol)
+    except Exception:
+        logger.exception("AUTO-RECORD: %s hook failed for %s", name, symbol)
+
+
 @router.post("/api/capture")
 async def post_capture(body: CaptureToggleRequest) -> dict:
     requested = (body.symbol or "").strip().upper()
     recording = capture_symbols() if is_capture_mode() else []
     if body.enabled:
         target = requested or (recording[0] if recording else "")
+        if target and target not in recording:
+            # The operator's Record outranks auto-record's (ADR 023).
+            try:
+                from leaderboard import auto_record
+
+                if await auto_record.make_room_for(target, for_record=True):
+                    recording = capture_symbols() if is_capture_mode() else []
+            except Exception:
+                logger.exception("AUTO-RECORD: could not yield a line for Record %s", target)
         # Refuse a fourth symbol before touching any IBKR line: opening and
         # closing a tape line costs IBKR's 15 s resubscribe guard.
         if target and target not in recording and len(recording) >= CAPTURE_MAX_CONCURRENT:
@@ -76,9 +95,11 @@ async def post_capture(body: CaptureToggleRequest) -> dict:
         out = await asyncio.to_thread(set_capture_mode, True, symbol=body.symbol, protect_active=True)
         if target and target in (out.get("capture_symbols") or []):
             keepalive.operator_started(target)
+            _auto_record_hook("operator_took", target)
     else:
         # Before the stop: the keepalive must never read this as a death.
         keepalive.operator_stopped(requested or None)
+        _auto_record_hook("operator_stopped", requested or None)
         out = await asyncio.to_thread(set_capture_mode, False, symbol=body.symbol, protect_active=True)
     _release_orphans()
     if out.pop("conflict", False):

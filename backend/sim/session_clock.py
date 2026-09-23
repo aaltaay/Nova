@@ -277,6 +277,11 @@ def _notify_moved(before: datetime | None) -> None:
         logger.warning("SIM: playhead move fan-out failed", exc_info=True)
 
 
+def notify_moved(before: datetime | None) -> None:
+    """For a caller that re-dated the clock itself (``sim.day_jump``): fan the move out."""
+    _notify_moved(before)
+
+
 def status_payload() -> dict[str, Any]:
     n = now_et()
     start, end = session_bounds_on(n)

@@ -30,6 +30,8 @@ Constitution (`gemini.md` / `AGENTS.md`) and `.cursor/rules/*` remain supreme fo
 | [019](./decisions/019-practice-fills-on-replayed-sessions.md) | Practice fills on replayed sessions | Accepted |
 | [020](./decisions/020-three-venues-one-feed.md) | Three venues on one feed | Accepted |
 | [021](./decisions/021-desk-self-heal.md) | Desk self-heal: what heals itself, what stays a human step | Accepted; backend shipped, UI + supervisor open |
+| [022](./decisions/022-setup-scanner-tape-gate.md) | Setup scanner and tape gate: one live first-pullback scanner; Eyes read the tape and propose, never place | Accepted |
+| [023](./decisions/023-scanner-leaderboard.md) | Scanner leaderboard: one row per symbol per minute, recorded and rebuilt; halt log; one ranking; auto-record on free lines | Accepted |
 
 ## Rules and maps
 

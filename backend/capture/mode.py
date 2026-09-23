@@ -41,6 +41,7 @@ def _waiting_error(symbol: str) -> str:
 
 def set_capture_mode(
     enabled: bool, *, symbol: str | None = None, protect_active: bool = False,
+    reason: str | None = None,
 ) -> dict[str, Any]:
     """Start/stop recording one symbol (or stop all); HTTP callers protect existing owners.
 
@@ -63,7 +64,9 @@ def set_capture_mode(
         for sym in ([requested] if requested else list(_symbols)):
             if sym in _symbols:
                 flush_book(sym)
-    result = transition(lambda: _set_capture_mode(enabled, symbol=symbol, protect_active=protect_active))
+    result = transition(lambda: _set_capture_mode(
+        enabled, symbol=symbol, protect_active=protect_active, reason=reason,
+    ))
     out = status_payload() | (result or {})
     if not (result or {}).get("error"):
         out = _own_reply_error(out, enabled=enabled, symbol=requested or capture_symbol() or "")
@@ -95,6 +98,7 @@ def _own_reply_error(out: dict[str, Any], *, enabled: bool, symbol: str) -> dict
 
 def _set_capture_mode(
     enabled: bool, *, symbol: str | None = None, protect_active: bool = False,
+    reason: str | None = None,
 ) -> dict[str, Any] | None:
     _reconcile()
     requested = (symbol or "").strip().upper()
@@ -133,7 +137,10 @@ def _set_capture_mode(
 
         for sym in ([requested] if requested else list(_symbols)):
             try:
-                stop_recorder(symbol=sym)
+                if reason:
+                    stop_recorder(symbol=sym, reason=reason)
+                else:
+                    stop_recorder(symbol=sym)
             except Exception:
                 logger.exception("RECORD: recorder stop failed")
                 _reconcile()

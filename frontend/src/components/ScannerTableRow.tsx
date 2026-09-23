@@ -18,6 +18,7 @@ import {
 } from '../constantGroups/scanner_board';
 import { GapCell, fmtChangeAbs, pctClass, rvolSourceMark } from './ScannerRowCells';
 import { SCANNER_QUOTE_CLOSE_FALLBACK } from '../scanner/scannerRowShape';
+import { LEADERBOARD_HALTED_LABEL, LEADERBOARD_HALTED_TITLE } from '../leaderboard/leaderboardConstants';
 import type { ScannerRow } from '../types/scanner';
 import type { WatchlistEntry } from '../strategy/types';
 
@@ -250,6 +251,10 @@ function ScannerTableRowView({
                 onOpenTrading={onOpenTrading}
               />
               <ScannerRowMarks symbol={row.symbol} />
+              {row.halted === true ? (
+                <span className="sv-halt-eta-chip sv-halt-eta-chip--regulatory scanner-row-halted"
+                  title={LEADERBOARD_HALTED_TITLE} data-testid="scanner-row-halted">{LEADERBOARD_HALTED_LABEL}</span>
+              ) : null}
             </span>
           </td>
         ) : (

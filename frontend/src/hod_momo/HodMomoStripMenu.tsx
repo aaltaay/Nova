@@ -13,6 +13,7 @@ import {
   HOD_MOMO_STRIP_MENU_STRATEGIES,
 } from './hodMomoStripConstants';
 import { HOD_MOMENTUM_STRATEGY_META } from './scannerPartition';
+import { HOD_REPLAY_CLEAR_TITLE } from '../leaderboard/leaderboardConstants';
 
 type Props = {
   showStrategies: boolean;
@@ -22,6 +23,8 @@ type Props = {
   debugOpen: boolean;
   onToggleStrategy: (id: number) => void;
   onClear: () => void;
+  /** Sim playback (ADR 023): past alerts are history; there is nothing to clear. */
+  clearDisabled?: boolean;
   onConfigure: () => void;
   onToggleDebug: () => void;
   onClose: () => void;
@@ -35,6 +38,7 @@ export function HodMomoStripMenu({
   debugOpen,
   onToggleStrategy,
   onClear,
+  clearDisabled = false,
   onConfigure,
   onToggleDebug,
   onClose,
@@ -69,7 +73,8 @@ export function HodMomoStripMenu({
         <span>{HOD_MOMO_STRIP_MENU_SOUND}</span>
         <HodMomoSoundToggle className="hod-strip__menu-sound" />
       </div>
-      <button type="button" role="menuitem" className="hod-strip__menu-item" onClick={() => { onClear(); onClose(); }} data-testid="hod-momo-dock-clear">
+      <button type="button" role="menuitem" className="hod-strip__menu-item" onClick={() => { onClear(); onClose(); }} data-testid="hod-momo-dock-clear"
+        disabled={clearDisabled} title={clearDisabled ? HOD_REPLAY_CLEAR_TITLE : undefined}>
         {HOD_MOMO_STRIP_MENU_CLEAR}
       </button>
       <button type="button" role="menuitem" className="hod-strip__menu-item" onClick={() => { onConfigure(); onClose(); }} data-testid="hod-momo-dock-configure">

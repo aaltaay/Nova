@@ -64,6 +64,10 @@ CAPTURE_STOP_OPERATOR = "operator"
 CAPTURE_STOP_ROTATION = "rotation"
 CAPTURE_STOP_FAILURE = "failure"
 CAPTURE_STOP_RESTART = "restart"
+# Auto-record (ADR 023) rotated or yielded the line: planned, like an operator stop.
+CAPTURE_STOP_AUTO = "auto"
+# Stops that were asked for -- the gap after one is not "missing".
+CAPTURE_PLANNED_STOPS = frozenset({CAPTURE_STOP_OPERATOR, CAPTURE_STOP_AUTO})
 
 # --- QA batch fix/qa-sim-replay (2026-09-22) ----------------------------------
 # The only manifest ``source`` a Session Record carries. ADR 019 removed the

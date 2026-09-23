@@ -6,7 +6,9 @@
  * window, recorded stretches solid, gaps striped, a failed replay red, and the
  * green playhead. A thin amber lane under the band marks where Nova itself
  * recorded the symbol (operator ask, 2026-09-22), so a downloaded window shows
- * its Session Record too -- on the same scale. A native range input lies over
+ * its Session Record too -- on the same scale. A second thin lane below it
+ * marks where the Scanner board was recorded / rebuilt that day, gaps drawn
+ * as gaps with their reason (ADR 023). A native range input lies over
  * the track so pointer and keyboard scrubbing keep the controller's exact
  * semantics (drag locally, commit on release; keys debounce into one seek).
  * Off the live edge a small tag rides above the marker with the playhead time
@@ -15,6 +17,7 @@
  * global bar clock is the truth.
  */
 import { SIM_STRIP_TAG_FLIP_FRACTION } from '../constantGroups/trader_chrome';
+import type { LeaderboardLane } from '../leaderboard/leaderboardLane';
 import type { RecordedLane, StripBandSegment, StripScale } from './simStripFormat';
 
 interface Props {
@@ -31,6 +34,8 @@ interface Props {
   title?: string;
   /** Where Nova recorded the band's symbol; null when the symbol or date is unknown. */
   recorded?: RecordedLane | null;
+  /** Where the Scanner board was recorded / rebuilt on the clock's day; null until its coverage answers. */
+  leaderboard?: LeaderboardLane | null;
   onPointerDown: () => void;
   onChange: (minute: number) => void;
   onRelease: (minute: number) => void;
@@ -39,11 +44,12 @@ interface Props {
 const pct = (fraction: number) => `${(Math.max(0, Math.min(1, fraction)) * 100).toFixed(2)}%`;
 
 export function SimStripBand({
-  minute, max, scale, segments, liveEdge, tag, ariaValueText, busy, title, recorded, onPointerDown, onChange, onRelease,
+  minute, max, scale, segments, liveEdge, tag, ariaValueText, busy, title, recorded, leaderboard, onPointerDown, onChange,
+  onRelease,
 }: Props) {
   const fraction = max > 0 ? minute / max : 0;
   const flip = fraction > SIM_STRIP_TAG_FLIP_FRACTION;
-  const trackTitle = [title, recorded?.title].filter(Boolean).join('\n') || undefined;
+  const trackTitle = [title, recorded?.title, leaderboard?.title].filter(Boolean).join('\n') || undefined;
   return (
     <div className="sim-strip__band" data-testid="sim-strip-band">
       <span className="sim-strip__bound" data-testid="sim-strip-bound-open">{scale.openLabel}</span>
@@ -67,6 +73,19 @@ export function SimStripBand({
               <i
                 key={segment.left}
                 data-testid="sim-strip-recorded-seg"
+                style={{ left: pct(segment.left), width: pct(segment.width) }}
+              />
+            ))}
+          </div>
+        )}
+        {leaderboard && (
+          <div className="sim-strip__lb" data-testid="sim-strip-leaderboard" data-source={leaderboard.source ?? ''}>
+            {leaderboard.segments.map(segment => (
+              <i
+                key={`${segment.kind}-${segment.left}`}
+                className={segment.kind === 'gap' ? 'is-gap' : undefined}
+                data-testid={`sim-strip-leaderboard-${segment.kind}`}
+                title={segment.title}
                 style={{ left: pct(segment.left), width: pct(segment.width) }}
               />
             ))}

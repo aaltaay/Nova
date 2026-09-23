@@ -11,6 +11,7 @@
 import type { HistoricalSelection } from './historicalTypes';
 import type { HistoricalSnapshot } from './useHistoricalSnapshot';
 import type { CaptureSegment, SimClockState } from './simClockTypes';
+import { RECORDING_PLANNED_STOP_REASONS } from '../capture/constants';
 
 /** A `[start, end)` pair of finite epoch seconds with end after start. */
 const isRange = (pair: unknown): pair is [number, number] => Array.isArray(pair) && pair.length === 2
@@ -85,8 +86,11 @@ function epoch(value: string | null | undefined): number | null {
 
 interface Span { start: number; stop: number; reason: string | null }
 
-/** Why a segment ended when the operator stopped it on purpose: the gap after it is not "missing". */
-const OPERATOR_STOP = 'operator';
+/**
+ * A segment somebody stopped on purpose -- the operator, or auto-record's own
+ * planned stop (ADR 023): the gap after it is not "missing".
+ */
+const isPlannedStop = (reason: string | null): boolean => reason != null && RECORDING_PLANNED_STOP_REASONS.has(reason);
 
 /**
  * Recorded spans, merged where they overlap, in time order. An open segment
@@ -156,7 +160,7 @@ export function captureMissingSeconds(clock: SimClockState | null | undefined): 
   const spans = captureSpans(clock?.replay_load?.segments, close);
   let missing = 0;
   for (let i = 1; i < spans.length; i += 1) {
-    if (spans[i - 1].reason === OPERATOR_STOP) continue;
+    if (isPlannedStop(spans[i - 1].reason)) continue;
     missing += Math.max(0, spans[i].start - spans[i - 1].stop);
   }
   return Math.round(missing);
@@ -184,7 +188,7 @@ export function captureCoverageLabel(
   const ranges = spans.map(span => `${format(span.start)}–${format(span.stop)}`).join(', ');
   const missing = captureMissingSeconds(clock);
   const reasons = Array.from(new Set(spans.slice(0, -1).map(span => span.reason)
-    .filter(reason => reason && reason !== OPERATOR_STOP))).join(', ');
+    .filter(reason => reason && !isPlannedStop(reason)))).join(', ');
   return missing > 0
     ? `Recorded ${ranges} · ${missingLabel(missing)} missing${reasons ? ` (${reasons})` : ''}`
     : `Recorded ${ranges}`;

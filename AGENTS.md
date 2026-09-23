@@ -291,7 +291,7 @@ never changes symbol, and is cancelled by an operator Stop or by the operator
 starting another symbol.
 
 Every manifest segment carries `reason: "operator" | "rotation" | "failure" |
-"restart"` naming why it ended (`restart` is stamped by the startup finalizer,
+"restart" | "auto"` naming why it ended (`auto`: auto-record's planned stop, ADR 023) (`restart` is stamped by the startup finalizer,
 whose `stopped_et` is the dead process's last write on disk -- `recovered_et`
 keeps when the recovery ran).
 `/api/capture/sessions` rows add `segments: integer`, `missing_sec: integer`
@@ -424,6 +424,97 @@ fraction under 1.0. Bar-derived sensor readings (`vwap`, `macd`, `emas`,
 `last-move`) add `data.bars_as_of` -- epoch seconds of the newest 1-minute bar
 they were computed from, `null` without bars -- so the board can say a
 reading is stale.
+
+### Scanner leaderboard: recorded, reconstructed, played back (ADR 023, operator decision 2026-09-22)
+
+Owner `backend/leaderboard/`; store `leaderboard.sqlite3` (`PRAGMA
+user_version=1`, unknown versions refuse) under `NOVA_LEADERBOARD_DIR`, else
+`F:\Nova\leaderboard` when F: is mounted, else `<cache_dir>/leaderboard` --
+beside, never inside, the capture root or the historical downloads. One
+**leaderboard row** per symbol per minute per board:
+
+`{symbol, minute_ts, board, source, rank, price, prev_close, change_pct,
+volume, rvol, rvol_basis, float_shares, has_news, news_first_seen_ts, halted,
+gap_pct, exchange, market_cap}` -- `minute_ts` is a whole-minute epoch second
+and the row is the board **as it stood at `minute_ts`** (a reconstructed row
+uses only minute bars that closed by then; a recorded row is the desk's board
+snapshotted within `LEADERBOARD_RECORD_SETTLE_SEC` after it). `source` is
+`recorded | reconstructed`; `board` is `gappers | gainers | losers |
+afterhours | large_cap` (recorded: the desk's lists through
+`scanner_surface.surface_rows`, so blocklisted names never appear) or `market`
+(reconstructed: the whole market). `change_pct` is a fraction against the
+prior close, computed from `price` and `prev_close` and `null` when either is
+unknown (a `close_fallback` row has no print: `price` / `change_pct` null).
+`rvol_basis` is `daily_avg` (the desk's RVOL: volume over the average daily
+volume) or `time_of_day_20` (volume so far over the same-minute average of the
+prior 20 sessions); two bases are never compared. `float_shares` is as known
+that day or `null`; `has_news` / `news_first_seen_ts` only from news seen by
+that minute. Every unknown is `null`, never a placeholder. `halted` is derived
+at read time from the halt log: `true` while a logged halt is open, `false`
+only for a recorded minute whose halt feed was answering, else `null`.
+
+**Gap policy.** The recorder runs whenever the backend runs -- no button --
+and writes, each minute 04:00-20:00 ET on exchange days, one `minutes` row
+(`run_id`, `feed_live`, `halt_feed_ok`) and one `coverage` row per board
+(`state: live | frozen | unavailable | feed_down`, `row_count`); a
+reconstructed day writes `coverage` with `state: rebuilt`. A minute without a
+`minutes` row was not recorded. Playback never carries a board across a gap:
+the board at a playhead inside one is `null` with `gap: {reason, start, end,
+stop}`, `reason` one of `not_running | feed_down | not_recorded |
+outside_session` (`start` / `end` null for `outside_session`), `stop` --
+for `not_running` -- `shutdown` (Nova was closed) | `unexpected` | null.
+`runs` rows (`run_id`, `started_ts`, `last_beat_ts`, `stopped_ts`,
+`stop_reason`) say whether Nova closed or stopped unexpectedly. Rows are
+enqueued, never written on the IB loop (ADR 010).
+
+**Halt / LULD log.** `halt_events` rows `{symbol, ts, event: start | end,
+kind, code, source: ibkr_ticker_halted | nasdaq_trade_halt_rss,
+session_date}` from IBKR tick 49 transitions and Nasdaq Trade Halt RSS rows.
+A halt is never inferred from a gap in the prints.
+
+**One ranking** (`leaderboard/ranking.py`, pure): qualify, then order by
+`change_pct` (ties: volume, symbol). Playback's `leaders`, the S5 offline
+universe and live auto-record call the same function; presets are
+`BOARD_RULES`, `LEADERS_RULES` ($3-10, float <= 10M or unknown, volume >=
+100k, top 3) and `S5_RULES` (top 3 with `time_of_day_20` RVOL >= 5). A
+recorded row's `rank` is the desk's own order of that list (Losers stay
+worst-first); a reconstructed row's `rank` is `BOARD_RULES`.
+
+**Routes.** `GET /api/leaderboard/days` -> `{schema_version, store: {path,
+ok, error}, days: [{date, recorded: {minutes, first_ts, last_ts, boards} |
+null, reconstructed: {minutes, first_ts, last_ts} | null}]}` newest first.
+`GET /api/leaderboard/{date}?at=<epoch>&source=` -> `{schema_version, date,
+at, source, minute_ts, covered, gap, boards: {BOARD: {state, rows[]}},
+leaders: {board, symbols[], rules}}` -- the board at the latest minute at or
+before `at` (never after); `source` defaults to `recorded` when that day has
+one, else `reconstructed`. `GET /api/leaderboard/{date}/coverage?source=` ->
+`{date, source, session_open, session_close, spans: [[start, end], ...],
+gaps: [{start, end, reason}]}` (whole epoch seconds). `GET
+/api/leaderboard/{date}/halts?until=<epoch>` -> `{date, events[]}`. `GET
+/api/hod-momo/history/{date}` accepts `?until=<epoch>` (alerts raised at or
+before it, by `created_ts`, else `timestamp`; the reply stays a bare list). `GET /api/history/dates?type=all` lists every date with any saved
+board; `type=movers` reads the `gainers-` / `losers-` files. `/api/ibkr/status`
+adds `leaderboard_recorder: {recording, ok, error, since, run_id}`.
+
+**Auto-record.** 07:00-10:00 ET the backend records the top
+`LEADERBOARD_AUTO_RECORD_TOP_N` `LEADERS_RULES` names of the live Gainers
+board through the Session Record path, using only **free** Level 2 lines
+(`IBKR_MAX_DEPTH_SYMBOLS` total), and yields its lowest-ranked line the
+moment the operator opens Level 2 on another symbol -- the operator never
+loses Level 2 (operator decision 2026-09-22). It never starts, stops or
+adopts a symbol the operator recorded by hand; its stops are planned
+(`reason: "auto"`, excluded from `missing_sec` like `operator`), never a loud
+unrequested stop; the operator pressing Record also takes a line back, and a
+symbol the operator stopped is not retaken that day. `NOVA_AUTO_RECORD=0`
+turns it off. `/api/ibkr/status` adds `auto_record: {active, window,
+symbols[], leaders[], yielded[], last_error}`; `/api/diagnostics` adds the
+`leaderboard_recorder` and `auto_record` rows (group `recorder`).
+
+**Sim day.** `POST /api/sim/clock {session_date: "YYYY-MM-DD" | null}`
+re-dates the Sim clock with nothing loaded (unloading a replay of another
+date) and parks it paused at `SIM_DAY_JUMP_PARK_MIN_ET`; `null` returns to
+today. Off the live edge the Scanner board and the HOD Momo strip read the
+leaderboard and the alert history at the playhead; Live and Paper stay on now.
 
 ### Setup scanner and tape gate (ADR 022)
 
@@ -927,6 +1018,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-22 | Scanner leaderboard (ADR 023, operator decisions 2026-09-22): one row per symbol per minute per board, recorded always (no button; 04:00-20:00 ET exchange days; enqueue-only, a worker writes) and rebuilt offline from the Massive minute flat files (`research/leaderboard/`, no hindsight: prior-20-session time-of-day RVOL, float only as known that day). Gaps are stated with their reason (`not_running` / `feed_down` / `not_recorded` / `outside_session`) and never carried across; halts come only from a new halt / LULD log (IBKR tick 49 + Nasdaq RSS). One pure ranking (`leaderboard/ranking.py`) for playback leaders, S5 and auto-record; auto-record records the leaders 07:00-10:00 on free Level 2 lines only and yields the moment the operator opens Level 2 or Record elsewhere. `POST /api/sim/clock {session_date}` moves Sim to a past day with nothing loaded; the Scanner and HOD strip follow the playhead off the live edge. `/api/history/dates?type=all`; `movers` reads the split files. Segment reason `auto`. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-22 | The setup scanner (ADR 022): one live first-pullback scanner replaces the old setups stream (`/ws/strategy`) and the Watchlist's Signals sub-tab. It follows the HOD Momo names on Nova's own one-minute bars through Watching, Leg up, Armed, Near, Triggered or Failed on the pre-registered P1 rules (94.9% parity with the research harness), reads the Level 2 and the tape the desk already holds at the trigger (`go` / `wait` / `veto` / `blind`; it opens no IBKR line), and raises a proposal only when a live setup is near and the tape says go: a ping, an alert card on every tab, a staged ticket at most. Nothing in `setup_scanner/` imports an order path. Every armed setup is scored in `setups.db` the way the backtest scored its trades. The Phase D executor no longer receives signals. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-22 | Test quantity gate binds Live only (operator decision on #444, option 1: "keep enforcing one quantity for the live so we never mess it up, and remove that restriction for paper and sim"): the Live default cap is 1 share (`IBKR_FORCE_ONE_SHARE_QTY`, `IBKR_QTY_CAP` in `.env` still overrides it); Paper and Sim send the size asked, buying power still enforced. An unreadable venue counts as Live, and the IBKR send refuses a size still above the cap (`QTY_CAP_LIVE`) -- a venue switched mid-command, or a bracket sized at the send from strategy risk. `/api/ibkr/status` `qty_cap` is null on Paper / Sim; the Live ticket says "Live cap: sends N of M shares". Supersedes the same day's 10-share cap on every venue. | User Directive + Claude Opus 5.5 |
 | 2026-09-22 | HOD Momo tradeable floor (operator: "I need to see things I can trade"): the master gate refuses any symbol under `min_volume` shares today (100k), `min_price` ($1) or, when RVOL is known, `min_rvol` (1.5) before any strategy runs -- reasons `master_liquidity:volume|price|rvol|no_volume`; `GET/POST /api/hod-momo/config` `master` carries the three floors and the Master Gate panel edits them; a persisted `min_rvol` of 0 from the retired master RVOL migrates to the floor once. MI (13k shares, RVOL 0.19) no longer reaches the board on "Approaching HOD". | User Directive + Claude Fable 5.1 |

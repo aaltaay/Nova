@@ -83,6 +83,8 @@ def post_sim_clock(body: dict) -> dict:
 
     was_edge = is_sim_mode() and _clock.live_edge()
     symbol = body.get("symbol")
+    if "session_date" in body:
+        return _post_day(body.get("session_date"))
     if "paused" in body:
         if not is_sim_mode():
             raise HTTPException(status_code=409, detail="Playback controls require Sim mode")
@@ -105,6 +107,23 @@ def post_sim_clock(body: dict) -> dict:
         history_download.follow_playhead(_clock.now_et().timestamp())
     if _edge.select_recording_after_leaving(symbol if isinstance(symbol, str) else None, was_edge=was_edge):
         payload = _clock.status_payload()
+    return {"sim": is_sim_mode(), **payload, **_replay.status_payload(), **_replay_quote_fields()}
+
+
+def _post_day(value: object) -> dict:
+    """Move Sim to another day with nothing loaded; null returns to today (ADR 023)."""
+    from sim import day_jump
+    from sim import replay as _replay
+    from sim.mode import is_sim_mode
+
+    if not is_sim_mode():
+        raise HTTPException(status_code=409, detail="Moving to another day requires Sim mode")
+    if value is not None and not isinstance(value, str):
+        raise HTTPException(status_code=422, detail="session_date must be YYYY-MM-DD or null")
+    try:
+        payload = day_jump.jump_to_day(value)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"sim": is_sim_mode(), **payload, **_replay.status_payload(), **_replay_quote_fields()}
 
 

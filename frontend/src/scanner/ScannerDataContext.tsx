@@ -11,6 +11,9 @@ import {
 } from 'react';
 import { hmrStableContext } from '../utils/hmrStableContext';
 import { useScannerData } from '../hooks/useScannerData';
+import type { ScannerReplay } from '../leaderboard/leaderboardTypes';
+import { withScannerReplay } from '../leaderboard/scannerReplayFeed';
+import { useLeaderboardPlayback } from '../leaderboard/useLeaderboardPlayback';
 import { useSettings } from '../settings/SettingsContext';
 import { DEFAULT_ACTIVE_TAB, type ActiveTab } from '../workspace/registry';
 import { declaresScannerL1 } from '../workspace/scannerTabs';
@@ -26,6 +29,12 @@ export type LiveScannerFeed = ReturnType<typeof useScannerData> & {
    */
   l1DockTab: ActiveTab | null;
   setL1DockTab: (tab: ActiveTab | null) => void;
+  /**
+   * Sim off the live edge (ADR 023): the five tables are the leaderboard at
+   * the playhead, and this says which minute, from which source, or why there
+   * is no board. Null / absent on Live, Paper and at the live edge.
+   */
+  replay?: ScannerReplay | null;
 };
 
 const ScannerDataContext = hmrStableContext<LiveScannerFeed>(import.meta.hot, 'ScannerDataContext');
@@ -55,9 +64,11 @@ export function ScannerDataProvider({ children }: { children: ReactNode }) {
     onActiveFeed: settings.setActiveFeed,
     onFeedFellBack: settings.setFeedFellBack,
   });
+  // One desk, one clock: off the Sim live edge the board follows the playhead.
+  const replay = useLeaderboardPlayback();
   const value = useMemo<LiveScannerFeed>(
-    () => ({ ...scanner, l1ActiveTab, setL1ActiveTab, l1DockTab, setL1DockTab }),
-    [scanner, l1ActiveTab, setL1ActiveTab, l1DockTab, setL1DockTab],
+    () => withScannerReplay({ ...scanner, l1ActiveTab, setL1ActiveTab, l1DockTab, setL1DockTab }, replay),
+    [scanner, replay, l1ActiveTab, setL1ActiveTab, l1DockTab, setL1DockTab],
   );
   return (
     <ScannerDataContext.Provider value={value}>{children}</ScannerDataContext.Provider>
@@ -122,6 +133,7 @@ export function makeLiveScannerFeedStub(
     setL1ActiveTab: () => {},
     l1DockTab: null,
     setL1DockTab: () => {},
+    replay: null,
     ...overrides,
   };
 }

@@ -82,6 +82,29 @@ export function gatewayReachable(status: Partial<IbkrStatus> | null | undefined)
  * date is today -- so the desk date is preferred only when it would be accepted.
  * Both are real dates the operator can see; neither is invented here.
  */
+const toMinutes = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+const toHhmm = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+
+/**
+ * The default window, moved to hold the playhead when it sits outside it: a
+ * past day's board clicked at 07:42 (ADR 023) must offer a download that
+ * covers 07:42, not the 09:15 open. Same length as the default, starting a
+ * quarter hour before the playhead, inside 04:00-20:00.
+ */
+export function windowAroundPlayhead(clock: SimClockState | null | undefined): { start: string; end: string } {
+  const time = clock?.sim_time_et?.slice(11, 16);
+  const start = toMinutes(SIM_TAB_WINDOW_START);
+  const end = toMinutes(SIM_TAB_WINDOW_END);
+  if (!time || !/^\d{2}:\d{2}$/.test(time) || clock?.live_edge) {
+    return { start: SIM_TAB_WINDOW_START, end: SIM_TAB_WINDOW_END };
+  }
+  const at = toMinutes(time);
+  if (at >= start && at < end) return { start: SIM_TAB_WINDOW_START, end: SIM_TAB_WINDOW_END };
+  const length = end - start;
+  const from = Math.min(Math.max(4 * 60, Math.floor(at / 15) * 15 - 15), 20 * 60 - length);
+  return { start: toHhmm(from), end: toHhmm(from + length) };
+}
+
 export function offerWindow(
   symbol: string,
   clock: SimClockState | null | undefined,
@@ -91,7 +114,10 @@ export function offerWindow(
   const tab = symbol.trim().toUpperCase();
   for (const date of [clock?.session_date, status?.default_date]) {
     if (!date) continue;
-    const window = { symbol: tab, date, start: SIM_TAB_WINDOW_START, end: SIM_TAB_WINDOW_END };
+    const bounds = date === clock?.session_date
+      ? windowAroundPlayhead(clock)
+      : { start: SIM_TAB_WINDOW_START, end: SIM_TAB_WINDOW_END };
+    const window = { symbol: tab, date, ...bounds };
     if (validateHistoricalWindow(window, now) == null) return window;
   }
   return null;

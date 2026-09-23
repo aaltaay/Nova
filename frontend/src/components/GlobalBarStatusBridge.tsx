@@ -9,6 +9,7 @@ import {
   SCANNER_POLL_INTERVAL_IBKR_MS,
 } from '../constants';
 import { enterSampleView } from '../sample_data/sampleNav';
+import { historyDatesUrl } from '../scanner/scannerHistory';
 import { useSettings } from '../settings/SettingsContext';
 import type { HealthStatus } from '../types/health';
 import { diagnoseBackend, healthAfterFailedRoute, logBackendDiagnosis } from '../utils/diagnoseBackend';
@@ -88,7 +89,7 @@ export function GlobalBarStatusBridge() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`${API_URL}/history/dates?type=gappers`);
+        const res = await fetch(historyDatesUrl(API_URL));
         if (!res.ok || cancelled) return;
         const data = (await res.json()) as { dates?: string[] };
         if (!cancelled && Array.isArray(data.dates)) {

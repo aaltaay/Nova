@@ -71,7 +71,7 @@ function LiveDesk() {
     losers: feed?.losers ?? NO_ROWS,
     afterhours: feed?.afterhours ?? NO_ROWS,
     catalysts: feed?.catalysts ?? NO_ROWS,
-    clear: feed?.historyDate != null,
+    clear: feed?.historyDate != null || feed?.replay != null,
   });
 
   // Declare the board's list for IBKR L1 (ADR 008): a table nobody declares

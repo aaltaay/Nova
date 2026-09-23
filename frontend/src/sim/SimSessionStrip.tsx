@@ -1,6 +1,7 @@
 /**
  * The Sim scrubber cluster that rides on the Trader context strip, to the
- * right of the symbol tabs: transport (⏮ ◀◀ ⏯ ▶▶ ⏭), the coverage band
+ * right of the symbol tabs: transport (⏮ ◀◀ ⏯ ▶▶ ⏭), the Day picker (a day
+ * with a Scanner board, ADR 023), the coverage band
  * stretched across the row, the `● Live edge` pill (muted Wall clock / replay
  * state off it) and the `⋯` menu. Errors are a dismissable chip here plus a
  * red stretch in the band -- never a banner; a capture still loading is a
@@ -34,8 +35,12 @@ import {
 } from './simConstants';
 import {
   firstReplayMinute, firstReplaySecond, formatMinuteClock, playheadTag, recordedLane, sessionOpeningLabel,
-  stripBandSegments, stripScale,
+  stripBandSegments, stripScale, todayEt,
 } from './simStripFormat';
+import { SimDayPicker } from './SimDayPicker';
+import { leaderboardLane } from '../leaderboard/leaderboardLane';
+import { useLeaderboardCoverage } from '../leaderboard/useLeaderboardCoverage';
+import { useLeaderboardDays } from '../leaderboard/useLeaderboardDays';
 import { useProgressiveReplay } from './useProgressiveReplay';
 import { useSimSessionController } from './useSimSessionController';
 import './simStrip.css';
@@ -58,6 +63,11 @@ export function SimSessionStrip() {
   const format = (ts: number) => etTime(ts).slice(0, 5);
   const segments = stripBandSegments(clock, selection, format);
   const recorded = recordedLane(clock, controller.sessions, activeTraderSymbol, format);
+  // ADR 023: the day picker lists every day with a Scanner board; the lane shows where it was kept.
+  const days = useLeaderboardDays(true);
+  const today = todayEt();
+  const coverage = useLeaderboardCoverage(clock?.sim ? clock.session_date ?? null : null, today);
+  const boardLane = leaderboardLane(clock, coverage, format);
   const bandTitle = clock?.replay_source === 'capture'
     ? simCaptureBandTitle(captureCoverageLabel(clock, format))
     : undefined;
@@ -99,6 +109,8 @@ export function SimSessionStrip() {
           <SkipForward size={13} aria-hidden="true" />
         </button>
       </div>
+      <SimDayPicker clock={clock} days={days.days} error={days.error} busy={busy.has('day')} today={today}
+        onOpen={days.refresh} onPick={date => { void controller.jumpToDay(date); }} />
       <SimStripBand
         minute={minute}
         max={max}
@@ -110,6 +122,7 @@ export function SimSessionStrip() {
         busy={seekBusy}
         title={bandTitle}
         recorded={recorded}
+        leaderboard={boardLane}
         onPointerDown={controller.beginDrag}
         onChange={controller.onScrubInput}
         onRelease={value => { void controller.endDrag(value); }}

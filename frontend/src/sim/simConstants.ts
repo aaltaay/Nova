@@ -28,6 +28,7 @@ const SIM_CAPTURE_GAP_REASONS: Record<string, string> = {
   failure: 'stopped on its own',
   operator: 'was stopped',
   rotation: 'rolled to a new day',
+  auto: 'was stopped by auto-record',
 };
 export const simCaptureGapTitle = (reason: string | null): string =>
   `Not recorded${reason ? ` -- the recording before this ${SIM_CAPTURE_GAP_REASONS[reason] ?? 'ended'}` : ''}`;
@@ -215,6 +216,7 @@ export const CAPTURE_REASON_WORDS: Record<string, string> = {
   rotation: 'Rolled to a new day',
   failure: 'Stopped on its own',
   restart: 'Cut by a Nova restart',
+  auto: 'Stopped by auto-record',
 };
 /** A download that holds no seconds of its window says so -- never "Downloaded through 09:15:00". */
 export const SIM_HISTORY_NOTHING_DOWNLOADED = 'nothing downloaded';

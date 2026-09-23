@@ -146,6 +146,14 @@ def refresh(
         logger.warning("Nasdaq Trade Halt RSS parse failed: %s", _last_error)
         return {"skipped": False, "ok": False, **desk_snapshot(now=ts)}
 
+    try:
+        # Every row, not just the per-symbol overlay kept below: a symbol can
+        # halt more than once a day (halt / LULD log, ADR 023).
+        from leaderboard import halts as _halt_log
+
+        _halt_log.observe_rss(parsed["rows"])
+    except Exception:
+        logger.warning("Nasdaq Trade Halt RSS: event log enqueue failed", exc_info=True)
     _rows.clear()
     for row in parsed["rows"]:
         if not row.symbol:
