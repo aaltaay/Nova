@@ -21,6 +21,8 @@ export const EMPTY_UPDATE_VIEW = Object.freeze({
   installed: '',
   notice: null,
   whats_new: null,
+  // Help > File an Issue…: the page opens its issue form when this changes (issueLinks.mjs).
+  file_issue: null,
 });
 
 function errorLine(err) {
@@ -93,7 +95,7 @@ export function createUpdateBridge({ ipcMain, getWindow, logger }) {
   });
 
   return {
-    /** Replace one part of the view (`installed` | `notice` | `whats_new`) and push it. */
+    /** Replace one part of the view (`installed` | `notice` | `whats_new` | `file_issue`) and push it. */
     set(part, value) {
       view = { ...view, [part]: value };
       push();

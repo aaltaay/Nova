@@ -3,6 +3,7 @@
  */
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { onIssueFormOpen } from '../issue_report/issueFormBus';
 import { DesktopUpdateHost } from './DesktopUpdateHost';
 import type { DesktopUpdatesBridge } from './useDesktopUpdate';
 
@@ -153,6 +154,25 @@ describe("What's new", () => {
     send({ whats_new: { mode: 'recent', tag: 'v977', since: null, notes: unrecorded } });
     expect(screen.getByTestId('whats-new').textContent).toContain('No release notes were recorded for this release.');
     expect(screen.getByTestId('whats-new').textContent).toContain('The latest releases up to this version.');
+  });
+});
+
+describe('File an issue', () => {
+  it("opens from the What's new card and from a Help-menu request made after the page subscribed", () => {
+    const opened = vi.fn();
+    const off = onIssueFormOpen(opened);
+    const { bridge, send } = fakeBridge();
+    render(<DesktopUpdateHost bridge={bridge} />);
+    // The first view's request is older than this page: never replayed.
+    send({ file_issue: { requested_at: 1000 } });
+    expect(opened).not.toHaveBeenCalled();
+    send({ file_issue: { requested_at: 2000 } });
+    expect(opened).toHaveBeenCalledTimes(1);
+    send({ file_issue: { requested_at: 2000 }, whats_new: { mode: 'updated', tag: 'v977', since: 'v975', notes: notes(['v977']) } });
+    expect(opened).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: /File an issue/ }));
+    expect(opened).toHaveBeenCalledTimes(2);
+    off();
   });
 });
 

@@ -12,7 +12,7 @@ export const UPDATE_BUTTON = 0;
 export const LATER_BUTTON = 1;
 
 /**
- * Help-menu rows. `action` is 'check' | 'download' | 'restart' | 'whats-new';
+ * Help-menu rows. `action` is 'check' | 'download' | 'restart' | 'whats-new' | 'file-issue';
  * rows without one are status text (disabled). The installed version is always
  * visible, with its release notes one click away.
  */
@@ -57,6 +57,7 @@ export function updateMenuItems(state, { currentTag = '', automatic = true } = {
     rows.push({ label: `What's New in Nova ${currentTag}…`, action: 'whats-new' });
     rows.push({ label: `Installed: Nova ${currentTag}` });
   }
+  rows.push({ label: 'File an Issue…', action: 'file-issue' });
   if (!automatic) rows.push({ label: `Automatic checks off (${UPDATE_CHECK_ENV})` });
   return rows;
 }

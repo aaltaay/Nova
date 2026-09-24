@@ -1243,7 +1243,7 @@ is listed as `recorded: false`, never given an invented summary.
 window over IPC (`frontend/electron/updateBridge.mjs`; channels
 `nova:update:view` / `nova:update:subscribe` / `nova:update:act`; Trader
 pop-outs neither receive it nor may act): `{schema_version: 1, installed,
-notice, whats_new}`. `notice` is `null` or `{stage: "available" | "downloading"
+notice, whats_new, file_issue}`. `notice` is `null` or `{stage: "available" | "downloading"
 | "stopped" | "ready" | "installing", tag, installed, percent, retry, error,
 notes}`; `whats_new` is `null` or `{mode: "updated" | "recent", tag, since:
 string | null, notes}`. `notes` is `{loading, error: string | null,
@@ -1252,7 +1252,12 @@ points, published_at, url}], more, older_unlisted, page_url}` -- newest first,
 at most 30 listed (`more` counts the rest; `older_unlisted` says GitHub's one
 page did not reach the installed release). The window answers
 `{action: "download" | "later" | "restart" | "whats-new-close" | "open-link",
-url?}`; `open-link` opens only this repository's release and pull request pages.
+url?}`; `open-link` opens only this repository's release, pull request and issue
+pages and gists (`isReleaseLink` / `issueLinks.isIssueLink`). `file_issue` is
+`null` or `{requested_at}` (epoch ms): Help > File an Issue… sets it, and the
+page opens its issue form when the value changes after it subscribed (the value
+the first view carries is never replayed); with no page listening the menu opens
+GitHub's new-issue page instead.
 
 **Persisted (userData, owner `frontend/electron/`).**
 `release-notes-cache.json` `{schema_version: 1, fetched_at, rows}` -- the last
@@ -1261,6 +1266,69 @@ the notice fetched (`releaseNotesSource.mjs`; an unknown version is ignored).
 `whats-new.json` `{schema_version: 1, seen_tag, closed_at}` -- the release whose
 notes the operator last closed (`whatsNew.mjs`; no file shows the installed
 release's own notes once; an unknown version is left alone and shows nothing).
+
+### Filing an issue from the desk (operator ask, 2026-09-24)
+
+"When I do the update, I can also click and say 'File an issue' ... it goes
+directly to GitHub"; then "link the issue/dump file as part of this issue
+automatically"; "humans are not going to ... give you a title or description";
+"I really don't want any personal information about my computer, but I need
+enough debugging points ... this is real money." Owner `backend/issue_report/`
+(the form: `frontend/src/issue_report/`, opened from the What's new card and
+Help > File an Issue…). Nothing there places, stages or cancels an order.
+
+`GET /api/issues/draft` builds a draft -- the desk as it is now -- and answers
+`{schema_version: 1, repo: "aaltaay/Nova", public: true, filer: {direct,
+via: "gh" | null, account: string | null, reason: string | null}, kinds: [{id:
+"bug" | "feature", label, github_label: "bug" | "enhancement"}], context,
+context_lines: string[], limits: {title_max, details_max}, draft_id,
+created_at, auto_title, dump: {file_name, bytes, summary: {rows, fail, warn,
+unknown, log_records, client_errors, windows, checklist_error, log_error,
+removed}, sections}}`. `context` is `{nova, commit, ui, venue, page, tab,
+symbol} | null`, each `null` when unknown, rebuilt from checked fields only.
+`GET /api/issues/draft/{draft_id}/dump` is the dump as text, exactly as it would
+be uploaded (404 once expired). Drafts are in memory for
+`ISSUE_REPORT_DRAFT_TTL_SEC` (30 min), at most `ISSUE_REPORT_DRAFTS_KEEP`.
+
+`POST /api/issues` `{schema_version: 1, kind, title, details, context | null,
+draft_id, attach_dump}` -> 201 `{schema_version, number, url, kind, title,
+labels, auto_title, auto_description, removed, dump: {file_name, url: string |
+null, error: string | null, saved} | null, via: "gh"}`. It needs the desk's
+API key even on loopback (`auth.is_issue_report_mutate`: it publishes on a
+public repository as the operator). A bug's title and description are
+optional: left empty, Nova writes them from the dump -- the title from the
+first failing check (else the newest engine error), with the page and the time;
+the description from the failing and warning checks, the newest engine errors
+and desk window errors -- with no model and no tokens. A feature needs a title
+or a line; a report with no words and no dump is refused. The dump is uploaded
+first, as a **secret gist** (`gh gist create`), and linked from the issue; a
+copy is saved under the operator cache in `issue_dumps/`; a failed upload still
+files the issue and says so in it. The body ends with the context, the
+checklist counts, the dump link and a hidden record `<!-- nova-desk-issue
+{schema_version: 1, kind, filed_at, context, dump, dump_file, auto_title,
+auto_description} -->`. Filing goes through the GitHub CLI signed in on this
+PC (`gh api`); Nova never reads the token. A refusal is `{detail: {reason,
+error, field, new_issue_url}}` with `reason` one of `ISSUE_INVALID` (400),
+`ISSUE_DRAFT_EXPIRED` (409, the form builds a fresh draft),
+`ISSUE_FILER_UNAVAILABLE` (503: no `gh`, or signed out), `ISSUE_FILE_FAILED`
+(502) and `ISSUE_FILE_UNCONFIRMED` (502, no link: the issue may exist);
+`new_issue_url` is GitHub's new-issue page prefilled with the same issue.
+New issues land in `00 - Untriaged` (`backlog-inbox.yml`).
+
+**Public-safe by construction** (`issue_report/scrub.py`, one `Scrubber` for
+the dump and for typed text): every secret-named environment value and
+token-shaped string, IBKR account ids, balances and P&L by name and dollar
+amounts of $1,000 or more (share prices stay), file paths (the repo, the data
+drive, the cache, the logs and the home folder become `<repo>` / `<data>` /
+`<cache>` / `<logs>` / `<home>`, any other path `<path>`), the Windows user
+and machine names, e-mail and IP addresses (loopback stays). Evidence fields
+that name paths, files, folders, environment keys or monitor labels are
+dropped, and the process and integrations checks carry no evidence. The dump
+(`issue_report/dump.py`, schema 1, text): a summary, every diagnostics row with
+its state, detail, cause, since and evidence, the engine log's latest
+`ISSUE_REPORT_LOG_RECORDS` (50) distinct warnings and errors (repeats folded,
+a traceback's exception kept), the desk windows' reported errors and each open
+window's page and symbol.
 
 ### Setup templates, the eyes' journal and replayed eyes (ADR 029, operator ask 2026-09-23)
 
@@ -1986,6 +2054,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-24 | File an issue from the desk (operator ask: "when I do the update, I can also click and say 'File an issue' ... it goes directly to GitHub", then "link the issue/dump file as part of this issue automatically", "humans are not going to ... give you a title or description", and "I really don't want any personal information about my computer ... this is real money"; approved mockup v2): the What's new card and Help > File an Issue… open a form -- Bug or Feature, optional title and description, the desk details and a diagnostics dump attached. One click with nothing typed files a bug that Nova titles and describes from the dump, with no model. The backend (`backend/issue_report/`) files through the GitHub CLI already signed in on the desk, uploads the dump as a secret gist and links it; the operator previews the exact dump first. Everything posted passes one scrubber: no secrets, account ids, balances, paths, user or machine names, e-mail or IP addresses. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Nova's data leaves C: (operator ask: "we also have PLENTY of space in F drive, any recording and data, lets keep them off the C drive!"): the checkout's `backend\.cache` held 26 GB on C: (the archive, 19 GB of nightly backups, the cold archive, `l2.db`, the ledgers, perf) and `backend\logs` 236 MB, while captures, downloads, the leaderboard, catalysts and eyes were already on F:. `tools/data_root.py move` copies both to `F:\Nova\cache` / `F:\Nova\logs`, verifies every file and leaves directory junctions at the old paths, so every writer keeps its path; it refuses while Nova runs and resumes after an interruption. A per-checkout junction, not a machine-wide F: default, because `api_instance_lock` stops a lock holder it cannot see on its own port: a worktree sharing the desk's cache could stop the live API. `/api/diagnostics` adds the `data_folders` row. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Sensors for agents (ADR 033, operator ask: "when I have a fast question, you can answer me"; "do we have sensor endpoints? ... our bots have more things to rely on"): `GET /sensors/focus` names the window Windows has in front, its page, symbol, monitor and the operator's last input, reported by every desk window and the Electron main process -- no more guessing which ticker the operator is on. The book watcher (`backend/book_watch/`) follows every held depth line with its tape off the IB loop and splits every drop in resting size into filled and pulled, with `pulled_on_approach` / `repeated_pulls` flags -- hints consistent with spoofing, never a detection (`GET /sensors/book-pulls`, a journal, `tools/book_watch_replay.py`). The L2 sensor's venue rows no longer overwrite each other at one price. A Session Record keeps every book IBKR sends (up to 50 a second, batched to the writer; it kept at most 8 and held back 63% of GCTK's and 76% of PFSA's books on 2026-09-24 while `l2_coalesced` read 0), and the manifest counts every book lost. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | A scanner for every setup (ADR 031, #572; operator: "Weren't we supposed to have a small scanner for each one of these strategies?", then "we are going to need lots of hovers, explaining in detail what each means" and "add a strategy called bull flag"; decisions A / B / C on the mockup). The flat-top breakout (research P2) and red to green (P3) get live detectors on the first pullback's lanes, and the bull flag joins the playbook with rules pre-registered in ADR 031 from the operator's material; each watches the HOD Momo names on every template, reads the same tape gate, scores the same way and keeps its own read-out. A level per setup: the chosen setup's is the session's; every other setup with a scanner is Off (watches and scores, silently -- the first pullback no longer pings at Off) or Eyes (proposes), several at once; only the chosen setup reaches Strategy, and Nova's bot trades the chosen setup on Paper and Sim. `setups.db` schema 3 (`setup_type`, `detail`), the board schema 2 (`setups[]`), `PATCH /api/bot/session {setup_levels}`. Every setup card carries its own small scanner; `ux/hoverTip.ts` explains every chip on hover. Gap and Go's scanner is next; the micro pullback stays parked. Also the loss breakers become the operator's, per venue (ADR 032, operator: "move that slider ... make sure these changes are persistent"): the bot trip and the all-stop are sliders saved in the bot session for Live, Paper and Sim separately, within bounds, and the session file is written atomically. §3 amended. | User Directive + Claude Opus 5.5 |
