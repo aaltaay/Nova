@@ -31,6 +31,7 @@ the backend packages.
 | `components/` | shared | Shared UI: shadcn `ui/` primitives plus app chrome (GlobalAppBar, NavRail), the scanner table, news / catalyst and settings parts. Mixed -- prefer a feature folder for new feature UI. |
 | `constantGroups/` | shared | UI constants grouped by domain (API URLs, desk, scanner columns, bot, practice, theme), re-exported by `constants.ts`. |
 | `desk/` | feature | The Desk board: the Scanner condensed to one column beside the Trader workspace. |
+| `desktop_update/` | feature | The desktop app's update notice (a newer Nova is out: Update / Later, then Restart to update) and the What's new card of release notes, fed by the Electron main process. |
 | `earnings/` | feature | The Earnings tab: the earnings calendar with day bands and before-open / after-close lanes. |
 | `electron/` | app | Tests only: Vitest suites for the Electron main-process modules in `frontend/electron/*.mjs`. |
 | `execution_latency/` | feature | The execution latency dashboard: operation / segment timings, order-hop and fill evidence, browser timing samples. |
