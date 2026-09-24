@@ -34,7 +34,7 @@ def test_flush_emits_one_alert_per_strategy(monkeypatch):
     hm.replace_state(HodMomoState())
     state = hm.get_state()
     monkeypatch.setattr(persist, "save_alerts", lambda **_kw: None)
-    monkeypatch.setattr(persist, "flush_pending_alert_save", lambda: None)
+    monkeypatch.setattr(persist, "flush_pending_alert_save", lambda **_kw: None)
     monkeypatch.setattr(
         "alerts.hooks.notify_hod_alert_async",
         lambda *_a, **_k: None,

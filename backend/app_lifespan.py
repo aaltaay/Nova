@@ -269,6 +269,15 @@ async def _bootstrap_runtime() -> None:
     logger.info("lifespan bootstrap complete (%d background tasks)", len(_runtime_tasks))
 
 
+def _flush_hod_momo() -> None:
+    """Land HOD Momo's queued and deferred alert / highs saves (bounded wait)."""
+    try:
+        _hod_momo.flush_pending_alert_save()
+        _hod_momo.flush_pending_highs_save()
+    except Exception:
+        logger.exception("HOD Momo: final alert flush failed")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _runtime_tasks
@@ -287,11 +296,7 @@ async def lifespan(app: FastAPI):
     logger.info("lifespan: HTTP ready — Sentry/restore/IBKR deferred")
     yield
 
-    try:
-        _hod_momo.flush_pending_alert_save()
-        _hod_momo.flush_pending_highs_save()
-    except Exception:
-        logger.exception("HOD Momo: final alert flush failed")
+    _flush_hod_momo()
 
     bootstrap_task.cancel()
     try:
@@ -314,6 +319,9 @@ async def lifespan(app: FastAPI):
         except asyncio.CancelledError:
             pass
     _runtime_tasks = []
+    # Again: a last consolidation tick may have queued a save after the first
+    # flush, and HOD Momo's writer is a daemon thread (#553).
+    _flush_hod_momo()
     try:
         _perf_runtime.stop()
     except Exception:

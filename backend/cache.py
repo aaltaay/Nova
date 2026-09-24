@@ -319,6 +319,7 @@ from cache_snapshots import (  # noqa: E402, F401
     save_hod_momo_blocklist,
     save_hod_momo_configs,
     save_hod_momo_highs,
+    save_hod_momo_highs_for_date,
     save_hod_momo_snapshot,
     save_hod_momo_snapshot_for_date,
     save_large_cap_config,

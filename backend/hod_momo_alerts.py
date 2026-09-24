@@ -67,8 +67,10 @@ async def flush_consolidated_loop() -> None:
                 for ws in dead:
                     state.hod_ws_clients.discard(ws)
                 asyncio.create_task(notify_hod_alert_async(alert_to_dict(alert)))
-            _persist.flush_pending_alert_save()
-            _persist.flush_pending_highs_save()
+            # Throttled, not forced: a forced save each tick wrote the whole
+            # day's file every second while alerts flowed (#553).
+            _persist.flush_pending_alert_save(force=False)
+            _persist.flush_pending_highs_save(force=False)
         except asyncio.CancelledError:
             raise
         except Exception as exc:

@@ -203,11 +203,16 @@ def load_hod_momo_snapshot_for_date(date_str: str) -> dict:
 
 
 def save_hod_momo_highs(data: dict) -> None:
+    save_hod_momo_highs_for_date(_cache._today_et(), data)
+
+
+def save_hod_momo_highs_for_date(date_str: str, data: dict) -> None:
+    """``date_str`` is the day the snapshot was taken (HOD Momo's writer, #553)."""
     try:
         _cache._write_dated(
             _cache.HOD_MOMO_HIGHS_PREFIX,
-            _cache._today_et(),
-            {"date": _cache._today_et(), **data},
+            date_str,
+            {"date": date_str, **data},
         )
     except Exception:
         logger.warning("cache: save_hod_momo_highs failed to persist to disk", exc_info=True)
