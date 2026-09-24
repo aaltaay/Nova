@@ -47,6 +47,7 @@ from perf.routes import router as perf_router
 from catalysts.routes import router as catalysts_router
 from move_reason.routes import router as move_reason_router
 from issue_report.routes import router as issue_report_router
+from screen_record.routes import router as screen_record_router
 
 
 def register_routers(app: FastAPI) -> None:
@@ -94,3 +95,4 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(catalysts_router)
     app.include_router(move_reason_router)
     app.include_router(issue_report_router)
+    app.include_router(screen_record_router)

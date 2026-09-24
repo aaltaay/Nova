@@ -12,6 +12,9 @@
  */
 export const PERF_WINDOW_ID_MAIN = 'main';
 export const PERF_WINDOW_ID_MAX = 64;
+/** The hidden screen recorder (ADR 035): its own process, never a desk window. */
+export const PERF_WINDOW_ID_SCREEN_RECORDER = 'screen-recorder';
+const SCREEN_RECORDER_PAGE = /\/screenRecorder\.html$/i;
 
 /** The server accepts [A-Za-z0-9_.:-] only (a `BRK/B` pop-out becomes `trader:BRK_B`). */
 const UNSAFE_CHARS = /[^A-Za-z0-9_.:-]/g;
@@ -23,6 +26,7 @@ export function perfWindowIdForUrl(url) {
   } catch {
     return PERF_WINDOW_ID_MAIN;
   }
+  if (parsed.protocol === 'file:' && SCREEN_RECORDER_PAGE.test(parsed.pathname)) return PERF_WINDOW_ID_SCREEN_RECORDER;
   if (parsed.searchParams.get('view') !== 'stock') return PERF_WINDOW_ID_MAIN;
   const symbol = (parsed.searchParams.get('symbol') || '').trim().toUpperCase();
   if (!symbol) return PERF_WINDOW_ID_MAIN;

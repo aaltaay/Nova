@@ -4,7 +4,7 @@
  */
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { app, BrowserWindow, ipcMain, screen, shell } from 'electron';
+import { app, BrowserWindow, desktopCapturer, ipcMain, powerMonitor, screen, shell } from 'electron';
 import { shouldOpenDetachedDevTools } from './devtoolsGate.mjs';
 import {
   API_BASE,
@@ -21,6 +21,8 @@ import {
 import { startAutoUpdate } from './autoUpdate.mjs';
 import { startPerfMetrics } from './perfMetrics.mjs';
 import { startFocusSensor } from './focusSensor.mjs';
+import { startScreenRecorder } from './screenRecorder.mjs';
+import { createScreenRecordBridge } from './screenRecordBridge.mjs';
 import { applyGpuPolicy } from './gpuPolicy.mjs';
 import { attachRendererGuards, recoverWindowIfErrorPage } from './rendererGuards.mjs';
 import { applySingleInstance, focusExistingWindow } from './singleInstance.mjs';
@@ -49,6 +51,34 @@ let mainWindow = null;
 /** The "Starting Nova" window until the desk shows. */
 let startup = null;
 let quitting = false;
+/** ADR 035: every monitor, recorded from launch to quit. */
+let screenRecorder = null;
+let screenRecordBridge = null;
+
+/** The trading screen is always recorded; nothing but a quit stops it (operator decision 2026-09-24). */
+function startScreenRecording() {
+  screenRecordBridge = createScreenRecordBridge({
+    ipcMain,
+    BrowserWindow,
+    isRecorderWindow: (w) => Boolean(screenRecorder?.isRecorderWindow(w)),
+    apiBase: API_BASE,
+    apiKey: getDesktopApiKey,
+  });
+  screenRecorder = startScreenRecorder({
+    BrowserWindow,
+    desktopCapturer,
+    screen,
+    powerMonitor,
+    ipcMain,
+    userData: app.getPath('userData'),
+    onView: (view) => screenRecordBridge?.publish(view),
+  });
+}
+
+/** Windows the operator can see or close -- the hidden screen recorder is not one. */
+function deskWindowCount() {
+  return BrowserWindow.getAllWindows().filter((w) => !screenRecorder?.isRecorderWindow(w)).length;
+}
 
 function displayWorkAreas() {
   return screen.getAllDisplays().map((d) => ({
@@ -204,6 +234,8 @@ if (
       // Closing it calls the launch off, even while the desk loads hidden.
       onCancel: () => app.quit(),
     });
+    // Recording needs no engine: it starts with the app, before the desk.
+    startScreenRecording();
     try {
       startup.step(engineStep(await startApiSidecar()));
       await openEnvFileIfNeeded();
@@ -252,17 +284,29 @@ if (
     }
 
     app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+      if (deskWindowCount() === 0) createWindow();
     });
   });
 }
 
-app.on('window-all-closed', () => {
+function lastWindowClosed() {
   stopApiSidecar();
   if (process.platform !== 'darwin') app.quit();
+}
+
+app.on('window-all-closed', lastWindowClosed);
+
+// The hidden recorder window keeps 'window-all-closed' from firing: closing the
+// last window the operator can see is what ends Nova.
+app.on('browser-window-created', (_event, win) => {
+  win.once('closed', () => {
+    if (!quitting && !screenRecorder?.isRecorderWindow(win) && deskWindowCount() === 0) lastWindowClosed();
+  });
 });
 
 app.on('before-quit', () => {
   quitting = true;
+  screenRecorder?.stop('quit');
+  screenRecordBridge?.stop();
   stopApiSidecar();
 });
