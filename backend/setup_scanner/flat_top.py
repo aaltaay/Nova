@@ -70,7 +70,7 @@ from constants_setups import (
     SETUPS_TARGET_R,
 )
 from setup_scanner.bars import Bar, minute_start
-from setup_scanner.detector import EPS, TriggerDetector, et_time, hhmm, risk_blocked, window_blocked
+from setup_scanner.detector import EPS, TriggerDetector, et_time, forming_levels, hhmm, risk_blocked, window_blocked
 
 
 @dataclass(frozen=True)
@@ -127,6 +127,7 @@ class FlatTopDetector(TriggerDetector):
     def on_bars(self, bars: list[Bar]) -> list[tuple[str, dict]]:
         n = len(bars)
         self.series.update(bars)
+        self.forming = None
         need = self.p.leg_window + self.p.min_consol + 1
         if n < need:
             if self.state == SETUP_STATE_WATCHING:
@@ -191,6 +192,7 @@ class FlatTopDetector(TriggerDetector):
             blocked = risk_blocked(p, risk)
         if blocked:
             self.armed, self.broke = None, None
+            self.forming = forming_levels(level, entry, base_low, p.target1(entry, risk), bars=m, blocked=blocked)
             self._set(SETUP_STATE_PULLBACK, f"base of {m} candles under {level:.2f}, but {blocked}")
             if prev is not None:
                 events.append(("disarmed", self._key_view(prev, reason=blocked)))

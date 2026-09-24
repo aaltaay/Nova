@@ -11,3 +11,4 @@ export { simPlayhead } from './marketOutsideRth';
 export { flattenSpendLockReason } from './spendLock';
 export type { GatewayStatusFact } from './gatewayStatusWording';
 export { useOrderTicketListening } from './useOrderTicketListening';
+export { requestOrderTicketPrefill } from './orderTicketPrefill';

@@ -3,6 +3,7 @@
  * whichever pane is clicked next; indicator toggles act on the focused pane.
  * Replaces four per-pane toolbars that ate the chart height on small screens.
  */
+import type { ReactNode } from 'react';
 import {
   CHART_DESK_TOOLBAR_ARIA,
   CHART_DESK_TOOLBAR_TARGET_TITLE,
@@ -26,6 +27,8 @@ interface Props {
   onIndicatorToggle: (id: ChartIndicatorId) => void;
   onToggleOptional: () => void;
   onRestore: () => void;
+  /** The page's own switches, after the focused pane's name. */
+  extra?: ReactNode;
 }
 
 export function ChartGridToolbar({
@@ -41,6 +44,7 @@ export function ChartGridToolbar({
   onIndicatorToggle,
   onToggleOptional,
   onRestore,
+  extra = null,
 }: Props) {
   return (
     <div
@@ -66,6 +70,7 @@ export function ChartGridToolbar({
         >
           {focusedLabel}
         </span>
+        {extra}
         <div className="chart-toolbar-spacer" />
         {maximized && (
           <button
