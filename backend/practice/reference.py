@@ -174,6 +174,17 @@ class LiveReference:
             return False, PRACTICE_NO_LIVE_PRINT_REASON, PRACTICE_NO_LIVE_PRINT_CODE
         return True, "OK", None
 
+    def archived_through(self, now: float) -> float:
+        """The tape archive holds every print stamped before this (``ibkr.tape_sink``).
+
+        Its writer is a thread of its own, so a print can reach the archive after
+        its time has passed; the matcher reads no further than this, so it reads
+        that print next pass rather than never.
+        """
+        from ibkr import tape_recording
+
+        return tape_recording.l2_sink.written_through(now)
+
     def prints_between(self, symbol: str, after_ts: float, through_ts: float) -> list[Print]:
         """Archived prints that set a price in ``(after_ts, through_ts]`` as ``(ts, price)``, oldest first."""
         from l2 import tape
@@ -225,6 +236,13 @@ class SimReference:
 
     def prints_between(self, symbol: str, after_ts: float, through_ts: float) -> list[Print]:
         return self._market().prints_between(symbol, after_ts, through_ts)
+
+    def archived_through(self, now: float) -> float:
+        """The live archive's mark at the edge; the replay is complete through the playhead."""
+        live_through = getattr(self.live, "archived_through", None)
+        if self.at_live_edge() and callable(live_through):
+            return float(live_through(now))
+        return now
 
     def now_ts(self) -> float:
         """The Sim playhead, which at the live edge is the wall clock."""

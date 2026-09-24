@@ -12,6 +12,12 @@ releases the others, then hands the prints since the last pass to
 session has closed (``PracticeBroker.expire_due``) -- after the match, so a
 print at the close itself still fills and a print past it never does.
 Registered from ``app_runtime_tasks`` as ``practice.matcher``.
+
+A pass reads prints only as far as the reference has them: the live tape
+archive is written by its own thread (``ibkr.tape_sink``), so a pass stops at
+the archive's written-through mark (``archived_through``) and a print the
+writer reaches late is read by the next pass instead of falling behind the
+cursor. A reference with no archive of its own (the replay) reads through now.
 """
 from __future__ import annotations
 
@@ -65,6 +71,14 @@ def live_brokers() -> list[Any]:
     return brokers
 
 
+def _readable_through(reference: Any, now_ts: float) -> float:
+    """How far this pass may read: ``now``, or the archive's written-through mark when it is behind."""
+    archived_through = getattr(reference, "archived_through", None)
+    if not callable(archived_through):
+        return now_ts
+    return min(now_ts, float(archived_through(now_ts)))
+
+
 async def _hold_lines(wanted: list[str]) -> None:
     errors = await tape_hold.reconcile(wanted)
     for sym, error in errors.items():
@@ -80,15 +94,19 @@ async def _match(broker: Any, *, now: float | None) -> list[dict[str, Any]]:
         if sym not in wanted:
             cursor.pop(sym, None)
     now_ts = float(now) if now is not None else float(broker.reference.now_ts())
+    through_ts = _readable_through(broker.reference, now_ts)
     filled: list[dict[str, Any]] = []
     for sym in wanted:
         after = cursor.get(sym)
         if after is None:
             after = _earliest_rest(broker, sym)
-        cursor[sym] = now_ts
-        if after is None or now_ts <= after:
+        if after is None:
+            cursor[sym] = through_ts
             continue
-        prints = await asyncio.to_thread(broker.reference.prints_between, sym, after, now_ts)
+        if through_ts <= after:
+            continue  # nothing new is readable yet; never move the cursor back
+        cursor[sym] = through_ts
+        prints = await asyncio.to_thread(broker.reference.prints_between, sym, after, through_ts)
         if prints:
             filled.extend(broker.try_fill_working(sym, prints))
     for row in broker.expire_due(now_ts):

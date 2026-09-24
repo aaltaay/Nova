@@ -119,36 +119,41 @@ def watch_started(symbol: str) -> float | None:
     return _started.get(symbol.upper())
 
 
+_INSERT = (
+    "INSERT INTO tape_trades "
+    "(symbol, ts, price, size, exchange, source, session_id, conditions, receive_ts, unreported) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+)
+_COLUMNS = ("symbol", "ts", "price", "size", "exchange", "source", "session_id", "conditions", "receive_ts")
+
+
 def persist_print(payload) -> None:
-    """Worker-only durable write; raise failures to the sink health contract."""
+    """Worker-only durable write of one print; raises to the writer, which states the loss."""
+    persist_prints([payload])
+
+
+def persist_prints(payloads) -> None:
+    """Worker-only durable write of a batch in one transaction; raises to the writer.
+
+    One connection and one commit per batch. A connection per print (open, WAL
+    pragma, commit, close -- and a checkpoint when it was the last one open)
+    pays all of that again for every trade on a busy premarket tape.
+    """
+    payloads = list(payloads)
+    if not payloads:
+        return
+    rows = [tuple(p.get(key) for key in _COLUMNS) + (_unreported(p),) for p in payloads]
     conn = get_connection()
     try:
-        conn.execute(
-            "INSERT INTO tape_trades "
-            "(symbol, ts, price, size, exchange, source, session_id, conditions, receive_ts, unreported) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            tuple(
-                payload.get(key)
-                for key in (
-                    "symbol",
-                    "ts",
-                    "price",
-                    "size",
-                    "exchange",
-                    "source",
-                    "session_id",
-                    "conditions",
-                    "receive_ts",
-                )
-            )
-            + (_unreported(payload),),
-        )
+        conn.executemany(_INSERT, rows)
         conn.commit()
-        symbol = payload["symbol"]
-        if symbol in _watched and payload.get("watch_started") == _started.get(symbol):
-            _written[symbol] = time.time()
     finally:
         conn.close()
+    now = time.time()
+    for payload in payloads:
+        symbol = payload["symbol"]
+        if symbol in _watched and payload.get("watch_started") == _started.get(symbol):
+            _written[symbol] = now
 
 
 def health() -> dict:
