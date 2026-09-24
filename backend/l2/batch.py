@@ -72,11 +72,16 @@ def clear_queues_for_tests() -> None:
 
 
 async def flush_loop() -> None:
-    """Background task: periodic flush of the snapshot queue."""
+    """Background task: periodic flush of the snapshot queue.
+
+    The write runs on a worker thread: opening ``l2.db`` and committing on the
+    HTTP loop stalled every socket and route behind it (perf stall reports,
+    2026-09-23). The shutdown flush below stays inline so it finishes first.
+    """
     while True:
         try:
             await asyncio.sleep(L2_BATCH_FLUSH_INTERVAL_SEC)
-            flush()
+            await asyncio.to_thread(flush)
         except asyncio.CancelledError:
             flush()
             raise

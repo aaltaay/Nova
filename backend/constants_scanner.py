@@ -351,6 +351,10 @@ IBKR_BAR_DURATION: dict[str, str] = {
 IBKR_HISTORICAL_USE_RTH = False          # include extended hours (match chart live session)
 IBKR_HISTORICAL_TIMEOUT_SEC = 20.0       # per-request IB budget once dequeued
 IBKR_HISTORICAL_BACKGROUND_TIMEOUT_SEC = 12.0  # background bar fetches (surge seed)
+# ib_async answers a timed-out reqHistoricalData with an empty list, not an
+# error. An empty answer that took this close to the whole timeout is that
+# timeout, so it is a failure -- never cached, stored or pushed as "no bars".
+IBKR_HISTORICAL_TIMEOUT_SLACK_SEC = 0.5
 IBKR_HISTORICAL_WHAT_TO_SHOW = "TRADES"
 
 # ADR 012 -- IB's real historical limits (not a mutex). Official TWS pacing:
