@@ -14,6 +14,10 @@
  * Coalesce: one ping per HOD_MOMO_ALERT_SOUND_COALESCE_MS burst.
  * Running Up (strategy 12) does not ping. WS `initial` / reconnect
  * snapshots seed seen keys and never ping.
+ *
+ * Sim off the live edge (#486): the strip shows another moment, so a live
+ * alert that arrives then is marked seen without a ping -- and, being seen,
+ * never pings late once the desk is back at the live edge.
  */
 import {
   HOD_MOMO_ALERT_PING_GAIN,
@@ -32,7 +36,8 @@ export type HodMomoPingReason =
   | 'coalesced'
   | 'muted'
   | 'duplicate'
-  | 'running_up';
+  | 'running_up'
+  | 'replaying';
 
 type Listener = (enabled: boolean) => void;
 
@@ -132,13 +137,20 @@ function playPing(): boolean {
   }
 }
 
+export interface HodMomoLiveAlertOptions {
+  /** The desk replays another moment (Sim off the live edge): seen, never pinged. */
+  replaying?: boolean;
+}
+
 export function noteHodMomoLiveAlert(
   alert: AlertObject,
   nowMs: number = Date.now(),
+  { replaying = false }: HodMomoLiveAlertOptions = {},
 ): HodMomoPingReason {
   const key = hodMomoAlertDedupeKey(alert);
   if (seenKeys.has(key)) return 'duplicate';
   seenKeys.add(key);
+  if (replaying) return 'replaying';
   if (isRunningUpStrategy(alert.strategy_id)) return 'running_up';
   if (!enabled) return 'muted';
   if (lastPingAt > 0 && nowMs - lastPingAt < HOD_MOMO_ALERT_SOUND_COALESCE_MS) {

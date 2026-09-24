@@ -9,6 +9,9 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useHodMomoStream } from './useHodMomoStream';
 
+// Live desk: the stream asks whether Sim is replaying (#486); no IBKR status poller here.
+vi.mock('../sim/useSimReplayDesk', () => ({ useSimReplayDesk: () => false }));
+
 class FakeWebSocket {
   static instances: FakeWebSocket[] = [];
   url: string;

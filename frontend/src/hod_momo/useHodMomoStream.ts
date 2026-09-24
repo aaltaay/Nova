@@ -8,6 +8,7 @@ import { publishHodMomoLiveAlert } from './hodMomoLiveAlerts';
 import type { AlertObject } from './types';
 import { alertIdentity, HOD_FEED_UNREADABLE, parseHodFrame, uniqueAlerts } from './hodMomoWire';
 import { countSocketMessage, frameBytes } from '../perf/perfCounters';
+import { useSimReplayDesk } from '../sim';
 
 interface HodMomoStreamState {
   /** Newest-first full day list — table virtualizes; nothing is discarded. */
@@ -23,6 +24,8 @@ interface HodMomoStreamState {
  * Opens /ws/hod-momo, receives today's full alert list, then batches live alerts.
  * Keeps every alert in memory; the table only mounts the visible row window.
  * Batching limits App re-render rate without dropping older entries.
+ * While Sim replays (off the live edge) the socket stays open but a live
+ * alert makes no sound (#486): the strip is showing another moment.
  */
 export function useHodMomoStream(): HodMomoStreamState {
   const [alerts, setAlerts] = useState<AlertObject[]>([]);
@@ -39,6 +42,12 @@ export function useHodMomoStream(): HodMomoStreamState {
   // never be pushed into `alerts` twice. Rebuilt only on a fresh `initial`
   // payload, never rescanned from the full day list on every live alert.
   const seenIdsRef = useRef<Set<string>>(new Set());
+  // Read by the socket handler, which is bound once for the socket's life.
+  const replaying = useSimReplayDesk();
+  const replayingRef = useRef(replaying);
+  useEffect(() => {
+    replayingRef.current = replaying;
+  }, [replaying]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -109,7 +118,7 @@ export function useHodMomoStream(): HodMomoStreamState {
             const key = alertIdentity(alert);
             if (seenIdsRef.current.has(key)) return;
             seenIdsRef.current.add(key);
-            noteHodMomoLiveAlert(alert);
+            noteHodMomoLiveAlert(alert, Date.now(), { replaying: replayingRef.current });
             publishHodMomoLiveAlert(alert);
             pendingRef.current.push(alert);
             scheduleFlush();

@@ -12,6 +12,10 @@ import {
 } from './hodMomoAlertSound';
 import { useHodMomoStream } from './useHodMomoStream';
 
+const mocks = vi.hoisted(() => ({ replayDesk: false, ping: vi.fn() }));
+
+vi.mock('../sim/useSimReplayDesk', () => ({ useSimReplayDesk: () => mocks.replayDesk }));
+
 vi.mock('./hodMomoAlertSound', async () => {
   const actual = await vi.importActual<typeof import('./hodMomoAlertSound')>(
     './hodMomoAlertSound',
@@ -90,7 +94,7 @@ describe('useHodMomoStream alert ping', () => {
           return {
             connect() {},
             frequency: { value: 0 },
-            start() {},
+            start: mocks.ping,
             stop() {},
           };
         }
@@ -103,6 +107,8 @@ describe('useHodMomoStream alert ping', () => {
       },
     );
     resetHodMomoAlertSoundForTests();
+    mocks.replayDesk = false;
+    mocks.ping.mockClear();
     vi.mocked(noteHodMomoLiveAlert).mockClear();
     vi.mocked(rememberHodMomoAlertSnapshot).mockClear();
     container = document.createElement('div');
@@ -153,5 +159,39 @@ describe('useHodMomoStream alert ping', () => {
       send(ws, { type: 'initial', alerts: [existing, hodAlert('live-1', 'NEW1')], total: 2 });
     });
     expect(noteHodMomoLiveAlert).toHaveBeenCalledTimes(2);
+  });
+
+  it('stays silent while Sim replays, pings new live alerts at the live edge, never late (#486)', () => {
+    const ws = FakeWebSocket.instances[0];
+    act(() => {
+      send(ws, { type: 'initial', alerts: [], total: 0 });
+    });
+
+    mocks.replayDesk = true;
+    act(() => {
+      root.render(<Harness />);
+    });
+    act(() => {
+      send(ws, { type: 'alert', alert: hodAlert('during-replay', 'PAST') });
+    });
+    expect(noteHodMomoLiveAlert).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(noteHodMomoLiveAlert).mock.results[0]?.value).toBe('replaying');
+    expect(mocks.ping).not.toHaveBeenCalled();
+
+    mocks.replayDesk = false;
+    act(() => {
+      root.render(<Harness />);
+    });
+    // The alert heard while replaying is seen: back at the edge a re-send never pings late.
+    act(() => {
+      send(ws, { type: 'alert', alert: hodAlert('during-replay', 'PAST') });
+    });
+    expect(mocks.ping).not.toHaveBeenCalled();
+
+    act(() => {
+      send(ws, { type: 'alert', alert: hodAlert('at-edge', 'NOW') });
+    });
+    expect(vi.mocked(noteHodMomoLiveAlert).mock.results.at(-1)?.value).toBe('pinged');
+    expect(mocks.ping).toHaveBeenCalledTimes(1);
   });
 });
