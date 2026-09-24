@@ -2,6 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { novaWindowTitle, resolveNovaTitleDesk } from '../../electron/appTitle.mjs';
 import { getRecordingSymbols, subscribeSessionRecord } from '../capture/sessionRecordStore';
 import { parseSampleSymbol } from '../sample_data/sampleNav';
+import { useBackendReleaseTag } from './backendReleaseTag';
 import { isElectronRenderer, nudgeElectronPaint } from './nudgeElectronPaint';
 import { novaRendererReleaseTag } from './novaReleaseTag';
 
@@ -11,6 +12,8 @@ export function useNovaWindowTitle(
   traderSymbol: string | null,
 ): void {
   const releaseTag = novaRendererReleaseTag();
+  // The backend's own revision beside the desk's: an update leaves a running backend on its old code.
+  const backendTag = useBackendReleaseTag();
   // The OS title says REC while a recording runs -- the one signal that
   // survives the app being behind other windows.
   const recordingSymbol = useSyncExternalStore(
@@ -24,11 +27,12 @@ export function useNovaWindowTitle(
       traderSymbol: traderSymbol ?? '',
       releaseTag,
       recordingSymbol,
+      backendTag: backendTag ?? '',
     });
     if (traderActive && isElectronRenderer()) {
       nudgeElectronPaint();
     }
-  }, [traderActive, traderSymbol, releaseTag, recordingSymbol]);
+  }, [traderActive, traderSymbol, releaseTag, recordingSymbol, backendTag]);
 }
 
 /** Sample `?view=sample&symbol=` is Trader; live uses the Scanner|Trader switch. */

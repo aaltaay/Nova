@@ -11,6 +11,7 @@ import {
   BACKEND_RELOAD_WHY_BUSY,
 } from '../constants';
 import { confirmApp } from '../ux';
+import { currentBackendReleaseTag, refreshBackendReleaseTag } from '../utils/backendReleaseTag';
 import { startLocalApi } from '../utils/startLocalApi';
 
 interface Props {
@@ -43,7 +44,10 @@ export function BackendReloadButton({ onReloaded }: Props) {
       setError(result.error);
       return;
     }
-    setNote('Backend reloaded');
+    // Name the revision now answering (the window title shows it too).
+    await refreshBackendReleaseTag();
+    const now = currentBackendReleaseTag();
+    setNote(now ? `Backend reloaded · now ${now}` : 'Backend reloaded');
     onReloaded?.();
     window.setTimeout(() => setNote(null), 4_000);
   }

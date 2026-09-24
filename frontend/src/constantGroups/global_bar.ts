@@ -21,6 +21,8 @@ export const IBKR_STATUS_POLL_MS = 5_000;
 export const IBKR_STATUS_STALE_AFTER_MISSES = 2;
 /** sessionStorage last successful /api/ibkr/status -- avoids a false Disconnected flash. */
 export const IBKR_STATUS_SESSION_KEY = 'nova.ibkr.status.last';
+/** The window title's backend revision (/api/health release_tag): once a minute, and on focus. */
+export const BACKEND_TAG_POLL_MS = 60_000;
 
 /**
  * Cross-window leader heartbeat stale -- another Electron/Vite window may take

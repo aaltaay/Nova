@@ -4,8 +4,10 @@ import {
   formatScannerWindowTitle,
   formatTraderDocumentTitle,
   injectNovaTitle,
+  isOlderTag,
   novaWindowTitle,
   resolveNovaTitleDesk,
+  withBackendTag,
 } from '../../electron/appTitle.mjs';
 
 describe('Nova window titles', () => {
@@ -67,6 +69,33 @@ describe('Nova window titles', () => {
         liveTraderSymbol: 'AAPL',
       }),
     ).toEqual({ traderActive: false, traderSymbol: '' });
+  });
+
+  it('names the backend revision after the desk one, and says when it is older', () => {
+    const desk = 'Nova — Stock Scanner · v1006';
+    expect(withBackendTag(desk, 'v1006', 'v1006')).toBe('Nova — Stock Scanner · v1006 · backend v1006');
+    expect(withBackendTag(desk, 'v991', 'v1006'))
+      .toBe('Nova — Stock Scanner · v1006 · backend v991 (older -- restart it)');
+    // A backend newer than the desk (the desk not updated yet) is named, never called older.
+    expect(withBackendTag('Nova — Stock Scanner · v991', 'v1006', 'v991'))
+      .toBe('Nova — Stock Scanner · v991 · backend v1006');
+    // Unknown adds nothing: the API not answering, the sample desk.
+    expect(withBackendTag(desk, null, 'v1006')).toBe(desk);
+    expect(withBackendTag(desk, '  ', 'v1006')).toBe(desk);
+  });
+
+  it('compares revisions by number, never as text', () => {
+    expect(isOlderTag('v991', 'v1006')).toBe(true);
+    expect(isOlderTag('v1006', 'v991')).toBe(false);
+    expect(isOlderTag('v1006', 'v1006')).toBe(false);
+    expect(isOlderTag('dev', 'v1006')).toBe(false);
+    expect(isOlderTag('v991', '')).toBe(false);
+  });
+
+  it('keeps the backend revision on the trader view and under REC', () => {
+    expect(novaWindowTitle({
+      traderActive: true, traderSymbol: 'AAPL', releaseTag: 'v1006', backendTag: 'v1006', recordingSymbol: 'GRML',
+    })).toBe('● REC GRML — AAPL · Trader · Nova · v1006 · backend v1006');
   });
 
   it('rewrites the HTML title tag for first paint', () => {

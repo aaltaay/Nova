@@ -11,6 +11,7 @@ import {
   getDesktopApiKey,
   getDesktopEnvPath,
   openEnvFileIfNeeded,
+  reloadEngine,
   restartApiSidecar,
   startApiSidecar,
   stopApiSidecar,
@@ -151,8 +152,9 @@ ipcMain.handle('nova:restartApi', async () => {
     };
   }
   try {
-    await restartApiSidecar();
-    return { ok: true };
+    // A different engine process answers, or reloadEngine says why not (never a false "reloaded").
+    const { from, to } = await reloadEngine();
+    return { ok: true, from, to };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[nova] restartApi failed', message);

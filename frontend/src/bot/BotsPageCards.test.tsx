@@ -13,7 +13,9 @@ import { consumeSetupsBoardOpen, getSetupsFilter } from '../setups';
 import type { SetupCounts, SetupsBoard, SetupSummary } from '../setups/types';
 import { _resetBotSessionPollerForTests } from './botSessionPoller';
 import { BotsPage } from './BotsPage';
-import { botsFetchRouter, breakers, gates, session, setupRow, type BotsFetchOpts } from './botsPageFixtures';
+import {
+  botsFetchRouter, breakers, gates, session, setupRow, templatesPayload, type BotsFetchOpts,
+} from './botsPageFixtures';
 
 const ibkrStatus = { connected: true, spend_status: 'paper_armed', spend_locked_reason: null, trading_allowed: true, trading_allowed_reason: null, armed: true };
 vi.mock('../ibkr/useIbkrStatus', () => ({ useIbkrStatus: () => ibkrStatus }));
@@ -134,7 +136,7 @@ describe('Strategies card', () => {
     await renderPage();
     const chosen = within(screen.getByTestId('bots-setup-first_pullback'));
     expect(chosen.getByText('First pullback')).toBeTruthy();
-    expect(chosen.getByText(/Chosen/)).toBeTruthy();
+    expect(chosen.getByText(/Bot trades this/)).toBeTruthy();
     // The rules are the template in play's numbers in words (ADR 029): a line on the card, all of it on hover.
     const rules = screen.getByTestId('bots-setup-rules-first_pullback');
     expect(rules.textContent).toBe('Leg ≥ 5% · 1–3 bar pullback · stop at the pullback low');
@@ -209,6 +211,35 @@ describe('Strategies card', () => {
     fireEvent.click(screen.getByTestId('bots-setup-board-red_to_green'));
     expect(getSetupsFilter()).toBe('red_to_green');
     expect(consumeSetupsBoardOpen()).toBe(true);
+  });
+
+  it('an API older than the scanners says the backend needs a reload, never that the scanner is missing', async () => {
+    // The operator's desk on 2026-09-24: the page updated, the backend (started that morning) had not.
+    const old = session({ setups: [
+      { id: 'first_pullback', scanner: true }, { id: 'gap_and_go', scanner: false },
+      { id: 'flat_top_breakout', scanner: false }, { id: 'red_to_green', scanner: false },
+      { id: 'micro_pullback', scanner: false },
+    ] });
+    delete old.setup_levels;
+    delete old.breakers;
+    const templates = templatesPayload();
+    templates.setups = templates.setups.filter(s => s.id !== 'bull_flag');
+    mockFetch({ session: old, templates });
+    setups.board = board({ schema_version: 1, setups: undefined });
+    await renderPage();
+    expect(screen.getByTestId('bots-stale-backend').textContent).toMatch(/still running code from before the setup scanners/);
+    for (const id of ['bull_flag', 'flat_top_breakout', 'red_to_green']) {
+      const card = within(screen.getByTestId(`bots-setup-${id}`));
+      expect(card.getByTestId('bots-setup-status').textContent).toMatch(/the backend needs a reload to start this scanner/);
+      expect(card.queryByText(/No scanner yet/)).toBeNull();
+      const radio = screen.getByTestId(`bots-setup-radio-${id}`) as HTMLInputElement;
+      expect(radio.disabled).toBe(true);
+      expect(radio.getAttribute('data-why')).toMatch(/reload it/);
+    }
+    expect((screen.getByTestId('bots-setup-template-bull_flag') as HTMLSelectElement).textContent)
+      .toBe('needs a backend reload');
+    // The two with no scanner in this build still say what is missing.
+    expect(screen.getByTestId('bots-noscan-gap_and_go').textContent).toMatch(/Why it can't watch yet/);
   });
 
   it('choosing another setup PATCHes the setup that plays', async () => {

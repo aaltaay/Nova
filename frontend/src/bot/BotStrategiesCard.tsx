@@ -8,7 +8,13 @@
  * opens in the template editor. Nothing here places an order.
  */
 import { useState, type ReactNode } from 'react';
-import { BOT_SETUP_FIRST_PULLBACK, BOT_SETUP_IDS } from '../constantGroups/bot';
+import { BackendReloadButton } from '../components/BackendReloadButton';
+import {
+  BOT_SCANNER_SETUP_IDS,
+  BOT_SETUP_FIRST_PULLBACK,
+  BOT_SETUP_IDS,
+  BOT_STALE_BACKEND_BANNER,
+} from '../constantGroups/bot';
 import {
   BOTS_ADD_SETUP_CLOSE,
   BOTS_ADD_SETUP_COPY,
@@ -25,6 +31,7 @@ import {
 import { TAPE_VERDICT_TIPS } from '../constantGroups/setups';
 import { setupTypeOf, useSetupsBoard, type SetupRow } from '../setups';
 import { confirmApp } from '../ux/appDialogApi';
+import { canReloadLocalBackend } from '../utils/startLocalApi';
 import { tipProps } from '../ux/hoverTip';
 import { BotReadout } from './BotReadout';
 import { BotSetupCard } from './BotSetupCard';
@@ -80,6 +87,10 @@ export function BotStrategiesCard({ session, busy, onChooseSetup, onLevel, onSet
   const chosen = session.setup || BOT_SETUP_FIRST_PULLBACK;
   const infos = new Map((session.setups ?? []).map(s => [s.id, s]));
   const levelsKnown = (session.setups ?? []).some(s => s.level !== undefined) || session.setup_levels != null;
+  // An API older than ADR 031 lists setups without a level and runs the first pullback only: this
+  // build's other scanners are not missing, they are not loaded. Say so, with the reload.
+  const staleApi = !levelsKnown && (session.setups?.length ?? 0) > 0;
+  const staleSetup = (id: string) => staleApi && BOT_SCANNER_SETUP_IDS.includes(id) && !infos.get(id)?.scanner;
   const others = BOT_SETUP_IDS.filter(id => id !== chosen);
   const tpl = useSetupTemplates();
   const stream = useSetupsBoard();
@@ -114,7 +125,7 @@ export function BotStrategiesCard({ session, busy, onChooseSetup, onLevel, onSet
   };
 
   const card = (id: string, body?: ReactNode) => (
-    <BotSetupCard key={id} id={id} chosen={id === chosen} playable={Boolean(infos.get(id)?.scanner)}
+    <BotSetupCard key={id} id={id} chosen={id === chosen} playable={Boolean(infos.get(id)?.scanner)} stale={staleSetup(id)}
       level={levelOf(id)} levelsKnown={levelsKnown} busy={busy} onChoose={onChooseSetup} onLevel={setLevel}
       templates={tpl.setup(id)} templatesError={tpl.error} templateBusy={playing}
       onPlayTemplate={(s, t) => void play(s, t)} onOpenParams={setEditing}
@@ -133,6 +144,12 @@ export function BotStrategiesCard({ session, busy, onChooseSetup, onLevel, onSet
         <h3>{BOTS_STRATEGIES_TITLE} <span className="bots-source">{BOTS_STRATEGIES_SOURCE}</span></h3>
         <span className="bots-card__sub" {...tipProps(BOTS_STRATEGIES_SUB_TIP, BOTS_STRATEGIES_TITLE)}>{BOTS_STRATEGIES_SUB}</span>
       </header>
+      {staleApi ? (
+        <div className="bots-stale" role="status" data-testid="bots-stale-backend">
+          <p>{BOT_STALE_BACKEND_BANNER}</p>
+          {canReloadLocalBackend() ? <BackendReloadButton /> : null}
+        </div>
+      ) : null}
       {tpl.payload?.error ? <p className="bots-hero__error" role="alert">{tpl.payload.error}</p> : null}
       {playError ? <p className="bots-hero__error" role="alert" data-testid="bots-template-play-error">{playError}</p> : null}
 

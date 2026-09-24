@@ -106,8 +106,18 @@ async def health_check():
         "http_loop_lag_ms": http_lag,
         "ib_loop_lag_ms": ib_lag,
         "ib_cold_inflight": inflight_label() or None,
+        "release_tag": _release_tag(),
         **instance_identity.snapshot(),
     }
+
+
+def _release_tag() -> str | None:
+    """The revision this process runs (``vNNN``), read once when it started -- not the checkout's
+    revision now: a backend left running across a merge keeps its own until it restarts."""
+    from diagnostics.process_info import REVISION
+
+    tag = REVISION.get("release_tag")
+    return str(tag) if tag else None
 
 
 @router.get("/livez")

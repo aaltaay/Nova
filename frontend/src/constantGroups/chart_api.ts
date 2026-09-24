@@ -130,7 +130,8 @@ export const BACKEND_RELOAD_BUTTON_TITLE =
   'Kill and restart the local Nova API on port 8000. Reloads persisted state (HOD alerts, scanner cache) from disk.';
 export const BACKEND_RELOAD_CONFIRM_TITLE = 'Reload backend?';
 export const BACKEND_RELOAD_CONFIRM_MESSAGE =
-  'Restarts the local Nova API process. WebSocket feeds will reconnect; in-memory state resets from disk.';
+  'Restarts the local Nova API process -- about half a minute. Feeds reconnect, in-memory state reloads from disk, '
+  + 'and a running recording resumes after a short gap.';
 /** Why Reload backend / Start API is locked while a restart runs (ux/whyTip.ts). */
 export const BACKEND_RELOAD_WHY_BUSY = 'Restarting the Nova API -- wait for it to come back';
 export const BACKEND_START_WHY_BUSY = 'Starting the Nova API -- wait for it to answer';
