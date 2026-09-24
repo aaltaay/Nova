@@ -31,3 +31,11 @@ EYES_FLOW_STUDY_REFRACTORY_SEC = 30.0       # an onset is the first burst / flus
 EYES_FLOW_STUDY_BUCKET = 0.25               # score buckets this wide
 EYES_FLOW_STUDY_CONTEXT_SEC = 60            # an onset's context: where the mid went in the minute before it
 EYES_FLOW_STUDY_CONTEXT_BP = 50.0           # up or down at least this much is a rise / a fall, else flat
+
+# -- The live journal read back at a past moment (eyes/playback.py): the Sim desk's
+#    Setups board and every setup card, as Nova's eyes had them then.
+EYES_JOURNAL_BEAT_SEC = 60.0                # the live engine writes a "beat" line this often, so a playback knows a gap
+EYES_JOURNAL_PRICE_EVERY_SEC = 5.0          # an armed / near symbol's last price, at most this often per symbol
+EYES_PLAYBACK_GAP_SEC = 180.0               # no line for this long on a day with beats: Nova's eyes were not running
+EYES_PLAYBACK_REBUILD_MIN_SEC = 0.5         # a backward scrub refolds the day at most this often
+EYES_PLAYBACK_ALERT_STEP_SEC = 120.0        # a proposal pops up only when the playhead played across it, never on a jump

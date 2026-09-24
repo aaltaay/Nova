@@ -1,43 +1,53 @@
-"""The Sim eyes (ADR 029): the setup scanner's lanes following the Sim playhead
-over the loaded Session Record.
+"""The Sim eyes (ADR 029): what the Setups board and every setup card show on the
+Sim desk off the live edge.
 
-On the Sim desk off the live edge with a Session Record loaded, the Setups
-board is this replay's -- the recorded symbol at the playhead -- instead of
-the live market's, and its proposals are practice proposals on that desk
-(pushed on ``/ws/setups``, journalled, never on the bot's audit stream). A
-historical download carries no Level 2, so the board states that rather than
-guess a tape. With nothing loaded the live board stays.
+With a Session Record loaded, the setup scanner's lanes follow the playhead over
+it -- the recorded symbol, re-read with today's templates -- and its proposals are
+practice proposals on that desk (pushed on ``/ws/setups``, journalled, never on
+the bot's audit stream). Anything else off the edge -- nothing loaded, a past
+day, a historical download (no Level 2) -- shows what Nova's live eyes recorded
+at the playhead (``eyes/playback.py``, operator ask 2026-09-24): every symbol
+they watched, every setup's rows and funnel, and each recorded proposal popping
+up as the playhead plays across it. At the live edge the live board stays.
 
 Every read and step of the recording runs on one worker thread, never on the
 scanner's loop: the loop only posts the playhead (``tick``) and reads the last
 published board (``board``). A forward playhead advances the replay; a rewind
 or a template change rebuilds it (at most every ``EYES_SIM_REBUILD_MIN_SEC``
 for rewinds). The journal gets each moment once: a rebuild replays silently up
-to the furthest point already journalled.
+to the furthest point already journalled. A journal playback reads the day's
+file as it grows and folds it forward; a rewind folds it again (at most every
+``EYES_PLAYBACK_REBUILD_MIN_SEC``) and never raises what it passed.
 
-Owner: this module (in memory only; invalidation: the loaded replay's key and
-the templates' version). Nothing here places an order.
+Owner: this module (in memory only; invalidation: the loaded replay's key, the
+templates' version, and the played-back day). Nothing here places an order.
 """
 from __future__ import annotations
 
 import logging
 import threading
 import time
+from pathlib import Path
 from typing import Any, Callable
 
 from constants_bot import BOT_SCANNER_SETUPS
-from constants_eyes import EYES_REPLAY_SOURCE_SIM, EYES_SIM_REBUILD_MIN_SEC
+from constants_eyes import (
+    EYES_PLAYBACK_ALERT_STEP_SEC,
+    EYES_PLAYBACK_REBUILD_MIN_SEC,
+    EYES_REPLAY_SOURCE_SIM,
+    EYES_SIM_REBUILD_MIN_SEC,
+)
 from constants_setups import SETUPS_SCHEMA_VERSION
 
 logger = logging.getLogger(__name__)
 
-HISTORICAL_NOTE = ("Sim eyes read Session Records: this replay is a historical download with no Level 2, "
-                   "so there is no tape to gate on. Load a Session Record to watch the eyes here.")
+KIND_CAPTURE = "capture"
+KIND_JOURNAL = "journal"
 _WORKER_WAIT_SEC = 0.5
 
 
 def _default_target() -> dict[str, Any] | None:
-    """What the Sim desk shows now: ``None`` when it is not a replay desk or nothing is loaded."""
+    """What the Sim desk shows now: ``None`` at the live edge or off the Sim venue."""
     from sim.mode import is_replay_desk
 
     if not is_replay_desk():
@@ -46,13 +56,19 @@ def _default_target() -> dict[str, Any] | None:
     from sim import session_clock
 
     st = sim_replay.status_payload()
-    source = st.get("replay_source")
-    if source == "historical":
-        return {"kind": "historical", "date": st.get("replay_date"), "symbol": st.get("replay_symbol")}
-    if source != "capture" or not st.get("replay_ok"):
-        return None
-    return {"kind": "capture", "date": st.get("replay_date"), "symbol": st.get("replay_symbol"),
-            "playhead": session_clock.now_et().timestamp()}
+    playhead = session_clock.now_et()
+    if st.get("replay_source") == KIND_CAPTURE and st.get("replay_ok"):
+        return {"kind": KIND_CAPTURE, "date": st.get("replay_date"), "symbol": st.get("replay_symbol"),
+                "playhead": playhead.timestamp()}
+    loaded = st.get("replay_source") if st.get("replay_source") in ("historical", KIND_CAPTURE) else None
+    return {"kind": KIND_JOURNAL, "date": playhead.strftime("%Y-%m-%d"), "playhead": playhead.timestamp(),
+            "symbol": st.get("replay_symbol") if loaded else None, "loaded": loaded}
+
+
+def _journal_path(date: str) -> Path:
+    from eyes.journal import journal_dir
+
+    return journal_dir() / f"{date}.jsonl"
 
 
 class SimEyes:
@@ -61,8 +77,10 @@ class SimEyes:
                  templates: Callable[[], Any] | None = None,
                  journal: Callable[[dict], None] | None = None,
                  threaded: bool = True,
-                 levels: Callable[[], dict] | None = None):
+                 levels: Callable[[], dict] | None = None,
+                 journal_path: Callable[[str], Path] = _journal_path):
         self._target_fn = target
+        self._journal_path_fn = journal_path
         self._load_fn = load
         self._templates_fn = templates
         self._journal_fn = journal
@@ -79,10 +97,11 @@ class SimEyes:
         self._templates_version: int | None = None
         self._journaled_through = 0.0
         self._last_rebuild = 0.0
+        self._playback: Any = None             # eyes.playback.Playback of the played-back day
         # Published for the loop (under the lock).
         self._view: dict[str, Any] = {"loading": False, "error": None, "rows": [], "proposals": [], "setups": [],
                                       "proposing": False, "template": None, "lanes": 0, "recording": None,
-                                      "now": None}
+                                      "now": None, "universe": 0, "note": None, "gap": None, "journal": None}
         self._alerts: list[dict] = []
 
     # -- wiring defaults (late imports keep this module light) -------------------------
@@ -152,10 +171,15 @@ class SimEyes:
     def _work(self) -> None:
         with self._lock:
             target = self.target
-        if target is None or target["kind"] != "capture":
+        if target is None or target["kind"] != KIND_CAPTURE:
             if self._key is not None:
                 self._drop()
+            if target is None:
+                self._playback = None
+            else:
+                self._work_journal(target)
             return
+        self._playback = None
         key = (str(target["date"]), str(target["symbol"]).upper())
         if key != self._key:
             self._drop()
@@ -196,6 +220,36 @@ class SimEyes:
         self._templates_version = store.version()
         self._last_rebuild = time.monotonic()
 
+    def _work_journal(self, target: dict) -> None:
+        """Fold the live eyes' journal of the playhead's day forward to the playhead."""
+        from eyes.journal_day import JournalDay
+        from eyes.playback import Playback, gap_note, template_window
+
+        date, at = str(target["date"]), float(target["playhead"])
+        pb = self._playback
+        if pb is None or pb.day.date != date:
+            pb = self._playback = Playback(JournalDay(Path(self._journal_path_fn(date)), date))
+        try:
+            pb.day.refresh()
+        except OSError as exc:
+            self._publish(loading=False, error=f"the eyes' journal could not be read: {exc}")
+            return
+        prev = pb.at
+        backward = prev is not None and at < prev
+        if backward:
+            if time.monotonic() - self._last_rebuild < EYES_PLAYBACK_REBUILD_MIN_SEC:
+                return                          # the last view stands; the next wake folds again
+            self._last_rebuild = time.monotonic()
+        raised = pb.advance(at)
+        if raised and prev is not None and not backward and at - prev <= EYES_PLAYBACK_ALERT_STEP_SEC:
+            with self._lock:
+                self._alerts += raised          # played across, never jumped to
+        body = pb.body(self._levels(), template_window(self._store()))
+        gap = pb.gap()
+        with self._lock:
+            self._view.update(body, template=None, lanes=0, recording=None, now=at, loading=False, error=None,
+                              gap=gap, note=gap_note(gap, date), journal=pb.journal_view())
+
     def _drop(self) -> None:
         self._key = self._recording = self._replay = None
         self._templates_version = None
@@ -235,19 +289,22 @@ class SimEyes:
             view = dict(self._view)
         if target is None:
             return None
-        capture = target["kind"] == "capture"
+        capture = target["kind"] == KIND_CAPTURE
         replay_view = {"kind": target["kind"], "date": target.get("date"), "symbol": target.get("symbol"),
                        "playhead": target.get("playhead"), "at": view["now"], "loading": view["loading"],
-                       "error": view["error"], "note": None if capture else HISTORICAL_NOTE,
+                       "error": view["error"], "note": None if capture else view.get("note"),
                        "recording": view["recording"] if capture else None}
+        if not capture:
+            replay_view.update(loaded=target.get("loaded"), gap=view.get("gap"), journal=view.get("journal"))
         return wire_safe({
             "schema_version": SETUPS_SCHEMA_VERSION, "generated_at": now, "session_date": target.get("date"),
-            "source": EYES_REPLAY_SOURCE_SIM, "universe": 1 if target.get("symbol") else 0,
-            "universe_symbols": [target["symbol"]] if target.get("symbol") else [],
+            "source": EYES_REPLAY_SOURCE_SIM,
+            "universe": (1 if target.get("symbol") else 0) if capture else int(view.get("universe") or 0),
+            "universe_symbols": (([target["symbol"]] if target.get("symbol") else []) if capture
+                                 else list(view.get("universe_symbols") or [])),
             "seeding": 1 if view["loading"] else 0, "scoreboard": True, "scoreboard_error": None,
             "proposing": capture and bool(view["proposing"]), "replay": replay_view,
-            "setups": view["setups"] if capture else [],
-            "rows": view["rows"] if capture else [], "proposals": view["proposals"] if capture else [],
+            "setups": view["setups"], "rows": view["rows"], "proposals": view["proposals"],
         })
 
     def status(self) -> dict[str, Any]:

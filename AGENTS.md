@@ -1617,8 +1617,9 @@ user_version = 2` here -- rows add `template_id`, `template_rev` (integer) and
 default's (ids stay `SYMBOL-DATE-LEG_T`; another template's rows end
 `~TEMPLATE_ID`) -- and is 3 since ADR 031 (`setup_type`, `detail`). The board payload adds `source: "live" | "sim"`, `template:
 {id, rev, name, params_hash} | null`, `templates_watched` and `replay: {kind:
-"capture" | "historical", date, symbol, playhead, at, loading, error, note,
-recording} | null`; a row's `state` may be `filtered` (the template's stock
+"capture" | "journal", date, symbol, playhead, at, loading, error, note,
+recording, loaded?, gap?, journal?} | null` (`journal`: "Recorded eyes in Sim"
+below; its `setups[]` add `recorded: boolean`); a row's `state` may be `filtered` (the template's stock
 filter kept the name out, and the reason says which rule); a proposal adds
 `template_id`, `template_name` and `source`. The read-out's `rules` adds
 `template: {id, rev, name}` and counts only that template revision's rows.
@@ -1636,15 +1637,25 @@ when F: is mounted, else `<cache>/eyes`; the file is the wall clock's Eastern
 date), one line per observation: `{schema_version: 1, wall_ts, ts, date,
 source: "live" | "sim" | "backtest", event, symbol, template, rev, playing,
 bot: {level, active, venue} | null, replay?: {date, symbol}, ...}`, where
-`event` is `session | lanes | watch | leg | state | armed | filtered | rearmed
-| near | tape | triggered | failed | disarmed | proposal | scored` and carries
-its own fields (`setup` levels, `grade`, `pillars`, `reason`, `tape` /
-`verdict` / `reasons` / `metrics` / `line`, `status`, `outcome`, `bar_r`,
-`mfe`, `mae`, `added` / `removed`, `lanes`). `ts` / `date` are the moment and
-session the eyes looked at (a replay's own). A line from a lane adds
-`setup_type` (ADR 031). `NOVA_EYES_JOURNAL=0` turns it off. Read by `tools/eyes_journal.py` (`days | summary | setups | events`) and
-`eyes/reader.py`; the desk reads one symbol's day only through `GET
-/api/stock-read/{symbol}/decisions` (ADR 036).
+`event` is `session | lanes | watch | beat | leg | state | armed | filtered |
+rearmed | near | tape | price | triggered | failed | disarmed | proposal |
+scored` and carries its own fields (`setup` levels, `grade`, `pillars`,
+`reason`, `tape` / `verdict` / `reasons` / `metrics` / `line`, `status`,
+`outcome`, `bar_r`, `mfe`, `mae`, `added` / `removed`, `lanes`, `count`). `ts`
+/ `date` are the moment and session the eyes looked at (a replay's own). A line
+from a lane adds `setup_type` (ADR 031). Since 2026-09-24 every line about a
+symbol carries the detector's `last` price and `leg` (`null` when none), a
+`triggered` line its `reason`, a `state` line `kind` and `nth`; the lane writes
+a `state` line whenever the detector's state or reason differs from what its
+last line implied (`setup_scanner/lane_view.JOURNAL_EVENT_STATES`; writer
+`setup_scanner/lane_journal.py`), the playing
+lane a `price` line for a name armed or near at most every
+`EYES_JOURNAL_PRICE_EVERY_SEC` (5 s), and the live engine a `beat` line (`count`:
+names followed) every `EYES_JOURNAL_BEAT_SEC` (60 s). `NOVA_EYES_JOURNAL=0` turns
+it off. Read by `tools/eyes_journal.py` (`days | summary | setups | events |
+board`) and `eyes/reader.py`; the desk reads one symbol's day through `GET
+/api/stock-read/{symbol}/decisions` (ADR 036), and the Sim desk off the live
+edge every card at the playhead ("Recorded eyes in Sim" below).
 
 **Replayed eyes** (`backend/eyes/replay.py`, `sim_eyes.py`, `backtest.py`): a
 Session Record's prints (per second, the high then the last of the prints that
@@ -1662,6 +1673,38 @@ sessions?: [{date, symbol}]}` -> 202 `{run_id, status: "running"}` (400
 -> `{manifest, summary}`. A run is `<eyes dir>/backtests/<run_id>/`:
 `manifest.json`, `setups.jsonl`, `events.jsonl` and `summary.json`, shaped in
 `eyes/backtest.py`'s docstring; never `setups.db`, never the live read-out.
+
+**Recorded eyes in Sim** (`backend/eyes/playback.py`, operator ask 2026-09-24:
+"i want this stuff to be recorded when they show up ... viewable in the sim ...
+when something pops up ... so we can fine tune them when things dont match").
+On the Sim desk off the live edge without a Session Record loaded -- nothing
+loaded, a past day, a historical download -- the Setups board and every setup
+card on the Bots page are the live eyes' journal of the playhead's Eastern date
+folded up to the playhead: `source: "sim"`, `replay.kind: "journal"`, the rows,
+each setup's funnel and the proposals open then, in the live board's shape.
+Only `source: "live"` lines of that session count; no line after the playhead
+is read; nothing is recomputed with today's rules (a loaded Session Record still
+re-reads the recording with today's templates, `replay.kind: "capture"`). A
+recorded proposal is pushed on `/ws/setups` as an alert when the playhead plays
+across its moment (a step of at most `EYES_PLAYBACK_ALERT_STEP_SEC`, 120 s),
+never on a jump or a rewind; nothing proposes (`proposing: false`). `replay`
+adds `loaded: "historical" | "capture" | null`, `gap: {reason: "no_record" |
+"before_record" | "not_running", since, until} | null` and `journal: {path,
+exists, lines, folded, first_ts, last_ts, line_ts, skipped}`; `note` states the
+absence. A silence longer than `EYES_PLAYBACK_GAP_SEC` (180 s) after a `beat`
+of the same session is `not_running` (Nova closed or its eyes off), and a gap
+draws no rows, no proposals and zero counts -- never the board carried across
+it; a day written before beats existed has no gap check. A `session` line (Nova
+started) begins the fold again from nothing, as the live eyes did. Each
+`setups[]` summary adds `recorded: false` for a setup whose scanner was not
+running at the moment; its level, template and window stay today's controls
+(the window of the template that played then). `GET /api/eyes/at?date=YYYY-MM-DD&at=<epoch>`
+-> `{schema_version, date, at, gap, note, journal, proposing, setups, rows,
+proposals, universe, universe_symbols}` (the names the eyes followed then; 400
+`EYES_DATE_INVALID`); `py -3 tools/eyes_journal.py
+board --date D --at HH:MM[:SS]` prints the same. A backward scrub refolds the
+day at most every `EYES_PLAYBACK_REBUILD_MIN_SEC`; the file is read off the
+scanner's loop, as it grows.
 
 **Every locked control says why** (frontend, `ux/whyTip.ts`): a control that
 cannot act carries its reason in `data-why` beside `disabled` (or
@@ -2398,6 +2441,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-24 | Recorded eyes in Sim (operator ask: "i want this stuff to be recorded when they show up, do they work so they are viewable in the sim ok? when something pops up. that way we can use that data to fine tune them when things dont match"): the setup cards' every change was already journalled (today: YDES's bull-flag pole, PFSA's first pullback armed, near, proposed and triggered at 08:07), but the desk never read the journal -- off the live edge the Bots page kept showing the live board. Now the Sim desk off the edge folds the live journal to the playhead (`eyes/playback.py`): each card's rows and funnel as they stood, proposals popping up as the playhead plays across them, gaps stated, never recomputed. The lanes now write the detector's state whenever it differs from what their lines imply, its price and leg on every line, a `price` line for names in reach, and the engine a minute `beat`, so the played-back card is exact (a test checks the fold against the lanes' own board at every moment). `GET /api/eyes/at` and `tools/eyes_journal.py board` answer the same for an agent. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | The bot's read on one stock (ADR 036, #598; operator ask: "show me the bot's decisions specifically for that stock ... if something is forming, can we start highlighting it on the chart? ... all the tiny signals", then "i want it to tell me my entry/exit .. we typically want to aim for 2:1 ratio, like right on top of lvl2"; mockup v1 approved). Every scanner lane answers for one symbol (`GET /api/setups/symbol/{symbol}`), with the levels a forming setup would arm with (computed, then thrown away until now) and its own MACD / 9 EMA; `backend/stock_read/` composes the owners into seven groups of signals, a plan (entry, stop, target at least 2R from the setup's own rule, and what stands in the way), one symbol's day from the eyes' journal (ADR 029 amended: the desk reads it through the decisions route) and its history. The Trader rail shows the plan and seven tiles above Level 2, a sheet lists every signal, and the 1-minute chart draws each setup as it forms. The plan opens whole only when the quote card has room for it and Level 2 both; below that it is one line (at 1080p, Level 2 kept 302 px of its 354 against 118 with the whole plan). Fixed with it: the VWAP sensor covered only the last 240 bars, the halt sensor read not halted when it did not know, the Level 2 shortability chip asked once per tab. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Screen recordings are kept (ADR 035 decision 7, operator: "Keep every screen recording until I say otherwise; just warn me when F: gets low"). Nothing deletes a recording; the drive guard -- the header chip amber under 50 GB free and red under 10 GB, and the `screen_recorder` checklist row -- is the warning. No code change: this is what #597 shipped, now decided. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | The trading screen is always recorded (ADR 035, operator: "I always, always, always want the screen that I'm trading to be recorded. Everything ... That's definitely not negotiable."). The desktop app records every monitor from launch to quit, with no off switch: H.264 at 15 fps, each monitor at its Windows layout size, a new file every quarter hour (started before the old one stops) under `F:\Nova\screen`, a day manifest beside them. A hidden recorder window encodes off the desk's threads; the main process restarts any monitor that fails, stalls or disappears (forever, with backoff), replaces a crashed recorder and re-plans on display changes. The header shows a quiet icon while recording and a red "Screen not recording" when not; `POST` / `GET /api/screen-record` and a `screen_recorder` diagnostics row that fails whenever nothing says the screen is recorded. Nothing deletes a recording; retention is the operator's call. §3 amended. | User Directive + Claude Opus 5.5 |

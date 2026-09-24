@@ -34,6 +34,8 @@ import {
   BOTS_SETUP_PICK_TIP,
   BOTS_SETUP_PICK_TITLE,
   BOTS_STATUS_NOT_CONNECTED,
+  BOTS_STATUS_NOT_RECORDED,
+  BOTS_STATUS_NOT_RECORDED_TIP,
   BOTS_STATUS_SEEDING,
   BOTS_STATUS_WATCHING,
   BOTS_TEMPLATE_LABEL,
@@ -92,6 +94,8 @@ interface Props {
   onHover: (symbol: string | null) => void;
   onOpenBoard: (id: string) => void;
   onOpenSymbol: (symbol: string) => void;
+  /** An empty scanner's words at a recorded moment in Sim ("Nothing forming at 08:07:02 ET."). */
+  emptyText?: string | null;
   /** The chosen setup's tape gate and full read-out. */
   children?: ReactNode;
 }
@@ -126,15 +130,19 @@ function StatusLine({ level, summary, connected, seeding }: {
   connected: boolean;
   seeding: number;
 }) {
-  const win = windowWords(summary);
   const lvl = (level > 2 ? 2 : level < 0 ? 0 : level) as 0 | 1 | 2;
   const silent = lvl >= 1 && summary != null && !summary.proposing;
+  const unrecorded = connected && summary?.recorded === false;
+  const win = unrecorded ? '' : windowWords(summary);
+  const [words, tip] = !connected
+    ? [BOTS_STATUS_NOT_CONNECTED, SETUP_STATUS_TIPS.disconnected]
+    : unrecorded
+      ? [BOTS_STATUS_NOT_RECORDED, BOTS_STATUS_NOT_RECORDED_TIP]
+      : [BOTS_STATUS_WATCHING(summary?.counts.watching ?? 0), SETUP_STATUS_TIPS.watching];
   return (
     <div className="bots-strat__status" data-testid="bots-setup-status">
-      <span className={`bots-live-dot${connected ? ' is-on' : ''}`} aria-hidden="true" />
-      <span {...tipProps(connected ? SETUP_STATUS_TIPS.watching : SETUP_STATUS_TIPS.disconnected)}>
-        {connected ? BOTS_STATUS_WATCHING(summary?.counts.watching ?? 0) : BOTS_STATUS_NOT_CONNECTED}
-      </span>
+      <span className={`bots-live-dot${connected && !unrecorded ? ' is-on' : ''}`} aria-hidden="true" />
+      <span {...tipProps(tip)}>{words}</span>
       {win ? <span className={`bots-strat__win bots-strat__win--${summary?.window.state}`} {...tipProps(SETUP_WINDOW_TIP)}>{` · ${win}`}</span> : null}
       {connected && seeding > 0 ? <span {...tipProps(SETUP_STATUS_TIPS.seeding)}>{` · ${BOTS_STATUS_SEEDING(seeding)}`}</span> : null}
       <span className={`bots-lvlchip bots-lvlchip--${lvl}`} data-testid="bots-setup-level-chip"
@@ -192,7 +200,7 @@ export function BotSetupCard(props: Props) {
   const {
     id, chosen, playable, stale = false, level, busy, onChoose, onLevel, templates, templatesError = null,
     templateBusy = false, onPlayTemplate, onOpenParams, summary, rows, allRows, connected, seeding, hovered, onHover,
-    onOpenBoard, onOpenSymbol, children,
+    onOpenBoard, onOpenSymbol, emptyText, children,
   } = props;
   const shown = (level > 2 ? 2 : level < 0 ? 0 : level) as 0 | 1 | 2;
   const pickWhy = !playable ? (stale ? BOT_STALE_BACKEND_WHY : BOT_NO_SCANNER_TITLE) : busy ? BOTS_BUSY_WHY : null;
@@ -279,7 +287,7 @@ export function BotSetupCard(props: Props) {
       {playable ? (
         <>
           <BotSetupScanner setup={id} rows={rows} allRows={allRows} connected={connected}
-            onOpenSymbol={onOpenSymbol} hovered={hovered} onHover={onHover} />
+            onOpenSymbol={onOpenSymbol} hovered={hovered} onHover={onHover} emptyText={emptyText} />
           <div className="bots-strat__foot">
             {rows.length ? (
               <span {...tipProps(BOTS_SCAN_FOOT_TIP)}>{BOTS_SCAN_FOOT(Math.min(rows.length, BOTS_SCANNER_MAX_ROWS), rows.length)}</span>

@@ -145,26 +145,42 @@ export interface SetupSummary {
   templates_watched: number;
   window: { start: string; end: string; state: 'before' | 'open' | 'after' | string };
   counts: SetupCounts;
+  /** A recorded moment (`replay.kind` `journal`): false when Nova's eyes were not running this setup then. */
+  recorded?: boolean;
 }
 
-/** The Sim eyes' replay (ADR 029): what the board follows off the live edge. */
+/** Why a recorded moment has no board (backend `eyes/playback.py`). */
+export interface SetupsRecordGap {
+  reason: 'no_record' | 'before_record' | 'not_running' | string;
+  since: number | null;
+  until: number | null;
+}
+
+/** The Sim eyes' replay (ADR 029): what the board follows off the live edge -- a loaded Session
+ *  Record re-read by today's templates (`capture`), or what Nova's live eyes recorded at the
+ *  playhead (`journal`, operator ask 2026-09-24). */
 export interface SetupsReplay {
-  kind: 'capture' | 'historical';
+  kind: 'capture' | 'journal' | string;
   date: string | null;
   symbol: string | null;
   playhead: number | null;
   at: number | null;
   loading: boolean;
   error: string | null;
-  /** Why the eyes cannot watch this replay (a download has no Level 2). */
+  /** A stated absence: no record of that day, before it began, or a gap where Nova's eyes were off. */
   note: string | null;
+  /** `journal`: what the Sim desk has loaded beside it (`historical` / `capture`), null when nothing. */
+  loaded?: string | null;
+  gap?: SetupsRecordGap | null;
+  journal?: { path: string; exists: boolean; lines: number; folded: number; first_ts: number | null;
+    last_ts: number | null; line_ts: number | null; skipped: number } | null;
 }
 
 export interface SetupsBoard {
   schema_version: number;
   generated_at: number;
   session_date: string | null;
-  /** `live` (the market) or `sim` (the Sim eyes over the loaded Session Record, ADR 029). */
+  /** `live` (the market) or `sim` (off the live edge: the loaded Session Record, or the recorded eyes). */
   source?: 'live' | 'sim';
   /** ADR 031: one summary per setup with a scanner (schema 2). */
   setups?: SetupSummary[];

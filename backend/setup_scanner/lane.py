@@ -1,6 +1,7 @@
 """One template's eyes (ADR 029): a lane of one setup's detectors over the
 scanner's symbols, with its own scoreboard rows, tape reads, proposals and
-journal lines.
+journal lines -- which say everything its card shows, so the journal read back
+at any moment is the card as it stood then (``setup_scanner/lane_journal.py``).
 
 The engine runs one lane per template of every setup with a scanner (ADR 031)
 on the same bars and the same tape; a replay runs the same lanes over a Session
@@ -40,7 +41,7 @@ from setup_scanner.bars import Bar, minute_start
 from setup_scanner.detector import TriggerDetector
 from setup_scanner.detectors import make_detector
 from setup_scanner.lane_params import LaneParams
-from setup_scanner import lane_flow, tape_flow
+from setup_scanner import lane_flow, lane_journal, tape_flow
 from setup_scanner.scoring import ScoreTracker
 from setup_scanner.tape_gate import evaluate as evaluate_tape
 
@@ -78,6 +79,8 @@ class Lane:
         self.filtered: dict[str, str] = {}
         self.alerts: list[dict] = []
         self._tape_said: dict[str, str] = {}
+        self._said: dict[str, tuple[str, str]] = {}          # the (state, reason) the journal implies
+        self._priced: dict[str, tuple[float, float]] = {}    # (ts, price) of the last price line
         self.flow_last: dict[str, dict] = {}      # setup id -> the newest flow reading after its trigger
         self._flow_said: dict[str, str] = {}
         self._flow_next: dict[str, float] = {}
@@ -104,14 +107,13 @@ class Lane:
                 "params_hash": self.p.params_hash, "setup_type": self.p.setup}
 
     def journal(self, event: str, sym: str | None, **fields: Any) -> None:
-        self.host.journal({"event": event, "symbol": sym, "setup_type": self.p.setup, "template": self.p.template_id,
-                           "rev": self.p.template_rev, "playing": self.playing, **fields})
+        lane_journal.line(self, event, sym, fields)
 
     # -- symbols ----------------------------------------------------------------
     def clear(self) -> None:
         for store in (self.det, self.rows, self.active_id, self.trackers, self.tape_view,
-                      self.proposals, self.filtered, self._tape_said, self.flow_last, self._flow_said,
-                      self._flow_next):
+                      self.proposals, self.filtered, self._tape_said, self._said, self._priced,
+                      self.flow_last, self._flow_said, self._flow_next):
             store.clear()
         self.alerts = []
 
@@ -123,6 +125,8 @@ class Lane:
 
     def drop(self, sym: str) -> None:
         self.det.pop(sym, None)
+        self._said.pop(sym, None)
+        self._priced.pop(sym, None)
 
     def watching(self) -> set[str]:
         """Symbols whose live setup wants the tape read (armed or near, not filtered)."""
@@ -146,12 +150,8 @@ class Lane:
     # -- feed -------------------------------------------------------------------
     def on_bars(self, sym: str, bars: list[Bar], now: float, new_bar: Bar | None = None) -> None:
         det = self.ensure(sym)
-        before = (det.state, det.reason)
-        events = det.on_bars(bars)
-        self.handle(sym, events, now)
-        if not events and (det.state, det.reason) != before and not det.reason.startswith("warming up"):
-            view = det.view()
-            self.journal("state", sym, state=det.state, reason=det.reason, leg=view.get("leg"))
+        self.handle(sym, det.on_bars(bars), now)
+        lane_journal.say_state(self, sym, det)
         if new_bar is not None:
             for sid in self._tracker_ids(sym):
                 if self.trackers[sid].on_bar(new_bar, det.ema_now):
@@ -162,6 +162,8 @@ class Lane:
         if det is None:
             return
         self.handle(sym, det.on_price(price, ts, bar_open=bar_open), ts)
+        lane_journal.say_state(self, sym, det)
+        lane_journal.say_price(self, sym, det, ts)
         for sid in self._tracker_ids(sym):
             if self.trackers[sid].on_price(price, ts):
                 self._score(sid)
@@ -232,7 +234,7 @@ class Lane:
                     bailout_bars=self.p.bailout_bars,
                     half_on_entry_bar=bool(setup.get("half_on_entry_bar", True)), flush=self.p.flush)
                 self.journal("triggered", sym, setup_id=sid, setup=setup, price=setup.get("trigger_price"),
-                             tape=tape)
+                             tape=tape, reason=view["reason"])
                 self._close_proposal(sid, "triggered")
                 self._announce_trigger(sym, sid, setup, tape, ts)
             elif kind in ("failed", "disarmed") and not row.get("triggered_at"):

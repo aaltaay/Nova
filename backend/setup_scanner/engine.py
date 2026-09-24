@@ -10,7 +10,9 @@ Each setup's template in play draws that setup's rows and raises its proposals
 (when a setup is near its trigger and the tape says go) -- at Eyes or above
 only: a setup at Off watches and scores in silence (ADR 031). The other
 templates score in silence, so variations collect evidence on the same days.
-Everything every lane sees goes to the eyes' journal (``eyes/journal.py``).
+Everything every lane sees goes to the eyes' journal (``eyes/journal.py``), and a
+``beat`` line every ``EYES_JOURNAL_BEAT_SEC`` says the eyes were running -- a
+playback of the journal (``eyes/playback.py``) reads a silence after a beat as a gap.
 
 It never places, stages or cancels an order, never opens an IBKR line, and
 never raises bot autonomy. On a Sim desk off the live edge it keeps watching
@@ -33,6 +35,7 @@ from typing import Any, Callable, Iterable
 from zoneinfo import ZoneInfo
 
 from constants_bot import BOT_SCANNER_SETUPS, BOT_SETUP_FIRST_PULLBACK
+from constants_eyes import EYES_JOURNAL_BEAT_SEC
 from constants_setups import SETUPS_BOARD_PUSH_SEC
 from setup_scanner.bars import Bar, MinuteBars, bar_from
 from setup_scanner.board import build_board
@@ -99,6 +102,7 @@ class SetupEngine(LaneHost):
         self.universe: set[str] = set()
         self.session: str | None = None
         self._last_push = 0.0
+        self._last_beat = 0.0
         self._trigger_listeners: list[Callable[[dict], None]] = []
 
     # -- the lanes in play, and the views the board / tests read ----------------
@@ -164,6 +168,9 @@ class SetupEngine(LaneHost):
         await self._sync_universe(now)
         self._drain(now)
         self._gate(now)
+        if now - self._last_beat >= EYES_JOURNAL_BEAT_SEC:
+            self._last_beat = now
+            self.journal({"event": "beat", "symbol": None, "count": len(self.bars)})
         sim = self._sim_eyes_fn()
         if sim is not None:
             sim.tick(now)

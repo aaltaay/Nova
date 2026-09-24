@@ -24,6 +24,14 @@ ORDER = {SETUP_STATE_NEAR: 0, SETUP_STATE_ARMED: 1, SETUP_STATE_TRIGGERED: 2, SE
          SETUP_STATE_LEG: 4, STATE_FILTERED: 5, SETUP_STATE_FAILED: 6}
 TRIGGERED_SHOW_SEC = 30 * 60
 FAILED_SHOW_SEC = 5 * 60
+# The detector state an eyes' journal line says the symbol is in after it (a ``state`` line
+# names its own). The lane writes a ``state`` line whenever the detector differs from what
+# its last line implied, so a playback of the journal (``eyes/playback.py``) folds to the
+# state the card showed. A line not named here leaves the state as it was.
+JOURNAL_EVENT_STATES = {"leg": SETUP_STATE_LEG, "armed": SETUP_STATE_ARMED, STATE_FILTERED: SETUP_STATE_ARMED,
+                        "rearmed": SETUP_STATE_ARMED, "near": SETUP_STATE_NEAR,
+                        "triggered": SETUP_STATE_TRIGGERED, "failed": SETUP_STATE_FAILED,
+                        "disarmed": SETUP_STATE_PULLBACK}
 
 
 def board_rows(lane: Any, now: float) -> list[dict[str, Any]]:
