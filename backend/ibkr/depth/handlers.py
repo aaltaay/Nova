@@ -58,6 +58,16 @@ def _record_book(symbol: str, book: dict) -> None:
         logger.exception("IBKR depth: capture book enqueue failed for %s", symbol)
 
 
+def _watch_book(symbol: str, book: dict) -> None:
+    """Feed the book watcher (ADR 033) the live book -- enqueue only, like the recorder (ADR 010)."""
+    try:
+        from book_watch.live import enqueue_book
+
+        enqueue_book(symbol, book)
+    except Exception:
+        logger.exception("IBKR depth: book watcher enqueue failed for %s", symbol)
+
+
 def _broadcast_live(symbol: str, book: dict) -> None:
     """Show a live book to the desk's panels -- except on a Sim desk off the live edge.
 
@@ -98,6 +108,7 @@ def on_update_book(ticker: Any, symbol: str) -> None:
     state._subscriptions[symbol] = book
     _broadcast_live(symbol, book)
     _record_book(symbol, book)
+    _watch_book(symbol, book)
 
 
 def on_update_ticker(ticker: Any, symbol: str) -> None:

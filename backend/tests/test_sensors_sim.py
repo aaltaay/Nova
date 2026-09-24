@@ -26,7 +26,7 @@ def test_snapshot_defaults_to_the_liquid_symbol_with_nothing_loaded():
     res = client.get("/sensors/snapshot")
     assert res.status_code == 200
     assert res.json()["symbol"] == "AAPL"
-    assert res.json()["count"] == 18
+    assert res.json()["count"] == 20
 
 
 def test_snapshot_defaults_to_the_loaded_replay_symbol(monkeypatch):

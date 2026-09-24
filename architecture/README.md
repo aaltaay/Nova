@@ -35,6 +35,7 @@ Constitution (`gemini.md` / `AGENTS.md`) and `.cursor/rules/*` remain supreme fo
 | [024](./decisions/024-catalyst-classifier.md) | Catalysts: one classifier for the history and the live desk | Accepted |
 | [025](./decisions/025-retire-nova-os.md) | Retire Nova OS: the verdict, the Signal / Confirm / Auto Paper ladder, the approval queue and the Phase D executor; the kill switch moves to `backend/kill_switch/` | Accepted |
 | [026](./decisions/026-performance-recorder.md) | Performance recorder: loop CPU, stall stacks, handler busy time, window reports | Accepted |
+| [033](./decisions/033-focus-and-book-watch-sensors.md) | Sensors for agents: the operator's focus, the book watcher (filled vs pulled size, pull patterns), and a recording that keeps every book | Accepted |
 
 ## Rules and maps
 

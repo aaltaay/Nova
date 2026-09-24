@@ -41,6 +41,11 @@ async function bootstrap(): Promise<void> {
     ({ startPerfReporter }) => startPerfReporter(),
     (err) => console.debug('[Nova] perf reporter did not start', err),
   );
+  // ADR 033: this window's focus report -- page, symbol, Windows focus, last input (the sample desk sends none).
+  void import('./focus_report/focusReporter').then(
+    ({ startFocusReporter }) => startFocusReporter(),
+    (err) => console.debug('[Nova] focus reporter did not start', err),
+  );
 
   const { createRoot } = await import('react-dom/client');
   const { default: App } = await import('./App.tsx');

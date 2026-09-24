@@ -1,7 +1,14 @@
 """Capture mode — IBKR session record, not for placing."""
 from __future__ import annotations
 
-CAPTURE_L2_MAX_HZ = 8.0
+# Books per second a recording keeps: a flood bound, not a sample rate. IBKR sends
+# 10-30 books a second on a busy name; at 8 (until ADR 033) a recording kept 24%
+# of PFSA's books on 2026-09-24 and 37% of GCTK's.
+CAPTURE_L2_MAX_HZ = 50.0
+# Books reach the writer in batches, like prints (below): one job per book would
+# let a fast book fill CAPTURE_PENDING_BATCHES and stop the recording.
+CAPTURE_BOOK_BATCH_MAX = 100
+CAPTURE_BOOK_BATCH_SEC = 0.2
 # Outside-repo capture root (Windows trading bench). Override with NOVA_SIM_CAPTURE_DIR.
 DEFAULT_SIM_CAPTURE_ROOT_WIN = r"F:\Nova\sim_capture"
 

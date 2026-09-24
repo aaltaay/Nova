@@ -571,6 +571,80 @@ def test_fast_books_coalesce_before_the_worker_backlog_can_stop_the_session():
     assert len(rows(directory, "quotes")) < worker.CAPTURE_PENDING_BATCHES
 
 
+class _Clock:
+    """The bridge's wall clock, stepped by hand (ADR 033 book batching)."""
+
+    def __init__(self, start):
+        self.now = start
+
+    def time(self):
+        return self.now
+
+
+def test_every_book_inside_the_flood_bound_is_recorded_in_batches(monkeypatch):
+    import time as _time
+
+    clock = _Clock(_time.time())
+    monkeypatch.setattr(bridge_ibkr, "time", clock)
+    submits = []
+    real_submit = worker.submit
+    monkeypatch.setattr(worker, "submit", lambda fn, *a, **kw: submits.append(fn.__name__) or real_submit(fn, *a, **kw))
+    mode.set_capture_mode(True, symbol="AAPL")
+    tick(at=datetime.now(timezone.utc))
+    for i in range(30):  # 20 books a second: under CAPTURE_L2_MAX_HZ, none held back
+        clock.now += 0.05
+        push_depth(bids=((42.20 + i / 1000, 300),))
+    mode.set_capture_mode(False)
+    directory = Path(recorder.status()["dir"])
+    fidelity = json.loads((directory / "manifest.json").read_text())["fidelity"]
+
+    assert len(rows(directory, "l2")) == 30
+    assert all("coalesced_before" not in row for row in rows(directory, "l2"))
+    assert fidelity["l2_coalesced"] == 0 and fidelity["l2_offered"] == 30
+    assert submits.count("_write_books") < 30  # batched, not one job per book
+
+
+def test_the_manifest_counts_every_book_the_bridge_held_back(monkeypatch):
+    import time as _time
+
+    clock = _Clock(_time.time())
+    monkeypatch.setattr(bridge_ibkr, "time", clock)
+    mode.set_capture_mode(True, symbol="AAPL")
+    tick(at=datetime.now(timezone.utc))
+    push_depth(bids=((42.20, 300),))  # written
+    for i in range(5):  # a burst over the bound: each held book is replaced by the next
+        clock.now += 0.001
+        push_depth(bids=((42.21 + i / 1000, 300),))
+    clock.now += 1.0
+    push_depth(bids=((42.40, 300),))  # written; the last held book was never written
+    health = bridge_ibkr.book_health("AAPL")
+    mode.set_capture_mode(False)
+    directory = Path(recorder.status()["dir"])
+    fidelity = json.loads((directory / "manifest.json").read_text())["fidelity"]
+
+    assert [row["bids"][0]["price"] for row in rows(directory, "l2")] == [42.20, 42.40]
+    assert health["books_coalesced"] == 5
+    assert fidelity["l2_coalesced"] == 5 and fidelity["l2_offered"] == 7
+
+
+def test_stop_writes_the_held_book(monkeypatch):
+    import time as _time
+
+    clock = _Clock(_time.time())
+    monkeypatch.setattr(bridge_ibkr, "time", clock)
+    mode.set_capture_mode(True, symbol="AAPL")
+    tick(at=datetime.now(timezone.utc))
+    push_depth(bids=((42.20, 300),))
+    clock.now += 0.001
+    push_depth(bids=((42.25, 300),))  # held: inside the flood bound
+    mode.set_capture_mode(False)
+    directory = Path(recorder.status()["dir"])
+    fidelity = json.loads((directory / "manifest.json").read_text())["fidelity"]
+
+    assert [row["bids"][0]["price"] for row in rows(directory, "l2")] == [42.20, 42.25]
+    assert fidelity["l2_coalesced"] == 0
+
+
 def test_status_warns_when_the_recorded_symbol_has_no_depth_line():
     mode.set_capture_mode(True, symbol="AAPL")
     tick()

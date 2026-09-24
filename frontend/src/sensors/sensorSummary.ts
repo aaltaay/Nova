@@ -72,6 +72,14 @@ export function sensorSummary(row: SensorEnvelope): string {
       return `${data.regime ?? 'unknown'} (${num(data.confidence, 2) ?? '-'})`;
     case 'macro':
       return `${data.count ?? 0} stub events`;
+    case 'focus': {
+      const where = [data.symbol, data.page].filter((v) => typeof v === 'string' && v).join(' · ');
+      return `${where || SENSORS_NO_VALUE}${data.nova_in_front === false ? ' (Nova behind)' : ''}`;
+    }
+    case 'book-pulls': {
+      const flags = Array.isArray(data.flags) ? data.flags.length : 0;
+      return `pulled ${num(data.pulled_shares, 0) ?? '-'} · filled ${num(data.filled_shares, 0) ?? '-'} · ${flags} flag${flags === 1 ? '' : 's'}`;
+    }
     default:
       return SENSORS_NO_VALUE;
   }

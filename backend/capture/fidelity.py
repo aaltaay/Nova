@@ -66,7 +66,11 @@ class Fidelity:
             self.tape_resubscribes += 1
 
     def offer_l2(self, row: dict) -> dict | None:
-        self.l2_offered += 1
+        # Books the IBKR bridge held back before this one never reach here; the
+        # row says how many so the manifest counts every book lost (ADR 033).
+        held_back = max(0, int(row.pop("coalesced_before", 0) or 0))
+        self.l2_offered += 1 + held_back
+        self.l2_coalesced += held_back
         if self.pending_l2 is not None:
             self.l2_coalesced += 1
         self.pending_l2 = deepcopy(row)

@@ -35,6 +35,7 @@ the backend packages.
 | `earnings/` | feature | The Earnings tab: the earnings calendar with day bands and before-open / after-close lanes. |
 | `electron/` | app | Tests only: Vitest suites for the Electron main-process modules in `frontend/electron/*.mjs`. |
 | `execution_latency/` | feature | The execution latency dashboard: operation / segment timings, order-hop and fill evidence, browser timing samples. |
+| `focus_report/` | app | The operator's focus report (ADR 033): each window posts its page, symbol, Windows focus and last input to `POST /sensors/focus`, read back as sensor 19. |
 | `hod_momo/` | feature | The HOD Momo scanner: alert stream, dock and strip, strategy configurator, master gate, blocklist, debug panel, Running Up tab. |
 | `hooks/` | shared | Cross-feature React hooks: scanner data and price stream, ticker stream, news impact, catalysts, alert channels, resizable panels. |
 | `hotkeys/` | feature | Hot keys and Nova Actions: bindings editor, DAS import, shortcuts menu, quick-trade bar, actions sent through the manual order path. |

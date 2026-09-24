@@ -51,6 +51,8 @@ describe('sensorSummary', () => {
       ['risk', { daily_loss_limit_remaining: 400, consecutive_losses: 1 }, 'remain 400'],
       ['regime', { regime: 'chopping', confidence: 0.4 }, 'chopping (0.40)'],
       ['macro', { count: 3 }, '3 stub events'],
+      ['focus', { symbol: 'GCTK', page: 'trader', nova_in_front: false }, 'GCTK · trader (Nova behind)'],
+      ['book-pulls', { pulled_shares: 5000, filled_shares: 300, flags: [{}] }, 'pulled 5000 · filled 300 · 1 flag'],
     ];
     for (const [sensor, data, needle] of samples) {
       const text = sensorSummary(row(sensor, data));

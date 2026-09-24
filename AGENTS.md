@@ -249,7 +249,7 @@ Capture manifests stamp integer `schema_version: 1`. Validated legacy v1 is
 migrated; unknown versions refuse loudly. Capture load diagnostics include
 `l2_total`, `l2_loaded`, `l2_decimated`, `malformed_rows`,
 `invalid_timestamp_rows`, `invalid_rows`, and `legacy_schema`. Recorder
-`fidelity` includes `l2_offered`, `l2_coalesced`, `invalid_timestamp_rows`,
+`fidelity` includes `l2_offered`, `l2_coalesced` (every book IBKR sent that the recording did not keep, at the IBKR bridge or by event time; ADR 033), `invalid_timestamp_rows`,
 `timestamp_regressions`, `last_stream_ts`, `tape_resubscribes` and
 `tape_losses: [{at, cause: "ib_error" | "stale", detail}]` (the recording's
 tape line lost while it ran, newest last, at most `CAPTURE_TAPE_LOSS_KEEP`;
@@ -962,6 +962,89 @@ and counts a line of unknown `schema_version`, never guesses. `/api/diagnostics`
 adds group `performance` (rows `perf_process_cpu`, `perf_ib_loop`,
 `perf_http_loop`, `perf_stalls`, `perf_queues`, `perf_windows`,
 `perf_handlers`; one `unknown` row while the recorder has no samples).
+
+### The operator's focus and the book watcher (ADR 033, operator ask 2026-09-24)
+
+Sensors for agents and bots: ask the endpoint, never guess. Both are in the
+sensor catalogue (`GET /sensors`: 19 `focus`, 20 `book-pulls`) and answer the
+sensor envelope `{sensor, status: "live", as_of, data, symbol?, error?}`.
+
+**Focus.** Every desk window posts `POST /sensors/focus` (owner
+`sensors/focus_routes.py`; at most `FOCUS_REPORT_MAX_BODY_BYTES`, 413 over,
+422 invalid) on each change and every `FOCUS_HEARTBEAT_MS`: `{schema_version:
+1, role: "main" | "popout" | "browser", window_id, instance_id, focused,
+visible, page: "trader" | "desk" | "scanner" | "account" | "bots" | "records" |
+null, tab: string | null, symbol: string | null, symbol_source: "trader_tab" |
+"desk_board" | "scanner_row" | null, trader_tabs: string[], last_input_ts:
+number | null, reason: "start" | "focus" | "blur" | "visibility" | "page" |
+"symbol" | "input" | "heartbeat", ui_tag}` -- `window_id` is the perf
+recorder's (`main`, `trader:SYM`), `instance_id` one per page load,
+`focused` `document.hasFocus()`, `tab` the scanner tab on the Scanner page,
+`last_input_ts` the last click / keypress / wheel there (epoch seconds). The
+Electron main process posts `{schema_version: 1, role: "electron", window_id:
+"electron-main", app_focused, focused_window_id: string | null, windows:
+[{window_id, focused, visible, minimized, display: {id, label, index, count,
+primary, scale_factor} | null}], reason}` (monitors numbered left to right
+from 1; reason also `display`). The sample desk sends nothing. `GET
+/sensors/focus` -> `data: {schema_version: 1, nova_in_front: boolean | null,
+focus_source: "electron" | "window" | null, symbol, page, tab, symbol_source,
+window_id, role, display, since, last_input_ts, last_input_age_sec, windows:
+[{window_id, instance_id, role, focused, visible, minimized, page, tab, symbol,
+symbol_source, trader_tabs, display, last_input_ts, ui_tag, reported_ts,
+age_sec}], recent: [{ts, window_id, page, tab, symbol, focused, reason}]
+(newest first, at most `FOCUS_RECENT_KEEP`), venue, live_edge, note}` -- the
+window Windows has in front (Electron's word first, else the window's own),
+else, with Nova behind another app (`nova_in_front: false`), the window last in
+front; `since` is when that window last changed page or symbol. A report older
+than `FOCUS_STALE_SEC` is ignored; with none, the answer is null with `error`.
+In memory only (`sensors/focus_store.py`), never persisted. Where the
+operator's eyes are cannot be known; the last input is the stated stand-in.
+
+**The book watcher** (`backend/book_watch/`). The live IBKR depth handler and
+AllLast handler only enqueue (ADR 010); one thread follows every held depth
+line with its tape. Each book is summed per price across venues; only prices
+wholly in view in two consecutive books are compared (with every row in use the
+worst visible price may be cut off, and a price that scrolled out of view is
+unknown, never pulled; a side that collapses at once, an L1-only book and IBKR's
+book reset are not judged). A drop in size is judged `BOOK_WATCH_SETTLE_SEC`
+later: lit prints at that price inside `BOOK_WATCH_MATCH_SLACK_SEC` of the two
+books are **filled** (each print claimed once; FINRA prints never fill), the
+rest **pulled**. A pull is **large** at `BOOK_WATCH_LARGE_MIN_SHARES` and
+`BOOK_WATCH_LARGE_MEDIAN_MULT` x the side's median level. A large pull event is
+`{event: "pull", symbol, ts, side: "bid" | "ask", price, pulled, filled,
+level_before, level_after, median_level, distance_ticks,
+distance_at_post_ticks, lifetime_sec, approached, opposite_volume}` (unknowns
+`null`: a level there before the watcher's first book has no post time). A flag
+is `{event: "flag", id: "<ts_ms>-<SYMBOL>-<kind>", kind: "pulled_on_approach" |
+"repeated_pulls", symbol, ts, side, price | null, shares, why, evidence}` --
+`pulled_on_approach`: a large pull after the side's best came toward it
+(posted `distance_at_post_ticks` >= 1 away, pulled closer); `repeated_pulls`:
+`BOOK_WATCH_REPEAT_COUNT` large pulls on one side inside
+`BOOK_WATCH_REPEAT_WINDOW_SEC` (evidence `{count, window_sec, pulls: [{ts,
+price, pulled}]}`, once per side per window). Hints consistent with spoofing,
+never a detection: on a busy premarket name they are frequent (PFSA
+2026-09-24: 299 in 93 minutes), so read them as a description of the book, not
+an alarm. `GET /sensors/book-pulls?symbol=` -> `data: {schema_version: 1,
+source: "ibkr_depth", watching, since, feed: {books, prints, books_per_sec,
+median_gap_ms, last_book_age_ms, window_sec}, window_sec, pulled_shares,
+filled_shares, pulls, fills, large_pulls, flags[], pulls_recent[] (newest
+first, at most `BOOK_WATCH_READ_LIMIT`), caveats[], note}` over the last
+`BOOK_WATCH_STATS_WINDOW_SEC`; a symbol without a depth line answers
+`watching: false` with the reason. `GET
+/sensors/book-pulls/events?since=<epoch>&symbol=` -> `{schema_version, now,
+since, flags[] (oldest first), watcher: {enabled, symbols, queue_depth, queued,
+dropped, processed, errors, journal}, note}` -- a poller's feed. The L2
+sensor's `spoof_hints` are the watcher's newest large pulls `{side, price,
+from_size, pulled, filled, ts}`, and its replenish / cancel counts sum venue
+rows per price. The journal (`book_watch/journal.py`):
+`<dir>/YYYY-MM-DD.jsonl` (`NOVA_BOOK_WATCH_DIR`, else `F:\Nova\book_watch`
+when F: is mounted, else `<cache>/book_watch`), one line per flag, large pull
+and symbol-minute `{schema_version: 1, wall_ts, event: "minute", symbol,
+minute_ts, books, prints, pulled_shares, filled_shares, pulls, fills,
+large_pulls, flags}`; nothing prunes it. `NOVA_BOOK_WATCH=0` stops the
+watcher, `NOVA_BOOK_WATCH_JOURNAL=0` its journal. `py -3
+tools/book_watch_replay.py <recording dir>` runs the same detector over a
+Session Record.
 
 ### Watchlist rows (operator decision 2026-09-23)
 
@@ -1867,6 +1950,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-24 | Sensors for agents (ADR 033, operator ask: "when I have a fast question, you can answer me"; "do we have sensor endpoints? ... our bots have more things to rely on"): `GET /sensors/focus` names the window Windows has in front, its page, symbol, monitor and the operator's last input, reported by every desk window and the Electron main process -- no more guessing which ticker the operator is on. The book watcher (`backend/book_watch/`) follows every held depth line with its tape off the IB loop and splits every drop in resting size into filled and pulled, with `pulled_on_approach` / `repeated_pulls` flags -- hints consistent with spoofing, never a detection (`GET /sensors/book-pulls`, a journal, `tools/book_watch_replay.py`). The L2 sensor's venue rows no longer overwrite each other at one price. A Session Record keeps every book IBKR sends (up to 50 a second, batched to the writer; it kept at most 8 and held back 63% of GCTK's and 76% of PFSA's books on 2026-09-24 while `l2_coalesced` read 0), and the manifest counts every book lost. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | A scanner for every setup (ADR 031, #572; operator: "Weren't we supposed to have a small scanner for each one of these strategies?", then "we are going to need lots of hovers, explaining in detail what each means" and "add a strategy called bull flag"; decisions A / B / C on the mockup). The flat-top breakout (research P2) and red to green (P3) get live detectors on the first pullback's lanes, and the bull flag joins the playbook with rules pre-registered in ADR 031 from the operator's material; each watches the HOD Momo names on every template, reads the same tape gate, scores the same way and keeps its own read-out. A level per setup: the chosen setup's is the session's; every other setup with a scanner is Off (watches and scores, silently -- the first pullback no longer pings at Off) or Eyes (proposes), several at once; only the chosen setup reaches Strategy, and Nova's bot trades the chosen setup on Paper and Sim. `setups.db` schema 3 (`setup_type`, `detail`), the board schema 2 (`setups[]`), `PATCH /api/bot/session {setup_levels}`. Every setup card carries its own small scanner; `ux/hoverTip.ts` explains every chip on hover. Gap and Go's scanner is next; the micro pullback stays parked. Also the loss breakers become the operator's, per venue (ADR 032, operator: "move that slider ... make sure these changes are persistent"): the bot trip and the all-stop are sliders saved in the bot session for Live, Paper and Sim separately, within bounds, and the session file is written atomically. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Paper resting orders fill again when the tape archive falls behind (operator report: "I don't understand why this is not going through my working order"): an APUS SELL limit at $4.96 rested unfilled while APUS printed $5.00. Resting Paper fills read the L2 tape archive, and its writer had latched at 07:29:41 ET. It wrote one print per connection (about 190 prints/s at best), a 256-print backlog filled as the tape reached 150 written prints/s, and the first overflow shed every later print until a restart. Only `/api/l2/status` said so. The writer (`ibkr/tape_sink.py`) now writes a batch per transaction (about 49,000 prints/s), holds 8,192, states each loss and keeps going. The matcher reads only as far as the archive has written, so a late print is no longer skipped. A `tape_archive` diagnostics row fails while a resting order's prints are not reaching the archive. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | The gap is never yesterday's (operator report: "massive discrepancy between the focus window and the stock quote ... it shows 9.9 when I don't think it is", "the digits on the left side are frozen"): GCTK's Focus rail read +9.9% at $4.13 and $4.16 while the Stock Quote read +103.46% on the 2.03 prior close. IBKR's open tick is the previous session's until 09:30 ET, so the Gainers row's "gap" was yesterday's open-to-close move, and every L1 patch tagged `gappers` wrote it over the Gappers row's real move (a roster replace put the move back: the flicker). The open tick now counts only once today's session has opened (`ibkr/open_tick.py`), and a Gappers patch carries its own gap (`gapper_view.patch_for_table`). §3 amended. | User Directive + Claude Opus 5.5 |

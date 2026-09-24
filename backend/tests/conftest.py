@@ -46,6 +46,7 @@ _OPERATOR_DATA_DIRS = {
     "NOVA_CATALYST_DIR": "catalysts",
     "NOVA_LEADERBOARD_DIR": "leaderboard",
     "NOVA_EYES_DIR": "eyes",
+    "NOVA_BOOK_WATCH_DIR": "book_watch",
 }
 for _env, _name in _OPERATOR_DATA_DIRS.items():
     os.environ[_env] = str(_SESSION_CACHE / _name)
@@ -58,6 +59,8 @@ os.environ["NOVA_PERF"] = "0"
 os.environ["NOVA_BORROW_FEED"] = "0"
 # ADR 029: an app a test boots must not start the eyes' journal writer; the journal tests drive it directly.
 os.environ["NOVA_EYES_JOURNAL"] = "0"
+# ADR 033: an app a test boots must not start the book watcher's worker or journal; its tests drive them directly.
+os.environ["NOVA_BOOK_WATCH"] = "0"
 
 import pytest
 

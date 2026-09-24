@@ -263,3 +263,9 @@ def book_for(symbol: str) -> DepthBook:
 def reset_book(symbol: str) -> None:
     """A new depth request or an IBKR depth reset: IBKR resends the book from row 0."""
     _books[symbol] = DepthBook(IBKR_DEPTH_NUM_ROWS)
+    try:
+        from book_watch.live import enqueue_reset
+
+        enqueue_reset(symbol)  # the book watcher must not read the rebuild as pulls (ADR 033)
+    except Exception:
+        logger.exception("IBKR depth: book watcher reset failed for %s", symbol)
