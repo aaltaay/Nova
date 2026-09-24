@@ -1,6 +1,9 @@
 /**
  * Paper | Live | Sim venue capsule (ADR 020 -- three venues on one feed).
- * Every pill POSTs /api/desk/venue {venue}. Paper is Nova's practice account
+ * Every pill POSTs /api/desk/venue {venue} on one click: no confirm dialog
+ * (operator ask, 2026-09-23). The global bar's venue tint says where the desk
+ * is, and a switch cannot spend -- a venue change disarms and Live arms only
+ * with the operator's PIN (ADR 018). Paper is Nova's practice account
  * on the live feed and never launches a Gateway. Live also keeps ensuring the
  * live Gateway through POST /api/ibkr/gateway-mode. Sim falls back to the
  * legacy POST /api/sim when the venue route is missing (stale API process).
@@ -11,12 +14,8 @@ import { useState } from 'react';
 import { novaFetch } from '../api/novaFetch';
 import {
   API_BASE_URL,
-  APP_DIALOG_SWITCH_LABEL,
   DESK_VENUE_API_PATH,
   DESK_VENUE_API_RESTART_HINT,
-  DESK_VENUE_CONFIRM_LIVE_TITLE,
-  DESK_VENUE_CONFIRM_PAPER_TITLE,
-  DESK_VENUE_CONFIRM_SIM_TITLE,
   DESK_VENUE_GATEWAY_MODE_API_PATH,
   DESK_VENUE_LIVE_TITLE,
   DESK_VENUE_PAPER_TITLE,
@@ -32,7 +31,6 @@ import {
 import type { DeskVenue } from '../constantGroups/desk_venue';
 import { SAMPLE_VENUE_REFUSAL } from '../sample_data/sampleCopy';
 import { onSampleDesk } from '../sample_data/sampleOrderGuard';
-import { confirmApp } from '../ux';
 import { explicitVenueOf } from './deskVenue';
 import { disconnectHintSwitchTarget } from './disconnectCopy';
 import type { IbkrMode } from './types';
@@ -68,11 +66,6 @@ const VENUE_TITLE: Record<DeskVenue, string> = {
   paper: DESK_VENUE_PAPER_TITLE,
   live: DESK_VENUE_LIVE_TITLE,
   sim: DESK_VENUE_SIM_TITLE,
-};
-const VENUE_CONFIRM_TITLE: Record<DeskVenue, string> = {
-  paper: DESK_VENUE_CONFIRM_PAPER_TITLE,
-  live: DESK_VENUE_CONFIRM_LIVE_TITLE,
-  sim: DESK_VENUE_CONFIRM_SIM_TITLE,
 };
 const VENUE_LABEL: Record<DeskVenue, string> = {
   paper: GLOBAL_BAR_MODE_PAPER,
@@ -186,14 +179,6 @@ export function GatewayModeCapsule({
       setSwitchError(SAMPLE_VENUE_REFUSAL);
       return;
     }
-    const confirmed = await confirmApp({
-      title: VENUE_CONFIRM_TITLE[next],
-      message: VENUE_TITLE[next],
-      confirmLabel: APP_DIALOG_SWITCH_LABEL,
-      tone: next === 'live' ? 'danger' : 'warning',
-    });
-    if (!confirmed) return;
-
     setPending(next);
     setSwitching(next);
     setSwitchError(null);

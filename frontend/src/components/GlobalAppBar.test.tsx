@@ -318,6 +318,20 @@ describe('GlobalAppBar', () => {
     expect(container.querySelectorAll('[data-testid="header-gateway-mode-capsule"]')).toHaveLength(1);
   });
 
+  it('tints the bar by the settled venue, and not at all while the venue is unknown', () => {
+    for (const venue of ['paper', 'live', 'sim'] as const) {
+      workspace = baseWorkspace({ ibkrMode: venue, deskVenue: venue });
+      status.current = baseStatus({ mode: venue, venue });
+      renderBar();
+      const bar = container.querySelector('[data-testid="global-app-bar"]');
+      expect(bar?.getAttribute('data-venue')).toBe(venue);
+    }
+    workspace = baseWorkspace({ ibkrMode: 'disconnected', deskVenue: null });
+    status.current = baseStatus({ mode: 'disconnected', venue: undefined });
+    renderBar();
+    expect(container.querySelector('[data-testid="global-app-bar"]')?.hasAttribute('data-venue')).toBe(false);
+  });
+
   const scannerProps = {
     mode: 'closed' as const,
     health: { status: 'connected', latency_ms: 1 },

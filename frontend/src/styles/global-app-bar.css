@@ -27,6 +27,24 @@
   z-index: 40;
 }
 
+/* The desk venue tints the whole bar (operator ask, 2026-09-23): the venue
+   pills' own colour, faint, with a firmer bottom edge, so Paper / Live / Sim
+   reads at a glance without a confirm dialog. The tint follows the venue the
+   backend reports, never a pending click; an unknown venue stays untinted. */
+.global-app-bar[data-venue] {
+  background: color-mix(in srgb, var(--gbar-venue) 12%, var(--nova-panel));
+  border-bottom-color: color-mix(in srgb, var(--gbar-venue) 55%, var(--nova-border));
+}
+
+.global-app-bar[data-venue='paper'] { --gbar-venue: var(--venue-paper); }
+.global-app-bar[data-venue='live'] { --gbar-venue: var(--venue-live); }
+.global-app-bar[data-venue='sim'] { --gbar-venue: var(--venue-sim); }
+
+/* The Sim scrubber rides inside the bar: one continuous tint, not a band. */
+.global-app-bar[data-venue] .sim-session-header {
+  background: transparent;
+}
+
 /* One row that never wraps. The centre search is the only thing that gives
    way (min-width: 0); the side clusters keep every chip whole and the
    responsive sheet sheds the low-value ones as the viewport narrows, so
