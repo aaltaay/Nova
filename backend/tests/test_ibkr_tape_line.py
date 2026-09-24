@@ -146,7 +146,10 @@ def test_a_request_id_from_an_earlier_connection_names_nothing(ib, monkeypatch):
     _open("IPDN")
     monkeypatch.setattr(client, "current_generation", lambda: 2)
     tape._on_ib_error(77, 162, "Historical market data Service error message", None)
-    assert tape.is_subscribed("IPDN") is True and tape_line.ended("IPDN") is None
+    # The error ends nothing and cancels nothing; the line reads unsubscribed only
+    # because it died with the old session (#562), not because of the error.
+    assert tape_line.ended("IPDN") is None and ib.cancels == 0
+    assert "IPDN" in tape._tickers and tape.is_subscribed("IPDN") is False
 
 
 def test_an_ib_notice_on_the_line_does_not_end_it(ib):

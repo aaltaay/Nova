@@ -117,8 +117,8 @@ def _market_data_inputs() -> dict[str, Any]:
         "max_tickers": bool(_se.max_tickers_hit()),
         "budget": _ticks.ticker_budget_status(),
         "depth_symbols": [s for s in _depth_state.subscribed_symbols() if _depth_state.is_live(s)],
-        # Read-only peek at the tape line map; tape_stream sits at its size limit.
-        "tape_symbols": sorted(getattr(_tape, "_tickers", {}).keys()),
+        # Read-only peek at the tape line map: this IBKR session's lines only (#562).
+        "tape_symbols": sorted(s for s in list(getattr(_tape, "_tickers", {})) if _tape.is_subscribed(s)),
     }
 
 

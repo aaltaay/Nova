@@ -1,4 +1,9 @@
-"""Shared depth subscription state and viewer refcount."""
+"""Shared depth subscription state and viewer refcount.
+
+A live line is stamped with the IBKR session generation it was requested on;
+one of an ended session is not subscribed, live or a book (#562,
+``ibkr/line_session.py``). A replay slot carries no stamp.
+"""
 from __future__ import annotations
 
 import asyncio
@@ -6,6 +11,7 @@ import logging
 from typing import Any
 
 from constants import IBKR_DEPTH_NUM_ROWS, IBKR_DEPTH_RELEASE_GRACE_SEC
+from ibkr import line_session
 from ibkr.depth.book import DepthBook
 from perf.counters import incr as _count_drop
 
@@ -24,6 +30,8 @@ _subscriptions: dict[str, dict] = {}
 _viewer_queues: dict[str, list[asyncio.Queue]] = {}
 _tickers: dict[str, Any] = {}
 _contracts: dict[str, Any] = {}
+# symbol -> the IBKR session generation its live line was requested on (#562).
+_generations: dict[str, int] = {}
 
 # Serializes subscribe_async so concurrent DepthLadder / StrictMode WS opens
 # cannot all pass the "not in _subscriptions" check, race through
@@ -59,6 +67,7 @@ def reset_all() -> None:
     _viewer_queues.clear()
     _tickers.clear()
     _contracts.clear()
+    _generations.clear()
     _update_handlers.clear()
     _books.clear()
     _ws_viewers.clear()
@@ -93,17 +102,28 @@ def load_ib_types() -> bool:
         return False
 
 
+def stamp_line(symbol: str) -> None:
+    """The symbol's live line is requested on the current IBKR session."""
+    _generations[symbol] = line_session.generation()
+
+
+def is_stale(symbol: str) -> bool:
+    """A live line of an ended IBKR session (#562): gone with it, whatever the maps say."""
+    return line_session.is_stale(_generations.get(symbol))
+
+
 def subscribed_symbols() -> list[str]:
-    return list(_subscriptions.keys())
+    return [s for s in _subscriptions if not is_stale(s)]
 
 
 def current_book(symbol: str) -> dict | None:
-    return _subscriptions.get(symbol)
+    """The line's last book; None for a line of an ended session (never an old book as current)."""
+    return None if is_stale(symbol) else _subscriptions.get(symbol)
 
 
 def is_subscribed(symbol: str) -> bool:
-    """Is there an active IB depth/L1-fallback subscription for this symbol."""
-    return symbol in _subscriptions
+    """Is there an active IB depth/L1-fallback subscription for this symbol (on this IBKR session)."""
+    return symbol in _subscriptions and not is_stale(symbol)
 
 
 def is_live(symbol: str) -> bool:
@@ -113,7 +133,7 @@ def is_live(symbol: str) -> bool:
     book, so ``is_subscribed`` alone cannot tell Session Record whether live
     books are flowing.
     """
-    return symbol in _contracts or is_shared_l1(symbol)
+    return (symbol in _contracts or is_shared_l1(symbol)) and not is_stale(symbol)
 
 
 def ws_viewer_opened(symbol: str) -> None:
@@ -226,6 +246,7 @@ def pop_contract(symbol: str) -> Any | None:
 
 def clear_symbol(symbol: str) -> None:
     _tickers.pop(symbol, None)
+    _generations.pop(symbol, None)
     _books.pop(symbol, None)
     _shared_l1.discard(symbol)
     drop_slot(symbol)

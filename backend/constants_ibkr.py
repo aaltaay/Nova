@@ -105,6 +105,13 @@ IBKR_WARNING_CODE_RANGE = (2100, 2200)  # half-open, as ib_async reads it
 # AllLast request ids remembered per symbol, so an error that arrives after its
 # line was cancelled still names the line it belonged to (ibkr/tape_line.py).
 IBKR_TAPE_LINE_REQ_KEEP = 512
+# A tape / depth line of an ended IBKR session is asked for again on the new one
+# while a viewer or a hold still watches it (ibkr/line_session.py, #562): the
+# wait before each ask (the tape's 15 s rule on top). After the last failure the
+# viewers are told and their own sockets ask again; a recording's keepalive too.
+IBKR_LINE_RENEW_BACKOFF_SEC: tuple[float, ...] = (0.0, 2.0, 5.0, 15.0, 30.0)
+# ib_async's subscription-registry key for a depth line (find_market_data).
+IBKR_DEPTH_REGISTRY_KIND = "mktDepth"
 # "Only 10 simultaneous API scanner subscriptions are allowed." Arrives
 # asynchronously via errorEvent; with RaiseRequestErrors=False (ib_async
 # default) the request's own future still resolves to [] with no exception,

@@ -46,7 +46,9 @@ from ibkr.depth.state import (
     ws_viewer_opened,
 )
 from ibkr.depth.subscribe import (
+    drop_stale,
     evict_for_capacity as _evict_for_capacity,
+    is_watched,
     needs_subscribe,
     subscribe,
     subscribe_async,
@@ -56,6 +58,7 @@ from ibkr.depth.stream import should_send_current_book, stream
 
 _STATE_ATTRS = frozenset({
     "_contracts",
+    "_generations",
     "_error_hooked_ib_ids",
     "_viewer_queues",
     "_subscriptions",
@@ -99,7 +102,9 @@ __all__ = [
     "IBKR_DEPTH_RELEASE_GRACE_SEC",
     "close_viewer_queue",
     "current_book",
+    "drop_stale",
     "is_subscribed",
+    "is_watched",
     "open_viewer_queue",
     "is_live",
     "needs_subscribe",
