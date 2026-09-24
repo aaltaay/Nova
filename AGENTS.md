@@ -753,17 +753,52 @@ reason, go: {triggered, scored, win_pct, avg_net_r}, control: {...}, rules:
 trigger, `control` those blind or wait (pooled). It passes when at least 50 go
 setups triggered and their average net R is above +0.2 and above the
 control's; it is judged on the first 100 go setups, and 100 without a pass is
-`failed`. A closed store is `unavailable`. While it has not passed, raising to
-Strategy lands not active, `POST /api/bot/session/arm` at Strategy and every
-`POST /api/bot/action` are refused `409 BOT_READOUT_NOT_PASSED`, and
-`live_fire_ready` is false. At Strategy a `buy_*` kind is also refused outside
+`failed`. A closed store is `unavailable`. **The read-out gates Live only**
+(ADR 030, operator decision 2026-09-24): on Paper and Sim Strategy skips it,
+and a venue that cannot be read counts as Live. While it has not passed, on
+Live, raising to Strategy lands not active, `POST /api/bot/session/arm` at
+Strategy and every `POST /api/bot/action` are refused `409
+BOT_READOUT_NOT_PASSED`, and `live_fire_ready` is false; a Strategy bot left
+active when the desk moves to Live is deactivated (audit `deactivate`). The
+session adds `readout_required: boolean` and the `readout` gate reads `ok` on
+Paper / Sim with `detail.waived: true` and `detail.venue`. At Strategy a `buy_*`
+kind is also refused outside
 07:00-10:00 ET on the venue's clock (`409 BOT_OUTSIDE_WINDOW`) and after one
 bot entry that venue day (`409 BOT_DAY_TRADE_CAP`; entry audit rows carry
-`inputs.venue_day`); exits and cancels are never held by either. Proposals
+`inputs.venue_day`; an entry the first-pullback bot cancelled unfilled --
+`bot_trade` `missed` -- gives the day back); exits and cancels are never held
+by either. Proposals
 are accepted at Eyes and Strategy. `gates: [{id, ok, stage: "activate" |
 "fire", detail}]` (owner `bot/gates.py`) are `level`, `allowlist`,
 `desk_armed`, `depth_lines`, `readout`, `bot_trip`, `day_lock`,
 `kill_switch`, `window`.
+
+**Nova's own first-pullback bot** (ADR 030, owner `bot/first_pullback/`; #514).
+Active at Strategy with `first_pullback` chosen, on Paper or on Sim at the live
+edge -- never on Live -- it hears the setup scanner's triggers (the template in
+play's lane, live feed only: `SetupEngine.add_trigger_listener`) and, for a
+first pullback with the tape at go, sends one BUY limit at the scanner's entry
+through `execution.service.execute` (source `bot`) after every bot gate:
+allowlist and a held depth line, the template's window and daily cap, day
+lock, kill switch, working block, budget (size: `caps.max_shares` cut to
+`caps.bp_budget_usd`). The entry kind `buy_setup_limit` is a buy kind no brain
+may send; unfilled after `caps.working_ttl_sec` it is cancelled (a miss). After
+the fill a SELL limit rests at target 1 and the bot watches the stop on IBKR's
+Last; a print at or under the stop, or `BOT_FP_TIME_STOP_MIN` (15) minutes,
+cancels the target and sells with a limit under the bid, then the protective
+flatten. It claims the L2 session as brain `nova-first-pullback` and
+heartbeats while it plays. `GET /api/bot/session` adds `runner: {brain_id,
+playing, reason}` and `trade` -- the current or last trade, `{setup_id,
+symbol, venue, venue_day, template_id, template_rev, state: "entering" |
+"open" | "exiting" | "closed" | "missed", qty, trigger, entry_planned, stop,
+target1, risk, entry_order_id, entry_fill_price, entry_filled_ts,
+target_order_id, exit_order_id, exit_price, exit_reason: "target" | "stop" |
+"time" | "outside" | null, closed_ts, slippage, r, note}` (`r` gross in the
+setup's risk), kept in `bot-session.json` (an optional key) so a restart
+resumes it. Every step is on the bot audit stream as `bot_trade` (`skipped` |
+`missed` | `filled` | `closing` | `closed` | `note` | `error`, `inputs` with
+the `setup_id`). A bot working order the bot cancels itself carries
+`expire_ts: null` in `working`.
 
 ### Release notes and the update notice (operator ask, 2026-09-23)
 
@@ -1473,6 +1508,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-24 | The first-pullback bot trades Paper and Sim; the read-out gates Live (ADR 030, #514; operator report: "When I'm on paper, I cannot activate the button for the bots" -- then "Paper/Sim skip it + build"). Activate at Strategy was locked on every venue by the first-pullback read-out (0 of 50 go setups: a go needs Nova to hold the name's Level 2 at the trigger), and nothing placed a trade on a trigger anyway. Now Paper and Sim skip the read-out (Live keeps it; an unreadable venue counts as Live), and `bot/first_pullback/` trades the template in play's go triggers there through every bot gate: a limit at the scanner's entry, a resting target, a watched stop, a 15-minute time stop, one trade a day (a miss gives the day back). Nothing places on Live. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Nova shows a window the moment it starts (operator pick after the update fix): the desk window was created only once the local engine answered and shown only once its page loaded, so a cold start -- a 2.5 s look for a running engine, the engine's own start, the page load -- had nothing on screen. A small "Starting Nova" window now opens about 0.6 s after launch, names the step (looking for, starting or connecting to the local engine, loading the desk), closes the moment the desk shows, and calls the launch off when the operator closes it. After an update it takes over from the "Updating Nova" window. `startApiSidecar()` now says whether it reused, attached to or spawned the engine. §8 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Release notes and an update you are asked about (operator ask: "after we update to a new version, can we have a release note show up in front of the user? If ... we identify a new update, could we also notify the user if they are interested in updating it or not?"): a check that finds a newer release no longer downloads it in the background -- a notice under the header names the release with its notes and asks Update / Later, then follows the download to Restart to update; it never takes keyboard focus, and a window that cannot show it gets the same questions as dialogs. The first launch of a new version shows What's new, a floating card with the notes of every release the update brought (Help > What's New reopens it). Release bodies were boilerplate; `Desktop pack` now writes them from the commit (`tools/release_notes.py`: PR title plus the first paragraph of `## What`, and a hidden record the desk parses). §3 and §8 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | "Restart to update" shows that it is working (operator report: "I said yes, and nothing happened"): v976 had installed and reopened correctly, but the silent installer left nothing of Nova on screen for 46 s. An "Updating Nova" window now appears at the click and names each step it can see (Nova closing, the installer running, the new Nova starting), closes itself when the new window is up, and says "Nova did not reopen" with the log path if it does not. It is a separate Windows PowerShell process started through `cmd /c start`, because a detached powershell.exe quits without a console and an attached child dies with Nova. §8 amended. | User Directive + Claude Opus 5.5 |

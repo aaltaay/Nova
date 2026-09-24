@@ -11,7 +11,8 @@ it. A setup the template's stock filter keeps out is journalled as
 The host (``SetupEngine`` live, ``eyes.replay.EyesReplay`` on a recording)
 supplies ``session``, ``pillars(sym, now)``, ``tape_books(sym)``,
 ``tape_prints(sym)``, ``tape_line(sym)``, ``save(row)``, ``journal(event)``,
-``audit(**kw)``, ``clock()`` and ``can_propose()``. Nothing here places an order.
+``audit(**kw)``, ``clock()`` and ``can_propose()``, and may supply
+``on_trigger(event)`` (the live engine: ADR 030). Nothing here places an order.
 """
 from __future__ import annotations
 
@@ -203,6 +204,7 @@ class Lane:
                 self.journal("triggered", sym, setup_id=sid, setup=setup, price=setup.get("trigger_price"),
                              tape=tape)
                 self._close_proposal(sid, "triggered")
+                self._announce_trigger(sym, sid, setup, tape, ts)
             elif kind in ("failed", "disarmed") and not row.get("triggered_at"):
                 row.update({"state": view["state"], "reason": view["reason"]})
                 row["failed_at" if kind == "failed" else "disarmed_at"] = now
@@ -295,6 +297,15 @@ class Lane:
                         reason=(f"{str(prop['kind'] or 'setup').replace('_', ' ')} on {sym}: trigger "
                                 f"{prop['trigger']}, stop {prop['stop']} -- tape go"),
                         inputs=prop)
+
+    def _announce_trigger(self, sym: str, sid: str, setup: dict, tape: dict, ts: float) -> None:
+        """The playing lane tells its host a setup triggered (ADR 030); a replay host has no ear for it."""
+        notify = getattr(self.host, "on_trigger", None)
+        if not self.playing or notify is None:
+            return
+        notify({"symbol": sym, "setup_id": sid, "setup": dict(setup), "tape": slim(tape), "ts": ts,
+                "template_id": self.p.template_id, "template_rev": self.p.template_rev,
+                "template_name": self.p.name})
 
     def _close_proposal(self, sid: str, status: str) -> None:
         prop = self.proposals.get(sid)

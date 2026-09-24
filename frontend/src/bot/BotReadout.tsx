@@ -3,6 +3,7 @@ import {
   BOT_READOUT_RULE,
   BOT_READOUT_STATE_LABELS,
   BOT_READOUT_TITLE,
+  BOT_READOUT_WAIVED_NOTE,
   BOT_SETUP_RESEARCH,
 } from '../constantGroups/bot';
 import { BOTS_READOUT_GO_SO_FAR, BOTS_READOUT_UNREPORTED, BOTS_READOUT_VS } from '../constantGroups/bots_page';
@@ -12,7 +13,8 @@ import type { BotReadout as Readout } from './types';
 /** The element the hero's "first pullback not proven yet" chip scrolls to. */
 export const BOTS_READOUT_ANCHOR = 'bots-readout';
 
-export function BotReadout({ readout }: { readout: Readout | undefined }) {
+/** ``required`` is the session's ``readout_required`` (ADR 030): false on Paper and Sim. */
+export function BotReadout({ readout, required }: { readout: Readout | undefined; required?: boolean }) {
   if (!readout) {
     return <div className="bots-readout" id={BOTS_READOUT_ANCHOR} data-testid="bots-readout">{BOTS_READOUT_UNREPORTED}</div>;
   }
@@ -39,6 +41,9 @@ export function BotReadout({ readout }: { readout: Readout | undefined }) {
         </span>
         <span className="bots-readout__research">{barsAlone}</span>
       </div>
+      {required === false && !readout.passed ? (
+        <p className="bots-readout__waived" data-testid="bots-readout-waived">{BOT_READOUT_WAIVED_NOTE}</p>
+      ) : null}
     </div>
   );
 }

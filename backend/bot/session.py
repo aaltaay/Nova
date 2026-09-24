@@ -43,9 +43,10 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
     from ibkr.trading_allowed import places_allowed
 
     places_ok, places_reason = places_allowed()
-    from bot.gates import gates, readout
+    from bot.gates import gates, readout, readout_required
 
     out = readout()
+    required = readout_required()
     return {
         "level": level,
         "armed": armed,
@@ -55,6 +56,8 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
         "setup": row.get("setup") or BOT_SETUP_DEFAULT,
         "setups": [{"id": sid, "scanner": sid in BOT_SETUPS_WITH_SCANNER} for sid in BOT_SETUPS],
         "readout": out,
+        # ADR 030: Live waits on the read-out; Paper and Sim do not.
+        "readout_required": required,
         "gates": gates(row),
         "symbol_allowlist": normalize_symbols(row.get("symbol_allowlist")),
         "brain_session_id": brain_id,
@@ -68,7 +71,7 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
             and alive
             and bool(brain_id)
             and places_ok
-            and bool(out.get("passed"))
+            and (bool(out.get("passed")) or not required)
         ),
         "caps": {
             "max_shares": int(caps.get("max_shares") or 1),
@@ -90,11 +93,24 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
         "focus": list(row.get("focus") or []),
         "trader_live": list(row.get("trader_live") or []),
         "working": list(row.get("working") or []),
+        # ADR 030: Nova's own first-pullback bot -- whether it plays, and its current or last trade.
+        "runner": _runner_view(row),
+        "trade": _trade_view(row.get("trade")),
         # Sim time travel (ADR 020): the last scratch-account unwind this
         # process published, so a polling bot re-reads the ledger after it.
         "last_rewind": _last_rewind(),
         "updated_ts": row.get("updated_ts"),
     }
+
+
+def _trade_view(trade: Any) -> dict[str, Any] | None:
+    return dict(trade) if isinstance(trade, dict) else None
+
+
+def _runner_view(row: dict[str, Any]) -> dict[str, Any]:
+    from bot.first_pullback.runner import status
+
+    return status(row)
 
 
 def _last_rewind() -> dict[str, Any] | None:

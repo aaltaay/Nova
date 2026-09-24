@@ -28,6 +28,32 @@ export type BotGate = {
   detail: Record<string, unknown>;
 };
 
+/** Nova's own first-pullback bot (backend bot/first_pullback, ADR 030): does it play, and why not. */
+export type BotRunner = { brain_id: string; playing: boolean; reason: string | null };
+
+/** The first-pullback bot's current or last trade (ADR 030). Prices are the venue's; r is gross, per the setup's risk. */
+export type BotTrade = {
+  setup_id: string;
+  symbol: string;
+  venue: string;
+  venue_day: string;
+  template_id?: string | null;
+  state: 'entering' | 'open' | 'exiting' | 'closed' | 'missed' | string;
+  qty: number;
+  trigger?: number | null;
+  entry_planned: number;
+  stop: number;
+  target1: number;
+  risk: number;
+  entry_fill_price: number | null;
+  exit_price: number | null;
+  exit_reason: 'target' | 'stop' | 'time' | 'outside' | string | null;
+  exit_why?: string | null;
+  slippage: number | null;
+  r: number | null;
+  note?: string | null;
+};
+
 export type BotSession = {
   level: 0 | 1 | 2 | 3;
   armed: boolean;
@@ -37,7 +63,11 @@ export type BotSession = {
   setup?: string;
   setups?: BotSetupInfo[];
   readout?: BotReadout;
+  /** ADR 030: false on Paper and Sim, where Strategy does not wait on the read-out. */
+  readout_required?: boolean;
   gates?: BotGate[];
+  runner?: BotRunner;
+  trade?: BotTrade | null;
   symbol_allowlist?: string[];
   brain_session_id: string | null;
   brain_heartbeat_ts?: number | null;
@@ -71,7 +101,8 @@ export type BotSession = {
     qty: number;
     price: number;
     kind: string;
-    expire_ts: number;
+    /** Null for an order its owner cancels itself (the first-pullback bot's entry, ADR 030). */
+    expire_ts: number | null;
   }>;
   updated_ts?: number;
   desk_arm_token?: string;

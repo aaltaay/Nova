@@ -36,7 +36,7 @@ export const BOT_LEVEL_LABELS = {
 export const BOT_LEVEL_HINTS = {
   0: 'L0 Off -- bot API dark; the setup scanner still watches and proposes',
   1: 'L1 Eyes -- a connected bot may watch and propose; you place',
-  2: 'L2 Strategy -- a connected bot may place under every gate after Activate; automatic placing from a proposal is not built yet',
+  2: 'L2 Strategy -- after Activate the bot trades the first pullback itself on Paper and Sim; Live waits on the read-out',
 } as const;
 export const BOT_STATE_ACTIVE = 'Active';
 export const BOT_STATE_NOT_ACTIVE = 'Not active';
@@ -118,15 +118,16 @@ export const BOT_SETUP_NEXT: Record<string, string> = {
 export const BOT_CHOSEN_BADGE = 'Chosen';
 export const BOT_NO_SCANNER_TITLE = 'No scanner yet -- it cannot play until it has one and its read-out passes';
 
-/* ---------- The Bots page hero (ADR 027) ----------
-   The level says what a bot connected to the localhost bot API (ADR 016) may do.
-   Nova's own setup scanner (ADR 022) watches, proposes and scores at every level,
-   and nothing in Nova turns a proposal into an order yet (#514). */
-export const BOT_STRATEGY_NOT_BUILT = 'Automatic placing from a proposal is not built yet';
+/* ---------- The Bots page hero (ADR 027, ADR 030) ----------
+   Off and Eyes say what a bot connected to the localhost bot API (ADR 016) may do;
+   Nova's own setup scanner (ADR 022) watches, proposes and scores at every level.
+   At Strategy, after Activate, Nova's own bot trades the first pullback on Paper
+   and Sim (ADR 030); Live waits on the read-out. */
+export const BOT_STRATEGY_PLAYS = 'The bot trades the first pullback itself on Paper and Sim; Live waits on the read-out';
 export const BOT_LEVEL_BLURBS = {
   0: 'Bot API dark · the setup scanner still watches and proposes',
   1: 'A connected bot may watch and propose · you place',
-  2: `A connected bot may place under every gate · ${BOT_STRATEGY_NOT_BUILT.toLowerCase()}`,
+  2: 'The bot trades the first pullback on Paper and Sim · Live waits on the read-out',
 } as const;
 
 /** Gate ids from backend/bot/gates.py, in the order the page lists them. */
@@ -142,7 +143,9 @@ export const BOT_GATE_LABELS: Record<string, string> = {
   window: 'Window',
 };
 
-export const BOT_READOUT_TITLE = 'Read-out to unlock Strategy';
+export const BOT_READOUT_TITLE = 'Read-out to unlock Strategy on Live';
+/** ADR 030: the read-out gates Live only. */
+export const BOT_READOUT_WAIVED_NOTE = 'Paper and Sim do not wait on it — the bot trades there now. Live does.';
 export const BOT_READOUT_STATE_LABELS: Record<string, string> = {
   collecting: 'Collecting',
   passed: 'Passed',

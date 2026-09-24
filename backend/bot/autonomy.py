@@ -87,11 +87,12 @@ def apply_patch(
                 row["strategy"] = None
         if level == BOT_LEVEL_STRATEGY:
             row["strategy"] = row.get("strategy") or BOT_STRATEGY_SMALL_CAP
-            from bot.gates import readout_passed
+            from bot.gates import readout_open
 
-            if not readout_passed():
+            if not readout_open():
                 # ADR 027: Strategy can be chosen before its read-out passes, but
-                # it lands not active -- the bot proposes like Eyes until then.
+                # on Live it lands not active -- the bot proposes like Eyes until
+                # then. Paper and Sim skip the read-out (ADR 030).
                 clear_arm_fields(row)
     if "setup" in body:
         row["setup"] = _validate_setup(str(body.get("setup") or ""))
@@ -131,7 +132,7 @@ def _audit_level(before: int, row: dict[str, Any]) -> None:
     try:
         record(action="level", outcome=f"{before}->{int(row.get('level') or 0)}",
                reason=None if row.get("armed") or int(row.get("level") or 0) < BOT_LEVEL_STRATEGY
-               else "Strategy lands not active until the read-out passes",
+               else "Strategy lands not active on Live until the read-out passes",
                inputs={"from": before, "to": int(row.get("level") or 0)})
     except Exception:
         import logging
@@ -176,9 +177,9 @@ def assert_can_fire(row: dict[str, Any] | None = None) -> dict[str, Any]:
             409,
             BOT_REASON_L1_NO_FIRE,
         )
-    from bot.gates import assert_readout_passed
+    from bot.gates import assert_readout_open
 
-    assert_readout_passed()
+    assert_readout_open()
     if not is_desk_active(current):
         raise BotError(
             "desk is Not active -- Activate before live fire",
