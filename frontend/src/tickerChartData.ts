@@ -136,13 +136,14 @@ export function rawBarsToSeries(
   for (const b of bars) {
     const time = isoToEtTime(b.t, daily);
     candles.push({ time, open: b.o, high: b.h, low: b.l, close: b.c });
-    volumes.push({
-      time,
-      value: b.v,
-      color: b.c >= b.o ? 'rgba(16,185,129,0.35)' : 'rgba(239,68,68,0.35)',
-    });
+    volumes.push({ time, value: b.v, color: volumeBarColor(b.o, b.c) });
   }
   return { candles, volumes };
+}
+
+/** A volume bar takes its candle's direction: up (close >= open) green, down red. */
+export function volumeBarColor(open: number, close: number): string {
+  return close >= open ? 'rgba(16,185,129,0.35)' : 'rgba(239,68,68,0.35)';
 }
 
 /**

@@ -173,8 +173,9 @@ function TickerChartInner({
     layoutEpoch,
   });
 
-  const { applyLiveTrade, lastCandleRef, resetTradeState, liveTipTime } = useChartLiveTrade(
+  const { restoreAfterStorePaint, lastCandleRef, resetTradeState, liveTipTime } = useChartLiveTrade(
     candleSeriesRef,
+    volSeriesRef,
     lastTrade,
     timeframe,
     symbol,
@@ -191,7 +192,7 @@ function TickerChartInner({
     volSeriesRef,
     lastCandleRef,
     lastTrade,
-    applyLiveTrade,
+    restoreAfterStorePaint,
     onSeriesReset: resetTradeState,
     chartActive,
   });

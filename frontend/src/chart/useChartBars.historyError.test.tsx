@@ -29,7 +29,7 @@ function props(symbol: string) {
     volSeriesRef: { current: series as unknown as ISeriesApi<'Histogram'> },
     lastCandleRef: { current: null as CandlestickData<Time> | null },
     lastTrade: null,
-    applyLiveTrade: noop,
+    restoreAfterStorePaint: noop,
     onSeriesReset: noop,
     chartActive: true,
   };
