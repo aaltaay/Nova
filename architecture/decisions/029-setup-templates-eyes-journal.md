@@ -81,8 +81,9 @@ the operator's veto.
 
 6. **Eyes on a replay** (`backend/eyes/replay.py`): the same lanes over a
    Session Record -- prices and the tape gate from the recording's prints and
-   Level 2, minute bars from the bar archive (the bars the live eyes saw), else
-   the recording's own. On the Sim desk off the live edge with a Session Record
+   Level 2, minute bars from the bar archive (the bars the live eyes saw,
+   without IBKR's zero-volume bars for minutes with no trade, as the live seed
+   reads them -- ADR 022), else the recording's own. On the Sim desk off the live edge with a Session Record
    loaded, the Setups board follows the playhead (`source: "sim"`, the recorded
    symbol) and its proposals are practice proposals on that desk -- journalled,
    never on the bot's audit stream. A historical download has no Level 2; the

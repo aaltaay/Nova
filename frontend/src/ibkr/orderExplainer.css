@@ -1,0 +1,263 @@
+/* The ticket's hover card (OrderExplainerCard.tsx): what a side or an order
+   type does, with a small example chart. One card per window, fixed to the
+   viewport beside the ticket; it never takes the pointer. */
+
+@layer components {
+  .order-explainer {
+    --otx-buy: var(--nova-bid, #30d158);
+    --otx-sell: var(--nova-ask, #ff453a);
+    --otx-stop: #f5a524;
+    --otx-limit: var(--nova-accent, #0a84ff);
+    --otx-market: #bf5af2;
+    --otx-muted: var(--nova-text-muted, #98989d);
+    --otx-card: var(--bg-elevated, #2c2c2e);
+    --otx-tone: var(--otx-limit);
+
+    position: fixed;
+    z-index: 2147482000; /* under the why tip (ux/whyTip.css), over the desk */
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-sizing: border-box;
+    width: 292px;
+    max-width: calc(100vw - 16px);
+    padding: 11px 12px 12px;
+    border: 1px solid var(--nova-border-strong, rgba(255, 255, 255, 0.22));
+    border-top: 3px solid var(--otx-tone);
+    border-radius: 10px;
+    background: var(--otx-card);
+    box-shadow: 0 16px 40px rgb(0 0 0 / 0.5), 0 2px 8px rgb(0 0 0 / 0.3);
+    color: var(--nova-text, #f5f5f7);
+    font-size: 12px;
+    line-height: 1.4;
+    text-align: left;
+    pointer-events: none;
+    animation: order-explainer-in 110ms ease-out;
+  }
+
+  .order-explainer--buy { --otx-tone: var(--otx-buy); }
+  .order-explainer--sell { --otx-tone: var(--otx-sell); }
+  .order-explainer--limit { --otx-tone: var(--otx-limit); }
+  .order-explainer--market { --otx-tone: var(--otx-market); }
+  .order-explainer--stop { --otx-tone: var(--otx-stop); }
+
+  @keyframes order-explainer-in {
+    from { opacity: 0; transform: translateY(3px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  .order-explainer.is-left { animation-name: order-explainer-in-left; }
+  .order-explainer.is-right { animation-name: order-explainer-in-right; }
+
+  @keyframes order-explainer-in-left {
+    from { opacity: 0; transform: translateX(4px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  @keyframes order-explainer-in-right {
+    from { opacity: 0; transform: translateX(-4px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .order-explainer,
+    .order-explainer.is-left,
+    .order-explainer.is-right {
+      animation: none;
+    }
+  }
+
+  .order-explainer__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .order-explainer__icon {
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--otx-tone) 20%, transparent);
+    color: var(--otx-tone);
+  }
+
+  .order-explainer__title {
+    flex: 1;
+    min-width: 0;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+
+  .order-explainer__group {
+    flex: none;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--nova-text, #f5f5f7) 8%, transparent);
+    color: var(--otx-muted);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .order-explainer__summary {
+    margin: 0;
+    font-size: 12.5px;
+  }
+
+  .order-explainer__summary strong {
+    color: var(--otx-tone);
+    font-weight: 700;
+  }
+
+  .order-explainer__summary .order-explainer__em--limit { color: var(--otx-limit); }
+  .order-explainer__summary .order-explainer__em--stop { color: var(--otx-stop); }
+
+  .order-explainer__figure {
+    margin: 0;
+    padding: 7px 8px 8px;
+    border: 1px solid var(--nova-border, rgba(255, 255, 255, 0.12));
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--nova-canvas, #000) 45%, var(--otx-card));
+  }
+
+  .order-explainer__caption {
+    margin: 0 0 3px;
+    color: var(--otx-muted);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .order-explainer__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px 12px;
+    margin: 5px 0 0;
+    padding: 0;
+    list-style: none;
+    color: var(--otx-muted);
+    font-size: 11px;
+  }
+
+  .order-explainer__legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .order-explainer__mark {
+    flex: none;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    box-sizing: border-box;
+  }
+
+  .order-explainer__mark--buy { background: var(--otx-buy); }
+  .order-explainer__mark--sell { background: var(--otx-sell); }
+  .order-explainer__mark--trigger {
+    width: 11px;
+    height: 11px;
+    border: 2px solid var(--otx-stop);
+  }
+
+  .order-explainer__facts {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--nova-text, #f5f5f7);
+    font-size: 11.5px;
+  }
+
+  .order-explainer__facts li {
+    position: relative;
+    padding-left: 13px;
+  }
+
+  .order-explainer__facts li::before {
+    content: '';
+    position: absolute;
+    top: 0.55em;
+    left: 2px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--otx-tone);
+  }
+
+  /* ---------- the example chart (OrderExplainerArt.tsx) */
+  .otx-art {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+
+  .otx-price {
+    fill: none;
+    stroke: var(--nova-text, #f5f5f7);
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .otx-price--after {
+    stroke-dasharray: 2 3;
+    opacity: 0.4;
+  }
+
+  .otx-level {
+    fill: none;
+    stroke-width: 1.3;
+    stroke-dasharray: 4 3;
+  }
+
+  .otx-level--trail {
+    stroke-dasharray: none;
+    stroke-width: 1.6;
+  }
+
+  .otx-bracket {
+    stroke-width: 1.4;
+  }
+
+  .otx-zone { opacity: 0.13; }
+
+  .otx-dot {
+    stroke: var(--otx-card);
+    stroke-width: 2;
+  }
+
+  .otx-ring {
+    fill: none;
+    stroke: var(--otx-stop);
+    stroke-width: 2;
+  }
+
+  .otx-label {
+    font-family: inherit;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
+  .otx-stroke--buy { stroke: var(--otx-buy); }
+  .otx-stroke--sell { stroke: var(--otx-sell); }
+  .otx-stroke--stop { stroke: var(--otx-stop); }
+  .otx-stroke--limit { stroke: var(--otx-limit); }
+  .otx-stroke--muted { stroke: var(--otx-muted); }
+  .otx-fill--buy { fill: var(--otx-buy); }
+  .otx-fill--sell { fill: var(--otx-sell); }
+  .otx-fill--stop { fill: var(--otx-stop); }
+  .otx-fill--limit { fill: var(--otx-limit); }
+  .otx-fill--muted { fill: var(--otx-muted); }
+}

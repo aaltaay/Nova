@@ -200,3 +200,21 @@ def test_replay_reference_delegates_to_sim_practice_at_call_time(monkeypatch) ->
     assert ref.now_ts() == 42.0 and ref.replay_key() == ("k", "IMCC")
     monkeypatch.setattr(practice, "loaded", lambda: None)
     assert ref.replay_key() is None
+
+
+def test_the_live_reference_reads_only_as_far_as_the_archive_is_written(monkeypatch) -> None:
+    from ibkr import tape_recording
+
+    monkeypatch.setattr(tape_recording, "l2_sink", SimpleNamespace(written_through=lambda now: min(now, NOW - 5)))
+    assert Frozen().archived_through(NOW) == NOW - 5
+
+
+def test_the_sim_reference_reads_the_live_archive_mark_only_at_the_live_edge(monkeypatch) -> None:
+    from practice.reference import SimReference
+
+    live = SimpleNamespace(archived_through=lambda now: now - 5)
+    ref = SimReference(live=live, replay=ReplayReference())
+    monkeypatch.setattr(SimReference, "at_live_edge", staticmethod(lambda: True))
+    assert ref.archived_through(NOW) == NOW - 5
+    monkeypatch.setattr(SimReference, "at_live_edge", staticmethod(lambda: False))
+    assert ref.archived_through(NOW) == NOW  # the replay is complete through its playhead

@@ -30,7 +30,11 @@ human -- later the bot -- makes the call.
 `backend/setup_scanner/` follows every symbol in the HOD Momo active set (the
 tradeable floor already applies there) on the one-minute bars Nova builds from
 Level 1 (`ibkr/l1_minute`, the charts' own bars), seeded at first sight from
-today's stored bars. Each symbol is in one state:
+today's stored bars. The seed leaves out IBKR's bars for minutes without a
+price-setting trade (zero volume, one price at the last trade -- the chart keeps
+them, as TWS draws them, #304): the rules count bars and were measured on
+minute files that have no bar there, and a live minute with no trade has none
+either. Each symbol is in one state:
 
 | State | Meaning |
 |-------|---------|

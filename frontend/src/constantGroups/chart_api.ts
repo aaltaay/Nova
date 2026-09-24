@@ -587,6 +587,12 @@ export const TICKER_TRADE_LABEL_STOP = 'Stop';
 export const TICKER_TRADE_LABEL_STOP_LIMIT = 'Stop Limit';
 export const TICKER_TRADE_LABEL_TRAILING_STOP = 'Trailing Stop';
 export const TICKER_TRADE_LABEL_STOP_TYPES = 'Stop types';
+/** The Stop split button's face when Trailing Stop is chosen (fits a 320 px rail). */
+export const TICKER_TRADE_LABEL_TRAIL_STOP_SHORT = 'Trail Stop';
+/** One line under each entry of the Stop types menu. */
+export const TICKER_TRADE_HINT_STOP = 'Becomes a market order at your stop';
+export const TICKER_TRADE_HINT_STOP_LIMIT = 'Becomes a limit order at your stop';
+export const TICKER_TRADE_HINT_TRAILING_STOP = 'A stop that follows the price by Trail $';
 export const TICKER_TRADE_LABEL_TRADING_HOURS = 'Extended Hours';
 /** Manual order ticket defaults and mode-specific quick-size presets. */
 export const TICKER_TRADE_DEFAULT_ORDER_TYPE = 'MKT' as const;

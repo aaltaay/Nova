@@ -1,10 +1,13 @@
 /**
- * Focus rail hover cards: hovering a row's news circle opens the symbol's
- * news since the prior close (the Trader's News panel read, ADR 024), and
- * hovering its REC / bot dots says what they mean. The card lives in a
- * portal beside the row and closes when the pointer leaves -- the rail waits
- * a moment so the pointer can move into the card to follow a headline -- and
- * it reads the network only while it is open.
+ * Focus rail hover card: one card per row. Hovering the row's news circle or
+ * its REC / bot dots opens the same card -- the symbol's news since the prior
+ * close (the Trader's News panel read, ADR 024), then what the dots mean. It
+ * was two cards, and the pointer crossing the dots on its way to a headline
+ * swapped the news for the status (operator report 2026-09-24: "I can't move
+ * my mouse and read the news because the other widget always takes its
+ * place"). The card lives in a portal beside the row and closes when the
+ * pointer leaves -- the rail waits a moment so the pointer can move into the
+ * card to follow a headline -- and it reads the network only while it shows news.
  */
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -22,6 +25,7 @@ import {
   FOCUS_RAIL_CARD_REC_BODY,
   FOCUS_RAIL_CARD_REC_HEAD,
   focusRailCardMoreItems,
+  FOCUS_RAIL_CARD_STATUS_HEAD,
   focusRailCardNewestHeadline,
   focusRailNewsCardTitle,
   focusRailStatusCardTitle,
@@ -39,12 +43,18 @@ export interface CardAnchor {
 }
 
 export interface FocusRailHover {
-  kind: 'news' | 'status';
   row: FocusRow;
   anchor: CardAnchor;
+  /** Show today's news (false on a Sim replay desk, which hides it). */
+  news: boolean;
   recording: boolean;
   allowed: boolean;
   held: boolean;
+}
+
+/** True when the row has a REC or bot dot the card explains. */
+export function hasStatus(hover: Pick<FocusRailHover, 'recording' | 'allowed'>): boolean {
+  return hover.recording || hover.allowed;
 }
 
 /** Beside the anchor (right, else left), top-aligned, kept inside the viewport. */
@@ -97,7 +107,7 @@ function rowNews(row: FocusRow, nowMs: number): string {
   return focusRailCardNewestHeadline(agoLabel(new Date(row.headlineAt).getTime() / 1000, nowMs));
 }
 
-function NewsCard({ row }: { row: FocusRow }) {
+function NewsSection({ row }: { row: FocusRow }) {
   const { panel, loading, unavailable, error } = useCatalystPanel(row.symbol);
   const nowMs = Date.now();
   const items = panel?.items ?? [];
@@ -133,18 +143,23 @@ function NewsCard({ row }: { row: FocusRow }) {
     body = <div className="focus-rail-card__muted">{CATALYST_PANEL_UNREAD}</div>;
   }
   return (
-    <>
+    <div className="focus-rail-card__section" data-testid="focus-rail-card-news">
       <div className="focus-rail-card__title">{focusRailNewsCardTitle(row.symbol)}</div>
       {error && <div className="cn-error" role="status">{error}</div>}
       {body}
-    </>
+    </div>
   );
 }
 
-function StatusCard({ hover }: { hover: FocusRailHover }) {
+/** What the REC / bot dots mean. Under the news it is a section of the same
+ * card; alone (a Sim replay desk) it carries the symbol's title. */
+function StatusSection({ hover }: { hover: FocusRailHover }) {
   return (
-    <>
-      <div className="focus-rail-card__title">{focusRailStatusCardTitle(hover.row.symbol)}</div>
+    <div className={`focus-rail-card__section${hover.news ? ' focus-rail-card__section--below' : ''}`}
+      data-testid="focus-rail-card-status">
+      {hover.news
+        ? <div className="focus-rail-card__head">{FOCUS_RAIL_CARD_STATUS_HEAD}</div>
+        : <div className="focus-rail-card__title">{focusRailStatusCardTitle(hover.row.symbol)}</div>}
       {hover.recording && (
         <div className="focus-rail-card__status" data-testid="focus-rail-card-rec">
           <i className="focus-rail__dot focus-rail__dot--rec" />
@@ -160,7 +175,7 @@ function StatusCard({ hover }: { hover: FocusRailHover }) {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
 
@@ -168,8 +183,9 @@ export function FocusRailHoverCard({ hover, onEnter, onLeave }: {
   hover: FocusRailHover; onEnter: () => void; onLeave: () => void;
 }) {
   return (
-    <Card anchor={hover.anchor} testId={`focus-rail-card-${hover.kind}`} onEnter={onEnter} onLeave={onLeave}>
-      {hover.kind === 'news' ? <NewsCard row={hover.row} /> : <StatusCard hover={hover} />}
+    <Card anchor={hover.anchor} testId="focus-rail-card" onEnter={onEnter} onLeave={onLeave}>
+      {hover.news && <NewsSection row={hover.row} />}
+      {hasStatus(hover) && <StatusSection hover={hover} />}
     </Card>
   );
 }

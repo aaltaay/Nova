@@ -20,6 +20,7 @@ from constants import (
     IBKR_L1_TAB_SWITCH_GRACE_SEC,
 )
 from archive import bar_builder as _bar_builder
+from ibkr import gapper_view as _gapper_view
 from ibkr import ticks as _ticks
 from ibkr import l1_minute as _l1_minute
 from ibkr import tape_10sec as _tape_10sec
@@ -360,7 +361,7 @@ async def flush_loop(push: PushFn) -> None:
                 table = _active_tab_tables.get(sym)
                 if not table:
                     continue
-                by_table.setdefault(table, []).append(row)
+                by_table.setdefault(table, []).append(_gapper_view.patch_for_table(table, row))
             if not by_table:
                 continue
             ts = time.time()

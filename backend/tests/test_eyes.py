@@ -303,3 +303,20 @@ def test_the_eyes_package_never_imports_an_order_path():
                 [a.name for a in node.names] if isinstance(node, ast.Import) else [])
             for name in names:
                 assert not any(name == b or name.startswith(b + ".") for b in banned), (path.name, name)
+
+
+def test_archive_bars_leave_out_the_minutes_ibkr_filled_without_a_trade(monkeypatch):
+    import bars_store
+    from eyes.recording import archive_bars, day_start_ts
+
+    t = day_start_ts(DAY)
+    seen = {}
+
+    def read(symbol, timeframe, limit, **kw):
+        seen.update(symbol=symbol, timeframe=timeframe, **kw)
+        return {"bars": [{"t": t, "o": 4.0, "h": 4.1, "l": 3.9, "c": 4.05, "v": 900},
+                         {"t": t + 60, "o": 4.05, "h": 4.05, "l": 4.05, "c": 4.05, "v": 0}]}
+
+    monkeypatch.setattr(bars_store, "read", read)
+    assert [b.t for b in archive_bars(SYM, DAY)] == [t]
+    assert seen["timeframe"] == "1Min" and seen["from_ts"] == t

@@ -1,47 +1,38 @@
 /**
  * Focus list rail (approved redesign rev. 2 / 7): a collapsible ~220 px strip
- * between the navigation rail and the charts that mirrors any scanner list.
- * Header `FOCUS · <list> N ▾` (the caret picks a scanner tab module from the
- * registry), collapse chevron (the rail already leads to the Scanner). Rows: REC dot, bot dot (filled
- * = allowlisted and this desk holds the depth line -- a live Trader tab or a
- * recording; hollow = allowlisted, quiet), symbol, price, signed gap. The
- * first column is the Scanner's own news circle (NewsCell: red / orange /
- * yellow by age, the verdict's ring, ! and H marks); blank when unknown. A
- * ticker on the operator's watch list is drawn in the watch colour, and
- * right-clicking a row opens the symbol menu (watch list, Record, allowlist).
- * Hovering the circle opens the symbol's news beside the rail, hovering the
- * REC / bot dots says what they mean; leaving the row closes the card. The column headers sort the list (click, flip, third
- * click back to the list's own order), remembered with the list. ↑ ↓ cycle
- * in the order shown, Enter opens. Opening a symbol from a
- * scanner list (a Gainers row, the HOD strip, the Desk board) moves the rail
- * to that list when it mirrors it. Data is the live scanner feed
- * the workspace already holds -- and, for HOD Momo / Running Up, the HOD
- * stream the app shell keeps open -- without one the rail says so.
+ * between the navigation rail and the charts, split in two halves that each
+ * mirror a scanner list (operator ask 2026-09-24: "I wanna see HOD all the
+ * time" -- the upper half keeps the rail's list, the lower half shows HOD
+ * Momo unless another list is picked, and folds to its header). Each half is
+ * a FocusRailPane: header `<list> N ▾` (the caret picks a scanner tab module
+ * from the registry), sortable columns, rows of REC dot, bot dot (filled =
+ * allowlisted and this desk holds the depth line -- a live Trader tab or a
+ * recording; hollow = allowlisted, quiet), symbol, price, signed gap, led by
+ * the Scanner's own news circle. ↑ ↓ cycle in the focused half, Enter opens.
+ * Opening a symbol from a scanner list (a Gainers row, the HOD strip, the
+ * Desk board) moves a half to that list when it mirrors it (routeFocusList).
+ * Data is the live scanner feed the workspace already holds -- and, for HOD
+ * Momo / Running Up, the HOD stream the app shell keeps open -- without one
+ * the half says so.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { ArrowDown, ArrowUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
-import { openBotSymbolMenu } from '../bot';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
 import { useBotAllowlist } from '../bot/useBotAllowlist';
-import { NewsCell } from '../components/NewsCell';
-import { useWatchList, watchMarkTitle } from '../watch_list';
+import { useWatchList } from '../watch_list';
 import { getRecordingSymbols, isTabRecording, subscribeSessionRecord } from '../capture/sessionRecordStore';
 import {
   FOCUS_RAIL_ARIA,
-  FOCUS_RAIL_BOT_HELD_TITLE,
-  FOCUS_RAIL_BOT_QUIET_TITLE,
-  FOCUS_RAIL_CARD_HIDE_MS,
   FOCUS_RAIL_COLLAPSE,
   FOCUS_RAIL_EXPAND,
   FOCUS_RAIL_FOOTER_CYCLE,
   FOCUS_RAIL_FOOTER_ENTER,
   FOCUS_RAIL_FOOTER_KEYS,
   FOCUS_RAIL_FOOTER_OPENS,
+  FOCUS_RAIL_LOWER_FOLD,
+  FOCUS_RAIL_LOWER_PICK_ARIA,
+  FOCUS_RAIL_LOWER_UNFOLD,
   FOCUS_RAIL_NO_FEED,
   FOCUS_RAIL_PICK_ARIA,
-  FOCUS_RAIL_REC_TITLE,
-  FOCUS_RAIL_SORT_LABELS,
-  FOCUS_RAIL_SORT_RESET,
-  FOCUS_RAIL_SORT_TITLES,
   FOCUS_RAIL_TITLE,
   FOCUS_RAIL_WATCH_EMPTY,
   focusRailEmpty,
@@ -53,35 +44,45 @@ import { HOD_MOMO_STRIP_EMPTY_CONNECTING } from '../hod_momo/hodMomoStripConstan
 import { useLiveScannerFeedOptional, type LiveScannerFeed } from '../scanner/ScannerDataContext';
 import { listAbsenceText } from '../scanner/listAbsence';
 import { replayListAbsence } from '../leaderboard/leaderboardRows';
-import { TRADER_TAB_GAP_TITLE } from '../constantGroups/trader_view';
 import { useSettingsOptional } from '../settings/SettingsContext';
-import { SIM_FOCUS_RAIL_REPLAY_NOTE } from '../sim/simConstants';
 import { useSimReplayDesk } from '../sim/useSimReplayDesk';
 import { consumeFocusListRequest, subscribeFocusListRequest } from '../workspace';
-import { isTabModuleId, listScannerListModules } from '../workspace/registry';
-import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
-  FOCUS_RAIL_WATCH_LIST, SAVED_FOCUS_RAIL_STORE, followedFocusList, focusRowsFor, hodFocusRows, isHodFocusList, stepCursor,
-  watchFocusRows, type FocusRailState, type FocusRailStore, type FocusRow,
+  isTabModuleId, listScannerListModules, tabUsesScannerPricePatch, type ActiveTab, type NovaModule,
+} from '../workspace/registry';
+import { useWorkspace } from '../workspace/WorkspaceContext';
+import type { ScannerRow } from '../types/scanner';
+import {
+  SAVED_FOCUS_RAIL_STORE, focusRowsFor, hodFocusRows, isHodFocusList, routeFocusList, watchFocusRows,
+  FOCUS_RAIL_WATCH_LIST, type FocusPaneState, type FocusRailState, type FocusRailStore, type FocusRow,
 } from './focusRailState';
-import { FocusRailHoverCard, type FocusRailHover } from './FocusRailHoverCard';
-import { nextFocusSort, sortFocusRows, type FocusSort, type FocusSortKey } from './focusRailSort';
-import { formatSignedPct, pctTone } from './tabContext';
+import { FocusRailPane, type FocusPaneShared, type FocusPaneView } from './FocusRailPane';
+import { sortFocusRows, type FocusSort } from './focusRailSort';
 import './focusRail.css';
 
 type HodStream = HodMomoContextValue['stream'];
 
+/** What the rail reads to build a half's rows. */
+interface FocusSources {
+  feed: LiveScannerFeed | null;
+  hodStream: HodStream | null;
+  filterRows?: <T extends ScannerRow>(rows: T[]) => T[];
+  watchList: readonly string[];
+}
+
+/** A list's rows in its own order; null when this desk does not carry it. */
+function listRows(list: string, src: FocusSources): FocusRow[] | null {
+  const { feed, hodStream, filterRows, watchList } = src;
+  if (isHodFocusList(list)) return hodStream ? hodFocusRows(list, hodStream.alerts, feed) : null;
+  if (list === FOCUS_RAIL_WATCH_LIST) return watchFocusRows(watchList, feed);
+  return focusRowsFor(list, feed, filterRows);
+}
+
 /** What an empty or missing list says. The HOD lists answer from their own
  * stream (failed / connecting / empty), the rest from the scanner feed. */
-function absenceText(
-  title: string,
-  hodList: boolean,
-  hodStream: HodStream | null,
-  feed: LiveScannerFeed | null,
-  rows: FocusRow[] | null,
-  list: string,
-): string {
-  if (hodList) {
+function absenceText(title: string, list: string, rows: FocusRow[] | null, src: FocusSources): string {
+  const { feed, hodStream } = src;
+  if (isHodFocusList(list)) {
     if (!hodStream) return focusRailNotMirrored(title);
     if (hodStream.feedError) return listFeedFailed(title, hodStream.feedError);
     return hodStream.connected ? focusRailEmpty(title) : HOD_MOMO_STRIP_EMPTY_CONNECTING;
@@ -95,24 +96,19 @@ function absenceText(
   return listAbsenceText(title, { restError: feed.restError, healthStatus: feed.health?.status }, focusRailEmpty);
 }
 
-/** One sortable column header; the active one shows its direction. */
-function SortHeader({ column, sort, onSort }: { column: FocusSortKey; sort: FocusSort | null; onSort: (key: FocusSortKey) => void }) {
-  const on = sort?.key === column ? sort.dir : null;
-  const Arrow = on === 'asc' ? ArrowUp : ArrowDown;
-  return (
-    <button type="button" className={`focus-rail__th focus-rail__th--${column}${on ? ' is-sorted' : ''}`}
-      aria-sort={on === 'asc' ? 'ascending' : on === 'desc' ? 'descending' : 'none'}
-      title={on ? `${FOCUS_RAIL_SORT_TITLES[column]} · ${FOCUS_RAIL_SORT_RESET}` : FOCUS_RAIL_SORT_TITLES[column]}
-      data-testid={`focus-rail-sort-${column}`} data-dir={on ?? ''} onClick={() => onSort(column)}>
-      {FOCUS_RAIL_SORT_LABELS[column]}
-      {on && <Arrow size={9} aria-hidden="true" />}
-    </button>
-  );
+/** One half's view. Off the live edge only the symbol sort applies: ordering
+ * by today's price, % or news would show what the rows hide (QA W10). */
+function paneView(pane: FocusPaneState, src: FocusSources, replayDesk: boolean, modules: readonly NovaModule[]): FocusPaneView {
+  const title = (modules.find(m => m.id === pane.list) ?? modules[0])?.title ?? pane.list;
+  const sort = replayDesk && pane.sort?.key !== 'symbol' ? null : pane.sort;
+  const listed = listRows(pane.list, src);
+  const rows = listed ? sortFocusRows(listed, sort) : null;
+  return { list: pane.list, title, rows, absent: absenceText(title, pane.list, rows, src), sort };
 }
 
 export function FocusRail({ active: onScreen = true, store = SAVED_FOCUS_RAIL_STORE }: {
   active?: boolean;
-  /** Where the list, sort and fold live (the sample desk passes its own, #449). */
+  /** Where the lists, sorts and folds live (the sample desk passes its own, #449). */
   store?: FocusRailStore;
 } = {}) {
   const feed = useLiveScannerFeedOptional();
@@ -127,43 +123,7 @@ export function FocusRail({ active: onScreen = true, store = SAVED_FOCUS_RAIL_ST
   const replayDesk = useSimReplayDesk() && !feed?.replay;
   useSyncExternalStore(subscribeSessionRecord, () => getRecordingSymbols().join(','), () => '');
   const [state, setState] = useState<FocusRailState>(() => store.read());
-  const [cursor, setCursor] = useState(-1);
-  const [hover, setHover] = useState<FocusRailHover | null>(null);
-  const hideTimer = useRef<number | null>(null);
   const modules = useMemo(() => listScannerListModules(), []);
-  const module = modules.find(m => m.id === state.list) ?? modules[0];
-  const filterRows = settings?.exchangeFilter?.filterRows;
-  const hodList = isHodFocusList(state.list);
-  const hodAlerts = hodStream?.alerts;
-  // Off the live edge only the symbol sort applies: ordering by today's
-  // price, % or news would show what the rows hide (QA W10).
-  const sort = replayDesk && state.sort?.key !== 'symbol' ? null : state.sort;
-  const rows = useMemo(() => {
-    const listed = isHodFocusList(state.list)
-      ? (hodAlerts ? hodFocusRows(state.list, hodAlerts, feed) : null)
-      : state.list === FOCUS_RAIL_WATCH_LIST
-        ? watchFocusRows(watchList, feed)
-        : focusRowsFor(state.list, feed, filterRows);
-    return listed ? sortFocusRows(listed, sort) : null;
-  }, [state.list, feed, filterRows, hodAlerts, sort, watchList]);
-  const title = module?.title ?? state.list;
-  const absent = absenceText(title, hodList, hodStream, feed, rows, state.list);
-
-  const keepCard = useCallback(() => {
-    if (hideTimer.current != null) window.clearTimeout(hideTimer.current);
-    hideTimer.current = null;
-  }, []);
-  // A short grace, so the pointer can cross the row into the card.
-  const hideCard = useCallback(() => {
-    keepCard();
-    hideTimer.current = window.setTimeout(() => { hideTimer.current = null; setHover(null); }, FOCUS_RAIL_CARD_HIDE_MS);
-  }, [keepCard]);
-  useEffect(() => keepCard, [keepCard]);
-  const showCard = (target: HTMLElement, card: Omit<FocusRailHover, 'anchor'>) => {
-    keepCard();
-    const r = (target.closest('.focus-rail__row') ?? target).getBoundingClientRect();
-    setHover({ ...card, anchor: { left: r.left, top: r.top, right: r.right, bottom: r.bottom } });
-  };
 
   const update = useCallback((patch: Partial<FocusRailState>) => {
     setState(prev => {
@@ -172,148 +132,111 @@ export function FocusRail({ active: onScreen = true, store = SAVED_FOCUS_RAIL_ST
       return next;
     });
   }, [store]);
+  const pickUpper = useCallback((list: string) => update({ list }), [update]);
+  const sortUpper = useCallback((sort: FocusSort | null) => update({ sort }), [update]);
+  const updateLower = useCallback((patch: Partial<FocusRailState['lower']>) => {
+    setState(prev => {
+      const next = { ...prev, lower: { ...prev.lower, ...patch } };
+      store.write(next);
+      return next;
+    });
+  }, [store]);
+  const pickLower = useCallback((list: string) => updateLower({ list }), [updateLower]);
+  const sortLower = useCallback((sort: FocusSort | null) => updateLower({ sort }), [updateLower]);
 
   // Follow the list the last symbol was picked from; the request may predate this mount.
   useEffect(() => {
     const follow = () => {
-      const list = followedFocusList(consumeFocusListRequest());
-      if (list) update({ list });
+      const requested = consumeFocusListRequest();
+      setState(prev => {
+        const patch = routeFocusList(prev, requested);
+        if (!patch) return prev;
+        const next = { ...prev, ...patch };
+        store.write(next);
+        return next;
+      });
     };
     follow();
     return subscribeFocusListRequest(follow);
-  }, [update]);
+  }, [store]);
 
-  useEffect(() => { setCursor(-1); setHover(null); }, [state.list, sort?.key, sort?.dir]);
-  const onSort = (key: FocusSortKey) => update({ sort: nextFocusSort(sort, key) });
-
-  // Declare the mirrored list for IBKR L1 (ADR 008) while its rows are on
+  // Declare the mirrored lists for IBKR L1 (ADR 008) while their rows are on
   // screen: an undeclared table gets no price patches, so a Large Cap rail
   // beside a Scanner left on Gappers showed a dash for every price.
-  const setL1FocusTab = feed?.setL1FocusTab;
-  const focusTab = onScreen && !state.collapsed && isTabModuleId(state.list) ? state.list : null;
+  const setL1FocusTabs = feed?.setL1FocusTabs;
+  const shown = onScreen && !state.collapsed;
+  // Only a table that takes price patches is declared (HOD Momo / Running Up are alert lists).
+  const upperTab = shown && declares(state.list) ? state.list : null;
+  const lowerTab = shown && !state.lower.folded && declares(state.lower.list) ? state.lower.list : null;
+  const focusKey = [...new Set([upperTab, lowerTab].filter((t): t is ActiveTab => t != null))].join(',');
   useEffect(() => {
-    setL1FocusTab?.(focusTab);
-  }, [focusTab, setL1FocusTab]);
-  useEffect(() => () => setL1FocusTab?.(null), [setL1FocusTab]);
+    setL1FocusTabs?.(focusKey ? (focusKey.split(',') as ActiveTab[]) : []);
+  }, [focusKey, setL1FocusTabs]);
+  useEffect(() => () => setL1FocusTabs?.([]), [setL1FocusTabs]);
 
-  const open = (symbol: string) => openStockView(symbol);
-  const onKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
-    if (!rows?.length) return;
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault();
-      setCursor(current => stepCursor(current, event.key === 'ArrowDown' ? 1 : -1, rows.length));
-    } else if (event.key === 'Enter' && cursor >= 0 && rows[cursor]) {
-      event.preventDefault();
-      open(rows[cursor].symbol);
-    }
-  };
+  const filterRows = settings?.exchangeFilter?.filterRows;
+  const src = useMemo<FocusSources>(() => ({ feed, hodStream, filterRows, watchList }),
+    [feed, hodStream, filterRows, watchList]);
+  const upperPane = useMemo<FocusPaneState>(() => ({ list: state.list, sort: state.sort }), [state.list, state.sort]);
+  const upper = useMemo(() => paneView(upperPane, src, replayDesk, modules), [upperPane, src, replayDesk, modules]);
+  const lower = useMemo(() => paneView(state.lower, src, replayDesk, modules), [state.lower, src, replayDesk, modules]);
+  const shared = useMemo<FocusPaneShared>(() => ({
+    replayDesk,
+    watchList,
+    isAllowed,
+    isRecording: isTabRecording,
+    active: activeTraderSymbol?.toUpperCase() ?? null,
+    traderLiveTabs,
+    open: (symbol: string) => openStockView(symbol),
+    modules,
+  }), [replayDesk, watchList, isAllowed, activeTraderSymbol, traderLiveTabs, openStockView, modules]);
 
   if (state.collapsed) {
+    const count = upper.rows?.length ?? null;
     return (
       <aside className="focus-rail focus-rail--collapsed" aria-label={FOCUS_RAIL_ARIA} data-testid="focus-rail" data-collapsed="1">
         <button type="button" className="focus-rail__expand" aria-label={FOCUS_RAIL_EXPAND} title={FOCUS_RAIL_EXPAND}
           data-testid="focus-rail-expand" onClick={() => update({ collapsed: false })}>
           <ChevronRight size={14} aria-hidden="true" />
-          <span className="focus-rail__vertical">{FOCUS_RAIL_TITLE}{rows ? ` · ${rows.length}` : ''}</span>
+          <span className="focus-rail__vertical">{FOCUS_RAIL_TITLE}{count != null ? ` · ${count}` : ''}</span>
         </button>
       </aside>
     );
   }
 
-  const active = activeTraderSymbol?.toUpperCase() ?? null;
+  const folded = state.lower.folded;
+  const FoldIcon = folded ? ChevronUp : ChevronDown;
   return (
-    <aside className="focus-rail" aria-label={FOCUS_RAIL_ARIA} data-testid="focus-rail" tabIndex={0} onKeyDown={onKeyDown}>
-      <div className="focus-rail__head">
-        <label className="focus-rail__src" title={FOCUS_RAIL_PICK_ARIA}>
-          <span className="focus-rail__title">{FOCUS_RAIL_TITLE}</span>
-          <span className="focus-rail__list" data-testid="focus-rail-list-label">· {module?.title ?? state.list}{rows ? ` ${rows.length}` : ''}</span>
-          <ChevronDown size={10} aria-hidden="true" />
-          <select className="focus-rail__pick" aria-label={FOCUS_RAIL_PICK_ARIA} data-testid="focus-rail-pick"
-            value={state.list} onChange={event => update({ list: event.target.value })}>
-            {modules.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
-          </select>
-        </label>
-        <button type="button" className="focus-rail__collapse" aria-label={FOCUS_RAIL_COLLAPSE} title={FOCUS_RAIL_COLLAPSE}
-          data-testid="focus-rail-collapse" onClick={() => update({ collapsed: true })}>
-          <ChevronLeft size={14} aria-hidden="true" />
-        </button>
-      </div>
-      {rows != null && rows.length > 0 && (
-        <div className="focus-rail__cols" data-testid="focus-rail-cols">
-          {replayDesk ? <span className="focus-rail__news" /> : <SortHeader column="news" sort={sort} onSort={onSort} />}
-          <span className="focus-rail__dots" />
-          <SortHeader column="symbol" sort={sort} onSort={onSort} />
-          {!replayDesk && (
-            <>
-              <SortHeader column="price" sort={sort} onSort={onSort} />
-              <SortHeader column="gap" sort={sort} onSort={onSort} />
-            </>
-          )}
-        </div>
-      )}
-      <div className="focus-rail__rows" role="listbox" aria-label={module?.title ?? state.list} data-testid="focus-rail-rows"
-        onScroll={() => setHover(null)}>
-        {replayDesk && rows != null && rows.length > 0 && (
-          <p className="focus-rail__absent" data-testid="focus-rail-replay-note">{SIM_FOCUS_RAIL_REPLAY_NOTE}</p>
+    <aside className="focus-rail" aria-label={FOCUS_RAIL_ARIA} data-testid="focus-rail" data-split={folded ? '0' : '1'}>
+      <FocusRailPane
+        tid="focus-rail" half="upper" view={upper} onPick={pickUpper} onSort={sortUpper} shared={shared}
+        title={FOCUS_RAIL_TITLE} pickAria={FOCUS_RAIL_PICK_ARIA}
+        control={(
+          <button type="button" className="focus-rail__collapse" aria-label={FOCUS_RAIL_COLLAPSE} title={FOCUS_RAIL_COLLAPSE}
+            data-testid="focus-rail-collapse" onClick={() => update({ collapsed: true })}>
+            <ChevronLeft size={14} aria-hidden="true" />
+          </button>
         )}
-        {rows == null || rows.length === 0 ? (
-          <p className="focus-rail__absent" data-testid="focus-rail-absent">{absent}</p>
-        ) : rows.map((row, index) => {
-          const recording = isTabRecording(row.symbol);
-          const allowed = isAllowed(row.symbol);
-          const held = allowed && (recording || traderLiveTabs.includes(row.symbol));
-          const isActive = row.symbol === active;
-          const flags = { row, recording, allowed, held };
-          return (
-            <div
-              key={row.symbol}
-              role="option"
-              aria-selected={isActive}
-              className={`focus-rail__row${isActive ? ' is-active' : ''}${index === cursor ? ' is-cursor' : ''}`}
-              data-testid={`focus-rail-row-${row.symbol}`}
-              onClick={() => { setCursor(index); open(row.symbol); }}
-              onContextMenu={event => {
-                event.preventDefault();
-                openBotSymbolMenu(row.symbol, event.clientX, event.clientY);
-              }}
-              onMouseEnter={() => { if (hover?.row.symbol === row.symbol) keepCard(); }}
-              onMouseLeave={hideCard}
-            >
-              <span className="focus-rail__news" data-testid={`focus-rail-news-${row.symbol}`}
-                onMouseEnter={replayDesk ? undefined : event => showCard(event.currentTarget, { kind: 'news', ...flags })}>
-                {!replayDesk && row.newsKnown && <NewsCell newest_headline_at={row.headlineAt} catalyst={row.verdict} plain />}
-              </span>
-              <span className="focus-rail__dots" data-testid={`focus-rail-dots-${row.symbol}`}
-                onMouseEnter={recording || allowed ? event => showCard(event.currentTarget, { kind: 'status', ...flags }) : undefined}>
-                {recording && <i className="focus-rail__dot focus-rail__dot--rec" aria-label={FOCUS_RAIL_REC_TITLE} data-testid={`focus-rail-rec-${row.symbol}`} />}
-                {allowed && (
-                  <i className={`focus-rail__dot focus-rail__dot--bot${held ? '' : ' focus-rail__dot--quiet'}`}
-                    aria-label={held ? FOCUS_RAIL_BOT_HELD_TITLE : FOCUS_RAIL_BOT_QUIET_TITLE}
-                    data-testid={`focus-rail-bot-${row.symbol}`} data-held={held ? '1' : '0'} />
-                )}
-              </span>
-              {watchList.includes(row.symbol) ? (
-                <span className="focus-rail__sym is-watched" title={watchMarkTitle(row.symbol)}
-                  data-testid={`focus-rail-watched-${row.symbol}`}>{row.symbol}</span>
-              ) : (
-                <span className="focus-rail__sym">{row.symbol}</span>
-              )}
-              {!replayDesk && (
-                <>
-                  <span className="focus-rail__px">{row.price != null ? row.price.toFixed(2) : '—'}</span>
-                  <span className={`focus-rail__gap focus-rail__gap--${pctTone(row.gapPct)}`} title={TRADER_TAB_GAP_TITLE}>
-                    {formatSignedPct(row.gapPct)}
-                  </span>
-                </>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      {hover && <FocusRailHoverCard hover={hover} onEnter={keepCard} onLeave={hideCard} />}
+      />
+      <FocusRailPane
+        tid="focus-rail-lower" half="lower" view={lower} onPick={pickLower} onSort={sortLower} shared={shared}
+        pickAria={FOCUS_RAIL_LOWER_PICK_ARIA} folded={folded}
+        control={(
+          <button type="button" className="focus-rail__collapse"
+            aria-label={folded ? FOCUS_RAIL_LOWER_UNFOLD : FOCUS_RAIL_LOWER_FOLD}
+            title={folded ? FOCUS_RAIL_LOWER_UNFOLD : FOCUS_RAIL_LOWER_FOLD} aria-expanded={!folded}
+            data-testid="focus-rail-lower-fold" onClick={() => updateLower({ folded: !folded })}>
+            <FoldIcon size={14} aria-hidden="true" />
+          </button>
+        )}
+      />
       <div className="focus-rail__foot">
         <b>{FOCUS_RAIL_FOOTER_KEYS}</b> {FOCUS_RAIL_FOOTER_CYCLE} <b>{FOCUS_RAIL_FOOTER_ENTER}</b> {FOCUS_RAIL_FOOTER_OPENS}
       </div>
     </aside>
   );
+}
+
+function declares(list: string): list is ActiveTab {
+  return isTabModuleId(list) && tabUsesScannerPricePatch(list);
 }

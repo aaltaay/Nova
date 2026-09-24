@@ -184,6 +184,8 @@ export const FOCUS_RAIL_CARD_NEWS_UNAVAILABLE = 'This desk cannot read the news 
 export const FOCUS_RAIL_CARD_NO_HEADLINE = 'No headline in the last 24 hours on the scanner row.';
 export const focusRailCardNewestHeadline = (ago: string): string => `Newest headline ${ago}`;
 export const focusRailStatusCardTitle = (symbol: string): string => `${symbol} · Status`;
+/** The status section's heading when it sits under the news in the one card. */
+export const FOCUS_RAIL_CARD_STATUS_HEAD = 'Status';
 export const FOCUS_RAIL_CARD_REC_HEAD = 'Recording';
 export const FOCUS_RAIL_CARD_REC_BODY =
   'Nova is recording this symbol\'s tape and Level 2 to disk (Session Record), so the session can be replayed in Sim.';
@@ -197,6 +199,16 @@ export const FOCUS_RAIL_CARD_BOT_QUIET_BODY =
   + 'Open it in a Trader tab or record it to give the bot eyes.';
 export const FOCUS_RAIL_STORAGE_KEY = 'nova.trader.focusRail.v1';
 export const FOCUS_RAIL_DEFAULT_LIST = 'gappers';
+/** The rail's second half (operator ask 2026-09-24: "I wanna see HOD all the
+ * time"): its own list under the first, HOD Momo unless the operator picks another. */
+export const FOCUS_RAIL_DEFAULT_LOWER_LIST = 'hod_momo';
+export const FOCUS_RAIL_LOWER_PICK_ARIA = 'Mirror a scanner list in the lower half';
+export const FOCUS_RAIL_LOWER_FOLD = 'Fold the lower list to its header';
+export const FOCUS_RAIL_LOWER_UNFOLD = 'Show the lower list';
+/** A HOD / Running Up row's price when no scanner list carries the symbol:
+ * it is the alert's print, not a last price, and says so. */
+export const focusRailAlertPriceTitle = (clock: string): string =>
+  `Price at the alert (${clock} ET) -- no scanner list carries this symbol, so there is no live last here`;
 
 /* ── Positions / Orders drawer ──────────────────────────────────────────── */
 

@@ -31,12 +31,13 @@ export type LiveScannerFeed = ReturnType<typeof useScannerData> & {
   l1DockTab: ActiveTab | null;
   setL1DockTab: (tab: ActiveTab | null) => void;
   /**
-   * List the Trader's Focus rail mirrors while it is on screen, or null. It
-   * leads the declared set: the Scanner tab left behind is not on screen, and
-   * without this the rail's rows (Large Cap) got no L1 price patches at all.
+   * Lists the Trader's Focus rail mirrors while they are on screen (one per
+   * half), or none. They lead the declared set: the Scanner tab left behind is
+   * not on screen, and without this the rail's rows (Large Cap) got no L1
+   * price patches at all.
    */
-  l1FocusTab: ActiveTab | null;
-  setL1FocusTab: (tab: ActiveTab | null) => void;
+  l1FocusTabs: readonly ActiveTab[];
+  setL1FocusTabs: (tabs: readonly ActiveTab[]) => void;
   /**
    * Sim off the live edge (ADR 023): the five tables are the leaderboard at
    * the playhead, and this says which minute, from which source, or why there
@@ -44,6 +45,12 @@ export type LiveScannerFeed = ReturnType<typeof useScannerData> & {
    */
   replay?: ScannerReplay | null;
 };
+
+const NO_TABS: readonly ActiveTab[] = [];
+
+function sameTabs(a: readonly ActiveTab[], b: readonly ActiveTab[]): boolean {
+  return a.length === b.length && a.every((tab, i) => tab === b[i]);
+}
 
 const ScannerDataContext = hmrStableContext<LiveScannerFeed>(import.meta.hot, 'ScannerDataContext');
 
@@ -53,7 +60,7 @@ export function ScannerDataProvider({ children }: { children: ReactNode }) {
   const { scannerPersistentAuthoritative } = useWorkspace();
   const [l1ActiveTab, setL1ActiveTabState] = useState<ActiveTab>(DEFAULT_ACTIVE_TAB);
   const [l1DockTab, setL1DockTabState] = useState<ActiveTab | null>(null);
-  const [l1FocusTab, setL1FocusTabState] = useState<ActiveTab | null>(null);
+  const [l1FocusTabs, setL1FocusTabsState] = useState<readonly ActiveTab[]>(NO_TABS);
   const setL1ActiveTab = useCallback((tab: ActiveTab) => {
     // Volume boost is derived from day-volume already on the watch. Declaring
     // it as the active table sends set_active_tab=[] and drops scanner L1.
@@ -63,12 +70,14 @@ export function ScannerDataProvider({ children }: { children: ReactNode }) {
   const setL1DockTab = useCallback((tab: ActiveTab | null) => {
     setL1DockTabState(tab);
   }, []);
-  const setL1FocusTab = useCallback((tab: ActiveTab | null) => {
-    setL1FocusTabState(tab && declaresScannerL1(tab) ? tab : null);
+  const setL1FocusTabs = useCallback((tabs: readonly ActiveTab[]) => {
+    const next = tabs.filter(declaresScannerL1);
+    // Same lists, same array: the declared set (and the socket's hint) stays put.
+    setL1FocusTabsState(prev => (sameTabs(prev, next) ? prev : next.length ? next : NO_TABS));
   }, []);
   const activeTabs = useMemo(
-    () => [...new Set([l1FocusTab, l1ActiveTab, l1DockTab].filter((t): t is ActiveTab => t != null))],
-    [l1FocusTab, l1ActiveTab, l1DockTab],
+    () => [...new Set([...l1FocusTabs, l1ActiveTab, l1DockTab].filter((t): t is ActiveTab => t != null))],
+    [l1FocusTabs, l1ActiveTab, l1DockTab],
   );
   const scanner = useScannerData({
     discoveryProvider: settings.discoveryProvider,
@@ -81,9 +90,9 @@ export function ScannerDataProvider({ children }: { children: ReactNode }) {
   const replay = useLeaderboardPlayback();
   const value = useMemo<LiveScannerFeed>(
     () => withScannerReplay({
-      ...scanner, l1ActiveTab, setL1ActiveTab, l1DockTab, setL1DockTab, l1FocusTab, setL1FocusTab,
+      ...scanner, l1ActiveTab, setL1ActiveTab, l1DockTab, setL1DockTab, l1FocusTabs, setL1FocusTabs,
     }, replay),
-    [scanner, replay, l1ActiveTab, setL1ActiveTab, l1DockTab, setL1DockTab, l1FocusTab, setL1FocusTab],
+    [scanner, replay, l1ActiveTab, setL1ActiveTab, l1DockTab, setL1DockTab, l1FocusTabs, setL1FocusTabs],
   );
   return (
     <ScannerDataContext.Provider value={value}>{children}</ScannerDataContext.Provider>
@@ -148,8 +157,8 @@ export function makeLiveScannerFeedStub(
     setL1ActiveTab: () => {},
     l1DockTab: null,
     setL1DockTab: () => {},
-    l1FocusTab: null,
-    setL1FocusTab: () => {},
+    l1FocusTabs: [],
+    setL1FocusTabs: () => {},
     replay: null,
     ...overrides,
   };

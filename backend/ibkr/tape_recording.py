@@ -1,19 +1,16 @@
-"""Independent bounded recording sinks for immutable normalized AllLast prints."""
+"""Independent bounded recording sinks for immutable normalized AllLast prints.
+
+Each print fans out to the Session Record (``capture.bridge_ibkr``) and, for a
+watched symbol, the L2 tape archive writer (``ibkr.tape_sink.Sink``).
+"""
 
 from __future__ import annotations
 
 import logging
 import time
-from queue import Queue, Full, Empty
-from threading import Lock, Thread
-from types import MappingProxyType
 
-from ibkr.constants_tape_recording import (
-    TAPE_RECORD_PENDING,
-    TAPE_RECORD_STALE_SEC,
-    TAPE_RECORD_SHUTDOWN_SEC,
-    TAPE_RECORD_POLL_SEC,
-)
+from ibkr.constants_tape_recording import TAPE_RECORD_STALE_SEC
+from ibkr.tape_sink import Sink
 
 logger = logging.getLogger(__name__)
 _last: dict[str, float] = {}
@@ -22,75 +19,24 @@ _errors: dict[str, str] = {}
 dispatch_errors: dict[str, str] = {}
 
 
-class Sink:
-    """One lazy daemon per sink; sticky failure sheds input until explicitly reset."""
-
-    def __init__(self, write, capacity=TAPE_RECORD_PENDING):
-        self.write = write
-        self.queue = Queue(maxsize=capacity)
-        self.lock = Lock()
-        self.thread = None
-        self.error = None
-        self.written = 0
-        self.closed = False
-
-    def submit(self, payload) -> bool:
-        with self.lock:
-            if self.error or self.closed:
-                return False
-            if self.thread is None:
-                self.thread = Thread(target=self._run, name="l2-tape-writer", daemon=True)
-                self.thread.start()
-            try:
-                self.queue.put_nowait(MappingProxyType(dict(payload)))
-            except Full:
-                self.error = "L2 tape backlog full; prints lost; restart application after recovery"
-                logger.exception(self.error)
-                return False
-            return True
-
-    def _run(self):
-        while True:
-            try:
-                payload = self.queue.get(timeout=TAPE_RECORD_POLL_SEC)
-            except Empty:
-                if self.closed:
-                    return
-                continue
-            try:
-                self.write(payload)
-                with self.lock:
-                    self.written += 1
-            except Exception as exc:
-                with self.lock:
-                    self.error = f"L2 tape write failed: {exc}"
-                logger.exception("L2 tape write failed")
-            finally:
-                self.queue.task_done()
-
-    def status(self):
-        with self.lock:
-            return {"error": self.error, "pending": self.queue.qsize(), "written": self.written}
-
-    def close(self):
-        """Close ingress and drain accepted rows, with bounded shutdown latency."""
-        with self.lock:
-            self.closed = True
-        if self.thread is not None:
-            self.thread.join(TAPE_RECORD_SHUTDOWN_SEC)
-            if self.thread.is_alive():
-                with self.lock:
-                    self.error = "L2 tape shutdown timed out; accepted rows may be incomplete"
-                logger.error(self.error)
-
-
 def _write_l2(payload):
     from l2.tape import persist_print
 
     persist_print(payload)
 
 
-l2_sink = Sink(_write_l2)
+def _write_l2_many(payloads):
+    from l2.tape import persist_prints
+
+    persist_prints(payloads)
+
+
+def new_l2_sink() -> Sink:
+    """The L2 archive writer: one transaction per batch of prints."""
+    return Sink(_write_l2, write_many=_write_l2_many)
+
+
+l2_sink = new_l2_sink()
 
 
 def dispatch(payload) -> None:

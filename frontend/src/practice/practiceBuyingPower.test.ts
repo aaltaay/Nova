@@ -40,9 +40,10 @@ describe('practiceBuyingPowerAfter (backend practice/margin.py)', () => {
     expect(bp).toBeCloseTo((100_020 - 5 - fees) * 4 - (507 - 152), 6);
   });
 
-  it('below the PDT line the multiplier is Reg T 2x, and never below zero', () => {
-    expect(practiceMultiplier(24_999)).toBe(2);
-    expect(practiceMultiplier(25_000)).toBe(4);
+  it('4x from the $2,000 margin minimum (no $25k PDT line since 2026-06-04), cash below, never below zero', () => {
+    expect(practiceMultiplier(24_999)).toBe(4);
+    expect(practiceMultiplier(2_000)).toBe(4);
+    expect(practiceMultiplier(1_999)).toBe(1);
     expect(practiceBuyingPowerAfter({
       netLiquidation: 1_000, grossPositionValue: 1_900, side: 'BUY', qty: 100, price: 5, heldQty: 0, heldMark: null,
     })).toBe(0);

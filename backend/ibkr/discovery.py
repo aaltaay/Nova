@@ -37,7 +37,9 @@ from constants import (
     SCANNER_MIN_PRICE,
 )
 from ibkr import client as _client
+from ibkr import quote_rows as _quote_rows
 from ibkr.errors import IbkrDiscoveryError, IbkrScannerSlotExhaustedError, describe_exc
+from ibkr.open_tick import todays_open
 from metrics.op_metrics import timed, timed_async
 
 logger = logging.getLogger(__name__)
@@ -593,7 +595,8 @@ async def snapshot_quotes(
             # No trade yet: ``price`` is IBKR's prior close, never a print (#541).
             "quote_quality": None if last is not None else IBKR_QUOTE_QUALITY_CLOSE_FALLBACK,
             "prev_close": prev_close,
-            "open": _clean(t.open),
+            # IBKR's open tick is the previous session's until today opens.
+            "open": todays_open(_clean(t.open)),
             "high": _clean(getattr(t, "high", None)),
             "volume": int(_clean(t.volume) or 0),
             "exchange": getattr(t.contract, "primaryExchange", None) or None,
@@ -617,28 +620,11 @@ async def _get_movers(
         return []
     quotes = await snapshot_quotes(symbols, require_success=True)
 
-    rows: list[dict] = []
-    for sym, q in quotes.items():
-        price, prev_close = q["price"], q["prev_close"]
-        if price < SCANNER_MIN_PRICE or not prev_close:
-            continue
-        change_pct = (price - prev_close) / prev_close
-        open_price = q.get("open")
-        gap_percent = (
-            (open_price - prev_close) / prev_close
-            if open_price and prev_close else None
-        )
-        rows.append({
-            "symbol": sym,
-            "price": price,
-            "change_pct": change_pct,
-            "change_abs": price - prev_close,
-            "volume": q["volume"],
-            "gap_percent": gap_percent,
-            "prev_close": prev_close,
-            "open": open_price,
-            "exchange": q.get("exchange"),
-        })
+    rows = [
+        _quote_rows.mover_row_from_quote(sym, q)
+        for sym, q in quotes.items()
+        if q["price"] >= SCANNER_MIN_PRICE and q["prev_close"]
+    ]
     rows.sort(key=lambda x: x["change_pct"], reverse=reverse)
     return rows
 

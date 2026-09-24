@@ -84,6 +84,22 @@ def regular_hours_at(when: datetime) -> bool:
     return SESSION_RTH_OPEN_MIN_ET <= minutes < SESSION_RTH_CLOSE_MIN_ET
 
 
+def regular_session_opened_at(when: datetime) -> bool:
+    """True once today's regular session has opened: an exchange day, ET clock >= 09:30.
+
+    Before then there is no "today's open". IBKR's open tick (type 14) is the
+    current session's open, and "before open will refer to previous day" --
+    so in premarket, and all weekend, it is the previous session's open
+    (``ibkr/open_tick.py``). ``when`` is an aware datetime.
+    """
+    when = when.astimezone(ET)
+    if when.weekday() >= 5:
+        return False
+    if when.date().isoformat() in NOVA_OS_NYSE_HOLIDAYS:
+        return False
+    return when.hour * 60 + when.minute >= SESSION_RTH_OPEN_MIN_ET
+
+
 def in_after_hours() -> bool:
     now = now_et()
     start = _et_at_minutes(now, SESSION_RTH_CLOSE_MIN_ET)

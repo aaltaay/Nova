@@ -1,4 +1,5 @@
-/* Focus list rail between the navigation rail and the Trader panes. */
+/* Focus list rail between the navigation rail and the Trader panes: two
+ * halves (FocusRailPane), each one mirrored list, over one footer. */
 .focus-rail {
   --focus-w: 220px;
   flex: 0 0 var(--focus-w);
@@ -17,8 +18,30 @@
   outline: none;
 }
 
-.focus-rail:focus-visible {
+.focus-rail__pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  outline: none;
+}
+
+.focus-rail__pane:focus-visible {
   box-shadow: inset 0 0 0 1px var(--accent, #3b82f6);
+}
+
+/* The lower half starts under a hairline, like the header above it. */
+.focus-rail__pane--lower {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Folded: its header line only, and the upper half takes the height. */
+.focus-rail__pane--folded {
+  flex: 0 0 auto;
+}
+
+.focus-rail__pane--folded .focus-rail__head {
+  border-bottom: 0;
 }
 
 .focus-rail--collapsed {
@@ -92,6 +115,14 @@
   color: var(--text-muted, #9ca3af);
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* The lower half has no "Focus" word: its list name leads the header. */
+.focus-rail__list--lead {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-primary, #e5e7eb);
 }
 
 /* The native select sits invisibly over the label so the caret is a real picker. */
@@ -265,6 +296,11 @@
   text-align: right;
 }
 
+/* A HOD row's price from the alert's print, not a live last (its title says so). */
+.focus-rail__px--alert {
+  color: var(--text-muted, #6b7280);
+}
+
 .focus-rail__gap {
   flex: 0 0 44px;
   text-align: right;
@@ -345,6 +381,26 @@
   font-weight: 700;
   letter-spacing: 0.02em;
   color: var(--text-primary, #e5e7eb);
+}
+
+.focus-rail-card__section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* The status under the news: a hairline, then its own small heading. */
+.focus-rail-card__section--below {
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.focus-rail-card__head {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted, #6b7280);
 }
 
 .focus-rail-card__muted {

@@ -25,7 +25,7 @@ def isolated(tmp_path, monkeypatch):
     fanout._last.clear()
     fanout._errors.clear()
     fanout.dispatch_errors.clear()
-    monkeypatch.setattr(fanout, "l2_sink", fanout.Sink(fanout._write_l2))
+    monkeypatch.setattr(fanout, "l2_sink", fanout.new_l2_sink())
     monkeypatch.setattr(tape_stream, "_tickers", {"AAPL": {}})
     monkeypatch.setattr(tape_stream._client, "get_ib", lambda: object())
     monkeypatch.setattr(tape_stream._depth, "current_book", lambda _: None)
@@ -200,7 +200,51 @@ def test_blocked_capture_does_not_block_l2_viewer_or_event_loop(monkeypatch):
     asyncio.run(run())
 
 
-def test_l2_overflow_is_sticky_and_capture_continues(monkeypatch):
+def test_l2_overflow_states_the_loss_and_takes_prints_again(monkeypatch):
+    """One full backlog loses the prints it could not hold -- and only those.
+
+    Until 2026-09-24 it latched the writer: every later print was shed until a
+    restart, and Paper resting orders, which fill on this archive, went blind.
+    """
+    entered, release = threading.Event(), threading.Event()
+    seen = []
+
+    def blocked(payload):
+        entered.set()
+        assert release.wait(5)
+        seen.append(payload["price"])
+
+    sink = fanout.Sink(blocked, capacity=1)
+    monkeypatch.setattr(fanout, "l2_sink", sink)
+    tape.watch_symbol("AAPL")
+    mode.set_capture_mode(True, symbol="AAPL")
+    try:
+        tick(price=1.0)
+        assert entered.wait(5)
+        tick(price=2.0)  # waits in the queue
+        tick(price=3.0)  # the queue is full: shed
+        writer = tape.health()["writer"]
+        assert "backlog full" in writer["error"] and "still losing" in writer["error"]
+        assert writer["losing"] and writer["dropped"] == 1
+        assert writer["losses"][0]["symbols"] == ["AAPL"]
+        assert not tape.health()["healthy"]
+    finally:
+        release.set()
+    sink.queue.join()
+    tick(price=4.0)  # room again: taken, and the episode ends
+    sink.queue.join()
+    mode.set_capture_mode(False)
+    assert seen == [1.0, 2.0, 4.0]
+    writer = sink.status()
+    assert writer["dropped"] == 1 and not writer["losing"]
+    assert writer["losses"][0]["until"] is not None
+    assert "writing again" in writer["error"]  # still stated while the loss is recent
+    assert recorder.status()["counts"]["prints"] == 4  # the Session Record never lost one
+
+
+def test_a_stated_loss_leaves_error_once_it_is_no_longer_recent():
+    from ibkr.constants_tape_recording import TAPE_RECORD_LOSS_RECENT_SEC
+
     entered, release = threading.Event(), threading.Event()
 
     def blocked(payload):
@@ -208,20 +252,21 @@ def test_l2_overflow_is_sticky_and_capture_continues(monkeypatch):
         assert release.wait(5)
 
     sink = fanout.Sink(blocked, capacity=1)
-    monkeypatch.setattr(fanout, "l2_sink", sink)
-    tape.watch_symbol("AAPL")
-    mode.set_capture_mode(True, symbol="AAPL")
     try:
-        tick()
+        assert sink.submit({"symbol": "AAPL", "ts": 1.0})
         assert entered.wait(5)
-        tick()
-        tick()
-        assert "backlog full" in tape.health()["writer"]["error"]
-        assert not tape.health()["healthy"]
+        assert sink.submit({"symbol": "AAPL", "ts": 2.0})
+        assert not sink.submit({"symbol": "AAPL", "ts": 3.0})
     finally:
         release.set()
-    mode.set_capture_mode(False)
-    assert recorder.status()["counts"]["prints"] == 3
+    sink.queue.join()
+    assert sink.submit({"symbol": "AAPL", "ts": 4.0})
+    sink.queue.join()
+    sink.close()
+    until = sink.status()["losses"][0]["until"]
+    assert sink.status(now=until + TAPE_RECORD_LOSS_RECENT_SEC - 1)["error"]
+    assert sink.status(now=until + TAPE_RECORD_LOSS_RECENT_SEC + 1)["error"] is None
+    assert sink.status()["dropped"] == 1  # the count stays
 
 
 def test_sink_failure_is_visible_and_payload_is_immutable(monkeypatch):
@@ -233,8 +278,48 @@ def test_sink_failure_is_visible_and_payload_is_immutable(monkeypatch):
     tape.watch_symbol("AAPL")
     tick()
     sink.queue.join()
-    assert "write failed" in tape.health()["writer"]["error"]
-    assert not sink.submit({"price": 4})
+    writer = tape.health()["writer"]
+    assert "write failed" in writer["error"]
+    assert writer["losses"][0]["detail"].startswith("TypeError")  # the payload could not be changed
+    assert sink.submit({"symbol": "AAPL", "price": 4})  # a failed write never stops the writer
+    sink.queue.join()
+    assert sink.status()["dropped"] == 2 and len(sink.status()["losses"]) == 1
+
+
+def test_the_archive_writes_a_batch_in_one_go_and_says_how_far_it_is_complete(monkeypatch):
+    entered, release = threading.Event(), threading.Event()
+    batches = []
+
+    def write_many(rows):
+        entered.set()
+        assert release.wait(5)
+        batches.append([row["ts"] for row in rows])
+
+    sink = fanout.Sink(lambda row: None, write_many=write_many)
+    try:
+        assert sink.submit({"symbol": "AAPL", "ts": 100.0})
+        assert entered.wait(5)
+        for ts in (101.0, 101.0, 102.0):
+            assert sink.submit({"symbol": "AAPL", "ts": ts})
+        # Nothing stamped 100 or later is known written: read up to just before it.
+        assert 99.999 < sink.written_through(now=200.0) < 100.0
+    finally:
+        release.set()
+    sink.queue.join()
+    assert batches == [[100.0], [101.0, 101.0, 102.0]]
+    assert sink.written_through(now=200.0) == 200.0
+    assert sink.status()["written"] == 4
+
+
+def test_the_l2_sink_persists_batches_to_the_archive():
+    tape.watch_symbol("AAPL")
+    for price in (42.25, 42.30, 42.35):
+        tick(price=price)
+    fanout.l2_sink.queue.join()
+    rows = tape.get_trades_in_range("AAPL", 0, 2_000_000_000)
+    assert [row["price"] for row in rows] == [42.25, 42.30, 42.35]
+    assert fanout.l2_sink.status()["written"] == 3
+    assert tape.health()["symbols"]["AAPL"]["last_write_ts"] is not None
 
 
 def test_disconnect_and_staleness_are_loud(monkeypatch):

@@ -30,6 +30,28 @@ def reprice_gapper_row(g: dict, q: dict) -> dict:
     }
 
 
+def mover_row_from_quote(symbol: str, q: dict) -> dict:
+    """A new gainer/loser row from a ``snapshot_quotes`` entry with a prior close.
+
+    The arithmetic ``reprice_mover_row`` keeps up afterwards: the move against
+    the prior close, and a gap only from the quote's open -- which the quote
+    carries only once today's session has opened (``ibkr/open_tick.py``).
+    """
+    price, prev_close = q["price"], q["prev_close"]
+    open_price = q.get("open")
+    return {
+        "symbol": symbol,
+        "price": price,
+        "change_pct": (price - prev_close) / prev_close,
+        "change_abs": price - prev_close,
+        "volume": q["volume"],
+        "gap_percent": (open_price - prev_close) / prev_close if open_price else None,
+        "prev_close": prev_close,
+        "open": open_price,
+        "exchange": q.get("exchange"),
+    }
+
+
 def reprice_mover_row(m: dict, q: dict) -> dict:
     """Gainer/loser counterpart to reprice_gapper_row.
 
@@ -41,14 +63,17 @@ def reprice_mover_row(m: dict, q: dict) -> dict:
     ``gap_percent`` needs the session open (IB tick type 14), which arrives on
     the same streaming ticker. Before it lands the row keeps whatever gap it
     already had rather than reusing ``change_pct`` -- an intraday move is not a
-    gap, and inventing one is what a null column is protecting against.
+    gap, and inventing one is what a null column is protecting against. The
+    quote's open wins over the row's: a quote carries an open only once
+    today's session has opened (``ibkr/open_tick.py``), so a stored open from
+    before that can never outlive the real one.
     """
     prev_close = m.get("prev_close") or q.get("prev_close")
     price = q["price"]
     if not prev_close:
         return {**m, "price": price, "volume": q.get("volume", m.get("volume", 0))}
     change_pct = (price - prev_close) / prev_close
-    open_price = m.get("open") or q.get("open")
+    open_price = q.get("open") or m.get("open")
     gap_percent = (
         (open_price - prev_close) / prev_close
         if open_price and prev_close else m.get("gap_percent")
