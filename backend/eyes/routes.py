@@ -10,7 +10,7 @@ stages or cancels an order, and nothing here is drawn by the desk yet.
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, HTTPException
 
@@ -39,7 +39,8 @@ def list_backtests() -> dict[str, Any]:
 
 
 @router.post("/api/eyes/backtests", status_code=202)
-def start_backtest(payload: dict[str, Any] = Body(default_factory=dict)) -> dict[str, Any]:
+def start_backtest(payload: Annotated[dict[str, Any] | None, Body()] = None) -> dict[str, Any]:
+    payload = payload or {}  # no body: every template, every session
     template_ids = payload.get("templates")
     if template_ids is not None and not (isinstance(template_ids, list) and all(isinstance(t, str) for t in template_ids)):
         raise HTTPException(400, {"reason": "BACKTEST_INVALID", "error": "templates is a list of template ids"})

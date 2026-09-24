@@ -13,7 +13,7 @@ A refusal is ``{"detail": {"reason": CODE, "error": "...", "field": KEY | null}}
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, HTTPException
 
@@ -79,7 +79,7 @@ def _values(payload: dict[str, Any]) -> dict[str, Any] | None:
 
 
 @router.post("/api/setups/templates/{setup_id}", status_code=201)
-def create_template(setup_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+def create_template(setup_id: str, payload: Annotated[dict[str, Any], Body()]) -> dict[str, Any]:
     try:
         t = get_store().create(setup_id, name=payload.get("name"), from_id=payload.get("from") or None,
                                values=_values(payload), note=payload.get("note"))
@@ -89,7 +89,7 @@ def create_template(setup_id: str, payload: dict[str, Any] = Body(...)) -> dict[
 
 
 @router.patch("/api/setups/templates/{setup_id}/{template_id}")
-def update_template(setup_id: str, template_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+def update_template(setup_id: str, template_id: str, payload: Annotated[dict[str, Any], Body()]) -> dict[str, Any]:
     try:
         t, rules_changed = get_store().update(setup_id, template_id, name=payload.get("name"),
                                               values=_values(payload), note=payload.get("note"))

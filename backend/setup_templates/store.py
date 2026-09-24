@@ -100,7 +100,7 @@ class TemplateStore:
             raw = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
             self._error = f"{path.name} could not be read ({exc}); every setup runs its default until it is moved aside"
-            logger.error("setup templates: %s", self._error)
+            logger.exception("setup templates: %s", self._error)
             return
         version = raw.get("schema_version") if isinstance(raw, dict) else None
         if version != SETUP_TEMPLATES_SCHEMA_VERSION:
