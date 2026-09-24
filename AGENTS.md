@@ -412,6 +412,42 @@ human_step_poll_sec, cleared_at, cleared_reason, recent[]}` from
 10 min, then a stated human step). `ibkr/session_errors.last_error()` is
 `{code, message, ts} | null` for the last IB errorEvent of any code.
 
+### Where Nova keeps its data (operator ask, 2026-09-24)
+
+"any recording and data, lets keep them off the C drive": the operator's F:
+drive holds every data folder. The Session Records, downloads, leaderboard,
+catalysts and eyes already default to `F:\Nova\...` while F: is mounted. The
+checkout's own `backend\.cache` (archive, cold archive, nightly backups, Level 2
+and tape archive, practice and execution ledgers, perf) and `backend\logs` move
+there with `py -3 tools/data_root.py move`, run while Nova is stopped. Each is
+copied to `F:\Nova\cache` / `F:\Nova\logs`, every file is verified by size and
+modified time, and the C: folder becomes a directory junction, so every writer
+(the backend, the premarket scripts, Vite, research, tools) keeps its path. Only
+the checkout the tool runs from moves (`--repo` names another): a worktree keeps
+its own `backend\.cache` and so its own `api-instance.lock`. A junction whose
+drive is gone fails every write loudly; nothing starts an empty store on C:.
+
+The tool refuses while :8000 or :5173 answers or the API lock's process lives.
+It never merges into a folder it did not fill, never copies C: over a folder
+that already became the data, and finishes an interrupted move on the next run.
+Its marker `F:\Nova\cache\.nova-data-root.json` (and `F:\Nova\logs\...`) is
+`{schema_version: 1, moved_from, state: "copying" | "verified" | "moved",
+started_at, verified_at, moved_at, files, bytes}`; an unknown version refuses.
+The C: original (`backend\.cache.moved-<stamp>`) is deleted only once the
+marker reads `verified` or `moved`. `status [--json]` is read-only and answers
+`{schema_version: 1, repo, data_drive: {root, mounted, free_bytes},
+desk_running: string[], folders: [{id: "cache" | "logs", path, target, real,
+kind: "junction" | "folder" | "missing", originals, files, bytes, error}]}`.
+
+`/api/diagnostics` adds the `data_folders` row (group `process`; owner
+`diagnostics/collect_data_root.py`), `evidence: {data_drive, data_drive_mounted,
+system_drive, folders: [{id, label, path, real, env, error}]}` for the cache,
+logs, captures, downloads, leaderboard, catalysts and eyes, `real` with
+junctions resolved and nothing created to look. It is `warn` while a folder
+sits on the system drive and F: is mounted (the fix names the move, or the
+environment variable that put it there), `fail` when a folder's drive is gone
+and `unknown` when one cannot be resolved.
+
 ### Why the Gateway needed a phone login; premarket evidence (#14)
 
 IB Gateway's saved login survives only its own `AutoRestartTime` restart; any
@@ -1950,6 +1986,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-24 | Nova's data leaves C: (operator ask: "we also have PLENTY of space in F drive, any recording and data, lets keep them off the C drive!"): the checkout's `backend\.cache` held 26 GB on C: (the archive, 19 GB of nightly backups, the cold archive, `l2.db`, the ledgers, perf) and `backend\logs` 236 MB, while captures, downloads, the leaderboard, catalysts and eyes were already on F:. `tools/data_root.py move` copies both to `F:\Nova\cache` / `F:\Nova\logs`, verifies every file and leaves directory junctions at the old paths, so every writer keeps its path; it refuses while Nova runs and resumes after an interruption. A per-checkout junction, not a machine-wide F: default, because `api_instance_lock` stops a lock holder it cannot see on its own port: a worktree sharing the desk's cache could stop the live API. `/api/diagnostics` adds the `data_folders` row. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Sensors for agents (ADR 033, operator ask: "when I have a fast question, you can answer me"; "do we have sensor endpoints? ... our bots have more things to rely on"): `GET /sensors/focus` names the window Windows has in front, its page, symbol, monitor and the operator's last input, reported by every desk window and the Electron main process -- no more guessing which ticker the operator is on. The book watcher (`backend/book_watch/`) follows every held depth line with its tape off the IB loop and splits every drop in resting size into filled and pulled, with `pulled_on_approach` / `repeated_pulls` flags -- hints consistent with spoofing, never a detection (`GET /sensors/book-pulls`, a journal, `tools/book_watch_replay.py`). The L2 sensor's venue rows no longer overwrite each other at one price. A Session Record keeps every book IBKR sends (up to 50 a second, batched to the writer; it kept at most 8 and held back 63% of GCTK's and 76% of PFSA's books on 2026-09-24 while `l2_coalesced` read 0), and the manifest counts every book lost. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | A scanner for every setup (ADR 031, #572; operator: "Weren't we supposed to have a small scanner for each one of these strategies?", then "we are going to need lots of hovers, explaining in detail what each means" and "add a strategy called bull flag"; decisions A / B / C on the mockup). The flat-top breakout (research P2) and red to green (P3) get live detectors on the first pullback's lanes, and the bull flag joins the playbook with rules pre-registered in ADR 031 from the operator's material; each watches the HOD Momo names on every template, reads the same tape gate, scores the same way and keeps its own read-out. A level per setup: the chosen setup's is the session's; every other setup with a scanner is Off (watches and scores, silently -- the first pullback no longer pings at Off) or Eyes (proposes), several at once; only the chosen setup reaches Strategy, and Nova's bot trades the chosen setup on Paper and Sim. `setups.db` schema 3 (`setup_type`, `detail`), the board schema 2 (`setups[]`), `PATCH /api/bot/session {setup_levels}`. Every setup card carries its own small scanner; `ux/hoverTip.ts` explains every chip on hover. Gap and Go's scanner is next; the micro pullback stays parked. Also the loss breakers become the operator's, per venue (ADR 032, operator: "move that slider ... make sure these changes are persistent"): the bot trip and the all-stop are sliders saved in the bot session for Live, Paper and Sim separately, within bounds, and the session file is written atomically. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Paper resting orders fill again when the tape archive falls behind (operator report: "I don't understand why this is not going through my working order"): an APUS SELL limit at $4.96 rested unfilled while APUS printed $5.00. Resting Paper fills read the L2 tape archive, and its writer had latched at 07:29:41 ET. It wrote one print per connection (about 190 prints/s at best), a 256-print backlog filled as the tape reached 150 written prints/s, and the first overflow shed every later print until a restart. Only `/api/l2/status` said so. The writer (`ibkr/tape_sink.py`) now writes a batch per transaction (about 49,000 prints/s), holds 8,192, states each loss and keeps going. The matcher reads only as far as the archive has written, so a late print is no longer skipped. A `tape_archive` diagnostics row fails while a resting order's prints are not reaching the archive. §3 amended. | User Directive + Claude Opus 5.5 |

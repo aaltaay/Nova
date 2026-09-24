@@ -13,11 +13,13 @@ import time
 from pathlib import Path
 from typing import Any, Callable
 
+from constants_data_root import DATA_DRIVE_WIN, DATA_SYSTEM_DRIVE_DEFAULT
 from constants_diagnostics import (
     DIAG_GROUP_GATEWAY,
     DIAG_GROUP_MARKET_DATA,
     DIAG_GROUP_PERFORMANCE,
     DIAG_GROUP_PRACTICE,
+    DIAG_GROUP_PROCESS,
     DIAG_GROUP_RECORDER,
     DIAG_GROUPS,
     DIAG_PORT_PROBE_TIMEOUT_SEC,
@@ -27,6 +29,7 @@ from diagnostics import (
     collect,
     collect_borrow,
     collect_catalysts,
+    collect_data_root,
     collect_gateway,
     collect_leaderboard,
     collect_perf,
@@ -121,6 +124,50 @@ def _market_data_inputs() -> dict[str, Any]:
         "depth_symbols": [s for s in _depth_state.subscribed_symbols() if _depth_state.is_live(s)],
         # Read-only peek at the tape line map: this IBKR session's lines only (#562).
         "tape_symbols": sorted(s for s in list(getattr(_tape, "_tickers", {})) if _tape.is_subscribed(s)),
+    }
+
+
+def _data_folder_inputs() -> dict[str, Any]:
+    """Every data folder and the drive that really holds it (junctions resolved).
+
+    Nothing here creates a folder to look at it: the cache and the logs are
+    read with ``paths.cache_root()`` / ``log_root()``, so a junction whose
+    drive is gone reports that drive instead of failing a ``mkdir``.
+    """
+    import paths
+    from capture.storage import capture_root
+    from catalysts import feed_store
+    from constants_catalysts import CATALYST_DIR_ENV
+    from constants_eyes import EYES_DIR_ENV
+    from constants_leaderboard import LEADERBOARD_DIR_ENV
+    from constants_sim import SIM_HISTORY_DIR_ENV
+    from eyes import journal as eyes_journal
+    from leaderboard import store as leaderboard_store
+    from sim import history_store
+
+    folders: list[dict[str, Any]] = []
+    for fid, label, env, resolve in (
+        ("cache", "Nova cache", "NOVA_CACHE_DIR", paths.cache_root),
+        ("logs", "Logs", "NOVA_LOG_DIR", paths.log_root),
+        ("captures", "Session Records", "NOVA_SIM_CAPTURE_DIR", capture_root),
+        ("downloads", "Replay downloads", SIM_HISTORY_DIR_ENV, lambda: history_store.path().parent),
+        ("leaderboard", "Scanner leaderboard", LEADERBOARD_DIR_ENV, leaderboard_store.root),
+        ("catalysts", "Catalyst feed", CATALYST_DIR_ENV, feed_store.root),
+        ("eyes", "Eyes journal", EYES_DIR_ENV, eyes_journal.eyes_dir),
+    ):
+        item: dict[str, Any] = {"id": fid, "label": label, "path": None, "real": None,
+                                "env": env if (os.environ.get(env) or "").strip() else None, "error": None}
+        try:
+            item["path"] = str(resolve())
+            item["real"] = os.path.realpath(item["path"])
+        except (OSError, RuntimeError, ValueError) as exc:
+            item["error"] = f"{type(exc).__name__}: {exc}"     # stated on the row, never read as "on F:"
+        folders.append(item)
+    return {
+        "folders": folders,
+        "data_drive": DATA_DRIVE_WIN,
+        "data_drive_mounted": os.name == "nt" and os.path.isdir(DATA_DRIVE_WIN + "\\"),
+        "system_drive": os.environ.get("SystemDrive") or DATA_SYSTEM_DRIVE_DEFAULT,
     }
 
 
@@ -237,6 +284,8 @@ def gather(*, ui_tag: str | None = None, now: float | None = None) -> dict[str, 
     facts = process_info.process_facts(now=ts)
     rows: list[dict[str, Any]] = []
     rows += collect.process_rows(facts)
+    rows += _safe(DIAG_GROUP_PROCESS, "data_folders", "Where Nova keeps its data",
+                  lambda: collect_data_root.data_folder_rows(**_data_folder_inputs()))
     rows += collect.integration_rows(env_file=facts["env_file"])
     rows += _safe(DIAG_GROUP_GATEWAY, "gateway", "Gateway", lambda: collect_gateway.gateway_rows(**_gateway_inputs()))
     rows += _safe(DIAG_GROUP_MARKET_DATA, "market_data", "Market data", lambda: collect_gateway.market_data_rows(**_market_data_inputs()))
