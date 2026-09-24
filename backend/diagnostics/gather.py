@@ -33,6 +33,7 @@ from diagnostics import (
     collect_gateway,
     collect_leaderboard,
     collect_perf,
+    collect_screen_record,
     collect_tape_archive,
     process_info,
 )
@@ -230,6 +231,12 @@ def _recorder_inputs() -> dict[str, Any]:
     }
 
 
+def _screen_record_status(now: float) -> dict[str, Any]:
+    from screen_record import store
+
+    return store.status(now)
+
+
 def _practice_inputs() -> dict[str, Any]:
     from constants_practice import PRACTICE_LEDGER_SCHEMA_VERSION
     from constants_sim import DESK_VENUE_FILE, DESK_VENUE_SCHEMA_VERSION
@@ -292,6 +299,8 @@ def gather(*, ui_tag: str | None = None, now: float | None = None) -> dict[str, 
     rows += _safe(DIAG_GROUP_RECORDER, "recorder", "Recorder", lambda: collect_gateway.recorder_rows(**_recorder_inputs()))
     rows += _safe(DIAG_GROUP_RECORDER, "leaderboard_recorder", "Scanner board recorder",
                   lambda: collect_leaderboard.leaderboard_rows(**_leaderboard_inputs()))
+    rows += _safe(DIAG_GROUP_RECORDER, "screen_recorder", "Trading screen recording",
+                  lambda: collect_screen_record.screen_record_rows(status=_screen_record_status(ts)))
     rows += _safe(DIAG_GROUP_RECORDER, "catalyst_feed", "Catalyst feed",
                   lambda: collect_catalysts.catalyst_feed_rows(status=_catalyst_feed_status(), now=ts))
     rows += _safe(DIAG_GROUP_RECORDER, "borrow_feed", "Borrow feed",

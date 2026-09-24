@@ -3,7 +3,8 @@
  * every live page inherits it. One row, left to right on every view:
  *
  *   wordmark · session chip · ET clock · connection chip · venue pills · REC
- *   chips · [ticker search, centred] · Emergency KILL · Day's / Working / TAV
+ *   chips · screen recording chip (ADR 035) · [ticker search, centred] ·
+ *   Emergency KILL · Day's / Working / TAV
  *   / bot pill / account pill · padlock · gear
  *
  * Reload backend, the theme toggle, the full Gateway & feed status cluster and
@@ -18,6 +19,7 @@
 import { GLOBAL_BAR_BRAND } from '../constants';
 import { RecordingChip } from '../capture/RecordingChip';
 import { RecordingSignals } from '../capture/RecordingSignals';
+import { ScreenRecordChip } from '../screen_record';
 import { GlobalBarBotPill } from '../bot/GlobalBarBotPill';
 import { GlobalBarBotRow } from '../bot/GlobalBarBotRow';
 import { useClosedOrders } from '../closed_orders/useClosedOrders';
@@ -125,6 +127,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
             testId="header-gateway-mode-capsule"
           />
           <RecordingChip variant="bar" onOpenSymbol={openStockView} />
+          <ScreenRecordChip />
         </div>
 
         <div className="global-app-bar__center" data-testid="global-bar-center">

@@ -1277,6 +1277,62 @@ watcher, `NOVA_BOOK_WATCH_JOURNAL=0` its journal. `py -3
 tools/book_watch_replay.py <recording dir>` runs the same detector over a
 Session Record.
 
+### The trading screen is always recorded (ADR 035, operator decision 2026-09-24)
+
+"I always, always, always want the screen that I'm trading to be recorded.
+Everything ... That's definitely not negotiable." The desktop app's main
+process records every monitor from launch to quit (owner
+`frontend/electron/screenRecorder.mjs`; plan `screenRecordPlan.mjs`, files
+`screenRecordFiles.mjs`, a hidden recorder page `screenRecorder.html`). There
+is no off switch: no button, setting or variable stops it;
+`NOVA_SCREEN_RECORD_DIR` only moves the folder. The browser desk cannot record
+the screen and says so.
+
+**Files.** `<dir>/<YYYY-MM-DD>/<HHMMSS>-screen<N>.mkv` -- the Eastern date and
+start time, monitors numbered left to right from 1 (`.webm` when Chromium has
+no H.264 encoder) -- a new file per monitor on every quarter hour, started
+before the old one stops. `<dir>` is `NOVA_SCREEN_RECORD_DIR`, else
+`F:\Nova\screen` while F: is mounted, else `<userData>\screen` (the view says
+`dir_source: "fallback"` and why). Beside them `segments.jsonl`, one JSON
+object per line: `{schema_version: 1, event: "start", segment_id, file,
+display: {id, index, count, label, primary, scale_factor, bounds}, width,
+height, fps, bps, mime, started_ts}` and `{schema_version: 1, event: "end",
+segment_id, file, ended_ts, bytes, reason: "rotation" | "quit" |
+"display_change" | "stall" | "error" | "suspend" | "recorder_gone", error}`
+(epoch seconds). A start with no end is a file cut short by a crash or power
+loss; it plays up to its last write. Nothing deletes a recording (operator
+decision 2026-09-24: "Keep every screen recording until I say otherwise; just
+warn me when F: gets low" -- the drive guard below is that warning).
+
+**The view** (one shape for every reader: the desk over IPC
+`nova:screen-record:view` / `nova:screen-record:subscribe`, read-only, and
+`POST /api/screen-record` every `SCREEN_RECORD_REPORT_SEC` and on each state
+change): `{schema_version: 1, state: "starting" | "recording" | "partial" |
+"failed" | "suspended" | "stopped", recording: boolean (every monitor), since:
+number | null, error: string | null, dir, dir_source: "env" | "data_drive" |
+"fallback", dir_note, dir_error, mime, fps, segment_min, displays: [{index,
+count, id, label, primary, scale_factor, width, height, recording, since, file,
+bytes, last_data_ts, error, retry_at}], unmatched: [{index, id, label}],
+disk: {free_bytes, state: "ok" | "warn" | "fail" | "unknown", error,
+checked_ts}, problems: [{at, display_index, reason, detail, resumed_at}]
+(newest first, at most 10), restarts, generated_at}`. A monitor that fails,
+stalls (no data for 12 s) or ends by itself is started again after 2, 5, 10,
+30 s, then every 60 s, forever; a crashed recorder page is replaced; each loss
+is a `problems` row until it is back.
+
+`GET /api/screen-record` (owner `backend/screen_record/`, in memory, never
+persisted) answers `{schema_version: 1, reported, fresh, age_sec, received_ts,
+report: view | null}`; `fresh` is a report younger than
+`SCREEN_RECORD_STALE_SEC` (35). `POST` refuses an unknown `schema_version`,
+`state` or `dir_source` (422) and a body over 64 KB (413). `/api/diagnostics`
+adds the `screen_recorder` row (group `recorder`): `fail` with no desktop app
+reporting, a stale report, or any monitor not recording; `warn` while starting
+or recording to the system drive; `off` while the PC sleeps; and the
+leaderboard's drive guard (warn under 50 GB free, fail under 10 GB, only ever
+worse). The header chip (`frontend/src/screen_record/`) is a monitor icon with a
+red dot while every monitor records and a red "Screen not recording" the moment
+one does not.
+
 ### Watchlist rows (operator decision 2026-09-23)
 
 `GET /api/strategy/watchlist` entries keep `symbol`, `composite_score`,
@@ -2343,6 +2399,8 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 | Date | Change | Author |
 |------|--------|--------|
 | 2026-09-24 | The bot's read on one stock (ADR 036, #598; operator ask: "show me the bot's decisions specifically for that stock ... if something is forming, can we start highlighting it on the chart? ... all the tiny signals", then "i want it to tell me my entry/exit .. we typically want to aim for 2:1 ratio, like right on top of lvl2"; mockup v1 approved). Every scanner lane answers for one symbol (`GET /api/setups/symbol/{symbol}`), with the levels a forming setup would arm with (computed, then thrown away until now) and its own MACD / 9 EMA; `backend/stock_read/` composes the owners into seven groups of signals, a plan (entry, stop, target at least 2R from the setup's own rule, and what stands in the way), one symbol's day from the eyes' journal (ADR 029 amended: the desk reads it through the decisions route) and its history. The Trader rail shows the plan and seven tiles above Level 2, a sheet lists every signal, and the 1-minute chart draws each setup as it forms. The plan opens whole only when the quote card has room for it and Level 2 both; below that it is one line (at 1080p, Level 2 kept 302 px of its 354 against 118 with the whole plan). Fixed with it: the VWAP sensor covered only the last 240 bars, the halt sensor read not halted when it did not know, the Level 2 shortability chip asked once per tab. §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-09-24 | Screen recordings are kept (ADR 035 decision 7, operator: "Keep every screen recording until I say otherwise; just warn me when F: gets low"). Nothing deletes a recording; the drive guard -- the header chip amber under 50 GB free and red under 10 GB, and the `screen_recorder` checklist row -- is the warning. No code change: this is what #597 shipped, now decided. §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-09-24 | The trading screen is always recorded (ADR 035, operator: "I always, always, always want the screen that I'm trading to be recorded. Everything ... That's definitely not negotiable."). The desktop app records every monitor from launch to quit, with no off switch: H.264 at 15 fps, each monitor at its Windows layout size, a new file every quarter hour (started before the old one stops) under `F:\Nova\screen`, a day manifest beside them. A hidden recorder window encodes off the desk's threads; the main process restarts any monitor that fails, stalls or disappears (forever, with backoff), replaces a crashed recorder and re-plans on display changes. The header shows a quiet icon while recording and a red "Screen not recording" when not; `POST` / `GET /api/screen-record` and a `screen_recorder` diagnostics row that fails whenever nothing says the screen is recorded. Nothing deletes a recording; retention is the operator's call. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Watch list toasts follow the setups too (operator ask on a "PFSA is running up" toast: "shouldn't these toast notifications be watching if a strategy is forming?"): the toasts listened only to the HOD Momo feed, so a watched symbol's bull flag or first pullback forming, arming, coming near its trigger or triggering said nothing. The toast now also follows the setup scanner's live board: each setup's climb up the ladder raises it once (flicker and the first frame after a load, a reconnect or Sim are read silently), one toast per symbol still, and its setup lines follow the board while it is up. The board names the symbols it follows (`universe_symbols`), so the Watch list tab's new Setup column says "Not followed" for a watched symbol the scanner does not watch (it follows the HOD Momo names only). §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | A practice send answers when the venue answers (operator report: "This is extremely dangerous. Why are things not getting sent fast enough?"): the Paper ticket read "Placing..." for five seconds after its order filled. The practice broker's notice of a fill at placement reached a watch the send then replaced, and a resting order sent none, so the execution door's acknowledgment wait ran out its full 5 s -- 21 of 23 Paper orders that day, fills in under 150 ms. The broker's own answer is now the acknowledgment (`practice/watch.note_answer`); a replace answers the same way; an order the venue cancels at the fill is refused in its own words instead of reading as placed. Live is unchanged (its record: IBKR's first status in 40 ms to about 1 s). `tools/order_timing.py` prints each order's stages from the running backend. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | The tape flow score and a flush exit (ADR 034; operator ask on a GLND flush in Time & Sales: "can my bots detect ... flush ... so we can exit a position or burst of greens where we can enter ... a small piece of the final decision", then "fine tune the SHIT out of this ... hybrid creative solution and mixing it in the strategies"). One score from -1 to +1 (ask vs bid shares, pace against the tape's own baseline, price move, book depth; an unknown reading drops out, never 0) with every number a template parameter; a template may enter on the score instead of the gate's print counts, and tighten or exit on a flush -- the scoring exit and Nova's bot follow one rule; the defaults are the pre-registered rules. The flow study reads every recorded second (15 recordings: a flush after a rise was followed by -43 bp over a minute; a burst from a flat minute faded) and backtests sweep run-only template variants against a base. §3 amended. | User Directive + Claude Opus 5.5 |
