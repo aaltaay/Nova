@@ -80,6 +80,7 @@ export function TickerDetailContent({
                 timestamp: trade.timestamp ?? null,
                 symbol: chartSymbol,
                 source: trade.source,
+                dayVolume: trade.day_volume ?? null,
               }
             : undefined
         }

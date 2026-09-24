@@ -97,13 +97,16 @@ function absenceText(title: string, list: string, rows: FocusRow[] | null, src: 
 }
 
 /** One half's view. Off the live edge only the symbol sort applies: ordering
- * by today's price, % or news would show what the rows hide (QA W10). */
+ * by today's price, % or news would show what the rows hide (QA W10). The HOD
+ * lists are alert lists and never sort: the newest cross stays on top, even
+ * over a sort saved before (operator decision 2026-09-24). */
 function paneView(pane: FocusPaneState, src: FocusSources, replayDesk: boolean, modules: readonly NovaModule[]): FocusPaneView {
   const title = (modules.find(m => m.id === pane.list) ?? modules[0])?.title ?? pane.list;
-  const sort = replayDesk && pane.sort?.key !== 'symbol' ? null : pane.sort;
+  const sortable = !isHodFocusList(pane.list);
+  const sort = !sortable || (replayDesk && pane.sort?.key !== 'symbol') ? null : pane.sort;
   const listed = listRows(pane.list, src);
   const rows = listed ? sortFocusRows(listed, sort) : null;
-  return { list: pane.list, title, rows, absent: absenceText(title, pane.list, rows, src), sort };
+  return { list: pane.list, title, rows, absent: absenceText(title, pane.list, rows, src), sort, sortable };
 }
 
 export function FocusRail({ active: onScreen = true, store = SAVED_FOCUS_RAIL_STORE }: {

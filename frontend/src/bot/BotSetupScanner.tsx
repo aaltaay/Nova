@@ -10,16 +10,20 @@ import { BOTS_SCANNER_MAX_ROWS } from '../constantGroups/bots_page';
 import { SETUP_COL_TIPS, SETUP_STATUS_TIPS } from '../constantGroups/setups';
 import {
   gradeWords,
+  isActionable,
   lastWords,
   otherSetups,
+  rowRank,
   setupLabel,
   setupShort,
   stateWords,
+  tapeRank,
   tapeWords,
   toGoWords,
   triggerWords,
   type SetupRow,
 } from '../setups';
+import { SortTh, useTableSort, type SortColumns, type TableSort } from '../table_sort';
 import { tipProps } from '../ux/hoverTip';
 import { openBotSymbolMenu } from './botSymbolMenuStore';
 
@@ -37,11 +41,35 @@ interface Props {
   emptyText?: string | null;
 }
 
-function Head({ k, label, num = false }: { k: keyof typeof SETUP_COL_TIPS; label: string; num?: boolean }) {
-  return <th className={num ? 'num' : undefined} {...tipProps(SETUP_COL_TIPS[k], label)}>{label}</th>;
+/** What each header sorts on (the whole lane, before the card keeps its top rows). */
+const COLUMNS: SortColumns<SetupRow> = {
+  symbol: r => r.symbol,
+  // The most advanced first: near, armed, triggered, ... (rowRank is lowest-first).
+  state: r => -rowRank(r),
+  trigger: r => r.setup?.trigger,
+  last: r => r.last_price,
+  // Nearest the trigger first; a triggered row shows how it went, not a distance.
+  to_go: { value: r => (isActionable(r) && r.setup ? r.distance : null), first: 'asc' },
+  tape: tapeRank,
+  grade: r => r.grade,
+};
+
+function Head({ k, label, num = false, sort, onSort }: {
+  k: keyof typeof SETUP_COL_TIPS;
+  label: string;
+  num?: boolean;
+  sort: TableSort | null;
+  onSort: (key: string) => void;
+}) {
+  return (
+    <SortTh col={k} sort={sort} onSort={onSort} className={num ? 'num' : undefined} {...tipProps(SETUP_COL_TIPS[k], label)}>
+      {label}
+    </SortTh>
+  );
 }
 
 export function BotSetupScanner({ setup, rows, allRows, connected, onOpenSymbol, hovered, onHover, emptyText }: Props) {
+  const { rows: sorted, sort, onSort } = useTableSort(`bot.scanner.${setup}`, rows, COLUMNS);
   if (!connected) {
     return <p className="bots-scan__empty" {...tipProps(SETUP_STATUS_TIPS.disconnected)}>Scanner not connected.</p>;
   }
@@ -52,7 +80,7 @@ export function BotSetupScanner({ setup, rows, allRows, connected, onOpenSymbol,
       </p>
     );
   }
-  const shown = rows.slice(0, BOTS_SCANNER_MAX_ROWS);
+  const shown = sorted.slice(0, BOTS_SCANNER_MAX_ROWS);
   const menu = (e: MouseEvent, symbol: string) => {
     e.preventDefault();
     openBotSymbolMenu(symbol, e.clientX, e.clientY);
@@ -61,13 +89,13 @@ export function BotSetupScanner({ setup, rows, allRows, connected, onOpenSymbol,
     <table className="bots-scan" data-testid={`bots-scan-${setup}`}>
       <thead>
         <tr>
-          <Head k="symbol" label="Symbol" />
-          <Head k="state" label="State" />
-          <Head k="trigger" label="Trigger" num />
-          <Head k="last" label="Last" num />
-          <Head k="to_go" label="To go" num />
-          <Head k="tape" label="Tape" />
-          <Head k="grade" label="Gr" />
+          <Head k="symbol" label="Symbol" sort={sort} onSort={onSort} />
+          <Head k="state" label="State" sort={sort} onSort={onSort} />
+          <Head k="trigger" label="Trigger" num sort={sort} onSort={onSort} />
+          <Head k="last" label="Last" num sort={sort} onSort={onSort} />
+          <Head k="to_go" label="To go" num sort={sort} onSort={onSort} />
+          <Head k="tape" label="Tape" sort={sort} onSort={onSort} />
+          <Head k="grade" label="Gr" sort={sort} onSort={onSort} />
         </tr>
       </thead>
       <tbody>

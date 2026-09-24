@@ -805,7 +805,9 @@ and a rebuilt board; a day with none, a weekend or a future day cannot be picked
 (owner `backend/setup_scanner/`; read-only -- nothing there places, stages or
 cancels an order) answer `schema_version: 1`, `generated_at`, `session_date`
 (Eastern `YYYY-MM-DD` or null), `universe` (symbols followed: the HOD Momo
-active set), `seeding` (symbols still loading today's bars), `scoreboard:
+active set), `universe_symbols: string[]` (those symbols, sorted -- added
+2026-09-24 for the watch list; a Sim eyes board lists its replay's symbol),
+`seeding` (symbols still loading today's bars), `scoreboard:
 boolean`, `scoreboard_error: string | null`, `proposing: boolean` (false on a
 replay desk), `rows[]` (at most `SETUPS_BOARD_MAX_ROWS`; near, armed, triggered
 within 30 min, pullback, leg, failed within 5 min, then nearest the trigger)
@@ -885,6 +887,174 @@ silently. `setups.db` is schema 3: rows add `setup_type` and `detail`
 `setup_type` to their answer. `GET /api/setups/rows?setup=all` answers every
 setup's template in play at once, oldest armed first (the Bots page timeline;
 with `template=all`, every template's rows).
+
+### The tape flow score and the flush exit (ADR 034, operator ask 2026-09-24)
+
+"Can my bots detect if we are seeing flush like this so we can exit a position
+or burst of greens where we can enter ... just a small piece of the final
+decision." Owner `setup_scanner/tape_flow.py` (pure). A **flow reading** is
+`{score: number | null, label: "burst" | "flush" | "neutral" | "quiet" |
+"blind", readings: {imbalance, pace, drift, book}, metrics: {window_sec,
+ask_shares, bid_shares, ask_prints, bid_prints, between_shares, pace_ratio,
+baseline_sec, drift_pct, bid_depth, ask_depth, best_bid, best_ask}}`: each
+reading from -1 (sellers) to +1 (buyers) and `null` when Nova cannot take it
+(no fresh book, a baseline shorter than the window, one price) -- never 0; the
+score is the weighted mean of the known readings (`null` with none); `quiet`
+is too little tape at the bid or the ask to say, `blind` no print and no book.
+Lit prints only (FINRA / TRF / ADF out), a `between` print counts for no side,
+the drift reads only prints that set a price, and the baseline never counts
+time before the feed could see the tape. Every number is a template parameter
+(the catalogue's `flow` group on every setup with a scanner): `flow_window_sec`,
+`flow_baseline_sec`, `flow_min_prints`, `flow_min_shares`, `flow_w_imbalance`,
+`flow_w_pace`, `flow_w_drift`, `flow_w_book` (not all zero), `flow_pace_full`,
+`flow_drift_full_pct`, `flow_book_levels`, `flow_burst_at`, `flow_flush_at`;
+and the two choices below, whose defaults are the pre-registered rules.
+
+**Entry** (`tape_entry: "gate" | "score" | "both"`, `flow_entry_min`): `gate` is
+ADR 022's print counts; `score` keeps the vetoes and a seller that is not
+thinning and replaces the print counts with the score at or over the minimum
+(a quiet or blind flow waits); `both` needs both. Every tape read (a board row's
+`tape`, `setups.db` `trigger_tape`) adds `flow` (the reading) and
+`metrics.flow_score` / `metrics.entry_mode`; `near_tape` and the trigger event
+the bot hears add `flow: {score, label}`.
+
+**Exit** (`flush_exit: "off" | "tighten" | "exit"`, `flush_hold_sec`,
+`flush_trail_r`, `flush_min_r` nullable): a `flush` at least `flush_hold_sec`
+after the entry -- with `flush_min_r`, only while the trade is up that many R --
+moves the stop up to `flush_trail_r` R under the price (never down) or gets out
+at the bid (`tape_flow.flush_action`). Every lane reads each triggered setup's
+flow every `TAPE_FLOW_EVAL_SEC` through its scoring window
+(`setup_scanner/lane_flow.py`; the live engine keeps that symbol's tape); the
+scoring exit applies the rule (`bar_exit_reason` adds `flush` / `flush_runner` /
+`flush_stop` / `flush_stop_runner`; a backtest row adds `flush_action`,
+`flush_at`, `stop_now`), and Nova's bot applies the same rule from its own fill
+to its trade (`bot/first_pullback/flush.py`; the trade's `exit_reason` adds
+`flush`, a tightened stop is a `bot_trade` `note`) from the scanner's newest
+reading (`SetupEngine.flow_reading(setup_id)`, never older than
+`TAPE_FLOW_READING_STALE_SEC`). The eyes' journal adds `flow` (a turn into or
+out of a burst or a flush after a trigger: `label`, `was`, `score`, `readings`,
+`price`, `since_trigger`) and `flush` (`action`, `score`, `price`, `bid`,
+`stop`, `exit_px`, `mode`). The scoreboard summary's `by` adds
+`flow_at_trigger`; a fill count of three covers `flush_runner` /
+`flush_stop_runner`. `/sensors/flow` adds `score` (a flow reading with the
+default numbers over the sensor rings; `SENSOR_TAPE_RING` 4,000 prints).
+
+**Measuring it.** `eyes/flow_study.py` (`tools/flow_study.py`, read-only) reads
+each recorded second through the score and measures the mid's move 10 s to 5 min
+later -- never across a gap -- answering `{schema_version: 1, params, study,
+recordings, seconds, seconds_by_label, onsets: {burst | flush: {HORIZON: {n,
+mean_bp, median_bp, up_pct, t}}}, onset_spread_bp, onsets_by_context: {burst |
+flush: {after_rise | after_fall | flat | unknown: ...}}, separation_bp,
+by_label, by_bucket}`. `POST /api/eyes/backtests` adds `variants: [{name?,
+base?, values}]` (at most `EYES_BACKTEST_MAX_VARIANTS`): templates made for the
+run only (`var-NN`), never stored; a variant's manifest entry adds `variant:
+true`, `base`, `overrides`, and every template's summary adds `exits`, `flush`
+and `vs_base: {base, paired, avg_r_delta, better, worse, same} | null` -- the
+same setups (day, symbol, leg) against the run's first template.
+`tools/eyes_backtest.py sweep` builds the variants from a grid.
+
+### The bot's read on one stock (ADR 036, operator ask 2026-09-24, #598)
+
+"Show me the bot's decisions specifically for that stock ... if something is forming, can we start
+highlighting it on the chart? ... all the tiny signals"; then "i want it to tell me my entry/exit
+.. we typically want to aim for 2:1 ratio, like right on top of lvl2". Read-only everywhere: nothing
+here places, stages or cancels an order.
+
+**Every lane for one symbol.** `GET /api/setups/symbol/{symbol}` (owner `setup_scanner/`,
+`symbol_view.py`) answers `{schema_version: 1, generated_at, session_date, symbol, followed:
+boolean, followed_note: string | null, seeding: boolean, setups: SetupLane[]}` -- `followed` false
+(with the note: the scanner follows the HOD Momo names) leaves `setups` empty. A **SetupLane** is
+each setup's template in play: `{setup_type, template: {id, rev, name, params_hash}, level, chosen,
+window: {start, end, state}, rules: {stop_cap, min_stop, target_r, target_mode, entry_offset,
+risk_slippage}, state, reason, kind, nth, setup_id: string | null, leg, setup, forming, last_price,
+distance, grade, pillars, tape: {verdict, reasons, line, metrics, flow} | null, proposal, outcome,
+bar_r, mfe, mae, failed_at, series}` -- the board row's fields for that symbol whatever its state
+(`watching` included), plus `forming` and `series`. `forming` is `{trigger, entry, stop, risk,
+target1, bars, blocked: string | null, waiting: string | null}` or `null`: the levels the setup
+would arm with, computed at the last bar close by the same rule that arms it -- a first pullback or
+bull flag blocked by its risk, MACD or window, a bull flag with fewer flag candles than it needs
+(`waiting` says how many more), a flat top's base blocked, red to green before its red closes or
+with its risk out of the band. `series` is the lane's own indicators at its last closed bar:
+`{bars_as_of, bars, close, ema, macd_line, macd_signal, macd_hist, hod}` (`null` before a bar) --
+the values the gates read, on the scanner's own minutes. Nothing here changes what arms: the board,
+`setups.db` rows and the journal keep their shapes.
+
+**The read.** `GET /api/stock-read/{symbol}?entry=&stop=` (owner `backend/stock_read/`; cache reads
+only, no network wait) answers `{schema_version: 1, symbol, generated_at, session_date, price,
+prev_close, change_pct, followed, followed_note, setups: SetupLane[], no_scanner: [{setup_type,
+label, reason}], plan: Plan | null, levels: Levels, groups: Group[], counts: {ok, warn, bad,
+unknown, info}}`. A **Group** is `{id: "in_play" | "setups" | "front" | "tape" | "short" | "float" |
+"halts", label, question, verdict, value, rows: Row[]}` and a **Row** `{id, label, value, detail:
+string | null, state, source, as_of: number | null}`, where `state` is `ok` (for a long momentum
+trade), `warn`, `bad`, `unknown` (Nova does not know -- the detail says why, never a pass) or `info`
+(a fact that is neither). **Levels** `{hod: {price, ts} | null, pmh: number | null, open: number |
+null, prev_close, vwap: number | null, round_above: number | null, round_below: number | null}`:
+the high of day, the premarket high (today's bars 04:00-09:30 ET only), the 09:30 open (null before
+it), the session VWAP from 04:00 ET, and the nearest half / whole dollar above and below.
+A **Plan** is `{source: "setup" | "manual", setup_type, kind, state: "forming" | "armed" | "near" |
+"triggered" | "manual", provisional: boolean, trigger, entry, stop, target, risk, reward, rr,
+target_rule, entry_rule, stop_rule, grade, reason, tape: {verdict, reasons} | null, flow: {score,
+label} | null, window: {start, end, state} | null, checks: [{id, state, text}], marks: [{price,
+label, kind: "hod" | "vwap" | "pmh" | "round" | "wall" | "open"}]}`. The setup plan is the most
+advanced lane (near, armed, triggered within 30 minutes, then forming; the bot's chosen setup
+first on a tie): entry, stop and target are the lane's own (`setup`, else `forming`, then
+`provisional`), the target the scanner's target 1 (entry + `target_r` x risk, or the leg high when
+higher), `rr` = (target - entry) / risk. With `entry` given the plan is the operator's (`manual`):
+the stop is `stop`, else the lowest low of the last `STOCK_READ_MANUAL_STOP_BARS` closed one-minute
+bars under the entry; the target entry + `STOCK_READ_TARGET_R` x risk. `checks` name what stands in
+the way; `marks` are the obstacles between entry and target (a seller of the tape gate's wait size
+or more on Nova's book). Size is the desk's (the Trader's risk per trade, a desk setting).
+
+`GET /api/stock-read/{symbol}/decisions?date=YYYY-MM-DD` (default today, ET) answers
+`{schema_version: 1, symbol, date, generated_at, summary: {text, legs, armed, near, triggered,
+trades, refusals: [{reason, count}]}, events: Event[], sources: {journal, hod_momo, borrow,
+catalysts, bot: {ok, error}}}` -- one symbol's day, oldest first: the eyes' journal lines of that
+symbol (live source; a run of the same state and reason on one lane is one event with `count` and
+`last_ts`; tape verdict flips fold the same way), the first HOD Momo alert of each strategy and the
+day's count, the borrow changes, the day's catalyst and negative news items, the 09:30 open and the
+high of day, and the bot's own `bot_trade` / `setup_proposal` lines for the symbol. An **Event** is
+`{ts, lane: "first_pullback" | "bull_flag" | "flat_top_breakout" | "red_to_green" | "hod_momo" |
+"market" | "bot", event, title, detail: string | null, count, last_ts: number | null, levels:
+object | null}`. A source that cannot be read is `ok: false` with its error; the others still
+answer.
+
+`GET /api/stock-read/{symbol}/history` answers `{schema_version: 1, symbol, generated_at, daily:
+[{d, o, h, l, c, v}] (the last `STOCK_READ_HISTORY_CHART_DAYS` stored sessions), runs: [{date,
+prior_close, high, close, run_pct, close_pct, today}] (sessions whose high was
+`STOCK_READ_RUN_MIN_PCT` or more over the prior close, newest first), split: {factor: "a:b" | null,
+ts, reverse: boolean | null, days_ago} | null (Yahoo's last split), holdings: Row[]}` -- the Level 2
+Nova recorded, setups armed on the symbol on any day, the latest short interest, and what Nova does
+not keep per symbol yet, said so.
+
+**Fixed with it.** `/sensors/vwap` is the session VWAP from 04:00 ET (the chart's) instead of the
+newest 240 stored bars, and adds `anchor: "04:00 ET"`; `/sensors/halt` answers `halted: null` when
+the state is unknown instead of `false`; `ibkr/shortability.cached(symbol)` returns the last
+snapshot with its age (a read, never a wait), and `/ws/ticker/{symbol}` re-reads shortability every
+`IBKR_SHORTABILITY_TTL_SEC` while the socket is open, every `IBKR_SHORTABILITY_RETRY_UNKNOWN_SEC`
+while it is unknown (the Level 2 "SHORT Unknown" chip asked once per tab). The eyes' journal is read
+by the desk only through the decisions route.
+
+**On the desk** (owner `frontend/src/stock_read/`). The Trader tab polls the read every
+`STOCK_READ_POLL_MS` while it shows. The plan box and seven tiles sit between the quote and Level 2
+(hover a tile for its rows, click it or "All" for the sheet over the charts: Signals, Decisions,
+History). The plan opens whole while the quote card is at least `STOCK_READ_PLAN_OPEN_MIN_PX` tall
+and is otherwise one line (the setup, entry / stop / target, the size, reward : risk, Stage), so
+Level 2 keeps its room; the operator's own open or fold is kept. The size is whole shares of the
+operator's risk per trade over the risk a share:
+`localStorage` `nova.stockRead.riskUsd` = `{schema_version: 1, value: number}` (dollars, default
+`STOCK_READ_RISK_DEFAULT_USD`, a desk setting). "Stage in ticket" fills this tab's ticket with a BUY
+limit at the entry for that size through the ticket prefill channel. It never places, and the
+plan's stop and target stay the operator's to set: the ticket takes no bracket from it. With no
+setup forming, the operator's own plan starts from a typed entry or the ask. Its stop is typed, or
+dragged on the 1-minute chart with the entry, and the target stays 2R. The 1-minute chart draws
+each lane's shapes (the plan's lane in colour, the rest faded), the plan's zones and lines, the
+day's levels, a legend and the plan's badge. It frames a forming setup once per setup, and again
+when the badge is pressed. The 5-minute and 10-second charts mirror the plan's levels as thin lines,
+and the daily chart marks every +40% run. `localStorage` `nova.stockRead.layers` = `{schema_version:
+1, value: {setups, levels, hidden: string[], plan: "auto" | "open" | "folded"}}` keeps the
+switches. A decision's "show
+on chart" frames its moment on the 1-minute chart with the levels it armed at. Nothing is drawn or
+read on a replay desk (the read is today's live stock) or on the sample desk.
 
 ### Catalysts (ADR 024)
 
@@ -1106,6 +1276,62 @@ large_pulls, flags}`; nothing prunes it. `NOVA_BOOK_WATCH=0` stops the
 watcher, `NOVA_BOOK_WATCH_JOURNAL=0` its journal. `py -3
 tools/book_watch_replay.py <recording dir>` runs the same detector over a
 Session Record.
+
+### The trading screen is always recorded (ADR 035, operator decision 2026-09-24)
+
+"I always, always, always want the screen that I'm trading to be recorded.
+Everything ... That's definitely not negotiable." The desktop app's main
+process records every monitor from launch to quit (owner
+`frontend/electron/screenRecorder.mjs`; plan `screenRecordPlan.mjs`, files
+`screenRecordFiles.mjs`, a hidden recorder page `screenRecorder.html`). There
+is no off switch: no button, setting or variable stops it;
+`NOVA_SCREEN_RECORD_DIR` only moves the folder. The browser desk cannot record
+the screen and says so.
+
+**Files.** `<dir>/<YYYY-MM-DD>/<HHMMSS>-screen<N>.mkv` -- the Eastern date and
+start time, monitors numbered left to right from 1 (`.webm` when Chromium has
+no H.264 encoder) -- a new file per monitor on every quarter hour, started
+before the old one stops. `<dir>` is `NOVA_SCREEN_RECORD_DIR`, else
+`F:\Nova\screen` while F: is mounted, else `<userData>\screen` (the view says
+`dir_source: "fallback"` and why). Beside them `segments.jsonl`, one JSON
+object per line: `{schema_version: 1, event: "start", segment_id, file,
+display: {id, index, count, label, primary, scale_factor, bounds}, width,
+height, fps, bps, mime, started_ts}` and `{schema_version: 1, event: "end",
+segment_id, file, ended_ts, bytes, reason: "rotation" | "quit" |
+"display_change" | "stall" | "error" | "suspend" | "recorder_gone", error}`
+(epoch seconds). A start with no end is a file cut short by a crash or power
+loss; it plays up to its last write. Nothing deletes a recording (operator
+decision 2026-09-24: "Keep every screen recording until I say otherwise; just
+warn me when F: gets low" -- the drive guard below is that warning).
+
+**The view** (one shape for every reader: the desk over IPC
+`nova:screen-record:view` / `nova:screen-record:subscribe`, read-only, and
+`POST /api/screen-record` every `SCREEN_RECORD_REPORT_SEC` and on each state
+change): `{schema_version: 1, state: "starting" | "recording" | "partial" |
+"failed" | "suspended" | "stopped", recording: boolean (every monitor), since:
+number | null, error: string | null, dir, dir_source: "env" | "data_drive" |
+"fallback", dir_note, dir_error, mime, fps, segment_min, displays: [{index,
+count, id, label, primary, scale_factor, width, height, recording, since, file,
+bytes, last_data_ts, error, retry_at}], unmatched: [{index, id, label}],
+disk: {free_bytes, state: "ok" | "warn" | "fail" | "unknown", error,
+checked_ts}, problems: [{at, display_index, reason, detail, resumed_at}]
+(newest first, at most 10), restarts, generated_at}`. A monitor that fails,
+stalls (no data for 12 s) or ends by itself is started again after 2, 5, 10,
+30 s, then every 60 s, forever; a crashed recorder page is replaced; each loss
+is a `problems` row until it is back.
+
+`GET /api/screen-record` (owner `backend/screen_record/`, in memory, never
+persisted) answers `{schema_version: 1, reported, fresh, age_sec, received_ts,
+report: view | null}`; `fresh` is a report younger than
+`SCREEN_RECORD_STALE_SEC` (35). `POST` refuses an unknown `schema_version`,
+`state` or `dir_source` (422) and a body over 64 KB (413). `/api/diagnostics`
+adds the `screen_recorder` row (group `recorder`): `fail` with no desktop app
+reporting, a stale report, or any monitor not recording; `warn` while starting
+or recording to the system drive; `off` while the PC sleeps; and the
+leaderboard's drive guard (warn under 50 GB free, fail under 10 GB, only ever
+worse). The header chip (`frontend/src/screen_record/`) is a monitor icon with a
+red dot while every monitor records and a red "Screen not recording" the moment
+one does not.
 
 ### Watchlist rows (operator decision 2026-09-23)
 
@@ -1421,13 +1647,15 @@ from a lane adds `setup_type` (ADR 031). Since 2026-09-24 every line about a
 symbol carries the detector's `last` price and `leg` (`null` when none), a
 `triggered` line its `reason`, a `state` line `kind` and `nth`; the lane writes
 a `state` line whenever the detector's state or reason differs from what its
-last line implied (`setup_scanner/lane_view.JOURNAL_EVENT_STATES`), the playing
+last line implied (`setup_scanner/lane_view.JOURNAL_EVENT_STATES`; writer
+`setup_scanner/lane_journal.py`), the playing
 lane a `price` line for a name armed or near at most every
 `EYES_JOURNAL_PRICE_EVERY_SEC` (5 s), and the live engine a `beat` line (`count`:
 names followed) every `EYES_JOURNAL_BEAT_SEC` (60 s). `NOVA_EYES_JOURNAL=0` turns
 it off. Read by `tools/eyes_journal.py` (`days | summary | setups | events |
-board`), `eyes/reader.py`, and the Sim desk off the live edge ("Recorded eyes in
-Sim" below).
+board`) and `eyes/reader.py`; the desk reads one symbol's day through `GET
+/api/stock-read/{symbol}/decisions` (ADR 036), and the Sim desk off the live
+edge every card at the playhead ("Recorded eyes in Sim" below).
 
 **Replayed eyes** (`backend/eyes/replay.py`, `sim_eyes.py`, `backtest.py`): a
 Session Record's prints (per second, the high then the last of the prints that
@@ -1472,7 +1700,8 @@ started) begins the fold again from nothing, as the live eyes did. Each
 running at the moment; its level, template and window stay today's controls
 (the window of the template that played then). `GET /api/eyes/at?date=YYYY-MM-DD&at=<epoch>`
 -> `{schema_version, date, at, gap, note, journal, proposing, setups, rows,
-proposals, universe}` (400 `EYES_DATE_INVALID`); `py -3 tools/eyes_journal.py
+proposals, universe, universe_symbols}` (the names the eyes followed then; 400
+`EYES_DATE_INVALID`); `py -3 tools/eyes_journal.py
 board --date D --at HH:MM[:SS]` prints the same. A backward scrub refolds the
 day at most every `EYES_PLAYBACK_REBUILD_MIN_SEC`; the file is read off the
 scanner's loop, as it grows.
@@ -1489,6 +1718,19 @@ tip per window on hover and on keyboard focus -- plain text, line breaks kept,
 never HTML. A locked control keeps `data-why` (the two never stack). The setup
 cards, the Setups board and the Symbols card explain every state, tape verdict,
 grade, price, count, level and read-out this way; `title` stays for short labels.
+
+**Ctrl+F finds on the page** (frontend, `ux/findBar.ts` + `ux/findText.ts`,
+operator ask 2026-09-24: "can we also do like CTRL+F so maybe we can search on
+anything in that screen instead of looking everywhere?"). Electron has no find
+bar, so every window installs one from `main.tsx`: Ctrl+F opens it, typing
+marks every shown match (CSS highlights; case ignored, spacing flexible, never
+across two blocks, never hidden panels, tooltips or text fields), Enter /
+Shift+Enter move, Esc closes and gives focus back. While it is open a changed
+page is searched again at most every `FIND_REFRESH_MS`, keeping the current
+match, never scrolling on its own. It yields Ctrl+F to a Nova Action bound to
+it (the hotkey dispatcher marks the key handled first), and every key typed in
+its box stays in the box. It reads only what is drawn as text: a chart's canvas
+and a list's undrawn rows are not found. The Ctrl+Alt shortcuts menu lists it.
 
 ### Input Payload (Raw)
 
@@ -1580,6 +1822,35 @@ time -- the replay playhead on Sim,
 the clock a rewind unwinds by -- and a paused Sim playhead scrubbed forward
 still fills resting orders on the prints it crossed. Rules and biases: `architecture/practice-fills.md`;
 fees and margin: `architecture/practice-account.md`.
+
+**A practice send answers when the venue answers** (operator report,
+2026-09-24: "Why are things not getting sent fast enough?"). The practice
+broker's answer to a place or a replace is the order's acknowledgment
+(`broker_ack_ns`, `practice/watch.note_answer`): `Submitted` for a resting
+order, `Filled` for a fill at placement, so the reply -- and the ticket's
+unlock -- leaves as soon as the venue decides, never after a wait for a
+callback the practice broker does not send and never after an invented delay.
+The broker's place / replace reply adds `filled_qty`, `remaining_qty`,
+`avg_fill_price`, `status_reason` and `status_code`
+(`practice/watch.answer_facts`). An order the venue cancels at the fill is
+refused with the venue's own reason and code (`PRACTICE_NO_SHORTS`,
+`PRACTICE_BUYING_POWER`), `broker_status: "Cancelled"` and its `order_id`.
+Before this, 21 of 23 Paper orders that day answered in 5.1 s
+(`EXECUTION_ACK_WAIT_SEC`) while they filled in under 150 ms. Live is
+unchanged: its reply waits for IBKR's first status.
+
+**Order timing readout** (`tools/order_timing.py`, read-only; asks the
+backend that answers): per order, `{execution_id, created_et, venue,
+operation, source, symbol, side, qty, order_type, price, order_id, status,
+answer, error, steps: [{stage, at_ms, step_ms}], slowest, missing: string[],
+venue_leg_ms, venue_is_local, browser_click_to_request_ms, fill_price,
+exchange_ts_utc, exchange_to_callback_ms}` under `{schema_version: 1, api,
+orders[]}` with `--json`. Stages are the backend's own `perf_counter_ns`
+stamps from the moment Nova received the order (recorded in the ledger,
+checks passed, sent to the venue, venue answered, filled, reply ready), in
+time order; `venue_leg_ms` is sent to answered -- IBKR's round trip on Live,
+the practice broker on Paper / Sim. A browser stamp is never subtracted from a
+backend one, and a stage with no stamp is listed in `missing`, never guessed.
 
 **Orders (Today) belongs to the desk's venue** (QA batch, 2026-09-22):
 `/api/ibkr/orders/closed` on Paper and Sim is the practice ledger's own closed
@@ -1778,6 +2049,27 @@ from 07:29 ET: an APUS SELL limit at 4.96 sat while APUS printed 5.00.
 
 `GET /api/ticker/{symbol}/bars` on the IBKR store-first path (not a Sim replay, not Alpaca) and every `bars_patch` frame on `/ws/ticker/{symbol}` carry, in `coverage` beside `filling`, `last_error: string | null` and `last_error_ts: number | null` (epoch seconds): the backend's reason and time for the last historical fetch of that (symbol, timeframe) that IBKR did not answer -- a timeout (504) or an error answer / failed qualify (502), never a Gateway-down 503 or a 400 / 404. Both are `null` when there is none; a success clears the pair at once, and a failure nobody has asked about again is forgotten after `IBKR_HISTORICAL_FAILURE_MEMORY_SEC` (owner `ibkr/historical_failures.py`, in memory only, never stored in `bars_coverage`). A failed pair is not sent to IBKR again, for any priority, for `IBKR_HISTORICAL_FAILURE_BACKOFF_SEC`: the request is shed and the pane's own retry asks again, so a farm outage stops spending the 60 / 10 min budget. A pane with no bars that is filling with `last_error` set reads "IBKR history did not answer — retrying" with the reason, not "Loading IBKR historical…"; a painted pane's header hint says the same.
 
+### The forming candle's volume (operator report, 2026-09-24)
+
+"i do not see a volume coming up": a chart pane draws its forming candle from
+`/ws/ticker/{symbol}` `trade_update` frames, which carry a price and the day's
+running volume (`volume`: IBKR's RTVolume total, else tick 8) but no bar. The
+bar store refreshes from IBKR history at most every
+`IBKR_BARS_STORE_FRESH_INTRADAY_SEC` (the pane asks every `CHART_REFETCH_SEC`),
+so the forming bar's volume used to appear only after the bar closed. Minute
+and hour panes now count it on the desk (`chart/liveTradeApply.ts`): a bar's
+volume is what the day volume grew by between its first update and its last.
+The first day volume a pane sees is a baseline, so the bar it joined mid-way
+has no live count -- the store's figure, or nothing, never a partial one. A
+total that goes down restarts the baseline and leaves that bar unknown. Updates
+arrive on price changes, so shares traded at an unchanged price just before a
+bar closes count in the next bar; the store's bar replaces a closed bar's figure
+when it lands, and a forming bar shows the larger of the two counts. 10Sec
+volume stays the tape's own prints and daily volume the store's. No wire field
+changed. A store refresh no longer rebuilds the forming candle from the last
+trade (which flattened its open, high and low to one price every 30 s): the
+live tip is put back on top, merged with the store's bar for the same minute.
+
 ### Why it's moving (ADR 028, operator ask 2026-09-23)
 
 `GET /api/why/{symbol}` (owner `backend/move_reason/`, read-only, no network wait; rules
@@ -1827,7 +2119,7 @@ wildcards run over symbols only. Recent look-ups persist in `localStorage`
 `nova.search.recent` (`{schema_version: 1, symbols: string[]}`, newest first,
 at most 12; owner `components/tickerSearchRecents.ts`).
 
-### The operator's watch list and its HOD Momo toasts (operator ask, 2026-09-23)
+### The operator's watch list and its toasts (operator asks, 2026-09-23 and 2026-09-24)
 
 A hand-picked list, kept in the desk: `localStorage` `nova.watch.list` =
 `{schema_version: 1, symbols: string[]}` -- newest first, upper-case tickers
@@ -1850,6 +2142,35 @@ per symbol: a burst folds into it (count and strategies); it leaves
 the symbol, Stop watching removes it, × dismisses. It places nothing. HOD
 Momo's tradeable floor still applies: a watched symbol the master gate refuses
 raises no alert, so no toast.
+
+**A setup forming on a watched symbol** (operator ask, 2026-09-24: "shouldn't
+these toast notifications be watching if a strategy is forming?"). The same
+toast follows the setup scanner's live board (`/ws/setups`, ADR 022 / 031;
+owner `watch_list/setupClimbs.ts`, pure). A watched symbol's setup raises it
+when it climbs its ladder: forming (`leg` or `pullback`), `armed`, `near`,
+`triggered` -- each at most once per setup (its `setup.leg_t`: a near that
+drops back to armed and returns is one toast), forming at most once per
+`WATCH_SETUP_FORMING_REPEAT_MS` (5 min) per symbol and setup. `failed`,
+`filtered` and `watching` never raise one. A triggered setup, or an armed or
+near one a newer leg replaced, ends its ladder, so the next one forming is
+news again. Only a climb between two live frames counts: the first frame after
+a page load, a reconnect or a return from Sim is read silently (nothing old is
+announced as new), the Sim eyes' board (`source: "sim"`) never toasts, and a
+symbol's ladder before it was watched is already known, so watching a symbol
+mid-setup announces only what comes next. It fires at every bot level: the
+watch list is the operator's own ask, not a proposal. Still one toast per
+symbol: HOD Momo alerts and setup lines fold together (one line per setup,
+newest first), and the title names the newest event -- "PFSA: bull flag
+armed", "PFSA: first pullback near the trigger" (the open for red to green,
+the high for a flat-top), "PFSA: bull flag triggered". A setup line reads the
+scanner's own words (state chip and reason, the tape verdict when near; the
+full explanation on hover) and follows the board while the toast is up -- a
+setup that fails or drops off the board says so -- without restarting the
+toast's timer. The setup scanner follows the HOD Momo names only, so the Watch
+list tab adds a **Setup** column: the symbol's most advanced setup on the
+board, "Nothing forming" for a symbol the scanner follows with no row, and
+"Not followed" for one outside `universe_symbols` (an API without the field
+says it cannot tell).
 
 The ranked Five Pillars list (tab id `watchlist`, `GET /api/strategy/watchlist`)
 is labelled **Contenders** in the UI, and the scanner's pillars column
@@ -2121,6 +2442,14 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 | Date | Change | Author |
 |------|--------|--------|
 | 2026-09-24 | Recorded eyes in Sim (operator ask: "i want this stuff to be recorded when they show up, do they work so they are viewable in the sim ok? when something pops up. that way we can use that data to fine tune them when things dont match"): the setup cards' every change was already journalled (today: YDES's bull-flag pole, PFSA's first pullback armed, near, proposed and triggered at 08:07), but the desk never read the journal -- off the live edge the Bots page kept showing the live board. Now the Sim desk off the edge folds the live journal to the playhead (`eyes/playback.py`): each card's rows and funnel as they stood, proposals popping up as the playhead plays across them, gaps stated, never recomputed. The lanes now write the detector's state whenever it differs from what their lines imply, its price and leg on every line, a `price` line for names in reach, and the engine a minute `beat`, so the played-back card is exact (a test checks the fold against the lanes' own board at every moment). `GET /api/eyes/at` and `tools/eyes_journal.py board` answer the same for an agent. §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-09-24 | The bot's read on one stock (ADR 036, #598; operator ask: "show me the bot's decisions specifically for that stock ... if something is forming, can we start highlighting it on the chart? ... all the tiny signals", then "i want it to tell me my entry/exit .. we typically want to aim for 2:1 ratio, like right on top of lvl2"; mockup v1 approved). Every scanner lane answers for one symbol (`GET /api/setups/symbol/{symbol}`), with the levels a forming setup would arm with (computed, then thrown away until now) and its own MACD / 9 EMA; `backend/stock_read/` composes the owners into seven groups of signals, a plan (entry, stop, target at least 2R from the setup's own rule, and what stands in the way), one symbol's day from the eyes' journal (ADR 029 amended: the desk reads it through the decisions route) and its history. The Trader rail shows the plan and seven tiles above Level 2, a sheet lists every signal, and the 1-minute chart draws each setup as it forms. The plan opens whole only when the quote card has room for it and Level 2 both; below that it is one line (at 1080p, Level 2 kept 302 px of its 354 against 118 with the whole plan). Fixed with it: the VWAP sensor covered only the last 240 bars, the halt sensor read not halted when it did not know, the Level 2 shortability chip asked once per tab. §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-09-24 | Screen recordings are kept (ADR 035 decision 7, operator: "Keep every screen recording until I say otherwise; just warn me when F: gets low"). Nothing deletes a recording; the drive guard -- the header chip amber under 50 GB free and red under 10 GB, and the `screen_recorder` checklist row -- is the warning. No code change: this is what #597 shipped, now decided. §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-09-24 | The trading screen is always recorded (ADR 035, operator: "I always, always, always want the screen that I'm trading to be recorded. Everything ... That's definitely not negotiable."). The desktop app records every monitor from launch to quit, with no off switch: H.264 at 15 fps, each monitor at its Windows layout size, a new file every quarter hour (started before the old one stops) under `F:\Nova\screen`, a day manifest beside them. A hidden recorder window encodes off the desk's threads; the main process restarts any monitor that fails, stalls or disappears (forever, with backoff), replaces a crashed recorder and re-plans on display changes. The header shows a quiet icon while recording and a red "Screen not recording" when not; `POST` / `GET /api/screen-record` and a `screen_recorder` diagnostics row that fails whenever nothing says the screen is recorded. Nothing deletes a recording; retention is the operator's call. §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-09-24 | Watch list toasts follow the setups too (operator ask on a "PFSA is running up" toast: "shouldn't these toast notifications be watching if a strategy is forming?"): the toasts listened only to the HOD Momo feed, so a watched symbol's bull flag or first pullback forming, arming, coming near its trigger or triggering said nothing. The toast now also follows the setup scanner's live board: each setup's climb up the ladder raises it once (flicker and the first frame after a load, a reconnect or Sim are read silently), one toast per symbol still, and its setup lines follow the board while it is up. The board names the symbols it follows (`universe_symbols`), so the Watch list tab's new Setup column says "Not followed" for a watched symbol the scanner does not watch (it follows the HOD Momo names only). §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-09-24 | A practice send answers when the venue answers (operator report: "This is extremely dangerous. Why are things not getting sent fast enough?"): the Paper ticket read "Placing..." for five seconds after its order filled. The practice broker's notice of a fill at placement reached a watch the send then replaced, and a resting order sent none, so the execution door's acknowledgment wait ran out its full 5 s -- 21 of 23 Paper orders that day, fills in under 150 ms. The broker's own answer is now the acknowledgment (`practice/watch.note_answer`); a replace answers the same way; an order the venue cancels at the fill is refused in its own words instead of reading as placed. Live is unchanged (its record: IBKR's first status in 40 ms to about 1 s). `tools/order_timing.py` prints each order's stages from the running backend. §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-09-24 | The tape flow score and a flush exit (ADR 034; operator ask on a GLND flush in Time & Sales: "can my bots detect ... flush ... so we can exit a position or burst of greens where we can enter ... a small piece of the final decision", then "fine tune the SHIT out of this ... hybrid creative solution and mixing it in the strategies"). One score from -1 to +1 (ask vs bid shares, pace against the tape's own baseline, price move, book depth; an unknown reading drops out, never 0) with every number a template parameter; a template may enter on the score instead of the gate's print counts, and tighten or exit on a flush -- the scoring exit and Nova's bot follow one rule; the defaults are the pre-registered rules. The flow study reads every recorded second (15 recordings: a flush after a rise was followed by -43 bp over a minute; a burst from a flat minute faded) and backtests sweep run-only template variants against a base. §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-09-24 | The forming candle carries its volume (operator report: "i do not see a volume coming up", 1-minute and 5-minute): the live candle was drawn from price ticks only and its volume waited up to ~75 s for the bar store, and every 30 s store refresh flattened the forming candle to one price. Minute and hour panes now count the forming bar's volume from the day volume every trade update already carries, only for bars whose start the pane saw, and a refresh puts the live tip back instead of rebuilding it. §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-09-24 | Ctrl+F finds on the page (operator ask: "can we also do like CTRL+F so maybe we can search on anything in that screen instead of looking everywhere?"): the desktop app had no find at all (Electron ships none). Every window now gets a find bar (`ux/findBar.ts`, searching with `ux/findText.ts`): it marks every shown match, moves with Enter / Shift+Enter, follows the live desk as it changes without scrolling on its own, leaves Ctrl+F to a trading hotkey bound to it, and keeps every key typed in it away from the page. The shortcuts menu lists it. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Which backend answers, and a reload that is one (operator reports after ADR 031 shipped: "weren't we supposed to see scanners here?", "i clicked the 'reload backend' button, does it still work?", "something in the software title that shows us what backend v### we are using"): the desk had updated while the backend still ran the morning's code, so the Bots page called three built scanners "No scanner yet", and the desktop app's Reload backend said "Backend reloaded" while the same process kept answering -- the installed app looked for the stop script beside itself, found none and re-attached. `/api/health` names its `release_tag`, the window title shows the backend's revision after the desk's and flags an older one, the desktop reload restarts an attached engine from its own checkout and succeeds only on a new `instance_id`, and the Bots page says a backend older than ADR 031 needs a reload. The setup radio now reads "the bot trades this": every scanner runs at once, Eyes on as many as you like, and only the one the bot trades by itself is picked. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Update takes the newest release (operator report: "when the app detected v1004, there was v1005 already in the pipeline but it didn't catch it"): the desk found v1004 at 10:42 ET; v1005 shipped at 11:30; Update at 13:20 downloaded v1004 from the morning's answer, because re-checks hold 07:00-16:00 and Update never asked again. An Update click on an offer older than a minute now checks GitHub first and downloads the newest release (`frontend/electron/newestRelease.mjs`); the check stays off the notice, and a failed one downloads the release on offer. §8 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | File an issue from the desk (operator ask: "when I do the update, I can also click and say 'File an issue' ... it goes directly to GitHub", then "link the issue/dump file as part of this issue automatically", "humans are not going to ... give you a title or description", and "I really don't want any personal information about my computer ... this is real money"; approved mockup v2): the What's new card and Help > File an Issue… open a form -- Bug or Feature, optional title and description, the desk details and a diagnostics dump attached. One click with nothing typed files a bug that Nova titles and describes from the dump, with no model. The backend (`backend/issue_report/`) files through the GitHub CLI already signed in on the desk, uploads the dump as a secret gist and links it; the operator previews the exact dump first. Everything posted passes one scrubber: no secrets, account ids, balances, paths, user or machine names, e-mail or IP addresses. §3 amended. | User Directive + Claude Opus 5.5 |

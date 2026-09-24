@@ -38,4 +38,22 @@ contextBridge.exposeInMainWorld('novaDesktop', {
     },
     act: (request) => ipcRenderer.invoke('nova:update:act', request),
   },
+  /**
+   * The trading screen recording's status (electron/screenRecordBridge.mjs,
+   * ADR 035). Read-only: no page can stop the recording. Same contract as
+   * `updates.subscribe`.
+   */
+  screenRecord: {
+    subscribe: (onView) => {
+      const listener = (_event, view) => onView(view);
+      ipcRenderer.on('nova:screen-record:view', listener);
+      ipcRenderer
+        .invoke('nova:screen-record:subscribe')
+        .then((view) => {
+          if (view) onView(view);
+        })
+        .catch((err) => console.warn('[nova] screen recording status unavailable', err));
+      return () => ipcRenderer.removeListener('nova:screen-record:view', listener);
+    },
+  },
 });

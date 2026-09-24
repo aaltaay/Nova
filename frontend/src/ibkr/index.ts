@@ -1,6 +1,7 @@
 /** Public IBKR UI API — cross-feature imports must use this barrel (ADR 005). */
 
 export { DepthLadder, MontageSide } from './DepthLadder';
+export { bookPeak } from './dasDepthTiers';
 export { TimeSalesPanel } from './TimeSalesPanel';
 export { TimeSalesView } from './TimeSalesView';
 export type { TapePrint, TapeState } from './tapeFeed';
@@ -10,3 +11,4 @@ export { simPlayhead } from './marketOutsideRth';
 export { flattenSpendLockReason } from './spendLock';
 export type { GatewayStatusFact } from './gatewayStatusWording';
 export { useOrderTicketListening } from './useOrderTicketListening';
+export { requestOrderTicketPrefill } from './orderTicketPrefill';

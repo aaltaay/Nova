@@ -184,10 +184,17 @@ export function HodMomoAlertTable({
       <table>
         <thead>
           <tr>
+            {/* An alert feed keeps its own order, newest cross first, and its
+                headers do not sort (operator decision 2026-09-24); only the
+                Strategy header acts, opening its filter. */}
             {HOD_MOMO_COLUMNS.map(([key, label]) => (
               <th
                 key={key}
-                className={`sortable-th${key === 'strategy' ? ' hod-strategy-th' : ''}`}
+                className={
+                  key === 'strategy'
+                    ? `hod-strategy-th${showStrategyFilter ? ' sortable-th' : ''}`
+                    : undefined
+                }
                 onClick={
                   key === 'strategy' && showStrategyFilter
                     ? () => setShowFilterDropdown(x => !x)

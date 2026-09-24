@@ -98,7 +98,7 @@ def test_nullable_filters_switch_off_with_none_and_fingerprints_are_stable():
 
 def test_wire_groups_in_order_with_units_and_the_source():
     w = catalogue.wire(FP)
-    assert [g["id"] for g in w["groups"]] == ["stock", "setup", "entry", "risk", "tape", "grade", "bot"]
+    assert [g["id"] for g in w["groups"]] == ["stock", "setup", "entry", "risk", "tape", "flow", "grade", "bot"]
     assert w["scanner"] is True and "live scanner" in w["source"]
     leg = next(p for g in w["groups"] for p in g["params"] if p["key"] == "leg_pct")
     assert leg["unit"] == "%" and leg["default"] == 5.0 and leg["live"] is True
@@ -209,7 +209,7 @@ def test_routes_list_create_edit_play_delete(client):
     fp = next(s for s in body["setups"] if s["id"] == FP)
     assert fp["in_play"] == "default" and fp["templates"][0]["builtin"] is True
     assert fp["templates"][0]["readout"]["state"] == "collecting"
-    assert len(fp["catalogue"]["groups"]) == 7
+    assert len(fp["catalogue"]["groups"]) == 8
     created = client.post(f"/api/setups/templates/{FP}", json={"name": "Tight", "values": {"stop_cap": 0.15}})
     assert created.status_code == 201
     tid = created.json()["template"]["id"]

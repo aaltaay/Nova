@@ -16,6 +16,9 @@
 export const SCANNER_NEWS_COLUMN: [string, string] = ['newest_headline_at', 'News'];
 export const SCANNER_EARNINGS_COLUMN: [string, string] = ['earnings_day_offset', 'Earnings'];
 
+/** Scanner sort keys holding ISO times: text, but their first click is newest first. */
+export const SCANNER_TIME_SORT_KEYS: ReadonlySet<string> = new Set([SCANNER_NEWS_COLUMN[0]]);
+
 export const SCANNER_COLUMNS: [string, string][] = [
   SCANNER_NEWS_COLUMN,
   ['symbol', 'Symbol'],

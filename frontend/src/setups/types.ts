@@ -48,11 +48,19 @@ export interface SetupDetail {
   volume_known?: boolean;
 }
 
+/** The tape flow score riding on a tape read (ADR 034): -1 sellers .. +1 buyers. */
+export interface TapeFlow {
+  score: number | null;
+  label: string;
+  readings?: Record<string, number | null> | null;
+}
+
 export interface TapeRead {
   verdict: TapeVerdict;
   reasons: string[];
   line?: { depth: boolean; tape: boolean } | null;
-  metrics?: Record<string, number | boolean | null> | null;
+  metrics?: Record<string, number | boolean | string | null> | null;
+  flow?: TapeFlow | null;
 }
 
 export interface SetupProposal {
@@ -178,6 +186,8 @@ export interface SetupsBoard {
   setups?: SetupSummary[];
   replay?: SetupsReplay | null;
   universe: number;
+  /** The symbols the scanner follows now, sorted (the HOD Momo names); absent on an API before 2026-09-24. */
+  universe_symbols?: string[];
   seeding: number;
   scoreboard: boolean;
   scoreboard_error: string | null;

@@ -7,6 +7,11 @@ it (a Trader tab's Level 2, a Session Record), and its prints through an extra
 viewer queue on a tick-by-tick line someone else holds. An extra queue does
 not keep a line alive: the line's viewer refcount is untouched, so closing
 the Trader tab still releases it. Without a line the gate says ``blind``.
+
+ADR 034: it keeps as much history as the longest tape flow baseline any
+template reads, and ``since(sym)`` says how far back its prints can vouch for a
+symbol (when its queue was attached, or the oldest print kept once the buffer
+is full) -- the flow never reads time before that as a quiet tape.
 """
 from __future__ import annotations
 
@@ -20,7 +25,7 @@ from constants_setups import TAPE_GATE_BOOK_SAMPLE_SEC, TAPE_GATE_WINDOW_SEC
 logger = logging.getLogger(__name__)
 
 BOOK_KEEP = 80
-PRINT_KEEP = 5000
+PRINT_KEEP = 20_000
 KEEP_SEC = 3 * TAPE_GATE_WINDOW_SEC
 
 
@@ -36,12 +41,13 @@ class TapeFeed:
         self._prints: dict[str, deque] = {}
         self._queues: dict[str, asyncio.Queue] = {}
         self._last_sample: dict[str, float] = {}
+        self._attached: dict[str, float] = {}
         self._keep_sec = KEEP_SEC
         self._book_keep = BOOK_KEEP
 
-    def keep_window(self, window_sec: float) -> None:
-        """Keep enough history for the longest tape window any template reads (ADR 029)."""
-        keep = max(KEEP_SEC, 3 * float(window_sec))
+    def keep_window(self, window_sec: float, history_sec: float = 0.0) -> None:
+        """Keep enough history for the longest tape window (ADR 029) and flow baseline (ADR 034) any template reads."""
+        keep = max(KEEP_SEC, 3 * float(window_sec), float(history_sec) + 2 * TAPE_GATE_BOOK_SAMPLE_SEC)
         if keep == self._keep_sec:
             return
         self._keep_sec = keep
@@ -69,6 +75,7 @@ class TapeFeed:
                     self._last_sample[sym] = now
             if sym not in self._queues and self._tape.is_subscribed(sym):
                 self._queues[sym] = self._tape.open_viewer_queue(sym)
+                self._attached[sym] = now
         for sym in list(self._queues):
             if sym not in wanted:
                 self._drop(sym)
@@ -94,6 +101,16 @@ class TapeFeed:
     def prints(self, sym: str) -> list[dict]:
         return list(self._prints.get(sym, ()))
 
+    def since(self, sym: str) -> float | None:
+        """The earliest moment the kept prints vouch for; ``None`` without a print queue."""
+        attached = self._attached.get(sym)
+        if attached is None:
+            return None
+        buf = self._prints.get(sym)
+        if buf is not None and buf.maxlen is not None and len(buf) >= buf.maxlen:
+            return max(attached, float(buf[0].get("ts") or attached))
+        return attached
+
     def _drop(self, sym: str) -> None:
         q = self._queues.pop(sym, None)
         if q is not None:
@@ -102,6 +119,7 @@ class TapeFeed:
             except Exception:
                 logger.warning("setup tape feed: could not close the print queue for %s", sym, exc_info=True)
         self._prints.pop(sym, None)
+        self._attached.pop(sym, None)
 
     def close(self) -> None:
         for sym in list(self._queues):

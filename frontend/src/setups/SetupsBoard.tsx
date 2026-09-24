@@ -5,10 +5,12 @@
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
 import { SETUP_COL_TIPS, SETUP_KIND_LABELS, SETUPS_STAGE_NO_ENTRY_WHY } from '../constants';
+import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import { tipProps } from '../ux/hoverTip';
-import { fmtCents, fmtPx, fmtR, outcomeLabel, rowClass, stagedLimit } from './setupsFormat';
+import { fmtCents, fmtPx, fmtR, isActionable, outcomeLabel, rowClass, stagedLimit, tapeRank } from './setupsFormat';
 import {
   gradeWords,
+  rowRank,
   setupLabel,
   setupShort,
   setupTypeOf,
@@ -63,6 +65,24 @@ function kindWords(row: SetupRow): { text: string; tip: string } {
     tip: `${kind}: ${second ? 'the second of this setup on the symbol today (the read-out counts only the first)' : 'the first of this setup on the symbol today'}.`,
   };
 }
+
+/** What each header sorts on: the levels as prices, the state and the tape by how far along they are. */
+const COLUMNS: SortColumns<SetupRow> = {
+  symbol: r => r.symbol,
+  setup: r => kindWords(r).text,
+  // The most advanced first: near, armed, triggered, ... (rowRank is lowest-first).
+  state: r => -rowRank(r),
+  trigger: r => r.setup?.trigger,
+  stop: r => r.setup?.stop,
+  risk: r => r.setup?.risk,
+  target: r => r.setup?.target1,
+  // Nearest the trigger first; a triggered row shows how it went, not a distance.
+  to_go: { value: r => (isActionable(r) && r.setup ? r.distance : null), first: 'asc' },
+  tape: tapeRank,
+  grade: r => r.grade,
+  r: r => (r.state === 'triggered' ? r.bar_r : null),
+  why: r => r.reason,
+};
 
 function SetupBoardRow({ row, selected, onSelectSymbol, onOpenTrading }: {
   row: SetupRow;
@@ -128,11 +148,15 @@ function SetupBoardRow({ row, selected, onSelectSymbol, onOpenTrading }: {
 }
 
 export function SetupsBoard({ rows, selectedSymbol, onSelectSymbol, onOpenTrading, emptyText = EMPTY }: BoardProps) {
+  const { rows: sorted, sort, onSort } = useTableSort('setups.board', rows, COLUMNS);
   if (rows.length === 0) {
     return <div className="empty-state">{emptyText}</div>;
   }
-  const head = (key: keyof typeof SETUP_COL_TIPS | null, label: string, num = false, tip?: string) => (
-    <th className={num ? 'num' : undefined} {...tipProps(tip ?? (key ? SETUP_COL_TIPS[key] : ''), label)}>{label}</th>
+  // A column without a tip of its own reads the shared one (SETUP_COL_TIPS) under its key.
+  const head = (col: string, label: string, num = false, tip?: string) => (
+    <SortTh col={col} sort={sort} onSort={onSort} className={num ? 'num' : undefined} {...tipProps(tip ?? SETUP_COL_TIPS[col], label)}>
+      {label}
+    </SortTh>
   );
   return (
     <div className="table-wrapper setups-table">
@@ -140,22 +164,22 @@ export function SetupsBoard({ rows, selectedSymbol, onSelectSymbol, onOpenTradin
         <thead>
           <tr>
             {head('symbol', 'Symbol')}
-            {head(null, 'Setup', false, 'Which setup\'s scanner holds the row. One symbol can sit in two setups; each is scored on its own.')}
+            {head('setup', 'Setup', false, 'Which setup\'s scanner holds the row. One symbol can sit in two setups; each is scored on its own.')}
             {head('state', 'State')}
             {head('trigger', 'Trigger', true)}
-            {head(null, 'Stop', true, 'Where the setup is wrong: the pullback, flag or base low, or the low since the open.')}
-            {head(null, 'Risk', true, 'Entry minus the stop, per share.')}
-            {head(null, 'Target', true, 'Target 1: half comes off there and the stop moves to the entry.')}
+            {head('stop', 'Stop', true, 'Where the setup is wrong: the pullback, flag or base low, or the low since the open.')}
+            {head('risk', 'Risk', true, 'Entry minus the stop, per share.')}
+            {head('target', 'Target', true, 'Target 1: half comes off there and the stop moves to the entry.')}
             {head('to_go', 'To go', true)}
             {head('tape', 'Tape')}
             {head('grade', 'Grade')}
-            {head(null, 'R', true, 'What the research exit rules made of a triggered setup, in R (gross) -- a score, not a fill.')}
-            {head(null, 'Why', false, 'The scanner\'s own words for where the setup is now.')}
+            {head('r', 'R', true, 'What the research exit rules made of a triggered setup, in R (gross) -- a score, not a fill.')}
+            {head('why', 'Why', false, 'The scanner\'s own words for where the setup is now.')}
             <th />
           </tr>
         </thead>
         <tbody>
-          {rows.map(row => (
+          {sorted.map(row => (
             <SetupBoardRow
               key={`${row.symbol}-${setupTypeOf(row)}`}
               row={row}

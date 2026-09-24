@@ -23,12 +23,12 @@ function row(
 }
 
 describe('orderTableSort', () => {
-  it('cycles primary sort; time starts descending', () => {
-    expect(cycleOrderSort([], 'qty', false)).toEqual([{ key: 'qty', dir: 'asc' }]);
-    expect(cycleOrderSort([{ key: 'qty', dir: 'asc' }], 'qty', false)).toEqual([
-      { key: 'qty', dir: 'desc' },
+  it('cycles primary sort: numbers and times start highest first, text and ranks A to Z', () => {
+    expect(cycleOrderSort([], 'qty', false)).toEqual([{ key: 'qty', dir: 'desc' }]);
+    expect(cycleOrderSort([{ key: 'qty', dir: 'desc' }], 'qty', false)).toEqual([
+      { key: 'qty', dir: 'asc' },
     ]);
-    expect(cycleOrderSort([{ key: 'qty', dir: 'desc' }], 'qty', false)).toEqual(
+    expect(cycleOrderSort([{ key: 'qty', dir: 'asc' }], 'qty', false)).toEqual(
       [],
     );
     expect(cycleOrderSort([], 'time', false)).toEqual([
@@ -37,6 +37,12 @@ describe('orderTableSort', () => {
     expect(cycleOrderSort([], 'filled_at', false)).toEqual([
       { key: 'filled_at', dir: 'desc' },
     ]);
+    expect(cycleOrderSort([], 'symbol', false)).toEqual([
+      { key: 'symbol', dir: 'asc' },
+    ]);
+    expect(cycleOrderSort([], 'status', false)).toEqual([
+      { key: 'status', dir: 'asc' },
+    ]);
   });
 
   it('supports Shift+click multi-sort stack', () => {
@@ -44,12 +50,12 @@ describe('orderTableSort', () => {
     const s2 = cycleOrderSort(s1, 'qty', true);
     expect(s2).toEqual([
       { key: 'status', dir: 'asc' },
-      { key: 'qty', dir: 'asc' },
+      { key: 'qty', dir: 'desc' },
     ]);
     const s3 = cycleOrderSort(s2, 'qty', true);
     expect(s3).toEqual([
       { key: 'status', dir: 'asc' },
-      { key: 'qty', dir: 'desc' },
+      { key: 'qty', dir: 'asc' },
     ]);
     expect(cycleOrderSort(s3, 'qty', true)).toEqual([
       { key: 'status', dir: 'asc' },

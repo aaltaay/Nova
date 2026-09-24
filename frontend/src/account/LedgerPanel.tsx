@@ -5,7 +5,7 @@
  * chip, source, commission and fees, the 04:00 ET rollovers, the starting
  * cash and the resets -- with the balance after each.
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ACCOUNT_LEDGER_COL_ACTION,
   ACCOUNT_LEDGER_COL_AMOUNT,
@@ -43,6 +43,7 @@ import {
 } from '../constantGroups/practice';
 import { formatSignedMoney } from '../components/globalBarMoney';
 import { resetPracticeAccount } from '../practice/practiceAccountResource';
+import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
 import { confirmApp } from '../ux';
@@ -101,6 +102,29 @@ function ResetButton({ startingCash }: { startingCash: number | null }) {
   );
 }
 
+const TYPE_LABELS: Record<LedgerRow['kind'], string> = {
+  fill: ACCOUNT_LEDGER_TYPE_FILL,
+  rollover: ACCOUNT_LEDGER_TYPE_ROLLOVER,
+  start: ACCOUNT_LEDGER_TYPE_START,
+  reset: ACCOUNT_LEDGER_TYPE_RESET,
+};
+
+/** The Action cell as it reads: a fill leads with its side and symbol, a system row with its words. */
+function actionSortText(row: LedgerRow): string {
+  if (row.kind === 'fill' && row.fill) return `${row.fill.side} ${row.fill.symbol}`;
+  if (row.kind === 'rollover') return ACCOUNT_LEDGER_ROLLOVER_ACTION;
+  if (row.kind === 'start') return ACCOUNT_LEDGER_START_ACTION;
+  return accountLedgerResetAction(row.archive?.file ?? '—', formatSignedMoney(row.archive?.realized));
+}
+
+const COLUMNS: SortColumns<LedgerRow> = {
+  type: r => TYPE_LABELS[r.kind],
+  action: actionSortText,
+  time: r => r.ts,
+  amount: r => r.amount,
+  balance: r => r.balance,
+};
+
 function RowCells({ row }: { row: LedgerRow }) {
   if (row.kind === 'fill' && row.fill) {
     const f = row.fill;
@@ -139,7 +163,8 @@ function RowCells({ row }: { row: LedgerRow }) {
 }
 
 export function LedgerPanel({ venue, history, absence, accountId, startingCash }: Props) {
-  const rows = history ? ledgerRows(history) : [];
+  const rows = useMemo(() => (history ? ledgerRows(history) : []), [history]);
+  const { rows: sorted, sort, onSort } = useTableSort('account.ledger', rows, COLUMNS);
   return (
     <section className="acct-panel acct-panel--ledger" data-testid="account-ledger" aria-label={accountLedgerTitle(accountId)}>
       <PanelHead title={accountLedgerTitle(accountId)} />
@@ -155,12 +180,18 @@ export function LedgerPanel({ venue, history, absence, accountId, startingCash }
           <div className="acct-scroll">
             <table className="acct-table" data-testid="account-ledger-table">
               <thead>
-                <tr><th>{ACCOUNT_LEDGER_COL_TYPE}</th><th>{ACCOUNT_LEDGER_COL_ACTION}</th><th>{ACCOUNT_LEDGER_COL_TIME}</th><th className="r">{ACCOUNT_LEDGER_COL_AMOUNT}</th><th className="r">{ACCOUNT_LEDGER_COL_BALANCE}</th></tr>
+                <tr>
+                  <SortTh col="type" sort={sort} onSort={onSort}>{ACCOUNT_LEDGER_COL_TYPE}</SortTh>
+                  <SortTh col="action" sort={sort} onSort={onSort}>{ACCOUNT_LEDGER_COL_ACTION}</SortTh>
+                  <SortTh col="time" sort={sort} onSort={onSort}>{ACCOUNT_LEDGER_COL_TIME}</SortTh>
+                  <SortTh col="amount" sort={sort} onSort={onSort} className="r">{ACCOUNT_LEDGER_COL_AMOUNT}</SortTh>
+                  <SortTh col="balance" sort={sort} onSort={onSort} className="r">{ACCOUNT_LEDGER_COL_BALANCE}</SortTh>
+                </tr>
               </thead>
               <tbody>
-                {rows.length === 0 ? (
+                {sorted.length === 0 ? (
                   <tr><td colSpan={5} className="acct-muted">{ACCOUNT_LEDGER_EMPTY}</td></tr>
-                ) : rows.map((row) => (
+                ) : sorted.map((row) => (
                   <tr key={row.key} className={row.kind === 'fill' ? '' : 'acct-table__sys'} data-testid={`account-ledger-row-${row.kind}`}>
                     <RowCells row={row} />
                   </tr>

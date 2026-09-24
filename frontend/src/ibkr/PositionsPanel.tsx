@@ -1,7 +1,8 @@
 import { useMemo, type ReactNode } from 'react';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { ClosePositionButton } from '../closed_orders';
-import { CLOSE_POSITION_ACCOUNT_ERROR_TITLE } from '../constants';
+import { CLOSE_POSITION_ACCOUNT_ERROR_TITLE, POSITION_TABLE_SORT_HINT } from '../constants';
+import { useTableSort, type SortColumn, type SortColumns } from '../table_sort';
 import { commissionCellTitle, formatCommission } from './orderCommission';
 import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
@@ -14,6 +15,7 @@ import {
   normalizeColumnOrder,
   type PositionColumnId,
 } from './orderTableColumns';
+import type { OrderSortKey, OrderSortState } from './orderTableSort';
 import type { IbkrPosition, IbkrOrder, IbkrAccountSummary, IbkrMode } from './types';
 import { useOrderTableColumnOrder } from './useOrderTableColumnOrder';
 import { WorkingOrdersPanel } from './WorkingOrdersPanel';
@@ -39,6 +41,19 @@ interface Props {
   compact?: boolean;
   hideTitle?: boolean;
 }
+
+/** What each position column sorts on, keyed by its column id: the numbers, never their text. */
+const POSITION_SORT_COLUMNS: SortColumns<IbkrPosition> = {
+  symbol: (p) => p.symbol,
+  qty: (p) => p.qty,
+  avg_cost: (p) => p.avg_cost,
+  commission: (p) => p.commission,
+  mkt_price: (p) => p.market_price,
+  mkt_value: (p) => p.market_value,
+  unrealized: (p) => p.unrealized_pnl,
+} satisfies Record<PositionColumnId, SortColumn<IbkrPosition>>;
+
+const isPositionSortColumn = (id: string): boolean => id in POSITION_SORT_COLUMNS;
 
 function renderPositionCell(
   col: PositionColumnId,
@@ -138,6 +153,17 @@ export function PositionsPanel({
     () => columns.map((id) => POSITION_COLUMN_META[id]),
     [columns],
   );
+  const { rows: sortedPositions, sort, onSort } = useTableSort(
+    'ibkr.positions',
+    positions,
+    POSITION_SORT_COLUMNS,
+  );
+  // The drag header draws the order tables' sort stack; a position sort is one
+  // level with the desk's click rule (Shift adds no second level here).
+  const headerSort = useMemo<OrderSortState>(
+    () => (sort ? [{ key: sort.key as OrderSortKey, dir: sort.dir }] : []),
+    [sort],
+  );
 
   return (
     <div
@@ -191,6 +217,10 @@ export function PositionsPanel({
             <OrderTableColumnHeader
               columns={headerMeta}
               onReset={reset}
+              sortState={headerSort}
+              onSortColumn={(id) => onSort(id)}
+              canSort={isPositionSortColumn}
+              sortHint={POSITION_TABLE_SORT_HINT}
               trailing={
                 showFlatten ? (
                   <th
@@ -205,7 +235,7 @@ export function PositionsPanel({
             />
           </thead>
           <tbody>
-            {positions.map((p) => {
+            {sortedPositions.map((p) => {
               const sideCls = positionSideClass(p.qty);
               const sideRowCls = positionSideRowClass(p.qty);
               const sideTitle = p.qty > 0 ? 'Long' : p.qty < 0 ? 'Short' : undefined;

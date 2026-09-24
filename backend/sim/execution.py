@@ -21,6 +21,7 @@ from execution.models import ExecutionCommand, ExecutionReceipt, StageTimings
 from execution.nova_placed import persist_nova_placed_at
 from execution.store_facts import persist_successful_cancel
 from ibkr.safety import PROTECTIVE_SOURCES
+from practice.watch import note_answer
 from sim.fill_model import SUPPORTED_ORDER_TYPES
 
 if TYPE_CHECKING:
@@ -184,6 +185,20 @@ async def _receipt_from_raw(
         if oid
         else None
     )
+    if watch is not None and raw.get("ok"):
+        # The venue answered inside the send: that answer is the ack, so the
+        # door's ack wait returns at once instead of timing out (2026-09-24).
+        note_answer(watch, raw)
+        timings.broker_ack_ns = watch.ack_ns
+        timings.filled_ns = watch.filled_ns or timings.filled_ns
+        if str(raw.get("broker_status") or "") in telemetry.TERMINAL_REJECT_STATUSES:
+            # Cancelled at the fill (practice.order_rules.fill_refusal): a
+            # refusal in the venue's own words, never an order reported placed.
+            raw = {
+                **raw, "ok": False,
+                "error": raw.get("status_reason") or f"The {mode} venue cancelled the order",
+                "reason_code": raw.get("status_code"),
+            }
     receipt = await finish_place(
         execution_id, cmd, timings, raw, watch, mode, wait_ack=False,
     )
@@ -193,6 +208,11 @@ async def _receipt_from_raw(
         # receipt and the store instead of the generic BROKER_REJECT.
         receipt.reason_code = str(raw["reason_code"])
         store.update_stages(execution_id, reason_code=receipt.reason_code)
+    if not receipt.ok and oid:
+        # The venue took the order, then cancelled it at the fill: name it.
+        receipt.order_id = int(oid)
+        receipt.broker_status = raw.get("broker_status")
+        store.update_stages(execution_id, order_id=int(oid), broker_status=receipt.broker_status)
     if receipt.ok and not receipt.broker_status:
         receipt.broker_status = raw.get("broker_status")
         if receipt.broker_status == "Filled" and timings.filled_ns is None:

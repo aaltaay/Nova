@@ -1,16 +1,28 @@
 /**
  * The Watch list tab: the symbols the operator picked by hand, each with its
- * board row's market facts (when a board holds it) and today's newest HOD Momo
- * or Running Up alert -- what the toast announces. Remove from here, add by
- * ticker here or from any ticker row. Nothing here places an order.
+ * board row's market facts (when a board holds it), its most advanced setup on
+ * the setup scanner and today's newest HOD Momo or Running Up alert -- what the
+ * toasts announce. Remove from here, add by ticker here or from any ticker row.
+ * Nothing here places an order.
  */
 import { useMemo, useState, type FormEvent } from 'react';
 import { ScannerRowNumCell, ScannerRowNumHeader } from '../components/ScannerTableChrome';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
-import { fmtStripClock, useHodMomoOptional, type AlertObject } from '../hod_momo';
+import { fmtStripClock, stripAlertMs, useHodMomoOptional, type AlertObject } from '../hod_momo';
+import {
+  rowRank,
+  rowsBySymbol,
+  setupShort,
+  setupTypeOf,
+  stateWords,
+  useSetupsBoard,
+  type SetupRow,
+} from '../setups';
+import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import type { ScannerRow } from '../types/scanner';
 import { fmtPct, fmtPrice, fmtVolume, pctToneClass } from '../utils/quoteFormat';
+import { tipProps } from '../ux/hoverTip';
 import { WatchEyeIcon } from './WatchEyeIcon';
 import {
   WATCH_LIST_ADD_BUTTON,
@@ -21,8 +33,16 @@ import {
   WATCH_LIST_HOD_COLUMN_TITLE,
   WATCH_LIST_NO_HOD_TODAY,
   WATCH_LIST_NOT_ON_BOARD,
+  WATCH_LIST_SETUP_COLUMN_TITLE,
+  WATCH_LIST_SETUP_NOT_FOLLOWED,
+  WATCH_LIST_SETUP_NOTHING,
+  WATCH_LIST_SETUP_OFFLINE_TIP,
+  WATCH_LIST_SETUP_UNKNOWN_TIP,
   WATCH_LIST_TAB_NOTE,
   watchListRemoveTitle,
+  watchListSetupAlso,
+  watchListSetupNothingTip,
+  watchListSetupNotFollowedTip,
 } from './watchListConstants';
 import { addToWatchList, removeFromWatchList, useWatchList } from './watchListStore';
 import type { WatchListBoards } from './types';
@@ -71,6 +91,11 @@ export function hodAlertsBySymbol(alerts: readonly AlertObject[]): Map<string, H
   return out;
 }
 
+/** IBKR's prior close as the price is no trade (QA C50): no price, no change. */
+function traded(row: ScannerRow | undefined): ScannerRow | undefined {
+  return row && row.quote_quality !== 'close_fallback' ? row : undefined;
+}
+
 function ChangeCell({ row }: { row: ScannerRow | undefined }) {
   // IBKR's prior close as the price has no change yet (QA C50): a dash, never 0%.
   if (!row || row.quote_quality === 'close_fallback' || row.change_pct == null) {
@@ -87,6 +112,39 @@ function HodCell({ hod }: { hod: HodToday | undefined }) {
       {hod.count > 1 ? <span className="na-muted"> ({hod.count})</span> : null}
     </span>
   );
+}
+
+/** What the setup scanner's live board can say about a symbol with no row on it. */
+interface SetupReach {
+  /** A live board is here (connected, and not the Sim eyes' replay). */
+  live: boolean;
+  /** The symbols the scanner follows; null when the API does not name them. */
+  followed: ReadonlySet<string> | null;
+}
+
+/** The symbol's most advanced setup, with the rest on hover; with none, why not -- never a guess. */
+function SetupCell({ symbol, rows, reach }: { symbol: string; rows: readonly SetupRow[] | undefined; reach: SetupReach }) {
+  const top = rows?.[0];
+  if (top) {
+    const words = stateWords(top);
+    const others = (rows ?? []).slice(1).map(r => `${setupShort(setupTypeOf(r))} ${stateWords(r).text}`);
+    const tip = others.length ? `${words.tip}\n\n${watchListSetupAlso(others)}` : words.tip;
+    return (
+      <span className="watch-list__setup" data-testid={`watch-list-setup-${symbol}`} {...tipProps(tip, words.title)}>
+        <span className="watch-list__setup-name">{setupShort(setupTypeOf(top))}</span>
+        <span className={`pillar-chip setups-state setups-state--${top.state}`}>{words.text}</span>
+        {others.length ? <span className="na-muted">+{others.length}</span> : null}
+      </span>
+    );
+  }
+  const [text, tip] = !reach.live
+    ? [WATCH_LIST_CELL_ABSENT, WATCH_LIST_SETUP_OFFLINE_TIP]
+    : reach.followed === null
+      ? [WATCH_LIST_CELL_ABSENT, WATCH_LIST_SETUP_UNKNOWN_TIP]
+      : reach.followed.has(symbol)
+        ? [WATCH_LIST_SETUP_NOTHING, watchListSetupNothingTip(symbol)]
+        : [WATCH_LIST_SETUP_NOT_FOLLOWED, watchListSetupNotFollowedTip(symbol)];
+  return <span className="na-muted" data-testid={`watch-list-setup-${symbol}`} {...tipProps(tip)}>{text}</span>;
 }
 
 function AddSymbolForm() {
@@ -141,6 +199,34 @@ export function WatchListTab({ boards, selectedSymbol, onSelectSymbol, onOpenTra
     [gainers, gappers, losers, afterhours, largeCap],
   );
   const byHod = useMemo(() => hodAlertsBySymbol(alerts ?? []), [alerts]);
+  const setups = useSetupsBoard();
+  const setupBoard = setups?.connected && setups.board?.source !== 'sim' ? setups.board : null;
+  const bySetup = useMemo(() => rowsBySymbol(setupBoard?.rows), [setupBoard]);
+  const reach = useMemo<SetupReach>(() => ({
+    live: setupBoard !== null,
+    followed: setupBoard?.universe_symbols ? new Set(setupBoard.universe_symbols) : null,
+  }), [setupBoard]);
+  const columns = useMemo<SortColumns<string>>(() => ({
+    symbol: symbol => symbol,
+    last: symbol => traded(byBoard.get(symbol)?.row)?.price,
+    change: symbol => traded(byBoard.get(symbol)?.row)?.change_pct,
+    volume: symbol => byBoard.get(symbol)?.row.volume,
+    board: symbol => byBoard.get(symbol)?.board,
+    // The most advanced setup first (rank 0 is near the trigger).
+    setup: {
+      value: symbol => {
+        const top = bySetup.get(symbol)?.[0];
+        return top ? rowRank(top) : null;
+      },
+      first: 'asc',
+    },
+    // The newest alert first.
+    hod: symbol => {
+      const hit = byHod.get(symbol);
+      return hit ? stripAlertMs(hit.latest) : null;
+    },
+  }), [byBoard, bySetup, byHod]);
+  const { rows: sorted, sort, onSort } = useTableSort('watch_list.symbols', symbols, columns);
 
   return (
     <div className="watch-list" data-testid="watch-list-tab">
@@ -158,17 +244,18 @@ export function WatchListTab({ boards, selectedSymbol, onSelectSymbol, onOpenTra
             <thead>
               <tr>
                 <ScannerRowNumHeader />
-                <th title="Click the row for the side panel. Click the ticker to open Trader.">Symbol</th>
-                <th className="num">Last</th>
-                <th className="num" title="Change against the prior close">% Chg</th>
-                <th className="num">Volume</th>
-                <th title="The scanner board the facts come from">Board</th>
-                <th title={WATCH_LIST_HOD_COLUMN_TITLE}>HOD Momo today</th>
+                <SortTh col="symbol" sort={sort} onSort={onSort} title="Click the row for the side panel. Click the ticker to open Trader.">Symbol</SortTh>
+                <SortTh col="last" sort={sort} onSort={onSort} className="num">Last</SortTh>
+                <SortTh col="change" sort={sort} onSort={onSort} className="num" title="Change against the prior close">% Chg</SortTh>
+                <SortTh col="volume" sort={sort} onSort={onSort} className="num">Volume</SortTh>
+                <SortTh col="board" sort={sort} onSort={onSort} title="The scanner board the facts come from">Board</SortTh>
+                <SortTh col="setup" sort={sort} onSort={onSort} title={WATCH_LIST_SETUP_COLUMN_TITLE}>Setup</SortTh>
+                <SortTh col="hod" sort={sort} onSort={onSort} title={WATCH_LIST_HOD_COLUMN_TITLE}>HOD Momo today</SortTh>
                 <th aria-label="Remove" />
               </tr>
             </thead>
             <tbody>
-              {symbols.map((symbol, index) => {
+              {sorted.map((symbol, index) => {
                 const hit = byBoard.get(symbol);
                 const row = hit?.row;
                 const closeFallback = row?.quote_quality === 'close_fallback';
@@ -199,6 +286,7 @@ export function WatchListTab({ boards, selectedSymbol, onSelectSymbol, onOpenTra
                       {row?.volume != null ? fmtVolume(row.volume) : <span className="na-muted">{WATCH_LIST_CELL_ABSENT}</span>}
                     </td>
                     <td>{hit ? hit.board : <span className="na-muted">{WATCH_LIST_NOT_ON_BOARD}</span>}</td>
+                    <td><SetupCell symbol={symbol} rows={bySetup.get(symbol)} reach={reach} /></td>
                     <td><HodCell hod={byHod.get(symbol)} /></td>
                     <td className="watch-list__remove-cell">
                       <button

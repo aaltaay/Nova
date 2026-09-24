@@ -166,7 +166,8 @@ def test_the_sim_desk_plays_the_journal_back_and_pops_a_proposal_up_only_when_pl
     eyes.tick(0)
     board = eyes.board(0)
     assert board["source"] == "sim" and board["replay"]["kind"] == "journal" and board["replay"]["note"] is None
-    assert board["universe"] == 1 and board["proposing"] is False and board["proposals"] == []
+    assert board["universe"] == 1 and board["universe_symbols"] == [SYM]
+    assert board["proposing"] is False and board["proposals"] == []
     assert board["replay"]["journal"]["lines"] == len(lines) + 3
     target["playhead"] = created + 0.5                    # played across the moment it was raised
     eyes.tick(0)

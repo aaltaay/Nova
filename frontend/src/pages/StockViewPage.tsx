@@ -36,6 +36,19 @@ import { alertApp } from '../ux';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { ibkrStatusKnown } from '../workspace/ibkrStatusView';
 import { useRenderCount } from '../perf/useRenderCount';
+import type { ChartPaneOverlayProps } from '../chart';
+import { useSimReplayDesk } from '../sim';
+import {
+  StockReadChartLayer,
+  StockReadProvider,
+  StockReadSheet,
+  StockReadToolbar,
+} from '../stock_read';
+
+/** The bot's read on the symbol, drawn in every chart pane (ADR 036). */
+function renderStockRead(props: ChartPaneOverlayProps) {
+  return <StockReadChartLayer {...props} />;
+}
 
 interface Props {
   symbol: string;
@@ -57,6 +70,7 @@ export function StockViewPage({
   useRenderCount('StockViewPage');
   const { discoveryProvider } = useWorkspace();
   const { topOfBook } = useTopOfBook();
+  const replayDesk = useSimReplayDesk();
   const { detail, loading, refreshing, fetchFailed } = useTickerStream(symbol);
   const ibkrStatus = useIbkrStatus();
   // `connected` is false while the status is pending or failing too: the
@@ -115,6 +129,7 @@ export function StockViewPage({
           price: detail.snapshot.latest_trade.price,
           timestamp: detail.snapshot.latest_trade.timestamp ?? null,
           source: detail.snapshot.latest_trade.source,
+          dayVolume: detail.snapshot.latest_trade.day_volume ?? null,
         }
       : undefined;
 
@@ -153,6 +168,7 @@ export function StockViewPage({
   );
 
   return (
+    <StockReadProvider symbol={symbol} active={chartActive} replay={replayDesk} topOfBook={topOfBook}>
     <div
       className="stock-view-page"
       style={{ ['--ticker-trade-side-width' as string]: `${sideWidth}px` }}
@@ -190,7 +206,10 @@ export function StockViewPage({
                 symbol={symbol}
                 lastTrade={detailReady ? lastTrade : null}
                 chartActive={chartActive}
+                renderPaneOverlay={renderStockRead}
+                toolbarExtra={<StockReadToolbar />}
               />
+              <StockReadSheet />
               {showSpinner && !detailReady ? (
                 <div className="detail-loading detail-loading--charts-overlay" aria-live="polite">
                   <span>Loading quote for {symbol}…</span>
@@ -257,5 +276,6 @@ export function StockViewPage({
         </div>
       </div>
     </div>
+    </StockReadProvider>
   );
 }

@@ -174,7 +174,8 @@ class Playback:
                 rows += lane.board_rows(at, self.last)
                 proposals += [p for p in lane.proposals.values() if p.get("status") == "open"]
         return {"proposing": False, "setups": setups, "rows": rows, "proposals": proposals,
-                "universe": len(self.universe) if gap is None else 0}
+                "universe": len(self.universe) if gap is None else 0,
+                "universe_symbols": sorted(self.universe) if gap is None else []}
 
     def journal_view(self) -> dict[str, Any]:
         return {"path": str(self.day.path), "exists": self.day.exists, "lines": len(self.day.lines),

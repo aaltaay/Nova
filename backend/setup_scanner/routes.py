@@ -5,6 +5,8 @@ cancels an order.
   GET /api/setups/scoreboard?days=N   armed setups in the last N calendar days + summary
   GET /api/setups/rows?date=&symbol=  scoreboard rows for one day (``setup=all``: every setup's
                                       template in play, oldest armed first)
+  GET /api/setups/symbol/{symbol}     one symbol in every setup's template in play, whatever its state,
+                                      with the forming levels and the lane's own indicators (ADR 036)
 
 Both scoreboard reads answer for one setup (``setup=``, the first pullback by
 default; ADR 031) and its template in play -- its id and current revision, the
@@ -29,6 +31,7 @@ from scanner_wire import dumps_wire
 from setup_scanner.engine import get_engine
 from setup_scanner.store import session_date
 from setup_scanner.summary import summarize
+from setup_scanner.symbol_view import symbol_view
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["setups"])
@@ -95,6 +98,14 @@ def rows(date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$"), symbol: str | N
     where, named = _template_filter(template, setup)
     return {"date": date, "setup_type": setup, "template": named,
             "rows": store.rows(date_from=date, date_to=date, symbol=symbol, **where)}
+
+
+@router.get("/api/setups/symbol/{symbol:path}")
+def one_symbol(symbol: str) -> dict:
+    sym = (symbol or "").strip().upper()
+    if not sym:
+        raise HTTPException(400, "symbol required")
+    return symbol_view(get_engine(), sym)
 
 
 @router.websocket("/ws/setups")

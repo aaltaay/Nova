@@ -39,7 +39,7 @@ from practice import order_rules
 from practice.fees import for_fill
 from practice.ledger import Ledger, iso_utc
 from practice.reference import LiveReference, MarketReference, SimReference
-from practice.watch import notify_watch, release_commitments
+from practice.watch import answer_facts, notify_watch, release_commitments
 from sim import fill_model
 
 logger = logging.getLogger(__name__)
@@ -135,7 +135,7 @@ class PracticeBroker:
         current = self.ledger.order_row(oid) or row
         return {
             "ok": True, "order_id": oid, "error": None, "mode": self.venue,
-            "nova_placed_at": row["nova_placed_at"], "broker_status": current["status"],
+            "nova_placed_at": row["nova_placed_at"], **answer_facts(current),
         }
 
     def cancel(self, order_id: int, *, source: str = "manual", bot_id: str | None = None) -> dict[str, Any]:
@@ -162,7 +162,7 @@ class PracticeBroker:
         current = self.ledger.order_row(int(order_id)) or row
         return {
             "ok": True, "order_id": int(order_id), "error": None, "mode": self.venue,
-            "nova_placed_at": row.get("submitted_at"), "broker_status": current.get("status"),
+            "nova_placed_at": row.get("submitted_at"), **answer_facts(current),
         }
 
     def try_fill_working(self, symbol: str, prints: list[tuple[float, float]]) -> list[dict[str, Any]]:

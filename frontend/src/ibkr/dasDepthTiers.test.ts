@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { L2_DAS_TIER_COLORS } from '../constants';
-import { assignPriceTiers, maxSize, padLevels, tierBackground } from './dasDepthTiers';
+import {
+  assignPriceTiers,
+  bookPeak,
+  maxSize,
+  padLevels,
+  sizeGaugePct,
+  tierBackground,
+} from './dasDepthTiers';
 import type { DepthLevel } from './types';
 
 function lvl(price: number, size: number, side: 'bid' | 'ask' = 'bid'): DepthLevel {
@@ -37,5 +44,31 @@ describe('padLevels', () => {
 describe('maxSize', () => {
   it('returns peak size for heat bars', () => {
     expect(maxSize([lvl(1, 10), lvl(2, 400), lvl(3, 50)])).toBe(400);
+  });
+});
+
+describe('bookPeak', () => {
+  it('takes the largest size on either side, so both gauges share one scale', () => {
+    expect(bookPeak([lvl(4.78, 3001), lvl(4.8, 500)], [lvl(5.18, 722, 'ask')])).toBe(3001);
+    expect(bookPeak([], [lvl(5.18, 722, 'ask')])).toBe(722);
+    expect(bookPeak([], [])).toBe(0);
+  });
+});
+
+describe('sizeGaugePct', () => {
+  it('measures a level against the book-wide peak', () => {
+    expect(sizeGaugePct(3001, 3001)).toBe(100);
+    expect(sizeGaugePct(722, 3001)).toBe(24.1);
+    expect(sizeGaugePct(100, 3001)).toBe(3.3);
+  });
+
+  it('draws nothing without a size or a peak', () => {
+    expect(sizeGaugePct(0, 3001)).toBe(0);
+    expect(sizeGaugePct(100, 0)).toBe(0);
+    expect(sizeGaugePct(Number.NaN, 3001)).toBe(0);
+  });
+
+  it('never runs past the row', () => {
+    expect(sizeGaugePct(5000, 3001)).toBe(100);
   });
 });

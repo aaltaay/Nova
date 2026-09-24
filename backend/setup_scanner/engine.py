@@ -295,11 +295,12 @@ class SetupEngine(LaneHost):
     def _gate(self, now: float) -> None:
         wanted: set[str] = set()
         windows = [lane.p.gate.window_sec for lane in self.lanes]
+        history = [lane.p.flow.history_sec for lane in self.lanes]
         for lane in self.lanes:
-            wanted |= lane.watching()
+            wanted |= lane.watching() | lane.trade_symbols(now)   # a trade on keeps its tape (ADR 034)
         if self.tape is not None:
             if windows and hasattr(self.tape, "keep_window"):
-                self.tape.keep_window(max(windows))
+                self.tape.keep_window(max(windows), max(history))
             self.tape.sync(wanted, now)
         for lane in self.lanes:
             lane.gate(now)

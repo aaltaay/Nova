@@ -44,6 +44,7 @@
 }
 
 .das-l2-row {
+  position: relative;
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   align-items: center;
@@ -90,6 +91,33 @@
 
 .das-l2-side--ask .das-l2-mm {
   text-align: right;
+}
+
+/* Size gauge: a dark bar along the row's bottom edge, growing out from the
+   centre line (bid leftward, ask rightward) on one scale for the whole book.
+   The row keeps its tier colour; the digits sit a pixel up, clear of it. */
+.das-l2-gauge {
+  position: absolute;
+  bottom: 0;
+  height: 4px;
+  min-width: 3px;
+  max-width: 100%;
+  pointer-events: none;
+}
+
+.das-l2-side--bid .das-l2-gauge {
+  right: 0;
+  border-radius: 2px 0 0 2px;
+}
+
+.das-l2-side--ask .das-l2-gauge {
+  left: 0;
+  border-radius: 0 2px 2px 0;
+}
+
+.das-l2-row--tiered > :not(.das-l2-gauge) {
+  position: relative;
+  top: -1px;
 }
 
 .das-l2-spread {

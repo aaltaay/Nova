@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import {
   formatActivityOrderRef,
   formatActivityQty,
@@ -6,8 +7,37 @@ import {
   formatTimingMs,
 } from './formatActivity';
 import { fetchActivityDetail } from './useActivityLedger';
-import type { ActivityDetail, ActivityRow } from './types';
+import type { ActivityDetail, ActivityFillEvidence, ActivityRow } from './types';
 import './activity.css';
+
+/** A positive id as a number, else null (the Order cell's own rule). */
+function positiveId(id: number | null | undefined): number | null {
+  const n = Number(id);
+  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
+}
+
+const COLUMNS: SortColumns<ActivityRow> = {
+  time: r => (r.created_ts > 0 ? r.created_ts : null),
+  symbol: r => r.symbol,
+  op: r => r.operation,
+  source: r => r.source,
+  side: r => r.side,
+  // The quantity that went to the broker; the request when nothing was sent.
+  qty: r => r.sent_qty ?? r.requested_qty,
+  order: r => positiveId(r.order_id) ?? positiveId(r.perm_id),
+  status: r => r.broker_status || r.status,
+  ack: r => r.timings?.broker_ack_ms,
+  one_share: r => r.forced_one_share,
+};
+
+const EVIDENCE_COLUMNS: SortColumns<ActivityFillEvidence> = {
+  provenance: e => e.provenance,
+  leg: e => e.leg_role,
+  state: e => e.fill_state,
+  shares: e => e.shares,
+  price: e => e.average_fill_price ?? e.price,
+  slip: e => e.slippage_per_share,
+};
 
 interface Props {
   rows: ActivityRow[];
@@ -20,6 +50,7 @@ export function ActivityPanel({ rows, loading = false, error = null, onRefresh }
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ActivityDetail | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const { rows: sorted, sort, onSort } = useTableSort('activity.ledger', rows, COLUMNS);
 
   useEffect(() => {
     if (!expandedId) {
@@ -76,20 +107,20 @@ export function ActivityPanel({ rows, loading = false, error = null, onRefresh }
         <table className="ibkr-table ibkr-table--orders activity-table">
           <thead>
             <tr>
-              <th>Time</th>
-              <th>Symbol</th>
-              <th>Op</th>
-              <th>Source</th>
-              <th>Side</th>
-              <th>Qty</th>
-              <th>Order</th>
-              <th>Status</th>
-              <th>Ack</th>
-              <th>1-share</th>
+              <SortTh col="time" sort={sort} onSort={onSort}>Time</SortTh>
+              <SortTh col="symbol" sort={sort} onSort={onSort}>Symbol</SortTh>
+              <SortTh col="op" sort={sort} onSort={onSort}>Op</SortTh>
+              <SortTh col="source" sort={sort} onSort={onSort}>Source</SortTh>
+              <SortTh col="side" sort={sort} onSort={onSort}>Side</SortTh>
+              <SortTh col="qty" sort={sort} onSort={onSort}>Qty</SortTh>
+              <SortTh col="order" sort={sort} onSort={onSort}>Order</SortTh>
+              <SortTh col="status" sort={sort} onSort={onSort}>Status</SortTh>
+              <SortTh col="ack" sort={sort} onSort={onSort}>Ack</SortTh>
+              <SortTh col="one_share" sort={sort} onSort={onSort}>1-share</SortTh>
             </tr>
           </thead>
           <tbody>
-            {rows.map(row => {
+            {sorted.map(row => {
               const open = expandedId === row.id;
               return (
                 <ActivityRows
@@ -163,6 +194,7 @@ function ActivityDetailBody({
   detailError: string | null;
 }) {
   const evidence = detail?.fill_evidence ?? [];
+  const { rows: sortedEvidence, sort, onSort } = useTableSort('activity.evidence', evidence, EVIDENCE_COLUMNS);
   return (
     <div className="activity-detail">
       <p>
@@ -182,17 +214,17 @@ function ActivityDetailBody({
         <table className="ibkr-table activity-evidence">
           <thead>
             <tr>
-              <th>Provenance</th>
-              <th>Leg</th>
-              <th>State</th>
-              <th>Shares</th>
-              <th>Price</th>
-              <th>Slip / sh</th>
+              <SortTh col="provenance" sort={sort} onSort={onSort}>Provenance</SortTh>
+              <SortTh col="leg" sort={sort} onSort={onSort}>Leg</SortTh>
+              <SortTh col="state" sort={sort} onSort={onSort}>State</SortTh>
+              <SortTh col="shares" sort={sort} onSort={onSort}>Shares</SortTh>
+              <SortTh col="price" sort={sort} onSort={onSort}>Price</SortTh>
+              <SortTh col="slip" sort={sort} onSort={onSort}>Slip / sh</SortTh>
             </tr>
           </thead>
           <tbody>
-            {evidence.map((item, index) => (
-              <tr key={`${item.provenance || 'ev'}-${index}`}>
+            {sortedEvidence.map(item => (
+              <tr key={`${item.provenance || 'ev'}-${evidence.indexOf(item)}`}>
                 <td>{item.provenance || '--'}</td>
                 <td>{item.leg_role || '--'}</td>
                 <td>{item.fill_state || '--'}</td>

@@ -1,13 +1,7 @@
 """One template's eyes (ADR 029): a lane of one setup's detectors over the
 scanner's symbols, with its own scoreboard rows, tape reads, proposals and
-journal lines.
-
-Every line about a symbol carries the detector's last price and leg, and whenever the
-detector's state differs from what its lines imply (``lane_view.
-JOURNAL_EVENT_STATES``) the lane writes a ``state`` line -- so the journal read
-back at any moment (``eyes/playback.py``) is the card as it stood then. The
-playing lane also writes a ``price`` line for a name within reach of its
-trigger, at most every ``EYES_JOURNAL_PRICE_EVERY_SEC``.
+journal lines -- which say everything its card shows, so the journal read back
+at any moment is the card as it stood then (``setup_scanner/lane_journal.py``).
 
 The engine runs one lane per template of every setup with a scanner (ADR 031)
 on the same bars and the same tape; a replay runs the same lanes over a Session
@@ -20,7 +14,12 @@ The host (``SetupEngine`` live, ``eyes.replay.EyesReplay`` on a recording)
 supplies ``session``, ``pillars(sym, now)``, ``tape_books(sym)``,
 ``tape_prints(sym)``, ``tape_line(sym)``, ``save(row)``, ``journal(event)``,
 ``audit(**kw)``, ``clock()`` and ``can_propose(setup_type)``, and may supply
-``on_trigger(event)`` (the live engine: ADR 030). Nothing here places an order.
+``on_trigger(event)`` (the live engine: ADR 030), ``flow(sym, now, params)`` (a
+shared, cached tape flow reading) and ``tape_since(sym)`` (the earliest moment
+its prints vouch for). Nothing here places an order.
+
+ADR 034: every tape read carries the tape flow score, and a triggered setup's
+flow is read through its scoring window (``setup_scanner/lane_flow.py``).
 """
 from __future__ import annotations
 
@@ -28,7 +27,6 @@ import uuid
 from typing import Any
 
 from constants_bot import BOT_SETUP_FIRST_PULLBACK
-from constants_eyes import EYES_JOURNAL_PRICE_EVERY_SEC
 from constants_setups import (
     SETUP_STATE_NEAR,
     SETUP_STATE_TRIGGERED,
@@ -43,11 +41,11 @@ from setup_scanner.bars import Bar, minute_start
 from setup_scanner.detector import TriggerDetector
 from setup_scanner.detectors import make_detector
 from setup_scanner.lane_params import LaneParams
+from setup_scanner import lane_flow, lane_journal, tape_flow
 from setup_scanner.scoring import ScoreTracker
 from setup_scanner.tape_gate import evaluate as evaluate_tape
 
 WATCH_STATES = lane_view.WATCH_STATES
-JOURNAL_EVENT_STATES = lane_view.JOURNAL_EVENT_STATES
 STATE_FILTERED = lane_view.STATE_FILTERED
 # Why an open proposal closed, as the Bots page timeline says it.
 PROPOSAL_CLOSE_REASONS = {
@@ -63,7 +61,8 @@ ORDER = lane_view.ORDER
 
 
 def slim(res: dict) -> dict:
-    return {"verdict": res.get("verdict"), "reasons": res.get("reasons"), "line": res.get("line")}
+    return {"verdict": res.get("verdict"), "reasons": res.get("reasons"), "line": res.get("line"),
+            "flow": tape_flow.brief(res.get("flow"))}
 
 
 class Lane:
@@ -82,6 +81,9 @@ class Lane:
         self._tape_said: dict[str, str] = {}
         self._said: dict[str, tuple[str, str]] = {}          # the (state, reason) the journal implies
         self._priced: dict[str, tuple[float, float]] = {}    # (ts, price) of the last price line
+        self.flow_last: dict[str, dict] = {}      # setup id -> the newest flow reading after its trigger
+        self._flow_said: dict[str, str] = {}
+        self._flow_next: dict[str, float] = {}
 
     # -- identity -------------------------------------------------------------
     @property
@@ -105,22 +107,13 @@ class Lane:
                 "params_hash": self.p.params_hash, "setup_type": self.p.setup}
 
     def journal(self, event: str, sym: str | None, **fields: Any) -> None:
-        if sym is not None:
-            det = self.det.get(sym)
-            if det is not None:
-                if det.last_price is not None:
-                    fields.setdefault("last", det.last_price)
-                fields.setdefault("leg", dict(det.leg) if det.leg else None)
-            implied = fields.get("state") if event == "state" else JOURNAL_EVENT_STATES.get(event)
-            if implied:
-                self._said[sym] = (implied, str(fields.get("reason") or ""))
-        self.host.journal({"event": event, "symbol": sym, "setup_type": self.p.setup, "template": self.p.template_id,
-                           "rev": self.p.template_rev, "playing": self.playing, **fields})
+        lane_journal.line(self, event, sym, fields)
 
     # -- symbols ----------------------------------------------------------------
     def clear(self) -> None:
         for store in (self.det, self.rows, self.active_id, self.trackers, self.tape_view,
-                      self.proposals, self.filtered, self._tape_said, self._said, self._priced):
+                      self.proposals, self.filtered, self._tape_said, self._said, self._priced,
+                      self.flow_last, self._flow_said, self._flow_next):
             store.clear()
         self.alerts = []
 
@@ -144,6 +137,13 @@ class Lane:
         """Symbols this lane still needs: a watched setup or a trade being scored."""
         return self.watching() | {self.rows[sid]["symbol"] for sid in self.trackers if sid in self.rows}
 
+    def trades(self, now: float) -> list[str]:
+        """Setup ids whose trade is inside its scoring window: their flow is read (ADR 034)."""
+        return lane_flow.trades(self, now)
+
+    def trade_symbols(self, now: float) -> set[str]:
+        return {self.rows[sid]["symbol"] for sid in self.trades(now)}
+
     def _tracker_ids(self, sym: str) -> list[str]:
         return [sid for sid in self.trackers if self.rows.get(sid, {}).get("symbol") == sym]
 
@@ -151,7 +151,7 @@ class Lane:
     def on_bars(self, sym: str, bars: list[Bar], now: float, new_bar: Bar | None = None) -> None:
         det = self.ensure(sym)
         self.handle(sym, det.on_bars(bars), now)
-        self._say_state(sym, det)
+        lane_journal.say_state(self, sym, det)
         if new_bar is not None:
             for sid in self._tracker_ids(sym):
                 if self.trackers[sid].on_bar(new_bar, det.ema_now):
@@ -162,30 +162,11 @@ class Lane:
         if det is None:
             return
         self.handle(sym, det.on_price(price, ts, bar_open=bar_open), ts)
-        self._say_state(sym, det)
-        self._say_price(sym, det, ts)
+        lane_journal.say_state(self, sym, det)
+        lane_journal.say_price(self, sym, det, ts)
         for sid in self._tracker_ids(sym):
             if self.trackers[sid].on_price(price, ts):
                 self._score(sid)
-
-    def _say_state(self, sym: str, det: TriggerDetector) -> None:
-        """A ``state`` line when the detector is not where the journal's lines left it."""
-        said = (det.state, det.reason)
-        if self._said.get(sym) == said or det.reason.startswith("warming up"):
-            return
-        view = det.view()
-        self.journal("state", sym, state=det.state, reason=det.reason, leg=view.get("leg"),
-                     kind=view.get("kind"), nth=det.nth)
-
-    def _say_price(self, sym: str, det: TriggerDetector, ts: float) -> None:
-        """The playing lane's price for a name within reach, so a playback's "to go" is the card's."""
-        if not self.playing or det.state not in WATCH_STATES or det.last_price is None:
-            return
-        prev = self._priced.get(sym)
-        if prev is not None and (ts - prev[0] < EYES_JOURNAL_PRICE_EVERY_SEC or prev[1] == det.last_price):
-            return
-        self._priced[sym] = (ts, det.last_price)
-        self.journal("price", sym)
 
     def sweep(self, now: float) -> None:
         """Close the scoring of trades whose window has passed."""
@@ -251,7 +232,7 @@ class Lane:
                     risk=float(setup["risk"]), triggered_at=ts,
                     entry_bar_t=float(setup.get("score_bar_t") or minute_start(ts)),
                     bailout_bars=self.p.bailout_bars,
-                    half_on_entry_bar=bool(setup.get("half_on_entry_bar", True)))
+                    half_on_entry_bar=bool(setup.get("half_on_entry_bar", True)), flush=self.p.flush)
                 self.journal("triggered", sym, setup_id=sid, setup=setup, price=setup.get("trigger_price"),
                              tape=tape, reason=view["reason"])
                 self._close_proposal(sid, "triggered")
@@ -307,9 +288,17 @@ class Lane:
         if not setup:
             return {"verdict": TAPE_VERDICT_BLIND, "reasons": ["no setup"], "metrics": {}}
         res = evaluate_tape(trigger=float(setup["trigger"]), now=now, books=self.host.tape_books(sym),
-                            prints=self.host.tape_prints(sym), p=self.p.gate)
+                            prints=self.host.tape_prints(sym), p=self.p.gate, flow=self.flow(sym, now))
         res["line"] = self.host.tape_line(sym)
         return res
+
+    def flow(self, sym: str, now: float) -> dict:
+        """The tape flow at ``now`` under this template's numbers (``lane_flow.flow``)."""
+        return lane_flow.flow(self, sym, now)
+
+    def read_trades(self, now: float) -> None:
+        """Each trade on: read its flow and let the template's flush exit act (``lane_flow.read_trades``)."""
+        lane_flow.read_trades(self, now)
 
     def gate(self, now: float) -> None:
         wanted = self.watching()
@@ -332,6 +321,7 @@ class Lane:
                 # No open proposal: none yet, or the last one was withdrawn when the
                 # setup re-armed at new levels or was disarmed and armed again.
                 self._propose(sym, sid, res, now)
+        self.read_trades(now)
 
     def _propose(self, sym: str, sid: str, res: dict, now: float) -> None:
         row = self.rows.get(sid) or {}

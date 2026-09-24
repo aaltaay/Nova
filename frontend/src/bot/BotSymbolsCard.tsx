@@ -28,7 +28,8 @@ import { useRecordingSymbols } from '../capture/sessionRecordStore';
 import { useLiveScannerFeedOptional } from '../scanner/ScannerDataContext';
 import { formatSignedPct, pctTone, scannerRowFor } from '../stock_view/tabContext';
 import { useWorkspace } from '../workspace/WorkspaceContext';
-import { rowsBySymbol, setupShort, setupTypeOf, stateWords, useSetupsBoard, type SetupRow } from '../setups';
+import { rowRank, rowsBySymbol, setupShort, setupTypeOf, stateWords, useSetupsBoard, type SetupRow } from '../setups';
+import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import { tipProps } from '../ux/hoverTip';
 import { useBotAllowlist } from './useBotAllowlist';
 import type { BotSession } from './types';
@@ -72,6 +73,26 @@ function SetupChips({ rows, connected }: { rows: readonly SetupRow[] | undefined
   );
 }
 
+/** One allowlisted symbol with the facts its row shows. */
+interface SymbolLine {
+  sym: string;
+  /** Its rows on the setup board, most advanced first. */
+  mine: SetupRow[] | undefined;
+  last: number | null;
+  chg: number | null;
+  held: boolean;
+  via: 'record' | 'trader' | null;
+}
+
+const COLUMNS: SortColumns<SymbolLine> = {
+  symbol: l => l.sym,
+  l2: l => l.held,
+  last: l => l.last,
+  chg: l => l.chg,
+  // Its most advanced setup first: near, armed, triggered, ... (rowRank is lowest-first).
+  setups: l => (l.mine?.length ? -rowRank(l.mine[0]) : null),
+};
+
 function fmtLast(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return '—';
   return v < 1 ? v.toFixed(4) : v.toFixed(2);
@@ -93,6 +114,21 @@ export function BotSymbolsCard({ session, onOpenL2, inputRef }: Props) {
   const held = heldLines(session);
   const rows = rowsBySymbol(stream?.board?.rows);
   const atCap = symbols.length >= BOT_SYMBOL_ALLOWLIST_CAP;
+  const lines: SymbolLine[] = symbols.map(sym => {
+    const mine = rows.get(sym);
+    const board = scannerRowFor(sym, feed);
+    const last = mine?.[0]?.last_price ?? board?.price ?? null;
+    const prev = board?.prev_close ?? null;
+    return {
+      sym,
+      mine,
+      last,
+      chg: last != null && prev ? (last / prev - 1) * 100 : null,
+      held: held.has(sym),
+      via: recording.includes(sym) ? 'record' : traderLiveTabs.includes(sym) ? 'trader' : null,
+    };
+  });
+  const { rows: sorted, sort, onSort } = useTableSort('bot.symbols', lines, COLUMNS);
 
   async function onAdd() {
     const ticker = draft.trim().toUpperCase();
@@ -112,45 +148,42 @@ export function BotSymbolsCard({ session, onOpenL2, inputRef }: Props) {
         <table className="bots-table">
           <thead>
             <tr>
-              <th>Symbol</th><th>Level 2</th><th className="num" title={BOTS_LAST_TITLE}>Last</th>
-              <th className="num" title={BOTS_CHG_TITLE}>Chg</th>
-              <th {...tipProps('Where each setup\'s scanner has the symbol right now, most advanced first. Hover a chip for what it means.', 'Setups')}>Setups</th>
+              <SortTh col="symbol" sort={sort} onSort={onSort}>Symbol</SortTh>
+              <SortTh col="l2" sort={sort} onSort={onSort}>Level 2</SortTh>
+              <SortTh col="last" sort={sort} onSort={onSort} className="num" title={BOTS_LAST_TITLE}>Last</SortTh>
+              <SortTh col="chg" sort={sort} onSort={onSort} className="num" title={BOTS_CHG_TITLE}>Chg</SortTh>
+              <SortTh col="setups" sort={sort} onSort={onSort}
+                {...tipProps('Where each setup\'s scanner has the symbol right now, most advanced first. Hover a chip for what it means.', 'Setups')}>
+                Setups
+              </SortTh>
               <th aria-label="Remove" />
             </tr>
           </thead>
           <tbody>
-            {symbols.map(sym => {
-              const mine = rows.get(sym);
-              const board = scannerRowFor(sym, feed);
-              const last = mine?.[0]?.last_price ?? board?.price ?? null;
-              const prev = board?.prev_close ?? null;
-              const chg = last != null && prev ? (last / prev - 1) * 100 : null;
-              const via = recording.includes(sym) ? 'record' : traderLiveTabs.includes(sym) ? 'trader' : null;
-              return (
-                <tr key={sym} data-testid={`bots-symbol-${sym}`}>
-                  <td className="bots-sym">{sym}</td>
-                  <td>
-                    {held.has(sym) ? (
-                      <span className="bots-chip bots-chip--ok" title={BOTS_L2_HELD_TITLE}>
-                        {BOTS_L2_HELD}{via ? ` · ${BOTS_L2_HELD_VIA[via]}` : ''}
-                      </span>
-                    ) : (
-                      <button type="button" className="bots-chip bots-chip--warn" data-testid={`bots-symbol-open-l2-${sym}`}
-                        title={BOTS_L2_OPEN_TITLE} onClick={() => onOpenL2(sym)}>
-                        {BOTS_L2_OPEN}
-                      </button>
-                    )}
-                  </td>
-                  <td className="num">{fmtLast(last)}</td>
-                  <td className={`num bots-chg bots-chg--${pctTone(chg)}`}>{chg == null ? '—' : formatSignedPct(chg)}</td>
-                  <td><SetupChips rows={mine} connected={Boolean(stream?.connected)} /></td>
-                  <td>
-                    <button type="button" className="bots-x" aria-label={`${BOT_ALLOWLIST_CHIP_REMOVE} ${sym}`}
-                      data-testid={`bots-symbol-remove-${sym}`} onClick={() => void remove(sym)}>×</button>
-                  </td>
-                </tr>
-              );
-            })}
+            {sorted.map(({ sym, mine, last, chg, held: isHeld, via }) => (
+              <tr key={sym} data-testid={`bots-symbol-${sym}`}>
+                <td className="bots-sym">{sym}</td>
+                <td>
+                  {isHeld ? (
+                    <span className="bots-chip bots-chip--ok" title={BOTS_L2_HELD_TITLE}>
+                      {BOTS_L2_HELD}{via ? ` · ${BOTS_L2_HELD_VIA[via]}` : ''}
+                    </span>
+                  ) : (
+                    <button type="button" className="bots-chip bots-chip--warn" data-testid={`bots-symbol-open-l2-${sym}`}
+                      title={BOTS_L2_OPEN_TITLE} onClick={() => onOpenL2(sym)}>
+                      {BOTS_L2_OPEN}
+                    </button>
+                  )}
+                </td>
+                <td className="num">{fmtLast(last)}</td>
+                <td className={`num bots-chg bots-chg--${pctTone(chg)}`}>{chg == null ? '—' : formatSignedPct(chg)}</td>
+                <td><SetupChips rows={mine} connected={Boolean(stream?.connected)} /></td>
+                <td>
+                  <button type="button" className="bots-x" aria-label={`${BOT_ALLOWLIST_CHIP_REMOVE} ${sym}`}
+                    data-testid={`bots-symbol-remove-${sym}`} onClick={() => void remove(sym)}>×</button>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       )}

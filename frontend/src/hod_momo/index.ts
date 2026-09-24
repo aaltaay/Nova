@@ -19,5 +19,5 @@ export {
   partitionScannerAlerts,
 } from './scannerPartition';
 export { subscribeHodMomoLiveAlerts } from './hodMomoLiveAlerts';
-export { fmtStripClock } from './hodMomoStripRows';
+export { fmtStripClock, stripAlertMs } from './hodMomoStripRows';
 export type { AlertObject } from './types';

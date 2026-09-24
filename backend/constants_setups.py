@@ -19,6 +19,7 @@ from constants_bot import (
 # The board / socket payload. 2 (ADR 031): rows and proposals carry
 # ``setup_type``, and ``setups[]`` summarizes each setup with a scanner.
 SETUPS_SCHEMA_VERSION = 2
+SETUPS_SCHEMA_VERSION_SYMBOL = 1           # GET /api/setups/symbol/{symbol} (ADR 036)
 # setups.db: 2 adds template_id / template_rev / params_hash (ADR 029); a v1
 # file is migrated in place, its rows becoming the default template's. 3 (ADR
 # 031) adds setup_type and detail; a v2 file's rows are the first pullback's.
@@ -129,6 +130,46 @@ TAPE_VERDICT_WAIT = "wait"
 TAPE_VERDICT_VETO = "veto"
 TAPE_VERDICT_BLIND = "blind"
 TAPE_VERDICTS = (TAPE_VERDICT_GO, TAPE_VERDICT_WAIT, TAPE_VERDICT_VETO, TAPE_VERDICT_BLIND)
+
+# -- Tape flow (ADR 034): one score for who is winning the tape, -1 (sellers) to +1 (buyers).
+# Every number is CHOSEN and tuned per template; eyes/flow_study.py measures what the score says.
+TAPE_FLOW_WINDOW_SEC = 10.0             # the readings look at this many seconds
+TAPE_FLOW_BASELINE_SEC = 120.0          # the tape's usual pace is measured over this, before the window
+TAPE_FLOW_MIN_PRINTS = 5                # fewer lit prints at the bid or the ask than this reads quiet
+TAPE_FLOW_MIN_SHARES = 1_000            # ... or fewer shares than this
+TAPE_FLOW_PACE_FULL = 3.0               # the window's pace at this multiple of the baseline reads full strength
+TAPE_FLOW_DRIFT_FULL = 0.005            # a move of this fraction of price inside the window reads full strength
+TAPE_FLOW_BOOK_LEVELS = 5               # displayed prices a side the book reading sums
+TAPE_FLOW_W_IMBALANCE = 5.0             # weights of the four readings in the score's mean
+TAPE_FLOW_W_PACE = 2.0
+TAPE_FLOW_W_DRIFT = 2.0
+TAPE_FLOW_W_BOOK = 1.0
+TAPE_FLOW_BURST_AT = 0.5                # a score at or over this is a burst
+TAPE_FLOW_FLUSH_AT = 0.5                # a score at or under minus this is a flush
+TAPE_FLOW_EVAL_SEC = 1.0                # a trade on is read this often after its trigger
+TAPE_FLOW_READING_STALE_SEC = 5.0       # the bot ignores a reading older than this
+TAPE_FLOW_BURST = "burst"
+TAPE_FLOW_FLUSH = "flush"
+TAPE_FLOW_NEUTRAL = "neutral"
+TAPE_FLOW_QUIET = "quiet"               # too little tape to say
+TAPE_FLOW_BLIND = "blind"               # no prints and no book: Nova holds no line
+TAPE_FLOW_LABELS = (TAPE_FLOW_BURST, TAPE_FLOW_FLUSH, TAPE_FLOW_NEUTRAL, TAPE_FLOW_QUIET, TAPE_FLOW_BLIND)
+
+# How the tape decides an entry (a template's ``tape_entry``). ``gate`` is the pre-registered rule.
+TAPE_ENTRY_GATE = "gate"                # green prints at the ask and no red burst (ADR 022)
+TAPE_ENTRY_SCORE = "score"              # the flow score at or over the minimum instead of the print counts
+TAPE_ENTRY_BOTH = "both"                # the gate's green and the score
+TAPE_ENTRY_MODES = (TAPE_ENTRY_GATE, TAPE_ENTRY_SCORE, TAPE_ENTRY_BOTH)
+TAPE_ENTRY_MIN_SCORE = 0.3
+
+# What a flush does to a trade on (a template's ``flush_exit``). Off is the pre-registered rule.
+FLUSH_EXIT_OFF = "off"
+FLUSH_EXIT_TIGHTEN = "tighten"          # the stop moves up to ``flush_trail_r`` R under the price
+FLUSH_EXIT_EXIT = "exit"                # out at the bid
+FLUSH_EXIT_MODES = (FLUSH_EXIT_OFF, FLUSH_EXIT_TIGHTEN, FLUSH_EXIT_EXIT)
+FLUSH_EXIT_HOLD_SEC = 10.0              # a flush this soon after the entry is the entry's own noise
+FLUSH_EXIT_TRAIL_R = 0.5
+FLUSH_EXIT_MIN_R = None                 # on: a flush counts only while the trade is up at least this many R
 
 # -- States (one vocabulary for the board, the scoreboard and the UI).
 SETUP_STATE_WATCHING = "watching"

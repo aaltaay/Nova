@@ -300,6 +300,8 @@ class SimEyes:
             "schema_version": SETUPS_SCHEMA_VERSION, "generated_at": now, "session_date": target.get("date"),
             "source": EYES_REPLAY_SOURCE_SIM,
             "universe": (1 if target.get("symbol") else 0) if capture else int(view.get("universe") or 0),
+            "universe_symbols": (([target["symbol"]] if target.get("symbol") else []) if capture
+                                 else list(view.get("universe_symbols") or [])),
             "seeding": 1 if view["loading"] else 0, "scoreboard": True, "scoreboard_error": None,
             "proposing": capture and bool(view["proposing"]), "replay": replay_view,
             "setups": view["setups"], "rows": view["rows"], "proposals": view["proposals"],

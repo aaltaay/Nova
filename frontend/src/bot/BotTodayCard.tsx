@@ -5,6 +5,7 @@
  * proposals the audit stream recorded that day; bot P&L is the bot's own fills
  * in the practice ledger (a stated absence on Live). Scores, not fills.
  */
+import { useMemo } from 'react';
 import { SETUPS_SPLIT_TITLES } from '../constants';
 import {
   BOTS_TODAY_BOT_ONLY,
@@ -17,6 +18,8 @@ import {
 } from '../constantGroups/bots_page';
 import { todayPracticeDate } from '../account/accountFigures';
 import { useSetupsScoreboard } from '../setups/useSetupsScoreboard';
+import type { Scoreboard } from '../setups';
+import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import { tipProps } from '../ux/hoverTip';
 import { fmtR, fmtUsdCents, setupName } from './botsPageFormat';
 import type { BotsVenue } from './useBotsVenue';
@@ -24,6 +27,19 @@ import type { BotAuditEntry } from './types';
 
 const TAPES = ['go', 'wait', 'veto', 'blind'] as const;
 const TAPE_NAMES: Record<string, string> = { go: 'GO', wait: 'WAIT', veto: 'NO', blind: 'BLIND' };
+
+interface TapeLine {
+  tape: (typeof TAPES)[number];
+  stats: Scoreboard['summary']['all'];
+}
+
+/** The Tape column sorts GO, WAIT, NO, BLIND (the card's own order) and back; the rest by their numbers. */
+const COLUMNS: SortColumns<TapeLine> = {
+  tape: l => TAPES.length - TAPES.indexOf(l.tape),
+  triggered: l => l.stats.triggered,
+  win: l => l.stats.win_pct,
+  net_r: l => l.stats.avg_net_r,
+};
 
 /** Setup proposals the audit stream recorded on `day` (practice-day date). */
 export function proposedOn(audit: readonly BotAuditEntry[], day: string): number {
@@ -42,7 +58,12 @@ export function BotTodayCard({ venue, audit, botPnl, setup }: {
   const name = setupName(chosen);
   const { data, error } = useSetupsScoreboard(true, BOTS_TODAY_SCOREBOARD_DAYS, chosen);
   const today = useSetupsScoreboard(true, 1, chosen).data?.summary?.all;
-  const byTape = data?.summary?.by?.tape_at_trigger ?? {};
+  const byTape = data?.summary?.by?.tape_at_trigger;
+  const lines = useMemo<TapeLine[]>(
+    () => TAPES.flatMap(t => (byTape?.[t] ? [{ tape: t, stats: byTape[t] }] : [])),
+    [byTape],
+  );
+  const { rows: sorted, sort, onSort } = useTableSort('bot.today_scoreboard', lines, COLUMNS);
   const where = venue.venue ? `${BOTS_VENUE_LABELS[venue.venue]} day ${venue.today}` : venue.today;
   const pnlTone = botPnl == null ? '' : botPnl > 0 ? ' is-up' : botPnl < 0 ? ' is-down' : '';
 
@@ -74,20 +95,27 @@ export function BotTodayCard({ venue, audit, botPnl, setup }: {
       </header>
       {error ? <p className="bots-empty">{error}</p> : (
         <table className="bots-table" data-testid="bots-scoreboard">
-          <thead><tr><th>Tape</th><th className="num">Triggered</th><th className="num">Win %</th><th className="num">Avg net R</th></tr></thead>
+          <thead>
+            <tr>
+              <SortTh col="tape" sort={sort} onSort={onSort}>Tape</SortTh>
+              <SortTh col="triggered" sort={sort} onSort={onSort} className="num">Triggered</SortTh>
+              <SortTh col="win" sort={sort} onSort={onSort} className="num">Win %</SortTh>
+              <SortTh col="net_r" sort={sort} onSort={onSort} className="num">Avg net R</SortTh>
+            </tr>
+          </thead>
           <tbody>
-            {TAPES.filter(t => byTape[t]).map(t => {
-              const r = byTape[t].avg_net_r;
+            {sorted.map(({ tape: t, stats }) => {
+              const r = stats.avg_net_r;
               return (
                 <tr key={t}>
                   <td><span className={`bots-vbadge bots-vbadge--${t}`}>{TAPE_NAMES[t]}</span></td>
-                  <td className="num">{byTape[t].triggered}</td>
-                  <td className="num">{byTape[t].win_pct == null ? '—' : `${byTape[t].win_pct?.toFixed(0)}%`}</td>
+                  <td className="num">{stats.triggered}</td>
+                  <td className="num">{stats.win_pct == null ? '—' : `${stats.win_pct.toFixed(0)}%`}</td>
                   <td className={`num${r == null ? '' : r > 0 ? ' is-up' : r < 0 ? ' is-down' : ''}`}>{fmtR(r)}</td>
                 </tr>
               );
             })}
-            {TAPES.every(t => !byTape[t]) ? (
+            {lines.length === 0 ? (
               <tr><td colSpan={4} className="bots-muted">{data ? 'No armed setup in these days yet.' : 'Loading…'}</td></tr>
             ) : null}
           </tbody>

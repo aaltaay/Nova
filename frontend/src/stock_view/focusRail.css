@@ -431,3 +431,12 @@
   margin: 2px 0 0;
   color: var(--text-secondary, #9ca3af);
 }
+
+/* An alert list's headers (HOD Momo, Running Up): labels, not sort buttons. */
+.focus-rail__th--fixed {
+  cursor: default;
+}
+
+.focus-rail__th--fixed:hover {
+  color: var(--text-muted, #6b7280);
+}

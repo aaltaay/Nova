@@ -77,6 +77,7 @@ def test_seed_leg_then_armed_near_proposal_trigger_score(tmp_path):
     assert eng.det[SYM].state == "leg"
     board = eng.board(clock["t"])
     assert board["rows"][0]["state"] == "leg" and board["universe"] == 1
+    assert board["universe_symbols"] == [SYM]    # the watch list's "followed / not followed"
 
     pb = add(list(bars), 4.38, 4.37, 4.30, 4.32, 30_000)[-1]
     eng.on_l1_minute("bar", SYM, bar_msg(pb))

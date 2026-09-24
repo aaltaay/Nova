@@ -21,6 +21,16 @@ EYES_REPLAY_BOOK_SAMPLE_SEC = 0.5           # the recorded book is sampled like 
 EYES_SIM_REBUILD_MIN_SEC = 2.0              # a backward scrub rebuilds at most this often
 EYES_BACKTEST_MAX_SESSIONS = 400            # Session Records one run may cover
 EYES_BACKTEST_RUNS_LISTED = 50              # GET /api/eyes/backtests lists this many, newest first
+EYES_BACKTEST_MAX_VARIANTS = 48             # templates a sweep may run for one backtest only (ADR 034)
+EYES_VARIANT_ID_PREFIX = "var-"             # a variant's id: never a stored template's ("t-...")
+
+# -- The flow study (ADR 034): does the tape flow score say anything about the next minutes?
+EYES_FLOW_STUDY_HORIZONS_SEC = (10, 30, 60, 120, 300)
+EYES_FLOW_STUDY_STEP_SEC = 1.0              # one reading a second of every recorded stretch
+EYES_FLOW_STUDY_REFRACTORY_SEC = 30.0       # an onset is the first burst / flush after this long without one
+EYES_FLOW_STUDY_BUCKET = 0.25               # score buckets this wide
+EYES_FLOW_STUDY_CONTEXT_SEC = 60            # an onset's context: where the mid went in the minute before it
+EYES_FLOW_STUDY_CONTEXT_BP = 50.0           # up or down at least this much is a rise / a fall, else flat
 
 # -- The live journal read back at a past moment (eyes/playback.py): the Sim desk's
 #    Setups board and every setup card, as Nova's eyes had them then.

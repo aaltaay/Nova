@@ -35,3 +35,14 @@ export function maxSize(levels: DepthLevel[]): number {
   }
   return max;
 }
+
+/** Largest size on either side -- bid and ask size gauges share one scale. */
+export function bookPeak(bids: DepthLevel[], asks: DepthLevel[]): number {
+  return Math.max(maxSize(bids), maxSize(asks));
+}
+
+/** Size gauge length, percent of the row on the book-wide scale; 0 draws none. */
+export function sizeGaugePct(size: number, peak: number): number {
+  if (!(peak > 0) || !(size > 0)) return 0;
+  return Math.min(100, Math.round((size / peak) * 1000) / 10);
+}

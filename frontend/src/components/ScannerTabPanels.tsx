@@ -147,7 +147,7 @@ export function ScannerTabPanels({
         columns={SCANNER_COLUMNS}
         data={sortedGappers}
         sortState={gapperSort}
-        onSort={key => toggleSort(gapperSort, setGapperSort, key)}
+        onSort={key => toggleSort(gapperSort, setGapperSort, key, gappersWithWatchlist)}
         selectedSymbol={selectedSymbol}
         onSelect={onSelect}
         onOpenTrading={onOpenTrading}
@@ -168,7 +168,7 @@ export function ScannerTabPanels({
       <CatalystsTable
         catalysts={sortedCatalysts}
         sortState={catalystSort}
-        onSort={key => toggleSort(catalystSort, setCatalystSort, key)}
+        onSort={key => toggleSort(catalystSort, setCatalystSort, key, catalysts)}
         selectedSymbol={selectedSymbol}
         onSelect={onSelect}
         onOpenTrading={onOpenTrading}
@@ -182,7 +182,7 @@ export function ScannerTabPanels({
         columns={SCANNER_COLUMNS}
         data={sortedGainers}
         sortState={gainerSort}
-        onSort={key => toggleSort(gainerSort, setGainerSort, key)}
+        onSort={key => toggleSort(gainerSort, setGainerSort, key, gainersWithWatchlist)}
         selectedSymbol={selectedSymbol}
         onSelect={onSelect}
         onOpenTrading={onOpenTrading}
@@ -204,7 +204,7 @@ export function ScannerTabPanels({
         columns={SCANNER_COLUMNS}
         data={sortedLosers}
         sortState={loserSort}
-        onSort={key => toggleSort(loserSort, setLoserSort, key)}
+        onSort={key => toggleSort(loserSort, setLoserSort, key, losersWithWatchlist)}
         selectedSymbol={selectedSymbol}
         onSelect={onSelect}
         onOpenTrading={onOpenTrading}
@@ -228,7 +228,7 @@ export function ScannerTabPanels({
             columns={SCANNER_COLUMNS}
             data={sortedAfterhours}
             sortState={afterhoursSort}
-            onSort={key => toggleSort(afterhoursSort, setAfterhoursSort, key)}
+            onSort={key => toggleSort(afterhoursSort, setAfterhoursSort, key, afterhoursWithWatchlist)}
             selectedSymbol={selectedSymbol}
             onSelect={onSelect}
             onOpenTrading={onOpenTrading}
@@ -254,7 +254,7 @@ export function ScannerTabPanels({
         columns={LARGE_CAP_COLUMNS}
         data={sortedLargeCap}
         sortState={largeCapSort}
-        onSort={key => toggleSort(largeCapSort, setLargeCapSort, key)}
+        onSort={key => toggleSort(largeCapSort, setLargeCapSort, key, largeCap)}
         selectedSymbol={selectedSymbol}
         onSelect={onSelect}
         onOpenTrading={onOpenTrading}

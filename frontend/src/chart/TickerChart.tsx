@@ -37,7 +37,7 @@ import { findOpenPosition } from './positionOverlay';
 import { chartHeightForVariant, tickerChartCardClass } from './tickerChartCard';
 import { formatCoverageClockEt } from '../tickerChartData';
 import { SAMPLE_CHART_NO_BARS, SAMPLE_NETWORK_REFUSAL } from '../sample_data/sampleCopy';
-import type { ChartTradeUpdate } from './types';
+import type { ChartTradeUpdate, RenderPaneOverlay } from './types';
 import { useRenderCount } from '../perf/useRenderCount';
 
 export type { ChartTradeUpdate } from './types';
@@ -76,6 +76,8 @@ interface TickerChartProps {
   maximizeInGrid?: boolean;
   /** Bumps when the grid maximize layout flips so hidden siblings remeasure. */
   layoutEpoch?: string | null;
+  /** What the page draws inside the pane (the Trader tab's stock read, ADR 036). */
+  renderPaneOverlay?: RenderPaneOverlay;
 }
 
 export function TickerChart(props: TickerChartProps) {
@@ -107,6 +109,7 @@ function TickerChartInner({
   onMaximizeChange,
   maximizeInGrid = false,
   layoutEpoch = null,
+  renderPaneOverlay,
 }: TickerChartProps) {
   useRenderCount('TickerChart');
   const chartHeight = chartHeightForVariant(variant);
@@ -173,8 +176,9 @@ function TickerChartInner({
     layoutEpoch,
   });
 
-  const { applyLiveTrade, lastCandleRef, resetTradeState, liveTipTime } = useChartLiveTrade(
+  const { restoreAfterStorePaint, lastCandleRef, resetTradeState, liveTipTime } = useChartLiveTrade(
     candleSeriesRef,
+    volSeriesRef,
     lastTrade,
     timeframe,
     symbol,
@@ -191,7 +195,7 @@ function TickerChartInner({
     volSeriesRef,
     lastCandleRef,
     lastTrade,
-    applyLiveTrade,
+    restoreAfterStorePaint,
     onSeriesReset: resetTradeState,
     chartActive,
   });
@@ -332,6 +336,7 @@ function TickerChartInner({
           onToolClick={handleToolClick}
           enabledIndicators={enabledIndicators}
           onIndicatorToggle={handleIndicatorToggle}
+          renderOverlay={renderPaneOverlay}
         />
       </div>
       <TickerChartOverlays

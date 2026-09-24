@@ -1,15 +1,23 @@
+import { SCANNER_TIME_SORT_KEYS } from '../constants';
+import { firstSortDir } from '../table_sort';
 import type { SortConfig } from '../types/scanner';
 
-/** Cycle sort: none → asc → desc → none for a column key. */
-export function toggleSort(
+/** Cycle a scanner column like every other table (`table_sort/`): the first
+ * click sorts text A to Z and numbers highest first -- read from `rows` --
+ * (a time column newest first), the second flips it, the third returns to
+ * the list's own order. */
+export function toggleSort<T>(
   current: SortConfig,
   setter: (s: SortConfig) => void,
   key: string,
+  rows: readonly T[],
 ): void {
-  if (current.key !== key) setter({ key, dir: 'asc' });
-  else if (current.dir === 'asc') setter({ key, dir: 'desc' });
-  else if (current.dir === 'desc') setter({ key: '', dir: null });
-  else setter({ key, dir: 'asc' });
+  const first = SCANNER_TIME_SORT_KEYS.has(key)
+    ? 'desc'
+    : firstSortDir<T>(row => (row as Record<string, unknown>)[key] as string | number | null, rows);
+  if (current.key !== key || !current.dir) setter({ key, dir: first });
+  else if (current.dir === first) setter({ key, dir: first === 'asc' ? 'desc' : 'asc' });
+  else setter({ key: '', dir: null });
 }
 
 /** Stable sort of rows by SortConfig (nulls last). */

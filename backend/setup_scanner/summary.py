@@ -3,7 +3,8 @@ the question the scanner exists for -- does the tape gate turn a losing bar
 shape into a winning trade? (ADR 022)
 
 Pure: rows in, numbers out. Every split carries its own count so a small
-sample is visible as small.
+sample is visible as small. ``flow_at_trigger`` splits by the tape flow's label
+at the trigger (ADR 034): does a burst into the trigger beat a flush into it?
 """
 from __future__ import annotations
 
@@ -20,6 +21,8 @@ from constants_setups import (
 ET = ZoneInfo("America/New_York")
 SLIPPAGE_PER_FILL = 0.01   # the research ladder's base cost, per fill
 RTH_OPEN = dtime(9, 30)
+# Exits after half came off at target 1: three fills (in, half, the rest), not two.
+THREE_FILL_EXITS = frozenset({"ema", "breakeven", "flush_runner", "flush_stop_runner"})
 
 
 def _session(row: dict) -> str:
@@ -34,11 +37,17 @@ def _tape(row: dict) -> str:
     return str(tape.get("verdict") or "none") if isinstance(tape, dict) else "none"
 
 
+def _flow(row: dict) -> str:
+    tape = row.get("trigger_tape") or {}
+    flow = tape.get("flow") if isinstance(tape, dict) else None
+    return str(flow.get("label") or "none") if isinstance(flow, dict) else "none"
+
+
 def net_r(row: dict) -> float | None:
     r, risk = row.get("bar_r"), row.get("risk")
     if r is None or not risk:
         return None
-    fills = 3 if row.get("bar_exit_reason") in ("ema", "breakeven") else 2
+    fills = 3 if row.get("bar_exit_reason") in THREE_FILL_EXITS else 2
     return round(float(r) - fills * SLIPPAGE_PER_FILL / float(risk), 3)
 
 
@@ -80,7 +89,8 @@ def tape_at_trigger(row: dict) -> str:
 def summarize(rows: Iterable[dict]) -> dict[str, Any]:
     rows = list(rows)
     out: dict[str, Any] = {"all": _stats(rows), "by": {}}
-    for name, key in (("tape_at_trigger", _tape), ("grade", lambda r: r.get("grade") or "?"),
+    for name, key in (("tape_at_trigger", _tape), ("flow_at_trigger", _flow),
+                      ("grade", lambda r: r.get("grade") or "?"),
                       ("session", _session), ("kind", lambda r: r.get("kind") or "?")):
         groups: dict[str, list[dict]] = {}
         for r in rows:

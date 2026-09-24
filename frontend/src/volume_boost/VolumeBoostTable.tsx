@@ -2,10 +2,21 @@ import { ScannerColGroup, ScannerRowNumCell, ScannerRowNumHeader } from '../comp
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { SCANNER_TABLE_WRAPPER_CLASS, scannerColClass } from '../components/scannerTableCol';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
+import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import { fmtPrice, fmtVolume } from '../utils/quoteFormat';
 import { VOLUME_BOOST_COLUMNS } from './constants';
 import { formatSpikeAge } from './formatAge';
 import type { VolumeBoostRow } from './types';
+
+/** Keyed like VOLUME_BOOST_COLUMNS. Age starts with the newest spike; Status puts Hot above Cooling. */
+const SORT_COLUMNS: SortColumns<VolumeBoostRow> = {
+  symbol: r => r.symbol,
+  price: r => r.price,
+  spike_ratio: r => r.spike_ratio,
+  spike_shares: r => r.spike_shares,
+  age_sec: { value: r => r.age_sec, first: 'asc' },
+  status: r => r.status === 'hot',
+};
 
 export function VolumeBoostTable({
   rows,
@@ -18,6 +29,7 @@ export function VolumeBoostTable({
   onSelect: (symbol: string) => void;
   onOpenTrading: (symbol: string) => void;
 }) {
+  const { rows: sorted, sort, onSort } = useTableSort('volume_boost.spikes', rows, SORT_COLUMNS);
   return (
     <div className={SCANNER_TABLE_WRAPPER_CLASS}>
       <table data-testid="volume-boost-table">
@@ -26,12 +38,14 @@ export function VolumeBoostTable({
           <tr>
             <ScannerRowNumHeader />
             {VOLUME_BOOST_COLUMNS.map(([key, label]) => (
-              <th key={key} data-col={key} className={scannerColClass(key)}>{label}</th>
+              <SortTh key={key} col={key} sort={sort} onSort={onSort} data-col={key} className={scannerColClass(key)}>
+                {label}
+              </SortTh>
             ))}
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, index) => (
+          {sorted.map((row, index) => (
             <SelectableTableRow
               key={row.symbol}
               symbol={row.symbol}

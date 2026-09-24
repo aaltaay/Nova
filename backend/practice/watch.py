@@ -11,6 +11,15 @@ the order is resolved, the way the IBKR callbacks do
 SELL that filled kept its shares counted as "already sent", and the last
 shares could not be sold or flattened until a restart (QA R7, 2026-09-22).
 An order an unwind or reset erased is resolved too (``release_commitments``).
+
+The practice broker answers a place or a replace inside the send, so that
+answer is the venue's acknowledgment: ``note_answer`` records it on the
+execution's own watch. The broker's notice of a fill at placement ran before
+that watch existed, and a resting order had no notice at all, so the
+execution door's acknowledgment wait found nothing and every Paper and Sim
+order waited the full ``EXECUTION_ACK_WAIT_SEC`` (5 s) before the ticket
+unlocked (operator report, 2026-09-24: 21 of 23 Paper orders answered in
+5.1 s while their fills landed in under 150 ms).
 """
 from __future__ import annotations
 
@@ -61,6 +70,42 @@ def release_commitments(rows: Iterable[dict[str, Any]]) -> int:
             continue
         freed += int(release_commitment(oid, row))
     return freed
+
+
+def answer_facts(row: dict[str, Any]) -> dict[str, Any]:
+    """What the venue decided about an order it just took, for the send's reply.
+
+    ``status_reason`` / ``status_code`` say why the venue cancelled it at the
+    fill (``order_rules.fill_refusal``); both are ``None`` otherwise.
+    """
+    return {
+        "broker_status": row.get("status"),
+        "filled_qty": row.get("filled_qty"),
+        "remaining_qty": row.get("remaining_qty"),
+        "avg_fill_price": row.get("avg_fill_price"),
+        "status_reason": row.get("error"),
+        "status_code": row.get("reason_code"),
+    }
+
+
+def note_answer(watch: Any, answer: dict[str, Any]) -> None:
+    """Record the venue's answer to a place / replace on the execution's watch.
+
+    The answer is the acknowledgment -- stamped when it was given, never
+    delayed or invented. An answer without a status records nothing.
+    """
+    status = str(answer.get("broker_status") or "")
+    if not status:
+        return
+    avg = answer.get("avg_fill_price")
+    watch.note_status(
+        status,
+        filled=float(answer.get("filled_qty") or 0),
+        remaining=float(answer.get("remaining_qty") or 0),
+        average_fill_price=float(avg) if avg else None,
+        perm_id=int(watch.order_id),
+        callback_perf_ns=time.perf_counter_ns(),
+    )
 
 
 def notify_watch(order_id: int, row: dict[str, Any]) -> None:

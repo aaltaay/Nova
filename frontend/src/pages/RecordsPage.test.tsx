@@ -64,6 +64,7 @@ describe('RecordsPage', () => {
       root.unmount();
     });
     container.remove();
+    localStorage.clear();
   });
 
   function render() {
@@ -129,6 +130,45 @@ describe('RecordsPage', () => {
     expect(onOpenTrader).toHaveBeenCalledWith('OLD');
     // Replay is a Sim action; Paper shows none.
     expect(container.querySelector('[data-testid^="records-replay-"]')).toBeNull();
+  });
+
+  it('sorts every day by one header click, days kept newest first and uncounted prints last', () => {
+    render();
+    act(() => {
+      publish({
+        data: {
+          days: [],
+          tickers_by_day: {
+            [today]: [
+              { symbol: 'GRML', prints: null, l2: null, usable: true },
+              { symbol: 'IMCC', prints: 5, l2: 0, usable: true },
+              { symbol: 'APUS', prints: 80, l2: 0, usable: true },
+            ],
+            '2020-01-02': [
+              { symbol: 'CUT', prints: 9, l2: 0, usable: true },
+              { symbol: 'OLD', prints: 1234, l2: 0, usable: true },
+            ],
+          },
+        },
+        error: null,
+      });
+    });
+    const symbols = (date: string) =>
+      [...row(`records-day-${date}`)!.querySelectorAll('tbody tr')].map((tr) => tr.firstElementChild!.textContent);
+    const prints = () => container.querySelectorAll('th[data-sort-col="prints"]');
+    expect(symbols(today)).toEqual(['GRML', 'IMCC', 'APUS']);
+
+    act(() => (prints()[1] as HTMLElement).click());
+    expect(symbols(today)).toEqual(['APUS', 'IMCC', 'GRML']);
+    expect(symbols('2020-01-02')).toEqual(['OLD', 'CUT']);
+    expect([...prints()].map((th) => th.getAttribute('aria-sort'))).toEqual(['descending', 'descending']);
+    const days = [...container.querySelectorAll('[data-testid^="records-day-"]')].map((el) => el.getAttribute('data-testid'));
+    expect(days).toEqual([`records-day-${today}`, 'records-day-2020-01-02']);
+
+    act(() => (prints()[0] as HTMLElement).click());
+    // Lowest first; the recording Nova has not counted stays last.
+    expect(symbols(today)).toEqual(['IMCC', 'APUS', 'GRML']);
+    expect(symbols('2020-01-02')).toEqual(['CUT', 'OLD']);
   });
 
   it('never offers the removed synthetic SIM1 session as a recording (C21)', () => {

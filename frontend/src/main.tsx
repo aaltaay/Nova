@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { isNovaApiDebug } from './debug';
 import { initThemeFromStorage } from './theme/themePrefs';
+import { installFindBar } from './ux/findBar';
 import { installHoverTip } from './ux/hoverTip';
 import { installWhyTip } from './ux/whyTip';
 import './index.css';
@@ -35,6 +36,8 @@ async function bootstrap(): Promise<void> {
   // and every chip that explains itself does so on hover (ux/hoverTip.ts, ADR 031).
   installWhyTip(document);
   installHoverTip(document);
+  // Ctrl+F finds text on the page in every window, the desktop app included (ux/findBar.ts).
+  installFindBar(document);
 
   // ADR 026: this window's 5 s performance report (the sample desk sends none).
   void import('./perf/perfReporter').then(

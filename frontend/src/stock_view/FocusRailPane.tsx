@@ -13,6 +13,7 @@ import { openBotSymbolMenu } from '../bot';
 import { NewsCell } from '../components/NewsCell';
 import { watchMarkTitle } from '../watch_list';
 import {
+  FOCUS_RAIL_ALERT_ORDER_TITLE,
   FOCUS_RAIL_BOT_HELD_TITLE,
   FOCUS_RAIL_BOT_QUIET_TITLE,
   FOCUS_RAIL_CARD_HIDE_MS,
@@ -54,12 +55,23 @@ export interface FocusPaneView {
   absent: string;
   /** The sort in force (a Sim replay desk keeps only the symbol sort). */
   sort: FocusSort | null;
+  /** False for an alert list (HOD Momo, Running Up): newest first, headers do not sort. */
+  sortable: boolean;
 }
 
-/** One sortable column header; the active one shows its direction. */
+/** One sortable column header; the active one shows its direction. On an
+ * alert list (`onSort` null) it is a plain label saying why it does not sort. */
 function SortHeader({ tid, column, sort, onSort }: {
-  tid: string; column: FocusSortKey; sort: FocusSort | null; onSort: (key: FocusSortKey) => void;
+  tid: string; column: FocusSortKey; sort: FocusSort | null; onSort: ((key: FocusSortKey) => void) | null;
 }) {
+  if (!onSort) {
+    return (
+      <span className={`focus-rail__th focus-rail__th--${column} focus-rail__th--fixed`}
+        title={FOCUS_RAIL_ALERT_ORDER_TITLE} data-testid={`${tid}-sort-${column}`}>
+        {FOCUS_RAIL_SORT_LABELS[column]}
+      </span>
+    );
+  }
   const on = sort?.key === column ? sort.dir : null;
   const Arrow = on === 'asc' ? ArrowUp : ArrowDown;
   return (
@@ -92,7 +104,7 @@ export interface FocusRailPaneProps {
 
 export function FocusRailPane({ tid, half, view, onPick, onSort: setSort, shared, title, pickAria, control, folded = false }: FocusRailPaneProps) {
   const { replayDesk, watchList, isAllowed, isRecording, active, traderLiveTabs, open, modules } = shared;
-  const { list, title: listTitle, rows, absent, sort } = view;
+  const { list, title: listTitle, rows, absent, sort, sortable } = view;
   const [cursor, setCursor] = useState(-1);
   const [hover, setHover] = useState<FocusRailHover | null>(null);
   const hideTimer = useRef<number | null>(null);
@@ -114,7 +126,7 @@ export function FocusRailPane({ tid, half, view, onPick, onSort: setSort, shared
   };
 
   useEffect(() => { setCursor(-1); setHover(null); }, [list, sort?.key, sort?.dir, folded]);
-  const onSort = (key: FocusSortKey) => setSort(nextFocusSort(sort, key));
+  const onSort = sortable ? (key: FocusSortKey) => setSort(nextFocusSort(sort, key)) : null;
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
     if (folded || !rows?.length) return;

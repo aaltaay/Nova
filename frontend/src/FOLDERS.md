@@ -52,18 +52,21 @@ the backend packages.
 | `reports/` | feature | The Reports tab: P&L calendar, month detail, drawdown, R-multiples, tag performance, journal import. |
 | `sample_data/` | app | The sample desk (`?view=sample`): sample shell and context, fixtures, mode badge, network gate and order guard, and its own in-memory workspace -- Trader tabs, Focus rail, Desk and pop-out -- behind a storage gate that keeps it off the operator's saved state. |
 | `scanner/` | feature | The Scanner page board: row shape gate, REST envelope, filters, pinned rows, replay label, header / footer, desk stack. |
+| `screen_record/` | feature | The trading screen recording's header chip (ADR 035): quiet while every monitor records, loud when one does not, fed by the Electron main process. |
 | `sensors/` | feature | The sensor board: backend sensor readings, freshness and status chips, shown in the Settings workspace. |
 | `settings/` | feature | The Settings overlay: general, account, practice, trade-defaults and order-preference sections; prefs export. |
 | `setups/` | feature | The setup scanner (ADR 022, ADR 031): every setup's live board over `/ws/setups`, the words and hovers each state is said in, alert cards, scoreboard, sound, ticket staging. |
 | `sim/` | feature | The Sim venue's replay: session strip and scrubber, day picker, Sim clock, historical downloads, depth / tape / capture replay. |
+| `stock_read/` | feature | The bot's read on one stock (ADR 036): the plan on top of Level 2 (entry, stop, a 2:1 target, the size the operator's risk per trade buys, Stage in ticket), the seven signal tiles and their hovers, the read sheet (every signal, the bot's decisions on the symbol today, its history), and the setups and levels drawn on the Trader tab's charts. |
 | `stock_view/` | feature | The Trader (Stock View) chrome: symbol tab strip, right rail with quote / L2 / ticket, focus rail, footer dock, market clock. |
 | `strategy/` | feature | Misnamed: the Contenders tab (id `watchlist`: the ranked Five Pillars table, Journal, Backtest panel) and the Nova OS attention strip. |
 | `styles/` | shared | Global CSS by surface: tokens, Tailwind theme / overrides, global app bar, nav rail, scanner, stock view, settings. |
+| `table_sort/` | shared | Click-to-sort table headers for every table: the one sort rule (text A to Z first, numbers highest first, flip, then the table's own order; missing values last), the `useTableSort` hook that remembers each table's sort, and the `SortTh` header cell. |
 | `testSetup/` | shared | Vitest setup: the guard that keeps tests off the live backend, and the React `act()` flag. |
 | `theme/` | shared | Light / dark theme prefs and the `useTheme` hook that sets `data-theme` on `<html>`. |
 | `types/` | shared | Shared wire types: ticker, scanner, market, earnings, health, catalysts, news impact, Nova News, desktop bridge. |
 | `utils/` | shared | Generic helpers (formatting, prefStore, sorting, rAF coalescing) plus backend / desktop glue (auto-heal, Gateway launch, window bounds). |
-| `ux/` | shared | The app-wide dialog service (the alert / confirm / prompt API and the `AppDialogHost` that renders it) and the two tips: why a control is locked (`whyTip`) and what a chip means (`hoverTip`). |
+| `ux/` | shared | The app-wide dialog service (the alert / confirm / prompt API and the `AppDialogHost` that renders it) and the two tips: why a control is locked (`whyTip`) and what a chip means (`hoverTip`); and Ctrl+F, the find bar every window gets (`findBar`, searching with `findText`). |
 | `volume_boost/` | feature | The Volume Boost scanner tab: exceptional L1 volume-rate spikes with age formatting. |
-| `watch_list/` | feature | The operator's hand-picked Watch list: the persisted list, the Watch list tab, the watch eye, and the "hit HOD Momo" toasts for watched symbols. |
+| `watch_list/` | feature | The operator's hand-picked Watch list: the persisted list, the Watch list tab, the watch eye, and the toasts for watched symbols -- "hit HOD Momo" and a setup climbing its ladder on the setup scanner. |
 | `workspace/` | feature | The workspace shell: selected-symbol context, module registry, layout / visibility / nav-rail stores, scanner tabs, the pop-out window bus. |

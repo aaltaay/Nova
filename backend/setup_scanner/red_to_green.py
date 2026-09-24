@@ -54,7 +54,7 @@ from constants_setups import (
     SETUPS_TARGET_R,
 )
 from setup_scanner.bars import Bar
-from setup_scanner.detector import ET, EPS, TriggerDetector, et_time, hhmm, risk_blocked
+from setup_scanner.detector import ET, EPS, TriggerDetector, et_time, forming_levels, hhmm, risk_blocked
 
 
 @dataclass(frozen=True)
@@ -117,6 +117,7 @@ class RedToGreenDetector(TriggerDetector):
     def on_bars(self, bars: list[Bar]) -> list[tuple[str, dict]]:
         s, p = self.series, self.p
         s.update(bars)
+        self.forming = None
         if self.state == SETUP_STATE_TRIGGERED or self.spent:
             return []
         prev = self.armed if self.state in (SETUP_STATE_ARMED, SETUP_STATE_NEAR) else None
@@ -144,6 +145,7 @@ class RedToGreenDetector(TriggerDetector):
             return self._watch(prev, f"at or over the {level:.2f} open -- waits for a close under it")
         if red < p.min_red_bars:
             self.armed, self.shadow = None, None
+            self.forming = self._provisional(level, low, red, last)
             self._set(SETUP_STATE_LEG, f"{red} close under the {level:.2f} open -- the rule asks {p.min_red_bars}")
             if prev is not None:
                 events.append(("disarmed", self._key_view(prev, reason="not enough red closes")))
@@ -160,11 +162,14 @@ class RedToGreenDetector(TriggerDetector):
         under = _under(s.c[last], level)
         if p.macd_positive and s.hist[last] <= 0:
             self.shadow = None
+            self.forming = forming_levels(level, entry, low, setup["target1"], bars=red,
+                                          blocked="MACD below zero -- a reclaim now is not a try")
             return self._block(prev, f"red, {under}% under the {level:.2f} open; MACD below zero -- "
                                      "a reclaim now is not a try")
         why = risk_blocked(p, risk)
         if why:
             self.shadow = setup
+            self.forming = forming_levels(level, entry, low, setup["target1"], bars=red, blocked=why)
             return self._block(prev, f"red, {under}% under the {level:.2f} open; {why} -- a reclaim now "
                                      "spends the day's one try")
         self.shadow = None
@@ -172,6 +177,17 @@ class RedToGreenDetector(TriggerDetector):
         self._set(SETUP_STATE_ARMED, f"red, {under}% under the {level:.2f} open: trigger {level:.2f}, "
                                      f"stop {low:.2f}, risk {risk:.2f}")
         return events + self.arm_events(prev)
+
+    def _provisional(self, level: float, low: float, red: int, last: int) -> dict[str, Any]:
+        """Fewer red closes than the rule asks: the reclaim's levels if it counted now (ADR 036)."""
+        s, p = self.series, self.p
+        entry = round(level + p.entry_offset, 4)
+        risk = round(entry - low, 4)
+        need = p.min_red_bars - red
+        blocked = ("MACD below zero -- a reclaim now is not a try" if p.macd_positive and s.hist[last] <= 0
+                   else risk_blocked(p, risk))
+        return forming_levels(level, entry, low, p.target1(entry, risk, s.hod[last]), bars=red, blocked=blocked,
+                              waiting=f"{need} more close{'' if need == 1 else 's'} under the open")
 
     def _watch(self, prev: dict | None, why: str) -> list[tuple[str, dict]]:
         self.armed, self.shadow = None, None

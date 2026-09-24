@@ -6,9 +6,42 @@
 import { useState } from 'react';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { SETUP_LABELS, TICKER_OPEN_TRADER_TITLE } from '../constants';
+import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import { formatShareQty } from '../utils/formatShareQty';
 import { useJournal } from './useJournal';
-import type { GoNoGoCriterion, JournalMetrics, JournalTradeRow, RiskStatus } from './types';
+import type {
+  GoNoGoCriterion,
+  JournalMetrics,
+  JournalSignalRow,
+  JournalTradeRow,
+  RiskStatus,
+} from './types';
+
+/** The setup as the table shows it, so the column sorts A to Z by its label. */
+function setupLabel(setup: string | null): string | null {
+  return setup == null ? null : SETUP_LABELS[setup] ?? setup;
+}
+
+const TRADE_COLUMNS: SortColumns<JournalTradeRow> = {
+  closed: t => t.closed_ts,
+  symbol: t => t.symbol,
+  setup: t => setupLabel(t.setup),
+  side: t => t.side,
+  qty: t => t.qty,
+  entry: t => t.entry_price,
+  exit: t => t.exit_price,
+  pnl: t => t.pnl,
+  adherent: t => (t.adherent == null ? null : t.adherent !== 0),
+};
+
+const SIGNAL_COLUMNS: SortColumns<JournalSignalRow> = {
+  time: s => s.ts,
+  symbol: s => s.symbol,
+  setup: s => setupLabel(s.setup),
+  entry: s => s.entry_price,
+  stop: s => s.stop_price,
+  target: s => s.target_price,
+};
 
 function fmtTime(unixSeconds: number): string {
   return new Date(unixSeconds * 1000).toLocaleTimeString('en-US', {
@@ -139,6 +172,7 @@ function TradesTable({
   onSelectSymbol: (symbol: string) => void;
   onOpenTrading: (symbol: string) => void;
 }) {
+  const { rows, sort, onSort } = useTableSort('strategy.journal_trades', trades, TRADE_COLUMNS);
   if (trades.length === 0) {
     return <div className="empty-state">No closed trades yet — this table populates when the executor closes paper bracket fills and journals them.</div>;
   }
@@ -147,19 +181,19 @@ function TradesTable({
       <table>
         <thead>
           <tr>
-            <th title="When the trade closed.">Closed</th>
-            <th title={`Ticker symbol. ${TICKER_OPEN_TRADER_TITLE}`}>Symbol</th>
-            <th title="Which setup pattern triggered the entry.">Setup</th>
-            <th title="Long (bought first) or short (sold first).">Side</th>
-            <th title="Share quantity.">Qty</th>
-            <th title="Fill price at entry.">Entry</th>
-            <th title="Fill price at exit.">Exit</th>
-            <th title="Net P/L after IBKR CommissionReport when present. Missing report stays price-only (gross) -- never invented from avg cost.">P&amp;L</th>
-            <th title="Whether this trade followed the risk rules exactly (correct size, respected the stop, no trading through a halt).">Adherent</th>
+            <SortTh col="closed" sort={sort} onSort={onSort} title="When the trade closed.">Closed</SortTh>
+            <SortTh col="symbol" sort={sort} onSort={onSort} title={`Ticker symbol. ${TICKER_OPEN_TRADER_TITLE}`}>Symbol</SortTh>
+            <SortTh col="setup" sort={sort} onSort={onSort} title="Which setup pattern triggered the entry.">Setup</SortTh>
+            <SortTh col="side" sort={sort} onSort={onSort} title="Long (bought first) or short (sold first).">Side</SortTh>
+            <SortTh col="qty" sort={sort} onSort={onSort} title="Share quantity.">Qty</SortTh>
+            <SortTh col="entry" sort={sort} onSort={onSort} title="Fill price at entry.">Entry</SortTh>
+            <SortTh col="exit" sort={sort} onSort={onSort} title="Fill price at exit.">Exit</SortTh>
+            <SortTh col="pnl" sort={sort} onSort={onSort} title="Net P/L after IBKR CommissionReport when present. Missing report stays price-only (gross) -- never invented from avg cost.">P&amp;L</SortTh>
+            <SortTh col="adherent" sort={sort} onSort={onSort} title="Whether this trade followed the risk rules exactly (correct size, respected the stop, no trading through a halt).">Adherent</SortTh>
           </tr>
         </thead>
         <tbody>
-          {trades.map(t => (
+          {rows.map(t => (
             <SelectableTableRow
               key={t.id}
               symbol={t.symbol}
@@ -207,6 +241,7 @@ export function JournalPanel({
 }: JournalPanelProps) {
   const [includeMock, setIncludeMock] = useState(false);
   const { metrics, signals, trades, risk, loading, error } = useJournal(active, includeMock);
+  const signalSort = useTableSort('strategy.journal_signals', signals, SIGNAL_COLUMNS);
 
   return (
     <div className="journal-panel">
@@ -262,16 +297,16 @@ export function JournalPanel({
           <table>
             <thead>
               <tr>
-                <th>Time</th>
-                <th title={TICKER_OPEN_TRADER_TITLE}>Symbol</th>
-                <th>Setup</th>
-                <th>Entry</th>
-                <th>Stop</th>
-                <th>Target</th>
+                <SortTh col="time" sort={signalSort.sort} onSort={signalSort.onSort}>Time</SortTh>
+                <SortTh col="symbol" sort={signalSort.sort} onSort={signalSort.onSort} title={TICKER_OPEN_TRADER_TITLE}>Symbol</SortTh>
+                <SortTh col="setup" sort={signalSort.sort} onSort={signalSort.onSort}>Setup</SortTh>
+                <SortTh col="entry" sort={signalSort.sort} onSort={signalSort.onSort}>Entry</SortTh>
+                <SortTh col="stop" sort={signalSort.sort} onSort={signalSort.onSort}>Stop</SortTh>
+                <SortTh col="target" sort={signalSort.sort} onSort={signalSort.onSort}>Target</SortTh>
               </tr>
             </thead>
             <tbody>
-              {signals.map(s => (
+              {signalSort.rows.map(s => (
                 <SelectableTableRow
                   key={s.id}
                   symbol={s.symbol}

@@ -36,6 +36,9 @@ Constitution (`gemini.md` / `AGENTS.md`) and `.cursor/rules/*` remain supreme fo
 | [025](./decisions/025-retire-nova-os.md) | Retire Nova OS: the verdict, the Signal / Confirm / Auto Paper ladder, the approval queue and the Phase D executor; the kill switch moves to `backend/kill_switch/` | Accepted |
 | [026](./decisions/026-performance-recorder.md) | Performance recorder: loop CPU, stall stacks, handler busy time, window reports | Accepted |
 | [033](./decisions/033-focus-and-book-watch-sensors.md) | Sensors for agents: the operator's focus, the book watcher (filled vs pulled size, pull patterns), and a recording that keeps every book | Accepted |
+| [034](./decisions/034-tape-flow-score-and-flush-exit.md) | The tape flow score (-1 sellers .. +1 buyers), a template's entry mode and flush exit, and the study and sweeps that measure them | Accepted |
+| [035](./decisions/035-trading-screen-always-recorded.md) | The trading screen is always recorded: every monitor from the desktop app, launch to quit, no off switch; loud when it is not | Accepted |
+| [036](./decisions/036-the-bots-read-on-one-stock.md) | The bot's read on one stock: every lane for one symbol, a 2:1 plan on Level 2, signal tiles, the eyes' journal on the desk, setup drawings | Accepted |
 
 ## Rules and maps
 

@@ -272,7 +272,7 @@ describe('FocusRail', () => {
     expect(screen.getByTestId('focus-rail-list-label').textContent).toMatch(/^· Gainers/);
   });
 
-  it('shows HOD Momo in a lower half that keeps its own list, sort and fold', async () => {
+  it('shows HOD Momo in a lower half that keeps its own list and fold, newest alert first', async () => {
     mocks.hod!.alerts = [
       alert('ZZZX', 3, 200, { price: 2.5, gap_pct: 45 }),
       alert('GRML', 5, 300, { price: 8.1, gap_pct: 120 }),
@@ -286,19 +286,23 @@ describe('FocusRail', () => {
     // Newest alert first; a symbol on both lists shows in both halves.
     expect(lowerOrder()).toEqual(['GRML', 'ZZZX']);
     expect(screen.getByTestId('focus-rail-row-GRML')).toBeTruthy();
-    // Each half sorts on its own.
-    fireEvent.click(screen.getByTestId('focus-rail-lower-sort-symbol'));
+    // An alert list does not sort (operator decision 2026-09-24): its headers
+    // are labels that say so, and the newest cross stays on top.
+    const symHead = screen.getByTestId('focus-rail-lower-sort-symbol');
+    expect(symHead.tagName).toBe('SPAN');
+    expect(symHead.getAttribute('title')).toMatch(/^Newest high-of-day cross first/);
+    fireEvent.click(symHead);
     expect(lowerOrder()).toEqual(['GRML', 'ZZZX']);
-    fireEvent.click(screen.getByTestId('focus-rail-lower-sort-symbol'));
-    expect(lowerOrder()).toEqual(['ZZZX', 'GRML']);
-    expect(order()).toEqual(['GRML', 'VXTL', 'CBRX']);
-    expect(readFocusRailState().lower.sort).toEqual({ key: 'symbol', dir: 'desc' });
-    expect(readFocusRailState().sort).toBeNull();
+    expect(readFocusRailState().lower.sort).toBeNull();
+    // The upper half still sorts on its own.
+    fireEvent.click(screen.getByTestId('focus-rail-sort-symbol'));
+    expect(order()).toEqual(['CBRX', 'GRML', 'VXTL']);
+    expect(readFocusRailState().sort).toEqual({ key: 'symbol', dir: 'asc' });
     // ↑ ↓ and Enter work in the half that has the keys.
     const lowerPane = screen.getByTestId('focus-rail-pane-lower');
     fireEvent.keyDown(lowerPane, { key: 'ArrowDown' });
     fireEvent.keyDown(lowerPane, { key: 'Enter' });
-    expect(mocks.open).toHaveBeenCalledWith('ZZZX');
+    expect(mocks.open).toHaveBeenCalledWith('GRML');
     // Its caret picks another list for the lower half only.
     fireEvent.change(screen.getByTestId('focus-rail-lower-pick'), { target: { value: 'running_up' } });
     expect(screen.getByTestId('focus-rail-lower-list-label').textContent).toBe('Running Up 0');
@@ -308,9 +312,24 @@ describe('FocusRail', () => {
     expect(screen.getByTestId('focus-rail-pane-lower').getAttribute('data-folded')).toBe('1');
     expect(screen.queryByTestId('focus-rail-lower-rows')).toBeNull();
     expect(screen.getByTestId('focus-rail').getAttribute('data-split')).toBe('0');
-    expect(readFocusRailState().lower).toEqual({ list: 'running_up', sort: { key: 'symbol', dir: 'desc' }, folded: true });
+    expect(readFocusRailState().lower).toEqual({ list: 'running_up', sort: null, folded: true });
     await act(async () => { fireEvent.click(screen.getByTestId('focus-rail-lower-fold')); });
     expect(screen.getByTestId('focus-rail-lower-rows')).toBeTruthy();
+  });
+
+  it('a sort saved on a HOD half before is ignored: the newest alert stays on top', () => {
+    mocks.hod!.alerts = [
+      alert('ZZZX', 3, 200, { price: 2.5, gap_pct: 45 }),
+      alert('GRML', 5, 300, { price: 8.1, gap_pct: 120 }),
+    ];
+    localStorage.setItem(FOCUS_RAIL_STORAGE_KEY, JSON.stringify({
+      v: 1, collapsed: false, list: 'gappers', lower: { list: 'hod_momo', sort: { key: 'symbol', dir: 'desc' }, folded: false },
+    }));
+    render(<FocusRail />);
+    const lowerOrder = Array.from(screen.getByTestId('focus-rail-lower-rows').querySelectorAll('[role="option"]'))
+      .map(r => (r.getAttribute('data-testid') ?? '').replace('focus-rail-lower-row-', ''));
+    expect(lowerOrder).toEqual(['GRML', 'ZZZX']);
+    expect(screen.getByTestId('focus-rail-lower-sort-symbol').getAttribute('aria-sort')).toBeNull();
   });
 
   it('a HOD row shows a live board price, or the alert price saying it is the alert\'s', () => {

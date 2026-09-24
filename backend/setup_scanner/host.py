@@ -13,6 +13,7 @@ from typing import Any, Callable
 
 from constants_bot import BOT_LEVEL_EYES
 from setup_scanner import grade as _grade
+from setup_scanner import tape_flow
 
 logger = logging.getLogger("setup_scanner.engine")
 
@@ -26,6 +27,32 @@ class LaneHost:
 
     def tape_prints(self, sym: str) -> list:
         return self.tape.prints(sym) if self.tape is not None else []
+
+    def tape_since(self, sym: str) -> float | None:
+        since = getattr(self.tape, "since", None) if self.tape is not None else None
+        return since(sym) if since is not None else None
+
+    def flow(self, sym: str, now: float, p: tape_flow.FlowParams) -> dict:
+        """One tape flow reading per symbol, moment and numbers, shared by every lane that asks (ADR 034)."""
+        memo = self.__dict__.setdefault("_flow_memo", {})
+        if memo.get("now") != now:
+            memo.clear()
+            memo["now"] = now
+        key = (sym, p)
+        if key not in memo:
+            memo[key] = tape_flow.evaluate(now=now, books=self.tape_books(sym), prints=self.tape_prints(sym), p=p,
+                                           history_from=self.tape_since(sym))
+        return memo[key]
+
+    def flow_reading(self, setup_id: str) -> dict | None:
+        """The newest flow reading on a triggered setup and its template's flush rule (ADR 034; Nova's bot)."""
+        for lane in getattr(self, "lanes", []):
+            got = lane.flow_last.get(setup_id)
+            if got is not None:
+                f = lane.p.flush
+                return {**got, "template_id": lane.p.template_id,
+                        "policy": {"mode": f.mode, "hold_sec": f.hold_sec, "trail_r": f.trail_r, "min_r": f.min_r}}
+        return None
 
     def tape_line(self, sym: str) -> dict:
         if self.tape is None:

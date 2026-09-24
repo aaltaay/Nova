@@ -36,6 +36,9 @@ export const SETUP_STATE_TITLES: Record<string, string> = {
   filtered: "The pattern armed, but the template's stock filter keeps this name out. The reason says which rule.",
 };
 
+/** What a setup's trigger is, where "the trigger" would say less: the alert card and the watch toasts. */
+export const SETUP_TRIGGER_LEVEL_WORDS: Record<string, string> = { red_to_green: 'open', flat_top_breakout: 'high' };
+
 export const SETUP_KIND_LABELS: Record<string, string> = {
   first_pullback: 'First pullback',
   second_pullback: 'Second pullback',
@@ -109,6 +112,19 @@ export const TAPE_VERDICT_TIPS: Record<string, string> = {
   blind: 'BLIND: Nova holds no Level 2 line for this symbol, so the tape cannot be read. Blind setups are still scored — they are the read-out\'s control group. Open its Level 2 in the Trader to read it.',
 };
 export const TAPE_UNREAD_TIP = 'The tape is read only once a setup is armed or near its trigger.';
+
+/** The tape flow score's labels (ADR 034): one number, -1 sellers .. +1 buyers. */
+export const TAPE_FLOW_LABEL_WORDS: Record<string, string> = {
+  burst: 'a burst of buying',
+  flush: 'a flush of selling',
+  neutral: 'neither side winning',
+  quiet: 'too little tape to say',
+  blind: 'no tape and no book',
+};
+/** The four readings the flow score averages, in the order the tip lists them. */
+export const TAPE_FLOW_READING_WORDS: [string, string][] = [
+  ['imbalance', 'ask vs bid'], ['pace', 'pace'], ['drift', 'price move'], ['book', 'book'],
+];
 
 /** The grade's hover head: what A / B / C mean (the pillars follow). */
 export const SETUP_GRADE_TIP =

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { flowLine } from './flowWords';
 import {
   funnelSteps,
   gradeWords,
@@ -141,5 +142,20 @@ describe('every setup in its own words (ADR 031)', () => {
     expect(otherSetups(fp, [fp, other, flag])).toEqual(['bull_flag']);
     expect(signedPct(0)).toBe('0.0%');
     expect(signedPct(null)).toBe('');
+  });
+});
+
+describe('the tape flow line (ADR 034)', () => {
+  it('says the score, the label and each reading, and an unknown one as unknown', () => {
+    expect(flowLine({ score: -0.62, label: 'flush', readings: { imbalance: -1, pace: -0.5, drift: -0.2, book: null } }))
+      .toBe('Flow −0.62: a flush of selling (ask vs bid −1.00 · pace −0.50 · price move −0.20 · book unknown).');
+    expect(flowLine({ score: null, label: 'blind' })).toMatch(/^Flow: no tape and no book/);
+    expect(flowLine(null)).toBe('');
+  });
+
+  it('rides on the tape chip after the gate numbers', () => {
+    const tape = tapeWords(row({ tape: { verdict: 'go', reasons: ['green on the tape'],
+      flow: { score: 0.71, label: 'burst', readings: { imbalance: 0.9, pace: 1, drift: 0.4, book: 0.1 } } } }));
+    expect(tape?.tip.split('\n').at(-1)).toMatch(/^Flow \+0\.71: a burst of buying/);
   });
 });
