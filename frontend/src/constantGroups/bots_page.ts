@@ -74,6 +74,11 @@ export const BOTS_SCAN_FOOT_TIP =
 export const BOTS_STATUS_WATCHING = (n: number): string => `Watching ${n} name${n === 1 ? '' : 's'}`;
 export const BOTS_STATUS_SEEDING = (n: number): string => `${n} seeding bars`;
 export const BOTS_STATUS_NOT_CONNECTED = 'Scanner not connected';
+/** A recorded moment in Sim (backend eyes/playback.py): this setup's scanner was not running then. */
+export const BOTS_STATUS_NOT_RECORDED = 'Not running at this moment';
+export const BOTS_STATUS_NOT_RECORDED_TIP =
+  'Nova\'s eyes have no record of this setup at the playhead: Nova was closed, its eyes were off, or this setup\'s '
+  + 'scanner did not exist yet. Nothing is drawn rather than a guess.';
 export const BOTS_FUNNEL_TODAY = 'Today';
 export const BOTS_FUNNEL_TIP =
   'Today on this setup\'s scanner, in the order a setup moves: forming, armed, near the trigger, triggered — then how many failed and how many raised a proposal. The first four are a funnel; each step is a subset of the one before it.';

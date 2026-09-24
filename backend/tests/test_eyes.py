@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 from eyes import backtest, journal, reader
 from eyes.recording import Recording, _sample_books, _ticks, load
 from eyes.replay import EyesReplay
-from eyes.sim_eyes import HISTORICAL_NOTE, SimEyes
+from eyes.sim_eyes import SimEyes
 from setup_templates.store import TemplateStore, default_template, set_store_for_tests
 from tests.setup_scanner_fixtures import add, base_morning, leg_up
 
@@ -162,7 +162,8 @@ def test_sim_eyes_follow_the_playhead_and_journal_each_moment_once(tmp_path):
     target = {"kind": "capture", "date": DAY, "symbol": SYM, "playhead": rec.bars[-1].t + 30}
     # The first pullback at Eyes: a setup at Off watches the replay in silence (ADR 031).
     eyes = SimEyes(target=lambda: dict(target), load=lambda d, s: rec, journal=events.append, threaded=False,
-                   levels=lambda: {"chosen": "first_pullback", "levels": {"first_pullback": 1}})
+                   levels=lambda: {"chosen": "first_pullback", "levels": {"first_pullback": 1}},
+                   journal_path=lambda d: tmp_path / "journal" / f"{d}.jsonl")
 
     def fp(board):
         return [r for r in board["rows"] if r["setup_type"] == "first_pullback"]
@@ -187,10 +188,14 @@ def test_sim_eyes_follow_the_playhead_and_journal_each_moment_once(tmp_path):
     eyes._last_rebuild = 0
     eyes.tick(0)
     assert len(events) == seen                          # nothing journalled twice
-    target.update(kind="historical")
+    # Anything but a Session Record off the edge (a download, a past day, nothing loaded) plays back what
+    # the live eyes recorded -- here nothing: a stated absence, never the live board or the replay's rows.
+    target.update(kind="journal", loaded="historical")
     eyes.tick(0)
     hist = eyes.board(0)
-    assert hist["rows"] == [] and hist["replay"]["note"] == HISTORICAL_NOTE and hist["proposing"] is False
+    assert hist["rows"] == [] and hist["proposing"] is False and hist["replay"]["kind"] == "journal"
+    assert hist["replay"]["note"] == f"Nova's eyes recorded nothing for {DAY}: there is no journal for that day."
+    assert all(not s["recorded"] for s in hist["setups"])
 
 
 def test_the_live_board_stays_when_the_desk_is_not_on_a_replay():

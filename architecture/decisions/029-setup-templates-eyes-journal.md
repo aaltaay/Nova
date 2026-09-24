@@ -1,6 +1,6 @@
 # ADR 029 -- Setup templates, the eyes' journal, and eyes that watch a replay
 
-**Status:** Accepted · **Date:** 2026-09-23 · **Amended by:** [[031-a-scanner-for-every-setup]] (lanes for every setup; `setups.db` schema 3)
+**Status:** Accepted · **Date:** 2026-09-23 · **Amended by:** [[031-a-scanner-for-every-setup]] (lanes for every setup; `setups.db` schema 3) · the amendment below (2026-09-24: the journal played back in Sim)
 **Builds on:** [[022-setup-scanner-tape-gate]] · [[027-bot-playbook-readout-gate]] · [[019-practice-fills-on-replayed-sessions]] · [[020-three-venues-one-feed]]
 **Decided by:** the operator, 2026-09-23 -- "I also need to see all their
 parameters and be able to change them myself"; "each strategy will have
@@ -105,3 +105,33 @@ the operator's veto.
   keeps the morning's leaders 07:00-10:00 (ADR 023), so that is what the eyes
   can be tested on. The results say how many sessions they covered.
 - Nothing here places, stages or cancels an order. `auto_live` remains NO-GO.
+
+## Amendment (2026-09-24): the journal played back in Sim
+
+**Decided by:** the operator -- "i want this stuff to be recorded when they show
+up, do they work so they are viewable in the sim ok? when something pops up.
+that way we can use that data to fine tune them when things dont match." The
+design is the agent's, under the operator's standing grant.
+
+- Item 5's "the desk never reads it" is reversed for one reader: on the Sim desk
+  off the live edge without a Session Record loaded, the Setups board and every
+  setup card are the live journal of the playhead's day folded up to the
+  playhead (`backend/eyes/playback.py`) -- what the operator saw live at that
+  moment, never recomputed, never read past the playhead. A recorded proposal
+  pops up as the playhead plays across it. With a Session Record loaded, item 6
+  stands: today's templates re-read the recording. The two answer different
+  questions -- "what did Nova see?" and "what would today's rules see?" -- and a
+  mismatch between them, or between either and the chart, is what gets tuned.
+- The fold is only as good as the journal, so the journal now says everything
+  the card showed: the lane writes a `state` line whenever the detector's state
+  or reason differs from what its lines imply (`lane_view.JOURNAL_EVENT_STATES`),
+  every symbol line carries the detector's last price and leg, the playing lane
+  writes a `price` line for a name in reach every 5 s at most, and the live
+  engine a `beat` a minute. A test replays a morning through every setup's lane
+  and checks the folded journal against the lanes' own board at every moment.
+- Gaps follow the leaderboard's policy (ADR 023): a silence of 3 minutes after
+  a beat is "Nova's eyes were not running", and the board is not carried across
+  it. Journals written before beats existed carry no gap check.
+- Rejected: snapshotting the board every few seconds (hundreds of MB a day, and
+  still blind between snapshots); recomputing the day from the bar archive (it
+  would show today's rules, not what was seen, and has no tape to gate on).

@@ -10,8 +10,9 @@ moment and session the eyes were looking at (on a replay, the recording's).
 ``record`` only enqueues (never blocks a loop, ADR 010); one daemon thread
 writes. A full queue drops the line and counts it. ``NOVA_EYES_JOURNAL=0``
 turns it off. Invalidation: none -- nothing prunes it (retention is the
-operator's call). Read by ``tools/eyes_journal.py`` and ``eyes/reader.py``,
-never by the desk.
+operator's call). Read by ``tools/eyes_journal.py``, ``eyes/reader.py`` and
+``eyes/playback.py`` -- the Sim desk off the live edge draws every setup card
+from it as it stood at the playhead.
 """
 from __future__ import annotations
 

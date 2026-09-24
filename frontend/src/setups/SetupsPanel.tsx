@@ -11,6 +11,7 @@ import { useSetupsBoard } from './SetupsStreamContext';
 import { ALL_SETUPS, useSetupsFilter } from './setupsBoardFilter';
 import { isSetupsSoundEnabled, setSetupsSoundEnabled, subscribeSetupsSound } from './setupsSound';
 import { FIRST_PULLBACK, setupLabel, setupShort, setupTypeOf } from './setupWords';
+import { recordedEmptyText, simBoardLine, simBoardTip } from './simBoardWords';
 import { useSetupsScoreboard } from './useSetupsScoreboard';
 import type { SetupsBoard as Board, SetupSummary } from './types';
 import './setups.css';
@@ -22,15 +23,6 @@ interface Props {
 }
 
 type View = 'board' | 'scoreboard';
-
-function simLine(board: Board, summary: SetupSummary | null): string {
-  const r = board.replay;
-  const what = `Sim eyes on ${r?.symbol ?? 'the replay'}${r?.date ? ` ${r.date}` : ''}`;
-  if (r?.note) return `${what} · ${r.note}`;
-  if (r?.error) return `${what} · the recording could not be read: ${r.error}`;
-  if (r?.loading) return `${what} · reading the recording…`;
-  return `${what} · following the playhead${summary?.template ? ` · template ${summary.template.name}` : ''}`;
-}
 
 function proposingWords(board: Board): string {
   const setups = board.setups ?? [];
@@ -45,7 +37,7 @@ function proposingWords(board: Board): string {
 function statusLine(board: Board | null, connected: boolean, summary: SetupSummary | null): string {
   if (!connected) return 'Connecting to the setup scanner…';
   if (!board) return 'Waiting for the first board…';
-  if (board.source === 'sim') return simLine(board, summary);
+  if (board.source === 'sim') return simBoardLine(board, summary);
   const parts = [`Watching ${board.universe} symbol${board.universe === 1 ? '' : 's'} from the HOD Momo list`];
   if (summary?.template) {
     const others = (summary.templates_watched ?? 1) - 1;
@@ -87,9 +79,9 @@ export function SetupsPanel({ selectedSymbol, onSelectSymbol, onOpenTrading }: P
   const scoreSetup = active === ALL_SETUPS ? chosen : active;
   const score = useSetupsScoreboard(view === 'scoreboard', days, scoreSetup);
   const countOf = (id: string) => allRows.filter(r => setupTypeOf(r) === id).length;
-  const emptyText = active === ALL_SETUPS
+  const emptyText = recordedEmptyText(board) ?? (active === ALL_SETUPS
     ? undefined
-    : `No ${setupLabel(active).toLowerCase()} setups right now. Rows show up as soon as a name starts the pattern.`;
+    : `No ${setupLabel(active).toLowerCase()} setups right now. Rows show up as soon as a name starts the pattern.`);
 
   return (
     <div className="setups-panel">
@@ -109,7 +101,10 @@ export function SetupsPanel({ selectedSymbol, onSelectSymbol, onOpenTrading }: P
         >
           Scoreboard
         </button>
-        <span className={`setups-status${connected ? '' : ' setups-status--down'}`}>{statusLine(board, connected, summary)}</span>
+        <span className={`setups-status${connected ? '' : ' setups-status--down'}`}
+          data-testid="setups-status" {...(board?.source === 'sim' ? tipProps(simBoardTip(board)) : {})}>
+          {statusLine(board, connected, summary)}
+        </span>
         <button
           type="button"
           className="setups-link"

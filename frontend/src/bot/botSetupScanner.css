@@ -206,3 +206,15 @@
 }
 .bots-stale p { margin: 0; flex: 1 1 24rem; }
 .bots-strat__status--stale { color: var(--bots-amber); }
+
+/* -- Sim: the cards follow the playhead (a recording, not the market now) ---- */
+.bots-simline {
+  margin: 0 0 10px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--nova-text);
+  border: 1px solid color-mix(in srgb, var(--bots-amber) 45%, transparent);
+  background: color-mix(in srgb, var(--bots-amber) 8%, transparent);
+  cursor: help;
+}

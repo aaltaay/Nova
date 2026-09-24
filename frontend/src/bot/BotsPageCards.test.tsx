@@ -203,6 +203,31 @@ describe('Strategies card', () => {
     expect(openStockView).toHaveBeenCalledWith('GRML', { pin: true });
   });
 
+  it('in Sim off the live edge the cards are what Nova\'s eyes recorded at the playhead, and say so', async () => {
+    const at = Date.UTC(2026, 8, 24, 12, 7, 2) / 1000;        // 08:07:02 ET
+    setups.board = board({
+      source: 'sim', proposing: false,
+      replay: { kind: 'journal', date: '2026-09-24', symbol: null, playhead: at, at, loading: false, error: null,
+        note: null, loaded: null, gap: null, journal: null },
+      setups: [
+        summary('first_pullback', { level: 1, chosen: true, counts: counts(), recorded: true }),
+        summary('bull_flag', { recorded: false }),
+        summary('flat_top_breakout', { recorded: true }),
+        summary('red_to_green', { recorded: true }),
+      ],
+      rows: board().rows.filter(r => r.setup_type !== 'bull_flag'),
+    });
+    mockFetch();
+    await renderPage();
+    const line = screen.getByTestId('bots-sim-line');
+    expect(line.textContent).toBe('Recorded · what Nova\'s eyes saw live at 08:07:02 ET on 2026-09-24');
+    expect(line.getAttribute('data-tip')).toMatch(/Nothing is recomputed with today's rules/);
+    expect(within(screen.getByTestId('bots-setup-bull_flag')).getByTestId('bots-setup-status').textContent)
+      .toMatch(/Not running at this moment/);
+    expect(screen.getByTestId('bots-scan-empty-flat_top_breakout').textContent).toBe('Nothing forming at 08:07:02 ET.');
+    expect(screen.getByTestId('bots-scan-state-first_pullback-GRML').textContent).toBe('Near');
+  });
+
   it('a setup\'s own Off / Eyes PATCHes its level; Open board asks for Watchlist › Setups filtered to it', async () => {
     const fetchMock = mockFetch({ onPatch: body => session({ setup_levels: { ...(body.setup_levels as object) } }) });
     await renderPage();

@@ -33,20 +33,22 @@ interface Props {
   /** Hovering a symbol highlights it in every card that holds it. */
   hovered: string | null;
   onHover: (symbol: string | null) => void;
+  /** What an empty card says instead of "right now" (a recorded moment in Sim names it). */
+  emptyText?: string | null;
 }
 
 function Head({ k, label, num = false }: { k: keyof typeof SETUP_COL_TIPS; label: string; num?: boolean }) {
   return <th className={num ? 'num' : undefined} {...tipProps(SETUP_COL_TIPS[k], label)}>{label}</th>;
 }
 
-export function BotSetupScanner({ setup, rows, allRows, connected, onOpenSymbol, hovered, onHover }: Props) {
+export function BotSetupScanner({ setup, rows, allRows, connected, onOpenSymbol, hovered, onHover, emptyText }: Props) {
   if (!connected) {
     return <p className="bots-scan__empty" {...tipProps(SETUP_STATUS_TIPS.disconnected)}>Scanner not connected.</p>;
   }
   if (rows.length === 0) {
     return (
       <p className="bots-scan__empty" data-testid={`bots-scan-empty-${setup}`} {...tipProps(SETUP_STATUS_TIPS.idle)}>
-        Nothing forming right now.
+        {emptyText ?? 'Nothing forming right now.'}
       </p>
     );
   }

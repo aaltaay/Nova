@@ -1,7 +1,9 @@
 """The eyes' routes (ADR 029). Read-only towards the market: nothing here places,
-stages or cancels an order, and nothing here is drawn by the desk yet.
+stages or cancels an order. The desk draws the eyes through ``/ws/setups`` (the
+Sim eyes off the live edge); these routes are for agents and tools.
 
   GET  /api/eyes/journal             the journal's writer and its days
+  GET  /api/eyes/at?date=&at=        every setup card as the live eyes had it at ``at`` (epoch seconds)
   GET  /api/eyes/sim                 what the Sim eyes are following
   GET  /api/eyes/backtests           recent backtest runs, newest first
   POST /api/eyes/backtests           {setup?, templates?: [id], sessions?: [{date, symbol}]} -> 202 {run_id}
@@ -24,6 +26,19 @@ _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 @router.get("/api/eyes/journal")
 def journal_status() -> dict[str, Any]:
     return {"writer": journal.status(), "days": reader.days(journal.journal_dir())}
+
+
+@router.get("/api/eyes/at")
+def eyes_at(date: str, at: float) -> dict[str, Any]:
+    """The live journal of ``date`` folded to ``at`` (``eyes/playback.py``): never a line after it."""
+    if not _DATE.match(date):
+        raise HTTPException(400, {"reason": "EYES_DATE_INVALID", "error": "date is YYYY-MM-DD"})
+    from eyes.playback import board_at, template_window
+    from setup_scanner.hooks import default_levels
+    from setup_templates.store import get_store
+
+    return board_at(journal.journal_dir() / f"{date}.jsonl", date, at, levels=default_levels(),
+                    window_of=template_window(get_store()))
 
 
 @router.get("/api/eyes/sim")

@@ -171,10 +171,17 @@ describe('SetupsPanel', () => {
     const { unmount } = render(<SetupsPanel selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={vi.fn()} />);
     expect(screen.getByText(/Sim eyes on WHLR 2026-09-23 · following the playhead/)).toBeTruthy();
     unmount();
+    // Anything else off the edge: what Nova's live eyes recorded at the playhead, or a stated absence.
+    const at = Date.UTC(2026, 8, 24, 12, 7, 2) / 1000;        // 08:07:02 ET
     stream.value = { connected: true, board: { ...SAMPLE_SETUPS_BOARD, source: 'sim', rows: [],
-      replay: { ...replay, kind: 'historical', note: 'no Level 2 in a download' } } };
+      replay: { ...replay, kind: 'journal', symbol: null, date: '2026-09-24', at,
+        note: 'Nova\'s eyes\' record for 2026-09-24 starts at 07:27:22 ET.' } } };
     render(<SetupsPanel selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={vi.fn()} />);
-    expect(screen.getByText(/Sim eyes on WHLR 2026-09-23 · no Level 2 in a download/)).toBeTruthy();
+    const status = screen.getByTestId('setups-status');
+    expect(status.textContent).toBe(
+      'Recorded · what Nova\'s eyes saw live at 08:07:02 ET on 2026-09-24 · Nova\'s eyes\' record for 2026-09-24 starts at 07:27:22 ET.');
+    expect(status.getAttribute('data-tip')).toMatch(/what Nova's live eyes recorded at the playhead/);
+    expect(screen.getByText('Nothing forming at 08:07:02 ET.')).toBeTruthy();
   });
 
   it('explains itself outside the main desk window', () => {

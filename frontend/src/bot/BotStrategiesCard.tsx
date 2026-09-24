@@ -29,7 +29,14 @@ import {
   BOTS_TAPE_GATE_HEAD,
 } from '../constantGroups/bots_page';
 import { TAPE_VERDICT_TIPS } from '../constantGroups/setups';
-import { setupTypeOf, useSetupsBoard, type SetupRow } from '../setups';
+import {
+  recordedEmptyText,
+  setupTypeOf,
+  simBoardLine,
+  simBoardTip,
+  useSetupsBoard,
+  type SetupRow,
+} from '../setups';
 import { confirmApp } from '../ux/appDialogApi';
 import { canReloadLocalBackend } from '../utils/startLocalApi';
 import { tipProps } from '../ux/hoverTip';
@@ -130,7 +137,7 @@ export function BotStrategiesCard({ session, busy, onChooseSetup, onLevel, onSet
       templates={tpl.setup(id)} templatesError={tpl.error} templateBusy={playing}
       onPlayTemplate={(s, t) => void play(s, t)} onOpenParams={setEditing}
       summary={summaries.get(id) ?? null} rows={rows.get(id) ?? []} allRows={allRows}
-      connected={Boolean(stream?.connected)} seeding={board?.seeding ?? 0}
+      connected={Boolean(stream?.connected)} seeding={board?.seeding ?? 0} emptyText={recordedEmptyText(board)}
       hovered={hovered} onHover={setHovered} onOpenBoard={onOpenBoard} onOpenSymbol={onOpenSymbol}>
       {body}
     </BotSetupCard>
@@ -149,6 +156,12 @@ export function BotStrategiesCard({ session, busy, onChooseSetup, onLevel, onSet
           <p>{BOT_STALE_BACKEND_BANNER}</p>
           {canReloadLocalBackend() ? <BackendReloadButton /> : null}
         </div>
+      ) : null}
+      {board?.source === 'sim' ? (
+        <p className={`bots-simline bots-simline--${board.replay?.kind ?? 'capture'}`} role="status"
+          data-testid="bots-sim-line" {...tipProps(simBoardTip(board), 'Sim · the cards follow the playhead')}>
+          {simBoardLine(board)}
+        </p>
       ) : null}
       {tpl.payload?.error ? <p className="bots-hero__error" role="alert">{tpl.payload.error}</p> : null}
       {playError ? <p className="bots-hero__error" role="alert" data-testid="bots-template-play-error">{playError}</p> : null}
