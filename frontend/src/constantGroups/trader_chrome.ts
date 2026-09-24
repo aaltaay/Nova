@@ -174,6 +174,8 @@ export const FOCUS_RAIL_SORT_TITLES = {
   news: 'Sort by news: freshest catalyst first (ties: biggest % first)',
 } as const;
 export const FOCUS_RAIL_SORT_RESET = "click again for the list's own order";
+/** HOD Momo / Running Up are alert lists (operator decision 2026-09-24): the newest cross stays on top. */
+export const FOCUS_RAIL_ALERT_ORDER_TITLE = 'Newest high-of-day cross first. An alert list keeps its own order and does not sort.';
 /** Focus rail hover cards: what a row's circles mean, in plain words. */
 export const FOCUS_RAIL_CARD_HIDE_MS = 200;
 export const FOCUS_RAIL_CARD_MAX_ITEMS = 5;

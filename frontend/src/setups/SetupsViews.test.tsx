@@ -33,7 +33,11 @@ afterEach(() => {
   cleanup();
   openStockView.mockReset();
   resetSetupsBoardFilterForTests();
+  localStorage.clear();
 });
+
+/** The first cell of every body row: the symbol on the board, the group on the scoreboard. */
+const firstCells = () => screen.getAllByRole('row').slice(1).map(r => r.querySelector('td, th')?.textContent);
 
 describe('SetupsBoard', () => {
   it('shows state, levels, the tape read and a stage button only on a proposal', () => {
@@ -93,6 +97,25 @@ describe('SetupsBoard', () => {
     expect(flag.getAttribute('data-tip')).toMatch(/Pole: 3 green candles, \+7\.9% to 5\.62/);
     expect(near.closest('tr')?.getAttribute('title')).toBeNull();
   });
+
+  it('sorts by a header: prices highest first, To go nearest first, then back to the board order', () => {
+    render(
+      <SetupsBoard rows={SAMPLE_SETUPS_BOARD.rows} selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={vi.fn()} />,
+    );
+    const board = ['NVXA', 'QMBL', 'HLTR', 'ORBT', 'KSTR', 'PLNX'];
+    expect(firstCells()).toEqual(board);
+    fireEvent.click(screen.getByRole('columnheader', { name: 'Trigger' }));
+    // No setup yet (ORBT, PLNX) has no trigger: last, in the board's order.
+    expect(firstCells()).toEqual(['QMBL', 'KSTR', 'NVXA', 'HLTR', 'ORBT', 'PLNX']);
+    const toGo = screen.getByRole('columnheader', { name: 'To go' });
+    fireEvent.click(toGo);
+    // A triggered row shows how it went, not a distance: it sorts with the unknowns.
+    expect(firstCells()).toEqual(['NVXA', 'KSTR', 'QMBL', 'HLTR', 'ORBT', 'PLNX']);
+    expect(toGo.getAttribute('aria-sort')).toBe('ascending');
+    fireEvent.click(toGo);
+    fireEvent.click(toGo);
+    expect(firstCells()).toEqual(board);
+  });
 });
 
 describe('SetupsScoreboard', () => {
@@ -104,6 +127,21 @@ describe('SetupsScoreboard', () => {
     expect(screen.getByText('14 armed since 2026-09-18')).toBeTruthy();
     const labels = screen.getAllByRole('rowheader').map(th => th.textContent);
     expect(labels.slice(0, 5)).toEqual(['All armed setups', 'Tape said go', 'Tape said wait', 'No Level 2 line', 'Never triggered']);
+  });
+
+  it('sorts the groups inside each split, and keeps the splits and the all-setups row in place', () => {
+    render(<SetupsScoreboard data={SAMPLE_SETUPS_SCOREBOARD} error={null} loading={false} days={5} onDays={vi.fn()} />);
+    fireEvent.click(screen.getByRole('columnheader', { name: 'Net R' }));
+    expect(firstCells().slice(0, 9)).toEqual([
+      'All armed setups',
+      'Tape at the trigger', 'Tape said go', 'No Level 2 line', 'Tape said wait', 'Never triggered',
+      'Grade when armed', 'Grade A', 'Grade B',
+    ]);
+    fireEvent.click(screen.getByRole('columnheader', { name: 'Net R' }));
+    // Lowest first; a group with no scored setup (never triggered) stays last.
+    expect(firstCells().slice(1, 6)).toEqual([
+      'Tape at the trigger', 'Tape said wait', 'No Level 2 line', 'Tape said go', 'Never triggered',
+    ]);
   });
 
   it('states an error instead of an empty table', () => {

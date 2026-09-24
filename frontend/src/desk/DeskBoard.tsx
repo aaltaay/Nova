@@ -39,12 +39,34 @@ import {
 } from '../constantGroups/desk';
 import { isRowQuoteStale } from '../hooks/useScannerPriceStream';
 import type { LiveScannerFeed } from '../scanner/ScannerDataContext';
+import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import type { ScannerRow } from '../types/scanner';
 import { listTabModules, type NovaModule } from '../workspace/registry';
 import { DeskBoardRow, type DeskActionLocks } from './DeskBoardRow';
 import { useWatchList } from '../watch_list';
-import { deskBoardRowsFor, deskHeadlineFor, gapBarPct, maxAbsGap } from './deskBoardRows';
+import {
+  deskBoardRowsFor,
+  deskHeadlineFor,
+  gapBarPct,
+  maxAbsGap,
+  type DeskBoardRow as BoardRow,
+} from './deskBoardRows';
 import './deskBoard.css';
+
+/**
+ * Keyed like DESK_BOARD_COLUMNS. State has no sort: the scanner rows carry no
+ * halt state, so every row reads the same stated absence.
+ */
+const SORT_COLUMNS: SortColumns<BoardRow> = {
+  symbol: r => r.symbol,
+  price: r => r.price,
+  gap_percent: r => r.gapPct,
+  volume: r => r.volume,
+  rel_volume: r => r.relVolume,
+  float: r => r.float,
+  catalyst: r => r.catalyst,
+};
+const NO_ROWS: BoardRow[] = [];
 
 export interface DeskBoardProps {
   feed: LiveScannerFeed | null;
@@ -84,6 +106,8 @@ export function DeskBoard({
     [list, feed, filterRows, watchList],
   );
   const rows = board?.rows ?? null;
+  // One sort for every list: the columns are the same whichever list the board mirrors.
+  const { rows: sorted, sort, onSort } = useTableSort('desk.board', rows ?? NO_ROWS, SORT_COLUMNS);
   const widest = useMemo(() => (rows ? maxAbsGap(rows) : 0), [rows]);
   const selected = selectedSymbol?.trim().toUpperCase() ?? null;
   const headline = useMemo(() => deskHeadlineFor(selected, feed), [selected, feed]);
@@ -150,13 +174,18 @@ export function DeskBoard({
             <thead>
               <tr>
                 <ScannerRowNumHeader />
-                {DESK_BOARD_COLUMNS.map(([key, label]) => (
+                {DESK_BOARD_COLUMNS.map(([key, label]) => (key in SORT_COLUMNS ? (
+                  <SortTh key={key} col={key} sort={sort} onSort={onSort} data-col={key} className={scannerColClass(key)}
+                    title={DESK_BOARD_COLUMN_TITLE[key] ?? label}>
+                    {label}
+                  </SortTh>
+                ) : (
                   <th key={key} data-col={key} className={scannerColClass(key)} title={DESK_BOARD_COLUMN_TITLE[key] ?? label}>{label}</th>
-                ))}
+                )))}
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, index) => {
+              {sorted.map((row, index) => {
                 const rec = recording.has(row.symbol);
                 const allowed = isAllowed(row.symbol);
                 return (

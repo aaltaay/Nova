@@ -6,6 +6,8 @@ import { ScannerRowNumCell, ScannerRowNumHeader } from '../components/ScannerTab
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
 import { useBotAllowlist } from '../bot/useBotAllowlist';
 import { useSetupsBoard } from '../setups/SetupsStreamContext';
+import { rowRank } from '../setups';
+import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import {
   WATCHLIST_BOT_OFF_TITLE,
   WATCHLIST_BOT_ON_TITLE,
@@ -16,6 +18,7 @@ import { fmtPct, fmtRvol, fmtVolume, pctToneClass } from '../utils/quoteFormat';
 import {
   applyFilter,
   newsCell,
+  newsSortRank,
   pillarLetter,
   setupCell,
   setupsBySymbol,
@@ -132,6 +135,23 @@ export function WatchlistTable({ entries, loading, error, selectedSymbol, onSele
     [entries, filter, setups, isAllowed],
   );
   const sum = useMemo(() => summarize(entries, setups, isAllowed), [entries, setups, isAllowed]);
+  const columns = useMemo<SortColumns<WatchlistEntry>>(() => ({
+    symbol: e => e.symbol,
+    pillars: e => e.five_pillars.pass_count,
+    last: e => e.price,
+    change: e => e.change_pct,
+    rvol: e => e.rel_volume,
+    float: e => e.float_shares,
+    news: e => newsSortRank(e),
+    score: e => e.composite_score,
+    // The most advanced setup first: near, armed, triggered, ... (rowRank is lowest-first).
+    setup: e => {
+      const row = setups.get(e.symbol);
+      return row ? -rowRank(row) : null;
+    },
+    bot: e => isAllowed(e.symbol),
+  }), [setups, isAllowed]);
+  const { rows: sorted, sort, onSort } = useTableSort('contenders', shown, columns);
   const onToggleBot = (symbol: string, on: boolean) => void (on ? add(symbol) : remove(symbol));
 
   return (
@@ -172,20 +192,20 @@ export function WatchlistTable({ entries, loading, error, selectedSymbol, onSele
             <thead>
               <tr>
                 <ScannerRowNumHeader />
-                <th title="Click the row for the side panel. Click the ticker to open Trader.">Symbol</th>
-                <th title="Price, % change, relative volume, news, float. Hover a letter for why it passed or failed.">Pillars</th>
-                <th className="num">Last</th>
-                <th className="num" title="Change against the prior close">% Chg</th>
-                <th className="num" title="Volume today over the average daily volume">RVOL</th>
-                <th className="num">Float</th>
-                <th title="Today's catalyst since the prior close, by the same rules as the setup grade">News</th>
-                <th title="0-100 composite: breaks ties among symbols with the same pillar count">Score</th>
-                <th title="Its most advanced setup on the setup scanners (first pullback, bull flag, flat-top, red to green); hover a cell for what it means">Setup</th>
-                <th className="wl-bot-cell" title="On the bot allowlist">Bot</th>
+                <SortTh col="symbol" sort={sort} onSort={onSort} title="Click the row for the side panel. Click the ticker to open Trader.">Symbol</SortTh>
+                <SortTh col="pillars" sort={sort} onSort={onSort} title="Price, % change, relative volume, news, float. Hover a letter for why it passed or failed.">Pillars</SortTh>
+                <SortTh col="last" sort={sort} onSort={onSort} className="num">Last</SortTh>
+                <SortTh col="change" sort={sort} onSort={onSort} className="num" title="Change against the prior close">% Chg</SortTh>
+                <SortTh col="rvol" sort={sort} onSort={onSort} className="num" title="Volume today over the average daily volume">RVOL</SortTh>
+                <SortTh col="float" sort={sort} onSort={onSort} className="num">Float</SortTh>
+                <SortTh col="news" sort={sort} onSort={onSort} title="Today's catalyst since the prior close, by the same rules as the setup grade">News</SortTh>
+                <SortTh col="score" sort={sort} onSort={onSort} title="0-100 composite: breaks ties among symbols with the same pillar count">Score</SortTh>
+                <SortTh col="setup" sort={sort} onSort={onSort} title="Its most advanced setup on the setup scanners (first pullback, bull flag, flat-top, red to green); hover a cell for what it means">Setup</SortTh>
+                <SortTh col="bot" sort={sort} onSort={onSort} className="wl-bot-cell" title="On the bot allowlist">Bot</SortTh>
               </tr>
             </thead>
             <tbody>
-              {shown.map((entry, index) => (
+              {sorted.map((entry, index) => (
                 <WatchlistRow
                   key={entry.symbol}
                   entry={entry}

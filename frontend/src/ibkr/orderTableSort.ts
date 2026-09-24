@@ -162,17 +162,22 @@ export function compareOrderField(
   return String(av).localeCompare(String(bv));
 }
 
+/** Columns whose first click reads A to Z / in their own rank order
+ * (Working first, Market first, regular hours first). Every other column is
+ * a number or a time, and its first click is highest / newest first -- the
+ * rule every table on the desk follows (`table_sort/`). */
+const ASC_FIRST_KEYS: ReadonlySet<OrderSortKey> = new Set<OrderSortKey>(['symbol', 'status', 'type', 'session']);
+
 /**
- * Click: set/cycle primary sort (asc → desc → off).
+ * Click: set/cycle primary sort (first direction → flipped → off).
  * Shift+click: add/cycle/remove a level in the multi-sort stack.
- * Time defaults to desc on first activate (newest first).
  */
 export function cycleOrderSort(
   state: OrderSortState,
   key: OrderSortKey,
   additive: boolean,
 ): OrderSortState {
-  const firstDir: OrderSortDir = key === 'time' || key === 'filled_at' ? 'desc' : 'asc';
+  const firstDir: OrderSortDir = ASC_FIRST_KEYS.has(key) ? 'asc' : 'desc';
 
   if (additive) {
     const idx = state.findIndex((s) => s.key === key);

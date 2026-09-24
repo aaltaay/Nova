@@ -42,6 +42,7 @@ describe('ActivityTrail', () => {
       root.unmount();
     });
     container.remove();
+    localStorage.clear();
   });
 
   function mount(node: ReactNode) {
@@ -90,5 +91,19 @@ describe('ActivityTrail', () => {
     expect(container.querySelector('[data-testid="activity-trail-detail-trade:1"]')).toBeTruthy();
     expect(container.textContent).toContain('close_key IVF|buy|flat');
     expect(container.textContent).toContain('Flatten');
+  });
+
+  it('sorts by P/L highest first, then lowest first, an unknown P/L last both ways', () => {
+    const item = (id: string, pnl: number | null): TrailItem => ({ ...CLOSED, id, symbol: id, pnl });
+    mount(<ActivityTrail items={[item('LOSS', -4.5), item('OPEN', null), item('WIN', 12.75), item('FLAT', 0)]} />);
+    const order = () =>
+      Array.from(container.querySelectorAll('tbody tr.activity-row')).map(tr => tr.children[1].textContent);
+    const pnl = container.querySelector('th[data-sort-col="pnl"]') as HTMLElement;
+    act(() => pnl.click());
+    expect(order()).toEqual(['WIN', 'FLAT', 'LOSS', 'OPEN']);
+    act(() => pnl.click());
+    expect(order()).toEqual(['LOSS', 'FLAT', 'WIN', 'OPEN']);
+    act(() => pnl.click());
+    expect(order()).toEqual(['LOSS', 'OPEN', 'WIN', 'FLAT']);
   });
 });

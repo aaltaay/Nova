@@ -57,6 +57,20 @@ export function newsCell(entry: WatchlistEntry): Cell {
   };
 }
 
+/** The News column's sort rank, the order the cell reads in (higher first):
+ * a strong catalyst, a weak one, halted for news, bad news, routine, noise,
+ * then nothing found. Not read yet -- an article flag or no verdict -- is
+ * null and sorts last. */
+export function newsSortRank(entry: WatchlistEntry): number | null {
+  const c = entry.catalyst;
+  if (!c) return null;
+  if (c.news_pending) return 4;
+  if (c.verdict === 'catalyst') return c.strength === 'strong' ? 6 : 5;
+  if (c.verdict === 'negative') return 3;
+  const rank: Record<string, number> = { routine_only: 2, noise_only: 1, none_found: 0 };
+  return rank[c.verdict] ?? null;
+}
+
 function fmtEtClock(ts: number): string {
   return new Date(ts * 1000).toLocaleTimeString('en-US', {
     timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false,

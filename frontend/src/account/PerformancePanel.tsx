@@ -3,6 +3,7 @@
  * P&L / P&L % / Account value toggle re-rendering the big number and the
  * line. On Live the absence is stated; no curve is ever fabricated.
  */
+import { useMemo } from 'react';
 import {
   ACCOUNT_HISTORY_RANGES,
   ACCOUNT_PERF_EMPTY,
@@ -36,9 +37,10 @@ import {
   type AccountRange,
 } from '../constantGroups/account_page';
 import { formatSignedMoney, formatSignedPercent } from '../components/globalBarMoney';
+import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import { formatMoney } from '../utils/formatMoney';
 import { EstChip, Money, PanelHead, Ring, etShortDate, toneClass, toneOf } from './accountBits';
-import { isBotFill, rangeNetPnl, sourceCards, symbolPnlRows } from './accountFigures';
+import { isBotFill, rangeNetPnl, sourceCards, symbolPnlRows, type SymbolPnlRow } from './accountFigures';
 import type { PracticeHistory } from './accountHistoryTypes';
 import type { AccountPosition } from './accountPositions';
 import { EquityCurve, type CurveMarker } from './EquityCurve';
@@ -191,17 +193,37 @@ export function PerformancePanel({
   );
 }
 
+const SYMBOL_COLUMNS: SortColumns<SymbolPnlRow> = {
+  symbol: (r) => r.symbol,
+  realized: (r) => r.realized,
+  open: (r) => r.open,
+  // The cell shows costs as a debit (-$1.20), so they sort on that signed figure.
+  costs: (r) => -r.costs,
+  net: (r) => r.net,
+};
+
 function SymbolTable({ history, positions }: { history: PracticeHistory; positions: AccountPosition[] }) {
-  const { rows, total } = symbolPnlRows(history.fills, positions.map((p) => ({ symbol: p.symbol, unrealized: p.unrealized })));
+  const { rows, total } = useMemo(
+    () => symbolPnlRows(history.fills, positions.map((p) => ({ symbol: p.symbol, unrealized: p.unrealized }))),
+    [history.fills, positions],
+  );
+  // The Total row stays last whatever the sort.
+  const { rows: sorted, sort, onSort } = useTableSort('account.symbol-pnl', rows, SYMBOL_COLUMNS);
   if (!rows.length) return <div className="acct-absent" data-testid="account-symbol-empty">{ACCOUNT_SYMBOL_EMPTY}</div>;
   return (
     <div className="acct-scroll">
       <table className="acct-table" data-testid="account-symbol-table">
         <thead>
-          <tr><th>{ACCOUNT_SYMBOL_COL_SYMBOL}</th><th className="r">{ACCOUNT_SYMBOL_COL_REALIZED}</th><th className="r">{ACCOUNT_SYMBOL_COL_OPEN}</th><th className="r">{ACCOUNT_SYMBOL_COL_COSTS}</th><th className="r">{ACCOUNT_SYMBOL_COL_NET}</th></tr>
+          <tr>
+            <SortTh col="symbol" sort={sort} onSort={onSort}>{ACCOUNT_SYMBOL_COL_SYMBOL}</SortTh>
+            <SortTh col="realized" sort={sort} onSort={onSort} className="r">{ACCOUNT_SYMBOL_COL_REALIZED}</SortTh>
+            <SortTh col="open" sort={sort} onSort={onSort} className="r">{ACCOUNT_SYMBOL_COL_OPEN}</SortTh>
+            <SortTh col="costs" sort={sort} onSort={onSort} className="r">{ACCOUNT_SYMBOL_COL_COSTS}</SortTh>
+            <SortTh col="net" sort={sort} onSort={onSort} className="r">{ACCOUNT_SYMBOL_COL_NET}</SortTh>
+          </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
+          {sorted.map((row) => (
             <tr key={row.symbol} data-testid={`account-symbol-row-${row.symbol}`}>
               <td>{row.symbol}</td>
               <td className="r"><Money value={row.realized} signed /></td>

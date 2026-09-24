@@ -5,6 +5,7 @@
 import { useMemo, useState } from 'react';
 import { NOVA_ACTION_KIND_LABELS, NOVA_ACTION_NEEDS_DEPTH } from '../constants';
 import { chordsConflict, chordToBinding } from '../hooks/hotkeyUtils';
+import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import { formatKeyChord } from './htkFormat';
 import { NovaActionEditor } from './NovaActionEditor';
 import type { NovaActionRecord } from './novaActionTypes';
@@ -38,10 +39,20 @@ function paramsCell(row: NovaActionRecord, liveDisabled: boolean): string {
   return '—';
 }
 
+// Params mixes percents, share counts and offsets by kind: no one value to sort on.
+const COLUMNS: SortColumns<NovaActionRecord> = {
+  name: r => r.name,
+  action: r => NOVA_ACTION_KIND_LABELS[r.kind],
+  key: r => formatKeyChord(r.key),
+  on: r => r.enabled,
+  button: r => r.showButton,
+};
+
 export function NovaActionsTable({ actions, onChange, onRestoreDefaults }: Props) {
   const { topOfBook } = useTopOfBook();
   const [draft, setDraft] = useState<NovaActionRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { rows, sort, onSort } = useTableSort('hotkeys.nova_actions', actions, COLUMNS);
 
   const depthOk = Boolean(
     topOfBook?.depthSubscribed && topOfBook.bid != null && topOfBook.ask != null,
@@ -89,17 +100,17 @@ export function NovaActionsTable({ actions, onChange, onRestoreDefaults }: Props
       <table className="hotkey-records-table">
         <thead>
           <tr>
-            <th>Name</th>
-            <th>Action</th>
-            <th>Key</th>
+            <SortTh col="name" sort={sort} onSort={onSort}>Name</SortTh>
+            <SortTh col="action" sort={sort} onSort={onSort}>Action</SortTh>
+            <SortTh col="key" sort={sort} onSort={onSort}>Key</SortTh>
             <th>Params</th>
-            <th>On</th>
-            <th>Button</th>
+            <SortTh col="on" sort={sort} onSort={onSort}>On</SortTh>
+            <SortTh col="button" sort={sort} onSort={onSort}>Button</SortTh>
             <th />
           </tr>
         </thead>
         <tbody>
-          {actions.map((row) => {
+          {rows.map((row) => {
             const needsDepth = NOVA_ACTION_NEEDS_DEPTH.includes(row.kind);
             const liveDisabled = needsDepth && !depthOk;
             return (

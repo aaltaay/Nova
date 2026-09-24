@@ -59,6 +59,7 @@ the backend packages.
 | `stock_view/` | feature | The Trader (Stock View) chrome: symbol tab strip, right rail with quote / L2 / ticket, focus rail, footer dock, market clock. |
 | `strategy/` | feature | Misnamed: the Contenders tab (id `watchlist`: the ranked Five Pillars table, Journal, Backtest panel) and the Nova OS attention strip. |
 | `styles/` | shared | Global CSS by surface: tokens, Tailwind theme / overrides, global app bar, nav rail, scanner, stock view, settings. |
+| `table_sort/` | shared | Click-to-sort table headers for every table: the one sort rule (text A to Z first, numbers highest first, flip, then the table's own order; missing values last), the `useTableSort` hook that remembers each table's sort, and the `SortTh` header cell. |
 | `testSetup/` | shared | Vitest setup: the guard that keeps tests off the live backend, and the React `act()` flag. |
 | `theme/` | shared | Light / dark theme prefs and the `useTheme` hook that sets `data-theme` on `<html>`. |
 | `types/` | shared | Shared wire types: ticker, scanner, market, earnings, health, catalysts, news impact, Nova News, desktop bridge. |

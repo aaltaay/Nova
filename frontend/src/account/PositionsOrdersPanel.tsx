@@ -6,7 +6,7 @@
  * stamp (QA W9); a working order from an earlier day shows its date (W4). On
  * Live the Fills tab reads IBKR's filled orders (W17).
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { DeskVenue } from '../constantGroups/desk_venue';
 import {
   ACCOUNT_COL_AVG,
@@ -42,6 +42,7 @@ import {
 import { formatOrderStatus, plausiblePrice } from '../ibkr/orderDisplay';
 import { orderRowKeys, uniqueOrders } from '../ibkr/orderIdentity';
 import type { IbkrOrder } from '../ibkr/types';
+import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
 import { EstChip, Money, etOrderStamp, etTime } from './accountBits';
@@ -117,22 +118,67 @@ function orderTs(order: IbkrOrder): number {
   return Number.isFinite(ms) ? ms : 0;
 }
 
+/** The Time cell's own stamp as epoch ms; NaN (sorted last) when the order carries none. */
+const orderStampMs = (order: IbkrOrder): number => Date.parse(order.filled_at ?? order.updated_at ?? order.submitted_at ?? '');
+
+/** A Source cell's words, or null for its "—" (no stamp), so it sorts with the unknowns. */
+const knownSource = (label: string): string | null => (label === '—' ? null : label);
+
+const POSITION_COLUMNS: SortColumns<AccountPosition> = {
+  symbol: (p) => p.symbol,
+  qty: (p) => p.qty,
+  avg: (p) => p.avgCost,
+  last: (p) => p.mark,
+  mkt_value: (p) => p.marketValue,
+  unrealized: (p) => p.unrealized,
+};
+
+const FILL_COLUMNS: SortColumns<AccountFillRow> = {
+  time: (f) => f.ts,
+  symbol: (f) => f.symbol,
+  side: (f) => f.side,
+  qty: (f) => f.qty,
+  price: (f) => f.price,
+  comm: (f) => f.commission,
+  fees: (f) => f.fees,
+  source: (f) => knownSource(sourceLabel(f.source, f.botId)),
+};
+
+/** Orders sort on what each cell shows; the Source column reads the fills' stamps. */
+function orderColumns(fillSource: ReadonlyMap<number, AccountFillRow>): SortColumns<IbkrOrder> {
+  return {
+    time: orderStampMs,
+    symbol: (o) => o.symbol,
+    side: (o) => o.side,
+    qty: (o) => o.qty,
+    type: (o) => o.order_type,
+    price: orderPriceCell,
+    status: orderStatusLabel,
+    source: (o) => knownSource(orderSourceCell(o, fillSource.get(o.order_id)).label),
+  };
+}
+
 export function PositionsOrdersPanel({ practice, venue, positions, working, closed, fills, today = null }: Props) {
   const [tab, setTab] = useState<PosTab>('orders');
   const [filter, setFilter] = useState<AccountOrderFilter>('all');
   // One row per order by identity, not order_id: ids repeat (C29).
   const orders = uniqueOrders([...working, ...closed]).sort((a, b) => orderTs(b) - orderTs(a));
   const orderKeys = orderRowKeys(orders);
-  const fillSource = new Map(fills.map((f) => [f.orderId, f] as const));
+  const fillSource = useMemo(() => new Map(fills.map((f) => [f.orderId, f] as const)), [fills]);
   const count = (bucket: AccountOrderFilter): number =>
     bucket === 'all' ? orders.length : orders.filter((o) => orderBucket(o) === bucket).length;
   const shown = filter === 'all' ? orders : orders.filter((o) => orderBucket(o) === filter);
-  const sortedFills = [...fills].sort((a, b) => (b.ts ?? 0) - (a.ts ?? 0));
+  const newestFills = [...fills].sort((a, b) => (b.ts ?? 0) - (a.ts ?? 0));
+  const held = positions.filter((p) => p.qty !== 0);
+  const orderCols = useMemo(() => orderColumns(fillSource), [fillSource]);
+  const positionSort = useTableSort('account.positions', held, POSITION_COLUMNS);
+  const orderSort = useTableSort('account.orders', shown, orderCols);
+  const fillSort = useTableSort('account.fills', newestFills, FILL_COLUMNS);
   const foot = !practice
     ? tab === 'fills' ? ACCOUNT_FILLS_FOOT_LIVE : ACCOUNT_POS_FOOT_LIVE
     : venue === 'sim' ? ACCOUNT_POS_FOOT_SIM : ACCOUNT_POS_FOOT;
   const tabs: Array<[PosTab, string, number]> = [
-    ['positions', ACCOUNT_POS_TAB_POSITIONS, positions.filter((p) => p.qty !== 0).length],
+    ['positions', ACCOUNT_POS_TAB_POSITIONS, held.length],
     ['orders', ACCOUNT_POS_TAB_ORDERS, orders.length],
     ['fills', ACCOUNT_POS_TAB_FILLS, fills.length],
   ];
@@ -160,11 +206,20 @@ export function PositionsOrdersPanel({ practice, venue, positions, working, clos
       <div className="acct-scroll">
         {tab === 'positions' && (
           <table className="acct-table" data-testid="account-positions-table">
-            <thead><tr><th>{ACCOUNT_COL_SYMBOL}</th><th className="r">{ACCOUNT_COL_QTY}</th><th className="r">{ACCOUNT_COL_AVG}</th><th className="r">{ACCOUNT_COL_LAST}</th><th className="r">{ACCOUNT_COL_MKT_VALUE}</th><th className="r">{ACCOUNT_COL_UNREALIZED}</th></tr></thead>
+            <thead>
+              <tr>
+                <SortTh col="symbol" sort={positionSort.sort} onSort={positionSort.onSort}>{ACCOUNT_COL_SYMBOL}</SortTh>
+                <SortTh col="qty" sort={positionSort.sort} onSort={positionSort.onSort} className="r">{ACCOUNT_COL_QTY}</SortTh>
+                <SortTh col="avg" sort={positionSort.sort} onSort={positionSort.onSort} className="r">{ACCOUNT_COL_AVG}</SortTh>
+                <SortTh col="last" sort={positionSort.sort} onSort={positionSort.onSort} className="r">{ACCOUNT_COL_LAST}</SortTh>
+                <SortTh col="mkt_value" sort={positionSort.sort} onSort={positionSort.onSort} className="r">{ACCOUNT_COL_MKT_VALUE}</SortTh>
+                <SortTh col="unrealized" sort={positionSort.sort} onSort={positionSort.onSort} className="r">{ACCOUNT_COL_UNREALIZED}</SortTh>
+              </tr>
+            </thead>
             <tbody>
-              {positions.filter((p) => p.qty !== 0).length === 0 ? (
+              {positionSort.rows.length === 0 ? (
                 <tr><td colSpan={6} className="acct-muted">{ACCOUNT_POSITIONS_EMPTY}</td></tr>
-              ) : positions.filter((p) => p.qty !== 0).map((p) => (
+              ) : positionSort.rows.map((p) => (
                 <tr key={p.symbol} data-testid={`account-position-${p.symbol}`}>
                   <td>{p.symbol}</td>
                   <td className="r acct-num">{formatShareQty(p.qty)}</td>
@@ -179,11 +234,22 @@ export function PositionsOrdersPanel({ practice, venue, positions, working, clos
         )}
         {tab === 'orders' && (
           <table className="acct-table" data-testid="account-orders-table">
-            <thead><tr><th>{ACCOUNT_COL_TIME}</th><th>{ACCOUNT_COL_SYMBOL}</th><th>{ACCOUNT_COL_SIDE}</th><th className="r">{ACCOUNT_COL_QTY}</th><th>{ACCOUNT_COL_TYPE}</th><th className="r">{ACCOUNT_COL_PRICE}</th><th>{ACCOUNT_COL_STATUS}</th><th>{ACCOUNT_COL_SOURCE}</th></tr></thead>
+            <thead>
+              <tr>
+                <SortTh col="time" sort={orderSort.sort} onSort={orderSort.onSort}>{ACCOUNT_COL_TIME}</SortTh>
+                <SortTh col="symbol" sort={orderSort.sort} onSort={orderSort.onSort}>{ACCOUNT_COL_SYMBOL}</SortTh>
+                <SortTh col="side" sort={orderSort.sort} onSort={orderSort.onSort}>{ACCOUNT_COL_SIDE}</SortTh>
+                <SortTh col="qty" sort={orderSort.sort} onSort={orderSort.onSort} className="r">{ACCOUNT_COL_QTY}</SortTh>
+                <SortTh col="type" sort={orderSort.sort} onSort={orderSort.onSort}>{ACCOUNT_COL_TYPE}</SortTh>
+                <SortTh col="price" sort={orderSort.sort} onSort={orderSort.onSort} className="r">{ACCOUNT_COL_PRICE}</SortTh>
+                <SortTh col="status" sort={orderSort.sort} onSort={orderSort.onSort}>{ACCOUNT_COL_STATUS}</SortTh>
+                <SortTh col="source" sort={orderSort.sort} onSort={orderSort.onSort}>{ACCOUNT_COL_SOURCE}</SortTh>
+              </tr>
+            </thead>
             <tbody>
-              {shown.length === 0 ? (
+              {orderSort.rows.length === 0 ? (
                 <tr><td colSpan={8} className="acct-muted">{ACCOUNT_ORDERS_EMPTY}</td></tr>
-              ) : shown.map((o) => {
+              ) : orderSort.rows.map((o) => {
                 const bucket = orderBucket(o);
                 const src = orderSourceCell(o, fillSource.get(o.order_id));
                 const price = orderPriceCell(o);
@@ -212,11 +278,22 @@ export function PositionsOrdersPanel({ practice, venue, positions, working, clos
         )}
         {tab === 'fills' && (
           <table className="acct-table" data-testid="account-fills-table">
-            <thead><tr><th>{ACCOUNT_COL_TIME}</th><th>{ACCOUNT_COL_SYMBOL}</th><th>{ACCOUNT_COL_SIDE}</th><th className="r">{ACCOUNT_COL_QTY}</th><th className="r">{ACCOUNT_COL_PRICE}</th><th className="r">{ACCOUNT_COL_COMM}</th><th className="r">{ACCOUNT_COL_FEES}</th><th>{ACCOUNT_COL_SOURCE}</th></tr></thead>
+            <thead>
+              <tr>
+                <SortTh col="time" sort={fillSort.sort} onSort={fillSort.onSort}>{ACCOUNT_COL_TIME}</SortTh>
+                <SortTh col="symbol" sort={fillSort.sort} onSort={fillSort.onSort}>{ACCOUNT_COL_SYMBOL}</SortTh>
+                <SortTh col="side" sort={fillSort.sort} onSort={fillSort.onSort}>{ACCOUNT_COL_SIDE}</SortTh>
+                <SortTh col="qty" sort={fillSort.sort} onSort={fillSort.onSort} className="r">{ACCOUNT_COL_QTY}</SortTh>
+                <SortTh col="price" sort={fillSort.sort} onSort={fillSort.onSort} className="r">{ACCOUNT_COL_PRICE}</SortTh>
+                <SortTh col="comm" sort={fillSort.sort} onSort={fillSort.onSort} className="r">{ACCOUNT_COL_COMM}</SortTh>
+                <SortTh col="fees" sort={fillSort.sort} onSort={fillSort.onSort} className="r">{ACCOUNT_COL_FEES}</SortTh>
+                <SortTh col="source" sort={fillSort.sort} onSort={fillSort.onSort}>{ACCOUNT_COL_SOURCE}</SortTh>
+              </tr>
+            </thead>
             <tbody>
-              {sortedFills.length === 0 ? (
+              {fillSort.rows.length === 0 ? (
                 <tr><td colSpan={8} className="acct-muted">{ACCOUNT_FILLS_EMPTY}</td></tr>
-              ) : sortedFills.map((f) => (
+              ) : fillSort.rows.map((f) => (
                 <tr key={f.key} data-testid={`account-fill-${f.orderId}`}>
                   <td className="acct-num">{etTime(f.ts)}</td>
                   <td>{f.symbol}</td>

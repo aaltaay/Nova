@@ -1,4 +1,9 @@
-import type { ExecutionLatencySnapshot } from './types';
+import { SortTh, useTableSort, type SortColumns } from '../table_sort';
+import type {
+  ExecutionLatencySnapshot,
+  FillLegSummary,
+  FillProvenanceSummary,
+} from './types';
 
 function ms(value: number | null): string {
   return value == null ? '—' : `${value.toFixed(value >= 100 ? 0 : 1)} ms`;
@@ -16,13 +21,47 @@ function legLabel(role: string): string {
   return role.replaceAll('_', ' ');
 }
 
+/** Fills with no slippage figure: missing evidence or excluded. */
+function unavailableCount(item: FillLegSummary): number {
+  return Math.max(0, item.evidenceCount - item.slippageBps.count);
+}
+
+type ProvenanceRow = [string, FillProvenanceSummary];
+type LegRow = [string, FillLegSummary];
+
+const PROVENANCE_COLUMNS: SortColumns<ProvenanceRow> = {
+  source: ([name]) => name,
+  sendP95: ([, item]) => item.callbackFromSend.p95,
+  exchangeP95: ([, item]) => item.exchangeToCallback.p95,
+  samples: ([, item]) => item.callbackFromSend.count,
+  excluded: ([, item]) => item.callbackFromSend.excludedCount,
+};
+
+const LEG_COLUMNS: SortColumns<LegRow> = {
+  leg: ([role]) => legLabel(role),
+  // Aggregate-eligible fills; a child leg (0) sorts lowest.
+  eligibility: ([, item]) => item.aggregateEligibleCount,
+  callbackP95: ([, item]) => item.callbackFromSend.p95,
+  slippageP50: ([, item]) => item.slippageBps.p50,
+  slippageP95: ([, item]) => item.slippageBps.p95,
+  unavailable: ([, item]) => unavailableCount(item),
+};
+
 export function FillEvidenceTables({
   execution,
 }: {
   execution: ExecutionLatencySnapshot;
 }) {
-  const provenance = Object.entries(execution.segments.fillProvenance);
-  const legs = Object.entries(execution.segments.fillLeg);
+  const provenance = useTableSort(
+    'execution_latency.fill_provenance',
+    Object.entries(execution.segments.fillProvenance),
+    PROVENANCE_COLUMNS,
+  );
+  const legs = useTableSort(
+    'execution_latency.fill_legs',
+    Object.entries(execution.segments.fillLeg),
+    LEG_COLUMNS,
+  );
   return (
     <div className="latency-grid">
       <section className="latency-card">
@@ -35,12 +74,15 @@ export function FillEvidenceTables({
         <table className="latency-table">
           <thead>
             <tr>
-              <th>Source</th><th>Send → callback p95</th>
-              <th>Exchange → callback p95</th><th>Samples</th><th>Excluded</th>
+              <SortTh col="source" sort={provenance.sort} onSort={provenance.onSort}>Source</SortTh>
+              <SortTh col="sendP95" sort={provenance.sort} onSort={provenance.onSort}>Send → callback p95</SortTh>
+              <SortTh col="exchangeP95" sort={provenance.sort} onSort={provenance.onSort}>Exchange → callback p95</SortTh>
+              <SortTh col="samples" sort={provenance.sort} onSort={provenance.onSort}>Samples</SortTh>
+              <SortTh col="excluded" sort={provenance.sort} onSort={provenance.onSort}>Excluded</SortTh>
             </tr>
           </thead>
           <tbody>
-            {provenance.map(([name, item]) => (
+            {provenance.rows.map(([name, item]) => (
               <tr key={name}>
                 <td>{name}</td>
                 <td>{ms(item.callbackFromSend.p95)}</td>
@@ -63,23 +105,24 @@ export function FillEvidenceTables({
           Slippage is side-aware. Child target/stop evidence is displayed but
           excluded from parent execution latency and SLA aggregates.
         </p>
-        {legs.length === 0 ? (
+        {legs.rows.length === 0 ? (
           <p className="latency-empty">No leg-attributed fill evidence.</p>
         ) : (
           <table className="latency-table">
             <thead>
               <tr>
-                <th>Leg</th><th>Eligibility</th><th>Callback p95</th>
-                <th>Slippage p50</th><th>Slippage p95</th><th>Unavailable</th>
+                <SortTh col="leg" sort={legs.sort} onSort={legs.onSort}>Leg</SortTh>
+                <SortTh col="eligibility" sort={legs.sort} onSort={legs.onSort}>Eligibility</SortTh>
+                <SortTh col="callbackP95" sort={legs.sort} onSort={legs.onSort}>Callback p95</SortTh>
+                <SortTh col="slippageP50" sort={legs.sort} onSort={legs.onSort}>Slippage p50</SortTh>
+                <SortTh col="slippageP95" sort={legs.sort} onSort={legs.onSort}>Slippage p95</SortTh>
+                <SortTh col="unavailable" sort={legs.sort} onSort={legs.onSort}>Unavailable</SortTh>
               </tr>
             </thead>
             <tbody>
-              {legs.map(([role, item]) => {
+              {legs.rows.map(([role, item]) => {
                 const childExcluded = item.aggregateEligibleCount === 0;
-                const unavailable = Math.max(
-                  0,
-                  item.evidenceCount - item.slippageBps.count,
-                );
+                const unavailable = unavailableCount(item);
                 return (
                   <tr key={role}>
                     <td>{legLabel(role)}</td>

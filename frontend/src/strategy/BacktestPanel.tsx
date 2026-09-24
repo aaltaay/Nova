@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constants';
+import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 
 interface BacktestDaysResponse {
   days: string[];
@@ -38,10 +39,26 @@ interface BacktestRunResponse {
   trade_count: number;
   metrics: TradeMetrics;
   honesty: HonestyLabels;
-  trades: { symbol: string; setup: string; pnl_dollars: number; exit_reason: string }[];
+  trades: BacktestTrade[];
   error?: string;
   note?: string;
 }
+
+interface BacktestTrade {
+  symbol: string;
+  setup: string;
+  pnl_dollars: number;
+  exit_reason: string;
+}
+
+const NO_TRADES: BacktestTrade[] = [];
+
+const TRADE_COLUMNS: SortColumns<BacktestTrade> = {
+  symbol: t => t.symbol,
+  setup: t => t.setup,
+  pnl: t => t.pnl_dollars,
+  exit: t => t.exit_reason,
+};
 
 const SETUP_OPTIONS = [
   { value: 'all', label: 'All setups' },
@@ -74,6 +91,7 @@ export function BacktestPanel({ active }: { active: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [daysRead, setDaysRead] = useState<DaysRead>('pending');
+  const trades = useTableSort('strategy.backtest_trades', result?.trades ?? NO_TRADES, TRADE_COLUMNS);
 
   const loadDays = useCallback(async () => {
     if (!active) return;
@@ -210,14 +228,14 @@ export function BacktestPanel({ active }: { active: boolean }) {
               <table>
                 <thead>
                   <tr>
-                    <th>Symbol</th>
-                    <th>Setup</th>
-                    <th>P&amp;L $</th>
-                    <th>Exit</th>
+                    <SortTh col="symbol" sort={trades.sort} onSort={trades.onSort}>Symbol</SortTh>
+                    <SortTh col="setup" sort={trades.sort} onSort={trades.onSort}>Setup</SortTh>
+                    <SortTh col="pnl" sort={trades.sort} onSort={trades.onSort}>P&amp;L $</SortTh>
+                    <SortTh col="exit" sort={trades.sort} onSort={trades.onSort}>Exit</SortTh>
                   </tr>
                 </thead>
                 <tbody>
-                  {result.trades.map((t, i) => (
+                  {trades.rows.map((t, i) => (
                     <tr key={`${t.symbol}-${i}`}>
                       <td>{t.symbol}</td>
                       <td>{t.setup}</td>
