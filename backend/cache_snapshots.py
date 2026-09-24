@@ -1,4 +1,9 @@
-"""Dated scanner / HOD snapshot save+load. Callers keep importing ``cache``."""
+"""Dated scanner / HOD snapshot save+load. Callers keep importing ``cache``.
+
+Scanner boards are dated by their exchange session (``_session_date_et``), so a
+weekend re-persist lands on Friday's file (#483); HOD Momo files keep the
+calendar session key their rollover and archive paths read.
+"""
 from __future__ import annotations
 
 import json
@@ -16,9 +21,13 @@ from cache_schema import (
 logger = logging.getLogger("cache")
 
 
-def _load_today_list(prefix: str, key: str, *, normalize: bool = False) -> tuple[list, float]:
-    data = _cache._read_dated_json(prefix, _cache._today_et())
-    if data.get("date") != _cache._today_et():
+def _load_today_list(
+    prefix: str, key: str, *, normalize: bool = False, session: bool = True,
+) -> tuple[list, float]:
+    """Today's list; a scanner board's day is its exchange session (#483)."""
+    day = _cache._session_date_et() if session else _cache._today_et()
+    data = _cache._read_dated_json(prefix, day)
+    if data.get("date") != day:
         return [], 0.0
     raw = data.get(key, [])
     if not isinstance(raw, list):
@@ -39,8 +48,8 @@ def save_gapper_snapshot(gappers: list[dict], ts: float) -> None:
     try:
         _cache._write_dated(
             "gappers",
-            _cache._today_et(),
-            {"date": _cache._today_et(), "ts": ts, "gappers": gappers},
+            _cache._session_date_et(),
+            {"date": _cache._session_date_et(), "ts": ts, "gappers": gappers},
         )
     except Exception:
         logger.warning("cache: save_gapper_snapshot failed to persist to disk", exc_info=True)
@@ -59,8 +68,8 @@ def save_afterhours_snapshot(rows: list[dict], ts: float) -> None:
     try:
         _cache._write_dated(
             "afterhours",
-            _cache._today_et(),
-            {"date": _cache._today_et(), "ts": ts, "afterhours": rows},
+            _cache._session_date_et(),
+            {"date": _cache._session_date_et(), "ts": ts, "afterhours": rows},
         )
     except Exception:
         logger.warning("cache: save_afterhours_snapshot failed to persist to disk", exc_info=True)
@@ -70,12 +79,12 @@ def save_large_cap_snapshot(rows: list[dict], ts: float) -> None:
     if not rows:
         return
     try:
-        existing = _cache._read_dated_json("large_cap", _cache._today_et())
+        existing = _cache._read_dated_json("large_cap", _cache._session_date_et())
         _cache._write_dated(
             "large_cap",
-            _cache._today_et(),
+            _cache._session_date_et(),
             {
-                "date": _cache._today_et(),
+                "date": _cache._session_date_et(),
                 "ts": ts,
                 "large_cap": rows,
                 "fired_today": existing.get("fired_today") or {},
@@ -98,8 +107,8 @@ def save_gainer_snapshot(gainers: list[dict], ts: float) -> None:
     try:
         _cache._write_dated(
             "gainers",
-            _cache._today_et(),
-            {"date": _cache._today_et(), "ts": ts, "gainers": gainers},
+            _cache._session_date_et(),
+            {"date": _cache._session_date_et(), "ts": ts, "gainers": gainers},
         )
     except Exception:
         logger.warning("cache: save_gainer_snapshot failed to persist to disk", exc_info=True)
@@ -118,8 +127,8 @@ def save_loser_snapshot(losers: list[dict], ts: float) -> None:
     try:
         _cache._write_dated(
             "losers",
-            _cache._today_et(),
-            {"date": _cache._today_et(), "ts": ts, "losers": losers},
+            _cache._session_date_et(),
+            {"date": _cache._session_date_et(), "ts": ts, "losers": losers},
         )
     except Exception:
         logger.warning("cache: save_loser_snapshot failed to persist to disk", exc_info=True)
@@ -136,8 +145,8 @@ def save_movers_snapshot(gainers: list[dict], losers: list[dict], ts: float) -> 
     try:
         _cache._write_dated(
             "movers",
-            _cache._today_et(),
-            {"date": _cache._today_et(), "ts": ts, "gainers": gainers, "losers": losers},
+            _cache._session_date_et(),
+            {"date": _cache._session_date_et(), "ts": ts, "gainers": gainers, "losers": losers},
         )
     except Exception:
         logger.warning("cache: save_movers_snapshot failed to persist to disk", exc_info=True)
@@ -149,8 +158,8 @@ def load_movers_snapshot() -> tuple[list[dict], list[dict], float]:
     if gainers and losers:
         return gainers, losers, max(gainers_ts, losers_ts)
     try:
-        data = _cache._read_dated_json("movers", _cache._today_et())
-        if data.get("date") == _cache._today_et():
+        data = _cache._read_dated_json("movers", _cache._session_date_et())
+        if data.get("date") == _cache._session_date_et():
             legacy_gainers = data.get("gainers", [])
             legacy_losers = data.get("losers", [])
             legacy_ts = float(data.get("ts", 0.0))
@@ -184,7 +193,7 @@ def save_hod_momo_snapshot_for_date(date_str: str, alerts: list[dict], ts: float
 
 def load_hod_momo_snapshot() -> tuple[list[dict], float]:
     try:
-        return _load_today_list(_cache.HOD_MOMO_ALERTS_PREFIX, "alerts")
+        return _load_today_list(_cache.HOD_MOMO_ALERTS_PREFIX, "alerts", session=False)
     except Exception:
         return [], 0.0
 
@@ -333,8 +342,8 @@ def load_hod_momo_blocklist() -> list[str]:
 
 
 def load_large_cap_fired() -> dict[str, str]:
-    data = _cache._read_dated_json("large_cap", _cache._today_et())
-    if data.get("date") != _cache._today_et():
+    data = _cache._read_dated_json("large_cap", _cache._session_date_et())
+    if data.get("date") != _cache._session_date_et():
         return {}
     raw = data.get("fired_today")
     if not isinstance(raw, dict):
@@ -344,13 +353,13 @@ def load_large_cap_fired() -> dict[str, str]:
 
 def save_large_cap_fired(fired: dict[str, str]) -> None:
     try:
-        existing = _cache._read_dated_json("large_cap", _cache._today_et())
+        existing = _cache._read_dated_json("large_cap", _cache._session_date_et())
         rows = existing.get("large_cap")
         _cache._write_dated(
             "large_cap",
-            _cache._today_et(),
+            _cache._session_date_et(),
             {
-                "date": _cache._today_et(),
+                "date": _cache._session_date_et(),
                 "ts": existing.get("ts", 0.0),
                 "large_cap": rows if isinstance(rows, list) else [],
                 "fired_today": fired,
