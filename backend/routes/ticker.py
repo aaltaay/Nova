@@ -72,6 +72,28 @@ def get_ticker_bars_batch(
     )
 
 
+def _warm_timeframes_to_fill(symbol: str) -> list[str]:
+    """The warm set's timeframes whose stored series is missing, short or stale.
+
+    A SQLite read per timeframe on the 2 GB archive, so the socket runs it on a
+    worker thread rather than the HTTP loop every desk socket shares.
+    """
+    from constants import IBKR_BARS_WARM_TIMEFRAMES
+
+    out: list[str] = []
+    for tf in IBKR_BARS_WARM_TIMEFRAMES:
+        stored = bars_store.read(symbol, tf, CHART_DEFAULT_BARS)
+        if (
+            stored
+            and stored.get("bars")
+            and bars_store.store_series_complete(tf, len(stored["bars"]))
+            and bars_store.is_coverage_fresh(stored.get("coverage"), tf)
+        ):
+            continue
+        out.append(tf)
+    return out
+
+
 @router.websocket("/ws/ticker/{symbol}")
 async def ws_ticker_detail(websocket: WebSocket, symbol: str):
     """WebSocket endpoint: sends full detail on connect, then streams real-time trade updates.
@@ -92,18 +114,9 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
         # Store-first /bars is a local read. Background warm is safe: it
         # goes through historical_service (paced, shedable) and lands as
         # bars_patch -- it cannot cancel a chart HTTP request.
-        from constants import CHART_DEFAULT_BARS, IBKR_BARS_WARM_TIMEFRAMES
         from ibkr.historical_service import schedule_fill
 
-        for tf in IBKR_BARS_WARM_TIMEFRAMES:
-            stored = bars_store.read(symbol, tf, CHART_DEFAULT_BARS)
-            if (
-                stored
-                and stored.get("bars")
-                and bars_store.store_series_complete(tf, len(stored["bars"]))
-                and bars_store.is_coverage_fresh(stored.get("coverage"), tf)
-            ):
-                continue
+        for tf in await asyncio.to_thread(_warm_timeframes_to_fill, symbol):
             schedule_fill(symbol, tf, CHART_DEFAULT_BARS, priority="warm")
 
     loop = asyncio.get_event_loop()

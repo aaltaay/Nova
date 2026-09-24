@@ -114,6 +114,23 @@ export function setBars(
 }
 
 /**
+ * A `bars_patch` pushed when a historical fill lands (`/ws/ticker`). An empty
+ * patch never replaces bars the pane already holds -- the same rule as an
+ * empty `/bars` answer (ADR 012): a fill that found nothing is no reason to
+ * wipe a painted chart.
+ */
+export function applyBarsPatch(
+  symbol: string,
+  timeframe: string,
+  bars: RawBar[],
+  coverage?: BarsCoverage,
+): void {
+  const current = getBarsEntry(symbol, timeframe);
+  if (!coverage?.replay && bars.length === 0 && current && current.bars.length > 0) return;
+  setBars(symbol, timeframe, bars, coverage);
+}
+
+/**
  * `setsPrice: false` is a print reported for volume only (odd lot, average
  * price, derivatively priced ...): Time & Sales lists it, no candle takes it --
  * its price can sit dollars from the market (backend `sale_conditions.py`).

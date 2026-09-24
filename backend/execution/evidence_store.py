@@ -53,49 +53,48 @@ ON execution_fill_evidence(execution_id, sequence);
 
 
 def init_db(conn=None) -> None:
+    """Ensure the evidence table. Without ``conn``, through the ledger's own
+    once-per-file ``store.init_db`` (which calls back here with its connection)."""
     from execution import store
 
-    owned = conn is None
-    db = conn or store.get_connection()
-    try:
-        db.executescript(_SCHEMA)
-        columns = {
-            str(row["name"])
-            for row in db.execute(
-                "PRAGMA table_info(execution_fill_evidence)"
-            ).fetchall()
-        }
-        migrations = {
-            "leg_role": "TEXT",
-            "evidence_side": "TEXT",
-            "reference_source": "TEXT",
-            "aggregate_eligible": "INTEGER NOT NULL DEFAULT 0",
-            "slippage_excluded_reason": "TEXT",
-        }
-        migrated = False
-        for name, sql_type in migrations.items():
-            if name not in columns:
-                db.execute(
-                    f"ALTER TABLE execution_fill_evidence "
-                    f"ADD COLUMN {name} {sql_type}"
-                )
-                migrated = True
-        if migrated:
-            db.execute(
-                """
-                UPDATE execution_fill_evidence
-                SET leg_role = COALESCE(leg_role, 'legacy_unknown'),
-                    aggregate_eligible = 0,
-                    slippage_per_share = NULL,
-                    slippage_total = NULL,
-                    slippage_bps = NULL,
-                    slippage_excluded_reason = 'legacy_leg_attribution_unknown'
-                """
+    if conn is None:
+        store.init_db()
+        return
+    conn.executescript(_SCHEMA)
+    columns = {
+        str(row["name"])
+        for row in conn.execute(
+            "PRAGMA table_info(execution_fill_evidence)"
+        ).fetchall()
+    }
+    migrations = {
+        "leg_role": "TEXT",
+        "evidence_side": "TEXT",
+        "reference_source": "TEXT",
+        "aggregate_eligible": "INTEGER NOT NULL DEFAULT 0",
+        "slippage_excluded_reason": "TEXT",
+    }
+    migrated = False
+    for name, sql_type in migrations.items():
+        if name not in columns:
+            conn.execute(
+                f"ALTER TABLE execution_fill_evidence "
+                f"ADD COLUMN {name} {sql_type}"
             )
-        db.commit()
-    finally:
-        if owned:
-            db.close()
+            migrated = True
+    if migrated:
+        conn.execute(
+            """
+            UPDATE execution_fill_evidence
+            SET leg_role = COALESCE(leg_role, 'legacy_unknown'),
+                aggregate_eligible = 0,
+                slippage_per_share = NULL,
+                slippage_total = NULL,
+                slippage_bps = NULL,
+                slippage_excluded_reason = 'legacy_leg_attribution_unknown'
+            """
+        )
+    conn.commit()
 
 
 def merge_execution_payload(execution_id: str, patch: dict[str, Any]) -> dict[str, Any]:

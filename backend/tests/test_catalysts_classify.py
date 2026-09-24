@@ -378,3 +378,10 @@ def test_a_list_gives_no_ticker_its_first_names_cause(title, n_tickers):
 def test_rules_v6(title, kw, expected):
     summary = kw.pop("summary", None)
     assert label(title, summary, **kw)[:2] == expected
+
+
+def test_labels_are_cached():
+    """The board asks for the same items every pass; a repeat is a cache hit (2026-09-23)."""
+    title = "Acme Therapeutics Receives FDA Approval for Lead Candidate"
+    first = classify_item(title, source="alpaca")
+    assert classify_item(title, source="alpaca") is first
