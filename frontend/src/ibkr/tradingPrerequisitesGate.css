@@ -6,8 +6,15 @@
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
-  background: color-mix(in srgb, var(--bg, #0e1116) 72%, transparent);
-  backdrop-filter: blur(2px);
+  /*
+   * An opaque-enough scrim and no backdrop-filter. The Windows desk composites
+   * in software (electron/gpuPolicy.mjs), so a full-window blur is recomputed
+   * on the CPU every time a chart or ladder under it repaints: with the live
+   * desk behind it the panel lost half its frames and drew one 250-480 ms
+   * frame a second (perf recorder, 2026-09-23); scrolling it over a repainting
+   * canvas in software went from ~40 to ~6.5 fps.
+   */
+  background: color-mix(in srgb, var(--bg, #0e1116) 86%, transparent);
 }
 
 .trading-prereq-gate__head {
@@ -42,6 +49,7 @@
   width: min(36rem, 100%);
   max-height: min(90vh, 40rem);
   overflow: auto;
+  overscroll-behavior: contain;
   border: 1px solid var(--border, #2a3340);
   border-radius: 8px;
   background: var(--panel, #151a22);
@@ -143,8 +151,8 @@
 .trading-prereq-warning {
   display: flex;
   gap: 0.75rem;
-  /* Same spacing as the checklist rows above (list gap 0.65rem, no margin). */
-  margin: 0.65rem 0 0.75rem;
+  /* Leads the panel with the Needs attention list, so only a bottom margin. */
+  margin: 0 0 0.75rem;
   padding: 0.65rem 0.75rem;
   border-radius: 6px;
   border: 1px solid color-mix(in srgb, var(--warn, #e0b35a) 55%, var(--border, #2a3340));

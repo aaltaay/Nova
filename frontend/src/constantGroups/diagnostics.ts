@@ -31,3 +31,11 @@ export const DIAG_STATE_LABELS: Record<string, string> = {
 };
 
 export const DIAG_COUNTS_ORDER = ['fail', 'warn', 'unknown', 'off', 'ok'] as const;
+
+/**
+ * Rows listed again at the very top of the panel, worst first, with their full
+ * detail and fix -- a deliberate duplicate of the grouped rows below, so what
+ * is wrong is readable at first glance. `off` is a choice, not trouble.
+ */
+export const DIAG_ATTENTION_STATES = ['fail', 'warn', 'unknown'] as const;
+export const DIAG_ATTENTION_TITLE = 'Needs attention';
