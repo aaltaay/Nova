@@ -12,6 +12,7 @@ import {
 } from '../../electron/updateCopy.mjs';
 import {
   INITIAL_UPDATE_STATE,
+  UPDATE_OFFER_FRESH_MS,
   UPDATE_RECHECK_INTERVAL_MS,
   displayTag,
   easternClock,
@@ -21,6 +22,7 @@ import {
   manualCheckAction,
   needsOffer,
   noticeFor,
+  offerIsStale,
   reduceUpdateState,
   resolveUpdateSetting,
   shouldAutoCheck,
@@ -77,6 +79,22 @@ describe('update state', () => {
     expect(noticeFor(reduceUpdateState(hidden, { type: 'download' }))?.stage).toBe('downloading');
     // Nothing to download from anywhere else.
     expect(reduceUpdateState(INITIAL_UPDATE_STATE, { type: 'download' })).toBe(INITIAL_UPDATE_STATE);
+  });
+
+  it('downloads the newest release a check at the click found, and the notice follows it', () => {
+    const offered = offeredAt('0.1.1004');
+    const newer = reduceUpdateState(offered, { type: 'download', version: '0.1.1005' });
+    expect(newer).toMatchObject({ phase: 'downloading', version: '0.1.1005', consentVersion: '0.1.1005', percent: 0 });
+    expect(noticeFor(newer)).toMatchObject({ stage: 'downloading', tag: 'v1005' });
+    expect(reduceUpdateState(offered, { type: 'download', version: '0.1.1004' })).toMatchObject({ version: '0.1.1004' });
+  });
+
+  it('checks again at Update only when the release on offer was found over a minute ago', () => {
+    const now = Date.parse('2026-09-24T17:20:14Z');
+    expect(offerIsStale({ now, lastCheckAt: now - UPDATE_OFFER_FRESH_MS })).toBe(false);
+    expect(offerIsStale({ now, lastCheckAt: now - UPDATE_OFFER_FRESH_MS - 1 })).toBe(true);
+    // v1004 was found at 10:42 ET and Update pressed at 13:20.
+    expect(offerIsStale({ now, lastCheckAt: Date.parse('2026-09-24T14:42:48Z') })).toBe(true);
   });
 
   it('walks check -> download -> ready and shows progress on the taskbar', () => {

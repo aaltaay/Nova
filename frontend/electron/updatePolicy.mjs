@@ -7,7 +7,8 @@
  * Restart to update. It never installs or restarts on its own: not on quit, not
  * on a timer, not after a failed check. It checks shortly after launch and again
  * every two hours while it stays open, except in weekday trading hours, when a
- * re-check neither downloads nor asks.
+ * re-check neither downloads nor asks. Update downloads the newest release: an
+ * offer older than a minute is checked again at the click.
  *
  * autoUpdate.mjs owns the electron-updater instance and feeds its events through
  * reduceUpdateState(); every decision about what to show or do lives here, and
@@ -32,6 +33,14 @@ export const UPDATE_RECHECK_TICK_MS = 10 * 60_000;
  */
 export const UPDATE_QUIET_START_MIN_ET = 7 * 60;
 export const UPDATE_QUIET_END_MIN_ET = 16 * 60;
+/**
+ * Update asks GitHub again first when the release on offer was found longer ago
+ * than this. A notice can wait out a trading morning while newer releases ship:
+ * on 2026-09-24 v1004 was found at 10:42 ET, v1005 shipped at 11:30, and Update
+ * at 13:20 downloaded v1004. The operator asked for a 150 MB download, so a
+ * check at the click is no intrusion, even in trading hours.
+ */
+export const UPDATE_OFFER_FRESH_MS = 60_000;
 
 const OFF_VALUES = new Set(['0', 'false', 'no', 'off']);
 const BUSY_PHASES = new Set(['checking', 'downloading', 'installing']);
@@ -129,13 +138,16 @@ export function reduceUpdateState(state, event) {
       return { ...state, phase: 'available', version, percent, error: '', failedStage: '', retry: 0 };
     }
     case 'download': {
-      // The operator picked Update (or Resume) for the version on offer; the
-      // notice follows its download even if it was hidden with Later.
+      // The operator picked Update (or Resume). `version` is the newest release
+      // the check at the click found, else the one on offer; the notice follows
+      // its download even if it was hidden with Later.
       if (state.phase !== 'available' && !stoppedDownload(state)) return state;
-      const { version } = state;
+      const version = String(event.version || state.version);
       return {
         ...state,
         phase: 'downloading',
+        version,
+        percent: version === state.version ? state.percent : 0,
         consentVersion: version,
         offeredVersion: version,
         dismissedVersion: '',
@@ -237,6 +249,11 @@ export function needsOffer(state) {
 export function shouldOfferNow(state, { origin, now } = {}) {
   if (!needsOffer(state)) return false;
   return origin !== 'recheck' || !inUpdateQuietHours(now);
+}
+
+/** Update on a release found over UPDATE_OFFER_FRESH_MS ago checks GitHub again, and downloads the newest. */
+export function offerIsStale({ now, lastCheckAt } = {}) {
+  return now - (Number(lastCheckAt) || 0) > UPDATE_OFFER_FRESH_MS;
 }
 
 /** A found release the operator already chose Update for (its download stopped): resume, no question. */
