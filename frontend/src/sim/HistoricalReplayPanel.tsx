@@ -4,7 +4,7 @@ import { useWorkspace } from '../workspace';
 import { etTime, previousEtWeekday } from './historicalReplayFormat';
 import {
   SIM_HISTORY_LARGE_WINDOW_MINUTES, SIM_HISTORY_NO_TRADES_YET, SIM_HISTORY_PAGE_INTERVAL_SEC, SIM_SESSION_CLOSE_LABEL,
-  SIM_SESSION_OPEN_LABEL,
+  SIM_SESSION_OPEN_LABEL, SIM_WHY_DOWNLOAD_STARTING, SIM_WHY_TYPE_TICKER, SIM_WHY_WINDOW_LOADING,
 } from './simConstants';
 import { useHistoricalStatus, historicalStatus } from './historicalStatusStore';
 import { useReplayActions } from './useReplayActions';
@@ -47,6 +47,11 @@ export function HistoricalReplayPanel() {
     if (await request(`download:${kind}`, '/history', { ...spec, kind })) void historicalStatus.refresh();
   }
   const pick = (job: HistoricalJob) => { setSymbol(job.symbol); setDate(job.date); setStart(job.start); setEnd(job.end); setFormError(''); };
+  // Why each action is locked (ux/whyTip.ts): its own request in flight, else no ticker yet.
+  const noTicker = spec.symbol ? null : SIM_WHY_TYPE_TICKER;
+  const loadWhy = busy.has('select') ? SIM_WHY_WINDOW_LOADING : noTicker;
+  const barsWhy = busy.has('download:bars') ? SIM_WHY_DOWNLOAD_STARTING.bars : noTicker;
+  const tradesWhy = busy.has('download:trades') ? SIM_WHY_DOWNLOAD_STARTING.trades : noTicker;
   const action = async (job: HistoricalJob, operation: 'pause' | 'resume') => {
     if (await request(job.id, `/history/${encodeURIComponent(job.id)}/${operation}`)) void historicalStatus.refresh();
   };
@@ -77,9 +82,12 @@ export function HistoricalReplayPanel() {
             <label>To <input type="time" value={end} onChange={event => update(setEnd, event.target.value)} /></label>
           </div>
           <p className="sim-actions">
-            <button type="button" disabled={busy.has('select') || !spec.symbol} onClick={() => void load()}>Load replay</button>
-            <button type="button" disabled={busy.has('download:bars') || !spec.symbol} onClick={() => void download('bars')}>Download candles</button>
-            <button type="button" disabled={busy.has('download:trades') || !spec.symbol} onClick={() => void download('trades')}>Download trades</button>
+            <button type="button" disabled={busy.has('select') || !spec.symbol} data-why={loadWhy ?? undefined}
+              onClick={() => void load()}>Load replay</button>
+            <button type="button" disabled={busy.has('download:bars') || !spec.symbol} data-why={barsWhy ?? undefined}
+              onClick={() => void download('bars')}>Download candles</button>
+            <button type="button" disabled={busy.has('download:trades') || !spec.symbol} data-why={tradesWhy ?? undefined}
+              onClick={() => void download('trades')}>Download trades</button>
           </p>
           <p className="sim-muted">{windowMinutes(spec) >= SIM_HISTORY_LARGE_WINDOW_MINUTES && <strong>Large window ({(windowMinutes(spec) / 60).toFixed(1)} hours). </strong>}Trades are paced at least {SIM_HISTORY_PAGE_INTERVAL_SEC} seconds per page and can take many minutes. ETA starts after the first advancing checkpoint; choose a shorter window for a faster download.</p>
           <p className="sim-muted">Load any time: a window loaded mid-download picks up new prints by itself, and the playhead stays put. Candles appear at interval close. Historical quotes and Level 2 are unavailable.</p>

@@ -244,3 +244,11 @@ export function drawerSampleBanner(mode: string): string {
 export const DRAWER_NO_SYMBOL = 'No symbol selected';
 export const drawerOpenPositions = (n: number): string =>
   n === 0 ? 'flat' : `${n} open position${n === 1 ? '' : 's'} in Positions`;
+
+/* ── Why a trading control is locked (2026-09-23) ──────────────────────────
+ * Shown by ux/whyTip.ts on hover and on a refused press, from `data-why`. */
+
+/** `/api/ibkr/status` says the Gateway session is not usable (Paper needs the feed too). */
+export const WHY_GATEWAY_NOT_CONNECTED = 'IB Gateway is not connected -- reconnect it from the header.';
+/** The ticket's own order is in flight; Live, Paper and Sim each answer it. */
+export const TICKET_WHY_SENDING = 'Sending the order -- the ticket unlocks when the venue answers.';

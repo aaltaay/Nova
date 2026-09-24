@@ -77,6 +77,36 @@ describe('ScannerBoardHeader', () => {
     expect(JSON.parse(localStorage.getItem(SCANNER_BOARD_FILTERS_STORAGE_KEY) ?? '{}').value.active).toEqual(['gap', 'news']);
   });
 
+  it('the unavailable chip carries its reason for the locked-control tip; working chips keep their title', () => {
+    render(<Harness />);
+    const halted = screen.getByTestId('scanner-chip-halted');
+    expect(halted.getAttribute('data-why')).toMatch(/Halt state is not carried on scanner rows yet/);
+    expect(halted.hasAttribute('title')).toBe(false);
+    const gap = screen.getByTestId('scanner-chip-gap');
+    expect(gap.hasAttribute('data-why')).toBe(false);
+    expect(gap.getAttribute('title')).toMatch(/at least 10%/);
+  });
+
+  it('the history picker on the sample desk says why it is locked', () => {
+    render(<Harness />);
+    act(() => {
+      publishGlobalBarCore({
+        mode: 'premarket',
+        health: { status: 'connected', latency_ms: 1 },
+        activeFeed: 'ibkr',
+        feedFellBack: false,
+        onHistoryChange: () => {},
+        onLookup: () => {},
+        sampleDataActive: true,
+      });
+    });
+    const select = screen.getByTestId('scanner-board-history') as HTMLSelectElement;
+    expect(select.disabled).toBe(true);
+    expect(select.getAttribute('data-why')).toMatch(/exit sample data to browse past boards/);
+    // '' keeps the session line's own title from showing over the reason.
+    expect(select.getAttribute('title')).toBe('');
+  });
+
   it('saves the current chips under a name and applies a saved set', async () => {
     promptMock.mockResolvedValue('Low-float runners');
     render(<Harness />);

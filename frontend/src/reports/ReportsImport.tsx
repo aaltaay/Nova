@@ -4,6 +4,7 @@ import {
   JOURNAL_IMPORT_ACCEPT,
   JOURNAL_IMPORT_SAMPLE_CSV,
   JOURNAL_IMPORT_SAMPLE_NAME,
+  journalImportBusyWhy,
 } from './importConstants';
 import { importJournalFile } from './importJournal';
 import type { JournalImportResult } from './types';
@@ -34,12 +35,14 @@ function summarize(result: JournalImportResult): string {
 
 export function ReportsImport({ onImported }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
+  /** The file being imported; null when idle. */
+  const [busyFile, setBusyFile] = useState<string | null>(null);
+  const busy = busyFile !== null;
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function handleFile(file: File): Promise<void> {
-    setBusy(true);
+    setBusyFile(file.name);
     setError(null);
     setStatus(`Uploading ${file.name}…`);
     try {
@@ -61,7 +64,7 @@ export function ReportsImport({ onImported }: Props) {
             : 'Import failed',
       );
     } finally {
-      setBusy(false);
+      setBusyFile(null);
     }
   }
 
@@ -85,6 +88,7 @@ export function ReportsImport({ onImported }: Props) {
             type="button"
             className="reports-import-btn"
             disabled={busy}
+            data-why={busyFile ? journalImportBusyWhy(busyFile) : undefined}
             onClick={() => inputRef.current?.click()}
           >
             {busy ? 'Importing…' : 'Import file'}

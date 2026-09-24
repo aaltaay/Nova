@@ -63,6 +63,9 @@ export const TRADER_TAB_EXTRACT_TITLE =
   'Open this symbol in a new window. You can also double-click the tab.';
 export const TRADER_TAB_EXTRACT_ARIA = 'Open tab in a new window';
 export const TRADER_TAB_ADD_TITLE = 'Add a ticker tab in this window';
+/** Why + is locked (ux/whyTip.ts): one new tab at a time. */
+export const TRADER_TAB_ADD_DRAFT_OPEN_WHY =
+  'A new tab is already open -- type its ticker and press Enter, or Esc to drop it';
 export const TRADER_TAB_STRIP_HINT =
   'Drag a tab onto another Nova window to dock it. Double-click to pop out.';
 export const TRADER_TAB_STRIP_HINT_FLOAT =

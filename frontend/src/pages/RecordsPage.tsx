@@ -21,6 +21,7 @@ import {
   RECORDS_PAGE_OPEN_TRADER,
   RECORDS_PAGE_RECORDING,
   RECORDS_PAGE_REPLAY,
+  RECORDS_PAGE_REPLAY_BUSY,
   RECORDS_PAGE_REPLAY_FAILED,
   RECORDS_PAGE_REPLAY_TITLE,
   RECORDS_PAGE_SUBTITLE,
@@ -102,6 +103,7 @@ export function RecordsPage({ onOpenTrader }: Props) {
     else onOpenTrader(symbol);
   };
   const failure = errors.replay ?? replayError;
+  const replayBusy = busy.has('replay');
 
   return (
     <div className="nova-shell nova-shell--scanner">
@@ -167,8 +169,9 @@ export function RecordsPage({ onOpenTrader }: Props) {
                                   type="button"
                                   className="records-page__open"
                                   data-testid={`records-replay-${date}-${row.symbol}`}
-                                  title={RECORDS_PAGE_REPLAY_TITLE}
-                                  disabled={busy.has('replay')}
+                                  title={replayBusy ? undefined : RECORDS_PAGE_REPLAY_TITLE}
+                                  disabled={replayBusy}
+                                  data-why={replayBusy ? RECORDS_PAGE_REPLAY_BUSY : undefined}
                                   onClick={() => void replay(date, row.symbol)}
                                 >
                                   {RECORDS_PAGE_REPLAY}

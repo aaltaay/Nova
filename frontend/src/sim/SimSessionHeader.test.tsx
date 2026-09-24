@@ -216,6 +216,38 @@ it('a failed replay remains visible after clock polling', async () => {
   expect(mocks.open).not.toHaveBeenCalled();
 });
 
+it('a recording load in flight locks the pickers and says what it is loading (ux/whyTip.ts)', async () => {
+  const original = mocks.fetch.getMockImplementation()!;
+  let answer!: (value: unknown) => void;
+  mocks.fetch.mockImplementation((url: string, init?: RequestInit) => (url.endsWith('/api/sim/replay') && init?.method === 'POST'
+    ? new Promise(resolve => { answer = resolve; }) : original(url, init)));
+  await mount();
+  const day = screen.getByTestId('sim-replay-day');
+  expect(day.hasAttribute('data-why')).toBe(false);
+  expect(day.closest('label')?.getAttribute('title')).toBe('Captured session date');
+  await act(async () => {
+    fireEvent.change(screen.getByTestId('sim-replay-ticker'), { target: { value: 'IMCC' } });
+  });
+  expect((day as HTMLSelectElement).disabled).toBe(true);
+  expect(day.getAttribute('data-why')).toBe('Loading IMCC -- wait for it to finish');
+  expect(screen.getByTestId('sim-replay-ticker').getAttribute('data-why')).toBe('Loading IMCC -- wait for it to finish');
+  // The label's own title steps aside while the reason shows.
+  expect(day.closest('label')?.hasAttribute('title')).toBe(false);
+  await act(async () => { answer({ ok: true, json: async () => ({ ...clock, replay_symbol: 'IMCC' }) }); });
+  expect(day.hasAttribute('data-why')).toBe(false);
+});
+
+it('the Ticker picker waits for a Day, and says so', async () => {
+  const original = mocks.fetch.getMockImplementation()!;
+  mocks.fetch.mockImplementation((url: string, init?: RequestInit) => (url.endsWith('/clock')
+    ? Promise.resolve({ ok: true, json: async () => ({ ...clock, replay_source: 'none', replay_date: null, replay_symbol: null }) })
+    : original(url, init)));
+  await mount();
+  const ticker = screen.getByTestId('sim-replay-ticker') as HTMLSelectElement;
+  expect(ticker.disabled).toBe(true);
+  expect(ticker.getAttribute('data-why')).toBe('Pick a Day first');
+});
+
 it('empty recordings are visibly disabled in the ticker picker', async () => {
   const original = mocks.fetch.getMockImplementation()!;
   mocks.fetch.mockImplementation(async (url: string, init?: RequestInit) => url.endsWith('/sessions') ? {

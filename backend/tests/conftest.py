@@ -45,6 +45,7 @@ _OPERATOR_DATA_DIRS = {
     "NOVA_SIM_HISTORY_DIR": "sim_history",
     "NOVA_CATALYST_DIR": "catalysts",
     "NOVA_LEADERBOARD_DIR": "leaderboard",
+    "NOVA_EYES_DIR": "eyes",
 }
 for _env, _name in _OPERATOR_DATA_DIRS.items():
     os.environ[_env] = str(_SESSION_CACHE / _name)
@@ -55,6 +56,8 @@ os.environ["IBKR_GATEWAY_MODE"] = os.environ.get("IBKR_GATEWAY_MODE") or "paper"
 os.environ["NOVA_PERF"] = "0"
 # ADR 028: an app a test boots must not poll IBKR's short-stock file; the borrow tests drive the feed directly.
 os.environ["NOVA_BORROW_FEED"] = "0"
+# ADR 029: an app a test boots must not start the eyes' journal writer; the journal tests drive it directly.
+os.environ["NOVA_EYES_JOURNAL"] = "0"
 
 import pytest
 
@@ -197,6 +200,15 @@ def _isolate_operator_state(tmp_path, monkeypatch):
     import bot as _bot
 
     _bot.reset_for_tests()
+    # ADR 029: the template store and the eyes' journal are process singletons; each
+    # test reads its own cache dir.
+    from eyes import journal as _eyes_journal
+    from eyes.sim_eyes import reset_for_tests as _reset_sim_eyes
+    from setup_templates.store import set_store_for_tests as _reset_templates
+
+    _reset_templates(None)
+    _eyes_journal.reset_for_tests()
+    _reset_sim_eyes()
     from sim.mode import reset_for_tests as _reset_sim
     import execution.flatten_exit as _flatten_exit
     import ibkr.trading_allowed as _trading_allowed

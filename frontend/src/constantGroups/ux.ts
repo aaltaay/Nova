@@ -15,6 +15,8 @@ export const APP_DIALOG_PLACE_LABEL = 'Place';
 export const APP_DIALOG_FILL_LABEL = 'Fill now';
 export const APP_DIALOG_SWITCH_TO_LIVE_LABEL = 'Switch to Live';
 export const APP_DIALOG_SWITCH_TO_PAPER_LABEL = 'Switch to Paper';
+/** Why a typed-confirmation prompt's confirm button is locked (ux/whyTip.ts). */
+export const appDialogTypeToConfirm = (expected: string): string => `Type ${expected} to confirm`;
 export const IBKR_CLIENT_PORTAL_URL =
   'https://www.interactivebrokers.com/sso/Login';
 export const IBKR_VERIFICATION_REQUIRED_REASON =

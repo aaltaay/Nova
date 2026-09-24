@@ -61,6 +61,8 @@ export const recordingResumeGaveUp = (reason: string | null): string =>
   `Gave up resuming: ${reason ?? 'no reason given'}. Resume it yourself when the desk is back.`;
 export const RECORDING_RESUME_ACTION = 'Resume now';
 export const RECORDING_RESUMING_ACTION = 'Resuming...';
+/** Why Resume now is locked while its own start is in flight (ux/whyTip.ts). */
+export const RECORDING_RESUMING_WHY = 'Resuming the recording -- this unlocks when Nova answers.';
 export const RECORDING_DISMISS_LABEL = 'Dismiss';
 
 /** Stop needs friction: a recording is locked, and a slip must not end it. */

@@ -19,10 +19,12 @@ interface Props {
   minLabel: string;
   maxLabel: string;
   disabled?: boolean;
+  /** Why it is locked while ``disabled`` (ux/whyTip.ts). */
+  why?: string | null;
   onCommit: (v: number) => void;
 }
 
-export function BotSleeveSlider({ label, testId, value, min, max, step, format, minLabel, maxLabel, disabled, onCommit }: Props) {
+export function BotSleeveSlider({ label, testId, value, min, max, step, format, minLabel, maxLabel, disabled, why = null, onCommit }: Props) {
   const [draft, setDraft] = useState(value);
   const pending = useRef<number | null>(null);
   const timer = useRef<number | null>(null);
@@ -65,6 +67,7 @@ export function BotSleeveSlider({ label, testId, value, min, max, step, format, 
         step={step}
         value={draft}
         disabled={disabled}
+        data-why={disabled ? why ?? undefined : undefined}
         style={{ ['--bots-fill' as string]: `${pct}%` }}
         onChange={e => change(e.target.value)}
         onPointerUp={flush}

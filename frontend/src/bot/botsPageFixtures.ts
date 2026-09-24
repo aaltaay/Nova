@@ -4,7 +4,14 @@
  * page reads. Pure data -- the tests wrap `botsFetchRouter` in their own mock.
  */
 import type { SetupStoreRow } from '../setups/useSetupRows';
+import templatesFixture from './setupTemplatesFixture.json';
+import type { TemplatesPayload } from './templateTypes';
 import type { BotAuditEntry, BotGate, BotProposal, BotSession } from './types';
+
+/** The backend's own GET /api/setups/templates (default templates only), a fresh copy each call. */
+export function templatesPayload(): TemplatesPayload {
+  return JSON.parse(JSON.stringify(templatesFixture)) as TemplatesPayload;
+}
 
 export const CLOSED_READOUT = {
   state: 'collecting', passed: false, reason: '12 of 50 go setups triggered',
@@ -74,6 +81,8 @@ export interface BotsFetchOpts {
   onArm?: () => BotSession;
   onDisarm?: () => BotSession;
   onAllowlist?: (body: { symbol: string; op: string }) => BotSession;
+  templates?: TemplatesPayload;
+  onTemplate?: (method: string, href: string, body: Record<string, unknown>) => Json | undefined;
 }
 
 const ok = (body: unknown): Json => ({ ok: true, status: 200, json: async () => body });
@@ -92,6 +101,12 @@ export function botsFetchRouter(opts: BotsFetchOpts = {}) {
     if (href.includes('/kill-switch')) {
       if (method === 'POST') tripped = !href.endsWith('/reset');
       return ok({ tripped, reason: null, ts: null });
+    }
+    if (href.includes('/setups/templates')) {
+      const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {};
+      const answer = method === 'GET' ? undefined : opts.onTemplate?.(method, href, body);
+      if (answer) return answer;
+      return ok(opts.templates ?? templatesPayload());
     }
     if (href.includes('/setups/rows')) return ok({ date: '2026-09-22', rows: opts.setupRows ?? [] });
     if (href.includes('/setups/scoreboard')) {

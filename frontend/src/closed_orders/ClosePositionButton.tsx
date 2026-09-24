@@ -6,16 +6,18 @@ import { useState, type MouseEvent } from 'react';
 import {
   APP_DIALOG_FLATTEN_LABEL,
   CLOSE_POSITION_ACCOUNT_ERROR_TITLE,
+  CLOSE_POSITION_BUSY_WHY,
   CLOSE_POSITION_BUTTON_BUSY_LABEL,
   CLOSE_POSITION_BUTTON_LABEL,
   CLOSE_POSITION_NO_POSITION_TITLE,
   CLOSE_POSITION_PIN_LOCKED_TITLE,
   CLOSE_POSITION_VS_CANCEL_HINT,
   TICKER_TRADE_ORDER_DISCLOSURE,
+  WHY_GATEWAY_NOT_CONNECTED,
 } from '../constants';
 import { captureBrowserAction } from '../execution_latency';
 import { closeFullPosition } from '../ibkr/closeFullPosition';
-import { isSpendLocked } from '../ibkr/spendLock';
+import { isSpendLocked, spendLockReason } from '../ibkr/spendLock';
 import { readTicketSessionUnlocked } from '../ibkr/ticketUnlock';
 import type { IbkrMode, IbkrPosition } from '../ibkr/types';
 import { useTradingPinGate } from '../ibkr/useTradingPinGate';
@@ -28,6 +30,8 @@ interface Props {
   connected: boolean;
   spendStatus?: string;
   disabled?: boolean;
+  /** Why the caller set `disabled` (ux/whyTip.ts); a failed account read when omitted. */
+  why?: string | null;
   onClosed?: () => void;
   /** `menu` is the chart position overlay (same flatten path). */
   variant?: 'button' | 'menu';
@@ -41,6 +45,7 @@ export function ClosePositionButton({
   connected,
   spendStatus,
   disabled = false,
+  why = null,
   onClosed,
   variant = 'button',
   label,
@@ -53,6 +58,18 @@ export function ClosePositionButton({
   const canClose =
     connected && mode !== 'disconnected' && hasPosition && !spendLocked && !disabled && !busy;
   const pinLocked = !readTicketSessionUnlocked();
+  // A locked Flatten says why (ux/whyTip.ts); undefined exactly when it can act.
+  const lockWhy = busy
+    ? CLOSE_POSITION_BUSY_WHY
+    : !hasPosition
+      ? CLOSE_POSITION_NO_POSITION_TITLE
+      : disabled
+        ? why || CLOSE_POSITION_ACCOUNT_ERROR_TITLE
+        : !connected || mode === 'disconnected'
+          ? WHY_GATEWAY_NOT_CONNECTED
+          : spendLocked
+            ? spendLockReason(spendStatus) ?? undefined
+            : undefined;
 
   async function handleClick(e: MouseEvent) {
     e.stopPropagation();
@@ -96,18 +113,9 @@ export function ClosePositionButton({
         role={variant === 'menu' ? 'menuitem' : undefined}
         data-testid={testId}
         disabled={!canClose}
+        data-why={lockWhy}
         onClick={handleClick}
-        title={
-          !hasPosition
-            ? CLOSE_POSITION_NO_POSITION_TITLE
-            : disabled
-              ? CLOSE_POSITION_ACCOUNT_ERROR_TITLE
-              : spendLocked
-                ? 'Orders locked — enable IBKR orders / live confirm'
-                : pinLocked
-                  ? CLOSE_POSITION_PIN_LOCKED_TITLE
-                  : CLOSE_POSITION_VS_CANCEL_HINT
-        }
+        title={lockWhy ? undefined : pinLocked ? CLOSE_POSITION_PIN_LOCKED_TITLE : CLOSE_POSITION_VS_CANCEL_HINT}
         aria-label={`Flatten position ${position.symbol}`}
       >
         {busy

@@ -111,6 +111,10 @@ describe('AdvisePanel', () => {
     expect(container.textContent).toMatch(/long case/);
     expect(container.textContent).toMatch(/LONG/);
     expect(container.textContent).toMatch(/not auto-trading/);
+    // A finished run: Run is open, and Cancel says why it is locked (ux/whyTip.ts).
+    expect(container.querySelector('[data-testid="advise-run"]')?.hasAttribute('data-why')).toBe(false);
+    expect(container.querySelector('[data-testid="advise-cancel"]')?.getAttribute('data-why'))
+      .toBe('No run is queued or running -- nothing to cancel');
     await act(async () => {
       (container.querySelector('[data-testid="advise-jump-chart"]') as HTMLButtonElement).click();
     });
@@ -177,6 +181,11 @@ describe('AdvisePanel', () => {
     expect(retry).toHaveBeenCalledWith(7);
     expect(place).not.toHaveBeenCalled();
     expect(container.querySelector('[data-testid="advise-open-ticket"]')).toBeNull();
+    // The retried run is queued: Run says why it waits, Cancel opens.
+    const runBtn = container.querySelector('[data-testid="advise-run"]') as HTMLButtonElement;
+    expect(runBtn.disabled).toBe(true);
+    expect(runBtn.getAttribute('data-why')).toBe('A run is already going -- wait for it, or Cancel it');
+    expect(container.querySelector('[data-testid="advise-cancel"]')?.hasAttribute('data-why')).toBe(false);
   });
 
   it('closes on Escape like Settings (QA V29)', async () => {

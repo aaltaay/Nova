@@ -264,6 +264,8 @@ export const HOTKEYS_CREATE_DIALOG_TITLE = 'Create a Customized Button';
 export const HOTKEYS_CREATE_NAME_LABEL = 'Button Name';
 export const HOTKEYS_CREATE_APPLY_LABEL = 'Button Apply To';
 export const HOTKEYS_CREATE_APPLY_STOCK = 'Stock';
+/** Why Button Apply To is locked (ux/whyTip.ts). */
+export const HOTKEYS_CREATE_APPLY_LOCKED_WHY = 'Nova trades stocks only, so a custom button always applies to stocks.';
 export const HOTKEYS_CREATE_SIDE_LABEL = 'Side';
 export const HOTKEYS_CREATE_SIDE_BUY = 'Buy';
 export const HOTKEYS_CREATE_SIDE_SELL = 'Sell';

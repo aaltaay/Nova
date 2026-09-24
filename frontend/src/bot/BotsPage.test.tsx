@@ -137,7 +137,7 @@ describe('Bots page hero (approved mockup v4)', () => {
     await renderPage();
     const activate = screen.getByTestId('bots-activate') as HTMLButtonElement;
     expect(activate.disabled).toBe(true);
-    expect(activate.title).toMatch(/12 of 50 go setups triggered/);
+    expect(activate.getAttribute('data-why')).toMatch(/12 of 50 go setups triggered/);
     expect(screen.getByTestId('bots-activate-hint').textContent).toBe('Activate waits on: read-out');
     await act(async () => { fireEvent.click(activate); await flush(); });
     expect(called(fetchMock, '/session/arm')).toBe(false);

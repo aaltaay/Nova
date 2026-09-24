@@ -1,5 +1,5 @@
 import { useWorkspace } from '../workspace/WorkspaceContext';
-import { ADVISE_DISCLAIMER, ADVISE_STALE_NUDGE } from './constants';
+import { ADVISE_DISCLAIMER, ADVISE_STALE_NUDGE, ADVISE_WHY_BUSY } from './constants';
 import { formatAdviseActualLine } from './estimateFormat';
 import { useAdvise } from './AdviseContext';
 import { stageAdviseTicket } from './ticketFromStance';
@@ -67,6 +67,7 @@ export function AdviseResultCard() {
             type="button"
             data-testid="advise-retry"
             disabled={busy}
+            data-why={busy ? ADVISE_WHY_BUSY : undefined}
             onClick={() => void retryDebate()}
           >
             Retry

@@ -50,6 +50,17 @@ const SETUP_OPTIONS = [
   { value: 'abcd', label: 'ABCD' },
 ] as const;
 
+/** Where the archived-day list stands: it decides why the day picker is empty. */
+type DaysRead = 'pending' | 'ok' | 'failed';
+/** Why the day picker / Run is locked (ux/whyTip.ts). */
+const DAYS_WHY: Record<DaysRead, string> = {
+  pending: 'Reading the archived days -- wait for the list',
+  failed: 'The archived days did not load -- the error is shown below',
+  ok: 'No day in the local cold archive yet -- nothing to backtest',
+};
+const RUN_WHY_RUNNING = 'Running the backtest -- wait for it to finish';
+const RUN_WHY_NO_DAY = 'Pick a session day first';
+
 function fmtMetric(v: number | null, suffix = ''): string {
   if (v === null || v === undefined) return '—';
   return `${v.toFixed(2)}${suffix}`;
@@ -62,6 +73,7 @@ export function BacktestPanel({ active }: { active: boolean }) {
   const [result, setResult] = useState<BacktestRunResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [daysRead, setDaysRead] = useState<DaysRead>('pending');
 
   const loadDays = useCallback(async () => {
     if (!active) return;
@@ -72,8 +84,10 @@ export function BacktestPanel({ active }: { active: boolean }) {
       const list = data.days || [];
       setDays(list);
       setSelectedDay((prev) => prev || (list.length ? list[list.length - 1] : ''));
+      setDaysRead('ok');
       setError(null);
     } catch (err) {
+      setDaysRead('failed');
       setError(err instanceof Error ? err.message : String(err));
     }
   }, [active]);
@@ -106,6 +120,8 @@ export function BacktestPanel({ active }: { active: boolean }) {
   if (!active) return null;
 
   const m = result?.metrics;
+  const noDaysWhy = days.length ? undefined : DAYS_WHY[daysRead];
+  const runWhy = loading ? RUN_WHY_RUNNING : selectedDay ? undefined : (noDaysWhy ?? RUN_WHY_NO_DAY);
 
   return (
     <div className="backtest-panel" style={{ padding: '12px 0' }}>
@@ -117,7 +133,7 @@ export function BacktestPanel({ active }: { active: boolean }) {
       <div className="backtest-controls" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '12px' }}>
         <label>
           Session day{' '}
-          <select value={selectedDay} onChange={e => setSelectedDay(e.target.value)} disabled={!days.length}>
+          <select value={selectedDay} onChange={e => setSelectedDay(e.target.value)} disabled={!days.length} data-why={noDaysWhy}>
             {!days.length && <option value="">No cold days</option>}
             {days.map(d => (
               <option key={d} value={d}>{d}</option>
@@ -132,7 +148,7 @@ export function BacktestPanel({ active }: { active: boolean }) {
             ))}
           </select>
         </label>
-        <button type="button" onClick={() => void runBacktest()} disabled={loading || !selectedDay}>
+        <button type="button" onClick={() => void runBacktest()} disabled={loading || !selectedDay} data-why={runWhy}>
           {loading ? 'Running…' : 'Run backtest'}
         </button>
       </div>

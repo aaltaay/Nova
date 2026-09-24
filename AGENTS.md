@@ -765,6 +765,91 @@ are accepted at Eyes and Strategy. `gates: [{id, ok, stage: "activate" |
 `desk_armed`, `depth_lines`, `readout`, `bot_trip`, `day_lock`,
 `kill_switch`, `window`.
 
+### Setup templates, the eyes' journal and replayed eyes (ADR 029, operator ask 2026-09-23)
+
+`GET /api/setups/templates` (owner `backend/setup_templates/`) answers
+`{schema_version: 1, error: string | null, max_per_setup, setups: [{id,
+scanner: boolean, catalogue: {setup, scanner, source, groups: [{id, label,
+blurb, params: [{key, group, label, kind: "number" | "int" | "bool" | "time" |
+"choice", default, unit, min, max, step, choices: [{value, label}], nullable,
+help, live}]}]}, in_play, templates: [{id, setup, name, note, rev, values:
+{KEY: value}, builtin, in_play, fingerprint, error: string | null, created_at,
+updated_at, readout?: {state, passed, reason, go_triggered, min_go,
+go_avg_net_r}}]}]}` -- values in the unit the operator types (percent as 5, a
+float in millions of shares); a nullable parameter is off when `null`;
+`readout` only on a setup with a scanner. Writes need the desk's API key even
+on loopback, like bot routes (a template sets the bot's entry rules):
+`POST /api/setups/templates/{setup}` `{name, from?, values?, note?}` -> 201;
+`PATCH .../{id}` `{name?, values?, note?}` -> `{template, rules_changed,
+setup}` (a change to `values` bumps `rev`; a rename does not); `DELETE
+.../{id}`; `POST .../{id}/play`. Every write answers `setup`, that setup's
+view. A refusal is `{detail: {reason, error, field}}`: `TEMPLATE_INVALID` 400,
+`SETUP_UNKNOWN` / `TEMPLATE_UNKNOWN` 404, `TEMPLATE_BUILTIN` /
+`TEMPLATE_LIMIT` / `TEMPLATE_NAME_TAKEN` / `TEMPLATES_UNREADABLE` /
+`TEMPLATE_NO_PARAMS` 409. The built-in `default` (the pre-registered rules at
+`SETUP_TEMPLATE_DEFAULT_REV`) is never stored and never edited. The store is
+`setup-templates.json` in the operator cache: `{schema_version: 1, setups:
+{SETUP: {in_play, templates: [{id, name, note, rev, values, created_at,
+updated_at}]}}}`; an unknown version or an unreadable file leaves every setup
+on its default and refuses writes.
+
+The setup scanner runs one lane per first-pullback template: every template is
+watched; the one in play proposes and draws the board. `setups.db` is `PRAGMA
+user_version = 2`: rows add `template_id`, `template_rev` (integer) and
+`params_hash`; a version-1 file migrates in place and its rows become the
+default's (ids stay `SYMBOL-DATE-LEG_T`; another template's rows end
+`~TEMPLATE_ID`). The board payload adds `source: "live" | "sim"`, `template:
+{id, rev, name, params_hash} | null`, `templates_watched` and `replay: {kind:
+"capture" | "historical", date, symbol, playhead, at, loading, error, note,
+recording} | null`; a row's `state` may be `filtered` (the template's stock
+filter kept the name out, and the reason says which rule); a proposal adds
+`template_id`, `template_name` and `source`. The read-out's `rules` adds
+`template: {id, rev, name}` and counts only that template revision's rows.
+`bot/entry_rules` reads the entry window and the daily cap from the template
+in play (`bot_window_start` / `bot_window_end` / `bot_entries_per_day`); the
+`window` gate detail adds `template`. `GET /api/setups/scoreboard` and
+`GET /api/setups/rows` answer for the template in play (its id and current
+revision) unless `template=` names another template id (every revision) or
+`all` (every template: a variation re-scores the same legs, so counts
+overlap); both add `template: {id, rev, name} | null`.
+
+**The eyes' journal** (`backend/eyes/journal.py`):
+`<eyes dir>/journal/YYYY-MM-DD.jsonl` (`NOVA_EYES_DIR`, else `F:\Nova\eyes`
+when F: is mounted, else `<cache>/eyes`; the file is the wall clock's Eastern
+date), one line per observation: `{schema_version: 1, wall_ts, ts, date,
+source: "live" | "sim" | "backtest", event, symbol, template, rev, playing,
+bot: {level, active, venue} | null, replay?: {date, symbol}, ...}`, where
+`event` is `session | lanes | watch | leg | state | armed | filtered | rearmed
+| near | tape | triggered | failed | disarmed | proposal | scored` and carries
+its own fields (`setup` levels, `grade`, `pillars`, `reason`, `tape` /
+`verdict` / `reasons` / `metrics` / `line`, `status`, `outcome`, `bar_r`,
+`mfe`, `mae`, `added` / `removed`, `lanes`). `ts` / `date` are the moment and
+session the eyes looked at (a replay's own). `NOVA_EYES_JOURNAL=0` turns it
+off. Read by `tools/eyes_journal.py` (`days | summary | setups | events`) and
+`eyes/reader.py`, never by the desk.
+
+**Replayed eyes** (`backend/eyes/replay.py`, `sim_eyes.py`, `backtest.py`): a
+Session Record's prints (per second, the high then the last of the prints that
+set a price), its recorded books (sampled every 0.5 s) and the day's archive
+minute bars (else the recording's `bars_1m`) through the same lanes; outside a
+recorded stretch nothing is near and nothing triggers. `GET /api/eyes/journal`
+-> `{writer: {enabled, dir, written, dropped, queued, last_error,
+last_write_ts}, days: [{date, bytes, path}]}`; `GET /api/eyes/sim` -> `{target,
+loading, error, template, lanes, recording, now}`; `GET /api/eyes/backtests`
+-> `{dir, runs: [{run_id, created_at, finished_at, status, error, templates,
+sessions, setups}]}`; `POST /api/eyes/backtests` `{templates?: [id],
+sessions?: [{date, symbol}]}` -> 202 `{run_id, status: "running"}` (400
+`BACKTEST_INVALID`, 404 `TEMPLATE_UNKNOWN`); `GET /api/eyes/backtests/{run_id}`
+-> `{manifest, summary}`. A run is `<eyes dir>/backtests/<run_id>/`:
+`manifest.json`, `setups.jsonl`, `events.jsonl` and `summary.json`, shaped in
+`eyes/backtest.py`'s docstring; never `setups.db`, never the live read-out.
+
+**Every locked control says why** (frontend, `ux/whyTip.ts`): a control that
+cannot act carries its reason in `data-why` beside `disabled` (or
+`aria-disabled="true"`); one tip per window shows it on hover and at once on a
+refused press. `ux/whyCoverage.test.ts` fails the build on a JSX element that
+can be disabled without its reason.
+
 ### Input Payload (Raw)
 
 ```json
@@ -1318,6 +1403,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-23 | Every locked control says why; setup templates; the eyes on the record (ADR 029, operator asks: "these are always unclickable, at least it should explain why ... gaps may exist everywhere"; "I also need to see all their parameters and be able to change them myself"; "each strategy will have templates"; "when we activate the eyes I also want it to be recording what it sees ... and when we are in the Sim I want to be able to use these eyes so we can backtest them"). One tip per window shows a locked control's `data-why` on hover and on a refused press; all 134 disabled controls across 64 files carry a specific reason and a test fails the build on a new one without. Each setup lists every parameter it runs on (a catalogue; the Bots page renders it, never prose -- the old card said 07:00-10:00 and $3-10 where the scanner arms 07:00-11:30 on any HOD Momo name); each setup keeps a locked pre-registered default and the operator's templates; every first-pullback template is watched at once and scored on its own rows (`setups.db` schema 2), only the one in play proposes, and the read-out is per template revision. The eyes' journal records everything the lanes see, per day, backend only; the same lanes replay a Session Record to follow the Sim playhead or backtest templates. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Session Record replays draw candles from their prints (#535, operator decision: option a): the capture player no longer reads the stored `bars_*.jsonl` buckets, which recordings made before candles took only price-setting prints had built from every print (GRML 2026-09-22: 82 of 480 one-minute candles with a false wick, a low of 13.19 where trades bottomed at 15.43). Every timeframe is aggregated from the prints that set a price, filtered once per loaded recording, so the chart and the practice fills (#511) read the same prints. `replay_load.counts` drops the `bars_*` counts. §3 and ADR 012 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Practice fills only on prints that set a price (#511): a volume-only print (odd lot, average price, derivatively priced, prior reference, or anything IBKR flags `unreported`) can sit dollars from the market -- PLTR `190.38 x 100  4 W` against a 192.64 x 192.80 book -- and a resting practice limit used to fill on it. Paper's live reference (newest print and resting-order matcher) and a capture replay's last and matcher now use `sale_conditions.row_sets_price`, the rule candles already follow; `tape_trades` keeps IBKR's `unreported` flag; the unused batched tape writer, which stored prints without their conditions, is removed. §3 and `architecture/practice-fills.md` amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Why it's moving (ADR 028, operator ask: "I want to know why from the user interface ... especially if it's squeezing and without news"; "run that through data and analytics where we don't need to consume tokens"): `GET /api/why/{symbol}` and a section at the top of the Trader tab's News panel give a rules read -- company news, halts, float and its turnover, a recent reverse split, short interest and IBKR's borrow market -- each check yes / no / unknown with its source, and a likely cause (news, short squeeze, supply squeeze after a split, low-float momentum, routine item, thin trading, nothing found) that says `possible` when a deciding fact is unknown. No model, no tokens. The borrow market is new data: IBKR's public short-stock file, polled every 15 minutes into `borrow.sqlite3` (changes only) so a restart keeps the day's fee and availability history. On 2026-09-23's gainers it named MSS and WHLR squeezes, VSA / IPDN / ONCO low-float momentum on tight borrow, and ARTL a routine item on a low float -- matching the hand audit. §3 amended. | User Directive + Claude Opus 5.5 |

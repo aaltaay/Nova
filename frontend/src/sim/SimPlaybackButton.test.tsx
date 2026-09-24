@@ -22,10 +22,15 @@ it.each([true, false])('toggles paused=%s and publishes the returned clock', asy
   expect(onClock).toHaveBeenCalledExactlyOnceWith(returned);
 });
 
-it.each([null, { sim: false, paused: false }])('cannot change playback outside a known Sim clock: %j', clock => {
+it.each([
+  [null, 'Waiting for the Sim clock from Nova'],
+  [{ sim: false, paused: false }, "Nova's API is not on the Sim venue -- Sim time cannot move"],
+])('cannot change playback outside a known Sim clock, and says why: %j', (clock, why) => {
   render(<SimPlaybackButton clock={clock} onClock={vi.fn()} />);
   const button = screen.getByRole('button');
   expect((button as HTMLButtonElement).disabled).toBe(true);
+  expect(button.getAttribute('data-why')).toBe(why);
+  expect(button.getAttribute('title')).toBe('');
   fireEvent.click(button);
   expect(mocks.fetch).not.toHaveBeenCalled();
 });
@@ -35,12 +40,16 @@ it('prevents duplicate requests while playback is changing', async () => {
   mocks.fetch.mockImplementation(() => new Promise(done => { resolve = done; }));
   render(<SimPlaybackButton clock={{ sim: true, paused: true }} onClock={vi.fn()} />);
   const button = screen.getByRole('button');
+  expect(button.hasAttribute('data-why')).toBe(false);
+  expect(button.getAttribute('title')).toBe('Play Sim time');
   fireEvent.click(button);
   expect((button as HTMLButtonElement).disabled).toBe(true);
+  expect(button.getAttribute('data-why')).toBe('Starting Sim time -- wait for Nova to answer');
   fireEvent.click(button);
   expect(mocks.fetch).toHaveBeenCalledTimes(1);
   await act(async () => { resolve({ ok: true, json: async () => ({ sim: true, paused: false }) }); });
   expect((button as HTMLButtonElement).disabled).toBe(false);
+  expect(button.hasAttribute('data-why')).toBe(false);
 });
 
 it.each([

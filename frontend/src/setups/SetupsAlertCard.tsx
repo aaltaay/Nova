@@ -2,7 +2,7 @@
  * tape go". It floats on every tab until the setup triggers, fails or is
  * dismissed. It stages a ticket at most; nothing here places an order. */
 import { useState } from 'react';
-import { SETUP_KIND_LABELS, TAPE_VERDICT_LABELS, TAPE_VERDICT_TITLES } from '../constants';
+import { SETUP_KIND_LABELS, SETUPS_STAGE_NO_ENTRY_WHY, TAPE_VERDICT_LABELS, TAPE_VERDICT_TITLES } from '../constants';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { fmtCents, fmtPx } from './setupsFormat';
 import { stageSetupTicket } from './stageSetupTicket';
@@ -41,11 +41,12 @@ export function SetupsAlertCard({ board }: { board: SetupsBoard | null }) {
           type="button"
           className="setups-stage"
           disabled={!entry}
+          data-why={entry ? undefined : SETUPS_STAGE_NO_ENTRY_WHY}
           onClick={() => {
             stageSetupTicket(top.symbol, entry, openStockView);
             dismiss();
           }}
-          title={`Open ${top.symbol} and stage a BUY limit at ${entry}. Nothing is sent until you press Place.`}
+          title={entry ? `Open ${top.symbol} and stage a BUY limit at ${entry}. Nothing is sent until you press Place.` : undefined}
         >
           Stage ticket
         </button>

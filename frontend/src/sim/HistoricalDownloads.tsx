@@ -1,6 +1,6 @@
 import { etTime } from './historicalReplayFormat';
 import { durationLabel, jobLabel, jobSummary, nothingDownloaded, progressPercent } from './historicalProgress';
-import { SIM_HISTORY_NOTHING_DOWNLOADED_LINE } from './simConstants';
+import { SIM_HISTORY_NOTHING_DOWNLOADED_LINE, SIM_WHY_JOB_PAUSING, simWhyJobBusy } from './simConstants';
 import type { HistoricalJob } from './historicalTypes';
 
 /** "12,345" / "--": a job count the payload did not carry is unknown, never a crash (C7). */
@@ -32,8 +32,9 @@ export function HistoricalDownloads({ jobs, busy, onPick, onAction }: {
       <div className="sim-actions">
         <button type="button" aria-label={`Use this window: ${jobLabel(job)}`} onClick={() => onPick(job)}>Use this window</button>
         {job.status === 'pause_requested' && !job.stale
-          ? <button type="button" disabled aria-label={`Pausing download: ${jobLabel(job)}`}>Pausing - </button>
+          ? <button type="button" disabled data-why={SIM_WHY_JOB_PAUSING} aria-label={`Pausing download: ${jobLabel(job)}`}>Pausing - </button>
           : job.status !== 'complete' && <button type="button" disabled={busy.has(job.id)}
+            data-why={busy.has(job.id) ? simWhyJobBusy(actionLabel) : undefined}
             aria-label={`${actionLabel}: ${jobLabel(job)}`}
             onClick={() => onAction(job, action)}>{actionLabel}</button>}
       </div>

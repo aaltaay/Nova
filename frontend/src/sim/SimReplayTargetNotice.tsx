@@ -35,6 +35,10 @@ import {
   SIM_TAB_OTHER_SYMBOL_TITLE,
   SIM_TAB_REPLAY_FAILED_TITLE,
   SIM_TAB_WHAT_SIM_IS,
+  SIM_WHY_TAB_STARTING,
+  SIM_WHY_TAB_STOPPING,
+  SIM_WHY_TAB_STOPPING_OTHER,
+  SIM_WHY_WINDOW_LOADING,
   simTabGoToReplayLabel,
   simTabOfferBusy,
   simTabOfferDownload,
@@ -123,6 +127,11 @@ export function SimReplayTargetNotice({ symbol }: { symbol: string }) {
   const actionLabel = copy?.action
     ? starting ? SIM_TAB_ACTION_STARTING : loading ? SIM_TAB_ACTION_LOADING : ACTION_LABEL[copy.action]
     : null;
+  // Why the action is locked (ux/whyTip.ts): the request it sent is still in flight.
+  const actionWhy = starting
+    ? copy?.action === 'stop' ? SIM_WHY_TAB_STOPPING
+      : copy?.action === 'stop-other' ? SIM_WHY_TAB_STOPPING_OTHER : SIM_WHY_TAB_STARTING
+    : loading ? SIM_WHY_WINDOW_LOADING : null;
 
   return (
     <div
@@ -148,11 +157,14 @@ export function SimReplayTargetNotice({ symbol }: { symbol: string }) {
       {error && <span role="alert" className="sim-replay-target__error">{error}</span>}
       <span className="sim-replay-target__actions">
         {actionLabel && (
+          // Locked, title '' keeps the card's own title from showing over the reason.
           <button
             type="button"
             className="sim-replay-target__action"
             data-testid="sim-replay-target-action"
             disabled={starting || loading}
+            data-why={actionWhy ?? undefined}
+            title={actionWhy ? '' : undefined}
             onClick={run}
           >
             {actionLabel}

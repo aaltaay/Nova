@@ -108,7 +108,7 @@ describe('BotAutonomyCard', () => {
     await act(async () => { render(<BotAutonomyCard />); });
     const activate = screen.getByTestId('bot-card-activate') as HTMLButtonElement;
     expect(activate.disabled).toBe(true);
-    expect(activate.title).toBe('Spend locked');
+    expect(activate.getAttribute('data-why')).toBe('Spend locked');
   });
 
   it('refuses Activate at Strategy until the first-pullback read-out passes, and says why', async () => {
@@ -116,7 +116,7 @@ describe('BotAutonomyCard', () => {
     await act(async () => { render(<BotAutonomyCard />); });
     const activate = screen.getByTestId('bot-card-activate') as HTMLButtonElement;
     expect(activate.disabled).toBe(true);
-    expect(activate.title).toContain('12 of 50 go setups triggered');
+    expect(activate.getAttribute('data-why')).toContain('12 of 50 go setups triggered');
     await act(async () => { fireEvent.click(activate); });
     expect(posts.some(p => p.href.includes('/session/arm'))).toBe(false);
   });

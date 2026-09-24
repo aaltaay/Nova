@@ -1,6 +1,9 @@
 /** One Trading prerequisites checklist row + its CTA (split out of the gate for the 400-line limit). */
 import { BackendStartButton } from '../components/BackendStartButton';
 import {
+  GATEWAY_WHY_FRESH_LOGIN,
+  GATEWAY_WHY_RECONNECTING,
+  GATEWAY_WHY_SWITCHING,
   PREREQ_GATEWAY_FOLLOW_CTA_BUSY_LABEL,
   PREREQ_GATEWAY_FOLLOW_LIVE_CTA_LABEL,
   PREREQ_GATEWAY_RECONNECT_CTA_BUSY_LABEL,
@@ -75,6 +78,7 @@ export function PrereqItemRow({
               className="trading-prereq-cta"
               onClick={onFollowGateway}
               disabled={followBusy}
+              data-why={followBusy ? GATEWAY_WHY_SWITCHING : undefined}
               data-testid="trading-prereq-follow-gateway"
             >
               {followBusy
@@ -90,6 +94,7 @@ export function PrereqItemRow({
               className="trading-prereq-cta"
               onClick={onStartFreshLogin}
               disabled={freshLoginBusy}
+              data-why={freshLoginBusy ? GATEWAY_WHY_FRESH_LOGIN : undefined}
               data-testid="trading-prereq-fresh-login"
             >
               {freshLoginBusy
@@ -105,6 +110,7 @@ export function PrereqItemRow({
               className="trading-prereq-cta"
               onClick={onReconnectIbkr}
               disabled={reconnectBusy}
+              data-why={reconnectBusy ? GATEWAY_WHY_RECONNECTING : undefined}
               data-testid="trading-prereq-reconnect"
             >
               {reconnectBusy

@@ -48,6 +48,8 @@ export function ChartPositionMenu(props: {
   connected: boolean;
   spendStatus?: string;
   flattenDisabled?: boolean;
+  /** Why `flattenDisabled` is set (ux/whyTip.ts). */
+  flattenWhy?: string | null;
   onViewDetails: () => void;
   onClosed?: () => void;
 }) {
@@ -72,6 +74,7 @@ export function ChartPositionMenu(props: {
             connected={props.connected}
             spendStatus={props.spendStatus}
             disabled={props.flattenDisabled}
+            why={props.flattenWhy}
             variant="menu"
             label={CHART_POSITION_MENU_CLOSE}
             testId="chart-position-menu-close"
@@ -101,6 +104,7 @@ export function ChartPositionTag(props: {
   connected: boolean;
   spendStatus?: string;
   flattenDisabled?: boolean;
+  flattenWhy?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -168,6 +172,7 @@ export function ChartPositionTag(props: {
           connected={props.connected}
           spendStatus={props.spendStatus}
           flattenDisabled={props.flattenDisabled}
+          flattenWhy={props.flattenWhy}
           onViewDetails={() => {
             setOpen(false);
             requestStockViewDock({ surface: 'positions' });
@@ -204,6 +209,7 @@ export function ChartPositionTagHost(props: {
       connected={ctx.connected}
       spendStatus={ctx.spendStatus}
       flattenDisabled={ctx.flattenDisabled}
+      flattenWhy={ctx.flattenWhy}
     />
   );
 }

@@ -36,6 +36,7 @@ import type { DeskVenue } from '../constantGroups/desk_venue';
 import {
   PRACTICE_RESET_CONFIRM_LABEL,
   PRACTICE_RESET_FAILED,
+  practiceResetBusyWhy,
   practiceResetConfirmMessage,
   practiceResetConfirmTitle,
   practiceResetDone,
@@ -85,7 +86,8 @@ function ResetButton({ startingCash }: { startingCash: number | null }) {
   };
   return (
     <>
-      <button type="button" className="acct-btn-primary" disabled={busy} data-testid="account-reset-button" onClick={() => void reset()}>
+      <button type="button" className="acct-btn-primary" disabled={busy} data-why={busy ? practiceResetBusyWhy('paper') : undefined}
+        data-testid="account-reset-button" onClick={() => void reset()}>
         {ACCOUNT_RESET_BUTTON}
       </button>
       <div className="acct-field"><span className="acct-row__k">{ACCOUNT_STARTING_CASH}</span><span className="acct-num">{formatMoney(startingCash)}</span></div>

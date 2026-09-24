@@ -36,6 +36,18 @@ class TapeFeed:
         self._prints: dict[str, deque] = {}
         self._queues: dict[str, asyncio.Queue] = {}
         self._last_sample: dict[str, float] = {}
+        self._keep_sec = KEEP_SEC
+        self._book_keep = BOOK_KEEP
+
+    def keep_window(self, window_sec: float) -> None:
+        """Keep enough history for the longest tape window any template reads (ADR 029)."""
+        keep = max(KEEP_SEC, 3 * float(window_sec))
+        if keep == self._keep_sec:
+            return
+        self._keep_sec = keep
+        self._book_keep = max(BOOK_KEEP, int(keep / TAPE_GATE_BOOK_SAMPLE_SEC) + 4)
+        for sym, dq in list(self._books.items()):
+            self._books[sym] = deque(dq, maxlen=self._book_keep)
 
     def has_depth(self, sym: str) -> bool:
         try:
@@ -53,7 +65,7 @@ class TapeFeed:
             if self.has_depth(sym) and now - self._last_sample.get(sym, 0.0) >= TAPE_GATE_BOOK_SAMPLE_SEC:
                 book = self._depth.current_book(sym)
                 if book and (book.get("bids") or book.get("asks")):
-                    self._books.setdefault(sym, deque(maxlen=BOOK_KEEP)).append((now, book))
+                    self._books.setdefault(sym, deque(maxlen=self._book_keep)).append((now, book))
                     self._last_sample[sym] = now
             if sym not in self._queues and self._tape.is_subscribed(sym):
                 self._queues[sym] = self._tape.open_viewer_queue(sym)
@@ -73,7 +85,7 @@ class TapeFeed:
                     break
                 if isinstance(pr, dict):
                     buf.append(pr)
-            while buf and float(buf[0].get("ts") or 0) < now - KEEP_SEC:
+            while buf and float(buf[0].get("ts") or 0) < now - self._keep_sec:
                 buf.popleft()
 
     def books(self, sym: str) -> list[tuple[float, dict]]:

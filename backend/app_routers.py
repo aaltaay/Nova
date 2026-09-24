@@ -39,6 +39,8 @@ from routes.desk import router as desk_router
 from diagnostics.routes import router as diagnostics_router
 from leaderboard.routes import router as leaderboard_router
 from setup_scanner.routes import router as setups_router
+from setup_templates.routes import router as setup_templates_router
+from eyes.routes import router as eyes_router
 from perf.routes import router as perf_router
 from catalysts.routes import router as catalysts_router
 from move_reason.routes import router as move_reason_router
@@ -81,6 +83,8 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(diagnostics_router)
     app.include_router(leaderboard_router)
     app.include_router(setups_router)
+    app.include_router(setup_templates_router)
+    app.include_router(eyes_router)
     app.include_router(perf_router)
     app.include_router(catalysts_router)
     app.include_router(move_reason_router)
