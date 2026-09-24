@@ -7,6 +7,7 @@ import time
 from datetime import datetime, timezone
 from types import MappingProxyType
 from typing import Any
+from ibkr.tape_exchange_time import exchange_second
 from ibkr.tape_side import best_bid_ask, classify_print_side
 from metrics.op_metrics import timed_fn
 from sale_conditions import sets_price
@@ -37,9 +38,12 @@ def on_tape_update(ticker: Any, symbol: str, push, depth) -> None:
         return
     for tbt in tbt_list:
         ts = getattr(tbt, "time", None)
-        # A print with no exchange time is stamped on arrival; say so, so a
-        # recording never presents a substituted time as the exchange's own.
-        ts_source = "exchange" if ts is not None else "receive"
+        # ib_async stamps every tick with its arrival at Nova (Wrapper.lastTime),
+        # never IBKR's own time, so ``ts`` is an arrival time and says so (#563).
+        # IBKR's whole second rides beside it as ``exchange_ts`` when
+        # ``tape_exchange_time`` caught it; prints stay in arrival order, like the books.
+        ts_source = "receive"
+        exchange_ts = exchange_second(tbt)
         if ts is None:
             ts_iso = datetime.now(timezone.utc).isoformat()
         elif hasattr(ts, "isoformat"):
@@ -82,6 +86,7 @@ def on_tape_update(ticker: Any, symbol: str, push, depth) -> None:
             "ts": datetime.fromisoformat(ts_iso).timestamp(),
             "receive_ts": time.time(),
             "ts_source": ts_source,
+            "exchange_ts": exchange_ts,
             "source": "ibkr",
         }
         from ibkr.tape_recording import dispatch

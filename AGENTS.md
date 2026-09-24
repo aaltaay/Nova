@@ -1228,9 +1228,12 @@ a SELL is only ever risk-reducing -- a SELL beyond the held quantity or any
 20:00 ET on Paper, the replayed window's end on Sim -- as an `expired` ledger
 event with status `Expired`; `GTC` persists across days and restarts; the row
 and its `placed` event carry `tif` and `expires_ts`). Recorded prints carry
-`ts_source: "exchange" | "receive"` so a substituted arrival time is never read
-as the exchange's own. Practice order rows stamp `submitted_at` /
-`updated_at` / `filled_at` with the venue's time -- the replay playhead on Sim,
+`ts_source` naming what their `ts` is, so an arrival time is never read as the
+exchange's own: every live print since #563 says `receive` and carries IBKR's
+own second in `exchange_ts`; rows recorded before #563 say `exchange` but hold
+arrival times too (print times, under "Prints that set a price"). Practice
+order rows stamp `submitted_at` / `updated_at` / `filled_at` with the venue's
+time -- the replay playhead on Sim,
 the clock a rewind unwinds by -- and a paused Sim playhead scrubbed forward
 still fills resting orders on the prints it crossed. Rules and biases: `architecture/practice-fills.md`;
 fees and margin: `architecture/practice-account.md`.
@@ -1390,6 +1393,8 @@ Each live AllLast print on `/ws/ibkr/tape/{symbol}` gains two fields, and so doe
 The owner is `backend/sale_conditions.py`; the codes live in `constants_tape.py`. Time & Sales shows every print, and dims one that does not set a price with the reason in its tooltip (#543). A Sim capture replay's prints on `/ws/ibkr/tape/{symbol}` -- the seed a socket gets on open or a scrub, and the stream as the playhead moves -- carry the same two fields, from the recorded row (`sale_conditions.tape_flags`). Every candle Nova builds from prints uses only the prints that set a price, volume included, because IBKR's own TRADES bars count the same prints. That covers the Trader's client 10Sec bar, `ibkr/tape_10sec`, the archive 1m builder, the recorder's bar buckets and a capture replay's print-built candles. A row without the fields (an older recording) is judged by its conditions. A Session Record replay draws every candle from its prints and never from the bar buckets stored beside them (#535, operator decision 2026-09-23): recordings made before this rule stored buckets built from every print, and `replay_load.counts` no longer lists `bars_10s` / `bars_1m` / `bars_5m`.
 
 Practice fills follow the same rule (#511): on Paper, and on Sim at the live edge, the practice broker's newest-print last and its resting-order matcher read only the prints that set a price, and so do a capture replay's last and matcher. The live tape archive (`l2.db` `tape_trades`) adds a nullable `unreported` column (IBKR's flag) beside `conditions` for this; a row stored before it is judged by its conditions. A historical download already excludes IBKR's `unreported` prints.
+
+**Print times (#563).** ib_async 2.1.0 stamps each AllLast tick with the moment its message reached Nova (`Wrapper.lastTime`) and throws IBKR's own `time` argument away. A live print's `time` / `ts` is that arrival time, and it says so: `ts_source: "receive"`. IBKR's whole epoch second for the print rides beside it as `exchange_ts: integer | null`, on each live print on `/ws/ibkr/tape/{symbol}` and on each Session Record print row; `ibkr/tape_exchange_time.py` keeps the `time` argument with a thin override of `Wrapper.tickByTickAllLast`, installed on the IB that opens the tape line. `exchange_ts` is `null` when the override did not see the tick. Prints stay ordered by arrival, because the books they are classified against are arrival-timed too. Rows recorded before #563 say `ts_source: "exchange"` but hold arrival times as well, and carry no `exchange_ts`; they load as they are and are never rewritten. `l2.db` `tape_trades` and the archive keep no `exchange_ts`.
 
 The L1 last every quote reader takes (`ibkr/ticks_handler.py`) is IBKR's Last (tick 4, or 68 delayed). It is never the RTVolume or AllLast price that ib_async also writes into the one `ticker.last` it keeps per contract. A line that has not yet delivered a tick 4 falls back to `ticker.last`.
 

@@ -81,7 +81,9 @@ def test_callback_persists_identical_provenance_to_both_sinks():
         assert captured[field] == rows[0][field]
     assert rows[0]["session_id"] == "session-a"
     assert captured["source"] == "ibkr"
-    assert captured["ts_source"] == "exchange"
+    # ib_async stamps a print with its arrival at Nova, never IBKR's time (#563).
+    assert captured["ts_source"] == "receive"
+    assert captured["exchange_ts"] is None  # this tick did not pass the wrapper override
     assert (directory / "quotes.jsonl").stat().st_size == 0
     assert (directory / "l2.jsonl").stat().st_size == 0
     assert json.loads((directory / "manifest.json").read_text())["counts"]["prints"] == 1
@@ -106,6 +108,32 @@ def test_print_without_an_exchange_time_is_recorded_as_stamped_on_arrival():
     directory = Path(recorder.status()["dir"])
     mode.set_capture_mode(False)
     assert [row["ts_source"] for row in rows(directory, "prints")] == ["receive"]
+
+
+def test_a_recorded_print_keeps_ibkrs_second_beside_its_arrival_time():
+    """#563: ib_async's own wrapper, decoder and registry feed the Session Record row."""
+    from ib_async import IB, Stock
+    from ibkr import tape_exchange_time
+
+    arrived = datetime(2026, 9, 18, 14, 30, 2, 400_000, tzinfo=timezone.utc)
+    ibkr_second = int(datetime(2026, 9, 18, 14, 30, 1, tzinfo=timezone.utc).timestamp())
+    ib = IB()
+    ib.client.getReqId = lambda: 7
+    ib.client.reqTickByTickData = lambda *_args: None
+    contract = Stock("AAPL", "SMART", "USD")
+    contract.conId = 265598
+    ticker = ib.reqTickByTickData(contract, "AllLast")
+    assert tape_exchange_time.install(ib)
+    ib.wrapper.lastTime = arrived
+    ib.client.decoder.tickByTick(["99", "7", "2", str(ibkr_second), "42.25", "7", "0", "NASDAQ", "T"])
+
+    mode.set_capture_mode(True, symbol="AAPL")
+    tape_stream._on_tape_update(ticker, "AAPL")
+    mode.set_capture_mode(False)  # drains accepted rows into the print's own (event) day
+    [row] = rows(Path(recorder.status()["dir"]), "prints")
+    assert row["ts"] == arrived.timestamp()  # rows stay in arrival order, like the books
+    assert row["ts_source"] == "receive"
+    assert row["exchange_ts"] == ibkr_second
 
 
 def test_invalid_producer_timestamp_is_diagnosed_by_the_recorder():

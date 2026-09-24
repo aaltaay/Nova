@@ -115,6 +115,17 @@ def test_valid_rows_survive_torn_tail_with_warning(tmp_path, caplog):
     assert player.prints_since(TS - 1, TS + 1) == [print_row()]
 
 
+def test_rows_from_before_and_after_the_honest_time_label_both_load_unrewritten(tmp_path):
+    """#563: rows recorded before it say ``exchange`` but hold arrival times; they load as they are."""
+    older = print_row(ts_source="exchange")
+    newer = print_row(ts=TS + 1, ts_source="receive", exchange_ts=int(TS))
+    root = capture(tmp_path, prints=[older, newer])
+    on_disk = (root / "prints.jsonl").read_bytes()
+    assert replay.set_replay(DAY, "IMCC")["replay_ok"]
+    assert player.prints_since(TS - 1, TS + 2) == [older, newer]
+    assert (root / "prints.jsonl").read_bytes() == on_disk
+
+
 def test_capture_feed_uses_recorded_symbol_and_no_gap_or_fabricated_book(tmp_path, monkeypatch):
     from ibkr import tape_stream
     from ibkr.depth import state
