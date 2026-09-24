@@ -196,42 +196,55 @@ def test_default_date_skips_holidays_outside_the_once_hardcoded_year(now, expect
     assert store.default_date(datetime.fromisoformat(now).replace(tzinfo=store.ET)) == expected
 
 
+class DailyCloses:
+    """A gateway that answers the download's prior-close request (#542) and its candles."""
+    def __init__(self, closes):
+        self.closes = closes
+    async def open(self, symbol):
+        return {'conId': 7}
+    async def daily_closes(self, day):
+        return self.closes
+    async def bars(self, job):
+        return [dict(t=datetime.fromtimestamp(job['start_ts'], timezone.utc).isoformat(), o=1, h=1, l=1, c=1, v=1)]
+    def close(self):
+        pass
+
+
 def test_previous_close_reads_the_true_prior_session_across_a_holiday(client):
-    """Prior close must not appear missing when the real prior session is stored."""
+    """The download stores the regular-hours close of the real prior session (#386, #542).
+
+    The 15:59 minute close is the last trade before the closing auction, not the
+    close: it sits in the chart store and is never read.
+    """
     import bars_store
-    from sim import history_cache
+    from sim import prior_close
     bars_store.write_payload(dict(symbol='HOLI', timeframe='1Min', bars=[
-        # Thu 2025-07-03 15:59 ET is the prior session for Mon 2025-07-07.
-        dict(t='2025-07-03T19:59:00Z', o=1, h=2, l=1, c=31.5, v=10),
-        # Fri 2025-07-04 is an exchange holiday; this bar must never be chosen.
-        dict(t='2025-07-04T19:59:00Z', o=1, h=2, l=1, c=99.9, v=10)]))
-    assert history_cache.previous_close('HOLI', {'date': '2025-07-07'}) == 31.5
+        # Thu 2025-07-03 15:59 ET.
+        dict(t='2025-07-03T19:59:00Z', o=1, h=2, l=1, c=31.9, v=10)]))
+    job = store.create(store.window('HOLI', '2025-07-07', '04:00', '04:10'), 'bars')
+    # Fri 2025-07-04 is an exchange holiday; a bar dated there must never be chosen.
+    gateway = DailyCloses([('2025-07-03', 31.5), ('2025-07-04', 99.9)])
+    result = asyncio.run(download.run(job['id'], gateway, threading.Event(), paced=False))
+    assert result['prior_close'] == {'close': 31.5, 'date': '2025-07-03', 'source': 'ibkr_rth_daily'}
+    assert prior_close.previous_close('HOLI', '2025-07-07') == 31.5
 
 
 def test_previous_close_reads_the_prior_session_below_the_calendars_first_year(client):
-    """The stored prior bar still wins when the walk leaves the vouched range.
+    """The prior session still answers when the walk leaves the vouched range.
 
     ``2015-01-02`` is inside the supported range but its prior session is not;
-    the earlier fix returned None here and for every date before 2015-01-05,
-    turning a working path into a miss even with the bar on disk (#386).
+    an earlier fix returned None here and for every date before 2015-01-05 (#386).
     """
-    import bars_store
-    from sim import history_cache
-    bars_store.write_payload(dict(symbol='EDGE', timeframe='1Min', bars=[
-        # Wed 2014-12-31 15:59 ET (EST, so 20:59Z) is the prior session.
-        dict(t='2014-12-31T20:59:00Z', o=1, h=2, l=1, c=57.25, v=10)]))
-    assert history_cache.previous_close('EDGE', {'date': '2015-01-02'}) == 57.25
+    from sim import prior_close
+    # Wed 2014-12-31 is the prior session (Thu 2015-01-01 is New Year's Day).
+    assert prior_close.prior_session_close([('2014-12-31', 57.25)], '2015-01-02') == ('2014-12-31', 57.25)
 
 
 def test_previous_close_still_answers_for_a_selection_older_than_the_calendar(client, caplog):
-    """A pre-2015 archive keeps the weekday behaviour it had before the calendar."""
-    import bars_store
-    from sim import history_cache
-    bars_store.write_payload(dict(symbol='OLDY', timeframe='1Min', bars=[
-        # Wed 2014-06-04 15:59 ET (EDT, so 19:59Z).
-        dict(t='2014-06-04T19:59:00Z', o=1, h=2, l=1, c=42.5, v=10)]))
+    """A pre-2015 day keeps the weekday behaviour it had before the calendar."""
+    from sim import prior_close
     with caplog.at_level(logging.WARNING):
-        assert history_cache.previous_close('OLDY', {'date': '2014-06-05'}) == 42.5
+        assert prior_close.prior_session_close([('2014-06-04', 42.5)], '2014-06-05') == ('2014-06-04', 42.5)
     assert 'outside the supported exchange calendar' in caplog.text
 
 

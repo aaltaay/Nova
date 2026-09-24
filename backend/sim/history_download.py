@@ -7,7 +7,7 @@ import math
 import threading
 import time
 
-from constants_sim import SIM_HISTORY_GATEWAY_NOT_ANSWERING
+from constants_sim import SIM_HISTORY_GATEWAY_NOT_ANSWERING, SIM_HISTORY_PRIOR_CLOSE_SOURCE
 from sim import history_coverage as coverage, history_store as store
 
 logger = logging.getLogger(__name__)
@@ -65,6 +65,34 @@ async def _answered(awaitable, stage: str):
         ) from exc
 
 
+async def record_prior_close(job_id: str, job: dict, gateway) -> dict:
+    """Store IBKR's regular-hours close of the session before the job's day (#542).
+
+    The replay's previous close reads it when neither a recorded tick 9 nor the
+    leaderboard has one (``sim.prior_close``). A series that lacks that session
+    stores ``prior_close: None`` -- IBKR answered, and an older close is never
+    taken. A failed request, or an empty answer (ib_async's timeout returns
+    one), stores nothing, so the next run asks again. It never fails the
+    download: the prints do not depend on it.
+    """
+    from sim.prior_close import prior_session_close
+
+    try:
+        closes = await _answered(gateway.daily_closes(job["date"]), "fetching the prior close")
+    except Exception:
+        logger.warning("Historical replay: prior close unavailable for %s %s; the download continues",
+                       job["symbol"], job["date"], exc_info=True)
+        return job
+    if not closes:
+        logger.warning("Historical replay: IBKR sent no daily closes for %s before %s; asked again next run",
+                       job["symbol"], job["date"])
+        return job
+    found = prior_session_close(closes, job["date"])
+    prior = (dict(close=found[1], date=found[0], source=SIM_HISTORY_PRIOR_CLOSE_SOURCE)
+             if found else None)
+    return store.update(job_id, prior_close=prior)
+
+
 async def run(job_id: str, gateway, stop: threading.Event, *, paced=True):
     job = store.begin_run(job_id)
     if job["status"] == "complete":
@@ -75,6 +103,7 @@ async def run(job_id: str, gateway, stop: threading.Event, *, paced=True):
         if job["contract"] and job["contract"] != identity:
             raise ValueError("Contract identity changed; refusing to mix downloads")
         job = store.update(job_id, contract=identity)  # also refreshes the liveness heartbeat
+        prior_asked = "prior_close" in job
         while job["pages"] < store.MAX_PAGES:
             if stop.is_set() or store.get(job_id)["status"] == "pause_requested":
                 # A seek belongs to the moment it was asked; a later resume starts clean.
@@ -84,6 +113,11 @@ async def run(job_id: str, gateway, stop: threading.Event, *, paced=True):
                 if wait:
                     await asyncio.sleep(min(wait, 1))
                     continue
+            if not prior_asked:
+                # Once per run, paced like any page, before the first one.
+                prior_asked = True
+                job = await record_prior_close(job_id, job, gateway)
+                continue
             if job["kind"] == "bars":
                 bars = await _answered(gateway.bars(job), "fetching candles")
                 # One request fetches the whole window's candles, so a finished

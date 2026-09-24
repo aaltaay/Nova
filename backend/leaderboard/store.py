@@ -5,6 +5,7 @@ and immutable; a reconstruction rebuild replaces only its own (date, source).
 """
 from __future__ import annotations
 
+import logging
 import os
 import sqlite3
 from collections.abc import Iterable, Iterator, Sequence
@@ -16,6 +17,9 @@ from constants_leaderboard import (
     LEADERBOARD_DB_FILENAME,
     LEADERBOARD_DEFAULT_ROOT_WIN,
     LEADERBOARD_DIR_ENV,
+    LEADERBOARD_SCHEMA_VERSION,
+    LEADERBOARD_SOURCE_RECONSTRUCTED,
+    LEADERBOARD_SOURCE_RECORDED,
     LEADERBOARD_SQLITE_TIMEOUT_SEC,
 )
 from leaderboard.schema import (
@@ -23,8 +27,11 @@ from leaderboard.schema import (
     HALT_COLUMNS,
     MINUTE_COLUMNS,
     ROW_COLUMNS,
+    UnknownLeaderboardSchema,
     initialize,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _durable_archive_available() -> bool:
@@ -58,6 +65,32 @@ def connect(database: Path | None = None) -> Iterator[sqlite3.Connection]:
         yield db
     finally:
         db.close()
+
+
+def read_only(database: Path | None = None) -> sqlite3.Connection | None:
+    """The store opened read-only, or ``None`` when there is none yet.
+
+    For readers outside the recorder (the replay's previous close, #542): a read
+    never creates the store, its directory or its tables. A store written by a
+    newer Nova raises ``UnknownLeaderboardSchema``, as ``connect`` does.
+    """
+    target = database or path()
+    if not target.is_file():
+        return None
+    db = sqlite3.connect(f"{target.resolve().as_uri()}?mode=ro", uri=True,
+                         timeout=LEADERBOARD_SQLITE_TIMEOUT_SEC)
+    try:
+        version = db.execute("PRAGMA user_version").fetchone()[0]
+    except sqlite3.Error:
+        db.close()
+        raise
+    if version == LEADERBOARD_SCHEMA_VERSION:
+        return db
+    db.close()
+    if version == 0:
+        return None  # Created but never initialized: nothing has been written.
+    raise UnknownLeaderboardSchema(
+        f"leaderboard store schema version {version} is not {LEADERBOARD_SCHEMA_VERSION}")
 
 
 def _insert_sql(table: str, columns: Sequence[str], verb: str = "INSERT OR REPLACE") -> str:
@@ -206,6 +239,39 @@ def runs_between(db: sqlite3.Connection, start: float, end: float) -> list[dict[
         (float(end), float(start)),
     ).fetchall()
     return [dict(row) for row in out]
+
+
+def prev_close_for(db: sqlite3.Connection, session_date: str, symbol: str) -> float | None:
+    """The symbol's prior close on that day's rows: recorded (IBKR tick 9) before rebuilt.
+
+    The most common positive value, so one odd minute cannot outvote the day;
+    ties go to the value seen latest.
+    """
+    for source in (LEADERBOARD_SOURCE_RECORDED, LEADERBOARD_SOURCE_RECONSTRUCTED):
+        row = db.execute(
+            "SELECT prev_close FROM rows"
+            " WHERE session_date = ? AND source = ? AND symbol = ? AND prev_close > 0"
+            " GROUP BY prev_close ORDER BY COUNT(*) DESC, MAX(minute_ts) DESC LIMIT 1",
+            (session_date, source, symbol.strip().upper()),
+        ).fetchone()
+        if row is not None:
+            return float(row[0])
+    return None
+
+
+def day_prev_close(session_date: str, symbol: str, database: Path | None = None) -> float | None:
+    """``prev_close_for`` on the store as found; ``None`` when absent, unreadable or silent."""
+    try:
+        db = read_only(database)
+        if db is None:
+            return None
+        try:
+            return prev_close_for(db, session_date, symbol)
+        finally:
+            db.close()
+    except (sqlite3.Error, OSError, ValueError):
+        logger.warning("LEADERBOARD: prior close unread for %s %s", symbol, session_date, exc_info=True)
+        return None
 
 
 def halt_events(

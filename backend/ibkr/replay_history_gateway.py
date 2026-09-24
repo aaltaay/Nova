@@ -8,15 +8,17 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
+from zoneinfo import ZoneInfo
 
 from constants_ibkr import IBKR_HOST, IBKR_LIVE_PORT, IBKR_PAPER_PORT
 from constants_sim import (
     SIM_HISTORY_CLIENT_ID, SIM_HISTORY_CLIENT_ID_ENV, SIM_HISTORY_CONNECT_TIMEOUT_SEC, SIM_HISTORY_GATEWAY_UNREACHABLE,
-    SIM_HISTORY_PAGE_SIZE, SIM_HISTORY_REQUEST_TIMEOUT_SEC,
+    SIM_HISTORY_PAGE_SIZE, SIM_HISTORY_PRIOR_CLOSE_DURATION, SIM_HISTORY_REQUEST_TIMEOUT_SEC,
 )
 
 logger = logging.getLogger(__name__)
+ET = ZoneInfo("America/New_York")
 
 
 def candidate_ports() -> list[int]:
@@ -99,6 +101,25 @@ class ReplayHistoryGateway:
         if not bars:
             raise ValueError("No candles fall inside the requested window")
         return bars
+
+    async def daily_closes(self, day: str) -> list[tuple[str, float]]:
+        """``(date, close)`` of IBKR's regular-hours daily bars for the sessions before ``day`` (#542).
+
+        ``useRTH=True``: the close is the regular session's, never the last
+        after-hours trade the desk's extended-hours daily bars end on.
+        """
+        end = datetime.combine(date.fromisoformat(day), time(0, 0), ET)
+        rows = await self.ib.reqHistoricalDataAsync(
+            self.contract, endDateTime=end.astimezone(timezone.utc),
+            durationStr=SIM_HISTORY_PRIOR_CLOSE_DURATION, barSizeSetting="1 day", whatToShow="TRADES",
+            useRTH=True, formatDate=1, timeout=SIM_HISTORY_REQUEST_TIMEOUT_SEC,
+        )
+        out = []
+        for r in rows or []:
+            # A daily bar is dated by its session; a datetime (formatDate=2) is read in Eastern time.
+            when = r.date.astimezone(ET).date() if isinstance(r.date, datetime) else r.date
+            out.append((when.isoformat(), float(r.close)))
+        return out
 
     def close(self):
         if self.ib is not None:

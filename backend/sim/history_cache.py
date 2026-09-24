@@ -4,7 +4,7 @@ from __future__ import annotations
 import bisect
 import threading
 from collections import OrderedDict
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import datetime, timezone
 
 from constants_sim import SIM_HISTORY_ARCHIVE_CACHE_ENTRIES, SIM_HISTORY_RESULT_CACHE_ENTRIES
 from sim import history_coverage as coverage, history_store as store
@@ -15,26 +15,6 @@ from sim.chart_replay import (
 
 def timestamp(row):
     return datetime.fromisoformat(row['t'].replace('Z', '+00:00')).timestamp()
-
-
-def previous_close(symbol: str, spec: dict) -> float | None:
-    """The previous session only; misses are immutable until explicit reload.
-
-    The prior day is derived, not chosen, so it uses ``last_open_day``: a stored
-    prior-session bar must still be found when the walk steps below the
-    calendar's first supported year, and a miss here means "no bar", never "the
-    calendar declined to answer" (#386).
-    """
-    from bars_store import read
-    from sim.trading_day import last_open_day
-    prior = last_open_day(date.fromisoformat(spec['date']) - timedelta(days=1))
-    last_minute = datetime.combine(prior, time(15, 59), store.ET).timestamp()
-    daily_label = datetime.combine(prior, time(0, 0), timezone.utc).timestamp()
-    for timeframe, ts in (('1Min', last_minute), ('1Day', daily_label)):
-        rows = (read(symbol, timeframe, 1, from_ts=ts, through_ts=ts) or {}).get('bars') or []
-        if rows:
-            return float(rows[-1]['c'])
-    return None
 
 
 def bounded_put(cache, key, value, maximum):

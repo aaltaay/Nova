@@ -105,28 +105,26 @@ def _price_from_chart_bars(symbol: str) -> Traded:
         return None, None
 
 
-def _prev_close_from_daily_bars(symbol: str) -> float | None:
-    """Prior session close from daily bars (for day change when quote close is missing)."""
-    try:
-        from alpaca import _get_discovery_provider
-        from chart_bars import fetch_chart_bars
+def _prev_close_recorded(symbol: str) -> float | None:
+    """IBKR's tick-9 prior close from the symbol's L1 line, else today's leaderboard rows (#542).
 
-        payload = fetch_chart_bars(
-            symbol,
-            timeframe="1Day",
-            limit=3,
-            discovery_provider=_get_discovery_provider(),
-            interactive=True,
-        )
-        bars = payload.get("bars") or []
-        if len(bars) < 2:
-            return None
-        # Last daily bar may be today's partial — prior close is the previous bar.
-        close = bars[-2].get("c")
-        return float(close) if close is not None else None
+    Never a daily bar: the stored daily series is fetched with extended hours
+    (``IBKR_HISTORICAL_USE_RTH``), so its close is the last after-hours trade --
+    and before today's bar exists ``bars[-2]`` was two sessions back. Unknown is
+    ``None``: the quote head then shows no change until the line sends tick 9.
+    """
+    sym = (symbol or "").strip().upper()
+    try:
+        from ibkr import ticks as _ticks
+
+        close = (_ticks.last_quotes([sym]).get(sym) or {}).get("prev_close")
+        if close is not None:
+            return float(close)
     except Exception as exc:
-        logger.debug("ticker IBKR daily prev_close failed for %s: %s", symbol, exc)
-        return None
+        logger.debug("ticker IBKR L1 prev_close lookup failed for %s: %s", sym, exc)
+    from leaderboard import store as leaderboard_store
+
+    return leaderboard_store.day_prev_close(datetime.now(ET).date().isoformat(), sym)
 
 
 def fetch_ticker_snapshot_ibkr(symbol: str) -> dict:
@@ -206,7 +204,7 @@ def fetch_ticker_snapshot_ibkr(symbol: str) -> dict:
         price, traded_at = _price_from_chart_bars(symbol)
 
     if prev_close is None:
-        prev_close = _prev_close_from_daily_bars(symbol)
+        prev_close = _prev_close_recorded(symbol)
 
     if price is None and prev_close is None:
         return {}

@@ -344,6 +344,22 @@ def read_candles(symbol: str, start: int, end: int):
         return list({json.loads(r[0])["t"]: json.loads(r[0]) for r in rows}.values())
 
 
+def prior_close(symbol: str, date: str) -> float | None:
+    """IBKR's regular-hours prior close a download of this symbol-day stored (#542), else None.
+
+    Read from the job's ``prior_close`` (``history_download``); no archive file is no download.
+    """
+    if not path().is_file():
+        return None
+    with connect() as db:
+        row = db.execute(
+            "SELECT json_extract(payload, '$.prior_close.close') FROM jobs"
+            " WHERE json_extract(payload, '$.symbol') = ? AND json_extract(payload, '$.date') = ?"
+            " AND json_extract(payload, '$.prior_close.close') > 0 ORDER BY rowid DESC LIMIT 1",
+            (symbol, date)).fetchone()
+    return float(row[0]) if row else None
+
+
 def _active_elsewhere(all_jobs: list[dict], job_id: str | None) -> bool:
     now = time.time()
     return any(item["id"] != job_id and item["status"] in ACTIVE

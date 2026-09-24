@@ -337,6 +337,32 @@ classified by the live tape's own rule (`ibkr/tape_side.py`). Otherwise the side
 is `null` and no bid/ask is attached. Unreported prints never get a side. No
 side is ever inferred from price movement.
 
+### The replayed session's previous close (#542)
+
+Owner `sim/prior_close.py`. The `prev_close` a Sim replay measures change and
+Gap% from -- `replay_quote.prev_close`, a loaded capture's quote and ticker
+projections (one value per load, whichever row is read), the historical
+snapshot's `prev_close` and the eyes' replays -- is, first answer wins:
+IBKR's tick-9 close recorded with the Session Record (the most common positive
+`prev_close` on its quote rows from 04:00 ET of that day); the leaderboard's
+`prev_close` for that symbol-day (recorded rows before reconstructed ones, the
+day's most common value; read read-only, so a read never creates the store);
+IBKR's regular-hours daily close of the prior session, stored with a
+historical download of that symbol-day; else `null` -- a stated absence, no
+change and no Gap%. Never the prior session's 15:59 one-minute close (the last
+trade before the closing auction) and never a stored daily bar (fetched with
+extended hours, it closes on the last after-hours trade).
+
+Session Record quote rows add `prev_close: number | null` -- IBKR tick 9 on the
+symbol's live L1 line when one is open (Record's own tape and depth lines
+carry no close), `null` otherwise. Historical download jobs add `prior_close:
+{close, date, source: "ibkr_rth_daily"} | null` -- IBKR's daily TRADES close
+with `useRTH` dated the exchange session before the job's day, asked once per
+run before the first page and paced like one; `null` when IBKR's series lacks
+that session (never an older close), absent until IBKR has answered. The live
+ticker snapshot's `prev_close` falls back to the L1 line's tick 9, then today's
+leaderboard, and is `null` rather than a daily bar.
+
 ### Desk diagnostics (ADR 021)
 
 `GET /api/diagnostics` (owner `backend/diagnostics/`) answers `schema_version: 1`,
@@ -920,7 +946,8 @@ can be disabled without its reason.
 ```
 
 Capture market projections preserve missing facts: print-only rows have null
-bid/ask/sizes/previous close; depth is empty without recorded books; daily OHLC
+bid/ask/sizes and the replay's own previous close (null when nothing records
+one, #542); depth is empty without recorded books; daily OHLC
 is null unless a replay source provides it. Loading, failed, and pre-first-event
 capture selections have no market data to fall back to -- there is no synthetic
 instrument (ADR 019), and `replay_source` is `none` when nothing is loaded.

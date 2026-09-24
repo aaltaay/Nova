@@ -508,6 +508,27 @@ def test_depth_is_not_claimed_before_a_book_has_been_seen():
     assert "not recording" in status["warning"]
 
 
+def test_quote_rows_carry_ibkrs_tick9_close_from_the_l1_line(monkeypatch):
+    """The replay reads the recorded prior close before anything else (#542).
+
+    Record's own tape and depth lines carry no close; the symbol's L1 line does,
+    once IBKR sends tick 9 (NaN until then, and no line at all records null).
+    """
+    from ibkr import ticks
+
+    lines = {"AAPL": SimpleNamespace(close=41.87)}
+    monkeypatch.setattr(ticks, "get_ticker", lambda symbol: lines.get(symbol))
+    mode.set_capture_mode(True, symbol="AAPL")
+    tick()
+    push_depth(bids=((42.20, 300),))
+    lines["AAPL"] = SimpleNamespace(close=float("nan"))
+    push_depth(bids=((42.21, 300),))  # coalesced, then flushed by the stop
+    mode.set_capture_mode(False)
+    directory = Path(recorder.status()["dir"])
+
+    assert [row["prev_close"] for row in rows(directory, "quotes")] == [41.87, None]
+
+
 def test_depth_is_claimed_once_a_real_book_arrives():
     mode.set_capture_mode(True, symbol="AAPL")
     tick()

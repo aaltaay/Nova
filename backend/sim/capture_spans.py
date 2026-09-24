@@ -74,17 +74,6 @@ def newest_in_span(keys: list[float], spans: list[Span], t: float) -> int:
     return i if i >= 0 and keys[i] >= start else -1
 
 
-def previous_close_for(symbol: str, date: str) -> float | None:
-    """The replayed session's previous close, read once per load (the quote head's change)."""
-    try:
-        from sim.history_cache import previous_close
-
-        return previous_close(symbol.upper(), {"date": date})
-    except Exception:
-        logger.warning("CAPTURE PLAY: previous close unavailable for %s %s", symbol, date, exc_info=True)
-        return None
-
-
 def recording_here(root: Path) -> bool:
     """This process is recording ``root`` right now (the recorder's lock-free status)."""
     try:

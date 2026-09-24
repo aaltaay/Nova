@@ -17,10 +17,9 @@ from capture.sessions import is_ibkr_source
 from ibkr.depth.book import sort_levels
 from sale_conditions import row_sets_price
 from sim.capture_charts import chart_bars  # noqa: F401 -- the player's chart API (split out)
-from sim.capture_spans import (
-    load_spans, newest_in_span, previous_close_for, recording_here, span_start,
-)
+from sim.capture_spans import load_spans, newest_in_span, recording_here, span_start
 from sim.capture_reader import read_jsonl as _read_jsonl, usable_rows, new_diagnostics, sample_l2
+from sim.prior_close import previous_close, recorded_close
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
@@ -42,7 +41,7 @@ class CaptureData:
     last_emit: float = 0.0
     # Recorded stretches ``[(start, stop)]``; empty means unknown (every read unbounded).
     spans: list = field(default_factory=list)
-    # The replayed session's previous close, from the bar archive; None when not stored.
+    # The replayed session's previous close (``sim.prior_close``: the recorded tick 9 first); None unknown.
     prev_close: float | None = None
 
 
@@ -117,7 +116,7 @@ def load(date: str, symbol: str, *, generation: int | None = None) -> dict[str, 
     first_ts, last_ts = min(event_keys), max(event_keys)
     segments, state.spans = load_spans(_manifest, root, live=recording_here(root),
                                        first_ts=first_ts, last_ts=last_ts)
-    state.prev_close = previous_close_for(symbol, date)
+    state.prev_close = previous_close(symbol, date, recorded=recorded_close(quotes, date))
     l2_path = root / "l2.jsonl"
     l2_bytes = l2_path.stat().st_size if l2_path.is_file() else 0
     with _load_lock:
@@ -248,7 +247,8 @@ def quote_at(asof: float | None = None, *, state: CaptureData | None = None) -> 
                 "bid": row.get("bid"),
                 "ask": row.get("ask"),
                 "last": last,
-                "prev_close": row.get("prev_close"),
+                # One previous close per load, whichever row is read (#542).
+                "prev_close": state.prev_close,
                 "bid_size": row.get("bid_size"),
                 "ask_size": row.get("ask_size"),
                 "volume": row.get("volume"),
@@ -265,7 +265,7 @@ def quote_at(asof: float | None = None, *, state: CaptureData | None = None) -> 
         "bid": row.get("bid"),
         "ask": row.get("ask"),
         "last": px,
-        "prev_close": None,
+        "prev_close": state.prev_close,
         "bid_size": None,
         "ask_size": None,
         "volume": None,
