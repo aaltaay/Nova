@@ -15,7 +15,10 @@
 #     without latest.yml would break the in-app update feed);
 #   - `publish-release` creates the vNNN GitHub Release with
 #     Nova-Setup-vNNN.exe + .blockmap + latest.yml -- the feed electron-updater
-#     reads -- whenever the installer was packed.
+#     reads -- whenever the installer was packed. Its notes are the commit's own
+#     (tools/release_notes.py: the PR title and the first paragraph of its
+#     `## What`), which the installed desk shows in its update notice and in
+#     What's new after the update.
 # A Release is marked latest only when no higher vNNN Release exists, so an
 # older run that finishes late never rolls the update feed back.
 # The tag is pushed with GITHUB_TOKEN, which by design starts no second run.
@@ -242,11 +245,35 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Check out the released commit (its message is the release notes)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+
       - name: Download the installer and update feed
         uses: actions/download-artifact@v4
         with:
           name: Nova-${{ needs.desktop-pack.outputs.tag }}-win
           path: dist-win
+
+      - name: Write the release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.desktop-pack.outputs.tag }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          git log -1 --format=%B HEAD > "$RUNNER_TEMP/message.txt"
+          # The PR that merged this commit; a direct push has none.
+          PR="$(gh api "repos/$GH_REPO/commits/$SHA/pulls" --jq '[.[] | select(.merged_at != null)][0].number // empty' 2>/dev/null || true)"
+          # Notes never block a release: without them the desk says "no release notes recorded".
+          if ! python3 tools/release_notes.py body --tag "$TAG" --message-file "$RUNNER_TEMP/message.txt" ${PR:+--pr "$PR"} > "$RUNNER_TEMP/notes.md"; then
+            echo "::warning::release notes for $TAG could not be written; publishing the installer text only"
+            printf 'Nova %s Windows desktop.\n\n- Installer: Nova-Setup-%s.exe (NSIS, x64)\n' "$TAG" "$TAG" > "$RUNNER_TEMP/notes.md"
+          fi
+          cat "$RUNNER_TEMP/notes.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Attach the installer and update feed to the GitHub Release
         env:
@@ -268,7 +295,8 @@ jobs:
           test -f "$SETUP"
           test -f "${SETUP}.blockmap"
           test -f dist-win/latest.yml
-          NOTES="$(printf 'Nova %s Windows desktop.\n\n- Installer: Nova-Setup-%s.exe (NSIS, x64)\n- latest.yml + .blockmap are the in-app update feed; installed desks offer this build and install it when you choose Restart to update.\n\nBuilds are unsigned, so SmartScreen warns on a fresh download.\nGitHub also attaches Source code zip/tar automatically. Those are not the app.' "$TAG" "$TAG")"
+          NOTES="$RUNNER_TEMP/notes.md"
+          test -s "$NOTES"
           # Master runs no longer queue behind each other, so an older commit's
           # run can finish last. Only the highest vNNN may become latest -- the
           # release electron-updater reads -- or the feed would roll back.
@@ -277,8 +305,9 @@ jobs:
           if [ "${TAG#v}" -ge "$NEWEST" ]; then LATEST=true; fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$SETUP" "${SETUP}.blockmap" dist-win/latest.yml --clobber
+            gh release edit "$TAG" --notes-file "$NOTES"
           else
             gh release create "$TAG" "$SETUP" "${SETUP}.blockmap" dist-win/latest.yml \
-              --title "$TAG" --notes "$NOTES" --verify-tag --latest="$LATEST"
+              --title "$TAG" --notes-file "$NOTES" --verify-tag --latest="$LATEST"
           fi
           echo "Released \`$TAG\` (latest: $LATEST)." >> "$GITHUB_STEP_SUMMARY"

@@ -40,6 +40,7 @@ import { useNovaDeskWindowTitle } from './utils/useNovaWindowTitle';
 import { AdviseHost } from './advise/AdvisePanel';
 import { AdviseProvider } from './advise/AdviseContext';
 import { AppDialogHost } from './ux';
+import { DesktopUpdateHost } from './desktop_update';
 import { useNavPage } from './workspace/navRailStore';
 import { TraderDockLayer } from './workspace/traderDesk/TraderDockLayer';
 import { useWorkspace, WorkspaceProvider } from './workspace/WorkspaceContext';
@@ -100,6 +101,8 @@ function AppShell() {
             {detached && <BotSymbolMenuHost />}
             {!detached && <TradingPrerequisitesGate />}
             {!detached && <GatewayDisconnectedBannerHost />}
+            {/* Desktop app only: a newer Nova is out, and what the last update brought. */}
+            {!detached && <DesktopUpdateHost />}
             <MwcbBannerHost />
             <NovaOsAttentionStrip global />
             <div className={branchClass}>

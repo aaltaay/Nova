@@ -6,7 +6,12 @@ No secrets, tokens, or .env contents anywhere in this body.
 
 ## What
 
-<!-- 1-3 sentences: what changed, user-visible + internal. This is the permanent record; there is no changelog. -->
+<!--
+1-3 sentences: what changed, user-visible + internal. This is the permanent record; there is no changelog.
+Write the first paragraph for the operator: it becomes the release note the desktop app shows in its
+update notice and in What's new (tools/release_notes.py). A list right after a paragraph ending in ":",
+or a list of **bold lead-ins**, goes with it.
+-->
 
 ## Why this approach
 

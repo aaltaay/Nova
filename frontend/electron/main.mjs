@@ -23,6 +23,7 @@ import { applyGpuPolicy } from './gpuPolicy.mjs';
 import { attachRendererGuards, recoverWindowIfErrorPage } from './rendererGuards.mjs';
 import { applySingleInstance, focusExistingWindow } from './singleInstance.mjs';
 import { skipApiSidecar } from './sidecarSkip.mjs';
+import { engineStep, openStartupSplash, STARTUP_STEPS } from './startupSplash.mjs';
 import { isAllowedRendererUrl, loadHostWindow } from './traderWindowLoad.mjs';
 import { openOrFocusTraderWindow } from './traderWindows.mjs';
 import {
@@ -38,9 +39,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 applyGpuPolicy(app);
 const isDev = !app.isPackaged;
 const ALLOWED_EXTERNAL_HOSTS = new Set(['www.interactivebrokers.com']);
+// Title bar and taskbar; the packed exe carries the same icon (electron-builder).
+const APP_ICON = path.join(__dirname, 'build', 'icon.ico');
 
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
+/** The "Starting Nova" window until the desk shows. */
+let startup = null;
+let quitting = false;
 
 function displayWorkAreas() {
   return screen.getAllDisplays().map((d) => ({
@@ -59,8 +65,7 @@ function windowOptions() {
     minHeight: 700,
     title: formatScannerWindowTitle(novaDesktopReleaseTag(app)),
     backgroundColor: '#0b0f14',
-    // Title bar and taskbar; the packed exe carries the same icon (electron-builder).
-    icon: path.join(__dirname, 'build', 'icon.ico'),
+    icon: APP_ICON,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -97,6 +102,12 @@ function mainRecoverOpts() {
   return isDev
     ? { reloadUrl: viteUrl(), loadFilePath: null, allowedBase: viteUrl() }
     : { reloadUrl: null, loadFilePath: packagedIndexHtml(), allowedBase: 'file:' };
+}
+
+/** Where the desk will open: its saved placement, else the primary work area. */
+function deskTarget() {
+  const saved = restoreWindowPlacement(app.getPath('userData'), WINDOW_ID_MAIN, displayWorkAreas());
+  return saved?.bounds ?? screen.getPrimaryDisplay().workArea;
 }
 
 function createWindow() {
@@ -169,6 +180,10 @@ ipcMain.handle('nova:openExternal', async (_event, url) => {
 
 if (
   !applySingleInstance(app, () => {
+    if (!mainWindow && startup?.window) {
+      focusExistingWindow(startup.window);
+      return;
+    }
     focusExistingWindow(mainWindow, (win) => {
       recoverWindowIfErrorPage(win, mainRecoverOpts());
     });
@@ -177,11 +192,24 @@ if (
   app.quit();
 } else {
   app.whenReady().then(async () => {
+    // Nothing else of Nova is on screen until the engine answers and the desk loads.
+    startup = openStartupSplash({
+      BrowserWindow,
+      target: deskTarget(),
+      version: novaDesktopReleaseTag(app),
+      icon: APP_ICON,
+      // Closing it calls the launch off, even while the desk loads hidden.
+      onCancel: () => app.quit(),
+    });
     try {
-      await startApiSidecar();
+      startup.step(engineStep(await startApiSidecar()));
       await openEnvFileIfNeeded();
       await waitForHealth();
+      // The operator closed the starting window: the launch is called off.
+      if (quitting) return;
+      startup.step(STARTUP_STEPS.loading);
       createWindow();
+      startup.closeWhenShown(mainWindow);
       // ADR 026: CPU / memory per window process, every 5 s. Measures only.
       const stopPerfMetrics = startPerfMetrics({
         app,
@@ -201,11 +229,13 @@ if (
       });
     } catch (err) {
       console.error(err);
+      if (quitting) return;
       const { dialog } = await import('electron');
       await dialog.showErrorBox(
         'Nova failed to start',
         err instanceof Error ? err.message : String(err),
       );
+      startup.close();
       app.quit();
     }
 
@@ -221,5 +251,6 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  quitting = true;
   stopApiSidecar();
 });
