@@ -361,14 +361,20 @@
   display: none;
 }
 
+/* The footer wraps rather than clips (#459, QA D13): with "board freezes at
+   the open" the 480 px board held about 577 px of it and the legend was cut
+   off at the edge. One line keeps its 28 px; the narrow board also shortens
+   the legend (below). e2e/desk-board-foot.spec.ts measures it. */
 .desk-board__foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  height: 28px;
-  flex: 0 0 28px;
+  align-content: center;
+  gap: 2px 10px;
+  min-height: 22px;
+  flex: 0 0 auto;
   margin-top: auto;
-  padding: 0 10px;
+  padding: 3px 10px;
   border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
   font-size: 11px;
   color: var(--text-secondary, #9ca3af);
@@ -393,6 +399,10 @@
 
 .desk-board__legend .desk-board__dot {
   margin-right: 4px;
+}
+
+.desk-board__legend-short {
+  display: none;
 }
 
 /* ── QA batch 2026-09-22 ────────────────────────────────────────────────── */
@@ -464,6 +474,15 @@
   }
 
   .desk-board__act-text--short {
+    display: inline;
+  }
+
+  /* The legend's short labels (#459); each item's title names it in full. */
+  .desk-board__legend-full {
+    display: none;
+  }
+
+  .desk-board__legend-short {
     display: inline;
   }
 

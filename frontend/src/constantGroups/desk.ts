@@ -53,6 +53,10 @@ export const DESK_DOT_BOT_QUIET_TITLE = 'Allowlisted · quiet (no depth line)';
 export const DESK_LEGEND_REC = 'recording';
 export const DESK_LEGEND_BOT_HELD = 'allowlisted, depth line held';
 export const DESK_LEGEND_BOT_QUIET = 'allowlisted, quiet';
+/** The narrow board's legend (#459, QA D13): each item's title keeps the full label. */
+export const DESK_LEGEND_REC_SHORT = 'rec';
+export const DESK_LEGEND_BOT_HELD_SHORT = 'line held';
+export const DESK_LEGEND_BOT_QUIET_SHORT = 'quiet';
 
 /* ── Row hover actions (existing capture + bot allowlist calls) ─────────── */
 
