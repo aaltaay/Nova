@@ -11,6 +11,7 @@ from constants import (
     EXECUTION_FILL_EVIDENCE_LIMIT,
     EXECUTION_METRICS_QUERY_LIMIT,
 )
+from execution import ledger_generation
 
 PROVENANCES = frozenset({"execDetails", "orderStatus", "reconciliation_poll"})
 
@@ -114,7 +115,7 @@ def merge_execution_payload(execution_id: str, patch: dict[str, Any]) -> dict[st
             "UPDATE executions SET payload_json = ?, updated_ts = ? WHERE id = ?",
             (json.dumps(payload), time.time(), execution_id),
         )
-        conn.commit()
+        ledger_generation.commit(conn)
         return payload
     finally:
         conn.close()
@@ -217,7 +218,7 @@ def record_fill(
                 "UPDATE executions SET payload_json = ?, updated_ts = ? WHERE id = ?",
                 (json.dumps(payload), time.time(), execution_id),
             )
-            conn.commit()
+            ledger_generation.commit(conn)
             return False
 
         payload = json.loads(execution["payload_json"] or "{}")
@@ -281,7 +282,7 @@ def record_fill(
                 time.time(),
             ),
         )
-        conn.commit()
+        ledger_generation.commit(conn)
         return True
     finally:
         conn.close()
