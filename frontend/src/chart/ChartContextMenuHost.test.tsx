@@ -9,6 +9,7 @@ import * as closeMod from '../ibkr/closeFullPosition';
 import * as prefillMod from '../ibkr/orderTicketPrefill';
 import type { IbkrPosition } from '../ibkr/types';
 import { ChartContextMenuHost } from './ChartContextMenuHost';
+import { CHART_CONTEXT_MENU_TICKET_WAIT_REASON } from './chartContextMenuConstants';
 import { getWatchList } from '../watch_list';
 import { resetWatchListForTests } from '../watch_list/watchListStore';
 import * as dockNav from '../stock_view/requestDockSurface';
@@ -76,8 +77,19 @@ describe('ChartContextMenuHost', () => {
   let applyOptions: ReturnType<typeof vi.fn>;
   let fitContent: ReturnType<typeof vi.fn>;
   let takeScreenshot: ReturnType<typeof vi.fn>;
+  let ticketOff: (() => void) | null;
+
+  /** Stand-in for the Trader's mounted ticket: the prefills it hears. */
+  function mountTicket() {
+    const heard = vi.fn();
+    act(() => {
+      ticketOff = prefillMod.subscribeOrderTicketPrefill('SMPL', heard);
+    });
+    return heard;
+  }
 
   beforeEach(() => {
+    ticketOff = null;
     positions = [];
     mount = document.createElement('div');
     document.body.appendChild(mount);
@@ -106,6 +118,7 @@ describe('ChartContextMenuHost', () => {
   });
 
   afterEach(() => {
+    ticketOff?.();
     act(() => root.unmount());
     mount.remove();
     body.remove();
@@ -210,6 +223,7 @@ describe('ChartContextMenuHost', () => {
 
   it('Buy stages the trade ticket instead of placing an order', () => {
     const prefill = vi.spyOn(prefillMod, 'requestOrderTicketPrefill');
+    const heard = mountTicket();
     render();
     rightClick();
     act(() => item('buy').click());
@@ -221,17 +235,58 @@ describe('ChartContextMenuHost', () => {
         limitPrice: '4.25',
       }),
     );
+    expect(heard).toHaveBeenCalledWith(expect.objectContaining({ side: 'BUY', limitPrice: '4.25' }));
     expect(menu()).toBeNull();
   });
 
   it('Sell stages a SELL ticket at the same price', () => {
     const prefill = vi.spyOn(prefillMod, 'requestOrderTicketPrefill');
+    mountTicket();
     render();
     rightClick();
     act(() => item('sell').click());
     expect(prefill).toHaveBeenCalledWith(
       expect.objectContaining({ side: 'SELL', limitPrice: '4.25' }),
     );
+  });
+
+  it('locks the priced rows with a reason until a ticket is listening, then stages it (#566)', () => {
+    const prefill = vi.spyOn(prefillMod, 'requestOrderTicketPrefill');
+    render();
+    rightClick();
+    for (const id of ['create_order', 'buy', 'sell']) {
+      expect(item(id).disabled).toBe(true);
+      expect(item(id).getAttribute('aria-disabled')).toBe('true');
+      expect(item(id).getAttribute('data-why')).toBe(CHART_CONTEXT_MENU_TICKET_WAIT_REASON);
+    }
+    expect(item('buy').textContent).toMatch(/^Buy SMPL \d+ @4\.25$/);
+    expect(document.querySelector('[data-testid="chart-context-menu-hint"]')?.textContent)
+      .toBe(CHART_CONTEXT_MENU_TICKET_WAIT_REASON);
+    act(() => item('buy').click());
+    expect(prefill).not.toHaveBeenCalled();
+    expect(menu()).toBeTruthy();
+
+    // The quote lands and the Trader mounts its ticket while the menu is open.
+    const heard = mountTicket();
+    expect(item('buy').disabled).toBe(false);
+    expect(item('buy').hasAttribute('data-why')).toBe(false);
+    expect(document.querySelector('[data-testid="chart-context-menu-hint"]')?.textContent)
+      .toContain('trade ticket');
+    act(() => item('sell').click());
+    expect(heard).toHaveBeenCalledWith(
+      expect.objectContaining({ symbol: 'SMPL', side: 'SELL', limitPrice: '4.25' }),
+    );
+    expect(menu()).toBeNull();
+  });
+
+  it('keeps the rows locked while only another symbol has a ticket', () => {
+    act(() => {
+      ticketOff = prefillMod.subscribeOrderTicketPrefill('AAPL', vi.fn());
+    });
+    render();
+    rightClick();
+    expect(item('buy').disabled).toBe(true);
+    expect(item('sell').getAttribute('data-why')).toBe(CHART_CONTEXT_MENU_TICKET_WAIT_REASON);
   });
 
   it('Close Position appears only with an open position and uses the flatten SSOT', async () => {

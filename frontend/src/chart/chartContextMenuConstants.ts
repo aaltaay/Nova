@@ -31,6 +31,15 @@ export const CHART_CONTEXT_MENU_ALERT_REASON =
 export const CHART_CONTEXT_MENU_ORDER_HINT =
   'Opens the trade ticket — Place to submit.';
 
+/**
+ * Why the priced rows are locked (#566): they only fill a ticket that is on
+ * screen for this symbol, and the Trader mounts its ticket once the quote has
+ * loaded (a chart outside the Trader has none). Shown in place of the hint and
+ * on the rows themselves (ux/whyTip.ts).
+ */
+export const CHART_CONTEXT_MENU_TICKET_WAIT_REASON =
+  'No trade ticket on screen yet — the Trader opens it once the quote loads.';
+
 /** Right-clicks that land on these never open the chart menu (tag owns its own). */
 export const CHART_CONTEXT_MENU_IGNORE_SELECTOR =
   '.chart-position-tag, .chart-context-menu, .chart-toolbar, button';

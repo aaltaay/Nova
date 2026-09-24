@@ -3,9 +3,11 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import {
+  orderTicketListening,
   parseOrderTicketPrefill,
   requestOrderTicketPrefill,
   subscribeOrderTicketPrefill,
+  watchOrderTicketListening,
 } from './orderTicketPrefill';
 
 const BUY_SMPL = {
@@ -59,5 +61,39 @@ describe('subscribeOrderTicketPrefill', () => {
     requestOrderTicketPrefill({ ...BUY_SMPL, limitPrice: '' });
     expect(handler).not.toHaveBeenCalled();
     off();
+  });
+});
+
+describe('orderTicketListening (#566)', () => {
+  it('is true only while a ticket for that symbol is subscribed', () => {
+    expect(orderTicketListening('SMPL')).toBe(false);
+    const off = subscribeOrderTicketPrefill('smpl', vi.fn());
+    expect(orderTicketListening('SMPL')).toBe(true);
+    expect(orderTicketListening(' smpl ')).toBe(true);
+    expect(orderTicketListening('AAPL')).toBe(false);
+    off();
+    expect(orderTicketListening('SMPL')).toBe(false);
+  });
+
+  it('counts tickets, so one of two leaving keeps the symbol listening', () => {
+    const offA = subscribeOrderTicketPrefill('SMPL', vi.fn());
+    const offB = subscribeOrderTicketPrefill('SMPL', vi.fn());
+    offA();
+    offA();
+    expect(orderTicketListening('SMPL')).toBe(true);
+    offB();
+    expect(orderTicketListening('SMPL')).toBe(false);
+  });
+
+  it('tells watchers when a ticket starts and stops listening', () => {
+    const watcher = vi.fn();
+    const unwatch = watchOrderTicketListening(watcher);
+    const off = subscribeOrderTicketPrefill('SMPL', vi.fn());
+    expect(watcher).toHaveBeenCalledTimes(1);
+    off();
+    expect(watcher).toHaveBeenCalledTimes(2);
+    unwatch();
+    subscribeOrderTicketPrefill('SMPL', vi.fn())();
+    expect(watcher).toHaveBeenCalledTimes(2);
   });
 });

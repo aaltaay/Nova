@@ -7,9 +7,19 @@ import {
   chartMenuPriceLabel,
   shouldOpenChartContextMenu,
 } from './chartContextMenuItems';
-import { CHART_CONTEXT_MENU_ALERT_REASON } from './chartContextMenuConstants';
+import {
+  CHART_CONTEXT_MENU_ALERT_REASON,
+  CHART_CONTEXT_MENU_TICKET_WAIT_REASON,
+} from './chartContextMenuConstants';
 
-const BASE = { symbol: 'smpl', price: 4.2, quantityValue: '100', hasPosition: false };
+const BASE = {
+  symbol: 'smpl',
+  price: 4.2,
+  quantityValue: '100',
+  hasPosition: false,
+  ticketReady: true,
+};
+const ORDER_IDS = ['create_order', 'buy', 'sell'];
 
 describe('chartContextMenuItems', () => {
   it('labels the Webull order rows with the price under the cursor', () => {
@@ -17,6 +27,24 @@ describe('chartContextMenuItems', () => {
     expect(labels).toContain('Create New Order @4.20');
     expect(labels).toContain('Buy SMPL 100 @4.20');
     expect(labels).toContain('Sell SMPL 100 @4.20');
+  });
+
+  it('locks the priced rows with a reason while no ticket can take them (#566)', () => {
+    const rows = chartContextMenuItems({ ...BASE, ticketReady: false }).filter(
+      (item) => item.kind === 'order',
+    );
+    expect(rows.map((item) => item.id)).toEqual(ORDER_IDS);
+    for (const row of rows) {
+      expect(row.reason).toBe(CHART_CONTEXT_MENU_TICKET_WAIT_REASON);
+    }
+    // The label still names the order the row will stage once the ticket is up.
+    expect(rows.map((item) => item.label)).toContain('Buy SMPL 100 @4.20');
+  });
+
+  it('unlocks the priced rows once a ticket is listening', () => {
+    const rows = chartContextMenuItems(BASE).filter((item) => item.kind === 'order');
+    expect(rows.map((item) => item.id)).toEqual(ORDER_IDS);
+    expect(rows.every((item) => item.reason === undefined)).toBe(true);
   });
 
   it('keeps view actions when the series cannot price the cursor', () => {

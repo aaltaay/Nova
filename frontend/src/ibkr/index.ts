@@ -8,3 +8,4 @@ export { cancelIbkrOrderWithFeedback } from './cancelOrder';
 export { useIbkrStatus } from './useIbkrStatus';
 export { flattenSpendLockReason } from './spendLock';
 export type { GatewayStatusFact } from './gatewayStatusWording';
+export { useOrderTicketListening } from './useOrderTicketListening';

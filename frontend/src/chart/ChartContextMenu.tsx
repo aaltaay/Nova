@@ -4,12 +4,14 @@
  * Money rows delegate: order rows call `onStageOrder` (ticket prefill) and
  * Close Position renders the shared `ClosePositionButton`, the same component
  * the Positions table and the Long/Short tag menu use. This file must never
- * grow its own place/flatten call.
+ * grow its own place/flatten call. The order rows stay locked, saying why,
+ * until a ticket for the symbol is listening (#566).
  */
 import { useLayoutEffect, useRef, useState, type MouseEvent } from 'react';
 import { ClosePositionButton } from '../closed_orders';
 import type { ChartIndicatorId } from '../constants';
 import { CHART_INDICATORS } from '../constants';
+import { useOrderTicketListening } from '../ibkr';
 import type { IbkrMode, IbkrPosition } from '../ibkr/types';
 import { CHART_LINE_TOOLS } from './chartDrawingConfig';
 import {
@@ -85,12 +87,14 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
   const [submenu, setSubmenu] = useState<SubmenuId | null>(null);
   const [submenuPos, setSubmenuPos] = useState({ top: 0, left: 0 });
   const watched = useIsWatched(props.symbol);
+  const ticketReady = useOrderTicketListening(props.symbol);
 
   const items = chartContextMenuItems({
     symbol: props.symbol,
     price: props.price,
     quantityValue: props.quantityValue,
     hasPosition: Boolean(props.position && props.position.qty !== 0),
+    ticketReady,
     allowlisted: props.allowlisted,
     watched,
   });
@@ -186,7 +190,9 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
         />
       );
     }
-    if (item.kind === 'unavailable') {
+    if (item.kind === 'unavailable' || item.reason) {
+      // A locked order row's reason is said once, in the hint under the rows.
+      const inlineReason = item.kind === 'unavailable' && item.reason;
       return (
         <button
           key={item.id}
@@ -199,12 +205,14 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
           aria-disabled="true"
           onPointerEnter={() => setSubmenu(null)}
         >
-          <span className="chart-context-menu__item-stack">
-            <span>{item.label}</span>
-            {item.reason ? (
+          {inlineReason ? (
+            <span className="chart-context-menu__item-stack">
+              <span>{item.label}</span>
               <span className="chart-context-menu__item-reason">{item.reason}</span>
-            ) : null}
-          </span>
+            </span>
+          ) : (
+            item.label
+          )}
         </button>
       );
     }
@@ -223,7 +231,8 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
     );
   }
 
-  const hasOrderRows = items.some((item) => item.kind === 'order');
+  const orderRows = items.filter((item) => item.kind === 'order');
+  const orderLock = orderRows.find((item) => item.reason)?.reason ?? null;
 
   return (
     <div
@@ -247,9 +256,9 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
           {renderItem(item)}
         </div>
       ))}
-      {hasOrderRows && (
+      {orderRows.length > 0 && (
         <p className="chart-context-menu__hint" data-testid="chart-context-menu-hint">
-          {CHART_CONTEXT_MENU_ORDER_HINT}
+          {orderLock ?? CHART_CONTEXT_MENU_ORDER_HINT}
         </p>
       )}
       {submenu === 'drawings' && (
