@@ -34,9 +34,9 @@ export const BOT_LEVEL_LABELS = {
   2: 'Strategy',
 } as const;
 export const BOT_LEVEL_HINTS = {
-  0: 'L0 dark -- no watch, propose, or writes',
-  1: 'L1 Eyes -- watch and propose; human places',
-  2: 'L2 Strategy -- live under gates after Activate',
+  0: 'L0 Off -- bot API dark; the setup scanner still watches and proposes',
+  1: 'L1 Eyes -- a connected bot may watch and propose; you place',
+  2: 'L2 Strategy -- a connected bot may place under every gate after Activate; automatic placing from a proposal is not built yet',
 } as const;
 export const BOT_STATE_ACTIVE = 'Active';
 export const BOT_STATE_NOT_ACTIVE = 'Not active';
@@ -118,11 +118,15 @@ export const BOT_SETUP_NEXT: Record<string, string> = {
 export const BOT_CHOSEN_BADGE = 'Chosen';
 export const BOT_NO_SCANNER_TITLE = 'No scanner yet -- it cannot play until it has one and its read-out passes';
 
-/* ---------- The Bots page hero (ADR 027) ---------- */
+/* ---------- The Bots page hero (ADR 027) ----------
+   The level says what a bot connected to the localhost bot API (ADR 016) may do.
+   Nova's own setup scanner (ADR 022) watches, proposes and scores at every level,
+   and nothing in Nova turns a proposal into an order yet (#514). */
+export const BOT_STRATEGY_NOT_BUILT = 'Automatic placing from a proposal is not built yet';
 export const BOT_LEVEL_BLURBS = {
-  0: 'Dark — no watching, no proposals',
-  1: 'Watches your setups and proposes — you place',
-  2: 'Places your setups on its own, under every gate below',
+  0: 'Bot API dark · the setup scanner still watches and proposes',
+  1: 'A connected bot may watch and propose · you place',
+  2: `A connected bot may place under every gate · ${BOT_STRATEGY_NOT_BUILT.toLowerCase()}`,
 } as const;
 
 /** Gate ids from backend/bot/gates.py, in the order the page lists them. */
