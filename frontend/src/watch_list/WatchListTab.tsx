@@ -1,14 +1,14 @@
 /**
  * The Watch list tab: the symbols the operator picked by hand, each with its
  * board row's market facts (when a board holds it) and today's newest HOD Momo
- * alert -- what the toast announces. Remove from here, add by ticker here or
- * from any ticker row. Read-only otherwise: nothing here places an order.
+ * or Running Up alert -- what the toast announces. Remove from here, add by
+ * ticker here or from any ticker row. Nothing here places an order.
  */
 import { useMemo, useState, type FormEvent } from 'react';
 import { ScannerRowNumCell, ScannerRowNumHeader } from '../components/ScannerTableChrome';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
-import { fmtStripClock, isRunningUpStrategy, useHodMomoOptional, type AlertObject } from '../hod_momo';
+import { fmtStripClock, useHodMomoOptional, type AlertObject } from '../hod_momo';
 import type { ScannerRow } from '../types/scanner';
 import { fmtPct, fmtPrice, fmtVolume, pctToneClass } from '../utils/quoteFormat';
 import { WatchEyeIcon } from './WatchEyeIcon';
@@ -58,11 +58,10 @@ export interface HodToday {
   count: number;
 }
 
-/** Pure: symbol -> its newest HOD Momo alert and how many it had (alerts arrive newest first; Running Up excluded). */
+/** Pure: symbol -> its newest HOD Momo feed alert (Running Up included) and how many it had; alerts arrive newest first. */
 export function hodAlertsBySymbol(alerts: readonly AlertObject[]): Map<string, HodToday> {
   const out = new Map<string, HodToday>();
   for (const alert of alerts) {
-    if (isRunningUpStrategy(alert.strategy_id)) continue;
     const symbol = String(alert.ticker ?? '').toUpperCase();
     if (!symbol) continue;
     const seen = out.get(symbol);
@@ -83,7 +82,7 @@ function ChangeCell({ row }: { row: ScannerRow | undefined }) {
 function HodCell({ hod }: { hod: HodToday | undefined }) {
   if (!hod) return <span className="na-muted">{WATCH_LIST_NO_HOD_TODAY}</span>;
   return (
-    <span className="watch-list__hod" title={`${hod.count} HOD Momo alert${hod.count === 1 ? '' : 's'} today`}>
+    <span className="watch-list__hod" title={`${hod.count} HOD Momo / Running Up alert${hod.count === 1 ? '' : 's'} today`}>
       <b>{fmtStripClock(hod.latest)}</b> {hod.latest.strategy_name}
       {hod.count > 1 ? <span className="na-muted"> ({hod.count})</span> : null}
     </span>

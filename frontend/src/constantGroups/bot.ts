@@ -166,6 +166,21 @@ export const BOT_DESK_ARM_HEADER = 'X-Nova-Desk-Arm';
 export const BOT_DESK_ARM_STORAGE = 'nova_bot_desk_arm';
 export const BOT_ALLOWLIST_ADD = 'Add to bot allowlist';
 export const BOT_ALLOWLIST_REMOVE = 'Remove from bot allowlist';
+
+/** The right-click symbol menu (bot/BotSymbolMenu): the symbol once in the head, then one row per action. */
+export const SYMBOL_MENU_CAPTION = 'Symbol actions';
+export const SYMBOL_MENU_PIN_HINT = 'Keep this tab when you open another symbol';
+export const SYMBOL_MENU_UNPIN_HINT = 'The next symbol you open may replace it';
+export const SYMBOL_MENU_WATCH_HINT = 'Toast when it hits HOD Momo or Running Up';
+export const SYMBOL_MENU_UNWATCH_HINT = 'Stop its HOD Momo toasts';
+export const SYMBOL_MENU_WATCH_STATE = 'Watching';
+export const SYMBOL_MENU_RECORD = 'Start recording';
+export const SYMBOL_MENU_RECORD_HINT = 'Save its tape and Level 2 for Sim replay';
+export const SYMBOL_MENU_STOP_RECORD = 'Hold to stop recording';
+export const SYMBOL_MENU_REC_STATE = 'REC';
+export const SYMBOL_MENU_ALLOW_HINT = 'Let the bot act on this symbol';
+export const SYMBOL_MENU_UNALLOW_HINT = 'The bot stops acting on it';
+export const SYMBOL_MENU_ALLOW_STATE = 'On';
 export const BOT_ALLOWLIST_HINT =
   'Right-click a scanner row, trader tab, or chart to add or remove. Empty list is fail-closed.';
 export const BOT_ALLOWLIST_EMPTY = 'empty -- fail closed';

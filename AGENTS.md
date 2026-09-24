@@ -1066,15 +1066,17 @@ row's hover actions (Watch / Watching), the symbol menu (right-click a scanner
 row, a HOD Momo strip or alert row, a Contenders or Setups row, a Desk board or
 Focus rail row, a Trader tab), the chart menu, or the Watch list tab.
 
-A live `/ws/hod-momo` `alert` frame for a watched symbol -- never the `initial`
-snapshot, a reconnect's replay or the Sim playhead's history, and never Running
-Up (strategy 12) -- raises a toast in the main desk window: "XYZ hit HOD Momo"
-with the alert's time (ET), strategy, price, change, volume and RVOL, each left
-out when unknown. One toast per symbol: a burst folds into it (count and
-strategies); it leaves `WATCH_TOAST_TTL_MS` (20 s) after its newest alert
-unless hovered. Open goes to the symbol, Stop watching removes it, × dismisses.
-It places nothing. HOD Momo's tradeable floor still applies: a watched symbol
-the master gate refuses raises no alert, so no toast.
+A live `/ws/hod-momo` `alert` frame for a watched symbol -- any strategy,
+Running Up (12) included (operator ask, same day); never the `initial`
+snapshot, a reconnect's replay or the Sim playhead's history -- raises a toast
+in the main desk window: "XYZ hit HOD Momo" once a HOD Momo strategy fired,
+"XYZ is running up" while only Running Up has, with the alert's time (ET),
+strategy, price, change, volume and RVOL, each left out when unknown. One toast
+per symbol: a burst folds into it (count and strategies); it leaves
+`WATCH_TOAST_TTL_MS` (20 s) after its newest alert unless hovered. Open goes to
+the symbol, Stop watching removes it, × dismisses. It places nothing. HOD
+Momo's tradeable floor still applies: a watched symbol the master gate refuses
+raises no alert, so no toast.
 
 The ranked Five Pillars list (tab id `watchlist`, `GET /api/strategy/watchlist`)
 is labelled **Contenders** in the UI, and the scanner's pillars column
@@ -1344,7 +1346,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
-| 2026-09-23 | A watch list of the operator's own (operator ask: "When I highlight a row in any ticker, I want the option to say 'Add to watch list' ... anytime it crosses the HOD/MOMO, it shows me a toast notification"; the old list renamed, "come up with a creative name"): `watch_list/` keeps hand-picked symbols in `localStorage` `nova.watch.list` (schema 1, shared by every window), added from a highlighted scanner row's Watch action, the symbol menu on every ticker list, the chart menu (its disabled "Add to Watchlist" now works) or the new Watch list tab; the Focus rail and Desk board can mirror it. A live HOD Momo alert for a watched symbol toasts on every page of the main desk. The ranked Five Pillars tab is now **Contenders** and the scanner's "Watch" column **Pillars**; ids and API paths unchanged. §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-09-23 | A watch list of the operator's own (operator ask: "When I highlight a row in any ticker, I want the option to say 'Add to watch list' ... anytime it crosses the HOD/MOMO, it shows me a toast notification"; the old list renamed, "come up with a creative name"): `watch_list/` keeps hand-picked symbols in `localStorage` `nova.watch.list` (schema 1, shared by every window), added from a highlighted scanner row's Watch action, the symbol menu on every ticker list, the chart menu (its disabled "Add to Watchlist" now works) or the new Watch list tab; the Focus rail and Desk board can mirror it. A live HOD Momo or Running Up alert for a watched symbol toasts on every page of the main desk. The ranked Five Pillars tab is now **Contenders** and the scanner's "Watch" column **Pillars**; ids and API paths unchanged. Also: a pop-out Trader window mounts its own symbol menu, so right-clicking its tabs or Focus rail rows no longer eats the browser menu and shows nothing; and that menu is redesigned (operator: "it's so hard to even know they are clickable") -- the symbol once in its head, each action a button-like row with a coloured icon, a line saying what it does and a chip when it is already on, opening upward near the bottom of the screen. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Practice fills only on prints that set a price (#511): a volume-only print (odd lot, average price, derivatively priced, prior reference, or anything IBKR flags `unreported`) can sit dollars from the market -- PLTR `190.38 x 100  4 W` against a 192.64 x 192.80 book -- and a resting practice limit used to fill on it. Paper's live reference (newest print and resting-order matcher) and a capture replay's last and matcher now use `sale_conditions.row_sets_price`, the rule candles already follow; `tape_trades` keeps IBKR's `unreported` flag; the unused batched tape writer, which stored prints without their conditions, is removed. §3 and `architecture/practice-fills.md` amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Why it's moving (ADR 028, operator ask: "I want to know why from the user interface ... especially if it's squeezing and without news"; "run that through data and analytics where we don't need to consume tokens"): `GET /api/why/{symbol}` and a section at the top of the Trader tab's News panel give a rules read -- company news, halts, float and its turnover, a recent reverse split, short interest and IBKR's borrow market -- each check yes / no / unknown with its source, and a likely cause (news, short squeeze, supply squeeze after a split, low-float momentum, routine item, thin trading, nothing found) that says `possible` when a deciding fact is unknown. No model, no tokens. The borrow market is new data: IBKR's public short-stock file, polled every 15 minutes into `borrow.sqlite3` (changes only) so a restart keeps the day's fee and availability history. On 2026-09-23's gainers it named MSS and WHLR squeezes, VSA / IPDN / ONCO low-float momentum on tight borrow, and ARTL a routine item on a low float -- matching the hand audit. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | The open desk re-checks for updates (operator ask: "Should Nova also check for updates every few hours while it's open, still asking before it restarts?" -- "go"): a desk left running all day checked only at launch and missed every release until it was reopened. It now re-checks every two hours while open, never 07:00-16:00 ET on a weekday -- a 150 MB download mid-trade shares the lossy link with the market data, and the restart prompt takes keyboard focus from the hotkeys; an update found as trading starts is offered after 16:00. Installing is still only the operator's Restart to update. Same day, on the desk: v962's one-shot download failed 3 of 3 on the lossy link, and v964's resumable one fetched v965 through a dropped chunk in 11 s, then installed and reopened in 26 s. §8 amended. | User Directive + Claude Opus 5.5 |

@@ -110,8 +110,8 @@ describe('WatchListTab', () => {
     expect(grml.textContent).toContain('$4.52');
     expect(grml.textContent).toContain('+38.20%');
     expect(grml.textContent).toContain('Gainers');
-    // Running Up is not HOD Momo: the newest HOD alert is 10:14:05, two today.
-    expect(grml.textContent).toContain('10:14:05 New High of Day (2)');
+    // Running Up counts too: the newest alert is its 10:15:05, three today.
+    expect(grml.textContent).toContain('10:15:05 Running Up (3)');
     expect(onco.textContent).toContain(WATCH_LIST_NOT_ON_BOARD);
     expect(onco.textContent).toContain('Not yet today');
   });
@@ -142,9 +142,9 @@ describe('watch list joins', () => {
     expect(hits.get('ABC')?.row.price).toBe(2);
   });
 
-  it('counts HOD Momo alerts per symbol, newest first, Running Up excluded', () => {
+  it('counts HOD Momo feed alerts per symbol, newest first, Running Up included', () => {
     const byHod = hodAlertsBySymbol(ALERTS);
-    expect(byHod.get('GRML')?.count).toBe(2);
-    expect(byHod.get('GRML')?.latest.strategy_name).toBe('New High of Day');
+    expect(byHod.get('GRML')?.count).toBe(3);
+    expect(byHod.get('GRML')?.latest.strategy_name).toBe('Running Up');
   });
 });

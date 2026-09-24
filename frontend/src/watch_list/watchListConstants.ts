@@ -1,6 +1,7 @@
 /**
  * The operator's own watch list (operator ask, 2026-09-23): symbols picked by
- * hand from any ticker row, and a toast whenever one of them hits HOD Momo.
+ * hand from any ticker row, and a toast whenever one of them alerts on the HOD
+ * Momo feed (a HOD Momo strategy or Running Up).
  * Not the ranked Five Pillars list -- that one is "Contenders".
  */
 
@@ -21,15 +22,17 @@ export const watchListRemoveLabel = (symbol: string): string => `${WATCH_LIST_RE
 /** Scanner / Desk row actions. */
 export const WATCH_ACTION_WATCH = 'Watch';
 export const WATCH_ACTION_WATCHING = 'Watching';
-export const WATCH_ACTION_WATCH_TITLE = 'Add to your watch list: a toast whenever it hits HOD Momo';
+export const WATCH_ACTION_WATCH_TITLE = 'Add to your watch list: a toast whenever it hits HOD Momo or Running Up';
 export const WATCH_ACTION_WATCHING_TITLE = 'On your watch list -- click to remove it';
 export const watchMarkTitle = (symbol: string): string =>
-  `${symbol} is on your watch list: a toast whenever it hits HOD Momo`;
+  `${symbol} is on your watch list: a toast whenever it hits HOD Momo or Running Up`;
 
 /** Toasts: how long one stays after its newest alert (hover holds it), and how many stack. */
 export const WATCH_TOAST_TTL_MS = 20_000;
 export const WATCH_TOAST_MAX = 4;
-export const watchToastTitle = (symbol: string): string => `${symbol} hit HOD Momo`;
+/** "hit HOD Momo" once a HOD Momo strategy fired; "is running up" while only Running Up has. */
+export const watchToastTitle = (symbol: string, hod: boolean): string =>
+  (hod ? `${symbol} hit HOD Momo` : `${symbol} is running up`);
 export const watchToastCount = (count: number): string => `${count} alerts`;
 export const watchToastOpen = (symbol: string): string => `Open ${symbol}`;
 export const WATCH_TOAST_UNWATCH = 'Stop watching';
@@ -38,7 +41,7 @@ export const WATCH_TOAST_REGION = 'Watch list alerts';
 
 /** The Watch list tab. */
 export const WATCH_LIST_TAB_NOTE =
-  'Symbols you picked by hand. Whenever one hits HOD Momo, a toast says so on every page. '
+  'Symbols you picked by hand. Whenever one hits HOD Momo or Running Up, a toast says so on every page. '
   + 'Add one from any ticker row (hover or right-click), the chart menu, or here.';
 export const WATCH_LIST_ADD_PLACEHOLDER = 'Add a symbol';
 export const WATCH_LIST_ADD_BUTTON = 'Add';
@@ -50,4 +53,4 @@ export const WATCH_LIST_NO_HOD_TODAY = 'Not yet today';
 export const WATCH_LIST_CELL_ABSENT = '—';
 export const watchListRemoveTitle = (symbol: string): string => `Remove ${symbol} from your watch list`;
 export const WATCH_LIST_HOD_COLUMN_TITLE =
-  "The newest HOD Momo alert for the symbol today (Running Up not counted) -- what the toast announces";
+  'The newest HOD Momo or Running Up alert for the symbol today -- what the toast announces';

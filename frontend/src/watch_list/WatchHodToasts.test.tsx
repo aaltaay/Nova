@@ -58,6 +58,17 @@ describe('WatchHodToasts', () => {
     expect(screen.getByTestId('watch-toast-facts').textContent).toBe('$4.52 · +38.20% · Vol 2.1M · RVOL 5.2x');
   });
 
+  it('toasts Running Up as "is running up" until a HOD Momo strategy joins it', () => {
+    addToWatchList('GRML');
+    render(<WatchHodToasts />);
+    act(() => publishHodMomoLiveAlert(hodAlert('GRML', 12, 'Running Up Alert')));
+    expect(screen.getByTestId('watch-toast').textContent).toContain('GRML is running up');
+    act(() => publishHodMomoLiveAlert(hodAlert('GRML', 1, 'New High of Day')));
+    expect(screen.getAllByTestId('watch-toast')).toHaveLength(1);
+    expect(screen.getByTestId('watch-toast').textContent).toContain('GRML hit HOD Momo');
+    expect(screen.getByTestId('watch-toast-body').textContent).toBe('New High of Day · Running Up Alert · 2 alerts');
+  });
+
   it('folds a burst into one toast with a count', () => {
     addToWatchList('GRML');
     render(<WatchHodToasts />);

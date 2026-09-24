@@ -66,13 +66,16 @@ describe('noteWatchedHodAlert', () => {
     resetWatchToastsForTests();
   });
 
-  it('toasts a watched symbol only, never Running Up, and dismisses by symbol', () => {
+  it('toasts a watched symbol only -- Running Up included -- and dismisses by symbol', () => {
     addToWatchList('GRML');
     expect(noteWatchedHodAlert(hodAlert('ONCO'))).toBe(false);
-    expect(noteWatchedHodAlert(hodAlert('GRML', 12, 'Running Up'))).toBe(false);
     expect(getWatchToasts()).toEqual([]);
-    expect(noteWatchedHodAlert(hodAlert('grml'))).toBe(true);
-    expect(getWatchToasts().map(t => t.symbol)).toEqual(['GRML']);
+    expect(noteWatchedHodAlert(hodAlert('grml', 12, 'Running Up Alert'))).toBe(true);
+    expect(getWatchToasts().map(t => [t.symbol, t.hod])).toEqual([['GRML', false]]);
+    // A HOD Momo strategy folded in makes it a HOD toast, and it stays one.
+    expect(noteWatchedHodAlert(hodAlert('GRML'))).toBe(true);
+    expect(noteWatchedHodAlert(hodAlert('GRML', 12, 'Running Up Alert', 'again'))).toBe(true);
+    expect(getWatchToasts().map(t => [t.symbol, t.hod, t.count])).toEqual([['GRML', true, 3]]);
     dismissWatchToast('GRML');
     expect(getWatchToasts()).toEqual([]);
   });

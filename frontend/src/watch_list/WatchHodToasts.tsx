@@ -1,7 +1,7 @@
 /**
- * "XYZ hit HOD Momo" toasts for the operator's watch list, mounted once with
- * the app bar (the main desk window, like the setup alert card, so two windows
- * never announce the same alert twice). A toast leaves on its own after
+ * "XYZ hit HOD Momo" / "XYZ is running up" toasts for the operator's watch
+ * list, mounted once with the app bar (the main desk window, like the setup
+ * alert card, so two windows never announce the same alert twice). A toast leaves on its own after
  * WATCH_TOAST_TTL_MS from its newest alert; hovering or focusing it holds it.
  * Nothing here places or stages an order.
  */
@@ -68,7 +68,7 @@ function WatchToastCard({ toast, onOpenSymbol }: { toast: WatchToast; onOpenSymb
       <WatchEyeIcon className="watch-toast__eye" />
       <div className="watch-toast__text">
         <div className="watch-toast__head">
-          <strong className="watch-toast__title">{watchToastTitle(symbol)}</strong>
+          <strong className="watch-toast__title">{watchToastTitle(symbol, toast.hod)}</strong>
           <span className="watch-toast__time">{fmtStripClock(toast.alert)}</span>
         </div>
         {strategies || toast.count > 1 ? (

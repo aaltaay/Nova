@@ -131,13 +131,6 @@ body:has(.recording-stopped) .watch-toasts {
   cursor: pointer;
 }
 
-/* ── The symbol menu's watch item (bot/BotSymbolMenu) ───────────────────── */
-.bot-symbol-menu button.bot-symbol-menu__watch {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
 /* ── Marks on rows ──────────────────────────────────────────────────────── */
 .watch-mark {
   width: 11px;

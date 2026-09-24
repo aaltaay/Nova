@@ -70,7 +70,10 @@ describe('Record menu failures', () => {
   it('renders a stop failure instead of closing the menu', async () => {
     command.mockResolvedValue(response({ capture: true, error: 'Recorder stop failed' }));
     await open(true);
-    expect(container.textContent).toContain('Hold to stop recording AAPL');
+    const stop = container.querySelector('[data-testid="bot-symbol-menu-record"]') as HTMLButtonElement;
+    expect(stop.getAttribute('aria-label')).toBe('Hold to stop recording AAPL');
+    expect(stop.textContent).toContain('Hold to stop recording');
+    expect(stop.textContent).toContain('REC');
     await clickRecord();  // a click never stops a recording
     expect(command).not.toHaveBeenCalled();
     await holdStop();
@@ -110,12 +113,15 @@ it('adds the symbol to the watch list, and the next menu offers to remove it', a
   resetWatchListForTests();
   await open();
   const item = () => container.querySelector('[data-testid="bot-symbol-menu-watch"]') as HTMLButtonElement;
-  expect(item().textContent).toContain('Add to watch list -- AAPL');
+  expect(container.querySelector('[data-testid="bot-symbol-menu-symbol"]')?.textContent).toBe('AAPL');
+  expect(item().textContent).toContain('Add to watch list');
+  expect(item().textContent).not.toContain('Watching');
   await act(async () => { item().click(); });
   expect(getWatchList()).toEqual(['AAPL']);
   expect(container.querySelector('[data-testid="bot-symbol-menu"]')).toBeNull();
   act(() => openBotSymbolMenu('AAPL', 0, 0));
-  expect(item().textContent).toContain('Remove from watch list -- AAPL');
+  expect(item().textContent).toContain('Remove from watch list');
+  expect(item().textContent).toContain('Watching');
   await act(async () => { item().click(); });
   expect(getWatchList()).toEqual([]);
   localStorage.clear();

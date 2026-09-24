@@ -16,4 +16,11 @@ describe('App branch layout (QA R39)', () => {
     expect(app).not.toMatch(/<AppErrorBoundary[^>]*>\s*<TraderDockLayer/);
     expect(app).toMatch(/<TraderDockLayer \/>/);
   });
+
+  it('gives a pop-out its own symbol menu host -- it has no app bar to carry one', () => {
+    // A pop-out's Trader tab strip and Focus rail open the right-click symbol
+    // menu; with no host the right-click ate the browser menu and showed nothing.
+    expect(app).toMatch(/\{!detached && <GlobalAppBar \/>\}/);
+    expect(app).toMatch(/\{detached && <BotSymbolMenuHost \/>\}/);
+  });
 });

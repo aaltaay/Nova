@@ -3,19 +3,26 @@
  * interval. Letting go, leaving, or losing focus early cancels -- a recording
  * is locked, and a slip must not end it. Keyboard: hold Enter or Space.
  */
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { CAPTURE_STOP_HOLD_HINT, CAPTURE_STOP_HOLD_MS, CAPTURE_STOP_HOLD_STEP_MS } from './constants';
 import './holdToStop.css';
 
 interface Props {
+  /** The accessible name; also the visible text unless `children` replaces it. */
   label: string;
   disabled?: boolean;
   holdMs?: number;
   onConfirm: () => void;
   testId?: string;
+  /** Extra classes, for a host that lays the button out as one of its rows. */
+  className?: string;
+  /** Visible content in place of `label` (the symbol menu's icon, label and hint). */
+  children?: ReactNode;
 }
 
-export function HoldToStopButton({ label, disabled = false, holdMs = CAPTURE_STOP_HOLD_MS, onConfirm, testId }: Props) {
+export function HoldToStopButton({
+  label, disabled = false, holdMs = CAPTURE_STOP_HOLD_MS, onConfirm, testId, className, children,
+}: Props) {
   const [progress, setProgress] = useState(0);
   const timer = useRef<number | null>(null);
   const ticker = useRef<number | null>(null);
@@ -44,7 +51,7 @@ export function HoldToStopButton({ label, disabled = false, holdMs = CAPTURE_STO
     <button
       type="button"
       role="menuitem"
-      className={`hold-to-stop${progress > 0 ? ' hold-to-stop--holding' : ''}`}
+      className={`hold-to-stop${className ? ` ${className}` : ''}${progress > 0 ? ' hold-to-stop--holding' : ''}`}
       data-testid={testId}
       disabled={disabled}
       aria-label={label}
@@ -59,7 +66,7 @@ export function HoldToStopButton({ label, disabled = false, holdMs = CAPTURE_STO
       onClick={(e) => e.preventDefault()}
     >
       <span className="hold-to-stop__fill" style={{ width: `${(progress * 100).toFixed(1)}%` }} aria-hidden="true" />
-      <span className="hold-to-stop__label">{label}</span>
+      {children ?? <span className="hold-to-stop__label">{label}</span>}
     </button>
   );
 }
