@@ -1,6 +1,8 @@
 """ADR 021 decision 1: GET /api/diagnostics is a checklist of facts, never a verdict."""
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -73,6 +75,27 @@ def test_one_broken_collector_is_an_unknown_row_not_a_500(monkeypatch):
     assert res.status_code == 200
     unknown = [r for r in res.json()["rows"] if r["state"] == "unknown" and "ledger unreadable" in r["detail"]]
     assert unknown, "the failure is stated as unknown with why"
+
+
+def test_the_checklist_is_gathered_off_the_http_loop(monkeypatch):
+    """The port probes block; on the loop they stalled every desk socket each poll."""
+    from diagnostics import routes
+
+    where: list[str] = []
+
+    def spy(*, ui_tag=None):
+        try:
+            asyncio.get_running_loop()
+            where.append("loop")
+        except RuntimeError:  # no loop on this thread: a worker
+            where.append("worker")
+        return gather_mod.gather(ui_tag=ui_tag)
+
+    monkeypatch.setattr(routes, "gather", spy)
+    client = _client()
+    assert client.get("/api/diagnostics").status_code == 200
+    assert client.get("/api/diagnostics/bundle").status_code == 200
+    assert where == ["worker", "worker"]
 
 
 def test_the_bundle_is_plain_text_for_copy_paste():

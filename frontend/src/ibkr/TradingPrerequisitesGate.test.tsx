@@ -6,6 +6,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TradingPrerequisitesGate } from './TradingPrerequisitesGate';
 import { openTradingPrerequisites } from './tradingPrereqUi';
+import type { DiagnosticsPayload } from './diagnosticsTypes';
 
 const status = vi.hoisted(() => ({
   connected: true,
@@ -42,6 +43,11 @@ vi.mock('./usePrereqOverlayInputs', () => ({
   }),
 }));
 vi.mock('./GatewayDoorTrail', () => ({ GatewayDoorTrail: () => null }));
+const diagnostics = vi.hoisted(() => ({ data: null as DiagnosticsPayload | null }));
+vi.mock('./useDiagnostics', () => ({
+  useDiagnostics: () => ({ data: diagnostics.data, error: null, loading: false, refresh: () => {} }),
+  fetchDiagnosticsBundle: async () => '',
+}));
 
 describe('TradingPrerequisitesGate D-058 warning', () => {
   let container: HTMLDivElement;
@@ -52,6 +58,7 @@ describe('TradingPrerequisitesGate D-058 warning', () => {
     status.recording = false;
     status.completed_orders_unanswered_since = null;
     status.gateway_read_only = false;
+    diagnostics.data = null;
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -75,7 +82,36 @@ describe('TradingPrerequisitesGate D-058 warning', () => {
     expect(container.querySelector('.trading-prereq-gate')).not.toBeNull();
   });
 
-  it('shows the amber warning under an all-OK checklist', () => {
+  it('leads with every non-OK diagnostics row and the amber warnings, above the full checklist', () => {
+    status.completed_orders_unanswered_since = 1789808049;
+    const base = { cause: 'c', fix: 'f', since: null, action: null, evidence: null };
+    diagnostics.data = {
+      schema_version: 1,
+      generated_at: 1790210000,
+      groups: [{ id: 'gateway', title: 'Gateway' }],
+      counts: { ok: 1, warn: 1 },
+      rows: [
+        { ...base, id: 'gateway_port', group: 'gateway', title: 'Gateway API port', state: 'ok', detail: 'answers' },
+        { ...base, id: 'gateway_last_error', group: 'gateway', title: 'Last IB error', state: 'warn', detail: 'error 165' },
+      ],
+    };
+    openPanel();
+    const attention = container.querySelector('[data-testid="diag-attention"]');
+    const warning = container.querySelector('[data-testid="trading-prereq-warning-completed_orders"]');
+    const lead = container.querySelector('.trading-prereq-gate__lead');
+    const checklist = container.querySelector('[data-testid="diagnostics-checklist"]');
+    expect(attention?.textContent).toContain('Last IB error');
+    expect(attention?.textContent).not.toContain('Gateway API port');
+    const before = (a: Element | null, b: Element | null) =>
+      Boolean(a && b && a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(before(attention, warning)).toBe(true);
+    expect(before(warning, lead)).toBe(true);
+    expect(before(lead, checklist)).toBe(true);
+    // The duplicate is deliberate: the row stays in its group too.
+    expect(container.querySelector('[data-testid="diag-row-gateway_last_error"]')).not.toBeNull();
+  });
+
+  it('shows the amber warning over an all-OK checklist', () => {
     status.completed_orders_unanswered_since = 1789808049;
     openPanel();
     const warning = container.querySelector(
