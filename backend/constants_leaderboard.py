@@ -13,7 +13,9 @@ LEADERBOARD_DIR_ENV = "NOVA_LEADERBOARD_DIR"
 LEADERBOARD_DEFAULT_ROOT_WIN = r"F:\Nova\leaderboard"
 LEADERBOARD_DB_FILENAME = "leaderboard.sqlite3"
 # 2 (#498): adds catalyst_checks / catalyst_items; a version-1 store migrates in place (new tables only).
-LEADERBOARD_SCHEMA_VERSION = 2
+# 3 (#532): rows add float_contradicted / shares_outstanding, so playback judges LEADERS_RULES' float as
+# auto-record did; a version-1 or -2 store migrates in place (two nullable columns, no row rewritten).
+LEADERBOARD_SCHEMA_VERSION = 3
 LEADERBOARD_SQLITE_TIMEOUT_SEC = 10.0
 
 # ── Row vocabulary ──────────────────────────────────────────────────────────

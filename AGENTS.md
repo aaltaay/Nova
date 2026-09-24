@@ -516,11 +516,33 @@ scanner row (`scanner_surface.surface_rows` -> `mover_enrich_view.decorate_rows`
 adds `shares_outstanding`, `short_interest_ts` (only while the row's
 `short_interest` is the cached figure, else `null`: a date is never pinned on
 another report) and `float_contradicted` / `float_contradicted_reason`, judged
-on the row's own float and short interest. **Descriptive only:** no gate reads
-them -- HOD Momo `min_float` / `max_float`, the setup grade and stock filter,
-the Five Pillars float pillar, the leaderboard's `LEADERS_RULES` and the
-scanner's Float chip pass and fail exactly as before (#532's point 2 waits on an
-operator decision). The desk shows a contradicted float as "54.0K?" with the
+on the row's own float and short interest.
+
+**Max-float gates read it** (#532 point 2, operator decision 2026-09-24: ship
+it now). The fact that holds is float <= shares outstanding, so a contradicted
+float passes a max-float gate only when `shares_outstanding` is at or under the
+gate's limit; when shares outstanding is over the limit or unknown the float is
+**unknown, and never a pass** -- not even where an unknown float passes. One
+pure rule, `strategy/float_gate.float_for_gate(float, limit, contradicted,
+shares_outstanding) -> (passes, reason)`, for every gate; a float whose check is
+`false` or `null` (unchecked) is judged exactly as before. HOD Momo's
+`max_float` (the "Low Float" strategies) refuses it `float:contradicted(shares_out=
+<count>><limit> | unknown)` and queues no second Yahoo read; `TickerSnap` carries
+`float_contradicted` / `shares_outstanding`, set with the float they describe
+(the fundamentals enrichment loop and the after-hours runner; a float given
+without its check -- a HOD replay's archived float -- is unchecked). The setup
+grade's float pillar is `null` (unknown, never failed) and a template's stock
+filter keeps the setup out even with `unknown_passes` (replayed eyes read the
+check from the recorded leaderboard row). The Five Pillars float
+pillar fails with the reason as its `detail`, and the Contenders float score is
+0 (a rescued float scores on shares outstanding, the most it can be).
+`LEADERS_RULES` refuses it `float_contradicted`. HOD Momo `min_float` and the
+scanner's Float chip (a view filter that keeps what it cannot judge) still
+compare the float as shown. On the 2026-09-23 audit at a 10M line: SECZ (8.45M
+float, 163.27M out), RNAZ (2.15M, 16.93M), WNW (156K, 26.33M) and LGCL are
+refused; WHLR (54K, 568K), HAO and HKIT pass.
+
+The desk shows a contradicted float as "54.0K?" with the
 reason on hover, and short interest with its settlement date ("566.0K (Aug
 31)"; the scanner's second line "8/31 · 6.9") and Yahoo's ratio named on hover
 and in the quote panel's "Short Ratio (Yahoo)".
@@ -528,16 +550,18 @@ and in the quote panel's "Short Ratio (Yahoo)".
 ### Scanner leaderboard: recorded, reconstructed, played back (ADR 023, operator decision 2026-09-22)
 
 Owner `backend/leaderboard/`; store `leaderboard.sqlite3` (`PRAGMA
-user_version=2`, unknown versions refuse; a version-1 store is migrated in
-place by creating the two catalyst tables below -- nothing existing is
-rewritten) under `NOVA_LEADERBOARD_DIR`, else
+user_version=3`, unknown versions refuse; a version-1 or -2 store is migrated
+in place by creating the two catalyst tables below and adding the `rows`
+columns `float_contradicted` / `shares_outstanding` (#532) -- nothing existing
+is rewritten, and a row stored before reads both as `null`) under `NOVA_LEADERBOARD_DIR`, else
 `F:\Nova\leaderboard` when F: is mounted, else `<cache_dir>/leaderboard` --
 beside, never inside, the capture root or the historical downloads. One
 **leaderboard row** per symbol per minute per board:
 
 `{symbol, minute_ts, board, source, rank, price, prev_close, change_pct,
-volume, rvol, rvol_basis, float_shares, has_news, news_first_seen_ts, halted,
-gap_pct, exchange, market_cap, catalyst}` -- `minute_ts` is a whole-minute epoch second
+volume, rvol, rvol_basis, float_shares, float_contradicted, shares_outstanding,
+has_news, news_first_seen_ts, halted, gap_pct, exchange, market_cap, catalyst}`
+-- `minute_ts` is a whole-minute epoch second
 and the row is the board **as it stood at `minute_ts`** (a reconstructed row
 uses only minute bars that closed by then; a recorded row is the desk's board
 snapshotted within `LEADERBOARD_RECORD_SETTLE_SEC` after it). `source` is
@@ -550,7 +574,11 @@ unknown (a `close_fallback` row has no print: `price` / `change_pct` null).
 `rvol_basis` is `daily_avg` (the desk's RVOL: volume over the average daily
 volume) or `time_of_day_20` (volume so far over the same-minute average of the
 prior 20 sessions); two bases are never compared. `float_shares` is as known
-that day or `null`; `has_news` / `news_first_seen_ts` only from news seen by
+that day or `null`; `float_contradicted` (`boolean | null`) and
+`shares_outstanding` are a recorded row's float check as the desk row carried
+it that minute (#532, "Float credibility and short-interest dates"),
+`float_contradicted` `null` without a float; a reconstructed row carries
+neither. `has_news` / `news_first_seen_ts` only from news seen by
 that minute. Every unknown is `null`, never a placeholder. `halted` is derived
 at read time from the halt log: `true` while a logged halt is open, `false`
 only for a recorded minute whose halt feed was answering, else `null`.
@@ -606,7 +634,13 @@ A halt is never inferred from a gap in the prints.
 `change_pct` (ties: volume, symbol). Playback's `leaders`, the S5 offline
 universe and live auto-record call the same function; presets are
 `BOARD_RULES`, `LEADERS_RULES` ($3-10, float <= 10M or unknown, volume >=
-100k, top 3) and `S5_RULES` (top 3 with `time_of_day_20` RVOL >= 5). A
+100k, top 3) and `S5_RULES` (top 3 with `time_of_day_20` RVOL >= 5). Under
+`LEADERS_RULES` a contradicted float (#532) qualifies only on shares
+outstanding <= 10M and is otherwise refused `float_contradicted` -- an unknown
+float is admitted, a contradicted one is not, because its own counts say it is
+likely larger than shown; a row without the check (reconstructed, or recorded
+before schema 3) is judged as before. Playback and auto-record read the same
+stored check, so they still agree on who led. A
 recorded row's `rank` is the desk's own order of that list (Losers stay
 worst-first); a reconstructed row's `rank` is `BOARD_RULES`.
 
@@ -671,11 +705,18 @@ and `proposals[]` (the open ones). A row is `{symbol, state: "watching" |
 leg_low, leg_pct, armed_bar_t, armed_at, kind, triggered_at?, trigger_price?,
 nth?} | null, leg: {t, high, low, pct} | null, last_price, distance: number |
 null (trigger minus last, armed and near only), grade: "A" | "B" | "C" | null,
-pillars: {price, change_pct, rvol, float, news, headline, catalyst} | null, tape:
+pillars: {price, change_pct, rvol, float, float_contradicted,
+shares_outstanding, float_note, news, headline, catalyst} | null, tape:
 {verdict: "go" | "wait" | "veto" | "blind", reasons: string[], line, metrics}
 | null, proposal | null, outcome: "target_first" | "stop_first" | "open" |
 null, bar_r, mfe, mae}`. An unknown pillar is `null`, never a failed one, and
-no frame carries a bare `NaN` (`scanner_wire`). A proposal is `{id, setup_id,
+no frame carries a bare `NaN` (`scanner_wire`). `float_contradicted` /
+`shares_outstanding` are HOD Momo's float check (#532): a contradicted float's
+pillar passes only on shares outstanding at or under the pillar's limit and is
+otherwise `null`, and `float_note` (`string | null`, set at arm time with the
+template's limit) says which; a template's stock filter reads the float by the
+same rule and keeps out a contradicted float it cannot rescue, even with
+`unknown_passes`. A proposal is `{id, setup_id,
 symbol, kind, trigger, entry, stop, target1, risk, grade, reasons, created_at,
 status: "open" | "triggered" | "failed" | "disarmed" | "rearmed", tape_now}`
 -- raised only when a live setup is `near` and the tape says `go` (a re-arm at

@@ -53,6 +53,8 @@ def build_debug_symbol(
             "price": snap.price if snap else None,
             "rvol": snap.rvol if snap else None,
             "float_shares": snap.float_shares if snap else None,
+            "float_contradicted": snap.float_contradicted if snap else None,
+            "shares_outstanding": snap.shares_outstanding if snap else None,
             "gap_pct": snap.gap_pct if snap else None,
             "change_pct": snap.change_pct if snap else None,
             "volume": snap.volume if snap else None,

@@ -135,6 +135,8 @@ def _api_row(row: dict[str, Any], halted: bool | None, catalyst: dict[str, Any] 
     out = {key: value for key, value in row.items() if key != "session_date"}
     has_news = out.get("has_news")
     out["has_news"] = None if has_news is None else bool(has_news)
+    contradicted = out.get("float_contradicted")
+    out["float_contradicted"] = None if contradicted is None else bool(contradicted)
     out["halted"] = halted
     out["catalyst"] = catalyst
     return out

@@ -219,7 +219,8 @@ class Lane:
         pillars = self.host.pillars(sym, now)
         g, checks = _grade.grade(pillars, self.p.grade)
         row = {"id": sid, "session_date": self.host.session, "symbol": sym, "leg_t": view["setup_key"],
-               "armed_at": setup.get("armed_at") or now, "grade": g, "pillars": {**pillars, "checks": checks},
+               "armed_at": setup.get("armed_at") or now, "grade": g,
+               "pillars": {**pillars, "checks": checks, "float_note": _grade.float_note(pillars, self.p.grade)},
                **self.stamp()}
         self.rows[sid] = row
         why = self.p.stock.check(pillars, g) if self.p.stock.active else None

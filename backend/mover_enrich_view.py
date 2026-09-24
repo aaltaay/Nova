@@ -20,7 +20,9 @@ Float credibility (#532): each row carries ``shares_outstanding``, the
 the cached one, so a date is never pinned on another report), and
 ``float_contradicted`` / ``float_contradicted_reason`` from
 ``fundamentals.float_credibility`` over the row's own float and short interest.
-Descriptive only: no gate reads them.
+The max-float gates that grade these rows -- the Five Pillars float pillar, the
+Contenders float score, ``LEADERS_RULES`` through the recorded leaderboard row
+-- read the flag and ``shares_outstanding`` through ``strategy.float_gate``.
 
 Average volume comes from yfinance, never ``state.avg_volume_cache``. Alpaca's
 IEX daily bars capture only a sliver of consolidated volume for the thin

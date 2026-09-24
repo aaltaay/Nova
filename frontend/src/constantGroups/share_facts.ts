@@ -5,7 +5,9 @@
  * month about two weeks late, so it carries its settlement date. Yahoo's short ratio divides it by
  * Yahoo's own average volume and is not FINRA's days to cover. Yahoo's float is the last filing's
  * share count less insiders; when Yahoo's own shares outstanding or short interest contradicts it
- * (`float_contradicted`), the float reads "54.0K?" and says why. Descriptive only: no gate reads it.
+ * (`float_contradicted`), the float reads "54.0K?" and says why. The backend's max-float gates pass
+ * such a float only on shares outstanding (`strategy/float_gate.py`). The scanner's Float chip is a
+ * view filter that keeps what it cannot judge, so it still compares the float as shown.
  */
 
 /** Appended to a float Yahoo's own share counts contradict: "54.0K?". */

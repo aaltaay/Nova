@@ -95,6 +95,46 @@ def test_afterhours_rvol_names_its_alpaca_average(monkeypatch):
     assert "_hod_rvol_source" not in rows["TOPS"]
 
 
+def test_afterhours_hands_hod_momo_the_float_check_with_the_float(monkeypatch):
+    """#532: HOD Momo's max_float reads a contradicted float on shares outstanding, so the check rides
+    with the float the after-hours runner seeds."""
+    import fundamentals
+
+    state = _fake_state()
+    seen: dict = {}
+    monkeypatch.setitem(fundamentals._fundamentals_cache, "SECZ", {
+        "float_shares": 8_450_000, "shares_outstanding": 163_270_000, "float_contradicted": True})
+    monkeypatch.setattr(scan_runners, "get_runtime_state", lambda: state)
+    monkeypatch.setattr(scan_runners, "_get_discovery_provider", lambda: "ibkr")
+    monkeypatch.setattr(scan_runners, "_alpaca_headers", lambda: None)
+    monkeypatch.setattr(scan_runners._ibkr_discovery, "get_afterhours_gainers", lambda: None)
+    monkeypatch.setattr(
+        scan_runners,
+        "run_ibkr",
+        lambda coro, on_error="none", label="ibkr": [
+            {"symbol": "SECZ", "price": 11.2, "prev_close": 5.0, "change_pct": 1.24, "volume": 900_000},
+            {"symbol": "NOFUND", "price": 3.0, "prev_close": 2.0, "change_pct": 0.5, "volume": 50_000},
+        ],
+    )
+    monkeypatch.setattr(scan_runners, "mark_resub", lambda: None)
+    monkeypatch.setattr(
+        afterhours, "_hod_momo",
+        type("M", (), {"update_ticker_snapshot": staticmethod(lambda sym, **kw: seen.__setitem__(sym, kw))})(),
+    )
+    monkeypatch.setattr(scan_runners, "save_afterhours_snapshot", lambda *a, **k: None)
+    import universe as _universe
+
+    monkeypatch.setattr(_universe, "refresh_hod_momo_universe", lambda: None)
+
+    afterhours.run_afterhours_discovery_scan()
+
+    secz = seen["SECZ"]
+    assert (secz["float_shares"], secz["float_contradicted"], secz["shares_outstanding"]) == (
+        8_450_000, True, 163_270_000)
+    nofund = seen["NOFUND"]
+    assert (nofund["float_shares"], nofund["float_contradicted"], nofund["shares_outstanding"]) == (None, None, None)
+
+
 def test_run_afterhours_focus_scan_clears_sticky_bridge_error(monkeypatch):
     state = _fake_state()
     state.afterhours_cache = [

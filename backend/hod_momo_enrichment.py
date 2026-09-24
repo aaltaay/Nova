@@ -346,6 +346,8 @@ async def fundamentals_enrichment_loop() -> None:
                     rvol=rvol,
                     rvol_source=rvol_source,
                     avg_volume=avg_volume,
+                    float_contradicted=fund.get("float_contradicted"),
+                    shares_outstanding=fund.get("shares_outstanding"),
                 )
                 processed += 1
                 logger.debug(

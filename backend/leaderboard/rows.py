@@ -65,6 +65,8 @@ def make_row(
     gap_pct: Any = None,
     exchange: str | None = None,
     market_cap: Any = None,
+    float_contradicted: bool | None = None,
+    shares_outstanding: Any = None,
 ) -> dict[str, Any]:
     if board not in LEADERBOARD_BOARDS:
         raise ValueError(f"unknown leaderboard board {board!r}")
@@ -84,6 +86,7 @@ def make_row(
     if rvol_v is not None and basis is None:
         raise ValueError("an rvol without its basis cannot be compared with anything")
     volume_v = num(volume)
+    float_v = positive(float_shares)
     return {
         "session_date": session_date_for(minute_ts),
         "minute_ts": int(minute_ts),
@@ -97,12 +100,16 @@ def make_row(
         "volume": volume_v if volume_v is not None and volume_v >= 0 else None,
         "rvol": rvol_v,
         "rvol_basis": basis,
-        "float_shares": positive(float_shares),
+        "float_shares": float_v,
         "has_news": None if has_news is None else bool(has_news),
         "news_first_seen_ts": num(news_first_seen_ts),
         "gap_pct": num(gap_pct),
         "exchange": (exchange or None) if isinstance(exchange, str) else None,
         "market_cap": positive(market_cap),
+        # The desk row's float check (#532): it describes the float beside it, so none without one.
+        "float_contradicted": (float_contradicted if isinstance(float_contradicted, bool) and float_v is not None
+                               else None),
+        "shares_outstanding": positive(shares_outstanding),
     }
 
 
@@ -134,6 +141,8 @@ def from_desk_row(
     its price is not a price, so price and change are recorded as unknown.
     ``news_first_seen_ts`` is the caller's earliest headline time seen for the
     symbol that day (the desk row only names its newest headline).
+    ``float_contradicted`` / ``shares_outstanding`` are the row's float check
+    (#532, ``mover_enrich_view``), kept so ``LEADERS_RULES`` reads them later.
     """
     no_print = row.get("quote_quality") == _CLOSE_FALLBACK
     price = None if no_print else (row.get("price") if row.get("price") is not None else row.get("current_price"))
@@ -157,4 +166,6 @@ def from_desk_row(
         gap_pct=row.get("gap_percent"),
         exchange=row.get("exchange"),
         market_cap=row.get("market_cap"),
+        float_contradicted=row.get("float_contradicted"),
+        shares_outstanding=row.get("shares_outstanding"),
     )

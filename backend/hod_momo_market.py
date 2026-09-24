@@ -163,7 +163,14 @@ def update_ticker_snapshot(
     rvol_source: str | None = None,
     avg_volume: float | None = None,
     rvol_5min: float | None = None,
+    float_contradicted: bool | None = None,
+    shares_outstanding: float | None = None,
 ) -> None:
+    """Merge what a caller knows into the symbol's snapshot; ``None`` leaves a field as it was.
+
+    ``float_contradicted`` / ``shares_outstanding`` describe the float they arrive with (#532), so
+    they are set whenever ``float_shares`` is -- a float given without its check is unchecked.
+    """
     snap = _state.get_state().ticker_snaps.setdefault(symbol, TickerSnap())
     prev_avg = snap.avg_volume
     prev_float = snap.float_shares
@@ -173,6 +180,8 @@ def update_ticker_snapshot(
         snap.rvol = rvol
     if float_shares is not None:
         snap.float_shares = float_shares
+        snap.float_contradicted = float_contradicted
+        snap.shares_outstanding = shares_outstanding
     if gap_pct is not None:
         snap.gap_pct = gap_pct
     if volume is not None:

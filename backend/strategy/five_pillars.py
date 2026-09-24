@@ -21,6 +21,7 @@ from constants import (
     FIVE_PILLARS_MIN_PRICE,
     FIVE_PILLARS_MIN_REL_VOLUME,
 )
+from strategy.float_gate import float_for_gate
 
 PILLAR_NAMES: tuple[str, ...] = (
     "price",
@@ -138,7 +139,12 @@ def _check_catalyst(has_news: bool | None, technical_breakout: bool = False) -> 
     return PillarCheck("catalyst", passed, detail)
 
 
-def _check_float(float_shares: float | None) -> PillarCheck:
+def _check_float(float_shares: float | None, contradicted=None, shares_outstanding=None) -> PillarCheck:
+    # A float its own share counts contradict passes only on shares outstanding (#532).
+    passes, why = float_for_gate(float_shares, FIVE_PILLARS_MAX_FLOAT_SHARES, contradicted=contradicted,
+                                 shares_outstanding=shares_outstanding)
+    if why is not None:
+        return PillarCheck("float", bool(passes), why)
     if float_shares is None:
         # Unknown float is treated as a fail — we don't guess in favor of a trade.
         return PillarCheck("float", False, "float unknown")
@@ -170,7 +176,7 @@ def evaluate_five_pillars(candidate: dict, technical_breakout: bool = False) -> 
         _check_relative_volume(rel_volume),
         _check_catalyst_verdict(catalyst, technical_breakout) if catalyst_read(catalyst)
         else _check_catalyst(has_news, technical_breakout),
-        _check_float(float_shares),
+        _check_float(float_shares, candidate.get("float_contradicted"), candidate.get("shares_outstanding")),
     )
     return FivePillarsResult(symbol=symbol, checks=checks)
 
