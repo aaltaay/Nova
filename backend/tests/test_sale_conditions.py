@@ -13,7 +13,7 @@ from types import SimpleNamespace
 import pytest
 
 import ibkr.tape_stream as tape
-from sale_conditions import row_sets_price, sets_price
+from sale_conditions import row_sets_price, sets_price, tape_flags
 
 
 @pytest.mark.parametrize("conditions", ["", " F  ", "  T ", " FT ", " O X", " 5 X", "    "])
@@ -51,6 +51,16 @@ def test_row_verdict_prefers_its_stamp_then_its_conditions():
     assert row_sets_price({"conditions": " 4 W"}) is False
     assert row_sets_price({"conditions": "", "unreported": True}) is False
     assert row_sets_price({"price": 10.0}) is True  # a pre-stamp row with no conditions
+
+
+def test_tape_flags_are_the_row_stamp_or_its_conditions():
+    """#543: the two fields every Time & Sales print carries."""
+    assert tape_flags({"conditions": "   I"}) == {"unreported": False, "sets_price": False}
+    assert tape_flags({"conditions": " F  "}) == {"unreported": False, "sets_price": True}
+    assert tape_flags({"conditions": "", "unreported": True}) == {"unreported": True, "sets_price": False}
+    assert tape_flags({"conditions": " 4 W", "unreported": False, "sets_price": True}) == {
+        "unreported": False, "sets_price": True}
+    assert tape_flags({"price": 10.0}) == {"unreported": False, "sets_price": True}
 
 
 class _FakeTicker:
@@ -136,4 +146,36 @@ def test_capture_replay_candles_skip_volume_only_prints(monkeypatch):
     assert partial[-1]["l"] == 192.75 and partial[-1]["v"] == 300
     closed = player.chart_bars("10Sec", 10, asof=start + 10)
     assert closed[-1]["l"] == 192.75 and closed[-1]["h"] == 192.80
+    player.reset_for_tests()
+
+
+def test_capture_replay_tape_carries_the_live_tape_fields(monkeypatch):
+    """#543: a replayed odd lot is marked like a live one -- an older recording by its conditions."""
+    from sim import capture_player as player, feed, session_clock
+
+    player.reset_for_tests()
+    start = 1_790_171_100.0
+    prints = [
+        dict(ts=start + 1, price=192.75, size=200, conditions=""),    # regular, recorded before the stamp
+        dict(ts=start + 2, price=192.90, size=1, conditions="   I"),  # odd lot, recorded before the stamp
+        dict(ts=start + 3, price=190.38, size=100, conditions=" 4 W", unreported=True, sets_price=False),
+        dict(ts=start + 4, price=192.80, size=100, conditions=" F  ", unreported=False, sets_price=True),
+    ]
+    state = player.CaptureData("2026-09-23|PLTR", "PLTR", prints, [], [],
+                               [p["ts"] for p in prints], [], [])
+    monkeypatch.setattr(player, "_state", state)
+    monkeypatch.setattr(session_clock, "now_et", lambda: datetime.fromtimestamp(start + 5, tz=timezone.utc))
+    expected = [(False, True), (False, False), (True, False), (False, True)]
+
+    # The seed a Time & Sales socket gets on open, and the scrub's re-seed.
+    seeded = player.recent_prints(40)
+    assert [(p["unreported"], p["sets_price"]) for p in seeded] == expected
+
+    # The prints the feed streams as the playhead moves.
+    pushed: list[dict] = []
+    monkeypatch.setattr("ibkr.tape_stream._push_queue", lambda _sym, payload: pushed.append(payload))
+    monkeypatch.setattr(player, "book_at", lambda **_kw: None)
+    feed._capture_tick()
+    assert [p["price"] for p in pushed] == [192.75, 192.90, 190.38, 192.80]
+    assert [(p["unreported"], p["sets_price"]) for p in pushed] == expected
     player.reset_for_tests()

@@ -3,7 +3,9 @@
  * TimeSalesPanel passes the live IBKR tape; historical replay passes the Sim
  * snapshot, so both render the same columns, rows and filter.
  * Side is row tint only (no Side column): ask green | bid red | mid/unknown neutral.
- * Unreported prints (IBKR tickAttribLast.unreported) are dimmed rows.
+ * A print that does not set a price -- IBKR flags it unreported, or its sale
+ * conditions report it for volume only (odd lot, average price, ...) -- is a
+ * dimmed row (AGENTS.md §3, #543).
  * DOM mounts a viewport window; the feed ring still holds TAPE_UI_MAX_ROWS.
  * Right-click opens a min-size display filter (does not change the tape stream).
  */
@@ -11,6 +13,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type MouseEven
 import {
   TAPE_COL_HEADERS,
   TAPE_EMPTY_LABEL,
+  TAPE_NO_PRICE_TITLE,
   TAPE_OVERSCAN_ROWS,
   TAPE_ROW_HEIGHT_PX,
   TAPE_SECTION_TITLE,
@@ -36,7 +39,7 @@ import {
   tapePinnedToNewest,
   tapeScrollAfterPrepend,
 } from './tapeWindow';
-import type { TapePrint, TapeSide, TapeState } from './tapeFeed';
+import { tapePrintSetsPrice, type TapePrint, type TapeSide, type TapeState } from './tapeFeed';
 
 export interface TimeSalesViewProps {
   symbol: string | null;
@@ -88,12 +91,17 @@ function sideClass(side: TapeSide | undefined): string {
 }
 
 const TapeRow = memo(function TapeRow({ print }: { print: TapePrint }) {
+  // A print that does not set a price is dimmed, and its tooltip says why.
+  const setsPrice = tapePrintSetsPrice(print);
+  const title = print.unreported ? TAPE_UNREPORTED_TITLE : setsPrice ? undefined : TAPE_NO_PRICE_TITLE;
   return (
     <div
-      className={`ts-row ${sideClass(print.side)}${print.unreported ? ' ts-row--unreported' : ''}`}
+      className={`ts-row ${sideClass(print.side)}${setsPrice ? '' : ' ts-row--no-price'}${
+        print.unreported ? ' ts-row--unreported' : ''}`}
       style={{ height: TAPE_ROW_HEIGHT_PX }}
-      title={print.unreported ? TAPE_UNREPORTED_TITLE : undefined}
+      title={title}
       data-unreported={print.unreported ? '1' : undefined}
+      data-sets-price={setsPrice ? undefined : '0'}
     >
       <span className="ts-col--time">{fmtTapeTime(print.time)}</span>
       <span className="ts-col--price">{fmtPrice(print.price)}</span>
@@ -107,7 +115,8 @@ const TapeRow = memo(function TapeRow({ print }: { print: TapePrint }) {
   const a = previous.print, b = next.print;
   return a === b || (a.replayId != null && a.replayId === b.replayId
     && a.price === b.price && a.size === b.size && a.time === b.time
-    && a.exchange === b.exchange && a.side === b.side && a.unreported === b.unreported);
+    && a.exchange === b.exchange && a.side === b.side && a.unreported === b.unreported
+    && a.setsPrice === b.setsPrice);
 });
 
 function TapeHeadMeta({

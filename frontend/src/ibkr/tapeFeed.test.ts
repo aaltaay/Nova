@@ -7,6 +7,7 @@ import {
   emptyTapeState,
   flushPendingTapePrints,
   tapeMessageAllowed,
+  tapePrintSetsPrice,
   tapeSymbolKey,
   type TapePrint,
 } from './tapeFeed';
@@ -96,5 +97,15 @@ describe('Time & Sales tape ownership', () => {
     expect(glue).not.toMatch(/useIbkrTape/);
     expect(glue).toMatch(/Level2Module/);
     expect(glue).toMatch(/TimeSalesModule/);
+  });
+});
+
+describe('tapePrintSetsPrice', () => {
+  it('is false for an unreported or volume-only print and true when no verdict came (#543)', () => {
+    expect(tapePrintSetsPrice({ setsPrice: true })).toBe(true);
+    expect(tapePrintSetsPrice({})).toBe(true);
+    expect(tapePrintSetsPrice({ setsPrice: false })).toBe(false);
+    expect(tapePrintSetsPrice({ unreported: true })).toBe(false);
+    expect(tapePrintSetsPrice({ unreported: true, setsPrice: true })).toBe(false);
   });
 });

@@ -15,7 +15,7 @@ from capture.constants_capture import CAPTURE_L2_LOAD_LIMIT, CAPTURE_NOT_IBKR_RE
 from capture.schema import read_manifest
 from capture.sessions import is_ibkr_source
 from ibkr.depth.book import sort_levels
-from sale_conditions import row_sets_price
+from sale_conditions import row_sets_price, tape_flags
 from sim.capture_charts import chart_bars  # noqa: F401 -- the player's chart API (split out)
 from sim.capture_spans import load_spans, newest_in_span, recording_here, span_start
 from sim.capture_reader import read_jsonl as _read_jsonl, usable_rows, new_diagnostics, sample_l2
@@ -221,6 +221,7 @@ def recent_prints(limit: int = 40, *, state: CaptureData | None = None) -> list[
                 "size": int(p["size"]) if p.get("size") is not None else None,
                 "exchange": str(p.get("exchange") or ""),
                 "conditions": str(p.get("conditions") or ""),
+                **tape_flags(p),
                 "side": p.get("side"),
                 "bid": p.get("bid"),
                 "ask": p.get("ask"),

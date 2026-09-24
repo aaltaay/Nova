@@ -11,6 +11,7 @@ from capture.constants_capture import CAPTURE_FEED_EMIT_LIMIT
 import asyncio
 import logging
 
+from sale_conditions import tape_flags
 from sim import broker as _broker
 from sim import practice
 from sim import session_clock as _clock
@@ -200,6 +201,8 @@ def _capture_tick() -> dict:
             "price": float(row["price"]), "size": int(row.get("size") or 0),
             "exchange": str(row.get("exchange") or ""),
             "conditions": str(row.get("conditions") or ""),
+            # The live tape's two fields; an older recording is judged by its conditions (#543).
+            **tape_flags(row),
             "side": row.get("side"), "bid": row.get("bid"), "ask": row.get("ask"),
         }
         _push_queue(symbol, payload)

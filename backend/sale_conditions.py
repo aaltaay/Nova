@@ -36,3 +36,12 @@ def row_sets_price(row: Mapping[str, Any]) -> bool:
     if isinstance(stamped, bool):
         return stamped
     return sets_price(row.get("conditions"), unreported=bool(row.get("unreported")))
+
+
+def tape_flags(row: Mapping[str, Any]) -> dict[str, bool]:
+    """The two fields a Time & Sales print carries: IBKR's ``unreported`` flag and the verdict.
+
+    A row recorded before the fields existed is judged by its conditions, so a
+    replayed odd lot reads the same as a live one (#543).
+    """
+    return {"unreported": bool(row.get("unreported")), "sets_price": row_sets_price(row)}
