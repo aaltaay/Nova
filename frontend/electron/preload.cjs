@@ -18,4 +18,24 @@ contextBridge.exposeInMainWorld('novaDesktop', {
   openExternal: (url) => ipcRenderer.invoke('nova:openExternal', url),
   /** Kill + restart the local FastAPI sidecar when the UI shows Backend unreachable. */
   restartApi: () => ipcRenderer.invoke('nova:restartApi'),
+  /**
+   * The update notice and What's new card (electron/updateBridge.mjs). `subscribe`
+   * calls back with the current view, then with every change; it returns the
+   * unsubscribe. Channel names are updateBridge.mjs's, repeated here because a
+   * sandboxed preload cannot import it.
+   */
+  updates: {
+    subscribe: (onView) => {
+      const listener = (_event, view) => onView(view);
+      ipcRenderer.on('nova:update:view', listener);
+      ipcRenderer
+        .invoke('nova:update:subscribe')
+        .then((view) => {
+          if (view) onView(view);
+        })
+        .catch((err) => console.warn('[nova] update notice unavailable', err));
+      return () => ipcRenderer.removeListener('nova:update:view', listener);
+    },
+    act: (request) => ipcRenderer.invoke('nova:update:act', request),
+  },
 });
