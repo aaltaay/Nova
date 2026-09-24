@@ -177,6 +177,25 @@ def test_a_newer_leaderboard_schema_is_refused_and_logged(caplog):
     assert "prior close unread" in caplog.text
 
 
+def test_a_store_not_yet_migrated_is_read_as_found():
+    """A version-1 store (before #498's catalyst tables) still answers; the read never migrates it."""
+    leaderboard_rows("WHLR", "2026-09-23", "recorded", [1.87])
+    db = sqlite3.connect(lb_store.path())
+    try:
+        db.execute("DROP TABLE catalyst_items")
+        db.execute("DROP TABLE catalyst_checks")
+        db.execute("PRAGMA user_version=1")
+        db.commit()
+    finally:
+        db.close()
+    assert lb_store.day_prev_close("2026-09-23", "WHLR") == 1.87
+    db = sqlite3.connect(lb_store.path())
+    try:
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 1
+    finally:
+        db.close()
+
+
 def test_the_read_only_connection_never_writes():
     leaderboard_rows("WHLR", "2026-09-23", "recorded", [1.87])
     db = lb_store.read_only()

@@ -31,6 +31,7 @@ from leaderboard.schema import (
     HALT_COLUMNS,
     MINUTE_COLUMNS,
     ROW_COLUMNS,
+    READABLE_VERSIONS,
     UnknownLeaderboardSchema,
     initialize,
 )
@@ -75,8 +76,10 @@ def read_only(database: Path | None = None) -> sqlite3.Connection | None:
     """The store opened read-only, or ``None`` when there is none yet.
 
     For readers outside the recorder (the replay's previous close, #542): a read
-    never creates the store, its directory or its tables. A store written by a
-    newer Nova raises ``UnknownLeaderboardSchema``, as ``connect`` does.
+    never creates the store, its directory or its tables, and never migrates it --
+    so a store not yet migrated (``READABLE_VERSIONS``) is read as found, and its
+    readers query only the ``rows`` table every version holds. A store written by
+    a newer Nova raises ``UnknownLeaderboardSchema``, as ``connect`` does.
     """
     target = database or path()
     if not target.is_file():
@@ -88,7 +91,7 @@ def read_only(database: Path | None = None) -> sqlite3.Connection | None:
     except sqlite3.Error:
         db.close()
         raise
-    if version == LEADERBOARD_SCHEMA_VERSION:
+    if version in READABLE_VERSIONS:
         return db
     db.close()
     if version == 0:

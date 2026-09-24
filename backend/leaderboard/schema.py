@@ -128,6 +128,8 @@ class UnknownLeaderboardSchema(sqlite3.DatabaseError):
 
 
 _MIGRATABLE = (1,)
+# Versions a read-only reader may open as found (it never migrates): every one holds ``rows``.
+READABLE_VERSIONS = (*_MIGRATABLE, LEADERBOARD_SCHEMA_VERSION)
 
 
 def _version(db: sqlite3.Connection) -> int:
