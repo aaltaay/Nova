@@ -1,0 +1,92 @@
+/* Find on this page -- Ctrl+F (ux/findBar.ts). One bar per window, fixed
+   top-right under the header, over the desk and under the tips. */
+
+@layer components {
+  .find-bar {
+    position: fixed;
+    top: 48px;
+    right: 16px;
+    z-index: 2147482980;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: min(380px, calc(100vw - 32px));
+    padding: 5px 6px 5px 8px;
+    border-radius: 8px;
+    border: 1px solid var(--nova-border-strong, rgba(255, 255, 255, 0.22));
+    background: var(--nova-raised, #2c2c2e);
+    color: var(--nova-text, #f5f5f7);
+    box-shadow: 0 12px 30px rgb(0 0 0 / 0.45);
+    font-size: 12.5px;
+  }
+
+  .find-bar[hidden] {
+    display: none;
+  }
+
+  .find-bar__input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 26px;
+    padding: 0 8px;
+    border-radius: 6px;
+    border: 1px solid var(--nova-border, rgba(255, 255, 255, 0.12));
+    background: var(--nova-canvas, #1c1c1e);
+    color: var(--nova-text, #f5f5f7);
+    font: inherit;
+    outline: none;
+  }
+
+  .find-bar__input:focus {
+    border-color: var(--nova-accent, #0a84ff);
+  }
+
+  .find-bar__count {
+    flex: none;
+    min-width: 70px;
+    padding: 0 4px;
+    text-align: right;
+    white-space: nowrap;
+    color: var(--nova-text-muted, #c7c7cc);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .find-bar__count--none {
+    color: var(--nova-danger, #ff453a);
+  }
+
+  .find-bar__btn {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--nova-text, #f5f5f7);
+    font-size: 14px;
+    line-height: 1;
+  }
+
+  .find-bar__btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--nova-text, #f5f5f7) 12%, transparent);
+  }
+
+  .find-bar__btn:disabled {
+    opacity: 0.4;
+  }
+
+  .find-bar__btn:focus-visible {
+    outline: 2px solid var(--nova-accent, #0a84ff);
+    outline-offset: 1px;
+  }
+
+  /* Every match, and the current one brighter (the colours of a browser's own find). */
+  ::highlight(nova-find) {
+    background-color: rgb(255 214 10 / 0.38);
+  }
+
+  ::highlight(nova-find-current) {
+    background-color: #ff9f0a;
+    color: #000;
+  }
+}

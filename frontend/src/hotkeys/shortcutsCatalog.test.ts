@@ -24,4 +24,23 @@ describe('buildShortcutsCatalog', () => {
     expect(sections[0].rows[0].canEditAction).toBeUndefined();
     expect(sections[0].rows[0].canDelete).toBeUndefined();
   });
+
+  it('lists Ctrl+F find on the page, unless a Nova Action owns Ctrl+F', () => {
+    const find = buildShortcutsCatalog([])[0].rows.find((r) => r.id === 'menu:find_on_page');
+    expect(find).toMatchObject({ chord: 'Ctrl+F', label: 'Find on this page' });
+    expect(find?.rebind).toBeUndefined();
+    const owner: NovaActionRecord = {
+      id: 'f1',
+      name: 'Flatten',
+      kind: 'exit_pos',
+      key: { label: 'Ctrl+F', key: 'F', ctrl: true },
+      params: {},
+      enabled: true,
+      showButton: false,
+    };
+    const rows = buildShortcutsCatalog([owner])[0].rows;
+    expect(rows.some((r) => r.id === 'menu:find_on_page')).toBe(false);
+    const idle = buildShortcutsCatalog([{ ...owner, enabled: false }])[0].rows;
+    expect(idle.some((r) => r.id === 'menu:find_on_page')).toBe(true);
+  });
 });
