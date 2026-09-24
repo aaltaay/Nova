@@ -40,6 +40,17 @@ function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 }
 
+/**
+ * A JavaScript string literal for code run in the page: JSON.stringify, plus
+ * every character JSON leaves raw that could end a script or a line there.
+ */
+export function jsString(text) {
+  return JSON.stringify(String(text)).replace(
+    /[<>/\u2028\u2029]/g,
+    (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, '0')}`,
+  );
+}
+
 /** The whole page. No script: the steps are written in from the main process. */
 export function splashHtml(version = '') {
   const title = escapeHtml(version ? `Starting Nova ${version}` : 'Starting Nova');
@@ -95,7 +106,7 @@ export function openStartupSplash({ BrowserWindow, target, version = '', icon, o
   const alive = () => win && !win.isDestroyed();
   const writeStep = () => {
     if (!alive()) return;
-    const js = `(() => { const el = document.getElementById('step'); if (el) el.textContent = ${JSON.stringify(lastStep)}; })()`;
+    const js = `(() => { const el = document.getElementById('step'); if (el) el.textContent = ${jsString(lastStep)}; })()`;
     win.webContents.executeJavaScript(js).catch(() => {
       // Still loading or already closed: did-finish-load writes the latest step.
     });

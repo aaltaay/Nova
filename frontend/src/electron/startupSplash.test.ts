@@ -11,6 +11,7 @@ import {
   STARTUP_SPLASH_WIDTH,
   STARTUP_STEPS,
   engineStep,
+  jsString,
   openStartupSplash,
   splashBounds,
   splashHtml,
@@ -73,6 +74,14 @@ describe('what the window says', () => {
 
   it('escapes the version', () => {
     expect(splashHtml('<b>')).toContain('Starting Nova &#60;b&#62;');
+  });
+
+  it('writes a step as a string literal nothing in it can break out of', () => {
+    const tricky = '"); alert(1); ("</script>\u2028\\';
+    const literal = jsString(tricky);
+    expect(literal).not.toMatch(/[<>/\u2028\u2029]/);
+    // Still the same text once the page reads it.
+    expect(JSON.parse(literal)).toBe(tricky);
   });
 
   it('says starting when Nova spawned the engine, connecting when one was already running', () => {
