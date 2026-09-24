@@ -1,8 +1,10 @@
 /* Global Nova app dialogs — confirm / alert / prompt host. */
 
+/* No backdrop-filter: the Windows desk composites in software, where a
+   full-window blur is recomputed on the CPU every time the desk repaints
+   (see tradingPrerequisitesGate.css). A denser scrim does its job. */
 .app-dialog-overlay {
-  background: color-mix(in srgb, #020617 72%, transparent);
-  backdrop-filter: blur(2px);
+  background: color-mix(in srgb, #020617 86%, transparent);
 }
 
 /* Above TradingPrerequisitesGate (z-index 9000) so Switch/Live confirm is visible. */

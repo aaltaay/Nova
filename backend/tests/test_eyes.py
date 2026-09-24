@@ -141,6 +141,11 @@ def test_load_reads_a_session_record_off_disk(tmp_path, monkeypatch):
     assert len(got.prints) == len(rec.prints) and all(hi < 9 for _, hi, _ in got.ticks)   # odd lot never a price
     with pytest.raises(ValueError):
         load("2026-09-22", SYM, root=tmp_path)
+    # No archive bars: minute bars come from the prints that set a price, never the stored buckets (#535).
+    (folder / "bars_1m.jsonl").write_text(json.dumps({"ts": rec.bars[-1].t + 60, "open": 1, "high": 99, "low": 0.5,
+                                                      "close": 1, "symbol": SYM}) + "\n", encoding="utf-8")
+    own = load(DAY, SYM, root=tmp_path, bars_fn=lambda sym, date: [])
+    assert own.bars_source == "recording" and own.bars and max(b.h for b in own.bars) < 9
 
 
 # -- the Sim eyes -------------------------------------------------------------------------------

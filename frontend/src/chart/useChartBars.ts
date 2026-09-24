@@ -34,6 +34,7 @@ import {
   type ChartViewportSnapshot,
 } from './chartViewportPaint';
 import {
+  barsStoreKey,
   ensureBars,
   getBarsEntry,
   isBarsEntryFresh,
@@ -95,13 +96,27 @@ export function useChartBars({
   const lastTradeRef = useRef<ChartTradeUpdate | null | undefined>(lastTrade);
   const paintedBarsRef = useRef<RawBar[] | null>(null);
   /**
-   * Survives a transient empty refresh so the recovery paint restores the
-   * operator's window instead of refitting. Cleared by a real seek / retarget,
-   * which SHOULD refit -- the time window genuinely changed.
+   * Survives a transient empty refresh, a Paper / Live / Sim switch and a
+   * hidden Trader tab coming back, so the next paint restores the operator's
+   * window instead of refitting. Cleared by a Sim seek or a new symbol /
+   * timeframe, which SHOULD refit -- the time window genuinely changed.
    */
   const pendingViewportRef = useRef<ChartViewportSnapshot | null>(null);
+  /** The pane (symbol + timeframe) the pending viewport belongs to. */
+  const viewportPaneRef = useRef<string | null>(null);
   const paintEpochRef = useRef(0);
   const chartActiveRef = useRef(chartActive);
+
+  /**
+   * Hold the operator's window before the series is cleared: once it is, the
+   * time scale reports nothing and the next paint would read as the first.
+   * Consecutive clears keep the first capture.
+   */
+  const carryViewport = useCallback(() => {
+    pendingViewportRef.current =
+      snapshotChartViewport(chartRef.current, paintedBarsRef.current?.length ?? 0)
+      ?? pendingViewportRef.current;
+  }, [chartRef]);
 
   useEffect(() => {
     lastTradeRef.current = lastTrade;
@@ -131,12 +146,9 @@ export function useChartBars({
         return;
       }
       if (sim || !allowMockBarsFallback(discoveryProvider)) {
-        // Capture BEFORE the wipe: once the series is cleared the time scale
-        // reports nothing, and `paintedBarsRef = []` would make the next paint
-        // look like the first one. Consecutive empties keep the first capture.
-        pendingViewportRef.current =
-          snapshotChartViewport(chartRef.current, paintedBarsRef.current?.length ?? 0)
-          ?? pendingViewportRef.current;
+        // Before the wipe: `paintedBarsRef = []` would make the next paint
+        // look like the first one.
+        carryViewport();
         setUsingMock(false);
         setIndicatorBars([]);
         candleSeriesRef.current?.setData([]);
@@ -176,6 +188,7 @@ export function useChartBars({
   }, [
     applyLiveTrade,
     candleSeriesRef,
+    carryViewport,
     chartRef,
     discoveryProvider,
     sim,
@@ -219,9 +232,17 @@ export function useChartBars({
   }, [applyCoverage, applyStoreBars]);
 
   useEffect(() => {
+    // Same pane re-sourced (the desk's venue changed): keep the operator's
+    // window. A new symbol or timeframe is a different chart and refits.
+    const pane = barsStoreKey(symbol, timeframe);
+    if (viewportPaneRef.current === pane) {
+      carryViewport();
+    } else {
+      viewportPaneRef.current = pane;
+      pendingViewportRef.current = null;
+    }
     onSeriesReset();
     paintedBarsRef.current = null;
-    pendingViewportRef.current = null;
     setIndicatorBars([]);
     setEmpty(false);
     setFilling(false);
@@ -254,7 +275,7 @@ export function useChartBars({
       raf.cancel();
       unsub();
     };
-  }, [symbol, timeframe, onSeriesReset, applyStoreBars, applyCoverage, sim]);
+  }, [symbol, timeframe, onSeriesReset, applyStoreBars, applyCoverage, carryViewport, sim]);
 
   useEffect(() => {
     if (!chartActive) return;
@@ -274,14 +295,17 @@ export function useChartBars({
 
   
   // Sim scrubber - drop cache and refetch so charts honor session clock jumps.
+  // Also runs, with no event, when the venue changes or a hidden tab returns:
+  // those re-source the same window, so the operator's zoom and pan carry over.
   useEffect(() => {
     if (!chartActive) return undefined;
     const onScrub = (event?: Event) => {
       if (event && (!sim || !matchesSimClockScrub(event, symbol))) return;
       barsRequestVersionRef.current += 1;
+      if (event) pendingViewportRef.current = null;
+      else carryViewport();
       onSeriesReset();
       paintedBarsRef.current = null;
-      pendingViewportRef.current = null;
       setIndicatorBars([]);
       candleSeriesRef.current?.setData([]);
       volSeriesRef.current?.setData([]);
@@ -291,7 +315,10 @@ export function useChartBars({
     onScrub();
     window.addEventListener(SIM_CLOCK_SCRUB_EVENT, onScrub);
     return () => window.removeEventListener(SIM_CLOCK_SCRUB_EVENT, onScrub);
-  }, [symbol, timeframe, chartActive, fetchBars, sim, onSeriesReset, candleSeriesRef, volSeriesRef]);
+  }, [
+    symbol, timeframe, chartActive, fetchBars, sim, onSeriesReset, carryViewport,
+    candleSeriesRef, volSeriesRef,
+  ]);
 
 useEffect(() => {
     if (!chartActive) return;

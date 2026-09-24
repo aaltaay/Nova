@@ -14,9 +14,10 @@ from capture.recorder import capture_root
 from capture.constants_capture import CAPTURE_L2_LOAD_LIMIT, CAPTURE_NOT_IBKR_REASON
 from capture.schema import read_manifest
 from capture.sessions import is_ibkr_source
+from sale_conditions import row_sets_price
 from sim.capture_charts import chart_bars  # noqa: F401 -- the player's chart API (split out)
 from sim.capture_spans import (
-    is_odd_lot, load_spans, newest_in_span, previous_close_for, recording_here, span_start,
+    load_spans, newest_in_span, previous_close_for, recording_here, span_start,
 )
 from sim.capture_reader import read_jsonl as _read_jsonl, usable_rows, new_diagnostics, sample_l2
 
@@ -30,12 +31,13 @@ class CaptureData:
     prints: list[dict]
     quotes: list[dict]
     l2: list[dict]
-    bars: dict[str, list[dict]]
     print_keys: list[float]
     quote_keys: list[float]
     l2_keys: list[float]
-    bar_keys: dict[str, list[float]]
+    # Candles built from the prints, per timeframe (``capture_charts``; stored bar files are never read, #535).
     print_bar_cache: dict = field(default_factory=dict)
+    # The prints that set a price, filtered once on the first chart read (``capture_charts``).
+    price_prints: list | None = None
     last_emit: float = 0.0
     # Recorded stretches ``[(start, stop)]``; empty means unknown (every read unbounded).
     spans: list = field(default_factory=list)
@@ -101,7 +103,6 @@ def load(date: str, symbol: str, *, generation: int | None = None) -> dict[str, 
         prints = read("prints", "prints")
         quotes = read("quotes", "quotes")
         l2 = sample_l2(read("l2", "l2"), CAPTURE_L2_LOAD_LIMIT, diagnostics)
-        bars = {tf: read("bars_" + tf, "bars") for tf in ("10s", "1m", "5m")}
     except ValueError as exc:
         return failure(str(exc), diagnostics)
     if not prints and not quotes:
@@ -109,9 +110,8 @@ def load(date: str, symbol: str, *, generation: int | None = None) -> dict[str, 
                        f"discarded {diagnostics['malformed_rows']} malformed, "
                        f"{diagnostics['invalid_timestamp_rows']} invalid timestamp and "
                        f"{diagnostics['invalid_rows']} invalid payload rows", diagnostics)
-    state = CaptureData(key, symbol.upper(), prints, quotes, l2, bars,
-                        [_ts(r) for r in prints], [_ts(r) for r in quotes],
-                        [_ts(r) for r in l2], {k: [_ts(r) for r in v] for k, v in bars.items()})
+    state = CaptureData(key, symbol.upper(), prints, quotes, l2,
+                        [_ts(r) for r in prints], [_ts(r) for r in quotes], [_ts(r) for r in l2])
     event_keys = state.print_keys + state.quote_keys
     first_ts, last_ts = min(event_keys), max(event_keys)
     segments, state.spans = load_spans(_manifest, root, live=recording_here(root),
@@ -134,9 +134,6 @@ def load(date: str, symbol: str, *, generation: int | None = None) -> dict[str, 
             "quotes": len(quotes),
             "l2": len(l2),
             "l2_bytes": l2_bytes,
-            "bars_10s": len(bars["10s"]),
-            "bars_1m": len(bars["1m"]),
-            "bars_5m": len(bars["5m"]),
         },
         "first_ts": first_ts,
         "last_ts": last_ts,
@@ -277,10 +274,11 @@ def quote_at(asof: float | None = None, *, state: CaptureData | None = None) -> 
 
 
 def last_print_at(asof: float, *, state: CaptureData | None = None) -> float | None:
-    """Price of the last reported print at or before ``asof``, inside its recorded stretch.
+    """Price of the last print that sets a price at or before ``asof``, inside its recorded stretch.
 
-    Odd lots never set the last (the historical download's ``unreported`` rule,
-    R24), and a gap has none (R11) -- a practice order is refused there.
+    A volume-only print -- odd lot, average price, derivatively priced, or
+    flagged ``unreported`` (``sale_conditions``; R24, #511) -- never sets the
+    last, and a gap has none (R11): a practice order is refused there.
     """
     state = state or _state
     if state is None or not state.prints:
@@ -289,7 +287,7 @@ def last_print_at(asof: float, *, state: CaptureData | None = None) -> float | N
     floor = _span_floor(state.print_keys, state, asof)
     while i >= max(0, floor):
         row = state.prints[i]
-        if not is_odd_lot(row):
+        if row_sets_price(row):
             return float(row["price"])
         i -= 1
     return None

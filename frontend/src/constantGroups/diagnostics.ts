@@ -36,3 +36,11 @@ export const DIAG_COUNTS_ORDER = ['fail', 'warn', 'unknown', 'off', 'ok'] as con
 export const DIAG_WHY_RELOADING = 'Restarting the Nova API -- this unlocks when it answers.';
 export const diagActionRunningWhy = (label: string): string =>
   `${label} is already running -- this unlocks when it finishes.`;
+
+/**
+ * Rows listed again at the very top of the panel, worst first, with their full
+ * detail and fix -- a deliberate duplicate of the grouped rows below, so what
+ * is wrong is readable at first glance. `off` is a choice, not trouble.
+ */
+export const DIAG_ATTENTION_STATES = ['fail', 'warn', 'unknown'] as const;
+export const DIAG_ATTENTION_TITLE = 'Needs attention';

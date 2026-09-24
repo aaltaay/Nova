@@ -1,4 +1,5 @@
 """Regression: final OHLCV must not leak into an unfinished replay interval."""
+import json
 from datetime import datetime
 
 import pytest
@@ -108,13 +109,12 @@ def test_completed_calendar_and_intraday_boundary(tf, cutoff):
     assert completed_start_cutoff(tf, now) == stamp(cutoff)
 
 
-def prepare_capture(monkeypatch, tf="1m"):
+def prepare_capture(monkeypatch):
     start = stamp("2026-09-18T13:31:00+00:00")
-    bars = {tf: [dict(ts=start, open=10, high=99, low=1, close=50, volume=900)]}
     prints = [dict(ts=start + sec, price=px, size=size) for sec, px, size in
               [(0, 10, 5), (5, 12, 8), (17, 11, 2), (18, 99, 885)]]
-    selection = player.CaptureData("2026-09-18|IMCC", "IMCC", prints, [], [], bars,
-                                   [p["ts"] for p in prints], [], [], {tf: [start]})
+    selection = player.CaptureData("2026-09-18|IMCC", "IMCC", prints, [], [],
+                                   [p["ts"] for p in prints], [], [])
     monkeypatch.setattr(player, "_state", selection)
     return start
 
@@ -131,18 +131,41 @@ def test_partial_candle_only_contains_reached_prints_and_rewinds(monkeypatch):
     assert "partial" not in completed[0]
 
 
-def test_missing_trades_waits_for_close(monkeypatch):
+def test_a_capture_without_prints_draws_no_candles(monkeypatch):
     start = prepare_capture(monkeypatch)
     monkeypatch.setattr(player.snapshot(), "prints", [])
     monkeypatch.setattr(player.snapshot(), "print_keys", [])
     assert player.chart_bars("1Min", 10, asof=start + 59) == []
-    assert len(player.chart_bars("1Min", 10, asof=start + 60)) == 1
+    assert player.chart_bars("1Min", 10, asof=start + 60) == []
+
+
+def test_stored_bar_files_are_never_drawn(tmp_path, monkeypatch):
+    """#535: a recording made before candles took only price-setting prints stored wicks no trade made."""
+    from capture.recorder import capture_root
+
+    monkeypatch.setenv("NOVA_SIM_CAPTURE_DIR", str(tmp_path))
+    root = capture_root() / "2026-09-18" / "IMCC"
+    root.mkdir(parents=True)
+    start = stamp("2026-09-18T13:31:00+00:00")
+    manifest = {"schema_version": 1, "symbol": "IMCC", "source": "ibkr", "status": "complete"}
+    (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    rows = [dict(symbol="IMCC", ts=start + sec, price=px, size=100, conditions=cond)
+            for sec, px, cond in [(1, 15.50, ""), (2, 13.19, "4 W"), (3, 15.43, "F"), (4, 15.60, "I")]]
+    (root / "prints.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    wick = dict(symbol="IMCC", ts=start, open=15.50, high=15.60, low=13.19, close=15.60, volume=400)
+    for name in ("bars_10s", "bars_1m", "bars_5m"):
+        (root / f"{name}.jsonl").write_text(json.dumps(wick) + "\n", encoding="utf-8")
+    try:
+        assert player.load("2026-09-18", "IMCC")["ok"]
+        for tf in ("1Min", "5Min", "15Min"):
+            closed = player.chart_bars(tf, 10, asof=start + 3600)
+            assert [(b["o"], b["h"], b["l"], b["c"], b["v"]) for b in closed] == [(15.50, 15.50, 15.43, 15.43, 200)]
+    finally:
+        player.reset_for_tests()
 
 
 def test_print_only_capture_keeps_closed_bars_without_exposing_future_prints(monkeypatch):
     start = prepare_capture(monkeypatch)
-    monkeypatch.setattr(player.snapshot(), "bars", {})
-    monkeypatch.setattr(player.snapshot(), "bar_keys", {})
     early = player.chart_bars("1Min", 10, asof=start + 5)
     assert early[0]["h"] == 12 and early[0]["v"] == 13
     closed = player.chart_bars("1Min", 10, asof=start + 60)

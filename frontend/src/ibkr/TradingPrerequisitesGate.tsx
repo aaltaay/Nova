@@ -3,6 +3,8 @@
  * ADR 021: while the API answers, the body is the desk diagnostics checklist
  * (`GET /api/diagnostics` -- which process, which .env, which fact failed);
  * the derived rows below stay as the fallback when the API itself is down.
+ * What needs attention leads the panel: every non-OK diagnostics row (again,
+ * in full), the amber warnings and the last action's result.
  * Auto-covers the desk only when Nova API is down. Gateway-only mornings
  * stay usable -- click the header Gateway chip to open this panel.
  */
@@ -29,7 +31,8 @@ import { refreshIbkrStatusNow, useIbkrStatus } from './useIbkrStatus';
 import { TRADING_PREREQ_OPEN_EVENT } from './tradingPrereqUi';
 import { launchIbGateway, type LaunchGatewayMode } from '../utils/launchIbGateway';
 import type { DeskLaunchGatewayMode } from './GatewayModeLaunchButtons';
-import { DiagnosticsChecklist } from './DiagnosticsChecklist';
+import { DiagnosticsChecklist, type DiagActionHandlers } from './DiagnosticsChecklist';
+import { DiagnosticsAttention, attentionRows } from './DiagnosticsAttention';
 import { fetchDiagnosticsBundle, useDiagnostics } from './useDiagnostics';
 import { DIAG_UNREACHABLE } from '../constantGroups/diagnostics';
 import { canReloadLocalBackend, startLocalApi } from '../utils/startLocalApi';
@@ -215,6 +218,7 @@ export function TradingPrerequisitesGate() {
   const show = (prereqs.autoOverlay && !autoDismissed) || manualOpen;
   // Hooks stay above the early returns; the poll only runs while the panel is open.
   const diag = useDiagnostics(discovery === 'ibkr' && show);
+  const attention = useMemo(() => attentionRows(diag.data?.rows ?? []), [diag.data]);
   const onReloadBackend = useCallback(async () => {
     setReloadBusy(true);
     try {
@@ -234,6 +238,18 @@ export function TradingPrerequisitesGate() {
       : ibkrGatewayMode === 'paper'
         ? 'Target: legacy IBKR paper Gateway port 4002 (set by hand -- not the Paper venue)'
         : 'Target: live Gateway API port 4001';
+
+  const diagActions: DiagActionHandlers = {
+    reconnect_ibkr: () => void onReconnectIbkr(),
+    launch_gateway: () => void onLaunchGateway('live'),
+    refresh: diag.refresh,
+    ...(canReloadLocalBackend() ? { reload_backend: () => void onReloadBackend() } : {}),
+  };
+  const diagBusy = {
+    reconnect_ibkr: reconnectBusy,
+    launch_gateway: launchBusyMode !== null,
+    reload_backend: reloadBusy,
+  };
 
   return (
     <div
@@ -262,6 +278,27 @@ export function TradingPrerequisitesGate() {
             {PREREQ_CLOSE_LABEL}
           </button>
         </div>
+        {/* What is wrong first: every non-OK row, the amber warnings and the last action's result. */}
+        <DiagnosticsAttention rows={attention} actions={diagActions} busy={diagBusy} />
+        {prereqs.warnings.map((warning) => (
+          <div
+            key={warning.id}
+            className="trading-prereq-warning"
+            role="status"
+            data-testid={`trading-prereq-warning-${warning.id}`}
+          >
+            <span className="trading-prereq-warning__mark" aria-hidden>!</span>
+            <div>
+              <div className="trading-prereq-warning__label">{warning.label}</div>
+              <div className="trading-prereq-warning__detail">{warning.detail}</div>
+            </div>
+          </div>
+        ))}
+        {launchHint && (
+          <p className="trading-prereq-gate__hint" data-testid="trading-prereq-launch-hint">
+            {launchHint}
+          </p>
+        )}
         <p className="trading-prereq-gate__lead">
           {prereqs.autoOverlay ? PREREQ_LEAD_API : PREREQ_LEAD_MANUAL}
         </p>
@@ -271,13 +308,8 @@ export function TradingPrerequisitesGate() {
             data={diag.data}
             onRefresh={diag.refresh}
             copyBundle={fetchDiagnosticsBundle}
-            busy={{ reconnect_ibkr: reconnectBusy, launch_gateway: launchBusyMode !== null, reload_backend: reloadBusy }}
-            actions={{
-              reconnect_ibkr: () => void onReconnectIbkr(),
-              launch_gateway: () => void onLaunchGateway('live'),
-              refresh: diag.refresh,
-              ...(canReloadLocalBackend() ? { reload_backend: () => void onReloadBackend() } : {}),
-            }}
+            busy={diagBusy}
+            actions={diagActions}
           />
         ) : (
         <>
@@ -304,25 +336,6 @@ export function TradingPrerequisitesGate() {
           ))}
         </ul>
         </>
-        )}
-        {prereqs.warnings.map((warning) => (
-          <div
-            key={warning.id}
-            className="trading-prereq-warning"
-            role="status"
-            data-testid={`trading-prereq-warning-${warning.id}`}
-          >
-            <span className="trading-prereq-warning__mark" aria-hidden>!</span>
-            <div>
-              <div className="trading-prereq-warning__label">{warning.label}</div>
-              <div className="trading-prereq-warning__detail">{warning.detail}</div>
-            </div>
-          </div>
-        ))}
-        {launchHint && (
-          <p className="trading-prereq-gate__hint" data-testid="trading-prereq-launch-hint">
-            {launchHint}
-          </p>
         )}
         <GatewayDoorTrail compact />
       </div>

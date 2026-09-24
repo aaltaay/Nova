@@ -7,8 +7,9 @@ the stretches the recorder was up. Loaded read-only with the capture reader's
 own validation; the capture player's loaded state is never touched.
 
 Bars come from the bar archive (``bars_store``: the bars the live eyes saw that
-day, 04:00 on), else the recording's own one-minute bars -- ``bars_source``
-says which. Pillars at a moment come from the scanner leaderboard's row for the
+day, 04:00 on), else one-minute bars built from the recording's price-setting
+prints -- never the bar buckets the recorder stored, which older recordings
+built from every print (#535) -- and ``bars_source`` says which. Pillars at a moment come from the scanner leaderboard's row for the
 symbol at or before it (ADR 023, point in time) and the catalyst verdict at it
 (ADR 024); what neither holds stays ``None`` -- unknown, never failed.
 """
@@ -122,12 +123,16 @@ def archive_bars(symbol: str, date: str) -> list[Bar]:
     return [b for b in (bar_from(r) for r in (res or {}).get("bars") or []) if b is not None]
 
 
-def _recording_bars(rows: list[dict]) -> list[Bar]:
+def _recording_bars(prints: list[dict]) -> list[Bar]:
+    """One-minute bars from the prints that set a price, as the Sim chart builds them (#535)."""
+    from sale_conditions import row_sets_price
+    from sim.chart_replay import aggregate_prints
+
+    rows = aggregate_prints([r for r in prints if row_sets_price(r)], 60)
     out = []
     for r in rows:
-        bar = bar_from({"t": r.get("ts"), "o": r.get("open", r.get("o")), "h": r.get("high", r.get("h")),
-                        "l": r.get("low", r.get("l")), "c": r.get("close", r.get("c")),
-                        "v": r.get("volume", r.get("v"))})
+        bar = bar_from({"t": r["ts"], "o": r["open"], "h": r["high"], "l": r["low"], "c": r["close"],
+                        "v": r["volume"]})
         if bar is not None:
             out.append(bar)
     return sorted(out, key=lambda b: b.t)
@@ -166,7 +171,7 @@ def load(date: str, symbol: str, *, root: Path | None = None,
         logger.warning("eyes: archive bars unread for %s %s", sym, date, exc_info=True)
         bars, bars_source = [], "archive"
     if not bars:
-        bars, bars_source = _recording_bars(read("bars_1m", "bars")), "recording"
+        bars, bars_source = _recording_bars(prints), "recording"
     if not bars:
         bars_source = "none"
     _segments, spans = load_spans(manifest, folder, live=recording_here(folder),
