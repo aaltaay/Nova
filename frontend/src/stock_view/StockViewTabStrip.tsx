@@ -31,6 +31,7 @@ import {
   subscribeSessionRecord,
 } from '../capture/sessionRecordStore';
 import { useScannerDockRows } from '../scanner/useScannerDockRows';
+import type { TraderMoveLocks } from '../workspace';
 import { useSimReplayDesk } from '../sim/useSimReplayDesk';
 import { StockViewTab } from './StockViewTab';
 import { tabContextFor } from './tabContext';
@@ -49,6 +50,8 @@ interface Props {
   dropReady?: boolean;
   /** Right-hand cluster on the same row (the Sim scrubber); never wraps. */
   trailing?: ReactNode;
+  /** Moves this workspace cannot make (the sample desk's, #449): no drag, and the reasons. */
+  moveLocks?: TraderMoveLocks | null;
   onActivate: (symbol: string) => void;
   onClose: (symbol: string) => void;
   onRename: (from: string, to: string) => void;
@@ -64,7 +67,7 @@ interface Props {
 
 export function StockViewTabStrip({
   tabs, live, pinned, active, windowId = '', showDock = false, showExtract = true, dropReady = false, trailing,
-  onActivate, onClose, onRename, onAddDraft, onExtract, onDock, onTogglePin, onTabDragStart, onTabDragEnd, onTabDrop,
+  moveLocks = null, onActivate, onClose, onRename, onAddDraft, onExtract, onDock, onTogglePin, onTabDragStart, onTabDragEnd, onTabDrop,
 }: Props) {
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -117,10 +120,10 @@ export function StockViewTabStrip({
       className={`sv-tab-strip${dropReady ? ' sv-tab-strip--drop-ready' : ''}${trailing ? ' sv-tab-strip--with-trailing' : ''}`}
       role="tablist"
       aria-label="Trader tabs"
-      title={showExtract ? TRADER_STRIP_TITLE : TRADER_STRIP_TITLE_FLOAT}
+      title={moveLocks?.title ?? (showExtract ? TRADER_STRIP_TITLE : TRADER_STRIP_TITLE_FLOAT)}
       data-testid="sv-tab-strip"
-      onDragOver={allowTraderTabDrop}
-      onDrop={(e) => {
+      onDragOver={moveLocks ? undefined : allowTraderTabDrop}
+      onDrop={moveLocks ? undefined : (e) => {
         const payload = takeForeignTraderTabDrop(e, windowId);
         if (payload) onTabDrop?.(payload);
       }}
@@ -146,9 +149,9 @@ export function StockViewTabStrip({
               data-suspended={suspended ? '1' : '0'}
               data-pinned={isDraft ? undefined : isPinned ? '1' : '0'}
               data-testid={`sv-tab-${label}`}
-              draggable={!isDraft && !isEditing}
+              draggable={!isDraft && !isEditing && !moveLocks}
               onDragStart={(e) => {
-                if (isDraft || isEditing) { e.preventDefault(); return; }
+                if (isDraft || isEditing || moveLocks) { e.preventDefault(); return; }
                 startTraderTabDrag(e, { symbol, sourceWindowId: windowId });
                 onTabDragStart?.(symbol);
               }}
@@ -175,6 +178,9 @@ export function StockViewTabStrip({
                 context={isDraft || replayDesk ? null : tabContextFor(symbol, scannerRows)}
                 showDock={showDock && Boolean(onDock)}
                 showExtract={showExtract}
+                moveTitle={moveLocks?.title}
+                dockWhy={moveLocks?.dock ?? null}
+                extractWhy={moveLocks?.extract ?? null}
                 editing={isEditing}
                 draft={draft}
                 inputRef={inputRef}

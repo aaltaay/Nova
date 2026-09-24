@@ -55,6 +55,31 @@ export function writeFocusRailState(state: FocusRailState, storage: Pick<Storage
   }
 }
 
+/**
+ * Where a Focus rail keeps its state. The Trader's rail reads and writes the
+ * operator's saved one; the sample desk's (#449) keeps its own in memory.
+ */
+export interface FocusRailStore {
+  read: () => FocusRailState;
+  write: (state: FocusRailState) => void;
+}
+
+export const SAVED_FOCUS_RAIL_STORE: FocusRailStore = {
+  read: () => readFocusRailState(),
+  write: (state) => writeFocusRailState(state),
+};
+
+/** A rail state that lives as long as the store: `seed` first, then whatever the rail writes. */
+export function memoryFocusRailStore(seed: Partial<FocusRailState> = {}): FocusRailStore {
+  let state: FocusRailState = { ...FOCUS_RAIL_DEFAULT_STATE, ...seed, v: FOCUS_RAIL_STATE_VERSION };
+  return {
+    read: () => state,
+    write: (next) => {
+      state = next;
+    },
+  };
+}
+
 function safeStorage(): Storage | null {
   try {
     return typeof localStorage === 'undefined' ? null : localStorage;

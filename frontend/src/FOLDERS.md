@@ -48,7 +48,7 @@ the backend packages.
 | `perf/` | shared | The performance recorder's client side (ADR 026): frame meter, long frames, counters, render counts, the `/api/perf/client` reporter. |
 | `practice/` | feature | The practice account (ADR 020): Paper / Sim account model, buying power, reset, fixtures, the Sim account clock. |
 | `reports/` | feature | The Reports tab: P&L calendar, month detail, drawdown, R-multiples, tag performance, journal import. |
-| `sample_data/` | app | The sample desk (`?view=sample`): sample shell and context, fixtures, mode badge, network gate and order guard. |
+| `sample_data/` | app | The sample desk (`?view=sample`): sample shell and context, fixtures, mode badge, network gate and order guard, and its own in-memory workspace -- Trader tabs, Focus rail, Desk and pop-out -- behind a storage gate that keeps it off the operator's saved state. |
 | `scanner/` | feature | The Scanner page board: row shape gate, REST envelope, filters, pinned rows, replay label, header / footer, desk stack. |
 | `sensors/` | feature | The sensor board: backend sensor readings, freshness and status chips, shown in the Settings workspace. |
 | `settings/` | feature | The Settings overlay: general, account, practice, trade-defaults and order-preference sections; prefs export. |

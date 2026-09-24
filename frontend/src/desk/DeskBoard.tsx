@@ -41,7 +41,7 @@ import { isRowQuoteStale } from '../hooks/useScannerPriceStream';
 import type { LiveScannerFeed } from '../scanner/ScannerDataContext';
 import type { ScannerRow } from '../types/scanner';
 import { listTabModules, type NovaModule } from '../workspace/registry';
-import { DeskBoardRow } from './DeskBoardRow';
+import { DeskBoardRow, type DeskActionLocks } from './DeskBoardRow';
 import { useWatchList } from '../watch_list';
 import { deskBoardRowsFor, deskHeadlineFor, gapBarPct, maxAbsGap } from './deskBoardRows';
 import './deskBoard.css';
@@ -63,11 +63,13 @@ export interface DeskBoardProps {
   onPopOut: (symbol: string) => void;
   onRecord: (symbol: string, start: boolean) => void;
   onAllowlist: (symbol: string, add: boolean) => void;
+  /** Row actions locked with their reasons (the sample desk's board, #449). */
+  actionLocks?: DeskActionLocks | null;
 }
 
 export function DeskBoard({
   feed, list, onListChange, modules, selectedSymbol, recordingSymbols, isAllowed, liveTabs,
-  filterRows, onOpen, onPopOut, onRecord, onAllowlist,
+  filterRows, onOpen, onPopOut, onRecord, onAllowlist, actionLocks = null,
 }: DeskBoardProps) {
   // Only scanner lists -- a page (Bots, Account) is not a board list (QA V30).
   const options = useMemo(
@@ -173,6 +175,7 @@ export function DeskBoard({
                     onPopOut={onPopOut}
                     onRecord={onRecord}
                     onAllowlist={onAllowlist}
+                    actionLocks={actionLocks}
                   />
                 );
               })}

@@ -10,7 +10,10 @@ export function FloatDeskChrome() {
     activeTraderSymbol,
     requestDockTraderTab,
     traderDeskRole,
+    traderMoveLocks,
   } = useWorkspace();
+  // A sample pop-out (#449) cannot dock back: the button stays, locked, saying why.
+  const dockWhy = traderMoveLocks?.dock ?? null;
 
   if (traderDeskRole !== 'float') return null;
   const sym = (activeTraderSymbol || '').trim().toUpperCase();
@@ -25,10 +28,12 @@ export function FloatDeskChrome() {
         <button
           type="button"
           className="float-desk-chrome__dock"
-          title={TRADER_TAB_DOCK_TITLE}
+          title={dockWhy ? '' : TRADER_TAB_DOCK_TITLE}
           aria-label={`${TRADER_TAB_DOCK_ARIA} (${sym})`}
           data-testid="float-desk-dock"
-          onClick={() => requestDockTraderTab(sym)}
+          disabled={Boolean(dockWhy)}
+          data-why={dockWhy ?? undefined}
+          onClick={() => { if (!dockWhy) requestDockTraderTab(sym); }}
         >
           {TRADER_TAB_DOCK_LABEL}
         </button>

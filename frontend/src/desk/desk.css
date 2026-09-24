@@ -48,11 +48,6 @@
   color: var(--nova-text, var(--text-primary));
 }
 
-.desk-page--sample {
-  align-items: center;
-  justify-content: center;
-}
-
 /* Scoped under .desk-page so these beat the .main-col / .panel base rules.
    border-box: the column is --desk-board-width with its padding included.
    Under content-box the padding pushed the board 12 px past its slot, under

@@ -18,11 +18,16 @@ describe('SampleShell ownership', () => {
     );
   });
 
-  it('marks both sample branches with the marketing badge (#357)', () => {
+  it('owns its workspace: the sample provider wraps the shell (#449)', () => {
+    const src = readFileSync(join(here, 'SampleShell.tsx'), 'utf8');
+    expect(src).toMatch(/<SampleWorkspaceProvider>[\s\S]*<SampleShellInner \/>[\s\S]*<\/SampleWorkspaceProvider>/);
+  });
+
+  it('marks both sample windows with the marketing badge (#357, #449)', () => {
     const src = readFileSync(join(here, 'SampleShell.tsx'), 'utf8');
     expect(src).toMatch(/import \{ SampleModeBadge \} from '\.\/SampleModeBadge'/);
-    // Trader branch and dashboard branch each render it -- the Trader route
-    // was previously unmarked because the strip lived in the dashboard column.
+    // The main desk (Trader, Desk and dashboard share one strip above them)
+    // and a sample pop-out each render it.
     const rendered = src.match(/<SampleModeBadge\b/g) ?? [];
     expect(rendered).toHaveLength(2);
     expect(src).toMatch(
