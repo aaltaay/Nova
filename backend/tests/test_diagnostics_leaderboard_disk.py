@@ -80,6 +80,22 @@ def test_the_warning_names_the_room_left(monkeypatch, store_files):
     assert "has 42 GB free (warns under 50 GB); the store is 0 MB" in row["detail"]
 
 
+
+@pytest.mark.parametrize("store_path, where", [
+    (r"F:\Nova\leaderboard\leaderboard.sqlite3", "F:"),
+    (r"C:\Users\op\AppData\Local\nova\leaderboard\leaderboard.sqlite3", "C:"),
+    (r"\\nas\nova\leaderboard\leaderboard.sqlite3", r"\\nas\nova"),
+    ("/srv/nova/leaderboard/leaderboard.sqlite3", "the drive holding /srv/nova/leaderboard"),
+])
+def test_the_drive_is_named_by_its_letter_else_by_its_folder(store_path, where):
+    # Every wording on every host: CI's temp store only ever reaches the folder form.
+    disk = {"store_bytes": 0, "free_bytes": 42 * GB, "size_error": None, "free_error": None}
+    [row, _auto] = collect_leaderboard.leaderboard_rows(
+        recorder=dict(RECORDING), auto={}, store_path=store_path, disk=disk)
+    assert row["state"] == "warn"
+    assert row["detail"].startswith(f"{where} has 42 GB free (warns under 50 GB); the store is 0 MB")
+    assert f"Free space on {where}, or move NOVA_LEADERBOARD_DIR" in row["fix"]
+
 def test_unreadable_free_space_is_unknown_with_the_reason(monkeypatch, store_files):
     row = _row(monkeypatch, error=OSError(21, "The device is not ready"))
     assert row["state"] == "unknown"
