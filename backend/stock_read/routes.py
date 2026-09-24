@@ -1,4 +1,4 @@
-"""The bot's read on one stock (ADR 035). Read-only: nothing here places, stages or cancels an order.
+"""The bot's read on one stock (ADR 036). Read-only: nothing here places, stages or cancels an order.
 
   GET /api/stock-read/{symbol}?entry=&stop=          the plan, the seven groups and every lane (polled)
   GET /api/stock-read/{symbol}/decisions?date=       one symbol's day as the bot saw it

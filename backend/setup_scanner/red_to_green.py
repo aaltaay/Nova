@@ -179,7 +179,7 @@ class RedToGreenDetector(TriggerDetector):
         return events + self.arm_events(prev)
 
     def _provisional(self, level: float, low: float, red: int, last: int) -> dict[str, Any]:
-        """Fewer red closes than the rule asks: the reclaim's levels if it counted now (ADR 035)."""
+        """Fewer red closes than the rule asks: the reclaim's levels if it counted now (ADR 036)."""
         s, p = self.series, self.p
         entry = round(level + p.entry_offset, 4)
         risk = round(entry - low, 4)

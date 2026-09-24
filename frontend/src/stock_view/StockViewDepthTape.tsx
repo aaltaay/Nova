@@ -37,6 +37,7 @@ import {
 } from '../sim/simConstants';
 import { StockViewVenueTag } from './StockViewVenueTag';
 import { depthUnavailableHint } from './depthUnavailableHint';
+import { StockReadRail } from '../stock_read';
 
 interface Props {
   selectedSymbol: string;
@@ -189,6 +190,10 @@ export function StockViewDepthTape({
     );
   }
 
+  // The bot's read on the live stock sits between the quote and Level 2 (ADR 036); a
+  // Session Record replaying here is another moment, so it stays off.
+  const read = captureReplay ? null : <StockReadRail />;
+
   if (!showL2 && !showTape) {
     return (
       <StockViewModuleCard
@@ -197,6 +202,7 @@ export function StockViewDepthTape({
         testId="stock-view-depth-stack"
       >
         <QuoteHead detail={quoteDetail} symbol={depthSymbol} />
+        {read}
       </StockViewModuleCard>
     );
   }
@@ -209,6 +215,7 @@ export function StockViewDepthTape({
       aria-label={STOCK_VIEW_MODULE_QUOTE_TITLE}
     >
       <QuoteHead detail={quoteDetail} symbol={depthSymbol} />
+      {read}
       <DepthAndTapeColumns
         symbol={depthSymbol}
         chips={captureReplay ? <CaptureReplayL2Chip clock={clock} /> : (

@@ -1,4 +1,4 @@
-"""One symbol across every setup's template in play (ADR 035): the lane's row whatever its state,
+"""One symbol across every setup's template in play (ADR 036): the lane's row whatever its state,
 the levels a forming setup would arm with, and the lane's own indicators.
 
 ``GET /api/setups/symbol/{symbol}`` answers this; ``stock_read`` reads it for the Trader's plan,

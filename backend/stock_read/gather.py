@@ -1,4 +1,4 @@
-"""Gather one symbol's facts from the owners that hold them (ADR 035). Reads caches, stores and the
+"""Gather one symbol's facts from the owners that hold them (ADR 036). Reads caches, stores and the
 sensor rings; never waits on the network, never opens an IBKR line, never writes.
 
 Each owner is read on its own: one that fails leaves its fact ``None`` and its reason in

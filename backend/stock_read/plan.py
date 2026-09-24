@@ -1,4 +1,4 @@
-"""The plan on top of Level 2 (ADR 035): entry, stop and a target of at least 2R, and what stands in
+"""The plan on top of Level 2 (ADR 036): entry, stop and a target of at least 2R, and what stands in
 the way. Pure.
 
 A setup plan is the most advanced lane's own levels -- its armed (or triggered) setup, else the
@@ -207,8 +207,9 @@ def checks(plan: dict[str, Any], ctx: dict[str, Any]) -> list[dict[str, Any]]:
                     "text": f"{'above' if entry >= vw else 'under'} VWAP {vw:.2f}"})
     for m in _obstacles(plan, ctx):
         big = m["kind"] == "wall" and (m.get("size") or 0) >= TAPE_GATE_BIG_SELLER_SHARES
+        where = m["label"] if m["kind"] == "round" else f"{m['label']} at {m['price']:.2f}"
         out.append({"id": f"in_way_{m['kind']}", "state": "bad" if big else "warn",
-                    "text": f"{m['label']} at {m['price']:.2f} before the target"})
+                    "text": f"{where} before the target"})
     tape = plan.get("tape")
     if tape and tape.get("verdict"):
         verdict = str(tape["verdict"])

@@ -1,4 +1,4 @@
-# ADR 035 -- The bot's read on one stock: a 2:1 plan on Level 2, signal tiles, setup drawings
+# ADR 036 -- The bot's read on one stock: a 2:1 plan on Level 2, signal tiles, setup drawings
 
 **Status:** Accepted · **Date:** 2026-09-24
 **Builds on:** [[022-setup-scanner-tape-gate]] (the scanner, its states and the tape gate) · [[028-why-its-moving]] (the per-symbol facts) · [[029-setup-templates-eyes-journal]] (the eyes' journal) · [[031-a-scanner-for-every-setup]] · [[033-focus-and-book-watch-sensors]] · [[034-tape-flow-score-and-flush-exit]]
@@ -69,11 +69,16 @@ agent's under the operator's standing grant for routine calls; each item has the
 ## Consequences
 
 - Nothing arms, triggers, proposes or trades differently; the board and `setups.db` are unchanged.
-- The Trader rail grows two blocks above Level 2 (the plan folds to one line), so Level 2 shows
-  fewer rows on a short screen.
+- The Trader rail grows two blocks above Level 2. The whole plan opens only when the quote card
+  has room for it and Level 2 both; otherwise it is one line (the setup, entry / stop / target,
+  size, reward : risk, Stage) and the tiles one row, and the operator can open it. Measured at
+  1920x1080: Level 2 kept 302 px of its 354 with the one-line plan, against 118 with the whole plan
+  always open.
 - A new symbol-level read touches many owners: each is read with a stated fallback, so one broken
   owner blanks its rows with the reason, never the read.
 - Found while building the mockup and fixed with it: `/sensors/vwap` covered only the last 240
   stored bars (now the session from 04:00 ET, the chart's), `/sensors/halt` read "not halted" when
   it did not know (now `null`), the Level 2 shortability chip asked IBKR once per tab (it asks
-  again every `IBKR_SHORTABILITY_TTL_SEC`), and the quote card's second row clipped.
+  again every `IBKR_SHORTABILITY_TTL_SEC`). The quote card's second row (Gap% / High / Low), seen
+  cut off on the operator's screen, did not clip in a check at 720-1080 px tall windows with the
+  read above Level 2; an e2e test now holds every stat row in view.

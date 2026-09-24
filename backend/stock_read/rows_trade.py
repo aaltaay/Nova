@@ -1,4 +1,4 @@
-"""The read's rows for the trade itself (ADR 035): the setups, the tape and book, the short side.
+"""The read's rows for the trade itself (ADR 036): the setups, the tape and book, the short side.
 Pure; rows are ``stock_read.rows.row`` shaped."""
 from __future__ import annotations
 

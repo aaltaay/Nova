@@ -99,7 +99,7 @@ async def _refresh_shortability(websocket: WebSocket, loop, symbol: str, listing
                                 read_at: float) -> tuple[dict | None, float]:
     """Ask IBKR for shortability again when it is due and send the tab the fresh listing.
 
-    The Level 2 "Short" chip read it once per tab and kept "Unknown" for the tab's life (ADR 035).
+    The Level 2 "Short" chip read it once per tab and kept "Unknown" for the tab's life (ADR 036).
     """
     from ibkr.shortability import fetch_shortability, refresh_due
 
@@ -140,7 +140,7 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
     base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
     blocked = ticker_alpaca_required_error(symbol)
     headers = _alpaca_headers() or {}
-    listing_sent: dict | None = None        # re-read shortability while the tab is open (ADR 035)
+    listing_sent: dict | None = None        # re-read shortability while the tab is open (ADR 036)
     short_read_at = time.monotonic()
 
     try:

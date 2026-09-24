@@ -68,7 +68,7 @@ def read_halt(symbol: str) -> dict[str, Any]:
         snap = None
     if not snap:
         # No open halt on record is "not halted" only when IBKR's halt tick or the Nasdaq halt
-        # feed says so; otherwise it is unknown (ADR 035: it used to read False).
+        # feed says so; otherwise it is unknown (ADR 036: it used to read False).
         halted = None
         try:
             from ibkr.halt_status import halted_now

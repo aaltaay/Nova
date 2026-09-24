@@ -19,7 +19,7 @@ ShortState = Literal["shortable_est", "thin", "htb_likely", "unknown"]
 
 # Orderable for short_entry only when state is shortable_est and not stale.
 _ORDERABLE_STATES = frozenset({"shortable_est"})
-# The last snapshot read per symbol (ADR 035): the stock read shows it with its age, never waits.
+# The last snapshot read per symbol (ADR 036): the stock read shows it with its age, never waits.
 _last: dict[str, dict[str, Any]] = {}
 
 

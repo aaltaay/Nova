@@ -1,4 +1,4 @@
-"""One symbol's history (ADR 035): its past runs from the stored daily bars, and what Nova holds on
+"""One symbol's history (ADR 036): its past runs from the stored daily bars, and what Nova holds on
 it -- setups armed on any day, the Level 2 it recorded, the borrow file's changes, the latest short
 interest -- with what Nova does not keep per symbol yet said so.
 

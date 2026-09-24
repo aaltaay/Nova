@@ -953,7 +953,7 @@ and `vs_base: {base, paired, avg_r_delta, better, worse, same} | null` -- the
 same setups (day, symbol, leg) against the run's first template.
 `tools/eyes_backtest.py sweep` builds the variants from a grid.
 
-### The bot's read on one stock (ADR 035, operator ask 2026-09-24, #598)
+### The bot's read on one stock (ADR 036, operator ask 2026-09-24, #598)
 
 "Show me the bot's decisions specifically for that stock ... if something is forming, can we start
 highlighting it on the chart? ... all the tiny signals"; then "i want it to tell me my entry/exit
@@ -1020,8 +1020,9 @@ answer.
 
 `GET /api/stock-read/{symbol}/history` answers `{schema_version: 1, symbol, generated_at, daily:
 [{d, o, h, l, c, v}] (the last `STOCK_READ_HISTORY_CHART_DAYS` stored sessions), runs: [{date,
-prior_close, high, close, run_pct, close_pct}] (sessions whose high was `STOCK_READ_RUN_MIN_PCT`
-or more over the prior close, newest first), split: object | null, holdings: Row[]}` -- the Level 2
+prior_close, high, close, run_pct, close_pct, today}] (sessions whose high was
+`STOCK_READ_RUN_MIN_PCT` or more over the prior close, newest first), split: {factor: "a:b" | null,
+ts, reverse: boolean | null, days_ago} | null (Yahoo's last split), holdings: Row[]}` -- the Level 2
 Nova recorded, setups armed on the symbol on any day, the latest short interest, and what Nova does
 not keep per symbol yet, said so.
 
@@ -1029,8 +1030,31 @@ not keep per symbol yet, said so.
 newest 240 stored bars, and adds `anchor: "04:00 ET"`; `/sensors/halt` answers `halted: null` when
 the state is unknown instead of `false`; `ibkr/shortability.cached(symbol)` returns the last
 snapshot with its age (a read, never a wait), and `/ws/ticker/{symbol}` re-reads shortability every
-`IBKR_SHORTABILITY_TTL_SEC` while the socket is open (the Level 2 "SHORT Unknown" chip asked once
-per tab). The eyes' journal is read by the desk only through the decisions route.
+`IBKR_SHORTABILITY_TTL_SEC` while the socket is open, every `IBKR_SHORTABILITY_RETRY_UNKNOWN_SEC`
+while it is unknown (the Level 2 "SHORT Unknown" chip asked once per tab). The eyes' journal is read
+by the desk only through the decisions route.
+
+**On the desk** (owner `frontend/src/stock_read/`). The Trader tab polls the read every
+`STOCK_READ_POLL_MS` while it shows. The plan box and seven tiles sit between the quote and Level 2
+(hover a tile for its rows, click it or "All" for the sheet over the charts: Signals, Decisions,
+History). The plan opens whole while the quote card is at least `STOCK_READ_PLAN_OPEN_MIN_PX` tall
+and is otherwise one line (the setup, entry / stop / target, the size, reward : risk, Stage), so
+Level 2 keeps its room; the operator's own open or fold is kept. The size is whole shares of the
+operator's risk per trade over the risk a share:
+`localStorage` `nova.stockRead.riskUsd` = `{schema_version: 1, value: number}` (dollars, default
+`STOCK_READ_RISK_DEFAULT_USD`, a desk setting). "Stage in ticket" fills this tab's ticket with a BUY
+limit at the entry for that size through the ticket prefill channel. It never places, and the
+plan's stop and target stay the operator's to set: the ticket takes no bracket from it. With no
+setup forming, the operator's own plan starts from a typed entry or the ask. Its stop is typed, or
+dragged on the 1-minute chart with the entry, and the target stays 2R. The 1-minute chart draws
+each lane's shapes (the plan's lane in colour, the rest faded), the plan's zones and lines, the
+day's levels, a legend and the plan's badge. It frames a forming setup once per setup, and again
+when the badge is pressed. The 5-minute and 10-second charts mirror the plan's levels as thin lines,
+and the daily chart marks every +40% run. `localStorage` `nova.stockRead.layers` = `{schema_version:
+1, value: {setups, levels, hidden: string[], plan: "auto" | "open" | "folded"}}` keeps the
+switches. A decision's "show
+on chart" frames its moment on the 1-minute chart with the levels it armed at. Nothing is drawn or
+read on a replay desk (the read is today's live stock) or on the sample desk.
 
 ### Catalysts (ADR 024)
 
@@ -1564,7 +1588,7 @@ its own fields (`setup` levels, `grade`, `pillars`, `reason`, `tape` /
 session the eyes looked at (a replay's own). A line from a lane adds
 `setup_type` (ADR 031). `NOVA_EYES_JOURNAL=0` turns it off. Read by `tools/eyes_journal.py` (`days | summary | setups | events`) and
 `eyes/reader.py`; the desk reads one symbol's day only through `GET
-/api/stock-read/{symbol}/decisions` (ADR 035).
+/api/stock-read/{symbol}/decisions` (ADR 036).
 
 **Replayed eyes** (`backend/eyes/replay.py`, `sim_eyes.py`, `backtest.py`): a
 Session Record's prints (per second, the high then the last of the prints that
@@ -2318,7 +2342,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
-| 2026-09-24 | The bot's read on one stock (ADR 035, #598; operator ask: "show me the bot's decisions specifically for that stock ... if something is forming, can we start highlighting it on the chart? ... all the tiny signals", then "i want it to tell me my entry/exit .. we typically want to aim for 2:1 ratio, like right on top of lvl2"; mockup v1 approved). Every scanner lane answers for one symbol (`GET /api/setups/symbol/{symbol}`), with the levels a forming setup would arm with (computed, then thrown away until now) and its own MACD / 9 EMA; `backend/stock_read/` composes the owners into seven groups of signals, a plan (entry, stop, target at least 2R from the setup's own rule, and what stands in the way), one symbol's day from the eyes' journal (ADR 029 amended: the desk reads it through the decisions route) and its history. The Trader rail shows the plan and seven tiles above Level 2, a sheet lists every signal, and the 1-minute chart draws each setup as it forms. Fixed with it: the VWAP sensor covered only the last 240 bars, the halt sensor read not halted when it did not know, the Level 2 shortability chip asked once per tab, the quote card's second row clipped. §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-09-24 | The bot's read on one stock (ADR 036, #598; operator ask: "show me the bot's decisions specifically for that stock ... if something is forming, can we start highlighting it on the chart? ... all the tiny signals", then "i want it to tell me my entry/exit .. we typically want to aim for 2:1 ratio, like right on top of lvl2"; mockup v1 approved). Every scanner lane answers for one symbol (`GET /api/setups/symbol/{symbol}`), with the levels a forming setup would arm with (computed, then thrown away until now) and its own MACD / 9 EMA; `backend/stock_read/` composes the owners into seven groups of signals, a plan (entry, stop, target at least 2R from the setup's own rule, and what stands in the way), one symbol's day from the eyes' journal (ADR 029 amended: the desk reads it through the decisions route) and its history. The Trader rail shows the plan and seven tiles above Level 2, a sheet lists every signal, and the 1-minute chart draws each setup as it forms. The plan opens whole only when the quote card has room for it and Level 2 both; below that it is one line (at 1080p, Level 2 kept 302 px of its 354 against 118 with the whole plan). Fixed with it: the VWAP sensor covered only the last 240 bars, the halt sensor read not halted when it did not know, the Level 2 shortability chip asked once per tab. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Watch list toasts follow the setups too (operator ask on a "PFSA is running up" toast: "shouldn't these toast notifications be watching if a strategy is forming?"): the toasts listened only to the HOD Momo feed, so a watched symbol's bull flag or first pullback forming, arming, coming near its trigger or triggering said nothing. The toast now also follows the setup scanner's live board: each setup's climb up the ladder raises it once (flicker and the first frame after a load, a reconnect or Sim are read silently), one toast per symbol still, and its setup lines follow the board while it is up. The board names the symbols it follows (`universe_symbols`), so the Watch list tab's new Setup column says "Not followed" for a watched symbol the scanner does not watch (it follows the HOD Momo names only). §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | A practice send answers when the venue answers (operator report: "This is extremely dangerous. Why are things not getting sent fast enough?"): the Paper ticket read "Placing..." for five seconds after its order filled. The practice broker's notice of a fill at placement reached a watch the send then replaced, and a resting order sent none, so the execution door's acknowledgment wait ran out its full 5 s -- 21 of 23 Paper orders that day, fills in under 150 ms. The broker's own answer is now the acknowledgment (`practice/watch.note_answer`); a replace answers the same way; an order the venue cancels at the fill is refused in its own words instead of reading as placed. Live is unchanged (its record: IBKR's first status in 40 ms to about 1 s). `tools/order_timing.py` prints each order's stages from the running backend. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | The tape flow score and a flush exit (ADR 034; operator ask on a GLND flush in Time & Sales: "can my bots detect ... flush ... so we can exit a position or burst of greens where we can enter ... a small piece of the final decision", then "fine tune the SHIT out of this ... hybrid creative solution and mixing it in the strategies"). One score from -1 to +1 (ask vs bid shares, pace against the tape's own baseline, price move, book depth; an unknown reading drops out, never 0) with every number a template parameter; a template may enter on the score instead of the gate's print counts, and tighten or exit on a flush -- the scoring exit and Nova's bot follow one rule; the defaults are the pre-registered rules. The flow study reads every recorded second (15 recordings: a flush after a rise was followed by -43 bp over a minute; a burst from a flat minute faded) and backtests sweep run-only template variants against a base. §3 amended. | User Directive + Claude Opus 5.5 |

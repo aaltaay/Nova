@@ -1,4 +1,4 @@
-"""Assemble the read for one symbol (ADR 035): gather the facts, derive the numbers, build the plan and
+"""Assemble the read for one symbol (ADR 036): gather the facts, derive the numbers, build the plan and
 the seven groups, and summarize each group into one tile. ``derive`` and ``tiles`` are pure."""
 from __future__ import annotations
 

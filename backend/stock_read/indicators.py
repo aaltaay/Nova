@@ -1,4 +1,4 @@
-"""Numbers the read computes from stored one-minute bars (ADR 035). Pure.
+"""Numbers the read computes from stored one-minute bars (ADR 036). Pure.
 
 A bar is ``{t: epoch seconds (the minute's start), o, h, l, c, v}``, oldest first, closed bars only
 (the caller drops the forming minute). Every function answers ``None`` when the bars cannot say --

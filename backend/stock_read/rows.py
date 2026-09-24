@@ -1,4 +1,4 @@
-"""The read's rows for the market facts (ADR 035): in play, front side, float, halts. Pure.
+"""The read's rows for the market facts (ADR 036): in play, front side, float, halts. Pure.
 
 A row is ``{id, label, value, detail, state, source, as_of}``; ``state`` reads for a long momentum
 trade -- ``ok``, ``warn``, ``bad`` -- or ``unknown`` (Nova does not know; the detail says why) or

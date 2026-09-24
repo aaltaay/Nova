@@ -1,4 +1,4 @@
-"""The bot's read on one stock (ADR 035): every number its rules and reads use.
+"""The bot's read on one stock (ADR 036): every number its rules and reads use.
 
 A number that is the scanner's own (a stop cap, a target in R, a tape-gate wall) is read from the
 setup's template or ``constants_setups``; these are the read's.

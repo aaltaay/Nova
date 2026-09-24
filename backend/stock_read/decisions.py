@@ -1,4 +1,4 @@
-"""One symbol's day, as the bot saw it (ADR 035): the eyes' journal lines of that symbol folded into
+"""One symbol's day, as the bot saw it (ADR 036): the eyes' journal lines of that symbol folded into
 events, with the day's HOD Momo alerts, borrow changes, news, the open and the high of day, and the
 bot's own audit lines. Read-only; the journal is never rewritten.
 

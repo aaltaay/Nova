@@ -251,7 +251,7 @@ class BullFlagDetector(TriggerDetector):
 
     def _partial_flag(self, bars: list[Bar], last: int, pole: dict, run: int) -> dict[str, Any]:
         """A flag shorter than the rule asks: the levels it would arm with if it were complete now
-        (ADR 035) -- what still blocks it, and how many candles it waits for."""
+        (ADR 036) -- what still blocks it, and how many candles it waits for."""
         s, p = self.series, self.p
         first = last - run + 1
         flag_low = min(s.lo[first:last + 1])

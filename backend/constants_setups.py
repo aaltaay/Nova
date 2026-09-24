@@ -19,7 +19,7 @@ from constants_bot import (
 # The board / socket payload. 2 (ADR 031): rows and proposals carry
 # ``setup_type``, and ``setups[]`` summarizes each setup with a scanner.
 SETUPS_SCHEMA_VERSION = 2
-SETUPS_SCHEMA_VERSION_SYMBOL = 1           # GET /api/setups/symbol/{symbol} (ADR 035)
+SETUPS_SCHEMA_VERSION_SYMBOL = 1           # GET /api/setups/symbol/{symbol} (ADR 036)
 # setups.db: 2 adds template_id / template_rev / params_hash (ADR 029); a v1
 # file is migrated in place, its rows becoming the default template's. 3 (ADR
 # 031) adds setup_type and detail; a v2 file's rows are the first pullback's.

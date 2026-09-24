@@ -53,7 +53,7 @@ def test_assert_shortable_reason_codes():
 
 
 def test_the_last_read_is_kept_and_aged_without_asking_ibkr_again(monkeypatch):
-    # ADR 035: the stock read shows the last snapshot with its age; it never waits on IBKR.
+    # ADR 036: the stock read shows the last snapshot with its age; it never waits on IBKR.
     from ibkr import shortability as sh
 
     sh._last.clear()

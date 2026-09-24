@@ -6,7 +6,7 @@ cancels an order.
   GET /api/setups/rows?date=&symbol=  scoreboard rows for one day (``setup=all``: every setup's
                                       template in play, oldest armed first)
   GET /api/setups/symbol/{symbol}     one symbol in every setup's template in play, whatever its state,
-                                      with the forming levels and the lane's own indicators (ADR 035)
+                                      with the forming levels and the lane's own indicators (ADR 036)
 
 Both scoreboard reads answer for one setup (``setup=``, the first pullback by
 default; ADR 031) and its template in play -- its id and current revision, the

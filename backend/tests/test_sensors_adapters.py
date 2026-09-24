@@ -58,7 +58,7 @@ def test_vwap_macd_emas_from_bars(monkeypatch):
 
 
 def test_vwap_is_the_sessions_from_four_am(monkeypatch):
-    # ADR 035: the newest 240 stored bars straddled two sessions; the VWAP is the newest session's from 04:00 ET.
+    # ADR 036: the newest 240 stored bars straddled two sessions; the VWAP is the newest session's from 04:00 ET.
     from datetime import datetime
     from zoneinfo import ZoneInfo
 
@@ -91,7 +91,7 @@ def test_halt_not_halted(monkeypatch):
 
 
 def test_halt_unknown_is_not_read_as_not_halted(monkeypatch):
-    # ADR 035: no open halt on record and no source that says it trades is unknown, never False.
+    # ADR 036: no open halt on record and no source that says it trades is unknown, never False.
     monkeypatch.setattr("ibkr.halt_status.snapshot", lambda symbol, now=None: None)
     monkeypatch.setattr("ibkr.halt_status.halted_now", lambda symbols, now=None: {"AAPL": None})
     body = desk.read_halt("AAPL")

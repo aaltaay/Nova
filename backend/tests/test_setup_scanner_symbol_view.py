@@ -1,4 +1,4 @@
-"""One symbol across every lane (ADR 035): the levels a forming setup would arm with, the lane's own
+"""One symbol across every lane (ADR 036): the levels a forming setup would arm with, the lane's own
 indicators, and the per-symbol route. None of it may change what arms."""
 from __future__ import annotations
 

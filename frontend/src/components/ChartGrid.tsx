@@ -3,7 +3,7 @@
  * One desk toolbar above the 2x2 grid owns draw tools (shared) and indicator
  * toggles (focused pane). Panes render a one-line header only.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { TickerChart, type ChartTradeUpdate } from '../TickerChart';
 import { ChartGridToolbar } from './ChartGridToolbar';
 import { ResizeHandle } from './ResizeHandle';
@@ -27,12 +27,17 @@ import { clearDrawings, drawingsKey } from '../chart/chartDrawingsStore';
 import { toggleIndicator } from '../chartIndicators';
 import { useChartGridMaximize } from './useChartGridMaximize';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
+import type { RenderPaneOverlay } from '../chart';
 
 interface Props {
   symbol: string;
   lastTrade?: ChartTradeUpdate | null;
   /** When false, panes pause refetch/resize (hidden Trader tab). */
   chartActive?: boolean;
+  /** Drawn inside every pane (the Trader tab's stock read, ADR 036). */
+  renderPaneOverlay?: RenderPaneOverlay;
+  /** Extra switches on the desk toolbar. */
+  toolbarExtra?: ReactNode;
 }
 
 function readOptionalEnabled(): boolean {
@@ -53,7 +58,7 @@ function defaultIndicatorsByPane(): Record<string, ChartIndicatorId[]> {
   );
 }
 
-export function ChartGrid({ symbol, lastTrade, chartActive = true }: Props) {
+export function ChartGrid({ symbol, lastTrade, chartActive = true, renderPaneOverlay, toolbarExtra }: Props) {
   const gridRef = useRef<HTMLDivElement>(null);
   const { topPct, onDragStart, reset } = useResizableHeight({
     storageKey: STOCK_VIEW_CHART_ROW_SPLIT_KEY,
@@ -147,6 +152,7 @@ export function ChartGrid({ symbol, lastTrade, chartActive = true }: Props) {
           maximizeInGrid
           maximized={paneMaximized}
           layoutEpoch={maximizedPaneId}
+          renderPaneOverlay={renderPaneOverlay}
         />
       </div>
     );
@@ -179,6 +185,7 @@ export function ChartGrid({ symbol, lastTrade, chartActive = true }: Props) {
         onIndicatorToggle={(id) => toggleIndicatorFor(focusedPane.id, id)}
         onToggleOptional={toggleOptional}
         onRestore={restore}
+        extra={toolbarExtra}
       />
       <div className="chart-grid__row chart-grid__row--top">
         {topPanels.map(renderPane)}

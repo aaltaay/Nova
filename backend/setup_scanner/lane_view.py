@@ -50,7 +50,7 @@ def board_rows(lane: Any, now: float) -> list[dict[str, Any]]:
 
 def symbol_row(lane: Any, sym: str) -> dict[str, Any] | None:
     """One symbol's row whatever its state (``watching`` too), with the forming levels and the
-    lane's own indicators (ADR 035); None when the lane has no detector for it yet."""
+    lane's own indicators (ADR 036); None when the lane has no detector for it yet."""
     det = lane.det.get(sym)
     if det is None:
         return None

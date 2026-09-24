@@ -2,4 +2,6 @@
 
 export { TickerChart } from './TickerChart';
 export { parseBarsCoverage, setBars } from './barsStore';
-export type { ChartTradeUpdate } from './types';
+export type { ChartPaneOverlayProps, ChartTradeUpdate, RenderPaneOverlay } from './types';
+export { buildSeriesTimeIndex, nearestSeriesTime, toCanonicalTime } from './chartDrawingTime';
+export type { SeriesTimeIndex } from './chartDrawingTime';

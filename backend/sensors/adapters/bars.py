@@ -1,7 +1,7 @@
 """VWAP, MACD, and EMA adapters from stored / Sim 1Min bars.
 
 The VWAP is the session's from 04:00 ET -- the chart's anchor -- on the newest stored session
-(ADR 035: it used to average whatever the newest 240 bars were).
+(ADR 036: it used to average whatever the newest 240 bars were).
 """
 from __future__ import annotations
 

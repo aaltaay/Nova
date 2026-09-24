@@ -1,4 +1,4 @@
-"""The bot's read on one stock (ADR 035): the plan, the indicators, the day's decisions, the groups
+"""The bot's read on one stock (ADR 036): the plan, the indicators, the day's decisions, the groups
 and the routes -- on facts shaped like APUS and PFSA on 2026-09-24."""
 from __future__ import annotations
 
@@ -64,6 +64,7 @@ def test_a_forming_setup_is_provisional_and_says_what_it_waits_for():
     assert texts["vwap"] == {"id": "vwap", "state": "bad", "text": "under VWAP 6.09"}
     assert texts["window"]["text"] == "outside the bot's 07:00-11:30 window: a hand trade"
     assert [m["price"] for m in p["marks"]] == [5.5]            # the half dollar sits before the 5.66 target
+    assert texts["in_way_round"]["text"] == "$5.50 before the target"   # a round number says its price once
 
 
 def test_a_risk_over_the_cap_and_a_stop_inside_one_candle_are_named():

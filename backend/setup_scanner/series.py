@@ -103,7 +103,7 @@ class Series:
         return self.hod[i - 1] if i > 0 else None
 
     def last_values(self) -> dict[str, float | int] | None:
-        """The indicators at the last completed bar -- the values the gates read (ADR 035) -- or
+        """The indicators at the last completed bar -- the values the gates read (ADR 036) -- or
         None before the first bar."""
         if not self.c:
             return None
