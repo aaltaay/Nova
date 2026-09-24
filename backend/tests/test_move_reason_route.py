@@ -93,6 +93,29 @@ def test_a_failed_yahoo_read_is_unknown_not_no_split(desk, monkeypatch):
     assert checks["reverse_split"] == "unknown"
 
 
+def test_a_stale_float_and_its_short_interest_date_reach_the_read(desk, monkeypatch):
+    """#532: SECZ's 8.45M float against 163.27M shares out (12.8% insiders) is flagged on its surfaced row,
+    and the short-interest check is as of FINRA's settlement date."""
+    import fundamentals
+
+    aug_31 = datetime(2026, 8, 31, tzinfo=ZoneInfo("UTC")).timestamp()
+    flag, reason = fundamentals.float_credibility(8_450_000, 163_270_000, 0.128, 3_760_000)
+    monkeypatch.setitem(_fundamentals_cache, "SECZ", {
+        "float_shares": 8_450_000, "shares_outstanding": 163_270_000, "held_percent_insiders": 0.128,
+        "short_interest": 3_760_000, "short_interest_ts": int(aug_31), "short_ratio": 1.4,
+        "float_contradicted": flag, "float_contradicted_reason": reason})
+    desk.gainer_cache = [{"symbol": "SECZ", "price": 11.2, "change_pct": 0.62, "volume": 30_000_000}]
+
+    body = routes.why("SECZ", NOW)
+
+    assert body["facts"]["float_contradicted"] is True
+    assert body["facts"]["short_interest_ts"] == aug_31
+    checks = {c["id"]: c for c in body["checks"]}
+    assert checks["float"]["value"] == "8.4M? shares -- low float"
+    assert checks["float"]["detail"].startswith("Float 8.45M is under half of the 142.37M shares not held by insiders")
+    assert checks["short_interest"]["as_of"] == aug_31
+
+
 def test_the_borrow_feed_off_reads_unknown(desk, monkeypatch):
     monkeypatch.setenv("NOVA_BORROW_FEED", "0")
     checks = {c["id"]: c for c in routes.why("MSS", NOW)["checks"]}

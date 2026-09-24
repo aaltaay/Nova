@@ -243,6 +243,12 @@ FUNDAMENTALS_CACHE_TTL = 900.0      # 15 minutes
 FUNDAMENTALS_NEGATIVE_CACHE_TTL = 60.0
 # Hard cap so mover_enrich warming new names cannot grow the cache all day (D-024).
 FUNDAMENTALS_CACHE_MAX_ENTRIES = 400
+# Float credibility (#532): Yahoo's float is contradicted by Yahoo's own share counts when it is
+# under this share of the non-insider shares outstanding (shares out x (1 - insiders)). A float
+# that old missed a dilution since the filing it came from (SECZ 8.45M against 142M, WHLR 54K
+# against 568K); a float above shares out is the share count's staleness and cannot pass a
+# low-float gate falsely, so only the low side is flagged.
+FUNDAMENTALS_FLOAT_MIN_NON_INSIDER_SHARE = 0.5
 # Hard timeout for a single yfinance .info call; prevents Yahoo stalls from blocking Phase 2.
 # On timeout, a successful stale cache is returned; a prior failure is retried.
 YFINANCE_TIMEOUT_S = 5.0

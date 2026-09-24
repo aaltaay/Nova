@@ -155,4 +155,35 @@ def test_the_days_first_borrow_reading_is_named_by_its_time_and_only_when_it_dif
 
 def test_a_tiny_days_to_cover_is_said_plainly():
     check = by_id(read(facts(float_shares=300_081, short_interest=88_477, days_to_cover=0.02), NOW))["short_interest"]
-    assert check["value"] == "29% of float · under 0.1 days to cover"
+    assert check["value"] == "29% of float · under 0.1 days to cover (Yahoo ratio)"
+
+
+# FINRA's 2026-08-31 settlement, as Yahoo stamps it (midnight UTC).
+AUG_31 = datetime(2026, 8, 31, tzinfo=ZoneInfo("UTC")).timestamp()
+
+
+def test_short_interest_carries_its_settlement_date_and_names_yahoos_ratio():
+    """#532: the short-interest check is as of FINRA's settlement, and days to cover is Yahoo's own ratio."""
+    check = by_id(read(facts(float_shares=300_081, short_interest=88_477, days_to_cover=6.9,
+                             short_interest_ts=AUG_31), NOW))["short_interest"]
+    assert check["as_of"] == AUG_31
+    assert check["detail"] == "88K shares short, FINRA settlement Aug 31"
+    assert check["value"] == "29% of float · 6.9 days to cover (Yahoo ratio)"
+    assert "Yahoo's short ratio" in check["source"]
+    undated = by_id(read(facts(float_shares=300_081, short_interest=88_477), NOW))["short_interest"]
+    assert undated["as_of"] is None and undated["detail"] == "88K shares short"
+
+
+def test_a_contradicted_float_is_marked_and_says_why_without_changing_the_read():
+    """#532: WHLR's 54K float against 568K shares out reads "54K?" with the reason; the check and the likely
+    cause are the same as for an uncontradicted float (point 2, the gates, waits on the operator)."""
+    reason = "Float 54K is under half of the 568K shares not held by insiders"
+    base = dict(change_pct=0.9, volume=5_000_000, float_shares=54_000, rel_volume=40.0, catalyst=NONE)
+    flagged = read(facts(**base, float_contradicted=True, float_contradicted_reason=reason), NOW)
+    plain = read(facts(**base), NOW)
+    check = by_id(flagged)["float"]
+    assert check["value"] == "54K? shares -- low float"
+    assert check["detail"] == reason
+    assert check["state"] == by_id(plain)["float"]["state"] == "yes"
+    assert flagged["likely"] == plain["likely"]
+    assert by_id(read(facts(**base, float_contradicted=False), NOW))["float"]["value"] == "54K shares -- low float"

@@ -56,6 +56,26 @@ describe('normalizeScannerRow (QA C8)', () => {
     expect('rvol' in out).toBe(false);
   });
 
+  it('keeps the float check and the short-interest date, and reads anything else as unknown (#532)', () => {
+    const out = normalizeScannerRow({
+      symbol: 'WHLR', float: 54_000, shares_outstanding: 568_000, short_interest_ts: 1_788_134_400,
+      float_contradicted: true, float_contradicted_reason: ' Float 54K is under half ',
+    })!;
+    expect(out.float_contradicted).toBe(true);
+    expect(out.float_contradicted_reason).toBe('Float 54K is under half');
+    expect(out.shares_outstanding).toBe(568_000);
+    expect(out.short_interest_ts).toBe(1_788_134_400);
+    const junk = normalizeScannerRow({
+      symbol: 'WHLR', float_contradicted: 'yes', float_contradicted_reason: 7, shares_outstanding: 'lots',
+    })!;
+    expect(junk.float_contradicted).toBeNull();
+    expect(junk.float_contradicted_reason).toBeNull();
+    expect(junk.shares_outstanding).toBeNull();
+    // An older API sends none of them: they stay absent.
+    expect('float_contradicted' in row('OLD')).toBe(false);
+    expect('short_interest_ts' in row('OLD')).toBe(false);
+  });
+
   it('reads a name-only row volume of 0 as unknown, not zero (QA C37)', () => {
     const nameOnly = normalizeScannerRow({ symbol: 'SMX', price: null, volume: 0 })!;
     expect(isNameOnlyRow(nameOnly)).toBe(true);

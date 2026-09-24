@@ -495,6 +495,36 @@ fraction under 1.0. Bar-derived sensor readings (`vwap`, `macd`, `emas`,
 they were computed from, `null` without bars -- so the board can say a
 reading is stale.
 
+### Float credibility and short-interest dates (#532)
+
+Every float and short-interest figure is Yahoo's (`fundamentals.py`). The
+fundamentals payload (`fetch_fundamentals`; the ticker detail's `fundamentals`)
+keeps `shares_outstanding` and adds `held_percent_insiders` (Yahoo's
+`heldPercentInsiders`, a fraction: 0.128 = 12.8%), `short_interest_ts` (Yahoo's
+`dateShortInterest`: epoch seconds of the FINRA settlement the short interest
+is from), `float_contradicted: boolean | null` and `float_contradicted_reason:
+string | null` -- each `null` when Yahoo gives none. `short_ratio` is Yahoo's
+own ratio (short interest over Yahoo's average volume), never FINRA's days to
+cover. A float is **contradicted** (`fundamentals.float_credibility`, pure)
+when it is under `FUNDAMENTALS_FLOAT_MIN_NON_INSIDER_SHARE` (0.5) of shares
+outstanding x (1 - insiders), or when short interest exceeds it: `true` when
+either fires, `false` only when both checks ran and neither fired, `null`
+otherwise (no float, or a check short of its inputs); the reason names the
+counts. A float above shares outstanding is never flagged -- the share count is
+the stale field there and it cannot pass a low-float gate falsely. Every
+scanner row (`scanner_surface.surface_rows` -> `mover_enrich_view.decorate_rows`)
+adds `shares_outstanding`, `short_interest_ts` (only while the row's
+`short_interest` is the cached figure, else `null`: a date is never pinned on
+another report) and `float_contradicted` / `float_contradicted_reason`, judged
+on the row's own float and short interest. **Descriptive only:** no gate reads
+them -- HOD Momo `min_float` / `max_float`, the setup grade and stock filter,
+the Five Pillars float pillar, the leaderboard's `LEADERS_RULES` and the
+scanner's Float chip pass and fail exactly as before (#532's point 2 waits on an
+operator decision). The desk shows a contradicted float as "54.0K?" with the
+reason on hover, and short interest with its settlement date ("566.0K (Aug
+31)"; the scanner's second line "8/31 · 6.9") and Yahoo's ratio named on hover
+and in the quote panel's "Short Ratio (Yahoo)".
+
 ### Scanner leaderboard: recorded, reconstructed, played back (ADR 023, operator decision 2026-09-22)
 
 Owner `backend/leaderboard/`; store `leaderboard.sqlite3` (`PRAGMA
@@ -1213,10 +1243,14 @@ likely: {kind: "not_moving" | "news_pending" | "news" | "short_squeeze" | "routi
 confidence: "likely" | "possible"}, checks: [{id: "news" | "halts" | "float" | "float_rotation" |
 "reverse_split" | "short_interest" | "borrow" | "volume", label, state: "yes" | "no" | "unknown",
 value: string | null, detail: string | null, source, as_of: number | null}], facts: {price,
-change_pct, volume, rel_volume, float_shares, float_rotation, short_interest, short_pct_float,
-days_to_cover, split: {factor, ts, reverse, days_ago} | null, halts: {news, luld, volatility,
-other, source} | null, borrow: {listed, fee_rate, rebate_rate, available, available_capped,
-as_of, since, open, prior, max_fee_today, min_available_today} | null, catalyst: verdict | null}}`.
+change_pct, volume, rel_volume, float_shares, float_contradicted, float_rotation, short_interest,
+short_interest_ts, short_pct_float, days_to_cover, split: {factor, ts, reverse, days_ago} | null,
+halts: {news, luld, volatility, other, source} | null, borrow: {listed, fee_rate, rebate_rate,
+available, available_capped, as_of, since, open, prior, max_fee_today, min_available_today} | null,
+catalyst: verdict | null}}`. `float_contradicted` / `short_interest_ts` are the scanner row's (#532,
+"Float credibility and short-interest dates"); a contradicted float's check reads "54K? shares"
+with the reason as its `detail` and keeps its state, and the short-interest check's `as_of` is the
+FINRA settlement date. `days_to_cover` is Yahoo's short ratio and its value says "(Yahoo ratio)".
 `fee_rate` / `rebate_rate` are IBKR's annual percent; `open` / `prior` are `{listed, fee_rate,
 available, as_of}` at the day's first poll at or after 04:00 ET and the last poll before it (null
 when not recorded); `since` is the first poll the store holds. A symbol IBKR's file does not list is

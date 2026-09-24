@@ -1,9 +1,13 @@
-"""yfinance fundamentals fetch + TTL cache.
+"""yfinance fundamentals fetch + TTL cache, and the float credibility check.
 
 Extracted from main.py so ticker fundamentals (float, short interest, splits,
 etc.) stay out of the app entry point. Split calendar dates are formatted in
 UTC — local-tz fromtimestamp was off-by-one for Yahoo epoch midnights
 (e.g. LVLU 1:15 showing 2025-07-06 ET instead of trading-effective 2025-07-07).
+
+Yahoo's float is its last 10-Q / 10-K / 20-F cover count less insiders, blind
+to any dilution since (#532). ``float_credibility`` flags a float that Yahoo's
+own share counts contradict; it says so and changes no gate.
 """
 from __future__ import annotations
 
@@ -20,6 +24,7 @@ from constants import (
     FUNDAMENTALS_NEGATIVE_CACHE_TTL,
     YFINANCE_TIMEOUT_S,
 )
+from constants_scanner import FUNDAMENTALS_FLOAT_MIN_NON_INSIDER_SHARE
 from ibkr.errors import describe_exc
 
 logger = logging.getLogger(__name__)
@@ -34,7 +39,11 @@ _EMPTY: dict = {
     "market_cap": None,
     "shares_outstanding": None,
     "float_shares": None,
+    "held_percent_insiders": None,
+    "float_contradicted": None,
+    "float_contradicted_reason": None,
     "short_interest": None,
+    "short_interest_ts": None,
     "short_ratio": None,
     "short_percent_of_float": None,
     "pe_ratio": None,
@@ -99,6 +108,64 @@ def format_recent_split(split_factor, split_date) -> str | None:
     if date_str:
         return f"{split_factor} ({date_str})"
     return str(split_factor)
+
+
+def _positive(v) -> float | None:
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    return float(v) if v == v and v > 0 else None
+
+
+def _share_words(n: float) -> str:
+    """54K, 8.45M, 1.20B: the count in the reason a contradicted float gives."""
+    if n >= 1e9:
+        return f"{n / 1e9:.2f}B"
+    if n >= 1e6:
+        return f"{n / 1e6:.2f}M"
+    if n >= 1e3:
+        return f"{n / 1e3:.0f}K"
+    return f"{n:.0f}"
+
+
+def _pct_words(frac: float) -> str:
+    return f"{frac * 100:.1f}".removesuffix(".0") + "%"
+
+
+def float_credibility(
+    float_shares, shares_outstanding, held_percent_insiders, short_interest,
+) -> tuple[bool | None, str | None]:
+    """Whether Yahoo's own fields contradict its float (#532): ``(contradicted, reason)``.
+
+    Contradicted when the float is under ``FUNDAMENTALS_FLOAT_MIN_NON_INSIDER_SHARE`` of the
+    shares outstanding less insiders, or when more shares are short than the float holds.
+    ``True`` when either fires; ``False`` only when both could be checked and neither fired;
+    ``None`` (unknown) otherwise -- no float, or a check short of its inputs. Pure.
+    """
+    f = _positive(float_shares)
+    if f is None:
+        return None, None
+    out = _positive(shares_outstanding)
+    ins = held_percent_insiders
+    if isinstance(ins, bool) or not isinstance(ins, (int, float)) or not 0 <= ins < 1:
+        ins = None
+    si = short_interest
+    if isinstance(si, bool) or not isinstance(si, (int, float)) or not si >= 0:
+        si = None
+    reasons: list[str] = []
+    share = FUNDAMENTALS_FLOAT_MIN_NON_INSIDER_SHARE
+    if out is not None and ins is not None and f < share * out * (1 - ins):
+        portion = "half" if share == 0.5 else _pct_words(share)
+        reasons.append(
+            f"Float {_share_words(f)} is under {portion} of the {_share_words(out * (1 - ins))} shares not held "
+            f"by insiders ({_share_words(out)} outstanding, {_pct_words(ins)} insiders) -- likely stale since a dilution"
+        )
+    if si is not None and si > f:
+        reasons.append(f"Short interest {_share_words(si)} is above the {_share_words(f)} float -- the float is likely stale")
+    if reasons:
+        return True, "; ".join(reasons)
+    if out is not None and ins is not None and si is not None:
+        return False, None
+    return None, None
 
 
 def _cache_ttl(symbol: str) -> float:
@@ -193,12 +260,23 @@ def fetch_fundamentals(symbol: str) -> dict:
         if estimated is not None:
             estimated = bool(estimated)
 
+        contradicted, contradicted_reason = float_credibility(
+            info.get("floatShares"), info.get("sharesOutstanding"),
+            info.get("heldPercentInsiders"), info.get("sharesShort"),
+        )
         fundamentals = {
             "company_name": info.get("longName") or info.get("shortName"),
             "market_cap": info.get("marketCap"),
             "shares_outstanding": info.get("sharesOutstanding"),
             "float_shares": info.get("floatShares"),
+            # A fraction (0.128 = 12.8%), as Yahoo gives it.
+            "held_percent_insiders": info.get("heldPercentInsiders"),
+            "float_contradicted": contradicted,
+            "float_contradicted_reason": contradicted_reason,
             "short_interest": info.get("sharesShort"),
+            # The FINRA settlement date Yahoo's short interest is from (epoch seconds, UTC midnight).
+            "short_interest_ts": _yf_epoch(info.get("dateShortInterest")),
+            # Yahoo's own ratio: short interest over Yahoo's average volume, not FINRA's days to cover.
             "short_ratio": info.get("shortRatio"),
             "short_percent_of_float": info.get("shortPercentOfFloat"),
             "pe_ratio": info.get("trailingPE"),

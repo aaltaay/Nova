@@ -16,7 +16,7 @@ import {
   SCANNER_CHANGE_CLOSE_TITLE,
   SCANNER_GAP_CLOSE_TITLE,
 } from '../constantGroups/scanner_board';
-import { GapCell, fmtChangeAbs, pctClass, rvolSourceMark } from './ScannerRowCells';
+import { FloatCell, GapCell, ShortInterestCell, fmtChangeAbs, pctClass, rvolSourceMark } from './ScannerRowCells';
 import { SCANNER_QUOTE_CLOSE_FALLBACK } from '../scanner/scannerRowShape';
 import { LEADERBOARD_HALTED_LABEL, LEADERBOARD_HALTED_TITLE } from '../leaderboard/leaderboardConstants';
 import type { ScannerRow } from '../types/scanner';
@@ -157,18 +157,9 @@ function renderCell(
     case 'market_cap':
       return row.market_cap != null ? fmtMarketCap(row.market_cap) : <span className="na-muted">—</span>;
     case 'float':
-      return row.float != null ? fmtVolume(row.float) : <span className="na-muted">—</span>;
+      return <FloatCell row={row} />;
     case 'short_interest':
-      return (
-        <span className="cell-stack">
-          <span className="cell-stack-primary">
-            {row.short_interest != null ? fmtVolume(row.short_interest) : <span className="na-muted">—</span>}
-          </span>
-          <span className="cell-stack-secondary">
-            {row.short_ratio != null ? `${row.short_ratio.toFixed(1)}x ratio` : <span className="na-muted">{SCANNER_CELL_ABSENT}</span>}
-          </span>
-        </span>
-      );
+      return <ShortInterestCell row={row} />;
     case 'rvol':
       return row.rvol != null ? (
         <span className={row.rvol >= 2 ? 'positive' : ''}>{row.rvol.toFixed(1)}x</span>
