@@ -44,6 +44,35 @@ def _today_et() -> str:
     return session_key_et()
 
 
+def _is_exchange_date(day: str) -> bool:
+    """True when ``day`` (YYYY-MM-DD) is an exchange session, not a weekend or holiday."""
+    from datetime import date
+
+    from sim.trading_day import last_open_day
+    try:
+        parsed = date.fromisoformat(day)
+    except ValueError:
+        return False
+    return last_open_day(parsed) == parsed
+
+
+def _session_date_et() -> str:
+    """The exchange session a scanner snapshot belongs to (#483).
+
+    ``_today_et`` is a calendar date, so a board restored or re-persisted on a
+    Saturday was saved as Saturday's and the past-day menu offered "Sat" for
+    Friday's board. A weekend or holiday belongs to the last open day before it.
+    """
+    from datetime import date
+
+    from sim.trading_day import last_open_day
+    today = _today_et()
+    try:
+        return last_open_day(date.fromisoformat(today)).isoformat()
+    except ValueError:
+        return today
+
+
 def _dated_path(prefix: str, date: str) -> str:
     """Return the absolute path for a dated cache file."""
     return os.path.join(_CACHE_DIR, f"{prefix}-{date}.json")
@@ -118,7 +147,7 @@ def cleanup_old_snapshots(retention_days: int) -> None:
         return
     cutoff = (datetime.now(_ET) - timedelta(days=retention_days)).strftime("%Y-%m-%d")
     pattern = re.compile(
-        r"^(gappers|gainers|losers|movers|afterhours|hod-momo)-(\d{4}-\d{2}-\d{2})\.json$"
+        r"^(gappers|gainers|losers|movers|afterhours|large_cap|hod-momo)-(\d{4}-\d{2}-\d{2})\.json$"
     )
     for fname in os.listdir(_CACHE_DIR):
         m = pattern.match(fname)
@@ -139,7 +168,11 @@ _HISTORY_ALL_PREFIXES = ("gappers", "gainers", "losers", "movers", "afterhours",
 
 
 def _dates_with_rows(prefix: str, row_key: str) -> set[str]:
-    """Past dates (not today -- today is live) whose ``prefix`` snapshot holds rows."""
+    """Past dates (not today -- today is live) whose ``prefix`` snapshot holds rows.
+
+    Weekend and holiday files written before #483 stay on disk but are not
+    offered: the board they hold belongs to the session before them.
+    """
     if not os.path.isdir(_CACHE_DIR):
         return set()
     pattern = re.compile(rf"^{re.escape(prefix)}-(\d{{4}}-\d{{2}}-\d{{2}})\.json$")
@@ -147,7 +180,7 @@ def _dates_with_rows(prefix: str, row_key: str) -> set[str]:
     dates: set[str] = set()
     for fname in os.listdir(_CACHE_DIR):
         m = pattern.match(fname)
-        if not m or m.group(1) == today:
+        if not m or m.group(1) == today or not _is_exchange_date(m.group(1)):
             continue
         rows = _read_dated_json(prefix, m.group(1)).get(row_key)
         if isinstance(rows, list) and not rows:
@@ -286,6 +319,7 @@ from cache_snapshots import (  # noqa: E402, F401
     save_hod_momo_blocklist,
     save_hod_momo_configs,
     save_hod_momo_highs,
+    save_hod_momo_highs_for_date,
     save_hod_momo_snapshot,
     save_hod_momo_snapshot_for_date,
     save_large_cap_config,

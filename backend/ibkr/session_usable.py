@@ -13,6 +13,7 @@ import asyncio
 import logging
 from typing import Any
 
+from ibkr import line_session as _line_session
 from ibkr import session_state as _session
 
 logger = logging.getLogger(__name__)
@@ -139,6 +140,8 @@ async def _earn_usable_locked(ib: Any, reason: str) -> tuple[bool, str]:
     # that never answers reqCompletedOrders must not delay a usable desk.
     _completed_orders_warm.schedule(ib)
     await _on_session_ready(ib, reason=f"{reason} generation {gen}")
+    # The last session's tape / depth lines died with it; the HTTP loop lets them go and asks again (#562).
+    _line_session.on_session_ready(gen)
     _session_errors.clear_unusable_stamp()
     # Drop a stale restore flag if we earned usable another way.
     _session_errors.take_restore_pending()

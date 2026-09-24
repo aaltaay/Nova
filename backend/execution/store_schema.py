@@ -4,11 +4,14 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-# The ledger file (``_file_key``) whose schema ``store.init_db`` last ensured.
+# The ledger file (``file_key``) whose schema ``store.init_db`` last ensured.
 _ensured: tuple | None = None
 
 
-def _file_key(path: Path) -> tuple | None:
+def file_key(path: Path) -> tuple | None:
+    """A ledger file's identity: path, device, file id and creation time (on
+    Linux, which has no creation time here, the change time: stable across
+    reads, new after a write). ``None`` while the file does not exist."""
     try:
         st = path.stat()
     except OSError:
@@ -21,12 +24,12 @@ def schema_ensured(path: Path) -> bool:
     """Whether this process already ensured this ledger file's schema. A new or
     replaced file -- another cache dir, a ledger rebuilt at the same path -- is
     a different file and is ensured again."""
-    return _ensured is not None and _ensured == _file_key(path)
+    return _ensured is not None and _ensured == file_key(path)
 
 
 def mark_schema_ensured(path: Path) -> None:
     global _ensured
-    _ensured = _file_key(path)
+    _ensured = file_key(path)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS executions (

@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import time
 
-from execution import store
+from execution import ledger_generation, store
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ def record_broker_facts(
             f"UPDATE executions SET {', '.join(fields)} WHERE id = ?",
             values,
         )
-        conn.commit()
+        ledger_generation.commit(conn)
         return cur.rowcount > 0
     finally:
         conn.close()
@@ -136,7 +136,19 @@ def list_session_place_overlay(*, since_ts: float, limit: int = 300) -> list[dic
 
 
 def session_commission_by_symbol(*, since_ts: float) -> dict[str, float]:
-    """Sum real CommissionReport dollars per symbol this session. Never invent."""
+    """Sum real CommissionReport dollars per symbol this session. Never invent.
+
+    The account / positions polls and the Live bot breaker ask every second on
+    the HTTP loop, so the sum is kept in memory until the next write to the
+    ledger, another session start or another ledger file -- exact, no TTL
+    (#554, ``execution.ledger_generation``).
+    """
+    return ledger_generation.session_commissions(
+        since_ts, store._db_path(), lambda: _sum_session_commissions(since_ts),
+    )
+
+
+def _sum_session_commissions(since_ts: float) -> dict[str, float]:
     totals: dict[str, float] = {}
     for row in list_session_placed(since_ts=since_ts, limit=500):
         try:
@@ -251,7 +263,7 @@ def mark_place_cancelled(
             f"UPDATE executions SET {', '.join(fields)} WHERE id = ?",
             update_values,
         )
-        conn.commit()
+        ledger_generation.commit(conn)
         return exec_id
     finally:
         conn.close()

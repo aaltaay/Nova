@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { CHART_EMPTY_REPLAY_TIME } from '../src/chart/chartBarsPolicy';
 
 test('actual candle series follows replay time, clears on rewind and ignores a future quote', async ({ page }) => {
   const errors: string[] = [];
@@ -20,8 +21,11 @@ test('actual candle series follows replay time, clears on rewind and ignores a f
         if ('minute_from_open' in action) minute = action.minute_from_open;
         if ('paused' in action) paused = action.paused;
       }
+      // A loaded recording of this tab's symbol: the chart's empty state names
+      // the replay time only when a replay of IMCC is loaded (sim/simReplayTarget.ts).
       body = { sim: true, paused, minute_from_open: minute, minute_max: 960,
-        sim_time_et: `2026-09-18T06:${String(minute).padStart(2, '0')}:00-04:00`, replay_source: 'synthetic' };
+        sim_time_et: `2026-09-18T06:${String(minute).padStart(2, '0')}:00-04:00`,
+        replay_source: 'capture', replay_symbol: 'IMCC', replay_date: '2026-09-18', replay_ok: true };
     }
     if (path === '/api/capture/sessions') body = { days: [], tickers_by_day: {} };
     if (path === '/api/sim/history') body = { jobs: [], default_date: '2026-09-17' };
@@ -49,10 +53,13 @@ test('actual candle series follows replay time, clears on rewind and ignores a f
   await expect(painted).toHaveText('[]');
   await expect(page.getByTestId('indicators')).toHaveText('[]');
   await expect(page.getByTestId('vwap')).toHaveText('[]');
-  await expect(page.getByTestId('error')).toHaveText('No bars available at this replay time');
+  // An empty chart is a stated absence, never an error (chart/chartBarsPolicy.ts, QA V9).
+  await expect(page.getByTestId('empty')).toHaveText(CHART_EMPTY_REPLAY_TIME);
+  await expect(page.getByTestId('error')).toHaveText('');
   await page.keyboard.press('ArrowRight');
   await expect.poll(async () => JSON.parse(await painted.innerText()).length).toBe(1);
   await expect(painted).not.toContainText('999');
+  await expect(page.getByTestId('empty')).toHaveText('');
   expect(errors).toEqual([]);
 });
 

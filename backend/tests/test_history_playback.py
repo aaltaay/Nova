@@ -153,13 +153,24 @@ def test_unreported_prints_stay_in_tape_but_not_candles_last_or_volume():
     assert snap["prints"][1]["unreported"] is True
 
 
+def leaderboard_prev_close(symbol, day, close):
+    """IBKR's tick 9 as the leaderboard recorded it for that symbol-day (#542)."""
+    from leaderboard import store as lb_store
+    from leaderboard.rows import make_row
+    minute = int(datetime.fromisoformat(f"{day}T09:30:00").replace(tzinfo=clock.ET).timestamp())
+    with lb_store.connect() as db:
+        lb_store.write_batch(db, rows=[make_row(symbol=symbol, minute_ts=minute, board="gainers",
+                                                source="recorded", rank=1, price=5, prev_close=close)])
+
+
 def test_snapshot_quote_head_open_high_low_and_prior_close():
-    """The replay quote head uses reached reported prints and the prior session close."""
+    """The replay quote head uses reached reported prints and IBKR's prior close."""
     bars_store.write_payload(dict(symbol="IMCC", timeframe="1Day", bars=[
-        dict(t="2026-09-17T00:00:00Z", o=1, h=2, l=1, c=9.5, v=10),
+        dict(t="2026-09-17T00:00:00Z", o=1, h=2, l=1, c=9.9, v=10),
         # The replayed session's own daily bar is future information at 04:01.
         dict(t="2026-09-18T00:00:00Z", o=1, h=99, l=1, c=42, v=10),
     ]))
+    leaderboard_prev_close("IMCC", "2026-09-18", 9.5)
     prepare()
     clock.scrub_to_second(60)
     snap = playback.snapshot("IMCC")
@@ -170,36 +181,40 @@ def test_snapshot_quote_head_open_high_low_and_prior_close():
     assert (snap["open"], snap["high"], snap["low"]) == (10, 10, 10)
 
 
-def test_prior_close_prefers_regular_session_close_over_extended_daily_bar():
-    # SPY 2026-09-17: 15:59 ET bar closed 762.63; the useRTH=False daily bar ends at 20:00 (762.08).
+def test_prior_close_is_never_a_1559_close_or_an_extended_daily_bar():
+    """#542: the 15:59 bar is the last trade before the closing auction; the stored
+    daily bar is fetched with extended hours and ends on the last after-hours trade."""
     bars_store.write_payload(dict(symbol="IMCC", timeframe="1Day", bars=[
         dict(t="2026-09-17T00:00:00Z", o=1, h=2, l=1, c=762.08, v=10)]))
     bars_store.write_payload(dict(symbol="IMCC", timeframe="1Min", bars=[
         dict(t="2026-09-17T19:59:00Z", o=1, h=2, l=1, c=762.63, v=10),
         dict(t="2026-09-17T23:59:00Z", o=1, h=2, l=1, c=762.07, v=10)]))
     prepare()
-    assert playback.snapshot("IMCC")["prev_close"] == 762.63
+    assert playback.snapshot("IMCC")["prev_close"] is None
+    # The regular-hours close a download stored for this symbol-day answers.
+    job = store.find(store.window("IMCC", "2026-09-18", "04:00", "09:30"), "trades")
+    store.update(job["id"], prior_close=dict(close=762.52, date="2026-09-17", source="ibkr_rth_daily"))
+    playback.select(store.window("IMCC", "2026-09-18", "04:00", "09:30"))
+    assert playback.snapshot("IMCC")["prev_close"] == 762.52
 
 
-def test_prior_close_is_never_an_older_session_and_reload_invalidates_a_miss():
-    # Weeks-old daily close (PFSA: 25.19 on 08-18 vs ~2.07 on 09-18) must not become prev_close.
-    bars_store.write_payload(dict(symbol="IMCC", timeframe="1Day", bars=[
-        dict(t="2026-08-18T00:00:00Z", o=1, h=2, l=1, c=25.19, v=10)]))
+def test_prior_close_miss_is_fixed_until_an_explicit_reload():
     prepare()
     assert playback.snapshot("IMCC")["prev_close"] is None
-    bars_store.write_payload(dict(symbol="IMCC", timeframe="1Day", bars=[
-        dict(t="2026-09-17T00:00:00Z", o=1, h=2, l=1, c=2.11, v=10)]))
+    leaderboard_prev_close("IMCC", "2026-09-18", 2.11)
     assert playback.snapshot("IMCC")["prev_close"] is None
     playback.select(store.window("IMCC", "2026-09-18", "04:00", "09:30"))
     assert playback.snapshot("IMCC")["prev_close"] == 2.11
 
 
 def test_prior_close_skips_weekends_and_holidays():
-    spec = store.window("IMCC", "2026-09-08", "04:00", "09:30")  # Tuesday after Labor Day
-    bars_store.write_payload(dict(symbol="IMCC", timeframe="1Day", bars=[
-        dict(t="2026-09-04T00:00:00Z", o=1, h=2, l=1, c=3.5, v=10)]))
-    playback.select(spec)
-    assert playback.snapshot("IMCC")["prev_close"] == 3.5
+    """The download keeps the close dated the exchange session before its day -- never an older one."""
+    from sim import prior_close
+    # Tuesday 2026-09-08 follows Labor Day: the prior session is Friday 09-04.
+    assert prior_close.prior_session_close([("2026-09-04", 3.5), ("2026-09-07", 9.9)], "2026-09-08") == (
+        "2026-09-04", 3.5)
+    # Weeks-old daily close (PFSA: 25.19 on 08-18 vs ~2.07 on 09-18) never becomes prev_close.
+    assert prior_close.prior_session_close([("2026-08-18", 25.19)], "2026-09-18") is None
 
 
 def test_hot_snapshots_and_warm_timeframe_bars_do_not_read_disk(monkeypatch):

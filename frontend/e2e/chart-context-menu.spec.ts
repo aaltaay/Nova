@@ -1,20 +1,30 @@
 import { test, expect, type Page } from '@playwright/test';
 import { attachErrorCollector } from './helpers/errorCollector';
-import { routeSampleBars } from './helpers/sampleBars';
+import { mockLiveTraderApi } from './helpers/liveTraderApi';
 
 const ARTIFACTS = '/opt/cursor/artifacts';
 
-async function openSampleTrader(page: Page) {
-  await routeSampleBars(page);
-  await page.goto('/?view=sample&symbol=SMPL');
-  await expect(page.getByTestId('chart-desk-toolbar')).toBeVisible();
+/**
+ * The menu prices its rows off the chart's price scale, so the chart needs
+ * served candles. The sample desk refuses every backend read in the page
+ * (sampleNetworkGate.ts), so the Trader opens on the live route with the API
+ * mocked, holding SMPL 200 long like the sample account did.
+ */
+async function openTrader(page: Page) {
+  const api = await mockLiveTraderApi(page);
+  await page.goto('/?view=stock&symbol=SMPL');
+  // First paint of the Trader chunk; same allowance as open-closed-orders.spec.ts.
+  await expect(page.getByTestId('chart-desk-toolbar')).toBeVisible({ timeout: 20_000 });
   const chart = page.locator('.chart-body').first();
   await expect(chart).toBeVisible();
   await expect(page.locator('[data-testid^="ticker-chart-"]').first()).toHaveAttribute(
     'data-bar-count',
     /[1-9]/,
   );
-  return chart;
+  // The menu stages the already-mounted ticket (ibkr/orderTicketPrefill.ts);
+  // the rail mounts it once the quote has loaded.
+  await expect(page.locator('form.manual-order-ticket').first()).toBeVisible();
+  return { chart, api };
 }
 
 /** Right-click inside the plot area, away from the position tag in the corner. */
@@ -31,7 +41,7 @@ async function rightClickChart(page: Page, chart = page.locator('.chart-body').f
 test.describe('Trader chart right-click context menu', () => {
   test('opens at the cursor with Webull rows priced off the chart', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
-    await openSampleTrader(page);
+    await openTrader(page);
     await rightClickChart(page);
 
     const menu = page.getByTestId('chart-context-menu');
@@ -45,7 +55,7 @@ test.describe('Trader chart right-click context menu', () => {
     await expect(page.getByTestId('chart-context-menu-sell')).toHaveText(
       /^Sell SMPL \d+ @\d+\.\d{2}$/,
     );
-    // Sample desk holds SMPL 200 -- the flatten row is the shared SSOT button.
+    // The mocked account holds SMPL 200 -- the flatten row is the shared SSOT button.
     await expect(page.getByTestId('chart-context-menu-close-position')).toHaveText(
       'Close Position',
     );
@@ -54,7 +64,11 @@ test.describe('Trader chart right-click context menu', () => {
     );
     await expect(page.getByTestId('chart-context-menu-show_layers')).toBeVisible();
     await expect(page.getByTestId('chart-context-menu-create_alert')).toBeDisabled();
-    await expect(page.getByTestId('chart-context-menu-add_to_watchlist')).toBeDisabled();
+    // The operator's watch list is a real action now (watch_list/), not a disabled stub.
+    await expect(page.getByTestId('chart-context-menu-watch_list_add')).toHaveText(
+      'Add to watch list',
+    );
+    await expect(page.getByTestId('chart-context-menu-watch_list_add')).toBeEnabled();
     await expect(page.getByTestId('chart-context-menu-reset')).toBeVisible();
     await expect(page.getByTestId('chart-context-menu-snapshot')).toBeVisible();
     await expect(page.getByTestId('chart-context-menu-hint')).toContainText(
@@ -70,7 +84,7 @@ test.describe('Trader chart right-click context menu', () => {
 
   test('Escape and click-outside dismiss it', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
-    await openSampleTrader(page);
+    await openTrader(page);
 
     await rightClickChart(page);
     await expect(page.getByTestId('chart-context-menu')).toBeVisible();
@@ -87,7 +101,7 @@ test.describe('Trader chart right-click context menu', () => {
 
   test('Buy stages the trade ticket instead of placing an order', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
-    await openSampleTrader(page);
+    const { api } = await openTrader(page);
     await rightClickChart(page);
 
     const buy = page.getByTestId('chart-context-menu-buy');
@@ -108,12 +122,13 @@ test.describe('Trader chart right-click context menu', () => {
       fullPage: true,
     });
 
+    expect(api.mutations, 'staging must not send an order').toEqual([]);
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 
   test('Sell stages a SELL ticket at the same price', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
-    await openSampleTrader(page);
+    await openTrader(page);
     await rightClickChart(page);
 
     const sell = page.getByTestId('chart-context-menu-sell');
@@ -131,7 +146,7 @@ test.describe('Trader chart right-click context menu', () => {
 
   test('Drawings submenu arms an existing draw tool', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
-    const chart = await openSampleTrader(page);
+    const { chart } = await openTrader(page);
     await rightClickChart(page, chart);
 
     await page.getByTestId('chart-context-menu-drawings').click();
@@ -151,7 +166,7 @@ test.describe('Trader chart right-click context menu', () => {
 
   test('right-click on the Long/Short tag keeps the position menu', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
-    await openSampleTrader(page);
+    await openTrader(page);
 
     await page.getByTestId('chart-position-tag-btn').first().click({ button: 'right' });
     await expect(page.getByTestId('chart-position-menu')).toBeVisible();
@@ -162,7 +177,7 @@ test.describe('Trader chart right-click context menu', () => {
 
   test('still opens while the pane is in header fullscreen (#117)', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
-    await openSampleTrader(page);
+    await openTrader(page);
 
     const cell = page.getByTestId('chart-grid-cell-5Min');
     await cell.getByTestId('chart-expand-btn').click();
@@ -191,7 +206,7 @@ test.describe('Trader chart right-click context menu', () => {
 
   test('Show Layers toggles the same indicator SSOT as the desk toolbar', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
-    await openSampleTrader(page);
+    await openTrader(page);
     await rightClickChart(page);
 
     await page.getByTestId('chart-context-menu-show_layers').click();
@@ -211,7 +226,7 @@ test.describe('Trader chart right-click context menu', () => {
 
   test('View Trade Details docks Positions through the same event as the tag', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
-    await openSampleTrader(page);
+    await openTrader(page);
     await rightClickChart(page);
     await page.getByTestId('chart-context-menu-view_details').click();
     await expect(page.getByTestId('chart-context-menu')).toHaveCount(0);
@@ -222,7 +237,7 @@ test.describe('Trader chart right-click context menu', () => {
 
   test('does not break double-click pane maximize', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
-    const chart = await openSampleTrader(page);
+    const { chart } = await openTrader(page);
     await rightClickChart(page, chart);
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('chart-context-menu')).toHaveCount(0);

@@ -103,11 +103,17 @@ export const SCANNER_ACCOUNT_DOCK_SPLIT_MAX_PCT = 82;
 export const SCANNER_ACCOUNT_DOCK_RESIZE_LABEL = 'Resize scanner tables and Positions';
 
 // ── QA pass two (2026-09-22): Scanner / header / layout batch ────────────
+/**
+ * D10: what a Gateway-bound surface says while `/api/ibkr/status` is pending or
+ * failing -- nothing is known about the Gateway then. The depth card and the
+ * ticket (trader_chrome.ts) each end the sentence with what waits for it.
+ */
+export const GATEWAY_STATUS_PENDING = "Checking IB Gateway -- Nova's status has not answered yet";
+export const GATEWAY_STATUS_FAILED = "Nova's status request is failing, so IB Gateway's state is unknown";
 /** D10: the Stock Quote card's depth hint, by what the status actually knows. */
 export const TRADER_DEPTH_CONNECT_GATEWAY = 'Connect IB Gateway for Level 2 and Time & Sales';
-export const TRADER_DEPTH_STATUS_PENDING = "Checking IB Gateway -- Nova's status has not answered yet";
-export const TRADER_DEPTH_STATUS_FAILED =
-  "Nova's status request is failing, so IB Gateway's state is unknown -- Level 2 and Time & Sales wait for it";
+export const TRADER_DEPTH_STATUS_PENDING = GATEWAY_STATUS_PENDING;
+export const TRADER_DEPTH_STATUS_FAILED = `${GATEWAY_STATUS_FAILED} -- Level 2 and Time & Sales wait for it`;
 /**
  * W30: the tab / Focus rail figure is the scanner's gap (price against the
  * prior close); the quote card's Gap% is the opening gap (the open against

@@ -8,11 +8,12 @@ import {
   type QuantityMode,
 } from './orderEntry';
 import { useTopOfBook } from '../hotkeys/TopOfBookContext';
-import { TICKET_WHY_SENDING, WHY_GATEWAY_NOT_CONNECTED } from '../constantGroups/trader_chrome';
+import { TICKET_WHY_SENDING } from '../constantGroups/trader_chrome';
 import type { IbkrListingFlags } from '../types/ticker';
 import { applyTicketDefaults, seedFollow, seedPricesForSide } from './applyTicketDefaults';
 import { ManualOrderFields } from './ManualOrderFields';
 import { ManualOrderFooter } from './ManualOrderFooter';
+import { GATEWAY_STATUS_KNOWN, gatewayLockWhy, type GatewayStatusFact } from './gatewayStatusWording';
 import { ManualOrderTicketHeader } from './ManualOrderTicketHeader';
 import { useMarketOrdersRefused } from './marketOutsideRth';
 import { ManualOrderLegsNote } from './ManualOrderLegsNote';
@@ -44,6 +45,8 @@ interface Props {
   symbol: string;
   mode: IbkrMode;
   connected: boolean;
+  /** Whether `connected: false` is a status answer or an unknown (QA D10, #459). */
+  gatewayStatus?: GatewayStatusFact;
   spendStatus?: string;
   summary: IbkrAccountSummary | null;
   position: IbkrPosition | null;
@@ -64,6 +67,7 @@ export function ManualOrderTicket({
   symbol,
   mode,
   connected,
+  gatewayStatus = GATEWAY_STATUS_KNOWN,
   spendStatus,
   summary,
   position,
@@ -284,7 +288,7 @@ export function ManualOrderTicket({
   }
 
   // Every locked field says why (ux/whyTip.ts).
-  const fieldsWhy = !connected ? WHY_GATEWAY_NOT_CONNECTED : submitting ? TICKET_WHY_SENDING : null;
+  const fieldsWhy = !connected ? gatewayLockWhy(gatewayStatus) : submitting ? TICKET_WHY_SENDING : null;
 
   return (
     <form className="manual-order-ticket" onSubmit={submit}>
@@ -333,6 +337,7 @@ export function ManualOrderTicket({
         symbol={symbol}
         needsPinUnlock={needsPinUnlock}
         connected={connected}
+        gatewayStatus={gatewayStatus}
         submitting={submitting}
         spendLocked={spendLocked}
         spendLockReason={spendLockNote}

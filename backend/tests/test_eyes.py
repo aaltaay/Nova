@@ -146,6 +146,12 @@ def test_load_reads_a_session_record_off_disk(tmp_path, monkeypatch):
                                                       "close": 1, "symbol": SYM}) + "\n", encoding="utf-8")
     own = load(DAY, SYM, root=tmp_path, bars_fn=lambda sym, date: [])
     assert own.bars_source == "recording" and own.bars and max(b.h for b in own.bars) < 9
+    # The previous close is IBKR's tick 9 recorded on the quote rows (#542); none recorded is none.
+    assert own.prev_close is None
+    at = rec.prints[0]["ts"]
+    (folder / "quotes.jsonl").write_text(json.dumps({"ts": at, "symbol": SYM, "bid": 5.0, "ask": 5.1,
+                                                     "prev_close": 4.25}) + "\n", encoding="utf-8")
+    assert load(DAY, SYM, root=tmp_path, bars_fn=lambda sym, date: []).prev_close == 4.25
 
 
 # -- the Sim eyes -------------------------------------------------------------------------------

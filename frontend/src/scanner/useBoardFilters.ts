@@ -1,7 +1,9 @@
 /**
  * Board chip state + named sets for the Scanner board header. Toggling a
  * chip recomputes the rows the page passes through `filterRows`; every
- * change is written back through boardFilterPersist.
+ * change is written back through boardFilterPersist. `playback` (the board
+ * is the Sim playhead's, ADR 023) unlocks the chips only played-back rows
+ * can answer (#487).
  */
 import { useCallback, useMemo, useState } from 'react';
 import type { ScannerChipId } from '../constantGroups/scanner_board';
@@ -15,12 +17,15 @@ import {
   type SavedChipSet,
 } from './boardFilterPersist';
 import { applyBoardChips, chipsInOrder, isChipAvailable, sameChips, type ChipRow } from './boardFilters';
+import { useLiveScannerFeedOptional } from './ScannerDataContext';
 
 export interface BoardFilters {
   active: ReadonlySet<ScannerChipId>;
   sets: readonly SavedChipSet[];
   /** Name of the saved set the active chips equal, "none" when empty, "custom" otherwise. */
   activeSetName: string;
+  /** The board shows played-back rows (Sim off the live edge), which state `halted`. */
+  playback: boolean;
   toggle: (id: ScannerChipId) => void;
   clear: () => void;
   applySet: (name: string) => void;
@@ -38,6 +43,7 @@ export function activeSetNameFor(active: ReadonlySet<ScannerChipId>, sets: reado
 export function useBoardFilters(): BoardFilters {
   const [state, setState] = useState<BoardFilterState>(readBoardFilterState);
   const active = useMemo(() => new Set(state.active), [state.active]);
+  const playback = useLiveScannerFeedOptional()?.replay != null;
 
   const update = useCallback((patch: (prev: BoardFilterState) => BoardFilterState) => {
     setState((prev) => {
@@ -48,14 +54,14 @@ export function useBoardFilters(): BoardFilters {
   }, []);
 
   const toggle = useCallback((id: ScannerChipId) => {
-    if (!isChipAvailable(id)) return;
+    if (!isChipAvailable(id, playback)) return;
     update((prev) => {
       const set = new Set(prev.active);
       if (set.has(id)) set.delete(id);
       else set.add(id);
       return { ...prev, active: chipsInOrder(set) };
     });
-  }, [update]);
+  }, [update, playback]);
 
   const clear = useCallback(() => update((prev) => ({ ...prev, active: [] })), [update]);
 
@@ -75,8 +81,8 @@ export function useBoardFilters(): BoardFilters {
   }, [update]);
 
   const filterRows = useCallback(
-    <T extends ChipRow>(rows: readonly T[]): T[] => applyBoardChips(rows, active),
-    [active],
+    <T extends ChipRow>(rows: readonly T[]): T[] => applyBoardChips(rows, active, playback),
+    [active, playback],
   );
 
   const sets = state.sets;
@@ -85,6 +91,7 @@ export function useBoardFilters(): BoardFilters {
       active,
       sets,
       activeSetName: activeSetNameFor(active, sets),
+      playback,
       toggle,
       clear,
       applySet,
@@ -92,6 +99,6 @@ export function useBoardFilters(): BoardFilters {
       forgetSet,
       filterRows,
     }),
-    [active, sets, toggle, clear, applySet, saveCurrentAs, forgetSet, filterRows],
+    [active, sets, playback, toggle, clear, applySet, saveCurrentAs, forgetSet, filterRows],
   );
 }

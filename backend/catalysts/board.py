@@ -38,8 +38,8 @@ def stamp_row(entry: dict) -> None:
 
 def refresh(symbols: set[str], now: float | None = None) -> None:
     """Queue the symbols' Alpaca reads and recompute their verdicts from what is held now."""
-    live.request(symbols)
     now = time.time() if now is None else now
+    live.request(symbols, now)
     fresh: dict[str, dict | None] = {}
     for sym in symbols:
         try:

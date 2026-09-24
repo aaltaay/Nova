@@ -19,7 +19,7 @@ A squeeze is never called from price alone: without short interest and borrow da
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -145,13 +145,15 @@ def _halts(h: dict | None, now: float | None) -> dict[str, Any]:
     return _check("halts", "Halts today", MOVE_STATE_YES, text[:1].upper() + text[1:], None, src, now)
 
 
-def _float(f: float | None) -> dict[str, Any]:
-    src = "Yahoo float (can lag a reverse split)"
+def _float(f: float | None, contradicted: str | None = None) -> dict[str, Any]:
+    """``contradicted`` is the reason Yahoo's own counts contradict the float (#532): the value reads
+    "54K?" and the detail says why. The state is still the float's -- the check describes, it does not gate."""
+    src = "Yahoo float (can lag a reverse split or a dilution)"
     if f is None:
         return _check("float", "Float", MOVE_STATE_UNKNOWN, "Unknown", None, src)
     low = f < MOVE_LOW_FLOAT_SHARES
     return _check("float", "Float", MOVE_STATE_YES if low else MOVE_STATE_NO,
-                  f"{shares(f)} shares{' -- low float' if low else ''}", None, src)
+                  f"{shares(f)}{'?' if contradicted else ''} shares{' -- low float' if low else ''}", contradicted, src)
 
 
 def _rotation(rot: float | None, volume: float | None, f: float | None) -> dict[str, Any]:
@@ -192,8 +194,11 @@ def _split_words(factor: str) -> str:
     return f"1-for-{b}" if a.strip() == "1" and b.strip() else f"{factor} split"
 
 
-def _short(pct: float | None, dtc: float | None, si: float | None) -> dict[str, Any]:
-    src = "FINRA short interest via Yahoo (twice a month, about two weeks late)"
+def _short(pct: float | None, dtc: float | None, si: float | None, as_of: float | None = None) -> dict[str, Any]:
+    """``as_of`` is the FINRA settlement date Yahoo's short interest is from (#532). Days to cover is
+    Yahoo's short ratio -- short interest over Yahoo's average volume, not FINRA's figure -- and says so."""
+    src = ("FINRA short interest via Yahoo (twice a month, about two weeks late); "
+           "days to cover is Yahoo's short ratio, over Yahoo's average volume")
     if pct is None and dtc is None:
         return _check("short_interest", "Short interest", MOVE_STATE_UNKNOWN, "Unknown", None, src)
     heavy = (pct is not None and pct >= MOVE_SHORT_PCT_HIGH) or (dtc is not None and dtc >= MOVE_DAYS_TO_COVER_HIGH)
@@ -201,9 +206,18 @@ def _short(pct: float | None, dtc: float | None, si: float | None) -> dict[str, 
     if pct is not None:
         parts.append(f"{pct * 100:.0f}% of float")
     if dtc is not None:
-        parts.append("under 0.1 days to cover" if dtc < 0.1 else f"{dtc:.1f} days to cover")
+        parts.append(("under 0.1 days to cover" if dtc < 0.1 else f"{dtc:.1f} days to cover") + " (Yahoo ratio)")
+    detail = None
+    if si is not None:
+        detail = f"{shares(si)} shares short" + (f", FINRA settlement {_day(as_of)}" if as_of is not None else "")
     return _check("short_interest", "Short interest", MOVE_STATE_YES if heavy else MOVE_STATE_NO, " · ".join(parts),
-                  f"{shares(si)} shares short" if si is not None else None, src)
+                  detail, src, as_of)
+
+
+def _day(ts: float) -> str:
+    """Aug 31: a settlement date, which Yahoo stamps at midnight UTC."""
+    d = datetime.fromtimestamp(ts, timezone.utc)
+    return f"{d:%b} {d.day}"
 
 
 def _borrow(b: dict | None) -> dict[str, Any]:
@@ -264,8 +278,11 @@ def read(facts: dict[str, Any], now: float | None = None) -> dict[str, Any]:
     if pct is None and si is not None and f:
         pct = si / f
     dtc = _num(facts.get("days_to_cover"))
-    checks = [_news(facts.get("catalyst"), now), _halts(facts.get("halts"), now), _float(f), _rotation(rot, volume, f),
-              _volume(rvol), _split(facts.get("split"), now), _short(pct, dtc, si), _borrow(facts.get("borrow"))]
+    contradicted = ((facts.get("float_contradicted_reason") or "Yahoo's own share counts contradict this float")
+                    if facts.get("float_contradicted") is True else None)
+    checks = [_news(facts.get("catalyst"), now), _halts(facts.get("halts"), now), _float(f, contradicted),
+              _rotation(rot, volume, f), _volume(rvol), _split(facts.get("split"), now),
+              _short(pct, dtc, si, _num(facts.get("short_interest_ts"))), _borrow(facts.get("borrow"))]
     by = {c["id"]: c for c in checks}
     return {"likely": _likely(change, by, rot, rvol, facts.get("catalyst")), "checks": checks,
             "derived": {"float_rotation": rot, "short_pct_float": pct}}

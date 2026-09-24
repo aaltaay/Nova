@@ -6,7 +6,7 @@ routine announcements, then dilution, then the positive classes strongest first.
 """
 from __future__ import annotations
 
-CATALYST_RULES_VERSION = "catalyst-rules-v6-2026-09-23"
+CATALYST_RULES_VERSION = "catalyst-rules-v7-2026-09-24"
 
 # Verdicts for one symbol-day.
 CATALYST_VERDICT_CATALYST = "catalyst"      # a real, company-specific positive catalyst
@@ -299,7 +299,15 @@ CATALYST_SEC_FORM_CLASS = {
     "8-A12B": ("routine", "listing_paperwork", None),
     "10-Q": ("routine", "periodic_report", None), "10-K": ("routine", "periodic_report", None),
     "20-F": ("routine", "periodic_report", None),
+    # v7: an insider's Form 4 is routine unless it carries a stamped open-market purchase of at least
+    # CATALYST_INSIDER_BUY_MIN_USD (catalysts/form4.py) -- then catalyst / listing_financing / weak.
+    "4": ("routine", "corporate_routine", None),
 }
+# v7 (#517): Form 4 open-market purchases (transaction code P) by officers and directors. Under this the buy is a
+# token "show of faith" (1,000-5,000 shares of a $2-5 stock); at or above it the officer put real money of their
+# own in at the market's price. Per filing, whole dollars; the operator may change it.
+CATALYST_INSIDER_BUY_FORM = "4"
+CATALYST_INSIDER_BUY_MIN_USD = 25_000.0
 
 
 # -- the live catalyst feed (catalysts/feed.py): primary sources recorded as they publish -------
@@ -341,7 +349,22 @@ CATALYST_FEED_NEWSFILE_INDUSTRIES = (
     "banking-financial-services", "agriculture", "precious-metals", "mining-metals", "retail", "real-estate",
 )
 CATALYST_FEED_NEWSFILE_POLL_SEC = 180.0              # each industry feed; staggered across the interval
-# Sources whose unbroken coverage lets the live verdict say "none found" (FDA names drugs, not tickers).
+# The Form 4 source (catalysts/feed_form4.py, #517): its own coverage span, apart from "edgar" -- Form 4s come in
+# the hundreds after the close, and a burst must never break the 8-K / 6-K span. Each filing is listed once per
+# party (reporting owner, issuer); a page of 100 entries is about 50 filings.
+CATALYST_FEED_FORM4_SOURCE = "edgar_form4"
+CATALYST_FEED_FORM4_ATOM = (
+    "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&company=&dateb=&owner=only"
+    "&start={start}&count={count}&output=atom"
+)
+CATALYST_FEED_FORM4_SUBMISSION = CATALYST_FEED_EDGAR_ARCHIVE + "/{acc_dashed}.txt"   # the full filing, one request
+CATALYST_FEED_FORM4_POLL_SEC = 60.0
+CATALYST_FEED_FORM4_PAGE = 100                       # entries per Atom page (EDGAR's largest)
+CATALYST_FEED_FORM4_MAX_PAGES = 5                    # pages read back to the span's end in one poll
+CATALYST_FEED_FORM4_MAX_READS = 80                   # filings read per poll (at the SEC gap: ~12 s); the rest next poll
+CATALYST_FEED_FORM4_MAX_ATTEMPTS = 3                 # fetches of one filing before it is given up (a known miss)
+# Sources whose unbroken coverage lets the live verdict say "none found" (FDA names drugs, not tickers). Not
+# edgar_form4: it reads one filing type, so its silence says no insider bought, never that there was no news.
 CATALYST_FEED_COVERAGE_SOURCES = ("edgar", "globenewswire", "prnewswire", "newsfile")
 # US listings only: "(NASDAQ: ABCD)", "Nasdaq:ANGI", "(NYSE American: XYZ, XYZ.WS)".
 CATALYST_TICKER_RE = (

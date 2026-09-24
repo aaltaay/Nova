@@ -229,4 +229,15 @@ describe('DeskBoard', () => {
     expect(foot.textContent).not.toContain('board freezes at the open');
     expect(foot.textContent).not.toContain('hidden by the exchange filter');
   });
+
+  it('each legend item carries its short label for the narrow board and its full label as a title (#459)', () => {
+    render(<DeskBoard {...baseProps()} />);
+    const items = Array.from(screen.getByTestId('desk-board-foot').querySelectorAll('.desk-board__legend-item'));
+    expect(items.map(item => item.getAttribute('title'))).toEqual([
+      'recording', 'allowlisted, depth line held', 'allowlisted, quiet',
+    ]);
+    expect(items.map(item => item.querySelector('.desk-board__legend-short')?.textContent)).toEqual([
+      'rec', 'line held', 'quiet',
+    ]);
+  });
 });

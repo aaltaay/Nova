@@ -1,6 +1,14 @@
 /**
  * Execute a typed Nova Action via the manual order path (System 2).
  * Paper and live share this path; spend/Gateway gates differ by environment.
+ *
+ * Each kind answers to the locks the backend holds it to (ADR 018 decision 4,
+ * #548). Cancels, and the whole-position exits sent as `intent: "flatten"`,
+ * are protective: the arm latch never holds them, so a disarmed desk can
+ * always cancel and get flat, and pressing one never arms the desk. They need
+ * the Gateway, and a flatten also the env spend locks. Every other kind is an
+ * ordinary manual order -- the partial exits included -- and keeps the
+ * opening-order gate the ticket's Place reads, padlock and all.
  */
 
 import {
@@ -12,11 +20,14 @@ import {
   NOVA_ACTION_DEFAULT_SHARES,
   NOVA_ACTION_NO_SYMBOL_MESSAGE,
   NOVA_ACTION_SPEND_LOCKED_MESSAGE,
+  WHY_GATEWAY_NOT_CONNECTED,
+  type NovaActionKind,
 } from '../constants';
 import {
   beginBrowserExecutionTiming,
   captureBrowserAction,
 } from '../execution_latency';
+import { flattenSpendLockReason } from '../ibkr';
 import { shouldUseOutsideRth } from '../ibkr/extendedSession';
 import {
   buildBuyMarketShares,
@@ -46,7 +57,28 @@ import type { NovaActionRuntime } from './runNovaActionRuntime';
 
 export type { NovaActionRuntime } from './runNovaActionRuntime';
 
-function gateConnected(runtime: NovaActionRuntime): NovaActionResult | null {
+/**
+ * The kinds the backend's arm latch never holds: a cancel is validated before
+ * the latch, and `exit_pos` / `cancel_and_exit` send `intent: "flatten"`, a
+ * protective source (`ibkr/safety.PROTECTIVE_SOURCES`). A kind not listed --
+ * a new one included -- takes the opening-order gate.
+ */
+const PROTECTIVE_KINDS: Partial<Record<NovaActionKind, 'cancel' | 'flatten'>> = {
+  cancel_all_orders: 'cancel',
+  cancel_symbol: 'cancel',
+  exit_pos: 'flatten',
+  cancel_and_exit: 'flatten',
+};
+
+/** Why *kind* cannot run now, or null when it may. */
+function gateFor(kind: NovaActionKind, runtime: NovaActionRuntime): NovaActionResult | null {
+  const protective = PROTECTIVE_KINDS[kind];
+  if (protective) {
+    if (!runtime.connected) return { ok: false, text: WHY_GATEWAY_NOT_CONNECTED };
+    // Disarmed is no lock for a flatten; the env locks and an unknown status are.
+    const why = protective === 'flatten' ? flattenSpendLockReason(runtime.spendStatus) : null;
+    return why ? { ok: false, text: why } : null;
+  }
   const gate = evaluateTradingAllowed({
     connected: runtime.connected,
     spendStatus: runtime.spendStatus,
@@ -56,13 +88,6 @@ function gateConnected(runtime: NovaActionRuntime): NovaActionResult | null {
     return { ok: false, text: gate.reason ?? NOVA_ACTION_SPEND_LOCKED_MESSAGE };
   }
   return null;
-}
-
-function gateManual(runtime: NovaActionRuntime): NovaActionResult | null {
-  if (!runtime.symbol) {
-    return { ok: false, text: NOVA_ACTION_NO_SYMBOL_MESSAGE };
-  }
-  return gateConnected(runtime);
 }
 
 async function maybeConfirm(
@@ -90,7 +115,7 @@ export async function runNovaAction(
   const idempotencyKey = newGestureKey(`nova_action:${action.kind}`);
 
   if (action.kind === 'cancel_all_orders') {
-    const gated = gateConnected(runtime);
+    const gated = gateFor(action.kind, runtime);
     if (gated) return gated;
     const mode = accountModeLabel(runtime.accountMode);
     const openCount = await countOpenWorkingOrders();
@@ -131,10 +156,15 @@ export async function runNovaAction(
     }
   }
 
-  const gated = gateManual(runtime);
+  if (!runtime.symbol) {
+    return { ok: false, text: NOVA_ACTION_NO_SYMBOL_MESSAGE };
+  }
+  // Before any branch: `cancel_and_exit` is held to the flatten's locks, so an
+  // env-locked desk never cancels its stops and then fails to flatten.
+  const gated = gateFor(action.kind, runtime);
   if (gated) return gated;
 
-  const symbol = runtime.symbol!.toUpperCase();
+  const symbol = runtime.symbol.toUpperCase();
 
   if (action.kind === 'cancel_symbol') {
     try {

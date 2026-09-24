@@ -2,12 +2,15 @@
 Read-only IBKR Gateway port probes + disconnect hints for /api/ibkr/status.
 
 Never attaches an IB session to the alternate port — TCP connect only.
+Every probe blocks its thread for up to ``_PROBE_TIMEOUT_SEC``: callers on an
+event loop run ``status_port_fields`` in a worker thread (#505).
 """
 from __future__ import annotations
 
 import logging
 import os
 import socket
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from constants import IBKR_HOST, IBKR_LIVE_PORT, IBKR_PAPER_PORT
@@ -27,6 +30,13 @@ def probe_port(host: str, port: int, *, timeout: float = _PROBE_TIMEOUT_SEC) -> 
             return True
     except OSError:
         return False
+
+
+def probe_ports(host: str, first: int, second: int) -> tuple[bool, bool]:
+    """Probe two ports at once, so a dark Gateway costs one timeout, not two (#505)."""
+    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="ibkr-port-probe") as pool:
+        second_up = pool.submit(probe_port, host, second)
+        return probe_port(host, first), second_up.result()
 
 
 def _host() -> str:
@@ -57,7 +67,11 @@ def disconnect_hint(
 
 
 def status_port_fields(*, connected: bool) -> dict[str, Any]:
-    """Fields merged into GET /api/ibkr/status (probes only when disconnected)."""
+    """Fields merged into GET /api/ibkr/status (probes only when disconnected).
+
+    Disconnected, this blocks for up to one probe timeout: never call it that
+    way on an event loop (#505).
+    """
     preferred_mode = _safety.gateway_mode()
     preferred_port = _heal.port_for_mode(preferred_mode)
     alt_mode = _heal.alternate_mode(preferred_mode)
@@ -69,8 +83,9 @@ def status_port_fields(*, connected: bool) -> dict[str, Any]:
         alternate_reachable = False  # unused when connected; avoid extra probe
         hint = None
     else:
-        preferred_reachable = probe_port(host, preferred_port)
-        alternate_reachable = probe_port(host, alternate_port)
+        preferred_reachable, alternate_reachable = probe_ports(
+            host, preferred_port, alternate_port,
+        )
         hint = disconnect_hint(
             connected=False,
             preferred_mode=preferred_mode,

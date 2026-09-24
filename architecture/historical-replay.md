@@ -97,10 +97,17 @@ lookup is one indexed newest-at-or-before row per replayed second, memoized, and
 an unreadable `l2.db` degrades to "not recorded" rather than failing the
 replay. The quote head reads the snapshot: `last`, `volume`, session
 `open`/`high`/`low` from reached reported prints (or reached candles when
-trades are not downloaded) and `prev_close` = the prior trading day's 15:59 ET
-minute close (proxy for the official close the live head uses), else that
-day's stored daily close (extended hours, `useRTH=False`), else none -- never
-an older session. RVOL, halt and shortability are blank in replay. Rows carry
+trades are not downloaded) and `prev_close` from `sim/prior_close.py` (#542):
+IBKR's tick 9 recorded for that symbol-day (a Session Record's quote rows, else
+the leaderboard's `prev_close`), else the regular-hours daily close of the prior
+exchange session that a download stored in its job (`prior_close`, fetched with
+`useRTH=True` once per run before the first page), else none. Never the prior
+session's 15:59 ET minute close -- the last trade before the closing auction --
+and never the stored daily bar, which is fetched with extended hours
+(`useRTH=False`) and closes on the last after-hours trade (WHLR 2026-09-23 read
+1.97 and 3.5514 against 1.87; GRML 2026-09-21 read 4.51 against 2.85). A daily
+series without that session stores `prior_close: null`, never an older close.
+RVOL, halt and shortability are blank in replay. Rows carry
 no bid/ask aggressor tint because historical quotes are not downloaded. A seek or selection change clears UI snapshots and rebuilds
 deterministically. Pause freezes event time. Capture feeds must not inject into
 historical playback. Practice orders trade the loaded window itself (ADR 019);

@@ -105,6 +105,17 @@ describe('desk board geometry', () => {
     expect(ruleBody(narrow, '.desk-board__act-text--short')).toMatch(/display:\s*inline/);
   });
 
+  it('wraps the footer instead of cutting the legend off, with short legend labels on the narrow board (#459)', () => {
+    // It held ~577 px in ~484 at 480 px, fixed at one 28 px line with overflow hidden.
+    const foot = ruleBody(base, '.desk-board__foot');
+    expect(foot).toMatch(/flex-wrap:\s*wrap/);
+    expect(foot).not.toMatch(/(^|[\s;])height:/);
+    expect(foot).toMatch(/flex:\s*0 0 auto/);
+    expect(ruleBody(base, '.desk-board__legend-short')).toMatch(/display:\s*none/);
+    expect(ruleBody(narrow, '.desk-board__legend-full')).toMatch(/display:\s*none/);
+    expect(ruleBody(narrow, '.desk-board__legend-short')).toMatch(/display:\s*inline/);
+  });
+
   it('shows row actions on hover or keyboard focus, never left up by a mouse click', () => {
     expect(boardCss).not.toMatch(/\.desk-board__(row|acts):focus-within/);
     expect(boardCss).toMatch(/\.desk-board__row:hover\s+\.desk-board__acts/);

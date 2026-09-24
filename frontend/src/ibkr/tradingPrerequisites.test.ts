@@ -358,6 +358,74 @@ describe('buildTradingPrerequisites', () => {
     expect(out.tradeReady).toBe(true);
   });
 
+  describe('QA D10 (#459): unknown until the API answers', () => {
+    // Before any status answer the poller's default is `enabled: false`; the
+    // rows used to read that as "Set IBKR_ENABLED=true".
+    const pending = { ibkrStatusKnown: false, ibkrEnabled: false, ibkrConnected: false } as const;
+    const row = (out: ReturnType<typeof buildTradingPrerequisites>, id: string) =>
+      out.items.find((i) => i.id === id)!;
+
+    it('says IBKR_ENABLED and the Gateway are unknown, with no action, while the status is pending', () => {
+      const out = buildTradingPrerequisites({
+        health: { status: 'connected', latency_ms: 5, health_source: 'nova_process' },
+        ...pending,
+      });
+      for (const id of ['ibkr_enabled', 'ibkr_gateway']) {
+        expect(row(out, id).ok, id).toBe(false);
+        expect(row(out, id).unknown, id).toBe(true);
+        expect(row(out, id).action, id).toBeNull();
+        expect(row(out, id).detail, id).toMatch(/^Unknown until Nova API answers/);
+      }
+      expect(row(out, 'ibkr_enabled').detail).not.toMatch(/Set IBKR_ENABLED/);
+      expect(out.deskReady).toBe(false);
+    });
+
+    it('says the same when the API is down, even from a status that still reads disabled', () => {
+      const out = buildTradingPrerequisites({
+        health: { status: 'disconnected', latency_ms: 0, flag: 'API_DOWN' },
+        ibkrEnabled: false,
+        ibkrConnected: false,
+        preferredPortReachable: true,
+      });
+      expect(row(out, 'nova_api').action).toBe('start_api');
+      expect(row(out, 'ibkr_enabled')).toMatchObject({ unknown: true, action: null });
+      expect(row(out, 'ibkr_enabled').detail).not.toMatch(/Set IBKR_ENABLED/);
+      // A port answer from before the API went down is not read as "Reconnect".
+      expect(row(out, 'ibkr_gateway')).toMatchObject({ unknown: true, action: null });
+    });
+
+    it('keeps Reconnect when the health probe stalled and the status is unknown', () => {
+      const out = buildTradingPrerequisites({
+        health: { status: 'disconnected', latency_ms: 0, flag: 'API_WEDGED' },
+        ...pending,
+      });
+      expect(row(out, 'ibkr_gateway')).toMatchObject({ unknown: true, action: 'reconnect_ibkr' });
+    });
+
+    it('still names IBKR_ENABLED once a current status says it is off', () => {
+      const out = buildTradingPrerequisites({
+        health: { status: 'connected', latency_ms: 5, health_source: 'nova_process' },
+        ibkrStatusKnown: true,
+        ibkrEnabled: false,
+        ibkrConnected: false,
+      });
+      expect(row(out, 'ibkr_enabled').unknown).toBeUndefined();
+      expect(row(out, 'ibkr_enabled').action).toBe('env_ibkr');
+      expect(row(out, 'ibkr_enabled').detail).toMatch(/Set IBKR_ENABLED=true/);
+      expect(row(out, 'ibkr_gateway').action).toBe('launch_gateway');
+    });
+
+    it('leaves Sim alone: no status is needed there', () => {
+      const out = buildTradingPrerequisites({
+        health: { status: 'connected', latency_ms: 5, health_source: 'nova_process' },
+        ...pending,
+        simMode: true,
+      });
+      expect(out.items.every((i) => i.ok && !i.unknown)).toBe(true);
+      expect(out.deskReady).toBe(true);
+    });
+  });
+
   describe('D-058 completed orders not answering', () => {
     const connected = { status: 'connected', latency_ms: 5 } as const;
     const since = 1789808049; // 2026-09-19 04:54 ET

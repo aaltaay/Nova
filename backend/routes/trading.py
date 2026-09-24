@@ -22,6 +22,7 @@ Endpoints:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Literal
 
@@ -66,6 +67,11 @@ async def ibkr_status() -> dict:
 
     usable = _client.is_ready()
     transport = _client.is_connected()
+    if transport:
+        port_fields = _ports.status_port_fields(connected=True)  # no probe
+    else:
+        # #505: two TCP probes block up to their timeout; never on the HTTP loop.
+        port_fields = await asyncio.to_thread(_ports.status_port_fields, connected=False)
     sf_state = _second_factor.current_state()
     from ibkr.trading_allowed import evaluate_trading_allowed
     from sim.status import overlay_ibkr_status
@@ -93,7 +99,7 @@ async def ibkr_status() -> dict:
         "trading_allowed": allowed["trading_allowed"],
         "trading_allowed_reason": allowed["trading_allowed_reason"],
         **_heal.heal_status(),
-        **_ports.status_port_fields(connected=transport),
+        **port_fields,
         "second_factor_pending": sf_state.pending,
         "second_factor_age_sec": sf_state.age_sec,
         "second_factor_stale": sf_state.stale,

@@ -42,7 +42,11 @@ def gather(symbol: str, now: float | None = None) -> dict[str, Any]:
     row, source = _row(sym)
     fund = _fundamentals(sym)
     float_shares = _num(row.get("float")) or _num((fund or {}).get("float_shares"))
-    si = _num(row.get("short_interest")) if row.get("short_interest") is not None else _num((fund or {}).get("short_interest"))
+    si_from = row if row.get("short_interest") is not None else (fund or {})
+    si = _num(si_from.get("short_interest"))
+    # The surfaced row's own float check (#532); a row the surface could not decorate falls back to Yahoo's.
+    checked = row if "float_contradicted" in row else (fund or {})
+    contradicted = checked.get("float_contradicted")
     return {
         "symbol": sym,
         "source": source,
@@ -51,7 +55,11 @@ def gather(symbol: str, now: float | None = None) -> dict[str, Any]:
         "volume": _num(row.get("volume")),
         "rel_volume": _num(row.get("rel_volume")),
         "float_shares": float_shares,
+        "float_contradicted": contradicted if isinstance(contradicted, bool) else None,
+        "float_contradicted_reason": (checked.get("float_contradicted_reason") or None) if contradicted is True else None,
         "short_interest": si,
+        # The FINRA settlement date of that figure, as Yahoo gives it (epoch seconds; None when unknown).
+        "short_interest_ts": _num(si_from.get("short_interest_ts")) if si is not None else None,
         # Yahoo's own share only when the shares short or the float is missing (rules divide the two otherwise).
         "short_pct_float": None if si is not None and float_shares else _num((fund or {}).get("short_percent_of_float")),
         "days_to_cover": _num(row.get("short_ratio")) if row.get("short_ratio") is not None else _num((fund or {}).get("short_ratio")),

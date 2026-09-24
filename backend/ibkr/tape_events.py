@@ -144,6 +144,21 @@ def on_tape_update(ticker: Any, symbol: str, push, depth) -> None:
         logger.debug("IBKR tape: could not clear tick list for %s: %s", symbol, exc)
 
 
+def warm_10sec_fill(symbol: str) -> None:
+    """First Trader tape subscriber for a symbol warms its 10Sec hist fill
+    (D-003) -- ``priority="warm"`` sheds on any pacing wait, so this never
+    competes with a genuinely empty pane's ``open_chart`` fill."""
+    try:
+        if not _should_warm_10sec(symbol):
+            return
+        from constants import IBKR_10SEC_FETCH_BARS
+        from ibkr.historical_service import schedule_fill
+
+        schedule_fill(symbol, "10Sec", IBKR_10SEC_FETCH_BARS, priority="warm")
+    except Exception:
+        logger.debug("IBKR tape: 10Sec warm schedule failed for %s", symbol, exc_info=True)
+
+
 def _should_warm_10sec(symbol: str) -> bool:
     """Mirrors the store-settled guard ``routes/ticker.py`` uses for its warm
     timeframes -- true when the store is missing, incomplete, or stale."""

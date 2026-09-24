@@ -133,4 +133,17 @@ describe('hodMomoAlertSound', () => {
     resetHodMomoAlertSoundForTests();
     expect(isHodMomoAlertSoundEnabled()).toBe(false);
   });
+
+  it('marks a live alert seen without a ping while Sim replays, so it never pings late (#486)', () => {
+    const heard = alert({ id: 'while-replaying', ticker: 'PAST' });
+    expect(noteHodMomoLiveAlert(heard, 1_000, { replaying: true })).toBe('replaying');
+    expect(start).not.toHaveBeenCalled();
+
+    expect(noteHodMomoLiveAlert(heard, 2_000)).toBe('duplicate');
+    expect(start).not.toHaveBeenCalled();
+
+    // A silent alert does not start the coalesce window: the next live one pings.
+    expect(noteHodMomoLiveAlert(alert({ id: 'at-edge', ticker: 'NOW' }), 1_500)).toBe('pinged');
+    expect(start).toHaveBeenCalledTimes(1);
+  });
 });

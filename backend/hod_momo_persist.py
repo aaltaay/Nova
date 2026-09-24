@@ -6,6 +6,7 @@ import time
 
 import cache as _cache
 import hod_momo_state as _state
+import hod_momo_writer as _writer
 from constants import (
     HOD_MOMO_ALERT_SAVE_INTERVAL_SEC,
     HOD_MOMO_CONFIG_SCHEMA_VERSION,
@@ -285,7 +286,8 @@ def _load_highs_from_disk() -> None:
 
 @timed_fn("hod.save_highs")
 def save_highs(*, force: bool = False) -> None:
-    """Persist current HOD-high truth fields with the established hot-session rate limit."""
+    """Persist HOD-high truth at most once per interval. A throttled save hands the
+    writer thread a copy (it runs on the IB loop, #553); a forced one writes here."""
     state = _state.get_state()
     now = time.monotonic()
     if (
@@ -294,25 +296,36 @@ def save_highs(*, force: bool = False) -> None:
     ):
         state.highs_dirty = True
         return
-    _cache.save_hod_momo_highs({
+    payload = {
         "session_highs": dict(state.session_highs),
         "day_highs": dict(state.day_highs),
         "session_high_source": dict(state.session_high_source),
         "session_high_seeded": sorted(state.session_high_seeded),
         "session_high_raised_ts": dict(state.session_high_raised_ts),
-    })
+    }
+    if force:
+        _writer.drain()
+        _cache.save_hod_momo_highs(payload)
+    else:
+        _writer.submit_highs(_cache._today_et(), payload)
     state.last_highs_save_mono = now
     state.highs_dirty = False
 
 
-def flush_pending_highs_save() -> None:
+def flush_pending_highs_save(*, force: bool = True) -> None:
+    """Write a deferred highs save: now, after anything queued (shutdown), or with
+    ``force=False`` once its interval has passed (the 1 s tick)."""
+    if force:
+        _writer.drain()
     if _state.get_state().highs_dirty:
-        save_highs(force=True)
+        save_highs(force=force)
 
 
 @timed_fn("hod.save_alerts")
 def save_alerts(*, force: bool = False) -> None:
-    """Persist current alerts with the established hot-session rate limit."""
+    """Persist today's alerts at most once per interval. A throttled save hands the
+    writer thread a copy of the list, so the JSON and the rewrite of the whole day's
+    file never run on the HTTP loop (#553); a forced one waits for it, then writes."""
     state = _state.get_state()
     now = time.monotonic()
     if (
@@ -322,17 +335,25 @@ def save_alerts(*, force: bool = False) -> None:
     ):
         state.alerts_dirty = True
         return
-    _cache.save_hod_momo_snapshot(
-        [alert_to_dict(alert) for alert in state.today_alerts],
-        time.time(),
-    )
+    if force:
+        _writer.drain()
+        _cache.save_hod_momo_snapshot(
+            [alert_to_dict(alert) for alert in state.today_alerts],
+            time.time(),
+        )
+    else:
+        _writer.submit_alerts(_cache._today_et(), list(state.today_alerts), time.time())
     state.last_alert_save_mono = now
     state.alerts_dirty = False
 
 
-def flush_pending_alert_save() -> None:
+def flush_pending_alert_save(*, force: bool = True) -> None:
+    """Write a deferred alert save: now, after anything queued (shutdown), or with
+    ``force=False`` once its interval has passed (the 1 s tick)."""
+    if force:
+        _writer.drain()
     if _state.get_state().alerts_dirty:
-        save_alerts(force=True)
+        save_alerts(force=force)
 
 
 def archive_session_alerts(date_str: str) -> None:
@@ -346,6 +367,9 @@ def merge_archive_session_alerts(date_str: str, alerts: list) -> None:
     """Merge alerts into a dated history snapshot (dedupe by id, newest-first)."""
     if not alerts:
         return
+    # A queued snapshot of this date landing after the read-merge-write below
+    # would replace the merged set (#553).
+    _writer.drain()
     existing = _cache.load_hod_momo_snapshot_for_date(date_str)
     by_id: dict[str, dict] = {}
     for raw in existing.get("alerts", []):

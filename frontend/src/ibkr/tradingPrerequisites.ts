@@ -22,6 +22,8 @@ import {
   PREREQ_GATEWAY_READ_ONLY_DETAIL,
   PREREQ_GATEWAY_READ_ONLY_LABEL,
   PREREQ_GATEWAY_STALE_SECOND_FACTOR_DETAIL,
+  PREREQ_GATEWAY_UNKNOWN_DETAIL,
+  PREREQ_IBKR_ENABLED_UNKNOWN_DETAIL,
 } from './gatewayUxConstants';
 
 export type PrereqId =
@@ -42,6 +44,8 @@ export type PrereqAction =
 export interface PrereqItem {
   id: PrereqId;
   ok: boolean;
+  /** Not OK because nothing is known yet (QA D10) -- not a fault to fix. */
+  unknown?: boolean;
   label: string;
   detail: string;
   action: PrereqAction;
@@ -56,6 +60,12 @@ export interface PrereqWarning {
 
 export interface TradingPrerequisitesInput {
   health: HealthStatus | null | undefined;
+  /**
+   * False while `/api/ibkr/status` is pending or failing
+   * (`workspace/ibkrStatusView.ibkrStatusKnown`): `ibkrEnabled` is then the
+   * poller's default, not an answer. Omitted reads as known.
+   */
+  ibkrStatusKnown?: boolean;
   ibkrEnabled?: boolean;
   ibkrConnected: boolean;
   /** Raw socket -- true while session may still be syncing / degraded. */
@@ -250,8 +260,16 @@ export function buildTradingPrerequisites(
   const portOpenStuck = !gatewayOk && gatewayPortOpenButSessionDown(input);
   const apiDown = input.health?.flag === BACKEND_DIAG_FLAG_DOWN;
   const apiWedged = input.health?.flag === BACKEND_DIAG_FLAG_WEDGED;
+  // QA D10 (#459): with the API down or the status pending / failing, the
+  // IBKR rows are unknown -- not a config fault, not a Gateway to launch.
+  const statusUnknown = !input.simMode && (apiDown || input.ibkrStatusKnown === false);
+  const gatewayUnknown = statusUnknown && !gatewayOk;
   let gatewayAction: PrereqAction = null;
-  if (!gatewayOk) {
+  if (gatewayUnknown) {
+    // A stalled health probe still offers Reconnect (ADR 010); nothing else
+    // is read from a status that has not answered.
+    if (apiWedged) gatewayAction = 'reconnect_ibkr';
+  } else if (!gatewayOk) {
     if (input.secondFactorStale) gatewayAction = 'stale_second_factor';
     else if (followTarget) gatewayAction = 'switch_gateway_mode';
     else if (portOpenStuck || apiWedged) gatewayAction = 'reconnect_ibkr';
@@ -267,22 +285,32 @@ export function buildTradingPrerequisites(
       action:
         !apiOk && input.health?.flag === BACKEND_DIAG_FLAG_DOWN ? 'start_api' : null,
     },
-    {
-      id: 'ibkr_enabled',
-      ok: enabled,
-      label: 'IBKR enabled',
-      detail: input.simMode
-        ? 'Sim practice -- IBKR_ENABLED is not required.'
-        : enabled
-        ? 'IBKR_ENABLED is on.'
-        : 'Set IBKR_ENABLED=true in .env and restart the API.',
-      action: enabled ? null : 'env_ibkr',
-    },
+    statusUnknown
+      ? {
+          id: 'ibkr_enabled',
+          ok: false,
+          unknown: true,
+          label: 'IBKR enabled',
+          detail: PREREQ_IBKR_ENABLED_UNKNOWN_DETAIL,
+          action: null,
+        }
+      : {
+          id: 'ibkr_enabled',
+          ok: enabled,
+          label: 'IBKR enabled',
+          detail: input.simMode
+            ? 'Sim practice -- IBKR_ENABLED is not required.'
+            : enabled
+            ? 'IBKR_ENABLED is on.'
+            : 'Set IBKR_ENABLED=true in .env and restart the API.',
+          action: enabled ? null : 'env_ibkr',
+        },
     {
       id: 'ibkr_gateway',
       ok: gatewayOk,
+      ...(gatewayUnknown ? { unknown: true } : {}),
       label: input.simMode ? 'Sim Feed (no Gateway)' : 'IB Gateway (session READY)',
-      detail: gatewayDetail(input, gatewayOk),
+      detail: gatewayUnknown ? PREREQ_GATEWAY_UNKNOWN_DETAIL : gatewayDetail(input, gatewayOk),
       action: gatewayAction,
     },
   ];
@@ -318,7 +346,7 @@ export function buildTradingPrerequisites(
 
   // Read-only is part of desk readiness: every order would be rejected. It
   // does not change any spend / order gate -- those stay on the trade path.
-  const deskReady = apiOk && enabled && gatewayOk && !readOnly;
+  const deskReady = apiOk && enabled && !statusUnknown && gatewayOk && !readOnly;
   const failStreak = input.apiFailStreak ?? 0;
   const loopWedged = Boolean(input.health?.ib_loop_lag_ms?.wedged);
   const sustainedApiDown = !apiOk && failStreak >= DESK_API_FAIL_STREAK_FOR_OVERLAY;

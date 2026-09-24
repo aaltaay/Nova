@@ -251,6 +251,11 @@ def _isolate_operator_state(tmp_path, monkeypatch):
         ),
     )
     yield
+    # HOD Momo's writer thread may still hold a queued snapshot (#553): land it
+    # in this test's cache dir, before the patched paths are restored.
+    import hod_momo_writer as _hod_writer
+
+    _hod_writer.drain()
 
 
 def reset_hod_engine_state() -> None:

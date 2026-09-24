@@ -91,9 +91,14 @@ export const leaderboardListUnavailable = (label: string, clock: string, state: 
   `The ${label} list was ${state === 'feed_down' ? 'down with the IBKR feed' : 'unavailable'} at ${clock} ET`;
 export const leaderboardListEmpty = (label: string, clock: string): string =>
   `No ${label} on the board at ${clock} ET`;
-/** Catalysts are live-only: nothing records them per minute. */
+/**
+ * The Catalysts tab while Sim plays a past day (#498). A day with catalysts on file shows each
+ * mover's verdict at the playhead in its list's News column; a day without has none to show.
+ */
+export const LEADERBOARD_CATALYSTS_IN_NEWS_COLUMN =
+  'In Sim, each mover\'s catalyst as known at the playhead is in the News column of its list. This tab lists live headlines only.';
 export const LEADERBOARD_CATALYSTS_NOT_RECORDED =
-  'Catalysts are live-only -- not recorded per minute, so Sim playback has none to show.';
+  'No catalysts on file for this day -- Sim playback has none to show.';
 
 /** Row marks on a played-back board. */
 export const LEADERBOARD_HALTED_LABEL = 'HALTED';

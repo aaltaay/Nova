@@ -26,8 +26,11 @@ import {
   DESK_HEADLINE_NONE,
   DESK_HEADLINE_NO_ROW,
   DESK_LEGEND_BOT_HELD,
+  DESK_LEGEND_BOT_HELD_SHORT,
   DESK_LEGEND_BOT_QUIET,
+  DESK_LEGEND_BOT_QUIET_SHORT,
   DESK_LEGEND_REC,
+  DESK_LEGEND_REC_SHORT,
   deskBoardCount,
   deskBoardEmpty,
   deskBoardHiddenByFilter,
@@ -185,11 +188,29 @@ export function DeskBoard({
         {hidden > 0 && <span className="desk-board__foot-warn">{deskBoardHiddenByFilter(hidden)}</span>}
         {DESK_BOARD_FREEZE_LISTS.includes(list) && <span>{DESK_BOARD_FREEZE_NOTE}</span>}
         <span className="desk-board__legend">
-          <span><i className="desk-board__dot desk-board__dot--rec" aria-hidden="true" />{DESK_LEGEND_REC}</span>
-          <span><i className="desk-board__dot desk-board__dot--bot" aria-hidden="true" />{DESK_LEGEND_BOT_HELD}</span>
-          <span><i className="desk-board__dot desk-board__dot--bot desk-board__dot--quiet" aria-hidden="true" />{DESK_LEGEND_BOT_QUIET}</span>
+          <LegendItem dot="desk-board__dot--rec" label={DESK_LEGEND_REC} short={DESK_LEGEND_REC_SHORT} />
+          <LegendItem dot="desk-board__dot--bot" label={DESK_LEGEND_BOT_HELD} short={DESK_LEGEND_BOT_HELD_SHORT} />
+          <LegendItem
+            dot="desk-board__dot--bot desk-board__dot--quiet"
+            label={DESK_LEGEND_BOT_QUIET}
+            short={DESK_LEGEND_BOT_QUIET_SHORT}
+          />
         </span>
       </footer>
     </section>
+  );
+}
+
+/**
+ * One legend entry: the full label, or the short one on the narrow board
+ * (deskBoard.css, #459) -- the title always names it in full.
+ */
+function LegendItem({ dot, label, short }: { dot: string; label: string; short: string }) {
+  return (
+    <span className="desk-board__legend-item" title={label}>
+      <i className={`desk-board__dot ${dot}`} aria-hidden="true" />
+      <span className="desk-board__legend-full">{label}</span>
+      <span className="desk-board__legend-short">{short}</span>
+    </span>
   );
 }

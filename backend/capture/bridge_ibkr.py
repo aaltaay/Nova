@@ -1,6 +1,7 @@
 """AllLast + depth feeder; all disk writes run on the existing fenced capture worker."""
 
 import logging
+import math
 import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -118,6 +119,21 @@ def _write_print(payload: dict) -> None:
     )
 
 
+def _tick9_close(symbol: str) -> float | None:
+    """IBKR's tick-9 prior close on the symbol's live L1 line, when one is open (#542).
+
+    Record holds the tape and depth lines, which carry no close; the scanner,
+    HOD Momo or a Trader tab usually holds the L1 line. Read on the IB loop,
+    where that line's ticker is written.
+    """
+    from ibkr import ticks
+
+    close = getattr(ticks.get_ticker(symbol), "close", None)
+    if isinstance(close, bool) or not isinstance(close, (int, float)):
+        return None
+    return float(close) if math.isfinite(close) and close > 0 else None
+
+
 def enqueue_book(symbol: str, book: dict) -> None:
     """Depth / L1 snapshot -> capture quotes + l2. Enqueue only (ADR 010).
 
@@ -137,6 +153,8 @@ def enqueue_book(symbol: str, book: dict) -> None:
         return
     if not (book.get("bids") or book.get("asks")):
         return  # Reserved/empty placeholder book -- nothing observed yet.
+    # The quote row carries the prior close the replay's change is measured from.
+    book = dict(book, prev_close=_tick9_close(symbol))
     ts = time.time()
     last = _last_book_ts.get(symbol)
     if last is not None and ts - last < BOOK_MIN_INTERVAL_SEC:
@@ -196,6 +214,8 @@ def _write_book(symbol: str, ts: float, book: dict) -> None:
             "ask_size": asks[0]["size"] if asks else None,
             "last": None,
             "volume": None,
+            # IBKR tick 9 (#542): read first by the replay's previous close; null without an L1 line.
+            "prev_close": book.get("prev_close"),
             "source": "ibkr",
             "session_date": day,
         }
@@ -249,17 +269,16 @@ def book_health(symbol: str) -> dict:
 
 
 def producer_health(symbol: str) -> dict:
-    from ibkr import tape_stream
-    from ibkr import client
+    """The recording's tape line. ``ended``: how IBKR ended it (``ibkr.tape_line``), else None."""
+    from ibkr import client, tape_line, tape_stream
     from ibkr.tape_recording import producer_status
 
     state = producer_status(symbol)
     if not tape_stream.is_subscribed(symbol) or client.get_ib() is None:
-        return state | {
-            "state": "disconnected",
-            "healthy": False,
-            "error": "IBKR AllLast is not connected/subscribed for " + symbol,
-        }
+        ended = tape_line.ended(symbol)
+        error = ("IBKR ended the AllLast line for " + symbol + ": " + ended["message"] if ended
+                 else "IBKR AllLast is not connected/subscribed for " + symbol)
+        return state | {"state": "disconnected", "healthy": False, "error": error, "ended": ended}
     return state
 
 

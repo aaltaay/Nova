@@ -3,6 +3,8 @@
   edgar          SEC's latest filings per form (8-K, 6-K, 424B, S-1, S-3, F-1, F-3, SC TO-T); an 8-K /
                  6-K is read for its press release (``catalysts/sec_text.py``). CIK -> ticker from
                  SEC's own ``company_tickers.json``.
+  edgar_form4    SEC's latest Form 4s, kept only for an open-market purchase by an officer or a
+                 director (``catalysts/feed_form4.py``); items are ``edgar`` filings, the span its own
   globenewswire  public-company releases, tickers tagged by the wire
   prnewswire     all releases; tickers from the text, else the issuer named by the wire
   newsfile       the small-cap industry feeds, polled in turn
@@ -30,6 +32,7 @@ from urllib.parse import quote
 from typing import Any, Callable
 
 from catalysts import feed_sources, feed_store, sec_text
+from catalysts.feed_form4 import Form4Reader
 from constants_catalysts import (
     CATALYST_FEED_COVERAGE_SOURCES,
     CATALYST_FEED_EDGAR_ARCHIVE,
@@ -37,6 +40,8 @@ from constants_catalysts import (
     CATALYST_FEED_EDGAR_FORMS,
     CATALYST_FEED_EDGAR_POLL_SEC,
     CATALYST_FEED_ENV,
+    CATALYST_FEED_FORM4_POLL_SEC,
+    CATALYST_FEED_FORM4_SOURCE,
     CATALYST_FEED_HTTP_TIMEOUT_SEC,
     CATALYST_FEED_MEMORY_HOURS,
     CATALYST_FEED_NEWSFILE_INDUSTRIES,
@@ -87,6 +92,8 @@ class CatalystFeed:
         self.sources = {n: _Source(n, CATALYST_FEED_EDGAR_POLL_SEC if n == "edgar" else i)
                         for n, i in [("edgar", 0.0)] + [(s, i) for s, _u, i in CATALYST_FEED_RSS]}
         self.sources["newsfile"] = _Source("newsfile", CATALYST_FEED_NEWSFILE_POLL_SEC)
+        self.sources[CATALYST_FEED_FORM4_SOURCE] = _Source(CATALYST_FEED_FORM4_SOURCE, CATALYST_FEED_FORM4_POLL_SEC)
+        self._form4 = Form4Reader(self._sec_get)
         self._nf_next = 0                                   # next Newsfile industry in the rotation
         self._nf_cycle_ok = True
         self._nf_last: dict[str, float] = {}                # industry -> when it was last read
@@ -184,6 +191,8 @@ class CatalystFeed:
                     oldest, ok_all = self._poll_edgar(now)
                 elif src.name == "newsfile":
                     oldest, ok_all = self._poll_newsfile(now)
+                elif src.name == CATALYST_FEED_FORM4_SOURCE:
+                    oldest, ok_all = self._poll_form4(src)
                 else:
                     url = next(u for s, u, _i in CATALYST_FEED_RSS if s == src.name)
                     oldest, ok_all = self._poll_rss(src.name, url)
@@ -211,6 +220,19 @@ class CatalystFeed:
             if src.span is not None:
                 src.gaps += 1
             src.span = [min(now, oldest) if oldest is not None else now, now]
+        self._save_span(src)
+
+    def _break(self, src: _Source, at: float) -> None:
+        """A known miss at ``at``: the span being extended ends before it, and the next one opens after it."""
+        if src.span is None:
+            return
+        src.gaps += 1
+        if src.span[0] < at <= src.span[1]:
+            src.span[1] = max(src.span[0], at - 1.0)   # SEC times are whole seconds
+            self._save_span(src)
+        src.span = None
+
+    def _save_span(self, src: _Source) -> None:
         with self._lock:
             spans = [sp for sp in self._spans.get(src.name, []) if sp[0] != src.span[0]]
             spans.append((src.span[0], src.span[1]))
@@ -284,6 +306,16 @@ class CatalystFeed:
         except Exception as exc:  # noqa: BLE001 -- the filing is still recorded by its form and Items
             logger.info("catalyst feed: no release text for %s: %s", filing["acc"], exc)
             return None, ""
+
+    def _poll_form4(self, src: _Source) -> tuple[float | None, bool]:
+        got = self._form4.poll(since=src.span[1] if src.span else None, tickers=self._cik,
+                               seen=lambda item_id: item_id in self._seen)
+        with self._lock:
+            self._seen.update(got.settled)       # read and let go: never fetched again while remembered
+        self._record(src.name, got.items)
+        if got.missed_ts is not None:
+            self._break(src, got.missed_ts)
+        return got.oldest, got.complete
 
     def _poll_rss(self, source: str, url: str) -> tuple[float | None, bool]:
         items = feed_sources.parse_rss(self._fetch(url, {"User-Agent": CATALYST_FEED_USER_AGENT}), source)

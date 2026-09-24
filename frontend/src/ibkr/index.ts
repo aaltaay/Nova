@@ -6,3 +6,5 @@ export { TimeSalesView } from './TimeSalesView';
 export type { TapePrint, TapeState } from './tapeFeed';
 export { cancelIbkrOrderWithFeedback } from './cancelOrder';
 export { useIbkrStatus } from './useIbkrStatus';
+export { flattenSpendLockReason } from './spendLock';
+export type { GatewayStatusFact } from './gatewayStatusWording';

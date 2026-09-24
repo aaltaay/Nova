@@ -21,6 +21,7 @@ section 3, "Catalysts"). SEC's bulk `submissions.zip` lives beside it under `edg
 | `py -3 research/catalysts/build_shares.py` | `sec_shares` (shares outstanding as filed, from SEC's `companyfacts.zip` on F:) and `short_interest` (FINRA) into `orb.duckdb` |
 | `py -3 research/catalysts/import_feed.py` | the desk's live catalyst feed (SEC + wires, `catalyst_feed.sqlite3`) folded into this store |
 | `py -3 research/catalysts/build_verdicts.py` | a verdict per target with the current rules version; coverage to `results/coverage.json` |
+| `py -3 research/catalysts/export_leaderboard.py` | every target's checks and labelled items into the leaderboard store (`catalyst_checks` / `catalyst_items`, #498), so Sim playback of a past day shows each mover's catalyst as known at the playhead; replaces each symbol-day whole -- re-run after a fetch or a rules bump |
 | `py -3 research/catalysts/labels.py export` / `score <csv>` | the hand-labelled accuracy check (blind sample; labels in `label_kind`) |
 | `py -3 research/momentum/backtest_setups.py --tag fp_all --set universe=pillars_all bars_table=minutes_pillars_all` | the first pullback on the no-news universe |
 | `py -3 research/catalysts/split_trades.py --tag fp_all` | its trades by verdict at 09:30 and at each entry, and by catalyst class |

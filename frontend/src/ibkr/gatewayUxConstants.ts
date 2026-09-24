@@ -31,6 +31,15 @@ export const PREREQ_GATEWAY_RECONNECT_CTA_BUSY_LABEL = 'Reconnecting...';
 /** Default when ports look dark / login needed. */
 export const PREREQ_GATEWAY_LOGIN_DETAIL =
   'Log into the live IB Gateway (API port 4001). Look at your desktop for 2FA.';
+/**
+ * QA D10 on the checklist (#459): with the API down, or `/api/ibkr/status`
+ * pending or failing, nothing is known about IBKR_ENABLED or the Gateway --
+ * the rows say so and offer nothing, rather than "Set IBKR_ENABLED=true".
+ */
+export const PREREQ_IBKR_ENABLED_UNKNOWN_DETAIL =
+  "Unknown until Nova API answers -- IBKR_ENABLED is the API's own setting.";
+export const PREREQ_GATEWAY_UNKNOWN_DETAIL =
+  "Unknown until Nova API answers -- the Gateway's state comes from Nova's status.";
 /** Live is targeted and dark while only the legacy paper Gateway (4002) is
  * up. Never a follow target (ADR 020): beside a live login it is read-only
  * and carries no tape, so the desk would look connected and stay dark. */

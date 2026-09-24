@@ -15,6 +15,13 @@ columns are a view over the row, not a mutation of it. NEWS
 ``scanner_news_badge`` so IBKR discovery can light the flame without a roster
 write.
 
+Float credibility (#532): each row carries ``shares_outstanding``, the
+``short_interest_ts`` its short interest is from (only when the row's figure is
+the cached one, so a date is never pinned on another report), and
+``float_contradicted`` / ``float_contradicted_reason`` from
+``fundamentals.float_credibility`` over the row's own float and short interest.
+Descriptive only: no gate reads them.
+
 Average volume comes from yfinance, never ``state.avg_volume_cache``. Alpaca's
 IEX daily bars capture only a sliver of consolidated volume for the thin
 low-float names these tables are full of and already blew RVOL up 100x-3000x
@@ -28,6 +35,7 @@ from typing import Any
 _FUND_FIELDS: tuple[tuple[str, str], ...] = (
     ("market_cap", "market_cap"),
     ("float", "float_shares"),
+    ("shares_outstanding", "shares_outstanding"),
     ("short_interest", "short_interest"),
     ("short_ratio", "short_ratio"),
     ("earnings_date", "earnings_date"),
@@ -45,6 +53,19 @@ def relative_volume(volume: Any, avg_volume: float | None) -> float | None:
     if vol <= 0 or avg <= 0:
         return None
     return round(vol / avg, 2)
+
+
+def stamp_float_credibility(entry: dict, fund: dict) -> None:
+    """The row's short-interest date and whether its float is contradicted (#532). Mutates ``entry``."""
+    from fundamentals import float_credibility
+
+    if entry.get("short_interest_ts") is None:
+        own = entry.get("short_interest") is not None and entry.get("short_interest") == fund.get("short_interest")
+        entry["short_interest_ts"] = fund.get("short_interest_ts") if own else None
+    entry["float_contradicted"], entry["float_contradicted_reason"] = float_credibility(
+        entry.get("float"), entry.get("shares_outstanding"),
+        fund.get("held_percent_insiders"), entry.get("short_interest"),
+    )
 
 
 def decorate_rows(rows: list[dict] | None) -> list[dict]:
@@ -71,6 +92,7 @@ def decorate_rows(rows: list[dict] | None) -> list[dict]:
         for row_key, fund_key in _FUND_FIELDS:
             if entry.get(row_key) is None:
                 entry[row_key] = fund.get(fund_key)
+        stamp_float_credibility(entry, fund)
         if entry.get("rel_volume") is None:
             entry["rel_volume"] = relative_volume(
                 entry.get("volume"), ibkr_avg_volume(sym),

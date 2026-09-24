@@ -216,3 +216,78 @@ describe('ScannerTable row numbers', () => {
     expect(change.querySelector('.negative, .positive')).toBeNull();
   });
 });
+
+describe('ScannerTable float and short interest (#532)', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  const AUG_31 = Date.UTC(2026, 7, 31) / 1000;
+  const REASON =
+    'Float 54K is under half of the 568K shares not held by insiders (568K outstanding, 0% insiders) -- likely stale since a dilution';
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  async function render(data: ScannerRow[]) {
+    await act(() => {
+      root.render(
+        <ScannerTable
+          columns={[['symbol', 'Symbol'], ['float', 'Float'], ['short_interest', 'Short Int.']]}
+          data={data}
+          sortState={{ key: '', dir: null }}
+          onSort={() => {}}
+          selectedSymbol={null}
+          onSelect={() => {}}
+          onOpenTrading={() => {}}
+        />,
+      );
+    });
+  }
+
+  const cell = (i: number, col: string) =>
+    container.querySelectorAll(`td[data-col="${col}"]`)[i] as HTMLElement;
+
+  it('marks a contradicted float "54.0K?" and says why on hover', async () => {
+    await render([
+      { ...row('WHLR'), float: 54_000, shares_outstanding: 568_000, float_contradicted: true, float_contradicted_reason: REASON },
+      { ...row('AAPL'), float: 14_800_000_000, float_contradicted: false, float_contradicted_reason: null },
+      { ...row('OLD'), float: 54_000 },
+    ]);
+    const whlr = cell(0, 'float').firstElementChild as HTMLElement;
+    expect(whlr.textContent).toBe('54.0K?');
+    expect(whlr.title).toBe(REASON);
+    expect(whlr.dataset.floatContradicted).toBe('true');
+    const aapl = cell(1, 'float').firstElementChild as HTMLElement;
+    expect(aapl.textContent).toBe('14.80B');
+    expect(aapl.title).toBe('');
+    expect(cell(2, 'float').textContent).toBe('54.0K');
+  });
+
+  it("puts the settlement date over Yahoo's ratio and names both on hover", async () => {
+    await render([
+      { ...row('WNW'), short_interest: 319_000, short_ratio: 6.9, short_interest_ts: AUG_31 },
+      { ...row('NODATE'), short_interest: 88_477, short_ratio: 0.02 },
+      { ...row('NONE') },
+    ]);
+    const wnw = cell(0, 'short_interest').firstElementChild as HTMLElement;
+    expect(wnw.querySelector('.cell-stack-primary')?.textContent).toBe('319.0K');
+    expect(wnw.querySelector('.cell-stack-secondary')?.textContent).toBe('8/31 · 6.9');
+    expect(wnw.title).toContain('FINRA settlement Aug 31, 2026');
+    expect(wnw.title).toContain("Short ratio 6.9 is Yahoo's own");
+    const undated = cell(1, 'short_interest').firstElementChild as HTMLElement;
+    expect(undated.querySelector('.cell-stack-secondary')?.textContent).toBe('0.0 ratio');
+    expect(undated.title).toContain('settlement date not reported');
+    // No figure, no date: both lines are stated absences (the row's hover actions share this last cell).
+    expect(cell(2, 'short_interest').firstElementChild?.textContent).toBe('——');
+    expect((cell(2, 'short_interest').firstElementChild as HTMLElement).title).toBe('');
+  });
+});

@@ -7,6 +7,7 @@ import {
   QUOTE_RVOL_DAILY_TITLE,
   REL_VOLUME_HIGH,
 } from '../constants';
+import { SHORT_RATIO_YAHOO_LABEL, shortRatioTitle } from '../constantGroups/share_facts';
 import type { TickerDetail } from '../types/ticker';
 import {
   fmtMarketCap,
@@ -14,6 +15,7 @@ import {
   fmtSessionPrice,
   fmtVolume,
 } from '../utils/quoteFormat';
+import { fmtFloat, fmtShortInterest, floatTitle, shortInterestTitle } from '../utils/shareFacts';
 import { useWorkspace } from '../workspace';
 import { computeQuoteMetrics } from './quoteMetrics';
 
@@ -41,9 +43,14 @@ export function FundamentalsPanel({
   const includeFund = variant === 'full' || variant === 'fundamentals';
   const includeBroker = includeFund;
 
+  const fund = detail.fundamentals;
   const keyCells = (
     <>
-      <CompactGridCell label="Float" value={fmtVolume(detail.fundamentals?.float_shares)} />
+      <CompactGridCell
+        label="Float"
+        value={fmtFloat(fund?.float_shares, fund?.float_contradicted)}
+        title={floatTitle(fund?.float_contradicted, fund?.float_contradicted_reason)}
+      />
       <CompactGridCell label="Volume" value={fmtVolume(daily?.volume)} />
       <CompactGridCell label={QUOTE_AVG_VOLUME_LABEL} value={fmtVolume(detail.avg_volume ?? null)} />
       <CompactGridCell
@@ -95,7 +102,13 @@ export function FundamentalsPanel({
       />
       <CompactGridCell
         label="Short Interest"
-        value={fmtVolume(detail.fundamentals?.short_interest)}
+        value={fmtShortInterest(fund?.short_interest, fund?.short_interest_ts)}
+        title={shortInterestTitle(fund?.short_interest, fund?.short_interest_ts)}
+      />
+      <CompactGridCell
+        label={SHORT_RATIO_YAHOO_LABEL}
+        value={fund?.short_ratio != null ? fund.short_ratio.toFixed(1) : '—'}
+        title={fund?.short_ratio != null ? shortRatioTitle(fund.short_ratio.toFixed(1)) : undefined}
       />
       <CompactGridCell
         label="Earnings Date"

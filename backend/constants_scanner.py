@@ -243,6 +243,12 @@ FUNDAMENTALS_CACHE_TTL = 900.0      # 15 minutes
 FUNDAMENTALS_NEGATIVE_CACHE_TTL = 60.0
 # Hard cap so mover_enrich warming new names cannot grow the cache all day (D-024).
 FUNDAMENTALS_CACHE_MAX_ENTRIES = 400
+# Float credibility (#532): Yahoo's float is contradicted by Yahoo's own share counts when it is
+# under this share of the non-insider shares outstanding (shares out x (1 - insiders)). A float
+# that old missed a dilution since the filing it came from (SECZ 8.45M against 142M, WHLR 54K
+# against 568K); a float above shares out is the share count's staleness and cannot pass a
+# low-float gate falsely, so only the low side is flagged.
+FUNDAMENTALS_FLOAT_MIN_NON_INSIDER_SHARE = 0.5
 # Hard timeout for a single yfinance .info call; prevents Yahoo stalls from blocking Phase 2.
 # On timeout, a successful stale cache is returned; a prior failure is retried.
 YFINANCE_TIMEOUT_S = 5.0
@@ -365,6 +371,18 @@ IBKR_HISTORICAL_PACE_MAX = 60
 IBKR_HISTORICAL_SAME_CONTRACT_WINDOW_SEC = 2.0
 IBKR_HISTORICAL_SAME_CONTRACT_MAX = 5
 IBKR_HISTORICAL_IDENTICAL_COOLDOWN_SEC = 15.0
+# #555 -- a (symbol, timeframe) whose last historical fetch failed is not sent
+# again for this long. The identical-request cooldown (15 s) is shorter than the
+# 20 s timeout, so without it every pane retry re-sent a request IBKR was not
+# answering and spent the 60 / 10 min budget. The pane's retry asks again.
+IBKR_HISTORICAL_FAILURE_BACKOFF_SEC = 30.0
+# How long `/bars` coverage keeps stating that failure when nothing has asked
+# since. A later success clears it at once.
+IBKR_HISTORICAL_FAILURE_MEMORY_SEC = 300.0
+# The statuses that mean IBKR did not answer with bars: 502 (an error answer or
+# a failed qualify) and 504 (the timeout). 503 is the Gateway session's own
+# state, 400 / 404 a request IBKR cannot serve; neither is remembered.
+IBKR_HISTORICAL_FAILURE_STATUSES: frozenset[int] = frozenset({502, 504})
 IBKR_BARS_STORE_FRESH_INTRADAY_SEC = 45.0
 IBKR_BARS_STORE_FRESH_DAILY_SEC = 900.0
 # A single session (or a 1Min-derived stub) is not a finished multi-day fill.

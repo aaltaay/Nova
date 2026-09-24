@@ -10,6 +10,8 @@ import type { DiagnosticsPayload } from './diagnosticsTypes';
 
 const status = vi.hoisted(() => ({
   connected: true,
+  known: true,
+  enabled: true,
   completed_orders_unanswered_since: null as number | null,
   gateway_read_only: false,
   recording: false,
@@ -22,11 +24,15 @@ vi.mock('../components/scannerBarStore', () => ({
   }),
 }));
 vi.mock('../workspace/WorkspaceContext', () => ({
-  useWorkspace: () => ({ ibkrConnected: status.connected, ibkrGatewayMode: 'live' }),
+  useWorkspace: () => ({
+    ibkrConnected: status.connected,
+    ibkrGatewayMode: 'live',
+    ibkrStatusKnown: status.known,
+  }),
 }));
 vi.mock('./useIbkrStatus', () => ({
   useIbkrStatus: () => ({
-    enabled: true,
+    enabled: status.enabled,
     connected: status.connected,
     mode: 'live',
     stale: false,
@@ -55,6 +61,8 @@ describe('TradingPrerequisitesGate D-058 warning', () => {
 
   beforeEach(() => {
     status.connected = true;
+    status.known = true;
+    status.enabled = true;
     status.recording = false;
     status.completed_orders_unanswered_since = null;
     status.gateway_read_only = false;
@@ -139,6 +147,22 @@ describe('TradingPrerequisitesGate D-058 warning', () => {
     // The Gateway row itself stays green -- this is not a login problem.
     expect(container.querySelector('[data-testid="trading-prereq-ibkr_gateway"]')?.className)
       .toMatch(/trading-prereq-item--ok/);
+  });
+
+  it('says IBKR is unknown, with no fix to apply, before the status answers (QA D10, #459)', () => {
+    // The poller's default before any answer: disconnected and `enabled: false`.
+    status.known = false;
+    status.connected = false;
+    status.enabled = false;
+    openPanel();
+    for (const id of ['ibkr_enabled', 'ibkr_gateway']) {
+      const row = container.querySelector(`[data-testid="trading-prereq-${id}"]`);
+      expect(row?.className, id).toMatch(/trading-prereq-item--unknown/);
+      expect(row?.querySelector('.trading-prereq-item__mark')?.textContent, id).toBe('?');
+      expect(row?.textContent, id).toMatch(/Unknown until Nova API answers/);
+      expect(row?.querySelector('.trading-prereq-item__cta'), id).toBeNull();
+    }
+    expect(container.textContent).not.toMatch(/Set IBKR_ENABLED/);
   });
 
   it('keeps the Reconnect CTA working in the extracted row when READY is lost', () => {

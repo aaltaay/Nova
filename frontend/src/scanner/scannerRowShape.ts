@@ -50,6 +50,8 @@ const OPTIONAL_ROW_NUMBERS = [
   'large_cap_score',
   'score_completeness',
   'days_to_earnings',
+  'shares_outstanding',
+  'short_interest_ts',
 ] as const;
 
 /** Numeric fields a /ws/scanner price_patch row may carry. */
@@ -131,6 +133,11 @@ export function normalizeScannerRow(raw: unknown): ScannerRow | null {
   }
   if ('quote_quality' in raw) out.quote_quality = textOrNull(raw.quote_quality);
   if ('rvol_source' in raw) out.rvol_source = textOrNull(raw.rvol_source);
+  // #532: only a real true / false is a checked float; anything else is "not checkable".
+  if ('float_contradicted' in raw) {
+    out.float_contradicted = typeof raw.float_contradicted === 'boolean' ? raw.float_contradicted : null;
+  }
+  if ('float_contradicted_reason' in raw) out.float_contradicted_reason = textOrNull(raw.float_contradicted_reason);
   // A name-only row carries a placeholder volume of 0 (ibkr/scanner_hydrate.py);
   // with no quote it is unknown, not zero (QA C37).
   if (out.volume === 0 && isNameOnlyRow(out as Pick<ScannerRow, 'price'>)) out.volume = null;

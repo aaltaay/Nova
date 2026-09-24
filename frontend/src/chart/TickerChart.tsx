@@ -31,6 +31,7 @@ import { useTickerChartMaximize } from './useTickerChartMaximize';
 import { useVwapSourceBars } from './useVwapSourceBars';
 import { useOptionalIbkrAccountContext } from '../ibkr/IbkrAccountContext';
 import { ChartPaneOverlays } from './ChartPaneOverlays';
+import { ChartFillingOverlay, chartFillingHint } from './ChartFillingStatus';
 import { findOpenPosition } from './positionOverlay';
 import { chartHeightForVariant, tickerChartCardClass } from './tickerChartCard';
 import { formatCoverageClockEt } from '../tickerChartData';
@@ -178,7 +179,10 @@ function TickerChartInner({
     symbol,
   );
 
-  const { loading, error, emptyText, usingMock, indicatorBars, filling, coverageAsOf } = useChartBars({
+  const {
+    loading, error, emptyText, usingMock, indicatorBars, filling, coverageAsOf,
+    historyError, historyErrorTs,
+  } = useChartBars({
     symbol,
     timeframe,
     chartRef,
@@ -283,9 +287,7 @@ function TickerChartInner({
         keepCompactWhenMaximized={maximizeInGrid && !isFullscreen}
         useFullscreenExpand={maximizeInGrid}
         fillingHint={
-          filling && indicatorBars.length > 0
-            ? (coverageClock ? `as of ${coverageClock} ET, filling…` : 'filling…')
-            : null
+          filling && indicatorBars.length > 0 ? chartFillingHint(coverageClock, historyError) : null
         }
         selection={selection}
         onClearAll={handleClearAll}
@@ -301,9 +303,7 @@ function TickerChartInner({
           <div className="chart-overlay">Loading…</div>
         )}
         {!loading && filling && indicatorBars.length === 0 && !error && (
-          <div className="chart-overlay chart-overlay--info">
-            Loading IBKR historical…
-          </div>
+          <ChartFillingOverlay lastError={historyError} lastErrorTs={historyErrorTs} />
         )}
         {!loading && error && indicatorBars.length === 0 && (
           error === SAMPLE_NETWORK_REFUSAL ? (

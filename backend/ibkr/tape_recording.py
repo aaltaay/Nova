@@ -135,8 +135,11 @@ def subscribed(symbol: str) -> None:
 
 
 def producer_status(symbol: str) -> dict:
+    """``line_since``: when the current line opened -- a line's silence counts from
+    its last print, or from this before its first (the tape watch, #525)."""
     last = _last.get(symbol)
     error = _errors.get(symbol)
     stale = time.time() - (last or _since.get(symbol, time.time())) > TAPE_RECORD_STALE_SEC
     state = "error" if error else "stale" if stale else "waiting" if last is None else "receiving"
-    return {"state": state, "healthy": state == "receiving", "last_print_ts": last, "error": error}
+    return {"state": state, "healthy": state == "receiving", "last_print_ts": last, "error": error,
+            "line_since": _since.get(symbol)}

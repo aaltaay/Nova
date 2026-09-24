@@ -6,30 +6,45 @@ import time
 import hod_momo as hm
 import hod_momo_persist as persist
 import hod_momo_session as session
+import hod_momo_writer as writer
 from hod_momo_state import HodMomoState
 
 
 def test_save_alerts_rate_limited(monkeypatch):
+    """A throttled save goes through the writer thread (#553); a forced one writes here."""
     saves: list[int] = []
     state = hm.replace_state(HodMomoState())
 
-    def fake_save(alerts, ts):
-        saves.append(len(alerts))
-
-    monkeypatch.setattr(persist._cache, "save_hod_momo_snapshot", fake_save)
+    monkeypatch.setattr(
+        persist._cache,
+        "save_hod_momo_snapshot_for_date",
+        lambda _date, alerts, _ts: saves.append(len(alerts)),
+    )
+    monkeypatch.setattr(
+        persist._cache, "save_hod_momo_snapshot", lambda alerts, _ts: saves.append(len(alerts)),
+    )
     state.today_alerts = []
     state.alerts_dirty = False
     state.last_alert_save_mono = 0.0
 
     hm._save_alerts()
+    writer.drain()
     assert len(saves) == 1
     hm._save_alerts()  # within interval → deferred
+    hm.flush_pending_alert_save(force=False)  # the 1 s tick: still inside the interval
+    writer.drain()
     assert len(saves) == 1
     assert state.alerts_dirty is True
 
     state.last_alert_save_mono = time.monotonic() - 100
-    hm.flush_pending_alert_save()
+    hm.flush_pending_alert_save(force=False)  # the tick, once the interval has passed
+    writer.drain()
     assert len(saves) == 2
+    assert state.alerts_dirty is False
+
+    hm._save_alerts()  # deferred again
+    hm.flush_pending_alert_save()  # shutdown: now, on this thread
+    assert len(saves) == 3
     assert state.alerts_dirty is False
 
 
@@ -200,21 +215,33 @@ def test_save_highs_rate_limited_and_flushed(monkeypatch):
     saved: list[dict] = []
     state = hm.replace_state(HodMomoState())
 
+    monkeypatch.setattr(
+        persist._cache, "save_hod_momo_highs_for_date", lambda _date, data: saved.append(data),
+    )
     monkeypatch.setattr(persist._cache, "save_hod_momo_highs", saved.append)
     state.session_highs = {"AAA": 5.0}
     state.highs_dirty = False
     state.last_highs_save_mono = 0.0
 
     persist.save_highs()
+    writer.drain()
     assert len(saved) == 1
     persist.save_highs()  # within interval → deferred
+    persist.flush_pending_highs_save(force=False)  # the 1 s tick: still inside the interval
+    writer.drain()
     assert len(saved) == 1
     assert state.highs_dirty is True
 
     state.last_highs_save_mono = time.monotonic() - 100
-    persist.flush_pending_highs_save()
+    persist.flush_pending_highs_save(force=False)
+    writer.drain()
     assert len(saved) == 2
     assert state.highs_dirty is False
+    assert saved[-1]["session_highs"] == {"AAA": 5.0}
+
+    persist.save_highs()
+    persist.flush_pending_highs_save()  # shutdown: now, on this thread
+    assert len(saved) == 3
 
 
 def test_session_highs_survive_a_restart(monkeypatch):

@@ -93,8 +93,25 @@ IBKR_CONNECT_TIMEOUT_SEC = 8.0
 IBKR_ERROR_DEPTH_NOT_SUPPORTED = 10092
 IBKR_ERROR_DEPTH_RESET = 317       # IBKR: market depth reset -- the book is resent from row 0
 # Tick-by-tick Time & Sales subscription failures (async via errorEvent).
-# 10089/10189: requires additional market-data subscription; 354: not subscribed.
-IBKR_ERROR_TICK_BY_TICK_CODES = frozenset({10089, 10189, 354})
+# 10089/10189: requires additional market-data subscription; 354: not subscribed;
+# 10190: IB's tick-by-tick cap reached (the NEW request is refused). Only used to
+# match an error by conId when its line's request id is unknown (ibkr/tape_line.py):
+# with the request id known, any non-warning error on it ends that line (#525).
+IBKR_ERROR_TICK_BY_TICK_CODES = frozenset({10089, 10189, 10190, 354})
+# IB notices that ride a request id without ending it: ib_async's warning set
+# plus the 2100-2199 farm / status range (wrapper.error). Never end a tape line.
+IBKR_WARNING_CODES = frozenset({105, 110, 165, 321, 329, 399, 404, 434, 492, 10167, 10349})
+IBKR_WARNING_CODE_RANGE = (2100, 2200)  # half-open, as ib_async reads it
+# AllLast request ids remembered per symbol, so an error that arrives after its
+# line was cancelled still names the line it belonged to (ibkr/tape_line.py).
+IBKR_TAPE_LINE_REQ_KEEP = 512
+# A tape / depth line of an ended IBKR session is asked for again on the new one
+# while a viewer or a hold still watches it (ibkr/line_session.py, #562): the
+# wait before each ask (the tape's 15 s rule on top). After the last failure the
+# viewers are told and their own sockets ask again; a recording's keepalive too.
+IBKR_LINE_RENEW_BACKOFF_SEC: tuple[float, ...] = (0.0, 2.0, 5.0, 15.0, 30.0)
+# ib_async's subscription-registry key for a depth line (find_market_data).
+IBKR_DEPTH_REGISTRY_KIND = "mktDepth"
 # "Only 10 simultaneous API scanner subscriptions are allowed." Arrives
 # asynchronously via errorEvent; with RaiseRequestErrors=False (ib_async
 # default) the request's own future still resolves to [] with no exception,

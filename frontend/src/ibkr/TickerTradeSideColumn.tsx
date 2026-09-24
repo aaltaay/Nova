@@ -18,6 +18,7 @@ import {
   sessionPriceOrNull,
   timeAgo,
 } from '../utils/quoteFormat';
+import { fmtFloat, fmtShortInterest, floatTitle, shortInterestTitle } from '../utils/shareFacts';
 import { DepthAndTape } from './DepthAndTape';
 import type { IbkrMode, IbkrPosition } from './types';
 
@@ -50,6 +51,7 @@ function Stat({
 export function TickerTradeSideColumn({ detail, position, ibkrConnected, mode }: Props) {
   const snap = detail.snapshot;
   const asset = detail.asset;
+  const fund = detail.fundamentals;
   const daily = snap?.daily_bar;
   const prevClose = snap?.prev_close ?? snap?.prev_daily_bar?.close ?? null;
   const todayOpen = sessionPriceOrNull(daily?.open);
@@ -82,7 +84,11 @@ export function TickerTradeSideColumn({ detail, position, ibkrConnected, mode }:
 
       <div className="ticker-trade-side-section-title">Key stats</div>
       <div className="ticker-trade-side-stats">
-        <Stat label="Float" value={fmtVolume(detail.fundamentals?.float_shares)} />
+        <Stat
+          label="Float"
+          value={fmtFloat(fund?.float_shares, fund?.float_contradicted)}
+          title={floatTitle(fund?.float_contradicted, fund?.float_contradicted_reason)}
+        />
         <Stat label="Volume" value={fmtVolume(daily?.volume)} />
         <Stat
           label={QUOTE_RVOL_DAILY_LABEL}
@@ -102,7 +108,11 @@ export function TickerTradeSideColumn({ detail, position, ibkrConnected, mode }:
         <Stat label="High" value={fmtSessionPrice(daily?.high)} />
         <Stat label="Low" value={fmtSessionPrice(daily?.low)} />
         <Stat label="Mkt cap" value={fmtMarketCap(detail.fundamentals?.market_cap)} />
-        <Stat label="Short int" value={fmtVolume(detail.fundamentals?.short_interest)} />
+        <Stat
+          label="Short int"
+          value={fmtShortInterest(fund?.short_interest, fund?.short_interest_ts)}
+          title={shortInterestTitle(fund?.short_interest, fund?.short_interest_ts, fund?.short_ratio)}
+        />
       </div>
 
       {position && (

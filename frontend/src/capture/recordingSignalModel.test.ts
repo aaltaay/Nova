@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { IbkrStatus } from '../ibkr/types';
+import { recordingStoppedTitle } from './constants';
 import { elapsedClockLabel, elapsedLabel, recordingView, stoppedViews } from './recordingSignalModel';
 
 const NOW = Date.parse('2026-09-21T12:00:00-04:00');
@@ -77,6 +78,14 @@ describe('stoppedViews', () => {
       }],
     }), NOW);
     expect(view?.resume).toMatchObject({ pending: false, gaveUp: true, gaveUpReason: '5 attempts failed; last: disk gone' });
+  });
+
+  it('shouts a lost tape (#525) in its own words until prints are back', () => {
+    const tape = { ...stopped, reason: 'tape', error: 'No prints since 09:46:40 ET (95s) while the book kept updating' };
+    const [view] = stoppedViews(status({ capture_stopped: [tape] }), NOW);
+    expect(view).toMatchObject({ symbol: 'GRML', reason: 'tape', resume: null });
+    expect(recordingStoppedTitle('GRML', view!.reason)).toBe('GRML recording lost its IBKR tape -- no prints are being recorded');
+    expect(stoppedViews(status({ capture_stopped: [{ ...tape, resumed: true }] }), NOW)).toEqual([]);
   });
 });
 

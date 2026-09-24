@@ -126,6 +126,12 @@
   color: var(--bad, #e66);
 }
 
+/* Not known yet (QA D10): neither a pass nor a fault to fix. */
+.trading-prereq-item--unknown .trading-prereq-item__mark {
+  background: color-mix(in srgb, var(--text-muted, #98989d) 22%, transparent);
+  color: var(--text-muted, #98989d);
+}
+
 .trading-prereq-item__label {
   font-weight: 600;
   font-size: 0.9rem;

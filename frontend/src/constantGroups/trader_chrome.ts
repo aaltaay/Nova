@@ -5,6 +5,8 @@
  * Every visible string lives here so the surfaces cannot drift apart.
  */
 
+import { GATEWAY_STATUS_FAILED, GATEWAY_STATUS_PENDING } from './trader_view';
+
 /* ── Context strip: symbol tabs ─────────────────────────────────────────── */
 
 /** Tooltip on the whole strip -- replaces the permanent drag-hint sentence. */
@@ -252,5 +254,16 @@ export const drawerOpenPositions = (n: number): string =>
 
 /** `/api/ibkr/status` says the Gateway session is not usable (Paper needs the feed too). */
 export const WHY_GATEWAY_NOT_CONNECTED = 'IB Gateway is not connected -- reconnect it from the header.';
+/**
+ * The status request is pending or failing (QA D10 on the ticket, #459): the
+ * Gateway's state is unknown, so the ticket says that -- never "Connect IB
+ * Gateway" -- in the depth card's words (trader_view.ts).
+ */
+export const WHY_GATEWAY_STATUS_PENDING = `${GATEWAY_STATUS_PENDING}.`;
+export const WHY_GATEWAY_STATUS_FAILED = `${GATEWAY_STATUS_FAILED} -- orders wait for it.`;
+/** The ticket's Place button while the Gateway is not usable, by what the status knows. */
+export const TICKET_CONNECT_GATEWAY_LABEL = 'Connect IB Gateway';
+export const TICKET_GATEWAY_CHECKING_LABEL = 'Checking IB Gateway…';
+export const TICKET_GATEWAY_UNKNOWN_LABEL = 'IB Gateway state unknown';
 /** The ticket's own order is in flight; Live, Paper and Sim each answer it. */
 export const TICKET_WHY_SENDING = 'Sending the order -- the ticket unlocks when the venue answers.';

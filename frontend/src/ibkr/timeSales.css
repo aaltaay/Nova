@@ -196,8 +196,9 @@
   color: var(--nova-text, var(--text-primary));
 }
 
-/* IBKR unreported (odd lot / Form T): listed, excluded from candles and volume */
-.ts-row--unreported {
+/* Does not set a price -- IBKR unreported, or volume-only sale conditions
+   (odd lot, average price, ...): listed, never in a candle or the last (#543) */
+.ts-row--no-price {
   opacity: 0.5;
   font-style: italic;
 }

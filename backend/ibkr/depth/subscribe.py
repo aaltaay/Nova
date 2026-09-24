@@ -1,11 +1,22 @@
-"""IBKR depth subscribe / unsubscribe and idle-only capacity eviction."""
+"""IBKR depth subscribe / unsubscribe and idle-only capacity eviction.
+
+A line of an ended IBKR session is let go here (``drop_stale``, #562): cancelled
+only where the IB in hand still holds it, and asked for again by
+``ibkr/line_session.py`` while a viewer, a hold or the L2 recorder wants it.
+"""
 from __future__ import annotations
 
 import asyncio
 import logging
 
-from constants import IBKR_DEPTH_NUM_ROWS, IBKR_DEPTH_SMART, IBKR_MAX_DEPTH_SYMBOLS
+from constants import (
+    IBKR_DEPTH_NUM_ROWS,
+    IBKR_DEPTH_REGISTRY_KIND,
+    IBKR_DEPTH_SMART,
+    IBKR_MAX_DEPTH_SYMBOLS,
+)
 from ibkr import client as _client
+from ibkr import line_session
 from ibkr.depth import handlers, state
 from metrics.op_metrics import timed_sync
 
@@ -58,6 +69,8 @@ async def subscribe_async(symbol: str, *, live: bool = False) -> dict:
         }
 
     async with state.get_subscribe_lock():
+        if any(state.is_stale(s) for s in list(state._subscriptions)):
+            line_session.settle()  # lines of an ended session hold no slot (#562)
         if symbol in state._subscriptions and (not live or state.is_live(symbol)):
             return {"ok": True, "error": None, "symbols": state.subscribed_symbols()}
         if symbol in state._subscriptions:
@@ -117,6 +130,7 @@ async def subscribe_async(symbol: str, *, live: bool = False) -> dict:
             }
 
         state._contracts[symbol] = contract
+        state.stamp_line(symbol)
 
         try:
             state.reset_book(symbol)  # IBKR sends this request's book from row 0 (#540)
@@ -217,11 +231,12 @@ def subscribe(symbol: str) -> dict:
 
 def unsubscribe(symbol: str) -> None:
     ib = _client.get_ib()
+    held = _held_by(ib, symbol)
     contract = state.pop_contract(symbol)
     shared = state.is_shared_l1(symbol)
     handlers.detach_update_handler(symbol)
     state.clear_symbol(symbol)
-    if ib and contract is not None:
+    if held and ib and contract is not None:
         try:
             ib.cancelMktDepth(contract, isSmartDepth=IBKR_DEPTH_SMART)
         except Exception as exc:
@@ -236,6 +251,47 @@ def unsubscribe(symbol: str) -> None:
         from ibkr import ticks as _ticks
 
         _ticks.drop_owner(symbol, _ticks.OWNER_DEPTH)
+
+
+def _fate(ib, symbol: str) -> str:
+    return line_session.fate(ib, state._contracts.get(symbol), IBKR_DEPTH_REGISTRY_KIND,
+                             state._tickers.get(symbol))
+
+
+def _held_by(ib, symbol: str) -> bool:
+    """Whether ``ib`` still holds the line: always this session's; an ended one's only on its socket."""
+    return not state.is_stale(symbol) or _fate(ib, symbol) != line_session.GONE
+
+
+def is_watched(symbol: str) -> bool:
+    """A viewer, a hold (Session Record, auto-record) or the L2 recorder still wants the line."""
+    if state.viewer_count(symbol) > 0:
+        return True
+    from l2 import recorder as l2_recorder
+
+    return l2_recorder.is_recording(symbol)
+
+
+def drop_stale() -> list[str]:
+    """Let go of every depth line of an ended IBKR session (#562); the symbols still watched.
+
+    A line IBKR kept across a connectivity restore (1102) is restamped and stays.
+    Viewers keep their queues, so the line asked for again feeds them.
+    """
+    ib = _client.get_ib()
+    watched: list[str] = []
+    for symbol in [s for s in list(state._subscriptions) if state.is_stale(s)]:
+        fate = _fate(ib, symbol)
+        if fate == line_session.KEPT:
+            state.stamp_line(symbol)
+            logger.info("IBKR depth: %s's Level 2 line survived the connectivity restore (IBKR kept it)", symbol)
+            continue
+        logger.warning("IBKR depth: the Level 2 line of %s ended with its IBKR session (%s) -- letting it go",
+                       symbol, fate)
+        unsubscribe(symbol)
+        if is_watched(symbol):
+            watched.append(symbol)
+    return watched
 
 
 def needs_subscribe(symbol: str) -> bool:

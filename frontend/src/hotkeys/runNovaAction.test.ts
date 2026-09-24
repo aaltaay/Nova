@@ -1,17 +1,25 @@
 /**
  * @vitest-environment jsdom
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  NOVA_ACTION_ACCOUNT_ERROR_MESSAGE,
+  NOVA_ACTION_KINDS,
+  WHY_GATEWAY_NOT_CONNECTED,
+  type NovaActionKind,
+} from '../constants';
+import { spendLockReason } from '../ibkr/spendLock';
 import type { NovaActionRecord } from './novaActionTypes';
 import { runNovaAction, type NovaActionRuntime } from './runNovaAction';
 
 const placeIbkrOrder = vi.fn();
+const cancelAllOrdersForSymbol = vi.fn();
 const cancelAllWorkingOrders = vi.fn();
 const countOpenWorkingOrders = vi.fn();
 
 vi.mock('../ibkr/placeOrder', () => ({
   placeIbkrOrder: (...args: unknown[]) => placeIbkrOrder(...args),
-  cancelAllOrdersForSymbol: vi.fn(),
+  cancelAllOrdersForSymbol: (...args: unknown[]) => cancelAllOrdersForSymbol(...args),
   cancelAllWorkingOrders: (...args: unknown[]) => cancelAllWorkingOrders(...args),
   countOpenWorkingOrders: (...args: unknown[]) => countOpenWorkingOrders(...args),
 }));
@@ -20,8 +28,11 @@ vi.mock('../ibkr/placeConfirmPrefs', () => ({
   readSkipPlaceConfirm: () => false,
 }));
 
+// The backend arm latch as the desk reads it (`/api/ibkr/status.armed`).
+const latch = vi.hoisted(() => ({ armed: true }));
+
 vi.mock('../ibkr/ticketUnlock', () => ({
-  readTicketSessionUnlocked: () => true,
+  readTicketSessionUnlocked: () => latch.armed,
 }));
 
 vi.mock('../ibkr/extendedSession', () => ({
@@ -260,6 +271,146 @@ describe('runNovaAction whole-position exits (QA R32)', () => {
   it('a partial exit is not a flatten', async () => {
     await runNovaAction(action({ kind: 'exit_pos_pct', params: { percent: 50 } }), runtime());
     expect(placeIbkrOrder.mock.calls[0][0].intent).toBeUndefined();
+  });
+});
+
+describe('disarmed desk (#548, ADR 018 decision 4)', () => {
+  // The kinds the backend's arm latch never holds: cancels, and the
+  // whole-position exits sent as `intent: "flatten"`.
+  const PROTECTIVE: NovaActionKind[] = ['cancel_symbol', 'cancel_all_orders', 'exit_pos', 'cancel_and_exit'];
+  // Every other kind -- a new one included -- is an ordinary manual order.
+  const OPENING = NOVA_ACTION_KINDS.filter((kind) => !PROTECTIVE.includes(kind));
+
+  function nothingSent() {
+    expect(placeIbkrOrder).not.toHaveBeenCalled();
+    expect(cancelAllOrdersForSymbol).not.toHaveBeenCalled();
+    expect(cancelAllWorkingOrders).not.toHaveBeenCalled();
+  }
+
+  beforeEach(() => {
+    latch.armed = false;
+    placeIbkrOrder.mockReset();
+    cancelAllOrdersForSymbol.mockReset();
+    cancelAllWorkingOrders.mockReset();
+    countOpenWorkingOrders.mockReset();
+    placeIbkrOrder.mockResolvedValue({ ok: true, order_id: 11, error: null });
+    cancelAllOrdersForSymbol.mockResolvedValue({ ok: true, cancelled: [7], failed: [], error: null });
+    cancelAllWorkingOrders.mockResolvedValue({ ok: true, cancelled: [7, 8], failed: [], error: null });
+    countOpenWorkingOrders.mockResolvedValue(2);
+  });
+
+  afterEach(() => {
+    latch.armed = true;
+  });
+
+  it('knows every opening or manual kind it refuses', () => {
+    expect(OPENING).toEqual(expect.arrayContaining([
+      'buy_market',
+      'buy_limit_ask_offset',
+      'sell_limit_bid_offset',
+      'sell_limit_ask_offset',
+      'sell_pos_pct_ask',
+      'sell_pos_pct_bid_offset',
+      'exit_pos_pct',
+    ]));
+  });
+
+  describe.each(['paper', 'live'])('on %s', (accountMode) => {
+    const disarmed = (partial: Partial<NovaActionRuntime> = {}) =>
+      runtime({ accountMode, spendStatus: 'locked_disarmed', ...partial });
+
+    it('exit_pos flattens the whole position without arming', async () => {
+      const res = await runNovaAction(action({ kind: 'exit_pos' }), disarmed());
+      expect(res.ok).toBe(true);
+      expect(placeIbkrOrder).toHaveBeenCalledOnce();
+      expect(placeIbkrOrder.mock.calls[0][0]).toMatchObject({
+        symbol: 'AAPL', side: 'SELL', qty: 4, intent: 'flatten',
+      });
+      expect(latch.armed).toBe(false);
+    });
+
+    it('cancel_and_exit cancels the symbol, then flattens', async () => {
+      const res = await runNovaAction(action({ kind: 'cancel_and_exit' }), disarmed());
+      expect(res.ok).toBe(true);
+      expect(cancelAllOrdersForSymbol).toHaveBeenCalledOnce();
+      expect(cancelAllOrdersForSymbol.mock.calls[0][0]).toBe('AAPL');
+      expect(placeIbkrOrder).toHaveBeenCalledOnce();
+      expect(placeIbkrOrder.mock.calls[0][0]).toMatchObject({
+        symbol: 'AAPL', side: 'SELL', qty: 4, intent: 'flatten',
+      });
+      expect(cancelAllOrdersForSymbol.mock.invocationCallOrder[0])
+        .toBeLessThan(placeIbkrOrder.mock.invocationCallOrder[0]);
+    });
+
+    it('cancel_symbol cancels the symbol', async () => {
+      const res = await runNovaAction(action({ kind: 'cancel_symbol' }), disarmed());
+      expect(res).toMatchObject({ ok: true, text: 'Cancelled 1 order(s) for AAPL' });
+      expect(cancelAllOrdersForSymbol).toHaveBeenCalledOnce();
+      expect(cancelAllOrdersForSymbol.mock.calls[0][0]).toBe('AAPL');
+      expect(placeIbkrOrder).not.toHaveBeenCalled();
+    });
+
+    it('cancel_all_orders cancels every working order', async () => {
+      const res = await runNovaAction(action({ kind: 'cancel_all_orders' }), disarmed({ symbol: null }));
+      expect(res).toMatchObject({ ok: true, text: 'Cancelled 2 order(s) (all symbols)' });
+      expect(cancelAllWorkingOrders).toHaveBeenCalledOnce();
+      expect(placeIbkrOrder).not.toHaveBeenCalled();
+    });
+
+    it.each(OPENING)('%s is refused: the padlock holds it', async (kind) => {
+      const res = await runNovaAction(
+        action({ kind, params: { shares: 1, percent: 50, offsetDollars: 0.05 } }),
+        disarmed(),
+      );
+      expect(res.ok).toBe(false);
+      expect(res.text).toMatch(/disarmed/i);
+      nothingSent();
+    });
+
+    it('a disarmed exit_pos still asks to confirm, and a No sends nothing', async () => {
+      const requestConfirm = vi.fn(async (_summary: string) => false);
+      const res = await runNovaAction(action({ kind: 'exit_pos' }), disarmed({ requestConfirm }));
+      expect(requestConfirm).toHaveBeenCalledOnce();
+      expect(requestConfirm.mock.calls[0][0]).toMatch(/SELL 4 AAPL/);
+      expect(res).toMatchObject({ ok: false, text: 'Order cancelled' });
+      nothingSent();
+    });
+
+    it('a failed account read still holds both flattens, before any cancel', async () => {
+      for (const kind of ['exit_pos', 'cancel_and_exit'] as const) {
+        const res = await runNovaAction(action({ kind }), disarmed({ accountError: 'poll failed' }));
+        expect(res).toMatchObject({ ok: false, text: NOVA_ACTION_ACCOUNT_ERROR_MESSAGE });
+      }
+      nothingSent();
+    });
+
+    it.each(['locked', 'locked_live_unconfirmed', 'locked_account_unconfirmed', undefined])(
+      'the %s lock holds the flattens -- the backend refuses them too -- but not the cancels',
+      async (spendStatus) => {
+        const locked = (partial: Partial<NovaActionRuntime> = {}) =>
+          runtime({ accountMode, ...partial, spendStatus });
+        for (const kind of ['exit_pos', 'cancel_and_exit'] as const) {
+          const res = await runNovaAction(action({ kind }), locked());
+          expect(res).toEqual({ ok: false, text: spendLockReason(spendStatus) });
+        }
+        // cancel_and_exit is refused before it cancels: no stop is pulled
+        // from a position the desk then cannot flatten.
+        nothingSent();
+
+        expect((await runNovaAction(action({ kind: 'cancel_symbol' }), locked())).ok).toBe(true);
+        expect(cancelAllOrdersForSymbol).toHaveBeenCalledOnce();
+        expect((await runNovaAction(action({ kind: 'cancel_all_orders' }), locked())).ok).toBe(true);
+        expect(cancelAllWorkingOrders).toHaveBeenCalledOnce();
+        expect(placeIbkrOrder).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(PROTECTIVE)('%s is refused with no Gateway, and calls nothing', async (kind) => {
+      const res = await runNovaAction(action({ kind }), disarmed({ connected: false }));
+      expect(res).toEqual({ ok: false, text: WHY_GATEWAY_NOT_CONNECTED });
+      nothingSent();
+      expect(countOpenWorkingOrders).not.toHaveBeenCalled();
+    });
   });
 });
 

@@ -27,7 +27,7 @@ import {
 } from './hotkeyStorage';
 import { NovaActionEditor } from './NovaActionEditor';
 import { novaActionConflictMessage } from './novaActionConflict';
-import type { NovaActionRecord, NovaActionResult } from './novaActionTypes';
+import type { NovaActionOutcome, NovaActionRecord, NovaActionResult } from './novaActionTypes';
 import { runNovaAction, type NovaActionRuntime } from './runNovaAction';
 import {
   buildShortcutsCatalog,
@@ -46,7 +46,8 @@ import type { HotkeyKeyChord, HotkeyProfile } from './types';
 export interface HotkeyDispatchContextValue {
   novaActions: NovaActionRecord[];
   reloadNovaActions: () => void;
-  lastResult: NovaActionResult | null;
+  /** The last action's outcome, stamped with its run and symbol. */
+  lastResult: NovaActionOutcome | null;
   setRuntime: (partial: Partial<NovaActionRuntime>) => void;
   runAction: (action: NovaActionRecord) => Promise<NovaActionResult>;
 }
@@ -59,7 +60,8 @@ function readProfile(): HotkeyProfile {
 
 export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<HotkeyProfile>(() => readProfile());
-  const [lastResult, setLastResult] = useState<NovaActionResult | null>(null);
+  const [lastResult, setLastResult] = useState<NovaActionOutcome | null>(null);
+  const resultSeqRef = useRef(0);
   const [menuState, setMenuState] = useState<ShortcutsMenuState>(
     initialShortcutsMenuState,
   );
@@ -112,25 +114,33 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
   // gesture — refuse it until the receipt lands (D-011).
   const inFlightActionsRef = useRef<Set<string>>(new Set());
 
+  // Each outcome is a new one, even with the text of the last, and names the
+  // symbol it ran on -- read before the await, since the runtime can move on.
+  const publishResult = useCallback((result: NovaActionResult, symbol: string | null) => {
+    resultSeqRef.current += 1;
+    setLastResult({ ...result, seq: resultSeqRef.current, symbol });
+  }, []);
+
   const runAction = useCallback(async (action: NovaActionRecord) => {
+    const symbol = runtimeRef.current.symbol;
     if (inFlightActionsRef.current.has(action.id)) {
       const busy: NovaActionResult = {
         ok: false,
         text: NOVA_ACTION_IN_FLIGHT_MESSAGE,
       };
-      setLastResult(busy);
+      publishResult(busy, symbol);
       return busy;
     }
     inFlightActionsRef.current.add(action.id);
     try {
       const result = await runNovaAction(action, runtimeRef.current);
-      setLastResult(result);
+      publishResult(result, symbol);
       if (!result.ok) void notifyOrderRejected({ message: result.text, reasonCode: result.reasonCode, order: result.order });
       return result;
     } finally {
       inFlightActionsRef.current.delete(action.id);
     }
-  }, []);
+  }, [publishResult]);
 
   const pinMenu = useCallback(() => {
     setMenuState((s) => (s.mode === 'closed' ? s : { ...s, mode: 'pinned' }));

@@ -347,6 +347,37 @@ describe('FundamentalsPanel', () => {
     expect(container.textContent).toContain('Technology');
   });
 
+  it('marks a contradicted float and dates the short interest (#532)', async () => {
+    const reason =
+      'Float 54K is under half of the 568K shares not held by insiders (568K outstanding, 0% insiders) -- likely stale since a dilution';
+    const base = makeDetail().fundamentals!;
+    const detail = makeDetail({
+      fundamentals: {
+        ...base,
+        float_shares: 54_000,
+        shares_outstanding: 568_000,
+        float_contradicted: true,
+        float_contradicted_reason: reason,
+        short_interest: 566_000,
+        short_interest_ts: Date.UTC(2026, 7, 31) / 1000,
+        short_ratio: 6.9,
+      },
+    });
+    await act(async () => {
+      root.render(wrap(<FundamentalsPanel detail={detail} variant="full" />));
+    });
+    const cellOf = (label: string) =>
+      [...container.querySelectorAll('.cq-cell')].find(
+        (c) => c.querySelector('.cq-label')?.textContent === label,
+      ) as HTMLElement;
+    expect(cellOf('Float').querySelector('.cq-value')?.textContent).toBe('54.0K?');
+    expect(cellOf('Float').title).toBe(reason);
+    expect(cellOf('Short Interest').querySelector('.cq-value')?.textContent).toBe('566.0K (Aug 31)');
+    expect(cellOf('Short Interest').title).toContain('FINRA settlement Aug 31, 2026');
+    expect(cellOf('Short Ratio (Yahoo)').querySelector('.cq-value')?.textContent).toBe('6.9');
+    expect(cellOf('Short Ratio (Yahoo)').title).toContain("not FINRA's days to cover");
+  });
+
   it('handles null fundamentals', async () => {
     await act(async () => {
       root.render(

@@ -47,6 +47,13 @@ def _empty_filling(symbol: str, timeframe: str) -> dict:
     return empty_filling(symbol, timeframe)
 
 
+def _last_failure(symbol: str, timeframe: str) -> dict:
+    """``{last_error, last_error_ts}``: the pair's last fetch IBKR did not answer (#555)."""
+    from ibkr.historical_failures import coverage_fields
+
+    return coverage_fields(symbol, timeframe)
+
+
 def _store_series_settled(
     timeframe: str, bar_count: int, coverage: dict | None
 ) -> bool:
@@ -104,6 +111,7 @@ def fetch_chart_bars(
                 coverage["filling"] = True
             else:
                 coverage["filling"] = False
+            coverage.update(_last_failure(symbol, timeframe))
             stored["coverage"] = coverage
             stored.setdefault("source", "ibkr")
             return stored
@@ -114,7 +122,13 @@ def fetch_chart_bars(
                 symbol, timeframe, limit,
                 priority="open_chart" if interactive else "background",
             )
-            return _empty_filling(symbol, timeframe)
+            empty = _empty_filling(symbol, timeframe)
+            # Still filling, and says why when IBKR stopped answering.
+            empty["coverage"] = {
+                **(empty.get("coverage") or {}),
+                **_last_failure(symbol, timeframe),
+            }
+            return empty
         reason = _ibkr_client.session_reason()
         if not _ibkr_client.is_connected():
             detail = (

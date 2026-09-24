@@ -69,6 +69,28 @@ CAPTURE_STOP_AUTO = "auto"
 # Stops that were asked for -- the gap after one is not "missing".
 CAPTURE_PLANNED_STOPS = frozenset({CAPTURE_STOP_OPERATOR, CAPTURE_STOP_AUTO})
 
+# --- The recording's tape line (#525) -----------------------------------------
+# A recording can lose its AllLast line while its book keeps coming (IPDN and
+# WHLR, 2026-09-23 09:46:40: 13 minutes of books, no prints, nothing said).
+# ``capture/tape_watch.py`` re-requests the line and says so. ``capture_stopped``
+# reason for it -- the recorder never stopped, so it is never a segment reason.
+CAPTURE_TAPE_LOST = "tape"
+# Prints silent this long while the book updated within CAPTURE_TAPE_BOOK_FRESH_SEC
+# makes the line suspect. A quiet name looks the same; re-requesting it is harmless.
+CAPTURE_TAPE_STALE_SEC = 90.0
+CAPTURE_TAPE_BOOK_FRESH_SEC = 10.0
+# Ask again only after IB's 15 s same-instrument rule (Nova guards 16 s from the cancel).
+CAPTURE_TAPE_RENEW_DELAY_SEC = 17.0
+# Minimum time from one re-request to the next stale verdict. It grows over a
+# streak of outages (a quiet name that prints now and then shouts once, not every
+# 90 s) and resets once the line has stayed up for the longest step.
+CAPTURE_TAPE_RESUBSCRIBE_MIN_SEC = (120.0, 300.0, 600.0, 900.0)
+# Tape losses kept in a recording's manifest (``fidelity.tape_losses``), newest last.
+CAPTURE_TAPE_LOSS_KEEP = 50
+# A Record hold younger than this is a start in flight, never an orphan: the
+# hold is taken before ``set_capture_mode`` lists the symbol (#525).
+CAPTURE_HOLD_ORPHAN_GRACE_SEC = 30.0
+
 # --- QA batch fix/qa-sim-replay (2026-09-22) ----------------------------------
 # The only manifest ``source`` a Session Record carries. ADR 019 removed the
 # synthetic SIM1 instrument; its old ``source: "sim"`` directories stay on disk

@@ -5,7 +5,9 @@ reads come from ``bars_store``; this module replenishes the store and pushes
 ``bars_patch`` when a fill lands.
 
 Priority: open_chart > warm > background. Background is shed when an open
-chart is in flight or the pacing budget is tight -- not queued behind it.
+chart is in flight or the pacing budget is tight -- not queued behind it. A
+pair whose last fetch IBKR did not answer is shed for every priority until its
+backoff passes (``historical_failures``, #555); the pane's retry asks again.
 
 Nothing here may occupy the IB connect-loop: every pacing wait reschedules via
 ``call_later`` (never ``sleep``-then-send) and every ``bars_store`` call is a
@@ -24,6 +26,7 @@ from constants import (
     IBKR_BAR_DURATION,
     IBKR_HISTORICAL_MAX_CONCURRENT,
 )
+from ibkr import historical_failures
 from ibkr.historical_derive import DERIVE_FROM_1MIN, derive_from_1min
 from ibkr.historical_pacing import HistoricalPacing
 from ibkr.loop_supervisor import assert_ib_loop
@@ -54,6 +57,7 @@ def reset_for_testing() -> None:
     leftover = list(_inflight.values())
     _inflight.clear()
     _pacing.reset()
+    historical_failures.reset()
     for task in leftover:
         if not task.done():
             task.cancel()
@@ -125,6 +129,12 @@ async def request_bars(
             return stored
         raise HistoricalShed("open chart has priority")
 
+    backoff = historical_failures.backoff_remaining(symbol, timeframe)
+    if backoff > 0:
+        # IBKR did not answer this pair moments ago. Re-sending now would spend
+        # the budget on the same silence; the pane's retry asks again later.
+        raise HistoricalShed(f"IBKR did not answer; next try in {backoff:.1f}s")
+
     duration = IBKR_BAR_DURATION.get(timeframe) or ""
     wait = _pacing.wait_seconds(symbol, timeframe, duration)
     if wait > 0 and priority != "open_chart":
@@ -189,15 +199,22 @@ async def _run_fetch(
                 _reschedule_after_wait(symbol, timeframe, limit, priority, extra)
                 raise HistoricalShed(f"pacing wait {extra:.1f}s")
             _pacing.record(symbol, timeframe, duration)
-            result = await ibkr_bars.fetch_bars_async(
-                symbol,
-                timeframe,
-                limit,
-                interactive=(priority == "open_chart"),
-            )
-            coverage = bars_store.coverage_from_bars(
-                result.get("bars") or [], filling=False,
-            )
+            try:
+                result = await ibkr_bars.fetch_bars_async(
+                    symbol,
+                    timeframe,
+                    limit,
+                    interactive=(priority == "open_chart"),
+                )
+            except HTTPException as exc:
+                if historical_failures.remembered(exc.status_code):
+                    historical_failures.note(symbol, timeframe, str(exc.detail))
+                raise
+            historical_failures.clear(symbol, timeframe)
+            coverage = {
+                **bars_store.coverage_from_bars(result.get("bars") or [], filling=False),
+                **historical_failures.coverage_fields(symbol, timeframe),
+            }
             result = {**result, "coverage": coverage}
             await asyncio.to_thread(bars_store.write_payload, result)
             if timeframe == "1Min":
@@ -232,9 +249,13 @@ async def _persist_derived(symbol: str, one_min: dict[str, Any]) -> None:
             "timeframe": tf,
             "bars": derived,
             "source": "ibkr",
-            "coverage": bars_store.coverage_from_bars(
-                derived, filling=True, derived_from="1Min",
-            ),
+            "coverage": {
+                **bars_store.coverage_from_bars(
+                    derived, filling=True, derived_from="1Min",
+                ),
+                # The derived pane's own fetch may still be failing (#555).
+                **historical_failures.coverage_fields(symbol, tf),
+            },
         }
         await asyncio.to_thread(bars_store.write_payload, payload)
         try:
@@ -293,7 +314,8 @@ def schedule_fill(
             logger.info("historical fill shed %s %s: %s", symbol, timeframe, exc)
         except HTTPException as exc:
             # Stated IBKR failures (a timeout, an error answer): nothing was
-            # stored or pushed, the pane stays "filling" and its retry asks again.
+            # stored or pushed, the pane stays "filling" and its retry asks
+            # again; `historical_failures` holds the reason for `/bars`.
             logger.warning(
                 "historical fill failed %s %s: %s", symbol, timeframe, exc.detail,
             )

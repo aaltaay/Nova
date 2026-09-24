@@ -203,10 +203,14 @@ def _halt_view(symbol: str, start: float, now: float) -> dict:
             "halt_code": code if in_window else None}
 
 
-def request(symbols: Iterable[str]) -> None:
-    """Queue symbols whose fetch is missing or stale (Alpaca and Finnhub); daemon threads drain them."""
+def request(symbols: Iterable[str], now: float | None = None) -> None:
+    """Queue symbols whose fetch is missing or stale (Alpaca and Finnhub); daemon threads drain them.
+
+    ``now`` is the caller's clock (``board.refresh``'s), so a read it just made is judged by the same
+    session window as the verdicts computed beside it.
+    """
     global _worker
-    now = time.time()
+    now = time.time() if now is None else now
     start = window_start(now)
     wanted = _norm(symbols)
     live_finnhub.request(wanted, start, now)

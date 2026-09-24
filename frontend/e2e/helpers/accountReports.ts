@@ -20,6 +20,9 @@ export async function dismissTradingPrereqIfOpen(
   await expect(gate).toHaveCount(0);
 }
 
+/** First paint of the desk after `page.goto('/')`, cold dev server included. */
+const FIRST_PAINT_TIMEOUT_MS = 30_000;
+
 export async function clickThroughOverlay(page: Page, locator: Locator): Promise<void> {
   try {
     await locator.click({ timeout: 3000 });
@@ -37,7 +40,9 @@ export async function clickThroughOverlay(page: Page, locator: Locator): Promise
  */
 export async function openAccountPage(page: Page): Promise<void> {
   const account = page.getByTestId('nav-rail-account');
-  await expect(account).toBeVisible();
+  // The first spec of a run pays for Vite's cold compile of the whole desk,
+  // which can take longer than the default 5 s on a loaded runner.
+  await expect(account).toBeVisible({ timeout: FIRST_PAINT_TIMEOUT_MS });
   await dismissTradingPrereqIfOpen(page, 8000);
   await clickThroughOverlay(page, account);
   await expect(page.getByRole('region', { name: 'Account', exact: true })).toBeVisible();

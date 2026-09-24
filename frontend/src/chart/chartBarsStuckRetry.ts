@@ -6,6 +6,9 @@
  * is missed (subscribe race, drop, reconnect), this keeps retrying the
  * HTTP fetch forever at a capped interval -- never a fixed attempt count
  * that gives up and leaves the pane stuck on "Loading IBKR historical...".
+ * Each retry is a local `/bars` read: while IBKR history is not answering the
+ * backend holds the resend back for a short backoff and the coverage's
+ * `last_error` makes the pane say so (#555, ChartFillingStatus.tsx).
  */
 
 export interface StuckBarsRetryState {

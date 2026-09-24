@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from constants_leaderboard import LEADERBOARD_RECORD_SETTLE_SEC
+from constants_leaderboard import LEADERBOARD_RECORD_SETTLE_SEC, LEADERBOARD_SCHEMA_VERSION
 from leaderboard import auto_record, halts, playback, queue, recorder, store
 
 ET = ZoneInfo("America/New_York")
@@ -162,7 +162,7 @@ def test_coverage_spans_and_gaps():
 def test_days_list_both_sources_and_the_store():
     record(et(7, 0))
     out = playback.days(10)
-    assert out["store"]["ok"] and out["schema_version"] == 1
+    assert out["store"]["ok"] and out["schema_version"] == LEADERBOARD_SCHEMA_VERSION == 2
     day = out["days"][0]
     assert day["date"] == DAY and day["recorded"]["minutes"] == 1 and day["reconstructed"] is None
     assert "gainers" in day["recorded"]["boards"]

@@ -93,7 +93,7 @@ def apply_trade_to_mover_list(cache: list[dict], sym: str, price: float, size: i
                 "price": price,
                 "change_abs": new_change_abs,
                 "change_pct": new_change_pct,
-                "volume": g.get("volume", 0) + size,
+                "volume": g["volume"] + size if g.get("volume") is not None else None,
             }
             return True
     return False
@@ -122,7 +122,7 @@ def handle_trade(msg: dict) -> int | None:
                 if price < SCANNER_MIN_PRICE or not _gapper_meets_min_gap(new_gap):
                     del state.gapper_cache[i]
                 else:
-                    new_vol = g.get("volume", 0) + size
+                    new_vol = g["volume"] + size if g.get("volume") is not None else None
                     state.gapper_cache[i] = {
                         **g,
                         "price": price,
@@ -145,7 +145,7 @@ def handle_trade(msg: dict) -> int | None:
                 if price < SCANNER_MIN_PRICE or not _gapper_meets_min_gap(new_gap):
                     del state.afterhours_cache[i]
                 else:
-                    new_vol = g.get("volume", 0) + size
+                    new_vol = g["volume"] + size if g.get("volume") is not None else None
                     state.afterhours_cache[i] = {
                         **g,
                         "price": price,

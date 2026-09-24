@@ -15,12 +15,11 @@ from capture.constants_capture import CAPTURE_L2_LOAD_LIMIT, CAPTURE_NOT_IBKR_RE
 from capture.schema import read_manifest
 from capture.sessions import is_ibkr_source
 from ibkr.depth.book import sort_levels
-from sale_conditions import row_sets_price
+from sale_conditions import row_sets_price, tape_flags
 from sim.capture_charts import chart_bars  # noqa: F401 -- the player's chart API (split out)
-from sim.capture_spans import (
-    load_spans, newest_in_span, previous_close_for, recording_here, span_start,
-)
+from sim.capture_spans import load_spans, newest_in_span, recording_here, span_start
 from sim.capture_reader import read_jsonl as _read_jsonl, usable_rows, new_diagnostics, sample_l2
+from sim.prior_close import previous_close, recorded_close
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
@@ -42,7 +41,7 @@ class CaptureData:
     last_emit: float = 0.0
     # Recorded stretches ``[(start, stop)]``; empty means unknown (every read unbounded).
     spans: list = field(default_factory=list)
-    # The replayed session's previous close, from the bar archive; None when not stored.
+    # The replayed session's previous close (``sim.prior_close``: the recorded tick 9 first); None unknown.
     prev_close: float | None = None
 
 
@@ -117,7 +116,7 @@ def load(date: str, symbol: str, *, generation: int | None = None) -> dict[str, 
     first_ts, last_ts = min(event_keys), max(event_keys)
     segments, state.spans = load_spans(_manifest, root, live=recording_here(root),
                                        first_ts=first_ts, last_ts=last_ts)
-    state.prev_close = previous_close_for(symbol, date)
+    state.prev_close = previous_close(symbol, date, recorded=recorded_close(quotes, date))
     l2_path = root / "l2.jsonl"
     l2_bytes = l2_path.stat().st_size if l2_path.is_file() else 0
     with _load_lock:
@@ -209,25 +208,43 @@ def recent_prints(limit: int = 40, *, state: CaptureData | None = None) -> list[
     cap = max(1, int(limit))
     floor = _span_floor(state.print_keys, state, asof)
     chunk = state.prints[max(floor, i - cap + 1) : i + 1]
-    out: list[dict[str, Any]] = []
-    for p in chunk:
-        ts = _ts(p)
-        t_iso = datetime.fromtimestamp(ts, tz=ET).astimezone(timezone.utc).isoformat()
-        out.append(
-            {
-                "type": "print",
-                "symbol": str(p.get("symbol") or "").upper(),
-                "time": t_iso,
-                "price": float(p.get("price") or 0),
-                "size": int(p["size"]) if p.get("size") is not None else None,
-                "exchange": str(p.get("exchange") or ""),
-                "conditions": str(p.get("conditions") or ""),
-                "side": p.get("side"),
-                "bid": p.get("bid"),
-                "ask": p.get("ask"),
-            }
-        )
-    return out
+    return [_print_payload(p) for p in chunk]
+
+
+def _print_payload(p: dict[str, Any]) -> dict[str, Any]:
+    ts = _ts(p)
+    return {
+        "type": "print",
+        "symbol": str(p.get("symbol") or "").upper(),
+        "time": datetime.fromtimestamp(ts, tz=ET).astimezone(timezone.utc).isoformat(),
+        "price": float(p.get("price") or 0),
+        "size": int(p["size"]) if p.get("size") is not None else None,
+        "exchange": str(p.get("exchange") or ""),
+        "conditions": str(p.get("conditions") or ""),
+        **tape_flags(p),
+        "side": p.get("side"),
+        "bid": p.get("bid"),
+        "ask": p.get("ask"),
+    }
+
+
+def last_trade(*, state: CaptureData | None = None) -> dict[str, Any] | None:
+    """The newest print at the playhead that sets a price, as a tape payload; ``None`` in a gap.
+
+    An odd lot or an average-price print is on the tape but never the capture's
+    last trade (#511): the quote card's latest trade reads this, not the newest print.
+    """
+    state = state or _state
+    if state is None or not state.prints:
+        return None
+    asof = asof_unix()
+    i = _bounded_index(state.print_keys, state, asof + 1e-6)
+    floor = _span_floor(state.print_keys, state, asof)
+    while i >= max(0, floor):
+        if row_sets_price(state.prints[i]):
+            return _print_payload(state.prints[i])
+        i -= 1
+    return None
 
 
 def quote_at(asof: float | None = None, *, state: CaptureData | None = None) -> dict[str, Any] | None:
@@ -248,7 +265,8 @@ def quote_at(asof: float | None = None, *, state: CaptureData | None = None) -> 
                 "bid": row.get("bid"),
                 "ask": row.get("ask"),
                 "last": last,
-                "prev_close": row.get("prev_close"),
+                # One previous close per load, whichever row is read (#542).
+                "prev_close": state.prev_close,
                 "bid_size": row.get("bid_size"),
                 "ask_size": row.get("ask_size"),
                 "volume": row.get("volume"),
@@ -265,7 +283,7 @@ def quote_at(asof: float | None = None, *, state: CaptureData | None = None) -> 
         "bid": row.get("bid"),
         "ask": row.get("ask"),
         "last": px,
-        "prev_close": None,
+        "prev_close": state.prev_close,
         "bid_size": None,
         "ask_size": None,
         "volume": None,

@@ -64,8 +64,7 @@ def ticker_snapshot(symbol: str) -> dict[str, Any]:
 
 def _capture_ticker_snapshot(row: dict, selected) -> dict:
     from sim import capture_player
-    reached = capture_player.recent_prints(1, state=selected)
-    trade = reached[-1] if reached else None
+    trade = capture_player.last_trade(state=selected)  # never an odd lot (#511)
     timestamp = datetime.fromtimestamp(row["ts"], timezone.utc).isoformat()
     quote_known = row.get("bid") is not None or row.get("ask") is not None
     previous = row.get("prev_close")

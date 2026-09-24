@@ -21,8 +21,9 @@ from constants_sim import (
 from sim import history_coverage as coverage, history_depth, history_sides
 from sim import history_store as store
 from sim.chart_replay import INTERVAL_SECONDS
-from sim.history_cache import CandleCache, previous_close
+from sim.history_cache import CandleCache
 from sim.history_session import session_open as _session_open, stats_scope as _stats_scope
+from sim.prior_close import previous_close
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +134,7 @@ def _load(spec: dict) -> Selection:
                     job_id=job['id'] if job else None)
     prints, eligible_keys = tuple(rows), array('q', (row['ts'] for row in eligible))
     return Selection(selected, prints, array('q', (row['ts'] for row in rows)), eligible,
-                     eligible_keys, volumes, highs, lows, previous_close(spec['symbol'], spec),
+                     eligible_keys, volumes, highs, lows, previous_close(spec['symbol'], spec['date']),
                      CandleCache(selected, prints, eligible, eligible_keys),
                      _session_open(selected, eligible, eligible_keys, ranges))
 

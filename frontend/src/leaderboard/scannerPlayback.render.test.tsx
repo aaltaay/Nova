@@ -6,6 +6,7 @@ import { ScannerBoardHeader } from '../scanner/ScannerBoardHeader';
 import { ScannerDataContextProvider, makeLiveScannerFeedStub } from '../scanner/ScannerDataContext';
 import type { HealthStatus } from '../types/health';
 import type { ScannerRow } from '../types/scanner';
+import { LEADERBOARD_CATALYSTS_IN_NEWS_COLUMN } from './leaderboardConstants';
 import { parseLeaderboardAt } from './leaderboardParse';
 import { replayFromAnswer } from './leaderboardRows';
 import { withScannerReplay } from './scannerReplayFeed';
@@ -35,13 +36,16 @@ const LIVE_ROW = { symbol: 'LIVE', price: 1, prev_close: 1, change_pct: 0, chang
   rel_volume: null, has_news: false, newest_headline_at: null, market_cap: null, float: null,
   short_interest: null, short_ratio: null } as ScannerRow;
 
-function Board({ replay }: { replay: ReturnType<typeof replayFromAnswer> | null }) {
+function Board({ replay, tab = 'gainers' }: {
+  replay: ReturnType<typeof replayFromAnswer> | null;
+  tab?: 'gainers' | 'catalysts';
+}) {
   const feed = withScannerReplay(makeLiveScannerFeedStub({ gainers: [LIVE_ROW] }), replay);
   return (
     <ScannerDataContextProvider value={feed}>
       <ScannerBoardHeader title="Gainers" filters={null} scannedAgoSec={5} />
       <ScannerTabPanels
-        activeTab="gainers" mode="market" health={{ status: 'connected', latency_ms: 1 } as HealthStatus}
+        activeTab={tab} mode="market" health={{ status: 'connected', latency_ms: 1 } as HealthStatus}
         discoveryProvider="ibkr" gappers={feed.gappers} gainers={feed.gainers} losers={feed.losers}
         afterhours={feed.afterhours} largeCap={feed.largeCap} catalysts={feed.catalysts} watchlistEntries={[]}
         selectedSymbol={null} onSelect={() => {}} onOpenTrading={() => {}} pricesStale={false} flashSymbols={{}}
@@ -81,6 +85,28 @@ describe('the Scanner board at the Sim playhead', () => {
     render(<Board replay={replayFromAnswer('2026-09-18', M, rebuilt)} />);
     expect(screen.getByTestId('scanner-board-replay').textContent).toBe('Sim · 2026-09-18 07:42 ET · rebuilt');
     expect(screen.getByText('MKT')).toBeTruthy();
+  });
+
+  it('shows a mover\'s catalyst at the playhead in the News column, aged from the playhead', () => {
+    const withVerdict = answer({ at: M + 20, catalyst_symbols: 1, boards: { gainers: { state: 'live', rows: [
+      { symbol: 'GRML', rank: 1, price: 9.27, catalyst: {
+        verdict: 'catalyst', category: 'fda_regulatory', strength: 'strong', title: 'Acme Receives FDA Approval',
+        source: 'alpaca', published_ts: M - 580, url: null, negative_too: false, rules_version: 'v6',
+        sources_answered: ['alpaca'], n_items: 1, news_pending: false, halt_code: null,
+      } },
+    ] } } });
+    render(<Board replay={replayFromAnswer('2026-09-21', M, withVerdict)} />);
+    const mark = document.querySelector('td[data-col="newest_headline_at"] [data-news-mark]');
+    expect(mark?.getAttribute('data-news-mark')).toBe('catalyst');
+    // Ten minutes old at the playhead -- not days old by the wall clock.
+    expect(mark?.className).toMatch(/flame-hot/);
+    expect(mark?.getAttribute('title')).toMatch(/Acme Receives FDA Approval/);
+    expect(mark?.getAttribute('title')).toMatch(/10m ago/);
+  });
+
+  it('the Catalysts tab points at the News column on a day with catalysts on file', () => {
+    render(<Board tab="catalysts" replay={replayFromAnswer('2026-09-21', M, answer({ catalyst_symbols: 3 }))} />);
+    expect(screen.getByText(LEADERBOARD_CATALYSTS_IN_NEWS_COLUMN)).toBeTruthy();
   });
 
   it('in a gap: the reason and its times, and no rows', () => {

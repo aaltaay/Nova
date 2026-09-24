@@ -145,7 +145,8 @@ def load(date: str, symbol: str, *, root: Path | None = None,
     from capture.schema import read_manifest
     from capture.sessions import is_ibkr_source
     from sim.capture_reader import new_diagnostics, read_jsonl, usable_rows
-    from sim.capture_spans import load_spans, previous_close_for, recording_here
+    from sim.capture_spans import load_spans, recording_here
+    from sim.prior_close import previous_close, recorded_close
 
     sym = symbol.upper()
     folder = (root or capture_root()) / date / sym
@@ -176,11 +177,15 @@ def load(date: str, symbol: str, *, root: Path | None = None,
         bars_source = "none"
     _segments, spans = load_spans(manifest, folder, live=recording_here(folder),
                                   first_ts=min(print_ts), last_ts=max(print_ts))
+    # IBKR's tick 9 on the quote rows is read first (#542); their rows count in no diagnostic here.
+    quotes = usable_rows(read_jsonl(folder / "quotes.jsonl", new_diagnostics()), "quotes", sym)
+    recorded = recorded_close(quotes, date)
     return Recording(date=date, symbol=sym, prints=prints, print_ts=print_ts,
                      ticks=_ticks(prints, EYES_REPLAY_PRICE_STEP_SEC), books=books,
                      book_ts=[t for t, _ in books], bars=bars, bars_source=bars_source,
                      spans=[(float(a), float(b)) for a, b in spans],
-                     prev_close=previous_close_for(sym, date), diagnostics=diagnostics)
+                     prev_close=previous_close(sym, date, recorded=recorded),
+                     diagnostics=diagnostics)
 
 
 def usable_sessions() -> list[tuple[str, str]]:

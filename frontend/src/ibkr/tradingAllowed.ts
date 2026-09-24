@@ -5,6 +5,12 @@
  * place_order). This helper AND-s the padlock (the backend arm latch,
  * `/api/ibkr/status.armed`, read through ticketUnlock) so Activate, padlock,
  * ticket, and Nova Actions read one gate. Flatten / KILL stay protective.
+ *
+ * It is the gate for the orders the backend holds to the arm latch: every
+ * order but a cancel or a protective source. Nova Actions use it for those
+ * kinds only; their cancels and whole-position flattens answer to the locks
+ * the backend holds them to (`hotkeys/runNovaAction.ts`, ADR 018 decision 4,
+ * #548).
  */
 import {
   BOT_STATE_ACTIVE,

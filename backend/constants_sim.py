@@ -129,6 +129,11 @@ SIM_HISTORY_GATEWAY_UNREACHABLE = "IB Gateway unreachable"
 # 2FA, or IBKR maintenance). Mirrored in frontend simConstants.ts: the Sim tab
 # retries these on a slow timer and offers a Gateway reconnect.
 SIM_HISTORY_GATEWAY_NOT_ANSWERING = "IBKR did not answer"
+# A download also stores IBKR's regular-hours daily close of the session before
+# its day (#542): daily TRADES bars with useRTH over this span ending at that
+# day's midnight ET -- a week reaches the prior session across any holiday.
+SIM_HISTORY_PRIOR_CLOSE_DURATION = "1 W"
+SIM_HISTORY_PRIOR_CLOSE_SOURCE = "ibkr_rth_daily"
 SIM_HISTORY_TAPE_ROWS = 200
 SIM_TICK_INTERVAL_RTH_SEC = 0.08
 SIM_TICK_INTERVAL_EXT_SEC = 0.15

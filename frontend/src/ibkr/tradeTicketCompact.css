@@ -12,14 +12,24 @@
   padding: 0 10px 10px;
 }
 
-/* ---------- header: TRADE · SYM · venue · TIF */
+/* ---------- header: TRADE · SYM · venue · TIF
+   The header wraps rather than clips: in the Desk's 320 px rail it needed
+   about 324 px in 306 and GTC ended past the card's edge (#459). A narrow
+   header first drops the TIF label (the segmented control keeps its title and
+   aria-label) and tightens the segments; whatever is still too long moves the
+   TIF control to a line of its own -- never off the card, and the venue tag's
+   `fills EST` is never cut. e2e/desk-rail-ticket.spec.ts measures it. */
 .mot-head {
+  container: mot-head / inline-size;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  min-height: 30px;
+  gap: 3px 8px;
+  /* 26 + 2 x 2 padding: one line is the 30 px it always was; a wrapped
+     header keeps 2 px above and below its lines. */
+  min-height: 26px;
   margin: 0 -10px 1px;
-  padding: 0 10px;
+  padding: 2px 10px;
   border-bottom: 1px solid var(--border-color, #343434);
 }
 
@@ -45,6 +55,7 @@
 
 .mot-head__tools {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 5px;
   margin-left: auto;
@@ -53,6 +64,17 @@
 .mot-head__k {
   font-size: 0.62rem;
   color: var(--text-muted, #98989d);
+}
+
+/* The Desk's capped rail (desk/desk.css) and anything narrower. */
+@container mot-head (max-width: 320px) {
+  .mot-head__k {
+    display: none;
+  }
+
+  .mot-head .mot-seg--tif button {
+    padding: 0 6px;
+  }
 }
 
 /* ---------- segmented controls: one track, one raised segment */

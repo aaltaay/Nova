@@ -13,6 +13,7 @@ from constants import (
     EXECUTION_NON_TERMINAL_STATUSES,
     EXECUTION_SWEEP_ROW_LIMIT,
 )
+from execution import ledger_generation
 from execution.store_schema import (
     SCHEMA,
     ensure_executions_columns,
@@ -104,7 +105,7 @@ def reserve(
                     json.dumps(payload or {}),
                 ),
             )
-            conn.commit()
+            ledger_generation.commit(conn)
             return execution_id, True
         except sqlite3.IntegrityError:
             row = conn.execute(
@@ -171,7 +172,7 @@ def update_stages(
             f"UPDATE executions SET {', '.join(fields)} WHERE id = ?",
             values,
         )
-        conn.commit()
+        ledger_generation.commit(conn)
     finally:
         conn.close()
 
@@ -321,7 +322,7 @@ def mark_ack_by_order_id(
                 """,
                 values,
             )
-            conn.commit()
+            ledger_generation.commit(conn)
             return cur.rowcount > 0
 
         fields = [
@@ -350,7 +351,7 @@ def mark_ack_by_order_id(
             """,
             [*values, _BOOT_ID, _BOOT_ID],
         )
-        conn.commit()
+        ledger_generation.commit(conn)
         return cur.rowcount > 0
     finally:
         conn.close()
@@ -383,7 +384,7 @@ def mark_filled_by_order_id(
                 _BOOT_ID, _BOOT_ID,
             ),
         )
-        conn.commit()
+        ledger_generation.commit(conn)
         return cur.rowcount > 0
     finally:
         conn.close()

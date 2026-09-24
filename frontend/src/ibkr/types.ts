@@ -273,7 +273,7 @@ export interface RecordingSession {
   counts: Record<string, number>;
   last_write_ts: number | null;
   dir: string | null;
-  /** IBKR lines re-acquired after a Gateway drop, this session. */
+  /** IBKR lines asked for again after a Gateway drop or a lost tape (#525), this session. */
   reacquired: number;
 }
 

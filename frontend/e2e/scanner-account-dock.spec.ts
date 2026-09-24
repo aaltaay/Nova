@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { attachErrorCollector } from './helpers/errorCollector';
 import { scannerOrdersDock } from './helpers/ordersDock';
+import { GLOBAL_BAR_EMERGENCY_KILL_SAMPLE_TITLE } from '../src/constantGroups/global_bar';
 
 test.describe('Scanner account dock', () => {
   test('sample scanner shows the Trader Positions strip', async ({ page }) => {
@@ -42,6 +43,8 @@ test.describe('Scanner account dock', () => {
   // protective cancel while letting the destructive flatten through would
   // leave resting orders live on an account that was just market-flattened,
   // so the assertion that matters is that NO mutation leaves the browser.
+  // V39: it refuses before the real kill's confirm, under its own title, so
+  // there is no confirm to press -- only the refusal to acknowledge.
   test('Emergency KILL on the sample desk fires no broker leg', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
     const mutations: string[] = [];
@@ -62,8 +65,12 @@ test.describe('Scanner account dock', () => {
     await expect(page.getByTestId('sample-data-badge')).toBeVisible();
 
     await page.getByTestId('global-bar-emergency-kill').click();
-    await page.getByTestId('app-dialog-confirm').click();
 
+    await expect(page.getByTestId('app-dialog')).toBeVisible();
+    await expect(page.getByTestId('app-dialog-confirm')).toHaveCount(0);
+    await expect(page.getByTestId('app-dialog-title')).toHaveText(
+      GLOBAL_BAR_EMERGENCY_KILL_SAMPLE_TITLE,
+    );
     const message = page.getByTestId('app-dialog-message');
     await expect(message).toContainText('Nova Marketing Sample Data');
     await expect(message).toContainText('nothing was cancelled or flattened');

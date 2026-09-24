@@ -65,3 +65,48 @@ could not answer "which stock led at 07:42?":
   moment.
 - **Auto-record on all three lines, 07:00-10:00**: takes Level 2 away from the
   operator during the hours they trade by hand.
+
+## Amendment 2026-09-24 -- each mover's catalyst in playback (#498)
+
+**Context.** Sim playback of a past day showed the board but not why its movers
+moved: the Scanner's News column had only `has_news` (an article existed), and
+the catalyst verdict (ADR 024) was live-only. The backfilled history that can
+answer lives in the research store (`catalysts.sqlite3`), which the backend
+never reads.
+
+**Decision.**
+
+1. **One store for playback.** The leaderboard store goes to schema 2 with two
+   tables written only by `research/catalysts/export_leaderboard.py`:
+   `catalyst_checks` (per symbol-day: the window and the sources that looked)
+   and `catalyst_items` (every item naming the symbol in the window, labelled by
+   `catalysts/classify.py`). A version-1 store migrates in place by creating the
+   two tables -- the rows / coverage history (tens of GB on the desk) is never
+   rewritten; unknown versions still refuse. The export replaces a symbol-day
+   whole, one session day per transaction, so the live recorder keeps writing.
+2. **Items, not a verdict row.** Storing labelled items, not one verdict per
+   day, lets a board read judge the news *as known at the playhead*: only items
+   published after the prior session's close and at or before `at`, through
+   `classify.verdict_from_labels` -- the same ranking and wire shape as the live
+   desk. Unknown stays `null` (not exported, or no source looked and nothing
+   published yet); `none_found` only when a source looked.
+3. **The Scanner reads it as it reads a live row.** A played-back row carries
+   `catalyst` when a verdict is on file; the News column ages it from the
+   playhead, not the wall clock. The Catalysts tab (the live on-roster headline
+   list) points at the News column on a day with catalysts on file and says
+   none are on file otherwise.
+
+**Consequences.** Coverage is the research targets' (the pillar universe and
+the rebuilt board's top-10 movers): other symbols on a recorded board read
+`null`. A verdict names the rules version that labelled its items; a rules bump
+needs the export re-run on the desk. Halts for pending news come from this
+store's own halt log, so a T1 halt the log never saw is not reported.
+
+**Rejected.** *The backend reads the research store read-only*: a second store
+on the playback path, and the research store's schema would become a backend
+contract. *One verdict row per symbol-day* (the issue's first sketch): judged at
+one cutoff, it can hide the best item until it is published but cannot say what
+was known before it (an earlier dilution notice, a routine item, "none found"),
+and a later cutoff's verdict would leak into an earlier playhead. *Article
+text in the leaderboard store* so the backend reclassifies with current rules:
+several times the size for what a re-export already gives.

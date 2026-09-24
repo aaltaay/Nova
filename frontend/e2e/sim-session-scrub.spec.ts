@@ -73,7 +73,9 @@ test('scrubbing preserves IMCC with AAPL closed; explicit replay picks still nav
   await page.getByTestId('sim-replay-ticker').selectOption('IMCC');
   await page.getByTestId('sim-replay-ticker').selectOption('AAPL');
   await expect(page.getByTestId('desk-active')).toHaveText('AAPL');
-  await expect(page.getByTestId('desk-tabs')).toHaveText('IMCC,AAPL');
+  // Preview tabs (ADR 011, stock_view/traderTabsState.ts): the pick opens AAPL in
+  // the preview tab, replacing the unpinned IMCC instead of piling up a tab.
+  await expect(page.getByTestId('desk-tabs')).toHaveText('AAPL');
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: 'Play Sim time' })).toBeVisible();
   await page.getByRole('button', { name: 'Play Sim time' }).click();

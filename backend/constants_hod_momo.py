@@ -44,6 +44,9 @@ HOD_RAW_MODE = _os.environ.get("HOD_RAW_MODE", "").strip().lower() in (
 )
 # Persist at most this often — writing the full day list on every emit freezes the API.
 HOD_MOMO_ALERT_SAVE_INTERVAL_SEC = 5.0
+# A forced save (rollover, reconcile, clear, shutdown) waits at most this long for
+# the writer thread's queued snapshots to land first (hod_momo_writer, #553).
+HOD_MOMO_WRITER_DRAIN_TIMEOUT_SEC = 10.0
 HOD_MOMO_UNIVERSE_INTERVAL_SEC = 300.0  # refresh cadence for broad (full-asset) mode
 # Focus mode: Top Gainer/Gapper shortlist + IBKR volume seeds — not the
 # full US tape. Broad mode subscribed ~6k IEX symbols → zero trades (empty tab).

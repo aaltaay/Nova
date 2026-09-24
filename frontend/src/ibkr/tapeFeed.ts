@@ -21,12 +21,22 @@ export interface TapePrint {
   ask?: number | null;
   /** IBKR tickAttribLast.unreported: listed, but not in candles/last/volume. */
   unreported?: boolean;
+  /**
+   * False for a print reported for volume only (odd lot, average price, ...):
+   * the backend's `sets_price` (AGENTS.md §3). Absent reads as a price.
+   */
+  setsPrice?: boolean;
 }
 
 export interface TapeState {
   prints: TapePrint[];
   connected: boolean;
   error: string | null;
+}
+
+/** A print that may set a price: not flagged unreported, and not volume-only by its conditions. */
+export function tapePrintSetsPrice(print: Pick<TapePrint, 'unreported' | 'setsPrice'>): boolean {
+  return !print.unreported && print.setsPrice !== false;
 }
 
 /** Uppercase symbol key, or null when no subscription. */

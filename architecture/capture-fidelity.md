@@ -69,8 +69,12 @@ reduces unnecessary growth but does not bound total retained recordings.
 ## Unknown market facts stay unknown
 
 ADR 001 extracts market read views from the synthetic tape owner into
-sim/market_views.py. Captured quote_at preserves recorded bid/ask/prior-close
-values; prints without quotes carry null bid/ask/sizes/prior close. No spread,
+sim/market_views.py. Captured quote_at preserves recorded bid/ask values;
+prints without quotes carry null bid/ask/sizes. Every projection carries the
+loaded capture's one previous close (`sim/prior_close.py`, #542): IBKR's tick 9
+recorded on its quote rows, else the leaderboard's, else a download's
+regular-hours close, else null -- never a 15:59 minute or extended-hours daily
+close. No spread,
 100-share size, synthetic order book or synthetic daily OHLC is fabricated.
 Ticker snapshots expose actual reached prints, latest_quote only when a recorded
 bid or ask exists, and null minute_bar/daily_bar/prev_daily_bar when unavailable.

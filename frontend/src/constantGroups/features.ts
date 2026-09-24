@@ -33,6 +33,9 @@ export const TAPE_EMPTY_LABEL = 'Waiting for prints…';
 /** Row tooltip for prints IBKR flags unreported (odd lot / Form T). */
 export const TAPE_UNREPORTED_TITLE =
   'Unreported print (odd lot / Form T) -- excluded from candles, last and volume';
+/** Row tooltip for a print reported for volume only by its sale conditions (#543, AGENTS.md §3). */
+export const TAPE_NO_PRICE_TITLE =
+  'Does not set a price (odd lot, average price, derivatively priced, ...) -- not in candles or the last';
 export const TAPE_COL_HEADERS = {
   time: 'Time',
   price: 'Price',

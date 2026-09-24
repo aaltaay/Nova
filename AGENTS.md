@@ -250,8 +250,12 @@ migrated; unknown versions refuse loudly. Capture load diagnostics include
 `l2_total`, `l2_loaded`, `l2_decimated`, `malformed_rows`,
 `invalid_timestamp_rows`, `invalid_rows`, and `legacy_schema`. Recorder
 `fidelity` includes `l2_offered`, `l2_coalesced`, `invalid_timestamp_rows`,
-`timestamp_regressions`, and `last_stream_ts`. Diagnostics are counts except
-`legacy_schema` / `l2_decimated` (booleans) and `last_stream_ts` (per-stream event timestamps).
+`timestamp_regressions`, `last_stream_ts`, `tape_resubscribes` and
+`tape_losses: [{at, cause: "ib_error" | "stale", detail}]` (the recording's
+tape line lost while it ran, newest last, at most `CAPTURE_TAPE_LOSS_KEEP`;
+both carried across segments of the day, #525). Diagnostics are counts except
+`legacy_schema` / `l2_decimated` (booleans), `last_stream_ts` (per-stream event
+timestamps) and `tape_losses`.
 No automatic retention policy is selected by these additions.
 
 ### Recording persistence and coverage (operator decision, 2026-09-21)
@@ -275,6 +279,28 @@ unplanned stop; a recording whose tape line went `disconnected` re-acquires its
 IBKR lines when the client is ready again. Resume never crosses a day boundary,
 never changes symbol, and is cancelled by an operator Stop or by the operator
 starting another symbol.
+
+**The tape line (#525).** A recording can lose its AllLast line while its book
+keeps coming (IPDN and WHLR, 2026-09-23 09:46:40). `ibkr/tape_line.py` maps
+every AllLast request id to its symbol, so an IB error names its line with or
+without a contract; a non-warning error on a live line's own request id ends
+that line (cancelled, so the next request is a real one -- ib_async hands back
+a line it still has registered), and every end is logged at WARNING. The
+recording's producer (`/api/capture` `sessions[SYM].producer`, which also
+carries `line_since`, when its line opened) then reads `disconnected` with
+`ended: {at, cause, code, message, req_id}`. `capture/tape_watch.py` also calls a line dead when no print
+came for `CAPTURE_TAPE_STALE_SEC` while the book updated within
+`CAPTURE_TAPE_BOOK_FRESH_SEC` (a quiet name looks the same; asking again is
+harmless). Either way the keepalive asks for the tape only -- the depth line is
+left alone -- once IB's 15 s same-instrument rule allows
+(`CAPTURE_TAPE_RENEW_DELAY_SEC`), backing off by `CAPTURE_TAPE_RESUBSCRIBE_MIN_SEC`
+over a streak of outages (a quiet name that prints now and then), and says so:
+a `capture_stopped` row with `reason: "tape"` (never a segment reason: the
+recorder did not stop; one row per streak) whose `resumed` turns true when a
+print arrives on a new line, `reacquired`
+on the session, and the manifest's `fidelity.tape_losses` /
+`tape_resubscribes`. A Record hold younger than `CAPTURE_HOLD_ORPHAN_GRACE_SEC`
+is a start in flight and is never released as an orphan by a status poll.
 
 Every manifest segment carries `reason: "operator" | "rotation" | "failure" |
 "restart" | "auto"` naming why it ended (`auto`: auto-record's planned stop, ADR 023) (`restart` is stamped by the startup finalizer,
@@ -304,11 +330,13 @@ requested symbol's own trouble (or the writer's).
 
 `/api/ibkr/status` adds `capture_sessions: object[]`, one per recording
 symbol (`symbol`, `session_date`, `started_et`, `segment_started_et`, `segment`,
-`counts`, `last_write_ts`, `dir`, `reacquired`), `capture_resume: object[]`
+`counts`, `last_write_ts`, `dir`, `reacquired` -- lines asked for again after a
+Gateway drop or a lost tape), `capture_resume: object[]`
 (`symbol`, `pending`, `attempt`, `max_attempts`, `next_at`, `reason`, `gave_up`,
 `gave_up_reason`) and `capture_stopped: object[]` -- per symbol, the last stop
 the operator did not ask for (`symbol`, `at`, `reason`, `error`, `dir`,
-`counts`, `resumed`), kept until that symbol records again or the operator
+`counts`, `resumed`; `reason` is a segment reason, or `tape` for a lost tape
+line while the recording ran), kept until that symbol records again or the operator
 stops it. All three are empty lists while nothing is recording or pending. The UI treats a running recording
 as quiet state (chip, hairline, window title) and an unrequested stop as the
 loud one.
@@ -336,6 +364,32 @@ has the same top of book -- the quote provably held across the print's second --
 classified by the live tape's own rule (`ibkr/tape_side.py`). Otherwise the side
 is `null` and no bid/ask is attached. Unreported prints never get a side. No
 side is ever inferred from price movement.
+
+### The replayed session's previous close (#542)
+
+Owner `sim/prior_close.py`. The `prev_close` a Sim replay measures change and
+Gap% from -- `replay_quote.prev_close`, a loaded capture's quote and ticker
+projections (one value per load, whichever row is read), the historical
+snapshot's `prev_close` and the eyes' replays -- is, first answer wins:
+IBKR's tick-9 close recorded with the Session Record (the most common positive
+`prev_close` on its quote rows from 04:00 ET of that day); the leaderboard's
+`prev_close` for that symbol-day (recorded rows before reconstructed ones, the
+day's most common value; read read-only, so a read never creates the store);
+IBKR's regular-hours daily close of the prior session, stored with a
+historical download of that symbol-day; else `null` -- a stated absence, no
+change and no Gap%. Never the prior session's 15:59 one-minute close (the last
+trade before the closing auction) and never a stored daily bar (fetched with
+extended hours, it closes on the last after-hours trade).
+
+Session Record quote rows add `prev_close: number | null` -- IBKR tick 9 on the
+symbol's live L1 line when one is open (Record's own tape and depth lines
+carry no close), `null` otherwise. Historical download jobs add `prior_close:
+{close, date, source: "ibkr_rth_daily"} | null` -- IBKR's daily TRADES close
+with `useRTH` dated the exchange session before the job's day, asked once per
+run before the first page and paced like one; `null` when IBKR's series lacks
+that session (never an older close), absent until IBKR has answered. The live
+ticker snapshot's `prev_close` falls back to the L1 line's tick 9, then today's
+leaderboard, and is `null` rather than a daily bar.
 
 ### Desk diagnostics (ADR 021)
 
@@ -441,17 +495,49 @@ fraction under 1.0. Bar-derived sensor readings (`vwap`, `macd`, `emas`,
 they were computed from, `null` without bars -- so the board can say a
 reading is stale.
 
+### Float credibility and short-interest dates (#532)
+
+Every float and short-interest figure is Yahoo's (`fundamentals.py`). The
+fundamentals payload (`fetch_fundamentals`; the ticker detail's `fundamentals`)
+keeps `shares_outstanding` and adds `held_percent_insiders` (Yahoo's
+`heldPercentInsiders`, a fraction: 0.128 = 12.8%), `short_interest_ts` (Yahoo's
+`dateShortInterest`: epoch seconds of the FINRA settlement the short interest
+is from), `float_contradicted: boolean | null` and `float_contradicted_reason:
+string | null` -- each `null` when Yahoo gives none. `short_ratio` is Yahoo's
+own ratio (short interest over Yahoo's average volume), never FINRA's days to
+cover. A float is **contradicted** (`fundamentals.float_credibility`, pure)
+when it is under `FUNDAMENTALS_FLOAT_MIN_NON_INSIDER_SHARE` (0.5) of shares
+outstanding x (1 - insiders), or when short interest exceeds it: `true` when
+either fires, `false` only when both checks ran and neither fired, `null`
+otherwise (no float, or a check short of its inputs); the reason names the
+counts. A float above shares outstanding is never flagged -- the share count is
+the stale field there and it cannot pass a low-float gate falsely. Every
+scanner row (`scanner_surface.surface_rows` -> `mover_enrich_view.decorate_rows`)
+adds `shares_outstanding`, `short_interest_ts` (only while the row's
+`short_interest` is the cached figure, else `null`: a date is never pinned on
+another report) and `float_contradicted` / `float_contradicted_reason`, judged
+on the row's own float and short interest. **Descriptive only:** no gate reads
+them -- HOD Momo `min_float` / `max_float`, the setup grade and stock filter,
+the Five Pillars float pillar, the leaderboard's `LEADERS_RULES` and the
+scanner's Float chip pass and fail exactly as before (#532's point 2 waits on an
+operator decision). The desk shows a contradicted float as "54.0K?" with the
+reason on hover, and short interest with its settlement date ("566.0K (Aug
+31)"; the scanner's second line "8/31 · 6.9") and Yahoo's ratio named on hover
+and in the quote panel's "Short Ratio (Yahoo)".
+
 ### Scanner leaderboard: recorded, reconstructed, played back (ADR 023, operator decision 2026-09-22)
 
 Owner `backend/leaderboard/`; store `leaderboard.sqlite3` (`PRAGMA
-user_version=1`, unknown versions refuse) under `NOVA_LEADERBOARD_DIR`, else
+user_version=2`, unknown versions refuse; a version-1 store is migrated in
+place by creating the two catalyst tables below -- nothing existing is
+rewritten) under `NOVA_LEADERBOARD_DIR`, else
 `F:\Nova\leaderboard` when F: is mounted, else `<cache_dir>/leaderboard` --
 beside, never inside, the capture root or the historical downloads. One
 **leaderboard row** per symbol per minute per board:
 
 `{symbol, minute_ts, board, source, rank, price, prev_close, change_pct,
 volume, rvol, rvol_basis, float_shares, has_news, news_first_seen_ts, halted,
-gap_pct, exchange, market_cap}` -- `minute_ts` is a whole-minute epoch second
+gap_pct, exchange, market_cap, catalyst}` -- `minute_ts` is a whole-minute epoch second
 and the row is the board **as it stood at `minute_ts`** (a reconstructed row
 uses only minute bars that closed by then; a recorded row is the desk's board
 snapshotted within `LEADERBOARD_RECORD_SETTLE_SEC` after it). `source` is
@@ -468,6 +554,34 @@ that day or `null`; `has_news` / `news_first_seen_ts` only from news seen by
 that minute. Every unknown is `null`, never a placeholder. `halted` is derived
 at read time from the halt log: `true` while a logged halt is open, `false`
 only for a recorded minute whose halt feed was answering, else `null`.
+`catalyst` is derived at read time too ("Catalysts in playback" below).
+
+**Catalysts in playback** (#498). The research backfill's store is never read
+by the backend (ADR 024), so `research/catalysts/export_leaderboard.py` copies
+what playback needs into this store, per symbol-day it holds (its `targets`):
+`catalyst_checks (session_date, symbol, window_start, window_end,
+sources_answered, rules_version, exported_ts)` -- the window (the prior
+session's 16:00 ET close to 20:00 ET) and the sources whose check was `ok`,
+comma-joined, `''` when none looked -- and `catalyst_items (session_date,
+symbol, item_id, published_ts, source, publisher, title, url, kind, category,
+strength, dilution, rules_version)`, every item naming the symbol in that
+window labelled by `catalysts/classify.py` at the export's rules version
+(labels, not article text; Finnhub's Benzinga copies left out, #516). The
+export replaces each symbol-day whole, one session day per transaction; it is
+the tables' only writer. A board read gives each row `catalyst: verdict | null`
+in the live desk's wire shape (`catalysts/live.WIRE_KEYS`), computed by
+`leaderboard/catalyst_verdicts.py` with `classify.verdict_from_labels` -- the
+live verdict's own ranking -- from the items published after the window opened
+and at or before `at` (never after; the window's end when `at` is later), so
+`rules_version` is the export's. `null` when the symbol-day was not exported,
+or when no source looked and nothing was published by `at` -- unknown, never
+"no news"; a checked symbol with nothing published yet is `none_found`.
+`news_pending` / `halt_code` come from this store's `halt_events` (a Nasdaq T1
+/ T12 halt that started inside the window with no resumption logged by `at`).
+On the desk, after a merge that changes the rules or a new fetch, the operator
+runs `py -3 research/catalysts/export_leaderboard.py` (research store
+`F:\Nova\catalysts\catalysts.sqlite3`, leaderboard store
+`F:\Nova\leaderboard\leaderboard.sqlite3`; `--db` / `--since YYYY-MM-DD`).
 
 **Gap policy.** The recorder runs whenever the backend runs -- no button --
 and writes, each minute 04:00-20:00 ET on exchange days, one `minutes` row
@@ -501,9 +615,11 @@ ok, error}, days: [{date, recorded: {minutes, first_ts, last_ts, boards} |
 null, reconstructed: {minutes, first_ts, last_ts} | null}]}` newest first.
 `GET /api/leaderboard/{date}?at=<epoch>&source=` -> `{schema_version, date,
 at, source, minute_ts, covered, gap, boards: {BOARD: {state, rows[]}},
-leaders: {board, symbols[], rules}}` -- the board at the latest minute at or
+leaders: {board, symbols[], rules}, catalyst_symbols}` -- the board at the latest minute at or
 before `at` (never after); `source` defaults to `recorded` when that day has
-one, else `reconstructed`. `GET /api/leaderboard/{date}/coverage?source=` ->
+one, else `reconstructed`; `catalyst_symbols` counts the day's
+`catalyst_checks` rows (`0`: no catalysts on file for the day, and the
+Scanner's Catalysts tab says so in Sim). `GET /api/leaderboard/{date}/coverage?source=` ->
 `{date, source, session_open, session_close, spans: [[start, end], ...],
 gaps: [{start, end, reason}]}` (whole epoch seconds). `GET
 /api/leaderboard/{date}/halts?until=<epoch>` -> `{date, events[]}`. `GET
@@ -593,7 +709,11 @@ One pure classifier, `backend/catalysts/classify.py` (rules and `CATALYST_RULES_
 more than three tickers). Rules v6: a one-ticker "why is it moving" rewrite is labelled by the
 cause its summary names ("... after the company priced a $5 million offering") when that cause
 is a placed catalyst or dilution, and stays noise otherwise (no cause, "no news", a peer's news,
-a denial, a list of stocks, an analyst piece). A **verdict** for a symbol-day reads only items published after the prior
+a denial, a list of stocks, an analyst piece). Rules v7 (#517): an EDGAR item of form `4` is a
+Form 4 open-market purchase (transaction code `P`) by an officer or a director, its dollar total
+stamped in `sec_items` as `P:<whole dollars>` (`catalysts/form4.py`); at or above
+`CATALYST_INSIDER_BUY_MIN_USD` (25,000) it is `catalyst` / `listing_financing` / `weak`, below it
+(or unstamped) `routine` / `corporate_routine`. A **verdict** for a symbol-day reads only items published after the prior
 session's 16:00 ET close and at or before its cutoff: `{verdict: "catalyst" | "negative" |
 "routine_only" | "noise_only" | "none_found" | "not_checked", category, strength, title,
 source, published_ts, url, negative_too, rules_version}` (plus `sources_answered`, `n_items`).
@@ -639,6 +759,15 @@ Newsfile and FDA into `catalyst_feed.sqlite3` under `NOVA_CATALYST_DIR`, else
 `item_tickers` in the research store's shape, and `coverage (source, start_ts, end_ts)` --
 unbroken reading of a source, extended only when a poll reached back to the previous one. A
 feed source counts in `sources_answered` only where a span covers the whole window.
+**Form 4** (#517) is its own feed source, `edgar_form4` (owner `catalysts/feed_form4.py`): EDGAR's
+latest Form 4s (`owner=only`), the issuer's entry only (its CIK names the ticker), each listed
+issuer's filing read once as its full submission text; only an officer's or a director's
+open-market purchase is recorded -- an `items` row with `source: "edgar"`, `form: "4"`, the stamp in
+`sec_items` and a title like `Form 4: open-market purchase by <owner> (<role>), <shares> shares
+($<value>)`. Its span is separate from `edgar`'s, so a Form 4 burst never breaks the 8-K / 6-K
+span; a filing that cannot be read (after `CATALYST_FEED_FORM4_MAX_ATTEMPTS`, or unparseable) breaks
+it there. It is not in `CATALYST_FEED_COVERAGE_SOURCES`: it reads one filing type, so its silence
+never supports `none_found`.
 `/api/diagnostics` adds the `catalyst_feed` row (group `recorder`) with
 `evidence.sources: {name: {last_ok, last_error, items, gaps, covering_since}}` and
 `evidence.finnhub: {enabled, pending, symbols, last_ok, last_error, reads}` (the Finnhub reader).
@@ -652,7 +781,10 @@ title, summary, url, publisher, n_tickers, form, sec_items, fetched_ts)`, `item_
 n_items, detail, checked_ts)` and `verdicts` per rules version. SEC's bulk
 `submissions.zip` and `companyfacts.zip` are kept beside it under `edgar/`, Nasdaq's halt
 pages under `halts/raw/`. Nasdaq's halt history (2021-10 on) is loaded into the leaderboard's
-`halt_events` (source `nasdaq_trade_halt_rss`) by `research/catalysts/backfill_halts.py`.
+`halt_events` (source `nasdaq_trade_halt_rss`) by `research/catalysts/backfill_halts.py`, and
+its checks and labelled items into the leaderboard's `catalyst_checks` / `catalyst_items` by
+`research/catalysts/export_leaderboard.py` (#498), so Sim playback of a past day shows each
+mover's verdict at the playhead ("Catalysts in playback" under Scanner leaderboard).
 
 ### Performance recorder (ADR 026)
 
@@ -955,7 +1087,8 @@ can be disabled without its reason.
 ```
 
 Capture market projections preserve missing facts: print-only rows have null
-bid/ask/sizes/previous close; depth is empty without recorded books; daily OHLC
+bid/ask/sizes and the replay's own previous close (null when nothing records
+one, #542); depth is empty without recorded books; daily OHLC
 is null unless a replay source provides it. Loading, failed, and pre-first-event
 capture selections have no market data to fall back to -- there is no synthetic
 instrument (ADR 019), and `replay_source` is `none` when nothing is loaded.
@@ -1160,7 +1293,7 @@ Each live AllLast print on `/ws/ibkr/tape/{symbol}` gains two fields, and so doe
 - `V` / `7` contingent, `W` average price
 - `4` derivatively priced, `9` corrected close
 
-The owner is `backend/sale_conditions.py`; the codes live in `constants_tape.py`. Time & Sales shows every print. Every candle Nova builds from prints uses only the prints that set a price, volume included, because IBKR's own TRADES bars count the same prints. That covers the Trader's client 10Sec bar, `ibkr/tape_10sec`, the archive 1m builder, the recorder's bar buckets and a capture replay's print-built candles. A row without the fields (an older recording) is judged by its conditions. A Session Record replay draws every candle from its prints and never from the bar buckets stored beside them (#535, operator decision 2026-09-23): recordings made before this rule stored buckets built from every print, and `replay_load.counts` no longer lists `bars_10s` / `bars_1m` / `bars_5m`.
+The owner is `backend/sale_conditions.py`; the codes live in `constants_tape.py`. Time & Sales shows every print, and dims one that does not set a price with the reason in its tooltip (#543). A Sim capture replay's prints on `/ws/ibkr/tape/{symbol}` -- the seed a socket gets on open or a scrub, and the stream as the playhead moves -- carry the same two fields, from the recorded row (`sale_conditions.tape_flags`). Every candle Nova builds from prints uses only the prints that set a price, volume included, because IBKR's own TRADES bars count the same prints. That covers the Trader's client 10Sec bar, `ibkr/tape_10sec`, the archive 1m builder, the recorder's bar buckets and a capture replay's print-built candles. A row without the fields (an older recording) is judged by its conditions. A Session Record replay draws every candle from its prints and never from the bar buckets stored beside them (#535, operator decision 2026-09-23): recordings made before this rule stored buckets built from every print, and `replay_load.counts` no longer lists `bars_10s` / `bars_1m` / `bars_5m`.
 
 Practice fills follow the same rule (#511): on Paper, and on Sim at the live edge, the practice broker's newest-print last and its resting-order matcher read only the prints that set a price, and so do a capture replay's last and matcher. The live tape archive (`l2.db` `tape_trades`) adds a nullable `unreported` column (IBKR's flag) beside `conditions` for this; a row stored before it is judged by its conditions. A historical download already excludes IBKR's `unreported` prints.
 
@@ -1169,6 +1302,10 @@ The L1 last every quote reader takes (`ibkr/ticks_handler.py`) is IBKR's Last (t
 **The prior close is not a trade (#541).** Before a line's first trade its price is IBKR's prior close (tick 9), flagged `quote_quality: "close_fallback"`. Scanner rows show it as such; nothing else takes it as a trade: no live 1-minute candle (`ibkr/l1_minute`), no HOD Momo trade or L1 archive tick, no `trade_update` to a chart tip, no HOD enrichment price or change, and `snapshot_quotes` rows carry the same flag. `ibkr.ticks.last_quotes` rows add `quote_quality` and `last_trade_ts` (IBKR's Last Timestamp, tick 45 / 88, epoch seconds, `null` when IBKR has not sent one); a quote change keeps a line fresh but is not a trade. The ticker snapshot (`ticker_ibkr.fetch_ticker_snapshot_ibkr`) answers `latest_trade: null` and `daily_bar: null` before today's first trade (the prior close stays `prev_close`), stamps `latest_trade.timestamp` with the trade's own time (a stored bar's minute, a row's quote time, `null` when unknown -- never "now"), takes a stored 1-minute bar only from today's Eastern date, and reports an unknown volume as `null`, never `0`.
 
 **Level 2 books are Nova's own (#540).** ib_async 2.1.0 keeps each side of a depth book in a dict keyed by row: an IBKR insert overwrites the row instead of shifting the rows below it, a delete leaves a hole, and a row inserted after a delete lands at the end, so `ticker.domBids` / `domAsks` fell out of price order (GRML 2026-09-22: 466 of 111,116 recorded books, 269 with a first bid or ask that was not the best). `ibkr/depth/book.py` keeps each line's book from `ticker.domTicks` with IBKR's row rules, reset on every depth request and on IBKR error 317 (depth reset); every Level 2 reader -- the ladder, Session Record quote and L2 rows, the tape gate, Time & Sales sides -- gets that book. A kept book found out of price order is sorted and logged once per line. Books recorded before this are read best-price-first (`sim/capture_player.book_at`, `l2/recall.book_before`); quote rows recorded from them are not rewritten.
+
+### Chart bars say when IBKR history stopped answering (ADR 012, #555)
+
+`GET /api/ticker/{symbol}/bars` on the IBKR store-first path (not a Sim replay, not Alpaca) and every `bars_patch` frame on `/ws/ticker/{symbol}` carry, in `coverage` beside `filling`, `last_error: string | null` and `last_error_ts: number | null` (epoch seconds): the backend's reason and time for the last historical fetch of that (symbol, timeframe) that IBKR did not answer -- a timeout (504) or an error answer / failed qualify (502), never a Gateway-down 503 or a 400 / 404. Both are `null` when there is none; a success clears the pair at once, and a failure nobody has asked about again is forgotten after `IBKR_HISTORICAL_FAILURE_MEMORY_SEC` (owner `ibkr/historical_failures.py`, in memory only, never stored in `bars_coverage`). A failed pair is not sent to IBKR again, for any priority, for `IBKR_HISTORICAL_FAILURE_BACKOFF_SEC`: the request is shed and the pane's own retry asks again, so a farm outage stops spending the 60 / 10 min budget. A pane with no bars that is filling with `last_error` set reads "IBKR history did not answer — retrying" with the reason, not "Loading IBKR historical…"; a painted pane's header hint says the same.
 
 ### Why it's moving (ADR 028, operator ask 2026-09-23)
 
@@ -1180,10 +1317,14 @@ likely: {kind: "not_moving" | "news_pending" | "news" | "short_squeeze" | "routi
 confidence: "likely" | "possible"}, checks: [{id: "news" | "halts" | "float" | "float_rotation" |
 "reverse_split" | "short_interest" | "borrow" | "volume", label, state: "yes" | "no" | "unknown",
 value: string | null, detail: string | null, source, as_of: number | null}], facts: {price,
-change_pct, volume, rel_volume, float_shares, float_rotation, short_interest, short_pct_float,
-days_to_cover, split: {factor, ts, reverse, days_ago} | null, halts: {news, luld, volatility,
-other, source} | null, borrow: {listed, fee_rate, rebate_rate, available, available_capped,
-as_of, since, open, prior, max_fee_today, min_available_today} | null, catalyst: verdict | null}}`.
+change_pct, volume, rel_volume, float_shares, float_contradicted, float_rotation, short_interest,
+short_interest_ts, short_pct_float, days_to_cover, split: {factor, ts, reverse, days_ago} | null,
+halts: {news, luld, volatility, other, source} | null, borrow: {listed, fee_rate, rebate_rate,
+available, available_capped, as_of, since, open, prior, max_fee_today, min_available_today} | null,
+catalyst: verdict | null}}`. `float_contradicted` / `short_interest_ts` are the scanner row's (#532,
+"Float credibility and short-interest dates"); a contradicted float's check reads "54K? shares"
+with the reason as its `detail` and keeps its state, and the short-interest check's `as_of` is the
+FINRA settlement date. `days_to_cover` is Yahoo's short ratio and its value says "(Yahoo ratio)".
 `fee_rate` / `rebate_rate` are IBKR's annual percent; `open` / `prior` are `{listed, fee_rate,
 available, as_of}` at the day's first poll at or after 04:00 ET and the last poll before it (null
 when not recorded); `since` is the first poll the store holds. A symbol IBKR's file does not list is
@@ -1508,6 +1649,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-24 | Leftover-issue sweep (operator ask: "Do we have any still-leftover issues on GitHub? Can we go ahead and address them?"): all 28 open issues checked against master; five were already fixed and closed (#430, #448, #481, #484, #516). §3 amended for what shipped: scanner snapshots dated by their exchange session (#483); the replayed session's previous close is IBKR's own -- a recorded tick 9, the leaderboard, a download's regular-hours daily close, else none, never a 15:59 or after-hours close (#542); a recording's lost tape line is named, asked for again and counted in the manifest (#525, cause unproven); Time & Sales dims prints that do not set a price, and a capture replay's chart tip and last trade skip them (#543); Form 4 open-market insider purchases are a weak catalyst, rules v7 (#517); a float Yahoo's own counts contradict is flagged and short interest carries its FINRA date, no gate changed (#532, point 2 awaits the operator); the leaderboard store is schema 2 with per-day catalyst items for Sim playback (#498); chart bars coverage says when IBKR history stopped answering, and a failed pair backs off 30 s (#555). Also: the session commission read is cached exactly by ledger generation (#554), the Gateway port probe and HOD Momo's alert writes left the loops (#505, #553), Nova Action cancels and flattens work on a disarmed desk (#548, ADR 018 decision 4), tape and depth lines from an ended IBKR session stop counting as subscribed and are asked for again (#562, `ibkr/line_session.py`), the 17 stale Playwright specs match today's desk (#502), and several QA leftovers (#459, #486, #487). Decisions recorded on their issues: #449, #485, #499, #504, #514, #564; new bugs filed: #563, #565, #566. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | The first-pullback bot trades Paper and Sim; the read-out gates Live (ADR 030, #514; operator report: "When I'm on paper, I cannot activate the button for the bots" -- then "Paper/Sim skip it + build"). Activate at Strategy was locked on every venue by the first-pullback read-out (0 of 50 go setups: a go needs Nova to hold the name's Level 2 at the trigger), and nothing placed a trade on a trigger anyway. Now Paper and Sim skip the read-out (Live keeps it; an unreadable venue counts as Live), and `bot/first_pullback/` trades the template in play's go triggers there through every bot gate: a limit at the scanner's entry, a resting target, a watched stop, a 15-minute time stop, one trade a day (a miss gives the day back). Nothing places on Live. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Nova shows a window the moment it starts (operator pick after the update fix): the desk window was created only once the local engine answered and shown only once its page loaded, so a cold start -- a 2.5 s look for a running engine, the engine's own start, the page load -- had nothing on screen. A small "Starting Nova" window now opens about 0.6 s after launch, names the step (looking for, starting or connecting to the local engine, loading the desk), closes the moment the desk shows, and calls the launch off when the operator closes it. After an update it takes over from the "Updating Nova" window. `startApiSidecar()` now says whether it reused, attached to or spawned the engine. §8 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Release notes and an update you are asked about (operator ask: "after we update to a new version, can we have a release note show up in front of the user? If ... we identify a new update, could we also notify the user if they are interested in updating it or not?"): a check that finds a newer release no longer downloads it in the background -- a notice under the header names the release with its notes and asks Update / Later, then follows the download to Restart to update; it never takes keyboard focus, and a window that cannot show it gets the same questions as dialogs. The first launch of a new version shows What's new, a floating card with the notes of every release the update brought (Help > What's New reopens it). Release bodies were boilerplate; `Desktop pack` now writes them from the commit (`tools/release_notes.py`: PR title plus the first paragraph of `## What`, and a hidden record the desk parses). §3 and §8 amended. | User Directive + Claude Opus 5.5 |

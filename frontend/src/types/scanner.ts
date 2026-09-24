@@ -28,11 +28,25 @@ export interface ScannerRow {
   /** Sim playback (ADR 023): halted at the board's minute per the halt log; null = unknown. Absent on live rows. */
   halted?: boolean | null;
   newest_headline_at: string | null;
-  /** What the news since the prior close is (ADR 024): null = not read yet; absent on played-back rows. */
+  /**
+   * What the news since the prior close is (ADR 024): null = not read yet. A played-back row (#498)
+   * carries it only when the day's catalyst export has a verdict for it, as known at the playhead.
+   */
   catalyst?: CatalystVerdict | null;
+  /** Sim playback: the playhead (epoch s) `catalyst` was read at -- its age counts from here, not now. */
+  catalyst_as_of?: number | null;
   market_cap: number | null;
   float: number | null;
+  /** Yahoo's shares outstanding (#532); null when unknown, absent from an older API. */
+  shares_outstanding?: number | null;
+  /** True when Yahoo's own shares outstanding or short interest contradicts `float` (#532); null = not checkable. */
+  float_contradicted?: boolean | null;
+  /** Why the float is doubtful, only when `float_contradicted` is true. */
+  float_contradicted_reason?: string | null;
   short_interest: number | null;
+  /** Epoch seconds of the FINRA settlement `short_interest` is from (Yahoo's date); null when unknown. */
+  short_interest_ts?: number | null;
+  /** Yahoo's own ratio (short interest over Yahoo's average volume), not FINRA's days to cover. */
   short_ratio: number | null;
   /** Yahoo event-of-record date (ET), used by the Earnings dots hover. */
   earnings_date?: string | null;

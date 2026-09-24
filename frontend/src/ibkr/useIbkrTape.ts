@@ -133,14 +133,16 @@ export function useIbkrTape(symbol: string | null, uiActive = true): TapeState {
               side: msg.side,
               bid: msg.bid ?? null,
               ask: msg.ask ?? null,
+              unreported: msg.unreported === true,
+              // Older backends send no verdict: treat the print as a price, as before.
+              setsPrice: msg.sets_price !== false,
             };
             printsRef.current = appendTapePrint(printsRef.current, print);
             upsertTapePrint10SecBar(symKey!, {
               time: print.time,
               price: print.price,
               size: print.size,
-              // Older backends send no verdict: treat the print as a price, as before.
-              setsPrice: msg.sets_price !== false,
+              setsPrice: print.setsPrice,
             });
             if (uiActiveRef.current) raf.schedule();
           } else if (msg.type === 'error') {

@@ -178,6 +178,38 @@ describe('useIbkrTape lifecycle', () => {
     expect(entry?.coverage?.filling).toBe(true);
   });
 
+  it("carries the backend's unreported / sets_price verdict onto each print (#543)", () => {
+    renderSymbol('PLTR');
+    act(() => {
+      const ws = FakeWebSocket.instances[0];
+      const frames = [
+        { price: 192.75, size: 200, conditions: '', unreported: false, sets_price: true },
+        { price: 190.37, size: 1, conditions: '   I', unreported: false, sets_price: false },
+        { price: 190.38, size: 100, conditions: ' 4 W', unreported: true, sets_price: false },
+        // An older backend sends neither field: the print reads as a price.
+        { price: 192.8, size: 100, conditions: '' },
+      ];
+      frames.forEach((frame, i) => {
+        ws.onmessage?.({
+          data: JSON.stringify({
+            type: 'print', symbol: 'PLTR', time: `2026-09-23T13:45:0${i + 1}.000Z`, ...frame,
+          }),
+        });
+      });
+    });
+    flushTapeFrame();
+    expect(latest?.prints.map(p => [p.price, p.unreported, p.setsPrice])).toEqual([
+      [192.8, false, true],
+      [190.38, true, false],
+      [190.37, false, false],
+      [192.75, false, true],
+    ]);
+    // The 10Sec candle takes the same verdict: no wick from the volume-only prints.
+    expect(getBarsEntry('PLTR', '10Sec')?.bars).toEqual([
+      { t: '2026-09-23T13:45:00.000Z', o: 192.75, h: 192.8, l: 192.75, c: 192.8, v: 300 },
+    ]);
+  });
+
   it('coalesces a print burst into one ordered ring after one frame', () => {
     renderSymbol('AAPL');
     act(() => {

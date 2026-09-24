@@ -2,9 +2,12 @@
 
 Owner: backend/leaderboard/. Schema: ``leaderboard.schema``. Rows are history
 and immutable; a reconstruction rebuild replaces only its own (date, source).
+The catalyst tables (schema 2, #498) are written only by
+``research/catalysts/export_leaderboard.py``, which replaces a symbol-day whole.
 """
 from __future__ import annotations
 
+import logging
 import os
 import sqlite3
 from collections.abc import Iterable, Iterator, Sequence
@@ -16,15 +19,24 @@ from constants_leaderboard import (
     LEADERBOARD_DB_FILENAME,
     LEADERBOARD_DEFAULT_ROOT_WIN,
     LEADERBOARD_DIR_ENV,
+    LEADERBOARD_SCHEMA_VERSION,
+    LEADERBOARD_SOURCE_RECONSTRUCTED,
+    LEADERBOARD_SOURCE_RECORDED,
     LEADERBOARD_SQLITE_TIMEOUT_SEC,
 )
 from leaderboard.schema import (
+    CATALYST_CHECK_COLUMNS,
+    CATALYST_ITEM_COLUMNS,
     COVERAGE_COLUMNS,
     HALT_COLUMNS,
     MINUTE_COLUMNS,
     ROW_COLUMNS,
+    READABLE_VERSIONS,
+    UnknownLeaderboardSchema,
     initialize,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _durable_archive_available() -> bool:
@@ -58,6 +70,34 @@ def connect(database: Path | None = None) -> Iterator[sqlite3.Connection]:
         yield db
     finally:
         db.close()
+
+
+def read_only(database: Path | None = None) -> sqlite3.Connection | None:
+    """The store opened read-only, or ``None`` when there is none yet.
+
+    For readers outside the recorder (the replay's previous close, #542): a read
+    never creates the store, its directory or its tables, and never migrates it --
+    so a store not yet migrated (``READABLE_VERSIONS``) is read as found, and its
+    readers query only the ``rows`` table every version holds. A store written by
+    a newer Nova raises ``UnknownLeaderboardSchema``, as ``connect`` does.
+    """
+    target = database or path()
+    if not target.is_file():
+        return None
+    db = sqlite3.connect(f"{target.resolve().as_uri()}?mode=ro", uri=True,
+                         timeout=LEADERBOARD_SQLITE_TIMEOUT_SEC)
+    try:
+        version = db.execute("PRAGMA user_version").fetchone()[0]
+    except sqlite3.Error:
+        db.close()
+        raise
+    if version in READABLE_VERSIONS:
+        return db
+    db.close()
+    if version == 0:
+        return None  # Created but never initialized: nothing has been written.
+    raise UnknownLeaderboardSchema(
+        f"leaderboard store schema version {version} is not {LEADERBOARD_SCHEMA_VERSION}")
 
 
 def _insert_sql(table: str, columns: Sequence[str], verb: str = "INSERT OR REPLACE") -> str:
@@ -101,6 +141,26 @@ def replace_day(db: sqlite3.Connection, session_date: str, source: str) -> None:
     with db:
         db.execute("DELETE FROM rows WHERE session_date = ? AND source = ?", (session_date, source))
         db.execute("DELETE FROM coverage WHERE session_date = ? AND source = ?", (session_date, source))
+
+
+def replace_catalysts(
+    db: sqlite3.Connection,
+    checks: Iterable[dict[str, Any]],
+    items: Iterable[dict[str, Any]],
+) -> dict[str, int]:
+    """One transaction: each check's symbol-day loses its old items, then gets the new check and items."""
+    check_t = _tuples(checks, CATALYST_CHECK_COLUMNS)
+    item_t = _tuples(items, CATALYST_ITEM_COLUMNS)
+    with db:
+        db.executemany(
+            "DELETE FROM catalyst_items WHERE session_date = ? AND symbol = ?",
+            [(row[0], row[1]) for row in check_t],
+        )
+        if check_t:
+            db.executemany(_insert_sql("catalyst_checks", CATALYST_CHECK_COLUMNS), check_t)
+        if item_t:
+            db.executemany(_insert_sql("catalyst_items", CATALYST_ITEM_COLUMNS), item_t)
+    return {"checks": len(check_t), "items": len(item_t)}
 
 
 def start_run(db: sqlite3.Connection, run_id: str, ts: float) -> None:
@@ -208,6 +268,39 @@ def runs_between(db: sqlite3.Connection, start: float, end: float) -> list[dict[
     return [dict(row) for row in out]
 
 
+def prev_close_for(db: sqlite3.Connection, session_date: str, symbol: str) -> float | None:
+    """The symbol's prior close on that day's rows: recorded (IBKR tick 9) before rebuilt.
+
+    The most common positive value, so one odd minute cannot outvote the day;
+    ties go to the value seen latest.
+    """
+    for source in (LEADERBOARD_SOURCE_RECORDED, LEADERBOARD_SOURCE_RECONSTRUCTED):
+        row = db.execute(
+            "SELECT prev_close FROM rows"
+            " WHERE session_date = ? AND source = ? AND symbol = ? AND prev_close > 0"
+            " GROUP BY prev_close ORDER BY COUNT(*) DESC, MAX(minute_ts) DESC LIMIT 1",
+            (session_date, source, symbol.strip().upper()),
+        ).fetchone()
+        if row is not None:
+            return float(row[0])
+    return None
+
+
+def day_prev_close(session_date: str, symbol: str, database: Path | None = None) -> float | None:
+    """``prev_close_for`` on the store as found; ``None`` when absent, unreadable or silent."""
+    try:
+        db = read_only(database)
+        if db is None:
+            return None
+        try:
+            return prev_close_for(db, session_date, symbol)
+        finally:
+            db.close()
+    except (sqlite3.Error, OSError, ValueError):
+        logger.warning("LEADERBOARD: prior close unread for %s %s", symbol, session_date, exc_info=True)
+        return None
+
+
 def halt_events(
     db: sqlite3.Connection,
     session_date: str,
@@ -225,3 +318,22 @@ def halt_events(
         args.extend(symbols)
     sql += " ORDER BY ts, symbol"
     return [dict(row) for row in db.execute(sql, args).fetchall()]
+
+
+def catalyst_checks(db: sqlite3.Connection, session_date: str) -> list[dict[str, Any]]:
+    """Every symbol the day's catalyst export checked (an empty list: nothing exported for the day)."""
+    out = db.execute(
+        f"SELECT {', '.join(CATALYST_CHECK_COLUMNS)} FROM catalyst_checks WHERE session_date = ? ORDER BY symbol",
+        (session_date,),
+    ).fetchall()
+    return [dict(row) for row in out]
+
+
+def catalyst_items(db: sqlite3.Connection, session_date: str, *, until: float) -> list[dict[str, Any]]:
+    """The day's exported items published at or before ``until`` -- never one after it."""
+    out = db.execute(
+        f"SELECT {', '.join(CATALYST_ITEM_COLUMNS)} FROM catalyst_items"
+        " WHERE session_date = ? AND published_ts <= ? ORDER BY symbol, published_ts",
+        (session_date, float(until)),
+    ).fetchall()
+    return [dict(row) for row in out]

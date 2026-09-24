@@ -8,9 +8,14 @@ import {
 import {
   TICKET_LAST_LABEL,
   TICKET_WHY_SENDING,
-  WHY_GATEWAY_NOT_CONNECTED,
 } from '../constantGroups/trader_chrome';
 import { EstChip } from '../stock_view/EstChip';
+import {
+  GATEWAY_STATUS_KNOWN,
+  gatewayLockWhy,
+  gatewayPlaceLabel,
+  type GatewayStatusFact,
+} from './gatewayStatusWording';
 import { PlaceOrderConfirmDialog } from './PlaceOrderConfirmDialog';
 import { writeSkipPlaceConfirm } from './placeConfirmPrefs';
 import { placeActionLabel, type TicketSide } from './ticketSide';
@@ -23,6 +28,8 @@ interface Props {
   symbol?: string;
   needsPinUnlock: boolean;
   connected: boolean;
+  /** Whether `connected: false` is a status answer or an unknown (QA D10, #459). */
+  gatewayStatus?: GatewayStatusFact;
   submitting: boolean;
   spendLocked: boolean;
   spendLockReason?: string | null;
@@ -46,6 +53,7 @@ export function ManualOrderFooter({
   symbol = '',
   needsPinUnlock,
   connected,
+  gatewayStatus = GATEWAY_STATUS_KNOWN,
   submitting,
   spendLocked,
   spendLockReason = null,
@@ -67,14 +75,14 @@ export function ManualOrderFooter({
   const placeBlockedBySpend = spendLocked && !needsPinUnlock;
   // A locked Place says why (ux/whyTip.ts); the native title only describes a Place that works.
   const placeWhy = !connected
-    ? WHY_GATEWAY_NOT_CONNECTED
+    ? gatewayLockWhy(gatewayStatus)
     : submitting
       ? TICKET_WHY_SENDING
       : placeBlockedBySpend
         ? lockReason
         : null;
   const buttonText = !connected
-    ? 'Connect IB Gateway'
+    ? gatewayPlaceLabel(gatewayStatus)
     : needsPinUnlock
       ? TICKER_TRADE_UNLOCK_LABEL
       : placeBlockedBySpend

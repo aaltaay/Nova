@@ -7,6 +7,11 @@ Time & Sales window. One stream per open symbol, refcounted like depth.py.
 IB limitation: no second reqTickByTickData for the same instrument within
 15 seconds. The 15s debounce tracks when we last cancelled a subscription
 and refuses to resubscribe until the window clears.
+
+How a line ends, and saying so, is ``ibkr/tape_line.py`` (#525). Each line is
+stamped with the IBKR session generation it was requested on; a line of an
+ended session is not subscribed, and joining it lets it go first
+(``ibkr/line_session.py``, #562).
 """
 from __future__ import annotations
 
@@ -15,12 +20,12 @@ import logging
 import time
 from typing import Any
 
-from constants import (
-    IBKR_ERROR_TICK_BY_TICK_CODES,
-    IBKR_TAPE_TICK_TYPE,
-)
+from constants import IBKR_TAPE_TICK_TYPE
 from ibkr import client as _client
 from ibkr import depth as _depth
+from ibkr import line_session as _line_session
+from ibkr import tape_line as _tape_line
+from ibkr.tape_events import warm_10sec_fill as _warm_10sec_fill
 from metrics.op_metrics import timed_sync
 from perf.counters import incr as _count_drop
 
@@ -66,24 +71,6 @@ def _load_ib_types() -> bool:
         return False
 
 
-from ibkr.tape_events import _should_warm_10sec
-
-
-def _warm_10sec_fill(symbol: str) -> None:
-    """First Trader tape subscriber for a symbol warms its 10Sec hist fill
-    (D-003) -- ``priority="warm"`` sheds on any pacing wait, so this never
-    competes with a genuinely empty pane's ``open_chart`` fill."""
-    try:
-        if not _should_warm_10sec(symbol):
-            return
-        from constants import IBKR_10SEC_FETCH_BARS
-        from ibkr.historical_service import schedule_fill
-
-        schedule_fill(symbol, "10Sec", IBKR_10SEC_FETCH_BARS, priority="warm")
-    except Exception:
-        logger.debug("IBKR tape: 10Sec warm schedule failed for %s", symbol, exc_info=True)
-
-
 def _push_queue(symbol: str, payload: dict) -> None:
     """Broadcast payload to every viewer currently watching this symbol."""
     try:
@@ -111,28 +98,17 @@ def _on_tape_update(ticker: Any, symbol: str) -> None:
     on_tape_update(ticker, symbol, _push_queue, _depth)
 
 
+# Maps an IB error to the line it ended, by request id (#525).
+_on_ib_error = _tape_line.on_ib_error
+# A line's end: IB's error, a silent recording, its session (#525, #562).
+end_line = _tape_line.end_line
+
+
 def _install_error_hook(ib: Any) -> None:
     if id(ib) in _error_hooked_ib_ids:
         return
     ib.errorEvent += _on_ib_error
     _error_hooked_ib_ids.add(id(ib))
-
-
-def _on_ib_error(reqId: int, errorCode: int, errorString: str, contract: Any) -> None:
-    if errorCode not in IBKR_ERROR_TICK_BY_TICK_CODES:
-        return
-    con_id = getattr(contract, "conId", None) if contract is not None else None
-    if con_id is None:
-        return
-    for sym, c in list(_contracts.items()):
-        if getattr(c, "conId", None) != con_id:
-            continue
-        msg = errorString or f"Tick-by-tick rejected (IB error {errorCode})"
-        logger.warning("IBKR tape: subscription error for %s — %s: %s", sym, errorCode, msg)
-        from ibkr.tape_recording import rejected
-        rejected(sym, msg)
-        _push_queue(sym, {"type": "error", "symbol": sym, "message": msg})
-        return
 
 
 def reset_for_tests() -> None:
@@ -148,6 +124,7 @@ def reset_for_tests() -> None:
     _cancelled_at.clear()
     _error_hooked_ib_ids.clear()
     _subscribe_locks.clear()
+    _tape_line.reset_for_tests()
 
 
 def prune_idle_maps(now: float | None = None) -> dict[str, int]:
@@ -222,7 +199,7 @@ async def subscribe_async(symbol: str) -> dict:
     if not _load_ib_types():
         return {"ok": False, "error": "ib_async not available"}
 
-    if symbol in _tickers:
+    if _joinable(symbol):
         return {"ok": True, "error": None}
 
     # Serialize per symbol: two concurrent callers (StrictMode double-mount,
@@ -234,13 +211,19 @@ async def subscribe_async(symbol: str) -> dict:
         return await _subscribe_locked(symbol, ib)
 
 
+def _joinable(symbol: str) -> bool:
+    """A line of this IBKR session to join; one of an ended session is let go first (#562)."""
+    if symbol in _tickers and not is_subscribed(symbol):
+        _line_session.settle()
+    return symbol in _tickers
+
+
 async def _subscribe_locked(symbol: str, ib: Any) -> dict:
-    if symbol in _tickers:
+    if _joinable(symbol):
         return {"ok": True, "error": None}
 
     # IB 15-second same-instrument guard
-    last_cancel = _cancelled_at.get(symbol, 0)
-    wait_remaining = IBKR_TAPE_RESUBSCRIBE_GUARD_SEC - (time.time() - last_cancel)
+    wait_remaining = guard_remaining(symbol)
     if wait_remaining > 0:
         logger.debug(
             "IBKR tape: %s resubscribe guard active (%.1fs remaining)", symbol, wait_remaining
@@ -270,10 +253,11 @@ async def _subscribe_locked(symbol: str, ib: Any) -> dict:
             _on_tape_update(t, sym)
 
         ticker.updateEvent += handler
-        _tickers[symbol] = {"ticker": ticker, "handler": handler}
+        _tickers[symbol] = {"ticker": ticker, "handler": handler, "generation": _line_session.generation()}
         from ibkr.tape_recording import subscribed
         subscribed(symbol)
-        logger.info("IBKR tape: subscribed %s (AllLast)", symbol)
+        req_id = _tape_line.note_subscribed(symbol, ib, contract)
+        logger.info("IBKR tape: subscribed %s (AllLast, reqId %s)", symbol, req_id)
     except Exception as exc:
         logger.exception("IBKR tape: reqTickByTickData failed for %s: %s", symbol, exc)
         _contracts.pop(symbol, None)
@@ -293,35 +277,8 @@ def unsubscribe(symbol: str) -> None:
 
 def _release_subscription(symbol: str) -> None:
     symbol = symbol.upper()
-    _cancel_linger(symbol)
-    sub = _tickers.pop(symbol, None)
-    contract = _contracts.pop(symbol, None)
-    if sub is None:
+    if not _tape_line.drop_line(symbol, "no viewer left"):
         return
-    ib = _client.get_ib()
-    ticker = sub.get("ticker")
-    handler = sub.get("handler")
-    if ticker and handler:
-        try:
-            ticker.updateEvent -= handler
-        except (ValueError, AttributeError, KeyError) as exc:
-            logger.debug(
-                "IBKR tape: handler detach failed for %s: %s",
-                symbol,
-                exc,
-            )
-    if ib and contract is not None:
-        try:
-            ib.cancelTickByTickData(contract, IBKR_TAPE_TICK_TYPE)
-        except Exception as exc:
-            logger.debug(
-                "IBKR tape: cancelTickByTickData failed for %s: %s",
-                symbol,
-                exc,
-            )
-    _cancelled_at[symbol] = time.time()
-    prune_idle_maps()
-    logger.info("IBKR tape: unsubscribed %s", symbol)
     # Any viewer still watching (should not normally happen -- unsubscribe
     # only runs after the last viewer closed and the linger re-check found
     # nothing) gets told so its socket closes and reconnects instead of
@@ -335,6 +292,12 @@ def _release_subscription(symbol: str) -> None:
             "released": True,
         },
     )
+
+
+def guard_remaining(symbol: str, now: float | None = None) -> float:
+    """Seconds before IB takes another request for this symbol's tape (0 when free)."""
+    last = _cancelled_at.get(symbol.upper(), 0.0)
+    return max(0.0, IBKR_TAPE_RESUBSCRIBE_GUARD_SEC - ((time.time() if now is None else now) - last))
 
 
 def ws_viewer_opened(symbol: str) -> None:
@@ -358,8 +321,9 @@ def viewer_count(symbol: str) -> int:
 
 
 def is_subscribed(symbol: str) -> bool:
-    """Is there an active IB tick-by-tick line for this symbol right now."""
-    return symbol in _tickers
+    """Is there an active IB tick-by-tick line for this symbol right now -- on this IBKR session."""
+    sub = _tickers.get(symbol)
+    return sub is not None and not _line_session.is_stale(sub.get("generation"))
 
 
 def open_viewer_queue(symbol: str) -> asyncio.Queue:

@@ -18,6 +18,13 @@ export interface BarsCoverage {
   derivedFrom?: string | null;
   replay?: boolean;
   replayMode?: string | null;
+  /**
+   * The pair's last IBKR historical fetch failed (a timeout, an error answer)
+   * and nothing has succeeded since (#555): the backend's reason and when it
+   * happened (epoch seconds). Absent when the backend states no failure.
+   */
+  lastError?: string;
+  lastErrorTs?: number | null;
 }
 
 export interface BarsStoreEntry {
@@ -80,6 +87,12 @@ export function parseBarsCoverage(raw: unknown): BarsCoverage | undefined {
     ...(cov.replay ? {
       replay: true,
       replayMode: typeof cov.replay_mode === 'string' ? cov.replay_mode : null,
+    } : {}),
+    ...(typeof cov.last_error === 'string' && cov.last_error ? {
+      lastError: cov.last_error,
+      lastErrorTs: typeof cov.last_error_ts === 'number' && Number.isFinite(cov.last_error_ts)
+        ? cov.last_error_ts
+        : null,
     } : {}),
   };
 }
