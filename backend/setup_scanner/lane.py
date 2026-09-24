@@ -13,7 +13,12 @@ The host (``SetupEngine`` live, ``eyes.replay.EyesReplay`` on a recording)
 supplies ``session``, ``pillars(sym, now)``, ``tape_books(sym)``,
 ``tape_prints(sym)``, ``tape_line(sym)``, ``save(row)``, ``journal(event)``,
 ``audit(**kw)``, ``clock()`` and ``can_propose(setup_type)``, and may supply
-``on_trigger(event)`` (the live engine: ADR 030). Nothing here places an order.
+``on_trigger(event)`` (the live engine: ADR 030), ``flow(sym, now, params)`` (a
+shared, cached tape flow reading) and ``tape_since(sym)`` (the earliest moment
+its prints vouch for). Nothing here places an order.
+
+ADR 034: every tape read carries the tape flow score, and a triggered setup's
+flow is read through its scoring window (``setup_scanner/lane_flow.py``).
 """
 from __future__ import annotations
 
@@ -35,6 +40,7 @@ from setup_scanner.bars import Bar, minute_start
 from setup_scanner.detector import TriggerDetector
 from setup_scanner.detectors import make_detector
 from setup_scanner.lane_params import LaneParams
+from setup_scanner import lane_flow, tape_flow
 from setup_scanner.scoring import ScoreTracker
 from setup_scanner.tape_gate import evaluate as evaluate_tape
 
@@ -54,7 +60,8 @@ ORDER = lane_view.ORDER
 
 
 def slim(res: dict) -> dict:
-    return {"verdict": res.get("verdict"), "reasons": res.get("reasons"), "line": res.get("line")}
+    return {"verdict": res.get("verdict"), "reasons": res.get("reasons"), "line": res.get("line"),
+            "flow": tape_flow.brief(res.get("flow"))}
 
 
 class Lane:
@@ -71,6 +78,9 @@ class Lane:
         self.filtered: dict[str, str] = {}
         self.alerts: list[dict] = []
         self._tape_said: dict[str, str] = {}
+        self.flow_last: dict[str, dict] = {}      # setup id -> the newest flow reading after its trigger
+        self._flow_said: dict[str, str] = {}
+        self._flow_next: dict[str, float] = {}
 
     # -- identity -------------------------------------------------------------
     @property
@@ -100,7 +110,8 @@ class Lane:
     # -- symbols ----------------------------------------------------------------
     def clear(self) -> None:
         for store in (self.det, self.rows, self.active_id, self.trackers, self.tape_view,
-                      self.proposals, self.filtered, self._tape_said):
+                      self.proposals, self.filtered, self._tape_said, self.flow_last, self._flow_said,
+                      self._flow_next):
             store.clear()
         self.alerts = []
 
@@ -121,6 +132,13 @@ class Lane:
     def busy(self) -> set[str]:
         """Symbols this lane still needs: a watched setup or a trade being scored."""
         return self.watching() | {self.rows[sid]["symbol"] for sid in self.trackers if sid in self.rows}
+
+    def trades(self, now: float) -> list[str]:
+        """Setup ids whose trade is inside its scoring window: their flow is read (ADR 034)."""
+        return lane_flow.trades(self, now)
+
+    def trade_symbols(self, now: float) -> set[str]:
+        return {self.rows[sid]["symbol"] for sid in self.trades(now)}
 
     def _tracker_ids(self, sym: str) -> list[str]:
         return [sid for sid in self.trackers if self.rows.get(sid, {}).get("symbol") == sym]
@@ -212,7 +230,7 @@ class Lane:
                     risk=float(setup["risk"]), triggered_at=ts,
                     entry_bar_t=float(setup.get("score_bar_t") or minute_start(ts)),
                     bailout_bars=self.p.bailout_bars,
-                    half_on_entry_bar=bool(setup.get("half_on_entry_bar", True)))
+                    half_on_entry_bar=bool(setup.get("half_on_entry_bar", True)), flush=self.p.flush)
                 self.journal("triggered", sym, setup_id=sid, setup=setup, price=setup.get("trigger_price"),
                              tape=tape)
                 self._close_proposal(sid, "triggered")
@@ -268,9 +286,17 @@ class Lane:
         if not setup:
             return {"verdict": TAPE_VERDICT_BLIND, "reasons": ["no setup"], "metrics": {}}
         res = evaluate_tape(trigger=float(setup["trigger"]), now=now, books=self.host.tape_books(sym),
-                            prints=self.host.tape_prints(sym), p=self.p.gate)
+                            prints=self.host.tape_prints(sym), p=self.p.gate, flow=self.flow(sym, now))
         res["line"] = self.host.tape_line(sym)
         return res
+
+    def flow(self, sym: str, now: float) -> dict:
+        """The tape flow at ``now`` under this template's numbers (``lane_flow.flow``)."""
+        return lane_flow.flow(self, sym, now)
+
+    def read_trades(self, now: float) -> None:
+        """Each trade on: read its flow and let the template's flush exit act (``lane_flow.read_trades``)."""
+        lane_flow.read_trades(self, now)
 
     def gate(self, now: float) -> None:
         wanted = self.watching()
@@ -293,6 +319,7 @@ class Lane:
                 # No open proposal: none yet, or the last one was withdrawn when the
                 # setup re-armed at new levels or was disarmed and armed again.
                 self._propose(sym, sid, res, now)
+        self.read_trades(now)
 
     def _propose(self, sym: str, sid: str, res: dict, now: float) -> None:
         row = self.rows.get(sid) or {}

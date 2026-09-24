@@ -16,6 +16,11 @@ are kept in ``rows`` (a backtest writes them to its own run, never to
 ADR 031: the templates may be of any setup with a scanner; ``playing`` names each
 setup's template in play, and ``levels`` (the Sim eyes) keeps a setup at Off
 silent, as the live engine does. A backtest proposes on every lane.
+
+ADR 034: the tape flow is read from a prefix-sum index over the whole recording
+(``tape_flow.FlowIndex``, the live rule summed another way), never before the
+start of the recorded stretch that holds the moment; a trade on keeps the lanes
+stepping so its flush exit is read.
 """
 from __future__ import annotations
 
@@ -24,6 +29,7 @@ from typing import Any, Callable
 from constants_bot import BOT_LEVEL_EYES, BOT_SCANNER_SETUPS, BOT_SETUP_FIRST_PULLBACK
 from constants_setups import TAPE_GATE_WINDOW_SEC
 from eyes.recording import Recording, day_start_ts, pillars_at
+from setup_scanner import tape_flow
 from setup_scanner.lane import Lane
 from setup_scanner.lane_params import lane_params
 
@@ -60,7 +66,10 @@ class EyesReplay:
         self.last_price: float | None = None
         self._bi = 0
         self._ti = 0
-        self._keep = 3 * max([lane.p.gate.window_sec for lane in self.lanes] + [TAPE_GATE_WINDOW_SEC])
+        self._keep = max(3 * max([lane.p.gate.window_sec for lane in self.lanes] + [TAPE_GATE_WINDOW_SEC]),
+                         max([lane.p.flow.history_sec for lane in self.lanes] + [0.0]))
+        self._flow_index: tape_flow.FlowIndex | None = None
+        self._flow_memo: dict = {}
         for lane in self.lanes:
             lane.ensure(rec.symbol)
 
@@ -95,6 +104,24 @@ class EyesReplay:
 
     def tape_prints(self, sym: str) -> list:
         return self.rec.prints_between(self.now - self._keep, self.now)
+
+    def tape_since(self, sym: str) -> float | None:
+        """The start of the recorded stretch that holds now; inside a gap, now itself (nothing is vouched for)."""
+        if not self.rec.spans:
+            return self.rec.first_ts
+        for a, b in self.rec.spans:
+            if a <= self.now <= b:
+                return a
+        return self.now
+
+    def flow(self, sym: str, now: float, p: tape_flow.FlowParams) -> dict:
+        if self._flow_index is None:
+            self._flow_index = tape_flow.FlowIndex(self.rec.prints, self.rec.books)
+        if self._flow_memo.get("now") != now:
+            self._flow_memo = {"now": now}
+        if p not in self._flow_memo:
+            self._flow_memo[p] = self._flow_index.evaluate(now, p, history_from=self.tape_since(sym))
+        return self._flow_memo[p]
 
     def tape_line(self, sym: str) -> dict:
         recorded = self.rec.recorded_at(self.now)
@@ -155,7 +182,7 @@ class EyesReplay:
                 self.last_price = last
             for lane in self.lanes:
                 lane.sweep(step)
-                if lane.watching():
+                if lane.watching() or lane.trades(step):
                     lane.gate(step)
         self.now = max(self.now, until)
 

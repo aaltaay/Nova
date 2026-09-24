@@ -38,6 +38,12 @@ from constants_bot import (
     BOT_SETUPS_WITH_SCANNER,
 )
 from constants_setups import (
+    FLUSH_EXIT_EXIT,
+    FLUSH_EXIT_HOLD_SEC,
+    FLUSH_EXIT_MIN_R,
+    FLUSH_EXIT_OFF,
+    FLUSH_EXIT_TIGHTEN,
+    FLUSH_EXIT_TRAIL_R,
     SETUPS_BAILOUT_BARS,
     SETUPS_BF_EMA_HOLD,
     SETUPS_BF_EMA_TOUCH_PCT,
@@ -106,6 +112,23 @@ from constants_setups import (
     TAPE_GATE_THIN_FRACTION,
     TAPE_GATE_WALL_SHARES,
     TAPE_GATE_WINDOW_SEC,
+    TAPE_ENTRY_BOTH,
+    TAPE_ENTRY_GATE,
+    TAPE_ENTRY_MIN_SCORE,
+    TAPE_ENTRY_SCORE,
+    TAPE_FLOW_BASELINE_SEC,
+    TAPE_FLOW_BOOK_LEVELS,
+    TAPE_FLOW_BURST_AT,
+    TAPE_FLOW_DRIFT_FULL,
+    TAPE_FLOW_FLUSH_AT,
+    TAPE_FLOW_MIN_PRINTS,
+    TAPE_FLOW_MIN_SHARES,
+    TAPE_FLOW_PACE_FULL,
+    TAPE_FLOW_W_BOOK,
+    TAPE_FLOW_W_DRIFT,
+    TAPE_FLOW_W_IMBALANCE,
+    TAPE_FLOW_W_PACE,
+    TAPE_FLOW_WINDOW_SEC,
 )
 
 NUMBER, INT, BOOL, TIME, CHOICE = "number", "int", "bool", "time", "choice"
@@ -158,6 +181,9 @@ GROUP_LABELS: dict[str, tuple[str, str]] = {
     "entry": ("Entry", "Where the buy goes and when."),
     "risk": ("Risk and target", "The stop, the risk it allows, the target, and the scoring exit."),
     "tape": ("Tape gate", "Read from the Level 2 and time and sales when price is near the trigger."),
+    "flow": ("Tape flow", "One score from -1 (sellers) to +1 (buyers): prints at the ask against the bid, how fast "
+                          "they come, where price went, and the book. Read at the trigger and while a trade is on; "
+                          "it can decide the entry and get out on a flush."),
     "grade": ("Five Pillars grade", "Grades every armed setup A / B / C. A pillar Nova does not know never passes."),
     "bot": ("Bot entries at Strategy", "The bot's own rules while this template is in play."),
 }
@@ -216,6 +242,53 @@ _TAPE: tuple[ParamSpec, ...] = (
        max=20, step=0.1, help="This much bought at the ask while the ask does not move vetoes."),
     _p("red_mult", "tape", "Red burst at", NUMBER, TAPE_GATE_RED_BURST_MULT, unit="x the ask volume", min=1, max=20,
        step=0.1, help="Bid-side volume over this multiple of ask-side volume waits."),
+)
+
+_FLOW: tuple[ParamSpec, ...] = (
+    _p("tape_entry", "flow", "The entry reads", CHOICE, TAPE_ENTRY_GATE,
+       choices=((TAPE_ENTRY_GATE, "the tape gate's prints (green at the ask, no red burst)"),
+                (TAPE_ENTRY_SCORE, "the flow score instead of the print counts"),
+                (TAPE_ENTRY_BOTH, "both: green prints and the flow score")),
+       help="The vetoes and a seller that is not thinning hold in every mode. The gate is the pre-registered rule."),
+    _p("flow_entry_min", "flow", "Entry needs a score of at least", NUMBER, TAPE_ENTRY_MIN_SCORE, unit="score",
+       min=-1, max=1, step=0.05, help="Read when the entry reads the flow score."),
+    _p("flush_exit", "flow", "On a flush while in", CHOICE, FLUSH_EXIT_OFF,
+       choices=((FLUSH_EXIT_OFF, "nothing (the pre-registered exits)"),
+                (FLUSH_EXIT_TIGHTEN, "tighten the stop under the price"),
+                (FLUSH_EXIT_EXIT, "get out at the bid")),
+       help="The scoring exit and Nova's bot both follow it while this template is in play."),
+    _p("flush_hold_sec", "flow", "A flush counts from", NUMBER, FLUSH_EXIT_HOLD_SEC, unit="s after the entry", min=0,
+       max=600, step=1, help="Red right after the entry is often the entry's own noise."),
+    _p("flush_trail_r", "flow", "Tighten to", NUMBER, FLUSH_EXIT_TRAIL_R, unit="R under the price", min=0.1, max=5,
+       step=0.05, help="The stop moves up to this far under the price at the flush -- never down."),
+    _p("flush_min_r", "flow", "Only while up at least", NUMBER, FLUSH_EXIT_MIN_R, unit="R", min=-5, max=20,
+       step=0.25, nullable=True, help="On: a flush counts only while the trade is up this much. Off: any time."),
+    _p("flow_window_sec", "flow", "Reads the last", NUMBER, TAPE_FLOW_WINDOW_SEC, unit="s", min=1, max=120, step=1,
+       help="The prints, the price move and the book the four readings look at."),
+    _p("flow_baseline_sec", "flow", "Pace against the last", NUMBER, TAPE_FLOW_BASELINE_SEC, unit="s", min=5,
+       max=1800, step=5, help="The tape's usual pace, measured before the window."),
+    _p("flow_min_prints", "flow", "Needs at least", INT, TAPE_FLOW_MIN_PRINTS, unit="prints at the bid or ask", min=1,
+       max=500, step=1, help="Fewer reads quiet: too little tape to say."),
+    _p("flow_min_shares", "flow", "... and at least", INT, int(TAPE_FLOW_MIN_SHARES), unit="shares", min=0,
+       max=10_000_000, step=100),
+    _p("flow_w_imbalance", "flow", "Weight: ask vs bid", NUMBER, TAPE_FLOW_W_IMBALANCE, unit="parts", min=0, max=10,
+       step=0.5, help="Shares at the ask minus shares at the bid, over both."),
+    _p("flow_w_pace", "flow", "Weight: pace", NUMBER, TAPE_FLOW_W_PACE, unit="parts", min=0, max=10, step=0.5,
+       help="How fast the tape runs against its usual pace, in the direction of the imbalance."),
+    _p("flow_w_drift", "flow", "Weight: price move", NUMBER, TAPE_FLOW_W_DRIFT, unit="parts", min=0, max=10, step=0.5,
+       help="Where the price went inside the window."),
+    _p("flow_w_book", "flow", "Weight: the book", NUMBER, TAPE_FLOW_W_BOOK, unit="parts", min=0, max=10, step=0.5,
+       help="Displayed bid shares minus ask shares near the inside."),
+    _p("flow_pace_full", "flow", "Pace reads full at", NUMBER, TAPE_FLOW_PACE_FULL, unit="x the usual pace", min=1.1,
+       max=50, step=0.1),
+    _p("flow_drift_full_pct", "flow", "Price move reads full at", NUMBER, _pct(TAPE_FLOW_DRIFT_FULL), unit="%",
+       min=0.05, max=20, step=0.05),
+    _p("flow_book_levels", "flow", "Book reads", INT, TAPE_FLOW_BOOK_LEVELS, unit="prices a side", min=1, max=20,
+       step=1),
+    _p("flow_burst_at", "flow", "Burst at a score of", NUMBER, TAPE_FLOW_BURST_AT, unit="or more", min=0.05, max=1,
+       step=0.05),
+    _p("flow_flush_at", "flow", "Flush at a score of minus", NUMBER, TAPE_FLOW_FLUSH_AT, unit="or less", min=0.05,
+       max=1, step=0.05),
 )
 
 _GRADE: tuple[ParamSpec, ...] = (
@@ -327,7 +400,7 @@ _FIRST_PULLBACK: tuple[ParamSpec, ...] = _STOCK + (
     _p("target_r", "risk", "R multiple", NUMBER, SETUPS_TARGET_R, unit="R", min=0.25, max=20, step=0.25,
        help="Used when target 1 is the leg high or R x risk."),
     _TARGET_FIXED, _BAILOUT,
-) + _TAPE + _GRADE + _BOT
+) + _TAPE + _FLOW + _GRADE + _BOT
 
 # -- Bull flag (ADR 031): pre-registered from the operator's material. ------------------
 _BULL_FLAG: tuple[ParamSpec, ...] = _STOCK + (
@@ -376,7 +449,7 @@ _BULL_FLAG: tuple[ParamSpec, ...] = _STOCK + (
     _p("target_r", "risk", "R multiple", NUMBER, SETUPS_TARGET_R, unit="R", min=0.25, max=20, step=0.25,
        help="Used when target 1 is the pole high or R x risk (and when the pole high is not above the entry)."),
     _TARGET_FIXED, _BAILOUT,
-) + _TAPE + _GRADE + _BOT
+) + _TAPE + _FLOW + _GRADE + _BOT
 
 # -- Flat-top breakout (P2, research/momentum/backtest_setups.py ``find_flat_top``). -----
 _FLAT_TOP: tuple[ParamSpec, ...] = _STOCK + (
@@ -410,7 +483,7 @@ _FLAT_TOP: tuple[ParamSpec, ...] = _STOCK + (
        choices=(("r", "R x risk over the entry (the research's)"), ("fixed", "a fixed amount over the entry")),
        help="Half comes off at target 1 and the stop moves to the entry (the scoring exit)."),
     _TARGET_R, _TARGET_FIXED, _BAILOUT,
-) + _TAPE + _GRADE + _BOT
+) + _TAPE + _FLOW + _GRADE + _BOT
 
 # -- Red to green (P3, ``find_red_to_green``): the open, then back through it. ----------
 _RED_TO_GREEN: tuple[ParamSpec, ...] = _STOCK + (
@@ -429,7 +502,7 @@ _RED_TO_GREEN: tuple[ParamSpec, ...] = _STOCK + (
     _p("r2g_target_hod", "risk", "Target is at least the high of day", BOOL, SETUPS_R2G_TARGET_HOD,
        help="On: target 1 is the high of day when that is higher than R x risk."),
     _BAILOUT,
-) + _TAPE + _GRADE + _BOT
+) + _TAPE + _FLOW + _GRADE + _BOT
 
 # -- Setups without a scanner: the research harness's pre-registered numbers. -------
 # Mirrors research/orb/backtest_gng.py ``GParams`` (A2 Gap and Go); a test checks the
@@ -493,6 +566,11 @@ _ORDERED: tuple[tuple[str, str, bool, str], ...] = (
     ("macd_fast", "macd_slow", False, "the MACD fast period is not shorter than the slow"),
     ("ft_min_consol", "ft_max_consol", True, "the fewest base candles is more than the most"),
     ("t1_r", "t2_r", True, "target 1 is beyond target 2"),
+    ("flow_window_sec", "flow_baseline_sec", False, "the flow's pace baseline is not longer than its window"),
+)
+# Groups of which at least one must be above zero: (keys, message).
+_SOME_POSITIVE: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("flow_w_imbalance", "flow_w_pace", "flow_w_drift", "flow_w_book"), "every flow weight is zero -- no score"),
 )
 
 
@@ -593,6 +671,9 @@ def check(setup_id: str, values: dict[str, Any] | None, *,
             a, b = _minutes(a), _minutes(b)
         if a > b or (a == b and not equal_ok):
             return None, Problem(message, high)
+    for keys, message in _SOME_POSITIVE:
+        if all(k in out for k in keys) and not any((out[k] or 0) > 0 for k in keys):
+            return None, Problem(message, keys[0])
     return out, None
 
 
@@ -607,6 +688,34 @@ def validate(setup_id: str, values: dict[str, Any] | None, *, base: dict[str, An
     if problem is not None:
         raise TemplateError(problem.message, problem.field)
     return out or {}
+
+
+def parse_text(setup_id: str, key: str, text: str) -> Any:
+    """A value typed on a command line (``flush_exit=tighten``, ``flow_min_r=off``) in the parameter's own kind.
+
+    ``validate`` still checks it; this only reads the words: a nullable parameter reads
+    ``none`` / ``null`` / ``off`` as off unless ``off`` is one of its choices."""
+    table = {s.key: s for s in specs(setup_id)}
+    if key not in table:
+        raise TemplateError(f"{key!r} is not a {setup_id.replace('_', ' ')} parameter", key)
+    spec, raw = table[key], text.strip()
+    if spec.kind == CHOICE:
+        if raw in [v for v, _ in spec.choices]:
+            return raw
+        return None if spec.nullable and raw.lower() in ("none", "null") else raw
+    if spec.nullable and raw.lower() in ("none", "null", "off"):
+        return None
+    if spec.kind == BOOL:
+        words = {"true": True, "on": True, "yes": True, "1": True, "false": False, "off": False, "no": False, "0": False}
+        if raw.lower() not in words:
+            raise TemplateError(f"{spec.label} ({key}) is on or off", key)
+        return words[raw.lower()]
+    if spec.kind == TIME:
+        return raw
+    try:
+        return float(raw)
+    except ValueError:
+        raise TemplateError(f"{spec.label} ({key}) is a number", key) from None
 
 
 def fingerprint(values: dict[str, Any]) -> str:

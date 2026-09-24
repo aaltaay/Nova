@@ -886,6 +886,71 @@ silently. `setups.db` is schema 3: rows add `setup_type` and `detail`
 setup's template in play at once, oldest armed first (the Bots page timeline;
 with `template=all`, every template's rows).
 
+### The tape flow score and the flush exit (ADR 034, operator ask 2026-09-24)
+
+"Can my bots detect if we are seeing flush like this so we can exit a position
+or burst of greens where we can enter ... just a small piece of the final
+decision." Owner `setup_scanner/tape_flow.py` (pure). A **flow reading** is
+`{score: number | null, label: "burst" | "flush" | "neutral" | "quiet" |
+"blind", readings: {imbalance, pace, drift, book}, metrics: {window_sec,
+ask_shares, bid_shares, ask_prints, bid_prints, between_shares, pace_ratio,
+baseline_sec, drift_pct, bid_depth, ask_depth, best_bid, best_ask}}`: each
+reading from -1 (sellers) to +1 (buyers) and `null` when Nova cannot take it
+(no fresh book, a baseline shorter than the window, one price) -- never 0; the
+score is the weighted mean of the known readings (`null` with none); `quiet`
+is too little tape at the bid or the ask to say, `blind` no print and no book.
+Lit prints only (FINRA / TRF / ADF out), a `between` print counts for no side,
+the drift reads only prints that set a price, and the baseline never counts
+time before the feed could see the tape. Every number is a template parameter
+(the catalogue's `flow` group on every setup with a scanner): `flow_window_sec`,
+`flow_baseline_sec`, `flow_min_prints`, `flow_min_shares`, `flow_w_imbalance`,
+`flow_w_pace`, `flow_w_drift`, `flow_w_book` (not all zero), `flow_pace_full`,
+`flow_drift_full_pct`, `flow_book_levels`, `flow_burst_at`, `flow_flush_at`;
+and the two choices below, whose defaults are the pre-registered rules.
+
+**Entry** (`tape_entry: "gate" | "score" | "both"`, `flow_entry_min`): `gate` is
+ADR 022's print counts; `score` keeps the vetoes and a seller that is not
+thinning and replaces the print counts with the score at or over the minimum
+(a quiet or blind flow waits); `both` needs both. Every tape read (a board row's
+`tape`, `setups.db` `trigger_tape`) adds `flow` (the reading) and
+`metrics.flow_score` / `metrics.entry_mode`; `near_tape` and the trigger event
+the bot hears add `flow: {score, label}`.
+
+**Exit** (`flush_exit: "off" | "tighten" | "exit"`, `flush_hold_sec`,
+`flush_trail_r`, `flush_min_r` nullable): a `flush` at least `flush_hold_sec`
+after the entry -- with `flush_min_r`, only while the trade is up that many R --
+moves the stop up to `flush_trail_r` R under the price (never down) or gets out
+at the bid (`tape_flow.flush_action`). Every lane reads each triggered setup's
+flow every `TAPE_FLOW_EVAL_SEC` through its scoring window
+(`setup_scanner/lane_flow.py`; the live engine keeps that symbol's tape); the
+scoring exit applies the rule (`bar_exit_reason` adds `flush` / `flush_runner` /
+`flush_stop` / `flush_stop_runner`; a backtest row adds `flush_action`,
+`flush_at`, `stop_now`), and Nova's bot applies the same rule from its own fill
+to its trade (`bot/first_pullback/flush.py`; the trade's `exit_reason` adds
+`flush`, a tightened stop is a `bot_trade` `note`) from the scanner's newest
+reading (`SetupEngine.flow_reading(setup_id)`, never older than
+`TAPE_FLOW_READING_STALE_SEC`). The eyes' journal adds `flow` (a turn into or
+out of a burst or a flush after a trigger: `label`, `was`, `score`, `readings`,
+`price`, `since_trigger`) and `flush` (`action`, `score`, `price`, `bid`,
+`stop`, `exit_px`, `mode`). The scoreboard summary's `by` adds
+`flow_at_trigger`; a fill count of three covers `flush_runner` /
+`flush_stop_runner`. `/sensors/flow` adds `score` (a flow reading with the
+default numbers over the sensor rings; `SENSOR_TAPE_RING` 4,000 prints).
+
+**Measuring it.** `eyes/flow_study.py` (`tools/flow_study.py`, read-only) reads
+each recorded second through the score and measures the mid's move 10 s to 5 min
+later -- never across a gap -- answering `{schema_version: 1, params, study,
+recordings, seconds, seconds_by_label, onsets: {burst | flush: {HORIZON: {n,
+mean_bp, median_bp, up_pct, t}}}, onset_spread_bp, onsets_by_context: {burst |
+flush: {after_rise | after_fall | flat | unknown: ...}}, separation_bp,
+by_label, by_bucket}`. `POST /api/eyes/backtests` adds `variants: [{name?,
+base?, values}]` (at most `EYES_BACKTEST_MAX_VARIANTS`): templates made for the
+run only (`var-NN`), never stored; a variant's manifest entry adds `variant:
+true`, `base`, `overrides`, and every template's summary adds `exits`, `flush`
+and `vs_base: {base, paired, avg_r_delta, better, worse, same} | null` -- the
+same setups (day, symbol, leg) against the run's first template.
+`tools/eyes_backtest.py sweep` builds the variants from a grid.
+
 ### Catalysts (ADR 024)
 
 One pure classifier, `backend/catalysts/classify.py` (rules and `CATALYST_RULES_VERSION` in
@@ -2092,6 +2157,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-24 | The tape flow score and a flush exit (ADR 034; operator ask on a GLND flush in Time & Sales: "can my bots detect ... flush ... so we can exit a position or burst of greens where we can enter ... a small piece of the final decision", then "fine tune the SHIT out of this ... hybrid creative solution and mixing it in the strategies"). One score from -1 to +1 (ask vs bid shares, pace against the tape's own baseline, price move, book depth; an unknown reading drops out, never 0) with every number a template parameter; a template may enter on the score instead of the gate's print counts, and tighten or exit on a flush -- the scoring exit and Nova's bot follow one rule; the defaults are the pre-registered rules. The flow study reads every recorded second (15 recordings: a flush after a rise was followed by -43 bp over a minute; a burst from a flat minute faded) and backtests sweep run-only template variants against a base. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Ctrl+F finds on the page (operator ask: "can we also do like CTRL+F so maybe we can search on anything in that screen instead of looking everywhere?"): the desktop app had no find at all (Electron ships none). Every window now gets a find bar (`ux/findBar.ts`, searching with `ux/findText.ts`): it marks every shown match, moves with Enter / Shift+Enter, follows the live desk as it changes without scrolling on its own, leaves Ctrl+F to a trading hotkey bound to it, and keeps every key typed in it away from the page. The shortcuts menu lists it. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Which backend answers, and a reload that is one (operator reports after ADR 031 shipped: "weren't we supposed to see scanners here?", "i clicked the 'reload backend' button, does it still work?", "something in the software title that shows us what backend v### we are using"): the desk had updated while the backend still ran the morning's code, so the Bots page called three built scanners "No scanner yet", and the desktop app's Reload backend said "Backend reloaded" while the same process kept answering -- the installed app looked for the stop script beside itself, found none and re-attached. `/api/health` names its `release_tag`, the window title shows the backend's revision after the desk's and flags an older one, the desktop reload restarts an attached engine from its own checkout and succeeds only on a new `instance_id`, and the Bots page says a backend older than ADR 031 needs a reload. The setup radio now reads "the bot trades this": every scanner runs at once, Eyes on as many as you like, and only the one the bot trades by itself is picked. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Update takes the newest release (operator report: "when the app detected v1004, there was v1005 already in the pipeline but it didn't catch it"): the desk found v1004 at 10:42 ET; v1005 shipped at 11:30; Update at 13:20 downloaded v1004 from the morning's answer, because re-checks hold 07:00-16:00 and Update never asked again. An Update click on an offer older than a minute now checks GitHub first and downloads the newest release (`frontend/electron/newestRelease.mjs`); the check stays off the notice, and a failed one downloads the release on offer. §8 amended. | User Directive + Claude Opus 5.5 |

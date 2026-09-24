@@ -20,7 +20,9 @@ Every ``BOT_FP_POLL_SEC``:
    or under the stop, or the time stop, cancels the target and sells at the
    bid; a close that cannot be sent or does not fill ends in the protective
    flatten. The bot manages its trade until the position is closed, whatever
-   the level or Activate say: Deactivate stops new entries only.
+   the level or Activate say: Deactivate stops new entries only. The
+   template's flush exit (ADR 034, ``flush.py``) may move the watched stop up
+   or close on a flush on the tape; off, it does nothing.
 
 Owner: the ``trade`` key of the bot session (``bot.persist``); a restart
 resumes managing it. States: ``entering`` -> ``open`` -> ``exiting`` ->
@@ -40,7 +42,7 @@ from typing import Any, Callable
 from bot.arming import clear_arm_fields, is_desk_active
 from bot.audit import record as audit
 from bot.errors import BotError
-from bot.first_pullback import orders
+from bot.first_pullback import flush, orders
 from bot.persist import load_session, save_session
 from constants_bot import (
     BOT_AUDIT_ACTION_TRADE,
@@ -402,7 +404,16 @@ async def _manage_open(trade: dict[str, Any], now: float) -> None:
     last = orders.last_price(symbol)
     if last is not None and last <= float(trade["stop"]) + _EPS:
         await _start_exit(trade, now, "stop", f"{last:g} printed at or under the {trade['stop']:g} stop")
-    elif now >= float(trade["entry_filled_ts"]) + BOT_FP_TIME_STOP_MIN * 60:
+        return
+    act = flush.decide(trade, now, last=last)
+    if act is not None and act["action"] == "exit":
+        await _start_exit(trade, now, "flush", act["why"])
+        return
+    if act is not None:
+        trade["stop"] = float(act["stop"])
+        _save(trade)
+        audit(action=BOT_AUDIT_ACTION_TRADE, outcome="note", reason=act["why"], inputs=_summary(trade))
+    if now >= float(trade["entry_filled_ts"]) + BOT_FP_TIME_STOP_MIN * 60:
         await _start_exit(trade, now, "time", f"{BOT_FP_TIME_STOP_MIN} minutes without the target or the stop")
 
 
@@ -475,7 +486,7 @@ def _close(trade: dict[str, Any], now: float, reason: str, price: float | None) 
     adjust_bot_qty(trade["symbol"], -float(trade["qty"]))
     _save(trade)
     said = {"target": f"target {trade['target1']:g} filled", "stop": f"stopped out under {trade['stop']:g}",
-            "time": f"{BOT_FP_TIME_STOP_MIN}-minute time stop",
+            "time": f"{BOT_FP_TIME_STOP_MIN}-minute time stop", "flush": "out on a flush on the tape",
             "outside": "the position was closed outside the bot"}.get(reason, reason)
     at = f" at {price:g}" if price is not None else ""
     audit(action=BOT_AUDIT_ACTION_TRADE, outcome="closed", order_id=trade.get("exit_order_id"),
