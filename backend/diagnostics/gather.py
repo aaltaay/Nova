@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import shutil
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -122,10 +123,36 @@ def _market_data_inputs() -> dict[str, Any]:
     }
 
 
+def _leaderboard_disk(db: Path) -> dict[str, Any]:
+    """The store's size (the database plus its write-ahead log) and its drive's free space (#485).
+
+    Read here, on the checklist's worker thread. A store not created yet is 0
+    bytes; a fact that cannot be read is None with its reason, never a guess.
+    """
+    out: dict[str, Any] = {"store_bytes": None, "free_bytes": None, "size_error": None, "free_error": None}
+    try:
+        size = 0
+        for part in (db, db.with_name(db.name + "-wal")):
+            try:
+                size += part.stat().st_size
+            except FileNotFoundError:
+                continue                        # no store yet, or no write-ahead log right now
+        out["store_bytes"] = size
+    except OSError as exc:
+        out["size_error"] = f"{type(exc).__name__}: {exc}"
+    try:
+        out["free_bytes"] = int(shutil.disk_usage(db.parent).free)
+    except OSError as exc:
+        out["free_error"] = f"{type(exc).__name__}: {exc}"
+    return out
+
+
 def _leaderboard_inputs() -> dict[str, Any]:
     from leaderboard import auto_record, recorder, store
 
-    return {"recorder": recorder.status(), "auto": auto_record.status(), "store_path": str(store.path())}
+    db = store.path()
+    return {"recorder": recorder.status(), "auto": auto_record.status(), "store_path": str(db),
+            "disk": _leaderboard_disk(db)}
 
 
 def _catalyst_feed_status() -> dict[str, Any]:

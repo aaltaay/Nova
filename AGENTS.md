@@ -697,6 +697,21 @@ turns it off. `/api/ibkr/status` adds `auto_record: {active, window,
 symbols[], leaders[], yielded[], last_error}`; `/api/diagnostics` adds the
 `leaderboard_recorder` and `auto_record` rows (group `recorder`).
 
+**Retention: keep everything, guard the drive** (operator decision on #485,
+2026-09-24). Nothing deletes leaderboard rows automatically -- recorded days
+cannot be replaced, a rebuild takes about a minute a day, and SQLite gives no
+space back without a `VACUUM` of the whole file. The store grows about 6-9 GB
+a year. The `leaderboard_recorder` row's `evidence` adds `store_bytes`
+(`leaderboard.sqlite3` plus its `-wal`; `0` before the store exists),
+`free_bytes` (free space on the store folder's volume, `shutil.disk_usage`)
+and `disk_error` (`string | null`), read on the checklist's worker thread. The
+row is `warn` under `LEADERBOARD_FREE_WARN_BYTES` (50 GB) free and `fail`
+under `LEADERBOARD_FREE_FAIL_BYTES` (10 GB), with the room left and the fix
+(free space, or move `NOVA_LEADERBOARD_DIR`); a size or free space that cannot
+be read is `unknown` with the reason, never `ok`. The drive's verdict only
+ever makes the row worse: a write failure stays `fail`, and with room to spare
+the row reads as before.
+
 **Sim day.** `POST /api/sim/clock {session_date: "YYYY-MM-DD" | null}`
 re-dates the Sim clock with nothing loaded -- any loaded replay, of that day or
 another, is unloaded (never deleted) so the clock opens the full 04:00-20:00
