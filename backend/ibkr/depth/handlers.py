@@ -4,9 +4,15 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from constants import IBKR_DEPTH_SMART, IBKR_ERROR_DEPTH_NOT_SUPPORTED
+from constants import (
+    IBKR_DEPTH_NUM_ROWS,
+    IBKR_DEPTH_SMART,
+    IBKR_ERROR_DEPTH_NOT_SUPPORTED,
+    IBKR_ERROR_DEPTH_RESET,
+)
 from ibkr import client as _client
 from ibkr.depth import state
+from ibkr.depth.book import Level, sort_levels
 from metrics.op_metrics import timed_fn
 
 logger = logging.getLogger(__name__)
@@ -66,27 +72,29 @@ def _broadcast_live(symbol: str, book: dict) -> None:
         state.push_book(symbol, book)
 
 
+def _rows(levels: list[Level], side: str) -> list[dict]:
+    return [{"price": lv.price, "size": lv.size, "side": side, "mm": lv.mm} for lv in levels]
+
+
+_warned_out_of_order: set[str] = set()
+
+
 @timed_fn("ib.depth")
 def on_update_book(ticker: Any, symbol: str) -> None:
-    bids = [
-        {
-            "price": float(d.price),
-            "size": float(d.size),
-            "side": "bid",
-            "mm": (getattr(d, "marketMaker", None) or "") or "",
-        }
-        for d in (ticker.domBids or [])
-    ]
-    asks = [
-        {
-            "price": float(d.price),
-            "size": float(d.size),
-            "side": "ask",
-            "mm": (getattr(d, "marketMaker", None) or "") or "",
-        }
-        for d in (ticker.domAsks or [])
-    ]
-    book = {"bids": bids[:10], "asks": asks[:10], "l1_fallback": False}
+    """Push the book kept from ``ticker.domTicks`` (#540), never ib_async's ``domBids`` / ``domAsks``."""
+    kept = state.book_for(symbol)
+    kept.apply(getattr(ticker, "domTicks", None) or ())
+    bids = _rows(kept.bids, "bid")[:IBKR_DEPTH_NUM_ROWS]
+    asks = _rows(kept.asks, "ask")[:IBKR_DEPTH_NUM_ROWS]
+    if not kept.in_price_order():
+        # A row operation Nova never saw (it cannot happen while every update
+        # event is handled). Keep the best price first rather than push a wrong
+        # top of book, and say so once per line.
+        if symbol not in _warned_out_of_order:
+            _warned_out_of_order.add(symbol)
+            logger.warning("IBKR depth: %s book out of price order after an update; sorting it", symbol)
+        bids, asks = sort_levels(bids, bid=True), sort_levels(asks, bid=False)
+    book = {"bids": bids, "asks": asks, "l1_fallback": False}
     state._subscriptions[symbol] = book
     _broadcast_live(symbol, book)
     _record_book(symbol, book)
@@ -120,10 +128,18 @@ def install_error_hook(ib: Any) -> None:
 
 
 def on_ib_error(reqId: int, errorCode: int, errorString: str, contract: Any) -> None:
-    if errorCode != IBKR_ERROR_DEPTH_NOT_SUPPORTED or contract is None:
+    if errorCode not in (IBKR_ERROR_DEPTH_NOT_SUPPORTED, IBKR_ERROR_DEPTH_RESET) or contract is None:
         return
     con_id = getattr(contract, "conId", None)
     if con_id is None:
+        return
+    if errorCode == IBKR_ERROR_DEPTH_RESET:
+        # IBKR resends the whole book from row 0; start the kept book empty (#540).
+        for sym, c in list(state._contracts.items()):
+            if getattr(c, "conId", None) == con_id:
+                state.reset_book(sym)
+                _warned_out_of_order.discard(sym)
+                logger.info("IBKR depth: %s book reset by IBKR (%s)", sym, errorCode)
         return
     for sym, c in list(state._contracts.items()):
         if getattr(c, "conId", None) == con_id and not state._subscriptions.get(sym, {}).get("l1_fallback"):

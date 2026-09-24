@@ -274,14 +274,11 @@ class TestMarketMakerForwarding:
         depth_mod._subscriptions["SHPH"] = {"bids": [], "asks": [], "l1_fallback": False}
         depth_mod._viewer_queues["SHPH"] = [asyncio.Queue(maxsize=100)]
 
-        ticker = SimpleNamespace(
-            domBids=[
-                SimpleNamespace(price=4.78, size=100, marketMaker="OVERNIGHT"),
-                SimpleNamespace(price=4.77, size=50, marketMaker="ISLAND"),
-            ],
-            domAsks=[
-                SimpleNamespace(price=4.83, size=200, marketMaker="OVERNIGHT"),
-            ],
+        from tests.depth_ticks import depth_ticker
+
+        ticker = depth_ticker(
+            bids=[(4.78, 100, "OVERNIGHT"), (4.77, 50, "ISLAND")],
+            asks=[(4.83, 200, "OVERNIGHT")],
         )
         depth_mod._on_update_book(ticker, "SHPH")
         book = depth_mod.current_book("SHPH")

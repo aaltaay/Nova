@@ -8,6 +8,7 @@ than inventing a second reader.
 from __future__ import annotations
 
 from constants import L2_RECALL_DEFAULT_WINDOW_SEC
+from ibkr.depth.book import sort_levels
 from l2 import sessions as _sessions
 from l2 import tape as _tape
 from l2.store import get_nearest_snapshot, get_snapshot_before, get_snapshots_in_range
@@ -55,11 +56,12 @@ def book_before(
     row = get_snapshot_before(symbol, ts, window)
     if row is None:
         return None
+    # Books recorded before #540 can be out of price order; best price first.
     return {
         "symbol": row["symbol"],
         "ts": row["ts"],
-        "bids": row["bids"],
-        "asks": row["asks"],
+        "bids": sort_levels(list(row["bids"] or []), bid=True),
+        "asks": sort_levels(list(row["asks"] or []), bid=False),
         "l1_fallback": row["l1_fallback"],
         "session_id": row.get("session_id"),
     }

@@ -7,12 +7,21 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
-from constants import TICKER_IBKR_BRIDGE_TIMEOUT_SEC, TICKER_IBKR_SNAPSHOT_TIMEOUT_SEC
+from constants import (
+    IBKR_QUOTE_QUALITY_CLOSE_FALLBACK,
+    TICKER_IBKR_BRIDGE_TIMEOUT_SEC,
+    TICKER_IBKR_SNAPSHOT_TIMEOUT_SEC,
+)
 from ports.ticker import TickerSnapshotPort  # noqa: F401 — re-export for callers
 from runtime_state import get_runtime_state
 
 logger = logging.getLogger(__name__)
+ET = ZoneInfo("America/New_York")
+
+# A price and when it traded (epoch seconds, None when unknown).
+Traded = tuple[float | None, float | None]
 
 
 def find_ibkr_cache_row(symbol: str) -> dict | None:
@@ -35,28 +44,42 @@ def find_ibkr_cache_row(symbol: str) -> dict | None:
     return None
 
 
-def _price_from_l1_stream(symbol: str) -> float | None:
-    """Last print from an existing Stock View / scanner L1 subscription."""
+def _price_from_l1_stream(symbol: str) -> Traded:
+    """Last trade from an existing Stock View / scanner L1 line, with IBKR's Last Timestamp.
+
+    ``(None, None)`` before the line's first trade: its price is then IBKR's
+    prior close (``close_fallback``), which is not a trade (#541).
+    """
     try:
         from ibkr import ticks as _ticks
 
         row = _ticks.last_quotes([symbol]).get((symbol or "").strip().upper())
-        if not row:
-            return None
+        if not row or row.get("quote_quality") == IBKR_QUOTE_QUALITY_CLOSE_FALLBACK:
+            return None, None
         price = row.get("price")
-        return float(price) if price is not None else None
+        return (float(price) if price is not None else None), row.get("last_trade_ts")
     except Exception as exc:
         logger.debug("ticker IBKR L1 lookup failed for %s: %s", symbol, exc)
+        return None, None
+
+
+def _bar_epoch(bar: dict) -> float | None:
+    raw = bar.get("t")
+    try:
+        return datetime.fromisoformat(str(raw).replace("Z", "+00:00")).timestamp() if raw else None
+    except ValueError:
         return None
 
 
-def _price_from_chart_bars(symbol: str) -> float | None:
-    """Last stored 1Min close -- the same store HTTP /bars paints (ADR 012).
+def _price_from_chart_bars(symbol: str) -> Traded:
+    """Today's newest stored 1Min close and its minute -- the store HTTP /bars paints (ADR 012).
 
     ``fetch_chart_bars(interactive=True)`` on an empty store only schedules a
     fill and returns ``bars=[]``. That made ticker REST miss a last print the
     chart already had (or was about to persist) and fall through to a cold
     ``snapshot_quotes`` that often times out with a blank ``TimeoutError``.
+    A bar from an earlier day (last night's 19:59 before today's first trade),
+    or one with no time, is not today's last (#541).
     """
     try:
         from bars_store import read
@@ -64,9 +87,13 @@ def _price_from_chart_bars(symbol: str) -> float | None:
         stored = read((symbol or "").strip().upper(), "1Min", 5)
         bars = (stored or {}).get("bars") or []
         if not bars:
-            return None
+            return None, None
+        at = _bar_epoch(bars[-1])
+        today = datetime.now(ET).date()
+        if at is None or datetime.fromtimestamp(at, ET).date() != today:
+            return None, None
         close = bars[-1].get("c")
-        return float(close) if close is not None else None
+        return (float(close) if close is not None else None), at
     except Exception as exc:
         from ibkr.errors import describe_exc
 
@@ -75,7 +102,7 @@ def _price_from_chart_bars(symbol: str) -> float | None:
             symbol,
             describe_exc(exc),
         )
-        return None
+        return None, None
 
 
 def _prev_close_from_daily_bars(symbol: str) -> float | None:
@@ -121,25 +148,29 @@ def fetch_ticker_snapshot_ibkr(symbol: str) -> dict:
         return _sim_market.ticker_snapshot(symbol or "")
 
     cached_row = find_ibkr_cache_row(symbol)
-    price = None
+    price: float | None = None
+    traded_at: float | None = None
     prev_close = None
-    volume = 0
+    volume = None  # unknown is null, never a placeholder 0 (#541)
     exchange = None
     open_price = None
 
     if cached_row:
-        price = cached_row.get("current_price") or cached_row.get("price")
         prev_close = cached_row.get("previous_close") or cached_row.get("prev_close")
-        volume = cached_row.get("volume", 0) or 0
+        volume = cached_row.get("volume")
         exchange = cached_row.get("exchange")
         open_price = cached_row.get("open")
+        # A row repriced before the first trade carries IBKR's prior close; it is not a last (#541).
+        if cached_row.get("quote_quality") != IBKR_QUOTE_QUALITY_CLOSE_FALLBACK:
+            price = cached_row.get("current_price") or cached_row.get("price")
+            traded_at = cached_row.get("quote_ts")
 
     # Fast path before slow reqTickersAsync -- Stock View charts already prove
     # bars work when the cold snapshot path returns nothing (e.g. CJMB / XAIR).
     if price is None:
-        price = _price_from_l1_stream(symbol)
+        price, traded_at = _price_from_l1_stream(symbol)
     if price is None:
-        price = _price_from_chart_bars(symbol)
+        price, traded_at = _price_from_chart_bars(symbol)
 
     # Slow cold snapshot only when we still have no last print.
     if price is None:
@@ -163,33 +194,48 @@ def fetch_ticker_snapshot_ibkr(symbol: str) -> dict:
             quotes = {}
         q = quotes.get(symbol) or quotes.get((symbol or "").strip().upper())
         if q:
-            price = q.get("price")
-            prev_close = q.get("prev_close")
-            volume = q.get("volume", 0) or 0
-            exchange = q.get("exchange")
-            open_price = q.get("open")
+            prev_close = q.get("prev_close") or prev_close
+            volume = q.get("volume") if q.get("volume") is not None else volume
+            exchange = q.get("exchange") or exchange
+            open_price = q.get("open") or open_price
+            if q.get("quote_quality") != IBKR_QUOTE_QUALITY_CLOSE_FALLBACK:
+                price = q.get("price")  # traded_at stays unknown: the snapshot carries no trade time
 
     # Chart fill can land while snapshot_quotes is dying -- read the store again.
     if price is None:
-        price = _price_from_chart_bars(symbol)
-
-    if price is None:
-        return {}
+        price, traded_at = _price_from_chart_bars(symbol)
 
     if prev_close is None:
         prev_close = _prev_close_from_daily_bars(symbol)
 
-    now_iso = datetime.now(timezone.utc).isoformat()
-    daily_bar = {
-        "open": open_price if open_price and open_price > 0 else None,
-        "high": None,
-        "low": None,
-        "close": price,
-        "volume": volume,
-        "trade_count": None,
-        "vwap": None,
-        "timestamp": now_iso,
-    }
+    if price is None and prev_close is None:
+        return {}
+
+    # When the last traded, never "now": a snapshot answered from a stored bar or
+    # a scanner row is as old as that bar or row, and unknown stays null (#541).
+    traded_iso = (
+        datetime.fromtimestamp(float(traded_at), timezone.utc).isoformat()
+        if traded_at is not None else None
+    )
+    daily_bar = None
+    latest_trade = None
+    if price is not None:
+        daily_bar = {
+            "open": open_price if open_price and open_price > 0 else None,
+            "high": None,
+            "low": None,
+            "close": price,
+            "volume": volume,
+            "trade_count": None,
+            "vwap": None,
+            "timestamp": traded_iso,
+        }
+        latest_trade = {
+            "price": price,
+            "size": None,
+            "exchange": exchange,
+            "timestamp": traded_iso,
+        }
     prev_daily_bar = None
     if prev_close is not None:
         prev_daily_bar = {
@@ -203,12 +249,9 @@ def fetch_ticker_snapshot_ibkr(symbol: str) -> dict:
             "timestamp": None,
         }
     return {
-        "latest_trade": {
-            "price": price,
-            "size": None,
-            "exchange": exchange,
-            "timestamp": now_iso,
-        },
+        # ``None`` before today's first trade: the quote head shows the prior
+        # close as the prior close, never as a last (#541).
+        "latest_trade": latest_trade,
         "latest_quote": None,
         "minute_bar": None,
         "daily_bar": daily_bar,

@@ -119,6 +119,7 @@ async def subscribe_async(symbol: str, *, live: bool = False) -> dict:
         state._contracts[symbol] = contract
 
         try:
+            state.reset_book(symbol)  # IBKR sends this request's book from row 0 (#540)
             with timed_sync("ibkr.depth.subscribe"):
                 ticker = ib.reqMktDepth(
                     contract,

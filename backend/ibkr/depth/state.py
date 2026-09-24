@@ -5,7 +5,8 @@ import asyncio
 import logging
 from typing import Any
 
-from constants import IBKR_DEPTH_RELEASE_GRACE_SEC
+from constants import IBKR_DEPTH_NUM_ROWS, IBKR_DEPTH_RELEASE_GRACE_SEC
+from ibkr.depth.book import DepthBook
 from perf.counters import incr as _count_drop
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,10 @@ _subscribe_lock: asyncio.Lock | None = None
 # The exact updateEvent listener currently wired for each symbol's ticker.
 _update_handlers: dict[str, Any] = {}
 
+# Nova's own book per depth line, kept from ``ticker.domTicks`` with IBKR's row
+# rules -- ib_async's ``domBids`` / ``domAsks`` fall out of price order (#540).
+_books: dict[str, DepthBook] = {}
+
 # Counts live depth WebSocket viewers per symbol (DepthLadder can be open in
 # more than one place at once). Only the LAST viewer closing should release.
 _ws_viewers: dict[str, int] = {}
@@ -55,6 +60,7 @@ def reset_all() -> None:
     _tickers.clear()
     _contracts.clear()
     _update_handlers.clear()
+    _books.clear()
     _ws_viewers.clear()
     _error_hooked_ib_ids.clear()
     _shared_l1.clear()
@@ -220,5 +226,19 @@ def pop_contract(symbol: str) -> Any | None:
 
 def clear_symbol(symbol: str) -> None:
     _tickers.pop(symbol, None)
+    _books.pop(symbol, None)
     _shared_l1.discard(symbol)
     drop_slot(symbol)
+
+
+def book_for(symbol: str) -> DepthBook:
+    """The symbol's kept book, created empty on first use."""
+    book = _books.get(symbol)
+    if book is None:
+        book = _books[symbol] = DepthBook(IBKR_DEPTH_NUM_ROWS)
+    return book
+
+
+def reset_book(symbol: str) -> None:
+    """A new depth request or an IBKR depth reset: IBKR resends the book from row 0."""
+    _books[symbol] = DepthBook(IBKR_DEPTH_NUM_ROWS)

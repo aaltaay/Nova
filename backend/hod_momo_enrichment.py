@@ -29,6 +29,7 @@ from constants import (
     HOD_MOMO_FUNDAMENTALS_QUEUE_INTERVAL_SEC,
     HOD_MOMO_FUNDAMENTALS_BATCH_SIZE,
     HOD_MOMO_RVOL_USE_PACE,
+    IBKR_QUOTE_QUALITY_CLOSE_FALLBACK,
 )
 from market import pace_relative_volume
 from runtime_state import get_runtime_state
@@ -104,7 +105,9 @@ async def universe_enrichment_loop() -> None:
                 for sym, q in quotes.items():
                     try:
                         price = q.get("price")
-                        if not price:
+                        if not price or q.get("quote_quality") == IBKR_QUOTE_QUALITY_CLOSE_FALLBACK:
+                            # No trade yet: the prior close is not a price, and a 0% change
+                            # measured from it would be invented (#541).
                             continue
                         price_f = float(price)
                         vol = int(q["volume"]) if q.get("volume") is not None else 0

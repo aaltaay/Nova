@@ -21,6 +21,7 @@ from constants import (
     IBKR_TABLE_REPRICE_INTERVAL_SEC,
 )
 from ibkr import discovery as _ibkr_discovery
+from ibkr import quote_rows as _quote_rows
 
 logger = logging.getLogger(__name__)
 
@@ -124,17 +125,17 @@ def apply_quote_patches(
     now = time.time()
     if gapper_cache:
         gapper_cache = [
-            _ibkr_discovery.reprice_gapper_row(g, quotes[g["symbol"]]) if g["symbol"] in quotes else g
+            _quote_rows.reprice_gapper_row(g, quotes[g["symbol"]]) if g["symbol"] in quotes else g
             for g in gapper_cache
         ]
     if gainer_cache:
         gainer_cache = [
-            _ibkr_discovery.reprice_mover_row(m, quotes[m["symbol"]]) if m["symbol"] in quotes else m
+            _quote_rows.reprice_mover_row(m, quotes[m["symbol"]]) if m["symbol"] in quotes else m
             for m in gainer_cache
         ]
     if loser_cache:
         loser_cache = [
-            _ibkr_discovery.reprice_mover_row(m, quotes[m["symbol"]]) if m["symbol"] in quotes else m
+            _quote_rows.reprice_mover_row(m, quotes[m["symbol"]]) if m["symbol"] in quotes else m
             for m in loser_cache
         ]
     by_sym: dict[str, dict] = {}

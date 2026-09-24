@@ -14,6 +14,7 @@ from capture.recorder import capture_root
 from capture.constants_capture import CAPTURE_L2_LOAD_LIMIT, CAPTURE_NOT_IBKR_REASON
 from capture.schema import read_manifest
 from capture.sessions import is_ibkr_source
+from ibkr.depth.book import sort_levels
 from sale_conditions import row_sets_price
 from sim.capture_charts import chart_bars  # noqa: F401 -- the player's chart API (split out)
 from sim.capture_spans import (
@@ -307,10 +308,12 @@ def book_at(asof: float | None = None, *, state: CaptureData | None = None) -> d
         return {"symbol": state.symbol, "bids": [], "asks": [], "ts": t,
                 "source": "capture", "recorded": False}
     row = state.l2[i]
+    # Books recorded before #540 can be out of price order (ib_async's row
+    # handling); best price first, so the ladder and the top of book are right.
     return {
         "symbol": str(row.get("symbol") or "").upper(),
-        "bids": list(row.get("bids") or []),
-        "asks": list(row.get("asks") or []),
+        "bids": sort_levels(list(row.get("bids") or []), bid=True),
+        "asks": sort_levels(list(row.get("asks") or []), bid=False),
         "ts": _ts(row),
         "source": "capture",
     }

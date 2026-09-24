@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable, Optional
 
+from constants import IBKR_QUOTE_QUALITY_CLOSE_FALLBACK
 from ibkr import l1_minute as _l1_minute
 
 logger = logging.getLogger(__name__)
@@ -18,7 +19,13 @@ def stamp_l1_minute(
     *,
     volume: int | None,
     last_size: float | None,
+    quote_quality: str | None = None,
 ) -> None:
+    if quote_quality == IBKR_QUOTE_QUALITY_CLOSE_FALLBACK:
+        # IBKR's prior close before the first trade is not a print: as a live
+        # minute it drew wicks no exchange printed (APLX 2026-09-23 16:00 opened
+        # at the 9.52 prior close while every trade was 8.55-8.71; #541).
+        return
     try:
         _l1_minute.on_last(
             symbol,
