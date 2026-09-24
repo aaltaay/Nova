@@ -3,7 +3,9 @@
  *
  * A check that finds a newer release tells the operator, with that release's
  * notes, in a notice on the desk: Update / Later (operator ask, 2026-09-23).
- * Nothing downloads until Update, and nothing installs until Restart to update.
+ * Nothing downloads until Update, and nothing installs until Restart to update;
+ * Update downloads the newest release, checking again when the offer is old
+ * (newestRelease.mjs).
  * autoInstallOnAppQuit is off, the only timer re-checks (every two hours while
  * the desk stays open, never in weekday trading hours), and a failed check or
  * download only changes the Help menu. After an update, the first launch shows
@@ -29,6 +31,7 @@ import { readEnvValue } from './envMerge.mjs';
 import { downloadRelease } from './releaseDownload.mjs';
 import { createReleaseInstaller } from './releaseInstall.mjs';
 import { createIssueRequest, isIssueLink } from './issueLinks.mjs';
+import { createNewestRelease } from './newestRelease.mjs';
 import { isReleaseLink, notesText } from './releaseNotes.mjs';
 import { createNotesSource } from './releaseNotesSource.mjs';
 import { createUpdateAsk } from './updateAsk.mjs';
@@ -52,6 +55,7 @@ import {
   hasConsent,
   manualCheckAction,
   needsOffer,
+  offerIsStale,
   reduceUpdateState,
   resolveUpdateSetting,
   shouldAutoCheck,
@@ -87,6 +91,7 @@ let installer = null;
 let requestIssueForm = null;
 // The release on offer: electron-updater's info from the check that found it.
 let pendingInfo = null;
+const newest = createNewestRelease({ getUpdater: () => updater, logger });
 let hooks = {
   getWindow: () => null,
   envPath: () => '',
@@ -174,16 +179,30 @@ async function promptRestart() {
   else later();
 }
 
-/** Update (or Resume): download the release on offer. A stopped download is re-checked first. */
+/** Update (or Resume): download the newest release. A stopped download is re-checked first. */
 async function startDownload() {
-  if (!updater) return;
+  if (!updater || newest.isChecking()) return;
   if (state.phase === 'failed' && state.failedStage === 'download') {
     // The check finds the same release and resumes it: the operator already chose it.
     await checkNow('manual');
     return;
   }
   if (state.phase !== 'available' || !pendingInfo) return;
-  dispatch({ type: 'download' });
+  const onOffer = state.version;
+  const now = Date.now();
+  if (offerIsStale({ now, lastCheckAt })) {
+    // The notice may have waited for hours; take what is newest now (newestRelease.mjs).
+    lastCheckAt = now;
+    pendingInfo = await newest.check(pendingInfo);
+    if (!pendingInfo) {
+      dispatch({ type: 'not-available' });
+      return;
+    }
+  }
+  if (state.phase !== 'available') return;
+  dispatch({ type: 'download', version: pendingInfo.version });
+  // A newer release than the notice named: its notes run through the new one.
+  if (state.version !== onOffer) void ask.notesFor(displayTag(state.version));
   logger.info(`downloading ${displayTag(state.version)} at the operator's request`);
   await fetchUpdate(pendingInfo);
 }
@@ -247,9 +266,13 @@ async function fetchUpdate(info) {
 }
 
 function wireEvents(instance) {
-  instance.on('checking-for-update', () => dispatch({ type: 'checking' }));
-  instance.on('update-available', (info) => dispatch({ type: 'available', version: info?.version }));
-  instance.on('update-not-available', () => {
+  // The check an Update click runs answers through its result (newestRelease.mjs), not its events.
+  const on = (name, handle) => instance.on(name, (...args) => {
+    if (!newest.isChecking()) handle(...args);
+  });
+  on('checking-for-update', () => dispatch({ type: 'checking' }));
+  on('update-available', (info) => dispatch({ type: 'available', version: info?.version }));
+  on('update-not-available', () => {
     dispatch({ type: 'not-available' });
     void reportManualResult();
   });
@@ -261,7 +284,7 @@ function wireEvents(instance) {
     if (bridge.hasListener()) ask.attention();
     else void promptRestart();
   });
-  instance.on('error', (err) => {
+  on('error', (err) => {
     const wasInstalling = state.phase === 'installing';
     logger.error(`update error: ${errorText(err)}`);
     dispatch({ type: 'error', message: errorText(err) });

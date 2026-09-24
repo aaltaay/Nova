@@ -6,7 +6,8 @@
  * Update, Later and Restart, and when the local engine will not stop.
  * The installer is fetched by releaseDownload.mjs in resumable chunks and
  * handed back to electron-updater; its own download is the fallback.
- * The open desk re-checks every two hours, never in weekday trading hours.
+ * The open desk re-checks every two hours, never in weekday trading hours, and
+ * Update downloads the newest release, asking again when the offer is old.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -42,6 +43,10 @@ const h = vi.hoisted(() => ({
   available: [] as boolean[],
   // How long each check takes to answer, in order (ms); empty: at once.
   checkDelays: [] as number[],
+  // The release each check finds, in order; the last one repeats. Empty: 0.1.832.
+  versions: [] as string[],
+  // One entry per check, in order: an error message fails that check. Empty: none fails.
+  checkErrors: [] as (string | null)[],
   ipc: {} as Record<string, IpcHandler>,
   releases: [] as unknown[],
   opened: [] as string[],
@@ -104,11 +109,20 @@ vi.mock('electron-updater', async () => {
     autoDownload = true;
     autoInstallOnAppQuit = true;
     updateInfoAndProvider: unknown = null;
+    // What electron-updater downloads: the release of its last successful check.
+    lastFound = '0.1.832';
     checkForUpdates = vi.fn(async () => {
-      const updateInfo = { version: '0.1.832' };
+      const version = (h.versions.length > 1 ? h.versions.shift() : h.versions[0]) ?? '0.1.832';
+      const tag = `v${version.split('.').pop()}`;
+      const updateInfo = { version };
       this.emit('checking-for-update');
       const delay = h.checkDelays.shift() ?? 0;
       if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+      const failure = h.checkErrors.shift();
+      if (failure) {
+        this.emit('error', new Error(failure));
+        throw new Error(failure);
+      }
       if (!(h.available.shift() ?? true)) {
         this.emit('update-not-available', { version: '0.1.831' });
         return { isUpdateAvailable: false, updateInfo: { version: '0.1.831' } };
@@ -118,13 +132,14 @@ vi.mock('electron-updater', async () => {
           provider: {
             resolveFiles: () => [
               {
-                url: new URL('https://github.com/aaltaay/Nova/releases/download/v832/Nova-Setup-v832.exe'),
+                url: new URL(`https://github.com/aaltaay/Nova/releases/download/${tag}/Nova-Setup-${tag}.exe`),
                 info: { sha512: 'abc', size: 100 },
               },
             ],
           },
         };
       }
+      this.lastFound = version;
       this.emit('update-available', updateInfo);
       return { isUpdateAvailable: true, updateInfo };
     });
@@ -132,7 +147,7 @@ vi.mock('electron-updater', async () => {
     // electron-updater's own download, or its hand-off of a file already in the cache.
     downloadUpdate = vi.fn(async () => {
       this.emit('download-progress', { percent: 50 });
-      this.emit('update-downloaded', { version: '0.1.832' });
+      this.emit('update-downloaded', { version: this.lastFound });
       return [];
     });
     quitAndInstall = vi.fn((...args: unknown[]) => h.installs.push(args));
@@ -230,6 +245,8 @@ beforeEach(() => {
   h.downloads = [];
   h.available.length = 0;
   h.checkDelays.length = 0;
+  h.versions.length = 0;
+  h.checkErrors.length = 0;
   h.ipc = {};
   h.releases = [];
   h.opened.length = 0;
@@ -347,6 +364,7 @@ describe('the notice on the desk', () => {
     expect(h.updater?.downloadUpdate).not.toHaveBeenCalled();
 
     expect(await answer('download')).toEqual({ ok: true });
+    expect(h.updater?.checkForUpdates).toHaveBeenCalledTimes(1); // found moments ago: no second check
     expect(h.updater?.downloadUpdate).toHaveBeenCalled();
     expect(lastView().notice?.stage).toBe('ready');
     expect(h.boxes).toEqual([]); // the notice asks for the restart too
@@ -425,6 +443,77 @@ describe('re-checks while the desk stays open', () => {
     // Later is not re-asked this session.
     await vi.advanceTimersByTimeAsync(4 * 60 * MINUTE);
     expect(h.boxes).toHaveLength(1);
+  });
+});
+
+describe('Update takes the newest release', () => {
+  const MINUTE = 60_000;
+  // Thursday 2026-09-24, 10:42 ET once the launch check fires: inside trading hours.
+  const MORNING = new Date('2026-09-24T14:42:34Z');
+
+  async function offeredThenWait(minutes: number) {
+    vi.setSystemTime(MORNING);
+    await start();
+    subscribe();
+    await vi.advanceTimersByTimeAsync(UPDATE_FIRST_CHECK_DELAY_MS);
+    await vi.advanceTimersByTimeAsync(minutes * MINUTE);
+  }
+
+  it('downloads a release that shipped while the notice waited (v1004 found 10:42 ET, v1005 out by 13:20)', async () => {
+    h.versions.push('0.1.1004', '0.1.1005');
+    h.releases = [releaseRow('v1005', 'The newer one.'), releaseRow('v1004', 'The one found first.')];
+    h.resumable = true;
+    const targets: string[] = [];
+    h.downloads = [
+      async (opts) => {
+        targets.push(opts.target.url);
+        return `${opts.cacheDir}/pending/Nova-Setup.exe`;
+      },
+    ];
+    await offeredThenWait(0);
+    expect(lastView().notice).toMatchObject({ stage: 'available', tag: 'v1004' });
+    // Re-checks hold in trading hours: nothing asks GitHub again before the click.
+    await vi.advanceTimersByTimeAsync(158 * MINUTE); // 13:20 ET
+    expect(h.updater?.checkForUpdates).toHaveBeenCalledTimes(1);
+
+    await answer('download');
+    expect(h.updater?.checkForUpdates).toHaveBeenCalledTimes(2);
+    expect(targets).toEqual(['https://github.com/aaltaay/Nova/releases/download/v1005/Nova-Setup-v1005.exe']);
+    expect(lastView().notice).toMatchObject({ stage: 'ready', tag: 'v1005' });
+    expect(lastView().notice?.notes?.releases.map((r) => r.tag)).toEqual(['v1005', 'v1004']);
+    expect(helpLabels()[0]).toBe('Restart to Update (v1005)');
+  });
+
+  it('downloads the release on offer when that check fails, and keeps the failure off the notice', async () => {
+    h.checkErrors.push(null, 'net::ERR_INTERNET_DISCONNECTED');
+    await offeredThenWait(30);
+    await answer('download');
+    expect(h.updater?.checkForUpdates).toHaveBeenCalledTimes(2);
+    expect(h.updater?.downloadUpdate).toHaveBeenCalledTimes(1);
+    expect(lastView().notice).toMatchObject({ stage: 'ready', tag: 'v832', error: '' });
+    expect(helpLabels().filter((label) => label?.startsWith('Last attempt failed'))).toEqual([]);
+  });
+
+  it('downloads nothing when GitHub has nothing newer any more', async () => {
+    h.available.push(true, false);
+    await offeredThenWait(30);
+    await answer('download');
+    expect(h.updater?.downloadUpdate).not.toHaveBeenCalled();
+    expect(lastView().notice).toBeNull();
+    expect(helpLabels()[0]).toBe('Check for Updates…');
+  });
+
+  it('checks once and downloads once when Update is pressed twice during the check', async () => {
+    h.checkDelays.push(0, 2000);
+    await offeredThenWait(30);
+    await answer('download');
+    await answer('download');
+    // The notice waits on the answer as it was: no "checking" blink.
+    expect(lastView().notice?.stage).toBe('available');
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(h.updater?.checkForUpdates).toHaveBeenCalledTimes(2);
+    expect(h.updater?.downloadUpdate).toHaveBeenCalledTimes(1);
+    expect(lastView().notice?.stage).toBe('ready');
   });
 });
 
