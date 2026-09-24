@@ -7,7 +7,7 @@ Row: ``{symbol, setup_type, state, reason, kind, nth, setup_id, setup, leg,
 last_price, distance, grade, pillars, tape, proposal, outcome, bar_r, mfe, mae,
 failed_at}``; ``setups[]``: ``{id, level, chosen, proposing, template,
 templates_watched, window: {start, end, state}, counts}``; the payload names
-its ``source`` (``live``).
+its ``source`` (``live``) and the symbols it follows (``universe_symbols``).
 """
 from __future__ import annotations
 
@@ -62,6 +62,7 @@ def build_board(engine: Any, now: float) -> dict[str, Any]:
         "session_date": engine.session,
         "source": "live",
         "universe": len(engine.universe),
+        "universe_symbols": sorted(engine.universe),   # the watch list says which watched names it follows
         "seeding": len(engine.seeding),
         "scoreboard": engine.store_error is None,
         "scoreboard_error": engine.store_error,

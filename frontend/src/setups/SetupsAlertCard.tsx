@@ -3,7 +3,13 @@
  * triggers, fails or is dismissed. It stages a ticket at most; nothing here
  * places an order. */
 import { useState } from 'react';
-import { SETUP_KIND_LABELS, SETUPS_STAGE_NO_ENTRY_WHY, TAPE_VERDICT_LABELS, TAPE_VERDICT_TIPS } from '../constants';
+import {
+  SETUP_KIND_LABELS,
+  SETUP_TRIGGER_LEVEL_WORDS,
+  SETUPS_STAGE_NO_ENTRY_WHY,
+  TAPE_VERDICT_LABELS,
+  TAPE_VERDICT_TIPS,
+} from '../constants';
 import { tipProps } from '../ux/hoverTip';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { fmtCents, fmtPx } from './setupsFormat';
@@ -11,9 +17,6 @@ import { setupTypeOf } from './setupWords';
 import { stageSetupTicket } from './stageSetupTicket';
 import type { SetupsBoard } from './types';
 import './setups.css';
-
-/** What the trigger is, per setup, as the alert names it. */
-const LEVEL_WORDS: Record<string, string> = { red_to_green: 'open', flat_top_breakout: 'high' };
 
 export function SetupsAlertCard({ board }: { board: SetupsBoard | null }) {
   const { openStockView } = useWorkspace();
@@ -27,7 +30,7 @@ export function SetupsAlertCard({ board }: { board: SetupsBoard | null }) {
   const entry = top.entry != null ? top.entry.toFixed(2) : '';
   const dismiss = () => setDismissed(prev => new Set(prev).add(top.id));
   const tapeNow = top.tape_now ?? 'go';
-  const level = LEVEL_WORDS[setupTypeOf(top)] ?? 'trigger';
+  const level = SETUP_TRIGGER_LEVEL_WORDS[setupTypeOf(top)] ?? 'trigger';
   return (
     <div className="setups-alert" role="status" aria-live="polite">
       <div className="setups-alert-body">

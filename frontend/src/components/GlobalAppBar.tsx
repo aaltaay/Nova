@@ -12,8 +12,9 @@
  * history-date picker moved to the board header's session line. View
  * navigation is the nav rail's. Bot row = BotSymbolMenuHost only (issue #230;
  * ADR 027 moved the level and Activate to the Bots page hero); the Trader tab
- * row sits under it, above the chart. The watch list's "XYZ hit HOD Momo"
- * toasts mount here too, so they reach every page of the main desk once.
+ * row sits under it, above the chart. The watch list's toasts ("XYZ hit HOD
+ * Momo", "XYZ: bull flag armed") mount here too, so they reach every page of
+ * the main desk once.
  */
 import { GLOBAL_BAR_BRAND } from '../constants';
 import { RecordingChip } from '../capture/RecordingChip';
@@ -42,7 +43,7 @@ import { NovaLogo } from './NovaLogo';
 import { useScannerBarProps } from './scannerBarStore';
 import type { GlobalAppBarScanner } from './globalAppBarScanner';
 import { useRenderCount } from '../perf/useRenderCount';
-import { WatchHodToasts } from '../watch_list/WatchHodToasts';
+import { WatchListToasts } from '../watch_list/WatchListToasts';
 
 export type { GlobalAppBarScanner };
 
@@ -100,7 +101,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
     // The bar is tinted by the settled venue (global-app-bar.css); none while unknown.
     <header className="global-app-bar" data-testid="global-app-bar" data-venue={deskVenue ?? undefined}>
       <RecordingSignals onOpenSymbol={openStockView} />
-      <WatchHodToasts onOpenSymbol={openStockView} />
+      <WatchListToasts onOpenSymbol={openStockView} />
       <div className="global-app-bar__primary" data-testid="global-bar-primary">
         <div className="global-app-bar__left" data-testid="global-bar-left">
           <div className="global-app-bar__brand" aria-label={GLOBAL_BAR_BRAND}>

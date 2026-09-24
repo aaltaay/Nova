@@ -170,6 +170,8 @@ export interface SetupsBoard {
   setups?: SetupSummary[];
   replay?: SetupsReplay | null;
   universe: number;
+  /** The symbols the scanner follows now, sorted (the HOD Momo names); absent on an API before 2026-09-24. */
+  universe_symbols?: string[];
   seeding: number;
   scoreboard: boolean;
   scoreboard_error: string | null;
