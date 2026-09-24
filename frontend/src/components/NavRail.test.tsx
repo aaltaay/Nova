@@ -144,10 +144,10 @@ describe('NavRail', () => {
     const groups = listScannerNavGroups();
     expect(groups.map((g) => g.group)).toEqual(['lists', 'signals', 'mine']);
     expect(groups[0].modules.map((m) => m.id)).toEqual([
-      'gappers', 'gainers', 'losers', 'running_up', 'afterhours', 'large_cap',
+      'gappers', 'gainers', 'losers', 'afterhours', 'large_cap',
     ]);
     expect(groups[1].modules.map((m) => m.id)).toEqual([
-      'volume_boost', 'hod_momo', 'catalysts', 'earnings', 'nova_news',
+      'volume_boost', 'hod_momo', 'running_up', 'catalysts', 'earnings', 'nova_news',
     ]);
     expect(groups[2].modules.map((m) => m.id)).toEqual(['watch_list', 'watchlist']);
     const tree = q('nav-rail-scanner-tree')!;

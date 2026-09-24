@@ -17,3 +17,4 @@ export {
   requestFocusList,
   subscribeFocusListRequest,
 } from './focusListRequest';
+export type { NovaModule } from './registry';
