@@ -58,18 +58,19 @@ PRACTICE_FINRA_TAF_MAX = 9.79
 # ---------------------------------------------------------------------------
 # Buying power -- Regulation T margin account, enforced
 # ---------------------------------------------------------------------------
-# Reg T initial margin is 50 % of the purchase, so overnight buying power is
-# 2x equity (12 CFR 220.12; QuantConnect's IB model also grants 2x on
-# equities). Applied as equity * mult.
-PRACTICE_MARGIN_OVERNIGHT_MULT = 2.0
-# FINRA Rule 4210(f)(8)(B)(ii): day-trading buying power is four times the
-# prior close's maintenance-margin excess for a pattern day trader
-# (https://www.finra.org/rules-guidance/key-topics/margin-accounts).
+# FINRA Rule 4210 intraday margin, effective 2026-06-04 (Regulatory Notice
+# 26-10, https://www.finra.org/rules-guidance/notices/26-10): the pattern day
+# trader designation, its USD 25,000 minimum and 4x day-trading buying power
+# are gone; equity must cover the maintenance margin of the positions held at
+# any moment of the day. FINRA's maintenance margin on long stock is 25 %, so
+# intraday buying power is 4x equity. Applied as equity * mult.
 PRACTICE_MARGIN_INTRADAY_MULT = 4.0
-# FINRA 4210(f)(8)(B)(iv): a pattern day trader must hold USD 25,000 of
-# equity to keep day-trading buying power; below it the practice account
-# falls back to the overnight multiplier.
-PRACTICE_PDT_MIN_EQUITY = 25_000.0
+# FINRA 4210(b)(2): no credit below USD 2,000 of equity -- IBKR keeps this
+# Reg T minimum for margin and short sales under the new rule.
+PRACTICE_MARGIN_MIN_EQUITY = 2_000.0
+# Below the minimum the account buys with its own cash only: equity * 1 less
+# gross position value is the cash on hand.
+PRACTICE_CASH_MULT = 1.0
 
 # ---------------------------------------------------------------------------
 # Live reference freshness (Paper venue)

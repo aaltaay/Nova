@@ -85,8 +85,8 @@ def test_unwind_to_forgets_what_happened_after_the_playhead() -> None:
 
 
 def test_buying_power_refuses_an_opening_order_but_never_a_reducing_sell() -> None:
-    ledger = Ledger(10_000, created_ts=T0)  # below the PDT line: 2x -> 20,000 of power
-    assert ledger.can_afford("IMCC", "BUY", 3000, 10.0) == (False, 30_000.0, 20_000.0)
+    ledger = Ledger(10_000, created_ts=T0)  # intraday margin 4x (no PDT line) -> 40,000 of power
+    assert ledger.can_afford("IMCC", "BUY", 5000, 10.0) == (False, 50_000.0, 40_000.0)
     ledger.place(row(1, qty=1000), ts=T0, source="manual")
     ledger.fill(1, ts=T0 + 1, price=10.0, basis="quote")
     assert ledger.can_afford("IMCC", "BUY", 5000, 10.0)[0] is False
