@@ -70,6 +70,23 @@ def test_backward_scrub_stops_before_duplicate_print_or_bar():
     assert rows(directory, "bars_1m")[0]["volume"] == 3
 
 
+def test_a_lost_tape_line_is_on_record_in_the_manifest_across_segments():
+    """#525: the logs that would have named the 09:46:40 stop had rotated away; the manifest keeps it."""
+    directory = start()
+    loss = {"at": TS + 95, "cause": "stale", "detail": "No prints since 10:00:00 ET (95s)"}
+    recorder.note_tape(SYMBOL, loss=loss)
+    recorder.note_tape(SYMBOL.lower(), resubscribed=True)
+    assert recorder.status()["fidelity"]["tape_losses"] == [loss]
+    recorder.stop_recorder()
+    recorder.note_tape(SYMBOL, resubscribed=True)          # not recording: nothing to note
+    fidelity = json.loads((directory / "manifest.json").read_text())["fidelity"]
+    assert fidelity["tape_losses"] == [loss] and fidelity["tape_resubscribes"] == 1
+    recorder.start_recorder(SYMBOL, session_date=DAY)       # the next segment carries the day's history
+    recorder.note_tape(SYMBOL, resubscribed=True)
+    assert recorder.status()["fidelity"]["tape_resubscribes"] == 2
+    assert recorder.status()["fidelity"]["tape_losses"] == [loss]
+
+
 def test_resume_keeps_timestamp_high_water_mark():
     directory = start()
     recorder.record_print(dict(ts=TS + 10, symbol=SYMBOL, price=10))

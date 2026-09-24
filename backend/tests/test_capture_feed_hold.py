@@ -108,6 +108,32 @@ def test_depth_refused_still_records_prints(lines):
     assert feed_hold.held("IMCC") == {"tape": True, "depth": False}
 
 
+def test_renewing_the_tape_asks_for_the_tape_only_and_keeps_the_hold(lines):
+    """#525: a dead tape line is asked for again without cycling the healthy depth line."""
+    asyncio.run(feed_hold.acquire("IPDN"))
+    lines.tape.subscribed.discard("IPDN")                # the tape line was dropped as dead
+    depth_calls = list(lines.depth.calls)
+    assert asyncio.run(feed_hold.renew_tape("ipdn")) is None
+    assert lines.tape.calls.count(("subscribe", "IPDN")) == 2
+    assert lines.tape.viewers["IPDN"] == 1               # the hold's one reference, not a second
+    assert lines.depth.calls == depth_calls and lines.depth.viewers["IPDN"] == 1
+    lines.tape.subscribed.discard("IPDN")
+    lines.tape.ok = False
+    assert "transport down" in asyncio.run(feed_hold.renew_tape("IPDN"))
+    assert feed_hold.held("IPDN") == {"tape": True, "depth": True}
+
+
+def test_a_young_hold_is_a_start_in_flight_not_an_orphan(lines, monkeypatch):
+    """#525: a status poll between taking the lines and listing the symbol released them."""
+    from capture import constants_capture
+
+    asyncio.run(feed_hold.acquire("IPDN"))
+    taken = feed_hold._taken_at["IPDN"]
+    assert feed_hold.orphans([], now=taken + 1) == []
+    assert feed_hold.orphans(["IPDN"], now=taken + 3600) == []
+    assert feed_hold.orphans([], now=taken + constants_capture.CAPTURE_HOLD_ORPHAN_GRACE_SEC) == ["IPDN"]
+
+
 # ---------------------------------------------------------------------------
 # A Sim desk records live ticks but never shows them
 

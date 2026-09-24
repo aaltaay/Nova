@@ -40,11 +40,10 @@ def _release_later(symbol: str) -> None:
 
 
 def _release_orphans() -> None:
-    """Drop holds the recorder no longer uses -- e.g. it stopped itself on a disk error."""
+    """Drop holds the recorder no longer uses -- never a start still in flight (#525)."""
     recording = set(capture_symbols()) if is_capture_mode() else set()
-    for symbol in feed_hold.held_symbols():
-        if symbol not in recording:
-            _release_later(symbol)
+    for symbol in feed_hold.orphans(recording):
+        _release_later(symbol)
 
 
 @router.get("/api/capture")

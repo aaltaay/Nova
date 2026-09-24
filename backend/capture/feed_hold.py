@@ -18,15 +18,22 @@ not.
 from __future__ import annotations
 
 import logging
+import time
+from typing import Iterable
+
+from capture.constants_capture import CAPTURE_HOLD_ORPHAN_GRACE_SEC
 
 logger = logging.getLogger(__name__)
 
 # symbol -> which lines this module holds a viewer reference on.
 _held: dict[str, dict[str, bool]] = {}
+# symbol -> when its hold was taken (a start in flight is not an orphan).
+_taken_at: dict[str, float] = {}
 
 
 def reset_for_tests() -> None:
     _held.clear()
+    _taken_at.clear()
 
 
 def held(symbol: str) -> dict[str, bool] | None:
@@ -35,6 +42,20 @@ def held(symbol: str) -> dict[str, bool] | None:
 
 def held_symbols() -> list[str]:
     return list(_held)
+
+
+def orphans(recording: Iterable[str], now: float | None = None) -> list[str]:
+    """Holds no recording uses -- e.g. the recorder stopped itself on a disk error.
+
+    A hold is taken before ``set_capture_mode`` lists its symbol (on a worker
+    thread, behind the writer's drain), so a status poll in that window used to
+    release a recording's lines as it started (#525). A young hold is a start in
+    flight; one whose start failed is released once it is older than the grace.
+    """
+    stamp = time.time() if now is None else now
+    wanted = {str(s).upper() for s in recording}
+    return [sym for sym in _held
+            if sym not in wanted and stamp - _taken_at.get(sym, 0.0) >= CAPTURE_HOLD_ORPHAN_GRACE_SEC]
 
 
 async def acquire(symbol: str) -> str | None:
@@ -67,8 +88,30 @@ async def acquire(symbol: str) -> str | None:
     except Exception:
         logger.exception("RECORD: depth hold failed for %s; prints only", sym)
     _held[sym] = hold
+    _taken_at[sym] = time.time()
     logger.info("RECORD: holding IBKR lines for %s (%s)", sym, hold)
     return None
+
+
+async def renew_tape(symbol: str) -> str | None:
+    """Ask IBKR for the recording's tape line again (#525); return an error or None.
+
+    Only the tape: the hold keeps its viewer reference, the depth line is not
+    touched (a Gateway drop re-takes both through ``release`` / ``acquire``).
+    Without a hold -- it was lost -- this takes one.
+    """
+    from ibkr import tape_stream
+
+    sym = symbol.strip().upper()
+    if sym not in _held:
+        return await acquire(sym)
+    if tape_stream.is_subscribed(sym):
+        return None
+    result = await tape_stream.subscribe_async(sym)
+    if result.get("ok"):
+        logger.warning("RECORD: re-requested the IBKR tape line for %s", sym)
+        return None
+    return result.get("error") or f"Could not open the IBKR tape for {sym}"
 
 
 async def release(symbol: str) -> None:
@@ -77,6 +120,7 @@ async def release(symbol: str) -> None:
 
     sym = symbol.strip().upper()
     hold = _held.pop(sym, None)
+    _taken_at.pop(sym, None)
     if hold is None:
         return
     if hold["tape"] and tape_stream.ws_viewer_closed(sym):

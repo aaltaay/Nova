@@ -250,8 +250,12 @@ migrated; unknown versions refuse loudly. Capture load diagnostics include
 `l2_total`, `l2_loaded`, `l2_decimated`, `malformed_rows`,
 `invalid_timestamp_rows`, `invalid_rows`, and `legacy_schema`. Recorder
 `fidelity` includes `l2_offered`, `l2_coalesced`, `invalid_timestamp_rows`,
-`timestamp_regressions`, and `last_stream_ts`. Diagnostics are counts except
-`legacy_schema` / `l2_decimated` (booleans) and `last_stream_ts` (per-stream event timestamps).
+`timestamp_regressions`, `last_stream_ts`, `tape_resubscribes` and
+`tape_losses: [{at, cause: "ib_error" | "stale", detail}]` (the recording's
+tape line lost while it ran, newest last, at most `CAPTURE_TAPE_LOSS_KEEP`;
+both carried across segments of the day, #525). Diagnostics are counts except
+`legacy_schema` / `l2_decimated` (booleans), `last_stream_ts` (per-stream event
+timestamps) and `tape_losses`.
 No automatic retention policy is selected by these additions.
 
 ### Recording persistence and coverage (operator decision, 2026-09-21)
@@ -275,6 +279,28 @@ unplanned stop; a recording whose tape line went `disconnected` re-acquires its
 IBKR lines when the client is ready again. Resume never crosses a day boundary,
 never changes symbol, and is cancelled by an operator Stop or by the operator
 starting another symbol.
+
+**The tape line (#525).** A recording can lose its AllLast line while its book
+keeps coming (IPDN and WHLR, 2026-09-23 09:46:40). `ibkr/tape_line.py` maps
+every AllLast request id to its symbol, so an IB error names its line with or
+without a contract; a non-warning error on a live line's own request id ends
+that line (cancelled, so the next request is a real one -- ib_async hands back
+a line it still has registered), and every end is logged at WARNING. The
+recording's producer (`/api/capture` `sessions[SYM].producer`, which also
+carries `line_since`, when its line opened) then reads `disconnected` with
+`ended: {at, cause, code, message, req_id}`. `capture/tape_watch.py` also calls a line dead when no print
+came for `CAPTURE_TAPE_STALE_SEC` while the book updated within
+`CAPTURE_TAPE_BOOK_FRESH_SEC` (a quiet name looks the same; asking again is
+harmless). Either way the keepalive asks for the tape only -- the depth line is
+left alone -- once IB's 15 s same-instrument rule allows
+(`CAPTURE_TAPE_RENEW_DELAY_SEC`), backing off by `CAPTURE_TAPE_RESUBSCRIBE_MIN_SEC`
+over a streak of outages (a quiet name that prints now and then), and says so:
+a `capture_stopped` row with `reason: "tape"` (never a segment reason: the
+recorder did not stop; one row per streak) whose `resumed` turns true when a
+print arrives on a new line, `reacquired`
+on the session, and the manifest's `fidelity.tape_losses` /
+`tape_resubscribes`. A Record hold younger than `CAPTURE_HOLD_ORPHAN_GRACE_SEC`
+is a start in flight and is never released as an orphan by a status poll.
 
 Every manifest segment carries `reason: "operator" | "rotation" | "failure" |
 "restart" | "auto"` naming why it ended (`auto`: auto-record's planned stop, ADR 023) (`restart` is stamped by the startup finalizer,
@@ -304,11 +330,13 @@ requested symbol's own trouble (or the writer's).
 
 `/api/ibkr/status` adds `capture_sessions: object[]`, one per recording
 symbol (`symbol`, `session_date`, `started_et`, `segment_started_et`, `segment`,
-`counts`, `last_write_ts`, `dir`, `reacquired`), `capture_resume: object[]`
+`counts`, `last_write_ts`, `dir`, `reacquired` -- lines asked for again after a
+Gateway drop or a lost tape), `capture_resume: object[]`
 (`symbol`, `pending`, `attempt`, `max_attempts`, `next_at`, `reason`, `gave_up`,
 `gave_up_reason`) and `capture_stopped: object[]` -- per symbol, the last stop
 the operator did not ask for (`symbol`, `at`, `reason`, `error`, `dir`,
-`counts`, `resumed`), kept until that symbol records again or the operator
+`counts`, `resumed`; `reason` is a segment reason, or `tape` for a lost tape
+line while the recording ran), kept until that symbol records again or the operator
 stops it. All three are empty lists while nothing is recording or pending. The UI treats a running recording
 as quiet state (chip, hairline, window title) and an unrequested stop as the
 loud one.

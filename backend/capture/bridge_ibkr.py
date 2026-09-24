@@ -269,17 +269,16 @@ def book_health(symbol: str) -> dict:
 
 
 def producer_health(symbol: str) -> dict:
-    from ibkr import tape_stream
-    from ibkr import client
+    """The recording's tape line. ``ended``: how IBKR ended it (``ibkr.tape_line``), else None."""
+    from ibkr import client, tape_line, tape_stream
     from ibkr.tape_recording import producer_status
 
     state = producer_status(symbol)
     if not tape_stream.is_subscribed(symbol) or client.get_ib() is None:
-        return state | {
-            "state": "disconnected",
-            "healthy": False,
-            "error": "IBKR AllLast is not connected/subscribed for " + symbol,
-        }
+        ended = tape_line.ended(symbol)
+        error = ("IBKR ended the AllLast line for " + symbol + ": " + ended["message"] if ended
+                 else "IBKR AllLast is not connected/subscribed for " + symbol)
+        return state | {"state": "disconnected", "healthy": False, "error": error, "ended": ended}
     return state
 
 

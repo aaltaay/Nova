@@ -1,5 +1,7 @@
 """Capture writer: atomic manifest, serialized streams and explicit failures.
 
+maintainer: one-concern every session, its open streams and its manifest share one non-reentrant lock
+
 One session per symbol, up to CAPTURE_MAX_CONCURRENT at once -- IBKR allows
 three depth lines and Record holds one per symbol (operator decision,
 2026-09-21). The sessions share one non-reentrant lock on purpose: stop drains
@@ -495,6 +497,14 @@ def fail_recorder(error: str, symbol: str | None = None) -> None:
             s.error = error
             s.stop_reason = CAPTURE_STOP_FAILURE
             _stop_locked(s)
+
+
+def note_tape(symbol: str, *, loss: dict[str, Any] | None = None, resubscribed: bool = False) -> None:
+    """Keep a lost / re-requested tape line in the recording's manifest ``fidelity`` (#525)."""
+    with _lock:
+        s = _sessions.get(symbol.strip().upper())
+        if s is not None and s.active:
+            s.fidelity.note_tape(loss=loss, resubscribed=resubscribed)
 
 
 # ---------------------------------------------------------------------------

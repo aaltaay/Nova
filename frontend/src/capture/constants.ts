@@ -30,7 +30,7 @@ export const recordingChipTitle = (args: {
     args.lastWriteAgeSec == null ? 'Nothing written yet' : `Last write ${args.lastWriteAgeSec}s ago`,
   ];
   if (args.auto) lines.push(AUTO_RECORD_CHIP_LINE);
-  if (args.reacquired) lines.push(`IBKR lines re-acquired ${args.reacquired}x after a Gateway drop`);
+  if (args.reacquired) lines.push(`IBKR lines asked for again ${args.reacquired}x (a Gateway drop or a lost tape)`);
   if (args.dir) lines.push(args.dir);
   lines.push('Click to open the tab. Stop from the tab menu (hold).');
   return lines.join('\n');
@@ -43,6 +43,8 @@ export const RECORDING_STOP_REASONS: Record<string, string> = {
   operator: 'was stopped',
   rotation: 'rolled to a new day',
   auto: 'was stopped by auto-record (window ended or line yielded)',
+  // #525: prints stopped while the recording ran; never a segment reason.
+  tape: 'lost its IBKR tape -- no prints are being recorded',
 };
 /**
  * Stops somebody planned -- the operator's Stop, auto-record's own stop

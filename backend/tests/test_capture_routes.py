@@ -185,3 +185,30 @@ def test_a_recorder_that_stopped_itself_gives_its_lines_back(client):
     worker.transition(lambda: recorder.fail_recorder("disk full"))
     assert client.get("/api/capture").json()["capture"] is False
     assert eventually(lambda: HOLDS["released"] == ["AAPL"])
+
+
+def test_a_status_poll_during_a_start_never_releases_its_new_lines(client, monkeypatch):
+    """#525: the lines are held before ``set_capture_mode`` lists the symbol (on a
+    worker thread, behind the writer's drain). A poll in that window used to
+    release them, and the recording then ran on whatever panels happened to hold."""
+    import capture.routes as routes
+
+    async def acquire(symbol):
+        HOLDS["acquired"].append(symbol)
+        feed_hold._held[symbol] = {"tape": True, "depth": True}
+        feed_hold._taken_at[symbol] = time.time()
+        return None
+
+    real_set = routes.set_capture_mode
+    polled = []
+
+    def set_capture_mode(*args, **kwargs):
+        polled.append(client.get("/api/capture").json()["capture_symbols"])  # the desk polls mid-start
+        return real_set(*args, **kwargs)
+
+    monkeypatch.setattr(feed_hold, "acquire", acquire)
+    monkeypatch.setattr(routes, "set_capture_mode", set_capture_mode)
+    assert toggle(client, True, "AAPL").json()["capture_symbols"] == ["AAPL"]
+    assert polled == [[]]                                 # the poll ran before AAPL was listed
+    time.sleep(0.1)                                       # a release would be a background task
+    assert HOLDS["released"] == [] and feed_hold.held("AAPL")

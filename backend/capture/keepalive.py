@@ -6,7 +6,9 @@ writer backlog), and an IBKR line that drops with the Gateway. The market only
 happens once, so the policy for all three is the same -- get back up into a new
 segment on your own, and tell the operator what happened -- bounded so a dead
 disk cannot loop forever, never across a day boundary, never onto a different
-symbol, and cancelled the moment the operator stops that symbol.
+symbol, and cancelled the moment the operator stops that symbol. A tape line
+that dies while the recording runs (#525) is the same policy without a new
+segment: ``capture.tape_watch`` decides, this module asks IBKR again and says so.
 
 Every symbol is followed on its own: up to CAPTURE_MAX_CONCURRENT record at
 once, and one dying must not touch the others. State here is process memory;
@@ -18,10 +20,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Awaitable, Callable
 from zoneinfo import ZoneInfo
 
+from capture import tape_watch
 from capture.constants_capture import (
     CAPTURE_KEEPALIVE_INTERVAL_SEC,
     CAPTURE_RESUME_BACKOFF_SEC,
@@ -29,6 +33,7 @@ from capture.constants_capture import (
     CAPTURE_RESUME_RESTART_WINDOW_SEC,
     CAPTURE_STOP_FAILURE,
     CAPTURE_STOP_RESTART,
+    CAPTURE_TAPE_LOST,
 )
 
 logger = logging.getLogger(__name__)
@@ -41,8 +46,17 @@ _watched: set[str] = set()
 _resume: dict[str, dict[str, Any]] = {}
 # symbol -> the last stop the operator did not ask for -- what the UI shouts about.
 _stopped: dict[str, dict[str, Any]] = {}
-# symbol -> IBKR lines re-acquired after a Gateway drop, this session.
+# symbol -> IBKR lines re-acquired after a Gateway drop or a lost tape, this session.
 _reacquired: dict[str, int] = {}
+
+
+@dataclass
+class TapeOps:
+    """The IBKR side of bringing a recording's tape back (#525), injected so tests fake it."""
+
+    end: Callable[[str, str], Any]                 # drop the line; viewers keep their queues
+    renew: Callable[[str], Awaitable[str | None]]  # ask for the tape again; an error or None
+    note: Callable[..., Awaitable[None]]           # the manifest's fidelity: loss= / resubscribed=
 
 
 def reset_for_tests() -> None:
@@ -50,6 +64,7 @@ def reset_for_tests() -> None:
     _resume.clear()
     _stopped.clear()
     _reacquired.clear()
+    tape_watch.reset_for_tests()
 
 
 def _today_et(now: float) -> str:
@@ -78,6 +93,7 @@ def operator_stopped(symbol: str | None) -> None:
         _watched.clear()
     else:
         _watched.discard(sym)
+    tape_watch.forget(sym)
 
 
 def operator_started(symbol: str) -> None:
@@ -87,6 +103,7 @@ def operator_started(symbol: str) -> None:
         return
     _resume.pop(sym, None)
     _stopped.pop(sym, None)
+    tape_watch.forget(sym)
 
 
 # ---------------------------------------------------------------------------
@@ -149,16 +166,19 @@ async def tick(
     acquire: Callable[[str], Awaitable[str | None]],
     release: Callable[[str], Awaitable[None]],
     start: Callable[[str], Awaitable[dict[str, Any]]],
+    tape: TapeOps | None = None,
 ) -> None:
     """Observe every recording once; resume or re-acquire where the policy says so.
 
     ``payload`` is ``capture.mode.status_payload()`` and ``recorder_status`` is
     ``capture.recorder.status()``, both taken by the caller off the loop.
+    ``tape`` watches each recording's tape line (#525); without it, it is not watched.
     """
     recording = [str(s).upper() for s in (payload.get("capture_symbols") or []) if s]
     if not recording and payload.get("capture") and payload.get("capture_symbol"):
         recording = [str(payload["capture_symbol"]).upper()]
     sessions = payload.get("sessions") or {}
+    tape_watch.keep_only(recording)
 
     for symbol in recording:
         if symbol in _resume:
@@ -166,7 +186,13 @@ async def tick(
             if symbol in _stopped:
                 _stopped[symbol]["resumed"] = True
         _watched.add(symbol)
-        producer = (sessions.get(symbol) or {}).get("producer") or payload.get("producer") or {}
+        entry = sessions.get(symbol) or {"producer": payload.get("producer"), "book": payload.get("book")}
+        producer = entry.get("producer") or payload.get("producer") or {}
+        if tape is not None:
+            rec = (recorder_status.get("sessions") or {}).get(symbol) or recorder_status
+            await _watch_tape(symbol, now=now, entry=entry, rec=rec, ready=ready, tape=tape)
+        if tape_watch.in_outage(symbol):
+            continue  # the tape alone is being brought back; the depth line is fine
         # Gateway drop: the tape line is gone but the client is back. Take the
         # lines again; the recorder never stopped, so this is a gap, not a segment.
         if producer.get("state") == "disconnected" and ready():
@@ -245,6 +271,53 @@ def _give_up(resume: dict[str, Any], reason: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# The tape line (#525)
+
+
+async def _watch_tape(symbol: str, *, now: float, entry: dict[str, Any], rec: dict[str, Any],
+                      ready: Callable[[], bool], tape: TapeOps) -> None:
+    """Act on ``tape_watch``'s verdict: drop, ask again, and say so."""
+    verdict = tape_watch.observe(symbol, now=now, entry=entry)
+    if verdict is None:
+        return
+    row = _stopped.get(symbol)
+    if verdict.kind in (tape_watch.LOST, tape_watch.END):
+        if verdict.end:
+            tape.end(symbol, verdict.detail)
+        logger.warning("CAPTURE: %s is recording without its tape (%s) -- %s", symbol, verdict.cause, verdict.detail)
+        if (verdict.kind == tape_watch.END or verdict.repeat) and row and row["reason"] == CAPTURE_TAPE_LOST:
+            # The same streak (a quiet name, or IBKR refusing again): one shout, brought up to date.
+            row["error"], row["resumed"] = verdict.detail, False
+            if verdict.kind == tape_watch.LOST:
+                await tape.note(symbol, loss={"at": now, "cause": verdict.cause, "detail": verdict.detail})
+            return
+        if row is None or row["resumed"] or row["reason"] == CAPTURE_TAPE_LOST:
+            # A stop the recorder never made: prints stopped, the recording did not.
+            _stopped[symbol] = {"symbol": symbol, "at": now, "reason": CAPTURE_TAPE_LOST, "error": verdict.detail,
+                                "dir": rec.get("dir"), "counts": dict(rec.get("counts") or {}), "resumed": False}
+        await tape.note(symbol, loss={"at": now, "cause": verdict.cause, "detail": verdict.detail})
+        return
+    if verdict.kind == tape_watch.RESUMED:
+        if row and row["reason"] == CAPTURE_TAPE_LOST:
+            row["resumed"] = True
+        logger.warning("CAPTURE: prints are back on %s's tape line", symbol)
+        return
+    if not ready():
+        return  # IBKR is not usable: not the tape's fault, and it costs no attempt
+    error = await tape.renew(symbol)
+    retry_at = tape_watch.renewed(symbol, now=now, error=error)
+    if error:
+        logger.warning("CAPTURE: asking IBKR again for %s's tape failed: %s (next try in %.0fs)",
+                       symbol, error, (retry_at or now) - now)
+        if row and row["reason"] == CAPTURE_TAPE_LOST:
+            row["error"] = f"{(tape_watch.status(symbol) or {}).get('detail')}; asking again failed: {error}"
+        return
+    _reacquired[symbol] = _reacquired.get(symbol, 0) + 1
+    await tape.note(symbol, resubscribed=True)
+    logger.warning("CAPTURE: asked IBKR again for %s's tape line", symbol)
+
+
+# ---------------------------------------------------------------------------
 # Status
 
 
@@ -279,11 +352,16 @@ def status_fields(recorder_status: dict[str, Any], recording: list[str]) -> dict
 async def run() -> None:
     """Background loop on the HTTP loop (feed_hold's lines live there)."""
     from capture import feed_hold, mode, recorder
-    from ibkr import client
+    from ibkr import client, tape_stream
 
     async def start(symbol: str) -> dict[str, Any]:
         return await asyncio.to_thread(mode.set_capture_mode, True, symbol=symbol, protect_active=True)
 
+    async def note(symbol: str, **kwargs: Any) -> None:
+        await asyncio.to_thread(recorder.note_tape, symbol, **kwargs)  # the recorder lock can wait on disk
+
+    tape = TapeOps(end=lambda symbol, why: tape_stream.end_line(symbol, why, notify=False),
+                   renew=feed_hold.renew_tape, note=note)
     while True:
         try:
             await asyncio.sleep(CAPTURE_KEEPALIVE_INTERVAL_SEC)
@@ -296,6 +374,7 @@ async def run() -> None:
                 acquire=feed_hold.acquire,
                 release=feed_hold.release,
                 start=start,
+                tape=tape,
             )
         except asyncio.CancelledError:
             raise
