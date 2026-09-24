@@ -4,6 +4,12 @@ Time & sales (tape) ingest for watched symbols.
 IBKR AllLast prints arrive through the independent bounded recording worker.
 Only symbols registered with watch_symbol() are persisted — typically those
 with an open depth session or an active signal recording window.
+
+Each row keeps the print's sale ``conditions`` and IBKR's ``unreported`` flag,
+the two facts ``sale_conditions.row_sets_price`` judges: the Paper practice
+broker reads this archive and fills only on prints that set a price (#511).
+A row stored before the flag was kept reads ``unreported: None`` and is judged
+by its conditions.
 """
 
 from __future__ import annotations
@@ -79,9 +85,23 @@ def get_trades_in_range(symbol: str, start_ts: float, end_ts: float) -> list[dic
             """,
             (symbol.upper(), start_ts, end_ts),
         ).fetchall()
-        return [dict(row) for row in rows]
+        return [_row(row) for row in rows]
     finally:
         conn.close()
+
+
+def _row(row) -> dict:
+    """A stored print as a dict; SQLite's 0 / 1 ``unreported`` reads as a bool, unknown stays None."""
+    out = dict(row)
+    if out.get("unreported") is not None:
+        out["unreported"] = bool(out["unreported"])
+    return out
+
+
+def _unreported(payload) -> int | None:
+    """IBKR's flag as SQLite stores it; a payload that does not carry it stays unknown (NULL)."""
+    flag = payload.get("unreported")
+    return None if flag is None else int(bool(flag))
 
 
 def clear_watched_for_tests() -> None:
@@ -105,8 +125,8 @@ def persist_print(payload) -> None:
     try:
         conn.execute(
             "INSERT INTO tape_trades "
-            "(symbol, ts, price, size, exchange, source, session_id, conditions, receive_ts) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "(symbol, ts, price, size, exchange, source, session_id, conditions, receive_ts, unreported) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             tuple(
                 payload.get(key)
                 for key in (
@@ -120,7 +140,8 @@ def persist_print(payload) -> None:
                     "conditions",
                     "receive_ts",
                 )
-            ),
+            )
+            + (_unreported(payload),),
         )
         conn.commit()
         symbol = payload["symbol"]

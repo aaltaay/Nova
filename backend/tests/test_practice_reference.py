@@ -10,10 +10,12 @@ from practice.reference import LiveReference, ReplayReference, top_of_book
 from sim.fill_model import (
     BASIS_LIVE_PRINT,
     BASIS_LIVE_QUOTE,
+    BASIS_PRINT_CROSS,
     BASIS_QUOTE,
     Fill,
     Reference,
     at_placement,
+    on_print,
 )
 
 NOW = 1_000.0
@@ -117,6 +119,37 @@ def test_prints_between_is_half_open_oldest_first_and_drops_junk(live) -> None:
     ])
     assert Frozen().prints_between("imcc", 10.0, 30.0) == [(20.0, 9.1), (30.0, 9.2)]
     assert Frozen().prints_between("IMCC", 30.0, 10.0) == []
+
+
+def test_volume_only_prints_never_set_the_last_or_fill_a_resting_order(live) -> None:
+    """#511: on 2026-09-23 PLTR printed FINRA ``190.38 x 100  4 W`` against a 192.64 x 192.80 book."""
+    live.watched.add("PLTR")
+    live.books["PLTR"] = {"bids": [{"price": 192.64}], "asks": [{"price": 192.80}]}
+    live.trades.extend([
+        {"symbol": "PLTR", "ts": NOW - 9, "price": 192.70, "conditions": "@ T", "unreported": False},
+        # Stored before the archive kept IBKR's flag: judged by its conditions.
+        {"symbol": "PLTR", "ts": NOW - 7, "price": 190.38, "conditions": "4 W", "unreported": None},
+        {"symbol": "PLTR", "ts": NOW - 6, "price": 190.10, "conditions": "I"},
+        # IBKR flagged it unreported without a code the rule lists.
+        {"symbol": "PLTR", "ts": NOW - 5, "price": 190.20, "conditions": "", "unreported": True},
+    ])
+    assert Frozen().reference("PLTR").last == 192.70  # never the average-price print
+    prints = Frozen().prints_between("PLTR", NOW - 10, NOW)
+    assert prints == [(NOW - 9, 192.70)]
+    # A resting buy limit at 191 sees no print at or under it ...
+    assert [on_print("BUY", "LMT", px, limit=191.0) for _, px in prints] == [None]
+    # ... until a print that sets a price reaches it.
+    live.trades.append({"symbol": "PLTR", "ts": NOW - 1, "price": 190.95, "conditions": "@ F", "unreported": False})
+    crossed = Frozen().prints_between("PLTR", NOW - 9, NOW)
+    assert crossed == [(NOW - 1, 190.95)]
+    assert on_print("BUY", "LMT", crossed[0][1], limit=191.0) == Fill(191.0, BASIS_PRINT_CROSS)
+
+
+def test_only_volume_only_prints_in_the_window_is_no_live_print(live) -> None:
+    live.watched.add("PLTR")
+    live.trades.append({"symbol": "PLTR", "ts": NOW - 2, "price": 190.38, "conditions": "4 W"})
+    assert Frozen().reference("PLTR").last is None
+    assert Frozen().admission("PLTR") == (False, PRACTICE_NO_LIVE_PRINT_REASON, PRACTICE_NO_LIVE_PRINT_CODE)
 
 
 def test_top_of_book_picks_the_best_prices_and_ignores_junk() -> None:

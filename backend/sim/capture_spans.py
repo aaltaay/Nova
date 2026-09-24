@@ -1,4 +1,4 @@
-"""Where a loaded capture holds data, for the capture player (QA 2026-09-22, R11 / R13 / R24).
+"""Where a loaded capture holds data, for the capture player (QA 2026-09-22, R11 / R13).
 
 A recording has gaps -- a restart, a recorder failure, the operator stopping it
 -- and inside one nothing was recorded. The player used to answer "the newest
@@ -21,7 +21,6 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from capture.constants_capture import CAPTURE_ODD_LOT_CONDITION
 from capture.segments import recorded_segments, segment_spans
 
 logger = logging.getLogger(__name__)
@@ -73,11 +72,6 @@ def newest_in_span(keys: list[float], spans: list[Span], t: float) -> int:
         return -1
     i = bisect.bisect_right(keys, t) - 1
     return i if i >= 0 and keys[i] >= start else -1
-
-
-def is_odd_lot(row: dict[str, Any]) -> bool:
-    """An odd-lot print (sale condition ``I``): it never sets the last or fills a practice order."""
-    return CAPTURE_ODD_LOT_CONDITION in str(row.get("conditions") or "").upper()
 
 
 def previous_close_for(symbol: str, date: str) -> float | None:
