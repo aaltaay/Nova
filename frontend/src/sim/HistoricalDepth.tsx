@@ -12,7 +12,7 @@
  *
  * (The rail hides .ibkr-depth-fallback-badge, so the notes use their own class.)
  */
-import { MontageSide } from '../ibkr';
+import { MontageSide, bookPeak } from '../ibkr';
 import { etTime } from './historicalReplayFormat';
 import {
   SIM_REPLAY_L2_CHIP_LABEL,
@@ -38,6 +38,9 @@ interface Props {
 
 export function HistoricalDepth({ depth = null, holdLineFor = null }: Props) {
   useHistoricalDepthLine(holdLineFor ?? '', Boolean(holdLineFor));
+  const bids = depth?.bids ?? [];
+  const asks = depth?.asks ?? [];
+  const peak = bookPeak(bids, asks);
   return (
     <div className="das-l2" data-testid="historical-l2" data-depth-source={depth?.source ?? 'none'}>
       {depth ? (
@@ -54,8 +57,8 @@ export function HistoricalDepth({ depth = null, holdLineFor = null }: Props) {
         </div>
       )}
       <div className="das-l2-montage">
-        <MontageSide side="bid" levels={depth?.bids ?? []} />
-        <MontageSide side="ask" levels={depth?.asks ?? []} />
+        <MontageSide side="bid" levels={bids} peak={peak} />
+        <MontageSide side="ask" levels={asks} peak={peak} />
       </div>
     </div>
   );

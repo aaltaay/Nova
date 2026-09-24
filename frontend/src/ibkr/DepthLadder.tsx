@@ -1,4 +1,4 @@
-import { useEffect, type CSSProperties } from 'react';
+import { useEffect } from 'react';
 import {
   L2_DAS_HEADERS,
   L2_DAS_MM_FALLBACK,
@@ -12,7 +12,13 @@ import {
   TICKER_TRADE_DEPTH_LEVELS,
 } from '../constants';
 import { useTopOfBook } from '../hotkeys/TopOfBookContext';
-import { assignPriceTiers, maxSize, padLevels, tierBackground } from './dasDepthTiers';
+import {
+  assignPriceTiers,
+  bookPeak,
+  padLevels,
+  sizeGaugePct,
+  tierBackground,
+} from './dasDepthTiers';
 import { isOvernightOnlyBook } from './depthBookGuards';
 import {
   depthEmptyMessage,
@@ -46,35 +52,22 @@ function mmLabel(level: DepthLevel | null): string {
   return raw || L2_DAS_MM_FALLBACK;
 }
 
-function sizeBarStyle(
-  size: number,
-  max: number,
-  color: string,
-  side: 'bid' | 'ask',
-  tierBg: string,
-): CSSProperties {
-  if (max <= 0 || size <= 0) {
-    return { backgroundColor: tierBg };
-  }
-  const pct = Math.min(100, Math.round((size / max) * 100));
-  // Grow from the price column toward MM (bid: right-to-left, ask: left-to-right).
-  const dir = side === 'bid' ? 'to left' : 'to right';
-  return {
-    backgroundImage: `linear-gradient(${dir}, ${color} ${pct}%, transparent ${pct}%), linear-gradient(${tierBg}, ${tierBg})`,
-  };
-}
-
-/** One side of the DAS-style montage; historical replay renders it with no levels. */
+/**
+ * One side of the DAS-style montage; historical replay renders it with no levels.
+ * `peak` is the largest size on the whole book (`bookPeak`), so a size gauge is
+ * the same length on the bid and the ask.
+ */
 export function MontageSide({
   side,
   levels,
+  peak,
 }: {
   side: 'bid' | 'ask';
   levels: DepthLevel[];
+  peak: number;
 }) {
   const tiers = assignPriceTiers(levels);
   const padded = padLevels(levels, TICKER_TRADE_DEPTH_LEVELS);
-  const peak = maxSize(levels);
   const isBid = side === 'bid';
 
   return (
@@ -97,15 +90,20 @@ export function MontageSide({
       {padded.map((level, i) => {
         const tier = level != null ? (tiers[i] ?? 0) : 0;
         const bg = level ? tierBackground(tier) : 'transparent';
-        const bar = level
-          ? sizeBarStyle(level.size, peak, L2_DAS_SIZE_BAR, side, bg)
-          : undefined;
+        const gauge = level ? sizeGaugePct(level.size, peak) : 0;
         return (
           <div
             key={`${side}-${i}`}
             className={`das-l2-row ${level ? 'das-l2-row--tiered' : 'das-l2-row--empty'}`}
-            style={bar ?? { backgroundColor: bg }}
+            style={{ backgroundColor: bg }}
           >
+            {gauge > 0 && (
+              <span
+                className="das-l2-gauge"
+                style={{ width: `${gauge}%`, backgroundColor: L2_DAS_SIZE_BAR }}
+                aria-hidden="true"
+              />
+            )}
             {isBid ? (
               <>
                 <span className="das-l2-mm">{mmLabel(level)}</span>
@@ -170,6 +168,7 @@ export function DepthLadder({ symbol, uiActive = true }: Props) {
   const liveBadge = depthLiveBadge(connected, error, l1Fallback);
   const liveBadgeText = depthLiveBadgeText(liveBadge);
   const overnightOnly = isOvernightOnlyBook(book);
+  const peak = bookPeak(book.bids, book.asks);
 
   return (
     <div className="das-l2">
@@ -198,8 +197,8 @@ export function DepthLadder({ symbol, uiActive = true }: Props) {
         )}
       </div>
       <div className="das-l2-montage">
-        <MontageSide side="bid" levels={book.bids} />
-        <MontageSide side="ask" levels={book.asks} />
+        <MontageSide side="bid" levels={book.bids} peak={peak} />
+        <MontageSide side="ask" levels={book.asks} peak={peak} />
       </div>
       {spread != null && (
         <div className="das-l2-spread">
