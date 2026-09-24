@@ -142,7 +142,8 @@ describe('ManualOrderTicket says why a control is locked', () => {
       expect(el.disabled, sel).toBe(false);
       expect(el.dataset.why, sel).toBeUndefined();
     }
-    expect(q<HTMLButtonElement>('[data-testid="manual-order-type-lmt"]').title).toBe('Limit order');
+    // No native tooltip returns either: the hover card explains the type.
+    expect(q<HTMLButtonElement>('[data-testid="manual-order-type-lmt"]').hasAttribute('title')).toBe(false);
   });
 });
 
