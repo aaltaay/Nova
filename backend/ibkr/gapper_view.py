@@ -70,6 +70,21 @@ def derive_rows(gainer_rows: list[dict] | None) -> list[dict]:
     return out
 
 
+def patch_for_table(table: str, row: dict) -> dict:
+    """An L1 price patch as ``table`` reads it: on Gappers the gap is the move.
+
+    A patch is built once per symbol from its Gainers row, whose
+    ``gap_percent`` is today's open against the prior close (null before the
+    open). A gapper's ``gap_percent`` is its ``change_pct`` (``derive_rows``),
+    so a patch tagged ``gappers`` says the same -- it used to carry the Gainers
+    gap, and the Gappers table and Focus rail flipped between the two numbers
+    on every roster replace. Other tables' patches pass through unchanged.
+    """
+    if table != _session.TABLE_GAPPERS or "change_pct" not in row:
+        return row
+    return {**row, "gap_percent": row["change_pct"]}
+
+
 def _publish(table: str, rows: list[dict], ts, wall: float) -> None:
     """Persist + push a roster replace, always on the HTTP loop.
 
