@@ -9,3 +9,6 @@ export interface WatchListBoards {
   afterhours: readonly ScannerRow[];
   largeCap: readonly ScannerRow[];
 }
+
+/** A rung of a setup's ladder the toasts announce: forming (leg or pullback), armed, near, triggered. */
+export type WatchSetupStage = 'forming' | 'armed' | 'near' | 'triggered';

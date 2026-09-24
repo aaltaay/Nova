@@ -66,5 +66,5 @@ the backend packages.
 | `utils/` | shared | Generic helpers (formatting, prefStore, sorting, rAF coalescing) plus backend / desktop glue (auto-heal, Gateway launch, window bounds). |
 | `ux/` | shared | The app-wide dialog service (the alert / confirm / prompt API and the `AppDialogHost` that renders it) and the two tips: why a control is locked (`whyTip`) and what a chip means (`hoverTip`); and Ctrl+F, the find bar every window gets (`findBar`, searching with `findText`). |
 | `volume_boost/` | feature | The Volume Boost scanner tab: exceptional L1 volume-rate spikes with age formatting. |
-| `watch_list/` | feature | The operator's hand-picked Watch list: the persisted list, the Watch list tab, the watch eye, and the "hit HOD Momo" toasts for watched symbols. |
+| `watch_list/` | feature | The operator's hand-picked Watch list: the persisted list, the Watch list tab, the watch eye, and the toasts for watched symbols -- "hit HOD Momo" and a setup climbing its ladder on the setup scanner. |
 | `workspace/` | feature | The workspace shell: selected-symbol context, module registry, layout / visibility / nav-rail stores, scanner tabs, the pop-out window bus. |

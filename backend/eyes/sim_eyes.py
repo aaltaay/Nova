@@ -243,6 +243,7 @@ class SimEyes:
         return wire_safe({
             "schema_version": SETUPS_SCHEMA_VERSION, "generated_at": now, "session_date": target.get("date"),
             "source": EYES_REPLAY_SOURCE_SIM, "universe": 1 if target.get("symbol") else 0,
+            "universe_symbols": [target["symbol"]] if target.get("symbol") else [],
             "seeding": 1 if view["loading"] else 0, "scoreboard": True, "scoreboard_error": None,
             "proposing": capture and bool(view["proposing"]), "replay": replay_view,
             "setups": view["setups"] if capture else [],

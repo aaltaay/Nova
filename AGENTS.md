@@ -805,7 +805,9 @@ and a rebuilt board; a day with none, a weekend or a future day cannot be picked
 (owner `backend/setup_scanner/`; read-only -- nothing there places, stages or
 cancels an order) answer `schema_version: 1`, `generated_at`, `session_date`
 (Eastern `YYYY-MM-DD` or null), `universe` (symbols followed: the HOD Momo
-active set), `seeding` (symbols still loading today's bars), `scoreboard:
+active set), `universe_symbols: string[]` (those symbols, sorted -- added
+2026-09-24 for the watch list; a Sim eyes board lists its replay's symbol),
+`seeding` (symbols still loading today's bars), `scoreboard:
 boolean`, `scoreboard_error: string | null`, `proposing: boolean` (false on a
 replay desk), `rows[]` (at most `SETUPS_BOARD_MAX_ROWS`; near, armed, triggered
 within 30 min, pullback, leg, failed within 5 min, then nearest the trigger)
@@ -1914,7 +1916,7 @@ wildcards run over symbols only. Recent look-ups persist in `localStorage`
 `nova.search.recent` (`{schema_version: 1, symbols: string[]}`, newest first,
 at most 12; owner `components/tickerSearchRecents.ts`).
 
-### The operator's watch list and its HOD Momo toasts (operator ask, 2026-09-23)
+### The operator's watch list and its toasts (operator asks, 2026-09-23 and 2026-09-24)
 
 A hand-picked list, kept in the desk: `localStorage` `nova.watch.list` =
 `{schema_version: 1, symbols: string[]}` -- newest first, upper-case tickers
@@ -1937,6 +1939,35 @@ per symbol: a burst folds into it (count and strategies); it leaves
 the symbol, Stop watching removes it, × dismisses. It places nothing. HOD
 Momo's tradeable floor still applies: a watched symbol the master gate refuses
 raises no alert, so no toast.
+
+**A setup forming on a watched symbol** (operator ask, 2026-09-24: "shouldn't
+these toast notifications be watching if a strategy is forming?"). The same
+toast follows the setup scanner's live board (`/ws/setups`, ADR 022 / 031;
+owner `watch_list/setupClimbs.ts`, pure). A watched symbol's setup raises it
+when it climbs its ladder: forming (`leg` or `pullback`), `armed`, `near`,
+`triggered` -- each at most once per setup (its `setup.leg_t`: a near that
+drops back to armed and returns is one toast), forming at most once per
+`WATCH_SETUP_FORMING_REPEAT_MS` (5 min) per symbol and setup. `failed`,
+`filtered` and `watching` never raise one. A triggered setup, or an armed or
+near one a newer leg replaced, ends its ladder, so the next one forming is
+news again. Only a climb between two live frames counts: the first frame after
+a page load, a reconnect or a return from Sim is read silently (nothing old is
+announced as new), the Sim eyes' board (`source: "sim"`) never toasts, and a
+symbol's ladder before it was watched is already known, so watching a symbol
+mid-setup announces only what comes next. It fires at every bot level: the
+watch list is the operator's own ask, not a proposal. Still one toast per
+symbol: HOD Momo alerts and setup lines fold together (one line per setup,
+newest first), and the title names the newest event -- "PFSA: bull flag
+armed", "PFSA: first pullback near the trigger" (the open for red to green,
+the high for a flat-top), "PFSA: bull flag triggered". A setup line reads the
+scanner's own words (state chip and reason, the tape verdict when near; the
+full explanation on hover) and follows the board while the toast is up -- a
+setup that fails or drops off the board says so -- without restarting the
+toast's timer. The setup scanner follows the HOD Momo names only, so the Watch
+list tab adds a **Setup** column: the symbol's most advanced setup on the
+board, "Nothing forming" for a symbol the scanner follows with no row, and
+"Not followed" for one outside `universe_symbols` (an API without the field
+says it cannot tell).
 
 The ranked Five Pillars list (tab id `watchlist`, `GET /api/strategy/watchlist`)
 is labelled **Contenders** in the UI, and the scanner's pillars column
@@ -2207,6 +2238,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-24 | Watch list toasts follow the setups too (operator ask on a "PFSA is running up" toast: "shouldn't these toast notifications be watching if a strategy is forming?"): the toasts listened only to the HOD Momo feed, so a watched symbol's bull flag or first pullback forming, arming, coming near its trigger or triggering said nothing. The toast now also follows the setup scanner's live board: each setup's climb up the ladder raises it once (flicker and the first frame after a load, a reconnect or Sim are read silently), one toast per symbol still, and its setup lines follow the board while it is up. The board names the symbols it follows (`universe_symbols`), so the Watch list tab's new Setup column says "Not followed" for a watched symbol the scanner does not watch (it follows the HOD Momo names only). §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | A practice send answers when the venue answers (operator report: "This is extremely dangerous. Why are things not getting sent fast enough?"): the Paper ticket read "Placing..." for five seconds after its order filled. The practice broker's notice of a fill at placement reached a watch the send then replaced, and a resting order sent none, so the execution door's acknowledgment wait ran out its full 5 s -- 21 of 23 Paper orders that day, fills in under 150 ms. The broker's own answer is now the acknowledgment (`practice/watch.note_answer`); a replace answers the same way; an order the venue cancels at the fill is refused in its own words instead of reading as placed. Live is unchanged (its record: IBKR's first status in 40 ms to about 1 s). `tools/order_timing.py` prints each order's stages from the running backend. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | The tape flow score and a flush exit (ADR 034; operator ask on a GLND flush in Time & Sales: "can my bots detect ... flush ... so we can exit a position or burst of greens where we can enter ... a small piece of the final decision", then "fine tune the SHIT out of this ... hybrid creative solution and mixing it in the strategies"). One score from -1 to +1 (ask vs bid shares, pace against the tape's own baseline, price move, book depth; an unknown reading drops out, never 0) with every number a template parameter; a template may enter on the score instead of the gate's print counts, and tighten or exit on a flush -- the scoring exit and Nova's bot follow one rule; the defaults are the pre-registered rules. The flow study reads every recorded second (15 recordings: a flush after a rise was followed by -43 bp over a minute; a burst from a flat minute faded) and backtests sweep run-only template variants against a base. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | The forming candle carries its volume (operator report: "i do not see a volume coming up", 1-minute and 5-minute): the live candle was drawn from price ticks only and its volume waited up to ~75 s for the bar store, and every 30 s store refresh flattened the forming candle to one price. Minute and hour panes now count the forming bar's volume from the day volume every trade update already carries, only for bars whose start the pane saw, and a refresh puts the live tip back instead of rebuilding it. §3 amended. | User Directive + Claude Opus 5.5 |

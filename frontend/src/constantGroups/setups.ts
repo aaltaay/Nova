@@ -36,6 +36,9 @@ export const SETUP_STATE_TITLES: Record<string, string> = {
   filtered: "The pattern armed, but the template's stock filter keeps this name out. The reason says which rule.",
 };
 
+/** What a setup's trigger is, where "the trigger" would say less: the alert card and the watch toasts. */
+export const SETUP_TRIGGER_LEVEL_WORDS: Record<string, string> = { red_to_green: 'open', flat_top_breakout: 'high' };
+
 export const SETUP_KIND_LABELS: Record<string, string> = {
   first_pullback: 'First pullback',
   second_pullback: 'Second pullback',
