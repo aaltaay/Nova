@@ -7,6 +7,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import {
   CLOSE_POSITION_ACCOUNT_ERROR_TITLE,
   CLOSE_POSITION_BUSY_WHY,
+  CLOSE_POSITION_DISARMED_TITLE,
   CLOSE_POSITION_NO_POSITION_TITLE,
   CLOSE_POSITION_STALE_WHY,
   WHY_GATEWAY_NOT_CONNECTED,
@@ -18,7 +19,10 @@ import { ClosePositionButton } from './ClosePositionButton';
 
 const confirmAppMock = vi.fn();
 const alertAppMock = vi.fn();
+// The one arm flow (padlock / ticket). Flatten must never go through it: the
+// disarmed cases make it refuse, so an arm step added back to Flatten fails them.
 const ensureUnlockedMock = vi.fn(async () => true);
+const armedMock = vi.fn(() => true);
 
 vi.mock('../ux', () => ({
   confirmApp: (...args: unknown[]) => confirmAppMock(...args),
@@ -33,7 +37,7 @@ vi.mock('../ibkr/useTradingPinGate', () => ({
 }));
 
 vi.mock('../ibkr/ticketUnlock', () => ({
-  readTicketSessionUnlocked: () => true,
+  readTicketSessionUnlocked: () => armedMock(),
 }));
 
 describe('ClosePositionButton', () => {
@@ -48,6 +52,8 @@ describe('ClosePositionButton', () => {
     alertAppMock.mockReset();
     ensureUnlockedMock.mockReset();
     ensureUnlockedMock.mockResolvedValue(true);
+    armedMock.mockReset();
+    armedMock.mockReturnValue(true);
     confirmAppMock.mockResolvedValue(true);
     alertAppMock.mockResolvedValue(undefined);
   });
@@ -133,8 +139,8 @@ describe('ClosePositionButton', () => {
     expect(btn.hasAttribute('title')).toBe(false);
   });
 
-  it('does not flatten when PIN unlock is cancelled', async () => {
-    ensureUnlockedMock.mockResolvedValue(false);
+  it('does not flatten when the confirm is declined', async () => {
+    confirmAppMock.mockResolvedValue(false);
     const spy = vi.spyOn(closeMod, 'closeFullPosition');
     act(() => {
       root.render(
@@ -157,9 +163,105 @@ describe('ClosePositionButton', () => {
     await act(async () => {
       (container.querySelector('[data-testid="close-position-btn"]') as HTMLButtonElement).click();
     });
-    expect(ensureUnlockedMock).toHaveBeenCalled();
-    expect(confirmAppMock).not.toHaveBeenCalled();
+    expect(confirmAppMock).toHaveBeenCalledOnce();
     expect(spy).not.toHaveBeenCalled();
+  });
+
+  describe('on a disarmed desk (ADR 018: it can always get flat)', () => {
+    const POSITION = {
+      symbol: 'AAPL', qty: 10, market_price: 1, market_value: 10, avg_cost: 1, unrealized_pnl: 0, realized_pnl: 0,
+    };
+
+    beforeEach(() => {
+      // What the backend reports while disarmed; an arm asked for would be refused.
+      armedMock.mockReturnValue(false);
+      ensureUnlockedMock.mockResolvedValue(false);
+    });
+
+    function renderDisarmed(props: {
+      qty?: number; mode?: IbkrMode; connected?: boolean; disabled?: boolean; spendStatus?: string;
+    } = {}) {
+      act(() => {
+        root.render(
+          <ClosePositionButton
+            position={{ ...POSITION, qty: props.qty ?? POSITION.qty }}
+            mode={props.mode ?? 'paper'}
+            connected={props.connected ?? true}
+            spendStatus={'spendStatus' in props ? props.spendStatus : 'locked_disarmed'}
+            disabled={props.disabled}
+          />,
+        );
+      });
+      return container.querySelector('[data-testid="close-position-btn"]') as HTMLButtonElement;
+    }
+
+    it.each<IbkrMode>(['live', 'paper', 'sim'])('is unlocked on %s and says the padlock does not hold it', (mode) => {
+      const btn = renderDisarmed({ mode });
+      expect(btn.disabled).toBe(false);
+      expect(btn.dataset.why).toBeUndefined();
+      expect(btn.title).toBe(CLOSE_POSITION_DISARMED_TITLE);
+    });
+
+    it('flattens after the confirm without asking to arm the desk', async () => {
+      const spy = vi.spyOn(closeMod, 'closeFullPosition').mockResolvedValue({
+        ok: true, order_id: 3, side: 'SELL', qty: 10, outside_rth: false, order_type: 'MKT',
+      });
+      const onClosed = vi.fn();
+      act(() => {
+        root.render(
+          <ClosePositionButton
+            position={POSITION} mode="live" connected spendStatus="locked_disarmed" onClosed={onClosed}
+          />,
+        );
+      });
+      await act(async () => {
+        (container.querySelector('[data-testid="close-position-btn"]') as HTMLButtonElement).click();
+      });
+      expect(ensureUnlockedMock).not.toHaveBeenCalled();
+      expect(confirmAppMock).toHaveBeenCalledOnce();
+      expect(spy).toHaveBeenCalledWith('AAPL', 10, expect.objectContaining({ mode: 'live' }));
+      expect(onClosed).toHaveBeenCalled();
+    });
+
+    it('stays locked, and says why, with no position, no Gateway, or a failed account read', () => {
+      const cases: [Parameters<typeof renderDisarmed>[0], string][] = [
+        [{ qty: 0 }, CLOSE_POSITION_NO_POSITION_TITLE],
+        [{ connected: false }, WHY_GATEWAY_NOT_CONNECTED],
+        [{ mode: 'disconnected' }, WHY_GATEWAY_NOT_CONNECTED],
+        [{ disabled: true }, CLOSE_POSITION_ACCOUNT_ERROR_TITLE],
+      ];
+      for (const [props, why] of cases) {
+        const btn = renderDisarmed(props);
+        expect(btn.disabled).toBe(true);
+        expect(btn.dataset.why).toBe(why);
+      }
+    });
+
+    it('stays locked while its own flatten is in flight', async () => {
+      let answer!: (value: Awaited<ReturnType<typeof closeMod.closeFullPosition>>) => void;
+      vi.spyOn(closeMod, 'closeFullPosition').mockImplementation(
+        () => new Promise((resolve) => { answer = resolve; }),
+      );
+      const btn = renderDisarmed({});
+      await act(async () => {
+        btn.click();
+      });
+      expect(btn.disabled).toBe(true);
+      expect(btn.dataset.why).toBe(CLOSE_POSITION_BUSY_WHY);
+      await act(async () => {
+        answer({ ok: true, order_id: 1, side: 'SELL', qty: 10, outside_rth: false, order_type: 'MKT' });
+      });
+      expect(btn.disabled).toBe(false);
+    });
+
+    it.each(['locked', 'locked_live_unconfirmed', 'locked_account_unconfirmed', undefined])(
+      'keeps the %s lock and its reason -- the backend refuses a flatten there too',
+      (spendStatus) => {
+        const btn = renderDisarmed({ mode: 'live', spendStatus });
+        expect(btn.disabled).toBe(true);
+        expect(btn.dataset.why).toBe(spendLockReason(spendStatus));
+      },
+    );
   });
 
   it('stays disabled when accountError gate sets disabled', () => {

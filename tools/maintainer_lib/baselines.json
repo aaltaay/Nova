@@ -73,7 +73,7 @@
       "frontend/src/chart/useChartPositionOverlay.ts|chart imports internals of ibkr": 1,
       "frontend/src/chart/useVwapSourceBars.ts|chart imports internals of ibkr": 1,
       "frontend/src/chart/useVwapSourceBars.ts|chart imports internals of sim": 1,
-      "frontend/src/closed_orders/ClosePositionButton.tsx|closed_orders imports internals of ibkr": 5,
+      "frontend/src/closed_orders/ClosePositionButton.tsx|closed_orders imports internals of ibkr": 3,
       "frontend/src/closed_orders/ClosedOrdersModule.tsx|closed_orders imports internals of ibkr": 1,
       "frontend/src/closed_orders/ClosedOrdersPanel.tsx|closed_orders imports internals of ibkr": 9,
       "frontend/src/closed_orders/closedOrderCells.tsx|closed_orders imports internals of ibkr": 5,

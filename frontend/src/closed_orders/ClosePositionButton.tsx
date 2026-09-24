@@ -1,6 +1,7 @@
 /**
  * Flatten / close full position — ADR 007 place path (not cancel-working-order).
- * Requires the same padlock unlock (the backend arm latch) as Place an order.
+ * Protective: sent as the `flatten` source, which the backend's arm latch never
+ * holds, so it works on a disarmed desk and never arms it (ADR 018).
  */
 import { useState, type MouseEvent } from 'react';
 import {
@@ -9,18 +10,16 @@ import {
   CLOSE_POSITION_BUSY_WHY,
   CLOSE_POSITION_BUTTON_BUSY_LABEL,
   CLOSE_POSITION_BUTTON_LABEL,
+  CLOSE_POSITION_DISARMED_TITLE,
   CLOSE_POSITION_NO_POSITION_TITLE,
-  CLOSE_POSITION_PIN_LOCKED_TITLE,
   CLOSE_POSITION_VS_CANCEL_HINT,
   TICKER_TRADE_ORDER_DISCLOSURE,
   WHY_GATEWAY_NOT_CONNECTED,
 } from '../constants';
 import { captureBrowserAction } from '../execution_latency';
 import { closeFullPosition } from '../ibkr/closeFullPosition';
-import { isSpendLocked, spendLockReason } from '../ibkr/spendLock';
-import { readTicketSessionUnlocked } from '../ibkr/ticketUnlock';
+import { flattenSpendLockReason, isDisarmed } from '../ibkr/spendLock';
 import type { IbkrMode, IbkrPosition } from '../ibkr/types';
-import { useTradingPinGate } from '../ibkr/useTradingPinGate';
 import { alertApp, confirmApp } from '../ux';
 import { formatShareQty } from '../utils/formatShareQty';
 
@@ -52,12 +51,11 @@ export function ClosePositionButton({
   testId = 'close-position-btn',
 }: Props) {
   const [busy, setBusy] = useState(false);
-  const { ensureUnlocked, pinDialog } = useTradingPinGate();
   const hasPosition = position.qty !== 0;
-  const spendLocked = isSpendLocked(spendStatus);
+  // Disarmed is no lock here: only the locks the backend holds a flatten to.
+  const spendWhy = flattenSpendLockReason(spendStatus);
   const canClose =
-    connected && mode !== 'disconnected' && hasPosition && !spendLocked && !disabled && !busy;
-  const pinLocked = !readTicketSessionUnlocked();
+    connected && mode !== 'disconnected' && hasPosition && spendWhy == null && !disabled && !busy;
   // A locked Flatten says why (ux/whyTip.ts); undefined exactly when it can act.
   const lockWhy = busy
     ? CLOSE_POSITION_BUSY_WHY
@@ -67,14 +65,12 @@ export function ClosePositionButton({
         ? why || CLOSE_POSITION_ACCOUNT_ERROR_TITLE
         : !connected || mode === 'disconnected'
           ? WHY_GATEWAY_NOT_CONNECTED
-          : spendLocked
-            ? spendLockReason(spendStatus) ?? undefined
-            : undefined;
+          : spendWhy ?? undefined;
 
   async function handleClick(e: MouseEvent) {
     e.stopPropagation();
     if (!canClose) return;
-    if (!(await ensureUnlocked())) return;
+    // No padlock step: arming here would also unlock every order that opens.
     const actionTiming = captureBrowserAction('user_action');
     const absQty = formatShareQty(Math.abs(position.qty));
     const closeSide = position.qty > 0 ? 'SELL' : 'BUY';
@@ -104,29 +100,32 @@ export function ClosePositionButton({
   }
 
   return (
-    <>
-      <button
-        type="button"
-        className={
-          variant === 'menu' ? 'chart-position-menu__item' : 'ibkr-flatten-btn'
-        }
-        role={variant === 'menu' ? 'menuitem' : undefined}
-        data-testid={testId}
-        disabled={!canClose}
-        data-why={lockWhy}
-        onClick={handleClick}
-        title={lockWhy ? undefined : pinLocked ? CLOSE_POSITION_PIN_LOCKED_TITLE : CLOSE_POSITION_VS_CANCEL_HINT}
-        aria-label={`Flatten position ${position.symbol}`}
-      >
-        {busy
-          ? CLOSE_POSITION_BUTTON_BUSY_LABEL
-          : label
-            ? label
-            : hasPosition
-              ? `${CLOSE_POSITION_BUTTON_LABEL} ${Math.abs(position.qty)}`
-              : CLOSE_POSITION_BUTTON_LABEL}
-      </button>
-      {pinDialog}
-    </>
+    <button
+      type="button"
+      className={
+        variant === 'menu' ? 'chart-position-menu__item' : 'ibkr-flatten-btn'
+      }
+      role={variant === 'menu' ? 'menuitem' : undefined}
+      data-testid={testId}
+      disabled={!canClose}
+      data-why={lockWhy}
+      onClick={handleClick}
+      title={
+        lockWhy
+          ? undefined
+          : isDisarmed(spendStatus)
+            ? CLOSE_POSITION_DISARMED_TITLE
+            : CLOSE_POSITION_VS_CANCEL_HINT
+      }
+      aria-label={`Flatten position ${position.symbol}`}
+    >
+      {busy
+        ? CLOSE_POSITION_BUTTON_BUSY_LABEL
+        : label
+          ? label
+          : hasPosition
+            ? `${CLOSE_POSITION_BUTTON_LABEL} ${Math.abs(position.qty)}`
+            : CLOSE_POSITION_BUTTON_LABEL}
+    </button>
   );
 }
