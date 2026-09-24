@@ -221,9 +221,38 @@ def test_eyes_routes(tmp_path, monkeypatch):
     assert c.post("/api/eyes/backtests", json={"sessions": [{"date": "bad", "symbol": SYM}]}).status_code == 400
     assert c.post("/api/eyes/backtests", json={"sessions": [{"date": DAY, "symbol": "abcd"}]}).status_code == 202
     assert started[-1]["sessions"] == [(DAY, "ABCD")]
+    assert c.post("/api/eyes/backtests").status_code == 202         # no body: every template, every recording
+    assert started[-1] == {"template_ids": None, "sessions": None}
     assert c.get("/api/eyes/backtests/../../etc").status_code == 404
     assert c.get("/api/eyes/backtests/20260921-100000-abcdef").status_code == 404
     assert c.get("/api/eyes/backtests").json()["runs"] == []
+
+
+def test_a_backtest_of_an_unknown_template_is_refused_by_name(tmp_path, monkeypatch):
+    from eyes import routes
+    from setup_templates.routes import install
+
+    monkeypatch.setenv("NOVA_EYES_DIR", str(tmp_path))
+    set_store_for_tests(TemplateStore(tmp_path / "t.json"))
+    app = FastAPI()
+    app.include_router(routes.router)
+    install(app)
+    refused = TestClient(app).post("/api/eyes/backtests", json={"templates": ["t-nope"]})
+    assert refused.status_code == 404
+    assert refused.json()["detail"] == {"reason": "TEMPLATE_UNKNOWN", "field": "t-nope",
+                                        "error": "no usable first-pullback template t-nope"}
+    assert not (tmp_path / "backtests").exists()
+
+
+def test_a_run_id_names_a_folder_inside_the_backtests_folder_or_nothing(tmp_path, monkeypatch):
+    import os
+
+    monkeypatch.setenv("NOVA_EYES_DIR", str(tmp_path))
+    good = "20260921-100000-abcdef"
+    assert backtest.run_dir(good) == Path(os.path.realpath(tmp_path / "backtests" / good))
+    for bad in ("", "..", "../etc", good + "/../..", good + "\\..", good + "\n", "20260921-100000-ABCDEF", "x"):
+        assert backtest.run_dir(bad) is None, bad
+        assert backtest.read_manifest(bad) is None and backtest.read_summary(bad) is None
 
 
 def test_the_engine_board_defers_to_the_sim_eyes_off_the_live_edge(tmp_path):

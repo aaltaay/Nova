@@ -98,9 +98,10 @@ class TemplateStore:
             return
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as exc:
-            self._error = f"{path.name} could not be read ({exc}); every setup runs its default until it is moved aside"
-            logger.error("setup templates: %s", self._error)
+        except (OSError, ValueError):
+            self._error = (f"{path.name} could not be read (not readable, or not valid JSON -- the backend log "
+                           "says which); every setup runs its default until it is moved aside")
+            logger.exception("setup templates: %s", self._error)
             return
         version = raw.get("schema_version") if isinstance(raw, dict) else None
         if version != SETUP_TEMPLATES_SCHEMA_VERSION:
@@ -120,12 +121,11 @@ class TemplateStore:
         tid = str(row.get("id") or "")
         if not tid or tid == SETUP_TEMPLATE_DEFAULT_ID:
             return None
-        error = None
-        try:
-            values = catalogue.validate(setup_id, None, base=row.get("values") or {})
-        except TemplateError as exc:
-            # Keep it visible and editable, but never run it: its rules no longer validate.
-            values, error = {**catalogue.defaults(setup_id), **(row.get("values") or {})}, str(exc)
+        stored = row.get("values") if isinstance(row.get("values"), dict) else {}
+        checked, problem = catalogue.check(setup_id, None, base=stored)
+        error = None if problem is None else problem.message
+        # A template that no longer validates stays visible and editable, but never runs.
+        values = checked if checked is not None else {**catalogue.defaults(setup_id), **stored}
         return Template(setup=setup_id, id=tid, name=str(row.get("name") or tid), rev=int(row.get("rev") or 1),
                         values=values, note=str(row.get("note") or ""), created_at=row.get("created_at"),
                         updated_at=row.get("updated_at"), error=error)

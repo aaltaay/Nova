@@ -7,15 +7,19 @@
   POST   /api/setups/templates/{setup}/{template_id}/play   put it in play
 
 A refusal is ``{"detail": {"reason": CODE, "error": "...", "field": KEY | null}}``
-(the bot routes' shape). Writes need the desk's API key even on loopback
-(``auth.py``): a template sets what the bot may enter at Strategy.
+(the bot routes' shape), made by the one ``TemplateError`` handler that
+``install`` registers on the app -- the routes never catch, and only the
+refusal's own curated words reach the answer, never an exception's text.
+Writes need the desk's API key even on loopback (``auth.py``): a template sets
+what the bot may enter at Strategy.
 """
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, Body, FastAPI, Request
+from fastapi.responses import JSONResponse
 
 from constants_setups import SETUP_TEMPLATES_MAX_PER_SETUP, SETUP_TEMPLATES_SCHEMA_VERSION
 from setup_templates import catalogue
@@ -29,9 +33,15 @@ _STATUS = {"SETUP_UNKNOWN": 404, "TEMPLATE_UNKNOWN": 404, "TEMPLATE_BUILTIN": 40
            "TEMPLATE_NAME_TAKEN": 409, "TEMPLATES_UNREADABLE": 409, "TEMPLATE_NO_PARAMS": 409}
 
 
-def _refuse(exc: TemplateError) -> HTTPException:
-    return HTTPException(status_code=_STATUS.get(exc.code, 400),
-                         detail={"reason": exc.code, "error": str(exc), "field": exc.field})
+async def _refusal(request: Request, refusal: TemplateError) -> JSONResponse:
+    return JSONResponse(status_code=_STATUS.get(refusal.code, 400),
+                        content={"detail": {"reason": refusal.code, "error": refusal.message,
+                                            "field": refusal.field}})
+
+
+def install(app: FastAPI) -> None:
+    """Register the refusal handler (``app_routers``; tests that mount these routes)."""
+    app.add_exception_handler(TemplateError, _refusal)
 
 
 def _readout(t: Template) -> dict[str, Any] | None:
@@ -40,9 +50,10 @@ def _readout(t: Template) -> dict[str, Any] | None:
         from setup_scanner.readout import current
 
         out = current(template=t)
-    except Exception as exc:
+    except Exception:
         logger.warning("setup templates: read-out failed for %s", t.id, exc_info=True)
-        return {"state": "unavailable", "passed": False, "reason": f"read-out failed: {exc}", "go_triggered": None,
+        return {"state": "unavailable", "passed": False,
+                "reason": "the read-out could not be computed -- the backend log says why", "go_triggered": None,
                 "min_go": None, "go_avg_net_r": None}
     return {"state": out.get("state"), "passed": bool(out.get("passed")), "reason": out.get("reason"),
             "go_triggered": (out.get("go") or {}).get("triggered"),
@@ -78,23 +89,20 @@ def _values(payload: dict[str, Any]) -> dict[str, Any] | None:
     return values
 
 
+Payload = Annotated[dict[str, Any], Body()]
+
+
 @router.post("/api/setups/templates/{setup_id}", status_code=201)
-def create_template(setup_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
-    try:
-        t = get_store().create(setup_id, name=payload.get("name"), from_id=payload.get("from") or None,
-                               values=_values(payload), note=payload.get("note"))
-    except TemplateError as exc:
-        raise _refuse(exc) from exc
+def create_template(setup_id: str, payload: Payload) -> dict[str, Any]:
+    t = get_store().create(setup_id, name=payload.get("name"), from_id=payload.get("from") or None,
+                           values=_values(payload), note=payload.get("note"))
     return {"template": t.wire(in_play=False), "setup": _setup_view(setup_id)}
 
 
 @router.patch("/api/setups/templates/{setup_id}/{template_id}")
-def update_template(setup_id: str, template_id: str, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
-    try:
-        t, rules_changed = get_store().update(setup_id, template_id, name=payload.get("name"),
-                                              values=_values(payload), note=payload.get("note"))
-    except TemplateError as exc:
-        raise _refuse(exc) from exc
+def update_template(setup_id: str, template_id: str, payload: Payload) -> dict[str, Any]:
+    t, rules_changed = get_store().update(setup_id, template_id, name=payload.get("name"),
+                                          values=_values(payload), note=payload.get("note"))
     view = _setup_view(setup_id)
     return {"template": next(x for x in view["templates"] if x["id"] == t.id), "rules_changed": rules_changed,
             "setup": view}
@@ -102,17 +110,11 @@ def update_template(setup_id: str, template_id: str, payload: dict[str, Any] = B
 
 @router.delete("/api/setups/templates/{setup_id}/{template_id}")
 def delete_template(setup_id: str, template_id: str) -> dict[str, Any]:
-    try:
-        get_store().delete(setup_id, template_id)
-    except TemplateError as exc:
-        raise _refuse(exc) from exc
+    get_store().delete(setup_id, template_id)
     return {"ok": True, "setup": _setup_view(setup_id)}
 
 
 @router.post("/api/setups/templates/{setup_id}/{template_id}/play")
 def play_template(setup_id: str, template_id: str) -> dict[str, Any]:
-    try:
-        get_store().play(setup_id, template_id)
-    except TemplateError as exc:
-        raise _refuse(exc) from exc
+    get_store().play(setup_id, template_id)
     return {"ok": True, "setup": _setup_view(setup_id)}
