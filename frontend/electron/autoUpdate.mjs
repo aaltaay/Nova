@@ -10,17 +10,20 @@
  * electron-updater checks and installs; the installer itself is fetched by
  * updateDownload.mjs in resumable chunks and handed back through electron-updater's
  * cache, because its own one-shot download never finished on a lossy link.
- * Every line of this is also written to update.log (updateLog.mjs).
+ * Every line of this is also written to update.log (updateLog.mjs). While the
+ * silent installer runs, updateSplash.mjs keeps a window on screen.
  *
  * electron-updater loads lazily and only in a packaged Windows build, so a dev
  * checkout never loads it. Every failure here is logged and swallowed -- the desk
  * keeps running on the version it has.
  */
 import fs from 'node:fs';
+import path from 'node:path';
 import { app, dialog, Menu, net } from 'electron';
 import { readEnvValue } from './envMerge.mjs';
 import { downloadInstaller, installerTarget } from './updateDownload.mjs';
-import { createUpdateLogger } from './updateLog.mjs';
+import { createUpdateLogger, UPDATE_LOG_FILE } from './updateLog.mjs';
+import { showUpdateSplash } from './updateSplash.mjs';
 import {
   INITIAL_UPDATE_STATE,
   UPDATE_CHECK_ENV,
@@ -62,6 +65,8 @@ let checkOrigin = 'launch';
 let lastCheckAt = 0;
 let currentTag = '';
 let lastMenuKey = '';
+/** The "Updating Nova" window while an install runs, or null. */
+let splash = null;
 let hooks = {
   getWindow: () => null,
   envPath: () => '',
@@ -155,7 +160,14 @@ async function promptRestart() {
   else logger.info(`restart to ${displayTag(version)} postponed by operator`);
 }
 
+/** The window closes itself when the new version's window is up; this is for an install called off. */
+function closeSplash() {
+  splash?.close();
+  splash = null;
+}
+
 async function recoverEngine() {
+  closeSplash();
   try {
     await hooks.restartEngine();
   } catch (err) {
@@ -166,6 +178,14 @@ async function recoverEngine() {
 async function restartToUpdate() {
   if (!updater || state.phase !== 'ready') return;
   dispatch({ type: 'installing' });
+  // From this click until the new version's window, nothing of Nova is on screen
+  // but this: the engine stops, Nova closes and the installer runs silently.
+  splash = showUpdateSplash({
+    version: displayTag(state.version),
+    processName: path.basename(process.execPath, '.exe'),
+    logPath: logsDir() ? path.join(logsDir(), UPDATE_LOG_FILE) : '',
+    logger,
+  });
   let stopped = false;
   try {
     stopped = await hooks.stopEngine();

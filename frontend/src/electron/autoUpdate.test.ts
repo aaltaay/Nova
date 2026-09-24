@@ -18,6 +18,7 @@ type FakeUpdater = {
   autoInstallOnAppQuit: boolean;
   checkForUpdates: ReturnType<typeof vi.fn>;
   downloadUpdate: ReturnType<typeof vi.fn>;
+  quitAndInstall: ReturnType<typeof vi.fn>;
 };
 type MenuRow = { label?: string; role?: string; submenu?: { label: string }[] };
 type DownloadOpts = { cacheDir: string; target: { url: string }; onProgress: (p: number) => void };
@@ -33,6 +34,9 @@ const h = vi.hoisted(() => ({
   download: null as null | ((opts: DownloadOpts) => Promise<string>),
   // One answer per check, in order: false = up to date. Empty: an update is available.
   available: [] as boolean[],
+  // "Updating Nova" windows shown, and how many engine stops had run when each was.
+  splashes: [] as { version: string; processName: string; closed: boolean; atStop: number }[],
+  stopCalls: 0,
 }));
 
 vi.mock('electron', () => ({
@@ -62,6 +66,14 @@ vi.mock('../../electron/updateDownload.mjs', async (importOriginal) => {
     }),
   };
 });
+
+vi.mock('../../electron/updateSplash.mjs', () => ({
+  showUpdateSplash: vi.fn((opts: { version: string; processName: string }) => {
+    h.splashes.push({ version: opts.version, processName: opts.processName, closed: false, atStop: h.stopCalls });
+    const entry = h.splashes[h.splashes.length - 1];
+    return { close: () => { entry.closed = true; } };
+  }),
+}));
 
 vi.mock('electron-updater', async () => {
   const { EventEmitter } = await import('node:events');
@@ -113,7 +125,10 @@ const win = { isDestroyed: () => false, setProgressBar: vi.fn(), flashFrame: vi.
 
 async function startAndCheck(deps: Record<string, unknown> = {}) {
   const { startAutoUpdate } = await import('../../electron/autoUpdate.mjs');
-  const stopEngine = vi.fn(async () => true);
+  const stopEngine = vi.fn(async () => {
+    h.stopCalls += 1;
+    return true;
+  });
   const restartEngine = vi.fn(async () => {});
   await startAutoUpdate({
     getWindow: () => win,
@@ -143,6 +158,8 @@ beforeEach(() => {
   h.resumable = false;
   h.download = null;
   h.available.length = 0;
+  h.splashes.length = 0;
+  h.stopCalls = 0;
   win.setProgressBar.mockClear();
   Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
 });
@@ -165,11 +182,22 @@ describe('startAutoUpdate', () => {
     expect(h.installs).toEqual([[true, true]]);
   });
 
+  it('puts the "Updating Nova" window up at the click, before anything closes, and leaves it up', async () => {
+    h.responses.push(0);
+    await startAndCheck();
+    // Shown before the engine stop began; it closes itself once the new window is up.
+    expect(h.splashes).toEqual([
+      { version: 'v832', processName: expect.any(String), closed: false, atStop: 0 },
+    ]);
+    expect(h.installs).toEqual([[true, true]]);
+  });
+
   it('installs nothing when the operator picks Later', async () => {
     h.responses.push(1);
     const { stopEngine } = await startAndCheck();
     expect(stopEngine).not.toHaveBeenCalled();
     expect(h.installs).toEqual([]);
+    expect(h.splashes).toEqual([]);
   });
 
   it('refuses to install while the local engine is still running, and revives it', async () => {
@@ -178,6 +206,22 @@ describe('startAutoUpdate', () => {
     expect(h.installs).toEqual([]);
     expect(restartEngine).toHaveBeenCalled();
     expect(h.boxes.at(-1)?.message).toContain('did not install');
+    // Nova stays open, so the "Updating Nova" window must not.
+    expect(h.splashes.map((s) => s.closed)).toEqual([true]);
+  });
+
+  it('closes the "Updating Nova" window when the installer cannot be started', async () => {
+    h.responses.push(0);
+    const { restartEngine } = await startAndCheck({
+      stopEngine: vi.fn(async () => {
+        h.updater!.quitAndInstall.mockImplementation(() => {
+          throw new Error('No update filepath provided');
+        });
+        return true;
+      }),
+    });
+    expect(restartEngine).toHaveBeenCalled();
+    expect(h.splashes.map((s) => s.closed)).toEqual([true]);
   });
 
   it('never checks on its own when the setting is off', async () => {
