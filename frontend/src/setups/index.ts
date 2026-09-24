@@ -3,7 +3,7 @@
 export { useSetupsBoard, SetupsStreamProvider } from './SetupsStreamContext';
 export { useSetupRows } from './useSetupRows';
 export { stageSetupTicket } from './stageSetupTicket';
-export { fmtCents, fmtPct, fmtPx, fmtR, isActionable, stagedLimit } from './setupsFormat';
+export { fmtCents, fmtPct, fmtPx, fmtR, isActionable, stagedLimit, tapeRank } from './setupsFormat';
 export {
   ALL_SETUPS,
   consumeSetupsBoardOpen,

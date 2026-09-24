@@ -8,7 +8,8 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { ScannerRowNumCell, ScannerRowNumHeader } from '../components/ScannerTableChrome';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
-import { fmtStripClock, useHodMomoOptional, type AlertObject } from '../hod_momo';
+import { fmtStripClock, stripAlertMs, useHodMomoOptional, type AlertObject } from '../hod_momo';
+import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import type { ScannerRow } from '../types/scanner';
 import { fmtPct, fmtPrice, fmtVolume, pctToneClass } from '../utils/quoteFormat';
 import { WatchEyeIcon } from './WatchEyeIcon';
@@ -69,6 +70,11 @@ export function hodAlertsBySymbol(alerts: readonly AlertObject[]): Map<string, H
     else out.set(symbol, { latest: alert, count: 1 });
   }
   return out;
+}
+
+/** IBKR's prior close as the price is no trade (QA C50): no price, no change. */
+function traded(row: ScannerRow | undefined): ScannerRow | undefined {
+  return row && row.quote_quality !== 'close_fallback' ? row : undefined;
 }
 
 function ChangeCell({ row }: { row: ScannerRow | undefined }) {
@@ -141,6 +147,19 @@ export function WatchListTab({ boards, selectedSymbol, onSelectSymbol, onOpenTra
     [gainers, gappers, losers, afterhours, largeCap],
   );
   const byHod = useMemo(() => hodAlertsBySymbol(alerts ?? []), [alerts]);
+  const columns = useMemo<SortColumns<string>>(() => ({
+    symbol: symbol => symbol,
+    last: symbol => traded(byBoard.get(symbol)?.row)?.price,
+    change: symbol => traded(byBoard.get(symbol)?.row)?.change_pct,
+    volume: symbol => byBoard.get(symbol)?.row.volume,
+    board: symbol => byBoard.get(symbol)?.board,
+    // The newest alert first.
+    hod: symbol => {
+      const hit = byHod.get(symbol);
+      return hit ? stripAlertMs(hit.latest) : null;
+    },
+  }), [byBoard, byHod]);
+  const { rows: sorted, sort, onSort } = useTableSort('watch_list.symbols', symbols, columns);
 
   return (
     <div className="watch-list" data-testid="watch-list-tab">
@@ -158,17 +177,17 @@ export function WatchListTab({ boards, selectedSymbol, onSelectSymbol, onOpenTra
             <thead>
               <tr>
                 <ScannerRowNumHeader />
-                <th title="Click the row for the side panel. Click the ticker to open Trader.">Symbol</th>
-                <th className="num">Last</th>
-                <th className="num" title="Change against the prior close">% Chg</th>
-                <th className="num">Volume</th>
-                <th title="The scanner board the facts come from">Board</th>
-                <th title={WATCH_LIST_HOD_COLUMN_TITLE}>HOD Momo today</th>
+                <SortTh col="symbol" sort={sort} onSort={onSort} title="Click the row for the side panel. Click the ticker to open Trader.">Symbol</SortTh>
+                <SortTh col="last" sort={sort} onSort={onSort} className="num">Last</SortTh>
+                <SortTh col="change" sort={sort} onSort={onSort} className="num" title="Change against the prior close">% Chg</SortTh>
+                <SortTh col="volume" sort={sort} onSort={onSort} className="num">Volume</SortTh>
+                <SortTh col="board" sort={sort} onSort={onSort} title="The scanner board the facts come from">Board</SortTh>
+                <SortTh col="hod" sort={sort} onSort={onSort} title={WATCH_LIST_HOD_COLUMN_TITLE}>HOD Momo today</SortTh>
                 <th aria-label="Remove" />
               </tr>
             </thead>
             <tbody>
-              {symbols.map((symbol, index) => {
+              {sorted.map((symbol, index) => {
                 const hit = byBoard.get(symbol);
                 const row = hit?.row;
                 const closeFallback = row?.quote_quality === 'close_fallback';

@@ -35,14 +35,18 @@ function SortableTh({
   meta,
   sortState,
   onSortColumn,
+  canSort,
+  sortHint,
 }: {
   meta: ColumnMeta;
   sortState?: OrderSortState;
   onSortColumn?: (columnId: string, additive: boolean) => void;
+  canSort: (columnId: string) => boolean;
+  sortHint: string;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: meta.id });
-  const canDataSort = Boolean(onSortColumn && isOrderSortKey(meta.id));
+  const canDataSort = Boolean(onSortColumn && canSort(meta.id));
   const active = sortState ? sortLevelFor(sortState, meta.id) : null;
   const ariaSort =
     active == null
@@ -60,7 +64,7 @@ function SortableTh({
 
   const title = [
     meta.title,
-    canDataSort ? ORDER_TABLE_SORT_HINT : ORDER_TABLE_COLUMN_DRAG_HINT,
+    canDataSort ? sortHint : ORDER_TABLE_COLUMN_DRAG_HINT,
   ]
     .filter(Boolean)
     .join(' · ');
@@ -124,6 +128,10 @@ interface HeaderProps {
   sortState?: OrderSortState;
   onSortColumn?: (columnId: string, additive: boolean) => void;
   onClearSort?: () => void;
+  /** Which columns sort on a click (default: the order tables' sort keys). */
+  canSort?: (columnId: string) => boolean;
+  /** The sortable header's hint (default: click, Shift+click multi-sort, drag). */
+  sortHint?: string;
 }
 
 /** Header row only — must sit under OrderTableDnd. */
@@ -134,6 +142,8 @@ export function OrderTableColumnHeader({
   sortState,
   onSortColumn,
   onClearSort,
+  canSort = isOrderSortKey,
+  sortHint = ORDER_TABLE_SORT_HINT,
 }: HeaderProps) {
   const ids = columns.map((c) => c.id);
   const hasSort = Boolean(sortState?.length);
@@ -158,6 +168,8 @@ export function OrderTableColumnHeader({
             meta={meta}
             sortState={sortState}
             onSortColumn={onSortColumn}
+            canSort={canSort}
+            sortHint={sortHint}
           />
         ))}
       </SortableContext>

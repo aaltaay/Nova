@@ -68,3 +68,5 @@ export const SETTINGS_SAVE_UNREACHABLE =
   'Error updating configuration. Check the API is running and try again.';
 export const settingsSaveRefused = (status: number, detail: string | null): string =>
   `Nova refused the change (HTTP ${status})${detail ? `: ${detail}` : '.'} Nothing was saved.`;
+/** localStorage prefix for each table's click-to-sort column (`table_sort/`); one key per table id. */
+export const TABLE_SORT_STORAGE_PREFIX = 'nova.table.sort.v1';

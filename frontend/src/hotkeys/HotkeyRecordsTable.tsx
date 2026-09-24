@@ -1,3 +1,5 @@
+import { useMemo } from 'react';
+import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import { formatKeyChord } from './htkFormat';
 import {
   HOTKEY_COMPAT_LABELS,
@@ -18,19 +20,31 @@ export function HotkeyRecordsTable({
   analysisById,
   onSelect,
 }: Props) {
+  // A header sort applies over the toolbar's Sort select; its third click
+  // returns to the select's order.
+  const columns = useMemo<SortColumns<HotkeyRecord>>(() => ({
+    name: r => r.name,
+    key: r => formatKeyChord(r.key),
+    command: r => r.command,
+    compat: r => {
+      const status = analysisById.get(r.id)?.status;
+      return status ? HOTKEY_COMPAT_LABELS[status] : null;
+    },
+  }), [analysisById]);
+  const { rows: sorted, sort, onSort } = useTableSort('hotkeys.das_records', rows, columns);
   return (
     <div className="hotkey-table-wrap">
       <table className="hotkey-table">
         <thead>
           <tr>
-            <th>NAME</th>
-            <th>KEY</th>
-            <th>Command(s)</th>
-            <th>Compatibility</th>
+            <SortTh col="name" sort={sort} onSort={onSort}>NAME</SortTh>
+            <SortTh col="key" sort={sort} onSort={onSort}>KEY</SortTh>
+            <SortTh col="command" sort={sort} onSort={onSort}>Command(s)</SortTh>
+            <SortTh col="compat" sort={sort} onSort={onSort}>Compatibility</SortTh>
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => {
+          {sorted.map((r) => {
             const a = analysisById.get(r.id);
             const selectedRow = r.id === selectedId;
             return (

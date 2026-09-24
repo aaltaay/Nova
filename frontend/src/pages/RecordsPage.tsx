@@ -7,7 +7,7 @@
  * does not know read as words, never "-1" (QA 2026-09-22, C13 / C14 / C22 /
  * C64 / V20).
  */
-import { useState, useSyncExternalStore } from 'react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 import {
   RECORDS_PAGE_COL_MISSING,
   RECORDS_PAGE_COL_PRINTS,
@@ -38,6 +38,7 @@ import {
 import { CAPTURE_PRINTS_RECORDING } from '../sim/simConstants';
 import { useReplayActions } from '../sim/useReplayActions';
 import { capturesResource, type CaptureSessionRow } from '../sim/useSimSessionController';
+import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import '../styles/rail-pages.css';
 
 interface Props {
@@ -76,6 +77,27 @@ function rowStatus(row: CaptureSessionRow, recording: boolean): string {
   return recordingUnavailableReason(row) ?? recordStatusWords(row) ?? '--';
 }
 
+/** One Records row with its day, and whether it is the one recording now. */
+interface DayRecord {
+  date: string;
+  row: CaptureSessionRow;
+  live: boolean;
+  status: string;
+}
+
+/** A count Nova holds, or null (uncounted prints are the backend's -1, never a number). */
+const count = (n: number | null | undefined): number | null =>
+  n != null && Number.isFinite(n) && n >= 0 ? n : null;
+
+const COLUMNS: SortColumns<DayRecord> = {
+  symbol: r => r.row.symbol,
+  prints: r => count(r.row.prints),
+  // No segment on disk reads "--" in the cell, so it sorts with the unknowns.
+  segments: r => (r.row.segments != null && r.row.segments > 0 ? r.row.segments : null),
+  missing: r => count(r.row.missing_sec),
+  status: r => r.status,
+};
+
 /** "Mon, Sep 21" for a YYYY-MM-DD day heading. */
 function dayLabel(date: string): string {
   const day = new Date(`${date}T12:00:00Z`);
@@ -85,7 +107,9 @@ function dayLabel(date: string): string {
 
 export function RecordsPage({ onOpenTrader }: Props) {
   const { data, error } = useSyncExternalStore(capturesResource.subscribe, capturesResource.getSnapshot);
-  const recording = new Set(useRecordingSymbols());
+  const recordingSymbols = useRecordingSymbols();
+  const recordingKey = recordingSymbols.join(',');
+  const recording = useMemo(() => new Set(recordingKey ? recordingKey.split(',') : []), [recordingKey]);
   const sim = useIbkrStatus().mode === 'sim';
   const { request, busy, errors } = useReplayActions();
   const [replayError, setReplayError] = useState<string | null>(null);
@@ -94,6 +118,20 @@ export function RecordsPage({ onOpenTrader }: Props) {
   // Every day with records, newest first -- today's calendar date is not the
   // only one worth reaching (V20: at 01:30 ET yesterday's session is the live one).
   const days = Object.keys(byDay).filter(date => (byDay[date] ?? []).length > 0).sort().reverse();
+  // One sort for every day's table: the rows are sorted together, then split
+  // by day, so the days stay newest first and each reads in the chosen order.
+  const records = useMemo(() => {
+    const out: DayRecord[] = [];
+    for (const [date, rows] of Object.entries(data?.tickers_by_day ?? {})) {
+      for (const row of rows ?? []) {
+        // Only today's row can be the one recording now.
+        const live = date === today && recording.has(row.symbol);
+        out.push({ date, row, live, status: rowStatus(row, live) });
+      }
+    }
+    return out;
+  }, [data, today, recording]);
+  const { rows: sortedRecords, sort, onSort } = useTableSort('records.sessions', records, COLUMNS);
 
   const replay = async (date: string, symbol: string) => {
     setReplayError(null);
@@ -144,25 +182,23 @@ export function RecordsPage({ onOpenTrader }: Props) {
                   <table className="records-page__table" data-testid="records-page-table">
                     <thead>
                       <tr>
-                        <th>{RECORDS_PAGE_COL_SYMBOL}</th>
-                        <th>{RECORDS_PAGE_COL_PRINTS}</th>
-                        <th>{RECORDS_PAGE_COL_SEGMENTS}</th>
-                        <th title={RECORDS_PAGE_MISSING_TITLE}>{RECORDS_PAGE_COL_MISSING}</th>
-                        <th>{RECORDS_PAGE_COL_STATUS}</th>
+                        <SortTh col="symbol" sort={sort} onSort={onSort}>{RECORDS_PAGE_COL_SYMBOL}</SortTh>
+                        <SortTh col="prints" sort={sort} onSort={onSort}>{RECORDS_PAGE_COL_PRINTS}</SortTh>
+                        <SortTh col="segments" sort={sort} onSort={onSort}>{RECORDS_PAGE_COL_SEGMENTS}</SortTh>
+                        <SortTh col="missing" sort={sort} onSort={onSort} title={RECORDS_PAGE_MISSING_TITLE}>{RECORDS_PAGE_COL_MISSING}</SortTh>
+                        <SortTh col="status" sort={sort} onSort={onSort}>{RECORDS_PAGE_COL_STATUS}</SortTh>
                         <th />
                       </tr>
                     </thead>
                     <tbody>
-                      {(byDay[date] ?? []).map((row) => {
-                        // Only today's row can be the one recording now.
-                        const live = date === today && recording.has(row.symbol);
+                      {sortedRecords.filter(r => r.date === date).map(({ row, live, status }) => {
                         return (
                           <tr key={row.symbol} data-testid={`records-row-${date}-${row.symbol}`}>
                             <td>{row.symbol}</td>
                             <td className="is-num">{recordPrintsCell(row.prints, live)}</td>
                             <td className="is-num">{segmentsCell(row, live)}</td>
                             <td className="is-num">{formatMissingSeconds(row.missing_sec)}</td>
-                            <td>{rowStatus(row, live)}</td>
+                            <td>{status}</td>
                             <td>
                               {sim && recordingUsable(row) && (
                                 <button

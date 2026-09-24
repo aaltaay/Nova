@@ -40,6 +40,14 @@ export function isActionable(row: SetupRow): boolean {
   return row.state === 'near' || row.state === 'armed';
 }
 
+/** The tape at the level, best first: GO, WAIT, VETO, then BLIND (no Level 2 line). */
+const TAPE_RANK: Record<string, number> = { go: 3, wait: 2, veto: 1, blind: 0 };
+
+/** A row's tape as a sort rank (higher is better); null with no tape read. */
+export function tapeRank(row: SetupRow): number | null {
+  return row.tape ? TAPE_RANK[row.tape.verdict] ?? null : null;
+}
+
 export function rowClass(row: SetupRow): string {
   const parts = ['setups-row', `setups-row--${row.state}`];
   if (row.proposal) parts.push('setups-row--proposal');

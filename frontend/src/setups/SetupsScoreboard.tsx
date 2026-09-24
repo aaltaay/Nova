@@ -7,6 +7,7 @@ import {
   SETUPS_SPLIT_KEY_LABELS,
   SETUPS_SPLIT_TITLES,
 } from '../constants';
+import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import { fmtPct, fmtR } from './setupsFormat';
 import { setupLabel } from './setupWords';
 import type { ScoreStats, Scoreboard } from './types';
@@ -19,6 +20,39 @@ interface Props {
   onDays: (days: number) => void;
   /** The setup the scoreboard answers for (the board's filter, else the chosen setup). */
   setup?: string;
+}
+
+/** One group row of a split (the tape said go, grade A, premarket, ...). */
+interface SplitEntry {
+  split: string;
+  key: string;
+  stats: ScoreStats;
+}
+
+/** A header sorts the groups inside each split; the splits and the all-setups row stay put. */
+const COLUMNS: SortColumns<SplitEntry> = {
+  armed: e => e.stats.armed,
+  triggered: e => e.stats.triggered,
+  target_first: e => e.stats.target_first,
+  stop_first: e => e.stats.stop_first,
+  open: e => e.stats.open,
+  win: e => e.stats.win_pct,
+  avg_r: e => e.stats.avg_r,
+  net_r: e => e.stats.avg_net_r,
+  mfe: e => e.stats.avg_mfe_r,
+  mae: e => e.stats.avg_mae_r,
+};
+
+/** Every split's groups in reading order (go before wait before blind), anything new after them. */
+function splitEntries(data: Scoreboard | null, splits: readonly string[]): SplitEntry[] {
+  if (!data) return [];
+  return splits.flatMap(split => {
+    const order = Object.keys(SETUPS_SPLIT_KEY_LABELS[split] ?? {});
+    const rank = (key: string) => (order.includes(key) ? order.indexOf(key) : order.length);
+    return Object.entries(data.summary.by[split])
+      .sort(([a], [b]) => rank(a) - rank(b))
+      .map(([key, stats]) => ({ split, key, stats }));
+  });
 }
 
 function StatCells({ s }: { s: ScoreStats }) {
@@ -41,6 +75,8 @@ function StatCells({ s }: { s: ScoreStats }) {
 
 export function SetupsScoreboard({ data, error, loading, days, onDays, setup }: Props) {
   const splits = data ? Object.keys(SETUPS_SPLIT_TITLES).filter(k => data.summary.by[k]) : [];
+  const entries = splitEntries(data, splits);
+  const { rows: sorted, sort, onSort } = useTableSort('setups.scoreboard', entries, COLUMNS);
   return (
     <div className="setups-scoreboard">
       <div className="setups-toolbar">
@@ -76,16 +112,16 @@ export function SetupsScoreboard({ data, error, loading, days, onDays, setup }: 
             <thead>
               <tr>
                 <th />
-                <th title="Setups that armed: a leg, a pullback and a known trigger and stop">Armed</th>
-                <th title="Price traded over the trigger (and the share that did)">Triggered</th>
-                <th title="Target 1 traded before the stop">Target first</th>
-                <th title="The stop traded before target 1">Stop first</th>
-                <th title="Triggered, neither level reached yet">Open</th>
-                <th title="Share of scored setups the exit rules closed above zero">Win</th>
-                <th title="Average R under the backtest's exit rules, before costs">Avg R</th>
-                <th title="Average R after 1¢ a fill">Net R</th>
-                <th title="Average best move in the first 15 minutes, in R">MFE</th>
-                <th title="Average worst move in the first 15 minutes, in R">MAE</th>
+                <SortTh col="armed" sort={sort} onSort={onSort} title="Setups that armed: a leg, a pullback and a known trigger and stop">Armed</SortTh>
+                <SortTh col="triggered" sort={sort} onSort={onSort} title="Price traded over the trigger (and the share that did)">Triggered</SortTh>
+                <SortTh col="target_first" sort={sort} onSort={onSort} title="Target 1 traded before the stop">Target first</SortTh>
+                <SortTh col="stop_first" sort={sort} onSort={onSort} title="The stop traded before target 1">Stop first</SortTh>
+                <SortTh col="open" sort={sort} onSort={onSort} title="Triggered, neither level reached yet">Open</SortTh>
+                <SortTh col="win" sort={sort} onSort={onSort} title="Share of scored setups the exit rules closed above zero">Win</SortTh>
+                <SortTh col="avg_r" sort={sort} onSort={onSort} title="Average R under the backtest's exit rules, before costs">Avg R</SortTh>
+                <SortTh col="net_r" sort={sort} onSort={onSort} title="Average R after 1¢ a fill">Net R</SortTh>
+                <SortTh col="mfe" sort={sort} onSort={onSort} title="Average best move in the first 15 minutes, in R">MFE</SortTh>
+                <SortTh col="mae" sort={sort} onSort={onSort} title="Average worst move in the first 15 minutes, in R">MAE</SortTh>
               </tr>
             </thead>
             <tbody>
@@ -94,7 +130,7 @@ export function SetupsScoreboard({ data, error, loading, days, onDays, setup }: 
                 <StatCells s={data.summary.all} />
               </tr>
               {splits.map(split => (
-                <SplitRows key={split} split={split} groups={data.summary.by[split]} />
+                <SplitRows key={split} split={split} entries={sorted.filter(e => e.split === split)} />
               ))}
             </tbody>
           </table>
@@ -104,21 +140,17 @@ export function SetupsScoreboard({ data, error, loading, days, onDays, setup }: 
   );
 }
 
-function SplitRows({ split, groups }: { split: string; groups: Record<string, ScoreStats> }) {
+function SplitRows({ split, entries }: { split: string; entries: readonly SplitEntry[] }) {
   const labels = SETUPS_SPLIT_KEY_LABELS[split] ?? {};
-  // Known groups in reading order (go before wait before blind), anything new after them.
-  const order = Object.keys(labels);
-  const rank = (key: string) => (order.includes(key) ? order.indexOf(key) : order.length);
-  const entries = Object.entries(groups).sort(([a], [b]) => rank(a) - rank(b));
   return (
     <>
       <tr className="setups-split-head">
         <th colSpan={11}>{SETUPS_SPLIT_TITLES[split] ?? split}</th>
       </tr>
-      {entries.map(([key, s]) => (
+      {entries.map(({ key, stats }) => (
         <tr key={`${split}-${key}`}>
           <th scope="row">{labels[key] ?? key}</th>
-          <StatCells s={s} />
+          <StatCells s={stats} />
         </tr>
       ))}
     </>

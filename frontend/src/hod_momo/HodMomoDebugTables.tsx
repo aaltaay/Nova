@@ -1,6 +1,7 @@
 /** Decision + snap tables for the HOD Momo debug panel. */
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { TICKER_OPEN_TRADER_TITLE } from '../constants';
+import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import {
   fmtEnrichedAgo,
   fmtPctPoints,
@@ -34,6 +35,30 @@ export interface DebugSnapRow {
   last_enriched: number;
 }
 
+/** Newest first on Time; Gate groups the block reasons (passed rows have none and sit last). */
+const DECISION_COLUMNS: SortColumns<DebugDecisionRow> = {
+  time: d => d.ts,
+  symbol: d => d.symbol,
+  price: d => d.price,
+  rvol: d => d.rvol,
+  gap: d => d.gap_pct,
+  chg: d => d.change_pct,
+  gate: d => d.gate_blocked,
+  fired: d => d.strategies_fired.length,
+};
+
+/** Enriched sorts the newest enrichment first; a snap never enriched (0) has no time. */
+const SNAP_COLUMNS: SortColumns<DebugSnapRow> = {
+  symbol: s => s.symbol,
+  price: s => s.price,
+  rvol: s => s.rvol,
+  float: s => s.float_shares,
+  gap: s => s.gap_pct,
+  chg: s => s.change_pct,
+  volume: s => s.volume,
+  enriched: s => (s.last_enriched > 0 ? s.last_enriched : null),
+};
+
 interface NavProps {
   selectedSymbol: string | null;
   onSelectSymbol: (symbol: string) => void;
@@ -46,6 +71,7 @@ export function RecentDecisionsTable({
   onSelectSymbol,
   onOpenTrading,
 }: { decisions: DebugDecisionRow[] } & NavProps) {
+  const { rows: sorted, sort, onSort } = useTableSort('hod_momo.debug_decisions', decisions, DECISION_COLUMNS);
   return (
     <div className="dbg-card dbg-card-wide">
       <div className="dbg-card-title">Recent Decisions <span className="dbg-count-badge">{decisions.length}</span></div>
@@ -53,21 +79,21 @@ export function RecentDecisionsTable({
         <table className="dbg-table">
           <thead>
             <tr>
-              <th>Time</th>
-              <th title={TICKER_OPEN_TRADER_TITLE}>Symbol</th>
-              <th>Price</th>
-              <th>RVOL</th>
-              <th>Gap%</th>
-              <th>Chg%</th>
-              <th>Gate</th>
-              <th>Fired</th>
+              <SortTh col="time" sort={sort} onSort={onSort}>Time</SortTh>
+              <SortTh col="symbol" sort={sort} onSort={onSort} title={TICKER_OPEN_TRADER_TITLE}>Symbol</SortTh>
+              <SortTh col="price" sort={sort} onSort={onSort}>Price</SortTh>
+              <SortTh col="rvol" sort={sort} onSort={onSort}>RVOL</SortTh>
+              <SortTh col="gap" sort={sort} onSort={onSort}>Gap%</SortTh>
+              <SortTh col="chg" sort={sort} onSort={onSort}>Chg%</SortTh>
+              <SortTh col="gate" sort={sort} onSort={onSort}>Gate</SortTh>
+              <SortTh col="fired" sort={sort} onSort={onSort}>Fired</SortTh>
             </tr>
           </thead>
           <tbody>
             {decisions.length === 0 ? (
               <tr><td colSpan={8} className="dbg-empty">No decisions yet — trades seen but none past blocklist?</td></tr>
             ) : (
-              decisions.map((d, i) => (
+              sorted.map((d, i) => (
                 <SelectableTableRow
                   key={`${d.symbol}-${d.ts}-${i}`}
                   symbol={d.symbol}
@@ -100,6 +126,7 @@ export function SnapsTable({
   onSelectSymbol,
   onOpenTrading,
 }: { snaps: DebugSnapRow[] } & NavProps) {
+  const { rows: sorted, sort, onSort } = useTableSort('hod_momo.debug_snaps', snaps, SNAP_COLUMNS);
   return (
     <div className="dbg-card dbg-card-wide">
       <div className="dbg-card-title">
@@ -110,21 +137,21 @@ export function SnapsTable({
         <table className="dbg-table">
           <thead>
             <tr>
-              <th title={TICKER_OPEN_TRADER_TITLE}>Symbol</th>
-              <th>Price</th>
-              <th>RVOL</th>
-              <th>Float</th>
-              <th>Gap%</th>
-              <th>Chg%</th>
-              <th>Volume</th>
-              <th>Enriched</th>
+              <SortTh col="symbol" sort={sort} onSort={onSort} title={TICKER_OPEN_TRADER_TITLE}>Symbol</SortTh>
+              <SortTh col="price" sort={sort} onSort={onSort}>Price</SortTh>
+              <SortTh col="rvol" sort={sort} onSort={onSort}>RVOL</SortTh>
+              <SortTh col="float" sort={sort} onSort={onSort}>Float</SortTh>
+              <SortTh col="gap" sort={sort} onSort={onSort}>Gap%</SortTh>
+              <SortTh col="chg" sort={sort} onSort={onSort}>Chg%</SortTh>
+              <SortTh col="volume" sort={sort} onSort={onSort}>Volume</SortTh>
+              <SortTh col="enriched" sort={sort} onSort={onSort}>Enriched</SortTh>
             </tr>
           </thead>
           <tbody>
             {snaps.length === 0 ? (
               <tr><td colSpan={8} className="dbg-empty">No enriched snaps yet — waiting for first enrichment cycle (~30s)</td></tr>
             ) : (
-              snaps.map((s, i) => (
+              sorted.map((s, i) => (
                 <SelectableTableRow
                   key={`${s.symbol}-${i}`}
                   symbol={s.symbol}

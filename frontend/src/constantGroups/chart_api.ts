@@ -220,6 +220,7 @@ export {
   SCANNER_COLUMNS,
   SCANNER_EARNINGS_COLUMN,
   SCANNER_NEWS_COLUMN,
+  SCANNER_TIME_SORT_KEYS,
 } from './scanner_columns';
 
 // ── HOD Momo Scanner ──────────────────────────────────────────────────────────
@@ -491,6 +492,8 @@ export const ORDER_TABLE_COLUMN_DRAG_HINT =
 export const ORDER_TABLE_SORT_STORAGE_KEY = 'nova.ibkr.orderTable.sort.v1';
 export const ORDER_TABLE_SORT_HINT =
   'Click to sort · Shift+click multi-sort · Drag to reorder columns';
+/** The Positions table sorts one column at a time (`table_sort/`), so no Shift+click. */
+export const POSITION_TABLE_SORT_HINT = 'Click to sort · Drag to reorder columns';
 /** Columns that support click-to-sort (row view). */
 export const ORDER_TABLE_DATA_SORT_KEYS = [
   'type',
