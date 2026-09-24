@@ -1,6 +1,9 @@
 /**
  * Live PIN prompt -- shadcn Dialog + InputOTP.
  *
+ * Every typed digit shows as a dot, never the digit (operator report,
+ * 2026-09-23: the boxes printed the PIN in the clear).
+ *
  * The dialog only collects digits: the backend checks the PIN against the hash
  * in `.env` (`POST /api/ibkr/arm`), and whatever it answers is shown as-is.
  */
@@ -91,6 +94,7 @@ export function TradingPinDialog({ open, onSubmit, onCancel, notice = null }: Pr
             value={value}
             disabled={pending}
             data-why={pending ? TICKER_TRADE_UNLOCK_DIALOG_CHECKING_WHY : undefined}
+            autoComplete="off"
             onChange={next => {
               setValue(next);
               setError(null);
@@ -102,7 +106,7 @@ export function TradingPinDialog({ open, onSubmit, onCancel, notice = null }: Pr
           >
             <InputOTPGroup className={error ? '[&_[data-slot=input-otp-slot]]:border-destructive' : undefined}>
               {Array.from({ length: TICKER_TRADE_UNLOCK_PIN_LENGTH }, (_, index) => (
-                <InputOTPSlot key={index} index={index} />
+                <InputOTPSlot key={index} index={index} masked />
               ))}
             </InputOTPGroup>
           </InputOTP>
