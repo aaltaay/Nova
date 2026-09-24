@@ -224,8 +224,9 @@ export function waitForHealth(timeoutMs = 90_000) {
   });
 }
 
+/** @returns {Promise<'running' | 'attach' | 'reused' | 'spawned'>} which engine Nova will talk to */
 async function startApiSidecarUnlocked() {
-  if (apiChild) return;
+  if (apiChild) return 'running';
 
   // Lock A: daily UI attach. Never spawn a second API and never fall
   // through to resolveSpawn when a 2.5s health probe misses.
@@ -234,14 +235,14 @@ async function startApiSidecarUnlocked() {
       '[nova-api] NOVA_SKIP_API_SIDECAR=1 -- attach only, will not spawn or recycle',
       API_BASE,
     );
-    return;
+    return 'attach';
   }
 
   // Reuse an already-running local API (e.g. Run Nova.bat) when healthy.
   try {
     await waitForHealth(2_500);
     console.log('[nova-api] reusing existing healthy API at', API_BASE);
-    return;
+    return 'reused';
   } catch {
     // nothing listening -- start our own
   }
@@ -269,6 +270,7 @@ async function startApiSidecarUnlocked() {
   apiChild.on('error', (err) => {
     console.error('[nova-api] spawn error', err);
   });
+  return 'spawned';
 }
 
 function stopApiSidecarUnlocked() {
