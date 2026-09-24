@@ -8,8 +8,9 @@ import {
   SHORTCUTS_MENU_TITLE,
   type HotkeyBinding,
 } from '../constants';
-import { formatHotkeyLabel } from '../hooks/hotkeyUtils';
-import { formatKeyChord } from './htkFormat';
+import { chordsConflict, formatHotkeyLabel } from '../hooks/hotkeyUtils';
+import { FIND_BAR_TEXT, FIND_CHORD_LABEL } from '../ux';
+import { formatKeyChord, parseKeyChord } from './htkFormat';
 import type { NovaActionRecord } from './novaActionTypes';
 import type { HotkeyKeyChord } from './types';
 
@@ -52,6 +53,16 @@ export function buildShortcutsCatalog(
       },
     ],
   };
+  // Ctrl+F finds on the page (ux/findBar.ts) unless a Nova Action is bound to it: the action wins.
+  const findChord = parseKeyChord(FIND_CHORD_LABEL);
+  if (!novaActions.some((a) => a.enabled && chordsConflict(a.key, findChord))) {
+    menu.rows.push({
+      id: 'menu:find_on_page',
+      chord: FIND_CHORD_LABEL,
+      label: FIND_BAR_TEXT.label,
+      detail: FIND_BAR_TEXT.keys,
+    });
+  }
 
   const enabled = novaActions.filter((a) => a.enabled && a.key.key);
   const nova: ShortcutCatalogSection = {

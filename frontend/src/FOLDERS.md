@@ -63,7 +63,7 @@ the backend packages.
 | `theme/` | shared | Light / dark theme prefs and the `useTheme` hook that sets `data-theme` on `<html>`. |
 | `types/` | shared | Shared wire types: ticker, scanner, market, earnings, health, catalysts, news impact, Nova News, desktop bridge. |
 | `utils/` | shared | Generic helpers (formatting, prefStore, sorting, rAF coalescing) plus backend / desktop glue (auto-heal, Gateway launch, window bounds). |
-| `ux/` | shared | The app-wide dialog service (the alert / confirm / prompt API and the `AppDialogHost` that renders it) and the two tips: why a control is locked (`whyTip`) and what a chip means (`hoverTip`). |
+| `ux/` | shared | The app-wide dialog service (the alert / confirm / prompt API and the `AppDialogHost` that renders it) and the two tips: why a control is locked (`whyTip`) and what a chip means (`hoverTip`); and Ctrl+F, the find bar every window gets (`findBar`, searching with `findText`). |
 | `volume_boost/` | feature | The Volume Boost scanner tab: exceptional L1 volume-rate spikes with age formatting. |
 | `watch_list/` | feature | The operator's hand-picked Watch list: the persisted list, the Watch list tab, the watch eye, and the "hit HOD Momo" toasts for watched symbols. |
 | `workspace/` | feature | The workspace shell: selected-symbol context, module registry, layout / visibility / nav-rail stores, scanner tabs, the pop-out window bus. |
