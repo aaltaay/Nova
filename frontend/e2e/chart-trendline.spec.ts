@@ -2,24 +2,19 @@ import { test, expect } from '@playwright/test';
 import { attachErrorCollector } from './helpers/errorCollector';
 
 test.describe('D-010 Trend Line two-click place', () => {
-  test('dropdown opens and arms a tool on the sample desk', async ({ page }) => {
+  test('line tools sit flat on the desk toolbar and arm in one click', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/?view=sample&symbol=SMPL');
     await expect(page.getByTestId('chart-desk-toolbar')).toBeVisible();
 
-    await page.getByRole('button', { name: 'Line drawing tools' }).click();
-    const menu = page.getByTestId('chart-draw-tools-menu');
-    await expect(menu).toBeVisible();
-    await expect(menu.getByRole('menuitemradio', { name: /Trendline/ })).toBeVisible();
-    await page.screenshot({
-      path: '/opt/cursor/artifacts/d109-draw-tools-menu.png',
-      fullPage: true,
-    });
-    await menu.getByRole('menuitemradio', { name: /Horizontal Line/ }).click();
+    const tools = page.getByTestId('chart-draw-tools').first();
+    await expect(tools.getByRole('button', { name: 'Use Trendline' })).toBeVisible();
+    await expect(tools.getByRole('button', { name: 'Use Horizontal Ray' })).toBeVisible();
+    await expect(page.locator('button[aria-haspopup="menu"][aria-label="Line drawing tools"]')).toHaveCount(0);
+    await tools.getByRole('button', { name: 'Use Horizontal Line' }).click();
 
     const chart = page.locator('.chart-body').first();
     await expect(chart).toHaveAttribute('data-active-draw-tool', 'HorizontalLine');
-    await expect(menu).toHaveCount(0);
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 

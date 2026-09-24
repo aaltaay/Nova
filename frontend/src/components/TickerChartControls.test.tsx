@@ -185,7 +185,7 @@ describe('TickerChartControls filling hint', () => {
       );
     });
 
-    expect(container.querySelector('[data-testid="chart-draw-tools-flat"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="chart-draw-tools"]')).toBeTruthy();
     expect(container.querySelector('button[aria-haspopup="menu"]')).toBeNull();
     expect(container.querySelector('[aria-label="Use Trendline"]')).toBeTruthy();
     expect(container.querySelector('[aria-label="Use Horizontal Ray"]')).toBeTruthy();
