@@ -8,7 +8,8 @@ from __future__ import annotations
 import logging
 
 import afterhours_discovery as _ah_discovery
-from ibkr import discovery as _ibkr_discovery
+from constants import IBKR_QUOTE_QUALITY_CLOSE_FALLBACK
+from ibkr import quote_rows as _quote_rows
 from ibkr import scanner_session as _ss
 from runtime_state import get_runtime_state
 
@@ -141,7 +142,7 @@ def apply_l1_quote(
     if state.gainer_cache and not _ss.is_table_frozen(state, _ss.TABLE_GAINERS):
         at = _lookup(_ss.TABLE_GAINERS, state.gainer_cache, sym)
         if at is not None:
-            row = _stamp_quality(_ibkr_discovery.reprice_mover_row(state.gainer_cache[at], q), quote_quality)
+            row = _stamp_quality(_quote_rows.reprice_mover_row(state.gainer_cache[at], q), quote_quality)
             state.gainer_cache[at] = row
             state.gainer_cache_ts = now
             _patch_fields(patch, row, volume)
@@ -151,7 +152,7 @@ def apply_l1_quote(
         at = _lookup(_ss.TABLE_LOSERS, state.loser_cache, sym)
         if at is not None:
             state.loser_cache[at] = _stamp_quality(
-                _ibkr_discovery.reprice_mover_row(state.loser_cache[at], q), quote_quality,
+                _quote_rows.reprice_mover_row(state.loser_cache[at], q), quote_quality,
             )
             state.loser_cache_ts = now
 
@@ -162,7 +163,7 @@ def apply_l1_quote(
     ):
         at = _lookup(_ss.TABLE_GAPPERS, state.gapper_cache, sym)
         if at is not None:
-            row = _stamp_quality(_ibkr_discovery.reprice_gapper_row(state.gapper_cache[at], q), quote_quality)
+            row = _stamp_quality(_quote_rows.reprice_gapper_row(state.gapper_cache[at], q), quote_quality)
             state.gapper_cache[at] = row
             state.gapper_cache_ts = now
             _patch_fields(patch, row, volume)
@@ -194,6 +195,10 @@ def apply_l1_quote(
             if lc_patch:
                 patch.update(lc_patch)
 
+    if quote_quality == IBKR_QUOTE_QUALITY_CLOSE_FALLBACK:
+        # No trade yet: the rows above show the prior close, flagged, but HOD Momo,
+        # its L1 tick archive and volume boost take trades only (#541).
+        return patch
     from hod_tick_feed import feed_hod_on_tick
 
     feed_hod_on_tick(sym, price, volume, now)

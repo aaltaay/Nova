@@ -344,13 +344,9 @@ def test_shutdown_drains_accepted_rows_and_closes_ingress():
 def push_depth(symbol="AAPL", bids=((42.20, 300),), asks=((42.30, 400),)):
     """Drive the real ib_async depth handler, not the shared broadcast channel."""
     from ibkr.depth.handlers import on_update_book
+    from tests.depth_ticks import depth_ticker
 
-    def level(price, size):
-        return SimpleNamespace(price=price, size=size, marketMaker="ARCA")
-
-    ticker = SimpleNamespace(domBids=[level(p, s) for p, s in bids],
-                             domAsks=[level(p, s) for p, s in asks])
-    on_update_book(ticker, symbol)
+    on_update_book(depth_ticker(bids=bids, asks=asks), symbol)
 
 
 def push_l1(symbol="AAPL", bid=42.20, bid_size=300, ask=42.30, ask_size=400):

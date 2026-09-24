@@ -97,6 +97,41 @@ def exchange_ts_unix(ticker: Any) -> float:
     return time.time()
 
 
+def _epoch(raw: Any) -> float | None:
+    """A ticker timestamp (datetime or epoch seconds / ms) as epoch seconds, else None."""
+    if raw is None:
+        return None
+    if hasattr(raw, "timestamp"):
+        try:
+            return float(raw.timestamp())
+        except (TypeError, ValueError, OSError, OverflowError):
+            return None
+    try:
+        val = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if val > 1e12:  # milliseconds
+        val /= 1000.0
+    return val if val > 1e9 else None
+
+
+def note_last_trade(ticker: Any, sub: dict[str, Any] | None) -> None:
+    """When the line's last trade happened: IBKR's Last Timestamp (tick 45, or 88 delayed).
+
+    A Last tick arriving is not a new trade -- IBKR sends the current last when
+    a line opens, hours after it printed -- and ``last_update_ts`` moves on any
+    quote change. Paper fills need the trade's own time (#541). Unknown stays
+    unknown: without a timestamp the practice broker falls back to the tape.
+    """
+    if sub is None:
+        return
+    for attr in ("lastTimestamp", "delayedLastTimestamp"):
+        stamp = _epoch(getattr(ticker, attr, None))
+        if stamp is not None:
+            sub["last_trade_ts"] = stamp
+            return
+
+
 def reportable_last(ticker: Any, sub: dict[str, Any] | None) -> float | None:
     """IBKR's Last (tick 4 / 68) from this update, else the last one this line delivered.
 
@@ -228,6 +263,7 @@ def on_ticker_update(
     price = last or close
     if price is None:
         return
+    note_last_trade(ticker, sub)
 
     last_size, cum_volume = l1_size_fields(ticker)
     volume = cum_volume
@@ -247,8 +283,11 @@ def on_ticker_update(
         IBKR_QUOTE_QUALITY_CLOSE_FALLBACK if close_fallback else None
     )
     price_changed = sub is None or sub.get("last_price") != price
-    if sub is not None and price_changed:
-        sub["last_price"] = price
+    if sub is not None:
+        if price_changed:
+            sub["last_price"] = price
+        # Readers of ``last_price`` must know it is IBKR's prior close, not a trade (#541).
+        sub["quote_quality"] = quote_quality
 
     volume_increased = False
     if sub is not None and cum_volume is not None:
@@ -273,6 +312,10 @@ def on_ticker_update(
         )
 
     if not price_changed or broadcast is None:
+        return
+    if close_fallback:
+        # Nothing has traded: the prior close is not a trade update, and a chart
+        # tip painted from it drew a candle no exchange printed (#541).
         return
     # Detail panel only needs trade_update when a detail owner is present.
     if sub is not None and owner_detail not in sub.get("owners", set()):

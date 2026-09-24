@@ -91,6 +91,7 @@ IBKR_CONNECT_TIMEOUT_SEC = 8.0
 # reqMktDepth() already returned successfully, so it can't be caught by a
 # try/except around the call — see ibkr/depth.py._on_ib_error.
 IBKR_ERROR_DEPTH_NOT_SUPPORTED = 10092
+IBKR_ERROR_DEPTH_RESET = 317       # IBKR: market depth reset -- the book is resent from row 0
 # Tick-by-tick Time & Sales subscription failures (async via errorEvent).
 # 10089/10189: requires additional market-data subscription; 354: not subscribed.
 IBKR_ERROR_TICK_BY_TICK_CODES = frozenset({10089, 10189, 354})

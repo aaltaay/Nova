@@ -52,7 +52,7 @@ def stub_row(sym: str, rank: int, exchange: str | None = None) -> dict:
     (issue #90). Either way this stub is built and returned without waiting.
 
     ``admitted_ts`` is stamped once, here, and carried forward untouched by
-    every later rank/reprice merge (``hydrate_rows`` and ``reprice_mover_row``
+    every later rank/reprice merge (``hydrate_rows`` and ``quote_rows.reprice_mover_row``
     both spread the prior row with ``{**prior, ...}``). ``roster_ts`` gets
     rewritten on every IB scanner push, so it can never age past the
     coverage grace on a busy table -- ``admitted_ts`` is the per-row clock

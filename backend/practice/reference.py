@@ -3,8 +3,9 @@
 ``MarketReference`` is the one door the practice broker reads the market
 through. ``ReplayReference`` is the Sim venue and delegates to ``sim.practice``
 unchanged (the loaded historical download or capture at the playhead).
-``LiveReference`` is the Paper venue: the fresh L1 last from ``ibkr.ticks``
-(within ``PRACTICE_LIVE_FRESH_SEC``), failing that the newest tape print in
+``LiveReference`` is the Paper venue: the L1 last from ``ibkr.ticks`` when it
+traded within ``PRACTICE_LIVE_FRESH_SEC`` (IBKR's Last Timestamp; never the
+prior close a line carries before its first trade), failing that the newest tape print in
 the local archive (``l2.tape``) inside the same window, the live top of book
 from ``ibkr.depth.state``, and a refusal (``PRACTICE_NO_LIVE_PRINT``) when
 neither a fresh last nor a recent print exists. Only a print that sets a price
@@ -23,6 +24,7 @@ from __future__ import annotations
 import time
 from typing import Any, Protocol, runtime_checkable
 
+from constants_ibkr import IBKR_QUOTE_QUALITY_CLOSE_FALLBACK
 from constants_practice import (
     PRACTICE_LIVE_FRESH_SEC,
     PRACTICE_NO_LIVE_PRINT_CODE,
@@ -116,13 +118,24 @@ class LiveReference:
         return next_close_after(ts)
 
     def fresh_last(self, symbol: str) -> float | None:
-        """The L1 last, only while its stream ticked within the freshness window."""
+        """The L1 last, only when it traded inside the freshness window (#541).
+
+        A quote change keeps a line fresh without a trade, and a line with no
+        trade today carries IBKR's prior close: neither is a price a practice
+        order may fill at. The trade's own time is IBKR's Last Timestamp; when
+        it is unknown the last is not used and the tape archive decides.
+        """
         from ibkr import ticks
 
         sym = symbol.upper()
         if not ticks.is_fresh(sym, self.fresh_sec):
             return None
         row = ticks.last_quotes([sym]).get(sym) or {}
+        if row.get("quote_quality") == IBKR_QUOTE_QUALITY_CLOSE_FALLBACK:
+            return None
+        traded = row.get("last_trade_ts")
+        if traded is None or self.now_ts() - float(traded) > self.fresh_sec:
+            return None
         return _price(row.get("price"))
 
     def recent_print(self, symbol: str) -> float | None:
