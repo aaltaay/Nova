@@ -9,10 +9,20 @@ and are ours; the scoreboard exists to tell us whether they are right.
 """
 from __future__ import annotations
 
-SETUPS_SCHEMA_VERSION = 1              # the board / socket payload
+from constants_bot import (
+    BOT_SETUP_BULL_FLAG,
+    BOT_SETUP_FIRST_PULLBACK,
+    BOT_SETUP_FLAT_TOP,
+    BOT_SETUP_RED_TO_GREEN,
+)
+
+# The board / socket payload. 2 (ADR 031): rows and proposals carry
+# ``setup_type``, and ``setups[]`` summarizes each setup with a scanner.
+SETUPS_SCHEMA_VERSION = 2
 # setups.db: 2 adds template_id / template_rev / params_hash (ADR 029); a v1
-# file is migrated in place, its rows becoming the default template's.
-SETUPS_DB_SCHEMA_VERSION = 2
+# file is migrated in place, its rows becoming the default template's. 3 (ADR
+# 031) adds setup_type and detail; a v2 file's rows are the first pullback's.
+SETUPS_DB_SCHEMA_VERSION = 3
 
 # -- Session window (America/New_York). The material's window is 07:00-10:00;
 # the research screen ran 09:30-11:30. Covering 07:00-11:30 lets the
@@ -45,6 +55,46 @@ SETUPS_TARGET_MODE = "leg_or_r"         # ADR 029: "fixed" makes target 1 entry 
 SETUPS_TARGET_FIXED_DOLLARS = 0.20      # the material's 20c target, for a template that asks for it
 SETUPS_BAILOUT_BARS = 5                 # scoring: 5 bars without a close above entry -> out
 SETUPS_MAX_PER_SYMBOL_DAY = 2           # first and second pullback
+
+# -- Bull flag (ADR 031): pre-registered from the operator's material, never tested
+# on bars. The material's rules: 3+ green candles, then 2-3 red candles none of which
+# breaks the high of the candle before it, a flag giving back no more than half the
+# pole on lighter volume, and the entry "the first candle to make a new high". The
+# numbers the material leaves open are CHOSEN, the first pullback's where it has one.
+SETUPS_BF_POLE_MIN_BARS = 3             # consecutive green candles (close over open)
+SETUPS_BF_POLE_MIN_PCT = 0.05           # the pole's rise, lowest low to highest high ... CHOSEN
+SETUPS_BF_POLE_MIN_DOLLARS = 0.30       # ... or at least this many dollars. CHOSEN
+SETUPS_BF_POLE_VOLUME_RISING = True     # the last pole candle's volume >= the first's
+SETUPS_BF_MIN_FLAG_BARS = 2             # one candle is a micro pullback, not a flag
+SETUPS_BF_MAX_FLAG_BARS = 3             # "more than three candles ... too much selling"
+SETUPS_BF_MAX_RETRACE = 0.5             # the flag low gives back no more than half the pole
+SETUPS_BF_FLAG_VOLUME_LIGHTER = True    # the flag's average volume under the pole's
+SETUPS_BF_EMA_HOLD = True               # every flag close at or above the EMA
+SETUPS_BF_EMA_TOUCH_PCT = None          # off: the flag low within this fraction of the EMA
+SETUPS_BF_REJECT_RED_VOLUME_HIGH = True  # the day's highest-volume candle is red -> no setup
+SETUPS_BF_MAX_POLE_WICK = 0.40          # the pole-top candle's upper wick over its range. CHOSEN
+SETUPS_BF_REQUIRE_HOD = False           # the material asks no new high of day
+SETUPS_BF_MAX_PER_SYMBOL_DAY = 2        # the first and second flag, skip the third
+SETUPS_BF_TARGET_MODES = ("leg_or_r", "leg", "fixed")
+
+# -- Flat-top breakout (P2, research/momentum/backtest_setups.py find_flat_top).
+SETUPS_FT_IMPULSE_PCT = 0.03            # the move into the high of day over the window's lowest low
+SETUPS_FT_LEG_WINDOW_BARS = 10
+SETUPS_FT_MIN_CONSOL = 2                # base candles right after the high-of-day candle
+SETUPS_FT_MAX_CONSOL = 6
+SETUPS_FT_BAND = 0.02                   # every base close within this fraction under the high
+SETUPS_FT_ENTRY_HOLD = "hold"           # the taught way: a green candle holding over the high
+SETUPS_FT_ENTRY_BREAK = "break"         # the variant: the break itself
+SETUPS_FT_ENTRY = SETUPS_FT_ENTRY_HOLD
+SETUPS_FT_HOLD_BARS = 3                 # the hold must come within this many candles after the break
+SETUPS_FT_MAX_PER_SYMBOL_DAY = 2
+SETUPS_FT_TARGET_MODES = ("r", "fixed")
+
+# -- Red to green (P3, find_red_to_green): the open, then back through it.
+SETUPS_R2G_OPEN_ET = "09:30"            # the level is the open of the first candle at or after this
+SETUPS_R2G_CUTOFF_ET = "10:30"          # reclaim by
+SETUPS_R2G_MIN_RED_BARS = 1             # closes under the open, counted from the opening candle
+SETUPS_R2G_TARGET_HOD = True            # target 1 is at least the high of day
 
 # -- "Near": price this close to the trigger is the moment to read the tape. CHOSEN.
 SETUPS_NEAR_DOLLARS = 0.03
@@ -94,6 +144,19 @@ SETUP_STATES = (
 )
 SETUP_KIND_FIRST_PULLBACK = "first_pullback"
 SETUP_KIND_SECOND_PULLBACK = "second_pullback"
+# ADR 031: the kind without "second_" is the first of that setup on that symbol that day.
+SETUP_KIND_BULL_FLAG = "bull_flag"
+SETUP_KIND_SECOND_BULL_FLAG = "second_bull_flag"
+SETUP_KIND_FLAT_TOP = "flat_top_breakout"
+SETUP_KIND_SECOND_FLAT_TOP = "second_flat_top_breakout"
+SETUP_KIND_RED_TO_GREEN = "red_to_green"
+# The read-out counts each setup's first-of-the-day kind (ADR 027, ADR 031).
+SETUPS_READOUT_KINDS = {
+    BOT_SETUP_FIRST_PULLBACK: SETUP_KIND_FIRST_PULLBACK,
+    BOT_SETUP_BULL_FLAG: SETUP_KIND_BULL_FLAG,
+    BOT_SETUP_FLAT_TOP: SETUP_KIND_FLAT_TOP,
+    BOT_SETUP_RED_TO_GREEN: SETUP_KIND_RED_TO_GREEN,
+}
 
 # -- The pre-registered read-out (Bot-Trading-Plan §2g, ADR 027): read once
 # READOUT_MIN_GO triggered first-pullback setups had the tape at go at the
@@ -117,13 +180,14 @@ SETUP_OUTCOME_OPEN = "open"             # neither touched yet
 SETUP_OUTCOME_NOT_TRIGGERED = "not_triggered"
 SETUPS_SCORE_WINDOW_MIN = 15            # MFE / MAE measured over this many minutes after trigger
 SETUPS_DB_FILENAME = "setups.db"        # under paths.cache_dir(), not git-tracked
-SETUPS_BOARD_MAX_ROWS = 40
+SETUPS_BOARD_MAX_ROWS = 40              # per setup (ADR 031)
 SETUPS_BOARD_PUSH_SEC = 1.0             # socket push cadence
 
 # -- Templates (ADR 029): named variations of each setup's parameters. The
 # built-in default is the pre-registered rules above; the operator's own live
-# in the operator cache. Every first-pullback template is watched at once, one
-# lane each (the per-setup cap bounds the lanes); only the template in play proposes.
+# in the operator cache. Every template of every setup with a scanner is watched at
+# once, one lane each (the per-setup cap bounds the lanes); only each setup's template
+# in play proposes (ADR 031).
 SETUP_TEMPLATES_SCHEMA_VERSION = 1
 SETUP_TEMPLATES_FILENAME = "setup-templates.json"   # under paths.cache_dir(), not git-tracked
 SETUP_TEMPLATE_DEFAULT_ID = "default"

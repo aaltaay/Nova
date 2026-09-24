@@ -1,8 +1,9 @@
 /**
- * What each bot order may risk (the small-cap sleeve) and the two locked loss
- * breakers (approved mockup v4). The sleeve is the session's `caps`, PATCHed
- * when a slider is let go; the breakers are product thresholds with no PATCH
- * field. Advise's budget stays here, folded away -- it reads, it never places.
+ * What each bot order may risk (the small-cap sleeve) and the two loss breakers
+ * (approved mockup v4, ADR 032). The sleeve is the session's `caps`, PATCHed when
+ * a slider is let go; the breakers are the desk venue's own pair, dragged on their
+ * bar and saved the same way. Advise's budget stays here, folded away -- it
+ * reads, it never places.
  */
 import {
   BOT_BP_BUDGET_HARD_MAX_USD,
@@ -69,7 +70,7 @@ export function BotRiskCard({ session, patch, busy, dayPnl }: {
         </div>
       </div>
 
-      <BotBreakerBar dayPnl={dayPnl} />
+      <BotBreakerBar breakers={session.breakers} dayPnl={dayPnl} busy={busy} patch={patch} />
 
       <details className="bots-advise">
         <summary>{BOTS_ADVISE_TITLE}</summary>

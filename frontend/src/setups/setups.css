@@ -59,3 +59,22 @@
 .setups-alert-body { flex: 1; min-width: 0; line-height: 1.4; }
 .setups-alert-reasons { color: var(--text-secondary); font-size: 12px; margin-top: 2px; }
 .setups-alert-actions { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+
+/* ADR 031: a chip per setup filters the board. */
+.setups-filter { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 4px; }
+.setups-chip {
+  font: inherit;
+  font-size: 12px;
+  line-height: 22px;
+  padding: 0 10px;
+  border-radius: 11px;
+  border: 1px solid var(--border-color, var(--nova-border));
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.setups-chip b { color: var(--text-primary); margin-left: 3px; font-variant-numeric: tabular-nums; }
+.setups-chip.is-on { border-color: var(--accent-color); color: var(--text-primary); background: color-mix(in srgb, var(--accent-color) 14%, transparent); }
+.setups-chip.is-off { opacity: 0.55; cursor: not-allowed; border-style: dashed; }
+.setups-state--broke { color: var(--accent-color); border-color: var(--accent-color); }
+.setups-table td.setups-kind { font-size: 12px; color: var(--text-secondary); }

@@ -1,6 +1,6 @@
 # ADR 016 -- Localhost bot API (brain-agnostic)
 
-**Status:** Accepted · **Date:** 2026-09-17
+**Status:** Accepted · **Date:** 2026-09-17 · **Amended by:** [[032-loss-breakers-per-venue]] (decision 6: the breakers are the operator's, per venue)
 **Builds on:** ADR 007 (one execution door) · ADR 011 (max-3 live Trader L2)
 **Does not touch:** `auto_live` · L3 Unrestricted (#216 parked) · optional `nova` CLI
 

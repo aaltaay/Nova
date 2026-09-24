@@ -1,6 +1,6 @@
-/** What the armed setups did (ADR 022). Every armed setup is scored the way the
- * backtest scored its own trades, so live and research numbers compare. These
- * are scores, not fills: nothing here was traded. */
+/** What one setup's armed setups did (ADR 022, ADR 031). Every armed setup is
+ * scored the way the backtest scored its own trades, so live and research numbers
+ * compare. These are scores, not fills: nothing here was traded. */
 import {
   SETUPS_DAYS_LABELS,
   SETUPS_SCOREBOARD_DAYS,
@@ -8,6 +8,7 @@ import {
   SETUPS_SPLIT_TITLES,
 } from '../constants';
 import { fmtPct, fmtR } from './setupsFormat';
+import { setupLabel } from './setupWords';
 import type { ScoreStats, Scoreboard } from './types';
 
 interface Props {
@@ -16,6 +17,8 @@ interface Props {
   loading: boolean;
   days: number;
   onDays: (days: number) => void;
+  /** The setup the scoreboard answers for (the board's filter, else the chosen setup). */
+  setup?: string;
 }
 
 function StatCells({ s }: { s: ScoreStats }) {
@@ -36,11 +39,12 @@ function StatCells({ s }: { s: ScoreStats }) {
   );
 }
 
-export function SetupsScoreboard({ data, error, loading, days, onDays }: Props) {
+export function SetupsScoreboard({ data, error, loading, days, onDays, setup }: Props) {
   const splits = data ? Object.keys(SETUPS_SPLIT_TITLES).filter(k => data.summary.by[k]) : [];
   return (
     <div className="setups-scoreboard">
       <div className="setups-toolbar">
+        <b data-testid="setups-scoreboard-setup">{setupLabel(data?.setup_type ?? setup ?? 'first_pullback')}</b>
         <span className="na-muted">Range</span>
         {SETUPS_SCOREBOARD_DAYS.map(d => (
           <button

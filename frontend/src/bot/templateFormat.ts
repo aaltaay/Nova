@@ -68,7 +68,8 @@ function range(lo: number | null, hi: number | null, fmt: (n: number) => string,
   return null;
 }
 
-function firstPullbackLines(v: Values): [string, string][] {
+/** The stock filter every setup with a scanner reads (the catalogue's _STOCK). */
+function stockLine(v: Values): string {
   const stock = ['HOD Momo names'];
   stock.push(range(num(v.min_price), num(v.max_price), px, 'price') ?? 'any price');
   stock.push(num(v.max_float_m) != null ? `float ≤ ${trim(num(v.max_float_m)!, 1)}M` : 'any float');
@@ -77,24 +78,97 @@ function firstPullbackLines(v: Values): [string, string][] {
   if (v.require_catalyst) stock.push('a catalyst');
   if (v.min_grade === 'A') stock.push('grade A');
   if (v.min_grade === 'B') stock.push('grade B+');
+  return stock.join(' · ');
+}
 
-  const minPb = num(v.min_pullback_bars) ?? 1;
-  const maxPb = num(v.max_pullback_bars) ?? 3;
-  const bars = minPb === maxPb ? `${minPb}` : `${minPb}–${maxPb}`;
+function bars(lo: number | null, hi: number | null): string {
+  const a = lo ?? 1;
+  const b = hi ?? a;
+  return a === b ? `${a}` : `${a}–${b}`;
+}
+
+function ema(v: Values): string {
   const tol = num(v.ema_tol) ? ` (−${trim(num(v.ema_tol)!)}%)` : '';
-  const setup = `Leg ≥ ${trim(num(v.leg_pct) ?? 0)}% to a new high${v.require_hod ? ' of day' : ''} · ${bars} candles hold the `
-    + `${num(v.ema_period)} EMA${tol} and give back < ${trim(num(v.max_retrace) ?? 0)}% of the leg`
-    + (v.macd_positive ? ' · MACD above zero' : '');
+  return `${num(v.ema_period)} EMA${tol}`;
+}
 
-  const entry = `Over the last pullback candle's high +${money(num(v.entry_offset) ?? 0)} · arms `
-    + `${v.session_start}–${v.entry_cutoff} · only when the tape says GO`;
+/** "Over the last pullback candle's high +$0.01 · arms 07:00–11:30 · only when the tape says GO". */
+function entryLine(what: string, v: Values, window = true): string {
+  const arms = window ? ` · arms ${v.session_start}–${v.entry_cutoff}` : '';
+  return `${what} +${money(num(v.entry_offset) ?? 0)}${arms} · only when the tape says GO`;
+}
 
-  const target = v.target_mode === 'fixed'
-    ? `target 1 entry + ${money(num(v.target_fixed) ?? 0)}`
-    : `target 1 the leg high or ${trim(num(v.target_r) ?? 0)}R`;
-  const trade = `Risk ${money(num(v.min_stop) ?? 0)}–${money(num(v.stop_cap) ?? 0).replace('$', '')} · ${target} · `
+/** Risk band, target 1 and the bot's own window: the same on every setup with a scanner. */
+function tradeLine(v: Values, target: string): string {
+  return `Risk ${money(num(v.min_stop) ?? 0)}–${money(num(v.stop_cap) ?? 0).replace('$', '')} · ${target} · `
     + `bot ${v.bot_window_start}–${v.bot_window_end}, ${num(v.bot_entries_per_day)} a day`;
-  return [['Stock', stock.join(' · ')], ['Setup', setup], ['Entry', entry], ['Trade', trade]];
+}
+
+function fixedTarget(v: Values): string {
+  return `target 1 entry + ${money(num(v.target_fixed) ?? 0)}`;
+}
+
+function firstPullbackLines(v: Values): [string, string][] {
+  const setup = `Leg ≥ ${trim(num(v.leg_pct) ?? 0)}% to a new high${v.require_hod ? ' of day' : ''} · `
+    + `${bars(num(v.min_pullback_bars), num(v.max_pullback_bars))} candles hold the ${ema(v)} and give back `
+    + `< ${trim(num(v.max_retrace) ?? 0)}% of the leg` + (v.macd_positive ? ' · MACD above zero' : '');
+  const target = v.target_mode === 'fixed' ? fixedTarget(v) : `target 1 the leg high or ${trim(num(v.target_r) ?? 0)}R`;
+  return [
+    ['Stock', stockLine(v)],
+    ['Setup', setup],
+    ['Entry', entryLine('Over the last pullback candle\'s high', v)],
+    ['Trade', tradeLine(v, target)],
+  ];
+}
+
+function bullFlagLines(v: Values): [string, string][] {
+  const dollars = num(v.pole_min_dollars);
+  const pole = `Pole of ${num(v.pole_min_bars)}+ green candles up ≥ ${trim(num(v.pole_min_pct) ?? 0)}%`
+    + (dollars != null ? ` (or ${money(dollars)})` : '')
+    + (v.pole_volume_rising ? ' on rising volume' : '')
+    + (v.require_hod ? ' to a new high of day' : '');
+  const flag = `${bars(num(v.min_flag_bars), num(v.max_flag_bars))} red candles give back ≤ `
+    + `${trim(num(v.max_retrace) ?? 0)}% of it` + (v.flag_volume_lighter ? ' on lighter volume' : '')
+    + (v.ema_hold ? `, closes hold the ${ema(v)}` : '');
+  const checks: string[] = [];
+  if (num(v.ema_touch_pct) != null) checks.push(`flag low within ${trim(num(v.ema_touch_pct)!)}% of the EMA`);
+  if (v.macd_positive) checks.push('MACD above zero');
+  if (v.reject_red_volume_high) checks.push('the day\'s biggest candle not red');
+  if (num(v.max_pole_wick) != null) checks.push(`pole-top wick ≤ ${trim(num(v.max_pole_wick)!)}%`);
+  const target = v.target_mode === 'fixed' ? fixedTarget(v)
+    : v.target_mode === 'leg' ? 'target 1 the pole high'
+      : `target 1 the pole high or ${trim(num(v.target_r) ?? 0)}R`;
+  return [
+    ['Stock', stockLine(v)],
+    ['Setup', [pole, flag, ...checks].join(' · ')],
+    ['Entry', entryLine('Over the last flag candle\'s high', v)],
+    ['Trade', tradeLine(v, target)],
+  ];
+}
+
+function flatTopLines(v: Values): [string, string][] {
+  const setup = `Impulse ≥ ${trim(num(v.ft_impulse_pct) ?? 0)}% into the high of day · `
+    + `${bars(num(v.ft_min_consol), num(v.ft_max_consol))} candles close within ${trim(num(v.ft_band) ?? 0)}% under it, `
+    + `lows over the ${ema(v)}` + (v.macd_positive ? ' · MACD above zero' : '');
+  const entry = v.ft_entry === 'break'
+    ? entryLine('The break of the high', v)
+    : `A green candle holding over the high within ${num(v.ft_hold_bars)} candles, at its close `
+      + `+${money(num(v.entry_offset) ?? 0)} · arms ${v.session_start}–${v.entry_cutoff} · only when the tape says GO`;
+  const target = v.target_mode === 'fixed' ? fixedTarget(v) : `target 1 ${trim(num(v.target_r) ?? 0)}R`;
+  return [['Stock', stockLine(v)], ['Setup', setup], ['Entry', entry], ['Trade', tradeLine(v, target)]];
+}
+
+function redToGreenLines(v: Values): [string, string][] {
+  const red = num(v.r2g_min_red_bars) ?? 1;
+  const setup = `${red}+ close${red === 1 ? '' : 's'} under the ${v.session_start} open, then back through it by `
+    + `${v.r2g_cutoff} · one try a day` + (v.macd_positive ? ' · MACD above zero' : '');
+  const target = `target 1 ${trim(num(v.target_r) ?? 0)}R${v.r2g_target_hod ? ' or the high of day, whichever is higher' : ''}`;
+  return [
+    ['Stock', stockLine(v)],
+    ['Setup', setup],
+    ['Entry', entryLine('Over the open', v, false)],
+    ['Trade', tradeLine(v, target)],
+  ];
 }
 
 function universeLine(v: Values): string {
@@ -104,31 +178,17 @@ function universeLine(v: Values): string {
   return parts.join(' · ');
 }
 
-function researchTrade(v: Values): string {
-  return `Risk ${money(num(v.min_stop) ?? 0)}–${money(num(v.stop_cap) ?? 0).replace('$', '')} · target `
-    + `${trim(num(v.target_r) ?? 0)}R · out after ${num(v.bailout_bars)} bars`;
-}
-
 /** The setup card's rule lines, from the template in play. */
 export function ruleLines(setup: string, v: Values): [string, string][] {
   switch (setup) {
     case 'first_pullback':
       return firstPullbackLines(v);
+    case 'bull_flag':
+      return bullFlagLines(v);
     case 'flat_top_breakout':
-      return [
-        ['Stock', universeLine(v)],
-        ['Setup', `Impulse ≥ ${trim(num(v.ft_impulse_pct) ?? 0)}% into the high of day · ${num(v.ft_min_consol)}–`
-          + `${num(v.ft_max_consol)} tight candles within ${trim(num(v.ft_band) ?? 0)}%`],
-        ['Entry', `${v.ft_entry === 'break' ? 'The break of the high' : `A green candle holding over the high within ${num(v.ft_hold_bars)} bars`}`
-          + ` · ${v.session_start}–${v.entry_cutoff}`],
-        ['Trade', researchTrade(v)],
-      ];
+      return flatTopLines(v);
     case 'red_to_green':
-      return [
-        ['Stock', universeLine(v)],
-        ['Setup', `≥ ${num(v.r2g_min_red_bars)} close under the open, then back through it by ${v.r2g_cutoff}`],
-        ['Trade', `${researchTrade(v)}${v.r2g_target_hod ? ' (or the high of day)' : ''}`],
-      ];
+      return redToGreenLines(v);
     case 'gap_and_go':
       return [
         ['Stock', `Top ${num(v.top)} by pre-market RVOL · ${universeLine(v)}`],
@@ -138,6 +198,24 @@ export function ruleLines(setup: string, v: Values): [string, string][] {
       ];
     default:
       return [];
+  }
+}
+
+/** The template row's one-line summary of the pattern ("Leg ≥ 5% · 1–3 bar pullback · stop at the pullback low"). */
+export function ruleSummary(setup: string, v: Values): string {
+  switch (setup) {
+    case 'first_pullback':
+      return `Leg ≥ ${trim(num(v.leg_pct) ?? 0)}% · ${bars(num(v.min_pullback_bars), num(v.max_pullback_bars))} bar pullback · stop at the pullback low`;
+    case 'bull_flag':
+      return `Pole ${num(v.pole_min_bars)}+ green, ≥ ${trim(num(v.pole_min_pct) ?? 0)}% · `
+        + `${bars(num(v.min_flag_bars), num(v.max_flag_bars))} bar flag · stop at the flag low`;
+    case 'flat_top_breakout':
+      return `${bars(num(v.ft_min_consol), num(v.ft_max_consol))} bar base within ${trim(num(v.ft_band) ?? 0)}% of the high · `
+        + (v.ft_entry === 'break' ? 'buy the break' : 'buy a green hold over it');
+    case 'red_to_green':
+      return `${num(v.r2g_min_red_bars) ?? 1}+ red under the ${v.session_start} open · reclaim by ${v.r2g_cutoff}`;
+    default:
+      return '';
   }
 }
 

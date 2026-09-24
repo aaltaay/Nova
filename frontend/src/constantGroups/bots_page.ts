@@ -39,7 +39,7 @@ export const BOTS_KILL_TRIPPED_NOTE = 'Kill switch tripped — every new order i
 export const BOTS_GATE_UNLOCK = 'unlock padlock';
 export const BOTS_GATE_CONNECT = 'connect IB Gateway';
 export const BOTS_GATE_OPEN_L2 = (symbol: string): string => `open ${symbol} Level 2`;
-export const BOTS_GATE_READOUT_LINK = 'first pullback not proven yet';
+export const BOTS_GATE_READOUT_LINK = (setup: string): string => `${setup.toLowerCase()} not proven yet`;
 /** ADR 030: the read-out gate on a practice venue. */
 export const BOTS_GATE_READOUT_WAIVED = (venue: string): string => `not needed on ${venue}`;
 /** The venue a gate names, as the header pills say it. */
@@ -53,9 +53,35 @@ export const BOTS_GATE_ACTIVATE_TITLE = 'Activate at Strategy needs this gate';
 /* ---------- Strategies ---------- */
 export const BOTS_STRATEGIES_TITLE = 'Strategies';
 export const BOTS_STRATEGIES_SOURCE = 'from your course material';
-export const BOTS_STRATEGIES_SUB = 'one setup plays at a time · each has its own level';
+export const BOTS_STRATEGIES_SUB =
+  'every setup watches the same HOD Momo names · each keeps its own score · one plays at Strategy';
+export const BOTS_STRATEGIES_SUB_TIP =
+  'Each setup with a scanner follows the HOD Momo names on one-minute bars with its own detector, reads the same tape gate at its trigger and scores every armed setup on its own read-out.\nOff: watches and scores silently. Eyes: proposes on near + GO. Several can be at Eyes at once; only the chosen setup (the radio) can be at Strategy, where Nova\'s bot trades it on Paper and Sim.';
 export const BOTS_SETUP_PICK_TITLE = 'Play this setup';
+export const BOTS_SETUP_PICK_TIP =
+  'Choose this setup: it takes the bot\'s level (Off, Eyes or Strategy) and its read-out gates Strategy on Live. The one it replaces keeps watching at Eyes or Off. Choosing another setup stops an active bot — Activate again.';
 export const BOTS_SETUP_LEVEL_TITLE = 'The bot level for the setup that plays';
+
+/* ---------- A scanner for every setup (ADR 031) ---------- */
+/** Rows a setup card's own scanner shows; "Open board" has the rest. */
+export const BOTS_SCANNER_MAX_ROWS = 7;
+export const BOTS_SCAN_FOOT = (shown: number, total: number): string =>
+  total > shown ? `${shown} of ${total} · nearest the trigger first` : `${total} on the board · nearest the trigger first`;
+export const BOTS_SCAN_FOOT_TIP =
+  'This setup\'s names on the live board: near the trigger first, then armed, triggered in the last 30 minutes, forming, and failed in the last 5 minutes.';
+export const BOTS_STATUS_WATCHING = (n: number): string => `Watching ${n} name${n === 1 ? '' : 's'}`;
+export const BOTS_STATUS_SEEDING = (n: number): string => `${n} seeding bars`;
+export const BOTS_STATUS_NOT_CONNECTED = 'Scanner not connected';
+export const BOTS_FUNNEL_TODAY = 'Today';
+export const BOTS_FUNNEL_TIP =
+  'Today on this setup\'s scanner, in the order a setup moves: forming, armed, near the trigger, triggered — then how many failed and how many raised a proposal. The first four are a funnel; each step is a subset of the one before it.';
+export const BOTS_READOUT_SHORT = 'Read-out';
+export const BOTS_READOUT_GO_SHORT = 'go';
+export const BOTS_NO_SCANNER_WHY_HEAD = 'Why it can\'t watch yet.';
+export const BOTS_NO_SCANNER_UNBLOCK_HEAD = 'Unblocks when';
+export const BOTS_TEMPLATE_RULES_TIP = (lines: string): string =>
+  `The template in play, in the numbers the scanner runs:\n${lines}\nParameters opens every one of them.`;
+export const BOTS_TAPE_GATE_HEAD = 'Tape gate';
 export const BOTS_RESEARCH_BADGES: Record<string, string> = {
   failed: 'Bars alone: failed',
   not_tested: 'Not tested',
@@ -78,7 +104,7 @@ export const BOTS_READOUT_UNREPORTED = 'Read-out not reported by this API — re
 export const BOTS_TEMPLATES_POLL_MS = 30_000;
 export const BOTS_TEMPLATE_LABEL = 'Template';
 export const BOTS_TEMPLATE_PARAMS = (n: number): string => `Parameters (${n})`;
-export const BOTS_TEMPLATE_PICK_TITLE = 'The template in play for this setup: the one that proposes (every first-pullback template is watched and scored at once)';
+export const BOTS_TEMPLATE_PICK_TITLE = 'The template in play for this setup: the one that proposes and draws its rows. Every template of the setup is watched and scored at once.';
 export const BOTS_TEMPLATE_BUILTIN_WHY =
   'The default is the pre-registered rules and stays as it is -- use "New from this" to make a variation you can change';
 export const BOTS_TEMPLATE_SAVING_WHY = 'Saving the last change -- wait for Nova to answer';
@@ -110,6 +136,8 @@ export const BOTS_KILL_UNREAD_WHY = (err: string | null): string =>
 export const BOTS_SYMBOLS_CAP_WHY = (cap: number): string => `The bot follows at most ${cap} symbols -- remove one first`;
 export const BOTS_SYMBOL_EMPTY_WHY = 'Type a symbol first';
 export const BOTS_SETUP_NOT_CHOSEN_WHY = 'Choose this setup first -- the level belongs to the setup that plays';
+export const BOTS_SETUP_NO_LEVELS_WHY =
+  'This API keeps one level only (the chosen setup\'s) -- restart the backend to give every setup its own';
 
 /* ---------- Symbols ---------- */
 export const BOTS_SYMBOLS_TITLE = 'Symbols';
@@ -134,7 +162,14 @@ export const BOTS_EH_ON = 'On · 07:00';
 export const BOTS_EH_OFF = 'Off';
 export const BOTS_EH_HINT = 'Needed for pre-market setups';
 export const BOTS_BREAKERS_TITLE = 'Loss breakers';
-export const BOTS_BREAKERS_LOCKED = 'locked';
+/** ADR 032: the breakers are the operator's, per venue. */
+export const BOTS_BREAKERS_VENUE = (venue: string): string => `${venue} · drag to move`;
+export const BOTS_BREAKERS_DEFAULTS = 'defaults';
+export const BOTS_BREAKERS_CUSTOM = 'yours';
+export const BOTS_BREAKERS_OLD_API =
+  'This API keeps the breakers fixed at −$50 / −$200 -- restart the backend to move them';
+export const BOTS_BREAKERS_RESET = 'Reset to −$50 / −$200';
+export const BOTS_BREAKERS_SAVING = 'Saving…';
 export const BOTS_BREAKER_TODAY = 'today';
 export const BOTS_BREAKER_TODAY_UNKNOWN = 'today unknown';
 export const BOTS_BOT_PNL_POLL_MS = 5_000;
@@ -144,7 +179,7 @@ export const BOTS_ADVISE_TITLE = 'Advise budget (never places)';
 export const BOTS_PROPOSALS_TITLE = 'Proposals';
 export const BOTS_PROPOSALS_SUB = 'nothing here places · you press Place';
 export const BOTS_PROPOSALS_EMPTY =
-  'No open proposals. The scanner raises one when a first pullback is near its trigger and the tape says go.';
+  'No open proposals. A setup at Eyes or above raises one when it is near its trigger and the tape says go.';
 export const BOTS_PROPOSALS_FOOT = 'Proposals pop up on every tab; this is where they are kept.';
 export const BOTS_PROPOSAL_UNDER = 'under the trigger';
 export const BOTS_PROPOSAL_AT = 'at the trigger';
@@ -176,7 +211,7 @@ export const BOTS_TODAY_BOT_ONLY = 'bot only';
 export const BOTS_TODAY_SCOREBOARD_DAYS = 5;
 export const BOTS_TODAY_PNL_LIVE_TITLE =
   'Live keeps no practice ledger here: the bot\'s own fills show on the Account page';
-export const BOTS_TODAY_SCOREBOARD_TITLE = 'First pullback scoreboard';
+export const BOTS_TODAY_SCOREBOARD_TITLE = (setup: string): string => `${setup} scoreboard`;
 export const BOTS_TODAY_SCORES_NOTE = 'Scores, not fills — the research exit rules on every armed setup.';
 
 /* ---------- Status bar ---------- */

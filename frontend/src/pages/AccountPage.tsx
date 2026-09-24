@@ -44,6 +44,7 @@ import {
   type AccountPerfMode,
   type AccountRange,
 } from '../constantGroups/account_page';
+import { BOT_HARD_BREAKER_USD, BOT_SOFT_BREAKER_USD } from '../constantGroups/bot';
 import type { DeskVenue } from '../constantGroups/desk_venue';
 import { PRACTICE_VENUE_LABELS } from '../constantGroups/practice';
 import { resolveDeskVenue } from '../ibkr/deskVenue';
@@ -147,7 +148,9 @@ export function AccountPage({ onOpenTrader }: Props) {
   const breakers = session
     ? (() => {
         const tripped = (session.soft_breaker_fired ? 1 : 0) + (session.day_lock_active ? 1 : 0);
-        return { tripped, armed: 2 - tripped };
+        // ADR 032: the desk venue's own pair; an older API keeps the fixed defaults.
+        return { tripped, armed: 2 - tripped, soft: session.breakers?.soft_usd ?? BOT_SOFT_BREAKER_USD,
+          hard: session.breakers?.hard_usd ?? BOT_HARD_BREAKER_USD };
       })()
     : null;
   // The session's own cap, or none: the product ceiling is not this bot's cap (C35).

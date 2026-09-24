@@ -105,11 +105,12 @@ describe('Bots page hero (approved mockup v4)', () => {
   it('says what each level does, and that Strategy trades on Paper and Sim while Live waits on the read-out', async () => {
     mockFetch({ session: session({ level: 0 }) });
     await renderPage();
-    expect(screen.getByTestId('bots-level-0').textContent).toMatch(/Bot API dark · the setup scanner still watches and proposes/);
-    expect(screen.getByTestId('bots-level-1').textContent).toMatch(/connected bot may watch and propose · you place/);
+    // ADR 031 decision A: Off scores in silence; the hero's level is the chosen setup's.
+    expect(screen.getByTestId('bots-level-0').textContent).toMatch(/Bot API dark · the chosen setup scores in silence/);
+    expect(screen.getByTestId('bots-level-1').textContent).toMatch(/Proposes on near \+ go · you place/);
     const strategy = screen.getByTestId('bots-level-2');
-    expect(strategy.textContent).toMatch(/The bot trades the first pullback on Paper and Sim · Live waits on the read-out/);
-    expect(strategy.getAttribute('aria-label')).toMatch(/^L2 Strategy: .*Live waits on the read-out/);
+    expect(strategy.textContent).toMatch(/The bot trades the chosen setup on Paper and Sim · Live waits on its read-out/);
+    expect(strategy.getAttribute('aria-label')).toMatch(/^L2 Strategy: .*Live waits on its read-out/);
     expect(screen.getByTestId('bots-hero').textContent).not.toMatch(/no watching|on its own/);
   });
 

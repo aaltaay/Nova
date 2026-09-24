@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { templatesPayload } from './botsPageFixtures';
-import { changedKeys, formatValue, parseInput, readoutText, ruleLines, tapeLines } from './templateFormat';
+import { changedKeys, formatValue, parseInput, readoutText, ruleLines, ruleSummary, tapeLines } from './templateFormat';
 import type { ParamSpec } from './templateTypes';
 
 const payload = templatesPayload();
@@ -37,6 +37,38 @@ describe('templateFormat', () => {
       Entry: "Over the last pullback candle's high +$0.01 · arms 07:00–11:30 · only when the tape says GO",
       Trade: 'Risk $0.03–0.20 · target 1 the leg high or 2R · bot 07:00–10:00, 1 a day',
     });
+  });
+
+  it('writes the bull flag, the flat top and red to green in the numbers their scanners run (ADR 031)', () => {
+    const values = (id: string) => payload.setups.find(s => s.id === id)!.templates[0].values;
+    expect(Object.fromEntries(ruleLines('bull_flag', values('bull_flag')))).toEqual({
+      Stock: 'HOD Momo names · any price · any float',
+      Setup: 'Pole of 3+ green candles up ≥ 5% (or $0.30) on rising volume · 2–3 red candles give back ≤ 50% of it'
+        + ' on lighter volume, closes hold the 9 EMA · MACD above zero · the day\'s biggest candle not red'
+        + ' · pole-top wick ≤ 40%',
+      Entry: "Over the last flag candle's high +$0.01 · arms 07:00–11:30 · only when the tape says GO",
+      Trade: 'Risk $0.03–0.20 · target 1 the pole high or 2R · bot 07:00–10:00, 1 a day',
+    });
+    expect(Object.fromEntries(ruleLines('flat_top_breakout', values('flat_top_breakout')))).toMatchObject({
+      Setup: 'Impulse ≥ 3% into the high of day · 2–6 candles close within 2% under it, lows over the 9 EMA'
+        + ' · MACD above zero',
+      Entry: 'A green candle holding over the high within 3 candles, at its close +$0.01 · arms 07:00–11:30'
+        + ' · only when the tape says GO',
+      Trade: 'Risk $0.03–0.20 · target 1 2R · bot 07:00–10:00, 1 a day',
+    });
+    expect(Object.fromEntries(ruleLines('flat_top_breakout', { ...values('flat_top_breakout'), ft_entry: 'break' })).Entry)
+      .toBe('The break of the high +$0.01 · arms 07:00–11:30 · only when the tape says GO');
+    expect(Object.fromEntries(ruleLines('red_to_green', values('red_to_green')))).toMatchObject({
+      Setup: '1+ close under the 09:30 open, then back through it by 10:30 · one try a day · MACD above zero',
+      Entry: 'Over the open +$0.01 · only when the tape says GO',
+      Trade: 'Risk $0.03–0.20 · target 1 2R or the high of day, whichever is higher · bot 07:00–10:00, 1 a day',
+    });
+    expect(ruleSummary('first_pullback', defaults)).toBe('Leg ≥ 5% · 1–3 bar pullback · stop at the pullback low');
+    expect(ruleSummary('bull_flag', values('bull_flag'))).toBe('Pole 3+ green, ≥ 5% · 2–3 bar flag · stop at the flag low');
+    expect(ruleSummary('flat_top_breakout', values('flat_top_breakout')))
+      .toBe('2–6 bar base within 2% of the high · buy a green hold over it');
+    expect(ruleSummary('red_to_green', values('red_to_green'))).toBe('1+ red under the 09:30 open · reclaim by 10:30');
+    expect(ruleSummary('gap_and_go', {})).toBe('');
   });
 
   it('says what a variation changed', () => {

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 import time
 from pathlib import Path
@@ -125,6 +126,16 @@ def _refuse_parked_level(row: dict[str, Any]) -> None:
     row["strategy"] = None
 
 
+def _write_atomic(path: Path, text: str) -> None:
+    """Write through a temp file and a rename, so a crash mid-save never leaves half a file."""
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with tmp.open("w", encoding="utf-8") as handle:
+        handle.write(text)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(tmp, path)
+
+
 def load_session() -> dict[str, Any]:
     global _session
     with _lock:
@@ -154,8 +165,7 @@ def save_session(payload: dict[str, Any] | None = None) -> dict[str, Any]:
         data["schema_version"] = BOT_SCHEMA_VERSION
         data["updated_ts"] = time.time()
         _session = data
-        path = _session_path()
-        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        _write_atomic(_session_path(), json.dumps(data, indent=2))
         return data
 
 
@@ -185,7 +195,7 @@ def save_proposals(payload: dict[str, Any]) -> dict[str, Any]:
             "items": list(payload.get("items") or []),
         }
         _proposals = data
-        _proposals_path().write_text(json.dumps(data, indent=2), encoding="utf-8")
+        _write_atomic(_proposals_path(), json.dumps(data, indent=2))
         return data
 
 

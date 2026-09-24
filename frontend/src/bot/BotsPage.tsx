@@ -8,12 +8,13 @@
  * bot's own gated path.
  */
 import { useCallback, useRef } from 'react';
+import { BOT_HARD_BREAKER_USD, BOT_SOFT_BREAKER_USD } from '../constantGroups/bot';
 import { BOTS_PAGE_LOADING, BOTS_PAGE_SUB, BOTS_PAGE_TITLE, BOTS_SETUP_ROWS_POLL_MS } from '../constantGroups/bots_page';
 import { SAMPLE_BOT_ABSENT } from '../sample_data/sampleCopy';
 import { useSampleRoute } from '../sample_data/useSampleRoute';
-import { useSetupsBoard } from '../setups/SetupsStreamContext';
-import { useSetupRows } from '../setups/useSetupRows';
 import { useWorkspace } from '../workspace/WorkspaceContext';
+import { requestScannerTab } from '../workspace';
+import { requestSetupsBoard, useSetupRows, useSetupsBoard } from '../setups';
 import { BotActivity } from './BotActivity';
 import { BotHero } from './BotHero';
 import { BotProposalsInbox } from './BotProposalsInbox';
@@ -24,6 +25,7 @@ import { BotsStatusBar } from './BotsStatusBar';
 import { BotStrategiesCard } from './BotStrategiesCard';
 import { BotSymbolsCard } from './BotSymbolsCard';
 import { BotTodayCard } from './BotTodayCard';
+import { fmtUsd } from './botsPageFormat';
 import { useBotArm } from './useBotArm';
 import { useBotDayPnl } from './useBotDayPnl';
 import { useBotPnlToday } from './useBotPnlToday';
@@ -74,6 +76,13 @@ function LiveBotsPage() {
     symbolInput.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     symbolInput.current?.focus();
   }, []);
+  // A setup card's "Open board": Watchlist › Setups, filtered to that setup (ADR 031).
+  const openBoard = useCallback((setup: string) => {
+    requestSetupsBoard(setup);
+    requestScannerTab('watchlist');
+  }, []);
+  const soft = session?.breakers?.soft_usd ?? BOT_SOFT_BREAKER_USD;
+  const hard = session?.breakers?.hard_usd ?? BOT_HARD_BREAKER_USD;
 
   return (
     <div className="nova-shell nova-shell--scanner">
@@ -87,30 +96,30 @@ function LiveBotsPage() {
               <>
                 {session.day_lock_active ? (
                   <div className="bots-banner bots-banner--hard" role="alert">
-                    −$200 day lock is on. Bot and manual buys stay blocked until midnight
+                    {fmtUsd(hard)} day lock is on. Bot and manual buys stay blocked until midnight
                     America/New_York ({session.hard_lock_until_date}). Flatten / kill still work.
                   </div>
                 ) : null}
                 {session.soft_breaker_fired && !session.day_lock_active ? (
                   <div className="bots-banner" role="status">
-                    −$50 breaker flattened the account and dropped the bot to L0. The desk can still
-                    trade. Activate re-enables it.
+                    The {fmtUsd(soft)} bot trip flattened the account and dropped the bot to L0. The desk can
+                    still trade. Activate re-enables it.
                   </div>
                 ) : null}
                 <BotHero arm={arm} killSwitch={killSwitch} dayPnl={dayPnl}
                   onOpenL2={openPinned} onReadout={showReadout} onAddSymbol={focusSymbols} />
+                <BotStrategiesCard session={session} busy={busy}
+                  onChooseSetup={id => void patch({ setup: id })} onLevel={n => void onLevel(n)}
+                  onSetupLevel={(id, n) => void patch({ setup_levels: { [id]: n } })}
+                  onOpenBoard={openBoard} onOpenSymbol={openPinned} />
                 <div className="bots-grid bots-grid--top">
-                  <BotStrategiesCard session={session} busy={busy}
-                    onChooseSetup={id => void patch({ setup: id })} onLevel={n => void onLevel(n)} />
-                  <div className="bots-col">
-                    <BotSymbolsCard session={session} onOpenL2={openPinned} inputRef={symbolInput} />
-                    <BotRiskCard session={session} patch={patch} busy={busy} dayPnl={dayPnl} />
-                  </div>
+                  <BotSymbolsCard session={session} onOpenL2={openPinned} inputRef={symbolInput} />
+                  <BotRiskCard session={session} patch={patch} busy={busy} dayPnl={dayPnl} />
                 </div>
                 <div className="bots-grid bots-grid--bottom">
                   <BotProposalsInbox proposals={proposals} audit={audit} resolve={resolve} openTrader={openPinned} />
                   <BotActivity audit={audit} setupRows={setupRows} />
-                  <BotTodayCard venue={venue} audit={audit} botPnl={botPnl} />
+                  <BotTodayCard venue={venue} audit={audit} botPnl={botPnl} setup={session.setup} />
                 </div>
               </>
             )}

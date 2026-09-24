@@ -1,13 +1,19 @@
-/** The alert the setup scanner raises: "XYZ first pullback near 4.52, stop 4.38,
- * tape go". It floats on every tab until the setup triggers, fails or is
- * dismissed. It stages a ticket at most; nothing here places an order. */
+/** The alert a setup at Eyes raises (ADR 022, ADR 031): "XYZ bull flag near the
+ * 4.52 trigger, stop 4.38, tape go". It floats on every tab until the setup
+ * triggers, fails or is dismissed. It stages a ticket at most; nothing here
+ * places an order. */
 import { useState } from 'react';
-import { SETUP_KIND_LABELS, SETUPS_STAGE_NO_ENTRY_WHY, TAPE_VERDICT_LABELS, TAPE_VERDICT_TITLES } from '../constants';
+import { SETUP_KIND_LABELS, SETUPS_STAGE_NO_ENTRY_WHY, TAPE_VERDICT_LABELS, TAPE_VERDICT_TIPS } from '../constants';
+import { tipProps } from '../ux/hoverTip';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { fmtCents, fmtPx } from './setupsFormat';
+import { setupTypeOf } from './setupWords';
 import { stageSetupTicket } from './stageSetupTicket';
 import type { SetupsBoard } from './types';
 import './setups.css';
+
+/** What the trigger is, per setup, as the alert names it. */
+const LEVEL_WORDS: Record<string, string> = { red_to_green: 'open', flat_top_breakout: 'high' };
 
 export function SetupsAlertCard({ board }: { board: SetupsBoard | null }) {
   const { openStockView } = useWorkspace();
@@ -21,12 +27,13 @@ export function SetupsAlertCard({ board }: { board: SetupsBoard | null }) {
   const entry = top.entry != null ? top.entry.toFixed(2) : '';
   const dismiss = () => setDismissed(prev => new Set(prev).add(top.id));
   const tapeNow = top.tape_now ?? 'go';
+  const level = LEVEL_WORDS[setupTypeOf(top)] ?? 'trigger';
   return (
     <div className="setups-alert" role="status" aria-live="polite">
       <div className="setups-alert-body">
-        <strong>{top.symbol}</strong> {kind.toLowerCase()} near the {fmtPx(top.trigger)} trigger.
+        <strong>{top.symbol}</strong> {kind.toLowerCase()} near the {fmtPx(top.trigger)} {level}.
         {' '}Stop {fmtPx(top.stop)}, risk {fmtCents(top.risk)}, target {fmtPx(top.target1)}.
-        {' '}<span className={`setups-tape--${tapeNow}`} title={TAPE_VERDICT_TITLES[tapeNow]}>
+        {' '}<span className={`setups-tape--${tapeNow}`} {...tipProps(TAPE_VERDICT_TIPS[tapeNow] ?? tapeNow, 'The tape now')}>
           {TAPE_VERDICT_LABELS[tapeNow] ?? tapeNow}
         </span>
         {tapeNow !== 'go' ? <span className="na-muted"> (it said go when this was raised)</span> : null}

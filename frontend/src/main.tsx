@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { isNovaApiDebug } from './debug';
 import { initThemeFromStorage } from './theme/themePrefs';
+import { installHoverTip } from './ux/hoverTip';
 import { installWhyTip } from './ux/whyTip';
 import './index.css';
 
@@ -30,8 +31,10 @@ async function bootstrap(): Promise<void> {
   // #449: nor does it write the operator's saved browser state -- its changes stay in memory.
   installSampleStorageGate();
 
-  // Every locked control says why on hover and on a refused press (ux/whyTip.ts).
+  // Every locked control says why on hover and on a refused press (ux/whyTip.ts),
+  // and every chip that explains itself does so on hover (ux/hoverTip.ts, ADR 031).
   installWhyTip(document);
+  installHoverTip(document);
 
   // ADR 026: this window's 5 s performance report (the sample desk sends none).
   void import('./perf/perfReporter').then(

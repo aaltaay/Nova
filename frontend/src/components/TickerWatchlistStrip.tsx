@@ -1,9 +1,9 @@
 /** The selected ticker's watchlist read in the side panel: the Five Pillars with their
- * reasons, where the first-pullback scanner has it, and the bot allowlist toggle.
+ * reasons, where the setup scanners have it (its most advanced setup, ADR 031), and
+ * the bot allowlist toggle.
  * Any symbol gets its pillars (operator ask, 2026-09-23): a ranked one from the
  * watchlist poll, any other graded by the backend from its board row or live quote. */
 import {
-  SETUP_STATE_LABELS,
   TAPE_VERDICT_LABELS,
   TICKER_WATCHLIST_STRIP_EMPTY,
   TICKER_WATCHLIST_STRIP_TITLE,
@@ -12,9 +12,17 @@ import {
   WATCHLIST_PILLAR_NAMES,
 } from '../constants';
 import { useBotAllowlist } from '../bot/useBotAllowlist';
-import { useSetupsBoard } from '../setups/SetupsStreamContext';
-import { fmtPx } from '../setups/setupsFormat';
-import type { SetupRow } from '../setups/types';
+import {
+  fmtPx,
+  rowsBySymbol,
+  setupLabel,
+  setupTypeOf,
+  stateWords,
+  tapeWords,
+  useSetupsBoard,
+  type SetupRow,
+} from '../setups';
+import { tipProps } from '../ux/hoverTip';
 import {
   WATCHLIST_STRIP_GRADING,
   WATCHLIST_STRIP_SOURCES,
@@ -36,12 +44,18 @@ interface Props {
 function SetupBlock({ row }: { row: SetupRow }) {
   const s = row.setup;
   const live = row.state === 'near' || row.state === 'armed' || row.state === 'triggered';
+  const state = stateWords(row);
+  const tape = tapeWords(row);
   return (
     <div className="cq-wl-setup" data-testid="watchlist-strip-setup">
-      <div className="cq-wl-sub">Setup · first pullback</div>
+      <div className="cq-wl-sub">Setup · {setupLabel(setupTypeOf(row)).toLowerCase()}</div>
       <dl className="cq-wl-kv">
         <dt>State</dt>
-        <dd><span className={`pillar-chip setups-state setups-state--${row.state}`}>{SETUP_STATE_LABELS[row.state] ?? row.state}</span></dd>
+        <dd>
+          <span className={`pillar-chip setups-state setups-state--${row.state}`} {...tipProps(state.tip, state.title)}>
+            {state.text}
+          </span>
+        </dd>
         {live && s && (
           <>
             <dt>Trigger / stop</dt><dd className="num">{fmtPx(s.trigger)} / {fmtPx(s.stop)}</dd>
@@ -51,7 +65,7 @@ function SetupBlock({ row }: { row: SetupRow }) {
         {row.tape && (
           <>
             <dt>Tape</dt>
-            <dd title={row.tape.reasons.join('\n')}>{TAPE_VERDICT_LABELS[row.tape.verdict] ?? row.tape.verdict}</dd>
+            <dd {...(tape ? tipProps(tape.tip, tape.title) : {})}>{TAPE_VERDICT_LABELS[row.tape.verdict] ?? row.tape.verdict}</dd>
           </>
         )}
         {row.grade && (<><dt>Grade</dt><dd>{row.grade}</dd></>)}
@@ -71,7 +85,7 @@ export function TickerWatchlistStrip({ entry: ranked, symbol, rank = null }: Pro
   const { isAllowed, add, remove } = useBotAllowlist();
   const graded = useSymbolPillars(symbol ?? ranked?.symbol ?? null, ranked ?? null, rank);
   const entry = graded.entry;
-  const setup = entry ? stream?.board?.rows.find(r => r.symbol === entry.symbol) : undefined;
+  const setup = entry ? rowsBySymbol(stream?.board?.rows).get(entry.symbol)?.[0] : undefined;
   const allowed = entry ? isAllowed(entry.symbol) : false;
   const p = entry?.five_pillars;
   const source = graded.source === 'watchlist' && graded.rank

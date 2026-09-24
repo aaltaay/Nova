@@ -9,6 +9,7 @@ import { SetupsAlertCard } from './SetupsAlertCard';
 import { SetupsBoard } from './SetupsBoard';
 import { SetupsPanel } from './SetupsPanel';
 import { SetupsScoreboard } from './SetupsScoreboard';
+import { resetSetupsBoardFilterForTests } from './setupsBoardFilter';
 import type { SetupsBoard as Board } from './types';
 
 const openStockView = vi.fn();
@@ -31,6 +32,7 @@ function captureStaged(): { staged: OrderTicketPrefill[]; stop: () => void } {
 afterEach(() => {
   cleanup();
   openStockView.mockReset();
+  resetSetupsBoardFilterForTests();
 });
 
 describe('SetupsBoard', () => {
@@ -40,11 +42,15 @@ describe('SetupsBoard', () => {
       <SetupsBoard rows={SAMPLE_SETUPS_BOARD.rows} selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={onOpen} />,
     );
     expect(screen.getByText('Near')).toBeTruthy();
-    expect(screen.getByText('Leg up')).toBeTruthy();
-    expect(screen.getByText('Tape: go')).toBeTruthy();
-    expect(screen.getByText('Tape: blind')).toBeTruthy();
-    expect(screen.getByText('2¢ under')).toBeTruthy();
+    expect(screen.getByText('Leg up +7.2%')).toBeTruthy();
+    expect(screen.getByText('GO')).toBeTruthy();
+    expect(screen.getByText('BLIND')).toBeTruthy();
+    expect(screen.getByText('2¢')).toBeTruthy();
     expect(screen.getByText('Target first')).toBeTruthy();
+    // Every setup in its own words (ADR 031).
+    expect(screen.getByText('Flag · 2 bars')).toBeTruthy();
+    expect(screen.getByText('Red −3.2%')).toBeTruthy();
+    expect(screen.getAllByText('Bull flag')).toHaveLength(1);
     expect(screen.getAllByText('Stage ticket')).toHaveLength(1);
     fireEvent.click(screen.getByText('Open L2'));
     expect(onOpen).toHaveBeenCalledWith('QMBL');
@@ -72,6 +78,20 @@ describe('SetupsBoard', () => {
   it('says what it watches when there is nothing to show', () => {
     render(<SetupsBoard rows={[]} selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={vi.fn()} />);
     expect(screen.getByText(/No setups right now/)).toBeTruthy();
+  });
+
+  it('explains every chip on hover, never with the row\'s own title on top', () => {
+    render(
+      <SetupsBoard rows={SAMPLE_SETUPS_BOARD.rows} selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={vi.fn()} />,
+    );
+    const near = screen.getByText('Near');
+    expect(near.getAttribute('data-tip-title')).toBe('Near · First pullback');
+    expect(near.getAttribute('data-tip')).toMatch(/Price is a few cents under the trigger/);
+    expect(screen.getByText('BLIND').getAttribute('data-tip')).toMatch(/^BLIND: Nova holds no Level 2 line/);
+    const flag = screen.getByText('Flag · 2 bars');
+    expect(flag.getAttribute('data-tip')).toMatch(/The flag is in/);
+    expect(flag.getAttribute('data-tip')).toMatch(/Pole: 3 green candles, \+7\.9% to 5\.62/);
+    expect(near.closest('tr')?.getAttribute('title')).toBeNull();
   });
 });
 
@@ -125,18 +145,29 @@ describe('SetupsAlertCard', () => {
 describe('SetupsPanel', () => {
   afterEach(() => { stream.value = null; });
 
-  it('names the template in play on the live board', () => {
-    stream.value = { connected: true, board: { ...SAMPLE_SETUPS_BOARD, source: 'live', templates_watched: 3,
-      template: { id: 'default', rev: 1, name: 'Default (pre-registered)' } } };
+  it('filters the board by setup, with a count on each chip, and names the setup\'s template in play', () => {
+    const setups = SAMPLE_SETUPS_BOARD.setups!.map(s => (s.id === 'first_pullback' ? { ...s, templates_watched: 3 } : s));
+    stream.value = { connected: true, board: { ...SAMPLE_SETUPS_BOARD, source: 'live', setups } };
     render(<SetupsPanel selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={vi.fn()} />);
-    expect(screen.getByText(/template Default \(pre-registered\) \(\+2 scored alongside\)/)).toBeTruthy();
+    expect(screen.getByTestId('setups-filter-all').textContent).toBe('All 6');
+    expect(screen.getByTestId('setups-filter-first_pullback').textContent).toBe('First pullback 4');
+    expect(screen.getByTestId('setups-filter-bull_flag').textContent).toBe('Bull flag 1');
+    expect(screen.getByText(/proposing: first pullback, bull flag/)).toBeTruthy();
+    // No scanner yet: the chip is locked and says why.
+    const gng = screen.getByTestId('setups-filter-gap_and_go') as HTMLButtonElement;
+    expect(gng.disabled).toBe(true);
+    expect(gng.getAttribute('data-why')).toMatch(/no scanner yet/);
+    fireEvent.click(screen.getByTestId('setups-filter-bull_flag'));
+    expect(screen.queryByText('NVXA')).toBeNull();
+    expect(screen.getByText('KSTR')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('setups-filter-first_pullback'));
+    expect(screen.getByText(/First pullback template Default \(pre-registered\) \(\+2 scored alongside\)/)).toBeTruthy();
   });
 
   it('says when the board is the Sim eyes over a recording, or why it cannot be', () => {
     const replay = { kind: 'capture', date: '2026-09-23', symbol: 'WHLR', playhead: 1, at: 1, loading: false,
       error: null, note: null };
-    stream.value = { connected: true, board: { ...SAMPLE_SETUPS_BOARD, source: 'sim', replay,
-      template: { id: 'default', rev: 1, name: 'Default (pre-registered)' } } };
+    stream.value = { connected: true, board: { ...SAMPLE_SETUPS_BOARD, source: 'sim', replay } };
     const { unmount } = render(<SetupsPanel selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={vi.fn()} />);
     expect(screen.getByText(/Sim eyes on WHLR 2026-09-23 · following the playhead/)).toBeTruthy();
     unmount();

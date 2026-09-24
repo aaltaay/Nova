@@ -1,6 +1,6 @@
 /**
  * Every setup's parameters and templates for the Bots page (ADR 029): read on
- * mount and every `BOTS_TEMPLATES_POLL_MS` (each first-pullback template's
+ * mount and every `BOTS_TEMPLATES_POLL_MS` (each setup's template
  * read-out moves as setups trigger), and replaced setup by setup from each
  * write's own answer.
  */

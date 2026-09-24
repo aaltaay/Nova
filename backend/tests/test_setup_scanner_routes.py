@@ -12,7 +12,7 @@ import setup_scanner.routes as routes
 from setup_scanner.engine import SetupEngine
 from setup_scanner.store import SetupStore
 from tests.setup_scanner_fixtures import add, base_morning, leg_up
-from tests.test_setup_scanner_engine import SYM, FakeTape
+from tests.test_setup_scanner_engine import EYES, FP_ONLY, SYM, FakeTape
 
 
 def _client(monkeypatch, tmp_path, *, store: bool = True):
@@ -20,7 +20,8 @@ def _client(monkeypatch, tmp_path, *, store: bool = True):
     clock = {"t": bars[-1].t + 30}
     eng = SetupEngine(store=SetupStore(tmp_path / "setups.db") if store else None, tape=FakeTape(),
                       universe=lambda: [SYM], seed=lambda sym, since: list(bars),
-                      replay_desk=lambda: False, audit=lambda **kw: None, clock=lambda: clock["t"])
+                      replay_desk=lambda: False, audit=lambda **kw: None, clock=lambda: clock["t"],
+                      levels=EYES, setups=FP_ONLY)
     asyncio.run(eng.tick(clock["t"]))
     monkeypatch.setattr(routes, "get_engine", lambda: eng)
     app = FastAPI()
@@ -31,7 +32,7 @@ def _client(monkeypatch, tmp_path, *, store: bool = True):
 def test_board_route_serves_the_armed_setup(monkeypatch, tmp_path):
     client, _ = _client(monkeypatch, tmp_path)
     body = client.get("/api/setups/board").json()
-    assert body["schema_version"] == 1 and body["universe"] == 1
+    assert body["schema_version"] == 2 and body["universe"] == 1
     row = body["rows"][0]
     assert row["symbol"] == SYM and row["state"] == "armed"
     assert row["setup"]["trigger"] == 4.37 and row["setup"]["stop"] == 4.30

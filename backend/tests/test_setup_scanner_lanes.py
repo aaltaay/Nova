@@ -18,7 +18,7 @@ from setup_scanner.series import Series, ema, macd_hist
 from setup_scanner.store import SetupStore
 from setup_templates.store import TemplateStore
 from tests.setup_scanner_fixtures import add, base_morning, leg_up
-from tests.test_setup_scanner_engine import SYM, FakeTape, bar_msg
+from tests.test_setup_scanner_engine import EYES, FP_ONLY, SYM, FakeTape, bar_msg
 
 FP = "first_pullback"
 ET = ZoneInfo("America/New_York")
@@ -32,7 +32,8 @@ def make(tmp_path, bars, templates: TemplateStore):
     eng = SetupEngine(store=SetupStore(tmp_path / "setups.db"), tape=FakeTape(), universe=lambda: [SYM],
                       seed=lambda sym, since: list(bars), replay_desk=lambda: False,
                       audit=lambda **kw: audits.append(kw), clock=lambda: clock["t"], templates=lambda: templates,
-                      journal=journal.append, bot_state=lambda: {"level": 1, "active": True, "venue": "paper"})
+                      journal=journal.append, bot_state=lambda: {"level": 1, "active": True, "venue": "paper"},
+                      levels=EYES, setups=FP_ONLY)
     eng.pillars = lambda sym, now: dict(PILLARS)
     return eng, audits, journal, clock
 
@@ -83,7 +84,7 @@ def test_putting_another_template_in_play_withdraws_the_open_proposal(tmp_path):
     assert eng.playing.p.template_id == other.id
     # The new template in play reads go on the same near setup and proposes on its own levels.
     assert [p["template_id"] for p in eng.board(clock["t"] + 1)["proposals"]] == [other.id]
-    assert eng.board(clock["t"] + 1)["template"]["id"] == other.id
+    assert eng.board(clock["t"] + 1)["setups"][0]["template"]["id"] == other.id
 
 
 def test_editing_a_template_starts_a_new_lane_for_its_new_rules(tmp_path):
@@ -171,8 +172,9 @@ def test_a_v1_scoreboard_is_migrated_and_its_rows_become_the_default_templates(t
     store = SetupStore(path)
     row = store.rows()[0]
     assert (row["template_id"], row["template_rev"]) == ("default", 1) and row["params_hash"]
-    assert sqlite3.connect(path).execute("PRAGMA user_version").fetchone()[0] == 2
+    assert sqlite3.connect(path).execute("PRAGMA user_version").fetchone()[0] == 3
     assert store.rows(template_id="default", template_rev=1)[0]["id"] == "OLD"
+    assert row["setup_type"] == "first_pullback"            # schema 3 (ADR 031): through 2 to 3
 
 
 def test_series_extends_exactly_as_a_full_recomputation():

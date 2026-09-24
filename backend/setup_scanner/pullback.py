@@ -28,13 +28,15 @@ setups trigger on one symbol a day (the research's cap, ADR 022). Target 1 is
 max(leg high, entry + R x risk), or entry plus a fixed amount when the template
 asks for one.
 
+The trigger on a live price, the near band and the view are the shared
+``setup_scanner/detector.TriggerDetector`` (ADR 031), moved there unchanged.
+
 Pure: no I/O, no clock. The engine feeds bars and prices.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, time as dtime
-from typing import Any
+from typing import ClassVar
 from zoneinfo import ZoneInfo
 
 from constants_setups import (
@@ -74,15 +76,12 @@ from constants_setups import (
     SETUPS_TARGET_R,
 )
 from setup_scanner.bars import Bar
+from setup_scanner.detector import TriggerDetector, et_time, hhmm, risk_blocked
 from setup_scanner.series import Series, ema, macd_hist  # noqa: F401 -- callers import them from here
 
 ET = ZoneInfo("America/New_York")
 STALE_LEG_BARS = 10       # how far back a leg can still explain a "failed" row
-
-
-def _hhmm(s: str) -> dtime:
-    h, m = s.split(":")
-    return dtime(int(h), int(m))
+_hhmm = hhmm              # the name this module's callers used before ADR 031
 
 
 @dataclass(frozen=True)
@@ -119,34 +118,15 @@ class PullbackParams:
         return round(max(leg_high, entry + self.target_r * risk), 4)
 
 
-def et_time(ts: float) -> dtime:
-    return datetime.fromtimestamp(ts, ET).time()
-
-
 @dataclass
-class PullbackDetector:
+class PullbackDetector(TriggerDetector):
     """One symbol's setup state. Call ``on_bars`` after each completed bar and
-    ``on_price`` on every live price in between."""
+    ``on_price`` on every live price in between (``TriggerDetector``)."""
 
-    symbol: str
     p: PullbackParams = field(default_factory=PullbackParams)
-    state: str = SETUP_STATE_WATCHING
-    reason: str = "warming up"
-    leg: dict[str, Any] | None = None
-    armed: dict[str, Any] | None = None
-    triggered: dict[str, Any] | None = None
-    nth: int = 0                      # setups triggered today on this symbol
-    last_price: float | None = None
-    series: Series = field(init=False, repr=False)
 
-    def __post_init__(self) -> None:
-        self.series = Series(ema_period=self.p.ema_period, macd_fast=self.p.macd_fast,
-                             macd_slow=self.p.macd_slow, macd_signal=self.p.macd_signal)
-
-    @property
-    def ema_now(self) -> float | None:
-        """The EMA at the last completed bar: the scoring exit reads the lane's own."""
-        return self.series.e[-1] if self.series.e else None
+    FIRST_KIND: ClassVar[str] = SETUP_KIND_FIRST_PULLBACK
+    SECOND_KIND: ClassVar[str | None] = SETUP_KIND_SECOND_PULLBACK
 
     # -- bar close ---------------------------------------------------------
     def on_bars(self, bars: list[Bar]) -> list[tuple[str, dict]]:
@@ -234,10 +214,8 @@ class PullbackDetector:
             blocked = f"outside the entry window {self.p.session_start}-{self.p.entry_cutoff} ET"
         elif self.p.macd_positive and hist[last] <= 0:
             blocked = "MACD negative -- not on the front side"
-        elif risk + self.p.risk_slippage > self.p.stop_cap + 1e-9:
-            blocked = f"risk {risk:.2f} (+{self.p.risk_slippage:.2f} slippage) is over {self.p.stop_cap:.2f}"
-        elif risk + self.p.risk_slippage < self.p.min_stop - 1e-9:
-            blocked = f"risk {risk:.2f} (+{self.p.risk_slippage:.2f} slippage) is under {self.p.min_stop:.2f}"
+        else:
+            blocked = risk_blocked(self.p, risk)
         if blocked:
             self.armed = None
             self._set(SETUP_STATE_PULLBACK, blocked)
@@ -252,53 +230,10 @@ class PullbackDetector:
             "risk": risk, "target1": self.p.target1(leg["high"], entry, risk),
             "pullback_bars": m, "leg_high": leg["high"], "leg_low": leg["low"], "leg_pct": leg["pct"],
             "armed_bar_t": bars[last].t, "armed_at": (prev or {}).get("armed_at") or bars[last].t + 60,
-            "kind": SETUP_KIND_FIRST_PULLBACK if self.nth == 0 else SETUP_KIND_SECOND_PULLBACK,
+            "kind": self.kind_now(), "detail": None,
         }
         self._set(SETUP_STATE_ARMED, f"trigger {trig:.2f}, stop {pb_low:.2f}, risk {risk:.2f}")
-        if prev is None:
-            events.append(("armed", self.view()))
-        elif prev["trigger"] != self.armed["trigger"] or prev["stop"] != self.armed["stop"]:
-            events.append(("rearmed", self.view()))
-        if self.last_price is not None:
-            events += self._near_check(self.last_price)
-        return events
-
-    # -- live price -------------------------------------------------------
-    def on_price(self, price: float, ts: float, *, bar_open: float | None = None) -> list[tuple[str, dict]]:
-        self.last_price = price
-        if self.armed is None or self.state not in (SETUP_STATE_ARMED, SETUP_STATE_NEAR):
-            return []
-        trig = self.armed["trigger"]
-        if price <= trig + 1e-9:
-            return self._near_check(price)
-        prev = self.armed
-        if et_time(ts) >= _hhmm(self.p.entry_cutoff):
-            return self._disarm(prev, "the entry window closed before the trigger")
-        entry = round(max(prev["entry"], bar_open if bar_open is not None else price), 4)
-        if entry + self.p.risk_slippage - prev["stop"] > self.p.stop_cap + 1e-9:
-            return self._disarm(prev, f"gapped over the trigger to {entry:.2f}: risk over {self.p.stop_cap:.2f}")
-        self.nth += 1
-        self.triggered = {**prev, "entry": entry, "triggered_at": ts, "nth": self.nth, "trigger_price": price}
-        self._set(SETUP_STATE_TRIGGERED, f"traded {price:.2f} over the {trig:.2f} trigger")
-        return [("triggered", self.view())]
-
-    def _disarm(self, prev: dict, why: str) -> list[tuple[str, dict]]:
-        self.armed = None
-        self._set(SETUP_STATE_PULLBACK, why)
-        return [("disarmed", self._key_view(prev, reason=why))]
-
-    def _near_check(self, price: float) -> list[tuple[str, dict]]:
-        if self.armed is None:
-            return []
-        trig = self.armed["trigger"]
-        band = max(self.p.near_dollars, self.p.near_pct * price)
-        if trig - price <= band:
-            if self.state != SETUP_STATE_NEAR:
-                self._set(SETUP_STATE_NEAR, f"{trig - price:.2f} under the {trig:.2f} trigger -- read the tape")
-                return [("near", self.view())]
-        elif self.state == SETUP_STATE_NEAR:
-            self._set(SETUP_STATE_ARMED, f"trigger {trig:.2f}, stop {self.armed['stop']:.2f}, risk {self.armed['risk']:.2f}")
-        return []
+        return events + self.arm_events(prev)
 
     # -- helpers ------------------------------------------------------------
     def _qualify_leg(self, bars: list[Bar], h: list[float], lows: list[float], H: int) -> dict | None:
@@ -324,31 +259,3 @@ class PullbackDetector:
                     return leg, f"pullback ran past {self.p.max_pullback_bars} candles"
                 return None
         return None
-
-    def _set(self, state: str, reason: str) -> None:
-        self.state = state
-        self.reason = reason
-
-    def _key_view(self, setup: dict, reason: str | None = None) -> dict[str, Any]:
-        """A view for an event about ``setup`` (which may no longer be the current one)."""
-        v = self.view()
-        v["setup"] = dict(setup)
-        v["setup_key"] = int(setup["leg_t"])
-        if reason:
-            v["reason"] = reason
-        return v
-
-    def view(self) -> dict[str, Any]:
-        setup = self.triggered if self.state == SETUP_STATE_TRIGGERED else self.armed
-        key = int(setup["leg_t"]) if setup else (int(self.leg["t"]) if self.leg else 0)
-        return {
-            "symbol": self.symbol,
-            "state": self.state,
-            "reason": self.reason,
-            "kind": (setup or {}).get("kind") or (SETUP_KIND_FIRST_PULLBACK if self.nth == 0 else SETUP_KIND_SECOND_PULLBACK),
-            "nth": self.nth,
-            "setup_key": key,
-            "leg": dict(self.leg) if self.leg else None,
-            "setup": dict(setup) if setup else None,
-            "last_price": self.last_price,
-        }

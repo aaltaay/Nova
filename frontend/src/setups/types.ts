@@ -1,5 +1,8 @@
-/** Wire shapes of `/ws/setups` and `/api/setups/*` (backend `setup_scanner/`, ADR 022). */
+/** Wire shapes of `/ws/setups` and `/api/setups/*` (backend `setup_scanner/`, ADR 022, ADR 031). */
 import type { CatalystVerdict } from '../types/catalystVerdict';
+
+/** A setup with a scanner (ADR 031): every row, proposal and card names one. */
+export type SetupType = 'first_pullback' | 'bull_flag' | 'flat_top_breakout' | 'red_to_green' | string;
 
 /** `filtered`: the pattern armed but the template's stock filter keeps the name out (ADR 029). */
 export type SetupState = 'near' | 'armed' | 'triggered' | 'pullback' | 'leg' | 'failed' | 'watching' | 'filtered';
@@ -19,7 +22,30 @@ export interface SetupLevels {
   armed_at?: number;
   kind?: string;
   triggered_at?: number;
+  trigger_price?: number;
   nth?: number;
+  /** The setup's own facts (ADR 031): the flat top's entry mode and break, the open and its red closes, the pole. */
+  detail?: SetupDetail | null;
+}
+
+export interface SetupDetail {
+  /** Flat-top breakout. */
+  entry_mode?: 'hold' | 'break' | string;
+  base_low?: number;
+  broke_at?: number | null;
+  hold_bars?: number;
+  hold_bar_t?: number;
+  /** Red to green. */
+  open?: number;
+  open_t?: number;
+  red_bars?: number;
+  hod?: number;
+  /** Bull flag. */
+  pole_bars?: number;
+  flag_bars?: number;
+  pole_volume?: number;
+  flag_volume?: number;
+  volume_known?: boolean;
 }
 
 export interface TapeRead {
@@ -32,6 +58,9 @@ export interface TapeRead {
 export interface SetupProposal {
   id: string;
   setup_id: string;
+  /** ADR 031: the setup that raised it (absent on an older API: the first pullback). */
+  setup_type?: SetupType;
+  template_name?: string | null;
   symbol: string;
   kind: string | null;
   trigger: number | null;
@@ -63,13 +92,16 @@ export interface SetupPillars {
 
 export interface SetupRow {
   symbol: string;
+  /** ADR 031: which setup's scanner holds this row (absent on an older API: the first pullback). */
+  setup_type?: SetupType;
   state: SetupState;
   reason: string;
   kind: string | null;
   nth: number;
   setup_id: string | null;
   setup: SetupLevels | null;
-  leg: { t: number; high: number; low: number; pct: number } | null;
+  /** The setup's context: the leg, the pole, the impulse into the high of day, or the open and the red phase. */
+  leg: { t: number; high: number; low: number; pct: number; bars?: number } | null;
   last_price: number | null;
   distance: number | null;
   grade: string | null;
@@ -80,6 +112,31 @@ export interface SetupRow {
   bar_r: number | null;
   mfe: number | null;
   mae: number | null;
+  failed_at?: number | null;
+}
+
+/** Today's funnel for one setup's card (ADR 031). */
+export interface SetupCounts {
+  watching: number;
+  forming: number;
+  armed: number;
+  near: number;
+  triggered: number;
+  failed: number;
+  filtered: number;
+  proposed: number;
+}
+
+/** One setup with a scanner on the board (ADR 031): its level, template, window and today's counts. */
+export interface SetupSummary {
+  id: SetupType;
+  level: number;
+  chosen: boolean;
+  proposing: boolean;
+  template: { id: string; rev: number; name: string; params_hash?: string } | null;
+  templates_watched: number;
+  window: { start: string; end: string; state: 'before' | 'open' | 'after' | string };
+  counts: SetupCounts;
 }
 
 /** The Sim eyes' replay (ADR 029): what the board follows off the live edge. */
@@ -101,9 +158,8 @@ export interface SetupsBoard {
   session_date: string | null;
   /** `live` (the market) or `sim` (the Sim eyes over the loaded Session Record, ADR 029). */
   source?: 'live' | 'sim';
-  /** The first-pullback template in play: the one that proposes. */
-  template?: { id: string; rev: number; name: string } | null;
-  templates_watched?: number;
+  /** ADR 031: one summary per setup with a scanner (schema 2). */
+  setups?: SetupSummary[];
   replay?: SetupsReplay | null;
   universe: number;
   seeding: number;
@@ -130,6 +186,8 @@ export interface ScoreStats {
 }
 
 export interface Scoreboard {
+  /** ADR 031: the setup the scoreboard answers for. */
+  setup_type?: SetupType;
   days: number;
   date_from: string | null;
   row_count: number;
