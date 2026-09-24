@@ -52,6 +52,16 @@ describe('gate chips (bot/gates.py facts, approved mockup v4)', () => {
       .toMatch(/every gate is open/);
   });
 
+  it('says the level governs a connected bot, never the setup scanner, and that placing a proposal is not built', () => {
+    expect(heroSentence(session({ level: 0 })).lead).toMatch(/setup scanner still watches and proposes/);
+    expect(heroSentence(session({ level: 0 })).lead).not.toMatch(/watches nothing|proposes nothing/);
+    expect(heroSentence(session({ level: 1 })).lead).toMatch(/connected bot may watch and propose, never place/);
+    const open = gates({ level: { ok: true }, depth_lines: { ok: true }, readout: { ok: true } });
+    expect(heroSentence(session({ level: 2, gates: open })).lead).toMatch(/Automatic placing from a proposal is not built yet/);
+    expect(heroSentence(session({ level: 2, gates: open, live_fire_ready: true })).lead)
+      .toMatch(/a connected bot may place .* Automatic placing from a proposal is not built yet/);
+  });
+
   it('formats cents with a real minus sign', () => {
     expect(fmtUsdCents(-9.5)).toBe('−$9.50');
     expect(fmtUsdCents(null)).toBe('—');
@@ -65,6 +75,7 @@ describe('header pill and nav dot', () => {
     expect(botHeaderState(session({ level: 1 }), false)).toMatchObject({ level: 'L1', state: 'Eyes' });
     expect(botHeaderState(session({ level: 0 }), false)).toMatchObject({ level: '', name: 'Off', tone: 'off' });
     expect(botHeaderState(session({ level: 2 }), false).title).toMatch(/3 of 9 gates closed: level, depth lines, readout/);
+    expect(botHeaderState(session({ level: 0 }), false).title).toMatch(/setup scanner still watches and proposes/);
   });
 });
 

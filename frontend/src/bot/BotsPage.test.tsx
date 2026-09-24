@@ -102,6 +102,17 @@ describe('Bots page hero (approved mockup v4)', () => {
     expect(screen.getByTestId('bots-hero-playing').textContent).toBe('Playing First pullback · 2 symbols · max 1 share · $50 budget');
   });
 
+  it('says what each level lets a connected bot do, and that Strategy does not place a proposal yet', async () => {
+    mockFetch({ session: session({ level: 0 }) });
+    await renderPage();
+    expect(screen.getByTestId('bots-level-0').textContent).toMatch(/Bot API dark · the setup scanner still watches and proposes/);
+    expect(screen.getByTestId('bots-level-1').textContent).toMatch(/connected bot may watch and propose · you place/);
+    const strategy = screen.getByTestId('bots-level-2');
+    expect(strategy.textContent).toMatch(/automatic placing from a proposal is not built yet/);
+    expect(strategy.getAttribute('aria-label')).toMatch(/^L2 Strategy: .*not built yet/);
+    expect(screen.getByTestId('bots-hero').textContent).not.toMatch(/no watching|on its own/);
+  });
+
   it('opens a missing Level 2 in a pinned Trader tab straight from the gate chip', async () => {
     mockFetch({ session: session({ level: 2 }) });
     await renderPage();

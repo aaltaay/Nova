@@ -4,6 +4,7 @@ import {
   BOT_LEVEL_LABELS,
   BOT_SETUP_LABELS,
   BOT_SOFT_BREAKER_USD,
+  BOT_STRATEGY_NOT_BUILT,
 } from '../constantGroups/bot';
 import {
   BOTS_GATE_ADD_SYMBOL,
@@ -147,14 +148,24 @@ export interface HeroSentence {
   tail: string;
 }
 
-/** The hero's one-line state under the headline. */
+/**
+ * The hero's one-line state under the headline. The level governs a bot on the
+ * bot API only: the setup scanner proposes at every level, and nothing in Nova
+ * places a proposal on its own yet (#514).
+ */
 export function heroSentence(session: BotSession): HeroSentence {
   const level = session.level;
-  if (level <= 0) return { lead: 'The bot is off: it watches nothing and proposes nothing.', count: '', tail: '' };
-  if (level === 1) return { lead: 'Eyes: the bot watches your setups and proposes. You place.', count: '', tail: '' };
+  if (level <= 0) {
+    return { lead: 'Off: no bot may use the bot API. The setup scanner still watches and proposes; you place.', count: '', tail: '' };
+  }
+  if (level === 1) return { lead: 'Eyes: a connected bot may watch and propose, never place. You place.', count: '', tail: '' };
   if (!Array.isArray(session.gates)) return { lead: BOTS_HERO_NO_GATES, count: '', tail: '' };
   if (session.live_fire_ready) {
-    return { lead: 'Strategy is live: the bot may place your setup under every gate below.', count: '', tail: '' };
+    return {
+      lead: `Strategy is live: a connected bot may place your setup under every gate below. ${BOT_STRATEGY_NOT_BUILT}.`,
+      count: '',
+      tail: '',
+    };
   }
   const closed = session.gates.filter(g => !g.ok).length;
   if (closed > 0) {
@@ -164,7 +175,7 @@ export function heroSentence(session: BotSession): HeroSentence {
       tail: ` ${closed === 1 ? 'is' : 'are'} closed. Until then it proposes like Eyes.`,
     };
   }
-  return { lead: 'Strategy is chosen and every gate is open. Activate to let it fire.', count: '', tail: '' };
+  return { lead: `Strategy is chosen and every gate is open. Activate to let a connected bot fire. ${BOT_STRATEGY_NOT_BUILT}.`, count: '', tail: '' };
 }
 
 export interface PlayingLine {
