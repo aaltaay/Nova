@@ -4,6 +4,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { _resetPinnedRowsForTests, getPinnedRows } from '../scanner/pinnedRowsStore';
+import { addToWatchList, getWatchList, resetWatchListForTests } from '../watch_list/watchListStore';
 import { ScannerRowActions } from './ScannerRowActions';
 import { ScannerRowMarks } from './ScannerRowMarks';
 
@@ -81,6 +82,28 @@ describe('ScannerRowActions', () => {
     expect(allowlist.remove).toHaveBeenCalledWith('QNME');
   });
 
+  it('Watch puts the symbol on the watch list and reads Watching until pressed again', () => {
+    localStorage.clear();
+    resetWatchListForTests();
+    const rowClick = vi.fn();
+    render(
+      <div onClick={rowClick}>
+        <ScannerRowActions symbol="GRML" onOpenTrading={() => {}} />
+      </div>,
+    );
+    const watch = () => screen.getByTestId('scanner-row-watch');
+    expect(watch().textContent).toBe('Watch');
+    fireEvent.click(watch());
+    expect(getWatchList()).toEqual(['GRML']);
+    expect(watch().textContent).toBe('Watching');
+    expect(watch().getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(watch());
+    expect(getWatchList()).toEqual([]);
+    expect(rowClick).not.toHaveBeenCalled();
+    localStorage.clear();
+    resetWatchListForTests();
+  });
+
   it('states a record failure on the row', async () => {
     record.start.mockResolvedValueOnce('Record start failed');
     render(<ScannerRowActions symbol="VXTL" onOpenTrading={() => {}} />);
@@ -102,6 +125,17 @@ describe('ScannerRowMarks', () => {
   it('draws nothing when neither fact holds', () => {
     render(<ScannerRowMarks symbol="AAA" />);
     expect(screen.queryByTestId('scanner-row-marks')).toBeNull();
+  });
+
+  it('draws the watch eye for a watched symbol, with nothing else true', () => {
+    localStorage.clear();
+    resetWatchListForTests();
+    act(() => { addToWatchList('AAA'); });
+    render(<ScannerRowMarks symbol="AAA" />);
+    expect(screen.getByTestId('watch-mark').getAttribute('title')).toMatch(/AAA is on your watch list/);
+    expect(screen.queryByTestId('scanner-mark-rec')).toBeNull();
+    localStorage.clear();
+    resetWatchListForTests();
   });
 
   it('draws the REC dot and a filled bot dot for a recording allowlisted symbol', () => {

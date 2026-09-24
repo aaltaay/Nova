@@ -18,12 +18,20 @@ import {
 import { HoldToStopButton } from '../capture/HoldToStopButton';
 import { captureStopHoldLabel } from '../capture/constants';
 import { botSymbolMenuPosition } from './botSymbolMenuPlacement';
+import {
+  toggleWatchList,
+  useWatchList,
+  watchListAddLabel,
+  watchListRemoveLabel,
+  WatchEyeIcon,
+} from '../watch_list';
 
 export function BotSymbolMenuHost() {
   const [open, setOpen] = useState<BotSymbolMenuOpen>(null);
   const [recordError, setRecordError] = useState<string | null>(null);
   const [recordBusy, setRecordBusy] = useState(false);
   const { isAllowed, add, remove } = useBotAllowlist();
+  const watchList = useWatchList();
   const recordEpoch = useSyncExternalStore(
     subscribeSessionRecord,
     () => `${getRecordingSymbols().join(',')}|${getSessionRecordError() || ''}`,
@@ -55,6 +63,7 @@ export function BotSymbolMenuHost() {
 
   if (!open) return null;
   const allowed = isAllowed(open.symbol);
+  const watched = watchList.includes(open.symbol);
   const recording = isTabRecording(open.symbol);
   void recordEpoch;
   const toggle = async (stop: boolean) => {
@@ -98,6 +107,21 @@ export function BotSymbolMenuHost() {
           {open.tab.pinned ? TRADER_TAB_UNPIN_LABEL : TRADER_TAB_PIN_LABEL} -- {open.symbol}
         </button>
       )}
+      {/* The operator's watch list: a toast whenever the symbol hits HOD Momo. */}
+      <button
+        type="button"
+        role="menuitem"
+        className="bot-symbol-menu__watch"
+        data-testid="bot-symbol-menu-watch"
+        aria-pressed={watched}
+        onClick={() => {
+          toggleWatchList(open.symbol);
+          closeBotSymbolMenu();
+        }}
+      >
+        <WatchEyeIcon />
+        {watched ? watchListRemoveLabel(open.symbol) : watchListAddLabel(open.symbol)}
+      </button>
       {recording ? (
         // A recording is locked: Stop takes a deliberate hold, never a slip.
         <HoldToStopButton

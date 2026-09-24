@@ -17,6 +17,7 @@ export function isMainScannerTab(tab: ActiveTab): boolean {
     || tab === 'earnings'
     || tab === 'nova_news'
     || tab === 'catalysts'
+    || tab === 'watch_list'
     || tab === 'watchlist'
     || tab === 'trading'
     || tab === 'reports'

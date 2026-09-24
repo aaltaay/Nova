@@ -1,6 +1,7 @@
 /**
- * Hover actions at the right end of a scanner row: Trader, Record / Stop rec
- * (hold), Allowlist / Allowlisted, Pin. State-aware labels so a button never
+ * Hover actions at the right end of a scanner row (shown while the row is
+ * hovered or highlighted): Trader, Watch / Watching (the operator's watch
+ * list), Record / Stop rec (hold), Allowlist / Allowlisted, Pin. State-aware labels so a button never
  * lies about what it will do. Clicks never reach the row (which would
  * re-select).
  */
@@ -24,6 +25,15 @@ import {
 import { BOT_ALLOWLIST_ADD } from '../constantGroups/bot';
 import { togglePinnedRow, usePinnedRow } from '../scanner/pinnedRowsStore';
 import { useScannerRowFacts } from './useScannerRowFacts';
+import {
+  toggleWatchList,
+  useIsWatched,
+  WATCH_ACTION_WATCH,
+  WATCH_ACTION_WATCH_TITLE,
+  WATCH_ACTION_WATCHING,
+  WATCH_ACTION_WATCHING_TITLE,
+  WatchEyeIcon,
+} from '../watch_list';
 
 type Props = {
   symbol: string;
@@ -36,6 +46,7 @@ export function ScannerRowActions({ symbol, onOpenTrading }: Props) {
   const { recording, allowlisted } = useScannerRowFacts(symbol);
   const { add, remove } = useBotAllowlist();
   const pinned = usePinnedRow(symbol);
+  const watched = useIsWatched(symbol);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,6 +75,17 @@ export function ScannerRowActions({ symbol, onOpenTrading }: Props) {
         onClick={() => onOpenTrading(symbol)}
       >
         {SCANNER_ACTION_TRADER}
+      </button>
+      <button
+        type="button"
+        className={`scanner-row-actions__btn${watched ? ' is-watching' : ''}`}
+        title={watched ? WATCH_ACTION_WATCHING_TITLE : WATCH_ACTION_WATCH_TITLE}
+        aria-pressed={watched}
+        data-testid="scanner-row-watch"
+        onClick={() => toggleWatchList(symbol)}
+      >
+        <WatchEyeIcon />
+        {watched ? WATCH_ACTION_WATCHING : WATCH_ACTION_WATCH}
       </button>
       {recording ? (
         <HoldToStopButton

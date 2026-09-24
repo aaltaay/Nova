@@ -7,10 +7,7 @@ import {
   chartMenuPriceLabel,
   shouldOpenChartContextMenu,
 } from './chartContextMenuItems';
-import {
-  CHART_CONTEXT_MENU_ALERT_REASON,
-  CHART_CONTEXT_MENU_WATCHLIST_REASON,
-} from './chartContextMenuConstants';
+import { CHART_CONTEXT_MENU_ALERT_REASON } from './chartContextMenuConstants';
 
 const BASE = { symbol: 'smpl', price: 4.2, quantityValue: '100', hasPosition: false };
 
@@ -28,7 +25,7 @@ describe('chartContextMenuItems', () => {
       'drawings',
       'show_layers',
       'create_alert',
-      'add_to_watchlist',
+      'watch_list_add',
       'bot_allowlist_add',
       'reset',
       'snapshot',
@@ -44,22 +41,22 @@ describe('chartContextMenuItems', () => {
     expect(withPos.find((i) => i.id === 'view_details')?.label).toBe('View Trade Details');
   });
 
-  it('disables Create Alert and Add to Watchlist with an honest reason', () => {
-    const items = chartContextMenuItems(BASE);
-    const alert = items.find((i) => i.id === 'create_alert');
-    const watch = items.find((i) => i.id === 'add_to_watchlist');
+  it('disables Create Alert with an honest reason', () => {
+    const alert = chartContextMenuItems(BASE).find((i) => i.id === 'create_alert');
     expect(alert).toEqual(
       expect.objectContaining({
         kind: 'unavailable',
         reason: CHART_CONTEXT_MENU_ALERT_REASON,
       }),
     );
-    expect(watch).toEqual(
-      expect.objectContaining({
-        kind: 'unavailable',
-        reason: CHART_CONTEXT_MENU_WATCHLIST_REASON,
-      }),
-    );
+  });
+
+  it('adds to or removes from the watch list as a live action', () => {
+    const add = chartContextMenuItems(BASE).find((i) => i.id === 'watch_list_add');
+    expect(add).toEqual(expect.objectContaining({ kind: 'action', label: 'Add to watch list' }));
+    const items = chartContextMenuItems({ ...BASE, watched: true });
+    expect(items.some((i) => i.id === 'watch_list_add')).toBe(false);
+    expect(items.find((i) => i.id === 'watch_list_remove')?.label).toBe('Remove from watch list');
   });
 
   it('adds or removes the bot allowlist from the live menu', () => {

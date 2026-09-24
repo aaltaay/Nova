@@ -39,6 +39,7 @@ import type { LiveScannerFeed } from '../scanner/ScannerDataContext';
 import type { ScannerRow } from '../types/scanner';
 import { listTabModules, type NovaModule } from '../workspace/registry';
 import { DeskBoardRow } from './DeskBoardRow';
+import { useWatchList } from '../watch_list';
 import { deskBoardRowsFor, deskHeadlineFor, gapBarPct, maxAbsGap } from './deskBoardRows';
 import './deskBoard.css';
 
@@ -72,7 +73,11 @@ export function DeskBoard({
   );
   const module = options.find(m => m.id === list) ?? options[0];
   const title = module?.title ?? list;
-  const board = useMemo(() => deskBoardRowsFor(list, feed, filterRows), [list, feed, filterRows]);
+  const watchList = useWatchList();
+  const board = useMemo(
+    () => deskBoardRowsFor(list, feed, filterRows, watchList),
+    [list, feed, filterRows, watchList],
+  );
   const rows = board?.rows ?? null;
   const widest = useMemo(() => (rows ? maxAbsGap(rows) : 0), [rows]);
   const selected = selectedSymbol?.trim().toUpperCase() ?? null;

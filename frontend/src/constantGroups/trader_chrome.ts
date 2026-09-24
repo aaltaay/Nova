@@ -155,6 +155,8 @@ export const FOCUS_RAIL_NO_FEED = 'No scanner feed in this window';
 export const focusRailNotMirrored = (title: string): string =>
   `${title} is not mirrored here yet -- open it on the Scanner`;
 export const focusRailEmpty = (title: string): string => `${title}: no rows right now`;
+/** The operator's watch list with nothing on it (watch_list/). */
+export const FOCUS_RAIL_WATCH_EMPTY = 'Nothing on your watch list yet. Right-click a ticker to add one.';
 export const focusRailMore = (count: number): string => `${count} more ↓`;
 export const FOCUS_RAIL_BOT_HELD_TITLE = 'Allowlisted · depth line held';
 export const FOCUS_RAIL_BOT_QUIET_TITLE = 'Allowlisted · quiet (no depth line)';

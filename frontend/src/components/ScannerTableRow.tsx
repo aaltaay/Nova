@@ -235,7 +235,7 @@ function ScannerTableRowView({
       onSelect={onSelect}
       onOpenTrading={onOpenTrading}
       openOnRowClick={false}
-      botAllowlistMenu
+      symbolMenu
       className="scanner-row"
     >
       <ScannerRowNumCell index={index} />

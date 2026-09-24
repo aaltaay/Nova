@@ -6,6 +6,7 @@ import { CAPTURE_STOP_HOLD_MS } from '../capture/constants';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BotSymbolMenuHost } from './BotSymbolMenu';
 import { closeBotSymbolMenu, openBotSymbolMenu } from './botSymbolMenuStore';
+import { getWatchList, resetWatchListForTests } from '../watch_list/watchListStore';
 import { _resetIbkrStatusPollerForTests, _setIbkrStatusPollerFetchForTests } from '../ibkr/ibkrStatusPoller';
 
 const command = vi.hoisted(() => vi.fn());
@@ -102,4 +103,21 @@ it('offers Pin / Unpin first when a Trader tab opened it (ADR 011 preview tabs)'
   expect((container.querySelector('[data-testid="bot-symbol-menu-pin"]') as HTMLButtonElement).textContent).toContain('Unpin tab');
   act(() => openBotSymbolMenu('AAPL', 0, 0));
   expect(container.querySelector('[data-testid="bot-symbol-menu-pin"]')).toBeNull();
+});
+
+it('adds the symbol to the watch list, and the next menu offers to remove it', async () => {
+  localStorage.clear();
+  resetWatchListForTests();
+  await open();
+  const item = () => container.querySelector('[data-testid="bot-symbol-menu-watch"]') as HTMLButtonElement;
+  expect(item().textContent).toContain('Add to watch list -- AAPL');
+  await act(async () => { item().click(); });
+  expect(getWatchList()).toEqual(['AAPL']);
+  expect(container.querySelector('[data-testid="bot-symbol-menu"]')).toBeNull();
+  act(() => openBotSymbolMenu('AAPL', 0, 0));
+  expect(item().textContent).toContain('Remove from watch list -- AAPL');
+  await act(async () => { item().click(); });
+  expect(getWatchList()).toEqual([]);
+  localStorage.clear();
+  resetWatchListForTests();
 });

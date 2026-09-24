@@ -62,6 +62,7 @@ function SetupBoardRow({ row, selected, onSelectSymbol, onOpenTrading }: {
       onSelect={onSelectSymbol}
       onOpenTrading={onOpenTrading}
       openOnRowClick={false}
+      symbolMenu
       className={rowClass(row)}
     >
       <td>

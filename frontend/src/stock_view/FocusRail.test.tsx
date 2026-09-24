@@ -8,8 +8,9 @@ import type { ScannerRow } from '../types/scanner';
 import { consumeFocusListRequest, requestFocusList } from '../workspace/focusListRequest';
 import { FocusRail } from './FocusRail';
 import { focusCardPosition } from './FocusRailHoverCard';
-import { followedFocusList, focusRowsFor, hodFocusRows, readFocusRailState, stepCursor, type FocusRow } from './focusRailState';
+import { followedFocusList, focusRowsFor, hodFocusRows, readFocusRailState, stepCursor, watchFocusRows, type FocusRow } from './focusRailState';
 import { focusNewsRank, nextFocusSort, parseFocusSort, sortFocusRows } from './focusRailSort';
+import { addToWatchList, resetWatchListForTests } from '../watch_list/watchListStore';
 
 const mocks = vi.hoisted(() => ({
   feed: null as LiveScannerFeed | null,
@@ -145,10 +146,25 @@ describe('FocusRail', () => {
     expect(screen.getByTestId('focus-rail-absent').textContent).toMatch(/Losers: no rows right now/);
   });
 
+  it('mirrors the watch list in the watch colour, and says so while it is empty', () => {
+    resetWatchListForTests();
+    render(<FocusRail />);
+    fireEvent.change(screen.getByTestId('focus-rail-pick'), { target: { value: 'watch_list' } });
+    expect(screen.getByTestId('focus-rail-absent').textContent).toMatch(/Nothing on your watch list yet/);
+    act(() => {
+      addToWatchList('VXTL');
+      addToWatchList('NOPE');
+    });
+    expect(order()).toEqual(['NOPE', 'VXTL']);
+    expect(screen.getByTestId('focus-rail-watched-VXTL')).toBeTruthy();
+    localStorage.clear();
+    resetWatchListForTests();
+  });
+
   it('says so when the feed does not carry a list, or when there is no feed at all', () => {
     const view = render(<FocusRail />);
     fireEvent.change(screen.getByTestId('focus-rail-pick'), { target: { value: 'watchlist' } });
-    expect(screen.getByTestId('focus-rail-absent').textContent).toMatch(/Watchlist is not mirrored here yet/);
+    expect(screen.getByTestId('focus-rail-absent').textContent).toMatch(/Contenders is not mirrored here yet/);
     mocks.feed = null;
     view.rerender(<FocusRail />);
     expect(screen.getByTestId('focus-rail-absent').textContent).toBe('No scanner feed in this window');
@@ -359,7 +375,17 @@ describe('focusRowsFor / stepCursor', () => {
     expect(rows.map(r => [r.symbol, r.headlineAt, r.newsKnown])).toEqual([['CBRX', null, true], ['NEWX', null, false]]);
   });
 
+  it('watch list rows keep the list order, take facts from the board that holds them, and invent none', () => {
+    const feed = makeLiveScannerFeedStub({ losers: [row('CBRX', -5.4)] });
+    const rows = watchFocusRows(['NOPE', 'CBRX'], feed);
+    expect(rows.map(r => r.symbol)).toEqual(['NOPE', 'CBRX']);
+    expect(rows[0]).toEqual({ symbol: 'NOPE', price: null, gapPct: null, headlineAt: null, newsKnown: false });
+    expect(rows[1].gapPct).toBe(-5.4);
+    expect(watchFocusRows(['NOPE'], null)[0].price).toBeNull();
+  });
+
   it('follows only a list the rail mirrors', () => {
+    expect(followedFocusList('watch_list')).toBe('watch_list');
     expect(followedFocusList('gainers')).toBe('gainers');
     expect(followedFocusList('running_up')).toBe('running_up');
     expect(followedFocusList('watchlist')).toBeNull();

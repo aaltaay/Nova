@@ -33,6 +33,7 @@ import {
   ChartContextSubmenuRow,
 } from './ChartContextSubmenu';
 import type { ChartOrderIntent } from './chartOrderActions';
+import { addToWatchList, removeFromWatchList, useIsWatched } from '../watch_list';
 
 type SubmenuId = 'drawings' | 'show_layers';
 
@@ -81,6 +82,7 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
   });
   const [submenu, setSubmenu] = useState<SubmenuId | null>(null);
   const [submenuPos, setSubmenuPos] = useState({ top: 0, left: 0 });
+  const watched = useIsWatched(props.symbol);
 
   const items = chartContextMenuItems({
     symbol: props.symbol,
@@ -88,6 +90,7 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
     quantityValue: props.quantityValue,
     hasPosition: Boolean(props.position && props.position.qty !== 0),
     allowlisted: props.allowlisted,
+    watched,
   });
 
   useLayoutEffect(() => {
@@ -137,6 +140,10 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
       props.onReset();
     } else if (id === 'snapshot') {
       props.onSnapshot();
+    } else if (id === 'watch_list_add') {
+      addToWatchList(props.symbol);
+    } else if (id === 'watch_list_remove') {
+      removeFromWatchList(props.symbol);
     } else if (id === 'bot_allowlist_add') {
       props.onBotAllowlist?.('add');
     } else if (id === 'bot_allowlist_remove') {

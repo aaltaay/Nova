@@ -1,14 +1,13 @@
 /**
  * Pure model for the chart right-click menu.
  *
- * Money rows and layers are real Nova actions. Create Alert / Add to Watchlist
- * have no price-alert or user-watchlist API, so they ship disabled with a
- * reason (#116). Line Style and Chart Settings still have no surface -- omit.
+ * Money rows, layers and the watch list toggle are real Nova actions. Create
+ * Alert has no price-alert API, so it ships disabled with a reason (#116).
+ * Line Style and Chart Settings still have no surface -- omit.
  */
 import { formatSeedPrice } from '../ibkr/tradeDefaultSeed';
 import { CHART_POSITION_MENU_VIEW_DETAILS } from './positionOverlayConstants';
 import {
-  CHART_CONTEXT_MENU_ADD_WATCHLIST,
   CHART_CONTEXT_MENU_BOT_ALLOWLIST_ADD,
   CHART_CONTEXT_MENU_BOT_ALLOWLIST_REMOVE,
   CHART_CONTEXT_MENU_ALERT_REASON,
@@ -22,7 +21,8 @@ import {
   CHART_CONTEXT_MENU_SELL,
   CHART_CONTEXT_MENU_SHOW_LAYERS,
   CHART_CONTEXT_MENU_SNAPSHOT,
-  CHART_CONTEXT_MENU_WATCHLIST_REASON,
+  CHART_CONTEXT_MENU_WATCH_ADD,
+  CHART_CONTEXT_MENU_WATCH_REMOVE,
 } from './chartContextMenuConstants';
 
 export type ChartContextMenuItemId =
@@ -34,7 +34,8 @@ export type ChartContextMenuItemId =
   | 'drawings'
   | 'show_layers'
   | 'create_alert'
-  | 'add_to_watchlist'
+  | 'watch_list_add'
+  | 'watch_list_remove'
   | 'bot_allowlist_add'
   | 'bot_allowlist_remove'
   | 'reset'
@@ -66,6 +67,8 @@ export interface ChartContextMenuInput {
   quantityValue: string;
   hasPosition: boolean;
   allowlisted?: boolean;
+  /** On the operator's watch list. */
+  watched?: boolean;
 }
 
 /** Same formatter the ticket seeds with, so the label matches the staged price. */
@@ -131,10 +134,9 @@ export function chartContextMenuItems(
     reason: CHART_CONTEXT_MENU_ALERT_REASON,
   });
   items.push({
-    id: 'add_to_watchlist',
-    label: CHART_CONTEXT_MENU_ADD_WATCHLIST,
-    kind: 'unavailable',
-    reason: CHART_CONTEXT_MENU_WATCHLIST_REASON,
+    id: input.watched ? 'watch_list_remove' : 'watch_list_add',
+    label: input.watched ? CHART_CONTEXT_MENU_WATCH_REMOVE : CHART_CONTEXT_MENU_WATCH_ADD,
+    kind: 'action',
   });
   items.push({
     id: input.allowlisted ? 'bot_allowlist_remove' : 'bot_allowlist_add',
