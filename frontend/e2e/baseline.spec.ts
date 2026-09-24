@@ -33,7 +33,11 @@ test.describe('Phase 0 baseline', () => {
 
     await expect(page.getByRole('main')).toBeVisible();
     await expect(page.getByTestId('stock-view-header')).toHaveCount(0);
-    await expect(page.getByTestId('header-market-clock')).toBeVisible();
+    // The header's ET clock leaves at 1400px and below so the search is never
+    // covered (styles/global-app-bar-responsive.css, QA V8); this viewport is 1280.
+    const clock = page.getByTestId('header-market-clock');
+    await expect(clock).toHaveCount(1);
+    await expect(clock).toBeHidden();
     await expect(page.getByText('Trader', { exact: true })).toBeVisible();
     await expect(page).toHaveTitle(/SMPL.*Trader/);
 
@@ -47,6 +51,10 @@ test.describe('Phase 0 baseline', () => {
     await expect(page.getByRole('complementary', { name: 'Trader' })).toBeVisible();
     await expect(page.getByRole('region', { name: 'Multi-timeframe charts' })).toBeVisible();
     await expect(page.getByRole('region', { name: 'Trade order' })).toBeVisible();
+
+    // Wide enough for the header to keep its clock.
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await expect(clock).toBeVisible();
 
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });

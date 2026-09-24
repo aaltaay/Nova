@@ -45,6 +45,7 @@ function Chart() {
     <output data-testid="indicators">{JSON.stringify(state.indicatorBars)}</output>
     <output data-testid="vwap">{JSON.stringify(vwap.bars)}</output>
     <output data-testid="error">{state.error}</output>
+    <output data-testid="empty">{state.emptyText}</output>
   </>;
 }
 

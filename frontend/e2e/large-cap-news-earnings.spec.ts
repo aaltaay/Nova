@@ -12,7 +12,11 @@ test.describe('Large Cap shared News and Earnings columns', () => {
     await expect(table).toBeVisible();
     const headers = table.locator('thead th');
     await expect(headers.filter({ hasText: /^News/ })).toHaveCount(1);
-    await expect(headers.filter({ hasText: /^Earnings/ })).toHaveCount(1);
+    // A narrow icon column keeps a short label and names itself in the title
+    // (SCANNER_HEADER_SHORT_LABEL, constantGroups/scanner_board.ts).
+    const earnings = headers.filter({ hasText: /^Earn/ });
+    await expect(earnings).toHaveCount(1);
+    await expect(earnings).toHaveAttribute('title', 'Earnings');
     await expect(headers.filter({ hasText: /^Days/ })).toHaveCount(1);
     await expect(table.getByText('GOOGL', { exact: true })).toBeVisible();
     await expect(table.locator('.news-flame').first()).toBeVisible();

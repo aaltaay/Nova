@@ -1,12 +1,14 @@
 import type { Page } from '@playwright/test';
 
 /**
- * Serve deterministic candles for the offline sample desk.
+ * Serve deterministic candles to a Trader tab on the live route.
  *
  * The e2e Vite server points at an API that is not running, so the chart
  * paints nothing and the price scale cannot convert a cursor Y into a price.
  * Routing `/bars` gives the chart a real series, which is what the right-click
- * menu prices its Buy / Sell rows from.
+ * menu prices its Buy / Sell rows from. It cannot feed `?view=sample`: the
+ * sample desk refuses every backend read inside the page before it reaches the
+ * network (src/sample_data/sampleNetworkGate.ts). See liveTraderApi.ts.
  */
 const STEP_MS: Record<string, number> = {
   '10Sec': 10_000,

@@ -1,6 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
-import { E2E_IBKR_STATUS } from './fixtures/orderRows';
 import { attachErrorCollector } from './helpers/errorCollector';
+import { mockLiveTraderApi } from './helpers/liveTraderApi';
 
 async function emptyIbkrBars(route: Route) {
   const url = new URL(route.request().url());
@@ -47,20 +47,18 @@ async function mockFirstTapePrint(page: Page) {
 
 test('first live tape print removes the empty 10Sec loading overlay', async ({ page }) => {
   const { errors } = attachErrorCollector(page);
-  await page.route('**/api/ibkr/status', (route) => {
-    void route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(E2E_IBKR_STATUS),
-    });
-  });
+  // Status and the quote: the rail's Time & Sales owns the tape socket and
+  // mounts once the quote has loaded. Bars stay empty (below).
+  await mockLiveTraderApi(page, { bars: false, positions: [] });
   await page.route('**/api/ticker/SMPL/bars?*', emptyIbkrBars);
   await mockFirstTapePrint(page);
 
-  await page.goto('/?view=sample&symbol=SMPL');
+  // Live route: the sample desk refuses every backend read and socket in the
+  // page (sampleNetworkGate.ts), so neither mock above would ever be reached.
+  await page.goto('/?view=stock&symbol=SMPL');
 
   const chart = page.getByTestId('ticker-chart-10Sec');
-  await expect(chart).toBeVisible();
+  await expect(chart).toBeVisible({ timeout: 20_000 });
   await expect(chart).toHaveAttribute('data-bar-count', '1');
   await expect(chart.getByText('Loading IBKR historical...')).toHaveCount(0);
   expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
