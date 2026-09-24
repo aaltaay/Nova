@@ -18,3 +18,6 @@ export {
   isRunningUpStrategy,
   partitionScannerAlerts,
 } from './scannerPartition';
+export { subscribeHodMomoLiveAlerts } from './hodMomoLiveAlerts';
+export { fmtStripClock } from './hodMomoStripRows';
+export type { AlertObject } from './types';

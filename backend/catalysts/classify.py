@@ -21,11 +21,13 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Iterable, Mapping
 
 from constants_catalysts import (
     CATALYST_ANALYST_RE,
     CATALYST_CAUSE_RE,
+    CATALYST_CLASSIFY_CACHE_MAX,
     CATALYST_CLINICAL_STRONG_RE,
     CATALYST_CLINICAL_WEAK_RE,
     CATALYST_CONTRACT_STRONG_RE,
@@ -125,7 +127,16 @@ class Label:
 def classify_item(title: str | None, summary: str | None = None, *, source: str = "", publisher: str = "",
                   n_tickers: int | None = None, form: str | None = None, sec_items: str | None = None,
                   url: str = "") -> Label:
-    """Label one article or filing. EDGAR items also read the opening of the filed release."""
+    """Label one article or filing. EDGAR items also read the opening of the filed release.
+
+    Cached per process: the label is a pure function of these fields, and the scanner board asks again
+    for the same items every pass (``catalysts/board.py``).
+    """
+    return _classify_item_cached(title, summary, source, publisher, n_tickers, form, sec_items, url)
+
+
+def _classify_item(title: str | None, summary: str | None, source: str, publisher: str,
+                   n_tickers: int | None, form: str | None, sec_items: str | None, url: str) -> Label:
     label = _classify(title, summary, source=source, publisher=publisher, n_tickers=n_tickers, form=form,
                       sec_items=sec_items)
     if source != "edgar" and is_movers_url(url) and label.kind != CATALYST_KIND_NOISE and not (
@@ -144,6 +155,9 @@ def classify_item(title: str | None, summary: str | None = None, *, source: str 
             if why.kind in (CATALYST_KIND_CATALYST, CATALYST_KIND_NEGATIVE) and why.category not in _UNPLACED:
                 return why
     return label
+
+
+_classify_item_cached = lru_cache(maxsize=CATALYST_CLASSIFY_CACHE_MAX)(_classify_item)
 
 
 def _is_screen(title: str | None, publisher: str) -> bool:

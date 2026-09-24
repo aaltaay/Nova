@@ -1180,6 +1180,34 @@ wildcards run over symbols only. Recent look-ups persist in `localStorage`
 `nova.search.recent` (`{schema_version: 1, symbols: string[]}`, newest first,
 at most 12; owner `components/tickerSearchRecents.ts`).
 
+### The operator's watch list and its HOD Momo toasts (operator ask, 2026-09-23)
+
+A hand-picked list, kept in the desk: `localStorage` `nova.watch.list` =
+`{schema_version: 1, symbols: string[]}` -- newest first, upper-case tickers
+matching `^[A-Z][A-Z0-9./-]{0,11}$`, at most 200 (owner
+`watch_list/watchListStore.ts`; an unknown `schema_version` is ignored, never
+guessed). Every window of the desk shares it through the `storage` event; no
+backend route reads or writes it. A symbol is added or removed from a scanner
+row's hover actions (Watch / Watching), the symbol menu (right-click a scanner
+row, a HOD Momo strip or alert row, a Contenders or Setups row, a Desk board or
+Focus rail row, a Trader tab), the chart menu, or the Watch list tab.
+
+A live `/ws/hod-momo` `alert` frame for a watched symbol -- any strategy,
+Running Up (12) included (operator ask, same day); never the `initial`
+snapshot, a reconnect's replay or the Sim playhead's history -- raises a toast
+in the main desk window: "XYZ hit HOD Momo" once a HOD Momo strategy fired,
+"XYZ is running up" while only Running Up has, with the alert's time (ET),
+strategy, price, change, volume and RVOL, each left out when unknown. One toast
+per symbol: a burst folds into it (count and strategies); it leaves
+`WATCH_TOAST_TTL_MS` (20 s) after its newest alert unless hovered. Open goes to
+the symbol, Stop watching removes it, × dismisses. It places nothing. HOD
+Momo's tradeable floor still applies: a watched symbol the master gate refuses
+raises no alert, so no toast.
+
+The ranked Five Pillars list (tab id `watchlist`, `GET /api/strategy/watchlist`)
+is labelled **Contenders** in the UI, and the scanner's pillars column
+**Pillars**; ids, API paths and wire fields are unchanged.
+
 ### Execution command (ADR 007 — sole broker mutation entry)
 
 All buy/sell/cancel/replace requests enter `execution.service.execute` with:
@@ -1446,6 +1474,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 | Date | Change | Author |
 |------|--------|--------|
 | 2026-09-23 | Release notes and an update you are asked about (operator ask: "after we update to a new version, can we have a release note show up in front of the user? If ... we identify a new update, could we also notify the user if they are interested in updating it or not?"): a check that finds a newer release no longer downloads it in the background -- a notice under the header names the release with its notes and asks Update / Later, then follows the download to Restart to update; it never takes keyboard focus, and a window that cannot show it gets the same questions as dialogs. The first launch of a new version shows What's new, a floating card with the notes of every release the update brought (Help > What's New reopens it). Release bodies were boilerplate; `Desktop pack` now writes them from the commit (`tools/release_notes.py`: PR title plus the first paragraph of `## What`, and a hidden record the desk parses). §3 and §8 amended. | User Directive + Claude Opus 5.5 |
+| 2026-09-23 | A watch list of the operator's own (operator ask: "When I highlight a row in any ticker, I want the option to say 'Add to watch list' ... anytime it crosses the HOD/MOMO, it shows me a toast notification"; the old list renamed, "come up with a creative name"): `watch_list/` keeps hand-picked symbols in `localStorage` `nova.watch.list` (schema 1, shared by every window), added from a highlighted scanner row's Watch action, the symbol menu on every ticker list, the chart menu (its disabled "Add to Watchlist" now works) or the new Watch list tab; the Focus rail and Desk board can mirror it. A live HOD Momo or Running Up alert for a watched symbol toasts on every page of the main desk. The ranked Five Pillars tab is now **Contenders** and the scanner's "Watch" column **Pillars**; ids and API paths unchanged. Also: a pop-out Trader window mounts its own symbol menu, so right-clicking its tabs or Focus rail rows no longer eats the browser menu and shows nothing; and that menu is redesigned (operator: "it's so hard to even know they are clickable") -- the symbol once in its head, each action a button-like row with a coloured icon, a line saying what it does and a chip when it is already on, opening upward near the bottom of the screen. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Level 2 books kept with IBKR's row rules and the prior close never a trade (#540, #541, found by the data-accuracy audit): ib_async's dict-keyed depth book put 466 of GRML 2026-09-22's 111,116 recorded books out of price order, so `ibkr/depth/book.py` now keeps each line's book from `ticker.domTicks` and recorded books read best-price-first. IBKR's prior close before a line's first trade no longer makes live minute candles (APLX 2026-09-23 16:00 opened at the 9.52 prior close while trades printed 8.55-8.71), HOD Momo trades, L1 archive ticks, chart-tip trade updates or HOD enrichment prices; Paper and Sim-at-the-edge take the L1 last only when IBKR's Last Timestamp is inside `PRACTICE_LIVE_FRESH_SEC`; the ticker snapshot carries the trade's own time, `null` volume when unknown, and no last before the first trade. §3 and `architecture/practice-fills.md` amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Every locked control says why; setup templates; the eyes on the record (ADR 029, operator asks: "these are always unclickable, at least it should explain why ... gaps may exist everywhere"; "I also need to see all their parameters and be able to change them myself"; "each strategy will have templates"; "when we activate the eyes I also want it to be recording what it sees ... and when we are in the Sim I want to be able to use these eyes so we can backtest them"). One tip per window shows a locked control's `data-why` on hover and on a refused press; all 134 disabled controls across 64 files carry a specific reason and a test fails the build on a new one without. Each setup lists every parameter it runs on (a catalogue; the Bots page renders it, never prose -- the old card said 07:00-10:00 and $3-10 where the scanner arms 07:00-11:30 on any HOD Momo name); each setup keeps a locked pre-registered default and the operator's templates; every first-pullback template is watched at once and scored on its own rows (`setups.db` schema 2), only the one in play proposes, and the read-out is per template revision. The eyes' journal records everything the lanes see, per day, backend only; the same lanes replay a Session Record to follow the Sim playhead or backtest templates. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Session Record replays draw candles from their prints (#535, operator decision: option a): the capture player no longer reads the stored `bars_*.jsonl` buckets, which recordings made before candles took only price-setting prints had built from every print (GRML 2026-09-22: 82 of 480 one-minute candles with a false wick, a low of 13.19 where trades bottomed at 15.43). Every timeframe is aggregated from the prints that set a price, filtered once per loaded recording, so the chart and the practice fills (#511) read the same prints. `replay_load.counts` drops the `bars_*` counts. §3 and ADR 012 amended. | User Directive + Claude Opus 5.5 |

@@ -57,6 +57,9 @@ CATALYST_FINNHUB_HTTP_TIMEOUT_SEC = 10.0
 CATALYST_FINNHUB_SKIP_PUBLISHERS = ("benzinga",)
 # Scanner rows: how often the board's verdicts are recomputed from what the live reads hold (in memory).
 CATALYST_BOARD_INTERVAL_SEC = 15.0
+# Labels kept per process (``classify_item`` is pure): every board pass re-reads the same items, and
+# classifying them again took ~0.6 ms each -- about a second of the GIL per pass (2026-09-23).
+CATALYST_CLASSIFY_CACHE_MAX = 16384
 # The Trader's News panel (GET /api/catalysts/{symbol}): items listed, newest first; the payload's version.
 CATALYST_PANEL_MAX_ITEMS = 40
 CATALYST_PANEL_SCHEMA_VERSION = 1

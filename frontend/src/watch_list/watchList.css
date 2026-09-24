@@ -1,0 +1,265 @@
+/*
+ * The operator's watch list (2026-09-23): the eye mark on watched rows, the
+ * "XYZ hit HOD Momo" toasts and the Watch list tab. Amber is the watch
+ * colour -- apart from the bot's blue, the recorder's red and the setups' green.
+ */
+:root {
+  --watch-color: #f5a524;
+}
+
+[data-theme='light'] {
+  --watch-color: #c77c02;
+}
+
+.watch-eye {
+  flex: none;
+  color: var(--watch-color);
+  vertical-align: middle;
+}
+
+/* ── Toasts ─────────────────────────────────────────────────────────────── */
+.watch-toasts {
+  position: fixed;
+  top: 64px;
+  right: 16px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(360px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+/* A Session Record stop toast owns the top slot (recordingSignal.css); stack under it. */
+body:has(.recording-stopped) .watch-toasts {
+  top: 168px;
+}
+
+.watch-toast {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 10px 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--watch-color) 55%, var(--border-color));
+  border-left-width: 4px;
+  border-radius: 6px;
+  background: var(--panel-bg);
+  color: var(--text-primary);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  font-size: 12.5px;
+  pointer-events: auto;
+  animation: watch-toast-in 160ms ease-out;
+}
+
+@keyframes watch-toast-in {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: none; }
+}
+
+.watch-toast__eye {
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+}
+
+.watch-toast__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.watch-toast__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.watch-toast__title {
+  color: var(--watch-color);
+  font-size: 13px;
+}
+
+.watch-toast__time,
+.watch-toast__count {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.watch-toast__body {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.watch-toast__facts {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.watch-toast__actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.watch-toast__action {
+  padding: 3px 9px;
+  border: 1px solid var(--watch-color);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--watch-color) 16%, transparent);
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.watch-toast__action--quiet {
+  border-color: var(--border-color);
+  background: transparent;
+  font-weight: 500;
+}
+
+.watch-toast__dismiss {
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* ── Marks on rows ──────────────────────────────────────────────────────── */
+.watch-mark {
+  width: 11px;
+  height: 11px;
+}
+
+.scanner-row-actions__btn.is-watching {
+  border-color: color-mix(in srgb, var(--watch-color) 55%, transparent);
+  color: var(--watch-color);
+}
+
+.desk-board__act.desk-board__act--watching {
+  border-color: color-mix(in srgb, var(--watch-color) 55%, transparent);
+  color: var(--watch-color);
+}
+
+.focus-rail__sym.is-watched {
+  color: var(--watch-color);
+}
+
+.hod-strip__row.is-watched:not(.is-selected) {
+  box-shadow: inset 3px 0 0 var(--watch-color);
+}
+
+/* ── The Watch list tab ─────────────────────────────────────────────────── */
+.watch-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.watch-list__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 6px 8px 0;
+}
+
+.watch-list__note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  max-width: 70ch;
+}
+
+.watch-list__add {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.watch-list__add input {
+  width: 9rem;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.watch-list__add input[aria-invalid='true'] {
+  border-color: var(--danger, #ef4444);
+}
+
+.watch-list__add button {
+  height: 26px;
+  padding: 0 12px;
+  border: 1px solid var(--watch-color);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--watch-color) 16%, transparent);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.watch-list__invalid {
+  color: var(--danger, #ef4444);
+  font-size: 12px;
+}
+
+.watch-list__grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.watch-list__grid th,
+.watch-list__grid td {
+  padding: 4px 8px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.watch-list__grid .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.watch-list__hod b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.watch-list__remove-cell {
+  width: 2rem;
+  text-align: right;
+}
+
+.watch-list__remove {
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.watch-list__remove:hover {
+  color: var(--danger, #ef4444);
+}

@@ -19,3 +19,14 @@ describe('botSymbolMenuPosition', () => {
       .toBe(1160);
   });
 });
+
+describe('botSymbolMenuPosition near the bottom of the screen', () => {
+  it('lifts the menu so its whole height shows, never above the app bar', () => {
+    expect(botSymbolMenuPosition({
+      x: 300, y: 780, appBarBottom: 60, viewportWidth: 1400, viewportHeight: 800, menuHeight: 220,
+    }).top).toBe(800 - 220 - BOT_SYMBOL_MENU_GAP_PX);
+    expect(botSymbolMenuPosition({
+      x: 300, y: 300, appBarBottom: 60, viewportWidth: 1400, viewportHeight: 200, menuHeight: 400,
+    }).top).toBe(60 + BOT_SYMBOL_MENU_GAP_PX);
+  });
+});

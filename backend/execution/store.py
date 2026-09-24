@@ -13,7 +13,12 @@ from constants import (
     EXECUTION_NON_TERMINAL_STATUSES,
     EXECUTION_SWEEP_ROW_LIMIT,
 )
-from execution.store_schema import SCHEMA, ensure_executions_columns
+from execution.store_schema import (
+    SCHEMA,
+    ensure_executions_columns,
+    mark_schema_ensured,
+    schema_ensured,
+)
 from paths import cache_dir
 
 _BOOT_ID = uuid.uuid4().hex
@@ -32,6 +37,17 @@ def get_connection() -> sqlite3.Connection:
 
 
 def init_db() -> None:
+    """Create / migrate the ledger schema once per ledger file per process.
+
+    Every ledger read calls this. Re-running the schema script, the column
+    check and the evidence migrations each time put a dozen SQLite round trips
+    on the HTTP loop per account / positions poll and bot breaker tick -- the
+    performance recorder's top stall frames, up to 3 s (2026-09-23). Two
+    threads racing here both run the idempotent script.
+    """
+    path = _db_path()
+    if schema_ensured(path):
+        return
     conn = get_connection()
     try:
         conn.executescript(_SCHEMA)
@@ -41,6 +57,7 @@ def init_db() -> None:
         conn.commit()
     finally:
         conn.close()
+    mark_schema_ensured(path)
 
 
 def current_boot_id() -> str:

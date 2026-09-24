@@ -55,7 +55,7 @@ the backend packages.
 | `setups/` | feature | The setup scanner (ADR 022): live first-pullback board over `/ws/setups`, alert cards, scoreboard, sound, ticket staging. |
 | `sim/` | feature | The Sim venue's replay: session strip and scrubber, day picker, Sim clock, historical downloads, depth / tape / capture replay. |
 | `stock_view/` | feature | The Trader (Stock View) chrome: symbol tab strip, right rail with quote / L2 / ticket, focus rail, footer dock, market clock. |
-| `strategy/` | feature | Misnamed: the Watchlist tab (watchlist table, Journal, Backtest panel) and the Nova OS attention strip. |
+| `strategy/` | feature | Misnamed: the Contenders tab (id `watchlist`: the ranked Five Pillars table, Journal, Backtest panel) and the Nova OS attention strip. |
 | `styles/` | shared | Global CSS by surface: tokens, Tailwind theme / overrides, global app bar, nav rail, scanner, stock view, settings. |
 | `testSetup/` | shared | Vitest setup: the guard that keeps tests off the live backend, and the React `act()` flag. |
 | `theme/` | shared | Light / dark theme prefs and the `useTheme` hook that sets `data-theme` on `<html>`. |
@@ -63,4 +63,5 @@ the backend packages.
 | `utils/` | shared | Generic helpers (formatting, prefStore, sorting, rAF coalescing) plus backend / desktop glue (auto-heal, Gateway launch, window bounds). |
 | `ux/` | shared | The app-wide dialog service: the alert / confirm / prompt API and the `AppDialogHost` that renders it. |
 | `volume_boost/` | feature | The Volume Boost scanner tab: exceptional L1 volume-rate spikes with age formatting. |
+| `watch_list/` | feature | The operator's hand-picked Watch list: the persisted list, the Watch list tab, the watch eye, and the "hit HOD Momo" toasts for watched symbols. |
 | `workspace/` | feature | The workspace shell: selected-symbol context, module registry, layout / visibility / nav-rail stores, scanner tabs, the pop-out window bus. |

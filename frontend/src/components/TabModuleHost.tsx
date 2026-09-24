@@ -15,6 +15,9 @@ const TradingTab = lazy(() =>
 const WatchlistTab = lazy(() =>
   import('../strategy/WatchlistTab').then(m => ({ default: m.WatchlistTab })),
 );
+const WatchListTab = lazy(() =>
+  import('../watch_list/WatchListTab').then(m => ({ default: m.WatchListTab })),
+);
 const EarningsPanel = lazy(() =>
   import('../earnings/EarningsPanel').then(m => ({ default: m.EarningsPanel })),
 );
@@ -30,6 +33,7 @@ import type { Catalyst } from '../types/catalyst';
 import type { HealthStatus } from '../types/health';
 import type { MarketMode } from '../types/market';
 import type { WatchlistEntry } from '../strategy/types';
+import type { WatchListBoards } from '../watch_list';
 
 export type TabModuleHostProps = {
   activeTab: ActiveTab;
@@ -59,6 +63,8 @@ export type TabModuleHostProps = {
    * (see SampleDashboardPage header comment). Earnings and Nova News
    * self-fetch, so they take this flag. */
   sampleMode?: boolean;
+  /** The boards before the exchange filter: a hand-picked symbol's facts are never filtered away. */
+  watchListBoards?: WatchListBoards;
 };
 
 const SCANNER_TABS = new Set([
@@ -98,6 +104,7 @@ export function TabModuleHost(props: TabModuleHostProps) {
     tableMeta = {},
     historyDate = null,
     sampleMode = false,
+    watchListBoards,
   } = props;
 
   // Defensive: HOD / Running Up are dock-only; never blank the main column.
@@ -154,6 +161,19 @@ export function TabModuleHost(props: TabModuleHostProps) {
           entries={watchlistEntries}
           loading={watchlistLoading}
           error={watchlistError}
+          selectedSymbol={selectedSymbol}
+          onSelectSymbol={onSelect}
+          onOpenTrading={onOpenTrading}
+        />
+      </Suspense>
+    );
+  }
+
+  if (activeTab === 'watch_list') {
+    return (
+      <Suspense fallback={<TabLazyFallback />}>
+        <WatchListTab
+          boards={watchListBoards ?? { gainers, gappers, losers, afterhours, largeCap }}
           selectedSymbol={selectedSymbol}
           onSelectSymbol={onSelect}
           onOpenTrading={onOpenTrading}

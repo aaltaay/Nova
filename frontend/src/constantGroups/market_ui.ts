@@ -52,7 +52,7 @@ export const NEWS_IMPACT_FACTOR_TOOLTIPS = {
   ai: 'Lincoln AI narrative. Opt-in via LINCOLN_AI_ENABLED + OPENAI_API_KEY (backend/news/ai_reasoning.py) — null when disabled.',
 };
 
-// ── Strategy / Watchlist tab (mirrors backend constants.py WATCHLIST_*) ────
+// ── Contenders tab (id `watchlist`; mirrors backend constants.py WATCHLIST_*) ────
 export const WATCHLIST_POLL_INTERVAL_MS = 3000;
 /** Five Pillars as one-letter chips, in the order the backend grades them. */
 export const WATCHLIST_PILLAR_LETTERS: Record<string, string> = {
@@ -84,9 +84,9 @@ export const WATCHLIST_FOOTNOTE =
 export const WATCHLIST_BOT_ON_TITLE = 'On the bot allowlist -- click to remove';
 export const WATCHLIST_BOT_OFF_TITLE = 'Add to the bot allowlist (the bot only ever looks at these symbols)';
 
-/** Side-panel strip under News Headline — mirrors Watchlist tab columns without Symbol. */
-export const TICKER_WATCHLIST_STRIP_TITLE = 'Watchlist';
-export const TICKER_WATCHLIST_STRIP_EMPTY = 'Not ranked on the current watchlist.';
+/** Side-panel strip under News Headline — the symbol's Five Pillars grade, as on the Contenders tab. */
+export const TICKER_WATCHLIST_STRIP_TITLE = 'Pillars';
+export const TICKER_WATCHLIST_STRIP_EMPTY = 'Not ranked among the Contenders.';
 
 /** Display labels for the setup-signal stream (mirrors backend SETUP_NAMES). */
 export const SETUP_LABELS: Record<string, string> = {

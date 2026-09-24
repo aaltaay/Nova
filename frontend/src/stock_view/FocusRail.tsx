@@ -6,7 +6,9 @@
  * = allowlisted and this desk holds the depth line -- a live Trader tab or a
  * recording; hollow = allowlisted, quiet), symbol, price, signed gap. The
  * first column is the Scanner's own news circle (NewsCell: red / orange /
- * yellow by age, the verdict's ring, ! and H marks); blank when unknown.
+ * yellow by age, the verdict's ring, ! and H marks); blank when unknown. A
+ * ticker on the operator's watch list is drawn in the watch colour, and
+ * right-clicking a row opens the symbol menu (watch list, Record, allowlist).
  * Hovering the circle opens the symbol's news beside the rail, hovering the
  * REC / bot dots says what they mean; leaving the row closes the card. The column headers sort the list (click, flip, third
  * click back to the list's own order), remembered with the list. ↑ ↓ cycle
@@ -18,8 +20,10 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ArrowDown, ArrowUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { openBotSymbolMenu } from '../bot';
 import { useBotAllowlist } from '../bot/useBotAllowlist';
 import { NewsCell } from '../components/NewsCell';
+import { useWatchList, watchMarkTitle } from '../watch_list';
 import { getRecordingSymbols, isTabRecording, subscribeSessionRecord } from '../capture/sessionRecordStore';
 import {
   FOCUS_RAIL_ARIA,
@@ -39,6 +43,7 @@ import {
   FOCUS_RAIL_SORT_RESET,
   FOCUS_RAIL_SORT_TITLES,
   FOCUS_RAIL_TITLE,
+  FOCUS_RAIL_WATCH_EMPTY,
   focusRailEmpty,
   focusRailNotMirrored,
 } from '../constantGroups/trader_chrome';
@@ -56,8 +61,8 @@ import { consumeFocusListRequest, subscribeFocusListRequest } from '../workspace
 import { isTabModuleId, listScannerListModules } from '../workspace/registry';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
-  followedFocusList, focusRowsFor, hodFocusRows, isHodFocusList, readFocusRailState, stepCursor, writeFocusRailState,
-  type FocusRailState, type FocusRow,
+  FOCUS_RAIL_WATCH_LIST, followedFocusList, focusRowsFor, hodFocusRows, isHodFocusList, readFocusRailState, stepCursor,
+  watchFocusRows, writeFocusRailState, type FocusRailState, type FocusRow,
 } from './focusRailState';
 import { FocusRailHoverCard, type FocusRailHover } from './FocusRailHoverCard';
 import { nextFocusSort, sortFocusRows, type FocusSort, type FocusSortKey } from './focusRailSort';
@@ -81,6 +86,8 @@ function absenceText(
     if (hodStream.feedError) return listFeedFailed(title, hodStream.feedError);
     return hodStream.connected ? focusRailEmpty(title) : HOD_MOMO_STRIP_EMPTY_CONNECTING;
   }
+  // The watch list is the operator's own: empty means nothing picked, whatever the feed says.
+  if (list === FOCUS_RAIL_WATCH_LIST) return FOCUS_RAIL_WATCH_EMPTY;
   if (!feed) return FOCUS_RAIL_NO_FEED;
   if (rows == null) return focusRailNotMirrored(title);
   // The feed follows the Sim playhead (ADR 023): its absence is the playhead's.
@@ -109,6 +116,7 @@ export function FocusRail({ active: onScreen = true }: { active?: boolean } = {}
   const settings = useSettingsOptional();
   const { activeTraderSymbol, traderLiveTabs, openStockView } = useWorkspace();
   const { isAllowed } = useBotAllowlist();
+  const watchList = useWatchList();
   // Sim off the live edge replays another moment: today's live price, gap and
   // news stay off the rows; the list still opens tabs (QA W10). A feed that
   // follows the playhead (ADR 023) is that moment's, so its values show.
@@ -129,9 +137,11 @@ export function FocusRail({ active: onScreen = true }: { active?: boolean } = {}
   const rows = useMemo(() => {
     const listed = isHodFocusList(state.list)
       ? (hodAlerts ? hodFocusRows(state.list, hodAlerts, feed) : null)
-      : focusRowsFor(state.list, feed, filterRows);
+      : state.list === FOCUS_RAIL_WATCH_LIST
+        ? watchFocusRows(watchList, feed)
+        : focusRowsFor(state.list, feed, filterRows);
     return listed ? sortFocusRows(listed, sort) : null;
-  }, [state.list, feed, filterRows, hodAlerts, sort]);
+  }, [state.list, feed, filterRows, hodAlerts, sort, watchList]);
   const title = module?.title ?? state.list;
   const absent = absenceText(title, hodList, hodStream, feed, rows, state.list);
 
@@ -258,6 +268,10 @@ export function FocusRail({ active: onScreen = true }: { active?: boolean } = {}
               className={`focus-rail__row${isActive ? ' is-active' : ''}${index === cursor ? ' is-cursor' : ''}`}
               data-testid={`focus-rail-row-${row.symbol}`}
               onClick={() => { setCursor(index); open(row.symbol); }}
+              onContextMenu={event => {
+                event.preventDefault();
+                openBotSymbolMenu(row.symbol, event.clientX, event.clientY);
+              }}
               onMouseEnter={() => { if (hover?.row.symbol === row.symbol) keepCard(); }}
               onMouseLeave={hideCard}
             >
@@ -274,7 +288,12 @@ export function FocusRail({ active: onScreen = true }: { active?: boolean } = {}
                     data-testid={`focus-rail-bot-${row.symbol}`} data-held={held ? '1' : '0'} />
                 )}
               </span>
-              <span className="focus-rail__sym">{row.symbol}</span>
+              {watchList.includes(row.symbol) ? (
+                <span className="focus-rail__sym is-watched" title={watchMarkTitle(row.symbol)}
+                  data-testid={`focus-rail-watched-${row.symbol}`}>{row.symbol}</span>
+              ) : (
+                <span className="focus-rail__sym">{row.symbol}</span>
+              )}
               {!replayDesk && (
                 <>
                   <span className="focus-rail__px">{row.price != null ? row.price.toFixed(2) : '—'}</span>

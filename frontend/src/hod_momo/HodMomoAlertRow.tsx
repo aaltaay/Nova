@@ -111,6 +111,7 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
       className="hod-alert-row"
       style={{ height: rowHeightPx }}
       openOnRowClick={false}
+      symbolMenu
     >
       {HOD_MOMO_COLUMNS.map(([key]) => {
         switch (key) {

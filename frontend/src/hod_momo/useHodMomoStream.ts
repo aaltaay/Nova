@@ -4,6 +4,7 @@ import {
   noteHodMomoLiveAlert,
   rememberHodMomoAlertSnapshot,
 } from './hodMomoAlertSound';
+import { publishHodMomoLiveAlert } from './hodMomoLiveAlerts';
 import type { AlertObject } from './types';
 import { alertIdentity, HOD_FEED_UNREADABLE, parseHodFrame, uniqueAlerts } from './hodMomoWire';
 import { countSocketMessage, frameBytes } from '../perf/perfCounters';
@@ -109,6 +110,7 @@ export function useHodMomoStream(): HodMomoStreamState {
             if (seenIdsRef.current.has(key)) return;
             seenIdsRef.current.add(key);
             noteHodMomoLiveAlert(alert);
+            publishHodMomoLiveAlert(alert);
             pendingRef.current.push(alert);
             scheduleFlush();
           }

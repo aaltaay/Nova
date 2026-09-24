@@ -97,9 +97,20 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M14 7h5v5" />
     </Icon>
   ),
+  // The operator's hand-picked Watch list: an eye.
+  watch_list: (
+    <Icon>
+      <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" />
+      <circle cx="12" cy="12" r="3" />
+    </Icon>
+  ),
+  // Contenders (the ranked Five Pillars list, id `watchlist`): a podium.
   watchlist: (
     <Icon>
-      <path d="M12 20s-7-4.5-7-10a4 4 0 017-2.5A4 4 0 0119 10c0 5.5-7 10-7 10z" />
+      <path d="M9 20V8h6v12" />
+      <path d="M3 20v-7h6" />
+      <path d="M15 20v-5h6v5" />
+      <path d="M2 20h20" />
     </Icon>
   ),
   advise: (

@@ -1,7 +1,32 @@
-"""Execution ledger CREATE + column migrations."""
+"""Execution ledger CREATE + column migrations, and which ledger file has them."""
 from __future__ import annotations
 
 import sqlite3
+from pathlib import Path
+
+# The ledger file (``_file_key``) whose schema ``store.init_db`` last ensured.
+_ensured: tuple | None = None
+
+
+def _file_key(path: Path) -> tuple | None:
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    born = getattr(st, "st_birthtime_ns", None) or st.st_ctime_ns
+    return (str(path), st.st_dev, st.st_ino, born)
+
+
+def schema_ensured(path: Path) -> bool:
+    """Whether this process already ensured this ledger file's schema. A new or
+    replaced file -- another cache dir, a ledger rebuilt at the same path -- is
+    a different file and is ensured again."""
+    return _ensured is not None and _ensured == _file_key(path)
+
+
+def mark_schema_ensured(path: Path) -> None:
+    global _ensured
+    _ensured = _file_key(path)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS executions (

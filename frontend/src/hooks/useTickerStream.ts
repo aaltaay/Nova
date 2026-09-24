@@ -9,7 +9,7 @@ import {
 } from '../constants';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import type { BarData, TickerDetail, TickerTradeUpdate } from '../types/ticker';
-import { parseBarsCoverage, setBars } from '../chart/barsStore';
+import { applyBarsPatch, parseBarsCoverage } from '../chart/barsStore';
 import { tickerDetailFromHttp, tickerDetailFromWsInitial } from './tickerStreamHttp';
 import { countSocketMessage, frameBytes } from '../perf/perfCounters';
 
@@ -166,7 +166,7 @@ export function useTickerStream(symbol: string | null): TickerStreamState {
           } else if (msg.type === 'bars_patch') {
             const tf = typeof msg.timeframe === 'string' ? msg.timeframe : '';
             if (!tf || !Array.isArray(msg.bars)) return;
-            setBars(symKey, tf, msg.bars, parseBarsCoverage(msg.coverage));
+            applyBarsPatch(symKey, tf, msg.bars, parseBarsCoverage(msg.coverage));
           } else if (msg.type === 'trade_update') {
             if (!initialReceived) return;
             markLive();
