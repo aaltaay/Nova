@@ -7,6 +7,7 @@ import { useRef, type CSSProperties } from 'react';
 import { BotAutonomyCard } from '../bot/BotAutonomyCard';
 import { ResizeHandle } from '../components/ResizeHandle';
 import { useResizableHeight } from '../hooks/useResizableHeight';
+import type { GatewayStatusFact } from '../ibkr';
 import { TickerTradeActionBar } from '../ibkr/TickerTradeActionBar';
 import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from '../ibkr/types';
 import type { PlaceOrderResult } from '../ibkr/placeOrder';
@@ -28,6 +29,8 @@ interface Props {
   detail: TickerDetail;
   mode: IbkrMode;
   connected: boolean;
+  /** Whether `connected: false` is a status answer or an unknown (QA D10, #459). */
+  gatewayStatus?: GatewayStatusFact;
   spendStatus?: string;
   accountError?: string | null;
   position: IbkrPosition | null;
@@ -43,6 +46,7 @@ export function StockViewRail({
   detail,
   mode,
   connected,
+  gatewayStatus,
   spendStatus,
   accountError = null,
   position,
@@ -104,6 +108,7 @@ export function StockViewRail({
             symbol={symbol}
             mode={mode}
             connected={connected}
+            gatewayStatus={gatewayStatus}
             spendStatus={spendStatus}
             accountError={accountError}
             position={position}

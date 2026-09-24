@@ -4,7 +4,7 @@
  * Thin data coordinator: streams, IBKR gates, resizable rail, detached nav.
  * Layout chrome lives under `stock_view/` (rail + quote card).
  */
-import { useCallback, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ChartGrid } from '../components/ChartGrid';
 import { ResizeHandle } from '../components/ResizeHandle';
 import { useResizableHeight } from '../hooks/useResizableHeight';
@@ -34,6 +34,7 @@ import {
 } from '../constants';
 import { alertApp } from '../ux';
 import { useWorkspace } from '../workspace/WorkspaceContext';
+import { ibkrStatusKnown } from '../workspace/ibkrStatusView';
 import { useRenderCount } from '../perf/useRenderCount';
 
 interface Props {
@@ -58,6 +59,14 @@ export function StockViewPage({
   const { topOfBook } = useTopOfBook();
   const { detail, loading, refreshing, fetchFailed } = useTickerStream(symbol);
   const ibkrStatus = useIbkrStatus();
+  // `connected` is false while the status is pending or failing too: the
+  // ticket says which, never "Connect IB Gateway" for an unknown (QA D10, #459).
+  const statusKnown = ibkrStatusKnown(ibkrStatus);
+  const statusError = statusKnown ? null : ibkrStatus.statusError ?? null;
+  const gatewayStatus = useMemo(
+    () => ({ known: statusKnown, error: statusError }),
+    [statusKnown, statusError],
+  );
   const {
     summary,
     positions,
@@ -229,6 +238,7 @@ export function StockViewPage({
               detail={detail}
               mode={ibkrStatus.mode}
               connected={ibkrStatus.connected}
+              gatewayStatus={gatewayStatus}
               spendStatus={ibkrStatus.spend_status}
               accountError={accountError}
               position={symbolPosition}

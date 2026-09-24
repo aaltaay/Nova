@@ -17,6 +17,7 @@ import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
 import { closeFullPosition } from './closeFullPosition';
 import { executionTransportError } from './executionTransportError';
+import { GATEWAY_STATUS_KNOWN, gatewayLockWhy, type GatewayStatusFact } from './gatewayStatusWording';
 import { ManualOrderTicket } from './ManualOrderTicket';
 import { notifyOrderRejected } from './notifyOrderRejected';
 import { flattenSpendLockReason, isDisarmed, spendLockReason } from './spendLock';
@@ -28,6 +29,8 @@ interface Props {
   symbol: string;
   mode: IbkrMode;
   connected: boolean;
+  /** Whether `connected: false` is a status answer or an unknown (QA D10, #459). */
+  gatewayStatus?: GatewayStatusFact;
   spendStatus?: string;
   /** Set when useIbkrAccount last poll failed — disable Flatten (last-good qty). */
   accountError?: string | null;
@@ -49,6 +52,7 @@ export function TickerTradeActionBar({
   symbol,
   mode,
   connected,
+  gatewayStatus = GATEWAY_STATUS_KNOWN,
   spendStatus,
   accountError = null,
   position,
@@ -66,8 +70,11 @@ export function TickerTradeActionBar({
   const setResultMsg = (next: { ok: boolean; text: string } | null) =>
     setResultMsgState((prev) => (next ? { ...next, seq: (prev?.seq ?? 0) + 1 } : null));
 
+  // An unknown status is never read as a Gateway outage (QA D10, #459).
   const gatewayReason = !connected
-    ? 'IBKR disconnected — connect Gateway (Trading tab) to place orders'
+    ? gatewayStatus.known
+      ? 'IBKR disconnected — connect Gateway (Trading tab) to place orders'
+      : gatewayLockWhy(gatewayStatus)
     : mode === 'disconnected'
       ? 'IBKR mode offline'
       : null;
@@ -202,6 +209,7 @@ export function TickerTradeActionBar({
             symbol={symbol}
             mode={mode}
             connected={connected}
+            gatewayStatus={gatewayStatus}
             spendStatus={spendStatus}
             summary={summary}
             position={position}
