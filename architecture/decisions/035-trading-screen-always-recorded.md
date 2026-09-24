@@ -43,8 +43,11 @@ it. The operator wants the screen recorded all the time, with no way for it to b
    agents, and the `screen_recorder` diagnostics row (group `recorder`) fails with no desktop app
    reporting, a report older than 35 s, or a monitor not recording. It guards the drive like the
    leaderboard (#485): warn under 50 GB free, fail under 10 GB.
-7. **Nothing deletes a recording.** How long to keep them is the operator's to decide; until then
-   every file is kept, and the drive guard says when space runs low.
+7. **Keep everything; warn when F: gets low** (operator decision, 2026-09-24: "Keep every screen
+   recording until I say otherwise; just warn me when F: gets low"). Nothing deletes a recording. The
+   drive guard is the warning: the header chip turns amber under 50 GB free on the recording drive and
+   red under 10 GB, and the `screen_recorder` checklist row warns and fails at the same lines. Only the
+   operator changes this.
 8. **Private by construction.** Recordings stay on this PC. Nothing uploads them, and the issue
    report's dump carries only the status row (paths scrubbed), never a frame.
 
@@ -65,8 +68,9 @@ files cut by the crash or the quit played up to their last timeslice, since shor
 
 ## Consequences
 
-- The recording costs roughly one CPU core of 24 on the desk PC and disk space that grows without end
-  until the operator picks a retention.
+- The recording costs roughly one CPU core of 24 on the desk PC, and disk space that grows without end
+  by the operator's choice (decision 7): at the caps a busy day can take tens of GB, so F:'s 846 GB free
+  on 2026-09-24 lasts weeks to months of full days, and the drive guard says when it runs low.
 - A crash, power loss or quit can lose the last timeslice (1 s) of each open file, and a recorder
   crash leaves a gap of a few seconds while it is replaced; both are in the manifest.
 - The Windows lock screen and UAC's secure desktop may not be capturable; the desk shows the monitors
