@@ -145,9 +145,9 @@ def test_a_live_book_on_a_sim_desk_is_recorded_and_kept_for_sides_but_not_shown(
     monkeypatch.setattr(sim_mode, "is_sim_mode", lambda: True)
     monkeypatch.setattr(handlers, "_record_book", lambda sym, book: recorded.append(book))
     monkeypatch.setattr(state, "push_book", lambda sym, book: shown.append(book))
-    ticker = SimpleNamespace(domBids=[SimpleNamespace(price=6.2, size=200, marketMaker="NSDQ")],
-                             domAsks=[SimpleNamespace(price=6.29, size=117, marketMaker="NSDQ")])
-    handlers.on_update_book(ticker, "IMCC")
+    from tests.depth_ticks import depth_ticker
+
+    handlers.on_update_book(depth_ticker(bids=[(6.2, 200, "NSDQ")], asks=[(6.29, 117, "NSDQ")]), "IMCC")
     assert len(recorded) == 1 and shown == []
     # The stored book still updates: the live print side is classified against it.
     assert state.current_book("IMCC")["bids"][0]["price"] == 6.2

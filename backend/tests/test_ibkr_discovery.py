@@ -10,6 +10,7 @@ import math
 import pytest
 
 import ibkr.discovery as discovery
+import ibkr.quote_rows as quote_rows
 
 
 @pytest.fixture(autouse=True)
@@ -306,7 +307,7 @@ class TestRepriceRows:
             "gap_percent": 0.1,
             "volume": 1000,
         }
-        updated = discovery.reprice_gapper_row(row, {"price": 12.0, "prev_close": 9.0, "volume": 2000})
+        updated = quote_rows.reprice_gapper_row(row, {"price": 12.0, "prev_close": 9.0, "volume": 2000})
         assert updated["price"] == updated["current_price"] == 12.0
         assert math.isclose(updated["change_pct"], 0.2)
         assert math.isclose(updated["change_abs"], 2.0)
@@ -317,12 +318,12 @@ class TestRepriceRows:
 
     def test_reprice_gapper_row_missing_prev_close_returns_unchanged(self):
         row = {"symbol": "AAA", "price": 11.0}
-        updated = discovery.reprice_gapper_row(row, {"price": 12.0, "prev_close": None})
+        updated = quote_rows.reprice_gapper_row(row, {"price": 12.0, "prev_close": None})
         assert updated == row
 
     def test_reprice_mover_row_recomputes_change_from_new_price(self):
         row = {"symbol": "BBB", "price": 9.0, "prev_close": 10.0, "change_pct": -0.1, "change_abs": -1.0, "volume": 500}
-        updated = discovery.reprice_mover_row(row, {"price": 8.0, "prev_close": 12.0, "volume": 600})
+        updated = quote_rows.reprice_mover_row(row, {"price": 8.0, "prev_close": 12.0, "volume": 600})
         assert updated["price"] == 8.0
         assert math.isclose(updated["change_pct"], -0.2)
         assert math.isclose(updated["change_abs"], -2.0)

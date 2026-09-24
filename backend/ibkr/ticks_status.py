@@ -64,6 +64,10 @@ def last_quotes(
         row = {
             "price": price,
             "last_update_ts": sub.get("last_update_ts"),
+            # When the last trade printed (IBKR tick 45), None when unknown; and
+            # ``close_fallback`` when ``price`` is IBKR's prior close with no trade (#541).
+            "last_trade_ts": sub.get("last_trade_ts"),
+            "quote_quality": sub.get("quote_quality"),
             "owners": set(sub.get("owners") or set()),
         }
         day_high = _as_float(sub.get("day_high"))
