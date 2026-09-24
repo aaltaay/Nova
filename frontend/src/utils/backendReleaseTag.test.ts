@@ -49,10 +49,37 @@ describe('the backend revision in the window title', () => {
     expect(document.title).toContain('backend v1');
   });
 
-  it('an API older than the field says nothing rather than a guess', async () => {
+  it('an API that names no revision anywhere says nothing rather than a guess', async () => {
     const tag = novaRendererReleaseTag();
     vi.stubGlobal('fetch', health(undefined));
     renderHook(() => useNovaWindowTitle(false, null));
-    await waitFor(() => expect(document.title).toBe(formatScannerWindowTitle(tag)));
+    await act(() => refreshBackendReleaseTag());
+    expect(document.title).toBe(formatScannerWindowTitle(tag));
+  });
+
+  it('a backend older than the field is named from its checklist, asked once per process', async () => {
+    const tag = novaRendererReleaseTag();
+    let instance = 'a';
+    let checklistTag: unknown = 'v1';
+    const fetchMock = vi.fn(async (url: string) => {
+      const body = url.endsWith('/api/diagnostics')
+        ? { process: { release_tag: checklistTag } }
+        : { status: 'ok', instance_id: instance };
+      return new Response(JSON.stringify(body), { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const checklistReads = () => fetchMock.mock.calls.filter(([u]) => String(u).endsWith('/api/diagnostics')).length;
+    renderHook(() => useNovaWindowTitle(false, null));
+    await act(() => refreshBackendReleaseTag());
+    await waitFor(() => expect(document.title).toBe(`${formatScannerWindowTitle(tag)} · backend v1 (older -- restart it)`));
+    await act(() => refreshBackendReleaseTag());
+    await act(() => refreshBackendReleaseTag());
+    expect(checklistReads()).toBe(1);
+    // Another process whose checklist does not say: unknown, never the last process's revision.
+    instance = 'b';
+    checklistTag = undefined;
+    await act(() => refreshBackendReleaseTag());
+    expect(document.title).toBe(formatScannerWindowTitle(tag));
+    expect(checklistReads()).toBe(2);
   });
 });

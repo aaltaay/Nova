@@ -421,8 +421,10 @@ this API process runs, read once when it started
 an update keeps its own code, so the desk's window title names it after the
 desk's own revision: `Nova — Stock Scanner · v1007 · backend v1007`, and
 `backend v991 (older -- restart it)` when it is older (`electron/appTitle.mjs`;
-read once a minute and on focus by `utils/backendReleaseTag.ts`; nothing while
-unknown). **Reload backend counts only a new process.** The desktop app's
+read once a minute and on focus by `utils/backendReleaseTag.ts`; a backend
+older than the field is read once per process from its `/api/diagnostics`
+`process.release_tag`; nothing while unknown, never another process's
+revision). **Reload backend counts only a new process.** The desktop app's
 reload (`electron/sidecar.reloadEngine`) restarts an engine it started itself;
 an engine it only attached to (Run Nova.bat, the localhost watchdog, another
 checkout) is stopped by that engine's own checkout's `scripts/Stop-NovaPorts.ps1`

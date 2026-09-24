@@ -5,7 +5,9 @@
  * restarts; the title says which one answers. One shared poll per window while something reads
  * it, every BACKEND_TAG_POLL_MS and at once when the window regains focus. A failed read keeps
  * the last answer (the header's API status says when the API is down); the sample desk's
- * network gate refuses the read, so its title never names a backend.
+ * network gate refuses the read, so its title never names a backend. A backend older than the
+ * field (before v1007) still names its revision in its checklist (`/api/diagnostics`
+ * `process.release_tag`): that is read once per backend process, never on every poll.
  */
 import { useSyncExternalStore } from 'react';
 import { API_BASE_URL, BACKEND_TAG_POLL_MS } from '../constants';
@@ -13,6 +15,8 @@ import { API_BASE_URL, BACKEND_TAG_POLL_MS } from '../constants';
 let tag: string | null = null;
 let timer: number | null = null;
 let inFlight: Promise<void> | null = null;
+/** The backend process whose checklist was already asked (a backend older than the field). */
+let checkedInstance: string | null = null;
 const listeners = new Set<() => void>();
 
 function set(next: string | null): void {
@@ -21,13 +25,41 @@ function set(next: string | null): void {
   listeners.forEach(l => l());
 }
 
+function tagOf(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+/**
+ * An older backend's revision from its checklist, once per process. Unknown (null) when the
+ * checklist does not say or does not answer -- never the last process's revision -- and asked
+ * again on the next poll until it answers.
+ */
+async function readFromChecklist(instanceId: string): Promise<void> {
+  if (instanceId === checkedInstance) return;
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/diagnostics`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`diagnostics HTTP ${res.status}`);
+    const body = (await res.json()) as { process?: { release_tag?: unknown } };
+    checkedInstance = instanceId;
+    set(tagOf(body?.process?.release_tag));
+  } catch (err) {
+    console.debug('[Nova] backend revision: the checklist did not answer', err);
+    set(null);
+  }
+}
+
 async function read(): Promise<void> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/health`, { cache: 'no-store' });
     if (!res.ok) return;
-    const body = (await res.json()) as { release_tag?: unknown };
-    const raw = typeof body?.release_tag === 'string' ? body.release_tag.trim() : '';
-    set(raw || null);
+    const body = (await res.json()) as { release_tag?: unknown; instance_id?: unknown };
+    const direct = tagOf(body?.release_tag);
+    const instanceId = tagOf(body?.instance_id);
+    if (direct || !instanceId) {
+      set(direct);
+      return;
+    }
+    await readFromChecklist(instanceId);
   } catch (err) {
     // The API is down or restarting: keep the last answer until it is back.
     console.debug('[Nova] backend revision read failed', err);
@@ -77,4 +109,5 @@ export function useBackendReleaseTag(): string | null {
 export function resetBackendReleaseTagForTests(): void {
   tag = null;
   inFlight = null;
+  checkedInstance = null;
 }
