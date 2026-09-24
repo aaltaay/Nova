@@ -24,6 +24,7 @@ import {
   DESK_VENUE_SIM_TITLE,
   DESK_VENUE_SWITCH_UNREACHABLE,
   deskVenueSwitchFailed,
+  deskVenueSwitchingWhy,
   GATEWAY_MODE_API_RESTART_HINT,
   GLOBAL_BAR_MODE_LIVE,
   GLOBAL_BAR_MODE_PAPER,
@@ -145,6 +146,8 @@ export function GatewayModeCapsule({
   const [switching, setSwitching] = useState<CapsuleSelection | null>(null);
   const [switchError, setSwitchError] = useState<string | null>(null);
   const hintTarget = disconnectHintSwitchTarget(disconnectHint);
+  // Every pill locks while one switch runs, and says so (ux/whyTip.ts).
+  const switchingWhy = switching ? deskVenueSwitchingWhy(VENUE_LABEL[switching]) : undefined;
 
   /** Legacy Sim toggle for an API process that predates /api/desk/venue. */
   async function legacySimFallback(): Promise<string | null> {
@@ -225,7 +228,8 @@ export function GatewayModeCapsule({
             }`}
             aria-pressed={selected === v}
             disabled={switching !== null}
-            title={VENUE_TITLE[v]}
+            data-why={switchingWhy}
+            title={switchingWhy ? undefined : VENUE_TITLE[v]}
             data-testid={`${testId}-${v}`}
             onClick={() => void requestVenue(v)}
           >

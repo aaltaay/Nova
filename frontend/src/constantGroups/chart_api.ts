@@ -131,6 +131,10 @@ export const BACKEND_RELOAD_BUTTON_TITLE =
 export const BACKEND_RELOAD_CONFIRM_TITLE = 'Reload backend?';
 export const BACKEND_RELOAD_CONFIRM_MESSAGE =
   'Restarts the local Nova API process. WebSocket feeds will reconnect; in-memory state resets from disk.';
+/** Why Reload backend / Start API is locked while a restart runs (ux/whyTip.ts). */
+export const BACKEND_RELOAD_WHY_BUSY = 'Restarting the Nova API -- wait for it to come back';
+export const BACKEND_START_WHY_BUSY = 'Starting the Nova API -- wait for it to answer';
+export const BACKEND_START_WHY_AUTO = 'Nova is restarting the API on its own (once, on API_DOWN) -- wait for it';
 /** Short probe used to classify Backend unreachable (API_DOWN vs API_WEDGED). */
 export const BACKEND_PROBE_TIMEOUT_MS = 4_000;
 /** Scanner poll fetch timeout — fail into diagnose instead of hanging for minutes. */
@@ -461,6 +465,15 @@ export const CLOSE_POSITION_VS_CANCEL_HINT =
 /** Flatten is a user spend action — same padlock as Place an order. */
 export const CLOSE_POSITION_PIN_LOCKED_TITLE =
   'Unlock trading at the padlock before Flatten — same lock as Place an order.';
+/** Why a Flatten is locked (ux/whyTip.ts): its own order is in flight. */
+export const CLOSE_POSITION_BUSY_WHY = 'Sending the flatten order -- this unlocks when the venue answers.';
+/** ...the Gateway dropped, so the position on screen is last known. */
+export const CLOSE_POSITION_STALE_WHY =
+  'IBKR disconnected -- this position is last known, so Flatten waits until Nova reconnects.';
+/** Working-order row actions while the orders read has failed and the rows are last known. */
+export const WORKING_ORDER_READ_FAILED_WHY =
+  'Orders could not be read -- these rows are last known, so Cancel and Fill now wait for a fresh read.';
+export const FILL_WORKING_ORDER_NOTHING_LEFT_WHY = 'Nothing left to fill -- no shares remain on this order.';
 /** Working-order remainder fill (RTH market / EH limit sweep). */
 export const FILL_WORKING_ORDER_BUTTON_LABEL = 'Fill now';
 export const FILL_WORKING_ORDER_BUTTON_TITLE =
@@ -642,6 +655,8 @@ export const TICKER_TRADE_UNLOCK_DIALOG_TITLE = 'Trading Verification';
 export const TICKER_TRADE_UNLOCK_DIALOG_SUBTITLE = `Enter your ${TICKER_TRADE_UNLOCK_PIN_LENGTH}-digit Live PIN`;
 export const TICKER_TRADE_UNLOCK_DIALOG_CANCEL = 'Cancel';
 export const TICKER_TRADE_UNLOCK_DIALOG_CHECKING = 'Checking…';
+/** Why the PIN boxes are locked while the backend checks a PIN (ux/whyTip.ts). */
+export const TICKER_TRADE_UNLOCK_DIALOG_CHECKING_WHY = 'Checking this PIN with the Nova backend -- wait for its answer.';
 /** Paper / Sim one-click unlock the backend refused; the body is its own reason. */
 export const TICKER_TRADE_UNLOCK_REFUSED_TITLE = 'Trading stays locked';
 /** POST /api/ibkr/arm answers (armDesk). */

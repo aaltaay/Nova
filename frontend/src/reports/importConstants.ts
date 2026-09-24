@@ -4,6 +4,9 @@ export const JOURNAL_IMPORT_SAMPLE_NAME = 'nova-journal-sample.csv';
 export const JOURNAL_IMPORT_SAMPLE_CSV =
   'symbol,side,qty,entry_price,exit_price,pnl,closed_at,commission,tags\n' +
   'IMP,long,100,10.00,10.50,48.00,2026-03-15,2.00,import;sample\n';
+/** Why Import file is locked while one file uploads (ux/whyTip.ts). */
+export const journalImportBusyWhy = (fileName: string): string =>
+  `Importing ${fileName} -- wait for it to finish`;
 
 /**
  * What this calendar reads (QA V42, 2026-09-22): the trade journal, so it can

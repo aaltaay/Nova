@@ -43,6 +43,9 @@ import {
 } from './TradingSectionNav';
 import type { IbkrOrder } from './types';
 
+/** Why View Book is locked (ux/whyTip.ts). */
+const VIEW_BOOK_NO_SYMBOL_WHY = 'Type a symbol first.';
+
 interface TradingTabProps {
   selectedSymbol: string | null;
   onSelectSymbol: (symbol: string) => void;
@@ -244,6 +247,7 @@ export function TradingTab({
                 className="ibkr-btn-secondary"
                 onClick={() => setDepthSymbol(depthInput || null)}
                 disabled={!depthInput}
+                data-why={depthInput ? undefined : VIEW_BOOK_NO_SYMBOL_WHY}
               >
                 View Book
               </button>

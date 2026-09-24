@@ -52,3 +52,6 @@ export const DESK_VENUE_SWITCH_UNREACHABLE = 'Could not reach Nova backend to sw
 export const deskVenueSwitchFailed = (venue: DeskVenue): string => `Switch to ${venue} failed`;
 export const DESK_VENUE_API_RESTART_HINT =
   'Restart Nova API (venue route missing), then try switching again.';
+/** Why the venue pills are locked while a switch is in flight (ux/whyTip.ts). */
+export const deskVenueSwitchingWhy = (venue: string): string =>
+  `Switching the desk to ${venue} -- the pills unlock when Nova answers.`;

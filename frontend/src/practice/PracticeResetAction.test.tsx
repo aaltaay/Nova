@@ -79,6 +79,24 @@ describe('PracticeResetAction', () => {
     expect(screen.getByRole('alert').textContent).toContain('Reset failed: a fill is in flight');
   });
 
+  it('locks the form while the reset is in flight and says what it is doing', async () => {
+    let answer!: (value: unknown) => void;
+    mocks.fetch.mockImplementation(() => new Promise(resolve => { answer = resolve; }));
+    render(<PracticeResetAction venue="sim" />);
+    const button = screen.getByTestId('practice-reset-button-sim') as HTMLButtonElement;
+    const cash = screen.getByTestId('practice-reset-cash-sim') as HTMLInputElement;
+    expect(button.hasAttribute('data-why')).toBe(false);
+    await click('sim');
+    expect(button.disabled).toBe(true);
+    expect(button.getAttribute('data-why')).toBe('Resetting the Sim account -- wait for it to finish');
+    expect(cash.getAttribute('data-why')).toBe('Resetting the Sim account -- wait for it to finish');
+    await act(async () => {
+      answer({ ok: true, status: 200, json: async () => ({ ...PAPER_ACCOUNT, cash: 100000 }) });
+    });
+    expect(button.disabled).toBe(false);
+    expect(button.hasAttribute('data-why')).toBe(false);
+  });
+
   it('shows the Paper archive note on the form itself', () => {
     render(<PracticeResetAction venue="paper" />);
     expect(screen.getByTestId('practice-reset-paper').textContent).toMatch(/archives the old ledger/);

@@ -58,6 +58,7 @@ class ScoreTracker:
     exit_reason: str | None = None
     closed_at: float | None = None
     bars_seen: int = 0
+    bailout_bars: int = SETUPS_BAILOUT_BARS   # a template sets its own (ADR 029)
     _entry_bar_done: bool = field(default=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -86,10 +87,12 @@ class ScoreTracker:
         return False
 
     # -- completed bars: the backtest's exit rules --------------------------
-    def on_bar(self, bar: Bar, ema9: float) -> bool:
+    def on_bar(self, bar: Bar, ema9: float | None) -> bool:
         """Apply one completed bar at or after the entry bar. Returns True when the trade closed."""
         if self.exit_px is not None or bar.t < self.entry_bar_t:
             return False
+        if ema9 is None:
+            ema9 = bar.c                     # no EMA yet (never after a seeded day): no EMA exit this bar
         if not self._entry_bar_done:
             self._entry_bar_done = True
             if bar.c <= self.bar_stop:
@@ -106,7 +109,7 @@ class ScoreTracker:
             self.half_done, self.half_px, self.bar_stop = True, max(bar.o, self.target1), self.entry
         elif self.half_done and bar.c < ema9:
             return self._exit(bar.c, bar, "ema")
-        elif not self.half_done and self.bars_seen >= SETUPS_BAILOUT_BARS and bar.c <= self.entry:
+        elif not self.half_done and self.bars_seen >= self.bailout_bars and bar.c <= self.entry:
             return self._exit(bar.c, bar, "bailout")
         return False
 

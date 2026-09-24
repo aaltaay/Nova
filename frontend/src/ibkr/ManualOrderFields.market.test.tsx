@@ -55,7 +55,9 @@ describe('ManualOrderFields Market outside regular hours (MKT_OUTSIDE_RTH)', () 
     const { onOrderTypeChange } = render(REASON);
     const btn = container.querySelector('[data-testid="manual-order-type-mkt"]') as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
-    expect(btn.title).toBe(REASON);
+    // The reason rides on data-why (ux/whyTip.ts); no native title stacks on it.
+    expect(btn.dataset.why).toBe(REASON);
+    expect(btn.hasAttribute('title')).toBe(false);
     act(() => btn.click());
     expect(onOrderTypeChange).not.toHaveBeenCalled();
     expect(container.querySelector('[data-testid="market-outside-rth-note"]')?.textContent).toBe(REASON);

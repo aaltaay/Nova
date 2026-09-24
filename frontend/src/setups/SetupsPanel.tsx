@@ -17,10 +17,24 @@ interface Props {
 
 type View = 'board' | 'scoreboard';
 
+function simLine(board: Board): string {
+  const r = board.replay;
+  const what = `Sim eyes on ${r?.symbol ?? 'the replay'}${r?.date ? ` ${r.date}` : ''}`;
+  if (r?.note) return `${what} · ${r.note}`;
+  if (r?.error) return `${what} · the recording could not be read: ${r.error}`;
+  if (r?.loading) return `${what} · reading the recording\u2026`;
+  return `${what} · following the playhead${board.template ? ` · template ${board.template.name}` : ''}`;
+}
+
 function statusLine(board: Board | null, connected: boolean): string {
   if (!connected) return 'Connecting to the setup scanner\u2026';
   if (!board) return 'Waiting for the first board\u2026';
+  if (board.source === 'sim') return simLine(board);
   const parts = [`Watching ${board.universe} symbol${board.universe === 1 ? '' : 's'} from the HOD Momo list`];
+  if (board.template) {
+    const others = (board.templates_watched ?? 1) - 1;
+    parts.push(`template ${board.template.name}${others > 0 ? ` (+${others} scored alongside)` : ''}`);
+  }
   if (board.seeding > 0) parts.push(`loading today's bars for ${board.seeding}`);
   if (!board.proposing) parts.push('no proposals on a replay desk');
   return parts.join(' · ');

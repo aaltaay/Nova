@@ -24,6 +24,7 @@ import {
   SIM_LIVE_EDGE_EMPTY_NOTE, SIM_LIVE_EDGE_LABEL, SIM_LIVE_EDGE_SOURCE, SIM_LIVE_EDGE_TITLE, SIM_REPLAY_LOADING,
   SIM_REPLAY_LOADING_TITLE, SIM_SESSION_MINUTES, SIM_WALL_CLOCK_LABEL, SIM_WALL_CLOCK_TITLE,
 } from './simConstants';
+import { simBusyWhy, simReplayWhy, simTickerWhy } from './simWhy';
 
 /** "Fri, Sep 18" from the clock's Eastern session date (falls back to the open stamp). */
 function formatSessionDate(clock: SimClockState | null): string {
@@ -108,6 +109,10 @@ export function SimSessionHeader({ active: activeProp }: { active: boolean }) {
   const rangeTitle = showCoverage
     ? simScrubberCoverageTitle(coverageLabel(historicalSelection, etMinute) || 'none yet')
     : captureBand.length ? simCaptureBandTitle(captureCoverageLabel(clock, etMinute)) : undefined;
+  // Why each control is locked (ux/whyTip.ts); a locked picker drops its label's title.
+  const followWhy = simBusyWhy(busy, ['follow']);
+  const replayWhy = simReplayWhy(busy, symbol);
+  const tickerWhy = simTickerWhy(busy, day, symbol);
   return <div className="sim-session-header" data-testid="sim-session-header">
     <strong>SIM SESSION</strong>
     <SimPlaybackButton clock={clock} onClock={controller.setClock} onBeforeChange={controller.suspendClock} onSettled={controller.resumeClock}
@@ -142,24 +147,25 @@ export function SimSessionHeader({ active: activeProp }: { active: boolean }) {
       <span data-testid="sim-session-bound-close">{scale.closeLabel}</span>
     </label>
     {clock?.scrubbed || clock?.paused || dragMinute != null
-      ? <button type="button" disabled={busy.has('follow')} onClick={() => void controller.onFollowWall()}>Follow wall clock</button>
+      ? <button type="button" disabled={busy.has('follow')} data-why={followWhy ?? undefined}
+        onClick={() => void controller.onFollowWall()}>Follow wall clock</button>
       : liveEdge
         ? <span className="sim-live-edge" data-testid="sim-live-edge" title={SIM_LIVE_EDGE_TITLE}>{SIM_LIVE_EDGE_LABEL}</span>
         : <span className="sim-muted" data-testid="sim-wall-clock" title={SIM_WALL_CLOCK_TITLE}>{SIM_WALL_CLOCK_LABEL}</span>}
     <HistoricalReplayPanel />
-    {historical ? <button type="button" disabled={busy.has('replay')} onClick={() => {
+    {historical ? <button type="button" disabled={busy.has('replay')} data-why={replayWhy ?? undefined} onClick={() => {
       setDay(''); setSymbol(''); void applyReplay('', '');
     }}>Close replay</button> : <>
-      <label className="sim-session-header__picker" title="Captured session date">Day
-        <select data-testid="sim-replay-day" value={day} disabled={busy.has('replay')} onChange={event => {
+      <label className="sim-session-header__picker" title={replayWhy ? undefined : 'Captured session date'}>Day
+        <select data-testid="sim-replay-day" value={day} disabled={busy.has('replay')} data-why={replayWhy ?? undefined} onChange={event => {
           const next = event.target.value; setDay(next); setSymbol(''); if (!next) void applyReplay('', '');
         }}>
           <option value="">No recording</option>
           {(sessions?.days ?? []).map(item => <option key={item.date} value={item.date}>{item.date} ({item.ticker_count})</option>)}
         </select>
       </label>
-      <label className="sim-session-header__picker" title="Captured ticker">Ticker
-        <select data-testid="sim-replay-ticker" value={symbol} disabled={!day || busy.has('replay')} onChange={event => {
+      <label className="sim-session-header__picker" title={tickerWhy ? undefined : 'Captured ticker'}>Ticker
+        <select data-testid="sim-replay-ticker" value={symbol} disabled={!day || busy.has('replay')} data-why={tickerWhy ?? undefined} onChange={event => {
           const next = event.target.value; setSymbol(next); void applyReplay(day, next);
         }}>
           <option value="">{day ? 'Pick ticker' : '--'}</option>

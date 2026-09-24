@@ -13,6 +13,8 @@ import type { SetupsBoard as Board } from './types';
 
 const openStockView = vi.fn();
 vi.mock('../workspace/WorkspaceContext', () => ({ useWorkspace: () => ({ openStockView }) }));
+const stream = vi.hoisted(() => ({ value: null as null | { board: unknown; connected: boolean } }));
+vi.mock('./SetupsStreamContext', () => ({ useSetupsBoard: () => stream.value }));
 
 const WITH_PROPOSAL: Board = {
   ...SAMPLE_SETUPS_BOARD,
@@ -58,6 +60,13 @@ describe('SetupsBoard', () => {
     stop();
     expect(onOpen).toHaveBeenCalledWith('NVXA');
     expect(staged[0]).toMatchObject({ symbol: 'NVXA', side: 'BUY', orderType: 'LMT', limitPrice: '4.38' });
+  });
+
+  it('shows a setup the template filtered out, with the rule', () => {
+    const row = { ...SAMPLE_SETUPS_BOARD.rows[0], state: 'filtered' as const, proposal: null,
+      reason: 'filtered: float 30.0M over 10.0M' };
+    render(<SetupsBoard rows={[row]} selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={vi.fn()} />);
+    expect(screen.getByText('Filtered')).toBeTruthy();
   });
 
   it('says what it watches when there is nothing to show', () => {
@@ -114,6 +123,29 @@ describe('SetupsAlertCard', () => {
 });
 
 describe('SetupsPanel', () => {
+  afterEach(() => { stream.value = null; });
+
+  it('names the template in play on the live board', () => {
+    stream.value = { connected: true, board: { ...SAMPLE_SETUPS_BOARD, source: 'live', templates_watched: 3,
+      template: { id: 'default', rev: 1, name: 'Default (pre-registered)' } } };
+    render(<SetupsPanel selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={vi.fn()} />);
+    expect(screen.getByText(/template Default \(pre-registered\) \(\+2 scored alongside\)/)).toBeTruthy();
+  });
+
+  it('says when the board is the Sim eyes over a recording, or why it cannot be', () => {
+    const replay = { kind: 'capture', date: '2026-09-23', symbol: 'WHLR', playhead: 1, at: 1, loading: false,
+      error: null, note: null };
+    stream.value = { connected: true, board: { ...SAMPLE_SETUPS_BOARD, source: 'sim', replay,
+      template: { id: 'default', rev: 1, name: 'Default (pre-registered)' } } };
+    const { unmount } = render(<SetupsPanel selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={vi.fn()} />);
+    expect(screen.getByText(/Sim eyes on WHLR 2026-09-23 · following the playhead/)).toBeTruthy();
+    unmount();
+    stream.value = { connected: true, board: { ...SAMPLE_SETUPS_BOARD, source: 'sim', rows: [],
+      replay: { ...replay, kind: 'historical', note: 'no Level 2 in a download' } } };
+    render(<SetupsPanel selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={vi.fn()} />);
+    expect(screen.getByText(/Sim eyes on WHLR 2026-09-23 · no Level 2 in a download/)).toBeTruthy();
+  });
+
   it('explains itself outside the main desk window', () => {
     render(<SetupsPanel selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={vi.fn()} />);
     expect(screen.getByText(/runs in the main desk window/)).toBeTruthy();

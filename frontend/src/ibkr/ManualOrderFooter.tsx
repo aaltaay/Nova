@@ -5,7 +5,11 @@ import {
   TICKER_TRADE_ORDERS_LOCKED_LABEL,
   TICKER_TRADE_UNLOCK_LABEL,
 } from '../constants';
-import { TICKET_LAST_LABEL } from '../constantGroups/trader_chrome';
+import {
+  TICKET_LAST_LABEL,
+  TICKET_WHY_SENDING,
+  WHY_GATEWAY_NOT_CONNECTED,
+} from '../constantGroups/trader_chrome';
 import { EstChip } from '../stock_view/EstChip';
 import { PlaceOrderConfirmDialog } from './PlaceOrderConfirmDialog';
 import { writeSkipPlaceConfirm } from './placeConfirmPrefs';
@@ -61,6 +65,14 @@ export function ManualOrderFooter({
   // Unlock is not a place — keep the unlock affordance reachable while locked so
   // the operator is never stuck, but never offer Place into a certain reject.
   const placeBlockedBySpend = spendLocked && !needsPinUnlock;
+  // A locked Place says why (ux/whyTip.ts); the native title only describes a Place that works.
+  const placeWhy = !connected
+    ? WHY_GATEWAY_NOT_CONNECTED
+    : submitting
+      ? TICKET_WHY_SENDING
+      : placeBlockedBySpend
+        ? lockReason
+        : null;
   const buttonText = !connected
     ? 'Connect IB Gateway'
     : needsPinUnlock
@@ -72,17 +84,13 @@ export function ManualOrderFooter({
         : submitting
           ? 'Placing…'
           : placeLabel;
-  const buttonTitle = !connected
-    ? 'Connect IB Gateway first'
-    : needsPinUnlock
-      ? `Unlock trading, then ${placeLabel}`
-      : spendLocked
-        ? lockReason
-        : quantityLocked
-          ? `Quantity locked to ${TICKER_TRADE_FORCE_QTY} share (temporary safety)`
-          : isPaper
-            ? "Review and place this order on Nova's practice account (fake money)"
-            : 'Review and place this order';
+  const buttonTitle = needsPinUnlock
+    ? `Unlock trading, then ${placeLabel}`
+    : quantityLocked
+      ? `Quantity locked to ${TICKER_TRADE_FORCE_QTY} share (temporary safety)`
+      : isPaper
+        ? "Review and place this order on Nova's practice account (fake money)"
+        : 'Review and place this order';
 
   return (
     <>
@@ -98,8 +106,9 @@ export function ManualOrderFooter({
             : 'manual-order-submit mt-1 w-full'
         }
         data-testid="manual-order-submit"
-        disabled={!connected || submitting || placeBlockedBySpend}
-        title={buttonTitle}
+        disabled={placeWhy != null}
+        title={placeWhy != null ? undefined : buttonTitle}
+        data-why={placeWhy || undefined}
       >
         {buttonText}
       </Button>

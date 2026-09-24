@@ -3,6 +3,7 @@
  * (Long/Short tag menu and the right-click menu), so the two cannot drift on
  * connected / spend / stale-account rules.
  */
+import { CLOSE_POSITION_ACCOUNT_ERROR_TITLE, CLOSE_POSITION_STALE_WHY } from '../constants';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { useOptionalIbkrAccountContext } from '../ibkr/IbkrAccountContext';
 import type { IbkrMode, IbkrPosition } from '../ibkr/types';
@@ -14,6 +15,8 @@ export interface ChartPositionContext {
   connected: boolean;
   spendStatus?: string;
   flattenDisabled: boolean;
+  /** Why `flattenDisabled` is set (ux/whyTip.ts); null while it is not. */
+  flattenWhy: string | null;
 }
 
 export function useChartPositionContext(symbol: string): ChartPositionContext {
@@ -34,5 +37,10 @@ export function useChartPositionContext(symbol: string): ChartPositionContext {
     connected: Boolean(status.connected) && !account?.stale,
     spendStatus: status.spend_status,
     flattenDisabled: Boolean(account?.error || account?.stale),
+    flattenWhy: account?.stale
+      ? CLOSE_POSITION_STALE_WHY
+      : account?.error
+        ? CLOSE_POSITION_ACCOUNT_ERROR_TITLE
+        : null,
   };
 }

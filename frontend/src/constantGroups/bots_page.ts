@@ -70,6 +70,43 @@ export const BOTS_READOUT_GO_SO_FAR = 'GO so far';
 export const BOTS_READOUT_VS = 'vs blind / wait';
 export const BOTS_READOUT_UNREPORTED = 'Read-out not reported by this API — restart the backend to see it.';
 
+/* ---------- Templates (ADR 029): every setup's parameters and its variations ---------- */
+export const BOTS_TEMPLATES_POLL_MS = 30_000;
+export const BOTS_TEMPLATE_LABEL = 'Template';
+export const BOTS_TEMPLATE_PARAMS = (n: number): string => `Parameters (${n})`;
+export const BOTS_TEMPLATE_PICK_TITLE = 'The template in play for this setup: the one that proposes (every first-pullback template is watched and scored at once)';
+export const BOTS_TEMPLATE_BUILTIN_WHY =
+  'The default is the pre-registered rules and stays as it is -- use "New from this" to make a variation you can change';
+export const BOTS_TEMPLATE_SAVING_WHY = 'Saving the last change -- wait for Nova to answer';
+export const BOTS_TEMPLATE_NOTHING_CHANGED_WHY = 'Nothing changed yet -- edit a value first';
+export const BOTS_TEMPLATE_UNFIXED_WHY = 'A value is out of range -- fix the field marked in red first';
+export const BOTS_TEMPLATE_IN_PLAY_WHY = 'Already in play';
+export const BOTS_TEMPLATE_LIMIT_WHY = (n: number): string =>
+  `A setup keeps at most ${n} templates, the default included -- delete one first`;
+export const BOTS_TEMPLATE_NO_PARAMS =
+  'No parameters yet: this setup has never been tested. They are set when its one-second test (S5) is built.';
+export const BOTS_TEMPLATE_NO_PARAMS_WHY = 'No parameters yet -- this setup has never been tested';
+export const BOTS_TEMPLATE_UNREAD_WHY = (err: string | null): string =>
+  `The templates did not load${err ? ` -- ${err}` : ''}`;
+export const BOTS_TEMPLATE_LOADING_WHY = 'Loading the templates -- wait for Nova to answer';
+export const BOTS_TEMPLATE_DELETE_CONFIRM = (name: string): string =>
+  `Delete "${name}"? The setups it scored stay on record; the scanner stops watching its rules.`;
+export const BOTS_TEMPLATE_EVIDENCE_RESET = (name: string, rev: number, scored: number): string =>
+  `Saving new rules on "${name}" starts its evidence over: its read-out restarts at 0 of 50, because the setups `
+  + `so far were found by the old rules. The ${scored} go setup${scored === 1 ? '' : 's'} it has now stay on record under revision ${rev}.`;
+export const BOTS_PARAM_FILTER_OFF_WHY = 'Off -- tick the box beside it to use this filter';
+
+/* ---------- Why a Bots page control is locked (ux/whyTip.ts) ---------- */
+export const BOTS_BUSY_WHY = 'Saving the last change to the bot -- wait for Nova to answer';
+export const BOTS_SESSION_LOADING_WHY = 'The bot session has not loaded yet';
+export const BOTS_KEY_EMPTY_WHY = 'Paste the API key first';
+export const BOTS_KILL_BUSY_WHY = 'The kill switch is answering the last press -- wait for Nova';
+export const BOTS_KILL_UNREAD_WHY = (err: string | null): string =>
+  `The kill switch state has not loaded${err ? ` -- ${err}` : ''}`;
+export const BOTS_SYMBOLS_CAP_WHY = (cap: number): string => `The bot follows at most ${cap} symbols -- remove one first`;
+export const BOTS_SYMBOL_EMPTY_WHY = 'Type a symbol first';
+export const BOTS_SETUP_NOT_CHOSEN_WHY = 'Choose this setup first -- the level belongs to the setup that plays';
+
 /* ---------- Symbols ---------- */
 export const BOTS_SYMBOLS_TITLE = 'Symbols';
 export const BOTS_SYMBOLS_SUB = 'empty list = bot does nothing';
@@ -118,6 +155,9 @@ export const BOTS_PROPOSAL_CLOSED_LABELS: Record<string, string> = {
   disarmed: 'withdrawn',
   failed: 'withdrawn',
   triggered: 'triggered',
+  template: 'withdrawn',
+  edited: 'withdrawn',
+  deleted: 'withdrawn',
 };
 
 /* ---------- Activity ---------- */

@@ -49,6 +49,12 @@ export const PREREQ_GATEWAY_STALE_SECOND_FACTOR_DETAIL =
 export const PREREQ_GATEWAY_STALE_SECOND_FACTOR_CTA_LABEL = 'Start fresh login';
 export const PREREQ_GATEWAY_STALE_SECOND_FACTOR_CTA_BUSY_LABEL = 'Restarting login...';
 
+/** Why a Gateway button is locked while its own request is in flight (ux/whyTip.ts). */
+export const GATEWAY_WHY_LAUNCHING = 'Starting the live Gateway login -- this unlocks when the launch answers.';
+export const GATEWAY_WHY_RECONNECTING = 'Reconnecting Nova to IB Gateway -- this unlocks when the attempt finishes.';
+export const GATEWAY_WHY_SWITCHING = 'Switching Nova to the live Gateway -- this unlocks when the switch answers.';
+export const GATEWAY_WHY_FRESH_LOGIN = 'Restarting the Gateway login -- this unlocks when the launch answers.';
+
 /** D-058 -- READY desk, but the Gateway stopped answering reqCompletedOrders
  * (usually after a Gateway <-> IBKR server reconnect; PROBLEM_LOG 2026-09-19).
  * A warning, not a blocker. Never claim orders work: a Read-Only API Gateway

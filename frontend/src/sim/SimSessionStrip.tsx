@@ -31,8 +31,9 @@ import { captureCoverageLabel } from './simCoverage';
 import {
   SIM_LIVE_EDGE_LABEL, SIM_LIVE_EDGE_TITLE, SIM_REPLAY_LOADING, SIM_REPLAY_LOADING_TITLE,
   SIM_REPLAY_PILL_FAILED_TITLE, SIM_REPLAY_PILL_TITLE, SIM_SESSION_MINUTES,
-  SIM_WALL_CLOCK_LABEL, SIM_WALL_CLOCK_TITLE, simCaptureBandTitle,
+  SIM_WALL_CLOCK_LABEL, SIM_WALL_CLOCK_TITLE, SIM_WHY_AT_EDGE, simCaptureBandTitle,
 } from './simConstants';
+import { simBusyWhy, simClockWhy } from './simWhy';
 import {
   firstReplayMinute, firstReplaySecond, formatMinuteClock, playheadTag, recordedLane, sessionOpeningLabel,
   stripBandSegments, stripScale, todayEt,
@@ -77,12 +78,18 @@ export function SimSessionStrip() {
   ].filter(error => !dismissed.includes(error));
   const seekTo = (target: number) => void controller.endDrag(Math.max(0, Math.min(max, Math.round(target))));
   const seekBusy = busy.has('clock') || busy.has('follow');
+  // Why each transport control is locked (ux/whyTip.ts). A locked control's title is ''
+  // so neither it nor the Trader strip's own title shows over the reason.
+  const clockWhy = simClockWhy(clock);
+  const seekWhy = clockWhy ?? simBusyWhy(busy, ['clock', 'follow']);
+  const edgeWhy = clockWhy ?? (liveEdge ? SIM_WHY_AT_EDGE : null) ?? simBusyWhy(busy, ['follow']);
+  const followWhy = simBusyWhy(busy, ['follow']);
 
   return (
     <div className="sim-strip sim-session-header" data-testid="sim-session-strip" aria-label={SIM_STRIP_LABEL}>
       <div className="sim-strip__transport" role="group" aria-label={SIM_STRIP_LABEL}>
-        <button type="button" title={SIM_STRIP_TRANSPORT_FIRST} aria-label={SIM_STRIP_TRANSPORT_FIRST}
-          disabled={seekBusy || !clock?.sim} data-testid="sim-strip-first"
+        <button type="button" title={seekWhy ? '' : SIM_STRIP_TRANSPORT_FIRST} aria-label={SIM_STRIP_TRANSPORT_FIRST}
+          disabled={seekBusy || !clock?.sim} data-why={seekWhy ?? undefined} data-testid="sim-strip-first"
           onClick={() => {
             // To the first recorded second itself, not its minute (R22).
             const second = firstReplaySecond(clock, selection);
@@ -91,20 +98,20 @@ export function SimSessionStrip() {
           }}>
           <SkipBack size={13} aria-hidden="true" />
         </button>
-        <button type="button" title={SIM_STRIP_TRANSPORT_BACK} aria-label={SIM_STRIP_TRANSPORT_BACK}
-          disabled={seekBusy || !clock?.sim} data-testid="sim-strip-back"
+        <button type="button" title={seekWhy ? '' : SIM_STRIP_TRANSPORT_BACK} aria-label={SIM_STRIP_TRANSPORT_BACK}
+          disabled={seekBusy || !clock?.sim} data-why={seekWhy ?? undefined} data-testid="sim-strip-back"
           onClick={() => seekTo(minute - SIM_STRIP_STEP_MINUTES)}>
           <StepBack size={13} aria-hidden="true" />
         </button>
         <SimPlaybackButton clock={clock} onClock={controller.setClock} onBeforeChange={controller.suspendClock}
           onSettled={controller.resumeClock} symbol={activeTraderSymbol} />
-        <button type="button" title={SIM_STRIP_TRANSPORT_FORWARD} aria-label={SIM_STRIP_TRANSPORT_FORWARD}
-          disabled={seekBusy || !clock?.sim} data-testid="sim-strip-forward"
+        <button type="button" title={seekWhy ? '' : SIM_STRIP_TRANSPORT_FORWARD} aria-label={SIM_STRIP_TRANSPORT_FORWARD}
+          disabled={seekBusy || !clock?.sim} data-why={seekWhy ?? undefined} data-testid="sim-strip-forward"
           onClick={() => seekTo(minute + SIM_STRIP_STEP_MINUTES)}>
           <StepForward size={13} aria-hidden="true" />
         </button>
-        <button type="button" title={SIM_STRIP_TRANSPORT_EDGE} aria-label={SIM_STRIP_TRANSPORT_EDGE}
-          disabled={liveEdge || busy.has('follow') || !clock?.sim} data-testid="sim-strip-edge"
+        <button type="button" title={edgeWhy ? '' : SIM_STRIP_TRANSPORT_EDGE} aria-label={SIM_STRIP_TRANSPORT_EDGE}
+          disabled={liveEdge || busy.has('follow') || !clock?.sim} data-why={edgeWhy ?? undefined} data-testid="sim-strip-edge"
           onClick={() => { void controller.onFollowWall(); }}>
           <SkipForward size={13} aria-hidden="true" />
         </button>
@@ -137,7 +144,8 @@ export function SimSessionStrip() {
         </span>
       ) : offWall || failed ? (
         <button type="button" className={`sim-strip__pill sim-strip__pill--replay${failed ? ' sim-strip__pill--failed' : ''}`}
-          data-testid="sim-strip-replay-state" title={failed ? SIM_REPLAY_PILL_FAILED_TITLE : SIM_REPLAY_PILL_TITLE} disabled={busy.has('follow')}
+          data-testid="sim-strip-replay-state" title={followWhy ? '' : failed ? SIM_REPLAY_PILL_FAILED_TITLE : SIM_REPLAY_PILL_TITLE}
+          disabled={busy.has('follow')} data-why={followWhy ?? undefined}
           onClick={() => { void controller.onFollowWall(); }}>
           <i aria-hidden="true" />{failed ? SIM_STRIP_REPLAY_FAILED : clock?.paused ? SIM_STRIP_REPLAY_PAUSED : SIM_STRIP_REPLAY_PLAYING}
         </button>

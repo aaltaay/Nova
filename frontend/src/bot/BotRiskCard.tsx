@@ -15,6 +15,7 @@ import {
 } from '../constants';
 import {
   BOTS_ADVISE_TITLE,
+  BOTS_BUSY_WHY,
   BOTS_EH_HINT,
   BOTS_EH_LABEL,
   BOTS_EH_OFF,
@@ -60,7 +61,7 @@ export function BotRiskCard({ session, patch, busy, dayPnl }: {
           <span className="bots-slider__head"><span>{BOTS_EH_LABEL}</span><b>{caps.extended_hours ? BOTS_EH_ON : BOTS_EH_OFF}</b></span>
           <label className="bots-switch">
             <input type="checkbox" role="switch" data-testid="bot-strategy-eh" checked={caps.extended_hours}
-              aria-checked={caps.extended_hours} disabled={busy}
+              aria-checked={caps.extended_hours} disabled={busy} data-why={busy ? BOTS_BUSY_WHY : undefined}
               onChange={e => void patch({ caps: { extended_hours: e.target.checked } })} />
             <span className="bots-switch__track" aria-hidden="true" />
             <span className="bots-muted">{BOTS_EH_HINT}</span>

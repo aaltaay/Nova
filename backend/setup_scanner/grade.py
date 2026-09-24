@@ -76,15 +76,23 @@ def read_pillars(symbol: str, now: float | None = None) -> dict[str, Any]:
     }
 
 
-def grade(p: dict[str, Any]) -> tuple[str, dict[str, bool | None]]:
+def grade(p: dict[str, Any], rules: Any = None) -> tuple[str, dict[str, bool | None]]:
+    """A / B / C from the pillars. ``rules`` is a template's ``GradeRules`` (ADR 029);
+    None grades on the pre-registered thresholds."""
+    lo_px = SETUPS_PILLAR_MIN_PRICE if rules is None else rules.min_price
+    hi_px = SETUPS_PILLAR_MAX_PRICE if rules is None else rules.max_price
+    min_chg = SETUPS_PILLAR_MIN_CHANGE_PCT if rules is None else rules.min_change_pct
+    min_rvol = SETUPS_PILLAR_MIN_RVOL if rules is None else rules.min_rvol
+    max_float = SETUPS_PILLAR_MAX_FLOAT if rules is None else rules.max_float
+
     def ok(value, test):
         return None if value is None else bool(test(value))
     checks = {
-        "price": ok(p.get("price"), lambda v: SETUPS_PILLAR_MIN_PRICE <= v <= SETUPS_PILLAR_MAX_PRICE),
-        "change": ok(p.get("change_pct"), lambda v: v >= SETUPS_PILLAR_MIN_CHANGE_PCT),
-        "rvol": ok(p.get("rvol"), lambda v: v >= SETUPS_PILLAR_MIN_RVOL),
+        "price": ok(p.get("price"), lambda v: lo_px <= v <= hi_px),
+        "change": ok(p.get("change_pct"), lambda v: v >= min_chg),
+        "rvol": ok(p.get("rvol"), lambda v: v >= min_rvol),
         "news": p.get("news"),
-        "float": ok(p.get("float"), lambda v: 0 < v <= SETUPS_PILLAR_MAX_FLOAT),
+        "float": ok(p.get("float"), lambda v: 0 < v <= max_float),
     }
     passed = sum(1 for v in checks.values() if v)
     known = all(v is not None for v in checks.values())

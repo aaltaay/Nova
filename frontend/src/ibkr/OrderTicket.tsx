@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { WHY_GATEWAY_NOT_CONNECTED } from '../constantGroups/trader_chrome';
 import { ManualOrderTicket } from './ManualOrderTicket';
 import type { PlaceOrderResult } from './placeOrder';
 import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from './types';
@@ -56,6 +57,7 @@ export function OrderTicket({
           placeholder="AAPL"
           maxLength={10}
           disabled={!connected}
+          data-why={connected ? undefined : WHY_GATEWAY_NOT_CONNECTED}
           className="ibkr-input"
         />
       </div>

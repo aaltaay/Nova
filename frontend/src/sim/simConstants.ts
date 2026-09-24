@@ -253,3 +253,40 @@ export const SIM_FOCUS_RAIL_REPLAY_NOTE = "Today's live scanner -- Sim is replay
 /** A capture selection still being read from disk: neither loaded nor failed (`replay_loading`). */
 export const SIM_REPLAY_LOADING = 'Loading recording…';
 export const SIM_REPLAY_LOADING_TITLE = 'Nova is reading this Session Record from disk; the desk shows it once it has loaded.';
+
+/* ── Why a Sim control is locked (operator report 2026-09-23; ux/whyTip.ts, sim/simWhy.ts) ── */
+/** No Sim clock yet: the poll has not answered, so nothing can move Sim time. */
+export const SIM_WHY_CLOCK_PENDING = 'Waiting for the Sim clock from Nova';
+/** The clock answered, but Nova's API is not on the Sim venue. */
+export const SIM_WHY_NOT_SIM = "Nova's API is not on the Sim venue -- Sim time cannot move";
+/** A Sim clock request in flight, by its useReplayActions key. */
+export const SIM_WHY_BUSY = {
+  clock: 'Moving the playhead -- wait for Nova to answer',
+  follow: 'Returning to the wall clock -- wait for Nova to answer',
+  day: 'Moving Sim to that day -- wait for Nova to answer',
+} as const;
+/** Play / pause in flight: `paused` is the state it is leaving. */
+export const simWhyPlayback = (paused: boolean): string => (paused
+  ? 'Starting Sim time -- wait for Nova to answer'
+  : 'Pausing Sim time -- wait for Nova to answer');
+export const SIM_WHY_AT_EDGE = 'Already at the live edge';
+export const SIM_WHY_AT_WALL_CLOCK = 'Already following the wall clock';
+/** A capture load (the ticker it loads) or Close replay (no ticker) in flight. */
+export const simWhyReplayBusy = (symbol: string): string => (symbol
+  ? `Loading ${symbol} -- wait for it to finish`
+  : 'Closing the replay -- wait for it to finish');
+export const SIM_WHY_PICK_DAY = 'Pick a Day first';
+/** Historical replay panel. */
+export const SIM_WHY_TYPE_TICKER = 'Type a ticker first';
+export const SIM_WHY_WINDOW_LOADING = 'Loading this window -- wait for it to finish';
+export const SIM_WHY_DOWNLOAD_STARTING = {
+  bars: 'Starting the candles download -- wait for Nova to answer',
+  trades: 'Starting the trades download -- wait for Nova to answer',
+} as const;
+export const SIM_WHY_JOB_PAUSING = 'Pause asked -- the download stops before its next page';
+/** A job's Pause / Resume / Retry sent (`action` is the button's own label). */
+export const simWhyJobBusy = (action: string): string => `${action} sent -- waiting for Nova to answer`;
+/** The Sim tab prompt's one action. */
+export const SIM_WHY_TAB_STARTING = 'Starting the download -- wait for Nova to answer';
+export const SIM_WHY_TAB_STOPPING = 'Stopping the download -- wait for Nova to answer';
+export const SIM_WHY_TAB_STOPPING_OTHER = 'Stopping the other download -- this window starts once it has';

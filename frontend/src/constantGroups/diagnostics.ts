@@ -31,3 +31,8 @@ export const DIAG_STATE_LABELS: Record<string, string> = {
 };
 
 export const DIAG_COUNTS_ORDER = ['fail', 'warn', 'unknown', 'off', 'ok'] as const;
+
+/** Why a row's action is locked while that action runs (ux/whyTip.ts). */
+export const DIAG_WHY_RELOADING = 'Restarting the Nova API -- this unlocks when it answers.';
+export const diagActionRunningWhy = (label: string): string =>
+  `${label} is already running -- this unlocks when it finishes.`;

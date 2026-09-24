@@ -3,8 +3,11 @@
 Owner: this module (the only reader and writer of ``setups.db``).
 File: ``paths.cache_dir() / SETUPS_DB_FILENAME`` -- operator cache, not git.
 Invalidation: none; it is history. A trading day adds rows, nothing expires.
-Schema: ``PRAGMA user_version = SETUPS_SCHEMA_VERSION``; an unknown version is
-refused loudly rather than read wrong (persisted-state rule).
+Schema: ``PRAGMA user_version = SETUPS_DB_SCHEMA_VERSION``; an unknown version is
+refused loudly rather than read wrong (persisted-state rule). Version 2 (ADR
+029) stamps every row with the template that armed it (``template_id``,
+``template_rev``, ``params_hash``); a version-1 file is migrated in place and
+its rows become the default template's -- the rules that armed them.
 """
 from __future__ import annotations
 
@@ -18,7 +21,12 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from constants_setups import SETUPS_DB_FILENAME, SETUPS_SCHEMA_VERSION
+from constants_setups import (
+    SETUP_TEMPLATE_DEFAULT_ID,
+    SETUP_TEMPLATE_DEFAULT_REV,
+    SETUPS_DB_FILENAME,
+    SETUPS_DB_SCHEMA_VERSION,
+)
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
@@ -30,19 +38,29 @@ COLUMNS: tuple[str, ...] = (
     "near_at", "near_tape", "triggered_at", "entry", "trigger_tape",
     "failed_at", "fail_reason", "disarmed_at",
     "outcome", "outcome_at", "mfe", "mae", "bar_r", "bar_exit_reason", "closed_at",
-    "proposal_id", "updated_at",
+    "proposal_id", "updated_at", "template_id", "template_rev", "params_hash",
 )
 JSON_COLUMNS = frozenset({"pillars", "near_tape", "trigger_tape"})
+TEXT_COLUMNS = JSON_COLUMNS | {"kind", "state", "reason", "grade", "fail_reason", "outcome", "bar_exit_reason",
+                               "proposal_id", "template_id", "params_hash"}
+INT_COLUMNS = frozenset({"template_rev"})
+
+
+def _type(column: str) -> str:
+    return "TEXT" if column in TEXT_COLUMNS else "INTEGER" if column in INT_COLUMNS else "REAL"
+
 
 _SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS setups (
     id TEXT PRIMARY KEY,
     session_date TEXT NOT NULL,
     symbol TEXT NOT NULL,
-    {", ".join(f"{c} {'TEXT' if c in JSON_COLUMNS or c in ('kind', 'state', 'reason', 'grade', 'fail_reason', 'outcome', 'bar_exit_reason', 'proposal_id') else 'REAL'}" for c in COLUMNS[3:])}
+    {", ".join(f"{c} {_type(c)}" for c in COLUMNS[3:])}
 );
 CREATE INDEX IF NOT EXISTS setups_day ON setups (session_date, symbol);
+CREATE INDEX IF NOT EXISTS setups_template ON setups (template_id, template_rev);
 """
+_V2_COLUMNS = ("template_id", "template_rev", "params_hash")
 
 
 class StoreVersionError(RuntimeError):
@@ -70,13 +88,30 @@ class SetupStore:
             ver = self._conn.execute("PRAGMA user_version").fetchone()[0]
             tables = self._conn.execute(
                 "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='setups'").fetchone()[0]
-            if ver not in (0, SETUPS_SCHEMA_VERSION) or (ver == 0 and tables):
+            if ver not in (0, 1, SETUPS_DB_SCHEMA_VERSION) or (ver == 0 and tables):
                 raise StoreVersionError(
-                    f"{self.path.name} has schema version {ver}; this build reads {SETUPS_SCHEMA_VERSION}. "
+                    f"{self.path.name} has schema version {ver}; this build reads {SETUPS_DB_SCHEMA_VERSION}. "
                     "Move the file aside to start a new scoreboard.")
+            if ver == 1:
+                self._migrate_v1()
             self._conn.executescript(_SCHEMA)
-            self._conn.execute(f"PRAGMA user_version = {SETUPS_SCHEMA_VERSION}")
+            self._conn.execute(f"PRAGMA user_version = {SETUPS_DB_SCHEMA_VERSION}")
             self._conn.commit()
+
+    def _migrate_v1(self) -> None:
+        """v1 -> v2: the template stamp; every older row is the default template's (ADR 029)."""
+        from constants_bot import BOT_SETUP_FIRST_PULLBACK
+        from setup_templates.catalogue import defaults, fingerprint
+
+        have = {r[1] for r in self._conn.execute("PRAGMA table_info(setups)").fetchall()}
+        for col in _V2_COLUMNS:
+            if col not in have:
+                self._conn.execute(f"ALTER TABLE setups ADD COLUMN {col} {_type(col)}")
+        self._conn.execute(
+            "UPDATE setups SET template_id = ?, template_rev = ?, params_hash = ? WHERE template_id IS NULL",
+            (SETUP_TEMPLATE_DEFAULT_ID, SETUP_TEMPLATE_DEFAULT_REV,
+             fingerprint(defaults(BOT_SETUP_FIRST_PULLBACK))))
+        logger.info("setups.db migrated to schema 2: earlier rows are the default template's")
 
     def upsert(self, row: dict[str, Any]) -> None:
         data = {k: row.get(k) for k in COLUMNS if k in row}
@@ -92,8 +127,15 @@ class SetupStore:
             self._conn.commit()
 
     def rows(self, *, date_from: str | None = None, date_to: str | None = None,
-             symbol: str | None = None, limit: int | None = None) -> list[dict[str, Any]]:
+             symbol: str | None = None, limit: int | None = None, template_id: str | None = None,
+             template_rev: int | None = None) -> list[dict[str, Any]]:
         where, args = [], []
+        if template_id:
+            where.append("template_id = ?")
+            args.append(template_id)
+        if template_rev is not None:
+            where.append("template_rev = ?")
+            args.append(int(template_rev))
         if date_from:
             where.append("session_date >= ?")
             args.append(date_from)

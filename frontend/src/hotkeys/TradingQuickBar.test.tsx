@@ -118,9 +118,12 @@ describe('TradingQuickBar', () => {
     render();
     const askBuy = () => buttons().find((b) => b.dataset.kind === 'buy_limit_ask_offset')!;
     expect(askBuy().disabled).toBe(true);
-    expect(askBuy().title).toBe(NOVA_ACTION_DEPTH_DISABLED_REASON);
+    // The reason rides on data-why (ux/whyTip.ts); no native title stacks on it.
+    expect(askBuy().dataset.why).toBe(NOVA_ACTION_DEPTH_DISABLED_REASON);
+    expect(askBuy().hasAttribute('title')).toBe(false);
     render({ symbol: 'GRML', bid: 8.89, ask: 8.91, depthSubscribed: true });
     expect(askBuy().disabled).toBe(false);
+    expect(askBuy().dataset.why).toBeUndefined();
     expect(askBuy().title).toContain('F1');
   });
 

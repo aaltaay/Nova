@@ -211,7 +211,7 @@ describe('ManualOrderTicket compact layout', () => {
     expect(limit().value).toBe('8.94');
     renderTicket({ book: { ...BOOK, ask: null } });
     expect(limit().value).toBe('8.94');
-    expect(q<HTMLButtonElement>('[data-testid="manual-order-price-ask"]').title).toMatch(/holds until the book returns/);
+    expect(q<HTMLButtonElement>('[data-testid="manual-order-price-ask"]').dataset.why).toMatch(/holds until the book returns/);
   });
 
   it('greys Bid / Mid / Ask with the reason when there is no live book for the symbol', () => {
@@ -221,7 +221,8 @@ describe('ManualOrderTicket compact layout', () => {
     });
     const bid = q<HTMLButtonElement>('[data-testid="manual-order-price-bid"]');
     expect(bid.disabled).toBe(true);
-    expect(bid.title).toBe('No live bid / ask for this symbol');
+    expect(bid.dataset.why).toBe('No live bid / ask for this symbol');
+    expect(bid.hasAttribute('title')).toBe(false);
   });
 
   it('shows Cost · BP after from the same sizing the Place path uses', () => {

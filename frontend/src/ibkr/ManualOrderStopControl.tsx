@@ -10,17 +10,21 @@ import { isStopFamilyType, type ManualOrderType } from './orderEntry';
 interface Props {
   orderType: ManualOrderType;
   disabled: boolean;
+  /** Why `disabled` is set -- each locked button says it (ux/whyTip.ts). */
+  why?: string | null;
   onOrderTypeChange: (orderType: ManualOrderType) => void;
 }
 
 export function ManualOrderStopControl({
   orderType,
   disabled,
+  why = null,
   onOrderTypeChange,
 }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const familyActive = isStopFamilyType(orderType);
+  const lockWhy = disabled ? why || undefined : undefined;
 
   useEffect(() => {
     if (!open) return;
@@ -51,9 +55,10 @@ export function ManualOrderStopControl({
           type="button"
           className={familyActive ? 'is-active' : ''}
           aria-pressed={orderType === 'STP'}
-          title="Stop order"
+          title={lockWhy ? undefined : 'Stop order'}
           onClick={() => pick('STP')}
           disabled={disabled}
+          data-why={lockWhy}
           data-testid="manual-order-type-stop"
         >
           {TICKER_TRADE_LABEL_STOP}
@@ -64,12 +69,13 @@ export function ManualOrderStopControl({
           aria-label={TICKER_TRADE_LABEL_STOP_TYPES}
           aria-expanded={open}
           aria-haspopup="menu"
-          title={TICKER_TRADE_LABEL_STOP_TYPES}
+          title={lockWhy ? undefined : TICKER_TRADE_LABEL_STOP_TYPES}
           onClick={event => {
             event.stopPropagation();
             setOpen(current => !current);
           }}
           disabled={disabled}
+          data-why={lockWhy}
           data-testid="manual-order-stop-caret"
         >
           ^
@@ -87,6 +93,7 @@ export function ManualOrderStopControl({
             className={orderType === 'STP LMT' ? 'is-active' : ''}
             onClick={() => pick('STP LMT')}
             disabled={disabled}
+            data-why={lockWhy}
             data-testid="manual-order-type-stop-limit"
           >
             {TICKER_TRADE_LABEL_STOP_LIMIT}
@@ -97,6 +104,7 @@ export function ManualOrderStopControl({
             className={orderType === 'TRAIL' ? 'is-active' : ''}
             onClick={() => pick('TRAIL')}
             disabled={disabled}
+            data-why={lockWhy}
             data-testid="manual-order-type-trail"
           >
             {TICKER_TRADE_LABEL_TRAILING_STOP}

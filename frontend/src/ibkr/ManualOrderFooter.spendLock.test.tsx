@@ -4,6 +4,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { TICKET_WHY_SENDING, WHY_GATEWAY_NOT_CONNECTED } from '../constantGroups/trader_chrome';
 import { ManualOrderFooter } from './ManualOrderFooter';
 
 const BASE = {
@@ -46,6 +47,8 @@ describe('ManualOrderFooter spend lock (D-013)', () => {
   it('enables Place when spending is armed', () => {
     const btn = render({ spendLocked: false });
     expect(btn.disabled).toBe(false);
+    expect(btn.dataset.why).toBeUndefined();
+    expect(btn.title).toMatch(/practice account/);
   });
 
   it('disables Place when spending is locked', () => {
@@ -54,12 +57,19 @@ describe('ManualOrderFooter spend lock (D-013)', () => {
     expect(btn.textContent).toBe('Orders locked');
   });
 
-  it('shows the backend lock reason as the button title', () => {
+  it('says the backend lock reason on the locked button, with no native title stacked on it', () => {
     const btn = render({
       spendLocked: true,
       spendLockReason: 'live door but broker managedAccounts are paper',
     });
-    expect(btn.title).toBe('live door but broker managedAccounts are paper');
+    expect(btn.dataset.why).toBe('live door but broker managedAccounts are paper');
+    expect(btn.hasAttribute('title')).toBe(false);
+  });
+
+  it('says why Place is locked while an order is in flight', () => {
+    const btn = render({ submitting: true });
+    expect(btn.disabled).toBe(true);
+    expect(btn.dataset.why).toBe(TICKET_WHY_SENDING);
   });
 
   it('shows the lock reason inline so the operator sees it without hovering', () => {
@@ -86,8 +96,9 @@ describe('ManualOrderFooter spend lock (D-013)', () => {
     expect(btn.disabled).toBe(false);
   });
 
-  it('still disables Place when disconnected', () => {
+  it('still disables Place when disconnected, and says the Gateway is why', () => {
     const btn = render({ connected: false, spendLocked: false });
     expect(btn.disabled).toBe(true);
+    expect(btn.dataset.why).toBe(WHY_GATEWAY_NOT_CONNECTED);
   });
 });

@@ -36,20 +36,24 @@ interface Props {
   /** The side the limit follows; null once the operator typed their own price. */
   following: QuickPriceKind | null;
   disabled: boolean;
+  /** Why `disabled` is set -- each locked button says it (ux/whyTip.ts). */
+  why?: string | null;
   /** `kind` null stops following and leaves the price where it is. */
   onFollow: (kind: QuickPriceKind | null, price: string | null) => void;
 }
 
-function buttonTitle(kind: QuickPriceKind, price: string | null, following: boolean): string {
-  if (price == null) {
-    return following ? `${TICKET_PRICE_QUICK_NO_BOOK}; ${TICKET_PRICE_FOLLOW_HOLDING}` : TICKET_PRICE_QUICK_NO_BOOK;
-  }
+/** Why a button is locked with no book for this symbol (ux/whyTip.ts). */
+function noBookWhy(following: boolean): string {
+  return following ? `${TICKET_PRICE_QUICK_NO_BOOK}; ${TICKET_PRICE_FOLLOW_HOLDING}` : TICKET_PRICE_QUICK_NO_BOOK;
+}
+
+function buttonTitle(kind: QuickPriceKind, price: string, following: boolean): string {
   return following
     ? `${TICKET_PRICE_FOLLOWING_TITLE} ${kind}: ${price} -- ${TICKET_PRICE_FOLLOW_STOP}`
     : `${TICKET_PRICE_QUICK_TITLE} ${kind}: ${price}`;
 }
 
-export function ManualOrderPriceQuick({ symbol, book, following, disabled, onFollow }: Props) {
+export function ManualOrderPriceQuick({ symbol, book, following, disabled, why = null, onFollow }: Props) {
   return (
     <div
       className="mot-mini"
@@ -60,6 +64,8 @@ export function ManualOrderPriceQuick({ symbol, book, following, disabled, onFol
       {QUICK_PRICE_KINDS.map((kind) => {
         const price = quickPriceFromBook(kind, book, symbol);
         const active = following === kind;
+        // No book outlives the ticket's own lock, so it answers first.
+        const lockWhy = price == null ? noBookWhy(active) : disabled ? why || undefined : undefined;
         return (
           <button
             key={kind}
@@ -67,7 +73,8 @@ export function ManualOrderPriceQuick({ symbol, book, following, disabled, onFol
             className={active ? 'is-on' : ''}
             aria-pressed={active}
             disabled={disabled || price == null}
-            title={buttonTitle(kind, price, active)}
+            title={price == null || lockWhy ? undefined : buttonTitle(kind, price, active)}
+            data-why={lockWhy}
             data-testid={`manual-order-price-${kind}`}
             onClick={() => {
               if (active) onFollow(null, null);

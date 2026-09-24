@@ -1,7 +1,8 @@
 /** Wire shapes of `/ws/setups` and `/api/setups/*` (backend `setup_scanner/`, ADR 022). */
 import type { CatalystVerdict } from '../types/catalystVerdict';
 
-export type SetupState = 'near' | 'armed' | 'triggered' | 'pullback' | 'leg' | 'failed' | 'watching';
+/** `filtered`: the pattern armed but the template's stock filter keeps the name out (ADR 029). */
+export type SetupState = 'near' | 'armed' | 'triggered' | 'pullback' | 'leg' | 'failed' | 'watching' | 'filtered';
 export type TapeVerdict = 'go' | 'wait' | 'veto' | 'blind';
 
 export interface SetupLevels {
@@ -81,10 +82,29 @@ export interface SetupRow {
   mae: number | null;
 }
 
+/** The Sim eyes' replay (ADR 029): what the board follows off the live edge. */
+export interface SetupsReplay {
+  kind: 'capture' | 'historical';
+  date: string | null;
+  symbol: string | null;
+  playhead: number | null;
+  at: number | null;
+  loading: boolean;
+  error: string | null;
+  /** Why the eyes cannot watch this replay (a download has no Level 2). */
+  note: string | null;
+}
+
 export interface SetupsBoard {
   schema_version: number;
   generated_at: number;
   session_date: string | null;
+  /** `live` (the market) or `sim` (the Sim eyes over the loaded Session Record, ADR 029). */
+  source?: 'live' | 'sim';
+  /** The first-pullback template in play: the one that proposes. */
+  template?: { id: string; rev: number; name: string } | null;
+  templates_watched?: number;
+  replay?: SetupsReplay | null;
   universe: number;
   seeding: number;
   scoreboard: boolean;

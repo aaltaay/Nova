@@ -6,6 +6,8 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   BACKEND_DIAG_FLAG_DOWN,
+  BACKEND_START_WHY_AUTO,
+  BACKEND_START_WHY_BUSY,
 } from '../constants';
 import { maybeAutoHealBackend } from '../utils/backendAutoHeal';
 import { startLocalApi } from '../utils/startLocalApi';
@@ -19,7 +21,9 @@ interface Props {
 }
 
 export function BackendStartButton({ onStarted, flag, flagHint }: Props) {
-  const [busy, setBusy] = useState(false);
+  // Why the button is locked while a start runs (ux/whyTip.ts): the auto-heal or the operator's own click.
+  const [busyWhy, setBusyWhy] = useState<string | null>(null);
+  const busy = busyWhy !== null;
   const [error, setError] = useState<string | null>(null);
   const [autoNote, setAutoNote] = useState<string | null>(null);
   const autoTriedRef = useRef(false);
@@ -33,12 +37,12 @@ export function BackendStartButton({ onStarted, flag, flagHint }: Props) {
     }
     autoTriedRef.current = true;
     let cancelled = false;
-    setBusy(true);
+    setBusyWhy(BACKEND_START_WHY_AUTO);
     setAutoNote('Auto-restarting API…');
     setError(null);
     void maybeAutoHealBackend(flag).then((result) => {
       if (cancelled) return;
-      setBusy(false);
+      setBusyWhy(null);
       if (!result) {
         setAutoNote(null);
         return;
@@ -61,11 +65,11 @@ export function BackendStartButton({ onStarted, flag, flagHint }: Props) {
 
   async function handleClick() {
     if (busy) return;
-    setBusy(true);
+    setBusyWhy(BACKEND_START_WHY_BUSY);
     setError(null);
     setAutoNote(null);
     const result = await startLocalApi();
-    setBusy(false);
+    setBusyWhy(null);
     if (!result.ok) {
       setError(result.error);
       return;
@@ -88,7 +92,8 @@ export function BackendStartButton({ onStarted, flag, flagHint }: Props) {
         className="backend-start-btn"
         onClick={() => void handleClick()}
         disabled={busy}
-        title={title}
+        data-why={busyWhy ?? undefined}
+        title={busy ? undefined : title}
       >
         {busy ? 'Starting…' : 'Start API'}
       </button>
