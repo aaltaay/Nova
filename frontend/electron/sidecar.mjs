@@ -15,6 +15,7 @@ import {
   pickNovaEnvPath,
   readEnvValue,
 } from './envMerge.mjs';
+import { engineIdentity, isNewEngine, restartCheckoutEngine } from './engineRestart.mjs';
 import { SIDECAR_PORT_FREE_TIMEOUT_MS, waitForPortFree } from './portWait.mjs';
 import { createSerialQueue } from './serialQueue.mjs';
 import { skipApiSidecar } from './sidecarSkip.mjs';
@@ -343,7 +344,21 @@ export function stopApiSidecarForUpdate(timeoutMs = SIDECAR_PORT_FREE_TIMEOUT_MS
   });
 }
 
-/** Stop our sidecar (if any), free port 8000, start fresh, wait for /api/health. */
+async function restartOwnUnlocked() {
+  stopApiSidecarUnlocked();
+  stopExternalListener();
+  const freed = await waitForPortFree(API_HOST, API_PORT);
+  if (!freed) {
+    console.warn('[nova-api] port still busy after stop; starting anyway');
+  }
+  await startApiSidecarUnlocked();
+  await waitForHealth();
+}
+
+/**
+ * Bring the engine back after an install is called off (#347): stop our sidecar (if any), free
+ * port 8000, start fresh, wait for /api/health. An engine we only attached to stays as it is.
+ */
 export function restartApiSidecar() {
   return sidecarQueue.enqueue(async () => {
     if (skipApiSidecar()) {
@@ -353,14 +368,34 @@ export function restartApiSidecar() {
       await waitForHealth(8_000);
       return;
     }
-    stopApiSidecarUnlocked();
-    stopExternalListener();
-    const freed = await waitForPortFree(API_HOST, API_PORT);
-    if (!freed) {
-      console.warn('[nova-api] port still busy after stop; starting anyway');
+    await restartOwnUnlocked();
+  });
+}
+
+/**
+ * The operator's "Reload backend" (IPC nova:restartApi): a different engine process answers
+ * afterwards, or this throws saying why. An engine this app started is stopped and started
+ * again; one it only attached to is restarted from its own checkout (engineRestart.mjs), never
+ * swapped for this app's packaged engine. Resolves with the revisions before and after.
+ * @returns {Promise<{from: string | null, to: string | null}>}
+ */
+export function reloadEngine() {
+  return sidecarQueue.enqueue(async () => {
+    const before = await engineIdentity(API_BASE);
+    if (before && !apiChild) {
+      return restartCheckoutEngine(before, {
+        apiBase: API_BASE,
+        port: API_PORT,
+        ownRoot: repoRootFromElectron(),
+        waitForPortFree: () => waitForPortFree(API_HOST, API_PORT),
+      });
     }
-    await startApiSidecarUnlocked();
-    await waitForHealth();
+    await restartOwnUnlocked();
+    const after = await engineIdentity(API_BASE);
+    if (before && !isNewEngine(before, after)) {
+      throw new Error('Not restarted: the same backend process is still answering');
+    }
+    return { from: before?.release_tag ?? null, to: after?.release_tag ?? null };
   });
 }
 

@@ -412,6 +412,29 @@ human_step_poll_sec, cleared_at, cleared_reason, recent[]}` from
 10 min, then a stated human step). `ibkr/session_errors.last_error()` is
 `{code, message, ts} | null` for the last IB errorEvent of any code.
 
+### Which backend answers (operator report, 2026-09-24)
+
+`GET /api/health` adds `release_tag: string | null` -- the revision (`vNNN`)
+this API process runs, read once when it started
+(`diagnostics.process_info.REVISION`), `null` when git could not say -- beside
+`instance_id` / `pid` / `started_at`. A backend left running across a merge or
+an update keeps its own code, so the desk's window title names it after the
+desk's own revision: `Nova — Stock Scanner · v1007 · backend v1007`, and
+`backend v991 (older -- restart it)` when it is older (`electron/appTitle.mjs`;
+read once a minute and on focus by `utils/backendReleaseTag.ts`; nothing while
+unknown). **Reload backend counts only a new process.** The desktop app's
+reload (`electron/sidecar.reloadEngine`) restarts an engine it started itself;
+an engine it only attached to (Run Nova.bat, the localhost watchdog, another
+checkout) is stopped by that engine's own checkout's `scripts/Stop-NovaPorts.ps1`
+(`process.repo_root` from `/api/diagnostics`) and started again by the
+watchdog or, with none running, by that checkout's `scripts/Start-NovaApi.ps1`
+-- never by the app's packaged engine, whose data lives elsewhere
+(`electron/engineRestart.mjs`). It reports success only when a different
+`instance_id` answers `/api/health`, and otherwise says why ("Not restarted:
+..."); the Vite dev server's reload already waited for a new `instance_id`. The
+Bots page reads an API older than ADR 031 (setups listed without a `level`) as
+a backend that needs a reload, never as a setup with no scanner.
+
 ### Where Nova keeps its data (operator ask, 2026-09-24)
 
 "any recording and data, lets keep them off the C drive": the operator's F:
@@ -2054,6 +2077,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-24 | Which backend answers, and a reload that is one (operator reports after ADR 031 shipped: "weren't we supposed to see scanners here?", "i clicked the 'reload backend' button, does it still work?", "something in the software title that shows us what backend v### we are using"): the desk had updated while the backend still ran the morning's code, so the Bots page called three built scanners "No scanner yet", and the desktop app's Reload backend said "Backend reloaded" while the same process kept answering -- the installed app looked for the stop script beside itself, found none and re-attached. `/api/health` names its `release_tag`, the window title shows the backend's revision after the desk's and flags an older one, the desktop reload restarts an attached engine from its own checkout and succeeds only on a new `instance_id`, and the Bots page says a backend older than ADR 031 needs a reload. The setup radio now reads "the bot trades this": every scanner runs at once, Eyes on as many as you like, and only the one the bot trades by itself is picked. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Update takes the newest release (operator report: "when the app detected v1004, there was v1005 already in the pipeline but it didn't catch it"): the desk found v1004 at 10:42 ET; v1005 shipped at 11:30; Update at 13:20 downloaded v1004 from the morning's answer, because re-checks hold 07:00-16:00 and Update never asked again. An Update click on an offer older than a minute now checks GitHub first and downloads the newest release (`frontend/electron/newestRelease.mjs`); the check stays off the notice, and a failed one downloads the release on offer. §8 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | File an issue from the desk (operator ask: "when I do the update, I can also click and say 'File an issue' ... it goes directly to GitHub", then "link the issue/dump file as part of this issue automatically", "humans are not going to ... give you a title or description", and "I really don't want any personal information about my computer ... this is real money"; approved mockup v2): the What's new card and Help > File an Issue… open a form -- Bug or Feature, optional title and description, the desk details and a diagnostics dump attached. One click with nothing typed files a bug that Nova titles and describes from the dump, with no model. The backend (`backend/issue_report/`) files through the GitHub CLI already signed in on the desk, uploads the dump as a secret gist and links it; the operator previews the exact dump first. Everything posted passes one scrubber: no secrets, account ids, balances, paths, user or machine names, e-mail or IP addresses. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Nova's data leaves C: (operator ask: "we also have PLENTY of space in F drive, any recording and data, lets keep them off the C drive!"): the checkout's `backend\.cache` held 26 GB on C: (the archive, 19 GB of nightly backups, the cold archive, `l2.db`, the ledgers, perf) and `backend\logs` 236 MB, while captures, downloads, the leaderboard, catalysts and eyes were already on F:. `tools/data_root.py move` copies both to `F:\Nova\cache` / `F:\Nova\logs`, verifies every file and leaves directory junctions at the old paths, so every writer keeps its path; it refuses while Nova runs and resumes after an interruption. A per-checkout junction, not a machine-wide F: default, because `api_instance_lock` stops a lock holder it cannot see on its own port: a worktree sharing the desk's cache could stop the live API. `/api/diagnostics` adds the `data_folders` row. §3 amended. | User Directive + Claude Opus 5.5 |

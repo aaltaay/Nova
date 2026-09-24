@@ -146,8 +146,22 @@ export const BOT_SETUP_NEXT: Record<string, { head: string; why: string; unblock
 /* The setup cards' rule lines and tape gate lines are built from the template in play
    (bot/templateFormat.ts, ADR 029), never written by hand. */
 
-export const BOT_CHOSEN_BADGE = 'Chosen';
+/** The one setup Nova's bot trades by itself at Strategy; every other setup keeps scanning. */
+export const BOT_CHOSEN_BADGE = 'Bot trades this';
 export const BOT_NO_SCANNER_TITLE = 'No scanner yet -- it cannot play until it has one and its read-out passes';
+
+/** The setups this build has a scanner for -- mirrors backend constants_bot.BOT_SCANNER_SETUPS (ADR 031). */
+export const BOT_SCANNER_SETUP_IDS: readonly string[] = ['first_pullback', 'bull_flag', 'flat_top_breakout', 'red_to_green'];
+/* A backend older than ADR 031 runs the first pullback only. The page says the backend needs a
+   reload -- never "No scanner yet", which would say the feature is missing when it is not loaded. */
+export const BOT_STALE_BACKEND_BANNER =
+  'Your backend is still running code from before the setup scanners, so only the first pullback is running. '
+  + 'Reload it to start the bull flag, flat-top and red to green scanners and to move the loss breakers. '
+  + 'A reload takes about half a minute, and a recording picks up where it left off.';
+export const BOT_STALE_BACKEND_STATUS = 'Not running yet: the backend needs a reload to start this scanner';
+export const BOT_STALE_BACKEND_WHY =
+  'The backend is running code from before this scanner -- reload it (gear, Reload backend) to start it';
+export const BOT_STALE_BACKEND_TEMPLATE = 'needs a backend reload';
 
 /* ---------- The Bots page hero (ADR 027, ADR 030, ADR 031) ----------
    The hero's level is the chosen setup's. Off: the bot API is dark and the chosen

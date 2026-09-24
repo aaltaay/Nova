@@ -54,12 +54,14 @@ export const BOTS_GATE_ACTIVATE_TITLE = 'Activate at Strategy needs this gate';
 export const BOTS_STRATEGIES_TITLE = 'Strategies';
 export const BOTS_STRATEGIES_SOURCE = 'from your course material';
 export const BOTS_STRATEGIES_SUB =
-  'every setup watches the same HOD Momo names · each keeps its own score · one plays at Strategy';
+  'every scanner runs at once · Eyes on as many as you like · the bot trades the one you pick (○)';
 export const BOTS_STRATEGIES_SUB_TIP =
-  'Each setup with a scanner follows the HOD Momo names on one-minute bars with its own detector, reads the same tape gate at its trigger and scores every armed setup on its own read-out.\nOff: watches and scores silently. Eyes: proposes on near + GO. Several can be at Eyes at once; only the chosen setup (the radio) can be at Strategy, where Nova\'s bot trades it on Paper and Sim.';
-export const BOTS_SETUP_PICK_TITLE = 'Play this setup';
+  'Every setup with a scanner runs at the same time: each follows the HOD Momo names on one-minute bars, reads the tape at its trigger and scores every setup it arms on its own read-out.\n'
+  + 'Off / Eyes is per card: Off watches and scores silently; Eyes pings you on near + GO. Turn on Eyes for as many setups as you like.\n'
+  + 'The round button picks the one setup Nova\'s bot trades by itself at Strategy (Paper and Sim; Live waits on that setup\'s read-out). Picking it turns nothing else off.';
+export const BOTS_SETUP_PICK_TITLE = 'Let the bot trade this setup';
 export const BOTS_SETUP_PICK_TIP =
-  'Choose this setup: it takes the bot\'s level (Off, Eyes or Strategy) and its read-out gates Strategy on Live. The one it replaces keeps watching at Eyes or Off. Choosing another setup stops an active bot — Activate again.';
+  'Pick the one setup Nova\'s bot trades by itself at Strategy. It turns nothing off: every scanner keeps running, and each card\'s Off / Eyes decides whether it pings you. The setup it replaces keeps watching, at Eyes at most. Switching stops an active bot -- Activate again.';
 export const BOTS_SETUP_LEVEL_TITLE = 'The bot level for the setup that plays';
 
 /* ---------- A scanner for every setup (ADR 031) ---------- */

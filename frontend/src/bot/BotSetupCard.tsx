@@ -17,6 +17,9 @@ import {
   BOT_SETUP_LEVEL_TIPS,
   BOT_SETUP_NEXT,
   BOT_SETUP_STRATEGY_WHY,
+  BOT_STALE_BACKEND_STATUS,
+  BOT_STALE_BACKEND_TEMPLATE,
+  BOT_STALE_BACKEND_WHY,
 } from '../constantGroups/bot';
 import {
   BOTS_BUSY_WHY,
@@ -62,6 +65,9 @@ interface Props {
   chosen: boolean;
   /** The setup has a live scanner, so it may be chosen and levelled. */
   playable: boolean;
+  /** This build has the setup's scanner but the backend answering is older and does not run it:
+   *  the card says the backend needs a reload instead of "No scanner yet". */
+  stale?: boolean;
   /** This setup's level: the session's for the chosen setup, its own Off / Eyes for the others. */
   level: number;
   /** The API keeps a level per setup (ADR 031); false on an older one. */
@@ -90,22 +96,23 @@ interface Props {
   children?: ReactNode;
 }
 
-function templateWhy(t: SetupTemplates | null, error: string | null | undefined, busy: boolean): string | null {
-  if (!t) return error ? BOTS_TEMPLATE_UNREAD_WHY(error) : BOTS_TEMPLATE_LOADING_WHY;
+function templateWhy(t: SetupTemplates | null, error: string | null | undefined, busy: boolean, stale: boolean): string | null {
+  if (!t) return stale ? BOT_STALE_BACKEND_WHY : error ? BOTS_TEMPLATE_UNREAD_WHY(error) : BOTS_TEMPLATE_LOADING_WHY;
   if (t.catalogue.groups.length === 0) return BOTS_TEMPLATE_NO_PARAMS_WHY;
   return busy ? BOTS_TEMPLATE_SAVING_WHY : null;
 }
 
-function levelWhy(n: number, p: Pick<Props, 'playable' | 'busy' | 'chosen' | 'levelsKnown'>): string | null {
-  if (!p.playable) return BOT_NO_SCANNER_TITLE;
+function levelWhy(n: number, p: Pick<Props, 'playable' | 'busy' | 'chosen' | 'levelsKnown' | 'stale'>): string | null {
+  if (!p.playable) return p.stale ? BOT_STALE_BACKEND_WHY : BOT_NO_SCANNER_TITLE;
   if (p.busy) return BOTS_BUSY_WHY;
   if (p.chosen) return null;
   if (!p.levelsKnown) return BOTS_SETUP_NO_LEVELS_WHY;
   return n >= 2 ? BOT_SETUP_STRATEGY_WHY : null;
 }
 
-function nameTip(id: string, chosen: boolean, playable: boolean): string {
+function nameTip(id: string, chosen: boolean, playable: boolean, stale: boolean): string {
   const blurb = BOT_SETUP_BLURBS[id] ?? '';
+  if (stale) return `${blurb}\n\n${BOT_STALE_BACKEND_STATUS}.`;
   if (!playable) return `${blurb}\n\n${BOT_SETUP_NEXT[id]?.head ?? BOT_NO_SCANNER_TITLE.replace(/ -- /g, ' — ')}`;
   if (chosen) {
     return `${blurb}\n\nThe chosen setup: it carries the bot's level, Nova's bot trades it at Strategy on Paper and Sim, and its read-out gates Strategy on Live.`;
@@ -156,6 +163,15 @@ function NotWatching({ id }: { id: string }) {
   );
 }
 
+function StaleStatus() {
+  return (
+    <div className="bots-strat__status bots-strat__status--stale" data-testid="bots-setup-status">
+      <span className="bots-live-dot" aria-hidden="true" />
+      <span>{BOT_STALE_BACKEND_STATUS}</span>
+    </div>
+  );
+}
+
 function Funnel({ id, summary }: { id: string; summary: SetupSummary | null }) {
   const steps = funnelSteps(id, summary?.counts);
   if (!steps.length) return null;
@@ -174,22 +190,22 @@ function Funnel({ id, summary }: { id: string; summary: SetupSummary | null }) {
 
 export function BotSetupCard(props: Props) {
   const {
-    id, chosen, playable, level, busy, onChoose, onLevel, templates, templatesError = null, templateBusy = false,
-    onPlayTemplate, onOpenParams, summary, rows, allRows, connected, seeding, hovered, onHover, onOpenBoard,
-    onOpenSymbol, children,
+    id, chosen, playable, stale = false, level, busy, onChoose, onLevel, templates, templatesError = null,
+    templateBusy = false, onPlayTemplate, onOpenParams, summary, rows, allRows, connected, seeding, hovered, onHover,
+    onOpenBoard, onOpenSymbol, children,
   } = props;
   const shown = (level > 2 ? 2 : level < 0 ? 0 : level) as 0 | 1 | 2;
-  const pickWhy = !playable ? BOT_NO_SCANNER_TITLE : busy ? BOTS_BUSY_WHY : null;
+  const pickWhy = !playable ? (stale ? BOT_STALE_BACKEND_WHY : BOT_NO_SCANNER_TITLE) : busy ? BOTS_BUSY_WHY : null;
   const label = BOT_SETUP_LABELS[id] ?? id;
   const inPlay = templates?.templates.find(t => t.id === templates.in_play) ?? null;
   const lines = inPlay ? ruleLines(id, inPlay.values) : [];
   const summaryText = inPlay ? ruleSummary(id, inPlay.values) : '';
   const nParams = templates?.catalogue.groups.reduce((n, g) => n + g.params.length, 0) ?? 0;
-  const tplWhy = templateWhy(templates, templatesError, templateBusy);
+  const tplWhy = templateWhy(templates, templatesError, templateBusy, stale);
   const paramsWhy = templates ? (nParams === 0 ? BOTS_TEMPLATE_NO_PARAMS_WHY : null) : tplWhy;
   const rulesTip = lines.length ? BOTS_TEMPLATE_RULES_TIP(lines.map(([k, v]) => `${k}: ${v}`).join('\n')) : '';
   return (
-    <article className={`bots-strat${chosen ? ' bots-strat--chosen' : ''}${playable ? '' : ' bots-strat--noscan'}`}
+    <article className={`bots-strat${chosen ? ' bots-strat--chosen' : ''}${playable ? '' : ' bots-strat--noscan'}${stale ? ' bots-strat--stale' : ''}`}
       data-testid={`bots-setup-${id}`}>
       <div className="bots-strat__head">
         <label className="bots-strat__pick">
@@ -203,7 +219,7 @@ export function BotSetupCard(props: Props) {
             data-why={pickWhy ?? undefined}
             onChange={() => { if (!chosen && playable) onChoose(id); }}
           />
-          <b {...tipProps(nameTip(id, chosen, playable), label)}>{label}</b>
+          <b {...tipProps(nameTip(id, chosen, playable, stale), label)}>{label}</b>
         </label>
         {chosen ? <span className="bots-badge">★ {BOT_CHOSEN_BADGE}</span> : null}
         <span className="bots-levels" role="radiogroup" aria-label={`${label} level`}>
@@ -229,7 +245,9 @@ export function BotSetupCard(props: Props) {
         </span>
       </div>
 
-      {playable ? <StatusLine level={shown} summary={summary} connected={connected} seeding={seeding} /> : <NotWatching id={id} />}
+      {playable
+        ? <StatusLine level={shown} summary={summary} connected={connected} seeding={seeding} />
+        : stale ? <StaleStatus /> : <NotWatching id={id} />}
 
       <div className="bots-strat__tpl">
         <label className="bots-strat__tplpick" title={tplWhy ? undefined : BOTS_TEMPLATE_PICK_TITLE}>
@@ -242,7 +260,9 @@ export function BotSetupCard(props: Props) {
                 {t.name}{t.error ? ' (does not validate -- fix it first)' : ''}
               </option>
             ))}
-            {!templates ? <option value="">{templatesError ? 'did not load' : 'loading…'}</option> : null}
+            {!templates ? (
+              <option value="">{stale ? BOT_STALE_BACKEND_TEMPLATE : templatesError ? 'did not load' : 'loading…'}</option>
+            ) : null}
           </select>
         </label>
         {summaryText || rulesTip ? (

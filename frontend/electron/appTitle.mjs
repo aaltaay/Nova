@@ -10,6 +10,9 @@ const TITLE_TRADER_VIEW = 'Trader';
 const TITLE_APP_VIEW_SEP = ' — ';
 /** A running Session Record leads the OS title, so the taskbar says so too. */
 const TITLE_RECORDING_PREFIX = '● REC';
+/** The backend's own revision follows the desk's (operator ask 2026-09-24). */
+const TITLE_BACKEND = 'backend';
+const TITLE_BACKEND_OLDER = ' (older -- restart it)';
 
 export function withReleaseTag(base, releaseTag) {
   const tag = String(releaseTag ?? '').trim();
@@ -33,6 +36,29 @@ export function formatElectronTraderTitle(symbol, releaseTag) {
   return withReleaseTag(`${TITLE_APP} -- ${sym}`, releaseTag);
 }
 
+function tagNumber(tag) {
+  const m = /^v(\d+)$/.exec(String(tag ?? '').trim());
+  return m ? Number(m[1]) : null;
+}
+
+/** True when `tag` is an older vNNN than `than`; false when either is unknown. */
+export function isOlderTag(tag, than) {
+  const a = tagNumber(tag);
+  const b = tagNumber(than);
+  return a != null && b != null && a < b;
+}
+
+/**
+ * "... · backend v1006" -- the revision the local API process runs, read from its /api/health.
+ * A backend left running across an update keeps its old code until it restarts, so an older
+ * one says so. Unknown (the API not answering, the sample desk) adds nothing.
+ */
+export function withBackendTag(base, backendTag, releaseTag) {
+  const api = String(backendTag ?? '').trim();
+  if (!api) return base;
+  return `${base} · ${TITLE_BACKEND} ${api}${isOlderTag(api, releaseTag) ? TITLE_BACKEND_OLDER : ''}`;
+}
+
 export function withRecording(base, recordingSymbol) {
   const sym = String(recordingSymbol ?? '').trim();
   return sym ? `${TITLE_RECORDING_PREFIX} ${sym}${TITLE_APP_VIEW_SEP}${base}` : base;
@@ -43,11 +69,12 @@ export function novaWindowTitle({
   traderSymbol = '',
   releaseTag = '',
   recordingSymbol = '',
+  backendTag = '',
 } = {}) {
   const base = traderActive
     ? formatTraderDocumentTitle(traderSymbol, releaseTag)
     : formatScannerWindowTitle(releaseTag);
-  return withRecording(base, recordingSymbol);
+  return withRecording(withBackendTag(base, backendTag, releaseTag), recordingSymbol);
 }
 
 /** Sample `?view=sample&symbol=` is a Trader desk; live uses the Scanner|Trader switch. */
