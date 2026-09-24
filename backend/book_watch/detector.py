@@ -13,6 +13,7 @@ never a detection. Events carry ``event``: ``pull`` | ``flag`` | ``minute``.
 from __future__ import annotations
 
 from collections import deque
+from itertools import pairwise
 from statistics import median
 from typing import Any
 
@@ -298,7 +299,7 @@ class SymbolWatch:
     def feed(self, now: float) -> dict[str, Any]:
         """How fast the book arrives: the measured rate, never a claimed one."""
         times = [t for t in self.book_times if t >= now - BOOK_WATCH_RATE_WINDOW_SEC]
-        gaps = [b - a for a, b in zip(times, times[1:])]
+        gaps = [b - a for a, b in pairwise(times)]
         return {
             "books": self.books, "prints": self.prints_seen,
             "books_per_sec": round(len(times) / BOOK_WATCH_RATE_WINDOW_SEC, 2),
