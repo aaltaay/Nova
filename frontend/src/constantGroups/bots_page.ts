@@ -40,6 +40,10 @@ export const BOTS_GATE_UNLOCK = 'unlock padlock';
 export const BOTS_GATE_CONNECT = 'connect IB Gateway';
 export const BOTS_GATE_OPEN_L2 = (symbol: string): string => `open ${symbol} Level 2`;
 export const BOTS_GATE_READOUT_LINK = 'first pullback not proven yet';
+/** ADR 030: the read-out gate on a practice venue. */
+export const BOTS_GATE_READOUT_WAIVED = (venue: string): string => `not needed on ${venue}`;
+/** The venue a gate names, as the header pills say it. */
+export const BOTS_VENUE_NAMES: Record<string, string> = { live: 'Live', paper: 'Paper', sim: 'Sim' };
 export const BOTS_GATE_ADD_SYMBOL = 'add a symbol';
 export const BOTS_GATE_RESET_KILL = 'reset it';
 export const BOTS_GATE_MORE = (n: number): string => `+${n} more`;

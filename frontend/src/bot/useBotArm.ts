@@ -1,8 +1,8 @@
 /**
  * The bot's level and Activate, one logic for every surface that drives them
  * (the Bots page hero, the Trader rail card). Level 2 arms first; Activate is
- * refused while the desk gate blocks places or -- at Strategy -- while the
- * first-pullback read-out has not passed (ADR 027); locking the padlock
+ * refused while the desk gate blocks places or -- at Strategy on Live -- while
+ * the first-pullback read-out has not passed (ADR 027, 030); locking the padlock
  * (disarming the desk) stops the bot.
  */
 import { useEffect } from 'react';
@@ -25,8 +25,9 @@ export function useBotArm() {
   const display = botArmDisplayState(armed, gate);
   const live = Boolean(session?.live_fire_ready) && display.looksActive;
   const readoutPassed = Boolean(session?.readout?.passed);
-  // An absent read-out (older API) is not a pass; the backend refuses anyway.
-  const readoutBlocks = level >= 2 && !readoutPassed;
+  // ADR 030: only Live waits on the read-out. An absent read-out or flag (older
+  // API) is not a pass; the backend refuses anyway.
+  const readoutBlocks = level >= 2 && !readoutPassed && session?.readout_required !== false;
   const activateBlocked = !gate.allowed || readoutBlocks;
   const activateReason = !gate.allowed
     ? gate.reason

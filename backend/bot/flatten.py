@@ -227,3 +227,7 @@ def alert_flatten_failed(detail: dict[str, Any]) -> None:
         })
     except Exception:
         logger.exception("bot flatten: alert dispatch failed")
+
+
+# One symbol's protective close, for the first-pullback bot's last resort (ADR 030).
+place_close = _place_close

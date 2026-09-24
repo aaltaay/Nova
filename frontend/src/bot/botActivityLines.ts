@@ -1,6 +1,7 @@
 /**
  * The Bots page timeline as lines (pure): the bot audit stream (proposals,
- * fires and refusals, level changes, breakers) and the setup scanner's own
+ * fires and refusals, the first-pullback bot's trades -- ADR 030 -- level
+ * changes, breakers) and the setup scanner's own
  * record of the day (armed, near, triggered, failed, scored -- setups.db).
  * Categories drive the Activity filter chips; scanner events show under All.
  */
@@ -32,6 +33,17 @@ export interface ActivityLine {
 }
 
 const KINDS = new Set<string>(BOT_ACTION_KINDS);
+/** Nova's own first-pullback bot (ADR 030): its entry, and every step of its trade. */
+const SETUP_ENTRY = 'buy_setup_limit';
+const TRADE = 'bot_trade';
+const TRADE_TAGS: Record<string, [string, ActivityTone, ActivityLine['category']]> = {
+  skipped: ['Skipped', 'muted', 'refused'],
+  missed: ['Missed', 'muted', 'fired'],
+  filled: ['Filled', 'good', 'fired'],
+  closing: ['Closing', 'warn', 'fired'],
+  note: ['Note', 'muted', 'system'],
+  error: ['Error', 'bad', 'fired'],
+};
 const WITHDRAWN = new Set(['rearmed', 'disarmed', 'failed']);
 const VERDICT_TAGS: Record<string, [string, ActivityTone]> = {
   go: ['Go', 'good'],
@@ -82,6 +94,20 @@ export function activityLine(row: BotAuditEntry, index: number): ActivityLine | 
     return { ...base, tag, tone: row.outcome === 'rejected' ? 'muted' : 'good', category: 'proposals',
       text: `${sym(row)} ${String(row.inputs?.kind ?? '')}`.trim() };
   }
+  if (action === SETUP_ENTRY) {
+    const ok = row.outcome === 'ok';
+    return { ...base, tag: ok ? 'Entered' : 'Refused', tone: ok ? 'good' : 'bad', category: ok ? 'fired' : 'refused',
+      text: `${sym(row)} buy ${String(row.inputs?.qty ?? '')} at ${px(Number(row.inputs?.limit))}`.trim() };
+  }
+  if (action === TRADE) {
+    if (row.outcome === 'closed') {
+      const r = Number(row.inputs?.r);
+      const tone: ActivityTone = !Number.isFinite(r) ? 'plain' : r > 0 ? 'good' : 'bad';
+      return { ...base, tag: 'Closed', tone, category: 'fired', text: sym(row) };
+    }
+    const [tag, tone, category] = TRADE_TAGS[row.outcome] ?? [row.outcome, 'muted', 'system'];
+    return { ...base, tag, tone, category, text: sym(row) };
+  }
   if (KINDS.has(action)) {
     const ok = row.outcome === 'ok';
     return { ...base, tag: ok ? 'Fired' : 'Refused', tone: ok ? 'good' : 'bad', category: ok ? 'fired' : 'refused',
@@ -92,7 +118,7 @@ export function activityLine(row: BotAuditEntry, index: number): ActivityLine | 
       text: `${levelName(row.inputs?.from)} → ${levelName(row.inputs?.to)}`, note: base.note || 'from the desk' };
   }
   if (action === 'activate' || action === 'deactivate') {
-    return { ...base, tag: action === 'activate' ? 'Activated' : 'Stopped', tone: 'accent', category: 'system', text: 'the bot', note: 'from the desk' };
+    return { ...base, tag: action === 'activate' ? 'Activated' : 'Stopped', tone: 'accent', category: 'system', text: 'the bot', note: base.note || 'from the desk' };
   }
   if (action === 'breaker_soft' || action === 'breaker_hard') {
     return { ...base, tag: 'Breaker', tone: 'bad', category: 'system', text: action === 'breaker_hard' ? '−$200 all-stop' : '−$50 bot trip' };

@@ -173,8 +173,9 @@ def remember_working(
     qty: float,
     price: float | None,
     kind: str,
-    ttl_sec: int,
+    ttl_sec: int | None,
 ) -> None:
+    """Record a working bot order; ``ttl_sec=None`` is one whose owner cancels it (ADR 030), not the TTL loop."""
     row = load_session()
     working = [w for w in list(row.get("working") or []) if int(w.get("order_id") or 0) != order_id]
     working.append({
@@ -184,7 +185,7 @@ def remember_working(
         "qty": float(qty),
         "price": float(price or 0),
         "kind": kind,
-        "expire_ts": time.time() + max(1, int(ttl_sec)),
+        "expire_ts": None if ttl_sec is None else time.time() + max(1, int(ttl_sec)),
     })
     row["working"] = working
     save_session(row)

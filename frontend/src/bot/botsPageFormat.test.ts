@@ -3,7 +3,7 @@ import { botHeaderState } from './botHeaderState';
 import { closedProposals, proposalWhy } from './botProposalsModel';
 import { botPnlOn } from './useBotPnlToday';
 import { breakerPosition } from './BotBreakerBar';
-import { fmtUsdCents, gateLine, heroSentence } from './botsPageFormat';
+import { fmtUsdCents, gateLine, heroSentence, tradeLine } from './botsPageFormat';
 import { gates, session } from './botsPageFixtures';
 import type { BotAuditEntry } from './types';
 import type { HistoryFill } from '../account/accountHistoryTypes';
@@ -33,6 +33,10 @@ describe('gate chips (bot/gates.py facts, approved mockup v4)', () => {
   it('reads the read-out, the trip, the window and the kill switch', () => {
     expect(gateLine(gate('readout', false, { state: 'failed' })).text).toBe('Read-out failed');
     expect(gateLine(gate('readout', true, {})).text).toBe('Read-out passed');
+    // ADR 030: Paper and Sim do not wait on it; the count still says how far Live is.
+    const waived = gateLine(gate('readout', true, { waived: true, venue: 'paper', go_triggered: 0, min_go: 50 }));
+    expect(waived.text).toBe('Read-out not needed on Paper · 0 / 50');
+    expect(waived.actions).toEqual([]);
     expect(gateLine(gate('bot_trip', true), { dayPnl: 12.5 }).text).toBe('Bot trip clear ($12.50 / −$50)');
     expect(gateLine(gate('bot_trip', true)).text).toBe('Bot trip clear (— / −$50)');
     expect(gateLine(gate('window', false, { start: '07:00', end: '10:00', open: false, entries_today: 0, max_entries: 1 }, 'fire')).text)
@@ -52,14 +56,36 @@ describe('gate chips (bot/gates.py facts, approved mockup v4)', () => {
       .toMatch(/every gate is open/);
   });
 
-  it('says the level governs a connected bot, never the setup scanner, and that placing a proposal is not built', () => {
+  it('says Off / Eyes govern a connected bot, and that at Strategy Nova\'s own bot trades on Paper and Sim', () => {
     expect(heroSentence(session({ level: 0 })).lead).toMatch(/setup scanner still watches and proposes/);
     expect(heroSentence(session({ level: 0 })).lead).not.toMatch(/watches nothing|proposes nothing/);
     expect(heroSentence(session({ level: 1 })).lead).toMatch(/connected bot may watch and propose, never place/);
     const open = gates({ level: { ok: true }, depth_lines: { ok: true }, readout: { ok: true } });
-    expect(heroSentence(session({ level: 2, gates: open })).lead).toMatch(/Automatic placing from a proposal is not built yet/);
-    expect(heroSentence(session({ level: 2, gates: open, live_fire_ready: true })).lead)
-      .toMatch(/a connected bot may place .* Automatic placing from a proposal is not built yet/);
+    expect(heroSentence(session({ level: 2, gates: open })).lead).toMatch(/Nova's own bot trades Paper and Sim only/);
+    const paper = gates({ level: { ok: true }, depth_lines: { ok: true },
+      readout: { ok: true, detail: { waived: true, venue: 'paper', go_triggered: 0, min_go: 50 } } });
+    expect(heroSentence(session({ level: 2, gates: paper, readout_required: false })).lead)
+      .toBe('Strategy is chosen and every gate is open. Activate and the bot trades the first pullback on Paper.');
+    const runner = { brain_id: 'nova-first-pullback', playing: true, reason: null };
+    expect(heroSentence(session({ level: 2, gates: paper, live_fire_ready: true, runner })).lead)
+      .toMatch(/^Strategy is live on Paper: the bot buys the first pullback itself/);
+    const offLive = { ...runner, playing: false, reason: 'Nova\'s bot trades Paper and Sim only' };
+    expect(heroSentence(session({ level: 2, gates: open, live_fire_ready: true, runner: offLive })).lead)
+      .toMatch(/a connected bot may place .* Nova's own bot does not play here — Nova's bot trades Paper and Sim only/);
+  });
+
+  it('says the bot\'s trade in one line', () => {
+    const base = { setup_id: 'S', symbol: 'IMCC', venue: 'paper', venue_day: '2026-09-24', qty: 3, entry_planned: 10.02,
+      stop: 9.89, target1: 10.3, risk: 0.14, entry_fill_price: null, exit_price: null, exit_reason: null,
+      slippage: null, r: null };
+    expect(tradeLine(null)).toBe('');
+    expect(tradeLine({ ...base, state: 'entering' })).toBe('Buying IMCC · 3 at 10.02 limit');
+    expect(tradeLine({ ...base, state: 'open', entry_fill_price: 10.03 }))
+      .toBe('In IMCC · 3 @ 10.03 · stop 9.89 · target 10.30');
+    expect(tradeLine({ ...base, state: 'exiting', exit_why: 'stop' })).toBe('Closing IMCC · the stop printed');
+    expect(tradeLine({ ...base, state: 'closed', exit_reason: 'target', r: 2 })).toBe('Last trade IMCC · target · +2.00R');
+    expect(tradeLine({ ...base, state: 'missed', note: 'not filled in 3s -- the price ran past 10.02' }))
+      .toBe('Missed IMCC · not filled in 3s — the price ran past 10.02');
   });
 
   it('formats cents with a real minus sign', () => {

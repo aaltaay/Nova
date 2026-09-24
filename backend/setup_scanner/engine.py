@@ -14,6 +14,12 @@ It never places, stages or cancels an order, never opens an IBKR line, and
 never raises bot autonomy. On a Sim desk off the live edge it keeps watching
 the live market but proposes nothing; the Sim eyes (``eyes/sim_eyes.py``) draw
 the board from the loaded Session Record instead.
+
+ADR 030: when the playing lane's setup triggers on the live feed (the same
+condition a proposal needs), it tells its trigger listeners -- the
+first-pullback bot (``bot/first_pullback``) registers one and decides for
+itself whether to trade. A listener only enqueues; nothing here imports an
+order path.
 """
 from __future__ import annotations
 
@@ -87,6 +93,7 @@ class SetupEngine:
         self.universe: set[str] = set()
         self.session: str | None = None
         self._last_push = 0.0
+        self._trigger_listeners: list[Callable[[dict], None]] = []
 
     # -- the lane in play, and the views the board / tests read ----------------
     @property
@@ -142,6 +149,25 @@ class SetupEngine:
 
     def can_propose(self) -> bool:
         return not self._replay_fn()
+
+    # -- triggers to whoever trades them (ADR 030) --------------------------------
+    def add_trigger_listener(self, fn: Callable[[dict], None]) -> None:
+        if fn not in self._trigger_listeners:
+            self._trigger_listeners.append(fn)
+
+    def remove_trigger_listener(self, fn: Callable[[dict], None]) -> None:
+        if fn in self._trigger_listeners:
+            self._trigger_listeners.remove(fn)
+
+    def on_trigger(self, event: dict) -> None:
+        """The playing lane's setup triggered: tell the listeners, on the live feed only."""
+        if not self.can_propose():
+            return
+        for fn in list(self._trigger_listeners):
+            try:
+                fn({**event, "source": self.source})
+            except Exception:
+                logger.exception("setup scanner: a trigger listener failed on %s", event.get("setup_id"))
 
     # -- feed (called on the IB loop: enqueue only) -------------------------
     def on_l1_minute(self, kind: str, symbol: str, payload: dict) -> None:

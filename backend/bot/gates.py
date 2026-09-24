@@ -5,14 +5,20 @@ facts (``autonomy.assert_can_fire``, ``eligibility.assert_symbol_can_fire``,
 ``entry_rules``, ``execution.service``). Each gate is ``{id, ok, stage,
 detail}``: ``stage`` is ``activate`` for a gate Activate at Strategy needs, or
 ``fire`` for one each order meets on its own. Owner: this module (no state).
+
+ADR 030: the read-out gates Live only. On Paper and Sim (fake money) Strategy
+skips it -- ``readout_required`` is the one rule, and a venue that cannot be
+read counts as Live.
 """
 from __future__ import annotations
 
+import logging
 from typing import Any, Callable
 
 from bot.errors import BotError
 from constants_bot import BOT_LEVEL_STRATEGY, BOT_REASON_READOUT_NOT_PASSED
 
+logger = logging.getLogger(__name__)
 _readout_for_tests: dict[str, Any] | None = None
 
 
@@ -29,20 +35,46 @@ def readout_passed() -> bool:
     return bool(readout().get("passed"))
 
 
-def assert_readout_passed() -> None:
+def current_venue() -> str | None:
+    """The desk venue (``live`` | ``paper`` | ``sim``); None when it cannot be read."""
+    try:
+        from sim.mode import venue
+
+        return venue()
+    except Exception:
+        logger.warning("bot gates: the desk venue is unreadable -- the read-out applies as on Live",
+                       exc_info=True)
+        return None
+
+
+def readout_required(venue: str | None = None) -> bool:
+    """Live waits on the read-out; Paper and Sim do not (ADR 030). Unknown counts as Live."""
+    from constants_sim import DESK_PRACTICE_VENUES
+
+    current = venue if venue is not None else current_venue()
+    return current not in DESK_PRACTICE_VENUES
+
+
+def readout_open(venue: str | None = None) -> bool:
+    """Strategy may be active and fire: the read-out passed, or this venue does not need it."""
+    return not readout_required(venue) or readout_passed()
+
+
+def assert_readout_open() -> None:
+    if readout_open():
+        return
     out = readout()
-    if not out.get("passed"):
-        raise BotError(
-            f"Strategy waits on the first-pullback read-out -- {out.get('reason') or out.get('state')}",
-            409,
-            BOT_REASON_READOUT_NOT_PASSED,
-        )
+    raise BotError(
+        f"Strategy waits on the first-pullback read-out -- {out.get('reason') or out.get('state')}",
+        409,
+        BOT_REASON_READOUT_NOT_PASSED,
+    )
 
 
 def assert_can_activate(row: dict[str, Any]) -> None:
-    """Activate at Strategy waits on the read-out; at Off / Eyes nothing can fire (ADR 027)."""
+    """Activate at Strategy waits on the read-out on Live; at Off / Eyes nothing can fire (ADR 027, 030)."""
     if int(row.get("level") or 0) >= BOT_LEVEL_STRATEGY:
-        assert_readout_passed()
+        assert_readout_open()
 
 
 def _safe(fn: Callable[[], Any], default: Any) -> Any:
@@ -68,6 +100,8 @@ def gates(row: dict[str, Any]) -> list[dict[str, Any]]:
     held = [s for s in symbols if _safe(lambda s=s: holds_depth_line(s), False)]
     places_ok, places_reason = _safe(places_allowed, (False, "trading gate unreadable"))
     out = readout()
+    venue = current_venue()
+    waived = not readout_required(venue)
     window = _safe(entry_rules.status, None)
     return [
         _gate("level", level >= BOT_LEVEL_STRATEGY, "activate", level=level),
@@ -75,8 +109,9 @@ def gates(row: dict[str, Any]) -> list[dict[str, Any]]:
         _gate("desk_armed", places_ok, "activate", reason=None if places_ok else places_reason or None),
         _gate("depth_lines", bool(symbols) and len(held) == len(symbols), "fire",
               held=held, missing=[s for s in symbols if s not in held]),
-        _gate("readout", bool(out.get("passed")), "activate", state=out.get("state"),
-              go_triggered=(out.get("go") or {}).get("triggered"), min_go=(out.get("rules") or {}).get("min_go")),
+        _gate("readout", bool(out.get("passed")) or waived, "activate", state=out.get("state"),
+              go_triggered=(out.get("go") or {}).get("triggered"), min_go=(out.get("rules") or {}).get("min_go"),
+              waived=waived and not out.get("passed"), venue=venue),
         _gate("bot_trip", not row.get("soft_breaker_fired"), "activate"),
         _gate("day_lock", not lock_is_active(row.get("hard_lock_until_date")), "fire",
               until=row.get("hard_lock_until_date")),

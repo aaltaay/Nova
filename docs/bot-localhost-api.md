@@ -73,14 +73,21 @@ scanner}]` -- `first_pullback` (the ADR 022 scanner), `gap_and_go`,
 scanner can be chosen (`PATCH {"setup": ...}`, else `400
 BOT_SETUP_NO_SCANNER`). Risk sleeve stays `small-cap`.
 
-**Strategy waits on the read-out.** `readout` on the session is the
-first-pullback read-out from `setups.db` (Bot-Trading-Plan §2g: 50 triggered
-go setups, average net R above +0.2 and above blind / wait). Until it passes:
+**Strategy waits on the read-out -- on Live** (ADR 030). `readout` on the
+session is the first-pullback read-out from `setups.db` (Bot-Trading-Plan §2g:
+50 triggered go setups, average net R above +0.2 and above blind / wait). On
+Paper and Sim (`readout_required: false`) Strategy skips it. On Live, until it
+passes:
 
 - choosing Strategy is allowed but lands **not active**;
 - `POST /session/arm` at Strategy is `409 BOT_READOUT_NOT_PASSED`;
 - every `POST /action` is `409 BOT_READOUT_NOT_PASSED`;
 - `live_fire_ready` is false. Proposals still work at Eyes and Strategy.
+
+**Nova's own first-pullback bot** (ADR 030) plays at Strategy on Paper and Sim:
+it claims the session as brain `nova-first-pullback`, so an external brain
+gets `409 BOT_BRAIN_EXCLUSIVE` while it plays. `runner` on the session says
+whether it plays and why not; `trade` is its current or last trade.
 
 **Entries keep the material's rules.** At Strategy a `buy_*` kind is refused
 outside 07:00-10:00 ET on the venue's clock (`409 BOT_OUTSIDE_WINDOW`) and

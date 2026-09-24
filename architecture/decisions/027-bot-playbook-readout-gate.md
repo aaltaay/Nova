@@ -1,6 +1,6 @@
 # ADR 027 -- The bot plays the operator's setups: packs retired, the read-out gates Strategy
 
-**Status:** Accepted · **Date:** 2026-09-23
+**Status:** Accepted · **Date:** 2026-09-23 · **Amended by:** [[030-first-pullback-bot-on-paper]] (the read-out gates Live only; Nova's own bot trades Paper and Sim)
 **Supersedes:** ADR 016 items 11, 13 and 17-19 (the one-active-pack catalog, `llm-decide`,
 quote-spike, volume, OpenRouter in `nova-brain`) and the `nova-brain` sidecar
 **Builds on:** [[016-bot-localhost-api]] · [[022-setup-scanner-tape-gate]] · [[025-retire-nova-os]]

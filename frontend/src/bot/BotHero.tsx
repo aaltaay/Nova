@@ -1,8 +1,9 @@
 /**
  * The Bots page hero (approved mockup v4, ADR 027): the bot's state in one
  * sentence, the level as three segments, every gate the backend checks as a
- * chip that can open itself, and Activate / the kill switch. Level 2 arms
- * first; Activate at Strategy waits on the first-pullback read-out.
+ * chip that can open itself, Activate / the kill switch, and the first-pullback
+ * bot's trade (ADR 030). Level 2 arms first; Activate at Strategy waits on the
+ * first-pullback read-out on Live only.
  */
 import { useState } from 'react';
 import { writeNovaApiKey } from '../api/novaFetch';
@@ -32,7 +33,7 @@ import {
 } from '../constantGroups/bots_page';
 import { useTradingPinGate } from '../ibkr/useTradingPinGate';
 import { BotGateChips, type GateHandlers } from './BotGateChips';
-import { closedActivateGates, gateLines, heroSentence, playingLine, prose } from './botsPageFormat';
+import { closedActivateGates, gateLines, heroSentence, playingLine, prose, tradeLine } from './botsPageFormat';
 import type { BotArm } from './useBotArm';
 import type { KillSwitchControl } from './useKillSwitch';
 
@@ -65,6 +66,7 @@ export function BotHero({ arm, killSwitch, dayPnl, onOpenL2, onReadout, onAddSym
   const headline = display.looksActive ? BOT_STATE_ACTIVE : armed ? display.label : BOT_STATE_NOT_ACTIVE;
   const sentence = heroSentence(session);
   const playing = playingLine(session);
+  const trade = tradeLine(session.trade);
   const tripped = killSwitch.status?.tripped === true;
   const handlers: GateHandlers = {
     onUnlock: () => void ensureUnlocked(),
@@ -88,6 +90,7 @@ export function BotHero({ arm, killSwitch, dayPnl, onOpenL2, onReadout, onAddSym
           {sentence.lead}{sentence.count ? <b>{sentence.count}</b> : null}{sentence.tail}
         </p>
         <p className="bots-hero__playing" data-testid="bots-hero-playing">Playing <b>{playing.setup}</b>{playing.rest}</p>
+        {trade ? <p className="bots-hero__trade" data-testid="bots-hero-trade">{trade}</p> : null}
       </div>
 
       <div className="bots-hero__main">

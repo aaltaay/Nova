@@ -64,9 +64,15 @@ BOT_LATER_KINDS = (
     "cancel_all_orders",
 )
 
+# ADR 030: Nova's own first-pullback bot enters with a limit at the entry the
+# scanner scored. A buy kind (the day's cap counts it), never on a brain's
+# allowlist: it carries the scanner's price, not a session preset.
+BOT_KIND_SETUP_ENTRY = "buy_setup_limit"
+
 BOT_BUY_KINDS = frozenset({
     "buy_market",
     "buy_limit_ask_offset",
+    BOT_KIND_SETUP_ENTRY,
 })
 
 BOT_DEFAULT_MAX_SHARES = 1
@@ -132,3 +138,15 @@ BOT_REASON_READOUT_NOT_PASSED = "BOT_READOUT_NOT_PASSED"
 BOT_REASON_OUTSIDE_WINDOW = "BOT_OUTSIDE_WINDOW"
 BOT_REASON_DAY_TRADE_CAP = "BOT_DAY_TRADE_CAP"
 BOT_REASON_SETUP_NO_SCANNER = "BOT_SETUP_NO_SCANNER"
+
+# -- ADR 030: the first-pullback bot on Paper and Sim (backend/bot/first_pullback/).
+# The read-out gates Live only; Nova's own bot places on the practice venues only.
+BOT_RUNNER_BRAIN_ID = "nova-first-pullback"
+BOT_AUDIT_ACTION_TRADE = "bot_trade"
+BOT_FP_POLL_SEC = 0.5               # CHOSEN: the bot's loop
+BOT_FP_HEARTBEAT_SEC = 5.0          # CHOSEN: well inside BOT_HEARTBEAT_STALE_SEC
+BOT_FP_TRIGGER_MAX_AGE_SEC = 5.0    # CHOSEN: an older trigger (a restart, a warm-up) is not traded
+BOT_FP_TIME_STOP_MIN = 15           # CHOSEN: the scoreboard's window (SETUPS_SCORE_WINDOW_MIN)
+BOT_FP_CLOSE_ATTEMPTS = 2           # limit-at-the-bid tries before the protective flatten
+BOT_FP_CANCEL_WAIT_SEC = 5.0        # how long a cancel may stay unconfirmed before the bot says so
+BOT_REASON_LIVE_NOT_PLAYED = "BOT_LIVE_NOT_PLAYED"
