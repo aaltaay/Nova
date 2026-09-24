@@ -4,18 +4,19 @@ import {
   BOT_LEVEL_LABELS,
   BOT_SETUP_LABELS,
   BOT_SOFT_BREAKER_USD,
-  BOT_STRATEGY_NOT_BUILT,
 } from '../constantGroups/bot';
 import {
   BOTS_GATE_ADD_SYMBOL,
   BOTS_GATE_OPEN_L2,
   BOTS_GATE_READOUT_LINK,
+  BOTS_GATE_READOUT_WAIVED,
   BOTS_GATE_RESET_KILL,
   BOTS_GATE_UNLOCK,
   BOTS_HERO_NO_GATES,
+  BOTS_VENUE_NAMES,
 } from '../constantGroups/bots_page';
 import type { TradingBlocker } from '../ibkr/tradingAllowed';
-import type { BotGate, BotReadout, BotSession } from './types';
+import type { BotGate, BotReadout, BotSession, BotTrade } from './types';
 
 /** How many missing depth lines a chip names before "+N more". */
 const OPEN_L2_NAMED = 2;
@@ -95,7 +96,11 @@ export function gateLine(g: BotGate, ctx: GateContext = {}): GateLine {
     }
     case 'readout': {
       const state = String(d.state ?? '');
-      if (out.ok) {
+      if (out.ok && d.waived) {
+        // ADR 030: Paper and Sim do not wait on it; the count still says how far Live is.
+        const venue = BOTS_VENUE_NAMES[String(d.venue ?? '')] ?? String(d.venue ?? 'this venue');
+        out.text = `${label} ${BOTS_GATE_READOUT_WAIVED(venue)} · ${Number(d.go_triggered ?? 0)} / ${Number(d.min_go ?? 50)}`;
+      } else if (out.ok) {
         out.text = `${label} passed`;
       } else if (state === 'failed') {
         out.text = `${label} failed`;
@@ -148,10 +153,18 @@ export interface HeroSentence {
   tail: string;
 }
 
+/** The venue the read-out gate names ("Paper", "Sim", "Live"); null when the gates do not say. */
+function gateVenue(session: BotSession): string | null {
+  const g = (session.gates ?? []).find(x => x.id === 'readout');
+  const v = String(g?.detail?.venue ?? '');
+  return BOTS_VENUE_NAMES[v] ?? null;
+}
+
 /**
- * The hero's one-line state under the headline. The level governs a bot on the
- * bot API only: the setup scanner proposes at every level, and nothing in Nova
- * places a proposal on its own yet (#514).
+ * The hero's one-line state under the headline. Off and Eyes govern a bot on the
+ * bot API only -- the setup scanner proposes at every level. At Strategy, Nova's
+ * own bot trades the first pullback on Paper and Sim (ADR 030); Live waits on the
+ * read-out.
  */
 export function heroSentence(session: BotSession): HeroSentence {
   const level = session.level;
@@ -160,9 +173,17 @@ export function heroSentence(session: BotSession): HeroSentence {
   }
   if (level === 1) return { lead: 'Eyes: a connected bot may watch and propose, never place. You place.', count: '', tail: '' };
   if (!Array.isArray(session.gates)) return { lead: BOTS_HERO_NO_GATES, count: '', tail: '' };
+  const venue = gateVenue(session);
   if (session.live_fire_ready) {
+    if (session.runner?.playing) {
+      return {
+        lead: `Strategy is live on ${venue ?? 'this venue'}: the bot buys the first pullback itself when a name on its list triggers with the tape at go, under every gate below.`,
+        count: '',
+        tail: '',
+      };
+    }
     return {
-      lead: `Strategy is live: a connected bot may place your setup under every gate below. ${BOT_STRATEGY_NOT_BUILT}.`,
+      lead: `Strategy is live: a connected bot may place under every gate below. Nova's own bot does not play here${session.runner?.reason ? ` — ${session.runner.reason}` : ''}.`,
       count: '',
       tail: '',
     };
@@ -175,7 +196,45 @@ export function heroSentence(session: BotSession): HeroSentence {
       tail: ` ${closed === 1 ? 'is' : 'are'} closed. Until then it proposes like Eyes.`,
     };
   }
-  return { lead: `Strategy is chosen and every gate is open. Activate to let a connected bot fire. ${BOT_STRATEGY_NOT_BUILT}.`, count: '', tail: '' };
+  if (session.readout_required === false) {
+    return { lead: `Strategy is chosen and every gate is open. Activate and the bot trades the first pullback on ${venue ?? 'this venue'}.`, count: '', tail: '' };
+  }
+  return { lead: 'Strategy is chosen and every gate is open. Activate to let a connected bot fire; Nova\'s own bot trades Paper and Sim only.', count: '', tail: '' };
+}
+
+const EXIT_WORDS: Record<string, string> = {
+  target: 'target',
+  stop: 'stopped out',
+  time: 'time stop',
+  outside: 'closed outside the bot',
+};
+
+/** The first-pullback bot's trade in one line (ADR 030); empty when it has none. */
+export function tradeLine(trade: BotTrade | null | undefined): string {
+  if (!trade) return '';
+  const sym = trade.symbol;
+  const qty = trade.qty;
+  switch (trade.state) {
+    case 'entering':
+      return `Buying ${sym} · ${qty} at ${px(trade.entry_planned)} limit`;
+    case 'open':
+      return `In ${sym} · ${qty} @ ${px(trade.entry_fill_price)} · stop ${px(trade.stop)} · target ${px(trade.target1)}`;
+    case 'exiting':
+      return `Closing ${sym} · ${trade.exit_why === 'stop' ? 'the stop printed' : 'time stop'}`;
+    case 'missed':
+      return `Missed ${sym} · ${prose(trade.note ?? 'the entry did not fill')}`;
+    case 'closed': {
+      const why = EXIT_WORDS[trade.exit_reason ?? ''] ?? trade.exit_reason ?? 'closed';
+      return `Last trade ${sym} · ${why}${trade.r != null ? ` · ${fmtR(trade.r)}` : ''}`;
+    }
+    default:
+      return `${sym} · ${trade.state}`;
+  }
+}
+
+function px(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return '—';
+  return v < 1 ? v.toFixed(4) : v.toFixed(2);
 }
 
 export interface PlayingLine {

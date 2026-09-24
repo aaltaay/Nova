@@ -235,3 +235,32 @@ def test_the_scoreboard_answers_for_the_template_in_play_unless_asked(tmp_path, 
     assert c.get("/api/setups/scoreboard", params={"template": "t-nope"}).status_code == 404
     day = other["rows"][0]["session_date"]
     assert len(c.get("/api/setups/rows", params={"date": day}).json()["rows"]) == 1
+
+
+def test_only_the_playing_lane_announces_its_trigger_on_the_live_feed(tmp_path):
+    """ADR 030: the first-pullback bot hears the template in play's triggers, never a replay's."""
+    templates = TemplateStore(tmp_path / "t.json")
+    templates.create(FP, name="Wide stop", values={"stop_cap": 0.5})
+    eng, _audits, _journal, clock = make(tmp_path, armed_bars(), templates)
+    heard: list[dict] = []
+    eng.add_trigger_listener(heard.append)
+    run(eng, clock["t"])
+    eng.on_l1_minute("last", SYM, {"price": 4.39, "ts": clock["t"], "bar_open": 4.32})
+    run(eng, clock["t"])
+    assert all(lane.det[SYM].state == "triggered" for lane in eng.lanes)
+    [event] = heard
+    assert event["symbol"] == SYM and event["template_id"] == "default" and event["source"] == "live"
+    assert event["setup"]["kind"] == "first_pullback" and event["setup"]["entry"] >= event["setup"]["trigger"]
+    assert event["tape"]["verdict"] in {"go", "wait", "veto", "blind"}
+    assert event["setup_id"] in {r["id"] for r in eng.store.rows() if r["template_id"] == "default"}
+
+
+def test_a_replay_desk_announces_no_trigger(tmp_path):
+    eng, _audits, _journal, clock = make(tmp_path, armed_bars(), TemplateStore(tmp_path / "t.json"))
+    eng._replay_fn = lambda: True
+    heard: list[dict] = []
+    eng.add_trigger_listener(heard.append)
+    run(eng, clock["t"])
+    eng.on_l1_minute("last", SYM, {"price": 4.39, "ts": clock["t"], "bar_open": 4.32})
+    run(eng, clock["t"])
+    assert eng.lanes[0].det[SYM].state == "triggered" and heard == []

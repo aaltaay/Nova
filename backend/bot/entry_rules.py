@@ -4,7 +4,9 @@ Only entries (``BOT_BUY_KINDS``) are gated; exits, cancels and protective
 sources never are. The clock is the venue's (``execution.session_gate``: the
 replay playhead on Sim). A bot entry counts toward the day once it was sent
 (its audit row says ``ok``); the day is the venue's ET date stamped on the row
-(``venue_day``), else the row's own ET date.
+(``venue_day``), else the row's own ET date. An entry the first-pullback bot
+cancelled unfilled (``bot_trade`` ``missed``, ADR 030) gives the day back:
+nothing was bought.
 
 Owner: this module (no state; the count is read from the bot audit stream).
 
@@ -22,6 +24,7 @@ from bot.errors import BotError
 import logging
 
 from constants_bot import (
+    BOT_AUDIT_ACTION_TRADE,
     BOT_BUY_KINDS,
     BOT_ENTRIES_PER_DAY,
     BOT_ENTRY_WINDOW_END_ET,
@@ -93,8 +96,11 @@ def entries_today(now: datetime | None = None, *, rows: list[dict[str, Any]] | N
 
     day = (now or venue_now()).date().isoformat()
     rows = list_entries(limit=500) if rows is None else rows
-    return sum(1 for r in rows
+    sent = sum(1 for r in rows
                if r.get("action") in BOT_BUY_KINDS and r.get("outcome") == "ok" and _row_day(r) == day)
+    missed = sum(1 for r in rows
+                 if r.get("action") == BOT_AUDIT_ACTION_TRADE and r.get("outcome") == "missed" and _row_day(r) == day)
+    return max(0, sent - missed)
 
 
 def assert_entry_allowed(kind: str) -> None:

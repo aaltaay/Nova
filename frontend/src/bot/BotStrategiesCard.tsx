@@ -109,7 +109,7 @@ export function BotStrategiesCard({ session, busy, onChooseSetup, onLevel }: Pro
                 ))}
               </div>
             ) : null}
-            <BotReadout readout={session.readout} />
+            <BotReadout readout={session.readout} required={session.readout_required} />
           </>
         ) : undefined)}
         {others.map(id => card(id))}

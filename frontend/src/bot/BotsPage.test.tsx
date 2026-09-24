@@ -102,14 +102,14 @@ describe('Bots page hero (approved mockup v4)', () => {
     expect(screen.getByTestId('bots-hero-playing').textContent).toBe('Playing First pullback · 2 symbols · max 1 share · $50 budget');
   });
 
-  it('says what each level lets a connected bot do, and that Strategy does not place a proposal yet', async () => {
+  it('says what each level does, and that Strategy trades on Paper and Sim while Live waits on the read-out', async () => {
     mockFetch({ session: session({ level: 0 }) });
     await renderPage();
     expect(screen.getByTestId('bots-level-0').textContent).toMatch(/Bot API dark · the setup scanner still watches and proposes/);
     expect(screen.getByTestId('bots-level-1').textContent).toMatch(/connected bot may watch and propose · you place/);
     const strategy = screen.getByTestId('bots-level-2');
-    expect(strategy.textContent).toMatch(/automatic placing from a proposal is not built yet/);
-    expect(strategy.getAttribute('aria-label')).toMatch(/^L2 Strategy: .*not built yet/);
+    expect(strategy.textContent).toMatch(/The bot trades the first pullback on Paper and Sim · Live waits on the read-out/);
+    expect(strategy.getAttribute('aria-label')).toMatch(/^L2 Strategy: .*Live waits on the read-out/);
     expect(screen.getByTestId('bots-hero').textContent).not.toMatch(/no watching|on its own/);
   });
 
@@ -152,6 +152,34 @@ describe('Bots page hero (approved mockup v4)', () => {
     expect(screen.getByTestId('bots-activate-hint').textContent).toBe('Activate waits on: read-out');
     await act(async () => { fireEvent.click(activate); await flush(); });
     expect(called(fetchMock, '/session/arm')).toBe(false);
+  });
+
+  it('on Paper Activate at Strategy does not wait on the read-out (ADR 030)', async () => {
+    const paperGates = gates({
+      level: { ok: true, detail: { level: 2 } },
+      readout: { ok: true, detail: { state: 'collecting', go_triggered: 12, min_go: 50, waived: true, venue: 'paper' } },
+    });
+    const fetchMock = mockFetch({ session: session({ level: 2, readout_required: false, gates: paperGates }) });
+    await renderPage();
+    const activate = screen.getByTestId('bots-activate') as HTMLButtonElement;
+    expect(activate.disabled).toBe(false);
+    expect(activate.getAttribute('data-why')).toBeNull();
+    expect(screen.queryByTestId('bots-activate-hint')).toBeNull();
+    expect(screen.getByTestId('bots-gate-readout').textContent).toMatch(/Read-out not needed on Paper · 12 \/ 50/);
+    expect(screen.getByTestId('bots-readout-waived').textContent).toMatch(/Paper and Sim do not wait on it/);
+    await act(async () => { fireEvent.click(activate); await flush(); });
+    expect(called(fetchMock, '/session/arm')).toBe(true);
+  });
+
+  it('shows the bot\'s trade under the playing line', async () => {
+    mockFetch({ session: session({
+      level: 2, armed: true, has_desk_arm: true, readout_required: false,
+      trade: { setup_id: 'S', symbol: 'IMCC', venue: 'paper', venue_day: '2026-09-24', state: 'open', qty: 1,
+        entry_planned: 10.02, stop: 9.89, target1: 10.3, risk: 0.14, entry_fill_price: 10.02, exit_price: null,
+        exit_reason: null, slippage: 0, r: null },
+    }) });
+    await renderPage();
+    expect(screen.getByTestId('bots-hero-trade').textContent).toBe('In IMCC · 1 @ 10.02 · stop 9.89 · target 10.30');
   });
 
   it('choosing Strategy activates first and patches with the desk token', async () => {
