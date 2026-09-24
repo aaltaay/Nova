@@ -178,6 +178,24 @@ describe('the charts', () => {
     expect(bare.scene.edgeTags).toEqual([]);
   });
 
+  it('keeps a failed setup on the chart, faded and named', () => {
+    const failed = normalizeStockRead({
+      ...apusReadWire,
+      plan: null,
+      setups: [{
+        ...apusReadWire.setups[0], state: 'failed', reason: 'the pullback ran past 3 candles',
+        leg: { t: apusAt(9, 24), high: 7.23, low: 5.76, pct: 0.256 },
+        setup: { trigger: 7.02, entry: 7.03, stop: 6.74, risk: 0.29, target1: 7.61, leg_t: apusAt(9, 24),
+          pullback_bars: 2, armed_bar_t: apusAt(9, 26) },
+      }],
+    })!;
+    const { scene } = paneDraw(failed, { pane: 'full', layers: LAYERS, toTime: identity });
+    const pb = scene.boxes.find(b => b.label?.startsWith('PULLBACK'))!;
+    expect(pb.label).toBe('PULLBACK 2 · FAILED');
+    expect(pb.stroke).toBe('#8e8e93');
+    expect(scene.boxes.find(b => b.label === 'LEG +25.6%')?.stroke).toBe('#8e8e93');
+  });
+
   it('draws nothing it cannot place on the pane', () => {
     const { scene } = paneDraw(read, { pane: 'full', layers: LAYERS, toTime: () => null });
     expect(scene.boxes).toEqual([]);

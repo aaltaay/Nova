@@ -43,7 +43,7 @@ export interface DrawOptions {
 }
 
 const MIN = 60;
-const LIVE_DRAWN = new Set(['leg', 'pullback', 'armed', 'near', 'triggered', 'filtered']);
+const LIVE_DRAWN = new Set(['leg', 'pullback', 'armed', 'near', 'triggered', 'filtered', 'failed']);
 
 export function paneKind(timeframe: string): PaneKind {
   if (timeframe === '1Min') return 'full';
@@ -76,10 +76,14 @@ function laneShapes(lane: SetupLane, lead: boolean, o: DrawOptions): { boxes: Sc
   const segments: SceneSegment[] = [];
   const leg = lane.leg;
   if (!LIVE_DRAWN.has(lane.state) && !lane.forming) return { boxes, segments };
-  const c = lead ? tone(lane.state === 'leg' || lane.state === 'pullback' ? 'forming' : lane.state)
+  // A failed setup stays on the chart faded for as long as the scanner shows it, saying so.
+  const failed = lane.state === 'failed';
+  const bright = lead && !failed;
+  const c = bright ? tone(lane.state === 'leg' || lane.state === 'pullback' ? 'forming' : lane.state)
     : { stroke: SETUP_COLORS.fadedStroke, fill: SETUP_COLORS.faded };
-  const legFill = lead ? SETUP_COLORS.leg : SETUP_COLORS.faded;
-  const legStroke = lead ? SETUP_COLORS.legStroke : SETUP_COLORS.fadedStroke;
+  const legFill = bright ? SETUP_COLORS.leg : SETUP_COLORS.faded;
+  const legStroke = bright ? SETUP_COLORS.legStroke : SETUP_COLORS.fadedStroke;
+  const tag = failed ? ' · FAILED' : '';
   const lv = levelsOf(lane);
   const lastT = lane.series?.bars_as_of ?? null;
   const endT = lv?.end ?? lastT;
@@ -101,23 +105,23 @@ function laneShapes(lane: SetupLane, lead: boolean, o: DrawOptions): { boxes: Sc
       const prog = type === 'bull_flag' ? formingProgress(lane) : null;
       const n = lv.bars ? ` ${lv.bars}` : '';
       box(leg.t + MIN, endT, lv.stop, lv.trigger, c.fill, c.stroke,
-        type === 'bull_flag' ? `FLAG${prog ? ` ${prog}` : n}` : `PULLBACK${n}`, provisional, true);
+        `${type === 'bull_flag' ? `FLAG${prog ? ` ${prog}` : n}` : `PULLBACK${n}`}${tag}`, provisional, true);
     }
   } else if (type === 'flat_top_breakout') {
     if (lv && leg && endT !== null) {
-      box(leg.t, endT, lv.stop, lv.trigger, c.fill, c.stroke, `BASE${lv.bars ? ` ${lv.bars}` : ''}`, provisional, true);
+      box(leg.t, endT, lv.stop, lv.trigger, c.fill, c.stroke, `BASE${lv.bars ? ` ${lv.bars}` : ''}${tag}`, provisional, true);
       const t1 = o.toTime(leg.t);
       if (t1 !== null) segments.push({ t1, price: lv.trigger, color: c.stroke, dashed: true, label: `FLAT TOP ${fmtPx(lv.trigger)}` });
     }
   } else if (type === 'red_to_green' && leg) {
     const t1 = o.toTime(leg.t);
     if (t1 !== null) {
-      segments.push({ t1, price: leg.high, color: lead ? SETUP_COLORS.trigger : SETUP_COLORS.fadedStroke, dashed: true,
+      segments.push({ t1, price: leg.high, color: bright ? SETUP_COLORS.trigger : SETUP_COLORS.fadedStroke, dashed: true,
         label: `OPEN ${fmtPx(leg.high)}` });
     }
     if (lastT !== null && leg.low < leg.high) {
-      box(leg.t, lastT, leg.low, leg.high, lead ? SETUP_COLORS.risk : SETUP_COLORS.faded,
-        lead ? SETUP_COLORS.stop : SETUP_COLORS.fadedStroke, `RED${leg.bars ? ` ${leg.bars}` : ''}`, true, true);
+      box(leg.t, lastT, leg.low, leg.high, bright ? SETUP_COLORS.risk : SETUP_COLORS.faded,
+        bright ? SETUP_COLORS.stop : SETUP_COLORS.fadedStroke, `RED${leg.bars ? ` ${leg.bars}` : ''}${tag}`, true, true);
     }
   }
   return { boxes, segments };
