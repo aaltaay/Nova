@@ -1,7 +1,7 @@
 """The first-pullback state machine (ADR 022): leg, armed, near, triggered, failed."""
 from __future__ import annotations
 
-from setup_scanner.bars import Bar, MinuteBars, bar_from
+from setup_scanner.bars import Bar, MinuteBars, bar_from, stored_bars
 from setup_scanner.pullback import PullbackDetector, PullbackParams
 from tests.setup_scanner_fixtures import add, base_morning, et_ts, leg_up
 
@@ -174,3 +174,51 @@ def test_bar_from_store_row_and_payload():
     row = bar_from({"t": "2026-09-21T13:31:00+00:00", "o": 4, "h": 4.1, "l": 3.9, "c": 4.05, "v": 900})
     assert row is not None and row.v == 900
     assert bar_from({"t": 1.0, "o": 1, "h": 0.5, "l": 1, "c": 1}) is None     # high under low
+
+
+def _no_trade(t: float, price: float) -> dict:
+    """IBKR's historical bar for a minute without a trade: zero volume at the last price."""
+    return {"t": t, "o": price, "h": price, "l": price, "c": price, "v": 0}
+
+
+def test_stored_bars_leave_out_the_minutes_ibkr_filled_without_a_trade():
+    t = et_ts(8, 0)
+    res = {"bars": [
+        {"t": t, "o": 2.40, "h": 2.40, "l": 2.22, "c": 2.22, "v": 1452},
+        _no_trade(t + 60, 2.22),
+        {"t": t + 120, "o": 2.25, "h": 2.25, "l": 2.25, "c": 2.25, "v": 300},   # one price, but it traded
+        {"t": t + 180, "o": 2.25, "h": 2.30, "l": 2.25, "c": 2.30, "v": 0},     # it moved: not a fill
+    ]}
+    assert [b.t for b in stored_bars(res)] == [t, t + 120, t + 180]
+    assert stored_bars(None) == [] and stored_bars({"bars": []}) == []
+
+
+def test_quiet_minutes_in_the_store_do_not_stretch_a_seeded_pullback():
+    # APUS 2026-09-24: 259 of 310 stored minutes were IBKR's no-trade bars. The
+    # research's minute files have no bar there; counted, three quiet minutes
+    # after the high make a one-candle pullback four bars long.
+    bars = _leg()
+    high = bars[-1]
+    quiet = [_no_trade(high.t + 60 * k, high.c) for k in (1, 2, 3)]
+    red = {"t": high.t + 240, "o": 4.38, "h": 4.37, "l": 4.30, "c": 4.32, "v": 30_000}
+    res = {"bars": [b.as_dict() for b in bars] + quiet + [red]}
+
+    counted = PullbackDetector("TEST")
+    _feed(counted, [b for b in (bar_from(r) for r in res["bars"]) if b is not None])
+    assert counted.state != "armed"
+
+    mb = MinuteBars("TEST")
+    mb.seed(stored_bars(res))
+    d = PullbackDetector("TEST")
+    _feed(d, mb.completed)
+    assert d.state == "armed" and d.armed["trigger"] == 4.37
+
+
+def test_the_live_seed_reads_the_store_without_the_no_trade_minutes(monkeypatch):
+    import bars_store
+    from setup_scanner.hooks import default_seed
+
+    t = et_ts(8, 0)
+    monkeypatch.setattr(bars_store, "read", lambda *a, **k: {"bars": [
+        {"t": t, "o": 2.40, "h": 2.40, "l": 2.22, "c": 2.22, "v": 1452}, _no_trade(t + 60, 2.22)]})
+    assert [b.t for b in default_seed("APUS", t)] == [t]
