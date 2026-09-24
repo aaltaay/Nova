@@ -208,26 +208,43 @@ def recent_prints(limit: int = 40, *, state: CaptureData | None = None) -> list[
     cap = max(1, int(limit))
     floor = _span_floor(state.print_keys, state, asof)
     chunk = state.prints[max(floor, i - cap + 1) : i + 1]
-    out: list[dict[str, Any]] = []
-    for p in chunk:
-        ts = _ts(p)
-        t_iso = datetime.fromtimestamp(ts, tz=ET).astimezone(timezone.utc).isoformat()
-        out.append(
-            {
-                "type": "print",
-                "symbol": str(p.get("symbol") or "").upper(),
-                "time": t_iso,
-                "price": float(p.get("price") or 0),
-                "size": int(p["size"]) if p.get("size") is not None else None,
-                "exchange": str(p.get("exchange") or ""),
-                "conditions": str(p.get("conditions") or ""),
-                **tape_flags(p),
-                "side": p.get("side"),
-                "bid": p.get("bid"),
-                "ask": p.get("ask"),
-            }
-        )
-    return out
+    return [_print_payload(p) for p in chunk]
+
+
+def _print_payload(p: dict[str, Any]) -> dict[str, Any]:
+    ts = _ts(p)
+    return {
+        "type": "print",
+        "symbol": str(p.get("symbol") or "").upper(),
+        "time": datetime.fromtimestamp(ts, tz=ET).astimezone(timezone.utc).isoformat(),
+        "price": float(p.get("price") or 0),
+        "size": int(p["size"]) if p.get("size") is not None else None,
+        "exchange": str(p.get("exchange") or ""),
+        "conditions": str(p.get("conditions") or ""),
+        **tape_flags(p),
+        "side": p.get("side"),
+        "bid": p.get("bid"),
+        "ask": p.get("ask"),
+    }
+
+
+def last_trade(*, state: CaptureData | None = None) -> dict[str, Any] | None:
+    """The newest print at the playhead that sets a price, as a tape payload; ``None`` in a gap.
+
+    An odd lot or an average-price print is on the tape but never the capture's
+    last trade (#511): the quote card's latest trade reads this, not the newest print.
+    """
+    state = state or _state
+    if state is None or not state.prints:
+        return None
+    asof = asof_unix()
+    i = _bounded_index(state.print_keys, state, asof + 1e-6)
+    floor = _span_floor(state.print_keys, state, asof)
+    while i >= max(0, floor):
+        if row_sets_price(state.prints[i]):
+            return _print_payload(state.prints[i])
+        i -= 1
+    return None
 
 
 def quote_at(asof: float | None = None, *, state: CaptureData | None = None) -> dict[str, Any] | None:

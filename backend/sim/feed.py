@@ -206,7 +206,9 @@ def _capture_tick() -> dict:
             "side": row.get("side"), "bid": row.get("bid"), "ask": row.get("ask"),
         }
         _push_queue(symbol, payload)
-        _broadcast_capture(payload)
+        if payload["sets_price"]:
+            # The chart tip moves on prints that set a price, as IBKR's Last does live (#511).
+            _broadcast_capture(payload)
         player.mark_emitted(ts, state=selection)
         last_payload = payload
     book = player.book_at(state=selection)

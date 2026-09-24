@@ -220,3 +220,32 @@ def test_quiet_capture_can_refresh_recorded_book_without_fabricating_trade(tmp_p
     assert feed.tick() == {}
     tape.assert_not_called()
     books.assert_called_once_with("IMCC", {**recorded, "source": "capture"})
+
+
+def test_volume_only_print_is_on_the_tape_but_never_the_chart_tip_or_last_trade(tmp_path, monkeypatch):
+    """An odd lot is listed on the tape; it never moves the chart tip or reads as the last trade (#511)."""
+    from ibkr import tape_stream
+    from sim import market_views
+    capture(tmp_path, prints=[print_row(), print_row(ts=TS + 0.5, price=11.0, size=3, conditions="I")],
+            quotes=[dict(ts=TS, symbol="IMCC", bid=12.4, ask=12.6)])
+    replay.set_replay(DAY, "IMCC")
+    monkeypatch.setattr(clock, "now_et", lambda: datetime.fromtimestamp(TS + 1, clock.ET))
+    player.seek_emit_cursor(TS)
+    tape, broadcast = Mock(), Mock()
+    monkeypatch.setattr(tape_stream, "_push_queue", tape)
+    monkeypatch.setattr(feed, "_broadcast_capture", broadcast)
+    feed.tick()
+    sent = [call.args[1] for call in tape.call_args_list]
+    assert [(p["price"], p["sets_price"]) for p in sent] == [(12.5, True), (11.0, False)]
+    broadcast.assert_called_once()
+    assert broadcast.call_args.args[0]["price"] == 12.5
+    assert player.last_trade()["price"] == 12.5
+    assert market_views.ticker_snapshot("IMCC")["latest_trade"]["price"] == 12.5
+
+
+def test_last_trade_is_none_when_only_volume_only_prints_are_recorded(tmp_path, monkeypatch):
+    capture(tmp_path, prints=[print_row(conditions="I"), print_row(ts=TS + 0.2, unreported=True)])
+    replay.set_replay(DAY, "IMCC")
+    monkeypatch.setattr(clock, "now_et", lambda: datetime.fromtimestamp(TS + 1, clock.ET))
+    assert len(player.recent_prints()) == 2
+    assert player.last_trade() is None
