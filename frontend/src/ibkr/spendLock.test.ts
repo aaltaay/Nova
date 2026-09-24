@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { isSpendLocked, spendLockReason, spendStatusLabel } from './spendLock';
+import {
+  flattenSpendLockReason,
+  isDisarmed,
+  isSpendLocked,
+  spendLockReason,
+  spendStatusLabel,
+} from './spendLock';
 
 describe('isSpendLocked', () => {
   it('treats the armed statuses as unlocked', () => {
@@ -41,6 +47,35 @@ describe('spendLockReason', () => {
 
   it('always has a reason for an unmapped locked status', () => {
     expect(spendLockReason('mystery')).toBeTruthy();
+  });
+});
+
+describe('flattenSpendLockReason (ADR 018: a disarmed desk can always get flat)', () => {
+  it('lets a disarmed desk flatten -- the backend arm latch never holds a flatten', () => {
+    expect(isDisarmed('locked_disarmed')).toBe(true);
+    expect(flattenSpendLockReason('locked_disarmed')).toBeNull();
+    // Place stays locked on the same status.
+    expect(spendLockReason('locked_disarmed')).toContain('Desk is disarmed');
+  });
+
+  it('is null while armed, like every order', () => {
+    expect(flattenSpendLockReason('paper_armed')).toBeNull();
+    expect(flattenSpendLockReason('live_armed')).toBeNull();
+    expect(flattenSpendLockReason('sim_armed')).toBeNull();
+  });
+
+  it('keeps every other lock and its reason: the backend refuses a flatten there too', () => {
+    for (const status of ['locked', 'locked_live_unconfirmed', 'locked_account_unconfirmed']) {
+      expect(isDisarmed(status)).toBe(false);
+      expect(flattenSpendLockReason(status)).toBe(spendLockReason(status));
+    }
+  });
+
+  it('fails closed for an unknown or missing status', () => {
+    expect(isDisarmed(undefined)).toBe(false);
+    expect(flattenSpendLockReason(undefined)).toBe(spendLockReason(undefined));
+    expect(flattenSpendLockReason('')).toBeTruthy();
+    expect(flattenSpendLockReason('some_future_backend_state')).toBeTruthy();
   });
 });
 

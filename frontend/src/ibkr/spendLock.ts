@@ -7,6 +7,8 @@
  */
 
 const ARMED_STATUSES = new Set(['paper_armed', 'live_armed', 'sim_armed']);
+// ADR 018: the env permits spending; only this session's arm latch is off.
+const DISARMED_STATUS = 'locked_disarmed';
 
 const LOCK_REASONS: Record<string, string> = {
   locked: 'Orders locked — enable IBKR orders in Nova settings/environment',
@@ -36,6 +38,24 @@ export function spendLockReason(
     LOCK_REASONS[(spendStatus ?? '').trim()]
     ?? 'Orders locked by IBKR environment safety settings'
   );
+}
+
+/** True when the arm latch is the only lock: the env permits spending, this session is not armed. */
+export function isDisarmed(spendStatus?: string | null): boolean {
+  return (spendStatus ?? '').trim() === DISARMED_STATUS;
+}
+
+/**
+ * The spend lock a Flatten obeys: why it cannot send, or null.
+ *
+ * Flatten is sent as the protective `flatten` source, which the backend's arm
+ * latch never holds (`ibkr/safety.PROTECTIVE_SOURCES`), so a disarmed desk can
+ * always get flat (ADR 018). Every other lock -- the env gates, an unconfirmed
+ * account class, a status not known yet -- refuses a flatten on Live too, so it
+ * still holds.
+ */
+export function flattenSpendLockReason(spendStatus?: string | null): string | null {
+  return isDisarmed(spendStatus) ? null : spendLockReason(spendStatus);
 }
 
 /** Short chip label for the Trading header. */

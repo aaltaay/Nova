@@ -44,13 +44,19 @@ vi.mock('../ibkr/ticketUnlock', () => ({
   readTicketSessionUnlocked: () => true,
 }));
 
+const status = vi.hoisted(() => ({ spend_status: 'paper_armed' }));
+
 vi.mock('../ibkr/useIbkrStatus', () => ({
   useIbkrStatus: () => ({
     connected: true,
     mode: 'paper',
-    spend_status: 'paper_armed',
+    spend_status: status.spend_status,
   }),
 }));
+
+// Armed, and disarmed: a disarmed desk can always get flat (ADR 018), so no
+// entry point may add a padlock of its own.
+const SPEND_STATUSES = ['paper_armed', 'locked_disarmed'];
 
 vi.mock('../ibkr/IbkrAccountContext', () => ({
   useOptionalIbkrAccountContext: () => ({
@@ -72,6 +78,7 @@ describe('Close Position SSOT across every UI entry point', () => {
   let spy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
+    status.spend_status = 'paper_armed';
     mount = document.createElement('div');
     document.body.appendChild(mount);
     root = createRoot(mount);
@@ -98,7 +105,7 @@ describe('Close Position SSOT across every UI entry point', () => {
     });
   }
 
-  it('Positions table row flattens through closeFullPosition', async () => {
+  it.each(SPEND_STATUSES)('Positions table row flattens through closeFullPosition (%s)', async (spendStatus) => {
     act(() => {
       root.render(
         <PositionsPanel
@@ -110,7 +117,7 @@ describe('Close Position SSOT across every UI entry point', () => {
           onOpenTrading={() => {}}
           mode="paper"
           connected
-          spendStatus="paper_armed"
+          spendStatus={spendStatus}
           compact
         />,
       );
@@ -119,7 +126,7 @@ describe('Close Position SSOT across every UI entry point', () => {
     expect(spy).toHaveBeenCalledWith(...EXPECTED_CALL);
   });
 
-  it('chart Long/Short tag menu flattens through closeFullPosition', async () => {
+  it.each(SPEND_STATUSES)('chart Long/Short tag menu flattens through closeFullPosition (%s)', async (spendStatus) => {
     act(() => {
       root.render(
         <ChartPositionTag
@@ -127,7 +134,7 @@ describe('Close Position SSOT across every UI entry point', () => {
           placement={{ top: 24, right: 8 }}
           mode="paper"
           connected
-          spendStatus="paper_armed"
+          spendStatus={spendStatus}
         />,
       );
     });
@@ -142,7 +149,8 @@ describe('Close Position SSOT across every UI entry point', () => {
     expect(spy).toHaveBeenCalledWith(...EXPECTED_CALL);
   });
 
-  it('chart right-click menu flattens through closeFullPosition', async () => {
+  it.each(SPEND_STATUSES)('chart right-click menu flattens through closeFullPosition (%s)', async (spendStatus) => {
+    status.spend_status = spendStatus;
     const body = document.createElement('div');
     body.className = 'chart-body';
     document.body.appendChild(body);

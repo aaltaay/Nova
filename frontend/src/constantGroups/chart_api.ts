@@ -462,9 +462,9 @@ export const CLOSE_POSITION_ACCOUNT_ERROR_TITLE =
   'IBKR account/positions read failed — Flatten disabled until the poll recovers';
 export const CLOSE_POSITION_VS_CANCEL_HINT =
   'Flatten closes the entire position with a market order (extended hours when pre/after-market). Cancel only removes a working order. Fill now cancels the rest of one order and fills that remainder -- market in regular hours, or a bid/ask limit sweep in pre/after-market when that symbol has a live Trader book.';
-/** Flatten is a user spend action — same padlock as Place an order. */
-export const CLOSE_POSITION_PIN_LOCKED_TITLE =
-  'Unlock trading at the padlock before Flatten — same lock as Place an order.';
+/** An enabled Flatten on a disarmed desk: it only closes, so the padlock never holds it (ADR 018). */
+export const CLOSE_POSITION_DISARMED_TITLE =
+  'The desk is disarmed, but Flatten still works -- it only closes this position. The padlock holds orders that open one.';
 /** Why a Flatten is locked (ux/whyTip.ts): its own order is in flight. */
 export const CLOSE_POSITION_BUSY_WHY = 'Sending the flatten order -- this unlocks when the venue answers.';
 /** ...the Gateway dropped, so the position on screen is last known. */
