@@ -359,4 +359,61 @@ describe('StockViewTabStrip preview tabs (ADR 011, 2026-09-22)', () => {
     expect(tab.classList.contains('sv-tab--preview')).toBe(false);
     expect(container.querySelector('[data-testid="sv-tab-pin-GRML"]')).toBeNull();
   });
+
+  // #449: a workspace whose tabs never leave it (the sample desk's) keeps every
+  // control on screen and says why each move is off -- never a silent no-op.
+  describe('move locks', () => {
+    const locks = { title: 'tabs stay here', dock: 'no dock here', extract: 'no pop-out here' };
+
+    function renderLocked(extract: string | null, showDock = false) {
+      const onExtract = vi.fn();
+      const onDock = vi.fn();
+      act(() => {
+        root.render(
+          <StockViewTabStrip
+            tabs={['SMPL']} live={['SMPL']} pinned={['SMPL']} active="SMPL"
+            showDock={showDock} showExtract={!showDock} moveLocks={{ ...locks, extract }}
+            onActivate={() => {}} onClose={() => {}} onRename={() => {}} onAddDraft={() => {}}
+            onExtract={onExtract} onDock={onDock}
+          />,
+        );
+      });
+      return { onExtract, onDock };
+    }
+
+    it('tabs do not drag, and the strip and the tab say how tabs move here', () => {
+      renderLocked(null);
+      const tab = container.querySelector('[data-testid="sv-tab-SMPL"]') as HTMLElement;
+      expect(tab.getAttribute('draggable')).toBe('false');
+      expect((container.querySelector('[data-testid="sv-tab-strip"]') as HTMLElement).title).toBe(locks.title);
+      expect((tab.querySelector('.sv-tab__label') as HTMLElement).title).toBe(locks.title);
+    });
+
+    it('pop-out still works when only dragging is off', () => {
+      const { onExtract } = renderLocked(null);
+      const extract = container.querySelector('[data-testid="sv-tab-extract-SMPL"]') as HTMLButtonElement;
+      expect(extract.disabled).toBe(false);
+      act(() => { extract.click(); });
+      expect(onExtract).toHaveBeenCalledTimes(1);
+    });
+
+    it('a locked pop-out is disabled with its reason, and a double-click does nothing', () => {
+      const { onExtract } = renderLocked(locks.extract);
+      const extract = container.querySelector('[data-testid="sv-tab-extract-SMPL"]') as HTMLButtonElement;
+      expect(extract.disabled).toBe(true);
+      expect(extract.dataset.why).toBe(locks.extract);
+      const label = container.querySelector('[data-testid="sv-tab-SMPL"] .sv-tab__label') as HTMLElement;
+      act(() => { label.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); });
+      expect(onExtract).not.toHaveBeenCalled();
+    });
+
+    it("a pop-out's Dock is disabled with its reason", () => {
+      const { onDock } = renderLocked(null, true);
+      const dock = container.querySelector('[data-testid="sv-tab-dock-SMPL"]') as HTMLButtonElement;
+      expect(dock.disabled).toBe(true);
+      expect(dock.dataset.why).toBe(locks.dock);
+      act(() => { dock.click(); });
+      expect(onDock).not.toHaveBeenCalled();
+    });
+  });
 });

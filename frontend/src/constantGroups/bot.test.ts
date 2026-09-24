@@ -22,7 +22,7 @@ describe('bot playbook copy (ADR 027)', () => {
 
   it('labels every gate backend/bot/gates.py returns', () => {
     expect(Object.keys(BOT_GATE_LABELS).sort()).toEqual(
-      ['allowlist', 'bot_trip', 'day_lock', 'depth_lines', 'desk_armed', 'kill_switch', 'level', 'readout', 'window'],
+      ['allowlist', 'bot_trip', 'commissions', 'day_lock', 'depth_lines', 'desk_armed', 'kill_switch', 'level', 'readout', 'window'],
     );
   });
 

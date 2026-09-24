@@ -114,8 +114,6 @@ export const DESK_WORKSPACE_EMPTY_TITLE = 'No symbol open';
 export const DESK_WORKSPACE_EMPTY_HINT =
   'Click a board row: it opens here as a tab -- the same tab the Trader shows.';
 
-export const DESK_SAMPLE_UNAVAILABLE = 'Desk is not available in Sample Data mode.';
-
 /* ── Persisted board list ───────────────────────────────────────────────── */
 
 /** Owner: desk/deskBoardState.ts. Invalidation: `v` bump; older shapes are ignored. */

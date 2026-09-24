@@ -4,22 +4,20 @@
  * Trader's own workspace (StockViewTabs, one instance) sits to the right --
  * App.tsx shows that slot beside this column, so tabs opened here are the
  * tabs the Trader shows. A row click is the open; double-click pops the
- * symbol out to the full Trader view.
+ * symbol out to the full Trader view. The sample desk renders its own
+ * (sample_data/SampleDesk).
  */
 import { useCallback, useEffect, useState } from 'react';
 import { ScannerBarBridge } from '../components/ScannerBarBridge';
 import { useBotAllowlist } from '../bot/useBotAllowlist';
 import { startTabRecord, stopTabRecord, useRecordingSymbols } from '../capture/sessionRecordStore';
-import {
-  DESK_SAMPLE_UNAVAILABLE,
-  DESK_WORKSPACE_EMPTY_HINT,
-  DESK_WORKSPACE_EMPTY_TITLE,
-} from '../constantGroups/desk';
+import { DESK_WORKSPACE_EMPTY_HINT, DESK_WORKSPACE_EMPTY_TITLE } from '../constantGroups/desk';
 import { DeskBoard } from '../desk/DeskBoard';
 import { DESK_BOARD_STATE_VERSION, readDeskBoardState, writeDeskBoardState } from '../desk/deskBoardState';
 import { HodMomoDock } from '../hod_momo/HodMomoDock';
 import { usePublishScannerNews } from '../hod_momo/usePublishScannerNews';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
+import { SampleDesk } from '../sample_data/SampleDesk';
 import { useLiveScannerFeedOptional } from '../scanner/ScannerDataContext';
 import { useSettingsOptional } from '../settings/SettingsContext';
 import { TRADER_DRAFT_SYMBOL } from '../stock_view/traderTabsState';
@@ -31,15 +29,8 @@ import '../desk/desk.css';
 const NO_ROWS: never[] = [];
 
 export function DeskPage() {
-  const sample = useSampleDataOptional();
-  if (sample) {
-    return (
-      <div className="desk-page desk-page--sample" data-testid="desk-page">
-        <p className="desk-page__calm">{DESK_SAMPLE_UNAVAILABLE}</p>
-      </div>
-    );
-  }
-  return <LiveDesk />;
+  // The sample desk has its own Desk over its own rows and workspace (#449).
+  return useSampleDataOptional() ? <SampleDesk /> : <LiveDesk />;
 }
 
 function LiveDesk() {

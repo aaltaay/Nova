@@ -25,6 +25,7 @@ import {
 } from '../workspace/traderDesk';
 import { SimSessionStrip } from '../sim/SimSessionStrip';
 import { FocusRail } from './FocusRail';
+import type { FocusRailStore } from './focusRailState';
 import { StockViewTabStrip } from './StockViewTabStrip';
 import { TRADER_DRAFT_SYMBOL } from './traderTabsState';
 import './stockViewTabs.css';
@@ -33,12 +34,14 @@ interface Props {
   detached: boolean;
   /** Desk hybrid: the board is the focus, so the Focus rail stays hidden. */
   hideFocusRail?: boolean;
+  /** Where the Focus rail keeps its list, sort and fold; the operator's saved one by default. */
+  focusRailStore?: FocusRailStore;
   /** The workspace is on screen. Defaults to the Trader view being active;
    * the Desk passes true while it shows this workspace beside its board. */
   active?: boolean;
 }
 
-export function StockViewTabs({ detached, hideFocusRail = false, active }: Props) {
+export function StockViewTabs({ detached, hideFocusRail = false, focusRailStore, active }: Props) {
   const {
     traderTabs,
     traderLiveTabs,
@@ -65,10 +68,13 @@ export function StockViewTabs({ detached, hideFocusRail = false, active }: Props
     traderViewActive,
     setSelectedSymbol,
     deskVenue,
+    traderMoveLocks,
   } = useWorkspace();
 
+  // Only a live pop-out's own `?view=stock` URL follows its tab: the sample
+  // desk's pop-out (#449) keeps `?view=sample`, which its workspace updates.
   useEffect(() => {
-    if (!detached) return;
+    if (!detached || parseStockViewSymbol() == null) return;
     const active = activeTraderSymbol;
     if (active && active !== TRADER_DRAFT_SYMBOL) {
       replaceStockViewUrl(active);
@@ -77,7 +83,7 @@ export function StockViewTabs({ detached, hideFocusRail = false, active }: Props
 
   const onBack = () => {
     if (detached) {
-      leaveStockViewUrl();
+      if (parseStockViewSymbol() != null) leaveStockViewUrl();
       if (window.opener) window.close();
       else closeTraderView();
     } else {
@@ -114,6 +120,7 @@ export function StockViewTabs({ detached, hideFocusRail = false, active }: Props
       windowId={traderWindowId}
       showDock={traderDeskRole === 'float'}
       showExtract={canExtractFromDesk(traderDeskRole)}
+      moveLocks={traderMoveLocks ?? null}
       dropReady={dropReady}
       // The Sim scrubber rides on this row (no SIM SESSION bar on the Trader view).
       trailing={deskVenue === 'sim' ? <SimSessionStrip /> : null}
@@ -136,7 +143,8 @@ export function StockViewTabs({ detached, hideFocusRail = false, active }: Props
     <div
       className={`sv-tabs-root${dropReady ? ' sv-tabs-root--drop-ready' : ''}`}
       data-testid="sv-tabs-root"
-      onDragOver={allowTraderTabDrop}
+      // A workspace whose tabs stay put (the sample desk's) takes no drop, so the cursor says so.
+      onDragOver={traderMoveLocks ? undefined : allowTraderTabDrop}
       onDrop={(e) => {
         const payload = takeForeignTraderTabDrop(e, traderWindowId);
         if (payload) acceptTraderTabDrop(payload);
@@ -153,7 +161,7 @@ export function StockViewTabs({ detached, hideFocusRail = false, active }: Props
       {headerSlot && traderViewActive && !detached ? createPortal(tabStrip, headerSlot) : tabStrip}
       <div className="sv-tabs-body">
       {/* One Focus rail for the whole Trader view, not one per tab; none beside the Desk board. */}
-      {!hideFocusRail && <FocusRail active={onScreen} />}
+      {!hideFocusRail && <FocusRail active={onScreen} store={focusRailStore} />}
       <div className="sv-tabs-panes">
         {traderTabs.map(symbol => {
           if (symbol === TRADER_DRAFT_SYMBOL) {

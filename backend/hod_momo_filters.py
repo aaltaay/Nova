@@ -19,6 +19,7 @@ from collections import deque
 from typing import Callable
 
 from hod_momo_models import MasterGateConfig, StrategyConfig, TickerSnap
+from strategy.float_gate import float_for_gate
 
 
 def passes_range(value: float | None, min_val: float, max_val: float) -> tuple[bool, str]:
@@ -77,6 +78,11 @@ def evaluate_strategy(
     ``request_fundamentals`` is called (no args) when float/52wk data is
     missing and needs to be queued for enrichment — the caller decides
     which symbol that maps to.
+
+    ``max_float`` reads ``strategy.float_gate`` (#532): a float its own share
+    counts contradict passes only when shares outstanding is at or under the
+    line, and is refused ``float:contradicted(...)`` otherwise -- another
+    fetch would read the same stale count, so none is queued.
     """
     if not cfg.enabled:
         return False, "disabled"
@@ -92,8 +98,15 @@ def evaluate_strategy(
             return False, "float:unknown"
         if cfg.min_float > 0 and float_val < cfg.min_float:
             return False, f"float:below_min({float_val:.3g}<{cfg.min_float:.3g})"
-        if cfg.max_float > 0 and float_val > cfg.max_float:
-            return False, f"float:above_max({float_val:.3g}>{cfg.max_float:.3g})"
+        if cfg.max_float > 0:
+            rescued, why = float_for_gate(float_val, cfg.max_float, contradicted=snap.float_contradicted,
+                                          shares_outstanding=snap.shares_outstanding)
+            if why is not None and not rescued:
+                out = snap.shares_outstanding
+                seen = f"{out:.3g}>{cfg.max_float:.3g}" if isinstance(out, (int, float)) and out > 0 else "unknown"
+                return False, f"float:contradicted(shares_out={seen})"
+            if why is None and float_val > cfg.max_float:
+                return False, f"float:above_max({float_val:.3g}>{cfg.max_float:.3g})"
 
     if cfg.min_volume > 0 and (snap.volume is None or snap.volume < cfg.min_volume):
         return False, f"volume:below_min({snap.volume}<{cfg.min_volume})"

@@ -112,6 +112,8 @@ IBKR_TAPE_LINE_REQ_KEEP = 512
 IBKR_LINE_RENEW_BACKOFF_SEC: tuple[float, ...] = (0.0, 2.0, 5.0, 15.0, 30.0)
 # ib_async's subscription-registry key for a depth line (find_market_data).
 IBKR_DEPTH_REGISTRY_KIND = "mktDepth"
+# ... and for a Level 1 (reqMktData) line (ibkr/ticks_session.py, #565).
+IBKR_L1_REGISTRY_KIND = "mktData"
 # "Only 10 simultaneous API scanner subscriptions are allowed." Arrives
 # asynchronously via errorEvent; with RaiseRequestErrors=False (ib_async
 # default) the request's own future still resolves to [] with no exception,
@@ -493,6 +495,9 @@ NASDAQ_TRADE_HALT_RSS_URL_HTTP = "http://www.nasdaqtrader.com/rss.aspx?feed=trad
 NASDAQ_TRADE_HALT_RSS_HALTDATE_PARAM = "haltdate"  # ?feed=tradehalts&haltdate=MM/DD/YYYY
 NASDAQ_TRADE_HALT_RSS_NS = "http://www.nasdaqtrader.com/"
 NASDAQ_TRADE_HALT_RSS_POLL_SEC = 60.0
+# The feed answers "not halted" for a live scanner row only while its last good
+# read is this young (#487): a wedged poller must not keep stating it.
+NASDAQ_TRADE_HALT_RSS_FRESH_SEC = 3 * NASDAQ_TRADE_HALT_RSS_POLL_SEC
 NASDAQ_TRADE_HALT_RSS_HTTP_TIMEOUT_SEC = 10.0
 NASDAQ_TRADE_HALT_RSS_USER_AGENT = "NovaHaltRss/1.0 (+https://github.com/aaltaay/Nova)"
 IBKR_LISTING_FLAGS_TIMEOUT_SEC = 10.0           # sync bridge ceiling for ticker builders

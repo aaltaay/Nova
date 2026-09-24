@@ -78,9 +78,12 @@ describe('useBoardFilters', () => {
     act(() => result.current.applySet('Low-float runners'));
     expect([...result.current.active]).toEqual(['gap', 'float']);
 
-    // The unavailable chip is refused, never stored.
+    // Halted filters every board now (#487): it is stored like any other chip.
     act(() => result.current.toggle('halted'));
-    expect(result.current.active.has('halted')).toBe(false);
+    expect([...result.current.active]).toEqual(['gap', 'float', 'halted']);
+    expect(readBoardFilterState().active).toEqual(['gap', 'float', 'halted']);
+    act(() => result.current.toggle('halted'));
+    expect(result.current.activeSetName).toBe('Low-float runners');
 
     act(() => result.current.forgetSet('Low-float runners'));
     expect(result.current.sets).toEqual([]);

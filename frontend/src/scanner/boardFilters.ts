@@ -4,14 +4,14 @@
  * Every predicate fails OPEN on an unknown fact (single-market-data-feed.mdc:
  * a client-side filter must never drop a row because a metadata field is
  * unknown), and the caller always shows the hidden count -- see
- * ScannerBoardFooter. `halted` is a fact only played-back rows state (ADR
- * 023), so that chip filters only while the board is played back (#487).
+ * ScannerBoardFooter. Every row states `halted` -- a live row from the live
+ * halt state (#487), a played-back row from the halt / LULD log (ADR 023) --
+ * so every chip can filter every board.
  */
 import {
   SCANNER_CHIP_FLOAT_MAX_SHARES,
   SCANNER_CHIP_GAP_MIN_PCT,
   SCANNER_CHIP_IDS,
-  SCANNER_CHIP_PLAYBACK_ONLY,
   SCANNER_CHIP_RELVOL_MIN,
   type ScannerChipId,
 } from '../constantGroups/scanner_board';
@@ -30,11 +30,6 @@ export function isChipId(value: unknown): value is ScannerChipId {
   return typeof value === 'string' && (SCANNER_CHIP_IDS as readonly string[]).includes(value);
 }
 
-/** Can this chip filter the board shown? A playback-only chip needs played-back rows. */
-export function isChipAvailable(id: ScannerChipId, playback = false): boolean {
-  return playback || !SCANNER_CHIP_PLAYBACK_ONLY.includes(id);
-}
-
 /** One chip, one row. Unknown facts pass. */
 export function chipPasses(id: ScannerChipId, row: ChipRow): boolean {
   switch (id) {
@@ -51,22 +46,17 @@ export function chipPasses(id: ScannerChipId, row: ChipRow): boolean {
       // A played-back row that did not record its news is unknown, and unknowns pass.
       return row.has_news === true || row.news_unknown === true;
     case 'halted':
-      // A played-back row states its halt. null -- a rebuilt minute, or the halt feed was not
-      // answering -- is unknown, and unknowns pass; only a stated `false` is dropped.
+      // Live and played-back rows state their halt. null -- no halt source answering for the
+      // symbol, or a rebuilt minute -- is unknown, and unknowns pass; only a stated `false` is dropped.
       return row.halted !== false;
     default:
       return true;
   }
 }
 
-export function applyBoardChips<T extends ChipRow>(
-  rows: readonly T[],
-  active: ReadonlySet<ScannerChipId>,
-  playback = false,
-): T[] {
+export function applyBoardChips<T extends ChipRow>(rows: readonly T[], active: ReadonlySet<ScannerChipId>): T[] {
   if (active.size === 0) return [...rows];
-  const ids = [...active].filter((id) => isChipAvailable(id, playback));
-  if (ids.length === 0) return [...rows];
+  const ids = [...active];
   return rows.filter((row) => ids.every((id) => chipPasses(id, row)));
 }
 

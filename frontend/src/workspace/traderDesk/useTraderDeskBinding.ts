@@ -45,11 +45,20 @@ import { useTraderDesk } from './useTraderDesk';
 import { getTraderWindowId } from './windowId';
 import type { TraderTabDragPayload } from './protocol';
 import { isTabRecording } from '../../capture/sessionRecordStore';
+import { useSampleRoute } from '../../sample_data/useSampleRoute';
 
 export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => void) {
   const boot = initialTraderState();
   const role = deskRoleFromStockView(parseStockViewSymbol());
-  const windowId = useMemo(() => getTraderWindowId(undefined, role), [role]);
+  // The sample desk brings its own workspace (#449). On its route this window
+  // takes no part in the live desk: no window id is minted, it is never the
+  // last host, and with no id the dock bus stays closed -- a live pop-out can
+  // never dock into a sample window it cannot see.
+  const sampleRoute = useSampleRoute();
+  const windowId = useMemo(
+    () => (sampleRoute ? '' : getTraderWindowId(undefined, role)),
+    [role, sampleRoute],
+  );
   const [traderState, setTraderState] = useState<TraderTabsState>(boot.tabs);
   const [traderViewActive, setTraderViewActive] = useState(boot.tabs.tabs.length > 0);
   const [traderBlockNotice, setTraderBlockNotice] = useState<string | null>(boot.blockNotice);
@@ -57,7 +66,7 @@ export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => 
   traderStateRef.current = traderState;
 
   useEffect(() => {
-    if (role !== 'host') return;
+    if (role !== 'host' || !windowId) return;
     try {
       rememberLastHostWindow(localStorage, windowId);
     } catch {

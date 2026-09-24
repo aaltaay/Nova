@@ -4,7 +4,9 @@ Read from what HOD Momo already enriched for the symbol (IBKR price, % change,
 relative volume, float) and the catalyst classifier (ADR 024): the News pillar
 passes only for a real, company-specific catalyst published since the prior
 close -- the same verdict the backfilled history uses, never "any article". A
-pillar Nova does not know is ``None`` and never counts as a pass.
+pillar Nova does not know is ``None`` and never counts as a pass. A float its
+own share counts contradict (#532) passes only on shares outstanding, else it
+is unknown (``strategy.float_gate``); ``float_note`` says which.
 """
 from __future__ import annotations
 
@@ -23,6 +25,7 @@ from constants_setups import (
     SETUPS_PILLAR_MIN_PRICE,
     SETUPS_PILLAR_MIN_RVOL,
 )
+from strategy.float_gate import float_for_gate
 
 logger = logging.getLogger(__name__)
 
@@ -70,10 +73,28 @@ def read_pillars(symbol: str, now: float | None = None) -> dict[str, Any]:
         "change_pct": _finite(getattr(snap, "change_pct", None)),
         "rvol": _finite(getattr(snap, "rvol", None)),
         "float": _finite(getattr(snap, "float_shares", None)),
+        "float_contradicted": getattr(snap, "float_contradicted", None),
+        "shares_outstanding": _finite(getattr(snap, "shares_outstanding", None)),
         "news": news_pillar(catalyst),
         "headline": (catalyst or {}).get("title"),
         "catalyst": None if catalyst is None else {k: catalyst.get(k) for k in _CATALYST_KEYS},
     }
+
+
+def _float_pillar(p: dict[str, Any], rules: Any) -> tuple[bool | None, str | None]:
+    """The float pillar and, for a contradicted float, the reason it passed or is unknown."""
+    max_float = SETUPS_PILLAR_MAX_FLOAT if rules is None else rules.max_float
+    passes, why = float_for_gate(p.get("float"), max_float, contradicted=p.get("float_contradicted"),
+                                 shares_outstanding=p.get("shares_outstanding"))
+    if why is not None:
+        return passes, why
+    value = p.get("float")
+    return (None if value is None else bool(0 < value <= max_float)), None
+
+
+def float_note(p: dict[str, Any], rules: Any = None) -> str | None:
+    """Why a contradicted float's pillar passed or is unknown; None for any other float."""
+    return _float_pillar(p, rules)[1]
 
 
 def grade(p: dict[str, Any], rules: Any = None) -> tuple[str, dict[str, bool | None]]:
@@ -83,7 +104,6 @@ def grade(p: dict[str, Any], rules: Any = None) -> tuple[str, dict[str, bool | N
     hi_px = SETUPS_PILLAR_MAX_PRICE if rules is None else rules.max_price
     min_chg = SETUPS_PILLAR_MIN_CHANGE_PCT if rules is None else rules.min_change_pct
     min_rvol = SETUPS_PILLAR_MIN_RVOL if rules is None else rules.min_rvol
-    max_float = SETUPS_PILLAR_MAX_FLOAT if rules is None else rules.max_float
 
     def ok(value, test):
         return None if value is None else bool(test(value))
@@ -92,7 +112,7 @@ def grade(p: dict[str, Any], rules: Any = None) -> tuple[str, dict[str, bool | N
         "change": ok(p.get("change_pct"), lambda v: v >= min_chg),
         "rvol": ok(p.get("rvol"), lambda v: v >= min_rvol),
         "news": p.get("news"),
-        "float": ok(p.get("float"), lambda v: 0 < v <= max_float),
+        "float": _float_pillar(p, rules)[0],
     }
     passed = sum(1 for v in checks.values() if v)
     known = all(v is not None for v in checks.values())

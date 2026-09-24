@@ -10,7 +10,6 @@ import { useScannerBarProps } from '../components/scannerBarStore';
 import {
   SCANNER_CHIP_IDS,
   SCANNER_CHIP_LABEL,
-  SCANNER_CHIP_LIVE_WHY,
   SCANNER_CHIP_TITLE,
   SCANNER_HISTORY_SAMPLE_LABEL,
   SCANNER_HISTORY_SAMPLE_WHY,
@@ -33,7 +32,6 @@ import {
   SCANNER_SESSION_TITLE,
 } from '../constantGroups/scanner_board';
 import { promptApp } from '../ux';
-import { isChipAvailable } from './boardFilters';
 import { useLiveScannerFeedOptional } from './ScannerDataContext';
 import { ScannerReplayLabel } from './ScannerReplayLabel';
 import { useSessionCountdown } from './sessionCountdown';
@@ -160,17 +158,14 @@ export function ScannerBoardHeader({ title, filters, scannedAgoSec, feedFailure 
           <span className="scanner-board__vdiv" aria-hidden="true" />
           <div className="scanner-board__chips" role="group" aria-label="Board filters">
             {SCANNER_CHIP_IDS.map((id) => {
-              const available = isChipAvailable(id, filters.playback);
               const on = filters.active.has(id);
               return (
                 <button
                   key={id}
                   type="button"
-                  className={`scanner-board__chip${on ? ' is-on' : ''}${available ? '' : ' is-unavailable'}`}
+                  className={`scanner-board__chip${on ? ' is-on' : ''}`}
                   aria-pressed={on}
-                  aria-disabled={!available}
-                  title={available ? SCANNER_CHIP_TITLE[id] : undefined}
-                  data-why={available ? undefined : SCANNER_CHIP_LIVE_WHY[id] ?? SCANNER_CHIP_TITLE[id]}
+                  title={SCANNER_CHIP_TITLE[id]}
                   data-testid={`scanner-chip-${id}`}
                   onClick={() => filters.toggle(id)}
                 >

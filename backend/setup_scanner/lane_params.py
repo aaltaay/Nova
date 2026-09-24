@@ -12,6 +12,7 @@ from typing import Any
 from constants_setups import SETUPS_GRADE_A, SETUPS_GRADE_B, SETUPS_GRADE_C
 from setup_scanner.pullback import PullbackParams
 from setup_scanner.tape_gate import GateParams
+from strategy.float_gate import float_for_gate
 
 _GRADE_RANK = {SETUPS_GRADE_A: 3, SETUPS_GRADE_B: 2, SETUPS_GRADE_C: 1}
 
@@ -49,15 +50,13 @@ class StockFilter:
                 return None if self.unknown_passes else f"{name} unknown ({words})"
             return None if test(value) else words
 
-        price, float_shares = pillars.get("price"), pillars.get("float")
+        price = pillars.get("price")
         checks = [
             None if self.min_price is None else fact(
                 "price", price, lambda v: v >= self.min_price, f"price {_num(price)} under ${self.min_price:g}"),
             None if self.max_price is None else fact(
                 "price", price, lambda v: v <= self.max_price, f"price {_num(price)} over ${self.max_price:g}"),
-            None if self.max_float is None else fact(
-                "float", float_shares, lambda v: v <= self.max_float,
-                f"float {_millions(float_shares)} over {_millions(self.max_float)}"),
+            None if self.max_float is None else self._float(pillars, fact),
             None if self.min_change_pct is None else fact(
                 "change", pillars.get("change_pct"), lambda v: v >= self.min_change_pct,
                 f"up {_num(pillars.get('change_pct'))}% -- under {self.min_change_pct:g}%"),
@@ -71,6 +70,17 @@ class StockFilter:
             checks.append(f"grade {grade or '?'} -- needs {self.min_grade}")
         failed = [c for c in checks if c]
         return "; ".join(failed) if failed else None
+
+    def _float(self, pillars: dict[str, Any], fact) -> str | None:
+        """``max_float``: a contradicted float passes only on shares outstanding and is otherwise
+        filtered out even when unknowns pass -- it is never a pass (#532, ``strategy.float_gate``)."""
+        float_shares = pillars.get("float")
+        rescued, why = float_for_gate(float_shares, self.max_float, contradicted=pillars.get("float_contradicted"),
+                                      shares_outstanding=pillars.get("shares_outstanding"))
+        if why is not None:
+            return None if rescued else why
+        return fact("float", float_shares, lambda v: v <= self.max_float,
+                    f"float {_millions(float_shares)} over {_millions(self.max_float)}")
 
 
 def _num(value: Any) -> str:

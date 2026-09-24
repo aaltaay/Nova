@@ -8,6 +8,11 @@
  * a human still presses Place.
  *
  * Same latch-free CustomEvent shape as `stock_view/requestDockSurface.ts`.
+ *
+ * A request nobody hears is dropped, so the channel also keeps one fact: which
+ * symbols have a mounted ticket listening in this window (#566). A sender that
+ * cannot queue -- the chart menu -- reads `orderTicketListening` and locks its
+ * rows with a reason instead of staging into nothing.
  */
 import type { ManualOrderSide, ManualOrderType } from './orderEntry';
 
@@ -58,6 +63,31 @@ export function requestOrderTicketPrefill(req: OrderTicketPrefill): void {
   );
 }
 
+/** Mounted tickets listening per symbol (a count: two Trader tabs may share one). */
+const listening = new Map<string, number>();
+const listeningWatchers = new Set<() => void>();
+
+function countListening(key: string, delta: 1 | -1): void {
+  if (!key) return;
+  const next = (listening.get(key) ?? 0) + delta;
+  if (next > 0) listening.set(key, next);
+  else listening.delete(key);
+  for (const watcher of [...listeningWatchers]) watcher();
+}
+
+/** True while a mounted ticket in this window takes prefills for `symbol`. */
+export function orderTicketListening(symbol: string): boolean {
+  return listening.has(symbol.trim().toUpperCase());
+}
+
+/** Called whenever a ticket starts or stops listening (`useSyncExternalStore`). */
+export function watchOrderTicketListening(onChange: () => void): () => void {
+  listeningWatchers.add(onChange);
+  return () => {
+    listeningWatchers.delete(onChange);
+  };
+}
+
 /** Subscribe the ticket that owns `symbol`; requests for other symbols are ignored. */
 export function subscribeOrderTicketPrefill(
   symbol: string,
@@ -71,5 +101,12 @@ export function subscribeOrderTicketPrefill(
     handler(parsed);
   };
   window.addEventListener(ORDER_TICKET_PREFILL_EVENT, onEvent);
-  return () => window.removeEventListener(ORDER_TICKET_PREFILL_EVENT, onEvent);
+  countListening(key, 1);
+  let subscribed = true;
+  return () => {
+    window.removeEventListener(ORDER_TICKET_PREFILL_EVENT, onEvent);
+    if (!subscribed) return;
+    subscribed = false;
+    countListening(key, -1);
+  };
 }

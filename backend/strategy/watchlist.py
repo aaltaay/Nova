@@ -29,6 +29,7 @@ from constants import (
     WATCHLIST_WEIGHT_REL_VOLUME,
 )
 from strategy.five_pillars import FivePillarsResult, catalyst_read, evaluate_five_pillars
+from strategy.float_gate import float_for_gate
 
 
 @dataclass(frozen=True)
@@ -71,7 +72,14 @@ def _rel_volume_score(rel_volume: float | None) -> float:
     return _clamp(rel_volume / WATCHLIST_REL_VOLUME_SCORE_CAP * 100)
 
 
-def _float_score(float_shares: float | None) -> float:
+def _float_score(candidate: dict) -> float:
+    float_shares = candidate.get("float", candidate.get("float_shares"))
+    shares_outstanding = candidate.get("shares_outstanding")
+    passes, why = float_for_gate(float_shares, FIVE_PILLARS_MAX_FLOAT_SHARES,
+                                 contradicted=candidate.get("float_contradicted"), shares_outstanding=shares_outstanding)
+    if why is not None:
+        # A contradicted float (#532) scores on shares outstanding, which it cannot exceed; unknown scores 0.
+        return _clamp((1 - shares_outstanding / FIVE_PILLARS_MAX_FLOAT_SHARES) * 100) if passes else 0.0
     if float_shares is None:
         return 0.0
     return _clamp((1 - float_shares / FIVE_PILLARS_MAX_FLOAT_SHARES) * 100)
@@ -115,7 +123,7 @@ def score_watchlist_entry(candidate: dict) -> WatchlistEntry:
     sub_scores = {
         "change_pct": _change_pct_score(change_pct),
         "relative_volume": _rel_volume_score(candidate.get("rel_volume")),
-        "float": _float_score(candidate.get("float", candidate.get("float_shares"))),
+        "float": _float_score(candidate),
         "catalyst": (_verdict_score(candidate["catalyst"]) if catalyst_read(candidate.get("catalyst"))
                      else _catalyst_score(candidate.get("has_news"), candidate.get("newest_headline_at"))),
     }

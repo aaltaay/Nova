@@ -77,6 +77,8 @@ def run_afterhours_discovery_scan() -> None:
             news = sr._check_news(syms, headers)
             _fetch_fundamentals_batch(syms)
         hod_rvol_sources: dict[str, str | None] = {}
+        # (float_contradicted, shares_outstanding) for the float the row carries (#532).
+        hod_float_checks: dict[str, tuple] = {}
         for r in rows:
             sym = r["symbol"]
             vol = int(r.get("volume") or 0)
@@ -109,6 +111,7 @@ def run_afterhours_discovery_scan() -> None:
             r["newest_headline_at"] = None
             r["market_cap"] = fund.get("market_cap")
             r["float"] = fund.get("float_shares")
+            hod_float_checks[sym] = (fund.get("float_contradicted"), fund.get("shares_outstanding"))
             r["short_interest"] = fund.get("short_interest")
             r["short_ratio"] = fund.get("short_ratio")
             r["exchange"] = r.get("exchange") or fund.get("exchange")
@@ -133,6 +136,7 @@ def run_afterhours_discovery_scan() -> None:
         for r in rows:
             sym = r["symbol"]
             avg = state.avg_volume_cache.get(sym)
+            float_check = hod_float_checks.get(sym, (None, None))
             try:
                 _hod_momo.update_ticker_snapshot(
                     sym,
@@ -144,6 +148,8 @@ def run_afterhours_discovery_scan() -> None:
                     float_shares=r.get("float"),
                     rvol_source=hod_rvol_sources.get(sym) if r.get("rel_volume") is not None else None,
                     avg_volume=float(avg) if avg else None,
+                    float_contradicted=float_check[0],
+                    shares_outstanding=float_check[1],
                 )
             except Exception:
                 logger.debug("AH discovery: HOD snap seed failed for %s", sym, exc_info=True)

@@ -13,8 +13,19 @@ LEADERBOARD_DIR_ENV = "NOVA_LEADERBOARD_DIR"
 LEADERBOARD_DEFAULT_ROOT_WIN = r"F:\Nova\leaderboard"
 LEADERBOARD_DB_FILENAME = "leaderboard.sqlite3"
 # 2 (#498): adds catalyst_checks / catalyst_items; a version-1 store migrates in place (new tables only).
-LEADERBOARD_SCHEMA_VERSION = 2
+# 3 (#532): rows add float_contradicted / shares_outstanding, so playback judges LEADERS_RULES' float as
+# auto-record did; a version-1 or -2 store migrates in place (two nullable columns, no row rewritten).
+LEADERBOARD_SCHEMA_VERSION = 3
 LEADERBOARD_SQLITE_TIMEOUT_SEC = 10.0
+# Retention (operator decision on #485, 2026-09-24): keep everything -- nothing
+# deletes leaderboard rows automatically. Recorded days cannot be replaced, a
+# rebuild takes ~53 s a day, and SQLite gives no space back without a VACUUM
+# of the whole file. The store grows about 6-9 GB a year; the diagnostics row
+# ``leaderboard_recorder`` guards the drive instead. GB as Windows Explorer
+# counts them (GiB).
+LEADERBOARD_FREE_WARN_BYTES = 50 * 1024**3
+LEADERBOARD_FREE_FAIL_BYTES = 10 * 1024**3
+LEADERBOARD_GROWTH_PER_YEAR = "about 6-9 GB a year"
 
 # ── Row vocabulary ──────────────────────────────────────────────────────────
 LEADERBOARD_SOURCE_RECORDED = "recorded"

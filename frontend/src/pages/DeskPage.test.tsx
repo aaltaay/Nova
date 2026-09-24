@@ -35,6 +35,7 @@ vi.mock('../scanner/ScannerDataContext', async importOriginal => {
   return { ...actual, useLiveScannerFeedOptional: () => mocks.feed };
 });
 vi.mock('../sample_data/SampleDataContext', () => ({ useSampleDataOptional: () => mocks.sample }));
+vi.mock('../sample_data/SampleDesk', () => ({ SampleDesk: () => <div data-testid="sample-desk" /> }));
 vi.mock('../settings/SettingsContext', () => ({ useSettingsOptional: () => null }));
 vi.mock('../workspace/useModuleVisibility', () => ({ useModuleVisibility: () => ({ visibility: {} }) }));
 vi.mock('../workspace/WorkspaceContext', () => ({
@@ -154,14 +155,15 @@ describe('DeskPage', () => {
     expect(mocks.openTraderTab).not.toHaveBeenCalled();
   });
 
-  it('says so with no scanner feed and is a stated absence in Sample Data mode', () => {
+  it('says so with no scanner feed, and hands Sample Data mode to the sample desk (#449)', () => {
     mocks.feed = null;
     const view = render(<DeskPage />);
     expect(screen.getByTestId('desk-board-absent').textContent).toBe('No scanner feed in this window');
     expect(mocks.bridgeProps).toBeNull();
     mocks.sample = {};
     view.rerender(<DeskPage />);
-    expect(screen.getByTestId('desk-page').textContent).toBe('Desk is not available in Sample Data mode.');
+    // The sample desk's own Desk (sample_data/SampleDesk.test.tsx), never the live board.
+    expect(screen.getByTestId('sample-desk')).toBeTruthy();
     expect(screen.queryByTestId('desk-board')).toBeNull();
   });
 });

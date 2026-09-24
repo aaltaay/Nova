@@ -132,6 +132,10 @@ class TickerSnap:
     rvol_5min: float | None = None
     avg_volume: float | None = None  # for 5-min RVOL typical bar
     float_shares: float | None = None
+    # The float's own credibility check (#532), set with it: a contradicted float passes a
+    # max_float gate only on shares outstanding (``strategy.float_gate``).
+    float_contradicted: bool | None = None
+    shares_outstanding: float | None = None
     gap_pct: float | None = None
     volume: int | None = None
     change_pct: float | None = None

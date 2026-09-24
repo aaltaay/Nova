@@ -75,8 +75,10 @@ describe('WorkspaceContext wiring (Phase 2)', () => {
     const sample = readFileSync(join(src, 'sample_data/SampleShell.tsx'), 'utf8');
     expect(app).toMatch(/HodMomoProvider/);
     expect(app).not.toMatch(/HodMomoDock/);
-    const traderReturn = sample.split('if (traderSymbol)')[1]?.split('return (')[1] ?? '';
-    expect(traderReturn).not.toMatch(/HodMomoDock/);
+    // The sample shell (#449) keeps the HOD provider above its Trader slot and
+    // leaves the dock to the sample dashboard and the sample Desk.
+    expect(sample).toMatch(/HodMomoFixtureProvider/);
+    expect(sample).not.toMatch(/<HodMomoDock\b/);
   });
 });
 

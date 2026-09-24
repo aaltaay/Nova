@@ -91,6 +91,24 @@ def test_playback_leaders_and_auto_record_share_one_ranking():
     assert auto_record.pick_leaders(GAINERS, et(7, 50, 20)) == shown["symbols"]
 
 
+def test_a_contradicted_float_is_kept_so_playback_and_auto_record_still_agree():
+    """#532: the desk row's float check is recorded with the row, so a played-back minute refuses the
+    same contradicted float auto-record refused live -- and keeps one small shares outstanding rescues."""
+    gainers = [
+        desk("SECZ", 9.0, 3.0, float=8.45e6, float_contradicted=True, shares_outstanding=163.27e6),
+        desk("WHLR", 6.0, 2.5, float=54e3, float_contradicted=True, shares_outstanding=568e3),
+        desk("CCC", 5.0, 2.5),
+        desk("EEE", 3.5, 2.5, float=4e6, float_contradicted=False, shares_outstanding=5e6),
+    ]
+    record(et(7, 51), gainers=gainers)
+    out = playback.board_at(DAY, et(7, 51, 20), now=LONG_AFTER)
+    rows = {r["symbol"]: r for r in out["boards"]["gainers"]["rows"]}
+    assert (rows["SECZ"]["float_contradicted"], rows["SECZ"]["shares_outstanding"]) == (True, 163.27e6)
+    assert rows["EEE"]["float_contradicted"] is False and rows["CCC"]["float_contradicted"] is None
+    assert out["leaders"]["symbols"] == ["WHLR", "CCC", "EEE"]
+    assert auto_record.pick_leaders(gainers, et(7, 51, 20)) == out["leaders"]["symbols"]
+
+
 def test_a_restart_is_a_gap_with_its_reason_never_the_last_board():
     start_run("run-1", et(7, 0), stopped=et(7, 12, 30), reason="shutdown")
     for m in range(0, 13):
@@ -162,7 +180,7 @@ def test_coverage_spans_and_gaps():
 def test_days_list_both_sources_and_the_store():
     record(et(7, 0))
     out = playback.days(10)
-    assert out["store"]["ok"] and out["schema_version"] == LEADERBOARD_SCHEMA_VERSION == 2
+    assert out["store"]["ok"] and out["schema_version"] == LEADERBOARD_SCHEMA_VERSION == 3
     day = out["days"][0]
     assert day["date"] == DAY and day["recorded"]["minutes"] == 1 and day["reconstructed"] is None
     assert "gainers" in day["recorded"]["boards"]

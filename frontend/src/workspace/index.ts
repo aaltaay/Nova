@@ -3,6 +3,8 @@
 export {
   useWorkspace,
   WorkspaceProvider,
+  WorkspaceValueProvider,
+  type TraderMoveLocks,
   type WorkspaceValue,
 } from './WorkspaceContext';
 export {

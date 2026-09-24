@@ -2,7 +2,9 @@
  * Pure model for the chart right-click menu.
  *
  * Money rows, layers and the watch list toggle are real Nova actions. Create
- * Alert has no price-alert API, so it ships disabled with a reason (#116).
+ * Alert has no price-alert API, so it ships disabled with a reason (#116). The
+ * priced order rows only fill a ticket that is listening, so they are locked
+ * with a reason until one is (#566).
  * Line Style and Chart Settings still have no surface -- omit.
  */
 import { formatSeedPrice } from '../ibkr/tradeDefaultSeed';
@@ -21,6 +23,7 @@ import {
   CHART_CONTEXT_MENU_SELL,
   CHART_CONTEXT_MENU_SHOW_LAYERS,
   CHART_CONTEXT_MENU_SNAPSHOT,
+  CHART_CONTEXT_MENU_TICKET_WAIT_REASON,
   CHART_CONTEXT_MENU_WATCH_ADD,
   CHART_CONTEXT_MENU_WATCH_REMOVE,
 } from './chartContextMenuConstants';
@@ -55,7 +58,11 @@ export interface ChartContextMenuItem {
   kind: ChartContextMenuItemKind;
   /** Render a divider above this row. */
   dividerBefore?: boolean;
-  /** Honest disable reason -- only on `unavailable` rows. */
+  /**
+   * Why the row cannot act: always on `unavailable` rows, and on `order` rows
+   * while no ticket for the symbol is listening (#566). A row with a reason is
+   * rendered locked.
+   */
   reason?: string;
 }
 
@@ -66,6 +73,8 @@ export interface ChartContextMenuInput {
   /** Share count the ticket would receive (see `defaultTicketQty`). */
   quantityValue: string;
   hasPosition: boolean;
+  /** A mounted ticket for `symbol` takes prefills (`useOrderTicketListening`). */
+  ticketReady: boolean;
   allowlisted?: boolean;
   /** On the operator's watch list. */
   watched?: boolean;
@@ -85,20 +94,25 @@ export function chartContextMenuItems(
 
   if (priced) {
     const price = chartMenuPriceLabel(input.price as number);
+    // A prefill with no ticket listening is dropped: lock the rows and say why.
+    const lock = input.ticketReady ? {} : { reason: CHART_CONTEXT_MENU_TICKET_WAIT_REASON };
     items.push({
       id: 'create_order',
       label: `${CHART_CONTEXT_MENU_CREATE_ORDER} @${price}`,
       kind: 'order',
+      ...lock,
     });
     items.push({
       id: 'buy',
       label: `${CHART_CONTEXT_MENU_BUY} ${symbol} ${input.quantityValue} @${price}`,
       kind: 'order',
+      ...lock,
     });
     items.push({
       id: 'sell',
       label: `${CHART_CONTEXT_MENU_SELL} ${symbol} ${input.quantityValue} @${price}`,
       kind: 'order',
+      ...lock,
     });
   }
 

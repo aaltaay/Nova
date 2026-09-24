@@ -133,6 +133,8 @@ export function normalizeScannerRow(raw: unknown): ScannerRow | null {
   }
   if ('quote_quality' in raw) out.quote_quality = textOrNull(raw.quote_quality);
   if ('rvol_source' in raw) out.rvol_source = textOrNull(raw.rvol_source);
+  // #487: only a real true / false is a stated halt; anything else is "not known".
+  if ('halted' in raw) out.halted = typeof raw.halted === 'boolean' ? raw.halted : null;
   // #532: only a real true / false is a checked float; anything else is "not checkable".
   if ('float_contradicted' in raw) {
     out.float_contradicted = typeof raw.float_contradicted === 'boolean' ? raw.float_contradicted : null;

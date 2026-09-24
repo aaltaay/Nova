@@ -44,6 +44,16 @@ import {
 } from '../watch_list';
 import { fmtRelVol, headlineClockEt, type DeskBoardRow as Row } from './deskBoardRows';
 
+/**
+ * Why Record and Allowlist are off on this board -- the sample desk's (#449),
+ * which records no feed and plays no bot; absent means both work. (Watch works
+ * everywhere: the sample desk keeps a watch list of its own.)
+ */
+export interface DeskActionLocks {
+  record: string;
+  allowlist: string;
+}
+
 export interface DeskBoardRowProps {
   row: Row;
   index: number;
@@ -60,6 +70,7 @@ export interface DeskBoardRowProps {
   onPopOut: (symbol: string) => void;
   onRecord: (symbol: string, start: boolean) => void;
   onAllowlist: (symbol: string, add: boolean) => void;
+  actionLocks?: DeskActionLocks | null;
 }
 
 function stop(event: MouseEvent): void {
@@ -78,7 +89,7 @@ function ActLabel({ full, short }: { full: string; short: string }) {
 
 function DeskBoardRowImpl({
   row, index, selected, barPct, recording, allowed, held, stale, flash,
-  onOpen, onPopOut, onRecord, onAllowlist,
+  onOpen, onPopOut, onRecord, onAllowlist, actionLocks = null,
 }: DeskBoardRowProps) {
   const sym = row.symbol;
   const watched = useIsWatched(sym);
@@ -165,10 +176,12 @@ function DeskBoardRowImpl({
           <button
             type="button"
             className={`desk-board__act${recording ? ' desk-board__act--rec' : ''}`}
-            title={recording ? DESK_ACTION_STOP_RECORD_TITLE : DESK_ACTION_RECORD_TITLE}
+            title={actionLocks ? '' : recording ? DESK_ACTION_STOP_RECORD_TITLE : DESK_ACTION_RECORD_TITLE}
             aria-label={recording ? DESK_ACTION_STOP_RECORD : DESK_ACTION_RECORD}
             data-testid={`desk-board-record-${sym}`}
-            onClick={(event) => { stop(event); onRecord(sym, !recording); }}
+            disabled={Boolean(actionLocks)}
+            data-why={actionLocks?.record}
+            onClick={(event) => { stop(event); if (!actionLocks) onRecord(sym, !recording); }}
           >
             <i className="desk-board__dot desk-board__dot--rec" aria-hidden="true" />
             <ActLabel
@@ -179,10 +192,12 @@ function DeskBoardRowImpl({
           <button
             type="button"
             className="desk-board__act"
-            title={allowed ? DESK_ACTION_UNLIST_TITLE : DESK_ACTION_ALLOWLIST_TITLE}
+            title={actionLocks ? '' : allowed ? DESK_ACTION_UNLIST_TITLE : DESK_ACTION_ALLOWLIST_TITLE}
             aria-label={allowed ? DESK_ACTION_UNLIST : DESK_ACTION_ALLOWLIST}
             data-testid={`desk-board-allowlist-${sym}`}
-            onClick={(event) => { stop(event); onAllowlist(sym, !allowed); }}
+            disabled={Boolean(actionLocks)}
+            data-why={actionLocks?.allowlist}
+            onClick={(event) => { stop(event); if (!actionLocks) onAllowlist(sym, !allowed); }}
           >
             <ActLabel
               full={allowed ? DESK_ACTION_UNLIST : DESK_ACTION_ALLOWLIST}

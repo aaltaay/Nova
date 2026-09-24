@@ -115,6 +115,25 @@ def test_a_stock_filter_keeps_the_setup_out_on_the_record(tmp_path):
     assert len(filtered) == 1 and filtered[0]["template"] == lf.id
 
 
+def test_a_contradicted_float_is_unknown_on_the_row_and_never_passes_a_float_filter(tmp_path):
+    """#532: SECZ's 8.45M float against 163.27M shares outstanding. The default lane grades the float
+    pillar unknown and says why; a 10M stock filter keeps the setup out even though unknowns pass."""
+    templates = TemplateStore(tmp_path / "t.json")
+    lf = templates.create(FP, name="Low float", values={"max_float_m": 10, "unknown_passes": True})
+    templates.play(FP, lf.id)
+    eng, audits, journal, clock = make(tmp_path, armed_bars(), templates)
+    eng.pillars = lambda sym, now: {**PILLARS, "float": 8_450_000.0, "float_contradicted": True,
+                                    "shares_outstanding": 163_270_000.0}
+    run(eng, clock["t"])
+    row = eng.board(clock["t"])["rows"][0]
+    assert row["state"] == "filtered" and "163.27M shares outstanding is over 10.00M" in row["reason"]
+    assert audits == []
+    (scored,) = eng.store.rows()
+    assert scored["template_id"] == "default"
+    assert scored["pillars"]["checks"]["float"] is None
+    assert "float unknown, not a pass" in scored["pillars"]["float_note"]
+
+
 def test_the_read_out_counts_only_its_own_template_rows(tmp_path, monkeypatch):
     from setup_scanner import readout
 

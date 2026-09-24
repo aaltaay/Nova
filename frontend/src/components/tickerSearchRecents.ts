@@ -6,6 +6,8 @@
  * Invalidation: schema bump -- a payload with an unknown `schema_version` is
  * ignored, never guessed at (persisted-state.mdc). Storage that throws
  * (private window, quota) leaves the list in memory for this session only.
+ * The sample desk (#449) keeps its own list, in memory: its invented tickers
+ * never join the operator's recents, saved or in this page.
  */
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import {
@@ -13,6 +15,7 @@ import {
   GLOBAL_BAR_SEARCH_RECENTS_SCHEMA_VERSION,
   GLOBAL_BAR_SEARCH_RECENTS_STORAGE_KEY,
 } from '../constantGroups/global_bar';
+import { isSampleView } from '../sample_data/sampleNav';
 
 const EMPTY: readonly string[] = [];
 
@@ -54,14 +57,22 @@ export function withRecent(list: readonly string[], symbols: readonly string[]):
 }
 
 let recents: readonly string[] | null = null;
+let sampleRecents: readonly string[] = EMPTY;
 const listeners = new Set<() => void>();
 
 function current(): readonly string[] {
+  if (isSampleView()) return sampleRecents;
   if (recents === null) recents = readRecents();
   return recents;
 }
 
 function write(next: readonly string[]) {
+  if (isSampleView()) {
+    if (next === sampleRecents) return;
+    sampleRecents = next;
+    listeners.forEach((fn) => fn());
+    return;
+  }
   if (next === recents) return;
   recents = next;
   try {
@@ -113,5 +124,6 @@ export function useTickerRecents(tabs: readonly string[]) {
 
 export function resetRecentsForTests() {
   recents = null;
+  sampleRecents = EMPTY;
   listeners.forEach((fn) => fn());
 }

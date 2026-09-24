@@ -7,7 +7,8 @@ UTC — local-tz fromtimestamp was off-by-one for Yahoo epoch midnights
 
 Yahoo's float is its last 10-Q / 10-K / 20-F cover count less insiders, blind
 to any dilution since (#532). ``float_credibility`` flags a float that Yahoo's
-own share counts contradict; it says so and changes no gate.
+own share counts contradict; every max-float gate reads the flag through
+``strategy.float_gate`` (a contradicted float passes only on shares outstanding).
 """
 from __future__ import annotations
 

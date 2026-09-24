@@ -1,42 +1,60 @@
 /**
- * Hard-gated sample route shell — never mounts live DashboardPage / scanner hooks.
- * ?view=sample → dashboard fixtures; ?view=sample&symbol=X → Trader with sample ticker.
- * Carries the nav rail like the live shell so the sample desk navigates the same way.
+ * Hard-gated sample route shell -- never mounts live DashboardPage / scanner hooks.
+ * ?view=sample → dashboard fixtures; ?view=sample&symbol=X → the Trader on X;
+ * ?view=sample&symbol=X&popout=1 → a sample Trader tab popped out.
+ *
+ * The sample desk has its own workspace (#449, SampleWorkspaceProvider): its
+ * Trader tabs, Focus rail, Desk and pop-out live in memory and never touch the
+ * operator's saved workspace. It is laid out like the live shell (App.tsx):
+ * the nav rail and header, the Trader slot -- shown full, or beside the Desk
+ * board -- and the dashboard slot. A pop-out has neither rail nor header.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AppErrorBoundary } from '../components/AppErrorBoundary';
 import { GlobalAppBar } from '../components/GlobalAppBar';
 import { NavRail } from '../components/NavRail';
+import { BotSymbolMenuHost } from '../bot/BotSymbolMenu';
 import { HodMomoFixtureProvider } from '../hod_momo/HodMomoFixtureProvider';
 import { IbkrAccountProvider } from '../ibkr/IbkrAccountContext';
 import { NavPageHost } from '../pages/NavPageHost';
-import { StockViewPage } from '../pages/StockViewPage';
 import { SampleDashboardPage } from '../pages/SampleDashboardPage';
+import { ScannerDataContextProvider } from '../scanner/ScannerDataContext';
+import { FloatDeskChrome } from '../stock_view/FloatDeskChrome';
+import { memoryFocusRailStore } from '../stock_view/focusRailState';
+import { StockViewTabs } from '../stock_view/StockViewTabs';
 import {
   DATA_FEED_DEFAULT,
   DISCOVERY_PROVIDER_DEFAULT,
 } from '../constants';
-import {
-  leaveSampleTraderUrl,
-  leaveSampleView,
-  parseSampleSymbol,
-  replaceSampleTraderUrl,
-} from './sampleNav';
+import { leaveSampleView } from './sampleNav';
 import { SampleDataProvider, useSampleData } from './SampleDataContext';
 import { SampleModeBadge } from './SampleModeBadge';
+import { sampleScannerFeed } from './sampleScannerFeed';
+import { SampleWorkspaceProvider } from './SampleWorkspaceProvider';
 import { SetupsStreamProvider } from '../setups/SetupsStreamContext';
+import { useNavPage } from '../workspace/navRailStore';
 import { useWorkspace } from '../workspace/WorkspaceContext';
+
+/** A pop-out's Exit closes its own window; the main sample desk stays where it is. */
+function closePopOut(): void {
+  window.close();
+}
 
 function SampleShellInner() {
   const sample = useSampleData();
-  const { selectedSymbol, setSelectedSymbol } = useWorkspace();
-  const [traderSymbol, setTraderSymbol] = useState<string | null>(() => parseSampleSymbol());
-
-  useEffect(() => {
-    const sync = () => setTraderSymbol(parseSampleSymbol());
-    window.addEventListener('popstate', sync);
-    return () => window.removeEventListener('popstate', sync);
-  }, []);
+  const {
+    selectedSymbol,
+    setSelectedSymbol,
+    traderTabs,
+    traderViewActive,
+    traderDeskRole,
+    openStockView,
+    showScannerView,
+  } = useWorkspace();
+  const navPage = useNavPage();
+  // The sample rail opens on the sample Gappers and keeps its list in memory.
+  const [focusRailStore] = useState(() => memoryFocusRailStore());
+  const feed = useMemo(() => sampleScannerFeed(sample), [sample]);
 
   useEffect(() => {
     if (selectedSymbol) return;
@@ -47,17 +65,15 @@ function SampleShellInner() {
     if (seed) setSelectedSymbol(seed);
   }, [selectedSymbol, sample.watchlist, sample.gappers, setSelectedSymbol]);
 
-  const openTrader = useCallback((symbol: string) => {
-    const sym = symbol.trim().toUpperCase();
-    if (!sym) return;
-    replaceSampleTraderUrl(sym);
-    setTraderSymbol(sym);
-  }, []);
-
-  const backToSampleDash = useCallback(() => {
-    leaveSampleTraderUrl();
-    setTraderSymbol(null);
-  }, []);
+  const float = traderDeskRole === 'float';
+  const hasTraderDesk = traderTabs.length > 0;
+  const traderUp = hasTraderDesk && (traderViewActive || float);
+  const deskUp = !traderUp && navPage === 'desk';
+  // The workspace slot is on screen for the full Trader and beside the Desk board.
+  const showTrader = traderUp || (deskUp && hasTraderDesk);
+  const branchClass = `nova-app-branch${deskUp ? ' nova-app-branch--desk' : ''}${
+    deskUp && !hasTraderDesk ? ' nova-app-branch--desk-empty' : ''
+  }`;
 
   const sampleScannerBar = {
     mode: 'market' as const,
@@ -72,7 +88,7 @@ function SampleShellInner() {
     historyDate: null,
     historyDates: [],
     onHistoryChange: () => {},
-    onLookup: setSelectedSymbol,
+    onLookup: openStockView,
     showScannerSource: true,
     discoveryProvider: DISCOVERY_PROVIDER_DEFAULT,
     sampleDataActive: true,
@@ -81,60 +97,70 @@ function SampleShellInner() {
     },
   };
 
-  const rail = (
-    <NavRail
-      traderActive={traderSymbol != null}
-      onOpenTrader={openTrader}
-      onLeaveTrader={backToSampleDash}
-      settings={null}
-    />
+  const traderSlot = hasTraderDesk && (
+    <div
+      className="nova-trader-desk-slot"
+      hidden={!showTrader}
+      aria-hidden={!showTrader}
+      inert={!showTrader}
+    >
+      <AppErrorBoundary source="sample-trader">
+        <ScannerDataContextProvider value={feed}>
+          <div className={showTrader ? 'nova-shell nova-shell--ticker-detail' : 'nova-shell'}>
+            <div className="main-col main-col--full main-col--trader-stack">
+              <main className="ticker-detail-main">
+                <StockViewTabs
+                  detached={float}
+                  hideFocusRail={deskUp}
+                  active={showTrader}
+                  focusRailStore={focusRailStore}
+                />
+              </main>
+            </div>
+          </div>
+        </ScannerDataContextProvider>
+      </AppErrorBoundary>
+    </div>
   );
 
-  if (traderSymbol) {
+  if (float) {
     return (
-      <div className="nova-app-stack nova-app-stack--rail">
-        {rail}
+      <div className="nova-app-stack nova-app-stack--float">
         <div className="nova-app-main">
-          <GlobalAppBar scanner={sampleScannerBar} />
-          <SampleModeBadge onExit={leaveSampleView} />
-          <div className="nova-app-branch">
-            <AppErrorBoundary source="sample-trader">
-              <div className="nova-shell nova-shell--ticker-detail">
-                <div className="main-col main-col--full main-col--trader-stack">
-                  <main className="ticker-detail-main">
-                    <StockViewPage
-                      symbol={traderSymbol}
-                      detached
-                      onBack={backToSampleDash}
-                      onSelectSymbol={openTrader}
-                    />
-                  </main>
-                </div>
-              </div>
-            </AppErrorBoundary>
-          </div>
+          <FloatDeskChrome />
+          <BotSymbolMenuHost />
+          <SampleModeBadge onExit={closePopOut} />
+          <div className="nova-app-branch">{traderSlot}</div>
         </div>
       </div>
     );
   }
 
   return (
-    <HodMomoFixtureProvider>
-      <div className="nova-app-stack nova-app-stack--rail">
-        {rail}
-        <div className="nova-app-main">
-          <GlobalAppBar scanner={sampleScannerBar} />
-          <SampleModeBadge onExit={leaveSampleView} />
-          <div className="nova-app-branch">
-            <AppErrorBoundary source="sample-dashboard">
-              <NavPageHost onOpenTrader={openTrader}>
-                <SampleDashboardPage onOpenTrader={openTrader} />
-              </NavPageHost>
-            </AppErrorBoundary>
-          </div>
+    <div className="nova-app-stack nova-app-stack--rail">
+      <NavRail
+        traderActive={traderUp}
+        onOpenTrader={openStockView}
+        onLeaveTrader={showScannerView}
+        settings={null}
+      />
+      <div className="nova-app-main">
+        <GlobalAppBar scanner={sampleScannerBar} />
+        <SampleModeBadge onExit={leaveSampleView} />
+        <div className={branchClass}>
+          {traderSlot}
+          {!traderUp && (
+            <div className="nova-scanner-desk-slot">
+              <AppErrorBoundary source="sample-dashboard">
+                <NavPageHost onOpenTrader={openStockView}>
+                  <SampleDashboardPage onOpenTrader={openStockView} />
+                </NavPageHost>
+              </AppErrorBoundary>
+            </div>
+          )}
         </div>
       </div>
-    </HodMomoFixtureProvider>
+    </div>
   );
 }
 
@@ -145,10 +171,14 @@ export function SampleShell() {
   return (
     <SampleDataProvider>
       <IbkrAccountProvider>
-        {/* The Setups board reads the sample board; the provider never opens a socket here. */}
-        <SetupsStreamProvider enabled>
-          <SampleShellInner />
-        </SetupsStreamProvider>
+        <SampleWorkspaceProvider>
+          {/* The Setups board reads the sample board; the provider never opens a socket here. */}
+          <SetupsStreamProvider enabled>
+            <HodMomoFixtureProvider>
+              <SampleShellInner />
+            </HodMomoFixtureProvider>
+          </SetupsStreamProvider>
+        </SampleWorkspaceProvider>
       </IbkrAccountProvider>
     </SampleDataProvider>
   );

@@ -40,6 +40,12 @@ export interface StockViewTabProps {
   context: TabContext | null;
   showDock: boolean;
   showExtract: boolean;
+  /** Tooltip naming how this workspace's tabs move, when they cannot drag (the sample desk, #449). */
+  moveTitle?: string;
+  /** Why Dock cannot move this tab back; the button stays, locked, saying so. */
+  dockWhy?: string | null;
+  /** Why this tab cannot pop out; the button stays, locked, saying so. */
+  extractWhy?: string | null;
   editing: boolean;
   draft: string;
   inputRef: RefObject<HTMLInputElement | null>;
@@ -55,7 +61,7 @@ export interface StockViewTabProps {
 
 export function StockViewTab({
   label, isActive, isDraft, suspended, recording, pinned, context, showDock, showExtract,
-  editing, draft, inputRef, onDraftChange, onCommitEdit, onCancelEdit,
+  moveTitle, dockWhy = null, extractWhy = null, editing, draft, inputRef, onDraftChange, onCommitEdit, onCancelEdit,
   onActivate, onExtract, onDock, onTogglePin, onClose,
 }: StockViewTabProps) {
   const gap = context ? formatSignedPct(context.gapPct) : '';
@@ -67,7 +73,7 @@ export function StockViewTab({
       ? TRADER_TAB_SUSPENDED_TITLE
       : !pinned
         ? TRADER_TAB_PREVIEW_TITLE
-        : showExtract ? TRADER_TAB_LABEL_TITLE : TRADER_TAB_LABEL_TITLE_FLOAT;
+        : moveTitle ?? (showExtract ? TRADER_TAB_LABEL_TITLE : TRADER_TAB_LABEL_TITLE_FLOAT);
   return (
     <>
       {recording && !isDraft && (
@@ -92,7 +98,7 @@ export function StockViewTab({
           type="button"
           className="sv-tab__label"
           onClick={onActivate}
-          onDoubleClick={e => { e.preventDefault(); if (!isDraft && showExtract) onExtract(); }}
+          onDoubleClick={e => { e.preventDefault(); if (!isDraft && showExtract && !extractWhy) onExtract(); }}
           title={labelTitle}
         >
           <span className="sv-tab__symbol">{label}</span>
@@ -134,15 +140,17 @@ export function StockViewTab({
           )}
           {showDock && onDock && (
             <button type="button" className="sv-tab__dock" aria-label={`${TRADER_TAB_DOCK_ARIA} (${label})`}
-              title={TRADER_TAB_DOCK_TITLE} data-testid={`sv-tab-dock-${label}`}
-              onClick={e => { e.stopPropagation(); onDock(); }}>
+              title={dockWhy ? '' : TRADER_TAB_DOCK_TITLE} data-testid={`sv-tab-dock-${label}`}
+              disabled={Boolean(dockWhy)} data-why={dockWhy ?? undefined}
+              onClick={e => { e.stopPropagation(); if (!dockWhy) onDock(); }}>
               <ArrowLeftToLine size={12} aria-hidden="true" />
             </button>
           )}
           {showExtract && (
             <button type="button" className="sv-tab__extract" aria-label={`${TRADER_TAB_EXTRACT_ARIA} (${label})`}
-              title={TRADER_TAB_EXTRACT_TITLE} data-testid={`sv-tab-extract-${label}`}
-              onClick={e => { e.stopPropagation(); onExtract(); }}>
+              title={extractWhy ? '' : TRADER_TAB_EXTRACT_TITLE} data-testid={`sv-tab-extract-${label}`}
+              disabled={Boolean(extractWhy)} data-why={extractWhy ?? undefined}
+              onClick={e => { e.stopPropagation(); if (!extractWhy) onExtract(); }}>
               <ExternalLink size={12} aria-hidden="true" />
             </button>
           )}

@@ -40,7 +40,9 @@ test.describe('Phase 5 — Layout store panel order', () => {
 
   test('side panel quote blocks follow saved layout order', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
-    await page.goto('/?view=sample');
+    // The layout is saved on the live desk: the sample desk reads it but never
+    // writes the operator's storage, not even from a page script (#449).
+    await page.goto('/');
     await page.evaluate((key) => {
       localStorage.setItem(
         key,
@@ -54,7 +56,7 @@ test.describe('Phase 5 — Layout store panel order', () => {
         }),
       );
     }, LAYOUT_STORAGE_KEY);
-    await page.reload();
+    await page.goto('/?view=sample');
     await expect(page.getByTestId('nav-rail')).toBeVisible();
 
     const search = page.locator('.side-panel .side-search-input');

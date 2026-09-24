@@ -22,8 +22,13 @@ async function bootstrap(): Promise<void> {
   // Before any app module loads (V4): on ?view=sample the desk sends nothing
   // to Nova, reads none of its live state and opens no backend socket.
   // Dynamic, after the base is set, so the constants it reads resolve here.
-  const { installSampleNetworkGate } = await import('./sample_data/sampleNetworkGate');
+  const [{ installSampleNetworkGate }, { installSampleStorageGate }] = await Promise.all([
+    import('./sample_data/sampleNetworkGate'),
+    import('./sample_data/sampleStorageGate'),
+  ]);
   installSampleNetworkGate(window);
+  // #449: nor does it write the operator's saved browser state -- its changes stay in memory.
+  installSampleStorageGate();
 
   // Every locked control says why on hover and on a refused press (ux/whyTip.ts).
   installWhyTip(document);

@@ -391,7 +391,7 @@ def test_on_session_ready_clears_stale_scanner_reqids(monkeypatch):
     discovery._qualified_contracts.clear()
     discovery._qualified_contracts["AAA"] = object()
 
-    async def _clear(*, reason=""):
+    async def _clear(*, reason="", ib=None):
         return 0
 
     monkeypatch.setattr("ibkr.ticks.clear_all_subscriptions", _clear)

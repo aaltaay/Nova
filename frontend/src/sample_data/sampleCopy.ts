@@ -72,3 +72,27 @@ export const SAMPLE_VIEW_REASON_CODE = 'SAMPLE_VIEW';
  */
 export const SAMPLE_CHART_NO_BARS = 'Sample desk -- no candles here (it reads only its own sample data)';
 
+/*
+ * #449: the sample desk's own workspace -- Trader tabs, the Focus rail, the
+ * Desk and pop-out, all in memory. Where a sample control cannot do what the
+ * live one does, it is locked with one of these reasons (ux/whyTip.ts).
+ */
+
+/** Tab strip / tab tooltip: sample tabs never drag onto a live Nova window. */
+export const SAMPLE_TRADER_STRIP_TITLE =
+  'Sample desk -- tabs stay on the sample desk and do not drag onto a live Nova window. Double-click a tab to pop it out.';
+/** The same, where pop-out is locked too (the desktop app). */
+export const SAMPLE_TRADER_STRIP_TITLE_NO_POPOUT =
+  'Sample desk -- tabs stay in this window and do not drag onto a live Nova window.';
+/** A sample pop-out's Dock. */
+export const SAMPLE_TRADER_DOCK_WHY =
+  'Sample desk -- a sample pop-out does not dock back. Close this window; the sample desk keeps its own tabs.';
+/** Pop-out in the desktop app, which opens pop-out windows for live Trader tabs only. */
+export const SAMPLE_POPOUT_DESKTOP_WHY =
+  'Sample desk -- the desktop app pops out live Trader tabs only. Open the sample desk in a browser to try pop-out.';
+
+/** The Desk board's Record and Allowlist (its Watch works: the sample desk keeps its own list). */
+export const SAMPLE_DESK_RECORD_WHY =
+  'Sample desk -- Session Record records the live IBKR feed, which the sample desk never opens.';
+export const SAMPLE_DESK_ALLOWLIST_WHY = SAMPLE_BOT_ABSENT;
+

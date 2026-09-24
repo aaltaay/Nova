@@ -100,9 +100,10 @@ export const LEADERBOARD_CATALYSTS_IN_NEWS_COLUMN =
 export const LEADERBOARD_CATALYSTS_NOT_RECORDED =
   'No catalysts on file for this day -- Sim playback has none to show.';
 
-/** Row marks on a played-back board. */
+/** Row marks on a played-back board; HALTED also marks a live row (#487). */
 export const LEADERBOARD_HALTED_LABEL = 'HALTED';
-export const LEADERBOARD_HALTED_TITLE = 'Halted at this minute, from the halt log (IBKR tick 49 / Nasdaq halts).';
+export const LEADERBOARD_HALTED_TITLE =
+  'Halted: live, per IBKR tick 49 or the Nasdaq halt feed; played back, per the halt log at this minute.';
 export const LEADERBOARD_NEWS_UNKNOWN_TITLE = 'News at this minute was not recorded.';
 
 /** The thin lane under the Sim band: where the Scanner board was recorded / rebuilt that day. */

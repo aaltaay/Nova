@@ -61,8 +61,8 @@ import { consumeFocusListRequest, subscribeFocusListRequest } from '../workspace
 import { isTabModuleId, listScannerListModules } from '../workspace/registry';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
-  FOCUS_RAIL_WATCH_LIST, followedFocusList, focusRowsFor, hodFocusRows, isHodFocusList, readFocusRailState, stepCursor,
-  watchFocusRows, writeFocusRailState, type FocusRailState, type FocusRow,
+  FOCUS_RAIL_WATCH_LIST, SAVED_FOCUS_RAIL_STORE, followedFocusList, focusRowsFor, hodFocusRows, isHodFocusList, stepCursor,
+  watchFocusRows, type FocusRailState, type FocusRailStore, type FocusRow,
 } from './focusRailState';
 import { FocusRailHoverCard, type FocusRailHover } from './FocusRailHoverCard';
 import { nextFocusSort, sortFocusRows, type FocusSort, type FocusSortKey } from './focusRailSort';
@@ -110,7 +110,11 @@ function SortHeader({ column, sort, onSort }: { column: FocusSortKey; sort: Focu
   );
 }
 
-export function FocusRail({ active: onScreen = true }: { active?: boolean } = {}) {
+export function FocusRail({ active: onScreen = true, store = SAVED_FOCUS_RAIL_STORE }: {
+  active?: boolean;
+  /** Where the list, sort and fold live (the sample desk passes its own, #449). */
+  store?: FocusRailStore;
+} = {}) {
   const feed = useLiveScannerFeedOptional();
   const hodStream = useHodMomoOptional()?.stream ?? null;
   const settings = useSettingsOptional();
@@ -122,7 +126,7 @@ export function FocusRail({ active: onScreen = true }: { active?: boolean } = {}
   // follows the playhead (ADR 023) is that moment's, so its values show.
   const replayDesk = useSimReplayDesk() && !feed?.replay;
   useSyncExternalStore(subscribeSessionRecord, () => getRecordingSymbols().join(','), () => '');
-  const [state, setState] = useState<FocusRailState>(readFocusRailState);
+  const [state, setState] = useState<FocusRailState>(() => store.read());
   const [cursor, setCursor] = useState(-1);
   const [hover, setHover] = useState<FocusRailHover | null>(null);
   const hideTimer = useRef<number | null>(null);
@@ -164,10 +168,10 @@ export function FocusRail({ active: onScreen = true }: { active?: boolean } = {}
   const update = useCallback((patch: Partial<FocusRailState>) => {
     setState(prev => {
       const next = { ...prev, ...patch };
-      writeFocusRailState(next);
+      store.write(next);
       return next;
     });
-  }, []);
+  }, [store]);
 
   // Follow the list the last symbol was picked from; the request may predate this mount.
   useEffect(() => {

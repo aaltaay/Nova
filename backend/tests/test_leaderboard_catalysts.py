@@ -84,33 +84,72 @@ def _tables(db_path: Path) -> set[str]:
         db.close()
 
 
-def test_a_version_1_store_migrates_by_gaining_the_catalyst_tables_only(tmp_path):
-    path = tmp_path / "leaderboard.sqlite3"
+# The tables as versions 1 and 2 created them, before schema 3's float-check columns (#532).
+_FLOAT_COLUMNS_DDL = "    float_contradicted INTEGER,\n    shares_outstanding REAL,\n"
+
+
+def _old_store(path: Path, version: int) -> None:
+    assert _FLOAT_COLUMNS_DDL in schema._DDL
     db = sqlite3.connect(path)
-    db.executescript(schema._DDL)
-    db.execute("PRAGMA user_version=1")
-    db.execute("INSERT INTO rows (session_date, minute_ts, source, board, symbol, rank, price) "
-               "VALUES (?, ?, 'reconstructed', 'market', 'OLD', 1, 3.0)", (DAY, int(et(18, 7))))
+    db.executescript(schema._DDL.replace(_FLOAT_COLUMNS_DDL, ""))
+    if version >= 2:
+        for ddl in schema._CATALYST_DDL:
+            db.execute(ddl)
+    db.execute(f"PRAGMA user_version={version}")
+    db.execute("INSERT INTO rows (session_date, minute_ts, source, board, symbol, rank, price, float_shares) "
+               "VALUES (?, ?, 'reconstructed', 'market', 'OLD', 1, 3.0, 8450000)", (DAY, int(et(18, 7))))
     db.commit()
     db.close()
+
+
+def _row_columns(path: Path) -> set[str]:
+    db = sqlite3.connect(path)
+    try:
+        return {r[1] for r in db.execute("PRAGMA table_info(rows)")}
+    finally:
+        db.close()
+
+
+def test_a_version_1_store_migrates_by_gaining_the_catalyst_tables_and_the_float_columns(tmp_path):
+    path = tmp_path / "leaderboard.sqlite3"
+    _old_store(path, 1)
     assert "catalyst_checks" not in _tables(path)
+    assert "float_contradicted" not in _row_columns(path)
 
     with store.connect(path) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == LEADERBOARD_SCHEMA_VERSION == 2
-        assert [dict(r)["symbol"] for r in store.rows_at(db, DAY, "reconstructed", int(et(18, 7)))] == ["OLD"]
+        assert db.execute("PRAGMA user_version").fetchone()[0] == LEADERBOARD_SCHEMA_VERSION == 3
+        old = [dict(r) for r in store.rows_at(db, DAY, "reconstructed", int(et(18, 7)))]
+        assert [r["symbol"] for r in old] == ["OLD"]
+        assert (old[0]["float_contradicted"], old[0]["shares_outstanding"]) == (None, None)
         assert store.catalyst_checks(db, DAY) == []
     assert {"catalyst_checks", "catalyst_items"} <= _tables(path)
+    assert {"float_contradicted", "shares_outstanding"} <= _row_columns(path)
     with store.connect(path) as db:  # a second open is a no-op
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 3
 
 
-def test_a_new_store_is_created_at_version_2(tmp_path):
+def test_a_version_2_store_gains_the_float_columns_and_keeps_its_rows(tmp_path):
+    """#532: a recorded row keeps the desk row's float check; the rows already stored read it as unchecked."""
+    path = tmp_path / "leaderboard.sqlite3"
+    _old_store(path, 2)
+    with store.connect(path) as db:
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 3
+        old = dict(store.rows_at(db, DAY, "reconstructed", int(et(18, 7)))[0])
+        assert (old["float_shares"], old["float_contradicted"], old["shares_outstanding"]) == (8_450_000, None, None)
+        store.write_batch(db, rows=[{**old, "minute_ts": int(et(18, 8)), "float_contradicted": 1,
+                                     "shares_outstanding": 163_270_000}])
+        new = dict(store.rows_at(db, DAY, "reconstructed", int(et(18, 8)))[0])
+        assert (new["float_contradicted"], new["shares_outstanding"]) == (1, 163_270_000)
+
+
+def test_a_new_store_is_created_at_version_3(tmp_path):
     with store.connect(tmp_path / "fresh.sqlite3") as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 3
         assert store.catalyst_checks(db, DAY) == []
+    assert {"float_contradicted", "shares_outstanding"} <= _row_columns(tmp_path / "fresh.sqlite3")
 
 
-@pytest.mark.parametrize("version", [3, 9])
+@pytest.mark.parametrize("version", [4, 9])
 def test_an_unknown_version_refuses_and_is_left_alone(tmp_path, version):
     path = tmp_path / "future.sqlite3"
     db = sqlite3.connect(path)

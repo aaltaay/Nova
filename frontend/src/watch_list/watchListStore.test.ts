@@ -78,4 +78,19 @@ describe('watchListStore', () => {
     expect(listener).toHaveBeenCalled();
     off();
   });
+
+  it("the sample desk keeps its own list in memory: it never shows or changes the operator's (#449)", () => {
+    addToWatchList('GRML');
+    window.history.replaceState({}, '', '/?view=sample');
+    try {
+      expect(getWatchList()).toEqual([]);
+      expect(toggleWatchList('SMPL')).toBe(true);
+      expect(getWatchList()).toEqual(['SMPL']);
+      expect(isWatched('GRML')).toBe(false);
+    } finally {
+      window.history.replaceState({}, '', '/');
+    }
+    expect(getWatchList()).toEqual(['GRML']);
+    expect(stored()).toEqual({ schema_version: WATCH_LIST_SCHEMA_VERSION, symbols: ['GRML'] });
+  });
 });

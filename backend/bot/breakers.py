@@ -46,11 +46,25 @@ async def trip_hard() -> dict[str, Any]:
     return {"tripped": "hard", "flatten": flatten, "session": row}
 
 
+def _unknown_day_bound(meter: dict[str, Any] | None) -> float | None:
+    """With the commissions unknown (#564) the day is at least as bad as its P&L before them."""
+    if not meter or not meter.get("commissions_unknown"):
+        return None
+    value = meter.get("day_pnl_before_commissions")
+    return float(value) if isinstance(value, (int, float)) and value == value else None
+
+
 async def poll_once(pnl: float | None = None, meter: dict[str, Any] | None = None) -> dict[str, Any] | None:
     if pnl is None:
         pnl, meter = read_account_day_pnl()
     if pnl is None:
-        return None
+        # The day P&L is unknown. A breaker the P&L before commissions already
+        # crosses still trips -- commissions only make the day worse. Otherwise
+        # nothing is compared; while the commissions are unknown, new Live bot
+        # entries are held (bot.day_pnl.commission_hold).
+        pnl = _unknown_day_bound(meter)
+        if pnl is None:
+            return None
     row = load_session()
     if pnl <= BOT_HARD_BREAKER_USD and not row.get("hard_lock_until_date"):
         return await trip_hard()

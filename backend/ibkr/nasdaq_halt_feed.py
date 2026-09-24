@@ -7,6 +7,11 @@ schema_version: 1 (in-memory only -- not persisted).
 Polls the official RSS at most once per minute. Failed fetches keep the
 last good symbol rows for IBKR+clock but mark exchange status down so
 the chip never invents resume times. MWCB Level 1/2/3 is desk-wide.
+
+``halted`` answers a live scanner row (#487) only while the feed is
+answering -- its last read succeeded and is younger than
+``NASDAQ_TRADE_HALT_RSS_FRESH_SEC``. A refresh swaps the whole row map in one
+assignment, so a reader on another thread never sees it half built.
 """
 from __future__ import annotations
 
@@ -18,6 +23,7 @@ from typing import Any, Callable
 import requests
 
 from constants import (
+    NASDAQ_TRADE_HALT_RSS_FRESH_SEC,
     NASDAQ_TRADE_HALT_RSS_HTTP_TIMEOUT_SEC,
     NASDAQ_TRADE_HALT_RSS_POLL_SEC,
     NASDAQ_TRADE_HALT_RSS_URL,
@@ -48,8 +54,8 @@ _last_error: str | None = None
 
 def reset() -> None:
     """Drop overlay cache (tests)."""
-    global _mwcb, _feed_status, _last_fetch_at, _last_success_at, _last_error
-    _rows.clear()
+    global _rows, _mwcb, _feed_status, _last_fetch_at, _last_success_at, _last_error
+    _rows = {}
     _mwcb = None
     _feed_status = "pending"
     _last_fetch_at = None
@@ -86,6 +92,29 @@ def open_symbols() -> list[str]:
     )
 
 
+def answering(*, now: float | None = None) -> bool:
+    """The feed's latest read succeeded and is fresh enough to say what is not halted."""
+    ts = time.time() if now is None else float(now)
+    fresh = _last_success_at is not None and ts - _last_success_at <= NASDAQ_TRADE_HALT_RSS_FRESH_SEC
+    return fresh and _feed_status in ("ok", "empty")
+
+
+def halted(symbol: str, *, now: float | None = None) -> bool | None:
+    """Is ``symbol`` halted per the feed's latest read? None while the feed is not answering.
+
+    An open row -- no trade resumption yet, or one still ahead -- is True. No
+    open row is False, except while the read lists a market-wide circuit
+    breaker: it carries no end time, so nothing reads as trading then.
+    """
+    ts = time.time() if now is None else float(now)
+    if not answering(now=ts):
+        return None
+    row = _rows.get(normalize_symbol(symbol))
+    if row is not None and row.mwcb_level is None and (row.trade_resume is None or row.trade_resume > ts):
+        return True
+    return None if _mwcb is not None else False
+
+
 def desk_snapshot(*, now: float | None = None) -> dict[str, Any]:
     ts = time.time() if now is None else float(now)
     age = None if _last_success_at is None else max(0.0, ts - _last_success_at)
@@ -116,7 +145,7 @@ def refresh(
     min_interval_sec: float | None = None,
 ) -> dict[str, Any]:
     """Fetch+parse or apply recorded XML. Refuses a second fetch inside TTL."""
-    global _mwcb, _feed_status, _last_fetch_at, _last_success_at, _last_error
+    global _rows, _mwcb, _feed_status, _last_fetch_at, _last_success_at, _last_error
     ts = time.time() if now is None else float(now)
     interval = (
         NASDAQ_TRADE_HALT_RSS_POLL_SEC
@@ -154,12 +183,13 @@ def refresh(
         _halt_log.observe_rss(parsed["rows"])
     except Exception:
         logger.warning("Nasdaq Trade Halt RSS: event log enqueue failed", exc_info=True)
-    _rows.clear()
+    rows: dict[str, HaltRssRow] = {}
     for row in parsed["rows"]:
         if not row.symbol:
             continue
-        prev = _rows.get(row.symbol)
-        _rows[row.symbol] = row if prev is None else better_overlay_row(prev, row)
+        prev = rows.get(row.symbol)
+        rows[row.symbol] = row if prev is None else better_overlay_row(prev, row)
+    _rows = rows
     _mwcb = parsed["mwcb"]
     _last_success_at = ts
     _last_error = None

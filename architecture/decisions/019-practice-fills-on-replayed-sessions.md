@@ -57,7 +57,9 @@ against it without placing live orders.
    subscription for the selected symbol). A segment that ends with no prints
    finalizes as `failed`. A print that arrives without an exchange timestamp is
    recorded with `ts_source: "receive"`, so a substituted time never reads as
-   the exchange's own.
+   the exchange's own. (Amended for #563: ib_async stamps every live print
+   with its arrival, so every live print now says `receive`, and IBKR's own
+   second rides beside it as `exchange_ts`; AGENTS.md §3, "Print times".)
 
 ## Consequences
 

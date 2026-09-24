@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { CHART_CONTEXT_MENU_TICKET_WAIT_REASON } from '../src/chart/chartContextMenuConstants';
 import { attachErrorCollector } from './helpers/errorCollector';
 import { mockLiveTraderApi } from './helpers/liveTraderApi';
 
@@ -22,7 +23,8 @@ async function openTrader(page: Page) {
     /[1-9]/,
   );
   // The menu stages the already-mounted ticket (ibkr/orderTicketPrefill.ts);
-  // the rail mounts it once the quote has loaded.
+  // the rail mounts it once the quote has loaded, and until then the priced
+  // rows are locked with a reason (#566, covered by its own case below).
   await expect(page.locator('form.manual-order-ticket').first()).toBeVisible();
   return { chart, api };
 }
@@ -141,6 +143,68 @@ test.describe('Trader chart right-click context menu', () => {
     ).toHaveAttribute('aria-pressed', 'true');
     await expect(ticket.locator('#manual-order-limit')).toHaveValue(price!);
 
+    expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
+  });
+
+  test('priced rows say why until the quote brings the ticket (#566)', async ({ page }) => {
+    const { errors } = attachErrorCollector(page);
+    const api = await mockLiveTraderApi(page);
+    // Hold the quote: the rail mounts the ticket only once it has loaded.
+    let releaseQuote: () => void = () => {};
+    const quoteHeld = new Promise<void>((resolve) => {
+      releaseQuote = resolve;
+    });
+    await page.route('**/api/ticker/SMPL', async (route) => {
+      await quoteHeld;
+      await route.fallback();
+    });
+    await page.goto('/?view=stock&symbol=SMPL');
+    await expect(page.getByTestId('chart-desk-toolbar')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('[data-testid^="ticker-chart-"]').first()).toHaveAttribute(
+      'data-bar-count',
+      /[1-9]/,
+    );
+    await expect(page.getByTestId('stock-view-rail-pending')).toBeVisible();
+    await expect(page.locator('form.manual-order-ticket')).toHaveCount(0);
+
+    await rightClickChart(page);
+    for (const id of ['create_order', 'buy', 'sell']) {
+      const row = page.getByTestId(`chart-context-menu-${id}`);
+      await expect(row).toBeDisabled();
+      await expect(row).toHaveAttribute('data-why', CHART_CONTEXT_MENU_TICKET_WAIT_REASON);
+    }
+    await expect(page.getByTestId('chart-context-menu-buy')).toHaveText(
+      /^Buy SMPL \d+ @\d+\.\d{2}$/,
+    );
+    await expect(page.getByTestId('chart-context-menu-hint')).toHaveText(
+      CHART_CONTEXT_MENU_TICKET_WAIT_REASON,
+    );
+    // A press on a locked row is refused out loud (ux/whyTip.ts), not dropped.
+    await page.getByTestId('chart-context-menu-buy').click({ force: true });
+    await expect(page.locator('#nova-why-tip')).toHaveText(CHART_CONTEXT_MENU_TICKET_WAIT_REASON);
+    await expect(page.getByTestId('chart-context-menu')).toBeVisible();
+    await page.screenshot({
+      path: `${ARTIFACTS}/chart-context-menu-waiting-for-ticket.png`,
+      fullPage: true,
+    });
+
+    // The quote lands, the ticket mounts, and the open menu unlocks in place.
+    releaseQuote();
+    const ticket = page.locator('form.manual-order-ticket').first();
+    await expect(ticket).toBeVisible();
+    const sell = page.getByTestId('chart-context-menu-sell');
+    await expect(sell).toBeEnabled();
+    await expect(page.getByTestId('chart-context-menu-hint')).toContainText('trade ticket');
+    const price = ((await sell.textContent()) ?? '').split('@')[1]?.trim();
+    expect(price, 'no price on the Sell row').toMatch(/^\d+\.\d{2}$/);
+    await sell.click();
+    await expect(page.getByTestId('chart-context-menu')).toHaveCount(0);
+    await expect(
+      ticket.locator('.manual-order-side button', { hasText: 'Sell' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    await expect(ticket.locator('#manual-order-limit')).toHaveValue(price!);
+
+    expect(api.mutations, 'staging must not send an order').toEqual([]);
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 

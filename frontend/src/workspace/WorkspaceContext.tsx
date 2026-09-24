@@ -27,6 +27,22 @@ import {
   parseWorkspaceConfig,
 } from './workspaceConfig';
 
+/**
+ * Tab moves this workspace cannot make, each with the reason its control shows
+ * (ux/whyTip.ts). Absent / null on the live desk, where every move works. The
+ * sample desk's own workspace sets it (#449): its tabs never cross into a live
+ * Nova window, so they do not drag, a sample pop-out does not dock back, and
+ * the desktop app pops out live tabs only.
+ */
+export type TraderMoveLocks = {
+  /** Strip and tab tooltip: how tabs move here, with dragging off. */
+  title: string;
+  /** Why a pop-out's Dock cannot move its tab back. */
+  dock: string;
+  /** Why a tab cannot pop out, or null when it can. */
+  extract: string | null;
+};
+
 export type WorkspaceValue = {
   selectedSymbol: string | null;
   setSelectedSymbol: (sym: string | null) => void;
@@ -99,6 +115,7 @@ export type WorkspaceValue = {
   closeTraderView: () => void;
   traderViewActive: boolean;
   showScannerView: () => void;
+  traderMoveLocks?: TraderMoveLocks | null;
 };
 
 const WorkspaceContext = hmrStableContext<WorkspaceValue>(import.meta.hot, 'WorkspaceContext');
@@ -184,6 +201,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       closeTraderView: trader.closeTraderView,
       traderViewActive: trader.traderViewActive,
       showScannerView: trader.showScannerView,
+      traderMoveLocks: null,
     }),
     [
       selectedSymbol,
@@ -212,6 +230,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   return (
     <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>
   );
+}
+
+/**
+ * Provide a workspace built elsewhere: the sample desk's own (#449,
+ * sample_data/SampleWorkspaceProvider), whose tabs live in memory and never
+ * reach the operator's saved workspace.
+ */
+export function WorkspaceValueProvider({ value, children }: { value: WorkspaceValue; children: ReactNode }) {
+  return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }
 
 export function useWorkspace(): WorkspaceValue {

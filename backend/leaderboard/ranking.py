@@ -10,7 +10,11 @@ A row qualifies first, then qualified rows are ordered by ``change_pct``
 (biggest gainer first; an unknown change sorts last), ties broken by volume
 then symbol so the order is total and repeatable. A value a rule needs but the
 row does not carry fails the rule -- except float, which ``float_unknown_ok``
-may admit -- so an unknown is never read as a pass.
+may admit -- so an unknown is never read as a pass. A float its own share
+counts contradict (#532, ``strategy.float_gate``) qualifies under ``max_float``
+only on shares outstanding; otherwise it is refused ``float_contradicted``,
+even where an unknown float is admitted. A row without the check (a
+reconstructed row, or one recorded before it) is judged as before.
 """
 from __future__ import annotations
 
@@ -29,6 +33,7 @@ from constants_leaderboard import (
     LEADERBOARD_S5_MIN_RVOL,
     LEADERBOARD_S5_TOP_N,
 )
+from strategy.float_gate import float_for_gate
 
 
 @dataclass(frozen=True)
@@ -93,7 +98,12 @@ def refusal(row: Mapping[str, Any], rules: RankingRules) -> str | None:
             return "price"
     if rules.max_float is not None:
         float_shares = _num(row.get("float_shares"))
-        if float_shares is None:
+        rescued, why = float_for_gate(float_shares, rules.max_float, contradicted=row.get("float_contradicted"),
+                                      shares_outstanding=row.get("shares_outstanding"))
+        if why is not None:
+            if not rescued:
+                return "float_contradicted"
+        elif float_shares is None:
             if not rules.float_unknown_ok:
                 return "float_unknown"
         elif float_shares > rules.max_float:

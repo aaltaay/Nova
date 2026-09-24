@@ -24,6 +24,7 @@ from constants import IBKR_TAPE_TICK_TYPE
 from ibkr import client as _client
 from ibkr import depth as _depth
 from ibkr import line_session as _line_session
+from ibkr import tape_exchange_time as _tape_exchange_time
 from ibkr import tape_line as _tape_line
 from ibkr.tape_events import warm_10sec_fill as _warm_10sec_fill
 from metrics.op_metrics import timed_sync
@@ -243,6 +244,7 @@ async def _subscribe_locked(symbol: str, ib: Any) -> dict:
     contract = qualified[0]
     _contracts[symbol] = contract
     _install_error_hook(ib)
+    _tape_exchange_time.install(ib)  # keep IBKR's own second beside ib_async's arrival time (#563)
 
     try:
         with timed_sync("ibkr.tape.subscribe"):
