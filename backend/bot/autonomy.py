@@ -107,9 +107,13 @@ def apply_patch(
             _audit_setup(old, new, deactivated=False)
         row["setup"] = new
     if "setup_levels" in body:
-        from bot.setup_levels import apply as apply_setup_levels
+        from bot.setup_levels import apply as apply_setup_levels, levels_of
 
+        before = levels_of(row)["levels"]
         apply_setup_levels(row, body.get("setup_levels"))
+        after = levels_of(row)["levels"]
+        for sid in sorted(k for k in after if after[k] != before.get(k)):
+            _audit_setup_level(sid, before.get(sid, BOT_LEVEL_OFF), after[sid])
     if "breakers" in body:
         from bot.breaker_limits import apply as apply_breakers
         from bot.gates import current_venue
@@ -174,6 +178,21 @@ def _audit_breakers(venue: str, before: dict, after: dict) -> None:
         import logging
 
         logging.getLogger(__name__).warning("bot audit: breaker change not recorded", exc_info=True)
+
+
+def _audit_setup_level(setup: str, before: int, after: int) -> None:
+    """The timeline shows a setup moved between Off and Eyes on its own card (ADR 031)."""
+    from bot.audit import record
+
+    try:
+        record(action="setup_level", outcome=f"{setup}:{before}->{after}",
+               reason="Eyes: it proposes on near + go" if after >= BOT_LEVEL_EYES
+               else "Off: it watches and scores in silence",
+               inputs={"setup": setup, "from": before, "to": after})
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).warning("bot audit: setup level change not recorded", exc_info=True)
 
 
 def _audit_setup(before: Any, after: str, *, deactivated: bool) -> None:

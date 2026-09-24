@@ -45,10 +45,24 @@ export interface GateContext {
   dayPnl?: number | null;
   /** Why the desk's own gate refuses places (padlock PIN, Gateway, spend). */
   blockers?: readonly TradingBlocker[];
+  /** The desk venue's bot trip (ADR 032); the default when the API keeps none. */
+  softUsd?: number;
+  /** The chosen setup (ADR 031): the read-out the gate reads is its own. */
+  setup?: string;
 }
 
 function list(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+}
+
+/** The chosen setup's name, as the hero says it ("First pullback", "Bull flag"). */
+export function setupName(setup: string | null | undefined): string {
+  return BOT_SETUP_LABELS[setup ?? ''] ?? setup ?? BOT_SETUP_LABELS.first_pullback;
+}
+
+/** The gate context the hero draws with: the day P&L, the desk's blockers, the venue's bot trip, the chosen setup. */
+export function gateContext(session: BotSession, dayPnl: number | null, blockers?: readonly TradingBlocker[]): GateContext {
+  return { dayPnl, blockers, softUsd: session.breakers?.soft_usd, setup: session.setup };
 }
 
 function levelName(level: number): string {
@@ -109,13 +123,13 @@ export function gateLine(g: BotGate, ctx: GateContext = {}): GateLine {
         out.text = `${label} unavailable — the scoreboard is not open`;
       } else {
         out.text = `${label} ${Number(d.go_triggered ?? 0)} / ${Number(d.min_go ?? 50)}`;
-        out.actions.push({ kind: 'readout', label: BOTS_GATE_READOUT_LINK });
+        out.actions.push({ kind: 'readout', label: BOTS_GATE_READOUT_LINK(setupName(ctx.setup)) });
       }
       break;
     }
     case 'bot_trip':
       out.text = out.ok
-        ? `${label} (${ctx.dayPnl == null ? '—' : fmtUsdCents(ctx.dayPnl)} / ${fmtUsd(BOT_SOFT_BREAKER_USD)})`
+        ? `${label} (${ctx.dayPnl == null ? '—' : fmtUsdCents(ctx.dayPnl)} / ${fmtUsd(ctx.softUsd ?? BOT_SOFT_BREAKER_USD)})`
         : 'Bot trip fired — Activate re-enables it';
       break;
     case 'day_lock':
@@ -165,23 +179,34 @@ function gateVenue(session: BotSession): string | null {
 }
 
 /**
- * The hero's one-line state under the headline. Off and Eyes govern a bot on the
- * bot API only -- the setup scanner proposes at every level. At Strategy, Nova's
- * own bot trades the first pullback on Paper and Sim (ADR 030); Live waits on the
- * read-out.
+ * The hero's one-line state under the headline -- the chosen setup's level (ADR
+ * 031). Off: the bot API is dark and the chosen setup scores in silence. Eyes: it
+ * proposes, and a connected bot may watch and propose. At Strategy, Nova's own bot
+ * trades the chosen setup on Paper and Sim (ADR 030); Live waits on its read-out.
  */
 export function heroSentence(session: BotSession): HeroSentence {
   const level = session.level;
+  const name = setupName(session.setup).toLowerCase();
   if (level <= 0) {
-    return { lead: 'Off: no bot may use the bot API. The setup scanner still watches and proposes; you place.', count: '', tail: '' };
+    return {
+      lead: `Off: no bot may use the bot API, and the ${name} scanner watches and scores in silence — no proposals. Each setup card has its own Off / Eyes.`,
+      count: '',
+      tail: '',
+    };
   }
-  if (level === 1) return { lead: 'Eyes: a connected bot may watch and propose, never place. You place.', count: '', tail: '' };
+  if (level === 1) {
+    return {
+      lead: `Eyes: the ${name} scanner proposes when a setup is near its trigger and the tape says go, and a connected bot may watch and propose. Nothing places; you do.`,
+      count: '',
+      tail: '',
+    };
+  }
   if (!Array.isArray(session.gates)) return { lead: BOTS_HERO_NO_GATES, count: '', tail: '' };
   const venue = gateVenue(session);
   if (session.live_fire_ready) {
     if (session.runner?.playing) {
       return {
-        lead: `Strategy is live on ${venue ?? 'this venue'}: the bot buys the first pullback itself when a name on its list triggers with the tape at go, under every gate below.`,
+        lead: `Strategy is live on ${venue ?? 'this venue'}: the bot buys the ${name} itself when a name on its list triggers with the tape at go, under every gate below.`,
         count: '',
         tail: '',
       };
@@ -201,7 +226,7 @@ export function heroSentence(session: BotSession): HeroSentence {
     };
   }
   if (session.readout_required === false) {
-    return { lead: `Strategy is chosen and every gate is open. Activate and the bot trades the first pullback on ${venue ?? 'this venue'}.`, count: '', tail: '' };
+    return { lead: `Strategy is chosen and every gate is open. Activate and the bot trades the ${name} on ${venue ?? 'this venue'}.`, count: '', tail: '' };
   }
   return { lead: 'Strategy is chosen and every gate is open. Activate to let a connected bot fire; Nova\'s own bot trades Paper and Sim only.', count: '', tail: '' };
 }
@@ -213,7 +238,7 @@ const EXIT_WORDS: Record<string, string> = {
   outside: 'closed outside the bot',
 };
 
-/** The first-pullback bot's trade in one line (ADR 030); empty when it has none. */
+/** The bot's trade in one line (ADR 030, ADR 031); empty when it has none. */
 export function tradeLine(trade: BotTrade | null | undefined): string {
   if (!trade) return '';
   const sym = trade.symbol;
@@ -247,7 +272,7 @@ export interface PlayingLine {
 }
 
 export function playingLine(session: BotSession): PlayingLine {
-  const setup = BOT_SETUP_LABELS[session.setup ?? ''] ?? session.setup ?? 'First pullback';
+  const setup = setupName(session.setup);
   const n = session.symbol_allowlist?.length ?? 0;
   const shares = session.caps.max_shares;
   return {

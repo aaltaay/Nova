@@ -1,7 +1,7 @@
 /** Contenders tab (id `watchlist`) — what's worth trading (Five Pillars, market facts, catalyst, setup
  * state, bot allowlist), the live Setups scanner, the Journal and the Backtest. Signal-only; no orders
  * placed. Named Contenders 2026-09-23 so "Watch list" means the operator's hand-picked list (watch_list/). */
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { TabLazyFallback } from '../components/TabLazyFallback';
 
 const BacktestPanel = lazy(() =>
@@ -10,6 +10,7 @@ const BacktestPanel = lazy(() =>
 import { JournalPanel } from './JournalPanel';
 import { SetupsPanel } from '../setups/SetupsPanel';
 import { SetupsTabCount } from '../setups/SetupsTabCount';
+import { consumeSetupsBoardOpen, subscribeSetupsBoardOpen } from '../setups';
 import { WatchlistTable } from './WatchlistTable';
 import type { WatchlistEntry } from './types';
 
@@ -29,6 +30,15 @@ export function WatchlistTab({
 }: WatchlistTabProps) {
   const [subTab, setSubTab] = useState<WatchlistSubTab>('watchlist');
 
+  // A setup card's "Open board" on the Bots page (ADR 031): the request may land before this tab mounts.
+  useEffect(() => {
+    const apply = () => {
+      if (consumeSetupsBoardOpen()) setSubTab('setups');
+    };
+    apply();
+    return subscribeSetupsBoardOpen(apply);
+  }, []);
+
   return (
     <div className="watchlist-tab">
       <div className="sub-tab-bar">
@@ -43,7 +53,7 @@ export function WatchlistTab({
         <button
           className={`sub-tab ${subTab === 'setups' ? 'active' : ''}`}
           onClick={() => setSubTab('setups')}
-          title="Live first-pullback scanner: leg up, armed, near the trigger, triggered or failed, with the bot's read of the tape. It proposes; it never places."
+          title="Every setup's live scanner: forming, armed, near the trigger, triggered or failed, with the bot's read of the tape. It proposes; it never places."
         >
           Setups
           <SetupsTabCount />

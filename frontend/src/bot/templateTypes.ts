@@ -42,6 +42,10 @@ export interface TemplateReadout {
   go_triggered: number | null;
   min_go: number | null;
   go_avg_net_r: number | null;
+  /** ADR 031: the control group (blind / wait) and the bar go must clear. Absent on an older API. */
+  control_avg_net_r?: number | null;
+  control_triggered?: number | null;
+  min_net_r?: number | null;
 }
 
 export interface SetupTemplate {

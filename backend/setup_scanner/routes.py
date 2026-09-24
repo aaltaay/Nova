@@ -3,7 +3,8 @@ cancels an order.
 
   GET /api/setups/board               the live board (same payload the socket pushes)
   GET /api/setups/scoreboard?days=N   armed setups in the last N calendar days + summary
-  GET /api/setups/rows?date=&symbol=  scoreboard rows for one day
+  GET /api/setups/rows?date=&symbol=  scoreboard rows for one day (``setup=all``: every setup's
+                                      template in play, oldest armed first)
 
 Both scoreboard reads answer for one setup (``setup=``, the first pullback by
 default; ADR 031) and its template in play -- its id and current revision, the
@@ -23,7 +24,7 @@ import time
 
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 
-from constants_bot import BOT_SETUP_FIRST_PULLBACK, BOT_SETUPS_WITH_SCANNER
+from constants_bot import BOT_SCANNER_SETUPS, BOT_SETUP_FIRST_PULLBACK, BOT_SETUPS_WITH_SCANNER
 from scanner_wire import dumps_wire
 from setup_scanner.engine import get_engine
 from setup_scanner.store import session_date
@@ -84,8 +85,13 @@ def rows(date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$"), symbol: str | N
          setup: str = Query(BOT_SETUP_FIRST_PULLBACK, description="a setup with a scanner, or 'all'")) -> dict:
     store = _store_or_503()
     if setup == "all":
-        return {"date": date, "setup_type": "all", "template": None,
-                "rows": store.rows(date_from=date, date_to=date, symbol=symbol)}
+        # Every setup's template in play (or ``template=all``: every row): the Bots page timeline.
+        out: list[dict] = []
+        for sid in BOT_SCANNER_SETUPS:
+            where, _ = _template_filter(template if template == "all" else None, sid)
+            out += store.rows(date_from=date, date_to=date, symbol=symbol, **where)
+        out.sort(key=lambda r: float(r.get("armed_at") or 0))
+        return {"date": date, "setup_type": "all", "template": None, "rows": out}
     where, named = _template_filter(template, setup)
     return {"date": date, "setup_type": setup, "template": named,
             "rows": store.rows(date_from=date, date_to=date, symbol=symbol, **where)}

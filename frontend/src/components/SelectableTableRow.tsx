@@ -28,6 +28,9 @@ interface Props {
   openOnRowClick?: boolean;
   /** Ticker lists: right-click opens the symbol menu (watch list, Record, bot allowlist). */
   symbolMenu?: boolean;
+  /** False where the cells explain themselves (ux/hoverTip.ts): the row's own native
+   * tooltip would stack on top of theirs. Defaults to true. */
+  rowTitle?: boolean;
 }
 
 export function SelectableTableRow({
@@ -42,6 +45,7 @@ export function SelectableTableRow({
   dataRecent = false,
   openOnRowClick = true,
   symbolMenu = false,
+  rowTitle = true,
 }: Props) {
   function openRow() {
     onSelect(symbol);
@@ -74,7 +78,7 @@ export function SelectableTableRow({
       onKeyDown={onKeyDown}
       tabIndex={0}
       aria-selected={selected}
-      title={title}
+      title={rowTitle ? title : undefined}
       data-recent={dataRecent ? '1' : undefined}
     >
       {children}

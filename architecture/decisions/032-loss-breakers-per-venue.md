@@ -35,7 +35,10 @@ survive a restart. What did not exist was any way to change the breakers.
    written through a temp file and a rename, so a crash mid-save can never leave half a file (which
    would have read as an error, and the page as defaults). Each change is on the audit stream
    (`breakers`, the venue, before and after).
-5. **The page.** The bar's two markers are sliders for the desk venue; loosening Live asks first.
+5. **The page.** The bar's two markers are sliders for the desk venue -- dragged, or moved $5 at a
+   time with the arrow keys -- saved when let go; loosening Live asks first. "Reset to -$50 / -$200"
+   puts the venue back on the defaults, and a venue on the defaults keeps no pair of its own
+   (`custom: false`). The Account page's Risk block draws the same pair.
 
 ## Consequences
 

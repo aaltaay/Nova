@@ -1,6 +1,6 @@
 /**
- * One day's armed setups from the scoreboard store (`GET /api/setups/rows`,
- * ADR 022): when each armed, came near its trigger, triggered, failed or was
+ * One day's armed setups, every setup's, from the scoreboard store (`GET
+ * /api/setups/rows?setup=all`, ADR 022, ADR 031): when each armed, came near its trigger, triggered, failed or was
  * scored. The Bots page timeline reads them; polled while it is on screen.
  * The sample desk polls nothing (V4).
  */
@@ -20,6 +20,8 @@ export interface SetupStoreRow {
   id: string;
   session_date: string;
   symbol: string;
+  /** ADR 031: the setup whose scanner armed it (absent on an older API: the first pullback). */
+  setup_type?: string | null;
   kind: string | null;
   state: string | null;
   reason: string | null;
@@ -70,7 +72,9 @@ export function useSetupRows(date: string | null, pollMs: number): SetupRowsStat
     let cancelled = false;
     async function poll() {
       try {
-        const res = await fetch(`${API_BASE_URL}${SETUPS_ROWS_PATH}?date=${encodeURIComponent(date ?? '')}`);
+        // Every setup's template in play (ADR 031); an older API ignores `setup` and answers the first pullback.
+        const q = new URLSearchParams({ date: date ?? '', setup: 'all' });
+        const res = await fetch(`${API_BASE_URL}${SETUPS_ROWS_PATH}?${q.toString()}`);
         if (!res.ok) throw new Error(`Setup rows: HTTP ${res.status}`);
         const rows = readSetupRows(await res.json());
         if (!rows) throw new Error('Setup rows: unreadable response');

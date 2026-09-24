@@ -91,8 +91,9 @@ describe('WatchlistTable', () => {
     expect(nvxa.getByText('18.2x')).toBeTruthy();
     expect(nvxa.getByText('3.1M')).toBeTruthy();
     expect(nvxa.getByText('FDA')).toBeTruthy();
-    expect(nvxa.getByText('Near · 4.37')).toBeTruthy();
-    expect(within(rowOf('QMBL')).getByText('Armed · 7.12')).toBeTruthy();
+    // ADR 031: the symbol's most advanced setup, named.
+    expect(nvxa.getByText('First pullback · Near · 4.37')).toBeTruthy();
+    expect(within(rowOf('QMBL')).getByText('First pullback · Armed · 7.12')).toBeTruthy();
   });
 
   it('states unknowns instead of inventing them', () => {

@@ -1,5 +1,6 @@
-/** Polls `/api/setups/scoreboard` while the Setups scoreboard is on screen. The
- * sample desk reads the Nova Marketing Sample Data scoreboard instead. */
+/** Polls `/api/setups/scoreboard` for one setup (ADR 031) while the Setups
+ * scoreboard is on screen. The sample desk reads the Nova Marketing Sample Data
+ * scoreboard instead. */
 import { useEffect, useRef, useState } from 'react';
 import { API_BASE_URL, SETUPS_SCOREBOARD_PATH, SETUPS_SCOREBOARD_POLL_MS } from '../constants';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
@@ -12,7 +13,7 @@ export interface SetupsScoreboardState {
   loading: boolean;
 }
 
-export function useSetupsScoreboard(enabled: boolean, days: number): SetupsScoreboardState {
+export function useSetupsScoreboard(enabled: boolean, days: number, setup = 'first_pullback'): SetupsScoreboardState {
   const sample = useSampleDataOptional();
   const [data, setData] = useState<Scoreboard | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +29,8 @@ export function useSetupsScoreboard(enabled: boolean, days: number): SetupsScore
       if (inFlight.current) return;
       inFlight.current = true;
       try {
-        const res = await fetch(`${API_BASE_URL}${SETUPS_SCOREBOARD_PATH}?days=${days}`);
+        const q = new URLSearchParams({ days: String(days), setup });
+        const res = await fetch(`${API_BASE_URL}${SETUPS_SCOREBOARD_PATH}?${q.toString()}`);
         if (!res.ok) {
           let detail = `HTTP ${res.status}`;
           try {
@@ -58,7 +60,7 @@ export function useSetupsScoreboard(enabled: boolean, days: number): SetupsScore
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [sample, enabled, days]);
+  }, [sample, enabled, days, setup]);
 
   if (sample) return { data: SAMPLE_SETUPS_SCOREBOARD, error: null, loading: false };
   return { data, error, loading };

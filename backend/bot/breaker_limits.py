@@ -109,7 +109,10 @@ def apply(row: dict[str, Any], patch: Any, current_venue: str | None) -> tuple[s
     if after == before:
         return None
     stored = _stored(row)
-    stored[venue] = after
+    if after == defaults():
+        stored.pop(venue, None)             # back on the defaults: nothing of the operator's to keep
+    else:
+        stored[venue] = after
     row["breakers"] = stored
     return venue, before, after
 

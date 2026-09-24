@@ -6,7 +6,7 @@
 import type { SetupStoreRow } from '../setups/useSetupRows';
 import templatesFixture from './setupTemplatesFixture.json';
 import type { TemplatesPayload } from './templateTypes';
-import type { BotAuditEntry, BotGate, BotProposal, BotSession } from './types';
+import type { BotAuditEntry, BotBreakers, BotGate, BotProposal, BotSession } from './types';
 
 /** The backend's own GET /api/setups/templates (default templates only), a fresh copy each call. */
 export function templatesPayload(): TemplatesPayload {
@@ -35,15 +35,29 @@ export function gates(overrides: Partial<Record<string, Partial<BotGate>>> = {})
   return base.map(g => ({ ...g, ...(overrides[g.id] ?? {}) }));
 }
 
+/** The loss breakers a session answers (ADR 032): the desk venue's pair, every venue's, the bounds. */
+export function breakers(partial: Partial<BotBreakers> = {}): BotBreakers {
+  const pair = { soft_usd: -50, hard_usd: -200 };
+  return {
+    venue: 'paper', ...pair, custom: false, defaults: { ...pair },
+    by_venue: { live: { ...pair }, paper: { ...pair }, sim: { ...pair } },
+    bounds: { soft_usd: [-1000, -5], hard_usd: [-5000, -10], step_usd: 5 },
+    ...partial,
+  };
+}
+
 export function session(partial: Partial<BotSession> = {}): BotSession {
   return {
     level: 1, armed: false, has_desk_arm: false, strategy: null,
     setup: 'first_pullback',
+    // ADR 031: four setups with a scanner, each with its own level; two waiting on theirs.
     setups: [
-      { id: 'first_pullback', scanner: true }, { id: 'gap_and_go', scanner: false },
-      { id: 'flat_top_breakout', scanner: false }, { id: 'red_to_green', scanner: false },
-      { id: 'micro_pullback', scanner: false },
+      { id: 'first_pullback', scanner: true, level: 1 }, { id: 'bull_flag', scanner: true, level: 0 },
+      { id: 'flat_top_breakout', scanner: true, level: 0 }, { id: 'red_to_green', scanner: true, level: 0 },
+      { id: 'gap_and_go', scanner: false, level: null }, { id: 'micro_pullback', scanner: false, level: null },
     ],
+    setup_levels: { bull_flag: 0, flat_top_breakout: 0, red_to_green: 0 },
+    breakers: breakers(),
     readout: CLOSED_READOUT,
     gates: gates(),
     symbol_allowlist: ['GRML', 'IMCC'],

@@ -114,3 +114,12 @@ def test_a_damaged_threshold_on_disk_reads_the_defaults(paper):
     persist.save_session(row)
     persist._session = None
     assert limits(load_session(), "paper") == {"soft_usd": -50.0, "hard_usd": -200.0}
+
+
+def test_moving_back_onto_the_defaults_forgets_the_venues_pair(paper):
+    apply_patch({"breakers": {"soft_usd": -100}}, desk=True)
+    assert get_session()["breakers"]["custom"] is True
+    apply_patch({"breakers": {"soft_usd": -50, "hard_usd": -200}}, desk=True)
+    view_now = get_session()["breakers"]
+    assert view_now["custom"] is False and view_now["soft_usd"] == -50.0
+    assert "paper" not in (load_session().get("breakers") or {})

@@ -129,7 +129,9 @@ PR left for the operator, answered here (A).
    one tip per window, the same placement, plain text only. The setup cards, the Setups
    board and the Symbols card put a specific explanation on every state, tape verdict,
    grade, price, count, level and read-out: what it means, the numbers that made it, and
-   what happens next.
+   what happens next. A card's "Open board" opens Watchlist > Setups filtered to that setup
+   (a chip per setup, with its count; a setup without a scanner is a locked chip that says
+   why), and a symbol on two setups carries a tag naming the other in both cards.
 
 ## Consequences
 

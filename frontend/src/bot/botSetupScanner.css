@@ -1,0 +1,191 @@
+/* A setup card's own small scanner (ADR 031): the status line, the mini table,
+   the state chips in each setup's words, today's funnel and the box a setup
+   without a scanner shows. Owner: bot/BotSetupCard.tsx + BotSetupScanner.tsx;
+   the card frame and shared atoms are in botsPageCards.css. */
+
+/* -- Status line ------------------------------------------------------------ */
+.bots-strat__status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--nova-text-muted);
+  min-height: 20px;
+}
+.bots-strat__status > span[data-tip] { cursor: help; }
+.bots-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  background: color-mix(in srgb, var(--nova-text-muted) 60%, transparent);
+}
+.bots-live-dot.is-on {
+  background: var(--bots-green);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bots-green) 22%, transparent);
+}
+.bots-strat__win--before,
+.bots-strat__win--after { color: var(--bots-amber); }
+.bots-lvlchip {
+  margin-left: auto;
+  font-size: 11px;
+  line-height: 18px;
+  padding: 0 7px;
+  border-radius: 5px;
+  border: 1px solid var(--nova-border);
+  white-space: nowrap;
+}
+.bots-lvlchip--0 { color: var(--nova-text-muted); }
+.bots-lvlchip--1 {
+  color: var(--bots-violet);
+  border-color: color-mix(in srgb, var(--bots-violet) 55%, transparent);
+  background: color-mix(in srgb, var(--bots-violet) 12%, transparent);
+}
+.bots-lvlchip--2 {
+  color: var(--bots-green);
+  border-color: color-mix(in srgb, var(--bots-green) 55%, transparent);
+  background: color-mix(in srgb, var(--bots-green) 12%, transparent);
+}
+.bots-strat__status--off { color: var(--nova-text-muted); }
+
+/* -- Template row ----------------------------------------------------------- */
+.bots-strat__rule {
+  flex: 1 1 12rem;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--nova-text-muted);
+  line-height: 1.4;
+}
+
+/* -- The mini scanner ------------------------------------------------------- */
+.bots-scan { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 2px; }
+.bots-scan th {
+  text-align: left;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--nova-text-muted);
+  padding: 2px 6px 4px 0;
+  border-bottom: 1px solid var(--bots-hair);
+  white-space: nowrap;
+}
+.bots-scan td {
+  padding: 4px 6px 4px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--nova-border) 40%, transparent);
+  white-space: nowrap;
+}
+.bots-scan tr:last-child td { border-bottom: 0; }
+.bots-scan .num { text-align: right; font-family: var(--bots-mono); font-size: 11.5px; }
+.bots-scan th.num { font-family: inherit; font-size: 10px; }
+.bots-scan__row { cursor: pointer; }
+.bots-scan__row:hover td { background: color-mix(in srgb, var(--nova-text-muted) 7%, transparent); }
+.bots-scan__row.is-hot td { background: color-mix(in srgb, var(--bots-violet) 12%, transparent); }
+.bots-scan__row--failed td { color: var(--nova-text-muted); }
+.bots-scan__sym b { font-family: var(--bots-mono); font-size: 12px; }
+.bots-scan__proposed {
+  margin-left: 5px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--bots-green);
+  border: 1px solid color-mix(in srgb, var(--bots-green) 55%, transparent);
+  border-radius: 8px;
+  padding: 0 5px;
+  line-height: 14px;
+}
+.bots-scan__also {
+  margin-left: 5px;
+  font-family: var(--bots-mono);
+  font-size: 10.5px;
+  color: var(--bots-violet);
+}
+.bots-scan__dot { color: var(--nova-text-muted); }
+.bots-scan__empty {
+  margin: 2px 0;
+  padding: 10px;
+  font-size: 12px;
+  color: var(--nova-text-muted);
+  border: 1px dashed var(--nova-border);
+  border-radius: 6px;
+  text-align: center;
+}
+
+/* -- State chips in each setup's words -------------------------------------- */
+.bots-state {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  padding: 0 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  color: var(--nova-text-muted);
+  background: color-mix(in srgb, var(--nova-text-muted) 16%, transparent);
+}
+.bots-state--near { color: #1a1206; background: var(--bots-amber); }
+.bots-state--armed { color: var(--bots-amber); background: color-mix(in srgb, var(--bots-amber) 16%, transparent); }
+.bots-state--broke { color: var(--bots-blue); background: color-mix(in srgb, var(--bots-blue) 18%, transparent); }
+.bots-state--triggered { color: var(--bots-green); background: color-mix(in srgb, var(--bots-green) 16%, transparent); }
+.bots-state--failed { color: var(--bots-red); background: color-mix(in srgb, var(--bots-red) 14%, transparent); }
+.bots-state--filtered { font-style: italic; }
+
+/* -- Foot and funnel -------------------------------------------------------- */
+.bots-strat__foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--nova-text-muted);
+}
+.bots-funnel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+  font-size: 11.5px;
+  color: var(--nova-text-muted);
+}
+.bots-funnel__today {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-right: 2px;
+}
+.bots-funnel__step { display: inline-flex; align-items: baseline; gap: 6px; }
+.bots-funnel__step i { font-style: normal; opacity: 0.7; }
+.bots-funnel b { color: var(--nova-text); font-family: var(--bots-mono); }
+
+/* -- The chosen setup's tape gate and read-out ------------------------------ */
+.bots-tape__head {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nova-text-muted);
+}
+.bots-readout--line { margin-top: 2px; padding-top: 7px; font-size: 12px; }
+
+/* -- A setup without a scanner ---------------------------------------------- */
+.bots-noscan {
+  border: 1px solid var(--bots-hair);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--nova-text-muted);
+  background: color-mix(in srgb, var(--nova-text-muted) 5%, transparent);
+}
+.bots-noscan p { margin: 0; }
+.bots-noscan p + p { margin-top: 6px; }
+.bots-noscan b { color: var(--nova-text); }
+
+/* -- The Symbols card's Setups column ---------------------------------------- */
+.bots-setupchips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+
+/* -- The inbox: a symbol's other setups ---------------------------------------- */
+.bots-prop__also { margin: 4px 0 0; font-size: 12px; color: var(--bots-violet); line-height: 1.45; }

@@ -807,7 +807,9 @@ silently. `setups.db` is schema 3: rows add `setup_type` and `detail`
 `@<setup_type>` for the others, before any `~TEMPLATE_ID`. `GET
 /api/setups/scoreboard` and `GET /api/setups/rows` take `setup=` (default
 `first_pullback`) and answer for that setup's template in play; both add
-`setup_type` to their answer.
+`setup_type` to their answer. `GET /api/setups/rows?setup=all` answers every
+setup's template in play at once, oldest armed first (the Bots page timeline;
+with `template=all`, every template's rows).
 
 ### Catalysts (ADR 024)
 
@@ -991,7 +993,8 @@ for the chosen setup, else `setup_levels[id]`; the session adds `setup_levels:
 {SETUP: 0 | 1}` (an optional key of schema 4; a missing setup is Off), set by
 `PATCH /api/bot/session {setup_levels: {SETUP: 0 | 1}}` for a setup with a
 scanner other than the chosen one (`400 BOT_SETUP_LEVEL` otherwise: the chosen
-setup's level is `level`, and only it may reach Strategy). Choosing another
+setup's level is `level`, and only it may reach Strategy); each change is a
+`setup_level` audit line (`inputs: {setup, from, to}`). Choosing another
 setup keeps the session's `level` for the new one, gives the old one `min(level,
 1)`, and deactivates an active bot. `readout` and the `readout` gate are the
 chosen setup's.
@@ -1055,8 +1058,10 @@ soft_usd, hard_usd, custom, defaults: {soft_usd, hard_usd}, by_venue: {VENUE:
 soft_usd?, hard_usd?}}` changes the named venue (else the desk's) within -5 to
 -1,000 (bot trip) and -10 to -5,000 (all-stop), the bot trip above the
 all-stop, snapped to $5 -- `400 BOT_BREAKER_INVALID` otherwise -- and records a
-`breakers` audit line. Moving a threshold never clears a fired bot trip or a
-day lock. `bot-session.json` and `bot-proposals.json` are written through a
+`breakers` audit line; a venue moved back onto -50 / -200 keeps no pair of its
+own (`custom: false`). Moving a threshold never clears a fired bot trip or a
+day lock. The Bots page drags the two markers on the desk venue's bar (it asks
+before loosening Live), and the Account page's Risk block reads the same pair. `bot-session.json` and `bot-proposals.json` are written through a
 temp file and a rename.
 
 **Nova's own first-pullback bot** (ADR 030, owner `bot/first_pullback/`; #514).

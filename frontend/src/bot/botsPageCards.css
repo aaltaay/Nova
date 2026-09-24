@@ -263,20 +263,39 @@
 .bots-slider--toggle .bots-switch { margin-top: 6px; }
 
 .bots-breakers { margin-top: 16px; font-size: 12px; }
-.bots-breakers__head { display: flex; justify-content: space-between; margin-bottom: 10px; }
-.bots-breakers__lock { color: var(--nova-text-muted); font-size: 11.5px; }
+.bots-breakers__head { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.bots-breakers__head > span[data-tip] { cursor: help; }
+.bots-breakers__lock { color: var(--nova-text-muted); font-size: 11.5px; text-align: right; }
 .bots-breakers__bar {
   position: relative;
   height: 6px;
   border-radius: 3px;
-  background: linear-gradient(90deg,
-    color-mix(in srgb, var(--bots-red) 75%, transparent) 0%,
-    color-mix(in srgb, var(--bots-amber) 60%, transparent) 70%,
-    color-mix(in srgb, var(--bots-green) 70%, transparent) 100%);
+  margin: 0 8px;
+  background: color-mix(in srgb, var(--bots-green) 55%, transparent);
+  touch-action: none;
 }
-.bots-breakers__tick { position: absolute; top: -5px; width: 2px; height: 16px; border-radius: 1px; transform: translateX(-1px); }
-.bots-breakers__tick--hard { background: var(--bots-red); }
-.bots-breakers__tick--soft { background: #fff; }
+.bots-breakers__zone { position: absolute; top: 0; bottom: 0; }
+.bots-breakers__zone--hard { background: color-mix(in srgb, var(--bots-red) 75%, transparent); border-radius: 3px 0 0 3px; }
+.bots-breakers__zone--soft { background: color-mix(in srgb, var(--bots-amber) 60%, transparent); }
+/* A marker the operator drags: a tall handle over the bar, a bigger hit area around it. */
+.bots-breakers__knob {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 22px;
+  transform: translate(-50%, -50%);
+  border-radius: 4px;
+  border: 2px solid var(--nova-panel);
+  cursor: ew-resize;
+  z-index: 1;
+  touch-action: none;
+}
+.bots-breakers__knob::after { content: ''; position: absolute; inset: -6px -6px; }
+.bots-breakers__knob--hard { background: var(--bots-red); }
+.bots-breakers__knob--soft { background: #fff; }
+.bots-breakers__knob:focus-visible { outline: 2px solid var(--bots-blue); outline-offset: 2px; }
+.bots-breakers__knob:hover:not([aria-disabled='true']) { box-shadow: 0 0 0 3px color-mix(in srgb, var(--bots-blue) 35%, transparent); }
+.bots-breakers__knob[aria-disabled='true'] { cursor: not-allowed; opacity: 0.6; }
 .bots-breakers__now {
   position: absolute;
   top: 50%;
@@ -286,13 +305,17 @@
   transform: translate(-50%, -50%);
   background: var(--bots-green);
   border: 2px solid var(--nova-panel);
+  z-index: 2;
+  pointer-events: auto;
 }
 .bots-breakers__now.is-warn { background: var(--bots-amber); }
 .bots-breakers__now.is-bad { background: var(--bots-red); }
-.bots-breakers__labels { position: relative; display: flex; justify-content: space-between; margin-top: 8px; min-height: 16px; color: var(--nova-text-muted); }
-.bots-breakers__soft { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.bots-breakers__labels { position: relative; margin: 10px 8px 0; min-height: 16px; color: var(--nova-text-muted); }
+.bots-breakers__lbl { position: absolute; transform: translateX(-50%); white-space: nowrap; }
 .bots-breakers__labels b.is-bad { color: var(--bots-red); }
 .bots-breakers__labels b.is-warn { color: var(--bots-amber); }
+.bots-breakers__foot { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 8px; }
+.bots-breakers__today { color: var(--nova-text-muted); }
 .bots-breakers__today b { color: var(--nova-text); }
 .bots-breakers__today.is-ok b { color: var(--bots-green); }
 .bots-breakers__today.is-bad b { color: var(--bots-red); }

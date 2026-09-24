@@ -1,9 +1,9 @@
 /**
  * The Bots page hero (approved mockup v4, ADR 027): the bot's state in one
- * sentence, the level as three segments, every gate the backend checks as a
- * chip that can open itself, Activate / the kill switch, and the first-pullback
- * bot's trade (ADR 030). Level 2 arms first; Activate at Strategy waits on the
- * first-pullback read-out on Live only.
+ * sentence, the chosen setup's level as three segments (ADR 031), every gate the
+ * backend checks as a chip that can open itself, Activate / the kill switch, and
+ * the bot's trade (ADR 030). Level 2 arms first; Activate at Strategy waits on the
+ * chosen setup's read-out on Live only.
  */
 import { useState } from 'react';
 import { writeNovaApiKey } from '../api/novaFetch';
@@ -33,7 +33,7 @@ import {
 } from '../constantGroups/bots_page';
 import { useTradingPinGate } from '../ibkr/useTradingPinGate';
 import { BotGateChips, type GateHandlers } from './BotGateChips';
-import { closedActivateGates, gateLines, heroSentence, playingLine, prose, tradeLine } from './botsPageFormat';
+import { closedActivateGates, gateContext, gateLines, heroSentence, playingLine, prose, tradeLine } from './botsPageFormat';
 import type { BotArm } from './useBotArm';
 import type { KillSwitchControl } from './useKillSwitch';
 
@@ -60,7 +60,7 @@ export function BotHero({ arm, killSwitch, dayPnl, onOpenL2, onReadout, onAddSym
   if (!session) return null;
 
   const gatesKnown = Array.isArray(session.gates);
-  const chips = gateLines(session.gates, { dayPnl, blockers: gate.blockers });
+  const chips = gateLines(session.gates, gateContext(session, dayPnl, gate.blockers));
   const waitsOn = closedActivateGates(session.gates).map(g => BOT_GATE_LABELS[g.id] ?? g.id);
   const clamped = (level > 2 ? 2 : level) as 0 | 1 | 2;
   const headline = display.looksActive ? BOT_STATE_ACTIVE : armed ? display.label : BOT_STATE_NOT_ACTIVE;

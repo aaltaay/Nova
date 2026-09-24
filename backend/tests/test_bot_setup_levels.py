@@ -122,3 +122,11 @@ def test_an_unreadable_level_proposes_nothing():
 
     eng = SetupEngine(levels=broken, replay_desk=lambda: False)
     assert eng.can_propose("first_pullback") is False
+
+
+def test_a_setup_level_change_is_on_the_audit():
+    apply_patch({"setup_levels": {"bull_flag": 1}}, desk=True)
+    [line] = [r for r in list_entries(limit=20) if r["action"] == "setup_level"]
+    assert line["outcome"] == "bull_flag:0->1" and line["inputs"] == {"setup": "bull_flag", "from": 0, "to": 1}
+    apply_patch({"setup_levels": {"bull_flag": 1}}, desk=True)        # no change, no line
+    assert len([r for r in list_entries(limit=20) if r["action"] == "setup_level"]) == 1

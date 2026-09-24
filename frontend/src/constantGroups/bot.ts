@@ -23,8 +23,13 @@ export const BOT_WORKING_TTL_MIN_SEC = 1;
 export const BOT_WORKING_TTL_MAX_SEC = 10;
 export const BOT_ADVISE_DEFAULT_USD_CAP = 2;
 export const BOT_ADVISE_DEFAULT_CALL_CAP = 10;
+/** The loss breakers' defaults: a venue the operator never moved reads these (ADR 032). */
 export const BOT_SOFT_BREAKER_USD = -50;
 export const BOT_HARD_BREAKER_USD = -200;
+/** ADR 032 bounds, [loosest, tightest] -- mirrors backend/constants_bot.py (the backend checks again). */
+export const BOT_BREAKER_SOFT_BOUNDS: readonly [number, number] = [-1000, -5];
+export const BOT_BREAKER_HARD_BOUNDS: readonly [number, number] = [-5000, -10];
+export const BOT_BREAKER_STEP_USD = 5;
 
 export const BOT_AUTONOMY_LABEL = 'Bot Autonomy';
 export const BOT_LEVEL_FIELD_LABEL = 'Level';
@@ -34,9 +39,9 @@ export const BOT_LEVEL_LABELS = {
   2: 'Strategy',
 } as const;
 export const BOT_LEVEL_HINTS = {
-  0: 'L0 Off -- bot API dark; the setup scanner still watches and proposes',
-  1: 'L1 Eyes -- a connected bot may watch and propose; you place',
-  2: 'L2 Strategy -- after Activate the bot trades the first pullback itself on Paper and Sim; Live waits on the read-out',
+  0: 'L0 Off -- bot API dark; the chosen setup is watched and scored in silence, no proposals',
+  1: 'L1 Eyes -- the chosen setup proposes on near + go, and a connected bot may watch and propose; you place',
+  2: 'L2 Strategy -- after Activate the bot trades the chosen setup itself on Paper and Sim; Live waits on its read-out',
 } as const;
 export const BOT_STATE_ACTIVE = 'Active';
 export const BOT_STATE_NOT_ACTIVE = 'Not active';
@@ -52,11 +57,13 @@ export const BOT_ERROR_NOT_ACTIVE = 'Not active -- Activate before live fire';
 /* ---------- The playbook (ADR 027): the operator's setups ---------- */
 /** Mirrors backend/constants_bot.py BOT_SETUPS; only a setup with a scanner can play. */
 export const BOT_SETUP_FIRST_PULLBACK = 'first_pullback';
+/** In the backend's order (constants_bot.BOT_SETUPS): the four with a scanner first. */
 export const BOT_SETUP_IDS = [
   'first_pullback',
-  'gap_and_go',
+  'bull_flag',
   'flat_top_breakout',
   'red_to_green',
+  'gap_and_go',
   'micro_pullback',
 ] as const;
 export type BotSetupId = (typeof BOT_SETUP_IDS)[number];
@@ -64,8 +71,19 @@ export const BOT_SETUP_FIELD_LABEL = 'Setup';
 
 export const BOT_SETUP_LABELS: Record<string, string> = {
   first_pullback: 'First pullback',
+  bull_flag: 'Bull flag',
   gap_and_go: 'Gap and Go',
   flat_top_breakout: 'Flat-top breakout',
+  red_to_green: 'Red to green',
+  micro_pullback: 'Micro pullback',
+};
+
+/** The name as a tag beside a symbol (the Symbols card, the inbox, the Setups board). */
+export const BOT_SETUP_SHORT: Record<string, string> = {
+  first_pullback: 'First pullback',
+  bull_flag: 'Bull flag',
+  gap_and_go: 'Gap and Go',
+  flat_top_breakout: 'Flat-top',
   red_to_green: 'Red to green',
   micro_pullback: 'Micro pullback',
 };
@@ -73,9 +91,10 @@ export const BOT_SETUP_LABELS: Record<string, string> = {
 /** One line on what each setup trades. */
 export const BOT_SETUP_BLURBS: Record<string, string> = {
   first_pullback: 'The first 1-3 candle dip after a 5%+ leg to a new high, bought over the pullback high.',
+  bull_flag: 'A pole of 3+ green candles on rising volume, then 2-3 quiet red candles that hold the 9 EMA — bought over the flag.',
   gap_and_go: 'Buy the break of the pre-market high on a gapper at the open.',
-  flat_top_breakout: '2-6 tight candles just under the high of day, then the break.',
-  red_to_green: 'Trades below the open, then back through it — buy the reclaim.',
+  flat_top_breakout: '2-6 tight candles just under the high of day, then a green candle that holds the break.',
+  red_to_green: 'Trades below the 09:30 open, then back through it — buy the reclaim, one try a day.',
   micro_pullback: 'A 1-2 candle dip inside a fast move, read on seconds.',
 };
 
@@ -87,7 +106,12 @@ export const BOT_SETUP_RESEARCH: Record<string, { verdict: 'failed' | 'not_teste
   first_pullback: {
     verdict: 'failed',
     text: 'Bars alone (P1): -0.30R. Live with the tape gate: the read-out decides.',
-    detail: 'Bars alone (P1): −0.30R',
+    detail: '−0.30R (P1): the tape gate is what is being tested',
+  },
+  bull_flag: {
+    verdict: 'not_tested',
+    text: 'Never tested on bars: its read-out is its first test (rules pre-registered in ADR 031).',
+    detail: 'its read-out is its first test (rules pre-registered, ADR 031)',
   },
   gap_and_go: {
     verdict: 'failed',
@@ -105,11 +129,18 @@ export const BOT_SETUP_RESEARCH: Record<string, { verdict: 'failed' | 'not_teste
   },
 };
 
-export const BOT_SETUP_NEXT: Record<string, string> = {
-  gap_and_go: 'No scanner yet · next: a pre-market-high detector + the same tape gate',
-  flat_top_breakout: 'No scanner yet · could reuse the first-pullback detector',
-  red_to_green: 'No scanner yet',
-  micro_pullback: 'No scanner yet',
+/** A setup without a scanner says what is missing and what unblocks it (ADR 031 decision C). */
+export const BOT_SETUP_NEXT: Record<string, { head: string; why: string; unblock: string }> = {
+  gap_and_go: {
+    head: 'Not watching: no scanner yet · it is next',
+    why: 'Gap and Go buys the break of the pre-market high. Nothing on the desk tracks each gapper\'s pre-market high as a level yet, so no scanner can arm it.',
+    unblock: 'A pre-market-high detector on the same lanes and tape gate as the others (ADR 031: next after these three).',
+  },
+  micro_pullback: {
+    head: 'Not watching: needs one-second bars',
+    why: 'A micro pullback is a 1-2 candle dip inside a fast move. On one-minute bars it is invisible, and the scanners read one-minute bars.',
+    unblock: 'The recorded tape building one-second bars (S5). Until then it has no rows, no score and no read-out, and says so.',
+  },
 };
 
 /* The setup cards' rule lines and tape gate lines are built from the template in play
@@ -118,17 +149,33 @@ export const BOT_SETUP_NEXT: Record<string, string> = {
 export const BOT_CHOSEN_BADGE = 'Chosen';
 export const BOT_NO_SCANNER_TITLE = 'No scanner yet -- it cannot play until it has one and its read-out passes';
 
-/* ---------- The Bots page hero (ADR 027, ADR 030) ----------
-   Off and Eyes say what a bot connected to the localhost bot API (ADR 016) may do;
-   Nova's own setup scanner (ADR 022) watches, proposes and scores at every level.
-   At Strategy, after Activate, Nova's own bot trades the first pullback on Paper
-   and Sim (ADR 030); Live waits on the read-out. */
-export const BOT_STRATEGY_PLAYS = 'The bot trades the first pullback itself on Paper and Sim; Live waits on the read-out';
+/* ---------- The Bots page hero (ADR 027, ADR 030, ADR 031) ----------
+   The hero's level is the chosen setup's. Off: the bot API is dark and the chosen
+   setup is watched and scored in silence (decision A). Eyes: it proposes on near +
+   go, and a bot on the localhost bot API (ADR 016) may watch and propose. Strategy,
+   after Activate: Nova's own bot trades the chosen setup on Paper and Sim (ADR
+   030); Live waits on that setup's read-out. Every other setup has its own Off /
+   Eyes on its card. */
+export const BOT_STRATEGY_PLAYS = 'The bot trades the chosen setup itself on Paper and Sim; Live waits on its read-out';
 export const BOT_LEVEL_BLURBS = {
-  0: 'Bot API dark · the setup scanner still watches and proposes',
-  1: 'A connected bot may watch and propose · you place',
-  2: 'The bot trades the first pullback on Paper and Sim · Live waits on the read-out',
+  0: 'Bot API dark · the chosen setup scores in silence',
+  1: 'Proposes on near + go · you place',
+  2: 'The bot trades the chosen setup on Paper and Sim · Live waits on its read-out',
 } as const;
+
+/** What each level means on a setup card's own switch (ADR 031 decisions A and B). */
+export const BOT_SETUP_LEVEL_TIPS = {
+  0: 'Off: this setup\'s scanner still watches every HOD Momo name and scores each armed setup on the scoreboard, so its read-out keeps collecting — but it never proposes: no ping, no inbox card, no staged ticket.',
+  1: 'Eyes: when a setup comes near its trigger and the tape reads GO, it proposes — a ping, a card in the inbox and on every tab, a staged ticket at most. You press Place. Several setups can be at Eyes at once.',
+  2: 'Strategy: after Activate, Nova\'s own bot trades this setup by itself on Paper and Sim — one trade a day inside its window, under every gate. Live waits on this setup\'s read-out. Only the chosen setup can be here.',
+} as const;
+export const BOT_SETUP_LEVEL_CHIPS = {
+  0: 'Off · scores silently',
+  1: 'Eyes · pings on near + go',
+  2: 'Strategy · the bot trades it',
+} as const;
+/** Why a setup's Strategy segment is locked. */
+export const BOT_SETUP_STRATEGY_WHY = 'Only the chosen setup can be at Strategy -- choose this one first (its radio), then pick Strategy';
 
 /** Gate ids from backend/bot/gates.py, in the order the page lists them. */
 export const BOT_GATE_LABELS: Record<string, string> = {
@@ -158,7 +205,14 @@ export const BOT_READOUT_STATE_LABELS: Record<string, string> = {
 };
 export const BOT_READOUT_RULE =
   'Needs 50 go setups triggered, average net R above +0.2 and above blind / wait. Judged on the first 100.';
-export const BOT_ERROR_READOUT = 'Strategy waits on the first-pullback read-out';
+/** The read-out's hover: what it counts and why it matters, per setup. */
+export const BOT_READOUT_TIP = (setup: string): string =>
+  `The read-out counts every ${setup} this scanner armed that triggered, split by what the tape said at the trigger.\n`
+  + 'GO: the tape said go. Blind / wait: Nova held no Level 2 line, or the tape said wait — the control group.\n'
+  + 'It passes at 50 go setups whose average net R (after a cent of slippage each way) is above +0.2 and above the control\'s. '
+  + 'It is judged on the first 100 go setups; 100 without a pass is failed.\n'
+  + 'Passing is what lets this setup trade at Strategy on Live. Paper and Sim do not wait on it.';
+export const BOT_ERROR_READOUT = 'Strategy waits on the chosen setup\'s read-out';
 
 export const BOT_DESK_ARM_HEADER = 'X-Nova-Desk-Arm';
 export const BOT_DESK_ARM_STORAGE = 'nova_bot_desk_arm';
@@ -193,10 +247,21 @@ export const BOT_ALLOWLIST_STRIP_TITLE = 'Symbol allowlist';
 export function botAllowlistStripLabel(count: number): string {
   return `${BOT_ALLOWLIST_STRIP_LABEL} · ${count}`;
 }
-export const BOT_BREAKER_SOFT_LABEL = 'Bot trip $ (locked)';
-export const BOT_BREAKER_HARD_LABEL = 'All-stop $ (locked)';
+export const BOT_BREAKER_SOFT_LABEL = 'Bot trip';
+export const BOT_BREAKER_HARD_LABEL = 'All-stop';
 export const BOT_BREAKER_HINT =
-  'Locked product thresholds. Session PATCH has no breaker fields. -$50 flattens and drops the bot to L0. -$200 flattens and locks bot plus manual buys until next ET midnight.';
+  'Drag either marker to move it. Each venue keeps its own pair, saved in the bot session, so a restart keeps them. The bot trip flattens and drops the bot to L0; the all-stop flattens and locks bot and manual buys until the next ET midnight.';
+export const BOT_BREAKER_SOFT_TIP =
+  'Bot trip: when the whole account\'s day P&L on this venue falls to this, Nova flattens and drops the bot to L0. The desk can still trade; Activate re-enables the bot the same day.\nDrag to move it (in $5 steps). It always sits above the all-stop.';
+export const BOT_BREAKER_HARD_TIP =
+  'All-stop: when the day P&L falls to this, Nova flattens and locks bot and manual buys until the next ET midnight. Flatten and kill still work.\nDrag to move it (in $5 steps). It always sits below the bot trip.';
+export const BOT_BREAKER_NOW_TIP =
+  'Today\'s day P&L for the whole account on this venue — the figure both breakers compare. On Live it is after commissions.';
+/** Moving a breaker never undoes one that fired (ADR 032). */
+export const BOT_BREAKER_FIRED_NOTE = 'Moving a breaker never clears one that already fired.';
+export const BOT_BREAKER_LOOSEN_LIVE = (which: string, from: string, to: string): string =>
+  `Loosen Live's ${which} from ${from} to ${to}? Real money: the account can lose more before Nova steps in. The change is saved and recorded on the bot audit.`;
+export const BOT_BREAKER_LOOSEN_LIVE_OK = 'Loosen Live';
 
 /* ---------- QA batch: orders / account / safety (2026-09-22) ---------- */
 /** Endpoint names in "unreadable response" errors (botPayload.botUnreadableMessage). */

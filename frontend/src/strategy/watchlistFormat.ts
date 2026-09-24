@@ -3,11 +3,9 @@ import {
   CATALYST_CATEGORY_LABELS,
   CATALYST_CATEGORY_SHORT,
   CATALYST_VERDICT_TITLES,
-  SETUP_STATE_LABELS,
-  SETUP_STATE_TITLES,
   WATCHLIST_PILLAR_LETTERS,
 } from '../constants';
-import type { SetupRow } from '../setups/types';
+import { rowRank, setupShort, setupTypeOf, stateWords, type SetupRow } from '../setups';
 import type { WatchlistEntry } from './types';
 
 export type WatchlistFilter = 'all' | 'pillars5' | 'setup_live' | 'allowlist';
@@ -70,7 +68,7 @@ function fmtLevel(v: number | null | undefined): string {
   return v < 1 ? v.toFixed(4) : v.toFixed(2);
 }
 
-/** The Setup cell: where the first-pullback scanner has this symbol. */
+/** The Setup cell: the symbol's most advanced setup on the board (ADR 031), named, with its hover. */
 export function setupCell(row: SetupRow | undefined, following: boolean): Cell {
   if (!row) {
     return {
@@ -81,18 +79,17 @@ export function setupCell(row: SetupRow | undefined, following: boolean): Cell {
       tone: 'muted',
     };
   }
-  const label = SETUP_STATE_LABELS[row.state] ?? row.state;
-  const title = `${SETUP_STATE_TITLES[row.state] ?? ''}${row.reason ? `\n${row.reason}` : ''}`;
+  const words = stateWords(row);
+  const name = setupShort(setupTypeOf(row));
+  const title = `${words.title}\n${words.tip}`;
   if (row.state === 'near' || row.state === 'armed') {
     const trigger = fmtLevel(row.setup?.trigger);
-    return { text: trigger ? `${label} · ${trigger}` : label, title, tone: row.state === 'near' ? 'good' : '' };
+    const text = `${name} · ${words.text}${trigger ? ` · ${trigger}` : ''}`;
+    return { text, title, tone: row.state === 'near' ? 'good' : '' };
   }
-  if (row.state === 'leg' && row.leg) {
-    return { text: `Leg +${(row.leg.pct * 100).toFixed(1)}%`, title, tone: 'muted' };
-  }
-  if (row.state === 'failed') return { text: label, title, tone: 'bad' };
+  if (row.state === 'failed') return { text: `${name} · ${words.text}`, title, tone: 'bad' };
   if (row.state === 'watching') return { text: '—', title, tone: 'muted' };
-  return { text: label, title, tone: row.state === 'triggered' ? 'good' : 'muted' };
+  return { text: `${name} · ${words.text}`, title, tone: row.state === 'triggered' ? 'good' : 'muted' };
 }
 
 export function isSetupLive(row: SetupRow | undefined): boolean {
@@ -138,9 +135,12 @@ export function summarize(
   return { total: entries.length, allPass, setupsLive, near, allowlisted };
 }
 
-/** Board rows by symbol; a symbol's newest setup wins (the board lists it first). */
+/** Board rows by symbol; a symbol on several setups (ADR 031) shows its most advanced one. */
 export function setupsBySymbol(rows: SetupRow[] | null | undefined): Map<string, SetupRow> {
   const out = new Map<string, SetupRow>();
-  for (const r of rows ?? []) if (!out.has(r.symbol)) out.set(r.symbol, r);
+  for (const r of rows ?? []) {
+    const had = out.get(r.symbol);
+    if (!had || rowRank(r) < rowRank(had)) out.set(r.symbol, r);
+  }
   return out;
 }

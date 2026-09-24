@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { botHeaderState } from './botHeaderState';
 import { closedProposals, proposalWhy } from './botProposalsModel';
 import { botPnlOn } from './useBotPnlToday';
-import { breakerPosition } from './BotBreakerBar';
+import { breakerFloor, breakerLimits, breakerPct, markerRange, valueAt } from './breakerScale';
 import { fmtUsdCents, gateLine, heroSentence, tradeLine } from './botsPageFormat';
-import { gates, session } from './botsPageFixtures';
+import { breakers, gates, session } from './botsPageFixtures';
 import type { BotAuditEntry } from './types';
 import type { HistoryFill } from '../account/accountHistoryTypes';
 
@@ -39,6 +39,11 @@ describe('gate chips (bot/gates.py facts, approved mockup v4)', () => {
     expect(waived.actions).toEqual([]);
     expect(gateLine(gate('bot_trip', true), { dayPnl: 12.5 }).text).toBe('Bot trip clear ($12.50 / −$50)');
     expect(gateLine(gate('bot_trip', true)).text).toBe('Bot trip clear (— / −$50)');
+    // ADR 032: the chip reads the desk venue's own bot trip.
+    expect(gateLine(gate('bot_trip', true), { dayPnl: -12, softUsd: -120 }).text).toBe('Bot trip clear (−$12.00 / −$120)');
+    // ADR 031: the read-out link names the chosen setup.
+    expect(gateLine(gate('readout', false, { state: 'collecting' }), { setup: 'bull_flag' }).actions[0].label)
+      .toBe('bull flag not proven yet');
     expect(gateLine(gate('window', false, { start: '07:00', end: '10:00', open: false, entries_today: 0, max_entries: 1 }, 'fire')).text)
       .toBe('Window 07:00–10:00 · closed now · 0 / 1 trade today');
     const kill = gateLine(gate('kill_switch', false, {}, 'fire'));
@@ -60,10 +65,12 @@ describe('gate chips (bot/gates.py facts, approved mockup v4)', () => {
       .toMatch(/every gate is open/);
   });
 
-  it('says Off / Eyes govern a connected bot, and that at Strategy Nova\'s own bot trades on Paper and Sim', () => {
-    expect(heroSentence(session({ level: 0 })).lead).toMatch(/setup scanner still watches and proposes/);
-    expect(heroSentence(session({ level: 0 })).lead).not.toMatch(/watches nothing|proposes nothing/);
-    expect(heroSentence(session({ level: 1 })).lead).toMatch(/connected bot may watch and propose, never place/);
+  it('says Off scores the chosen setup in silence and Eyes proposes, and that at Strategy Nova\'s own bot trades on Paper and Sim', () => {
+    // ADR 031 decision A: Off watches and scores, silently -- no proposals.
+    expect(heroSentence(session({ level: 0 })).lead).toMatch(/first pullback scanner watches and scores in silence — no proposals/);
+    expect(heroSentence(session({ level: 0, setup: 'bull_flag' })).lead).toMatch(/bull flag scanner/);
+    expect(heroSentence(session({ level: 1 })).lead).toMatch(/proposes when a setup is near its trigger and the tape says go/);
+    expect(heroSentence(session({ level: 1 })).lead).toMatch(/Nothing places; you do/);
     const open = gates({ level: { ok: true }, depth_lines: { ok: true }, readout: { ok: true } });
     expect(heroSentence(session({ level: 2, gates: open })).lead).toMatch(/Nova's own bot trades Paper and Sim only/);
     const paper = gates({ level: { ok: true }, depth_lines: { ok: true },
@@ -105,7 +112,8 @@ describe('header pill and nav dot', () => {
     expect(botHeaderState(session({ level: 1 }), false)).toMatchObject({ level: 'L1', state: 'Eyes' });
     expect(botHeaderState(session({ level: 0 }), false)).toMatchObject({ level: '', name: 'Off', tone: 'off' });
     expect(botHeaderState(session({ level: 2 }), false).title).toMatch(/3 of 9 gates closed: level, depth lines, readout/);
-    expect(botHeaderState(session({ level: 0 }), false).title).toMatch(/setup scanner still watches and proposes/);
+    expect(botHeaderState(session({ level: 0 }), false).title).toMatch(/chosen setup scores in silence -- no proposals/);
+    expect(botHeaderState(session({ level: 2, setup: 'red_to_green' }), false).name).toBe('Red to green');
   });
 });
 
@@ -147,10 +155,27 @@ describe('bot P&L and the breaker scale', () => {
     expect(botPnlOn([fill({ source: null, bot_id: 'b1' })], '2026-09-22')).toBeCloseTo(-0.18, 6);
   });
 
-  it('places a P&L between the day lock and zero', () => {
-    expect(breakerPosition(-200)).toBe(0);
-    expect(breakerPosition(-50)).toBe(75);
-    expect(breakerPosition(0)).toBe(100);
-    expect(breakerPosition(40)).toBe(100);
+  it('places a dollar amount on a bar that has room past the all-stop and today\'s loss', () => {
+    expect(breakerFloor(-200, null)).toBe(-250);
+    expect(breakerFloor(-200, -300)).toBe(-500);
+    expect(breakerFloor(-1000, null)).toBe(-2000);
+    expect(breakerFloor(-5000, null)).toBe(-7000);
+    expect(breakerFloor(-200, -9_000)).toBe(-10_000);
+    expect(breakerPct(-250, -250)).toBe(0);
+    expect(breakerPct(-50, -250)).toBe(80);
+    expect(breakerPct(0, -250)).toBe(100);
+    expect(breakerPct(40, -250)).toBe(100);
+  });
+
+  it('keeps each marker in its bounds, on $5 steps, and the bot trip above the all-stop (ADR 032)', () => {
+    const lim = breakerLimits(breakers({ soft_usd: -50, hard_usd: -200 }));
+    expect(markerRange('soft', lim, -200)).toEqual([-195, -5]);
+    expect(markerRange('hard', lim, -50)).toEqual([-5000, -55]);
+    expect(valueAt(0.5, -250, 5, markerRange('soft', lim, -200))).toBe(-125);
+    expect(valueAt(0.513, -250, 5, markerRange('soft', lim, -200))).toBe(-120);
+    expect(valueAt(0, -250, 5, markerRange('soft', lim, -200))).toBe(-195);     // never under the all-stop
+    expect(valueAt(1, -250, 5, markerRange('hard', lim, -50))).toBe(-55);       // never over the bot trip
+    // An API older than ADR 032 keeps the fixed pair and its bounds.
+    expect(breakerLimits(undefined)).toMatchObject({ soft: -50, hard: -200, step: 5 });
   });
 });
