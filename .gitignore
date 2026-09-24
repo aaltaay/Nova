@@ -35,6 +35,9 @@ env/
 
 # Scanner persistence cache (in-process snapshots, not for VCS)
 backend/.cache/
+# tools/data_root.py move: the C: original, removed once its F: copy is verified
+backend/.cache.moved-*/
+backend/logs.moved-*/
 
 # Runtime log files
 backend/logs/

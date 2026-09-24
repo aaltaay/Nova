@@ -29,19 +29,27 @@ def host_path(raw: str | os.PathLike[str]) -> Path:
     return Path(raw)
 
 
+def cache_root() -> Path:
+    """Where the cache is, without creating it.
+
+    On the operator's desk ``backend/.cache`` is a junction to F: (``tools/data_root.py``).
+    """
+    return host_path(os.environ.get("NOVA_CACHE_DIR") or str(_BACKEND_DIR / ".cache"))
+
+
 def cache_dir() -> Path:
-    raw = (
-        os.environ.get("NOVA_CACHE_DIR")
-        or str(_BACKEND_DIR / ".cache")
-    )
-    path = host_path(raw)
+    path = cache_root()
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
+def log_root() -> Path:
+    """Where the logs are, without creating them (``backend/logs``: a junction to F: on the desk)."""
+    return host_path(os.environ.get("NOVA_LOG_DIR") or str(_BACKEND_DIR / "logs"))
+
+
 def log_dir() -> Path:
-    raw = os.environ.get("NOVA_LOG_DIR") or str(_BACKEND_DIR / "logs")
-    path = host_path(raw)
+    path = log_root()
     path.mkdir(parents=True, exist_ok=True)
     return path
 
