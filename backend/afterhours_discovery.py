@@ -64,7 +64,9 @@ def build_afterhours_rows_from_ibkr_gainers(
             "previous_close": prev_f,
             "current_price": price_f,
             "gap_percent": _session_gap_frac(open_f, prev_f, incoming_gap_f),
-            "volume": int(r.get("volume") or 0),
+            # A gainer row admitted by name only has no volume yet (ADR 010):
+            # unknown, never a placeholder 0 (QA C37).
+            "volume": _coerce_volume(r.get("volume")),
             "exchange": r.get("exchange"),
         })
     out.sort(key=lambda x: x["change_pct"], reverse=True)
@@ -84,7 +86,9 @@ def reprice_afterhours_row_ibkr(
     """Reprice one AH row. ``None`` means drop (below price floor).
 
     Change % is last vs prior close. Gap % is open vs prior close
-    (D-002). Never copy change into gap.
+    (D-002). Never copy change into gap. A volume neither the quote nor the
+    row knows stays ``None`` -- it was written as 0, "Volume 0" on a row that
+    had never been measured (#459, as ``ibkr/l1_apply`` does since QA C37).
     """
     q = quote or {}
     price = q.get("price", row.get("price"))
@@ -98,7 +102,9 @@ def reprice_afterhours_row_ibkr(
         return row
     if price_f < SCANNER_MIN_PRICE or prev_f <= 0:
         return None
-    vol = int(q["volume"]) if q.get("volume") is not None else int(row.get("volume") or 0)
+    vol = _coerce_volume(q.get("volume"))
+    if vol is None:
+        vol = _coerce_volume(row.get("volume"))
     change_frac = (price_f - prev_f) / prev_f
     open_f = _coerce_open(q.get("open") if q.get("open") is not None else row.get("open"))
     prior_gap = row.get("gap_percent")
@@ -108,7 +114,7 @@ def reprice_afterhours_row_ibkr(
         prior_gap_f = None
     avg = avg_volume_by_symbol.get(row["symbol"])
     paced = pace_relative_volume(vol, avg) if avg and vol else None
-    measured = bool(avg and avg > 0 and vol > 0)
+    measured = bool(avg and avg > 0 and vol is not None and vol > 0)
     raw_rvol = round(vol / avg, 2) if measured else row.get("rel_volume")
     return {
         **row,
@@ -146,6 +152,16 @@ def reprice_afterhours_rows_ibkr(
     # change_pct, so this key used to be the same number.
     updated.sort(key=_change_sort_key, reverse=True)
     return updated
+
+
+def _coerce_volume(raw) -> int | None:
+    """Shares traded today, or ``None`` when the source did not say."""
+    if raw is None:
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 
 def _coerce_open(raw) -> float | None:

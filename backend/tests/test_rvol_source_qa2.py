@@ -48,3 +48,47 @@ def test_a_name_only_row_states_no_volume():
     stub = scanner_hydrate.stub_row("SMX", 1)
     assert stub["volume"] is None
     assert stub["price"] is None
+
+
+def test_after_hours_reprice_leaves_an_unknown_volume_unknown():
+    """#459: neither the tick nor the row knew the volume, and the reprice wrote 0."""
+    row = {"symbol": "TOPS", "prev_close": 1.0, "price": 1.2, "volume": None, "rel_volume": None}
+    out = afterhours_discovery.reprice_afterhours_row_ibkr(row, {"price": 1.3}, {"TOPS": 100_000.0})
+    assert out["price"] == 1.3
+    assert out["volume"] is None
+    # No volume, no RVOL -- and no source claimed for one.
+    assert out["rel_volume"] is None
+    assert out["rvol_source"] is None
+    # A row with no volume key at all is the same unknown.
+    keyless = {"symbol": "TOPS", "prev_close": 1.0, "price": 1.2}
+    assert afterhours_discovery.reprice_afterhours_row_ibkr(keyless, {"price": 1.3}, {})["volume"] is None
+
+
+def test_after_hours_reprice_keeps_what_the_row_or_the_tick_knows():
+    row = {"symbol": "TOPS", "prev_close": 1.0, "price": 1.2, "volume": 250_000, "rel_volume": 7.5, "rvol_source": "yfinance"}
+    assert afterhours_discovery.reprice_afterhours_row_ibkr(row, {"price": 1.3}, {})["volume"] == 250_000
+    ticked = afterhours_discovery.reprice_afterhours_row_ibkr(row, {"price": 1.3, "volume": 900_000.0}, {})
+    assert ticked["volume"] == 900_000
+    # A tick that says zero states it; that is not an unknown.
+    assert afterhours_discovery.reprice_afterhours_row_ibkr(row, {"price": 1.3, "volume": 0}, {})["volume"] == 0
+
+
+def test_after_hours_rows_from_name_only_gainers_state_no_volume():
+    rows = afterhours_discovery.build_afterhours_rows_from_ibkr_gainers(
+        [{"symbol": "SMX", "price": 2.5, "prev_close": 1.5, "change_pct": 0.66}],
+        min_change_pct=10.0,
+    )
+    assert rows[0]["volume"] is None
+
+
+def test_a_trade_print_does_not_make_an_unknown_volume_known():
+    """The Alpaca trade stream adds a print's size to a known volume only (#459)."""
+    import websocket
+
+    cache = [{"symbol": "SMX", "prev_close": 1.5, "price": 2.4, "volume": None}]
+    assert websocket.apply_trade_to_mover_list(cache, "SMX", 2.5, 100)
+    assert cache[0]["volume"] is None
+    assert cache[0]["price"] == 2.5
+    known = [{"symbol": "SMX", "prev_close": 1.5, "price": 2.4, "volume": 1_000}]
+    websocket.apply_trade_to_mover_list(known, "SMX", 2.5, 100)
+    assert known[0]["volume"] == 1_100

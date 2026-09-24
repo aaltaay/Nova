@@ -249,6 +249,8 @@ def run_afterhours_focus_scan() -> None:
         volume = daily_bar.get("v") or r["volume"]
         gap_frac = (price - prev_close) / prev_close if price and prev_close else r["gap_percent"]
         avg_vol = state.avg_volume_cache.get(sym)
+        # An IBKR-built row may not know its volume (None, #459): no RVOL then.
+        measured = bool(avg_vol and avg_vol > 0 and volume is not None and volume > 0)
         change_abs = price - prev_close
         updated.append({
             **r,
@@ -260,8 +262,8 @@ def run_afterhours_focus_scan() -> None:
             "previous_close": prev_close,
             "gap_percent": gap_frac,
             "volume": volume,
-            "rel_volume": round(volume / avg_vol, 2) if avg_vol and avg_vol > 0 and volume > 0 else None,
-            "rvol_source": SCANNER_RVOL_SOURCE_ALPACA if avg_vol and avg_vol > 0 and volume > 0 else None,
+            "rel_volume": round(volume / avg_vol, 2) if measured else None,
+            "rvol_source": SCANNER_RVOL_SOURCE_ALPACA if measured else None,
             "has_news": sym in news,
             "newest_headline_at": news.get(sym),
         })
