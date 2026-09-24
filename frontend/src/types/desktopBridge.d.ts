@@ -19,5 +19,10 @@ interface Window {
       subscribe: (onView: (view: unknown) => void) => () => void;
       act: (request: { action: string; url?: string }) => Promise<{ ok: boolean; error?: string }>;
     };
+    /** Electron IPC: the trading screen recording's status (screen_record/, ADR 035). Read-only. */
+    screenRecord?: {
+      /** Called with the current view, then every change; returns the unsubscribe. Views are unchecked wire data. */
+      subscribe: (onView: (view: unknown) => void) => () => void;
+    };
   };
 }

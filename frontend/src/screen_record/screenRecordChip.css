@@ -1,0 +1,79 @@
+/* The header's screen recording chip (ADR 035): an icon while all is well, words when not. */
+.screen-rec-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: var(--gbar-chip-h);
+  padding: 0 0.4rem;
+  box-sizing: border-box;
+  border: 1px solid var(--nova-border);
+  border-radius: var(--gbar-radius);
+  font-size: 0.69rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
+  color: var(--nova-text-muted);
+  cursor: default;
+}
+
+.screen-rec-chip:focus-visible {
+  outline: 1px solid var(--nova-accent);
+  outline-offset: 1px;
+}
+
+.screen-rec-chip__icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* The dot sits on the monitor's corner: red while recording, like REC. */
+.screen-rec-chip__dot {
+  position: absolute;
+  top: 3px;
+  left: 16px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gbar-rec);
+}
+
+.screen-rec-chip--quiet {
+  border-color: transparent;
+  background: transparent;
+}
+
+.screen-rec-chip--warn {
+  border-color: color-mix(in srgb, var(--gbar-warn) 45%, transparent);
+  background: color-mix(in srgb, var(--gbar-warn) 14%, transparent);
+  color: var(--nova-text);
+}
+
+.screen-rec-chip--warn .screen-rec-chip__dot {
+  background: var(--gbar-warn);
+}
+
+/* Not recording: the loudest thing in the bar, on purpose. */
+.screen-rec-chip--loud {
+  border-color: var(--gbar-rec);
+  background: color-mix(in srgb, var(--gbar-rec) 30%, transparent);
+  color: #fff;
+  animation: screen-rec-chip-pulse 1.6s ease-in-out infinite;
+}
+
+.screen-rec-chip--loud .screen-rec-chip__dot {
+  background: #fff;
+}
+
+@keyframes screen-rec-chip-pulse {
+  50% {
+    background: color-mix(in srgb, var(--gbar-rec) 55%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen-rec-chip--loud {
+    animation: none;
+  }
+}

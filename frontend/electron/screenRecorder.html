@@ -1,0 +1,126 @@
+<!doctype html>
+<!--
+  The trading screen recorder's page (ADR 035): a hidden window with its own
+  renderer process, so encoding never runs on a desk window's thread. It is
+  dumb on purpose -- screenRecorder.mjs (the main process) decides what to
+  record and when, owns the files and the watchdog. This page only turns
+  "start" into a capture + MediaRecorder and hands every chunk back, in order.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'">
+<title>Nova screen recorder</title>
+</head>
+<body>
+<script>
+(() => {
+  'use strict';
+  const bridge = window.novaScreenRecorder;
+  const streams = new Map(); // "<source>|<w>x<h>@<fps>" -> MediaStream, shared by a monitor's segments
+  const recorders = new Map(); // segment id -> { rec, key }
+  const message = (err) => (err && err.name ? `${err.name}: ${err.message}` : String(err || 'unknown error'));
+
+  const live = (stream) => stream && stream.getVideoTracks().some((t) => t.readyState === 'live');
+
+  function release(key) {
+    const stream = streams.get(key);
+    streams.delete(key);
+    if (stream) stream.getTracks().forEach((t) => t.stop());
+  }
+
+  // A stream no recorder uses any more is let go (a rotation keeps it: the new segment is on it first).
+  function collect() {
+    const used = new Set([...recorders.values()].map((r) => r.key));
+    for (const key of [...streams.keys()]) if (!used.has(key)) release(key);
+  }
+
+  async function streamFor(cmd) {
+    const key = `${cmd.sourceId}|${cmd.width}x${cmd.height}@${cmd.fps}`;
+    const have = streams.get(key);
+    if (live(have)) return { key, stream: have };
+    if (have) release(key);
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        mandatory: {
+          chromeMediaSource: 'desktop',
+          chromeMediaSourceId: cmd.sourceId,
+          maxWidth: cmd.width,
+          maxHeight: cmd.height,
+          maxFrameRate: cmd.fps,
+        },
+      },
+    });
+    streams.set(key, stream);
+    return { key, stream };
+  }
+
+  function finished(id, extra) {
+    recorders.delete(id);
+    collect();
+    bridge.event({ kind: 'stopped', id, ...(extra || {}) });
+  }
+
+  async function start(cmd) {
+    try {
+      const mime = cmd.mimes.find((m) => MediaRecorder.isTypeSupported(m));
+      if (!mime) throw new Error(`Chromium can encode none of ${cmd.mimes.join(', ')}`);
+      const { key, stream } = await streamFor(cmd);
+      const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: cmd.bps });
+      // Chunks go out strictly in order, and "stopped" only after the last one.
+      let chain = Promise.resolve();
+      rec.ondataavailable = (ev) => {
+        chain = chain
+          .then(async () => {
+            const bytes = ev.data && ev.data.size ? new Uint8Array(await ev.data.arrayBuffer()) : null;
+            bridge.chunk(cmd.id, bytes);
+          })
+          .catch((err) => bridge.event({ kind: 'error', id: cmd.id, message: message(err) }));
+      };
+      rec.onerror = (ev) => bridge.event({ kind: 'error', id: cmd.id, message: message(ev.error || 'recorder error') });
+      rec.onstop = () => {
+        chain = chain.then(() => finished(cmd.id));
+      };
+      recorders.set(cmd.id, { rec, key });
+      rec.start(cmd.timesliceMs);
+      const s = stream.getVideoTracks()[0].getSettings();
+      bridge.event({
+        kind: 'started',
+        id: cmd.id,
+        mime,
+        width: s.width ?? null,
+        height: s.height ?? null,
+        frame_rate: s.frameRate ?? null,
+      });
+    } catch (err) {
+      recorders.delete(cmd.id);
+      collect();
+      bridge.event({ kind: 'error', id: cmd.id, message: message(err) });
+    }
+  }
+
+  function stop(id) {
+    const entry = recorders.get(id);
+    if (!entry) {
+      bridge.event({ kind: 'stopped', id });
+      return;
+    }
+    try {
+      if (entry.rec.state === 'inactive') finished(id);
+      else entry.rec.stop();
+    } catch (err) {
+      finished(id, { message: message(err) });
+    }
+  }
+
+  bridge.onCommand((cmd) => {
+    if (!cmd || typeof cmd !== 'object') return;
+    if (cmd.cmd === 'start') void start(cmd);
+    else if (cmd.cmd === 'stop') stop(cmd.id);
+  });
+  bridge.ready();
+})();
+</script>
+</body>
+</html>

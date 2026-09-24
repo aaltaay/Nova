@@ -52,6 +52,7 @@ the backend packages.
 | `reports/` | feature | The Reports tab: P&L calendar, month detail, drawdown, R-multiples, tag performance, journal import. |
 | `sample_data/` | app | The sample desk (`?view=sample`): sample shell and context, fixtures, mode badge, network gate and order guard, and its own in-memory workspace -- Trader tabs, Focus rail, Desk and pop-out -- behind a storage gate that keeps it off the operator's saved state. |
 | `scanner/` | feature | The Scanner page board: row shape gate, REST envelope, filters, pinned rows, replay label, header / footer, desk stack. |
+| `screen_record/` | feature | The trading screen recording's header chip (ADR 035): quiet while every monitor records, loud when one does not, fed by the Electron main process. |
 | `sensors/` | feature | The sensor board: backend sensor readings, freshness and status chips, shown in the Settings workspace. |
 | `settings/` | feature | The Settings overlay: general, account, practice, trade-defaults and order-preference sections; prefs export. |
 | `setups/` | feature | The setup scanner (ADR 022, ADR 031): every setup's live board over `/ws/setups`, the words and hovers each state is said in, alert cards, scoreboard, sound, ticket staging. |
