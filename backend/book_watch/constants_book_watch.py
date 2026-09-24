@@ -1,4 +1,4 @@
-"""Book watcher tunables (ADR 031). Owner: backend/book_watch/.
+"""Book watcher tunables (ADR 033). Owner: backend/book_watch/.
 
 Observation thresholds only -- nothing here trips, gates or places anything.
 """

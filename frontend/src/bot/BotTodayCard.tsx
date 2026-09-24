@@ -1,9 +1,9 @@
 /**
- * Today at a glance and the first-pullback scoreboard by the tape at the
- * trigger (approved mockup v4, ADR 022). Armed / triggered are the
- * scoreboard's own counts for the day; proposed counts the proposals the
- * audit stream recorded that day; bot P&L is the bot's own fills in the
- * practice ledger (a stated absence on Live). Scores, not fills.
+ * Today at a glance and the chosen setup's scoreboard by the tape at the
+ * trigger (approved mockup v4, ADR 022, ADR 031). Armed / triggered are the
+ * chosen setup's scoreboard counts for the day; proposed counts every setup's
+ * proposals the audit stream recorded that day; bot P&L is the bot's own fills
+ * in the practice ledger (a stated absence on Live). Scores, not fills.
  */
 import { SETUPS_SPLIT_TITLES } from '../constants';
 import {
@@ -17,7 +17,8 @@ import {
 } from '../constantGroups/bots_page';
 import { todayPracticeDate } from '../account/accountFigures';
 import { useSetupsScoreboard } from '../setups/useSetupsScoreboard';
-import { fmtR, fmtUsdCents } from './botsPageFormat';
+import { tipProps } from '../ux/hoverTip';
+import { fmtR, fmtUsdCents, setupName } from './botsPageFormat';
 import type { BotsVenue } from './useBotsVenue';
 import type { BotAuditEntry } from './types';
 
@@ -30,9 +31,17 @@ export function proposedOn(audit: readonly BotAuditEntry[], day: string): number
     && todayPracticeDate(new Date(a.timestamp * 1000)) === day).length;
 }
 
-export function BotTodayCard({ venue, audit, botPnl }: { venue: BotsVenue; audit: BotAuditEntry[]; botPnl: number | null }) {
-  const { data, error } = useSetupsScoreboard(true, BOTS_TODAY_SCOREBOARD_DAYS);
-  const today = useSetupsScoreboard(true, 1).data?.summary?.all;
+export function BotTodayCard({ venue, audit, botPnl, setup }: {
+  venue: BotsVenue;
+  audit: BotAuditEntry[];
+  botPnl: number | null;
+  /** The chosen setup (ADR 031): the scoreboard is its own. */
+  setup?: string;
+}) {
+  const chosen = setup || 'first_pullback';
+  const name = setupName(chosen);
+  const { data, error } = useSetupsScoreboard(true, BOTS_TODAY_SCOREBOARD_DAYS, chosen);
+  const today = useSetupsScoreboard(true, 1, chosen).data?.summary?.all;
   const byTape = data?.summary?.by?.tape_at_trigger ?? {};
   const where = venue.venue ? `${BOTS_VENUE_LABELS[venue.venue]} day ${venue.today}` : venue.today;
   const pnlTone = botPnl == null ? '' : botPnl > 0 ? ' is-up' : botPnl < 0 ? ' is-down' : '';
@@ -44,15 +53,21 @@ export function BotTodayCard({ venue, audit, botPnl }: { venue: BotsVenue; audit
         <span className="bots-card__sub">{BOTS_TODAY_BOT_ONLY} · {where}</span>
       </header>
       <div className="bots-kpis">
-        <div><span>Armed</span><b data-testid="bots-kpi-armed">{today ? today.armed : '—'}</b></div>
-        <div><span>Triggered</span><b data-testid="bots-kpi-triggered">{today ? today.triggered : '—'}</b></div>
-        <div><span>Proposed</span><b data-testid="bots-kpi-proposed">{proposedOn(audit, venue.today)}</b></div>
+        <div {...tipProps(`${name} setups armed today: the pattern was in place with a trigger and a stop.`, 'Armed')}>
+          <span>Armed</span><b data-testid="bots-kpi-armed">{today ? today.armed : '—'}</b>
+        </div>
+        <div {...tipProps(`${name} setups that traded over the trigger today.`, 'Triggered')}>
+          <span>Triggered</span><b data-testid="bots-kpi-triggered">{today ? today.triggered : '—'}</b>
+        </div>
+        <div {...tipProps('Proposals every setup at Eyes raised today (near + GO).', 'Proposed')}>
+          <span>Proposed</span><b data-testid="bots-kpi-proposed">{proposedOn(audit, venue.today)}</b>
+        </div>
         <div title={venue.practiceVenue ? undefined : BOTS_TODAY_PNL_LIVE_TITLE}>
           <span>Bot P&amp;L</span><b className={pnlTone} data-testid="bots-kpi-pnl">{fmtUsdCents(botPnl)}</b>
         </div>
       </div>
       <header className="bots-card__head bots-card__head--sub">
-        <h4>{BOTS_TODAY_SCOREBOARD_TITLE}</h4>
+        <h4>{BOTS_TODAY_SCOREBOARD_TITLE(name)}</h4>
         <span className="bots-card__sub">
           last {BOTS_TODAY_SCOREBOARD_DAYS} days · {(SETUPS_SPLIT_TITLES.tape_at_trigger ?? 'Tape at the trigger').toLowerCase()}
         </span>

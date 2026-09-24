@@ -2,7 +2,7 @@
  * The bot's level and Activate, one logic for every surface that drives them
  * (the Bots page hero, the Trader rail card). Level 2 arms first; Activate is
  * refused while the desk gate blocks places or -- at Strategy on Live -- while
- * the first-pullback read-out has not passed (ADR 027, 030); locking the padlock
+ * the chosen setup's read-out has not passed (ADR 027, 030, 031); locking the padlock
  * (disarming the desk) stops the bot.
  */
 import { useEffect } from 'react';

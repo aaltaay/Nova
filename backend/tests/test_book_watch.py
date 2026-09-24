@@ -1,4 +1,4 @@
-"""The book watcher (ADR 031): filled vs pulled size, pull patterns, the worker, replay and sensor."""
+"""The book watcher (ADR 033): filled vs pulled size, pull patterns, the worker, replay and sensor."""
 from __future__ import annotations
 
 import json

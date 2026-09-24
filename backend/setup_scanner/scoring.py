@@ -59,6 +59,7 @@ class ScoreTracker:
     closed_at: float | None = None
     bars_seen: int = 0
     bailout_bars: int = SETUPS_BAILOUT_BARS   # a template sets its own (ADR 029)
+    half_on_entry_bar: bool = True     # a flat-top hold enters at the close: no half on its own bar (ADR 031)
     _entry_bar_done: bool = field(default=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -97,7 +98,7 @@ class ScoreTracker:
             self._entry_bar_done = True
             if bar.c <= self.bar_stop:
                 return self._exit(self.bar_stop, bar, "stop_entry_bar")
-            if bar.h >= self.target1 > self.entry:
+            if self.half_on_entry_bar and bar.h >= self.target1 > self.entry:
                 self.half_done, self.half_px, self.bar_stop = True, self.target1, self.entry
             return False
         self.bars_seen += 1

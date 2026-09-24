@@ -81,6 +81,9 @@ import { rangeSeries, tickDecimals } from './equityPath';
 export interface RiskBreakers {
   tripped: number;
   armed: number;
+  /** The desk venue's own thresholds (ADR 032): the bot trip and the all-stop, negative dollars. */
+  soft: number;
+  hard: number;
 }
 
 interface Props {
@@ -108,10 +111,14 @@ function valueTick(value: number, step: number): string {
   return value.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
-export function riskLevel(dayPnl: number | null): { label: string; tone: 'up' | 'down' | 'flat' | 'muted' } {
+export function riskLevel(
+  dayPnl: number | null,
+  soft: number = BOT_SOFT_BREAKER_USD,
+  hard: number = BOT_HARD_BREAKER_USD,
+): { label: string; tone: 'up' | 'down' | 'flat' | 'muted' } {
   if (dayPnl == null) return { label: ACCOUNT_RISK_UNKNOWN, tone: 'muted' };
-  if (dayPnl <= BOT_HARD_BREAKER_USD) return { label: ACCOUNT_RISK_LOCKED, tone: 'down' };
-  if (dayPnl <= BOT_SOFT_BREAKER_USD) return { label: ACCOUNT_RISK_SOFT, tone: 'flat' };
+  if (dayPnl <= hard) return { label: ACCOUNT_RISK_LOCKED, tone: 'down' };
+  if (dayPnl <= soft) return { label: ACCOUNT_RISK_SOFT, tone: 'flat' };
   return { label: ACCOUNT_RISK_SAFE, tone: 'up' };
 }
 
@@ -139,7 +146,10 @@ export function AccountDetailsPanel({
   const posValue = figures.grossPositionValue ?? longMarketValue(positions);
   const donutTotal = cash != null && posValue != null ? cash + posValue : null;
   const cashShare = donutTotal && donutTotal > 0 && cash != null ? cash / donutTotal : null;
-  const risk = riskLevel(figures.dayPnl);
+  // The venue's own thresholds (ADR 032); the defaults while the bot session has not answered.
+  const soft = breakers?.soft ?? BOT_SOFT_BREAKER_USD;
+  const hard = breakers?.hard ?? BOT_HARD_BREAKER_USD;
+  const risk = riskLevel(figures.dayPnl, soft, hard);
   const largest = largestPosition(positions);
   const longValue = longMarketValue(positions);
   const shortValue = shortMarketValue(positions);
@@ -153,11 +163,11 @@ export function AccountDetailsPanel({
   const cashArc = cashShare == null ? 0 : c * cashShare;
 
   // Day P&L meter: the hard lock sits at the left edge, zero at the middle.
-  const span = Math.abs(BOT_HARD_BREAKER_USD);
+  const span = Math.abs(hard);
   const dayPos = figures.dayPnl == null ? null : Math.max(-span, Math.min(span, figures.dayPnl));
   const meterLeft = dayPos == null ? 50 : dayPos >= 0 ? 50 : 50 + (dayPos / span) * 50;
   const meterWidth = dayPos == null ? 0 : (Math.abs(dayPos) / span) * 50;
-  const softMark = 50 + (BOT_SOFT_BREAKER_USD / span) * 50;
+  const softMark = 50 + (soft / span) * 50;
 
   return (
     <section className="acct-panel acct-panel--details" data-testid="account-details" aria-label={ACCOUNT_DETAILS_TITLE}>
@@ -296,8 +306,8 @@ export function AccountDetailsPanel({
             <em className="is-zero" style={{ left: '50%' }} />
           </div>
           <div className="acct-risk__lines">
-            {accountRiskSoftLine(formatSignedMoney(BOT_SOFT_BREAKER_USD, 0))}<br />
-            {accountRiskHardLine(formatSignedMoney(BOT_HARD_BREAKER_USD, 0))}
+            {accountRiskSoftLine(formatSignedMoney(soft, 0))}<br />
+            {accountRiskHardLine(formatSignedMoney(hard, 0))}
           </div>
         </div>
         {/* The cap sizes each bot order; it is not a position limit, so no meter compares the two (W11). */}

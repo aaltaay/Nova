@@ -4,7 +4,7 @@ stages or cancels an order, and nothing here is drawn by the desk yet.
   GET  /api/eyes/journal             the journal's writer and its days
   GET  /api/eyes/sim                 what the Sim eyes are following
   GET  /api/eyes/backtests           recent backtest runs, newest first
-  POST /api/eyes/backtests           {templates?: [id], sessions?: [{date, symbol}]} -> 202 {run_id}
+  POST /api/eyes/backtests           {setup?, templates?: [id], sessions?: [{date, symbol}]} -> 202 {run_id}
   GET  /api/eyes/backtests/{run_id}  a run's manifest and summary
 """
 from __future__ import annotations
@@ -52,7 +52,10 @@ def start_backtest(payload: Annotated[dict[str, Any] | None, Body()] = None) -> 
             raise HTTPException(400, {"reason": "BACKTEST_INVALID",
                                       "error": "sessions is a list of {date: YYYY-MM-DD, symbol}"})
         sessions = [(str(s["date"]), str(s["symbol"]).strip().upper()) for s in raw]
-    return backtest.start(template_ids=template_ids, sessions=sessions)
+    setup = payload.get("setup") or "first_pullback"
+    if not isinstance(setup, str):
+        raise HTTPException(400, {"reason": "BACKTEST_INVALID", "error": "setup is a setup id"})
+    return backtest.start(template_ids=template_ids, sessions=sessions, setup=setup)
 
 
 @router.get("/api/eyes/backtests/{run_id}")

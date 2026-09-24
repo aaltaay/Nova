@@ -27,7 +27,7 @@ BOOK_MIN_INTERVAL_SEC = 1.0 / CAPTURE_L2_MAX_HZ
 _last_book_ts: dict[str, float] = {}
 # Books IBKR sent that the recording will never write: a held book replaced by a newer one.
 _books_coalesced: dict[str, int] = {}
-# ... and how many of those the manifest has not been told about yet (ADR 031).
+# ... and how many of those the manifest has not been told about yet (ADR 033).
 _books_unreported: dict[str, int] = {}
 _pending_book: dict[str, dict] = {}
 # Books waiting for their batch to be submitted: (ts, book, coalesced_before).
@@ -158,7 +158,7 @@ def enqueue_book(symbol: str, book: dict) -> None:
     held one is counted lost, and the count rides on the next depth row to the
     manifest's ``l2_coalesced``), and ``flush_book`` writes it when the
     recording stops -- the last book before a lull is exactly the one worth
-    having. Every other book joins its batch (ADR 031).
+    having. Every other book joins its batch (ADR 033).
     """
     token = worker.session_token(symbol)
     if token is None:

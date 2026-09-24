@@ -1,9 +1,10 @@
 /**
  * The bot's symbols (the allowlist) with the facts that decide whether it can
  * act on each: does Nova hold the Level 2 line (BOT_NO_DEPTH_LINE) and who
- * holds it, the last price and change, and where the first-pullback scanner
- * has it. An empty list means the bot does nothing. Add here, or right-click a
- * scanner row, Trader tab or chart.
+ * holds it, the last price and change, and where every setup's scanner has it
+ * (ADR 031: one chip per setup, each explaining itself on hover). An empty list
+ * means the bot does nothing. Add here, or right-click a scanner row, Trader tab
+ * or chart.
  */
 import { useState, type RefObject } from 'react';
 import { BOT_ALLOWLIST_ADD_BUTTON, BOT_ALLOWLIST_CHIP_REMOVE, BOT_SYMBOL_ALLOWLIST_CAP } from '../constants';
@@ -25,13 +26,12 @@ import {
 } from '../constantGroups/bots_page';
 import { useRecordingSymbols } from '../capture/sessionRecordStore';
 import { useLiveScannerFeedOptional } from '../scanner/ScannerDataContext';
-import { useSetupsBoard } from '../setups/SetupsStreamContext';
 import { formatSignedPct, pctTone, scannerRowFor } from '../stock_view/tabContext';
-import { setupCell } from '../strategy/watchlistFormat';
 import { useWorkspace } from '../workspace/WorkspaceContext';
+import { rowsBySymbol, setupShort, setupTypeOf, stateWords, useSetupsBoard, type SetupRow } from '../setups';
+import { tipProps } from '../ux/hoverTip';
 import { useBotAllowlist } from './useBotAllowlist';
 import type { BotSession } from './types';
-import '../strategy/watchlist.css';
 
 /** The element id of the add box, for the hero's "add a symbol" chip. */
 export const BOTS_SYMBOL_INPUT_ID = 'bots-symbol-input';
@@ -40,6 +40,36 @@ function heldLines(session: BotSession): Set<string> {
   const gate = (session.gates ?? []).find(g => g.id === 'depth_lines');
   const held = gate?.detail?.held;
   return new Set(Array.isArray(held) ? held.filter((s): s is string => typeof s === 'string') : []);
+}
+
+/** How many setup chips a symbol's cell shows before "+N". */
+const SETUP_CHIPS = 2;
+
+function SetupChips({ rows, connected }: { rows: readonly SetupRow[] | undefined; connected: boolean }) {
+  if (!rows?.length) {
+    const tip = connected
+      ? 'On no setup\'s board right now: no scanner has it forming, armed, near, triggered or failed.'
+      : 'The setup scanner is not connected.';
+    return <span className="bots-muted" {...tipProps(tip)}>—</span>;
+  }
+  const more = rows.length - SETUP_CHIPS;
+  return (
+    <span className="bots-setupchips">
+      {rows.slice(0, SETUP_CHIPS).map(row => {
+        const w = stateWords(row);
+        const broke = row.state === 'near' && Boolean(row.setup?.detail?.broke_at);
+        return (
+          <span key={setupTypeOf(row)} className={`bots-state bots-state--${broke ? 'broke' : row.state}`}
+            data-testid={`bots-symbol-setup-${row.symbol}-${setupTypeOf(row)}`} {...tipProps(w.tip, w.title)}>
+            {setupShort(setupTypeOf(row))} · {w.text}
+          </span>
+        );
+      })}
+      {more > 0 ? (
+        <span className="bots-muted" {...tipProps(rows.slice(SETUP_CHIPS).map(r => stateWords(r).title).join('\n'))}>+{more}</span>
+      ) : null}
+    </span>
+  );
 }
 
 function fmtLast(v: number | null | undefined): string {
@@ -61,7 +91,7 @@ export function BotSymbolsCard({ session, onOpenL2, inputRef }: Props) {
   const stream = useSetupsBoard();
   const [draft, setDraft] = useState('');
   const held = heldLines(session);
-  const rows = new Map((stream?.board?.rows ?? []).map(r => [r.symbol, r]));
+  const rows = rowsBySymbol(stream?.board?.rows);
   const atCap = symbols.length >= BOT_SYMBOL_ALLOWLIST_CAP;
 
   async function onAdd() {
@@ -83,15 +113,16 @@ export function BotSymbolsCard({ session, onOpenL2, inputRef }: Props) {
           <thead>
             <tr>
               <th>Symbol</th><th>Level 2</th><th className="num" title={BOTS_LAST_TITLE}>Last</th>
-              <th className="num" title={BOTS_CHG_TITLE}>Chg</th><th>First pullback</th><th aria-label="Remove" />
+              <th className="num" title={BOTS_CHG_TITLE}>Chg</th>
+              <th {...tipProps('Where each setup\'s scanner has the symbol right now, most advanced first. Hover a chip for what it means.', 'Setups')}>Setups</th>
+              <th aria-label="Remove" />
             </tr>
           </thead>
           <tbody>
             {symbols.map(sym => {
-              const row = rows.get(sym);
+              const mine = rows.get(sym);
               const board = scannerRowFor(sym, feed);
-              const cell = setupCell(row, Boolean(stream?.connected));
-              const last = row?.last_price ?? board?.price ?? null;
+              const last = mine?.[0]?.last_price ?? board?.price ?? null;
               const prev = board?.prev_close ?? null;
               const chg = last != null && prev ? (last / prev - 1) * 100 : null;
               const via = recording.includes(sym) ? 'record' : traderLiveTabs.includes(sym) ? 'trader' : null;
@@ -112,7 +143,7 @@ export function BotSymbolsCard({ session, onOpenL2, inputRef }: Props) {
                   </td>
                   <td className="num">{fmtLast(last)}</td>
                   <td className={`num bots-chg bots-chg--${pctTone(chg)}`}>{chg == null ? '—' : formatSignedPct(chg)}</td>
-                  <td><span className={`wl-badge wl-badge--${cell.tone || 'plain'}`} title={cell.title}>{cell.text}</span></td>
+                  <td><SetupChips rows={mine} connected={Boolean(stream?.connected)} /></td>
                   <td>
                     <button type="button" className="bots-x" aria-label={`${BOT_ALLOWLIST_CHIP_REMOVE} ${sym}`}
                       data-testid={`bots-symbol-remove-${sym}`} onClick={() => void remove(sym)}>×</button>

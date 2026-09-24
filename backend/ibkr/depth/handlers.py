@@ -59,7 +59,7 @@ def _record_book(symbol: str, book: dict) -> None:
 
 
 def _watch_book(symbol: str, book: dict) -> None:
-    """Feed the book watcher (ADR 031) the live book -- enqueue only, like the recorder (ADR 010)."""
+    """Feed the book watcher (ADR 033) the live book -- enqueue only, like the recorder (ADR 010)."""
     try:
         from book_watch.live import enqueue_book
 

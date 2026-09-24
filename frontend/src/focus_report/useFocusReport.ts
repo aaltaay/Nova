@@ -1,5 +1,5 @@
 /**
- * The app shell's half of the focus report (ADR 031): what this window shows --
+ * The app shell's half of the focus report (ADR 033): what this window shows --
  * the page, the scanner tab, the symbol and where that symbol came from -- read
  * from the workspace and the nav rail and handed to the reporter.
  */

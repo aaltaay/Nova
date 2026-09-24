@@ -1,6 +1,6 @@
 # ADR 029 -- Setup templates, the eyes' journal, and eyes that watch a replay
 
-**Status:** Accepted · **Date:** 2026-09-23
+**Status:** Accepted · **Date:** 2026-09-23 · **Amended by:** [[031-a-scanner-for-every-setup]] (lanes for every setup; `setups.db` schema 3)
 **Builds on:** [[022-setup-scanner-tape-gate]] · [[027-bot-playbook-readout-gate]] · [[019-practice-fills-on-replayed-sessions]] · [[020-three-venues-one-feed]]
 **Decided by:** the operator, 2026-09-23 -- "I also need to see all their
 parameters and be able to change them myself"; "each strategy will have

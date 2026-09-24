@@ -1,4 +1,4 @@
-"""The book watcher's readings (ADR 031), shaped for ``/sensors/book-pulls`` and its event feed.
+"""The book watcher's readings (ADR 033), shaped for ``/sensors/book-pulls`` and its event feed.
 
 Plain dicts: the sensors adapter wraps them in the sensor envelope, so this
 package never imports the sensors package.

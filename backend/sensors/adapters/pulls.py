@@ -1,4 +1,4 @@
-"""Sensor 20: resting size filled vs pulled, and pull patterns (ADR 031, ``backend/book_watch/``)."""
+"""Sensor 20: resting size filled vs pulled, and pull patterns (ADR 033, ``backend/book_watch/``)."""
 from __future__ import annotations
 
 from typing import Any

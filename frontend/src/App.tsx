@@ -58,7 +58,7 @@ function AppShell() {
   // The workspace slot is on screen for the full Trader and beside the Desk board.
   const showTrader = traderUp || (deskUp && hasTraderDesk);
   useNovaDeskWindowTitle(sampleMode, traderUp, activeTraderSymbol);
-  useFocusReport(sampleMode, traderUp, deskUp); // what this window shows, for GET /sensors/focus (ADR 031)
+  useFocusReport(sampleMode, traderUp, deskUp); // what this window shows, for GET /sensors/focus (ADR 033)
 
   useEffect(() => {
     const sync = () => setSampleMode(isSampleView());

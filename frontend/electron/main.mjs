@@ -220,7 +220,7 @@ if (
         releaseTag: novaDesktopReleaseTag(app),
       });
       app.on('will-quit', stopPerfMetrics);
-      // ADR 031: which Nova window Windows has in front and each window's monitor (GET /sensors/focus).
+      // ADR 033: which Nova window Windows has in front and each window's monitor (GET /sensors/focus).
       const stopFocusSensor = startFocusSensor({
         app,
         BrowserWindow,

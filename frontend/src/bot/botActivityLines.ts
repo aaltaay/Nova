@@ -1,11 +1,12 @@
 /**
  * The Bots page timeline as lines (pure): the bot audit stream (proposals,
- * fires and refusals, the first-pullback bot's trades -- ADR 030 -- level
- * changes, breakers) and the setup scanner's own
- * record of the day (armed, near, triggered, failed, scored -- setups.db).
+ * fires and refusals, the bot's trades -- ADR 030 -- level changes, the setup
+ * chosen and each setup's own Off / Eyes -- ADR 031 -- and the breakers, fired
+ * or moved -- ADR 032) and the setup scanners' own record of the day (armed,
+ * near, triggered, failed, scored -- setups.db).
  * Categories drive the Activity filter chips; scanner events show under All.
  */
-import { BOT_ACTION_KINDS, BOT_LEVEL_LABELS } from '../constantGroups/bot';
+import { BOT_ACTION_KINDS, BOT_LEVEL_LABELS, BOT_SETUP_LABELS, BOT_SETUP_SHORT } from '../constantGroups/bot';
 import { SETUP_KIND_LABELS } from '../constantGroups/setups';
 import type { SetupStoreRow } from '../setups/useSetupRows';
 import type { BotAuditEntry } from './types';
@@ -33,7 +34,7 @@ export interface ActivityLine {
 }
 
 const KINDS = new Set<string>(BOT_ACTION_KINDS);
-/** Nova's own first-pullback bot (ADR 030): its entry, and every step of its trade. */
+/** Nova's own bot (ADR 030, ADR 031): its entry on the chosen setup, and every step of its trade. */
 const SETUP_ENTRY = 'buy_setup_limit';
 const TRADE = 'bot_trade';
 const TRADE_TAGS: Record<string, [string, ActivityTone, ActivityLine['category']]> = {
@@ -65,6 +66,17 @@ function sym(row: BotAuditEntry): string {
 function kindName(kind: unknown): string {
   const k = typeof kind === 'string' ? kind : 'setup';
   return (SETUP_KIND_LABELS[k] ?? k.replace(/_/g, ' ')).toLowerCase();
+}
+
+function setupName(v: unknown): string {
+  return typeof v === 'string' ? BOT_SETUP_LABELS[v] ?? v : '?';
+}
+
+/** Whole dollars with a real minus: -50 -> "−$50". */
+function usd(v: unknown): string {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return '?';
+  return `${n < 0 ? '−' : ''}$${Math.abs(n).toLocaleString('en-US')}`;
 }
 
 function px(v: number | null | undefined): string {
@@ -121,7 +133,28 @@ export function activityLine(row: BotAuditEntry, index: number): ActivityLine | 
     return { ...base, tag: action === 'activate' ? 'Activated' : 'Stopped', tone: 'accent', category: 'system', text: 'the bot', note: base.note || 'from the desk' };
   }
   if (action === 'breaker_soft' || action === 'breaker_hard') {
-    return { ...base, tag: 'Breaker', tone: 'bad', category: 'system', text: action === 'breaker_hard' ? '−$200 all-stop' : '−$50 bot trip' };
+    const at = row.inputs?.threshold ?? (action === 'breaker_hard' ? -200 : -50);
+    return { ...base, tag: 'Breaker', tone: 'bad', category: 'system',
+      text: action === 'breaker_hard' ? `${usd(at)} all-stop` : `${usd(at)} bot trip` };
+  }
+  if (action === 'breakers') {
+    const before = (row.inputs?.before ?? {}) as Record<string, unknown>;
+    const after = (row.inputs?.after ?? {}) as Record<string, unknown>;
+    const venue = String(row.inputs?.venue ?? row.outcome ?? '');
+    const moved = [
+      before.soft_usd !== after.soft_usd ? `bot trip ${usd(before.soft_usd)} → ${usd(after.soft_usd)}` : '',
+      before.hard_usd !== after.hard_usd ? `all-stop ${usd(before.hard_usd)} → ${usd(after.hard_usd)}` : '',
+    ].filter(Boolean).join(', ');
+    return { ...base, tag: 'Breakers', tone: 'warn', category: 'system', text: `${venue} ${moved}`.trim(), note: '' };
+  }
+  if (action === 'setup') {
+    return { ...base, tag: 'Setup', tone: 'accent', category: 'system',
+      text: `${setupName(row.inputs?.from)} → ${setupName(row.inputs?.to)}`,
+      note: base.note || 'the chosen setup' };
+  }
+  if (action === 'setup_level') {
+    return { ...base, tag: 'Level', tone: 'plain', category: 'system',
+      text: `${setupName(row.inputs?.setup)} ${levelName(row.inputs?.from)} → ${levelName(row.inputs?.to)}` };
   }
   if (action === 'practice_rewind') {
     return { ...base, tag: 'Rewind', tone: 'violet', category: 'system', text: 'practice ledger re-read', note: base.note || 'Sim playhead scrubbed back' };
@@ -132,20 +165,33 @@ export function activityLine(row: BotAuditEntry, index: number): ActivityLine | 
   return { ...base, tag: action, tone: 'muted', category: 'system', text: row.outcome };
 }
 
+/** What armed, in the setup's own words ("2 red candles held the 9 EMA · leg +6.1%"). */
+function armedShape(r: SetupStoreRow): string {
+  const bars = r.pullback_bars ?? 0;
+  const s = (n: number) => (n === 1 ? '' : 's');
+  const leg = r.leg_pct != null ? `${r.leg_pct >= 0 ? '+' : '−'}${Math.abs(r.leg_pct * 100).toFixed(1)}%` : '';
+  switch (r.setup_type) {
+    case 'bull_flag':
+      return [bars ? `flag of ${bars}` : '', leg ? `pole ${leg}` : ''].filter(Boolean).join(' · ');
+    case 'flat_top_breakout':
+      return [bars ? `base of ${bars} under the high of day` : '', leg ? `impulse ${leg}` : ''].filter(Boolean).join(' · ');
+    case 'red_to_green':
+      return bars ? `${bars} close${s(bars)} under the open` : '';
+    default:
+      return [bars ? `${bars} red candle${s(bars)} held the 9 EMA` : '', leg ? `leg ${leg}` : ''].filter(Boolean).join(' · ');
+  }
+}
+
 /** The day's setup scanner events, one line per moment each setup reached. */
 export function setupActivityLines(rows: readonly SetupStoreRow[]): ActivityLine[] {
   const out: ActivityLine[] = [];
   for (const r of rows) {
     const k = (suffix: string) => `s-${r.id}-${suffix}`;
+    const name = BOT_SETUP_SHORT[r.setup_type ?? 'first_pullback'] ?? r.setup_type ?? '';
     if (r.armed_at) {
-      const bars = r.pullback_bars ?? 0;
-      const note = [
-        bars ? `${bars} red candle${bars === 1 ? '' : 's'} held the 9 EMA` : '',
-        r.leg_pct != null ? `leg +${(r.leg_pct * 100).toFixed(1)}%` : '',
-        r.grade ? `grade ${r.grade}` : '',
-      ].filter(Boolean).join(' · ');
+      const note = [armedShape(r), r.grade ? `grade ${r.grade}` : ''].filter(Boolean).join(' · ');
       out.push({ key: k('armed'), ts: r.armed_at, tag: 'Armed', tone: 'accent', category: 'scanner',
-        text: `${r.symbol} · trigger ${px(r.trigger)} · stop ${px(r.stop)}`, note });
+        text: `${r.symbol} · ${name} · trigger ${px(r.trigger)} · stop ${px(r.stop)}`, note });
     }
     if (r.near_at) {
       const verdict = r.near_tape?.verdict ?? '';

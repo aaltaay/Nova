@@ -266,6 +266,6 @@ def reset_book(symbol: str) -> None:
     try:
         from book_watch.live import enqueue_reset
 
-        enqueue_reset(symbol)  # the book watcher must not read the rebuild as pulls (ADR 031)
+        enqueue_reset(symbol)  # the book watcher must not read the rebuild as pulls (ADR 033)
     except Exception:
         logger.exception("IBKR depth: book watcher reset failed for %s", symbol)

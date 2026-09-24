@@ -35,7 +35,7 @@ the backend packages.
 | `earnings/` | feature | The Earnings tab: the earnings calendar with day bands and before-open / after-close lanes. |
 | `electron/` | app | Tests only: Vitest suites for the Electron main-process modules in `frontend/electron/*.mjs`. |
 | `execution_latency/` | feature | The execution latency dashboard: operation / segment timings, order-hop and fill evidence, browser timing samples. |
-| `focus_report/` | app | The operator's focus report (ADR 031): each window posts its page, symbol, Windows focus and last input to `POST /sensors/focus`, read back as sensor 19. |
+| `focus_report/` | app | The operator's focus report (ADR 033): each window posts its page, symbol, Windows focus and last input to `POST /sensors/focus`, read back as sensor 19. |
 | `hod_momo/` | feature | The HOD Momo scanner: alert stream, dock and strip, strategy configurator, master gate, blocklist, debug panel, Running Up tab. |
 | `hooks/` | shared | Cross-feature React hooks: scanner data and price stream, ticker stream, news impact, catalysts, alert channels, resizable panels. |
 | `hotkeys/` | feature | Hot keys and Nova Actions: bindings editor, DAS import, shortcuts menu, quick-trade bar, actions sent through the manual order path. |
@@ -53,7 +53,7 @@ the backend packages.
 | `scanner/` | feature | The Scanner page board: row shape gate, REST envelope, filters, pinned rows, replay label, header / footer, desk stack. |
 | `sensors/` | feature | The sensor board: backend sensor readings, freshness and status chips, shown in the Settings workspace. |
 | `settings/` | feature | The Settings overlay: general, account, practice, trade-defaults and order-preference sections; prefs export. |
-| `setups/` | feature | The setup scanner (ADR 022): live first-pullback board over `/ws/setups`, alert cards, scoreboard, sound, ticket staging. |
+| `setups/` | feature | The setup scanner (ADR 022, ADR 031): every setup's live board over `/ws/setups`, the words and hovers each state is said in, alert cards, scoreboard, sound, ticket staging. |
 | `sim/` | feature | The Sim venue's replay: session strip and scrubber, day picker, Sim clock, historical downloads, depth / tape / capture replay. |
 | `stock_view/` | feature | The Trader (Stock View) chrome: symbol tab strip, right rail with quote / L2 / ticket, focus rail, footer dock, market clock. |
 | `strategy/` | feature | Misnamed: the Contenders tab (id `watchlist`: the ranked Five Pillars table, Journal, Backtest panel) and the Nova OS attention strip. |
@@ -62,7 +62,7 @@ the backend packages.
 | `theme/` | shared | Light / dark theme prefs and the `useTheme` hook that sets `data-theme` on `<html>`. |
 | `types/` | shared | Shared wire types: ticker, scanner, market, earnings, health, catalysts, news impact, Nova News, desktop bridge. |
 | `utils/` | shared | Generic helpers (formatting, prefStore, sorting, rAF coalescing) plus backend / desktop glue (auto-heal, Gateway launch, window bounds). |
-| `ux/` | shared | The app-wide dialog service: the alert / confirm / prompt API and the `AppDialogHost` that renders it. |
+| `ux/` | shared | The app-wide dialog service (the alert / confirm / prompt API and the `AppDialogHost` that renders it) and the two tips: why a control is locked (`whyTip`) and what a chip means (`hoverTip`). |
 | `volume_boost/` | feature | The Volume Boost scanner tab: exceptional L1 volume-rate spikes with age formatting. |
 | `watch_list/` | feature | The operator's hand-picked Watch list: the persisted list, the Watch list tab, the watch eye, and the "hit HOD Momo" toasts for watched symbols. |
 | `workspace/` | feature | The workspace shell: selected-symbol context, module registry, layout / visibility / nav-rail stores, scanner tabs, the pop-out window bus. |

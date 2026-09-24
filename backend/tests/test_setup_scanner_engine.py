@@ -43,13 +43,22 @@ class FakeTape:
         pass
 
 
+# The desk these tests watch: the first pullback's lanes only, at Eyes -- a setup at Off
+# watches and scores in silence (ADR 031, operator decision A).
+FP_ONLY = ("first_pullback",)
+
+
+def EYES():  # noqa: N802 -- a levels hook, named for what it says
+    return {"chosen": "first_pullback", "levels": {"first_pullback": 1}}
+
+
 def make(tmp_path, seed_bars):
     audits: list[dict] = []
     clock = {"t": seed_bars[-1].t + 30}
     eng = SetupEngine(store=SetupStore(tmp_path / "setups.db"), tape=FakeTape(),
                       universe=lambda: [SYM], seed=lambda sym, since: list(seed_bars),
                       replay_desk=lambda: False, audit=lambda **kw: audits.append(kw),
-                      clock=lambda: clock["t"])
+                      clock=lambda: clock["t"], levels=EYES, setups=FP_ONLY)
     return eng, audits, clock
 
 

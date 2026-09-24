@@ -1,4 +1,4 @@
-"""The book watcher's journal (ADR 031): flags, large pulls and one line per symbol-minute.
+"""The book watcher's journal (ADR 033): flags, large pulls and one line per symbol-minute.
 
 Owner: this module -- the only writer of ``<book watch dir>/YYYY-MM-DD.jsonl``
 (``NOVA_BOOK_WATCH_DIR``, else ``F:\\Nova\\book_watch`` when F: is mounted, else

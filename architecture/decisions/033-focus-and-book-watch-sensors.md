@@ -1,7 +1,7 @@
-# ADR 031 -- Sensors for agents: the operator's focus and the book watcher
+# ADR 033 -- Sensors for agents: the operator's focus and the book watcher
 
 **Status:** Accepted · **Date:** 2026-09-24
-**Builds on:** [[026-performance-recorder]] (window reports) · [[010-ib-loop-no-blocking]] (enqueue only) · [[001-capture-fidelity]] (L2 coalescing)
+**Builds on:** [[026-performance-recorder]] (window reports) · [[010-ib-loop-isolation]] (enqueue only) · `architecture/capture-fidelity.md` (L2 coalescing)
 **Decided by:** the operator, 2026-09-24 ("when I have a fast question, you can answer me"; "do we have
 sensor endpoints? ... when we develop testing strategies, our bots have more things to rely on";
 "if your recommendation is only to do 1, 3, 9, and 10, let's do them")

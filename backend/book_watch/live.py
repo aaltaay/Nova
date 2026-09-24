@@ -1,4 +1,4 @@
-"""The book watcher's worker (ADR 031): the IBKR callbacks enqueue, one thread judges.
+"""The book watcher's worker (ADR 033): the IBKR callbacks enqueue, one thread judges.
 
 ``enqueue_book`` / ``enqueue_print`` / ``enqueue_reset`` run inside ib_async
 socket callbacks, so they only stamp the arrival time and put a tuple on a

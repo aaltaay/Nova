@@ -1,4 +1,4 @@
-"""Sensor 19: the operator's focus (ADR 031) -- which window, page and symbol, and where."""
+"""Sensor 19: the operator's focus (ADR 033) -- which window, page and symbol, and where."""
 from __future__ import annotations
 
 import logging

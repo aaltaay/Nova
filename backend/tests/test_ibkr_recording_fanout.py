@@ -572,7 +572,7 @@ def test_fast_books_coalesce_before_the_worker_backlog_can_stop_the_session():
 
 
 class _Clock:
-    """The bridge's wall clock, stepped by hand (ADR 031 book batching)."""
+    """The bridge's wall clock, stepped by hand (ADR 033 book batching)."""
 
     def __init__(self, start):
         self.now = start

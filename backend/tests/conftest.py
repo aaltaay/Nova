@@ -59,7 +59,7 @@ os.environ["NOVA_PERF"] = "0"
 os.environ["NOVA_BORROW_FEED"] = "0"
 # ADR 029: an app a test boots must not start the eyes' journal writer; the journal tests drive it directly.
 os.environ["NOVA_EYES_JOURNAL"] = "0"
-# ADR 031: an app a test boots must not start the book watcher's worker or journal; its tests drive them directly.
+# ADR 033: an app a test boots must not start the book watcher's worker or journal; its tests drive them directly.
 os.environ["NOVA_BOOK_WATCH"] = "0"
 
 import pytest

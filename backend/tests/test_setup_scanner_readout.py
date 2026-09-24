@@ -101,6 +101,6 @@ def test_current_reads_every_day_and_caches(monkeypatch):
     assert readout.current(now=_T0)["go"]["triggered"] == 3
     readout.current(now=_T0 + 5)
     # every day of the template in play's rows (ADR 029), read once inside the cache window
-    assert calls == [{"template_id": "default", "template_rev": 1}]
+    assert calls == [{"setup_type": "first_pullback", "template_id": "default", "template_rev": 1}]
     readout.current(now=_T0 + 60)
     assert len(calls) == 2

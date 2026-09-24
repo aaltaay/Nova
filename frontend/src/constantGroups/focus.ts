@@ -1,5 +1,5 @@
 /**
- * The operator's focus, the desk's half (ADR 031) -- tunables for the report
+ * The operator's focus, the desk's half (ADR 033) -- tunables for the report
  * each window posts to `POST /sensors/focus`. The Electron main process keeps
  * its own copy of the cadence (`electron/focusSensor.mjs` cannot import TS;
  * `src/electron/focusSensor.test.ts` pins the two equal). Wire shape:

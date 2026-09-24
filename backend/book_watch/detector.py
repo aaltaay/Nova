@@ -1,4 +1,4 @@
-"""One symbol's book watcher (ADR 031) -- pure: books and prints in, events out.
+"""One symbol's book watcher (ADR 033) -- pure: books and prints in, events out.
 
 Every drop in resting size at a price wholly in view in two consecutive books
 is judged ``BOOK_WATCH_SETTLE_SEC`` later against the lit prints at that price

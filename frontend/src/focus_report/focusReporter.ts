@@ -1,5 +1,5 @@
 /**
- * This window's focus report (ADR 031): which page and symbol it shows, whether
+ * This window's focus report (ADR 033): which page and symbol it shows, whether
  * Windows has it in front, and when the operator last clicked or typed in it --
  * posted to `POST /sensors/focus` on every change and every FOCUS_HEARTBEAT_MS,
  * so an agent or a bot reads the operator's focus instead of guessing

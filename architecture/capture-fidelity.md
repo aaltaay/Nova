@@ -11,7 +11,7 @@ files are not rewritten. Resume streams existing rows on the capture worker to
 validate versions and recover each stream's timestamp high-water mark.
 
 L2 uses event timestamps and keeps every book IBKR sends, up to
-`CAPTURE_L2_MAX_HZ` (50, a flood bound -- it was 8 until ADR 031, which held back
+`CAPTURE_L2_MAX_HZ` (50, a flood bound -- it was 8 until ADR 033, which held back
 most of a busy name's books). Books reach the writer in batches, like prints, so a
 fast book cannot fill the worker's backlog; a book over the bound is held, never
 dropped, and stop flushes the newest pending book even if the feed became quiet.

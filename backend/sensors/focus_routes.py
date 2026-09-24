@@ -1,4 +1,4 @@
-"""The operator's focus over HTTP (ADR 031): desk windows report, agents and bots read.
+"""The operator's focus over HTTP (ADR 033): desk windows report, agents and bots read.
 
 ``POST /sensors/focus`` takes one report -- a desk window's (``role`` main |
 popout | browser) or the Electron main process's (``role`` electron); ``GET

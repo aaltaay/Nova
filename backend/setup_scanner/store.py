@@ -7,7 +7,10 @@ Schema: ``PRAGMA user_version = SETUPS_DB_SCHEMA_VERSION``; an unknown version i
 refused loudly rather than read wrong (persisted-state rule). Version 2 (ADR
 029) stamps every row with the template that armed it (``template_id``,
 ``template_rev``, ``params_hash``); a version-1 file is migrated in place and
-its rows become the default template's -- the rules that armed them.
+its rows become the default template's -- the rules that armed them. Version 3
+(ADR 031) adds the setup that armed the row (``setup_type``) and its own facts
+(``detail``, JSON); a version-2 file is migrated in place, its rows the first
+pullback's, and a version-1 file migrates through 2.
 """
 from __future__ import annotations
 
@@ -21,6 +24,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from constants_bot import BOT_SETUP_FIRST_PULLBACK
 from constants_setups import (
     SETUP_TEMPLATE_DEFAULT_ID,
     SETUP_TEMPLATE_DEFAULT_REV,
@@ -39,10 +43,11 @@ COLUMNS: tuple[str, ...] = (
     "failed_at", "fail_reason", "disarmed_at",
     "outcome", "outcome_at", "mfe", "mae", "bar_r", "bar_exit_reason", "closed_at",
     "proposal_id", "updated_at", "template_id", "template_rev", "params_hash",
+    "setup_type", "detail",
 )
-JSON_COLUMNS = frozenset({"pillars", "near_tape", "trigger_tape"})
+JSON_COLUMNS = frozenset({"pillars", "near_tape", "trigger_tape", "detail"})
 TEXT_COLUMNS = JSON_COLUMNS | {"kind", "state", "reason", "grade", "fail_reason", "outcome", "bar_exit_reason",
-                               "proposal_id", "template_id", "params_hash"}
+                               "proposal_id", "template_id", "params_hash", "setup_type"}
 INT_COLUMNS = frozenset({"template_rev"})
 
 
@@ -59,8 +64,10 @@ CREATE TABLE IF NOT EXISTS setups (
 );
 CREATE INDEX IF NOT EXISTS setups_day ON setups (session_date, symbol);
 CREATE INDEX IF NOT EXISTS setups_template ON setups (template_id, template_rev);
+CREATE INDEX IF NOT EXISTS setups_setup_type ON setups (setup_type, template_id, template_rev);
 """
 _V2_COLUMNS = ("template_id", "template_rev", "params_hash")
+_V3_COLUMNS = ("setup_type", "detail")
 
 
 class StoreVersionError(RuntimeError):
@@ -88,12 +95,14 @@ class SetupStore:
             ver = self._conn.execute("PRAGMA user_version").fetchone()[0]
             tables = self._conn.execute(
                 "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='setups'").fetchone()[0]
-            if ver not in (0, 1, SETUPS_DB_SCHEMA_VERSION) or (ver == 0 and tables):
+            if ver not in (0, 1, 2, SETUPS_DB_SCHEMA_VERSION) or (ver == 0 and tables):
                 raise StoreVersionError(
                     f"{self.path.name} has schema version {ver}; this build reads {SETUPS_DB_SCHEMA_VERSION}. "
                     "Move the file aside to start a new scoreboard.")
             if ver == 1:
                 self._migrate_v1()
+            if ver in (1, 2):
+                self._migrate_v2()
             self._conn.executescript(_SCHEMA)
             self._conn.execute(f"PRAGMA user_version = {SETUPS_DB_SCHEMA_VERSION}")
             self._conn.commit()
@@ -113,6 +122,15 @@ class SetupStore:
              fingerprint(defaults(BOT_SETUP_FIRST_PULLBACK))))
         logger.info("setups.db migrated to schema 2: earlier rows are the default template's")
 
+    def _migrate_v2(self) -> None:
+        """v2 -> v3: the setup that armed the row; every older row is the first pullback's (ADR 031)."""
+        have = {r[1] for r in self._conn.execute("PRAGMA table_info(setups)").fetchall()}
+        for col in _V3_COLUMNS:
+            if col not in have:
+                self._conn.execute(f"ALTER TABLE setups ADD COLUMN {col} {_type(col)}")
+        self._conn.execute("UPDATE setups SET setup_type = ? WHERE setup_type IS NULL", (BOT_SETUP_FIRST_PULLBACK,))
+        logger.info("setups.db migrated to schema 3: earlier rows are the first pullback's")
+
     def upsert(self, row: dict[str, Any]) -> None:
         data = {k: row.get(k) for k in COLUMNS if k in row}
         data["updated_at"] = time.time()
@@ -128,8 +146,12 @@ class SetupStore:
 
     def rows(self, *, date_from: str | None = None, date_to: str | None = None,
              symbol: str | None = None, limit: int | None = None, template_id: str | None = None,
-             template_rev: int | None = None) -> list[dict[str, Any]]:
+             template_rev: int | None = None, setup_type: str | None = None) -> list[dict[str, Any]]:
         where, args = [], []
+        if setup_type:
+            # A row written without a setup (schema 2, a test) is the first pullback's.
+            where.append("(setup_type = ? OR (setup_type IS NULL AND ? = ?))")
+            args += [setup_type, setup_type, BOT_SETUP_FIRST_PULLBACK]
         if template_id:
             where.append("template_id = ?")
             args.append(template_id)

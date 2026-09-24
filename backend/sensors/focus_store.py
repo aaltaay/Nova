@@ -1,4 +1,4 @@
-"""The operator's focus (ADR 031): each desk window's report, joined into one answer.
+"""The operator's focus (ADR 033): each desk window's report, joined into one answer.
 
 Owner: this module's in-memory state -- the newest report per renderer window
 (keyed by its ``instance_id``, one per page load) and the Electron main

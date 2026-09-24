@@ -379,3 +379,36 @@ def test_a_restart_resumes_the_trade(paper):
     runner.reset_for_tests(lambda: paper.clock["t"])   # a new process: the loop's memory is gone
     paper.broker.try_fill_working(SYM, [(NOW + 10, 10.35)])
     assert tick(paper, NOW + 11)["exit_reason"] == "target"
+
+
+# -- ADR 031: the bot plays the chosen setup --------------------------------------------
+def choose(setup: str) -> None:
+    """The chosen setup, without the deactivation a desk PATCH makes (tests of the runner alone)."""
+    row = load_session()
+    row["setup"] = setup
+    save_session(row)
+
+
+def test_the_bot_trades_only_the_chosen_setups_triggers(paper):
+    choose("bull_flag")
+    runner.submit(trigger())                                  # a first pullback: another setup's now
+    assert tick(paper) is None and trade_rows() == []
+    runner.submit(trigger(setup_type="bull_flag", setup={"kind": "bull_flag"}))
+    trade = tick(paper)
+    assert trade["setup_type"] == "bull_flag" and trade["state"] in ("entering", "open")
+    [entry] = [r for r in list_entries(limit=50) if r["action"] == BOT_KIND_SETUP_ENTRY]
+    assert entry["reason"].startswith("bull flag over 10.01") and entry["inputs"]["setup_type"] == "bull_flag"
+
+
+def test_a_second_of_the_chosen_setup_is_skipped_by_name(paper):
+    choose("flat_top_breakout")
+    runner.submit(trigger(setup_type="flat_top_breakout", setup={"kind": "second_flat_top_breakout"}))
+    tick(paper)
+    [row] = trade_rows("skipped")
+    assert "a second flat top breakout on IMCC" in row["reason"] and row["inputs"]["setup_type"] == "flat_top_breakout"
+
+
+def test_a_setup_without_a_scanner_never_plays(paper):
+    choose("gap_and_go")
+    status = runner.status(load_session())
+    assert status["playing"] is False and "no scanner" in status["reason"]

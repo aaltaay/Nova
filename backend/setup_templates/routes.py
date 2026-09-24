@@ -45,7 +45,8 @@ def install(app: FastAPI) -> None:
 
 
 def _readout(t: Template) -> dict[str, Any] | None:
-    """The template's own read-out, briefly (first pullback only: the only scanner)."""
+    """The template's own read-out, briefly: any setup with a scanner (ADR 031) -- the go
+    setups against blind / wait, as the setup card draws it."""
     try:
         from setup_scanner.readout import current
 
@@ -54,11 +55,13 @@ def _readout(t: Template) -> dict[str, Any] | None:
         logger.warning("setup templates: read-out failed for %s", t.id, exc_info=True)
         return {"state": "unavailable", "passed": False,
                 "reason": "the read-out could not be computed -- the backend log says why", "go_triggered": None,
-                "min_go": None, "go_avg_net_r": None}
+                "min_go": None, "go_avg_net_r": None, "control_avg_net_r": None, "control_triggered": None,
+                "min_net_r": None}
+    go, control, rules = out.get("go") or {}, out.get("control") or {}, out.get("rules") or {}
     return {"state": out.get("state"), "passed": bool(out.get("passed")), "reason": out.get("reason"),
-            "go_triggered": (out.get("go") or {}).get("triggered"),
-            "min_go": (out.get("rules") or {}).get("min_go"),
-            "go_avg_net_r": (out.get("go") or {}).get("avg_net_r")}
+            "go_triggered": go.get("triggered"), "min_go": rules.get("min_go"), "go_avg_net_r": go.get("avg_net_r"),
+            "control_avg_net_r": control.get("avg_net_r"), "control_triggered": control.get("triggered"),
+            "min_net_r": rules.get("min_net_r")}
 
 
 def _setup_view(setup_id: str) -> dict[str, Any]:

@@ -7,8 +7,9 @@ playbook lists (``constants_bot.BOT_SETUPS``) -- its parameters in the order the
 Bots page draws them, grouped, each with a unit, bounds, and the default that
 is the setup's pre-registered rule. ``live`` says whether a running scanner
 reads the parameter; a setup without a scanner keeps its research parameters
-(``research/momentum/backtest_setups.py``, ``research/orb/backtest_gng.py``)
-for when it gets one.
+(``research/orb/backtest_gng.py``) for when it gets one. Every setup with a scanner
+(ADR 031) shares the stock filter, the tape gate, the grade and the bot's entry
+rules; its pattern, entry and risk groups are its own.
 
 Values are kept in the unit the operator types -- percent as 5, not 0.05; a
 float in millions of shares -- and ``setup_scanner/lane_params.py`` converts
@@ -27,6 +28,7 @@ from constants_bot import (
     BOT_ENTRIES_PER_DAY,
     BOT_ENTRY_WINDOW_END_ET,
     BOT_ENTRY_WINDOW_START_ET,
+    BOT_SETUP_BULL_FLAG,
     BOT_SETUP_FIRST_PULLBACK,
     BOT_SETUP_FLAT_TOP,
     BOT_SETUP_GAP_AND_GO,
@@ -37,10 +39,32 @@ from constants_bot import (
 )
 from constants_setups import (
     SETUPS_BAILOUT_BARS,
+    SETUPS_BF_EMA_HOLD,
+    SETUPS_BF_EMA_TOUCH_PCT,
+    SETUPS_BF_FLAG_VOLUME_LIGHTER,
+    SETUPS_BF_MAX_FLAG_BARS,
+    SETUPS_BF_MAX_PER_SYMBOL_DAY,
+    SETUPS_BF_MAX_POLE_WICK,
+    SETUPS_BF_MAX_RETRACE,
+    SETUPS_BF_MIN_FLAG_BARS,
+    SETUPS_BF_POLE_MIN_BARS,
+    SETUPS_BF_POLE_MIN_DOLLARS,
+    SETUPS_BF_POLE_MIN_PCT,
+    SETUPS_BF_POLE_VOLUME_RISING,
+    SETUPS_BF_REJECT_RED_VOLUME_HIGH,
+    SETUPS_BF_REQUIRE_HOD,
     SETUPS_EMA_PERIOD,
     SETUPS_EMA_TOLERANCE,
     SETUPS_ENTRY_CUTOFF_ET,
     SETUPS_ENTRY_OFFSET_DOLLARS,
+    SETUPS_FT_BAND,
+    SETUPS_FT_ENTRY,
+    SETUPS_FT_HOLD_BARS,
+    SETUPS_FT_IMPULSE_PCT,
+    SETUPS_FT_LEG_WINDOW_BARS,
+    SETUPS_FT_MAX_CONSOL,
+    SETUPS_FT_MAX_PER_SYMBOL_DAY,
+    SETUPS_FT_MIN_CONSOL,
     SETUPS_LEG_LOOKBACK_BARS,
     SETUPS_LEG_PCT,
     SETUPS_LEG_WINDOW_BARS,
@@ -60,6 +84,10 @@ from constants_setups import (
     SETUPS_PILLAR_MIN_CHANGE_PCT,
     SETUPS_PILLAR_MIN_PRICE,
     SETUPS_PILLAR_MIN_RVOL,
+    SETUPS_R2G_CUTOFF_ET,
+    SETUPS_R2G_MIN_RED_BARS,
+    SETUPS_R2G_OPEN_ET,
+    SETUPS_R2G_TARGET_HOD,
     SETUPS_REQUIRE_HOD,
     SETUPS_RISK_SLIPPAGE_DOLLARS,
     SETUPS_SESSION_START_ET,
@@ -135,16 +163,18 @@ GROUP_LABELS: dict[str, tuple[str, str]] = {
 }
 
 
-def _pct(fraction: float) -> float:
-    return round(fraction * 100, _DECIMALS)
+def _pct(fraction: float | None) -> float | None:
+    return None if fraction is None else round(fraction * 100, _DECIMALS)
 
 
 def _p(key: str, group: str, label: str, kind: str, default: Any, **kw: Any) -> ParamSpec:
     return ParamSpec(key=key, group=group, label=label, kind=kind, default=default, **kw)
 
 
-# -- First pullback: the live scanner's numbers (constants_setups, ADR 022). --------
-_FIRST_PULLBACK: tuple[ParamSpec, ...] = (
+# -- Shared by every setup with a scanner: the stock filter, the tape gate, the grade,
+# and the bot's entries at Strategy (ADR 029, ADR 031). One spec each, so a change to a
+# unit or a bound is the same on every setup's card.
+_STOCK: tuple[ParamSpec, ...] = (
     _p("min_price", "stock", "Price at least", NUMBER, None, unit="$", min=0.1, max=1000, step=0.01, nullable=True,
        help="Arm only when the last price is at least this."),
     _p("max_price", "stock", "Price at most", NUMBER, None, unit="$", min=0.1, max=1000, step=0.01, nullable=True,
@@ -161,59 +191,9 @@ _FIRST_PULLBACK: tuple[ParamSpec, ...] = (
        help="Arm only setups graded this well or better."),
     _p("unknown_passes", "stock", "A fact Nova does not know passes", BOOL, True,
        help="On: an unknown price, float, change or volume does not block the filter. Off: it does."),
+)
 
-    _p("leg_pct", "setup", "Leg at least", NUMBER, _pct(SETUPS_LEG_PCT), unit="%", min=1, max=100, step=0.5,
-       help="The leg high is at least this far over the lowest low of the leg window."),
-    _p("leg_window", "setup", "Leg window", INT, SETUPS_LEG_WINDOW_BARS, unit="bars", min=2, max=120, step=1,
-       help="The bars ending at the leg high that the leg is measured over."),
-    _p("leg_lookback", "setup", "New high over", INT, SETUPS_LEG_LOOKBACK_BARS, unit="bars", min=5, max=240, step=1,
-       help="The leg high is the highest high of this many bars before it."),
-    _p("require_hod", "setup", "Leg high is the high of day", BOOL, SETUPS_REQUIRE_HOD,
-       help="The leg high is also the day's high so far, pre-market included."),
-    _p("min_pullback_bars", "setup", "Pullback at least", INT, SETUPS_MIN_PULLBACK_BARS, unit="bars", min=1, max=10, step=1,
-       help="Fewest candles after the leg high."),
-    _p("max_pullback_bars", "setup", "Pullback at most", INT, SETUPS_MAX_PULLBACK_BARS, unit="bars", min=1, max=10, step=1,
-       help="Most candles after the leg high before the pullback ran too long."),
-    _p("max_retrace", "setup", "Gives back less than", NUMBER, _pct(SETUPS_MAX_RETRACE), unit="% of the leg", min=5,
-       max=100, step=5, help="The pullback's low gives back less than this share of the leg."),
-    _p("ema_period", "setup", "Holds the EMA", INT, SETUPS_EMA_PERIOD, unit="bars", min=2, max=100, step=1,
-       help="Every pullback candle closes at or above this EMA."),
-    _p("ema_tol", "setup", "EMA slack", NUMBER, _pct(SETUPS_EMA_TOLERANCE), unit="%", min=0, max=10, step=0.1,
-       help="A pullback close may sit this far under the EMA."),
-    _p("macd_positive", "setup", "MACD histogram above zero", BOOL, SETUPS_MACD_POSITIVE,
-       help="The last pullback candle's MACD histogram is above zero (the front side of the move)."),
-    _p("macd_fast", "setup", "MACD fast", INT, SETUPS_MACD_FAST, unit="bars", min=2, max=60, step=1),
-    _p("macd_slow", "setup", "MACD slow", INT, SETUPS_MACD_SLOW, unit="bars", min=3, max=120, step=1),
-    _p("macd_signal", "setup", "MACD signal", INT, SETUPS_MACD_SIGNAL, unit="bars", min=2, max=60, step=1),
-    _p("max_per_symbol_day", "setup", "Setups a symbol a day", INT, SETUPS_MAX_PER_SYMBOL_DAY, unit="setups", min=1,
-       max=10, step=1, help="The first pullback, then the second -- no more on one symbol that day."),
-
-    _p("entry_offset", "entry", "Buy over the pullback high by", NUMBER, SETUPS_ENTRY_OFFSET_DOLLARS, unit="$", min=0,
-       max=1, step=0.01, help="The entry is the last pullback candle's high plus this."),
-    _p("session_start", "entry", "Arms from", TIME, SETUPS_SESSION_START_ET, unit="ET", min="04:00", max="20:00",
-       help="No setup arms before this time."),
-    _p("entry_cutoff", "entry", "Arms until", TIME, SETUPS_ENTRY_CUTOFF_ET, unit="ET", min="04:00", max="20:00",
-       help="No setup arms, and none triggers, at or after this time."),
-    _p("near_dollars", "entry", "Near the trigger within", NUMBER, SETUPS_NEAR_DOLLARS, unit="$", min=0, max=2,
-       step=0.01, help="Price this close to the trigger is when the tape is read (or the percent below, whichever is wider)."),
-    _p("near_pct", "entry", "... or within", NUMBER, _pct(SETUPS_NEAR_PCT), unit="%", min=0, max=10, step=0.05),
-
-    _p("stop_cap", "risk", "Largest risk a share", NUMBER, SETUPS_STOP_CAP_DOLLARS, unit="$", min=0.01, max=10,
-       step=0.01, help="Entry minus the pullback low. A bigger risk skips the setup."),
-    _p("min_stop", "risk", "Smallest risk a share", NUMBER, SETUPS_MIN_STOP_DOLLARS, unit="$", min=0, max=5, step=0.01,
-       help="A smaller risk skips the setup: the stop would sit in the spread."),
-    _p("risk_slippage", "risk", "Slippage counted in the risk", NUMBER, SETUPS_RISK_SLIPPAGE_DOLLARS, unit="$", min=0,
-       max=1, step=0.01, help="Added to the risk before the two checks above, as the research did."),
-    _p("target_mode", "risk", "Target 1", CHOICE, SETUPS_TARGET_MODE,
-       choices=(("leg_or_r", "the leg high or R x risk, whichever is higher"), ("fixed", "a fixed amount over the entry")),
-       help="Half comes off at target 1 and the stop moves to the entry (the scoring exit)."),
-    _p("target_r", "risk", "R multiple", NUMBER, SETUPS_TARGET_R, unit="R", min=0.25, max=20, step=0.25,
-       help="Used when target 1 is the leg high or R x risk."),
-    _p("target_fixed", "risk", "Fixed target", NUMBER, SETUPS_TARGET_FIXED_DOLLARS, unit="$", min=0.01, max=10, step=0.01,
-       help="Used when target 1 is a fixed amount over the entry."),
-    _p("bailout_bars", "risk", "Out after", INT, SETUPS_BAILOUT_BARS, unit="bars", min=1, max=120, step=1,
-       help="Scoring exit: this many candles without a close over the entry -> out at the close."),
-
+_TAPE: tuple[ParamSpec, ...] = (
     _p("tape_window_sec", "tape", "Looks back", NUMBER, TAPE_GATE_WINDOW_SEC, unit="s", min=1, max=120, step=1,
        help="The book samples and prints the gate reads."),
     _p("tape_stale_book_sec", "tape", "Book is stale after", NUMBER, TAPE_GATE_STALE_BOOK_SEC, unit="s", min=0.5,
@@ -236,7 +216,9 @@ _FIRST_PULLBACK: tuple[ParamSpec, ...] = (
        max=20, step=0.1, help="This much bought at the ask while the ask does not move vetoes."),
     _p("red_mult", "tape", "Red burst at", NUMBER, TAPE_GATE_RED_BURST_MULT, unit="x the ask volume", min=1, max=20,
        step=0.1, help="Bid-side volume over this multiple of ask-side volume waits."),
+)
 
+_GRADE: tuple[ParamSpec, ...] = (
     _p("pillar_min_price", "grade", "Price pillar from", NUMBER, SETUPS_PILLAR_MIN_PRICE, unit="$", min=0.1, max=1000,
        step=0.5),
     _p("pillar_max_price", "grade", "Price pillar to", NUMBER, SETUPS_PILLAR_MAX_PRICE, unit="$", min=0.1, max=1000,
@@ -247,7 +229,9 @@ _FIRST_PULLBACK: tuple[ParamSpec, ...] = (
        min=0, max=10000, step=0.5),
     _p("pillar_max_float_m", "grade", "Float pillar at most", NUMBER, round(SETUPS_PILLAR_MAX_FLOAT / 1e6, _DECIMALS),
        unit="M shares", min=0.1, max=10000, step=1),
+)
 
+_BOT: tuple[ParamSpec, ...] = (
     _p("bot_window_start", "bot", "Bot entries from", TIME, BOT_ENTRY_WINDOW_START_ET, unit="ET", min="04:00",
        max="20:00", help="At Strategy the bot sends an entry only inside this window (the venue's clock)."),
     _p("bot_window_end", "bot", "Bot entries until", TIME, BOT_ENTRY_WINDOW_END_ET, unit="ET", min="04:00", max="20:00"),
@@ -255,10 +239,201 @@ _FIRST_PULLBACK: tuple[ParamSpec, ...] = (
        help="Entries the bot may send in one venue day."),
 )
 
+
+def _ema(hold_help: str, tol_help: str | None = None) -> tuple[ParamSpec, ...]:
+    """The EMA period (and its slack, unless ``tol_help`` is None: the setup reads no slack)."""
+    period = _p("ema_period", "setup", "Holds the EMA", INT, SETUPS_EMA_PERIOD, unit="bars", min=2, max=100, step=1,
+                help=hold_help)
+    if tol_help is None:
+        return (period,)
+    return (period, _p("ema_tol", "setup", "EMA slack", NUMBER, _pct(SETUPS_EMA_TOLERANCE), unit="%", min=0, max=10,
+                       step=0.1, help=tol_help))
+
+
+def _macd(help_text: str) -> tuple[ParamSpec, ...]:
+    return (
+        _p("macd_positive", "setup", "MACD histogram above zero", BOOL, SETUPS_MACD_POSITIVE, help=help_text),
+        _p("macd_fast", "setup", "MACD fast", INT, SETUPS_MACD_FAST, unit="bars", min=2, max=60, step=1),
+        _p("macd_slow", "setup", "MACD slow", INT, SETUPS_MACD_SLOW, unit="bars", min=3, max=120, step=1),
+        _p("macd_signal", "setup", "MACD signal", INT, SETUPS_MACD_SIGNAL, unit="bars", min=2, max=60, step=1),
+    )
+
+
+def _near() -> tuple[ParamSpec, ...]:
+    return (
+        _p("near_dollars", "entry", "Near the trigger within", NUMBER, SETUPS_NEAR_DOLLARS, unit="$", min=0, max=2,
+           step=0.01, help="Price this close to the trigger is when the tape is read (or the percent below, whichever is wider)."),
+        _p("near_pct", "entry", "... or within", NUMBER, _pct(SETUPS_NEAR_PCT), unit="%", min=0, max=10, step=0.05),
+    )
+
+
+def _window(start_label: str, start_help: str, cutoff_help: str) -> tuple[ParamSpec, ...]:
+    return (
+        _p("session_start", "entry", start_label, TIME, SETUPS_SESSION_START_ET, unit="ET", min="04:00", max="20:00",
+           help=start_help),
+        _p("entry_cutoff", "entry", "Arms until", TIME, SETUPS_ENTRY_CUTOFF_ET, unit="ET", min="04:00", max="20:00",
+           help=cutoff_help),
+    )
+
+
+def _risk(stop_help: str) -> tuple[ParamSpec, ...]:
+    return (
+        _p("stop_cap", "risk", "Largest risk a share", NUMBER, SETUPS_STOP_CAP_DOLLARS, unit="$", min=0.01, max=10,
+           step=0.01, help=stop_help),
+        _p("min_stop", "risk", "Smallest risk a share", NUMBER, SETUPS_MIN_STOP_DOLLARS, unit="$", min=0, max=5, step=0.01,
+           help="A smaller risk skips the setup: the stop would sit in the spread."),
+        _p("risk_slippage", "risk", "Slippage counted in the risk", NUMBER, SETUPS_RISK_SLIPPAGE_DOLLARS, unit="$", min=0,
+           max=1, step=0.01, help="Added to the risk before the two checks above, as the research did."),
+    )
+
+
+_TARGET_R = _p("target_r", "risk", "R multiple", NUMBER, SETUPS_TARGET_R, unit="R", min=0.25, max=20, step=0.25,
+               help="Target 1 at R x the risk over the entry.")
+_TARGET_FIXED = _p("target_fixed", "risk", "Fixed target", NUMBER, SETUPS_TARGET_FIXED_DOLLARS, unit="$", min=0.01,
+                   max=10, step=0.01, help="Used when target 1 is a fixed amount over the entry.")
+_BAILOUT = _p("bailout_bars", "risk", "Out after", INT, SETUPS_BAILOUT_BARS, unit="bars", min=1, max=120, step=1,
+              help="Scoring exit: this many candles without a close over the entry -> out at the close.")
+
+
+# -- First pullback: the live scanner's numbers (constants_setups, ADR 022). --------
+_FIRST_PULLBACK: tuple[ParamSpec, ...] = _STOCK + (
+    _p("leg_pct", "setup", "Leg at least", NUMBER, _pct(SETUPS_LEG_PCT), unit="%", min=1, max=100, step=0.5,
+       help="The leg high is at least this far over the lowest low of the leg window."),
+    _p("leg_window", "setup", "Leg window", INT, SETUPS_LEG_WINDOW_BARS, unit="bars", min=2, max=120, step=1,
+       help="The bars ending at the leg high that the leg is measured over."),
+    _p("leg_lookback", "setup", "New high over", INT, SETUPS_LEG_LOOKBACK_BARS, unit="bars", min=5, max=240, step=1,
+       help="The leg high is the highest high of this many bars before it."),
+    _p("require_hod", "setup", "Leg high is the high of day", BOOL, SETUPS_REQUIRE_HOD,
+       help="The leg high is also the day's high so far, pre-market included."),
+    _p("min_pullback_bars", "setup", "Pullback at least", INT, SETUPS_MIN_PULLBACK_BARS, unit="bars", min=1, max=10, step=1,
+       help="Fewest candles after the leg high."),
+    _p("max_pullback_bars", "setup", "Pullback at most", INT, SETUPS_MAX_PULLBACK_BARS, unit="bars", min=1, max=10, step=1,
+       help="Most candles after the leg high before the pullback ran too long."),
+    _p("max_retrace", "setup", "Gives back less than", NUMBER, _pct(SETUPS_MAX_RETRACE), unit="% of the leg", min=5,
+       max=100, step=5, help="The pullback's low gives back less than this share of the leg."),
+) + _ema("Every pullback candle closes at or above this EMA.",
+                                                   "A pullback close may sit this far under the EMA.") + _macd(
+    "The last pullback candle's MACD histogram is above zero (the front side of the move).") + (
+    _p("max_per_symbol_day", "setup", "Setups a symbol a day", INT, SETUPS_MAX_PER_SYMBOL_DAY, unit="setups", min=1,
+       max=10, step=1, help="The first pullback, then the second -- no more on one symbol that day."),
+    _p("entry_offset", "entry", "Buy over the pullback high by", NUMBER, SETUPS_ENTRY_OFFSET_DOLLARS, unit="$", min=0,
+       max=1, step=0.01, help="The entry is the last pullback candle's high plus this."),
+) + _window("Arms from", "No setup arms before this time.",
+            "No setup arms, and none triggers, at or after this time.") + _near() + _risk(
+    "Entry minus the pullback low. A bigger risk skips the setup.") + (
+    _p("target_mode", "risk", "Target 1", CHOICE, SETUPS_TARGET_MODE,
+       choices=(("leg_or_r", "the leg high or R x risk, whichever is higher"), ("fixed", "a fixed amount over the entry")),
+       help="Half comes off at target 1 and the stop moves to the entry (the scoring exit)."),
+    _p("target_r", "risk", "R multiple", NUMBER, SETUPS_TARGET_R, unit="R", min=0.25, max=20, step=0.25,
+       help="Used when target 1 is the leg high or R x risk."),
+    _TARGET_FIXED, _BAILOUT,
+) + _TAPE + _GRADE + _BOT
+
+# -- Bull flag (ADR 031): pre-registered from the operator's material. ------------------
+_BULL_FLAG: tuple[ParamSpec, ...] = _STOCK + (
+    _p("pole_min_bars", "setup", "Pole at least", INT, SETUPS_BF_POLE_MIN_BARS, unit="green candles", min=1, max=20,
+       step=1, help="Consecutive green candles (close over open) ending at the pole top."),
+    _p("pole_min_pct", "setup", "Pole rise at least", NUMBER, _pct(SETUPS_BF_POLE_MIN_PCT), unit="%", min=0.5, max=100,
+       step=0.5, help="From the pole's lowest low to its highest high (or the dollars below, whichever the pole makes)."),
+    _p("pole_min_dollars", "setup", "... or at least", NUMBER, SETUPS_BF_POLE_MIN_DOLLARS, unit="$", min=0.01, max=10,
+       step=0.01, nullable=True, help="A pole that rose this many dollars qualifies even under the percent. Off: the percent only."),
+    _p("pole_volume_rising", "setup", "Pole volume rising", BOOL, SETUPS_BF_POLE_VOLUME_RISING,
+       help="The last pole candle trades at least the first's volume (a tiring pole is skipped)."),
+    _p("min_flag_bars", "setup", "Flag at least", INT, SETUPS_BF_MIN_FLAG_BARS, unit="candles", min=1, max=10, step=1,
+       help="Red (or doji) candles after the pole top. One is a micro pullback, not a flag."),
+    _p("max_flag_bars", "setup", "Flag at most", INT, SETUPS_BF_MAX_FLAG_BARS, unit="candles", min=1, max=10, step=1,
+       help="More red candles than this is too much selling: the setup fails."),
+    _p("max_retrace", "setup", "Flag gives back at most", NUMBER, _pct(SETUPS_BF_MAX_RETRACE), unit="% of the pole",
+       min=5, max=100, step=5, help="The flag's low gives back no more than this share of the pole."),
+    _p("flag_volume_lighter", "setup", "Flag on lighter volume", BOOL, SETUPS_BF_FLAG_VOLUME_LIGHTER,
+       help="The flag's average volume is under the pole's. Heavy selling in the flag is distribution."),
+) + _ema("Every flag candle closes at or above this EMA (when the switch below is on).",
+         "A flag close may sit this far under the EMA.") + (
+    _p("ema_hold", "setup", "Flag closes hold the EMA", BOOL, SETUPS_BF_EMA_HOLD,
+       help="Off: a flag close under the EMA does not fail the setup."),
+    _p("ema_touch_pct", "setup", "Flag low near the EMA within", NUMBER, SETUPS_BF_EMA_TOUCH_PCT, unit="%", min=0.1,
+       max=20, step=0.1, nullable=True,
+       help="The material's perfect flag pulls back to the 9 EMA. On: the flag low must come this close to it."),
+    _p("reject_red_volume_high", "setup", "Skip when the biggest-volume candle is red", BOOL,
+       SETUPS_BF_REJECT_RED_VOLUME_HIGH, help="The day's highest-volume candle so far being red means sellers own the day."),
+    _p("max_pole_wick", "setup", "Pole top's upper wick at most", NUMBER, _pct(SETUPS_BF_MAX_POLE_WICK),
+       unit="% of its range", min=5, max=100, step=5, nullable=True,
+       help="A big topping tail on the pole's last candle is a caution in the material. Off: no wick check."),
+    _p("require_hod", "setup", "Pole high is the high of day", BOOL, SETUPS_BF_REQUIRE_HOD,
+       help="On: the pole must set the day's high so far. The material does not ask it."),
+) + _macd("The last flag candle's MACD histogram is above zero (the front side of the move).") + (
+    _p("max_per_symbol_day", "setup", "Flags a symbol a day", INT, SETUPS_BF_MAX_PER_SYMBOL_DAY, unit="setups", min=1,
+       max=10, step=1, help="The first and second flag -- the material skips the third."),
+    _p("entry_offset", "entry", "Buy over the last flag candle's high by", NUMBER, SETUPS_ENTRY_OFFSET_DOLLARS, unit="$",
+       min=0, max=1, step=0.01, help="The first candle to make a new high trades through it: the entry is that high plus this."),
+) + _window("Arms from", "No flag arms before this time.",
+            "No flag arms, and none triggers, at or after this time.") + _near() + _risk(
+    "Entry minus the flag low. A bigger risk skips the setup.") + (
+    _p("target_mode", "risk", "Target 1", CHOICE, SETUPS_TARGET_MODE,
+       choices=(("leg_or_r", "the pole high or R x risk, whichever is higher"),
+                ("leg", "the pole high (the material's first target)"), ("fixed", "a fixed amount over the entry")),
+       help="Half comes off at target 1 and the stop moves to the entry (the scoring exit)."),
+    _p("target_r", "risk", "R multiple", NUMBER, SETUPS_TARGET_R, unit="R", min=0.25, max=20, step=0.25,
+       help="Used when target 1 is the pole high or R x risk (and when the pole high is not above the entry)."),
+    _TARGET_FIXED, _BAILOUT,
+) + _TAPE + _GRADE + _BOT
+
+# -- Flat-top breakout (P2, research/momentum/backtest_setups.py ``find_flat_top``). -----
+_FLAT_TOP: tuple[ParamSpec, ...] = _STOCK + (
+    _p("ft_impulse_pct", "setup", "Impulse at least", NUMBER, _pct(SETUPS_FT_IMPULSE_PCT), unit="%", min=0.5, max=100,
+       step=0.5, help="The move into the high of day, over the lowest low of the impulse window."),
+    _p("leg_window", "setup", "Impulse window", INT, SETUPS_FT_LEG_WINDOW_BARS, unit="bars", min=2, max=120, step=1,
+       help="The candles ending at the high-of-day candle the impulse is measured over."),
+    _p("ft_min_consol", "setup", "Base at least", INT, SETUPS_FT_MIN_CONSOL, unit="candles", min=1, max=30, step=1,
+       help="Candles right after the high-of-day candle, none making a new high."),
+    _p("ft_max_consol", "setup", "Base at most", INT, SETUPS_FT_MAX_CONSOL, unit="candles", min=1, max=30, step=1,
+       help="A longer base is stale: the setup fails."),
+    _p("ft_band", "setup", "Base closes within", NUMBER, _pct(SETUPS_FT_BAND), unit="% under the high", min=0.1, max=20,
+       step=0.1, help="Every base close sits within this of the high of day: a flat top."),
+) + _ema("Every base candle's low is at or above this EMA.",
+                                                          "A base low may sit this far under the EMA.") + _macd(
+    "The last base candle's MACD histogram is above zero (the front side of the move).") + (
+    _p("max_per_symbol_day", "setup", "Setups a symbol a day", INT, SETUPS_FT_MAX_PER_SYMBOL_DAY, unit="setups", min=1,
+       max=10, step=1, help="Breakouts that may trigger on one symbol in a day."),
+    _p("ft_entry", "entry", "Entry", CHOICE, SETUPS_FT_ENTRY,
+       choices=(("hold", "a green candle that holds over the high (the taught way)"), ("break", "the break of the high")),
+       help="Hold: after the break, buy the close of the first candle whose low holds the high and closes green. "
+            "Break: buy the break itself."),
+    _p("ft_hold_bars", "entry", "Hold must come within", INT, SETUPS_FT_HOLD_BARS, unit="candles", min=1, max=30, step=1,
+       help="Hold entry: candles after the break's own candle before the setup disarms."),
+    _p("entry_offset", "entry", "Buy over by", NUMBER, SETUPS_ENTRY_OFFSET_DOLLARS, unit="$", min=0, max=1, step=0.01,
+       help="Break: over the high of day by this. Hold: over the hold candle's close by this (the research's cent of slippage)."),
+) + _window("Arms from", "No base arms before this time (the research began at 09:30).",
+            "No base arms, and no break triggers, at or after this time.") + _near() + _risk(
+    "Break: entry minus the base low. Hold: entry minus the hold candle's low. A bigger risk skips the setup.") + (
+    _p("target_mode", "risk", "Target 1", CHOICE, "r",
+       choices=(("r", "R x risk over the entry (the research's)"), ("fixed", "a fixed amount over the entry")),
+       help="Half comes off at target 1 and the stop moves to the entry (the scoring exit)."),
+    _TARGET_R, _TARGET_FIXED, _BAILOUT,
+) + _TAPE + _GRADE + _BOT
+
+# -- Red to green (P3, ``find_red_to_green``): the open, then back through it. ----------
+_RED_TO_GREEN: tuple[ParamSpec, ...] = _STOCK + (
+    _p("r2g_min_red_bars", "setup", "Closes under the open at least", INT, SETUPS_R2G_MIN_RED_BARS, unit="candles", min=1,
+       max=60, step=1, help="Counted from the opening candle; the last close must be under the open too."),
+) + _ema("The scoring exit's EMA (red to green reads no EMA to arm).") + _macd(
+    "The last red candle's MACD histogram is above zero. A reclaim with it under zero is not a try.") + (
+    _p("session_start", "entry", "The open at", TIME, SETUPS_R2G_OPEN_ET, unit="ET", min="04:00", max="16:00",
+       help="The level is the open of the first candle at or after this time."),
+    _p("r2g_cutoff", "entry", "Reclaim by", TIME, SETUPS_R2G_CUTOFF_ET, unit="ET", min="04:00", max="20:00",
+       help="Nothing arms, and nothing triggers, at or after this time. One try a day before it."),
+    _p("entry_offset", "entry", "Buy over the open by", NUMBER, SETUPS_ENTRY_OFFSET_DOLLARS, unit="$", min=0, max=1,
+       step=0.01, help="The entry is the open plus this (the bar's open when it gapped over)."),
+) + _near() + _risk("Entry minus the lowest low since the open. A reclaim with a bigger risk spends the day's try.") + (
+    _TARGET_R,
+    _p("r2g_target_hod", "risk", "Target is at least the high of day", BOOL, SETUPS_R2G_TARGET_HOD,
+       help="On: target 1 is the high of day when that is higher than R x risk."),
+    _BAILOUT,
+) + _TAPE + _GRADE + _BOT
+
 # -- Setups without a scanner: the research harness's pre-registered numbers. -------
-# Mirrors research/momentum/backtest_setups.py ``Params`` (P2 flat top, P3 red to
-# green) and research/orb/backtest_gng.py ``GParams`` (A2 Gap and Go); a test
-# checks the defaults against those files. Kept, not watched: no scanner reads them.
+# Mirrors research/orb/backtest_gng.py ``GParams`` (A2 Gap and Go); a test checks the
+# defaults against that file. Kept, not watched: no scanner reads them.
 _RESEARCH_UNIVERSE: tuple[ParamSpec, ...] = (
     _p("min_price", "universe", "Price at 09:30 from", NUMBER, 2.0, unit="$", min=0.1, max=1000, step=0.5, live=False),
     _p("max_price", "universe", "Price at 09:30 to", NUMBER, 20.0, unit="$", min=0.1, max=1000, step=0.5, live=False),
@@ -269,45 +444,6 @@ _RESEARCH_UNIVERSE: tuple[ParamSpec, ...] = (
     _p("require_news", "universe", "Needs a news article", BOOL, True, live=False,
        help="At least one article since the prior close, before 09:30."),
 )
-
-
-def _shared_bar_rules(*, start: str, cutoff: str) -> tuple[ParamSpec, ...]:
-    return (
-        _p("session_start", "entry", "Enters from", TIME, start, unit="ET", min="04:00", max="20:00", live=False),
-        _p("entry_cutoff", "entry", "Enters until", TIME, cutoff, unit="ET", min="04:00", max="20:00", live=False),
-        _p("ema_period", "setup", "EMA", INT, 9, unit="bars", min=2, max=100, step=1, live=False),
-        _p("ema_tol", "setup", "EMA slack", NUMBER, 0.0, unit="%", min=0, max=10, step=0.1, live=False),
-        _p("macd_positive", "setup", "MACD histogram above zero", BOOL, True, live=False),
-        _p("max_per_symbol_day", "setup", "Trades a symbol a day", INT, 2, unit="trades", min=1, max=10, step=1,
-           live=False),
-        _p("stop_cap", "risk", "Largest risk a share", NUMBER, 0.20, unit="$", min=0.01, max=10, step=0.01, live=False),
-        _p("min_stop", "risk", "Smallest risk a share", NUMBER, 0.03, unit="$", min=0, max=5, step=0.01, live=False),
-        _p("target_r", "risk", "Target 1", NUMBER, 2.0, unit="R", min=0.25, max=20, step=0.25, live=False,
-           help="Half off at target 1, the stop to the entry, the rest on the first close under the EMA."),
-        _p("bailout_bars", "risk", "Out after", INT, 5, unit="bars", min=1, max=120, step=1, live=False,
-           help="This many candles without a close over the entry -> out at the close."),
-    )
-
-
-_FLAT_TOP: tuple[ParamSpec, ...] = _RESEARCH_UNIVERSE + (
-    _p("ft_impulse_pct", "setup", "Impulse at least", NUMBER, 3.0, unit="%", min=0.5, max=100, step=0.5, live=False,
-       help="The move into the high of day, over the leg window's lowest low."),
-    _p("leg_window", "setup", "Impulse window", INT, 10, unit="bars", min=2, max=120, step=1, live=False),
-    _p("ft_min_consol", "setup", "Tight candles at least", INT, 2, unit="bars", min=1, max=30, step=1, live=False),
-    _p("ft_max_consol", "setup", "Tight candles at most", INT, 6, unit="bars", min=1, max=30, step=1, live=False),
-    _p("ft_band", "setup", "Closes within", NUMBER, 2.0, unit="% under the high", min=0.1, max=20, step=0.1,
-       live=False, help="Every consolidation close sits within this of the high of day."),
-    _p("ft_entry", "entry", "Entry", CHOICE, "hold",
-       choices=(("hold", "a green candle that holds over the high"), ("break", "the break of the high")), live=False),
-    _p("ft_hold_bars", "entry", "Hold must come within", INT, 3, unit="bars", min=1, max=30, step=1, live=False),
-) + _shared_bar_rules(start="09:30", cutoff="11:30")
-
-_RED_TO_GREEN: tuple[ParamSpec, ...] = _RESEARCH_UNIVERSE + (
-    _p("r2g_min_red_bars", "setup", "Closes under the open at least", INT, 1, unit="bars", min=1, max=60, step=1,
-       live=False),
-    _p("r2g_cutoff", "entry", "Reclaim by", TIME, "10:30", unit="ET", min="04:00", max="20:00", live=False),
-    _p("r2g_target_hod", "risk", "Target is at least the high of day", BOOL, True, live=False),
-) + _shared_bar_rules(start="09:30", cutoff="11:30")
 
 _GAP_AND_GO: tuple[ParamSpec, ...] = _RESEARCH_UNIVERSE + (
     _p("top", "universe", "Candidates a day", INT, 10, unit="names", min=1, max=100, step=1, live=False,
@@ -324,18 +460,23 @@ _GAP_AND_GO: tuple[ParamSpec, ...] = _RESEARCH_UNIVERSE + (
 
 CATALOGUE: dict[str, tuple[ParamSpec, ...]] = {
     BOT_SETUP_FIRST_PULLBACK: _FIRST_PULLBACK,
-    BOT_SETUP_GAP_AND_GO: _GAP_AND_GO,
+    BOT_SETUP_BULL_FLAG: _BULL_FLAG,
     BOT_SETUP_FLAT_TOP: _FLAT_TOP,
     BOT_SETUP_RED_TO_GREEN: _RED_TO_GREEN,
+    BOT_SETUP_GAP_AND_GO: _GAP_AND_GO,
     BOT_SETUP_MICRO_PULLBACK: (),
 }
 
 # Where each setup's numbers come from, as the Bots page says it.
 SOURCES: dict[str, str] = {
     BOT_SETUP_FIRST_PULLBACK: "The live scanner's rules (ADR 022). Every template is watched at once.",
+    BOT_SETUP_BULL_FLAG: ("The live scanner's rules, pre-registered in ADR 031 from your material -- never tested on "
+                          "bars; its read-out is its first test. Every template is watched at once."),
+    BOT_SETUP_FLAT_TOP: ("The live scanner reads the research's pre-registered rules (P2, ADR 031); it arms from 07:00 "
+                         "where the research began at 09:30. Every template is watched at once."),
+    BOT_SETUP_RED_TO_GREEN: ("The live scanner reads the research's pre-registered rules (P3, ADR 031). Every template "
+                             "is watched at once."),
     BOT_SETUP_GAP_AND_GO: "The research's pre-registered rules (A2). Kept for its scanner -- nothing watches them yet.",
-    BOT_SETUP_FLAT_TOP: "The research's pre-registered rules (P2). Kept for its scanner -- nothing watches them yet.",
-    BOT_SETUP_RED_TO_GREEN: "The research's pre-registered rules (P3). Kept for its scanner -- nothing watches them yet.",
     BOT_SETUP_MICRO_PULLBACK: "No parameters yet: it has never been tested. They are set when its one-second test (S5) is built.",
 }
 
@@ -343,12 +484,14 @@ SOURCES: dict[str, str] = {
 _ORDERED: tuple[tuple[str, str, bool, str], ...] = (
     ("min_price", "max_price", True, "the price floor is over the ceiling"),
     ("min_pullback_bars", "max_pullback_bars", True, "the shortest pullback is longer than the longest"),
+    ("min_flag_bars", "max_flag_bars", True, "the shortest flag is longer than the longest"),
     ("session_start", "entry_cutoff", False, "the arming window ends before it starts"),
+    ("session_start", "r2g_cutoff", False, "the reclaim window ends before the open"),
     ("bot_window_start", "bot_window_end", False, "the bot's window ends before it starts"),
     ("pillar_min_price", "pillar_max_price", True, "the price pillar's floor is over its ceiling"),
     ("wall", "big_seller", True, "the seller that waits is bigger than the one that vetoes"),
     ("macd_fast", "macd_slow", False, "the MACD fast period is not shorter than the slow"),
-    ("ft_min_consol", "ft_max_consol", True, "the fewest tight candles is more than the most"),
+    ("ft_min_consol", "ft_max_consol", True, "the fewest base candles is more than the most"),
     ("t1_r", "t2_r", True, "target 1 is beyond target 2"),
 )
 

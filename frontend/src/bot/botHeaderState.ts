@@ -22,7 +22,7 @@ export interface BotHeaderState {
 export function botHeaderState(session: BotSession, looksActive: boolean): BotHeaderState {
   const level = session.level > 2 ? 2 : session.level;
   if (level <= 0) {
-    return { level: '', name: BOT_LEVEL_LABELS[0], state: '', tone: 'off', title: 'Bot is off: the bot API is dark; the setup scanner still watches and proposes' };
+    return { level: '', name: BOT_LEVEL_LABELS[0], state: '', tone: 'off', title: 'Bot is off: the bot API is dark, and the chosen setup scores in silence -- no proposals (each setup card has its own Off / Eyes)' };
   }
   const name = BOT_SETUP_LABELS[session.setup ?? ''] ?? session.setup ?? '';
   const closed = (session.gates ?? []).filter(g => !g.ok).map(g => g.id.replace(/_/g, ' '));
@@ -30,7 +30,7 @@ export function botHeaderState(session: BotSession, looksActive: boolean): BotHe
     ? closed.length ? `${closed.length} of ${session.gates.length} gates closed: ${closed.join(', ')}` : 'every gate is open'
     : 'gates not reported by this API';
   if (level === 1) {
-    return { level: 'L1', name, state: BOT_LEVEL_LABELS[1], tone: 'idle', title: `Eyes: a connected bot may watch and propose, you place · ${gatesText}` };
+    return { level: 'L1', name, state: BOT_LEVEL_LABELS[1], tone: 'idle', title: `Eyes: the chosen setup proposes on near + go and a connected bot may watch and propose; you place · ${gatesText}` };
   }
   return {
     level: 'L2',

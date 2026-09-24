@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Run the book watcher (ADR 031) over a Session Record: what it would have flagged.
+"""Run the book watcher (ADR 033) over a Session Record: what it would have flagged.
 
 The same detector the live desk runs (``backend/book_watch/detector.py``), fed
 the recording's ``l2.jsonl`` and ``prints.jsonl`` in arrival order: resting
 size that traded away (filled) against size that left without trading
 (pulled), the large pulls, and the flags -- hints consistent with spoofing,
-never a detection. Recordings made before ADR 031 kept at most 8 books a
+never a detection. Recordings made before ADR 033 kept at most 8 books a
 second, so their drops span longer gaps; the report prints the rate it read.
 
 Usage:

@@ -22,7 +22,7 @@ SENSOR_MACD_SLOW = 26
 SENSOR_MACD_SIGNAL = 9
 SENSOR_EMA_PERIODS = (9, 20, 200)
 SENSOR_FLOW_SWEEP_MIN_PRINTS = 3
-# The L2 sensor's spoof_hints: the book watcher's newest large pulls (ADR 031).
+# The L2 sensor's spoof_hints: the book watcher's newest large pulls (ADR 033).
 SENSOR_SPOOF_HINTS = 5
 
 # Clock labels for sensor 8 (session phase). Not a computed chop detector.
@@ -64,7 +64,7 @@ SENSOR_MACRO_EVENTS = (
     },
 )
 
-# Operator focus (ADR 031): what each desk window reports, joined into one answer.
+# Operator focus (ADR 033): what each desk window reports, joined into one answer.
 FOCUS_SCHEMA_VERSION = 1
 # A window (or the Electron main process) that has not reported for this long is gone.
 FOCUS_STALE_SEC = 20.0

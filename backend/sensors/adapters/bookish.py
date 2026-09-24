@@ -43,7 +43,7 @@ def _book_rates(symbol: str) -> dict[str, Any]:
 
     Rows are summed per price first: IBKR sends one row per venue, and keying
     rows by price alone let each venue at a price overwrite the one before it
-    (ADR 031). A decrease here is a fill or a pull; the book watcher
+    (ADR 033). A decrease here is a fill or a pull; the book watcher
     (``/sensors/book-pulls``) tells them apart against the tape, and
     ``spoof_hints`` are its newest large pulls.
     """

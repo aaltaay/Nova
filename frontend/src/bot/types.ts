@@ -1,7 +1,25 @@
 import type { BotActionKind } from '../constantGroups/bot';
 
-/** One setup of the operator's playbook (ADR 027); only one with a scanner can play. */
-export type BotSetupInfo = { id: string; scanner: boolean };
+/**
+ * One setup of the operator's playbook (ADR 027); only one with a scanner can play.
+ * ADR 031: `level` is the session's for the chosen setup, `setup_levels[id]` for the
+ * others (0 Off, 1 Eyes); null without a scanner. Absent on an older API.
+ */
+export type BotSetupInfo = { id: string; scanner: boolean; level?: number | null };
+
+/** One venue's loss breakers (ADR 032): negative dollars, the bot trip above the all-stop. */
+export type BotBreakerPair = { soft_usd: number; hard_usd: number };
+
+/** The loss breakers the Bots page draws (ADR 032): the desk venue's, every venue's, and the bounds. */
+export type BotBreakers = BotBreakerPair & {
+  venue: 'live' | 'paper' | 'sim' | string;
+  /** The operator moved this venue's pair (false: the defaults). */
+  custom: boolean;
+  defaults: BotBreakerPair;
+  by_venue: Record<string, BotBreakerPair>;
+  /** [loosest, tightest] for each, and the step the backend snaps to. */
+  bounds: { soft_usd: [number, number]; hard_usd: [number, number]; step_usd: number };
+};
 
 export type BotReadoutBlock = {
   triggered: number;
@@ -10,7 +28,7 @@ export type BotReadoutBlock = {
   avg_net_r: number | null;
 };
 
-/** The first-pullback read-out that unlocks Strategy (backend setup_scanner/readout.py). */
+/** The chosen setup's read-out that unlocks Strategy on Live (backend setup_scanner/readout.py, ADR 031). */
 export type BotReadout = {
   state: 'collecting' | 'passed' | 'not_passed' | 'failed' | 'unavailable' | string;
   passed: boolean;
@@ -62,6 +80,10 @@ export type BotSession = {
   /** ADR 027: the setup that plays, the playbook, its read-out and every gate. */
   setup?: string;
   setups?: BotSetupInfo[];
+  /** ADR 031: every other setup with a scanner, Off (0) or Eyes (1). */
+  setup_levels?: Record<string, number>;
+  /** ADR 032: the loss breakers, per venue. Absent on an older API (the fixed -50 / -200). */
+  breakers?: BotBreakers;
   readout?: BotReadout;
   /** ADR 030: false on Paper and Sim, where Strategy does not wait on the read-out. */
   readout_required?: boolean;

@@ -7,6 +7,7 @@ reason, never ``ok``; the drive only ever makes the row worse.
 """
 from __future__ import annotations
 
+import re
 from collections import namedtuple
 
 import pytest
@@ -74,7 +75,8 @@ def test_free_space_warns_under_50_gb_and_fails_under_10(monkeypatch, store_file
 
 def test_the_warning_names_the_room_left(monkeypatch, store_files):
     row = _row(monkeypatch, free=42 * GB)
-    assert row["detail"].startswith("the drive holding ")
+    # A Windows store is named by its drive letter ("C: has ..."); elsewhere by the folder holding it.
+    assert re.match(r"^(the drive holding |[A-Za-z]: )", row["detail"]), row["detail"]
     assert "has 42 GB free (warns under 50 GB); the store is 0 MB" in row["detail"]
 
 

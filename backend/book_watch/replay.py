@@ -1,8 +1,8 @@
-"""Run the book watcher over a Session Record (ADR 031): the same detector as live.
+"""Run the book watcher over a Session Record (ADR 033): the same detector as live.
 
 Reads ``l2.jsonl`` and ``prints.jsonl`` from one recording directory, merged in
 arrival order (a book row's ``ts`` is its receipt; a print's ``receive_ts``,
-else ``ts``). Recordings made before ADR 031 kept at most 8 books a second, so
+else ``ts``). Recordings made before ADR 033 kept at most 8 books a second, so
 their drops span longer gaps: the replay says how many books it read per second.
 """
 from __future__ import annotations

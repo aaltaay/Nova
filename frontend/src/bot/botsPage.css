@@ -269,7 +269,7 @@
 
 /* -- Grids ------------------------------------------------------------------ */
 .bots-grid { display: grid; gap: 10px; align-items: start; min-width: 0; }
-.bots-grid--top { grid-template-columns: minmax(0, 1.9fr) minmax(340px, 1fr); }
+.bots-grid--top { grid-template-columns: minmax(0, 1.15fr) minmax(340px, 1fr); }
 .bots-grid--bottom { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .bots-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 

@@ -22,13 +22,26 @@ logger = logging.getLogger(__name__)
 _readout_for_tests: dict[str, Any] | None = None
 
 
+def chosen_setup() -> str:
+    """The setup that plays (ADR 027); the default when the session cannot be read."""
+    from constants_bot import BOT_SETUP_DEFAULT
+
+    try:
+        from bot.persist import load_session
+
+        return str(load_session().get("setup") or BOT_SETUP_DEFAULT)
+    except Exception:
+        logger.warning("bot gates: the chosen setup is unreadable -- reading the default's read-out", exc_info=True)
+        return BOT_SETUP_DEFAULT
+
+
 def readout() -> dict[str, Any]:
-    """The chosen setup's read-out (first pullback: ``setup_scanner.readout``)."""
+    """The chosen setup's read-out (``setup_scanner.readout``, per setup since ADR 031)."""
     if _readout_for_tests is not None:
         return _readout_for_tests
     from setup_scanner.readout import current
 
-    return current()
+    return current(setup=chosen_setup())
 
 
 def readout_passed() -> bool:
@@ -64,8 +77,9 @@ def assert_readout_open() -> None:
     if readout_open():
         return
     out = readout()
+    label = chosen_setup().replace("_", "-")
     raise BotError(
-        f"Strategy waits on the first-pullback read-out -- {out.get('reason') or out.get('state')}",
+        f"Strategy waits on the {label} read-out -- {out.get('reason') or out.get('state')}",
         409,
         BOT_REASON_READOUT_NOT_PASSED,
     )

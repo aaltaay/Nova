@@ -1,0 +1,55 @@
+/* The desk-wide "what does this mean" tip (ux/hoverTip.ts). One element per
+   window, fixed to the viewport, never under a scroll container's clip. */
+
+@layer components {
+  .hover-tip {
+    position: fixed;
+    z-index: 2147482990;
+    max-width: min(380px, calc(100vw - 16px));
+    padding: 8px 11px 9px;
+    border-radius: 8px;
+    border: 1px solid var(--nova-border-strong, rgba(255, 255, 255, 0.22));
+    background: var(--nova-raised, #2c2c2e);
+    color: var(--nova-text-muted, #c7c7cc);
+    box-shadow: 0 12px 30px rgb(0 0 0 / 0.5);
+    font-size: 12px;
+    font-weight: 450;
+    line-height: 1.45;
+    text-align: left;
+    pointer-events: none;
+  }
+
+  .hover-tip[hidden] {
+    display: none;
+  }
+
+  .hover-tip__title {
+    margin-bottom: 4px;
+    color: var(--nova-text, #f5f5f7);
+    font-size: 12.5px;
+    font-weight: 650;
+  }
+
+  .hover-tip__title[hidden] {
+    display: none;
+  }
+
+  .hover-tip__body {
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Anything that explains itself reads as such. */
+@layer overrides {
+  [data-tip]:not(:disabled) {
+    cursor: help;
+  }
+
+  button[data-tip]:not(:disabled),
+  a[data-tip],
+  [role='button'][data-tip],
+  [role='radio'][data-tip] {
+    cursor: pointer;
+  }
+}

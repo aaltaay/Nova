@@ -23,20 +23,30 @@ BOT_STRATEGY_SMALL_CAP = "small-cap"
 BOT_STRATEGIES = (BOT_STRATEGY_SMALL_CAP,)
 
 # -- The playbook (ADR 027): the operator's setups from their trading material.
-# One plays at a time; only a setup with a live scanner can be chosen.
+# One plays at a time; only a setup with a live scanner can be chosen. ADR 031:
+# the bull flag joins, and it, the flat-top breakout and red to green get scanners.
 BOT_SETUP_FIRST_PULLBACK = "first_pullback"
+BOT_SETUP_BULL_FLAG = "bull_flag"
 BOT_SETUP_GAP_AND_GO = "gap_and_go"
 BOT_SETUP_FLAT_TOP = "flat_top_breakout"
 BOT_SETUP_RED_TO_GREEN = "red_to_green"
 BOT_SETUP_MICRO_PULLBACK = "micro_pullback"
 BOT_SETUPS = (
     BOT_SETUP_FIRST_PULLBACK,
-    BOT_SETUP_GAP_AND_GO,
+    BOT_SETUP_BULL_FLAG,
     BOT_SETUP_FLAT_TOP,
     BOT_SETUP_RED_TO_GREEN,
+    BOT_SETUP_GAP_AND_GO,
     BOT_SETUP_MICRO_PULLBACK,
 )
-BOT_SETUPS_WITH_SCANNER = frozenset({BOT_SETUP_FIRST_PULLBACK})
+# The setups whose scanners run, in the order the engine builds their lanes.
+BOT_SCANNER_SETUPS = (
+    BOT_SETUP_FIRST_PULLBACK,
+    BOT_SETUP_BULL_FLAG,
+    BOT_SETUP_FLAT_TOP,
+    BOT_SETUP_RED_TO_GREEN,
+)
+BOT_SETUPS_WITH_SCANNER = frozenset(BOT_SCANNER_SETUPS)
 BOT_SETUP_DEFAULT = BOT_SETUP_FIRST_PULLBACK
 # The material's trading window and one trade a day: entries (buy_* kinds) at
 # Strategy only. Venue clock (the replay playhead on Sim).
@@ -90,8 +100,17 @@ BOT_DEFAULT_BID_EXIT_OFFSET_USD = 0.03
 BOT_ADVISE_DEFAULT_USD_CAP = 2.0
 BOT_ADVISE_DEFAULT_CALL_CAP = 10
 
-BOT_SOFT_BREAKER_USD = -50.0
-BOT_HARD_BREAKER_USD = -200.0
+# Loss breakers on the whole account's day P&L (operator ask 2026-09-24): the
+# operator's settings per venue (``bot.breaker_limits``), these the defaults.
+BOT_SOFT_BREAKER_USD = -50.0            # the bot trip: flatten, the bot to L0
+BOT_HARD_BREAKER_USD = -200.0           # the all-stop: flatten, bot and manual buys locked to ET midnight
+BOT_SOFT_BREAKER_LOOSEST_USD = -1000.0
+BOT_SOFT_BREAKER_TIGHTEST_USD = -5.0
+BOT_HARD_BREAKER_LOOSEST_USD = -5000.0
+BOT_HARD_BREAKER_TIGHTEST_USD = -10.0
+BOT_BREAKER_STEP_USD = 5.0
+BOT_BREAKER_VENUES = ("live", "paper", "sim")
+BOT_REASON_BREAKER_INVALID = "BOT_BREAKER_INVALID"
 BOT_FLATTEN_RETRIES = 1
 BOT_BREAKER_POLL_SEC = 1.0
 BOT_TTL_POLL_SEC = 0.5
@@ -138,6 +157,9 @@ BOT_REASON_READOUT_NOT_PASSED = "BOT_READOUT_NOT_PASSED"
 BOT_REASON_OUTSIDE_WINDOW = "BOT_OUTSIDE_WINDOW"
 BOT_REASON_DAY_TRADE_CAP = "BOT_DAY_TRADE_CAP"
 BOT_REASON_SETUP_NO_SCANNER = "BOT_SETUP_NO_SCANNER"
+# ADR 031: a level per setup -- only a setup with a scanner other than the chosen one
+# takes one through ``setup_levels`` (Off or Eyes); the chosen setup's is ``level``.
+BOT_REASON_SETUP_LEVEL = "BOT_SETUP_LEVEL"
 # #564 (operator decision 2026-09-24): on Live the breakers' day P&L subtracts
 # the session's commissions; while that read fails the day P&L is unknown and
 # no new bot entry is sent. Exits, cancels, flatten and kill are never held.

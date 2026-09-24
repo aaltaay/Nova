@@ -67,7 +67,7 @@ class Fidelity:
 
     def offer_l2(self, row: dict) -> dict | None:
         # Books the IBKR bridge held back before this one never reach here; the
-        # row says how many so the manifest counts every book lost (ADR 031).
+        # row says how many so the manifest counts every book lost (ADR 033).
         held_back = max(0, int(row.pop("coalesced_before", 0) or 0))
         self.l2_offered += 1 + held_back
         self.l2_coalesced += held_back

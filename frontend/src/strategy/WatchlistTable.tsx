@@ -180,7 +180,7 @@ export function WatchlistTable({ entries, loading, error, selectedSymbol, onSele
                 <th className="num">Float</th>
                 <th title="Today's catalyst since the prior close, by the same rules as the setup grade">News</th>
                 <th title="0-100 composite: breaks ties among symbols with the same pillar count">Score</th>
-                <th title="Where the first-pullback scanner has it">Setup</th>
+                <th title="Its most advanced setup on the setup scanners (first pullback, bull flag, flat-top, red to green); hover a cell for what it means">Setup</th>
                 <th className="wl-bot-cell" title="On the bot allowlist">Bot</th>
               </tr>
             </thead>

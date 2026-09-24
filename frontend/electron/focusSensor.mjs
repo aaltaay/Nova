@@ -1,5 +1,5 @@
 /**
- * The operator's focus, the Electron main process's half (ADR 031): which Nova
+ * The operator's focus, the Electron main process's half (ADR 033): which Nova
  * window Windows has in front, and the monitor each window sits on -- only the
  * main process can know either. Posted to `POST /sensors/focus` as role
  * `electron` on every focus change, move, minimize and display change (settled
