@@ -181,7 +181,7 @@
       "frontend/src/stock_view/FocusRail.tsx|stock_view imports internals of leaderboard": 1,
       "frontend/src/stock_view/FocusRail.tsx|stock_view imports internals of scanner": 2,
       "frontend/src/stock_view/FocusRail.tsx|stock_view imports internals of settings": 1,
-      "frontend/src/stock_view/FocusRail.tsx|stock_view imports internals of sim": 2,
+      "frontend/src/stock_view/FocusRail.tsx|stock_view imports internals of sim": 1,
       "frontend/src/stock_view/FocusRail.tsx|stock_view imports internals of workspace": 2,
       "frontend/src/stock_view/StockViewDepthTape.tsx|stock_view imports internals of ibkr": 2,
       "frontend/src/stock_view/StockViewDepthTape.tsx|stock_view imports internals of modules": 2,

@@ -134,16 +134,6 @@ export const NOVA_MODULES: readonly NovaModule[] = [
     countKey: 'losers',
   },
   {
-    id: 'running_up',
-    title: 'Running Up',
-    component: host,
-    feedDeps: ['hod_momo'],
-    defaultPlacement: 'tab',
-    showInTabNav: true,
-    navGroup: 'lists',
-    countKey: 'runningUp',
-  },
-  {
     id: 'afterhours',
     title: 'After Hours',
     component: host,
@@ -184,6 +174,19 @@ export const NOVA_MODULES: readonly NovaModule[] = [
     showInTabNav: true,
     navGroup: 'signals',
     countKey: 'hodMomo',
+  },
+  {
+    // An alert list like HOD Momo, not a board: it focuses the alert strip
+    // above the board, so it sits beside HOD Momo under Signals (operator
+    // ask 2026-09-24: under Lists it read as a board that never showed).
+    id: 'running_up',
+    title: 'Running Up',
+    component: host,
+    feedDeps: ['hod_momo'],
+    defaultPlacement: 'tab',
+    showInTabNav: true,
+    navGroup: 'signals',
+    countKey: 'runningUp',
   },
   {
     id: 'catalysts',

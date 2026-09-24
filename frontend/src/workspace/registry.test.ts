@@ -53,10 +53,10 @@ describe('module registry (Phase 4)', () => {
     const groups = listScannerNavGroups();
     expect(groups.map(g => g.group)).toEqual(['lists', 'signals', 'mine']);
     expect(groups[0].modules.map(m => m.id)).toEqual([
-      'gappers', 'gainers', 'losers', 'running_up', 'afterhours', 'large_cap',
+      'gappers', 'gainers', 'losers', 'afterhours', 'large_cap',
     ]);
     expect(groups[1].modules.map(m => m.id)).toEqual([
-      'volume_boost', 'hod_momo', 'catalysts', 'earnings', 'nova_news',
+      'volume_boost', 'hod_momo', 'running_up', 'catalysts', 'earnings', 'nova_news',
     ]);
     expect(groups[2].modules.map(m => m.id)).toEqual(['watch_list', 'watchlist']);
     // Account, Reports and Strategy are rail items of their own, never Scanner children.
