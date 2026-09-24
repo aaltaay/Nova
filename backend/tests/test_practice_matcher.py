@@ -78,6 +78,50 @@ async def test_a_pass_never_rereads_prints_it_already_looked_at(desk) -> None:
     assert len(await matcher.pass_once(broker)) == 1
 
 
+class ArchivedLive(FakeLive):
+    """The live reference as the archive has it: complete only through ``through``."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.through = NOW
+
+    def archived_through(self, now: float) -> float:
+        return min(now, self.through)
+
+
+@pytest.mark.asyncio
+async def test_a_print_the_archive_writes_late_still_fills_the_order(desk) -> None:
+    """The archive's writer is its own thread: a pass reads no further than it has written.
+
+    Before 2026-09-24 the cursor moved to the wall clock every pass, so a print
+    the writer reached a second late fell behind it and was never read.
+    """
+    broker, _ref, _holds, _errors = desk
+    ref = ArchivedLive()
+    broker.reference = ref
+    broker.place("IMCC", "BUY", 10, "LMT", limit_price=9.5)
+    ref.now, ref.through = NOW + 2, NOW + 0.5  # the writer is behind
+    assert await matcher.pass_once(broker) == []
+    ref.prints = [(NOW + 1, 9.4)]  # written now, stamped inside the window the pass skipped
+    ref.now, ref.through = NOW + 3, NOW + 3
+    filled = await matcher.pass_once(broker)
+    assert [(r["avg_fill_price"], r["fill_basis"]) for r in filled] == [(9.5, "print_cross")]
+
+
+@pytest.mark.asyncio
+async def test_an_archive_mark_behind_the_cursor_never_moves_it_back(desk) -> None:
+    broker, _ref, _holds, _errors = desk
+    ref = ArchivedLive()
+    broker.reference = ref
+    broker.place("IMCC", "BUY", 10, "LMT", limit_price=9.5)
+    ref.now, ref.through = NOW + 2, NOW + 2
+    assert await matcher.pass_once(broker) == []
+    ref.prints = [(NOW + 1.5, 9.4)]  # already looked at: never read twice
+    ref.now, ref.through = NOW + 3, NOW + 1
+    assert await matcher.pass_once(broker) == []
+    assert matcher._cursors["paper"]["IMCC"] == NOW + 2
+
+
 @pytest.mark.asyncio
 async def test_a_pass_rolls_the_practice_day_even_with_nothing_resting(desk) -> None:
     broker, ref, _holds, _errors = desk

@@ -1416,6 +1416,35 @@ The L1 last every quote reader takes (`ibkr/ticks_handler.py`) is IBKR's Last (t
 
 **Level 2 books are Nova's own (#540).** ib_async 2.1.0 keeps each side of a depth book in a dict keyed by row: an IBKR insert overwrites the row instead of shifting the rows below it, a delete leaves a hole, and a row inserted after a delete lands at the end, so `ticker.domBids` / `domAsks` fell out of price order (GRML 2026-09-22: 466 of 111,116 recorded books, 269 with a first bid or ask that was not the best). `ibkr/depth/book.py` keeps each line's book from `ticker.domTicks` with IBKR's row rules, reset on every depth request and on IBKR error 317 (depth reset); every Level 2 reader -- the ladder, Session Record quote and L2 rows, the tape gate, Time & Sales sides -- gets that book. A kept book found out of price order is sorted and logged once per line. Books recorded before this are read best-price-first (`sim/capture_player.book_at`, `l2/recall.book_before`); quote rows recorded from them are not rewritten.
 
+### The tape archive never stops writing (operator report, 2026-09-24)
+
+Owner `ibkr/tape_sink.py`. The L2 tape archive writer (`l2.db`
+`tape_trades`, the prints Paper resting orders fill on) takes up to
+`TAPE_RECORD_BATCH_MAX` prints per transaction off a queue of
+`TAPE_RECORD_PENDING`. It **never latches**. A full backlog sheds the prints it
+cannot hold (`backlog_full`) and a failed write loses that batch
+(`write_failed`). Either way the loss is counted and stated, and the writer
+takes prints again as soon as it can. `/api/l2/status` `tape.writer` is
+`{error: string | null, pending, written, dropped, losing: boolean, losses:
+[{cause: "backlog_full" | "write_failed", since, until: number | null,
+dropped, symbols: string[], first_print_ts, last_print_ts, detail}]}`.
+`losses` holds the newest `TAPE_RECORD_LOSS_KEEP` episodes, with `until: null`
+while an episode is still open. `error` states an open episode or one that
+ended within `TAPE_RECORD_LOSS_RECENT_SEC` (it also carries a shutdown that
+timed out). `dropped` counts every print lost in this process. The Paper
+matcher (and Sim at the live edge) reads resting orders' prints only as far as
+the writer's written-through mark (`Sink.written_through`: every print
+stamped earlier is written or counted lost), so a print the writer reaches late
+is read next pass. `/api/diagnostics` adds the `tape_archive` row (group
+`practice`, `evidence: {writer, resting, blind, unwatched, symbols}`):
+`fail` while an order rests on a symbol whose prints are not reaching the
+archive (the writer is losing prints now, the line prints with nothing
+archived for over `TAPE_RECORD_STALE_SEC`, or the symbol is not archived),
+`warn` on a recent loss or a blind symbol with nothing resting, `off` with
+nothing archived. Before this fix, the first full backlog shed every print
+until a restart. On 2026-09-24 that left every Paper resting order unfilled
+from 07:29 ET: an APUS SELL limit at 4.96 sat while APUS printed 5.00.
+
 ### Chart bars say when IBKR history stopped answering (ADR 012, #555)
 
 `GET /api/ticker/{symbol}/bars` on the IBKR store-first path (not a Sim replay, not Alpaca) and every `bars_patch` frame on `/ws/ticker/{symbol}` carry, in `coverage` beside `filling`, `last_error: string | null` and `last_error_ts: number | null` (epoch seconds): the backend's reason and time for the last historical fetch of that (symbol, timeframe) that IBKR did not answer -- a timeout (504) or an error answer / failed qualify (502), never a Gateway-down 503 or a 400 / 404. Both are `null` when there is none; a success clears the pair at once, and a failure nobody has asked about again is forgotten after `IBKR_HISTORICAL_FAILURE_MEMORY_SEC` (owner `ibkr/historical_failures.py`, in memory only, never stored in `bars_coverage`). A failed pair is not sent to IBKR again, for any priority, for `IBKR_HISTORICAL_FAILURE_BACKOFF_SEC`: the request is shed and the pane's own retry asks again, so a farm outage stops spending the 60 / 10 min budget. A pane with no bars that is filling with `last_error` set reads "IBKR history did not answer — retrying" with the reason, not "Loading IBKR historical…"; a painted pane's header hint says the same.
@@ -1762,6 +1791,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-24 | Paper resting orders fill again when the tape archive falls behind (operator report: "I don't understand why this is not going through my working order"): an APUS SELL limit at $4.96 rested unfilled while APUS printed $5.00. Resting Paper fills read the L2 tape archive, and its writer had latched at 07:29:41 ET. It wrote one print per connection (about 190 prints/s at best), a 256-print backlog filled as the tape reached 150 written prints/s, and the first overflow shed every later print until a restart. Only `/api/l2/status` said so. The writer (`ibkr/tape_sink.py`) now writes a batch per transaction (about 49,000 prints/s), holds 8,192, states each loss and keeps going. The matcher reads only as far as the archive has written, so a late print is no longer skipped. A `tape_archive` diagnostics row fails while a resting order's prints are not reaching the archive. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | The gap is never yesterday's (operator report: "massive discrepancy between the focus window and the stock quote ... it shows 9.9 when I don't think it is", "the digits on the left side are frozen"): GCTK's Focus rail read +9.9% at $4.13 and $4.16 while the Stock Quote read +103.46% on the 2.03 prior close. IBKR's open tick is the previous session's until 09:30 ET, so the Gainers row's "gap" was yesterday's open-to-close move, and every L1 patch tagged `gappers` wrote it over the Gappers row's real move (a roster replace put the move back: the flicker). The open tick now counts only once today's session has opened (`ibkr/open_tick.py`), and a Gappers patch carries its own gap (`gapper_view.patch_for_table`). §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Leftover-issue sweep (operator ask: "Do we have any still-leftover issues on GitHub? Can we go ahead and address them?"): all 28 open issues checked against master; five were already fixed and closed (#430, #448, #481, #484, #516). §3 amended for what shipped: scanner snapshots dated by their exchange session (#483); the replayed session's previous close is IBKR's own -- a recorded tick 9, the leaderboard, a download's regular-hours daily close, else none, never a 15:59 or after-hours close (#542); a recording's lost tape line is named, asked for again and counted in the manifest (#525, cause unproven); Time & Sales dims prints that do not set a price, and a capture replay's chart tip and last trade skip them (#543); Form 4 open-market insider purchases are a weak catalyst, rules v7 (#517); a float Yahoo's own counts contradict is flagged and short interest carries its FINRA date, no gate changed (#532, point 2 awaits the operator); the leaderboard store is schema 2 with per-day catalyst items for Sim playback (#498); chart bars coverage says when IBKR history stopped answering, and a failed pair backs off 30 s (#555). Also: the session commission read is cached exactly by ledger generation (#554), the Gateway port probe and HOD Momo's alert writes left the loops (#505, #553), Nova Action cancels and flattens work on a disarmed desk (#548, ADR 018 decision 4), tape and depth lines from an ended IBKR session stop counting as subscribed and are asked for again (#562, `ibkr/line_session.py`), the 17 stale Playwright specs match today's desk (#502), and several QA leftovers (#459, #486, #487). Decisions recorded on their issues: #449, #485, #499, #504, #514, #564; new bugs filed: #563, #565, #566. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | The first-pullback bot trades Paper and Sim; the read-out gates Live (ADR 030, #514; operator report: "When I'm on paper, I cannot activate the button for the bots" -- then "Paper/Sim skip it + build"). Activate at Strategy was locked on every venue by the first-pullback read-out (0 of 50 go setups: a go needs Nova to hold the name's Level 2 at the trigger), and nothing placed a trade on a trigger anyway. Now Paper and Sim skip the read-out (Live keeps it; an unreadable venue counts as Live), and `bot/first_pullback/` trades the template in play's go triggers there through every bot gate: a limit at the scanner's entry, a resting target, a watched stop, a 15-minute time stop, one trade a day (a miss gives the day back). Nothing places on Live. §3 amended. | User Directive + Claude Opus 5.5 |
