@@ -129,8 +129,8 @@ def test_capture_replay_candles_skip_volume_only_prints(monkeypatch):
         dict(ts=start + 2, price=190.38, size=100, conditions=" 4 W"),
         dict(ts=start + 3, price=192.80, size=100, conditions=" F  "),
     ]
-    state = player.CaptureData("2026-09-23|PLTR", "PLTR", prints, [], [], {},
-                               [p["ts"] for p in prints], [], [], {})
+    state = player.CaptureData("2026-09-23|PLTR", "PLTR", prints, [], [],
+                               [p["ts"] for p in prints], [], [])
     monkeypatch.setattr(player, "_state", state)
     partial = player.chart_bars("10Sec", 10, asof=start + 5)
     assert partial[-1]["l"] == 192.75 and partial[-1]["v"] == 300
