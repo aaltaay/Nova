@@ -22,6 +22,7 @@ import {
   BOT_SETUP_FIRST_PULLBACK,
   BOT_SETUP_LABELS,
 } from '../constantGroups/bot';
+import { BOTS_BUSY_WHY, BOTS_KEY_EMPTY_WHY, BOTS_SESSION_LOADING_WHY } from '../constantGroups/bots_page';
 import { BOT_CARD_SETUP_INFO_ARIA, BOT_CARD_TITLE } from '../constantGroups/trader_chrome';
 import { BotArmAllowlistControl } from './BotArmAllowlistControl';
 import { useBotArm } from './useBotArm';
@@ -54,12 +55,14 @@ export function BotAutonomyCard() {
         </span>
         {armed ? (
           <button type="button" className="bot-card__act" data-testid="bot-card-stop" disabled={busy || !session}
+            data-why={busy ? BOTS_BUSY_WHY : !session ? BOTS_SESSION_LOADING_WHY : undefined}
             onClick={() => void stop()}>
             {BOT_DEACTIVATE_LABEL}
           </button>
         ) : (
           <button type="button" className="bot-card__act" data-testid="bot-card-activate"
-            disabled={busy || activateBlocked} title={activateReason ?? undefined}
+            disabled={busy || activateBlocked}
+            data-why={busy ? BOTS_BUSY_WHY : activateBlocked ? activateReason ?? undefined : undefined}
             onClick={() => { if (!activateBlocked) void activate(); }}>
             {BOT_ACTIVATE_LABEL}
           </button>
@@ -69,7 +72,8 @@ export function BotAutonomyCard() {
         <label className="bot-card__kv">
           <span className="bot-card__k">{BOT_LEVEL_FIELD_LABEL}</span>
           <select aria-label={BOT_LEVEL_FIELD_LABEL} data-testid="bot-card-level" value={clampedLevel}
-            disabled={busy || !session} title={BOT_LEVEL_HINTS[clampedLevel]}
+            disabled={busy || !session} title={busy || !session ? undefined : BOT_LEVEL_HINTS[clampedLevel]}
+            data-why={busy ? BOTS_BUSY_WHY : !session ? BOTS_SESSION_LOADING_WHY : undefined}
             onChange={event => void onLevel(Number(event.target.value))}>
             <option value={0}>{BOT_LEVEL_LABELS[0]}</option>
             <option value={1}>{BOT_LEVEL_LABELS[1]}</option>
@@ -94,7 +98,8 @@ export function BotAutonomyCard() {
           onSubmit={event => { event.preventDefault(); writeNovaApiKey(keyDraft); setKeyDraft(''); }}>
           <input type="password" autoComplete="off" value={keyDraft} aria-label={BOT_API_KEY_HINT}
             placeholder={BOT_API_KEY_HINT} onChange={event => setKeyDraft(event.target.value)} />
-          <button type="submit" className="bot-card__act" disabled={!keyDraft.trim()}>{BOT_API_KEY_SAVE}</button>
+          <button type="submit" className="bot-card__act" disabled={!keyDraft.trim()}
+            data-why={keyDraft.trim() ? undefined : BOTS_KEY_EMPTY_WHY}>{BOT_API_KEY_SAVE}</button>
         </form>
       ) : null}
     </section>

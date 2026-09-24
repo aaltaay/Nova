@@ -108,16 +108,31 @@ describe('Strategies card', () => {
     const chosen = within(screen.getByTestId('bots-setup-first_pullback'));
     expect(chosen.getByText('First pullback')).toBeTruthy();
     expect(chosen.getByText(/Chosen/)).toBeTruthy();
-    expect(chosen.getByText(/Leg >= 5% to a new high/)).toBeTruthy();
+    // The rules are the template in play's numbers in words (ADR 029), never hand-written prose.
+    expect(chosen.getByText(/Leg ≥ 5% to a new high of day · 1–3 candles hold the 9 EMA/)).toBeTruthy();
+    expect(chosen.getByText(/HOD Momo names · any price · any float/)).toBeTruthy();
+    expect(chosen.getByText(/arms 07:00–11:30 · only when the tape says GO/)).toBeTruthy();
+    expect(chosen.getByText(/bot 07:00–10:00, 1 a day/)).toBeTruthy();
+    expect(chosen.getByText(/25k\+ seller not thinning/)).toBeTruthy();
+    expect((screen.getByTestId('bots-setup-template-first_pullback') as HTMLSelectElement).value).toBe('default');
     expect(screen.getByTestId('bots-readout-count').textContent).toBe('12 / 50');
     expect(screen.getByTestId('bots-readout').textContent).toMatch(/GO so far \+0\.31R vs blind \/ wait −0\.18R/);
     for (const id of ['gap_and_go', 'flat_top_breakout', 'red_to_green', 'micro_pullback']) {
       const card = within(screen.getByTestId(`bots-setup-${id}`));
       expect(card.getByText(/No scanner yet/)).toBeTruthy();
-      expect((screen.getByTestId(`bots-setup-radio-${id}`) as HTMLInputElement).disabled).toBe(true);
-      expect((screen.getByTestId(`bots-setup-level-${id}-2`) as HTMLButtonElement).disabled).toBe(true);
+      const radio = screen.getByTestId(`bots-setup-radio-${id}`) as HTMLInputElement;
+      expect(radio.disabled).toBe(true);
+      expect(radio.getAttribute('data-why')).toMatch(/No scanner yet/);
+      const lvl = screen.getByTestId(`bots-setup-level-${id}-2`) as HTMLButtonElement;
+      expect(lvl.disabled).toBe(true);
+      expect(lvl.getAttribute('data-why')).toMatch(/No scanner yet/);
     }
     expect(within(screen.getByTestId('bots-setup-gap_and_go')).getByText('Bars alone: failed')).toBeTruthy();
+    expect(within(screen.getByTestId('bots-setup-gap_and_go')).getByText(/Buy stop at the pre-market high until 10:00/))
+      .toBeTruthy();
+    const micro = screen.getByTestId('bots-setup-params-micro_pullback') as HTMLButtonElement;
+    expect(micro.disabled).toBe(true);
+    expect(micro.getAttribute('data-why')).toMatch(/never been tested/);
     expect(screen.queryByText(/Halt \/ LULD|Quote spike|Volume boost|LLM decide/)).toBeNull();
   });
 

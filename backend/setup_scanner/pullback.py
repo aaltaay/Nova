@@ -22,6 +22,12 @@ The board's other states are for the eye, not for arming: ``leg`` (a fresh
 high -- wait for the pullback), ``pullback`` (a setup exists but MACD, risk or
 the window blocks it), ``failed`` (the pullback broke a rule), ``watching``.
 
+Every number above is a ``PullbackParams`` field, which a template sets (ADR
+029); the defaults are the pre-registered rules. At most ``max_per_symbol_day``
+setups trigger on one symbol a day (the research's cap, ADR 022). Target 1 is
+max(leg high, entry + R x risk), or entry plus a fixed amount when the template
+asks for one.
+
 Pure: no I/O, no clock. The engine feeds bars and prices.
 """
 from __future__ import annotations
@@ -52,8 +58,10 @@ from constants_setups import (
     SETUPS_MACD_POSITIVE,
     SETUPS_MACD_SIGNAL,
     SETUPS_MACD_SLOW,
+    SETUPS_MAX_PER_SYMBOL_DAY,
     SETUPS_MAX_PULLBACK_BARS,
     SETUPS_MAX_RETRACE,
+    SETUPS_MIN_PULLBACK_BARS,
     SETUPS_MIN_STOP_DOLLARS,
     SETUPS_NEAR_DOLLARS,
     SETUPS_NEAR_PCT,
@@ -61,9 +69,12 @@ from constants_setups import (
     SETUPS_RISK_SLIPPAGE_DOLLARS,
     SETUPS_SESSION_START_ET,
     SETUPS_STOP_CAP_DOLLARS,
+    SETUPS_TARGET_FIXED_DOLLARS,
+    SETUPS_TARGET_MODE,
     SETUPS_TARGET_R,
 )
 from setup_scanner.bars import Bar
+from setup_scanner.series import Series, ema, macd_hist  # noqa: F401 -- callers import them from here
 
 ET = ZoneInfo("America/New_York")
 STALE_LEG_BARS = 10       # how far back a leg can still explain a "failed" row
@@ -80,37 +91,32 @@ class PullbackParams:
     leg_window: int = SETUPS_LEG_WINDOW_BARS
     leg_lookback: int = SETUPS_LEG_LOOKBACK_BARS
     require_hod: bool = SETUPS_REQUIRE_HOD
+    min_pullback_bars: int = SETUPS_MIN_PULLBACK_BARS
     max_pullback_bars: int = SETUPS_MAX_PULLBACK_BARS
     max_retrace: float = SETUPS_MAX_RETRACE
     ema_period: int = SETUPS_EMA_PERIOD
     ema_tol: float = SETUPS_EMA_TOLERANCE
     macd_positive: bool = SETUPS_MACD_POSITIVE
+    macd_fast: int = SETUPS_MACD_FAST
+    macd_slow: int = SETUPS_MACD_SLOW
+    macd_signal: int = SETUPS_MACD_SIGNAL
     stop_cap: float = SETUPS_STOP_CAP_DOLLARS
     min_stop: float = SETUPS_MIN_STOP_DOLLARS
     entry_offset: float = SETUPS_ENTRY_OFFSET_DOLLARS
     risk_slippage: float = SETUPS_RISK_SLIPPAGE_DOLLARS
+    target_mode: str = SETUPS_TARGET_MODE
     target_r: float = SETUPS_TARGET_R
+    target_fixed: float = SETUPS_TARGET_FIXED_DOLLARS
     near_dollars: float = SETUPS_NEAR_DOLLARS
     near_pct: float = SETUPS_NEAR_PCT
     session_start: str = SETUPS_SESSION_START_ET
     entry_cutoff: str = SETUPS_ENTRY_CUTOFF_ET
+    max_per_symbol_day: int = SETUPS_MAX_PER_SYMBOL_DAY
 
-
-def ema(values: list[float], n: int) -> list[float]:
-    if not values:
-        return []
-    a = 2.0 / (n + 1)
-    out = [values[0]]
-    for v in values[1:]:
-        out.append(a * v + (1 - a) * out[-1])
-    return out
-
-
-def macd_hist(closes: list[float]) -> list[float]:
-    fast, slow = ema(closes, SETUPS_MACD_FAST), ema(closes, SETUPS_MACD_SLOW)
-    line = [f - s for f, s in zip(fast, slow, strict=True)]
-    sig = ema(line, SETUPS_MACD_SIGNAL)
-    return [x - y for x, y in zip(line, sig, strict=True)]
+    def target1(self, leg_high: float, entry: float, risk: float) -> float:
+        if self.target_mode == "fixed":
+            return round(entry + self.target_fixed, 4)
+        return round(max(leg_high, entry + self.target_r * risk), 4)
 
 
 def et_time(ts: float) -> dtime:
@@ -131,25 +137,35 @@ class PullbackDetector:
     triggered: dict[str, Any] | None = None
     nth: int = 0                      # setups triggered today on this symbol
     last_price: float | None = None
+    series: Series = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        self.series = Series(ema_period=self.p.ema_period, macd_fast=self.p.macd_fast,
+                             macd_slow=self.p.macd_slow, macd_signal=self.p.macd_signal)
+
+    @property
+    def ema_now(self) -> float | None:
+        """The EMA at the last completed bar: the scoring exit reads the lane's own."""
+        return self.series.e[-1] if self.series.e else None
 
     # -- bar close ---------------------------------------------------------
     def on_bars(self, bars: list[Bar]) -> list[tuple[str, dict]]:
         """Re-evaluate after a bar completes. ``bars`` is the whole day so far, oldest first."""
         n = len(bars)
+        self.series.update(bars)
         if n < self.p.leg_lookback + 2:
             if self.state == SETUP_STATE_WATCHING:
                 self.reason = f"warming up ({n}/{self.p.leg_lookback + 2} bars)"
             return []
-        h = [b.h for b in bars]
-        lows = [b.lo for b in bars]
-        c = [b.c for b in bars]
-        e9 = ema(c, self.p.ema_period)
-        hist = macd_hist(c)
+        if self.state == SETUP_STATE_TRIGGERED and self.nth >= self.p.max_per_symbol_day:
+            return []                     # the day's setups on this symbol are used
+        h, lows, c = self.series.h, self.series.lo, self.series.c
+        e9, hist = self.series.e, self.series.hist
         last = n - 1
         prev = self.armed if self.state in (SETUP_STATE_ARMED, SETUP_STATE_NEAR) else None
 
         cand, first_fail = None, None
-        for m in range(1, self.p.max_pullback_bars + 1):
+        for m in range(self.p.min_pullback_bars, self.p.max_pullback_bars + 1):
             H = last - m
             leg = self._qualify_leg(bars, h, lows, H)
             if leg is None:
@@ -233,7 +249,7 @@ class PullbackDetector:
             prev = None
         self.armed = {
             "leg_t": leg["t"], "trigger": round(trig, 4), "entry": entry, "stop": round(pb_low, 4),
-            "risk": risk, "target1": round(max(leg["high"], entry + self.p.target_r * risk), 4),
+            "risk": risk, "target1": self.p.target1(leg["high"], entry, risk),
             "pullback_bars": m, "leg_high": leg["high"], "leg_low": leg["low"], "leg_pct": leg["pct"],
             "armed_bar_t": bars[last].t, "armed_at": (prev or {}).get("armed_at") or bars[last].t + 60,
             "kind": SETUP_KIND_FIRST_PULLBACK if self.nth == 0 else SETUP_KIND_SECOND_PULLBACK,
@@ -292,7 +308,7 @@ class PullbackDetector:
         leg_high = h[H]
         if leg_high < max(h[H - p.leg_lookback:H]):
             return None
-        if p.require_hod and H > 0 and leg_high < max(h[:H]):
+        if p.require_hod and H > 0 and leg_high < self.series.prior_high(H):
             return None
         leg_low = min(lows[max(0, H - p.leg_window + 1):H + 1])
         if leg_low <= 0 or leg_high / leg_low - 1 < p.leg_pct:

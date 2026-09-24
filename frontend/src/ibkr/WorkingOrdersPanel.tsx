@@ -7,6 +7,8 @@ import { SelectableTableRow } from '../components/SelectableTableRow';
 import {
   FILL_WORKING_ORDER_BUTTON_LABEL,
   FILL_WORKING_ORDER_BUTTON_TITLE,
+  FILL_WORKING_ORDER_NOTHING_LEFT_WHY,
+  WORKING_ORDER_READ_FAILED_WHY,
   WORKING_ORDERS_PANEL_TITLE,
 } from '../constants';
 import { lastKnownBanner } from './disconnectCopy';
@@ -79,6 +81,8 @@ export function WorkingOrdersPanel({
   // Not order_id: practice ids repeat across venues and resets (C29).
   const rowKeys = useMemo(() => orderRowKeys(rows), [rows]);
   const showActions = Boolean(onCancelOrder || onFillImmediately);
+  // Last-known rows lock every row action; each locked button says why (ux/whyTip.ts).
+  const readWhy = error ? WORKING_ORDER_READ_FAILED_WHY : undefined;
 
   return (
     <div
@@ -125,6 +129,7 @@ export function WorkingOrdersPanel({
               );
               const tone = orderStatusTone(statusLabel);
               const rem = remainingShares(o);
+              const fillWhy = readWhy ?? (rem <= 0 ? FILL_WORKING_ORDER_NOTHING_LEFT_WHY : undefined);
               const sideCls = orderSideClass(o.side);
               const sideRowCls = orderSideRowClass(o.side);
               const rowClass = [sideRowCls, highlighted ? 'ibkr-order-row--highlight' : '']
@@ -148,11 +153,12 @@ export function WorkingOrdersPanel({
                             type="button"
                             className="ibkr-fill-now-btn"
                             disabled={rem <= 0 || Boolean(error)}
+                            data-why={fillWhy}
                             onClick={(e) => {
                               e.stopPropagation();
                               onFillImmediately(o);
                             }}
-                            title={FILL_WORKING_ORDER_BUTTON_TITLE}
+                            title={fillWhy ? undefined : FILL_WORKING_ORDER_BUTTON_TITLE}
                             aria-label={`${FILL_WORKING_ORDER_BUTTON_LABEL} order ${o.order_id}`}
                           >
                             {FILL_WORKING_ORDER_BUTTON_LABEL}
@@ -167,7 +173,8 @@ export function WorkingOrdersPanel({
                               onCancelOrder(o.order_id);
                             }}
                             disabled={Boolean(error)}
-                            title="Cancel resting order (does not reverse fills)"
+                            data-why={readWhy}
+                            title={readWhy ? undefined : 'Cancel resting order (does not reverse fills)'}
                             aria-label={`Cancel order ${o.order_id}`}
                           >
                             Cancel

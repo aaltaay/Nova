@@ -11,6 +11,7 @@ import {
   RECORDING_DISMISS_LABEL,
   RECORDING_RESUME_ACTION,
   RECORDING_RESUMING_ACTION,
+  RECORDING_RESUMING_WHY,
   RECORDING_SIGNAL_TICK_MS,
   recordingHairlineTitle,
   recordingResumeCountdown,
@@ -97,6 +98,7 @@ export function RecordingSignals({ onOpenSymbol }: { onOpenSymbol?: (symbol: str
               className="recording-stopped__action"
               data-testid="recording-stopped-resume-now"
               disabled={busy === shown.key}
+              data-why={busy === shown.key ? RECORDING_RESUMING_WHY : undefined}
               onClick={() => void resume(shown.symbol, shown.key)}
             >
               {busy === shown.key ? RECORDING_RESUMING_ACTION : RECORDING_RESUME_ACTION}

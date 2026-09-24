@@ -28,6 +28,7 @@
 .setups-state--triggered { color: var(--success); border-color: var(--success); }
 .setups-state--failed { color: var(--danger); border-color: var(--danger); }
 .setups-state--leg, .setups-state--pullback, .setups-state--watching { color: var(--text-secondary); }
+.setups-state--filtered { color: var(--text-secondary); border-style: dashed; }
 
 .setups-tape--go { color: var(--success); border-color: var(--success); }
 .setups-tape--wait { color: var(--text-secondary); }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LeaderboardDay } from '../leaderboard/leaderboardTypes';
-import { cellTitle, dayFacts, monthGrid, monthRange, shiftMonth } from './simDayCalendarModel';
+import { cellTitle, cellWhy, dayFacts, monthGrid, monthRange, shiftMonth } from './simDayCalendarModel';
 import type { CaptureSessions } from './useSimSessionController';
 
 const summary = { minutes: 960, first_ts: 1, last_ts: 2 };
@@ -57,6 +57,15 @@ describe('monthGrid', () => {
     expect(cellTitle(cell('2026-09-21'), LABELS)).toBe('2026-09-21\nrecorded\nrecords: AAPL, GRML\nrebuilt');
     expect(cellTitle(cell('2026-09-16'), LABELS)).toBe('2026-09-16\nnothing');
     expect(cellTitle(cell('2026-09-19'), LABELS)).toBe('2026-09-19\nrecords: IMCC\nclosed');
+  });
+
+  it('says on one line why a day cannot be picked, and nothing for one that can', () => {
+    const labels = { ...LABELS, future: 'not yet' };
+    expect(cellWhy(cell('2026-09-21'), labels)).toBeNull();
+    expect(cellWhy(cell('2026-09-16'), labels)).toBe('2026-09-16 · nothing');
+    expect(cellWhy(cell('2026-09-19'), labels)).toBe('2026-09-19 · records: IMCC · closed');
+    expect(cell('2026-09-23').future).toBe(true);
+    expect(cellWhy(cell('2026-09-23'), labels)).toBe('2026-09-23 · not yet');
   });
 });
 

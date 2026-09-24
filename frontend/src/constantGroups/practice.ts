@@ -91,6 +91,9 @@ export const PRACTICE_RESET_CONFIRM_LABEL = 'Reset';
 export const practiceResetDone = (venue: PracticeVenue, cash: string): string =>
   `${PRACTICE_VENUE_LABELS[venue]} practice account reset -- cash ${cash}.`;
 export const PRACTICE_RESET_FAILED = 'Reset failed';
+/** Why the reset form is locked while its POST is in flight (ux/whyTip.ts). */
+export const practiceResetBusyWhy = (venue: PracticeVenue): string =>
+  `Resetting the ${PRACTICE_VENUE_LABELS[venue]} account -- wait for it to finish`;
 export const practiceStartingCashInvalid = (min: string, max: string): string =>
   `Starting cash must be a whole-dollar amount between ${min} and ${max}, or left blank.`;
 

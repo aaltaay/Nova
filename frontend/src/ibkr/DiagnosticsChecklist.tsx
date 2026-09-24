@@ -19,11 +19,21 @@ import {
   DIAG_SINCE_LABEL,
   DIAG_STATE_LABELS,
   DIAG_TITLE,
+  DIAG_WHY_RELOADING,
+  diagActionRunningWhy,
 } from '../constantGroups/diagnostics';
 import type { DiagActionKind, DiagnosticsPayload, DiagRow } from './diagnosticsTypes';
+import { GATEWAY_WHY_LAUNCHING, GATEWAY_WHY_RECONNECTING } from './gatewayUxConstants';
 import './diagnosticsChecklist.css';
 
 export type DiagActionHandlers = Partial<Record<DiagActionKind, () => void>>;
+
+/** Why a row's action is locked while that action runs (ux/whyTip.ts). */
+const BUSY_WHY: Partial<Record<DiagActionKind, string>> = {
+  reconnect_ibkr: GATEWAY_WHY_RECONNECTING,
+  launch_gateway: GATEWAY_WHY_LAUNCHING,
+  reload_backend: DIAG_WHY_RELOADING,
+};
 
 interface Props {
   data: DiagnosticsPayload;
@@ -48,13 +58,18 @@ export function DiagRowAction({ row, actions, busy, testId }: {
 }) {
   const kind = row.action?.kind as DiagActionKind | undefined;
   const handler = kind ? actions[kind] : undefined;
+  const running = Boolean(kind && busy?.[kind]);
+  const runningWhy = running && kind && row.action
+    ? BUSY_WHY[kind] ?? diagActionRunningWhy(row.action.label)
+    : undefined;
   if (!handler || !row.action) return null;
   return (
     <button
       type="button"
       className="diag-row__action"
       onClick={handler}
-      disabled={Boolean(kind && busy?.[kind])}
+      disabled={running}
+      data-why={runningWhy}
       data-testid={testId}
     >
       {row.action.label}

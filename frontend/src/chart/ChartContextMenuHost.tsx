@@ -112,6 +112,7 @@ export function ChartContextMenuHost(props: {
         connected={positionCtx.connected}
         spendStatus={positionCtx.spendStatus}
         flattenDisabled={positionCtx.flattenDisabled}
+        flattenWhy={positionCtx.flattenWhy}
         activeTool={props.activeTool}
         enabledIndicators={props.enabledIndicators}
         onStageOrder={(intent: ChartOrderIntent) => {

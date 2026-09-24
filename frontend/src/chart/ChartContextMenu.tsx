@@ -46,6 +46,8 @@ export interface ChartContextMenuProps {
   connected: boolean;
   spendStatus?: string;
   flattenDisabled?: boolean;
+  /** Why `flattenDisabled` is set (ux/whyTip.ts). */
+  flattenWhy?: string | null;
   activeTool: string | null;
   enabledIndicators: ChartIndicatorId[];
   onStageOrder: (intent: ChartOrderIntent) => void;
@@ -155,6 +157,7 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
           connected={props.connected}
           spendStatus={props.spendStatus}
           disabled={props.flattenDisabled}
+          why={props.flattenWhy}
           variant="menu"
           label={item.label}
           testId="chart-context-menu-close-position"
@@ -185,7 +188,7 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
           className="chart-context-menu__item"
           data-testid={`chart-context-menu-${item.id}`}
           disabled
-          title={item.reason}
+          data-why={item.reason}
           aria-disabled="true"
           onPointerEnter={() => setSubmenu(null)}
         >

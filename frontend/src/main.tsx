@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { isNovaApiDebug } from './debug';
 import { initThemeFromStorage } from './theme/themePrefs';
+import { installWhyTip } from './ux/whyTip';
 import './index.css';
 
 initThemeFromStorage();
@@ -23,6 +24,9 @@ async function bootstrap(): Promise<void> {
   // Dynamic, after the base is set, so the constants it reads resolve here.
   const { installSampleNetworkGate } = await import('./sample_data/sampleNetworkGate');
   installSampleNetworkGate(window);
+
+  // Every locked control says why on hover and on a refused press (ux/whyTip.ts).
+  installWhyTip(document);
 
   // ADR 026: this window's 5 s performance report (the sample desk sends none).
   void import('./perf/perfReporter').then(

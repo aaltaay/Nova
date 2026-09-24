@@ -65,6 +65,12 @@ def is_bot_mutate(method: str, path: str) -> bool:
     return method in _MUTATING and is_bot_http_path(path)
 
 
+def is_setup_template_mutate(method: str, path: str) -> bool:
+    """A template sets what the bot may enter at Strategy (ADR 029): keyed like a bot route."""
+    normalized = path.rstrip("/") or "/"
+    return method in _MUTATING and normalized.startswith("/api/setups/templates")
+
+
 def is_sensor_http_path(path: str) -> bool:
     normalized = path.rstrip("/") or "/"
     return normalized == "/sensors" or normalized.startswith("/sensors/")
@@ -136,7 +142,7 @@ class MutatingApiKeyMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         path = request.url.path
         mutating = request.method in _MUTATING
-        bot = is_bot_mutate(request.method, path)
+        bot = is_bot_mutate(request.method, path) or is_setup_template_mutate(request.method, path)
         api = path.startswith("/api/")
         sensors = is_sensor_mutate(request.method, path)
         if mutating and (bot or api or sensors):
@@ -184,6 +190,7 @@ __all__ = [
     "is_config_mutate",
     "is_sensor_http_path",
     "is_sensor_mutate",
+    "is_setup_template_mutate",
     "require_auth",
     "require_bot_auth",
 ]

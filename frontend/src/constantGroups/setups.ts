@@ -22,6 +22,7 @@ export const SETUP_STATE_LABELS: Record<string, string> = {
   leg: 'Leg up',
   failed: 'Failed',
   watching: 'Watching',
+  filtered: 'Filtered',
 };
 
 export const SETUP_STATE_TITLES: Record<string, string> = {
@@ -32,12 +33,16 @@ export const SETUP_STATE_TITLES: Record<string, string> = {
   leg: 'A fresh high on a 5%+ leg. Wait for the first pullback.',
   failed: 'The pullback broke a rule (closed under the 9 EMA, gave back half the leg, or ran too long).',
   watching: 'Nothing to act on.',
+  filtered: "The pattern armed, but the template's stock filter keeps this name out. The reason says which rule.",
 };
 
 export const SETUP_KIND_LABELS: Record<string, string> = {
   first_pullback: 'First pullback',
   second_pullback: 'Second pullback',
 };
+
+/** Why Stage ticket is locked (ux/whyTip.ts): the proposal carries no entry price. */
+export const SETUPS_STAGE_NO_ENTRY_WHY = 'This proposal has no entry price -- there is nothing to stage';
 
 export const TAPE_VERDICT_LABELS: Record<string, string> = {
   go: 'Tape: go',

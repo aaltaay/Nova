@@ -5,6 +5,9 @@
  * (X-Nova-Api-Key). Paper never launches a Gateway; Live also ensures the live
  * Gateway through /api/ibkr/gateway-mode; Sim falls back to POST /api/sim when
  * the venue route is missing. Honest error surfacing, never arms live spend.
+ * One click switches: no confirm dialog (operator ask, 2026-09-23) -- the
+ * global bar's venue tint says where the desk is, and Live still arms only
+ * with the PIN (ADR 018).
  */
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -107,9 +110,6 @@ describe('GatewayModeCapsule — venue switch', () => {
 
     await click(0);
 
-    expect(confirmAppMock).toHaveBeenCalledWith(
-      expect.objectContaining({ title: expect.stringMatching(/Nova practice account/) }),
-    );
     expect(calledPaths(fetchSpy)).toEqual(['/api/desk/venue']);
     expect(sentBody(fetchSpy, 0)).toEqual({ venue: 'paper' });
     expect(new Headers((fetchSpy.mock.calls[0][1] as RequestInit).headers).get(NOVA_API_KEY_HEADER)).toBe(
@@ -129,7 +129,6 @@ describe('GatewayModeCapsule — venue switch', () => {
 
     await click(1);
 
-    expect(confirmAppMock).toHaveBeenCalledWith(expect.objectContaining({ tone: 'danger' }));
     expect(calledPaths(fetchSpy)).toEqual(['/api/desk/venue', '/api/ibkr/gateway-mode']);
     expect(sentBody(fetchSpy, 0)).toEqual({ venue: 'live' });
     expect(sentBody(fetchSpy, 1)).toEqual({ mode: 'live' });
@@ -154,9 +153,6 @@ describe('GatewayModeCapsule — venue switch', () => {
 
     await click(2);
 
-    expect(confirmAppMock).toHaveBeenCalledWith(
-      expect.objectContaining({ title: expect.stringMatching(/replay playground/) }),
-    );
     expect(calledPaths(fetchSpy)).toEqual(['/api/desk/venue']);
     expect(sentBody(fetchSpy, 0)).toEqual({ venue: 'sim' });
     expect(errorText()).toBeNull();
@@ -186,13 +182,25 @@ describe('GatewayModeCapsule — venue switch', () => {
     expect(errorText()).toMatch(/Restart Nova API/i);
   });
 
-  it('does not call the API when the user cancels the confirm', async () => {
-    confirmAppMock.mockResolvedValue(false);
-    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+  it('switches on one click: no confirm dialog for any venue, Live included', async () => {
+    const fetchSpy = mockFetch(url =>
+      url.includes('/api/desk/venue')
+        ? json({ venue: JSON.parse(String(fetchSpy.mock.calls.at(-1)?.[1]?.body ?? '{}')).venue })
+        : json({ ok: true, mode: 'live', error: null, launch_action: 'noop' }),
+    );
     render('paper');
     await click(1);
-    expect(confirmAppMock).toHaveBeenCalled();
-    expect(fetchSpy).not.toHaveBeenCalled();
+    render('live');
+    await click(2);
+    render('sim');
+    await click(0);
+    expect(confirmAppMock).not.toHaveBeenCalled();
+    expect(calledPaths(fetchSpy).filter(path => path === '/api/desk/venue')).toHaveLength(3);
+    expect([0, 2, 3].map(i => sentBody(fetchSpy, i))).toEqual([
+      { venue: 'live' },
+      { venue: 'sim' },
+      { venue: 'paper' },
+    ]);
   });
 
   it('surfaces an honest inline error and stays off Live when the Gateway switch fails', async () => {
@@ -225,14 +233,14 @@ describe('GatewayModeCapsule — venue switch', () => {
   });
 
   it('keeps every pill clickable when disconnected so operators can retarget', async () => {
-    confirmAppMock.mockResolvedValue(false);
+    const fetchSpy = mockFetch(() => json({ detail: 'Not Found' }, 404));
     render('disconnected', 'paper');
     expect(seg(0).disabled).toBe(false);
     expect(seg(1).disabled).toBe(false);
     expect(seg(2).disabled).toBe(false);
     expect(seg(0).classList.contains('is-selected')).toBe(true);
     await click(1);
-    expect(confirmAppMock).toHaveBeenCalled();
+    expect(sentBody(fetchSpy, 0)).toEqual({ venue: 'live' });
   });
 
   it('tooltips say what each venue is', () => {

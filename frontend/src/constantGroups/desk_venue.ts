@@ -29,11 +29,6 @@ export const DESK_VENUE_PAPER_TITLE =
 export const DESK_VENUE_SIM_TITLE =
   'Sim -- replay playground. Trade a recorded or downloaded session with a scratch account that unwinds when you rewind. No IBKR Gateway places. Not paper. Not live.';
 
-/** Confirm dialog titles for a venue switch. */
-export const DESK_VENUE_CONFIRM_LIVE_TITLE = 'Switch to Live (IBKR, real money)';
-export const DESK_VENUE_CONFIRM_PAPER_TITLE = 'Switch to Paper (Nova practice account)';
-export const DESK_VENUE_CONFIRM_SIM_TITLE = 'Switch to Sim (replay playground)';
-
 /** Hot strip above Stock View / Trading while the venue is Paper. */
 export const DESK_VENUE_PAPER_BANNER_TEXT =
   "PAPER TRADING -- orders go to Nova's practice account: fake money on the live feed, never to IBKR.";
@@ -52,3 +47,6 @@ export const DESK_VENUE_SWITCH_UNREACHABLE = 'Could not reach Nova backend to sw
 export const deskVenueSwitchFailed = (venue: DeskVenue): string => `Switch to ${venue} failed`;
 export const DESK_VENUE_API_RESTART_HINT =
   'Restart Nova API (venue route missing), then try switching again.';
+/** Why the venue pills are locked while a switch is in flight (ux/whyTip.ts). */
+export const deskVenueSwitchingWhy = (venue: string): string =>
+  `Switching the desk to ${venue} -- the pills unlock when Nova answers.`;

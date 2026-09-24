@@ -9,8 +9,13 @@ fills (the research exit rules on every armed setup, ``summary.net_r``).
 
 ``evaluate`` is pure; ``current`` reads ``setups.db`` through the engine's store
 and caches the answer for ``SETUPS_READOUT_CACHE_SEC`` (owner: this module,
-in memory only; invalidation: the TTL). A store that is not open reads
-``unavailable`` -- the gate stays closed, never guessed open.
+in memory only; invalidation: the TTL, per template and revision). A store
+that is not open reads ``unavailable`` -- the gate stays closed, never guessed
+open.
+
+ADR 029: the read-out is per template. ``current()`` judges the first-pullback
+template in play on its own rows -- the ones its exact rules (``template_id``
+and ``template_rev``) armed -- so editing a template starts its evidence over.
 """
 from __future__ import annotations
 
@@ -39,12 +44,13 @@ from setup_scanner.summary import stats, tape_at_trigger
 logger = logging.getLogger(__name__)
 
 _lock = threading.Lock()
-_cached: tuple[float, dict[str, Any]] | None = None
+_cached: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
 
 
-def _rules() -> dict[str, Any]:
+def _rules(template: dict[str, Any] | None = None) -> dict[str, Any]:
     return {"kind": SETUPS_READOUT_KIND, "min_go": SETUPS_READOUT_MIN_GO,
-            "fail_go": SETUPS_READOUT_FAIL_GO, "min_net_r": SETUPS_READOUT_MIN_NET_R}
+            "fail_go": SETUPS_READOUT_FAIL_GO, "min_net_r": SETUPS_READOUT_MIN_NET_R,
+            "template": template}
 
 
 def _block(rows: list[dict]) -> dict[str, Any]:
@@ -52,8 +58,8 @@ def _block(rows: list[dict]) -> dict[str, Any]:
     return {key: s[key] for key in ("triggered", "scored", "win_pct", "avg_net_r")}
 
 
-def evaluate(rows: Iterable[dict]) -> dict[str, Any]:
-    """The read-out over every scoreboard row: ``{state, passed, go, control, rules, reason}``."""
+def evaluate(rows: Iterable[dict], template: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The read-out over ``rows`` (one template's): ``{state, passed, go, control, rules, reason}``."""
     pool = sorted((r for r in rows if r.get("kind") == SETUPS_READOUT_KIND and r.get("triggered_at")),
                   key=lambda r: float(r["triggered_at"]))
     go = [r for r in pool if tape_at_trigger(r) == TAPE_VERDICT_GO]
@@ -82,40 +88,53 @@ def evaluate(rows: Iterable[dict]) -> dict[str, Any]:
         reason = (f"go {go_r:+.2f}R over {n} setups; needs above +{SETUPS_READOUT_MIN_NET_R:.2f}R "
                   f"and above blind / wait {control_r:+.2f}R")
     return {"state": state, "passed": state == SETUPS_READOUT_PASSED, "reason": reason,
-            "go": go_block, "control": control_block, "rules": _rules()}
+            "go": go_block, "control": control_block, "rules": _rules(template)}
 
 
-def unavailable(reason: str) -> dict[str, Any]:
+def unavailable(reason: str, template: dict[str, Any] | None = None) -> dict[str, Any]:
     empty = {"triggered": 0, "scored": 0, "win_pct": None, "avg_net_r": None}
     return {"state": SETUPS_READOUT_UNAVAILABLE, "passed": False, "reason": reason,
-            "go": dict(empty), "control": dict(empty), "rules": _rules()}
+            "go": dict(empty), "control": dict(empty), "rules": _rules(template)}
 
 
-def current(*, now: float | None = None) -> dict[str, Any]:
-    """The read-out from ``setups.db`` (every day), cached briefly."""
-    global _cached
+def _in_play() -> Any:
+    from constants_bot import BOT_SETUP_FIRST_PULLBACK
+    from setup_templates.store import get_store
+
+    return get_store().in_play(BOT_SETUP_FIRST_PULLBACK)
+
+
+def current(*, now: float | None = None, template: Any = None) -> dict[str, Any]:
+    """The read-out of ``template`` (default: the first-pullback template in play), cached briefly."""
     now = time.time() if now is None else now
+    try:
+        t = template if template is not None else _in_play()
+    except Exception as exc:
+        logger.warning("setup read-out: the template in play could not be read", exc_info=True)
+        return unavailable(f"the template in play could not be read: {exc}")
+    stamp = {"id": t.id, "rev": int(t.rev), "name": t.name}
+    key = (t.id, int(t.rev))
     with _lock:
-        if _cached is not None and now - _cached[0] < SETUPS_READOUT_CACHE_SEC:
-            return _cached[1]
+        hit = _cached.get(key)
+        if hit is not None and now - hit[0] < SETUPS_READOUT_CACHE_SEC:
+            return hit[1]
     try:
         from setup_scanner.engine import get_engine
 
         eng = get_engine()
         store = eng.store
         if store is None:
-            out = unavailable(eng.store_error or "the scoreboard is not open yet")
+            out = unavailable(eng.store_error or "the scoreboard is not open yet", stamp)
         else:
-            out = evaluate(store.rows())
+            out = evaluate(store.rows(template_id=t.id, template_rev=int(t.rev)), stamp)
     except Exception as exc:
         logger.warning("setup read-out: scoreboard read failed", exc_info=True)
-        out = unavailable(f"scoreboard read failed: {exc}")
+        out = unavailable(f"scoreboard read failed: {exc}", stamp)
     with _lock:
-        _cached = (now, out)
+        _cached[key] = (now, out)
     return out
 
 
 def reset_for_tests() -> None:
-    global _cached
     with _lock:
-        _cached = None
+        _cached.clear()

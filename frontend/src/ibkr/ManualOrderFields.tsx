@@ -56,6 +56,8 @@ interface Props {
   stopPrice: string;
   outsideRth: boolean;
   disabled: boolean;
+  /** Why `disabled` is set (no Gateway, an order in flight): every locked field says it (ux/whyTip.ts). */
+  why?: string | null;
   /** When true, quantity input / units / presets are inert (forced share qty). */
   quantityLocked?: boolean;
   shortDisabledReason?: string | null;
@@ -101,6 +103,7 @@ export function ManualOrderFields({
   stopPrice,
   outsideRth,
   disabled,
+  why = null,
   quantityLocked = false,
   shortDisabledReason = null,
   marketDisabledReason = null,
@@ -114,6 +117,10 @@ export function ManualOrderFields({
   onOutsideRthChange,
 }: Props) {
   const shortBlocked = Boolean(shortDisabledReason);
+  // A locked field says why (ux/whyTip.ts): its own block first -- it outlives a
+  // reconnect -- then the ticket-wide lock.
+  const ticketWhy = disabled ? why || undefined : undefined;
+  const shortWhy = shortDisabledReason || ticketWhy;
 
   return (
     <>
@@ -128,6 +135,7 @@ export function ManualOrderFields({
           aria-pressed={ticketSide === 'buy'}
           onClick={() => onTicketSideChange('buy')}
           disabled={disabled}
+          data-why={ticketWhy}
           data-testid="manual-order-side-buy"
         >
           {TICKER_TRADE_LABEL_BUY}
@@ -138,6 +146,7 @@ export function ManualOrderFields({
           aria-pressed={ticketSide === 'sell'}
           onClick={() => onTicketSideChange('sell')}
           disabled={disabled}
+          data-why={ticketWhy}
           data-testid="manual-order-side-sell"
         >
           {TICKER_TRADE_LABEL_SELL}
@@ -147,11 +156,11 @@ export function ManualOrderFields({
             type="button"
             className={ticketSide === 'short' ? 'is-short' : ''}
             aria-pressed={ticketSide === 'short'}
-            title={shortBlocked ? shortDisabledReason ?? undefined : undefined}
             onClick={() => {
               if (!shortBlocked) onTicketSideChange('short');
             }}
             disabled={disabled || shortBlocked}
+            data-why={shortWhy}
             data-testid="manual-order-side-short"
           >
             {TICKER_TRADE_LABEL_SHORT}
@@ -172,17 +181,19 @@ export function ManualOrderFields({
         {PRIMARY_TYPES.map((item) => {
           const isActive = orderType === item.value;
           const blocked = item.value === 'MKT' && Boolean(marketDisabledReason);
+          const typeWhy = (blocked && marketDisabledReason) || ticketWhy;
           return (
             <button
               key={item.value}
               type="button"
               className={isActive ? 'is-active' : ''}
               aria-pressed={isActive}
-              title={blocked ? marketDisabledReason ?? undefined : item.title}
+              title={typeWhy ? undefined : item.title}
               onClick={() => {
                 if (!blocked) onOrderTypeChange(item.value);
               }}
               disabled={disabled || blocked}
+              data-why={typeWhy}
               data-testid={item.testId}
             >
               {item.label}
@@ -192,6 +203,7 @@ export function ManualOrderFields({
         <ManualOrderStopControl
           orderType={orderType}
           disabled={disabled}
+          why={ticketWhy}
           onOrderTypeChange={onOrderTypeChange}
         />
       </div>
@@ -219,12 +231,14 @@ export function ManualOrderFields({
             value={limitPrice}
             onChange={(event) => onLimitPriceChange(event.target.value)}
             disabled={disabled}
+            data-why={ticketWhy}
           />
           <ManualOrderPriceQuick
             symbol={symbol}
             book={topOfBook}
             following={priceFollowing}
             disabled={disabled}
+            why={ticketWhy}
             onFollow={
               onPriceFollow ??
               ((_kind, price) => {
@@ -249,6 +263,7 @@ export function ManualOrderFields({
             value={stopPrice}
             onChange={(event) => onStopPriceChange(event.target.value)}
             disabled={disabled}
+            data-why={ticketWhy}
           />
         </div>
       )}
@@ -267,6 +282,7 @@ export function ManualOrderFields({
             value={stopPrice}
             onChange={(event) => onStopPriceChange(event.target.value)}
             disabled={disabled}
+            data-why={ticketWhy}
             data-testid="manual-order-trail"
           />
         </div>
@@ -277,6 +293,7 @@ export function ManualOrderFields({
           quantityMode={quantityMode}
           quantityValue={quantityValue}
           disabled={disabled}
+          why={ticketWhy}
           quantityLocked={quantityLocked}
           onQuantityModeChange={onQuantityModeChange}
           onQuantityValueChange={onQuantityValueChange}
@@ -292,6 +309,7 @@ export function ManualOrderFields({
             checked={outsideRth}
             onChange={(event) => onOutsideRthChange(event.target.checked)}
             disabled={disabled}
+            data-why={ticketWhy}
             data-testid="manual-order-extended"
           />
           {TICKER_TRADE_LABEL_TRADING_HOURS}

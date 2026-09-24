@@ -55,6 +55,12 @@ it('uses API defaults and independently named job controls', async () => {
   await mount();
   expect((screen.getByLabelText('Date') as HTMLInputElement).value).toBe('2026-09-04');
   expect((screen.getByRole('button', { name: /^Pausing download:/ }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByRole('button', { name: /^Pausing download:/ }).getAttribute('data-why'))
+    .toBe('Pause asked -- the download stops before its next page');
+  // No ticker typed yet: every window action says so instead of doing nothing.
+  for (const name of ['Load replay', 'Download candles', 'Download trades']) {
+    expect(screen.getByRole('button', { name }).getAttribute('data-why')).toBe('Type a ticker first');
+  }
   expect(screen.getByRole('button', { name: /^Pause download:/ })).toBeTruthy();
   expect(screen.getByRole('button', { name: /^Resume download:/ })).toBeTruthy();
   expect(screen.getAllByRole('button', { name: /^Use this window:/ })).toHaveLength(3);
@@ -107,8 +113,11 @@ it('keeps independent actions usable and releases a hung action at its deadline'
   }));
   await click(/^Pause download:/);
   expect((screen.getByRole('button', { name: 'Load replay' }) as HTMLButtonElement).disabled).toBe(false);
+  expect(screen.getByRole('button', { name: 'Load replay' }).hasAttribute('data-why')).toBe(false);
   expect((screen.getByRole('button', { name: 'Download trades' }) as HTMLButtonElement).disabled).toBe(false);
   expect((screen.getByRole('button', { name: /^Pause download:/ }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByRole('button', { name: /^Pause download:/ }).getAttribute('data-why'))
+    .toBe('Pause download sent -- waiting for Nova to answer');
   await act(async () => vi.advanceTimersByTimeAsync(SIM_REQUEST_TIMEOUT_MS));
   expect(screen.getByRole('alert').textContent).toContain('did not respond in time');
   expect((screen.getByRole('button', { name: /^Pause download:/ }) as HTMLButtonElement).disabled).toBe(false);

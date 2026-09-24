@@ -104,6 +104,10 @@ export const GLOBAL_BAR_CANCEL_ALL_CONFIRM_BODY =
   'This cancels every open stock order across all symbols. This cannot be undone.';
 export const GLOBAL_BAR_CANCEL_ALL_CONFIRM_LABEL = 'Cancel all';
 export const GLOBAL_BAR_CANCEL_ALL_EMPTY_TITLE = 'No working stock orders to cancel';
+/** Why a Working-menu row is locked (ux/whyTip.ts): the counts are information, not actions. */
+export const GLOBAL_BAR_WORKING_COUNT_WHY = 'A count, not an action -- View All Orders opens the orders behind it.';
+export const GLOBAL_BAR_CANCEL_ALL_BUSY_WHY =
+  'Cancelling every working stock order -- this unlocks when the venue answers.';
 
 /** CustomEvent name — DashboardPage opens the Account/Trading tab. */
 export const GLOBAL_BAR_OPEN_TRADING_TAB_EVENT = 'nova:open-trading-tab';
@@ -185,6 +189,9 @@ export const GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_BODY = [
 export const GLOBAL_BAR_EMERGENCY_KILL_FAIL_TITLE =
   'Emergency KILL did not finish cleanly';
 export const GLOBAL_BAR_EMERGENCY_KILL_BUSY_LABEL = 'KILL running…';
+/** Why the stop sign is locked while its own KILL runs (ux/whyTip.ts). */
+export const GLOBAL_BAR_EMERGENCY_KILL_BUSY_WHY =
+  'Emergency KILL is running -- this unlocks when every step has answered.';
 /** The stop sign's hover card: what a click does before anything runs. */
 export const GLOBAL_BAR_EMERGENCY_KILL_HINT =
   'Click to review and confirm -- nothing runs until you confirm.';

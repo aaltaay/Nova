@@ -52,12 +52,9 @@ export function TradingQuickBar() {
               className={`nova-qt__btn nova-qt__btn--${quickTradeTone(action.kind)}`}
               data-kind={action.kind}
               disabled={disabled}
+              data-why={disabled ? NOVA_ACTION_DEPTH_DISABLED_REASON : undefined}
               aria-label={action.name}
-              title={
-                disabled
-                  ? NOVA_ACTION_DEPTH_DISABLED_REASON
-                  : `${action.name} (${formatKeyChord(action.key)})`
-              }
+              title={disabled ? undefined : `${action.name} (${formatKeyChord(action.key)})`}
               onClick={() => {
                 void dispatch.runAction(action);
               }}

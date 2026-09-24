@@ -19,7 +19,11 @@ import {
 } from '../constantGroups/bot';
 import {
   BOTS_ACTIVATE_WAITS_ON,
+  BOTS_BUSY_WHY,
   BOTS_IN_CONTROL_LABEL,
+  BOTS_KEY_EMPTY_WHY,
+  BOTS_KILL_BUSY_WHY,
+  BOTS_KILL_UNREAD_WHY,
   BOTS_KILL_RESET_LABEL,
   BOTS_KILL_TRIP_LABEL,
   BOTS_KILL_TRIP_NOTE,
@@ -98,6 +102,7 @@ export function BotHero({ arm, killSwitch, dayPnl, onOpenL2, onReadout, onAddSym
               className={`bots-seg__opt${clamped === n ? ' is-on' : ''}`}
               data-testid={`bots-level-${n}`}
               disabled={busy}
+              data-why={busy ? BOTS_BUSY_WHY : undefined}
               onClick={() => { if (clamped !== n) void onLevel(n); }}
             >
               <b><span className="bots-seg__lvl">L{n}</span>{BOT_LEVEL_LABELS[n]}</b>
@@ -114,7 +119,8 @@ export function BotHero({ arm, killSwitch, dayPnl, onOpenL2, onReadout, onAddSym
 
       <div className="bots-hero__actions">
         {armed ? (
-          <button type="button" className="bots-btn bots-btn--block" data-testid="bots-stop" disabled={busy} onClick={() => void stop()}>
+          <button type="button" className="bots-btn bots-btn--block" data-testid="bots-stop" disabled={busy}
+            data-why={busy ? BOTS_BUSY_WHY : undefined} onClick={() => void stop()}>
             ■ {BOT_DEACTIVATE_LABEL}
           </button>
         ) : (
@@ -123,7 +129,7 @@ export function BotHero({ arm, killSwitch, dayPnl, onOpenL2, onReadout, onAddSym
             className="bots-btn bots-btn--primary bots-btn--block"
             data-testid="bots-activate"
             disabled={busy || activateBlocked}
-            title={activateReason ? prose(activateReason) : undefined}
+            data-why={busy ? BOTS_BUSY_WHY : activateBlocked && activateReason ? prose(activateReason) : undefined}
             onClick={() => { if (!activateBlocked) void activate(); }}
           >
             ▶ {BOT_ACTIVATE_LABEL} bot
@@ -135,7 +141,7 @@ export function BotHero({ arm, killSwitch, dayPnl, onOpenL2, onReadout, onAddSym
           </p>
         ) : null}
         {level >= 2 ? (
-          <label className="bots-switch" data-testid="bots-in-control-label" title={!armed && activateBlocked ? activateReason ?? undefined : undefined}>
+          <label className="bots-switch" data-testid="bots-in-control-label">
             <input
               type="checkbox"
               role="switch"
@@ -143,6 +149,7 @@ export function BotHero({ arm, killSwitch, dayPnl, onOpenL2, onReadout, onAddSym
               checked={armed}
               aria-checked={armed}
               disabled={busy || (!armed && activateBlocked)}
+              data-why={busy ? BOTS_BUSY_WHY : !armed && activateBlocked && activateReason ? prose(activateReason) : undefined}
               onChange={e => void onControl(e.target.checked)}
             />
             <span className="bots-switch__track" aria-hidden="true" />
@@ -153,14 +160,16 @@ export function BotHero({ arm, killSwitch, dayPnl, onOpenL2, onReadout, onAddSym
           <>
             <p className="bots-hero__killed" role="status">{BOTS_KILL_TRIPPED_NOTE}</p>
             <button type="button" className="bots-btn bots-btn--block" data-testid="bots-kill-reset"
-              disabled={killSwitch.busy} onClick={() => void killSwitch.act(false)}>
+              disabled={killSwitch.busy} data-why={killSwitch.busy ? BOTS_KILL_BUSY_WHY : undefined}
+              onClick={() => void killSwitch.act(false)}>
               {BOTS_KILL_RESET_LABEL}
             </button>
           </>
         ) : (
           <button type="button" className="bots-btn bots-btn--danger bots-btn--block" data-testid="bots-kill-trip"
             disabled={killSwitch.busy || killSwitch.status == null}
-            title={killSwitch.status == null ? killSwitch.error ?? undefined : undefined}
+            data-why={killSwitch.busy ? BOTS_KILL_BUSY_WHY
+              : killSwitch.status == null ? BOTS_KILL_UNREAD_WHY(killSwitch.error ?? null) : undefined}
             onClick={() => void killSwitch.act(true)}>
             ■ {BOTS_KILL_TRIP_LABEL} <small>{BOTS_KILL_TRIP_NOTE}</small>
           </button>
@@ -175,7 +184,8 @@ export function BotHero({ arm, killSwitch, dayPnl, onOpenL2, onReadout, onAddSym
           >
             <input type="password" autoComplete="off" value={keyDraft} aria-label={BOT_API_KEY_HINT}
               placeholder={BOT_API_KEY_HINT} onChange={e => setKeyDraft(e.target.value)} />
-            <button type="submit" className="bots-btn" disabled={!keyDraft.trim()}>{BOT_API_KEY_SAVE}</button>
+            <button type="submit" className="bots-btn" disabled={!keyDraft.trim()}
+              data-why={keyDraft.trim() ? undefined : BOTS_KEY_EMPTY_WHY}>{BOT_API_KEY_SAVE}</button>
           </form>
         ) : null}
       </div>
