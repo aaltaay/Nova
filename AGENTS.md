@@ -619,7 +619,11 @@ One pure classifier, `backend/catalysts/classify.py` (rules and `CATALYST_RULES_
 more than three tickers). Rules v6: a one-ticker "why is it moving" rewrite is labelled by the
 cause its summary names ("... after the company priced a $5 million offering") when that cause
 is a placed catalyst or dilution, and stays noise otherwise (no cause, "no news", a peer's news,
-a denial, a list of stocks, an analyst piece). A **verdict** for a symbol-day reads only items published after the prior
+a denial, a list of stocks, an analyst piece). Rules v7 (#517): an EDGAR item of form `4` is a
+Form 4 open-market purchase (transaction code `P`) by an officer or a director, its dollar total
+stamped in `sec_items` as `P:<whole dollars>` (`catalysts/form4.py`); at or above
+`CATALYST_INSIDER_BUY_MIN_USD` (25,000) it is `catalyst` / `listing_financing` / `weak`, below it
+(or unstamped) `routine` / `corporate_routine`. A **verdict** for a symbol-day reads only items published after the prior
 session's 16:00 ET close and at or before its cutoff: `{verdict: "catalyst" | "negative" |
 "routine_only" | "noise_only" | "none_found" | "not_checked", category, strength, title,
 source, published_ts, url, negative_too, rules_version}` (plus `sources_answered`, `n_items`).
@@ -665,6 +669,15 @@ Newsfile and FDA into `catalyst_feed.sqlite3` under `NOVA_CATALYST_DIR`, else
 `item_tickers` in the research store's shape, and `coverage (source, start_ts, end_ts)` --
 unbroken reading of a source, extended only when a poll reached back to the previous one. A
 feed source counts in `sources_answered` only where a span covers the whole window.
+**Form 4** (#517) is its own feed source, `edgar_form4` (owner `catalysts/feed_form4.py`): EDGAR's
+latest Form 4s (`owner=only`), the issuer's entry only (its CIK names the ticker), each listed
+issuer's filing read once as its full submission text; only an officer's or a director's
+open-market purchase is recorded -- an `items` row with `source: "edgar"`, `form: "4"`, the stamp in
+`sec_items` and a title like `Form 4: open-market purchase by <owner> (<role>), <shares> shares
+($<value>)`. Its span is separate from `edgar`'s, so a Form 4 burst never breaks the 8-K / 6-K
+span; a filing that cannot be read (after `CATALYST_FEED_FORM4_MAX_ATTEMPTS`, or unparseable) breaks
+it there. It is not in `CATALYST_FEED_COVERAGE_SOURCES`: it reads one filing type, so its silence
+never supports `none_found`.
 `/api/diagnostics` adds the `catalyst_feed` row (group `recorder`) with
 `evidence.sources: {name: {last_ok, last_error, items, gaps, covering_since}}` and
 `evidence.finnhub: {enabled, pending, symbols, last_ok, last_error, reads}` (the Finnhub reader).

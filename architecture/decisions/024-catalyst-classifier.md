@@ -160,3 +160,42 @@ RSS after a restart (the feeds list only their latest items; Finnhub covers the 
 reading every summary, not only one-ticker rewrites (a list's summary gives its first name's cause,
 which Finnhub's missing ticker count would pin on every name); and a Form 4 source for insider
 buys (#517 -- Benzinga's summary names them the next morning; the filing itself stays open).
+
+## Amendment 2026-09-24 -- Form 4 insider purchases, rules v7 (#517)
+
+BFRG ran +24% premarket on 2026-09-23 because its CEO and CFO bought stock: two Form 4s accepted at
+about 16:45 ET the evening before. Benzinga's only article named the cause in its URL, and v6 reads
+it only when the summary does. The filing itself is the primary source, and the night before.
+
+1. **A Form 4 source, `edgar_form4`** (`backend/catalysts/feed_form4.py`, parser
+   `catalysts/form4.py`). It polls EDGAR's latest Form 4s (`owner=only`), takes each filing's
+   issuer entry (the CIK names the ticker; a Form 4 is listed once per party, and the 8-K poll's
+   `Filer` role never matches it), and reads each listed issuer's filing once, as its full
+   submission text. It records only open-market purchases -- transaction code `P` in the
+   non-derivative table -- reported by an owner flagged officer or director; grants, exercises,
+   sales, gifts, withholding and a 10% holder that is neither are read and let go. Amendments (4/A)
+   are not read. The item is an ordinary `edgar` filing of form `4`, so the store, the research
+   import and the ranking are unchanged; its dollar total is stamped in `sec_items` (`P:57225`).
+2. **Its own span.** Form 4s arrive in the hundreds after the close. Polled with the 8-K forms, a
+   burst larger than a page would have broken EDGAR's span for every form; apart, it breaks only
+   its own. A poll pages back to the span's end (at most five pages of 100 entries), reads at most
+   80 filings (the SEC's fair-access gap applies to each), and extends only when nothing listed is
+   left unread. A filing that cannot be fetched is retried; after three tries, or at once when it
+   cannot be parsed, it is a known miss: the span ends before it and the next opens at it.
+3. **Not a coverage source.** `sources_answered` backs `none_found`, a claim about news. A source
+   that reads one filing type can confirm an insider's purchase, but its silence says nothing about
+   a release, so `edgar_form4` is left out of `CATALYST_FEED_COVERAGE_SOURCES` (as FDA is, for its
+   own reason). Its span is still kept and shown in `/api/diagnostics`.
+4. **Rules v7** (`catalyst-rules-v7-2026-09-24`): a stamped Form 4 purchase at or above
+   `CATALYST_INSIDER_BUY_MIN_USD` ($25,000 per filing) is `catalyst` / `listing_financing` /
+   `weak` -- the class v6's insider-buying wording already maps to; below it, or unstamped, it is
+   `routine` / `corporate_routine`. Under $25k a buy is the size of a token show of faith (1,000 to
+   5,000 shares of a $2-5 stock); the operator can move the line.
+
+Rejected: polling type 4 with the 8-K forms (one burst would cost the filings the verdict leans on);
+reading the filing index and then the XML (two requests where the submission text is one); taking
+the issuer's own `issuerTradingSymbol` over SEC's CIK map (self-reported, often stale or "NONE");
+summing a symbol's filings before judging the threshold (the classifier labels one item; the
+verdict already prefers any catalyst); and counting 10% holders (a fund's buy is not management's).
+The research backfill does not read Form 4s yet: `import_feed.py` folds the live feed's purchase
+items in unchanged, and `research/catalysts/fetch_edgar.py` can read them with the same parser.

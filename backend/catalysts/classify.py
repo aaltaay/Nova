@@ -9,7 +9,9 @@
             change, a periodic report
   negative  dilution (offerings, warrants, ATM programs, shelf registrations) and delisting /
             reverse-split news
-  catalyst  company-specific positive news, ``strong`` or ``weak`` by class
+  catalyst  company-specific positive news, ``strong`` or ``weak`` by class -- an officer's or a
+            director's open-market purchase on Form 4 included (weak), when its stamped value
+            reaches ``CATALYST_INSIDER_BUY_MIN_USD`` (``catalysts/form4.py``)
 
 ``verdict`` answers for one symbol-day from the items published after the window opened and at
 or before the cutoff -- never later, so a backtest never learns a catalyst from hindsight. A
@@ -24,6 +26,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Iterable, Mapping
 
+from catalysts.form4 import stamped_usd
 from constants_catalysts import (
     CATALYST_ANALYST_RE,
     CATALYST_CAUSE_RE,
@@ -40,6 +43,8 @@ from constants_catalysts import (
     CATALYST_FINANCE_POSITIVE_RE,
     CATALYST_FLUFF_RE,
     CATALYST_HALT_RE,
+    CATALYST_INSIDER_BUY_FORM,
+    CATALYST_INSIDER_BUY_MIN_USD,
     CATALYST_KIND_CATALYST,
     CATALYST_KIND_NEGATIVE,
     CATALYST_KIND_NOISE,
@@ -199,6 +204,8 @@ def _classify(title: str | None, summary: str | None, *, source: str, publisher:
         if n_tickers is not None and n_tickers > CATALYST_MAX_TICKERS:
             return Label(CATALYST_KIND_NOISE, "roundup")
     if is_sec and form in CATALYST_SEC_FORM_CLASS and not form.startswith(("8-K", "6-K")):
+        if form == CATALYST_INSIDER_BUY_FORM and (stamped_usd(sec_items) or 0.0) >= CATALYST_INSIDER_BUY_MIN_USD:
+            return Label(CATALYST_KIND_CATALYST, "listing_financing", CATALYST_WEAK)  # an insider's own money in
         kind, category, strength = CATALYST_SEC_FORM_CLASS[form]
         return Label(kind, category, strength)
     all_codes = {c.strip() for c in (sec_items or "").split(",") if c.strip()}
