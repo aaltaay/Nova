@@ -1,16 +1,18 @@
-"""The first-pullback bot's loop and its trade (ADR 030).
+"""Nova's own bot's loop and its trade (ADR 030; the chosen setup since ADR 031).
 
 Every ``BOT_FP_POLL_SEC``:
 
 1. **Live keeps its gate.** A Strategy bot left active where the read-out
    still applies (Live) and has not passed is deactivated, on the timeline.
-2. **Playing?** Strategy, Activate on, the first pullback chosen, on Paper or
-   Sim. While it plays, the bot holds the L2 session as brain
-   ``nova-first-pullback`` and heartbeats; when it stops playing it lets go.
-3. **Triggers** the setup scanner announced (``submit``) on the bot's own
-   names (its allowlist) are traded -- a first pullback, the tape at go, every
-   bot gate -- or skipped with the reason on the timeline. Other names' triggers
-   are left to the scanner's own record.
+2. **Playing?** Strategy, Activate on, a setup with a scanner chosen, on Paper
+   or Sim. While it plays, the bot holds the L2 session as brain
+   ``nova-first-pullback`` (the id kept from ADR 030, so a running session keeps
+   its claim) and heartbeats; when it stops playing it lets go.
+3. **Triggers** the setup scanner announced (``submit``) for the chosen setup
+   on the bot's own names (its allowlist) are traded -- the first of that setup
+   on the symbol that day, the tape at go, every bot gate -- or skipped with the
+   reason on the timeline. Other names' and other setups' triggers are left to
+   the scanner's own record.
 4. **The trade** on is managed. The entry fills, or is cancelled after the
    sleeve's working TTL (a miss). After the fill a SELL limit rests at target 1
    and the bot watches the stop on the last price -- practice venues take no
@@ -55,8 +57,9 @@ from constants_bot import (
     BOT_RUNNER_BRAIN_ID,
     BOT_SETUP_DEFAULT,
     BOT_SETUP_FIRST_PULLBACK,
+    BOT_SETUPS_WITH_SCANNER,
 )
-from constants_setups import SETUP_KIND_FIRST_PULLBACK, TAPE_VERDICT_GO
+from constants_setups import SETUP_KIND_FIRST_PULLBACK, SETUPS_READOUT_KINDS, TAPE_VERDICT_GO
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +76,19 @@ def submit(event: dict[str, Any]) -> None:
     _inbox.append(event)
 
 
+def chosen(row: dict[str, Any]) -> str:
+    return str(row.get("setup") or BOT_SETUP_DEFAULT)
+
+
+def label(setup: str) -> str:
+    return setup.replace("_", " ")
+
+
+def adjective(setup: str) -> str:
+    """``first-pullback`` read-out, ``bull-flag`` read-out."""
+    return setup.replace("_", "-")
+
+
 # -- is the bot playing? --------------------------------------------------------
 def playing(row: dict[str, Any], venue: str | None = None) -> tuple[bool, str | None]:
     """Whether the bot plays now, and when not, why (the Bots page says it)."""
@@ -83,8 +99,8 @@ def playing(row: dict[str, Any], venue: str | None = None) -> tuple[bool, str | 
         return False, "the level is not Strategy"
     if not is_desk_active(row):
         return False, "the bot is not active"
-    if (row.get("setup") or BOT_SETUP_DEFAULT) != BOT_SETUP_FIRST_PULLBACK:
-        return False, "the first pullback is not the setup in play"
+    if chosen(row) not in BOT_SETUPS_WITH_SCANNER:
+        return False, f"the {label(chosen(row))} has no scanner yet -- nothing for the bot to trade"
     current = venue if venue is not None else current_venue()
     if current not in DESK_PRACTICE_VENUES:
         return False, "Nova's bot trades Paper and Sim only -- Live waits on the read-out and 100 Paper trades"
@@ -140,7 +156,8 @@ def _enforce_live_readout(row: dict[str, Any]) -> None:
         return
     clear_arm_fields(row)
     save_session(row)
-    audit(action="deactivate", outcome="ok", reason="Live waits on the first-pullback read-out -- the bot stopped")
+    audit(action="deactivate", outcome="ok",
+          reason=f"Live waits on the {adjective(chosen(row))} read-out -- the bot stopped")
 
 
 def _hold_session(row: dict[str, Any], on: bool, now: float) -> None:
@@ -176,13 +193,18 @@ async def _on_trigger(event: dict[str, Any], now: float) -> None:
 
     if str(event.get("symbol") or "").upper() not in normalize_symbols(row.get("symbol_allowlist")):
         return                                  # not one of the bot's names: the scanner's record keeps it
+    playing_setup = chosen(row)
+    if str(event.get("setup_type") or BOT_SETUP_FIRST_PULLBACK) != playing_setup:
+        return                                  # another setup's trigger: the scanner's record keeps it
     setup = event.get("setup") or {}
     at = float(setup.get("triggered_at") or event.get("ts") or 0)
     if now - at > BOT_FP_TRIGGER_MAX_AGE_SEC:
         logger.info("first-pullback bot: %s triggered %.1fs ago -- not traded", event.get("setup_id"), now - at)
         return
-    if setup.get("kind") != SETUP_KIND_FIRST_PULLBACK:
-        _skip(event, "a second pullback -- the bot plays first pullbacks only")
+    first_kind = SETUPS_READOUT_KINDS.get(playing_setup, SETUP_KIND_FIRST_PULLBACK)
+    if setup.get("kind") != first_kind:
+        kind = str(setup.get("kind") or "a later setup").replace("_", " ")
+        _skip(event, f"a {kind} on {event.get('symbol')} -- the bot plays the first of the day only")
         return
     verdict = (event.get("tape") or {}).get("verdict")
     if verdict != TAPE_VERDICT_GO:
@@ -223,7 +245,8 @@ def _admit(event: dict[str, Any], at: float) -> dict[str, Any]:
     assert_bp_budget(BOT_KIND_SETUP_ENTRY, symbol, qty, entry, row)
     caps = row.get("caps") or {}
     return {
-        "setup_id": str(event.get("setup_id") or ""), "symbol": symbol, "venue": current_venue(),
+        "setup_id": str(event.get("setup_id") or ""), "setup_type": str(event.get("setup_type") or BOT_SETUP_FIRST_PULLBACK),
+        "symbol": symbol, "venue": current_venue(),
         "venue_day": venue_day(), "template_id": event.get("template_id"),
         "template_rev": event.get("template_rev"), "template_name": event.get("template_name"),
         "state": "entering", "qty": float(qty), "trigger": setup.get("trigger"),
@@ -256,7 +279,8 @@ async def _enter(trade: dict[str, Any], now: float) -> None:
 
     receipt = await orders.place_entry(trade)
     inputs = {"symbol": trade["symbol"], "qty": trade["qty"], "limit": trade["entry_planned"],
-              "venue_day": trade["venue_day"], "setup_id": trade["setup_id"], "template_id": trade["template_id"]}
+              "venue_day": trade["venue_day"], "setup_id": trade["setup_id"], "template_id": trade["template_id"],
+              "setup_type": trade.get("setup_type")}
     if not receipt.ok or receipt.order_id is None:
         audit(action=BOT_KIND_SETUP_ENTRY, outcome="failed", reason=orders.receipt_error(receipt), inputs=inputs)
         return
@@ -265,13 +289,14 @@ async def _enter(trade: dict[str, Any], now: float) -> None:
     remember_working(order_id=int(receipt.order_id), symbol=trade["symbol"], side="BUY", qty=trade["qty"],
                      price=trade["entry_planned"], kind=BOT_KIND_SETUP_ENTRY, ttl_sec=None)
     audit(action=BOT_KIND_SETUP_ENTRY, outcome="ok", order_id=int(receipt.order_id), inputs=inputs,
-          reason=f"first pullback over {trade['trigger']} with the tape at go -- limit {trade['entry_planned']}")
+          reason=f"{label(str(trade.get('setup_type') or BOT_SETUP_FIRST_PULLBACK))} over {trade['trigger']} "
+                 f"with the tape at go -- limit {trade['entry_planned']}")
 
 
 def _skip(event: dict[str, Any], reason: str, *, code: str | None = None) -> None:
     audit(action=BOT_AUDIT_ACTION_TRADE, outcome="skipped", reason=reason,
           inputs={"symbol": event.get("symbol"), "setup_id": event.get("setup_id"),
-                  "template_id": event.get("template_id"), "code": code})
+                  "setup_type": event.get("setup_type"), "template_id": event.get("template_id"), "code": code})
 
 
 # -- the trade on -------------------------------------------------------------------
@@ -465,8 +490,8 @@ def _save(trade: dict[str, Any]) -> None:
 
 
 def _summary(trade: dict[str, Any]) -> dict[str, Any]:
-    keys = ("symbol", "setup_id", "template_id", "venue", "venue_day", "qty", "entry_planned", "entry_fill_price",
-            "stop", "target1", "risk", "exit_price", "exit_reason", "slippage", "r")
+    keys = ("symbol", "setup_id", "setup_type", "template_id", "venue", "venue_day", "qty", "entry_planned",
+            "entry_fill_price", "stop", "target1", "risk", "exit_price", "exit_reason", "slippage", "r")
     return {k: trade.get(k) for k in keys}
 
 

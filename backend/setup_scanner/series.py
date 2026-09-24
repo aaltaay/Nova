@@ -40,18 +40,22 @@ def _extend_ema(out: list[float], values: Sequence[float], start: int, n: int) -
 
 @dataclass
 class Series:
-    """Arrays over completed bars: highs, lows, closes, the running high of day,
-    the EMA and the MACD histogram, for one set of periods."""
+    """Arrays over completed bars: opens, highs, lows, closes, volumes, the running
+    high of day, the EMA and the MACD histogram, for one set of periods."""
 
     ema_period: int = 9
     macd_fast: int = 12
     macd_slow: int = 26
     macd_signal: int = 9
     t: list[float] = field(default_factory=list)
+    o: list[float] = field(default_factory=list)
     h: list[float] = field(default_factory=list)
     lo: list[float] = field(default_factory=list)
     c: list[float] = field(default_factory=list)
+    v: list[float] = field(default_factory=list)
     hod: list[float] = field(default_factory=list)      # hod[i] = max(h[: i + 1])
+    hod_i: list[int] = field(default_factory=list)      # the latest bar at that high (ties move it on)
+    vmax_i: list[int] = field(default_factory=list)     # the first bar with the day's biggest volume so far
     e: list[float] = field(default_factory=list)        # ema(c, ema_period)
     _fast: list[float] = field(default_factory=list)
     _slow: list[float] = field(default_factory=list)
@@ -60,22 +64,31 @@ class Series:
     hist: list[float] = field(default_factory=list)
 
     def reset(self) -> None:
-        for arr in (self.t, self.h, self.lo, self.c, self.hod, self.e,
+        for arr in (self.t, self.o, self.h, self.lo, self.c, self.v, self.hod, self.hod_i, self.vmax_i, self.e,
                     self._fast, self._slow, self._line, self._sig, self.hist):
             arr.clear()
 
     def update(self, bars: Sequence) -> None:
-        """Bring the arrays up to ``bars`` (oldest first, each with t / h / lo / c)."""
+        """Bring the arrays up to ``bars`` (oldest first, each with t / o / h / lo / c / v)."""
         n = len(self.t)
         if n and (n > len(bars) or bars[0].t != self.t[0] or bars[n - 1].t != self.t[-1]):
             self.reset()
             n = 0
         for b in bars[n:]:
             self.t.append(b.t)
+            self.o.append(b.o)
             self.h.append(b.h)
             self.lo.append(b.lo)
             self.c.append(b.c)
-            self.hod.append(b.h if not self.hod else max(self.hod[-1], b.h))
+            self.v.append(float(getattr(b, "v", 0.0) or 0.0))
+            i = len(self.h) - 1
+            if not self.hod or b.h >= self.hod[-1]:
+                self.hod.append(b.h)
+                self.hod_i.append(i)
+            else:
+                self.hod.append(self.hod[-1])
+                self.hod_i.append(self.hod_i[-1])
+            self.vmax_i.append(i if not self.vmax_i or self.v[i] > self.v[self.vmax_i[-1]] else self.vmax_i[-1])
         _extend_ema(self.e, self.c, n, self.ema_period)
         _extend_ema(self._fast, self.c, n, self.macd_fast)
         _extend_ema(self._slow, self.c, n, self.macd_slow)

@@ -1,6 +1,6 @@
 # ADR 022 -- The setup scanner: one first-pullback scanner, a tape gate, and Eyes that propose
 
-**Status:** Accepted · **Date:** 2026-09-22
+**Status:** Accepted · **Date:** 2026-09-22 · **Amended by:** [[031-a-scanner-for-every-setup]] (the bull flag, flat-top breakout and red to green on the same lanes)
 **Builds on:** [[016-bot-localhost-api]] · [[020-three-venues-one-feed]] · Bot-Trading-Plan §2f / §2g
 
 ## Context

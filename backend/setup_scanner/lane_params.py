@@ -1,16 +1,28 @@
-"""A first-pullback template's values as the scanner's own parameter types (ADR 029).
+"""A template's values as the scanner's own parameter types (ADR 029, ADR 031).
 
 The catalogue keeps values in the unit the operator types (percent as 5, a float
 in millions); this is the one place they become the fractions and shares the
-detector, the tape gate, the grade and the stock filter compute with. Pure.
+detector, the tape gate, the grade and the stock filter compute with. Every setup
+with a scanner has its own pattern builder (``PATTERNS``); the tape gate, the
+grade, the stock filter and the scoring exit read the same keys on every setup.
+Pure.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
 
+from constants_bot import (
+    BOT_SETUP_BULL_FLAG,
+    BOT_SETUP_FIRST_PULLBACK,
+    BOT_SETUP_FLAT_TOP,
+    BOT_SETUP_RED_TO_GREEN,
+)
 from constants_setups import SETUPS_GRADE_A, SETUPS_GRADE_B, SETUPS_GRADE_C
+from setup_scanner.bull_flag import BullFlagParams
+from setup_scanner.flat_top import FlatTopParams
 from setup_scanner.pullback import PullbackParams
+from setup_scanner.red_to_green import RedToGreenParams
 from setup_scanner.tape_gate import GateParams
 from strategy.float_gate import float_for_gate
 
@@ -95,6 +107,25 @@ def _pct(value: Any) -> float:
     return float(value) / 100.0
 
 
+def _opt_pct(value: Any) -> float | None:
+    return None if value is None else _pct(value)
+
+
+def _opt(value: Any) -> float | None:
+    return None if value is None else float(value)
+
+
+def _macd(v: dict[str, Any]) -> dict[str, Any]:
+    return {"macd_positive": bool(v["macd_positive"]), "macd_fast": int(v["macd_fast"]),
+            "macd_slow": int(v["macd_slow"]), "macd_signal": int(v["macd_signal"])}
+
+
+def _risk(v: dict[str, Any]) -> dict[str, Any]:
+    return {"stop_cap": float(v["stop_cap"]), "min_stop": float(v["min_stop"]),
+            "entry_offset": float(v["entry_offset"]), "risk_slippage": float(v["risk_slippage"]),
+            "near_dollars": float(v["near_dollars"]), "near_pct": _pct(v["near_pct"])}
+
+
 def pullback_params(v: dict[str, Any]) -> PullbackParams:
     return PullbackParams(
         leg_pct=_pct(v["leg_pct"]), leg_window=int(v["leg_window"]), leg_lookback=int(v["leg_lookback"]),
@@ -108,6 +139,49 @@ def pullback_params(v: dict[str, Any]) -> PullbackParams:
         session_start=str(v["session_start"]), entry_cutoff=str(v["entry_cutoff"]),
         max_per_symbol_day=int(v["max_per_symbol_day"]),
     )
+
+
+def bull_flag_params(v: dict[str, Any]) -> BullFlagParams:
+    return BullFlagParams(
+        pole_min_bars=int(v["pole_min_bars"]), pole_min_pct=_pct(v["pole_min_pct"]),
+        pole_min_dollars=_opt(v.get("pole_min_dollars")), pole_volume_rising=bool(v["pole_volume_rising"]),
+        min_flag_bars=int(v["min_flag_bars"]), max_flag_bars=int(v["max_flag_bars"]), max_retrace=_pct(v["max_retrace"]),
+        flag_volume_lighter=bool(v["flag_volume_lighter"]), ema_hold=bool(v["ema_hold"]),
+        ema_touch_pct=_opt_pct(v.get("ema_touch_pct")), reject_red_volume_high=bool(v["reject_red_volume_high"]),
+        max_pole_wick=_opt_pct(v.get("max_pole_wick")), require_hod=bool(v["require_hod"]),
+        ema_period=int(v["ema_period"]), ema_tol=_pct(v["ema_tol"]), **_macd(v), **_risk(v),
+        target_mode=str(v["target_mode"]), target_r=float(v["target_r"]), target_fixed=float(v["target_fixed"]),
+        session_start=str(v["session_start"]), entry_cutoff=str(v["entry_cutoff"]),
+        max_per_symbol_day=int(v["max_per_symbol_day"]),
+    )
+
+
+def flat_top_params(v: dict[str, Any]) -> FlatTopParams:
+    return FlatTopParams(
+        impulse_pct=_pct(v["ft_impulse_pct"]), leg_window=int(v["leg_window"]), min_consol=int(v["ft_min_consol"]),
+        max_consol=int(v["ft_max_consol"]), band=_pct(v["ft_band"]), entry_mode=str(v["ft_entry"]),
+        hold_bars=int(v["ft_hold_bars"]), ema_period=int(v["ema_period"]), ema_tol=_pct(v["ema_tol"]), **_macd(v),
+        **_risk(v), target_mode=str(v["target_mode"]), target_r=float(v["target_r"]),
+        target_fixed=float(v["target_fixed"]), session_start=str(v["session_start"]),
+        entry_cutoff=str(v["entry_cutoff"]), max_per_symbol_day=int(v["max_per_symbol_day"]),
+    )
+
+
+def red_to_green_params(v: dict[str, Any]) -> RedToGreenParams:
+    return RedToGreenParams(
+        session_start=str(v["session_start"]), r2g_cutoff=str(v["r2g_cutoff"]),
+        min_red_bars=int(v["r2g_min_red_bars"]), target_hod=bool(v["r2g_target_hod"]),
+        ema_period=int(v["ema_period"]), **_macd(v), **_risk(v), target_r=float(v["target_r"]),
+    )
+
+
+# Which builder reads which setup's values (the setups with a scanner).
+PATTERNS = {
+    BOT_SETUP_FIRST_PULLBACK: pullback_params,
+    BOT_SETUP_BULL_FLAG: bull_flag_params,
+    BOT_SETUP_FLAT_TOP: flat_top_params,
+    BOT_SETUP_RED_TO_GREEN: red_to_green_params,
+}
 
 
 def gate_params(v: dict[str, Any]) -> GateParams:
@@ -137,21 +211,28 @@ def stock_filter(v: dict[str, Any]) -> StockFilter:
 
 @dataclass(frozen=True)
 class LaneParams:
-    """Everything one lane computes with, from one template."""
+    """Everything one lane computes with, from one template of one setup."""
 
     template_id: str
     template_rev: int
     params_hash: str
     name: str
-    pullback: PullbackParams
+    pattern: Any              # the setup's own detector params (PullbackParams, BullFlagParams, ...)
     gate: GateParams
     grade: GradeRules
     stock: StockFilter
     bailout_bars: int
+    setup: str = BOT_SETUP_FIRST_PULLBACK
+
+    @property
+    def pullback(self) -> Any:
+        """The first pullback's name for ``pattern`` (ADR 029)."""
+        return self.pattern
 
 
 def lane_params(template: Any) -> LaneParams:
     v = template.values
+    setup = getattr(template, "setup", None) or BOT_SETUP_FIRST_PULLBACK
     return LaneParams(template_id=template.id, template_rev=int(template.rev), params_hash=template.fingerprint,
-                      name=template.name, pullback=pullback_params(v), gate=gate_params(v), grade=grade_rules(v),
-                      stock=stock_filter(v), bailout_bars=int(v["bailout_bars"]))
+                      name=template.name, pattern=PATTERNS[setup](v), gate=gate_params(v), grade=grade_rules(v),
+                      stock=stock_filter(v), bailout_bars=int(v["bailout_bars"]), setup=setup)

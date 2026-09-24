@@ -42,7 +42,7 @@ def _validate_level(level: int) -> int:
 
 
 def _validate_setup(name: str) -> str:
-    """One setup plays at a time, and only one with a live scanner can (ADR 027)."""
+    """One setup plays at a time, and only one with a live scanner can (ADR 027, ADR 031)."""
     if name not in BOT_SETUPS:
         raise BotError(f"unknown setup {name!r}", 400)
     if name not in BOT_SETUPS_WITH_SCANNER:
@@ -95,7 +95,28 @@ def apply_patch(
                 # then. Paper and Sim skip the read-out (ADR 030).
                 clear_arm_fields(row)
     if "setup" in body:
-        row["setup"] = _validate_setup(str(body.get("setup") or ""))
+        from bot.setup_levels import on_choose
+
+        new = _validate_setup(str(body.get("setup") or ""))
+        old = row.get("setup")
+        if on_choose(row, new):
+            # ADR 031: a different setup is a new decision -- the bot stops; Activate again.
+            clear_arm_fields(row)
+            _audit_setup(old, new, deactivated=True)
+        elif new != old:
+            _audit_setup(old, new, deactivated=False)
+        row["setup"] = new
+    if "setup_levels" in body:
+        from bot.setup_levels import apply as apply_setup_levels
+
+        apply_setup_levels(row, body.get("setup_levels"))
+    if "breakers" in body:
+        from bot.breaker_limits import apply as apply_breakers
+        from bot.gates import current_venue
+
+        changed = apply_breakers(row, body.get("breakers"), current_venue())
+        if changed is not None:
+            _audit_breakers(*changed)
     if "symbol_allowlist" in body:
         row["symbol_allowlist"] = normalize_symbols(body.get("symbol_allowlist"))
     if "strategy" in body and int(row.get("level") or 0) >= BOT_LEVEL_STRATEGY:
@@ -138,6 +159,35 @@ def _audit_level(before: int, row: dict[str, Any]) -> None:
         import logging
 
         logging.getLogger(__name__).warning("bot audit: level change not recorded", exc_info=True)
+
+
+def _audit_breakers(venue: str, before: dict, after: dict) -> None:
+    """The timeline shows every change to a venue's loss breakers (operator ask 2026-09-24)."""
+    from bot.audit import record
+
+    try:
+        record(action="breakers", outcome=venue,
+               reason=(f"{venue}: bot trip {before['soft_usd']:g} -> {after['soft_usd']:g}, "
+                       f"all-stop {before['hard_usd']:g} -> {after['hard_usd']:g}"),
+               inputs={"venue": venue, "before": before, "after": after})
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).warning("bot audit: breaker change not recorded", exc_info=True)
+
+
+def _audit_setup(before: Any, after: str, *, deactivated: bool) -> None:
+    """The Bots page timeline shows who changed the setup that plays (ADR 031)."""
+    from bot.audit import record
+
+    try:
+        record(action="setup", outcome=f"{before or '?'}->{after}",
+               reason="the bot stopped: a different setup is a new decision -- Activate again" if deactivated
+               else None, inputs={"from": before, "to": after, "deactivated": deactivated})
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).warning("bot audit: setup change not recorded", exc_info=True)
 
 
 def apply_desk_level(level: int, **extra: Any) -> dict[str, Any]:

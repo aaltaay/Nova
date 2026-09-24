@@ -25,7 +25,7 @@ import threading
 import time
 from typing import Any, Callable
 
-from constants_bot import BOT_SETUP_FIRST_PULLBACK
+from constants_bot import BOT_SCANNER_SETUPS
 from constants_eyes import EYES_REPLAY_SOURCE_SIM, EYES_SIM_REBUILD_MIN_SEC
 from constants_setups import SETUPS_SCHEMA_VERSION
 
@@ -60,11 +60,13 @@ class SimEyes:
                  load: Callable[[str, str], Any] | None = None,
                  templates: Callable[[], Any] | None = None,
                  journal: Callable[[dict], None] | None = None,
-                 threaded: bool = True):
+                 threaded: bool = True,
+                 levels: Callable[[], dict] | None = None):
         self._target_fn = target
         self._load_fn = load
         self._templates_fn = templates
         self._journal_fn = journal
+        self._levels_fn = levels
         self._threaded = threaded
         self._lock = threading.Lock()
         self._wake = threading.Event()
@@ -78,8 +80,9 @@ class SimEyes:
         self._journaled_through = 0.0
         self._last_rebuild = 0.0
         # Published for the loop (under the lock).
-        self._view: dict[str, Any] = {"loading": False, "error": None, "rows": [], "proposals": [],
-                                      "template": None, "lanes": 0, "recording": None, "now": None}
+        self._view: dict[str, Any] = {"loading": False, "error": None, "rows": [], "proposals": [], "setups": [],
+                                      "proposing": False, "template": None, "lanes": 0, "recording": None,
+                                      "now": None}
         self._alerts: list[dict] = []
 
     # -- wiring defaults (late imports keep this module light) -------------------------
@@ -96,6 +99,14 @@ class SimEyes:
         from setup_templates.store import get_store
 
         return get_store()
+
+    def _levels(self) -> dict:
+        """Each setup's level (ADR 031): the Sim eyes keep a setup at Off silent, as the live board does."""
+        if self._levels_fn is not None:
+            return self._levels_fn()
+        from setup_scanner.hooks import default_levels
+
+        return default_levels()
 
     def _journal(self, event: dict) -> None:
         ts = float(event.get("ts") or 0)
@@ -175,10 +186,10 @@ class SimEyes:
     def _rebuild(self, store: Any, playhead: float) -> None:
         from eyes.replay import EyesReplay
 
-        templates = [t for t in store.templates(BOT_SETUP_FIRST_PULLBACK) if not t.error]
-        playing = store.in_play(BOT_SETUP_FIRST_PULLBACK).id
-        replay = EyesReplay(self._recording, templates, source=EYES_REPLAY_SOURCE_SIM, playing_id=playing,
-                            journal=self._journal)
+        templates = [t for setup in BOT_SCANNER_SETUPS for t in store.templates(setup) if not t.error]
+        playing = {setup: store.in_play(setup).id for setup in BOT_SCANNER_SETUPS}
+        replay = EyesReplay(self._recording, templates, source=EYES_REPLAY_SOURCE_SIM, playing=playing,
+                            journal=self._journal, levels=self._levels)
         replay.advance(playhead)
         replay.take_alerts()            # a rebuild never re-raises what it passed on the way
         self._replay = replay
@@ -192,13 +203,14 @@ class SimEyes:
         self._publish(loading=False, error=None)
 
     def _publish(self, **overrides: Any) -> None:
-        from setup_scanner.board import template_view
+        from setup_scanner.board import board_body, template_view
 
         replay = self._replay
         lane = replay.playing if replay is not None else None
+        body = (board_body(replay.playing_lanes(), replay.lanes, replay.levels(), replay.now, can_propose=True)
+                if replay is not None else {"rows": [], "proposals": [], "setups": [], "proposing": False})
         view = {
-            "rows": lane.board_rows(replay.now) if lane is not None else [],
-            "proposals": lane.open_proposals() if lane is not None else [],
+            **body,
             "template": template_view(lane),
             "lanes": len(replay.lanes) if replay is not None else 0,
             "recording": self._recording.summary() if self._recording is not None else None,
@@ -230,16 +242,17 @@ class SimEyes:
                        "recording": view["recording"] if capture else None}
         return wire_safe({
             "schema_version": SETUPS_SCHEMA_VERSION, "generated_at": now, "session_date": target.get("date"),
-            "source": EYES_REPLAY_SOURCE_SIM, "template": view["template"] if capture else None,
-            "templates_watched": view["lanes"] if capture else 0, "universe": 1 if target.get("symbol") else 0,
+            "source": EYES_REPLAY_SOURCE_SIM, "universe": 1 if target.get("symbol") else 0,
             "seeding": 1 if view["loading"] else 0, "scoreboard": True, "scoreboard_error": None,
-            "proposing": capture, "replay": replay_view,
+            "proposing": capture and bool(view["proposing"]), "replay": replay_view,
+            "setups": view["setups"] if capture else [],
             "rows": view["rows"] if capture else [], "proposals": view["proposals"] if capture else [],
         })
 
     def status(self) -> dict[str, Any]:
         with self._lock:
-            return {"target": self.target, **{k: v for k, v in self._view.items() if k not in ("rows", "proposals")}}
+            hidden = ("rows", "proposals", "setups", "proposing")
+            return {"target": self.target, **{k: v for k, v in self._view.items() if k not in hidden}}
 
 
 _sim_eyes: SimEyes | None = None

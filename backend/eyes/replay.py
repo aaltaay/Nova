@@ -12,11 +12,16 @@ near, nothing triggers and the tape reads blind -- a gap is never filled.
 It never goes backward: a rewind builds a new replay. Rows it would have saved
 are kept in ``rows`` (a backtest writes them to its own run, never to
 ``setups.db``). Pure apart from the pillar lookup and the journal hook.
+
+ADR 031: the templates may be of any setup with a scanner; ``playing`` names each
+setup's template in play, and ``levels`` (the Sim eyes) keeps a setup at Off
+silent, as the live engine does. A backtest proposes on every lane.
 """
 from __future__ import annotations
 
 from typing import Any, Callable
 
+from constants_bot import BOT_LEVEL_EYES, BOT_SCANNER_SETUPS, BOT_SETUP_FIRST_PULLBACK
 from constants_setups import TAPE_GATE_WINDOW_SEC
 from eyes.recording import Recording, day_start_ts, pillars_at
 from setup_scanner.lane import Lane
@@ -29,15 +34,26 @@ SESSION_SEC = 16 * 3600
 class EyesReplay:
     def __init__(self, rec: Recording, templates: list[Any], *, source: str, playing_id: str | None = None,
                  all_propose: bool = False, journal: Callable[[dict], None] | None = None,
-                 pillars: Callable[..., dict] = pillars_at):
+                 pillars: Callable[..., dict] = pillars_at, playing: dict[str, str] | None = None,
+                 levels: Callable[[], dict] | None = None):
         self.rec = rec
         self.source = source
         self.session = rec.date
         self._journal_fn = journal or (lambda event: None)
         self._pillars_fn = pillars
         self._all_propose = all_propose
-        self.lanes = [Lane(lane_params(t), self, playing=all_propose or t.id == playing_id) for t in templates]
-        self.lanes.sort(key=lambda lane: not lane.playing)
+        self._levels_fn = levels
+        in_play = dict(playing or {})
+
+        def plays(t: Any) -> bool:
+            if all_propose:
+                return True
+            setup = getattr(t, "setup", None) or BOT_SETUP_FIRST_PULLBACK
+            return t.id == in_play[setup] if setup in in_play else t.id == playing_id
+
+        self.lanes = [Lane(lane_params(t), self, playing=plays(t)) for t in templates]
+        order = {s: i for i, s in enumerate(BOT_SCANNER_SETUPS)}
+        self.lanes.sort(key=lambda lane: (order.get(lane.setup, 99), not lane.playing))
         self.rows: dict[str, dict] = {}
         self.now = day_start_ts(rec.date)
         self.end = self.now + SESSION_SEC
@@ -51,7 +67,25 @@ class EyesReplay:
     # -- the host every lane calls ----------------------------------------------
     @property
     def playing(self) -> Lane | None:
-        return next((lane for lane in self.lanes if lane.playing), self.lanes[0] if self.lanes else None)
+        """The first pullback's template in play (the ADR 029 board), else the first lane in play."""
+        return self.playing_lane(BOT_SETUP_FIRST_PULLBACK) or next(
+            (lane for lane in self.lanes if lane.playing), self.lanes[0] if self.lanes else None)
+
+    def playing_lane(self, setup: str) -> Lane | None:
+        mine = [lane for lane in self.lanes if lane.setup == setup]
+        return next((lane for lane in mine if lane.playing), mine[0] if mine else None)
+
+    def playing_lanes(self) -> list[Lane]:
+        return [lane for lane in (self.playing_lane(s) for s in BOT_SCANNER_SETUPS) if lane is not None]
+
+    def levels(self) -> dict:
+        if self._levels_fn is None:
+            return {"chosen": None, "levels": {}}
+        try:
+            out = self._levels_fn()
+        except Exception:
+            return {"chosen": None, "levels": {}}
+        return out if isinstance(out, dict) else {"chosen": None, "levels": {}}
 
     def pillars(self, sym: str, now: float) -> dict:
         return self._pillars_fn(sym, self.session, now, last_price=self.last_price, prev_close=self.rec.prev_close)
@@ -79,8 +113,11 @@ class EyesReplay:
     def clock(self) -> float:
         return self.now
 
-    def can_propose(self) -> bool:
-        return True
+    def can_propose(self, setup_type: str | None = None) -> bool:
+        """A backtest proposes on every lane; the Sim eyes keep a setup at Off silent (ADR 031)."""
+        if self._levels_fn is None or setup_type is None:
+            return True
+        return int((self.levels().get("levels") or {}).get(setup_type) or 0) >= BOT_LEVEL_EYES
 
     # -- stepping ---------------------------------------------------------------
     def _bar_open_at(self, ts: float) -> float | None:

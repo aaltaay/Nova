@@ -92,6 +92,40 @@ def default_bot_state() -> dict:
     return state
 
 
+_LEVELS_TTL_SEC = 1.0
+_levels_cache: tuple[float, dict] | None = None
+
+
+def default_levels() -> dict:
+    """``{"chosen": SETUP, "levels": {SETUP: 0 | 1 | 2}}`` from the bot session (ADR 031), cached briefly.
+
+    The chosen setup's level is the session's; every other setup with a scanner has
+    its own (``setup_levels``), Off when unset. An unreadable session reads every
+    setup Off: no proposal is ever raised on a guess.
+    """
+    global _levels_cache
+    import time
+
+    now = time.monotonic()
+    if _levels_cache is not None and now - _levels_cache[0] < _LEVELS_TTL_SEC:
+        return _levels_cache[1]
+    try:
+        from bot.persist import load_session
+        from bot.setup_levels import levels_of
+
+        out = levels_of(load_session())
+    except Exception:
+        logger.warning("setup scanner: bot levels unread -- every setup proposes nothing", exc_info=True)
+        out = {"chosen": None, "levels": {}}
+    _levels_cache = (now, out)
+    return out
+
+
+def reset_levels_cache() -> None:
+    global _levels_cache
+    _levels_cache = None
+
+
 def default_sim_eyes() -> Any:
     """The Sim eyes over a loaded Session Record, when the desk shows one (ADR 029)."""
     from eyes.sim_eyes import get_sim_eyes

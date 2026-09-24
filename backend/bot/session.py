@@ -44,7 +44,10 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
 
     places_ok, places_reason = places_allowed()
     from bot.gates import gates, readout, readout_required
+    from bot.setup_levels import levels_of
 
+    both = levels_of(row)
+    chosen, levels = both["chosen"], both["levels"]
     out = readout()
     required = readout_required()
     return {
@@ -52,9 +55,12 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
         "armed": armed,
         "has_desk_arm": token_on,
         "strategy": row.get("strategy") if level >= BOT_LEVEL_STRATEGY else None,
-        # ADR 027: the operator's playbook; one setup plays at a time.
+        # ADR 027: the operator's playbook; one setup plays at a time. ADR 031: a level
+        # per setup with a scanner (the chosen one's is ``level``).
         "setup": row.get("setup") or BOT_SETUP_DEFAULT,
-        "setups": [{"id": sid, "scanner": sid in BOT_SETUPS_WITH_SCANNER} for sid in BOT_SETUPS],
+        "setups": [{"id": sid, "scanner": sid in BOT_SETUPS_WITH_SCANNER,
+                    "level": levels.get(sid) if sid in BOT_SETUPS_WITH_SCANNER else None} for sid in BOT_SETUPS],
+        "setup_levels": {sid: lvl for sid, lvl in levels.items() if sid != chosen},
         "readout": out,
         # ADR 030: Live waits on the read-out; Paper and Sim do not.
         "readout_required": required,
@@ -88,6 +94,8 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
             "calls_used": int(advise.get("calls_used") or 0),
         },
         "soft_breaker_fired": bool(row.get("soft_breaker_fired")),
+        # The loss breakers' thresholds, per venue (operator ask 2026-09-24).
+        "breakers": _breakers_view(row),
         "hard_lock_until_date": lock_until,
         "day_lock_active": lock_is_active(lock_until),
         "focus": list(row.get("focus") or []),
@@ -101,6 +109,13 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
         "last_rewind": _last_rewind(),
         "updated_ts": row.get("updated_ts"),
     }
+
+
+def _breakers_view(row: dict[str, Any]) -> dict[str, Any]:
+    from bot.breaker_limits import view
+    from bot.gates import current_venue
+
+    return view(row, current_venue())
 
 
 def _trade_view(trade: Any) -> dict[str, Any] | None:

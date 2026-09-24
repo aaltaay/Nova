@@ -11,6 +11,10 @@ class SessionPatch(BaseModel):
     armed: bool | None = None
     strategy: str | None = None
     setup: str | None = None
+    # ADR 031: Off (0) or Eyes (1) for a setup with a scanner other than the chosen one.
+    setup_levels: dict[str, Any] | None = None
+    # The loss breakers, per venue (operator ask 2026-09-24): {venue?, soft_usd?, hard_usd?}.
+    breakers: dict[str, Any] | None = None
     symbol_allowlist: list[str] | None = None
     caps: dict[str, Any] | None = None
     advise: dict[str, Any] | None = None

@@ -1,25 +1,26 @@
-"""The setup scanner engine (ADR 022, ADR 029).
+"""The setup scanner engine (ADR 022, ADR 029, ADR 031).
 
 Watches the HOD Momo active set -- the ~40 names Nova already streams on IBKR
 Level 1 -- on the live one-minute bars ``ibkr/l1_minute`` builds for them, and
-runs one *lane* per first-pullback template (``setup_scanner/lane.py``): the
-state machine, the tape gate where Nova holds a Level 2 line, and a scoreboard
-row for every armed setup in ``setups.db``. Only the lane of the template in
-play raises proposals (when a setup is near its trigger and the tape says go)
-and draws the board; the others score in silence, so variations collect
-evidence on the same days. Everything every lane sees goes to the eyes'
-journal (``eyes/journal.py``).
+runs one *lane* per template of every setup with a scanner -- the first
+pullback, the bull flag, the flat-top breakout and red to green
+(``setup_scanner/lane.py``): the state machine, the tape gate where Nova holds
+a Level 2 line, and a scoreboard row for every armed setup in ``setups.db``.
+Each setup's template in play draws that setup's rows and raises its proposals
+(when a setup is near its trigger and the tape says go) -- at Eyes or above
+only: a setup at Off watches and scores in silence (ADR 031). The other
+templates score in silence, so variations collect evidence on the same days.
+Everything every lane sees goes to the eyes' journal (``eyes/journal.py``).
 
 It never places, stages or cancels an order, never opens an IBKR line, and
 never raises bot autonomy. On a Sim desk off the live edge it keeps watching
 the live market but proposes nothing; the Sim eyes (``eyes/sim_eyes.py``) draw
 the board from the loaded Session Record instead.
 
-ADR 030: when the playing lane's setup triggers on the live feed (the same
-condition a proposal needs), it tells its trigger listeners -- the
-first-pullback bot (``bot/first_pullback``) registers one and decides for
-itself whether to trade. A listener only enqueues; nothing here imports an
-order path.
+ADR 030: when a playing lane's setup triggers on the live feed, it tells its
+trigger listeners -- Nova's bot (``bot/first_pullback``) registers one and
+decides for itself whether to trade (the chosen setup's, ADR 031). A listener
+only enqueues; nothing here imports an order path.
 """
 from __future__ import annotations
 
@@ -31,15 +32,15 @@ from datetime import datetime, time as dtime
 from typing import Any, Callable, Iterable
 from zoneinfo import ZoneInfo
 
-from constants_bot import BOT_SETUP_FIRST_PULLBACK
+from constants_bot import BOT_SCANNER_SETUPS, BOT_SETUP_FIRST_PULLBACK
 from constants_setups import SETUPS_BOARD_PUSH_SEC
-from setup_scanner import grade as _grade
 from setup_scanner.bars import Bar, MinuteBars, bar_from
 from setup_scanner.board import build_board
 from setup_scanner.hooks import (
     default_audit as _default_audit,
     default_bot_state as _default_bot_state,
     default_journal as _default_journal,
+    default_levels as _default_levels,
     default_replay_desk as _default_replay_desk,
     default_seed as _default_seed,
     default_sim_eyes as _default_sim_eyes,
@@ -48,6 +49,7 @@ from setup_scanner.hooks import (
     live_catalysts as _live_catalysts,
     no_catalysts as _no_catalysts,
 )
+from setup_scanner.host import LaneHost
 from setup_scanner.lane import Lane
 from setup_scanner.lane_params import lane_params
 from setup_scanner.store import SetupStore, StoreVersionError, session_date
@@ -62,7 +64,7 @@ def session_start_ts(now: float) -> float:
     return datetime.combine(d, dtime(4, 0), ET).timestamp()
 
 
-class SetupEngine:
+class SetupEngine(LaneHost):
     source = "live"
 
     def __init__(self, *, store: SetupStore | None = None, tape: Any = None,
@@ -75,7 +77,9 @@ class SetupEngine:
                  templates: Callable[[], Any] = _default_templates,
                  journal: Callable[[dict], None] = _default_journal,
                  bot_state: Callable[[], dict] = _default_bot_state,
-                 sim_eyes: Callable[[], Any] = lambda: None):
+                 sim_eyes: Callable[[], Any] = lambda: None,
+                 levels: Callable[[], dict] = _default_levels,
+                 setups: Iterable[str] = BOT_SCANNER_SETUPS):
         self.store = store
         self.store_error: str | None = None
         self.tape = tape
@@ -84,6 +88,8 @@ class SetupEngine:
         self._catalysts_fn = catalysts
         self._templates_fn, self._journal_fn, self._bot_state_fn = templates, journal, bot_state
         self._sim_eyes_fn = sim_eyes
+        self._levels_fn = levels
+        self.setups: tuple[str, ...] = tuple(setups)     # the setups whose lanes run (tests pin one)
         self.inbox: deque = deque()
         self.bars: dict[str, MinuteBars] = {}
         self.lanes: list[Lane] = []
@@ -95,10 +101,19 @@ class SetupEngine:
         self._last_push = 0.0
         self._trigger_listeners: list[Callable[[dict], None]] = []
 
-    # -- the lane in play, and the views the board / tests read ----------------
+    # -- the lanes in play, and the views the board / tests read ----------------
     @property
     def playing(self) -> Lane | None:
-        return next((lane for lane in self.lanes if lane.playing), self.lanes[0] if self.lanes else None)
+        """The first pullback's template in play (ADR 029's one board; tests read it)."""
+        return self.playing_lane(BOT_SETUP_FIRST_PULLBACK)
+
+    def playing_lane(self, setup: str) -> Lane | None:
+        mine = [lane for lane in self.lanes if lane.setup == setup]
+        return next((lane for lane in mine if lane.playing), mine[0] if mine else None)
+
+    def playing_lanes(self) -> list[Lane]:
+        """Each setup's template in play, in the playbook's order (ADR 031)."""
+        return [lane for lane in (self.playing_lane(s) for s in self.setups) if lane is not None]
 
     def _view(self, name: str) -> dict:
         lane = self.playing
@@ -110,64 +125,6 @@ class SetupEngine:
     trackers = property(lambda self: self._view("trackers"))
     tape_view = property(lambda self: self._view("tape_view"))
     proposals = property(lambda self: self._view("proposals"))
-
-    # -- the host every lane calls ----------------------------------------------
-    def pillars(self, sym: str, now: float) -> dict:
-        return _grade.read_pillars(sym, now)
-
-    def tape_books(self, sym: str) -> list:
-        return self.tape.books(sym) if self.tape is not None else []
-
-    def tape_prints(self, sym: str) -> list:
-        return self.tape.prints(sym) if self.tape is not None else []
-
-    def tape_line(self, sym: str) -> dict:
-        if self.tape is None:
-            return {"depth": False, "tape": False}
-        return {"depth": self.tape.has_depth(sym), "tape": self.tape.has_tape(sym)}
-
-    def save(self, row: dict) -> None:
-        if self.store is None:
-            return
-        try:
-            self.store.upsert(row)
-        except Exception:
-            logger.exception("setup scanner: could not save %s", row.get("id"))
-
-    def journal(self, event: dict) -> None:
-        try:
-            self._journal_fn({"ts": self._clock(), "date": self.session, "source": self.source,
-                              "bot": self._bot_state_fn(), **event})
-        except Exception:
-            logger.warning("setup scanner: journal write failed", exc_info=True)
-
-    def audit(self, **kw: Any) -> None:
-        self._audit_fn(**kw)
-
-    def clock(self) -> float:
-        return self._clock()
-
-    def can_propose(self) -> bool:
-        return not self._replay_fn()
-
-    # -- triggers to whoever trades them (ADR 030) --------------------------------
-    def add_trigger_listener(self, fn: Callable[[dict], None]) -> None:
-        if fn not in self._trigger_listeners:
-            self._trigger_listeners.append(fn)
-
-    def remove_trigger_listener(self, fn: Callable[[dict], None]) -> None:
-        if fn in self._trigger_listeners:
-            self._trigger_listeners.remove(fn)
-
-    def on_trigger(self, event: dict) -> None:
-        """The playing lane's setup triggered: tell the listeners, on the live feed only."""
-        if not self.can_propose():
-            return
-        for fn in list(self._trigger_listeners):
-            try:
-                fn({**event, "source": self.source})
-            except Exception:
-                logger.exception("setup scanner: a trigger listener failed on %s", event.get("setup_id"))
 
     # -- feed (called on the IB loop: enqueue only) -------------------------
     def on_l1_minute(self, kind: str, symbol: str, payload: dict) -> None:
@@ -210,8 +167,7 @@ class SetupEngine:
         sim = self._sim_eyes_fn()
         if sim is not None:
             sim.tick(now)
-        lane = self.playing
-        if (lane is not None and lane.alerts) or now - self._last_push >= SETUPS_BOARD_PUSH_SEC:
+        if any(lane.alerts for lane in self.lanes) or now - self._last_push >= SETUPS_BOARD_PUSH_SEC:
             await self._push(now)
 
     def _rollover(self, now: float) -> None:
@@ -226,37 +182,41 @@ class SetupEngine:
         self.journal({"event": "session", "symbol": None})
 
     def _sync_lanes(self, now: float) -> None:
-        """One lane per first-pullback template; rebuilt when the templates change."""
+        """One lane per template of every setup with a scanner; rebuilt when the templates change."""
         store = self._templates_fn()
         version = store.version()
         if self.lanes and version == self._templates_version:
             return
         self._templates_version = version
-        playing_id = store.in_play(BOT_SETUP_FIRST_PULLBACK).id
-        wanted = [t for t in store.templates(BOT_SETUP_FIRST_PULLBACK) if not t.error]
-        have = {(lane.p.template_id, lane.p.template_rev): lane for lane in self.lanes}
+        have = {(lane.setup, lane.p.template_id, lane.p.template_rev): lane for lane in self.lanes}
         lanes: list[Lane] = []
-        for t in wanted:
-            lane = have.pop((t.id, t.rev), None)
-            if lane is None:
-                lane = Lane(lane_params(t), self)
-                for sym, mb in self.bars.items():   # warm up on today's bars; it sees from now on
-                    if sym not in self.seeding and mb.completed:
-                        lane.on_bars(sym, mb.completed, now)
-            else:
-                lane.p = lane_params(t)            # same rules; the name may have changed
-            if lane.playing and t.id != playing_id:
-                lane.withdraw_all("template")
-            lane.playing = t.id == playing_id
-            lanes.append(lane)
-        kept = {t.id for t in wanted}
-        for (tid, _rev), gone in have.items():
-            gone.withdraw_all("edited" if tid in kept else "deleted")
-        lanes.sort(key=lambda lane: not lane.playing)
+        kept: set[tuple[str, str]] = set()
+        for setup in self.setups:
+            playing_id = store.in_play(setup).id
+            wanted = [t for t in store.templates(setup) if not t.error]
+            mine: list[Lane] = []
+            for t in wanted:
+                kept.add((setup, t.id))
+                lane = have.pop((setup, t.id, t.rev), None)
+                if lane is None:
+                    lane = Lane(lane_params(t), self)
+                    for sym, mb in self.bars.items():   # warm up on today's bars; it sees from now on
+                        if sym not in self.seeding and mb.completed:
+                            lane.on_bars(sym, mb.completed, now)
+                else:
+                    lane.p = lane_params(t)            # same rules; the name may have changed
+                if lane.playing and t.id != playing_id:
+                    lane.withdraw_all("template")
+                lane.playing = t.id == playing_id
+                mine.append(lane)
+            mine.sort(key=lambda lane: not lane.playing)
+            lanes += mine
+        for (setup, tid, _rev), gone in have.items():
+            gone.withdraw_all("edited" if (setup, tid) in kept else "deleted")
         self.lanes = lanes
         self.journal({"event": "lanes", "symbol": None, "lanes": [
-            {"template": lane.p.template_id, "rev": lane.p.template_rev, "name": lane.p.name,
-             "params_hash": lane.p.params_hash, "playing": lane.playing} for lane in lanes]})
+            {"setup_type": lane.setup, "template": lane.p.template_id, "rev": lane.p.template_rev,
+             "name": lane.p.name, "params_hash": lane.p.params_hash, "playing": lane.playing} for lane in lanes]})
 
     async def _sync_universe(self, now: float) -> None:
         wanted = {s.strip().upper() for s in self._universe_fn() if s and s.strip()}

@@ -1,17 +1,18 @@
-"""One template's eyes (ADR 029): a lane of first-pullback detectors over the
+"""One template's eyes (ADR 029): a lane of one setup's detectors over the
 scanner's symbols, with its own scoreboard rows, tape reads, proposals and
 journal lines.
 
-The engine runs one lane per first-pullback template on the same bars and the
-same tape; a replay runs the same lanes over a Session Record. Only the lane
-whose template is in play may raise proposals, and only when its host allows
-it. A setup the template's stock filter keeps out is journalled as
+The engine runs one lane per template of every setup with a scanner (ADR 031)
+on the same bars and the same tape; a replay runs the same lanes over a Session
+Record. Only the lane whose template is in play for its setup may raise
+proposals, and only when its host allows it for that setup (its level, ADR
+031). A setup the template's stock filter keeps out is journalled as
 ``filtered`` and goes no further: no tape read, no score, no row.
 
 The host (``SetupEngine`` live, ``eyes.replay.EyesReplay`` on a recording)
 supplies ``session``, ``pillars(sym, now)``, ``tape_books(sym)``,
 ``tape_prints(sym)``, ``tape_line(sym)``, ``save(row)``, ``journal(event)``,
-``audit(**kw)``, ``clock()`` and ``can_propose()``, and may supply
+``audit(**kw)``, ``clock()`` and ``can_propose(setup_type)``, and may supply
 ``on_trigger(event)`` (the live engine: ADR 030). Nothing here places an order.
 """
 from __future__ import annotations
@@ -19,28 +20,26 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from constants_bot import BOT_SETUP_FIRST_PULLBACK
 from constants_setups import (
-    SETUP_STATE_ARMED,
-    SETUP_STATE_FAILED,
-    SETUP_STATE_LEG,
     SETUP_STATE_NEAR,
-    SETUP_STATE_PULLBACK,
     SETUP_STATE_TRIGGERED,
     SETUP_TEMPLATE_DEFAULT_ID,
-    SETUPS_BOARD_MAX_ROWS,
     SETUPS_SCORE_WINDOW_MIN,
     TAPE_VERDICT_BLIND,
     TAPE_VERDICT_GO,
 )
 from setup_scanner import grade as _grade
+from setup_scanner import lane_view
 from setup_scanner.bars import Bar, minute_start
+from setup_scanner.detector import TriggerDetector
+from setup_scanner.detectors import make_detector
 from setup_scanner.lane_params import LaneParams
-from setup_scanner.pullback import PullbackDetector
 from setup_scanner.scoring import ScoreTracker
 from setup_scanner.tape_gate import evaluate as evaluate_tape
 
-WATCH_STATES = (SETUP_STATE_ARMED, SETUP_STATE_NEAR)
-STATE_FILTERED = "filtered"          # a board / journal state only: the detector never holds it
+WATCH_STATES = lane_view.WATCH_STATES
+STATE_FILTERED = lane_view.STATE_FILTERED
 # Why an open proposal closed, as the Bots page timeline says it.
 PROPOSAL_CLOSE_REASONS = {
     "rearmed": "re-armed at new levels -- the next go raises a fresh one",
@@ -51,10 +50,7 @@ PROPOSAL_CLOSE_REASONS = {
     "edited": "the template's rules changed",
     "deleted": "the template was deleted",
 }
-ORDER = {SETUP_STATE_NEAR: 0, SETUP_STATE_ARMED: 1, SETUP_STATE_TRIGGERED: 2, SETUP_STATE_PULLBACK: 3,
-         SETUP_STATE_LEG: 4, STATE_FILTERED: 5, SETUP_STATE_FAILED: 6}
-TRIGGERED_SHOW_SEC = 30 * 60
-FAILED_SHOW_SEC = 5 * 60
+ORDER = lane_view.ORDER
 
 
 def slim(res: dict) -> dict:
@@ -66,7 +62,7 @@ class Lane:
         self.p = params
         self.host = host
         self.playing = playing
-        self.det: dict[str, PullbackDetector] = {}
+        self.det: dict[str, TriggerDetector] = {}
         self.rows: dict[str, dict] = {}
         self.active_id: dict[str, str] = {}
         self.trackers: dict[str, ScoreTracker] = {}
@@ -81,16 +77,24 @@ class Lane:
     def template_id(self) -> str:
         return self.p.template_id
 
+    @property
+    def setup(self) -> str:
+        return self.p.setup
+
     def sid(self, sym: str, key: Any) -> str:
+        """``SYMBOL-DATE-KEY`` for the first pullback's default (ADR 022); another setup adds
+        ``@SETUP`` (ADR 031) and another template ``~TEMPLATE_ID`` (ADR 029)."""
         base = f"{sym}-{self.host.session}-{key}"
+        if self.p.setup != BOT_SETUP_FIRST_PULLBACK:
+            base = f"{base}@{self.p.setup}"
         return base if self.p.template_id == SETUP_TEMPLATE_DEFAULT_ID else f"{base}~{self.p.template_id}"
 
     def stamp(self) -> dict[str, Any]:
         return {"template_id": self.p.template_id, "template_rev": self.p.template_rev,
-                "params_hash": self.p.params_hash}
+                "params_hash": self.p.params_hash, "setup_type": self.p.setup}
 
     def journal(self, event: str, sym: str | None, **fields: Any) -> None:
-        self.host.journal({"event": event, "symbol": sym, "template": self.p.template_id,
+        self.host.journal({"event": event, "symbol": sym, "setup_type": self.p.setup, "template": self.p.template_id,
                            "rev": self.p.template_rev, "playing": self.playing, **fields})
 
     # -- symbols ----------------------------------------------------------------
@@ -100,10 +104,10 @@ class Lane:
             store.clear()
         self.alerts = []
 
-    def ensure(self, sym: str) -> PullbackDetector:
+    def ensure(self, sym: str) -> TriggerDetector:
         det = self.det.get(sym)
         if det is None:
-            det = self.det[sym] = PullbackDetector(sym, p=self.p.pullback)
+            det = self.det[sym] = make_detector(self.p.setup, sym, self.p.pattern)
         return det
 
     def drop(self, sym: str) -> None:
@@ -163,8 +167,11 @@ class Lane:
             if kind == "armed":
                 if row is None:
                     row = self._new_row(sym, sid, view, now)
-                elif row.get("disarmed_at"):
-                    row["disarmed_at"] = None          # the same leg armed again
+                else:
+                    if row.get("disarmed_at"):
+                        row["disarmed_at"] = None      # the same leg armed again
+                    if row.get("failed_at"):
+                        row["failed_at"] = row["fail_reason"] = None   # a flat top's base armed again
                 self._copy_setup(row, view)
                 self.active_id[sym] = sid
                 if sid in self.filtered:
@@ -196,11 +203,16 @@ class Lane:
                 tape = self.evaluate(sym, ts)
                 row.update({"state": SETUP_STATE_TRIGGERED, "reason": view["reason"], "triggered_at": ts,
                             "entry": setup.get("entry"), "nth": setup.get("nth"), "trigger_tape": tape,
-                            "outcome": "open"})
+                            "outcome": "open", "stop": setup.get("stop"), "risk": setup.get("risk"),
+                            "target1": setup.get("target1"), "detail": setup.get("detail")})
+                # A flat-top hold enters at a candle's close: it is scored from that candle,
+                # which takes no half at target 1 (the research's half_on_entry_bar=False).
                 self.trackers[sid] = ScoreTracker(
                     entry=float(setup["entry"]), stop=float(setup["stop"]), target1=float(setup["target1"]),
-                    risk=float(setup["risk"]), triggered_at=ts, entry_bar_t=minute_start(ts),
-                    bailout_bars=self.p.bailout_bars)
+                    risk=float(setup["risk"]), triggered_at=ts,
+                    entry_bar_t=float(setup.get("score_bar_t") or minute_start(ts)),
+                    bailout_bars=self.p.bailout_bars,
+                    half_on_entry_bar=bool(setup.get("half_on_entry_bar", True)))
                 self.journal("triggered", sym, setup_id=sid, setup=setup, price=setup.get("trigger_price"),
                              tape=tape)
                 self._close_proposal(sid, "triggered")
@@ -236,7 +248,7 @@ class Lane:
                     "trigger": s.get("trigger"), "entry_planned": s.get("entry"), "stop": s.get("stop"),
                     "risk": s.get("risk"), "target1": s.get("target1"), "leg_high": s.get("leg_high"),
                     "leg_low": s.get("leg_low"), "leg_pct": s.get("leg_pct"),
-                    "pullback_bars": s.get("pullback_bars")})
+                    "pullback_bars": s.get("pullback_bars"), "detail": s.get("detail")})
 
     def _score(self, sid: str) -> None:
         tr, row = self.trackers.get(sid), self.rows.get(sid)
@@ -277,7 +289,7 @@ class Lane:
             if prop is not None and prop["status"] == "open":
                 prop["tape_now"] = res["verdict"]
             elif (sid and self.playing and self.det[sym].state == SETUP_STATE_NEAR
-                  and res["verdict"] == TAPE_VERDICT_GO and self.host.can_propose()):
+                  and res["verdict"] == TAPE_VERDICT_GO and self.host.can_propose(self.p.setup)):
                 # No open proposal: none yet, or the last one was withdrawn when the
                 # setup re-armed at new levels or was disarmed and armed again.
                 self._propose(sym, sid, res, now)
@@ -288,7 +300,8 @@ class Lane:
                 "trigger": row.get("trigger"), "entry": row.get("entry_planned"), "stop": row.get("stop"),
                 "target1": row.get("target1"), "risk": row.get("risk"), "grade": row.get("grade"),
                 "reasons": res.get("reasons"), "created_at": now, "status": "open", "tape_now": res["verdict"],
-                "template_id": self.p.template_id, "template_name": self.p.name, "source": self.host.source}
+                "template_id": self.p.template_id, "template_name": self.p.name, "source": self.host.source,
+                "setup_type": self.p.setup}
         self.proposals[sid] = prop
         self.alerts.append(prop)
         row["proposal_id"] = prop["id"]
@@ -306,7 +319,7 @@ class Lane:
             return
         notify({"symbol": sym, "setup_id": sid, "setup": dict(setup), "tape": slim(tape), "ts": ts,
                 "template_id": self.p.template_id, "template_rev": self.p.template_rev,
-                "template_name": self.p.name})
+                "template_name": self.p.name, "setup_type": self.p.setup})
 
     def _close_proposal(self, sid: str, status: str) -> None:
         prop = self.proposals.get(sid)
@@ -323,49 +336,12 @@ class Lane:
         for sid in list(self.proposals):
             self._close_proposal(sid, status)
 
-    # -- board ------------------------------------------------------------------
+    # -- board (setup_scanner/lane_view.py) --------------------------------------------
     def board_rows(self, now: float) -> list[dict[str, Any]]:
-        rows: list[dict[str, Any]] = []
-        for sym, det in self.det.items():
-            if det.state not in ORDER:
-                continue
-            sid = self.active_id.get(sym)
-            row = self.rows.get(sid) if sid else None
-            view = det.view()
-            if row is not None and row.get("leg_t") != view.get("setup_key"):
-                row, sid = None, None          # a new leg: the last setup's row is history
-            state, reason = det.state, det.reason
-            if sid in self.filtered and state in WATCH_STATES + (SETUP_STATE_TRIGGERED,):
-                state, reason = STATE_FILTERED, f"filtered: {self.filtered[sid]}"
-                if now - float(row.get("armed_at") or now) > FAILED_SHOW_SEC:
-                    continue
-            elif state == SETUP_STATE_TRIGGERED:
-                if not row or now - float(row.get("triggered_at") or 0) > TRIGGERED_SHOW_SEC:
-                    continue
-            elif state == SETUP_STATE_FAILED:
-                if not row or now - float(row.get("failed_at") or 0) > FAILED_SHOW_SEC:
-                    continue
-            setup = view.get("setup")
-            last = view.get("last_price")
-            distance = None
-            if setup and last is not None and state in WATCH_STATES:
-                distance = round(float(setup["trigger"]) - float(last), 4)
-            prop = self.proposals.get(sid) if sid else None
-            tape = self.tape_view.get(sym)
-            rows.append({
-                "symbol": sym, "state": state, "reason": reason, "kind": view.get("kind"),
-                "nth": view.get("nth"), "setup_id": sid if row else None, "setup": setup,
-                "leg": view.get("leg"), "last_price": last, "distance": distance,
-                "grade": (row or {}).get("grade"), "pillars": (row or {}).get("pillars"),
-                "tape": {"verdict": tape.get("verdict"), "reasons": tape.get("reasons"),
-                         "line": tape.get("line"), "metrics": tape.get("metrics")} if tape else None,
-                "proposal": prop if prop and prop.get("status") == "open" else None,
-                "outcome": (row or {}).get("outcome"), "bar_r": (row or {}).get("bar_r"),
-                "mfe": (row or {}).get("mfe"), "mae": (row or {}).get("mae"),
-            })
-        rows.sort(key=lambda r: (ORDER.get(r["state"], 9),
-                                 r["distance"] if r["distance"] is not None else 9e9, r["symbol"]))
-        return rows[:SETUPS_BOARD_MAX_ROWS]
+        return lane_view.board_rows(self, now)
 
     def open_proposals(self) -> list[dict]:
         return [p for p in self.proposals.values() if p.get("status") == "open"]
+
+    def counts(self) -> dict[str, int]:
+        return lane_view.counts(self)

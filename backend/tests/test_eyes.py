@@ -160,15 +160,26 @@ def test_sim_eyes_follow_the_playhead_and_journal_each_moment_once(tmp_path):
     rec = recording()
     events: list[dict] = []
     target = {"kind": "capture", "date": DAY, "symbol": SYM, "playhead": rec.bars[-1].t + 30}
-    eyes = SimEyes(target=lambda: dict(target), load=lambda d, s: rec, journal=events.append, threaded=False)
+    # The first pullback at Eyes: a setup at Off watches the replay in silence (ADR 031).
+    eyes = SimEyes(target=lambda: dict(target), load=lambda d, s: rec, journal=events.append, threaded=False,
+                   levels=lambda: {"chosen": "first_pullback", "levels": {"first_pullback": 1}})
+
+    def fp(board):
+        return [r for r in board["rows"] if r["setup_type"] == "first_pullback"]
+
     eyes.tick(0)
     board = eyes.board(0)
-    assert board["source"] == "sim" and board["replay"]["symbol"] == SYM and board["rows"][0]["state"] == "leg"
+    assert board["source"] == "sim" and board["replay"]["symbol"] == SYM and fp(board)[0]["state"] == "leg"
     target["playhead"] = rec.bars[-1].t + 60 + 5
     eyes.tick(0)
     board = eyes.board(0)
-    assert board["rows"][0]["state"] == "near" and board["template"]["id"] == "default"
-    assert board["proposals"] and eyes.take_alerts()
+    first = next(s for s in board["setups"] if s["id"] == "first_pullback")
+    assert fp(board)[0]["state"] == "near" and first["template"]["id"] == "default" and first["proposing"]
+    assert board["schema_version"] == 2 and [s["id"] for s in board["setups"]] == [
+        "first_pullback", "bull_flag", "flat_top_breakout", "red_to_green"]
+    assert all(not s["proposing"] for s in board["setups"] if s["id"] != "first_pullback")
+    assert board["proposals"] and all(p["setup_type"] == "first_pullback" for p in board["proposals"])
+    assert eyes.take_alerts()
     seen = len(events)
     target["playhead"] = rec.bars[-1].t + 30             # rewind: rebuilt silently
     eyes.tick(0)
@@ -228,7 +239,7 @@ def test_eyes_routes(tmp_path, monkeypatch):
     assert c.post("/api/eyes/backtests", json={"sessions": [{"date": DAY, "symbol": "abcd"}]}).status_code == 202
     assert started[-1]["sessions"] == [(DAY, "ABCD")]
     assert c.post("/api/eyes/backtests").status_code == 202         # no body: every template, every recording
-    assert started[-1] == {"template_ids": None, "sessions": None}
+    assert started[-1] == {"template_ids": None, "sessions": None, "setup": "first_pullback"}
     assert c.get("/api/eyes/backtests/../../etc").status_code == 404
     assert c.get("/api/eyes/backtests/20260921-100000-abcdef").status_code == 404
     assert c.get("/api/eyes/backtests").json()["runs"] == []
@@ -246,7 +257,7 @@ def test_a_backtest_of_an_unknown_template_is_refused_by_name(tmp_path, monkeypa
     refused = TestClient(app).post("/api/eyes/backtests", json={"templates": ["t-nope"]})
     assert refused.status_code == 404
     assert refused.json()["detail"] == {"reason": "TEMPLATE_UNKNOWN", "field": "t-nope",
-                                        "error": "no usable first-pullback template t-nope"}
+                                        "error": "no usable first pullback template t-nope"}
     assert not (tmp_path / "backtests").exists()
 
 

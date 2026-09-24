@@ -3,7 +3,7 @@
 > **Single source of truth.** `gemini.md` is a legacy alias that `@`-imports this file (consolidated 2026-07-28 after the two mirrors drifted).
 >
 > **Status:** ENFORCED — Active governance document
-> **Last Updated:** 2026-09-23
+> **Last Updated:** 2026-09-24
 > **Project:** Nova — Stock Alert Automation System
 > **Enforcement:** Every AI agent (Cursor, Antigravity, any LLM assistant) MUST read this file before writing ANY code. Violations are NEVER acceptable.
 
@@ -777,6 +777,38 @@ grade and pillars at arm time, `near_tape` / `trigger_tape`, the first touch,
 MFE / MAE over 15 minutes and `bar_r` under the research exit rules --
 scores, never fills.
 
+**Every setup's scanner (ADR 031, operator decisions 2026-09-24).** The bull
+flag, the flat-top breakout and red to green get detectors beside the first
+pullback's (`setup_scanner/bull_flag.py`, `flat_top.py`, `red_to_green.py`;
+rules pre-registered in ADR 031), on the same ladder of states, the same tape
+gate and the same scoring. The board is `schema_version: 2`: every row and
+proposal adds `setup_type: "first_pullback" | "bull_flag" | "flat_top_breakout"
+| "red_to_green"`; a row adds `failed_at: number | null` and its `setup` adds
+`detail: object | null` (the setup's own facts: `entry_mode` and `broke_at` for
+the flat-top breakout, `open` and `red_bars` for red to green, `pole_bars` for the
+bull flag); `kind` is one of `first_pullback | second_pullback | bull_flag |
+second_bull_flag | flat_top_breakout | second_flat_top_breakout | red_to_green`
+(the kind without `second_` is the first of that setup on that symbol that day);
+`leg` is the setup's context (`{t, high, low, pct, bars?}`: the leg, the pole, the
+impulse into the high of day, or the open and the red phase); rows are capped
+per setup (`SETUPS_BOARD_MAX_ROWS` each). The top-level `template` /
+`templates_watched` move into `setups[]`, one entry per setup with a scanner:
+`{id, level: 0 | 1 | 2, chosen: boolean, proposing: boolean, template: {id, rev,
+name, params_hash} | null, templates_watched, window: {start, end, state:
+"before" | "open" | "after"}, counts: {watching, forming, armed, near,
+triggered, failed, filtered, proposed}}` -- `forming` counts the symbols now in
+`leg` or `pullback`, the rest count today's rows (`proposed`: rows that raised a
+proposal). The top-level `proposing` is true when any setup proposes. A setup
+proposes only at Eyes or above (`level`: the session's `level` for the chosen
+setup, `setup_levels[setup]` for the others); at Off it watches and scores,
+silently. `setups.db` is schema 3: rows add `setup_type` and `detail`
+(JSON); a schema-2 file migrates in place, its rows the first pullback's (schema
+1 migrates through 2); row ids keep their form for the first pullback and add
+`@<setup_type>` for the others, before any `~TEMPLATE_ID`. `GET
+/api/setups/scoreboard` and `GET /api/setups/rows` take `setup=` (default
+`first_pullback`) and answer for that setup's template in play; both add
+`setup_type` to their answer.
+
 ### Catalysts (ADR 024)
 
 One pure classifier, `backend/catalysts/classify.py` (rules and `CATALYST_RULES_VERSION` in
@@ -950,15 +982,26 @@ The bot packs (halt-luld, quote-spike, volume, llm-decide), `POST
 file is `schema_version: 4`; a v1-3 file loads with `active_pack`,
 `pack_settings` and `llm` stripped. `GET /api/bot/session` drops those keys
 and adds `setup` (the setup that plays: `first_pullback`), `setups: [{id,
-scanner: boolean}]` (`first_pullback`, `gap_and_go`, `flat_top_breakout`,
-`red_to_green`, `micro_pullback`; only a setup with a scanner can be chosen --
-`PATCH {setup}` otherwise `400 BOT_SETUP_NO_SCANNER`), `readout` and `gates`.
+scanner: boolean}]` (`first_pullback`, `bull_flag`, `flat_top_breakout`,
+`red_to_green`, `gap_and_go`, `micro_pullback`; only a setup with a scanner can
+be chosen -- `PATCH {setup}` otherwise `400 BOT_SETUP_NO_SCANNER`), `readout`
+and `gates`. **A level per setup (ADR 031):** each `setups[]` entry adds
+`level: 0 | 1 | 2 | null` (`null` without a scanner) -- the session's `level`
+for the chosen setup, else `setup_levels[id]`; the session adds `setup_levels:
+{SETUP: 0 | 1}` (an optional key of schema 4; a missing setup is Off), set by
+`PATCH /api/bot/session {setup_levels: {SETUP: 0 | 1}}` for a setup with a
+scanner other than the chosen one (`400 BOT_SETUP_LEVEL` otherwise: the chosen
+setup's level is `level`, and only it may reach Strategy). Choosing another
+setup keeps the session's `level` for the new one, gives the old one `min(level,
+1)`, and deactivates an active bot. `readout` and the `readout` gate are the
+chosen setup's.
 
 `readout` (owner `setup_scanner/readout.py`, cached 30 s) is `{state:
 "collecting" | "passed" | "not_passed" | "failed" | "unavailable", passed,
 reason, go: {triggered, scored, win_pct, avg_net_r}, control: {...}, rules:
-{kind, min_go, fail_go, min_net_r}}` over every `setups.db` row of kind
-`first_pullback` that triggered: `go` are those whose tape was go at the
+{kind, min_go, fail_go, min_net_r}}` over every `setups.db` row of the setup's
+first-of-the-day kind (`rules.kind`: `first_pullback`, `bull_flag`,
+`flat_top_breakout` or `red_to_green`, ADR 031) that triggered: `go` are those whose tape was go at the
 trigger, `control` those blind or wait (pooled). It passes when at least 50 go
 setups triggered and their average net R is above +0.2 and above the
 control's; it is judged on the first 100 go setups, and 100 without a pass is
@@ -999,11 +1042,30 @@ are accepted at Eyes and Strategy. `gates: [{id, ok, stage: "activate" |
 `kill_switch`, `window`, `commissions` (stage `fire`; `detail: {error,
 since}` while entries are held).
 
+**Loss breakers per venue** (ADR 032, operator ask 2026-09-24). The bot trip
+(soft: flatten, the bot to L0) and the all-stop (hard: flatten, bot and manual
+buys locked to the next ET midnight) compare the whole account's day P&L with
+the desk venue's own thresholds (owner `bot/breaker_limits.py`): the session
+keeps `breakers: {VENUE: {soft_usd, hard_usd}}` for `live` / `paper` / `sim`
+(an optional key of schema 4; a venue with none reads -50 / -200; a venue Nova
+cannot read reads Live's). `GET /api/bot/session` adds `breakers: {venue,
+soft_usd, hard_usd, custom, defaults: {soft_usd, hard_usd}, by_venue: {VENUE:
+{soft_usd, hard_usd}}, bounds: {soft_usd: [loosest, tightest], hard_usd:
+[loosest, tightest], step_usd}}`; `PATCH /api/bot/session {breakers: {venue?,
+soft_usd?, hard_usd?}}` changes the named venue (else the desk's) within -5 to
+-1,000 (bot trip) and -10 to -5,000 (all-stop), the bot trip above the
+all-stop, snapped to $5 -- `400 BOT_BREAKER_INVALID` otherwise -- and records a
+`breakers` audit line. Moving a threshold never clears a fired bot trip or a
+day lock. `bot-session.json` and `bot-proposals.json` are written through a
+temp file and a rename.
+
 **Nova's own first-pullback bot** (ADR 030, owner `bot/first_pullback/`; #514).
-Active at Strategy with `first_pullback` chosen, on Paper or on Sim at the live
-edge -- never on Live -- it hears the setup scanner's triggers (the template in
-play's lane, live feed only: `SetupEngine.add_trigger_listener`) and, for a
-first pullback with the tape at go, sends one BUY limit at the scanner's entry
+Active at Strategy, on Paper or on Sim at the live
+edge -- never on Live -- it hears the setup scanner's triggers (each setup's
+template in play's lane, live feed only: `SetupEngine.add_trigger_listener`;
+the event carries `setup_type`) and plays the chosen setup's (ADR 031: any setup
+with a scanner, not only `first_pullback`): for the first of that setup on a
+symbol that day (its kind without `second_`) with the tape at go, it sends one BUY limit at the scanner's entry
 through `execution.service.execute` (source `bot`) after every bot gate:
 allowlist and a held depth line, the template's window and daily cap, day
 lock, kill switch, working block, budget (size: `caps.max_shares` cut to
@@ -1090,12 +1152,13 @@ view. A refusal is `{detail: {reason, error, field}}`: `TEMPLATE_INVALID` 400,
 updated_at}]}}}`; an unknown version or an unreadable file leaves every setup
 on its default and refuses writes.
 
-The setup scanner runs one lane per first-pullback template: every template is
-watched; the one in play proposes and draws the board. `setups.db` is `PRAGMA
-user_version = 2`: rows add `template_id`, `template_rev` (integer) and
+The setup scanner runs one lane per template of every setup with a scanner
+(ADR 031): every template is watched; each setup's template in play proposes
+(at Eyes or above) and draws that setup's rows. `setups.db` was `PRAGMA
+user_version = 2` here -- rows add `template_id`, `template_rev` (integer) and
 `params_hash`; a version-1 file migrates in place and its rows become the
 default's (ids stay `SYMBOL-DATE-LEG_T`; another template's rows end
-`~TEMPLATE_ID`). The board payload adds `source: "live" | "sim"`, `template:
+`~TEMPLATE_ID`) -- and is 3 since ADR 031 (`setup_type`, `detail`). The board payload adds `source: "live" | "sim"`, `template:
 {id, rev, name, params_hash} | null`, `templates_watched` and `replay: {kind:
 "capture" | "historical", date, symbol, playhead, at, loading, error, note,
 recording} | null`; a row's `state` may be `filtered` (the template's stock
@@ -1121,8 +1184,8 @@ bot: {level, active, venue} | null, replay?: {date, symbol}, ...}`, where
 its own fields (`setup` levels, `grade`, `pillars`, `reason`, `tape` /
 `verdict` / `reasons` / `metrics` / `line`, `status`, `outcome`, `bar_r`,
 `mfe`, `mae`, `added` / `removed`, `lanes`). `ts` / `date` are the moment and
-session the eyes looked at (a replay's own). `NOVA_EYES_JOURNAL=0` turns it
-off. Read by `tools/eyes_journal.py` (`days | summary | setups | events`) and
+session the eyes looked at (a replay's own). A line from a lane adds
+`setup_type` (ADR 031). `NOVA_EYES_JOURNAL=0` turns it off. Read by `tools/eyes_journal.py` (`days | summary | setups | events`) and
 `eyes/reader.py`, never by the desk.
 
 **Replayed eyes** (`backend/eyes/replay.py`, `sim_eyes.py`, `backtest.py`): a
@@ -1134,9 +1197,10 @@ recorded stretch nothing is near and nothing triggers. `GET /api/eyes/journal`
 last_write_ts}, days: [{date, bytes, path}]}`; `GET /api/eyes/sim` -> `{target,
 loading, error, template, lanes, recording, now}`; `GET /api/eyes/backtests`
 -> `{dir, runs: [{run_id, created_at, finished_at, status, error, templates,
-sessions, setups}]}`; `POST /api/eyes/backtests` `{templates?: [id],
+sessions, setups}]}`; `POST /api/eyes/backtests` `{setup?: SETUP, templates?: [id],
 sessions?: [{date, symbol}]}` -> 202 `{run_id, status: "running"}` (400
-`BACKTEST_INVALID`, 404 `TEMPLATE_UNKNOWN`); `GET /api/eyes/backtests/{run_id}`
+`BACKTEST_INVALID`, 404 `TEMPLATE_UNKNOWN`; `setup` defaults to
+`first_pullback`, and `templates` are that setup's; ADR 031); `GET /api/eyes/backtests/{run_id}`
 -> `{manifest, summary}`. A run is `<eyes dir>/backtests/<run_id>/`:
 `manifest.json`, `setups.jsonl`, `events.jsonl` and `summary.json`, shaped in
 `eyes/backtest.py`'s docstring; never `setups.db`, never the live read-out.
@@ -1146,6 +1210,13 @@ cannot act carries its reason in `data-why` beside `disabled` (or
 `aria-disabled="true"`); one tip per window shows it on hover and at once on a
 refused press. `ux/whyCoverage.test.ts` fails the build on a JSX element that
 can be disabled without its reason.
+
+**Every chip explains itself** (frontend, `ux/hoverTip.ts`, ADR 031): an enabled
+element that carries `data-tip` (and optionally `data-tip-title`) shows it in one
+tip per window on hover and on keyboard focus -- plain text, line breaks kept,
+never HTML. A locked control keeps `data-why` (the two never stack). The setup
+cards, the Setups board and the Symbols card explain every state, tape verdict,
+grade, price, count, level and read-out this way; `title` stays for short labels.
 
 ### Input Payload (Raw)
 
@@ -1748,6 +1819,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-24 | A scanner for every setup (ADR 031, #572; operator: "Weren't we supposed to have a small scanner for each one of these strategies?", then "we are going to need lots of hovers, explaining in detail what each means" and "add a strategy called bull flag"; decisions A / B / C on the mockup). The flat-top breakout (research P2) and red to green (P3) get live detectors on the first pullback's lanes, and the bull flag joins the playbook with rules pre-registered in ADR 031 from the operator's material; each watches the HOD Momo names on every template, reads the same tape gate, scores the same way and keeps its own read-out. A level per setup: the chosen setup's is the session's; every other setup with a scanner is Off (watches and scores, silently -- the first pullback no longer pings at Off) or Eyes (proposes), several at once; only the chosen setup reaches Strategy, and Nova's bot trades the chosen setup on Paper and Sim. `setups.db` schema 3 (`setup_type`, `detail`), the board schema 2 (`setups[]`), `PATCH /api/bot/session {setup_levels}`. Every setup card carries its own small scanner; `ux/hoverTip.ts` explains every chip on hover. Gap and Go's scanner is next; the micro pullback stays parked. Also the loss breakers become the operator's, per venue (ADR 032, operator: "move that slider ... make sure these changes are persistent"): the bot trip and the all-stop are sliders saved in the bot session for Live, Paper and Sim separately, within bounds, and the session file is written atomically. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Leftover-issue sweep (operator ask: "Do we have any still-leftover issues on GitHub? Can we go ahead and address them?"): all 28 open issues checked against master; five were already fixed and closed (#430, #448, #481, #484, #516). §3 amended for what shipped: scanner snapshots dated by their exchange session (#483); the replayed session's previous close is IBKR's own -- a recorded tick 9, the leaderboard, a download's regular-hours daily close, else none, never a 15:59 or after-hours close (#542); a recording's lost tape line is named, asked for again and counted in the manifest (#525, cause unproven); Time & Sales dims prints that do not set a price, and a capture replay's chart tip and last trade skip them (#543); Form 4 open-market insider purchases are a weak catalyst, rules v7 (#517); a float Yahoo's own counts contradict is flagged and short interest carries its FINRA date, no gate changed (#532, point 2 awaits the operator); the leaderboard store is schema 2 with per-day catalyst items for Sim playback (#498); chart bars coverage says when IBKR history stopped answering, and a failed pair backs off 30 s (#555). Also: the session commission read is cached exactly by ledger generation (#554), the Gateway port probe and HOD Momo's alert writes left the loops (#505, #553), Nova Action cancels and flattens work on a disarmed desk (#548, ADR 018 decision 4), tape and depth lines from an ended IBKR session stop counting as subscribed and are asked for again (#562, `ibkr/line_session.py`), the 17 stale Playwright specs match today's desk (#502), and several QA leftovers (#459, #486, #487). Decisions recorded on their issues: #449, #485, #499, #504, #514, #564; new bugs filed: #563, #565, #566. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | The first-pullback bot trades Paper and Sim; the read-out gates Live (ADR 030, #514; operator report: "When I'm on paper, I cannot activate the button for the bots" -- then "Paper/Sim skip it + build"). Activate at Strategy was locked on every venue by the first-pullback read-out (0 of 50 go setups: a go needs Nova to hold the name's Level 2 at the trigger), and nothing placed a trade on a trigger anyway. Now Paper and Sim skip the read-out (Live keeps it; an unreadable venue counts as Live), and `bot/first_pullback/` trades the template in play's go triggers there through every bot gate: a limit at the scanner's entry, a resting target, a watched stop, a 15-minute time stop, one trade a day (a miss gives the day back). Nothing places on Live. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Nova shows a window the moment it starts (operator pick after the update fix): the desk window was created only once the local engine answered and shown only once its page loaded, so a cold start -- a 2.5 s look for a running engine, the engine's own start, the page load -- had nothing on screen. A small "Starting Nova" window now opens about 0.6 s after launch, names the step (looking for, starting or connecting to the local engine, loading the desk), closes the moment the desk shows, and calls the launch off when the operator closes it. After an update it takes over from the "Updating Nova" window. `startApiSidecar()` now says whether it reused, attached to or spawned the engine. §8 amended. | User Directive + Claude Opus 5.5 |

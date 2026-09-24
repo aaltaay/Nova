@@ -49,8 +49,14 @@ def test_session_get_l0_open_without_key(bot_iso):
     assert "packs" not in body and "active_pack" not in body and "llm" not in body
     assert body["setup"] == "first_pullback"
     setups = {row["id"]: row["scanner"] for row in body["setups"]}
-    assert setups == {"first_pullback": True, "gap_and_go": False, "flat_top_breakout": False,
-                      "red_to_green": False, "micro_pullback": False}
+    # ADR 031: the bull flag joins; it, the flat-top breakout and red to green have scanners.
+    assert setups == {"first_pullback": True, "bull_flag": True, "flat_top_breakout": True,
+                      "red_to_green": True, "gap_and_go": False, "micro_pullback": False}
+    levels = {row["id"]: row["level"] for row in body["setups"]}
+    assert levels == {"first_pullback": 0, "bull_flag": 0, "flat_top_breakout": 0, "red_to_green": 0,
+                      "gap_and_go": None, "micro_pullback": None}
+    assert body["setup_levels"] == {"bull_flag": 0, "flat_top_breakout": 0, "red_to_green": 0}
+    assert body["breakers"]["soft_usd"] == -50.0 and body["breakers"]["hard_usd"] == -200.0
     assert {g["id"] for g in body["gates"]} == {
         "level", "allowlist", "desk_armed", "depth_lines", "readout", "bot_trip", "day_lock",
         "kill_switch", "window", "commissions"}

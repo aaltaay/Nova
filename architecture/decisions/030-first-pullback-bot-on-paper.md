@@ -1,6 +1,6 @@
 # ADR 030 -- The first-pullback bot trades Paper and Sim; the read-out gates Live
 
-**Status:** Accepted · **Date:** 2026-09-24
+**Status:** Accepted · **Date:** 2026-09-24 · **Amended by:** [[031-a-scanner-for-every-setup]] (the bot trades the chosen setup)
 **Amends:** [[027-bot-playbook-readout-gate]] decision 3 (the read-out gates Strategy on every venue)
 **Builds on:** [[022-setup-scanner-tape-gate]] · [[029-setup-templates-eyes-journal]] · [[020-three-venues-one-feed]]
 **Decided by:** the operator, 2026-09-24 ("When I'm on paper, I cannot activate the button for the

@@ -1,6 +1,7 @@
 """Backtest the eyes on Session Records (ADR 029).
 
-A run takes first-pullback templates and Session Records, replays each
+A run takes one setup's templates (the first pullback's unless ``setup`` names
+another with a scanner, ADR 031) and Session Records, replays each
 recording through one lane per template (``eyes/replay.py``) from 04:00 to the
 session's end, and keeps what the eyes would have done: every armed setup with
 its tape at near and at the trigger and its scores, and every observation.
@@ -29,7 +30,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable
 
-from constants_bot import BOT_SETUP_FIRST_PULLBACK
+from constants_bot import BOT_SETUP_FIRST_PULLBACK, BOT_SETUPS_WITH_SCANNER
 from constants_eyes import (
     EYES_BACKTEST_MAX_SESSIONS,
     EYES_BACKTEST_RUNS_LISTED,
@@ -58,18 +59,20 @@ def _write_json(path: Path, payload: dict) -> None:
     tmp.replace(path)
 
 
-def _templates(template_ids: list[str] | None) -> list[Any]:
+def _templates(template_ids: list[str] | None, setup: str = BOT_SETUP_FIRST_PULLBACK) -> list[Any]:
     from setup_templates.catalogue import TemplateError
     from setup_templates.store import get_store
 
+    if setup not in BOT_SETUPS_WITH_SCANNER:
+        raise TemplateError(f"{setup.replace('_', ' ')} has no scanner to replay", "setup", code="SETUP_UNKNOWN")
     store = get_store()
-    every = [t for t in store.templates(BOT_SETUP_FIRST_PULLBACK) if not t.error]
+    every = [t for t in store.templates(setup) if not t.error]
     if not template_ids:
         return every
     known = {t.id: t for t in every}
     missing = [tid for tid in template_ids if tid not in known]
     if missing:
-        raise TemplateError(f"no usable first-pullback template {', '.join(missing)}", missing[0],
+        raise TemplateError(f"no usable {setup.replace('_', ' ')} template {', '.join(missing)}", missing[0],
                             code="TEMPLATE_UNKNOWN")
     return [known[tid] for tid in template_ids]
 
@@ -78,24 +81,27 @@ def summarize_run(rows: list[dict], templates: list[Any], sessions_ok: int) -> d
     from setup_scanner.readout import evaluate
     from setup_scanner.summary import summarize
 
+    from constants_setups import SETUPS_READOUT_KIND, SETUPS_READOUT_KINDS
+
     out: dict[str, Any] = {}
     for t in templates:
         mine = [r for r in rows if r.get("template_id") == t.id]
+        kind = SETUPS_READOUT_KINDS.get(getattr(t, "setup", BOT_SETUP_FIRST_PULLBACK), SETUPS_READOUT_KIND)
         out[t.id] = {"name": t.name, "rev": t.rev, "sessions": sessions_ok, "summary": summarize(mine),
-                     "readout": evaluate(mine, {"id": t.id, "rev": t.rev, "name": t.name})}
+                     "readout": evaluate(mine, {"id": t.id, "rev": t.rev, "name": t.name}, kind)}
     return out
 
 
 def run(*, template_ids: list[str] | None = None, sessions: list[tuple[str, str]] | None = None,
         run_id: str | None = None, load: Callable[[str, str], Any] | None = None,
-        progress: Callable[[int, int], None] | None = None) -> dict[str, Any]:
+        progress: Callable[[int, int], None] | None = None, setup: str = BOT_SETUP_FIRST_PULLBACK) -> dict[str, Any]:
     """Run synchronously; returns the finished manifest. Writes as it goes, so a crash leaves a partial run."""
     from eyes.recording import load as load_recording
     from eyes.recording import usable_sessions
     from eyes.replay import EyesReplay
     from eyes.journal import line
 
-    templates = _templates(template_ids)
+    templates = _templates(template_ids, setup)
     todo = list(sessions) if sessions else usable_sessions()
     todo = todo[:EYES_BACKTEST_MAX_SESSIONS]
     run_id = run_id or time.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
@@ -103,7 +109,7 @@ def run(*, template_ids: list[str] | None = None, sessions: list[tuple[str, str]
     folder.mkdir(parents=True, exist_ok=True)
     manifest: dict[str, Any] = {
         "schema_version": EYES_SCHEMA_VERSION, "run_id": run_id, "created_at": time.time(), "finished_at": None,
-        "status": "running", "error": None,
+        "status": "running", "error": None, "setup": setup,
         "templates": [{"id": t.id, "rev": t.rev, "name": t.name, "params_hash": t.fingerprint, "values": t.values}
                       for t in templates],
         "sessions": [],
@@ -145,12 +151,14 @@ def run(*, template_ids: list[str] | None = None, sessions: list[tuple[str, str]
     return manifest
 
 
-def start(*, template_ids: list[str] | None = None, sessions: list[tuple[str, str]] | None = None) -> dict[str, Any]:
+def start(*, template_ids: list[str] | None = None, sessions: list[tuple[str, str]] | None = None,
+          setup: str = BOT_SETUP_FIRST_PULLBACK) -> dict[str, Any]:
     """Start a run on a worker thread; returns its id at once (the route answers 202)."""
-    _templates(template_ids)           # refuse an unknown template before a thread starts
+    _templates(template_ids, setup)    # refuse an unknown setup or template before a thread starts
     run_id = time.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
     thread = threading.Thread(target=run, kwargs={"template_ids": template_ids, "sessions": sessions,
-                                                  "run_id": run_id}, name=f"eyes-backtest-{run_id}", daemon=True)
+                                                  "run_id": run_id, "setup": setup},
+                              name=f"eyes-backtest-{run_id}", daemon=True)
     with _runs_lock:
         _running[run_id] = thread
     thread.start()
