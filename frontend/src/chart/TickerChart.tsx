@@ -25,6 +25,7 @@ import { claimChartDrawingHotkeyFocus } from './chartDrawingKeys';
 import { useChartInstance } from './useChartInstance';
 import { useChartLiveTrade } from './useChartLiveTrade';
 import { useChartSessionHighlight } from './useChartSessionHighlight';
+import { useChartBarCountdown } from './useChartBarCountdown';
 import { useChartDrawingAxisLabels } from './useChartDrawingAxisLabels';
 import { useTickerChartEscape } from './useTickerChartEscape';
 import { useTickerChartMaximize } from './useTickerChartMaximize';
@@ -229,6 +230,9 @@ function TickerChartInner({
     timeframe,
     barsRevision,
   });
+
+  // Minute panes count down to the forming candle's close on the venue's clock.
+  useChartBarCountdown({ chartApi, candleSeriesRef, timeframe, chartActive });
 
   // Price-level drawings put their price on the axis, not clipped in the plot.
   useChartDrawingAxisLabels({ candleSeriesRef, symbol, seriesRevision: barsRevision });

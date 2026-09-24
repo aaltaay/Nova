@@ -1,4 +1,3 @@
-import { chartDrawToolsLayout } from '../chart/chartDrawToolsChrome';
 import {
   CHART_CARD_TITLE,
   CHART_FULLSCREEN_ARIA,
@@ -10,7 +9,7 @@ import {
   CHART_TIMEFRAMES,
   type ChartIndicatorId,
 } from '../constants';
-import { ChartDrawToolsMenu } from './ChartDrawToolsMenu';
+import { ChartDrawTools } from './ChartDrawTools';
 import { ChartDrawingColorPicker } from './ChartDrawingColorPicker';
 import type { DrawingSelectionState } from '../chart/useChartDrawingManager';
 
@@ -52,8 +51,6 @@ interface ToolbarProps {
   activeTool: string | null;
   enabledIndicators: ChartIndicatorId[];
   selection?: DrawingSelectionState | null;
-  /** When true, line tools render as individual buttons (maximized chrome). */
-  maximized?: boolean;
   onClearAll: () => void;
   onColorChange?: (color: string) => void;
   onIndicatorToggle: (id: ChartIndicatorId) => void;
@@ -65,7 +62,6 @@ export function ChartToolbarControls({
   activeTool,
   enabledIndicators,
   selection = null,
-  maximized = false,
   onClearAll,
   onColorChange,
   onIndicatorToggle,
@@ -73,11 +69,7 @@ export function ChartToolbarControls({
 }: ToolbarProps) {
   return (
     <>
-      <ChartDrawToolsMenu
-        activeTool={activeTool}
-        onToolClick={onToolClick}
-        layout={chartDrawToolsLayout(maximized)}
-      />
+      <ChartDrawTools activeTool={activeTool} onToolClick={onToolClick} />
       <button
         type="button"
         className={`chart-tool-btn${activeTool === 'CrossLine' ? ' chart-tool-btn--active' : ''}`}
@@ -228,7 +220,6 @@ export function TickerChartControls({
             activeTool={activeTool}
             enabledIndicators={enabledIndicators}
             selection={selection}
-            maximized={maximized}
             onClearAll={onClearAll}
             onColorChange={onColorChange}
             onIndicatorToggle={onIndicatorToggle}

@@ -90,7 +90,6 @@ describe('ChartGrid', () => {
       root.unmount();
     });
     container.remove();
-    document.body.querySelector('[data-testid="chart-draw-tools-menu"]')?.remove();
   });
 
   it('defaults to 5m|10s over Full Day|1m, with MACD on 1m and 5m', () => {
@@ -170,24 +169,17 @@ describe('ChartGrid', () => {
     ).toBe('5-Minute');
   });
 
-  it('desk toolbar dropdown opens and arms Trendline on every pane', () => {
+  it('desk toolbar shows every line tool flat and arms Trendline on every pane', () => {
     act(() => {
       root.render(<ChartGrid symbol="SDOT" />);
     });
+    expect(container.querySelector('[data-testid="chart-draw-tools"]')).toBeTruthy();
+    expect(container.querySelector('button[aria-haspopup="menu"]')).toBeNull();
     act(() => {
-      (container.querySelector('[aria-label="Line drawing tools"]') as HTMLButtonElement).click();
-    });
-    const menu = document.body.querySelector('[data-testid="chart-draw-tools-menu"]');
-    expect(menu).not.toBeNull();
-    const trend = [...(menu?.querySelectorAll('button') ?? [])].find((button) =>
-      button.textContent?.includes('Trendline'),
-    ) as HTMLButtonElement;
-    act(() => {
-      trend.click();
+      (container.querySelector('[aria-label="Use Trendline"]') as HTMLButtonElement).click();
     });
     const charts = [...container.querySelectorAll<HTMLElement>('[data-testid="ticker-chart"]')];
     expect(charts.every((el) => el.dataset.activeTool === 'TrendLine')).toBe(true);
-    expect(document.body.querySelector('[data-testid="chart-draw-tools-menu"]')).toBeNull();
   });
 
   it('shared draw tool reaches every pane; indicator toggle hits only the focused pane', () => {
@@ -294,7 +286,7 @@ describe('ChartGrid', () => {
     expect(after.textContent).toContain('1-Minute');
     expect(container.querySelector('[data-testid="chart-grid-restore"]')).toBeTruthy();
     expect(container.querySelector('[data-testid="chart-desk-toolbar"]')).toBeTruthy();
-    expect(container.querySelector('[data-testid="chart-draw-tools-flat"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="chart-draw-tools"]')).toBeTruthy();
     expect(container.querySelector('button[aria-haspopup="menu"]')).toBeNull();
     expect(container.querySelector('[aria-label="Use Trendline"]')).toBeTruthy();
     expect(container.querySelector('[aria-label="Use Horizontal Line"]')).toBeTruthy();

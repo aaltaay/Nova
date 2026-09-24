@@ -88,6 +88,12 @@ export function isDailyTimeframe(timeframe: string): boolean {
   return timeframe === '1Day' || timeframe === '1Week' || timeframe === '1Month';
 }
 
+/** An instant on the chart's intraday clock: Eastern wall time read as UTC seconds (see isoToEtTime). */
+export function etChartSeconds(ms: number): number {
+  const d = new Date(ms);
+  return Math.floor((ms + etOffsetMs(d)) / 1000);
+}
+
 export function tradeBucket(timestamp: string, timeframe: string): Time | null {
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return null;
@@ -95,7 +101,7 @@ export function tradeBucket(timestamp: string, timeframe: string): Time | null {
   if (isDailyTimeframe(timeframe)) {
     return etCalendarDateString(date) as Time;
   }
-  const seconds = Math.floor((date.getTime() + etOffsetMs(date)) / 1000);
+  const seconds = etChartSeconds(date.getTime());
   const bucketSize = timeframeSeconds(timeframe);
   return (Math.floor(seconds / bucketSize) * bucketSize) as UTCTimestamp;
 }
