@@ -127,12 +127,13 @@ def prints_between(symbol: str, after_ts: float, through_ts: float) -> list[tupl
         from sim import history_playback
 
         return history_playback.prints_between(symbol, after_ts, through_ts)
+    from sale_conditions import row_sets_price
     from sim import capture_player
-    from sim.capture_spans import is_odd_lot
 
-    # Odd lots never fill a practice order -- the historical path's ``unreported`` rule (R24).
+    # Only prints that set a price fill a practice order -- never an odd lot or an
+    # average-price print (R24, #511); the historical path drops ``unreported`` rows.
     return [
         (float(row["ts"]), float(row["price"]))
         for row in capture_player.prints_since(after_ts, through_ts)
-        if row.get("price") is not None and not is_odd_lot(row)
+        if row.get("price") is not None and row_sets_price(row)
     ]

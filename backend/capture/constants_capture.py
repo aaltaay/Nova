@@ -83,6 +83,3 @@ CAPTURE_STATUS_UNLISTED = "unlisted"
 CAPTURE_UNLISTED_TOLERANCE_SEC = 30.0
 # A session whose every segment failed without one print is not a recording (R25).
 CAPTURE_NO_PRINTS_REASON = "No IBKR prints were recorded"
-# The consolidated-tape sale condition for an odd lot: like the historical
-# download's ``unreported`` prints, it never sets the last or fills a practice order (R24).
-CAPTURE_ODD_LOT_CONDITION = "I"

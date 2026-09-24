@@ -7,9 +7,11 @@ unchanged (the loaded historical download or capture at the playhead).
 (within ``PRACTICE_LIVE_FRESH_SEC``), failing that the newest tape print in
 the local archive (``l2.tape``) inside the same window, the live top of book
 from ``ibkr.depth.state``, and a refusal (``PRACTICE_NO_LIVE_PRINT``) when
-neither a fresh last nor a recent print exists. A practice fill is never a
-guess: an absent price is stated, not filled in. Each reference also names
-its session's close (``session_close_ts``) so a DAY order knows when it
+neither a fresh last nor a recent print exists. Only a print that sets a price
+counts, as a last or for a resting order (``sale_conditions.row_sets_price``,
+#511): an odd lot or an average-price print can sit dollars from the market.
+A practice fill is never a guess: an absent price is stated, not filled in.
+Each reference also names its session's close (``session_close_ts``) so a DAY order knows when it
 expires (``practice.order_rules``): the replayed window's end on Sim, the
 desk's ``PRACTICE_SESSION_CLOSE_HOUR_ET`` on Paper. ``SimReference`` is what
 the Sim broker actually holds (ADR 020 live-edge amendment): the live
@@ -26,6 +28,7 @@ from constants_practice import (
     PRACTICE_NO_LIVE_PRINT_CODE,
     PRACTICE_NO_LIVE_PRINT_REASON,
 )
+from sale_conditions import row_sets_price
 from sim.fill_model import Reference
 
 Print = tuple[float, float]
@@ -123,7 +126,7 @@ class LiveReference:
         return _price(row.get("price"))
 
     def recent_print(self, symbol: str) -> float | None:
-        """The newest archived tape print inside the freshness window, if the symbol is watched."""
+        """The newest archived print that sets a price inside the freshness window, if the symbol is watched."""
         from l2 import tape
 
         sym = symbol.upper()
@@ -131,6 +134,8 @@ class LiveReference:
             return None
         now = self.now_ts()
         for row in reversed(tape.get_trades_in_range(sym, now - self.fresh_sec, now)):
+            if not row_sets_price(row):
+                continue
             px = _price(row.get("price"))
             if px is not None:
                 return px
@@ -157,7 +162,7 @@ class LiveReference:
         return True, "OK", None
 
     def prints_between(self, symbol: str, after_ts: float, through_ts: float) -> list[Print]:
-        """Archived tape prints in ``(after_ts, through_ts]`` as ``(ts, price)``, oldest first."""
+        """Archived prints that set a price in ``(after_ts, through_ts]`` as ``(ts, price)``, oldest first."""
         from l2 import tape
 
         sym = symbol.upper()
@@ -167,7 +172,7 @@ class LiveReference:
         for row in tape.get_trades_in_range(sym, after_ts, through_ts):
             ts = row.get("ts")
             px = _price(row.get("price"))
-            if ts is None or px is None or float(ts) <= after_ts:
+            if ts is None or px is None or float(ts) <= after_ts or not row_sets_price(row):
                 continue
             out.append((float(ts), px))
         return out

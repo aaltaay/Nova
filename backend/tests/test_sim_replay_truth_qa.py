@@ -2,7 +2,8 @@
 
 R9 a paused forward scrub still fills; R11 a gap in a recording is a stated
 absence; R12 recorded quote rows load; R19 a later downloaded range prices from
-prints; R23 a worker that dies early leaves no phantom; R24 odd lots never fill;
+prints; R23 a worker that dies early leaves no phantom; R24 odd lots (and #511 every
+volume-only print) never fill;
 R27 Sim rows carry replay time; C38 a dead download is not "running"; C40 a
 finished candle download covers its window; C42 the replay reply carries the
 clock; C59 a loading capture is not a failure; R10 the clock carries the
@@ -111,13 +112,29 @@ def test_recorded_quote_rows_load_and_the_last_comes_from_the_tape(isolated) -> 
     assert (quote["bid"], quote["ask"], quote["last"]) == (9.95, 10.05, 10.0)
 
 
-def test_odd_lots_never_set_the_last_or_fill_a_practice_order(isolated) -> None:
+def test_volume_only_prints_never_set_the_last_or_fill_a_practice_order(isolated) -> None:
+    """R24 odd lots, and #511 every print that does not set a price (average price, flagged unreported)."""
     _capture(isolated, prints=[{"ts": _ts("10:00:00"), "price": 10.0},
                                {"ts": _ts("10:00:30"), "price": 9.0, "conditions": "TI"},
+                               {"ts": _ts("10:00:33"), "price": 8.8, "conditions": "4 W"},
+                               {"ts": _ts("10:00:36"), "price": 8.9, "conditions": "", "unreported": True},
+                               {"ts": _ts("10:00:38"), "price": 8.7, "conditions": "", "sets_price": False},
                                {"ts": _ts("10:01:00"), "price": 10.2}])
     clock.scrub_to_second(_second(_ts("10:00:40")))
     assert capture_player.last_print_at(_ts("10:00:40")) == 10.0
     assert practice.prints_between("GRML", _ts("10:00:10"), _ts("10:01:00")) == [(_ts("10:01:00"), 10.2)]
+
+
+def test_a_resting_limit_never_fills_on_an_average_price_print(isolated) -> None:
+    """#511: the PLTR ``4 W`` shape -- a print far under the market is volume, not a price."""
+    _capture(isolated, prints=[{"ts": _ts("10:00:00"), "price": 10.0},
+                               {"ts": _ts("10:00:30"), "price": 9.0, "conditions": "4 W"}])
+    clock.scrub_to_second(_second(_ts("10:00:10")))
+    broker.place("GRML", "BUY", 1, "LMT", limit_price=9.5)
+    feed.tick()  # anchors the fill cursor at the placement
+    clock.scrub_to_second(_second(_ts("10:00:50")))
+    feed.tick()
+    assert broker.closed_orders() == []
 
 
 def test_a_paused_forward_scrub_fills_what_it_crossed(isolated) -> None:

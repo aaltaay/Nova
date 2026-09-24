@@ -14,9 +14,10 @@ from capture.recorder import capture_root
 from capture.constants_capture import CAPTURE_L2_LOAD_LIMIT, CAPTURE_NOT_IBKR_REASON
 from capture.schema import read_manifest
 from capture.sessions import is_ibkr_source
+from sale_conditions import row_sets_price
 from sim.capture_charts import chart_bars  # noqa: F401 -- the player's chart API (split out)
 from sim.capture_spans import (
-    is_odd_lot, load_spans, newest_in_span, previous_close_for, recording_here, span_start,
+    load_spans, newest_in_span, previous_close_for, recording_here, span_start,
 )
 from sim.capture_reader import read_jsonl as _read_jsonl, usable_rows, new_diagnostics, sample_l2
 
@@ -277,10 +278,11 @@ def quote_at(asof: float | None = None, *, state: CaptureData | None = None) -> 
 
 
 def last_print_at(asof: float, *, state: CaptureData | None = None) -> float | None:
-    """Price of the last reported print at or before ``asof``, inside its recorded stretch.
+    """Price of the last print that sets a price at or before ``asof``, inside its recorded stretch.
 
-    Odd lots never set the last (the historical download's ``unreported`` rule,
-    R24), and a gap has none (R11) -- a practice order is refused there.
+    A volume-only print -- odd lot, average price, derivatively priced, or
+    flagged ``unreported`` (``sale_conditions``; R24, #511) -- never sets the
+    last, and a gap has none (R11): a practice order is refused there.
     """
     state = state or _state
     if state is None or not state.prints:
@@ -289,7 +291,7 @@ def last_print_at(asof: float, *, state: CaptureData | None = None) -> float | N
     floor = _span_floor(state.print_keys, state, asof)
     while i >= max(0, floor):
         row = state.prints[i]
-        if not is_odd_lot(row):
+        if row_sets_price(row):
             return float(row["price"])
         i -= 1
     return None

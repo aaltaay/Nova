@@ -12,6 +12,7 @@ import pytest
 from capture import bridge_ibkr, mode, recorder, worker
 from ibkr import tape_recording as fanout, tape_stream
 from l2 import db, tape
+from sale_conditions import row_sets_price
 
 
 @pytest.fixture(autouse=True)
@@ -76,7 +77,7 @@ def test_callback_persists_identical_provenance_to_both_sinks():
     captured = json.loads((directory / "prints.jsonl").read_text())
     rows = tape.get_trades_in_range("AAPL", 0, 2_000_000_000)
     assert len(rows) == 1
-    for field in ("symbol", "ts", "price", "size", "exchange", "conditions", "source", "receive_ts"):
+    for field in ("symbol", "ts", "price", "size", "exchange", "conditions", "unreported", "source", "receive_ts"):
         assert captured[field] == rows[0][field]
     assert rows[0]["session_id"] == "session-a"
     assert captured["source"] == "ibkr"
@@ -256,6 +257,25 @@ def test_legacy_schema_migrates_without_losing_existing_rows():
     assert row["price"] == 2
     assert row["conditions"] is None
     assert row["receive_ts"] is None
+    assert row["unreported"] is None  # unknown, never "reported"
+    assert row_sets_price(row)  # judged by its (absent) conditions, as before
+
+
+def test_the_archive_keeps_ibkrs_unreported_flag_for_practice_fills():
+    """#511: a print IBKR flags unreported sets no price even with no listed code."""
+    tape.watch_symbol("AAPL", "session-a")
+    at = datetime(2026, 9, 18, 14, 30, tzinfo=timezone.utc)
+    ticker = SimpleNamespace(tickByTicks=[
+        SimpleNamespace(time=at, price=42.25, size=100, exchange="NASDAQ", specialConditions="@ T"),
+        SimpleNamespace(time=at, price=40.10, size=100, exchange="FINRA", specialConditions="",
+                        tickAttribLast=SimpleNamespace(unreported=True)),
+        SimpleNamespace(time=at, price=40.20, size=100, exchange="FINRA", specialConditions="4 W"),
+    ])
+    tape_stream._on_tape_update(ticker, "AAPL")
+    fanout.l2_sink.queue.join()
+    rows = tape.get_trades_in_range("AAPL", 0, 2_000_000_000)
+    assert [(r["price"], r["unreported"]) for r in rows] == [(42.25, False), (40.10, True), (40.20, False)]
+    assert [row_sets_price(r) for r in rows] == [True, False, False]
 
 
 def test_delayed_l2_row_retains_original_session(monkeypatch):

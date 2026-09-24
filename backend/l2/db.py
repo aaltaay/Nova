@@ -2,12 +2,15 @@
 SQLite connection + schema for local market-data recorders (L2 + tape).
 
 Lives under paths.cache_dir() as l2.db (not git-tracked). WAL mode + batched
-writers (l2/batch.py) keep write throughput high for continuous depth sessions
-and time & sales. See Local-Market-Data-Recorders.md for the storage decision.
+writers keep write throughput high for continuous depth sessions (l2/batch.py)
+and time & sales (one worker, l2/tape.py). See Local-Market-Data-Recorders.md
+for the storage decision.
 
 Tables:
   l2_snapshots     -- order-book snapshots (signal windows + continuous depth)
-  tape_trades      -- time & sales prints for watched symbols (IBKR AllLast)
+  tape_trades      -- time & sales prints for watched symbols (IBKR AllLast), with
+                      their sale ``conditions`` and IBKR's ``unreported`` flag so a
+                      practice fill reads only prints that set a price (#511)
   record_sessions  -- lightweight session metadata (symbol, reason, wall-clock)
 """
 from __future__ import annotations
@@ -50,7 +53,8 @@ CREATE TABLE IF NOT EXISTS tape_trades (
     source TEXT NOT NULL,
     session_id TEXT,
     conditions TEXT,
-    receive_ts REAL
+    receive_ts REAL,
+    unreported INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_tape_trades_symbol_ts ON tape_trades(symbol, ts);
@@ -113,7 +117,7 @@ def init_db() -> None:
         conn.executescript(_SCHEMA)
         _migrate_l2_snapshot_columns(conn)
         existing = {row[1] for row in conn.execute("PRAGMA table_info(tape_trades)")}
-        for column, kind in (("conditions", "TEXT"), ("receive_ts", "REAL")):
+        for column, kind in (("conditions", "TEXT"), ("receive_ts", "REAL"), ("unreported", "INTEGER")):
             if column not in existing:
                 conn.execute(f"ALTER TABLE tape_trades ADD COLUMN {column} {kind}")
         conn.commit()
