@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   SCANNER_CHIP_IDS,
   SCANNER_CHIP_LABEL,
+  SCANNER_CHIP_LIVE_WHY,
   SCANNER_CHIP_TITLE,
 } from '../constantGroups/scanner_board';
 import {
@@ -42,11 +43,34 @@ describe('boardFilters', () => {
     expect(chipPasses('news', row({ symbol: 'B', has_news: false }))).toBe(false);
   });
 
-  it('Halted cannot filter yet and says so', () => {
+  it('Halted is available on a played-back board only, and says why on the live one (#487)', () => {
     expect(isChipAvailable('halted')).toBe(false);
-    expect(chipPasses('halted', row({ symbol: 'A' }))).toBe(true);
-    expect(SCANNER_CHIP_TITLE.halted).toMatch(/not carried on scanner rows/);
-    expect(applyBoardChips([row({ symbol: 'A' })], new Set(['halted']))).toHaveLength(1);
+    expect(isChipAvailable('halted', false)).toBe(false);
+    expect(isChipAvailable('halted', true)).toBe(true);
+    for (const id of SCANNER_CHIP_IDS.filter((c) => c !== 'halted')) {
+      expect(isChipAvailable(id)).toBe(true);
+      expect(isChipAvailable(id, true)).toBe(true);
+    }
+    expect(SCANNER_CHIP_LIVE_WHY.halted).toMatch(/Live scanner rows carry no halt state/);
+    expect(SCANNER_CHIP_LIVE_WHY.halted).toMatch(/filters played-back days/);
+    expect(SCANNER_CHIP_TITLE.halted).toMatch(/not known is kept/);
+  });
+
+  it('Halted keeps a row stated halted or not known (fail open) and drops one stated not halted', () => {
+    expect(chipPasses('halted', row({ symbol: 'A', halted: true }))).toBe(true);
+    expect(chipPasses('halted', row({ symbol: 'B', halted: null }))).toBe(true);
+    expect(chipPasses('halted', row({ symbol: 'C', halted: false }))).toBe(false);
+    expect(chipPasses('halted', row({ symbol: 'D' }))).toBe(true);
+    const rows = [
+      row({ symbol: 'HALT', halted: true }),
+      row({ symbol: 'UNKNOWN', halted: null }),
+      row({ symbol: 'TRADING', halted: false }),
+    ];
+    const halted = new Set(['halted'] as const);
+    expect(applyBoardChips(rows, halted, true).map((r) => r.symbol)).toEqual(['HALT', 'UNKNOWN']);
+    // The live board cannot answer it: the chip never filters there.
+    expect(applyBoardChips(rows, halted).map((r) => r.symbol)).toEqual(['HALT', 'UNKNOWN', 'TRADING']);
+    expect(applyBoardChips(rows, halted, false)).toHaveLength(3);
   });
 
   it('applies every active chip and reports what is left', () => {

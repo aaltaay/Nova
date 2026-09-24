@@ -37,11 +37,21 @@ export const SCANNER_CHIP_TITLE: Record<ScannerChipId, string> = {
   relvol: `Keep rows whose relative volume is at least ${SCANNER_CHIP_RELVOL_MIN}x (unreported RVOL is kept)`,
   news: 'Keep rows with company news since the prior close: a catalyst, dilution / a reverse split, or a halt for news. '
     + 'A movers list or a market wrap naming the ticker does not count; a row whose news is not read yet is kept.',
-  halted: 'Halt state is not carried on scanner rows yet -- the Trader Level 2 header shows it. This chip cannot filter.',
+  halted: 'Keep rows halted at this minute per the halt / LULD log (a row whose halt state is not known is kept)',
 };
 
-/** Chips that cannot filter today because the row carries no such fact. */
-export const SCANNER_CHIP_UNAVAILABLE: readonly ScannerChipId[] = ['halted'];
+/**
+ * Chips only a played-back board can answer (Sim off the live edge, ADR 023):
+ * a played-back row states `halted` from the halt / LULD log; a live row
+ * carries no halt state, so on the live board the chip is locked (#487).
+ */
+export const SCANNER_CHIP_PLAYBACK_ONLY: readonly ScannerChipId[] = ['halted'];
+
+/** Why a playback-only chip is locked on the live board (ux/whyTip.ts). */
+export const SCANNER_CHIP_LIVE_WHY: Partial<Record<ScannerChipId, string>> = {
+  halted: 'Live scanner rows carry no halt state yet -- the Trader Level 2 header shows it. '
+    + 'This chip filters played-back days (Sim off the live edge), where each row states its halt.',
+};
 
 export const SCANNER_SAVED_LABEL = 'Saved:';
 export const SCANNER_SAVED_NONE = 'none';

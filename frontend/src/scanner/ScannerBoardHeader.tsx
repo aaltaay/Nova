@@ -10,6 +10,7 @@ import { useScannerBarProps } from '../components/scannerBarStore';
 import {
   SCANNER_CHIP_IDS,
   SCANNER_CHIP_LABEL,
+  SCANNER_CHIP_LIVE_WHY,
   SCANNER_CHIP_TITLE,
   SCANNER_HISTORY_SAMPLE_LABEL,
   SCANNER_HISTORY_SAMPLE_WHY,
@@ -159,7 +160,7 @@ export function ScannerBoardHeader({ title, filters, scannedAgoSec, feedFailure 
           <span className="scanner-board__vdiv" aria-hidden="true" />
           <div className="scanner-board__chips" role="group" aria-label="Board filters">
             {SCANNER_CHIP_IDS.map((id) => {
-              const available = isChipAvailable(id);
+              const available = isChipAvailable(id, filters.playback);
               const on = filters.active.has(id);
               return (
                 <button
@@ -169,7 +170,7 @@ export function ScannerBoardHeader({ title, filters, scannedAgoSec, feedFailure 
                   aria-pressed={on}
                   aria-disabled={!available}
                   title={available ? SCANNER_CHIP_TITLE[id] : undefined}
-                  data-why={available ? undefined : SCANNER_CHIP_TITLE[id]}
+                  data-why={available ? undefined : SCANNER_CHIP_LIVE_WHY[id] ?? SCANNER_CHIP_TITLE[id]}
                   data-testid={`scanner-chip-${id}`}
                   onClick={() => filters.toggle(id)}
                 >

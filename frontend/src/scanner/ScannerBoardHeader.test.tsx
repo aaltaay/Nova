@@ -9,8 +9,11 @@ import {
   setGlobalBarHistoryDates,
 } from '../components/scannerBarStore';
 import { SCANNER_BOARD_FILTERS_STORAGE_KEY } from '../constantGroups/scanner_board';
+import type { ScannerReplay } from '../leaderboard/leaderboardTypes';
+import type { ScannerRow } from '../types/scanner';
 import { ScannerBoardFooter } from './ScannerBoardFooter';
 import { fmtScannedAgo, ScannerBoardHeader } from './ScannerBoardHeader';
+import { makeLiveScannerFeedStub, ScannerDataContextProvider } from './ScannerDataContext';
 import { useBoardFilters } from './useBoardFilters';
 
 const promptMock = vi.fn<(input: unknown) => Promise<string | null>>();
@@ -18,13 +21,31 @@ vi.mock('../ux', () => ({
   promptApp: (input: unknown) => promptMock(input),
 }));
 
-function Harness({ scannedAgoSec = 6 }: { scannedAgoSec?: number | null }) {
+function Harness({ scannedAgoSec = 6, rows = [] }: { scannedAgoSec?: number | null; rows?: ScannerRow[] }) {
   const filters = useBoardFilters();
   return (
     <>
       <ScannerBoardHeader title="Gappers" filters={filters} scannedAgoSec={scannedAgoSec} />
       <div data-testid="active">{[...filters.active].join(',')}</div>
+      <div data-testid="shown">{filters.filterRows(rows).map((r) => r.symbol).join(',')}</div>
     </>
+  );
+}
+
+/** Sim off the live edge (ADR 023): the board is the playhead's, and its rows state `halted`. */
+const PLAYBACK: ScannerReplay = {
+  date: '2026-09-21', minute: 1_790_000_000, status: 'ready', source: 'recorded', minuteTs: 1_790_000_000,
+  gap: null, error: null, tables: { gappers: [], gainers: [], losers: [], afterhours: [], largeCap: [] },
+  boardStates: {}, leaders: [],
+};
+
+const haltRow = (symbol: string, halted: boolean | null) => ({ symbol, halted }) as ScannerRow;
+
+function OnBoard({ replay, rows }: { replay: ScannerReplay | null; rows: ScannerRow[] }) {
+  return (
+    <ScannerDataContextProvider value={makeLiveScannerFeedStub({ replay })}>
+      <Harness rows={rows} />
+    </ScannerDataContextProvider>
   );
 }
 
@@ -80,11 +101,36 @@ describe('ScannerBoardHeader', () => {
   it('the unavailable chip carries its reason for the locked-control tip; working chips keep their title', () => {
     render(<Harness />);
     const halted = screen.getByTestId('scanner-chip-halted');
-    expect(halted.getAttribute('data-why')).toMatch(/Halt state is not carried on scanner rows yet/);
+    expect(halted.getAttribute('data-why')).toMatch(/Live scanner rows carry no halt state yet/);
+    expect(halted.getAttribute('data-why')).toMatch(/filters played-back days/);
     expect(halted.hasAttribute('title')).toBe(false);
     const gap = screen.getByTestId('scanner-chip-gap');
     expect(gap.hasAttribute('data-why')).toBe(false);
     expect(gap.getAttribute('title')).toMatch(/at least 10%/);
+  });
+
+  it('Halted filters a played-back board: keeps halted and not-known rows, drops not halted (#487)', () => {
+    const rows = [haltRow('HALT', true), haltRow('UNKNOWN', null), haltRow('TRADING', false)];
+    render(<OnBoard replay={PLAYBACK} rows={rows} />);
+    const halted = screen.getByTestId('scanner-chip-halted');
+    expect(halted.getAttribute('aria-disabled')).toBe('false');
+    expect(halted.hasAttribute('data-why')).toBe(false);
+    expect(halted.getAttribute('title')).toMatch(/not known is kept/);
+    expect(screen.getByTestId('shown').textContent).toBe('HALT,UNKNOWN,TRADING');
+    fireEvent.click(halted);
+    expect(screen.getByTestId('active').textContent).toBe('halted');
+    expect(halted.getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByTestId('shown').textContent).toBe('HALT,UNKNOWN');
+  });
+
+  it('Halted stays locked on the live board and never filters it', () => {
+    const rows = [haltRow('A', null), haltRow('B', false)];
+    render(<OnBoard replay={null} rows={rows} />);
+    const halted = screen.getByTestId('scanner-chip-halted');
+    expect(halted.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(halted);
+    expect(screen.getByTestId('active').textContent).toBe('');
+    expect(screen.getByTestId('shown').textContent).toBe('A,B');
   });
 
   it('the history picker on the sample desk says why it is locked', () => {
