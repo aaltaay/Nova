@@ -50,6 +50,8 @@ export function useTraderDesk(args: {
   onDockUnansweredRef.current = onDockUnanswered;
 
   useEffect(() => {
+    // No window id (the sample desk's route, #449): this window is not on the desk bus.
+    if (!windowId) return undefined;
     const bus = createTraderDeskBus();
     busRef.current = bus;
     const unsub = bus.subscribe((msg) => {

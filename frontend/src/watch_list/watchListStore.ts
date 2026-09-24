@@ -7,8 +7,11 @@
  * (persisted-state.mdc). Another window's write arrives through the `storage`
  * event, so a pop-out and the main desk never disagree. Storage that throws
  * (private window, quota) keeps the list in memory for this session only.
+ * The sample desk (#449) keeps a list of its own, in memory, starting empty:
+ * it never shows the operator's list, and its picks never join it.
  */
 import { useSyncExternalStore } from 'react';
+import { isSampleView } from '../sample_data/sampleNav';
 import {
   WATCH_LIST_MAX,
   WATCH_LIST_SCHEMA_VERSION,
@@ -55,6 +58,7 @@ export function readWatchList(): readonly string[] {
 }
 
 let list: readonly string[] | null = null;
+let sampleList: readonly string[] = EMPTY;
 let listening = false;
 const listeners = new Set<() => void>();
 
@@ -69,11 +73,18 @@ function onStorage(event: StorageEvent): void {
 }
 
 function current(): readonly string[] {
+  if (isSampleView()) return sampleList;
   if (list === null) list = readWatchList();
   return list;
 }
 
 function write(next: readonly string[]): void {
+  if (isSampleView()) {
+    if (next === sampleList) return;
+    sampleList = next;
+    notify();
+    return;
+  }
   if (next === list) return;
   list = next;
   try {
@@ -147,5 +158,6 @@ export function useIsWatched(symbol: string): boolean {
 /** Test-only: forget the in-memory copy so the next read comes from storage. */
 export function resetWatchListForTests(): void {
   list = null;
+  sampleList = EMPTY;
   notify();
 }

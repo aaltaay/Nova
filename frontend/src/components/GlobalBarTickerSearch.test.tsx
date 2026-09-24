@@ -143,6 +143,30 @@ describe('GlobalBarTickerSearch', () => {
     expect(rows()).toEqual([]);
   });
 
+  it("on the sample desk look-ups are remembered there, never in the operator's recents (#449)", () => {
+    window.localStorage.setItem(
+      'nova.search.recent',
+      JSON.stringify({ schema_version: 1, symbols: ['TSLA'] }),
+    );
+    window.history.replaceState({}, '', '/?view=sample');
+    try {
+      const { input } = mount();
+      expect(rows()).toEqual([]);
+      type(input, 'smpl');
+      fireEvent.keyDown(input, { key: 'Enter' });
+      act(() => input.blur());
+      act(() => input.focus());
+      expect(rows()).toEqual(['SMPL*']);
+      expect(JSON.parse(window.localStorage.getItem('nova.search.recent')!).symbols).toEqual(['TSLA']);
+    } finally {
+      window.history.replaceState({}, '', '/');
+    }
+    cleanup();
+    const { input } = mount();
+    expect(input).toBeTruthy();
+    expect(rows()).toEqual(['TSLA*']);
+  });
+
   it('finds a listed symbol by company name and makes it the default when the text is not a symbol', () => {
     withDirectory();
     const { input, onLookup } = mount();
