@@ -42,6 +42,7 @@ export type ModuleCountKey =
   | 'catalysts'
   | 'hodMomo'
   | 'runningUp'
+  | 'watchList'
   | 'watchlist';
 
 /** Tab ids — also the ActiveTab union used by Dashboard / TabNav. */
@@ -58,6 +59,7 @@ export const TAB_MODULE_IDS = [
   'hod_momo',
   'running_up',
   'trading',
+  'watch_list',
   'watchlist',
   'strategy',
   'reports',
@@ -227,8 +229,25 @@ export const NOVA_MODULES: readonly NovaModule[] = [
     showInTabNav: false,
   },
   {
+    // The operator's own hand-picked symbols: a toast whenever one hits HOD
+    // Momo (watch_list/). Not the ranked list below.
+    id: 'watch_list',
+    title: 'Watch list',
+    component: host,
+    // Its prices are the boards' rows as they stand; this tab declares no
+    // scanner table for L1, so the header's Prices chip must not claim them.
+    feedDeps: ['hod_momo'],
+    defaultPlacement: 'tab',
+    showInTabNav: true,
+    navGroup: 'mine',
+    countKey: 'watchList',
+  },
+  {
+    // Every gapper / gainer graded on the Five Pillars and ranked. Shown as
+    // "Contenders" (operator ask 2026-09-23: "Watch list" is the hand-picked
+    // one above); the id stays for persisted state and the API path.
     id: 'watchlist',
-    title: 'Watchlist',
+    title: 'Contenders',
     component: host,
     feedDeps: ['watchlist'],
     defaultPlacement: 'tab',

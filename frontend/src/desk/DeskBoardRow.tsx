@@ -1,10 +1,12 @@
 /**
  * One Desk board row. Click opens the symbol beside the board (the row is the
- * open), double-click pops it out to the full Trader. REC / bot dots follow
- * the recorder and the allowlist; the hover actions are the existing capture
- * and allowlist calls. Nothing here invents a figure: unknown is a dash.
+ * open), double-click pops it out to the full Trader, right-click opens the
+ * symbol menu. The watch eye and REC / bot dots follow the watch list, the
+ * recorder and the allowlist; the hover actions are the watch list toggle and
+ * the existing capture and allowlist calls. Nothing here invents a figure: unknown is a dash.
  */
 import { memo, type KeyboardEvent, type MouseEvent } from 'react';
+import { openBotSymbolMenu } from '../bot';
 import { ScannerRowNumCell } from '../components/ScannerTableChrome';
 import { scannerColClass } from '../components/scannerTableCol';
 import {
@@ -30,6 +32,16 @@ import {
 } from '../constantGroups/desk';
 import { formatSignedPct, pctTone } from '../stock_view/tabContext';
 import { fmtVolume } from '../utils/quoteFormat';
+import {
+  toggleWatchList,
+  useIsWatched,
+  WATCH_ACTION_WATCH,
+  WATCH_ACTION_WATCH_TITLE,
+  WATCH_ACTION_WATCHING,
+  WATCH_ACTION_WATCHING_TITLE,
+  WatchEyeIcon,
+  WatchMark,
+} from '../watch_list';
 import { fmtRelVol, headlineClockEt, type DeskBoardRow as Row } from './deskBoardRows';
 
 export interface DeskBoardRowProps {
@@ -69,6 +81,7 @@ function DeskBoardRowImpl({
   onOpen, onPopOut, onRecord, onAllowlist,
 }: DeskBoardRowProps) {
   const sym = row.symbol;
+  const watched = useIsWatched(sym);
   const onKeyDown = (event: KeyboardEvent<HTMLTableRowElement>) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
@@ -87,11 +100,16 @@ function DeskBoardRowImpl({
       onClick={() => onOpen(sym)}
       onDoubleClick={() => onPopOut(sym)}
       onKeyDown={onKeyDown}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        openBotSymbolMenu(sym, event.clientX, event.clientY);
+      }}
     >
       <ScannerRowNumCell index={index} />
       <td className={scannerColClass('symbol')}>
         <span className="desk-board__sym">{sym}</span>
         <span className="desk-board__dots">
+          <WatchMark symbol={sym} />
           {recording && (
             <i className="desk-board__dot desk-board__dot--rec" title={DESK_DOT_REC_TITLE} data-testid={`desk-board-rec-${sym}`} />
           )}
@@ -132,6 +150,18 @@ function DeskBoardRowImpl({
       <td className={`${scannerColClass('state')} desk-board__state`}>
         <span className="desk-board__none" title={DESK_STATE_ABSENT_TITLE}>{DESK_CELL_ABSENT}</span>
         <span className="desk-board__acts" onDoubleClick={stop}>
+          <button
+            type="button"
+            className={`desk-board__act${watched ? ' desk-board__act--watching' : ''}`}
+            title={watched ? WATCH_ACTION_WATCHING_TITLE : WATCH_ACTION_WATCH_TITLE}
+            aria-label={watched ? WATCH_ACTION_WATCHING : WATCH_ACTION_WATCH}
+            aria-pressed={watched}
+            data-testid={`desk-board-watch-${sym}`}
+            onClick={(event) => { stop(event); toggleWatchList(sym); }}
+          >
+            <WatchEyeIcon />
+            <ActLabel full={watched ? WATCH_ACTION_WATCHING : WATCH_ACTION_WATCH} short={WATCH_ACTION_WATCH} />
+          </button>
           <button
             type="button"
             className={`desk-board__act${recording ? ' desk-board__act--rec' : ''}`}

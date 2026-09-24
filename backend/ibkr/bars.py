@@ -22,6 +22,7 @@ from constants import (
     IBKR_BAR_SIZE,
     IBKR_HISTORICAL_BACKGROUND_TIMEOUT_SEC,
     IBKR_HISTORICAL_TIMEOUT_SEC,
+    IBKR_HISTORICAL_TIMEOUT_SLACK_SEC,
     IBKR_HISTORICAL_USE_RTH,
     IBKR_HISTORICAL_WHAT_TO_SHOW,
 )
@@ -61,6 +62,16 @@ def _bar_time_iso(bar_date: datetime | date | str) -> str:
     if isinstance(bar_date, date):
         return f"{bar_date.isoformat()}T00:00:00Z"
     raise TypeError(f"Unsupported IB bar date type: {type(bar_date)!r}")
+
+
+def historical_timed_out(elapsed_sec: float, timeout_sec: float) -> bool:
+    """Whether an empty ``reqHistoricalDataAsync`` answer was its timeout firing.
+
+    ib_async returns an empty list on timeout instead of raising, so the only
+    tell is that the empty answer took (nearly) the whole timeout. A real
+    "no data" answer (Error 162 / Warning 165) comes back in well under it.
+    """
+    return timeout_sec > 0 and elapsed_sec >= timeout_sec - IBKR_HISTORICAL_TIMEOUT_SLACK_SEC
 
 
 def _normalize_bars(raw_bars, limit: int) -> list[dict]:
@@ -160,6 +171,7 @@ async def _fetch_bars_uncached(
         logger.error("IBKR: qualify failed for bars %s: %s", symbol, desc, exc_info=True)
         raise HTTPException(status_code=502, detail=f"IBKR qualify failed: {desc}") from exc
 
+    hist_started = time.perf_counter()
     try:
         async with timed("ibkr.historical_bars"):
             raw = await ib.reqHistoricalDataAsync(
@@ -191,6 +203,20 @@ async def _fetch_bars_uncached(
         ) from exc
     finally:
         fetch_s = time.perf_counter() - fetch_started
+
+    hist_s = time.perf_counter() - hist_started
+    if not raw and historical_timed_out(hist_s, timeout):
+        # ib_async cancels the request and hands back an empty list. Treating
+        # that as "IBKR has no bars" cached it (15 min for 1Day), stored it and
+        # pushed an empty bars_patch that wiped a painted pane (2026-09-23).
+        logger.warning(
+            "IBKR: historical bars timed out for %s %s after %.1fs",
+            symbol.upper(), timeframe, hist_s,
+        )
+        raise HTTPException(
+            status_code=504,
+            detail=f"IBKR historical data did not answer within {timeout:.0f}s",
+        )
 
     bars = _normalize_bars(raw or [], limit)
     logger.info(

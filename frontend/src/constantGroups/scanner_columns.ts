@@ -5,11 +5,12 @@
  * The key must match the ScannerRow field name; the label is the header text.
  *
  * Dense layout: Change combines change_pct/change_abs, Volume combines
- * volume/rel_volume, Watch combines watchlist_score with the Five Pillars
+ * volume/rel_volume, Pillars combines watchlist_score with the Five Pillars
  * checkmark, and Short Int. combines short_interest/short_ratio
  * (see renderCell in components/ScannerTableRow.tsx). Sort keys stay on the
- * primary field. Watch is joined client-side from the Watchlist tab
- * (strategy/useWatchlistOverlay.ts).
+ * primary field. Pillars is joined client-side from the Contenders tab
+ * (strategy/useWatchlistOverlay.ts). It was headed "Watch" until the
+ * operator's own Watch list (watch_list/) took that word.
  */
 
 export const SCANNER_NEWS_COLUMN: [string, string] = ['newest_headline_at', 'News'];
@@ -23,7 +24,7 @@ export const SCANNER_COLUMNS: [string, string][] = [
   ['change_pct', 'Change'],
   ['gap_percent', 'Gap %'],
   ['volume', 'Volume · RVOL'], // label mirrored in market_ui.SCANNER_VOLUME_COLUMN_LABEL
-  ['watchlist_score', 'Watch'],
+  ['watchlist_score', 'Pillars'],
   ['float', 'Float'],
   ['short_interest', 'Short Int.'],
   ['market_cap', 'Mkt Cap'],

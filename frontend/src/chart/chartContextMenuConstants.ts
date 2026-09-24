@@ -8,7 +8,9 @@ export const CHART_CONTEXT_MENU_CLOSE_POSITION = 'Close Position';
 export const CHART_CONTEXT_MENU_DRAWINGS = 'Drawings';
 export const CHART_CONTEXT_MENU_SHOW_LAYERS = 'Show Layers';
 export const CHART_CONTEXT_MENU_CREATE_ALERT = 'Create Alert';
-export const CHART_CONTEXT_MENU_ADD_WATCHLIST = 'Add to Watchlist';
+/** The operator's watch list (watch_list/): a toast whenever the symbol hits HOD Momo. */
+export const CHART_CONTEXT_MENU_WATCH_ADD = 'Add to watch list';
+export const CHART_CONTEXT_MENU_WATCH_REMOVE = 'Remove from watch list';
 export const CHART_CONTEXT_MENU_BOT_ALLOWLIST_ADD = 'Add to bot allowlist';
 export const CHART_CONTEXT_MENU_BOT_ALLOWLIST_REMOVE = 'Remove from bot allowlist';
 export const CHART_CONTEXT_MENU_RESET = 'Reset Chart';
@@ -16,12 +18,10 @@ export const CHART_CONTEXT_MENU_SNAPSHOT = 'Snapshot';
 
 /**
  * Honest disable copy -- Settings Alerts is Discord/Telegram delivery, not a
- * price-at-cursor alert, and the watchlist is ranked Nova OS output.
+ * price-at-cursor alert.
  */
 export const CHART_CONTEXT_MENU_ALERT_REASON =
   'No price alerts in Nova';
-export const CHART_CONTEXT_MENU_WATCHLIST_REASON =
-  'Watchlist is ranked, not a user list';
 
 /**
  * Shown under the order rows. Nova stages orders on the trade ticket instead of

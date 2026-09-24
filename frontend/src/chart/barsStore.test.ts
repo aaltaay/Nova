@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  applyBarsPatch,
   clearBarsStoreForTests,
   ensureBars,
   ensureBarsBatch,
@@ -230,6 +231,25 @@ describe('barsStore', () => {
     await expect(request).resolves.toHaveLength(1);
     expect(getBarsEntry('SPCI', '10Sec')?.bars).toHaveLength(1);
   });
+
+  it('does not let an empty bars_patch wipe a painted pane', () => {
+    setBars('NNNN', '1Min', [bar(0), bar(1)], parseBarsCoverage({ filling: true }));
+
+    applyBarsPatch('NNNN', '1Min', [], parseBarsCoverage({ filling: false }));
+
+    const entry = getBarsEntry('NNNN', '1Min');
+    expect(entry?.bars).toHaveLength(2);
+    expect(entry?.coverage?.filling).toBe(true);
+  });
+
+  it('applies a bars_patch that carries bars, and an empty one to an empty pane', () => {
+    applyBarsPatch('NNNN', '1Day', [], parseBarsCoverage({ filling: false }));
+    expect(getBarsEntry('NNNN', '1Day')?.bars).toEqual([]);
+
+    applyBarsPatch('NNNN', '5Min', [bar(2)], parseBarsCoverage({ filling: false }));
+    expect(getBarsEntry('NNNN', '5Min')?.bars).toEqual([bar(2)]);
+  });
+
   it('cancels the obsolete network on seek without losing its replacement', async () => {
     const requests: { signal: AbortSignal; resolve: (value: unknown) => void }[] = [];
     (fetch as ReturnType<typeof vi.fn>).mockImplementation((_url: string, init: RequestInit) => new Promise((resolve, reject) => {

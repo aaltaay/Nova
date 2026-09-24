@@ -54,7 +54,21 @@ describe('deskBoardRowsFor', () => {
     expect(deskBoardRowsFor('large_cap', feed)!.rows[0].relVolume).toBe(2.5);
     const catalysts = deskBoardRowsFor('catalysts', feed)!;
     expect(catalysts.rows[0]).toMatchObject({ symbol: 'GRML', price: 12.85, gapPct: 33.3, volume: 4_820_000, relVolume: null, float: null, catalyst: 'PR' });
-    expect(DESK_BOARD_MIRRORED_LISTS).toEqual(['gappers', 'gainers', 'losers', 'afterhours', 'large_cap', 'catalysts']);
+    expect(DESK_BOARD_MIRRORED_LISTS).toEqual(['gappers', 'gainers', 'losers', 'afterhours', 'large_cap', 'catalysts', 'watch_list']);
+  });
+
+  it('mirrors the watch list in its own order, unfiltered, and invents no figure for a symbol off the boards', () => {
+    const feed = makeLiveScannerFeedStub({
+      gainers: [row('VXTL', 21.7, { exchange: 'OTC' })],
+      catalysts: [catalyst('GRML', 'GRML reports positive topline results', '2026-09-22T12:31:00Z')],
+    });
+    const board = deskBoardRowsFor('watch_list', feed, rows => rows.filter(r => r.exchange !== 'OTC'), ['NOPE', 'VXTL', 'GRML'])!;
+    expect(board.total).toBe(3);
+    expect(board.rows.map(r => r.symbol)).toEqual(['NOPE', 'VXTL', 'GRML']);
+    expect(board.rows[0]).toMatchObject({ price: null, gapPct: null, volume: null, catalyst: null });
+    expect(board.rows[1].gapPct).toBe(21.7);
+    expect(board.rows[2]).toMatchObject({ price: 12.85, catalyst: 'PR' });
+    expect(deskBoardRowsFor('watch_list', feed)).toBeNull();
   });
 
   it('reports lists the feed does not carry, and a missing feed, as null -- never an empty table', () => {

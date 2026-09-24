@@ -17,6 +17,8 @@ import asyncio
 import logging
 from typing import Any, Literal
 
+from fastapi import HTTPException
+
 from constants import (
     CHART_DEFAULT_BARS,
     IBKR_BAR_DURATION,
@@ -289,6 +291,12 @@ def schedule_fill(
             await request_bars(symbol, timeframe, limit, priority=priority)
         except HistoricalShed as exc:
             logger.info("historical fill shed %s %s: %s", symbol, timeframe, exc)
+        except HTTPException as exc:
+            # Stated IBKR failures (a timeout, an error answer): nothing was
+            # stored or pushed, the pane stays "filling" and its retry asks again.
+            logger.warning(
+                "historical fill failed %s %s: %s", symbol, timeframe, exc.detail,
+            )
         except Exception:
             logger.warning(
                 "historical fill failed %s %s", symbol, timeframe, exc_info=True,

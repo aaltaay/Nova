@@ -9,6 +9,8 @@ import * as closeMod from '../ibkr/closeFullPosition';
 import * as prefillMod from '../ibkr/orderTicketPrefill';
 import type { IbkrPosition } from '../ibkr/types';
 import { ChartContextMenuHost } from './ChartContextMenuHost';
+import { getWatchList } from '../watch_list';
+import { resetWatchListForTests } from '../watch_list/watchListStore';
 import * as dockNav from '../stock_view/requestDockSurface';
 
 const SMPL: IbkrPosition = {
@@ -322,17 +324,29 @@ describe('ChartContextMenuHost', () => {
     expect(item('reset')).toBeTruthy();
   });
 
-  it('disables Create Alert and Add to Watchlist with a visible reason', () => {
+  it('disables Create Alert with a visible reason', () => {
     render();
     rightClick();
     const alert = item('create_alert');
-    const watch = item('add_to_watchlist');
     expect(alert.disabled).toBe(true);
-    expect(watch.disabled).toBe(true);
     expect(alert.textContent).toContain('No price alerts in Nova');
-    expect(watch.textContent).toContain('Watchlist is ranked');
     act(() => alert.click());
     expect(menu()).toBeTruthy();
+  });
+
+  it('Add to watch list puts the symbol on the watch list and the next menu offers Remove', () => {
+    localStorage.clear();
+    resetWatchListForTests();
+    render();
+    rightClick();
+    act(() => item('watch_list_add').click());
+    expect(menu()).toBeNull();
+    expect(getWatchList()).toContain('SMPL');
+    rightClick();
+    act(() => item('watch_list_remove').click());
+    expect(getWatchList()).not.toContain('SMPL');
+    localStorage.clear();
+    resetWatchListForTests();
   });
 
   it('Show Layers toggles an existing indicator without dismissing', () => {

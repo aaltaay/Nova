@@ -16,6 +16,7 @@ import { usePublishScannerNews } from '../hod_momo/usePublishScannerNews';
 import { ScannerBarBridge } from '../components/ScannerBarBridge';
 import { setGlobalBarHistoryDate } from '../components/scannerBarStore';
 import { useWatchlist } from '../strategy/useWatchlist';
+import { useWatchList } from '../watch_list';
 import { useQuotePanelCollapsed } from '../hooks/useQuotePanelCollapsed';
 import { useSidePanelWidth } from '../hooks/useSidePanelWidth';
 import { boardListForSymbol } from '../scanner/boardListForSymbol';
@@ -65,6 +66,7 @@ export function DashboardPage() {
   const sidePanel = useSidePanelWidth();
   const quotePanel = useQuotePanelCollapsed();
   const watchlist = useWatchlist(true);
+  const watchList = useWatchList();
 
   const fetchDataRef = useRef<() => void>(() => {});
   const scanner = useLiveScannerFeed();
@@ -176,6 +178,17 @@ export function DashboardPage() {
     large_cap: filteredLargeCap,
   } = board.rows;
   const activeHiddenCount = board.hiddenByExchange;
+  // The Watch list tab reads the boards before any filter: a hand-picked symbol is never filtered away.
+  const watchListBoards = useMemo(
+    () => ({
+      gainers: scanner.gainers,
+      gappers: scanner.gappers,
+      losers: scanner.losers,
+      afterhours: scanner.afterhours,
+      largeCap: scanner.largeCap,
+    }),
+    [scanner.gainers, scanner.gappers, scanner.losers, scanner.afterhours, scanner.largeCap],
+  );
 
   // HOD strip row: select for the side panel; if the symbol is not on the
   // board's current list, show the first scanner list that holds it. No list
@@ -213,6 +226,7 @@ export function DashboardPage() {
       catalysts: scanner.catalysts.length,
       hodMomo: hodCount,
       runningUp: runningUpCount,
+      watchList: watchList.length,
       watchlist: watchlist.entries.length,
     }),
     [
@@ -224,6 +238,7 @@ export function DashboardPage() {
       scanner.catalysts.length,
       hodCount,
       runningUpCount,
+      watchList.length,
       watchlist.entries.length,
     ],
   );
@@ -293,6 +308,7 @@ export function DashboardPage() {
               nowSec={scanner.now}
               tableMeta={scanner.tableMeta}
               historyDate={scanner.historyDate}
+              watchListBoards={watchListBoards}
             />
           </main>
         </SelectedScannerWidget>

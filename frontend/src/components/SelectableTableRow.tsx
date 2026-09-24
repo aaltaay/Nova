@@ -26,8 +26,8 @@ interface Props {
    * body then only calls `onSelect`. Defaults to true for rows with no
    * ticker button (Positions, Orders, Journal, ...). */
   openOnRowClick?: boolean;
-  /** Scanner rows: right-click opens Add/Remove bot allowlist. */
-  botAllowlistMenu?: boolean;
+  /** Ticker lists: right-click opens the symbol menu (watch list, Record, bot allowlist). */
+  symbolMenu?: boolean;
 }
 
 export function SelectableTableRow({
@@ -41,7 +41,7 @@ export function SelectableTableRow({
   hintPrefix,
   dataRecent = false,
   openOnRowClick = true,
-  botAllowlistMenu = false,
+  symbolMenu = false,
 }: Props) {
   function openRow() {
     onSelect(symbol);
@@ -64,7 +64,7 @@ export function SelectableTableRow({
       style={style}
       onClick={openRow}
       onContextMenu={
-        botAllowlistMenu
+        symbolMenu
           ? (event: MouseEvent<HTMLTableRowElement>) => {
               event.preventDefault();
               openBotSymbolMenu(symbol, event.clientX, event.clientY);

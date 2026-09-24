@@ -163,7 +163,8 @@ describe('DeskBoard', () => {
     const titles = Array.from(pick.options).map(o => o.textContent);
     expect(titles).toContain('Gappers');
     expect(titles).toContain('HOD Momo');
-    expect(titles).toContain('Watchlist');
+    expect(titles).toContain('Contenders');
+    expect(titles).toContain('Watch list');
     expect(screen.getByTestId('desk-board-list-label').textContent).toBe('Gappers');
     expect(screen.getByTestId('desk-board-count').textContent).toBe('3');
     fireEvent.change(pick, { target: { value: 'losers' } });

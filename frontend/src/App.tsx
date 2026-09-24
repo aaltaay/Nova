@@ -13,6 +13,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { LazySampleShell, LazyStockViewTabs } from './appLazy';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
+import { BotSymbolMenuHost } from './bot/BotSymbolMenu';
 import { GlobalAppBar } from './components/GlobalAppBar';
 import { NavRailHost } from './components/NavRailHost';
 import { FloatDeskChrome } from './stock_view/FloatDeskChrome';
@@ -94,6 +95,9 @@ function AppShell() {
             {!detached && <GlobalBarStatusBridge />}
             {!detached && <GlobalAppBar />}
             {detached && <FloatDeskChrome />}
+            {/* The parent's symbol menu mounts with its app bar (GlobalBarBotRow); a pop-out
+                has none, so its Trader tabs and Focus rail rows need their own host. */}
+            {detached && <BotSymbolMenuHost />}
             {!detached && <TradingPrerequisitesGate />}
             {!detached && <GatewayDisconnectedBannerHost />}
             <MwcbBannerHost />

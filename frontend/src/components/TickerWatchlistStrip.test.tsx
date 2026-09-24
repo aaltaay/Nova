@@ -48,7 +48,7 @@ describe('TickerWatchlistStrip', () => {
     await flush();
     expect(fetchMock).not.toHaveBeenCalled();
     expect(screen.getByText(/5 \/ 5 pillars/)).toBeTruthy();
-    expect(screen.getByTestId('watchlist-strip-source').textContent).toBe('#3 on the watchlist');
+    expect(screen.getByTestId('watchlist-strip-source').textContent).toBe('#3 of the Contenders');
   });
 
   it('grades an unranked symbol on demand and says where the grade came from', async () => {

@@ -58,7 +58,7 @@ describe('module registry (Phase 4)', () => {
     expect(groups[1].modules.map(m => m.id)).toEqual([
       'volume_boost', 'hod_momo', 'catalysts', 'earnings', 'nova_news',
     ]);
-    expect(groups[2].modules.map(m => m.id)).toEqual(['watchlist']);
+    expect(groups[2].modules.map(m => m.id)).toEqual(['watch_list', 'watchlist']);
     // Account, Reports and Strategy are rail items of their own, never Scanner children.
     for (const id of ['trading', 'reports', 'strategy'] as const) {
       expect(getModule(id)?.navGroup).toBeUndefined();

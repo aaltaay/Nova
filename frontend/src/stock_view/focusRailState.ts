@@ -87,9 +87,13 @@ export function isHodFocusList(list: string): list is FocusRailHodList {
   return (FOCUS_RAIL_HOD_LISTS as readonly string[]).includes(list);
 }
 
+/** The operator's watch list (watch_list/) -- the rail's one hand-picked list. */
+export const FOCUS_RAIL_WATCH_LIST = 'watch_list';
+
 /** Lists the rail can mirror from what the workspace already holds; others say so. */
 export const FOCUS_RAIL_MIRRORED_LISTS: readonly string[] = [
   'gappers', 'gainers', 'losers', 'afterhours', 'large_cap', 'catalysts', ...FOCUS_RAIL_HOD_LISTS,
+  FOCUS_RAIL_WATCH_LIST,
 ];
 
 /** The list a pick from `requested` moves the rail to, or null to stay put:
@@ -161,6 +165,21 @@ export function hodFocusRows(
     });
   }
   return rows;
+}
+
+/**
+ * The operator's watch list, in its own order: each symbol's price, gap and
+ * news from the board row that holds it (Large Cap included), else its
+ * Catalysts row, else nothing known -- a dash, never an invented figure.
+ */
+export function watchFocusRows(symbols: readonly string[], feed: FeedRows | null | undefined): FocusRow[] {
+  return symbols.map(symbol => {
+    const row = scannerRowFor(symbol, feed) ?? feed?.largeCap.find(r => r.symbol.toUpperCase() === symbol) ?? null;
+    if (row) return fromScannerRow(row, feed?.catalysts ?? []);
+    const catalyst = catalystFor(symbol, feed?.catalysts);
+    if (catalyst) return fromCatalyst(catalyst);
+    return { symbol, price: null, gapPct: null, headlineAt: null, newsKnown: false };
+  });
 }
 
 /** Rows for a list id; null when the feed does not carry that list here. */

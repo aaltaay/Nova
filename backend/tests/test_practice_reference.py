@@ -59,7 +59,7 @@ def live(monkeypatch):
 
 def test_a_fresh_last_with_the_live_book_fills_at_the_live_quote(live) -> None:
     live.fresh.add("IMCC")
-    live.quotes["IMCC"] = {"price": 10.0, "last_update_ts": NOW}
+    live.quotes["IMCC"] = {"price": 10.0, "last_update_ts": NOW, "last_trade_ts": NOW - 2}
     live.books["IMCC"] = BOOK
     ref = Frozen().reference("imcc")
     assert (ref.last, ref.bid, ref.ask, ref.live) == (10.0, 9.98, 10.02, True)
@@ -70,10 +70,37 @@ def test_a_fresh_last_with_the_live_book_fills_at_the_live_quote(live) -> None:
 
 def test_a_fresh_last_without_a_book_fills_at_the_live_print(live) -> None:
     live.fresh.add("IMCC")
-    live.quotes["IMCC"] = {"price": 10.0}
+    live.quotes["IMCC"] = {"price": 10.0, "last_trade_ts": NOW - 2}
     ref = Frozen().reference("IMCC")
     assert (ref.last, ref.bid, ref.ask) == (10.0, None, None)
     assert at_placement("BUY", "MKT", ref) == Fill(10.0, BASIS_LIVE_PRINT)
+
+
+def test_a_live_line_whose_last_trade_is_old_is_not_a_live_print(live) -> None:
+    """#541: a quote change keeps the line fresh; the 06:40 trade is still not a price now."""
+    live.fresh.add("IMCC")
+    live.quotes["IMCC"] = {"price": 4.10, "last_update_ts": NOW, "last_trade_ts": NOW - 3 * 3600}
+    ref = Frozen().reference("IMCC")
+    assert ref.last is None
+    assert Frozen().admission("IMCC") == (False, PRACTICE_NO_LIVE_PRINT_REASON, PRACTICE_NO_LIVE_PRINT_CODE)
+    # A limit at 4.20 can no longer fill at the old 4.10 with no book open.
+    assert at_placement("BUY", "LMT", ref, limit=4.20) is None
+
+
+def test_the_prior_close_before_the_first_trade_is_never_a_price(live) -> None:
+    """#541: a line with no trade today carries IBKR's prior close (``close_fallback``)."""
+    live.fresh.add("IMCC")
+    live.quotes["IMCC"] = {"price": 9.52, "last_trade_ts": NOW - 1, "quote_quality": "close_fallback"}
+    assert Frozen().reference("IMCC").last is None
+    assert Frozen().admission("IMCC")[2] == PRACTICE_NO_LIVE_PRINT_CODE
+
+
+def test_an_unknown_trade_time_leaves_the_decision_to_the_tape(live) -> None:
+    live.fresh.add("IMCC")
+    live.quotes["IMCC"] = {"price": 10.0}  # no Last Timestamp from IBKR
+    live.watched.add("IMCC")
+    live.trades.append({"symbol": "IMCC", "ts": NOW - 3, "price": 9.9, "conditions": ""})
+    assert Frozen().reference("IMCC").last == 9.9
 
 
 def test_a_replay_reference_keeps_the_replay_basis() -> None:
