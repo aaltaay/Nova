@@ -15,7 +15,9 @@ import {
   BOTS_L2_OPEN,
   BOTS_L2_OPEN_TITLE,
   BOTS_LAST_TITLE,
+  BOTS_SYMBOL_EMPTY_WHY,
   BOTS_SYMBOLS_CAP,
+  BOTS_SYMBOLS_CAP_WHY,
   BOTS_SYMBOLS_EMPTY,
   BOTS_SYMBOLS_PLACEHOLDER,
   BOTS_SYMBOLS_SUB,
@@ -131,9 +133,11 @@ export function BotSymbolsCard({ session, onOpenL2, inputRef }: Props) {
           autoComplete="off"
           spellCheck={false}
           disabled={atCap}
+          data-why={atCap ? BOTS_SYMBOLS_CAP_WHY(BOT_SYMBOL_ALLOWLIST_CAP) : undefined}
           onChange={e => setDraft(e.target.value.toUpperCase())}
         />
-        <button type="submit" className="bots-btn" data-testid="bots-symbol-add" disabled={atCap || !draft.trim()}>
+        <button type="submit" className="bots-btn" data-testid="bots-symbol-add" disabled={atCap || !draft.trim()}
+          data-why={atCap ? BOTS_SYMBOLS_CAP_WHY(BOT_SYMBOL_ALLOWLIST_CAP) : !draft.trim() ? BOTS_SYMBOL_EMPTY_WHY : undefined}>
           {BOT_ALLOWLIST_ADD_BUTTON}
         </button>
       </form>

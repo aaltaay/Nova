@@ -28,7 +28,14 @@ export interface CalendarCell {
   facts: CalendarDayFacts;
   selectable: boolean;
   today: boolean;
+  /** After today: nothing has traded yet. */
+  future: boolean;
   selected: boolean;
+}
+
+/** What a day's tooltip and locked reason say, one label per fact. */
+export interface CellLabels {
+  rebuilt: string; recorded: string; sessions: (symbols: string[]) => string; nothing: string; closed: string;
 }
 
 const NONE: CalendarDayFacts = { rebuilt: false, recorded: false, sessions: [] };
@@ -101,6 +108,7 @@ export function monthGrid(
         facts: f,
         selectable: hasAny && !weekend && date <= today,
         today: date === today,
+        future: date > today,
         selected: date === selected,
       });
       cursor.setUTCDate(cursor.getUTCDate() + 1);
@@ -119,9 +127,7 @@ export function monthRange(facts: Map<string, CalendarDayFacts>, today: string):
 export const monthIndex = (ref: MonthRef) => ref.year * 12 + ref.month0;
 
 /** One line per fact, for the day's tooltip. */
-export function cellTitle(cell: CalendarCell, labels: {
-  rebuilt: string; recorded: string; sessions: (symbols: string[]) => string; nothing: string; closed: string;
-}): string {
+export function cellTitle(cell: CalendarCell, labels: CellLabels): string {
   const lines: string[] = [cell.date];
   if (cell.facts.recorded) lines.push(labels.recorded);
   if (cell.facts.sessions.length) lines.push(labels.sessions(cell.facts.sessions));
@@ -129,4 +135,14 @@ export function cellTitle(cell: CalendarCell, labels: {
   if (lines.length === 1) lines.push(labels.nothing);
   else if (cell.weekend) lines.push(labels.closed);
   return lines.join('\n');
+}
+
+/**
+ * Why a day cannot be picked, on one line (the locked-control tip, ux/whyTip.ts);
+ * null when it can. A future day says so; any other says what it has and lacks.
+ */
+export function cellWhy(cell: CalendarCell, labels: CellLabels & { future: string }): string | null {
+  if (cell.selectable) return null;
+  if (cell.future) return `${cell.date} · ${labels.future}`;
+  return cellTitle(cell, labels).split('\n').join(' · ');
 }

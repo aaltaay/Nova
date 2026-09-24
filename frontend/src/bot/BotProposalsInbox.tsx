@@ -15,6 +15,7 @@ import {
   BOTS_PROPOSALS_SUB,
   BOTS_PROPOSALS_TITLE,
 } from '../constantGroups/bots_page';
+import { SETUPS_STAGE_NO_ENTRY_WHY } from '../constantGroups/setups';
 import { useSetupsBoard } from '../setups/SetupsStreamContext';
 import { fmtPx } from '../setups/setupsFormat';
 import { stageSetupTicket } from '../setups/stageSetupTicket';
@@ -75,7 +76,8 @@ export function BotProposalsInbox({ proposals, audit, resolve, openTrader }: Pro
             <div className="bots-prop__acts">
               <button type="button" className="bots-btn bots-btn--primary" disabled={!entry}
                 data-testid={`bots-stage-${p.symbol}`}
-                title={`Open ${p.symbol} and stage a BUY limit at ${entry}. Nothing is sent until you press Place.`}
+                data-why={entry ? undefined : SETUPS_STAGE_NO_ENTRY_WHY}
+                title={entry ? `Open ${p.symbol} and stage a BUY limit at ${entry}. Nothing is sent until you press Place.` : undefined}
                 onClick={() => { stageSetupTicket(p.symbol, entry, openTrader); dismiss(p.id); }}>
                 {BOTS_PROPOSAL_STAGE}
               </button>

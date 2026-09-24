@@ -14,7 +14,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { TICKER_TRADE_PLACE_CONFIRM_SKIP_LABEL } from '../constants';
+import { appDialogTypeToConfirm, TICKER_TRADE_PLACE_CONFIRM_SKIP_LABEL } from '../constants';
 import { writeSkipPlaceConfirm } from '../ibkr/placeConfirmPrefs';
 import {
   registerAppDialogHandler,
@@ -205,6 +205,8 @@ export function AppDialogHost({ children }: Props) {
                     className={actionClass(tone)}
                     data-testid="app-dialog-confirm"
                     disabled={active.kind === 'prompt' && !promptMatches}
+                    data-why={active.kind === 'prompt' && !promptMatches && active.expectedValue != null
+                      ? appDialogTypeToConfirm(active.expectedValue) : undefined}
                     onClick={e => {
                       if (active.kind === 'prompt' && !promptMatches) {
                         e.preventDefault();

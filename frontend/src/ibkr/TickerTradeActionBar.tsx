@@ -4,6 +4,8 @@ import { useState } from 'react';
 import {
   APP_DIALOG_FLATTEN_LABEL,
   CLOSE_POSITION_ACCOUNT_ERROR_TITLE,
+  CLOSE_POSITION_BUSY_WHY,
+  CLOSE_POSITION_NO_POSITION_TITLE,
   CLOSE_POSITION_PIN_LOCKED_TITLE,
   STOCK_VIEW_MODULE_OPEN_TITLE,
   TICKER_TRADE_ORDER_DISCLOSURE,
@@ -78,6 +80,14 @@ export function TickerTradeActionBar({
   const modeLabel =
     mode === 'paper' ? 'PAPER' : mode === 'live' ? '⚠ LIVE' : mode === 'sim' ? 'SIM' : 'OFFLINE';
   const hasPosition = position != null && position.qty !== 0;
+  // A locked Flatten says why (ux/whyTip.ts); null exactly when it can act.
+  const flattenWhy = !hasPosition
+    ? CLOSE_POSITION_NO_POSITION_TITLE
+    : closing
+      ? CLOSE_POSITION_BUSY_WHY
+      : accountError
+        ? CLOSE_POSITION_ACCOUNT_ERROR_TITLE
+        : disabledReason;
   const compactChrome = variant === 'rail';
   const showAccount = !compactChrome;
 
@@ -209,15 +219,14 @@ export function TickerTradeActionBar({
             type="button"
             className="ticker-trade-close-btn"
             disabled={!canFlatten || !hasPosition}
+            data-why={flattenWhy ?? undefined}
             onClick={() => void handleClose()}
             title={
-              !hasPosition
-                ? 'No open position in this symbol'
-                : accountError
-                  ? CLOSE_POSITION_ACCOUNT_ERROR_TITLE
-                  : !readTicketSessionUnlocked()
-                    ? CLOSE_POSITION_PIN_LOCKED_TITLE
-                    : disabledReason ?? 'Flatten position with market order'
+              flattenWhy
+                ? undefined
+                : !readTicketSessionUnlocked()
+                  ? CLOSE_POSITION_PIN_LOCKED_TITLE
+                  : 'Flatten position with market order'
             }
           >
             {closing

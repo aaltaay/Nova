@@ -7,6 +7,7 @@ import {
   BOT_ALLOWLIST_HINT,
   BOT_SYMBOL_ALLOWLIST_CAP,
 } from '../constantGroups/bot';
+import { BOTS_SYMBOLS_CAP_WHY } from '../constantGroups/bots_page';
 
 export type BotAllowlistMutator = (symbol: string) => Promise<unknown> | unknown;
 
@@ -58,6 +59,7 @@ export function BotAllowlistEditor({ testId, symbols, add, remove }: Props) {
             autoComplete="off"
             spellCheck={false}
             disabled={atCap}
+            data-why={atCap ? BOTS_SYMBOLS_CAP_WHY(BOT_SYMBOL_ALLOWLIST_CAP) : undefined}
             onChange={event => setDraft(event.target.value)}
             onKeyDown={event => {
               if (event.key === 'Enter') {
@@ -71,6 +73,7 @@ export function BotAllowlistEditor({ testId, symbols, add, remove }: Props) {
           type="button"
           data-testid={`${testId}-add`}
           disabled={atCap}
+          data-why={atCap ? BOTS_SYMBOLS_CAP_WHY(BOT_SYMBOL_ALLOWLIST_CAP) : undefined}
           onClick={() => void onAdd()}
         >
           {BOT_ALLOWLIST_ADD_BUTTON}

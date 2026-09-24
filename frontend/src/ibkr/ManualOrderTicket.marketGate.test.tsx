@@ -79,7 +79,8 @@ describe('ManualOrderTicket market-order clock gate', () => {
     gate.reason = TICKER_TRADE_MARKET_OUTSIDE_RTH_REASON;
     renderTicket();
     expect(marketButton().disabled).toBe(true);
-    expect(marketButton().title).toBe(TICKER_TRADE_MARKET_OUTSIDE_RTH_REASON);
+    expect(marketButton().dataset.why).toBe(TICKER_TRADE_MARKET_OUTSIDE_RTH_REASON);
+    expect(marketButton().hasAttribute('title')).toBe(false);
     expect(marketButton().getAttribute('aria-pressed')).toBe('false');
     expect(mount.querySelector('[data-testid="market-outside-rth-note"]')?.textContent)
       .toBe(TICKER_TRADE_MARKET_OUTSIDE_RTH_REASON);

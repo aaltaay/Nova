@@ -57,6 +57,7 @@ export function AccountPillMenu({ view }: { view: HeaderAccountPillView }) {
           className={`global-app-bar__card-row${account.active ? ' is-active' : ''}`}
           role="menuitem"
           aria-disabled
+          data-why={view.note}
           aria-current={account.active ? 'true' : undefined}
           data-testid="global-bar-account-pill-item"
           data-account-id={account.id}

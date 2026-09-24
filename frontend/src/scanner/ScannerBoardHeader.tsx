@@ -12,6 +12,7 @@ import {
   SCANNER_CHIP_LABEL,
   SCANNER_CHIP_TITLE,
   SCANNER_HISTORY_SAMPLE_LABEL,
+  SCANNER_HISTORY_SAMPLE_WHY,
   SCANNER_HISTORY_SELECT_ARIA,
   SCANNER_HISTORY_SELECT_TITLE,
   SCANNER_HISTORY_TODAY_LABEL,
@@ -118,15 +119,17 @@ function SavedSetsMenu({ filters, onClose }: { filters: BoardFilters; onClose: (
 function HistoryDateSelect() {
   const bar = useScannerBarProps();
   if (!bar) return null;
+  // Locked on the sample desk, title '' keeps the session line's own title from showing over the reason.
   return (
     <>
       <select
         className={`history-select scanner-board__history${bar.historyDate ? ' history-select--active' : ''}`}
         value={bar.historyDate ?? ''}
         onChange={bar.onHistoryChange}
-        title={SCANNER_HISTORY_SELECT_TITLE}
+        title={bar.sampleDataActive ? '' : SCANNER_HISTORY_SELECT_TITLE}
         aria-label={SCANNER_HISTORY_SELECT_ARIA}
         disabled={bar.sampleDataActive}
+        data-why={bar.sampleDataActive ? SCANNER_HISTORY_SAMPLE_WHY : undefined}
         data-testid="scanner-board-history"
       >
         <option value="">{bar.sampleDataActive ? SCANNER_HISTORY_SAMPLE_LABEL : SCANNER_HISTORY_TODAY_LABEL}</option>
@@ -165,7 +168,8 @@ export function ScannerBoardHeader({ title, filters, scannedAgoSec, feedFailure 
                   className={`scanner-board__chip${on ? ' is-on' : ''}${available ? '' : ' is-unavailable'}`}
                   aria-pressed={on}
                   aria-disabled={!available}
-                  title={SCANNER_CHIP_TITLE[id]}
+                  title={available ? SCANNER_CHIP_TITLE[id] : undefined}
+                  data-why={available ? undefined : SCANNER_CHIP_TITLE[id]}
                   data-testid={`scanner-chip-${id}`}
                   onClick={() => filters.toggle(id)}
                 >

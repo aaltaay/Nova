@@ -95,7 +95,8 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
     statusError: ibkrStatusError,
   });
   return (
-    <header className="global-app-bar" data-testid="global-app-bar">
+    // The bar is tinted by the settled venue (global-app-bar.css); none while unknown.
+    <header className="global-app-bar" data-testid="global-app-bar" data-venue={deskVenue ?? undefined}>
       <RecordingSignals onOpenSymbol={openStockView} />
       <WatchHodToasts onOpenSymbol={openStockView} />
       <div className="global-app-bar__primary" data-testid="global-bar-primary">

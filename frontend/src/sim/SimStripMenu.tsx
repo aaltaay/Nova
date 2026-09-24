@@ -22,9 +22,10 @@ import { recordingUnavailableReason, recordingUsable, recordPrintsShort } from '
 import { missingLabel } from './simCoverage';
 import {
   SIM_LIVE_EDGE_EMPTY_NOTE, SIM_LIVE_EDGE_SOURCE, SIM_REPLAY_LOADING, SIM_REPLAY_LOADING_TITLE, SIM_TAB_NO_REPLAY_TITLE,
-  SIM_TAB_WHAT_SIM_IS, simCaptureMissingLabel,
+  SIM_TAB_WHAT_SIM_IS, SIM_WHY_AT_WALL_CLOCK, simCaptureMissingLabel,
 } from './simConstants';
 import type { SimClockState } from './simClockTypes';
+import { simBusyWhy, simReplayWhy, simTickerWhy } from './simWhy';
 import type { CaptureSessions } from './useSimSessionController';
 
 interface Props {
@@ -55,6 +56,10 @@ export function SimStripMenu({
     : 0;
   const loading = clock?.replay_loading === true && clock?.replay_ok !== false;
   const nothingLoaded = !historical && !capture && clock?.replay_ok !== false && !loading;
+  // Why each control is locked (ux/whyTip.ts); a locked picker drops its label's title.
+  const followWhy = atWallClock ? SIM_WHY_AT_WALL_CLOCK : simBusyWhy(busy, ['follow']);
+  const replayWhy = simReplayWhy(busy, symbol);
+  const tickerWhy = simTickerWhy(busy, day, symbol);
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
@@ -88,7 +93,7 @@ export function SimStripMenu({
             )}
           </div>
           <button type="button" className="sim-strip__menu-item" disabled={atWallClock || busy.has('follow')}
-            data-testid="sim-strip-follow-wall"
+            data-why={followWhy ?? undefined} data-testid="sim-strip-follow-wall"
             onClick={() => { void onFollowWall(); }}>
             {SIM_STRIP_MENU_FOLLOW}{atWallClock ? <em>on</em> : null}
           </button>
@@ -96,21 +101,22 @@ export function SimStripMenu({
             <span className="sim-strip__menu-title">{SIM_STRIP_MENU_LOAD_RECORDING}</span>
             {historical ? (
               <button type="button" className="sim-strip__menu-item" disabled={busy.has('replay')}
+                data-why={replayWhy ?? undefined}
                 onClick={() => { setDay(''); setSymbol(''); void applyReplay('', ''); }}>
                 {SIM_STRIP_MENU_CLOSE_REPLAY}
               </button>
             ) : (
               <>
-                <label className="sim-strip__picker" title="Captured session date">{SIM_STRIP_MENU_DAY}
-                  <select data-testid="sim-replay-day" value={day} disabled={busy.has('replay')} onChange={event => {
+                <label className="sim-strip__picker" title={replayWhy ? undefined : 'Captured session date'}>{SIM_STRIP_MENU_DAY}
+                  <select data-testid="sim-replay-day" value={day} disabled={busy.has('replay')} data-why={replayWhy ?? undefined} onChange={event => {
                     const next = event.target.value; setDay(next); setSymbol(''); if (!next) void applyReplay('', '');
                   }}>
                     <option value="">{SIM_STRIP_MENU_NO_RECORDING}</option>
                     {(sessions?.days ?? []).map(item => <option key={item.date} value={item.date}>{item.date} ({item.ticker_count})</option>)}
                   </select>
                 </label>
-                <label className="sim-strip__picker" title="Captured ticker">{SIM_STRIP_MENU_TICKER}
-                  <select data-testid="sim-replay-ticker" value={symbol} disabled={!day || busy.has('replay')} onChange={event => {
+                <label className="sim-strip__picker" title={tickerWhy ? undefined : 'Captured ticker'}>{SIM_STRIP_MENU_TICKER}
+                  <select data-testid="sim-replay-ticker" value={symbol} disabled={!day || busy.has('replay')} data-why={tickerWhy ?? undefined} onChange={event => {
                     const next = event.target.value; setSymbol(next); void applyReplay(day, next);
                   }}>
                     <option value="">{day ? SIM_STRIP_MENU_PICK_TICKER : '--'}</option>

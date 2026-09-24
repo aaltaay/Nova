@@ -95,6 +95,14 @@
   --scrollbar-thumb-hover: rgba(110, 110, 115, 0.48);
 }
 
+/* Desk venue colours (ADR 020): the venue pills and the global bar's tint read
+   these, so Paper / Live / Sim is one colour wherever it is shown. */
+:root {
+  --venue-paper: #f97316;
+  --venue-live: var(--success, #22c55e);
+  --venue-sim: #e879f9;
+}
+
 /* Default before FOUC script / JS: dark */
 html:not([data-theme]) {
   color-scheme: dark;

@@ -14,17 +14,20 @@ import {
 import type { SymbolInspect } from './hodMomoDebugTypes';
 
 const API = `${API_BASE_URL}/api`;
+/** Why Inspect is locked (ux/whyTip.ts): an empty box used to make it a silent no-op. */
+const INSPECT_WHY_NO_TICKER = 'Type a ticker first';
+const inspectWhyLoading = (symbol: string): string => `Reading ${symbol} from HOD Momo -- wait for the answer`;
 
 export function SymbolInspector() {
   const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<string | null>(null);
   const [result, setResult] = useState<SymbolInspect | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function inspect() {
     const sym = input.trim().toUpperCase();
     if (!sym) return;
-    setLoading(true);
+    setLoading(sym);
     setError(null);
     try {
       // A ticker with "/" (BRK/B) is not a path segment the route can match;
@@ -43,10 +46,11 @@ export function SymbolInspector() {
       setResult(null);
       setError(String(e));
     } finally {
-      setLoading(false);
+      setLoading(null);
     }
   }
 
+  const why = loading ? inspectWhyLoading(loading) : input.trim() ? null : INSPECT_WHY_NO_TICKER;
   return (
     <div className="dbg-card dbg-card-wide">
       <div className="dbg-card-title">Symbol Inspector</div>
@@ -59,7 +63,7 @@ export function SymbolInspector() {
           onChange={e => setInput(e.target.value.toUpperCase())}
           onKeyDown={e => e.key === 'Enter' && inspect()}
         />
-        <button className="dbg-inspect-btn" onClick={inspect} disabled={loading}>
+        <button className="dbg-inspect-btn" onClick={inspect} disabled={why != null} data-why={why ?? undefined}>
           {loading ? '…' : 'Inspect'}
         </button>
       </div>

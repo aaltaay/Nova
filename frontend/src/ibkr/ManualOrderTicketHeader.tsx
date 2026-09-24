@@ -24,11 +24,14 @@ interface Props {
   mode: IbkrMode;
   tif: TradeDefaultTif;
   disabled: boolean;
+  /** Why `disabled` is set -- each locked TIF button says it (ux/whyTip.ts). */
+  why?: string | null;
   onTifChange: (tif: TradeDefaultTif) => void;
 }
 
-export function ManualOrderTicketHeader({ symbol, mode, tif, disabled, onTifChange }: Props) {
+export function ManualOrderTicketHeader({ symbol, mode, tif, disabled, why = null, onTifChange }: Props) {
   const sym = symbol.trim().toUpperCase();
+  const lockWhy = disabled ? why || undefined : undefined;
   return (
     <header className="mot-head" data-testid="manual-order-header">
       <span className="mot-head__title">
@@ -52,7 +55,7 @@ export function ManualOrderTicketHeader({ symbol, mode, tif, disabled, onTifChan
           className="mot-seg mot-seg--tif"
           role="group"
           aria-label={TICKET_TIF_TITLE}
-          title={TICKET_TIF_TITLE}
+          title={lockWhy ? undefined : TICKET_TIF_TITLE}
           data-testid="manual-order-tif"
         >
           {TRADE_DEFAULT_TIFS.map((value) => (
@@ -62,6 +65,7 @@ export function ManualOrderTicketHeader({ symbol, mode, tif, disabled, onTifChan
               className={tif === value ? 'is-on' : ''}
               aria-pressed={tif === value}
               disabled={disabled}
+              data-why={lockWhy}
               data-testid={`manual-order-tif-${value.toLowerCase()}`}
               onClick={() => onTifChange(value)}
             >

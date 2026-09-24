@@ -8,6 +8,7 @@ import {
   type QuantityMode,
 } from './orderEntry';
 import { useTopOfBook } from '../hotkeys/TopOfBookContext';
+import { TICKET_WHY_SENDING, WHY_GATEWAY_NOT_CONNECTED } from '../constantGroups/trader_chrome';
 import type { IbkrListingFlags } from '../types/ticker';
 import { applyTicketDefaults, seedFollow, seedPricesForSide } from './applyTicketDefaults';
 import { ManualOrderFields } from './ManualOrderFields';
@@ -282,6 +283,9 @@ export function ManualOrderTicket({
     setQuantityValue(next);
   }
 
+  // Every locked field says why (ux/whyTip.ts).
+  const fieldsWhy = !connected ? WHY_GATEWAY_NOT_CONNECTED : submitting ? TICKET_WHY_SENDING : null;
+
   return (
     <form className="manual-order-ticket" onSubmit={submit}>
       <ManualOrderTicketHeader
@@ -289,6 +293,7 @@ export function ManualOrderTicket({
         mode={mode}
         tif={tif}
         disabled={submitting}
+        why={TICKET_WHY_SENDING}
         onTifChange={selectTif}
       />
       <ManualOrderFields
@@ -306,6 +311,7 @@ export function ManualOrderTicket({
         stopPrice={stopPrice}
         outsideRth={outsideRth}
         disabled={!connected || submitting}
+        why={fieldsWhy}
         quantityLocked={QTY_LOCKED}
         shortDisabledReason={shortBlockReason}
         marketDisabledReason={marketBlockedReason}

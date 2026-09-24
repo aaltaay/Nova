@@ -33,6 +33,7 @@ import {
   SYMBOL_MENU_WATCH_HINT,
   SYMBOL_MENU_WATCH_STATE,
 } from '../constantGroups/bot';
+import { SCANNER_ACTION_STARTING_REC_WHY, SCANNER_ACTION_STOPPING_REC_WHY } from '../constantGroups/scanner_board';
 import { TRADER_TAB_PIN_LABEL, TRADER_TAB_UNPIN_LABEL } from '../constantGroups/trader_view';
 import {
   closeBotSymbolMenu,
@@ -79,9 +80,12 @@ function RowBody({ tone, icon, label, hint, state }: {
   );
 }
 
-function MenuRow({ tone, icon, label, hint, state, testId, disabled, onClick }: {
+function MenuRow({ tone, icon, label, hint, state, testId, disabled, why, onClick }: {
   tone: Tone; icon: ReactNode; label: string; hint: string; state?: string | null;
-  testId: string; disabled?: boolean; onClick: () => void;
+  testId: string; disabled?: boolean;
+  /** Why `disabled` is set -- shown on hover and on a refused press (ux/whyTip.ts). */
+  why?: string;
+  onClick: () => void;
 }) {
   return (
     <button
@@ -90,6 +94,7 @@ function MenuRow({ tone, icon, label, hint, state, testId, disabled, onClick }: 
       className={`symbol-menu__row symbol-menu__row--${tone}${state ? ' is-on' : ''}`}
       data-testid={testId}
       disabled={disabled}
+      data-why={disabled ? why : undefined}
       onClick={onClick}
     >
       <RowBody tone={tone} icon={icon} label={label} hint={hint} state={state} />
@@ -234,6 +239,7 @@ export function BotSymbolMenuHost() {
           className="symbol-menu__row symbol-menu__row--rec is-on"
           label={captureStopHoldLabel(symbol)}
           disabled={recordBusy}
+          why={recordBusy ? SCANNER_ACTION_STOPPING_REC_WHY : null}
           onConfirm={() => void toggleRecord(true)}
         >
           <RowBody
@@ -252,6 +258,7 @@ export function BotSymbolMenuHost() {
           label={SYMBOL_MENU_RECORD}
           hint={SYMBOL_MENU_RECORD_HINT}
           disabled={recordBusy}
+          why={SCANNER_ACTION_STARTING_REC_WHY}
           onClick={() => void toggleRecord(false)}
         />
       )}

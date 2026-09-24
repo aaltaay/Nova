@@ -19,11 +19,21 @@ import {
   DIAG_SINCE_LABEL,
   DIAG_STATE_LABELS,
   DIAG_TITLE,
+  DIAG_WHY_RELOADING,
+  diagActionRunningWhy,
 } from '../constantGroups/diagnostics';
 import type { DiagActionKind, DiagnosticsPayload, DiagRow } from './diagnosticsTypes';
+import { GATEWAY_WHY_LAUNCHING, GATEWAY_WHY_RECONNECTING } from './gatewayUxConstants';
 import './diagnosticsChecklist.css';
 
 export type DiagActionHandlers = Partial<Record<DiagActionKind, () => void>>;
+
+/** Why a row's action is locked while that action runs (ux/whyTip.ts). */
+const BUSY_WHY: Partial<Record<DiagActionKind, string>> = {
+  reconnect_ibkr: GATEWAY_WHY_RECONNECTING,
+  launch_gateway: GATEWAY_WHY_LAUNCHING,
+  reload_backend: DIAG_WHY_RELOADING,
+};
 
 interface Props {
   data: DiagnosticsPayload;
@@ -39,10 +49,36 @@ function sinceLabel(since: number | null): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toLocaleTimeString();
 }
 
-function Row({ row, actions, busy }: { row: DiagRow; actions: DiagActionHandlers; busy: Props['busy'] }) {
-  const [open, setOpen] = useState(false);
+/** A row's action button, only when the desk has a real handler for its kind. */
+export function DiagRowAction({ row, actions, busy, testId }: {
+  row: DiagRow;
+  actions: DiagActionHandlers;
+  busy: Props['busy'];
+  testId: string;
+}) {
   const kind = row.action?.kind as DiagActionKind | undefined;
   const handler = kind ? actions[kind] : undefined;
+  const running = Boolean(kind && busy?.[kind]);
+  const runningWhy = running && kind && row.action
+    ? BUSY_WHY[kind] ?? diagActionRunningWhy(row.action.label)
+    : undefined;
+  if (!handler || !row.action) return null;
+  return (
+    <button
+      type="button"
+      className="diag-row__action"
+      onClick={handler}
+      disabled={running}
+      data-why={runningWhy}
+      data-testid={testId}
+    >
+      {row.action.label}
+    </button>
+  );
+}
+
+function Row({ row, actions, busy }: { row: DiagRow; actions: DiagActionHandlers; busy: Props['busy'] }) {
+  const [open, setOpen] = useState(false);
   const since = sinceLabel(row.since);
   return (
     <li className={`diag-row diag-row--${row.state}`} data-testid={`diag-row-${row.id}`} data-state={row.state}>
@@ -58,17 +94,7 @@ function Row({ row, actions, busy }: { row: DiagRow; actions: DiagActionHandlers
         <span className="diag-row__state">{DIAG_STATE_LABELS[row.state] ?? row.state}</span>
         <span className="diag-row__detail">{row.detail}</span>
       </button>
-      {handler && row.action && (
-        <button
-          type="button"
-          className="diag-row__action"
-          onClick={handler}
-          disabled={Boolean(kind && busy?.[kind])}
-          data-testid={`diag-row-action-${row.id}`}
-        >
-          {row.action.label}
-        </button>
-      )}
+      <DiagRowAction row={row} actions={actions} busy={busy} testId={`diag-row-action-${row.id}`} />
       {open && (
         <dl className="diag-row__more" data-testid={`diag-row-more-${row.id}`}>
           <dt>{DIAG_CAUSE_LABEL}</dt>

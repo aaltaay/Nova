@@ -20,6 +20,10 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { getModule } from '../workspace/registry';
 
+/** Why ↑ / ↓ is locked at either end of the list (ux/whyTip.ts). */
+const ORDER_WHY_FIRST = 'Already first';
+const ORDER_WHY_LAST = 'Already last';
+
 interface Props {
   panelOrder: string[];
   onMove: (moduleId: string, direction: 'up' | 'down') => void;
@@ -73,6 +77,7 @@ function SortableOrderItem({
           data-layout-move="up"
           data-layout-move-id={id}
           disabled={index === 0}
+          data-why={index === 0 ? ORDER_WHY_FIRST : undefined}
           onClick={() => onMove(id, 'up')}
         >
           ↑
@@ -83,6 +88,7 @@ function SortableOrderItem({
           data-layout-move="down"
           data-layout-move-id={id}
           disabled={index === total - 1}
+          data-why={index === total - 1 ? ORDER_WHY_LAST : undefined}
           onClick={() => onMove(id, 'down')}
         >
           ↓

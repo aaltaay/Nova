@@ -71,9 +71,23 @@ describe('Sim strip: the Scanner board day and lane (ADR 023)', () => {
     const rebuilt = screen.getByTestId('sim-day-cell-2026-09-17');
     expect([rebuilt.dataset.recorded, rebuilt.dataset.rebuilt]).toEqual(['0', '1']);
     expect((screen.getByTestId('sim-day-cell-2026-09-16') as HTMLButtonElement).disabled).toBe(true);
+    // A locked day says why in the tip, not the native title; an open day keeps its facts as the title.
+    expect(screen.getByTestId('sim-day-cell-2026-09-16').getAttribute('data-why')).toBe('2026-09-16 · Nothing on file');
+    expect(screen.getByTestId('sim-day-cell-2026-09-16').hasAttribute('title')).toBe(false);
+    expect(screen.getByTestId('sim-day-cell-2026-09-19').getAttribute('data-why'))
+      .toBe('2026-09-19 · Nothing on file');
+    expect(screen.getByTestId('sim-day-cell-2026-09-24').getAttribute('data-why'))
+      .toBe('2026-09-24 · Not traded yet -- a future day');
+    expect(both.hasAttribute('data-why')).toBe(false);
+    expect(both.title).toMatch(/^2026-09-18\nScanner board recorded by Nova/);
+    // Both ends of the calendar: nothing on file before September, and no month after today's.
+    expect(screen.getByTestId('sim-day-prev').getAttribute('data-why')).toBe('Nothing on file before Sep 2026');
+    expect(screen.getByTestId('sim-day-next').getAttribute('data-why'))
+      .toBe('This is the current month -- no later day to open');
     await act(async () => { fireEvent.click(both); });
     expect(posts().at(-1)).toEqual({ path: '/clock', body: { session_date: '2026-09-18' } });
     expect(screen.getByTestId('sim-strip-day').textContent).toContain('Sep 18 · rec + rebuilt');
+    expect(screen.getByTestId('sim-strip-day').hasAttribute('data-why')).toBe(false);
     await act(async () => { fireEvent.click(screen.getByTestId('sim-strip-day')); });
     await act(async () => { fireEvent.click(screen.getByTestId('sim-day-today')); });
     expect(posts().at(-1)).toEqual({ path: '/clock', body: { session_date: null } });

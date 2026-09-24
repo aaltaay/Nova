@@ -16,7 +16,9 @@ import {
   SCANNER_ACTION_PIN,
   SCANNER_ACTION_PIN_TITLE,
   SCANNER_ACTION_RECORD,
+  SCANNER_ACTION_STARTING_REC_WHY,
   SCANNER_ACTION_STOP_REC,
+  SCANNER_ACTION_STOPPING_REC_WHY,
   SCANNER_ACTION_TRADER,
   SCANNER_ACTION_TRADER_TITLE,
   SCANNER_ACTION_UNPIN,
@@ -47,14 +49,20 @@ export function ScannerRowActions({ symbol, onOpenTrading }: Props) {
   const { add, remove } = useBotAllowlist();
   const pinned = usePinnedRow(symbol);
   const watched = useIsWatched(symbol);
-  const [busy, setBusy] = useState(false);
+  // Which Record command is in flight: the locked button names it (ux/whyTip.ts).
+  const [busy, setBusy] = useState<'start' | 'stop' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const busyWhy = busy === 'stop'
+    ? SCANNER_ACTION_STOPPING_REC_WHY
+    : busy === 'start'
+      ? SCANNER_ACTION_STARTING_REC_WHY
+      : undefined;
 
   const toggleRecord = async (stop: boolean) => {
-    setBusy(true);
+    setBusy(stop ? 'stop' : 'start');
     setError(null);
     const err = stop ? await stopTabRecord(symbol) : await startTabRecord(symbol);
-    setBusy(false);
+    setBusy(null);
     if (err) setError(err);
   };
 
@@ -90,7 +98,8 @@ export function ScannerRowActions({ symbol, onOpenTrading }: Props) {
       {recording ? (
         <HoldToStopButton
           label={SCANNER_ACTION_STOP_REC}
-          disabled={busy}
+          disabled={busy != null}
+          why={busyWhy}
           onConfirm={() => void toggleRecord(true)}
           testId="scanner-row-stop-rec"
         />
@@ -99,7 +108,8 @@ export function ScannerRowActions({ symbol, onOpenTrading }: Props) {
           type="button"
           className="scanner-row-actions__btn"
           data-testid="scanner-row-record"
-          disabled={busy}
+          disabled={busy != null}
+          data-why={busyWhy}
           onClick={() => void toggleRecord(false)}
         >
           <i className="scanner-mark scanner-mark--rec" aria-hidden="true" />

@@ -252,8 +252,34 @@ describe('StockViewTabStrip', () => {
     expect(container.querySelector('[data-testid="sv-tab-rec-GRML"]')).toBeTruthy();
     const close = container.querySelector('[data-testid="sv-tab-close-GRML"]') as HTMLButtonElement;
     expect(close.disabled).toBe(true);
+    // The reason rides the locked-control tip; title '' keeps the strip's own title off it.
+    expect(close.getAttribute('data-why')).toBe('Stop recording before closing this tab');
+    expect(close.getAttribute('title')).toBe('');
     await act(async () => { close.click(); });
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('locks + while a new tab waits for its ticker, and says so', async () => {
+    const onAddDraft = vi.fn();
+    await act(async () => {
+      root.render(
+        <StockViewTabStrip
+          tabs={['GRML', '']}
+          active=""
+          onActivate={vi.fn()}
+          onClose={vi.fn()}
+          onRename={vi.fn()}
+          onAddDraft={onAddDraft}
+          onExtract={vi.fn()}
+        />,
+      );
+    });
+    const add = container.querySelector('[data-testid="sv-tab-add"]') as HTMLButtonElement;
+    expect(add.disabled).toBe(true);
+    expect(add.getAttribute('data-why')).toMatch(/^A new tab is already open/);
+    expect(add.getAttribute('title')).toBe('');
+    await act(async () => { add.click(); });
+    expect(onAddDraft).not.toHaveBeenCalled();
   });
 
   it('renders the trailing cluster on the same row and no overflow chevron while the tabs fit', async () => {

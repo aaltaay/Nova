@@ -16,6 +16,8 @@ interface Props {
   quantityMode: QuantityMode;
   quantityValue: string;
   disabled: boolean;
+  /** Why `disabled` is set -- each locked control says it (ux/whyTip.ts). */
+  why?: string | null;
   quantityLocked?: boolean;
   onQuantityModeChange: (mode: QuantityMode) => void;
   onQuantityValueChange: (value: string) => void;
@@ -78,6 +80,7 @@ export function ManualOrderQuantityRow({
   quantityMode,
   quantityValue,
   disabled,
+  why = null,
   quantityLocked = false,
   onQuantityModeChange,
   onQuantityValueChange,
@@ -91,6 +94,9 @@ export function ManualOrderQuantityRow({
     quantityLocked && TICKER_TRADE_FORCE_QTY != null
       ? `Quantity locked to ${TICKER_TRADE_FORCE_QTY} share (temporary safety)`
       : undefined;
+  // A locked control says why (ux/whyTip.ts): the size lock outlives a
+  // reconnect, so it answers before the ticket's own lock.
+  const qtyWhy = qtyLockTitle ?? (disabled ? why || undefined : undefined);
 
   function nudge(direction: 1 | -1) {
     onQuantityValueChange(
@@ -121,7 +127,7 @@ export function ManualOrderQuantityRow({
           onChange={event => onQuantityValueChange(event.target.value)}
           disabled={qtyDisabled}
           readOnly={quantityLocked}
-          title={qtyLockTitle}
+          data-why={qtyWhy}
         />
         <div className="manual-order-unit-toggle" role="group" aria-label="Quantity unit">
           {QUANTITY_MODES.map(item => (
@@ -131,10 +137,11 @@ export function ManualOrderQuantityRow({
               className={quantityMode === item.value ? 'is-active' : ''}
               aria-pressed={quantityMode === item.value}
               aria-label={item.title}
-              title={qtyLockTitle ?? item.title}
+              title={qtyWhy ? undefined : item.title}
               data-testid={`manual-order-qty-mode-${item.value}`}
               onClick={() => onQuantityModeChange(item.value)}
               disabled={qtyDisabled}
+              data-why={qtyWhy}
             >
               {item.value === 'shares' ? <SharesModeIcon /> : item.label}
             </button>
@@ -148,8 +155,9 @@ export function ManualOrderQuantityRow({
               type="button"
               onClick={() => onQuantityValueChange(String(value))}
               disabled={qtyDisabled}
+              data-why={qtyWhy}
               aria-label={presetAria(value, quantityMode)}
-              title={qtyLockTitle ?? presetAria(value, quantityMode)}
+              title={qtyWhy ? undefined : presetAria(value, quantityMode)}
             >
               {formatPreset(value)}
             </button>
@@ -158,9 +166,10 @@ export function ManualOrderQuantityRow({
             type="button"
             data-testid="manual-order-qty-nudge-plus"
             aria-label={`Increase quantity by ${TICKER_TRADE_QTY_NUDGE}`}
-            title={qtyLockTitle ?? `Increase by ${TICKER_TRADE_QTY_NUDGE}`}
+            title={qtyWhy ? undefined : `Increase by ${TICKER_TRADE_QTY_NUDGE}`}
             onClick={() => nudge(1)}
             disabled={qtyDisabled}
+            data-why={qtyWhy}
           >
             {TICKER_TRADE_QTY_NUDGE_PLUS_LABEL}
           </button>
@@ -168,9 +177,10 @@ export function ManualOrderQuantityRow({
             type="button"
             data-testid="manual-order-qty-nudge-minus"
             aria-label={`Decrease quantity by ${TICKER_TRADE_QTY_NUDGE}`}
-            title={qtyLockTitle ?? `Decrease by ${TICKER_TRADE_QTY_NUDGE}`}
+            title={qtyWhy ? undefined : `Decrease by ${TICKER_TRADE_QTY_NUDGE}`}
             onClick={() => nudge(-1)}
             disabled={qtyDisabled}
+            data-why={qtyWhy}
           >
             {TICKER_TRADE_QTY_NUDGE_MINUS_LABEL}
           </button>

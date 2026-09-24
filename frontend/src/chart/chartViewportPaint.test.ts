@@ -8,6 +8,8 @@ import {
   isFollowingRightEdge,
   paintTimeScaleCommand,
   snapshotChartViewport,
+  timeRangesOverlap,
+  tipLogicalRange,
 } from './chartViewportPaint';
 
 function bar(i: number): RawBar {
@@ -137,6 +139,41 @@ describe('paintTimeScaleCommand', () => {
       kind: 'setVisibleLogicalRange',
       range: { from: 1463, to: 1550 },
     });
+  });
+
+  it('restores a panned-away window that the new bars still hold (venue switch)', () => {
+    const time = { from: 200, to: 560 };
+    expect(
+      paintTimeScaleCommand('1Min', 300, {
+        logical: { from: 20, to: 56 },
+        time,
+        barCount: 700,
+      }, { from: 100, to: 9_000 }),
+    ).toEqual({ kind: 'setVisibleRange', range: time });
+  });
+
+  it('keeps the zoom at the tip when the new bars do not hold the window (another day)', () => {
+    // Panned to a live window, then Sim loaded a replay of another day: the
+    // window would paint an empty pane. Same span, right edge on the newest bar.
+    expect(
+      paintTimeScaleCommand('1Min', 300, {
+        logical: { from: 20, to: 56 },
+        time: { from: 200, to: 560 },
+        barCount: 700,
+      }, { from: 90_000, to: 99_000 }),
+    ).toEqual({ kind: 'setVisibleLogicalRange', range: tipLogicalRange(36, 300) });
+    expect(tipLogicalRange(36, 300)).toEqual({ from: 263, to: 299 });
+  });
+
+  it('compares daily business-day windows too', () => {
+    expect(timeRangesOverlap(
+      { from: '2026-09-01', to: '2026-09-10' } as never,
+      { from: '2026-09-09', to: '2026-09-23' } as never,
+    )).toBe(true);
+    expect(timeRangesOverlap(
+      { from: '2026-08-01', to: '2026-08-10' } as never,
+      { from: '2026-09-09', to: '2026-09-23' } as never,
+    )).toBe(false);
   });
 
   it('does not invent a fitContent fallback when the snapshot is empty', () => {

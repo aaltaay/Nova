@@ -183,6 +183,83 @@
   word-break: break-all;
 }
 
+/* Needs attention: the non-OK rows again, at the very top of the panel, full text, no truncation. */
+.diag-attn {
+  margin: 0 0 0.75rem;
+  border: 1px solid color-mix(in srgb, #f59e0b 50%, var(--border-color, rgba(255, 255, 255, 0.12)));
+  border-radius: 6px;
+  background: color-mix(in srgb, #f59e0b 7%, transparent);
+}
+
+.diag-attn--fail {
+  border-color: color-mix(in srgb, #ef4444 60%, var(--border-color, rgba(255, 255, 255, 0.12)));
+  background: color-mix(in srgb, #ef4444 8%, transparent);
+}
+
+.diag-attn__title {
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #f59e0b;
+}
+
+.diag-attn--fail .diag-attn__title {
+  color: #ef4444;
+}
+
+.diag-attn__count {
+  margin-left: 4px;
+}
+
+.diag-attn__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.diag-attn__item {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px;
+  padding: 6px 10px 8px;
+  border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.diag-attn__item .diag-dot {
+  margin-top: 5px;
+}
+
+.diag-attn__name {
+  font-weight: 600;
+  color: var(--text-primary, #f5f5f7);
+}
+
+.diag-attn__state {
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--text-secondary, #98989d);
+}
+
+.diag-attn__detail {
+  color: var(--text-primary, #f5f5f7);
+  overflow-wrap: anywhere;
+}
+
+.diag-attn__fix {
+  color: var(--text-secondary, #98989d);
+  overflow-wrap: anywhere;
+}
+
+.diag-attn__item .diag-row__action {
+  margin-right: 0;
+}
+
 .diag-dot {
   display: inline-block;
   width: 8px;

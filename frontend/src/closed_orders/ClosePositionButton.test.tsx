@@ -4,7 +4,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import {
+  CLOSE_POSITION_ACCOUNT_ERROR_TITLE,
+  CLOSE_POSITION_BUSY_WHY,
+  CLOSE_POSITION_NO_POSITION_TITLE,
+  CLOSE_POSITION_STALE_WHY,
+  WHY_GATEWAY_NOT_CONNECTED,
+} from '../constants';
 import * as closeMod from '../ibkr/closeFullPosition';
+import { spendLockReason } from '../ibkr/spendLock';
+import type { IbkrMode } from '../ibkr/types';
 import { ClosePositionButton } from './ClosePositionButton';
 
 const confirmAppMock = vi.fn();
@@ -119,6 +128,9 @@ describe('ClosePositionButton', () => {
       '[data-testid="close-position-btn"]',
     ) as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
+    // The lock says why (ux/whyTip.ts), and no native title stacks on it.
+    expect(btn.dataset.why).toBe(spendLockReason('locked'));
+    expect(btn.hasAttribute('title')).toBe(false);
   });
 
   it('does not flatten when PIN unlock is cancelled', async () => {
@@ -174,5 +186,62 @@ describe('ClosePositionButton', () => {
       '[data-testid="close-position-btn"]',
     ) as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
+    expect(btn.dataset.why).toBe(CLOSE_POSITION_ACCOUNT_ERROR_TITLE);
+  });
+
+  describe('says why it is locked', () => {
+    const POSITION = {
+      symbol: 'AAPL', qty: 10, market_price: 1, market_value: 10, avg_cost: 1, unrealized_pnl: 0, realized_pnl: 0,
+    };
+
+    function renderButton(props: {
+      qty?: number; mode?: IbkrMode; connected?: boolean; disabled?: boolean; why?: string | null;
+    }) {
+      act(() => {
+        root.render(
+          <ClosePositionButton
+            position={{ ...POSITION, qty: props.qty ?? POSITION.qty }}
+            mode={props.mode ?? 'paper'}
+            connected={props.connected ?? true}
+            spendStatus="paper_armed"
+            disabled={props.disabled}
+            why={props.why}
+          />,
+        );
+      });
+      return container.querySelector('[data-testid="close-position-btn"]') as HTMLButtonElement;
+    }
+
+    it('names the caller\'s reason for its lock', () => {
+      const btn = renderButton({ disabled: true, why: CLOSE_POSITION_STALE_WHY });
+      expect(btn.dataset.why).toBe(CLOSE_POSITION_STALE_WHY);
+    });
+
+    it('names a flat position and a missing Gateway', () => {
+      expect(renderButton({ qty: 0 }).dataset.why).toBe(CLOSE_POSITION_NO_POSITION_TITLE);
+      expect(renderButton({ connected: false }).dataset.why).toBe(WHY_GATEWAY_NOT_CONNECTED);
+      expect(renderButton({ mode: 'disconnected' }).dataset.why).toBe(WHY_GATEWAY_NOT_CONNECTED);
+    });
+
+    it('names its own flatten while it is in flight, and carries no reason when it can act', async () => {
+      let answer!: (value: Awaited<ReturnType<typeof closeMod.closeFullPosition>>) => void;
+      vi.spyOn(closeMod, 'closeFullPosition').mockImplementation(
+        () => new Promise((resolve) => { answer = resolve; }),
+      );
+      const btn = renderButton({});
+      expect(btn.disabled).toBe(false);
+      expect(btn.dataset.why).toBeUndefined();
+      expect(btn.title).toMatch(/Flatten closes the entire position/);
+      await act(async () => {
+        btn.click();
+      });
+      expect(btn.disabled).toBe(true);
+      expect(btn.dataset.why).toBe(CLOSE_POSITION_BUSY_WHY);
+      await act(async () => {
+        answer({ ok: true, order_id: 1, side: 'SELL', qty: 10, outside_rth: false, order_type: 'MKT' });
+      });
+      expect(btn.disabled).toBe(false);
+      expect(btn.dataset.why).toBeUndefined();
+    });
   });
 });

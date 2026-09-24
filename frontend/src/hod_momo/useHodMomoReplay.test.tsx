@@ -128,7 +128,9 @@ describe('HodMomoDock at the Sim playhead', () => {
     fireEvent.click(screen.getByTestId('hod-momo-strip-more'));
     const clear = screen.getByTestId('hod-momo-dock-clear') as HTMLButtonElement;
     expect(clear.disabled).toBe(true);
-    expect(clear.title).toMatch(/nothing to clear/);
+    // The reason rides the locked-control tip (ux/whyTip.ts), not a native title.
+    expect(clear.getAttribute('data-why')).toMatch(/nothing to clear/);
+    expect(clear.title).toBe('');
   });
 
   it('an empty strip says no alert was raised by the playhead, not "No alerts yet"', () => {
@@ -141,5 +143,6 @@ describe('HodMomoDock at the Sim playhead', () => {
     expect(screen.getByTestId('hod-momo-strip-feed').textContent).toBe('feed live');
     fireEvent.click(screen.getByTestId('hod-momo-strip-more'));
     expect((screen.getByTestId('hod-momo-dock-clear') as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByTestId('hod-momo-dock-clear').hasAttribute('data-why')).toBe(false);
   });
 });

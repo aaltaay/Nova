@@ -9,6 +9,10 @@
  * Live follow is implicit: if the right edge was on screen, keep the
  * same bar span and advance `to`. If the operator panned away, restore
  * the time window so a prepend/trim does not yank them.
+ *
+ * A viewport carried onto a different series (a Paper / Live / Sim switch)
+ * may name a time window the new bars do not hold -- another day's replay.
+ * Restoring it would show an empty pane, so the zoom is kept at the tip.
  */
 import type { IChartApi, IRange, Logical, LogicalRange, Time } from 'lightweight-charts';
 import { timeScaleRangeForSeries } from '../tickerChartData';
@@ -69,10 +73,34 @@ export function followLogicalRange(
   return toLogicalRange(to - span, to);
 }
 
+/** Seconds for an intraday timestamp or a daily `YYYY-MM-DD` / business day. */
+function timeSeconds(time: Time): number | null {
+  if (typeof time === 'number') return time;
+  const ms = typeof time === 'string'
+    ? Date.parse(time)
+    : Date.UTC(time.year, time.month - 1, time.day);
+  return Number.isFinite(ms) ? ms / 1000 : null;
+}
+
+/** False only when both ranges are readable and share no instant. */
+export function timeRangesOverlap(a: IRange<Time>, b: IRange<Time>): boolean {
+  const [aFrom, aTo, bFrom, bTo] = [a.from, a.to, b.from, b.to].map(timeSeconds);
+  if (aFrom == null || aTo == null || bFrom == null || bTo == null) return true;
+  return aFrom <= bTo && bFrom <= aTo;
+}
+
+/** The operator's bar span, right edge on the newest bar. */
+export function tipLogicalRange(span: number, candleCount: number): LogicalRange {
+  const to = Math.max(0, candleCount - 1);
+  return toLogicalRange(to - span, to);
+}
+
 export function paintTimeScaleCommand(
   timeframe: string,
   candleCount: number,
   previous: ChartViewportSnapshot | null,
+  /** First..last time of the bars being painted; checks a restored window still lands on them. */
+  seriesTime: IRange<Time> | null = null,
 ): TimeScaleCommand | null {
   if (!previous) return defaultTimeScaleCommand(timeframe, candleCount);
   if (previous.logical && isFollowingRightEdge(previous.logical, previous.barCount)) {
@@ -81,9 +109,16 @@ export function paintTimeScaleCommand(
       range: followLogicalRange(previous.logical, candleCount, previous.barCount),
     };
   }
-  if (previous.time) return { kind: 'setVisibleRange', range: previous.time };
-  if (previous.logical) return { kind: 'setVisibleLogicalRange', range: previous.logical };
-  return null;
+  if (previous.time && (!seriesTime || timeRangesOverlap(previous.time, seriesTime))) {
+    return { kind: 'setVisibleRange', range: previous.time };
+  }
+  if (!previous.logical) return null;
+  if (!previous.time) return { kind: 'setVisibleLogicalRange', range: previous.logical };
+  // The window is not in these bars (another venue's day): keep the zoom, at the tip.
+  return {
+    kind: 'setVisibleLogicalRange',
+    range: tipLogicalRange(previous.logical.to - previous.logical.from, candleCount),
+  };
 }
 
 export function snapshotChartViewport(

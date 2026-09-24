@@ -1,0 +1,133 @@
+/* Setup templates on the Bots page (ADR 029): the template row on each setup
+   card, and the parameter editor. The editor renders in a portal outside
+   .bots-page, so it carries the page's tokens itself. Owner: bot/BotStrategiesCard.tsx. */
+
+/* -- The template row on a setup card ------------------------------------- */
+.bots-strat__tpl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.bots-strat__tplpick { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.bots-strat__tplpick > span {
+  color: var(--nova-text-muted);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.bots-strat__tplpick select {
+  font: inherit;
+  font-size: 12px;
+  max-width: 15rem;
+  padding: 2px 6px;
+  border-radius: 5px;
+  border: 1px solid var(--nova-border);
+  background: var(--input-bg, transparent);
+  color: var(--nova-text);
+}
+.bots-strat__tplstate { color: var(--bots-amber); font-size: 11px; }
+.bots-linkbtn {
+  font: inherit;
+  font-size: 12px;
+  border: 0;
+  background: none;
+  padding: 0;
+  margin-left: auto;
+  color: var(--bots-blue);
+  cursor: pointer;
+}
+.bots-linkbtn:hover:not(:disabled) { text-decoration: underline; }
+.bots-linkbtn:disabled { color: var(--nova-text-muted); opacity: 0.7; }
+
+/* -- The editor --------------------------------------------------------------- */
+.bots-tpl {
+  --bots-green: var(--nova-success, #30d158);
+  --bots-red: var(--nova-danger, #ff453a);
+  --bots-amber: #f5a524;
+  --bots-blue: var(--nova-accent, #0a84ff);
+  --bots-hair: color-mix(in srgb, var(--nova-border) 70%, transparent);
+  max-height: calc(100vh - 3rem);
+  display: flex !important;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 13px;
+}
+.bots-tpl__empty { margin: 0; color: var(--nova-text-muted); }
+.bots-tpl__body {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr);
+  gap: 14px;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+.bots-tpl__list { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.bots-tpl__list ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; overflow-y: auto; }
+.bots-tpl__item {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  display: grid;
+  gap: 2px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--nova-border);
+  background: transparent;
+  color: var(--nova-text);
+  cursor: pointer;
+}
+.bots-tpl__item span { color: var(--nova-text-muted); font-size: 11.5px; display: flex; gap: 6px; align-items: center; }
+.bots-tpl__item em { font-style: normal; }
+.bots-tpl__item.is-on { border-color: var(--bots-blue); box-shadow: 0 0 0 1px color-mix(in srgb, var(--bots-blue) 55%, transparent) inset; }
+.bots-tpl__bad { color: var(--bots-red); font-size: 11px; }
+.bots-tpl__listacts { display: flex; flex-wrap: wrap; gap: 6px; }
+.bots-tpl__params { overflow-y: auto; min-height: 0; padding-right: 4px; display: grid; gap: 12px; align-content: start; }
+.bots-tpl__meta { margin: 0; color: var(--nova-text-muted); font-size: 12px; }
+.bots-tpl__meta b { color: var(--nova-text); }
+.bots-tpl__group { border: 1px solid var(--nova-border); border-radius: 8px; padding: 8px 12px 10px; margin: 0; display: grid; gap: 2px; }
+.bots-tpl__group legend { padding: 0 4px; font-weight: 700; font-size: 12.5px; }
+.bots-tpl__group > .bots-muted { margin: 0 0 4px; }
+.bots-tpl__foot { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
+.bots-tpl__foot .bots-muted { margin-right: auto; }
+
+/* One parameter: the label and what it does, the value, the default. */
+.bots-param {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 11rem 8.5rem;
+  gap: 10px;
+  align-items: center;
+  padding: 5px 0;
+  border-top: 1px solid var(--bots-hair);
+}
+.bots-param:first-of-type { border-top: 0; }
+.bots-param__label { display: grid; gap: 1px; font-size: 12.5px; }
+.bots-param__label small { color: var(--nova-text-muted); font-size: 11px; line-height: 1.35; }
+.bots-param__control { display: flex; align-items: center; }
+.bots-param__control select,
+.bots-param__num input[type='text'] {
+  font: inherit;
+  font-size: 12.5px;
+  width: 100%;
+  min-width: 0;
+  padding: 3px 6px;
+  border-radius: 5px;
+  border: 1px solid var(--nova-border);
+  background: var(--input-bg, transparent);
+  color: var(--nova-text);
+}
+.bots-param__num { display: flex; align-items: center; gap: 6px; width: 100%; }
+.bots-param__num input[type='text'] { font-family: var(--bots-mono, ui-monospace, monospace); }
+.bots-param__unit { color: var(--nova-text-muted); font-size: 11px; white-space: nowrap; }
+.bots-param__meta { color: var(--nova-text-muted); font-size: 11px; text-align: right; }
+.bots-param.is-changed .bots-param__meta { color: var(--bots-amber); }
+.bots-param__control :disabled { opacity: 0.6; }
+.bots-param.is-error input[type='text'] { border-color: var(--bots-red); }
+.bots-param__error { grid-column: 1 / -1; color: var(--bots-red); font-size: 11.5px; }
+
+@media (max-width: 760px) {
+  .bots-tpl__body { grid-template-columns: minmax(0, 1fr); overflow-y: auto; }
+  .bots-param { grid-template-columns: minmax(0, 1fr); }
+  .bots-param__meta { text-align: left; }
+}

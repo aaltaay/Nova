@@ -11,6 +11,8 @@ interface Props {
   /** The accessible name; also the visible text unless `children` replaces it. */
   label: string;
   disabled?: boolean;
+  /** Why `disabled` is set -- shown on hover and on a refused press (ux/whyTip.ts). */
+  why?: string | null;
   holdMs?: number;
   onConfirm: () => void;
   testId?: string;
@@ -21,7 +23,7 @@ interface Props {
 }
 
 export function HoldToStopButton({
-  label, disabled = false, holdMs = CAPTURE_STOP_HOLD_MS, onConfirm, testId, className, children,
+  label, disabled = false, why = null, holdMs = CAPTURE_STOP_HOLD_MS, onConfirm, testId, className, children,
 }: Props) {
   const [progress, setProgress] = useState(0);
   const timer = useRef<number | null>(null);
@@ -47,6 +49,8 @@ export function HoldToStopButton({
   useEffect(() => cancel, []);
 
   const isHoldKey = (event: KeyboardEvent<HTMLButtonElement>) => event.key === 'Enter' || event.key === ' ';
+  // A locked Stop says why instead of the hold hint (ux/whyTip.ts).
+  const lockWhy = disabled ? why || undefined : undefined;
   return (
     <button
       type="button"
@@ -54,8 +58,9 @@ export function HoldToStopButton({
       className={`hold-to-stop${className ? ` ${className}` : ''}${progress > 0 ? ' hold-to-stop--holding' : ''}`}
       data-testid={testId}
       disabled={disabled}
+      data-why={lockWhy}
       aria-label={label}
-      title={CAPTURE_STOP_HOLD_HINT}
+      title={lockWhy ? undefined : CAPTURE_STOP_HOLD_HINT}
       onPointerDown={(e) => { if (e.button === 0) begin(); }}
       onPointerUp={cancel}
       onPointerLeave={cancel}

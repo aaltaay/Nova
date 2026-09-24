@@ -10,6 +10,7 @@ import { Tooltip } from 'radix-ui';
 import {
   APP_DIALOG_EMERGENCY_KILL_LABEL,
   GLOBAL_BAR_EMERGENCY_KILL_BUSY_LABEL,
+  GLOBAL_BAR_EMERGENCY_KILL_BUSY_WHY,
   GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_BODY,
   GLOBAL_BAR_EMERGENCY_KILL_CONFIRM_TITLE,
   GLOBAL_BAR_EMERGENCY_KILL_FAIL_TITLE,
@@ -94,6 +95,7 @@ export function EmergencyKillButton() {
             aria-busy={busy}
             data-testid="global-bar-emergency-kill"
             disabled={busy}
+            data-why={busy ? GLOBAL_BAR_EMERGENCY_KILL_BUSY_WHY : undefined}
             onClick={() => {
               void onClick();
             }}
@@ -102,11 +104,15 @@ export function EmergencyKillButton() {
             <span className="sr-only">{label}</span>
           </button>
         </Tooltip.Trigger>
-        <Tooltip.Portal>
-          <Tooltip.Content className="global-app-bar__kill-tip" side="bottom" align="end" sideOffset={6} collisionPadding={8}>
-            <EmergencyKillCard busy={busy} />
-          </Tooltip.Content>
-        </Tooltip.Portal>
+        {/* While KILL runs the locked stop sign answers with its reason (ux/whyTip.ts),
+            so the what-a-click-does card stays shut rather than stack on it. */}
+        {!busy && (
+          <Tooltip.Portal>
+            <Tooltip.Content className="global-app-bar__kill-tip" side="bottom" align="end" sideOffset={6} collisionPadding={8}>
+              <EmergencyKillCard busy={busy} />
+            </Tooltip.Content>
+          </Tooltip.Portal>
+        )}
       </Tooltip.Root>
     </Tooltip.Provider>
   );

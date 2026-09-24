@@ -56,7 +56,10 @@ export function paintFull(
   const epoch = ++paintEpoch.current;
   candleSeriesRef.current?.setData(candles);
   volSeriesRef.current?.setData(volumes);
-  const command = paintTimeScaleCommand(timeframe, candles.length, snapshot);
+  const seriesTime = candles.length > 0
+    ? { from: candles[0].time, to: candles[candles.length - 1].time }
+    : null;
+  const command = paintTimeScaleCommand(timeframe, candles.length, snapshot, seriesTime);
   applyTimeScaleCommand(chartRef.current, command);
   if (typeof requestAnimationFrame !== 'function') return;
   requestAnimationFrame(() => {
@@ -75,10 +78,11 @@ export function paintBars(
   prevBars: RawBar[] | null,
   paintEpoch: { current: number },
   /**
-   * Viewport captured before a transient empty refresh cleared the series.
-   * Without it the recovery paint sees `prevBars === []`, snapshots a chart
-   * with no bars (which reports null), and is mistaken for a first paint --
-   * i.e. fitContent, i.e. the operator's zoom thrown away.
+   * Viewport captured before the series was cleared -- a transient empty
+   * refresh, or a Paper / Live / Sim switch re-sourcing the pane. Without it
+   * the next paint sees `prevBars === []` or `null`, snapshots a chart with no
+   * bars (which reports null), and is mistaken for a first paint -- i.e.
+   * fitContent, i.e. the operator's zoom thrown away.
    */
   viewportOverride: ChartViewportSnapshot | null = null,
 ): PaintBarsResult {
