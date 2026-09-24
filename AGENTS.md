@@ -495,6 +495,25 @@ fraction under 1.0. Bar-derived sensor readings (`vwap`, `macd`, `emas`,
 they were computed from, `null` without bars -- so the board can say a
 reading is stale.
 
+**Live rows state their halt** (#487, operator decision 2026-09-24): every row
+`surface_rows` serves carries `halted: boolean | null` -- is the symbol halted
+now -- read when the row is served, from memory only
+(`ibkr.halt_status.halted_now`: no network or database wait, safe on the IB
+loop). IBKR decides where Nova holds a live L1 line (session ready) whose
+incoming tick 49 has reported: `0` is `false`, `1` / `2` `true`, `-1` or no
+report yet no answer -- the Level 2 header's precedence. Otherwise the Nasdaq
+Trade Halt RSS decides while it is answering (its last read succeeded and is
+younger than `NASDAQ_TRADE_HALT_RSS_FRESH_SEC`): an open row (no trade
+resumption, or one still ahead) is `true`, no open row `false` -- except while
+the read lists a market-wide circuit breaker, which carries no end time, so
+nothing reads `false` then. Anything else is `null`: not known, never "not
+halted", and a halt is never inferred from quiet tape. It is a view over the
+row, stamped on the served copy and never written into the cache (ADR 008);
+like `catalyst` it is as of the REST read or roster push that served it (a
+price patch does not carry it). The Scanner's Halted chip filters live and
+played-back boards alike -- it keeps `true` and `null` and drops `false` -- and
+a row stated halted shows the HALTED mark.
+
 ### Float credibility and short-interest dates (#532)
 
 Every float and short-interest figure is Yahoo's (`fundamentals.py`). The
@@ -581,7 +600,9 @@ it that minute (#532, "Float credibility and short-interest dates"),
 neither. `has_news` / `news_first_seen_ts` only from news seen by
 that minute. Every unknown is `null`, never a placeholder. `halted` is derived
 at read time from the halt log: `true` while a logged halt is open, `false`
-only for a recorded minute whose halt feed was answering, else `null`.
+only for a recorded minute whose halt feed was answering, else `null` (a live
+row states it by the same rule from the live sources: "Live rows state their
+halt" above).
 `catalyst` is derived at read time too ("Catalysts in playback" below).
 
 **Catalysts in playback** (#498). The research backfill's store is never read

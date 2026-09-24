@@ -11,11 +11,15 @@ or an RSS-open row (tooltip says observed vs Nasdaq). Incoming tick type
 A first halt without a prior not-halted tick is ``start_late`` (reconnect
 or opened mid-halt). Nasdaq Trade Halt RSS may overlay official start /
 resume when matched; missing RSS never invents those times.
+
+``halted_now`` answers the live scanner rows' ``halted`` (#487) from memory
+only -- no network, no database, safe on the IB loop (ADR 010).
 """
 from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Iterable
 from typing import Any
 
 from constants import HALT_LATE_START_SKEW_SEC
@@ -110,6 +114,36 @@ def snapshot(symbol: str, *, now: float | None = None) -> dict[str, Any] | None:
     if row:
         return _payload(sym, row, ts)
     return _rss_open_payload(sym, ts)
+
+
+def halted_now(symbols: Iterable[str], *, now: float | None = None) -> dict[str, bool | None]:
+    """Is each symbol halted now? True / False / None (not known) -- a live scanner row's ``halted``.
+
+    IBKR decides where Nova holds a live L1 line (session ready) whose incoming
+    tick 49 has reported: 0 is trading, 1 / 2 halted, -1 or nothing yet no
+    answer -- the same precedence as the Level 2 header's ``snapshot``.
+    Otherwise the Nasdaq Trade Halt RSS decides while it is answering
+    (``nasdaq_halt_feed.halted``). With neither the answer is None: a halt is
+    never inferred from quiet tape, and "not halted" is never a guess.
+    """
+    from ibkr import client as _client
+    from ibkr import nasdaq_halt_feed
+    from ibkr import ticks as _ticks
+
+    ts = time.time() if now is None else float(now)
+    ibkr_ready = _client.is_ready()
+    out: dict[str, bool | None] = {}
+    for raw in symbols:
+        sym = (raw or "").strip().upper()
+        if not sym or sym in out:
+            continue
+        # The live line's tick-49 code; None when Nova holds no line or it has not said.
+        code = parse_halt_code(getattr(_ticks.get_ticker(sym), "halted", None)) if ibkr_ready else None
+        if code is not None and code != -1:
+            out[sym] = classify_halt_code(code) is not None
+        else:
+            out[sym] = nasdaq_halt_feed.halted(sym, now=ts)
+    return out
 
 
 def live_symbols() -> list[str]:

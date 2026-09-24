@@ -76,6 +76,16 @@ describe('normalizeScannerRow (QA C8)', () => {
     expect('short_interest_ts' in row('OLD')).toBe(false);
   });
 
+  it('keeps a stated halt and reads anything else as not known (#487)', () => {
+    expect(normalizeScannerRow({ symbol: 'HALT', halted: true })!.halted).toBe(true);
+    expect(normalizeScannerRow({ symbol: 'TRADE', halted: false })!.halted).toBe(false);
+    expect(normalizeScannerRow({ symbol: 'UNK', halted: null })!.halted).toBeNull();
+    expect(normalizeScannerRow({ symbol: 'JUNK', halted: 'yes' })!.halted).toBeNull();
+    expect(normalizeScannerRow({ symbol: 'JUNK', halted: 0 })!.halted).toBeNull();
+    // An older API sends none: it stays absent.
+    expect('halted' in row('OLD')).toBe(false);
+  });
+
   it('reads a name-only row volume of 0 as unknown, not zero (QA C37)', () => {
     const nameOnly = normalizeScannerRow({ symbol: 'SMX', price: null, volume: 0 })!;
     expect(isNameOnlyRow(nameOnly)).toBe(true);

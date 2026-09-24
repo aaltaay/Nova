@@ -2,14 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   SCANNER_CHIP_IDS,
   SCANNER_CHIP_LABEL,
-  SCANNER_CHIP_LIVE_WHY,
   SCANNER_CHIP_TITLE,
 } from '../constantGroups/scanner_board';
 import {
   applyBoardChips,
   chipPasses,
   chipsInOrder,
-  isChipAvailable,
   sameChips,
   type ChipRow,
 } from './boardFilters';
@@ -43,16 +41,10 @@ describe('boardFilters', () => {
     expect(chipPasses('news', row({ symbol: 'B', has_news: false }))).toBe(false);
   });
 
-  it('Halted is available on a played-back board only, and says why on the live one (#487)', () => {
-    expect(isChipAvailable('halted')).toBe(false);
-    expect(isChipAvailable('halted', false)).toBe(false);
-    expect(isChipAvailable('halted', true)).toBe(true);
-    for (const id of SCANNER_CHIP_IDS.filter((c) => c !== 'halted')) {
-      expect(isChipAvailable(id)).toBe(true);
-      expect(isChipAvailable(id, true)).toBe(true);
-    }
-    expect(SCANNER_CHIP_LIVE_WHY.halted).toMatch(/Live scanner rows carry no halt state/);
-    expect(SCANNER_CHIP_LIVE_WHY.halted).toMatch(/filters played-back days/);
+  it('Halted says where live and played-back rows get their halt (#487)', () => {
+    expect(SCANNER_CHIP_TITLE.halted).toMatch(/IBKR tick 49/);
+    expect(SCANNER_CHIP_TITLE.halted).toMatch(/Nasdaq halt feed/);
+    expect(SCANNER_CHIP_TITLE.halted).toMatch(/halt \/ LULD log/);
     expect(SCANNER_CHIP_TITLE.halted).toMatch(/not known is kept/);
   });
 
@@ -66,11 +58,9 @@ describe('boardFilters', () => {
       row({ symbol: 'UNKNOWN', halted: null }),
       row({ symbol: 'TRADING', halted: false }),
     ];
-    const halted = new Set(['halted'] as const);
-    expect(applyBoardChips(rows, halted, true).map((r) => r.symbol)).toEqual(['HALT', 'UNKNOWN']);
-    // The live board cannot answer it: the chip never filters there.
-    expect(applyBoardChips(rows, halted).map((r) => r.symbol)).toEqual(['HALT', 'UNKNOWN', 'TRADING']);
-    expect(applyBoardChips(rows, halted, false)).toHaveLength(3);
+    // Live and played-back rows alike (#487): the board no longer decides whether the chip filters.
+    expect(applyBoardChips(rows, new Set(['halted'])).map((r) => r.symbol)).toEqual(['HALT', 'UNKNOWN']);
+    expect(applyBoardChips(rows, new Set(['halted', 'news'])).map((r) => r.symbol)).toEqual(['HALT', 'UNKNOWN']);
   });
 
   it('applies every active chip and reports what is left', () => {

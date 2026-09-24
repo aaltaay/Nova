@@ -25,7 +25,11 @@ export interface ScannerRow {
   has_news: boolean;
   /** Sim playback (ADR 023): the recorded row did not know whether there was news -- `has_news` is not "no news". */
   news_unknown?: boolean;
-  /** Sim playback (ADR 023): halted at the board's minute per the halt log; null = unknown. Absent on live rows. */
+  /**
+   * Halted? Live (#487): now, per IBKR tick 49 where Nova holds the line, else the Nasdaq halt
+   * feed while it answers. Sim playback (ADR 023): at the board's minute, per the halt log.
+   * null = not known (never "not halted"); absent from an older API.
+   */
   halted?: boolean | null;
   newest_headline_at: string | null;
   /**

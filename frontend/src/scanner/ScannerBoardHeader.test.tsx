@@ -61,7 +61,7 @@ describe('ScannerBoardHeader', () => {
     render(<Harness />);
     expect(screen.getByTestId('selected-scanner-title').textContent).toBe('Gappers');
     expect(screen.getByTestId('scanner-chip-gap').textContent).toBe('Gap ≥ 10%');
-    expect(screen.getByTestId('scanner-chip-halted').getAttribute('aria-disabled')).toBe('true');
+    expect(screen.getByTestId('scanner-chip-halted').textContent).toBe('Halted');
     expect(screen.getByTestId('scanner-board-saved').textContent).toContain('Saved:');
     expect(screen.getByTestId('scanner-board-phase').textContent).toMatch(/Opens in|Closes in|After hours/);
     expect(screen.getByTestId('scanner-board-scanned').textContent).toBe('Scanned 6s ago');
@@ -87,50 +87,42 @@ describe('ScannerBoardHeader', () => {
     expect(screen.getByTestId('scanner-board-feed-failed').textContent).toContain('/api/movers answered HTTP 500');
   });
 
-  it('toggles chips as real filters (persisted) and ignores the unavailable one', () => {
+  it('toggles chips as real filters (persisted)', () => {
     render(<Harness />);
     fireEvent.click(screen.getByTestId('scanner-chip-gap'));
     fireEvent.click(screen.getByTestId('scanner-chip-news'));
     expect(screen.getByTestId('active').textContent).toBe('gap,news');
     expect(screen.getByTestId('scanner-chip-gap').getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(screen.getByTestId('scanner-chip-halted'));
-    expect(screen.getByTestId('active').textContent).toBe('gap,news');
-    expect(JSON.parse(localStorage.getItem(SCANNER_BOARD_FILTERS_STORAGE_KEY) ?? '{}').value.active).toEqual(['gap', 'news']);
+    expect(screen.getByTestId('active').textContent).toBe('gap,news,halted');
+    expect(JSON.parse(localStorage.getItem(SCANNER_BOARD_FILTERS_STORAGE_KEY) ?? '{}').value.active)
+      .toEqual(['gap', 'news', 'halted']);
   });
 
-  it('the unavailable chip carries its reason for the locked-control tip; working chips keep their title', () => {
+  it('no chip is locked: every chip can filter and keeps its title (#487)', () => {
     render(<Harness />);
-    const halted = screen.getByTestId('scanner-chip-halted');
-    expect(halted.getAttribute('data-why')).toMatch(/Live scanner rows carry no halt state yet/);
-    expect(halted.getAttribute('data-why')).toMatch(/filters played-back days/);
-    expect(halted.hasAttribute('title')).toBe(false);
-    const gap = screen.getByTestId('scanner-chip-gap');
-    expect(gap.hasAttribute('data-why')).toBe(false);
-    expect(gap.getAttribute('title')).toMatch(/at least 10%/);
+    for (const id of ['gap', 'float', 'relvol', 'news', 'halted']) {
+      const chip = screen.getByTestId(`scanner-chip-${id}`);
+      expect(chip.hasAttribute('aria-disabled')).toBe(false);
+      expect(chip.hasAttribute('data-why')).toBe(false);
+      expect(chip.getAttribute('title')).toBeTruthy();
+    }
+    expect(screen.getByTestId('scanner-chip-gap').getAttribute('title')).toMatch(/at least 10%/);
+    expect(screen.getByTestId('scanner-chip-halted').getAttribute('title')).toMatch(/not known is kept/);
   });
 
-  it('Halted filters a played-back board: keeps halted and not-known rows, drops not halted (#487)', () => {
+  it.each([
+    ['the live board', null],
+    ['a played-back board', PLAYBACK],
+  ] as const)('Halted filters %s: keeps halted and not-known rows, drops not halted (#487)', (_board, replay) => {
     const rows = [haltRow('HALT', true), haltRow('UNKNOWN', null), haltRow('TRADING', false)];
-    render(<OnBoard replay={PLAYBACK} rows={rows} />);
+    render(<OnBoard replay={replay} rows={rows} />);
     const halted = screen.getByTestId('scanner-chip-halted');
-    expect(halted.getAttribute('aria-disabled')).toBe('false');
-    expect(halted.hasAttribute('data-why')).toBe(false);
-    expect(halted.getAttribute('title')).toMatch(/not known is kept/);
     expect(screen.getByTestId('shown').textContent).toBe('HALT,UNKNOWN,TRADING');
     fireEvent.click(halted);
     expect(screen.getByTestId('active').textContent).toBe('halted');
     expect(halted.getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByTestId('shown').textContent).toBe('HALT,UNKNOWN');
-  });
-
-  it('Halted stays locked on the live board and never filters it', () => {
-    const rows = [haltRow('A', null), haltRow('B', false)];
-    render(<OnBoard replay={null} rows={rows} />);
-    const halted = screen.getByTestId('scanner-chip-halted');
-    expect(halted.getAttribute('aria-disabled')).toBe('true');
-    fireEvent.click(halted);
-    expect(screen.getByTestId('active').textContent).toBe('');
-    expect(screen.getByTestId('shown').textContent).toBe('A,B');
   });
 
   it('the history picker on the sample desk says why it is locked', () => {

@@ -11,6 +11,12 @@ compute it from an Alpaca daily-bar average stamp ``rvol_source`` themselves;
 the read-time decoration (``mover_enrich_view``) fills a missing
 ``rel_volume`` from the yfinance average only, so a value it filled is
 stamped ``yfinance`` here.
+
+#487: every row carries ``halted: true | false | null`` -- is the symbol
+halted now, read at surface time from the live halt state Nova keeps in
+memory (``ibkr.halt_status.halted_now``: IBKR tick 49 on a live L1 line, else
+the Nasdaq Trade Halt RSS while it is answering). ``null`` is not known,
+never "not halted". Stamped on the decorated copies, never a cache row.
 """
 from __future__ import annotations
 
@@ -21,6 +27,7 @@ import exchanges as _exchanges
 import hod_momo as _hod_momo
 import mover_enrich_view as _mover_enrich
 from constants_scanner import SCANNER_RVOL_SOURCE_YFINANCE
+from ibkr import halt_status as _halt_status
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +35,7 @@ TABLE_LARGE_CAP = "large_cap"
 
 
 def surface_rows(rows: list[dict] | None, table: str | None = None) -> list[dict]:
-    """Rows as every client sees them: blocklist out, exchange + reference columns in.
+    """Rows as every client sees them: blocklist out, exchange + reference columns + ``halted`` in.
 
     ``table == "large_cap"`` also computes the composite score (ADR 014).
     Never mutates the reference columns of the cached rows (ADR 008).
@@ -45,9 +52,21 @@ def surface_rows(rows: list[dict] | None, table: str | None = None) -> list[dict
             "scanner_surface: decorate_rows returned %d rows for %d; rvol_source left unstamped",
             len(decorated), len(had_rvol),
         )
+    _stamp_halted(decorated)
     if table == TABLE_LARGE_CAP:
         import large_cap_admin as _lc_admin
         import large_cap_metrics as _lc_metrics
 
         decorated = _lc_metrics.compute_scores(decorated, weights=_lc_admin.get_score_weights())
     return decorated
+
+
+def _stamp_halted(rows: list[dict[str, Any]]) -> None:
+    """Put each symbol's live halt state on its (copied) row; unknown is None."""
+    try:
+        halts = _halt_status.halted_now(row.get("symbol") or "" for row in rows)
+    except Exception:
+        logger.warning("scanner_surface: halt state read failed; halted left unknown", exc_info=True)
+        halts = {}
+    for row in rows:
+        row["halted"] = halts.get((row.get("symbol") or "").strip().upper())
