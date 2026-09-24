@@ -1,12 +1,21 @@
-"""Practice buying power: Reg T 2x below the PDT line, FINRA 4x intraday above it."""
+"""Practice buying power: FINRA 4210 intraday margin (4x) from USD 2,000, cash below it."""
 from __future__ import annotations
 
 from practice import margin
 
 
-def test_intraday_four_x_above_the_pdt_line_and_reg_t_two_x_below_it() -> None:
-    assert margin.multiplier(25_000) == 4.0
-    assert margin.multiplier(24_999.99) == 2.0
+def test_intraday_four_x_from_the_margin_minimum_and_cash_below_it() -> None:
+    # The USD 25,000 pattern-day-trader line is gone (FINRA 26-10, 2026-06-04):
+    # a USD 5,000 account day trades on 4x like a USD 100,000 one.
+    assert margin.multiplier(24_999.99) == 4.0
+    assert margin.multiplier(5_000) == 4.0
+    assert margin.multiplier(2_000) == 4.0
+    assert margin.multiplier(1_999.99) == 1.0
+
+
+def test_under_the_margin_minimum_buying_power_is_the_cash_on_hand() -> None:
+    # USD 1,500 equity holding USD 500 of stock: USD 1,000 of cash, no credit.
+    assert margin.buying_power(1_500, 500) == 1_000
 
 
 def test_buying_power_is_equity_times_multiplier_less_open_exposure() -> None:
