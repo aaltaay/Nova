@@ -59,63 +59,6 @@
   overflow: visible;
 }
 
-.manual-order-stop-wrap {
-  position: relative;
-  min-width: 0;
-}
-
-.manual-order-stop-split {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  min-height: 100%;
-}
-
-.manual-order-stop-split button {
-  border-right: 0;
-}
-
-.manual-order-stop-caret {
-  padding-inline: 6px;
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
-.manual-order-stop-caret.is-open {
-  color: var(--accent, #38bdf8);
-}
-
-.manual-order-stop-flyout {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 8px);
-  z-index: 30;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-}
-
-.manual-order-stop-flyout button {
-  border: 0;
-  border-radius: 999px;
-  background: #2f2f2f;
-  color: #fff;
-  padding: 8px 18px;
-  white-space: nowrap;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
-}
-
-.manual-order-stop-flyout button:hover:not(:disabled) {
-  background: #3a3a3a;
-  color: #fff;
-}
-
-.manual-order-stop-flyout button.is-active {
-  color: var(--accent, #38bdf8);
-  background: rgba(14, 165, 233, 0.2);
-  box-shadow: inset 0 0 0 1px var(--accent, #38bdf8);
-}
-
 .manual-order-segment button {
   border: 0;
   border-right: 1px solid var(--border-color, #343434);

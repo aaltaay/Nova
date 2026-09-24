@@ -115,6 +115,60 @@ describe('ManualOrderFields Stop flyout', () => {
     expect(container.querySelector('#manual-order-stop')).toBeNull();
   });
 
+  it('shows the chosen stop type on the face, and a face click keeps it', () => {
+    const { onOrderTypeChange } = render('STP LMT');
+    const face = container.querySelector('[data-testid="manual-order-type-stop"]') as HTMLButtonElement;
+    expect(face.textContent).toBe('Stop Limit');
+    expect(face.getAttribute('aria-pressed')).toBe('true');
+    act(() => face.click());
+    expect(onOrderTypeChange).toHaveBeenCalledWith('STP LMT');
+
+    render('TRAIL');
+    expect(
+      (container.querySelector('[data-testid="manual-order-type-stop"]') as HTMLButtonElement).textContent,
+    ).toBe('Trail Stop');
+  });
+
+  it('lists all three stop types, checks the chosen one, and gets back to plain Stop', () => {
+    const { onOrderTypeChange } = render('TRAIL');
+    act(() => {
+      (container.querySelector('[data-testid="manual-order-stop-caret"]') as HTMLButtonElement).click();
+    });
+    const items = Array.from(container.querySelectorAll('[role="menuitemradio"]'));
+    expect(items.map(item => item.querySelector('.manual-order-stop-menu__label')?.textContent)).toEqual([
+      'Stop',
+      'Stop Limit',
+      'Trailing Stop',
+    ]);
+    expect(items.map(item => item.getAttribute('aria-checked'))).toEqual(['false', 'false', 'true']);
+    expect(document.activeElement).toBe(items[2]);
+    act(() => {
+      (container.querySelector('[data-testid="manual-order-stop-menu-stop"]') as HTMLButtonElement).click();
+    });
+    expect(onOrderTypeChange).toHaveBeenCalledWith('STP');
+    expect(container.querySelector('[data-testid="manual-order-stop-flyout"]')).toBeNull();
+  });
+
+  it('moves through the menu with the arrow keys and closes on Escape', () => {
+    render('STP');
+    const caret = container.querySelector('[data-testid="manual-order-stop-caret"]') as HTMLButtonElement;
+    act(() => caret.click());
+    const items = Array.from(container.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]'));
+    expect(document.activeElement).toBe(items[0]);
+    const key = (name: string) =>
+      act(() => {
+        document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true }));
+      });
+    key('ArrowDown');
+    expect(document.activeElement).toBe(items[1]);
+    key('ArrowUp');
+    key('ArrowUp');
+    expect(document.activeElement).toBe(items[2]);
+    key('Escape');
+    expect(container.querySelector('[data-testid="manual-order-stop-flyout"]')).toBeNull();
+    expect(document.activeElement).toBe(caret);
+  });
+
   it('selects Trailing Stop from the flyout', () => {
     const { onOrderTypeChange } = render('STP');
     act(() => {

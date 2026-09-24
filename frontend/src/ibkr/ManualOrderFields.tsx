@@ -4,7 +4,6 @@
  * row, Extended hours beside `Cost · BP after`. Same fields and test ids.
  */
 import {
-  TICKER_TRADE_DEFAULT_ORDER_TYPE,
   TICKER_TRADE_LABEL_ORDER_TYPE,
   TICKER_TRADE_LABEL_SIDE,
   TICKER_TRADE_LABEL_TRADING_HOURS,
@@ -37,6 +36,7 @@ import {
 import type { TicketCostEstimate } from './ticketCost';
 import type { QuickPriceKind } from './ticketPriceQuick';
 import type { TicketSide } from './ticketSide';
+import { useOrderExplainer } from './useOrderExplainer';
 
 interface Props {
   /** Symbol the Bid / Mid / Ask quick-set reads the book for. */
@@ -74,15 +74,12 @@ interface Props {
   onOutsideRthChange: (outsideRth: boolean) => void;
 }
 
-type PrimaryType = { value: ManualOrderType; label: string; title: string; testId: string };
+// No `title`: hovering a side or a type shows what it does (useOrderExplainer.tsx),
+// and a native tooltip would stack on that card.
+type PrimaryType = { value: ManualOrderType; label: string; testId: string };
 const PRIMARY_TYPES: readonly PrimaryType[] = [
-  { value: 'LMT', label: 'Limit', title: 'Limit order', testId: 'manual-order-type-lmt' },
-  {
-    value: 'MKT',
-    label: 'Market',
-    title: TICKER_TRADE_DEFAULT_ORDER_TYPE === 'MKT' ? 'Market (default)' : 'Market order',
-    testId: 'manual-order-type-mkt',
-  },
+  { value: 'LMT', label: 'Limit', testId: 'manual-order-type-lmt' },
+  { value: 'MKT', label: 'Market', testId: 'manual-order-type-mkt' },
 ];
 
 function money(value: number | null | undefined, decimals: number): string {
@@ -121,6 +118,7 @@ export function ManualOrderFields({
   // reconnect -- then the ticket-wide lock.
   const ticketWhy = disabled ? why || undefined : undefined;
   const shortWhy = shortDisabledReason || ticketWhy;
+  const explainer = useOrderExplainer();
 
   return (
     <>
@@ -133,6 +131,7 @@ export function ManualOrderFields({
           type="button"
           className={ticketSide === 'buy' ? 'is-buy' : ''}
           aria-pressed={ticketSide === 'buy'}
+          {...explainer.bind('buy')}
           onClick={() => onTicketSideChange('buy')}
           disabled={disabled}
           data-why={ticketWhy}
@@ -144,6 +143,7 @@ export function ManualOrderFields({
           type="button"
           className={ticketSide === 'sell' ? 'is-sell' : ''}
           aria-pressed={ticketSide === 'sell'}
+          {...explainer.bind('sell')}
           onClick={() => onTicketSideChange('sell')}
           disabled={disabled}
           data-why={ticketWhy}
@@ -188,7 +188,7 @@ export function ManualOrderFields({
               type="button"
               className={isActive ? 'is-active' : ''}
               aria-pressed={isActive}
-              title={typeWhy ? undefined : item.title}
+              {...explainer.bind(item.value)}
               onClick={() => {
                 if (!blocked) onOrderTypeChange(item.value);
               }}
@@ -205,8 +205,10 @@ export function ManualOrderFields({
           disabled={disabled}
           why={ticketWhy}
           onOrderTypeChange={onOrderTypeChange}
+          explain={explainer.bind}
         />
       </div>
+      {explainer.card}
       {marketDisabledReason && (
         <p className="mot-reason" data-testid="manual-order-market-reason">
           <b>{TICKET_MARKET_UNAVAILABLE}</b>
