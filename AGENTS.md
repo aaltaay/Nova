@@ -1553,6 +1553,35 @@ the clock a rewind unwinds by -- and a paused Sim playhead scrubbed forward
 still fills resting orders on the prints it crossed. Rules and biases: `architecture/practice-fills.md`;
 fees and margin: `architecture/practice-account.md`.
 
+**A practice send answers when the venue answers** (operator report,
+2026-09-24: "Why are things not getting sent fast enough?"). The practice
+broker's answer to a place or a replace is the order's acknowledgment
+(`broker_ack_ns`, `practice/watch.note_answer`): `Submitted` for a resting
+order, `Filled` for a fill at placement, so the reply -- and the ticket's
+unlock -- leaves as soon as the venue decides, never after a wait for a
+callback the practice broker does not send and never after an invented delay.
+The broker's place / replace reply adds `filled_qty`, `remaining_qty`,
+`avg_fill_price`, `status_reason` and `status_code`
+(`practice/watch.answer_facts`). An order the venue cancels at the fill is
+refused with the venue's own reason and code (`PRACTICE_NO_SHORTS`,
+`PRACTICE_BUYING_POWER`), `broker_status: "Cancelled"` and its `order_id`.
+Before this, 21 of 23 Paper orders that day answered in 5.1 s
+(`EXECUTION_ACK_WAIT_SEC`) while they filled in under 150 ms. Live is
+unchanged: its reply waits for IBKR's first status.
+
+**Order timing readout** (`tools/order_timing.py`, read-only; asks the
+backend that answers): per order, `{execution_id, created_et, venue,
+operation, source, symbol, side, qty, order_type, price, order_id, status,
+answer, error, steps: [{stage, at_ms, step_ms}], slowest, missing: string[],
+venue_leg_ms, venue_is_local, browser_click_to_request_ms, fill_price,
+exchange_ts_utc, exchange_to_callback_ms}` under `{schema_version: 1, api,
+orders[]}` with `--json`. Stages are the backend's own `perf_counter_ns`
+stamps from the moment Nova received the order (recorded in the ledger,
+checks passed, sent to the venue, venue answered, filled, reply ready), in
+time order; `venue_leg_ms` is sent to answered -- IBKR's round trip on Live,
+the practice broker on Paper / Sim. A browser stamp is never subtracted from a
+backend one, and a stage with no stamp is listed in `missing`, never guessed.
+
 **Orders (Today) belongs to the desk's venue** (QA batch, 2026-09-22):
 `/api/ibkr/orders/closed` on Paper and Sim is the practice ledger's own closed
 rows **that closed during the venue's practice day** -- at or after the 04:00 ET
@@ -2092,6 +2121,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-24 | A practice send answers when the venue answers (operator report: "This is extremely dangerous. Why are things not getting sent fast enough?"): the Paper ticket read "Placing..." for five seconds after its order filled. The practice broker's notice of a fill at placement reached a watch the send then replaced, and a resting order sent none, so the execution door's acknowledgment wait ran out its full 5 s -- 21 of 23 Paper orders that day, fills in under 150 ms. The broker's own answer is now the acknowledgment (`practice/watch.note_answer`); a replace answers the same way; an order the venue cancels at the fill is refused in its own words instead of reading as placed. Live is unchanged (its record: IBKR's first status in 40 ms to about 1 s). `tools/order_timing.py` prints each order's stages from the running backend. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Ctrl+F finds on the page (operator ask: "can we also do like CTRL+F so maybe we can search on anything in that screen instead of looking everywhere?"): the desktop app had no find at all (Electron ships none). Every window now gets a find bar (`ux/findBar.ts`, searching with `ux/findText.ts`): it marks every shown match, moves with Enter / Shift+Enter, follows the live desk as it changes without scrolling on its own, leaves Ctrl+F to a trading hotkey bound to it, and keeps every key typed in it away from the page. The shortcuts menu lists it. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Which backend answers, and a reload that is one (operator reports after ADR 031 shipped: "weren't we supposed to see scanners here?", "i clicked the 'reload backend' button, does it still work?", "something in the software title that shows us what backend v### we are using"): the desk had updated while the backend still ran the morning's code, so the Bots page called three built scanners "No scanner yet", and the desktop app's Reload backend said "Backend reloaded" while the same process kept answering -- the installed app looked for the stop script beside itself, found none and re-attached. `/api/health` names its `release_tag`, the window title shows the backend's revision after the desk's and flags an older one, the desktop reload restarts an attached engine from its own checkout and succeeds only on a new `instance_id`, and the Bots page says a backend older than ADR 031 needs a reload. The setup radio now reads "the bot trades this": every scanner runs at once, Eyes on as many as you like, and only the one the bot trades by itself is picked. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Update takes the newest release (operator report: "when the app detected v1004, there was v1005 already in the pipeline but it didn't catch it"): the desk found v1004 at 10:42 ET; v1005 shipped at 11:30; Update at 13:20 downloaded v1004 from the morning's answer, because re-checks hold 07:00-16:00 and Update never asked again. An Update click on an offer older than a minute now checks GitHub first and downloads the newest release (`frontend/electron/newestRelease.mjs`); the check stays off the notice, and a failed one downloads the release on offer. §8 amended. | User Directive + Claude Opus 5.5 |
