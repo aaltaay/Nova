@@ -12,5 +12,11 @@ interface Window {
     openExternal?: (url: string) => Promise<boolean>;
     /** Electron IPC: stop + start the local FastAPI sidecar, then wait for health. */
     restartApi?: () => Promise<{ ok: boolean; error?: string }>;
+    /** Electron IPC: the update notice and What's new card (desktop_update/). */
+    updates?: {
+      /** Called with the current view, then every change; returns the unsubscribe. Views are unchecked wire data. */
+      subscribe: (onView: (view: unknown) => void) => () => void;
+      act: (request: { action: string; url?: string }) => Promise<{ ok: boolean; error?: string }>;
+    };
   };
 }

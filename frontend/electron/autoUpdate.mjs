@@ -1,14 +1,19 @@
 /**
  * In-app updates (#347): electron-updater reading this repo's GitHub Releases.
  *
- * Downloads a newer installer in the background, then offers "Restart to update"
- * / "Later". Installing is always an operator click: autoInstallOnAppQuit is off,
- * the only timer re-checks (every two hours while the desk stays open, never in
- * weekday trading hours), and a failed check or download only changes the Help menu.
- * Decisions live in updatePolicy.mjs; this file is the Electron wiring.
+ * A check that finds a newer release tells the operator, with that release's
+ * notes, in a notice on the desk: Update / Later (operator ask, 2026-09-23).
+ * Nothing downloads until Update, and nothing installs until Restart to update.
+ * autoInstallOnAppQuit is off, the only timer re-checks (every two hours while
+ * the desk stays open, never in weekday trading hours), and a failed check or
+ * download only changes the Help menu. After an update, the first launch shows
+ * What's new (whatsNew.mjs). Decisions live in updatePolicy.mjs, words in
+ * updateCopy.mjs, reaching the operator (notice, Help menu, dialogs) in
+ * updateAsk.mjs, the renderer link in updateBridge.mjs; this file is the
+ * wiring around electron-updater.
  *
- * electron-updater checks and installs; the installer itself is fetched by
- * updateDownload.mjs in resumable chunks and handed back through electron-updater's
+ * electron-updater checks and installs; the installer itself is fetched in
+ * resumable chunks (releaseDownload.mjs) and handed back through electron-updater's
  * cache, because its own one-shot download never finished on a lossy link.
  * Every line of this is also written to update.log (updateLog.mjs).
  *
@@ -17,9 +22,21 @@
  * keeps running on the version it has.
  */
 import fs from 'node:fs';
-import { app, dialog, Menu, net } from 'electron';
+import { app, ipcMain, net, shell } from 'electron';
 import { readEnvValue } from './envMerge.mjs';
-import { downloadInstaller, installerTarget } from './updateDownload.mjs';
+import { downloadRelease } from './releaseDownload.mjs';
+import { isReleaseLink, notesText } from './releaseNotes.mjs';
+import { createNotesSource } from './releaseNotesSource.mjs';
+import { createUpdateAsk } from './updateAsk.mjs';
+import { createUpdateBridge } from './updateBridge.mjs';
+import {
+  availablePrompt,
+  isRestartChoice,
+  isUpdateChoice,
+  manualCheckResult,
+  restartPrompt,
+  updateMenuItems,
+} from './updateCopy.mjs';
 import { createUpdateLogger } from './updateLog.mjs';
 import {
   INITIAL_UPDATE_STATE,
@@ -28,30 +45,28 @@ import {
   UPDATE_RECHECK_TICK_MS,
   displayTag,
   errorText,
-  isRestartChoice,
+  hasConsent,
   manualCheckAction,
-  manualCheckResult,
+  needsOffer,
   reduceUpdateState,
   resolveUpdateSetting,
-  restartPrompt,
   shouldAutoCheck,
-  shouldPromptNow,
-  shouldPromptRestart,
+  shouldOfferNow,
   shouldRecheck,
   taskbarProgress,
   updateGate,
-  updateMenuItems,
 } from './updatePolicy.mjs';
+import { createWhatsNew } from './whatsNew.mjs';
 
-function logsDir() {
+function appDir(name) {
   try {
-    return app.getPath('logs');
+    return app.getPath(name);
   } catch {
     return '';
   }
 }
 
-const logger = createUpdateLogger({ prefix: '[nova-update]', dir: logsDir });
+const logger = createUpdateLogger({ prefix: '[nova-update]', dir: () => appDir('logs') });
 
 let updater = null;
 let gate = { updater: false, automatic: false, reason: 'not started' };
@@ -61,7 +76,11 @@ let manualPending = false;
 let checkOrigin = 'launch';
 let lastCheckAt = 0;
 let currentTag = '';
-let lastMenuKey = '';
+let bridge = null;
+let ask = null;
+let whatsNew = null;
+// The release on offer: electron-updater's info from the check that found it.
+let pendingInfo = null;
 let hooks = {
   getWindow: () => null,
   envPath: () => '',
@@ -88,29 +107,12 @@ function liveWindow() {
 }
 
 function renderMenu() {
-  const rows = updateMenuItems(state, { currentTag, automatic: gate.automatic });
-  const key = JSON.stringify(rows);
-  if (key === lastMenuKey) return;
-  lastMenuKey = key;
-  const clicks = { restart: () => void restartToUpdate(), check: () => void checkNow('manual') };
-  const submenu = rows.map((row) => ({
-    label: row.label,
-    enabled: Boolean(row.action),
-    click: clicks[row.action],
-  }));
-  // Same roles as Electron's default Windows menu; only Help gains the update rows.
-  const template = [
-    { role: 'fileMenu' },
-    { role: 'editMenu' },
-    { role: 'viewMenu' },
-    { role: 'windowMenu' },
-    { role: 'help', submenu },
-  ];
-  try {
-    Menu.setApplicationMenu(Menu.buildFromTemplate(template));
-  } catch (err) {
-    logger.error(`menu update failed: ${errorText(err)}`);
-  }
+  ask?.setMenu(updateMenuItems(state, { currentTag, automatic: gate.automatic }), {
+    restart: () => void restartToUpdate(),
+    check: () => void checkNow('manual'),
+    download: () => void startDownload(),
+    'whats-new': () => void whatsNew?.openRecent(),
+  });
 }
 
 function dispatch(event) {
@@ -118,16 +120,7 @@ function dispatch(event) {
   renderMenu();
   const win = liveWindow();
   if (win) win.setProgressBar(taskbarProgress(state));
-}
-
-async function showBox(options) {
-  try {
-    const win = liveWindow();
-    return win ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options);
-  } catch (err) {
-    logger.error(`dialog failed: ${errorText(err)}`);
-    return { response: -1 };
-  }
+  ask?.publish();
 }
 
 async function reportManualResult() {
@@ -135,24 +128,57 @@ async function reportManualResult() {
   const result = manualCheckResult(state, currentTag);
   if (!result) return;
   manualPending = false;
-  await showBox({ title: 'Nova updates', buttons: ['OK'], noLink: true, ...result });
+  await ask.box({ title: 'Nova updates', buttons: ['OK'], noLink: true, ...result });
+}
+
+/**
+ * Tell the operator about the release on offer (found, or already downloaded):
+ * the desk's notice, or a dialog when the window cannot show one.
+ */
+async function offer() {
+  const { version, phase } = state;
+  if (!version || (phase !== 'available' && phase !== 'ready')) return;
+  dispatch({ type: 'offered', version });
+  const notes = ask.notesFor(displayTag(version));
+  if (bridge.hasListener()) {
+    ask.attention();
+    return;
+  }
+  if (phase === 'ready') {
+    await promptRestart();
+    return;
+  }
+  const { releases } = await notes;
+  if (isUpdateChoice(await ask.ask(availablePrompt(version, currentTag, notesText(releases))))) {
+    await startDownload();
+  } else {
+    later();
+  }
+}
+
+function later() {
+  if (!state.version) return;
+  logger.info(`${displayTag(state.version)} postponed by operator`);
+  dispatch({ type: 'dismissed', version: state.version });
 }
 
 async function promptRestart() {
-  const version = state.version;
-  dispatch({ type: 'prompted', version });
-  const win = liveWindow();
-  if (win) win.flashFrame(true);
-  // No parent window: the prompt never blocks the trading window it sits over.
-  let response = -1;
-  try {
-    ({ response } = await dialog.showMessageBox(restartPrompt(version)));
-  } catch (err) {
-    logger.error(`restart prompt failed: ${errorText(err)}`);
+  if (isRestartChoice(await ask.ask(restartPrompt(state.version)))) await restartToUpdate();
+  else later();
+}
+
+/** Update (or Resume): download the release on offer. A stopped download is re-checked first. */
+async function startDownload() {
+  if (!updater) return;
+  if (state.phase === 'failed' && state.failedStage === 'download') {
+    // The check finds the same release and resumes it: the operator already chose it.
+    await checkNow('manual');
+    return;
   }
-  if (win && !win.isDestroyed()) win.flashFrame(false);
-  if (isRestartChoice(response)) await restartToUpdate();
-  else logger.info(`restart to ${displayTag(version)} postponed by operator`);
+  if (state.phase !== 'available' || !pendingInfo) return;
+  dispatch({ type: 'download' });
+  logger.info(`downloading ${displayTag(state.version)} at the operator's request`);
+  await fetchUpdate(pendingInfo);
 }
 
 async function recoverEngine() {
@@ -175,7 +201,7 @@ async function restartToUpdate() {
   if (!stopped) {
     dispatch({ type: 'install-failed', message: 'local engine did not stop; nothing was installed' });
     await recoverEngine();
-    await showBox({
+    await ask.box({
       type: 'warning',
       title: 'Nova update not installed',
       message: 'Nova could not confirm its local engine stopped, so it did not install the update.',
@@ -201,8 +227,10 @@ async function checkNow(origin) {
   if (!updater) return;
   const manual = origin === 'manual';
   const action = manual ? manualCheckAction(state, gate) : shouldAutoCheck(state, gate) ? 'check' : 'skip';
-  if (action === 'prompt') {
-    await promptRestart();
+  if (action === 'prompt' || action === 'offer') {
+    // Asked from the menu: raise the notice again, even after Later.
+    dispatch({ type: 'reoffer' });
+    await offer();
     return;
   }
   if (action !== 'check') return;
@@ -218,33 +246,24 @@ async function checkNow(origin) {
     logger.warn(`check failed: ${errorText(err)}`);
     return;
   }
-  if (result?.isUpdateAvailable) await fetchUpdate(result.updateInfo);
-}
-
-/** Where and what to download, exactly as electron-updater would; null if it cannot say. */
-async function planDownload(info) {
-  try {
-    const provider = updater.updateInfoAndProvider?.provider;
-    const target = installerTarget(provider?.resolveFiles(info), info?.version);
-    const cacheDir = (await updater.getOrCreateDownloadHelper())?.cacheDir;
-    return target && cacheDir ? { target, cacheDir } : null;
-  } catch (err) {
-    logger.warn(`cannot plan a resumable download: ${errorText(err)}`);
-    return null;
+  if (!result?.isUpdateAvailable) return;
+  pendingInfo = result.updateInfo;
+  manualPending = false; // the notice is the answer
+  if (hasConsent(state)) {
+    logger.info(`resuming the download of ${displayTag(state.version)}`);
+    await startDownload();
+    return;
   }
+  if (manual) dispatch({ type: 'reoffer' });
+  if (shouldOfferNow(state, { origin, now: Date.now() })) await offer();
+  else if (needsOffer(state)) logger.info(`${displayTag(state.version)} found; the notice waits until trading hours end`);
 }
 
 async function fetchUpdate(info) {
-  const plan = await planDownload(info);
-  if (!plan) {
-    logger.warn('resumable download unavailable; falling back to electron-updater\'s own download');
-    // Its failures arrive as 'error' events; only keep the promise from going unhandled.
-    await updater.downloadUpdate().catch(() => {});
-    return;
-  }
   try {
-    await downloadInstaller({
-      ...plan,
+    await downloadRelease({
+      updater,
+      info,
       fetch: (url, init) => net.fetch(url, init),
       logger,
       onProgress: (percent) => dispatch({ type: 'progress', percent }),
@@ -254,11 +273,7 @@ async function fetchUpdate(info) {
     logger.error(`download failed: ${errorText(err)}`);
     dispatch({ type: 'error', message: errorText(err) });
     void reportManualResult();
-    return;
   }
-  // electron-updater finds the verified installer in its cache, hashes it again,
-  // and emits 'update-downloaded' (or 'error'), which drive the prompt.
-  await updater.downloadUpdate().catch(() => {});
 }
 
 function wireEvents(instance) {
@@ -272,10 +287,9 @@ function wireEvents(instance) {
   instance.on('update-downloaded', (info) => {
     manualPending = false;
     dispatch({ type: 'downloaded', version: info?.version });
-    if (shouldPromptNow(state, { origin: checkOrigin, now: Date.now() })) void promptRestart();
-    else if (shouldPromptRestart(state)) {
-      logger.info(`${displayTag(state.version)} is ready; the prompt waits until trading hours end`);
-    }
+    // The operator chose Update: the notice turns to Restart to update, or the dialog asks.
+    if (bridge.hasListener()) ask.attention();
+    else void promptRestart();
   });
   instance.on('error', (err) => {
     const wasInstalling = state.phase === 'installing';
@@ -286,6 +300,18 @@ function wireEvents(instance) {
   });
 }
 
+/** The operator's answers from the desk's notice and What's new card. */
+function wireBridge(instance) {
+  instance.on('download', () => startDownload());
+  instance.on('later', () => later());
+  instance.on('restart', () => restartToUpdate());
+  instance.on('whats-new-close', () => whatsNew?.close());
+  instance.on('open-link', async ({ url }) => {
+    if (!isReleaseLink(url)) throw new Error(`not a Nova release link: ${url}`);
+    await shell.openExternal(url);
+  });
+}
+
 async function loadUpdater() {
   const mod = await import('electron-updater');
   const NsisUpdater = mod.NsisUpdater ?? mod.default?.NsisUpdater;
@@ -293,7 +319,7 @@ async function loadUpdater() {
   // Reads resources/app-update.yml (GitHub provider, written by electron-builder).
   const instance = new NsisUpdater();
   instance.logger = logger;
-  // fetchUpdate() downloads; electron-updater's one-shot download is only the fallback.
+  // Nothing downloads until the operator picks Update; fetchUpdate() does it then.
   instance.autoDownload = false;
   instance.autoInstallOnAppQuit = false;
   instance.autoRunAppAfterInstall = true;
@@ -317,12 +343,22 @@ export async function startAutoUpdate(deps) {
 
 async function startUnguarded(deps) {
   hooks = { ...hooks, ...deps };
+  // Always answers the window, so a dev checkout's page reads an empty view.
+  bridge = createUpdateBridge({ ipcMain, getWindow: liveWindow, logger });
+  wireBridge(bridge);
+  const userData = () => appDir('userData');
+  const notesSource = createNotesSource({ fetch: (url, init) => net.fetch(url, init), dir: userData, logger });
+  const installedTag = () => currentTag;
+  ask = createUpdateAsk({ bridge, notesSource, getWindow: liveWindow, getState: () => state, installedTag, logger });
   gate = updateGate({ isPackaged: app.isPackaged, platform: process.platform, setting: readSetting() });
   if (!gate.updater) {
     logger.info(`in-app updates off: ${gate.reason}`);
     return;
   }
   currentTag = displayTag(app.getVersion());
+  bridge.set('installed', currentTag);
+  whatsNew = createWhatsNew({ bridge, notesSource, dir: userData, installedTag: currentTag, logger, showDialog: ask.box });
+  void whatsNew.start().catch((err) => logger.warn(`What's new failed: ${errorText(err)}`));
   try {
     updater = await loadUpdater();
     wireEvents(updater);
@@ -342,9 +378,9 @@ async function startUnguarded(deps) {
   clock.unref?.();
 }
 
-/** The open desk's clock: a re-check that is due, or a re-check's held prompt once trading hours end. */
+/** The open desk's clock: a re-check that is due, or a re-check's held notice once trading hours end. */
 function tick() {
   const now = Date.now();
   if (shouldRecheck(state, gate, { now, lastCheckAt })) void checkNow('recheck');
-  else if (shouldPromptNow(state, { origin: checkOrigin, now })) void promptRestart();
+  else if (shouldOfferNow(state, { origin: checkOrigin, now })) void offer();
 }

@@ -1,0 +1,260 @@
+/* The desktop app's update notice (a strip under the header) and What's new card. */
+
+.nova-update-notice {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  color: var(--nova-text);
+  background: color-mix(in srgb, var(--nova-accent) 14%, var(--nova-panel));
+  border-bottom: 1px solid color-mix(in srgb, var(--nova-accent) 45%, transparent);
+}
+
+.nova-update-notice__row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.3rem 0.75rem;
+  min-width: 0;
+}
+
+.nova-update-notice__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 50%;
+  font-weight: 700;
+  color: #fff;
+  background: var(--nova-accent);
+}
+
+.nova-update-notice__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.nova-update-notice__hint {
+  font-weight: 400;
+  color: var(--nova-text-muted);
+}
+
+.nova-update-notice__actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 0.4rem;
+}
+
+.nova-update-notice__btn {
+  padding: 0.2rem 0.65rem;
+  font: inherit;
+  font-weight: 600;
+  color: var(--nova-text);
+  background: var(--nova-raised);
+  border: 1px solid var(--nova-border-strong);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.nova-update-notice__btn:hover {
+  background: var(--hover-bg);
+}
+
+.nova-update-notice__btn--primary {
+  color: #fff;
+  background: var(--nova-accent);
+  border-color: var(--nova-accent);
+}
+
+.nova-update-notice__btn--primary:hover {
+  background: var(--accent-hover);
+}
+
+.nova-update-notice__btn--quiet {
+  background: transparent;
+  border-color: transparent;
+  color: var(--nova-accent);
+}
+
+.nova-update-notice__progress {
+  height: 3px;
+  background: color-mix(in srgb, var(--nova-accent) 20%, transparent);
+}
+
+.nova-update-notice__progress-bar {
+  height: 100%;
+  background: var(--nova-accent);
+  transition: width 0.3s ease;
+}
+
+.nova-update-notice__notes {
+  max-height: 40vh;
+  overflow-y: auto;
+  padding: 0.25rem 0.75rem 0.6rem 2.55rem;
+  border-top: 1px solid var(--nova-border);
+}
+
+/*
+ * Floating, not modal: above the desk panels, below the prerequisites gate (9000)
+ * and dialogs. Bottom-right, so it never covers the header or the update notice
+ * (a launch right after an update can show both).
+ */
+.nova-whats-new {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 1500;
+  display: flex;
+  flex-direction: column;
+  width: min(28rem, calc(100vw - 2rem));
+  max-height: min(70vh, 40rem);
+  color: var(--nova-text);
+  background: var(--nova-panel);
+  border: 1px solid var(--nova-border-strong);
+  border-radius: var(--radius-panel);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.nova-whats-new__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem 0.5rem;
+  border-bottom: 1px solid var(--nova-border);
+}
+
+.nova-whats-new__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.nova-whats-new__subtitle {
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
+  color: var(--nova-text-muted);
+}
+
+.nova-whats-new__close {
+  padding: 0 0.35rem;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--nova-text-muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.nova-whats-new__close:hover {
+  color: var(--nova-text);
+}
+
+.nova-whats-new__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.5rem 1rem;
+  font-size: 0.82rem;
+}
+
+.nova-whats-new__foot {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.6rem 1rem 0.8rem;
+  border-top: 1px solid var(--nova-border);
+  font-size: 0.8rem;
+}
+
+.nova-release-notes__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nova-release-notes__item {
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--nova-border);
+}
+
+.nova-release-notes__item:last-child {
+  border-bottom: 0;
+}
+
+.nova-release-notes__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.nova-release-notes__tag {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  color: var(--nova-text-muted);
+}
+
+.nova-release-notes__kind {
+  padding: 0 0.4rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--nova-text-muted);
+  border: 1px solid var(--nova-border-strong);
+  border-radius: 999px;
+}
+
+.nova-release-notes__kind[data-kind='feat'] {
+  color: var(--nova-accent);
+  border-color: color-mix(in srgb, var(--nova-accent) 55%, transparent);
+}
+
+.nova-release-notes__kind[data-kind='fix'] {
+  color: var(--nova-success);
+  border-color: color-mix(in srgb, var(--nova-success) 55%, transparent);
+}
+
+.nova-release-notes__title {
+  font-weight: 600;
+}
+
+.nova-release-notes__summary {
+  margin: 0.3rem 0 0;
+  line-height: 1.45;
+  color: var(--nova-text);
+}
+
+.nova-release-notes__points {
+  margin: 0.3rem 0 0;
+  padding-left: 1.1rem;
+  line-height: 1.4;
+  color: var(--nova-text-muted);
+}
+
+.nova-release-notes__status {
+  margin: 0.4rem 0;
+  color: var(--nova-text-muted);
+}
+
+.nova-release-notes__status--error {
+  color: var(--nova-danger);
+}
+
+.nova-release-notes__link {
+  margin-top: 0.3rem;
+  padding: 0;
+  font: inherit;
+  font-size: 0.76rem;
+  color: var(--nova-accent);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.nova-release-notes__link:hover {
+  text-decoration: underline;
+}
