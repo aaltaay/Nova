@@ -6,7 +6,6 @@ export const APP_DIALOG_PROMPT_DEFAULT_TITLE = 'Enter value';
 export const APP_DIALOG_OK_LABEL = 'OK';
 export const APP_DIALOG_CANCEL_LABEL = 'Cancel';
 export const APP_DIALOG_CONTINUE_LABEL = 'Continue';
-export const APP_DIALOG_SWITCH_LABEL = 'Switch';
 export const APP_DIALOG_DELETE_LABEL = 'Delete';
 export const APP_DIALOG_RESET_LABEL = 'Reset';
 export const APP_DIALOG_FLATTEN_LABEL = 'Flatten';

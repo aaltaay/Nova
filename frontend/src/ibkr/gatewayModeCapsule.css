@@ -1,4 +1,5 @@
-/* Paper | Live sliding capsule — header + Stock View. Paper=orange, Live=green. */
+/* Paper | Live | Sim sliding capsule -- header + Stock View. Paper = orange,
+   Live = green, Sim = pink: the --venue-* tokens the global bar's tint uses too. */
 
 .gw-mode-capsule-wrap {
   position: relative;
@@ -29,8 +30,8 @@
   left: 2px;
   width: calc(33.333% - 2px);
   border-radius: 999px;
-  background: color-mix(in srgb, #f97316 28%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, #f97316 50%, transparent);
+  background: color-mix(in srgb, var(--venue-paper) 28%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--venue-paper) 50%, transparent);
   transform: translateX(0);
   transition:
     transform 0.18s ease,
@@ -45,22 +46,22 @@
 .gw-mode-capsule.is-paper::before {
   opacity: 1;
   transform: translateX(0);
-  background: color-mix(in srgb, #f97316 28%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, #f97316 50%, transparent);
+  background: color-mix(in srgb, var(--venue-paper) 28%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--venue-paper) 50%, transparent);
 }
 
 .gw-mode-capsule.is-live::before {
   opacity: 1;
   transform: translateX(100%);
-  background: color-mix(in srgb, var(--success, #22c55e) 28%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--success, #22c55e) 50%, transparent);
+  background: color-mix(in srgb, var(--venue-live) 28%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--venue-live) 50%, transparent);
 }
 
 .gw-mode-capsule.is-sim::before {
   opacity: 1;
   transform: translateX(200%);
-  background: color-mix(in srgb, #e879f9 36%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, #e879f9 70%, transparent);
+  background: color-mix(in srgb, var(--venue-sim) 36%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--venue-sim) 70%, transparent);
 }
 
 .gw-mode-capsule__seg {
@@ -96,13 +97,18 @@
 
 .gw-mode-capsule__seg.is-selected.is-live {
   background: transparent;
-  color: var(--success, #22c55e);
+  color: var(--venue-live);
 }
 
 .gw-mode-capsule__seg.is-selected.is-sim {
   background: transparent;
   color: #f0abfc;
   font-weight: 800;
+}
+
+/* The dark theme's light pink vanishes on a white bar. */
+[data-theme='light'] .gw-mode-capsule__seg.is-selected.is-sim {
+  color: #a21caf;
 }
 
 

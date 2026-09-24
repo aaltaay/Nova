@@ -29,11 +29,6 @@ export const DESK_VENUE_PAPER_TITLE =
 export const DESK_VENUE_SIM_TITLE =
   'Sim -- replay playground. Trade a recorded or downloaded session with a scratch account that unwinds when you rewind. No IBKR Gateway places. Not paper. Not live.';
 
-/** Confirm dialog titles for a venue switch. */
-export const DESK_VENUE_CONFIRM_LIVE_TITLE = 'Switch to Live (IBKR, real money)';
-export const DESK_VENUE_CONFIRM_PAPER_TITLE = 'Switch to Paper (Nova practice account)';
-export const DESK_VENUE_CONFIRM_SIM_TITLE = 'Switch to Sim (replay playground)';
-
 /** Hot strip above Stock View / Trading while the venue is Paper. */
 export const DESK_VENUE_PAPER_BANNER_TEXT =
   "PAPER TRADING -- orders go to Nova's practice account: fake money on the live feed, never to IBKR.";
