@@ -70,18 +70,21 @@ anywhere.
 
 ## session titles
 
-A Claude Code cloud session names its chat after the work it ships, so the
-session list reads as PR and issue numbers. Rename with the
-`set_session_title` tool (Claude Code Remote MCP server); `get_session` with
-no id returns this session's id.
+A Claude Code session names its chat after the work it ships, so the session
+list reads as PR and issue numbers. The list holds cloud sessions and local
+ones connected through Remote Control, and both can be renamed. Rename with
+the `set_session_title` tool (Claude Code Remote MCP server); `get_session`
+with no id returns this session's id.
 
 - Once the issue is known (a claim, or the user names one):
   `#<issue> — <short title>`.
-- Right after opening the PR: `PR #<pr> · #<issue> — <short title>`. Several
-  issues: `#12 #34`; no issue: `PR #<pr> — <short title>`.
+- Right after opening the PR: `PR #<pr> · #<issue> — <short title>`.
+  Several PRs or issues: `PR #501 #515`, `#12 #34`; no issue:
+  `PR #<pr> — <short title>`.
 - `<short title>` is the PR title without its `type(scope):` prefix, cut to a
   few words.
 - A session that ships nothing says where the work went
   (`Stood down → PR #544 — pop-out symbol menu`).
 - Rename only this session unless the user asks otherwise. No such tool in
-  this session (Cursor, Codex)? Skip it -- a title never blocks delivery.
+  this session (Cursor, Codex, or a local session without it)? Skip it -- a
+  title never blocks delivery.
