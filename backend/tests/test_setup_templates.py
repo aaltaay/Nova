@@ -199,6 +199,7 @@ def client(store, monkeypatch):
         "rules": {"min_go": 50}})
     app = FastAPI()
     app.include_router(routes.router)
+    routes.install(app)
     return TestClient(app)
 
 
@@ -216,6 +217,25 @@ def test_routes_list_create_edit_play_delete(client):
     assert patched["rules_changed"] is True and patched["template"]["rev"] == 2
     assert client.post(f"/api/setups/templates/{FP}/{tid}/play").json()["setup"]["in_play"] == tid
     assert client.delete(f"/api/setups/templates/{FP}/{tid}").json()["setup"]["in_play"] == "default"
+
+
+def test_a_saved_template_that_no_longer_validates_says_why_and_never_runs(tmp_path):
+    path = tmp_path / "t.json"
+    path.write_text(json.dumps({"schema_version": 1, "setups": {FP: {"in_play": "t-old", "templates": [
+        {"id": "t-old", "name": "Old", "rev": 3, "values": {"leg_pct": 500}}]}}}), encoding="utf-8")
+    store = TemplateStore(path)
+    old = next(t for t in store.templates(FP) if t.id == "t-old")
+    assert old.error is not None and "leg_pct" in old.error
+    assert old.values["leg_pct"] == 500
+    assert store.in_play(FP).id == "default"
+
+
+def test_an_unreadable_templates_file_is_named_without_its_exception_text(tmp_path):
+    path = tmp_path / "t.json"
+    path.write_text("{not json", encoding="utf-8")
+    store = TemplateStore(path)
+    assert store.error() is not None and store.error().startswith("t.json could not be read")
+    assert "Expecting" not in store.error()
 
 
 def test_routes_refuse_with_a_code_and_the_field(client):
@@ -237,6 +257,7 @@ def test_template_writes_need_a_configured_key_like_bot_routes(monkeypatch):
     app = FastAPI()
     app.add_middleware(MutatingApiKeyMiddleware)
     app.include_router(routes.router)
+    routes.install(app)
     c = TestClient(app)
     assert c.get("/api/setups/templates").status_code == 200
     refused = c.post(f"/api/setups/templates/{FP}", json={"name": "x"})

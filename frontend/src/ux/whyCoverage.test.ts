@@ -93,11 +93,15 @@ function findUnexplained(files: string[]): Finding[] {
 }
 
 describe('every locked control says why', () => {
+  // Explicit timeout: this parses every component file in src/ with the
+  // TypeScript compiler, and on a loaded machine (a full run, or the backend
+  // suite running beside it) that passed Vitest's 5s default once. Nothing
+  // here waits on anything; the ceiling only needs to be clear of a slow parse.
   it('no JSX element can be disabled without its reason', () => {
     const missing = findUnexplained(componentFiles(SRC));
     const report = missing.map(f => `  ${f.where} <${f.tag} ${f.attr}> needs ${f.needs}`).join('\n');
     expect(missing, `Locked controls with no reason (see ux/whyTip.ts):\n${report}`).toEqual([]);
-  });
+  }, 30_000);
 
   it('the parser sees a bare disabled button, and accepts data-why / why / whyProps', () => {
     const tmp = path.join(os.tmpdir(), `why-coverage-probe-${process.pid}.tsx`);

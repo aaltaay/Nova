@@ -86,10 +86,14 @@ _DECIMALS = 6
 
 
 class TemplateError(ValueError):
-    """A value the catalogue refuses; ``field`` names the parameter (or None)."""
+    """A value the catalogue refuses; ``field`` names the parameter (or None).
+
+    ``message`` is written for the operator (it is what the API answers);
+    nothing else about the error ever leaves the backend."""
 
     def __init__(self, message: str, field: str | None = None, code: str = "TEMPLATE_INVALID"):
         super().__init__(message)
+        self.message = message
         self.field = field
         self.code = code
 
@@ -373,46 +377,80 @@ def _minutes(text: str) -> int:
     return int(hour) * 60 + int(minute)
 
 
+@dataclass(frozen=True)
+class Problem:
+    """Why a value map is refused, in the operator's words; ``field`` names the parameter."""
+
+    message: str
+    field: str | None = None
+
+
 def _coerce(spec: ParamSpec, raw: Any) -> Any:
+    """The checked value, or the ``Problem`` that refuses it."""
     label = f"{spec.label} ({spec.key})"
     if raw is None:
-        if spec.nullable:
-            return None
-        raise TemplateError(f"{label} needs a value", spec.key)
+        return None if spec.nullable else Problem(f"{label} needs a value", spec.key)
     if spec.kind == BOOL:
-        if isinstance(raw, bool):
-            return raw
-        raise TemplateError(f"{label} is on or off (true / false)", spec.key)
+        return raw if isinstance(raw, bool) else Problem(f"{label} is on or off (true / false)", spec.key)
     if spec.kind == TIME:
         text = str(raw).strip()
         if not _TIME_RE.match(text):
-            raise TemplateError(f"{label} is a time like 07:00", spec.key)
+            return Problem(f"{label} is a time like 07:00", spec.key)
         if spec.min is not None and _minutes(text) < _minutes(str(spec.min)):
-            raise TemplateError(f"{label} is {spec.min} ET or later", spec.key)
+            return Problem(f"{label} is {spec.min} ET or later", spec.key)
         if spec.max is not None and _minutes(text) > _minutes(str(spec.max)):
-            raise TemplateError(f"{label} is {spec.max} ET or earlier", spec.key)
+            return Problem(f"{label} is {spec.max} ET or earlier", spec.key)
         return text
     if spec.kind == CHOICE:
         allowed = [v for v, _ in spec.choices]
-        if raw not in allowed:
-            raise TemplateError(f"{label} is one of {', '.join(allowed)}", spec.key)
-        return raw
+        return raw if raw in allowed else Problem(f"{label} is one of {', '.join(allowed)}", spec.key)
     if isinstance(raw, bool) or not isinstance(raw, (int, float)):
-        raise TemplateError(f"{label} is a number", spec.key)
+        return Problem(f"{label} is a number", spec.key)
     value = float(raw)
     if not math.isfinite(value):
-        raise TemplateError(f"{label} is a number", spec.key)
+        return Problem(f"{label} is a number", spec.key)
     if spec.kind == INT:
         if value != int(value):
-            raise TemplateError(f"{label} is a whole number", spec.key)
+            return Problem(f"{label} is a whole number", spec.key)
         value = int(value)
     else:
         value = round(value, _DECIMALS)
     if spec.min is not None and value < float(spec.min):
-        raise TemplateError(f"{label} is at least {spec.min:g} {spec.unit}".rstrip(), spec.key)
+        return Problem(f"{label} is at least {spec.min:g} {spec.unit}".rstrip(), spec.key)
     if spec.max is not None and value > float(spec.max):
-        raise TemplateError(f"{label} is at most {spec.max:g} {spec.unit}".rstrip(), spec.key)
+        return Problem(f"{label} is at most {spec.max:g} {spec.unit}".rstrip(), spec.key)
     return value
+
+
+def check(setup_id: str, values: dict[str, Any] | None, *,
+          base: dict[str, Any] | None = None) -> tuple[dict[str, Any] | None, Problem | None]:
+    """``validate`` without raising: ``(checked map, None)``, or ``(None, the first problem)``.
+
+    The store reads a saved template through this, so a template that no longer
+    validates keeps its reason as plain words -- no exception is ever caught
+    to find it.
+    """
+    table = {s.key: s for s in specs(setup_id)}
+    merged = {**defaults(setup_id), **{k: v for k, v in (base or {}).items() if k in table}}
+    for key in (values or {}):
+        if key not in table:
+            return None, Problem(f"{key!r} is not a {setup_id.replace('_', ' ')} parameter", key)
+    merged.update(values or {})
+    out: dict[str, Any] = {}
+    for key, spec in table.items():
+        value = _coerce(spec, merged.get(key))
+        if isinstance(value, Problem):
+            return None, value
+        out[key] = value
+    for low, high, equal_ok, message in _ORDERED:
+        if low not in table or high not in table or out[low] is None or out[high] is None:
+            continue
+        a, b = out[low], out[high]
+        if table[low].kind == TIME:
+            a, b = _minutes(a), _minutes(b)
+        if a > b or (a == b and not equal_ok):
+            return None, Problem(message, high)
+    return out, None
 
 
 def validate(setup_id: str, values: dict[str, Any] | None, *, base: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -422,22 +460,10 @@ def validate(setup_id: str, values: dict[str, Any] | None, *, base: dict[str, An
     silent no-op; a key the base lacks (a parameter added after the template was
     saved) takes its default -- the rule the template ran on until then.
     """
-    table = {s.key: s for s in specs(setup_id)}
-    merged = {**defaults(setup_id), **{k: v for k, v in (base or {}).items() if k in table}}
-    for key in (values or {}):
-        if key not in table:
-            raise TemplateError(f"{key!r} is not a {setup_id.replace('_', ' ')} parameter", key)
-    merged.update(values or {})
-    out = {key: _coerce(spec, merged.get(key)) for key, spec in table.items()}
-    for low, high, equal_ok, message in _ORDERED:
-        if low not in table or high not in table or out[low] is None or out[high] is None:
-            continue
-        a, b = out[low], out[high]
-        if table[low].kind == TIME:
-            a, b = _minutes(a), _minutes(b)
-        if a > b or (a == b and not equal_ok):
-            raise TemplateError(message, high)
-    return out
+    out, problem = check(setup_id, values, base=base)
+    if problem is not None:
+        raise TemplateError(problem.message, problem.field)
+    return out or {}
 
 
 def fingerprint(values: dict[str, Any]) -> str:
