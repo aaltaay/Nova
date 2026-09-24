@@ -24,6 +24,7 @@ from constants import (
     IBKR_ERROR_SCANNER_SLOT_EXHAUSTED,
     IBKR_COLD_SNAPSHOT_BATCH,
     IBKR_QUOTE_BATCH_TIMEOUT_SEC,
+    IBKR_QUOTE_QUALITY_CLOSE_FALLBACK,
     IBKR_SCAN_ABOVE_PRICE,
     IBKR_SCAN_CODE_AH_GAINERS,
     IBKR_SCAN_CODE_GAINERS,
@@ -582,12 +583,15 @@ async def snapshot_quotes(
         # Last preferred; close is a fallback print AND the usual prior close.
         # Do not require both — missing close used to drop the symbol entirely,
         # which blanked Stock View header price/change (symbol-only chip).
-        price = _clean(t.last) or _clean(t.close)
+        last = _clean(t.last)
+        price = last or _clean(t.close)
         prev_close = _clean(t.close)
         if price is None:
             continue
         out[sym] = {
             "price": price,
+            # No trade yet: ``price`` is IBKR's prior close, never a print (#541).
+            "quote_quality": None if last is not None else IBKR_QUOTE_QUALITY_CLOSE_FALLBACK,
             "prev_close": prev_close,
             "open": _clean(t.open),
             "high": _clean(getattr(t, "high", None)),
@@ -657,58 +661,3 @@ async def get_afterhours_gainers() -> list[dict]:
     fallback only, used when this scan is empty.
     """
     return await _get_movers(IBKR_SCAN_CODE_AH_GAINERS, reverse=True)
-
-
-def reprice_gapper_row(g: dict, q: dict) -> dict:
-    """Apply a fresh snapshot_quotes() entry to an existing gapper row,
-    recomputing change fields from the row's own prev_close so price and
-    change_pct/change_abs never drift apart (see main.py _reprice_ibkr_caches)."""
-    prev_close = g.get("previous_close") or g.get("prev_close") or q.get("prev_close")
-    price = q["price"]
-    if not prev_close:
-        return g
-    gap_frac = (price - prev_close) / prev_close
-    return {
-        **g,
-        "price": price,
-        "current_price": price,
-        "change_pct": gap_frac,
-        "change_abs": price - prev_close,
-        "gap_percent": gap_frac,
-        "volume": q.get("volume", g.get("volume", 0)),
-    }
-
-
-def reprice_mover_row(m: dict, q: dict) -> dict:
-    """Gainer/loser counterpart to reprice_gapper_row.
-
-    Also the fill path for a names-first stub row (ADR 010 decision 5): the
-    resolved ``prev_close`` is written back so the row stops being a stub after
-    the first L1 tick that carries a close. Without a close the price is still
-    recorded, but no change is invented against an unknown baseline.
-
-    ``gap_percent`` needs the session open (IB tick type 14), which arrives on
-    the same streaming ticker. Before it lands the row keeps whatever gap it
-    already had rather than reusing ``change_pct`` -- an intraday move is not a
-    gap, and inventing one is what a null column is protecting against.
-    """
-    prev_close = m.get("prev_close") or q.get("prev_close")
-    price = q["price"]
-    if not prev_close:
-        return {**m, "price": price, "volume": q.get("volume", m.get("volume", 0))}
-    change_pct = (price - prev_close) / prev_close
-    open_price = m.get("open") or q.get("open")
-    gap_percent = (
-        (open_price - prev_close) / prev_close
-        if open_price and prev_close else m.get("gap_percent")
-    )
-    return {
-        **m,
-        "price": price,
-        "prev_close": prev_close,
-        "open": open_price or m.get("open"),
-        "change_pct": change_pct,
-        "change_abs": price - prev_close,
-        "gap_percent": gap_percent,
-        "volume": q.get("volume", m.get("volume", 0)),
-    }

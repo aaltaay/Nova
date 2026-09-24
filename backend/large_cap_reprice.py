@@ -1,6 +1,6 @@
 """L1-tick repricing for the Large Cap swing table (ADR 014).
 
-Mirrors ``ibkr/discovery.reprice_mover_row`` for the base price / prev_close
+Mirrors ``ibkr/quote_rows.reprice_mover_row`` for the base price / prev_close
 / change_pct fields, then layers on swing metrics (RVOL / ATR expansion /
 5d-20d change / 20d high-low) and checks the 20-day breakout alert trigger.
 Patches one slot in place -- the caller (``ibkr.l1_apply.apply_l1_quote``)
@@ -8,7 +8,7 @@ owns ``state.large_cap_cache`` and decides whether to write the result back.
 """
 from __future__ import annotations
 
-from ibkr.discovery import reprice_mover_row
+from ibkr.quote_rows import reprice_mover_row
 
 PATCH_FIELDS = (
     "change_pct", "change_abs", "volume", "rvol", "atr_expansion",

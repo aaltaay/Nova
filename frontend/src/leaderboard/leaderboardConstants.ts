@@ -132,6 +132,10 @@ export const SIM_DAY_CAL_PREV = 'Previous month';
 export const SIM_DAY_CAL_NEXT = 'Next month';
 export const SIM_DAY_CAL_YEAR = 'Year';
 export const SIM_DAY_CAL_WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const;
+/** Why a calendar control is locked (ux/whyTip.ts). */
+export const SIM_DAY_CAL_FUTURE = 'Not traded yet -- a future day';
+export const simDayCalNoEarlier = (month: string): string => `Nothing on file before ${month}`;
+export const SIM_DAY_CAL_NO_LATER = 'This is the current month -- no later day to open';
 /** The calendar's box, for placing it inside the window (matches simDayCalendar.css). */
 export const SIM_DAY_CAL_WIDTH_PX = 248;
 export const SIM_DAY_CAL_HEIGHT_PX = 300;

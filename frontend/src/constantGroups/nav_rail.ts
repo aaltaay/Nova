@@ -78,6 +78,8 @@ export const RECORDS_PAGE_COL_STATUS = 'Status';
 export const RECORDS_PAGE_TODAY = 'today';
 export const RECORDS_PAGE_REPLAY = 'Replay in Sim';
 export const RECORDS_PAGE_REPLAY_TITLE = 'Load this Session Record into the Sim replay and open it in Trader';
+/** Why Replay in Sim is locked while one load is in flight (ux/whyTip.ts). */
+export const RECORDS_PAGE_REPLAY_BUSY = 'Loading a Session Record into Sim -- wait for it to finish';
 export const RECORDS_PAGE_REPLAY_FAILED = 'Replay did not load:';
 export const RECORDS_PAGE_MISSING_TITLE =
   'Seconds between the first and last segment that no segment covers -- restarts and failures; deliberate stops are not counted.';

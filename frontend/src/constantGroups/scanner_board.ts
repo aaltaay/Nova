@@ -69,6 +69,8 @@ export const SCANNER_HISTORY_TODAY_LABEL = 'Today (Live)';
 export const SCANNER_HISTORY_SAMPLE_LABEL = 'Sample (fixtures)';
 export const SCANNER_HISTORY_SELECT_TITLE = 'Browse historical snapshots';
 export const SCANNER_HISTORY_SELECT_ARIA = 'Scanner snapshot date';
+/** Why the picker is locked on the sample desk (ux/whyTip.ts). */
+export const SCANNER_HISTORY_SAMPLE_WHY = 'Sample data shows its own fixtures only -- exit sample data to browse past boards';
 
 // ── Footer ─────────────────────────────────────────────────────────────────
 export function scannerFooterMatch(shown: number, total: number, noun: string): string {
@@ -102,6 +104,9 @@ export const SCANNER_ACTION_PIN = 'Pin';
 export const SCANNER_ACTION_UNPIN = 'Unpin';
 export const SCANNER_ACTION_PIN_TITLE = 'Pin this row to the top of the list for this session';
 export const SCANNER_ACTION_UNPIN_TITLE = 'Unpin this row';
+/** Why a row's Record / Stop rec is locked while its own command is in flight (ux/whyTip.ts). */
+export const SCANNER_ACTION_STARTING_REC_WHY = 'Starting the recording -- this unlocks when Nova answers.';
+export const SCANNER_ACTION_STOPPING_REC_WHY = 'Stopping the recording -- this unlocks when Nova answers.';
 /** Gap bar width in px at the top row's gap. */
 export const SCANNER_GAP_BAR_MAX_PX = 60;
 

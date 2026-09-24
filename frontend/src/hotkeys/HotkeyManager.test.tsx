@@ -7,6 +7,7 @@ import { fireEvent } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   HOTKEY_MANAGER_INACTIVE_BANNER,
+  HOTKEYS_CREATE_APPLY_LOCKED_WHY,
   HOTKEYS_CREATE_DIALOG_TITLE,
   HOTKEYS_SETTINGS_LIST_TITLE,
 } from '../constants';
@@ -148,6 +149,10 @@ describe('HotkeyManager', () => {
     expect(container.querySelector('[data-testid="hotkeys-create-form"]')).toBeTruthy();
     expect(container.querySelector('[role="dialog"]')).toBeNull();
     expect(container.querySelector('[data-testid="hotkeys-settings-detail"]')).toBeNull();
+    // Button Apply To is locked to Stock, and says why (ux/whyTip.ts).
+    const applyTo = container.querySelector('[data-testid="hotkeys-create-apply"]') as HTMLSelectElement;
+    expect(applyTo.disabled).toBe(true);
+    expect(applyTo.dataset.why).toBe(HOTKEYS_CREATE_APPLY_LOCKED_WHY);
 
     const nameInput = container.querySelector(
       '[data-testid="hotkeys-create-name"]',

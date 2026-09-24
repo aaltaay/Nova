@@ -134,7 +134,7 @@ def on_l1_quote(
     if quote_quality:
         row["quote_quality"] = quote_quality
     stamp_l1_minute(
-        sym, float(price), float(ts_unix), volume=volume, last_size=last_size,
+        sym, float(price), float(ts_unix), volume=volume, last_size=last_size, quote_quality=quote_quality,
     )
     if _apply_quote is not None:
         try:

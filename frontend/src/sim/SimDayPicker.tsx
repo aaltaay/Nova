@@ -12,8 +12,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   SIM_DAY_CAL_CLOSED,
+  SIM_DAY_CAL_FUTURE,
   SIM_DAY_CAL_HEIGHT_PX,
   SIM_DAY_CAL_NEXT,
+  SIM_DAY_CAL_NO_LATER,
   SIM_DAY_CAL_NOTHING,
   SIM_DAY_CAL_PREV,
   SIM_DAY_CAL_REBUILT,
@@ -28,12 +30,14 @@ import {
   SIM_DAY_PICKER_RECORDED,
   SIM_DAY_PICKER_TITLE,
   SIM_DAY_PICKER_TODAY,
+  simDayCalNoEarlier,
   simDayCalSessions,
 } from '../leaderboard/leaderboardConstants';
 import type { LeaderboardDay } from '../leaderboard/leaderboardTypes';
 import {
   type CalendarDayFacts,
   cellTitle,
+  cellWhy,
   dayFacts,
   monthGrid,
   monthIndex,
@@ -43,7 +47,9 @@ import {
   type MonthRef,
 } from './simDayCalendarModel';
 import type { SimClockState } from './simClockTypes';
+import { SIM_WHY_BUSY } from './simConstants';
 import { formatShortDate, todayEt } from './simStripFormat';
+import { simClockWhy } from './simWhy';
 import type { CaptureSessions } from './useSimSessionController';
 import './simDayCalendar.css';
 
@@ -154,12 +160,17 @@ export function SimDayPicker({ clock, days, sessions = null, error = null, busy,
   for (let y = range.last.year; y >= range.first.year; y -= 1) years.push(y);
   const labels = {
     rebuilt: SIM_DAY_CAL_REBUILT, recorded: SIM_DAY_CAL_RECORDED, sessions: simDayCalSessions,
-    nothing: SIM_DAY_CAL_NOTHING, closed: SIM_DAY_CAL_CLOSED,
+    nothing: SIM_DAY_CAL_NOTHING, closed: SIM_DAY_CAL_CLOSED, future: SIM_DAY_CAL_FUTURE,
   };
+  // Why each control is locked (ux/whyTip.ts).
+  const dayWhy = simClockWhy(clock) ?? (busy ? SIM_WHY_BUSY.day : null);
+  const atFirst = monthIndex(view) <= monthIndex(range.first);
+  const atLast = monthIndex(view) >= monthIndex(range.last);
 
   return (
     <div className="sim-strip__day sim-day" ref={root} title={error ? `${SIM_DAY_PICKER_TITLE}\n${error}` : SIM_DAY_PICKER_TITLE}>
       <span>{SIM_DAY_PICKER_LABEL}</span>
+      {/* Locked, title '' keeps the picker's own title (and the Trader strip's) from showing over the reason. */}
       <button
         ref={button}
         type="button"
@@ -168,6 +179,8 @@ export function SimDayPicker({ clock, days, sessions = null, error = null, busy,
         aria-haspopup="dialog"
         aria-expanded={open}
         disabled={busy || !clock?.sim}
+        data-why={dayWhy ?? undefined}
+        title={dayWhy ? '' : undefined}
         onClick={toggle}
       >
         {selected ? `${formatShortDate(selected)}${factsWord(facts.get(selected))}` : SIM_DAY_PICKER_TODAY} ▾
@@ -177,42 +190,49 @@ export function SimDayPicker({ clock, days, sessions = null, error = null, busy,
           style={{ top: place.top, left: place.left, width: SIM_DAY_CAL_WIDTH_PX }}>
           <div className="sim-day__head">
             <button type="button" aria-label={SIM_DAY_CAL_PREV} data-testid="sim-day-prev"
-              disabled={monthIndex(view) <= monthIndex(range.first)} onClick={() => setView(clamp(shiftMonth(view, -1)))}>‹</button>
+              disabled={atFirst} data-why={atFirst ? simDayCalNoEarlier(`${MONTHS[range.first.month0]} ${range.first.year}`) : undefined}
+              onClick={() => setView(clamp(shiftMonth(view, -1)))}>‹</button>
             <span className="sim-day__month" data-testid="sim-day-month">{MONTHS[view.month0]}</span>
             <select aria-label={SIM_DAY_CAL_YEAR} data-testid="sim-day-year" value={view.year}
               onChange={e => setView(clamp({ year: Number(e.target.value), month0: view.month0 }))}>
               {years.map(y => <option key={y} value={y}>{y}</option>)}
             </select>
             <button type="button" aria-label={SIM_DAY_CAL_NEXT} data-testid="sim-day-next"
-              disabled={monthIndex(view) >= monthIndex(range.last)} onClick={() => setView(clamp(shiftMonth(view, 1)))}>›</button>
+              disabled={atLast} data-why={atLast ? SIM_DAY_CAL_NO_LATER : undefined}
+              onClick={() => setView(clamp(shiftMonth(view, 1)))}>›</button>
           </div>
           <div className="sim-day__grid" role="grid">
             {SIM_DAY_CAL_WEEKDAYS.map((w, i) => <span key={`${w}${i}`} className="sim-day__dow">{w}</span>)}
-            {weeks.flat().map(cell => (
-              <button
-                key={cell.date}
-                type="button"
-                data-testid={`sim-day-cell-${cell.date}`}
-                data-recorded={cell.facts.recorded ? '1' : '0'}
-                data-sessions={cell.facts.sessions.length}
-                data-rebuilt={cell.facts.rebuilt ? '1' : '0'}
-                className={[
-                  'sim-day__cell',
-                  cell.inMonth ? '' : 'is-other',
-                  cell.weekend ? 'is-weekend' : '',
-                  cell.facts.recorded ? 'is-recorded' : '',
-                  cell.facts.rebuilt ? 'is-rebuilt' : '',
-                  cell.selected ? 'is-selected' : '',
-                  cell.today ? 'is-today' : '',
-                ].filter(Boolean).join(' ')}
-                disabled={!cell.selectable}
-                title={cellTitle(cell, labels)}
-                onClick={() => pick(cell.date)}
-              >
-                {cell.day}
-                {cell.facts.sessions.length ? <i className="sim-day__rec" aria-hidden="true" /> : null}
-              </button>
-            ))}
+            {weeks.flat().map(cell => {
+              // A locked day says why in the tip; an open one keeps its facts as the title.
+              const why = cellWhy(cell, labels);
+              return (
+                <button
+                  key={cell.date}
+                  type="button"
+                  data-testid={`sim-day-cell-${cell.date}`}
+                  data-recorded={cell.facts.recorded ? '1' : '0'}
+                  data-sessions={cell.facts.sessions.length}
+                  data-rebuilt={cell.facts.rebuilt ? '1' : '0'}
+                  className={[
+                    'sim-day__cell',
+                    cell.inMonth ? '' : 'is-other',
+                    cell.weekend ? 'is-weekend' : '',
+                    cell.facts.recorded ? 'is-recorded' : '',
+                    cell.facts.rebuilt ? 'is-rebuilt' : '',
+                    cell.selected ? 'is-selected' : '',
+                    cell.today ? 'is-today' : '',
+                  ].filter(Boolean).join(' ')}
+                  disabled={!cell.selectable}
+                  data-why={why ?? undefined}
+                  title={why ? undefined : cellTitle(cell, labels)}
+                  onClick={() => pick(cell.date)}
+                >
+                  {cell.day}
+                  {cell.facts.sessions.length ? <i className="sim-day__rec" aria-hidden="true" /> : null}
+                </button>
+              );
+            })}
           </div>
           <div className="sim-day__legend">
             <span><i className="sim-day__swatch is-recorded" />{SIM_DAY_CAL_RECORDED}</span>

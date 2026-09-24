@@ -155,6 +155,44 @@ describe('SimSessionStrip', () => {
     expect(screen.queryAllByTestId('sim-strip-seg-recorded')).toHaveLength(0);
   });
 
+  it('a locked control says why, and drops its title so the strip title never stacks on it', async () => {
+    await mount();
+    const edgeButton = screen.getByTestId('sim-strip-edge');
+    expect(edgeButton.getAttribute('data-why')).toBe('Already at the live edge');
+    expect(edgeButton.getAttribute('title')).toBe('');
+    // An open control carries no reason and keeps its own title.
+    expect(screen.getByTestId('sim-strip-back').hasAttribute('data-why')).toBe(false);
+    expect(screen.getByTestId('sim-strip-back').getAttribute('title')).toBe('Back 1 minute');
+    await act(async () => { fireEvent.click(screen.getByTestId('sim-strip-menu')); });
+    expect(screen.getByTestId('sim-strip-follow-wall').getAttribute('data-why')).toBe('Already following the wall clock');
+    expect(screen.getByTestId('sim-replay-ticker').getAttribute('data-why')).toBe('Pick a Day first');
+  });
+
+  it("off the Sim venue every transport control names the clock's venue", async () => {
+    clock = { ...edge, sim: false };
+    await mount();
+    for (const id of ['sim-strip-first', 'sim-strip-back', 'sim-strip-forward', 'sim-strip-edge', 'sim-strip-day']) {
+      const control = screen.getByTestId(id) as HTMLButtonElement;
+      expect(control.disabled).toBe(true);
+      expect(control.getAttribute('data-why')).toBe("Nova's API is not on the Sim venue -- Sim time cannot move");
+    }
+    expect(screen.getByRole('button', { name: 'Pause Sim time' }).getAttribute('data-why'))
+      .toBe("Nova's API is not on the Sim venue -- Sim time cannot move");
+  });
+
+  it('a seek in flight locks the transport with the work it is doing', async () => {
+    clock = capture;
+    let answer!: (value: unknown) => void;
+    const original = mocks.fetch.getMockImplementation()!;
+    mocks.fetch.mockImplementation((url: string, init?: RequestInit) => (init?.method === 'POST'
+      ? new Promise(resolve => { answer = resolve; }) : original(url, init)));
+    await mount();
+    await act(async () => { fireEvent.click(screen.getByTestId('sim-strip-back')); });
+    expect(screen.getByTestId('sim-strip-forward').getAttribute('data-why')).toBe('Moving the playhead -- wait for Nova to answer');
+    await act(async () => { answer({ ok: true, json: async () => capture }); });
+    expect(screen.getByTestId('sim-strip-forward').hasAttribute('data-why')).toBe(false);
+  });
+
   it('the scrubber commits one seek on pointer release', async () => {
     clock = capture;
     await mount();

@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import mover_enrich_hooks as meh  # noqa: E402
 import mover_enrich_view as mev  # noqa: E402
 from hod_momo_integrity_scanner import _row_price_checks  # noqa: E402
-from ibkr.discovery import reprice_mover_row  # noqa: E402
+from ibkr.quote_rows import reprice_mover_row  # noqa: E402
 
 
 # --- gap_percent from the IB session open (tick 14) -------------------------

@@ -134,7 +134,7 @@ describe('ManualOrderTicket Side vs account_class', () => {
     const short = container.querySelector('[data-testid="manual-order-side-short"]') as HTMLButtonElement;
     expect(short).toBeTruthy();
     expect(short.disabled).toBe(true);
-    expect(short.title).toBe('Nova does not support short entries yet');
+    expect(short.dataset.why).toBe('Nova does not support short entries yet');
     expect(container.textContent).not.toMatch(/check TWS/);
   });
 });

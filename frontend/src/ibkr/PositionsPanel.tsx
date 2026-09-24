@@ -1,6 +1,7 @@
 import { useMemo, type ReactNode } from 'react';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { ClosePositionButton } from '../closed_orders';
+import { CLOSE_POSITION_ACCOUNT_ERROR_TITLE } from '../constants';
 import { commissionCellTitle, formatCommission } from './orderCommission';
 import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
@@ -219,6 +220,7 @@ export function PositionsPanel({
                         connected={connected}
                         spendStatus={spendStatus}
                         disabled={Boolean(error)}
+                        why={error ? CLOSE_POSITION_ACCOUNT_ERROR_TITLE : null}
                         onClosed={onPositionClosed}
                       />
                     </td>

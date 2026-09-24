@@ -1,5 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { BOT_ALLOWLIST_ADD, BOT_ALLOWLIST_REMOVE } from '../constantGroups/bot';
+import { SCANNER_ACTION_STARTING_REC_WHY, SCANNER_ACTION_STOPPING_REC_WHY } from '../constantGroups/scanner_board';
 import { TRADER_TAB_PIN_LABEL, TRADER_TAB_UNPIN_LABEL } from '../constantGroups/trader_view';
 import {
   closeBotSymbolMenu,
@@ -104,6 +105,7 @@ export function BotSymbolMenuHost() {
           testId="bot-symbol-menu-record"
           label={captureStopHoldLabel(open.symbol)}
           disabled={recordBusy}
+          why={recordBusy ? SCANNER_ACTION_STOPPING_REC_WHY : null}
           onConfirm={() => void toggle(true)}
         />
       ) : (
@@ -112,6 +114,7 @@ export function BotSymbolMenuHost() {
           role="menuitem"
           data-testid="bot-symbol-menu-record"
           disabled={recordBusy}
+          data-why={recordBusy ? SCANNER_ACTION_STARTING_REC_WHY : undefined}
           onClick={() => void toggle(false)}
         >
           Record -- {open.symbol}

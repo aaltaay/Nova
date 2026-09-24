@@ -11,6 +11,7 @@ import {
   PRACTICE_STARTING_CASH_LABEL,
   PRACTICE_STARTING_CASH_PLACEHOLDER,
   PRACTICE_VENUE_LABELS,
+  practiceResetBusyWhy,
   practiceResetButtonLabel,
   practiceResetConfirmMessage,
   practiceResetConfirmTitle,
@@ -27,6 +28,7 @@ export function PracticeResetAction({ venue }: { venue: PracticeVenue }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const inputId = `practice-reset-cash-${venue}`;
+  const busyWhy = busy ? practiceResetBusyWhy(venue) : undefined;
 
   const reset = async () => {
     const parsed = parseStartingCash(startingCash);
@@ -75,6 +77,7 @@ export function PracticeResetAction({ venue }: { venue: PracticeVenue }) {
           placeholder={PRACTICE_STARTING_CASH_PLACEHOLDER}
           value={startingCash}
           disabled={busy}
+          data-why={busyWhy}
           onChange={(e) => {
             setStartingCash(e.target.value);
             setNotice(null);
@@ -86,6 +89,7 @@ export function PracticeResetAction({ venue }: { venue: PracticeVenue }) {
         type="button"
         className="btn-secondary practice-reset__button"
         disabled={busy}
+        data-why={busyWhy}
         onClick={() => void reset()}
         data-testid={`practice-reset-button-${venue}`}
       >

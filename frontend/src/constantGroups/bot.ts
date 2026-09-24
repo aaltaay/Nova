@@ -112,20 +112,8 @@ export const BOT_SETUP_NEXT: Record<string, string> = {
   micro_pullback: 'No scanner yet',
 };
 
-/** The chosen setup's rules card (first pullback, Bot-Trading-Plan §3). */
-export const BOT_FIRST_PULLBACK_RULES: ReadonlyArray<readonly [string, string]> = [
-  ['Stock', 'Leading gainer · Five Pillars · $3-10 · float < 10M'],
-  ['Setup', 'Leg >= 5% to a new high · 1-3 red candles hold the 9 EMA and half the leg'],
-  ['Entry', "Over the last pullback candle's high (+1c) — only when the tape says GO"],
-  ['Trade', '07:00-10:00 · one a day · fixed size · 20c target · 20c max loss'],
-];
-
-export const BOT_TAPE_GATE_LINES: ReadonlyArray<readonly [string, string]> = [
-  ['go', 'green prints, nothing holding the level'],
-  ['wait', '25k+ seller not thinning'],
-  ['veto', 'wide spread / 100k+ seller'],
-  ['blind', 'no Level 2'],
-];
+/* The setup cards' rule lines and tape gate lines are built from the template in play
+   (bot/templateFormat.ts, ADR 029), never written by hand. */
 
 export const BOT_CHOSEN_BADGE = 'Chosen';
 export const BOT_NO_SCANNER_TITLE = 'No scanner yet -- it cannot play until it has one and its read-out passes';

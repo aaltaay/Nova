@@ -9,7 +9,10 @@ and are ours; the scoreboard exists to tell us whether they are right.
 """
 from __future__ import annotations
 
-SETUPS_SCHEMA_VERSION = 1
+SETUPS_SCHEMA_VERSION = 1              # the board / socket payload
+# setups.db: 2 adds template_id / template_rev / params_hash (ADR 029); a v1
+# file is migrated in place, its rows becoming the default template's.
+SETUPS_DB_SCHEMA_VERSION = 2
 
 # -- Session window (America/New_York). The material's window is 07:00-10:00;
 # the research screen ran 09:30-11:30. Covering 07:00-11:30 lets the
@@ -38,6 +41,8 @@ SETUPS_MIN_STOP_DOLLARS = 0.03          # ... or smaller than this
 SETUPS_ENTRY_OFFSET_DOLLARS = 0.01      # buy one cent over the last pullback bar's high
 SETUPS_RISK_SLIPPAGE_DOLLARS = 0.01     # the risk caps are checked with one cent of slippage, as the research did
 SETUPS_TARGET_R = 2.0                   # target 1 = max(leg high, entry + 2R)
+SETUPS_TARGET_MODE = "leg_or_r"         # ADR 029: "fixed" makes target 1 entry + SETUPS_TARGET_FIXED_DOLLARS
+SETUPS_TARGET_FIXED_DOLLARS = 0.20      # the material's 20c target, for a template that asks for it
 SETUPS_BAILOUT_BARS = 5                 # scoring: 5 bars without a close above entry -> out
 SETUPS_MAX_PER_SYMBOL_DAY = 2           # first and second pullback
 
@@ -114,3 +119,20 @@ SETUPS_SCORE_WINDOW_MIN = 15            # MFE / MAE measured over this many minu
 SETUPS_DB_FILENAME = "setups.db"        # under paths.cache_dir(), not git-tracked
 SETUPS_BOARD_MAX_ROWS = 40
 SETUPS_BOARD_PUSH_SEC = 1.0             # socket push cadence
+
+# -- Templates (ADR 029): named variations of each setup's parameters. The
+# built-in default is the pre-registered rules above; the operator's own live
+# in the operator cache. Every first-pullback template is watched at once, one
+# lane each (the per-setup cap bounds the lanes); only the template in play proposes.
+SETUP_TEMPLATES_SCHEMA_VERSION = 1
+SETUP_TEMPLATES_FILENAME = "setup-templates.json"   # under paths.cache_dir(), not git-tracked
+SETUP_TEMPLATE_DEFAULT_ID = "default"
+SETUP_TEMPLATE_DEFAULT_NAME = "Default (pre-registered)"
+# The default's rules revision. Bump it when the defaults above change what the
+# scanner arms or scores, so the read-out starts over for the new rules.
+SETUP_TEMPLATE_DEFAULT_REV = 1
+SETUP_TEMPLATES_MAX_PER_SETUP = 6                   # the default included; all watched at once
+SETUP_TEMPLATE_NAME_MAX = 40
+SETUP_TEMPLATE_NOTE_MAX = 280
+SETUP_TEMPLATES_POLL_SEC = 1.0                      # the engine re-reads the store this often
+

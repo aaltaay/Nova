@@ -1,0 +1,61 @@
+/* The desk-wide "why is this locked" tip (ux/whyTip.ts). One element per
+   window, fixed to the viewport, never under a scroll container's clip. */
+
+@layer components {
+  .why-tip {
+    position: fixed;
+    z-index: 2147483000;
+    max-width: min(340px, calc(100vw - 16px));
+    padding: 6px 10px;
+    border-radius: 7px;
+    border: 1px solid var(--nova-border-strong, rgba(255, 255, 255, 0.22));
+    background: var(--nova-raised, #2c2c2e);
+    color: var(--nova-text, #f5f5f7);
+    box-shadow: 0 10px 28px rgb(0 0 0 / 0.45);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.4;
+    text-align: left;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    pointer-events: none;
+  }
+
+  .why-tip[hidden] {
+    display: none;
+  }
+
+  /* A refused press: the same answer, but it says so. */
+  .why-tip--pressed {
+    border-color: var(--nova-accent, #0a84ff);
+    animation: why-tip-pulse 420ms ease-out;
+  }
+
+  @keyframes why-tip-pulse {
+    0% {
+      transform: scale(0.96);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--nova-accent, #0a84ff) 45%, transparent);
+    }
+    100% {
+      transform: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .why-tip--pressed {
+      animation: none;
+    }
+  }
+}
+
+/* A control that carries its reason reads as locked wherever it sits, and still
+   takes the pointer: shadcn's Button / AlertDialogAction set
+   `disabled:pointer-events-none`, which hid the reason on a locked Place. A
+   disabled control never receives the click either way. */
+@layer overrides {
+  [data-why]:disabled,
+  [data-why][aria-disabled='true'] {
+    cursor: not-allowed;
+    pointer-events: auto;
+  }
+}

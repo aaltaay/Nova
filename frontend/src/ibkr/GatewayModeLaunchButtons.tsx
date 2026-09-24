@@ -6,6 +6,7 @@
  */
 import {
   GATEWAY_BANNER_CTA_BUSY_LABEL,
+  GATEWAY_WHY_LAUNCHING,
   PREREQ_OPEN_LIVE_LABEL,
   PREREQ_OPEN_LIVE_TITLE,
 } from './gatewayUxConstants';
@@ -32,8 +33,9 @@ export function GatewayModeLaunchButtons({
         type="button"
         className="trading-prereq-cta trading-prereq-cta--live"
         data-testid={liveTestId}
-        title={PREREQ_OPEN_LIVE_TITLE}
+        title={busy ? undefined : PREREQ_OPEN_LIVE_TITLE}
         disabled={busy}
+        data-why={busy ? GATEWAY_WHY_LAUNCHING : undefined}
         onClick={() => onLaunch('live')}
       >
         {busyMode === 'live' ? GATEWAY_BANNER_CTA_BUSY_LABEL : PREREQ_OPEN_LIVE_LABEL}

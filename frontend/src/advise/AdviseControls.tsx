@@ -1,10 +1,15 @@
-import { isAdviseSymbol } from './adviseSymbol';
+import { isAdviseSymbol, normalizeAdviseSymbol } from './adviseSymbol';
 import {
   ADVISE_AGENTS_HINT,
   ADVISE_EMPTY_HINT,
   ADVISE_MAX_DEPTH,
   ADVISE_MIN_DEPTH,
   ADVISE_MODEL_LABEL,
+  ADVISE_WHY_BUSY,
+  ADVISE_WHY_NOTHING_TO_CANCEL,
+  ADVISE_WHY_NO_SYMBOL,
+  ADVISE_WHY_RUN_LIVE,
+  adviseWhyBadSymbol,
   clampAdviseDepth,
 } from './constants';
 import {
@@ -35,6 +40,12 @@ export function AdviseControls() {
   const canSpend = isAdviseSymbol(symbol) && !busy && !live;
   const matched = estimateMatches(estimate, symbol, depth);
   const actualLine = formatAdviseActualLine(run?.actual_usd);
+  // Why Run / Force refresh is locked (ux/whyTip.ts), in the order the operator can fix it.
+  const typed = normalizeAdviseSymbol(symbol);
+  const spendWhy = canSpend ? undefined
+    : !typed ? ADVISE_WHY_NO_SYMBOL
+      : !isAdviseSymbol(typed) ? adviseWhyBadSymbol(typed)
+        : busy ? ADVISE_WHY_BUSY : ADVISE_WHY_RUN_LIVE;
 
   return (
     <div className="advise-controls">
@@ -106,6 +117,7 @@ export function AdviseControls() {
           type="button"
           data-testid="advise-run"
           disabled={!canSpend}
+          data-why={spendWhy}
           onClick={() => void runDebate(false)}
         >
           Run
@@ -114,6 +126,7 @@ export function AdviseControls() {
           type="button"
           data-testid="advise-refresh"
           disabled={!canSpend}
+          data-why={spendWhy}
           onClick={() => void runDebate(true)}
         >
           Force refresh
@@ -122,6 +135,7 @@ export function AdviseControls() {
           type="button"
           data-testid="advise-cancel"
           disabled={!live}
+          data-why={live ? undefined : ADVISE_WHY_NOTHING_TO_CANCEL}
           onClick={() => void cancelDebate()}
         >
           Cancel

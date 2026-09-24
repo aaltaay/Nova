@@ -4,7 +4,9 @@ import { useState } from 'react';
 import {
   APP_DIALOG_FLATTEN_LABEL,
   CLOSE_POSITION_ACCOUNT_ERROR_TITLE,
-  CLOSE_POSITION_PIN_LOCKED_TITLE,
+  CLOSE_POSITION_BUSY_WHY,
+  CLOSE_POSITION_DISARMED_TITLE,
+  CLOSE_POSITION_NO_POSITION_TITLE,
   STOCK_VIEW_MODULE_OPEN_TITLE,
   TICKER_TRADE_ORDER_DISCLOSURE,
 } from '../constants';
@@ -17,10 +19,8 @@ import { closeFullPosition } from './closeFullPosition';
 import { executionTransportError } from './executionTransportError';
 import { ManualOrderTicket } from './ManualOrderTicket';
 import { notifyOrderRejected } from './notifyOrderRejected';
-import { spendLockReason } from './spendLock';
+import { flattenSpendLockReason, isDisarmed, spendLockReason } from './spendLock';
 import type { PlaceOrderResult } from './placeOrder';
-import { readTicketSessionUnlocked } from './ticketUnlock';
-import { useTradingPinGate } from './useTradingPinGate';
 import type { IbkrListingFlags } from '../types/ticker';
 import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from './types';
 
@@ -65,25 +65,34 @@ export function TickerTradeActionBar({
   const [resultMsg, setResultMsgState] = useState<{ ok: boolean; text: string; seq: number } | null>(null);
   const setResultMsg = (next: { ok: boolean; text: string } | null) =>
     setResultMsgState((prev) => (next ? { ...next, seq: (prev?.seq ?? 0) + 1 } : null));
-  const { ensureUnlocked, pinDialog } = useTradingPinGate();
 
-  const disabledReason = !connected
+  const gatewayReason = !connected
     ? 'IBKR disconnected — connect Gateway (Trading tab) to place orders'
     : mode === 'disconnected'
       ? 'IBKR mode offline'
-      : spendLockReason(spendStatus);
+      : null;
+  const disabledReason = gatewayReason ?? spendLockReason(spendStatus);
+  // Disarmed is no lock for Flatten: only the locks the backend holds a flatten to.
+  const flattenLockReason = gatewayReason ?? flattenSpendLockReason(spendStatus);
 
-  const canTrade = connected && mode !== 'disconnected' && disabledReason == null && !closing;
-  const canFlatten = canTrade && !accountError;
+  const canFlatten = flattenLockReason == null && !closing && !accountError;
   const modeLabel =
     mode === 'paper' ? 'PAPER' : mode === 'live' ? '⚠ LIVE' : mode === 'sim' ? 'SIM' : 'OFFLINE';
   const hasPosition = position != null && position.qty !== 0;
+  // A locked Flatten says why (ux/whyTip.ts); null exactly when it can act.
+  const flattenWhy = !hasPosition
+    ? CLOSE_POSITION_NO_POSITION_TITLE
+    : closing
+      ? CLOSE_POSITION_BUSY_WHY
+      : accountError
+        ? CLOSE_POSITION_ACCOUNT_ERROR_TITLE
+        : flattenLockReason;
   const compactChrome = variant === 'rail';
   const showAccount = !compactChrome;
 
   async function handleClose() {
     if (!canFlatten || !position || position.qty === 0) return;
-    if (!(await ensureUnlocked())) return;
+    // No padlock step: arming here would also unlock every order that opens.
     const absQty = formatShareQty(Math.abs(position.qty));
     const closeSide: 'BUY' | 'SELL' = position.qty > 0 ? 'SELL' : 'BUY';
     const confirmed = await confirmApp({
@@ -209,15 +218,14 @@ export function TickerTradeActionBar({
             type="button"
             className="ticker-trade-close-btn"
             disabled={!canFlatten || !hasPosition}
+            data-why={flattenWhy ?? undefined}
             onClick={() => void handleClose()}
             title={
-              !hasPosition
-                ? 'No open position in this symbol'
-                : accountError
-                  ? CLOSE_POSITION_ACCOUNT_ERROR_TITLE
-                  : !readTicketSessionUnlocked()
-                    ? CLOSE_POSITION_PIN_LOCKED_TITLE
-                    : disabledReason ?? 'Flatten position with market order'
+              flattenWhy
+                ? undefined
+                : isDisarmed(spendStatus)
+                  ? CLOSE_POSITION_DISARMED_TITLE
+                  : 'Flatten position with market order'
             }
           >
             {closing
@@ -238,7 +246,6 @@ export function TickerTradeActionBar({
           </span>
         )}
       </div>
-      {pinDialog}
     </div>
   );
 }

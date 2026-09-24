@@ -15,6 +15,7 @@ import {
   TRADER_STRIP_OVERFLOW_TITLE,
   TRADER_STRIP_TITLE,
   TRADER_STRIP_TITLE_FLOAT,
+  TRADER_TAB_ADD_DRAFT_OPEN_WHY,
   TRADER_TAB_ADD_TITLE,
 } from '../constants';
 import {
@@ -109,6 +110,7 @@ export function StockViewTabStrip({
   };
 
   const liveSet = new Set(live ?? tabs.filter(t => t !== TRADER_DRAFT_SYMBOL));
+  const draftOpen = tabs.includes(TRADER_DRAFT_SYMBOL);
 
   return (
     <div
@@ -189,13 +191,15 @@ export function StockViewTabStrip({
         })}
       </div>
       {/* Outside the tabs box, which clips: with four or more tabs "+" was cut
-          off with the last tab and sat under the overflow chevron (QA D12). */}
+          off with the last tab and sat under the overflow chevron (QA D12).
+          Locked, title '' keeps the strip's own title off the reason. */}
       <button
         type="button"
         className="sv-tab-add"
         aria-label="Add ticker tab"
-        title={TRADER_TAB_ADD_TITLE}
-        disabled={tabs.includes(TRADER_DRAFT_SYMBOL)}
+        title={draftOpen ? '' : TRADER_TAB_ADD_TITLE}
+        disabled={draftOpen}
+        data-why={draftOpen ? TRADER_TAB_ADD_DRAFT_OPEN_WHY : undefined}
         onClick={onAddDraft}
         data-testid="sv-tab-add"
       >

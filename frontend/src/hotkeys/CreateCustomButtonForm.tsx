@@ -7,6 +7,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import {
   HOTKEYS_CREATE_ACTION_LABEL,
   HOTKEYS_CREATE_APPLY_LABEL,
+  HOTKEYS_CREATE_APPLY_LOCKED_WHY,
   HOTKEYS_CREATE_APPLY_STOCK,
   HOTKEYS_CREATE_CANCEL,
   HOTKEYS_CREATE_DIALOG_TITLE,
@@ -70,7 +71,7 @@ export function CreateCustomButtonForm({
 
       <label className="hk-field">
         <span>{HOTKEYS_CREATE_APPLY_LABEL}</span>
-        <select disabled value="stock">
+        <select disabled value="stock" data-why={HOTKEYS_CREATE_APPLY_LOCKED_WHY} data-testid="hotkeys-create-apply">
           <option value="stock">{HOTKEYS_CREATE_APPLY_STOCK}</option>
         </select>
       </label>

@@ -20,6 +20,20 @@ const EMPTY_FORM = {
   chat_id: '',
 };
 
+/** The one channel request in flight; every button waits on it. */
+type BusyWork = 'create' | 'test' | 'toggle' | 'delete';
+/** Why a channel button is locked (ux/whyTip.ts). */
+const WHY_BUSY: Record<BusyWork, string> = {
+  create: 'Adding the channel -- wait for it to finish',
+  test: 'Sending the test -- wait for it to finish',
+  toggle: 'Saving the channel -- wait for it to finish',
+  delete: 'Deleting the channel -- wait for it to finish',
+};
+const WHY_LOADING = 'Loading the channel list -- wait for it';
+const WHY_LIST_FAILED = 'The channel list did not load -- see the error above';
+const WHY_NO_CHANNELS = 'No channels yet -- add one first';
+const WHY_CHANNEL_OFF = 'This channel is disabled -- Enable it to test it';
+
 export function AlertChannelsSettings() {
   const {
     channels,
@@ -33,12 +47,13 @@ export function AlertChannelsSettings() {
   } = useAlertChannels(true);
 
   const [form, setForm] = useState(EMPTY_FORM);
-  const [busy, setBusy] = useState(false);
+  const [busyWork, setBusyWork] = useState<BusyWork | null>(null);
+  const busy = busyWork !== null;
   const [message, setMessage] = useState<string | null>(null);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setBusy(true);
+    setBusyWork('create');
     setMessage(null);
     try {
       await createChannel({
@@ -54,12 +69,12 @@ export function AlertChannelsSettings() {
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Create failed');
     } finally {
-      setBusy(false);
+      setBusyWork(null);
     }
   };
 
   const handleTest = async (channelId?: string) => {
-    setBusy(true);
+    setBusyWork('test');
     setMessage(null);
     try {
       const result = await testChannel(channelId);
@@ -67,18 +82,18 @@ export function AlertChannelsSettings() {
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Test failed');
     } finally {
-      setBusy(false);
+      setBusyWork(null);
     }
   };
 
   const handleToggle = async (id: string, enabled: boolean) => {
-    setBusy(true);
+    setBusyWork('toggle');
     try {
       await updateChannel(id, { enabled });
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Update failed');
     } finally {
-      setBusy(false);
+      setBusyWork(null);
     }
   };
 
@@ -90,16 +105,21 @@ export function AlertChannelsSettings() {
       tone: 'danger',
     });
     if (!ok) return;
-    setBusy(true);
+    setBusyWork('delete');
     try {
       await deleteChannel(id);
       setMessage('Channel deleted.');
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Delete failed');
     } finally {
-      setBusy(false);
+      setBusyWork(null);
     }
   };
+
+  // Why each button is locked (ux/whyTip.ts): the request in flight, then the list itself.
+  const busyWhy = busyWork ? WHY_BUSY[busyWork] : undefined;
+  const addWhy = busyWhy ?? (loading ? WHY_LOADING : undefined);
+  const testAllWhy = addWhy ?? (channels.length > 0 ? undefined : error ? WHY_LIST_FAILED : WHY_NO_CHANNELS);
 
   return (
     <div className="settings-alerts" data-testid="settings-alerts">
@@ -190,13 +210,14 @@ export function AlertChannelsSettings() {
         </label>
 
         <div className="form-actions">
-          <button type="submit" className="btn-primary" disabled={busy || loading}>
+          <button type="submit" className="btn-primary" disabled={busy || loading} data-why={addWhy}>
             Add channel
           </button>
           <button
             type="button"
             className="btn-secondary"
             disabled={busy || loading || channels.length === 0}
+            data-why={testAllWhy}
             onClick={() => handleTest()}
           >
             Test all enabled
@@ -228,6 +249,7 @@ export function AlertChannelsSettings() {
                 type="button"
                 className="btn-secondary"
                 disabled={busy}
+                data-why={busyWhy}
                 onClick={() => handleToggle(ch.id, !ch.enabled)}
               >
                 {ch.enabled ? 'Disable' : 'Enable'}
@@ -236,6 +258,7 @@ export function AlertChannelsSettings() {
                 type="button"
                 className="btn-secondary"
                 disabled={busy || !ch.enabled}
+                data-why={busyWhy ?? (ch.enabled ? undefined : WHY_CHANNEL_OFF)}
                 onClick={() => handleTest(ch.id)}
               >
                 Test
@@ -244,6 +267,7 @@ export function AlertChannelsSettings() {
                 type="button"
                 className="btn-danger"
                 disabled={busy}
+                data-why={busyWhy}
                 onClick={() => handleDelete(ch.id)}
               >
                 Delete

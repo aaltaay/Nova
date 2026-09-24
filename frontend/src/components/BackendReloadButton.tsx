@@ -8,6 +8,7 @@ import {
   BACKEND_RELOAD_BUTTON_TITLE,
   BACKEND_RELOAD_CONFIRM_MESSAGE,
   BACKEND_RELOAD_CONFIRM_TITLE,
+  BACKEND_RELOAD_WHY_BUSY,
 } from '../constants';
 import { confirmApp } from '../ux';
 import { startLocalApi } from '../utils/startLocalApi';
@@ -54,7 +55,8 @@ export function BackendReloadButton({ onReloaded }: Props) {
         className="backend-start-btn backend-start-btn--reload"
         onClick={() => void handleClick()}
         disabled={busy}
-        title={BACKEND_RELOAD_BUTTON_TITLE}
+        data-why={busy ? BACKEND_RELOAD_WHY_BUSY : undefined}
+        title={busy ? undefined : BACKEND_RELOAD_BUTTON_TITLE}
         data-testid="backend-reload-btn"
       >
         {busy ? 'Reloading…' : BACKEND_RELOAD_BUTTON_LABEL}

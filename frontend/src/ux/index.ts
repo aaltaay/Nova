@@ -9,3 +9,4 @@ export {
   type PromptDialogOptions,
 } from './appDialogApi';
 export { AppDialogHost } from './AppDialogHost';
+export { installWhyTip, lockedTarget, whyProps, WHY_ATTR } from './whyTip';

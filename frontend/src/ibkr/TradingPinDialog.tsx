@@ -21,6 +21,7 @@ import {
 import {
   TICKER_TRADE_UNLOCK_DIALOG_CANCEL,
   TICKER_TRADE_UNLOCK_DIALOG_CHECKING,
+  TICKER_TRADE_UNLOCK_DIALOG_CHECKING_WHY,
   TICKER_TRADE_UNLOCK_DIALOG_SUBTITLE,
   TICKER_TRADE_UNLOCK_DIALOG_TITLE,
   TICKER_TRADE_UNLOCK_PIN_LENGTH,
@@ -89,6 +90,7 @@ export function TradingPinDialog({ open, onSubmit, onCancel, notice = null }: Pr
             maxLength={TICKER_TRADE_UNLOCK_PIN_LENGTH}
             value={value}
             disabled={pending}
+            data-why={pending ? TICKER_TRADE_UNLOCK_DIALOG_CHECKING_WHY : undefined}
             onChange={next => {
               setValue(next);
               setError(null);

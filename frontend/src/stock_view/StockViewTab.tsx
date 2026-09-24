@@ -146,12 +146,14 @@ export function StockViewTab({
               <ExternalLink size={12} aria-hidden="true" />
             </button>
           )}
+          {/* Locked while recording: the reason rides data-why, and title '' keeps the strip's own title off it. */}
           <button
             type="button"
             className="sv-tab__close"
             aria-label={recording ? `Recording ${label} — stop recording before close` : `${TRADER_TAB_CLOSE_ARIA} ${label}`}
             disabled={recording}
-            title={recording ? TRADER_TAB_CLOSE_RECORDING_TITLE : `${TRADER_TAB_CLOSE_ARIA} ${label}`}
+            data-why={recording ? TRADER_TAB_CLOSE_RECORDING_TITLE : undefined}
+            title={recording ? '' : `${TRADER_TAB_CLOSE_ARIA} ${label}`}
             data-testid={`sv-tab-close-${label}`}
             onClick={e => {
               e.stopPropagation();
