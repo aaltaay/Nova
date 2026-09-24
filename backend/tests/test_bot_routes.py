@@ -53,7 +53,7 @@ def test_session_get_l0_open_without_key(bot_iso):
                       "red_to_green": False, "micro_pullback": False}
     assert {g["id"] for g in body["gates"]} == {
         "level", "allowlist", "desk_armed", "depth_lines", "readout", "bot_trip", "day_lock",
-        "kill_switch", "window"}
+        "kill_switch", "window", "commissions"}
     assert body["readout"]["passed"] is True  # the test baseline (conftest)
     alias = client.get("/bot/session")
     assert alias.status_code == 200

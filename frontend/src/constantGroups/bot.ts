@@ -141,7 +141,10 @@ export const BOT_GATE_LABELS: Record<string, string> = {
   day_lock: 'No day lock',
   kill_switch: 'Kill switch off',
   window: 'Window',
+  commissions: 'Commissions read',
 };
+/** #564: the Live day P&L cannot read its commissions, so new bot entries wait. */
+export const BOT_GATE_COMMISSIONS_HELD = 'Commissions unreadable — Live entries held until they read';
 
 export const BOT_READOUT_TITLE = 'Read-out to unlock Strategy on Live';
 /** ADR 030: the read-out gates Live only. */

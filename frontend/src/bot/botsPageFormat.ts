@@ -1,5 +1,6 @@
 /** Pure helpers for the Bots page (ADR 027): gate chips, the headline, read-out numbers. */
 import {
+  BOT_GATE_COMMISSIONS_HELD,
   BOT_GATE_LABELS,
   BOT_LEVEL_LABELS,
   BOT_SETUP_LABELS,
@@ -131,6 +132,9 @@ export function gateLine(g: BotGate, ctx: GateContext = {}): GateLine {
       out.text = `${label} ${String(d.start ?? '07:00')}–${String(d.end ?? '10:00')}${shut} · ${used} / ${max} trade today`;
       break;
     }
+    case 'commissions':
+      out.text = out.ok ? label : BOT_GATE_COMMISSIONS_HELD;
+      break;
     default:
       break;
   }

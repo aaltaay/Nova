@@ -45,6 +45,10 @@ describe('gate chips (bot/gates.py facts, approved mockup v4)', () => {
     expect(kill.text).toBe('Kill switch tripped');
     expect(kill.actions[0].kind).toBe('reset_kill');
     expect(gateLine(gate('allowlist', false, { count: 0 })).actions[0].kind).toBe('add_symbol');
+    // #564: a Live commission read that fails holds new entries, and the chip says so.
+    expect(gateLine(gate('commissions', true, {}, 'fire')).text).toBe('Commissions read');
+    expect(gateLine(gate('commissions', false, { error: 'OperationalError: database is locked' }, 'fire')).text)
+      .toBe('Commissions unreadable — Live entries held until they read');
   });
 
   it('counts every closed gate in the hero, and never claims open gates it was not told about', () => {

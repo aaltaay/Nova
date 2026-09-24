@@ -334,6 +334,23 @@ def test_one_trade_a_day(paper):
     assert "a day" in row["reason"] and row["inputs"]["code"] == "BOT_DAY_TRADE_CAP"
 
 
+def test_a_live_commission_hold_does_not_hold_paper(paper, monkeypatch):
+    """#564: the hold is Live's; Paper's day P&L is the practice ledger's and reads no commissions."""
+    import sqlite3
+
+    from bot import day_pnl
+
+    def locked(*, since_ts: float):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr("execution.store_facts.session_commission_by_symbol", locked)
+    assert day_pnl.session_commission_total() is None      # a Live read failed earlier
+    assert day_pnl.commission_hold("live") is not None
+    runner.submit(trigger())
+    trade = tick(paper)
+    assert trade["state"] == "open" and trade_rows("skipped") == []
+
+
 def test_a_stale_trigger_is_not_traded(paper):
     runner.submit(trigger(setup={"triggered_at": NOW - 30}))
     assert tick(paper) is None and trade_rows() == []

@@ -138,6 +138,12 @@ BOT_REASON_READOUT_NOT_PASSED = "BOT_READOUT_NOT_PASSED"
 BOT_REASON_OUTSIDE_WINDOW = "BOT_OUTSIDE_WINDOW"
 BOT_REASON_DAY_TRADE_CAP = "BOT_DAY_TRADE_CAP"
 BOT_REASON_SETUP_NO_SCANNER = "BOT_SETUP_NO_SCANNER"
+# #564 (operator decision 2026-09-24): on Live the breakers' day P&L subtracts
+# the session's commissions; while that read fails the day P&L is unknown and
+# no new bot entry is sent. Exits, cancels, flatten and kill are never held.
+BOT_REASON_COMMISSIONS_UNKNOWN = "BOT_COMMISSIONS_UNKNOWN"
+# The breaker polls every second: a failing read is logged once, then at most this often.
+BOT_COMMISSIONS_WARN_EVERY_SEC = 60.0
 
 # -- ADR 030: the first-pullback bot on Paper and Sim (backend/bot/first_pullback/).
 # The read-out gates Live only; Nova's own bot places on the practice venues only.

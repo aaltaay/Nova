@@ -91,6 +91,7 @@ def _gate(gid: str, ok: bool, stage: str, **detail: Any) -> dict[str, Any]:
 def gates(row: dict[str, Any]) -> list[dict[str, Any]]:
     from bot import entry_rules
     from bot.clock import lock_is_active
+    from bot.day_pnl import commission_hold
     from bot.eligibility import holds_depth_line, normalize_symbols
     from ibkr.trading_allowed import places_allowed
     import kill_switch
@@ -103,6 +104,7 @@ def gates(row: dict[str, Any]) -> list[dict[str, Any]]:
     venue = current_venue()
     waived = not readout_required(venue)
     window = _safe(entry_rules.status, None)
+    held_for_commissions = commission_hold(venue)     # #564: Live only; never raises
     return [
         _gate("level", level >= BOT_LEVEL_STRATEGY, "activate", level=level),
         _gate("allowlist", bool(symbols), "activate", count=len(symbols)),
@@ -118,6 +120,7 @@ def gates(row: dict[str, Any]) -> list[dict[str, Any]]:
         _gate("kill_switch", not _safe(kill_switch.is_tripped, True), "fire"),
         _gate("window", bool(window and window["open"] and window["entries_today"] < window["max_entries"]),
               "fire", **(window or {})),
+        _gate("commissions", held_for_commissions is None, "fire", **(held_for_commissions or {})),
     ]
 
 

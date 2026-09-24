@@ -961,11 +961,28 @@ kind is also refused outside
 bot entry that venue day (`409 BOT_DAY_TRADE_CAP`; entry audit rows carry
 `inputs.venue_day`; an entry the first-pullback bot cancelled unfilled --
 `bot_trade` `missed` -- gives the day back); exits and cancels are never held
-by either. Proposals
+by either. **Commissions unknown hold new entries** (operator decision on
+#564, 2026-09-24): on Live the breakers' day P&L subtracts the session's
+commissions from the execution ledger (`bot/day_pnl.py`); while that read
+fails, every bot entry -- a `buy_*` kind on `POST /api/bot/action` and the
+first-pullback bot's `buy_setup_limit` (both pass
+`entry_rules.assert_entry_allowed`) -- is refused `409
+BOT_COMMISSIONS_UNKNOWN` until a read succeeds again. Exits, cancels,
+flatten and kill are never held, and Paper and Sim never are (their day P&L
+is the practice ledger's `DayPnL`; no commission read); a venue that cannot
+be read counts as Live. The failure is logged (at once, then at most every
+`BOT_COMMISSIONS_WARN_EVERY_SEC`), never read as $0: `GET /api/bot/pnl`
+answers `day_pnl: null` with `meter.commissions: null`,
+`meter.commissions_unknown: true`, `meter.commissions_error` and
+`meter.day_pnl_before_commissions` (realized + unrealized), and a breaker
+that figure already crosses still trips -- commissions only make the day
+worse. Every meter carries `commissions_unknown` and `commissions_error`.
+Proposals
 are accepted at Eyes and Strategy. `gates: [{id, ok, stage: "activate" |
 "fire", detail}]` (owner `bot/gates.py`) are `level`, `allowlist`,
 `desk_armed`, `depth_lines`, `readout`, `bot_trip`, `day_lock`,
-`kill_switch`, `window`.
+`kill_switch`, `window`, `commissions` (stage `fire`; `detail: {error,
+since}` while entries are held).
 
 **Nova's own first-pullback bot** (ADR 030, owner `bot/first_pullback/`; #514).
 Active at Strategy with `first_pullback` chosen, on Paper or on Sim at the live

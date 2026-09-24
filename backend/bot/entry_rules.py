@@ -14,6 +14,10 @@ ADR 029: the window and the daily cap are the template in play's own
 (``bot_window_start`` / ``bot_window_end`` / ``bot_entries_per_day``) for the
 chosen setup; a setup whose parameters carry none, or a template store that
 cannot be read, keeps the material's 07:00-10:00 and one a day.
+
+#564: every bot entry -- ``POST /api/bot/action`` and the first-pullback bot
+alike -- passes ``assert_entry_allowed``, so it also holds entries on Live while
+the breakers' commission read fails (``bot.day_pnl.commission_hold``).
 """
 from __future__ import annotations
 
@@ -29,6 +33,7 @@ from constants_bot import (
     BOT_ENTRIES_PER_DAY,
     BOT_ENTRY_WINDOW_END_ET,
     BOT_ENTRY_WINDOW_START_ET,
+    BOT_REASON_COMMISSIONS_UNKNOWN,
     BOT_REASON_DAY_TRADE_CAP,
     BOT_REASON_OUTSIDE_WINDOW,
     BOT_SETUP_DEFAULT,
@@ -104,9 +109,22 @@ def entries_today(now: datetime | None = None, *, rows: list[dict[str, Any]] | N
 
 
 def assert_entry_allowed(kind: str) -> None:
-    """Refuse an entry outside the window or past the day's cap; anything else passes."""
+    """Refuse an entry while Live commissions are unknown, outside the window or past the day's cap.
+
+    Anything that is not an entry passes.
+    """
     if kind not in BOT_BUY_KINDS:
         return
+    from bot.day_pnl import commission_hold
+
+    hold = commission_hold()
+    if hold is not None:
+        raise BotError(
+            f"the session's commissions are unreadable ({hold['error']}) -- the day P&L is unknown, "
+            "so no new bot entry until they read again",
+            409,
+            BOT_REASON_COMMISSIONS_UNKNOWN,
+        )
     now = venue_now()
     r = rules()
     if not in_window(now, r=r):
