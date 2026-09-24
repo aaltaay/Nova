@@ -12,12 +12,15 @@ from constants import (
     IBKR_SHORTABILITY_TTL_SEC,
     IBKR_SHORTABLE_EST_MIN_SHARES,
 )
+from constants_ibkr import IBKR_SHORTABILITY_RETRY_UNKNOWN_SEC
 from ibkr import listing_flags as _listing_flags
 
 ShortState = Literal["shortable_est", "thin", "htb_likely", "unknown"]
 
 # Orderable for short_entry only when state is shortable_est and not stale.
 _ORDERABLE_STATES = frozenset({"shortable_est"})
+# The last snapshot read per symbol (ADR 035): the stock read shows it with its age, never waits.
+_last: dict[str, dict[str, Any]] = {}
 
 
 def state_from_shares(shares: float | None) -> ShortState:
@@ -83,7 +86,28 @@ def enrich_ibkr_listing(raw: dict[str, Any], *, fetched_at: float | None = None)
 def fetch_shortability(symbol: str) -> dict[str, Any]:
     """Fresh shortability snapshot for ``symbol`` (sync; for validate + listing)."""
     raw = _listing_flags.fetch_listing_flags_sync(symbol)
-    return enrich_ibkr_listing(raw, fetched_at=time.time())
+    snap = enrich_ibkr_listing(raw, fetched_at=time.time())
+    _last[(symbol or "").strip().upper()] = snap
+    return snap
+
+
+def cached(symbol: str) -> dict[str, Any] | None:
+    """The last snapshot read for ``symbol``, its age and staleness as of now; None when none was read.
+
+    A read, never a wait: ``fetch_shortability`` asks IBKR (up to its timeout) -- the Trader's ticker
+    socket does that while the tab is open.
+    """
+    snap = _last.get((symbol or "").strip().upper())
+    if snap is None:
+        return None
+    return enrich_ibkr_listing(snap, fetched_at=float(snap.get("fetched_at") or 0.0))
+
+
+def refresh_due(snapshot: dict[str, Any] | None, age_sec: float) -> bool:
+    """Whether a socket that read ``snapshot`` ``age_sec`` ago should ask IBKR again."""
+    state = (snapshot or {}).get("state") or "unknown"
+    wait = IBKR_SHORTABILITY_RETRY_UNKNOWN_SEC if state == "unknown" else IBKR_SHORTABILITY_TTL_SEC
+    return age_sec >= float(wait)
 
 
 def assert_shortable_for_order(snapshot: dict[str, Any] | None) -> tuple[bool, str, str | None]:

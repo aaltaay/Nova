@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
@@ -94,6 +95,22 @@ def _warm_timeframes_to_fill(symbol: str) -> list[str]:
     return out
 
 
+async def _refresh_shortability(websocket: WebSocket, loop, symbol: str, listing: dict | None,
+                                read_at: float) -> tuple[dict | None, float]:
+    """Ask IBKR for shortability again when it is due and send the tab the fresh listing.
+
+    The Level 2 "Short" chip read it once per tab and kept "Unknown" for the tab's life (ADR 035).
+    """
+    from ibkr.shortability import fetch_shortability, refresh_due
+
+    if not listing or not refresh_due(listing.get("ibkr"), time.monotonic() - read_at):
+        return listing, read_at
+    fresh = await loop.run_in_executor(None, lambda: fetch_shortability(symbol))
+    listing = {**listing, "ibkr": fresh}
+    await websocket.send_text(json.dumps({"type": "detail_update", "listing": listing}))
+    return listing, time.monotonic()
+
+
 @router.websocket("/ws/ticker/{symbol}")
 async def ws_ticker_detail(websocket: WebSocket, symbol: str):
     """WebSocket endpoint: sends full detail on connect, then streams real-time trade updates.
@@ -123,6 +140,8 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
     base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
     blocked = ticker_alpaca_required_error(symbol)
     headers = _alpaca_headers() or {}
+    listing_sent: dict | None = None        # re-read shortability while the tab is open (ADR 035)
+    short_read_at = time.monotonic()
 
     try:
         if blocked:
@@ -152,6 +171,7 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
             listing = await loop.run_in_executor(
                 None, lambda: build_listing_compare(symbol, fast.get("asset") or {})
             )
+            listing_sent, short_read_at = listing, time.monotonic()
             from ibkr import halt_status
             await websocket.send_text(json.dumps({
                 "type": "detail_update",
@@ -171,6 +191,8 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
                 await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
             except asyncio.TimeoutError:
                 await websocket.send_text(json.dumps({"type": "ping"}))
+                listing_sent, short_read_at = await _refresh_shortability(
+                    websocket, loop, symbol, listing_sent, short_read_at)
     except WebSocketDisconnect:
         logger.debug("Ticker WS client disconnected for %s", symbol)
     except asyncio.CancelledError:

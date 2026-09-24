@@ -57,6 +57,21 @@ def test_vwap_macd_emas_from_bars(monkeypatch):
     assert emas["data"]["bars_as_of"] == newest
 
 
+def test_vwap_is_the_sessions_from_four_am(monkeypatch):
+    # ADR 035: the newest 240 stored bars straddled two sessions; the VWAP is the newest session's from 04:00 ET.
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    et = ZoneInfo("America/New_York")
+    y = datetime(2026, 9, 23, 15, 0, tzinfo=et).timestamp()     # yesterday afternoon at 20.00
+    t = datetime(2026, 9, 24, 4, 0, tzinfo=et).timestamp()      # today from 04:00 at 5.00
+    old = [{"t": y + i * 60, "o": 20.0, "h": 20.0, "l": 20.0, "c": 20.0, "v": 10_000} for i in range(60)]
+    new = [{"t": t + i * 60, "o": 5.0, "h": 5.0, "l": 5.0, "c": 5.0, "v": 1_000} for i in range(30)]
+    monkeypatch.setattr("sensors.adapters.bars.get_bars", lambda symbol, timeframe="1Min", limit=240: (old + new, "bars_store"))
+    body = bars.read_vwap("APUS")
+    assert body["data"]["vwap"] == 5.0 and body["data"]["anchor"] == "04:00 ET"
+
+
 def test_rvol_marks_missing_20d(monkeypatch):
     monkeypatch.setattr("sensors.adapters.volume.get_quote", lambda symbol: ({"volume": 1_000_000, "price": 4.2}, "ibkr_l1"))
     monkeypatch.setattr("sensors.adapters.volume.peek_avg_volume", lambda symbol: 2_000_000.0)
@@ -69,9 +84,19 @@ def test_rvol_marks_missing_20d(monkeypatch):
 
 def test_halt_not_halted(monkeypatch):
     monkeypatch.setattr("ibkr.halt_status.snapshot", lambda symbol, now=None: None)
+    monkeypatch.setattr("ibkr.halt_status.halted_now", lambda symbols, now=None: {"AAPL": False})
     body = desk.read_halt("AAPL")
     assert body["status"] == "live"
     assert body["data"]["halted"] is False
+
+
+def test_halt_unknown_is_not_read_as_not_halted(monkeypatch):
+    # ADR 035: no open halt on record and no source that says it trades is unknown, never False.
+    monkeypatch.setattr("ibkr.halt_status.snapshot", lambda symbol, now=None: None)
+    monkeypatch.setattr("ibkr.halt_status.halted_now", lambda symbols, now=None: {"AAPL": None})
+    body = desk.read_halt("AAPL")
+    assert body["data"]["halted"] is None
+    assert "Unknown" in body["data"]["note"]
 
 
 def test_halt_from_existing_snapshot(monkeypatch):

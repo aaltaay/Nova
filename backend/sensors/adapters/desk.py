@@ -1,12 +1,15 @@
 """Session, risk, and halt adapters."""
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
 
 from constants_ibkr import RISK_DAILY_GOAL_DOLLARS, RISK_MAX_CONSECUTIVE_LOSSES
 from sensors.envelope import build_envelope
 from sensors.session_phase import snapshot as phase_snapshot
+
+logger = logging.getLogger(__name__)
 
 
 def read_session_phase() -> dict[str, Any]:
@@ -64,16 +67,27 @@ def read_halt(symbol: str) -> dict[str, Any]:
     except Exception:
         snap = None
     if not snap:
+        # No open halt on record is "not halted" only when IBKR's halt tick or the Nasdaq halt
+        # feed says so; otherwise it is unknown (ADR 035: it used to read False).
+        halted = None
+        try:
+            from ibkr.halt_status import halted_now
+
+            halted = halted_now([symbol], now=now).get((symbol or "").strip().upper())
+        except Exception:
+            logger.warning("halt sensor: halted_now failed for %s", symbol, exc_info=True)
         return build_envelope(
             sensor="halt",
             symbol=symbol,
             status="live",
             data={
-                "halted": False,
+                "halted": halted,
                 "kind": None,
                 "elapsed_sec": None,
                 "source": None,
-                "note": "Not halted on IBKR ticker.halted / Nasdaq RSS overlay.",
+                "note": ("Not halted: IBKR's halt tick or the Nasdaq halt feed says it is trading." if halted is False
+                         else "Unknown: no IBKR line has reported a halt state and the Nasdaq halt feed is not "
+                              "answering -- never read as not halted."),
             },
         )
     start = snap.get("halt_start")

@@ -56,6 +56,9 @@ IBKR_FORCE_ONE_SHARE_QTY = 1.0  # default max shares per Live place / bracket wh
 IBKR_QTY_CAP_ENV = "IBKR_QTY_CAP"  # .env override of the Live default above (whole number >= 1)
 # Tick-236 shortability freshness for order gates (seconds).
 IBKR_SHORTABILITY_TTL_SEC = 60.0
+# The Trader's ticker socket re-reads shortability this often while it reads "unknown" (ADR 035);
+# a known state is re-read every IBKR_SHORTABILITY_TTL_SEC.
+IBKR_SHORTABILITY_RETRY_UNKNOWN_SEC = 30.0
 # Shares thresholds for shortability states (IBKR tick 236 estimate).
 IBKR_SHORTABLE_EST_MIN_SHARES = 10_000.0
 IBKR_PAPER_PORT = 4002       # IB Gateway paper trading port
