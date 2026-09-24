@@ -3,7 +3,7 @@
 Local loopback with no ``NOVA_API_KEY`` stays open for most mutating routes
 (single-operator desktop). Public binds require a key.
 
-``POST /api/config`` and mutating ``/api/bot/*`` / ``/bot/*`` always require
+``POST /api/config``, ``POST /api/issues`` and mutating ``/api/bot/*`` / ``/bot/*`` always require
 a configured ``NOVA_API_KEY`` and a matching ``X-Nova-Api-Key`` header, even
 on loopback. Any local process can reach ``127.0.0.1:8000``. The Desktop
 sidecar reads the same ``NOVA_API_KEY`` the API already uses (repo
@@ -71,6 +71,12 @@ def is_setup_template_mutate(method: str, path: str) -> bool:
     return method in _MUTATING and normalized.startswith("/api/setups/templates")
 
 
+def is_issue_report_mutate(method: str, path: str) -> bool:
+    """Filing an issue publishes on a public repository as the operator: keyed like a bot route."""
+    normalized = path.rstrip("/") or "/"
+    return method in _MUTATING and (normalized == "/api/issues" or normalized.startswith("/api/issues/"))
+
+
 def is_sensor_http_path(path: str) -> bool:
     normalized = path.rstrip("/") or "/"
     return normalized == "/sensors" or normalized.startswith("/sensors/")
@@ -82,6 +88,9 @@ def is_sensor_mutate(method: str, path: str) -> bool:
 
 _BOT_KEY_REQUIRED = (
     "NOVA_API_KEY must be set for mutating bot routes, including on loopback"
+)
+_ISSUE_KEY_REQUIRED = (
+    "NOVA_API_KEY must be set to file an issue from the desk, including on loopback"
 )
 
 
@@ -143,13 +152,14 @@ class MutatingApiKeyMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         mutating = request.method in _MUTATING
         bot = is_bot_mutate(request.method, path) or is_setup_template_mutate(request.method, path)
+        issue = is_issue_report_mutate(request.method, path)
         api = path.startswith("/api/")
         sensors = is_sensor_mutate(request.method, path)
         if mutating and (bot or api or sensors):
             rejected = check_api_key(
                 request.headers.get(NOVA_API_KEY_HEADER),
-                require_configured_key=is_config_mutate(request.method, path) or bot,
-                missing_key_detail=_BOT_KEY_REQUIRED if bot else None,
+                require_configured_key=is_config_mutate(request.method, path) or bot or issue,
+                missing_key_detail=_BOT_KEY_REQUIRED if bot else (_ISSUE_KEY_REQUIRED if issue else None),
             )
             if rejected is not None:
                 status, detail = rejected
@@ -188,6 +198,7 @@ __all__ = [
     "is_bot_http_path",
     "is_bot_mutate",
     "is_config_mutate",
+    "is_issue_report_mutate",
     "is_sensor_http_path",
     "is_sensor_mutate",
     "is_setup_template_mutate",

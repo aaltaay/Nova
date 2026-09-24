@@ -298,9 +298,11 @@ describe('labels', () => {
       'This is the latest release',
       "What's New in Nova v831…",
       'Installed: Nova v831',
+      'File an Issue…',
       'Automatic checks off (NOVA_UPDATE_CHECK)',
     ]);
     expect(rows[2].action).toBe('whats-new');
+    expect(rows[4].action).toBe('file-issue');
     expect(manualCheckResult(run({ type: 'not-available' }), 'v831')?.message).toBe(
       'Nova v831 is the latest release.',
     );

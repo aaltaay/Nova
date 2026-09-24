@@ -41,6 +41,7 @@ import { AdviseHost } from './advise/AdvisePanel';
 import { AdviseProvider } from './advise/AdviseContext';
 import { AppDialogHost } from './ux';
 import { DesktopUpdateHost } from './desktop_update';
+import { IssueReportHost } from './issue_report';
 import { useFocusReport } from './focus_report/useFocusReport';
 import { useNavPage } from './workspace/navRailStore';
 import { TraderDockLayer } from './workspace/traderDesk/TraderDockLayer';
@@ -105,6 +106,7 @@ function AppShell() {
             {!detached && <GatewayDisconnectedBannerHost />}
             {/* Desktop app only: a newer Nova is out, and what the last update brought. */}
             {!detached && <DesktopUpdateHost />}
+            {!detached && <IssueReportHost />}
             <MwcbBannerHost />
             <NovaOsAttentionStrip global />
             <div className={branchClass}>

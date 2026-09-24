@@ -28,6 +28,7 @@ import { app, ipcMain, net, shell } from 'electron';
 import { readEnvValue } from './envMerge.mjs';
 import { downloadRelease } from './releaseDownload.mjs';
 import { createReleaseInstaller } from './releaseInstall.mjs';
+import { createIssueRequest, isIssueLink } from './issueLinks.mjs';
 import { isReleaseLink, notesText } from './releaseNotes.mjs';
 import { createNotesSource } from './releaseNotesSource.mjs';
 import { createUpdateAsk } from './updateAsk.mjs';
@@ -83,6 +84,7 @@ let bridge = null;
 let ask = null;
 let whatsNew = null;
 let installer = null;
+let requestIssueForm = null;
 // The release on offer: electron-updater's info from the check that found it.
 let pendingInfo = null;
 let hooks = {
@@ -116,6 +118,7 @@ function renderMenu() {
     check: () => void checkNow('manual'),
     download: () => void startDownload(),
     'whats-new': () => void whatsNew?.openRecent(),
+    'file-issue': () => requestIssueForm?.(),
   });
 }
 
@@ -274,7 +277,8 @@ function wireBridge(instance) {
   instance.on('restart', () => restartToUpdate());
   instance.on('whats-new-close', () => whatsNew?.close());
   instance.on('open-link', async ({ url }) => {
-    if (!isReleaseLink(url)) throw new Error(`not a Nova release link: ${url}`);
+    // Release notes' links, and the issue form's: the filed issue, its dump, GitHub's page.
+    if (!isReleaseLink(url) && !isIssueLink(url)) throw new Error(`not a Nova release or issue link: ${url}`);
     await shell.openExternal(url);
   });
 }
@@ -313,6 +317,12 @@ async function startUnguarded(deps) {
   // Always answers the window, so a dev checkout's page reads an empty view.
   bridge = createUpdateBridge({ ipcMain, getWindow: liveWindow, logger });
   wireBridge(bridge);
+  requestIssueForm = createIssueRequest({
+    bridge,
+    getWindow: liveWindow,
+    openExternal: (url) => shell.openExternal(url),
+    logger,
+  });
   const userData = () => appDir('userData');
   const notesSource = createNotesSource({ fetch: (url, init) => net.fetch(url, init), dir: userData, logger });
   const installedTag = () => currentTag;

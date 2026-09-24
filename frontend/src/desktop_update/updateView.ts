@@ -56,6 +56,8 @@ export type UpdateView = {
   installed: string;
   notice: UpdateNotice | null;
   whatsNew: WhatsNew | null;
+  /** Help > File an Issue…: when the operator last asked (ms); a new value opens the issue form. */
+  fileIssueRequestedAt: number | null;
 };
 
 /** What the operator can answer (electron/autoUpdate.mjs wireBridge). */
@@ -152,6 +154,7 @@ export function readUpdateView(value: unknown): UpdateView | null {
     installed: str(raw.installed),
     notice: readNotice(raw.notice),
     whatsNew: readWhatsNew(raw.whats_new),
+    fileIssueRequestedAt: count(obj(raw.file_issue)?.requested_at) || null,
   };
 }
 

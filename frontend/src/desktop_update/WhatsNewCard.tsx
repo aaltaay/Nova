@@ -3,8 +3,10 @@
  * card with the notes of every release the update brought; Help > What's New
  * opens it again. A floating card, not a modal -- the desk stays usable and
  * keyboard focus stays where it was, so hot keys keep working while it is open.
- * Closing it records the version as read (electron/whatsNew.mjs).
+ * Closing it records the version as read (electron/whatsNew.mjs). File an issue opens the desk's
+ * issue form (issue_report/).
  */
+import { openIssueForm } from '../issue_report';
 import { ReleaseNotesList } from './ReleaseNotesList';
 import type { UpdateAction, WhatsNew } from './updateView';
 
@@ -39,6 +41,10 @@ export function WhatsNewCard({ whatsNew, act }: Props) {
         <ReleaseNotesList notes={whatsNew.notes} act={act} />
       </div>
       <footer className="nova-whats-new__foot">
+        {/* Something off after the update, or something to ask for: one click to GitHub. */}
+        <button type="button" className="nova-update-notice__btn" onClick={openIssueForm}>
+          ⚑ File an issue
+        </button>
         <button type="button" className="nova-update-notice__btn nova-update-notice__btn--primary" onClick={close}>
           Got it
         </button>
