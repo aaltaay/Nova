@@ -45,11 +45,13 @@ export function PrereqItemRow({
 }) {
   return (
     <li
-      className={`trading-prereq-item${item.ok ? ' trading-prereq-item--ok' : ' trading-prereq-item--bad'}`}
+      className={`trading-prereq-item${
+        item.ok ? ' trading-prereq-item--ok' : item.unknown ? ' trading-prereq-item--unknown' : ' trading-prereq-item--bad'
+      }`}
       data-testid={`trading-prereq-${item.id}`}
     >
       <span className="trading-prereq-item__mark" aria-hidden>
-        {item.ok ? 'OK' : '!'}
+        {item.ok ? 'OK' : item.unknown ? '?' : '!'}
       </span>
       <div className="trading-prereq-item__body">
         <div className="trading-prereq-item__label">{item.label}</div>

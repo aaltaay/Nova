@@ -40,7 +40,7 @@ import './tradingPrerequisitesGate.css';
 
 export function TradingPrerequisitesGate() {
   const bar = useScannerBarProps();
-  const { ibkrConnected, ibkrGatewayMode } = useWorkspace();
+  const { ibkrConnected, ibkrGatewayMode, ibkrStatusKnown } = useWorkspace();
   const ibkr = useIbkrStatus();
   const [launchBusyMode, setLaunchBusyMode] = useState<DeskLaunchGatewayMode | null>(null);
   const [reconnectBusy, setReconnectBusy] = useState(false);
@@ -60,6 +60,7 @@ export function TradingPrerequisitesGate() {
     () =>
       buildTradingPrerequisites({
         health,
+        ibkrStatusKnown,
         ibkrEnabled: ibkr.enabled,
         ibkrConnected: Boolean((ibkrConnected || ibkr.connected) && !ibkr.stale),
         simMode: ibkr.mode === 'sim' || ibkr.sim === true,
@@ -98,6 +99,7 @@ export function TradingPrerequisitesGate() {
       ibkr.completed_orders_unanswered_since,
       ibkr.gateway_read_only,
       ibkrConnected,
+      ibkrStatusKnown,
     ],
   );
 
