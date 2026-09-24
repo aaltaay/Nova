@@ -67,6 +67,46 @@ describe('barsStore', () => {
     });
   });
 
+  it('parses the last IBKR history failure from coverage (#555)', () => {
+    expect(parseBarsCoverage({
+      filling: true,
+      last_error: 'IBKR historical data did not answer within 20s',
+      last_error_ts: 1_790_000_000.5,
+    })).toEqual({
+      asOf: null,
+      completeThrough: null,
+      filling: true,
+      derivedFrom: null,
+      lastError: 'IBKR historical data did not answer within 20s',
+      lastErrorTs: 1_790_000_000.5,
+    });
+    // A reason without a usable time keeps the reason and states no time.
+    expect(parseBarsCoverage({ filling: true, last_error: 'x', last_error_ts: 'soon' }))
+      .toMatchObject({ lastError: 'x', lastErrorTs: null });
+    // No failure stated: the keys are absent, never an invented empty reason.
+    const quiet = parseBarsCoverage({ filling: true, last_error: null, last_error_ts: null });
+    expect(quiet).not.toHaveProperty('lastError');
+    expect(quiet).not.toHaveProperty('lastErrorTs');
+  });
+
+  it('keeps the failure on the entry a /bars answer writes', async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        bars: [],
+        coverage: { filling: true, last_error: 'IBKR historical data did not answer within 20s', last_error_ts: 5 },
+      }),
+    });
+
+    await ensureBars('TLSA', '5Min');
+
+    expect(getBarsEntry('TLSA', '5Min')?.coverage).toMatchObject({
+      filling: true,
+      lastError: 'IBKR historical data did not answer within 20s',
+      lastErrorTs: 5,
+    });
+  });
+
   it('dedupes in-flight ensureBars calls', async () => {
     let resolveFetch: (v: unknown) => void = () => {};
     const fetchPromise = new Promise((resolve) => {

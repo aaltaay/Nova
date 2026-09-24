@@ -63,9 +63,16 @@ interface UseChartBarsOptions {
 function coverageFromEntry(symbol: string, timeframe: string): {
   filling: boolean;
   asOf: string | null;
+  lastError: string | null;
+  lastErrorTs: number | null;
 } {
   const cov = getBarsEntry(symbol, timeframe)?.coverage;
-  return { filling: Boolean(cov?.filling), asOf: cov?.asOf ?? null };
+  return {
+    filling: Boolean(cov?.filling),
+    asOf: cov?.asOf ?? null,
+    lastError: cov?.lastError ?? null,
+    lastErrorTs: cov?.lastErrorTs ?? null,
+  };
 }
 
 export function useChartBars({
@@ -90,6 +97,9 @@ export function useChartBars({
   const [usingMock, setUsingMock] = useState(false);
   const [filling, setFilling] = useState(false);
   const [coverageAsOf, setCoverageAsOf] = useState<string | null>(null);
+  /** IBKR history did not answer this pane's last fill (coverage `last_error`, #555). */
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyErrorTs, setHistoryErrorTs] = useState<number | null>(null);
   const [indicatorBars, setIndicatorBars] = useState<IndicatorBar[]>([]);
 
   const barsRequestVersionRef = useRef(0);
@@ -130,6 +140,8 @@ export function useChartBars({
     const next = coverageFromEntry(sym, tf);
     setFilling(next.filling);
     setCoverageAsOf(next.asOf);
+    setHistoryError(next.lastError);
+    setHistoryErrorTs(next.lastErrorTs);
   }, []);
 
   const applyStoreBars = useCallback((
@@ -247,6 +259,8 @@ export function useChartBars({
     setEmpty(false);
     setFilling(false);
     setCoverageAsOf(null);
+    setHistoryError(null);
+    setHistoryErrorTs(null);
     const existing = getBarsEntry(symbol, timeframe);
     if (existing && existing.bars.length > 0 && Boolean(existing.coverage?.replay) === sim) {
       applyCoverage(symbol, timeframe);
@@ -373,5 +387,8 @@ useEffect(() => {
   }, [symbol, timeframe, chartActive, filling, indicatorBars.length, fetchBars]);
 
   const emptyText = empty ? chartEmptyText(sim, replay.target, discoveryProvider) : null;
-  return { loading, error, emptyText, usingMock, indicatorBars, filling, coverageAsOf };
+  return {
+    loading, error, emptyText, usingMock, indicatorBars, filling, coverageAsOf,
+    historyError, historyErrorTs,
+  };
 }

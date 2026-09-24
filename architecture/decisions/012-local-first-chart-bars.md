@@ -34,6 +34,8 @@ IB's documented limits are the opposite of that model: 50 simultaneous historica
 
 **Amendment (2026-09-23, a timeout is not "no bars"):** ib_async answers a `reqHistoricalDataAsync` that reaches its timeout with an empty list, not an error, and Nova took that as IBKR's answer. The empty payload went into the TTL cache (15 minutes for 1Day). The store recorded a finished fill with no bars. The empty `bars_patch` replaced a painted pane and turned its `filling` off, which stopped its retry. When IBKR's HMDS farm dropped at 21:46 ET that evening, every pane the operator opened sat empty. An empty answer that took (nearly) the whole timeout (`ibkr.bars.historical_timed_out`) is now a failure (504): nothing is cached, stored or pushed, the pane stays `filling` and its capped retry asks again. A quick empty answer (Error 162 / Warning 165, no data) stays a stated absence. On the client an empty `bars_patch` never replaces bars a pane already holds (`barsStore.applyBarsPatch`), the rule an empty `/bars` answer already followed.
 
+**Amendment (2026-09-24, #555, the pane says why and the retry backs off):** The amendment above kept a failed fill honest on the backend, but the reason never reached the pane: it said "Loading IBKR historical…" for the whole outage. And because a timed-out send is (rightly) counted against pacing but the identical-request cooldown (15 s) is shorter than the 20 s timeout, every pane retry was allowed to send the same request again at once -- 51 of 60 of the 10-minute budget were spent by 21:50 ET, so charts were slow to recover after the farm came back too. `ibkr/historical_failures.py` now remembers the last failure per (symbol, timeframe): a 504 timeout or a 502 error answer / failed qualify, not a Gateway-down 503 or a 400 / 404, cleared by the next success, forgotten after `IBKR_HISTORICAL_FAILURE_MEMORY_SEC` (300 s) when nobody asks again. `/bars` coverage and every `bars_patch` carry it as `last_error` / `last_error_ts` (null when none); it lives in memory only and never goes into `bars_coverage`, because it describes this process's recent sends, not the stored series. A failed pair is shed for every priority for `IBKR_HISTORICAL_FAILURE_BACKOFF_SEC` (30 s) -- not rescheduled: the pane's own capped retry drives the next attempt, so a pane nobody watches stops asking. The pane reads "IBKR history did not answer — retrying" with the reason and its time (`chart/ChartFillingStatus.tsx`), and a painted pane's header hint says the same. Rejected: persisting the failure (a restart is a fresh start with IBKR), a longer identical-request cooldown for everyone (it would slow every healthy re-fill to punish the failing ones), and an exponential per-pair backoff (the pane's retry already backs off; a fixed short window is enough to keep one pane from spending the budget and easier to state).
+
 6. **Historicals leave `cold_slot`.** Snapshots and completed-orders keep the cold lock. Chart fills no longer wait behind them.
 
 ## Consequences
@@ -57,10 +59,12 @@ IB's documented limits are the opposite of that model: 50 simultaneous historica
 
 - `backend/ibkr/historical_service.py`
 - `backend/ibkr/historical_pacing.py`
+- `backend/ibkr/historical_failures.py`
 - `backend/bars_store.py`
 - `backend/ibkr/l1_minute.py`
 - `backend/archive/write_queue.py`
 - `backend/chart_bars.py`
 - `frontend/src/chart/barsStore.ts`
 - `frontend/src/chart/chartBarsStuckRetry.ts`
+- `frontend/src/chart/ChartFillingStatus.tsx`
 - `.cursor/rules/single-market-data-feed.mdc`

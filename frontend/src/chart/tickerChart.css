@@ -84,6 +84,19 @@
   color: var(--text-secondary);
 }
 
+/* IBKR history did not answer: the headline, then the backend's reason (#555). */
+.chart-overlay--retrying {
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0 1rem;
+  text-align: center;
+}
+
+.chart-overlay-detail {
+  color: var(--text-muted, #9aa3b2);
+  font-size: 0.72rem;
+}
+
 /* No bars is a stated absence in muted text, never the red error (QA V9). */
 .chart-overlay--empty {
   color: var(--text-muted, #9aa3b2);
