@@ -22,6 +22,12 @@ export interface TradeData {
   timestamp: string | null;
   /** Absent on REST snapshots; set from the socket's trade updates. */
   source?: TradeUpdateSource;
+  /**
+   * The day's running volume that came with this socket trade update (IBKR's
+   * RTVolume total, else tick 8). Absent on REST snapshots and when the update
+   * carried none -- never another source's figure.
+   */
+  day_volume?: number | null;
 }
 
 export interface QuoteData {

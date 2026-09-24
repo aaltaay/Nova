@@ -14,6 +14,7 @@ from l2 import features as l2_features
 from sensors import rings
 from sensors.envelope import build_envelope
 from sensors.feeds import get_book, get_prints, get_quote, peek_avg_volume
+from setup_scanner import tape_flow
 
 
 def _levels(side: list[dict[str, Any]], n: int) -> list[dict[str, Any]]:
@@ -172,6 +173,17 @@ def _print_side(row: dict[str, Any]) -> str:
     return "unknown"
 
 
+def _flow_score(symbol: str, now: float) -> dict[str, Any]:
+    """The tape flow score (ADR 034) with the default template's numbers, over the sensor rings.
+
+    The rings vouch only from their oldest print on, so the pace baseline never
+    counts time before it as a quiet tape."""
+    prints = rings.recent_prints(symbol)
+    books = [(float(b.get("ts") or 0), b) for b in rings.recent_books(symbol)]
+    since = min((float(p.get("ts")) for p in prints if isinstance(p.get("ts"), (int, float))), default=None)
+    return tape_flow.evaluate(now=now, books=books, prints=prints, history_from=since)
+
+
 def read_flow(symbol: str) -> dict[str, Any]:
     prints, tape_source = get_prints(symbol)
     book, book_source = get_book(symbol)
@@ -197,7 +209,9 @@ def read_flow(symbol: str) -> dict[str, Any]:
             "replenish_events": rates.get("replenish_events"),
             "cancel_events": rates.get("cancel_events"),
             "has_book": book is not None,
-            "note": "Observations from existing tape/book rings. No new IB subscription.",
+            "score": _flow_score(symbol, time.time()),
+            "note": "Observations from existing tape/book rings. No new IB subscription. score: the tape "
+                    "flow score (-1 sellers .. +1 buyers) with the default template's numbers.",
         },
         error=None if (prints or book) else "No tape or book yet for flow events.",
     )

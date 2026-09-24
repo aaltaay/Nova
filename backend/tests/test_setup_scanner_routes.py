@@ -43,7 +43,7 @@ def test_scoreboard_and_rows_read_the_store(monkeypatch, tmp_path):
     body = client.get("/api/setups/scoreboard", params={"days": 0}).json()
     assert body["days"] == 0 and body["date_from"] is None
     assert body["row_count"] == 1 and body["summary"]["all"]["armed"] == 1
-    assert set(body["summary"]["by"]) == {"tape_at_trigger", "grade", "session", "kind"}
+    assert set(body["summary"]["by"]) == {"tape_at_trigger", "flow_at_trigger", "grade", "session", "kind"}
     day = body["rows"][0]["session_date"]
     rows = client.get("/api/setups/rows", params={"date": day, "symbol": SYM.lower()}).json()["rows"]
     assert len(rows) == 1 and rows[0]["symbol"] == SYM

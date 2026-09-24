@@ -886,6 +886,71 @@ silently. `setups.db` is schema 3: rows add `setup_type` and `detail`
 setup's template in play at once, oldest armed first (the Bots page timeline;
 with `template=all`, every template's rows).
 
+### The tape flow score and the flush exit (ADR 034, operator ask 2026-09-24)
+
+"Can my bots detect if we are seeing flush like this so we can exit a position
+or burst of greens where we can enter ... just a small piece of the final
+decision." Owner `setup_scanner/tape_flow.py` (pure). A **flow reading** is
+`{score: number | null, label: "burst" | "flush" | "neutral" | "quiet" |
+"blind", readings: {imbalance, pace, drift, book}, metrics: {window_sec,
+ask_shares, bid_shares, ask_prints, bid_prints, between_shares, pace_ratio,
+baseline_sec, drift_pct, bid_depth, ask_depth, best_bid, best_ask}}`: each
+reading from -1 (sellers) to +1 (buyers) and `null` when Nova cannot take it
+(no fresh book, a baseline shorter than the window, one price) -- never 0; the
+score is the weighted mean of the known readings (`null` with none); `quiet`
+is too little tape at the bid or the ask to say, `blind` no print and no book.
+Lit prints only (FINRA / TRF / ADF out), a `between` print counts for no side,
+the drift reads only prints that set a price, and the baseline never counts
+time before the feed could see the tape. Every number is a template parameter
+(the catalogue's `flow` group on every setup with a scanner): `flow_window_sec`,
+`flow_baseline_sec`, `flow_min_prints`, `flow_min_shares`, `flow_w_imbalance`,
+`flow_w_pace`, `flow_w_drift`, `flow_w_book` (not all zero), `flow_pace_full`,
+`flow_drift_full_pct`, `flow_book_levels`, `flow_burst_at`, `flow_flush_at`;
+and the two choices below, whose defaults are the pre-registered rules.
+
+**Entry** (`tape_entry: "gate" | "score" | "both"`, `flow_entry_min`): `gate` is
+ADR 022's print counts; `score` keeps the vetoes and a seller that is not
+thinning and replaces the print counts with the score at or over the minimum
+(a quiet or blind flow waits); `both` needs both. Every tape read (a board row's
+`tape`, `setups.db` `trigger_tape`) adds `flow` (the reading) and
+`metrics.flow_score` / `metrics.entry_mode`; `near_tape` and the trigger event
+the bot hears add `flow: {score, label}`.
+
+**Exit** (`flush_exit: "off" | "tighten" | "exit"`, `flush_hold_sec`,
+`flush_trail_r`, `flush_min_r` nullable): a `flush` at least `flush_hold_sec`
+after the entry -- with `flush_min_r`, only while the trade is up that many R --
+moves the stop up to `flush_trail_r` R under the price (never down) or gets out
+at the bid (`tape_flow.flush_action`). Every lane reads each triggered setup's
+flow every `TAPE_FLOW_EVAL_SEC` through its scoring window
+(`setup_scanner/lane_flow.py`; the live engine keeps that symbol's tape); the
+scoring exit applies the rule (`bar_exit_reason` adds `flush` / `flush_runner` /
+`flush_stop` / `flush_stop_runner`; a backtest row adds `flush_action`,
+`flush_at`, `stop_now`), and Nova's bot applies the same rule from its own fill
+to its trade (`bot/first_pullback/flush.py`; the trade's `exit_reason` adds
+`flush`, a tightened stop is a `bot_trade` `note`) from the scanner's newest
+reading (`SetupEngine.flow_reading(setup_id)`, never older than
+`TAPE_FLOW_READING_STALE_SEC`). The eyes' journal adds `flow` (a turn into or
+out of a burst or a flush after a trigger: `label`, `was`, `score`, `readings`,
+`price`, `since_trigger`) and `flush` (`action`, `score`, `price`, `bid`,
+`stop`, `exit_px`, `mode`). The scoreboard summary's `by` adds
+`flow_at_trigger`; a fill count of three covers `flush_runner` /
+`flush_stop_runner`. `/sensors/flow` adds `score` (a flow reading with the
+default numbers over the sensor rings; `SENSOR_TAPE_RING` 4,000 prints).
+
+**Measuring it.** `eyes/flow_study.py` (`tools/flow_study.py`, read-only) reads
+each recorded second through the score and measures the mid's move 10 s to 5 min
+later -- never across a gap -- answering `{schema_version: 1, params, study,
+recordings, seconds, seconds_by_label, onsets: {burst | flush: {HORIZON: {n,
+mean_bp, median_bp, up_pct, t}}}, onset_spread_bp, onsets_by_context: {burst |
+flush: {after_rise | after_fall | flat | unknown: ...}}, separation_bp,
+by_label, by_bucket}`. `POST /api/eyes/backtests` adds `variants: [{name?,
+base?, values}]` (at most `EYES_BACKTEST_MAX_VARIANTS`): templates made for the
+run only (`var-NN`), never stored; a variant's manifest entry adds `variant:
+true`, `base`, `overrides`, and every template's summary adds `exits`, `flush`
+and `vs_base: {base, paired, avg_r_delta, better, worse, same} | null` -- the
+same setups (day, symbol, leg) against the run's first template.
+`tools/eyes_backtest.py sweep` builds the variants from a grid.
+
 ### Catalysts (ADR 024)
 
 One pure classifier, `backend/catalysts/classify.py` (rules and `CATALYST_RULES_VERSION` in
@@ -1779,6 +1844,27 @@ from 07:29 ET: an APUS SELL limit at 4.96 sat while APUS printed 5.00.
 
 `GET /api/ticker/{symbol}/bars` on the IBKR store-first path (not a Sim replay, not Alpaca) and every `bars_patch` frame on `/ws/ticker/{symbol}` carry, in `coverage` beside `filling`, `last_error: string | null` and `last_error_ts: number | null` (epoch seconds): the backend's reason and time for the last historical fetch of that (symbol, timeframe) that IBKR did not answer -- a timeout (504) or an error answer / failed qualify (502), never a Gateway-down 503 or a 400 / 404. Both are `null` when there is none; a success clears the pair at once, and a failure nobody has asked about again is forgotten after `IBKR_HISTORICAL_FAILURE_MEMORY_SEC` (owner `ibkr/historical_failures.py`, in memory only, never stored in `bars_coverage`). A failed pair is not sent to IBKR again, for any priority, for `IBKR_HISTORICAL_FAILURE_BACKOFF_SEC`: the request is shed and the pane's own retry asks again, so a farm outage stops spending the 60 / 10 min budget. A pane with no bars that is filling with `last_error` set reads "IBKR history did not answer — retrying" with the reason, not "Loading IBKR historical…"; a painted pane's header hint says the same.
 
+### The forming candle's volume (operator report, 2026-09-24)
+
+"i do not see a volume coming up": a chart pane draws its forming candle from
+`/ws/ticker/{symbol}` `trade_update` frames, which carry a price and the day's
+running volume (`volume`: IBKR's RTVolume total, else tick 8) but no bar. The
+bar store refreshes from IBKR history at most every
+`IBKR_BARS_STORE_FRESH_INTRADAY_SEC` (the pane asks every `CHART_REFETCH_SEC`),
+so the forming bar's volume used to appear only after the bar closed. Minute
+and hour panes now count it on the desk (`chart/liveTradeApply.ts`): a bar's
+volume is what the day volume grew by between its first update and its last.
+The first day volume a pane sees is a baseline, so the bar it joined mid-way
+has no live count -- the store's figure, or nothing, never a partial one. A
+total that goes down restarts the baseline and leaves that bar unknown. Updates
+arrive on price changes, so shares traded at an unchanged price just before a
+bar closes count in the next bar; the store's bar replaces a closed bar's figure
+when it lands, and a forming bar shows the larger of the two counts. 10Sec
+volume stays the tape's own prints and daily volume the store's. No wire field
+changed. A store refresh no longer rebuilds the forming candle from the last
+trade (which flattened its open, high and low to one price every 30 s): the
+live tip is put back on top, merged with the store's bar for the same minute.
+
 ### Why it's moving (ADR 028, operator ask 2026-09-23)
 
 `GET /api/why/{symbol}` (owner `backend/move_reason/`, read-only, no network wait; rules
@@ -2122,6 +2208,8 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 | Date | Change | Author |
 |------|--------|--------|
 | 2026-09-24 | A practice send answers when the venue answers (operator report: "This is extremely dangerous. Why are things not getting sent fast enough?"): the Paper ticket read "Placing..." for five seconds after its order filled. The practice broker's notice of a fill at placement reached a watch the send then replaced, and a resting order sent none, so the execution door's acknowledgment wait ran out its full 5 s -- 21 of 23 Paper orders that day, fills in under 150 ms. The broker's own answer is now the acknowledgment (`practice/watch.note_answer`); a replace answers the same way; an order the venue cancels at the fill is refused in its own words instead of reading as placed. Live is unchanged (its record: IBKR's first status in 40 ms to about 1 s). `tools/order_timing.py` prints each order's stages from the running backend. §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-09-24 | The tape flow score and a flush exit (ADR 034; operator ask on a GLND flush in Time & Sales: "can my bots detect ... flush ... so we can exit a position or burst of greens where we can enter ... a small piece of the final decision", then "fine tune the SHIT out of this ... hybrid creative solution and mixing it in the strategies"). One score from -1 to +1 (ask vs bid shares, pace against the tape's own baseline, price move, book depth; an unknown reading drops out, never 0) with every number a template parameter; a template may enter on the score instead of the gate's print counts, and tighten or exit on a flush -- the scoring exit and Nova's bot follow one rule; the defaults are the pre-registered rules. The flow study reads every recorded second (15 recordings: a flush after a rise was followed by -43 bp over a minute; a burst from a flat minute faded) and backtests sweep run-only template variants against a base. §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-09-24 | The forming candle carries its volume (operator report: "i do not see a volume coming up", 1-minute and 5-minute): the live candle was drawn from price ticks only and its volume waited up to ~75 s for the bar store, and every 30 s store refresh flattened the forming candle to one price. Minute and hour panes now count the forming bar's volume from the day volume every trade update already carries, only for bars whose start the pane saw, and a refresh puts the live tip back instead of rebuilding it. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Ctrl+F finds on the page (operator ask: "can we also do like CTRL+F so maybe we can search on anything in that screen instead of looking everywhere?"): the desktop app had no find at all (Electron ships none). Every window now gets a find bar (`ux/findBar.ts`, searching with `ux/findText.ts`): it marks every shown match, moves with Enter / Shift+Enter, follows the live desk as it changes without scrolling on its own, leaves Ctrl+F to a trading hotkey bound to it, and keeps every key typed in it away from the page. The shortcuts menu lists it. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Which backend answers, and a reload that is one (operator reports after ADR 031 shipped: "weren't we supposed to see scanners here?", "i clicked the 'reload backend' button, does it still work?", "something in the software title that shows us what backend v### we are using"): the desk had updated while the backend still ran the morning's code, so the Bots page called three built scanners "No scanner yet", and the desktop app's Reload backend said "Backend reloaded" while the same process kept answering -- the installed app looked for the stop script beside itself, found none and re-attached. `/api/health` names its `release_tag`, the window title shows the backend's revision after the desk's and flags an older one, the desktop reload restarts an attached engine from its own checkout and succeeds only on a new `instance_id`, and the Bots page says a backend older than ADR 031 needs a reload. The setup radio now reads "the bot trades this": every scanner runs at once, Eyes on as many as you like, and only the one the bot trades by itself is picked. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Update takes the newest release (operator report: "when the app detected v1004, there was v1005 already in the pipeline but it didn't catch it"): the desk found v1004 at 10:42 ET; v1005 shipped at 11:30; Update at 13:20 downloaded v1004 from the morning's answer, because re-checks hold 07:00-16:00 and Update never asked again. An Update click on an offer older than a minute now checks GitHub first and downloads the newest release (`frontend/electron/newestRelease.mjs`); the check stays off the notice, and a failed one downloads the release on offer. §8 amended. | User Directive + Claude Opus 5.5 |

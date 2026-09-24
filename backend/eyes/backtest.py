@@ -17,6 +17,14 @@ plus ``date`` / ``symbol``), ``events.jsonl`` (journal-shaped lines, ``source:
 split, ``readout`` the §2g rules applied to the run as if it were live).
 Invalidation: none -- a run is a record. Never ``setups.db``, never the live
 read-out: Strategy is earned on live evidence only.
+
+ADR 034: a run may add **variants** -- templates made for this run only, a base
+template's values with some parameters changed, never stored -- so a sweep can
+try many numbers on the same recordings. A variant's manifest entry adds
+``variant: true``, ``base`` and ``overrides``; every template's summary adds
+``exits`` (scoring exits by reason), ``flush`` (what a flush did) and
+``vs_base``: the same setups (same symbol, day and leg) paired with the run's
+first template -- ``{base, paired, avg_r_delta, better, worse, same}``.
 """
 from __future__ import annotations
 
@@ -33,10 +41,12 @@ from typing import Any, Callable
 from constants_bot import BOT_SETUP_FIRST_PULLBACK, BOT_SETUPS_WITH_SCANNER
 from constants_eyes import (
     EYES_BACKTEST_MAX_SESSIONS,
+    EYES_BACKTEST_MAX_VARIANTS,
     EYES_BACKTEST_RUNS_LISTED,
     EYES_BACKTESTS_DIRNAME,
     EYES_REPLAY_SOURCE_BACKTEST,
     EYES_SCHEMA_VERSION,
+    EYES_VARIANT_ID_PREFIX,
 )
 
 logger = logging.getLogger(__name__)
@@ -77,6 +87,59 @@ def _templates(template_ids: list[str] | None, setup: str = BOT_SETUP_FIRST_PULL
     return [known[tid] for tid in template_ids]
 
 
+def variant_templates(setup: str, variants: list[dict] | None) -> list[Any]:
+    """Templates for this run only: each a base template's values with ``values`` over them, never stored."""
+    from setup_templates import catalogue
+    from setup_templates.catalogue import TemplateError
+    from setup_templates.store import Template, get_store
+
+    if not variants:
+        return []
+    if len(variants) > EYES_BACKTEST_MAX_VARIANTS:
+        raise TemplateError(f"a run takes at most {EYES_BACKTEST_MAX_VARIANTS} variants", "variants",
+                            code="TEMPLATE_INVALID")
+    known = {t.id: t for t in get_store().templates(setup) if not t.error}
+    out = []
+    for i, v in enumerate(variants, 1):
+        base_id = str(v.get("base") or "default")
+        base = known.get(base_id)
+        if base is None:
+            raise TemplateError(f"no usable {setup.replace('_', ' ')} template {base_id}", base_id,
+                                code="TEMPLATE_UNKNOWN")
+        overrides = dict(v.get("values") or {})
+        values = catalogue.validate(setup, overrides, base=base.values)
+        name = str(v.get("name") or "").strip() or (
+            ", ".join(f"{k}={overrides[k]}" for k in sorted(overrides)) or f"{base.name} (base)")
+        t = Template(setup=setup, id=f"{EYES_VARIANT_ID_PREFIX}{i:02d}", name=name[:120], rev=1, values=values,
+                     note=f"backtest variant of {base_id}")
+        t.base_id, t.overrides = base_id, overrides   # type: ignore[attr-defined]
+        out.append(t)
+    return out
+
+
+def _pair_key(row: dict) -> tuple:
+    return (row.get("date"), row.get("symbol"), row.get("leg_t"), row.get("setup_type"))
+
+
+def _vs_base(mine: list[dict], base: list[dict], base_id: str) -> dict[str, Any]:
+    """The same setups (symbol, day, leg) scored by this template and by the run's first one."""
+    theirs = {_pair_key(r): r for r in base if r.get("bar_r") is not None}
+    deltas = [float(r["bar_r"]) - float(theirs[_pair_key(r)]["bar_r"]) for r in mine
+              if r.get("bar_r") is not None and _pair_key(r) in theirs]
+    return {"base": base_id, "paired": len(deltas),
+            "avg_r_delta": round(sum(deltas) / len(deltas), 3) if deltas else None,
+            "better": sum(1 for d in deltas if d > 1e-9), "worse": sum(1 for d in deltas if d < -1e-9),
+            "same": sum(1 for d in deltas if abs(d) <= 1e-9)}
+
+
+def _counts(rows: list[dict], key: str) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for r in rows:
+        if r.get(key):
+            out[str(r[key])] = out.get(str(r[key]), 0) + 1
+    return dict(sorted(out.items()))
+
+
 def summarize_run(rows: list[dict], templates: list[Any], sessions_ok: int) -> dict[str, Any]:
     from setup_scanner.readout import evaluate
     from setup_scanner.summary import summarize
@@ -84,24 +147,37 @@ def summarize_run(rows: list[dict], templates: list[Any], sessions_ok: int) -> d
     from constants_setups import SETUPS_READOUT_KIND, SETUPS_READOUT_KINDS
 
     out: dict[str, Any] = {}
+    first = templates[0].id if templates else None
+    base_rows = [r for r in rows if r.get("template_id") == first]
     for t in templates:
         mine = [r for r in rows if r.get("template_id") == t.id]
         kind = SETUPS_READOUT_KINDS.get(getattr(t, "setup", BOT_SETUP_FIRST_PULLBACK), SETUPS_READOUT_KIND)
         out[t.id] = {"name": t.name, "rev": t.rev, "sessions": sessions_ok, "summary": summarize(mine),
-                     "readout": evaluate(mine, {"id": t.id, "rev": t.rev, "name": t.name}, kind)}
+                     "readout": evaluate(mine, {"id": t.id, "rev": t.rev, "name": t.name}, kind),
+                     "exits": _counts(mine, "bar_exit_reason"), "flush": _counts(mine, "flush_action"),
+                     "vs_base": _vs_base(mine, base_rows, first) if t.id != first else None}
     return out
+
+
+def _run_templates(template_ids: list[str] | None, setup: str, variants: list[dict] | None) -> list[Any]:
+    """The stored templates asked for (every one when none are named and no variant is), then the variants."""
+    made = variant_templates(setup, variants)
+    if made and not template_ids:
+        return made
+    return _templates(template_ids, setup) + made
 
 
 def run(*, template_ids: list[str] | None = None, sessions: list[tuple[str, str]] | None = None,
         run_id: str | None = None, load: Callable[[str, str], Any] | None = None,
-        progress: Callable[[int, int], None] | None = None, setup: str = BOT_SETUP_FIRST_PULLBACK) -> dict[str, Any]:
+        progress: Callable[[int, int], None] | None = None, setup: str = BOT_SETUP_FIRST_PULLBACK,
+        variants: list[dict] | None = None) -> dict[str, Any]:
     """Run synchronously; returns the finished manifest. Writes as it goes, so a crash leaves a partial run."""
     from eyes.recording import load as load_recording
     from eyes.recording import usable_sessions
     from eyes.replay import EyesReplay
     from eyes.journal import line
 
-    templates = _templates(template_ids, setup)
+    templates = _run_templates(template_ids, setup, variants)
     todo = list(sessions) if sessions else usable_sessions()
     todo = todo[:EYES_BACKTEST_MAX_SESSIONS]
     run_id = run_id or time.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
@@ -111,7 +187,8 @@ def run(*, template_ids: list[str] | None = None, sessions: list[tuple[str, str]
         "schema_version": EYES_SCHEMA_VERSION, "run_id": run_id, "created_at": time.time(), "finished_at": None,
         "status": "running", "error": None, "setup": setup,
         "templates": [{"id": t.id, "rev": t.rev, "name": t.name, "params_hash": t.fingerprint, "values": t.values}
-                      for t in templates],
+                      | ({"variant": True, "base": t.base_id, "overrides": t.overrides}
+                         if hasattr(t, "base_id") else {}) for t in templates],
         "sessions": [],
     }
     _write_json(folder / "manifest.json", manifest)
@@ -152,12 +229,12 @@ def run(*, template_ids: list[str] | None = None, sessions: list[tuple[str, str]
 
 
 def start(*, template_ids: list[str] | None = None, sessions: list[tuple[str, str]] | None = None,
-          setup: str = BOT_SETUP_FIRST_PULLBACK) -> dict[str, Any]:
+          setup: str = BOT_SETUP_FIRST_PULLBACK, variants: list[dict] | None = None) -> dict[str, Any]:
     """Start a run on a worker thread; returns its id at once (the route answers 202)."""
-    _templates(template_ids, setup)    # refuse an unknown setup or template before a thread starts
+    _run_templates(template_ids, setup, variants)   # refuse an unknown setup, template or value before a thread
     run_id = time.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
     thread = threading.Thread(target=run, kwargs={"template_ids": template_ids, "sessions": sessions,
-                                                  "run_id": run_id, "setup": setup},
+                                                  "run_id": run_id, "setup": setup, "variants": variants},
                               name=f"eyes-backtest-{run_id}", daemon=True)
     with _runs_lock:
         _running[run_id] = thread

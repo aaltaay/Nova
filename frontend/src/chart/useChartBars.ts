@@ -55,7 +55,12 @@ interface UseChartBarsOptions {
   volSeriesRef: React.RefObject<ISeriesApi<'Histogram'> | null>;
   lastCandleRef: React.RefObject<CandlestickData<Time> | null>;
   lastTrade: ChartTradeUpdate | null | undefined;
-  applyLiveTrade: (trade: ChartTradeUpdate, tf: string) => void;
+  /** After a store paint: put the live tip (candle and volume) back on top. */
+  restoreAfterStorePaint: (
+    storeTipVolume: number | null,
+    trade: ChartTradeUpdate | null | undefined,
+    tf: string,
+  ) => void;
   onSeriesReset: () => void;
   chartActive?: boolean;
 }
@@ -83,7 +88,7 @@ export function useChartBars({
   volSeriesRef,
   lastCandleRef,
   lastTrade,
-  applyLiveTrade,
+  restoreAfterStorePaint,
   onSeriesReset,
   chartActive = true,
 }: UseChartBarsOptions) {
@@ -195,10 +200,9 @@ export function useChartBars({
       setIndicatorBars(painted.indicators);
     }
     setError(null);
-    const liveTrade = lastTradeRef.current;
-    if (liveTrade?.price && liveTrade.timestamp) applyLiveTrade(liveTrade, timeframe);
+    restoreAfterStorePaint(next.at(-1)?.v ?? null, lastTradeRef.current, timeframe);
   }, [
-    applyLiveTrade,
+    restoreAfterStorePaint,
     candleSeriesRef,
     carryViewport,
     chartRef,

@@ -110,6 +110,19 @@ export const TAPE_VERDICT_TIPS: Record<string, string> = {
 };
 export const TAPE_UNREAD_TIP = 'The tape is read only once a setup is armed or near its trigger.';
 
+/** The tape flow score's labels (ADR 034): one number, -1 sellers .. +1 buyers. */
+export const TAPE_FLOW_LABEL_WORDS: Record<string, string> = {
+  burst: 'a burst of buying',
+  flush: 'a flush of selling',
+  neutral: 'neither side winning',
+  quiet: 'too little tape to say',
+  blind: 'no tape and no book',
+};
+/** The four readings the flow score averages, in the order the tip lists them. */
+export const TAPE_FLOW_READING_WORDS: [string, string][] = [
+  ['imbalance', 'ask vs bid'], ['pace', 'pace'], ['drift', 'price move'], ['book', 'book'],
+];
+
 /** The grade's hover head: what A / B / C mean (the pillars follow). */
 export const SETUP_GRADE_TIP =
   'Grade: the Five Pillars when the setup armed. A = all five pass, B = four, C = three or fewer. An unknown pillar counts as not passing, never as failed.';
