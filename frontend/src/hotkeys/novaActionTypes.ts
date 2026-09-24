@@ -36,3 +36,14 @@ export type NovaActionResult = {
     mode?: string | null;
   };
 };
+
+/**
+ * A result as the dispatcher publishes it (`lastResult`): `seq` changes on
+ * every run, so a repeat of the same text is still a new outcome, and
+ * `symbol` is the one the action ran on -- the ticket for that symbol shows
+ * it on its Last line (QA R35).
+ */
+export type NovaActionOutcome = NovaActionResult & {
+  seq: number;
+  symbol: string | null;
+};

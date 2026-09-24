@@ -1,6 +1,6 @@
 /** Trading action bar — Open / Close.
  * Reuses the IBKR order API; does not invent a second order path. */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   APP_DIALOG_FLATTEN_LABEL,
   CLOSE_POSITION_ACCOUNT_ERROR_TITLE,
@@ -10,8 +10,7 @@ import {
   STOCK_VIEW_MODULE_OPEN_TITLE,
   TICKER_TRADE_ORDER_DISCLOSURE,
 } from '../constants';
-import { NovaActionRuntimeSync } from '../hotkeys/NovaActionRuntimeSync';
-import { TradingQuickBar } from '../hotkeys/TradingQuickBar';
+import { NovaActionRuntimeSync, TradingQuickBar, useHotkeyDispatchOptional } from '../hotkeys';
 import { confirmApp } from '../ux';
 import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
@@ -65,10 +64,28 @@ export function TickerTradeActionBar({
   const [closing, setClosing] = useState(false);
   // `seq` lets the ticket's Last line show each new Flatten outcome: the rail
   // hides this bar's own footer, so a result or refusal written only there
-  // was never seen (QA R32).
+  // was never seen (QA R32). It only counts up -- a Flatten clears the line
+  // first, and a count that restarted from there could repeat the last seq
+  // the ticket saw and be skipped.
   const [resultMsg, setResultMsgState] = useState<{ ok: boolean; text: string; seq: number } | null>(null);
-  const setResultMsg = (next: { ok: boolean; text: string } | null) =>
-    setResultMsgState((prev) => (next ? { ...next, seq: (prev?.seq ?? 0) + 1 } : null));
+  const resultSeq = useRef(0);
+  const setResultMsg = (next: { ok: boolean; text: string } | null) => {
+    if (next) resultSeq.current += 1;
+    setResultMsgState(next ? { ...next, seq: resultSeq.current } : null);
+  };
+
+  // A Nova Action on this symbol ("Exit order #N", a refusal) lands on the
+  // same Last line (QA R35): only outcomes published after this bar mounted,
+  // each once by its `seq`, so a repeat of the same text still shows.
+  const actionResult = useHotkeyDispatchOptional()?.lastResult ?? null;
+  const seenActionSeq = useRef(actionResult?.seq ?? 0);
+  useEffect(() => {
+    if (!actionResult || actionResult.seq <= seenActionSeq.current) return;
+    seenActionSeq.current = actionResult.seq;
+    if ((actionResult.symbol ?? '').trim().toUpperCase() !== symbol.trim().toUpperCase()) return;
+    resultSeq.current += 1;
+    setResultMsgState({ ok: actionResult.ok, text: actionResult.text, seq: resultSeq.current });
+  }, [actionResult, symbol]);
 
   // An unknown status is never read as a Gateway outage (QA D10, #459).
   const gatewayReason = !connected
@@ -168,7 +185,8 @@ export function TickerTradeActionBar({
         position={position}
         accountError={accountError}
       />
-      <TradingQuickBar />
+      {/* Its outcomes land on the ticket's Last line below (QA R35). */}
+      <TradingQuickBar status={false} />
       <div className="ticker-trade-bar-top">
         {showAccount && (
           <div className="ticker-trade-bar-account">

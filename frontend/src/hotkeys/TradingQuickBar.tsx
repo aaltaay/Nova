@@ -20,7 +20,16 @@ import { QuickTradeGearIcon, QuickTradeIcon } from './quickTradeIcons';
 import { quickTradeLabelPieces, quickTradeShortLabel, quickTradeTone } from './quickTradeLabel';
 import { useTopOfBook } from './TopOfBookContext';
 
-export function TradingQuickBar() {
+interface Props {
+  /**
+   * Show the last action's result under the row. A host whose ticket shows
+   * each outcome on its Last line for its own symbol (TickerTradeActionBar,
+   * QA R35) turns it off, so one outcome is not written twice.
+   */
+  status?: boolean;
+}
+
+export function TradingQuickBar({ status = true }: Props = {}) {
   const dispatch = useHotkeyDispatchOptional();
   const settings = useSettingsOptional();
   const { topOfBook } = useTopOfBook();
@@ -86,7 +95,7 @@ export function TradingQuickBar() {
           </button>
         )}
       </div>
-      {dispatch.lastResult && (
+      {status && dispatch.lastResult && (
         <span
           className={`manual-order-result nova-qt__status ${dispatch.lastResult.ok ? 'ok' : 'err'}`}
           role="status"

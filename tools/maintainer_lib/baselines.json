@@ -106,7 +106,6 @@
       "frontend/src/ibkr/ManualOrderTicket.tsx|ibkr imports internals of hotkeys": 1,
       "frontend/src/ibkr/ManualOrderTicket.tsx|ibkr imports internals of sim": 1,
       "frontend/src/ibkr/ManualOrderTicketHeader.tsx|ibkr imports internals of stock_view": 1,
-      "frontend/src/ibkr/TickerTradeActionBar.tsx|ibkr imports internals of hotkeys": 2,
       "frontend/src/ibkr/TradingPrerequisitesGate.tsx|ibkr imports internals of workspace": 1,
       "frontend/src/ibkr/TradingTab.tsx|ibkr imports internals of hotkeys": 1,
       "frontend/src/ibkr/TradingTab.tsx|ibkr imports internals of reports": 1,

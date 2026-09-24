@@ -149,4 +149,17 @@ describe('TradingQuickBar', () => {
     expect(status?.textContent).toBe('Refused PRACTICE_NO_SHORTS');
     expect(status?.classList.contains('err')).toBe(true);
   });
+
+  it('leaves the result to a host whose ticket shows it (QA R35)', () => {
+    state.lastResult = { ok: true, text: 'Exit order #12' };
+    act(() => {
+      root.render(
+        <TopOfBookProvider>
+          <TradingQuickBar status={false} />
+        </TopOfBookProvider>,
+      );
+    });
+    expect(mount.querySelector('[role="status"]')).toBeNull();
+    expect(buttons().length).toBeGreaterThan(0);
+  });
 });
