@@ -953,6 +953,85 @@ and `vs_base: {base, paired, avg_r_delta, better, worse, same} | null` -- the
 same setups (day, symbol, leg) against the run's first template.
 `tools/eyes_backtest.py sweep` builds the variants from a grid.
 
+### The bot's read on one stock (ADR 035, operator ask 2026-09-24, #598)
+
+"Show me the bot's decisions specifically for that stock ... if something is forming, can we start
+highlighting it on the chart? ... all the tiny signals"; then "i want it to tell me my entry/exit
+.. we typically want to aim for 2:1 ratio, like right on top of lvl2". Read-only everywhere: nothing
+here places, stages or cancels an order.
+
+**Every lane for one symbol.** `GET /api/setups/symbol/{symbol}` (owner `setup_scanner/`,
+`symbol_view.py`) answers `{schema_version: 1, generated_at, session_date, symbol, followed:
+boolean, followed_note: string | null, seeding: boolean, setups: SetupLane[]}` -- `followed` false
+(with the note: the scanner follows the HOD Momo names) leaves `setups` empty. A **SetupLane** is
+each setup's template in play: `{setup_type, template: {id, rev, name, params_hash}, level, chosen,
+window: {start, end, state}, rules: {stop_cap, min_stop, target_r, target_mode, entry_offset,
+risk_slippage}, state, reason, kind, nth, setup_id: string | null, leg, setup, forming, last_price,
+distance, grade, pillars, tape: {verdict, reasons, line, metrics, flow} | null, proposal, outcome,
+bar_r, mfe, mae, failed_at, series}` -- the board row's fields for that symbol whatever its state
+(`watching` included), plus `forming` and `series`. `forming` is `{trigger, entry, stop, risk,
+target1, bars, blocked: string | null, waiting: string | null}` or `null`: the levels the setup
+would arm with, computed at the last bar close by the same rule that arms it -- a first pullback or
+bull flag blocked by its risk, MACD or window, a bull flag with fewer flag candles than it needs
+(`waiting` says how many more), a flat top's base blocked, red to green before its red closes or
+with its risk out of the band. `series` is the lane's own indicators at its last closed bar:
+`{bars_as_of, bars, close, ema, macd_line, macd_signal, macd_hist, hod}` (`null` before a bar) --
+the values the gates read, on the scanner's own minutes. Nothing here changes what arms: the board,
+`setups.db` rows and the journal keep their shapes.
+
+**The read.** `GET /api/stock-read/{symbol}?entry=&stop=` (owner `backend/stock_read/`; cache reads
+only, no network wait) answers `{schema_version: 1, symbol, generated_at, session_date, price,
+prev_close, change_pct, followed, followed_note, setups: SetupLane[], no_scanner: [{setup_type,
+label, reason}], plan: Plan | null, levels: Levels, groups: Group[], counts: {ok, warn, bad,
+unknown, info}}`. A **Group** is `{id: "in_play" | "setups" | "front" | "tape" | "short" | "float" |
+"halts", label, question, verdict, value, rows: Row[]}` and a **Row** `{id, label, value, detail:
+string | null, state, source, as_of: number | null}`, where `state` is `ok` (for a long momentum
+trade), `warn`, `bad`, `unknown` (Nova does not know -- the detail says why, never a pass) or `info`
+(a fact that is neither). **Levels** `{hod: {price, ts} | null, pmh: number | null, open: number |
+null, prev_close, vwap: number | null, round_above: number | null, round_below: number | null}`:
+the high of day, the premarket high (today's bars 04:00-09:30 ET only), the 09:30 open (null before
+it), the session VWAP from 04:00 ET, and the nearest half / whole dollar above and below.
+A **Plan** is `{source: "setup" | "manual", setup_type, kind, state: "forming" | "armed" | "near" |
+"triggered" | "manual", provisional: boolean, trigger, entry, stop, target, risk, reward, rr,
+target_rule, entry_rule, stop_rule, grade, reason, tape: {verdict, reasons} | null, flow: {score,
+label} | null, window: {start, end, state} | null, checks: [{id, state, text}], marks: [{price,
+label, kind: "hod" | "vwap" | "pmh" | "round" | "wall" | "open"}]}`. The setup plan is the most
+advanced lane (near, armed, triggered within 30 minutes, then forming; the bot's chosen setup
+first on a tie): entry, stop and target are the lane's own (`setup`, else `forming`, then
+`provisional`), the target the scanner's target 1 (entry + `target_r` x risk, or the leg high when
+higher), `rr` = (target - entry) / risk. With `entry` given the plan is the operator's (`manual`):
+the stop is `stop`, else the lowest low of the last `STOCK_READ_MANUAL_STOP_BARS` closed one-minute
+bars under the entry; the target entry + `STOCK_READ_TARGET_R` x risk. `checks` name what stands in
+the way; `marks` are the obstacles between entry and target (a seller of the tape gate's wait size
+or more on Nova's book). Size is the desk's (the Trader's risk per trade, a desk setting).
+
+`GET /api/stock-read/{symbol}/decisions?date=YYYY-MM-DD` (default today, ET) answers
+`{schema_version: 1, symbol, date, generated_at, summary: {text, legs, armed, near, triggered,
+trades, refusals: [{reason, count}]}, events: Event[], sources: {journal, hod_momo, borrow,
+catalysts, bot: {ok, error}}}` -- one symbol's day, oldest first: the eyes' journal lines of that
+symbol (live source; a run of the same state and reason on one lane is one event with `count` and
+`last_ts`; tape verdict flips fold the same way), the first HOD Momo alert of each strategy and the
+day's count, the borrow changes, the day's catalyst and negative news items, the 09:30 open and the
+high of day, and the bot's own `bot_trade` / `setup_proposal` lines for the symbol. An **Event** is
+`{ts, lane: "first_pullback" | "bull_flag" | "flat_top_breakout" | "red_to_green" | "hod_momo" |
+"market" | "bot", event, title, detail: string | null, count, last_ts: number | null, levels:
+object | null}`. A source that cannot be read is `ok: false` with its error; the others still
+answer.
+
+`GET /api/stock-read/{symbol}/history` answers `{schema_version: 1, symbol, generated_at, daily:
+[{d, o, h, l, c, v}] (the last `STOCK_READ_HISTORY_CHART_DAYS` stored sessions), runs: [{date,
+prior_close, high, close, run_pct, close_pct}] (sessions whose high was `STOCK_READ_RUN_MIN_PCT`
+or more over the prior close, newest first), split: object | null, holdings: Row[]}` -- the Level 2
+Nova recorded, setups armed on the symbol on any day, the latest short interest, and what Nova does
+not keep per symbol yet, said so.
+
+**Fixed with it.** `/sensors/vwap` is the session VWAP from 04:00 ET (the chart's) instead of the
+newest 240 stored bars, and adds `anchor: "04:00 ET"`; `/sensors/halt` answers `halted: null` when
+the state is unknown instead of `false`; `ibkr/shortability.cached(symbol)` returns the last
+snapshot with its age (a read, never a wait), and `/ws/ticker/{symbol}` re-reads shortability every
+`IBKR_SHORTABILITY_TTL_SEC` while the socket is open (the Level 2 "SHORT Unknown" chip asked once
+per tab). The eyes' journal is read by the desk only through the decisions route.
+
 ### Catalysts (ADR 024)
 
 One pure classifier, `backend/catalysts/classify.py` (rules and `CATALYST_RULES_VERSION` in
@@ -1484,7 +1563,8 @@ its own fields (`setup` levels, `grade`, `pillars`, `reason`, `tape` /
 `mfe`, `mae`, `added` / `removed`, `lanes`). `ts` / `date` are the moment and
 session the eyes looked at (a replay's own). A line from a lane adds
 `setup_type` (ADR 031). `NOVA_EYES_JOURNAL=0` turns it off. Read by `tools/eyes_journal.py` (`days | summary | setups | events`) and
-`eyes/reader.py`, never by the desk.
+`eyes/reader.py`; the desk reads one symbol's day only through `GET
+/api/stock-read/{symbol}/decisions` (ADR 035).
 
 **Replayed eyes** (`backend/eyes/replay.py`, `sim_eyes.py`, `backtest.py`): a
 Session Record's prints (per second, the high then the last of the prints that
@@ -2238,6 +2318,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-24 | The bot's read on one stock (ADR 035, #598; operator ask: "show me the bot's decisions specifically for that stock ... if something is forming, can we start highlighting it on the chart? ... all the tiny signals", then "i want it to tell me my entry/exit .. we typically want to aim for 2:1 ratio, like right on top of lvl2"; mockup v1 approved). Every scanner lane answers for one symbol (`GET /api/setups/symbol/{symbol}`), with the levels a forming setup would arm with (computed, then thrown away until now) and its own MACD / 9 EMA; `backend/stock_read/` composes the owners into seven groups of signals, a plan (entry, stop, target at least 2R from the setup's own rule, and what stands in the way), one symbol's day from the eyes' journal (ADR 029 amended: the desk reads it through the decisions route) and its history. The Trader rail shows the plan and seven tiles above Level 2, a sheet lists every signal, and the 1-minute chart draws each setup as it forms. Fixed with it: the VWAP sensor covered only the last 240 bars, the halt sensor read not halted when it did not know, the Level 2 shortability chip asked once per tab, the quote card's second row clipped. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Watch list toasts follow the setups too (operator ask on a "PFSA is running up" toast: "shouldn't these toast notifications be watching if a strategy is forming?"): the toasts listened only to the HOD Momo feed, so a watched symbol's bull flag or first pullback forming, arming, coming near its trigger or triggering said nothing. The toast now also follows the setup scanner's live board: each setup's climb up the ladder raises it once (flicker and the first frame after a load, a reconnect or Sim are read silently), one toast per symbol still, and its setup lines follow the board while it is up. The board names the symbols it follows (`universe_symbols`), so the Watch list tab's new Setup column says "Not followed" for a watched symbol the scanner does not watch (it follows the HOD Momo names only). §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | A practice send answers when the venue answers (operator report: "This is extremely dangerous. Why are things not getting sent fast enough?"): the Paper ticket read "Placing..." for five seconds after its order filled. The practice broker's notice of a fill at placement reached a watch the send then replaced, and a resting order sent none, so the execution door's acknowledgment wait ran out its full 5 s -- 21 of 23 Paper orders that day, fills in under 150 ms. The broker's own answer is now the acknowledgment (`practice/watch.note_answer`); a replace answers the same way; an order the venue cancels at the fill is refused in its own words instead of reading as placed. Live is unchanged (its record: IBKR's first status in 40 ms to about 1 s). `tools/order_timing.py` prints each order's stages from the running backend. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | The tape flow score and a flush exit (ADR 034; operator ask on a GLND flush in Time & Sales: "can my bots detect ... flush ... so we can exit a position or burst of greens where we can enter ... a small piece of the final decision", then "fine tune the SHIT out of this ... hybrid creative solution and mixing it in the strategies"). One score from -1 to +1 (ask vs bid shares, pace against the tape's own baseline, price move, book depth; an unknown reading drops out, never 0) with every number a template parameter; a template may enter on the score instead of the gate's print counts, and tighten or exit on a flush -- the scoring exit and Nova's bot follow one rule; the defaults are the pre-registered rules. The flow study reads every recorded second (15 recordings: a flush after a rise was followed by -43 bp over a minute; a burst from a flat minute faded) and backtests sweep run-only template variants against a base. §3 amended. | User Directive + Claude Opus 5.5 |

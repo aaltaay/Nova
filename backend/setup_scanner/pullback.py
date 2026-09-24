@@ -76,7 +76,7 @@ from constants_setups import (
     SETUPS_TARGET_R,
 )
 from setup_scanner.bars import Bar
-from setup_scanner.detector import TriggerDetector, et_time, hhmm, risk_blocked
+from setup_scanner.detector import TriggerDetector, et_time, forming_levels, hhmm, risk_blocked
 from setup_scanner.series import Series, ema, macd_hist  # noqa: F401 -- callers import them from here
 
 ET = ZoneInfo("America/New_York")
@@ -133,6 +133,7 @@ class PullbackDetector(TriggerDetector):
         """Re-evaluate after a bar completes. ``bars`` is the whole day so far, oldest first."""
         n = len(bars)
         self.series.update(bars)
+        self.forming = None
         if n < self.p.leg_lookback + 2:
             if self.state == SETUP_STATE_WATCHING:
                 self.reason = f"warming up ({n}/{self.p.leg_lookback + 2} bars)"
@@ -218,6 +219,8 @@ class PullbackDetector(TriggerDetector):
             blocked = risk_blocked(self.p, risk)
         if blocked:
             self.armed = None
+            self.forming = forming_levels(trig, entry, pb_low, self.p.target1(leg["high"], entry, risk), bars=m,
+                                          blocked=blocked)
             self._set(SETUP_STATE_PULLBACK, blocked)
             if prev is not None:
                 events.append(("disarmed", self._key_view(prev, reason=blocked)))

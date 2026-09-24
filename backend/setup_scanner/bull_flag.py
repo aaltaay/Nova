@@ -79,7 +79,7 @@ from constants_setups import (
     SETUPS_TARGET_R,
 )
 from setup_scanner.bars import Bar
-from setup_scanner.detector import EPS, TriggerDetector, risk_blocked, window_blocked
+from setup_scanner.detector import EPS, TriggerDetector, forming_levels, risk_blocked, window_blocked
 
 
 @dataclass(frozen=True)
@@ -151,6 +151,7 @@ class BullFlagDetector(TriggerDetector):
     def on_bars(self, bars: list[Bar]) -> list[tuple[str, dict]]:
         n = len(bars)
         self.series.update(bars)
+        self.forming = None
         need = self.p.pole_min_bars + self.p.min_flag_bars
         if n < need:
             if self.state == SETUP_STATE_WATCHING:
@@ -192,6 +193,7 @@ class BullFlagDetector(TriggerDetector):
             return self._fail_or_watch(prev, pole, fault, failed=True)
         if run < self.p.min_flag_bars:
             self.leg, self.armed = pole, None
+            self.forming = self._partial_flag(bars, last, pole, run)
             self._set(SETUP_STATE_LEG, f"pole +{_pct(pole['pct'])}% to {pole['high']:.2f}; {run} red candle so far -- "
                                        f"a flag needs {self.p.min_flag_bars} (one is a micro pullback)")
             if prev is not None:
@@ -214,13 +216,11 @@ class BullFlagDetector(TriggerDetector):
         trig = s.h[last]
         entry = round(trig + p.entry_offset, 4)
         risk = round(entry - flag_low, 4)
-        blocked = window_blocked(p, bars[last].t + 60)
-        if blocked is None and p.macd_positive and s.hist[last] <= 0:
-            blocked = "MACD negative -- not on the front side"
-        if blocked is None:
-            blocked = risk_blocked(p, risk)
+        blocked = self._blocked(bars, last, risk)
         if blocked:
             self.armed = None
+            self.forming = forming_levels(trig, entry, flag_low, p.target1(pole["high"], entry, risk), bars=run,
+                                          blocked=blocked)
             self._set(SETUP_STATE_PULLBACK, f"flag of {run} candles, but {blocked}")
             if prev is not None:
                 events.append(("disarmed", self._key_view(prev, reason=blocked)))
@@ -240,6 +240,28 @@ class BullFlagDetector(TriggerDetector):
         self._set(SETUP_STATE_ARMED, f"flag of {run} under the {pole['high']:.2f} pole: trigger {trig:.2f}, "
                                      f"stop {flag_low:.2f}, risk {risk:.2f}")
         return events + self.arm_events(prev)
+
+    def _blocked(self, bars: list[Bar], last: int, risk: float) -> str | None:
+        """Why a flag ending at ``last`` would not arm: the window, the MACD, then the risk."""
+        p = self.p
+        why = window_blocked(p, bars[last].t + 60)
+        if why is None and p.macd_positive and self.series.hist[last] <= 0:
+            why = "MACD negative -- not on the front side"
+        return why if why is not None else risk_blocked(p, risk)
+
+    def _partial_flag(self, bars: list[Bar], last: int, pole: dict, run: int) -> dict[str, Any]:
+        """A flag shorter than the rule asks: the levels it would arm with if it were complete now
+        (ADR 035) -- what still blocks it, and how many candles it waits for."""
+        s, p = self.series, self.p
+        first = last - run + 1
+        flag_low = min(s.lo[first:last + 1])
+        trig = s.h[last]
+        entry = round(trig + p.entry_offset, 4)
+        risk = round(entry - flag_low, 4)
+        need = p.min_flag_bars - run
+        blocked = self._flag_fault(bars, pole, first, last) or self._blocked(bars, last, risk)
+        return forming_levels(trig, entry, flag_low, p.target1(pole["high"], entry, risk), bars=run, blocked=blocked,
+                              waiting=f"{need} more red or doji candle{'' if need == 1 else 's'}")
 
     # -- the pattern ----------------------------------------------------------
     def _red_run(self, last: int) -> int:

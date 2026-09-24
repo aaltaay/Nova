@@ -101,3 +101,12 @@ class Series:
     def prior_high(self, i: int) -> float | None:
         """max(h[:i]) -- the high of day before bar ``i`` (None for the first bar)."""
         return self.hod[i - 1] if i > 0 else None
+
+    def last_values(self) -> dict[str, float | int] | None:
+        """The indicators at the last completed bar -- the values the gates read (ADR 035) -- or
+        None before the first bar."""
+        if not self.c:
+            return None
+        return {"bars_as_of": self.t[-1], "bars": len(self.c), "close": self.c[-1], "ema": round(self.e[-1], 6),
+                "macd_line": round(self._line[-1], 6), "macd_signal": round(self._sig[-1], 6),
+                "macd_hist": round(self.hist[-1], 6), "hod": self.hod[-1]}

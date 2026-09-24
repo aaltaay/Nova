@@ -23,6 +23,12 @@ and the setup skipped when that gap pushes the risk over the cap.
 A setup's params carry ``entry_cutoff``, ``stop_cap``, ``risk_slippage``,
 ``near_dollars``, ``near_pct``, ``ema_period`` and the MACD periods. Pure: no
 I/O, no clock.
+
+ADR 035: while a setup forms, a detector keeps ``forming`` -- the levels it would
+arm with now, computed by the rule that arms it, with what blocks it or what it
+still waits for -- and ``symbol_view()`` shows them with the lane's own
+indicators. Shown to the desk only: ``forming`` never arms, triggers or scores,
+and ``view()`` (the board, the rows, the journal) does not carry it.
 """
 from __future__ import annotations
 
@@ -66,6 +72,7 @@ class TriggerDetector:
     triggered: dict[str, Any] | None = None
     nth: int = 0                      # setups triggered today on this symbol
     last_price: float | None = None
+    forming: dict[str, Any] | None = None   # the levels it would arm with now (ADR 035); never armed
     series: Series = field(init=False, repr=False)
 
     FIRST_KIND: ClassVar[str] = ""
@@ -171,6 +178,19 @@ class TriggerDetector:
             "setup": dict(setup) if setup else None,
             "last_price": self.last_price,
         }
+
+    def symbol_view(self) -> dict[str, Any]:
+        """``view()`` plus the forming levels and the lane's own indicators (ADR 035)."""
+        return {**self.view(), "forming": dict(self.forming) if self.forming else None,
+                "series": self.series.last_values()}
+
+
+def forming_levels(trigger: float, entry: float, stop: float, target1: float, *, bars: int,
+                   blocked: str | None = None, waiting: str | None = None) -> dict[str, Any]:
+    """The levels a forming setup would arm with (ADR 035): drawn and planned, never armed."""
+    return {"trigger": round(trigger, 4), "entry": round(entry, 4), "stop": round(stop, 4),
+            "risk": round(entry - stop, 4), "target1": round(target1, 4), "bars": int(bars),
+            "blocked": blocked, "waiting": waiting}
 
 
 def window_blocked(p: Any, next_bar_t: float, *, start: str | None = None, cutoff: str | None = None) -> str | None:
