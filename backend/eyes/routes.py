@@ -10,16 +10,14 @@ stages or cancels an order, and nothing here is drawn by the desk yet.
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, HTTPException
 
 from eyes import backtest, journal, reader
 from eyes.sim_eyes import get_sim_eyes
-from setup_templates.catalogue import TemplateError
 
 router = APIRouter(tags=["eyes"])
-_RUN_ID = re.compile(r"^\d{8}-\d{6}-[0-9a-f]{6}$")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
@@ -39,7 +37,9 @@ def list_backtests() -> dict[str, Any]:
 
 
 @router.post("/api/eyes/backtests", status_code=202)
-def start_backtest(payload: dict[str, Any] = Body(default_factory=dict)) -> dict[str, Any]:
+def start_backtest(payload: Annotated[dict[str, Any] | None, Body()] = None) -> dict[str, Any]:
+    """An unknown template is refused by the templates' own handler (``setup_templates.routes.install``)."""
+    payload = payload or {}
     template_ids = payload.get("templates")
     if template_ids is not None and not (isinstance(template_ids, list) and all(isinstance(t, str) for t in template_ids)):
         raise HTTPException(400, {"reason": "BACKTEST_INVALID", "error": "templates is a list of template ids"})
@@ -52,17 +52,12 @@ def start_backtest(payload: dict[str, Any] = Body(default_factory=dict)) -> dict
             raise HTTPException(400, {"reason": "BACKTEST_INVALID",
                                       "error": "sessions is a list of {date: YYYY-MM-DD, symbol}"})
         sessions = [(str(s["date"]), str(s["symbol"]).strip().upper()) for s in raw]
-    try:
-        return backtest.start(template_ids=template_ids, sessions=sessions)
-    except TemplateError as exc:
-        raise HTTPException(404, {"reason": exc.code, "error": str(exc), "field": exc.field}) from exc
+    return backtest.start(template_ids=template_ids, sessions=sessions)
 
 
 @router.get("/api/eyes/backtests/{run_id}")
 def get_backtest(run_id: str) -> dict[str, Any]:
-    if not _RUN_ID.match(run_id):
-        raise HTTPException(404, {"reason": "BACKTEST_UNKNOWN", "error": f"no backtest run {run_id!r}"})
     manifest = backtest.read_manifest(run_id)
     if manifest is None:
-        raise HTTPException(404, {"reason": "BACKTEST_UNKNOWN", "error": f"no backtest run {run_id!r}"})
+        raise HTTPException(404, {"reason": "BACKTEST_UNKNOWN", "error": "no backtest run by that id"})
     return {"manifest": manifest, "summary": backtest.read_summary(run_id)}

@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import re
 import threading
 import time
 import uuid
@@ -37,6 +39,7 @@ from constants_eyes import (
 )
 
 logger = logging.getLogger(__name__)
+RUN_ID_RE = re.compile(r"\d{8}-\d{6}-[0-9a-f]{6}")
 _runs_lock = threading.Lock()
 _running: dict[str, threading.Thread] = {}
 
@@ -170,8 +173,22 @@ def list_runs(limit: int = EYES_BACKTEST_RUNS_LISTED) -> list[dict[str, Any]]:
     return out
 
 
+def run_dir(run_id: str) -> Path | None:
+    """A run's folder: only for a well-formed run id, and only inside the backtests folder."""
+    if not isinstance(run_id, str) or not RUN_ID_RE.fullmatch(run_id):
+        return None
+    root = os.path.realpath(backtests_dir())
+    folder = os.path.realpath(os.path.join(root, run_id))
+    if not folder.startswith(root + os.sep):
+        return None
+    return Path(folder)
+
+
 def read_manifest(run_id: str) -> dict[str, Any] | None:
-    path = backtests_dir() / run_id / "manifest.json"
+    folder = run_dir(run_id)
+    if folder is None:
+        return None
+    path = folder / "manifest.json"
     if not path.is_file():
         return None
     try:
@@ -186,7 +203,10 @@ def read_manifest(run_id: str) -> dict[str, Any] | None:
 
 
 def read_summary(run_id: str) -> dict[str, Any] | None:
-    path = backtests_dir() / run_id / "summary.json"
+    folder = run_dir(run_id)
+    if folder is None:
+        return None
+    path = folder / "summary.json"
     if not path.is_file():
         return None
     try:
