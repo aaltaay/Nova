@@ -80,7 +80,8 @@ export function replayPollResource<T>(
       publishData(accept(data));
       return true;
     } catch (error) {
-      console.warn(`replay resource ${path}: rejected an unreadable reply`, error);
+      // The path carries a symbol: keep it out of the format string (CodeQL js/tainted-format-string).
+      console.warn('replay resource %s: rejected an unreadable reply', path, error);
       publishFailure(error instanceof Error ? error.message : String(error));
       return false;
     }
