@@ -28,6 +28,9 @@ How a stale line is let go depends on what happened to its session
   line but ib_async still holds it and would hand it back instead of asking,
   so it is cancelled on this (current) session first.
 
+Level 1 lines follow the same ``fate`` at READY (``ibkr/ticks_session.py``,
+#565); their owners ask again themselves, so nothing here renews them.
+
 Asking again is bounded (IBKR_LINE_RENEW_BACKOFF_SEC). When it keeps failing
 the viewers are told -- a released tape / evicted depth message closes their
 sockets, which ask again themselves -- and a recording's keepalive takes it

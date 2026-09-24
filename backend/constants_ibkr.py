@@ -112,6 +112,8 @@ IBKR_TAPE_LINE_REQ_KEEP = 512
 IBKR_LINE_RENEW_BACKOFF_SEC: tuple[float, ...] = (0.0, 2.0, 5.0, 15.0, 30.0)
 # ib_async's subscription-registry key for a depth line (find_market_data).
 IBKR_DEPTH_REGISTRY_KIND = "mktDepth"
+# ... and for a Level 1 (reqMktData) line (ibkr/ticks_session.py, #565).
+IBKR_L1_REGISTRY_KIND = "mktData"
 # "Only 10 simultaneous API scanner subscriptions are allowed." Arrives
 # asynchronously via errorEvent; with RaiseRequestErrors=False (ib_async
 # default) the request's own future still resolves to [] with no exception,

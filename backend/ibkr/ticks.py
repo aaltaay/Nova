@@ -347,33 +347,16 @@ def is_fresh(symbol: str, max_age_sec: float) -> bool:
     return _status.is_fresh(_subs, symbol, max_age_sec)
 
 
-async def clear_all_subscriptions(*, reason: str = "") -> int:
-    """Drop every L1 ownership map entry after a reconnect / READY bump.
+async def clear_all_subscriptions(*, reason: str = "", ib: Any = None) -> int:
+    """Let go of the L1 lines of the last IBKR session at READY; the number let go.
 
-    The Gateway socket is gone, so we detach local handlers and clear
-    ``_subs`` without calling ``cancelMktData``. Without this, ``subscribe``
-    short-circuits on zombie entries and never re-issues ``reqMktData``
-    (audit finding G1).
+    Owners subscribe again afterwards. Without this, ``subscribe`` short-circuits
+    on zombie entries and never re-issues ``reqMktData`` (audit finding G1). A
+    line IBKR lost in a 1101 restore is cancelled on ``ib`` (the session's IB,
+    else the current one) first, since ib_async would hand the dead ticker back;
+    one IBKR kept (1102) stays (``ibkr/ticks_session.py``, #565).
     """
+    from ibkr import ticks_session
+
     async with _get_lock():
-        symbols = list(_subs.keys())
-        for symbol in symbols:
-            sub = _subs.get(symbol) or {}
-            ticker = sub.get("ticker")
-            handler = sub.get("handler")
-            if ticker is not None and handler is not None:
-                try:
-                    ticker.updateEvent -= handler
-                except (ValueError, AttributeError, KeyError, TypeError) as exc:
-                    logger.debug(
-                        "IBKR ticks: handler detach during clear for %s: %s",
-                        symbol, exc,
-                    )
-            _subs.pop(symbol, None)
-        if symbols:
-            logger.warning(
-                "IBKR ticks: cleared %d zombie L1 subscription(s) (%s)",
-                len(symbols),
-                reason or "unspecified",
-            )
-        return len(symbols)
+        return ticks_session.settle(_subs, ib if ib is not None else _client.get_ib(), reason=reason)

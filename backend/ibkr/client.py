@@ -141,14 +141,14 @@ def _clear_sticky_bridge_error_on_ready() -> None:
 async def _on_session_ready(ib: Any, *, reason: str) -> None:
     """Side effects that must run at every READY transition (G1/G2/G4).
 
-    Clears zombie L1 ownership maps left over from the prior connection,
-    installs the session-level errorEvent hook, and requests live market data.
+    Lets go of the prior connection's L1 lines (#565: cancelling on ``ib`` the
+    ones a 1101 lost), installs the errorEvent hook, requests live market data.
     """
     global _market_data_type
     try:
         from ibkr import ticks as _ticks
 
-        await _ticks.clear_all_subscriptions(reason=reason)
+        await _ticks.clear_all_subscriptions(reason=reason, ib=ib)
     except Exception:
         logger.exception("IBKR: clear_all_subscriptions failed on READY (%s)", reason)
     try:
