@@ -15,7 +15,9 @@
  * electron-updater checks and installs; the installer itself is fetched in
  * resumable chunks (releaseDownload.mjs) and handed back through electron-updater's
  * cache, because its own one-shot download never finished on a lossy link.
- * Every line of this is also written to update.log (updateLog.mjs).
+ * Every line of this is also written to update.log (updateLog.mjs). Installing
+ * -- the "Updating Nova" window, the engine stop, the silent installer -- is
+ * releaseInstall.mjs.
  *
  * electron-updater loads lazily and only in a packaged Windows build, so a dev
  * checkout never loads it. Every failure here is logged and swallowed -- the desk
@@ -25,6 +27,7 @@ import fs from 'node:fs';
 import { app, ipcMain, net, shell } from 'electron';
 import { readEnvValue } from './envMerge.mjs';
 import { downloadRelease } from './releaseDownload.mjs';
+import { createReleaseInstaller } from './releaseInstall.mjs';
 import { isReleaseLink, notesText } from './releaseNotes.mjs';
 import { createNotesSource } from './releaseNotesSource.mjs';
 import { createUpdateAsk } from './updateAsk.mjs';
@@ -79,6 +82,7 @@ let currentTag = '';
 let bridge = null;
 let ask = null;
 let whatsNew = null;
+let installer = null;
 // The release on offer: electron-updater's info from the check that found it.
 let pendingInfo = null;
 let hooks = {
@@ -181,45 +185,8 @@ async function startDownload() {
   await fetchUpdate(pendingInfo);
 }
 
-async function recoverEngine() {
-  try {
-    await hooks.restartEngine();
-  } catch (err) {
-    logger.error(`engine restart after a failed install: ${errorText(err)}`);
-  }
-}
-
 async function restartToUpdate() {
-  if (!updater || state.phase !== 'ready') return;
-  dispatch({ type: 'installing' });
-  let stopped = false;
-  try {
-    stopped = await hooks.stopEngine();
-  } catch (err) {
-    logger.error(`engine stop before install failed: ${errorText(err)}`);
-  }
-  if (!stopped) {
-    dispatch({ type: 'install-failed', message: 'local engine did not stop; nothing was installed' });
-    await recoverEngine();
-    await ask.box({
-      type: 'warning',
-      title: 'Nova update not installed',
-      message: 'Nova could not confirm its local engine stopped, so it did not install the update.',
-      detail: 'The engine is restarting. Try Help > Restart to Update again.',
-      buttons: ['OK'],
-      noLink: true,
-    });
-    return;
-  }
-  logger.info(`installing ${displayTag(state.version)} at the operator's request`);
-  try {
-    // Silent NSIS install into the existing location, then relaunch the new
-    // version, which starts its own matching engine. Settings live in userData.
-    updater.quitAndInstall(true, true);
-  } catch (err) {
-    dispatch({ type: 'install-failed', message: errorText(err) });
-    await recoverEngine();
-  }
+  await installer?.install();
 }
 
 /** @param {'launch' | 'manual' | 'recheck'} origin */
@@ -295,7 +262,7 @@ function wireEvents(instance) {
     const wasInstalling = state.phase === 'installing';
     logger.error(`update error: ${errorText(err)}`);
     dispatch({ type: 'error', message: errorText(err) });
-    if (wasInstalling) void recoverEngine();
+    if (wasInstalling) void installer?.recover();
     void reportManualResult();
   });
 }
@@ -350,6 +317,16 @@ async function startUnguarded(deps) {
   const notesSource = createNotesSource({ fetch: (url, init) => net.fetch(url, init), dir: userData, logger });
   const installedTag = () => currentTag;
   ask = createUpdateAsk({ bridge, notesSource, getWindow: liveWindow, getState: () => state, installedTag, logger });
+  installer = createReleaseInstaller({
+    getUpdater: () => updater,
+    getState: () => state,
+    dispatch,
+    stopEngine: () => hooks.stopEngine(),
+    restartEngine: () => hooks.restartEngine(),
+    box: ask.box,
+    logsDir: () => appDir('logs'),
+    logger,
+  });
   gate = updateGate({ isPackaged: app.isPackaged, platform: process.platform, setting: readSetting() });
   if (!gate.updater) {
     logger.info(`in-app updates off: ${gate.reason}`);

@@ -34,7 +34,7 @@ function message(notice: Notice): string {
 
 const HINTS: Partial<Record<Notice['stage'], string>> = {
   available: 'Update downloads it now; Nova restarts only when you choose Restart to update.',
-  ready: 'Restart closes Nova and its local engine, installs the update, then reopens Nova.',
+  ready: 'Restart closes Nova and its engine, installs the update and reopens Nova, usually within a minute; an "Updating Nova" window shows each step.',
 };
 
 export function UpdateNotice({ notice, act }: Props) {

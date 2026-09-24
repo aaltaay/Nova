@@ -95,7 +95,8 @@ export function restartPrompt(version) {
     title: 'Nova update ready',
     message: `Nova ${tag} is downloaded and ready to install.`,
     detail:
-      'Restart to update closes Nova and its local engine, installs the update, then reopens Nova. '
+      'Restart to update closes Nova and its local engine, installs the update and reopens Nova by itself, '
+      + 'usually within a minute; a small "Updating Nova" window shows each step until then. '
       + 'Later keeps this session running and installs nothing; use Help > Restart to Update when you are ready.',
     buttons: ['Restart to update', 'Later'],
     defaultId: LATER_BUTTON,
