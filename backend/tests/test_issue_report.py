@@ -62,6 +62,21 @@ def test_scrubber_drops_path_and_key_fields_from_evidence():
     assert out == {"store": r"<data>\x.db", "nested": {"port": 4001}, "display": {"index": 1}}
 
 
+# Every mix of a known, missing or too-short name: each known name gets its own label. The patterns and
+# their labels are zipped strictly, so the two lists drifting apart raises here instead of skipping a name.
+@pytest.mark.parametrize("user, host, raw, want", [
+    ("alice", "DESKTOP-ABC123", "alice on DESKTOP-ABC123", "<user> on <host>"),
+    (None, "DESKTOP-ABC123", "alice on DESKTOP-ABC123", "alice on <host>"),
+    ("", "DESKTOP-ABC123", "alice on DESKTOP-ABC123", "alice on <host>"),
+    ("al", "DESKTOP-ABC123", "al on DESKTOP-ABC123", "al on <host>"),
+    ("alice", None, "alice on DESKTOP-ABC123", "<user> on DESKTOP-ABC123"),
+    ("alice", "PC", "alice on PC", "<user> on PC"),
+    (None, None, "alice on DESKTOP-ABC123", "alice on DESKTOP-ABC123"),
+])
+def test_scrubber_gives_each_known_name_its_own_label(user, host, raw, want):
+    assert Scrubber(user=user, host=host).text(raw) == want
+
+
 # --- the engine log and the dump ---------------------------------------------------------------
 
 LOG = """2026-09-24 10:34:11,001 INFO ibkr.ticks subscribed GCTK

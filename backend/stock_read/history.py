@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import threading
 from datetime import datetime, timezone
+from itertools import pairwise
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -42,7 +43,7 @@ def runs(daily: list[dict[str, Any]], today: str | None) -> list[dict[str, Any]]
     first. Stored daily bars close on the last extended-hours trade, so both sides are the day's last
     trade, not the 16:00 close."""
     out = []
-    for prev, b in zip(daily, daily[1:]):
+    for prev, b in pairwise(daily):
         pc = prev["c"]
         if pc <= 0:
             continue

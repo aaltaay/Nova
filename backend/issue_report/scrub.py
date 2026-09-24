@@ -61,6 +61,8 @@ class Scrubber:
                                 and not _ACCOUNT_ID.fullmatch(s)}, key=len, reverse=True)
         # Longest root first, so the repo (inside the home folder) wins over the home folder.
         self._roots = sorted(((_norm(p), label) for p, label in roots if p), key=lambda r: len(r[0]), reverse=True)
+        # One label per pattern, from the same names and the same filter. ``text`` zips them strictly, so
+        # the two drifting apart raises instead of skipping a name.
         self._names = [re.compile(rf"(?i)(?<![\w-]){re.escape(n)}(?![\w-])") for n in (user, host) if n and len(n) >= 3]
         self._name_labels = [label for n, label in ((user, "<user>"), (host, "<host>")) if n and len(n) >= 3]
         self.count = 0
@@ -95,7 +97,7 @@ class Scrubber:
         text = self._sub(_POSIX_HOME, "<path>", text)
         text = self._sub(_EMAIL, "<email>", text)
         text = self._sub(_IPV4, lambda m: m.group(0) if m.group(0) in _KEEP_IPS else "<ip>", text)
-        for pattern, label in zip(self._names, self._name_labels):
+        for pattern, label in zip(self._names, self._name_labels, strict=True):
             text = self._sub(pattern, label, text)
         return text
 

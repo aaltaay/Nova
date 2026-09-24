@@ -51,6 +51,9 @@ class StudyParams:
     context_bp: float = EYES_FLOW_STUDY_CONTEXT_BP
 
 
+DEFAULT_STUDY = StudyParams()
+
+
 def _mid(idx: FlowIndex, t: float, p: FlowParams, since: float) -> tuple[float | None, float | None]:
     """``(mid, spread in bp)`` at ``t``: the fresh book's, else the last price since ``since`` (no spread)."""
     _b, _a, bid, ask = idx.depth_at(t, p)
@@ -60,7 +63,7 @@ def _mid(idx: FlowIndex, t: float, p: FlowParams, since: float) -> tuple[float |
     return idx.last_price(t, since=since), None
 
 
-def samples(rec: Any, p: FlowParams, sp: StudyParams = StudyParams(), idx: FlowIndex | None = None) -> list[dict]:
+def samples(rec: Any, p: FlowParams, sp: StudyParams = DEFAULT_STUDY, idx: FlowIndex | None = None) -> list[dict]:
     """One reading per ``step_sec`` of each recorded stretch, with where the mid went after it."""
     idx = idx or FlowIndex(rec.prints, rec.books)
     spans = list(rec.spans) or ([(rec.first_ts, rec.last_ts)] if rec.first_ts is not None else [])
@@ -139,7 +142,7 @@ def onsets(rows: list[dict], refractory_sec: float) -> list[dict]:
 
 
 def aggregate(per_recording: list[tuple[str, list[dict]]], p: FlowParams,
-              sp: StudyParams = StudyParams()) -> dict[str, Any]:
+              sp: StudyParams = DEFAULT_STUDY) -> dict[str, Any]:
     """Every recording's readings folded into one answer."""
     seconds: dict[str, int] = {k: 0 for k in TAPE_FLOW_LABELS}
     by_label: dict[str, dict[int, list[float]]] = {}
@@ -190,7 +193,7 @@ def aggregate(per_recording: list[tuple[str, list[dict]]], p: FlowParams,
     }
 
 
-def study(recs: Iterable[Any], p: FlowParams, sp: StudyParams = StudyParams(),
+def study(recs: Iterable[Any], p: FlowParams, sp: StudyParams = DEFAULT_STUDY,
           indexes: dict[str, FlowIndex] | None = None) -> dict[str, Any]:
     """Read every recording under ``p`` and fold them. ``indexes`` reuses built indexes across a grid."""
     per = []
