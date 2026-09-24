@@ -137,6 +137,21 @@ can sit dollars from the market -- on 2026-09-23 PLTR printed FINRA
 its conditions. A historical download's `unreported` prints are excluded the
 same way.
 
+**Resting live fills read the archive, and the archive says when it lost
+prints** (2026-09-24). On Paper, and on Sim at the live edge, the matcher
+(`practice/matcher.py`) reads resting orders' prints from that archive once a
+second. Its own thread writes the archive (`ibkr/tape_sink.py`), one
+transaction per batch, so a pass reads only as far as the archive's
+written-through mark: every print stamped before it has been written or
+counted lost. A print written late is read on the next pass, not skipped. A
+writer that cannot keep up sheds prints and says so: a loss episode with cause,
+window, count and symbols goes to the log, to `/api/l2/status` `tape.writer`,
+and to the `tape_archive` diagnostics row. It takes prints again as soon as it
+has room, and a resting order fills on the next print that crosses it. Before
+this fix, one full backlog stopped the writer until a restart. On 2026-09-24 an
+overflow at 07:29 ET left every Paper resting order unfilled for the rest of
+the morning: a SELL limit at 4.96 sat while APUS printed 5.00.
+
 ## Market orders need regular hours (operator decision, 2026-09-21)
 
 A `MKT` from a non-protective source is refused `MKT_OUTSIDE_RTH` -- "use a

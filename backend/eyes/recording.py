@@ -7,7 +7,7 @@ the stretches the recorder was up. Loaded read-only with the capture reader's
 own validation; the capture player's loaded state is never touched.
 
 Bars come from the bar archive (``bars_store``: the bars the live eyes saw that
-day, 04:00 on), else one-minute bars built from the recording's price-setting
+day, 04:00 on, less IBKR's zero-volume bars for minutes without a trade), else one-minute bars built from the recording's price-setting
 prints -- never the bar buckets the recorder stored, which older recordings
 built from every print (#535) -- and ``bars_source`` says which. Pillars at a moment come from the scanner leaderboard's row for the
 symbol at or before it (ADR 023, point in time) and the catalyst verdict at it
@@ -25,7 +25,7 @@ from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 from constants_eyes import EYES_REPLAY_BOOK_SAMPLE_SEC, EYES_REPLAY_PRICE_STEP_SEC
-from setup_scanner.bars import Bar, bar_from
+from setup_scanner.bars import Bar, bar_from, stored_bars
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
@@ -119,8 +119,8 @@ def archive_bars(symbol: str, date: str) -> list[Bar]:
     import bars_store
 
     start = day_start_ts(date)
-    res = bars_store.read(symbol, "1Min", SESSION_HOURS * 60, from_ts=start, through_ts=start + SESSION_HOURS * 3600 - 1)
-    return [b for b in (bar_from(r) for r in (res or {}).get("bars") or []) if b is not None]
+    return stored_bars(bars_store.read(symbol, "1Min", SESSION_HOURS * 60, from_ts=start,
+                                       through_ts=start + SESSION_HOURS * 3600 - 1))
 
 
 def _recording_bars(prints: list[dict]) -> list[Bar]:

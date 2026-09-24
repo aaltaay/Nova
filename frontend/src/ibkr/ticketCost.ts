@@ -12,7 +12,7 @@
  * A Market order is priced where it fills -- the far side of a known quote,
  * the ask to buy and the bid to sell -- not the last (QA R36). On a practice
  * venue "BP after" follows the ledger's own rule (fees out of equity, the
- * position re-marked at the fill, 4x / 2x), not BP +/- the order value (W28).
+ * position re-marked at the fill, 4x, 1x under $2,000), not BP +/- the order value (W28).
  */
 import { PRACTICE_NO_SHORTS_REASON } from '../constantGroups/practice';
 import { TICKET_COST_NO_POSITION } from '../constantGroups/trader_chrome';

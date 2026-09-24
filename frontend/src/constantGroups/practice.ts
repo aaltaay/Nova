@@ -116,7 +116,8 @@ export const PRACTICE_NO_SHORTS_REASON = 'Nova does not support short entries ye
  * backend/constants_practice.py (architecture/practice-account.md) so the
  * ticket's "BP after" follows the ledger instead of BP +/- the order value
  * (QA W28). Keep in step with the backend: IBKR Pro Fixed commission, SEC +
- * FINRA TAF pass-throughs on sells, FINRA 4210 4x above the PDT line, Reg T 2x below.
+ * FINRA TAF pass-throughs on sells, FINRA 4210 intraday margin 4x from the
+ * USD 2,000 margin minimum, cash (1x) below it.
  */
 export const PRACTICE_COMMISSION_PER_SHARE = 0.005;
 export const PRACTICE_COMMISSION_MIN = 1.0;
@@ -125,5 +126,5 @@ export const PRACTICE_SEC_FEE_RATE = 20.6 / 1_000_000;
 export const PRACTICE_FINRA_TAF_PER_SHARE = 0.000195;
 export const PRACTICE_FINRA_TAF_MAX = 9.79;
 export const PRACTICE_MARGIN_INTRADAY_MULT = 4.0;
-export const PRACTICE_MARGIN_OVERNIGHT_MULT = 2.0;
-export const PRACTICE_PDT_MIN_EQUITY = 25_000;
+export const PRACTICE_MARGIN_MIN_EQUITY = 2_000;
+export const PRACTICE_CASH_MULT = 1.0;

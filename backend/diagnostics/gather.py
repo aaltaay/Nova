@@ -30,6 +30,7 @@ from diagnostics import (
     collect_gateway,
     collect_leaderboard,
     collect_perf,
+    collect_tape_archive,
     process_info,
 )
 from diagnostics.rows import counts, unknown_row
@@ -204,6 +205,16 @@ def _practice_inputs() -> dict[str, Any]:
     }
 
 
+def _tape_archive_inputs() -> dict[str, Any]:
+    from l2 import tape
+    from practice import matcher
+
+    return {
+        "health": tape.health(),
+        "resting": sorted({s for broker in matcher.live_brokers() for s in broker.working_symbols()}),
+    }
+
+
 def _perf_rows(now: float) -> list[dict[str, Any]]:
     from constants_perf import PERF_DIAG_DROP_RECENT_SEC, PERF_DIAG_WINDOW_SEC
     from perf import recorder
@@ -237,6 +248,8 @@ def gather(*, ui_tag: str | None = None, now: float | None = None) -> dict[str, 
     rows += _safe(DIAG_GROUP_RECORDER, "borrow_feed", "Borrow feed",
                   lambda: collect_borrow.borrow_feed_rows(status=_borrow_feed_status(), now=ts))
     rows += _safe(DIAG_GROUP_PRACTICE, "practice", "Practice", lambda: collect.practice_rows(**_practice_inputs()))
+    rows += _safe(DIAG_GROUP_PRACTICE, "tape_archive", "Tape archive (Paper resting fills)",
+                  lambda: collect_tape_archive.tape_archive_rows(**_tape_archive_inputs()))
     rows += collect.frontend_rows(ui_tag=ui_tag, backend_tag=facts.get("release_tag"))
     rows += _safe(DIAG_GROUP_PERFORMANCE, "perf_recorder", "Performance recorder", lambda: _perf_rows(ts))
     return {

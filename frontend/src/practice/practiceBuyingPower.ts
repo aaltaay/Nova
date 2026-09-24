@@ -3,19 +3,19 @@
  * (QA W28, 2026-09-22). The ticket's "BP after" was buying power minus (or
  * plus) the order value; the ledger charges the fill's commission and fees,
  * re-marks the whole position at the fill price, and multiplies equity by 4x
- * (2x under the PDT line) -- so a 100-share buy at 1.49 read $399,424 where
+ * (1x under the USD 2,000 margin minimum) -- so a 100-share buy at 1.49 read $399,424 where
  * the ledger lands at about $399,420. Mirrors backend practice/fees.py and
  * practice/margin.py; pure.
  */
 import {
+  PRACTICE_CASH_MULT,
   PRACTICE_COMMISSION_MAX_PCT,
   PRACTICE_COMMISSION_MIN,
   PRACTICE_COMMISSION_PER_SHARE,
   PRACTICE_FINRA_TAF_MAX,
   PRACTICE_FINRA_TAF_PER_SHARE,
   PRACTICE_MARGIN_INTRADAY_MULT,
-  PRACTICE_MARGIN_OVERNIGHT_MULT,
-  PRACTICE_PDT_MIN_EQUITY,
+  PRACTICE_MARGIN_MIN_EQUITY,
   PRACTICE_SEC_FEE_RATE,
 } from '../constantGroups/practice';
 
@@ -42,7 +42,7 @@ export function practiceFees(side: 'BUY' | 'SELL', qty: number, price: number): 
 }
 
 export function practiceMultiplier(netLiquidation: number): number {
-  return netLiquidation >= PRACTICE_PDT_MIN_EQUITY ? PRACTICE_MARGIN_INTRADAY_MULT : PRACTICE_MARGIN_OVERNIGHT_MULT;
+  return netLiquidation >= PRACTICE_MARGIN_MIN_EQUITY ? PRACTICE_MARGIN_INTRADAY_MULT : PRACTICE_CASH_MULT;
 }
 
 export interface PracticeFillInput {

@@ -54,7 +54,6 @@ export function ChartGridToolbar({
           activeTool={activeTool}
           enabledIndicators={focusedIndicators}
           selection={selection}
-          maximized={maximized}
           onClearAll={onClearAll}
           onColorChange={onColorChange}
           onIndicatorToggle={onIndicatorToggle}

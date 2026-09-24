@@ -29,10 +29,10 @@ def test_regulatory_fees_2026():
 
 
 def test_reg_t_margin_tiers():
-    assert cp.PRACTICE_MARGIN_OVERNIGHT_MULT == 2.0
     assert cp.PRACTICE_MARGIN_INTRADAY_MULT == 4.0
-    assert cp.PRACTICE_PDT_MIN_EQUITY == 25_000.0
-    assert cp.PRACTICE_MARGIN_INTRADAY_MULT > cp.PRACTICE_MARGIN_OVERNIGHT_MULT
+    assert cp.PRACTICE_MARGIN_MIN_EQUITY == 2_000.0
+    assert cp.PRACTICE_CASH_MULT == 1.0
+    assert not hasattr(cp, "PRACTICE_PDT_MIN_EQUITY")  # retired with FINRA 26-10
 
 
 def test_identity_freshness_and_rollover():
@@ -59,9 +59,9 @@ def test_every_constant_is_documented_in_the_survey():
         "PRACTICE_COMMISSION_PER_SHARE",
         "PRACTICE_SEC_FEE_RATE",
         "PRACTICE_FINRA_TAF_PER_SHARE",
-        "PRACTICE_MARGIN_OVERNIGHT_MULT",
         "PRACTICE_MARGIN_INTRADAY_MULT",
-        "PRACTICE_PDT_MIN_EQUITY",
+        "PRACTICE_MARGIN_MIN_EQUITY",
+        "PRACTICE_CASH_MULT",
         "PRACTICE_LIVE_FRESH_SEC",
         "PRACTICE_DAY_ROLLOVER_HOUR_ET",
         "PRACTICE_BUYING_POWER",

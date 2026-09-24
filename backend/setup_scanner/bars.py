@@ -6,8 +6,9 @@ active set (open / high / low / close from the Level 1 last, volume from the
 change in cumulative day volume). A print that fell between two Level 1
 updates can be missing from a bar's range; these bars feed the detector and
 are never drawn as a chart. The day so far is seeded once from the bar store
-(``bars_intraday``), the same bars the chart reads. A minute with no update
-has no bar, like the flat files the research used.
+(``bars_intraday``), the same bars the chart reads less IBKR's bars for minutes
+without a trade (``stored_bars``). A minute with no update has no bar, like the
+flat files the research used.
 """
 from __future__ import annotations
 
@@ -51,6 +52,24 @@ def bar_from(raw: dict[str, Any]) -> Bar | None:
     if not (bar.h >= bar.lo > 0):
         return None
     return bar
+
+
+def is_no_trade_fill(bar: Bar) -> bool:
+    """IBKR's bar for a minute with no price-setting trade: no volume, one price (#304)."""
+    return bar.v <= 0 and bar.o == bar.h == bar.lo == bar.c
+
+
+def stored_bars(res: dict[str, Any] | None) -> list[Bar]:
+    """The bars of a ``bars_store.read`` reply that hold a trade, oldest first.
+
+    IBKR's historical TRADES bars carry a zero-volume bar at the last price for
+    every minute without a price-setting trade; the chart keeps them, as TWS
+    draws them. The detectors count bars (the 30-bar lookback, the 10-bar leg
+    window, the 9 EMA) on rules measured on minute files with no bar there, so
+    they are left out (APUS 2026-09-24: 259 of 310 stored minutes).
+    """
+    bars = (bar_from(r) for r in (res or {}).get("bars") or [])
+    return [b for b in bars if b is not None and not is_no_trade_fill(b)]
 
 
 @dataclass

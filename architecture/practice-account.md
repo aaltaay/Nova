@@ -11,7 +11,7 @@ account around them.
 
 | Simulator | Fill | Fees | Buying power | Source |
 |---|---|---|---|---|
-| IBKR paper account | Market orders become marketable limits filled from the **top of book only** (no deep book); an order with no opposite quote is held until one appears; stops are always simulated; a partially executed exchange-directed market order has its remainder rejected. | Real IBKR commission schedule applied. | Real margin model (Reg T, 4x day-trading for PDT). Seeds USD 1M. | [Paper trading](https://www.ibkrguides.com/clientportal/aboutpapertradingaccounts.htm), [Simulated market orders](https://www.interactivebrokers.com/en/trading/simulated-market-orders.php), [Paper vs live](https://www.interactivebrokers.com/campus/trading-lessons/paper-trading-vs-live-trading-whats-the-difference/) |
+| IBKR paper account | Market orders become marketable limits filled from the **top of book only** (no deep book); an order with no opposite quote is held until one appears; stops are always simulated; a partially executed exchange-directed market order has its remainder rejected. | Real IBKR commission schedule applied. | Real margin model (IBKR's own; intraday margin since 2026-06-04). Seeds USD 1M. | [Paper trading](https://www.ibkrguides.com/clientportal/aboutpapertradingaccounts.htm), [Simulated market orders](https://www.interactivebrokers.com/en/trading/simulated-market-orders.php), [Paper vs live](https://www.interactivebrokers.com/campus/trading-lessons/paper-trading-vs-live-trading-whats-the-difference/) |
 | IBKR Pro, US stocks, **Fixed** | -- | USD 0.005/share, min USD 1.00/order, max 1.0 % of trade value; regulatory fees passed through on sells. | -- | [Commissions: stocks](https://www.interactivebrokers.com/en/pricing/commissions-stocks.php) |
 | SEC / FINRA (sells only) | -- | SEC §31: USD 20.60 per USD 1M of sale value (FY2026, from 2026-04-04). FINRA TAF: USD 0.000195/share sold, max USD 9.79/trade (2026). | -- | [SEC fee advisory](https://www.sec.gov/rules-regulations/fee-rate-advisories/2026-2), [FINRA TAF](https://www.finra.org/rules-guidance/guidance/trading-activity-fee) |
 | Alpaca paper | Fills only when marketable against the current NBBO (buy limit ≥ ask, sell limit ≤ bid); order size is **not** checked against quoted size; random partial fill 10 % of the time; no slippage, queue or impact. | None. | Seeds USD 100k; Reg T 2x / PDT 4x like its live accounts. | [Alpaca paper trading](https://docs.alpaca.markets/us/docs/paper-trading) |
@@ -19,13 +19,14 @@ account around them.
 | backtrader broker | Next-bar open by default; `cheat-on-open` / `cheat-on-close` opt-ins; `set_slippage_perc` / `set_slippage_fixed`. | `setcommission(commission=, margin=, mult=)`: % of value when `margin` is falsy, fixed per contract otherwise; `CommInfoBase` for per-share schemes. | Cash checked at submit **and** at execution; margin via `margin=` per contract. | [Brokers and orders](https://backtrader.readthedocs.io/en/latest/user-guide/brokers/brokers.html), [Commission schemes](https://www.backtrader.com/docu/commission-schemes/commission-schemes/), [Slippage](https://www.backtrader.com/docu/slippage/slippage/) |
 | backtesting.py | Market orders fill at next bar open, or this bar's close with `trade_on_close=True`; commission is folded into the fill price (long slightly higher, short slightly lower). | `commission=` as a fraction of value (or `(fixed, relative)` tuple). | `margin=` is one ratio for initial and maintenance alike (`0.5` = 2x). | [Backtest API](https://kernc.github.io/backtesting.py/doc/backtesting/backtesting.html) |
 | QuantConnect Lean, IB model | `ImmediateFillModel` on the current quote/last; `NullSlippageModel`. | `InteractiveBrokersFeeModel`: USD 0.005/share, min USD 1, **max 0.5 %** (older than IBKR's current 1.0 %). | `SecurityMarginModel`: 2x leverage on US equities in a margin account; immediate settlement on margin. | [IB brokerage model](https://www.quantconnect.com/docs/v2/writing-algorithms/reality-modeling/brokerages/supported-models/interactive-brokers), [Fee models](https://www.quantconnect.com/docs/v2/writing-algorithms/reality-modeling/transaction-fees/supported-models) |
-| Regulation T / FINRA 4210 | -- | -- | Initial margin 50 % of purchase (2x); maintenance 25 %; a pattern day trader (4+ round trips in 5 business days) with ≥ USD 25,000 equity gets **day-trading buying power = 4x** the prior close's maintenance excess; below USD 25k no day trading. | [FINRA margin accounts](https://www.finra.org/rules-guidance/key-topics/margin-accounts), [SEC day-trading margin](https://www.sec.gov/files/daytrading.pdf), [Investor.gov](https://www.investor.gov/introduction-investing/general-resources/news-alerts/alerts-bulletins/investor-bulletins/margin) |
+| Regulation T / FINRA 4210 | -- | -- | USD 2,000 minimum equity to borrow; initial margin 50 % of purchase (2x overnight); maintenance 25 %. **Since 2026-06-04 intraday margin** replaces the pattern-day-trader rule: no USD 25,000 minimum, no day-trade count, no 4x day-trading buying power -- equity must cover the maintenance margin of what is held at any moment, so 25 % maintenance gives 4x. IBKR adopted it on 2026-06-04; other brokers may phase it in until 2027-10-20. | [FINRA Regulatory Notice 26-10](https://www.finra.org/rules-guidance/notices/26-10), [FINRA margin accounts](https://www.finra.org/rules-guidance/key-topics/margin-accounts), [Investor.gov](https://www.investor.gov/introduction-investing/general-resources/news-alerts/alerts-bulletins/investor-bulletins/margin) |
 
 What they agree on: a marketable order fills **now** at the quote or last print
 without a queue; size is never checked against displayed liquidity; fees are a
 per-share rate with a per-order floor and a %-of-value ceiling plus sell-side
 regulatory pass-throughs; buying power is Reg T 2x with a 4x intraday tier
-behind the USD 25k pattern-day-trader line. Slippage, when it exists at all,
+(the Alpaca and QuantConnect rows predate FINRA's 2026-06-04 intraday margin
+rule, which dropped the USD 25k pattern-day-trader line behind that tier). Slippage, when it exists at all,
 is an operator knob, not a model.
 
 ## 2. Nova's parameters and why
@@ -36,9 +37,9 @@ is an operator knob, not a model.
 | `PRACTICE_COMMISSION_PER_SHARE` / `_MIN` / `_MAX_PCT` | 0.005 / 1.00 / 1 % | IBKR Pro **Fixed** as published today. Live Nova trades on IBKR, so Paper charges what Live would; Fixed rather than Tiered because it has no volume tiers or exchange rebates to fake. QuantConnect's 0.5 % cap is stale and is not used. |
 | `PRACTICE_SEC_FEE_RATE` | 20.60 per 1M | FY2026 §31 rate, on **sell** value only, as IBKR passes it through. |
 | `PRACTICE_FINRA_TAF_PER_SHARE` / `_MAX` | 0.000195 / 9.79 | 2026 TAF on shares **sold**, per-trade cap. Both regulatory fees are refreshed by editing the constant when the SEC/FINRA notice changes; no auto-lookup. |
-| `PRACTICE_MARGIN_OVERNIGHT_MULT` | 2.0 | Reg T 50 % initial. Applied as `equity * 2` minus gross position value. |
-| `PRACTICE_MARGIN_INTRADAY_MULT` | 4.0 | FINRA 4210 day-trading buying power. Nova's bots are day traders, so this is the number they hit. Applied while `net_liquidation >= PRACTICE_PDT_MIN_EQUITY`; otherwise the overnight multiplier. |
-| `PRACTICE_PDT_MIN_EQUITY` | 25 000 | FINRA 4210(f)(8)(B)(iv). Below it Paper does not block day trades (that would stop the operator from practising); it only drops to 2x, which is the consequence that changes results. |
+| `PRACTICE_MARGIN_INTRADAY_MULT` | 4.0 | FINRA 4210 intraday margin (2026-06-04): equity covers 25 % maintenance on what is held, so 4x. Nova's bots are day traders, so this is the number they hit. Applied as `equity * 4` minus gross position value while `net_liquidation >= PRACTICE_MARGIN_MIN_EQUITY`. The retired USD 25,000 pattern-day-trader line (`PRACTICE_PDT_MIN_EQUITY`, 2x below it) is gone with the rule. |
+| `PRACTICE_MARGIN_MIN_EQUITY` | 2 000 | FINRA 4210(b)(2): no credit below USD 2,000 of equity; IBKR keeps it for margin and short sales under the new rule. |
+| `PRACTICE_CASH_MULT` | 1.0 | Under the minimum the account is a cash account: `equity * 1` minus gross position value is the cash on hand. |
 | `PRACTICE_LIVE_FRESH_SEC` | 15 s | An L1 last older than this cannot price a Paper fill; the broker then uses a recent tape print or refuses `PRACTICE_NO_LIVE_PRINT`. IBKR and Alpaca *hold* an order with no opposite quote; Nova refuses and says why, because a held practice order looks like a working order. |
 | `PRACTICE_DAY_ROLLOVER_HOUR_ET` | 04:00 ET | Day P&L / commissions_today / fills_today roll at the pre-market open Nova already uses as session start, the same boundary IBKR's daily figures use. |
 | `PRACTICE_ACCOUNT_ID_PAPER` / `_SIM` | `NOVA-PAPER` / `NOVA-SIM` | The header always names an account id; these replace `DU…` / `U…` on the practice venues. |
@@ -98,8 +99,10 @@ Named so nobody reads a practice P&L as a live one:
   displayed depth, so a 50k-share bot fill on a thin book is unrealistic and
   looks it.
 - **No borrow, no short-locate cost, no margin interest, no overnight call.**
-  The overnight multiplier applies at any hour; there is no end-of-day
-  liquidation.
+  The 4x intraday multiplier applies at any hour -- Reg T's 2x on positions
+  held past the close is not charged -- and there is no end-of-day
+  liquidation. The rule's 90-day freeze for unmet intraday deficits is not
+  modelled either: buying power is enforced up front, so no deficit arises.
 - **No exchange or clearing pass-throughs beyond SEC §31 and FINRA TAF.** IBKR
   Fixed folds the rest into the per-share rate; the two regulatory fees are
   the ones IBKR itemises on a Fixed statement.

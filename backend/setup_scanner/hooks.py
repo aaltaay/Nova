@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Iterable
 
-from setup_scanner.bars import Bar, bar_from
+from setup_scanner.bars import Bar, stored_bars
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +23,7 @@ def default_universe() -> Iterable[str]:
 def default_seed(symbol: str, from_ts: float) -> list[Bar]:
     import bars_store
 
-    res = bars_store.read(symbol, "1Min", 960, from_ts=from_ts)
-    return [b for b in (bar_from(r) for r in (res or {}).get("bars") or []) if b is not None]
+    return stored_bars(bars_store.read(symbol, "1Min", 960, from_ts=from_ts))
 
 
 def default_replay_desk() -> bool:
