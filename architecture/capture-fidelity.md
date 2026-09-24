@@ -10,10 +10,14 @@ unknown versions and malformed manifests refuse selection or append. Existing
 files are not rewritten. Resume streams existing rows on the capture worker to
 validate versions and recover each stream's timestamp high-water mark.
 
-L2 uses event timestamps and coalesces intermediate books; stop flushes the
-newest pending book even if the feed became quiet. Manifest fidelity describes
-offered/coalesced counts, configured maximum Hz, invalid timestamp and regression
-counts, and per-stream watermarks. A backward print fails visibly before it can
+L2 uses event timestamps and keeps every book IBKR sends, up to
+`CAPTURE_L2_MAX_HZ` (50, a flood bound -- it was 8 until ADR 031, which held back
+most of a busy name's books). Books reach the writer in batches, like prints, so a
+fast book cannot fill the worker's backlog; a book over the bound is held, never
+dropped, and stop flushes the newest pending book even if the feed became quiet.
+Manifest fidelity describes offered/coalesced counts -- `l2_coalesced` counts every
+book held back, at the IBKR bridge or by event time -- configured maximum Hz,
+invalid timestamp and regression counts, and per-stream watermarks. A backward print fails visibly before it can
 enter bars. Forward Eastern date changes finalize the old directory and resume
 the event's date; the recording continues across the swap, and recorder state is
 read under its lock so a status poll can never observe the swap half-done and

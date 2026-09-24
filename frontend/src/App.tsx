@@ -41,6 +41,7 @@ import { AdviseHost } from './advise/AdvisePanel';
 import { AdviseProvider } from './advise/AdviseContext';
 import { AppDialogHost } from './ux';
 import { DesktopUpdateHost } from './desktop_update';
+import { useFocusReport } from './focus_report/useFocusReport';
 import { useNavPage } from './workspace/navRailStore';
 import { TraderDockLayer } from './workspace/traderDesk/TraderDockLayer';
 import { useWorkspace, WorkspaceProvider } from './workspace/WorkspaceContext';
@@ -57,6 +58,7 @@ function AppShell() {
   // The workspace slot is on screen for the full Trader and beside the Desk board.
   const showTrader = traderUp || (deskUp && hasTraderDesk);
   useNovaDeskWindowTitle(sampleMode, traderUp, activeTraderSymbol);
+  useFocusReport(sampleMode, traderUp, deskUp); // what this window shows, for GET /sensors/focus (ADR 031)
 
   useEffect(() => {
     const sync = () => setSampleMode(isSampleView());

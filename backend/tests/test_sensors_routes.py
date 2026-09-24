@@ -1,4 +1,4 @@
-"""All 18 sensor endpoints return the common envelope."""
+"""All 20 sensor endpoints return the common envelope."""
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
@@ -25,12 +25,14 @@ SYMBOL_PATHS = (
     "/sensors/halt",
     "/sensors/memory",
     "/sensors/regime",
+    "/sensors/book-pulls",
 )
 
 DESK_PATHS = (
     "/sensors/session-phase",
     "/sensors/risk",
     "/sensors/macro",
+    "/sensors/focus",
 )
 
 
@@ -48,14 +50,14 @@ def _assert_envelope(body: dict, sensor: str, *, symbol: str | None = None) -> N
         assert body.get("symbol") == symbol
 
 
-def test_catalog_lists_all_eighteen():
+def test_catalog_lists_all_twenty():
     res = client.get("/sensors")
     assert res.status_code == 200
     body = res.json()
-    assert body["count"] == 18
+    assert body["count"] == 20
     keys = [row["sensor"] for row in body["sensors"]]
     assert keys == list(SENSOR_IDS)
-    assert len(list_catalog()) == 18
+    assert len(list_catalog()) == 20
 
 
 def test_each_symbol_sensor_is_callable():
@@ -73,12 +75,12 @@ def test_desk_sensors_are_callable():
         _assert_envelope(res.json(), path.rsplit("/", 1)[-1])
 
 
-def test_snapshot_returns_eighteen():
+def test_snapshot_returns_twenty():
     res = client.get("/sensors/snapshot", params={"symbol": "AAPL"})
     assert res.status_code == 200
     body = res.json()
-    assert body["count"] == 18
-    assert len(body["sensors"]) == 18
+    assert body["count"] == 20
+    assert len(body["sensors"]) == 20
     keys = [row["sensor"] for row in body["sensors"]]
     assert keys == list(SENSOR_IDS)
 

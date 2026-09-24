@@ -5,7 +5,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from sensors.adapters import advice, bars, bookish, desk, stubs, tapeish, volume
+from sensors.adapters import advice, bars, bookish, desk, focus, pulls, stubs, tapeish, volume
 
 Reader = Callable[..., dict[str, Any]]
 
@@ -40,6 +40,10 @@ SPECS: tuple[SensorSpec, ...] = (
     SensorSpec(16, "memory", "Brain memory", "/sensors/memory", "stub", True, stubs.read_memory),
     SensorSpec(17, "regime", "Regime detector", "/sensors/regime", "computed_stub", True, stubs.read_regime),
     SensorSpec(18, "macro", "Macro calendar", "/sensors/macro", "stub", False, stubs.read_macro),
+    SensorSpec(19, "focus", "Operator focus (window, page, symbol, monitor)", "/sensors/focus", "live", False,
+               focus.read_focus),
+    SensorSpec(20, "book-pulls", "Level 2 size filled vs pulled, pull patterns", "/sensors/book-pulls", "live",
+               True, pulls.read_book_pulls),
 )
 
 SENSOR_IDS = tuple(spec.key for spec in SPECS)

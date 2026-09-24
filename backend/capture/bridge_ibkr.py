@@ -8,6 +8,8 @@ from zoneinfo import ZoneInfo
 
 from capture import worker
 from capture.constants_capture import (
+    CAPTURE_BOOK_BATCH_MAX,
+    CAPTURE_BOOK_BATCH_SEC,
     CAPTURE_L2_MAX_HZ,
     CAPTURE_PRINT_BATCH_MAX,
     CAPTURE_PRINT_BATCH_SEC,
@@ -15,16 +17,22 @@ from capture.constants_capture import (
 
 logger = logging.getLogger(__name__)
 
-# Book updates arrive on every DOM change -- far faster than the recorder
-# coalesces (CAPTURE_L2_MAX_HZ) and far faster than the fenced worker drains.
-# Coalescing here, before enqueue, keeps a fast runner's book from filling
-# CAPTURE_PENDING_BATCHES and stopping the recording (worker.submit treats a
-# full backlog as data loss and finalizes the session).
+# Book updates arrive on every DOM change. Every book is kept up to
+# CAPTURE_L2_MAX_HZ (a flood bound); a book over it is held, not dropped, and
+# replaced by the next. Books reach the fenced worker in batches, like prints,
+# so a fast runner's book cannot fill CAPTURE_PENDING_BATCHES and stop the
+# recording (worker.submit treats a full backlog as data loss and finalizes).
 BOOK_MIN_INTERVAL_SEC = 1.0 / CAPTURE_L2_MAX_HZ
 
 _last_book_ts: dict[str, float] = {}
+# Books IBKR sent that the recording will never write: a held book replaced by a newer one.
 _books_coalesced: dict[str, int] = {}
+# ... and how many of those the manifest has not been told about yet (ADR 031).
+_books_unreported: dict[str, int] = {}
 _pending_book: dict[str, dict] = {}
+# Books waiting for their batch to be submitted: (ts, book, coalesced_before).
+_pending_books: dict[str, list[tuple[float, dict, int]]] = {}
+_last_book_submit: dict[str, float] = {}
 # Prints buffered since the last submit, and when that submit was. Unlike the
 # book, every buffered print is kept: a print is an event, not a snapshot.
 _pending_prints: dict[str, list[dict]] = {}
@@ -37,7 +45,10 @@ _observed_book: dict[str, dict] = {}
 def reset_for_tests() -> None:
     _last_book_ts.clear()
     _books_coalesced.clear()
+    _books_unreported.clear()
     _pending_book.clear()
+    _pending_books.clear()
+    _last_book_submit.clear()
     _observed_book.clear()
     _pending_prints.clear()
     _last_print_submit.clear()
@@ -142,11 +153,12 @@ def enqueue_book(symbol: str, book: dict) -> None:
     monotonic per symbol: a backward wall clock skips the row rather than
     tripping the recorder's timestamp-regression stop.
 
-    Coalescing *holds* the newest book rather than dropping it, mirroring
-    ``Fidelity.offer_l2``. Dropping meant a burst that then went quiet left the
-    capture holding a stale book forever -- the last book before a lull is
-    exactly the one worth having -- so the pending snapshot is flushed on the
-    next update or by ``flush_book`` when the recording stops.
+    A book inside the flood bound (``CAPTURE_L2_MAX_HZ``) is *held* rather than
+    dropped, mirroring ``Fidelity.offer_l2``: the next book replaces it (the
+    held one is counted lost, and the count rides on the next depth row to the
+    manifest's ``l2_coalesced``), and ``flush_book`` writes it when the
+    recording stops -- the last book before a lull is exactly the one worth
+    having. Every other book joins its batch (ADR 031).
     """
     token = worker.session_token(symbol)
     if token is None:
@@ -158,15 +170,52 @@ def enqueue_book(symbol: str, book: dict) -> None:
     ts = time.time()
     last = _last_book_ts.get(symbol)
     if last is not None and ts - last < BOOK_MIN_INTERVAL_SEC:
-        _books_coalesced[symbol] = _books_coalesced.get(symbol, 0) + 1
+        if _pending_book.get(symbol) is not None:
+            _lose_book(symbol)  # the held book is replaced before it was written
         _pending_book[symbol] = dict(book)
         return
-    _pending_book.pop(symbol, None)
+    if _pending_book.pop(symbol, None) is not None:
+        _lose_book(symbol)
     _last_book_ts[symbol] = ts
-    if worker.submit(_write_book, symbol, ts, dict(book), token=token):
-        _mark_observed(symbol, book)
+    _queue_book(symbol, token, ts, book)
+
+
+def _lose_book(symbol: str) -> None:
+    _books_coalesced[symbol] = _books_coalesced.get(symbol, 0) + 1
+    _books_unreported[symbol] = _books_unreported.get(symbol, 0) + 1
+
+
+def _queue_book(symbol: str, token: int, ts: float, book: dict) -> None:
+    """Add a book to its batch; submit the batch when it is full or due."""
+    held_back = 0
+    if not book.get("l1_fallback"):
+        # Only a depth book writes an l2 row, so only it can carry the count to the manifest.
+        held_back = _books_unreported.pop(symbol, 0)
+    batch = _pending_books.setdefault(symbol, [])
+    batch.append((ts, dict(book), held_back))
+    last = _last_book_submit.get(symbol)
+    if len(batch) < CAPTURE_BOOK_BATCH_MAX and last is not None and ts - last < CAPTURE_BOOK_BATCH_SEC:
+        return
+    _submit_books(symbol, token, ts)
+
+
+def _submit_books(symbol: str, token: int, now: float) -> None:
+    batch = _pending_books.pop(symbol, None)
+    if not batch:
+        return
+    _last_book_submit[symbol] = now
+    if worker.submit(_write_books, symbol, batch, token=token):
+        _mark_observed(symbol, batch[-1][1])
     else:
+        # Refused: the session is finalizing. Reopening the interval keeps the
+        # next book from waiting on a submit time that never happened.
+        _last_book_submit.pop(symbol, None)
         _last_book_ts.pop(symbol, None)
+
+
+def _write_books(symbol: str, batch: list[tuple[float, dict, int]]) -> None:
+    for ts, book, held_back in batch:
+        _write_book(symbol, ts, book, held_back=held_back)
 
 
 def _mark_observed(symbol: str, book: dict) -> None:
@@ -177,17 +226,17 @@ def _mark_observed(symbol: str, book: dict) -> None:
 
 
 def flush_book(symbol: str) -> None:
-    """Persist the newest coalesced book. Call while the worker still accepts."""
-    book = _pending_book.pop(symbol, None)
-    if book is None:
-        return
+    """Persist the batch and the newest held book. Call while the worker still accepts."""
+    held = _pending_book.pop(symbol, None)
     token = worker.session_token(symbol)
     if token is None:
+        _pending_books.pop(symbol, None)
         return
-    ts = max(time.time(), _last_book_ts.get(symbol, 0) + BOOK_MIN_INTERVAL_SEC)
-    _last_book_ts[symbol] = ts
-    if worker.submit(_write_book, symbol, ts, book, token=token):
-        _mark_observed(symbol, book)
+    if held is not None:
+        ts = max(time.time(), _last_book_ts.get(symbol, 0) + BOOK_MIN_INTERVAL_SEC)
+        _last_book_ts[symbol] = ts
+        _queue_book(symbol, token, ts, held)
+    _submit_books(symbol, token, time.time())
 
 
 def _levels(rows) -> list[dict]:
@@ -199,7 +248,7 @@ def _levels(rows) -> list[dict]:
     return out
 
 
-def _write_book(symbol: str, ts: float, book: dict) -> None:
+def _write_book(symbol: str, ts: float, book: dict, *, held_back: int = 0) -> None:
     from capture.recorder import record_l2, record_quote
 
     day = datetime.fromtimestamp(ts, ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
@@ -231,6 +280,8 @@ def _write_book(symbol: str, ts: float, book: dict) -> None:
                 "asks": asks,
                 "source": "ibkr",
                 "session_date": day,
+                # Popped by Fidelity.offer_l2 into l2_coalesced; never written to the row.
+                "coalesced_before": held_back,
             }
         )
 

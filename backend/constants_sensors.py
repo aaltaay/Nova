@@ -22,6 +22,8 @@ SENSOR_MACD_SLOW = 26
 SENSOR_MACD_SIGNAL = 9
 SENSOR_EMA_PERIODS = (9, 20, 200)
 SENSOR_FLOW_SWEEP_MIN_PRINTS = 3
+# The L2 sensor's spoof_hints: the book watcher's newest large pulls (ADR 031).
+SENSOR_SPOOF_HINTS = 5
 
 # Clock labels for sensor 8 (session phase). Not a computed chop detector.
 SESSION_OPEN_AUCTION_END_MIN_ET = 9 * 60 + 45  # 09:45
@@ -60,4 +62,22 @@ SENSOR_MACRO_EVENTS = (
         "expected_impact": "high",
         "symbol": None,
     },
+)
+
+# Operator focus (ADR 031): what each desk window reports, joined into one answer.
+FOCUS_SCHEMA_VERSION = 1
+# A window (or the Electron main process) that has not reported for this long is gone.
+FOCUS_STALE_SEC = 20.0
+# A gone window's last report is forgotten after this long.
+FOCUS_FORGET_SEC = 300.0
+FOCUS_RECENT_KEEP = 20
+FOCUS_REPORT_MAX_BODY_BYTES = 16384
+FOCUS_MAX_TABS = 40
+FOCUS_MAX_WINDOWS = 16
+FOCUS_PAGES = ("trader", "desk", "scanner", "account", "bots", "records")
+FOCUS_SYMBOL_SOURCES = ("trader_tab", "desk_board", "scanner_row")
+FOCUS_REASONS = ("start", "focus", "blur", "visibility", "page", "symbol", "input", "heartbeat", "display")
+FOCUS_NOTE = (
+    "Which Nova window Windows has in front, and the page and symbol it shows. Where your eyes are cannot be "
+    "known; last_input_ts is when you last clicked or typed in that window."
 )

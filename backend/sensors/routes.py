@@ -148,3 +148,19 @@ def sensor_regime(symbol: str | None = Query(default=None)) -> dict:
 @router.get("/sensors/macro")
 def sensor_macro(symbol: str | None = Query(default=None)) -> dict:
     return read_one("macro", _symbol(symbol, required=False))
+
+
+@router.get("/sensors/book-pulls")
+def sensor_book_pulls(symbol: str | None = Query(default=None)) -> dict:
+    return read_one("book-pulls", _symbol(symbol, required=True))
+
+
+@router.get("/sensors/book-pulls/events")
+def sensor_book_pull_events(
+    since: float | None = Query(default=None, ge=0),
+    symbol: str | None = Query(default=None),
+) -> dict:
+    """The book watcher's flags newer than ``since``, oldest first (ADR 031) -- for a poller."""
+    from book_watch.view import book_pull_events
+
+    return book_pull_events(since, _symbol(symbol, required=False))

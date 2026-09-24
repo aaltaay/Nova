@@ -92,6 +92,12 @@ def on_tape_update(ticker: Any, symbol: str, push, depth) -> None:
         from ibkr.tape_recording import dispatch
 
         dispatch(MappingProxyType(dict(payload)))
+        try:
+            from book_watch.live import enqueue_print
+
+            enqueue_print(payload)  # the book watcher's tape (ADR 031); enqueue only
+        except Exception:
+            logger.exception("IBKR tape: book watcher enqueue failed for %s", symbol)
         # On a Sim desk off the live edge the only live line is one Session
         # Record holds (#315): it feeds the recording above, but the practice
         # desk's viewers and sensors read the replay through these same queues

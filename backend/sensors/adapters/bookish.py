@@ -7,6 +7,7 @@ from typing import Any
 from constants_sensors import (
     SENSOR_BOOK_LEVELS,
     SENSOR_FLOW_SWEEP_MIN_PRINTS,
+    SENSOR_SPOOF_HINTS,
     SENSOR_TICK_DOLLARS,
 )
 from l2 import features as l2_features
@@ -38,6 +39,19 @@ def _spread_ticks(spread: float | None) -> float | None:
 
 
 def _book_rates(symbol: str) -> dict[str, Any]:
+    """Size added and taken away per price across the last book snapshots.
+
+    Rows are summed per price first: IBKR sends one row per venue, and keying
+    rows by price alone let each venue at a price overwrite the one before it
+    (ADR 031). A decrease here is a fill or a pull; the book watcher
+    (``/sensors/book-pulls``) tells them apart against the tape, and
+    ``spoof_hints`` are its newest large pulls.
+    """
+    from book_watch.book import aggregate
+    from book_watch.view import spoof_hints
+
+    hints = spoof_hints(symbol, SENSOR_SPOOF_HINTS)
+    note = "Hints only -- large resting size pulled without trading at its price (/sensors/book-pulls). Not a detection."
     hist = rings.recent_books(symbol)
     if len(hist) < 2:
         return {
@@ -46,35 +60,23 @@ def _book_rates(symbol: str) -> dict[str, Any]:
             "window_sec": None,
             "replenish_per_sec": None,
             "cancel_per_sec": None,
-            "spoof_hints": [],
+            "spoof_hints": hints,
             "note": "Need at least two book snapshots (open Trader L2 or poll).",
         }
     first, last = hist[0], hist[-1]
     window = max(0.001, float(last["ts"]) - float(first["ts"]))
     replenish = 0
     cancel = 0
-    vanished: list[dict[str, Any]] = []
-    prev_map: dict[tuple[str, float], float] = {}
+    prev_map: dict[tuple[str, float], float] | None = None
     for snap in hist:
-        cur: dict[tuple[str, float], float] = {}
-        for side in ("bids", "asks"):
-            for row in snap.get(side) or []:
-                try:
-                    key = (side, float(row.get("price")))
-                    size = float(row.get("size") or 0)
-                except (TypeError, ValueError):
-                    continue
-                cur[key] = size
-                prior = prev_map.get(key)
-                if prior is None:
-                    if size > 0:
-                        replenish += 1
-                elif size > prior:
+        cur = {(side, price): size for side in ("bids", "asks") for price, size in aggregate(snap.get(side)).items()}
+        if prev_map is not None:
+            for key in cur.keys() | prev_map.keys():
+                before, after = prev_map.get(key, 0.0), cur.get(key, 0.0)
+                if after > before:
                     replenish += 1
-                elif size < prior:
+                elif after < before:
                     cancel += 1
-                    if prior >= 100 and size <= 0:
-                        vanished.append({"side": side, "price": key[1], "from_size": prior})
         prev_map = cur
     return {
         "replenish_events": replenish,
@@ -82,8 +84,8 @@ def _book_rates(symbol: str) -> dict[str, Any]:
         "window_sec": round(window, 3),
         "replenish_per_sec": round(replenish / window, 4),
         "cancel_per_sec": round(cancel / window, 4),
-        "spoof_hints": vanished[-5:],
-        "note": "Hints only -- size that appeared then dropped to 0. Not a detection.",
+        "spoof_hints": hints,
+        "note": note,
     }
 
 
