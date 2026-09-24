@@ -6,11 +6,13 @@ from __future__ import annotations
 
 import asyncio
 import math
+from datetime import datetime
 
 import pytest
 
 import ibkr.discovery as discovery
 import ibkr.quote_rows as quote_rows
+from market import ET
 
 
 @pytest.fixture(autouse=True)
@@ -259,6 +261,9 @@ class TestGetMovers:
         assert [r["symbol"] for r in rows] == ["B", "A"]
 
     def test_gap_percent_uses_open_vs_prev_close(self, monkeypatch):
+        import ibkr.open_tick as open_tick
+
+        monkeypatch.setattr(open_tick, "now_et", lambda: datetime(2026, 9, 24, 10, 0, tzinfo=ET))
         scan_rows = [_FakeScanRow("A")]
         tickers = [_FakeTicker("A", last=12.0, close=10.0, open_=11.0)]  # gap = +10%, change = +20%
         fake_ib = _FakeIB(scan_rows, tickers)
@@ -268,6 +273,18 @@ class TestGetMovers:
         row = rows[0]
         assert math.isclose(row["change_pct"], 0.2)
         assert math.isclose(row["gap_percent"], 0.1)
+
+    def test_no_gap_before_the_open_from_yesterdays_open_tick(self, monkeypatch):
+        """Before 09:30 ET IBKR's open tick is the previous session's (GCTK +9.9%, 2026-09-24)."""
+        import ibkr.open_tick as open_tick
+
+        monkeypatch.setattr(open_tick, "now_et", lambda: datetime(2026, 9, 24, 7, 45, tzinfo=ET))
+        tickers = [_FakeTicker("A", last=4.13, close=2.03, open_=2.231)]
+        _patch_client(monkeypatch, _FakeIB([_FakeScanRow("A")], tickers))
+
+        row = asyncio.run(discovery.get_gainers())[0]
+        assert math.isclose(row["change_pct"], (4.13 - 2.03) / 2.03)
+        assert row["gap_percent"] is None and row["open"] is None
 
 
 class TestGetAfterhoursGainers:

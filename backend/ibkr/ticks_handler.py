@@ -10,6 +10,7 @@ from typing import Any, Callable, Optional
 
 from constants import IBKR_QUOTE_QUALITY_CLOSE_FALLBACK
 from constants_tape import IBKR_LAST_TICK_TYPES
+from ibkr.open_tick import todays_open
 from metrics.op_metrics import timed_fn
 
 logger = logging.getLogger(__name__)
@@ -249,8 +250,9 @@ def on_ticker_update(
     close = clean(getattr(ticker, "close", None))
     # Tick type 14 = session OPEN. IB sends it on the same streaming ticker, so
     # Gap % costs no extra request (the COLD snapshot path already reads it --
-    # see ibkr/discovery.py snapshot_quotes).
-    open_price = clean(getattr(ticker, "open", None))
+    # see ibkr/discovery.py snapshot_quotes). Before 09:30 ET it is the
+    # previous session's open, so it is dropped until today's session opens.
+    open_price = todays_open(clean(getattr(ticker, "open", None)))
     # Tick type 6 = day High (ib_async: ticker.high) -- HOD truth floor.
     day_high = clean(getattr(ticker, "high", None))
     day_high_changed = False

@@ -495,6 +495,20 @@ fraction under 1.0. Bar-derived sensor readings (`vwap`, `macd`, `emas`,
 they were computed from, `null` without bars -- so the board can say a
 reading is stale.
 
+**The gap is never yesterday's** (operator report, 2026-09-24: GCTK read
++9.9% on the Focus rail all premarket while it traded +103% on its prior
+close). IBKR's open tick (14) names the previous session's open until the
+regular session opens, so it counts as today's open only from 09:30 ET on an
+exchange day (`ibkr/open_tick.py`, for the streaming line and
+`snapshot_quotes`). Before then a Gainers / Losers row's `open` and
+`gap_percent` are `null` (unknown, never 0); a repriced row takes the quote's
+open over one it stored. A Gappers row's `gap_percent` is its `change_pct` --
+the move against the prior close -- in its roster rows and in every
+`price_patch` tagged `gappers` (`gapper_view.patch_for_table`); the patch used
+to carry the Gainers row's open-based gap, so the Gappers table, the Focus rail
+and the Trader tab showed yesterday's open-to-close move, frozen, and flipped
+to the real move on each roster replace.
+
 **Live rows state their halt** (#487, operator decision 2026-09-24): every row
 `surface_rows` serves carries `halted: boolean | null` -- is the symbol halted
 now -- read when the row is served, from memory only
@@ -1748,6 +1762,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-24 | The gap is never yesterday's (operator report: "massive discrepancy between the focus window and the stock quote ... it shows 9.9 when I don't think it is", "the digits on the left side are frozen"): GCTK's Focus rail read +9.9% at $4.13 and $4.16 while the Stock Quote read +103.46% on the 2.03 prior close. IBKR's open tick is the previous session's until 09:30 ET, so the Gainers row's "gap" was yesterday's open-to-close move, and every L1 patch tagged `gappers` wrote it over the Gappers row's real move (a roster replace put the move back: the flicker). The open tick now counts only once today's session has opened (`ibkr/open_tick.py`), and a Gappers patch carries its own gap (`gapper_view.patch_for_table`). §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Leftover-issue sweep (operator ask: "Do we have any still-leftover issues on GitHub? Can we go ahead and address them?"): all 28 open issues checked against master; five were already fixed and closed (#430, #448, #481, #484, #516). §3 amended for what shipped: scanner snapshots dated by their exchange session (#483); the replayed session's previous close is IBKR's own -- a recorded tick 9, the leaderboard, a download's regular-hours daily close, else none, never a 15:59 or after-hours close (#542); a recording's lost tape line is named, asked for again and counted in the manifest (#525, cause unproven); Time & Sales dims prints that do not set a price, and a capture replay's chart tip and last trade skip them (#543); Form 4 open-market insider purchases are a weak catalyst, rules v7 (#517); a float Yahoo's own counts contradict is flagged and short interest carries its FINRA date, no gate changed (#532, point 2 awaits the operator); the leaderboard store is schema 2 with per-day catalyst items for Sim playback (#498); chart bars coverage says when IBKR history stopped answering, and a failed pair backs off 30 s (#555). Also: the session commission read is cached exactly by ledger generation (#554), the Gateway port probe and HOD Momo's alert writes left the loops (#505, #553), Nova Action cancels and flattens work on a disarmed desk (#548, ADR 018 decision 4), tape and depth lines from an ended IBKR session stop counting as subscribed and are asked for again (#562, `ibkr/line_session.py`), the 17 stale Playwright specs match today's desk (#502), and several QA leftovers (#459, #486, #487). Decisions recorded on their issues: #449, #485, #499, #504, #514, #564; new bugs filed: #563, #565, #566. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | The first-pullback bot trades Paper and Sim; the read-out gates Live (ADR 030, #514; operator report: "When I'm on paper, I cannot activate the button for the bots" -- then "Paper/Sim skip it + build"). Activate at Strategy was locked on every venue by the first-pullback read-out (0 of 50 go setups: a go needs Nova to hold the name's Level 2 at the trigger), and nothing placed a trade on a trigger anyway. Now Paper and Sim skip the read-out (Live keeps it; an unreadable venue counts as Live), and `bot/first_pullback/` trades the template in play's go triggers there through every bot gate: a limit at the scanner's entry, a resting target, a watched stop, a 15-minute time stop, one trade a day (a miss gives the day back). Nothing places on Live. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-23 | Nova shows a window the moment it starts (operator pick after the update fix): the desk window was created only once the local engine answered and shown only once its page loaded, so a cold start -- a 2.5 s look for a running engine, the engine's own start, the page load -- had nothing on screen. A small "Starting Nova" window now opens about 0.6 s after launch, names the step (looking for, starting or connecting to the local engine, loading the desk), closes the moment the desk shows, and calls the launch off when the operator closes it. After an update it takes over from the "Updating Nova" window. `startApiSidecar()` now says whether it reused, attached to or spawned the engine. §8 amended. | User Directive + Claude Opus 5.5 |
