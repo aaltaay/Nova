@@ -74,6 +74,7 @@ function WatchlistRow({ entry, index, setup, following, allowed, onToggleBot, se
       onSelect={onSelect}
       onOpenTrading={onOpenTrading}
       openOnRowClick={false}
+      symbolMenu
     >
       <ScannerRowNumCell index={index} />
       <td>
@@ -142,7 +143,7 @@ export function WatchlistTable({ entries, loading, error, selectedSymbol, onSele
           <span><b>{sum.setupsLive}</b> setups live · <b>{sum.near}</b> near trigger</span>
           <span><b>{sum.allowlisted}</b> on the bot allowlist</span>
         </div>
-        <div className="wl-filters" role="group" aria-label="Watchlist filter">
+        <div className="wl-filters" role="group" aria-label="Contenders filter">
           {FILTERS.map(f => (
             <button
               key={f}
@@ -160,7 +161,7 @@ export function WatchlistTable({ entries, loading, error, selectedSymbol, onSele
       {!error && shown.length === 0 ? (
         <div className="empty-state">
           {loading
-            ? 'Loading watchlist…'
+            ? 'Loading Contenders…'
             : entries.length === 0
               ? 'No candidates currently meet scanning criteria.'
               : 'Nothing matches this filter.'}

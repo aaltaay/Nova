@@ -38,9 +38,9 @@ export interface DeskBoardList {
 
 type FeedRows = Pick<LiveScannerFeed, 'gappers' | 'gainers' | 'losers' | 'afterhours' | 'largeCap' | 'catalysts'>;
 
-/** Lists the board can mirror from the feed it already has; others say so. */
+/** Lists the board can mirror from the feed it already has (plus the operator's watch list); others say so. */
 export const DESK_BOARD_MIRRORED_LISTS: readonly string[] = [
-  'gappers', 'gainers', 'losers', 'afterhours', 'large_cap', 'catalysts',
+  'gappers', 'gainers', 'losers', 'afterhours', 'large_cap', 'catalysts', 'watch_list',
 ];
 
 function finite(value: number | null | undefined): number | null {
@@ -82,13 +82,51 @@ function fromCatalyst(row: Catalyst): DeskBoardRow {
   };
 }
 
+function blankRow(symbol: string): DeskBoardRow {
+  return {
+    symbol,
+    price: null,
+    gapPct: null,
+    volume: null,
+    relVolume: null,
+    float: null,
+    catalyst: null,
+    headline: null,
+    headlineSource: null,
+    headlineAt: null,
+    state: null,
+  };
+}
+
+/**
+ * The operator's watch list, in its own order: each symbol's facts from the
+ * board row that holds it, else its Catalysts row, else every figure null --
+ * not on a board, never invented. The exchange filter does not hide a
+ * symbol the operator picked by hand.
+ */
+export function watchDeskRows(symbols: readonly string[], feed: FeedRows): DeskBoardRow[] {
+  const boards = [feed.gainers, feed.gappers, feed.losers, feed.afterhours, feed.largeCap];
+  return symbols.map(symbol => {
+    for (const rows of boards) {
+      const hit = rows.find(r => r.symbol.toUpperCase() === symbol);
+      if (hit) return fromScannerRow(hit, feed.catalysts);
+    }
+    const catalyst = catalystFor(symbol, feed.catalysts);
+    return catalyst ? fromCatalyst(catalyst) : blankRow(symbol);
+  });
+}
+
 /** Rows for a list id; null when the feed does not carry that list here. */
 export function deskBoardRowsFor(
   list: string,
   feed: FeedRows | null | undefined,
   filterRows?: <T extends ScannerRow>(rows: T[]) => T[],
+  watchList?: readonly string[],
 ): DeskBoardList | null {
   if (!feed) return null;
+  if (list === 'watch_list') {
+    return watchList ? { rows: watchDeskRows(watchList, feed), total: watchList.length } : null;
+  }
   const pick = (rows: ScannerRow[]): DeskBoardList => ({
     rows: (filterRows ? filterRows(rows) : rows).map(row => fromScannerRow(row, feed.catalysts)),
     total: rows.length,

@@ -1,5 +1,6 @@
-/** Watchlist tab — what's worth trading (Five Pillars, market facts, catalyst, setup state, bot allowlist),
- * the live Setups scanner, the Journal and the Backtest. Signal-only; no orders placed. */
+/** Contenders tab (id `watchlist`) — what's worth trading (Five Pillars, market facts, catalyst, setup
+ * state, bot allowlist), the live Setups scanner, the Journal and the Backtest. Signal-only; no orders
+ * placed. Named Contenders 2026-09-23 so "Watch list" means the operator's hand-picked list (watch_list/). */
 import { lazy, Suspense, useState } from 'react';
 import { TabLazyFallback } from '../components/TabLazyFallback';
 
@@ -34,9 +35,9 @@ export function WatchlistTab({
         <button
           className={`sub-tab ${subTab === 'watchlist' ? 'active' : ''}`}
           onClick={() => setSubTab('watchlist')}
-          title="Every gapper/gainer scored against the Five Pillars and ranked by composite score. Refreshes continuously. No orders are placed."
+          title="Contenders: every gapper/gainer scored against the Five Pillars and ranked by composite score. Refreshes continuously. No orders are placed. (Your own hand-picked symbols are the Watch list.)"
         >
-          Watchlist
+          Contenders
           {entries.length > 0 && <span className="tab-count">{entries.length}</span>}
         </button>
         <button

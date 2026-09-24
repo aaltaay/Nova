@@ -186,32 +186,7 @@
   clip: rect(0 0 0 0);
 }
 
-.bot-symbol-menu {
-  position: fixed;
-  z-index: 80;
-  min-width: 220px;
-  background: var(--nova-panel, #12161e);
-  border: 1px solid var(--nova-border, #2a3140);
-  border-radius: 6px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-  padding: 0.25rem;
-}
-
-.bot-symbol-menu button {
-  display: block;
-  width: 100%;
-  text-align: left;
-  font-size: 0.78rem;
-  background: transparent;
-  color: inherit;
-  border: 0;
-  padding: 0.4rem 0.5rem;
-  border-radius: 4px;
-}
-
-.bot-symbol-menu button:hover {
-  background: rgba(59, 130, 246, 0.18);
-}
+/* The symbol menu (.bot-symbol-menu) is styled in symbolMenu.css. */
 
 @keyframes bot-arm-pulse {
   0%,

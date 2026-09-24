@@ -4,9 +4,13 @@
  * Strategies that fired for the ticker together share the row: a count bubble
  * and their chips, named on hover (HodMomoStripStrategies).
  * Row click selects (side panel follows); the ticker opens Trader (ADR 011 §7a).
+ * Right-click opens the symbol menu (watch list, Record, bot allowlist); a
+ * watched ticker's row carries the watch colour on its left edge.
  */
 import { memo } from 'react';
+import { openBotSymbolMenu } from '../bot';
 import { TICKER_OPEN_TRADER_TITLE } from '../constants';
+import { useIsWatched, watchMarkTitle } from '../watch_list';
 import {
   HOD_MOMO_STRIP_NEW_FLAG,
   HOD_MOMO_STRIP_ROW_TITLE,
@@ -67,6 +71,7 @@ export const HodMomoStripRow = memo(function HodMomoStripRow({
   onOpenTrading,
 }: Props) {
   const { lead, ticker } = group;
+  const watched = useIsWatched(ticker);
   const grouped = group.members.length > 1;
   const gates = gateValuesOf(group.members);
   const printNote = stripPrintNote(lead);
@@ -74,7 +79,7 @@ export const HodMomoStripRow = memo(function HodMomoStripRow({
 
   return (
     <div
-      className={`hod-strip__row${selected ? ' is-selected' : ''}${isNew ? ' is-new' : ''}`}
+      className={`hod-strip__row${selected ? ' is-selected' : ''}${isNew ? ' is-new' : ''}${watched ? ' is-watched' : ''}`}
       role="row"
       tabIndex={0}
       aria-selected={selected}
@@ -82,8 +87,13 @@ export const HodMomoStripRow = memo(function HodMomoStripRow({
       data-symbol={ticker}
       data-strategies={group.members.length}
       data-new={isNew ? '1' : undefined}
-      title={printNote ? `${HOD_MOMO_STRIP_ROW_TITLE} · ${printNote}` : HOD_MOMO_STRIP_ROW_TITLE}
+      data-watched={watched ? '1' : undefined}
+      title={[HOD_MOMO_STRIP_ROW_TITLE, printNote, watched ? watchMarkTitle(ticker) : null].filter(Boolean).join(' · ')}
       onClick={() => onSelect(ticker)}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        openBotSymbolMenu(ticker, e.clientX, e.clientY);
+      }}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();

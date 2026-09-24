@@ -149,7 +149,7 @@ describe('NavRail', () => {
     expect(groups[1].modules.map((m) => m.id)).toEqual([
       'volume_boost', 'hod_momo', 'catalysts', 'earnings', 'nova_news',
     ]);
-    expect(groups[2].modules.map((m) => m.id)).toEqual(['watchlist']);
+    expect(groups[2].modules.map((m) => m.id)).toEqual(['watch_list', 'watchlist']);
     const tree = q('nav-rail-scanner-tree')!;
     const labels = Array.from(tree.querySelectorAll('.nav-rail__grp')).map((el) => el.textContent);
     expect(labels).toEqual(['Lists', 'Signals', 'Mine']);
