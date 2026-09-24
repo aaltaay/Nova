@@ -152,6 +152,26 @@ this fix, one full backlog stopped the writer until a restart. On 2026-09-24 an
 overflow at 07:29 ET left every Paper resting order unfilled for the rest of
 the morning: a SELL limit at 4.96 sat while APUS printed 5.00.
 
+## The venue's answer is the acknowledgment (operator report, 2026-09-24)
+
+A Live order's reply waits for IBKR's first status -- a real round trip
+through IB Gateway, 40 ms to about 1 s on the desk's record. The practice
+broker answers inside the send, so that answer is the acknowledgment:
+`practice/watch.note_answer` records it (`Submitted` for a resting order,
+`Filled` for a fill at placement) on the execution's own watch, stamped when
+the send reads it, and the reply leaves at once. Nothing waits and nothing is
+delayed to look like IBKR. An order the venue cancels at the fill
+(`order_rules.fill_refusal`) is a refusal in the venue's own words and code,
+naming its order id -- never an order reported placed.
+
+Before this, the broker's notice of a fill at placement reached a watch the
+send then replaced, and a resting order sent no notice at all, so the
+execution door's acknowledgment wait ran out its full `EXECUTION_ACK_WAIT_SEC`:
+on 2026-09-24, 21 of 23 Paper orders answered in 5.1 s while their fills
+landed in under 150 ms, and the ticket read "Placing..." the whole time. A
+price replace waited the same 5 s. `py -3 tools/order_timing.py` prints each
+order's stages from the running backend.
+
 ## Market orders need regular hours (operator decision, 2026-09-21)
 
 A `MKT` from a non-protective source is refused `MKT_OUTSIDE_RTH` -- "use a
