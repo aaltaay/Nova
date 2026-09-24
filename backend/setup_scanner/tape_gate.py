@@ -11,6 +11,12 @@ material makes before pressing buy (ADR 022, Bot-Trading-Plan section 2g):
          no wall at the level, or the wall is being eaten
   blind  no fresh book -- Nova holds no Level 2 line for the symbol
 
+A template may decide the entry by the tape flow score instead (ADR 034,
+``entry_mode``): ``gate`` is the rule above; ``score`` keeps the vetoes and a
+wall that is not thinning, and replaces the green / red print counts with the
+flow score at or over ``entry_min_score``; ``both`` needs the green prints and
+the score. The flow reading rides on every answer as ``flow``.
+
 Pure: the engine hands in the book samples and prints it saw in the window.
 Prints carry the side the live tape stamped against the book at receipt
 (``ibkr/tape_side.py``); off-exchange (FINRA / TRF) reports are left out, as
@@ -34,6 +40,12 @@ from constants_setups import (
     TAPE_GATE_THIN_FRACTION,
     TAPE_GATE_WALL_SHARES,
     TAPE_GATE_WINDOW_SEC,
+    TAPE_ENTRY_BOTH,
+    TAPE_ENTRY_GATE,
+    TAPE_ENTRY_MIN_SCORE,
+    TAPE_ENTRY_SCORE,
+    TAPE_FLOW_BLIND,
+    TAPE_FLOW_QUIET,
     TAPE_VERDICT_BLIND,
     TAPE_VERDICT_GO,
     TAPE_VERDICT_VETO,
@@ -56,6 +68,8 @@ class GateParams:
     min_ask_prints: int = TAPE_GATE_MIN_ASK_PRINTS
     hidden_mult: float = TAPE_GATE_HIDDEN_SELLER_MULT
     red_mult: float = TAPE_GATE_RED_BURST_MULT
+    entry_mode: str = TAPE_ENTRY_GATE
+    entry_min_score: float = TAPE_ENTRY_MIN_SCORE
 
 
 DEFAULT_GATE = GateParams()
@@ -95,9 +109,31 @@ def _size_at(book: dict | None, price: float) -> float:
     return sum(sz for px, sz in _levels(book, "asks") if abs(px - price) < 1e-6)
 
 
+def _score_check(flow: dict | None, p: GateParams) -> tuple[bool, str]:
+    """Whether the flow score clears the template's entry minimum, and the reason in words."""
+    if not isinstance(flow, dict) or flow.get("label") == TAPE_FLOW_BLIND:
+        return False, "no flow reading"
+    score = flow.get("score")
+    if flow.get("label") == TAPE_FLOW_QUIET or score is None:
+        return False, "the tape is too quiet to score"
+    if score >= p.entry_min_score - 1e-9:
+        return True, f"flow {score:+.2f} ({flow.get('label')})"
+    return False, f"flow {score:+.2f} is under {p.entry_min_score:+.2f}"
+
+
 def evaluate(*, trigger: float, now: float, books: Iterable[tuple[float, dict]],
-             prints: Iterable[dict], p: GateParams = DEFAULT_GATE) -> dict[str, Any]:
+             prints: Iterable[dict], p: GateParams = DEFAULT_GATE, flow: dict | None = None) -> dict[str, Any]:
     """Judge the tape at ``trigger`` from the samples inside the window ending at ``now``."""
+    res = _evaluate(trigger=trigger, now=now, books=books, prints=prints, p=p, flow=flow)
+    if flow is not None:
+        res["flow"] = flow
+        res["metrics"]["flow_score"] = flow.get("score")
+    res["metrics"]["entry_mode"] = p.entry_mode
+    return res
+
+
+def _evaluate(*, trigger: float, now: float, books: Iterable[tuple[float, dict]],
+              prints: Iterable[dict], p: GateParams, flow: dict | None) -> dict[str, Any]:
     window = [(ts, b) for ts, b in books if now - p.window_sec <= ts <= now and b]
     reasons: list[str] = []
     metrics: dict[str, Any] = {"window_sec": p.window_sec}
@@ -170,18 +206,26 @@ def evaluate(*, trigger: float, now: float, books: Iterable[tuple[float, dict]],
     if (start_ask is not None and ask_vol > 0 and start_inside > 0
             and ask_vol >= p.hidden_mult * start_inside and best_ask <= start_ask + 1e-9):
         vetoes.append(f"hidden seller: {ask_vol / 1000:.1f}k bought at the ask and the ask did not move")
-    if bid_vol > 0 and bid_vol > p.red_mult * ask_vol:
+    use_prints = p.entry_mode in (TAPE_ENTRY_GATE, TAPE_ENTRY_BOTH)
+    use_score = p.entry_mode in (TAPE_ENTRY_SCORE, TAPE_ENTRY_BOTH)
+    if use_prints and bid_vol > 0 and bid_vol > p.red_mult * ask_vol:
         waits.append(f"burst of red on the tape ({bid_vol / 1000:.1f}k at the bid vs {ask_vol / 1000:.1f}k at the ask)")
     green = ask_n >= p.min_ask_prints and ask_vol > bid_vol
     metrics["green_flow"] = green
+    score_ok, score_said = _score_check(flow, p) if use_score else (True, "")
+    if not score_ok:
+        waits.append(score_said)
 
     if vetoes:
         return {"verdict": TAPE_VERDICT_VETO, "reasons": vetoes + waits, "metrics": metrics}
     if waits:
         return {"verdict": TAPE_VERDICT_WAIT, "reasons": waits, "metrics": metrics}
-    if not green:
+    if use_prints and not green:
         return {"verdict": TAPE_VERDICT_WAIT, "reasons": ["no green on the tape yet"] + reasons, "metrics": metrics}
-    reasons.insert(0, f"green on the tape ({ask_n} prints, {ask_vol / 1000:.1f}k at the ask)")
+    if use_score:
+        reasons.insert(0, score_said)
+    if use_prints:
+        reasons.insert(0, f"green on the tape ({ask_n} prints, {ask_vol / 1000:.1f}k at the ask)")
     if l1_only:
         reasons.append("top of book only -- no depth line")
     return {"verdict": TAPE_VERDICT_GO, "reasons": reasons, "metrics": metrics}

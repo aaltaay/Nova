@@ -412,3 +412,62 @@ def test_a_setup_without_a_scanner_never_plays(paper):
     choose("gap_and_go")
     status = runner.status(load_session())
     assert status["playing"] is False and "no scanner" in status["reason"]
+
+
+# -- the template's flush exit (ADR 034) --------------------------------------------------
+def flush_reading(monkeypatch, **policy):
+    """The setup scanner's newest flow reading on the bot's setup, set by the test."""
+    from bot.first_pullback import flush as fp_flush
+
+    box: dict = {}
+    rule = {"mode": "off", "hold_sec": 10.0, "trail_r": 0.5, "min_r": None, **policy}
+    monkeypatch.setattr(fp_flush, "reading", lambda setup_id: {**box["r"], "policy": rule} if "r" in box else None)
+    return box
+
+
+def test_a_flush_closes_the_trade_when_the_template_says_exit(paper, monkeypatch):
+    box = flush_reading(monkeypatch, mode="exit")
+    runner.submit(trigger())
+    tick(paper)
+    tick(paper, NOW + 0.5)
+    box["r"] = {"ts": NOW + 5, "label": "flush", "score": -0.8, "price": 10.05, "bid": 10.04}
+    assert tick(paper, NOW + 5.5)["state"] == "open"                 # inside the hold: the entry's own noise
+    box["r"] = {"ts": NOW + 20, "label": "flush", "score": -0.8, "price": 10.05, "bid": 10.04}
+    paper.quotes["last"] = 10.05
+    trade = tick(paper, NOW + 20.5)
+    assert trade["state"] == "exiting" and trade["exit_why"] == "flush"
+    trade = tick(paper, NOW + 21)
+    assert trade["state"] == "closed" and trade["exit_reason"] == "flush"
+    assert paper.broker.ledger.held_qty(SYM) == 0.0
+    [closing] = trade_rows("closing")
+    assert closing["reason"].startswith("flush on the tape (score -0.80)")
+    assert trade_rows("closed")[0]["reason"].startswith("out on a flush on the tape")
+
+
+def test_tighten_moves_the_watched_stop_up_and_the_stop_then_closes(paper, monkeypatch):
+    box = flush_reading(monkeypatch, mode="tighten", trail_r=0.5)
+    runner.submit(trigger())
+    tick(paper)
+    tick(paper, NOW + 0.5)
+    paper.quotes["last"] = 10.20
+    box["r"] = {"ts": NOW + 30, "label": "flush", "score": -0.7, "price": 10.20, "bid": 10.19}
+    trade = tick(paper, NOW + 30.5)
+    assert trade["state"] == "open" and trade["stop"] == pytest.approx(10.13)   # 10.20 - 0.5 x 0.14
+    assert trade_rows("note")[0]["reason"].endswith("the stop moves up to 10.13")
+    box["r"] = {"ts": NOW + 40, "label": "flush", "score": -0.7, "price": 10.10, "bid": 10.09}
+    paper.quotes["last"] = 10.12
+    trade = tick(paper, NOW + 40.5)
+    assert trade["state"] == "exiting" and trade["exit_why"] == "stop"
+
+
+def test_off_a_stale_reading_or_no_reading_changes_nothing(paper, monkeypatch):
+    box = flush_reading(monkeypatch, mode="off")
+    runner.submit(trigger())
+    tick(paper)
+    box["r"] = {"ts": NOW + 20, "label": "flush", "score": -0.9, "price": 10.05, "bid": 10.04}
+    assert tick(paper, NOW + 20.5)["state"] == "open"
+    box = flush_reading(monkeypatch, mode="exit")
+    box["r"] = {"ts": NOW + 20, "label": "flush", "score": -0.9, "price": 10.05, "bid": 10.04}
+    assert tick(paper, NOW + 40)["state"] == "open"                   # 20 s old: not acted on
+    box.clear()
+    assert tick(paper, NOW + 41)["state"] == "open" and trade_rows("closing") == []

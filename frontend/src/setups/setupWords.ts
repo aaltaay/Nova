@@ -23,6 +23,7 @@ import {
   TAPE_VERDICT_TIPS,
 } from '../constantGroups/setups';
 import { catalystTitle, fmtCents, fmtPx, fmtR, isActionable } from './setupsFormat';
+import { flowLine } from './flowWords';
 import type { SetupCounts, SetupRow, SetupSummary, TapeRead } from './types';
 
 export const FIRST_PULLBACK = 'first_pullback';
@@ -295,6 +296,7 @@ export function tapeWords(row: SetupRow): Words | null {
   if (reasons.length) lines.push(`Why: ${reasons.join('; ')}.`);
   const metrics = metricsLine(tape);
   if (metrics) lines.push(metrics);
+  if (tape.flow) lines.push(flowLine(tape.flow));
   if (!isActionable(row)) lines.push('This is the last read, taken while the setup was armed or near.');
   return { text: String(v).toUpperCase(), title: `Tape · ${row.symbol}`, tip: lines.join('\n') };
 }

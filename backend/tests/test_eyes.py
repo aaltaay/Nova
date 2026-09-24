@@ -239,7 +239,12 @@ def test_eyes_routes(tmp_path, monkeypatch):
     assert c.post("/api/eyes/backtests", json={"sessions": [{"date": DAY, "symbol": "abcd"}]}).status_code == 202
     assert started[-1]["sessions"] == [(DAY, "ABCD")]
     assert c.post("/api/eyes/backtests").status_code == 202         # no body: every template, every recording
-    assert started[-1] == {"template_ids": None, "sessions": None, "setup": "first_pullback"}
+    assert started[-1] == {"template_ids": None, "sessions": None, "setup": "first_pullback", "variants": None}
+    # ADR 034: variants are templates for the run only; a malformed list is refused before any thread starts.
+    assert c.post("/api/eyes/backtests", json={"variants": [{"values": 3}]}).status_code == 400
+    body = {"variants": [{"name": "exit", "values": {"flush_exit": "exit"}}]}
+    assert c.post("/api/eyes/backtests", json=body).status_code == 202
+    assert started[-1]["variants"] == body["variants"]
     assert c.get("/api/eyes/backtests/../../etc").status_code == 404
     assert c.get("/api/eyes/backtests/20260921-100000-abcdef").status_code == 404
     assert c.get("/api/eyes/backtests").json()["runs"] == []

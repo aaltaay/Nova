@@ -13,7 +13,13 @@ only on a close at or below it, as in the backtest. R is gross -- no fees, no
 slippage -- so live numbers sit beside the research table; the summary also
 reports it net of one cent of slippage per fill.
 
-Pure: the engine feeds prices and completed bars.
+A template's flush exit (ADR 034) joins the bar rules: fed each flow reading
+after the trigger, a ``flush`` moves the stop up (``tighten``) or gets out at the
+bid (``exit``), by ``tape_flow.flush_action`` -- the rule Nova's bot follows too.
+Its exits are named: ``flush`` (and ``flush_runner`` after the half), and a
+tightened stop that is hit ``flush_stop`` / ``flush_stop_runner``.
+
+Pure: the engine feeds prices, completed bars and flow readings.
 """
 from __future__ import annotations
 
@@ -30,6 +36,7 @@ from constants_setups import (
     SETUPS_SCORE_WINDOW_MIN,
 )
 from setup_scanner.bars import Bar
+from setup_scanner.tape_flow import FlushPolicy, flush_action
 
 ET = ZoneInfo("America/New_York")
 
@@ -60,6 +67,10 @@ class ScoreTracker:
     bars_seen: int = 0
     bailout_bars: int = SETUPS_BAILOUT_BARS   # a template sets its own (ADR 029)
     half_on_entry_bar: bool = True     # a flat-top hold enters at the close: no half on its own bar (ADR 031)
+    flush: FlushPolicy = field(default_factory=FlushPolicy)   # the template's flush exit (ADR 034)
+    flush_tightened: bool = False
+    flush_action: str | None = None    # the last thing a flush did: "tighten" | "exit"
+    flush_at: float | None = None
     _entry_bar_done: bool = field(default=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -97,17 +108,19 @@ class ScoreTracker:
         if not self._entry_bar_done:
             self._entry_bar_done = True
             if bar.c <= self.bar_stop:
-                return self._exit(self.bar_stop, bar, "stop_entry_bar")
+                return self._exit(self.bar_stop, bar, self._stop_reason("stop_entry_bar"))
             if self.half_on_entry_bar and bar.h >= self.target1 > self.entry:
-                self.half_done, self.half_px, self.bar_stop = True, self.target1, self.entry
+                self.half_done, self.half_px, self.bar_stop = True, self.target1, max(self.bar_stop, self.entry)
             return False
         self.bars_seen += 1
         if _flat_by(bar.t):
             return self._exit(bar.c, bar, "close")
         if bar.lo <= self.bar_stop:
-            return self._exit(min(bar.o, self.bar_stop), bar, "breakeven" if self.half_done else "stop")
+            return self._exit(min(bar.o, self.bar_stop), bar,
+                              self._stop_reason("breakeven" if self.half_done else "stop"))
         if not self.half_done and bar.h >= self.target1:
-            self.half_done, self.half_px, self.bar_stop = True, max(bar.o, self.target1), self.entry
+            self.half_done, self.half_px = True, max(bar.o, self.target1)
+            self.bar_stop = max(self.bar_stop, self.entry)
         elif self.half_done and bar.c < ema9:
             return self._exit(bar.c, bar, "ema")
         elif not self.half_done and self.bars_seen >= self.bailout_bars and bar.c <= self.entry:
@@ -117,6 +130,32 @@ class ScoreTracker:
     def _exit(self, px: float, bar: Bar, reason: str) -> bool:
         self.exit_px, self.exit_reason, self.closed_at = px, reason, bar.t + 60
         return True
+
+    def _stop_reason(self, plain: str) -> str:
+        """A stop the flush tightened is named for it; any other keeps its own name."""
+        if not self.flush_tightened:
+            return plain
+        return "flush_stop_runner" if self.half_done else "flush_stop"
+
+    # -- flow readings: the template's flush exit (ADR 034) -----------------------
+    def on_flow(self, *, label: str | None, price: float | None, bid: float | None, ts: float) -> str | None:
+        """Apply one flow reading; returns ``"tighten"`` / ``"exit"`` when the flush did something."""
+        if self.exit_px is not None or ts < self.triggered_at or _flat_by(ts):
+            return None
+        act = flush_action(self.flush, label=label, price=price, ts=ts, entry=self.entry, risk=self.risk,
+                           stop=self.bar_stop, since=self.triggered_at)
+        if act is None:
+            return None
+        self.flush_action, self.flush_at = act["action"], ts
+        if act["action"] == "exit":
+            px = float(price)
+            if bid is not None and 0 < bid <= px:
+                px = float(bid)                  # a flush sells into the bid
+            self.exit_px, self.closed_at = px, ts
+            self.exit_reason = "flush_runner" if self.half_done else "flush"
+            return "exit"
+        self.bar_stop, self.flush_tightened = float(act["stop"]), True
+        return "tighten"
 
     def bar_r(self) -> float | None:
         if self.exit_px is None or self.risk <= 0:
@@ -132,5 +171,6 @@ class ScoreTracker:
             "outcome": self.outcome, "outcome_at": self.outcome_at,
             "mfe": round(self.mfe, 4), "mae": round(self.mae, 4),
             "bar_r": self.bar_r(), "bar_exit_reason": self.exit_reason, "closed_at": self.closed_at,
-            "half_px": self.half_px,
+            "half_px": self.half_px, "flush_action": self.flush_action, "flush_at": self.flush_at,
+            "stop_now": self.bar_stop,
         }

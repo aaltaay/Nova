@@ -139,8 +139,10 @@ def _recording_bars(prints: list[dict]) -> list[Bar]:
 
 
 def load(date: str, symbol: str, *, root: Path | None = None,
-         bars_fn: Callable[[str, str], list[Bar]] = archive_bars) -> Recording:
-    """Read one Session Record. Raises ``ValueError`` with the reason when it is not usable."""
+         bars_fn: Callable[[str, str], list[Bar]] = archive_bars, with_bars: bool = True) -> Recording:
+    """Read one Session Record. Raises ``ValueError`` with the reason when it is not usable.
+
+    ``with_bars=False`` skips the bars (the flow study reads only the tape and the book)."""
     from capture.recorder import capture_root
     from capture.schema import read_manifest
     from capture.sessions import is_ibkr_source
@@ -166,15 +168,18 @@ def load(date: str, symbol: str, *, root: Path | None = None,
         raise ValueError(f"{sym} {date} holds no usable prints")
     print_ts = [float(r["ts"]) for r in prints]
     books = _sample_books(l2, EYES_REPLAY_BOOK_SAMPLE_SEC)
-    try:
-        bars, bars_source = bars_fn(sym, date), "archive"
-    except Exception:
-        logger.warning("eyes: archive bars unread for %s %s", sym, date, exc_info=True)
-        bars, bars_source = [], "archive"
-    if not bars:
-        bars, bars_source = _recording_bars(prints), "recording"
-    if not bars:
-        bars_source = "none"
+    bars: list[Bar] = []
+    bars_source = "none"
+    if with_bars:
+        try:
+            bars, bars_source = bars_fn(sym, date), "archive"
+        except Exception:
+            logger.warning("eyes: archive bars unread for %s %s", sym, date, exc_info=True)
+            bars, bars_source = [], "archive"
+        if not bars:
+            bars, bars_source = _recording_bars(prints), "recording"
+        if not bars:
+            bars_source = "none"
     _segments, spans = load_spans(manifest, folder, live=recording_here(folder),
                                   first_ts=min(print_ts), last_ts=max(print_ts))
     # IBKR's tick 9 on the quote rows is read first (#542); their rows count in no diagnostic here.

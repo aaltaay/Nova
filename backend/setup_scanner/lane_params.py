@@ -2,10 +2,11 @@
 
 The catalogue keeps values in the unit the operator types (percent as 5, a float
 in millions); this is the one place they become the fractions and shares the
-detector, the tape gate, the grade and the stock filter compute with. Every setup
-with a scanner has its own pattern builder (``PATTERNS``); the tape gate, the
-grade, the stock filter and the scoring exit read the same keys on every setup.
-Pure.
+detector, the tape gate, the tape flow (ADR 034), the grade and the stock filter
+compute with. Every setup with a scanner has its own pattern builder
+(``PATTERNS``); the tape gate, the flow, the grade, the stock filter and the
+scoring exit read the same keys on every setup. A key a template saved before it
+existed reads its default (the catalogue's rule). Pure.
 """
 from __future__ import annotations
 
@@ -23,6 +24,7 @@ from setup_scanner.bull_flag import BullFlagParams
 from setup_scanner.flat_top import FlatTopParams
 from setup_scanner.pullback import PullbackParams
 from setup_scanner.red_to_green import RedToGreenParams
+from setup_scanner.tape_flow import DEFAULT_FLOW, FlowParams, FlushPolicy
 from setup_scanner.tape_gate import GateParams
 from strategy.float_gate import float_for_gate
 
@@ -190,7 +192,36 @@ def gate_params(v: dict[str, Any]) -> GateParams:
         spread_max=float(v["spread_max"]), spread_max_pct=_pct(v["spread_max_pct"]), band=float(v["band"]),
         big_seller=float(v["big_seller"]), wall=float(v["wall"]), thin_fraction=_pct(v["thin_fraction"]),
         min_ask_prints=int(v["min_ask_prints"]), hidden_mult=float(v["hidden_mult"]), red_mult=float(v["red_mult"]),
+        entry_mode=str(v.get("tape_entry") or GateParams.entry_mode),
+        entry_min_score=float(v.get("flow_entry_min", GateParams.entry_min_score)),
     )
+
+
+def flow_params(v: dict[str, Any]) -> FlowParams:
+    """The flow score's numbers (ADR 034); a missing key is the default's."""
+    d = DEFAULT_FLOW
+
+    def num(key: str, default: float, scale: float = 1.0) -> float:
+        return float(v[key]) * scale if v.get(key) is not None else default
+
+    return FlowParams(
+        window_sec=num("flow_window_sec", d.window_sec), baseline_sec=num("flow_baseline_sec", d.baseline_sec),
+        min_prints=int(num("flow_min_prints", d.min_prints)), min_shares=num("flow_min_shares", d.min_shares),
+        pace_full=num("flow_pace_full", d.pace_full), drift_full=num("flow_drift_full_pct", d.drift_full, 0.01),
+        book_levels=int(num("flow_book_levels", d.book_levels)),
+        stale_book_sec=num("tape_stale_book_sec", d.stale_book_sec),
+        w_imbalance=num("flow_w_imbalance", d.w_imbalance), w_pace=num("flow_w_pace", d.w_pace),
+        w_drift=num("flow_w_drift", d.w_drift), w_book=num("flow_w_book", d.w_book),
+        burst_at=num("flow_burst_at", d.burst_at), flush_at=num("flow_flush_at", d.flush_at),
+    )
+
+
+def flush_policy(v: dict[str, Any]) -> FlushPolicy:
+    d = FlushPolicy()
+    return FlushPolicy(mode=str(v.get("flush_exit") or d.mode),
+                       hold_sec=float(v["flush_hold_sec"]) if v.get("flush_hold_sec") is not None else d.hold_sec,
+                       trail_r=float(v["flush_trail_r"]) if v.get("flush_trail_r") is not None else d.trail_r,
+                       min_r=None if v.get("flush_min_r") is None else float(v["flush_min_r"]))
 
 
 def grade_rules(v: dict[str, Any]) -> GradeRules:
@@ -223,6 +254,8 @@ class LaneParams:
     stock: StockFilter
     bailout_bars: int
     setup: str = BOT_SETUP_FIRST_PULLBACK
+    flow: FlowParams = DEFAULT_FLOW
+    flush: FlushPolicy = FlushPolicy()
 
     @property
     def pullback(self) -> Any:
@@ -235,4 +268,5 @@ def lane_params(template: Any) -> LaneParams:
     setup = getattr(template, "setup", None) or BOT_SETUP_FIRST_PULLBACK
     return LaneParams(template_id=template.id, template_rev=int(template.rev), params_hash=template.fingerprint,
                       name=template.name, pattern=PATTERNS[setup](v), gate=gate_params(v), grade=grade_rules(v),
-                      stock=stock_filter(v), bailout_bars=int(v["bailout_bars"]), setup=setup)
+                      stock=stock_filter(v), bailout_bars=int(v["bailout_bars"]), setup=setup,
+                      flow=flow_params(v), flush=flush_policy(v))
