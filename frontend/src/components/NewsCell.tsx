@@ -14,15 +14,17 @@ interface Props {
    * The catalyst verdict (ADR 024) when the row carries one: the cell then says what the news is --
    * a flame only for a real catalyst -- instead of lighting up for any article (a movers list, a
    * market wrap). `null` is a verdict not read yet; `undefined` (a row without the field: the
-   * Catalysts list, a played-back board) keeps the headline-age flame.
+   * Catalysts list, a played-back row with no verdict on file) keeps the headline-age flame.
    */
   catalyst?: CatalystVerdict | null;
+  /** The moment the verdict's age counts to (ms); the Sim playhead on a played-back row, else now. */
+  asOfMs?: number | null;
   /** Drop the native `title` tooltip: the caller shows its own hover card (the Focus rail). */
   plain?: boolean;
 }
 
-export function NewsCell({ newest_headline_at, catalyst, plain = false }: Props) {
-  if (catalyst !== undefined) return <VerdictMark catalyst={catalyst} plain={plain} />;
+export function NewsCell({ newest_headline_at, catalyst, asOfMs = null, plain = false }: Props) {
+  if (catalyst !== undefined) return <VerdictMark catalyst={catalyst} plain={plain} asOfMs={asOfMs} />;
   if (!newest_headline_at) return <span className="na-muted">—</span>;
   const ageHours = (Date.now() - new Date(newest_headline_at).getTime()) / 3_600_000;
   if (ageHours > NEWS_FLAME_MAX_HOURS) return <span className="na-muted">—</span>;
@@ -34,8 +36,8 @@ export function NewsCell({ newest_headline_at, catalyst, plain = false }: Props)
   return <span className={`news-flame ${colorClass}`} title={plain ? undefined : label} />;
 }
 
-function VerdictMark({ catalyst, plain }: { catalyst: CatalystVerdict | null; plain: boolean }) {
-  const mark = newsMark(catalyst, Date.now());
+function VerdictMark({ catalyst, plain, asOfMs }: { catalyst: CatalystVerdict | null; plain: boolean; asOfMs: number | null }) {
+  const mark = newsMark(catalyst, asOfMs ?? Date.now());
   const title = plain ? undefined : mark.title;
   switch (mark.kind) {
     case 'flame':

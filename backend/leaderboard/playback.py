@@ -4,7 +4,8 @@ Never after the playhead: a recorded snapshot stamped ``m`` was taken within
 ``LEADERBOARD_RECORD_SETTLE_SEC`` after ``m``, so the playhead sees it only
 from ``m + settle``; a rebuilt minute ``m`` is built from bars closed by ``m``.
 Never across a gap: a playhead in an unrecorded or feed-down stretch gets no
-board, just the reason and the stretch's bounds.
+board, just the reason and the stretch's bounds. Each row's ``catalyst`` is its
+verdict from the items published by the playhead (``leaderboard.catalyst_verdicts``).
 """
 from __future__ import annotations
 
@@ -27,6 +28,7 @@ from constants_leaderboard import (
     LEADERBOARD_SOURCE_RECONSTRUCTED,
     LEADERBOARD_SOURCE_RECORDED,
 )
+from leaderboard import catalyst_verdicts
 from leaderboard import halts as halt_log
 from leaderboard import store
 from leaderboard.ranking import LEADERS_RULES, rank_rows
@@ -129,11 +131,12 @@ def _default_source(db: Any, day: str) -> str:
     return LEADERBOARD_SOURCE_RECORDED
 
 
-def _api_row(row: dict[str, Any], halted: bool | None) -> dict[str, Any]:
+def _api_row(row: dict[str, Any], halted: bool | None, catalyst: dict[str, Any] | None) -> dict[str, Any]:
     out = {key: value for key, value in row.items() if key != "session_date"}
     has_news = out.get("has_news")
     out["has_news"] = None if has_news is None else bool(has_news)
     out["halted"] = halted
+    out["catalyst"] = catalyst
     return out
 
 
@@ -156,6 +159,8 @@ def board_at(day: str, at: float, source: str | None = None, *, now: float | Non
     with store.connect() as db:
         chosen = source or _default_source(db, day)
         base["source"] = chosen
+        checks = store.catalyst_checks(db, day)
+        base["catalyst_symbols"] = len(checks)
         if at < open_ts or at >= close_ts + 60:
             base["gap"] = {"reason": LEADERBOARD_GAP_OUTSIDE_SESSION, "start": None, "end": None, "stop": None}
             return base
@@ -189,13 +194,17 @@ def board_at(day: str, at: float, source: str | None = None, *, now: float | Non
             halt_feed_ok = False
         states = store.coverage_at(db, day, chosen, minute)
         rows = store.rows_at(db, day, chosen, minute)
-        events = store.halt_events(db, day, until=minute)
+        # Up to the playhead: ``halted`` reads them at the board's minute, the verdicts at the playhead.
+        events = store.halt_events(db, day, until=at)
+        catalysts = catalyst_verdicts.for_board(db, day, at, checks, events, {r["symbol"] for r in rows})
     boards: dict[str, dict[str, Any]] = {
         entry["board"]: {"state": entry["state"], "rows": []} for entry in states
     }
     for row in rows:
         halted: bool | None = True if halt_log.halted_at(events, row["symbol"], minute) else (False if halt_feed_ok else None)
-        boards.setdefault(row["board"], {"state": None, "rows": []})["rows"].append(_api_row(row, halted))
+        boards.setdefault(row["board"], {"state": None, "rows": []})["rows"].append(
+            _api_row(row, halted, catalysts.get(row["symbol"]))
+        )
     leaders = rank_rows(boards.get(leaders_board, {}).get("rows", []), LEADERS_RULES)
     base.update({
         "minute_ts": minute, "covered": True, "boards": boards,

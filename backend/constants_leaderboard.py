@@ -12,7 +12,8 @@ LEADERBOARD_DIR_ENV = "NOVA_LEADERBOARD_DIR"
 # root (F:\Nova\sim_capture) and the historical downloads (F:\Nova\sim\_capture\historical).
 LEADERBOARD_DEFAULT_ROOT_WIN = r"F:\Nova\leaderboard"
 LEADERBOARD_DB_FILENAME = "leaderboard.sqlite3"
-LEADERBOARD_SCHEMA_VERSION = 1
+# 2 (#498): adds catalyst_checks / catalyst_items; a version-1 store migrates in place (new tables only).
+LEADERBOARD_SCHEMA_VERSION = 2
 LEADERBOARD_SQLITE_TIMEOUT_SEC = 10.0
 
 # ── Row vocabulary ──────────────────────────────────────────────────────────

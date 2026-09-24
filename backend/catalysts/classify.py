@@ -270,7 +270,6 @@ def verdict(items: Iterable[Mapping], *, window_start: float, cutoff: float,
     published_ts`` (missing keys are fine). ``sources_answered`` names the sources that looked
     for this ticker and day, found or not.
     """
-    answered = sorted(set(sources_answered))
     seen = []
     for it in items:
         ts = float(it.get("published_ts") or 0.0)
@@ -280,7 +279,30 @@ def verdict(items: Iterable[Mapping], *, window_start: float, cutoff: float,
                               publisher=str(it.get("publisher") or ""), n_tickers=it.get("n_tickers"),
                               form=it.get("form"), sec_items=it.get("sec_items"), url=str(it.get("url") or ""))
         seen.append((it, label))
-    out = {"rules_version": CATALYST_RULES_VERSION, "sources_answered": answered, "n_items": len(seen),
+    return _decide(seen, sources_answered, CATALYST_RULES_VERSION)
+
+
+def verdict_from_labels(items: Iterable[Mapping], *, window_start: float, cutoff: float,
+                        sources_answered: Iterable[str] = (), rules_version: str = CATALYST_RULES_VERSION) -> dict:
+    """The same answer from items labelled earlier by ``classify_item`` -- ``kind``, ``category``,
+    ``strength``, ``dilution`` beside ``title, source, published_ts, url`` -- as the leaderboard's
+    per-day catalyst table keeps them for Sim playback (#498). ``rules_version`` names the rules
+    that labelled them; an item whose ``kind`` those rules do not know is left out.
+    """
+    seen = []
+    for it in items:
+        ts = float(it.get("published_ts") or 0.0)
+        if not window_start < ts <= cutoff or it.get("kind") not in _KIND_RANK:
+            continue
+        strength = it.get("strength") if it.get("strength") in (CATALYST_STRONG, CATALYST_WEAK) else None
+        seen.append((it, Label(str(it["kind"]), str(it.get("category") or CATALYST_UNCLASSIFIED), strength,
+                               bool(it.get("dilution")))))
+    return _decide(seen, sources_answered, rules_version)
+
+
+def _decide(seen: list[tuple[Mapping, Label]], sources_answered: Iterable[str], rules_version: str) -> dict:
+    answered = sorted(set(sources_answered))
+    out = {"rules_version": rules_version, "sources_answered": answered, "n_items": len(seen),
            "category": None, "strength": None, "title": None, "source": None, "published_ts": None,
            "url": None, "negative_too": any(lb.kind == CATALYST_KIND_NEGATIVE or lb.dilution for _, lb in seen)}
     if not seen:

@@ -7,6 +7,7 @@ import { parseLeaderboardAt, parseLeaderboardCoverage, parseLeaderboardDays } fr
 import {
   gapText, replayFromAnswer, replayLabel, replayListAbsence, replayNotice, replayPending, scannerRowFromLeaderboard,
 } from './leaderboardRows';
+import { LEADERBOARD_CATALYSTS_IN_NEWS_COLUMN, LEADERBOARD_CATALYSTS_NOT_RECORDED } from './leaderboardConstants';
 import type { LeaderboardRow } from './leaderboardTypes';
 
 /** 2026-09-21 07:42:00 ET (EDT, UTC-4). */
@@ -17,8 +18,16 @@ const row = (over: Partial<LeaderboardRow> = {}): LeaderboardRow => ({
   symbol: 'GRML', minute_ts: M0742, board: 'gainers', source: 'recorded', rank: 1,
   price: 9.27, prev_close: 5.0, change_pct: 0.854, volume: 4_820_000, rvol: 12.5, rvol_basis: 'daily_avg',
   float_shares: 8_200_000, has_news: true, news_first_seen_ts: M0742 - 600, halted: false,
-  gap_pct: 0.4, exchange: 'NASDAQ', market_cap: 45_000_000, ...over,
+  gap_pct: 0.4, exchange: 'NASDAQ', market_cap: 45_000_000, catalyst: null, ...over,
 });
+
+/** A verdict as `GET /api/leaderboard/{date}` carries it (catalysts.live.WIRE_KEYS). */
+const WIRE_VERDICT = {
+  verdict: 'catalyst', category: 'fda_regulatory', strength: 'strong',
+  title: 'Acme Receives FDA Approval for Its Lead Drug', source: 'alpaca', published_ts: M0742 - 300,
+  url: 'https://example.test/fda', negative_too: false, rules_version: 'catalyst-rules-v6-2026-09-23',
+  sources_answered: ['alpaca', 'edgar'], n_items: 2, news_pending: false, halt_code: null,
+};
 
 const answer = (over: Record<string, unknown> = {}) => parseLeaderboardAt({
   schema_version: 1, date: '2026-09-21', at: M0742 + 10, source: 'recorded', minute_ts: M0742, covered: true, gap: null,
@@ -65,6 +74,41 @@ describe('leaderboard row -> Scanner row', () => {
     expect(tod.rvol_source).toBe('time_of_day_20');
     expect(SCANNER_RVOL_SOURCE_MARKS.time_of_day_20.title).toMatch(/time-of-day RVOL \(20 sessions\)/i);
     expect(SCANNER_RVOL_SOURCE_MARKS.daily_avg.title).toMatch(/average daily volume/);
+  });
+
+  it('parses each row\'s verdict at the playhead; an absent or damaged one is unknown', () => {
+    const parsed = parseLeaderboardAt({
+      date: '2026-09-21', at: M0742 + 10, source: 'recorded', minute_ts: M0742, covered: true, gap: null,
+      catalyst_symbols: 3,
+      boards: { gainers: { state: 'live', rows: [
+        { symbol: 'ACME', catalyst: WIRE_VERDICT },
+        { symbol: 'NONE', catalyst: null },
+        { symbol: 'OLD' },
+        { symbol: 'BAD', catalyst: { verdict: 'maybe' } },
+      ] } },
+    });
+    const [acme, none, old, bad] = parsed.boards.gainers.rows;
+    expect(parsed.catalyst_symbols).toBe(3);
+    expect(acme.catalyst).toMatchObject({
+      verdict: 'catalyst', category: 'fda_regulatory', strength: 'strong', title: WIRE_VERDICT.title,
+      published_ts: M0742 - 300, sources_answered: ['alpaca', 'edgar'], n_items: 2, news_pending: false,
+    });
+    expect([none.catalyst, old.catalyst, bad.catalyst]).toEqual([null, null, null]);
+  });
+
+  it('carries a verdict on file, aged from the playhead; none on file leaves the row without one', () => {
+    const replay = replayFromAnswer('2026-09-21', M0742, answer({
+      boards: { gainers: { state: 'live', rows: [
+        row({ symbol: 'ACME', rank: 1, catalyst: WIRE_VERDICT as LeaderboardRow['catalyst'] }),
+        row({ symbol: 'NONE', rank: 2, catalyst: null }),
+      ] } },
+    }));
+    const [acme, none] = replay.tables.gainers;
+    expect(acme.catalyst?.verdict).toBe('catalyst');
+    expect(acme.catalyst_as_of).toBe(M0742 + 10);
+    expect('catalyst' in none).toBe(false);
+    expect(none.catalyst_as_of).toBeUndefined();
+    expect(chipPasses('news', acme)).toBe(true);
   });
 
   it('a damaged field reads as unknown and a row without a symbol is skipped', () => {
@@ -123,7 +167,19 @@ describe('the played-back board', () => {
     expect(replayListAbsence(replay, 'losers')).toBe('No losers list recorded at 07:42 ET');
     expect(replayListAbsence(replay, 'afterhours')).toBe('The after-hours movers list was unavailable at 07:42 ET');
     expect(replayListAbsence(replay, 'gappers')).toBe('No gappers on the board at 07:42 ET');
-    expect(replayListAbsence(replay, 'catalysts')).toMatch(/^Catalysts are live-only/);
+    expect(replayListAbsence(replay, 'catalysts')).toBe(LEADERBOARD_CATALYSTS_NOT_RECORDED);
+  });
+
+  it('the Catalysts tab points at the News column only when the day has catalysts on file', () => {
+    const onFile = replayFromAnswer('2026-09-21', M0742, answer({ catalyst_symbols: 14 }));
+    expect(onFile.catalystSymbols).toBe(14);
+    expect(replayListAbsence(onFile, 'catalysts')).toBe(LEADERBOARD_CATALYSTS_IN_NEWS_COLUMN);
+    const none = replayFromAnswer('2026-09-21', M0742, answer({ catalyst_symbols: 0 }));
+    expect(replayListAbsence(none, 'catalysts')).toBe(LEADERBOARD_CATALYSTS_NOT_RECORDED);
+    const older = replayFromAnswer('2026-09-21', M0742, answer());   // an API from before #498
+    expect(older.catalystSymbols).toBeNull();
+    expect(replayListAbsence(older, 'catalysts')).toBe(LEADERBOARD_CATALYSTS_NOT_RECORDED);
+    expect(replayPending('2026-09-21', M0742).catalystSymbols).toBeNull();
   });
 
   it('loading and failure are stated, never a quiet market', () => {

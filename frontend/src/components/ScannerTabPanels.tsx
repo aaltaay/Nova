@@ -11,7 +11,6 @@ import { pinFirst, usePinnedRows } from '../scanner/pinnedRowsStore';
 import { historyTableLoadError, tableHonestyLabel } from '../scanner/scannerHonesty';
 import type { HistoryTableKey } from '../scanner/scannerHistory';
 import { useLiveScannerFeedOptional } from '../scanner/ScannerDataContext';
-import { LEADERBOARD_CATALYSTS_NOT_RECORDED } from '../leaderboard/leaderboardConstants';
 import { replayListAbsence } from '../leaderboard/leaderboardRows';
 import { LARGE_CAP_COLUMNS, SCANNER_COLUMNS } from '../constants';
 import type { Afterhours, Gapper, Mover, ScannerRow, SortConfig } from '../types/scanner';
@@ -174,7 +173,7 @@ export function ScannerTabPanels({
         onSelect={onSelect}
         onOpenTrading={onOpenTrading}
         health={health}
-        fetchError={replay ? LEADERBOARD_CATALYSTS_NOT_RECORDED : live?.catalystsError}
+        fetchError={replay ? replayListAbsence(replay, 'catalysts') : live?.catalystsError}
       />
     );
   } else if (activeTab === 'gainers') {

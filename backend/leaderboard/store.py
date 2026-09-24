@@ -2,6 +2,8 @@
 
 Owner: backend/leaderboard/. Schema: ``leaderboard.schema``. Rows are history
 and immutable; a reconstruction rebuild replaces only its own (date, source).
+The catalyst tables (schema 2, #498) are written only by
+``research/catalysts/export_leaderboard.py``, which replaces a symbol-day whole.
 """
 from __future__ import annotations
 
@@ -23,6 +25,8 @@ from constants_leaderboard import (
     LEADERBOARD_SQLITE_TIMEOUT_SEC,
 )
 from leaderboard.schema import (
+    CATALYST_CHECK_COLUMNS,
+    CATALYST_ITEM_COLUMNS,
     COVERAGE_COLUMNS,
     HALT_COLUMNS,
     MINUTE_COLUMNS,
@@ -134,6 +138,26 @@ def replace_day(db: sqlite3.Connection, session_date: str, source: str) -> None:
     with db:
         db.execute("DELETE FROM rows WHERE session_date = ? AND source = ?", (session_date, source))
         db.execute("DELETE FROM coverage WHERE session_date = ? AND source = ?", (session_date, source))
+
+
+def replace_catalysts(
+    db: sqlite3.Connection,
+    checks: Iterable[dict[str, Any]],
+    items: Iterable[dict[str, Any]],
+) -> dict[str, int]:
+    """One transaction: each check's symbol-day loses its old items, then gets the new check and items."""
+    check_t = _tuples(checks, CATALYST_CHECK_COLUMNS)
+    item_t = _tuples(items, CATALYST_ITEM_COLUMNS)
+    with db:
+        db.executemany(
+            "DELETE FROM catalyst_items WHERE session_date = ? AND symbol = ?",
+            [(row[0], row[1]) for row in check_t],
+        )
+        if check_t:
+            db.executemany(_insert_sql("catalyst_checks", CATALYST_CHECK_COLUMNS), check_t)
+        if item_t:
+            db.executemany(_insert_sql("catalyst_items", CATALYST_ITEM_COLUMNS), item_t)
+    return {"checks": len(check_t), "items": len(item_t)}
 
 
 def start_run(db: sqlite3.Connection, run_id: str, ts: float) -> None:
@@ -291,3 +315,22 @@ def halt_events(
         args.extend(symbols)
     sql += " ORDER BY ts, symbol"
     return [dict(row) for row in db.execute(sql, args).fetchall()]
+
+
+def catalyst_checks(db: sqlite3.Connection, session_date: str) -> list[dict[str, Any]]:
+    """Every symbol the day's catalyst export checked (an empty list: nothing exported for the day)."""
+    out = db.execute(
+        f"SELECT {', '.join(CATALYST_CHECK_COLUMNS)} FROM catalyst_checks WHERE session_date = ? ORDER BY symbol",
+        (session_date,),
+    ).fetchall()
+    return [dict(row) for row in out]
+
+
+def catalyst_items(db: sqlite3.Connection, session_date: str, *, until: float) -> list[dict[str, Any]]:
+    """The day's exported items published at or before ``until`` -- never one after it."""
+    out = db.execute(
+        f"SELECT {', '.join(CATALYST_ITEM_COLUMNS)} FROM catalyst_items"
+        " WHERE session_date = ? AND published_ts <= ? ORDER BY symbol, published_ts",
+        (session_date, float(until)),
+    ).fetchall()
+    return [dict(row) for row in out]

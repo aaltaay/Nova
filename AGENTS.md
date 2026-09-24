@@ -528,14 +528,16 @@ and in the quote panel's "Short Ratio (Yahoo)".
 ### Scanner leaderboard: recorded, reconstructed, played back (ADR 023, operator decision 2026-09-22)
 
 Owner `backend/leaderboard/`; store `leaderboard.sqlite3` (`PRAGMA
-user_version=1`, unknown versions refuse) under `NOVA_LEADERBOARD_DIR`, else
+user_version=2`, unknown versions refuse; a version-1 store is migrated in
+place by creating the two catalyst tables below -- nothing existing is
+rewritten) under `NOVA_LEADERBOARD_DIR`, else
 `F:\Nova\leaderboard` when F: is mounted, else `<cache_dir>/leaderboard` --
 beside, never inside, the capture root or the historical downloads. One
 **leaderboard row** per symbol per minute per board:
 
 `{symbol, minute_ts, board, source, rank, price, prev_close, change_pct,
 volume, rvol, rvol_basis, float_shares, has_news, news_first_seen_ts, halted,
-gap_pct, exchange, market_cap}` -- `minute_ts` is a whole-minute epoch second
+gap_pct, exchange, market_cap, catalyst}` -- `minute_ts` is a whole-minute epoch second
 and the row is the board **as it stood at `minute_ts`** (a reconstructed row
 uses only minute bars that closed by then; a recorded row is the desk's board
 snapshotted within `LEADERBOARD_RECORD_SETTLE_SEC` after it). `source` is
@@ -552,6 +554,34 @@ that day or `null`; `has_news` / `news_first_seen_ts` only from news seen by
 that minute. Every unknown is `null`, never a placeholder. `halted` is derived
 at read time from the halt log: `true` while a logged halt is open, `false`
 only for a recorded minute whose halt feed was answering, else `null`.
+`catalyst` is derived at read time too ("Catalysts in playback" below).
+
+**Catalysts in playback** (#498). The research backfill's store is never read
+by the backend (ADR 024), so `research/catalysts/export_leaderboard.py` copies
+what playback needs into this store, per symbol-day it holds (its `targets`):
+`catalyst_checks (session_date, symbol, window_start, window_end,
+sources_answered, rules_version, exported_ts)` -- the window (the prior
+session's 16:00 ET close to 20:00 ET) and the sources whose check was `ok`,
+comma-joined, `''` when none looked -- and `catalyst_items (session_date,
+symbol, item_id, published_ts, source, publisher, title, url, kind, category,
+strength, dilution, rules_version)`, every item naming the symbol in that
+window labelled by `catalysts/classify.py` at the export's rules version
+(labels, not article text; Finnhub's Benzinga copies left out, #516). The
+export replaces each symbol-day whole, one session day per transaction; it is
+the tables' only writer. A board read gives each row `catalyst: verdict | null`
+in the live desk's wire shape (`catalysts/live.WIRE_KEYS`), computed by
+`leaderboard/catalyst_verdicts.py` with `classify.verdict_from_labels` -- the
+live verdict's own ranking -- from the items published after the window opened
+and at or before `at` (never after; the window's end when `at` is later), so
+`rules_version` is the export's. `null` when the symbol-day was not exported,
+or when no source looked and nothing was published by `at` -- unknown, never
+"no news"; a checked symbol with nothing published yet is `none_found`.
+`news_pending` / `halt_code` come from this store's `halt_events` (a Nasdaq T1
+/ T12 halt that started inside the window with no resumption logged by `at`).
+On the desk, after a merge that changes the rules or a new fetch, the operator
+runs `py -3 research/catalysts/export_leaderboard.py` (research store
+`F:\Nova\catalysts\catalysts.sqlite3`, leaderboard store
+`F:\Nova\leaderboard\leaderboard.sqlite3`; `--db` / `--since YYYY-MM-DD`).
 
 **Gap policy.** The recorder runs whenever the backend runs -- no button --
 and writes, each minute 04:00-20:00 ET on exchange days, one `minutes` row
@@ -585,9 +615,11 @@ ok, error}, days: [{date, recorded: {minutes, first_ts, last_ts, boards} |
 null, reconstructed: {minutes, first_ts, last_ts} | null}]}` newest first.
 `GET /api/leaderboard/{date}?at=<epoch>&source=` -> `{schema_version, date,
 at, source, minute_ts, covered, gap, boards: {BOARD: {state, rows[]}},
-leaders: {board, symbols[], rules}}` -- the board at the latest minute at or
+leaders: {board, symbols[], rules}, catalyst_symbols}` -- the board at the latest minute at or
 before `at` (never after); `source` defaults to `recorded` when that day has
-one, else `reconstructed`. `GET /api/leaderboard/{date}/coverage?source=` ->
+one, else `reconstructed`; `catalyst_symbols` counts the day's
+`catalyst_checks` rows (`0`: no catalysts on file for the day, and the
+Scanner's Catalysts tab says so in Sim). `GET /api/leaderboard/{date}/coverage?source=` ->
 `{date, source, session_open, session_close, spans: [[start, end], ...],
 gaps: [{start, end, reason}]}` (whole epoch seconds). `GET
 /api/leaderboard/{date}/halts?until=<epoch>` -> `{date, events[]}`. `GET
@@ -749,7 +781,10 @@ title, summary, url, publisher, n_tickers, form, sec_items, fetched_ts)`, `item_
 n_items, detail, checked_ts)` and `verdicts` per rules version. SEC's bulk
 `submissions.zip` and `companyfacts.zip` are kept beside it under `edgar/`, Nasdaq's halt
 pages under `halts/raw/`. Nasdaq's halt history (2021-10 on) is loaded into the leaderboard's
-`halt_events` (source `nasdaq_trade_halt_rss`) by `research/catalysts/backfill_halts.py`.
+`halt_events` (source `nasdaq_trade_halt_rss`) by `research/catalysts/backfill_halts.py`, and
+its checks and labelled items into the leaderboard's `catalyst_checks` / `catalyst_items` by
+`research/catalysts/export_leaderboard.py` (#498), so Sim playback of a past day shows each
+mover's verdict at the playhead ("Catalysts in playback" under Scanner leaderboard).
 
 ### Performance recorder (ADR 026)
 

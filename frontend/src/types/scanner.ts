@@ -28,8 +28,13 @@ export interface ScannerRow {
   /** Sim playback (ADR 023): halted at the board's minute per the halt log; null = unknown. Absent on live rows. */
   halted?: boolean | null;
   newest_headline_at: string | null;
-  /** What the news since the prior close is (ADR 024): null = not read yet; absent on played-back rows. */
+  /**
+   * What the news since the prior close is (ADR 024): null = not read yet. A played-back row (#498)
+   * carries it only when the day's catalyst export has a verdict for it, as known at the playhead.
+   */
   catalyst?: CatalystVerdict | null;
+  /** Sim playback: the playhead (epoch s) `catalyst` was read at -- its age counts from here, not now. */
+  catalyst_as_of?: number | null;
   market_cap: number | null;
   float: number | null;
   /** Yahoo's shares outstanding (#532); null when unknown, absent from an older API. */

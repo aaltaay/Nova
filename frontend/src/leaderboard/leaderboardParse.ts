@@ -4,6 +4,7 @@
  * and a damaged row is skipped -- never a placeholder number.
  */
 import { finiteOrNull, isObject, objects, text, textOrNull, type Obj } from '../sim/payloadGuards';
+import { normalizeCatalystVerdict } from '../utils/catalystVerdict';
 import type {
   LeaderboardAt,
   LeaderboardBoard,
@@ -47,6 +48,8 @@ export function parseLeaderboardRow(raw: Obj, board: string): LeaderboardRow | n
     gap_pct: finiteOrNull(raw.gap_pct),
     exchange: textOrNull(raw.exchange),
     market_cap: finiteOrNull(raw.market_cap),
+    // A damaged verdict reads as unknown, like a verdict nobody exported.
+    catalyst: normalizeCatalystVerdict(raw.catalyst),
   };
 }
 
@@ -92,6 +95,7 @@ export function parseLeaderboardAt(raw: unknown): LeaderboardAt {
     gap,
     boards: gap ? {} : parseBoards(raw.boards),
     leaders,
+    catalyst_symbols: finiteOrNull(raw.catalyst_symbols),
   };
 }
 

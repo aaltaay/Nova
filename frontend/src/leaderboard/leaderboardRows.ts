@@ -3,12 +3,14 @@
  * when it has no rows. A leaderboard row maps field by field onto the
  * ScannerRow the tables already render; nothing is derived except
  * `change_abs` (price - prev_close, only when both are known). Every unknown
- * stays null -- the tables render it as their dash, never 0.
+ * stays null -- the tables render it as their dash, never 0. A row's catalyst
+ * verdict (as known at the playhead, #498) rides along for the News column.
  */
 import { etTime } from '../sim/historicalReplayFormat';
 import type { ScannerRow } from '../types/scanner';
 import {
   LEADERBOARD_BOARD_MARKET,
+  LEADERBOARD_CATALYSTS_IN_NEWS_COLUMN,
   LEADERBOARD_CATALYSTS_NOT_RECORDED,
   LEADERBOARD_GAP_DAY_NOT_RECORDED,
   LEADERBOARD_GAP_STOP_WORD,
@@ -39,8 +41,13 @@ export const EMPTY_REPLAY_TABLES: ScannerReplayTables = Object.freeze({
   gappers: [], gainers: [], losers: [], afterhours: [], largeCap: [],
 }) as ScannerReplayTables;
 
-/** One leaderboard row as a Scanner row. `has_news: null` is unknown (`news_unknown`), not "no news". */
-export function scannerRowFromLeaderboard(row: LeaderboardRow): ScannerRow {
+/**
+ * One leaderboard row as a Scanner row. `has_news: null` is unknown (`news_unknown`), not "no news".
+ * A verdict on file is carried as `catalyst`, aged from `asOf` (the playhead it was read at), so the
+ * News column says what the news was then; without one the row keeps no `catalyst` key and the
+ * column its dash -- never a live verdict on a past row.
+ */
+export function scannerRowFromLeaderboard(row: LeaderboardRow, asOf: number | null = null): ScannerRow {
   const changeAbs = row.price != null && row.prev_close != null ? row.price - row.prev_close : null;
   return {
     symbol: row.symbol,
@@ -64,6 +71,7 @@ export function scannerRowFromLeaderboard(row: LeaderboardRow): ScannerRow {
     short_interest: null,
     short_ratio: null,
     halted: row.halted,
+    ...(row.catalyst ? { catalyst: row.catalyst, catalyst_as_of: asOf } : {}),
   };
 }
 
@@ -71,7 +79,7 @@ const byRank = (a: LeaderboardRow, b: LeaderboardRow) =>
   (a.rank ?? Number.MAX_SAFE_INTEGER) - (b.rank ?? Number.MAX_SAFE_INTEGER);
 
 function rowsOf(answer: LeaderboardAt, board: string): ScannerRow[] {
-  return [...(answer.boards[board]?.rows ?? [])].sort(byRank).map(scannerRowFromLeaderboard);
+  return [...(answer.boards[board]?.rows ?? [])].sort(byRank).map(row => scannerRowFromLeaderboard(row, answer.at));
 }
 
 /** The five Scanner lists from one answer; a rebuilt day's `market` board is the Gainers list. */
@@ -104,13 +112,14 @@ export function replayFromAnswer(date: string, minute: number, answer: Leaderboa
     tables: replayTables(answer),
     boardStates,
     leaders: answer.leaders,
+    catalystSymbols: answer.catalyst_symbols,
   };
 }
 
 export function replayPending(date: string, minute: number, error: string | null = null): ScannerReplay {
   return {
     date, minute, status: error ? 'error' : 'loading', source: null, minuteTs: null, gap: null,
-    error, tables: EMPTY_REPLAY_TABLES, boardStates: {}, leaders: [],
+    error, tables: EMPTY_REPLAY_TABLES, boardStates: {}, leaders: [], catalystSymbols: null,
   };
 }
 
@@ -156,7 +165,10 @@ export function replayListAbsence(replay: ScannerReplay, list: string): string {
   const clock = replayClock(replay);
   if (replay.status === 'loading') return leaderboardLoadingText(clock);
   if (replay.status === 'error') return leaderboardErrorText(clock, replay.error ?? '');
-  if (list === 'catalysts') return LEADERBOARD_CATALYSTS_NOT_RECORDED;
+  // The Catalysts tab is the live on-roster headline list; a played-back mover's catalyst is in its News column.
+  if (list === 'catalysts') {
+    return (replay.catalystSymbols ?? 0) > 0 ? LEADERBOARD_CATALYSTS_IN_NEWS_COLUMN : LEADERBOARD_CATALYSTS_NOT_RECORDED;
+  }
   if (replay.gap) return gapText(replay.gap);
   const key = (list in LIST_BOARD ? list : 'gainers') as ReplayListKey;
   const label = LIST_LABEL[key];

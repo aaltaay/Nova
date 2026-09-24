@@ -3,7 +3,8 @@
  * the Sim playhead. Everything else stays the live feed's -- the global bar
  * still states the live connection honestly -- except what would decorate a
  * past row with today's live state: price flashes, per-row quote ages and
- * today's catalysts (live-only, never recorded per minute).
+ * today's Catalysts list. A played-back row carries its own verdict as known at
+ * the playhead (#498), never today's.
  */
 import type { Catalyst } from '../types/catalyst';
 import type { ScannerRow } from '../types/scanner';

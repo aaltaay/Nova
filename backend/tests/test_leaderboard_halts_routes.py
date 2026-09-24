@@ -108,13 +108,16 @@ def test_route_shapes(client):
     days = client.get("/api/leaderboard/days").json()
     assert set(days) == {"schema_version", "store", "days"} and days["days"][0]["date"] == DAY
     board = client.get(f"/api/leaderboard/{DAY}", params={"at": et(7, 42, 30)}).json()
-    assert {"schema_version", "date", "at", "source", "minute_ts", "covered", "gap", "boards", "leaders"} <= set(board)
+    assert {"schema_version", "date", "at", "source", "minute_ts", "covered", "gap", "boards", "leaders",
+            "catalyst_symbols"} <= set(board)
+    assert board["catalyst_symbols"] == 0
     row = board["boards"]["gainers"]["rows"][0]
     assert set(row) == {
         "symbol", "minute_ts", "board", "source", "rank", "price", "prev_close", "change_pct", "volume",
         "rvol", "rvol_basis", "float_shares", "has_news", "news_first_seen_ts", "halted", "gap_pct",
-        "exchange", "market_cap",
+        "exchange", "market_cap", "catalyst",
     }
+    assert row["catalyst"] is None  # nothing exported for the day: unknown, never "no news"
     assert board["leaders"]["symbols"] == ["AAA"] and board["leaders"]["rules"]["top_n"] == 3
     cov = client.get(f"/api/leaderboard/{DAY}/coverage").json()
     assert set(cov) == {"date", "source", "session_open", "session_close", "spans", "gaps"}

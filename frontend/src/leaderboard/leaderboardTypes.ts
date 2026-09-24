@@ -2,6 +2,7 @@
  * Wire shapes of the scanner leaderboard routes (AGENTS.md section 3, ADR 023)
  * and the playback state the Scanner board reads. Every unknown is null.
  */
+import type { CatalystVerdict } from '../types/catalystVerdict';
 import type { ScannerRow } from '../types/scanner';
 
 export type LeaderboardSource = 'recorded' | 'reconstructed';
@@ -26,6 +27,11 @@ export interface LeaderboardRow {
   gap_pct: number | null;
   exchange: string | null;
   market_cap: number | null;
+  /**
+   * The catalyst verdict as known at the playhead (#498): the day's exported items published by
+   * `at`. Null when the symbol-day was not exported or no source looked -- unknown, never "no news".
+   */
+  catalyst: CatalystVerdict | null;
 }
 
 /** Why there is no board at the playhead; `start` / `end` are null outside the session. */
@@ -52,6 +58,8 @@ export interface LeaderboardAt {
   gap: LeaderboardGap | null;
   boards: Record<string, LeaderboardBoard>;
   leaders: string[];
+  /** Symbols the day's catalyst export checked; 0 = none on file for the day, null = not stated. */
+  catalyst_symbols: number | null;
 }
 
 export interface LeaderboardDaySummary {
@@ -117,4 +125,6 @@ export interface ScannerReplay {
   /** Board lists the answer carries, with their coverage state. */
   boardStates: Partial<Record<string, string | null>>;
   leaders: string[];
+  /** Symbols the day's catalyst export checked (the News column's verdicts); null until an answer says. */
+  catalystSymbols: number | null;
 }
