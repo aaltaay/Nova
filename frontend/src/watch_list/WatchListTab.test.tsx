@@ -6,13 +6,28 @@ import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HodMomoContextProvider, type HodMomoContextValue } from '../hod_momo/HodMomoContext';
 import type { AlertObject } from '../hod_momo/types';
+import type { SetupsBoard } from '../setups';
 import type { ScannerRow } from '../types/scanner';
-import { WATCH_LIST_EMPTY, WATCH_LIST_NOT_ON_BOARD } from './watchListConstants';
+import { setupBoard, setupRow } from './setupFixtures';
+import {
+  WATCH_LIST_EMPTY,
+  WATCH_LIST_NOT_ON_BOARD,
+  WATCH_LIST_SETUP_NOT_FOLLOWED,
+  WATCH_LIST_SETUP_NOTHING,
+  WATCH_LIST_SETUP_OFFLINE_TIP,
+  WATCH_LIST_SETUP_UNKNOWN_TIP,
+} from './watchListConstants';
 import { boardRowsBySymbol, hodAlertsBySymbol, WatchListTab } from './WatchListTab';
 import { addToWatchList, getWatchList, resetWatchListForTests } from './watchListStore';
 import type { WatchListBoards } from './types';
 
 vi.mock('../bot', () => ({ openBotSymbolMenu: vi.fn(), closeBotSymbolMenu: vi.fn() }));
+// The setup scanner's live board, as the provider would hand it over (null: none here).
+const setups = vi.hoisted(() => ({ value: null as { board: SetupsBoard | null; connected: boolean } | null }));
+vi.mock('../setups', async importOriginal => ({
+  ...(await importOriginal<typeof import('../setups')>()),
+  useSetupsBoard: () => setups.value,
+}));
 
 function row(symbol: string, patch: Partial<ScannerRow> = {}): ScannerRow {
   return {
@@ -74,11 +89,13 @@ describe('WatchListTab', () => {
   beforeEach(() => {
     localStorage.clear();
     resetWatchListForTests();
+    setups.value = null;
   });
   afterEach(() => {
     cleanup();
     localStorage.clear();
     resetWatchListForTests();
+    setups.value = null;
   });
 
   it('says how to add a symbol when the list is empty, and adds one by ticker', () => {
@@ -123,6 +140,41 @@ describe('WatchListTab', () => {
     const grml = screen.getAllByRole('row')[1];
     expect(grml.textContent).not.toContain('$4.52');
     expect(grml.textContent).not.toContain('%');
+  });
+
+  it("shows each symbol's most advanced setup, and says why when it has none -- never a guess", () => {
+    act(() => { ['ZZZZ', 'PFSA', 'ONCO', 'GRML'].forEach(addToWatchList); });
+    const cell = (symbol: string) => screen.getByTestId(`watch-list-setup-${symbol}`);
+    // A fresh element each time: the mocked hook is no context, so an equal element would not re-render.
+    const tab = () => <WatchListTab boards={EMPTY} selectedSymbol={null} onSelectSymbol={vi.fn()} onOpenTrading={vi.fn()} />;
+
+    // No live board here (disconnected, or the Sim replay on it).
+    const { rerender } = render(tab());
+    expect(cell('GRML').textContent).toBe('—');
+    expect(cell('GRML').getAttribute('data-tip')).toBe(WATCH_LIST_SETUP_OFFLINE_TIP);
+
+    setups.value = {
+      connected: true,
+      board: setupBoard(
+        [setupRow('GRML', 'leg', { setup_type: 'bull_flag', kind: 'bull_flag' }), setupRow('GRML', 'near')],
+        { universe_symbols: ['GRML', 'ONCO'] },
+      ),
+    };
+    rerender(tab());
+    expect(cell('GRML').textContent).toBe('First pullbackNear+1');
+    expect(cell('GRML').getAttribute('data-tip')).toContain('Also: Bull flag Pole');
+    expect(cell('ONCO').textContent).toBe(WATCH_LIST_SETUP_NOTHING);
+    expect(cell('PFSA').textContent).toBe(WATCH_LIST_SETUP_NOT_FOLLOWED);
+    expect(cell('PFSA').getAttribute('data-tip')).toContain('HOD Momo names only');
+
+    // An API from before `universe_symbols` cannot say which it is.
+    setups.value = { connected: true, board: setupBoard([], { universe_symbols: undefined }) };
+    rerender(tab());
+    expect(cell('ONCO').textContent).toBe('—');
+    expect(cell('ONCO').getAttribute('data-tip')).toBe(WATCH_LIST_SETUP_UNKNOWN_TIP);
+    setups.value = { connected: true, board: setupBoard([setupRow('ONCO', 'armed')], { source: 'sim' }) };
+    rerender(tab());
+    expect(cell('ONCO').getAttribute('data-tip')).toBe(WATCH_LIST_SETUP_OFFLINE_TIP);
   });
 
   it('removes a symbol without selecting the row', () => {

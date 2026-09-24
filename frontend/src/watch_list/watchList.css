@@ -1,7 +1,9 @@
 /*
  * The operator's watch list (2026-09-23): the eye mark on watched rows, the
- * "XYZ hit HOD Momo" toasts and the Watch list tab. Amber is the watch
- * colour -- apart from the bot's blue, the recorder's red and the setups' green.
+ * "XYZ hit HOD Momo" / "XYZ: bull flag armed" toasts and the Watch list tab.
+ * Amber is the watch colour -- apart from the bot's blue, the recorder's red
+ * and the setups' green. A setup's state chip is the Setups board's own
+ * (`pillar-chip setups-state--*`), so a state reads the same everywhere.
  */
 :root {
   --watch-color: #f5a524;
@@ -97,6 +99,28 @@ body:has(.recording-stopped) .watch-toasts {
 .watch-toast__facts {
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
+}
+
+/* One line per setup that climbed: name, the board's state chip, the scanner's own words. */
+.watch-toast__setup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+}
+
+.watch-toast__setup-name {
+  font-weight: 600;
+}
+
+.watch-toast__setup-detail {
+  flex-basis: 100%;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.watch-toast__setup.is-unlisted {
+  opacity: 0.6;
 }
 
 .watch-toast__actions {
@@ -244,6 +268,16 @@ body:has(.recording-stopped) .watch-toasts {
 .watch-list__hod b {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+
+.watch-list__setup {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.watch-list__setup-name {
+  font-weight: 600;
 }
 
 .watch-list__remove-cell {

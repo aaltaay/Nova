@@ -18,6 +18,10 @@ export const SAMPLE_SETUPS_BOARD: SetupsBoard = {
   generated_at: T,
   session_date: '2026-09-22',
   universe: 24,
+  universe_symbols: [
+    'AHOT', 'AQST', 'BZAP', 'CATZ', 'DRIP', 'FLTX', 'GAPX', 'HLTR', 'HODX', 'KSTR', 'LATE', 'MOMO',
+    'NITE', 'NVXA', 'NWSR', 'ORBT', 'PLNX', 'PRNT', 'QMBL', 'RDYN', 'RUNR', 'SMPL', 'SPIK', 'VLTG',
+  ],
   seeding: 0,
   scoreboard: true,
   scoreboard_error: null,
