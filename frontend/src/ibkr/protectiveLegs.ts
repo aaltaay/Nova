@@ -8,17 +8,19 @@
  * The refusal cases are deliberate. A Market entry while the defaults are on
  * is refused rather than sent without a stop — the whole point of the setting
  * is a stop you cannot forget.
+ *
+ * Every venue takes the bracket the same way: Live sends it to IBKR, Paper
+ * and Sim fill the same shape on the practice broker (#606), so the legs
+ * attach whatever venue the desk is on.
  */
 import {
   TICKET_LEGS_EXIT_NOTE,
   TICKET_LEGS_LIMIT_ONLY_ERROR,
   TICKET_LEGS_NO_PRICE_ERROR,
   TICKET_LEGS_OFFSET_ERROR,
-  TICKET_LEGS_SIM_NOTE,
 } from '../constantGroups/trade_defaults';
 import type { ManualOrderSide, ManualOrderType } from './orderEntry';
 import type { TradeDefaultsPrefs } from '../settings/tradeDefaultsPrefs';
-import type { IbkrMode } from './types';
 
 export type ProtectiveLegsPlan =
   | { kind: 'none'; note: string | null }
@@ -38,7 +40,6 @@ export interface ProtectiveLegsInput {
   limitPrice: number | null;
   /** Broker position in this symbol; negative is short. */
   positionQty: number | null;
-  mode: IbkrMode;
 }
 
 /** IBKR minimum tick: a cent at or above $1, a hundredth of a cent below it. */
@@ -70,7 +71,6 @@ export function planProtectiveLegs(input: ProtectiveLegsInput): ProtectiveLegsPl
   if (!isOpeningEntry(input.side, input.shortEntry, input.positionQty)) {
     return { kind: 'none', note: TICKET_LEGS_EXIT_NOTE };
   }
-  if (input.mode === 'sim') return { kind: 'none', note: TICKET_LEGS_SIM_NOTE };
   if (input.orderType !== 'LMT') {
     return { kind: 'refuse', error: TICKET_LEGS_LIMIT_ONLY_ERROR };
   }
