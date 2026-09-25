@@ -14,7 +14,14 @@ import {
   type SeriesMarker,
   type Time,
 } from 'lightweight-charts';
-import { buildSeriesTimeIndex, nearestSeriesTime, toCanonicalTime, type ChartPaneOverlayProps, type SeriesTimeIndex } from '../chart';
+import {
+  buildSeriesTimeIndex,
+  isFollowingRightEdge,
+  nearestSeriesTime,
+  toCanonicalTime,
+  type ChartPaneOverlayProps,
+  type SeriesTimeIndex,
+} from '../chart';
 import { etChartSeconds } from '../tickerChartData';
 import { ChartLegend } from './ChartLegend';
 import { laneStartSec, leadLane, paneDraw, paneKind, type PriceLineSpec } from './chartShapes';
@@ -85,6 +92,21 @@ export function frameFrom(
   const from = Math.max(0, Math.min(i - FRAME_PAD_BARS, n - 1 - FRAME_MIN_BARS));
   chart.timeScale().setVisibleLogicalRange({ from, to: n - 1 + PLAN_RIGHT_OFFSET_BARS });
   return true;
+}
+
+/** Slide a view that follows the live edge so the plan's zones have room past the last candle; a view
+ * the operator moved elsewhere stays where it is. */
+export function roomAtLiveEdge(chart: NonNullable<ChartPaneOverlayProps['chart']>, barCount: number): void {
+  const last = barCount - 1;
+  try {
+    const ts = chart.timeScale();
+    const range = ts.getVisibleLogicalRange();
+    if (!range || !isFollowingRightEdge(range, barCount) || range.to >= last + PLAN_RIGHT_OFFSET_BARS) return;
+    const shift = last + PLAN_RIGHT_OFFSET_BARS - range.to;
+    ts.setVisibleLogicalRange({ from: range.from + shift, to: range.to + shift });
+  } catch {
+    /* the chart is gone */
+  }
 }
 
 function usePriceLines(series: ISeriesApi<'Candlestick'> | null, specs: PriceLineSpec[]): void {
@@ -208,19 +230,21 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
 
   usePriceLines(series, enabled ? draw.lines : []);
 
-  // Room for the plan's zones right of the last candle, only while they are drawn.
+  // Room for the plan's zones right of the last candle when they appear, and only for a view that
+  // follows the live edge. The time scale's rightOffset used to do this: it is the scroll position, so
+  // the pane jumped to the live edge whenever the zones came or went -- a buy, a sale, a tab shown again.
   const zones = kind === 'full' && draw.scene.boxes.some(b => b.t2 === null);
+  const roomPending = useRef(true);
   useEffect(() => {
-    if (!chart || !zones) return;
-    chart.timeScale().applyOptions({ rightOffset: PLAN_RIGHT_OFFSET_BARS });
-    return () => {
-      try {
-        chart.timeScale().applyOptions({ rightOffset: 0 });
-      } catch {
-        /* the chart is gone */
-      }
-    };
-  }, [chart, zones]);
+    if (!zones) {
+      roomPending.current = true;
+      return;
+    }
+    const n = series ? series.data().length : 0;
+    if (!chart || n === 0 || !roomPending.current) return;
+    roomPending.current = false;
+    roomAtLiveEdge(chart, n);
+  }, [chart, series, zones, barsRevision]);
 
   // "Show on chart" from the decisions: frame the moment on the 1-minute pane.
   const nonce = ctx?.focus?.nonce ?? 0;

@@ -83,7 +83,7 @@ interface TickerChartProps {
 export function TickerChart(props: TickerChartProps) {
   // Soft-reset on symbol change inside Inner -- avoid remounting the whole LWC tree.
   return (
-    <TickerChartErrorBoundary>
+    <TickerChartErrorBoundary label={props.fixedTimeframe ?? props.title}>
       <TickerChartInner {...props} />
     </TickerChartErrorBoundary>
   );
