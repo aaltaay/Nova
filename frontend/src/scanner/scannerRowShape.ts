@@ -140,6 +140,10 @@ export function normalizeScannerRow(raw: unknown): ScannerRow | null {
     out.float_contradicted = typeof raw.float_contradicted === 'boolean' ? raw.float_contradicted : null;
   }
   if ('float_contradicted_reason' in raw) out.float_contradicted_reason = textOrNull(raw.float_contradicted_reason);
+  if ('short_above_float' in raw) {
+    out.short_above_float = typeof raw.short_above_float === 'boolean' ? raw.short_above_float : null;
+  }
+  if ('short_above_float_reason' in raw) out.short_above_float_reason = textOrNull(raw.short_above_float_reason);
   // A name-only row carries a placeholder volume of 0 (ibkr/scanner_hydrate.py);
   // with no quote it is unknown, not zero (QA C37).
   if (out.volume === 0 && isNameOnlyRow(out as Pick<ScannerRow, 'price'>)) out.volume = null;

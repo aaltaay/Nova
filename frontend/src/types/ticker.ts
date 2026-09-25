@@ -130,12 +130,15 @@ export interface FundamentalsData {
   float_shares: number | null;
   /** Yahoo's insider share, a fraction (0.128 = 12.8%). Optional: absent from an older API (#532). */
   held_percent_insiders?: number | null;
-  /** True when Yahoo's own shares outstanding or short interest contradicts the float; null = not checkable. */
+  /** True when Yahoo's own shares outstanding contradicts the float; null = not checkable. The gates read it. */
   float_contradicted?: boolean | null;
   float_contradicted_reason?: string | null;
   short_interest: number | null;
   /** Epoch seconds of the FINRA settlement the short interest is from (Yahoo's date). */
   short_interest_ts?: number | null;
+  /** More shares short than the float (#532): a warning only -- a stale float or heavy shorting; no gate reads it. */
+  short_above_float?: boolean | null;
+  short_above_float_reason?: string | null;
   /** Yahoo's own ratio (short interest over Yahoo's average volume), not FINRA's days to cover. */
   short_ratio: number | null;
   short_percent_of_float: number | null;

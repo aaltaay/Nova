@@ -194,9 +194,11 @@ def _split_words(factor: str) -> str:
     return f"1-for-{b}" if a.strip() == "1" and b.strip() else f"{factor} split"
 
 
-def _short(pct: float | None, dtc: float | None, si: float | None, as_of: float | None = None) -> dict[str, Any]:
+def _short(pct: float | None, dtc: float | None, si: float | None, as_of: float | None = None,
+           above_float: str | None = None) -> dict[str, Any]:
     """``as_of`` is the FINRA settlement date Yahoo's short interest is from (#532). Days to cover is
-    Yahoo's short ratio -- short interest over Yahoo's average volume, not FINRA's figure -- and says so."""
+    Yahoo's short ratio -- short interest over Yahoo's average volume, not FINRA's figure -- and says so.
+    ``above_float`` is the short-above-float warning's reason: added to the detail, never a state."""
     src = ("FINRA short interest via Yahoo (twice a month, about two weeks late); "
            "days to cover is Yahoo's short ratio, over Yahoo's average volume")
     if pct is None and dtc is None:
@@ -210,6 +212,8 @@ def _short(pct: float | None, dtc: float | None, si: float | None, as_of: float 
     detail = None
     if si is not None:
         detail = f"{shares(si)} shares short" + (f", FINRA settlement {_day(as_of)}" if as_of is not None else "")
+        if above_float:
+            detail = f"{detail}. {above_float}"
     return _check("short_interest", "Short interest", MOVE_STATE_YES if heavy else MOVE_STATE_NO, " · ".join(parts),
                   detail, src, as_of)
 
@@ -282,7 +286,9 @@ def read(facts: dict[str, Any], now: float | None = None) -> dict[str, Any]:
                     if facts.get("float_contradicted") is True else None)
     checks = [_news(facts.get("catalyst"), now), _halts(facts.get("halts"), now), _float(f, contradicted),
               _rotation(rot, volume, f), _volume(rvol), _split(facts.get("split"), now),
-              _short(pct, dtc, si, _num(facts.get("short_interest_ts"))), _borrow(facts.get("borrow"))]
+              _short(pct, dtc, si, _num(facts.get("short_interest_ts")),
+                     facts.get("short_above_float_reason") if facts.get("short_above_float") is True else None),
+              _borrow(facts.get("borrow"))]
     by = {c["id"]: c for c in checks}
     return {"likely": _likely(change, by, rot, rvol, facts.get("catalyst")), "checks": checks,
             "derived": {"float_rotation": rot, "short_pct_float": pct}}

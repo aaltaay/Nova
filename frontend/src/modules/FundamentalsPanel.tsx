@@ -15,7 +15,14 @@ import {
   fmtSessionPrice,
   fmtVolume,
 } from '../utils/quoteFormat';
-import { fmtFloat, fmtShortInterest, floatTitle, shortInterestTitle } from '../utils/shareFacts';
+import {
+  fmtFloat,
+  fmtShortInterest,
+  floatTitle,
+  shortAboveFloatClass,
+  shortAboveFloatWarning,
+  shortInterestTitle,
+} from '../utils/shareFacts';
 import { useWorkspace } from '../workspace';
 import { computeQuoteMetrics } from './quoteMetrics';
 
@@ -44,12 +51,14 @@ export function FundamentalsPanel({
   const includeBroker = includeFund;
 
   const fund = detail.fundamentals;
+  // More short than the float: a warning on screen only, never a gate (#532).
+  const shortWarning = shortAboveFloatWarning(fund?.short_above_float, fund?.short_above_float_reason);
   const keyCells = (
     <>
       <CompactGridCell
         label="Float"
         value={fmtFloat(fund?.float_shares, fund?.float_contradicted)}
-        title={floatTitle(fund?.float_contradicted, fund?.float_contradicted_reason)}
+        title={floatTitle(fund?.float_contradicted, fund?.float_contradicted_reason, shortWarning)}
       />
       <CompactGridCell label="Volume" value={fmtVolume(daily?.volume)} />
       <CompactGridCell label={QUOTE_AVG_VOLUME_LABEL} value={fmtVolume(detail.avg_volume ?? null)} />
@@ -102,8 +111,9 @@ export function FundamentalsPanel({
       />
       <CompactGridCell
         label="Short Interest"
-        value={fmtShortInterest(fund?.short_interest, fund?.short_interest_ts)}
-        title={shortInterestTitle(fund?.short_interest, fund?.short_interest_ts)}
+        value={fmtShortInterest(fund?.short_interest, fund?.short_interest_ts, fund?.short_above_float)}
+        valueClass={shortAboveFloatClass(fund?.short_above_float)}
+        title={shortInterestTitle(fund?.short_interest, fund?.short_interest_ts, null, shortWarning)}
       />
       <CompactGridCell
         label={SHORT_RATIO_YAHOO_LABEL}

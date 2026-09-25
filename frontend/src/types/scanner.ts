@@ -43,13 +43,16 @@ export interface ScannerRow {
   float: number | null;
   /** Yahoo's shares outstanding (#532); null when unknown, absent from an older API. */
   shares_outstanding?: number | null;
-  /** True when Yahoo's own shares outstanding or short interest contradicts `float` (#532); null = not checkable. */
+  /** True when Yahoo's own shares outstanding contradicts `float` (#532); null = not checkable. The gates read it. */
   float_contradicted?: boolean | null;
   /** Why the float is doubtful, only when `float_contradicted` is true. */
   float_contradicted_reason?: string | null;
   short_interest: number | null;
   /** Epoch seconds of the FINRA settlement `short_interest` is from (Yahoo's date); null when unknown. */
   short_interest_ts?: number | null;
+  /** More shares short than `float` (#532): a warning only -- a stale float or heavy shorting; no gate reads it. */
+  short_above_float?: boolean | null;
+  short_above_float_reason?: string | null;
   /** Yahoo's own ratio (short interest over Yahoo's average volume), not FINRA's days to cover. */
   short_ratio: number | null;
   /** Yahoo event-of-record date (ET), used by the Earnings dots hover. */

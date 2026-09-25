@@ -1,8 +1,10 @@
 """What a max-float gate may conclude from a float Yahoo's own counts contradict (#532).
 
 Yahoo's float is its last filing's cover count less insiders, blind to any dilution since;
-``fundamentals.float_credibility`` flags a float its own shares outstanding or short interest
-contradicts (``float_contradicted``). The fact that still holds is float <= shares outstanding.
+``fundamentals.float_credibility`` flags a float its own shares outstanding contradicts
+(``float_contradicted``). Short interest above the float is only a warning
+(``short_above_float``): a heavily shorted name looks the same, so it never reaches a gate.
+The fact that still holds is float <= shares outstanding.
 So a contradicted float passes a max-float gate only when shares outstanding is itself at or
 under the limit; otherwise the float is unknown and never a pass -- not even at a gate that lets
 an unknown float through. A float that is not contradicted (``float_contradicted`` false, or null:

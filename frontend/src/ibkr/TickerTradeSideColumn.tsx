@@ -18,7 +18,14 @@ import {
   sessionPriceOrNull,
   timeAgo,
 } from '../utils/quoteFormat';
-import { fmtFloat, fmtShortInterest, floatTitle, shortInterestTitle } from '../utils/shareFacts';
+import {
+  fmtFloat,
+  fmtShortInterest,
+  floatTitle,
+  shortAboveFloatClass,
+  shortAboveFloatWarning,
+  shortInterestTitle,
+} from '../utils/shareFacts';
 import { DepthAndTape } from './DepthAndTape';
 import type { IbkrMode, IbkrPosition } from './types';
 
@@ -52,6 +59,8 @@ export function TickerTradeSideColumn({ detail, position, ibkrConnected, mode }:
   const snap = detail.snapshot;
   const asset = detail.asset;
   const fund = detail.fundamentals;
+  // More short than the float: a warning on screen only, never a gate (#532).
+  const shortWarning = shortAboveFloatWarning(fund?.short_above_float, fund?.short_above_float_reason);
   const daily = snap?.daily_bar;
   const prevClose = snap?.prev_close ?? snap?.prev_daily_bar?.close ?? null;
   const todayOpen = sessionPriceOrNull(daily?.open);
@@ -87,7 +96,7 @@ export function TickerTradeSideColumn({ detail, position, ibkrConnected, mode }:
         <Stat
           label="Float"
           value={fmtFloat(fund?.float_shares, fund?.float_contradicted)}
-          title={floatTitle(fund?.float_contradicted, fund?.float_contradicted_reason)}
+          title={floatTitle(fund?.float_contradicted, fund?.float_contradicted_reason, shortWarning)}
         />
         <Stat label="Volume" value={fmtVolume(daily?.volume)} />
         <Stat
@@ -110,8 +119,9 @@ export function TickerTradeSideColumn({ detail, position, ibkrConnected, mode }:
         <Stat label="Mkt cap" value={fmtMarketCap(detail.fundamentals?.market_cap)} />
         <Stat
           label="Short int"
-          value={fmtShortInterest(fund?.short_interest, fund?.short_interest_ts)}
-          title={shortInterestTitle(fund?.short_interest, fund?.short_interest_ts, fund?.short_ratio)}
+          value={fmtShortInterest(fund?.short_interest, fund?.short_interest_ts, fund?.short_above_float)}
+          valueClass={shortAboveFloatClass(fund?.short_above_float)}
+          title={shortInterestTitle(fund?.short_interest, fund?.short_interest_ts, fund?.short_ratio, shortWarning)}
         />
       </div>
 

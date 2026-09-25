@@ -76,6 +76,18 @@ describe('normalizeScannerRow (QA C8)', () => {
     expect('short_interest_ts' in row('OLD')).toBe(false);
   });
 
+  it('keeps the short-above-float warning and reads anything else as unknown (#532)', () => {
+    const out = normalizeScannerRow({
+      symbol: 'SQZ', short_above_float: true, short_above_float_reason: ' Short interest 9.00M is above ',
+    })!;
+    expect(out.short_above_float).toBe(true);
+    expect(out.short_above_float_reason).toBe('Short interest 9.00M is above');
+    const junk = normalizeScannerRow({ symbol: 'SQZ', short_above_float: 1, short_above_float_reason: 7 })!;
+    expect(junk.short_above_float).toBeNull();
+    expect(junk.short_above_float_reason).toBeNull();
+    expect('short_above_float' in row('OLD')).toBe(false);
+  });
+
   it('keeps a stated halt and reads anything else as not known (#487)', () => {
     expect(normalizeScannerRow({ symbol: 'HALT', halted: true })!.halted).toBe(true);
     expect(normalizeScannerRow({ symbol: 'TRADE', halted: false })!.halted).toBe(false);

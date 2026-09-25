@@ -220,7 +220,10 @@ def short_rows(f: dict[str, Any]) -> list[dict[str, Any]]:
                        "ok" if share is not None and share >= STOCK_READ_SI_HIGH_SHARE else "info", "FINRA via Yahoo",
                        "; ".join(bit for bit in (
                            f"FINRA settlement {_day(facts['short_interest_ts'])}" if facts.get("short_interest_ts") else None,
-                           f"Yahoo ratio {dtc:.1f} days" if dtc is not None else None) if bit) or None,
+                           f"Yahoo ratio {dtc:.1f} days" if dtc is not None else None,
+                           # A warning in words only: the row's state and no gate read it (#532).
+                           facts.get("short_above_float_reason") if facts.get("short_above_float") is True else None,
+                       ) if bit) or None,
                        facts.get("short_interest_ts")))
     out.append(row("ssr", "Short-sale restriction", "Not tracked", "unknown", "--",
                    "Nova does not read the listing exchange's short-sale-restriction list yet."))

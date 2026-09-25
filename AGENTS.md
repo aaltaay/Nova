@@ -596,21 +596,36 @@ fundamentals payload (`fetch_fundamentals`; the ticker detail's `fundamentals`)
 keeps `shares_outstanding` and adds `held_percent_insiders` (Yahoo's
 `heldPercentInsiders`, a fraction: 0.128 = 12.8%), `short_interest_ts` (Yahoo's
 `dateShortInterest`: epoch seconds of the FINRA settlement the short interest
-is from), `float_contradicted: boolean | null` and `float_contradicted_reason:
-string | null` -- each `null` when Yahoo gives none. `short_ratio` is Yahoo's
-own ratio (short interest over Yahoo's average volume), never FINRA's days to
-cover. A float is **contradicted** (`fundamentals.float_credibility`, pure)
-when it is under `FUNDAMENTALS_FLOAT_MIN_NON_INSIDER_SHARE` (0.5) of shares
-outstanding x (1 - insiders), or when short interest exceeds it: `true` when
-either fires, `false` only when both checks ran and neither fired, `null`
-otherwise (no float, or a check short of its inputs); the reason names the
-counts. A float above shares outstanding is never flagged -- the share count is
-the stale field there and it cannot pass a low-float gate falsely. Every
-scanner row (`scanner_surface.surface_rows` -> `mover_enrich_view.decorate_rows`)
-adds `shares_outstanding`, `short_interest_ts` (only while the row's
+is from), `float_contradicted: boolean | null`, `float_contradicted_reason:
+string | null`, `short_above_float: boolean | null` and
+`short_above_float_reason: string | null` -- each `null` when Yahoo gives none.
+`short_ratio` is Yahoo's own ratio (short interest over Yahoo's average
+volume), never FINRA's days to cover. A float is **contradicted**
+(`fundamentals.float_credibility`, pure) when it is under
+`FUNDAMENTALS_FLOAT_MIN_NON_INSIDER_SHARE` (0.5) of shares outstanding x (1 -
+insiders): `true` when that fires, `false` when shares outstanding and insiders
+are known and it does not, `null` otherwise; the reason names the counts. A
+float above shares outstanding is never flagged -- the share count is the stale
+field there and it cannot pass a low-float gate falsely. **Short interest above
+the float is a warning, never a gate** (operator decision 2026-09-24: "make sure
+it never blocks those setups, just gives an on-screen warning"):
+`fundamentals.short_above_float` (pure) is `true` when short interest exceeds
+the float, `false` when both are known and it does not, `null` otherwise. It
+cannot tell a stale float from shares lent more than once, which is what a
+heavily shorted name looks like, so no gate reads it: the desk shows the short
+interest as "9.0M!" in amber with the reason first on its hover (scanner Short
+Int., Fundamentals panel, Trader side column) and adds the reason to the float's
+hover; `/api/why` facts carry `short_above_float` and the short-interest
+check's `detail` adds the reason (its state is unchanged), as does the stock
+read's short-interest row. Until 2026-09-24 (#532 follow-up) the same condition
+also set `float_contradicted`, so a squeeze with more than 10M shares
+outstanding could be refused a Low Float gate. Every scanner row
+(`scanner_surface.surface_rows` -> `mover_enrich_view.decorate_rows`) adds
+`shares_outstanding`, `short_interest_ts` (only while the row's
 `short_interest` is the cached figure, else `null`: a date is never pinned on
-another report) and `float_contradicted` / `float_contradicted_reason`, judged
-on the row's own float and short interest.
+another report), `float_contradicted` / `float_contradicted_reason` (judged on
+the row's own float and shares outstanding) and `short_above_float` /
+`short_above_float_reason` (the row's own float and short interest).
 
 **Max-float gates read it** (#532 point 2, operator decision 2026-09-24: ship
 it now). The fact that holds is float <= shares outstanding, so a contradicted
@@ -670,7 +685,9 @@ volume) or `time_of_day_20` (volume so far over the same-minute average of the
 prior 20 sessions); two bases are never compared. `float_shares` is as known
 that day or `null`; `float_contradicted` (`boolean | null`) and
 `shares_outstanding` are a recorded row's float check as the desk row carried
-it that minute (#532, "Float credibility and short-interest dates"),
+it that minute (#532, "Float credibility and short-interest dates"; a row
+recorded on 2026-09-24 before the short-interest warning was split out may
+carry `true` for short interest above the float alone),
 `float_contradicted` `null` without a float; a reconstructed row carries
 neither. `has_news` / `news_first_seen_ts` only from news seen by
 that minute. Every unknown is `null`, never a placeholder. `halted` is derived
@@ -2081,13 +2098,16 @@ confidence: "likely" | "possible"}, checks: [{id: "news" | "halts" | "float" | "
 "reverse_split" | "short_interest" | "borrow" | "volume", label, state: "yes" | "no" | "unknown",
 value: string | null, detail: string | null, source, as_of: number | null}], facts: {price,
 change_pct, volume, rel_volume, float_shares, float_contradicted, float_rotation, short_interest,
-short_interest_ts, short_pct_float, days_to_cover, split: {factor, ts, reverse, days_ago} | null,
+short_interest_ts, short_above_float, short_pct_float, days_to_cover, split: {factor, ts, reverse,
+days_ago} | null,
 halts: {news, luld, volatility, other, source} | null, borrow: {listed, fee_rate, rebate_rate,
 available, available_capped, as_of, since, open, prior, max_fee_today, min_available_today} | null,
 catalyst: verdict | null}}`. `float_contradicted` / `short_interest_ts` are the scanner row's (#532,
 "Float credibility and short-interest dates"); a contradicted float's check reads "54K? shares"
 with the reason as its `detail` and keeps its state, and the short-interest check's `as_of` is the
-FINRA settlement date. `days_to_cover` is Yahoo's short ratio and its value says "(Yahoo ratio)".
+FINRA settlement date. `short_above_float` is judged on the float and short interest shown here; when
+it is `true` the short-interest check's `detail` adds its reason and its state is unchanged (a
+warning, never a gate). `days_to_cover` is Yahoo's short ratio and its value says "(Yahoo ratio)".
 `fee_rate` / `rebate_rate` are IBKR's annual percent; `open` / `prior` are `{listed, fee_rate,
 available, as_of}` at the day's first poll at or after 04:00 ET and the last poll before it (null
 when not recorded); `since` is the first poll the store holds. A symbol IBKR's file does not list is
@@ -2441,6 +2461,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-24 | Short interest above the float warns, never gates (#532 follow-up, operator decision: "make sure it never blocks those setups, just gives an on-screen warning"): `float_contradicted` -- the flag every max-float gate reads -- now comes only from the shares-outstanding check. More shares short than the float is also what a heavy short looks like (a lent share can be sold and lent again), so a name with an 8M float, 9M shares short and 12M outstanding had been refused every 10M Low Float gate as a "stale float". It is now `short_above_float`, shown as "9.0M!" in amber with the reason on hover. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Recorded eyes in Sim (operator ask: "i want this stuff to be recorded when they show up, do they work so they are viewable in the sim ok? when something pops up. that way we can use that data to fine tune them when things dont match"): the setup cards' every change was already journalled (today: YDES's bull-flag pole, PFSA's first pullback armed, near, proposed and triggered at 08:07), but the desk never read the journal -- off the live edge the Bots page kept showing the live board. Now the Sim desk off the edge folds the live journal to the playhead (`eyes/playback.py`): each card's rows and funnel as they stood, proposals popping up as the playhead plays across them, gaps stated, never recomputed. The lanes now write the detector's state whenever it differs from what their lines imply, its price and leg on every line, a `price` line for names in reach, and the engine a minute `beat`, so the played-back card is exact (a test checks the fold against the lanes' own board at every moment). `GET /api/eyes/at` and `tools/eyes_journal.py board` answer the same for an agent. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | The bot's read on one stock (ADR 036, #598; operator ask: "show me the bot's decisions specifically for that stock ... if something is forming, can we start highlighting it on the chart? ... all the tiny signals", then "i want it to tell me my entry/exit .. we typically want to aim for 2:1 ratio, like right on top of lvl2"; mockup v1 approved). Every scanner lane answers for one symbol (`GET /api/setups/symbol/{symbol}`), with the levels a forming setup would arm with (computed, then thrown away until now) and its own MACD / 9 EMA; `backend/stock_read/` composes the owners into seven groups of signals, a plan (entry, stop, target at least 2R from the setup's own rule, and what stands in the way), one symbol's day from the eyes' journal (ADR 029 amended: the desk reads it through the decisions route) and its history. The Trader rail shows the plan and seven tiles above Level 2, a sheet lists every signal, and the 1-minute chart draws each setup as it forms. The plan opens whole only when the quote card has room for it and Level 2 both; below that it is one line (at 1080p, Level 2 kept 302 px of its 354 against 118 with the whole plan). Fixed with it: the VWAP sensor covered only the last 240 bars, the halt sensor read not halted when it did not know, the Level 2 shortability chip asked once per tab. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Screen recordings are kept (ADR 035 decision 7, operator: "Keep every screen recording until I say otherwise; just warn me when F: gets low"). Nothing deletes a recording; the drive guard -- the header chip amber under 50 GB free and red under 10 GB, and the `screen_recorder` checklist row -- is the warning. No code change: this is what #597 shipped, now decided. §3 amended. | User Directive + Claude Opus 5.5 |

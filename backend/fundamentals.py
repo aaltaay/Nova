@@ -9,6 +9,8 @@ Yahoo's float is its last 10-Q / 10-K / 20-F cover count less insiders, blind
 to any dilution since (#532). ``float_credibility`` flags a float that Yahoo's
 own share counts contradict; every max-float gate reads the flag through
 ``strategy.float_gate`` (a contradicted float passes only on shares outstanding).
+``short_above_float`` is a warning only: more shares short than the float holds
+is what a stale float looks like, and also what a squeeze looks like.
 """
 from __future__ import annotations
 
@@ -45,6 +47,8 @@ _EMPTY: dict = {
     "float_contradicted_reason": None,
     "short_interest": None,
     "short_interest_ts": None,
+    "short_above_float": None,
+    "short_above_float_reason": None,
     "short_ratio": None,
     "short_percent_of_float": None,
     "pe_ratio": None,
@@ -133,14 +137,15 @@ def _pct_words(frac: float) -> str:
 
 
 def float_credibility(
-    float_shares, shares_outstanding, held_percent_insiders, short_interest,
+    float_shares, shares_outstanding, held_percent_insiders,
 ) -> tuple[bool | None, str | None]:
-    """Whether Yahoo's own fields contradict its float (#532): ``(contradicted, reason)``.
+    """Whether Yahoo's own share counts contradict its float (#532): ``(contradicted, reason)``.
 
     Contradicted when the float is under ``FUNDAMENTALS_FLOAT_MIN_NON_INSIDER_SHARE`` of the
-    shares outstanding less insiders, or when more shares are short than the float holds.
-    ``True`` when either fires; ``False`` only when both could be checked and neither fired;
-    ``None`` (unknown) otherwise -- no float, or a check short of its inputs. Pure.
+    shares outstanding less insiders. ``True`` when that fires; ``False`` when it could be checked
+    and did not; ``None`` (unknown) otherwise -- no float, or shares outstanding or insiders
+    unknown. Every max-float gate reads this flag (``strategy.float_gate``). Short interest above
+    the float is not part of it: that is ``short_above_float``, a warning no gate reads. Pure.
     """
     f = _positive(float_shares)
     if f is None:
@@ -149,24 +154,37 @@ def float_credibility(
     ins = held_percent_insiders
     if isinstance(ins, bool) or not isinstance(ins, (int, float)) or not 0 <= ins < 1:
         ins = None
-    si = short_interest
-    if isinstance(si, bool) or not isinstance(si, (int, float)) or not si >= 0:
-        si = None
-    reasons: list[str] = []
+    if out is None or ins is None:
+        return None, None
     share = FUNDAMENTALS_FLOAT_MIN_NON_INSIDER_SHARE
-    if out is not None and ins is not None and f < share * out * (1 - ins):
+    if f < share * out * (1 - ins):
         portion = "half" if share == 0.5 else _pct_words(share)
-        reasons.append(
+        return True, (
             f"Float {_share_words(f)} is under {portion} of the {_share_words(out * (1 - ins))} shares not held "
             f"by insiders ({_share_words(out)} outstanding, {_pct_words(ins)} insiders) -- likely stale since a dilution"
         )
-    if si is not None and si > f:
-        reasons.append(f"Short interest {_share_words(si)} is above the {_share_words(f)} float -- the float is likely stale")
-    if reasons:
-        return True, "; ".join(reasons)
-    if out is not None and ins is not None and si is not None:
+    return False, None
+
+
+def short_above_float(float_shares, short_interest) -> tuple[bool | None, str | None]:
+    """Whether more shares are short than the float holds (#532): ``(above, reason)`` -- a warning.
+
+    Either the float is stale, or shares were lent more than once, which is what a heavily shorted
+    name looks like. The two cannot be told apart here, so no gate reads it; the desk shows it beside
+    the short interest. ``True`` / ``False`` when both figures are known, ``None`` otherwise. Pure.
+    """
+    f = _positive(float_shares)
+    si = short_interest
+    if isinstance(si, bool) or not isinstance(si, (int, float)) or not si >= 0:
+        si = None
+    if f is None or si is None:
+        return None, None
+    if si <= f:
         return False, None
-    return None, None
+    return True, (
+        f"Short interest {_share_words(si)} is above the {_share_words(f)} float -- either the float is stale "
+        "or shares were lent more than once (heavy shorting). A warning only: no gate reads it"
+    )
 
 
 def _cache_ttl(symbol: str) -> float:
@@ -262,9 +280,9 @@ def fetch_fundamentals(symbol: str) -> dict:
             estimated = bool(estimated)
 
         contradicted, contradicted_reason = float_credibility(
-            info.get("floatShares"), info.get("sharesOutstanding"),
-            info.get("heldPercentInsiders"), info.get("sharesShort"),
+            info.get("floatShares"), info.get("sharesOutstanding"), info.get("heldPercentInsiders"),
         )
+        short_above, short_above_reason = short_above_float(info.get("floatShares"), info.get("sharesShort"))
         fundamentals = {
             "company_name": info.get("longName") or info.get("shortName"),
             "market_cap": info.get("marketCap"),
@@ -277,6 +295,9 @@ def fetch_fundamentals(symbol: str) -> dict:
             "short_interest": info.get("sharesShort"),
             # The FINRA settlement date Yahoo's short interest is from (epoch seconds, UTC midnight).
             "short_interest_ts": _yf_epoch(info.get("dateShortInterest")),
+            # A warning, never a gate: a stale float, or shares lent more than once.
+            "short_above_float": short_above,
+            "short_above_float_reason": short_above_reason,
             # Yahoo's own ratio: short interest over Yahoo's average volume, not FINRA's days to cover.
             "short_ratio": info.get("shortRatio"),
             "short_percent_of_float": info.get("shortPercentOfFloat"),

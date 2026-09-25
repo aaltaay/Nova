@@ -7,31 +7,50 @@ import {
   SCANNER_RVOL_SOURCE_UNREPORTED,
   type ScannerRvolSourceMark,
 } from '../constantGroups/scanner_board';
-import { SHORT_RATIO_CELL_SUFFIX } from '../constantGroups/share_facts';
-import { fmtFloat, fmtSettlementDateShort, floatTitle, shortInterestTitle } from '../utils/shareFacts';
+import { SHORT_ABOVE_FLOAT_MARK, SHORT_RATIO_CELL_SUFFIX } from '../constantGroups/share_facts';
+import {
+  fmtFloat,
+  fmtSettlementDateShort,
+  floatTitle,
+  shortAboveFloatClass,
+  shortAboveFloatWarning,
+  shortInterestTitle,
+} from '../utils/shareFacts';
 import type { ScannerRow } from '../types/scanner';
 
-/** Yahoo's float; "54.0K?" with the reason on hover when Yahoo's own counts contradict it (#532). */
+/**
+ * Yahoo's float; "54.0K?" with the reason on hover when Yahoo's own counts contradict it (#532). The
+ * hover also carries the short-above-float warning, which never changes the figure or a gate.
+ */
 export function FloatCell({ row }: { row: ScannerRow }) {
   if (row.float == null) return <span className="na-muted">{SCANNER_CELL_ABSENT}</span>;
   const flagged = row.float_contradicted === true;
+  const warning = shortAboveFloatWarning(row.short_above_float, row.short_above_float_reason);
   return (
-    <span title={floatTitle(row.float_contradicted, row.float_contradicted_reason)}
+    <span title={floatTitle(row.float_contradicted, row.float_contradicted_reason, warning)}
       data-float-contradicted={flagged ? 'true' : undefined}>
       {fmtFloat(row.float, row.float_contradicted)}
     </span>
   );
 }
 
-/** Short interest over its FINRA settlement date and Yahoo's ratio ("8/31 · 6.9"); the hover names both (#532). */
+/**
+ * Short interest over its FINRA settlement date and Yahoo's ratio ("8/31 · 6.9"); the hover names both
+ * (#532). Above the float it reads "9.0M!" in amber with the warning first on hover -- never a gate.
+ */
 export function ShortInterestCell({ row }: { row: ScannerRow }) {
   const date = row.short_interest != null ? fmtSettlementDateShort(row.short_interest_ts) : null;
   const ratio = row.short_ratio != null ? row.short_ratio.toFixed(1) : null;
   const second = date && ratio ? `${date} · ${ratio}` : date ?? (ratio ? `${ratio}${SHORT_RATIO_CELL_SUFFIX}` : null);
+  const above = row.short_interest != null && row.short_above_float === true;
+  const warning = above ? shortAboveFloatWarning(true, row.short_above_float_reason) : undefined;
   return (
-    <span className="cell-stack" title={shortInterestTitle(row.short_interest, row.short_interest_ts, row.short_ratio)}>
-      <span className="cell-stack-primary">
-        {row.short_interest != null ? fmtVolume(row.short_interest) : <span className="na-muted">{SCANNER_CELL_ABSENT}</span>}
+    <span className="cell-stack" data-short-above-float={above ? 'true' : undefined}
+      title={shortInterestTitle(row.short_interest, row.short_interest_ts, row.short_ratio, warning)}>
+      <span className={`cell-stack-primary${above ? ` ${shortAboveFloatClass(true)}` : ''}`}>
+        {row.short_interest != null
+          ? `${fmtVolume(row.short_interest)}${above ? SHORT_ABOVE_FLOAT_MARK : ''}`
+          : <span className="na-muted">{SCANNER_CELL_ABSENT}</span>}
       </span>
       <span className="cell-stack-secondary">
         {second ?? <span className="na-muted">{SCANNER_CELL_ABSENT}</span>}

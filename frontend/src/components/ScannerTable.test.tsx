@@ -290,4 +290,27 @@ describe('ScannerTable float and short interest (#532)', () => {
     expect(cell(2, 'short_interest').firstElementChild?.textContent).toBe('——');
     expect((cell(2, 'short_interest').firstElementChild as HTMLElement).title).toBe('');
   });
+
+  it('warns in amber when short interest is above the float, and leaves the float as shown', async () => {
+    const reason = 'Short interest 9.00M is above the 8.00M float -- either the float is stale or shares were lent '
+      + 'more than once (heavy shorting). A warning only: no gate reads it';
+    await render([
+      { ...row('SQZ'), float: 8_000_000, float_contradicted: false, short_interest: 9_000_000,
+        short_interest_ts: AUG_31, short_above_float: true, short_above_float_reason: reason },
+      { ...row('WNW'), short_interest: 319_000, short_above_float: false },
+    ]);
+    const sqz = cell(0, 'short_interest').firstElementChild as HTMLElement;
+    const primary = sqz.querySelector('.cell-stack-primary') as HTMLElement;
+    expect(primary.textContent).toBe('9.0M!');
+    expect(primary.classList.contains('short-above-float')).toBe(true);
+    expect(sqz.dataset.shortAboveFloat).toBe('true');
+    expect(sqz.title.startsWith(`${reason}.`)).toBe(true);
+    // The float keeps its figure (no "?": nothing contradicts it) and carries the warning on hover.
+    const float = cell(0, 'float').firstElementChild as HTMLElement;
+    expect(float.textContent).toBe('8.0M');
+    expect(float.title).toBe(reason);
+    const plain = cell(1, 'short_interest').firstElementChild as HTMLElement;
+    expect(plain.querySelector('.cell-stack-primary')?.textContent).toBe('319.0K');
+    expect(plain.dataset.shortAboveFloat).toBeUndefined();
+  });
 });

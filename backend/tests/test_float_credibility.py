@@ -1,7 +1,8 @@
 """#532: Yahoo's float checked against Yahoo's own share counts, and the short-interest date carried.
 
 Fixtures are the 2026-09-23 audit's yfinance ``.info`` reads (issue #532). Point 1 flags a float
-that its own shares outstanding or short interest contradicts. Point 2 (operator decision
+that its own shares outstanding contradicts; short interest above the float is a warning only and
+never reaches a gate (operator decision 2026-09-24: it must never block those setups). Point 2 (operator decision
 2026-09-24: ship it now): every max-float gate reads ``strategy.float_gate`` -- a contradicted float
 passes only when shares outstanding is at or under the gate's limit, and is otherwise unknown and
 never a pass; an unflagged or unchecked float is judged exactly as before.
@@ -40,6 +41,9 @@ AUDIT = {
     "AAPL": (14_800_000_000, 14_840_000_000, 0.017, 120_000_000),
     "HAO": (20_000, 350_000, 0.0, None),                   # armed a setup on 2026-09-23 on this float
     "HKIT": (33_000, 800_000, 0.006, None),                # three reverse splits in 2026
+    # Not from the audit: more shares short than the float, with a float its shares outstanding does not
+    # contradict -- a stale float or a heavy short, which cannot be told apart. A warning, never a gate.
+    "SQZ": (8_000_000, 12_000_000, 0.0, 9_000_000),
 }
 CONTRADICTED = ("SECZ", "RNAZ", "WHLR", "WNW", "LGCL", "HAO", "HKIT")
 # Contradicted, but shares outstanding is under 10M: the float cannot be larger, so the low-float pass stands.
@@ -85,26 +89,35 @@ def test_the_audits_stale_floats_are_contradicted(yahoo, symbol):
 
 
 def test_the_reason_names_the_counts():
-    flag, reason = fund.float_credibility(54_000, 568_000, 0.0, None)
+    flag, reason = fund.float_credibility(54_000, 568_000, 0.0)
     assert flag is True
     assert reason == ("Float 54K is under half of the 568K shares not held by insiders "
                       "(568K outstanding, 0% insiders) -- likely stale since a dilution")
-    _, secz = fund.float_credibility(*AUDIT["SECZ"])
+    _, secz = fund.float_credibility(*AUDIT["SECZ"][:3])
     assert secz.startswith("Float 8.45M is under half of the 142.37M shares not held by insiders "
                            "(163.27M outstanding, 12.8% insiders)")
 
 
-def test_wnw_fails_both_checks():
-    flag, reason = fund.float_credibility(*AUDIT["WNW"])
+def test_wnw_is_contradicted_by_shares_outstanding_and_warned_on_short_interest():
+    flag, reason = fund.float_credibility(*AUDIT["WNW"][:3])
     assert flag is True
-    below, short = reason.split("; ")
-    assert below.startswith("Float 156K is under half of the 26.20M shares not held by insiders")
-    assert short == "Short interest 319K is above the 156K float -- the float is likely stale"
+    assert reason.startswith("Float 156K is under half of the 26.20M shares not held by insiders")
+    assert fund.short_above_float(156_000, 319_000) == (
+        True, "Short interest 319K is above the 156K float -- either the float is stale or shares were lent "
+              "more than once (heavy shorting). A warning only: no gate reads it")
 
 
-def test_short_interest_above_the_float_is_enough_on_its_own():
-    # Shares outstanding unknown: only the short check can run, and it fires.
-    assert fund.float_credibility(156_000, None, None, 319_000)[0] is True
+def test_short_interest_above_the_float_never_contradicts_it():
+    # More short than the float is also what a squeeze looks like: it warns, it never flags the float.
+    assert fund.float_credibility(*AUDIT["SQZ"][:3]) == (False, None)
+    assert fund.float_credibility(156_000, None, None) == (None, None)
+    assert fund.short_above_float(156_000, 319_000)[0] is True
+    assert fund.short_above_float(8_000_000, 8_000_000) == (False, None)      # at the float is not above it
+
+
+@pytest.mark.parametrize("args", [(None, 319_000), (0, 319_000), (156_000, None), (156_000, -1), (156_000, True)])
+def test_the_short_warning_needs_both_figures(args):
+    assert fund.short_above_float(*args) == (None, None)
 
 
 @pytest.mark.parametrize("symbol", ("DBGI", "AAPL"))
@@ -118,15 +131,20 @@ def test_a_credible_float_is_not_contradicted(yahoo, symbol):
 
 
 @pytest.mark.parametrize("args", [
-    (None, 568_000, 0.0, 10_000),        # no float
-    (0, 568_000, 0.0, 10_000),           # a zero float is no float
-    (54_000, None, None, None),          # nothing to check it against
-    (5_000_000, 6_000_000, None, 100),   # insiders unknown: the low-side check cannot run
-    (5_000_000, 6_000_000, 0.1, None),   # short interest unknown: the short check cannot run
-    (5_000_000, 6_000_000, 1.7, 100),    # an insider share that is not a fraction is unknown
+    (None, 568_000, 0.0),          # no float
+    (0, 568_000, 0.0),             # a zero float is no float
+    (54_000, None, None),          # nothing to check it against
+    (5_000_000, None, 0.1),        # shares outstanding unknown
+    (5_000_000, 6_000_000, None),  # insiders unknown
+    (5_000_000, 6_000_000, 1.7),   # an insider share that is not a fraction is unknown
 ])
 def test_a_check_short_of_its_inputs_is_unknown(args):
     assert fund.float_credibility(*args) == (None, None)
+
+
+def test_a_check_that_ran_without_short_interest_is_a_verdict():
+    # Short interest no longer takes part, so a float checked against its shares outstanding is judged.
+    assert fund.float_credibility(5_000_000, 6_000_000, 0.1) == (False, None)
 
 
 def test_the_payload_carries_the_new_facts_or_null(yahoo):
@@ -140,7 +158,7 @@ def test_the_payload_carries_the_new_facts_or_null(yahoo):
     yahoo["BARE"] = {"longName": "Bare Co"}
     bare = fund.fetch_fundamentals("BARE")
     for key in ("shares_outstanding", "held_percent_insiders", "short_interest_ts", "float_contradicted",
-                "float_contradicted_reason"):
+                "float_contradicted_reason", "short_above_float", "short_above_float_reason"):
         assert bare[key] is None, key
     assert set(fund._EMPTY) <= set(bare)
 
@@ -148,10 +166,12 @@ def test_the_payload_carries_the_new_facts_or_null(yahoo):
 # -- the scanner row ------------------------------------------------------------------------------------
 def _cache(monkeypatch, symbol: str) -> dict:
     f, out, ins, si = AUDIT[symbol]
-    flag, reason = fund.float_credibility(f, out, ins, si)
+    flag, reason = fund.float_credibility(f, out, ins)
+    above, above_reason = fund.short_above_float(f, si)
     row = {"float_shares": f, "shares_outstanding": out, "held_percent_insiders": ins, "short_interest": si,
            "short_interest_ts": AUG_31 if si is not None else None, "short_ratio": 1.4,
-           "float_contradicted": flag, "float_contradicted_reason": reason}
+           "float_contradicted": flag, "float_contradicted_reason": reason,
+           "short_above_float": above, "short_above_float_reason": above_reason}
     monkeypatch.setitem(fund._fundamentals_cache, symbol, row)
     return row
 
@@ -171,7 +191,8 @@ def test_decorated_rows_carry_the_check_and_the_date(monkeypatch):
     # Nothing cached: every new field is unknown, never a placeholder.
     none = out["NONE"]
     assert [none[k] for k in ("shares_outstanding", "short_interest_ts", "float_contradicted",
-                              "float_contradicted_reason")] == [None, None, None, None]
+                              "float_contradicted_reason", "short_above_float", "short_above_float_reason")] == [
+        None, None, None, None, None, None]
     assert rows[0] == {"symbol": "SECZ", "price": 11.2}          # a view, never the cached row (ADR 008)
 
 
@@ -437,7 +458,8 @@ def test_five_pillars_float_pillar_is_unchanged_for_a_credible_float(monkeypatch
     row = _row(monkeypatch, symbol)
     assert row["float_contradicted"] is False
     bare = {k: v for k, v in row.items() if k not in ("float_contradicted", "float_contradicted_reason",
-                                                      "shares_outstanding", "short_interest_ts")}
+                                                      "shares_outstanding", "short_interest_ts",
+                                                      "short_above_float", "short_above_float_reason")}
     assert evaluate_five_pillars(row) == evaluate_five_pillars(bare)
 
 
@@ -489,3 +511,29 @@ def test_a_recorded_row_keeps_no_check_without_a_float():
     row = make_row(symbol="SECZ", minute_ts=1_790_000_000 // 60 * 60, board="gainers", source="recorded", rank=1,
                    float_shares=None, float_contradicted=True, shares_outstanding=163_270_000)
     assert row["float_contradicted"] is None and row["shares_outstanding"] == 163_270_000
+
+
+# -- short interest above the float: a warning on screen, never a gate (operator decision 2026-09-24) -----
+def test_the_payload_and_the_row_carry_the_short_warning(yahoo, monkeypatch):
+    yahoo["SQZ"] = _info("SQZ")
+    payload = fund.fetch_fundamentals("SQZ")
+    assert (payload["float_contradicted"], payload["short_above_float"]) == (False, True)
+    assert payload["short_above_float_reason"].startswith("Short interest 9.00M is above the 8.00M float")
+    row = _row(monkeypatch, "SQZ")
+    assert (row["float_contradicted"], row["short_above_float"]) == (False, True)
+    assert "A warning only" in row["short_above_float_reason"]
+
+
+def test_the_short_warning_never_blocks_a_gate(yahoo, monkeypatch):
+    # 12M shares outstanding is over every 10M line, so before this change SQZ was refused at each one.
+    yahoo["SQZ"] = _info("SQZ")
+    payload = fund.fetch_fundamentals("SQZ")
+    assert evaluate_strategy(LOW_FLOAT, _snap(payload), None, lambda: None) == (True, "")
+    letter, checks = grade(_pillars("SQZ", payload["float_contradicted"]))
+    assert (letter, checks["float"]) == ("A", True)
+    assert _stock_filter(False).check(_pillars("SQZ", payload["float_contradicted"]), "A") is None
+    pillar = next(c for c in evaluate_five_pillars(_row(monkeypatch, "SQZ")).checks if c.name == "float")
+    assert (pillar.passed, pillar.detail) == (True, "8,000,000 shares (need <= 20,000,000)")
+    assert score_watchlist_entry(_row(monkeypatch, "SQZ")).sub_scores["float"] == pytest.approx(
+        (1 - 8_000_000 / 20_000_000) * 100)
+    assert refusal(_recorded(monkeypatch, "SQZ"), LEADERS_RULES) is None
