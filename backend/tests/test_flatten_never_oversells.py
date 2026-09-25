@@ -201,6 +201,50 @@ def test_two_resting_closes_of_the_same_shares_never_leave_the_account_short(pap
     assert broker.working_orders() == []
 
 
+# ---------------------------------------------------------------- #606: a bracket's two exits
+def _exit(order_id: int, parent: int, role: str, qty: float = 2.0, status: str = "Submitted") -> dict:
+    return {
+        **_working(order_id, qty=qty), "status": status,
+        "parent_id": parent, "oca_group": f"oca-{parent}", "leg_role": role,
+    }
+
+
+def test_a_brackets_two_exits_are_one_close(venue) -> None:
+    """One-cancels-other: at most one of them fills, so they close the shares once."""
+    venue["positions"] = [{"symbol": "GRML", "qty": 4}]
+    venue["orders"] = [_exit(21, 20, "target"), _exit(22, 20, "stop")]
+    assert flatten_intent.closing_committed("GRML", "SELL") == (2.0, [21, 22])
+    assert flatten_intent.refusal(_flatten(qty=2)) is None
+    refusal = flatten_intent.refusal(_flatten(qty=3))
+    assert refusal is not None and "2 GRML shares not already being closed (2 working: #21, #22)" in refusal
+
+
+def test_exits_waiting_on_a_working_entry_close_nothing_held(venue) -> None:
+    """The exits sell what their entry has not bought yet."""
+    venue["positions"] = [{"symbol": "GRML", "qty": 2}]
+    venue["orders"] = [
+        _working(20, side="BUY"),
+        _exit(21, 20, "target", status="PreSubmitted"), _exit(22, 20, "stop", status="PreSubmitted"),
+    ]
+    assert flatten_intent.closing_committed("GRML", "SELL") == (0.0, [])
+    assert flatten_intent.refusal(_flatten(qty=2)) is None
+
+
+def test_a_practice_brackets_exits_count_once_for_the_flatten(paper, venue, monkeypatch) -> None:
+    broker = paper.broker
+    monkeypatch.setattr("ibkr.orders.open_orders", broker.working_orders)
+    monkeypatch.setattr("ibkr.account.get_positions", broker.positions)
+    bracket = broker.place_bracket("IMCC", "BUY", 10, 10.05, 10.50, 9.50)  # fills at once: both exits work
+    broker.place("IMCC", "BUY", 10, "MKT")  # 20 held
+    exits = [bracket["target_order_id"], bracket["stop_order_id"]]
+    flatten = dict(symbol="IMCC", idempotency_key="flatten-imcc")
+
+    assert flatten_intent.closing_committed("IMCC", "SELL") == (10.0, exits)
+    assert flatten_intent.refusal(_flatten(qty=10, **flatten)) is None
+    refusal = flatten_intent.refusal(_flatten(qty=20, **flatten))
+    assert refusal is not None and f"(10 working: #{exits[0]}, #{exits[1]})" in refusal
+
+
 # ---------------------------------------------------------------- R45: the new day
 def test_the_account_summary_rolls_to_the_new_practice_day_first(paper) -> None:
     broker = paper.broker

@@ -178,6 +178,42 @@ PRACTICE_NO_SHORTS_CODE = "PRACTICE_NO_SHORTS"
 PRACTICE_NO_SHORTS_REASON = "Nova does not support short entries yet"
 
 # ---------------------------------------------------------------------------
+# Brackets (#606 step 1): the order shape Live sends, filled by the practice broker
+# ---------------------------------------------------------------------------
+# Live sends IBKR's bracket (ibkr/orders.place_bracket_order -> ib_async
+# bracketOrder): a LMT entry, a take-profit LMT and a stop-loss STP on the
+# reverse side, one quantity, TIF and outside-RTH flag on all three, three
+# consecutive order ids, the exits carrying parentId. IBKR holds the exits until
+# the entry fills and treats them as one-cancels-other. Paper and Sim take the
+# same shape (practice/bracket.py) so Paper rehearses what Live sends.
+# ``leg_role`` on a practice row; a plain order carries None.
+PRACTICE_LEG_PARENT = "parent"
+PRACTICE_LEG_TARGET = "target"
+PRACTICE_LEG_STOP = "stop"
+# An exit waits for its entry in IBKR's own word for an order that is held,
+# not yet working; the entry's fill makes it "Submitted".
+PRACTICE_ORDER_STATUS_WAITING = "PreSubmitted"
+PRACTICE_ORDER_STATUS_WORKING = "Submitted"
+# The exits share one group, "oca-<entry order id>".
+PRACTICE_OCA_GROUP_PREFIX = "oca-"
+# One exit filled, so the venue cancelled the other (one-cancels-other).
+PRACTICE_OCO_CANCELLED_CODE = "PRACTICE_OCO_CANCELLED"
+PRACTICE_OCO_CANCELLED_REASONS = {
+    PRACTICE_LEG_TARGET: "One-cancels-other: the target filled",
+    PRACTICE_LEG_STOP: "One-cancels-other: the stop filled",
+}
+PRACTICE_OCO_CANCELLED_REASON_DEFAULT = "One-cancels-other: the other exit filled"
+# The entry closed unfilled -- cancelled by the operator, refused by the venue at
+# the fill, or expired -- so the venue cancelled the exits that waited on it.
+PRACTICE_PARENT_CANCELLED_CODE = "PRACTICE_PARENT_CANCELLED"
+PRACTICE_PARENT_CANCELLED_REASON = "Bracket exit cancelled: its entry was cancelled"
+PRACTICE_PARENT_EXPIRED_REASON = "Bracket exit cancelled: its entry expired at the session close"
+# A bracket whose prices do not surround the entry, refused with the execution
+# door's own code (execution/validate.py) so one word reaches the blotter.
+PRACTICE_BRACKET_GEOMETRY_CODE = "BRACKET_GEOMETRY"
+PRACTICE_BRACKET_QTY_CODE = "QTY_INVALID"
+
+# ---------------------------------------------------------------------------
 # Market orders need regular hours (operator decision, 2026-09-21)
 # ---------------------------------------------------------------------------
 # No US exchange accepts an unpriced order outside 09:30-16:00 ET and IBKR

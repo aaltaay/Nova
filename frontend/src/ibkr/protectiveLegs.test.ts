@@ -1,6 +1,8 @@
 /**
  * #91 — the ticket's default protective legs: when they attach, when they are
- * skipped, and when the ticket refuses rather than send a naked entry.
+ * skipped, and when the ticket refuses rather than send a naked entry. The
+ * plan takes no venue: Paper and Sim fill the bracket Live sends (#606;
+ * useManualOrderSubmission.test.tsx places one on Sim).
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -8,7 +10,6 @@ import {
   TICKET_LEGS_LIMIT_ONLY_ERROR,
   TICKET_LEGS_NO_PRICE_ERROR,
   TICKET_LEGS_OFFSET_ERROR,
-  TICKET_LEGS_SIM_NOTE,
 } from '../constantGroups/trade_defaults';
 import { defaultTradeDefaultsPrefs } from '../settings/tradeDefaultsPrefs';
 import { planProtectiveLegs, roundToTick } from './protectiveLegs';
@@ -27,7 +28,6 @@ function input(over: Partial<ProtectiveLegsInput> = {}): ProtectiveLegsInput {
     orderType: 'LMT',
     limitPrice: 10,
     positionQty: null,
-    mode: 'paper',
     ...over,
   };
 }
@@ -68,13 +68,6 @@ describe('planProtectiveLegs', () => {
     expect(planProtectiveLegs(input({ positionQty: -100 }))).toEqual({
       kind: 'none',
       note: TICKET_LEGS_EXIT_NOTE,
-    });
-  });
-
-  it('skips legs in Sim, which has no brackets', () => {
-    expect(planProtectiveLegs(input({ mode: 'sim' }))).toEqual({
-      kind: 'none',
-      note: TICKET_LEGS_SIM_NOTE,
     });
   });
 

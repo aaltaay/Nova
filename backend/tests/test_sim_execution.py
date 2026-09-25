@@ -76,7 +76,8 @@ async def test_validate_and_fill_market_buy(loaded_imcc) -> None:
 
 
 @pytest.mark.asyncio
-async def test_bracket_rejected() -> None:
+async def test_a_bracket_places_on_the_loaded_replay_as_live_sends_it(loaded_imcc) -> None:
+    """#606: Sim used to refuse every bracket (SIM_NO_BRACKET); it now takes Live's shape."""
     cmd = ExecutionCommand(
         operation="bracket",
         idempotency_key="sim-br-1",
@@ -84,15 +85,25 @@ async def test_bracket_rejected() -> None:
         symbol="IMCC",
         side="BUY",
         qty=1,
-        entry_price=25.0,
+        order_type="LMT",
+        limit_price=24.5,
+        entry_price=24.5,
         stop_price=24.0,
         target_price=26.0,
     )
+    ok, detail, _reason = validate_command(cmd)
+    assert ok is True, detail
     receipt = await send_sim_broker(
         cmd, "exec-sim-br", StageTimings(received_ns=0), wait_ack=False, reject=_reject,
     )
-    assert receipt.ok is False
-    assert receipt.reason_code == "SIM_NO_BRACKET"
+    assert receipt.ok is True, receipt.error
+    assert (receipt.mode, receipt.broker_status) == ("sim", "Submitted")
+    parent = receipt.parent_order_id
+    assert (receipt.order_id, receipt.target_order_id, receipt.stop_order_id) == (parent, parent + 1, parent + 2)
+    rows = {r["order_id"]: r for r in broker.open_orders()}
+    assert [(rows[i]["side"], rows[i]["order_type"], rows[i]["status"]) for i in sorted(rows)] == [
+        ("BUY", "LMT", "Submitted"), ("SELL", "LMT", "PreSubmitted"), ("SELL", "STP", "PreSubmitted"),
+    ]
 
 
 @pytest.mark.asyncio

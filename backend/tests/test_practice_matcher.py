@@ -123,6 +123,26 @@ async def test_an_archive_mark_behind_the_cursor_never_moves_it_back(desk) -> No
 
 
 @pytest.mark.asyncio
+async def test_a_bracket_fills_on_the_live_tape_one_leg_at_a_time(desk) -> None:
+    """#606: the entry on one print, its exit on a later one, the other exit cancelled."""
+    broker, ref, holds, _errors = desk
+    raw = broker.place_bracket("IMCC", "BUY", 10, 9.5, 10.5, 9.0)
+    assert raw["broker_status"] == "Submitted"
+    # 8.9 fills the entry and would trigger the stop; the stop wakes with that fill and waits for 8.8.
+    ref.prints = [(NOW + 1, 8.9), (NOW + 2, 8.8), (NOW + 3, 10.6)]
+    ref.now = NOW + 4
+
+    filled = await matcher.pass_once(broker)
+
+    assert [(r["order_id"], r["avg_fill_price"], r["fill_basis"]) for r in filled] == [
+        (raw["parent_order_id"], 9.5, "print_cross"), (raw["stop_order_id"], 8.8, "stop_trigger"),
+    ]
+    target = next(r for r in broker.closed_orders() if r["order_id"] == raw["target_order_id"])
+    assert (target["status"], target["reason_code"]) == ("Cancelled", "PRACTICE_OCO_CANCELLED")
+    assert holds == [["IMCC"]] and broker.working_orders() == [] and broker.positions() == []
+
+
+@pytest.mark.asyncio
 async def test_a_pass_rolls_the_practice_day_even_with_nothing_resting(desk) -> None:
     broker, ref, _holds, _errors = desk
     before = broker.ledger.day_started_ts

@@ -152,6 +152,83 @@ this fix, one full backlog stopped the writer until a restart. On 2026-09-24 an
 overflow at 07:29 ET left every Paper resting order unfilled for the rest of
 the morning: a SELL limit at 4.96 sat while APUS printed 5.00.
 
+## Brackets (#606 step 1)
+
+Paper and Sim take the bracket Live sends, so Paper rehearses the order Live
+places. Live sends IBKR's bracket (`ibkr/orders.place_bracket_order`, ib_async
+`bracketOrder`): a `LMT` entry, a take-profit `LMT` and a stop-loss `STP` on
+the reverse side, one quantity, TIF and outside-RTH flag on all three, three
+consecutive order ids, the exits carrying `parentId`. IBKR holds the exits
+until the entry fills and treats them as one-cancels-other. The practice broker
+(`PracticeBroker.place_bracket`, rules in `backend/practice/bracket.py`) takes
+the same shape:
+
+- **Rows.** Three consecutive ids, entry first. Every practice row carries
+  `parent_id` / `oca_group` / `leg_role`: the entry `null` / `null` /
+  `parent`, each exit the entry's id / `oca-<entry id>` / `target` or `stop`,
+  a plain order `null` all three. The exits copy the entry's quantity, TIF,
+  `expires_ts`, attribution and placement stamps.
+- **Admission is the entry's.** The entry passes a place's gates in the
+  execution door's order: shape (`BRACKET_GEOMETRY`, `QTY_INVALID`), TIF
+  (`TIF_INVALID`), the venue's admission (`SIM_*` / `PRACTICE_NO_LIVE_PRINT`),
+  no shorts -- a SELL entry is a short bracket and is refused
+  `PRACTICE_NO_SHORTS` -- and buying power at the entry limit
+  (`PRACTICE_BUYING_POWER`). The exits never pass a place's gates: its
+  no-shorts rule would refuse a SELL before anything is held.
+- **The exits wait.** They rest `PreSubmitted` (the blotter reads "Pending",
+  as it does for IBKR's own held children) until the entry fills. The ledger
+  wakes them when it applies the entry's `filled` event: `Submitted`, placed at
+  the fill time. A resting order only fills on prints after it was placed, so
+  **the print that fills the entry never fills an exit**, nor does another
+  print in the same second. A waiting exit never fills by any path. Waking is
+  derived from the ledger, not an event of its own, so a Sim scrub back before
+  the entry's fill puts the exits back to waiting, and a Paper file written
+  before brackets loads unchanged (no new event type, no schema change).
+- **One-cancels-other.** One exit filling cancels the other, at the same
+  moment: `Cancelled`, `PRACTICE_OCO_CANCELLED`, "One-cancels-other: the
+  target filled" (or "the stop filled").
+- **The entry takes its exits.** An entry that closes unfilled -- cancelled by
+  the operator, refused by the venue at the fill (`order_rules.fill_refusal`),
+  or expired -- cancels the exits waiting on it: `Cancelled`,
+  `PRACTICE_PARENT_CANCELLED`, "its entry was cancelled" (or "its entry
+  expired at the session close"). Both closures are ordinary `cancelled` ledger
+  events stamped with the venue as their source, so a rewind before one
+  restores the order it closed.
+- **Cancel.** Cancelling the entry cancels its waiting exits; cancelling one
+  exit cancels only that exit. Cancelling a leg its bracket already closed
+  answers `ok: true`, `verified_gone: true`, `closed_by: <code>` -- KILL, the
+  account flatten and cancel-all cancel a list of working orders one by one and
+  must not report a failure for a leg the entry's cancel took along. A plain
+  order, or a leg that filled, still answers "not open".
+- **Replace.** An exit can be repriced and keeps its bracket fields. A waiting
+  exit keeps waiting whatever its new price, even a marketable one.
+- **Expiry.** A `DAY` bracket's legs share the entry's session close. An entry
+  that expires unfilled takes its waiting exits along; exits that are working
+  (the entry filled) expire on their own at the same close. `GTC` never expires.
+- **Fill bases.** The entry fills like any `LMT` (`quote` / `last_print` /
+  `live_quote` / `live_print` when marketable on arrival, `print_cross` when
+  it rests); the target like a resting `LMT` (`print_cross`, at its limit); the
+  stop like a resting `STP` (`stop_trigger`, at the triggering print). No
+  partial fills: every leg fills whole, so IBKR's reduce-the-rest behaviour of
+  an OCA group after a partial fill has nothing to act on.
+- **The send** (`sim/execution.py`) creates Live's three watches -- the entry's
+  counts toward the execution's fills, the exits' never do -- answers on the
+  entry's watch (the next section), and writes `order_id` (the entry),
+  `parent_order_id`, `target_order_id` and `stop_order_id` on the execution
+  row and the receipt. An entry the venue cancels at the fill is a refusal in
+  the venue's words, naming its ids.
+- **The ticket's Flatten** (`execution/flatten_intent.py`) counts a bracket's
+  two exits once, and exits still waiting on a working entry not at all: they
+  sell what the entry has not bought yet.
+
+**Stops before 09:30: Paper protects where Live would not.** A practice `STP`
+triggers on any price-setting print, premarket included, and so does a
+bracket's stop leg. IBKR holds a plain stop until 09:30 even with
+`outsideRth`, so before the open a Live bracket's stop does not protect the
+position while Paper's does. Nova keeps the practice behaviour for now; whether
+Paper should hold the stop leg the way IBKR does is an open operator question
+on #604 / #606 step 2.
+
 ## The venue's answer is the acknowledgment (operator report, 2026-09-24)
 
 A Live order's reply waits for IBKR's first status -- a real round trip

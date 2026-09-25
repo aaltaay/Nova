@@ -1,5 +1,7 @@
 """Event-sourced practice ledger (ADR 020). Pure bookkeeping; never talks to IBKR.
 
+maintainer: one-concern the practice account's state, replayed from its one event list -- every figure derives from the events
+
 Events -- ``placed`` / ``replaced`` / ``cancelled`` / ``expired`` / ``filled`` /
 ``rollover`` -- carry ``ts`` (the venue's time: the replay playhead on Sim, the wall clock
 on Paper; the row stamps), ``wall_ts`` (when it really happened, kept for forensics), the ADR
@@ -15,6 +17,11 @@ an order and again when a resting order fills. The day figures roll at
 ``PRACTICE_DAY_ROLLOVER_HOUR_ET`` through a ``rollover`` event that records
 the equity at the boundary: ``day_pnl`` is net liquidation less that equity.
 Persistence lives in ``practice.persist``.
+
+A bracket (#606) adds no event type (``practice.bracket``): applying an entry's
+``filled`` event wakes the exits waiting on it, and ``fill`` / ``cancel`` record
+what the bracket rules close with an order -- the other exit, or the exits of
+an entry that closed unfilled -- as ordinary ``cancelled`` events.
 """
 from __future__ import annotations
 
@@ -27,11 +34,12 @@ from constants_practice import (
     PRACTICE_ACCOUNT_ID_SIM,
     PRACTICE_LEDGER_SCHEMA_VERSION,
     PRACTICE_ORDER_STATUS_EXPIRED,
+    PRACTICE_ORDER_STATUS_WORKING,
     PRACTICE_STARTING_CASH,
     PRACTICE_VENUE_PAPER,
     PRACTICE_VENUE_SIM,
 )
-from practice import margin
+from practice import bracket, margin
 from practice.clock import ET, day_start_ts, iso_et, iso_utc  # noqa: F401 -- ET re-exported for persist
 from practice.fees import Fees, for_fill
 
@@ -170,6 +178,10 @@ class Ledger:
         self._marks[symbol] = price
         self._apply_position(symbol, str(row["side"]).upper(), qty, price, fees.total)
         self._closed.append(row)
+        # A bracket's exits wake with their entry's fill, placed at that moment:
+        # only a later print can fill them, and a rewind before it puts them back.
+        for exit_row in bracket.waiting_exits(self._working.values(), int(row["order_id"])):
+            exit_row.update(status=PRACTICE_ORDER_STATUS_WORKING, placed_ts=float(event["ts"]), updated_at=stamp)
 
     def _apply_position(self, symbol: str, side: str, qty: float, price: float, fee_total: float) -> None:
         pos = self._positions.setdefault(symbol, {"qty": 0.0, "avg_cost": 0.0, "realized": 0.0})
@@ -257,7 +269,9 @@ class Ledger:
             "type": kind, "ts": float(ts), "order_id": oid, "reason": reason,
             "code": code, "source": source, "bot_id": bot_id,
         })
-        return dict(self._closed[-1])
+        closed = dict(self._closed[-1])
+        self._close_with(closed, ts)
+        return closed
 
     def fill(
         self, order_id: int, *, ts: float, price: float, basis: str, fees: Fees | None = None,
@@ -273,7 +287,22 @@ class Ledger:
             "basis": basis, "fees": charged.as_dict(), "source": row.get("order_source"),
             "bot_id": row.get("bot_id"),
         })
-        return dict(self._closed[-1])
+        filled = dict(self._closed[-1])
+        self._close_with(filled, ts)
+        return filled
+
+    def _close_with(self, closed: dict[str, Any], ts: float) -> None:
+        """Record what the bracket rules close with ``closed``, at the same moment (``practice.bracket``)."""
+        pending = [closed]
+        while pending:
+            for oid, reason, code in bracket.closures(self._working.values(), pending.pop()):
+                if oid not in self._working:
+                    continue
+                self._append({
+                    "type": EVENT_CANCELLED, "ts": float(ts), "order_id": oid, "reason": reason,
+                    "code": code, "source": bracket.CLOSURE_SOURCE, "bot_id": None,
+                })
+                pending.append(dict(self._closed[-1]))
 
     def unwind_to(self, ts: float) -> int:
         """Drop every event after ``ts`` (it never happened) and re-derive; returns the count dropped."""

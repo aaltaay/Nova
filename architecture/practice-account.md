@@ -83,6 +83,18 @@ is held when its print arrives -- another close filled first -- is cancelled
 `PRACTICE_NO_SHORTS`, never filled, so two closes of the same shares can never
 leave the account short.
 
+**Brackets (#606).** A bracket's entry is charged like any `LMT` BUY: buying
+power at the entry limit when it is placed, and again at the entry's fill. Its
+two exits are SELLs of what the entry bought, so they need no buying power;
+they wait until the entry fills and then close as one-cancels-other, so at most
+one of them ever sells (fill rules: `architecture/practice-fills.md`,
+"Brackets"). A SELL entry is a short bracket and is refused
+`PRACTICE_NO_SHORTS`. As on Live, a bracket holds no in-flight commitment
+(`execution/inflight.py` commits a plain place's shares only); the ticket's
+Flatten counts a bracket's working exits once instead (`execution/flatten_intent.py`).
+Every leg carries the entry's TIF: an entry that expires unfilled takes its
+waiting exits along, and working exits expire at the same close.
+
 ## 4. Known gaps Nova keeps
 
 Named so nobody reads a practice P&L as a live one:
