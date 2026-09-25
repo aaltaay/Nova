@@ -72,7 +72,7 @@ the env flag as the product activation.
 
 ## Hard rules
 
-- While Sim is on, `ibkr.orders` refuses every Gateway place / bracket / cancel (`SIM_NO_IBKR`).
+- While Sim is on, `ibkr.orders` refuses every Gateway place / bracket / cancel (`SIM_NO_IBKR`). Orders go to the practice broker instead -- brackets included: the ticket's default take-profit / stop-loss goes out as the same bracket Live sends, its exits wait for the entry to fill and then work as one-cancels-other ([architecture/practice-fills.md](../architecture/practice-fills.md), "Brackets").
 - The tape is a **real recorded or downloaded session**. Nothing is synthesised, and a practice order is refused unless the loaded replay's symbol has printed at the playhead.
 - **Practice fills are estimates** and are marked as such -- never confuse one with a recorded print. Rules and known biases: [architecture/practice-fills.md](../architecture/practice-fills.md).
 - Fills are always live (no `held_until` Monday).
