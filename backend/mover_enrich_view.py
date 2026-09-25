@@ -19,7 +19,9 @@ Float credibility (#532): each row carries ``shares_outstanding``, the
 ``short_interest_ts`` its short interest is from (only when the row's figure is
 the cached one, so a date is never pinned on another report), and
 ``float_contradicted`` / ``float_contradicted_reason`` from
-``fundamentals.float_credibility`` over the row's own float and short interest.
+``fundamentals.float_credibility`` over the row's own float and shares
+outstanding, and ``short_above_float`` / ``short_above_float_reason`` (a warning
+no gate reads) over the row's own float and short interest.
 The max-float gates that grade these rows -- the Five Pillars float pillar, the
 Contenders float score, ``LEADERS_RULES`` through the recorded leaderboard row
 -- read the flag and ``shares_outstanding`` through ``strategy.float_gate``.
@@ -58,15 +60,18 @@ def relative_volume(volume: Any, avg_volume: float | None) -> float | None:
 
 
 def stamp_float_credibility(entry: dict, fund: dict) -> None:
-    """The row's short-interest date and whether its float is contradicted (#532). Mutates ``entry``."""
-    from fundamentals import float_credibility
+    """The row's short-interest date, whether its float is contradicted, and the short-above-float
+    warning (#532). Mutates ``entry``."""
+    from fundamentals import float_credibility, short_above_float
 
     if entry.get("short_interest_ts") is None:
         own = entry.get("short_interest") is not None and entry.get("short_interest") == fund.get("short_interest")
         entry["short_interest_ts"] = fund.get("short_interest_ts") if own else None
     entry["float_contradicted"], entry["float_contradicted_reason"] = float_credibility(
-        entry.get("float"), entry.get("shares_outstanding"),
-        fund.get("held_percent_insiders"), entry.get("short_interest"),
+        entry.get("float"), entry.get("shares_outstanding"), fund.get("held_percent_insiders"),
+    )
+    entry["short_above_float"], entry["short_above_float_reason"] = short_above_float(
+        entry.get("float"), entry.get("short_interest"),
     )
 
 

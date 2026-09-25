@@ -99,7 +99,7 @@ def test_a_stale_float_and_its_short_interest_date_reach_the_read(desk, monkeypa
     import fundamentals
 
     aug_31 = datetime(2026, 8, 31, tzinfo=ZoneInfo("UTC")).timestamp()
-    flag, reason = fundamentals.float_credibility(8_450_000, 163_270_000, 0.128, 3_760_000)
+    flag, reason = fundamentals.float_credibility(8_450_000, 163_270_000, 0.128)
     monkeypatch.setitem(_fundamentals_cache, "SECZ", {
         "float_shares": 8_450_000, "shares_outstanding": 163_270_000, "held_percent_insiders": 0.128,
         "short_interest": 3_760_000, "short_interest_ts": int(aug_31), "short_ratio": 1.4,

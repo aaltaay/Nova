@@ -5,9 +5,15 @@ import {
   fmtSettlementDateShort,
   fmtShortInterest,
   floatTitle,
+  shortAboveFloatClass,
+  shortAboveFloatWarning,
   shortInterestTitle,
 } from './shareFacts';
-import { FLOAT_CONTRADICTED_FALLBACK } from '../constantGroups/share_facts';
+import {
+  FLOAT_CONTRADICTED_FALLBACK,
+  SHORT_ABOVE_FLOAT_CLASS,
+  SHORT_ABOVE_FLOAT_FALLBACK,
+} from '../constantGroups/share_facts';
 
 /** FINRA's 2026-08-31 settlement as Yahoo stamps it: midnight UTC. */
 const AUG_31 = Date.UTC(2026, 7, 31) / 1000;
@@ -62,5 +68,30 @@ describe('short interest with its date and basis (#532)', () => {
     expect(title).toContain("not FINRA's days to cover");
     expect(shortInterestTitle(566_000, null)).toContain('settlement date not reported');
     expect(shortInterestTitle(null, null, null)).toBeUndefined();
+  });
+});
+
+describe('short interest above the float: a warning, never a gate (#532)', () => {
+  const REASON = 'Short interest 9.00M is above the 8.00M float -- either the float is stale or shares were lent '
+    + 'more than once (heavy shorting). A warning only: no gate reads it';
+
+  it('reads "9.0M!" with its date, in amber', () => {
+    expect(fmtShortInterest(9_000_000, AUG_31, true)).toBe('9.0M! (Aug 31)');
+    expect(fmtShortInterest(9_000_000, null, true)).toBe('9.0M!');
+    expect(fmtShortInterest(9_000_000, AUG_31, false)).toBe('9.0M (Aug 31)');
+    expect(fmtShortInterest(null, AUG_31, true)).toBe('—');
+    expect(shortAboveFloatClass(true)).toBe(SHORT_ABOVE_FLOAT_CLASS);
+    expect(shortAboveFloatClass(false)).toBeUndefined();
+    expect(shortAboveFloatClass(null)).toBeUndefined();
+  });
+
+  it('puts the warning first on the short interest hover and adds it to the float hover', () => {
+    const warning = shortAboveFloatWarning(true, REASON)!;
+    expect(shortInterestTitle(9_000_000, AUG_31, 6.9, warning)!.startsWith(`${REASON}. Short interest 9.0M`)).toBe(true);
+    expect(floatTitle(false, null, warning)).toBe(REASON);
+    expect(floatTitle(true, WHLR_REASON, warning)).toBe(`${WHLR_REASON}. ${REASON}`);
+    expect(shortAboveFloatWarning(true, null)).toBe(SHORT_ABOVE_FLOAT_FALLBACK);
+    expect(shortAboveFloatWarning(false, REASON)).toBeUndefined();
+    expect(shortAboveFloatWarning(null, REASON)).toBeUndefined();
   });
 });

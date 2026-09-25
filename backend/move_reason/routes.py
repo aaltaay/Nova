@@ -19,7 +19,7 @@ from move_reason import rules
 router = APIRouter(tags=["move_reason"])
 ET = ZoneInfo("America/New_York")
 _FACT_KEYS = ("price", "change_pct", "volume", "rel_volume", "float_shares", "float_contradicted", "short_interest",
-              "short_interest_ts", "days_to_cover", "split", "halts", "borrow", "catalyst")
+              "short_interest_ts", "short_above_float", "days_to_cover", "split", "halts", "borrow", "catalyst")
 
 
 def why(symbol: str, now: float | None = None) -> dict:

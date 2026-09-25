@@ -47,6 +47,10 @@ def gather(symbol: str, now: float | None = None) -> dict[str, Any]:
     # The surfaced row's own float check (#532); a row the surface could not decorate falls back to Yahoo's.
     checked = row if "float_contradicted" in row else (fund or {})
     contradicted = checked.get("float_contradicted")
+    # More shares short than the float: a warning on the figures shown here, never a gate (#532).
+    from fundamentals import short_above_float
+
+    short_above, short_above_reason = short_above_float(float_shares, si)
     return {
         "symbol": sym,
         "source": source,
@@ -60,6 +64,8 @@ def gather(symbol: str, now: float | None = None) -> dict[str, Any]:
         "short_interest": si,
         # The FINRA settlement date of that figure, as Yahoo gives it (epoch seconds; None when unknown).
         "short_interest_ts": _num(si_from.get("short_interest_ts")) if si is not None else None,
+        "short_above_float": short_above,
+        "short_above_float_reason": short_above_reason,
         # Yahoo's own share only when the shares short or the float is missing (rules divide the two otherwise).
         "short_pct_float": None if si is not None and float_shares else _num((fund or {}).get("short_percent_of_float")),
         "days_to_cover": _num(row.get("short_ratio")) if row.get("short_ratio") is not None else _num((fund or {}).get("short_ratio")),

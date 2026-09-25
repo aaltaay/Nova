@@ -109,6 +109,14 @@
   font-weight: 600;
 }
 
+/* Short interest above the float (#532): "9.0M!" in amber on the scanner and both quote panels --
+   a warning only, never a gate. Two classes so it wins over each value's own colour in any order. */
+.cell-stack-primary.short-above-float,
+.cq-value.short-above-float,
+.trade-side-stat-value.short-above-float {
+  color: #f59e0b;
+}
+
 .cell-stack-secondary {
   font-size: 0.72rem;
   color: var(--text-secondary);
