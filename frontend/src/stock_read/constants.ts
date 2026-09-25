@@ -72,3 +72,23 @@ export const LANE_LABELS: Record<string, string> = {
   market: 'MKT',
   bot: 'BOT',
 };
+
+/** Who trades the stock (ADR 037): the switch's view, read while the Trader tab shows. */
+export const STOCK_MODE_PATH = '/api/stock-mode';
+export const STOCK_MODE_POLL_MS = 1_500;
+/** `{schema_version: 1, value: boolean}`: false mutes the chart's ping. */
+export const STOCK_MODE_SOUND_KEY = 'nova.stockRead.sound';
+/** Mirrors of the backend's numbers the desk says out loud (`constants_stock_mode.py`). */
+export const STOCK_MODE_ENTRY_TTL_SEC = 10;
+/** ENTER NOW stays up this long after the trigger, while the price is within this share of a risk. */
+export const ENTER_NOW_SEC = 30;
+export const ENTER_NOW_RISK_SHARE = 0.5;
+/** What Nova just did (bought, sold, missed) stays in the chart's corner this long. */
+export const NOVA_CALL_SEC = 30;
+/** The words of the four modes, and the dot each wears (grey, blue, orange, orange). */
+export const STOCK_MODE_COLORS = {
+  signal: '#8e8e93',
+  approve: '#0a84ff',
+  auto_entry: '#ff9f0a',
+  bot: '#ff9f0a',
+} as const;

@@ -31,14 +31,18 @@ _BOT_STATES = {"entering": STOCK_MODE_TRADE_ENTERING, "open": STOCK_MODE_TRADE_H
                "missed": STOCK_MODE_TRADE_MISSED, "handed": STOCK_MODE_TRADE_HANDED}
 
 
-def _bot_row() -> dict[str, Any]:
+_BOT_UNREADABLE = "the bot session could not be read"
+
+
+def _bot_row() -> dict[str, Any] | None:
+    """The bot session, or None when it cannot be read: unknown, never an empty session."""
     from bot.persist import load_session
 
     try:
         return load_session()
     except Exception:
         logger.warning("stock mode: the bot session could not be read", exc_info=True)
-        return {}
+        return None
 
 
 def _bot_part(sym: str, row: dict[str, Any]) -> dict[str, Any]:
@@ -46,7 +50,7 @@ def _bot_part(sym: str, row: dict[str, Any]) -> dict[str, Any]:
     from bot.first_pullback import runner as bot_runner
 
     on_list = sym in set(normalize_symbols(row.get("symbol_allowlist")))
-    status = bot_runner.status(row) if row else {"playing": False, "reason": "the bot session could not be read"}
+    status = bot_runner.status(row) if row else {"playing": False, "reason": _BOT_UNREADABLE}
     return {"on_list": on_list, "playing": bool(status.get("playing")), "reason": status.get("reason"),
             "setup": bot_runner.chosen(row) if row else None}
 
@@ -120,8 +124,10 @@ def build(symbol: str, *, now: float | None = None) -> dict[str, Any]:
     sym = model.symbol(symbol)
     venue, replay = gates.venue_state()
     store.sync_venue(venue)
-    row = _bot_row()
-    bot = _bot_part(sym, row)
+    loaded = _bot_row()
+    row = loaded or {}
+    bot = _bot_part(sym, row) if loaded is not None else {"on_list": False, "playing": False,
+                                                          "reason": _BOT_UNREADABLE, "setup": None}
     sw = store.switch(sym)
     if bot["on_list"]:
         buy, sell = STOCK_MODE_SIDE_NOVA, STOCK_MODE_SIDE_NOVA
@@ -146,13 +152,15 @@ def build(symbol: str, *, now: float | None = None) -> dict[str, Any]:
         "risk_usd": (sw or {}).get("risk_usd"),
         "set_at": (sw or {}).get("set_at"),
         "locks": model.locks(venue, replay),
-        "notes": _notes(sym, mode, venue, day, bot),
+        "notes": ([{"id": "bot_unreadable", "tone": "warn",
+                    "text": f"The bot session could not be read, so whether the bot trades {sym} is unknown."}]
+                  if loaded is None else []) + _notes(sym, mode, venue, day, bot),
         "approval": store.approval(sym),
         "trade": _public_trade(trade),
         "nova_entries_today": store.entries_today(venue, day, sym),
         "last_event": store.event(sym),
-        "bot": bot if (bot["on_list"] or mode == STOCK_MODE_BOT or trade and trade.get("kind") == STOCK_MODE_BOT)
-        else None,
+        "bot": bot if (loaded is None or bot["on_list"] or mode == STOCK_MODE_BOT
+                       or trade and trade.get("kind") == STOCK_MODE_BOT) else None,
     }
 
 
@@ -161,5 +169,5 @@ def all_stocks(*, now: float | None = None) -> list[dict[str, Any]]:
     from bot.eligibility import normalize_symbols
 
     now = time.time() if now is None else now
-    syms = set(store.switches()) | set(normalize_symbols(_bot_row().get("symbol_allowlist")))
+    syms = set(store.switches()) | set(normalize_symbols((_bot_row() or {}).get("symbol_allowlist")))
     return [build(s, now=now) for s in sorted(syms)]

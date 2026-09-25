@@ -1,7 +1,8 @@
 /**
  * The stock read on one chart pane (ADR 036). The 1-minute pane gets the setups' shapes, the plan's
- * zones and lines, the day's levels, a legend of the lanes and the plan's badge; the 5-minute and
- * 10-second panes mirror the plan's levels as thin lines; the daily pane marks every +40% run.
+ * zones and lines, the day's levels, a legend of the lanes and the plan's badge -- with the trade's
+ * track, the Who trades chip and the call's pin (ADR 037); the 5-minute and 10-second panes mirror the
+ * plan's levels as thin lines; the daily pane marks every +40% run.
  * Nothing is drawn while the desk replays another moment: the read is today's live stock.
  */
 import { useCallback, useEffect, useMemo, useRef } from 'react';
@@ -159,6 +160,9 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
   );
   const index = useMemo(() => seriesIndex(series), [series, barsRevision]); // eslint-disable-line react-hooks/exhaustive-deps
   const focusEvent = ctx?.focus?.event ?? null;
+  // Who trades (ADR 037): the levels with what stands behind them (a drag shows the plan's own), the pin.
+  const levels = preview ? null : ctx?.who.levels ?? null;
+  const call = ctx?.who.moment?.call ?? null;
   const draw = useMemo(() => paneDraw(read, {
     pane: kind,
     layers: ctx?.layers ?? { setups: false, levels: false, hidden: [], plan: 'auto' },
@@ -169,7 +173,9 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
       title: focusEvent ? focusEvent.title.slice(0, 48) : '',
       setup: focusEvent?.levels?.setup ?? null,
     } : null,
-  }), [read, kind, ctx?.layers, index, series, ctx?.focus, focusEvent]);
+    levels,
+    call,
+  }), [read, kind, ctx?.layers, index, series, ctx?.focus, focusEvent, levels, call]);
 
   // The shapes: one primitive per pane, fed a new scene whenever the read or the bars change.
   const primitive = useRef<SetupShapesPrimitive | null>(null);

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, type CSSProperties } from 'react';
 import {
   L2_DAS_HEADERS,
   L2_DAS_MM_FALLBACK,
@@ -20,6 +20,7 @@ import {
   tierBackground,
 } from './dasDepthTiers';
 import { isOvernightOnlyBook } from './depthBookGuards';
+import { placeMarkers, splitMarkers, type DepthMarker, type PlacedMarker } from './depthMarkers';
 import {
   depthEmptyMessage,
   depthLiveBadge,
@@ -29,11 +30,14 @@ import { computeL2Heuristics } from './l2Heuristics';
 import { useIbkrDepth } from './useIbkrDepth';
 import type { DepthLevel } from './types';
 import { useRenderCount } from '../perf/useRenderCount';
+import { tipProps } from '../ux';
 
 interface Props {
   symbol: string | null;
   /** False on live-but-hidden trader tabs -- keep WS, pause ladder/TOB paint. */
   uiActive?: boolean;
+  /** The plan's ENTRY / STOP / TARGET, drawn where they sit in the book (ADR 037). */
+  markers?: readonly DepthMarker[];
 }
 
 function fmtPrice(p: number | null | undefined) {
@@ -46,6 +50,8 @@ function fmtSize(s: number | null | undefined) {
   return s.toLocaleString('en-US');
 }
 
+const NO_MARKERS: { bid: DepthMarker[]; ask: DepthMarker[] } = { bid: [], ask: [] };
+
 function mmLabel(level: DepthLevel | null): string {
   if (!level) return '';
   const raw = (level.mm || '').trim();
@@ -53,22 +59,56 @@ function mmLabel(level: DepthLevel | null): string {
 }
 
 /**
+ * The plan's level between the book's rows (solid when an order stands behind it). It is drawn over the
+ * boundary between two rows, never as a row of its own: the Trader rail's ladder has a fixed height, and a
+ * row more would push the book's last rows -- and a level past them -- out of sight.
+ */
+function MarkerLine({ marker, at }: { marker: PlacedMarker; at: 'edge' | 'first' | 'end' | 'flow' }) {
+  return (
+    <div
+      className={`das-l2-marker das-l2-marker--${at} das-l2-marker--${marker.working ? 'working' : 'plan'}`}
+      style={{ ['--das-l2-marker' as string]: marker.color } as CSSProperties}
+      data-testid={`l2-marker-${marker.id}`}
+      {...tipProps(marker.tip, marker.label)}
+    >
+      <span className="das-l2-marker__tag">
+        {marker.label}
+        {marker.beyond ? ' ↓' : ''}
+      </span>
+    </div>
+  );
+}
+
+/**
  * One side of the DAS-style montage; historical replay renders it with no levels.
  * `peak` is the largest size on the whole book (`bookPeak`), so a size gauge is
- * the same length on the bid and the ask.
+ * the same length on the bid and the ask. `markers` are this side's plan levels.
  */
 export function MontageSide({
   side,
   levels,
   peak,
+  markers = [],
 }: {
   side: 'bid' | 'ask';
   levels: DepthLevel[];
   peak: number;
+  markers?: readonly DepthMarker[];
 }) {
   const tiers = assignPriceTiers(levels);
   const padded = padLevels(levels, TICKER_TRADE_DEPTH_LEVELS);
   const isBid = side === 'bid';
+  const shown = Math.min(levels.length, TICKER_TRADE_DEPTH_LEVELS);
+  const placed = markers.length ? placeMarkers(side, levels.slice(0, shown), markers) : [];
+  const lines = (before: number, at: 'edge' | 'first' | 'end' | 'flow') =>
+    placed.filter(m => m.before === before).map(m => <MarkerLine key={`mk-${m.id}`} marker={m} at={at} />);
+  // Inside row i: the levels between it and the row above; the last shown row also carries the levels past it.
+  const inRow = (i: number) => (i >= shown ? null : (
+    <>
+      {lines(i, i === 0 ? 'first' : 'edge')}
+      {i === shown - 1 && lines(shown, 'end')}
+    </>
+  ));
 
   return (
     <div className={`das-l2-side das-l2-side--${side}`}>
@@ -87,6 +127,7 @@ export function MontageSide({
           </>
         )}
       </div>
+      {shown === 0 && lines(0, 'flow')}
       {padded.map((level, i) => {
         const tier = level != null ? (tiers[i] ?? 0) : 0;
         const bg = level ? tierBackground(tier) : 'transparent';
@@ -97,6 +138,7 @@ export function MontageSide({
             className={`das-l2-row ${level ? 'das-l2-row--tiered' : 'das-l2-row--empty'}`}
             style={{ backgroundColor: bg }}
           >
+            {inRow(i)}
             {gauge > 0 && (
               <span
                 className="das-l2-gauge"
@@ -124,7 +166,7 @@ export function MontageSide({
   );
 }
 
-export function DepthLadder({ symbol, uiActive = true }: Props) {
+export function DepthLadder({ symbol, uiActive = true, markers }: Props) {
   useRenderCount('DepthLadder');
   const { book, connected, l1Fallback, error } = useIbkrDepth(symbol, uiActive);
   const { setTopOfBook } = useTopOfBook();
@@ -169,6 +211,7 @@ export function DepthLadder({ symbol, uiActive = true }: Props) {
   const liveBadgeText = depthLiveBadgeText(liveBadge);
   const overnightOnly = isOvernightOnlyBook(book);
   const peak = bookPeak(book.bids, book.asks);
+  const sides = markers?.length ? splitMarkers(markers, book.bids, book.asks) : NO_MARKERS;
 
   return (
     <div className="das-l2">
@@ -197,8 +240,8 @@ export function DepthLadder({ symbol, uiActive = true }: Props) {
         )}
       </div>
       <div className="das-l2-montage">
-        <MontageSide side="bid" levels={book.bids} peak={peak} />
-        <MontageSide side="ask" levels={book.asks} peak={peak} />
+        <MontageSide side="bid" levels={book.bids} peak={peak} markers={sides.bid} />
+        <MontageSide side="ask" levels={book.asks} peak={peak} markers={sides.ask} />
       </div>
       {spread != null && (
         <div className="das-l2-spread">

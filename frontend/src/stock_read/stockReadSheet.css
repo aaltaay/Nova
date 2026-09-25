@@ -189,7 +189,7 @@
   flex-wrap: wrap;
   gap: 3px;
   min-width: 0;
-  max-width: calc(100% - 220px);
+  max-width: calc(100% - 250px);
 }
 .sr-legend__chip {
   display: inline-flex;
@@ -219,11 +219,19 @@
 .sr-legend__chip--done .sr-legend__dot { background: var(--sr-ok); }
 .sr-legend__chip--failed .sr-legend__dot { background: var(--sr-bad); }
 .sr-legend__chip--none .sr-legend__dot { border: 1px solid var(--sr-unknown); background: none; }
-.sr-legend__badge {
-  font-family: inherit;
+/* The badge, the trade's track and the Who trades chip stack in the top-right corner (ADR 037). */
+.sr-legend__corner {
   position: absolute;
   top: 0;
   right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  pointer-events: none;
+}
+.sr-legend__badge {
+  font-family: inherit;
   padding: 1px 7px;
   pointer-events: auto;
   cursor: pointer;
@@ -238,11 +246,19 @@
 .sr-legend__badge--armed,
 .sr-legend__badge--near { border-color: var(--sr-blue); color: #5ac8fa; }
 .sr-legend__badge--triggered { border-color: var(--sr-ok); color: var(--sr-ok); }
+/* The moment's tone (ADR 037): green at the trigger and once done, blue while held, amber or red when the
+   exit is due. */
+.sr-legend__badge--go,
+.sr-legend__badge--done { border-color: var(--sr-ok); color: var(--sr-ok); }
+.sr-legend__badge--holding { border-color: var(--sr-blue); color: #5ac8fa; }
+.sr-legend__badge--target { border-color: #ff9f0a; background: #ff9f0a; color: #111; }
+.sr-legend__badge--stop { border-color: var(--sr-bad); background: var(--sr-bad); color: #fff; }
+.sr-legend__badge--wait { border-color: var(--sr-info); color: var(--sr-info); }
 .sr-legend__badge--manual { border-color: var(--sr-secondary); color: var(--sr-secondary); }
 .sr-legend__focus {
   display: flex;
   flex-basis: 100%;
-  max-width: calc(100% - 220px);
+  max-width: calc(100% - 250px);
   align-items: center;
   gap: 8px;
   padding: 1px 7px;

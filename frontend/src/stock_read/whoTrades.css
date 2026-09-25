@@ -1,0 +1,250 @@
+/* Who trades the stock (ADR 037): the row above Level 2, the chip and its menu on the 1-minute chart, the
+   trade's track under the badge and the call in the chart's corner. Colours: Nova's side orange, the
+   operator's grey; the call green to enter, amber or red to sell, blue for what Nova did. */
+
+/* ── The row above Level 2 ────────────────────────────────────────────── */
+.sr-who {
+  flex: 0 0 auto;
+  margin: 2px 0 3px;
+  padding: 2px 6px;
+  border: 1px solid var(--sr-border);
+  border-radius: 4px;
+  background: var(--sr-bg);
+  container: who-trades / inline-size;
+}
+.sr-who__row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: 0.62rem;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.sr-who__kicker {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--sr-secondary);
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+}
+/* A narrow rail keeps the symbol and the two switches; the words are on hover. */
+@container who-trades (max-width: 380px) {
+  .sr-who__kicker-words { display: none; }
+  .sr-who__side { padding: 0 5px; }
+}
+.sr-who__switch {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+.sr-who__side-label {
+  margin-right: 4px;
+  color: var(--sr-secondary);
+}
+.sr-who__side {
+  padding: 0 7px;
+  border: 1px solid var(--sr-border);
+  background: none;
+  color: var(--sr-secondary);
+  font: inherit;
+  font-weight: 600;
+  line-height: 16px;
+  cursor: pointer;
+}
+.sr-who__side--you { border-radius: 3px 0 0 3px; }
+.sr-who__side--nova { border-left: none; border-radius: 0 3px 3px 0; }
+.sr-who__side:hover:not(:disabled) { color: var(--sr-text); }
+.sr-who__side:disabled { opacity: 0.5; cursor: not-allowed; }
+.sr-who__side--you.sr-who__side--on {
+  background: #3a3a3c;
+  color: #fff;
+  cursor: default;
+}
+.sr-who__side--nova.sr-who__side--on {
+  border-color: #ff9f0a;
+  background: #ff9f0a;
+  color: #111;
+  cursor: default;
+}
+.sr-who__mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  color: var(--sr-text);
+  font-weight: 700;
+}
+.sr-who__dot {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #8e8e93;
+}
+.sr-who__note {
+  margin: 1px 0 0;
+  overflow: hidden;
+  font-size: 0.58rem;
+  line-height: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sr-who__note--warn { color: var(--sr-warn); }
+.sr-who__note--bad { color: var(--sr-bad); }
+
+/* ── The chip on the chart, and its four choices ──────────────────────── */
+.sr-whochip {
+  position: relative;
+  pointer-events: auto;
+}
+.sr-whochip__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 7px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 9px;
+  background: rgba(12, 12, 14, 0.78);
+  color: var(--sr-text);
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 16px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.sr-whochip__sides { color: var(--sr-secondary); }
+.sr-whochip__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  width: 250px;
+  padding: 4px;
+  border: 1px solid var(--sr-border);
+  border-radius: 6px;
+  background: #16181d;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.sr-whochip__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--sr-text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.sr-whochip__item:hover:not(:disabled) { background: rgba(255, 255, 255, 0.06); }
+.sr-whochip__item:disabled { opacity: 0.45; cursor: not-allowed; }
+.sr-whochip__item--on { background: rgba(255, 255, 255, 0.08); cursor: default; }
+.sr-whochip__item-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.sr-whochip__item-sides {
+  padding-left: 13px;
+  color: var(--sr-secondary);
+  font-size: 10px;
+}
+.sr-whochip__foot {
+  margin: 4px 0 0;
+  padding: 5px 8px 2px;
+  border-top: 1px solid var(--sr-border);
+  color: var(--sr-secondary);
+  font-size: 10px;
+  line-height: 1.35;
+  white-space: normal;
+}
+
+/* ── The track under the badge ────────────────────────────────────────── */
+.sr-track {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 3px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 9px;
+  background: rgba(12, 12, 14, 0.78);
+  font-size: 9.5px;
+  line-height: 14px;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+.sr-track__step {
+  padding: 0 5px;
+  border-radius: 7px;
+  color: var(--sr-muted);
+}
+.sr-track__step--done { color: var(--sr-secondary); }
+.sr-track__step--now { color: #0b0d12; font-weight: 800; }
+.sr-track--forming .sr-track__step--now { background: var(--sr-warn); }
+.sr-track--near .sr-track__step--now,
+.sr-track--holding .sr-track__step--now { background: var(--sr-blue); color: #fff; }
+.sr-track--go .sr-track__step--now,
+.sr-track--done .sr-track__step--now { background: var(--sr-ok); }
+.sr-track--target .sr-track__step--now { background: #ff9f0a; }
+.sr-track--stop .sr-track__step--now { background: var(--sr-bad); color: #fff; }
+.sr-track--wait .sr-track__step--now { background: var(--sr-info); }
+.sr-track__bell {
+  margin-left: 2px;
+  padding: 0 2px;
+  border: none;
+  background: none;
+  font-size: 10px;
+  line-height: 14px;
+  cursor: pointer;
+  opacity: 0.8;
+}
+.sr-track__bell[aria-pressed='false'] { opacity: 0.5; }
+
+/* ── The call in the corner ───────────────────────────────────────────── */
+.sr-call {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex-basis: 100%;
+  max-width: min(360px, calc(100% - 250px));
+  padding: 3px 8px;
+  border: 1px solid var(--sr-info);
+  border-radius: 4px;
+  background: rgba(12, 12, 14, 0.86);
+  font-size: 10px;
+  line-height: 1.35;
+  pointer-events: auto;
+}
+.sr-call__title { font-size: 11px; letter-spacing: 0.03em; }
+.sr-call__detail { color: var(--sr-text); }
+.sr-call--go { border-color: var(--sr-ok); background: rgba(12, 40, 20, 0.9); }
+.sr-call--go .sr-call__title { color: var(--sr-ok); }
+.sr-call--target { border-color: #ff9f0a; }
+.sr-call--target .sr-call__title { color: #ff9f0a; }
+.sr-call--stop { border-color: var(--sr-bad); }
+.sr-call--stop .sr-call__title { color: var(--sr-bad); }
+.sr-call--nova { border-color: var(--sr-blue); }
+.sr-call--nova .sr-call__title { color: #5ac8fa; }
+.sr-call--done .sr-call__title { color: var(--sr-ok); }
+.sr-call--wait .sr-call__title,
+.sr-call--info .sr-call__title { color: var(--sr-secondary); }
+
+/* ── The plan card's line that says who trades ────────────────────────── */
+.sr-plan__status { font-weight: 700; }
+.sr-plan__status--done { color: var(--sr-ok); }
+.sr-plan__status--stop { color: var(--sr-bad); }
+.sr-btn--target { border-color: #ff9f0a; background: #ff9f0a; color: #111; }
+.sr-btn--stop { border-color: var(--sr-bad); background: var(--sr-bad); color: #fff; }

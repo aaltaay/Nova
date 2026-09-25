@@ -515,3 +515,13 @@ def test_an_approved_entry_left_unfilled_is_cancelled_with_its_exits(paper, monk
     assert {legs[trade["target_order_id"]]["reason_code"], legs[trade["stop_order_id"]]["reason_code"]} == {
         "PRACTICE_PARENT_CANCELLED"}
     assert paper.broker.ledger.working_orders() == [] and paper.broker.ledger.held_qty(SYM) == 0.0
+
+
+def test_an_unreadable_bot_session_is_said_never_read_as_empty(paper, monkeypatch):
+    def broken():
+        raise OSError("bot-session.json is locked")
+
+    monkeypatch.setattr("bot.persist.load_session", broken)
+    body = client.get(f"/api/stock-mode/{SYM}").json()
+    assert body["notes"][0]["id"] == "bot_unreadable" and "unknown" in body["notes"][0]["text"]
+    assert body["bot"]["reason"] == "the bot session could not be read"

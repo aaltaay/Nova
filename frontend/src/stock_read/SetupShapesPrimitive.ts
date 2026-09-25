@@ -1,8 +1,8 @@
 /**
  * Lightweight-charts series primitive for the stock read (ADR 036): the setups' boxes (leg, pole,
  * pullback, flag, base, red phase), the plan's risk and reward zones, level segments, a focus line
- * for a decision the operator asked to see, and edge tags for levels above or below the visible
- * prices. It draws a scene it is given; `chartShapes.ts` decides what the scene holds and
+ * for a decision the operator asked to see, edge tags for levels above or below the visible
+ * prices, and the moment's pin (ENTER NOW, SELL NOW, what Nova did: ADR 037) on its candle. It draws a scene it is given; `chartShapes.ts` decides what the scene holds and
  * `StockReadChartLayer` maps its times onto this pane's bars.
  */
 import type { CanvasRenderingTarget2D } from 'fancy-canvas';
@@ -55,18 +55,29 @@ export interface SceneEdgeTag {
   color: string;
 }
 
+/** A filled tag over a price on one candle, on a stem down to the price. */
+export interface ScenePin {
+  t: Time;
+  price: number;
+  label: string;
+  color: string;
+}
+
 export interface Scene {
   boxes: SceneBox[];
   segments: SceneSegment[];
   vlines: SceneVLine[];
   edgeTags: SceneEdgeTag[];
+  pins: ScenePin[];
   /** Prices the pane's autoscale must keep in view (the plan's stop and target). */
   keepInView: { min: number; max: number } | null;
 }
 
-export const EMPTY_SCENE: Scene = { boxes: [], segments: [], vlines: [], edgeTags: [], keepInView: null };
+export const EMPTY_SCENE: Scene = { boxes: [], segments: [], vlines: [], edgeTags: [], pins: [], keepInView: null };
 
 const FONT = '600 10px ui-sans-serif, system-ui, sans-serif';
+const PIN_FONT = '700 9px ui-sans-serif, system-ui, sans-serif';
+const PIN_H = 14;
 const TAG_TOP = 26;
 const TAG_H = 15;
 
@@ -75,6 +86,38 @@ interface Px {
   segments: { x1: number | null; y: number; s: SceneSegment }[];
   vlines: { x: number; v: SceneVLine }[];
   tags: { y: number; t: SceneEdgeTag }[];
+  pins: { x: number; y: number; p: ScenePin }[];
+}
+
+/** Dark ink on a light fill, white on a dark one. */
+function inkFor(color: string): string {
+  const m = /^#([0-9a-f]{6})$/i.exec(color);
+  if (!m) return '#ffffff';
+  const n = parseInt(m[1], 16);
+  const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return lum > 0.55 ? '#0b0d12' : '#ffffff';
+}
+
+function pin(ctx: CanvasRenderingContext2D, x: number, y: number, p: ScenePin, width: number): void {
+  ctx.font = PIN_FONT;
+  const w = ctx.measureText(p.label).width + 10;
+  const left = Math.min(Math.max(2, x - w / 2), width - w - 2);
+  const top = Math.max(2, y - PIN_H - 7);
+  ctx.strokeStyle = p.color;
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(Math.round(x) + 0.5, top + PIN_H);
+  ctx.lineTo(Math.round(x) + 0.5, y);
+  ctx.stroke();
+  ctx.fillStyle = p.color;
+  ctx.beginPath();
+  if (typeof ctx.roundRect === 'function') ctx.roundRect(left, top, w, PIN_H, 3);
+  else ctx.rect(left, top, w, PIN_H);
+  ctx.fill();
+  ctx.fillStyle = inkFor(p.color);
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  ctx.fillText(p.label, left + w / 2, top + PIN_H / 2 + 0.5);
 }
 
 function label(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, color: string, align: 'left' | 'right'): void {
@@ -166,6 +209,7 @@ class LineRenderer implements IPrimitivePaneRenderer {
           down += 1;
         }
       }
+      for (const { x, y, p } of this.px.pins) pin(ctx, x, y, p, mediaSize.width);
     });
   }
 }
@@ -194,7 +238,7 @@ export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
   private requestUpdate: (() => void) | null = null;
   private scene: Scene = EMPTY_SCENE;
   private readonly views = [new View(this, 'fill'), new View(this, 'lines')];
-  px: Px = { boxes: [], segments: [], vlines: [], tags: [] };
+  px: Px = { boxes: [], segments: [], vlines: [], tags: [], pins: [] };
 
   attached(param: SeriesAttachedParameter<Time, SeriesType>): void {
     this.chart = param.chart;
@@ -218,7 +262,7 @@ export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
     const chart = this.chart;
     const series = this.series;
     if (!chart || !series) {
-      this.px = { boxes: [], segments: [], vlines: [], tags: [] };
+      this.px = { boxes: [], segments: [], vlines: [], tags: [], pins: [] };
       return;
     }
     const ts = chart.timeScale();
@@ -252,7 +296,13 @@ export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
       const yy = y(t.price);
       if (yy !== null) tags.push({ y: yy, t });
     }
-    this.px = { boxes, segments, vlines, tags };
+    const pins: Px['pins'] = [];
+    for (const p of this.scene.pins) {
+      const xx = x(p.t);
+      const yy = y(p.price);
+      if (xx !== null && yy !== null) pins.push({ x: xx, y: yy, p });
+    }
+    this.px = { boxes, segments, vlines, tags, pins };
   }
 
   paneViews(): readonly IPrimitivePaneView[] {

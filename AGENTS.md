@@ -1097,8 +1097,10 @@ Approval | null, trade: Trade | null, nova_entries_today: integer, last_event: {
 - A **Trade** is `{kind: "auto_entry" | "approve" | "bot", state: "entering" | "holding" | "closed"
   | "missed" | "handed", venue, venue_day, setup_id, setup_type, qty, entry, stop, target,
   entry_order_id, target_order_id, stop_order_id, fill_price, filled_at, exit_price, exit_reason:
-  "target" | "stop" | "outside" | "handed" | null, exits: "nova" | "you", sent_at, note}`. The bot's
-  own trade is mapped from `bot-session.json`.
+  "target" | "stop" | "time" | "flush" | "outside" | "handed" | null, exits: "nova" | "you", sent_at, closed_at:
+  number | null, note, exiting: boolean}` -- `closed_at` when it closed, missed or was handed;
+  `exiting` true while the bot is selling it. The bot's own trade is mapped from `bot-session.json`
+  (`entry_sent_ts` is its `sent_at`, `closed_ts` its `closed_at`; `open` and `exiting` read `holding`).
 
 `GET /api/stock-mode` answers `{schema_version, generated_at, venue, stocks: [view]}` for every
 stock that is not at Signal only.
@@ -1160,17 +1162,26 @@ Sell: You means Nova never sells the trade; the loss breakers and KILL still fla
 - The "Who trades" row sits directly above Level 2. The same switch is a chip under the plan's badge
   on the 1-minute chart.
 - The badge carries the moment track (Forming, Trigger, Holding, the exit), computed from the lane's
-  state, the position and the orders.
-- ENTER NOW, SELL NOW and what Nova just did appear in the badge's corner, with one ping per event.
-  `localStorage` `nova.stockRead.sound` = `{schema_version: 1, value: boolean}` mutes the ping.
+  state, the position and the orders (`stock_read/momentModel.ts`, pure). The chip opens the four
+  modes; a mode Nova cannot take now is locked with the reason.
+- ENTER NOW, SELL NOW and what Nova just did appear in the badge's corner, with one ping per event,
+  and as a tag on the chart at the event's price and candle. ENTER NOW stays up 30 s after the
+  trigger while the price is within half a risk of the entry; SELL NOW is kept once the target or the
+  stop printed while the operator held the stock (this tab's memory of the position, never
+  persisted); what Nova did stays up 30 s. `localStorage` `nova.stockRead.sound` = `{schema_version:
+  1, value: boolean}` mutes the ping.
 - The plan's stop and target are dashed while they are only a plan, and solid while an order stands
   behind them.
 - Level 2 draws ENTRY, STOP and TARGET as separator rows where they sit in the book (the
   `MontageSide` `markers`).
 - The plan card's buttons follow the mode:
-  - Signal only and Auto-entry: Stage in ticket, Stage sell.
-  - Approve: Approve plan, Approve: buy N now, Cancel approval, Take over the exit.
-  - Bot at Strategy: Take over the exit.
+  - Signal only: Stage in ticket; Stage sell (at the target, or at the bid once an exit is due)
+    while shares are held.
+  - Approve: Approve (an armed plan), Approve: buy N now (after its trigger), Approved · cancel,
+    Cancel stop and target (take over the exit).
+  - Auto-entry: Auto-entry on · turn off; Stage sell once Nova bought.
+  - Bot at Strategy: Bot on SYMBOL · stop it; Take over the exit while the bot holds it.
+  - A trade Nova closed on the plan's setup reads "Closed · +$X" (gross, from the fill to the exit).
 - The Trader reads the view every `STOCK_MODE_POLL_MS` while the tab shows. Nothing is read on a
   replay desk or on the sample desk.
 
@@ -1956,6 +1967,40 @@ refused with the venue's own reason and code (`PRACTICE_NO_SHORTS`,
 Before this, 21 of 23 Paper orders that day answered in 5.1 s
 (`EXECUTION_ACK_WAIT_SEC`) while they filled in under 150 ms. Live is
 unchanged: its reply waits for IBKR's first status.
+
+**Paper and Sim fill brackets in Live's shape** (ADR 037, #606 step 1; owner
+`practice/bracket.py`, pure; contract `architecture/practice-fills.md`). A
+`bracket` command is no longer refused `SIM_NO_BRACKET`: the practice broker's
+`place_bracket` takes Live's order -- a LMT entry, a LMT take-profit and a plain
+STP stop-loss on the reverse side, one quantity, TIF and outside-RTH flag on all
+three, three consecutive order ids, entry first -- and answers `{ok, order_id
+(the entry), parent_order_id, target_order_id, stop_order_id, error, mode,
+nova_placed_at, broker_status, filled_qty, remaining_qty, avg_fill_price,
+status_reason, status_code}` (a refusal: `ok: false`, `reason_code`, every id
+`null`). The receipt and the execution row carry the three ids, and the three
+watches are Live's (only the entry's counts toward the execution's fills). Every
+practice row adds `parent_id` (the entry's id on each exit), `oca_group`
+(`"oca-<entry id>"` on both exits) and `leg_role: "parent" | "target" | "stop"`,
+all `null` on a plain order (a row written before brackets reads the same).
+**The exits wait** `PreSubmitted` until the entry fills: a waiting exit holds
+nothing, never fills and counts nothing toward a Flatten; applying the entry's
+`filled` event wakes both (`Submitted`, placed at the fill's moment), so the
+print that filled the entry never fills an exit and a Sim rewind before the
+fill puts them back to waiting. **One cancels the other**: an exit's fill
+cancels its sibling (`PRACTICE_OCO_CANCELLED`, "One-cancels-other: the target
+filled" / "... the stop filled"), and an entry that closes unfilled -- cancelled,
+refused at the fill, or expired -- cancels its waiting exits
+(`PRACTICE_PARENT_CANCELLED`); each is an ordinary `cancelled` event stamped
+source `venue`, so no event type and no ledger schema changed. Cancelling one
+exit leaves the other; cancelling a leg the bracket already closed answers
+`{ok: true, verified_gone: true, closed_by: <code>}`. A bracket's shape is
+checked again at the broker (`BRACKET_GEOMETRY`, `QTY_INVALID`, then the TIF,
+admission, `PRACTICE_NO_SHORTS` -- a bracket that opens with a SELL is refused
+-- and buying power at the entry's limit). The ticket's Flatten counts a
+bracket's two exits once, at the larger open quantity. **Stated difference
+before 09:30 ET:** a practice stop triggers on any price-setting print, while
+IBKR holds a plain stop until the open; it stands until #604's question 2 is
+answered.
 
 **Order timing readout** (`tools/order_timing.py`, read-only; asks the
 backend that answers): per order, `{execution_id, created_et, venue,
