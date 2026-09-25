@@ -51,6 +51,15 @@ export const CHART_EMA_COLORS: Record<ChartEmaLength, string> = {
 export const CHART_VWAP_COLOR = '#F97316'; // orange
 
 /**
+ * A chart pane that crashed draws itself again once on its own after this long: a
+ * crash from a series caught mid-change should not leave the pane dead until the
+ * operator notices. A second crash stays down with its reason and a Retry button.
+ */
+export const CHART_CRASH_AUTO_RETRY_MS = 3_000;
+/** A crash this soon after the automatic retry stays down until the operator retries. */
+export const CHART_CRASH_AUTO_RETRY_WINDOW_MS = 60_000;
+
+/**
  * Session VWAP is accumulated from this one timeframe for every pane, then
  * sampled onto the pane's own bar times (``chart/vwapSession.ts``). Accumulating
  * per pane anchors wherever that pane's IB duration + bar-limit trim happens to

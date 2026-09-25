@@ -84,6 +84,16 @@
   color: var(--text-secondary);
 }
 
+/* The pane crashed: the headline, its reason, and a Retry that takes the click
+   (the overlay above passes clicks through to the chart; a crashed pane has none). */
+.chart-overlay--crashed {
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0 1rem;
+  text-align: center;
+  pointer-events: auto;
+}
+
 /* IBKR history did not answer: the headline, then the backend's reason (#555). */
 .chart-overlay--retrying {
   flex-direction: column;
