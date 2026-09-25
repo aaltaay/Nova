@@ -236,6 +236,10 @@ def set_venue(target: str, *, persist: bool = True) -> dict:
     from ibkr import safety as _safety
 
     _safety.set_armed(False, reason="venue changed")
+    # Buy: Nova never carries into another venue either (ADR 037 decision 3).
+    from stock_mode import store as _stock_mode
+
+    _stock_mode.venue_changed(key)
     if key == DESK_VENUE_SIM:
         # A live Session Record keeps running into Sim. It used to be stopped
         # here because Sim piped SIM1 ticks into the recorder; SIM1 is gone

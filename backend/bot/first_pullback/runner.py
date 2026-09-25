@@ -26,7 +26,8 @@ Every ``BOT_FP_POLL_SEC``:
 
 Owner: the ``trade`` key of the bot session (``bot.persist``); a restart
 resumes managing it. States: ``entering`` -> ``open`` -> ``exiting`` ->
-``closed``, or ``entering`` -> ``missed``.
+``closed``, or ``entering`` -> ``missed``, or ``open`` -> ``handed`` when the
+operator takes over the exit from the Trader tab (ADR 037, ``hand_over``).
 
 maintainer: one-concern the bot's trade state machine and the loop that drives it
 """
@@ -491,6 +492,51 @@ def _close(trade: dict[str, Any], now: float, reason: str, price: float | None) 
     at = f" at {price:g}" if price is not None else ""
     audit(action=BOT_AUDIT_ACTION_TRADE, outcome="closed", order_id=trade.get("exit_order_id"),
           reason=f"{said}{at}" + (f" · {r:+.2f}R" if r is not None else ""), inputs=_summary(trade))
+
+
+# -- the operator takes over the exit (ADR 037) ---------------------------------------
+async def hand_over(symbol: str, now: float | None = None) -> dict[str, Any]:
+    """The operator takes the exit of the bot's trade on ``symbol``: the bot cancels its resting target,
+    stops watching the stop and the time stop, and releases the shares from its budget. Before the fill
+    the entry is cancelled instead (nothing is held yet). The trade ends ``handed`` (or ``missed``).
+    Raises ``BotError`` when the bot holds no trade on the stock, or is already selling it."""
+    from bot.risk import adjust_bot_qty, drop_working
+    from constants_stock_mode import STOCK_MODE_BOT_EXITING, STOCK_MODE_NOTHING_HELD
+
+    now = _clock() if now is None else now
+    sym = (symbol or "").strip().upper()
+    trade = load_session().get("trade")
+    if not isinstance(trade, dict) or str(trade.get("symbol") or "").upper() != sym \
+            or trade.get("state") not in LIVE_STATES:
+        raise BotError(f"the bot holds no trade on {sym}", 409, STOCK_MODE_NOTHING_HELD)
+    trade = dict(trade)
+    if trade["state"] == "exiting":
+        raise BotError(f"the bot is already selling {sym} -- let it finish, or flatten", 409, STOCK_MODE_BOT_EXITING)
+    if trade["state"] == "entering":
+        await orders.cancel(trade, int(trade["entry_order_id"]))
+        drop_working(int(trade["entry_order_id"]))
+        why = "you took the stock back before the bot's entry filled -- the entry was cancelled"
+        trade.update(state="missed", closed_ts=now, note=why)
+        _save(trade)
+        audit(action=BOT_AUDIT_ACTION_TRADE, outcome="missed", order_id=trade["entry_order_id"], reason=why,
+              inputs=_summary(trade))
+        return trade
+    if trade.get("target_order_id"):
+        receipt = await orders.cancel(trade, int(trade["target_order_id"]))
+        if not receipt.ok:
+            row = orders.order_row(trade["target_order_id"])
+            if orders.order_state(row) == "filled":      # it filled as the operator reached for it
+                _close(trade, now, "target", _num((row or {}).get("avg_fill_price")) or float(trade["target1"]))
+                return dict(load_session().get("trade") or trade)
+            logger.warning("first-pullback bot: cancelling target %s for a hand-over refused -- %s",
+                           trade["target_order_id"], orders.receipt_error(receipt))
+    trade.update(state="handed", target_order_id=None, exit_reason="handed", closed_ts=now,
+                 note="you took over the exit: the bot no longer sells it")
+    adjust_bot_qty(trade["symbol"], -float(trade["qty"]))
+    _save(trade)
+    audit(action=BOT_AUDIT_ACTION_TRADE, outcome="handed", reason=f"you took over the exit of {sym}: the bot "
+          "cancelled its target and stopped watching the stop", inputs=_summary(trade))
+    return trade
 
 
 # -- helpers ---------------------------------------------------------------------

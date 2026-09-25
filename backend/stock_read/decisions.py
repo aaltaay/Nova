@@ -215,9 +215,9 @@ def _bot(sym: str, date: str) -> list[dict[str, Any]]:
         inputs = r.get("inputs") or {}
         if not start <= ts <= end or str(inputs.get("symbol") or "").upper() != sym:
             continue
-        if r.get("action") not in ("bot_trade", "setup_proposal"):
+        if r.get("action") not in ("bot_trade", "setup_proposal", "stock_mode"):
             continue
-        what = "Bot trade" if r["action"] == "bot_trade" else "Proposal"
+        what = {"bot_trade": "Bot trade", "setup_proposal": "Proposal"}.get(r["action"], "Who trades")
         out.append(_event(ts, "bot", str(r.get("outcome") or ""), f"{what} {r.get('outcome')}", r.get("reason")))
     return out
 
