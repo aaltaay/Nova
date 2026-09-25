@@ -18,11 +18,21 @@ purity check remains in agent validation. Full backend coverage includes order
 validation, idempotency, risk controls, shorts, runtime opt-ins and live safeguards.
 This CI policy does not change any runtime trading permission or `auto_live` NO-GO.
 
-Inside a job, each check reports its own result. Backend tests runs pytest even
-after its Ruff step fails. Every Agent contract check (tool tests, structural
-validation, doc invariants, skills audit, maintainer gate) runs even when an
-earlier one fails. So one red never hides another, and the job is still red.
-Only a failed checkout, setup or install, or a cancel, skips them.
+Inside a job, each check reports its own result. Once the job's checkout, setup
+and install have succeeded, every check runs even when an earlier one failed, so
+one red never hides another, and the job is still red. The checks that run this
+way:
+
+- Backend tests: Ruff and pytest.
+- Frontend build: lint, unit tests and the build.
+- Agent contract: tool tests, structural validation, doc invariants, skills
+  audit and the maintainer gate.
+- Desktop pack: its Windows maintenance tests, which run after the pack.
+
+A step that needs an earlier step's output still stops there: Desktop pack
+proves and uploads only an installer it built. Frontend E2E, Gitleaks and the
+security scans each run a single check. Only a failed setup or install, or a
+cancel, skips a check.
 
 The classifier reads the complete Git merge-base diff for a PR, or before/after
 for pushes. Renames include both old and new paths. Missing diffs, unknown paths,

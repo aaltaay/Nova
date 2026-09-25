@@ -89,6 +89,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - uses: actions/setup-python@v5
+        id: python
         if: needs.changes.outputs.desktop == 'true'
         with:
           python-version: "3.13"
@@ -101,12 +102,6 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-
-      - name: Verify Windows maintenance setup and failure reporting
-        if: needs.changes.outputs.desktop == 'true'
-        run: |
-          python -m pip install pytest
-          python -m pytest tools/test_windows_maintenance.py tools/test_repo_hygiene_finish.py -q
 
       - name: Cache Electron downloads
         if: needs.changes.outputs.desktop == 'true'
@@ -190,6 +185,16 @@ jobs:
             frontend/release/latest.yml
           if-no-files-found: error
           retention-days: 14
+
+      # An independent check, so it runs last and even after a failed pack:
+      # its failure never leaves the installer unbuilt, and a failed pack
+      # never hides its result (docs/ci.md). A failure still fails the job,
+      # so publish-release still waits on it.
+      - name: Verify Windows maintenance setup and failure reporting
+        if: ${{ !cancelled() && needs.changes.outputs.desktop == 'true' && steps.python.outcome == 'success' }}
+        run: |
+          python -m pip install pytest
+          python -m pytest tools/test_windows_maintenance.py tools/test_repo_hygiene_finish.py -q
 
   tag-commit:
     name: Tag vNNN on master

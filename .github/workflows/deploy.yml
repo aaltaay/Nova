@@ -61,7 +61,7 @@ jobs:
         run: pip install -r backend/requirements.txt pytest pytest-asyncio ruff==0.15.21
 
       - name: Ruff
-        if: needs.changes.outputs.backend == 'true'
+        if: ${{ !cancelled() && needs.changes.outputs.backend == 'true' && steps.install.outcome == 'success' }}
         run: ruff check backend
 
       - name: Run tests
@@ -105,22 +105,25 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
+        id: install
         if: needs.changes.outputs.frontend == 'true'
         run: npm ci
         working-directory: frontend
 
+      # Every check below runs even when an earlier one failed, so a lint
+      # finding never hides the unit tests or the build (docs/ci.md).
       - name: Lint
-        if: needs.changes.outputs.frontend == 'true'
+        if: ${{ !cancelled() && needs.changes.outputs.frontend == 'true' && steps.install.outcome == 'success' }}
         run: npm run lint
         working-directory: frontend
 
       - name: Unit tests
-        if: needs.changes.outputs.frontend == 'true'
+        if: ${{ !cancelled() && needs.changes.outputs.frontend == 'true' && steps.install.outcome == 'success' }}
         run: npm test -- --run
         working-directory: frontend
 
       - name: Build
-        if: needs.changes.outputs.frontend == 'true'
+        if: ${{ !cancelled() && needs.changes.outputs.frontend == 'true' && steps.install.outcome == 'success' }}
         # Default URL keeps vite/meta/postbuild happy when Actions var is unset.
         run: |
           export VITE_API_BASE_URL="${VITE_API_BASE_URL:-https://ci-placeholder.invalid}"
