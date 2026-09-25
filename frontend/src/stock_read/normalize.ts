@@ -33,7 +33,7 @@ const PLAN_STATES: ReadonlySet<string> = new Set(['forming', 'armed', 'near', 't
 
 type Obj = Record<string, unknown>;
 
-function obj(v: unknown): Obj | null {
+export function obj(v: unknown): Obj | null {
   return v && typeof v === 'object' && !Array.isArray(v) ? (v as Obj) : null;
 }
 
@@ -41,11 +41,11 @@ export function num(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 }
 
-function str(v: unknown): string | null {
+export function str(v: unknown): string | null {
   return typeof v === 'string' ? v : null;
 }
 
-function list<T>(v: unknown, fn: (x: unknown) => T | null): T[] {
+export function list<T>(v: unknown, fn: (x: unknown) => T | null): T[] {
   return Array.isArray(v) ? v.map(fn).filter((x): x is T => x !== null) : [];
 }
 
@@ -115,6 +115,7 @@ export function normalizePlan(raw: unknown): StockPlan | null {
   return {
     source: p.source,
     setup_type: str(p.setup_type),
+    setup_id: str(p.setup_id),
     kind: str(p.kind),
     state: (typeof p.state === 'string' && PLAN_STATES.has(p.state) ? p.state : 'forming') as StockPlan['state'],
     provisional: p.provisional === true,

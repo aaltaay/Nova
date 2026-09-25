@@ -1,9 +1,12 @@
 /** The 1-minute pane's legend for the stock read: a chip per setup lane that switches its shapes on
- * and off, the setups without a scanner (locked, saying why), the plan's badge, and -- after "show on
- * chart" from the decisions -- the moment in view with a way back to now. */
+ * and off, the setups without a scanner (locked, saying why), and -- after "show on chart" from the
+ * decisions -- the moment in view with a way back to now. In the corner, the badge with the trade's
+ * track and the Who trades chip under it, and the call (ENTER NOW, SELL NOW, what Nova did: ADR 037). */
 import { tipProps, whyProps } from '../ux';
 import { laneChip, planBadgeText } from './chartShapes';
+import { CallBox, MomentTrack } from './MomentTrack';
 import { hhmmssEt } from './timeWords';
+import { WhoTradesChip } from './WhoTradesChip';
 import type { StockReadContextValue } from './StockReadContext';
 import type { StockRead } from './types';
 import './stockRead.css';
@@ -24,7 +27,9 @@ export function ChartLegend({ ctx, read, onFrame }: {
   onFrame: () => void;
 }) {
   const { layers } = ctx;
-  const badge = layers.setups ? planBadgeText(read) : null;
+  const moment = ctx.who.moment;
+  const badge = moment?.badge ?? (layers.setups ? planBadgeText(read) : null);
+  const tone = moment?.tone ?? read.plan?.state ?? 'manual';
   const focus = ctx.focus;
   return (
     <div className="sr-legend" data-testid="stock-read-legend" onPointerDown={stop} onDoubleClick={stop}>
@@ -82,17 +87,22 @@ export function ChartLegend({ ctx, read, onFrame }: {
           </button>
         </div>
       )}
-      {badge && (
-        <button
-          type="button"
-          className={`sr-legend__badge sr-legend__badge--${read.plan?.state ?? 'manual'}`}
-          onClick={onFrame}
-          {...tipProps('Frame the setup on the chart', read.plan?.reason ?? null)}
-          data-testid="stock-read-badge"
-        >
-          {badge}
-        </button>
-      )}
+      {moment?.call && <CallBox call={moment.call} />}
+      <div className="sr-legend__corner">
+        {badge && (
+          <button
+            type="button"
+            className={`sr-legend__badge sr-legend__badge--${tone}`}
+            onClick={onFrame}
+            {...tipProps('Frame the setup on the chart', read.plan?.reason ?? null)}
+            data-testid="stock-read-badge"
+          >
+            {badge}
+          </button>
+        )}
+        {moment?.track && <MomentTrack moment={moment} />}
+        <WhoTradesChip ctx={ctx} />
+      </div>
     </div>
   );
 }

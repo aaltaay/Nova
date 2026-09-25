@@ -39,6 +39,7 @@ Constitution (`gemini.md` / `AGENTS.md`) and `.cursor/rules/*` remain supreme fo
 | [034](./decisions/034-tape-flow-score-and-flush-exit.md) | The tape flow score (-1 sellers .. +1 buyers), a template's entry mode and flush exit, and the study and sweeps that measure them | Accepted |
 | [035](./decisions/035-trading-screen-always-recorded.md) | The trading screen is always recorded: every monitor from the desktop app, launch to quit, no off switch; loud when it is not | Accepted |
 | [036](./decisions/036-the-bots-read-on-one-stock.md) | The bot's read on one stock: every lane for one symbol, a 2:1 plan on Level 2, signal tiles, the eyes' journal on the desk, setup drawings | Accepted |
+| [037](./decisions/037-who-trades-the-stock.md) | Who trades the stock: a Buy / Sell switch above Level 2 (Signal only, Approve, Auto-entry, Bot at Strategy), Nova placing on Paper and Sim only, brackets on the practice venues, the trade's moments live on the chart | Accepted |
 
 ## Rules and maps
 

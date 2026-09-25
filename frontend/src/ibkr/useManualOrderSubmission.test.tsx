@@ -185,6 +185,30 @@ describe('useManualOrderSubmission gesture identity', () => {
     expect(payload.stop_loss_price).toBe(9.9);
   });
 
+  it('attaches the default legs on Sim too: it fills the bracket Paper and Live send (#606)', async () => {
+    writeTradeDefaultsPrefs({
+      ...defaultTradeDefaultsPrefs(),
+      protectiveLegs: true,
+      takeProfitPct: 2,
+      stopLossPct: 1,
+    });
+    const { result } = renderHook(() =>
+      useManualOrderSubmission({
+        ...params(),
+        mode: 'sim' as const,
+        orderType: 'LMT',
+        limitPrice: '10',
+      }),
+    );
+    expect(result.current.legsNote).toMatch(/take profit \$10\.20/);
+    await act(async () => {
+      await result.current.executeOrder();
+    });
+    const payload = placeIbkrOrder.mock.calls[0][0];
+    expect(payload.take_profit_price).toBe(10.2);
+    expect(payload.stop_loss_price).toBe(9.9);
+  });
+
   it('refuses a market entry while the default legs are on (#91)', async () => {
     writeTradeDefaultsPrefs({
       ...defaultTradeDefaultsPrefs(),

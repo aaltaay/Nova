@@ -51,6 +51,9 @@ export interface SetupWindow {
 export interface StockPlan {
   source: 'setup' | 'manual';
   setup_type: string | null;
+  /** The live setup the plan follows (null for a forming setup or the operator's own plan): what an
+   * approval binds to (ADR 037). */
+  setup_id: string | null;
   kind: string | null;
   state: 'forming' | 'armed' | 'near' | 'triggered' | 'manual';
   provisional: boolean;
@@ -225,4 +228,72 @@ export interface StockHistory {
   runs: RunDay[];
   split: SplitFact | null;
   holdings: ReadRow[];
+}
+
+/** Who trades the stock (ADR 037): `GET /api/stock-mode/{symbol}` (AGENTS.md §3, "Who trades the stock"). */
+export type StockModeName = 'signal' | 'approve' | 'auto_entry' | 'bot';
+export type StockSide = 'you' | 'nova';
+
+export interface StockModeApproval {
+  setup_id: string;
+  setup_type: string | null;
+  entry: number;
+  stop: number;
+  target: number;
+  qty: number;
+  approved_at: number;
+  state: 'waiting' | 'sent' | 'withdrawn';
+  reason: string | null;
+}
+
+export interface StockModeTrade {
+  kind: 'auto_entry' | 'approve' | 'bot';
+  state: 'entering' | 'holding' | 'closed' | 'missed' | 'handed';
+  venue: string | null;
+  venue_day: string | null;
+  setup_id: string | null;
+  setup_type: string | null;
+  qty: number | null;
+  entry: number | null;
+  stop: number | null;
+  target: number | null;
+  entry_order_id: number | null;
+  target_order_id: number | null;
+  stop_order_id: number | null;
+  fill_price: number | null;
+  filled_at: number | null;
+  exit_price: number | null;
+  exit_reason: string | null;
+  /** Who sells it: Nova holds the exits (Approve's bracket, the bot), or the operator does. */
+  exits: StockSide;
+  sent_at: number | null;
+  closed_at: number | null;
+  note: string | null;
+  /** The bot is selling it now. */
+  exiting: boolean;
+}
+
+export interface StockModeNote {
+  id: string;
+  tone: 'info' | 'warn';
+  text: string;
+}
+
+export interface StockModeView {
+  symbol: string;
+  generated_at: number;
+  venue: 'live' | 'paper' | 'sim' | null;
+  mode: StockModeName;
+  buy: StockSide;
+  sell: StockSide;
+  risk_usd: number | null;
+  set_at: number | null;
+  /** Why Nova cannot take each side now; null: it can. */
+  locks: { buy: string | null; sell: string | null };
+  notes: StockModeNote[];
+  approval: StockModeApproval | null;
+  trade: StockModeTrade | null;
+  nova_entries_today: number;
+  last_event: { ts: number; tone: 'info' | 'ok' | 'warn' | 'bad'; text: string } | null;
+  bot: { on_list: boolean; playing: boolean; reason: string | null; setup: string | null } | null;
 }

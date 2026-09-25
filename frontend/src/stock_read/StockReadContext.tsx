@@ -1,8 +1,9 @@
 /**
  * One Trader tab's stock read (ADR 036): the polled read, the operator's own plan, their risk per
  * trade, what the charts draw, the sheet and a chart focus -- shared by the plan box on the rail,
- * the tiles, the sheet over the charts and every chart pane's drawings. Read-only: nothing here
- * places an order; "Stage in ticket" only fills the tab's ticket.
+ * the tiles, the sheet over the charts and every chart pane's drawings. The read places nothing;
+ * "Stage in ticket" only fills the tab's ticket. Who trades the stock (ADR 037) rides along: the
+ * switch's view and writes, the moment on the chart and the plan's rows in Level 2.
  */
 import { useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
@@ -21,6 +22,7 @@ import {
   useStockReadHistory,
   type PolledState,
 } from './useStockRead';
+import { useWhoTrades, type WhoTradesState } from './useWhoTrades';
 
 export type SheetTab = 'signals' | 'decisions' | 'history';
 
@@ -64,6 +66,14 @@ export interface StockReadContextValue {
   /** Back to now: the 1-minute pane scrolls to its live edge. */
   clearFocus: () => void;
   topOfBook: { bid: number | null; ask: number | null } | null;
+  /** Who trades the stock (ADR 037). */
+  who: WhoTradesState;
+}
+
+/** The account's position in the tab's stock, as the rail knows it. */
+export interface TabPosition {
+  qty: number;
+  avgCost: number | null;
 }
 
 const DEFAULT_LAYERS: StockReadLayers = { setups: true, levels: true, hidden: [], plan: 'auto' };
@@ -86,12 +96,18 @@ export function StockReadProvider({
   active,
   replay,
   topOfBook,
+  position = null,
+  lastPrice = null,
   children,
 }: {
   symbol: string;
   active: boolean;
   replay: boolean;
   topOfBook: { symbol: string; bid: number | null; ask: number | null } | null;
+  /** The account's position in this stock on the desk's venue; null when none. */
+  position?: TabPosition | null;
+  /** The tab's live last trade. */
+  lastPrice?: number | null;
   children: ReactNode;
 }) {
   const sym = symbol.trim().toUpperCase();
@@ -111,6 +127,10 @@ export function StockReadProvider({
   const read = useStockRead(sym, { active: live, entry: manual.entry, stop: manual.stop });
   const history = useStockReadHistory(sym, live);
   const decisions = useStockReadDecisions(sym, live && sheet.open && sheet.tab === 'decisions');
+  const posQty = position?.qty ?? null;
+  const posCost = position?.avgCost ?? null;
+  const pos = useMemo(() => (posQty === null ? null : { qty: posQty, avgCost: posCost }), [posQty, posCost]);
+  const who = useWhoTrades({ symbol: sym, live: live && !sample, read: read.data, riskUsd, position: pos, last: lastPrice });
 
   const setManualPlan = useCallback((entry: number | null, stop: number | null) => {
     setManual({ entry: entry !== null && entry > 0 ? entry : null, stop: stop !== null && stop > 0 ? stop : null });
@@ -174,8 +194,9 @@ export function StockReadProvider({
     focusAt,
     clearFocus,
     topOfBook: book,
+    who,
   }), [sym, active, replay, read, history, decisions, manual, setManualPlan, riskUsd, setRiskUsd, layers, setLayers,
-    toggleLane, sheet, openSheet, closeSheet, focus, focusAt, clearFocus, book]);
+    toggleLane, sheet, openSheet, closeSheet, focus, focusAt, clearFocus, book, who]);
 
   // The sample desk reads nothing live: no read, so no rail block, sheet or drawings.
   if (sample) return <>{children}</>;

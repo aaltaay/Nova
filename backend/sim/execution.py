@@ -4,7 +4,9 @@
 the caller hands it the venue's ``PracticeBroker`` (``practice.broker.for_venue``)
 and the receipt's ``mode`` is that broker's venue label (``paper`` or ``sim``).
 Admission comes from the broker's own market reference -- the loaded replay on
-Sim, the live feed on Paper -- so the desk never guesses a price.
+Sim, the live feed on Paper -- so the desk never guesses a price. A bracket
+goes out as Live sends it (#606): one entry and two exits, three watches, and
+the three ids on the execution row (``_send_bracket``).
 ``send_sim_broker`` keeps the Sim-only entry point every existing caller uses.
 """
 from __future__ import annotations
@@ -63,11 +65,7 @@ async def send_practice_broker(
     mode = str(broker.venue)
 
     if cmd.operation == "bracket":
-        return reject(
-            execution_id, cmd, timings,
-            "Practice orders do not support brackets",
-            "SIM_NO_BRACKET",
-        )
+        return await _send_bracket(cmd, execution_id, timings, broker=broker, reject=reject)
 
     if cmd.operation == "cancel":
         timings.broker_sent_ns = time.perf_counter_ns()
@@ -158,6 +156,95 @@ async def send_practice_broker(
         short_entry=bool(cmd.short_entry),
     )
     return await _receipt_from_raw(cmd, execution_id, timings, raw, mode)
+
+
+async def _send_bracket(
+    cmd: ExecutionCommand,
+    execution_id: str,
+    timings: StageTimings,
+    *,
+    broker: PracticeBroker,
+    reject,
+) -> ExecutionReceipt:
+    """A bracket on a practice venue: the shape Live sends, filled by the venue's broker (#606).
+
+    The three watches are Live's (``execution.broker_send``): the entry's
+    counts toward the execution's fills, the exits' never do. The broker
+    answers inside the send, so its answer about the entry is the
+    acknowledgment and the door's ack wait returns at once (2026-09-24).
+    """
+    symbol = cmd.normalized_symbol() or ""
+    mode = str(broker.venue)
+    ok, reason, code = broker.reference.admission(symbol)
+    if not ok:
+        return reject(execution_id, cmd, timings, reason, code)
+    entry_side = "SELL" if cmd.short_entry else "BUY"
+    timings.broker_sent_ns = time.perf_counter_ns()
+    store.update_stages(
+        execution_id, status="sent", broker_sent_ns=timings.broker_sent_ns, mode=mode, symbol=symbol,
+    )
+    raw = broker.place_bracket(
+        symbol, entry_side, float(cmd.shares or cmd.qty or 0),
+        float(cmd.entry_price or 0), float(cmd.target_price or 0), float(cmd.stop_price or 0),
+        tif=cmd.tif, outside_rth=cmd.outside_rth, source=cmd.source, short_entry=bool(cmd.short_entry),
+    )
+    parent = raw.get("parent_order_id")
+    if not raw.get("ok") or parent is None:
+        # Refused in the venue's own words (PRACTICE_NO_SHORTS, PRACTICE_BUYING_POWER, ...).
+        code = str(raw.get("reason_code") or "BROKER_REJECT")
+        store.update_stages(execution_id, status="failed", error=str(raw.get("error")), reason_code=code)
+        return ExecutionReceipt(
+            ok=False, execution_id=execution_id, operation=cmd.operation, source=cmd.source,
+            idempotency_key=cmd.idempotency_key, error=raw.get("error"), reason_code=code,
+            mode=mode, symbol=symbol, timings=timings,
+        )
+    exit_side = "BUY" if entry_side == "SELL" else "SELL"
+    watch = telemetry.watch_order(
+        int(parent), execution_id, fresh=True, leg_role="parent", side=entry_side,
+        reference_price=cmd.entry_price, reference_source="bracket_entry", aggregate_eligible=True,
+    )
+    for role, child, reference in (
+        ("target", raw.get("target_order_id"), cmd.target_price),
+        ("stop", raw.get("stop_order_id"), cmd.stop_price),
+    ):
+        telemetry.watch_order(
+            int(child), execution_id, fresh=True, leg_role=role, side=exit_side,
+            reference_price=reference, reference_source=f"bracket_{role}", aggregate_eligible=False,
+        )
+    note_answer(watch, raw)
+    timings.broker_ack_ns = watch.ack_ns
+    timings.filled_ns = watch.filled_ns or timings.filled_ns
+    persist_nova_placed_at(execution_id, raw.get("nova_placed_at"))
+    ids = {
+        "order_id": int(parent), "parent_order_id": int(parent),
+        "target_order_id": raw.get("target_order_id"), "stop_order_id": raw.get("stop_order_id"),
+    }
+    status = str(raw.get("broker_status") or "")
+    if status in telemetry.TERMINAL_REJECT_STATUSES:
+        # The venue took the entry, then cancelled it at the fill -- and its exits
+        # with it: a refusal in the venue's own words, naming the order ids.
+        error = raw.get("status_reason") or f"The {mode} venue cancelled the bracket"
+        code = str(raw.get("status_code") or "BROKER_REJECT")
+        store.update_stages(
+            execution_id, status="failed", error=error, reason_code=code,
+            broker_ack_ns=timings.broker_ack_ns, broker_status=status, **ids,
+        )
+        return ExecutionReceipt(
+            ok=False, execution_id=execution_id, operation=cmd.operation, source=cmd.source,
+            idempotency_key=cmd.idempotency_key, error=error, reason_code=code, mode=mode,
+            symbol=symbol, broker_status=status, timings=timings, **ids,
+        )
+    if status == "Filled" and timings.filled_ns is None:
+        timings.filled_ns = time.perf_counter_ns()
+    store.update_stages(
+        execution_id, status="filled" if status == "Filled" else "acked",
+        broker_ack_ns=timings.broker_ack_ns, filled_ns=timings.filled_ns, broker_status=status, **ids,
+    )
+    return ExecutionReceipt(
+        ok=True, execution_id=execution_id, operation=cmd.operation, source=cmd.source,
+        idempotency_key=cmd.idempotency_key, mode=mode, symbol=symbol, broker_status=status,
+        timings=timings, **ids,
+    )
 
 
 async def _receipt_from_raw(

@@ -107,7 +107,8 @@ def from_setup(lane: dict[str, Any]) -> dict[str, Any]:
             bits.append(f"blocked: {lv['blocked']}")
         reason = " -- ".join(b for b in bits if b)
     return _levels({
-        "source": "setup", "setup_type": lane.get("setup_type"), "kind": lane.get("kind"), "state": shown,
+        "source": "setup", "setup_type": lane.get("setup_type"), "setup_id": lane.get("setup_id") if live else None,
+        "kind": lane.get("kind"), "state": shown,
         "provisional": not live, "trigger": lv.get("trigger"), "grade": lane.get("grade"), "reason": reason,
         "target_rule": target_rule(lane.get("setup_type") or "", lane.get("rules") or {}),
         "entry_rule": _ENTRY_RULES.get(lane.get("setup_type") or "", "the setup's trigger + 1 cent"),
@@ -122,7 +123,8 @@ def manual(entry: float, stop: float | None, bars: list[dict[str, Any]]) -> dict
     """The operator's own plan: their entry, their stop or the last candles' low, a 2R target."""
     own = stop is not None and stop < entry - EPS
     stop_px = stop if own else manual_stop(bars, entry, STOCK_READ_MANUAL_STOP_BARS)
-    base = {"source": "manual", "setup_type": None, "kind": None, "state": "manual", "provisional": True,
+    base = {"source": "manual", "setup_type": None, "setup_id": None, "kind": None, "state": "manual",
+            "provisional": True,
             "trigger": None, "grade": None,
             "reason": "no setup is forming: your entry, a 2:1 target",
             "target_rule": f"entry + {STOCK_READ_TARGET_R:g} x risk",

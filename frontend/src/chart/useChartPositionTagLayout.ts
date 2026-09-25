@@ -1,5 +1,6 @@
 import { useEffect, useState, type RefObject } from 'react';
 import type { IChartApi, ISeriesApi } from 'lightweight-charts';
+import { CHART_POSITION_TAG_REMEASURE_MS } from './positionOverlayConstants';
 import {
   positionTagPlacement,
   type PositionTagPlacement,
@@ -36,18 +37,20 @@ export function useChartPositionTagLayout(input: {
       } catch {
         y = null;
       }
-      setPlacement(
-        positionTagPlacement({
-          y,
-          paneHeight: container.clientHeight,
-          priceScaleWidth: scaleW,
-        }),
-      );
+      const next = positionTagPlacement({
+        y,
+        paneHeight: container.clientHeight,
+        priceScaleWidth: scaleW,
+      });
+      setPlacement(prev => (prev.top === next.top && prev.right === next.right && prev.offScale === next.offScale
+        ? prev
+        : next));
     };
 
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(container);
+    const remeasure = window.setInterval(measure, CHART_POSITION_TAG_REMEASURE_MS);
     const timeScale = chart?.timeScale();
     try {
       timeScale?.subscribeVisibleLogicalRangeChange(measure);
@@ -55,6 +58,7 @@ export function useChartPositionTagLayout(input: {
       /* jsdom / detached chart */
     }
     return () => {
+      window.clearInterval(remeasure);
       ro.disconnect();
       try {
         timeScale?.unsubscribeVisibleLogicalRangeChange(measure);

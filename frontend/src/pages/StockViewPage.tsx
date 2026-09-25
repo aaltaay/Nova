@@ -168,7 +168,14 @@ export function StockViewPage({
   );
 
   return (
-    <StockReadProvider symbol={symbol} active={chartActive} replay={replayDesk} topOfBook={topOfBook}>
+    <StockReadProvider
+      symbol={symbol}
+      active={chartActive}
+      replay={replayDesk}
+      topOfBook={topOfBook}
+      position={symbolPosition ? { qty: symbolPosition.qty, avgCost: symbolPosition.avg_cost } : null}
+      lastPrice={lastTrade?.price ?? null}
+    >
     <div
       className="stock-view-page"
       style={{ ['--ticker-trade-side-width' as string]: `${sideWidth}px` }}

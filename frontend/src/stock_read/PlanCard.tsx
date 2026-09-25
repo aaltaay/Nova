@@ -1,9 +1,10 @@
 /**
  * The plan on top of Level 2 (ADR 036): the leading setup's entry, stop and 2:1 target -- or the
  * operator's own when nothing is forming -- with the risk, the size their risk per trade buys, a
- * ruler of what stands between and the checks. "Stage in ticket" fills this tab's ticket with a BUY
- * limit at the entry for that size; it never places, and the stop and target stay the operator's to
- * set (the ticket takes no bracket from here).
+ * ruler of what stands between and the checks. Its buttons follow who trades the stock (ADR 037):
+ * Signal only stages the ticket (a BUY limit at the entry, or a sell once shares are held) and never
+ * places; Approve approves the plan, or buys now after the trigger; Auto-entry and Bot at Strategy
+ * turn off; and whenever Nova holds the exits, the operator can take them over.
  */
 import { useEffect, useState } from 'react';
 import { requestOrderTicketPrefill, useOrderTicketListening } from '../ibkr';
@@ -23,8 +24,22 @@ import {
 } from './planMath';
 import type { StockReadContextValue } from './StockReadContext';
 import type { StockPlan, StockRead } from './types';
+import { modeSentence, planActions, type PlanAction } from './whoTradesModel';
+import './whoTrades.css';
 
 const STAGED_NOTE_MS = 8_000;
+
+/** The folded line's word for an action. */
+const SHORT: Record<PlanAction['id'], string> = {
+  stage: 'Stage',
+  'stage-sell': 'Stage sell',
+  approve: 'Approve',
+  'approve-now': 'Buy now',
+  'cancel-approval': 'Cancel',
+  'take-over': 'Take over',
+  'auto-off': 'Auto-entry off',
+  'bot-off': 'Bot off',
+};
 
 function stageLock(plan: StockPlan, size: number | null, riskUsd: number, listening: boolean): string | null {
   if (plan.entry === null) return 'The plan has no entry yet.';
@@ -112,6 +127,66 @@ export function PlanCard({ ctx, roomy = true }: {
     setStaged(`Staged BUY ${size} LMT ${fmtPx(plan.entry)}. Set the stop ${fmtPx(plan.stop)} and the target `
       + `${fmtPx(plan.target)} yourself: the ticket takes no bracket from the plan.`);
   };
+  const who = ctx.who;
+  const whoMode = who.view?.mode ?? 'signal';
+  const { actions, status } = planActions({
+    moment: who.moment,
+    inputs: who.inputs,
+    bid: ctx.topOfBook?.bid ?? null,
+    listening,
+    stageLocked: locked,
+    symbol: ctx.symbol,
+  });
+  const act = (a: PlanAction) => {
+    switch (a.id) {
+      case 'stage':
+        return stage();
+      case 'stage-sell':
+        if (!a.sell) return;
+        requestOrderTicketPrefill({
+          symbol: ctx.symbol,
+          side: 'SELL',
+          orderType: 'LMT',
+          quantityValue: String(a.sell.qty),
+          limitPrice: fmtPx(a.sell.price),
+        });
+        return setStaged(`Staged SELL ${a.sell.qty} LMT ${fmtPx(a.sell.price)}. Nothing is sent until you send it.`);
+      case 'approve':
+        return void who.approve(false);
+      case 'approve-now':
+        return void who.approve(true);
+      case 'cancel-approval':
+        return void who.withdraw();
+      case 'take-over':
+        return void who.takeOver();
+      case 'auto-off':
+        return void who.setSides('you', who.view?.sell ?? 'you');
+      case 'bot-off':
+        return void who.setSides('you', 'you');
+    }
+  };
+  const lockOf = (a: PlanAction) => a.locked ?? (a.id !== 'stage' && a.id !== 'stage-sell' ? who.busy : null);
+  const actionButton = (a: PlanAction, folded: boolean) => {
+    const why = lockOf(a);
+    const testId = a.id === 'stage' ? (folded ? 'stock-read-stage-line' : 'stock-read-stage')
+      : `stock-read-action-${a.id}${folded ? '-line' : ''}`;
+    return (
+      <button
+        key={a.id}
+        type="button"
+        className={`sr-btn sr-btn--${a.tone === 'plain' ? 'plain' : a.tone}${folded ? ' sr-btn--small' : ''}`}
+        disabled={why !== null}
+        {...whyProps(why !== null, why)}
+        {...(why === null ? tipProps(a.tip) : {})}
+        onClick={() => act(a)}
+        data-testid={testId}
+      >
+        {folded ? SHORT[a.id] : a.label}
+      </button>
+    );
+  };
+  const note = staged
+    ?? (whoMode === 'signal' ? (plan ? planFootnote(plan, lane) : '') : modeSentence(whoMode, ctx.symbol));
 
   return (
     <section
@@ -153,18 +228,7 @@ export function PlanCard({ ctx, roomy = true }: {
             {!folded && <span className="sr-plan__rr-k"> reward : risk</span>}
           </span>
         )}
-        {folded && plan && (
-          <button
-            type="button"
-            className="sr-btn sr-btn--primary sr-btn--small"
-            disabled={locked !== null}
-            {...whyProps(locked !== null, locked)}
-            onClick={stage}
-            data-testid="stock-read-stage-line"
-          >
-            Stage
-          </button>
-        )}
+        {folded && (plan || actions[0]?.id !== 'stage') && actions[0] && actionButton(actions[0], true)}
       </header>
       {folded && staged && <p className="sr-plan__note sr-plan__note--line">{staged}</p>}
       {!folded && (
@@ -183,16 +247,15 @@ export function PlanCard({ ctx, roomy = true }: {
           {plan && <PlanRuler plan={plan} price={read.price} />}
           {plan && <PlanChecks plan={plan} />}
           <footer className="sr-plan__foot">
-            <button
-              type="button"
-              className="sr-btn sr-btn--primary"
-              disabled={locked !== null}
-              {...whyProps(locked !== null, locked)}
-              onClick={stage}
-              data-testid="stock-read-stage"
-            >
-              Stage in ticket
-            </button>
+            {status && (
+              <span
+                className={`sr-plan__status sr-plan__status--${status.startsWith('Closed · -') ? 'stop' : 'done'}`}
+                data-testid="stock-read-plan-status"
+              >
+                {status}
+              </span>
+            )}
+            {actions.map(a => actionButton(a, false))}
             <button
               type="button"
               className="sr-btn"
@@ -214,7 +277,7 @@ export function PlanCard({ ctx, roomy = true }: {
               </button>
             )}
             <span className="sr-plan__note" data-testid="stock-read-plan-note">
-              {staged ?? (plan ? planFootnote(plan, lane) : '')}
+              {note}
             </span>
           </footer>
         </>

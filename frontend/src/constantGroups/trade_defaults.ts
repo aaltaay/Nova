@@ -50,15 +50,13 @@ export const TRADE_DEFAULTS_LEGS_LABEL = 'Attach default TP / SL';
 export const TRADE_DEFAULTS_TAKE_PROFIT_LABEL = 'Take Profit (%)';
 export const TRADE_DEFAULTS_STOP_LOSS_LABEL = 'Stop Loss (%)';
 export const TRADE_DEFAULTS_LEGS_HINT =
-  'Off by default. When on, an opening Limit entry goes out as a bracket: take profit above and stop loss below (mirrored for a short). Market, Stop and Trail entries are refused while this is on rather than sent without a stop; exits never get legs; Sim has no brackets.';
+  'Off by default. When on, an opening Limit entry goes out as a bracket: take profit above and stop loss below (mirrored for a short). Market, Stop and Trail entries are refused while this is on rather than sent without a stop; exits never get legs. Paper and Sim fill the same bracket Live sends.';
 export const TRADE_DEFAULTS_LEGS_OFFSET_HINT =
   'Percent of the entry price. Rounded to the nearest cent (four decimals under $1).';
 
 /** Ticket notes -- why legs are (or are not) attaching to this order. */
 export const TICKET_LEGS_EXIT_NOTE =
   'Exit order — default TP / SL attach to opening entries only.';
-export const TICKET_LEGS_SIM_NOTE =
-  'Sim has no brackets — default TP / SL are not attached in Sim.';
 export const TICKET_LEGS_LIMIT_ONLY_ERROR =
   'Default TP / SL is on: protective legs need a Limit entry. Switch the ticket to Limit, or turn the defaults off in Settings > Trade.';
 export const TICKET_LEGS_NO_PRICE_ERROR =

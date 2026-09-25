@@ -37,7 +37,7 @@ import {
 } from '../sim/simConstants';
 import { StockViewVenueTag } from './StockViewVenueTag';
 import { depthUnavailableHint } from './depthUnavailableHint';
-import { StockReadRail } from '../stock_read';
+import { StockReadRail, WhoTradesRow, useLevel2Markers } from '../stock_read';
 
 interface Props {
   selectedSymbol: string;
@@ -119,6 +119,7 @@ export function StockViewDepthTape({
   // than sit on the replay slot they held off it.
   const liveEdge = sim && clock?.live_edge === true;
   const feedKey = sim ? (liveEdge ? 'live-edge' : 'replay') : 'live';
+  const markers = useLevel2Markers();
 
   if (historical?.active && !liveEdge) {
     const replayDetail = historicalQuoteDetail(detail, historical);
@@ -190,9 +191,11 @@ export function StockViewDepthTape({
     );
   }
 
-  // The bot's read on the live stock sits between the quote and Level 2 (ADR 036); a
-  // Session Record replaying here is another moment, so it stays off.
+  // The bot's read on the live stock sits between the quote and Level 2 (ADR 036), and who trades
+  // the stock right above Level 2 (ADR 037); a Session Record replaying here is another moment, so
+  // both stay off.
   const read = captureReplay ? null : <StockReadRail />;
+  const whoTrades = captureReplay ? null : <WhoTradesRow />;
 
   if (!showL2 && !showTape) {
     return (
@@ -203,6 +206,7 @@ export function StockViewDepthTape({
       >
         <QuoteHead detail={quoteDetail} symbol={depthSymbol} />
         {read}
+        {whoTrades}
       </StockViewModuleCard>
     );
   }
@@ -216,6 +220,7 @@ export function StockViewDepthTape({
     >
       <QuoteHead detail={quoteDetail} symbol={depthSymbol} />
       {read}
+      {whoTrades}
       <DepthAndTapeColumns
         symbol={depthSymbol}
         chips={captureReplay ? <CaptureReplayL2Chip clock={clock} /> : (
@@ -225,7 +230,8 @@ export function StockViewDepthTape({
           </>
         )}
         level2={showL2 ? (gap ? <HistoricalDepth depth={null} />
-          : <Level2Module key={feedKey} symbol={depthSymbol} uiActive={uiActive} />) : null}
+          : <Level2Module key={feedKey} symbol={depthSymbol} uiActive={uiActive}
+            markers={captureReplay ? undefined : markers} />) : null}
         tape={showTape ? (
           <TimeSalesModule
             key={feedKey}

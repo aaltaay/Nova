@@ -154,7 +154,9 @@ describe('the charts', () => {
     expect(scene.keepInView).toEqual({ min: 5.33, max: 5.66 });
     const byId = Object.fromEntries(lines.map(l => [l.id, l]));
     expect(byId.entry).toMatchObject({ price: 5.44, style: 'dashed', title: 'ENTRY (provisional)', axisLabel: true });
-    expect(byId.target.title).toBe('TARGET 2R');
+    // Only a plan: no order stands behind the stop or the target, so both are dashed and say so (ADR 037).
+    expect(byId.target).toMatchObject({ title: 'TARGET 2R · plan', style: 'dashed' });
+    expect(byId.stop).toMatchObject({ title: 'STOP · plan', style: 'dashed' });
     expect(byId.hod.price).toBe(8.74);
     expect(byId.round_above.title).toBe('$5.50');
     expect(scene.edgeTags.map(t => t.label)).toEqual(

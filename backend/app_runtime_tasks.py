@@ -26,6 +26,7 @@ from archive.scheduler import archive_maintenance_loop, maintenance_enabled
 import archive.write_queue as _archive_write_queue
 from bot.first_pullback import runner as _bot_first_pullback
 from bot.loops import breaker_loop, ttl_loop
+from stock_mode import runner as _stock_mode_runner
 from capture import keepalive as _capture_keepalive
 from constants import IBKR_DETAIL_STREAM_FRESH_SEC, L2_RETENTION_SWEEP_INTERVAL_SEC
 from ibkr import reprice as _ibkr_reprice
@@ -111,6 +112,8 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         ("bot.breakers", breaker_loop),
         # The first-pullback bot (ADR 030): trades go triggers on Paper and Sim; never on Live.
         ("bot.first_pullback", _bot_first_pullback.run),
+        # Who trades the stock (ADR 037): Auto-entry and Approve on Paper and Sim; never on Live.
+        ("stock_mode.runner", _stock_mode_runner.run),
         # Session Record: resume after a restart / failure / Gateway drop, then say so.
         ("capture.keepalive", _capture_keepalive.run),
         # Paper venue (ADR 020): resting practice orders fill on live tape prints.

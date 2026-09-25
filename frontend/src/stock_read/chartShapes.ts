@@ -4,16 +4,19 @@
  * seconds until `toTime` maps them onto the pane's own bars.
  *
  * The 1-minute pane draws everything: each followed setup's shapes (the lead lane in colour, the rest
- * faded), the plan's risk and reward zones and lines, the day's levels. The 5-minute and 10-second
- * panes mirror the plan's levels and the high of day as thin lines. Nothing here is estimated: every
- * price is the scanner's or the read's own.
+ * faded), the plan's risk and reward zones and lines, the day's levels, and the moment's pin (ADR 037).
+ * The 5-minute and 10-second panes mirror the plan's levels and the high of day as thin lines. A level
+ * is dashed while it is only a plan and solid while an order stands behind it. Nothing here is
+ * estimated: every price is the scanner's, the read's or Nova's order's own.
  */
 import type { Time } from 'lightweight-charts';
 import { SETUP_COLORS } from './constants';
+import type { CallTone, MomentCall } from './momentModel';
 import { formingProgress, fmtPx, setupName } from './planMath';
 import type { Scene, SceneBox, SceneSegment } from './SetupShapesPrimitive';
 import type { StockReadLayers } from './StockReadContext';
 import type { SetupLane, SetupLeg, StockPlan, StockRead } from './types';
+import { levelTitle, type OrderLevel, type OrderLevels } from './whoTradesModel';
 
 export type PaneKind = 'full' | 'thin' | 'none';
 
@@ -40,7 +43,21 @@ export interface DrawOptions {
   /** Where a leg began, from the pane's candles (the lowest low before its high). */
   legStart?: (leg: SetupLeg) => number;
   focus?: { ts: number; title: string; setup: { trigger: number; stop: number; target1: number; armed_bar_t?: number } | null } | null;
+  /** The levels with what stands behind each (Who trades, ADR 037); without them the plan's own, dashed. */
+  levels?: OrderLevels | null;
+  /** The moment's call: its pin goes on its candle. */
+  call?: MomentCall | null;
 }
+
+export const CALL_COLORS: Record<CallTone, string> = {
+  go: '#30d158',
+  target: '#ff9f0a',
+  stop: '#ff453a',
+  nova: '#0a84ff',
+  done: '#30d158',
+  wait: '#8e8e93',
+  info: '#8e8e93',
+};
 
 const MIN = 60;
 const LIVE_DRAWN = new Set(['leg', 'pullback', 'armed', 'near', 'triggered', 'filtered', 'failed']);
@@ -128,31 +145,51 @@ function laneShapes(lane: SetupLane, lead: boolean, o: DrawOptions): { boxes: Sc
 }
 
 /** The plan's zones, from the consolidation's last bar to the pane's right edge. */
-function planZones(plan: StockPlan, startSec: number | null, o: DrawOptions): SceneBox[] {
-  if (plan.entry === null || plan.stop === null || plan.target === null || startSec === null) return [];
+function planZones(lv: OrderLevels, startSec: number | null, o: DrawOptions): SceneBox[] {
+  const entry = lv.entry?.price ?? null;
+  const stop = lv.stop?.price ?? null;
+  const target = lv.target?.price ?? null;
+  if (entry === null || stop === null || target === null || startSec === null) return [];
   const t1 = o.toTime(startSec);
   if (t1 === null) return [];
   return [
-    { t1, t2: null, p1: plan.stop, p2: plan.entry, fill: SETUP_COLORS.risk, stroke: SETUP_COLORS.stop,
-      dashed: true, label: null, labelColor: SETUP_COLORS.stop },
-    { t1, t2: null, p1: plan.entry, p2: plan.target, fill: SETUP_COLORS.reward, stroke: SETUP_COLORS.target,
-      dashed: true, label: null, labelColor: SETUP_COLORS.target },
+    { t1, t2: null, p1: stop, p2: entry, fill: SETUP_COLORS.risk, stroke: SETUP_COLORS.stop,
+      dashed: lv.stop?.behind === 'plan', label: null, labelColor: SETUP_COLORS.stop },
+    { t1, t2: null, p1: entry, p2: target, fill: SETUP_COLORS.reward, stroke: SETUP_COLORS.target,
+      dashed: lv.target?.behind === 'plan', label: null, labelColor: SETUP_COLORS.target },
   ];
 }
 
-function planLines(plan: StockPlan, pane: PaneKind): PriceLineSpec[] {
+function planOnly(price: number | null): OrderLevel | null {
+  return price === null ? null : { price, behind: 'plan' };
+}
+
+/** The levels a pane draws: the ones Who trades knows what stands behind, else the plan's own. */
+export function drawnLevels(plan: StockPlan | null, levels: OrderLevels | null | undefined): OrderLevels | null {
+  if (levels) return levels;
+  return plan ? { entry: planOnly(plan.entry), stop: planOnly(plan.stop), target: planOnly(plan.target) } : null;
+}
+
+function planLines(plan: StockPlan | null, lv: OrderLevels, pane: PaneKind): PriceLineSpec[] {
   const out: PriceLineSpec[] = [];
   const thin = pane === 'thin';
-  const dashed = plan.provisional || thin;
-  const r = plan.rr === null ? '' : ` ${plan.rr.toFixed(plan.rr % 1 ? 1 : 0)}R`;
-  const add = (id: string, price: number | null, color: string, title: string) => {
-    if (price === null) return;
-    out.push({ id, price, color, width: thin ? 1 : 2, style: dashed ? 'dashed' : 'solid', title: thin ? '' : title,
-      axisLabel: !thin });
+  const r = plan?.rr == null ? '' : ` ${plan.rr.toFixed(plan.rr % 1 ? 1 : 0)}R`;
+  const add = (id: 'entry' | 'stop' | 'target', level: OrderLevel | null, color: string) => {
+    if (!level) return;
+    const provisional = id === 'entry' && level.behind === 'plan' && plan?.provisional && plan.source === 'setup';
+    out.push({
+      id,
+      price: level.price,
+      color,
+      width: thin ? 1 : 2,
+      style: level.behind === 'plan' ? 'dashed' : 'solid',
+      title: thin ? '' : provisional ? 'ENTRY (provisional)' : levelTitle(id, level.behind, r),
+      axisLabel: !thin,
+    });
   };
-  add('entry', plan.entry, SETUP_COLORS.trigger, plan.provisional && plan.source === 'setup' ? 'ENTRY (provisional)' : 'ENTRY');
-  add('stop', plan.stop, SETUP_COLORS.stop, 'STOP');
-  add('target', plan.target, SETUP_COLORS.target, `TARGET${r}`);
+  add('entry', lv.entry, SETUP_COLORS.trigger);
+  add('stop', lv.stop, SETUP_COLORS.stop);
+  add('target', lv.target, SETUP_COLORS.target);
   return out;
 }
 
@@ -195,14 +232,15 @@ export function leadLane(read: StockRead): SetupLane | null {
 }
 
 export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
-  const empty: PaneDraw = { scene: { boxes: [], segments: [], vlines: [], edgeTags: [], keepInView: null }, lines: [] };
+  const empty: PaneDraw = { scene: { boxes: [], segments: [], vlines: [], edgeTags: [], pins: [], keepInView: null }, lines: [] };
   if (!read || o.pane === 'none') return empty;
   const plan = read.plan;
   const lead = leadLane(read);
-  const scene: Scene = { boxes: [], segments: [], vlines: [], edgeTags: [], keepInView: null };
+  const scene: Scene = { boxes: [], segments: [], vlines: [], edgeTags: [], pins: [], keepInView: null };
   const lines: PriceLineSpec[] = [];
+  const lv = drawnLevels(plan, o.levels);
   if (o.layers.setups) {
-    if (plan) lines.push(...planLines(plan, o.pane));
+    if (lv) lines.push(...planLines(plan, lv, o.pane));
     if (o.pane === 'full') {
       for (const lane of read.setups) {
         if (o.layers.hidden.includes(lane.setup_type)) continue;
@@ -210,14 +248,19 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
         scene.boxes.push(...s.boxes);
         scene.segments.push(...s.segments);
       }
-      if (plan && (!lead || !o.layers.hidden.includes(lead.setup_type))) {
-        const lv = lead ? levelsOf(lead) : null;
-        const start = lv?.end ?? lead?.series?.bars_as_of ?? read.setups.find(l => l.series)?.series?.bars_as_of
+      if (lv && (!lead || !o.layers.hidden.includes(lead.setup_type))) {
+        const shape = lead ? levelsOf(lead) : null;
+        const start = shape?.end ?? lead?.series?.bars_as_of ?? read.setups.find(l => l.series)?.series?.bars_as_of
           ?? (read.generated_at ? Math.floor(read.generated_at / MIN) * MIN - MIN : null);
-        scene.boxes.push(...planZones(plan, start, o));
-        if (plan.stop !== null && plan.target !== null) scene.keepInView = { min: plan.stop, max: plan.target };
+        scene.boxes.push(...planZones(lv, start, o));
+        if (lv.stop && lv.target) scene.keepInView = { min: lv.stop.price, max: lv.target.price };
       }
     }
+  }
+  const pin = o.pane === 'full' ? o.call?.pin ?? null : null;
+  if (pin && o.call) {
+    const t = o.toTime(pin.at ?? read.generated_at);
+    if (t !== null) scene.pins.push({ t, price: pin.price, label: pin.label, color: CALL_COLORS[o.call.tone] });
   }
   if (o.layers.levels) {
     const lv = levelLines(read, o.pane);

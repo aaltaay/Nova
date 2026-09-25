@@ -11,6 +11,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { L2_DAS_SIZE_BAR } from '../constants';
 import { MontageSide } from './DepthLadder';
+import type { DepthMarker } from './depthMarkers';
 import { bookPeak } from './dasDepthTiers';
 import type { DepthLevel } from './types';
 
@@ -68,5 +69,46 @@ describe('MontageSide size gauge', () => {
     const empty = [...container.querySelectorAll('.das-l2-row--empty')];
     expect(empty.length).toBeGreaterThan(0);
     for (const row of empty) expect(row.querySelector('.das-l2-gauge')).toBeNull();
+  });
+});
+
+describe('MontageSide plan markers (ADR 037)', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  const asks = [4.25, 4.25, 4.30, 4.31, 4.34].map(p => lvl(p, 100, 'ask'));
+  const marker = (id: string, price: number, working: boolean): DepthMarker => ({
+    id, price, label: `${id.toUpperCase()} ${price}`, color: '#0a84ff', working, rests: 'ask', tip: `${id} tip`,
+  });
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => {
+      root.render(
+        <MontageSide side="ask" levels={asks} peak={100}
+          markers={[marker('entry', 4.27, false), marker('target', 4.52, true)]} />,
+      );
+    });
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('draws each level over the boundary where it sits and never adds a row', () => {
+    expect(container.querySelectorAll('.das-l2-row')).toHaveLength(10);
+    const entry = container.querySelector<HTMLElement>('[data-testid="l2-marker-entry"]');
+    // 4.27 sits after the two 4.25 asks: on the boundary above the 4.30 row, dashed while only a plan.
+    expect(entry?.parentElement?.textContent).toContain('4.30');
+    expect(entry?.className).toContain('das-l2-marker--edge');
+    expect(entry?.className).toContain('das-l2-marker--plan');
+    const target = container.querySelector<HTMLElement>('[data-testid="l2-marker-target"]');
+    // Past the book shown: at the foot of the last ask shown, with an arrow, solid behind an order.
+    expect(target?.parentElement?.textContent).toContain('4.34');
+    expect(target?.className).toContain('das-l2-marker--end');
+    expect(target?.className).toContain('das-l2-marker--working');
+    expect(target?.textContent).toBe('TARGET 4.52 ↓');
   });
 });

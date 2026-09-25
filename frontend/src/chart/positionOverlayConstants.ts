@@ -9,6 +9,9 @@ export const CHART_POSITION_MARKER_SIZE = 1.25;
 export const CHART_POSITION_TAG_RIGHT_GAP_PX = 6;
 /** When avg-cost is off-scale (empty sample series), pin the badge here. */
 export const CHART_POSITION_TAG_FALLBACK_Y_RATIO = 0.38;
+/** The price scale rescales with no event to hear (autoscale, a drawing kept in view): the tag
+ * measures its line again this often, and moves only when the spot changed. */
+export const CHART_POSITION_TAG_REMEASURE_MS = 500;
 
 export const CHART_POSITION_MENU_CLOSE = 'Close Position';
 export const CHART_POSITION_MENU_VIEW_DETAILS = 'View Trade Details';

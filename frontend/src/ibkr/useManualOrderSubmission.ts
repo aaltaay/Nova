@@ -76,7 +76,6 @@ export function useManualOrderSubmission(params: Params) {
     limitPrice:
       Number.isFinite(limitNumber) && limitNumber > 0 ? limitNumber : null,
     positionQty: params.position?.qty ?? null,
-    mode: params.mode,
   });
   const legsNote = legsPlan.kind === 'refuse' ? legsPlan.error : legsPlan.note;
 

@@ -6,7 +6,9 @@
 .sr-sheet,
 .sr-popover,
 .sr-legend,
-.sr-toolbar {
+.sr-toolbar,
+.sr-who,
+.sr-plan {
   --sr-ok: #30d158;
   --sr-bad: #ff453a;
   --sr-warn: #f59e0b;

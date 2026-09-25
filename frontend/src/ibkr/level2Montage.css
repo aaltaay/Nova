@@ -115,7 +115,7 @@
   border-radius: 0 2px 2px 0;
 }
 
-.das-l2-row--tiered > :not(.das-l2-gauge) {
+.das-l2-row--tiered > :not(.das-l2-gauge):not(.das-l2-marker) {
   position: relative;
   top: -1px;
 }
@@ -198,4 +198,59 @@
   .das-l2-side--ask .das-l2-colhead > span:last-child {
     display: none;
   }
+}
+
+/* The plan's ENTRY / STOP / TARGET between the book's rows (ADR 037): a thin line in the level's colour,
+   solid while an order stands behind it and dashed while it is only a plan, its tag by the prices. It sits
+   over the boundary between two rows and takes no height: the rail's ladder has none to spare. */
+.das-l2-marker {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  height: 11px;
+}
+
+.das-l2-marker--edge { top: -6px; }
+.das-l2-marker--first { top: -1px; }
+.das-l2-marker--end { bottom: -1px; }
+.das-l2-marker--flow { position: relative; }
+
+.das-l2-marker::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 2px solid var(--das-l2-marker);
+}
+
+.das-l2-marker--plan::before {
+  border-top-style: dashed;
+}
+
+.das-l2-side--bid .das-l2-marker {
+  justify-content: flex-end;
+  padding-right: 6px;
+}
+
+.das-l2-side--ask .das-l2-marker {
+  justify-content: flex-start;
+  padding-left: 6px;
+}
+
+.das-l2-marker__tag {
+  position: relative;
+  padding: 0 4px;
+  border-radius: 2px;
+  background: var(--das-l2-marker);
+  color: #fff;
+  font-size: 8.5px;
+  font-weight: 700;
+  line-height: 11px;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.45);
 }

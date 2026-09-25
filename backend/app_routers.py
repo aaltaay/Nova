@@ -49,6 +49,7 @@ from move_reason.routes import router as move_reason_router
 from issue_report.routes import router as issue_report_router
 from stock_read.routes import router as stock_read_router
 from screen_record.routes import router as screen_record_router
+from stock_mode.routes import router as stock_mode_router
 
 
 def register_routers(app: FastAPI) -> None:
@@ -98,3 +99,4 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(issue_report_router)
     app.include_router(stock_read_router)
     app.include_router(screen_record_router)
+    app.include_router(stock_mode_router)

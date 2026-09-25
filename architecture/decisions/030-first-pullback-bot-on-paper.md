@@ -54,6 +54,10 @@ anything trades. Paper and Sim are fake money.
      (the scoreboard's window), cancels the target and sells with a limit a few
      cents under the bid -- twice at most -- then the protective flatten, which a
      locked padlock still sends. A live version would use IBKR's own bracket.
+     *(Amended by ADR 037, 2026-09-24: practice venues now take brackets, and moving
+     these exits onto one is #606's next step. The operator may take over the exit of
+     an open bot trade from the Trader tab: the bot cancels its target, stops
+     watching, and the trade ends `handed`.)*
    - **Gates.** Every gate the bot API meets: the level, Activate, the padlock, the
      allowlist and a held depth line, the template's window and one trade a day, the
      day lock, the kill switch, the working-order block and the budget. The entry is

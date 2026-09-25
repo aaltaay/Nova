@@ -1073,6 +1073,118 @@ switches. A decision's "show
 on chart" frames its moment on the 1-minute chart with the levels it armed at. Nothing is drawn or
 read on a replay desk (the read is today's live stock) or on the sample desk.
 
+### Who trades the stock (ADR 037, operator ask 2026-09-24, #604, #606)
+
+"When may Nova buy for you? I want a clear option next to level 2 ... if I selected the exit is on
+me, then I'm going to be the one who exits, not the bot." Owner `backend/stock_mode/`: the routes,
+the in-memory store and the runner. Nova places for a stock only on Paper, or on Sim at the live
+edge. On Live every Nova side is locked, and the lock says why: a Nova buy is `auto_live`, NO-GO,
+and Approve on Live waits on #604.
+
+**The view.** `GET /api/stock-mode/{symbol}` answers `{schema_version: 1, symbol, generated_at,
+venue: "live" | "paper" | "sim" | null, mode: "signal" | "approve" | "auto_entry" | "bot", buy:
+"you" | "nova", sell: "you" | "nova", risk_usd: number | null, set_at: number | null, locks:
+{buy: string | null, sell: string | null}, notes: [{id, tone: "info" | "warn", text}], approval:
+Approval | null, trade: Trade | null, nova_entries_today: integer, last_event: {ts, tone: "info" |
+"ok" | "warn" | "bad", text} | null, bot: {on_list, playing, reason, setup} | null}`.
+- `locks.buy` / `locks.sell` say why Nova cannot take that side now (`null` means it can): Live, a
+  replay desk, or a venue Nova cannot read.
+- `notes` name what will keep Nova from acting although the switch is set: the padlock, the kill
+  switch, the day lock, the bot trip, a stock the scanner does not follow, a bot that is not
+  playing, and the day's Nova entry already used.
+- An **Approval** is `{setup_id, setup_type, entry, stop, target, qty, approved_at, state:
+  "waiting" | "sent" | "withdrawn", reason}`.
+- A **Trade** is `{kind: "auto_entry" | "approve" | "bot", state: "entering" | "holding" | "closed"
+  | "missed" | "handed", venue, venue_day, setup_id, setup_type, qty, entry, stop, target,
+  entry_order_id, target_order_id, stop_order_id, fill_price, filled_at, exit_price, exit_reason:
+  "target" | "stop" | "time" | "flush" | "outside" | "handed" | null, exits: "nova" | "you", sent_at, closed_at:
+  number | null, note, exiting: boolean}` -- `closed_at` when it closed, missed or was handed;
+  `exiting` true while the bot is selling it. The bot's own trade is mapped from `bot-session.json`
+  (`entry_sent_ts` is its `sent_at`, `closed_ts` its `closed_at`; `open` and `exiting` read `holding`).
+
+`GET /api/stock-mode` answers `{schema_version, generated_at, venue, stocks: [view]}` for every
+stock that is not at Signal only.
+
+**Changing it.** Writes need the desk's API key even on loopback (they place orders), like the bot
+routes.
+- `PUT /api/stock-mode/{symbol}` takes `{buy, sell, risk_usd?}` and answers the view.
+  - `risk_usd` is the desk's risk per trade, from 1 to `STOCK_MODE_RISK_MAX_USD`. It is required
+    for Auto-entry, which sizes with it.
+  - Nova / Nova puts the stock on the bot's list (`symbol_allowlist`); any other setting takes it
+    off.
+  - Moving Sell from Nova to You takes over the exit (below). Moving Buy from Nova to You cancels a
+    Nova entry that is still working.
+- `POST /api/stock-mode/{symbol}/approve` takes `{setup_id, entry, stop, target, qty, now?}` and
+  answers the view. The stock must be in Approve, and the plan must be the lane's own: the setup id,
+  with its levels within a cent. `now: true` on a triggered setup sends the bracket at once.
+- `DELETE /api/stock-mode/{symbol}/approve` withdraws a waiting approval, or cancels a sent entry
+  that has not filled; its exits go with it.
+- `POST /api/stock-mode/{symbol}/take-over` cancels the exits Nova holds on the stock:
+  - Approve's two bracket legs;
+  - or the bot's trade. The bot cancels its target, stops watching, and ends the trade `handed`,
+    releasing its shares from the sleeve.
+
+A refusal is `{detail: {reason, error, field}}`:
+- 400: `STOCK_MODE_INVALID`, `STOCK_MODE_RISK`.
+- 409 `STOCK_MODE_LIVE`: a Nova side on Live, or on a venue Nova cannot read.
+- 409 `STOCK_MODE_REPLAY`: Sim off the live edge.
+- 409 `STOCK_MODE_HELD`: Sell to Nova while the stock is held.
+- 409 `STOCK_MODE_NOT_APPROVE`.
+- 409 `STOCK_MODE_PLAN_CHANGED`: the setup is no longer armed at those levels.
+- 409 `STOCK_MODE_NOTHING_HELD`: Nova holds nothing of this stock to take over.
+- 409 `STOCK_MODE_BOT_EXITING`: the bot is already selling.
+- 409 `STOCK_MODE_SEND`: the execution door refused the send; `error` is the door's own reason.
+
+**What Nova does.** The runner (`stock_mode/runner.py`) hears the setup scanner's triggers
+(`SetupEngine.add_trigger_listener`, live feed only).
+- **Auto-entry.** The first go trigger on the stock, from any setup with a scanner and at most
+  `BOT_FP_TRIGGER_MAX_AGE_SEC` old, sends one BUY limit at that setup's entry.
+  - Size: floor(`risk_usd` / the setup's risk per share) shares.
+  - Source: `bot`.
+  - Once per stock per venue day: a fill counts, a miss does not.
+  - The gates: a practice venue at the live edge, the padlock, the kill switch, the day lock, the
+    bot trip, and no Nova order already working on the stock.
+  - Unfilled after `STOCK_MODE_ENTRY_TTL_SEC`, it is cancelled and the trade ends `missed`.
+  - After the fill the trade is `holding` with `exits: "you"`: Nova places no exit.
+- **Approve.** The approved setup's go trigger (fresh) sends one bracket: `operation: "bracket"`,
+  `source: "manual"`, an entry limit, a target limit and a stop.
+  - It is cancelled unfilled after the TTL.
+  - A re-arm at other levels, or a failed or disarmed setup, withdraws the approval with the reason.
+- **Every act and every skip** is a `stock_mode` line on the bot audit stream. `outcome` is one of
+  `set`, `approved`, `withdrawn`, `sent`, `skipped`, `filled`, `missed`, `closed`, `handed` and
+  `refused`, and `inputs` carry the symbol and the setup id.
+
+The store is in memory only (`stock_mode/store.py`) and stamped with the venue: a restart or a venue
+change returns every stock to Signal only. The bot's list belongs to the bot session and lasts.
+Sell: You means Nova never sells the trade; the loss breakers and KILL still flatten every position.
+
+**On the desk** (owner `frontend/src/stock_read/`, with the stock read):
+- The "Who trades" row sits directly above Level 2. The same switch is a chip under the plan's badge
+  on the 1-minute chart.
+- The badge carries the moment track (Forming, Trigger, Holding, the exit), computed from the lane's
+  state, the position and the orders (`stock_read/momentModel.ts`, pure). The chip opens the four
+  modes; a mode Nova cannot take now is locked with the reason.
+- ENTER NOW, SELL NOW and what Nova just did appear in the badge's corner, with one ping per event,
+  and as a tag on the chart at the event's price and candle. ENTER NOW stays up 30 s after the
+  trigger while the price is within half a risk of the entry; SELL NOW is kept once the target or the
+  stop printed while the operator held the stock (this tab's memory of the position, never
+  persisted); what Nova did stays up 30 s. `localStorage` `nova.stockRead.sound` = `{schema_version:
+  1, value: boolean}` mutes the ping.
+- The plan's stop and target are dashed while they are only a plan, and solid while an order stands
+  behind them.
+- Level 2 draws ENTRY, STOP and TARGET as separator rows where they sit in the book (the
+  `MontageSide` `markers`).
+- The plan card's buttons follow the mode:
+  - Signal only: Stage in ticket; Stage sell (at the target, or at the bid once an exit is due)
+    while shares are held.
+  - Approve: Approve (an armed plan), Approve: buy N now (after its trigger), Approved · cancel,
+    Cancel stop and target (take over the exit).
+  - Auto-entry: Auto-entry on · turn off; Stage sell once Nova bought.
+  - Bot at Strategy: Bot on SYMBOL · stop it; Take over the exit while the bot holds it.
+  - A trade Nova closed on the plan's setup reads "Closed · +$X" (gross, from the fill to the exit).
+- The Trader reads the view every `STOCK_MODE_POLL_MS` while the tab shows. Nothing is read on a
+  replay desk or on the sample desk.
+
 ### Catalysts (ADR 024)
 
 One pure classifier, `backend/catalysts/classify.py` (rules and `CATALYST_RULES_VERSION` in
@@ -1856,6 +1968,40 @@ Before this, 21 of 23 Paper orders that day answered in 5.1 s
 (`EXECUTION_ACK_WAIT_SEC`) while they filled in under 150 ms. Live is
 unchanged: its reply waits for IBKR's first status.
 
+**Paper and Sim fill brackets in Live's shape** (ADR 037, #606 step 1; owner
+`practice/bracket.py`, pure; contract `architecture/practice-fills.md`). A
+`bracket` command is no longer refused `SIM_NO_BRACKET`: the practice broker's
+`place_bracket` takes Live's order -- a LMT entry, a LMT take-profit and a plain
+STP stop-loss on the reverse side, one quantity, TIF and outside-RTH flag on all
+three, three consecutive order ids, entry first -- and answers `{ok, order_id
+(the entry), parent_order_id, target_order_id, stop_order_id, error, mode,
+nova_placed_at, broker_status, filled_qty, remaining_qty, avg_fill_price,
+status_reason, status_code}` (a refusal: `ok: false`, `reason_code`, every id
+`null`). The receipt and the execution row carry the three ids, and the three
+watches are Live's (only the entry's counts toward the execution's fills). Every
+practice row adds `parent_id` (the entry's id on each exit), `oca_group`
+(`"oca-<entry id>"` on both exits) and `leg_role: "parent" | "target" | "stop"`,
+all `null` on a plain order (a row written before brackets reads the same).
+**The exits wait** `PreSubmitted` until the entry fills: a waiting exit holds
+nothing, never fills and counts nothing toward a Flatten; applying the entry's
+`filled` event wakes both (`Submitted`, placed at the fill's moment), so the
+print that filled the entry never fills an exit and a Sim rewind before the
+fill puts them back to waiting. **One cancels the other**: an exit's fill
+cancels its sibling (`PRACTICE_OCO_CANCELLED`, "One-cancels-other: the target
+filled" / "... the stop filled"), and an entry that closes unfilled -- cancelled,
+refused at the fill, or expired -- cancels its waiting exits
+(`PRACTICE_PARENT_CANCELLED`); each is an ordinary `cancelled` event stamped
+source `venue`, so no event type and no ledger schema changed. Cancelling one
+exit leaves the other; cancelling a leg the bracket already closed answers
+`{ok: true, verified_gone: true, closed_by: <code>}`. A bracket's shape is
+checked again at the broker (`BRACKET_GEOMETRY`, `QTY_INVALID`, then the TIF,
+admission, `PRACTICE_NO_SHORTS` -- a bracket that opens with a SELL is refused
+-- and buying power at the entry's limit). The ticket's Flatten counts a
+bracket's two exits once, at the larger open quantity. **Stated difference
+before 09:30 ET:** a practice stop triggers on any price-setting print, while
+IBKR holds a plain stop until the open; it stands until #604's question 2 is
+answered.
+
 **Order timing readout** (`tools/order_timing.py`, read-only; asks the
 backend that answers): per order, `{execution_id, created_et, venue,
 operation, source, symbol, side, qty, order_type, price, order_id, status,
@@ -2470,6 +2616,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-24 | Who trades the stock (ADR 037, #604, #606). Operator asks: "can we have two modes where the entry is automated but the exit is manual?", then "When may Nova buy for you? I want a clear option next to level 2 ... if I selected the exit is on me, then I'm going to be the one who exits, not the bot"; mockup v2 approved, then "1 go". Each stock gets a Buy / Sell switch, above Level 2 and as a chip on the chart, with four modes: Signal only, Approve, Auto-entry and Bot at Strategy. Nova places for a stock only on Paper and on Sim at the live edge; Live is locked with the reason (`auto_live` NO-GO; Approve on Live waits on #604). Auto-entry buys one go trigger at the scanner's entry, sized by the operator's risk per trade, and never sells. Approve sends the plan as one bracket at the trigger. Bot at Strategy is the bot's own list. Take over the exit cancels Nova's exits, and a bot trade ends `handed`. Paper and Sim now fill brackets in Live's shape: the exits are held until the entry fills, then one-cancels-other (#606 step 1). The chart shows the trade's moments live (Forming, Trigger, Holding, the exit) with ENTER NOW / SELL NOW, and Level 2 marks the plan's prices. §3 amended; ADRs 007, 019 and 030 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Lint never hides the tests (operator pick after PR #603). Five ruff findings on master had skipped pytest on every backend PR since they landed, because CI runs Ruff first in the Backend tests job, and nothing local ran ruff. CI's Run tests step now runs after a Ruff failure (`!cancelled()`, only once the install succeeded), and `ruff check backend` joins `maintainer_checks.py --gate` (`tools/maintainer_lib/lint.py`; kinds `ruff`, `ruff_unavailable`, `ruff_error`). The Agent contract job installs the pinned ruff, so CI's gate and a local one agree. The pin stays in `backend/requirements-dev.txt`, and a test holds every `ruff==` in CI to it. §6.7 added. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Short interest above the float warns, never gates (#532 follow-up, operator decision: "make sure it never blocks those setups, just gives an on-screen warning"): `float_contradicted` -- the flag every max-float gate reads -- now comes only from the shares-outstanding check. More shares short than the float is also what a heavy short looks like (a lent share can be sold and lent again), so a name with an 8M float, 9M shares short and 12M outstanding had been refused every 10M Low Float gate as a "stale float". It is now `short_above_float`, shown as "9.0M!" in amber with the reason on hover. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Recorded eyes in Sim (operator ask: "i want this stuff to be recorded when they show up, do they work so they are viewable in the sim ok? when something pops up. that way we can use that data to fine tune them when things dont match"): the setup cards' every change was already journalled (today: YDES's bull-flag pole, PFSA's first pullback armed, near, proposed and triggered at 08:07), but the desk never read the journal -- off the live edge the Bots page kept showing the live board. Now the Sim desk off the edge folds the live journal to the playhead (`eyes/playback.py`): each card's rows and funnel as they stood, proposals popping up as the playhead plays across them, gaps stated, never recomputed. The lanes now write the detector's state whenever it differs from what their lines imply, its price and leg on every line, a `price` line for names in reach, and the engine a minute `beat`, so the played-back card is exact (a test checks the fold against the lanes' own board at every moment). `GET /api/eyes/at` and `tools/eyes_journal.py board` answer the same for an agent. §3 amended. | User Directive + Claude Opus 5.5 |

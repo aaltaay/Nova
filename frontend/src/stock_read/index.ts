@@ -6,3 +6,4 @@ export { StockReadRail } from './StockReadRail';
 export { StockReadSheet } from './ReadSheet';
 export { StockReadChartLayer } from './StockReadChartLayer';
 export { StockReadToolbar } from './StockReadToolbar';
+export { WhoTradesRow, useLevel2Markers } from './WhoTradesRow';
