@@ -17,6 +17,13 @@ and the Sim account ended short 2 GRML).
 The venue's open orders are the truth for what can still fill: a verified
 cancel has already left the list (``ibkr.cancel_verify``), and an in-flight
 commitment whose order id the venue no longer lists is stale, not working.
+
+A bracket's exits (#606) are one close, not two: its take-profit and stop-loss
+share a one-cancels-other group, so at most one of them fills and the group
+counts once. An exit still waiting on its entry -- the entry is itself working
+-- closes nothing held yet (it sells what the entry has not bought) and counts
+nothing. Both read the rows' ``oca_group`` / ``parent_id``, which only the
+practice venues fill in today (Live rows carry neither, so Live is unchanged).
 """
 from __future__ import annotations
 
@@ -57,7 +64,10 @@ def closing_committed(symbol: str, side: str) -> tuple[float, list[int]]:
 
     committed = 0.0
     ids: list[int] = []
-    for row in _orders.open_orders():
+    groups: dict[Any, float] = {}  # one-cancels-other group -> the most any one of its orders closes
+    rows = _orders.open_orders()
+    working = {int(row["order_id"]) for row in rows if row.get("order_id") is not None}
+    for row in rows:
         if str(row.get("symbol") or "").strip().upper() != symbol:
             continue
         if str(row.get("side") or "").strip().upper() != side:
@@ -67,10 +77,17 @@ def closing_committed(symbol: str, side: str) -> tuple[float, list[int]]:
             _qty(remaining) if remaining is not None
             else _qty(row.get("qty")) - _qty(row.get("filled_qty"))
         )
-        if open_qty > _EPS:
+        parent = row.get("parent_id")
+        if open_qty <= _EPS or (parent is not None and int(parent) in working):
+            continue  # nothing open, or an exit waiting on an entry that is still working
+        group = row.get("oca_group") or (("parent", int(parent)) if parent is not None else None)
+        if group is None:
             committed += open_qty
-            if row.get("order_id") is not None:
-                ids.append(int(row["order_id"]))
+        else:
+            groups[group] = max(groups.get(group, 0.0), open_qty)
+        if row.get("order_id") is not None:
+            ids.append(int(row["order_id"]))
+    committed += sum(groups.values())
     # Committed under the execution lock but not yet an order: counted until it is one.
     for row in inflight.snapshot():
         if row["symbol"] == symbol and row["side"] == side and row["order_id"] is None:
