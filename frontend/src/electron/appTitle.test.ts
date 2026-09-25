@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  backendRemedy,
   formatElectronTraderTitle,
   formatScannerWindowTitle,
   formatTraderDocumentTitle,
@@ -82,6 +83,38 @@ describe('Nova window titles', () => {
     // Unknown adds nothing: the API not answering, the sample desk.
     expect(withBackendTag(desk, null, 'v1006')).toBe(desk);
     expect(withBackendTag(desk, '  ', 'v1006')).toBe(desk);
+  });
+
+  it('says to pull first when a restart would load the same code (operator report 2026-09-25)', () => {
+    // The desk updated itself to v1024; the backend runs v1017 from a checkout still at v1017.
+    const desk = 'Nova — Stock Scanner · v1024';
+    expect(withBackendTag(desk, 'v1017', 'v1024', 'v1017'))
+      .toBe('Nova — Stock Scanner · v1024 · backend v1017 (older -- pull master, then restart)');
+    // The checkout was pulled: a restart loads newer code.
+    expect(withBackendTag(desk, 'v1017', 'v1024', 'v1024'))
+      .toBe('Nova — Stock Scanner · v1024 · backend v1017 (older -- restart it)');
+    // Ahead of the backend but still behind the desk: a restart still helps.
+    expect(withBackendTag(desk, 'v1017', 'v1024', 'v1020')).toContain('(older -- restart it)');
+    // A checkout Nova cannot read keeps the old advice rather than guessing.
+    expect(withBackendTag(desk, 'v1017', 'v1024', null)).toContain('(older -- restart it)');
+    expect(withBackendTag(desk, 'v1017', 'v1024', 'main')).toContain('(older -- restart it)');
+    // A checkout behind what runs: a restart would load older code still.
+    expect(withBackendTag(desk, 'v1017', 'v1024', 'v1010')).toContain('(older -- pull master, then restart)');
+  });
+
+  it('names what an older backend needs, and nothing for one that is not older', () => {
+    expect(backendRemedy('v1017', 'v1024', 'v1017')).toBe('pull');
+    expect(backendRemedy('v1017', 'v1024', 'v1024')).toBe('restart');
+    expect(backendRemedy('v1017', 'v1024', undefined)).toBe('restart');
+    expect(backendRemedy('v1024', 'v1024', 'v1017')).toBeNull();
+    expect(backendRemedy('v1025', 'v1024', 'v1025')).toBeNull();
+    expect(backendRemedy(null, 'v1024', 'v1017')).toBeNull();
+  });
+
+  it('carries the checkout revision through the whole window title', () => {
+    expect(novaWindowTitle({
+      releaseTag: 'v1024', backendTag: 'v1017', checkoutTag: 'v1017',
+    })).toBe('Nova — Stock Scanner · v1024 · backend v1017 (older -- pull master, then restart)');
   });
 
   it('compares revisions by number, never as text', () => {

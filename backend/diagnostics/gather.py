@@ -308,7 +308,9 @@ def gather(*, ui_tag: str | None = None, now: float | None = None) -> dict[str, 
     rows += _safe(DIAG_GROUP_PRACTICE, "practice", "Practice", lambda: collect.practice_rows(**_practice_inputs()))
     rows += _safe(DIAG_GROUP_PRACTICE, "tape_archive", "Tape archive (Paper resting fills)",
                   lambda: collect_tape_archive.tape_archive_rows(**_tape_archive_inputs()))
-    rows += collect.frontend_rows(ui_tag=ui_tag, backend_tag=facts.get("release_tag"))
+    rows += collect.frontend_rows(
+        ui_tag=ui_tag, backend_tag=facts.get("release_tag"), checkout_tag=facts.get("checkout_tag"),
+    )
     rows += _safe(DIAG_GROUP_PERFORMANCE, "perf_recorder", "Performance recorder", lambda: _perf_rows(ts))
     return {
         "schema_version": DIAG_SCHEMA_VERSION,
@@ -320,6 +322,7 @@ def gather(*, ui_tag: str | None = None, now: float | None = None) -> dict[str, 
             "pid": facts.get("pid"),
             "instance_id": facts.get("instance_id"),
             "release_tag": facts.get("release_tag"),
+            "checkout_tag": facts.get("checkout_tag"),
             "repo_root": facts.get("repo_root"),
             "env_file": facts.get("env_file"),
         },

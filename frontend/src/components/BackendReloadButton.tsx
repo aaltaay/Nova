@@ -3,20 +3,41 @@
  * Uses the same kill+restart path as BackendStartButton (Start-NovaApi.ps1 / Electron sidecar).
  */
 import { useState } from 'react';
+import { backendRemedy } from '../../electron/appTitle.mjs';
 import {
   BACKEND_RELOAD_BUTTON_LABEL,
   BACKEND_RELOAD_BUTTON_TITLE,
   BACKEND_RELOAD_CONFIRM_MESSAGE,
   BACKEND_RELOAD_CONFIRM_TITLE,
+  BACKEND_RELOAD_STILL_OLDER_NOTE_MS,
   BACKEND_RELOAD_WHY_BUSY,
+  backendReloadSameCodeWarning,
+  backendReloadStillOlderNote,
 } from '../constants';
 import { confirmApp } from '../ux';
-import { currentBackendReleaseTag, refreshBackendReleaseTag } from '../utils/backendReleaseTag';
+import {
+  currentBackendCheckoutTag,
+  currentBackendReleaseTag,
+  refreshBackendReleaseTag,
+} from '../utils/backendReleaseTag';
+import { novaRendererReleaseTag } from '../utils/novaReleaseTag';
 import { startLocalApi } from '../utils/startLocalApi';
 
 interface Props {
   /** Called after a successful restart so scanner/health can refresh. */
   onReloaded?: () => void;
+}
+
+/**
+ * The backend, its checkout and this desk when a restart cannot reach the desk's revision --
+ * the checkout holds nothing newer than what runs (operator report 2026-09-25) -- else null.
+ */
+function restartLoadsNothingNewer(): { running: string; checkout: string; desk: string } | null {
+  const running = currentBackendReleaseTag();
+  const checkout = currentBackendCheckoutTag();
+  const desk = novaRendererReleaseTag();
+  if (!running || !checkout || backendRemedy(running, desk, checkout) !== 'pull') return null;
+  return { running, checkout, desk };
 }
 
 export function BackendReloadButton({ onReloaded }: Props) {
@@ -26,9 +47,14 @@ export function BackendReloadButton({ onReloaded }: Props) {
 
   async function handleClick() {
     if (busy) return;
+    // What would a restart load? Ask now, not a minute ago.
+    await refreshBackendReleaseTag();
+    const before = restartLoadsNothingNewer();
     const ok = await confirmApp({
       title: BACKEND_RELOAD_CONFIRM_TITLE,
-      message: BACKEND_RELOAD_CONFIRM_MESSAGE,
+      message: before
+        ? `${BACKEND_RELOAD_CONFIRM_MESSAGE}\n\n${backendReloadSameCodeWarning(before.running, before.checkout, before.desk)}`
+        : BACKEND_RELOAD_CONFIRM_MESSAGE,
       confirmLabel: 'Reload',
       tone: 'warning',
     });
@@ -44,12 +70,18 @@ export function BackendReloadButton({ onReloaded }: Props) {
       setError(result.error);
       return;
     }
-    // Name the revision now answering (the window title shows it too).
+    // Name the revision now answering (the window title shows it too), and say when the
+    // restart could not reach this desk's.
     await refreshBackendReleaseTag();
     const now = currentBackendReleaseTag();
-    setNote(now ? `Backend reloaded · now ${now}` : 'Backend reloaded');
+    const after = restartLoadsNothingNewer();
+    if (after) {
+      setNote(backendReloadStillOlderNote(after.running, after.checkout));
+    } else {
+      setNote(now ? `Backend reloaded · now ${now}` : 'Backend reloaded');
+    }
     onReloaded?.();
-    window.setTimeout(() => setNote(null), 4_000);
+    window.setTimeout(() => setNote(null), after ? BACKEND_RELOAD_STILL_OLDER_NOTE_MS : 4_000);
   }
 
   return (

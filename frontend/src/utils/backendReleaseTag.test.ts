@@ -4,7 +4,11 @@
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { formatScannerWindowTitle } from '../../electron/appTitle.mjs';
-import { refreshBackendReleaseTag, resetBackendReleaseTagForTests } from './backendReleaseTag';
+import {
+  currentBackendCheckoutTag,
+  refreshBackendReleaseTag,
+  resetBackendReleaseTagForTests,
+} from './backendReleaseTag';
 import { novaRendererReleaseTag } from './novaReleaseTag';
 import { useNovaWindowTitle } from './useNovaWindowTitle';
 
@@ -32,6 +36,23 @@ describe('the backend revision in the window title', () => {
     const tag = novaRendererReleaseTag();
     vi.stubGlobal('fetch', health('v1'));
     renderHook(() => useNovaWindowTitle(false, null));
+    await waitFor(() => expect(document.title).toBe(`${formatScannerWindowTitle(tag)} · backend v1 (older -- restart it)`));
+  });
+
+  it('says to pull master first when the backend checkout holds nothing newer (operator report 2026-09-25)', async () => {
+    const tag = novaRendererReleaseTag();
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(
+      JSON.stringify({ status: 'ok', release_tag: 'v1', checkout_tag: 'v1' }), { status: 200 },
+    )));
+    renderHook(() => useNovaWindowTitle(false, null));
+    await waitFor(() => expect(document.title)
+      .toBe(`${formatScannerWindowTitle(tag)} · backend v1 (older -- pull master, then restart)`));
+    expect(currentBackendCheckoutTag()).toBe('v1');
+    // After a pull the checkout is ahead: a restart helps now.
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(
+      JSON.stringify({ status: 'ok', release_tag: 'v1', checkout_tag: 'v2' }), { status: 200 },
+    )));
+    await act(() => refreshBackendReleaseTag());
     await waitFor(() => expect(document.title).toBe(`${formatScannerWindowTitle(tag)} · backend v1 (older -- restart it)`));
   });
 

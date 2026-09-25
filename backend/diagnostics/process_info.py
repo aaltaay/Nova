@@ -51,6 +51,16 @@ def _frozen_version_text() -> str | None:
         return None
 
 
+def tag_from_count(count: str | None) -> str | None:
+    """``vNNN`` from ``git rev-list --count`` output; None when it is not a count."""
+    return f"v{count}" if count and count.isdigit() else None
+
+
+def read_checkout_tag(repo_root: Path = _REPO_ROOT) -> str | None:
+    """The checkout's revision on disk now (``vNNN``); None when git cannot say. Waits on git."""
+    return tag_from_count(_git(["rev-list", "--count", "HEAD"], repo_root))
+
+
 def read_git_revision(repo_root: Path = _REPO_ROOT) -> dict[str, Any]:
     """``{release_tag, commit, branch, worktree, git_common_dir, source}``; never raises."""
     frozen = bool(getattr(sys, "frozen", False))
@@ -70,7 +80,7 @@ def read_git_revision(repo_root: Path = _REPO_ROOT) -> dict[str, Any]:
     common = _git(["rev-parse", "--git-common-dir"], repo_root)
     dot_git = repo_root / ".git"
     return {
-        "release_tag": f"v{count}" if count and count.isdigit() else None,
+        "release_tag": tag_from_count(count),
         "commit": commit,
         "branch": branch,
         # A linked worktree keeps ``.git`` as a file pointing at the main repo.
@@ -110,8 +120,10 @@ def env_file_facts(path: Path | None = None) -> dict[str, Any]:
 
 
 def process_facts(now: float | None = None) -> dict[str, Any]:
-    """Everything the process rows are judged from. Pure given ``REVISION``."""
+    """Everything the process rows are judged from: ``REVISION`` (what this process loaded),
+    and ``checkout_tag``, its checkout's revision on disk now as last read."""
     import instance_identity
+    from diagnostics.checkout_revision import checkout_tag
 
     ts = time.time() if now is None else float(now)
     return {
@@ -129,5 +141,6 @@ def process_facts(now: float | None = None) -> dict[str, Any]:
         "cwd": os.getcwd(),
         "argv0": sys.argv[0] if sys.argv else "",
         **REVISION,
+        "checkout_tag": checkout_tag(),
         "env_file": env_file_facts(),
     }
