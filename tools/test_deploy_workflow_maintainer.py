@@ -100,6 +100,16 @@ def test_the_ci_gate_installs_the_pinned_ruff():
         assert any(f"ruff=={pin}" in str(step.get("run", "")) for step in job["steps"])
 
 
+def test_the_gate_is_the_last_step_of_its_job():
+    """The gate fails on a lint finding; as the job's last step it skips nothing after it, so
+    lint hides no other check's result (AGENTS.md §6.7; test_maintainer_policy leaves lint out)."""
+    gate_jobs = [job["steps"] for job in _jobs().values()
+                 if any("maintainer_checks.py --gate" in str(step.get("run", "")) for step in job.get("steps") or [])]
+    assert gate_jobs
+    for steps in gate_jobs:
+        assert "maintainer_checks.py --gate" in str(steps[-1].get("run", ""))
+
+
 def test_every_ruff_pin_in_ci_is_the_requirements_pin():
     pins = re.findall(r"ruff==(\S+)", WORKFLOW.read_text(encoding="utf-8"))
     assert pins and set(pins) == {_ruff_pin()}
