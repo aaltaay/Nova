@@ -227,9 +227,9 @@ def test_module_map_reads_the_statements_from_the_code():
 # --- the real tree ----------------------------------------------------------------
 
 
-# The lint has its own CI steps: Backend tests' Ruff, and the Maintainer gate, the last step of
-# Agent contract. Failing the tool tests on a lint finding as well would skip every check after
-# them -- lint must never hide another result (AGENTS.md §6.7).
+# The lint has its own CI steps: Backend tests' Ruff, and the Maintainer gate. Counting it here
+# too would report one finding twice, and fail the tool tests wherever ruff is not installed
+# (AGENTS.md §6.7).
 LINT_KINDS = {"ruff", "ruff_unavailable", "ruff_error"}
 
 

@@ -100,14 +100,18 @@ def test_the_ci_gate_installs_the_pinned_ruff():
         assert any(f"ruff=={pin}" in str(step.get("run", "")) for step in job["steps"])
 
 
-def test_the_gate_is_the_last_step_of_its_job():
-    """The gate fails on a lint finding; as the job's last step it skips nothing after it, so
-    lint hides no other check's result (AGENTS.md §6.7; test_maintainer_policy leaves lint out)."""
-    gate_jobs = [job["steps"] for job in _jobs().values()
-                 if any("maintainer_checks.py --gate" in str(step.get("run", "")) for step in job.get("steps") or [])]
-    assert gate_jobs
-    for steps in gate_jobs:
-        assert "maintainer_checks.py --gate" in str(steps[-1].get("run", ""))
+def test_every_agent_contract_check_reports_its_own_result():
+    """A failing check never skips the ones after it (docs/ci.md): each runs once the tools
+    installed, unless the run was cancelled -- so no step order can hide a result, the gate's
+    included (it no longer has to stay last)."""
+    steps = _jobs()["agent-contract"]["steps"]
+    install = next(i for i, step in enumerate(steps) if step.get("id") == "tools")
+    assert "pip install" in steps[install]["run"]
+    checks = steps[install + 1:]
+    assert any("maintainer_checks.py --gate" in str(step.get("run", "")) for step in checks)
+    assert any(str(step.get("run", "")).startswith("pytest tools/") for step in checks)
+    for step in checks:
+        assert step.get("if") == "${{ !cancelled() && steps.tools.outcome == 'success' }}", step.get("name")
 
 
 def test_every_ruff_pin_in_ci_is_the_requirements_pin():
