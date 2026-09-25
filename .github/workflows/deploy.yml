@@ -56,6 +56,7 @@ jobs:
           cache-dependency-path: backend/requirements.txt
 
       - name: Install dependencies
+        id: install
         if: needs.changes.outputs.backend == 'true'
         run: pip install -r backend/requirements.txt pytest pytest-asyncio ruff==0.15.21
 
@@ -64,7 +65,10 @@ jobs:
         run: ruff check backend
 
       - name: Run tests
-        if: needs.changes.outputs.backend == 'true'
+        # Runs after a Ruff failure too, so a lint finding never hides the test
+        # results: five findings once skipped pytest on every backend PR (#603).
+        # The job still fails on lint; each step shows its own result.
+        if: ${{ !cancelled() && needs.changes.outputs.backend == 'true' && steps.install.outcome == 'success' }}
         run: pytest backend/ -x -q --tb=short
 
   frontend-build:
@@ -227,8 +231,10 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install pytest
-        run: pip install pytest PyYAML==6.0.2
+      - name: Install pytest and ruff
+        # ruff: the maintainer gate runs the backend lint (AGENTS.md §6.7); the
+        # version is backend/requirements-dev.txt's pin.
+        run: pip install pytest PyYAML==6.0.2 ruff==0.15.21
 
       - name: Agent tool tests
         env:
@@ -249,8 +255,8 @@ jobs:
         # One list of blocking kinds (tools/maintainer_lib/gate.py): entry
         # points, the 800-line ceiling, growth past 400 without a reason,
         # ownership, frozen cross-feature imports, money-path silence, IB-loop
-        # purity. Growth is judged against the PR's target branch; a push has
-        # no base and skips only that check.
+        # purity, the backend lint (ruff). Growth is judged against the PR's
+        # target branch; a push has no base and skips only that check.
         env:
           MAINTAINER_BASE: ${{ github.base_ref && format('origin/{0}', github.base_ref) || '' }}
         run: python tools/maintainer_checks.py --gate --base "$MAINTAINER_BASE"

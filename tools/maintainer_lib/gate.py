@@ -5,7 +5,8 @@ One list, read by CI and by an agent checking its own change::
     py -3 tools/maintainer_checks.py --gate --base origin/master
 
 Every other kind is reported, not blocking: an oversize file without a reason
-(``file_size``), a silent ``except`` off the money path, the CSS contract. A
+(``file_size``), a silent ``except`` off the money path, the CSS contract, a ruff
+other than the pinned version (``ruff_version``). A
 frozen legacy finding (``baseline: true``) never fails the gate; one past its
 frozen count does. Merging stays advisory (AGENTS.md §5) -- a red gate is
 visible, not a hold.
@@ -33,4 +34,8 @@ GATE_KINDS = (
     "allow_swallow_no_reason",
     # ADR 010 -- the IB loop never does blocking I/O
     "ib_loop_sync_io",
+    # AGENTS.md §6.7 -- the backend lint CI's Backend tests runs (maintainer_lib/lint.py)
+    "ruff",                    # a ruff finding in backend/
+    "ruff_unavailable",        # ruff not installed here, so the lint did not run
+    "ruff_error",              # ruff ran but gave no readable answer
 )

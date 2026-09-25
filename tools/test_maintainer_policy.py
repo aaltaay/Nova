@@ -227,10 +227,22 @@ def test_module_map_reads_the_statements_from_the_code():
 # --- the real tree ----------------------------------------------------------------
 
 
+# The lint has its own CI steps: Backend tests' Ruff, and the Maintainer gate, the last step of
+# Agent contract. Failing the tool tests on a lint finding as well would skip every check after
+# them -- lint must never hide another result (AGENTS.md §6.7).
+LINT_KINDS = {"ruff", "ruff_unavailable", "ruff_error"}
+
+
 def test_the_real_tree_passes_the_gate(mc):
     report = mc.run_checks()
-    blocking = [f for f in report["findings"] if f["kind"] in GATE_KINDS and not f["baseline"]]
+    blocking = [f for f in report["findings"]
+                if f["kind"] in GATE_KINDS and f["kind"] not in LINT_KINDS and not f["baseline"]]
     assert blocking == [], blocking
+
+
+def test_the_lint_kinds_left_out_above_are_the_gates_lint_kinds():
+    assert LINT_KINDS <= set(GATE_KINDS)
+    assert {kind for kind in GATE_KINDS if kind.startswith("ruff")} == LINT_KINDS
 
 
 def test_the_frozen_counts_match_the_tree(mc):

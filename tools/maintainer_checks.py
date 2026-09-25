@@ -5,8 +5,9 @@ Side-effect-free: reads the repo, prints a human report or JSON, exits 0 always
 severity policy; this script only measures. ``--update-baselines`` is the one
 write: it rewrites ``maintainer_lib/baselines.json`` to the tree.
 
-Rules it measures: AGENTS.md §2 (ownership, size, feature imports) and §6.3
-(silent failures). Architecture dependency rules: architecture/dependency-rules.md.
+Rules it measures: AGENTS.md §2 (ownership, size, feature imports), §6.3
+(silent failures) and §6.7 (the backend lint, ruff). Architecture dependency
+rules: architecture/dependency-rules.md.
 """
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ from maintainer_lib.baselines import (  # noqa: E402
 from maintainer_lib.deps import check_cross_feature_imports, check_import_main  # noqa: E402
 from maintainer_lib.gate import GATE_KINDS  # noqa: E402
 from maintainer_lib.ib_loop import check_ib_loop_purity as _check_ib_loop_purity  # noqa: E402
+from maintainer_lib.lint import check_ruff  # noqa: E402
 from maintainer_lib.owners import check_owners as _check_owners  # noqa: E402
 from maintainer_lib.size_policy import count_lines  # noqa: E402,F401  (re-exported)
 from maintainer_lib.sizes import LOGICAL_LIMIT_FILES, count_logical_lines  # noqa: E402
@@ -268,6 +270,7 @@ def _collect(files: list[Path], base: str | None) -> list[Finding]:
         + check_css_design_contract(files)
         + check_ib_loop_purity(files)
         + check_owners()
+        + check_ruff(REPO_ROOT, Finding)
     )
 
 

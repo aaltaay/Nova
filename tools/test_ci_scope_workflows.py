@@ -9,6 +9,10 @@ from tools.master_branch_protection import apply_payload
 from tools.security_lib.checks_infra import check_ci_missing_security_jobs
 
 ROOT = Path(__file__).resolve().parents[1]
+# Backend pytest also runs after a Ruff failure -- still only when selected (AGENTS.md §6.7).
+BACKEND_TESTS_IF = (
+    "${{ !cancelled() && needs.changes.outputs.backend == 'true' && steps.install.outcome == 'success' }}"
+)
 
 
 def workflow(name):
@@ -28,7 +32,11 @@ def test_advisory_jobs_keep_full_test_commands_and_scope_guards():
         guard, *steps = job["steps"]
         assert 'test "$SCOPE_RESULT" = success' in guard["run"]
         assert "exit 1" in guard["run"]
-        assert all(step["if"] == f"needs.changes.outputs.{field} == 'true'" for step in steps)
+        for step in steps:
+            if job_id == "backend-test" and step.get("run") == command:
+                assert step["if"] == BACKEND_TESTS_IF
+            else:
+                assert step["if"] == f"needs.changes.outputs.{field} == 'true'", step
         assert any(step.get("run") == command for step in steps)
     assert "paths" not in ci["on"]["pull_request"]
     assert ci["concurrency"]["cancel-in-progress"] == "${{ github.event_name == 'pull_request' }}"
