@@ -66,8 +66,17 @@ function legStartOf(series: ISeriesApi<'Candlestick'> | null): (leg: SetupLeg) =
   };
 }
 
-/** Show the pane's candles from a little before `fromSec` to its last one and the plan's room after it. */
-function frameFrom(chart: ChartPaneOverlayProps['chart'], index: SeriesTimeIndex, fromSec: number): boolean {
+/**
+ * Show the pane's candles from a little before `fromSec` to its last one and the plan's room after it.
+ * The range is bar positions, so they are read from the candles the pane holds now: an index kept from
+ * an earlier render counts other bars once the series has changed under it.
+ */
+export function frameFrom(
+  chart: ChartPaneOverlayProps['chart'],
+  series: ISeriesApi<'Candlestick'> | null,
+  fromSec: number,
+): boolean {
+  const index = seriesIndex(series);
   const n = index.canonical.length;
   if (!chart || n === 0) return false;
   const target = etChartSeconds(fromSec * 1000);
@@ -243,13 +252,13 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
     if (startSec === null || kind !== 'full') return;
     hadFocus.current = false; // leaving a decision for the setup: no scroll back to now after it
     ctx?.clearFocus();
-    frameFrom(chart, index, startSec);
-  }, [chart, index, startSec, kind, ctx]);
+    frameFrom(chart, series, startSec);
+  }, [chart, series, startSec, kind, ctx]);
   const framed = useRef<string | null>(null);
   useEffect(() => {
     if (kind !== 'full' || !enabled || !frameKey || framed.current === frameKey || focusTs !== null) return;
-    if (startSec !== null && frameFrom(chart, index, startSec)) framed.current = frameKey;
-  }, [chart, index, kind, enabled, frameKey, startSec, focusTs]);
+    if (startSec !== null && frameFrom(chart, series, startSec)) framed.current = frameKey;
+  }, [chart, series, index, kind, enabled, frameKey, startSec, focusTs]);
 
   // The daily pane: every +40% run over the prior close, marked on its bar.
   const runs = daily && enabled ? ctx?.history.data?.runs ?? null : null;

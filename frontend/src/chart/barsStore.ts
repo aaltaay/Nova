@@ -127,10 +127,35 @@ export function setBars(
 }
 
 /**
- * A `bars_patch` pushed when a historical fill lands (`/ws/ticker`). An empty
- * patch never replaces bars the pane already holds -- the same rule as an
- * empty `/bars` answer (ADR 012): a fill that found nothing is no reason to
- * wipe a painted chart.
+ * A fill's bars laid over the bars the pane holds, the way the backend's store
+ * takes them (ADR 012): the fill wins at its own times, every other bar stays,
+ * and the newest `limit` are kept -- the window `/bars` reads back.
+ *
+ * Replacing was wrong. IBKR answers a 1-minute fill with one day ("1 D") while
+ * `/bars` reads the store's newest rows, weeks of them, so the pane swapped
+ * between two histories every 30-60 s. A window carried across the swap landed
+ * on other bars: the 1-minute chart jumped to 04:00 with an empty left half
+ * (operator report 2026-09-25). A bar time that does not parse keeps the old
+ * rule -- the fill replaces -- rather than guess an order.
+ */
+export function mergeBarsPatch(held: RawBar[], patch: RawBar[], limit?: number): RawBar[] {
+  if (held.length === 0) return patch;
+  const byTime = new Map<number, RawBar>();
+  for (const bar of [...held, ...patch]) {
+    const ms = Date.parse(bar.t);
+    if (!Number.isFinite(ms)) return patch;
+    byTime.set(ms, bar);
+  }
+  const merged = [...byTime.entries()].sort((a, b) => a[0] - b[0]).map(([, bar]) => bar);
+  return limit && merged.length > limit ? merged.slice(-limit) : merged;
+}
+
+/**
+ * A `bars_patch` pushed when a historical fill lands (`/ws/ticker`), merged
+ * into the bars the pane holds (`mergeBarsPatch`). An empty patch never
+ * replaces bars the pane already holds -- the same rule as an empty `/bars`
+ * answer (ADR 012): a fill that found nothing is no reason to wipe a painted
+ * chart. A replay's patch owns its candles and replaces them.
  */
 export function applyBarsPatch(
   symbol: string,
@@ -140,7 +165,10 @@ export function applyBarsPatch(
 ): void {
   const current = getBarsEntry(symbol, timeframe);
   if (!coverage?.replay && bars.length === 0 && current && current.bars.length > 0) return;
-  setBars(symbol, timeframe, bars, coverage);
+  const next = !coverage?.replay && current
+    ? mergeBarsPatch(current.bars, bars, CHART_TIMEFRAME_BAR_LIMITS[timeframe])
+    : bars;
+  setBars(symbol, timeframe, next, coverage);
 }
 
 /**

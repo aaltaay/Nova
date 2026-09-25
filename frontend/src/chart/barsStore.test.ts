@@ -7,6 +7,7 @@ import {
   getBarsEntry,
   invalidateBars,
   isBarsEntryFresh,
+  mergeBarsPatch,
   parseBarsCoverage,
   setBars,
   subscribeBars,
@@ -288,6 +289,60 @@ describe('barsStore', () => {
 
     applyBarsPatch('NNNN', '5Min', [bar(2)], parseBarsCoverage({ filling: false }));
     expect(getBarsEntry('NNNN', '5Min')?.bars).toEqual([bar(2)]);
+  });
+
+  describe('a fill merged into the bars the pane holds (operator report 2026-09-25)', () => {
+    const DAY0 = Date.parse('2026-09-24T08:00:00Z');
+    const DAY1 = Date.parse('2026-09-25T08:00:00Z');
+    function minuteBar(startMs: number, i: number, c = 5): RawBar {
+      return { t: new Date(startMs + i * 60_000).toISOString().replace('.000Z', 'Z'), o: c, h: c, l: c, c, v: 100 };
+    }
+    // `/bars` reads the store's newest rows: yesterday and today.
+    const storeRead = [
+      ...Array.from({ length: 300 }, (_, i) => minuteBar(DAY0, i)),
+      ...Array.from({ length: 270 }, (_, i) => minuteBar(DAY1, i)),
+    ];
+    // IBKR's "1 D" fill: today only, one bar further, its last bar corrected.
+    const fill = [
+      ...Array.from({ length: 270 }, (_, i) => minuteBar(DAY1, i)),
+      minuteBar(DAY1, 270, 6.5),
+    ];
+    fill[269] = minuteBar(DAY1, 269, 6.4);
+
+    it('keeps the history before the fill, takes the fill at its times and adds its new bar', () => {
+      const merged = mergeBarsPatch(storeRead, fill);
+      expect(merged).toHaveLength(571);
+      expect(merged[0]).toEqual(storeRead[0]);
+      expect(merged[569].c).toBe(6.4);
+      expect(merged[570].c).toBe(6.5);
+    });
+
+    it('keeps the newest bars up to the window /bars reads', () => {
+      const merged = mergeBarsPatch(storeRead, fill, 500);
+      expect(merged).toHaveLength(500);
+      expect(merged.at(-1)?.c).toBe(6.5);
+      expect(merged[0]).toEqual(storeRead[71]);
+    });
+
+    it('lets a bars_patch keep the pane on the same first bar as /bars', () => {
+      setBars('INLF', '1Min', storeRead, parseBarsCoverage({ filling: true }));
+      applyBarsPatch('INLF', '1Min', fill, parseBarsCoverage({ filling: false }));
+      const entry = getBarsEntry('INLF', '1Min');
+      expect(entry?.bars[0]).toEqual(storeRead[0]);
+      expect(entry?.bars).toHaveLength(571);
+      expect(entry?.coverage?.filling).toBe(false);
+    });
+
+    it('replaces the bars when a time does not parse, rather than guess an order', () => {
+      const odd = [{ ...storeRead[0], t: 'not a time' }];
+      expect(mergeBarsPatch(odd, fill)).toBe(fill);
+    });
+
+    it("lets a replay's patch replace its candles", () => {
+      setBars('INLF', '1Min', storeRead, parseBarsCoverage({ filling: false, replay: true }));
+      applyBarsPatch('INLF', '1Min', fill, parseBarsCoverage({ filling: false, replay: true }));
+      expect(getBarsEntry('INLF', '1Min')?.bars).toEqual(fill);
+    });
   });
 
   it('cancels the obsolete network on seek without losing its replacement', async () => {
