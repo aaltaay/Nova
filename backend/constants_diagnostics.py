@@ -72,6 +72,9 @@ DIAG_TRUE_VALUES = frozenset({"1", "true", "yes"})
 DIAG_PORT_PROBE_TIMEOUT_SEC = 0.35
 # ``git rev-parse`` at import; a hung git must not stall the API start.
 DIAG_GIT_TIMEOUT_SEC = 3.0
+# The checkout's revision on disk now (/api/health ``checkout_tag``) is re-read on a
+# worker thread at most this often, and only while something asks.
+DIAG_CHECKOUT_REVISION_TTL_SEC = 10.0
 
 DIAG_BUNDLE_HEADER = "Nova desk diagnostics"
 # Query parameter the UI sends so the frontend row can compare revisions.

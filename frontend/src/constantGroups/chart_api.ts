@@ -132,6 +132,17 @@ export const BACKEND_RELOAD_CONFIRM_TITLE = 'Reload backend?';
 export const BACKEND_RELOAD_CONFIRM_MESSAGE =
   'Restarts the local Nova API process -- about half a minute. Feeds reconnect, in-memory state reloads from disk, '
   + 'and a running recording resumes after a short gap.';
+/**
+ * A restart loads only what the backend's checkout holds (operator report 2026-09-25: Reload came
+ * up v1017 again because the checkout was itself v1017). Said before a restart and after one.
+ */
+export const backendReloadSameCodeWarning = (running: string, checkout: string, desk: string): string =>
+  `Backend ${running}'s checkout is at ${checkout}, so a restart loads ${checkout}, not this desk's ${desk}. `
+  + 'Pull master in that checkout first, then reload.';
+export const backendReloadStillOlderNote = (running: string, checkout: string): string =>
+  `Backend reloaded · still ${running}: its checkout is ${checkout} -- pull master, then reload`;
+/** The note after a reload that could not reach the desk's revision stays up longer. */
+export const BACKEND_RELOAD_STILL_OLDER_NOTE_MS = 12_000;
 /** Why Reload backend / Start API is locked while a restart runs (ux/whyTip.ts). */
 export const BACKEND_RELOAD_WHY_BUSY = 'Restarting the Nova API -- wait for it to come back';
 export const BACKEND_START_WHY_BUSY = 'Starting the Nova API -- wait for it to answer';

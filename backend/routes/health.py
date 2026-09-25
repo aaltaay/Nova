@@ -107,6 +107,7 @@ async def health_check():
         "ib_loop_lag_ms": ib_lag,
         "ib_cold_inflight": inflight_label() or None,
         "release_tag": _release_tag(),
+        "checkout_tag": _checkout_tag(),
         **instance_identity.snapshot(),
     }
 
@@ -118,6 +119,14 @@ def _release_tag() -> str | None:
 
     tag = REVISION.get("release_tag")
     return str(tag) if tag else None
+
+
+def _checkout_tag() -> str | None:
+    """The revision of this process's checkout on disk now, as last read (never waits on git).
+    Only a checkout ahead of ``release_tag`` gives a restart newer code to load."""
+    from diagnostics.checkout_revision import checkout_tag
+
+    return checkout_tag()
 
 
 @router.get("/livez")

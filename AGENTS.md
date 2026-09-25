@@ -437,6 +437,21 @@ watchdog or, with none running, by that checkout's `scripts/Start-NovaApi.ps1`
 Bots page reads an API older than ADR 031 (setups listed without a `level`) as
 a backend that needs a reload, never as a setup with no scanner.
 
+**A restart loads only what its checkout holds** (operator report, 2026-09-25:
+"I closed the app and clicked reload backend" -- the new process came up v1017
+again, because the engine's checkout was itself v1017 until a pull at 07:57 ET,
+while the desk had updated itself to v1024). `/api/health` and `/api/diagnostics`
+`process` add `checkout_tag: string | null` -- the revision of the checkout this
+process runs from as it is on disk now (`diagnostics/checkout_revision.py`:
+re-read on a worker thread at most every `DIAG_CHECKOUT_REVISION_TTL_SEC`, never
+on the request; `null` for a packaged engine, which has no checkout, or when git
+cannot say). A restart loads newer code only when `checkout_tag` is ahead of
+`release_tag`, so an older backend's title reads `(older -- restart it)` when its
+checkout is ahead or unknown and `(older -- pull master, then restart)` when it
+is not (`appTitle.backendRemedy`). Reload backend's confirmation says a restart
+would start the same revision again, its note says so when one did, and the
+`frontend_revision` row's fix names the checkout's revision.
+
 ### Where Nova keeps its data (operator ask, 2026-09-24)
 
 "any recording and data, lets keep them off the C drive": the operator's F:
@@ -2616,6 +2631,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-25 | A restart loads only what its checkout holds (operator report: "What does it want? I closed the app and clicked reload backend."). The title read "backend v1017 (older -- restart it)"; the operator reloaded at 07:56 ET and a fresh process came up v1017 again. The engine runs from the git checkout, which was still v1017 until a pull at 07:57, while the desk had updated itself to v1024. `/api/health` and the checklist add `checkout_tag` (the checkout's revision on disk now, re-read off the request path), and the title, Reload backend's confirmation and note, and the `frontend_revision` row say "pull master, then restart" when a restart would load the same code. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Who trades the stock (ADR 037, #604, #606). Operator asks: "can we have two modes where the entry is automated but the exit is manual?", then "When may Nova buy for you? I want a clear option next to level 2 ... if I selected the exit is on me, then I'm going to be the one who exits, not the bot"; mockup v2 approved, then "1 go". Each stock gets a Buy / Sell switch, above Level 2 and as a chip on the chart, with four modes: Signal only, Approve, Auto-entry and Bot at Strategy. Nova places for a stock only on Paper and on Sim at the live edge; Live is locked with the reason (`auto_live` NO-GO; Approve on Live waits on #604). Auto-entry buys one go trigger at the scanner's entry, sized by the operator's risk per trade, and never sells. Approve sends the plan as one bracket at the trigger. Bot at Strategy is the bot's own list. Take over the exit cancels Nova's exits, and a bot trade ends `handed`. Paper and Sim now fill brackets in Live's shape: the exits are held until the entry fills, then one-cancels-other (#606 step 1). The chart shows the trade's moments live (Forming, Trigger, Holding, the exit) with ENTER NOW / SELL NOW, and Level 2 marks the plan's prices. §3 amended; ADRs 007, 019 and 030 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Lint never hides the tests (operator pick after PR #603). Five ruff findings on master had skipped pytest on every backend PR since they landed, because CI runs Ruff first in the Backend tests job, and nothing local ran ruff. CI's Run tests step now runs after a Ruff failure (`!cancelled()`, only once the install succeeded), and `ruff check backend` joins `maintainer_checks.py --gate` (`tools/maintainer_lib/lint.py`; kinds `ruff`, `ruff_unavailable`, `ruff_error`). The Agent contract job installs the pinned ruff, so CI's gate and a local one agree. The pin stays in `backend/requirements-dev.txt`, and a test holds every `ruff==` in CI to it. §6.7 added. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Short interest above the float warns, never gates (#532 follow-up, operator decision: "make sure it never blocks those setups, just gives an on-screen warning"): `float_contradicted` -- the flag every max-float gate reads -- now comes only from the shares-outstanding check. More shares short than the float is also what a heavy short looks like (a lent share can be sold and lent again), so a name with an 8M float, 9M shares short and 12M outstanding had been refused every 10M Low Float gate as a "stale float". It is now `short_above_float`, shown as "9.0M!" in amber with the reason on hover. §3 amended. | User Directive + Claude Opus 5.5 |

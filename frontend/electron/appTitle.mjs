@@ -13,6 +13,8 @@ const TITLE_RECORDING_PREFIX = '● REC';
 /** The backend's own revision follows the desk's (operator ask 2026-09-24). */
 const TITLE_BACKEND = 'backend';
 const TITLE_BACKEND_OLDER = ' (older -- restart it)';
+/** Older, and its checkout holds nothing newer: a restart would start the same code again. */
+const TITLE_BACKEND_BEHIND = ' (older -- pull master, then restart)';
 
 export function withReleaseTag(base, releaseTag) {
   const tag = String(releaseTag ?? '').trim();
@@ -49,14 +51,29 @@ export function isOlderTag(tag, than) {
 }
 
 /**
+ * What a backend older than the desk needs. A restart loads whatever its checkout holds
+ * (`/api/health` `checkout_tag`), so: 'restart' when the checkout is ahead of it or Nova cannot
+ * tell, 'pull' when the checkout holds nothing newer -- a restart would start the same revision
+ * again (operator report 2026-09-25) -- and null when the backend is not older.
+ */
+export function backendRemedy(backendTag, releaseTag, checkoutTag) {
+  if (!isOlderTag(backendTag, releaseTag)) return null;
+  const checkout = tagNumber(checkoutTag);
+  return checkout != null && checkout <= tagNumber(backendTag) ? 'pull' : 'restart';
+}
+
+/**
  * "... · backend v1006" -- the revision the local API process runs, read from its /api/health.
  * A backend left running across an update keeps its old code until it restarts, so an older
- * one says so. Unknown (the API not answering, the sample desk) adds nothing.
+ * one says so, and says to pull first when a restart alone would load the same code. Unknown
+ * (the API not answering, the sample desk) adds nothing.
  */
-export function withBackendTag(base, backendTag, releaseTag) {
+export function withBackendTag(base, backendTag, releaseTag, checkoutTag = null) {
   const api = String(backendTag ?? '').trim();
   if (!api) return base;
-  return `${base} · ${TITLE_BACKEND} ${api}${isOlderTag(api, releaseTag) ? TITLE_BACKEND_OLDER : ''}`;
+  const remedy = backendRemedy(api, releaseTag, checkoutTag);
+  const note = remedy === 'pull' ? TITLE_BACKEND_BEHIND : remedy === 'restart' ? TITLE_BACKEND_OLDER : '';
+  return `${base} · ${TITLE_BACKEND} ${api}${note}`;
 }
 
 export function withRecording(base, recordingSymbol) {
@@ -70,11 +87,12 @@ export function novaWindowTitle({
   releaseTag = '',
   recordingSymbol = '',
   backendTag = '',
+  checkoutTag = '',
 } = {}) {
   const base = traderActive
     ? formatTraderDocumentTitle(traderSymbol, releaseTag)
     : formatScannerWindowTitle(releaseTag);
-  return withRecording(withBackendTag(base, backendTag, releaseTag), recordingSymbol);
+  return withRecording(withBackendTag(base, backendTag, releaseTag, checkoutTag), recordingSymbol);
 }
 
 /** Sample `?view=sample&symbol=` is a Trader desk; live uses the Scanner|Trader switch. */

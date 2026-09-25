@@ -61,6 +61,7 @@ def process_rows(facts: dict[str, Any]) -> list[dict[str, Any]]:
             "started_at": facts.get("started_at"),
             "uptime_sec": round(float(facts.get("uptime_sec") or 0.0), 1),
             "release_tag": tag,
+            "checkout_tag": facts.get("checkout_tag"),
             "commit": commit,
             "branch": facts.get("branch"),
             "revision_source": facts.get("source"),
@@ -266,8 +267,23 @@ def practice_rows(
 
 # ── Frontend ──────────────────────────────────────────────────────────────────
 
-def frontend_rows(*, ui_tag: str | None, backend_tag: str | None) -> list[dict[str, Any]]:
-    """The dev server's reported revision vs the backend's; a mismatch is a row."""
+def _tag_number(tag: str | None) -> int | None:
+    text = (tag or "").strip()
+    return int(text[1:]) if text.startswith("v") and text[1:].isdigit() else None
+
+
+def _restart_loads_same(ui: str | None, backend: str | None, checkout: str | None) -> bool:
+    """The API is older than the UI and its checkout holds nothing newer: a restart would
+    start the same revision again (operator report 2026-09-25)."""
+    u, b, c = _tag_number(ui), _tag_number(backend), _tag_number(checkout)
+    return u is not None and b is not None and c is not None and b < u and c <= b
+
+
+def frontend_rows(
+    *, ui_tag: str | None, backend_tag: str | None, checkout_tag: str | None = None,
+) -> list[dict[str, Any]]:
+    """The dev server's reported revision vs the backend's; a mismatch is a row. The backend's
+    checkout revision on disk now says whether a restart would fix it."""
     ui = (ui_tag or "").strip() or None
     if ui is None:
         state, detail = DIAG_STATE_UNKNOWN, "Unknown: the UI did not report its revision"
@@ -284,6 +300,10 @@ def frontend_rows(*, ui_tag: str | None, backend_tag: str | None) -> list[dict[s
         state, detail = DIAG_STATE_WARN, f"UI {ui} but API {backend_tag}"
         cause = "The page and the API were built from different commits (one of them was restarted after a pull, or the API runs from another checkout)."
         fix = "Reload backend and hard-refresh the page so both run the same revision."
+        if _restart_loads_same(ui, backend_tag, checkout_tag):
+            detail = f"UI {ui} but API {backend_tag}, and the API's checkout is {checkout_tag}"
+            cause = f"The API's checkout is itself at {checkout_tag}: a restart would start {backend_tag} again."
+            fix = f"Pull master in the API's checkout to reach {ui}, then Reload backend."
     return [row(
         id="frontend_revision",
         group=DIAG_GROUP_FRONTEND,
@@ -293,5 +313,5 @@ def frontend_rows(*, ui_tag: str | None, backend_tag: str | None) -> list[dict[s
         cause=cause,
         fix=fix,
         action=DIAG_ACTION_RELOAD_BACKEND if state == DIAG_STATE_WARN else None,
-        evidence={"ui": ui, "api": backend_tag},
+        evidence={"ui": ui, "api": backend_tag, "api_checkout": checkout_tag},
     )]

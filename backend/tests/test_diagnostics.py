@@ -129,3 +129,36 @@ def test_a_real_ib_error_still_warns():
     row = _gateway({"code": 1100, "message": "Connectivity between IB and TWS has been lost.", "ts": 1790055399.0})
     assert row["state"] == "warn" and "1100" in row["detail"]
 
+
+
+def _revision_row(**kw):
+    return _by_id(collect.frontend_rows(**kw))["frontend_revision"]
+
+
+def test_the_revision_row_says_pull_first_when_a_restart_would_load_the_same_code():
+    """Operator report 2026-09-25: a Reload came up v1017 again; its checkout was itself v1017."""
+    row = _revision_row(ui_tag="v1024", backend_tag="v1017", checkout_tag="v1017")
+    assert row["state"] == "warn"
+    assert "checkout is v1017" in row["detail"]
+    assert "would start v1017 again" in row["cause"]
+    assert row["fix"].startswith("Pull master") and "v1024" in row["fix"]
+    assert row["evidence"]["api_checkout"] == "v1017"
+
+
+def test_the_revision_row_says_restart_when_the_checkout_is_ahead_or_unknown():
+    for checkout in ("v1024", "v1020", None):
+        row = _revision_row(ui_tag="v1024", backend_tag="v1017", checkout_tag=checkout)
+        assert row["state"] == "warn"
+        assert row["fix"].startswith("Reload backend"), checkout
+
+
+def test_a_ui_older_than_the_api_is_never_told_to_pull_the_api():
+    row = _revision_row(ui_tag="v1017", backend_tag="v1024", checkout_tag="v1024")
+    assert row["fix"].startswith("Reload backend")
+
+
+def test_the_checklist_names_the_checkout_revision_beside_the_running_one():
+    body = _client().get("/api/diagnostics").json()
+    assert "checkout_tag" in body["process"]
+    identity = _by_id(body["rows"])["process_identity"]
+    assert "checkout_tag" in identity["evidence"]
