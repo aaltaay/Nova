@@ -63,7 +63,7 @@ def _bot_trade(sym: str, row: dict[str, Any]) -> dict[str, Any] | None:
         "stop": t.get("stop"), "target": t.get("target1"), "entry_order_id": t.get("entry_order_id"),
         "target_order_id": t.get("target_order_id"), "stop_order_id": None, "fill_price": t.get("entry_fill_price"),
         "filled_at": t.get("entry_filled_ts"), "exit_price": t.get("exit_price"), "exit_reason": t.get("exit_reason"),
-        "exits": exits, "sent_at": t.get("entry_sent_ts"), "note": t.get("note"),
+        "exits": exits, "sent_at": t.get("entry_sent_ts"), "closed_at": t.get("closed_ts"), "note": t.get("note"),
         "exiting": t.get("state") == "exiting",
     }
 
@@ -73,7 +73,7 @@ def _public_trade(t: dict[str, Any] | None) -> dict[str, Any] | None:
         return None
     keys = ("kind", "state", "venue", "venue_day", "setup_id", "setup_type", "qty", "entry", "stop", "target",
             "entry_order_id", "target_order_id", "stop_order_id", "fill_price", "filled_at", "exit_price",
-            "exit_reason", "exits", "sent_at", "note")
+            "exit_reason", "exits", "sent_at", "closed_at", "note")
     out = {k: t.get(k) for k in keys}
     out["exiting"] = bool(t.get("exiting"))
     return out

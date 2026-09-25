@@ -447,3 +447,71 @@ def test_setting_sell_to_you_takes_over_an_approved_bracket(paper, monkeypatch, 
     assert sorted(cancels) == [102, 103] and body["mode"] == "signal"
     assert body["trade"]["exits"] == "you"
 
+
+
+# -- Approve on the practice broker's own brackets (#606 step 1) -------------------------------
+def _legs(p) -> dict[int, dict]:
+    ledger = p.broker.ledger
+    return {int(r["order_id"]): r for r in [*ledger.working_orders(), *ledger.closed_orders()]}
+
+
+def test_an_approved_bracket_fills_at_the_broker_and_its_target_closes_the_trade(paper, monkeypatch):
+    monkeypatch.setattr(runner, "lane_of", lambda sym, sid: lane())
+    put(paper, "you", "nova")
+    client.post(f"/api/stock-mode/{SYM}/approve", json=approve_body(), headers=headers(paper.key))
+    runner.submit(trigger())
+    tick(paper)                                              # the bracket goes out: the entry takes the 10.02 ask
+    trade = tick(paper, NOW + 0.5)
+    assert trade["state"] == "holding" and trade["exits"] == "nova" and trade["fill_price"] == 10.02
+    legs = _legs(paper)
+    target, stop = legs[trade["target_order_id"]], legs[trade["stop_order_id"]]
+    assert (target["leg_role"], target["status"], target["limit_price"]) == ("target", "Submitted", 10.28)
+    assert (stop["leg_role"], stop["status"], stop["stop_price"]) == ("stop", "Submitted", 9.89)
+    assert target["oca_group"] == stop["oca_group"] == f"oca-{trade['entry_order_id']}"
+
+    paper.broker.try_fill_working(SYM, [(NOW + 2, 10.30)])     # a print through the target
+    trade = tick(paper, NOW + 2.5)
+    assert (trade["state"], trade["exit_reason"], trade["exit_price"]) == ("closed", "target", 10.28)
+    legs = _legs(paper)
+    assert legs[trade["stop_order_id"]]["status"] == "Cancelled"
+    assert legs[trade["stop_order_id"]]["reason_code"] == "PRACTICE_OCO_CANCELLED"
+    assert paper.broker.ledger.held_qty(SYM) == 0.0
+    view = client.get(f"/api/stock-mode/{SYM}").json()
+    assert view["trade"]["state"] == "closed" and view["trade"]["closed_at"] == NOW + 2.5
+    assert "10.28" in view["last_event"]["text"] and "+$39.78" in view["last_event"]["text"]
+
+
+def test_taking_over_a_real_bracket_cancels_both_exits_and_keeps_the_shares(paper, monkeypatch):
+    monkeypatch.setattr(runner, "lane_of", lambda sym, sid: lane())
+    put(paper, "you", "nova")
+    client.post(f"/api/stock-mode/{SYM}/approve", json=approve_body(), headers=headers(paper.key))
+    runner.submit(trigger())
+    tick(paper)
+    trade = tick(paper, NOW + 0.5)
+    body = client.post(f"/api/stock-mode/{SYM}/take-over", headers=headers(paper.key)).json()
+    assert body["trade"]["exits"] == "you" and body["mode"] == "signal"
+    assert paper.broker.ledger.working_orders() == [] and paper.broker.ledger.held_qty(SYM) == 153.0
+    legs = _legs(paper)
+    assert {legs[trade["target_order_id"]]["status"], legs[trade["stop_order_id"]]["status"]} == {"Cancelled"}
+    paper.broker.try_fill_working(SYM, [(NOW + 3, 10.30), (NOW + 4, 9.80)])
+    assert paper.broker.ledger.held_qty(SYM) == 153.0            # Nova sells nothing once the exit is yours
+
+
+def test_an_approved_entry_left_unfilled_is_cancelled_with_its_exits(paper, monkeypatch):
+    monkeypatch.setattr(runner, "lane_of", lambda sym, sid: lane())
+    paper.ref.bid, paper.ref.ask, paper.ref.last = 10.06, 10.10, 10.08     # the entry rests under the ask
+    put(paper, "you", "nova")
+    client.post(f"/api/stock-mode/{SYM}/approve", json=approve_body(), headers=headers(paper.key))
+    runner.submit(trigger())
+    trade = tick(paper)
+    assert trade["state"] == "entering"
+    legs = _legs(paper)
+    assert {legs[trade["target_order_id"]]["status"], legs[trade["stop_order_id"]]["status"]} == {"PreSubmitted"}
+    tick(paper, NOW + STOCK_MODE_ENTRY_TTL_SEC + 0.5)
+    trade = tick(paper, NOW + STOCK_MODE_ENTRY_TTL_SEC + 1.0)
+    assert trade["state"] == "missed"
+    legs = _legs(paper)
+    assert legs[trade["entry_order_id"]]["status"] == "Cancelled"
+    assert {legs[trade["target_order_id"]]["reason_code"], legs[trade["stop_order_id"]]["reason_code"]} == {
+        "PRACTICE_PARENT_CANCELLED"}
+    assert paper.broker.ledger.working_orders() == [] and paper.broker.ledger.held_qty(SYM) == 0.0
