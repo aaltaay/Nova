@@ -1,5 +1,7 @@
 """The practice broker: one ledger, one market reference, no IBKR (ADR 020).
 
+maintainer: one-concern the practice venue's order paths, all settled through _settle, the one door every fill and venue cancel passes
+
 ``for_venue("sim")`` trades the loaded replay -- the live feed at the live edge
 (``SimReference``, ADR 020 live-edge amendment) -- on a scratch ledger;
 ``for_venue("paper")`` trades the live feed (``LiveReference``) on the persistent
@@ -10,7 +12,10 @@ at admission and again when a resting order fills (cancelled
 (the blotter's ownership key) and adds ``order_source`` (the ADR 007 command
 source) and ``bot_id``. Per-order rules -- DAY expires at the session close, a
 SELL is only ever risk-reducing -- live in ``practice.order_rules`` (operator
-decisions, 2026-09-21). ``sim.broker`` is a facade over the Sim instance.
+decisions, 2026-09-21). ``place_bracket`` takes the bracket Live sends (#606):
+its exits wait on the entry and close as one-cancels-other (``practice.bracket``),
+and every order a fill or a cancel closes with it has its watch told.
+``sim.broker`` is a facade over the Sim instance.
 """
 from __future__ import annotations
 
@@ -27,6 +32,7 @@ from constants_practice import (
     PRACTICE_ACCOUNT_TYPE_SIM,
     PRACTICE_BUYING_POWER_CODE,
     PRACTICE_BUYING_POWER_REASON,
+    PRACTICE_LEG_PARENT,
     PRACTICE_NO_SHORTS_CODE,
     PRACTICE_NO_SHORTS_REASON,
     PRACTICE_STARTING_CASH,
@@ -35,9 +41,9 @@ from constants_practice import (
     PRACTICE_VENUE_SIM,
 )
 from constants_sim import SIM_ORDER_TYPE_CODE
-from practice import order_rules
+from practice import bracket, order_rules
 from practice.fees import for_fill
-from practice.ledger import Ledger, iso_utc
+from practice.ledger import EVENT_CANCELLED, EVENT_EXPIRED, EVENT_FILLED, Ledger, iso_utc
 from practice.reference import LiveReference, MarketReference, SimReference
 from practice.watch import answer_facts, notify_watch, release_commitments
 from sim import fill_model
@@ -46,6 +52,7 @@ logger = logging.getLogger(__name__)
 
 ORDER_TYPE_REASON = "Practice orders support MKT, LMT and STP"
 _EPS = 1e-9
+_CLOSING_EVENTS = (EVENT_FILLED, EVENT_CANCELLED, EVENT_EXPIRED)
 
 
 class PracticeBroker:
@@ -138,10 +145,87 @@ class PracticeBroker:
             "nova_placed_at": row["nova_placed_at"], **answer_facts(current),
         }
 
+    def place_bracket(
+        self,
+        symbol: str,
+        side: str,
+        qty: float,
+        entry_price: float,
+        target_price: float,
+        stop_price: float,
+        *,
+        tif: str | None = None,
+        outside_rth: bool = False,
+        source: str = "manual",
+        bot_id: str | None = None,
+        short_entry: bool = False,
+    ) -> dict[str, Any]:
+        """Place the bracket Live sends: a LMT entry, then two exits that wait on it (``practice.bracket``).
+
+        The entry passes ``place``'s gates -- TIF, the venue's admission, no
+        shorts (a SELL entry is a short bracket), buying power at the entry
+        limit. The exits (``bracket.exit_rows``) never pass ``place``, whose
+        no-shorts rule would refuse a SELL before anything is held; they rest
+        ``PreSubmitted`` until the entry fills. Three consecutive ids, entry
+        first, as IBKR allocates them. A marketable entry fills at once, which
+        wakes the exits.
+        """
+        del outside_rth  # practice orders are always live; there is no session gate
+        sym = (symbol or "").strip().upper()
+        side_u = (side or "").strip().upper()
+        # The execution door's order (execution/validate.py): shape, TIF, admission, no shorts.
+        short = side_u != "BUY" or bool(short_entry)
+        shape = bracket.shape_error(qty, entry_price, target_price, stop_price, short=short)
+        if shape is not None:
+            return self._bracket_refused(*shape)
+        qty_f = float(qty)
+        tif_u = order_rules.normalize_tif(tif)
+        if tif_u is None:
+            return self._bracket_refused(order_rules.TIF_REASON, PRACTICE_TIF_INVALID_CODE)
+        ok, reason, code = self.reference.admission(sym)
+        if not ok:
+            return self._bracket_refused(reason, code)
+        if short:  # a bracket's entry opens a position: a SELL entry opens a short
+            return self._bracket_refused(PRACTICE_NO_SHORTS_REASON, PRACTICE_NO_SHORTS_CODE)
+        now = self.reference.now_ts()
+        self.ledger.rollover(now)
+        afford, needed, available = self.ledger.can_afford(sym, side_u, qty_f, float(entry_price))
+        if not afford:
+            return self._bracket_refused(
+                f"{PRACTICE_BUYING_POWER_REASON} (needs {needed:,.2f}, has {available:,.2f})",
+                PRACTICE_BUYING_POWER_CODE,
+            )
+        parent_id, target_id, stop_id = (self.ledger.alloc_id() for _ in range(3))
+        parent = self._row(parent_id, sym, side_u, qty_f, "LMT", entry_price, None, now, source, bot_id, tif_u)
+        parent.update(bracket.leg_fields(parent_id, PRACTICE_LEG_PARENT))
+        for leg in (parent, *bracket.exit_rows(parent, target_id, stop_id, target_price, stop_price)):
+            self.ledger.place(leg, ts=now, source=source, bot_id=bot_id)
+        fill = fill_model.at_placement(side_u, "LMT", self.reference.reference(sym), limit=parent["limit_price"])
+        if fill is not None:
+            self._settle(parent_id, now, fill)
+        self._commit()
+        current = self.ledger.order_row(parent_id) or parent
+        return {
+            "ok": True, "order_id": parent_id, "parent_order_id": parent_id,
+            "target_order_id": target_id, "stop_order_id": stop_id, "error": None,
+            "mode": self.venue, "nova_placed_at": parent["nova_placed_at"], **answer_facts(current),
+        }
+
     def cancel(self, order_id: int, *, source: str = "manual", bot_id: str | None = None) -> dict[str, Any]:
+        """Cancel one working order; an entry takes the exits waiting on it along (``practice.bracket``)."""
+        mark = len(self.ledger.events)
         row = self.ledger.cancel(int(order_id), ts=self.reference.now_ts(), source=source, bot_id=bot_id)
         if row is None:
+            gone = self.ledger.order_row(int(order_id))
+            if gone is not None and bracket.closed_by_bracket(gone):
+                # KILL, the account flatten and cancel-all cancel a list of working
+                # orders one by one: a leg its bracket already closed is gone, not a failure.
+                return {
+                    "ok": True, "error": None, "verified_gone": True, "mode": self.venue,
+                    "closed_by": gone.get("reason_code"),
+                }
             return {"ok": False, "error": f"order {order_id} not open", "verified_gone": True}
+        self._notify_closed(mark, skip=int(order_id))
         self._commit()
         return {"ok": True, "error": None, "verified_gone": True, "mode": self.venue}
 
@@ -171,8 +255,11 @@ class PracticeBroker:
         filled: list[dict[str, Any]] = []
         for ts, price in prints:
             self.ledger.mark(sym, price)
-            for row in self.ledger.working_orders():
-                if row["symbol"] != sym or float(ts) <= float(row.get("placed_ts") or 0):
+            for listed in self.ledger.working_orders():
+                # The order as it stands now: a fill earlier in this pass may have
+                # closed it (one-cancels-other) or woken it at this very print.
+                row = self.ledger.working_row(int(listed["order_id"])) if listed["symbol"] == sym else None
+                if row is None or bracket.is_waiting(row) or float(ts) <= float(row.get("placed_ts") or 0):
                     continue
                 if order_rules.print_after_expiry(row, float(ts)):
                     continue  # a DAY order's session closed before this print
@@ -192,10 +279,9 @@ class PracticeBroker:
     def expire_due(self, now: float | None = None) -> list[dict[str, Any]]:
         """Expire every DAY order whose session has closed (``PRACTICE_TIF_EXPIRED``); returns the rows."""
         now_ts = float(now) if now is not None else float(self.reference.now_ts())
+        mark = len(self.ledger.events)
         expired = order_rules.expire_due(self.ledger, now_ts)
-        for row in expired:
-            notify_watch(int(row["order_id"]), row)
-        if expired:
+        if self._notify_closed(mark):  # the expired, and the exits their entries took along
             self._commit()
         return expired
 
@@ -285,6 +371,12 @@ class PracticeBroker:
     def _refused(self, error: str, code: str | None) -> dict[str, Any]:
         return {"ok": False, "order_id": None, "error": error, "mode": self.venue, "reason_code": code}
 
+    def _bracket_refused(self, error: str, code: str | None) -> dict[str, Any]:
+        return {
+            **self._refused(error, code),
+            "parent_order_id": None, "target_order_id": None, "stop_order_id": None,
+        }
+
     def _closes_position(self, symbol: str, side: str, qty: float) -> bool:
         held = self.ledger.held_qty(symbol)
         if side == "SELL":
@@ -310,13 +402,19 @@ class PracticeBroker:
             "account_id": self.account_id, "nova_placed_at": wall, "placed_ts": float(now),
             "fill_estimated": True, "fill_basis": None,
             "tif": tif, "expires_ts": order_rules.expiry_ts(tif, self.reference, now),
+            **bracket.plain_fields(),
         }
 
     def _settle(self, oid: int, ts: float, fill: fill_model.Fill) -> dict[str, Any] | None:
-        """Fill a working order, or cancel it when it may no longer fill (``order_rules.fill_refusal``)."""
+        """Fill a working order, or cancel it when it may no longer fill (``order_rules.fill_refusal``).
+
+        An exit still waiting on its entry never fills, whatever the path that
+        priced it; one-cancels-other runs in the ledger's ``fill``.
+        """
         row = self.ledger.working_row(oid)
-        if row is None:
+        if row is None or bracket.is_waiting(row):
             return None
+        mark = len(self.ledger.events)
         refused = order_rules.fill_refusal(self.ledger, row, fill.price)
         if refused is not None:
             reason, code = refused
@@ -325,8 +423,24 @@ class PracticeBroker:
         else:
             fees = for_fill(row["side"], float(row["qty"]), fill.price)
             closed = self.ledger.fill(oid, ts=ts, price=fill.price, basis=fill.basis, fees=fees)
-        if closed is not None:
-            notify_watch(oid, closed)
+        self._notify_closed(mark)
+        return closed
+
+    def _notify_closed(self, mark: int, *, skip: int | None = None) -> list[dict[str, Any]]:
+        """Tell the watch of every order the ledger events since ``mark`` closed; returns their rows.
+
+        A bracket's legs close together (``practice.bracket``), so one fill or
+        cancel can close several orders. ``skip`` is an order whose caller
+        answers for it itself (a cancel's send path).
+        """
+        closed: list[dict[str, Any]] = []
+        for event in self.ledger.events[mark:]:
+            if event.get("type") not in _CLOSING_EVENTS or int(event["order_id"]) == skip:
+                continue
+            row = self.ledger.order_row(int(event["order_id"]))
+            if row is not None:
+                notify_watch(int(event["order_id"]), row)
+                closed.append(row)
         return closed
 
     def _refresh_marks(self) -> None:

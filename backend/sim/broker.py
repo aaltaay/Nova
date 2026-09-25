@@ -63,6 +63,27 @@ def place(
     )
 
 
+def place_bracket(
+    symbol: str,
+    side: str,
+    qty: float,
+    entry_price: float,
+    target_price: float,
+    stop_price: float,
+    *,
+    tif: str | None = None,
+    outside_rth: bool = False,
+    source: str = "manual",
+    bot_id: str | None = None,
+    short_entry: bool = False,
+) -> dict[str, Any]:
+    """Place Live's bracket shape on the loaded replay (see ``PracticeBroker.place_bracket``)."""
+    return _sim().place_bracket(
+        symbol, side, qty, entry_price, target_price, stop_price,
+        tif=tif, outside_rth=outside_rth, source=source, bot_id=bot_id, short_entry=short_entry,
+    )
+
+
 def cancel(order_id: int) -> dict[str, Any]:
     return _sim().cancel(order_id)
 
