@@ -18,6 +18,12 @@ purity check remains in agent validation. Full backend coverage includes order
 validation, idempotency, risk controls, shorts, runtime opt-ins and live safeguards.
 This CI policy does not change any runtime trading permission or `auto_live` NO-GO.
 
+Inside a job, each check reports its own result. Backend tests runs pytest even
+after its Ruff step fails. Every Agent contract check (tool tests, structural
+validation, doc invariants, skills audit, maintainer gate) runs even when an
+earlier one fails. So one red never hides another, and the job is still red.
+Only a failed checkout, setup or install, or a cancel, skips them.
+
 The classifier reads the complete Git merge-base diff for a PR, or before/after
 for pushes. Renames include both old and new paths. Missing diffs, unknown paths,
 and manual dispatch select full coverage. Job summaries explain selection.
