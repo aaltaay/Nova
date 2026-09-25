@@ -346,6 +346,18 @@ def test_a_waiting_exit_can_be_repriced_and_still_waits(paper) -> None:
     assert [(r["order_id"], r["avg_fill_price"]) for r in filled] == [(target, 9.00)]
 
 
+def test_repricing_the_entry_through_the_market_fills_it_and_wakes_the_exits(paper) -> None:
+    raw = _resting(paper.broker)
+    p = raw["parent_order_id"]
+
+    moved = paper.broker.replace(p, limit_price=10.05)  # over the 10.02 ask
+
+    assert (moved["broker_status"], moved["avg_fill_price"]) == ("Filled", 10.02)
+    assert {oid: (r["status"], r["placed_ts"]) for oid, r in _working(paper.broker).items()} == {
+        p + 1: ("Submitted", NOW), p + 2: ("Submitted", NOW),
+    }
+
+
 # ── expiry ────────────────────────────────────────────────────────────────────
 
 def test_an_entry_that_expires_unfilled_takes_its_exits_along(paper) -> None:
