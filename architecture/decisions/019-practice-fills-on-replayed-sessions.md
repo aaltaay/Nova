@@ -43,7 +43,9 @@ against it without placing live orders.
    contract: which rule produced a fill, what it assumes, and which biases it
    carries. Every filled row carries `fill_estimated` and a `fill_basis`, so a
    practice fill is never presented as a recorded print. `MKT`, `LMT` and `STP`
-   are supported; brackets stay off the practice desk.
+   are supported; brackets stay off the practice desk. *(Amended by ADR 037,
+   2026-09-24: Paper and Sim fill brackets in Live's shape, the exits held until
+   the entry fills and then one-cancels-other; see `architecture/practice-fills.md`.)*
 
 4. **Getting flat always works.** A protective source (`flatten`, `kill`,
    `cancel_working`) may close an existing practice position with a market
