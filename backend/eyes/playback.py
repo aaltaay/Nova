@@ -178,7 +178,8 @@ class Playback:
                 "universe_symbols": sorted(self.universe) if gap is None else []}
 
     def journal_view(self) -> dict[str, Any]:
-        return {"path": str(self.day.path), "exists": self.day.exists, "lines": len(self.day.lines),
+        return {"path": str(self.day.path) if self.day.path else None, "exists": self.day.exists,
+                "lines": len(self.day.lines),
                 "folded": self.k, "first_ts": self.day.first_ts, "last_ts": self.day.last_ts,
                 "line_ts": self.last_line_ts, "skipped": self.day.skipped}
 
@@ -200,9 +201,10 @@ def template_window(store: Any) -> WindowOf:
     return window_of
 
 
-def board_at(path: Path, date: str, at: float, *, levels: dict[str, Any],
+def board_at(path: Path | None, date: str, at: float, *, levels: dict[str, Any],
              window_of: WindowOf | None = None) -> dict[str, Any]:
-    """One day's live journal folded to ``at``: the board body, its gap and the journal it read."""
+    """One day's live journal folded to ``at``: the board body, its gap and the journal it read (``path``
+    ``None``: the day has no journal, a stated absence)."""
     pb = Playback(JournalDay(path, date))
     pb.day.refresh()
     pb.advance(at)

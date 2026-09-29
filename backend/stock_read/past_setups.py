@@ -47,10 +47,11 @@ _lock = threading.Lock()
 _today: DayFold | None = None
 
 
-def _journal_path(date: str) -> Path:
+def _journal_path(date: str) -> Path | None:
+    """The day's journal, found by listing its folder (the request's date never becomes a path)."""
     from eyes import journal
 
-    return journal.journal_dir() / f"{date}.jsonl"
+    return journal.day_path(date)
 
 
 def _archive_bars(symbol: str, date: str) -> list[Bar]:
@@ -60,9 +61,12 @@ def _archive_bars(symbol: str, date: str) -> list[Bar]:
 
 
 def episodes_of(symbol: str, date: str, *, today: bool, path: Path | None = None) -> tuple[list[dict], int]:
-    """``symbol``'s episodes on ``date`` and the day's journal lines read. Today's fold is kept."""
+    """``symbol``'s episodes on ``date`` and the day's journal lines read. Today's fold is kept. A day
+    with no journal file raises ``FileNotFoundError`` (the route says so)."""
     global _today
     where = path or _journal_path(date)
+    if where is None:
+        raise FileNotFoundError(f"no eyes' journal on file for {date}")
     if not today:
         day = DayFold(where, date)
         day.refresh()
@@ -81,6 +85,8 @@ def read(symbol: str, date: str, now: float, *, today: bool, path: Path | None =
     try:
         eps, lines = episodes_of(sym, date, today=today, path=path)
         journal = {"ok": True, "error": None, "lines": lines}
+    except FileNotFoundError as exc:          # no journal that day: a stated absence, not a fault
+        eps, journal = [], {"ok": False, "error": str(exc)[:200], "lines": 0}
     except Exception as exc:
         logger.warning("past setups: the journal of %s could not be read", date, exc_info=True)
         eps, journal = [], {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:200], "lines": 0}

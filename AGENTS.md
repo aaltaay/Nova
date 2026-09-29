@@ -1206,10 +1206,13 @@ minutes). `{from_ts, price, level, entry, floor, window_min, complete, bars, hig
 symbol, date, generated_at, episodes: Episode[] (oldest first, open ones included), counts: {failed,
 faded, triggered, cut, open}, journal: {ok, error, lines}, bars: {ok, error, count}}` -- `after` for
 every failed or faded one, the failed ones the lane still shows included; `lines` the day's journal
-lines read. Today's file is read as it grows (`eyes.journal_day.JournalTail`: appended bytes only,
-never a line the writer has not finished) and folded once for every symbol, in memory; another day is
-folded on each ask. A source that cannot be read is `ok: false` with its error and the rest still
-answers (`after: null` without bars).
+lines read. The day's file is found by listing the journal folder (`eyes.journal.day_path`, which
+`GET /api/eyes/at` and the Sim eyes use too): a date from a request is only compared with file names,
+never made into a path. Today's file is read as it grows (`eyes.journal_day.JournalTail`: appended
+bytes only, never a line the writer has not finished) and folded once for every symbol, in memory;
+another day is folded on each ask. A source that cannot be read is `ok: false` with its error (a day
+with no journal file: "no eyes' journal on file for DATE") and the rest still answers (`after: null`
+without bars).
 
 **On the desk** (`frontend/src/stock_read/`: `pastSetups.ts` the wire and the words, `pastShapes.ts`
 the drawing, `ShapeTip.tsx` the hover):

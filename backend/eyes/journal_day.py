@@ -23,9 +23,10 @@ SOURCE_LIVE = "live"
 
 
 class JournalTail:
-    """One day's live journal lines, handed out once each, as the file grows."""
+    """One day's live journal lines, handed out once each, as the file grows. ``path`` is ``None`` for a
+    day with no file (``eyes.journal.day_path``): nothing to read, never a guess."""
 
-    def __init__(self, path: Path, date: str):
+    def __init__(self, path: Path | None, date: str):
         self.path = path
         self.date = date
         self.exists = False
@@ -36,6 +37,8 @@ class JournalTail:
     def read(self) -> list[dict[str, Any]]:
         """The lines appended since the last call. After a restart (``generation`` moved on) they are
         the file's from its start."""
+        if self.path is None:
+            return []
         try:
             size = self.path.stat().st_size
         except FileNotFoundError:
@@ -85,13 +88,13 @@ class JournalTail:
 class JournalDay:
     """One day's live journal lines, oldest first, read as the file grows."""
 
-    def __init__(self, path: Path, date: str):
+    def __init__(self, path: Path | None, date: str):
         self._tail = JournalTail(path, date)
         self.lines: list[dict[str, Any]] = []
         self.ts: list[float] = []              # sorted: a line's ts, never before the one above it
 
     @property
-    def path(self) -> Path:
+    def path(self) -> Path | None:
         return self._tail.path
 
     @property
