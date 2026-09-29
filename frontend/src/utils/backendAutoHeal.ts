@@ -3,7 +3,7 @@
  * API_WEDGED is IB-loop SoT / a probe miss -- never kill a live PID (ADR 010).
  * One attempt per browser session (dev / Electron only -- prod web cannot spawn).
  */
-import { BACKEND_DIAG_FLAG_DOWN } from '../constants';
+import { API_URL, BACKEND_AUTO_HEAL_PROBE_MS, BACKEND_DIAG_FLAG_DOWN } from '../constants';
 import { startLocalApi, type StartLocalApiResult } from './startLocalApi';
 
 export const BACKEND_AUTO_HEAL_SESSION_KEY = 'nova:auto-heal:api';
@@ -59,9 +59,24 @@ export function clearBackendAutoHealSlot(
   }
 }
 
+/** True when /api/health answers now: a backend is up, so a restart would only stop it. */
+async function backendAnswersNow(): Promise<boolean> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), BACKEND_AUTO_HEAL_PROBE_MS);
+  try {
+    const res = await fetch(`${API_URL}/health`, { cache: 'no-store', signal: ctrl.signal });
+    return res.ok;
+  } catch {
+    return false; // nothing answered: the outage is real
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * If flag is API_DOWN and slot available, spawn/restart local API once.
- * Returns null when skipped (wrong flag, slot used, or non-dev without Electron).
+ * Returns null when skipped (wrong flag, slot used, non-dev without Electron, or a backend
+ * already answers -- the flag was from before a restart finished, 2026-09-29).
  */
 export async function maybeAutoHealBackend(
   flag: string | undefined | null,
@@ -75,6 +90,7 @@ export async function maybeAutoHealBackend(
     (desktop?.isDesktop && typeof desktop.restartApi === 'function') ||
     Boolean(import.meta.env.DEV);
   if (!canSpawn) return null;
+  if (await backendAnswersNow()) return null;
 
   markBackendAutoHealUsed();
   console.warn(`[Nova][API_AUTO_HEAL] ${flag} — restarting local API once`);

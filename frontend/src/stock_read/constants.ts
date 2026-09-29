@@ -5,12 +5,15 @@ export const STOCK_READ_PATH = '/api/stock-read';
 /** The read is polled while the Trader tab shows; the backend serves one read per 2 s. */
 export const STOCK_READ_POLL_MS = 5_000;
 export const STOCK_READ_DECISIONS_POLL_MS = 60_000;
+/** The day's setups that ended (ADR 036 amendment): read this often while the 1-minute pane shows, and
+ * at once when a lane's drawn state changes. */
+export const STOCK_READ_PAST_POLL_MS = 15_000;
 
 /** The operator's risk per trade, for the plan's size (a desk setting, this window's browser). */
 export const STOCK_READ_RISK_KEY = 'nova.stockRead.riskUsd';
 export const STOCK_READ_RISK_DEFAULT_USD = 20;
 export const STOCK_READ_RISK_MAX_USD = 10_000;
-/** `{schema_version: 1, value: {setups, levels, hidden: string[], plan: 'auto' | 'open' | 'folded'}}`. */
+/** `{schema_version: 1, value: {setups, levels, past, hidden: string[], plan: 'auto' | 'open' | 'folded'}}`. */
 export const STOCK_READ_LAYERS_KEY = 'nova.stockRead.layers';
 /** On `auto` the plan opens whole only when the quote card is at least this tall; below it the plan is
  * one line, so Level 2 keeps its room (at 1080p the whole plan left Level 2 about a third). */
@@ -62,6 +65,14 @@ export const SETUP_COLORS = {
   level: '#8b92a5',
   round: '#f59e0b',
 };
+
+/** Setups that ended, drawn fainter than the live lane: red a rule broke, grey faded, green triggered. */
+export const PAST_COLORS = {
+  failed: { stroke: 'rgba(255, 69, 58, 0.55)', fill: 'rgba(255, 69, 58, 0.05)', ink: '#ff8a80' },
+  faded: { stroke: 'rgba(142, 142, 147, 0.55)', fill: 'rgba(142, 142, 147, 0.05)', ink: '#aeaeb2' },
+  triggered: { stroke: 'rgba(48, 209, 88, 0.55)', fill: 'rgba(48, 209, 88, 0.05)', ink: '#7ee2a0' },
+  leg: { stroke: 'rgba(142, 142, 147, 0.35)', fill: 'rgba(142, 142, 147, 0.04)', ink: '#8e8e93' },
+} as const;
 
 export const LANE_LABELS: Record<string, string> = {
   first_pullback: 'FP',

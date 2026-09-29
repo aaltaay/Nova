@@ -3,7 +3,8 @@
  * pullback, flag, base, red phase), the plan's risk and reward zones, level segments, a focus line
  * for a decision the operator asked to see, edge tags for levels above or below the visible
  * prices, and the moment's pin (ENTER NOW, SELL NOW, what Nova did: ADR 037) on its candle. It draws a scene it is given; `chartShapes.ts` decides what the scene holds and
- * `StockReadChartLayer` maps its times onto this pane's bars.
+ * `StockReadChartLayer` maps its times onto this pane's bars. A box with a `hoverId` is reported to the
+ * chart as hovered (`hitTest`), so the pane can tell that setup's story under the pointer.
  */
 import type { CanvasRenderingTarget2D } from 'fancy-canvas';
 import type {
@@ -13,11 +14,15 @@ import type {
   IPrimitivePaneView,
   ISeriesApi,
   ISeriesPrimitive,
+  PrimitiveHoveredItem,
   PrimitivePaneViewZOrder,
   SeriesAttachedParameter,
   SeriesType,
   Time,
 } from 'lightweight-charts';
+
+/** A pointer this close to a box's edge still hovers it. */
+const HIT_SLACK_PX = 2;
 
 export interface SceneBox {
   t1: Time;
@@ -32,6 +37,8 @@ export interface SceneBox {
   labelColor: string;
   /** The label under the box (a consolidation's), so it never sits on its leg's. */
   labelBelow?: boolean;
+  /** What the pane reports as hovered over this box (`hitTest`): a lane's or a past setup's story. */
+  hoverId?: string;
 }
 
 export interface SceneSegment {
@@ -307,6 +314,20 @@ export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
 
   paneViews(): readonly IPrimitivePaneView[] {
     return this.views;
+  }
+
+  /** The top-most box with a story under the pointer (the last drawn wins: live lanes over past setups). */
+  hitTest(x: number, y: number): PrimitiveHoveredItem | null {
+    for (let i = this.px.boxes.length - 1; i >= 0; i -= 1) {
+      const { x1, x2, y1, y2, b } = this.px.boxes[i];
+      if (!b.hoverId || x2 === null) continue;
+      const top = Math.min(y1, y2) - HIT_SLACK_PX;
+      const bottom = Math.max(y1, y2) + HIT_SLACK_PX;
+      if (x >= x1 - HIT_SLACK_PX && x <= x2 + HIT_SLACK_PX && y >= top && y <= bottom) {
+        return { externalId: b.hoverId, zOrder: 'top' };
+      }
+    }
+    return null;
   }
 
   autoscaleInfo(): AutoscaleInfo | null {

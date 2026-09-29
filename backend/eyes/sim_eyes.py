@@ -65,10 +65,10 @@ def _default_target() -> dict[str, Any] | None:
             "symbol": st.get("replay_symbol") if loaded else None, "loaded": loaded}
 
 
-def _journal_path(date: str) -> Path:
-    from eyes.journal import journal_dir
+def _journal_path(date: str) -> Path | None:
+    from eyes.journal import day_path
 
-    return journal_dir() / f"{date}.jsonl"
+    return day_path(date)
 
 
 class SimEyes:
@@ -78,7 +78,7 @@ class SimEyes:
                  journal: Callable[[dict], None] | None = None,
                  threaded: bool = True,
                  levels: Callable[[], dict] | None = None,
-                 journal_path: Callable[[str], Path] = _journal_path):
+                 journal_path: Callable[[str], Path | None] = _journal_path):
         self._target_fn = target
         self._journal_path_fn = journal_path
         self._load_fn = load
@@ -228,7 +228,8 @@ class SimEyes:
         date, at = str(target["date"]), float(target["playhead"])
         pb = self._playback
         if pb is None or pb.day.date != date:
-            pb = self._playback = Playback(JournalDay(Path(self._journal_path_fn(date)), date))
+            where = self._journal_path_fn(date)
+            pb = self._playback = Playback(JournalDay(Path(where) if where is not None else None, date))
         try:
             pb.day.refresh()
         except OSError as exc:

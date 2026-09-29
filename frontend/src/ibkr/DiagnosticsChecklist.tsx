@@ -9,6 +9,8 @@ import { useMemo, useState } from 'react';
 import {
   DIAG_CAUSE_LABEL,
   DIAG_COPIED_LABEL,
+  DIAG_COPIED_SCREEN_LABEL,
+  DIAG_COPIED_SCREEN_NOTE,
   DIAG_COPY_FAILED,
   DIAG_COPY_LABEL,
   DIAG_COUNTS_ORDER,
@@ -121,8 +123,42 @@ function Row({ row, actions, busy }: { row: DiagRow; actions: DiagActionHandlers
   );
 }
 
+/**
+ * The checklist on screen as plain text: what Copy puts on the clipboard when the API cannot
+ * send its own bundle -- it was down (2026-09-29: a restart in flight made Copy fail with no
+ * text to select, exactly when the checklist mattered).
+ */
+export function checklistText(data: DiagnosticsPayload): string {
+  const when = typeof data.generated_at === 'number'
+    ? new Date(data.generated_at * 1000).toLocaleString()
+    : String(data.generated_at ?? 'unknown time');
+  const counts = DIAG_COUNTS_ORDER.map((s) => `${s}=${data.counts?.[s] ?? 0}`).join(' ');
+  const lines = [
+    `Nova desk diagnostics -- as last read by the desk (${when}); the API did not send its bundle`,
+    `counts ${counts}`,
+  ];
+  const rows = data.rows ?? [];
+  const groups = [...(data.groups ?? [])];
+  for (const r of rows) {
+    if (!groups.some((g) => g.id === r.group)) groups.push({ id: r.group, title: r.group });
+  }
+  for (const g of groups) {
+    const inGroup = rows.filter((r) => r.group === g.id);
+    if (!inGroup.length) continue;
+    lines.push('', `## ${g.title}`);
+    for (const r of inGroup) {
+      lines.push(`[${r.state}] ${r.title}: ${r.detail}`);
+      if (r.state !== 'ok' && r.state !== 'off') {
+        if (r.cause) lines.push(`    cause: ${r.cause}`);
+        if (r.fix) lines.push(`    fix: ${r.fix}`);
+      }
+    }
+  }
+  return `${lines.join('\n')}\n`;
+}
+
 export function DiagnosticsChecklist({ data, actions, busy, onRefresh, copyBundle }: Props) {
-  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'copied_screen' | 'failed'>('idle');
   const [fallbackText, setFallbackText] = useState<string | null>(null);
   const grouped = useMemo(
     () =>
@@ -134,15 +170,21 @@ export function DiagnosticsChecklist({ data, actions, busy, onRefresh, copyBundl
   );
 
   const onCopy = async () => {
-    let text = '';
+    let text: string;
+    let fromScreen = false;
     try {
       text = await copyBundle();
+    } catch {
+      text = checklistText(data); // the API is not answering: copy what the desk last read
+      fromScreen = true;
+    }
+    try {
       await navigator.clipboard.writeText(text);
-      setCopyState('copied');
+      setCopyState(fromScreen ? 'copied_screen' : 'copied');
       setFallbackText(null);
     } catch {
       setCopyState('failed');
-      setFallbackText(text || null);
+      setFallbackText(text);
     }
   };
 
@@ -162,11 +204,16 @@ export function DiagnosticsChecklist({ data, actions, busy, onRefresh, copyBundl
             {DIAG_REFRESH_LABEL}
           </button>
           <button type="button" className="diag__btn" onClick={() => void onCopy()} data-testid="diag-copy">
-            {copyState === 'copied' ? DIAG_COPIED_LABEL : DIAG_COPY_LABEL}
+            {copyState === 'copied'
+              ? DIAG_COPIED_LABEL
+              : copyState === 'copied_screen' ? DIAG_COPIED_SCREEN_LABEL : DIAG_COPY_LABEL}
           </button>
         </span>
       </div>
       <p className="diag__lead">{DIAG_LEAD}</p>
+      {copyState === 'copied_screen' && (
+        <p className="diag__lead" data-testid="diag-copied-screen" role="status">{DIAG_COPIED_SCREEN_NOTE}</p>
+      )}
       {copyState === 'failed' && (
         <div className="diag__fallback" data-testid="diag-copy-failed">
           <p>{DIAG_COPY_FAILED}</p>

@@ -25,3 +25,27 @@ export function createSerialQueue() {
     },
   };
 }
+
+/**
+ * Collapse overlapping calls into one run: a call made while `fn` is still running gets that
+ * run's promise instead of starting another. The next call after it settles starts afresh.
+ * @template T
+ * @param {() => Promise<T>} fn
+ * @returns {{ run: () => Promise<T>, running: () => boolean }}
+ */
+export function createSharedRun(fn) {
+  let current = null;
+  return {
+    run() {
+      if (current) return current;
+      const started = Promise.resolve().then(fn);
+      current = started;
+      const clear = () => {
+        if (current === started) current = null;
+      };
+      started.then(clear, clear);
+      return started;
+    },
+    running: () => current !== null,
+  };
+}

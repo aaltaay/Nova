@@ -219,6 +219,27 @@
 .sr-legend__chip--done .sr-legend__dot { background: var(--sr-ok); }
 .sr-legend__chip--failed .sr-legend__dot { background: var(--sr-bad); }
 .sr-legend__chip--none .sr-legend__dot { border: 1px solid var(--sr-unknown); background: none; }
+/* The day's setups that ended (ADR 036 amendment): a dashed chip, like the faint dashed boxes it draws. */
+.sr-legend__chip--past { border-style: dashed; color: var(--sr-secondary); }
+/* A setup's story under the pointer: beside it, never in the way of a chart gesture. */
+.sr-shape-tip {
+  position: absolute;
+  z-index: 7;
+  width: 300px;
+  max-width: calc(100% - 8px);
+  padding: 6px 8px;
+  border: 1px solid var(--sr-border);
+  border-radius: 4px;
+  background: rgba(12, 12, 14, 0.94);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  color: var(--sr-text);
+  font-size: 11px;
+  line-height: 1.35;
+  pointer-events: none;
+}
+.sr-shape-tip__title { margin-bottom: 3px; font-weight: 700; }
+.sr-shape-tip__line { color: var(--sr-secondary); }
+.sr-shape-tip__line + .sr-shape-tip__line { margin-top: 2px; }
 /* The badge, the trade's track and the Who trades chip stack in the top-right corner (ADR 037). */
 .sr-legend__corner {
   position: absolute;

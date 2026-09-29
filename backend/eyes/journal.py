@@ -12,7 +12,8 @@ writes. A full queue drops the line and counts it. ``NOVA_EYES_JOURNAL=0``
 turns it off. Invalidation: none -- nothing prunes it (retention is the
 operator's call). Read by ``tools/eyes_journal.py``, ``eyes/reader.py`` and
 ``eyes/playback.py`` -- the Sim desk off the live edge draws every setup card
-from it as it stood at the playhead.
+from it as it stood at the playhead -- and folded into the day's episodes by
+``eyes/episodes.py`` (the chart's past setups, ``tools/setup_failures.py``).
 """
 from __future__ import annotations
 
@@ -55,6 +56,18 @@ def eyes_dir() -> Path:
 
 def journal_dir() -> Path:
     return eyes_dir() / EYES_JOURNAL_DIRNAME
+
+
+def day_path(date: str) -> Path | None:
+    """The journal file of ``date`` (``YYYY-MM-DD``), found by listing the folder; ``None`` when there is
+    none. A date from a request is only compared with the files' names and never becomes part of a path
+    (CodeQL py/path-injection: the way ``perf/routes.py`` finds a stall report)."""
+    folder = journal_dir()
+    try:
+        return next((p for p in folder.glob("*.jsonl") if p.stem == date), None)
+    except OSError:
+        logger.warning("eyes journal: cannot list %s", folder, exc_info=True)
+        return None
 
 
 def enabled() -> bool:

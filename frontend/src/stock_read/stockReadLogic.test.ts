@@ -23,7 +23,7 @@ import { eventTone } from './DecisionsTab';
 import { apusAt, apusDecisionsWire, apusHistoryWire, apusReadWire } from './stockReadFixtures';
 import type { StockRead } from './types';
 
-const LAYERS = { setups: true, levels: true, hidden: [] as string[], plan: 'auto' as const };
+const LAYERS = { setups: true, levels: true, past: true, hidden: [] as string[], plan: 'auto' as const };
 const read = normalizeStockRead(apusReadWire) as StockRead;
 /** Every minute maps onto itself: a pane whose bars cover the day. */
 const identity = (sec: number) => sec as Time;
@@ -180,7 +180,7 @@ describe('the charts', () => {
     expect(bare.scene.edgeTags).toEqual([]);
   });
 
-  it('keeps a failed setup on the chart, faded and named', () => {
+  it('keeps a failed setup on the chart, faded and named with the rule it broke', () => {
     const failed = normalizeStockRead({
       ...apusReadWire,
       plan: null,
@@ -193,7 +193,7 @@ describe('the charts', () => {
     })!;
     const { scene } = paneDraw(failed, { pane: 'full', layers: LAYERS, toTime: identity });
     const pb = scene.boxes.find(b => b.label?.startsWith('PULLBACK'))!;
-    expect(pb.label).toBe('PULLBACK 2 · FAILED');
+    expect(pb.label).toBe('PULLBACK 2 · FAILED: ran too long');
     expect(pb.stroke).toBe('#8e8e93');
     expect(scene.boxes.find(b => b.label === 'LEG +25.6%')?.stroke).toBe('#8e8e93');
   });

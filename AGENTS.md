@@ -433,7 +433,14 @@ watchdog or, with none running, by that checkout's `scripts/Start-NovaApi.ps1`
 -- never by the app's packaged engine, whose data lives elsewhere
 (`electron/engineRestart.mjs`). It reports success only when a different
 `instance_id` answers `/api/health`, and otherwise says why ("Not restarted:
-..."); the Vite dev server's reload already waited for a new `instance_id`. The
+..."); the Vite dev server's reload already waited for a new `instance_id`.
+**One restart at a time** (operator report, 2026-09-29: "Why is it taking
+forever?"): a reload asked while one runs joins it instead of queueing a second
+(`serialQueue.createSharedRun`), and the header's API-down auto-heal restarts
+nothing while `/api/health` answers -- a queued second reload had stopped the
+engine the first had just brought up. The localhost watchdog stops waiting on
+a Vite that exited and retries a failing Vite every 10 min after three
+failures, so it checks the API every interval. The
 Bots page reads an API older than ADR 031 (setups listed without a `level`) as
 a backend that needs a reload, never as a setup with no scanner.
 
@@ -1157,7 +1164,7 @@ the state is unknown instead of `false`; `ibkr/shortability.cached(symbol)` retu
 snapshot with its age (a read, never a wait), and `/ws/ticker/{symbol}` re-reads shortability every
 `IBKR_SHORTABILITY_TTL_SEC` while the socket is open, every `IBKR_SHORTABILITY_RETRY_UNKNOWN_SEC`
 while it is unknown (the Level 2 "SHORT Unknown" chip asked once per tab). The eyes' journal is read
-by the desk only through the decisions route.
+by the desk only through the decisions route and, since 2026-09-29, the past-setups route (below).
 
 **On the desk** (owner `frontend/src/stock_read/`). The Trader tab polls the read every
 `STOCK_READ_POLL_MS` while it shows. The plan box and seven tiles sit between the quote and Level 2
@@ -1178,10 +1185,117 @@ when the badge is pressed. Nothing else moves the view: when the plan's zones ap
 follows the live edge slides over to give them room, and a view the operator moved stays put (the
 time scale's `rightOffset`, which is its scroll position, is never set). The 5-minute and 10-second charts mirror the plan's levels as thin lines,
 and the daily chart marks every +40% run. `localStorage` `nova.stockRead.layers` = `{schema_version:
-1, value: {setups, levels, hidden: string[], plan: "auto" | "open" | "folded"}}` keeps the
-switches. A decision's "show
+1, value: {setups, levels, past, hidden: string[], plan: "auto" | "open" | "folded"}}` keeps the
+switches (`past`, added 2026-09-29, reads true when a stored value lacks it). A decision's "show
 on chart" frames its moment on the 1-minute chart with the levels it armed at. Nothing is drawn or
 read on a replay desk (the read is today's live stock) or on the sample desk.
+
+### Setups that ended stay on the chart, and what price did next (ADR 036 amendment, operator ask 2026-09-29)
+
+"after it fails to form ... it says 'pole' with a gray square. Eventually, it removes itself from the
+chart ... we could probably go back and study them": the 1-minute chart drew each lane's current state
+only, so a setup vanished at the first bar that did not continue it (NCPL 2026-09-29: a bull flag's
+pole failed at 09:20 -- "flag candle 2 made a higher high than the candle before it" -- and left the
+chart at 09:21, while the price went on through the pole's high). The eyes' journal kept every line,
+but nothing read them back as setups, and nothing scored a setup that died before it armed.
+
+**Episodes** (`eyes/episodes.py`, pure). One day's live journal lines of each setup's template in play
+(`playing: true`) fold into episodes, one per setup's life on a symbol. An episode opens at the first
+line that leaves `watching` and grows while its leg only extends (the same leg, or a later one with a
+high at or over it). It ends when the lane goes back to `watching`, when a failed or triggered setup
+is followed by a new attempt, when a lower or earlier leg replaces it, or at a `session` line (Nova
+restarted). An episode is `{id, symbol, setup_type, template, rev, started_at, ended_at, end: "failed"
+| "faded" | "triggered" | "cut" | null, died_at, died_bar_t, reason, reason_key, ended_by, reached:
+"leg" | "pullback" | "armed" | "near" | "triggered", leg: {t, high, low, pct, bars?}, setup: object |
+null, setup_id, filtered, triggered_at, trigger_price, score: {outcome, bar_r, exit_reason, mfe, mae}
+| null, after: After | null}`:
+- `ended_at` / `end` / `ended_by` are `null` while the lane still shows it; `ended_by` is the reason on
+  the line that ended it ("no pole", or "a new attempt began: ..."). A restart ends a setup that had
+  failed or triggered as that, and any other as `cut` (how it would have ended is unknown).
+- `died_at` / `died_bar_t` are set the moment it failed (its first `failed` state), while its lane may
+  still show it failed for a while; a faded one's are the moment it ended. `reason` is the rule it
+  broke -- the first, never a later one -- else what it was waiting on or blocked by when it ended;
+  `reason_key` is `reason` with every number replaced by `#`, so a report counts "the flag gave back
+  61.9% ..." with "... 83.3% ...".
+- `died_bar_t` is the start of the candle the scanner had just read: a line written within
+  `EYES_EPISODE_BAR_CLOSE_SEC` (3 s) of a minute is about the candle that closed (bar-close lines land
+  about 0.3 s in), else about the one forming.
+- `setup` is the levels it last armed with (`null` when it never armed); `score` is a triggered
+  setup's own score, from its `scored` lines (they may come after the episode ended).
+
+**After** (`eyes/aftermath.py`, pure): what price did in the `EYES_EPISODE_AFTER_MIN` (15) minutes
+after a setup failed or faded, on the chart's one-minute bars (`bars_store`, less IBKR's no-trade
+minutes). `{from_ts, price, level, entry, floor, window_min, complete, bars, high, low, first: "high" |
+"low" | "neither" | "pending" | "unknown", crossed_at, trade}`:
+- `level` is the high it was building under: its trigger when it armed, else its leg's high (for a
+  pullback or a flag, above the trigger it would have had -- the test is conservative; red to green's
+  is the open). `entry` is one cent over it, or the setup's own entry when it armed.
+- `floor` is the low it would have stopped under: its stop when it armed; else red to green's lowest
+  low since the open, and any other's lowest low from the candle after the leg's high through the
+  candle it died on (`null` without those bars). `price` is that candle's close.
+- `first` says which it crossed first, from the candle after the one it died on (the one it died
+  inside, when it died between closes): over the level (`high`) or under the floor (`low`). A candle
+  that did both reads `low`: the order inside a minute is unknown, and the study never credits a run
+  it cannot prove. `neither` once the window passed, `pending` while it has not, `unknown` with no
+  candle after it died. `crossed_at` is that candle's start.
+- After `high`, `trade` is the trade the rule refused, scored the way an armed setup is: entry one cent
+  over the level (the candle's open when it gapped over; the setup's own entry when it armed), stop the
+  floor, target entry + `SETUPS_TARGET_R` x risk (the setup's own target 1 when it armed and over the
+  entry) -- `{entry, stop, risk, target, outcome: "target_first" | "stop_first" | "open", outcome_at,
+  bar_r, exit_reason, mfe_r, mae_r}`. The crossing candle counts its stop only on a close under it (the
+  scoreboard's entry-bar rule), a later candle touching both counts the stop, `mfe_r` / `mae_r` read
+  `SETUPS_SCORE_WINDOW_MIN` from the cross, and `bar_r` / `exit_reason` are `ScoreTracker`'s exit rules
+  on the bars (a 9 EMA over the day's bars). `null` when the floor is unknown or not under the entry.
+  Scores, never fills: no tape, no slippage.
+
+**The route.** `GET /api/stock-read/{symbol}/past-setups?date=YYYY-MM-DD` (owner
+`stock_read/past_setups.py`; default today ET; a sync route, off the loop) answers `{schema_version: 1,
+symbol, date, generated_at, episodes: Episode[] (oldest first, open ones included), counts: {failed,
+faded, triggered, cut, open}, journal: {ok, error, lines}, bars: {ok, error, count}}` -- `after` for
+every failed or faded one, the failed ones the lane still shows included; `lines` the day's journal
+lines read. The day's file is found by listing the journal folder (`eyes.journal.day_path`, which
+`GET /api/eyes/at` and the Sim eyes use too): a date from a request is only compared with file names,
+never made into a path. Today's file is read as it grows (`eyes.journal_day.JournalTail`: appended
+bytes only, never a line the writer has not finished) and folded once for every symbol, in memory;
+another day is folded on each ask. A source that cannot be read is `ok: false` with its error (a day
+with no journal file: "no eyes' journal on file for DATE") and the rest still answers (`after: null`
+without bars).
+
+**On the desk** (`frontend/src/stock_read/`: `pastSetups.ts` the wire and the words, `pastShapes.ts`
+the drawing, `ShapeTip.tsx` the hover):
+- The 1-minute pane draws each failed, faded and triggered episode of a lane the operator has not
+  hidden, where it happened and fainter than the live lanes, dashed, under them: its leg / pole /
+  impulse / open, and the pullback / flag / base from the leg's high to the candle it died (or
+  triggered) on, between the floor and the level. Its label says how it ended -- `✕` and the rule it
+  broke, `○` what a faded one was waiting on, `✓` a trigger and its score -- and what came next ("↗
+  then broke out", "↘ then broke down", "→ then went nowhere"). A rule is named in a few words (the
+  scanners' rules are listed in `pastSetups.ts`; any other reason is cut to its first clause, 40
+  characters).
+- A setup that failed is drawn as past from the moment it failed: while its lane still shows it
+  failed, the lane's own box gives way to it. Before the past setups are read (or with the layer off)
+  the lane's failed box says `FAILED` and the rule, on the pole's box when a bull flag failed before
+  its flag.
+- A faded episode that never got past its leg (a leg, a pole or a new high with no pullback, flag or
+  base) is not drawn: it is the chart's own candles (59 of the 173 setups that had ended by 10:00 ET
+  on 2026-09-29).
+- Hovering a setup's box -- live or past -- shows its whole story (`SetupShapesPrimitive.hitTest`
+  names the box): the state or end with the full reason, the times, the level, the floor, what price
+  did next and the refused trade's outcome.
+- The legend's "Past" chip switches the layer (`nova.stockRead.layers` `value.past`), counts what it
+  draws, and says why when the backend has no such route. The read is fetched every
+  `STOCK_READ_PAST_POLL_MS` while the Trader tab shows with the layer on, and at once when a lane's
+  drawn state changes, so a setup that fails or ends is drawn as past within one read. Nothing is drawn
+  on a replay desk or the sample desk.
+
+**The study.** `py -3 tools/setup_failures.py [--date D | --days N] [--setup S] [--symbol X] [--all]
+[--list] [--json]` (read-only; owner `eyes/failure_study.py`) folds the journals and the stored bars
+into the same episodes and totals the failed and faded ones by setup, end and reason, faded legs left
+out unless `--all`: `{schema_version: 1, generated_at, dates, filters: {setup, symbol, include_legs},
+ended, left_out_legs, missing_bars: string[], groups: [{setup_type, end, reason_key, example, count,
+first: {high, low, neither, pending, unknown}, trade: {n, target_first, stop_first, open,
+avg_bar_r}}], triggered: {count, target_first, stop_first, open, avg_bar_r}, episodes?}` (`episodes`
+with `--list`; `triggered` totals the triggered setups' own scores, for comparison). A symbol-day
+without stored bars counts its episodes `unknown` and is named in `missing_bars`.
 
 ### Who trades the stock (ADR 037, operator ask 2026-09-24, #604, #606)
 
@@ -2767,6 +2881,8 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 | Date | Change | Author |
 |------|--------|--------|
 | 2026-09-29 | The grade you can see, and "not a trade" (operator report: "So why does it think this is a good trade when it's obviously not? ... there is barely any trade or volume"). AVAT's first pullback triggered at 08:06 on one pillar of five, with the tape at WAIT; the scanner scored it stopped out at 08:08, and the Trader's plan still read TRIGGERED with Stage in ticket at 08:28. The % change pillar was unknown on about 40% of arms: it is now measured from the board's prior close when HOD Momo's snapshot has none. Forming rows carry the pillars read at their leg, a filtered setup stays on its card greyed for its whole life, and rows add the tape at the trigger and when the first touch printed. The plan says NOT A TRADE with its reasons (grade C, the template's filter, the tape at the trigger, already played out, a spread at least the risk), locks Stage and Approve, never calls ENTER NOW on it, and shows a played-out setup's result. §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-09-29 | Setups that ended stay on the chart, and what price did next (ADR 036 amendment; operator: "after it fails to form ... it says 'pole' with a gray square. Eventually, it removes itself ... we could probably go back and study them", then "i like this! 1 go"). The 1-minute chart drew only each lane's current state, so a failed or faded setup vanished at the next bar, and nothing scored a setup that died before it armed. `eyes/episodes.py` folds a day's journal into one episode per setup's life on a symbol; `eyes/aftermath.py` measures what price did in the 15 minutes after one died (over the high it was building under, or under the low it would have stopped at, first; a candle doing both counts as the low) and scores the refused trade the way an armed setup is scored. `GET /api/stock-read/{symbol}/past-setups` serves them; the 1-minute pane draws them faint (a failed one from the moment it failed) with `✕` / `✓` / `○`, the rule and what came next, a hover tells the whole story, and the live failed box now says `FAILED` with its rule. `tools/setup_failures.py` totals them by setup and reason across days. §3 amended. | User Directive + Claude Opus 5.5 |
+| 2026-09-29 | One backend restart at a time (operator: "Why is it taking forever?"). At 09:35 ET "Restart backend now" stopped v1025. The header's API-down auto-heal asked for its own reload, which queued behind the first; once the watchdog brought up v1030 at 09:36:53, the queued reload stopped it. Each start waited behind the watchdog's ~80 s wait on a Vite that could not start, so the API was down about three minutes at the open. A reload asked while one runs now joins it, the auto-heal restarts nothing that answers `/api/health`, and the watchdog stops waiting on an exited Vite and backs off one that keeps failing. Also: Copy diagnostics copies the rows on screen when the API cannot send its bundle (it said "select the text below" with nothing below), and "UI older than API" no longer offers Reload backend. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-29 | What left the book, on the Level 2 ladder (ADR 033 amendment; operator: "I see massive orders in level 2, and I just think they're disappearing. I don't see them on time and sales"). The book watcher already judged every drop in resting size as traded or pulled, but only a sensor and the Tape tile showed it. The ladder now marks each large drop where the size was, "✕ 2,000 pulled" or "✓ 8,200 traded", for 6 s. The mark is solid when the size was pulled as the price came closer. Rows at a price pulled in the last minute are hatched. Each side gets a line of pulled against traded for the last minute. The verdicts ride on the depth socket (`book_watch` frames); the detector adds `drop` events for large levels that left, traded or not, and per-side totals. Measured on that morning's SSTI, MSGY and MEDS recordings (205 large pulls): 1-5% had the same size reappear 1-3 ticks away, so these are not quotes stepping a tick; about a quarter came back at the same price within 2 s. Also fixed: the reading's `pulls` count was overwritten by the recent-pulls list (the Tape tile read "None pulls"). §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-29 | Who owns the backend (ADR 038, amended; operator: "is this a good design solution?", then "1 go"). The first ADR 038 (`64a25abe`, released as v1028) prompted at every launch for the watchdog's checkout engine, and its default button pointed at the bundled engine, which keeps a separate Paper account and bot session. Now the desk uses whatever answers `:8000` without asking. It remembers the checkout engine as the owner (`engine-owner.json`) and starts that engine on an empty port; the bundled engine starts only without an owner, or by explicit choice after the owner failed. A backend notice offers Restart backend now, or Pull master and restart (fast-forward only, clean master, refused on a requirements change), after asking the backend what is open (`GET /api/diagnostics/restart-check`, new). `/api/health` adds `frozen` and `repo_root`. An unattended nightly pull and restart was proposed and not built, pending the operator's say-so. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-25 | The 1-minute chart stays where the operator put it (operator reports: "Chart unavailable. The scanner is still running.", then "I just sold the stock, and the chart moved"). The stock read set the time scale's `rightOffset` whenever the plan's zones appeared or went. That option is the scroll position, so a buy, a sale, a plan coming or going, or a Trader tab shown again snapped the 1-minute pane to the live edge. Now only a view that follows the live edge slides over to give the zones room. The crashed-pane box names its reason, redraws once on its own, and its Retry button works; it had inherited `pointer-events: none`. The crash itself was not reproduced; its reason now shows on screen. The 04:00 jump from a `bars_patch` swapping histories was fixed separately the same morning (`mergeBarsPatch`). §3 amended. | User Directive + Claude Opus 5.5 |

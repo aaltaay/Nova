@@ -1,6 +1,6 @@
 /**
- * One Trader tab's stock read (ADR 036): the polled read, the operator's own plan, their risk per
- * trade, what the charts draw, the sheet and a chart focus -- shared by the plan box on the rail,
+ * One Trader tab's stock read (ADR 036): the polled read, the day's setups that ended, the operator's
+ * own plan, their risk per trade, what the charts draw, the sheet and a chart focus -- shared by the plan box on the rail,
  * the tiles, the sheet over the charts and every chart pane's drawings. The read places nothing;
  * "Stage in ticket" only fills the tab's ticket. Who trades the stock (ADR 037) rides along: the
  * switch's view and writes, the moment on the chart and the plan's rows in Level 2.
@@ -14,12 +14,14 @@ import {
   STOCK_READ_RISK_DEFAULT_USD,
   STOCK_READ_RISK_KEY,
 } from './constants';
+import type { PastSetups } from './pastSetups';
 import { parseRiskUsd } from './planMath';
 import type { DecisionEvent, ReadGroupId, StockDecisions, StockHistory, StockRead } from './types';
 import {
   useStockRead,
   useStockReadDecisions,
   useStockReadHistory,
+  useStockReadPast,
   type PolledState,
 } from './useStockRead';
 import { useWhoTrades, type WhoTradesState } from './useWhoTrades';
@@ -31,6 +33,8 @@ export interface StockReadLayers {
   setups: boolean;
   /** High of day, premarket high, the open and the half dollars. */
   levels: boolean;
+  /** The day's setups that ended, drawn faint where they happened on the 1-minute pane. */
+  past: boolean;
   /** Setup types whose shapes the operator switched off. */
   hidden: string[];
   /** The plan box: whole when the card has room (`auto`), or as the operator last set it. */
@@ -51,6 +55,8 @@ export interface StockReadContextValue {
   read: PolledState<StockRead>;
   history: PolledState<StockHistory>;
   decisions: PolledState<StockDecisions>;
+  /** The day's setups that ended and what price did next (read while the chart draws them). */
+  past: PolledState<PastSetups>;
   manual: { entry: number | null; stop: number | null };
   setManualPlan: (entry: number | null, stop: number | null) => void;
   riskUsd: number;
@@ -76,7 +82,7 @@ export interface TabPosition {
   avgCost: number | null;
 }
 
-const DEFAULT_LAYERS: StockReadLayers = { setups: true, levels: true, hidden: [], plan: 'auto' };
+const DEFAULT_LAYERS: StockReadLayers = { setups: true, levels: true, past: true, hidden: [], plan: 'auto' };
 
 export function parseLayers(raw: unknown): StockReadLayers | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
@@ -84,6 +90,7 @@ export function parseLayers(raw: unknown): StockReadLayers | null {
   return {
     setups: r.setups !== false,
     levels: r.levels !== false,
+    past: r.past !== false,          // added 2026-09-29: a value stored before it shows them
     hidden: Array.isArray(r.hidden) ? r.hidden.filter((x): x is string => typeof x === 'string') : [],
     plan: r.plan === 'open' || r.plan === 'folded' ? r.plan : 'auto',
   };
@@ -127,6 +134,10 @@ export function StockReadProvider({
   const read = useStockRead(sym, { active: live, entry: manual.entry, stop: manual.stop });
   const history = useStockReadHistory(sym, live);
   const decisions = useStockReadDecisions(sym, live && sheet.open && sheet.tab === 'decisions');
+  // The lanes' drawn states: a setup that fails or ends is read as past at once, not at the next poll.
+  const lanes = read.data?.setups;
+  const laneKey = useMemo(() => (lanes ?? []).map(l => `${l.setup_type}:${l.state}:${l.leg?.t ?? ''}`).join('|'), [lanes]);
+  const past = useStockReadPast(sym, live && layers.setups && layers.past, laneKey);
   const posQty = position?.qty ?? null;
   const posCost = position?.avgCost ?? null;
   const pos = useMemo(() => (posQty === null ? null : { qty: posQty, avgCost: posCost }), [posQty, posCost]);
@@ -180,6 +191,7 @@ export function StockReadProvider({
     read,
     history,
     decisions,
+    past,
     manual,
     setManualPlan,
     riskUsd,
@@ -195,8 +207,8 @@ export function StockReadProvider({
     clearFocus,
     topOfBook: book,
     who,
-  }), [sym, active, replay, read, history, decisions, manual, setManualPlan, riskUsd, setRiskUsd, layers, setLayers,
-    toggleLane, sheet, openSheet, closeSheet, focus, focusAt, clearFocus, book, who]);
+  }), [sym, active, replay, read, history, decisions, past, manual, setManualPlan, riskUsd, setRiskUsd, layers,
+    setLayers, toggleLane, sheet, openSheet, closeSheet, focus, focusAt, clearFocus, book, who]);
 
   // The sample desk reads nothing live: no read, so no rail block, sheet or drawings.
   if (sample) return <>{children}</>;
