@@ -136,9 +136,10 @@ describe('who trades APUS, above Level 2', () => {
     view = modeWire('signal', { venue: 'live', locks: {
       buy: 'On Live, Nova never buys by itself.', sell: 'Approve on Live waits on #604.' } });
     renderTab();
-    await waitFor(() => expect(screen.getByTestId('who-trades-buy-nova').hasAttribute('disabled')).toBe(true));
+    // The button is disabled while the view loads too ("Reading who trades APUS…"): wait for the lock's own reason.
+    await waitFor(() => expect(screen.getByTestId('who-trades-buy-nova').getAttribute('data-why')).toMatch(/never buys by itself/));
     const buyNova = screen.getByTestId('who-trades-buy-nova');
-    expect(buyNova.getAttribute('data-why')).toMatch(/never buys by itself/);
+    expect(buyNova.hasAttribute('disabled')).toBe(true);
     expect(buyNova.textContent).toBe('🔒 Nova');
     expect(screen.getByTestId('who-trades-sell-nova').getAttribute('data-why')).toMatch(/#604/);
     expect(screen.getByTestId('who-trades-buy-you').hasAttribute('disabled')).toBe(false);
