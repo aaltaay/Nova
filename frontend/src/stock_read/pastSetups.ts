@@ -230,20 +230,30 @@ const FIRST_WORDS: Record<AfterFirst, string | null> = {
   unknown: null,
 };
 
-const OUTCOME_WORDS: Record<string, string> = {
+/** Which it touched first after the trigger, in a label's words (neither: nothing to say). */
+const OUTCOME_SHORT: Record<string, string> = {
   target_first: 'target first',
   stop_first: 'stop first',
-  open: 'still open',
 };
+
+/** The same, whole, for the hover. */
+const OUTCOME_WORDS: Record<string, string> = {
+  target_first: 'the target came first',
+  stop_first: 'the stop came first',
+  open: 'neither the target nor the stop within 15 minutes',
+};
+
+function signedR(x: number): string {
+  return `${x >= 0 ? '+' : ''}${x.toFixed(1)}R`;
+}
 
 /** The label a past setup carries on the chart. */
 export function pastLabel(ep: Episode): string {
   const end = endOf(ep);
   if (end === 'triggered') {
-    const outcome = ep.score?.outcome ? OUTCOME_WORDS[ep.score.outcome] ?? ep.score.outcome : null;
+    const outcome = ep.score?.outcome ? OUTCOME_SHORT[ep.score.outcome] ?? null : null;
     const r = ep.score?.bar_r;
-    return ['✓ triggered', outcome, r !== null && r !== undefined ? `${r >= 0 ? '+' : ''}${r.toFixed(1)}R` : null]
-      .filter(Boolean).join(' · ');
+    return ['✓ triggered', outcome, r !== null && r !== undefined ? signedR(r) : null].filter(Boolean).join(' · ');
   }
   const mark = end === 'failed' ? '✕' : '○';
   const next = ep.after ? FIRST_WORDS[ep.after.first] : null;

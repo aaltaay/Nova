@@ -104,6 +104,8 @@ describe('what the chart draws, and says', () => {
   it('labels how each ended and what came next', () => {
     expect(pastLabel(byId(ncplFlag.id))).toBe('✕ higher high in the flag · ↗ then broke out');
     expect(pastLabel(byId(fpTriggered.id))).toBe('✓ triggered · target first · +1.6R');
+    const neither = { ...byId(fpTriggered.id), score: { outcome: 'open', bar_r: 0, exit_reason: 'bailout' } };
+    expect(pastLabel(neither)).toBe('✓ triggered · +0.0R');   // no target or stop yet: the bar exits' R says it
     expect(pastLabel(byId(ftFailingNow.id))).toBe('✕ broke down from the base');   // its 15 minutes are not over
   });
 
@@ -112,7 +114,8 @@ describe('what the chart draws, and says', () => {
     expect(story.title).toBe('Bull flag · failed 09:20');
     expect(story.lines[0]).toBe('The rule it broke: flag candle 2 made a higher high than the candle before it');
     expect(story.lines).toContain('Next 15 min: over 1.35 first at 09:20, before 1.31.');
-    expect(story.lines.join(' ')).toContain('The refused trade: entry 1.36, stop 1.31, target 1.46 -- still open');
+    expect(story.lines.join(' ')).toContain(
+      'The refused trade: entry 1.36, stop 1.31, target 1.46 -- neither the target nor the stop within 15 minutes');
     expect(pastStory(byId(ftFailingNow.id)).lines.join(' ')).toContain('the scanner still shows it failed');
   });
 
