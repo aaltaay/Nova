@@ -20,6 +20,8 @@ import {
   tierBackground,
 } from './dasDepthTiers';
 import { isOvernightOnlyBook } from './depthBookGuards';
+import { priceKey, pulledHere, pullMarks, type BookWatchState, type PulledHere } from './bookWatch';
+import { PullMarksAt, PullsStrip, useBookWatchClock } from './BookWatchParts';
 import { placeMarkers, splitMarkers, type DepthMarker, type PlacedMarker } from './depthMarkers';
 import {
   depthEmptyMessage,
@@ -51,6 +53,7 @@ function fmtSize(s: number | null | undefined) {
 }
 
 const NO_MARKERS: { bid: DepthMarker[]; ask: DepthMarker[] } = { bid: [], ask: [] };
+const NO_PULLED_HERE: ReadonlyMap<string, PulledHere> = new Map();
 
 function mmLabel(level: DepthLevel | null): string {
   if (!level) return '';
@@ -82,31 +85,46 @@ function MarkerLine({ marker, at }: { marker: PlacedMarker; at: 'edge' | 'first'
 /**
  * One side of the DAS-style montage; historical replay renders it with no levels.
  * `peak` is the largest size on the whole book (`bookPeak`), so a size gauge is
- * the same length on the bid and the ask. `markers` are this side's plan levels.
+ * the same length on the bid and the ask. `markers` are this side's plan levels;
+ * `watch` is the book watcher's verdicts on the live line (bookWatch.ts), aged by `nowMs`.
  */
 export function MontageSide({
   side,
   levels,
   peak,
   markers = [],
+  watch = null,
+  nowMs = 0,
 }: {
   side: 'bid' | 'ask';
   levels: DepthLevel[];
   peak: number;
   markers?: readonly DepthMarker[];
+  watch?: BookWatchState | null;
+  nowMs?: number;
 }) {
   const tiers = assignPriceTiers(levels);
   const padded = padLevels(levels, TICKER_TRADE_DEPTH_LEVELS);
   const isBid = side === 'bid';
   const shown = Math.min(levels.length, TICKER_TRADE_DEPTH_LEVELS);
-  const placed = markers.length ? placeMarkers(side, levels.slice(0, shown), markers) : [];
+  const rows = levels.slice(0, shown);
+  const placed = markers.length ? placeMarkers(side, rows, markers) : [];
+  const marks = watch && shown ? pullMarks(watch, side, rows, nowMs) : [];
+  const here = watch && shown ? pulledHere(watch, side, rows, nowMs) : NO_PULLED_HERE;
   const lines = (before: number, at: 'edge' | 'first' | 'end' | 'flow') =>
     placed.filter(m => m.before === before).map(m => <MarkerLine key={`mk-${m.id}`} marker={m} at={at} />);
+  const pulls = (before: number, at: 'head' | 'edge' | 'end') => (
+    <PullMarksAt marks={marks.filter(m => m.before === before)} at={at} />
+  );
   // Inside row i: the levels between it and the row above; the last shown row also carries the levels past it.
+  // What left above the book (a level better than the inside now) is marked over the column head instead,
+  // so it never covers the inside row.
   const inRow = (i: number) => (i >= shown ? null : (
     <>
       {lines(i, i === 0 ? 'first' : 'edge')}
+      {i > 0 && pulls(i, 'edge')}
       {i === shown - 1 && lines(shown, 'end')}
+      {i === shown - 1 && pulls(shown, 'end')}
     </>
   ));
 
@@ -128,15 +146,18 @@ export function MontageSide({
         )}
       </div>
       {shown === 0 && lines(0, 'flow')}
+      {shown > 0 && pulls(0, 'head')}
       {padded.map((level, i) => {
         const tier = level != null ? (tiers[i] ?? 0) : 0;
         const bg = level ? tierBackground(tier) : 'transparent';
         const gauge = level ? sizeGaugePct(level.size, peak) : 0;
+        const pulledAt = level ? here.get(priceKey(level.price)) : undefined;
         return (
           <div
             key={`${side}-${i}`}
-            className={`das-l2-row ${level ? 'das-l2-row--tiered' : 'das-l2-row--empty'}`}
+            className={`das-l2-row ${level ? 'das-l2-row--tiered' : 'das-l2-row--empty'}${pulledAt ? ' das-l2-row--pulled-here' : ''}`}
             style={{ backgroundColor: bg }}
+            {...(pulledAt ? tipProps(pulledAt.tip, pulledAt.title) : {})}
           >
             {inRow(i)}
             {gauge > 0 && (
@@ -168,8 +189,11 @@ export function MontageSide({
 
 export function DepthLadder({ symbol, uiActive = true, markers }: Props) {
   useRenderCount('DepthLadder');
-  const { book, connected, l1Fallback, error } = useIbkrDepth(symbol, uiActive);
+  const { book, connected, l1Fallback, error, watch } = useIbkrDepth(symbol, uiActive);
   const { setTopOfBook } = useTopOfBook();
+  // What left the book (ADR 033 amendment): the watcher reads depth, so an L1-only book carries none.
+  const ladderWatch = l1Fallback ? null : watch;
+  const nowMs = useBookWatchClock(ladderWatch, uiActive);
 
   useEffect(() => {
     if (!symbol || !uiActive) {
@@ -239,9 +263,10 @@ export function DepthLadder({ symbol, uiActive = true, markers }: Props) {
           <span className="ibkr-heuristic-badge ibkr-heuristic-idle">{L2_HEURISTIC_IDLE_LABEL}</span>
         )}
       </div>
+      <PullsStrip watch={ladderWatch} />
       <div className="das-l2-montage">
-        <MontageSide side="bid" levels={book.bids} peak={peak} markers={sides.bid} />
-        <MontageSide side="ask" levels={book.asks} peak={peak} markers={sides.ask} />
+        <MontageSide side="bid" levels={book.bids} peak={peak} markers={sides.bid} watch={ladderWatch} nowMs={nowMs} />
+        <MontageSide side="ask" levels={book.asks} peak={peak} markers={sides.ask} watch={ladderWatch} nowMs={nowMs} />
       </div>
       {spread != null && (
         <div className="das-l2-spread">

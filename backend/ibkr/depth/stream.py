@@ -11,13 +11,19 @@ def should_send_current_book(book: dict | None) -> bool:
     return bool(book["bids"] or book["asks"] or book["l1_fallback"])
 
 
-async def stream(queue: asyncio.Queue):
-    """AsyncGenerator yielding book snapshots (or None on heartbeat timeout)
-    for one viewer's own queue -- see ``state.open_viewer_queue``.
+# A viewer with no book for this long is sent a ping.
+DEPTH_STREAM_HEARTBEAT_SEC = 15.0
+
+
+async def stream(queue: asyncio.Queue, timeout: float = DEPTH_STREAM_HEARTBEAT_SEC):
+    """AsyncGenerator yielding book snapshots (or None after ``timeout`` without one)
+    for one viewer's own queue -- see ``state.open_viewer_queue``. The depth socket
+    wakes this often to push the book watcher's verdicts (ADR 033) and pings on its
+    own clock.
     """
     while True:
         try:
-            book = await asyncio.wait_for(queue.get(), timeout=15)
+            book = await asyncio.wait_for(queue.get(), timeout=timeout)
             yield book
         except asyncio.TimeoutError:
             yield None

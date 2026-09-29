@@ -45,6 +45,9 @@ def render(result: dict, flags: int) -> str:
         f"  filled {result['filled_shares']:,.0f} shares in {result['fills']:,} drops;"
         f" pulled {result['pulled_shares']:,.0f} in {result['pulls']:,}",
         f"  large pulls {len(result['large_pulls']):,}  flags {len(result['flags']):,}",
+        f"  large levels that left {len(result['drops']):,}: "
+        f"{sum(d['outcome'] == 'traded' for d in result['drops']):,} traded, "
+        f"{sum(d['outcome'] == 'pulled' for d in result['drops']):,} pulled",
     ]
     for flag in result["flags"][:flags]:
         lines.append(f"    {_et(flag['ts'])}  {flag['kind']:<19} {flag['why']}")

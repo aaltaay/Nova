@@ -26,7 +26,9 @@ from book_watch.constants_book_watch import (
     BOOK_WATCH_ENV,
     BOOK_WATCH_FORGET_SEC,
     BOOK_WATCH_IDLE_SEC,
+    BOOK_WATCH_LADDER_MEMORY_SEC,
     BOOK_WATCH_QUEUE_MAX,
+    BOOK_WATCH_STATS_WINDOW_SEC,
     BOOK_WATCH_TICK_SEC,
 )
 from book_watch.detector import SymbolWatch
@@ -174,7 +176,30 @@ def snapshot(symbol: str, now: float | None = None) -> dict[str, Any] | None:
             "feed": watch.feed(now),
             **watch.totals(now),
             "flags": list(reversed(watch.flags)),
-            "pulls": list(reversed(watch.pulls)),
+            "pulls_recent": list(reversed(watch.pulls)),
+        }
+
+
+def ladder_view(symbol: str, after_seq: int | None, now: float | None = None) -> dict[str, Any] | None:
+    """What the Level 2 ladder needs from one line: the large drops newer than ``after_seq``
+    (with None, those of the last ``BOOK_WATCH_LADDER_MEMORY_SEC``), oldest first, and each
+    side's totals. None when the watcher has not seen a book for the symbol."""
+    now = time.time() if now is None else now
+    with _lock:
+        watch = _watches.get((symbol or "").upper())
+        if watch is None:
+            return None
+        if after_seq is None or after_seq > watch.drop_seq:  # a new watch numbers from 1 again
+            cutoff = now - BOOK_WATCH_LADDER_MEMORY_SEC
+            drops = [dict(d) for d in watch.drops if d["ts"] >= cutoff]
+        else:
+            drops = [dict(d) for d in watch.drops if d["seq"] > after_seq]
+        return {
+            "seq": watch.drop_seq,
+            "watching": watch.last_book_ts is not None and now - watch.last_book_ts <= BOOK_WATCH_IDLE_SEC,
+            "window_sec": BOOK_WATCH_STATS_WINDOW_SEC,
+            "sides": watch.side_totals(now),
+            "drops": drops,
         }
 
 

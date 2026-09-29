@@ -137,6 +137,26 @@ export const L2_HEURISTIC_SPREAD_LABEL = 'Wide spread';
 export const L2_HEURISTIC_TITLE =
   'Rule-of-thumb read of resting size. Display-only — never feeds the executor.';
 
+// ── Level 2: what left the book (the book watcher on the ladder, ADR 033 amendment 2026-09-29) ──
+/** The `book_watch` frame's schema on /ws/ibkr/depth (mirrors BOOK_WATCH_SCHEMA_VERSION); another is ignored. */
+export const L2_BOOK_WATCH_SCHEMA_VERSION = 1;
+/** A mark stays this long after its drop was judged, fading over the last L2_PULL_MARK_FADE_MS. */
+export const L2_PULL_MARK_SHOW_MS = 6_000;
+export const L2_PULL_MARK_FADE_MS = 2_000;
+/** A price keeps its "pulled here" tag while a large pull there is younger than this (mirrors BOOK_WATCH_LADDER_MEMORY_SEC). */
+export const L2_PULLED_HERE_MEMORY_SEC = 60;
+/** How often a ladder with marks or tags redraws while no book arrives, so they fade and go on time. */
+export const L2_PULL_MARK_TICK_MS = 250;
+/** A side's line turns amber when its pulled size is over this many times its traded size ... */
+export const L2_PULLS_WARN_RATIO = 3;
+/** ... and at least this many shares (the watcher's large-pull floor, BOOK_WATCH_LARGE_MIN_SHARES). */
+export const L2_PULLS_WARN_MIN_SHARES = 1_000;
+/** Shares written in full below this, compact (15.4K) at and above it. */
+export const L2_PULL_MARK_FULL_BELOW = 10_000;
+export const L2_PULLS_NOTE = 'A hint consistent with spoofing, never a detection.';
+export const L2_PULLS_NOT_WATCHED_LABEL = 'Pulls: not watched';
+export const L2_PULLS_IDLE_REASON = 'No Level 2 book has reached the book watcher in the last few seconds.';
+
 // ── Relative volume ────────────────────────────────────────────────────────
 export const REL_VOLUME_HIGH = 2;   // highlight threshold (≥ 2×)
 /** Trading days used for avg daily volume / RVOL denominator (mirror backend RVOL_LOOKBACK_DAYS). */

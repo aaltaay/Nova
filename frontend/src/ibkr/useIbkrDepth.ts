@@ -3,6 +3,7 @@ import { WS_BASE_URL } from '../constants';
 import { SAMPLE_LIVE_FEED_ABSENT } from '../sample_data/sampleCopy';
 import { onSampleDesk } from '../sample_data/sampleOrderGuard';
 import { shouldKeepPriorBook } from './depthBookGuards';
+import { applyBookWatchFrame, type BookWatchState } from './bookWatch';
 import type { DepthBook } from './types';
 import { countSocketMessage, frameBytes } from '../perf/perfCounters';
 
@@ -11,6 +12,8 @@ interface DepthState {
   connected: boolean;
   l1Fallback: boolean;
   error: string | null;
+  /** The book watcher's verdicts on this live line (ADR 033 amendment); null until its first frame. */
+  watch: BookWatchState | null;
 }
 
 const EMPTY: DepthState = {
@@ -18,6 +21,7 @@ const EMPTY: DepthState = {
   connected: false,
   l1Fallback: false,
   error: null,
+  watch: null,
 };
 
 /**
@@ -54,6 +58,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true): DepthState
   const connectedRef = useRef(false);
   const l1FallbackRef = useRef(false);
   const errorRef = useRef<string | null>(null);
+  const watchRef = useRef<BookWatchState | null>(null);
 
   useEffect(() => {
     uiActiveRef.current = uiActive;
@@ -66,6 +71,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true): DepthState
       connected: connectedRef.current,
       l1Fallback: l1FallbackRef.current,
       error: errorRef.current,
+      watch: watchRef.current,
     });
   };
 
@@ -82,6 +88,7 @@ export function useIbkrDepth(symbol: string | null, uiActive = true): DepthState
     connectedRef.current = false;
     l1FallbackRef.current = false;
     errorRef.current = null;
+    watchRef.current = null;
     setState(EMPTY);
 
     if (!symKey) {
@@ -128,6 +135,10 @@ export function useIbkrDepth(symbol: string | null, uiActive = true): DepthState
               l1FallbackRef.current = book.l1_fallback;
               errorRef.current = null;
             }
+            if (uiActiveRef.current) commitUi();
+          } else if (msg.type === 'book_watch') {
+            // What left the book: a reset frame on every (re)connect, then each verdict once.
+            watchRef.current = applyBookWatchFrame(watchRef.current, msg.data, Date.now());
             if (uiActiveRef.current) commitUi();
           } else if (msg.type === 'error') {
             connectedRef.current = false;
