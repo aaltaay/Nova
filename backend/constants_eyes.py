@@ -39,3 +39,8 @@ EYES_JOURNAL_PRICE_EVERY_SEC = 5.0          # an armed / near symbol's last pric
 EYES_PLAYBACK_GAP_SEC = 180.0               # no line for this long on a day with beats: Nova's eyes were not running
 EYES_PLAYBACK_REBUILD_MIN_SEC = 0.5         # a backward scrub refolds the day at most this often
 EYES_PLAYBACK_ALERT_STEP_SEC = 120.0        # a proposal pops up only when the playhead played across it, never on a jump
+
+# -- Setups that ended (eyes/episodes.py, eyes/aftermath.py; operator ask 2026-09-29): the day's
+#    journal read back as one episode per setup's life on a symbol, and what price did next.
+EYES_EPISODE_BAR_CLOSE_SEC = 3.0            # a line written this soon after a minute starts is about the candle that closed (bar-close lines land ~0.3 s in)
+EYES_EPISODE_AFTER_MIN = 15                 # minutes after a failed or faded setup died that "what came next" reads

@@ -1,14 +1,16 @@
 /**
- * The stock read's three GETs (ADR 036): the read itself, polled while the Trader tab shows; the
- * day's decisions, polled while the sheet shows them; the history, read once per symbol. The sample
- * desk reads nothing live (`unavailable`), and neither does an API from before the routes (404).
- * A failed poll keeps the last good answer on screen and says so in `error`.
+ * The stock read's GETs (ADR 036): the read itself, polled while the Trader tab shows; the day's
+ * decisions, polled while the sheet shows them; the day's setups that ended, polled while the chart
+ * draws them and read at once when a lane's drawn state changes; the history, read once per symbol.
+ * The sample desk reads nothing live (`unavailable`), and neither does an API from before the routes
+ * (404). A failed poll keeps the last good answer on screen and says so in `error`.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { API_BASE_URL } from '../constants';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
-import { STOCK_READ_DECISIONS_POLL_MS, STOCK_READ_PATH, STOCK_READ_POLL_MS } from './constants';
+import { STOCK_READ_DECISIONS_POLL_MS, STOCK_READ_PAST_POLL_MS, STOCK_READ_PATH, STOCK_READ_POLL_MS } from './constants';
 import { normalizeDecisions, normalizeHistory, normalizeStockRead } from './normalize';
+import { normalizePastSetups, type PastSetups } from './pastSetups';
 import type { StockDecisions, StockHistory, StockRead } from './types';
 
 export interface PolledState<T> {
@@ -29,9 +31,11 @@ interface PollOptions<T> {
   active: boolean;
   what: string;
   accept?: (data: T) => boolean;
+  /** A change reads at once (and restarts the poll): what the answer depends on moved. */
+  nudge?: string;
 }
 
-export function usePolledRead<T>({ url, resetKey, normalize, pollMs, active, what, accept }: PollOptions<T>): PolledState<T> {
+export function usePolledRead<T>({ url, resetKey, normalize, pollMs, active, what, accept, nudge }: PollOptions<T>): PolledState<T> {
   const sample = useSampleDataOptional();
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(false);
@@ -84,7 +88,7 @@ export function usePolledRead<T>({ url, resetKey, normalize, pollMs, active, wha
       cancelled = true;
       if (id !== null) window.clearInterval(id);
     };
-  }, [sample, url, active, pollMs, what]);
+  }, [sample, url, active, pollMs, what, nudge]);
 
   // One object per answer, so a Trader tab's ticks do not redraw every consumer.
   return useMemo(
@@ -133,6 +137,22 @@ export function useStockReadDecisions(symbol: string, active: boolean): PolledSt
     active,
     what: 'decisions read',
     accept: d => d.symbol === sym,
+  });
+}
+
+/** The day's setups that ended (ADR 036 amendment); `nudge` is the lanes' drawn states, so a setup that
+ * fails or ends is read again at once. */
+export function useStockReadPast(symbol: string, active: boolean, nudge: string): PolledState<PastSetups> {
+  const sym = symbol.trim().toUpperCase();
+  return usePolledRead({
+    url: sym ? `${symbolPath(sym)}/past-setups` : null,
+    resetKey: sym,
+    normalize: normalizePastSetups,
+    pollMs: STOCK_READ_PAST_POLL_MS,
+    active,
+    what: 'past setups read',
+    accept: p => p.symbol === sym,
+    nudge,
   });
 }
 
