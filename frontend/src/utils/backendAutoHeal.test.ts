@@ -21,10 +21,23 @@ describe('backendAutoHeal', () => {
   beforeEach(() => {
     sessionStorage.clear();
     vi.mocked(startLocalApi).mockClear();
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    }));
   });
 
   afterEach(() => {
     sessionStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('never restarts a backend that answers /api/health -- the flag was stale', async () => {
+    // 2026-09-29: the auto-heal's reload stopped the engine a restart had just brought up.
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 200 })));
+    const result = await maybeAutoHealBackend('API_DOWN');
+    expect(result).toBeNull();
+    expect(startLocalApi).not.toHaveBeenCalled();
+    expect(hasBackendAutoHealSlot()).toBe(true);
   });
 
   it('only heals DOWN -- never WEDGED', () => {

@@ -133,6 +133,8 @@ export const NOVA_START_API_DEV_PATH = '/__nova/start-api';
 export const NOVA_LAUNCH_GATEWAY_DEV_PATH = '/__nova/launch-gateway';
 /** How long the header "Start API" button waits for /api/health after a restart. */
 export const NOVA_START_API_HEALTH_TIMEOUT_MS = 45_000;
+/** The API-down auto-heal first asks /api/health this long; an answer means nothing is down. */
+export const BACKEND_AUTO_HEAL_PROBE_MS = 2_000;
 /** Header control — restart local API while it is already reachable (dev / desktop). */
 export const BACKEND_RELOAD_BUTTON_LABEL = 'Reload backend';
 export const BACKEND_RELOAD_BUTTON_TITLE =

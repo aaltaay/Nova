@@ -17,7 +17,7 @@ import {
 } from './envMerge.mjs';
 import { engineIdentity, isNewEngine, restartCheckoutEngine, startOwnerEngine } from './engineRestart.mjs';
 import { SIDECAR_PORT_FREE_TIMEOUT_MS, waitForPortFree } from './portWait.mjs';
-import { createSerialQueue } from './serialQueue.mjs';
+import { createSerialQueue, createSharedRun } from './serialQueue.mjs';
 import { skipApiSidecar } from './sidecarSkip.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -387,27 +387,35 @@ export function restartApiSidecar() {
  * afterwards, or this throws saying why. An engine this app started is stopped and started
  * again; one it only attached to is restarted from its own checkout (engineRestart.mjs), never
  * swapped for this app's packaged engine. Resolves with the revisions before and after.
+ *
+ * One reload at a time, and a second ask joins the first: a queued second reload stopped the
+ * engine the first had just brought up (operator report 2026-09-29: "Restart backend now" took
+ * the API down, the header's API-down auto-heal asked for its own reload, and that one killed the
+ * fresh v1030 engine the watchdog had started -- three minutes down at the open).
  * @returns {Promise<{from: string | null, to: string | null}>}
  */
 export function reloadEngine() {
-  return sidecarQueue.enqueue(async () => {
-    const before = await engineIdentity(API_BASE);
-    if (before && !apiChild) {
-      return restartCheckoutEngine(before, {
-        apiBase: API_BASE,
-        port: API_PORT,
-        ownRoot: repoRootFromElectron(),
-        waitForPortFree: () => waitForPortFree(API_HOST, API_PORT),
-      });
-    }
-    await restartOwnUnlocked();
-    const after = await engineIdentity(API_BASE);
-    if (before && !isNewEngine(before, after)) {
-      throw new Error('Not restarted: the same backend process is still answering');
-    }
-    return { from: before?.release_tag ?? null, to: after?.release_tag ?? null };
-  });
+  if (sharedReload.running()) console.log('[nova-api] reload already running -- joining it');
+  return sharedReload.run();
 }
+
+const sharedReload = createSharedRun(() => sidecarQueue.enqueue(async () => {
+  const before = await engineIdentity(API_BASE);
+  if (before && !apiChild) {
+    return restartCheckoutEngine(before, {
+      apiBase: API_BASE,
+      port: API_PORT,
+      ownRoot: repoRootFromElectron(),
+      waitForPortFree: () => waitForPortFree(API_HOST, API_PORT),
+    });
+  }
+  await restartOwnUnlocked();
+  const after = await engineIdentity(API_BASE);
+  if (before && !isNewEngine(before, after)) {
+    throw new Error('Not restarted: the same backend process is still answering');
+  }
+  return { from: before?.release_tag ?? null, to: after?.release_tag ?? null };
+}));
 
 export async function openEnvFileIfNeeded() {
   const { envPath } = ensureUserEnv();

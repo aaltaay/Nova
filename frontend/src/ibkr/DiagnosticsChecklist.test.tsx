@@ -82,4 +82,33 @@ describe('DiagnosticsChecklist', () => {
     await waitFor(() => expect(screen.getByTestId('diag-copy-failed')).toBeTruthy());
     expect((screen.getByTestId('diag-copy-failed').querySelector('textarea') as HTMLTextAreaElement).value).toBe('bundle text');
   });
+
+  it('copies the rows on screen when the API cannot send its bundle, and says so', async () => {
+    // 2026-09-29: Copy pressed while a restart had the API down read "Copy failed -- select the
+    // text below" with nothing below.
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(
+      <DiagnosticsChecklist
+        data={payload}
+        actions={{}}
+        onRefresh={() => {}}
+        copyBundle={async () => {
+          throw new TypeError('Failed to fetch');
+        }}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('diag-copy'));
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    const text = writeText.mock.calls[0][0] as string;
+    expect(text).toContain('the API did not send its bundle');
+    expect(text).toContain('## Gateway');
+    expect(text).toContain('[fail] Nova session: port open, session not READY');
+    expect(text).toContain('fix: Reconnect Nova to Gateway.');
+    expect(text).toContain('[ok] Paper ledger: practice-paper.json schema 2');
+    expect(text).not.toContain('fix: Nothing to do.');
+    expect(screen.getByTestId('diag-copy').textContent).toBe('Copied as shown');
+    expect(screen.getByTestId('diag-copied-screen').textContent).toContain('did not answer');
+    expect(screen.queryByTestId('diag-copy-failed')).toBeNull();
+  });
 });
