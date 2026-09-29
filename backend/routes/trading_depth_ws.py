@@ -10,10 +10,15 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
+from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect
 
+from book_watch.constants_book_watch import BOOK_WATCH_PUSH_SEC
+from book_watch.ladder import LadderPush
 from ibkr import depth as _depth
+from ibkr.depth.stream import DEPTH_STREAM_HEARTBEAT_SEC
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +31,31 @@ async def make_room(symbol: str) -> None:
         await auto_record.make_room_for(symbol)
     except Exception:
         logger.exception("AUTO-RECORD: could not yield a line for %s", symbol)
+
+
+class _WatchFrames:
+    """The book watcher's verdicts for one depth socket (ADR 033 amendment): asked at most
+    every ``BOOK_WATCH_PUSH_SEC``, and only while the ladder shows the live line."""
+
+    def __init__(self, symbol: str) -> None:
+        self.push = LadderPush(symbol)
+        self.next_check = 0.0
+        self.failed = False
+
+    def due(self, mono: float) -> dict[str, Any] | None:
+        if mono < self.next_check:
+            return None
+        self.next_check = mono + BOOK_WATCH_PUSH_SEC
+        try:
+            from sim.mode import is_replay_desk
+
+            return self.push.frame(live_line=not is_replay_desk())
+        except Exception:
+            # Once per socket: a verdict that cannot be built never costs the ladder its books.
+            if not self.failed:
+                self.failed = True
+                logger.exception("book watch: no ladder frame for %s", self.push.symbol)
+            return None
 
 
 async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
@@ -87,10 +117,18 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
         if _depth.should_send_current_book(current):
             await websocket.send_text(json.dumps({"type": "book", "symbol": symbol, "data": current}))
 
-        async for item in _depth.stream(queue):
+        watch = _WatchFrames(symbol)
+        last_sent = time.monotonic()
+        async for item in _depth.stream(queue, timeout=BOOK_WATCH_PUSH_SEC):
+            mono = time.monotonic()
+            verdicts = watch.due(mono)
+            if verdicts is not None:
+                await websocket.send_text(json.dumps({"type": "book_watch", "symbol": symbol, "data": verdicts}))
+                last_sent = mono
             if item is None:
-                # Heartbeat timeout
-                await websocket.send_text(json.dumps({"type": "ping"}))
+                if mono - last_sent >= DEPTH_STREAM_HEARTBEAT_SEC:
+                    await websocket.send_text(json.dumps({"type": "ping"}))
+                    last_sent = mono
                 continue
             if item.get("type") == "error":
                 # Line torn down out from under this viewer -- tell the
@@ -111,6 +149,7 @@ async def run_ws_depth(websocket: WebSocket, symbol: str) -> None:
                     break
             else:
                 await websocket.send_text(json.dumps({"type": "book", "symbol": symbol, "data": item}))
+                last_sent = mono
     except WebSocketDisconnect:
         logger.debug("IBKR depth WS disconnected: %s", symbol)
     except Exception as exc:

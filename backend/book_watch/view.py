@@ -12,6 +12,7 @@ from book_watch import live
 from book_watch.constants_book_watch import (
     BOOK_WATCH_CAVEATS,
     BOOK_WATCH_NOTE,
+    BOOK_WATCH_OFF_REASON,
     BOOK_WATCH_READ_LIMIT,
     BOOK_WATCH_SCHEMA_VERSION,
 )
@@ -25,14 +26,14 @@ def _base() -> dict[str, Any]:
 def book_pulls(symbol: str) -> tuple[dict[str, Any], str | None]:
     """One symbol's reading and, when there is none, the reason."""
     if not live.enabled():
-        return {**_base(), "watching": False}, "The book watcher is off (NOVA_BOOK_WATCH=0)."
+        return {**_base(), "watching": False}, BOOK_WATCH_OFF_REASON
     snap = live.snapshot(symbol)
     if snap is None:
         return {**_base(), "watching": False}, (
             f"No Level 2 line for {symbol} has reached the book watcher: it follows only the symbols "
             "Nova holds depth for (at most 3). Open its Level 2 or record it.")
     flags = snap.pop("flags")[:BOOK_WATCH_READ_LIMIT]
-    pulls = snap.pop("pulls")[:BOOK_WATCH_READ_LIMIT]
+    pulls = snap.pop("pulls_recent")[:BOOK_WATCH_READ_LIMIT]
     return {**_base(), **snap, "flags": flags, "pulls_recent": pulls}, None
 
 
@@ -56,5 +57,5 @@ def spoof_hints(symbol: str, limit: int) -> list[dict[str, Any]]:
     return [
         {"side": p["side"], "price": p["price"], "from_size": p["level_before"], "pulled": p["pulled"],
          "filled": p["filled"], "ts": p["ts"]}
-        for p in snap["pulls"][:limit]
+        for p in snap["pulls_recent"][:limit]
     ]

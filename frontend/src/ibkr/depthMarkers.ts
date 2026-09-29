@@ -55,19 +55,27 @@ export function splitMarkers(
 }
 
 /**
+ * Where a price goes among one side's shown rows: before the first row worse than it, so after every row
+ * at its price or better; past the last row, beyond it when the price is deeper than the ladder reaches.
+ * The plan's levels and the book watcher's marks (bookWatch.ts) are placed by this one rule.
+ */
+export function markerPlace(side: 'bid' | 'ask', rows: readonly DepthLevel[], price: number): { before: number; beyond: boolean } {
+  const worse = (rowPrice: number) => (side === 'bid' ? rowPrice < price - EPS : rowPrice > price + EPS);
+  const at = rows.findIndex(r => worse(r.price));
+  const last = rows[rows.length - 1];
+  return {
+    before: at < 0 ? rows.length : at,
+    beyond: at < 0 && last !== undefined && Math.abs(last.price - price) > EPS,
+  };
+}
+
+/**
  * Where each marker goes among one side's shown rows: bids run from the best price down, asks from the
  * best price up, and a marker follows every row at its price or better (a new order joins the back of
  * its price).
  */
 export function placeMarkers(side: 'bid' | 'ask', rows: readonly DepthLevel[], markers: readonly DepthMarker[]): PlacedMarker[] {
-  const worse = (rowPrice: number, price: number) => (side === 'bid' ? rowPrice < price - EPS : rowPrice > price + EPS);
-  const placed = markers.map(m => {
-    const at = rows.findIndex(r => worse(r.price, m.price));
-    const before = at < 0 ? rows.length : at;
-    const last = rows[rows.length - 1];
-    const beyond = at < 0 && last !== undefined && Math.abs(last.price - m.price) > EPS;
-    return { ...m, before, beyond };
-  });
+  const placed = markers.map(m => ({ ...m, ...markerPlace(side, rows, m.price) }));
   // Several at one place: in the side's own price order.
   return placed.sort((a, b) => a.before - b.before || (side === 'bid' ? b.price - a.price : a.price - b.price));
 }

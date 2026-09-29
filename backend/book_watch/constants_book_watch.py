@@ -44,6 +44,24 @@ BOOK_WATCH_RATE_WINDOW_SEC = 10.0
 BOOK_WATCH_FLAGS_KEEP = 50
 BOOK_WATCH_PULLS_KEEP = 50
 BOOK_WATCH_READ_LIMIT = 20
+# Large drops (traded or pulled) kept per line for the Level 2 ladder: BKYI judged
+# about 80 a minute on 2026-09-29, so this covers the memory below at several times that.
+BOOK_WATCH_DROPS_KEEP = 400
+
+# The Level 2 ladder (ADR 033 amendment, 2026-09-29). A socket that opens is sent
+# the large drops of the last minute, so a price pulled before it opened is still
+# marked "pulled here"; after that only what the watcher judges next.
+BOOK_WATCH_LADDER_MEMORY_SEC = 60.0
+# How often a Level 2 socket asks the watcher for new verdicts. A verdict is ready
+# BOOK_WATCH_SETTLE_SEC after the book that showed the drop, so a mark reaches the
+# ladder about a second after the size left it.
+BOOK_WATCH_PUSH_SEC = 0.25
+# The per-side totals move with every judged drop; they are sent at most this often.
+BOOK_WATCH_SIDES_PUSH_SEC = 1.0
+BOOK_WATCH_NOT_LIVE_REASON = (
+    "Level 2 is replaying a recording here; the book watcher reads only the live line."
+)
+BOOK_WATCH_OFF_REASON = "The book watcher is off (NOVA_BOOK_WATCH=0)."
 # A line with no book for this long is not being watched; after FORGET it is dropped.
 BOOK_WATCH_IDLE_SEC = 5.0
 BOOK_WATCH_FORGET_SEC = 3600.0

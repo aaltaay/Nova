@@ -49,3 +49,35 @@ read 0 because the books were thinned before the counter saw them.
 - The watcher sees only the symbols Nova holds depth for (at most 3) and ten rows a side. More lines,
   more rows or order-by-order data are IBKR account or paid-feed questions, not decided here.
 - Nothing here places, gates or cancels an order.
+
+## Amendment 2026-09-29: what left the book, on the ladder
+
+**Decided by:** the operator ("I see massive orders in level 2, and I just think they're disappearing.
+I don't see them on time and sales"; then "1 go" on putting the watcher on the ladder).
+
+The watcher's verdicts reached only agents (the sensor) and the Trader's Tape tile, a number the
+operator had to hover for, while the question comes up on the ladder. So:
+
+1. **Every large drop is a verdict.** Besides its large pulls, the detector emits a `drop` event for
+   each drop whose size -- traded or not -- passes the large rule (at least
+   `BOOK_WATCH_LARGE_MIN_SHARES` and `BOOK_WATCH_LARGE_MEDIAN_MULT` x the side's median level), with
+   its split and `outcome`. Showing only pulls would leave an unmarked vanished level ambiguous again:
+   it traded, or it could not be judged.
+2. **The depth socket carries them.** `book_watch/ladder.py` keeps each socket's place in its line's
+   verdicts; the socket asks at most every `BOOK_WATCH_PUSH_SEC` (a verdict is ready
+   `BOOK_WATCH_SETTLE_SEC` after the book that showed the drop, so a mark lands about a second after
+   the size left). A new socket gets the last minute, so a price pulled before the Trader tab opened
+   is still marked. One sender per socket: the book stream wakes on that clock instead of adding a
+   second writer.
+3. **The ladder draws facts, never intent.** A mark says where the size was, how much traded there
+   and how much did not; a hatched row says big size was pulled at that price in the last minute
+   and size sits there again. Amber and slate, never green or red (they mean bid and ask there);
+   nothing covers a size or a price, nothing adds a row, and Time & Sales is unchanged. Every hover
+   says "a hint consistent with spoofing, never a detection".
+4. **No re-price filter.** On 2026-09-29's SSTI, MSGY and MEDS recordings, 1-5% of 205 large pulls
+   had the same size reappear 1-3 ticks away within 0.5-5 s, so the pulls are not quotes stepping a
+   tick. About a quarter came back at the same price within 2 s, which is what the hatching shows.
+
+Live only. A replay desk's ladder is told the watcher reads only the live line; marking a recording
+from the journal is parked (#617).
+

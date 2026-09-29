@@ -8,7 +8,9 @@ pull is **large** at ``BOOK_WATCH_LARGE_MIN_SHARES`` and
 its evidence: ``pulled_on_approach`` (a large pull after the price came toward
 the size) and ``repeated_pulls`` (``BOOK_WATCH_REPEAT_COUNT`` large pulls on one
 side inside ``BOOK_WATCH_REPEAT_WINDOW_SEC``). Hints consistent with spoofing,
-never a detection. Events carry ``event``: ``pull`` | ``flag`` | ``minute``.
+never a detection. Every **large drop** -- the size that left, traded or not, by
+the same rule -- is also a ``drop`` event with its split, for the Level 2 ladder.
+Events carry ``event``: ``drop`` | ``pull`` | ``flag`` | ``minute``.
 """
 from __future__ import annotations
 
@@ -28,6 +30,7 @@ from book_watch.book import (
 )
 from book_watch.constants_book_watch import (
     BOOK_WATCH_COLLAPSE_FROM,
+    BOOK_WATCH_DROPS_KEEP,
     BOOK_WATCH_COLLAPSE_TO,
     BOOK_WATCH_FLAGS_KEEP,
     BOOK_WATCH_LARGE_MEDIAN_MULT,
@@ -55,6 +58,12 @@ def _money(price: float) -> str:
     return f"{price:.2f}" if price >= 1 else f"{price:.4f}"
 
 
+def _large(shares: float, median_size: float | None) -> bool:
+    """The watcher's one size rule: at least the floor AND this many times the side's median level."""
+    return shares >= BOOK_WATCH_LARGE_MIN_SHARES and (
+        median_size is None or shares >= BOOK_WATCH_LARGE_MEDIAN_MULT * median_size)
+
+
 class SymbolWatch:
     def __init__(self, symbol: str, *, num_rows: int) -> None:
         self.symbol = symbol
@@ -70,9 +79,12 @@ class SymbolWatch:
         self.large_by_side: dict[str, deque[tuple[float, float, float]]] = {s: deque() for s in SIDES}
         self.last_repeat: dict[str, float | None] = {s: None for s in SIDES}
         self.book_times: deque[float] = deque()
-        self.window: deque[tuple[float, float, float, bool]] = deque()  # ts, pulled, filled, large
+        self.window: deque[tuple[float, float, float, bool, str]] = deque()  # ts, pulled, filled, large, side
         self.flags: deque[dict[str, Any]] = deque(maxlen=BOOK_WATCH_FLAGS_KEEP)
         self.pulls: deque[dict[str, Any]] = deque(maxlen=BOOK_WATCH_PULLS_KEEP)
+        # Large drops with a sequence number, for the ladder (live.ladder_view).
+        self.drops: deque[dict[str, Any]] = deque(maxlen=BOOK_WATCH_DROPS_KEEP)
+        self.drop_seq = 0
         self.books = 0
         self.prints_seen = 0
         self.since: float | None = None
@@ -209,18 +221,22 @@ class SymbolWatch:
         filled = self._claim(drop)
         pulled = max(0.0, drop["drop"] - filled)
         med = drop["median"]
-        large = pulled >= BOOK_WATCH_LARGE_MIN_SHARES and (med is None or pulled >= BOOK_WATCH_LARGE_MEDIAN_MULT * med)
+        large = _large(pulled, med)
         t1 = drop["t1"]
-        self.window.append((t1, pulled, filled, large))
+        side = drop["side"]
+        self.window.append((t1, pulled, filled, large, side))
         while self.window and self.window[0][0] < t1 - BOOK_WATCH_STATS_WINDOW_SEC:
             self.window.popleft()
         out = self._roll(t1, pulled=pulled, filled=filled, large=int(large))
-        if not large:
-            return out
-        side = drop["side"]
         opp = drop["opp_at_post"]
         dist, dist_post = drop["distance"], drop["dist_post"]
         approached = None if dist is None or dist_post is None else dist < dist_post
+        # The pulled-on-approach flag's own rule: a large pull posted at least a tick off the inside.
+        on_approach = bool(large and approached and dist_post is not None and dist_post >= 1)
+        if _large(drop["drop"], med):
+            out.append(self._drop_event(drop, t1, pulled, filled, approached, large, on_approach))
+        if not large:
+            return out
         pull = {
             "event": "pull", "symbol": self.symbol, "ts": round(t1, 3), "side": side, "price": drop["price"],
             "pulled": pulled, "filled": filled, "level_before": drop["before"], "level_after": drop["after"],
@@ -231,12 +247,28 @@ class SymbolWatch:
         }
         self.pulls.append(pull)
         out.append(pull)
-        if approached and dist_post is not None and dist_post >= 1:
+        if on_approach:
             out.append(self._flag("pulled_on_approach", pull, (
                 f"{pulled:,.0f} shares {_SIDE_WORD[side]} at {_money(drop['price'])} pulled after the price came "
                 f"{dist_post - dist} tick(s) toward it; {filled:,.0f} of the drop traded there")))
         out += self._repeat(side, pull)
         return out
+
+    def _drop_event(self, drop: dict[str, Any], t1: float, pulled: float, filled: float,
+                    approached: bool | None, large: bool, on_approach: bool) -> dict[str, Any]:
+        """A large level shrank: how much traded there and how much was pulled (the ladder's mark)."""
+        event = {
+            "event": "drop", "symbol": self.symbol, "ts": round(t1, 3), "side": drop["side"],
+            "price": drop["price"], "dropped": drop["drop"], "pulled": pulled, "filled": filled,
+            "outcome": "pulled" if pulled > filled else "traded",
+            "level_before": drop["before"], "level_after": drop["after"], "median_level": drop["median"],
+            "distance_ticks": drop["distance"], "distance_at_post_ticks": drop["dist_post"],
+            "lifetime_sec": None if drop["posted_ts"] is None else round(t1 - drop["posted_ts"], 3),
+            "approached": approached, "large_pull": large, "on_approach": on_approach,
+        }
+        self.drop_seq += 1
+        self.drops.append({**event, "seq": self.drop_seq})
+        return event
 
     def _repeat(self, side: str, pull: dict[str, Any]) -> list[dict[str, Any]]:
         ts = pull["ts"]
@@ -315,4 +347,19 @@ class SymbolWatch:
             "pulled_shares": sum(r[1] for r in rows), "filled_shares": sum(r[2] for r in rows),
             "pulls": sum(1 for r in rows if r[1] > 0), "fills": sum(1 for r in rows if r[2] > 0),
             "large_pulls": sum(1 for r in rows if r[3]),
+            "sides": self._sides(rows),
         }
+
+    def side_totals(self, now: float) -> dict[str, dict[str, float]]:
+        """Each side's size that left in the stats window: pulled, traded, and its large pulls."""
+        return self._sides([r for r in self.window if r[0] >= now - BOOK_WATCH_STATS_WINDOW_SEC])
+
+    @staticmethod
+    def _sides(rows: list[tuple[float, float, float, bool, str]]) -> dict[str, dict[str, float]]:
+        out = {s: {"pulled_shares": 0.0, "filled_shares": 0.0, "large_pulls": 0} for s in SIDES}
+        for _ts, pulled, filled, large, side in rows:
+            bucket = out[side]
+            bucket["pulled_shares"] += pulled
+            bucket["filled_shares"] += filled
+            bucket["large_pulls"] += int(large)
+        return out
