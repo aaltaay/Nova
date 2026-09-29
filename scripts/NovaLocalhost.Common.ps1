@@ -143,14 +143,20 @@ function Start-NovaVite {
   $out = Join-Path $script:NovaLogDir 'vite-watch.out.log'
   $err = Join-Path $script:NovaLogDir 'vite-watch.err.log'
   Write-NovaLog "Starting Vite $npm cwd=$frontend"
-  Start-Process -FilePath $npm -ArgumentList @('run','dev','--','--host','127.0.0.1','--port',"$($script:NovaVitePort)") `
-    -WorkingDirectory $frontend -WindowStyle Hidden `
-    -RedirectStandardOutput $out -RedirectStandardError $err | Out-Null
+  $proc = Start-Process -FilePath $npm -ArgumentList @('run','dev','--','--host','127.0.0.1','--port',"$($script:NovaVitePort)") `
+    -WorkingDirectory $frontend -WindowStyle Hidden -PassThru `
+    -RedirectStandardOutput $out -RedirectStandardError $err
   for ($i = 0; $i -lt 40; $i++) {
     Start-Sleep -Seconds 1
     if (Test-NovaPort $script:NovaVitePort) {
       Write-NovaLog "Vite up on $($script:NovaVitePort)"
       return $true
+    }
+    # npm that exits never listens: stop waiting now. The whole wait (~80 s) held the watchdog's
+    # loop, so an API stopped meanwhile waited that long to be started again (2026-09-29).
+    if ($proc -and $proc.HasExited) {
+      Write-NovaLog "Vite exited (code $($proc.ExitCode)) before listening on $($script:NovaVitePort) - see $err"
+      return $false
     }
   }
   Write-NovaLog "Vite FAILED to listen on $($script:NovaVitePort) - see $err"

@@ -272,6 +272,13 @@ def _tag_number(tag: str | None) -> int | None:
     return int(text[1:]) if text.startswith("v") and text[1:].isdigit() else None
 
 
+def _api_is_newer(ui: str | None, backend: str | None) -> bool:
+    """The API runs newer code than the page: restarting the API cannot close that gap, the desk
+    has to catch up (2026-09-29: "UI v1029 but API v1030" offered Reload backend)."""
+    u, b = _tag_number(ui), _tag_number(backend)
+    return u is not None and b is not None and b > u
+
+
 def _restart_loads_same(ui: str | None, backend: str | None, checkout: str | None) -> bool:
     """The API is older than the UI and its checkout holds nothing newer: a restart would
     start the same revision again (operator report 2026-09-25)."""
@@ -300,7 +307,12 @@ def frontend_rows(
         state, detail = DIAG_STATE_WARN, f"UI {ui} but API {backend_tag}"
         cause = "The page and the API were built from different commits (one of them was restarted after a pull, or the API runs from another checkout)."
         fix = "Reload backend and hard-refresh the page so both run the same revision."
-        if _restart_loads_same(ui, backend_tag, checkout_tag):
+        if _api_is_newer(ui, backend_tag):
+            detail = f"UI {ui} is older than API {backend_tag}"
+            cause = "The API runs newer code than this page was built from; restarting the API cannot change that."
+            fix = (f"Nothing to restart. The installed desk offers {backend_tag} once its release is "
+                   "published (Help > Check for Updates); a browser desk: hard-refresh the page.")
+        elif _restart_loads_same(ui, backend_tag, checkout_tag):
             detail = f"UI {ui} but API {backend_tag}, and the API's checkout is {checkout_tag}"
             cause = f"The API's checkout is itself at {checkout_tag}: a restart would start {backend_tag} again."
             fix = f"Pull master in the API's checkout to reach {ui}, then Reload backend."
@@ -312,6 +324,7 @@ def frontend_rows(
         detail=detail,
         cause=cause,
         fix=fix,
-        action=DIAG_ACTION_RELOAD_BACKEND if state == DIAG_STATE_WARN else None,
+        action=(DIAG_ACTION_RELOAD_BACKEND
+                if state == DIAG_STATE_WARN and not _api_is_newer(ui, backend_tag) else None),
         evidence={"ui": ui, "api": backend_tag, "api_checkout": checkout_tag},
     )]

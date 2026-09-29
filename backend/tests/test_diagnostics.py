@@ -152,9 +152,20 @@ def test_the_revision_row_says_restart_when_the_checkout_is_ahead_or_unknown():
         assert row["fix"].startswith("Reload backend"), checkout
 
 
-def test_a_ui_older_than_the_api_is_never_told_to_pull_the_api():
-    row = _revision_row(ui_tag="v1017", backend_tag="v1024", checkout_tag="v1024")
-    assert row["fix"].startswith("Reload backend")
+def test_a_ui_older_than_the_api_is_told_neither_to_pull_nor_to_restart_the_api():
+    """Operator report 2026-09-29: "UI v1029 but API v1030" offered Reload backend, which cannot
+    make the desk newer -- and a reload then is one more stop of the engine at the open."""
+    row = _revision_row(ui_tag="v1029", backend_tag="v1030", checkout_tag="v1030")
+    assert row["state"] == "warn"
+    assert row["detail"] == "UI v1029 is older than API v1030"
+    assert row["fix"].startswith("Nothing to restart") and "Check for Updates" in row["fix"]
+    assert "Pull master" not in row["fix"]
+    assert row["action"] is None
+
+
+def test_a_ui_newer_than_the_api_keeps_its_reload_action():
+    row = _revision_row(ui_tag="v1030", backend_tag="v1029", checkout_tag="v1030")
+    assert row["action"] is not None and row["action"]["kind"] == "reload_backend"
 
 
 def test_the_checklist_names_the_checkout_revision_beside_the_running_one():

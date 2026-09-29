@@ -13,6 +13,10 @@ export const DIAG_LEAD =
   'What this API process sees right now, fact by fact. Expand a row for its cause, the fix and the raw evidence.';
 export const DIAG_COPY_LABEL = 'Copy diagnostics';
 export const DIAG_COPIED_LABEL = 'Copied';
+/** Copied, but from the rows on screen: the API did not send its bundle (it was down). */
+export const DIAG_COPIED_SCREEN_LABEL = 'Copied as shown';
+export const DIAG_COPIED_SCREEN_NOTE =
+  'The API did not answer, so this copied the checklist as last read -- press Copy again once it is back for the full bundle.';
 export const DIAG_COPY_FAILED = 'Copy failed -- select the text below';
 export const DIAG_REFRESH_LABEL = 'Refresh';
 export const DIAG_UNREACHABLE =
