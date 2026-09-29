@@ -16,6 +16,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import { emptyPortPlan, engineHomeFromHealth, ownerStartFailedPrompt, readEngineOwner } from './engineOwnership.mjs';
 import { windowsPowerShell } from './updateSplash.mjs';
 
 export const ENGINE_STOP_SCRIPT = ['scripts', 'Stop-NovaPorts.ps1'];
@@ -95,6 +96,17 @@ export async function engineCheckout(apiBase, fetchJson = getJson) {
   };
 }
 
+/**
+ * Where the answering engine runs from -- `{frozen, root, release_tag, checkout_tag}` -- from its
+ * /api/health (a backend that names `frozen` there), else from its checklist; null when neither says.
+ */
+export async function engineHome(apiBase, fetchJson = getJson) {
+  const fromHealth = engineHomeFromHealth(await fetchJson(`${apiBase}/api/health`, HEALTH_TIMEOUT_MS));
+  if (fromHealth) return fromHealth;
+  const checkout = await engineCheckout(apiBase, fetchJson);
+  return checkout ? { ...checkout, checkout_tag: null } : null;
+}
+
 /** A different process answers: a new instance id, else a new pid, else the old one was seen gone. */
 export function isNewEngine(before, after) {
   if (!after) return false;
@@ -134,6 +146,28 @@ export function checkoutEngineEnv(env) {
 
 function cmdExe(env) {
   return path.win32.join(env.SystemRoot || env.windir || 'C:\\Windows', 'System32', 'cmd.exe');
+}
+
+/**
+ * Start a checkout's engine the way Run Nova.bat does: its own hidden console in the backend
+ * folder, so it outlives this app (ADR 038: the desk starts the owner's engine, never a stranger).
+ * Throws saying why when it cannot be started from here.
+ * @param {{root: string, start: string | null, backendDir: string}} scripts from engineScripts()
+ */
+export function startCheckoutEngine(scripts, { env = process.env, spawnFn = spawn } = {}) {
+  if (!scripts?.start) throw new Error('Start-NovaApi.ps1 is missing -- run Run Nova.bat');
+  const commandLine = engineStartCommandLine(windowsPowerShell(env), scripts.backendDir, scripts.start);
+  if (!commandLine) throw new Error('its folder path cannot be started from here -- run Run Nova.bat');
+  const child = spawnFn(cmdExe(env), [commandLine], {
+    cwd: scripts.backendDir,
+    detached: true,
+    env: checkoutEngineEnv(env),
+    stdio: 'ignore',
+    windowsHide: true,
+    windowsVerbatimArguments: true,
+  });
+  child.on?.('error', (err) => console.error('[nova-api] engine start failed', err));
+  child.unref?.();
 }
 
 /** True when the localhost watchdog runs (it starts the next engine); false when unknown. */
@@ -219,19 +253,11 @@ export async function restartCheckoutEngine(before, deps) {
     throw new Error(`Not restarted: ${label(from)} is still running${said ? ` -- ${said}` : ''}`);
   }
   if (!watchdog) {
-    if (!scripts.start) throw new Error(`Stopped ${label(from)}, but Start-NovaApi.ps1 is missing -- run Run Nova.bat`);
-    const commandLine = engineStartCommandLine(windowsPowerShell(env), scripts.backendDir, scripts.start);
-    if (!commandLine) throw new Error(`Stopped ${label(from)}, but its folder path cannot be started from here -- run Run Nova.bat`);
-    const child = spawnFn(cmdExe(env), [commandLine], {
-      cwd: scripts.backendDir,
-      detached: true,
-      env: checkoutEngineEnv(env),
-      stdio: 'ignore',
-      windowsHide: true,
-      windowsVerbatimArguments: true,
-    });
-    child.on?.('error', (err) => console.error('[nova-api] reload: engine start failed', err));
-    child.unref?.();
+    try {
+      startCheckoutEngine(scripts, { env, spawnFn });
+    } catch (err) {
+      throw new Error(`Stopped ${label(from)}, but ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
   const after = await waitForNewEngine(apiBase, before, { fetchJson, sleep, now, timeoutMs });
   if (!after) {
@@ -239,4 +265,59 @@ export async function restartCheckoutEngine(before, deps) {
   }
   console.log(`[nova-api] reload: ${label(after.release_tag)} answers (was ${from ?? 'unknown'})`);
   return { from, to: after.release_tag };
+}
+
+/** How long a Retry looks for an engine the watchdog may have started meanwhile. */
+const OWNER_RETRY_PROBE_MS = 2_500;
+
+/**
+ * ADR 038 (amended 2026-09-29): nothing answers :8000 and this desk remembers the operator's
+ * checkout as the backend's owner (engineOwnership.mjs) -- start that checkout's engine, with its
+ * data and its .env, the way Run Nova.bat does. True once it answers. When it does not, the
+ * operator chooses: Retry, the bundled engine for this session (its own data folder, said so),
+ * or Exit (this throws). False when no owner is remembered or the operator picked the bundled one.
+ * @param {{ userData: string, waitForHealth: (timeoutMs: number) => Promise<void>,
+ *   showMessageBox: (options: object) => Promise<{response: number}>, onStarting?: () => void }} deps
+ */
+export async function startOwnerEngine({
+  userData,
+  waitForHealth,
+  showMessageBox,
+  onStarting = () => {},
+  readOwner = readEngineOwner,
+  exists = fs.existsSync,
+  isDir,
+  env = process.env,
+  spawnFn = spawn,
+  timeoutMs = ENGINE_NEW_TIMEOUT_MS,
+}) {
+  const owner = readOwner(userData);
+  if (emptyPortPlan(owner, { exists, isDir }) !== 'start_owner') return false;
+  const scripts = engineScripts([owner.repo_root], exists);
+  for (;;) {
+    let error;
+    try {
+      console.log('[nova-api] starting the backend from its checkout', owner.repo_root);
+      if (!scripts) throw new Error('Stop-NovaPorts.ps1 is missing from the checkout -- run Run Nova.bat');
+      startCheckoutEngine(scripts, { env, spawnFn });
+      onStarting();
+      await waitForHealth(timeoutMs);
+      return true;
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+      console.error('[nova-api] the checkout backend did not start:', error);
+    }
+    const answer = await showMessageBox(ownerStartFailedPrompt({ root: owner.repo_root, error, userData }));
+    if (answer?.response === 1) {
+      console.warn('[nova-api] the operator chose the bundled backend for this session');
+      return false;
+    }
+    if (answer?.response !== 0) throw new Error('Startup cancelled: your Nova backend did not start');
+    try {
+      await waitForHealth(OWNER_RETRY_PROBE_MS); // the watchdog may have started it meanwhile
+      return true;
+    } catch {
+      // still nothing answers: start it again
+    }
+  }
 }

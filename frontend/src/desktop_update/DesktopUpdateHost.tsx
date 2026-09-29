@@ -1,12 +1,13 @@
 /**
- * The desktop app's update notice and What's new card, mounted once in the main
- * window's shell (not in Trader pop-outs). Renders nothing in a browser or
+ * The desktop app's update notice, backend notice and What's new card, mounted once
+ * in the main window's shell (not in Trader pop-outs). Renders nothing in a browser or
  * until the Electron main process has something to say. Also carries Help > File
  * an Issue… to the issue form: a request made after this page subscribed opens it
  * (the one the first view carries is older than the page, so it is not replayed).
  */
 import { useEffect, useRef } from 'react';
 import { openIssueForm } from '../issue_report';
+import { BackendNotice } from './BackendNotice';
 import { UpdateNotice } from './UpdateNotice';
 import { useDesktopUpdate, type DesktopUpdatesBridge } from './useDesktopUpdate';
 import { WhatsNewCard } from './WhatsNewCard';
@@ -24,6 +25,7 @@ export function DesktopUpdateHost({ bridge }: { bridge?: DesktopUpdatesBridge | 
   if (!view) return null;
   return (
     <>
+      {view.engine && <BackendNotice engine={view.engine} act={act} />}
       {view.notice && <UpdateNotice notice={view.notice} act={act} />}
       {view.whatsNew && <WhatsNewCard whatsNew={view.whatsNew} act={act} />}
     </>

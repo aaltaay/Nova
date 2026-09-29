@@ -108,8 +108,16 @@ async def health_check():
         "ib_cold_inflight": inflight_label() or None,
         "release_tag": _release_tag(),
         "checkout_tag": _checkout_tag(),
+        **_engine_home(),
         **instance_identity.snapshot(),
     }
+
+
+def _engine_home() -> dict:
+    """``frozen`` / ``repo_root``: which checkout runs this process (null for a packaged engine)."""
+    from diagnostics.process_info import engine_home
+
+    return engine_home()
 
 
 def _release_tag() -> str | None:

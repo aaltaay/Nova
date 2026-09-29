@@ -33,7 +33,7 @@ export const STARTUP_STEPS = Object.freeze({
 
 /** The step after startApiSidecar(): Nova started an engine, or found one already running. */
 export function engineStep(engine) {
-  return engine === 'spawned' ? STARTUP_STEPS.starting : STARTUP_STEPS.connecting;
+  return engine === 'spawned' || engine === 'owner' ? STARTUP_STEPS.starting : STARTUP_STEPS.connecting;
 }
 
 function escapeHtml(text) {

@@ -3,7 +3,7 @@
 > **Single source of truth.** `gemini.md` is a legacy alias that `@`-imports this file (consolidated 2026-07-28 after the two mirrors drifted).
 >
 > **Status:** ENFORCED — Active governance document
-> **Last Updated:** 2026-09-24
+> **Last Updated:** 2026-09-29
 > **Project:** Nova — Stock Alert Automation System
 > **Enforcement:** Every AI agent (Cursor, Antigravity, any LLM assistant) MUST read this file before writing ANY code. Violations are NEVER acceptable.
 
@@ -451,6 +451,52 @@ checkout is ahead or unknown and `(older -- pull master, then restart)` when it
 is not (`appTitle.backendRemedy`). Reload backend's confirmation says a restart
 would start the same revision again, its note says so when one did, and the
 `frontend_revision` row's fix names the checkout's revision.
+
+**Who owns the backend** (ADR 038, amended 2026-09-29; operator: "1 go"). The
+operator's backend is the checkout engine the watchdog, `Run Nova.bat` and the
+morning script start. The installed desk's bundled engine keeps its data in the
+app's own folder, so it is a different Paper account, bot session and history.
+- **At launch** the installed desk uses whatever Nova engine answers `:8000`.
+  It never asks about it, never stops it and never starts a second engine over
+  it.
+- **The owner.** `/api/health` adds `frozen: boolean` and `repo_root: string |
+  null` (`diagnostics.process_info.engine_home`; null for a packaged engine). A
+  checkout engine whose root is a main checkout (`.git` a folder), with a `.env`
+  and `scripts\Start-NovaApi.ps1`, is remembered as the owner in
+  `%APPDATA%\nova\engine-owner.json` = `{schema_version: 1, repo_root, seen_at}`
+  (owner `frontend/electron/engineOwnership.mjs`). An unknown version, an
+  unreadable file or a checkout without its start script reads as no owner.
+- **On an empty port** the desk starts the owner's engine with that checkout's
+  `Start-NovaApi.ps1`, so it outlives the desk. If it does not answer, the desk
+  asks: Retry (the default), the bundled backend for this session (its data
+  folder named), or Exit. With no owner, the bundled engine starts as before.
+- **`GET /api/diagnostics/restart-check`** (owner
+  `diagnostics/restart_check.py`) answers what a restart of this process would
+  interrupt, from memory only (no IBKR request): `{schema_version: 1,
+  generated_at, safe: boolean | null, open: [{kind: "recording" | "position" |
+  "working_order" | "bot_trade" | "stock_mode" | "download", venue: "paper" |
+  "sim" | "ibkr" | null, symbol: string | null, text}], unknown: [{kind,
+  error}]}`. It covers the Session Records, the practice ledgers this process
+  has loaded, IBKR's cached positions and open orders (with no ready session,
+  Nova watches nothing there), the bot's open trade, ADR 037's in-memory stock
+  modes, approvals and trades, and running history downloads. `safe` is true
+  only when every reader answered and nothing is open, false when anything is
+  open, and null when a reader failed (never read as "nothing open").
+- **The backend notice** (`frontend/src/desktop_update/BackendNotice.tsx`, in the
+  update strip). It shows while the backend is older than the desk: **Restart
+  backend now** when its checkout is ahead, **Pull master and restart** when
+  it is not and the backend runs from the owner. It reads the restart check
+  first. Nothing open restarts in one click; anything open, or a backend too
+  old to say, is listed and confirmed. A pull is always confirmed. Later hides
+  it until a revision changes.
+- **The pull** (`frontend/electron/engineSync.mjs`) runs only on the operator's
+  press:
+  - fast-forward only, on a clean `master`;
+  - refused when master changes `backend/requirements.txt`;
+  - then a restart if the checkout is now ahead.
+
+  Nothing pulls or restarts on a timer: an unattended nightly pull and restart
+  was proposed and not built, pending the operator's explicit say-so.
 
 ### Where Nova keeps its data (operator ask, 2026-09-24)
 
@@ -1640,7 +1686,10 @@ is listed as `recorded: false`, never given an invented summary.
 window over IPC (`frontend/electron/updateBridge.mjs`; channels
 `nova:update:view` / `nova:update:subscribe` / `nova:update:act`; Trader
 pop-outs neither receive it nor may act): `{schema_version: 1, installed,
-notice, whats_new, file_issue}`. `notice` is `null` or `{stage: "available" | "downloading"
+notice, whats_new, file_issue, engine}`. `engine` (installed desk only, ADR 038
+amendment) is `{owner: string | null, attached_to_owner: boolean, running:
+"pull" | "restart" | null, last: {at, outcome: "pulled" | "restarted" |
+"current" | "failed", text} | null}`. `notice` is `null` or `{stage: "available" | "downloading"
 | "stopped" | "ready" | "installing", tag, installed, percent, retry, error,
 notes}`; `whats_new` is `null` or `{mode: "updated" | "recent", tag, since:
 string | null, notes}`. `notes` is `{loading, error: string | null,
@@ -1648,8 +1697,9 @@ releases: [{tag, number, recorded, title, kind, scope, pr, pr_url, summary,
 points, published_at, url}], more, older_unlisted, page_url}` -- newest first,
 at most 30 listed (`more` counts the rest; `older_unlisted` says GitHub's one
 page did not reach the installed release). The window answers
-`{action: "download" | "later" | "restart" | "whats-new-close" | "open-link",
-url?}`; `open-link` opens only this repository's release, pull request and issue
+`{action: "download" | "later" | "restart" | "whats-new-close" | "open-link" |
+"backend-sync", url?}` (`backend-sync`: the backend notice's Pull master and
+restart); `open-link` opens only this repository's release, pull request and issue
 pages and gists (`isReleaseLink` / `issueLinks.isIssueLink`). `file_issue` is
 `null` or `{requested_at}` (epoch ms): Help > File an Issue… sets it, and the
 page opens its issue form when the value changes after it subscribed (the value
@@ -2635,6 +2685,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-29 | Who owns the backend (ADR 038, amended; operator: "is this a good design solution?", then "1 go"). The first ADR 038 (`64a25abe`, released as v1028) prompted at every launch for the watchdog's checkout engine, and its default button pointed at the bundled engine, which keeps a separate Paper account and bot session. Now the desk uses whatever answers `:8000` without asking. It remembers the checkout engine as the owner (`engine-owner.json`) and starts that engine on an empty port; the bundled engine starts only without an owner, or by explicit choice after the owner failed. A backend notice offers Restart backend now, or Pull master and restart (fast-forward only, clean master, refused on a requirements change), after asking the backend what is open (`GET /api/diagnostics/restart-check`, new). `/api/health` adds `frozen` and `repo_root`. An unattended nightly pull and restart was proposed and not built, pending the operator's say-so. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-25 | The 1-minute chart stays where the operator put it (operator reports: "Chart unavailable. The scanner is still running.", then "I just sold the stock, and the chart moved"). The stock read set the time scale's `rightOffset` whenever the plan's zones appeared or went. That option is the scroll position, so a buy, a sale, a plan coming or going, or a Trader tab shown again snapped the 1-minute pane to the live edge. Now only a view that follows the live edge slides over to give the zones room. The crashed-pane box names its reason, redraws once on its own, and its Retry button works; it had inherited `pointer-events: none`. The crash itself was not reproduced; its reason now shows on screen. The 04:00 jump from a `bars_patch` swapping histories was fixed separately the same morning (`mergeBarsPatch`). §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-25 | A restart loads only what its checkout holds (operator report: "What does it want? I closed the app and clicked reload backend."). The title read "backend v1017 (older -- restart it)"; the operator reloaded at 07:56 ET and a fresh process came up v1017 again. The engine runs from the git checkout, which was still v1017 until a pull at 07:57, while the desk had updated itself to v1024. `/api/health` and the checklist add `checkout_tag` (the checkout's revision on disk now, re-read off the request path), and the title, Reload backend's confirmation and note, and the `frontend_revision` row say "pull master, then restart" when a restart would load the same code. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-24 | Who trades the stock (ADR 037, #604, #606). Operator asks: "can we have two modes where the entry is automated but the exit is manual?", then "When may Nova buy for you? I want a clear option next to level 2 ... if I selected the exit is on me, then I'm going to be the one who exits, not the bot"; mockup v2 approved, then "1 go". Each stock gets a Buy / Sell switch, above Level 2 and as a chip on the chart, with four modes: Signal only, Approve, Auto-entry and Bot at Strategy. Nova places for a stock only on Paper and on Sim at the live edge; Live is locked with the reason (`auto_live` NO-GO; Approve on Live waits on #604). Auto-entry buys one go trigger at the scanner's entry, sized by the operator's risk per trade, and never sells. Approve sends the plan as one bracket at the trigger. Bot at Strategy is the bot's own list. Take over the exit cancels Nova's exits, and a bot trade ends `handed`. Paper and Sim now fill brackets in Live's shape: the exits are held until the entry fills, then one-cancels-other (#606 step 1). The chart shows the trade's moments live (Forming, Trigger, Holding, the exit) with ENTER NOW / SELL NOW, and Level 2 marks the plan's prices. §3 amended; ADRs 007, 019 and 030 amended. | User Directive + Claude Opus 5.5 |

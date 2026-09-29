@@ -19,6 +19,7 @@ import {
   waitForHealth,
 } from './sidecar.mjs';
 import { startAutoUpdate } from './autoUpdate.mjs';
+import { attachEngineSync } from './engineSync.mjs';
 import { startPerfMetrics } from './perfMetrics.mjs';
 import { startFocusSensor } from './focusSensor.mjs';
 import { startScreenRecorder } from './screenRecorder.mjs';
@@ -237,7 +238,7 @@ if (
     // Recording needs no engine: it starts with the app, before the desk.
     startScreenRecording();
     try {
-      startup.step(engineStep(await startApiSidecar()));
+      startup.step(engineStep(await startApiSidecar({ onStarting: () => startup.step(STARTUP_STEPS.starting) })));
       await openEnvFileIfNeeded();
       await waitForHealth();
       // The operator closed the starting window: the launch is called off.
@@ -270,6 +271,11 @@ if (
         envPath: getDesktopEnvPath,
         stopEngine: stopApiSidecarForUpdate,
         restartEngine: restartApiSidecar,
+        // ADR 038 (amended): remember the backend's checkout; "Pull master and restart" on request.
+        onBridge: (bridge, logger) => {
+          if (!app.isPackaged) return; // a dev desk runs from the checkout it would pull
+          attachEngineSync({ bridge, logger, apiBase: API_BASE, userData: app.getPath('userData'), reloadEngine });
+        },
       });
     } catch (err) {
       console.error(err);

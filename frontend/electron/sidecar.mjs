@@ -15,9 +15,7 @@ import {
   pickNovaEnvPath,
   readEnvValue,
 } from './envMerge.mjs';
-import { engineCheckout, engineIdentity, isNewEngine, restartCheckoutEngine } from './engineRestart.mjs';
-import { packagedEngineDecision, ownershipPrompt } from './engineOwnership.mjs';
-import { releaseTagFromText } from './releaseTag.mjs';
+import { engineIdentity, isNewEngine, restartCheckoutEngine, startOwnerEngine } from './engineRestart.mjs';
 import { SIDECAR_PORT_FREE_TIMEOUT_MS, waitForPortFree } from './portWait.mjs';
 import { createSerialQueue } from './serialQueue.mjs';
 import { skipApiSidecar } from './sidecarSkip.mjs';
@@ -227,8 +225,8 @@ export function waitForHealth(timeoutMs = 90_000) {
   });
 }
 
-/** @returns {Promise<'running' | 'attach' | 'reused' | 'spawned'>} which engine Nova will talk to */
-async function startApiSidecarUnlocked() {
+/** @returns {Promise<'running' | 'attach' | 'reused' | 'owner' | 'spawned'>} which engine Nova will talk to */
+async function startApiSidecarUnlocked({ onStarting } = {}) {
   if (apiChild) return 'running';
 
   // Lock A: daily UI attach. Never spawn a second API and never fall
@@ -241,34 +239,23 @@ async function startApiSidecarUnlocked() {
     return 'attach';
   }
 
-  // ADR 038: an installed desk silently reuses only its own matching packaged
-  // engine. Checkout/unknown/mismatched engines require an explicit one-session
-  // choice; retry lets the operator stop a watchdog-owned engine without Nova
-  // killing a potentially active recording or trading process.
-  while (true) {
-    try {
-      await waitForHealth(2_500);
-    } catch {
-      break; // nothing listening -- start our own
-    }
-    if (!app.isPackaged) {
-      console.log('[nova-api] reusing existing healthy development API at', API_BASE);
-      return 'reused';
-    }
-    const engine = await engineCheckout(API_BASE);
-    const deskTag = releaseTagFromText(app.getVersion());
-    const decision = packagedEngineDecision({ deskTag, engine });
-    if (decision === 'reuse') {
-      console.log(`[nova-api] reusing matching packaged engine ${deskTag} at`, API_BASE);
-      return 'reused';
-    }
-    const answer = await dialog.showMessageBox(ownershipPrompt({ deskTag, engine }));
-    if (answer.response === 1) {
-      console.warn('[nova-api] operator explicitly attached to an external backend for this session');
-      return 'attach';
-    }
-    if (answer.response === 2) throw new Error('Startup cancelled: another Nova backend owns port 8000');
+  // ADR 038 (amended 2026-09-29): whatever Nova engine answers :8000 is used as it is -- never
+  // stopped, never doubled, never asked about. Its revision is in the window title, and the
+  // backend notice offers a safe restart when it runs older code (engineSync.mjs).
+  try {
+    await waitForHealth(2_500);
+    console.log('[nova-api] reusing existing healthy API at', API_BASE);
+    return 'reused';
+  } catch {
+    // nothing listening -- start the owner's engine, else our own
   }
+  const ownerStarted = app.isPackaged && (await startOwnerEngine({
+    userData: app.getPath('userData'),
+    waitForHealth,
+    showMessageBox: (options) => dialog.showMessageBox(options),
+    onStarting,
+  }));
+  if (ownerStarted) return 'owner';
 
   const { command, args, cwd } = resolveSpawn();
   const env = sidecarEnv();
@@ -329,8 +316,9 @@ function stopExternalListener() {
   );
 }
 
-export function startApiSidecar() {
-  return sidecarQueue.enqueue(() => startApiSidecarUnlocked());
+/** @param {{ onStarting?: () => void }} [opts] `onStarting`: the owner's engine was just started */
+export function startApiSidecar(opts = {}) {
+  return sidecarQueue.enqueue(() => startApiSidecarUnlocked(opts));
 }
 
 export function stopApiSidecar() {

@@ -144,6 +144,12 @@ async def run(job_id: str, gateway, stop: threading.Event, *, paced=True):
         gateway.close()
 
 
+def running_ids() -> list[str]:
+    """The jobs this process is downloading now (a restart interrupts them)."""
+    with _lock:
+        return sorted(_active)
+
+
 def ensure_idle(job_id: str | None = None):
     """Refuse a new download before its job row exists (no orphan queued jobs)."""
     with _lock:

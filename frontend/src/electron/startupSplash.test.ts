@@ -86,6 +86,7 @@ describe('what the window says', () => {
 
   it('says starting when Nova spawned the engine, connecting when one was already running', () => {
     expect(engineStep('spawned')).toBe(STARTUP_STEPS.starting);
+    expect(engineStep('owner')).toBe(STARTUP_STEPS.starting);
     expect(engineStep('reused')).toBe(STARTUP_STEPS.connecting);
     expect(engineStep('attach')).toBe(STARTUP_STEPS.connecting);
     expect(engineStep('running')).toBe(STARTUP_STEPS.connecting);
