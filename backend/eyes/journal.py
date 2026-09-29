@@ -58,6 +58,18 @@ def journal_dir() -> Path:
     return eyes_dir() / EYES_JOURNAL_DIRNAME
 
 
+def day_path(date: str) -> Path | None:
+    """The journal file of ``date`` (``YYYY-MM-DD``), found by listing the folder; ``None`` when there is
+    none. A date from a request is only compared with the files' names and never becomes part of a path
+    (CodeQL py/path-injection: the way ``perf/routes.py`` finds a stall report)."""
+    folder = journal_dir()
+    try:
+        return next((p for p in folder.glob("*.jsonl") if p.stem == date), None)
+    except OSError:
+        logger.warning("eyes journal: cannot list %s", folder, exc_info=True)
+        return None
+
+
 def enabled() -> bool:
     return (os.environ.get(EYES_JOURNAL_ENV) or "1").strip() != "0"
 

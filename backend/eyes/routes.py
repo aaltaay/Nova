@@ -38,7 +38,7 @@ def eyes_at(date: str, at: float) -> dict[str, Any]:
     from setup_scanner.hooks import default_levels
     from setup_templates.store import get_store
 
-    return board_at(journal.journal_dir() / f"{date}.jsonl", date, at, levels=default_levels(),
+    return board_at(journal.day_path(date), date, at, levels=default_levels(),
                     window_of=template_window(get_store()))
 
 

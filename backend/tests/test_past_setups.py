@@ -62,6 +62,23 @@ def test_a_source_that_cannot_be_read_is_said_and_the_rest_answers(tmp_path, mon
     assert body["journal"]["ok"] is False and body["episodes"] == [] and body["bars"]["ok"] is True
 
 
+def test_a_day_is_found_by_listing_its_folder_and_a_day_with_no_file_says_so(tmp_path, monkeypatch):
+    monkeypatch.setenv("NOVA_EYES_DIR", str(tmp_path))
+    monkeypatch.setattr(past_setups, "_today", None)
+    folder = tmp_path / "journal"
+    folder.mkdir()
+    write(folder / f"{DAY}.jsonl", ncpl_lines())
+    from eyes import journal
+
+    assert journal.day_path(DAY) == folder / f"{DAY}.jsonl"
+    assert journal.day_path("../../etc/passwd") is None           # only ever compared with file names
+    body = past_setups.read("NCPL", DAY, at(10, 0), today=True, bars_fn=lambda s, d: NCPL_BARS)
+    assert body["journal"]["ok"] and body["episodes"][0]["end"] == "failed"
+    body = past_setups.read("NCPL", "2026-09-28", at(10, 0), today=False, bars_fn=lambda s, d: NCPL_BARS)
+    assert body["journal"] == {"ok": False, "error": "no eyes' journal on file for 2026-09-28", "lines": 0}
+    assert body["episodes"] == []
+
+
 def test_the_route_answers_the_day_and_refuses_a_bad_date(monkeypatch):
     seen = {}
 
