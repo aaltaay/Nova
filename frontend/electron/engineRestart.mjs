@@ -88,7 +88,11 @@ export async function engineCheckout(apiBase, fetchJson = getJson) {
   const proc = (await fetchJson(`${apiBase}/api/diagnostics`, DIAGNOSTICS_TIMEOUT_MS))?.process;
   if (!proc || typeof proc !== 'object') return null;
   // A packaged engine's repo_root is its unpack folder, which holds no scripts.
-  return { root: proc.frozen === true ? null : text(proc.repo_root), release_tag: text(proc.release_tag) };
+  return {
+    root: proc.frozen === true ? null : text(proc.repo_root),
+    release_tag: text(proc.release_tag),
+    frozen: proc.frozen === true,
+  };
 }
 
 /** A different process answers: a new instance id, else a new pid, else the old one was seen gone. */

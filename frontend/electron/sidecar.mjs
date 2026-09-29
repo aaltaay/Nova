@@ -15,7 +15,9 @@ import {
   pickNovaEnvPath,
   readEnvValue,
 } from './envMerge.mjs';
-import { engineIdentity, isNewEngine, restartCheckoutEngine } from './engineRestart.mjs';
+import { engineCheckout, engineIdentity, isNewEngine, restartCheckoutEngine } from './engineRestart.mjs';
+import { packagedEngineDecision, ownershipPrompt } from './engineOwnership.mjs';
+import { releaseTagFromText } from './releaseTag.mjs';
 import { SIDECAR_PORT_FREE_TIMEOUT_MS, waitForPortFree } from './portWait.mjs';
 import { createSerialQueue } from './serialQueue.mjs';
 import { skipApiSidecar } from './sidecarSkip.mjs';
@@ -239,13 +241,33 @@ async function startApiSidecarUnlocked() {
     return 'attach';
   }
 
-  // Reuse an already-running local API (e.g. Run Nova.bat) when healthy.
-  try {
-    await waitForHealth(2_500);
-    console.log('[nova-api] reusing existing healthy API at', API_BASE);
-    return 'reused';
-  } catch {
-    // nothing listening -- start our own
+  // ADR 038: an installed desk silently reuses only its own matching packaged
+  // engine. Checkout/unknown/mismatched engines require an explicit one-session
+  // choice; retry lets the operator stop a watchdog-owned engine without Nova
+  // killing a potentially active recording or trading process.
+  while (true) {
+    try {
+      await waitForHealth(2_500);
+    } catch {
+      break; // nothing listening -- start our own
+    }
+    if (!app.isPackaged) {
+      console.log('[nova-api] reusing existing healthy development API at', API_BASE);
+      return 'reused';
+    }
+    const engine = await engineCheckout(API_BASE);
+    const deskTag = releaseTagFromText(app.getVersion());
+    const decision = packagedEngineDecision({ deskTag, engine });
+    if (decision === 'reuse') {
+      console.log(`[nova-api] reusing matching packaged engine ${deskTag} at`, API_BASE);
+      return 'reused';
+    }
+    const answer = await dialog.showMessageBox(ownershipPrompt({ deskTag, engine }));
+    if (answer.response === 1) {
+      console.warn('[nova-api] operator explicitly attached to an external backend for this session');
+      return 'attach';
+    }
+    if (answer.response === 2) throw new Error('Startup cancelled: another Nova backend owns port 8000');
   }
 
   const { command, args, cwd } = resolveSpawn();

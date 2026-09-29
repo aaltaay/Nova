@@ -60,9 +60,9 @@ describe('engineRestart', () => {
 
   it('takes the checkout from the engine, never from a packaged one', async () => {
     expect(await engineCheckout(API, async () => ({ process: { repo_root: ROOT, release_tag: 'v991' } })))
-      .toEqual({ root: ROOT, release_tag: 'v991' });
+      .toEqual({ root: ROOT, release_tag: 'v991', frozen: false });
     expect(await engineCheckout(API, async () => ({ process: { repo_root: 'C:\\x\\_MEI', frozen: true } })))
-      .toEqual({ root: null, release_tag: null });
+      .toEqual({ root: null, release_tag: null, frozen: true });
     expect(await engineCheckout(API, async () => null)).toBeNull();
   });
 
