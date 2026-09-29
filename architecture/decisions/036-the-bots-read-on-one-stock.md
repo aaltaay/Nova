@@ -82,3 +82,31 @@ agent's under the operator's standing grant for routine calls; each item has the
   again every `IBKR_SHORTABILITY_TTL_SEC`). The quote card's second row (Gap% / High / Low), seen
   cut off on the operator's screen, did not clip in a check at 720-1080 px tall windows with the
   read above Level 2; an e2e test now holds every stat row in view.
+
+## Amendment 2026-09-29 -- setups that ended stay on the chart, and what price did next
+
+**Decided by:** the operator, 2026-09-29, on a bull flag's grey "POLE" box that failed and then left
+the chart: "we could probably go back and study them. What could we do better?" -- then "i like this!
+1 go" to: say why a setup failed on the chart, keep the day's dead setups where they happened, and
+score every failure by what price did next, with a report by fail reason.
+
+- **The journal is the record; the chart reads it back.** Decision 6 drew each lane's *current* state,
+  so a setup that failed or faded vanished at the next bar. The eyes' journal already held every line
+  (ADR 029, decision 4 above). `eyes/episodes.py` folds a day's lines of each setup's template in play
+  into episodes -- one per setup's life on a symbol, from the first line that leaves `watching` to the
+  line that ends it -- and the 1-minute pane draws them faint, where they happened: a failed one from
+  the moment it failed (a failed flat top can sit on the board for half an hour and drew nothing live),
+  a faded or triggered one once it ended. Nothing is recomputed with today's rules and nothing changes
+  what arms: the lanes, the board, `setups.db` and the journal are unchanged.
+- **Why it died is the rule's own words.** A failed setup's reason is the first rule it broke; a
+  faded one's is what it waited on or was blocked by. Reports group reasons with their numbers
+  replaced, so every "the flag gave back N% of the pole" is one row.
+- **What came next is measured, never inferred.** From the minute it died, the chart's one-minute bars
+  say which it crossed first -- the high it was building under or the low it would have stopped under.
+  A candle that did both counts as the low, because the order inside a minute is unknown. After a
+  break, the trade the rule refused is scored the way the scoreboard scores an armed setup (first
+  touch of 2R or the stop, and the bar exit rules). These are scores, not fills: no tape, no slippage.
+  They are for judging a rule, and a change to a rule still goes through a template and a backtest.
+- **Not drawn:** a faded setup that never got past its leg. It is already visible as the chart's own
+  candles, and drawing it would double the boxes on a runner (59 of the 173 setups that had ended by
+  10:00 ET on 2026-09-29; mostly the flat top's "new high of day, wait for a base" on every new high).

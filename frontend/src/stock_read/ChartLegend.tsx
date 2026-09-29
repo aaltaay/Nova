@@ -1,10 +1,12 @@
 /** The 1-minute pane's legend for the stock read: a chip per setup lane that switches its shapes on
- * and off, the setups without a scanner (locked, saying why), and -- after "show on chart" from the
+ * and off, the "Past" chip for the day's setups that ended, the setups without a scanner (locked,
+ * saying why), and -- after "show on chart" from the
  * decisions -- the moment in view with a way back to now. In the corner, the badge with the trade's
  * track and the Who trades chip under it, and the call (ENTER NOW, SELL NOW, what Nova did: ADR 037). */
 import { tipProps, whyProps } from '../ux';
 import { laneChip, planBadgeText } from './chartShapes';
 import { CallBox, MomentTrack } from './MomentTrack';
+import { drawnPast, pastCounts } from './pastSetups';
 import { hhmmssEt } from './timeWords';
 import { WhoTradesChip } from './WhoTradesChip';
 import type { StockReadContextValue } from './StockReadContext';
@@ -19,6 +21,38 @@ function stop(e: { stopPropagation: () => void }): void {
 /** Setups without a scanner the legend names: Gap and Go draws its level (the premarket high); the
  * parked micro pullback draws nothing, so it takes no room here (the sheet lists it). */
 const LEGEND_NO_SCANNER = new Set(['gap_and_go']);
+
+/** The switch for the day's setups that ended, counting what it draws (ADR 036 amendment). */
+function PastChip({ ctx }: { ctx: StockReadContextValue }) {
+  const { past, layers } = ctx;
+  if (past.unavailable) {
+    return (
+      <button type="button" className="sr-legend__chip sr-legend__chip--past" disabled data-testid="stock-read-legend-past"
+        {...whyProps(true, 'This backend does not keep past setups yet: restart it on the newer code to see them')}>
+        ◌ Past
+      </button>
+    );
+  }
+  const drawn = past.data ? drawnPast(past.data.episodes, layers.hidden) : [];
+  const n = pastCounts(drawn);
+  const words = past.data
+    ? `Setups that ended today on ${ctx.symbol}: ${n.failed} failed (✕), ${n.faded} faded (○), ${n.triggered} triggered (✓),`
+      + ' drawn faint where they happened. Hover a box for why it ended and what price did next.'
+    : 'The day\'s setups that ended, drawn faint where they happened.';
+  const trouble = [past.error, past.data?.journal.error, past.data?.bars.error].filter(Boolean).join(' ');
+  return (
+    <button
+      type="button"
+      className={`sr-legend__chip sr-legend__chip--past${layers.past ? '' : ' sr-legend__chip--off'}`}
+      aria-pressed={layers.past}
+      onClick={() => ctx.setLayers({ past: !layers.past })}
+      {...tipProps(`${words}${trouble ? ` ${trouble}` : ''} (click to ${layers.past ? 'hide' : 'show'} them)`, 'Past setups')}
+      data-testid="stock-read-legend-past"
+    >
+      ◌ Past{past.data ? ` ${drawn.length}` : ''}
+    </button>
+  );
+}
 
 export function ChartLegend({ ctx, read, onFrame }: {
   ctx: StockReadContextValue;
@@ -63,6 +97,7 @@ export function ChartLegend({ ctx, read, onFrame }: {
                 </button>
               );
             })}
+            <PastChip ctx={ctx} />
             {read.no_scanner.filter(ns => LEGEND_NO_SCANNER.has(ns.setup_type)).map(ns => (
               <button
                 key={ns.setup_type}

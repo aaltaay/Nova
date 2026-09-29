@@ -4,7 +4,8 @@
  * seconds until `toTime` maps them onto the pane's own bars.
  *
  * The 1-minute pane draws everything: each followed setup's shapes (the lead lane in colour, the rest
- * faded), the plan's risk and reward zones and lines, the day's levels, and the moment's pin (ADR 037).
+ * faded), the day's setups that ended under them (`pastShapes.ts`), the plan's risk and reward zones and
+ * lines, the day's levels, and the moment's pin (ADR 037).
  * The 5-minute and 10-second panes mirror the plan's levels and the high of day as thin lines. A level
  * is dashed while it is only a plan and solid while an order stands behind it. Nothing here is
  * estimated: every price is the scanner's, the read's or Nova's order's own.
@@ -12,6 +13,8 @@
 import type { Time } from 'lightweight-charts';
 import { SETUP_COLORS } from './constants';
 import type { CallTone, MomentCall } from './momentModel';
+import { drawnPast, failingNow, shortReason, type Episode } from './pastSetups';
+import { pastShapes } from './pastShapes';
 import { formingProgress, fmtPx, setupName } from './planMath';
 import type { Scene, SceneBox, SceneSegment } from './SetupShapesPrimitive';
 import type { StockReadLayers } from './StockReadContext';
@@ -47,6 +50,13 @@ export interface DrawOptions {
   levels?: OrderLevels | null;
   /** The moment's call: its pin goes on its candle. */
   call?: MomentCall | null;
+  /** The day's setups that ended (ADR 036 amendment): drawn faint under the live lanes. */
+  past?: Episode[] | null;
+}
+
+/** The hover id a live lane's boxes carry. */
+export function laneHoverId(setupType: string): string {
+  return `lane:${setupType}`;
 }
 
 export const CALL_COLORS: Record<CallTone, string> = {
@@ -93,23 +103,25 @@ function laneShapes(lane: SetupLane, lead: boolean, o: DrawOptions): { boxes: Sc
   const segments: SceneSegment[] = [];
   const leg = lane.leg;
   if (!LIVE_DRAWN.has(lane.state) && !lane.forming) return { boxes, segments };
-  // A failed setup stays on the chart faded for as long as the scanner shows it, saying so.
+  // A failed setup stays on the chart faded for as long as the scanner shows it, saying why (once the
+  // past setups are read, it is drawn as past instead: `paneDraw`).
   const failed = lane.state === 'failed';
   const bright = lead && !failed;
   const c = bright ? tone(lane.state === 'leg' || lane.state === 'pullback' ? 'forming' : lane.state)
     : { stroke: SETUP_COLORS.fadedStroke, fill: SETUP_COLORS.faded };
   const legFill = bright ? SETUP_COLORS.leg : SETUP_COLORS.faded;
   const legStroke = bright ? SETUP_COLORS.legStroke : SETUP_COLORS.fadedStroke;
-  const tag = failed ? ' · FAILED' : '';
+  const tag = failed ? ` · FAILED: ${shortReason(lane.reason) || 'a rule broke'}` : '';
   const lv = levelsOf(lane);
   const lastT = lane.series?.bars_as_of ?? null;
   const endT = lv?.end ?? lastT;
+  const hoverId = laneHoverId(lane.setup_type);
   const box = (t1s: number, t2s: number, p1: number, p2: number, fill: string, stroke: string, labelText: string,
     dashed = false, labelBelow = false) => {
     const t1 = o.toTime(t1s);
     const t2 = o.toTime(t2s);
     if (t1 === null || t2 === null) return;
-    boxes.push({ t1, t2, p1, p2, fill, stroke, dashed, label: labelText, labelColor: stroke, labelBelow });
+    boxes.push({ t1, t2, p1, p2, fill, stroke, dashed, label: labelText, labelColor: stroke, labelBelow, hoverId });
   };
   const type = lane.setup_type;
   const provisional = !lane.setup;
@@ -118,12 +130,15 @@ function laneShapes(lane: SetupLane, lead: boolean, o: DrawOptions): { boxes: Sc
       const start = type === 'bull_flag' && leg.bars ? leg.t - (leg.bars - 1) * MIN : (o.legStart?.(leg) ?? leg.t - 5 * MIN);
       box(start, leg.t, leg.low, leg.high, legFill, legStroke, `${type === 'bull_flag' ? 'POLE' : 'LEG'} ${pct(leg.pct)}`);
     }
+    const legBoxes = boxes.length;
     if (lv && leg && endT !== null && endT > leg.t) {
       const prog = type === 'bull_flag' ? formingProgress(lane) : null;
       const n = lv.bars ? ` ${lv.bars}` : '';
       box(leg.t + MIN, endT, lv.stop, lv.trigger, c.fill, c.stroke,
         `${type === 'bull_flag' ? `FLAG${prog ? ` ${prog}` : n}` : `PULLBACK${n}`}${tag}`, provisional, true);
     }
+    // Failed before its flag or pullback was drawn (NCPL 2026-09-29: a pole): the pole says so.
+    if (failed && legBoxes === 1 && boxes.length === 1) boxes[0] = { ...boxes[0], label: `${boxes[0].label}${tag}` };
   } else if (type === 'flat_top_breakout') {
     if (lv && leg && endT !== null) {
       box(leg.t, endT, lv.stop, lv.trigger, c.fill, c.stroke, `BASE${lv.bars ? ` ${lv.bars}` : ''}${tag}`, provisional, true);
@@ -242,8 +257,13 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
   if (o.layers.setups) {
     if (lv) lines.push(...planLines(plan, lv, o.pane));
     if (o.pane === 'full') {
+      // The day's setups that ended go under the live lanes; a lane failed right now is drawn as past.
+      const past = o.layers.past && o.past ? o.past : [];
+      const failing = failingNow(past);
+      scene.boxes.push(...pastShapes(drawnPast(past, o.layers.hidden), o));
       for (const lane of read.setups) {
         if (o.layers.hidden.includes(lane.setup_type)) continue;
+        if (lane.state === 'failed' && failing.has(lane.setup_type)) continue;
         const s = laneShapes(lane, lane === lead, o);
         scene.boxes.push(...s.boxes);
         scene.segments.push(...s.segments);
