@@ -1,17 +1,21 @@
 """Volume boost engine + thin REST -- fixtures only, no live IBKR."""
 from __future__ import annotations
 
+import random
+
 from fastapi.testclient import TestClient
 
 import hod_momo_metrics as metrics
 import volume_boost as vb
 from constants import (
+    VOLUME_BOOST_BASELINE_WINDOW_SEC,
     VOLUME_BOOST_DEBOUNCE_SEC,
     VOLUME_BOOST_SPIKE_WINDOW_SEC,
     VOLUME_BOOST_TOP_N,
 )
 from main import app
 from tests.test_volume_boost_detect import _samples_flat_then_spike
+from volume_boost_detect import measure_spike, spike_from_edges, window_edges
 
 
 client = TestClient(app)
@@ -92,3 +96,25 @@ def test_observe_l1_from_apply_does_not_need_hod(monkeypatch):
     rows = vb.build_view(now=now + VOLUME_BOOST_DEBOUNCE_SEC)["volume_boost"]
     assert [r["symbol"] for r in rows] == ["XYZ"]
     assert VOLUME_BOOST_SPIKE_WINDOW_SEC == 60.0
+
+
+def test_live_edges_read_like_the_list_path():
+    """observe_l1 reads three edges from the ordered series (#619); measure_spike on the
+    same samples, sorted and scanned, must say the same after every tick."""
+    rng = random.Random(619)
+    sym = "EDGE"
+    ts, vol = 1_000_000.0, 100_000
+    kw = dict(spike_sec=VOLUME_BOOST_SPIKE_WINDOW_SEC, baseline_sec=VOLUME_BOOST_BASELINE_WINDOW_SEC,
+              min_spike_shares=1, min_baseline_shares=1)
+    seen = 0
+    for i in range(3_000):
+        ts += rng.choice((0.1, 0.5, 1.0, 3.0))
+        vol += rng.choice((0, 50, 400, 5_000, 40_000))
+        metrics.update_cum_volume(sym, vol, ts)
+        if i % 25:
+            continue
+        edges = window_edges(ts, VOLUME_BOOST_SPIKE_WINDOW_SEC, VOLUME_BOOST_BASELINE_WINDOW_SEC)
+        live = spike_from_edges(*(metrics.cum_volume_at(sym, e) for e in edges), **kw)
+        assert live == measure_spike(metrics.cum_volume_samples(sym), ts, **kw)
+        seen += live is not None
+    assert seen > 50

@@ -1,6 +1,7 @@
 """Tests for HOD Momo pure filter/gate evaluation (no module-level state)."""
 from __future__ import annotations
 
+import random
 from collections import deque
 
 from hod_momo_filters import (
@@ -165,3 +166,30 @@ def test_master_rvol_soft_bypass_retired():
         StrategyConfig(strategy_id=11, name="Squeeze", color="#fff", min_rvol=0.0, surge_pct=5.0, surge_window_min=5)
     ) is False
     assert is_master_rvol_soft_block(False, "master_rvol(0.32<2.0)") is False
+
+
+def _old_price_surge(buf, window_min, method):
+    """The full filter price_surge replaced (#619), kept as the reference."""
+    if not buf:
+        return None
+    now_ts, current_price = buf[-1]
+    window_prices = [p for t, p in buf if t >= now_ts - window_min * 60]
+    if len(window_prices) < 2:
+        return None
+    start = window_prices[0] if method == "fixed_start" else min(window_prices)
+    if start <= 0:
+        return None
+    return (current_price - start) / start * 100.0
+
+
+def test_price_surge_reads_like_the_full_filter_on_an_ordered_buffer():
+    rng = random.Random(619)
+    for _ in range(300):
+        buf = deque()
+        t = 0.0
+        for _ in range(rng.randint(0, 400)):
+            t += rng.choice((0.0, 0.2, 1.0, 7.0, 45.0))
+            buf.append((t, 0.0 if rng.random() < 0.02 else round(rng.uniform(0.5, 9.0), 2)))
+        for window in (1, 5, 10, 60):
+            for method in ("low_to_current", "fixed_start"):
+                assert price_surge(buf, window, method) == _old_price_surge(buf, window, method)
