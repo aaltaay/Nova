@@ -207,7 +207,8 @@ def test_the_callbacks_only_enqueue_and_the_worker_judges(worker_on):
     _drain()
     live.tick(live._watches["AAPL"].last_book_ts + 5)
     snap = live.snapshot("AAPL", now=live._watches["AAPL"].last_book_ts + 5)
-    assert snap["pulled_shares"] == 5000 and snap["pulls"][0]["price"] == 9.99
+    assert snap["pulled_shares"] == 5000 and snap["pulls_recent"][0]["price"] == 9.99
+    assert snap["pulls"] == 1  # the count, no longer overwritten by the list (it read None on the desk)
 
 
 def test_an_l1_book_resets_the_watch(worker_on):
@@ -255,6 +256,7 @@ def test_replay_runs_the_same_detector_over_a_recording(tmp_path):
     result = replay(rec)
     assert result["symbol"] == "GCTK" and result["books"] == 2 and result["prints"] == 1
     assert result["pulled_shares"] == 5000 and [p["price"] for p in result["large_pulls"]] == [9.99]
+    assert [(d["price"], d["outcome"]) for d in result["drops"]] == [(9.99, "pulled")]
 
 
 # -- the sensor ---------------------------------------------------------------

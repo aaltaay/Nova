@@ -134,6 +134,28 @@ describe('useIbkrDepth lifecycle', () => {
     expect(FakeWebSocket.instances).toHaveLength(1);
   });
 
+  it('folds the book watcher frames and starts over for another symbol', () => {
+    renderSymbol('SSTI');
+    const send = (ws: FakeWebSocket, symbol: string, data: unknown) => act(() => {
+      ws.onmessage?.({ data: JSON.stringify({ type: 'book_watch', symbol, data }) });
+    });
+    const frame = {
+      schema_version: 1, now: 100, reset: true, seq: 1, watching: true, reason: null, window_sec: 60,
+      sides: { bid: { pulled_shares: 5800, filled_shares: 0, large_pulls: 1 }, ask: { pulled_shares: 0, filled_shares: 0, large_pulls: 0 } },
+      drops: [{ seq: 1, ts: 99, side: 'bid', price: 8.05, pulled: 5800, filled: 0, outcome: 'pulled', large_pull: true, on_approach: false }],
+    };
+    send(FakeWebSocket.instances[0], 'SSTI', frame);
+    expect(latest?.watch?.drops.map(d => d.price)).toEqual([8.05]);
+    expect(latest?.watch?.sides?.bid.pulled).toBe(5800);
+    send(FakeWebSocket.instances[0], 'SSTI', { ...frame, reset: false, drops: [{ ...frame.drops[0], seq: 2, price: 8.04 }] });
+    expect(latest?.watch?.drops.map(d => d.price)).toEqual([8.05, 8.04]);
+
+    renderSymbol('MSGY');
+    expect(latest?.watch).toBeNull();
+    send(FakeWebSocket.instances[0], 'SSTI', frame); // the old socket's frame never reaches the new symbol
+    expect(latest?.watch).toBeNull();
+  });
+
   it('holds the latest book while hidden and applies it on show', () => {
     renderSymbol('AAPL', false);
     act(() => {

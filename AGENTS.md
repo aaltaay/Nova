@@ -1450,8 +1450,9 @@ never a detection: on a busy premarket name they are frequent (PFSA
 an alarm. `GET /sensors/book-pulls?symbol=` -> `data: {schema_version: 1,
 source: "ibkr_depth", watching, since, feed: {books, prints, books_per_sec,
 median_gap_ms, last_book_age_ms, window_sec}, window_sec, pulled_shares,
-filled_shares, pulls, fills, large_pulls, flags[], pulls_recent[] (newest
-first, at most `BOOK_WATCH_READ_LIMIT`), caveats[], note}` over the last
+filled_shares, pulls, fills, large_pulls, sides: {bid | ask: {pulled_shares,
+filled_shares, large_pulls}}, flags[], pulls_recent[] (newest first, at most
+`BOOK_WATCH_READ_LIMIT`), caveats[], note}` over the last
 `BOOK_WATCH_STATS_WINDOW_SEC`; a symbol without a depth line answers
 `watching: false` with the reason. `GET
 /sensors/book-pulls/events?since=<epoch>&symbol=` -> `{schema_version, now,
@@ -1461,13 +1462,46 @@ sensor's `spoof_hints` are the watcher's newest large pulls `{side, price,
 from_size, pulled, filled, ts}`, and its replenish / cancel counts sum venue
 rows per price. The journal (`book_watch/journal.py`):
 `<dir>/YYYY-MM-DD.jsonl` (`NOVA_BOOK_WATCH_DIR`, else `F:\Nova\book_watch`
-when F: is mounted, else `<cache>/book_watch`), one line per flag, large pull
-and symbol-minute `{schema_version: 1, wall_ts, event: "minute", symbol,
+when F: is mounted, else `<cache>/book_watch`), one line per flag, large pull,
+large drop and symbol-minute `{schema_version: 1, wall_ts, event: "minute", symbol,
 minute_ts, books, prints, pulled_shares, filled_shares, pulls, fills,
 large_pulls, flags}`; nothing prunes it. `NOVA_BOOK_WATCH=0` stops the
 watcher, `NOVA_BOOK_WATCH_JOURNAL=0` its journal. `py -3
 tools/book_watch_replay.py <recording dir>` runs the same detector over a
 Session Record.
+
+**What left the book, on the ladder** (ADR 033 amendment, operator ask
+2026-09-29: "I see massive orders in level 2, and I just think they're
+disappearing. I don't see them on time and sales"). The detector also judges
+every **large drop** -- the size that left a price, traded or not, by the same
+size rule applied to the drop -- as `{event: "drop", symbol, ts, side, price,
+dropped, pulled, filled, outcome: "pulled" | "traded" (pulled over filled),
+level_before, level_after, median_level, distance_ticks,
+distance_at_post_ticks, lifetime_sec, approached, large_pull, on_approach}`
+(`on_approach`: the `pulled_on_approach` flag's own rule); the journal keeps
+them. `/ws/ibkr/depth/{symbol}` carries, beside its books, `{"type":
+"book_watch", symbol, data: {schema_version: 1, now, reset, seq, watching,
+reason: string | null, window_sec, sides | null, drops[] (each with its `seq`),
+note}}` (owner `book_watch/ladder.py`), asked at most every
+`BOOK_WATCH_PUSH_SEC`: a socket's first frame (`reset: true`) holds the large
+drops of the last `BOOK_WATCH_LADDER_MEMORY_SEC`, later frames only those
+judged since, and `sides` rides on each (refreshed on its own at most every
+`BOOK_WATCH_SIDES_PUSH_SEC`). While the ladder shows no live line (a replay
+desk) or the watcher is off, one `watching: false` frame gives the `reason`,
+then nothing; the desk ignores an unknown `schema_version`. The ladder
+(`ibkr/bookWatch.ts`, pure, and `ibkr/BookWatchParts.tsx`) marks each large drop
+of the last `L2_PULL_MARK_SHOW_MS` (6 s, fading over the last 2) where its price
+sits between the rows -- "✕ 2,000 pulled" in amber (solid when it was pulled as
+the price came closer), "✓ 8,200 traded" in slate; drops between the same two
+rows share one mark per verdict, and a price above the book is marked over the
+column head. It hatches every row at a price with a large pull in the last
+minute (the count and times on hover), and puts each side's `✕ pulled ✓ traded`
+for the watcher's minute above its column, amber when pulled is over 3x traded
+and at least 1,000 shares. Nothing is drawn over a size or a price, no row is
+added, and Time & Sales still shows prints only. Every mark's hover ends "a hint
+consistent with spoofing, never a detection". The reading's `pulls` count read
+`null` until then (the recent-pulls list overwrote it; the Tape tile showed
+"None pulls").
 
 ### The trading screen is always recorded (ADR 035, operator decision 2026-09-24)
 
@@ -2685,6 +2719,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-29 | What left the book, on the Level 2 ladder (ADR 033 amendment; operator: "I see massive orders in level 2, and I just think they're disappearing. I don't see them on time and sales"). The book watcher already judged every drop in resting size as traded or pulled, but only a sensor and the Tape tile showed it. The ladder now marks each large drop where the size was, "✕ 2,000 pulled" or "✓ 8,200 traded", for 6 s. The mark is solid when the size was pulled as the price came closer. Rows at a price pulled in the last minute are hatched. Each side gets a line of pulled against traded for the last minute. The verdicts ride on the depth socket (`book_watch` frames); the detector adds `drop` events for large levels that left, traded or not, and per-side totals. Measured on that morning's SSTI, MSGY and MEDS recordings (205 large pulls): 1-5% had the same size reappear 1-3 ticks away, so these are not quotes stepping a tick; about a quarter came back at the same price within 2 s. Also fixed: the reading's `pulls` count was overwritten by the recent-pulls list (the Tape tile read "None pulls"). §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-29 | Who owns the backend (ADR 038, amended; operator: "is this a good design solution?", then "1 go"). The first ADR 038 (`64a25abe`, released as v1028) prompted at every launch for the watchdog's checkout engine, and its default button pointed at the bundled engine, which keeps a separate Paper account and bot session. Now the desk uses whatever answers `:8000` without asking. It remembers the checkout engine as the owner (`engine-owner.json`) and starts that engine on an empty port; the bundled engine starts only without an owner, or by explicit choice after the owner failed. A backend notice offers Restart backend now, or Pull master and restart (fast-forward only, clean master, refused on a requirements change), after asking the backend what is open (`GET /api/diagnostics/restart-check`, new). `/api/health` adds `frozen` and `repo_root`. An unattended nightly pull and restart was proposed and not built, pending the operator's say-so. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-25 | The 1-minute chart stays where the operator put it (operator reports: "Chart unavailable. The scanner is still running.", then "I just sold the stock, and the chart moved"). The stock read set the time scale's `rightOffset` whenever the plan's zones appeared or went. That option is the scroll position, so a buy, a sale, a plan coming or going, or a Trader tab shown again snapped the 1-minute pane to the live edge. Now only a view that follows the live edge slides over to give the zones room. The crashed-pane box names its reason, redraws once on its own, and its Retry button works; it had inherited `pointer-events: none`. The crash itself was not reproduced; its reason now shows on screen. The 04:00 jump from a `bars_patch` swapping histories was fixed separately the same morning (`mergeBarsPatch`). §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-25 | A restart loads only what its checkout holds (operator report: "What does it want? I closed the app and clicked reload backend."). The title read "backend v1017 (older -- restart it)"; the operator reloaded at 07:56 ET and a fresh process came up v1017 again. The engine runs from the git checkout, which was still v1017 until a pull at 07:57, while the desk had updated itself to v1024. `/api/health` and the checklist add `checkout_tag` (the checkout's revision on disk now, re-read off the request path), and the title, Reload backend's confirmation and note, and the `frontend_revision` row say "pull master, then restart" when a restart would load the same code. §3 amended. | User Directive + Claude Opus 5.5 |

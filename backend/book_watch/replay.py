@@ -63,6 +63,7 @@ def replay(directory: Path, *, num_rows: int = 10, symbol: str | None = None) ->
         "filled_shares": sum(m["filled_shares"] for m in minutes),
         "pulls": sum(m["pulls"] for m in minutes), "fills": sum(m["fills"] for m in minutes),
         "large_pulls": [e for e in events if e["event"] == "pull"],
+        "drops": [e for e in events if e["event"] == "drop"],
         "flags": [e for e in events if e["event"] == "flag"],
         "minutes": minutes,
     }
