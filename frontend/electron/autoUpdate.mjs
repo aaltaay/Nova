@@ -325,7 +325,8 @@ async function loadUpdater() {
 /**
  * Start once, after the main window exists. Never throws.
  * @param {{ getWindow: () => any, envPath: () => string,
- *   stopEngine: () => Promise<boolean>, restartEngine: () => Promise<void> }} deps
+ *   stopEngine: () => Promise<boolean>, restartEngine: () => Promise<void>,
+ *   onBridge?: (bridge: object, logger: object) => void }} deps
  */
 export async function startAutoUpdate(deps) {
   try {
@@ -340,6 +341,7 @@ async function startUnguarded(deps) {
   // Always answers the window, so a dev checkout's page reads an empty view.
   bridge = createUpdateBridge({ ipcMain, getWindow: liveWindow, logger });
   wireBridge(bridge);
+  hooks.onBridge?.(bridge, logger); // the backend's own "Pull master and restart" (engineSync.mjs)
   requestIssueForm = createIssueRequest({
     bridge,
     getWindow: liveWindow,

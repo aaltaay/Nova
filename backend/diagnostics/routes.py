@@ -1,4 +1,4 @@
-"""``GET /api/diagnostics`` and ``GET /api/diagnostics/bundle`` (ADR 021).
+"""``GET /api/diagnostics``, ``/bundle`` (ADR 021) and ``/restart-check`` (ADR 038).
 
 Read-only. Thin handlers -- the shell is ``diagnostics.gather``, which runs on
 a worker thread: it probes both Gateway ports over TCP, and a dark port costs
@@ -16,6 +16,7 @@ from fastapi.responses import PlainTextResponse
 from constants_diagnostics import DIAG_UI_TAG_PARAM
 from diagnostics.bundle import render_bundle
 from diagnostics.gather import gather
+from diagnostics.restart_check import restart_check
 
 router = APIRouter(prefix="/api/diagnostics", tags=["diagnostics"])
 
@@ -24,6 +25,12 @@ router = APIRouter(prefix="/api/diagnostics", tags=["diagnostics"])
 async def diagnostics_checklist(ui: str | None = Query(default=None, alias=DIAG_UI_TAG_PARAM)) -> dict:
     """The grouped checklist of facts: every row with state, cause, fix, evidence."""
     return await asyncio.to_thread(gather, ui_tag=ui)
+
+
+@router.get("/restart-check")
+async def diagnostics_restart_check() -> dict:
+    """What a restart of this process would interrupt now (ADR 038): memory reads, never IBKR."""
+    return await asyncio.to_thread(restart_check)
 
 
 @router.get("/bundle", response_class=PlainTextResponse)

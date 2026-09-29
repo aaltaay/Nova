@@ -506,6 +506,11 @@ def for_venue(venue: str) -> PracticeBroker:
     return broker
 
 
+def loaded(venue: str) -> PracticeBroker | None:
+    """The venue's broker when this process has loaded it, else None -- never loads one to look."""
+    return _brokers.get((venue or "").strip().lower())
+
+
 def reset_for_tests(venue: str | None = None) -> None:
     if venue is None:
         _brokers.clear()

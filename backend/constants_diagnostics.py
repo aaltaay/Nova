@@ -76,6 +76,15 @@ DIAG_GIT_TIMEOUT_SEC = 3.0
 # worker thread at most this often, and only while something asks.
 DIAG_CHECKOUT_REVISION_TTL_SEC = 10.0
 
+# GET /api/diagnostics/restart-check (ADR 038 amendment): what a restart of this process would
+# interrupt now. The desk lists it before "Restart backend now"; the nightly sync restarts only
+# when nothing is open.
+DIAG_RESTART_CHECK_SCHEMA_VERSION = 1
+# Bot trade states a restart pauses (bot-session.json `trade.state`).
+DIAG_RESTART_BOT_TRADE_OPEN = frozenset({"entering", "open", "exiting"})
+# Stock-mode approvals a restart withdraws (the store is in memory, ADR 037).
+DIAG_RESTART_APPROVAL_OPEN = frozenset({"waiting", "sent"})
+
 DIAG_BUNDLE_HEADER = "Nova desk diagnostics"
 # Query parameter the UI sends so the frontend row can compare revisions.
 DIAG_UI_TAG_PARAM = "ui"

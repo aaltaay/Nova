@@ -93,6 +93,14 @@ def read_git_revision(repo_root: Path = _REPO_ROOT) -> dict[str, Any]:
 REVISION: dict[str, Any] = read_git_revision()
 
 
+def engine_home() -> dict[str, Any]:
+    """``{frozen, repo_root}`` for ``/api/health``: a packaged engine (frozen) has no checkout, so
+    its root is null; a checkout engine names the checkout whose scripts start and stop it. The
+    installed desk remembers that checkout as the backend's owner (ADR 038 amendment)."""
+    frozen = bool(getattr(sys, "frozen", False))
+    return {"frozen": frozen, "repo_root": None if frozen else str(_REPO_ROOT)}
+
+
 def env_file_facts(path: Path | None = None) -> dict[str, Any]:
     """Where this process reads ``.env`` from and what it found there.
 

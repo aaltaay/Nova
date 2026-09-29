@@ -1,45 +1,99 @@
-# ADR 038: The installed desk owns its packaged backend
+# ADR 038: Who owns the backend the installed desk talks to
 
-**Status:** Accepted (2026-09-29)
+**Status:** Accepted (2026-09-29), amended the same day (operator: "1 go")
 
 ## Context
 
-A Windows installer already contains both the Electron desk and a PyInstaller
-FastAPI engine.  Startup nevertheless reused any healthy Nova API on port 8000.
-That made an updated desk silently attach to an older checkout-owned engine, so
-one window could report `desk v1027 · backend v1025` and require a Git pull.
-Reloading that process correctly reloaded its own checkout, but could not make a
-checkout newer than the files it held.
+The Windows installer ships the Electron desk and a PyInstaller engine
+(`nova-api.exe`). The operator does not run that engine: the backend is the
+**checkout engine** the localhost watchdog, `Run Nova.bat` and the morning
+script start from `C:\Users\aalta\github\Nova`. Its data sits behind the
+checkout's `backend\.cache` (moved to `F:\Nova\cache`), and its `.env` holds the
+IBKR settings and the Live PIN hash. The bundled engine reads the app's own
+folder (`%APPDATA%\nova\cache`, `%APPDATA%\nova\.env`): a different Paper
+account, bot session, kill-switch latch and history.
 
-Silently stopping an external engine is not safe: it can be recording, serving a
-trading session, or be supervised by the localhost watchdog.  Silently adopting
-it is also not safe because the installed desk and API can have different
-contracts.
+The two halves update through different channels. The desk updates itself
+through the installer. The backend's code comes from git, and it loads only when
+the process restarts. So they drift: on 2026-09-29 the title read
+`desk v1027 · backend v1025 (older -- restart it)`. The process had outlived its
+own checkout, which already held v1027.
+
+The first version of this ADR (pushed as `64a25abe`, released as v1028) made the
+bundled engine the owner. At launch it asked about any other engine: retry with
+the packaged backend, use the external one for this session, or exit. On this
+desk that is wrong in three ways:
+
+- **It treats the operator's real backend as the stranger.** The watchdog's
+  checkout engine is the normal case, so the prompt appears at every launch.
+  A prompt shown every day teaches click-through.
+- **Its default button points at the other Nova.** "Retry with packaged
+  backend" leads to the engine with the separate Paper account and bot session.
+  On a trading desk that must never be the one-click default.
+- **It treats the symptom, not the cause.** A launch prompt does not close the
+  gap between the two update channels.
+
+It also had a bug. A healthy port whose identity could not be read in time (the
+checklist has a 20 s timeout) was treated as an empty port, so the desk started
+a second engine on top of it. That was fixed before the push.
 
 ## Decision
 
-The packaged Windows desk owns a packaged engine of the same release.
+1. **Whatever Nova engine answers `:8000` is used as it is.** At launch the desk
+   never asks about it, never stops it and never starts a second engine over it.
+   The window title keeps naming its revision.
+2. **The checkout engine is the owner, and the desk remembers it.** When the
+   engine runs from a main checkout (its `.git` is a folder, so never an agent's
+   worktree), and that checkout holds a `.env` and `scripts\Start-NovaApi.ps1`,
+   the desk records the checkout in `%APPDATA%\nova\engine-owner.json`
+   (`{schema_version: 1, repo_root, seen_at}`). An unknown version, an
+   unreadable file, or a checkout that lost its start script reads as no owner.
+   Deleting the file goes back to the bundled engine.
+3. **On an empty port, the desk starts the owner's engine first.** It uses the
+   checkout's own `Start-NovaApi.ps1`, the way `Run Nova.bat` does, so the data,
+   the `.env` and the code channel are the operator's usual ones. The engine
+   outlives the desk, like a watchdog engine. If it does not answer, the desk
+   offers:
+   - **Retry** (the default),
+   - **Use the bundled backend this session** (the prompt names its separate
+     data folder),
+   - **Exit**.
 
-* With no API on port 8000, it starts its bundled `nova-api.exe`.
-* It may reuse an already-running **packaged** engine only when that engine's
-  release equals the desk release.
-* A checkout-owned engine, an older/newer packaged engine, or an engine whose
-  ownership cannot be proved is never adopted silently.  Startup names what is
-  running and asks the operator to retry after stopping it, explicitly use that
-  external engine for this session, or exit.
-* `NOVA_SKIP_API_SIDECAR=1` remains the explicit attach-only development/ops
-  override and does not show the ownership prompt.
-* Development Electron keeps its existing checkout behavior.
+   With no owner remembered, the bundled engine starts as before: it holds the
+   only data a desk-only install has.
+4. **The backend notice.** While the backend runs older code than the desk, a
+   strip under the header (beside the update notice) offers the one action
+   that helps:
+   - **Restart backend now** when its checkout already holds newer code.
+   - **Pull master and restart** when the checkout holds nothing newer. The
+     desk pulls the owner's checkout fast-forward only, and only on a clean
+     `master`. It refuses when master changes `backend/requirements.txt`, whose
+     packages must be installed first. Then it restarts the backend onto the
+     new code.
 
-The installer remains the atomic update unit: desk and packaged API ship in the
-same NSIS release. Updates may be discovered and downloaded automatically, but
-installation remains operator-triggered so Nova never restarts during a trade or
-recording without consent.
+   Before either action, the desk asks the backend what a restart would
+   interrupt (`GET /api/diagnostics/restart-check`). If nothing is open, one
+   click restarts. If anything is open, or the backend is too old to say, the
+   desk lists it and restarts only once confirmed. A pull is always confirmed.
+5. **Nothing pulls or restarts on a timer.** An unattended nightly pull and
+   restart was proposed and is **not built**: it installs recurring automation
+   that changes the operator's checkout and restarts the trading backend
+   without a per-action approval. It waits for the operator's explicit say-so.
+6. `NOVA_SKIP_API_SIDECAR=1` stays attach-only, and a development desk
+   (`electron:dev`) keeps its checkout behaviour. The desk never pulls the
+   checkout it runs from.
 
 ## Consequences
 
-Normal installed operation no longer depends on `git pull`, and a version split
-cannot happen without an explicit one-session operator choice. Development and
-the morning watchdog remain possible, but are visibly external modes. A future
-separate backend service would need its own signed, atomic updater and protocol
-compatibility policy rather than reintroducing implicit port adoption.
+- The normal morning — the watchdog's backend is up, the desk launches — shows
+  no prompt, exactly as before ADR 038.
+- A version split is visible (title plus notice) and one click fixes it. A
+  click never silently interrupts a recording, a position's watch or an order.
+- The desk no longer starts a stranger with separate data on an empty port when
+  it knows the operator's checkout.
+- A leftover packaged engine of another release on `:8000` is used as it is.
+  Reload backend cannot restart it, because it has no checkout scripts. Closing
+  its `nova-api.exe` is the operator's step. This is rare, and unchanged from
+  before ADR 038.
+- A future separate backend service would need its own signed, atomic updater
+  and a protocol compatibility policy, not implicit port adoption.

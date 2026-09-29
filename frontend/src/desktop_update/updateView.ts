@@ -52,16 +52,30 @@ export type WhatsNew = {
   notes: ReleaseNotes;
 };
 
+/** The backend's own "Pull master and restart" (electron/engineSync.mjs, ADR 038 amendment). */
+export type EngineSyncOutcome = 'pulled' | 'restarted' | 'current' | 'failed';
+
+export type EngineSync = {
+  /** The checkout the desk starts the backend from (its remembered owner), null when none is known. */
+  owner: string | null;
+  /** The backend answering now runs from that checkout, so the desk can pull it. */
+  attachedToOwner: boolean;
+  running: 'pull' | 'restart' | null;
+  last: { at: number; outcome: EngineSyncOutcome; text: string } | null;
+};
+
 export type UpdateView = {
   installed: string;
   notice: UpdateNotice | null;
   whatsNew: WhatsNew | null;
+  /** Null outside the installed app (a dev desk runs from the checkout it would pull). */
+  engine: EngineSync | null;
   /** Help > File an Issue…: when the operator last asked (ms); a new value opens the issue form. */
   fileIssueRequestedAt: number | null;
 };
 
 /** What the operator can answer (electron/autoUpdate.mjs wireBridge). */
-export type UpdateAction = 'download' | 'later' | 'restart' | 'whats-new-close' | 'open-link';
+export type UpdateAction = 'download' | 'later' | 'restart' | 'whats-new-close' | 'open-link' | 'backend-sync';
 
 const STAGES: readonly NoticeStage[] = ['available', 'downloading', 'stopped', 'ready', 'installing'];
 
@@ -146,6 +160,21 @@ function readWhatsNew(value: unknown): WhatsNew | null {
   };
 }
 
+const ENGINE_OUTCOMES: readonly EngineSyncOutcome[] = ['pulled', 'restarted', 'current', 'failed'];
+
+function readEngine(value: unknown): EngineSync | null {
+  const raw = obj(value);
+  if (!raw) return null;
+  const last = obj(raw.last);
+  const outcome = str(last?.outcome) as EngineSyncOutcome;
+  return {
+    owner: strOrNull(raw.owner),
+    attachedToOwner: raw.attached_to_owner === true,
+    running: raw.running === 'pull' || raw.running === 'restart' ? raw.running : null,
+    last: last && ENGINE_OUTCOMES.includes(outcome) ? { at: count(last.at), outcome, text: str(last.text) } : null,
+  };
+}
+
 /** One frame from the main process, or null when it is not a view this desk reads. */
 export function readUpdateView(value: unknown): UpdateView | null {
   const raw = obj(value);
@@ -154,6 +183,7 @@ export function readUpdateView(value: unknown): UpdateView | null {
     installed: str(raw.installed),
     notice: readNotice(raw.notice),
     whatsNew: readWhatsNew(raw.whats_new),
+    engine: readEngine(raw.engine),
     fileIssueRequestedAt: count(obj(raw.file_issue)?.requested_at) || null,
   };
 }

@@ -2,11 +2,13 @@ import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
   engineCheckout,
+  engineHome,
   engineIdentity,
   engineScripts,
   engineStartCommandLine,
   isNewEngine,
   restartCheckoutEngine,
+  startOwnerEngine,
   watchdogRunning,
 } from '../../electron/engineRestart.mjs';
 
@@ -141,4 +143,64 @@ describe('engineRestart', () => {
     await expect(restartCheckoutEngine(OLD, deps({ platform: 'linux', fetchJson: engineFake([OLD]) })))
       .rejects.toThrow(/^Not restarted: backend v991 was started outside Nova; restart it where it runs/);
   });
+
+  it('reads where the engine runs from health first, else from its checklist', async () => {
+    const health = { status: 'ok', frozen: false, repo_root: ROOT, release_tag: 'v1025', checkout_tag: 'v1027' };
+    expect(await engineHome(API, async () => health)).toEqual({
+      frozen: false, root: ROOT, release_tag: 'v1025', checkout_tag: 'v1027',
+    });
+    // A backend older than the field (the operator's v1025): its checklist names the checkout.
+    const older = engineFake([{ status: 'ok', release_tag: 'v1025' }]);
+    expect(await engineHome(API, older)).toEqual({ root: ROOT, release_tag: 'v991', frozen: false, checkout_tag: null });
+    expect(await engineHome(API, async () => null)).toBeNull();
+  });
 });
+
+describe('startOwnerEngine (ADR 038 amendment)', () => {
+  const owner = { repo_root: ROOT, seen_at: 1 };
+  const onDisk = new Set([STOP, START, path.win32.join(ROOT, '.env')]);
+  const base = () => ({
+    userData: 'C:\\ud',
+    readOwner: () => owner,
+    exists: (p: string) => onDisk.has(p),
+    isDir: (p: string) => p === path.win32.join(ROOT, '.git'),
+    env: { SystemRoot: 'C:\\Windows' },
+    spawnFn: vi.fn(() => ({ on: vi.fn(), unref: vi.fn() })),
+    timeoutMs: 5,
+  });
+
+  it('starts the owner checkout engine when the port is empty', async () => {
+    const d = base();
+    const onStarting = vi.fn();
+    const ok = await startOwnerEngine({ ...d, waitForHealth: async () => undefined, showMessageBox: vi.fn(), onStarting });
+    expect(ok).toBe(true);
+    expect(d.spawnFn).toHaveBeenCalledTimes(1);
+    expect(onStarting).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts nothing without an owner: the bundled engine is the only one this desk has', async () => {
+    const d = { ...base(), readOwner: () => null };
+    expect(await startOwnerEngine({ ...d, waitForHealth: vi.fn(), showMessageBox: vi.fn() })).toBe(false);
+    expect(d.spawnFn).not.toHaveBeenCalled();
+  });
+
+  it('asks when the owner does not answer: Retry, the bundled engine for this session, or Exit', async () => {
+    const down = async () => { throw new Error('no backend answered'); };
+    const bundled = vi.fn(async () => ({ response: 1 }));
+    expect(await startOwnerEngine({ ...base(), waitForHealth: down, showMessageBox: bundled })).toBe(false);
+    expect(bundled.mock.calls[0][0].buttons[0]).toBe('Retry');
+    const exit = async () => ({ response: 2 });
+    await expect(startOwnerEngine({ ...base(), waitForHealth: down, showMessageBox: exit }))
+      .rejects.toThrow(/Startup cancelled/);
+    // Retry: the watchdog brought it up meanwhile.
+    let calls = 0;
+    const lateHealth = async () => {
+      calls += 1;
+      if (calls === 1) throw new Error('no backend answered');
+    };
+    const retry = vi.fn(async () => ({ response: 0 }));
+    expect(await startOwnerEngine({ ...base(), waitForHealth: lateHealth, showMessageBox: retry })).toBe(true);
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+});
+
