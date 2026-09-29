@@ -33,7 +33,7 @@ export const SETUP_STATE_TITLES: Record<string, string> = {
   leg: 'Forming: the pattern has started (a leg, a pole, a push into the high, or red under the open) and has not armed yet.',
   failed: 'The pattern broke a rule before it triggered. The reason says which.',
   watching: 'Nothing to act on.',
-  filtered: "The pattern armed, but the template's stock filter keeps this name out. The reason says which rule.",
+  filtered: "The pattern armed, but the template's stock filter keeps this name out. The card follows the pattern, greyed: it never proposes and the bot never takes it. The reason says which rule.",
 };
 
 /** What a setup's trigger is, where "the trigger" would say less: the alert card and the watch toasts. */
@@ -128,7 +128,7 @@ export const TAPE_FLOW_READING_WORDS: [string, string][] = [
 
 /** The grade's hover head: what A / B / C mean (the pillars follow). */
 export const SETUP_GRADE_TIP =
-  'Grade: the Five Pillars when the setup armed. A = all five pass, B = four, C = three or fewer. An unknown pillar counts as not passing, never as failed.';
+  'Grade: the Five Pillars (price, up on the day, relative volume, float, news). A = all five pass, B = four, C = three or fewer: not a trade. An unknown pillar counts as not passing, never as failed.';
 export const SETUP_PILLAR_WORDS: Record<string, string> = {
   price: 'Price',
   change_pct: 'Up on the day',

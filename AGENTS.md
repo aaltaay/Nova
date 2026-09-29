@@ -973,6 +973,34 @@ silently. `setups.db` is schema 3: rows add `setup_type` and `detail`
 setup's template in play at once, oldest armed first (the Bots page timeline;
 with `template=all`, every template's rows).
 
+**The grade you can see (operator report, 2026-09-29).** "So why does it think
+this is a good trade when it's obviously not?" -- AVAT's first pullback
+triggered at 08:06 on one pillar of five (grade C), and the Trader's plan still
+read TRIGGERED twenty minutes after its stop printed. The % change pillar was
+unknown on 17 of 43 first-pullback arms and 20 of 42 flat-top arms since 09-23:
+HOD Momo's snapshot carries a change only when its IBKR snapshot returned a
+prior close. `setup_scanner.grade.read_pillars` now measures it from the
+scanner board row's `prev_close`, else the L1 line's tick-9 prior close, when
+the snapshot has none (`null` when neither knows). Board rows and `GET
+/api/setups/symbol/{symbol}` lanes add:
+- `graded: "armed" | "forming" | null` -- where `grade` / `pillars` come from:
+  the setup's arm-time read (`armed`), or, while the pattern is forming (`leg`
+  / `pullback`) with no setup armed, the read taken when its current leg made
+  its high (`forming`: the lane reads the pillars on each `leg` event and the
+  `leg` journal line carries them as `grade` / `pillars`).
+- `phase: "armed" | "near" | "triggered" | null` -- under a `filtered` row,
+  where the pattern itself stands (`null` on every other row). A `filtered` row
+  stays on the board while its pattern is armed or near, and for 30 minutes
+  after it triggered (the triggered rows' window), no longer five minutes from
+  its arming; its `distance` is set while armed or near. It still reads no tape,
+  never proposes, is never scored and never reaches the bot. Its re-arm is
+  journalled (`rearmed`, the new levels), and a `state` line that says
+  `triggered` carries `triggered_at`, so a playback draws the same row.
+- `trigger_tape: {verdict, reasons} | null` -- the tape gate's read at the
+  trigger (`null` before one, and on a filtered setup).
+- `outcome_at: number | null` -- when the scoring's first touch (target 1 or
+  the stop) printed; `scored` journal lines carry it.
+
 ### The tape flow score and the flush exit (ADR 034, operator ask 2026-09-24)
 
 "Can my bots detect if we are seeing flush like this so we can exit a position
@@ -1089,6 +1117,25 @@ the stop is `stop`, else the lowest low of the last `STOCK_READ_MANUAL_STOP_BARS
 bars under the entry; the target entry + `STOCK_READ_TARGET_R` x risk. `checks` name what stands in
 the way; `marks` are the obstacles between entry and target (a seller of the tape gate's wait size
 or more on Nova's book). Size is the desk's (the Trader's risk per trade, a desk setting).
+
+**Not a trade (operator report, 2026-09-29).** The plan adds `pillars: {passed, known, total} |
+null` (the lane's pillar checks: how many pass and how many are known, of five), `trade: {ok:
+boolean, reasons: string[]} | null` and `result: {outcome: "target_first" | "stop_first", at, r,
+text} | null`. `trade` is `null` for the operator's own plan; a setup plan is **not a trade**
+(`ok: false`, each reason a sentence) when its grade is C (three pillars or fewer), the template's
+stock filter keeps the name out, a triggered setup's tape at the trigger was not go, the setup
+already played out (the scoring's first touch printed: `result`, with `r` the scoring's R), or the
+spread on Nova's book is at least the risk (`checks` adds `spread`: warn over half the risk, bad
+at the risk or more). A triggered plan's `tape` is the tape at the trigger (`trigger_tape`), else
+the lane's last read; a `filtered` lane whose pattern triggered follows the 30-minute rule of a
+triggered one. It describes and gates nothing that places: the ADR 037 runners and the bot keep
+their own rules. On the desk the plan's header carries the grade with its count in a chip that
+never shrinks ("C 1/5"); a plan that is not a trade reads NOT A TRADE with its reasons, on the plan
+and on the 1-minute chart's badge, drops its reward : risk from the header, locks Stage in ticket
+and Approve with the reasons (`data-why`), and ENTER NOW is never called on it; a setup that played
+out reads its result ("STOP FIRST 08:08 · -1.00R") instead of TRIGGERED.
+The setup cards and Watchlist › Setups show every grade with its count ("C 1/5"), forming rows
+too, and a filtered row greyed with its phase ("Filtered · near").
 
 `GET /api/stock-read/{symbol}/decisions?date=YYYY-MM-DD` (default today, ET) answers
 `{schema_version: 1, symbol, date, generated_at, summary: {text, legs, armed, near, triggered,
@@ -2833,6 +2880,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-29 | The grade you can see, and "not a trade" (operator report: "So why does it think this is a good trade when it's obviously not? ... there is barely any trade or volume"). AVAT's first pullback triggered at 08:06 on one pillar of five, with the tape at WAIT; the scanner scored it stopped out at 08:08, and the Trader's plan still read TRIGGERED with Stage in ticket at 08:28. The % change pillar was unknown on about 40% of arms: it is now measured from the board's prior close when HOD Momo's snapshot has none. Forming rows carry the pillars read at their leg, a filtered setup stays on its card greyed for its whole life, and rows add the tape at the trigger and when the first touch printed. The plan says NOT A TRADE with its reasons (grade C, the template's filter, the tape at the trigger, already played out, a spread at least the risk), locks Stage and Approve, never calls ENTER NOW on it, and shows a played-out setup's result. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-29 | Setups that ended stay on the chart, and what price did next (ADR 036 amendment; operator: "after it fails to form ... it says 'pole' with a gray square. Eventually, it removes itself ... we could probably go back and study them", then "i like this! 1 go"). The 1-minute chart drew only each lane's current state, so a failed or faded setup vanished at the next bar, and nothing scored a setup that died before it armed. `eyes/episodes.py` folds a day's journal into one episode per setup's life on a symbol; `eyes/aftermath.py` measures what price did in the 15 minutes after one died (over the high it was building under, or under the low it would have stopped at, first; a candle doing both counts as the low) and scores the refused trade the way an armed setup is scored. `GET /api/stock-read/{symbol}/past-setups` serves them; the 1-minute pane draws them faint (a failed one from the moment it failed) with `✕` / `✓` / `○`, the rule and what came next, a hover tells the whole story, and the live failed box now says `FAILED` with its rule. `tools/setup_failures.py` totals them by setup and reason across days. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-29 | One backend restart at a time (operator: "Why is it taking forever?"). At 09:35 ET "Restart backend now" stopped v1025. The header's API-down auto-heal asked for its own reload, which queued behind the first; once the watchdog brought up v1030 at 09:36:53, the queued reload stopped it. Each start waited behind the watchdog's ~80 s wait on a Vite that could not start, so the API was down about three minutes at the open. A reload asked while one runs now joins it, the auto-heal restarts nothing that answers `/api/health`, and the watchdog stops waiting on an exited Vite and backs off one that keeps failing. Also: Copy diagnostics copies the rows on screen when the API cannot send its bundle (it said "select the text below" with nothing below), and "UI older than API" no longer offers Reload backend. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-29 | What left the book, on the Level 2 ladder (ADR 033 amendment; operator: "I see massive orders in level 2, and I just think they're disappearing. I don't see them on time and sales"). The book watcher already judged every drop in resting size as traded or pulled, but only a sensor and the Tape tile showed it. The ladder now marks each large drop where the size was, "✕ 2,000 pulled" or "✓ 8,200 traded", for 6 s. The mark is solid when the size was pulled as the price came closer. Rows at a price pulled in the last minute are hatched. Each side gets a line of pulled against traded for the last minute. The verdicts ride on the depth socket (`book_watch` frames); the detector adds `drop` events for large levels that left, traded or not, and per-side totals. Measured on that morning's SSTI, MSGY and MEDS recordings (205 large pulls): 1-5% had the same size reappear 1-3 ticks away, so these are not quotes stepping a tick; about a quarter came back at the same price within 2 s. Also fixed: the reading's `pulls` count was overwritten by the recent-pulls list (the Tape tile read "None pulls"). §3 amended. | User Directive + Claude Opus 5.5 |

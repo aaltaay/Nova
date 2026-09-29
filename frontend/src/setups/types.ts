@@ -114,9 +114,17 @@ export interface SetupRow {
   distance: number | null;
   grade: string | null;
   pillars: SetupPillars | null;
+  /** Where the grade was read (2026-09-29): when the setup armed, or when its forming leg made its high. */
+  graded?: 'armed' | 'forming' | null;
+  /** Under a `filtered` row, where the pattern itself stands; null on every other row. */
+  phase?: SetupState | null;
   tape: TapeRead | null;
+  /** The tape gate's read at the trigger (null before one, and on a filtered setup). */
+  trigger_tape?: { verdict: TapeVerdict; reasons: string[] } | null;
   proposal: SetupProposal | null;
   outcome: string | null;
+  /** When the scoring's first touch (target 1 or the stop) printed. */
+  outcome_at?: number | null;
   bar_r: number | null;
   mfe: number | null;
   mae: number | null;

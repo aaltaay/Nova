@@ -94,6 +94,29 @@ describe('the plan on the rail', () => {
     off();
   });
 
+  it('says NOT A TRADE with its reasons and locks Stage with them, even with a ticket open', async () => {
+    respond(/\/api\/stock-read\/APUS(\?|$)/, {
+      ...apusReadWire,
+      plan: { ...apusReadWire.plan, grade: 'C', pillars: { passed: 1, known: 5, total: 5 },
+        trade: { ok: false, reasons: ['grade C: 1 of 5 pillars'] } },
+    });
+    renderRail();
+    const plan = await screen.findByTestId('stock-read-plan');
+    expect(within(plan).getByText('Bull flag')).toBeTruthy();
+    expect(screen.getByTestId('stock-read-plan-grade').textContent).toBe('C 1/5');
+    expect(screen.getByTestId('stock-read-plan-verdict').textContent).toBe('NOT A TRADE');
+    expect(within(plan).queryByText(/reward : risk/)).toBeNull();          // moot on a plan that is not a trade
+    expect(screen.getByTestId('stock-read-plan-notrade').textContent).toBe('Not a trade: grade C: 1 of 5 pillars.');
+    let off = () => {};
+    act(() => {
+      off = subscribeOrderTicketPrefill('APUS', () => {});
+    });
+    const stage = screen.getByTestId('stock-read-stage');
+    await waitFor(() => expect(stage.getAttribute('data-why')).toBe('Not a trade: grade C: 1 of 5 pillars.'));
+    expect(stage.hasAttribute('disabled')).toBe(true);
+    off();
+  });
+
   it('sizes from the risk per trade the operator sets, and keeps it', async () => {
     renderRail();
     fireEvent.click(await screen.findByTestId('stock-read-risk-usd'));

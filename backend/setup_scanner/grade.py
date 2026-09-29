@@ -53,6 +53,33 @@ def news_pillar(catalyst: dict[str, Any] | None) -> bool | None:
     return None if catalyst.get("news_pending") else False
 
 
+def prior_close(symbol: str) -> float | None:
+    """The prior close the scanner board holds for ``symbol``, else its L1 line's tick 9; None when
+    neither knows. Memory reads only."""
+    try:
+        from strategy.symbol_pillars import find_board_row, live_quote, raw_boards
+
+        row, _board = find_board_row(symbol.upper(), raw_boards())
+        prev = _finite((row or {}).get("prev_close"))
+        if prev is None or prev <= 0:
+            prev = _finite((live_quote(symbol.upper()) or {}).get("prev_close"))
+    except Exception:
+        logger.warning("setup grade: no prior close for %s", symbol, exc_info=True)
+        return None
+    return prev if prev is not None and prev > 0 else None
+
+
+def change_pct(symbol: str, snap_change: Any, price: float | None) -> float | None:
+    """The move against the prior close, in percent: HOD Momo's own when its snapshot has one, else
+    measured from the board's prior close -- the snapshot carries a change only when its IBKR
+    snapshot returned a prior close (the pillar was unknown on about 40% of arms, 2026-09-29)."""
+    change = _finite(snap_change)
+    if change is not None or price is None:
+        return change
+    prev = prior_close(symbol)
+    return None if prev is None else (price / prev - 1.0) * 100.0
+
+
 def read_pillars(symbol: str, now: float | None = None) -> dict[str, Any]:
     snap = None
     try:
@@ -68,9 +95,10 @@ def read_pillars(symbol: str, now: float | None = None) -> dict[str, Any]:
         catalyst = catalyst_live.verdict_for(symbol, now)
     except Exception:
         logger.warning("setup grade: catalyst verdict failed for %s", symbol, exc_info=True)
+    price = _finite(getattr(snap, "price", None)) or None
     return {
-        "price": _finite(getattr(snap, "price", None)) or None,
-        "change_pct": _finite(getattr(snap, "change_pct", None)),
+        "price": price,
+        "change_pct": change_pct(symbol, getattr(snap, "change_pct", None), price),
         "rvol": _finite(getattr(snap, "rvol", None)),
         "float": _finite(getattr(snap, "float_shares", None)),
         "float_contradicted": getattr(snap, "float_contradicted", None),
@@ -95,6 +123,15 @@ def _float_pillar(p: dict[str, Any], rules: Any) -> tuple[bool | None, str | Non
 def float_note(p: dict[str, Any], rules: Any = None) -> str | None:
     """Why a contradicted float's pillar passed or is unknown; None for any other float."""
     return _float_pillar(p, rules)[1]
+
+
+def pillar_count(checks: dict[str, Any] | None) -> dict[str, int] | None:
+    """How many of the pillars pass and how many are known ("C · 1/5"); None without checks."""
+    if not checks:
+        return None
+    values = list(checks.values())
+    return {"passed": sum(1 for v in values if v is True), "known": sum(1 for v in values if v is not None),
+            "total": len(values)}
 
 
 def grade(p: dict[str, Any], rules: Any = None) -> tuple[str, dict[str, bool | None]]:

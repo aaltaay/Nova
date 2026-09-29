@@ -9,6 +9,7 @@
  */
 import { ENTER_NOW_RISK_SHARE, ENTER_NOW_SEC, NOVA_CALL_SEC, STOCK_MODE_ENTRY_TTL_SEC } from './constants';
 import { fmtPx, fmtStep, planBadge, planLane, setupName, sizeFor } from './planMath';
+import { notATrade, resultBadge } from './planVerdict';
 import { hhmmssEt } from './timeWords';
 import type { SetupLane, StockModeName, StockModeTrade, StockModeView, StockPlan, StockRead } from './types';
 
@@ -421,16 +422,38 @@ function waitingCall(i: MomentInputs, plan: StockPlan, lane: SetupLane | null, m
   return { id: `waiting:${mode}:${key}`, tone: 'info', title, detail, pin: null, ping: false };
 }
 
+/** A plan that is not a trade calls no entry: it says so, unless Nova's own words are newer. */
+function notTradeCall(i: MomentInputs, plan: StockPlan, why: string): MomentCall {
+  return eventCall(i, null) ?? {
+    id: `not-a-trade:${planKey(plan) ?? ''}`, tone: 'wait', title: 'NOT A TRADE',
+    detail: why.replace(/^Not a trade: /, ''), pin: null, ping: false,
+  };
+}
+
 function setup(i: MomentInputs, plan: StockPlan): Moment {
   const read = i.read as StockRead;
   const lane = planLane(plan, read.setups);
   const mode = modeOf(i);
   const name = setupName(plan.setup_type).toUpperCase();
   const exitLabel = novaHoldsExits(mode);
+  if (plan.result) {
+    // It played out: its result, never TRIGGERED again, and no call to enter (operator report, 2026-09-29).
+    return { step: 1, exitLabel, tone: plan.result.outcome === 'stop_first' ? 'stop' : 'done',
+      badge: `${name} · ${resultBadge(plan.result)}`, track: true, call: eventCall(i, null) };
+  }
+  const noTrade = notATrade(plan);
   if (plan.state === 'triggered') {
+    if (noTrade) {
+      return { step: 1, exitLabel, tone: 'wait', badge: `${name} · TRIGGERED · NOT A TRADE`, track: true,
+        call: notTradeCall(i, plan, noTrade) };
+    }
     return { step: 1, exitLabel, tone: 'go', badge: `${name} · TRIGGERED`, track: true, call: triggerCall(i, plan, lane, mode) };
   }
   const state = planBadge(plan, lane).replace(/(\d+)\/(\d+)/, '$1 OF $2');
+  if (noTrade) {
+    return { step: 0, exitLabel, tone: 'wait', badge: `${name} · ${state} · NOT A TRADE`, track: true,
+      call: plan.state === 'near' ? notTradeCall(i, plan, noTrade) : eventCall(i, null) };
+  }
   return {
     step: 0,
     exitLabel,

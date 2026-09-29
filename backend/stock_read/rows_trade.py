@@ -41,7 +41,8 @@ def _lane_value(lane: dict[str, Any]) -> tuple[str, str]:
     if state == "triggered":
         return f"Triggered at {setup.get('trigger_price') or setup.get('trigger')}", "ok"
     if state == "filtered":
-        return f"Filtered · {reason.replace('filtered: ', '')}", "warn"
+        phase = f" ({lane['phase']})" if lane.get("phase") else ""
+        return f"Filtered{phase} · {reason.replace('filtered: ', '')}", "warn"
     if state == "failed":
         return f"Failed · {reason}", "bad"
     if state in ("leg", "pullback"):

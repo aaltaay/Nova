@@ -8,8 +8,8 @@ import { SETUP_COL_TIPS, SETUP_KIND_LABELS, SETUPS_STAGE_NO_ENTRY_WHY } from '..
 import { SortTh, useTableSort, type SortColumns } from '../table_sort';
 import { tipProps } from '../ux/hoverTip';
 import { fmtCents, fmtPx, fmtR, isActionable, outcomeLabel, rowClass, stagedLimit, tapeRank } from './setupsFormat';
+import { gradeWords } from './pillarWords';
 import {
-  gradeWords,
   rowRank,
   setupLabel,
   setupShort,
@@ -126,7 +126,7 @@ function SetupBoardRow({ row, selected, onSelectSymbol, onOpenTrading }: {
         {row.state === 'triggered' ? outcomeLabel(row) : toGo.text === '·' ? '—' : toGo.text}
       </td>
       <td><TapeCell row={row} onOpenTrading={onOpenTrading} /></td>
-      <td {...tipProps(grade.tip, grade.title)}>{row.grade ?? '—'}</td>
+      <td className="setups-grade" {...tipProps(grade.tip, grade.title)}>{grade.text === '·' ? '—' : grade.text}</td>
       <td className="num">{row.state === 'triggered' ? fmtR(row.bar_r) : '—'}</td>
       <td className="setups-reason" {...tipProps(row.reason, 'The scanner now')}>{row.reason}</td>
       <td>

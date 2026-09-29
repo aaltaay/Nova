@@ -18,7 +18,6 @@ export {
   etHm,
   FIRST_PULLBACK,
   funnelSteps,
-  gradeWords,
   lastWords,
   otherSetups,
   rowRank,
@@ -35,6 +34,7 @@ export {
   type FunnelStep,
   type Words,
 } from './setupWords';
+export { gradeLabel, gradeWords, pillarCount, type PillarCount } from './pillarWords';
 export type {
   Scoreboard,
   SetupCounts,

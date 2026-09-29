@@ -48,6 +48,27 @@ export interface SetupWindow {
   state: string;
 }
 
+/** How many of the Five Pillars pass and how many are known (2026-09-29). */
+export interface PlanPillars {
+  passed: number;
+  known: number;
+  total: number;
+}
+
+/** A setup plan is a trade, or not and why (2026-09-29); null for the operator's own plan. */
+export interface PlanTrade {
+  ok: boolean;
+  reasons: string[];
+}
+
+/** A triggered setup's first touch once it printed. */
+export interface PlanResult {
+  outcome: 'target_first' | 'stop_first';
+  at: number | null;
+  r: number | null;
+  text: string;
+}
+
 export interface StockPlan {
   source: 'setup' | 'manual';
   setup_type: string | null;
@@ -68,6 +89,9 @@ export interface StockPlan {
   entry_rule: string;
   stop_rule: string;
   grade: string | null;
+  pillars: PlanPillars | null;
+  trade: PlanTrade | null;
+  result: PlanResult | null;
   reason: string;
   tape: TapeVerdict | null;
   flow: { score: number | null; label: string } | null;
@@ -134,6 +158,8 @@ export interface SetupLane {
   last_price: number | null;
   distance: number | null;
   grade: string | null;
+  /** Under a `filtered` lane, where the pattern itself stands (2026-09-29). */
+  phase: string | null;
   tape: TapeVerdict | null;
   window: SetupWindow | null;
   series: LaneSeries | null;

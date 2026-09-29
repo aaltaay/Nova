@@ -20,7 +20,14 @@ logger = logging.getLogger("setup_scanner.engine")
 
 class LaneHost:
     def pillars(self, sym: str, now: float) -> dict:
-        return _grade.read_pillars(sym, now)
+        """One pillars read per symbol and moment, shared by every lane that asks (a new leg is read
+        by each template's lane on the same bar)."""
+        memo = self.__dict__.setdefault("_pillars_memo", {"now": None, "read": {}})
+        if memo["now"] != now:
+            memo["now"], memo["read"] = now, {}
+        if sym not in memo["read"]:
+            memo["read"][sym] = _grade.read_pillars(sym, now)
+        return memo["read"][sym]
 
     def tape_books(self, sym: str) -> list:
         return self.tape.books(sym) if self.tape is not None else []

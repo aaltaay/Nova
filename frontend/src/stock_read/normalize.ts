@@ -23,6 +23,7 @@ import type {
   StockRead,
   TapeVerdict,
 } from './types';
+import { normalizePlanVerdict } from './planVerdict';
 
 const STATES: ReadonlySet<string> = new Set<ReadState>(['ok', 'warn', 'bad', 'unknown', 'info']);
 const GROUPS: ReadonlySet<string> = new Set<ReadGroupId>([
@@ -130,6 +131,7 @@ export function normalizePlan(raw: unknown): StockPlan | null {
     entry_rule: str(p.entry_rule) ?? '',
     stop_rule: str(p.stop_rule) ?? '',
     grade: str(p.grade),
+    ...normalizePlanVerdict(p),
     reason: str(p.reason) ?? '',
     tape: tape(p.tape),
     flow: flow && typeof flow.label === 'string' ? { score: num(flow.score), label: flow.label } : null,
@@ -223,6 +225,7 @@ function lane(raw: unknown): SetupLane | null {
     last_price: num(l.last_price),
     distance: num(l.distance),
     grade: str(l.grade),
+    phase: str(l.phase),
     tape: tape(l.tape),
     window: windowOf(l.window),
     series: series(l.series),

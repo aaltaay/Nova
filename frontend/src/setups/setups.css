@@ -38,6 +38,8 @@
 .setups-row--near { background: color-mix(in srgb, var(--accent-color) 7%, transparent); }
 .setups-row--proposal { box-shadow: inset 3px 0 0 var(--success); }
 .setups-row--failed { opacity: 0.6; }
+.setups-row--filtered { opacity: 0.55; }
+.setups-grade { white-space: nowrap; }
 
 .setups-split-head th {
   text-align: left; padding-top: 10px; color: var(--text-secondary);

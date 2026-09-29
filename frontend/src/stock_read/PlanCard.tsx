@@ -22,6 +22,7 @@ import {
   setupName,
   sizeFor,
 } from './planMath';
+import { gradeChip, gradeTip, notATrade } from './planVerdict';
 import type { StockReadContextValue } from './StockReadContext';
 import type { StockPlan, StockRead } from './types';
 import { modeSentence, planActions, type PlanAction } from './whoTradesModel';
@@ -110,11 +111,12 @@ export function PlanCard({ ctx, roomy = true }: {
   const folded = mode === 'folded' || (mode === 'auto' && !roomy);
   const foldTip = !folded ? 'Fold the plan to one line'
     : mode === 'auto' ? 'One line while Level 2 needs the room: open the whole plan' : 'Open the whole plan';
-  const name = plan && plan.source === 'setup'
-    ? `${setupName(plan.setup_type)}${plan.grade ? ` · grade ${plan.grade}` : ''}`
-    : 'Your plan';
+  const name = plan && plan.source === 'setup' ? setupName(plan.setup_type) : 'Your plan';
+  const grade = plan && plan.source === 'setup' ? gradeChip(plan) : null;
   const size = plan ? sizeFor(ctx.riskUsd, plan.risk) : null;
-  const locked = plan ? stageLock(plan, size, ctx.riskUsd, listening) : 'No plan yet.';
+  // Not a trade: Stage and Approve say why instead of acting (operator report, 2026-09-29).
+  const noTrade = notATrade(plan);
+  const locked = plan ? (noTrade ?? stageLock(plan, size, ctx.riskUsd, listening)) : 'No plan yet.';
   const stage = () => {
     if (!plan || locked || plan.entry === null || size === null) return;
     requestOrderTicketPrefill({
@@ -135,6 +137,7 @@ export function PlanCard({ ctx, roomy = true }: {
     bid: ctx.topOfBook?.bid ?? null,
     listening,
     stageLocked: locked,
+    notTrade: noTrade,
     symbol: ctx.symbol,
   });
   const act = (a: PlanAction) => {
@@ -190,7 +193,8 @@ export function PlanCard({ ctx, roomy = true }: {
 
   return (
     <section
-      className={`sr-plan sr-plan--${plan?.state ?? 'none'}${plan?.provisional ? ' sr-plan--provisional' : ''}`}
+      className={`sr-plan sr-plan--${plan?.state ?? 'none'}${plan?.provisional ? ' sr-plan--provisional' : ''}${
+        noTrade ? ' sr-plan--notrade' : ''}`}
       data-testid="stock-read-plan"
       aria-label="The plan"
     >
@@ -207,9 +211,25 @@ export function PlanCard({ ctx, roomy = true }: {
         </button>
         {!folded && <span className="sr-plan__kicker">Plan</span>}
         {!folded && <span className="sr-plan__name">{name}</span>}
-        <span className={`sr-plan__badge sr-plan__badge--${plan?.state ?? 'manual'}`} {...tipProps(plan?.reason, name)}>
+        {plan && grade && (
+          <span className={`sr-plan__grade sr-plan__grade--${plan.grade}`} {...tipProps(gradeTip(plan), `Grade ${grade}`)}
+            data-testid="stock-read-plan-grade">
+            {grade}
+          </span>
+        )}
+        <span
+          className={`sr-plan__badge sr-plan__badge--${plan?.result ? `result-${plan.result.outcome}`
+            : noTrade ? 'notrade' : plan?.state ?? 'manual'}`}
+          {...tipProps(plan?.result ? `It played out: ${plan.result.text}.` : plan?.reason, name)}
+          data-testid="stock-read-plan-badge"
+        >
           {!plan ? 'NO SETUP' : folded ? planBadgeShort(plan, lane) : planBadge(plan, lane)}
         </span>
+        {noTrade && !plan?.result && (
+          <span className="sr-plan__verdict" {...tipProps(noTrade, 'Not a trade')} data-testid="stock-read-plan-verdict">
+            NOT A TRADE
+          </span>
+        )}
         {folded && plan && (
           <span className="sr-plan__folded" data-testid="stock-read-plan-line"
             {...tipProps('Entry / stop / target', 'The plan')}>
@@ -222,7 +242,7 @@ export function PlanCard({ ctx, roomy = true }: {
             nothing forming · open to plan a hand trade
           </span>
         )}
-        {(plan || !folded) && (
+        {(plan || !folded) && !noTrade && (
           <span className="sr-plan__rr" {...tipProps(plan?.target_rule, 'Reward to risk')}>
             <b>{rrText(plan?.rr ?? null)}</b>
             {!folded && <span className="sr-plan__rr-k"> reward : risk</span>}
@@ -233,6 +253,7 @@ export function PlanCard({ ctx, roomy = true }: {
       {folded && staged && <p className="sr-plan__note sr-plan__note--line">{staged}</p>}
       {!folded && (
         <>
+          {noTrade && <p className="sr-plan__notrade" data-testid="stock-read-plan-notrade">{noTrade}</p>}
           {plan ? (
             <PlanNumbers
               plan={plan}

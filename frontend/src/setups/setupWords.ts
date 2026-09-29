@@ -12,8 +12,6 @@ import {
   SETUP_FT_BROKE_TIP,
   SETUP_FUNNEL_TIPS,
   SETUP_FUNNEL_WORDS,
-  SETUP_GRADE_TIP,
-  SETUP_PILLAR_WORDS,
   SETUP_STATE_LABELS,
   SETUP_STATE_TITLES,
   SETUP_TYPE_STATE_LABELS,
@@ -22,7 +20,7 @@ import {
   TAPE_UNREAD_TIP,
   TAPE_VERDICT_TIPS,
 } from '../constantGroups/setups';
-import { catalystTitle, fmtCents, fmtPx, fmtR, isActionable } from './setupsFormat';
+import { fmtCents, fmtPx, fmtR, isActionable } from './setupsFormat';
 import { flowLine } from './flowWords';
 import type { SetupCounts, SetupRow, SetupSummary, TapeRead } from './types';
 
@@ -158,6 +156,12 @@ function stateText(row: SetupRow): string {
       const at = etHm(s?.triggered_at);
       return at ? `${base} ${at}` : base;
     }
+    case 'filtered': {
+      // Kept out by the template, greyed: the pattern's own state rides along (operator report, 2026-09-29).
+      if (!row.phase) return base;
+      const at = row.phase === 'triggered' ? etHm(s?.triggered_at) : '';
+      return `${base} · ${(SETUP_STATE_LABELS[row.phase] ?? row.phase).toLowerCase()}${at ? ` ${at}` : ''}`;
+    }
     case 'failed': {
       const at = etHm(row.failed_at);
       return at ? `${base} ${at}` : base;
@@ -244,7 +248,8 @@ export function toGoWords(row: SetupRow): Words {
       tip: `Since the trigger: ${outcomeWords(row)}. Scored with the research exit rules (half at target 1, the stop to the entry) — a score, not a fill.`,
     };
   }
-  if (!isActionable(row) || row.distance == null || !s) {
+  const reach = isActionable(row) || (row.state === 'filtered' && (row.phase === 'armed' || row.phase === 'near'));
+  if (!reach || row.distance == null || !s) {
     return { text: '·', title: 'To go', tip: 'The distance to the trigger is shown once the setup is armed.' };
   }
   const cents = Math.round(row.distance * 100);
@@ -299,40 +304,6 @@ export function tapeWords(row: SetupRow): Words | null {
   if (tape.flow) lines.push(flowLine(tape.flow));
   if (!isActionable(row)) lines.push('This is the last read, taken while the setup was armed or near.');
   return { text: String(v).toUpperCase(), title: `Tape · ${row.symbol}`, tip: lines.join('\n') };
-}
-
-const PILLAR_ORDER: [string, string][] = [
-  ['price', 'price'], ['change', 'change_pct'], ['rvol', 'rvol'], ['float', 'float'], ['news', 'news'],
-];
-
-function pillarValue(key: string, p: NonNullable<SetupRow['pillars']>): string {
-  switch (key) {
-    case 'price': return p.price != null ? fmtPx(p.price) : 'unknown';
-    case 'change_pct': return p.change_pct != null ? `+${p.change_pct.toFixed(0)}%` : 'unknown';
-    case 'rvol': return p.rvol != null ? `${p.rvol.toFixed(1)}x` : 'unknown';
-    case 'float': return p.float != null ? `${(p.float / 1e6).toFixed(1)}M` : 'unknown';
-    case 'news': return p.headline ? p.headline : p.news == null ? 'not read' : p.news ? 'a catalyst' : 'none';
-    default: return '';
-  }
-}
-
-/** The grade chip: A / B / C, each pillar with its value, and what the News pillar rested on. */
-export function gradeWords(row: SetupRow): Words {
-  const p = row.pillars;
-  if (!row.grade || !p) {
-    return { text: '·', title: 'Grade', tip: `${SETUP_GRADE_TIP}\nGraded when the setup arms.` };
-  }
-  const checks = (p as { checks?: Record<string, boolean | null> }).checks ?? {};
-  const lines = [SETUP_GRADE_TIP];
-  for (const [checkKey, valueKey] of PILLAR_ORDER) {
-    const ok = checks[checkKey];
-    const mark = ok === true ? '✓' : ok === false ? '✗' : '?';
-    lines.push(`${mark} ${SETUP_PILLAR_WORDS[valueKey] ?? valueKey}: ${pillarValue(valueKey, p)}`);
-  }
-  const note = (p as { float_note?: string | null }).float_note;
-  if (note) lines.push(`Float: ${prose(note)}`);
-  lines.push(catalystTitle(p));
-  return { text: row.grade, title: `Grade ${row.grade}`, tip: lines.join('\n') };
 }
 
 /** The setup's arming window as the card's status line says it. */

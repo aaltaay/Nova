@@ -1,6 +1,7 @@
 /** The plan box's arithmetic and words (ADR 036). Pure: every number here comes from the read or the
  * operator's own risk per trade; nothing is estimated. */
 import { STOCK_READ_RISK_MAX_USD } from './constants';
+import { resultBadge, resultBadgeShort } from './planVerdict';
 import type { ReadState, SetupLane, StockPlan } from './types';
 
 const SETUP_NAMES: Record<string, string> = {
@@ -78,6 +79,7 @@ export function planLane(plan: StockPlan | null, lanes: SetupLane[]): SetupLane 
 /** The badge after the plan's name. */
 export function planBadge(plan: StockPlan, lane: SetupLane | null): string {
   if (plan.source === 'manual') return 'NO SETUP';
+  if (plan.result) return resultBadge(plan.result);     // it played out: never TRIGGERED again
   if (plan.state === 'forming') {
     const prog = formingProgress(lane);
     return prog ? `FORMING ${prog}` : 'FORMING';
@@ -91,6 +93,7 @@ export function planBadge(plan: StockPlan, lane: SetupLane | null): string {
 /** The one-line plan's badge: the setup and where it stands ("FLAG 1/2", "PULLBACK NEAR 0.03"). */
 export function planBadgeShort(plan: StockPlan, lane: SetupLane | null): string {
   if (plan.source === 'manual') return 'YOUR PLAN';
+  if (plan.result) return `${setupShort(plan.setup_type)} ${resultBadgeShort(plan.result)}`.toUpperCase();
   const state = planBadge(plan, lane).replace(/^FORMING /, '');
   return `${setupShort(plan.setup_type)} ${state}`.toUpperCase();
 }
