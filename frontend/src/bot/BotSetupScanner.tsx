@@ -151,7 +151,8 @@ export function BotSetupScanner({ setup, rows, allRows, connected, onOpenSymbol,
                   </span>
                 ) : <span className="bots-scan__dot">·</span>}
               </td>
-              <td {...tipProps(grade.tip, grade.title)}>{grade.text}</td>
+              <td className={`bots-scan__grade${row.graded === 'forming' ? ' bots-scan__grade--forming' : ''}`}
+                data-testid={`bots-scan-grade-${setup}-${row.symbol}`} {...tipProps(grade.tip, grade.title)}>{grade.text}</td>
             </tr>
           );
         })}

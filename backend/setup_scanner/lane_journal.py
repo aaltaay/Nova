@@ -22,6 +22,7 @@ from __future__ import annotations
 from typing import Any
 
 from constants_eyes import EYES_JOURNAL_PRICE_EVERY_SEC
+from constants_setups import SETUP_STATE_TRIGGERED
 from setup_scanner.lane_view import JOURNAL_EVENT_STATES, WATCH_STATES
 
 
@@ -44,8 +45,11 @@ def say_state(lane: Any, sym: str, det: Any) -> None:
     if lane._said.get(sym) == (det.state, det.reason) or det.reason.startswith("warming up"):
         return
     view = det.view()
+    extra = {}
+    if det.state == SETUP_STATE_TRIGGERED:     # a filtered setup's trigger is said only here: its card times from it
+        extra["triggered_at"] = (view.get("setup") or {}).get("triggered_at")
     lane.journal("state", sym, state=det.state, reason=det.reason, leg=view.get("leg"),
-                 kind=view.get("kind"), nth=det.nth)
+                 kind=view.get("kind"), nth=det.nth, **extra)
 
 
 def say_price(lane: Any, sym: str, det: Any, ts: float) -> None:

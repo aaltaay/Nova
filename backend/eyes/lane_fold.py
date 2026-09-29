@@ -28,6 +28,9 @@ from setup_scanner.lane_view import (
     STATE_FILTERED,
     TRIGGERED_SHOW_SEC,
     WATCH_STATES,
+    graded,
+    in_reach,
+    tape_brief,
 )
 
 COUNT_KEYS = ("watching", "forming", "armed", "near", "triggered", "failed", "filtered", "proposed")
@@ -48,7 +51,7 @@ class LaneFold:
     def apply(self, ev: str, sym: str, line: dict[str, Any], ts: float) -> dict | None:
         """Fold one line; a proposal it raised, or None."""
         s = self.syms.setdefault(sym, {"state": SETUP_STATE_WATCHING, "reason": "", "leg": None, "kind": None,
-                                       "nth": 0})
+                                       "nth": 0, "forming": None, "triggered_at": None})
         sid = line.get("setup_id")
         row = self.rows.get(sid) if sid else None
         raised = None
@@ -69,17 +72,21 @@ class LaneFold:
             row["setup"] = line.get("setup") or row.get("setup")
         elif ev == "near" and row is not None:
             row.setdefault("near_at", ts)
+        elif ev == "leg" and "grade" in line:
+            s["forming"] = {"grade": line.get("grade"), "pillars": line.get("pillars")}
+        elif ev == "state" and line.get("triggered_at") is not None:
+            s["triggered_at"] = float(line["triggered_at"])     # a filtered setup's trigger
         elif ev == "triggered":
             setup = line.get("setup") or {}
             s["nth"] = setup.get("nth") or s["nth"]
             if row is not None:
                 row.update(setup=setup or row.get("setup"), triggered_at=float(setup.get("triggered_at") or ts),
-                           outcome="open")
+                           outcome="open", trigger_tape=tape_brief(line.get("tape")))
         elif ev in ("failed", "disarmed") and row is not None and not row.get("triggered_at"):
             row["failed_at" if ev == "failed" else "disarmed_at"] = ts
         elif ev == "scored" and row is not None:
             row.update(outcome=line.get("outcome"), bar_r=line.get("bar_r"), mfe=line.get("mfe"),
-                       mae=line.get("mae"))
+                       mae=line.get("mae"), outcome_at=line.get("outcome_at"))
         elif ev == "proposal" and sid:
             raised = self._proposal(sid, row, line, ts)
         if ev in ("near", "tape") and isinstance(line.get("tape" if ev == "near" else "verdict"), (dict, str)):
@@ -140,9 +147,10 @@ class LaneFold:
                     row = None                  # a new leg: the last setup's row is history
             if row is None:
                 sid = None
+            phase = None
             if sid in self.filtered and reach:
-                state, reason = STATE_FILTERED, f"filtered: {self.filtered[sid]}"
-                if at - float(row.get("armed_at") or at) > FAILED_SHOW_SEC:
+                state, reason, phase = STATE_FILTERED, f"filtered: {self.filtered[sid]}", state
+                if phase == SETUP_STATE_TRIGGERED and at - float(s.get("triggered_at") or 0) > TRIGGERED_SHOW_SEC:
                     continue
             elif state == SETUP_STATE_TRIGGERED:
                 if not row or at - float(row.get("triggered_at") or 0) > TRIGGERED_SHOW_SEC:
@@ -153,17 +161,18 @@ class LaneFold:
             setup = (row or {}).get("setup") if reach else None
             px = last.get(sym)
             distance = None
-            if setup and px is not None and state in WATCH_STATES and setup.get("trigger") is not None:
+            if setup and px is not None and in_reach(state, phase) and setup.get("trigger") is not None:
                 distance = round(float(setup["trigger"]) - float(px), 4)
             prop = self.proposals.get(sid) if sid else None
             out.append({
                 "symbol": sym, "setup_type": self.setup, "state": state, "reason": reason,
                 "kind": (setup or {}).get("kind") or s.get("kind"), "nth": s.get("nth") or 0,
                 "setup_id": sid, "setup": setup, "leg": s.get("leg"), "last_price": px, "distance": distance,
-                "grade": (row or {}).get("grade"), "pillars": (row or {}).get("pillars"),
-                "tape": self.tape.get(sym), "proposal": prop if prop and prop.get("status") == "open" else None,
-                "outcome": (row or {}).get("outcome"), "bar_r": (row or {}).get("bar_r"),
-                "mfe": (row or {}).get("mfe"), "mae": (row or {}).get("mae"),
+                **graded(row, s.get("forming"), state), "phase": phase,
+                "tape": self.tape.get(sym), "trigger_tape": (row or {}).get("trigger_tape"),
+                "proposal": prop if prop and prop.get("status") == "open" else None,
+                "outcome": (row or {}).get("outcome"), "outcome_at": (row or {}).get("outcome_at"),
+                "bar_r": (row or {}).get("bar_r"), "mfe": (row or {}).get("mfe"), "mae": (row or {}).get("mae"),
                 "failed_at": (row or {}).get("failed_at"),
             })
         out.sort(key=lambda r: (ORDER.get(r["state"], 9),

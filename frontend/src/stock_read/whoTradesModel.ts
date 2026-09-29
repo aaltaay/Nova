@@ -197,6 +197,8 @@ export interface PlanActionsInput {
   listening: boolean;
   /** Stage in ticket's own lock (the plan's entry, stop and size). */
   stageLocked: string | null;
+  /** Why the plan is not a trade (2026-09-29): Approve says it instead of acting; null when it is one. */
+  notTrade?: string | null;
   symbol: string;
 }
 
@@ -232,7 +234,8 @@ function approveAction(a: PlanActionsInput, plan: StockPlan | null, view: StockM
       id: 'approve-now',
       label: `Approve: buy ${size ?? '?'} now`,
       tone: 'primary',
-      locked: plan.setup_id === null ? 'The setup has no live id to approve.' : size === null ? noSize : null,
+      locked: a.notTrade ?? (plan.setup_id === null ? 'The setup has no live id to approve.'
+        : size === null ? noSize : null),
       tip: `Sends buy ${size ?? '?'} @ ${fmtPx(plan.entry)} now, with its stop ${fmtPx(plan.stop)} and target `
         + `${fmtPx(plan.target)} at the broker.`,
     };
@@ -246,7 +249,7 @@ function approveAction(a: PlanActionsInput, plan: StockPlan | null, view: StockM
     id: 'approve',
     label: size !== null && plan ? `Approve ${size} @ ${fmtPx(plan.entry)}` : 'Approve',
     tone: 'primary',
-    locked: why,
+    locked: why ?? a.notTrade ?? null,
     tip: plan ? `At the trigger, with the tape at go, Nova sends buy ${size ?? '?'} @ ${fmtPx(plan.entry)} with stop `
       + `${fmtPx(plan.stop)} and target ${fmtPx(plan.target)}. Withdrawn if the setup re-arms, fails or disarms.`
       : 'Approve the plan once; Nova sends it at the trigger.',

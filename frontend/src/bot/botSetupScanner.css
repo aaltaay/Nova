@@ -83,6 +83,10 @@
 .bots-scan__row:hover td { background: color-mix(in srgb, var(--nova-text-muted) 7%, transparent); }
 .bots-scan__row.is-hot td { background: color-mix(in srgb, var(--bots-violet) 12%, transparent); }
 .bots-scan__row--failed td { color: var(--nova-text-muted); }
+/* Kept out by the template's filter: on the card for its whole life, greyed (2026-09-29). */
+.bots-scan__row--filtered td { opacity: 0.55; }
+.bots-scan__grade { white-space: nowrap; font-family: var(--bots-mono); }
+.bots-scan__grade--forming { font-style: italic; color: var(--nova-text-muted); }
 .bots-scan__sym b { font-family: var(--bots-mono); font-size: 12px; }
 .bots-scan__proposed {
   margin-left: 5px;

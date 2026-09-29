@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { flowLine } from './flowWords';
+import { gradeWords } from './pillarWords';
 import {
   funnelSteps,
-  gradeWords,
   otherSetups,
   rowsBySymbol,
   setupTypeOf,
@@ -108,7 +108,8 @@ describe('every setup in its own words (ADR 031)', () => {
   it('grades with every pillar and its value, an unknown never read as failed', () => {
     const w = gradeWords(row({ grade: 'B', pillars: { price: 4.82, change_pct: 42, rvol: 6.1, float: null, news: true,
       headline: 'FDA clearance', catalyst: null, checks: { price: true, change: true, rvol: true, float: null, news: true } } as never }));
-    expect(w.text).toBe('B');
+    expect(w.text).toBe('B 4/5');
+    expect(w.tip.split('\n')[0]).toBe('Grade B: 4 of 5 pillars pass (1 not known).');
     expect(w.tip).toMatch(/✓ Price: 4\.82/);
     expect(w.tip).toMatch(/✓ Up on the day: \+42%/);
     expect(w.tip).toMatch(/\? Float: unknown/);

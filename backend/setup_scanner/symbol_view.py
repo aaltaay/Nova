@@ -35,8 +35,9 @@ def lane_entry(lane: Any, sym: str, levels: dict, now: float) -> dict[str, Any]:
     if row is None:              # followed, but this lane has not read a bar for it yet
         row = {"symbol": sym, "setup_type": lane.setup, "state": SETUP_STATE_WATCHING, "reason": "warming up",
                "kind": None, "nth": 0, "setup_id": None, "setup": None, "leg": None, "last_price": None,
-               "distance": None, "grade": None, "pillars": None, "tape": None, "proposal": None, "outcome": None,
-               "bar_r": None, "mfe": None, "mae": None, "failed_at": None, "forming": None, "series": None}
+               "distance": None, "grade": None, "pillars": None, "graded": None, "phase": None, "tape": None,
+               "trigger_tape": None, "proposal": None, "outcome": None, "outcome_at": None, "bar_r": None,
+               "mfe": None, "mae": None, "failed_at": None, "forming": None, "series": None}
     return {**row, "template": template_view(lane), "level": level, "chosen": levels.get("chosen") == lane.setup,
             "window": {"start": start, "end": end, "state": window_state(now, start, end)},
             "rules": rules_of(lane.p.pattern)}

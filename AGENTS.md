@@ -966,6 +966,34 @@ silently. `setups.db` is schema 3: rows add `setup_type` and `detail`
 setup's template in play at once, oldest armed first (the Bots page timeline;
 with `template=all`, every template's rows).
 
+**The grade you can see (operator report, 2026-09-29).** "So why does it think
+this is a good trade when it's obviously not?" -- AVAT's first pullback
+triggered at 08:06 on one pillar of five (grade C), and the Trader's plan still
+read TRIGGERED twenty minutes after its stop printed. The % change pillar was
+unknown on 17 of 43 first-pullback arms and 20 of 42 flat-top arms since 09-23:
+HOD Momo's snapshot carries a change only when its IBKR snapshot returned a
+prior close. `setup_scanner.grade.read_pillars` now measures it from the
+scanner board row's `prev_close`, else the L1 line's tick-9 prior close, when
+the snapshot has none (`null` when neither knows). Board rows and `GET
+/api/setups/symbol/{symbol}` lanes add:
+- `graded: "armed" | "forming" | null` -- where `grade` / `pillars` come from:
+  the setup's arm-time read (`armed`), or, while the pattern is forming (`leg`
+  / `pullback`) with no setup armed, the read taken when its current leg made
+  its high (`forming`: the lane reads the pillars on each `leg` event and the
+  `leg` journal line carries them as `grade` / `pillars`).
+- `phase: "armed" | "near" | "triggered" | null` -- under a `filtered` row,
+  where the pattern itself stands (`null` on every other row). A `filtered` row
+  stays on the board while its pattern is armed or near, and for 30 minutes
+  after it triggered (the triggered rows' window), no longer five minutes from
+  its arming; its `distance` is set while armed or near. It still reads no tape,
+  never proposes, is never scored and never reaches the bot. Its re-arm is
+  journalled (`rearmed`, the new levels), and a `state` line that says
+  `triggered` carries `triggered_at`, so a playback draws the same row.
+- `trigger_tape: {verdict, reasons} | null` -- the tape gate's read at the
+  trigger (`null` before one, and on a filtered setup).
+- `outcome_at: number | null` -- when the scoring's first touch (target 1 or
+  the stop) printed; `scored` journal lines carry it.
+
 ### The tape flow score and the flush exit (ADR 034, operator ask 2026-09-24)
 
 "Can my bots detect if we are seeing flush like this so we can exit a position
@@ -1082,6 +1110,25 @@ the stop is `stop`, else the lowest low of the last `STOCK_READ_MANUAL_STOP_BARS
 bars under the entry; the target entry + `STOCK_READ_TARGET_R` x risk. `checks` name what stands in
 the way; `marks` are the obstacles between entry and target (a seller of the tape gate's wait size
 or more on Nova's book). Size is the desk's (the Trader's risk per trade, a desk setting).
+
+**Not a trade (operator report, 2026-09-29).** The plan adds `pillars: {passed, known, total} |
+null` (the lane's pillar checks: how many pass and how many are known, of five), `trade: {ok:
+boolean, reasons: string[]} | null` and `result: {outcome: "target_first" | "stop_first", at, r,
+text} | null`. `trade` is `null` for the operator's own plan; a setup plan is **not a trade**
+(`ok: false`, each reason a sentence) when its grade is C (three pillars or fewer), the template's
+stock filter keeps the name out, a triggered setup's tape at the trigger was not go, the setup
+already played out (the scoring's first touch printed: `result`, with `r` the scoring's R), or the
+spread on Nova's book is at least the risk (`checks` adds `spread`: warn over half the risk, bad
+at the risk or more). A triggered plan's `tape` is the tape at the trigger (`trigger_tape`), else
+the lane's last read; a `filtered` lane whose pattern triggered follows the 30-minute rule of a
+triggered one. It describes and gates nothing that places: the ADR 037 runners and the bot keep
+their own rules. On the desk the plan's header carries the grade with its count in a chip that
+never shrinks ("C 1/5"); a plan that is not a trade reads NOT A TRADE with its reasons, on the plan
+and on the 1-minute chart's badge, drops its reward : risk from the header, locks Stage in ticket
+and Approve with the reasons (`data-why`), and ENTER NOW is never called on it; a setup that played
+out reads its result ("STOP FIRST 08:08 · -1.00R") instead of TRIGGERED.
+The setup cards and Watchlist › Setups show every grade with its count ("C 1/5"), forming rows
+too, and a filtered row greyed with its phase ("Filtered · near").
 
 `GET /api/stock-read/{symbol}/decisions?date=YYYY-MM-DD` (default today, ET) answers
 `{schema_version: 1, symbol, date, generated_at, summary: {text, legs, armed, near, triggered,
@@ -2685,6 +2732,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-29 | The grade you can see, and "not a trade" (operator report: "So why does it think this is a good trade when it's obviously not? ... there is barely any trade or volume"). AVAT's first pullback triggered at 08:06 on one pillar of five, with the tape at WAIT; the scanner scored it stopped out at 08:08, and the Trader's plan still read TRIGGERED with Stage in ticket at 08:28. The % change pillar was unknown on about 40% of arms: it is now measured from the board's prior close when HOD Momo's snapshot has none. Forming rows carry the pillars read at their leg, a filtered setup stays on its card greyed for its whole life, and rows add the tape at the trigger and when the first touch printed. The plan says NOT A TRADE with its reasons (grade C, the template's filter, the tape at the trigger, already played out, a spread at least the risk), locks Stage and Approve, never calls ENTER NOW on it, and shows a played-out setup's result. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-29 | Who owns the backend (ADR 038, amended; operator: "is this a good design solution?", then "1 go"). The first ADR 038 (`64a25abe`, released as v1028) prompted at every launch for the watchdog's checkout engine, and its default button pointed at the bundled engine, which keeps a separate Paper account and bot session. Now the desk uses whatever answers `:8000` without asking. It remembers the checkout engine as the owner (`engine-owner.json`) and starts that engine on an empty port; the bundled engine starts only without an owner, or by explicit choice after the owner failed. A backend notice offers Restart backend now, or Pull master and restart (fast-forward only, clean master, refused on a requirements change), after asking the backend what is open (`GET /api/diagnostics/restart-check`, new). `/api/health` adds `frozen` and `repo_root`. An unattended nightly pull and restart was proposed and not built, pending the operator's say-so. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-25 | The 1-minute chart stays where the operator put it (operator reports: "Chart unavailable. The scanner is still running.", then "I just sold the stock, and the chart moved"). The stock read set the time scale's `rightOffset` whenever the plan's zones appeared or went. That option is the scroll position, so a buy, a sale, a plan coming or going, or a Trader tab shown again snapped the 1-minute pane to the live edge. Now only a view that follows the live edge slides over to give the zones room. The crashed-pane box names its reason, redraws once on its own, and its Retry button works; it had inherited `pointer-events: none`. The crash itself was not reproduced; its reason now shows on screen. The 04:00 jump from a `bars_patch` swapping histories was fixed separately the same morning (`mergeBarsPatch`). §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-25 | A restart loads only what its checkout holds (operator report: "What does it want? I closed the app and clicked reload backend."). The title read "backend v1017 (older -- restart it)"; the operator reloaded at 07:56 ET and a fresh process came up v1017 again. The engine runs from the git checkout, which was still v1017 until a pull at 07:57, while the desk had updated itself to v1024. `/api/health` and the checklist add `checkout_tag` (the checkout's revision on disk now, re-read off the request path), and the title, Reload backend's confirmation and note, and the `frontend_revision` row say "pull master, then restart" when a restart would load the same code. §3 amended. | User Directive + Claude Opus 5.5 |

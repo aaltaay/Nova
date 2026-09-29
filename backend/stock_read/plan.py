@@ -4,18 +4,27 @@ the way. Pure.
 A setup plan is the most advanced lane's own levels -- its armed (or triggered) setup, else the
 levels it would arm with while it forms (provisional). A hand plan starts from the operator's entry:
 the stop is theirs or the low of the last few closed one-minute candles, the target entry + 2R.
-The checks and marks describe; they never block anything.
+The checks and marks describe; they never block anything. ``trade`` says when a setup plan is not a
+trade and why (operator report, 2026-09-29: a grade C that triggered with the tape at WAIT read
+TRIGGERED for twenty minutes after its stop printed); it too only describes -- the runners and the
+bot keep their own rules.
 """
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from constants_setups import (
+    SETUP_OUTCOME_STOP_FIRST,
+    SETUP_OUTCOME_TARGET_FIRST,
     SETUP_STATE_ARMED,
     SETUP_STATE_NEAR,
     SETUP_STATE_TRIGGERED,
+    SETUPS_GRADE_C,
     TAPE_GATE_BIG_SELLER_SHARES,
     TAPE_GATE_WALL_SHARES,
+    TAPE_VERDICT_GO,
 )
 from constants_stock_read import (
     STOCK_READ_MANUAL_STOP_BARS,
@@ -23,8 +32,10 @@ from constants_stock_read import (
     STOCK_READ_TARGET_R,
     STOCK_READ_TRIGGERED_PLAN_SEC,
 )
+from setup_scanner.grade import pillar_count
 from stock_read.indicators import manual_stop
 
+ET = ZoneInfo("America/New_York")
 FILTERED = "filtered"
 LIVE_STATES = (SETUP_STATE_NEAR, SETUP_STATE_ARMED, FILTERED)
 EPS = 1e-9
@@ -52,9 +63,9 @@ def _rank(lane: dict[str, Any], now: float) -> int | None:
     state, setup = lane.get("state"), lane.get("setup")
     if state == SETUP_STATE_NEAR and setup:
         return 0
-    if state in (SETUP_STATE_ARMED, FILTERED) and setup:
+    if state in (SETUP_STATE_ARMED, FILTERED) and setup and lane.get("phase") != SETUP_STATE_TRIGGERED:
         return 1
-    if state == SETUP_STATE_TRIGGERED and setup:
+    if (state == SETUP_STATE_TRIGGERED or lane.get("phase") == SETUP_STATE_TRIGGERED) and setup:
         at = float(setup.get("triggered_at") or 0)
         return 2 if now - at <= STOCK_READ_TRIGGERED_PLAN_SEC else None
     return 3 if lane.get("forming") else None
@@ -95,8 +106,12 @@ def from_setup(lane: dict[str, Any]) -> dict[str, Any]:
     live = state in LIVE_STATES + (SETUP_STATE_TRIGGERED,) and lane.get("setup")
     lv = lane["setup"] if live else lane["forming"]
     entry, stop, target = float(lv["entry"]), float(lv["stop"]), float(lv["target1"])
+    where = (lane.get("phase") or state) if state == FILTERED else state   # a filtered pattern's own state
+    tape = lane.get("tape")
+    if where == SETUP_STATE_TRIGGERED and lane.get("trigger_tape"):
+        tape = lane["trigger_tape"]            # the tape the trigger printed on, not the last read
     if live:
-        shown = {SETUP_STATE_NEAR: "near", SETUP_STATE_TRIGGERED: "triggered"}.get(state, "armed")
+        shown = {SETUP_STATE_NEAR: "near", SETUP_STATE_TRIGGERED: "triggered"}.get(where, "armed")
         reason = lane.get("reason") or ""
     else:
         shown = "forming"
@@ -109,12 +124,13 @@ def from_setup(lane: dict[str, Any]) -> dict[str, Any]:
     return _levels({
         "source": "setup", "setup_type": lane.get("setup_type"), "setup_id": lane.get("setup_id") if live else None,
         "kind": lane.get("kind"), "state": shown,
-        "provisional": not live, "trigger": lv.get("trigger"), "grade": lane.get("grade"), "reason": reason,
+        "provisional": not live, "trigger": lv.get("trigger"), "grade": lane.get("grade"),
+        "pillars": pillar_count((lane.get("pillars") or {}).get("checks")), "reason": reason,
         "target_rule": target_rule(lane.get("setup_type") or "", lane.get("rules") or {}),
         "entry_rule": _ENTRY_RULES.get(lane.get("setup_type") or "", "the setup's trigger + 1 cent"),
         "stop_rule": _STOP_RULES.get(lane.get("setup_type") or "", "the setup's stop"),
-        "tape": ({"verdict": lane["tape"].get("verdict"), "reasons": lane["tape"].get("reasons")}
-                 if live and lane.get("tape") else None),
+        "tape": ({"verdict": tape.get("verdict"), "reasons": tape.get("reasons") or []}
+                 if live and tape else None),
         "window": lane.get("window"),
     }, entry, stop, target)
 
@@ -125,7 +141,7 @@ def manual(entry: float, stop: float | None, bars: list[dict[str, Any]]) -> dict
     stop_px = stop if own else manual_stop(bars, entry, STOCK_READ_MANUAL_STOP_BARS)
     base = {"source": "manual", "setup_type": None, "setup_id": None, "kind": None, "state": "manual",
             "provisional": True,
-            "trigger": None, "grade": None,
+            "trigger": None, "grade": None, "pillars": None,
             "reason": "no setup is forming: your entry, a 2:1 target",
             "target_rule": f"entry + {STOCK_READ_TARGET_R:g} x risk",
             "entry_rule": "your entry",
@@ -190,6 +206,13 @@ def checks(plan: dict[str, Any], ctx: dict[str, Any]) -> list[dict[str, Any]]:
         out.append({"id": "risk", "state": "warn", "text": f"risk {risk:.2f} is under the {floor:.2f} floor"})
     else:
         out.append({"id": "risk", "state": "ok", "text": f"risk {risk:.2f} within the {cap:.2f} cap"})
+    spread = ctx.get("spread")
+    if risk and risk > EPS and spread is not None:
+        state = "bad" if spread >= risk - EPS else ("warn" if spread > risk / 2 + EPS else "ok")
+        out.append({"id": "spread", "state": state,
+                    "text": (f"the spread {spread:.2f} is at least the {risk:.2f} risk" if state == "bad"
+                             else f"the spread {spread:.2f} is {'over half' if state == 'warn' else 'within half'} "
+                                  f"the {risk:.2f} risk")})
     med = ctx.get("median_range")
     if risk and med and risk < med - EPS:
         out.append({"id": "candle", "state": "warn",
@@ -238,9 +261,56 @@ def checks(plan: dict[str, Any], ctx: dict[str, Any]) -> list[dict[str, Any]]:
     return out
 
 
+def _hhmm(ts: Any) -> str:
+    try:
+        return datetime.fromtimestamp(float(ts), ET).strftime("%H:%M")
+    except (TypeError, ValueError, OverflowError, OSError):
+        return ""
+
+
+def result_of(plan: dict[str, Any], lane: dict[str, Any] | None) -> dict[str, Any] | None:
+    """A triggered setup's first touch once it printed: target 1 or the stop, when, and the score's R."""
+    if lane is None or plan.get("state") != "triggered":
+        return None
+    outcome = lane.get("outcome")
+    if outcome not in (SETUP_OUTCOME_TARGET_FIRST, SETUP_OUTCOME_STOP_FIRST):
+        return None
+    at, r = lane.get("outcome_at"), lane.get("bar_r")
+    what = "target 1 printed first" if outcome == SETUP_OUTCOME_TARGET_FIRST else "the stop printed first"
+    when = f" at {_hhmm(at)}" if at else ""
+    score = f" ({float(r):+.2f}R)" if r is not None else ""
+    return {"outcome": outcome, "at": at, "r": r, "text": f"{what}{when}{score}"}
+
+
+def trade_verdict(plan: dict[str, Any], lane: dict[str, Any] | None,
+                  plan_checks: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Whether a setup plan is a trade, with every reason it is not; None for the operator's own plan."""
+    if plan.get("source") != "setup":
+        return None
+    reasons: list[str] = []
+    if plan.get("grade") == SETUPS_GRADE_C:
+        count = plan.get("pillars")
+        reasons.append(f"grade C: {count['passed']} of {count['total']} pillars" if count
+                       else "grade C: three pillars or fewer")
+    if (lane or {}).get("state") == FILTERED:
+        why = str((lane or {}).get("reason") or "").removeprefix("filtered: ")
+        reasons.append(f"the template's stock filter keeps it out: {why}")
+    tape = plan.get("tape") or {}
+    if plan.get("state") == "triggered" and tape.get("verdict") and tape["verdict"] != TAPE_VERDICT_GO:
+        first = (tape.get("reasons") or [""])[0]
+        reasons.append(f"it triggered with the tape at {str(tape['verdict']).upper()}" + (f": {first}" if first else ""))
+    if plan.get("result"):
+        reasons.append(f"it already played out: {plan['result']['text']}")
+    if any(c["id"] == "spread" and c["state"] == "bad" for c in plan_checks):
+        spread = next(c for c in plan_checks if c["id"] == "spread")
+        reasons.append(f"{spread['text']}: a buy at the ask sits at or under its stop on the bid")
+    return {"ok": not reasons, "reasons": reasons}
+
+
 def build(setups: list[dict[str, Any]], ctx: dict[str, Any], *, now: float, entry: float | None = None,
           stop: float | None = None) -> dict[str, Any] | None:
     """The plan for the read: the operator's when they named an entry, else the leading lane's."""
+    lane = None
     if entry is not None and entry > 0:
         plan = manual(float(entry), stop, ctx.get("bars") or [])
     else:
@@ -254,4 +324,6 @@ def build(setups: list[dict[str, Any]], ctx: dict[str, Any], *, now: float, entr
     plan["checks"] = checks(plan, ctx)
     plan["marks"] = _obstacles(plan, ctx)
     plan["flow"] = ctx.get("flow") if (ctx.get("flow") or {}).get("label") else None
+    plan["result"] = result_of(plan, lane)
+    plan["trade"] = trade_verdict(plan, lane, plan["checks"])
     return plan

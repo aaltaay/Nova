@@ -49,8 +49,9 @@ def _journal_event(line: dict[str, Any]) -> dict[str, Any] | None:
         return _event(ts, lane, "leg", _cap(reason), None, {"leg": line.get("leg")})
     if ev in ("armed", "rearmed"):
         grade = f" (grade {line['grade']})" if line.get("grade") else ""
-        return _event(ts, lane, ev, f"{'Armed' if ev == 'armed' else 'Re-armed'}: {reason}{grade}", None,
-                      {"setup": line.get("setup")})
+        what = "Armed" if ev == "armed" else ("Re-armed, still kept out by the filter" if line.get("filtered")
+                                             else "Re-armed")
+        return _event(ts, lane, ev, f"{what}: {reason}{grade}", None, {"setup": line.get("setup")})
     if ev == "filtered":
         return _event(ts, lane, ev, f"Kept out by the template's filter: {reason}")
     if ev == "near":

@@ -182,6 +182,7 @@ def build(f: dict[str, Any], *, entry: float | None = None, stop: float | None =
         hist = None
     ctx = {"price": d["price"], "levels": d["levels"], "macd_hist": (d["macd_1m"] or {}).get("macd_hist"),
            "ema9": d["ema9"], "median_range": d["median_range"], "asks": (f.get("l2") or {}).get("asks") or [],
+           "spread": (f.get("l2") or {}).get("spread_dollars"),
            "flow": f.get("flow"), "bid_pulls": d["bid_pulls"], "halted": f.get("halted"), "bars": d["bars"]}
     plan = plan_mod.build(setups, ctx, now=now, entry=entry, stop=stop)
     groups = tiles(f, d, plan, hist)

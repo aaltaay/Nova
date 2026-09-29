@@ -77,6 +77,7 @@ class Lane:
         self.tape_view: dict[str, dict] = {}
         self.proposals: dict[str, dict] = {}
         self.filtered: dict[str, str] = {}
+        self.forming: dict[str, dict] = {}        # symbol -> the pillars read when its current leg made its high
         self.alerts: list[dict] = []
         self._tape_said: dict[str, str] = {}
         self._said: dict[str, tuple[str, str]] = {}          # the (state, reason) the journal implies
@@ -112,7 +113,7 @@ class Lane:
     # -- symbols ----------------------------------------------------------------
     def clear(self) -> None:
         for store in (self.det, self.rows, self.active_id, self.trackers, self.tape_view,
-                      self.proposals, self.filtered, self._tape_said, self._said, self._priced,
+                      self.proposals, self.filtered, self.forming, self._tape_said, self._said, self._priced,
                       self.flow_last, self._flow_said, self._flow_next):
             store.clear()
         self.alerts = []
@@ -125,6 +126,7 @@ class Lane:
 
     def drop(self, sym: str) -> None:
         self.det.pop(sym, None)
+        self.forming.pop(sym, None)
         self._said.pop(sym, None)
         self._priced.pop(sym, None)
 
@@ -182,7 +184,8 @@ class Lane:
             sid = self.sid(sym, view["setup_key"])
             row = self.rows.get(sid)
             if kind == "leg":
-                self.journal("leg", sym, reason=view.get("reason"), leg=view.get("leg"))
+                self.forming[sym] = self._graded(sym, now)
+                self.journal("leg", sym, reason=view.get("reason"), leg=view.get("leg"), **self.forming[sym])
                 continue
             if kind == "armed":
                 if row is None:
@@ -199,10 +202,10 @@ class Lane:
                     continue
                 self.journal("armed", sym, setup_id=sid, setup=view.get("setup"), grade=row.get("grade"),
                              pillars=row.get("pillars"), reason=view.get("reason"))
-            elif row is None or sid in self.filtered:
-                det = self.det.get(sym)
-                if kind == "triggered" and sid in self.filtered and det is not None and det.nth > 0:
-                    det.nth -= 1   # a setup the template kept out is not one of its setups that day
+            elif row is None:
+                continue
+            elif sid in self.filtered:
+                self._on_filtered(sym, sid, kind, view, row)
                 continue
             elif kind == "rearmed":
                 self._copy_setup(row, view)
@@ -246,14 +249,31 @@ class Lane:
                 self._close_proposal(sid, kind)
             self.host.save(row)
 
-    def _new_row(self, sym: str, sid: str, view: dict, now: float) -> dict:
-        setup = view.get("setup") or {}
+    def _graded(self, sym: str, now: float) -> dict:
+        """The symbol's pillars now, graded by this template: ``{grade, pillars}`` (pillars with their checks)."""
         pillars = self.host.pillars(sym, now)
         g, checks = _grade.grade(pillars, self.p.grade)
+        return {"grade": g,
+                "pillars": {**pillars, "checks": checks, "float_note": _grade.float_note(pillars, self.p.grade)}}
+
+    def _on_filtered(self, sym: str, sid: str, kind: str, view: dict, row: dict) -> None:
+        """A setup the template kept out keeps its card (the pattern's levels; a re-arm is journalled so a
+        playback draws it too) and nothing else: no tape read, no score, no proposal, no trigger to the bot."""
+        if kind == "rearmed":
+            self._copy_setup(row, view)
+            self.journal("rearmed", sym, setup_id=sid, setup=view.get("setup"), reason=view.get("reason"),
+                         filtered=True)
+        elif kind == "triggered":
+            det = self.det.get(sym)
+            if det is not None and det.nth > 0:
+                det.nth -= 1   # a setup the template kept out is not one of its setups that day
+
+    def _new_row(self, sym: str, sid: str, view: dict, now: float) -> dict:
+        setup = view.get("setup") or {}
+        graded = self._graded(sym, now)
+        g, pillars = graded["grade"], graded["pillars"]
         row = {"id": sid, "session_date": self.host.session, "symbol": sym, "leg_t": view["setup_key"],
-               "armed_at": setup.get("armed_at") or now, "grade": g,
-               "pillars": {**pillars, "checks": checks, "float_note": _grade.float_note(pillars, self.p.grade)},
-               **self.stamp()}
+               "armed_at": setup.get("armed_at") or now, **graded, **self.stamp()}
         self.rows[sid] = row
         why = self.p.stock.check(pillars, g) if self.p.stock.active else None
         if why:
@@ -279,7 +299,8 @@ class Lane:
         self.host.save(row)
         if (row.get("outcome"), row.get("bar_r")) != before:
             self.journal("scored", row["symbol"], setup_id=sid, outcome=row.get("outcome"), bar_r=row.get("bar_r"),
-                         exit_reason=row.get("bar_exit_reason"), mfe=row.get("mfe"), mae=row.get("mae"))
+                         exit_reason=row.get("bar_exit_reason"), mfe=row.get("mfe"), mae=row.get("mae"),
+                         outcome_at=row.get("outcome_at"))
 
     # -- tape gate + proposals -------------------------------------------------
     def evaluate(self, sym: str, now: float) -> dict:
