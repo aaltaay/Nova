@@ -24,8 +24,8 @@ from constants import (
     VOLUME_BOOST_STALE_SEC,
     VOLUME_BOOST_TOP_N,
 )
-from hod_momo_metrics import cum_volume_samples, update_cum_volume
-from volume_boost_detect import SpikeTracker, measure_spike, step_tracker
+from hod_momo_metrics import cum_volume_at, update_cum_volume
+from volume_boost_detect import SpikeTracker, spike_from_edges, step_tracker, window_edges
 from metrics.op_metrics import timed_fn
 
 logger = logging.getLogger(__name__)
@@ -53,9 +53,9 @@ def observe_l1(
     now = float(ts)
     update_cum_volume(sym, cum_volume, now)
     _watched.add(sym)
-    metrics = measure_spike(
-        cum_volume_samples(sym),
-        now,
+    edges = window_edges(now, VOLUME_BOOST_SPIKE_WINDOW_SEC, VOLUME_BOOST_BASELINE_WINDOW_SEC)
+    metrics = spike_from_edges(
+        *(cum_volume_at(sym, edge) for edge in edges),
         spike_sec=VOLUME_BOOST_SPIKE_WINDOW_SEC,
         baseline_sec=VOLUME_BOOST_BASELINE_WINDOW_SEC,
         min_spike_shares=VOLUME_BOOST_MIN_SPIKE_SHARES,

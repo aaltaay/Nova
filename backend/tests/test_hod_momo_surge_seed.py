@@ -236,3 +236,16 @@ def test_seed_symbol_stale_store_does_not_poison_surge_buffer(monkeypatch):
     assert kind == "live"
     hm._update_price_buffer("STALE", 4.0, time.time())
     assert price_surge(state.price_buffer["STALE"], 5, "low_to_current") is None
+
+
+def test_a_late_print_lands_in_time_order():
+    """price_surge reads the buffer backwards from its newest point (#619), so a print that
+    arrives late goes in at its own time, not at the end."""
+    state = hm.replace_state(HodMomoState())
+    sym = "LATE"
+    now = time.time()
+    for dt, px in ((0, 4.0), (10, 4.1), (20, 4.2)):
+        hm._update_price_buffer(sym, px, now + dt)
+    hm._update_price_buffer(sym, 3.9, now + 15)
+    assert [p for _, p in state.price_buffer[sym]] == [4.0, 4.1, 3.9, 4.2]
+    assert price_surge(state.price_buffer[sym], 5, "low_to_current") == (4.2 - 3.9) / 3.9 * 100.0

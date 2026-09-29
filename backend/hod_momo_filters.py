@@ -48,20 +48,29 @@ def price_surge(
     fixed_start:    (current - price_at_window_start) / price_at_window_start * 100
 
     Returns None if there is insufficient data.
+
+    The buffer is oldest first (``hod_momo_market.update_price_buffer`` keeps it
+    so), so the window is its newest stretch: read backwards and stop at the
+    window's start. It runs for every trade of every name, and the buffer holds
+    an hour -- filtering all of it per call stalled the IB loop at the open (#619).
     """
     buf = buffer
     if not buf:
         return None
-    now_ts = buf[-1][0]
-    current_price = buf[-1][1]
+    now_ts, current_price = buf[-1]
     cutoff = now_ts - window_min * 60
-    window_prices = [p for t, p in buf if t >= cutoff]
-    if len(window_prices) < 2:
+    count = 0
+    low = oldest = current_price
+    for t, p in reversed(buf):
+        if t < cutoff:
+            break
+        count += 1
+        oldest = p
+        if p < low:
+            low = p
+    if count < 2:
         return None
-    if method == "fixed_start":
-        start_price = window_prices[0]
-    else:
-        start_price = min(window_prices)
+    start_price = oldest if method == "fixed_start" else low
     if start_price <= 0:
         return None
     return (current_price - start_price) / start_price * 100.0

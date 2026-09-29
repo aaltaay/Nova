@@ -37,9 +37,18 @@ def effective_min_rvol() -> float:
 
 
 def update_price_buffer(symbol: str, price: float, ts: float) -> None:
+    """Append one trade price, keeping the buffer oldest first: ``price_surge``
+    reads it backwards from the newest point and stops at its window (#619)."""
     state = _state.get_state()
     buf = state.price_buffer.setdefault(symbol, deque())
-    buf.append((ts, price))
+    if buf and ts < buf[-1][0]:
+        later = []                      # rare: a late print goes in at its own time
+        while buf and buf[-1][0] > ts:
+            later.append(buf.pop())
+        buf.append((ts, price))
+        buf.extend(reversed(later))
+    else:
+        buf.append((ts, price))
     cutoff = ts - _MAX_BUFFER_MINUTES * 60
     while buf and buf[0][0] < cutoff:
         buf.popleft()

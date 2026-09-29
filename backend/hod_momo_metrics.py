@@ -5,10 +5,18 @@ momentum shows Relative Volume (5 min %): volume in the last
 
 Default typical uses a coarse ET time-of-day curve (open/close heavy). Flat
 avg_daily / bars_per_session remains available when TOD is disabled.
+
+The cumulative day-volume samples are read on every Level 1 tick (Volume boost,
+HOD Momo's 5-min RVOL), so a read is a binary search, never a scan (#619: at
+the 09:30 open, scanning an hour of samples per tick stalled the IB loop). The
+samples stay in time order and are written from more than one thread (the IB
+loop, the quote panel's REST route), so every access holds one lock.
 """
 from __future__ import annotations
 
-from collections import deque
+import threading
+from array import array
+from bisect import bisect_left, bisect_right
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -19,20 +27,67 @@ from constants import (
     HOD_MOMO_RVOL_5MIN_WINDOW_SEC,
 )
 
-# symbol -> deque[(unix_ts, cumulative_day_volume)]
-_cum_volume_buffer: dict[str, deque[tuple[float, int]]] = {}
 _MAX_SAMPLES_SEC = 3600  # keep 1h of cum-vol samples
+_COMPACT_AT = 4096       # drop trimmed samples once this many have piled up at the front
 _ET = ZoneInfo("America/New_York")
 
 
+class _CumSeries:
+    """One symbol's (unix_ts, cumulative_day_volume) samples, oldest first.
+
+    Two flat arrays share one index; ``head`` is the first live sample. Trimming
+    moves ``head``, and the dead front is dropped in one slice once it is large.
+    """
+
+    __slots__ = ("ts", "vol", "head")
+
+    def __init__(self) -> None:
+        self.ts = array("d")
+        self.vol = array("q")
+        self.head = 0
+
+    def __len__(self) -> int:
+        return len(self.ts) - self.head
+
+    def add(self, ts: float, v: int) -> None:
+        if len(self) and ts < self.ts[-1]:
+            i = bisect_right(self.ts, ts, lo=self.head)   # rare: a late sample keeps time order
+            self.ts.insert(i, ts)
+            self.vol.insert(i, v)
+        else:
+            self.ts.append(ts)
+            self.vol.append(v)
+
+    def trim(self, cutoff: float) -> None:
+        """Drop the samples older than ``cutoff``."""
+        self.head = bisect_left(self.ts, cutoff, lo=self.head)
+        if self.head >= _COMPACT_AT and self.head * 2 >= len(self.ts):
+            del self.ts[: self.head]
+            del self.vol[: self.head]
+            self.head = 0
+
+    def at_or_before(self, ts: float) -> int | None:
+        i = bisect_right(self.ts, ts, lo=self.head) - 1
+        return int(self.vol[i]) if i >= self.head else None
+
+
+# symbol -> its samples
+_cum_volume_buffer: dict[str, _CumSeries] = {}
+_lock = threading.Lock()
+
+
 def clear_volume_buffers() -> None:
-    _cum_volume_buffer.clear()
+    with _lock:
+        _cum_volume_buffer.clear()
 
 
 def cum_volume_samples(symbol: str) -> list[tuple[float, int]]:
-    """Oldest-first L1 day-volume samples for Volume boost / tests."""
-    buf = _cum_volume_buffer.get(symbol)
-    return list(buf) if buf else []
+    """Oldest-first L1 day-volume samples, for tests and debugging (a copy)."""
+    with _lock:
+        s = _cum_volume_buffer.get(symbol)
+        if not s:
+            return []
+        return [(s.ts[i], int(s.vol[i])) for i in range(s.head, len(s.ts))]
 
 
 def update_cum_volume(symbol: str, cum_volume: int | None, ts: float) -> None:
@@ -45,36 +100,40 @@ def update_cum_volume(symbol: str, cum_volume: int | None, ts: float) -> None:
         return
     if v < 0:
         return
-    buf = _cum_volume_buffer.setdefault(symbol, deque())
-    if buf and buf[-1][1] == v and (ts - buf[-1][0]) < 0.5:
-        return  # ignore duplicate spam within 500ms
-    buf.append((ts, v))
-    cutoff = ts - _MAX_SAMPLES_SEC
-    while buf and buf[0][0] < cutoff:
-        buf.popleft()
+    ts = float(ts)
+    with _lock:
+        s = _cum_volume_buffer.get(symbol)
+        if s is None:
+            s = _cum_volume_buffer[symbol] = _CumSeries()
+        if len(s) and s.vol[-1] == v and (ts - s.ts[-1]) < 0.5:
+            return  # ignore duplicate spam within 500ms
+        s.add(ts, v)
+        s.trim(ts - _MAX_SAMPLES_SEC)
+
+
+def cum_volume_at(symbol: str, ts: float) -> int | None:
+    """The cumulative day volume of the last sample at or before ``ts``, or None."""
+    with _lock:
+        s = _cum_volume_buffer.get(symbol)
+        return s.at_or_before(float(ts)) if s else None
 
 
 def volume_in_window(symbol: str, window_sec: float | None = None, ts: float | None = None) -> int | None:
     """Shares traded in the last ``window_sec`` from cumulative-volume deltas."""
-    buf = _cum_volume_buffer.get(symbol)
-    if not buf or len(buf) < 2:
-        return None
-    window = float(window_sec if window_sec is not None else HOD_MOMO_RVOL_5MIN_WINDOW_SEC)
-    now_ts = ts if ts is not None else buf[-1][0]
-    current = buf[-1][1]
-    cutoff = now_ts - window
-    baseline = None
-    for t, v in buf:
-        if t <= cutoff:
-            baseline = v
-        else:
-            break
-    if baseline is None:
-        # Not enough history — use oldest sample if it is within ~2x window
-        oldest_t, oldest_v = buf[0]
-        if now_ts - oldest_t < window * 0.5:
+    with _lock:
+        s = _cum_volume_buffer.get(symbol)
+        if not s or len(s) < 2:
             return None
-        baseline = oldest_v
+        window = float(window_sec if window_sec is not None else HOD_MOMO_RVOL_5MIN_WINDOW_SEC)
+        now_ts = ts if ts is not None else s.ts[-1]
+        current = int(s.vol[-1])
+        baseline = s.at_or_before(now_ts - window)
+        if baseline is None:
+            # Not enough history — use oldest sample if it is within ~2x window
+            oldest_t, oldest_v = s.ts[s.head], int(s.vol[s.head])
+            if now_ts - oldest_t < window * 0.5:
+                return None
+            baseline = oldest_v
     delta = current - baseline
     return delta if delta >= 0 else None
 

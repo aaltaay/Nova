@@ -5,7 +5,9 @@ Do not invent shares: missing coverage or a day-volume reset returns None.
 """
 from __future__ import annotations
 
+from bisect import bisect_right
 from dataclasses import dataclass
+from operator import itemgetter
 
 
 @dataclass(frozen=True)
@@ -30,14 +32,16 @@ class SpikeTracker:
     price: float | None = None
 
 
-def _cum_at_or_before(samples: list[tuple[float, int]], ts: float) -> int | None:
-    last: int | None = None
-    for t, v in samples:
-        if t <= ts:
-            last = int(v)
-        else:
-            break
-    return last
+def _cum_at_or_before(ordered: list[tuple[float, int]], ts: float) -> int | None:
+    i = bisect_right(ordered, ts, key=itemgetter(0)) - 1
+    return int(ordered[i][1]) if i >= 0 else None
+
+
+def window_edges(now: float, spike_sec: float, baseline_sec: float) -> tuple[float, float, float]:
+    """The three times the spike reads a cumulative volume at: now, the spike's
+    start, and the baseline's start."""
+    spike_start = now - float(spike_sec)
+    return now, spike_start, spike_start - float(baseline_sec)
 
 
 def measure_spike(
@@ -49,19 +53,43 @@ def measure_spike(
     min_spike_shares: int,
     min_baseline_shares: int,
 ) -> SpikeMetrics | None:
-    """Shares in the spike window vs the prior baseline window.
+    """Shares in the spike window vs the prior baseline window, from a list of
+    samples (tests, replays). The live engine reads the edges from its ordered
+    series and calls ``spike_from_edges`` directly -- no copy, no sort (#619).
+    """
+    if not samples:
+        return None
+    ordered = sorted(samples, key=itemgetter(0))
+    end, spike_start, base_start = window_edges(now, spike_sec, baseline_sec)
+    return spike_from_edges(
+        _cum_at_or_before(ordered, end),
+        _cum_at_or_before(ordered, spike_start),
+        _cum_at_or_before(ordered, base_start),
+        spike_sec=spike_sec,
+        baseline_sec=baseline_sec,
+        min_spike_shares=min_spike_shares,
+        min_baseline_shares=min_baseline_shares,
+    )
+
+
+def spike_from_edges(
+    cum_end: int | None,
+    cum_spike: int | None,
+    cum_base: int | None,
+    *,
+    spike_sec: float,
+    baseline_sec: float,
+    min_spike_shares: int,
+    min_baseline_shares: int,
+) -> SpikeMetrics | None:
+    """Shares in the spike window vs the prior baseline window, from the
+    cumulative day volume at each window edge (``window_edges``).
 
     Requires a cum-vol sample at or before each window edge. A drop in
     cumulative day volume is a session reset -- not a spike.
     """
-    if not samples or spike_sec <= 0 or baseline_sec <= 0:
+    if spike_sec <= 0 or baseline_sec <= 0:
         return None
-    ordered = sorted(samples, key=lambda row: row[0])
-    spike_start = now - float(spike_sec)
-    baseline_start = spike_start - float(baseline_sec)
-    cum_end = _cum_at_or_before(ordered, now)
-    cum_spike = _cum_at_or_before(ordered, spike_start)
-    cum_base = _cum_at_or_before(ordered, baseline_start)
     if cum_end is None or cum_spike is None or cum_base is None:
         return None
     spike_shares = cum_end - cum_spike
