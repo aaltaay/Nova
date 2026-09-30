@@ -503,3 +503,43 @@ def test_two_viewer_queues_of_same_symbol_both_get_every_print(monkeypatch):
     assert q1.get_nowait()["price"] == 5.58
     assert q2.get_nowait()["price"] == 5.58
     tape.reset_for_tests()
+
+
+def _loop_turns_while_draining(stream_fn, items: int) -> tuple[int, int]:
+    """Drain ``items`` queued entries through ``stream_fn`` while another task counts its turns."""
+
+    async def run() -> tuple[int, int]:
+        q: asyncio.Queue = asyncio.Queue()
+        for i in range(items):
+            q.put_nowait({"type": "print", "i": i})
+        turns = 0
+
+        async def other() -> None:
+            nonlocal turns
+            while True:
+                turns += 1
+                await asyncio.sleep(0)
+
+        side = asyncio.create_task(other())
+        await asyncio.sleep(0)
+        start = turns
+        got = 0
+        gen = stream_fn(q)
+        async for item in gen:
+            if item is not None:
+                got += 1
+            if got == items:
+                break
+        await gen.aclose()
+        side.cancel()
+        return got, turns - start
+
+    return asyncio.run(run())
+
+
+def test_stream_hands_the_loop_back_between_prints():
+    """The IB thread refills a viewer's queue directly, so a busy socket must still give the
+    HTTP loop back between prints (#619: a 55 s hold at the 2026-09-29 open)."""
+    got, turns = _loop_turns_while_draining(tape.stream, 200)
+    assert got == 200
+    assert turns >= 150
