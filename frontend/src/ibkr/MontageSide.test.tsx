@@ -170,3 +170,50 @@ describe('MontageSide: what left the book (ADR 033 amendment)', () => {
     expect(hatched[1].getAttribute('data-tip')).toContain('2,000 offered pulled');
   });
 });
+
+describe('MontageSide: a hidden seller (ADR 033 amendment, 2026-09-30)', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  const NOW_S = 1_790_682_311.878;
+  const NOW_MS = 9_000_000;
+  const watch = applyBookWatchFrame(null, {
+    schema_version: 1, now: NOW_S, reset: true, seq: 0, watching: true, reason: null, window_sec: 60,
+    sides: {
+      bid: { pulled_shares: 0, filled_shares: 0, large_pulls: 0, hidden_shares: 0 },
+      ask: { pulled_shares: 0, filled_shares: 2000, large_pulls: 0, hidden_shares: 12_400 },
+    },
+    drops: [],
+    hidden: [{
+      seq: 1, id: '1-XYZ-ask-5', ts: NOW_S - 0.5, side: 'ask', price: 5, state: 'holding', hidden: 12_400,
+      printed: 14_400, shown_max: 2000, refills: 7, started_ts: NOW_S - 9.5, last_print_ts: NOW_S - 0.5,
+    }],
+  }, NOW_MS);
+  const asks = [lvl(5, 1200, 'ask'), lvl(5.01, 1500, 'ask'), lvl(5.01, 800, 'ask'), lvl(5.02, 4500, 'ask')];
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => {
+      root.render(<MontageSide side="ask" levels={asks} peak={4500} watch={watch} nowMs={NOW_MS} />);
+    });
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('outlines the row it holds at and marks it underneath, adding no row', () => {
+    expect(container.querySelectorAll('.das-l2-row')).toHaveLength(10);
+    const outlined = [...container.querySelectorAll<HTMLElement>('.das-l2-row--hidden-here')];
+    expect(outlined.map(r => r.textContent)).toEqual(['5.001,200NSDQ']);
+    expect(outlined[0].getAttribute('data-tip-title')).toBe('Hidden seller at 5.00: 12,400 beyond what it showed');
+    const mark = container.querySelector<HTMLElement>('[data-testid="l2-pullmark-hidden"]');
+    expect(mark?.textContent).toBe('◆ 12.4K hidden');
+    // On the boundary above the 5.01 rows: under the price it holds at.
+    expect(mark?.closest('.das-l2-row')?.textContent).toContain('5.01');
+    expect(mark?.closest('.das-l2-pullmarks')?.className).toContain('das-l2-pullmarks--hidden');
+    expect(mark?.getAttribute('data-tip')).toContain('never a detection');
+  });
+});

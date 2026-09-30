@@ -2,7 +2,9 @@
 
 Follows every held depth line with its tape, off the IB loop, and flags large
 pulls, pulls as the price came toward the size, and repeats -- hints
-consistent with spoofing, never a detection. Read-only: nothing here places,
-gates or cancels an order. See detector.py (pure), live.py (the worker),
-journal.py, replay.py and view.py.
+consistent with spoofing, never a detection -- and the mirror: hidden sellers
+and buyers, more traded at a price that held than the book ever showed there.
+Read-only: nothing here places, gates or cancels an order. See detector.py and
+hidden.py (pure), live.py (the worker), journal.py, replay.py, hidden_study.py
+and view.py.
 """

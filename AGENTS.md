@@ -1711,6 +1711,57 @@ consistent with spoofing, never a detection". The reading's `pulls` count read
 `null` until then (the recent-pulls list overwrote it; the Tape tile showed
 "None pulls").
 
+**Hidden sellers and buyers** (ADR 033 amendment, operator ask 2026-09-30: "do we have a way to detect
+hidden sellers? like we have spoofing!?", then mockup v1 and "1 go"). The mirror of a pull: size that
+traded at a price that held beyond the most the book ever showed there (owner `book_watch/hidden.py`,
+pure). Per side the watcher follows one **stretch**, the price that side's counted prints keep landing
+at -- lit prints at or through its best price, odd lots included, and prints at that price after the
+size shown there is gone -- while a book younger than `BOOK_WATCH_IDLE_SEC` stands (a Session Record can
+keep the tape after its depth line is gone); a cross print (`BOOK_WATCH_AUCTION_CONDITIONS`), a
+volume-only print, a FINRA report and a midpoint print never count. The stretch weighs what printed
+there against the most the book showed there from `BOOK_WATCH_HIDDEN_SHOWN_BEFORE_SEC` before its
+first print. It is a **hidden seller** (the ask) or **hidden buyer** (the bid) once its price has held
+`BOOK_WATCH_HIDDEN_MIN_HOLD_SEC` (10) since its first print, at least `BOOK_WATCH_HIDDEN_MIN_SHARES`
+(2,000) printed there and at least `BOOK_WATCH_HIDDEN_SHOWN_MULT` (3) x the most shown; a stretch the
+book could not follow (a collapsed side, its price cut off, a reset) never is. It speaks as a detector
+event `{event: "hidden", id: "<started_ms>-<SYMBOL>-<side>-<price>", kind: "hidden_seller" |
+"hidden_buyer", symbol, ts, side: "ask" | "bid", price, state: "holding" | "broke" | "faded" | "moved" |
+"auction" | "reset", hidden (printed beyond shown_max), printed, shown_max, shown_now: number | null,
+prints, refills, started_ts, last_print_ts, flagged_ts, ended_ts: number | null}` when flagged, as it
+grows (at most every `BOOK_WATCH_HIDDEN_UPDATE_SEC`) and once when it ends (`broke`: a print went
+through it; `faded`: no print there for `BOOK_WATCH_HIDDEN_GAP_SEC`; `moved`: the offer came down or
+the bid went up); the journal keeps each. The readings' `sides.{bid,ask}` add `hidden_shares` (the
+hidden size at the side's flagged prices, holding or ended in the stats window) and the reading a total
+`hidden_shares`. `GET /sensors/book-pulls` adds `hidden_recent[]` (the newest word on each stretch,
+newest first, at most `BOOK_WATCH_READ_LIMIT`) and `hidden_note`; `/sensors/book-pulls/events` adds
+`hidden[]` (the newest word on each stretch sent after `since`, oldest first). The depth socket's
+`book_watch` frames add `hidden[]` (each word with its `seq`; a `reset` frame carries each stretch's
+last word while it holds or was heard in `BOOK_WATCH_LADDER_MEMORY_SEC`) and `hidden_seq`.
+`/sensors/flow`'s `iceberg_hint` is the watcher's word: `true` when it flagged one in the last minute,
+`false` when it follows the line and flagged none, `null` without a depth line, and `hidden: {stretches,
+window_sec, note} | null` beside it -- it used to be true whenever any level grew while anything
+printed. The stock read's tape group adds the row `hidden` ("Hidden size": `warn` while a hidden seller
+holds at the offer, `info` otherwise) and the Tape tile reads "Hidden seller" then. On the ladder
+(`ibkr/bookWatchHidden.ts`, pure) the row a hidden seller or buyer holds at is outlined in violet and
+its mark sits under it ("◆ 12.4K hidden"; after it ends, "· broke" / "· held" and so on, fading like a
+pull mark); each side's minute line adds "◆"; a word the watcher has not refreshed for
+`L2_HIDDEN_STALE_MS` is not drawn. Every hover gives what traded against what showed, how it stands and
+what `tools/hidden_study.py` found, and ends "never a detection". One reserve (iceberg) order and several
+orders refilling a price look the same here. The setup scanner's tape gate keeps its own hidden-seller
+veto; nothing here gates, stages or places.
+
+`tools/hidden_study.py` (read-only; owner `book_watch/hidden_study.py`) runs the same tracker over every
+Session Record and answers `{schema_version: 1, rule: {min_shares, shown_mult, min_hold_sec},
+horizons_sec: [10, 30, 60, 300], recordings: [{date, symbol, books, prints, depth_hours, stretches}],
+depth_hours, groups: {flagged_ask | busy_ask | flagged_bid | busy_bid: {n, per_hour, horizons: {H:
+{measured, broke_pct, beyond_pct, toward_bp: {n, mean, median, t}}}}}, by_day: {DATE: groups}, events[],
+grid?}` -- `flagged`: the moment the rule held; `busy`: a stretch where as much printed at a price that
+held while the book showed enough to explain it; `broke_pct`: a counted print went through the price by
+then; `beyond_pct`: the mid past the price then; `toward_bp`: the mid's move toward the break (up for
+an offer, down for a bid). A horizon past its recorded stretch is not measured. On the Session Records
+of 2026-09-21..29 (26 hours with a book), a minute after a hidden seller the mid was past the offer 37%
+of the time against 46% after a busy offer (104 against 66); a hidden buyer made no such difference.
+
 ### The trading screen is always recorded (ADR 035, operator decision 2026-09-24)
 
 "I always, always, always want the screen that I'm trading to be recorded.
@@ -3043,6 +3094,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-30 | Hidden sellers and buyers on Level 2 (ADR 033 amendment; operator: "do we have a way to detect hidden sellers? like we have spoofing!?", then the mockup and "1 go"). The book watcher's mirror of a pull: at a price that held, what traded beyond the most the book ever showed there (`book_watch/hidden.py`). Measured first on every Session Record (`tools/hidden_study.py`, 26 hours with a book): a per-print "unclaimed" count called 60-75% of the volume at the quote hidden (the book and the tape arrive seconds apart), and without a hold the rule fired on sweeps and said nothing. The defaults -- held 10 s, 2,000 printed, 3x the most shown -- are what the study supported: a minute after a hidden seller the price was past the offer 37% of the time against 46% after an offer that showed its size; a hidden buyer made no difference. The ladder outlines the row and marks it in violet, each side's minute line adds "◆", the Tape tile reads "Hidden seller", and `/sensors/flow`'s `iceberg_hint` -- true whenever any level grew -- is now the watcher's word. The setup tape gate is unchanged (the operator's call). §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-29 | Share clips (ADR 039; operator: "I want to be able to record videos. Can I have maybe a small red button ... to share with the world?", seven decisions, then mockup v1 approved: "1 go"). A red ● on every Trader tab opens one Record menu: Market data (the Session Record, unchanged) and Video clip. A clip is marks on ADR 035's always-on screen recording -- no cap, no load, it survives a restart with the gap marked, and Save the last 5 min reads the tab's past. High quality adds a 30 fps capture of the tab's window in its own hidden page (at most 2, 30 min each). The header shows CLIP chips beside REC, a pointed-at chip frames its tab, and Records gains Video clips. Exports are MP4 (H.264) made on a hidden, sandboxed page with WebCodecs + mediabunny: the Trader tab with the header left out by default, the size and P&L panels blurred, hidden stretches cut, high quality where it ran and the screen recording around it. Verified end to end against the desk's real recording on F:, and through the desk itself (the red button, the chip, the toast, the dialog): that run caught an order-ticket blur that named an element no component renders (a test now checks every blur target) and a trim that took the tab to be shown before the clip, so the export now leaves out, and says so, any stretch Nova did not follow. `GET` / `POST /api/clips` and a `clips` checklist row; two unbound Nova Actions. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-29 | GC policy (#619): FinBERT off by default (`NOVA_NEWS_SENTIMENT=1` turns it on) -- its warm-up imported torch and transformers (1,434 modules) on every start and failed anyway -- and the long-lived heap frozen once, `GC_FREEZE_AFTER_SEC` after start (`NOVA_GC_FREEZE=0` off), so full collections walk only what the process made since. Read off the first live census (732,138 objects, 7,037 modules). New package `gc_policy/`; §3 Performance recorder amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-29 | Heap census (#619): `GET /api/perf/heap` and an hourly census in the perf day file (`kind: "heap"`) -- tracked objects by type and the backend's biggest containers. Full garbage collections ran about once a minute at a median ~430 ms all day (4.95 s at the open), and only ~60 ms of that was imported code, so the cause is read off the live process before anything is changed. §3 Performance recorder amended. | User Directive + Claude Opus 5.5 |

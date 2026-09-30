@@ -8,6 +8,9 @@ frames beside its books. The socket asks ``LadderPush.frame`` at most every
   ``BOOK_WATCH_LADDER_MEMORY_SEC``, so a price pulled before the socket opened is still
   "pulled here" on the ladder;
 - later frames carry only the drops judged since (``reset: false``);
+- ``hidden`` carries the hidden sellers' and buyers' words the same way (``hidden.py``): the
+  first frame the newest word on each stretch still holding or heard in that memory, later
+  frames each new word (a stretch speaks when it is flagged, as it grows, and when it ends);
 - each side's totals ride on every frame and are refreshed on their own at most every
   ``BOOK_WATCH_SIDES_PUSH_SEC``;
 - while the ladder shows no live line (a replay desk) or the watcher is off, one
@@ -38,6 +41,7 @@ class LadderPush:
     def __init__(self, symbol: str) -> None:
         self.symbol = (symbol or "").upper()
         self.seq: int | None = None  # None: the next frame starts the ladder over
+        self.hidden_seq: int | None = None
         self.sides: dict[str, Any] | None = None
         self.sides_ts = 0.0
         self.watching: bool | None = None
@@ -53,29 +57,32 @@ class LadderPush:
             reason = BOOK_WATCH_OFF_REASON
         if reason is not None:
             return self._absent(reason, now)
-        view = live.ladder_view(self.symbol, self.seq, now)
+        view = live.ladder_view(self.symbol, self.seq, now, self.hidden_seq if self.seq is not None else None)
         if view is None:
             return None  # no book has reached the watcher yet: nothing to say
         # A line forgotten and watched again numbers from 1: ladder_view already sent the memory.
         reset = self.seq is None or view["seq"] < self.seq
-        drops = view["drops"]
+        drops, hidden = view["drops"], view["hidden"]
         sides_due = view["sides"] != self.sides and now - self.sides_ts >= BOOK_WATCH_SIDES_PUSH_SEC
-        if not (reset or drops or sides_due or view["watching"] != self.watching):
+        if not (reset or drops or hidden or sides_due or view["watching"] != self.watching):
             return None
         self.seq, self.sides, self.sides_ts = view["seq"], view["sides"], now
+        self.hidden_seq = view["hidden_seq"]
         self.watching, self.absent = view["watching"], None
         return {
             "schema_version": BOOK_WATCH_SCHEMA_VERSION, "now": round(now, 3), "reset": reset,
             "seq": view["seq"], "watching": view["watching"], "reason": None,
-            "window_sec": view["window_sec"], "sides": view["sides"], "drops": drops, "note": BOOK_WATCH_NOTE,
+            "window_sec": view["window_sec"], "sides": view["sides"], "drops": drops, "hidden": hidden,
+            "note": BOOK_WATCH_NOTE,
         }
 
     def _absent(self, reason: str, now: float) -> dict[str, Any] | None:
         if self.absent == reason:
             return None
         self.absent, self.seq, self.sides, self.watching = reason, None, None, False
+        self.hidden_seq = None
         return {
             "schema_version": BOOK_WATCH_SCHEMA_VERSION, "now": round(now, 3), "reset": True,
             "seq": 0, "watching": False, "reason": reason, "window_sec": BOOK_WATCH_STATS_WINDOW_SEC,
-            "sides": None, "drops": [], "note": BOOK_WATCH_NOTE,
+            "sides": None, "drops": [], "hidden": [], "note": BOOK_WATCH_NOTE,
         }

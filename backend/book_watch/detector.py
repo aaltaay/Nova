@@ -10,7 +10,9 @@ the size) and ``repeated_pulls`` (``BOOK_WATCH_REPEAT_COUNT`` large pulls on one
 side inside ``BOOK_WATCH_REPEAT_WINDOW_SEC``). Hints consistent with spoofing,
 never a detection. Every **large drop** -- the size that left, traded or not, by
 the same rule -- is also a ``drop`` event with its split, for the Level 2 ladder.
-Events carry ``event``: ``drop`` | ``pull`` | ``flag`` | ``minute``.
+The mirror of a pull -- size that traded at a price beyond the most the book ever
+showed there -- is ``hidden.py``'s (``hidden`` events: a hidden seller or buyer).
+Events carry ``event``: ``drop`` | ``pull`` | ``flag`` | ``hidden`` | ``minute``.
 """
 from __future__ import annotations
 
@@ -21,6 +23,7 @@ from typing import Any
 
 from book_watch.book import (
     SideView,
+    collapsed,
     distance_ticks,
     in_view,
     median_level,
@@ -29,9 +32,7 @@ from book_watch.book import (
     side_view,
 )
 from book_watch.constants_book_watch import (
-    BOOK_WATCH_COLLAPSE_FROM,
     BOOK_WATCH_DROPS_KEEP,
-    BOOK_WATCH_COLLAPSE_TO,
     BOOK_WATCH_FLAGS_KEEP,
     BOOK_WATCH_LARGE_MEDIAN_MULT,
     BOOK_WATCH_LARGE_MIN_SHARES,
@@ -44,6 +45,7 @@ from book_watch.constants_book_watch import (
     BOOK_WATCH_SETTLE_SEC,
     BOOK_WATCH_STATS_WINDOW_SEC,
 )
+from book_watch.hidden import DEFAULT_HIDDEN, HiddenParams, HiddenTracker, Stretch
 
 SIDES = ("bid", "ask")
 _OPPOSITE = {"bid": "ask", "ask": "bid"}
@@ -65,7 +67,8 @@ def _large(shares: float, median_size: float | None) -> bool:
 
 
 class SymbolWatch:
-    def __init__(self, symbol: str, *, num_rows: int) -> None:
+    def __init__(self, symbol: str, *, num_rows: int, hidden: HiddenParams = DEFAULT_HIDDEN,
+                 hidden_history: list[Stretch] | None = None) -> None:
         self.symbol = symbol
         self.num_rows = num_rows
         self.prev: dict[str, SideView] | None = None
@@ -90,6 +93,8 @@ class SymbolWatch:
         self.since: float | None = None
         self.last_book_ts: float | None = None
         self.bucket: dict[str, Any] | None = None
+        # Size that traded at a price beyond the most the book showed there (hidden.py).
+        self.hidden = HiddenTracker(symbol, params=hidden, history=hidden_history)
 
     # -- input ---------------------------------------------------------------
 
@@ -106,10 +111,12 @@ class SymbolWatch:
         for side in SIDES:
             prev = self.prev[side] if self.prev is not None else None
             self._compare(side, prev, cur[side], ts)
+        self.hidden.on_book(ts, cur, self.prev)
         self.prev, self.prev_ts = cur, ts
         return out
 
-    def on_print(self, ts: float, price: Any, size: Any, *, lit: bool) -> list[dict[str, Any]]:
+    def on_print(self, ts: float, price: Any, size: Any, *, lit: bool,
+                 conditions: Any = None) -> list[dict[str, Any]]:
         out = self.tick(ts)
         key = price_key(price)
         try:
@@ -130,24 +137,25 @@ class SymbolWatch:
             self.prints.append([ts, key, shares])
         while self.prints and self.prints[0][0] < ts - BOOK_WATCH_PRINT_KEEP_SEC:
             self.prints.popleft()
-        return out
+        return out + self.hidden.on_print(ts, key, shares, lit=lit, conditions=conditions, views=self.prev,
+                                          book_ts=self.last_book_ts)
 
-    def reset(self) -> None:
+    def reset(self) -> list[dict[str, Any]]:
         """IBKR restarted the book (error 317, a new request): what came before is not comparable."""
         self.prev = None
         self.prev_ts = None
         self.tracked.clear()
+        return self.hidden.reset(self.last_book_ts)
 
     def tick(self, now: float) -> list[dict[str, Any]]:
-        """Judge every drop whose settle time has passed."""
+        """Judge every drop whose settle time has passed; end the hidden stretches gone quiet."""
         out: list[dict[str, Any]] = []
         due = [p for p in self.pending if p["deadline"] <= now]
-        if not due:
-            return out
-        self.pending = [p for p in self.pending if p["deadline"] > now]
-        for drop in due:
-            out += self._judge(drop)
-        return out
+        if due:
+            self.pending = [p for p in self.pending if p["deadline"] > now]
+            for drop in due:
+                out += self._judge(drop)
+        return out + self.hidden.tick(now)
 
     def flush(self) -> list[dict[str, Any]]:
         """End of input (a replay): judge everything and close the minute."""
@@ -159,7 +167,7 @@ class SymbolWatch:
     # -- comparing two books -------------------------------------------------
 
     def _compare(self, side: str, prev: SideView | None, cur: SideView, ts: float) -> None:
-        if prev is None or (len(cur.levels) <= BOOK_WATCH_COLLAPSE_TO and len(prev.levels) >= BOOK_WATCH_COLLAPSE_FROM):
+        if prev is None or collapsed(prev, cur):
             # First book, or a side that collapsed at once (a reset, a glitch): nothing is judged.
             self._forget(side)
             for price in cur.levels:
@@ -342,17 +350,22 @@ class SymbolWatch:
 
     def totals(self, now: float) -> dict[str, Any]:
         rows = [r for r in self.window if r[0] >= now - BOOK_WATCH_STATS_WINDOW_SEC]
+        sides = self.side_totals(now)
         return {
             "window_sec": BOOK_WATCH_STATS_WINDOW_SEC,
             "pulled_shares": sum(r[1] for r in rows), "filled_shares": sum(r[2] for r in rows),
+            "hidden_shares": sum(s["hidden_shares"] for s in sides.values()),
             "pulls": sum(1 for r in rows if r[1] > 0), "fills": sum(1 for r in rows if r[2] > 0),
             "large_pulls": sum(1 for r in rows if r[3]),
-            "sides": self._sides(rows),
+            "sides": sides,
         }
 
     def side_totals(self, now: float) -> dict[str, dict[str, float]]:
-        """Each side's size that left in the stats window: pulled, traded, and its large pulls."""
-        return self._sides([r for r in self.window if r[0] >= now - BOOK_WATCH_STATS_WINDOW_SEC])
+        """Each side's size in the stats window: pulled, traded, its large pulls, and its hidden size."""
+        sides = self._sides([r for r in self.window if r[0] >= now - BOOK_WATCH_STATS_WINDOW_SEC])
+        for side, hidden in self.hidden.side_totals(now).items():
+            sides[side]["hidden_shares"] = hidden
+        return sides
 
     @staticmethod
     def _sides(rows: list[tuple[float, float, float, bool, str]]) -> dict[str, dict[str, float]]:

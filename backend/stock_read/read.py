@@ -141,6 +141,8 @@ def _verdict(gid: str, group_rows: list[dict[str, Any]], f: dict[str, Any],
             return "ok", "Burst"
         if (r.get("spread") or {}).get("state") == "bad":
             return "bad", "Wide"
+        if (r.get("hidden") or {}).get("state") == "warn":
+            return "warn", "Hidden seller"
         if (r.get("pulls") or {}).get("state") == "warn":
             return "warn", "Pulls"
         if (r.get("seller") or {}).get("state") in ("warn", "bad"):

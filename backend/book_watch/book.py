@@ -6,7 +6,11 @@ from dataclasses import dataclass
 from statistics import median
 from typing import Any, Iterable
 
-from book_watch.constants_book_watch import BOOK_WATCH_OFF_BOOK_EXCHANGES
+from book_watch.constants_book_watch import (
+    BOOK_WATCH_COLLAPSE_FROM,
+    BOOK_WATCH_COLLAPSE_TO,
+    BOOK_WATCH_OFF_BOOK_EXCHANGES,
+)
 
 
 def price_key(raw: Any) -> float | None:
@@ -60,6 +64,11 @@ def side_view(rows: list[Any], side: str, num_rows: int) -> SideView:
     if len(rows) >= num_rows:
         cutoff = min(levels) if side == "bid" else max(levels)
     return SideView(levels, cutoff, best, len(rows))
+
+
+def collapsed(prev: SideView, cur: SideView) -> bool:
+    """A side that shrank to a level or so at once: a reset or a glitch, not trading -- unknown."""
+    return len(cur.levels) <= BOOK_WATCH_COLLAPSE_TO and len(prev.levels) >= BOOK_WATCH_COLLAPSE_FROM
 
 
 def in_view(price: float, side: str, cutoff: float | None) -> bool:

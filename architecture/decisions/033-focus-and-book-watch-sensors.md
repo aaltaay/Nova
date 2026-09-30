@@ -81,3 +81,48 @@ operator had to hover for, while the question comes up on the ladder. So:
 Live only. A replay desk's ladder is told the watcher reads only the live line; marking a recording
 from the journal is parked (#617).
 
+## Amendment 2026-09-30: hidden sellers and buyers
+
+**Decided by:** the operator ("do we have a way to detect hidden sellers? like we have spoofing!?";
+then the Level 2 mockup and "1 go": measure it on the Session Records first, then mark it on the
+ladder and fix the flow sensor's `iceberg_hint`).
+
+1. **The mirror of a pull.** A pull is size the book showed that left without trading; a hidden
+   seller is size that traded at the offer beyond the most the book ever showed there.
+   `book_watch/hidden.py` follows one **stretch** per side: the price its counted prints keep landing
+   at (at or through the side's best price, and at that price after the size shown there is gone),
+   weighed against the most the book showed there from `BOOK_WATCH_HIDDEN_SHOWN_BEFORE_SEC` before
+   its first print. It ends when a print goes through it, when its side's prints move the other way,
+   after `BOOK_WATCH_HIDDEN_GAP_SEC` without a print there, at a cross print, or at a book reset.
+2. **Not the prints no drop claimed.** The first design counted the prints the watcher's matching
+   window could not tie to a fall in the size shown. On the recordings that called 60-75% of the lit
+   volume at the quote hidden: the book and the tape arrive up to seconds apart, and a level refilled
+   between two books never shows the fall. The most the book showed needs no timing.
+3. **A hold, or it is a sweep.** Without one the rule fired mostly on sweeps -- a buyer taking the
+   whole offer prints at a price and through it within milliseconds -- and 86% of the flags broke
+   within 10 s, like the offers that showed their size. Measured with `tools/hidden_study.py` over
+   the Session Records of 2026-09-21..29 (26 hours with a fresh book): with the price held 10 s,
+   2,000 printed there and at least 3x the most shown, a minute after a hidden seller the mid was
+   past the offer 37% of the time against 46% after an offer that took as much and showed its size
+   (104 against 66; less often on 4 of the 5 days with both, a tie on the fifth), and the mid moved
+   ~52 bp less toward the break (lower on all 5). A hidden buyer
+   showed no such difference. Those are the defaults; the tool re-measures them. 64 rules were tried
+   on few recordings, so the edge is a description of what happened, not a proven one.
+4. **Which prints count.** Lit prints, odd lots included, only while the book is fresh (a book within
+   `BOOK_WATCH_IDLE_SEC`): a Session Record can keep the tape after its depth line is gone (MSGY
+   2026-09-29 09:41-09:56: 13,263 prints and no book, which a stale book called 683K shares hidden).
+   Never: off-exchange (FINRA) reports, cross prints (`O 5 6 X Q M`; GRML reopened 2026-09-22 with one
+   218,938-share print), volume-only prints. A midpoint print sits at neither side's price.
+5. **On the ladder** (mockup v1): violet, never green or red (bid and ask), amber (pulled) or slate
+   (traded). The row a hidden seller or buyer holds at is outlined and its mark sits under it
+   ("◆ 12.4K hidden"); after it ends the mark says how ("· broke", "· held") and fades like a pull
+   mark. Each side's minute line adds "◆". Every hover gives what traded against what showed, how
+   it stands, the study's finding and "never a detection". The Trader's Tape tile reads "Hidden
+   seller" while one holds at the offer.
+6. **The sensors.** `/sensors/book-pulls` and its event feed carry the stretches' words;
+   `/sensors/flow`'s `iceberg_hint` was true whenever any level grew while anything printed -- nearly
+   always on a live name -- and is now the watcher's word (`null` without a depth line).
+7. **Not decided here.** The setup scanner's tape gate keeps its own hidden-seller veto (one snapshot
+   of the inside ask against the prints at the ask in 10 s). Replacing it with this rule changes what
+   the bot enters on Paper and what the pre-registered read-out counts, on thin evidence: that is the
+   operator's call.

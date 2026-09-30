@@ -4,6 +4,8 @@ Reads ``l2.jsonl`` and ``prints.jsonl`` from one recording directory, merged in
 arrival order (a book row's ``ts`` is its receipt; a print's ``receive_ts``,
 else ``ts``). Recordings made before ADR 033 kept at most 8 books a second, so
 their drops span longer gaps: the replay says how many books it read per second.
+A print's sale conditions ride along, so a cross print is never counted hidden
+(hidden.py).
 """
 from __future__ import annotations
 
@@ -36,22 +38,32 @@ def _rows(path: Path, kind: str) -> Iterator[tuple[float, int, str, dict[str, An
             yield float(ts), order, kind, row
 
 
+def merged_rows(directory: Path) -> Iterator[tuple[float, int, str, dict[str, Any]]]:
+    """A recording's books and prints in arrival order: (ts, order, "book" | "print", row)."""
+    directory = Path(directory)
+    return heapq.merge(_rows(directory / "l2.jsonl", "book"), _rows(directory / "prints.jsonl", "print"),
+                       key=lambda item: (item[0], item[1]))
+
+
+def feed(watch: SymbolWatch, kind: str, ts: float, row: dict[str, Any]) -> list[dict[str, Any]]:
+    """One recorded row into a watch, as the live worker hands it one."""
+    if kind == "book":
+        return watch.on_book(ts, row.get("bids") or [], row.get("asks") or [])
+    return watch.on_print(ts, row.get("price"), row.get("size"), lit=lit_print(row),
+                          conditions=row.get("conditions"))
+
+
 def replay(directory: Path, *, num_rows: int = 10, symbol: str | None = None) -> dict[str, Any]:
-    """Every pull, flag and minute the watcher would have raised, plus totals."""
+    """Every pull, flag, hidden stretch and minute the watcher would have raised, plus totals."""
     directory = Path(directory)
     sym = (symbol or directory.name).upper()
     watch = SymbolWatch(sym, num_rows=num_rows)
     events: list[dict[str, Any]] = []
     first = last = None
-    merged = heapq.merge(_rows(directory / "l2.jsonl", "book"), _rows(directory / "prints.jsonl", "print"),
-                         key=lambda item: (item[0], item[1]))
-    for ts, _order, kind, row in merged:
+    for ts, _order, kind, row in merged_rows(directory):
         first = ts if first is None else first
         last = ts
-        if kind == "book":
-            events += watch.on_book(ts, row.get("bids") or [], row.get("asks") or [])
-        else:
-            events += watch.on_print(ts, row.get("price"), row.get("size"), lit=lit_print(row))
+        events += feed(watch, kind, ts, row)
     events += watch.flush()
     span = (last - first) if first is not None and last is not None else 0.0
     minutes = [e for e in events if e["event"] == "minute"]
@@ -65,5 +77,7 @@ def replay(directory: Path, *, num_rows: int = 10, symbol: str | None = None) ->
         "large_pulls": [e for e in events if e["event"] == "pull"],
         "drops": [e for e in events if e["event"] == "drop"],
         "flags": [e for e in events if e["event"] == "flag"],
+        # The last word on each hidden seller or buyer (every update is an event; the newest wins).
+        "hidden": list({e["id"]: e for e in events if e["event"] == "hidden"}.values()),
         "minutes": minutes,
     }

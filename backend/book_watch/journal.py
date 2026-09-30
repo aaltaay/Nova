@@ -1,9 +1,10 @@
-"""The book watcher's journal (ADR 033): flags, large pulls, large drops and one line per symbol-minute.
+"""The book watcher's journal (ADR 033): flags, large pulls, large drops, hidden sellers and buyers,
+and one line per symbol-minute.
 
 Owner: this module -- the only writer of ``<book watch dir>/YYYY-MM-DD.jsonl``
 (``NOVA_BOOK_WATCH_DIR``, else ``F:\\Nova\\book_watch`` when F: is mounted, else
 ``<cache>/book_watch``), a file per Eastern date of the wall clock. A line is
-``{schema_version, wall_ts, event: "flag" | "pull" | "drop" | "minute", symbol, ...}``
+``{schema_version, wall_ts, event: "flag" | "pull" | "drop" | "hidden" | "minute", symbol, ...}``
 in the detector's event shapes. ``record_many`` only enqueues; one daemon thread
 writes; a full queue drops and counts. ``NOVA_BOOK_WATCH_JOURNAL=0`` turns it off.
 Invalidation: none -- nothing prunes it (like the eyes' journal, retention is

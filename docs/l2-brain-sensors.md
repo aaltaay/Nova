@@ -64,7 +64,7 @@ Sim practice: [sim-mode.md](sim-mode.md).
 | 6 | Day volume | `/sensors/day-volume?symbol=` | **live** | Shared L1 `last_quotes` / Sim volume. |
 | 7 | Spread | `/sensors/spread?symbol=` | **live** | Current book spread vs oldest snapshot in the minute. |
 | 8 | Session phase | `/sensors/session-phase` | **live** | Clock buckets from existing session constants. |
-| 9 | Order-flow | `/sensors/flow?symbol=` | **live** | Sweeps / replenish hints from tape + book rings. |
+| 9 | Order-flow | `/sensors/flow?symbol=` | **live** | Sweeps, replenish counts, and the book watcher's hidden sellers / buyers (`iceberg_hint`). |
 | 10 | Last significant move | `/sensors/last-move?symbol=` | **live** | Last 1Min bar whose range >= median of last 20. No trip dollars. |
 | 11 | Liquidity | `/sensors/liquidity?symbol=` | **live** | Cache-only ADV, current spread, bot `symbol_allowlist`. |
 | 12 | EMA 9/20/200 | `/sensors/emas?symbol=` | **live** | 1Min closes. EMA 200 stays `ready=false` until 200 bars exist. |
@@ -133,7 +133,11 @@ Clock only. `midday chop` is a time-of-day label, not sensor 17.
 
 ### 9. Order-flow events -- live
 
-Sweeps, iceberg hints, level replenishment after a hit. Same rings as 1-2.
+Sweeps and level replenishment from the same rings as 1-2. `iceberg_hint` is the book watcher's word
+(ADR 033 amendment, 2026-09-30): `true` when it flagged a hidden seller or buyer in the last minute --
+more traded at a price that held than the book ever showed there -- `false` when it follows the line and
+flagged none, `null` without a depth line; `hidden` carries the stretches. (It used to be true whenever
+any level grew while anything printed, which was nearly always.)
 
 `GET /sensors/flow?symbol=`
 

@@ -251,6 +251,19 @@ def test_the_read_answers_every_group_with_a_verdict_and_the_plan(monkeypatch):
     assert sum(out["counts"].values()) == sum(len(x["rows"]) for x in out["groups"])
 
 
+def test_a_hidden_seller_holding_is_the_tape_tile(monkeypatch):
+    """The book watcher's hidden seller (ADR 033 amendment): more traded at the offer than it ever showed."""
+    monkeypatch.setattr(history, "summary", lambda sym, now: None)
+    word = {"kind": "hidden_seller", "side": "ask", "price": 5.39, "state": "holding", "hidden": 6_200,
+            "printed": 6_400, "shown_max": 200, "ts": ts(15, 3) - 2, "started_ts": ts(15, 3) - 14,
+            "last_print_ts": ts(15, 3) - 2}
+    pulls = {**facts()["pulls"], "flags": [], "hidden_recent": [word]}
+    g = {x["id"]: x for x in read.build(facts(pulls=pulls))["groups"]}
+    assert (g["tape"]["verdict"], g["tape"]["value"]) == ("warn", "Hidden seller")
+    hidden = {r["id"]: r for r in g["tape"]["rows"]}["hidden"]
+    assert hidden["value"] == "Seller at 5.39: 6.2K beyond 200 shown" and hidden["state"] == "warn"
+
+
 def test_a_read_with_nothing_known_states_it_row_by_row(monkeypatch):
     monkeypatch.setattr(history, "summary", lambda sym, now: None)
     empty = {k: None for k in ("why", "setups", "hod_momo", "l2", "flow", "pulls", "rvol", "prints_per_min",
