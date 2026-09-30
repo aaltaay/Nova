@@ -355,10 +355,17 @@ def close_viewer_queue(symbol: str, q: asyncio.Queue) -> None:
 async def stream(queue: asyncio.Queue):
     """AsyncGenerator yielding print dicts (or None on heartbeat timeout)
     for one viewer's own queue -- see ``open_viewer_queue``.
+
+    The IB thread fills the queue directly, so a backlog can refill as fast as
+    the socket drains it, and ``queue.get()`` returns without yielding while
+    anything is queued. The loop is handed back after every print, so one busy
+    tape socket cannot hold the HTTP loop (#619: 55 s at the 2026-09-29 open).
     """
     while True:
         try:
             print_data = await asyncio.wait_for(queue.get(), timeout=TAPE_STREAM_HEARTBEAT_SEC)
-            yield print_data
         except asyncio.TimeoutError:
             yield None
+            continue
+        yield print_data
+        await asyncio.sleep(0)

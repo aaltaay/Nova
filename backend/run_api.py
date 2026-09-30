@@ -70,6 +70,10 @@ def main() -> None:
     host = os.environ.get("NOVA_API_HOST", "127.0.0.1")
     port = int(os.environ.get("NOVA_API_PORT", "8000"))
     reload = os.environ.get("NOVA_API_RELOAD", "false").lower() in ("1", "true", "yes")
+    # No per-message deflate: the desk is on this machine, so compressing every
+    # Time & Sales print and Level 2 book buys nothing and costs the HTTP loop a
+    # zlib pass -- and a GIL hand-off -- per message (#619).
+    ws_options = {"ws_per_message_deflate": False}
 
     if reload:
         # uvicorn's file-watcher needs an import string (not an app object) to
@@ -81,6 +85,7 @@ def main() -> None:
             reload=True,
             reload_excludes=["logs/*", ".cache/*", "dist/*"],
             log_level="info",
+            **ws_options,
         )
     else:
         # Force-import so PyInstaller bundles the FastAPI app modules.
@@ -91,6 +96,7 @@ def main() -> None:
             port=port,
             reload=False,
             log_level="info",
+            **ws_options,
         )
 
 
