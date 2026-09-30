@@ -32,10 +32,10 @@ function Chart() {
     candles.subscribeDataChanged(() => setPainted(JSON.stringify(candles.data())));
     return () => { chart.remove(); chartRef.current = null; candleSeriesRef.current = null; volSeriesRef.current = null; };
   }, []);
-  const live = useChartLiveTrade(candleSeriesRef, futureTrade, '1Min', 'IMCC');
+  const live = useChartLiveTrade(candleSeriesRef, volSeriesRef, futureTrade, '1Min', 'IMCC');
   const state = useChartBars({ symbol: 'IMCC', timeframe: '1Min', chartRef,
-    candleSeriesRef, volSeriesRef, lastCandleRef: live.lastCandleRef,
-    lastTrade: futureTrade, applyLiveTrade: live.applyLiveTrade, onSeriesReset: live.resetTradeState });
+    candleSeriesRef, volSeriesRef, lastCandleRef: live.lastCandleRef, lastTrade: futureTrade,
+    restoreAfterStorePaint: live.restoreAfterStorePaint, onSeriesReset: live.resetTradeState });
   const vwap = useVwapSourceBars('IMCC', true);
   return <>
     {sampleApi && <button type="button" onClick={advanceSampleMinute}>Advance sample minute</button>}

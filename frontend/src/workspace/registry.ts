@@ -67,8 +67,8 @@ export const TAB_MODULE_IDS = [
 
 export type ActiveTab = (typeof TAB_MODULE_IDS)[number];
 
-/** Scanner homepage — Gappers (Dashboard config tab removed; Settings owns config). */
-export const DEFAULT_ACTIVE_TAB: ActiveTab = 'gappers';
+/** Scanner homepage; kept in a leaf module so the nav-rail store can read it while loading (#639). */
+export { DEFAULT_ACTIVE_TAB } from './defaultTab';
 
 /**
  * Tab modules that need Dashboard props are host-rendered (component is a stub).

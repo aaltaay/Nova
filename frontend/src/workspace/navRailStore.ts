@@ -10,13 +10,10 @@
  */
 import { useSyncExternalStore } from 'react';
 import { NAV_RAIL_SELECT_TAB_EVENT } from '../constantGroups/nav_rail';
-import {
-  DEFAULT_ACTIVE_TAB,
-  getModule,
-  isTabModuleId,
-  type ActiveTab,
-  type ModuleCountKey,
-} from './registry';
+// The default tab comes from a leaf module: the registry reaches this store through a cycle, so
+// nothing here may read the registry while the store loads (#639).
+import { DEFAULT_ACTIVE_TAB } from './defaultTab';
+import { getModule, isTabModuleId, type ActiveTab, type ModuleCountKey } from './registry';
 
 /** What the dashboard slot shows while Trader is not up. */
 export type NavPage = 'dashboard' | 'desk' | 'records' | 'account' | 'bots' | 'cryptos';
