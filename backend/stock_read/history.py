@@ -14,6 +14,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from constants_stock_read import (
+    STOCK_READ_DAILY_SMA_DAYS,
     STOCK_READ_HISTORY_CHART_DAYS,
     STOCK_READ_HISTORY_READ_DAYS,
     STOCK_READ_RUN_MIN_PCT,
@@ -56,7 +57,8 @@ def runs(daily: list[dict[str, Any]], today: str | None) -> list[dict[str, Any]]
 
 
 def summary(symbol: str, now: float) -> dict[str, Any] | None:
-    """``{daily, daily_days, runs}`` for the symbol, read once per session day."""
+    """``{daily, daily_days, runs, sma200}`` for the symbol, read once per session day. ``sma200`` is the
+    mean of the last 200 stored daily closes before today (None with fewer): the Full Day chart's level."""
     from sensors.feeds import get_bars
 
     today = datetime.fromtimestamp(now, ET).date().isoformat()
@@ -67,7 +69,10 @@ def summary(symbol: str, now: float) -> dict[str, Any] | None:
         return hit
     raw, _src = get_bars(symbol, "1Day", STOCK_READ_HISTORY_READ_DAYS)
     daily = daily_bars(raw)
-    out = {"daily": daily[-STOCK_READ_HISTORY_CHART_DAYS:], "daily_days": len(daily), "runs": runs(daily, today)}
+    closes = [b["c"] for b in daily if b["d"] < today][-STOCK_READ_DAILY_SMA_DAYS:]
+    sma200 = round(sum(closes) / len(closes), 4) if len(closes) == STOCK_READ_DAILY_SMA_DAYS else None
+    out = {"daily": daily[-STOCK_READ_HISTORY_CHART_DAYS:], "daily_days": len(daily), "runs": runs(daily, today),
+           "sma200": sma200}
     with _lock:
         if len(_cache) > 256:
             _cache.clear()

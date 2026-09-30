@@ -78,6 +78,32 @@ describe('the plan on the rail', () => {
     expect(calls[0]).toMatch(/\/api\/stock-read\/APUS$/);
   });
 
+  it("names the levels in the plan's way: Room in trial, the next round, and nothing where no round is near", async () => {
+    respond(/\/api\/stock-read\/APUS(\?|$)/, {
+      ...apusReadWire,
+      plan: {
+        ...apusReadWire.plan,
+        levels: {
+          room: { state: 'warn', text: '0.5R to $5.50', r: 0.55, price: 5.5, trial: 'T7',
+            detail: 'Under 2R it is a warning while trial T7 runs; it blocks nothing.' },
+          target: null,
+          stop: null,
+          next: { state: 'info', text: '$5.50 is 6c above: resistance until it prints through, a trigger after',
+            detail: 'A fresh approach to a half or whole dollar turned back 24% of the time (random price 16%).' },
+          recent: null,
+          between: [{ price: 5.5, lo: 5.5, hi: 5.5, tag: '$5.50', label: '$5.50', round: true, hod: false }],
+        },
+      },
+    });
+    renderRail();
+    const rows = await screen.findByTestId('stock-read-levels');
+    expect(within(rows).getByTestId('stock-read-level-room').textContent).toContain('0.5R to $5.50');
+    expect(screen.getByTestId('stock-read-room-trial').textContent).toBe('in trial T7');
+    expect(within(rows).getByTestId('stock-read-level-next').textContent).toContain('resistance until it prints through');
+    expect(within(rows).queryByTestId('stock-read-level-target')).toBeNull();
+    expect(within(rows).queryByTestId('stock-read-level-stop')).toBeNull();
+  });
+
   it('locks Stage in ticket with the reason while no ticket listens, then fills the ticket without placing', async () => {
     renderRail();
     const stage = await screen.findByTestId('stock-read-stage');

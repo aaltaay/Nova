@@ -34,6 +34,38 @@ STOCK_READ_PRINTS_WINDOW_SEC = 60.0         # prints per minute from the sensor 
 STOCK_READ_BACKSIDE_TAIL_SHARE = 0.5        # a topping tail: the upper wick is at least half the candle
 STOCK_READ_BACKSIDE_LOOK_BARS = 5           # backside warnings read the last N closed candles
 
+# -- the day's levels (ADR 036 amendment 2026-09-30) ------------------------------------------------
+STOCK_READ_LEVELS_SCHEMA_VERSION = 1
+STOCK_READ_LEVEL_SWING_BARS = 2             # a swing high (low): over (under) the two candles either side
+STOCK_READ_LEVEL_TOUCH_PCT = 0.003          # swing highs (lows) within 0.3% of each other are one level ...
+STOCK_READ_LEVEL_TOUCH_MIN = 0.01           # ... and a cent is always the same level
+STOCK_READ_LEVEL_MIN_TOUCHES = 2            # a level is a double top (bottom) or more
+STOCK_READ_LEVEL_MERGE_PCT = 0.006          # today's levels within 0.6% are one zone ...
+STOCK_READ_LEVEL_MERGE_MIN = 0.02           # ... and within 2 cents always
+STOCK_READ_LEVEL_ROUND_SPAN_PCT = 0.25      # half / whole dollars listed within 25% of the price
+STOCK_READ_LEVEL_AT_PCT = 0.002             # a zone this close to the price is "at" it ...
+STOCK_READ_LEVEL_AT_MIN = 0.01              # ... and a cent always is
+STOCK_READ_DAILY_LEVEL_SESSIONS = 60        # daily highs and lows looked at, left of today
+STOCK_READ_DAILY_LEVEL_TOUCH_PCT = 0.02     # daily highs (lows) within 2% of each other are one level
+STOCK_READ_DAILY_MERGE_PCT = 0.015          # daily levels within 1.5% are one zone
+STOCK_READ_DAILY_STAIR_MAX = 3              # the older daily highs above the price kept ("look left and up")
+STOCK_READ_DAILY_SMA_DAYS = 200             # the 200-day average (stored daily bars close after hours)
+STOCK_READ_ROOM_MIN_R = 2.0                 # Room under this many R reads amber: trial T7 decides more
+STOCK_READ_ROUND_NEAR = 0.05                # an entry, target or stop within 5 cents of a half / whole dollar
+STOCK_READ_ROUND_FRESH_BARS = 15            # a cross is fresh when the 15 candles before it stayed on the other side
+STOCK_READ_ROUND_CROSS_SEC = 10 * 60        # "broke $X" / "lost $X" is said this long after the cross
+# What the level study measured (in sample, 2021-09..2026-09 minute bars of the pillar stocks, $1-$20;
+# F:\Nova\eyes\studies\levels-2026-09-30). Each pair is (at the level, at a random price) in percent.
+STOCK_READ_LEVEL_STUDY = {
+    "source": "5 years of minute bars on the pillar stocks, $1-$20, in sample (2026-09-30)",
+    "round_turn": (24, 16),      # a fresh approach to a half / whole dollar turned back before printing through
+    "round_through": (77, 70),   # once 1c through: +1.5% before -1.5% (whole dollars 78)
+    "round_lost": (68, 63),      # a break under: -1.5% before +1.5%
+    "hod_past": (72, 77),        # a backtest trade that reached the high of day went 0.5R past it
+    "top_past": (71, 76),        # ... a top tested twice or more
+    "daily_past": (78, 78),      # ... an old daily high: no effect
+}
+
 # -- the history ---------------------------------------------------------------------------------------
 STOCK_READ_RUN_MIN_PCT = 0.40               # a run: a session whose high was 40% or more over the prior close
 STOCK_READ_HISTORY_READ_DAYS = 260          # daily bars read for the runs (about a year)

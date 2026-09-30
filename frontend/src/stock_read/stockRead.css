@@ -302,6 +302,8 @@
   background: var(--sr-warn);
 }
 .sr-ruler__mark--wall { background: var(--sr-bad); }
+.sr-ruler__mark--level { background: #ff8a70; }
+.sr-ruler__mark--level .sr-ruler__mark-label { color: #ff8a70; }
 .sr-ruler__mark-label {
   position: absolute;
   bottom: 11px;
@@ -310,6 +312,51 @@
   font-size: 0.5rem;
   color: var(--sr-warn);
   white-space: nowrap;
+}
+
+/* The plan's level rows (ADR 036 amendment 2026-09-30): Room, the target's and the stop's round, the next one. */
+.sr-levels {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 3px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.58rem;
+}
+.sr-levels__row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  color: var(--sr-secondary);
+}
+.sr-levels__k {
+  flex: 0 0 4.6em;
+  white-space: nowrap;
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--sr-muted);
+}
+.sr-levels__t {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sr-levels__row--warn .sr-levels__k,
+.sr-levels__row--warn .sr-levels__t { color: var(--sr-warn); }
+.sr-levels__row--bad .sr-levels__t { color: var(--sr-bad); }
+.sr-levels__row--ok .sr-levels__k { color: var(--sr-ok); }
+.sr-levels__pill {
+  flex: 0 0 auto;
+  padding: 0 5px;
+  border: 1px solid rgba(10, 132, 255, 0.45);
+  border-radius: 8px;
+  font-size: 0.5rem;
+  color: #9ccaff;
 }
 
 .sr-checks {

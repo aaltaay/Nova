@@ -1,12 +1,15 @@
 /**
- * A setup's story under the pointer on the 1-minute pane (ADR 036 amendment, operator ask 2026-09-29).
- * The chart reports which box the pointer is over (`SetupShapesPrimitive.hitTest`); this names it -- a
- * live lane's state and reason, or a past setup's end, the rule it broke and what price did next -- in a
- * card beside the pointer. The card takes no pointer events, so the chart keeps every gesture.
+ * A setup's story under the pointer on the 1-minute pane (ADR 036 amendment, operator ask 2026-09-29), and
+ * a level's on the 5-minute and Full Day panes (2026-09-30). The chart reports which box, label or axis
+ * tick the pointer is over (`SetupShapesPrimitive.hitTest`); this names it -- a live lane's state and
+ * reason, a past setup's end, the rule it broke and what price did next, or what holds a level and what the
+ * level study measured -- in a card beside the pointer. The card takes no pointer events, so the chart
+ * keeps every gesture.
  */
 import { useEffect, useState, type RefObject } from 'react';
 import type { IChartApi, MouseEventParams, Time } from 'lightweight-charts';
 import { laneHoverId } from './chartShapes';
+import { levelStory } from './levelPicks';
 import { laneStory, pastStory, type Episode } from './pastSetups';
 import { pastHoverId } from './pastShapes';
 import type { StockRead } from './types';
@@ -61,8 +64,9 @@ export function useShapeHover(
   return enabled ? hover : null;
 }
 
-/** The story of the box `id` names: a live lane's, or a past setup's. */
+/** The story of the box `id` names: a live lane's, a past setup's, or a level's (its label or axis tick). */
 export function shapeStory(id: string, read: StockRead, past: Episode[] | null): ShapeStory | null {
+  if (id.startsWith('level:')) return levelStory(id, read);
   if (id.startsWith('lane:')) {
     const lane = read.setups.find(l => laneHoverId(l.setup_type) === id);
     return lane ? laneStory(lane) : null;

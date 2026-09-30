@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "registry": "signal-trials",
+  "version": 2,
+  "adr": "architecture/decisions/041-signal-trials.md",
+  "follows": "knowledge/signal-trials.json",
+  "registered_at": "2026-09-30",
+  "data_from": "2026-10-01",
+  "frozen": true,
+  "note": "The second registry version: trials registered after signal-trials.json was frozen. Pre-registered before any setups.db row dated 2026-10-01 or later was read (2026-09-30 is left out: its LGHL setups were looked at while this was designed). Every rule, population, metric, sample and pass line below is fixed; a change means a new trial on new days in a new registry version, never an edit here (backend/tests/test_signal_trials_registry_2.py holds the file to its hash). The reading, multiplicity and peeking rules are signal-trials.json's: each trial is read once when its sample is complete, Holm-adjusted with every trial read the same night. None of them places an order: Nova never buys or sells on Live by itself (Invariant 7, auto_live NO-GO).",
+  "trials": [
+    {
+      "id": "T7",
+      "name": "Room under 2R to the first level of today's map",
+      "role": "buy_warning",
+      "signal": "The first zone of today's level map over the setup's entry sits under 2R of the setup's risk. Today's map is the stock read's level_map intraday zones (the high and low of day, the premarket high, the 09:30 open, VWAP, tops and bottoms tested twice or more, half and whole dollars, yesterday's high, low and close), built from the session's stored one-minute bars closed before the trigger minute; daily levels never count.",
+      "rule": "Warn on the plan's Room row (operator decision 2026-09-30: keep the 2R target, show the room, warn under 2R, trial first).",
+      "population": "Triggered setups of the templates in play in setups.db, armed on or after data_from, scored by the scanner (bar_r, gross).",
+      "primary_metric": "Mean gross bar_r of triggers with Room under 2R minus that of the rest (Room of 2R or more, or no level of today's map over the entry), in R.",
+      "test": "Cluster bootstrap over symbol-days, 10,000 draws; one-sided.",
+      "sample": {
+        "min_symbol_days_under": 40,
+        "min_symbol_days_over": 40,
+        "min_session_days": 8
+      },
+      "pass": [
+        "the difference is -0.2R or worse",
+        "Holm-adjusted p < 0.05"
+      ],
+      "reported_not_deciding": [
+        "net of 1c a fill",
+        "by setup type",
+        "by the kind of the first level (a half or whole dollar, the high of day, a tested top, VWAP)",
+        "by session day"
+      ],
+      "on_pass": "Room under 2R becomes a NOT A TRADE reason on the plan. It stays a description: nothing places on it.",
+      "on_fail": "It stays a warning with this result on its hover.",
+      "in_sample": {
+        "study": "F:\\Nova\\eyes\\studies\\levels-2026-09-30",
+        "evidence": "1,478 harness trades (first pullback, red to green and flat top on five years of minute bars; a 2R bracket over 30 minutes, the stop first on a bar that did both): no level of today's map inside 2R made +0.02R +/-0.10 (n=206) against -0.11R +/-0.04 (n=1,272), a gap within the noise. Capping the target a cent under the first level lowered the mean (-0.097R against -0.087R), so the target stays 2R."
+      }
+    }
+  ]
+}

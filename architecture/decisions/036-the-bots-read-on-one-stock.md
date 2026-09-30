@@ -110,3 +110,51 @@ score every failure by what price did next, with a report by fail reason.
 - **Not drawn:** a faded setup that never got past its leg. It is already visible as the chart's own
   candles, and drawing it would double the boxes on a runner (59 of the 173 setups that had ended by
   10:00 ET on 2026-09-29; mostly the flat top's "new high of day, wait for a base" on every new high).
+
+## Amendment 2026-09-30 -- the day's levels, on the chart each comes from
+
+**Decided by:** the operator, 2026-09-30: "we can identify major resistance/support levels based on the full
+day chart, how can we label those things ... and consider these additional rules when we trade? cuz say our
+target is 1:2 ratio for trades is too generic"; then "the material teach us that there are stops at half
+dollar or full dollar which are great psychological triggers". On the study and mockup v3 they chose, with
+the recommendation each time: keep the 2R target and show the room; warn under 2R and let a trial decide
+more; draw the daily levels, faint; and (asked "should we keep those in min1 chart or full day chart? ...
+we are overloading the 1min chart") put each level on the chart it comes from. "2 go", then "cool. lets go
+ahead and implement that!".
+
+- **Measured first** (`F:\Nova\eyes\studies\levels-2026-09-30`, in sample, five years of minute bars on
+  the pillar stocks, $1-$20):
+  - Half and whole dollars turn price back before they break (a fresh approach printed through within
+    10 minutes 76% of the time, against 84% at a random price 10-40c away) and act as a trigger once
+    through (+1.5% before -1.5% in 77% of breaks, against 70%; a break under: 68% against 63%). Each gap
+    held on a day-clustered bootstrap, on about 11,000 crossings.
+  - On 1,478 harness trades, the high of day and tops tested twice or more slowed price a little (72%
+    and 71% went 0.5R past them, against 77% and 76%); old daily highs did not (78% against 78%).
+  - Capping the target a cent under the first level inside 2R lowered the mean (-0.097R against
+    -0.087R), so the target stays 2R. Trades with no level of today's map inside 2R did better (+0.02R
+    against -0.11R), within the noise: trial T7 (`knowledge/signal-trials-2.json`, ADR 041) decides
+    whether Room ever blocks.
+- **The level map** (`stock_read/level_map.py`, pure; the read's `level_map`): today's map -- the high and
+  low of day, the premarket high, the 09:30 open, VWAP, tops and bottoms tested twice or more (swing highs
+  and lows within 0.3%), half and whole dollars within 25% of the price, yesterday's high, low and close --
+  and the daily map -- daily highs and lows touched twice or more in 60 sessions (within 2%), the older
+  daily highs above the price, unfilled gaps, the 200-day average and yesterday's levels. Levels close
+  together (0.6% today, 1.5% daily) are one zone listing every reason it holds.
+- **Each chart carries its own levels.** The 5-minute pane carries today's map: per side the nearest
+  zone and the strongest others within 12% of the price, the zone the price is on, the high and low of
+  day, the nearest whole and half dollar each side and yesterday's levels, each with a line and a label;
+  every other zone is a tick on the price axis. The Full Day pane carries the daily map the same way
+  within 40%. The 1-minute pane keeps what it drew (the high of day, the premarket high, the open, the
+  nearest half dollar each side) and adds only the plan's levels between its stop and target, as thin
+  price lines: no label column. A label or a tick opens the level's card: what holds it, its tests or
+  dates, how far it is, and what the study measured. The 10-second pane is unchanged.
+- **The plan says what stands in the way** (`stock_read/level_notes.py`): Room (the first zone of today's
+  map over the entry, in R; amber under 2R, "in trial T7"; the daily levels in the way named but never
+  counted), the half or whole dollar at the target and at the stop (5 cents either side), the next one
+  over the entry, and a round the price broke or lost in the last 10 minutes. The ruler marks today's
+  zones between the stop and the target. Every sentence quotes the study; nothing blocks or places, and
+  the ADR 037 runners and the bot keep their own rules.
+- **Not in it:** setup shapes on the 5-minute chart (the operator's other ask, parked as #649:
+  the scanners read one-minute candles only, and the 5-minute versions of the setups lost less than the
+  1-minute ones but still lost, 2026-09-29); ascending and descending trend lines (no rule yet for which
+  two points to join).

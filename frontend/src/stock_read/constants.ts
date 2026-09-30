@@ -66,6 +66,24 @@ export const SETUP_COLORS = {
   round: '#f59e0b',
 };
 
+/** The day's levels (ADR 036 amendment 2026-09-30): gold the half and whole dollars, coral a level over the
+ * price, teal one under it, blue yesterday's, violet the daily chart's, purple VWAP. */
+export const LEVEL_COLORS = {
+  round: '#f59e0b',
+  resistance: '#ff8a70',
+  support: '#45c7b8',
+  yesterday: '#8aa4d6',
+  daily: '#b9a3e3',
+  vwap: '#bf5af2',
+} as const;
+/** Which zones a pane draws with a line and a label (the rest are ticks on the price axis): per side the
+ * nearest and the strongest others within this share of the price, this many in all. */
+export const LEVEL_MAP_WINDOW_PCT = 0.12;
+export const LEVEL_DAILY_WINDOW_PCT = 0.4;
+export const LEVEL_PER_SIDE = 3;
+/** Yesterday's levels get a line on the 5-minute pane within this share of the price. */
+export const LEVEL_YESTERDAY_WINDOW_PCT = 0.25;
+
 /** Setups that ended, drawn fainter than the live lane: red a rule broke, grey faded, green triggered. */
 export const PAST_COLORS = {
   failed: { stroke: 'rgba(255, 69, 58, 0.55)', fill: 'rgba(255, 69, 58, 0.05)', ink: '#ff8a80' },

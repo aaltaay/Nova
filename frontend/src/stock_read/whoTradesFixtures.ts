@@ -49,6 +49,7 @@ export function pfsaPlan(state: StockPlan['state'], over: Partial<StockPlan> = {
     window: { start: '07:00', end: '11:30', state: 'open' },
     checks: [],
     marks: [],
+    levels: null,
     ...over,
   };
 }
@@ -94,6 +95,7 @@ export function pfsaRead(state: StockPlan['state'], planOver: Partial<StockPlan>
     plan: pfsaPlan(state, planOver),
     levels: { hod: { price: 4.6, ts: pfsaAt(8, 4) }, pmh: 4.6, open: null, prev_close: 2.05, vwap: 3.9,
       round_above: 4.5, round_below: 4.0 },
+    level_map: null,
     groups: [],
     counts: { ok: 0, warn: 0, bad: 0, unknown: 0, info: 0 },
   };

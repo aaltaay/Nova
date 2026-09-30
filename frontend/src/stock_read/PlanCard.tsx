@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 import { requestOrderTicketPrefill, useOrderTicketListening } from '../ibkr';
 import { tipProps, whyProps } from '../ux';
 import { PlanNumbers } from './PlanNumbers';
+import { PlanLevels } from './PlanLevels';
 import { PlanChecks, PlanRuler } from './PlanRuler';
 import {
   fmtPx,
@@ -266,6 +267,7 @@ export function PlanCard({ ctx, roomy = true }: {
             <EmptyPlan ctx={ctx} read={read} />
           )}
           {plan && <PlanRuler plan={plan} price={read.price} />}
+          {plan && <PlanLevels plan={plan} />}
           {plan && <PlanChecks plan={plan} />}
           <footer className="sr-plan__foot">
             {status && (

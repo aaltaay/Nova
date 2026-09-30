@@ -23,6 +23,7 @@ import type {
   StockRead,
   TapeVerdict,
 } from './types';
+import { normalizeLevelMap, normalizePlanLevels } from './levelMapNormalize';
 import { normalizePlanVerdict } from './planVerdict';
 
 const STATES: ReadonlySet<string> = new Set<ReadState>(['ok', 'warn', 'bad', 'unknown', 'info']);
@@ -138,6 +139,7 @@ export function normalizePlan(raw: unknown): StockPlan | null {
     window: windowOf(p.window),
     checks: list(p.checks, check),
     marks: list(p.marks, mark),
+    levels: normalizePlanLevels(p.levels),
   };
 }
 
@@ -267,6 +269,7 @@ export function normalizeStockRead(raw: unknown): StockRead | null {
       round_above: num(lv.round_above),
       round_below: num(lv.round_below),
     },
+    level_map: normalizeLevelMap(r.level_map),
     groups: list(r.groups, group),
     counts: {
       ok: num(counts.ok) ?? 0,

@@ -5,13 +5,16 @@
  *
  * The 1-minute pane draws everything: each followed setup's shapes (the lead lane in colour, the rest
  * faded), the day's setups that ended under them (`pastShapes.ts`), the plan's risk and reward zones and
- * lines, the day's levels, and the moment's pin (ADR 037).
- * The 5-minute and 10-second panes mirror the plan's levels and the high of day as thin lines. A level
- * is dashed while it is only a plan and solid while an order stands behind it. Nothing here is
+ * lines, the trade's levels (the high of day, the premarket high, the open, the nearest half dollar each
+ * side and the plan's levels between its stop and target), and the moment's pin (ADR 037).
+ * The 5-minute pane carries today's level map and the 10-second pane the high of day; both mirror the
+ * plan's levels as thin lines. The Full Day pane carries the daily level map (`levelPicks.ts`). A plan's
+ * level is dashed while it is only a plan and solid while an order stands behind it. Nothing here is
  * estimated: every price is the scanner's, the read's or Nova's order's own.
  */
 import type { Time } from 'lightweight-charts';
-import { SETUP_COLORS } from './constants';
+import { LEVEL_COLORS, SETUP_COLORS } from './constants';
+import { levelScene } from './levelPicks';
 import type { CallTone, MomentCall } from './momentModel';
 import { drawnPast, failingNow, shortReason, type Episode } from './pastSetups';
 import { pastShapes } from './pastShapes';
@@ -21,7 +24,8 @@ import type { StockReadLayers } from './StockReadContext';
 import type { SetupLane, SetupLeg, StockPlan, StockRead } from './types';
 import { levelTitle, type OrderLevel, type OrderLevels } from './whoTradesModel';
 
-export type PaneKind = 'full' | 'thin' | 'none';
+/** `full` the 1-minute, `map` the 5-minute, `thin` the 10-second, `daily` the Full Day chart. */
+export type PaneKind = 'full' | 'map' | 'thin' | 'daily' | 'none';
 
 export interface PriceLineSpec {
   id: string;
@@ -70,11 +74,15 @@ export const CALL_COLORS: Record<CallTone, string> = {
 };
 
 const MIN = 60;
+/** Two prices this close are one line. */
+const SAME_PRICE = 1e-6;
 const LIVE_DRAWN = new Set(['leg', 'pullback', 'armed', 'near', 'triggered', 'filtered', 'failed']);
 
 export function paneKind(timeframe: string): PaneKind {
   if (timeframe === '1Min') return 'full';
-  if (timeframe === '5Min' || timeframe === '10Sec') return 'thin';
+  if (timeframe === '5Min') return 'map';
+  if (timeframe === '10Sec') return 'thin';
+  if (timeframe === '1Day') return 'daily';
   return 'none';
 }
 
@@ -187,7 +195,7 @@ export function drawnLevels(plan: StockPlan | null, levels: OrderLevels | null |
 
 function planLines(plan: StockPlan | null, lv: OrderLevels, pane: PaneKind): PriceLineSpec[] {
   const out: PriceLineSpec[] = [];
-  const thin = pane === 'thin';
+  const thin = pane !== 'full';
   const r = plan?.rr == null ? '' : ` ${plan.rr.toFixed(plan.rr % 1 ? 1 : 0)}R`;
   const add = (id: 'entry' | 'stop' | 'target', level: OrderLevel | null, color: string) => {
     if (!level) return;
@@ -226,6 +234,15 @@ function levelLines(read: StockRead, pane: PaneKind): { lines: PriceLineSpec[]; 
     }
     // The chart's own VWAP line draws it in view; out of view it gets a tag.
     if (lv.vwap !== null) tags.push({ price: lv.vwap, label: `VWAP ${fmtPx(lv.vwap)}`, color: '#bf5af2' });
+    // The plan's levels between its stop and target, but for the lines above.
+    const drawn = [lv.hod?.price ?? null, lv.round_above, lv.round_below].filter((x): x is number => x !== null);
+    const entry = read.plan?.entry ?? null;
+    for (const b of read.plan?.levels?.between ?? []) {
+      if (b.hod || drawn.some(x => Math.abs(x - b.price) < SAME_PRICE)) continue;
+      const color = b.round ? LEVEL_COLORS.round
+        : entry !== null && b.price < entry ? LEVEL_COLORS.support : LEVEL_COLORS.resistance;
+      add(`between:${b.price}`, b.price, b.tag, color, b.tag);
+    }
   }
   return { lines, tags };
 }
@@ -252,6 +269,12 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
     lines: [],
   };
   if (!read || o.pane === 'none') return empty;
+  if (o.pane === 'daily') {
+    // The Full Day pane: the daily level map alone.
+    if (!o.layers.levels) return empty;
+    const d = levelScene(read, 'daily');
+    return { scene: { ...empty.scene, levels: d.levels, ticks: d.ticks, edgeTags: d.tags }, lines: [] };
+  }
   const plan = read.plan;
   const lead = leadLane(read);
   const scene: Scene = {
@@ -287,7 +310,12 @@ export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
     const t = o.toTime(pin.at ?? read.generated_at);
     if (t !== null) scene.pins.push({ t, price: pin.price, label: pin.label, color: CALL_COLORS[o.call.tone] });
   }
-  if (o.layers.levels) {
+  if (o.layers.levels && o.pane === 'map') {
+    const m = levelScene(read, 'map');
+    scene.levels = m.levels;
+    scene.ticks = m.ticks;
+    scene.edgeTags.push(...m.tags);
+  } else if (o.layers.levels) {
     const lv = levelLines(read, o.pane);
     lines.push(...lv.lines);
     scene.edgeTags.push(...lv.tags);

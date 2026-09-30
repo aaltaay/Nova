@@ -1114,7 +1114,10 @@ trades. Only data dated `data_from` (2026-09-30) or later counts; each trial is 
 sample is complete, Holm-adjusted across the trials read that night, and shows n of N until then.
 The file is frozen: `backend/tests/test_signal_trials_registry.py` holds its canonical JSON (sorted
 keys, no whitespace) to the SHA-256 it was registered with, so a change is a new trial on new days,
-never an edit. No trial lets Nova buy or sell on Live by itself. Recorded with it (built later):
+never an edit. Trials registered after it go in a new registry version, `knowledge/signal-trials-2.json`
+(the same shape plus `version: 2` and `follows`; its own hash in `test_signal_trials_registry_2.py`): T7
+Room under 2R to the first level of today's map, as a warning, on setups armed from 2026-10-01 ("The day's
+levels" below). No trial lets Nova buy or sell on Live by itself. Recorded with it (built later):
 a planned risk under 5c warns and never blocks until T5 passes; a "Flush exit 30 s" template plays
 on Nova's Paper bot (put in play outside the bot's window, out again if T1 fails); Approve may hold
 Nova's flush and 15-minute exits on Paper and on Sim at the live edge; the Trader's WAIT and SELL
@@ -1364,6 +1367,78 @@ first: {high, low, neither, pending, unknown}, trade: {n, target_first, stop_fir
 avg_bar_r}}], triggered: {count, target_first, stop_first, open, avg_bar_r}, episodes?}` (`episodes`
 with `--list`; `triggered` totals the triggered setups' own scores, for comparison). A symbol-day
 without stored bars counts its episodes `unknown` and is named in `missing_bars`.
+
+### The day's levels: support and resistance on the charts and in the plan (ADR 036 amendment, operator ask 2026-09-30)
+
+"say our target is 1:2 ratio for trades is too generic, sometimes we have to look at the very obvious
+resistance/support levels"; then "the material teach us that there are stops at half dollar or full dollar
+which are great psychological triggers", and, on the mockup, "we are overloading the 1min chart". Measured
+first (`F:\Nova\eyes\studies\levels-2026-09-30`, in sample): half and whole dollars turn price back before
+they break (76% of fresh approaches printed through within 10 minutes, against 84% at a random price) and
+are a trigger once through (+1.5% before -1.5% in 77% of breaks, against 70%; a break under 68% against
+63%); the high of day and tested tops slow price a little; old daily highs do not; capping the target at
+a level costs. So the target stays 2R, and the levels describe. Nothing here places, stages or blocks.
+
+**The level map** (owner `stock_read/level_map.py`, pure). `GET /api/stock-read/{symbol}` adds
+`level_map: {schema_version: 1, price, intraday: Zone[], daily: Zone[], daily_sessions, daily_error: string
+| null, study: {source, round_turn, round_through, round_lost, hod_past, top_past, daily_past}}` -- each
+study pair `[at the level, at a random price]` in percent (`STOCK_READ_LEVEL_STUDY`). A **Zone** is
+`{id: "<home>:<lo>", lo, hi, price (its edge nearest the price), side: "above" | "below" | "at" |
+"unknown", strength, label ("$7.50 · top ×8 · VWAP"), tag ("$7.50"), home: "intraday" | "daily",
+members: Member[]}`, highest first; a **Member** `{kind, price, label, touches: integer | null, times:
+number[] (an intraday level's tests, epoch seconds), dates: string[] (a daily level's sessions), note:
+string | null}`. `kind` is one of `hod | lod | pmh | open | vwap | top | bottom | whole | half |
+yday_high | yday_low | prior_close` (today's map) and `daily_highs | daily_lows | daily_high | gap |
+sma200 | yday_high | yday_low` (the daily map).
+- Today's map reads the session's closed one-minute bars from 04:00 ET: the high and low of day; the
+  premarket high once the regular session has a bar; the 09:30 open; the session VWAP; tops and bottoms
+  -- swing highs (lows) over (under) the two candles before them and even with the two after, within 0.3%
+  (at least a cent), tested twice or more; half and whole dollars within 25% of the price; yesterday's
+  high and low (the stored daily bar, extended hours included) and the regular session's prior close.
+- The daily map reads the stored daily bars before today: highs and lows within 2% touched twice or more
+  in the last 60 sessions; up to three older daily highs above the price, reading right to left, each
+  higher than every high after it ("look left and up"); unfilled gaps (the part no later session traded);
+  the 200-day average (`history.summary` adds `sma200`: the last 200 stored daily closes before today,
+  which close after hours; `null` with fewer); yesterday's high and low. `daily_error` says why the
+  daily map is empty when the history could not be read.
+- Levels within 0.6% (today) or 1.5% (daily), and always within 2 cents, are one zone, at most twice that
+  wide; a zone lists every member, and its label counts one kind once ("top ×8", not "top ×5 · triple
+  top"). `side` is `at` within 0.2% (at least a cent) of the price.
+
+**What the plan says** (owner `stock_read/level_notes.py`, pure). The Plan adds `levels: {room, target,
+stop, next, recent, between} | null` (null without a map). Each note is `{state, text, detail}` (`detail`
+quotes the study):
+- `room` adds `{r, price, label, trial: "T7"}`: the first zone of today's map over the entry, in R;
+  `warn` under `STOCK_READ_ROOM_MIN_R` (2R), `ok` at or over it or with none, `unknown` without a stop. The
+  daily zones between the entry and the target are named in its detail and never counted. It blocks
+  nothing: trial T7 (`knowledge/signal-trials-2.json`) decides whether it ever becomes a NOT A TRADE reason.
+- `target` / `stop`: a half or whole dollar within `STOCK_READ_ROUND_NEAR` (5c) of the target or the stop
+  -- a target under the round sells before it (`ok`), one on or over it needs the break (`warn`); a stop
+  under a round the entry is over survives its test (`ok`), one on or just over it does not (`warn`).
+  `null` when no round is near.
+- `next`: the next half or whole dollar over the entry (else the price) -- `warn` within 5c ("turns back
+  about 1 in 4 before it breaks"), else `info`, "resistance until it prints through, a trigger after".
+- `recent`: a round the price broke (`ok`) or lost (`bad`) within `STOCK_READ_ROUND_CROSS_SEC` (10 min)
+  while it still stands on that side; a cross is fresh when the 15 candles before it stayed on the other
+  side. `null` otherwise.
+- `between`: today's zones strictly between the stop and the target, `{price, lo, hi, tag, label, round,
+  hod}`.
+
+**On the desk** (owner `frontend/src/stock_read/`: `levelPicks.ts` which zones a chart draws and each
+card, `levelRender.ts` the drawing, `levelTypes.ts` and `levelMapNormalize.ts` the wire, `PlanLevels.tsx` the rows). Each chart
+carries the levels that come from it. The **5-minute** pane draws today's map: per side the nearest zone
+and the strongest others within 12% of the price (three in all), the zone the price is on, the high and
+low of day, the nearest whole and half dollar each side and yesterday's levels within 25%, each with a
+line (a band when the zone is wide) and a label at the right edge that stacks under the one above it;
+every other zone is a short tick on the price axis. The **Full Day** pane draws the daily map the same way
+within 40%, with yesterday's levels. A label or a tick opens the level's card: what holds it, its tests or
+dates, how far it is from the price and what the study measured. The **1-minute** pane keeps its high of
+day, premarket high, open and nearest half dollar each side, and adds only the plan's `between` levels as
+thin price lines titled with their tag (no label column). The **10-second** pane is unchanged. The plan
+card lists Room (with "in trial T7" while amber), Target, Stop, "$ next" and "$ now", each one line with
+its detail on hover, and the ruler marks the `between` levels. The toolbar's Levels switch
+(`nova.stockRead.layers` `value.levels`) turns every chart's levels on or off. Nothing is drawn on a replay
+desk or the sample desk.
 
 ### Who trades the stock (ADR 037, operator ask 2026-09-24, #604, #606)
 
@@ -3328,6 +3403,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-30 | Support and resistance on the charts and in the plan (ADR 036 amendment; operator: "say our target is 1:2 ratio for trades is too generic, sometimes we have to look at the very obvious resistance/support levels", then "the material teach us that there are stops at half dollar or full dollar which are great psychological triggers", and on mockup v3 "we are overloading the 1min chart"). Measured first on five years of minute bars: half and whole dollars turn price back before they break (76% of fresh approaches printed through within 10 minutes, against 84% at a random price) and trigger once through (77% ran +1.5% first, against 70%); the high of day and tested tops slow price a little; old daily highs do not; capping a target at a level costs. So the target stays 2R, and the levels describe: `stock_read/level_map.py` builds today's map and the daily map, the 5-minute pane draws today's, the Full Day pane the daily one, the 1-minute only the plan's levels between its stop and target, each label or axis tick opens a card with what the study measured, and the plan says Room, the round at the target and at the stop and the next round. Room under 2R is amber and trial T7 (`knowledge/signal-trials-2.json`, the second registry version) decides whether it ever blocks. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | Desk and backend are one version (operator: "it ask me first to reboot the backend or whatever cuz its older, then i press that, then it ask me to pull master!! why cant we just update both frontend and backend in one go after every update!?", then "now it says frontend 1050 and backend 1051 ... lets keep them walking in a single version!" and "i need them to be treated as ONE"). The backend notice offered Restart backend now while the checkout was ahead of the backend, then Pull master and restart once it was not; and the pull took master's newest commit, v1051, while v1051's installer was still building, so the backend overtook the desk. The backend's checkout now only ever comes to the desk's own release tag. Restart to update carries it: the desk lists what a backend restart would interrupt, brings the checkout to the release being installed, and the new desk restarts the backend onto it. The notice has one action (Update backend to vNNN, or Update desk to vNNN when the backend is ahead), and the title names one version when they match. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | Past setup labels make room (ADR 036 amendment; operator: "i do really like seeing the details, but perhaps it is extremely too crowded. how do we help that? maybe a checkbox or compact form"). The 1-minute chart wrote each past setup's whole label at its box's corner with no idea where the others were: LGHL that morning drew 15, and on the Trader's 400 px pane they stacked into unreadable piles. A legend chip beside "Past" now sets Compact (the default, then "maybe the compact form should just show (x) and when we hover, it shows the full failed setup": a mark alone, ✕ ○ ✓, whose hover tells the whole story) or Full, and in both the labels are placed: live labels, levels and the pin stay put, and each past label -- a trigger's result first, then the newest -- takes the longest form that touches nothing already placed, down to its mark or none; its box and hover stay. Checked by rendering LGHL's real day through the real primitive, before and after, and pointing at each of its 9 marks (all outside their boxes) in headless Chromium. §3 amended; `nova.stockRead.layers` adds `labels`. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | Signal trials, and setups first for the Level 2 lines (ADR 041; operator: "how can we use all this data to determine if we should buy or sell or hold?", then "combining time and sale with all 4 colors ... think about all of that!", then "i like it. go"). A study of every Level 2, Time & Sales and setup signal on 25 Session Records over 6 days, each result checked by two reviewers, found no buy edge (a random long loses 6.85c; every green Time & Sales event, a 12-feature model and every setup type lose too) and, in sample only, a 30 s flush exit and two don't-buy states. None of it becomes a call until it passes a trial registered before its data exists: `knowledge/signal-trials.json` (T1-T6), frozen by hash. Nova held no depth line at 50 of 62 setup triggers, so auto-record now gives its free lines to setups in a trade, near or armed before the leaders, and keeps a trade's line to the end of its scoring window. The operator's calls (risk under 5c warns; a flush-30 template on the Paper bot; Approve may hold Nova's exits on Paper) are recorded for later changes. §3 amended. | User Directive + Claude Opus 5.5 |
