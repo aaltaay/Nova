@@ -1,0 +1,16 @@
+{
+  /* The Playwright specs and their helpers. They import desk code (fixture wires, row builders) and
+     name Vite URLs the page imports in the browser (`/src/...`), so they drift with the desk the same
+     way the fixture pages did (#639). `tsc -b` checks them with the app's rules plus Node's types. */
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.e2e-specs.tsbuildinfo",
+    "types": ["node", "vite/client"],
+    "paths": {
+      "@/*": ["./src/*"],
+      "/src/*": ["./src/*"]
+    }
+  },
+  "include": ["playwright.config.ts", "e2e/*.spec.ts", "e2e/helpers", "src/vite-env.d.ts", "src/types"],
+  "exclude": []
+}
