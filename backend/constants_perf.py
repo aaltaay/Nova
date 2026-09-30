@@ -59,3 +59,12 @@ PERF_DIAG_DROP_RECENT_SEC = 600
 PERF_DIAG_SLOW_FRAMES_WARN = 0.05
 PERF_DIAG_SLOW_FRAMES_FAIL = 0.20
 PERF_DIAG_TOP_HANDLERS = 5
+
+# Heap census (#619): what every full collection walks. Taking one walks the heap too
+# (about as long as one full collection), so it runs rarely.
+PERF_HEAP_TOP = 30                       # types and holders listed
+PERF_HEAP_FIRST_AFTER_SEC = 600          # the first census, this long after the recorder starts
+PERF_HEAP_EVERY_SEC = 3600               # then once an hour
+PERF_HEAP_MIN_GAP_SEC = 60               # GET /api/perf/heap answers the last census while it is this young
+PERF_HEAP_QUIET_ET = ("09:25", "09:45")  # no scheduled census in the opening minutes (weekdays)
+PERF_HEAP_SCAN_CAP = 200_000             # values read per holder when counting one level down
