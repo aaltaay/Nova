@@ -23,7 +23,9 @@ import { eventTone } from './DecisionsTab';
 import { apusAt, apusDecisionsWire, apusHistoryWire, apusReadWire } from './stockReadFixtures';
 import type { StockRead } from './types';
 
-const LAYERS = { setups: true, levels: true, past: true, hidden: [] as string[], plan: 'auto' as const };
+const LAYERS = {
+  setups: true, levels: true, past: true, labels: 'compact' as const, hidden: [] as string[], plan: 'auto' as const,
+};
 const read = normalizeStockRead(apusReadWire) as StockRead;
 /** Every minute maps onto itself: a pane whose bars cover the day. */
 const identity = (sec: number) => sec as Time;

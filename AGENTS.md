@@ -1220,8 +1220,9 @@ when the badge is pressed. Nothing else moves the view: when the plan's zones ap
 follows the live edge slides over to give them room, and a view the operator moved stays put (the
 time scale's `rightOffset`, which is its scroll position, is never set). The 5-minute and 10-second charts mirror the plan's levels as thin lines,
 and the daily chart marks every +40% run. `localStorage` `nova.stockRead.layers` = `{schema_version:
-1, value: {setups, levels, past, hidden: string[], plan: "auto" | "open" | "folded"}}` keeps the
-switches (`past`, added 2026-09-29, reads true when a stored value lacks it). A decision's "show
+1, value: {setups, levels, past, labels: "compact" | "full", hidden: string[], plan: "auto" | "open" |
+"folded"}}` keeps the switches (`past`, added 2026-09-29, reads true when a stored value lacks it;
+`labels`, added 2026-09-30, reads `compact` when a stored value lacks it or holds anything else). A decision's "show
 on chart" frames its moment on the 1-minute chart with the levels it armed at. Nothing is drawn or
 read on a replay desk (the read is today's live stock) or on the sample desk.
 
@@ -1321,6 +1322,17 @@ the drawing, `ShapeTip.tsx` the hover):
   `STOCK_READ_PAST_POLL_MS` while the Trader tab shows with the layer on, and at once when a lane's
   drawn state changes, so a setup that fails or ends is drawn as past within one read. Nothing is drawn
   on a replay desk or the sample desk.
+- **Labels make room** (operator report, 2026-09-30: "i do really like seeing the details, but perhaps
+  it is extremely too crowded"; LGHL that morning drew 15 past setups, their labels piled on each
+  other). The legend's labels chip beside "Past" (`value.labels`) sets how much a past setup's label
+  says: `compact` (the default) a few words -- the mark, the rule, the arrow: "✕ topping tail ↘", "✓
+  +1.4R" -- and no leg or pole label; `full` the whole label. Either way the labels are placed
+  (`stock_read/sceneLabels.ts`, pure): the live lanes' labels, the levels' words, the edge tags and
+  the moment's pin stay where they are; the past labels take the room left, a trigger's result first,
+  then how the newest ended, then the legs. Each takes the longest form its setting allows -- whole,
+  a few words, its marks alone ("✕↘", "✓") -- that touches no label already placed, and none when
+  even its marks would; its dashed box and its hover stay. A label whose box starts past the pane's
+  left or right edge is kept inside the pane.
 
 **The study.** `py -3 tools/setup_failures.py [--date D | --days N] [--setup S] [--symbol X] [--all]
 [--list] [--json]` (read-only; owner `eyes/failure_study.py`) folds the journals and the stored bars
@@ -3256,6 +3268,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-30 | Past setup labels make room (ADR 036 amendment; operator: "i do really like seeing the details, but perhaps it is extremely too crowded. how do we help that? maybe a checkbox or compact form"). The 1-minute chart wrote each past setup's whole label at its box's corner with no idea where the others were: LGHL that morning drew 15, and on the Trader's 400 px pane they stacked into unreadable piles. A legend chip beside "Past" now sets Compact (the default: "✕ topping tail ↘", "✓ +1.4R") or Full, and in both the labels are placed: live labels, levels and the pin stay put, and each past label -- a trigger's result first, then the newest -- takes the longest form that touches nothing already placed, down to its marks ("✕↘") or none; its box and hover stay. Checked by rendering LGHL's real day through the real primitive, before and after. §3 amended; `nova.stockRead.layers` adds `labels`. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | Signal trials, and setups first for the Level 2 lines (ADR 041; operator: "how can we use all this data to determine if we should buy or sell or hold?", then "combining time and sale with all 4 colors ... think about all of that!", then "i like it. go"). A study of every Level 2, Time & Sales and setup signal on 25 Session Records over 6 days, each result checked by two reviewers, found no buy edge (a random long loses 6.85c; every green Time & Sales event, a 12-feature model and every setup type lose too) and, in sample only, a 30 s flush exit and two don't-buy states. None of it becomes a call until it passes a trial registered before its data exists: `knowledge/signal-trials.json` (T1-T6), frozen by hash. Nova held no depth line at 50 of 62 setup triggers, so auto-record now gives its free lines to setups in a trade, near or armed before the leaders, and keeps a trade's line to the end of its scoring window. The operator's calls (risk under 5c warns; a flush-30 template on the Paper bot; Approve may hold Nova's exits on Paper) are recorded for later changes. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | The Cryptos page (ADR 040; operator: "give us a new tab called Cryptos and create a dashboard showing what a person need to see in the crypto world", then mockup v1: "go ahead and build exact replica ... when the user hover over things, make sure you show in friendly visual way what does it mean"). A nav-rail page laid out as the approved mockup: market tiles, 13 coins, a Coinbase chart with the day's levels and the 16:00 ET stock close, a 24/7 clock, the stocks that move with crypto (IBKR quotes and regular-hours closes, a 60-session beta and the move it implies), funding and open interest, stablecoin flows, what comes next and classified news. Crypto numbers come from named public reference sources (CoinGecko, Coinbase Exchange, alternative.me, Hyperliquid, DefiLlama, Deribit, Alpaca news), each labelled, a carve-out written into `single-market-data-feed.mdc` rule 13; nothing on the page places or feeds anything. Liquidations, daily ETF flows, a macro calendar and token unlocks have no free source and are stated absences. Nothing polls while the page is closed. Every number opens a hover card: what it means, a small drawing, what it reads now, why it matters. §3 and §4 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | The book watcher's matching window, measured (ADR 033 amendment; asked after the hidden-seller study, "change it only if the evidence is clear"). The lit size at the quote that no drop claimed often had a pulled drop at its price nearby, which looked like fills the 0.5 s window missed. `tools/book_watch_window_study.py` (owner `book_watch/window_study.py`) runs the detector over the 27 Session Records of 2026-09-21..29 at 0.5, 1, 2 and 3 s and weighs what a wider window adds against the same prints moved 30-60 s and one tick out: the nearby pulled drops are chance on busy prices (45.3% moved against 44.9% real), the book trails the tape for about 1 in 10 levels a print traded through, and for each late fill a wider window would recover it claims three to five chance prints before the earlier book, six or more past the later one. The window stays 0.5 s; the detector takes it as a parameter (`book_watch/matching.py`), and a lit print now fills only a level at exactly its price (the half-tick test matched midpoint prints to the level below by floating-point error). A targeted fix for the late book is parked as #636. §3 amended. | User Directive + Claude Opus 5.5 |

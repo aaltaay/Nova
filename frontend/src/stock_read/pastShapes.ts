@@ -4,14 +4,22 @@
  * high to the candle it died on (or triggered on), between the low it would have stopped at and the high
  * it was building under -- fainter than the live lane, dashed, and labelled with how it ended and what
  * came next (`pastSetups.ts` has the words). Pure: episodes in, boxes out; every box carries its hover id.
+ * Every label makes room (`sceneLabels.ts`): a trigger's result first, then the newest setup's, and how
+ * one ended before any leg.
  */
 import { PAST_COLORS } from './constants';
 import type { SceneBox } from './SetupShapesPrimitive';
-import { endOf, pastLabel, type Episode } from './pastSetups';
+import { endOf, pastIconLabel, pastLabel, pastShortLabel, type Episode } from './pastSetups';
+import type { LabelShrink } from './sceneLabels';
 import type { SetupLeg } from './types';
 import type { Time } from 'lightweight-charts';
 
 const MIN = 60;
+/** A label's claim to the room: a trigger's result, then how any ended, then the legs -- each the newest
+ * first (by epoch seconds). */
+const RANK_TRIGGERED = 3e10;
+const RANK_OUTCOME = 2e10;
+const RANK_LEG = 1e10;
 
 export interface PastDrawOptions {
   /** Epoch seconds -> the pane's nearest bar time; null when the pane has no bar there. */
@@ -46,12 +54,17 @@ export function pastShapes(episodes: Episode[], o: PastDrawOptions): SceneBox[] 
     const tone = PAST_COLORS[how];
     const legTone = PAST_COLORS.leg;
     const hoverId = pastHoverId(ep);
+    const endSec = ep.ended_at ?? ep.died_at ?? ep.triggered_at ?? ep.started_at;
+    // The outcome's label shrinks to a few words, then to its marks; the leg's says nothing when crowded.
+    const outcome: LabelShrink = { short: pastShortLabel(ep), icon: pastIconLabel(ep),
+      rank: (how === 'triggered' ? RANK_TRIGGERED : RANK_OUTCOME) + endSec };
+    const legOnly: LabelShrink = { short: null, icon: null, rank: RANK_LEG + endSec };
     const box = (t1s: number, t2s: number, p1: number, p2: number, fill: string, stroke: string, label: string,
-      labelColor: string, labelBelow = false) => {
+      labelColor: string, shrink: LabelShrink, labelBelow = false) => {
       const t1 = o.toTime(t1s);
       const t2 = o.toTime(Math.max(t1s, t2s));
       if (t1 === null || t2 === null) return;
-      boxes.push({ t1, t2, p1, p2, fill, stroke, dashed: true, label, labelColor, labelBelow, hoverId });
+      boxes.push({ t1, t2, p1, p2, fill, stroke, dashed: true, label, labelColor, labelBelow, shrink, hoverId });
     };
     const leg = ep.leg;
     const end = endBar(ep) ?? leg.t;
@@ -63,16 +76,16 @@ export function pastShapes(episodes: Episode[], o: PastDrawOptions): SceneBox[] 
       const start = type === 'bull_flag' && leg.bars ? leg.t - (leg.bars - 1) * MIN : (o.legStart?.(leg) ?? leg.t - 5 * MIN);
       const legLabel = `${type === 'bull_flag' ? 'POLE' : 'LEG'} ${pct(leg.pct)}`;
       if (low !== null && end > leg.t) {
-        box(start, leg.t, leg.low, leg.high, legTone.fill, legTone.stroke, legLabel, legTone.ink);
-        box(leg.t + MIN, end, low, high, tone.fill, tone.stroke, label, tone.ink, true);
+        box(start, leg.t, leg.low, leg.high, legTone.fill, legTone.stroke, legLabel, legTone.ink, legOnly);
+        box(leg.t + MIN, end, low, high, tone.fill, tone.stroke, label, tone.ink, outcome, true);
       } else {
-        box(start, leg.t, leg.low, leg.high, tone.fill, tone.stroke, `${legLabel} · ${label}`, tone.ink);
+        box(start, leg.t, leg.low, leg.high, tone.fill, tone.stroke, `${legLabel} · ${label}`, tone.ink, outcome);
       }
     } else if (type === 'flat_top_breakout') {
-      box(leg.t, end, low ?? high, high, tone.fill, tone.stroke, `BASE · ${label}`, tone.ink, true);
+      box(leg.t, end, low ?? high, high, tone.fill, tone.stroke, `BASE · ${label}`, tone.ink, outcome, true);
     } else if (type === 'red_to_green') {
       box(leg.t, end, low ?? leg.low, leg.high, tone.fill, tone.stroke, `RED${leg.bars ? ` ${leg.bars}` : ''} · ${label}`,
-        tone.ink, true);
+        tone.ink, outcome, true);
     }
   }
   return boxes;

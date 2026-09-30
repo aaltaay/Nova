@@ -15,6 +15,7 @@ import {
   STOCK_READ_RISK_KEY,
 } from './constants';
 import type { PastSetups } from './pastSetups';
+import type { LabelDetail } from './sceneLabels';
 import { parseRiskUsd } from './planMath';
 import type { DecisionEvent, ReadGroupId, StockDecisions, StockHistory, StockRead } from './types';
 import {
@@ -35,6 +36,8 @@ export interface StockReadLayers {
   levels: boolean;
   /** The day's setups that ended, drawn faint where they happened on the 1-minute pane. */
   past: boolean;
+  /** How much their labels say: a few words (`compact`) or the whole label where it fits (`full`). */
+  labels: LabelDetail;
   /** Setup types whose shapes the operator switched off. */
   hidden: string[];
   /** The plan box: whole when the card has room (`auto`), or as the operator last set it. */
@@ -82,7 +85,9 @@ export interface TabPosition {
   avgCost: number | null;
 }
 
-const DEFAULT_LAYERS: StockReadLayers = { setups: true, levels: true, past: true, hidden: [], plan: 'auto' };
+const DEFAULT_LAYERS: StockReadLayers = {
+  setups: true, levels: true, past: true, labels: 'compact', hidden: [], plan: 'auto',
+};
 
 export function parseLayers(raw: unknown): StockReadLayers | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
@@ -91,6 +96,7 @@ export function parseLayers(raw: unknown): StockReadLayers | null {
     setups: r.setups !== false,
     levels: r.levels !== false,
     past: r.past !== false,          // added 2026-09-29: a value stored before it shows them
+    labels: r.labels === 'full' ? 'full' : 'compact',   // added 2026-09-30: compact unless set to full
     hidden: Array.isArray(r.hidden) ? r.hidden.filter((x): x is string => typeof x === 'string') : [],
     plan: r.plan === 'open' || r.plan === 'folded' ? r.plan : 'auto',
   };
