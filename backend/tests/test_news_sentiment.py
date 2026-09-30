@@ -9,10 +9,25 @@ from news import sentiment
 
 
 @pytest.fixture(autouse=True)
-def _reset():
+def _reset(monkeypatch):
     sentiment.reset_for_testing()
+    monkeypatch.setenv("NOVA_NEWS_SENTIMENT", "1")   # the tests below exercise it switched on
     yield
     sentiment.reset_for_testing()
+
+
+def test_off_by_default_warmup_never_imports_the_model(monkeypatch):
+    """#619: warming FinBERT imported torch and transformers on every start and failed anyway."""
+    monkeypatch.delenv("NOVA_NEWS_SENTIMENT", raising=False)
+
+    def _boom():
+        raise AssertionError("FinBERT must not load while sentiment is off")
+
+    monkeypatch.setattr(sentiment, "_get_pipeline", _boom)
+    assert sentiment.enabled() is False
+    sentiment.warm_pipeline()
+    sentiment._pipeline = lambda text: [{"label": "positive", "score": 0.9}]
+    assert sentiment.classify_headline_sentiment("Record quarter") == {"label": "unavailable", "score": None}
 
 
 def test_empty_headline_is_unavailable():
