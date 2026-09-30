@@ -2,14 +2,15 @@
  * The words on the 1-minute pane's drawings (ADR 036; operator report 2026-09-30: "i do really like
  * seeing the details, but perhaps it is extremely too crowded"): where each label goes and how it is
  * drawn. The live lanes' labels, the levels' words and the moment's pin stay where they are. A past
- * setup's label makes room: it comes whole, short and as icons (`pastSetups.ts` has the words), and the
+ * setup's label makes room: it comes whole, short and as its mark (`pastSetups.ts` has the words), and the
  * past labels take what room is left -- a trigger's result first, then the newest -- each the longest
  * form the operator's setting allows that runs into nothing already placed, and none when even its
  * icons would. Its box and its hover stay either way. `placeLabels` takes the text measure as an
  * argument, so it runs without a canvas.
  */
 
-/** How much a past setup's label says: `compact` a few words, `full` the whole label where it fits. */
+/** How much a past setup's label says: `compact` its mark alone (✕ ○ ✓; the hover tells the rest), `full`
+ * the whole label where it fits. */
 export type LabelDetail = 'compact' | 'full';
 
 export const LABEL_FONT = '600 10px ui-sans-serif, system-ui, sans-serif';
@@ -59,7 +60,7 @@ export interface PlacedLabel {
 /** The forms a box's label may take under the operator's setting, longest first. */
 export function labelForms(label: string | null, shrink: LabelShrink | undefined, detail: LabelDetail): string[] {
   if (!shrink) return label ? [label] : [];
-  const forms = detail === 'full' ? [label, shrink.short, shrink.icon] : [shrink.short, shrink.icon];
+  const forms = detail === 'full' ? [label, shrink.short, shrink.icon] : [shrink.icon];
   const out: string[] = [];
   for (const f of forms) if (f && !out.includes(f)) out.push(f);
   return out;
