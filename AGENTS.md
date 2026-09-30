@@ -1932,7 +1932,11 @@ received_ts, view}` (`fresh`: younger than `CLIPS_STALE_SEC`); `POST` refuses an
 `schema_version`, `dir_source` or open-clip `state` (422) and a body over 256 KB (413). The checklist
 row `clips` (group `recorder`) is `off` with no desktop app reporting, `unknown` on a stale report,
 `ok` in the ordinary run, `warn` on a lost high-quality capture, an unwritable clip list or the system
-drive, and `fail` only when an open clip has no picture.
+drive, and `fail` only when an open clip has no picture. The perf recorder (ADR 026) names the two
+hidden pages' processes `clip-recorder` (High quality) and `clip-export` in the Electron report's
+`processes`, beside `screen-recorder`, and the focus sensor (ADR 033) leaves all three out: they are
+never a window the operator sees. Their `cpu_pct` is Electron's, divided by the logical CPUs (24 on
+the desk PC), so 3.5 there is about 0.84 of a core.
 
 ### Watchlist rows (operator decision 2026-09-23)
 

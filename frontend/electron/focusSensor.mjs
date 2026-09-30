@@ -12,7 +12,7 @@
  * the API are passed in (main.mjs) so this module stays testable without an
  * Electron runtime.
  */
-import { PERF_WINDOW_ID_SCREEN_RECORDER, perfWindowIdForUrl } from './perfWindowId.mjs';
+import { PERF_HIDDEN_WINDOW_IDS, perfWindowIdForUrl } from './perfWindowId.mjs';
 
 /** Mirrors frontend constantGroups/focus.ts (pinned by src/electron/focusSensor.test.ts). */
 export const FOCUS_ELECTRON_HEARTBEAT_MS = 5_000;
@@ -65,7 +65,7 @@ export function buildElectronFocusReport({ windows, screen, reason }) {
     const url = windowUrl(win);
     if (!DESK_URL.test(url)) continue;
     const windowId = perfWindowIdForUrl(url);
-    if (windowId === PERF_WINDOW_ID_SCREEN_RECORDER) continue;
+    if (PERF_HIDDEN_WINDOW_IDS.includes(windowId)) continue; // a hidden recorder or export page, never the operator's
     const focused = Boolean(win.isFocused());
     const minimized = Boolean(win.isMinimized());
     let display = null;

@@ -15,6 +15,18 @@ export const PERF_WINDOW_ID_MAX = 64;
 /** The hidden screen recorder (ADR 035): its own process, never a desk window. */
 export const PERF_WINDOW_ID_SCREEN_RECORDER = 'screen-recorder';
 const SCREEN_RECORDER_PAGE = /\/screenRecorder\.html$/i;
+/** Share clips' hidden pages (ADR 039): the High quality capture and the export, each its own process. */
+export const PERF_WINDOW_ID_CLIP_RECORDER = 'clip-recorder';
+export const PERF_WINDOW_ID_CLIP_EXPORT = 'clip-export';
+const CLIP_RECORDER_PAGE = /\/clipRecorder\.html$/i;
+/** Served by Vite in development, from dist/ when packed. */
+const CLIP_EXPORT_PAGE = /\/clip-export\.html$/i;
+/** Hidden pages: named for the perf recorder, never a window the operator sees (the focus sensor skips them). */
+export const PERF_HIDDEN_WINDOW_IDS = Object.freeze([
+  PERF_WINDOW_ID_SCREEN_RECORDER,
+  PERF_WINDOW_ID_CLIP_RECORDER,
+  PERF_WINDOW_ID_CLIP_EXPORT,
+]);
 
 /** The server accepts [A-Za-z0-9_.:-] only (a `BRK/B` pop-out becomes `trader:BRK_B`). */
 const UNSAFE_CHARS = /[^A-Za-z0-9_.:-]/g;
@@ -27,6 +39,8 @@ export function perfWindowIdForUrl(url) {
     return PERF_WINDOW_ID_MAIN;
   }
   if (parsed.protocol === 'file:' && SCREEN_RECORDER_PAGE.test(parsed.pathname)) return PERF_WINDOW_ID_SCREEN_RECORDER;
+  if (parsed.protocol === 'file:' && CLIP_RECORDER_PAGE.test(parsed.pathname)) return PERF_WINDOW_ID_CLIP_RECORDER;
+  if (CLIP_EXPORT_PAGE.test(parsed.pathname)) return PERF_WINDOW_ID_CLIP_EXPORT;
   if (parsed.searchParams.get('view') !== 'stock') return PERF_WINDOW_ID_MAIN;
   const symbol = (parsed.searchParams.get('symbol') || '').trim().toUpperCase();
   if (!symbol) return PERF_WINDOW_ID_MAIN;

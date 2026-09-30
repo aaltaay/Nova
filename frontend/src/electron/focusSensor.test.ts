@@ -6,6 +6,7 @@ import {
   FOCUS_SETTLE_MS as ELECTRON_SETTLE_MS,
   startFocusSensor,
 } from '../../electron/focusSensor.mjs';
+import { PERF_WINDOW_ID_CLIP_EXPORT, PERF_WINDOW_ID_CLIP_RECORDER, perfWindowIdForUrl } from '../../electron/perfWindowId.mjs';
 import { FOCUS_ELECTRON_HEARTBEAT_MS, FOCUS_SETTLE_MS } from '../constantGroups/focus';
 
 type Handler = (...args: unknown[]) => void;
@@ -83,6 +84,22 @@ describe('Electron focus sensor', () => {
       scale_factor: 1.5,
     });
     expect(report.windows[0].display.primary).toBe(true);
+  });
+
+  it('names share clips\' hidden pages for the perf recorder and leaves them out of the focus report (ADR 039)', () => {
+    const recorder = 'file:///C:/Program%20Files/Nova/resources/app.asar/electron/clipRecorder.html';
+    const packedExport = 'file:///C:/Program%20Files/Nova/resources/app.asar/dist/clip-export.html';
+    const devExport = 'http://127.0.0.1:5173/clip-export.html';
+    expect(perfWindowIdForUrl(recorder)).toBe(PERF_WINDOW_ID_CLIP_RECORDER);
+    expect(perfWindowIdForUrl(packedExport)).toBe(PERF_WINDOW_ID_CLIP_EXPORT);
+    expect(perfWindowIdForUrl(devExport)).toBe(PERF_WINDOW_ID_CLIP_EXPORT);
+    expect(perfWindowIdForUrl('http://127.0.0.1:5173/clipRecorder.html')).toBe('main'); // only the packed page is the recorder
+    const report = buildElectronFocusReport({
+      windows: [fakeWindow('file:///C:/Nova/dist/index.html', { focused: true }), fakeWindow(recorder), fakeWindow(packedExport), fakeWindow(devExport)],
+      screen: fakeScreen({ main: PRIMARY }),
+      reason: 'focus',
+    });
+    expect(report.windows.map((w: { window_id: string }) => w.window_id)).toEqual(['main']);
   });
 
   it('says Nova is behind when no window has focus', () => {
