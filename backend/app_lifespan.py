@@ -13,6 +13,7 @@ import logging
 import os
 import time
 from contextlib import asynccontextmanager
+from importlib import import_module
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -127,29 +128,30 @@ def _restore_caches() -> None:
     _scanner_session.reconcile_session_tables(state)
 
 
-def _init_databases() -> None:
-    _hod_momo.load_state()
-    _journal_db.init_db()
-    try:
-        from advise import book as _advise_book
+def _init_databases(took: dict[str, float]) -> None:
+    """Each step's milliseconds go in ``took``, so a slow restart names its step (2026-09-30)."""
 
-        _advise_book.init_db()
-    except Exception:
-        logger.exception("advise book: init_db failed")
-    _l2_db.init_db()
-    _nova_os_events_db.init_db()
-    _archive_db.init_db()
-    try:
-        from execution import store as _execution_store
-        _execution_store.init_db()
-    except Exception:
-        logger.exception("execution ledger: init_db failed")
-    try:
-        from journal.round_trip import rebuild_from_ledger
+    def step(name: str, fn, guarded: str | None = None) -> None:
+        t = time.perf_counter()
+        try:
+            fn()
+        except Exception:
+            if guarded is None:
+                raise
+            logger.exception(guarded)
+        finally:
+            took[name] = (time.perf_counter() - t) * 1000
 
-        rebuild_from_ledger()
-    except Exception:
-        logger.exception("journal.round_trip: ledger rebuild failed")
+    step("hod", _hod_momo.load_state)
+    step("journal", _journal_db.init_db)
+    step("advise", lambda: import_module("advise.book").init_db(), "advise book: init_db failed")
+    step("l2", _l2_db.init_db)
+    step("events", _nova_os_events_db.init_db)
+    step("archive", _archive_db.init_db)
+    step("execution", lambda: import_module("execution.store").init_db(),
+         "execution ledger: init_db failed")
+    step("round_trip", lambda: import_module("journal.round_trip").rebuild_from_ledger(),
+         "journal.round_trip: ledger rebuild failed")
     _hod_momo.set_blocklist_changed_hook(invalidate_universe_cache)
 
 
@@ -201,7 +203,9 @@ def _local_startup() -> None:
     t_s = time.perf_counter()
     _restore_caches()
     t_c = time.perf_counter()
-    _init_databases()
+    took: dict[str, float] = {}
+    _init_databases(took)
+    t_d = time.perf_counter()
     try:
         # D-067: a recording the previous process died during is still open on
         # disk with no terminal counts. Finalize it before anything can resume.
@@ -215,14 +219,18 @@ def _local_startup() -> None:
             note_restart(summary)
     except Exception:
         logger.exception("CAPTURE: orphaned session recovery failed")
+    took["captures"] = (time.perf_counter() - t_d) * 1000
+    t_d = time.perf_counter()
     try:
         from news.sentiment import warm_pipeline
         warm_pipeline()
     except Exception:
         logger.exception("news.sentiment: FinBERT warm failed to start")
+    took["finbert"] = (time.perf_counter() - t_d) * 1000
     logger.info(
-        "lifespan: local startup sentry=%.0fms cache=%.0fms db=%.0fms",
+        "lifespan: local startup sentry=%.0fms cache=%.0fms db=%.0fms (%s)",
         (t_s - t0) * 1000, (t_c - t_s) * 1000, (time.perf_counter() - t_c) * 1000,
+        " ".join(f"{k}={v:.0f}ms" for k, v in took.items()),
     )
 
 

@@ -15,17 +15,18 @@ _BAD_SESSION = "1969-12-31"
 
 
 def purge_epoch_zero_l1() -> int:
-    """Delete L1 ticks with ts<=0 or the 1969-12-31 session partition."""
+    """Delete L1 ticks dated before 2000 (the 1969-12-31 partition epoch-0 rows land in).
+
+    It runs on every backend start, so it reads ``idx_l1_ticks_date`` only. It used to add
+    ``ts <= 0``, which no index serves: SQLite scanned the whole ``l1_ticks`` table of a
+    2.8 GB archive, about 28 s of every restart (2026-09-30). Both L1 writers
+    (``archive.capture.record_l1_tick``, ``archive.write_queue.enqueue_l1_tick``) refuse
+    ``ts <= 0``, and such a row is dated by its ts, so the date alone finds it.
+    """
     deleted = 0
     conn = archive_db.get_connection()
     try:
-        cur = conn.execute(
-            """
-            DELETE FROM l1_ticks
-            WHERE ts <= 0 OR session_date = ? OR session_date < '2000-01-01'
-            """,
-            (_BAD_SESSION,),
-        )
+        cur = conn.execute("DELETE FROM l1_ticks WHERE session_date < '2000-01-01'")
         deleted = int(cur.rowcount or 0)
         conn.commit()
     finally:
