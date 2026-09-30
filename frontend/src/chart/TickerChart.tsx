@@ -1,4 +1,4 @@
-import { useRef, useState, type CSSProperties } from 'react';
+import { memo, useRef, useState, type CSSProperties } from 'react';
 import type { IChartApi, ISeriesApi } from 'lightweight-charts';
 import {
   CHART_DEFAULT_TIMEFRAME,
@@ -80,14 +80,19 @@ interface TickerChartProps {
   renderPaneOverlay?: RenderPaneOverlay;
 }
 
-export function TickerChart(props: TickerChartProps) {
+/**
+ * Memoized: the Trader page re-renders on every quote, and four panes drawing
+ * again each time cost the desk its frame rate. A pane draws again when its own
+ * props change (a trade, its indicators, the tool), never for its parent alone.
+ */
+export const TickerChart = memo(function TickerChart(props: TickerChartProps) {
   // Soft-reset on symbol change inside Inner -- avoid remounting the whole LWC tree.
   return (
     <TickerChartErrorBoundary label={props.fixedTimeframe ?? props.title}>
       <TickerChartInner {...props} />
     </TickerChartErrorBoundary>
   );
-}
+});
 
 function TickerChartInner({
   symbol,

@@ -24,12 +24,14 @@ from constants_perf import (
     PERF_DIAG_SLOW_FRAMES_FAIL,
     PERF_DIAG_SLOW_FRAMES_WARN,
     PERF_DIAG_STALL_RECENT_SEC,
+    PERF_DIAG_RANK_ALL,
     PERF_DIAG_TOP_HANDLERS,
     PERF_ENV_SWITCH,
     PERF_SLOW_FRAME_MS,
     PERF_STALL_MS,
 )
 from diagnostics.rows import row
+from metrics import op_metrics
 from perf import sample
 
 _READ_IT = "Run `py -3 tools/perf_report.py` (or open /api/perf/live) to see which handler used the time."
@@ -172,7 +174,11 @@ def _window_row(clients: dict[str, dict[str, Any]], now: float) -> dict[str, Any
 
 
 def _handlers_row(window: list[dict[str, Any]], seconds: int) -> dict[str, Any]:
-    top = sample.busiest(window, PERF_DIAG_TOP_HANDLERS)
+    # An operation timed across awaits or a batch window measures elapsed time, not work: listing it
+    # with the work put a 15 s IBKR wait at the top (2026-09-30). It stays in the evidence as a wait.
+    ranked = sample.busiest(window, PERF_DIAG_RANK_ALL)
+    top = [r for r in ranked if not op_metrics.is_wall(r["op"])][:PERF_DIAG_TOP_HANDLERS]
+    waits = [r for r in ranked if op_metrics.is_wall(r["op"])][:PERF_DIAG_TOP_HANDLERS]
     detail = ("busiest: " + ", ".join(f"{r['op']} {r['busy_ms_per_sec']:.1f} ms/s" for r in top)) if top \
         else "no timed handler ran"
     return row(
@@ -181,9 +187,10 @@ def _handlers_row(window: list[dict[str, Any]], seconds: int) -> dict[str, Any]:
         title="Busiest handlers",
         state=DIAG_STATE_OK,
         detail=f"{detail} (last {seconds} s)",
-        cause="Busy time per timed handler; handlers nest (ib.l1 includes the listeners it calls).",
+        cause="Busy time per timed handler; handlers nest (ib.l1 includes the listeners it calls). "
+              "Operations that wait (IBKR replies, batch windows) are listed apart, as waits.",
         fix=_READ_IT,
-        evidence={"top": top},
+        evidence={"top": top, "waits": waits},
     )
 
 

@@ -150,13 +150,14 @@ def _note_error(symbol: str, exc: Exception) -> None:
 
 
 def _read(symbol: str, key: str, start: float) -> None:
-    import requests
+    import http_pool
 
     now = time.time()
     frm = datetime.fromtimestamp(start, ET).date().isoformat()
     to = (datetime.fromtimestamp(now, ET).date() + timedelta(days=1)).isoformat()
-    resp = requests.get(CATALYST_FINNHUB_URL, params={"symbol": symbol, "from": frm, "to": to, "token": key},
-                        timeout=CATALYST_FINNHUB_HTTP_TIMEOUT_SEC)
+    resp = http_pool.get("finnhub_news", CATALYST_FINNHUB_URL,
+                         params={"symbol": symbol, "from": frm, "to": to, "token": key},
+                         timeout=CATALYST_FINNHUB_HTTP_TIMEOUT_SEC)
     if resp.status_code == 429:
         finnhub_http.note_rate_limit(resp)
         with _lock:

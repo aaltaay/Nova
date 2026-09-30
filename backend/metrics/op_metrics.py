@@ -26,6 +26,10 @@ class _OpState:
 
 _lock = threading.Lock()
 _operations: dict[str, _OpState] = {}
+# Operations whose time spans awaits or a wait for something else (IBKR, a batch window): their
+# "busy" time is elapsed time, not work, so the Busiest handlers row lists them apart (2026-09-30:
+# a 0.35 s scanner batch window and a 15 s IBKR snapshot wait topped it).
+_wall_ops: set[str] = set()
 # Bumped by reset_for_tests so a timed_fn wrapper re-resolves its state.
 _generation = 0
 
@@ -58,9 +62,26 @@ def record(op_name: str, duration_ns: int, ok: bool = True) -> None:
         state.last_sample_ns = observed_ns
 
 
-def record_since(op_name: str, started_ns: int, ok: bool = True) -> None:
-    """Record elapsed monotonic time from a previously captured start."""
+def record_since(op_name: str, started_ns: int, ok: bool = True, *, wall: bool = False) -> None:
+    """Record elapsed monotonic time from a previously captured start.
+
+    ``wall``: the span includes waiting (a batch window, awaits), so it is elapsed time, not work.
+    """
+    if wall:
+        mark_wall(op_name)
     record(op_name, time.perf_counter_ns() - int(started_ns), ok=ok)
+
+
+def mark_wall(op_name: str) -> None:
+    """Note that ``op_name`` measures elapsed time across waits, not work on a thread."""
+    with _lock:
+        _wall_ops.add(str(op_name).strip())
+
+
+def is_wall(op_name: str) -> bool:
+    """True for an operation timed across awaits or waits (see :func:`mark_wall`)."""
+    with _lock:
+        return op_name in _wall_ops
 
 
 def snapshot() -> dict:
@@ -105,7 +126,8 @@ def snapshot() -> dict:
 
 @asynccontextmanager
 async def timed(op_name: str) -> AsyncIterator[None]:
-    """Time an async operation and preserve its original exception."""
+    """Time an async operation and preserve its original exception (elapsed time: it spans awaits)."""
+    mark_wall(op_name)
     started_ns = time.perf_counter_ns()
     try:
         yield
@@ -193,4 +215,5 @@ def reset_for_tests() -> None:
     global _generation
     with _lock:
         _operations.clear()
+        _wall_ops.clear()
         _generation += 1

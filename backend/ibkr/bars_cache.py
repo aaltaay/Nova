@@ -17,7 +17,7 @@ from constants import (
     IBKR_BARS_CACHE_TTL_DAILY_SEC,
     IBKR_BARS_CACHE_TTL_INTRADAY_SEC,
 )
-from metrics.op_metrics import record
+from metrics.op_metrics import mark_wall, record
 
 logger = logging.getLogger(__name__)
 
@@ -167,6 +167,7 @@ async def get_or_fetch(
             symbol, timeframe, limit, interactive=interactive,
         )
         put_cached(result)
+        mark_wall("ibkr.bars_cache.miss")  # elapsed time: it awaits IBKR's history
         record("ibkr.bars_cache.miss", time.perf_counter_ns() - started)
         return result
 

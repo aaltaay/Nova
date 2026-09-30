@@ -59,6 +59,7 @@ PERF_DIAG_DROP_RECENT_SEC = 600
 PERF_DIAG_SLOW_FRAMES_WARN = 0.05
 PERF_DIAG_SLOW_FRAMES_FAIL = 0.20
 PERF_DIAG_TOP_HANDLERS = 5
+PERF_DIAG_RANK_ALL = 1_000     # rank every timed operation, then split work from waits
 
 # Heap census (#619): what every full collection walks. Taking one walks the heap too
 # (about as long as one full collection), so it runs rarely.

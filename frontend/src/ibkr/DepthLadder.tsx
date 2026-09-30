@@ -200,22 +200,22 @@ export function DepthLadder({ symbol, uiActive = true, markers }: Props) {
   const ladderWatch = l1Fallback ? null : watch;
   const nowMs = useBookWatchClock(ladderWatch, uiActive);
 
+  const topBid = book?.bids[0]?.price ?? null;
+  const topAsk = book?.asks[0]?.price ?? null;
+  const depthSubscribed = book != null && connected;
   useEffect(() => {
     if (!symbol || !uiActive) {
-      if (!uiActive) setTopOfBook(null);
-      if (!symbol) setTopOfBook(null);
+      setTopOfBook(null);
       return;
     }
-    const bid = book?.bids[0]?.price ?? null;
-    const ask = book?.asks[0]?.price ?? null;
-    setTopOfBook({
-      symbol: symbol.toUpperCase(),
-      bid,
-      ask,
-      depthSubscribed: book != null && connected,
-    });
+    setTopOfBook({ symbol: symbol.toUpperCase(), bid: topBid, ask: topAsk, depthSubscribed });
+  }, [symbol, uiActive, topBid, topAsk, depthSubscribed, setTopOfBook]);
+  // Cleared when this ladder goes or changes symbol -- not between two books, which used to publish
+  // null and then the book again on every update and redraw every reader twice.
+  useEffect(() => {
+    if (!symbol || !uiActive) return;
     return () => setTopOfBook(null);
-  }, [symbol, book, connected, setTopOfBook, uiActive]);
+  }, [symbol, uiActive, setTopOfBook]);
 
   if (!symbol) {
     return <div className="ibkr-depth-empty">Enter a symbol to view the order book.</div>;
