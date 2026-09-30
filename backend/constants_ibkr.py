@@ -237,6 +237,9 @@ IBKR_ERROR_READ_ONLY_API = 321
 # some other validation failure. IB's own wording is "The API interface is
 # currently in Read-Only mode."
 IBKR_READ_ONLY_API_MARKERS = ("read-only", "read only", "readonly")
+# "No security definition has been found for the request." For a crypto contract it is the answer
+# "IBKR does not list this coin" to the Cryptos page's listing check (ADR 040), not an error.
+IBKR_ERROR_NO_SECURITY_DEFINITION = 200
 # reqMarketDataType: 1=live, 3=delayed; see ibkr.client.get_market_data_type().
 IBKR_MARKET_DATA_TYPE_LIVE = 1
 IBKR_MARKET_DATA_TYPE_DELAYED = 3

@@ -19,7 +19,7 @@ import {
 } from './registry';
 
 /** What the dashboard slot shows while Trader is not up. */
-export type NavPage = 'dashboard' | 'desk' | 'records' | 'account' | 'bots';
+export type NavPage = 'dashboard' | 'desk' | 'records' | 'account' | 'bots' | 'cryptos';
 
 /** The registry id the Bots page kept from when it was a dashboard tab (persisted state, visibility). */
 export const BOTS_MODULE_ID = 'strategy';

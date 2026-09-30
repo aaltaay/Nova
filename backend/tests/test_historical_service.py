@@ -305,3 +305,30 @@ def test_persist_derived_skips_when_store_already_longer():
         asyncio.run(_persist_derived("AAPL", one_min))
 
     assert writes == []
+
+
+def test_rth_daily_closes_are_paced_and_read_the_regular_session():
+    """ADR 040: regular-hours daily closes go through the same pacing, and a repeat inside the window sheds."""
+    from datetime import date
+    from types import SimpleNamespace
+
+    import ibkr.historical_service as hs
+
+    calls = []
+
+    class _IB:
+        async def qualifyContractsAsync(self, contract):
+            return [None, contract]
+
+        async def reqHistoricalDataAsync(self, contract, **kwargs):
+            calls.append(kwargs)
+            return [SimpleNamespace(date=date(2026, 9, 28), close=20.5),
+                    SimpleNamespace(date=date(2026, 9, 29), close=21.34),
+                    SimpleNamespace(date=date(2026, 9, 30), close=float("nan"))]
+
+    with patch("ibkr.client.get_ib", return_value=_IB()):
+        rows = asyncio.run(hs.request_rth_daily_closes("mara", "6 M"))
+        assert rows == [("2026-09-28", 20.5), ("2026-09-29", 21.34)]
+        assert calls[0]["useRTH"] is True and calls[0]["barSizeSetting"] == "1 day"
+        with pytest.raises(HistoricalShed):
+            asyncio.run(hs.request_rth_daily_closes("MARA", "6 M"))   # the identical request, too soon

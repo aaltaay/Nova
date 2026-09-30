@@ -1,6 +1,6 @@
 /**
  * Picks what the dashboard slot shows while Trader is not up: the dashboard
- * (children), or the Desk / Records / Account / Bots pages the nav rail routes to.
+ * (children), or the Desk / Records / Account / Bots / Cryptos pages the nav rail routes to.
  */
 import { lazy, Suspense, type ReactNode } from 'react';
 import { TabLazyFallback } from '../components/TabLazyFallback';
@@ -10,6 +10,7 @@ import { RecordsPage } from './RecordsPage';
 
 const AccountPage = lazy(() => import('./AccountPage').then((m) => ({ default: m.AccountPage })));
 const BotsPage = lazy(() => import('../bot/BotsPage').then((m) => ({ default: m.BotsPage })));
+const CryptosPage = lazy(() => import('../cryptos').then((m) => ({ default: m.CryptosPage })));
 
 interface Props {
   onOpenTrader: (symbol: string) => void;
@@ -24,6 +25,13 @@ export function NavPageHost({ onOpenTrader, children }: Props) {
     return (
       <Suspense fallback={<TabLazyFallback />}>
         <AccountPage onOpenTrader={onOpenTrader} />
+      </Suspense>
+    );
+  }
+  if (page === 'cryptos') {
+    return (
+      <Suspense fallback={<TabLazyFallback />}>
+        <CryptosPage onOpenTrader={onOpenTrader} />
       </Suspense>
     );
   }
