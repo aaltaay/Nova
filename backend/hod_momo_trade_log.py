@@ -22,7 +22,9 @@ from paths import log_dir
 trade_log = logging.getLogger("hod_momo.trades")
 _listener: logging.handlers.QueueListener | None = None
 
-if not trade_log.handlers:
+# Set up once per process: the guard looks for this module's own queue handler, not any handler --
+# pytest 9.1 puts its capture handlers on every logger before the module is imported (#651).
+if not any(isinstance(h, logging.handlers.QueueHandler) for h in trade_log.handlers):
     _trade_handler = logging.handlers.RotatingFileHandler(
         os.path.join(str(log_dir()), "hod_momo.log"),
         maxBytes=10_000_000,
