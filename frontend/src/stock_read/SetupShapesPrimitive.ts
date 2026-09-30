@@ -5,7 +5,7 @@
  * prices, and the moment's pin (ENTER NOW, SELL NOW, what Nova did: ADR 037) on its candle. It draws a scene it is given; `chartShapes.ts` decides what the scene holds and
  * `StockReadChartLayer` maps its times onto this pane's bars. A box with a `hoverId` is reported to the
  * chart as hovered (`hitTest`) -- over the box, or over the label it drew for the box -- so the pane can
- * tell that setup's story under the pointer. Where each label goes, and how much a past setup's says, is
+ * tell that setup's story under the pointer; a level's label or axis tick names the level's card. Where each label goes, and how much a past setup's says, is
  * `sceneLabels.ts`.
  */
 import type { CanvasRenderingTarget2D } from 'fancy-canvas';
@@ -22,6 +22,7 @@ import type {
   SeriesType,
   Time,
 } from 'lightweight-charts';
+import { drawLevels, fillLevelBands, type LevelPx, type SceneLevel, type SceneTick, type TickPx } from './levelRender';
 import {
   drawLabel,
   drawPin,
@@ -98,6 +99,9 @@ export interface Scene {
   keepInView: { min: number; max: number } | null;
   /** How much a past setup's label says. */
   labels: LabelDetail;
+  /** The day's levels with a line, and the rest as ticks on the price axis (`levelRender.ts`). */
+  levels?: SceneLevel[];
+  ticks?: SceneTick[];
 }
 
 export const EMPTY_SCENE: Scene = {
@@ -114,6 +118,8 @@ interface Px {
   tags: { y: number; t: SceneEdgeTag }[];
   pins: { x: number; y: number; p: ScenePin }[];
   labels: LabelDetail;
+  levels: LevelPx[];
+  ticks: TickPx[];
 }
 
 /** A label the last draw put on the pane, with its box's story: a mark alone is hovered too. */
@@ -123,7 +129,7 @@ export interface LabelHit {
 }
 
 function emptyPx(): Px {
-  return { boxes: [], segments: [], vlines: [], tags: [], pins: [], labels: 'compact' };
+  return { boxes: [], segments: [], vlines: [], tags: [], pins: [], labels: 'compact', levels: [], ticks: [] };
 }
 
 /** A label that stays where it is: a level's, the focus line's, an edge tag. */
@@ -144,6 +150,7 @@ class FillRenderer implements IPrimitivePaneRenderer {
 
   draw(target: CanvasRenderingTarget2D): void {
     target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
+      fillLevelBands(ctx, this.px.levels, mediaSize.width);
       for (const { x1, x2, y1, y2, b } of this.px.boxes) {
         const right = x2 ?? mediaSize.width;
         const top = Math.min(y1, y2);
@@ -167,6 +174,8 @@ class LineRenderer implements IPrimitivePaneRenderer {
   draw(target: CanvasRenderingTarget2D): void {
     target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
       const width = mediaSize.width;
+      const measure = labelMeasure(ctx);
+      const levelHits = drawLevels(ctx, this.px.levels, this.px.ticks, width, mediaSize.height, measure);
       ctx.lineWidth = 1;
       for (const { x1, x2, y1, y2, b } of this.px.boxes) {
         if (!b.stroke) continue;
@@ -214,8 +223,7 @@ class LineRenderer implements IPrimitivePaneRenderer {
         }
       }
       // The words that stay put are placed first; the boxes' labels take the room around them.
-      const measure = labelMeasure(ctx);
-      const obstacles: LabelRect[] = [];
+      const obstacles: LabelRect[] = levelHits.map(h => h.rect);
       const fixedDrawn = fixed.map(f => {
         const w = measure(f.text);
         const r = labelRect(f.x, f.y, w, f.align, width);
@@ -244,7 +252,7 @@ class LineRenderer implements IPrimitivePaneRenderer {
         drawLabel(ctx, l.text, l.left, l.y, l.width, b.labelColor);
         if (b.hoverId) hits.push({ rect: labelRect(l.left, l.y, l.width, 'left', 0), hoverId: b.hoverId });
       }
-      this.onLabels(hits);
+      this.onLabels([...hits, ...levelHits]);
       for (const { f, r, w } of fixedDrawn) drawLabel(ctx, f.text, r.left, f.y, w, f.color);
       for (const { x, y, p, r } of pins) drawPin(ctx, x, y, p, r);
     });
@@ -346,7 +354,17 @@ export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
       const yy = y(p.price);
       if (xx !== null && yy !== null) pins.push({ x: xx, y: yy, p });
     }
-    this.px = { boxes, segments, vlines, tags, pins, labels: this.scene.labels };
+    const levels: Px['levels'] = [];
+    for (const l of this.scene.levels ?? []) {
+      const [yy, y1, y2] = [y(l.price), y(l.hi), y(l.lo)];
+      if (yy !== null && y1 !== null && y2 !== null) levels.push({ y: yy, y1, y2, l });
+    }
+    const ticks: Px['ticks'] = [];
+    for (const t of this.scene.ticks ?? []) {
+      const yy = y(t.price);
+      if (yy !== null) ticks.push({ y: yy, t });
+    }
+    this.px = { boxes, segments, vlines, tags, pins, labels: this.scene.labels, levels, ticks };
   }
 
   paneViews(): readonly IPrimitivePaneView[] {

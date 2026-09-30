@@ -115,3 +115,16 @@ and scripts are in `F:\Nova\eyes\studies\buy-sell-hold-2026-09-29\`, with `synth
   and the flush exit helps by about 1c.
 - **Not yet built:** the nightly trial reader, the Trader calls and the NBBO stamp on recorded
   prints. They follow in their own changes, and nothing here depends on them.
+
+## Amendment 2026-09-30 -- T7 and the second registry version
+
+`knowledge/signal-trials.json` is frozen, so trials registered after it go in a new registry version,
+`knowledge/signal-trials-2.json` (`version: 2`, `follows` the first; held to its own hash by
+`backend/tests/test_signal_trials_registry_2.py`; the same reading, multiplicity and peeking rules, and
+Holm across every trial read the same night). Its first trial:
+
+- **T7** Room under 2R to the first level of today's map (ADR 036 amendment 2026-09-30), as a warning.
+  Population: triggered setups armed from 2026-10-01 (the 30th is left out: its setups were looked at
+  while the levels were designed). Pass: the difference in mean gross `bar_r` against the rest is -0.2R or
+  worse, Holm-adjusted p < 0.05, with 40 symbol-days each side over 8 session days. On pass it becomes a
+  NOT A TRADE reason; on fail it stays a warning with the result on its hover.

@@ -14,7 +14,7 @@ from constants_stock_read import (
     STOCK_READ_VOLUME_PROFILE_BARS,
 )
 from scanner_wire import wire_safe
-from stock_read import history, indicators, plan as plan_mod, rows, rows_trade
+from stock_read import history, indicators, level_map, plan as plan_mod, rows, rows_trade
 
 logger = logging.getLogger(__name__)
 ET = ZoneInfo("America/New_York")
@@ -182,10 +182,15 @@ def build(f: dict[str, Any], *, entry: float | None = None, stop: float | None =
     except Exception:
         logger.warning("stock read: the daily history of %s could not be read", f["symbol"], exc_info=True)
         hist = None
+    levels = level_map.build(d["bars"], hist.get("daily") if hist else None, price=d["price"],
+                             prior_close=d["prev_close"], vwap=d["levels"].get("vwap"), now=now,
+                             sma200=(hist or {}).get("sma200"),
+                             daily_error=None if hist else "the daily history could not be read")
     ctx = {"price": d["price"], "levels": d["levels"], "macd_hist": (d["macd_1m"] or {}).get("macd_hist"),
            "ema9": d["ema9"], "median_range": d["median_range"], "asks": (f.get("l2") or {}).get("asks") or [],
            "spread": (f.get("l2") or {}).get("spread_dollars"),
-           "flow": f.get("flow"), "bid_pulls": d["bid_pulls"], "halted": f.get("halted"), "bars": d["bars"]}
+           "flow": f.get("flow"), "bid_pulls": d["bid_pulls"], "halted": f.get("halted"), "bars": d["bars"],
+           "level_map": levels}
     plan = plan_mod.build(setups, ctx, now=now, entry=entry, stop=stop)
     groups = tiles(f, d, plan, hist)
     counts = {k: 0 for k in ("ok", "warn", "bad", "unknown", "info")}
@@ -200,5 +205,5 @@ def build(f: dict[str, Any], *, entry: float | None = None, stop: float | None =
         "price": d["price"], "prev_close": d["prev_close"], "change_pct": d["change_pct"],
         "followed": bool(view.get("followed")), "followed_note": view.get("followed_note"),
         "setups": setups, "no_scanner": rows_trade.NO_SCANNER,
-        "plan": plan, "levels": d["levels"], "groups": groups, "counts": counts,
+        "plan": plan, "levels": d["levels"], "level_map": levels, "groups": groups, "counts": counts,
     })

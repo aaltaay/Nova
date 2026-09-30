@@ -34,6 +34,7 @@ from constants_stock_read import (
 )
 from setup_scanner.grade import pillar_count
 from stock_read.indicators import manual_stop
+from stock_read.level_notes import notes as level_notes
 
 ET = ZoneInfo("America/New_York")
 FILTERED = "filtered"
@@ -326,4 +327,5 @@ def build(setups: list[dict[str, Any]], ctx: dict[str, Any], *, now: float, entr
     plan["flow"] = ctx.get("flow") if (ctx.get("flow") or {}).get("label") else None
     plan["result"] = result_of(plan, lane)
     plan["trade"] = trade_verdict(plan, lane, plan["checks"])
+    plan["levels"] = level_notes(plan, ctx.get("level_map"), ctx.get("bars") or [], price=ctx.get("price"), now=now)
     return plan

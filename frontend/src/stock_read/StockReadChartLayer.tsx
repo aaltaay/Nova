@@ -2,8 +2,10 @@
  * The stock read on one chart pane (ADR 036). The 1-minute pane gets the setups' shapes -- the day's
  * setups that ended faint under the live ones, each telling its story under the pointer -- the plan's
  * zones and lines, the day's levels, a legend of the lanes and the plan's badge -- with the trade's
- * track, the Who trades chip and the call's pin (ADR 037); the 5-minute and 10-second panes mirror the
- * plan's levels as thin lines; the daily pane marks every +40% run.
+ * track, the Who trades chip and the call's pin (ADR 037); the 5-minute pane carries today's level map and
+ * the Full Day pane the daily one, each level's card under the pointer (ADR 036 amendment 2026-09-30);
+ * the 5-minute and 10-second panes mirror the plan's levels as thin lines; the daily pane marks every
+ * +40% run.
  * Nothing is drawn while the desk replays another moment: the read is today's live stock.
  */
 import { useCallback, useEffect, useMemo, useRef } from 'react';
@@ -26,6 +28,7 @@ import {
 import { etChartSeconds } from '../tickerChartData';
 import { ChartLegend } from './ChartLegend';
 import { laneStartSec, leadLane, paneDraw, paneKind, type PriceLineSpec } from './chartShapes';
+import { levelNote } from './levelPicks';
 import { EMPTY_SCENE, SetupShapesPrimitive } from './SetupShapesPrimitive';
 import { ShapeTip, shapeStory, useShapeHover } from './ShapeTip';
 import { useStockReadContext } from './StockReadContext';
@@ -176,7 +179,7 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
   const series = chart ? candleSeriesRef.current : null;
   const kind = paneKind(timeframe);
   const daily = timeframe === '1Day';
-  const enabled = !!ctx && !ctx.replay && (kind !== 'none' || daily);
+  const enabled = !!ctx && !ctx.replay && kind !== 'none';
   const live = enabled ? ctx?.read.data ?? null : null;
   // The operator's own plan moves under the pointer on the 1-minute pane; the target follows at 2R.
   const setManualPlan = ctx?.setManualPlan;
@@ -211,7 +214,7 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
     call,
     past,
   }), [read, kind, ctx?.layers, index, series, ctx?.focus, focusEvent, levels, call, past]);
-  const hover = useShapeHover(chart, kind === 'full' && enabled, containerRef);
+  const hover = useShapeHover(chart, (kind === 'full' || kind === 'map' || kind === 'daily') && enabled, containerRef);
   const story = hover && read ? shapeStory(hover.id, read, past) : null;
 
   // The shapes: one primitive per pane, fed a new scene whenever the read or the bars change.
@@ -314,12 +317,17 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
       </>
     );
   }
-  if (daily && runs && runs.length > 0) {
-    return (
-      <div className="sr-pane-note" data-testid="stock-read-daily-note">
-        Runs of +40% marked ({runs.length})
-      </div>
-    );
-  }
-  return null;
+  const levelWords = ctx.layers.levels && (kind === 'map' || kind === 'daily') ? levelNote(read, kind) : null;
+  const note = [daily && runs && runs.length > 0 ? `Runs of +40% marked (${runs.length})` : null, levelWords]
+    .filter(Boolean).join(' · ');
+  return (
+    <>
+      {note && (
+        <div className="sr-pane-note" data-testid={daily ? 'stock-read-daily-note' : 'stock-read-levels-note'}>
+          {note}
+        </div>
+      )}
+      {story && hover && <ShapeTip story={story} hover={hover} />}
+    </>
+  );
 }

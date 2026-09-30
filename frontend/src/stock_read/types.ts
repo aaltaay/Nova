@@ -1,6 +1,8 @@
 /** The bot's read on one stock (ADR 036): the wire shapes of `/api/stock-read/{symbol}` and its
  * decisions / history reads (AGENTS.md §3, "The bot's read on one stock"). */
 
+import type { LevelMap, PlanLevels } from './levelTypes';
+
 export type ReadState = 'ok' | 'warn' | 'bad' | 'unknown' | 'info';
 
 export type ReadGroupId = 'in_play' | 'setups' | 'front' | 'tape' | 'short' | 'float' | 'halts';
@@ -98,6 +100,8 @@ export interface StockPlan {
   window: SetupWindow | null;
   checks: PlanCheck[];
   marks: PlanMark[];
+  /** Null from a backend older than the level map, or with no map to read. */
+  levels: PlanLevels | null;
 }
 
 export interface SetupLevels {
@@ -189,6 +193,8 @@ export interface StockRead {
   no_scanner: { setup_type: string; label: string; reason: string }[];
   plan: StockPlan | null;
   levels: ReadLevels;
+  /** Null from a backend older than the level map. */
+  level_map: LevelMap | null;
   groups: ReadGroup[];
   counts: Record<ReadState, number>;
 }

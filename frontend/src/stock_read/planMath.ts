@@ -144,6 +144,9 @@ export function planSubLines(plan: StockPlan, riskUsd: number, size: number | nu
   };
 }
 
+/** Two prices this close are one mark. */
+const SAME_PRICE = 1e-6;
+
 export interface RulerMark {
   pct: number;
   label: string;
@@ -175,7 +178,13 @@ export function rulerLayout(plan: StockPlan, price: number | null): RulerLayout 
     stopPct: at(stop),
     entryPct: at(entry),
     targetPct: at(target),
-    marks: plan.marks.map(m => ({ pct: at(m.price), label: fmtPx(m.price), kind: m.kind })),
+    marks: [
+      ...plan.marks.map(m => ({ pct: at(m.price), label: fmtPx(m.price), kind: m.kind })),
+      // Today's levels between the stop and the target the marks above do not already name.
+      ...(plan.levels?.between ?? [])
+        .filter(x => !plan.marks.some(m => Math.abs(m.price - x.price) < SAME_PRICE))
+        .map(x => ({ pct: at(x.price), label: x.tag, kind: x.round ? 'round' : 'level' })),
+    ],
     now,
   };
 }

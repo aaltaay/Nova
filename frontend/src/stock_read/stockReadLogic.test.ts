@@ -138,9 +138,10 @@ describe('the plan box', () => {
 describe('the charts', () => {
   it('picks what each pane draws', () => {
     expect(paneKind('1Min')).toBe('full');
-    expect(paneKind('5Min')).toBe('thin');
+    expect(paneKind('5Min')).toBe('map');
     expect(paneKind('10Sec')).toBe('thin');
-    expect(paneKind('1Day')).toBe('none');
+    expect(paneKind('1Day')).toBe('daily');
+    expect(paneKind('15Min')).toBe('none');
   });
 
   it('draws the forming flag, its pole, the plan and the levels on the 1-minute pane', () => {
