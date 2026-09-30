@@ -53,17 +53,21 @@ async def send_broker(
     *,
     wait_ack: bool = True,
     reject: RejectFn,
+    venue: str | None = None,
 ) -> ExecutionReceipt:
-    from sim.mode import is_practice_venue, venue
+    """Send to the venue's broker: ``venue`` (the one the execution door validated on), else the desk's now."""
+    from constants_sim import DESK_PRACTICE_VENUES
+    from sim.mode import venue as desk_venue
 
-    if is_practice_venue():
+    venue = venue or desk_venue()
+    if venue in DESK_PRACTICE_VENUES:
         # ADR 020: Paper and Sim share one practice send; the venue's broker
         # (live feed or loaded replay) decides where the fill comes from.
         from practice.broker import for_venue
         from sim.execution import send_practice_broker
 
         return await send_practice_broker(
-            cmd, execution_id, timings, broker=for_venue(venue()),
+            cmd, execution_id, timings, broker=for_venue(venue),
             wait_ack=wait_ack, reject=reject,
         )
 
@@ -95,7 +99,7 @@ async def send_broker(
         if wait_ack:
             await watch.wait_ack(EXECUTION_ACK_WAIT_SEC)
             timings.broker_ack_ns = watch.ack_ns
-        inflight.release_order(cmd.order_id)
+        inflight.release_order(cmd.order_id, "live")      # only Live sends to IBKR
         broker_status = watch.ack_status or (
             "Cancelled" if raw.get("verified_gone") else None
         )

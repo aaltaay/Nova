@@ -99,10 +99,10 @@ async def test_a_bracket_answers_at_once_with_its_three_order_ids(paper) -> None
     assert (row["status"], row["order_id"], row["parent_order_id"], row["target_order_id"], row["stop_order_id"]) == (
         "acked", p, p, p + 1, p + 2,
     )
-    entry = telemetry.watch_order(p)
+    entry = telemetry.watch_order(p, venue="paper")
     assert (entry.leg_role, entry.aggregate_eligible, entry.side, entry.ack_status) == ("parent", True, "BUY", "Submitted")
     for role, oid in (("target", p + 1), ("stop", p + 2)):
-        leg = telemetry.watch_order(oid)
+        leg = telemetry.watch_order(oid, venue="paper")
         assert (leg.leg_role, leg.aggregate_eligible, leg.side, leg.execution_id) == (
             role, False, "SELL", receipt.execution_id,
         )

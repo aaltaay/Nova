@@ -64,7 +64,7 @@ def make_handlers(get_watch):
             )
             if status == "Filled":
                 w.note_filled()
-            inflight.release_on_broker_status(oid, status)
+            inflight.release_on_broker_status(oid, status, "live")
         except Exception:
             logger.exception("execution.telemetry: orderStatus handler error")
 
@@ -104,7 +104,7 @@ def make_handlers(get_watch):
             )
             if complete:
                 w.note_filled()
-                inflight.release_order(oid)
+                inflight.release_order(oid, "live")
         except Exception:
             logger.exception("execution.telemetry: execDetails handler error")
 

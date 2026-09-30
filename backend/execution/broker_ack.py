@@ -24,7 +24,7 @@ async def wait_broker_ack(
         return receipt
 
     watch = telemetry.watch_order(
-        int(receipt.order_id), receipt.execution_id,
+        int(receipt.order_id), receipt.execution_id, venue=receipt.venue,
     )
     await watch.wait_ack(EXECUTION_ACK_WAIT_SEC)
     receipt.timings.broker_ack_ns = watch.ack_ns

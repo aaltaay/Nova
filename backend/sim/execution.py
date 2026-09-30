@@ -75,7 +75,7 @@ async def send_practice_broker(
         )
         assert cmd.order_id is not None
         watch = telemetry.watch_order(
-            cmd.order_id, execution_id, fresh=True, leg_role="cancel",
+            cmd.order_id, execution_id, venue=mode, fresh=True, leg_role="cancel",
         )
         raw = broker.cancel(cmd.order_id, source=cmd.source)
         if not raw.get("ok"):
@@ -90,7 +90,7 @@ async def send_practice_broker(
                 mode=mode, order_id=cmd.order_id, timings=timings,
             )
         timings.broker_ack_ns = time.perf_counter_ns()
-        inflight.release_order(cmd.order_id)
+        inflight.release_order(cmd.order_id, mode)
         persist_successful_cancel(
             execution_id, order_id=cmd.order_id, perm_id=cmd.order_id,
             broker_ack_ns=timings.broker_ack_ns, broker_status="Cancelled",
@@ -199,8 +199,9 @@ async def _send_bracket(
             mode=mode, symbol=symbol, timings=timings,
         )
     exit_side = "BUY" if entry_side == "SELL" else "SELL"
+    venue = str(broker.venue)
     watch = telemetry.watch_order(
-        int(parent), execution_id, fresh=True, leg_role="parent", side=entry_side,
+        int(parent), execution_id, venue=venue, fresh=True, leg_role="parent", side=entry_side,
         reference_price=cmd.entry_price, reference_source="bracket_entry", aggregate_eligible=True,
     )
     for role, child, reference in (
@@ -208,7 +209,7 @@ async def _send_bracket(
         ("stop", raw.get("stop_order_id"), cmd.stop_price),
     ):
         telemetry.watch_order(
-            int(child), execution_id, fresh=True, leg_role=role, side=exit_side,
+            int(child), execution_id, venue=venue, fresh=True, leg_role=role, side=exit_side,
             reference_price=reference, reference_source=f"bracket_{role}", aggregate_eligible=False,
         )
     note_answer(watch, raw)
@@ -259,7 +260,7 @@ async def _receipt_from_raw(
     oid = raw.get("order_id")
     watch = (
         telemetry.watch_order(
-            int(oid), execution_id, fresh=False,
+            int(oid), execution_id, venue=mode, fresh=False,
             side=(cmd.side or "BUY").upper(),
             reference_price=(
                 cmd.reference_price

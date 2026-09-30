@@ -73,6 +73,8 @@ class ReplaceRequest(BaseModel):
     reference_price: float | None = Field(default=None, gt=0)
     idempotency_key: str | None = None
     client_timing: BrowserTimingRequest | None = None
+    # The venue the caller means; the door refuses VENUE_CHANGED when the desk is elsewhere.
+    venue: str | None = None
 
 
 def _browser_timing(
@@ -169,7 +171,10 @@ async def cancel_order(
     order_id: int,
     request: Request,
     idempotency_key: str | None = None,
+    venue: str | None = None,
 ) -> dict:
+    """Cancel one order. ``venue`` (live | paper | sim), when the caller knows the desk's, makes the
+    door refuse ``VENUE_CHANGED`` if the desk moved: an order id is only meaningful on its own venue."""
     ingress_perf, ingress_wall = ingress_stamps(request)
     key = (idempotency_key or "").strip() or f"cancel:{order_id}:{uuid.uuid4()}"
     receipt = await _execution_service.execute(
@@ -179,6 +184,7 @@ async def cancel_order(
             source="manual",
             order_id=order_id,
             skip_risk=True,
+            expected_venue=(venue or None),
             client_timing=_browser_timing(request),
             backend_ingress_wall_ns=ingress_wall,
         ),
@@ -292,6 +298,7 @@ async def replace_order(
             stop_price=req.stop_price,
             reference_price=req.reference_price,
             skip_risk=True,
+            expected_venue=req.venue or None,
             client_timing=_browser_timing(request, req.client_timing),
             backend_ingress_wall_ns=ingress_wall,
         ),

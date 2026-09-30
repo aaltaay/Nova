@@ -50,6 +50,10 @@ class ExecutionCommand:
     # It cancels nothing first, so the door holds it to the position less the
     # closes already working (execution.flatten_intent), under the lock.
     intent: str | None = None
+    # The venue the caller means (live | paper | sim). An order id is only meaningful on the
+    # venue that issued it, so a cancel or replace of a known id names it; the door refuses
+    # ``VENUE_CHANGED`` when the desk is elsewhere by the time it runs (audit 2026-09-30).
+    expected_venue: str | None = None
 
     def normalized_symbol(self) -> str | None:
         return self.symbol.upper() if self.symbol else None
@@ -91,6 +95,9 @@ class ExecutionReceipt:
     error: str | None = None
     reason_code: str | None = None
     mode: str | None = None
+    # The desk venue the order was sent on (live | paper | sim), stamped by the execution door.
+    # ``mode`` is the broker's label, and "paper" there can also be the legacy Gateway.
+    venue: str | None = None
     symbol: str | None = None
     order_id: int | None = None
     parent_order_id: int | None = None

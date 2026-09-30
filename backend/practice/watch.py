@@ -39,7 +39,8 @@ def release_commitment(order_id: int, row: dict[str, Any]) -> bool:
     """Free the commitment this practice order holds; True when one was freed.
 
     Practice ids restart at 1 per venue and per reset, so the order id alone
-    could name another venue's commitment: the symbol and side must match too.
+    could name another venue's commitment: the venue (a practice row's own), the
+    symbol and the side must match too.
     """
     try:
         from execution import inflight
@@ -49,8 +50,11 @@ def release_commitment(order_id: int, row: dict[str, Any]) -> bool:
     oid = int(order_id)
     symbol = str(row.get("symbol") or "").strip().upper()
     side = str(row.get("side") or "").strip().upper()
-    for held in inflight.snapshot():
+    venue = row.get("venue")
+    for held in inflight.snapshot(all_venues=True):
         if held.get("order_id") != oid:
+            continue
+        if venue and held.get("venue") != venue:
             continue
         if symbol and held.get("symbol") != symbol:
             continue
@@ -118,7 +122,7 @@ def notify_watch(order_id: int, row: dict[str, Any]) -> None:
     except Exception:
         logger.debug("PRACTICE: telemetry import failed", exc_info=True)
         return
-    watch = telemetry.watch_order(int(order_id))
+    watch = telemetry.watch_order(int(order_id), venue=row.get("venue"))
     avg = row.get("avg_fill_price")
     watch.note_status(
         status,
