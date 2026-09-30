@@ -5,7 +5,7 @@ from typing import Any
 
 from bot import persist
 from bot.arming import has_desk_arm, heartbeat_is_fresh, is_desk_active
-from bot.clock import lock_is_active
+from bot.clock import lock_is_active, soft_latched
 from bot.eligibility import normalize_symbols
 from bot.errors import BotError
 from bot.kinds import default_allowlist
@@ -93,9 +93,12 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
             "usd_spent": float(advise.get("usd_spent") or 0),
             "calls_used": int(advise.get("calls_used") or 0),
         },
-        "soft_breaker_fired": bool(row.get("soft_breaker_fired")),
+        "soft_breaker_fired": soft_latched(row),
         # The loss breakers' thresholds, per venue (operator ask 2026-09-24).
         "breakers": _breakers_view(row),
+        # The level is per venue too (operator report 2026-09-30): ``level`` is the desk's own.
+        "level_venue": row.get("level_venue"),
+        "levels_by_venue": _levels_by_venue(row),
         "hard_lock_until_date": lock_until,
         "day_lock_active": lock_is_active(lock_until),
         "focus": list(row.get("focus") or []),
@@ -116,6 +119,12 @@ def _breakers_view(row: dict[str, Any]) -> dict[str, Any]:
     from bot.gates import current_venue
 
     return view(row, current_venue())
+
+
+def _levels_by_venue(row: dict[str, Any]) -> dict[str, int]:
+    from bot.venue_levels import by_venue
+
+    return by_venue(row)
 
 
 def _trade_view(trade: Any) -> dict[str, Any] | None:

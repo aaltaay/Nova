@@ -36,3 +36,14 @@ def lock_is_active(lock_until: str | None, now: datetime | None = None) -> bool:
     if not lock_until:
         return False
     return today_et(now).isoformat() < str(lock_until)
+
+
+def soft_latched(row: dict, now: datetime | None = None) -> bool:
+    """The bot trip fired today (ET) and has not been re-enabled.
+
+    The latch keeps a tripped bot from flattening again and again the same day.
+    It lapses at the next ET midnight, like the day lock: a latch left on from an
+    earlier day silenced every later day's bot trip. One written before it carried
+    its day (no ``soft_breaker_until``) has lapsed.
+    """
+    return bool(row.get("soft_breaker_fired")) and lock_is_active(row.get("soft_breaker_until"), now)

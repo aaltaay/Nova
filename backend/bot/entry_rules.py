@@ -96,15 +96,22 @@ def _row_day(row: dict[str, Any]) -> str | None:
     return datetime.fromtimestamp(float(ts), ZoneInfo(BOT_TZ)).date().isoformat()
 
 
+def _row_venue(row: dict[str, Any]) -> str | None:
+    return row.get("venue") or (row.get("inputs") or {}).get("venue")
+
+
 def entries_today(now: datetime | None = None, *, rows: list[dict[str, Any]] | None = None) -> int:
+    """This venue's bot entries today: a Paper entry does not use up Sim's or Live's. A row
+    written before the audit carried its venue counts on every venue."""
     from bot.audit import list_entries
+    from bot.gates import current_venue
 
     day = (now or venue_now()).date().isoformat()
-    rows = list_entries(limit=500) if rows is None else rows
-    sent = sum(1 for r in rows
-               if r.get("action") in BOT_BUY_KINDS and r.get("outcome") == "ok" and _row_day(r) == day)
-    missed = sum(1 for r in rows
-                 if r.get("action") == BOT_AUDIT_ACTION_TRADE and r.get("outcome") == "missed" and _row_day(r) == day)
+    here = current_venue()
+    rows = [r for r in (list_entries(limit=500) if rows is None else rows)
+            if _row_day(r) == day and _row_venue(r) in (None, here)]
+    sent = sum(1 for r in rows if r.get("action") in BOT_BUY_KINDS and r.get("outcome") == "ok")
+    missed = sum(1 for r in rows if r.get("action") == BOT_AUDIT_ACTION_TRADE and r.get("outcome") == "missed")
     return max(0, sent - missed)
 
 

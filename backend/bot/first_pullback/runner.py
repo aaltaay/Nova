@@ -509,6 +509,13 @@ async def hand_over(symbol: str, now: float | None = None) -> dict[str, Any]:
     if not isinstance(trade, dict) or str(trade.get("symbol") or "").upper() != sym \
             or trade.get("state") not in LIVE_STATES:
         raise BotError(f"the bot holds no trade on {sym}", 409, STOCK_MODE_NOTHING_HELD)
+    from bot.gates import current_venue
+
+    if trade.get("venue") != current_venue():
+        # Its orders are another venue's ids: a cancel sent here would reach this venue's
+        # order of the same number (on Live, a real IBKR order).
+        raise BotError(f"the bot's trade on {sym} is on {trade.get('venue')} -- move the desk there to take "
+                       "it over", 409, STOCK_MODE_NOTHING_HELD)
     trade = dict(trade)
     if trade["state"] == "exiting":
         raise BotError(f"the bot is already selling {sym} -- let it finish, or flatten", 409, STOCK_MODE_BOT_EXITING)

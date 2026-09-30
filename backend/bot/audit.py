@@ -46,8 +46,12 @@ def record(
     brain_session_id: str | None = None,
 ) -> dict[str, Any]:
     row = load_session()
+    from bot.gates import current_venue
+
     entry = {
         "timestamp": time.time(),
+        # The venue the desk was on: the daily entry cap counts one venue's entries.
+        "venue": current_venue(),
         "level": int(level if level is not None else row.get("level") or 0),
         "strategy": strategy if strategy is not None else row.get("strategy"),
         "brain_session_id": (

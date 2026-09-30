@@ -104,7 +104,7 @@ def _gate(gid: str, ok: bool, stage: str, **detail: Any) -> dict[str, Any]:
 
 def gates(row: dict[str, Any]) -> list[dict[str, Any]]:
     from bot import entry_rules
-    from bot.clock import lock_is_active
+    from bot.clock import lock_is_active, soft_latched
     from bot.day_pnl import commission_hold
     from bot.eligibility import holds_depth_line, normalize_symbols
     from ibkr.trading_allowed import places_allowed
@@ -128,7 +128,7 @@ def gates(row: dict[str, Any]) -> list[dict[str, Any]]:
         _gate("readout", bool(out.get("passed")) or waived, "activate", state=out.get("state"),
               go_triggered=(out.get("go") or {}).get("triggered"), min_go=(out.get("rules") or {}).get("min_go"),
               waived=waived and not out.get("passed"), venue=venue),
-        _gate("bot_trip", not row.get("soft_breaker_fired"), "activate"),
+        _gate("bot_trip", not soft_latched(row), "activate"),
         _gate("day_lock", not lock_is_active(row.get("hard_lock_until_date")), "fire",
               until=row.get("hard_lock_until_date")),
         _gate("kill_switch", not _safe(kill_switch.is_tripped, True), "fire"),

@@ -192,6 +192,12 @@ export function ManualOrderTicket({
     resetSubmission();
   }, [symbol]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // A confirm built on one venue is never sent on another: it names the old
+  // account, and Confirm would place it wherever the desk points now.
+  useEffect(() => {
+    resetSubmission();
+  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // The chart menu stages an order here; the PIN / spend / confirm gates still own the place.
   useEffect(() => {
     return subscribeOrderTicketPrefill(symbol, (req) => {

@@ -155,7 +155,21 @@ def load_session() -> dict[str, Any]:
             merged.pop(key, None)
         _refuse_parked_level(merged)
         _session = merged
+        _follow_desk_venue(merged)
         return _session
+
+
+def _follow_desk_venue(row: dict[str, Any]) -> None:
+    """A session file whose level belongs to another venue than the desk's (the venue
+    file changed while Nova was stopped) takes the desk venue's own level, not active."""
+    try:
+        from bot.venue_levels import switch
+        from sim.mode import venue
+
+        if switch(row, venue()) is not None:
+            save_session(row)
+    except Exception:
+        logger.warning("bot persist: could not match the level to the desk venue", exc_info=True)
 
 
 def save_session(payload: dict[str, Any] | None = None) -> dict[str, Any]:

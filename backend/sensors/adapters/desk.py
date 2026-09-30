@@ -28,11 +28,12 @@ def read_risk(symbol: str | None = None) -> dict[str, Any]:
     cooldown = bool(state.halted) or state.consecutive_losses >= RISK_MAX_CONSECUTIVE_LOSSES
     bot_row: dict[str, Any] = {}
     try:
+        from bot.clock import soft_latched
         from bot.persist import load_session
 
         session = load_session()
         bot_row = {
-            "soft_breaker_fired": bool(session.get("soft_breaker_fired")),
+            "soft_breaker_fired": soft_latched(session),
             "hard_lock_until_date": session.get("hard_lock_until_date"),
             "bot_level": session.get("level"),
         }

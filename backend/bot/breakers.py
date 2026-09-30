@@ -11,7 +11,7 @@ from typing import Any
 from bot.audit import record as audit
 from bot.autonomy import drop_to_l0
 from bot.breaker_limits import limits
-from bot.clock import lock_until_date
+from bot.clock import lock_is_active, lock_until_date, soft_latched
 from bot.day_pnl import read_account_day_pnl
 from bot.flatten import alert_flatten_failed, flatten_account_with_retry
 from bot.persist import load_session, save_session
@@ -80,8 +80,10 @@ async def poll_once(pnl: float | None = None, meter: dict[str, Any] | None = Non
             return None
     row = load_session()
     lim = limits(row, _venue())
-    if pnl <= lim["hard_usd"] and not row.get("hard_lock_until_date"):
+    # A lock from an earlier day has lifted: the all-stop trips again (it read the stale
+    # date as "already locked" and never tripped a second time).
+    if pnl <= lim["hard_usd"] and not lock_is_active(row.get("hard_lock_until_date")):
         return await trip_hard()
-    if pnl <= lim["soft_usd"] and not row.get("soft_breaker_fired"):
+    if pnl <= lim["soft_usd"] and not soft_latched(row):
         return await trip_soft()
     return None
