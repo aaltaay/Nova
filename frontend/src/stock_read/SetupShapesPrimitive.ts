@@ -4,7 +4,8 @@
  * for a decision the operator asked to see, edge tags for levels above or below the visible
  * prices, and the moment's pin (ENTER NOW, SELL NOW, what Nova did: ADR 037) on its candle. It draws a scene it is given; `chartShapes.ts` decides what the scene holds and
  * `StockReadChartLayer` maps its times onto this pane's bars. A box with a `hoverId` is reported to the
- * chart as hovered (`hitTest`), so the pane can tell that setup's story under the pointer.
+ * chart as hovered (`hitTest`), so the pane can tell that setup's story under the pointer. Where each
+ * label goes, and how much a past setup's says, is `sceneLabels.ts`.
  */
 import type { CanvasRenderingTarget2D } from 'fancy-canvas';
 import type {
@@ -20,6 +21,19 @@ import type {
   SeriesType,
   Time,
 } from 'lightweight-charts';
+import {
+  drawLabel,
+  drawPin,
+  labelForms,
+  labelMeasure,
+  labelRect,
+  pinRect,
+  placeLabels,
+  type LabelAsk,
+  type LabelDetail,
+  type LabelRect,
+  type LabelShrink,
+} from './sceneLabels';
 
 /** A pointer this close to a box's edge still hovers it. */
 const HIT_SLACK_PX = 2;
@@ -37,6 +51,9 @@ export interface SceneBox {
   labelColor: string;
   /** The label under the box (a consolidation's), so it never sits on its leg's. */
   labelBelow?: boolean;
+  /** A label that makes room (a past setup's): its shorter forms and its claim to the room. Without it
+   * the label is drawn whole where it is (a live lane's). */
+  shrink?: LabelShrink;
   /** What the pane reports as hovered over this box (`hitTest`): a lane's or a past setup's story. */
   hoverId?: string;
 }
@@ -78,13 +95,14 @@ export interface Scene {
   pins: ScenePin[];
   /** Prices the pane's autoscale must keep in view (the plan's stop and target). */
   keepInView: { min: number; max: number } | null;
+  /** How much a past setup's label says. */
+  labels: LabelDetail;
 }
 
-export const EMPTY_SCENE: Scene = { boxes: [], segments: [], vlines: [], edgeTags: [], pins: [], keepInView: null };
+export const EMPTY_SCENE: Scene = {
+  boxes: [], segments: [], vlines: [], edgeTags: [], pins: [], keepInView: null, labels: 'compact',
+};
 
-const FONT = '600 10px ui-sans-serif, system-ui, sans-serif';
-const PIN_FONT = '700 9px ui-sans-serif, system-ui, sans-serif';
-const PIN_H = 14;
 const TAG_TOP = 26;
 const TAG_H = 15;
 
@@ -94,49 +112,18 @@ interface Px {
   vlines: { x: number; v: SceneVLine }[];
   tags: { y: number; t: SceneEdgeTag }[];
   pins: { x: number; y: number; p: ScenePin }[];
+  labels: LabelDetail;
 }
 
-/** Dark ink on a light fill, white on a dark one. */
-function inkFor(color: string): string {
-  const m = /^#([0-9a-f]{6})$/i.exec(color);
-  if (!m) return '#ffffff';
-  const n = parseInt(m[1], 16);
-  const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
-  return lum > 0.55 ? '#0b0d12' : '#ffffff';
-}
+const EMPTY_PX: Px = { boxes: [], segments: [], vlines: [], tags: [], pins: [], labels: 'compact' };
 
-function pin(ctx: CanvasRenderingContext2D, x: number, y: number, p: ScenePin, width: number): void {
-  ctx.font = PIN_FONT;
-  const w = ctx.measureText(p.label).width + 10;
-  const left = Math.min(Math.max(2, x - w / 2), width - w - 2);
-  const top = Math.max(2, y - PIN_H - 7);
-  ctx.strokeStyle = p.color;
-  ctx.setLineDash([]);
-  ctx.beginPath();
-  ctx.moveTo(Math.round(x) + 0.5, top + PIN_H);
-  ctx.lineTo(Math.round(x) + 0.5, y);
-  ctx.stroke();
-  ctx.fillStyle = p.color;
-  ctx.beginPath();
-  if (typeof ctx.roundRect === 'function') ctx.roundRect(left, top, w, PIN_H, 3);
-  else ctx.rect(left, top, w, PIN_H);
-  ctx.fill();
-  ctx.fillStyle = inkFor(p.color);
-  ctx.textBaseline = 'middle';
-  ctx.textAlign = 'center';
-  ctx.fillText(p.label, left + w / 2, top + PIN_H / 2 + 0.5);
-}
-
-function label(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, color: string, align: 'left' | 'right'): void {
-  ctx.font = FONT;
-  const w = ctx.measureText(text).width + 8;
-  const left = align === 'left' ? x : x - w;
-  ctx.fillStyle = 'rgba(12, 12, 14, 0.78)';
-  ctx.fillRect(left, y - 7, w, 14);
-  ctx.fillStyle = color;
-  ctx.textBaseline = 'middle';
-  ctx.textAlign = 'left';
-  ctx.fillText(text, left + 4, y + 0.5);
+/** A label that stays where it is: a level's, the focus line's, an edge tag. */
+interface FixedLabel {
+  text: string;
+  x: number;
+  y: number;
+  color: string;
+  align: 'left' | 'right';
 }
 
 class FillRenderer implements IPrimitivePaneRenderer {
@@ -168,29 +155,26 @@ class LineRenderer implements IPrimitivePaneRenderer {
 
   draw(target: CanvasRenderingTarget2D): void {
     target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
+      const width = mediaSize.width;
       ctx.lineWidth = 1;
       for (const { x1, x2, y1, y2, b } of this.px.boxes) {
-        const right = x2 ?? mediaSize.width;
-        const top = Math.min(y1, y2);
-        if (b.stroke) {
-          ctx.strokeStyle = b.stroke;
-          ctx.setLineDash(b.dashed ? [4, 3] : []);
-          ctx.strokeRect(Math.round(x1) + 0.5, Math.round(top) + 0.5, Math.max(1, right - x1), Math.max(1, Math.abs(y2 - y1)));
-        }
-        if (b.label) {
-          const y = b.labelBelow ? Math.max(y1, y2) + 9 : top - 9;
-          label(ctx, b.label, x1, y, b.labelColor, 'left');
-        }
+        if (!b.stroke) continue;
+        const right = x2 ?? width;
+        ctx.strokeStyle = b.stroke;
+        ctx.setLineDash(b.dashed ? [4, 3] : []);
+        ctx.strokeRect(Math.round(x1) + 0.5, Math.round(Math.min(y1, y2)) + 0.5, Math.max(1, right - x1),
+          Math.max(1, Math.abs(y2 - y1)));
       }
+      const fixed: FixedLabel[] = [];
       for (const { x1, y, s } of this.px.segments) {
         const left = x1 ?? 0;
         ctx.strokeStyle = s.color;
         ctx.setLineDash(s.dashed ? [3, 3] : []);
         ctx.beginPath();
         ctx.moveTo(left, Math.round(y) + 0.5);
-        ctx.lineTo(mediaSize.width, Math.round(y) + 0.5);
+        ctx.lineTo(width, Math.round(y) + 0.5);
         ctx.stroke();
-        if (s.label) label(ctx, s.label, left + 4, y - 8, s.color, 'left');
+        if (s.label) fixed.push({ text: s.label, x: left + 4, y: y - 8, color: s.color, align: 'left' });
       }
       ctx.setLineDash([2, 3]);
       for (const { x, v } of this.px.vlines) {
@@ -200,8 +184,9 @@ class LineRenderer implements IPrimitivePaneRenderer {
         ctx.lineTo(Math.round(x) + 0.5, mediaSize.height);
         ctx.stroke();
         if (v.label) {
-          const right = x > mediaSize.width * 0.6;
-          label(ctx, v.label, right ? x - 4 : x + 4, mediaSize.height - 12, v.color, right ? 'right' : 'left');
+          const right = x > width * 0.6;
+          fixed.push({ text: v.label, x: right ? x - 4 : x + 4, y: mediaSize.height - 12, color: v.color,
+            align: right ? 'right' : 'left' });
         }
       }
       ctx.setLineDash([]);
@@ -209,14 +194,42 @@ class LineRenderer implements IPrimitivePaneRenderer {
       let down = 0;
       for (const { y, t } of this.px.tags) {
         if (y < 0) {
-          label(ctx, `↑ ${t.label}`, mediaSize.width - 6, TAG_TOP + up * TAG_H, t.color, 'right');
+          fixed.push({ text: `↑ ${t.label}`, x: width - 6, y: TAG_TOP + up * TAG_H, color: t.color, align: 'right' });
           up += 1;
         } else if (y > mediaSize.height) {
-          label(ctx, `↓ ${t.label}`, mediaSize.width - 6, mediaSize.height - 10 - down * TAG_H, t.color, 'right');
+          fixed.push({ text: `↓ ${t.label}`, x: width - 6, y: mediaSize.height - 10 - down * TAG_H, color: t.color,
+            align: 'right' });
           down += 1;
         }
       }
-      for (const { x, y, p } of this.px.pins) pin(ctx, x, y, p, mediaSize.width);
+      // The words that stay put are placed first; the boxes' labels take the room around them.
+      const measure = labelMeasure(ctx);
+      const obstacles: LabelRect[] = [];
+      const fixedDrawn = fixed.map(f => {
+        const w = measure(f.text);
+        const r = labelRect(f.x, f.y, w, f.align, width);
+        obstacles.push(r);
+        return { f, r, w };
+      });
+      const pins = this.px.pins.map(({ x, y, p }) => {
+        const r = pinRect(ctx, x, y, p.label, width);
+        obstacles.push(r);
+        return { x, y, p, r };
+      });
+      const asks: LabelAsk[] = [];
+      const colors: string[] = [];
+      for (const { x1, x2, y1, y2, b } of this.px.boxes) {
+        const right = x2 ?? width;
+        if (!b.label || right < 0 || x1 > width) continue; // a box out of view says nothing
+        const forms = labelForms(b.label, b.shrink, this.px.labels);
+        if (forms.length === 0) continue;
+        asks.push({ forms, x: x1, y: b.labelBelow ? Math.max(y1, y2) + 9 : Math.min(y1, y2) - 9, fixed: !b.shrink,
+          rank: b.shrink?.rank ?? 0 });
+        colors.push(b.labelColor);
+      }
+      for (const l of placeLabels(asks, measure, width, obstacles)) drawLabel(ctx, l.text, l.left, l.y, l.width, colors[l.ask]);
+      for (const { f, r, w } of fixedDrawn) drawLabel(ctx, f.text, r.left, f.y, w, f.color);
+      for (const { x, y, p, r } of pins) drawPin(ctx, x, y, p, r);
     });
   }
 }
@@ -245,7 +258,7 @@ export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
   private requestUpdate: (() => void) | null = null;
   private scene: Scene = EMPTY_SCENE;
   private readonly views = [new View(this, 'fill'), new View(this, 'lines')];
-  px: Px = { boxes: [], segments: [], vlines: [], tags: [], pins: [] };
+  px: Px = EMPTY_PX;
 
   attached(param: SeriesAttachedParameter<Time, SeriesType>): void {
     this.chart = param.chart;
@@ -269,7 +282,7 @@ export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
     const chart = this.chart;
     const series = this.series;
     if (!chart || !series) {
-      this.px = { boxes: [], segments: [], vlines: [], tags: [], pins: [] };
+      this.px = EMPTY_PX;
       return;
     }
     const ts = chart.timeScale();
@@ -309,7 +322,7 @@ export class SetupShapesPrimitive implements ISeriesPrimitive<Time> {
       const yy = y(p.price);
       if (xx !== null && yy !== null) pins.push({ x: xx, y: yy, p });
     }
-    this.px = { boxes, segments, vlines, tags, pins };
+    this.px = { boxes, segments, vlines, tags, pins, labels: this.scene.labels };
   }
 
   paneViews(): readonly IPrimitivePaneView[] {

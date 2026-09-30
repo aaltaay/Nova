@@ -1,5 +1,6 @@
 /** The 1-minute pane's legend for the stock read: a chip per setup lane that switches its shapes on
- * and off, the "Past" chip for the day's setups that ended, the setups without a scanner (locked,
+ * and off, the "Past" chip for the day's setups that ended and the one for how much their labels say
+ * (compact or full), the setups without a scanner (locked,
  * saying why), and -- after "show on chart" from the
  * decisions -- the moment in view with a way back to now. In the corner, the badge with the trade's
  * track and the Who trades chip under it, and the call (ENTER NOW, SELL NOW, what Nova did: ADR 037). */
@@ -54,6 +55,33 @@ function PastChip({ ctx }: { ctx: StockReadContextValue }) {
   );
 }
 
+const LABEL_WORDS = {
+  compact: 'Compact: how each ended in a few words (✕ topping tail ↘).',
+  full: 'Full: the whole label (✕ topping tail · ↘ then broke down).',
+} as const;
+
+/** How much the past setups' labels say (operator report 2026-09-30: "extremely too crowded"). Either
+ * way a label that would run into another shrinks, down to its marks, or steps aside. */
+function LabelsChip({ ctx }: { ctx: StockReadContextValue }) {
+  const { layers } = ctx;
+  if (!layers.past || ctx.past.unavailable) return null;
+  const next = layers.labels === 'full' ? 'compact' : 'full';
+  const words = `${LABEL_WORDS[layers.labels]} Where two would touch, the older one shrinks to its marks (✕↘) or steps `
+    + `aside; hover any box for its whole story. (click for ${next})`;
+  return (
+    <button
+      type="button"
+      className="sr-legend__chip sr-legend__chip--past"
+      aria-pressed={layers.labels === 'full'}
+      onClick={() => ctx.setLayers({ labels: next })}
+      {...tipProps(words, 'Past setup labels')}
+      data-testid="stock-read-legend-labels"
+    >
+      {layers.labels === 'full' ? '¶ Full' : '¶ Compact'}
+    </button>
+  );
+}
+
 export function ChartLegend({ ctx, read, onFrame }: {
   ctx: StockReadContextValue;
   read: StockRead;
@@ -98,6 +126,7 @@ export function ChartLegend({ ctx, read, onFrame }: {
               );
             })}
             <PastChip ctx={ctx} />
+            <LabelsChip ctx={ctx} />
             {read.no_scanner.filter(ns => LEGEND_NO_SCANNER.has(ns.setup_type)).map(ns => (
               <button
                 key={ns.setup_type}

@@ -2,7 +2,8 @@
  * Setups that ended (ADR 036 amendment, operator ask 2026-09-29): the day's episodes from the eyes'
  * journal -- one per setup's life on the symbol -- and what price did after each failed or faded one
  * (`GET /api/stock-read/{symbol}/past-setups`). This module owns their wire shape and their words: the
- * chart's short label, and the whole story a hover tells. The drawing is `pastShapes.ts`.
+ * chart's label -- whole, in a few words and as icons -- and the whole story a hover tells. The drawing
+ * is `pastShapes.ts`.
  * Nothing here is estimated: every price is the scanner's or the chart's own bars'.
  */
 import { list, normalizeLeg, normalizeSetupLevels, num, obj, str } from './normalize';
@@ -258,6 +259,28 @@ export function pastLabel(ep: Episode): string {
   const mark = end === 'failed' ? '✕' : '○';
   const next = ep.after ? FIRST_WORDS[ep.after.first] : null;
   return [`${mark} ${shortReason(ep.reason) || (end === 'failed' ? 'failed' : 'faded')}`, next].filter(Boolean).join(' · ');
+}
+
+/** What came next as its arrow alone. */
+const FIRST_ARROWS: Record<AfterFirst, string> = { high: '↗', low: '↘', neither: '→', pending: '', unknown: '' };
+
+/** The same in a few words, for a crowded pane: "✕ topping tail ↘", "✓ +1.4R". */
+export function pastShortLabel(ep: Episode): string {
+  const end = endOf(ep);
+  if (end === 'triggered') {
+    const r = ep.score?.bar_r;
+    return r !== null && r !== undefined ? `✓ ${signedR(r)}` : '✓ triggered';
+  }
+  const mark = end === 'failed' ? '✕' : '○';
+  const arrow = ep.after ? FIRST_ARROWS[ep.after.first] : '';
+  return [mark, shortReason(ep.reason, 24) || (end === 'failed' ? 'failed' : 'faded'), arrow].filter(Boolean).join(' ');
+}
+
+/** Only its marks, where even a few words do not fit: "✕↘", "✓". */
+export function pastIconLabel(ep: Episode): string {
+  const end = endOf(ep);
+  if (end === 'triggered') return '✓';
+  return `${end === 'failed' ? '✕' : '○'}${ep.after ? FIRST_ARROWS[ep.after.first] : ''}`;
 }
 
 const END_WORDS: Record<EpisodeEnd, string> = {

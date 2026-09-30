@@ -4,6 +4,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { subscribeOrderTicketPrefill, type OrderTicketPrefill } from '../ibkr/orderTicketPrefill';
+import { ChartLegend } from './ChartLegend';
 import { STOCK_READ_RISK_KEY } from './constants';
 import { StockReadSheet } from './ReadSheet';
 import { StockReadProvider, useStockReadContext } from './StockReadContext';
@@ -245,5 +246,31 @@ describe('the tiles and the sheet', () => {
     expect(screen.getByTestId('stock-read-sheet')).toBeTruthy();
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByTestId('stock-read-sheet')).toBeNull();
+  });
+});
+
+describe('the legend on the 1-minute chart', () => {
+  function Legend() {
+    const ctx = useStockReadContext();
+    return ctx?.read.data ? <ChartLegend ctx={ctx} read={ctx.read.data} onFrame={() => undefined} /> : null;
+  }
+
+  it("switches the past setups' labels between a few words and the whole label, and keeps it", async () => {
+    respond(/\/api\/stock-read\/APUS\/past-setups/, { schema_version: 1, symbol: 'APUS', date: '2026-09-30',
+      generated_at: 0, episodes: [], journal: { ok: true, error: null }, bars: { ok: true, error: null } });
+    render(
+      <StockReadProvider symbol="APUS" active replay={false} topOfBook={null}>
+        <Legend />
+      </StockReadProvider>,
+    );
+    const chip = await screen.findByTestId('stock-read-legend-labels');
+    expect(chip.textContent).toBe('¶ Compact');
+    expect(chip.getAttribute('data-tip')).toContain('Compact: how each ended in a few words');
+    fireEvent.click(chip);
+    expect(chip.textContent).toBe('¶ Full');
+    expect(chip.getAttribute('aria-pressed')).toBe('true');
+    expect(localStorage.getItem('nova.stockRead.layers')).toContain('"labels":"full"');
+    fireEvent.click(screen.getByTestId('stock-read-legend-past'));   // no past setups: nothing to label
+    expect(screen.queryByTestId('stock-read-legend-labels')).toBeNull();
   });
 });

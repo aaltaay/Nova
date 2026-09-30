@@ -9,7 +9,9 @@ import {
   laneStory,
   normalizePastSetups,
   pastCounts,
+  pastIconLabel,
   pastLabel,
+  pastShortLabel,
   pastStory,
   shortReason,
   type Episode,
@@ -20,7 +22,9 @@ import { parseLayers } from './StockReadContext';
 import { apusReadWire } from './stockReadFixtures';
 import type { StockRead } from './types';
 
-const LAYERS = { setups: true, levels: true, past: true, hidden: [] as string[], plan: 'auto' as const };
+const LAYERS = {
+  setups: true, levels: true, past: true, labels: 'compact' as const, hidden: [] as string[], plan: 'auto' as const,
+};
 const identity = (sec: number) => sec as Time;
 /** A moment of 2026-09-29, Eastern (EDT), as epoch seconds. */
 const MIDNIGHT_ET = Date.parse('2026-09-29T00:00:00-04:00') / 1000;
@@ -109,6 +113,20 @@ describe('what the chart draws, and says', () => {
     expect(pastLabel(byId(ftFailingNow.id))).toBe('✕ broke down from the base');   // its 15 minutes are not over
   });
 
+  it('says it in a few words, then in marks, for a crowded pane', () => {
+    expect(pastShortLabel(byId(ncplFlag.id))).toBe('✕ higher high in the flag ↗');
+    expect(pastIconLabel(byId(ncplFlag.id))).toBe('✕↗');
+    expect(pastShortLabel(byId(fpTriggered.id))).toBe('✓ +1.6R');
+    expect(pastIconLabel(byId(fpTriggered.id))).toBe('✓');
+    expect(pastShortLabel({ ...byId(fpTriggered.id), score: null })).toBe('✓ triggered');
+    expect(pastShortLabel(byId(ftFailingNow.id))).toBe('✕ broke down from the base');   // nothing came next yet
+    expect(pastIconLabel(byId(ftFailingNow.id))).toBe('✕');
+    const faded = { ...byId(ncplFlag.id), end: 'faded' as const, reason: 'something new the scanner says -- and why',
+      after: { ...byId(ncplFlag.id).after!, first: 'neither' as const } };
+    expect(pastShortLabel(faded)).toBe('○ something new the scann… →');
+    expect(pastIconLabel(faded)).toBe('○→');
+  });
+
   it('tells the whole story under the pointer', () => {
     const story = pastStory(byId(ncplFlag.id));
     expect(story.title).toBe('Bull flag · failed 09:20');
@@ -126,9 +144,24 @@ describe('what the chart draws, and says', () => {
       [at(9, 18), at(9, 19), 1.31, 1.35, '✕ higher high in the flag · ↗ then broke out'],
     ]);
     expect(boxes.every(b => b.dashed && b.hoverId === pastHoverId(byId(ncplFlag.id)))).toBe(true);
+    // The flag's label makes room in a few words, then marks; the pole's says nothing when crowded.
+    expect(boxes.map(b => [b.shrink?.short, b.shrink?.icon])).toEqual([
+      [null, null],
+      ['✕ higher high in the flag ↗', '✕↗'],
+    ]);
+    expect(boxes[1].shrink!.rank).toBeGreaterThan(boxes[0].shrink!.rank);
     const fp = pastShapes([byId(fpTriggered.id)], { toTime: identity });
     expect(fp[1]).toMatchObject({ t1: at(9, 15), t2: at(9, 17), p1: 1.31, p2: 1.35 });   // to the trigger's candle
     expect(pastShapes([byId(ncplFlag.id)], { toTime: () => null })).toEqual([]);
+  });
+
+  it('gives the newest setup that ended the room first', () => {
+    const [older, newer] = [byId(ncplFlag.id), byId(ftFailingNow.id)];   // gone 09:21; failed 09:24
+    const rank = (ep: Episode) => pastShapes([ep], { toTime: identity }).at(-1)!.shrink!.rank;
+    expect(rank(newer)).toBeGreaterThan(rank(older));
+    const legOfNewer = pastShapes([{ ...newer, setup_type: 'first_pullback' }], { toTime: identity })[0];
+    expect(legOfNewer.shrink!.rank).toBeLessThan(rank(older));   // any setup's ending before any leg
+    expect(rank(byId(fpTriggered.id))).toBeGreaterThan(rank(newer));   // a trade's result before them all
   });
 });
 
@@ -179,7 +212,7 @@ describe('the pointer over a box', () => {
     const p = new SetupShapesPrimitive();
     p.px = {
       boxes: boxes.map(b => ({ ...b, b: { hoverId: b.hoverId } as SceneBox })),
-      segments: [], vlines: [], tags: [], pins: [],
+      segments: [], vlines: [], tags: [], pins: [], labels: 'compact',
     };
     return p;
   }
@@ -201,5 +234,18 @@ describe('the layer switch', () => {
   it('shows past setups unless the operator switched them off, also for a value stored before them', () => {
     expect(parseLayers({ setups: true, levels: true, hidden: [], plan: 'auto' })?.past).toBe(true);
     expect(parseLayers({ past: false })?.past).toBe(false);
+  });
+
+  it('says past setups in a few words unless the operator asked for the whole label', () => {
+    expect(parseLayers({ setups: true, past: true, hidden: [], plan: 'auto' })?.labels).toBe('compact');
+    expect(parseLayers({ labels: 'full' })?.labels).toBe('full');
+    expect(parseLayers({ labels: 'huge' })?.labels).toBe('compact');
+  });
+
+  it('carries the setting into the scene', () => {
+    const read = normalizeStockRead(apusReadWire) as StockRead;
+    expect(paneDraw(read, { pane: 'full', layers: { ...LAYERS, labels: 'full' }, toTime: identity }).scene.labels)
+      .toBe('full');
+    expect(paneDraw(null, { pane: 'full', layers: LAYERS, toTime: identity }).scene.labels).toBe('compact');
   });
 });

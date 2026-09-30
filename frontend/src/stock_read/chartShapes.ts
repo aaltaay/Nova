@@ -247,11 +247,16 @@ export function leadLane(read: StockRead): SetupLane | null {
 }
 
 export function paneDraw(read: StockRead | null, o: DrawOptions): PaneDraw {
-  const empty: PaneDraw = { scene: { boxes: [], segments: [], vlines: [], edgeTags: [], pins: [], keepInView: null }, lines: [] };
+  const empty: PaneDraw = {
+    scene: { boxes: [], segments: [], vlines: [], edgeTags: [], pins: [], keepInView: null, labels: o.layers.labels },
+    lines: [],
+  };
   if (!read || o.pane === 'none') return empty;
   const plan = read.plan;
   const lead = leadLane(read);
-  const scene: Scene = { boxes: [], segments: [], vlines: [], edgeTags: [], pins: [], keepInView: null };
+  const scene: Scene = {
+    boxes: [], segments: [], vlines: [], edgeTags: [], pins: [], keepInView: null, labels: o.layers.labels,
+  };
   const lines: PriceLineSpec[] = [];
   const lv = drawnLevels(plan, o.levels);
   if (o.layers.setups) {

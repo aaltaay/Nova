@@ -199,7 +199,7 @@ export function StockReadChartLayer({ timeframe, chart, candleSeriesRef, contain
   const past = ctx?.past.data?.symbol === ctx?.symbol ? ctx?.past.data?.episodes ?? null : null;
   const draw = useMemo(() => paneDraw(read, {
     pane: kind,
-    layers: ctx?.layers ?? { setups: false, levels: false, past: false, hidden: [], plan: 'auto' },
+    layers: ctx?.layers ?? { setups: false, levels: false, past: false, labels: 'compact', hidden: [], plan: 'auto' },
     toTime: snapper(index),
     legStart: legStartOf(series),
     focus: ctx?.focus ? {
