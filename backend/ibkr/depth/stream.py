@@ -20,10 +20,15 @@ async def stream(queue: asyncio.Queue, timeout: float = DEPTH_STREAM_HEARTBEAT_S
     for one viewer's own queue -- see ``state.open_viewer_queue``. The depth socket
     wakes this often to push the book watcher's verdicts (ADR 033) and pings on its
     own clock.
+
+    Like the tape's, the queue is filled from the IB thread, so the loop is handed
+    back after every book: a backlog cannot hold the HTTP loop (#619).
     """
     while True:
         try:
             book = await asyncio.wait_for(queue.get(), timeout=timeout)
-            yield book
         except asyncio.TimeoutError:
             yield None
+            continue
+        yield book
+        await asyncio.sleep(0)

@@ -37,3 +37,13 @@ def test_push_book_broadcasts_to_every_viewer():
 
     assert q1.get_nowait()["bids"][0]["price"] == 2.5
     assert q2.get_nowait()["bids"][0]["price"] == 2.5
+
+
+def test_depth_stream_hands_the_loop_back_between_books():
+    """Like the tape's, a backlog of books must not hold the HTTP loop (#619)."""
+    from ibkr.depth.stream import stream
+    from tests.test_ibkr_tape_stream import _loop_turns_while_draining
+
+    got, turns = _loop_turns_while_draining(stream, 200)
+    assert got == 200
+    assert turns >= 150
