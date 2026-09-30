@@ -53,7 +53,9 @@ def test_the_hod_trade_log_only_queues_on_the_callers_thread():
     """The IB loop logs every trade tick: the file write belongs to the listener thread."""
     from hod_momo_trade_log import trade_log
 
-    assert trade_log.handlers
-    assert all(isinstance(h, logging.handlers.QueueHandler) for h in trade_log.handlers)
+    # pytest 9.1 puts its own capture handlers on every logger (#651): judge only the backend's.
+    ours = [h for h in trade_log.handlers if not type(h).__module__.startswith("_pytest")]
+    assert ours
+    assert all(isinstance(h, logging.handlers.QueueHandler) for h in ours)
     assert trade_log.propagate is False
 
