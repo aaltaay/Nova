@@ -56,4 +56,24 @@ contextBridge.exposeInMainWorld('novaDesktop', {
       return () => ipcRenderer.removeListener('nova:screen-record:view', listener);
     },
   },
+  /**
+   * Share clips (electron/clipBridge.mjs, ADR 039): the view, the operator's
+   * requests, and this window's Trader tab report. Same subscribe contract as
+   * `screenRecord`.
+   */
+  clips: {
+    subscribe: (onView) => {
+      const listener = (_event, view) => onView(view);
+      ipcRenderer.on('nova:clips:view', listener);
+      ipcRenderer
+        .invoke('nova:clips:subscribe')
+        .then((view) => {
+          if (view) onView(view);
+        })
+        .catch((err) => console.warn('[nova] clips unavailable', err));
+      return () => ipcRenderer.removeListener('nova:clips:view', listener);
+    },
+    act: (request) => ipcRenderer.invoke('nova:clips:act', request),
+    report: (report) => ipcRenderer.send('nova:clips:tab', report),
+  },
 });

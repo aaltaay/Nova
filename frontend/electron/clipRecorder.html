@@ -1,0 +1,103 @@
+<!doctype html>
+<!--
+  Share clips' high-quality capture page (ADR 039): a hidden window with its
+  own renderer process, apart from the screen recorder's (ADR 035), so a crash
+  here can never stop the always-on recording. Dumb on purpose -- clipHq.mjs
+  (the main process) decides what to capture and when, and owns the files. This
+  page only turns "start" into a window capture + MediaRecorder and hands every
+  chunk back, in order.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'">
+<title>Nova clip recorder</title>
+</head>
+<body>
+<script>
+(() => {
+  'use strict';
+  const bridge = window.novaClipRecorder;
+  const captures = new Map(); // capture id -> { rec, stream }
+  const message = (err) => (err && err.name ? `${err.name}: ${err.message}` : String(err || 'unknown error'));
+
+  function release(id) {
+    const entry = captures.get(id);
+    captures.delete(id);
+    if (entry && entry.stream) entry.stream.getTracks().forEach((t) => t.stop());
+  }
+
+  async function start(cmd) {
+    try {
+      const mime = cmd.mimes.find((m) => MediaRecorder.isTypeSupported(m));
+      if (!mime) throw new Error(`Chromium can encode none of ${cmd.mimes.join(', ')}`);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          mandatory: {
+            chromeMediaSource: 'desktop',
+            chromeMediaSourceId: cmd.sourceId,
+            maxWidth: cmd.maxWidth,
+            maxHeight: cmd.maxHeight,
+            maxFrameRate: cmd.fps,
+          },
+        },
+      });
+      const track = stream.getVideoTracks()[0];
+      track.onended = () => bridge.event({ kind: 'error', id: cmd.id, message: 'the window capture ended by itself' });
+      const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: cmd.bps });
+      let chain = Promise.resolve();
+      rec.ondataavailable = (ev) => {
+        chain = chain
+          .then(async () => {
+            const bytes = ev.data && ev.data.size ? new Uint8Array(await ev.data.arrayBuffer()) : null;
+            bridge.chunk(cmd.id, bytes);
+          })
+          .catch((err) => bridge.event({ kind: 'error', id: cmd.id, message: message(err) }));
+      };
+      rec.onerror = (ev) => bridge.event({ kind: 'error', id: cmd.id, message: message(ev.error || 'recorder error') });
+      rec.onstop = () => {
+        chain = chain.then(() => {
+          release(cmd.id);
+          bridge.event({ kind: 'stopped', id: cmd.id });
+        });
+      };
+      captures.set(cmd.id, { rec, stream });
+      rec.start(cmd.timesliceMs);
+      const s = track.getSettings();
+      bridge.event({ kind: 'started', id: cmd.id, mime, width: s.width ?? null, height: s.height ?? null });
+    } catch (err) {
+      release(cmd.id);
+      bridge.event({ kind: 'error', id: cmd.id, message: message(err) });
+    }
+  }
+
+  function stop(id) {
+    const entry = captures.get(id);
+    if (!entry) {
+      bridge.event({ kind: 'stopped', id });
+      return;
+    }
+    try {
+      if (entry.rec.state === 'inactive') {
+        release(id);
+        bridge.event({ kind: 'stopped', id });
+      } else {
+        entry.rec.stop();
+      }
+    } catch (err) {
+      release(id);
+      bridge.event({ kind: 'stopped', id, message: message(err) });
+    }
+  }
+
+  bridge.onCommand((cmd) => {
+    if (!cmd || typeof cmd !== 'object') return;
+    if (cmd.cmd === 'start') void start(cmd);
+    else if (cmd.cmd === 'stop') stop(cmd.id);
+  });
+  bridge.ready();
+})();
+</script>
+</body>
+</html>

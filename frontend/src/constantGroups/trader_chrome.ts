@@ -138,6 +138,8 @@ export const QUICK_TRADES_SHORT_LABELS = {
   sell_limit_ask_offset: 'S{n} Ask+{c}',
   sell_pos_pct_ask: 'Sell {p}%',
   sell_pos_pct_bid_offset: 'S{p}% Bid−{c}',
+  clip_toggle: 'Clip',
+  clip_save_last: 'Last 5m',
 } as const;
 /** `Sell 100%` reads as one word at the rail's width. */
 export const QUICK_TRADES_SELL_ALL_LABEL = 'Sell all';

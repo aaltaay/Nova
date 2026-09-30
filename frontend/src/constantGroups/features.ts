@@ -188,6 +188,9 @@ export const NOVA_ACTION_KINDS = [
   'sell_limit_ask_offset',
   'sell_pos_pct_ask',
   'sell_pos_pct_bid_offset',
+  // Share clips (ADR 039): no order, ever -- runNovaAction hands them to the clips feature first.
+  'clip_toggle',
+  'clip_save_last',
 ] as const;
 
 export type NovaActionKind = (typeof NOVA_ACTION_KINDS)[number];
@@ -204,6 +207,8 @@ export const NOVA_ACTION_KIND_LABELS: Record<NovaActionKind, string> = {
   sell_limit_ask_offset: 'Sell limit at Ask ± offset',
   sell_pos_pct_ask: 'Sell long % at Ask (limit)',
   sell_pos_pct_bid_offset: 'Sell long % at Bid − offset (limit)',
+  clip_toggle: 'Start / stop a video clip (this tab)',
+  clip_save_last: 'Save the last 5 min as a clip (this tab)',
 };
 
 /** Default Ask/Bid offset in dollars for limit entries. */

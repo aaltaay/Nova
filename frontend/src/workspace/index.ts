@@ -17,5 +17,5 @@ export {
   requestFocusList,
   subscribeFocusListRequest,
 } from './focusListRequest';
-export { requestScannerTab } from './navRailStore';
+export { requestScannerTab, setNavPage } from './navRailStore';
 export type { NovaModule } from './registry';

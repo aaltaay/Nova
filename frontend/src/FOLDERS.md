@@ -26,6 +26,7 @@ the backend packages.
 | `assets/` | shared | Static images: a hero image and the default Vite / React logos (scaffold leftovers). |
 | `bot/` | feature | The Bots page: level, arm / allowlist, risk and kill-switch cards, proposals inbox, playbook, session polling. |
 | `capture/` | feature | Session Record state on screen: the recording chip, top-edge hairline, stop toast and hold-to-stop button. |
+| `clips/` | feature | Share clips (ADR 039): the red ● Record button and Record menu on a Trader tab, the header's CLIP chips, the clip's frame, toasts, the export dialog and its trim timeline, Records › Video clips, the tab reporter, and the hidden export page (`export_page/`) the desktop app runs. |
 | `chart/` | feature | The ticker chart: chart instance, bars store, drawings, context menu, position overlay, VWAP and session shading. |
 | `closed_orders/` | feature | The Closed Orders module: today's closed orders table, filters, recency and the close-position button. |
 | `components/` | shared | Shared UI: shadcn `ui/` primitives plus app chrome (GlobalAppBar, NavRail), the scanner table, news / catalyst and settings parts. Mixed -- prefer a feature folder for new feature UI. |

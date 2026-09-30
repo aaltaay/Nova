@@ -24,6 +24,8 @@ import { startPerfMetrics } from './perfMetrics.mjs';
 import { startFocusSensor } from './focusSensor.mjs';
 import { startScreenRecorder } from './screenRecorder.mjs';
 import { createScreenRecordBridge } from './screenRecordBridge.mjs';
+import { startClipService } from './clipService.mjs';
+import { createClipBridge } from './clipBridge.mjs';
 import { applyGpuPolicy } from './gpuPolicy.mjs';
 import { attachRendererGuards, recoverWindowIfErrorPage } from './rendererGuards.mjs';
 import { applySingleInstance, focusExistingWindow } from './singleInstance.mjs';
@@ -55,13 +57,19 @@ let quitting = false;
 /** ADR 035: every monitor, recorded from launch to quit. */
 let screenRecorder = null;
 let screenRecordBridge = null;
+/** ADR 039: share clips, cut from that recording (High quality on demand). */
+let clipService = null;
+let clipBridge = null;
+
+/** The hidden recorder, capture and export pages: never a window the operator sees or closes. */
+const hiddenWindow = (w) => Boolean(screenRecorder?.isRecorderWindow(w) || clipService?.isClipWindow(w));
 
 /** The trading screen is always recorded; nothing but a quit stops it (operator decision 2026-09-24). */
 function startScreenRecording() {
   screenRecordBridge = createScreenRecordBridge({
     ipcMain,
     BrowserWindow,
-    isRecorderWindow: (w) => Boolean(screenRecorder?.isRecorderWindow(w)),
+    isRecorderWindow: hiddenWindow,
     apiBase: API_BASE,
     apiKey: getDesktopApiKey,
   });
@@ -76,9 +84,32 @@ function startScreenRecording() {
   });
 }
 
-/** Windows the operator can see or close -- the hidden screen recorder is not one. */
+/** Share clips: marks on the screen recording, a capture page and an export page (ADR 039). */
+function startClips() {
+  clipBridge = createClipBridge({
+    ipcMain,
+    BrowserWindow,
+    isHiddenWindow: hiddenWindow,
+    service: () => clipService,
+    apiBase: API_BASE,
+    apiKey: getDesktopApiKey,
+  });
+  clipService = startClipService({
+    BrowserWindow,
+    screen,
+    ipcMain,
+    shell,
+    userData: app.getPath('userData'),
+    // The export page is built by Vite beside the desk (frontend/clip-export.html).
+    exportPage: isDev ? { url: `${viteUrl()}/clip-export.html` } : { file: path.join(__dirname, '..', 'dist', 'clip-export.html') },
+    screenView: () => screenRecorder?.view() ?? null,
+    onView: (view) => clipBridge?.publish(view),
+  });
+}
+
+/** Windows the operator can see or close -- the hidden recorder, capture and export pages are not. */
 function deskWindowCount() {
-  return BrowserWindow.getAllWindows().filter((w) => !screenRecorder?.isRecorderWindow(w)).length;
+  return BrowserWindow.getAllWindows().filter((w) => !hiddenWindow(w)).length;
 }
 
 function displayWorkAreas() {
@@ -237,6 +268,7 @@ if (
     });
     // Recording needs no engine: it starts with the app, before the desk.
     startScreenRecording();
+    startClips();
     try {
       startup.step(engineStep(await startApiSidecar({ onStarting: () => startup.step(STARTUP_STEPS.starting) })));
       await openEnvFileIfNeeded();
@@ -306,12 +338,14 @@ app.on('window-all-closed', lastWindowClosed);
 // last window the operator can see is what ends Nova.
 app.on('browser-window-created', (_event, win) => {
   win.once('closed', () => {
-    if (!quitting && !screenRecorder?.isRecorderWindow(win) && deskWindowCount() === 0) lastWindowClosed();
+    if (!quitting && !hiddenWindow(win) && deskWindowCount() === 0) lastWindowClosed();
   });
 });
 
 app.on('before-quit', () => {
   quitting = true;
+  clipService?.stop('quit');
+  clipBridge?.stop();
   screenRecorder?.stop('quit');
   screenRecordBridge?.stop();
   stopApiSidecar();

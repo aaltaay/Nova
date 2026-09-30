@@ -3,7 +3,7 @@
  * every live page inherits it. One row, left to right on every view:
  *
  *   wordmark · session chip · ET clock · connection chip · venue pills · REC
- *   chips · screen recording chip (ADR 035) · [ticker search, centred] ·
+ *   chips · CLIP chips (ADR 039) · screen recording chip (ADR 035) · [ticker search, centred] ·
  *   Emergency KILL · Day's / Working / TAV
  *   / bot pill / account pill · padlock · gear
  *
@@ -20,6 +20,7 @@ import { GLOBAL_BAR_BRAND } from '../constants';
 import { RecordingChip } from '../capture/RecordingChip';
 import { RecordingSignals } from '../capture/RecordingSignals';
 import { ScreenRecordChip } from '../screen_record';
+import { ClipChips, ClipExportHost, ClipToasts } from '../clips';
 import { GlobalBarBotPill } from '../bot/GlobalBarBotPill';
 import { GlobalBarBotRow } from '../bot/GlobalBarBotRow';
 import { useClosedOrders } from '../closed_orders/useClosedOrders';
@@ -102,6 +103,8 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
     <header className="global-app-bar" data-testid="global-app-bar" data-venue={deskVenue ?? undefined}>
       <RecordingSignals onOpenSymbol={openStockView} />
       <WatchListToasts onOpenSymbol={openStockView} />
+      <ClipToasts />
+      <ClipExportHost />
       <div className="global-app-bar__primary" data-testid="global-bar-primary">
         <div className="global-app-bar__left" data-testid="global-bar-left">
           <div className="global-app-bar__brand" aria-label={GLOBAL_BAR_BRAND}>
@@ -127,6 +130,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
             testId="header-gateway-mode-capsule"
           />
           <RecordingChip variant="bar" onOpenSymbol={openStockView} />
+          <ClipChips />
           <ScreenRecordChip />
         </div>
 

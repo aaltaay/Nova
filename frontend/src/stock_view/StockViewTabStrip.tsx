@@ -25,6 +25,7 @@ import {
   type TraderTabDragPayload,
 } from '../workspace/traderDesk';
 import { openBotSymbolMenu } from '../bot/botSymbolMenuStore';
+import { openClipFor, RecordButton, useClips } from '../clips';
 import {
   getRecordingSymbols,
   isTabRecording,
@@ -81,6 +82,7 @@ export function StockViewTabStrip({
   // Re-render when the recording set changes; isTabRecording reads the store.
   useSyncExternalStore(subscribeSessionRecord, () => getRecordingSymbols().join(','), () => '');
   const overflowing = useStripOverflow(tabsRef, [tabs.join(','), active, Boolean(trailing)]);
+  const { view: clipsView } = useClips();
 
   useEffect(() => {
     if (active === TRADER_DRAFT_SYMBOL) { setEditing(TRADER_DRAFT_SYMBOL); setDraft(''); }
@@ -173,6 +175,7 @@ export function StockViewTabStrip({
                 isDraft={isDraft}
                 suspended={suspended}
                 recording={recording}
+                clipping={!isDraft && openClipFor(clipsView, symbol) !== null}
                 pinned={isPinned}
                 onTogglePin={togglePin}
                 context={isDraft || replayDesk ? null : tabContextFor(symbol, scannerRows)}
@@ -237,6 +240,7 @@ export function StockViewTabStrip({
           )}
         </div>
       )}
+      <RecordButton symbol={active && active !== TRADER_DRAFT_SYMBOL ? active : null} />
       {trailing && <div className="sv-tab-strip__sep" aria-hidden="true" />}
       {trailing && <div className="sv-tab-strip__trailing" data-testid="sv-tab-strip-trailing">{trailing}</div>}
     </div>

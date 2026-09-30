@@ -173,5 +173,24 @@ export function createDefaultNovaActions(): NovaActionRecord[] {
       enabled: true,
       showButton: false,
     },
+    // Share clips (ADR 039): shipped unbound -- the operator picks the key beside the trading ones.
+    {
+      id: 'nova-clip-toggle',
+      name: 'Start / stop clip',
+      kind: 'clip_toggle',
+      key: { label: '', key: '' },
+      params: {},
+      enabled: true,
+      showButton: false,
+    },
+    {
+      id: 'nova-clip-save-last',
+      name: 'Save the last 5 min',
+      kind: 'clip_save_last',
+      key: { label: '', key: '' },
+      params: {},
+      enabled: true,
+      showButton: false,
+    },
   ];
 }

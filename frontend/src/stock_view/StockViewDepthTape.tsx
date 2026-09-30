@@ -50,7 +50,7 @@ interface Props {
 function QuoteHead({ detail, symbol }: { detail: TickerDetail; symbol: string }) {
   return (
     <>
-      <div className="sv-quote-head">
+      <div className="sv-quote-head" data-testid="stock-view-quote-head">
         <StockViewQuotePrice detail={detail} />
         {/* Practice venue as a card tag, not a page banner. */}
         <StockViewVenueTag symbol={symbol} />

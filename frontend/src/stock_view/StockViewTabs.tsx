@@ -7,7 +7,7 @@
  * also carries the scrubber cluster, so the Trader view has exactly two rows
  * of chrome: the global bar and this strip.
  */
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useGlobalBarTraderSlot } from '../components/globalBarSlots';
 import { StockViewPage } from '../pages/StockViewPage';
@@ -24,6 +24,7 @@ import {
   takeForeignTraderTabDrop,
 } from '../workspace/traderDesk';
 import { SimSessionStrip } from '../sim/SimSessionStrip';
+import { ClipFrame, useClipTabReport } from '../clips';
 import { FocusRail } from './FocusRail';
 import type { FocusRailStore } from './focusRailState';
 import { StockViewTabStrip } from './StockViewTabStrip';
@@ -109,6 +110,13 @@ export function StockViewTabs({ detached, hideFocusRail = false, focusRailStore,
   );
   const headerSlot = useGlobalBarTraderSlot();
   const onScreen = active ?? traderViewActive;
+  // ADR 039: where this window's Trader tab is, for the clips that film it.
+  const rootRef = useRef<HTMLDivElement>(null);
+  useClipTabReport({
+    symbol: activeTraderSymbol && activeTraderSymbol !== TRADER_DRAFT_SYMBOL ? activeTraderSymbol : null,
+    onScreen,
+    rootRef,
+  });
 
   const tabStrip = (
     <StockViewTabStrip
@@ -141,6 +149,7 @@ export function StockViewTabs({ detached, hideFocusRail = false, focusRailStore,
 
   return (
     <div
+      ref={rootRef}
       className={`sv-tabs-root${dropReady ? ' sv-tabs-root--drop-ready' : ''}`}
       data-testid="sv-tabs-root"
       // A workspace whose tabs stay put (the sample desk's) takes no drop, so the cursor says so.
@@ -214,6 +223,7 @@ export function StockViewTabs({ detached, hideFocusRail = false, focusRailStore,
         })}
       </div>
       </div>
+      <ClipFrame rootRef={rootRef} />
       {/* Keep parse helper referenced so detached detection stays honest in tests */}
       <span className="sv-tabs-detached-flag" data-detached={detached || parseStockViewSymbol() != null ? '1' : '0'} hidden />
     </div>

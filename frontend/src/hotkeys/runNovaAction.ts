@@ -54,6 +54,7 @@ import {
   requireDepth,
 } from './runNovaActionPlace';
 import type { NovaActionRuntime } from './runNovaActionRuntime';
+import { runClipHotkey } from '../clips';
 
 export type { NovaActionRuntime } from './runNovaActionRuntime';
 
@@ -109,6 +110,10 @@ export async function runNovaAction(
   action: NovaActionRecord,
   runtime: NovaActionRuntime,
 ): Promise<NovaActionResult> {
+  // A share clip places nothing: it never reaches a gate or the order path (ADR 039).
+  if (action.kind === 'clip_toggle' || action.kind === 'clip_save_last') {
+    return runClipHotkey(action.kind, runtime.symbol);
+  }
   const actionTiming = captureBrowserAction('user_action');
   // One keypress is one gesture: every place this invocation makes carries
   // the same key, so a re-fired hotkey replays instead of doubling up.

@@ -1,6 +1,6 @@
 # ADR 039 -- Share clips: a red button that cuts video from the screen recording
 
-**Status:** Proposed (2026-09-29) -- accepted when the operator approves mockup v1
+**Status:** Accepted (2026-09-29; the operator approved mockup v1: "1 go")
 **Builds on:** [[035-trading-screen-always-recorded]] (the screen recording every clip is cut from) ·
 [[033-focus-and-book-watch-sensors]] (which tab and symbol each window shows) · the Session Record
 (AGENTS.md §3 "Recording persistence and coverage", whose Record choice this sits beside)
@@ -23,8 +23,10 @@ ADR 035 already records every monitor from launch to quit (15 fps, H.264, quarte
    on the recording that is already running, and an export cuts, crops and encodes the stretch. Cut
    clips cost nothing while the operator trades, have no cap and no time limit, and survive a Nova
    restart (the gap is marked). **Save the last 5 min** makes a finished clip ending now, since a trade
-   is rarely known to be worth sharing until it is over. At export the start and end can move anywhere
-   in the day.
+   is rarely known to be worth sharing until it is over. At export the start and end can move as far
+   as Nova followed the tab: from up to 30 minutes before the clip (the desk keeps that much of where
+   each tab was) to its stop. Outside that Nova does not know where the tab was, so the export leaves
+   it out and says so, rather than guessing a crop.
 2. **High quality on demand.** A switch on the button also starts a live 30 fps capture of the Nova
    window for that one clip. It runs in its **own hidden recorder process**, separate from ADR 035's,
    so a crash there can never stop the always-on recording. The live capture records the whole window;
@@ -35,7 +37,8 @@ ADR 035 already records every monitor from launch to quit (15 fps, H.264, quarte
 3. **The picture is the symbol's Trader tab, header left out** by default: the charts, Level 2,
    Time & Sales and the plan, without the global bar and the tab strip (account id, Day's P&L, TAV).
    The export can choose panels, the whole Nova window or the whole monitor, and warns when the
-   picture shows the header. It can blur a panel (the plan card carries the operator's size).
+   picture shows the header. It can blur a panel (the plan card, the trade card and the orders dock
+   carry the operator's size and P&L); the charts' position line is not blurred, and the export says so.
 4. **Looking away does not stop a clip.** Nova marks the stretches when the tab was hidden, showed
    another symbol, or Nova was minimized, and the export offers to cut them. Nova cannot tell when
    another application covers the window; a cut shows whatever the monitor showed.
@@ -55,33 +58,13 @@ Trader tab and shipped unbound. The browser desk cannot see the screen (ADR 035)
 locks Video clip and says why. A Sim replay desk can clip the replay; it has nothing live for Market
 data.
 
-## Shapes (proposed; AGENTS.md §3 confirms them in the implementing change)
+## Shapes
 
-- **Where.** `<dir>` = `NOVA_CLIPS_DIR`, else `F:\Nova\clips` while F: is mounted, else
-  `<userData>\clips`. A clip's manifest is `<dir>/clips.jsonl`, one JSON object per line with
-  `schema_version: 1` and `event`:
-  - `open` `{clip_id, symbol, window_id, started_ts, origin: "button" | "symbol_menu" | "hotkey" |
-    "last_n", picture: "trader_tab", display}`;
-  - `mark` `{clip_id, ts, kind: "hidden" | "shown" | "symbol" | "geometry" | "screen_gap" |
-    "restart", detail}` -- `geometry` carries the tab's rectangle on its monitor, in the layout
-    pixels ADR 035 records at;
-  - `hq` `{clip_id, ts, state: "start" | "end" | "lost" | "back", reason: "operator" | "limit" |
-    "error" | "restart" | null, file}`;
-  - `close` `{clip_id, ended_ts, reason: "operator" | "quit"}`;
-  - `export` `{clip_id, export_id, state: "running" | "done" | "failed" | "cancelled", file, bytes,
-    error, settings: {picture, start_ts, end_ts, cut: [[start, end], ...], blur: [panel, ...]}}`;
-  - `delete` `{clip_id, file}`.
-
-  An unknown version is refused and named, never guessed. A clip with an `open` and no `close` is
-  still open after a restart.
-- **The view**, one shape for every reader (the desk over IPC, and `POST /api/clips` for agents and
-  the checklist, as ADR 035 does): `{schema_version: 1, generated_at, dir, dir_source, hq_max,
-  hq_in_use, open: [{clip_id, symbol, started_ts, state: "ok" | "hidden" | "hq_lost" |
-  "no_picture", hq: {since, ends_at} | null}], clips: [...], disk: {free_bytes, state}}`.
-- **Exports** are MP4 (H.264) under `<dir>/<YYYY-MM-DD>/<SYMBOL>-<HHMMSS>.mp4`, the Eastern date and
-  start time.
-- **Constants** (`screenRecordPlan.mjs`'s neighbour): `CLIP_HQ_MAX_CONCURRENT = 2`,
-  `CLIP_HQ_MAX_SEC = 1800`, `CLIP_HQ_WARN_SEC = 60`, `CLIP_LAST_N_SEC = 300`, `CLIP_HQ_FPS = 30`.
+Confirmed in AGENTS.md §3, "Share clips": the manifest rows (`open`, `set`, `mark`, `hq`, `close`,
+`beat`, `export`, `delete` in `<dir>/clips.jsonl`), the view every reader gets, the tab report each
+desk window sends, the requests and their refusals, and `GET` / `POST /api/clips`. The numbers live in
+`frontend/electron/clipPlan.mjs` (`CLIP_HQ_MAX_CONCURRENT = 2`, `CLIP_HQ_MAX_SEC = 1800`,
+`CLIP_HQ_WARN_SEC = 60`, `CLIP_LAST_N_SEC = 300`, `CLIP_HQ_FPS = 30`) and `backend/constants_clips.py`.
 
 ## Rejected
 
@@ -102,18 +85,37 @@ data.
   2560x1440, so a crop there is softer than on the 100% monitors.
 - A clip's size counts toward the F: drive guard ADR 035 already warns on.
 
-## To verify before building
+## Measured before building (the desk PC, 2026-09-29)
 
-- Whether the 15 fps picture is good enough to share (cut a 30 s sample from a real recording).
-- The export path: WebCodecs in a hidden page (demux the Matroska, crop and blur on a canvas, encode,
-  mux MP4; no new binary) against a bundled ffmpeg (fast, one binary; its licence and about 80 MB of
-  installer).
-- What a window capture sends while Nova is minimized, on the desk's mixed-DPI monitors.
+- **The export path.** WebCodecs H.264 encodes and decodes in a hidden Electron 39 page with the GPU
+  off, as the desk runs it. mediabunny reads the screen recorder's own Matroska (a real 15-minute
+  segment: 2,453 packets, keyframes every ~40 s); a 10 s crop of it encoded in 0.46 s. No ffmpeg, no
+  new binary; mediabunny (MPL-2.0) is bundled into the export page by Vite. Its key-packet lookup
+  missed a keyframe in that segment (no frame for 895 s though one at 864 s decoded), so the page walks
+  frames with the iterator from each piece's start instead.
+- **A window capture on the mixed-DPI desk.** On all three monitors (100% and 150%) the captured frame
+  is the window's visible rectangle, the page at its bottom-left at the monitor's scale under the title
+  bar; a covered window still captures its own content; a minimized one sends no frames (the chip says
+  hidden and the export fills from the screen recording or cuts it). The frame size a capture reports
+  at start is the requested maximum, not the frame's, so the crop is worked out per decoded frame.
+- **End to end,** with the real service and export page against the desk's live screen recording on F:
+  (a test window standing in for a Trader tab): a 12 s high-quality clip (11.9 s high quality, the first
+  0.2 s from the screen recording while the capture started) and a "last 14 s" cut both exported as
+  playable MP4s (984 x 594; 30 fps and 15 fps); the header was out of both, and the blurred plan card's
+  pixel variance fell from 1,625 to 42.
+- **Through the desk itself** (the built desk in sample mode, the real preload, bridge and service, driven
+  by clicks on the red button, the menu, the CLIP chip, the toast and the dialog): a 9.7 s clip exported
+  as a playable 1246 x 778 MP4 at 15 fps. It caught two faults the unit tests had not: the order ticket's
+  blur named an element no component renders (the ticket stayed readable; a test now checks every blur
+  target against the components), and the trim timeline took the tab to be shown before the clip's
+  first mark. It also showed a window of another app over the desk in the cut, as decision 4 says.
+- **Still the operator's to judge:** whether the 15 fps cut is sharp enough to post.
 
 ## Rules and maps
 
 - Mockup v1: the Share Clips design canvas (five boards: the Record menu, a clip recording, every
   state, export, Records › Video clips).
-- Code to come: `frontend/electron/clip*.mjs` (the manifest, the high-quality recorder, the export),
-  `frontend/src/clips/` (the Record menu, the chips, the Records list), `backend/clips/` (the view
-  and a `clips` checklist row).
+- Shapes: AGENTS.md §3 "Share clips".
+- Code: `frontend/electron/clip*.mjs`, `clipRecorder.html`, `clipRecorderPreload.cjs`,
+  `clipExportPreload.cjs`; `frontend/clip-export.html` and `frontend/src/clips/` (with `export_page/`);
+  `backend/clips/`, `backend/diagnostics/collect_clips.py`.
