@@ -42,6 +42,7 @@ Constitution (`gemini.md` / `AGENTS.md`) and `.cursor/rules/*` remain supreme fo
 | [037](./decisions/037-who-trades-the-stock.md) | Who trades the stock: a Buy / Sell switch above Level 2 (Signal only, Approve, Auto-entry, Bot at Strategy), Nova placing on Paper and Sim only, brackets on the practice venues, the trade's moments live on the chart | Accepted |
 | [039](./decisions/039-share-clips.md) | Share clips: a red button that cuts video from the screen recording, High quality on demand, one Record menu beside the Session Record, Records › Video clips | Accepted |
 | [040](./decisions/040-cryptos-page.md) | The Cryptos page: a read-only reference board for the 24/7 crypto market (named public sources, each labelled), the stocks it moves (IBKR), unknowns stated, and a hover card that explains every number | Accepted |
+| [041](./decisions/041-signal-trials.md) | Signal trials: a tape reading becomes a call only by passing a test registered before its data exists (`knowledge/signal-trials.json`, frozen), and auto-record gives Level 2 lines to setups in a trade, near or armed before the leaders | Accepted |
 
 ## Rules and maps
 

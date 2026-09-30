@@ -1,4 +1,4 @@
-"""Auto-record 07:00-10:00 ET: free lines only, yields to the operator, never touches theirs (ADR 023)."""
+"""Auto-record 07:00-10:00 ET: setups then leaders, free lines only, yields to the operator (ADR 023, ADR 040)."""
 from __future__ import annotations
 
 import asyncio
@@ -21,6 +21,25 @@ def gainer(symbol, change, price=5.0):
     return {"symbol": symbol, "price": price, "prev_close": price / (1 + change), "volume": 500_000}
 
 
+class Det:
+    def __init__(self, state):
+        self.state = state
+
+
+class Lane:
+    """Stand-in for a template in play: its armed / near setups and its scored trades."""
+
+    def __init__(self, near=(), armed=(), trades=()):
+        self.det = {s: Det("near") for s in near} | {s: Det("armed") for s in armed}
+        self.trades = set(trades)
+
+    def watching(self):
+        return set(self.det)
+
+    def trade_symbols(self, now):
+        return set(self.trades)
+
+
 class Desk:
     """Stand-in for the depth lines, the recorder and the Session Record path."""
 
@@ -28,6 +47,7 @@ class Desk:
         self.operator_lines: list[str] = []
         self.recording: list[str] = []
         self.gainers: list[dict] = []
+        self.lanes: list[Lane] = []
         self.stops: list[tuple[str, str | None]] = []
 
     def busy(self):
@@ -41,6 +61,7 @@ def desk(monkeypatch):
     monkeypatch.setattr(auto_record, "_busy_lines", d.busy)
     monkeypatch.setattr(auto_record, "_recording", lambda: list(d.recording))
     monkeypatch.setattr(auto_record, "_live_gainers", lambda: list(d.gainers))
+    monkeypatch.setattr(auto_record, "_live_setup_lanes", lambda: list(d.lanes))
     from capture import feed_hold, keepalive, mode
     from ibkr import client
 
@@ -158,3 +179,77 @@ def test_an_auto_stop_is_a_planned_gap_in_the_recording():
         {"started_et": "2026-09-18T07:35:00-04:00", "stopped_et": "2026-09-18T07:40:00-04:00", "reason": "operator"},
     ]
     assert missing_seconds(segments) == 5 * 60  # only the gap after the failure
+
+
+# -- setups first (ADR 040) ------------------------------------------------------
+
+
+def test_setups_take_the_free_lines_before_the_leaders(desk):
+    desk.gainers = [gainer("AAA", 2.0), gainer("BBB", 1.5), gainer("CCC", 1.0)]
+    desk.lanes = [Lane(armed=["ARM"]), Lane(near=["NER"])]
+    desk.operator_lines = ["OPR"]
+    run(auto_record.tick(et(7, 5)))
+    assert desk.recording == ["NER", "ARM"]  # near, then armed; no line left for a leader
+    got = auto_record.status(et(7, 5))
+    assert got["why"] == {"ARM": "armed", "NER": "near"}
+    assert got["setups"] == [{"symbol": "NER", "why": "near"}, {"symbol": "ARM", "why": "armed"}]
+    assert got["setups_error"] is None
+
+
+def test_a_symbol_in_several_lanes_counts_at_its_best(desk):
+    lanes = [Lane(armed=["XYZ"]), Lane(trades=["XYZ"]), Lane(near=["XYZ", "ABC"])]
+    assert auto_record.pick_setups(lanes, et(7, 5)) == [("XYZ", "trade"), ("ABC", "near")]
+
+
+def test_a_setup_takes_a_leaders_line_once_it_ran_a_minute_but_never_another_setups(desk):
+    desk.gainers = [gainer("AAA", 2.0), gainer("BBB", 1.5), gainer("CCC", 1.0)]
+    run(auto_record.tick(et(7, 5)))
+    assert desk.recording == ["AAA", "BBB", "CCC"]
+    auto_record._auto.update({s: et(7, 5) for s in desk.recording})
+    desk.lanes = [Lane(armed=["SET"])]
+    run(auto_record.tick(et(7, 5, 30)))
+    assert "SET" not in desk.recording  # the leaders' lines opened 30 s ago
+    run(auto_record.tick(et(7, 6, 5)))
+    assert "SET" in desk.recording and "CCC" not in desk.recording  # the lowest leader gave way
+    assert ("CCC", "auto") in desk.stops
+    desk.lanes = [Lane(armed=["SET", "TWO", "THR", "FOU"])]
+    auto_record._auto.update({s: et(7, 5) for s in auto_record._auto})
+    run(auto_record.tick(et(7, 8)))
+    # The two leaders gave way (armed setups in symbol order); a setup never takes another setup's line.
+    assert set(desk.recording) == {"SET", "FOU", "THR"}
+    assert "TWO" not in desk.recording
+
+
+def test_the_operator_still_outranks_every_auto_line_and_a_leader_goes_first(desk):
+    desk.gainers = [gainer("AAA", 2.0)]
+    desk.lanes = [Lane(trades=["TRD"], near=["NER"])]
+    run(auto_record.tick(et(7, 5)))
+    assert desk.recording == ["TRD", "NER", "AAA"]
+    assert run(auto_record.make_room_for("MINE")) == "AAA"
+    desk.operator_lines = ["MINE"]
+    assert run(auto_record.make_room_for("MIN2")) == "NER"
+
+
+def test_a_trade_keeps_its_tape_past_the_window_until_its_score_ends(desk):
+    desk.gainers = [gainer("AAA", 2.0)]
+    desk.lanes = [Lane(trades=["TRD"], armed=["ARM"])]
+    run(auto_record.tick(et(9, 58)))
+    assert set(desk.recording) == {"TRD", "ARM", "AAA"}
+    run(auto_record.tick(et(10, 0)))
+    assert desk.recording == ["TRD"]  # the armed setup and the leader stop as planned
+    assert {("ARM", "auto"), ("AAA", "auto")} <= set(desk.stops)
+    desk.lanes = [Lane()]  # its scoring window ended
+    run(auto_record.tick(et(10, 12)))
+    assert desk.recording == [] and ("TRD", "auto") in desk.stops
+
+
+def test_an_unreadable_setup_scanner_is_stated_and_the_leaders_still_record(desk, monkeypatch):
+    def broken():
+        raise RuntimeError("engine not started")
+
+    monkeypatch.setattr(auto_record, "_live_setup_lanes", broken)
+    desk.gainers = [gainer("AAA", 2.0)]
+    run(auto_record.tick(et(7, 5)))
+    got = auto_record.status(et(7, 5))
+    assert desk.recording == ["AAA"]
+    assert got["setups"] == [] and got["setups_error"] == "RuntimeError: engine not started"

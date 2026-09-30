@@ -1,0 +1,225 @@
+{
+  "schema_version": 1,
+  "registry": "signal-trials",
+  "adr": "architecture/decisions/041-signal-trials.md",
+  "registered_at": "2026-09-30",
+  "data_from": "2026-09-30",
+  "frozen": true,
+  "note": "Pre-registered before any Session Record or setups.db row dated 2026-09-30 or later was read. Every rule, population, metric, sample and pass line below is fixed; a change means a new trial on new days, never an edit here (backend/tests/test_signal_trials_registry.py holds the file to its hash). Each trial promotes a signal from description to a call, or leaves it as description. None of them places an order on Live: Nova never buys or sells on Live by itself (Invariant 7, auto_live NO-GO).",
+  "reading": {
+    "when": "Once per trial: the first nightly read after 20:00 ET at which its sample is complete. Never earlier, never on a partial sample.",
+    "multiplicity": "Holm across the trials read the same night, family-wise alpha 0.05.",
+    "peeking": "Until its read, the desk and any report show a trial's n of N only, never its running result.",
+    "failed": "A failed trial leaves its signal as description, with the result on its hover. It is never registered again on the same days."
+  },
+  "common": {
+    "recordings": "Session Records under the capture root (F:\\Nova\\sim_capture) dated on or after data_from, IBKR source only. Only stretches inside the manifest's segments; every sample needs a recorded book no older than 5 s.",
+    "prints": "Lit prints only (FINRA / TRF / ADF out). The side is the print against the book standing when it arrived: at or through the ask, between, at or through the bid.",
+    "random_long": {
+      "every_sec": 60,
+      "entry": "Buy at the ask 1.0 s after the sample time.",
+      "filters": {
+        "ask_min": 1.0,
+        "ask_max": 20.0,
+        "max_spread": "max(0.05, 1% of the ask)",
+        "quote_max_age_sec": 5
+      },
+      "bracket": {
+        "target_cents": 20,
+        "stop_cents": 20,
+        "time_stop_min": 15
+      },
+      "fills": "Target: the target price on the first print at or over it. Stop: the bid when the first print at or under the stop arrives (it may gap). Time: the bid at 15 minutes. A trade the recording cuts off is marked to its last bid and counted."
+    },
+    "lag_honest_exit": "A tape exit sells at the worse of min(bid, last print at the bid) at the reaction moment and the recorded bid 1.0 s later.",
+    "control": "The same trades with the rule's fill-to-exit delays permuted within recording and clock hour; 50 seeds, averaged.",
+    "costs": "The primary metrics are gross. 1c a fill is reported beside each."
+  },
+  "trials": [
+    {
+      "id": "T1",
+      "name": "SELL: the 30 s flow reading turns flush",
+      "role": "sell",
+      "signal": "setup_scanner.tape_flow.score_from with FlowParams(window_sec=30) and every other parameter at its ADR 034 default (flush at a score of -0.5 or lower), read every 1.0 s. Quiet and blind readings never count.",
+      "rule": "While long: the first 30 s reading labelled flush at least 10 s after the fill; sell 1.0 s later at the lag-honest exit price. The bracket stays underneath.",
+      "population": "common.random_long",
+      "primary_metric": "Equal-weight mean over recordings of each recording's mean (rule minus control), in cents per trade.",
+      "test": "One-sided sign-flip permutation over the per-recording means, 10,000 draws.",
+      "sample": {
+        "min_recordings": 20,
+        "min_trades_per_recording": 30,
+        "min_session_days": 8
+      },
+      "pass": [
+        "Holm-adjusted p < 0.05",
+        "at least 60% of recordings positive",
+        "the equal-weight mean of (rule minus bracket only) above 0"
+      ],
+      "reported_not_deciding": [
+        "a 3.0 s reaction",
+        "trade-weighted pooling",
+        "by session day",
+        "the largest recording dropped",
+        "1c a fill"
+      ],
+      "on_pass": "SELL NOW · FLUSH is a call in the Trader on every venue (on Live a call only, the operator clicks), and the 'Flush exit 30 s' template stays available to Nova-held trades on Paper and on Sim at the live edge.",
+      "on_fail": "The 30 s flush becomes description ('30 s tape: sellers') with this result on its hover, and the 'Flush exit 30 s' template leaves play.",
+      "in_sample": {
+        "study": "F:\\Nova\\eyes\\studies\\buy-sell-hold-2026-09-29\\exit",
+        "evidence": "a30_1s on 604 random longs, 5 ordinary days, GRML 2026-09-22 excluded: +1.06c against a random exit of the same length in the same stock [+0.39, +1.53], +2.0 to +2.2c against the bracket, full stops 46% -> 9%, placebo p 0.010 (Holm 0.084 across 14 rules). With GRML 2026-09-22: -0.18c. Chosen in #629 on the same days."
+      }
+    },
+    {
+      "id": "T2",
+      "name": "DON'T BUY: sellers own the last 10 s",
+      "role": "buy_veto",
+      "signal": "The tape flow imbalance over the last 10 s is -1: lit, sided prints (odd lots included), shares at or through the ask 0, shares at or through the bid above 0, with a recorded book no older than 3 s.",
+      "rule": "A long is not entered while the signal holds.",
+      "population": "Samples every 5 s of recorded tape meeting common.random_long.filters; each sample's executable 60 s long: buy at the ask 1.0 s later, sell at the bid 60 s after that.",
+      "primary_metric": "Mean executable 60 s result of veto samples minus that of the other samples, in cents.",
+      "test": "Circular-shift placebo of the veto flags within each recording, 1,000 draws; one-sided.",
+      "sample": {
+        "min_veto_samples": 1500,
+        "min_recordings": 20,
+        "min_session_days": 8
+      },
+      "pass": [
+        "the difference is -1.0c or worse",
+        "Holm-adjusted placebo p < 0.05",
+        "negative on at least 60% of session days"
+      ],
+      "reported_not_deciding": [
+        "veto samples of one or two prints vs three or more",
+        "the whole 20c / 20c / 15 min trade instead of 60 s",
+        "by session day",
+        "the largest recording dropped"
+      ],
+      "on_pass": "WAIT · SELLERS AT THE BID withholds ENTER NOW and 'Approve: buy N now' while it holds, and a template option lets Auto-entry and Nova's bot skip an entry on it (Paper and Sim at the live edge).",
+      "on_fail": "It stays description in the Trader, with this result on its hover.",
+      "in_sample": {
+        "study": "F:\\Nova\\eyes\\studies\\buy-sell-hold-2026-09-29\\entry",
+        "evidence": "2.1-2.7c worse at 60 s with spread and activity controls, placebo z -3.4 (mid) to -4.3 (executable), -2.0 to -2.25c without GRML 2026-09-22; over the whole 20c/20c trade -3.3 to -4.3c. 27% of veto samples were one or two small prints."
+      }
+    },
+    {
+      "id": "T3",
+      "name": "SELL at bot speed: a red burst",
+      "role": "sell_bot_only",
+      "signal": "The first run after the fill of lit prints at or through the bid, consecutive prints each within 0.5 s, packing at least max(2,000 shares, 10x the symbol's lit volume per second over the prior 120 s), with at most 20% of the run's shares on the other side.",
+      "rule": "Sell 0.3 s after the run is detected, at the lag-honest exit price. The bracket stays underneath.",
+      "population": "common.random_long",
+      "primary_metric": "Equal-weight mean over recordings of each recording's mean (rule minus control), in cents per trade.",
+      "test": "One-sided sign-flip permutation over the per-recording means, 10,000 draws.",
+      "sample": {
+        "min_recordings": 20,
+        "min_trades_per_recording": 30,
+        "min_session_days": 8
+      },
+      "pass": [
+        "Holm-adjusted p < 0.05",
+        "at least 60% of recordings positive"
+      ],
+      "reported_not_deciding": [
+        "a 1.0 s and a 2.0 s reaction",
+        "the share of the result carried by the top 10 events",
+        "by session day"
+      ],
+      "on_pass": "It joins the exits of Nova-held trades on Paper and on Sim at the live edge, at bot speed. It never becomes a call for a person.",
+      "on_fail": "It stays a journal line.",
+      "in_sample": {
+        "study": "F:\\Nova\\eyes\\studies\\buy-sell-hold-2026-09-29\\time_sales\\event_study",
+        "evidence": "+1.4 to +1.7c against the bracket; +0.97c a random long (t 5.7) against random timing, but +0.35c [-0.38, +0.84] with a within-recording control and lag-honest pricing; 10 of 265 events carried 62% of it; +0.4 to +0.5c at a 2-5 s reaction, not significant."
+      }
+    },
+    {
+      "id": "T4",
+      "name": "DON'T BUY: a down-sweep",
+      "role": "buy_veto",
+      "signal": "At least 3 price levels down within 1 s and at least 2,000 lit shares, printing at or through the bid; an onset has no down-sweep in the prior 10 s.",
+      "rule": "A long is not entered for 10 s after a down-sweep onset.",
+      "population": "A long bought at the ask 1.0 s after each onset, on the common.random_long bracket, against the random longs of the same recordings that no onset precedes within 10 s.",
+      "primary_metric": "Mean result of the post-sweep longs minus that of the random longs, in cents.",
+      "test": "Circular-shift placebo of the onsets within each recording, 1,000 draws; one-sided.",
+      "sample": {
+        "min_events": 600,
+        "min_recordings": 20,
+        "min_session_days": 8
+      },
+      "pass": [
+        "the difference is -1.4c or worse",
+        "Holm-adjusted placebo p < 0.05",
+        "negative on at least 60% of session days"
+      ],
+      "reported_not_deciding": [
+        "the part explained by the ask paid (the entry cost) vs the move after",
+        "the bid still falling 1 s later",
+        "by session day"
+      ],
+      "on_pass": "WAIT · DOWN-SWEEP withholds ENTER NOW for 10 s after the onset.",
+      "on_fail": "It stays description, with this result on its hover.",
+      "in_sample": {
+        "study": "F:\\Nova\\eyes\\studies\\buy-sell-hold-2026-09-29\\time_sales\\event_study",
+        "evidence": "-2.8c against non-overlapping random longs, t -3.8, 862 events; -3.9c when the bid was still falling 1 s later. About 60% of it is paying a stale or wide ask. Single-test strength only: it does not survive a family-wise correction over the ~62 event tests."
+      }
+    },
+    {
+      "id": "T5",
+      "name": "A planned risk under 5c",
+      "role": "buy_warning",
+      "signal": "The setup's risk per share (entry minus stop) is under $0.05.",
+      "rule": "Warn on the plan (operator decision 2026-09-30: warn, never block, until this passes).",
+      "population": "Triggered setups of the templates in play in setups.db, armed on or after data_from, scored by the scanner (bar_r, gross).",
+      "primary_metric": "Mean gross bar_r of triggers with risk under $0.05 minus that of the rest, in R.",
+      "test": "Cluster bootstrap over symbol-days, 10,000 draws; one-sided.",
+      "sample": {
+        "min_symbol_days_under": 40,
+        "min_symbol_days_over": 40,
+        "min_session_days": 8
+      },
+      "pass": [
+        "the difference is -0.3R or worse",
+        "Holm-adjusted p < 0.05"
+      ],
+      "reported_not_deciding": [
+        "net of 1c a fill",
+        "by setup type",
+        "by session day"
+      ],
+      "on_pass": "Risk under 5c becomes a NOT A TRADE reason on the plan.",
+      "on_fail": "It stays a warning with this result on its hover.",
+      "in_sample": {
+        "study": "F:\\Nova\\eyes\\studies\\buy-sell-hold-2026-09-29\\setups",
+        "evidence": "Gross gap -0.58R [-0.96, -0.25] on 49 symbol-days, partly refused trades scored on lows after the setup died; cause unknown (the market, or close-under-stop scoring on tiny stops). 2c of costs is 0.29R at the median $0.07 stop."
+      }
+    },
+    {
+      "id": "T6",
+      "name": "SELL on setup trades: the 30 s flush against the setup's own bracket",
+      "role": "sell",
+      "signal": "As T1.",
+      "rule": "As T1, applied to a setup trade: from the scanner's entry, with the setup's own stop, target 1 and the 15-minute time stop underneath.",
+      "population": "Triggers of the templates in play, armed on or after data_from, whose trigger and scoring window lie inside a recorded stretch (auto-record takes their lines first, ADR 041). Each trigger is paired: the flush exit against the bracket only, in R.",
+      "primary_metric": "Mean over session days of the day's mean paired difference (flush exit minus bracket only), in R.",
+      "test": "One-sided sign-flip permutation over session days, every flip or 10,000 draws.",
+      "sample": {
+        "min_triggers": 40,
+        "min_session_days": 8
+      },
+      "pass": [
+        "Holm-adjusted p < 0.05",
+        "the mean paired difference above 0"
+      ],
+      "reported_not_deciding": [
+        "by setup type",
+        "the operator's own entries on recorded symbols, paired the same way",
+        "1c a fill"
+      ],
+      "on_pass": "The flush exit is kept on the setup templates that play on Paper.",
+      "on_fail": "The flush exit leaves the setup templates even if T1 passes; T1 alone keeps it as a call for hand trades.",
+      "in_sample": {
+        "study": "F:\\Nova\\eyes\\studies\\buy-sell-hold-2026-09-29\\exit",
+        "evidence": "Not measured: only 4 setup triggers fell inside recorded stretches, and Nova held no depth line at 50 of 62 triggers. The flush was measured on random longs that lose; its value on a setup's median ~7c risk is unknown."
+      }
+    }
+  ]
+}
