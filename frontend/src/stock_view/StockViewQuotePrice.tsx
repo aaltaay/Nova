@@ -12,6 +12,7 @@ import { fmtPct } from '../utils/quoteFormat';
 import { useWorkspace } from '../workspace';
 import { computeQuoteMetrics } from '../modules/quoteMetrics';
 import { useReplayQuote } from '../sim/useReplayQuote';
+import { StockViewQuoteRank } from './StockViewQuoteRank';
 
 interface Props {
   detail: TickerDetail;
@@ -28,7 +29,8 @@ export function StockViewQuotePrice({ detail }: Props) {
 
   return (
     <div className="sv-quote-card__price" data-testid="stock-view-quote-price">
-      <span className="sv-quote-card__symbol">{detail.symbol}</span>
+      <span className="sv-quote-card__symbol" data-testid="stock-view-quote-symbol">{detail.symbol}</span>
+      <StockViewQuoteRank symbol={detail.symbol} />
       {price != null ? (
         <span className="sv-quote-card__last">${price.toFixed(2)}</span>
       ) : (
