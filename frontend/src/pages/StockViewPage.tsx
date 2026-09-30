@@ -13,6 +13,7 @@ import { useTickerStream } from '../hooks/useTickerStream';
 import { useIbkrAccount } from '../ibkr/useIbkrAccount';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { cancelIbkrOrderWithFeedback } from '../ibkr';
+import { deskVenueOf } from '../ibkr/deskVenue';
 import { confirmAndFillWorkingOrder } from '../ibkr/fillWorkingOrderImmediately';
 import type { PlaceOrderResult } from '../ibkr/placeOrder';
 import type { IbkrOrder } from '../ibkr/types';
@@ -182,6 +183,7 @@ export function StockViewPage({
       topOfBook={topOfBook}
       position={symbolPosition ? { qty: symbolPosition.qty, avgCost: symbolPosition.avg_cost } : null}
       lastPrice={lastTrade?.price ?? null}
+      venue={deskVenueOf(ibkrStatus)}
     >
     <div
       className="stock-view-page"

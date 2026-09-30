@@ -3,6 +3,12 @@
  * One interval per process. Across Electron+Vite windows, one leader polls
  * at IBKR_ACCOUNT_POLL_MS; followers apply a shared snapshot so Day P&L
  * stays 1s-honest without N-window storms.
+ *
+ * The snapshot names the desk venue its rows came from (#657). A venue change
+ * clears the old venue's rows and reads the new one at once; a read that
+ * finishes after the switch, and another window's snapshot of another venue,
+ * are dropped -- Live never shows Paper's orders or positions, not even as
+ * "last known".
  */
 import {
   API_BASE_URL,
@@ -37,6 +43,8 @@ export interface IbkrAccountPollSnap {
   error: string | null;
   stale: boolean;
   staleSince: number | null;
+  /** The desk venue these rows came from (live | paper | sim); null before the status names one. */
+  venue: string | null;
 }
 
 const EMPTY: IbkrAccountPollSnap = {
@@ -48,6 +56,7 @@ const EMPTY: IbkrAccountPollSnap = {
   error: null,
   stale: false,
   staleSince: null,
+  venue: null,
 };
 
 type Listener = () => void;
@@ -57,6 +66,7 @@ const listeners = new Set<Listener>();
 let subscriberCount = 0;
 let connected = false;
 let sample = false;
+let venue: string | null = null;
 let hadSession = false;
 let accountTimer: ReturnType<typeof setInterval> | null = null;
 let ordersTimer: ReturnType<typeof setInterval> | null = null;
@@ -90,6 +100,7 @@ function publishLocal(next: IbkrAccountPollSnap): void {
 /** Another window's snapshot is re-shaped before this one renders it (QA C2 / C3). */
 function applyRemote(remote: IbkrAccountPollSnap): void {
   if (!connected || sample) return;
+  if ((remote?.venue ?? null) !== venue) return; // another venue's rows (or a window that has not switched yet)
   applySnap({
     ...remote,
     summary: normalizeAccountSummary(remote?.summary),
@@ -115,9 +126,11 @@ async function tickAccount(): Promise<void> {
   }
   heartbeatDeskPollLeader(DESK_POLL_ACCOUNT_SHARE);
   accountInflight = true;
+  const asked = venue;
   applySnap({ ...snapshot, loading: true });
   try {
     const snap = await fetchAccountCluster(API_BASE_URL);
+    if (asked !== venue) return; // the desk moved while this read was out: its rows are the old venue's
     if (snap.summary) snapshot = { ...snapshot, summary: snap.summary };
     if (snap.positions) snapshot = { ...snapshot, positions: snap.positions };
     accountFails = snap.failures;
@@ -148,8 +161,10 @@ async function tickOrders(): Promise<void> {
   }
   heartbeatDeskPollLeader(DESK_POLL_ACCOUNT_SHARE);
   ordersInflight = true;
+  const asked = venue;
   try {
     const snap = await fetchOrdersCluster(API_BASE_URL);
+    if (asked !== venue) return; // the desk moved while this read was out
     if (snap.orders) snapshot = { ...snapshot, orders: snap.orders };
     if (snap.closedOrders) snapshot = { ...snapshot, closedOrders: snap.closedOrders };
     orderFails = snap.failures;
@@ -201,15 +216,43 @@ function applyDisconnected(): void {
   });
 }
 
+/** The desk moved: the old venue's rows are not this venue's, not even as "last known". */
+function applyVenueChange(next: string | null): void {
+  venue = next;
+  hadSession = false;
+  accountFails = [];
+  orderFails = [];
+  applySnap({ ...EMPTY, venue: next, loading: connected && !sample });
+}
+
 export function configureIbkrAccountPoller(opts: {
   connected: boolean;
   sample: boolean;
+  /** The desk venue the status names (live | paper | sim), or null while it names none. */
+  venue?: string | null;
 }): void {
   const nextConnected = opts.connected;
   const nextSample = opts.sample;
   const changed = nextConnected !== connected || nextSample !== sample;
   connected = nextConnected;
   sample = nextSample;
+  const nextVenue = opts.venue ?? null;
+  // A venue that becomes known for the first time adopts the rows read so far only while
+  // none were read; any other move clears them (a status that briefly names no venue
+  // leaves the rows alone).
+  if (nextVenue !== null && nextVenue !== venue) {
+    const first = venue === null && !hadSession;
+    if (first) {
+      venue = nextVenue;
+      snapshot = { ...snapshot, venue: nextVenue };
+    } else {
+      applyVenueChange(nextVenue);
+      if (connected && !sample && subscriberCount > 0) {
+        void tickAccount();
+        void tickOrders();
+      }
+    }
+  }
   if (sample) {
     stopTimers();
     return;
@@ -264,6 +307,7 @@ export function _resetIbkrAccountPollerForTests(): void {
   subscriberCount = 0;
   connected = false;
   sample = false;
+  venue = null;
   hadSession = false;
   accountInflight = false;
   ordersInflight = false;

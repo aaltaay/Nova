@@ -111,6 +111,7 @@ export function StockReadProvider({
   topOfBook,
   position = null,
   lastPrice = null,
+  venue = null,
   children,
 }: {
   symbol: string;
@@ -121,6 +122,8 @@ export function StockReadProvider({
   position?: TabPosition | null;
   /** The tab's live last trade. */
   lastPrice?: number | null;
+  /** The desk venue (live | paper | sim): Who trades is the venue's own (#657). */
+  venue?: string | null;
   children: ReactNode;
 }) {
   const sym = symbol.trim().toUpperCase();
@@ -147,7 +150,7 @@ export function StockReadProvider({
   const posQty = position?.qty ?? null;
   const posCost = position?.avgCost ?? null;
   const pos = useMemo(() => (posQty === null ? null : { qty: posQty, avgCost: posCost }), [posQty, posCost]);
-  const who = useWhoTrades({ symbol: sym, live: live && !sample, read: read.data, riskUsd, position: pos, last: lastPrice });
+  const who = useWhoTrades({ symbol: sym, live: live && !sample, read: read.data, riskUsd, position: pos, last: lastPrice, venue });
 
   const setManualPlan = useCallback((entry: number | null, stop: number | null) => {
     setManual({ entry: entry !== null && entry > 0 ? entry : null, stop: stop !== null && stop > 0 ? stop : null });

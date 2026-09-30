@@ -13,7 +13,7 @@ import { hmrStableContext } from '../utils/hmrStableContext';
 import { SAMPLE_IBKR_ACCOUNT_STATE } from '../sample_data/sampleAccount';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { useWorkspace } from '../workspace/WorkspaceContext';
-import { practiceLedgerReachable } from './deskVenue';
+import { deskVenueOf, practiceLedgerReachable } from './deskVenue';
 import { useIbkrStatus } from './useIbkrStatus';
 import {
   configureIbkrAccountPoller,
@@ -54,6 +54,7 @@ const EMPTY_SNAP: IbkrAccountPollSnap = {
   error: null,
   stale: false,
   staleSince: null,
+  venue: null,
 };
 
 function noopSubscribe(_onStoreChange: () => void): () => void {
@@ -68,13 +69,16 @@ export function IbkrAccountProvider({ children }: { children: ReactNode }) {
   // on Paper (QA C68).
   const status = useIbkrStatus();
   const reachable = ibkrConnected || practiceLedgerReachable(status);
+  // The rows belong to a venue (#657): a switch clears them and reads the new one.
+  const venue = deskVenueOf(status);
 
   useEffect(() => {
     configureIbkrAccountPoller({
       connected: reachable,
       sample: Boolean(sample),
+      venue,
     });
-  }, [sample, reachable]);
+  }, [sample, reachable, venue]);
 
   const snap = useSyncExternalStore(
     sample ? noopSubscribe : subscribeIbkrAccount,
