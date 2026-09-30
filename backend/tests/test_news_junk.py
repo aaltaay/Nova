@@ -231,7 +231,7 @@ class TestCheckNewsSkipsJunk:
                     ]
                 }
 
-        monkeypatch.setattr(scanner.requests, "get", lambda *a, **k: FakeResp())
+        monkeypatch.setattr(scanner.http_pool, "get", lambda *a, **k: FakeResp())
         monkeypatch.setattr(
             scanner,
             "_now_et",

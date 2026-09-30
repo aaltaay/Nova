@@ -50,6 +50,9 @@ function renderStockRead(props: ChartPaneOverlayProps) {
   return <StockReadChartLayer {...props} />;
 }
 
+/** One element for every render, so the chart grid is not drawn again for a new toolbar element. */
+const STOCK_READ_TOOLBAR = <StockReadToolbar />;
+
 interface Props {
   symbol: string;
   /** True when this page was opened as ?view=stock (standalone tab). */
@@ -123,15 +126,19 @@ export function StockViewPage({
     detailSymbol.toUpperCase() === symbol.toUpperCase();
   const showSpinner = (loading || refreshing || (!detailReady && !fetchFailed)) && !detailReady;
   const metrics = detailReady && detail ? computeQuoteMetrics(detail, discoveryProvider) : null;
-  const lastTrade =
-    detailReady && detail?.snapshot?.latest_trade?.price != null
-      ? {
-          price: detail.snapshot.latest_trade.price,
-          timestamp: detail.snapshot.latest_trade.timestamp ?? null,
-          source: detail.snapshot.latest_trade.source,
-          dayVolume: detail.snapshot.latest_trade.day_volume ?? null,
-        }
-      : undefined;
+  const latest = detailReady ? detail?.snapshot?.latest_trade : undefined;
+  const tradePrice = latest?.price ?? null;
+  const tradeTs = latest?.timestamp ?? null;
+  const tradeSource = latest?.source;
+  const tradeDayVolume = latest?.day_volume ?? null;
+  // One object per trade, not per render: the charts re-draw their live candle when it changes.
+  const lastTrade = useMemo(
+    () =>
+      tradePrice != null
+        ? { price: tradePrice, timestamp: tradeTs, source: tradeSource, dayVolume: tradeDayVolume }
+        : undefined,
+    [tradePrice, tradeTs, tradeSource, tradeDayVolume],
+  );
 
   const symbolPosition =
     positions.find(p => p.symbol.toUpperCase() === symbol.toUpperCase()) ?? null;
@@ -211,10 +218,10 @@ export function StockViewPage({
               {/* Charts mount immediately so IBKR historical overlaps ticker detail. */}
               <ChartGrid
                 symbol={symbol}
-                lastTrade={detailReady ? lastTrade : null}
+                lastTrade={lastTrade ?? null}
                 chartActive={chartActive}
                 renderPaneOverlay={renderStockRead}
-                toolbarExtra={<StockReadToolbar />}
+                toolbarExtra={STOCK_READ_TOOLBAR}
               />
               <StockReadSheet />
               {showSpinner && !detailReady ? (

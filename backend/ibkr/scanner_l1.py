@@ -378,11 +378,11 @@ async def flush_loop(push: PushFn) -> None:
                     })
             except BaseException:
                 if started_ns is not None:
-                    record_since("ws.scanner.price_patch_buffer_to_broadcast", started_ns, ok=False)
+                    record_since("ws.scanner.price_patch_buffer_to_broadcast", started_ns, ok=False, wall=True)
                 raise
             else:
                 if started_ns is not None:
-                    record_since("ws.scanner.price_patch_buffer_to_broadcast", started_ns)
+                    record_since("ws.scanner.price_patch_buffer_to_broadcast", started_ns, wall=True)
         except asyncio.CancelledError:
             raise
         except Exception:

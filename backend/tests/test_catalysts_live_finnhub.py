@@ -94,9 +94,9 @@ def test_a_429_sets_the_shared_cooldown_and_keeps_the_symbol(monkeypatch):
         status_code = 429
         headers = {"Retry-After": "30"}
 
-    import requests
+    import http_pool
 
-    monkeypatch.setattr(requests, "get", lambda *a, **kw: Resp())
+    monkeypatch.setattr(http_pool, "get", lambda *a, **kw: Resp())
     live_finnhub._read("ACME", "test-key", PRIOR_CLOSE)
     assert finnhub_http.is_blocked()
     assert live_finnhub.status()["pending"] == 1

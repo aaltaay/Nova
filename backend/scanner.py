@@ -15,6 +15,7 @@ from datetime import date, datetime, timedelta
 
 import requests
 
+import http_pool
 from alpaca import (
     ALPACA_DATA_URL as _DATA_URL,
     _get_feed,
@@ -94,7 +95,8 @@ def _check_news(symbols: list[str], headers: dict) -> dict[str, str]:
         return {}
     today = _now_et().date().isoformat()
     try:
-        resp = requests.get(
+        resp = http_pool.get(
+            "alpaca_news_badge",
             f"{_DATA_URL}/v1beta1/news",
             headers=headers,
             params={"symbols": ",".join(symbols[:50]), "start": today, "limit": 50},

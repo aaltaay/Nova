@@ -3,7 +3,7 @@
  * One desk toolbar above the 2x2 grid owns draw tools (shared) and indicator
  * toggles (focused pane). Panes render a one-line header only.
  */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { TickerChart, type ChartTradeUpdate } from '../TickerChart';
 import { ChartGridToolbar } from './ChartGridToolbar';
 import { ResizeHandle } from './ResizeHandle';
@@ -58,7 +58,10 @@ function defaultIndicatorsByPane(): Record<string, ChartIndicatorId[]> {
   );
 }
 
-export function ChartGrid({ symbol, lastTrade, chartActive = true, renderPaneOverlay, toolbarExtra }: Props) {
+/** Memoized with its panes (see TickerChart): the Trader page re-renders far more often than a chart changes. */
+export const ChartGrid = memo(function ChartGrid({
+  symbol, lastTrade, chartActive = true, renderPaneOverlay, toolbarExtra,
+}: Props) {
   const gridRef = useRef<HTMLDivElement>(null);
   const { topPct, onDragStart, reset } = useResizableHeight({
     storageKey: STOCK_VIEW_CHART_ROW_SPLIT_KEY,
@@ -104,12 +107,27 @@ export function ChartGrid({ symbol, lastTrade, chartActive = true, renderPaneOve
     });
   };
 
-  const toggleIndicatorFor = (paneId: string, id: ChartIndicatorId) => {
+  const toggleIndicatorFor = useCallback((paneId: string, id: ChartIndicatorId) => {
     setIndicatorsByPane((prev) => ({
       ...prev,
       [paneId]: toggleIndicator(prev[paneId] ?? CHART_DEFAULT_INDICATORS, id),
     }));
-  };
+  }, []);
+  // One handler per pane that lives as long as the pane list, so a memoized pane is not drawn
+  // again for a new arrow function.
+  const paneHandlers = useMemo(
+    () =>
+      Object.fromEntries(
+        panels.map((p) => [
+          p.id,
+          {
+            onIndicatorToggle: (id: ChartIndicatorId) => toggleIndicatorFor(p.id, id),
+            onFocusPane: () => setFocusedPaneId(p.id),
+          },
+        ]),
+      ),
+    [panels, toggleIndicatorFor],
+  );
 
   const handleToolClick = (toolId: string) => {
     setActiveTool((prev) => (prev === toolId ? null : toolId));
@@ -142,12 +160,12 @@ export function ChartGrid({ symbol, lastTrade, chartActive = true, renderPaneOve
           title={panel.label}
           subtitle={sim && panel.simNote ? panel.simNote : panel.note}
           indicators={indicatorsByPane[panel.id] ?? CHART_DEFAULT_INDICATORS}
-          onIndicatorToggle={(id) => toggleIndicatorFor(panel.id, id)}
+          onIndicatorToggle={paneHandlers[panel.id]?.onIndicatorToggle}
           activeTool={activeTool}
           onActiveToolChange={setActiveTool}
           compactChrome
           focused={panel.id === focusedPane.id}
-          onFocusPane={() => setFocusedPaneId(panel.id)}
+          onFocusPane={paneHandlers[panel.id]?.onFocusPane}
           chartActive={chartActive}
           maximizeInGrid
           maximized={paneMaximized}
@@ -205,4 +223,4 @@ export function ChartGrid({ symbol, lastTrade, chartActive = true, renderPaneOve
       </div>
     </div>
   );
-}
+});

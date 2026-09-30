@@ -251,7 +251,7 @@ def _iso(ts: float) -> str:
 
 
 def _fetch(symbols: list[str], headers: dict) -> None:
-    import requests
+    import http_pool
 
     from alpaca import ALPACA_DATA_URL
 
@@ -263,7 +263,8 @@ def _fetch(symbols: list[str], headers: dict) -> None:
                   "sort": "desc", "include_content": "false"}
         if token:
             params["page_token"] = token
-        resp = requests.get(f"{ALPACA_DATA_URL}/v1beta1/news", headers=headers, params=params, timeout=10)
+        resp = http_pool.get("alpaca_news", f"{ALPACA_DATA_URL}/v1beta1/news",
+                             headers=headers, params=params, timeout=10)
         resp.raise_for_status()
         body = resp.json()
         news.extend(body.get("news") or [])
