@@ -194,7 +194,12 @@ def read_flow(symbol: str) -> dict[str, Any]:
         if len(tail) >= SENSOR_FLOW_SWEEP_MIN_PRINTS and len(set(tail)) == 1:
             sweep = {"side": tail[0], "prints": len(tail)}
     rates = _book_rates(symbol)
-    iceberg = bool(rates.get("replenish_events")) and bool(prints)
+    # A hidden seller or buyer the book watcher flagged (book_watch/hidden.py). It used to be any
+    # book level growing while anything printed -- true on nearly every live name.
+    from book_watch.constants_book_watch import BOOK_WATCH_STATS_WINDOW_SEC
+    from book_watch.view import hidden_now
+
+    hidden = hidden_now(symbol, BOOK_WATCH_STATS_WINDOW_SEC)
     return build_envelope(
         sensor="flow",
         symbol=symbol,
@@ -204,14 +209,17 @@ def read_flow(symbol: str) -> dict[str, Any]:
             "book_source": book_source,
             "print_count": len(prints),
             "sweep": sweep,
-            "iceberg_hint": iceberg,
+            "iceberg_hint": None if hidden is None else bool(hidden["stretches"]),
+            "hidden": hidden,
             "replenish_after_hit": bool(rates.get("replenish_events")),
             "replenish_events": rates.get("replenish_events"),
             "cancel_events": rates.get("cancel_events"),
             "has_book": book is not None,
             "score": _flow_score(symbol, time.time()),
             "note": "Observations from existing tape/book rings. No new IB subscription. score: the tape "
-                    "flow score (-1 sellers .. +1 buyers) with the default template's numbers.",
+                    "flow score (-1 sellers .. +1 buyers) with the default template's numbers. iceberg_hint: "
+                    "the book watcher flagged a hidden seller or buyer in the last minute (more traded at a "
+                    "price that held than the book ever showed there); null while it follows no depth line.",
         },
         error=None if (prints or book) else "No tape or book yet for flow events.",
     )

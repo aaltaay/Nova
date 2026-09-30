@@ -147,6 +147,7 @@ def tape_rows(f: dict[str, Any], d: dict[str, Any], plan: dict[str, Any] | None)
                        "A flush after a rise has been followed by a further drop in Nova's recordings (ADR 034)."
                        if label == "flush" else None))
     out.extend(_pull_rows(f.get("pulls"), f.get("now") or 0.0, no_line))
+    out.append(_hidden_row(f.get("pulls"), f.get("now") or 0.0, no_line))
     out.append(_seller_row(l2, price, plan, no_line))
     ppm = f.get("prints_per_min")
     out.append(row("prints", "Prints", f"{ppm} in the last minute" if ppm is not None else "Not known",
@@ -171,6 +172,38 @@ def _pull_rows(pulls: dict[str, Any] | None, now: float, no_line: str) -> list[d
                        f"{pulls.get('pulls')} pulls, {pulls.get('fills')} fills, {pulls.get('large_pulls')} large "
                        f"over {int(pulls.get('window_sec') or 60)} s"))
     return out
+
+
+HIDDEN_ENDS = {"broke": "then a print went through it", "faded": "then the prints there stopped",
+               "moved": "then the price moved away", "auction": "until a cross", "reset": "until the book restarted"}
+# What the study found (tools/hidden_study.py over the Session Records 2026-09-21..29).
+HIDDEN_READ = {
+    "ask": "In Nova's recordings, a minute after one the price was past the offer 37% of the time, against 46% "
+           "after an offer that showed its size.",
+    "bid": "In Nova's recordings a hidden buyer made no such difference to where the price went.",
+}
+
+
+def _hidden_row(pulls: dict[str, Any] | None, now: float, no_line: str) -> dict[str, Any]:
+    """The watcher's hidden sellers and buyers (book_watch/hidden.py): holding, or heard from in the last minute."""
+    src = "The book watcher (more traded at a price that held than the book showed -- never a detection)"
+    if not pulls or not pulls.get("watching"):
+        return row("hidden", "Hidden size", "Not known", "unknown", src, no_line)
+    seen = [h for h in pulls.get("hidden_recent") or [] if float(h.get("hidden") or 0) > 0
+            and (h.get("state") == "holding" or now - float(h.get("ts") or 0) <= STOCK_READ_PULL_WINDOW_SEC)]
+    if not seen:
+        return row("hidden", "Hidden size", "None seen", "info", src,
+                   "No price held while several times what the book showed there traded, in the last minute.")
+    h = next((x for x in seen if x.get("side") == "ask" and x.get("state") == "holding"), seen[0])
+    px, side, holding = float(h["price"]), h.get("side"), h.get("state") == "holding"
+    held = float(h.get("last_print_ts") or h["ts"]) - float(h.get("started_ts") or h["ts"])
+    end = "and it still holds" if holding else HIDDEN_ENDS.get(h.get("state"), "then it ended")
+    detail = (f"{shares(h.get('printed'))} traded at {px:.2f} over {held:.0f} s; the book never showed more than "
+              f"{shares(h.get('shown_max'))} there, {end}. " + HIDDEN_READ.get(side, ""))
+    value = (f"{'Seller' if side == 'ask' else 'Buyer'} at {px:.2f}: {shares(h.get('hidden'))} beyond "
+             f"{shares(h.get('shown_max'))} shown")
+    return row("hidden", "Hidden size", value, "warn" if side == "ask" and holding else "info", src, detail,
+               h.get("ts"))
 
 
 def _seller_row(l2: dict[str, Any] | None, price: float | None, plan: dict[str, Any] | None,

@@ -21,6 +21,7 @@ import {
 } from './dasDepthTiers';
 import { isOvernightOnlyBook } from './depthBookGuards';
 import { priceKey, pulledHere, pullMarks, type BookWatchState, type PulledHere } from './bookWatch';
+import { hiddenHere, hiddenMarks } from './bookWatchHidden';
 import { PullMarksAt, PullsStrip, useBookWatchClock } from './BookWatchParts';
 import { placeMarkers, splitMarkers, type DepthMarker, type PlacedMarker } from './depthMarkers';
 import {
@@ -109,8 +110,10 @@ export function MontageSide({
   const shown = Math.min(levels.length, TICKER_TRADE_DEPTH_LEVELS);
   const rows = levels.slice(0, shown);
   const placed = markers.length ? placeMarkers(side, rows, markers) : [];
-  const marks = watch && shown ? pullMarks(watch, side, rows, nowMs) : [];
+  // A hidden seller or buyer's mark comes first at its place; one that holds outlines its rows.
+  const marks = watch && shown ? [...hiddenMarks(watch, side, rows, nowMs), ...pullMarks(watch, side, rows, nowMs)] : [];
   const here = watch && shown ? pulledHere(watch, side, rows, nowMs) : NO_PULLED_HERE;
+  const hiddenAt = watch && shown ? hiddenHere(watch, side, rows, nowMs) : NO_PULLED_HERE;
   const lines = (before: number, at: 'edge' | 'first' | 'end' | 'flow') =>
     placed.filter(m => m.before === before).map(m => <MarkerLine key={`mk-${m.id}`} marker={m} at={at} />);
   const pulls = (before: number, at: 'head' | 'edge' | 'end') => (
@@ -152,12 +155,14 @@ export function MontageSide({
         const bg = level ? tierBackground(tier) : 'transparent';
         const gauge = level ? sizeGaugePct(level.size, peak) : 0;
         const pulledAt = level ? here.get(priceKey(level.price)) : undefined;
+        const hiddenRow = level ? hiddenAt.get(priceKey(level.price)) : undefined;
+        const rowTip = hiddenRow ?? pulledAt;
         return (
           <div
             key={`${side}-${i}`}
-            className={`das-l2-row ${level ? 'das-l2-row--tiered' : 'das-l2-row--empty'}${pulledAt ? ' das-l2-row--pulled-here' : ''}`}
+            className={`das-l2-row ${level ? 'das-l2-row--tiered' : 'das-l2-row--empty'}${pulledAt ? ' das-l2-row--pulled-here' : ''}${hiddenRow ? ' das-l2-row--hidden-here' : ''}`}
             style={{ backgroundColor: bg }}
-            {...(pulledAt ? tipProps(pulledAt.tip, pulledAt.title) : {})}
+            {...(rowTip ? tipProps(rowTip.tip, rowTip.title) : {})}
           >
             {inRow(i)}
             {gauge > 0 && (

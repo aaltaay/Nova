@@ -157,6 +157,17 @@ export const L2_PULLS_NOTE = 'A hint consistent with spoofing, never a detection
 export const L2_PULLS_NOT_WATCHED_LABEL = 'Pulls: not watched';
 export const L2_PULLS_IDLE_REASON = 'No Level 2 book has reached the book watcher in the last few seconds.';
 
+// ── Level 2: hidden sellers and buyers (the book watcher's hidden.py, ADR 033 amendment 2026-09-30) ──
+/** A hidden seller or buyer still holding with no word from the watcher this long is not drawn: the watcher
+ * ends a price with no print at it after 10 s (BOOK_WATCH_HIDDEN_GAP_SEC), so a longer silence is a lost line. */
+export const L2_HIDDEN_STALE_MS = 15_000;
+export const L2_HIDDEN_NOTE =
+  'More traded there than the book ever showed: one hidden (reserve) order or several orders refilling it look the same here. A description of the book, never a detection.';
+/** What tools/hidden_study.py found on the Session Records, 2026-09-21..29 (26 hours with a book). */
+export const L2_HIDDEN_READ_SELLER =
+  "In Nova's recordings, a minute after one the price was past the offer 37% of the time, against 46% after an offer that showed its size.";
+export const L2_HIDDEN_READ_BUYER = "In Nova's recordings a hidden buyer made no such difference to where the price went.";
+
 // ── Relative volume ────────────────────────────────────────────────────────
 export const REL_VOLUME_HIGH = 2;   // highlight threshold (≥ 2×)
 /** Trading days used for avg daily volume / RVOL denominator (mirror backend RVOL_LOOKBACK_DAYS). */

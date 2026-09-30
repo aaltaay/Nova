@@ -53,7 +53,7 @@ describe('folding the frames', () => {
   it('moves each drop onto this page clock through the frame now', () => {
     const s = state();
     expect(s.drops.find(d => d.seq === 3)?.atMs).toBeCloseTo(NOW_MS - 800, 3);
-    expect(s.sides?.bid).toEqual({ pulled: 15424, traded: 1849, largePulls: 3 });
+    expect(s.sides?.bid).toEqual({ pulled: 15424, traded: 1849, largePulls: 3, hidden: 0 }); // no hidden_shares: 0
   });
 
   it('adds only verdicts it has not seen, and a reset starts over', () => {

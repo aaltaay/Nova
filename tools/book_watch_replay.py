@@ -5,7 +5,8 @@ The same detector the live desk runs (``backend/book_watch/detector.py``), fed
 the recording's ``l2.jsonl`` and ``prints.jsonl`` in arrival order: resting
 size that traded away (filled) against size that left without trading
 (pulled), the large pulls, and the flags -- hints consistent with spoofing,
-never a detection. Recordings made before ADR 033 kept at most 8 books a
+never a detection -- and the hidden sellers and buyers: prices that held while
+more traded there than the book ever showed (``hidden.py``). Recordings made before ADR 033 kept at most 8 books a
 second, so their drops span longer gaps; the report prints the rate it read.
 
 Usage:
@@ -53,6 +54,14 @@ def render(result: dict, flags: int) -> str:
         lines.append(f"    {_et(flag['ts'])}  {flag['kind']:<19} {flag['why']}")
     if len(result["flags"]) > flags:
         lines.append(f"    ... {len(result['flags']) - flags} more (--flags N)")
+    hidden = result.get("hidden") or []
+    lines.append(f"  hidden sellers {sum(h['side'] == 'ask' for h in hidden):,}  "
+                 f"hidden buyers {sum(h['side'] == 'bid' for h in hidden):,}")
+    for h in hidden[:flags]:
+        lines.append(f"    {_et(h['flagged_ts'])}  {h['kind']:<13} {h['price']:<8g} {h['printed']:>9,.0f} traded, "
+                     f"at most {h['shown_max']:,.0f} shown, held {h['last_print_ts'] - h['started_ts']:.0f} s -> {h['state']}")
+    if len(hidden) > flags:
+        lines.append(f"    ... {len(hidden) - flags} more (--flags N)")
     lines.append(f"  {BOOK_WATCH_NOTE}")
     lines += [f"  - {caveat}" for caveat in BOOK_WATCH_CAVEATS]
     return "\n".join(lines)

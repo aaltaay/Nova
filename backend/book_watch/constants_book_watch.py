@@ -38,6 +38,41 @@ BOOK_WATCH_REPEAT_WINDOW_SEC = 60.0
 BOOK_WATCH_COLLAPSE_TO = 1
 BOOK_WATCH_COLLAPSE_FROM = 3
 
+# Size that traded at a price beyond the most the book showed there: hidden sellers and
+# hidden buyers (hidden.py, ADR 033 amendment 2026-09-30). A print of a cross -- the opening (O), a reopening after a halt
+# (5), the closing (6), a cross trade (X) and the official open / close (Q, M) -- traded
+# in an auction, not against the book: it never counts, and it ends both sides' stretches
+# (GRML 2026-09-22 reopened with one 218,938-share print). A volume-only print (the
+# TAPE_NO_PRICE_CONDITIONS codes, less the odd lot, which trades on the book like any
+# other; B, a bunched trade) never counts either.
+BOOK_WATCH_AUCTION_CONDITIONS = frozenset("O56XQM")
+BOOK_WATCH_HIDDEN_SKIP_CONDITIONS = frozenset("CHMNPQRUVW479B")
+# A stretch is a hidden seller (the ask) or a hidden buyer (the bid) once its price has held
+# this long since its first print, this many shares printed there, and at least this many
+# times the most the book showed there. Measured on the Session Records 2026-09-21..29
+# (tools/hidden_study.py, 26 hours with a book): without the hold the rule fired mostly on
+# sweeps -- a buyer taking the whole offer prints at a price and through it within
+# milliseconds -- and said nothing; with 10 s, 2,000 and 3x, a minute after a hidden seller
+# the price was past the offer 37% of the time against 46% after an offer that showed its
+# size (104 against 66; less often on 4 of 5 days, a tie on the fifth). A hidden buyer showed
+# no such difference. A description of the book, not a forecast.
+BOOK_WATCH_HIDDEN_MIN_HOLD_SEC = 10.0
+BOOK_WATCH_HIDDEN_MIN_SHARES = 2000
+BOOK_WATCH_HIDDEN_SHOWN_MULT = 3.0
+# A stretch ends after this long without a print at its price.
+BOOK_WATCH_HIDDEN_GAP_SEC = 10.0
+# The size shown counts from this long before a stretch's first print: what the
+# first buyers (or sellers) saw there.
+BOOK_WATCH_HIDDEN_SHOWN_BEFORE_SEC = 2.0
+# A flagged stretch that keeps growing is sent again at most this often.
+BOOK_WATCH_HIDDEN_UPDATE_SEC = 1.0
+# Hidden events kept per line for the ladder and the sensor (each update is one).
+BOOK_WATCH_HIDDEN_KEEP = 200
+BOOK_WATCH_HIDDEN_NOTE = (
+    "More traded at that price than the book ever showed there: one hidden (reserve) order or "
+    "several orders refilling it look the same here. A description of the book, never a detection."
+)
+
 # Readings.
 BOOK_WATCH_STATS_WINDOW_SEC = 60.0
 BOOK_WATCH_RATE_WINDOW_SEC = 10.0
@@ -78,5 +113,7 @@ BOOK_WATCH_CAVEATS = (
     "Size only, per price and venue: no order ids and no owners, so nothing here proves who pulled what or why.",
     "Times are when data reached Nova, not the exchange's.",
     "Filled means lit prints at that price inside the matching window; off-exchange (FINRA) prints never fill a level.",
+    "Hidden means lit prints at a price that held, beyond the most the book ever showed there; "
+    "cross (auction) prints and off-exchange reports never count.",
 )
 BOOK_WATCH_NOTE = "Hints consistent with spoofing -- never a detection."

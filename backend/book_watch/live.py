@@ -86,7 +86,8 @@ def enqueue_print(payload: Any) -> None:
     try:
         symbol = str(payload["symbol"]).upper()
         ts = float(payload.get("receive_ts") or time.time())
-        _put(("print", symbol, ts, payload.get("price"), payload.get("size"), lit_print(payload)))
+        _put(("print", symbol, ts, payload.get("price"), payload.get("size"), lit_print(payload),
+              payload.get("conditions")))
     except (KeyError, TypeError, ValueError):
         _counts["dropped"] += 1
 
@@ -106,16 +107,14 @@ def _apply(item: tuple) -> list[dict[str, Any]]:
     kind, symbol = item[0], item[1]
     watch = _watches.get(symbol)
     if kind == "reset":
-        if watch is not None:
-            watch.reset()
-        return []
+        return watch.reset() if watch is not None else []
     if watch is None:
         if kind != "book":
             return []  # prints before the first book: nothing to judge them against yet
         watch = _watches[symbol] = SymbolWatch(symbol, num_rows=_num_rows())
     if kind == "book":
         return watch.on_book(item[2], item[3], item[4])
-    return watch.on_print(item[2], item[3], item[4], lit=item[5])
+    return watch.on_print(item[2], item[3], item[4], lit=item[5], conditions=item[6] if len(item) > 6 else None)
 
 
 def process(item: tuple) -> list[dict[str, Any]]:
@@ -177,13 +176,17 @@ def snapshot(symbol: str, now: float | None = None) -> dict[str, Any] | None:
             **watch.totals(now),
             "flags": list(reversed(watch.flags)),
             "pulls_recent": list(reversed(watch.pulls)),
+            "hidden_recent": watch.hidden.recent(),
         }
 
 
-def ladder_view(symbol: str, after_seq: int | None, now: float | None = None) -> dict[str, Any] | None:
+def ladder_view(symbol: str, after_seq: int | None, now: float | None = None,
+                after_hidden: int | None = None) -> dict[str, Any] | None:
     """What the Level 2 ladder needs from one line: the large drops newer than ``after_seq``
-    (with None, those of the last ``BOOK_WATCH_LADDER_MEMORY_SEC``), oldest first, and each
-    side's totals. None when the watcher has not seen a book for the symbol."""
+    (with None, those of the last ``BOOK_WATCH_LADDER_MEMORY_SEC``), oldest first, the hidden
+    sellers' and buyers' words newer than ``after_hidden`` (with None, the newest word on each
+    stretch of that memory), and each side's totals. None when the watcher has not seen a book
+    for the symbol."""
     now = time.time() if now is None else now
     with _lock:
         watch = _watches.get((symbol or "").upper())
@@ -194,8 +197,18 @@ def ladder_view(symbol: str, after_seq: int | None, now: float | None = None) ->
             drops = [dict(d) for d in watch.drops if d["ts"] >= cutoff]
         else:
             drops = [dict(d) for d in watch.drops if d["seq"] > after_seq]
+        kept = watch.hidden.kept
+        if after_hidden is None or after_hidden > watch.hidden.seq:
+            cutoff = now - BOOK_WATCH_LADDER_MEMORY_SEC
+            latest = {h["id"]: h for h in kept}  # each stretch's last word, then only the live ones
+            hidden = sorted((dict(h) for h in latest.values() if h["state"] == "holding" or h["ts"] >= cutoff),
+                            key=lambda h: h["seq"])
+        else:
+            hidden = [dict(h) for h in kept if h["seq"] > after_hidden]
         return {
             "seq": watch.drop_seq,
+            "hidden_seq": watch.hidden.seq,
+            "hidden": hidden,
             "watching": watch.last_book_ts is not None and now - watch.last_book_ts <= BOOK_WATCH_IDLE_SEC,
             "window_sec": BOOK_WATCH_STATS_WINDOW_SEC,
             "sides": watch.side_totals(now),
@@ -209,6 +222,14 @@ def flags_since(since: float, symbol: str | None = None) -> list[dict[str, Any]]
     with _lock:
         rows = [f for s, w in _watches.items() if sym in (None, s) for f in w.flags if f["ts"] > since]
     return sorted(rows, key=lambda f: f["ts"])
+
+
+def hidden_since(since: float, symbol: str | None = None) -> list[dict[str, Any]]:
+    """The newest word on each hidden seller or buyer sent after ``since``, oldest first, for a poller."""
+    sym = (symbol or "").upper() or None
+    with _lock:
+        rows = [h for s, w in _watches.items() if sym in (None, s) for h in w.hidden.recent(since)]
+    return sorted(rows, key=lambda h: h["ts"])
 
 
 def status() -> dict[str, Any]:

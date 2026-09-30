@@ -85,8 +85,8 @@ def test_each_side_keeps_its_own_totals():
     w.on_book(1.2, [lv(10.0, 300), lv(9.98, 300)], [lv(10.05, 300)])
     w.tick(5.0)
     sides = w.totals(5.0)["sides"]
-    assert sides["bid"] == {"pulled_shares": 5000, "filled_shares": 0, "large_pulls": 1}
-    assert sides["ask"] == {"pulled_shares": 0, "filled_shares": 2000, "large_pulls": 0}
+    assert sides["bid"] == {"pulled_shares": 5000, "filled_shares": 0, "large_pulls": 1, "hidden_shares": 0}
+    assert sides["ask"] == {"pulled_shares": 0, "filled_shares": 2000, "large_pulls": 0, "hidden_shares": 0}
 
 
 # -- the ladder's view of a live line -----------------------------------------

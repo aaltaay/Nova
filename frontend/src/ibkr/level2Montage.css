@@ -259,11 +259,14 @@
    Amber is pulled, slate is traded; never green or red, which mean bid and ask here. Like the plan's
    levels, nothing below adds height: the line above the book is one 13 px row and every mark sits over a
    row boundary. */
+/* One row: the bid line from the left edge, the ask line from the right, each as wide as it needs -- a
+   side with ✕, ✓ and ◆ can borrow the room the other leaves (a half each clipped the ask's ✕ at the
+   rail's 360 px, 2026-09-30). */
 .das-l2-pulls {
   flex-shrink: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2px;
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
   height: 13px;
   margin-bottom: 2px;
   font-size: 0.62rem;
@@ -280,6 +283,7 @@
 
 .das-l2-pulls__side {
   display: flex;
+  flex: 0 1 auto;
   gap: 6px;
   min-width: 0;
   padding: 0 3px;
@@ -289,6 +293,13 @@
 
 .das-l2-pulls__side--ask {
   justify-content: flex-end;
+}
+
+/* The rail's narrow Level 2: a tighter line (after the rule above, which it overrides). */
+@container md-pane (max-width: 259px) {
+  .das-l2-pulls__side {
+    gap: 4px;
+  }
 }
 
 .das-l2-pulls__traded {
@@ -380,4 +391,24 @@
   color: #111111;
   background: #f59e0b;
   border-color: #f59e0b;
+}
+
+/* Hidden sellers and buyers (ADR 033 amendment, 2026-09-30): more traded at a price that held than the book
+   ever showed there. Violet -- never green or red (bid and ask), amber (pulled) or slate (traded). The row a
+   hidden seller holds at is outlined, nothing drawn over its digits; its mark sits under it like the others. */
+.das-l2-row--hidden-here {
+  box-shadow: inset 0 0 0 2px #a78bfa;
+}
+
+.das-l2-pullmarks--hidden { color: #a78bfa; }
+
+.das-l2-pullmarks--hidden::before {
+  border-top: 2px dashed currentColor;
+}
+
+.das-l2-pullmark--hidden { color: #a78bfa; }
+
+.das-l2-pulls__hidden {
+  color: #a78bfa;
+  font-weight: 700;
 }

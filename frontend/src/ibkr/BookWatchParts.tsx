@@ -1,6 +1,7 @@
 /**
  * What left the book, drawn on the Level 2 ladder (ADR 033 amendment, 2026-09-29): each side's line of
- * the last minute above the book, and the marks between its rows. The verdicts are the backend book
+ * the last minute above the book, and the marks between its rows -- what left the book, and since
+ * 2026-09-30 the hidden sellers and buyers (bookWatchHidden.ts). The verdicts are the backend book
  * watcher's (bookWatch.ts reads them); every piece explains itself on hover.
  */
 import { useEffect, useState } from 'react';
@@ -46,6 +47,7 @@ export function PullsStrip({ watch }: { watch: BookWatchState | null }) {
         >
           <span className="das-l2-pulls__pulled">{line.pulled}</span>
           <span className="das-l2-pulls__traded">{line.traded}</span>
+          {line.hidden && <span className="das-l2-pulls__hidden">{line.hidden}</span>}
         </span>
       ))}
     </div>
