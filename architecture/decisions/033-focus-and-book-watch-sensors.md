@@ -126,3 +126,38 @@ ladder and fix the flow sensor's `iceberg_hint`).
    of the inside ask against the prints at the ask in 10 s). Replacing it with this rule changes what
    the bot enters on Paper and what the pre-registered read-out counts, on thin evidence: that is the
    operator's call.
+
+## Amendment 2026-09-30: the matching window, measured
+
+**Asked by:** the operator, after the hidden-seller study: the lit size at the quote that no drop
+claimed often had a pulled drop at its price nearby (GCTK 2026-09-24: 34% shown 0.5-3 s before the
+print, 25% 1-3 s after), so does the 0.5 s window (`BOOK_WATCH_MATCH_SLACK_SEC`) call fills "pulled"?
+Change it "only if the evidence is clear".
+
+1. **Measured against chance.** `tools/book_watch_window_study.py` (owner `book_watch/window_study.py`)
+   runs the detector over the Session Records with its window at 0.5, 1, 2 and 3 s either side of a
+   drop's two books, and weighs what a wider window adds against chance: the prints no drop claimed,
+   against the same prints moved 30-60 s (to a moment their price stood in the same place against the
+   quote) and moved one tick out, each moved print first meeting the drop's own 0.5 s window as an
+   unclaimed one had. Cross prints and prints with no book within 5 s are left out. The detector takes
+   the window as a parameter (`book_watch/matching.py`); the live watcher runs the defaults.
+2. **The evidence was chance.** A busy price always has a pulled drop near a print. Over the 27
+   recordings of 2026-09-21..29, the same prints moved 30-60 s had a pulled drop shown 0.5-3 s before
+   them as often (45.3% of the size against 44.9%), and one shown 1-3 s after them more often.
+3. **The book does trail the tape, a little.** Of 339,550 lit prints through the displayed best price
+   -- proof that the best level traded -- 87.9% saw a book show that level gone within 0.5 s and 10.2%
+   took 0.5-3 s. Those levels read as pulled.
+4. **A wider window claims them, and more by chance.** Reaching 1 s before the earlier book would fill
+   2.3% of the 82.0M shares the 0.5 s window calls pulled, only 0.5-0.6 points of it beyond chance;
+   3 s, 7.8% with 1.3-2.2 beyond. Reaching past the later book, 2.0% at 1 s with 0.2-0.3 beyond. At
+   1 s either side the large pulls would fall from 11,121 to 10,707 and the flags from 3,190 to 3,132,
+   mostly on claims chance explains, and a longer reach past the later book delays every ladder mark by
+   as much.
+5. **So the window stays 0.5 s either side.** For each fill it would recover, a wider window makes
+   about three to five chance claims before the earlier book and six or more past the later one.
+6. **Exact prices.** A lit print fills only a level at exactly its price. The old half-tick test let
+   floating-point error match a midpoint print (3.655) to the level below it: 0.2% of the dropped size
+   moves from filled to pulled, 15 more large pulls of about 11,000, no flag.
+7. **Parked (#636).** A print through a displayed level proves that level traded. Holding the level's
+   next drop as traded for a few seconds would mend the late book without claiming chance prints; 421
+   of 11,310 large pulls (3.7%) were such levels.

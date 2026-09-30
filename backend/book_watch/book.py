@@ -97,10 +97,6 @@ def median_level(levels: dict[float, float], *, exclude: float | None = None) ->
     return float(median(sizes)) if sizes else None
 
 
-def same_price(a: float, b: float) -> bool:
-    return abs(a - b) < tick_for(min(a, b)) / 2
-
-
 def lit_print(row: Any) -> bool:
     """A print that traded on an exchange's lit book; off-exchange prints never fill a level."""
     return str(row.get("exchange") or "").upper() not in BOOK_WATCH_OFF_BOOK_EXCHANGES
