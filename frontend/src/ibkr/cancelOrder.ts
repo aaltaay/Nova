@@ -9,6 +9,7 @@ import {
   type BrowserExecutionTiming,
 } from '../execution_latency';
 import { alertApp } from '../ux';
+import { getIbkrAccountSnapshot } from './ibkrAccountPoller';
 
 export interface CancelOrderResult {
   ok: boolean;
@@ -34,8 +35,13 @@ export async function cancelIbkrOrder(
     return { ok: false, error: refusal, httpOk: false, httpStatus: 0 };
   }
   try {
+    // An order id is only meaningful on the venue that issued it (#655): the rows on
+    // screen came from this venue, so the backend refuses VENUE_CHANGED if the desk has
+    // moved since instead of cancelling that venue's order of the same number.
+    const venue = getIbkrAccountSnapshot().venue;
+    const query = venue ? `?venue=${encodeURIComponent(venue)}` : '';
     const response = await novaFetch(
-      `${API_BASE_URL}/api/ibkr/order/${orderId}`,
+      `${API_BASE_URL}/api/ibkr/order/${orderId}${query}`,
       {
         method: 'DELETE',
         headers: clientTimingHeaders(timing),

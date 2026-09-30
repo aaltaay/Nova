@@ -47,6 +47,8 @@ interface Options {
   riskUsd: number;
   position: { qty: number; avgCost: number | null } | null;
   last: number | null;
+  /** The desk venue (live | paper | sim), or null when the status names none. */
+  venue?: string | null;
 }
 
 function useNow(on: boolean): number {
@@ -72,16 +74,20 @@ function useStable<T>(value: T): T {
   return ref.current;
 }
 
-export function useWhoTrades({ symbol, live, read, riskUsd, position, last }: Options): WhoTradesState {
+export function useWhoTrades({ symbol, live, read, riskUsd, position, last, venue: deskVenue = null }: Options): WhoTradesState {
   const sym = symbol.trim().toUpperCase();
+  // The view is the venue's own (ADR 037: a venue change clears every switch), so the old
+  // venue's chip and memories go the moment the desk moves, not at the next poll (#657).
+  const venue = deskVenue ?? '';
   const polled = usePolledRead({
     url: sym ? `${STOCK_MODE_PATH}/${encodeURIComponent(sym)}` : null,
-    resetKey: sym,
+    resetKey: `${sym}|${venue}`,
     normalize: normalizeStockMode,
     pollMs: STOCK_MODE_POLL_MS,
     active: live,
     what: 'Who trades read',
-    accept: v => v.symbol === sym,
+    // An answer from before the switch names the old venue: never shown as this one's.
+    accept: v => v.symbol === sym && (!venue || !v.venue || v.venue === venue),
   });
   // A write answers the new view at once; the poll takes over from the next answer that is as new.
   const [written, setWritten] = useState<StockModeView | null>(null);
@@ -92,7 +98,7 @@ export function useWhoTrades({ symbol, live, read, riskUsd, position, last }: Op
     setWritten(null);
     setWriteError(null);
     setHeld(NO_HELD);
-  }, [sym]);
+  }, [sym, venue]);
 
   const polledView = polled.data;
   const view = written && written.symbol === sym && (!polledView || written.generated_at > polledView.generated_at)
