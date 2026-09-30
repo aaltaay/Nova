@@ -144,6 +144,12 @@ async def run() -> None:
             logger.exception("perf recorder: tick failed")
 
 
+def persist(line: dict[str, Any]) -> None:
+    """Queue one line for the day file (a heap census, ``perf.heap``)."""
+    if _store is not None:
+        _store.put(line)
+
+
 def record_client(report: dict[str, Any], now: float | None = None) -> None:
     """Keep a window's latest report and queue it for the day file."""
     received = time.time() if now is None else now

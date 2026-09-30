@@ -8,10 +8,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 from typing import Any, Callable
 
-from constants_perf import PERF_ENV_SWITCH
-from perf import gc_watch, loop_cpu, recorder, stall_watch
+from constants_perf import PERF_ENV_SWITCH, PERF_HEAP_EVERY_SEC, PERF_HEAP_FIRST_AFTER_SEC
+from perf import gc_watch, heap, loop_cpu, recorder, stall_watch
 from perf.store import PerfStore, default_dir
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,7 @@ def start(spawn_ib: Callable[[str, Callable[[], Any]], None] | None = None) -> l
     tasks = [
         asyncio.create_task(loop_cpu.sample_loop("http"), name="perf.http_cpu"),
         asyncio.create_task(recorder.run(), name="perf.recorder"),
+        asyncio.create_task(_heap_loop(), name="perf.heap"),
     ]
     if spawn_ib is not None:
         from ibkr.loop_supervisor import get_loop
@@ -52,6 +54,20 @@ def start(spawn_ib: Callable[[str, Callable[[], Any]], None] | None = None) -> l
     stall_watch.start()
     logger.info("perf recorder: on (%s)", _store.root)
     return tasks
+
+
+async def _heap_loop() -> None:
+    """A heap census some minutes after start, then hourly, never in the opening minutes (#619)."""
+    await asyncio.sleep(PERF_HEAP_FIRST_AFTER_SEC)
+    while True:
+        wait = heap.seconds_until_allowed(time.time())
+        if wait > 0:
+            await asyncio.sleep(wait)
+        try:
+            await asyncio.to_thread(heap.latest, 0.0, recorder.persist)
+        except Exception:
+            logger.exception("perf: heap census failed")
+        await asyncio.sleep(PERF_HEAP_EVERY_SEC)
 
 
 def stop() -> None:

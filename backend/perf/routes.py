@@ -17,12 +17,13 @@ from constants_perf import (
     PERF_CLIENT_MAX_KEYS,
     PERF_CLIENT_MAX_PROCESSES,
     PERF_CLIENT_TOP_SCRIPTS,
+    PERF_HEAP_MIN_GAP_SEC,
     PERF_LIVE_DEFAULT_SEC,
     PERF_RING_SEC,
     PERF_SCHEMA_VERSION,
     PERF_STALLS_DIR_NAME,
 )
-from perf import recorder
+from perf import heap, recorder
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +109,13 @@ async def perf_live(seconds: float = Query(default=PERF_LIVE_DEFAULT_SEC, gt=0, 
         "stalls": recorder.stall_summaries(),
         "clients": recorder.clients(),
     }
+
+
+@router.get("/heap")
+async def perf_heap() -> dict:
+    """Heap census (#619). Walking the heap pauses the process about as long as one full
+    collection, so a census younger than PERF_HEAP_MIN_GAP_SEC is answered instead."""
+    return await asyncio.to_thread(heap.latest, PERF_HEAP_MIN_GAP_SEC, recorder.persist)
 
 
 @router.get("/stalls")
