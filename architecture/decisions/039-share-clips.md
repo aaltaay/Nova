@@ -129,6 +129,11 @@ desk window sends, the requests and their refusals, and `GET` / `POST /api/clips
 
   The desk paints far less than this page, so a real capture should cost less. On the 150% monitor the
   window's own compositing (the GPU process at one core, the GPU off) is the ceiling, not the capture.
+- **On Electron 41** (master moved from 39.8.10 to 41.10.6 right after the build, 0a34e1d1). The same
+  probes rerun on 41.10.6 from master: a 12.03 s High quality clip exported at 30 fps (361 frames) with
+  the header out and the plan card blurred (variance 41); a "last 14 s" cut at 15 fps (210 frames); and
+  the desk flow (button, chip, toast, dialog) exported a 9.73 s clip at 15 fps, every panel reported,
+  the ticket's area changed by the blur and nothing outside it. Nothing in share clips needed a change.
 - **Still the operator's to judge:** whether the 15 fps cut is sharp enough to post, and whether High
   quality on a full window on the 150% monitor is worth a slower-painting desk while it records.
 
