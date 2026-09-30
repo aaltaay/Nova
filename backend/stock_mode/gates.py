@@ -57,7 +57,9 @@ def venue_block(venue: str | None, replay: bool) -> tuple[str, str] | None:
 def _soft_breaker_fired() -> bool:
     from bot.persist import load_session
 
-    return bool(load_session().get("soft_breaker_fired"))
+    from bot.clock import soft_latched
+
+    return soft_latched(load_session())
 
 
 def desk_block() -> tuple[str, str] | None:

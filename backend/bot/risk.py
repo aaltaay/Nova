@@ -165,6 +165,12 @@ def limit_from_book(kind: str, symbol: str, offset: float) -> float:
     return float(bid) - offset
 
 
+def _venue() -> str | None:
+    from bot.gates import current_venue
+
+    return current_venue()
+
+
 def remember_working(
     *,
     order_id: int,
@@ -186,6 +192,7 @@ def remember_working(
         "price": float(price or 0),
         "kind": kind,
         "expire_ts": None if ttl_sec is None else time.time() + max(1, int(ttl_sec)),
+        "venue": _venue(),
     })
     row["working"] = working
     save_session(row)

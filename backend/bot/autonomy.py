@@ -144,6 +144,7 @@ def apply_patch(
         row["advise"] = advise
     if body.get("reenable") and desk:
         row["soft_breaker_fired"] = False
+        row["soft_breaker_until"] = None
     saved = save_session(row)
     if level_before != int(saved.get("level") or BOT_LEVEL_OFF):
         _audit_level(level_before, saved)
@@ -223,7 +224,10 @@ def drop_to_l0(*, keep_soft_latch: bool = True) -> dict[str, Any]:
     row["bot_qty"] = {}
     row["working"] = []
     if keep_soft_latch:
+        from bot.clock import lock_until_date
+
         row["soft_breaker_fired"] = True
+        row["soft_breaker_until"] = lock_until_date()
     return save_session(row)
 
 

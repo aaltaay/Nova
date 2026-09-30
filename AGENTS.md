@@ -2272,6 +2272,28 @@ day lock. The Bots page drags the two markers on the desk venue's bar (it asks
 before loosening Live), and the Account page's Risk block reads the same pair. `bot-session.json` and `bot-proposals.json` are written through a
 temp file and a rename.
 
+**The level belongs to a venue** (operator report 2026-09-30: "When I switch
+between L0 and L2 in the paper, it stays persistent when I switch to live, and
+I feel like that shouldn't happen"; owner `bot/venue_levels.py`). Each venue
+keeps its own dial -- `level`, `setup_levels`, the bot trip's latch and the
+bot's `working` orders and `bot_qty` -- the session's fields being the dial of
+the venue in `level_venue` and the others waiting in `venue_levels: {VENUE:
+dial}` (optional keys of schema 4; a venue with none starts Off, its bot trip
+clear). `sim.mode.set_venue` puts the old venue's dial away, takes the new
+one's and deactivates the bot (a `venue` audit line): Activate never carries
+into another venue, like spend arming. A session loaded on another venue than
+its `level_venue` takes that venue's dial; one without the stamp belongs to the
+venue the desk showed. `GET /api/bot/session` adds `level_venue` and
+`levels_by_venue: {live, paper, sim}`. The bot trip's latch adds
+`soft_breaker_until` and lapses at the next ET midnight like the day lock
+(`bot.clock.soft_latched`; a latch without it has lapsed), and the all-stop
+trips again once an earlier day's lock has lifted -- it read the stale date as
+"locked" and never tripped a second time. The day lock itself stays one for
+the desk: an all-stop on any venue locks buys on every venue until midnight.
+Every bot audit line carries `venue`, and the daily entry cap counts this
+venue's entries (a line without it counts on every venue). A TTL cancel and a
+take-over of the exit never send another venue's order id.
+
 **Nova's own first-pullback bot** (ADR 030, owner `bot/first_pullback/`; #514).
 Active at Strategy, on Paper or on Sim at the live
 edge -- never on Live -- it hears the setup scanner's triggers (each setup's
@@ -3403,6 +3425,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-30 | The bot's level belongs to a venue (operator report: "When I switch between L0 and L2 in the paper, it stays persistent when I switch to live, and I feel like that shouldn't happen"). The session kept one `level`, so Paper's Strategy was Live's the moment the desk moved. Each venue now keeps its own level, setup levels, bot trip latch and bot orders (`bot/venue_levels.py`), and a venue change deactivates the bot. Found with it: the all-stop never tripped again after its first trip (a stale lock date read as locked), the bot trip's latch never lapsed and was shared across venues, the daily entry cap counted every venue, a TTL cancel or a take-over could send a Paper order id to Live, and a ticket's open confirm survived a venue switch. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | Support and resistance on the charts and in the plan (ADR 036 amendment; operator: "say our target is 1:2 ratio for trades is too generic, sometimes we have to look at the very obvious resistance/support levels", then "the material teach us that there are stops at half dollar or full dollar which are great psychological triggers", and on mockup v3 "we are overloading the 1min chart"). Measured first on five years of minute bars: half and whole dollars turn price back before they break (76% of fresh approaches printed through within 10 minutes, against 84% at a random price) and trigger once through (77% ran +1.5% first, against 70%); the high of day and tested tops slow price a little; old daily highs do not; capping a target at a level costs. So the target stays 2R, and the levels describe: `stock_read/level_map.py` builds today's map and the daily map, the 5-minute pane draws today's, the Full Day pane the daily one, the 1-minute only the plan's levels between its stop and target, each label or axis tick opens a card with what the study measured, and the plan says Room, the round at the target and at the stop and the next round. Room under 2R is amber and trial T7 (`knowledge/signal-trials-2.json`, the second registry version) decides whether it ever blocks. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | Desk and backend are one version (operator: "it ask me first to reboot the backend or whatever cuz its older, then i press that, then it ask me to pull master!! why cant we just update both frontend and backend in one go after every update!?", then "now it says frontend 1050 and backend 1051 ... lets keep them walking in a single version!" and "i need them to be treated as ONE"). The backend notice offered Restart backend now while the checkout was ahead of the backend, then Pull master and restart once it was not; and the pull took master's newest commit, v1051, while v1051's installer was still building, so the backend overtook the desk. The backend's checkout now only ever comes to the desk's own release tag. Restart to update carries it: the desk lists what a backend restart would interrupt, brings the checkout to the release being installed, and the new desk restarts the backend onto it. The notice has one action (Update backend to vNNN, or Update desk to vNNN when the backend is ahead), and the title names one version when they match. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | Past setup labels make room (ADR 036 amendment; operator: "i do really like seeing the details, but perhaps it is extremely too crowded. how do we help that? maybe a checkbox or compact form"). The 1-minute chart wrote each past setup's whole label at its box's corner with no idea where the others were: LGHL that morning drew 15, and on the Trader's 400 px pane they stacked into unreadable piles. A legend chip beside "Past" now sets Compact (the default, then "maybe the compact form should just show (x) and when we hover, it shows the full failed setup": a mark alone, ✕ ○ ✓, whose hover tells the whole story) or Full, and in both the labels are placed: live labels, levels and the pin stay put, and each past label -- a trigger's result first, then the newest -- takes the longest form that touches nothing already placed, down to its mark or none; its box and hover stay. Checked by rendering LGHL's real day through the real primitive, before and after, and pointing at each of its 9 marks (all outside their boxes) in headless Chromium. §3 amended; `nova.stockRead.layers` adds `labels`. | User Directive + Claude Opus 5.5 |

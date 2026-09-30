@@ -33,7 +33,14 @@ async def cancel_due() -> list[dict[str, Any]]:
     from execution.service import execute
 
     results: list[dict[str, Any]] = []
+    from bot.gates import current_venue
+
+    here = current_venue()
     for item in due_working():
+        if item.get("venue") not in (None, here):
+            # Another venue's order id: cancelling it here would reach this venue's order
+            # of the same number. The venue's own dial keeps it (``bot.venue_levels``).
+            continue
         order_id = item.get("order_id")
         if order_id is None:
             drop_working(0)

@@ -33,6 +33,7 @@ import type { DeskVenue } from '../constantGroups/desk_venue';
 import { SAMPLE_VENUE_REFUSAL } from '../sample_data/sampleCopy';
 import { onSampleDesk } from '../sample_data/sampleOrderGuard';
 import { explicitVenueOf } from './deskVenue';
+import { refreshIbkrAccountNow } from './ibkrAccountPoller';
 import { disconnectHintSwitchTarget } from './disconnectCopy';
 import type { IbkrMode } from './types';
 import { refreshIbkrStatusNow, useIbkrStatus } from './useIbkrStatus';
@@ -193,6 +194,9 @@ export function GatewayModeCapsule({
       setSwitching(null);
       setPending(null);
       refreshIbkrStatusNow();
+      // The old venue's orders and positions stay on screen until the account
+      // poller's next read -- read the new venue's now.
+      refreshIbkrAccountNow();
     }
   }
 

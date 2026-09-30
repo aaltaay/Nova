@@ -33,6 +33,7 @@ def issue_arm_token(*, reenable: bool = False) -> str:
     row["brain_heartbeat_ts"] = None
     if reenable:
         row["soft_breaker_fired"] = False
+        row["soft_breaker_until"] = None
     save_session(row)
     return token
 

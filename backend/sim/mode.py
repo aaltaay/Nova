@@ -229,6 +229,7 @@ def set_venue(target: str, *, persist: bool = True) -> dict:
     key = (target or "").strip().lower()
     if key not in DESK_VENUES:
         raise ValueError(f"unknown desk venue {target!r} (expected one of {', '.join(DESK_VENUES)})")
+    previous = venue()
     _override = key
     _venue_loaded = True
     os.environ[NOVA_BROKER_ENV] = key
@@ -240,6 +241,10 @@ def set_venue(target: str, *, persist: bool = True) -> dict:
     from stock_mode import store as _stock_mode
 
     _stock_mode.venue_changed(key)
+    # Nor does the bot's level or its Activate: each venue keeps its own dial.
+    from bot import venue_levels as _bot_levels
+
+    _bot_levels.venue_changed(previous, key)
     if key == DESK_VENUE_SIM:
         # A live Session Record keeps running into Sim. It used to be stopped
         # here because Sim piped SIM1 ticks into the recorder; SIM1 is gone

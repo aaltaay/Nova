@@ -141,7 +141,9 @@ def test_paper_skips_the_readout_live_keeps_it(closed_readout, api_key):
         assert client.post("/api/bot/session/arm", json={}, headers=headers(api_key)).status_code == 200
 
         set_venue("live")
+        assert get_session()["level"] == 0            # Paper's Strategy stays on Paper
         assert readout_required() is True
+        apply_patch({"level": 2}, desk=True, arm_token=issue_arm_token())
         res = client.post("/api/bot/session/arm", json={}, headers=headers(api_key))
         assert res.status_code == 409 and res.json()["detail"]["reason"] == BOT_REASON_READOUT_NOT_PASSED
         gate = {g["id"]: g for g in get_session()["gates"]}["readout"]
@@ -161,8 +163,14 @@ def test_an_unreadable_venue_counts_as_live(monkeypatch):
 
 
 def test_a_strategy_bot_left_active_on_live_is_stopped(paper):
+    """Moving to Live stops it (the level is per venue); the runner stops one that got there
+    another way (a session file that says Strategy and active on Live)."""
     assert get_session()["armed"] is True
     set_venue("live")
+    assert get_session()["armed"] is False and get_session()["level"] == 0
+    row = load_session()
+    row.update(level=2, armed=True, desk_arm_token="t")
+    save_session(row)
     tick(paper)
     assert get_session()["armed"] is False
     [row] = [r for r in list_entries(limit=50) if r["action"] == "deactivate"]
@@ -185,6 +193,7 @@ def test_on_live_the_bot_does_not_play(paper):
     set_readout_for_tests(passed_readout_for_tests())
     tick(paper)
     set_venue("live")
+    apply_patch({"level": 2}, desk=True, arm_token=issue_arm_token())   # Live's own Strategy, Active
     _safety.set_armed(True, reason="test")
     runner.submit(trigger())
     tick(paper)
