@@ -1559,7 +1559,8 @@ types: [{type, count}], holders: [{name, kind, items, nested_items}], cached}`.
 
 - **`tracked`** counts the objects the collector walks. `types` are the most
   common, at most `PERF_HEAP_TOP`. `allocated_blocks` is
-  `sys.getallocatedblocks()`.
+  `sys.getallocatedblocks()`. After the freeze below, the frozen objects are
+  not walked and not counted here; `gc.frozen` counts them.
 - **`process`** is the OS's figures. A field is null where the platform does
   not report it: on Linux only the peak and the page faults.
 - **`holders`** are the backend's biggest containers, each counted once:
@@ -1580,6 +1581,18 @@ one full collection. Two things limit it:
   weekday.
 
 Every census taken, scheduled or asked for, is written to the day file as `kind: "heap"`.
+
+**GC policy (#619, owner `gc_policy/`).** The first census on the live backend (2026-09-29,
+minutes after a start) found 732,138 tracked objects in 7,037 modules; the objects were mostly
+code, classes and module state. 1,434 of those modules were torch and transformers, imported by
+the FinBERT warm-up, which failed on every start on the desk.
+- **FinBERT is off** unless `NOVA_NEWS_SENTIMENT=1`; its label reads `unavailable`, as it
+  already did.
+- **The heap is frozen once.** `GC_FREEZE_AFTER_SEC` after start, the backend collects what is
+  garbage and freezes everything still alive (`gc.freeze()`), so full collections walk only what
+  was created since. A frozen object is still freed when nothing refers to it; one that later
+  dies in a reference cycle is never reclaimed. That leak is bounded, since the freeze runs once
+  per process. `NOVA_GC_FREEZE=0` turns it off.
 
 ### The operator's focus and the book watcher (ADR 033, operator ask 2026-09-24)
 
@@ -2914,6 +2927,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-29 | GC policy (#619): FinBERT off by default (`NOVA_NEWS_SENTIMENT=1` turns it on) -- its warm-up imported torch and transformers (1,434 modules) on every start and failed anyway -- and the long-lived heap frozen once, `GC_FREEZE_AFTER_SEC` after start (`NOVA_GC_FREEZE=0` off), so full collections walk only what the process made since. Read off the first live census (732,138 objects, 7,037 modules). New package `gc_policy/`; §3 Performance recorder amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-29 | Heap census (#619): `GET /api/perf/heap` and an hourly census in the perf day file (`kind: "heap"`) -- tracked objects by type and the backend's biggest containers. Full garbage collections ran about once a minute at a median ~430 ms all day (4.95 s at the open), and only ~60 ms of that was imported code, so the cause is read off the live process before anything is changed. §3 Performance recorder amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-29 | The grade you can see, and "not a trade" (operator report: "So why does it think this is a good trade when it's obviously not? ... there is barely any trade or volume"). AVAT's first pullback triggered at 08:06 on one pillar of five, with the tape at WAIT; the scanner scored it stopped out at 08:08, and the Trader's plan still read TRIGGERED with Stage in ticket at 08:28. The % change pillar was unknown on about 40% of arms: it is now measured from the board's prior close when HOD Momo's snapshot has none. Forming rows carry the pillars read at their leg, a filtered setup stays on its card greyed for its whole life, and rows add the tape at the trigger and when the first touch printed. The plan says NOT A TRADE with its reasons (grade C, the template's filter, the tape at the trigger, already played out, a spread at least the risk), locks Stage and Approve, never calls ENTER NOW on it, and shows a played-out setup's result. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-29 | Setups that ended stay on the chart, and what price did next (ADR 036 amendment; operator: "after it fails to form ... it says 'pole' with a gray square. Eventually, it removes itself ... we could probably go back and study them", then "i like this! 1 go"). The 1-minute chart drew only each lane's current state, so a failed or faded setup vanished at the next bar, and nothing scored a setup that died before it armed. `eyes/episodes.py` folds a day's journal into one episode per setup's life on a symbol; `eyes/aftermath.py` measures what price did in the 15 minutes after one died (over the high it was building under, or under the low it would have stopped at, first; a candle doing both counts as the low) and scores the refused trade the way an armed setup is scored. `GET /api/stock-read/{symbol}/past-setups` serves them; the 1-minute pane draws them faint (a failed one from the moment it failed) with `✕` / `✓` / `○`, the rule and what came next, a hover tells the whole story, and the live failed box now says `FAILED` with its rule. `tools/setup_failures.py` totals them by setup and reason across days. §3 amended. | User Directive + Claude Opus 5.5 |

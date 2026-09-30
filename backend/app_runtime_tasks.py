@@ -28,6 +28,7 @@ from bot.first_pullback import runner as _bot_first_pullback
 from bot.loops import breaker_loop, ttl_loop
 from stock_mode import runner as _stock_mode_runner
 from capture import keepalive as _capture_keepalive
+from gc_policy import freeze as _gc_freeze
 from constants import IBKR_DETAIL_STREAM_FRESH_SEC, L2_RETENTION_SWEEP_INTERVAL_SEC
 from ibkr import reprice as _ibkr_reprice
 from ibkr import scanner_l1 as _scanner_l1
@@ -127,6 +128,8 @@ def spawn_runtime_tasks() -> list[asyncio.Task]:
         ("catalysts.feed", _catalyst_feed.run),
         # Why it's moving (ADR 028): IBKR's short-stock file, recorded as it changes.
         ("move_reason.borrow_feed", _borrow_feed.run),
+        # #619: once startup settles, full collections stop walking the process's code and module state.
+        ("gc_policy.freeze", _gc_freeze.freeze_after_startup),
     ]
     if maintenance_enabled():
         factories.append(("archive.maintenance", archive_maintenance_loop))

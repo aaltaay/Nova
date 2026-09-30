@@ -291,7 +291,12 @@ NOVA_NEWS_CRITICALITY_ORDER = ("critical", "high", "watch", "background")
 # positive/negative/neutral label. It runs locally (no API key, no per-call
 # cost). Classify never loads the model -- warmup is a background thread at
 # startup (D-015). Informational only; never changes impact_class/confidence.
-NEWS_SENTIMENT_ENABLED = True
+# Off unless NEWS_SENTIMENT_ENV turns it on (#619): warming it imports torch and
+# transformers into the backend -- 1,434 modules and ~180k objects every full
+# garbage collection then walks -- and on the desk the load failed on every
+# start ("Could not import module 'pipeline'"), so the label read "unavailable".
+NEWS_SENTIMENT_ENABLED = False
+NEWS_SENTIMENT_ENV = "NOVA_NEWS_SENTIMENT"
 NEWS_SENTIMENT_MODEL_NAME = "ProsusAI/finbert"
 NEWS_SENTIMENT_CACHE_MAX_ENTRIES = 500
 # Finnhub free-tier 429 with no Retry-After header (calendar + logos share this).

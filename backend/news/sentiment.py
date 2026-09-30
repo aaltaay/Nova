@@ -15,12 +15,14 @@ module must never raise into the request path.
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from typing import Any
 
 from constants import (
     NEWS_SENTIMENT_CACHE_MAX_ENTRIES,
     NEWS_SENTIMENT_ENABLED,
+    NEWS_SENTIMENT_ENV,
     NEWS_SENTIMENT_MODEL_NAME,
 )
 
@@ -32,6 +34,14 @@ _pipeline: Any = None
 _load_attempted = False
 _warm_started = False
 _cache: dict[str, dict[str, Any]] = {}
+
+
+def enabled() -> bool:
+    """FinBERT runs only when ``NOVA_NEWS_SENTIMENT`` turns it on (#619); off, the label is unavailable."""
+    raw = os.environ.get(NEWS_SENTIMENT_ENV)
+    if raw is None:
+        return NEWS_SENTIMENT_ENABLED
+    return raw.strip().lower() in ("1", "true", "yes", "on")
 
 
 def _get_pipeline() -> Any:
@@ -53,7 +63,7 @@ def _get_pipeline() -> Any:
 def warm_pipeline() -> None:
     """Start a background load when sentiment is enabled. Never blocks the caller."""
     global _warm_started
-    if not NEWS_SENTIMENT_ENABLED or _pipeline is not None or _load_attempted or _warm_started:
+    if not enabled() or _pipeline is not None or _load_attempted or _warm_started:
         return
     _warm_started = True
     threading.Thread(target=_get_pipeline, daemon=True, name="finbert-warm").start()
@@ -66,7 +76,7 @@ def classify_headline_sentiment(headline: str | None) -> dict[str, Any]:
     responsive; they see unavailable until `warm_pipeline` finishes.
     """
     text = (headline or "").strip()
-    if not text or not NEWS_SENTIMENT_ENABLED:
+    if not text or not enabled():
         return dict(_UNAVAILABLE)
     if text in _cache:
         return _cache[text]
