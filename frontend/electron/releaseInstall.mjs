@@ -1,7 +1,9 @@
 /**
  * Installing the release the operator chose (#347), at their Restart to update.
  *
- * The "Updating Nova" window goes up first (updateSplash.mjs) -- from the click
+ * The backend comes along first (`prepare`, engineSync.mjs: one version for both, operator ask
+ * 2026-09-30) -- it may ask about what is open and the operator may choose to wait, which installs
+ * nothing. Then the "Updating Nova" window goes up (updateSplash.mjs) -- from the click
  * until the new version's window nothing of Nova is on screen but it -- then the
  * local engine stops and electron-updater runs the silent installer, which ends
  * Nova and reopens the new version. An install that cannot go ahead (the engine
@@ -16,13 +18,26 @@ import { showUpdateSplash } from './updateSplash.mjs';
 
 /**
  * @param {{ getUpdater: () => any, getState: () => { phase: string, version: string },
- *   dispatch: (event: object) => void, stopEngine: () => Promise<boolean>,
+ *   dispatch: (event: object) => void, prepare?: (tag: string) => Promise<boolean>,
+ *   stopEngine: () => Promise<boolean>,
  *   restartEngine: () => Promise<void>, box: (options: object) => Promise<unknown>,
  *   logsDir: () => string, logger: { info: Function, error: Function } }} deps
  */
-export function createReleaseInstaller({ getUpdater, getState, dispatch, stopEngine, restartEngine, box, logsDir, logger }) {
+export function createReleaseInstaller({
+  getUpdater,
+  getState,
+  dispatch,
+  prepare = async () => true,
+  stopEngine,
+  restartEngine,
+  box,
+  logsDir,
+  logger,
+}) {
   /** The "Updating Nova" window while an install runs, or null. */
   let splash = null;
+  /** A Restart to update is being prepared: a second click waits for it. */
+  let preparing = false;
 
   /** The window closes itself when the new version's window is up; this is for an install called off. */
   function closeSplash() {
@@ -42,9 +57,22 @@ export function createReleaseInstaller({ getUpdater, getState, dispatch, stopEng
 
   async function install() {
     const updater = getUpdater();
-    if (!updater || getState().phase !== 'ready') return;
-    dispatch({ type: 'installing' });
+    if (!updater || getState().phase !== 'ready' || preparing) return;
     const { version } = getState();
+    preparing = true;
+    let go = false;
+    try {
+      go = await prepare(displayTag(version));
+    } catch (err) {
+      logger.error(`preparing the backend for ${displayTag(version)} failed: ${errorText(err)}`);
+    } finally {
+      preparing = false;
+    }
+    if (!go || getState().phase !== 'ready') {
+      logger.info(`${displayTag(version)} not installed: the operator chose to wait`);
+      return;
+    }
+    dispatch({ type: 'installing' });
     const logs = logsDir();
     splash = showUpdateSplash({
       version: displayTag(version),

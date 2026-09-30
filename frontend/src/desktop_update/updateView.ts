@@ -52,13 +52,13 @@ export type WhatsNew = {
   notes: ReleaseNotes;
 };
 
-/** The backend's own "Pull master and restart" (electron/engineSync.mjs, ADR 038 amendment). */
+/** The backend following the desk's release (electron/engineSync.mjs, ADR 038 amendment). */
 export type EngineSyncOutcome = 'pulled' | 'restarted' | 'current' | 'failed';
 
 export type EngineSync = {
   /** The checkout the desk starts the backend from (its remembered owner), null when none is known. */
   owner: string | null;
-  /** The backend answering now runs from that checkout, so the desk can pull it. */
+  /** The backend answering now runs from that checkout, so the desk can bring it to its release. */
   attachedToOwner: boolean;
   running: 'pull' | 'restart' | null;
   last: { at: number; outcome: EngineSyncOutcome; text: string } | null;
@@ -75,7 +75,14 @@ export type UpdateView = {
 };
 
 /** What the operator can answer (electron/autoUpdate.mjs wireBridge). */
-export type UpdateAction = 'download' | 'later' | 'restart' | 'whats-new-close' | 'open-link' | 'backend-sync';
+export type UpdateAction =
+  | 'download'
+  | 'later'
+  | 'restart'
+  | 'whats-new-close'
+  | 'open-link'
+  | 'backend-sync'
+  | 'check-update';
 
 const STAGES: readonly NoticeStage[] = ['available', 'downloading', 'stopped', 'ready', 'installing'];
 

@@ -39,9 +39,19 @@ afterEach(() => {
 });
 
 describe('BackendNotice', () => {
-  it('restarts in one click when the backend says nothing is open', async () => {
+  it('updates the backend to the desk\'s version in one click when nothing is open', async () => {
     answerCheck({ schema_version: 1, safe: true, open: [], unknown: [] });
-    render(<BackendNotice engine={engine} act={vi.fn()} />);
+    const act = vi.fn();
+    render(<BackendNotice engine={engine} act={act} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Update backend to v1029' }));
+    await waitFor(() => expect(act).toHaveBeenCalledWith('backend-sync'));
+    expect(confirmApp).not.toHaveBeenCalled();
+    expect(startLocalApi).not.toHaveBeenCalled();
+  });
+
+  it('restarts a backend from another checkout in one click when nothing is open', async () => {
+    answerCheck({ schema_version: 1, safe: true, open: [], unknown: [] });
+    render(<BackendNotice engine={{ ...engine, attachedToOwner: false }} act={vi.fn()} />);
     expect(screen.getByTestId('backend-notice').textContent).toContain('Its checkout holds v1027');
     fireEvent.click(screen.getByRole('button', { name: 'Restart backend now' }));
     await waitFor(() => expect(startLocalApi).toHaveBeenCalledTimes(1));
@@ -54,22 +64,22 @@ describe('BackendNotice', () => {
       open: [{ kind: 'recording', text: "Recording MSGY: a few seconds' gap, then it resumes on its own" }],
     });
     confirmApp.mockResolvedValueOnce(false);
-    render(<BackendNotice engine={engine} act={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Restart backend now' }));
-    await waitFor(() => expect(confirmApp).toHaveBeenCalledTimes(1));
-    expect((confirmApp.mock.calls[0] as unknown as [{ message: string }])[0].message).toContain('- Recording MSGY');
-    expect(startLocalApi).not.toHaveBeenCalled();
-  });
-
-  it('asks the main process to pull when the checkout holds nothing newer', async () => {
-    tags.checkout = 'v1025';
-    answerCheck({ schema_version: 1, safe: true, open: [], unknown: [] });
     const act = vi.fn();
     render(<BackendNotice engine={engine} act={act} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Pull master and restart' }));
-    await waitFor(() => expect(act).toHaveBeenCalledWith('backend-sync'));
-    expect(confirmApp).toHaveBeenCalledTimes(1);
-    expect(startLocalApi).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Update backend to v1029' }));
+    await waitFor(() => expect(confirmApp).toHaveBeenCalledTimes(1));
+    expect((confirmApp.mock.calls[0] as unknown as [{ message: string }])[0].message).toContain('- Recording MSGY');
+    expect(act).not.toHaveBeenCalled();
+  });
+
+  it('looks for the desk\'s release when the backend is ahead of it', async () => {
+    tags.backend = 'v1030';
+    tags.checkout = 'v1030';
+    const act = vi.fn();
+    render(<BackendNotice engine={engine} act={act} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Update desk to v1030' }));
+    expect(act).toHaveBeenCalledWith('check-update');
+    expect(confirmApp).not.toHaveBeenCalled();
   });
 
   it('shows nothing for a current backend, and hides on Later', () => {

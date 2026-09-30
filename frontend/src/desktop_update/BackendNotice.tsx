@@ -1,10 +1,11 @@
 /**
- * The backend notice (ADR 038 amendment, operator ask 2026-09-29): a strip under the header, beside
- * the update notice, while the backend runs older code than this desk. One action fixes it --
- * "Restart backend now" or "Pull master and restart" -- after the desk asked the backend what a
- * restart would interrupt; nothing open restarts at once, anything open is listed first. Later hides
- * it until a revision changes. It never takes keyboard focus, like the update notice. Words and
- * decisions: backendNoticeModel.ts.
+ * The backend notice (ADR 038 amendment, operator ask 2026-09-29; one version, 2026-09-30): a strip
+ * under the header, beside the update notice, while the backend runs another release than this desk.
+ * One action closes the gap -- "Update backend to vNNN", "Update desk to vNNN" or, for a backend from
+ * another checkout, "Restart backend now" -- after the desk asked the backend what a restart would
+ * interrupt; nothing open goes at once, anything open is listed first. Later hides it until a
+ * revision changes. It never takes keyboard focus, like the update notice. Words and decisions:
+ * backendNoticeModel.ts.
  */
 import { useEffect, useState } from 'react';
 import { API_BASE_URL } from '../constants';
@@ -62,6 +63,10 @@ export function BackendNotice({ engine, act }: Props) {
 
   async function run() {
     if (working || !model?.action) return;
+    if (model.action === 'desk') {
+      act('check-update');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -69,13 +74,13 @@ export function BackendNotice({ engine, act }: Props) {
       if (needsConfirm(model.action, risk)) {
         const ok = await confirmApp({
           title: model.actionLabel,
-          message: confirmText(model.action, risk, engine.owner),
+          message: confirmText(model.action, risk, engine.owner, desk),
           confirmLabel: model.actionLabel,
           tone: 'warning',
         });
         if (!ok) return;
       }
-      if (model.action === 'sync') {
+      if (model.action === 'update') {
         act('backend-sync');
         return;
       }
@@ -87,7 +92,7 @@ export function BackendNotice({ engine, act }: Props) {
     }
   }
 
-  const label = running === 'pull' ? 'Pulling master…' : running === 'restart' || busy ? 'Restarting…' : model.actionLabel;
+  const label = running === 'pull' ? 'Updating the checkout…' : running === 'restart' || busy ? 'Restarting…' : model.actionLabel;
   return (
     <div className="nova-update-notice" role="status" data-stage="backend" data-testid="backend-notice">
       <div className="nova-update-notice__row">

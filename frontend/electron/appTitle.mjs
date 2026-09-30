@@ -15,6 +15,8 @@ const TITLE_BACKEND = 'backend';
 const TITLE_BACKEND_OLDER = ' (older -- restart it)';
 /** Older, and its checkout holds nothing newer: a restart would start the same code again. */
 const TITLE_BACKEND_BEHIND = ' (older -- pull master, then restart)';
+/** Newer than the desk: the desk's own installer is behind (or still being built). */
+const TITLE_BACKEND_NEWER = ' (newer -- update the desk)';
 
 export function withReleaseTag(base, releaseTag) {
   const tag = String(releaseTag ?? '').trim();
@@ -63,16 +65,24 @@ export function backendRemedy(backendTag, releaseTag, checkoutTag) {
 }
 
 /**
- * "... · backend v1006" -- the revision the local API process runs, read from its /api/health.
- * A backend left running across an update keeps its old code until it restarts, so an older
- * one says so, and says to pull first when a restart alone would load the same code. Unknown
- * (the API not answering, the sample desk) adds nothing.
+ * The desk and its backend are one version (operator ask 2026-09-30: "i need them to be treated as
+ * ONE"): when the local API runs the desk's own revision the title names it once. Otherwise
+ * "... · backend v1006" follows -- the revision the API process runs, read from its /api/health --
+ * saying which side is behind: an older backend keeps its old code until it restarts (and says to
+ * pull first when a restart alone would load the same code); a newer one waits for the desk's
+ * installer. Unknown (the API not answering, the sample desk) adds nothing.
  */
 export function withBackendTag(base, backendTag, releaseTag, checkoutTag = null) {
   const api = String(backendTag ?? '').trim();
-  if (!api) return base;
+  if (!api || api === String(releaseTag ?? '').trim()) return base;
   const remedy = backendRemedy(api, releaseTag, checkoutTag);
-  const note = remedy === 'pull' ? TITLE_BACKEND_BEHIND : remedy === 'restart' ? TITLE_BACKEND_OLDER : '';
+  const note = remedy === 'pull'
+    ? TITLE_BACKEND_BEHIND
+    : remedy === 'restart'
+      ? TITLE_BACKEND_OLDER
+      : isOlderTag(releaseTag, api)
+        ? TITLE_BACKEND_NEWER
+        : '';
   return `${base} · ${TITLE_BACKEND} ${api}${note}`;
 }
 

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   BACKEND_NOTICE_RESTART_LABEL,
-  BACKEND_NOTICE_SYNC_LABEL,
   backendNotice,
   confirmText,
   needsConfirm,
@@ -11,29 +10,35 @@ import { readUpdateView, type EngineSync } from './updateView';
 
 const OWNER = 'C:\\Users\\op\\github\\Nova';
 const attached: EngineSync = { owner: OWNER, attachedToOwner: true, running: null, last: null };
+const elsewhere: EngineSync = { ...attached, attachedToOwner: false };
 
-describe('the backend notice (ADR 038 amendment)', () => {
-  it("offers a restart when the backend's checkout already holds the newer code (2026-09-29: v1025 on v1027)", () => {
-    const model = backendNotice({ backend: 'v1025', checkout: 'v1027', desk: 'v1029', engine: attached });
-    expect(model).toMatchObject({ action: 'restart', actionLabel: BACKEND_NOTICE_RESTART_LABEL });
-    expect(model?.text).toBe('Backend v1025 runs older code than this desk (v1029).');
-    expect(model?.hint).toBe('Its checkout holds v1027: a restart loads it.');
+describe('the backend notice (one version, 2026-09-30)', () => {
+  it('offers one action for a backend behind the desk, whatever its checkout holds (no restart-then-pull)', () => {
+    for (const checkout of ['v1025', 'v1027', null]) {
+      const model = backendNotice({ backend: 'v1025', checkout, desk: 'v1029', engine: attached });
+      expect(model).toMatchObject({ action: 'update', actionLabel: 'Update backend to v1029' });
+      expect(model?.text).toBe('Backend v1025 is behind this desk (v1029).');
+      expect(model?.hint).toBe(`Nova runs as one version: this brings ${OWNER} to v1029 and restarts the backend.`);
+    }
   });
 
-  it('offers a pull when the checkout holds nothing newer and the desk can pull it', () => {
-    const model = backendNotice({ backend: 'v1025', checkout: 'v1025', desk: 'v1029', engine: attached });
-    expect(model).toMatchObject({ action: 'sync', actionLabel: BACKEND_NOTICE_SYNC_LABEL });
-    // A backend not running from the remembered checkout: say what to do, offer nothing it cannot do.
-    const elsewhere = backendNotice({
-      backend: 'v1025', checkout: 'v1025', desk: 'v1029', engine: { ...attached, attachedToOwner: false },
-    });
-    expect(elsewhere?.action).toBeNull();
-    expect(elsewhere?.hint).toMatch(/^Pull master in its checkout/);
+  it('offers the desk update for a backend ahead of it (2026-09-30: desk v1050, backend v1051)', () => {
+    const model = backendNotice({ backend: 'v1051', checkout: 'v1051', desk: 'v1050', engine: attached });
+    expect(model).toMatchObject({ action: 'desk', actionLabel: 'Update desk to v1051' });
+    expect(model?.text).toBe('Backend v1051 is ahead of this desk (v1050).');
   });
 
-  it('says nothing when the backend is current, newer, or unknown', () => {
+  it('restarts a backend from another checkout that holds newer code, and says what to do otherwise', () => {
+    const restart = backendNotice({ backend: 'v1025', checkout: 'v1027', desk: 'v1029', engine: elsewhere });
+    expect(restart).toMatchObject({ action: 'restart', actionLabel: BACKEND_NOTICE_RESTART_LABEL });
+    expect(restart?.hint).toBe('Its checkout holds v1027: a restart loads it.');
+    const stuck = backendNotice({ backend: 'v1025', checkout: 'v1025', desk: 'v1029', engine: elsewhere });
+    expect(stuck?.action).toBeNull();
+    expect(stuck?.hint).toMatch(/^It does not run from your Nova checkout: bring its checkout to v1029/);
+  });
+
+  it('says nothing when the backend runs the desk\'s version, or is unknown', () => {
     expect(backendNotice({ backend: 'v1029', checkout: 'v1029', desk: 'v1029', engine: attached })).toBeNull();
-    expect(backendNotice({ backend: 'v1030', checkout: 'v1030', desk: 'v1029', engine: attached })).toBeNull();
     expect(backendNotice({ backend: null, checkout: null, desk: 'v1029', engine: attached })).toBeNull();
   });
 
@@ -46,8 +51,8 @@ describe('the backend notice (ADR 038 amendment)', () => {
   it('reads the restart check: nothing open is one click, anything else is listed', () => {
     const safe = restartRisk({ schema_version: 1, safe: true, open: [], unknown: [] });
     expect(needsConfirm('restart', safe)).toBe(false);
-    // A pull always asks: it changes the checkout.
-    expect(needsConfirm('sync', safe)).toBe(true);
+    expect(needsConfirm('update', safe)).toBe(false);
+    expect(needsConfirm('desk', restartRisk(null))).toBe(false);
     const open = restartRisk({
       schema_version: 1,
       safe: false,
@@ -55,7 +60,9 @@ describe('the backend notice (ADR 038 amendment)', () => {
       unknown: [{ kind: 'ibkr', error: 'RuntimeError: cache unreadable' }],
     });
     expect(needsConfirm('restart', open)).toBe(true);
-    const text = confirmText('restart', open, OWNER);
+    expect(needsConfirm('update', open)).toBe(true);
+    const text = confirmText('update', open, OWNER, 'v1029');
+    expect(text).toContain(`Brings ${OWNER} to v1029 (fast-forward only)`);
     expect(text).toContain('- Recording MSGY');
     expect(text).toContain('- Could not read ibkr: RuntimeError: cache unreadable');
   });
