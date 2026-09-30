@@ -28,6 +28,7 @@ export type NavRailIconId =
   | 'account'
   | 'bots'
   | 'records'
+  | 'cryptos'
   | 'settings';
 
 const ICONS: Record<NavRailIconId, ReactNode> = {
@@ -73,6 +74,12 @@ const ICONS: Record<NavRailIconId, ReactNode> = {
     <Icon>
       <circle cx="12" cy="12" r="8.5" />
       <circle cx="12" cy="12" r="3.5" fill="currentColor" stroke="none" />
+    </Icon>
+  ),
+  cryptos: (
+    <Icon>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M10 8h3a2 2 0 0 1 0 4h-3zM10 12h3.6a2 2 0 0 1 0 4H10zM10 8v8M11 6.5V8M13 6.5V8M11 16v1.5M13 16v1.5" />
     </Icon>
   ),
   settings: (

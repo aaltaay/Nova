@@ -1605,7 +1605,7 @@ sensor envelope `{sensor, status: "live", as_of, data, symbol?, error?}`.
 422 invalid) on each change and every `FOCUS_HEARTBEAT_MS`: `{schema_version:
 1, role: "main" | "popout" | "browser", window_id, instance_id, focused,
 visible, page: "trader" | "desk" | "scanner" | "account" | "bots" | "records" |
-null, tab: string | null, symbol: string | null, symbol_source: "trader_tab" |
+"cryptos" | null, tab: string | null, symbol: string | null, symbol_source: "trader_tab" |
 "desk_board" | "scanner_row" | null, trader_tabs: string[], last_input_ts:
 number | null, reason: "start" | "focus" | "blur" | "visibility" | "page" |
 "symbol" | "input" | "heartbeat", ui_tag}` -- `window_id` is the perf
@@ -2788,6 +2788,91 @@ file_ts, rows)` and `changes (symbol, ts, listed, fee_rate, rebate_rate, availab
 row only when a symbol's listing, fee or availability changed, pruned after
 `MOVE_BORROW_RETENTION_DAYS`. `/api/diagnostics` adds the `borrow_feed` row (group `recorder`).
 
+### The Cryptos page (ADR 040, operator ask 2026-09-30)
+
+"give us a new tab called Cryptos ... what a person needs to see in the crypto world", then mockup v1
+approved ("go ahead and build exact replica"). Owners `backend/crypto/` (read-only; constants in
+`constants_crypto.py`) and `frontend/src/cryptos/`. Nothing here places, stages or cancels an order, and
+nothing here feeds a scanner row, a stock's chart, HOD Momo, a setup lane or a bot. Percentages on this
+page's wire are percent points (`2.84` = +2.84%), never fractions.
+
+`GET /api/crypto/board` answers `{schema_version: 1, generated_at, enabled, loading, replay_desk, clock,
+market, coins[], leverage, flows, bridge, next[], news[], sources[]}` from memory; asking marks the board
+wanted for `CRYPTO_WANTED_SEC` and never waits on the network. `loading` is true until every source has
+answered (or failed) once since it was wanted; `enabled` is false with `NOVA_CRYPTO=0`.
+- `clock`: `{now, stock_session: "premarket" | "regular" | "after_hours" | "closed", stock_next: {kind:
+  "premarket" | "open" | "close" | "after_hours_end", at}, crypto_day_start (the last 00:00 UTC),
+  crypto_day_start_et ("HH:MM"), regions: {asia, europe, us} (that region's market hours by the clock),
+  next_funding (the next 00:00 / 08:00 / 16:00 UTC settlement of the 8-hour exchanges), lanes: {asia, europe,
+  premarket, regular, after_hours, funding}}` -- each lane `[[from, to], ...]` in minutes after ET midnight of
+  today's ET date (Asia and Europe from their own clocks, weekdays; the stock lanes empty on a closed day; funding
+  as `[m, m]`). The clock's own facts, no source.
+- `market`: `{total_cap_usd, total_cap_change_24h_pct, btc_dominance_pct, btc_dominance_change_24h_pt,
+  total_volume_usd, volume_x_30d, fear_greed: {value, label, week_ago, at} | null, eth_btc,
+  eth_btc_change_24h_pct, btc_qqq_corr_30d}` -- CoinGecko's `/global` and `/coins/markets`; the dominance
+  change is BTC's share 24 hours ago worked out from both answers' 24-hour changes; `volume_x_30d` is the
+  listed coins' 24-hour volume over their own 30-day daily average (not the whole market's); Fear & Greed is
+  alternative.me's; `btc_qqq_corr_30d` is the correlation of BTC's 16:00 ET-to-16:00 ET returns with QQQ's
+  regular-hours closes over the last 30 shared sessions.
+- `coins[]` (the `CRYPTO_COINS` table, rank order): `{symbol, name, rank, price, high_24h, low_24h,
+  change_1h_pct, change_24h_pct, change_7d_pct, volume_24h_usd, volume_x_30d, market_cap_usd,
+  from_ath_pct, spark_7d: number[], funding_8h_pct, groups: string[], why, news_checked, ibkr, etf,
+  chart}`. `volume_x_30d` is the 24-hour volume over the coin's 30-day daily average (CoinGecko's
+  `market_chart`, refreshed every `CRYPTO_VOLUME_HISTORY_TTL_SEC`). `funding_8h_pct` is Hyperliquid's hourly
+  rate x 8. `why` is `{kind: "catalyst" | "negative" | "noise" | "news", title, source, published_ts, url} |
+  null` -- the best Alpaca headline naming the coin in the last 24 hours, labelled by `crypto/classify.py`
+  (rules `CRYPTO_NEWS_RULES_VERSION`); `news_checked` is true once Alpaca answered for the coin, so
+  `why: null` with `news_checked: true` is "no news found" and with `false` is unknown. `ibkr` is `{listed,
+  venue: "PAXOS" | "ZEROHASH" | null} | null` -- IBKR's own contract answer, `null` until asked (IBKR not
+  ready). `etf` is the coin's US spot ETF on the desk (`IBIT`, `ETHA`) or `null`. `chart` says Coinbase
+  carries a USD market for the candles route.
+- `leverage`: `{funding: [{symbol, funding_8h_pct}] (high to low), open_interest_usd (the listed coins,
+  Hyperliquid), btc_open_interest_usd, liquidations_24h: null, liquidations_note}` -- liquidations have no
+  free source reachable from the desk and stay a stated absence.
+- `flows`: `{etf: null, etf_note, stablecoins: {supply_usd, change_7d_usd, daily: [{date, net_usd}]} | null}`
+  -- daily spot ETF flows have no free source and stay a stated absence; stablecoins are DefiLlama's USD-pegged
+  supply and its daily change.
+- `bridge`: `{reference_close_at (the last regular-session 16:00 ET close), phase: "premarket" | "regular" |
+  "after_hours" | "overnight", btc_since_close_pct, eth_since_close_pct, rows: [{symbol, what, driver: "BTC" |
+  "ETH", beta, close, last, since_close_pct, implied_pct, read: "ahead" | "behind" | "in_line" | null,
+  gap_pt}], error: string | null}` for `CRYPTO_BRIDGE` (IBIT, ETHA, MSTR, COIN, MARA, RIOT, CLSK, HOOD).
+  `close` is IBKR's regular-hours daily close of that session (`historical_service.request_rth_daily_closes`,
+  background priority), `last` IBKR's snapshot (`snapshot_quotes`, cold), `null` when IBKR has not answered
+  (a snapshot with no trade since that close is `null`, never the close). `beta` is the least-squares slope of
+  the stock's close-to-close returns on the driver's 16:00 ET-to-16:00 ET returns over the last
+  `CRYPTO_BETA_DAYS` shared sessions (`null` under `CRYPTO_BETA_MIN_DAYS`); `implied_pct` is the driver's
+  move since the close x beta; `read` is `ahead` / `behind` when `since_close_pct - implied_pct` (`gap_pt`)
+  is beyond `CRYPTO_BRIDGE_READ_BAND_PT`, else `in_line`, `null` when either is unknown. The driver's 16:00 ET
+  prices are Coinbase's (the open of the hourly candle that starts at 16:00 ET).
+- `next[]`: `{at, kind: "funding" | "expiry" | "stocks" | "crypto_day", title, detail: string | null}`,
+  soonest first, at most `CRYPTO_NEXT_MAX` -- the clock's events, and Deribit's options expiries (every
+  Friday 08:00 UTC; the month's last Friday is the monthly) with the BTC open interest expiring then when
+  Deribit answered. No macro calendar or token unlocks: no free source.
+- `news[]`: `{published_ts, symbol, kind, title, source, url}`, catalysts and negatives first, then newest,
+  at most `CRYPTO_NEWS_MAX`.
+- `sources[]`: `{id: "coingecko" | "coinbase" | "fear_greed" | "hyperliquid" | "defillama" | "deribit" |
+  "alpaca" | "ibkr", label, ok: boolean | null, at: number | null, error: string | null}` -- `ok: null`
+  until asked. A failed source keeps its last good answer for at most `CRYPTO_STALE_MAX_SEC`, then its
+  numbers read `null`; no source's numbers ever stand in for another's.
+
+`GET /api/crypto/candles?symbol=BTC&tf=15m` (`tf`: `15m` | `1h` | `4h` | `1d`) answers `{schema_version: 1,
+symbol, tf, product, source: "coinbase", loading, error, candles: [{t, o, h, l, c, v}] (oldest first, `t` the
+bucket start, `v` null when Coinbase gave none), last, change_24h_pct, levels: {high_24h, low_24h, day_open,
+day_open_at, stock_close: {at, price} | null}, sessions: [{kind: "premarket" | "regular" | "after_hours",
+start, end}]}` -- Coinbase
+Exchange's public candles (4h built from hourly), the levels from the 15-minute series, the US stock sessions
+inside the window; 400 `CRYPTO_UNKNOWN_SYMBOL` / `CRYPTO_UNKNOWN_TF`. Nothing is fetched on the request:
+it answers the cache (`loading` while the first read runs) and asks the refresher.
+
+Refresh while wanted (`backend/crypto/refresh.py`, two daemon threads, web and IBKR): CoinGecko markets
+every `CRYPTO_MARKETS_TTL_SEC`, global every `CRYPTO_GLOBAL_TTL_SEC`, volume history one coin at a time;
+Hyperliquid every `CRYPTO_PERPS_TTL_SEC`; Alpaca news every `CRYPTO_NEWS_TTL_SEC`; Fear & Greed,
+DefiLlama and Deribit every `CRYPTO_SLOW_TTL_SEC`; IBKR snapshots every `CRYPTO_BRIDGE_QUOTE_TTL_SEC`, daily
+closes once per session (again after 16:00 until that session's bar lands), the crypto listing once per
+process. Nothing polls when the page has not asked within `CRYPTO_WANTED_SEC`. `COINGECKO_DEMO_API_KEY`
+(optional) is sent as CoinGecko's demo key. On the desk every number, chip, level and lane opens a hover
+card (`frontend/src/cryptos/tips/`): what it means, a small drawing, what it reads now, why it matters.
+
 ### Symbol directory for the header search (operator ask, 2026-09-23)
 
 `GET /api/symbols/directory` (owner `backend/symbol_directory.py`, read-only)
@@ -2907,6 +2992,7 @@ Paper and live share this path; only Gateway credentials/port and safety gates d
 | IB Gateway (local) | Scanner discovery + market data + optional orders | ✅ Verified |
 | Web UI (Localhost / Desktop) | Delivery dashboard for gappers | ✅ Verified |
 | yfinance | Fundamental data (float, short interest, etc.) | ✅ Verified |
+| CoinGecko, Coinbase Exchange, alternative.me, Hyperliquid, DefiLlama, Deribit (public, keyless) | The Cryptos page's crypto reference data (ADR 040): read-only, each labelled on the page, never a stock or order source | 🧪 Fixture-tested |
 
 ---
 
@@ -2924,7 +3010,7 @@ Master protection blocks force-push and deletion (including admins), with **no
 required status checks**. Trading runtime gates, opt-ins and `auto_live` NO-GO
 remain unchanged. Conditional coverage is specified in `.cursor/rules/ci-scope.mdc`.
 
-- **Market data / trading:** Scanner and prices are IBKR-only (see `single-market-data-feed.mdc`). Alpaca is news/listing metadata only. Orders are allowed only via gated `backend/ibkr/` (Invariant #7). Gateway port default is live (4001); the paper Gateway (4002) is legacy, by hand only, never an automatic fallback (ADR 020). Spend stays gated; `auto_live` remains NO-GO. Header Live / Paper / Sim are **venue** pills (ADR 020): **Live** places to IBKR; **Paper** is Nova's practice account on the live feed -- fake money, full live data, fills estimated locally, never an IBKR place; **Sim** replays a **real recorded or downloaded session** and fills locally on a scratch account that unwinds when the playhead is scrubbed back (ADR 019); at the **live edge** -- the Sim clock following the wall clock on today's date, not paused, not scrubbed, no past day loaded (`live_edge` on the clock payload and on `/api/ibkr/status`) -- a Sim tab shows the live IBKR feed exactly as a Paper tab does and the scratch account fills against the live reference, and scrubbing back leaves the edge for the loaded replay (today's Session Record when one exists, a stated absence otherwise; ADR 020 live-edge amendment). The IBKR paper Gateway (4002) is legacy with no desk button -- `POST /api/ibkr/gateway-mode {"mode":"paper"}` by hand is its only door. The venue never changes the bot: operator and bots are gated identically everywhere, and a bot fires only on an allowlisted symbol whose depth line the backend itself holds (`409 BOT_NO_DEPTH_LINE` otherwise); after a Sim rewind (`practice_rewind`) bots re-read the ledger. There is no synthetic instrument: a Sim desk with nothing loaded is empty off the live edge, and live at it. `NOVA_BROKER=sim` is bootstrap only. Switching to Live restores the IBKR paths.
+- **Market data / trading:** Scanner and prices are IBKR-only (see `single-market-data-feed.mdc`). Alpaca is news/listing metadata only. The Cryptos page (ADR 040) shows the crypto market from labelled public reference sources (rule 13 there); it is never a scanner, stock chart, order or bot source. Orders are allowed only via gated `backend/ibkr/` (Invariant #7). Gateway port default is live (4001); the paper Gateway (4002) is legacy, by hand only, never an automatic fallback (ADR 020). Spend stays gated; `auto_live` remains NO-GO. Header Live / Paper / Sim are **venue** pills (ADR 020): **Live** places to IBKR; **Paper** is Nova's practice account on the live feed -- fake money, full live data, fills estimated locally, never an IBKR place; **Sim** replays a **real recorded or downloaded session** and fills locally on a scratch account that unwinds when the playhead is scrubbed back (ADR 019); at the **live edge** -- the Sim clock following the wall clock on today's date, not paused, not scrubbed, no past day loaded (`live_edge` on the clock payload and on `/api/ibkr/status`) -- a Sim tab shows the live IBKR feed exactly as a Paper tab does and the scratch account fills against the live reference, and scrubbing back leaves the edge for the loaded replay (today's Session Record when one exists, a stated absence otherwise; ADR 020 live-edge amendment). The IBKR paper Gateway (4002) is legacy with no desk button -- `POST /api/ibkr/gateway-mode {"mode":"paper"}` by hand is its only door. The venue never changes the bot: operator and bots are gated identically everywhere, and a bot fires only on an allowlisted symbol whose depth line the backend itself holds (`409 BOT_NO_DEPTH_LINE` otherwise); after a Sim rewind (`practice_rewind`) bots re-read the ledger. There is no synthetic instrument: a Sim desk with nothing loaded is empty off the live edge, and live at it. `NOVA_BROKER=sim` is bootstrap only. Switching to Live restores the IBKR paths.
 - **Desk venue vs spend arming (ADR 018, #302):** two facts with opposite lifetimes, never one dial. The **venue** (Paper / Live / Sim) is durable -- `sim/mode.py` owns `desk-venue.json` under the operator cache (`schema_version`, unknown version refuses loud), and it wins over the `NOVA_BROKER` bootstrap default. **Spend arming never survives a process start**, in any venue: `IBKR_ORDERS_ENABLED` / `IBKR_LIVE_TRADING_CONFIRMED` say this desk is *permitted*, the runtime latch in `ibkr/safety.py` says it is currently *armed*, and a place needs both. Arming is an explicit act through one door, `POST /api/ibkr/arm`, and one rule in `ibkr/safety.arm` (ADR 018 amendment, operator decision 2026-09-23): **Live arms only with the operator's PIN, checked by the backend** against a hash in `.env` (`NOVA_LIVE_ARM_PIN_HASH`, set with `py -3 tools/set_live_arm_pin.py`; none set = Live refuses to arm); **Paper and Sim arm with no PIN** -- the padlock in one click, a bot through the same endpoint. The latch is stamped with the venue it was armed on and reads disarmed on any other, so a practice arm is never a Live arm. Never an `.env` edit, never inferred from a connect, reconnect or self-heal, and never re-armed by any automatic path. A venue change disarms. Protective sources (`flatten`, `kill`, `cancel_working`) and cancel are exempt: a disarmed desk must always be able to get flat. Only the *settled* venue persists -- an in-flight gateway-mode switch stays process-local in `gateway_heal.py` so ADR 013's unattended reconnect is unchanged.
 - **Market Open Halt**: The gapper dashboard stops updating its data feed once the market formally opens.
 - **Configurable**: API keys and base URLs must be configurable via UI.
@@ -3135,6 +3221,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-30 | The Cryptos page (ADR 040; operator: "give us a new tab called Cryptos and create a dashboard showing what a person need to see in the crypto world", then mockup v1: "go ahead and build exact replica ... when the user hover over things, make sure you show in friendly visual way what does it mean"). A nav-rail page laid out as the approved mockup: market tiles, 13 coins, a Coinbase chart with the day's levels and the 16:00 ET stock close, a 24/7 clock, the stocks that move with crypto (IBKR quotes and regular-hours closes, a 60-session beta and the move it implies), funding and open interest, stablecoin flows, what comes next and classified news. Crypto numbers come from named public reference sources (CoinGecko, Coinbase Exchange, alternative.me, Hyperliquid, DefiLlama, Deribit, Alpaca news), each labelled, a carve-out written into `single-market-data-feed.mdc` rule 13; nothing on the page places or feeds anything. Liquidations, daily ETF flows, a macro calendar and token unlocks have no free source and are stated absences. Nothing polls while the page is closed. Every number opens a hover card: what it means, a small drawing, what it reads now, why it matters. §3 and §4 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | The book watcher's matching window, measured (ADR 033 amendment; asked after the hidden-seller study, "change it only if the evidence is clear"). The lit size at the quote that no drop claimed often had a pulled drop at its price nearby, which looked like fills the 0.5 s window missed. `tools/book_watch_window_study.py` (owner `book_watch/window_study.py`) runs the detector over the 27 Session Records of 2026-09-21..29 at 0.5, 1, 2 and 3 s and weighs what a wider window adds against the same prints moved 30-60 s and one tick out: the nearby pulled drops are chance on busy prices (45.3% moved against 44.9% real), the book trails the tape for about 1 in 10 levels a print traded through, and for each late fill a wider window would recover it claims three to five chance prints before the earlier book, six or more past the later one. The window stays 0.5 s; the detector takes it as a parameter (`book_watch/matching.py`), and a lit print now fills only a level at exactly its price (the half-tick test matched midpoint prints to the level below by floating-point error). A targeted fix for the late book is parked as #636. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | Hidden sellers and buyers on Level 2 (ADR 033 amendment; operator: "do we have a way to detect hidden sellers? like we have spoofing!?", then the mockup and "1 go"). The book watcher's mirror of a pull: at a price that held, what traded beyond the most the book ever showed there (`book_watch/hidden.py`). Measured first on every Session Record (`tools/hidden_study.py`, 26 hours with a book): a per-print "unclaimed" count called 60-75% of the volume at the quote hidden (the book and the tape arrive seconds apart), and without a hold the rule fired on sweeps and said nothing. The defaults -- held 10 s, 2,000 printed, 3x the most shown -- are what the study supported: a minute after a hidden seller the price was past the offer 37% of the time against 46% after an offer that showed its size; a hidden buyer made no difference. The ladder outlines the row and marks it in violet, each side's minute line adds "◆", the Tape tile reads "Hidden seller", and `/sensors/flow`'s `iceberg_hint` -- true whenever any level grew -- is now the watcher's word. The setup tape gate is unchanged (the operator's call). §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-29 | Share clips (ADR 039; operator: "I want to be able to record videos. Can I have maybe a small red button ... to share with the world?", seven decisions, then mockup v1 approved: "1 go"). A red ● on every Trader tab opens one Record menu: Market data (the Session Record, unchanged) and Video clip. A clip is marks on ADR 035's always-on screen recording -- no cap, no load, it survives a restart with the gap marked, and Save the last 5 min reads the tab's past. High quality adds a 30 fps capture of the tab's window in its own hidden page (at most 2, 30 min each). The header shows CLIP chips beside REC, a pointed-at chip frames its tab, and Records gains Video clips. Exports are MP4 (H.264) made on a hidden, sandboxed page with WebCodecs + mediabunny: the Trader tab with the header left out by default, the size and P&L panels blurred, hidden stretches cut, high quality where it ran and the screen recording around it. Verified end to end against the desk's real recording on F:, and through the desk itself (the red button, the chip, the toast, the dialog): that run caught an order-ticket blur that named an element no component renders (a test now checks every blur target) and a trim that took the tab to be shown before the clip, so the export now leaves out, and says so, any stretch Nova did not follow. `GET` / `POST /api/clips` and a `clips` checklist row; two unbound Nova Actions. §3 amended. | User Directive + Claude Opus 5.5 |

@@ -4,7 +4,7 @@
  * collapsed it is a tray of child icons with a hairline between groups
  * (operator ask, 2026-09-22); it no longer folds (operator ask, 2026-09-23).
  * Shared by every view -- Desk, Trader, Scanner (the registry's grouped tab
- * modules), Account, Bots,
+ * modules), Cryptos, Account, Bots,
  * Records, then Advise + Settings + collapse pinned at the foot.
  *
  * Routing: Trader is the workspace's Stock View; Desk / Records / Account / Bots
@@ -21,6 +21,7 @@ import {
   NAV_RAIL_EXPAND_TITLE,
   NAV_RAIL_GROUP_LABELS,
   NAV_RAIL_LABEL_BOTS,
+  NAV_RAIL_LABEL_CRYPTOS,
   NAV_RAIL_LABEL_DESK,
   NAV_RAIL_LABEL_RECORDS,
   NAV_RAIL_LABEL_SCANNER,
@@ -28,6 +29,7 @@ import {
   NAV_RAIL_LABEL_TRADER,
   NAV_RAIL_RECORDING_MAX,
   NAV_RAIL_TITLE_BOTS,
+  NAV_RAIL_TITLE_CRYPTOS,
   NAV_RAIL_TITLE_DESK,
   NAV_RAIL_TITLE_RECORDS,
   NAV_RAIL_TITLE_SCANNER,
@@ -107,7 +109,7 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
   const leaveTrader = () => {
     if (traderActive) onLeaveTrader();
   };
-  const goPage = (next: 'desk' | 'records' | 'account' | 'bots') => {
+  const goPage = (next: 'desk' | 'records' | 'account' | 'bots' | 'cryptos') => {
     leaveTrader();
     setNavPage(next);
   };
@@ -196,6 +198,14 @@ export function NavRail({ traderActive, onOpenTrader, onLeaveTrader, settings }:
           </div>
         </div>
 
+        <NavRailItem
+          testId="nav-rail-cryptos"
+          icon={navRailIcon('cryptos')}
+          label={NAV_RAIL_LABEL_CRYPTOS}
+          title={NAV_RAIL_TITLE_CRYPTOS}
+          active={!traderActive && page === 'cryptos'}
+          onClick={() => goPage('cryptos')}
+        />
         {visibility.trading !== false && (
           <NavRailAccountItem active={accountActive} onOpen={() => goPage('account')} />
         )}

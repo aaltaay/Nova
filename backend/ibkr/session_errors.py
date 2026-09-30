@@ -27,6 +27,7 @@ from constants import (
     IBKR_ERROR_DELAYED_DATA_NOTICE,
     IBKR_ERROR_MAX_TICKERS,
     IBKR_ERROR_MD_REQUIRES_SUBSCRIPTION,
+    IBKR_ERROR_NO_SECURITY_DEFINITION,
     IBKR_ERROR_READ_ONLY_API,
     IBKR_READ_ONLY_API_MARKERS,
 )
@@ -237,6 +238,9 @@ def _on_ib_error(
     code = int(errorCode)
     msg = (errorString or "").strip()
     now = time.time()
+    if code == IBKR_ERROR_NO_SECURITY_DEFINITION and getattr(contract, "secType", "") == "CRYPTO":
+        # The Cryptos page asked whether IBKR lists a coin (ADR 040): "no definition" is the answer "no".
+        return
     _last_error = {"code": code, "message": msg, "ts": now}
 
     if is_read_only_rejection(code, msg):

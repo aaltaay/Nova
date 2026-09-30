@@ -15,6 +15,7 @@ export const NAV_RAIL_LABEL_SCANNER = 'Scanner';
 export const NAV_RAIL_LABEL_ACCOUNT = 'Account';
 export const NAV_RAIL_LABEL_BOTS = 'Bots';
 export const NAV_RAIL_LABEL_RECORDS = 'Records';
+export const NAV_RAIL_LABEL_CRYPTOS = 'Cryptos';
 export const NAV_RAIL_LABEL_SETTINGS = 'Settings';
 
 export const NAV_RAIL_TITLE_DESK = 'Desk -- the Scanner + Trader hybrid';
@@ -25,6 +26,7 @@ export const NAV_RAIL_TITLE_ACCOUNT =
   'Account overview -- positions, orders, and trading habit reports';
 export const NAV_RAIL_TITLE_BOTS = 'Bots -- strategy and bot autonomy';
 export const NAV_RAIL_TITLE_RECORDS = 'Records -- Session Records';
+export const NAV_RAIL_TITLE_CRYPTOS = 'Cryptos -- the 24/7 crypto market, and the stocks it moves';
 export const NAV_RAIL_TITLE_SETTINGS = 'Open Settings';
 
 export const NAV_RAIL_COLLAPSE_TITLE = 'Collapse to icons';

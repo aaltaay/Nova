@@ -118,18 +118,19 @@ describe('NavRail', () => {
   const testIds = (scope: Element) =>
     Array.from(scope.querySelectorAll('[data-testid]')).map((el) => el.getAttribute('data-testid'));
 
-  it('lists Desk, Trader, Scanner, Account, Bots, Records top to bottom and pins Settings + collapse at the foot', () => {
+  it('lists Desk, Trader, Scanner, Cryptos, Account, Bots, Records top to bottom and pins Settings + collapse at the foot', () => {
     render();
     const rail = q('nav-rail')!;
     expect(rail.tagName).toBe('NAV');
     expect(rail.getAttribute('aria-label')).toBe('Navigation');
     const top = testIds(rail.querySelector('.nav-rail__list')!).filter((id) =>
-      ['nav-rail-desk', 'nav-rail-trader', 'nav-rail-scanner', 'nav-rail-account', 'nav-rail-bots', 'nav-rail-records'].includes(id!),
+      ['nav-rail-desk', 'nav-rail-trader', 'nav-rail-scanner', 'nav-rail-cryptos', 'nav-rail-account', 'nav-rail-bots', 'nav-rail-records'].includes(id!),
     );
     expect(top).toEqual([
       'nav-rail-desk',
       'nav-rail-trader',
       'nav-rail-scanner',
+      'nav-rail-cryptos',
       'nav-rail-account',
       'nav-rail-bots',
       'nav-rail-records',
@@ -254,8 +255,12 @@ describe('NavRail', () => {
     expect(getNavPage()).toBe('dashboard');
   });
 
-  it('Account, Bots, Desk and Records each switch the shell page', () => {
+  it('Cryptos, Account, Bots, Desk and Records each switch the shell page', () => {
     render();
+    click('nav-rail-cryptos');
+    expect(getNavPage()).toBe('cryptos');
+    expect(consumeScannerTabRequest()).toBeNull();
+    expect(q('nav-rail-cryptos')!.classList.contains('is-active')).toBe(true);
     click('nav-rail-account');
     expect(getNavPage()).toBe('account');
     expect(consumeScannerTabRequest()).toBeNull();

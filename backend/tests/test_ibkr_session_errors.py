@@ -169,3 +169,18 @@ def test_unrelated_error_codes_are_ignored():
     assert se.max_tickers_hit() is False
     assert se.get_data_farm_status()["status"] is None
     assert se.peek_restore_pending() is None
+
+
+class _Contract:
+    def __init__(self, sec_type: str) -> None:
+        self.secType = sec_type
+
+
+def test_a_coin_ibkr_does_not_list_is_an_answer_not_an_error():
+    """ADR 040: the Cryptos page asks whether IBKR lists a coin; "no security definition" means no."""
+    ib = _FakeIB()
+    se.install_error_hook(ib)
+    ib.errorEvent.fire(7, 200, "No security definition has been found for the request", _Contract("CRYPTO"))
+    assert se.last_error() is None
+    ib.errorEvent.fire(8, 200, "No security definition has been found for the request", _Contract("STK"))
+    assert se.last_error()["code"] == 200   # the same answer about a stock is still recorded

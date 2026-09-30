@@ -61,6 +61,8 @@ os.environ["NOVA_BORROW_FEED"] = "0"
 os.environ["NOVA_EYES_JOURNAL"] = "0"
 # ADR 033: an app a test boots must not start the book watcher's worker or journal; its tests drive them directly.
 os.environ["NOVA_BOOK_WATCH"] = "0"
+# ADR 040: an app a test boots must not start the Cryptos page's refreshers; its tests drive them directly.
+os.environ["NOVA_CRYPTO"] = "0"
 
 import pytest
 
