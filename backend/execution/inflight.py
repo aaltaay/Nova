@@ -13,6 +13,11 @@ terminal (Filled / Cancelled / ApiCancelled / Inactive), or on
 ``reset_for_tests``. A still-working order keeps its commitment on purpose —
 the position it will consume is still unsold.
 
+A commitment belongs to the venue the order was sent on (Live, Paper or Sim): a
+Paper sell still working must not refuse a Live exit of the same stock, and an
+order id means nothing across venues (practice ids restart at 1 per venue).
+``committed_qty`` / ``release_order`` / ``snapshot`` answer for one venue.
+
 Not persisted (no ``schema_version``): a commitment is only meaningful for the
 process that placed the order. The durable half is the ledger's ``boot_id``;
 ``execution.startup_sweep`` reconciles rows a previous process left behind.
@@ -33,6 +38,7 @@ class Commitment:
     side: str
     qty: float
     order_id: int | None = None
+    venue: str | None = None
     created_ts: float = field(default_factory=time.time)
 
 
@@ -49,12 +55,22 @@ def _normalize(symbol: str | None, side: str | None) -> tuple[str, str]:
     return (symbol or "").strip().upper(), (side or "").strip().upper()
 
 
+def _venue(venue: str | None) -> str | None:
+    """``venue``, else the desk's now (the execution door passes the one it sends on)."""
+    if venue is not None:
+        return venue
+    from sim.mode import venue as desk_venue
+
+    return desk_venue()
+
+
 def commit(
     execution_id: str,
     *,
     symbol: str | None,
     side: str | None,
     qty: float | None,
+    venue: str | None = None,
 ) -> None:
     """Record ``qty`` as spent for ``symbol``/``side`` until the order resolves."""
     sym, direction = _normalize(symbol, side)
@@ -66,7 +82,7 @@ def commit(
         return
     with _lock:
         _commitments[execution_id] = Commitment(
-            execution_id=execution_id, symbol=sym, side=direction, qty=amount,
+            execution_id=execution_id, symbol=sym, side=direction, qty=amount, venue=_venue(venue),
         )
 
 
@@ -85,19 +101,24 @@ def release_execution(execution_id: str) -> bool:
         return _commitments.pop(execution_id, None) is not None
 
 
-def release_order(order_id: int | None) -> bool:
+def release_order(order_id: int | None, venue: str | None = None) -> bool:
+    """Free the commitment of ``order_id`` on ``venue`` (the desk's when not given).
+
+    IBKR's callbacks pass ``"live"`` -- only Live sends to IBKR -- and a practice broker's
+    notices pass their own venue, so one venue's order N never frees another's."""
     if order_id is None:
         return False
     target = int(order_id)
+    where = _venue(venue)
     with _lock:
         for execution_id, row in list(_commitments.items()):
-            if row.order_id == target:
+            if row.order_id == target and row.venue == where:
                 del _commitments[execution_id]
                 return True
     return False
 
 
-def release_on_broker_status(order_id: int | None, status: str | None) -> bool:
+def release_on_broker_status(order_id: int | None, status: str | None, venue: str | None = "live") -> bool:
     """Free the commitment once the broker is done with the order.
 
     A false Cancelled (Error 10349) frees the shares a beat early and the
@@ -109,22 +130,25 @@ def release_on_broker_status(order_id: int | None, status: str | None) -> bool:
     text = str(status or "")
     if text != "Filled" and text not in TERMINAL_REJECT_STATUSES:
         return False
-    return release_order(order_id)
+    return release_order(order_id, venue)
 
 
-def committed_qty(symbol: str | None, side: str | None) -> float:
-    """Shares already sent for ``symbol``/``side`` and not yet resolved."""
+def committed_qty(symbol: str | None, side: str | None, venue: str | None = None) -> float:
+    """Shares already sent for ``symbol``/``side`` on ``venue`` (the desk's) and not yet resolved."""
     sym, direction = _normalize(symbol, side)
     if not sym or not direction:
         return 0.0
+    where = _venue(venue)
     with _lock:
         return sum(
             row.qty for row in _commitments.values()
-            if row.symbol == sym and row.side == direction
+            if row.symbol == sym and row.side == direction and row.venue == where
         )
 
 
-def snapshot() -> list[dict]:
+def snapshot(venue: str | None = None, *, all_venues: bool = False) -> list[dict]:
+    """The commitments of ``venue`` (the desk's), or of every venue with ``all_venues``."""
+    where = None if all_venues else _venue(venue)
     with _lock:
         return [
             {
@@ -133,9 +157,11 @@ def snapshot() -> list[dict]:
                 "side": row.side,
                 "qty": row.qty,
                 "order_id": row.order_id,
+                "venue": row.venue,
                 "created_ts": row.created_ts,
             }
             for row in _commitments.values()
+            if all_venues or row.venue == where
         ]
 
 

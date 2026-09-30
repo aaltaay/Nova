@@ -400,12 +400,12 @@ def test_every_leg_a_bracket_closes_has_its_watch_told(paper) -> None:
     raw = _resting(paper.broker)
     paper.broker.cancel(raw["parent_order_id"])  # the cancel's send path answers for the entry itself
     for leg in (raw["target_order_id"], raw["stop_order_id"]):
-        assert telemetry.watch_order(leg).latest_status == "Cancelled"
+        assert telemetry.watch_order(leg, venue="paper").latest_status == "Cancelled"
 
     oco = _filled(paper.broker)
     paper.broker.try_fill_working("IMCC", [(NOW + 1, 9.40)])
-    assert telemetry.watch_order(oco["stop_order_id"]).latest_status == "Filled"
-    assert telemetry.watch_order(oco["target_order_id"]).latest_status == "Cancelled"
+    assert telemetry.watch_order(oco["stop_order_id"], venue="paper").latest_status == "Filled"
+    assert telemetry.watch_order(oco["target_order_id"], venue="paper").latest_status == "Cancelled"
 
 
 def test_a_bracket_survives_a_restart_and_keeps_working(paper) -> None:

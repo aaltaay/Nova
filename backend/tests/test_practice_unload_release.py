@@ -59,7 +59,7 @@ def _reset() -> None:
 
 def _resting_sell_held_by_the_door(execution_id: str) -> int:
     """What the execution door does: commit the shares, send, attach the order id."""
-    inflight.commit(execution_id, symbol="IMCC", side="SELL", qty=1)
+    inflight.commit(execution_id, symbol="IMCC", side="SELL", qty=1, venue="sim")
     raw = broker.place("IMCC", "SELL", 1, "LMT", limit_price=50.0)
     assert raw["ok"] and raw["broker_status"] == "Submitted"
     inflight.attach_order(execution_id, raw["order_id"])
@@ -69,9 +69,9 @@ def _resting_sell_held_by_the_door(execution_id: str) -> int:
 def test_unloading_the_replay_frees_a_resting_sells_shares(sim_replay) -> None:
     assert broker.place("IMCC", "BUY", 1, "MKT")["broker_status"] == "Filled"
     _resting_sell_held_by_the_door("exec-rest-1")
-    assert inflight.committed_qty("IMCC", "SELL") == 1.0
+    assert inflight.committed_qty("IMCC", "SELL", "sim") == 1.0
     broker.reset_scratch_account("historical replay unloaded")
-    assert inflight.committed_qty("IMCC", "SELL") == 0.0
+    assert inflight.committed_qty("IMCC", "SELL", "sim") == 0.0
     assert broker.open_orders() == []
 
 

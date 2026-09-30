@@ -22,7 +22,8 @@ from execution.models import ExecutionCommand, ExecutionReceipt, StageTimings
 from execution.qty_gate import apply_force_one_share
 from execution.record_payload import build_reserve_payload
 from execution.store_facts import lookup_symbol_for_order_id
-from execution import verification_gate
+from execution import venue_door, verification_gate
+from execution.venue_door import commit_position as _commit_position
 from ibkr import client as _client
 import loop_lag as _loop_lag
 
@@ -129,21 +130,6 @@ def _reject(
     )
 
 
-def _commit_position(
-    cmd: ExecutionCommand, execution_id: str, symbol: str | None,
-) -> None:
-    """Hold the position this send will consume until the order resolves.
-
-    Short-opening SELLs are skipped — they add exposure instead of spending a
-    long, and holding one would refuse a legitimate exit in the same symbol.
-    """
-    if cmd.operation != "place" or not symbol:
-        return
-    if (cmd.side or "").upper() == "SELL" and getattr(cmd, "short_entry", False):
-        return
-    inflight.commit(execution_id, symbol=symbol, side=cmd.side, qty=cmd.qty)
-
-
 async def execute(
     cmd: ExecutionCommand,
     *,
@@ -187,6 +173,7 @@ async def execute(
         backend_ingress_wall_ns=cmd.backend_ingress_wall_ns or time.time_ns(),
     )
     async with _lock:
+        send_venue = venue_door.current()     # one read: checked, committed and sent on the same venue
         execution_id, is_new = store.reserve(
             idempotency_key=cmd.idempotency_key,
             operation=cmd.operation,
@@ -222,10 +209,14 @@ async def execute(
             )
             return _receipt_from_row(row, duplicate=True)
 
+        if why := venue_door.wrong_venue(cmd, send_venue):
+            return _reject(execution_id, cmd, timings, why, "VENUE_CHANGED")
         ok, detail, reason = _validate.validate_command(cmd)
         if not ok:
             timings.validation_completed_ns = time.perf_counter_ns()
             return _reject(execution_id, cmd, timings, detail, reason or "VALIDATION")
+        if why := venue_door.moved(send_venue):
+            return _reject(execution_id, cmd, timings, why, "VENUE_CHANGED")
 
         # Kill switch is checked BEFORE skip_risk (D-037): a tripped kill means
         # no Nova-originated spend of any source, so manual ticket places and
@@ -312,10 +303,11 @@ async def execute(
         # ADR 007 decision 5: the lock covers reservation, validation, and the
         # synchronous broker send. Commit the shares first so a command that
         # validates behind this one cannot spend them again (D-011).
-        _commit_position(cmd, execution_id, symbol)
+        _commit_position(cmd, execution_id, symbol, send_venue)
         receipt = await send_broker(
-            cmd, execution_id, timings, wait_ack=False, reject=_reject,
+            cmd, execution_id, timings, wait_ack=False, reject=_reject, venue=send_venue,
         )
+        receipt.venue = send_venue
         if receipt.ok:
             inflight.attach_order(execution_id, receipt.order_id)
             # A practice order can fill inside the send (ADR 020), so its

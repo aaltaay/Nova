@@ -155,6 +155,7 @@ async def cancel(trade: dict[str, Any], order_id: int) -> Any:
             order_id=int(order_id),
             symbol=trade["symbol"],
             skip_risk=True,
+            expected_venue=trade.get("venue"),   # the trade's order ids are that venue's own
         ),
         wait_ack=False,
     )
