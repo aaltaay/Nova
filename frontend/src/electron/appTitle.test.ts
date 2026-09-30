@@ -72,14 +72,17 @@ describe('Nova window titles', () => {
     ).toEqual({ traderActive: false, traderSymbol: '' });
   });
 
-  it('names the backend revision after the desk one, and says when it is older', () => {
+  it('names one version when desk and backend run the same one, and says which side is behind', () => {
     const desk = 'Nova — Stock Scanner · v1006';
-    expect(withBackendTag(desk, 'v1006', 'v1006')).toBe('Nova — Stock Scanner · v1006 · backend v1006');
+    // One version (operator ask 2026-09-30: "i need them to be treated as ONE").
+    expect(withBackendTag(desk, 'v1006', 'v1006')).toBe(desk);
     expect(withBackendTag(desk, 'v991', 'v1006'))
       .toBe('Nova — Stock Scanner · v1006 · backend v991 (older -- restart it)');
-    // A backend newer than the desk (the desk not updated yet) is named, never called older.
-    expect(withBackendTag('Nova — Stock Scanner · v991', 'v1006', 'v991'))
-      .toBe('Nova — Stock Scanner · v991 · backend v1006');
+    // A backend newer than the desk (its installer still building, 2026-09-30: v1050 on v1051).
+    expect(withBackendTag('Nova — Stock Scanner · v1050', 'v1051', 'v1050'))
+      .toBe('Nova — Stock Scanner · v1050 · backend v1051 (newer -- update the desk)');
+    // A desk that cannot name its revision (a dev build) just names the backend's.
+    expect(withBackendTag('Nova — Stock Scanner', 'v1006', '')).toBe('Nova — Stock Scanner · backend v1006');
     // Unknown adds nothing: the API not answering, the sample desk.
     expect(withBackendTag(desk, null, 'v1006')).toBe(desk);
     expect(withBackendTag(desk, '  ', 'v1006')).toBe(desk);
@@ -127,8 +130,11 @@ describe('Nova window titles', () => {
 
   it('keeps the backend revision on the trader view and under REC', () => {
     expect(novaWindowTitle({
+      traderActive: true, traderSymbol: 'AAPL', releaseTag: 'v1006', backendTag: 'v991', recordingSymbol: 'GRML',
+    })).toBe('● REC GRML — AAPL · Trader · Nova · v1006 · backend v991 (older -- restart it)');
+    expect(novaWindowTitle({
       traderActive: true, traderSymbol: 'AAPL', releaseTag: 'v1006', backendTag: 'v1006', recordingSymbol: 'GRML',
-    })).toBe('● REC GRML — AAPL · Trader · Nova · v1006 · backend v1006');
+    })).toBe('● REC GRML — AAPL · Trader · Nova · v1006');
   });
 
   it('rewrites the HTML title tag for first paint', () => {

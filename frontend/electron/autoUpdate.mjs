@@ -97,6 +97,8 @@ let hooks = {
   envPath: () => '',
   stopEngine: async () => true,
   restartEngine: async () => {},
+  // The backend follows the release being installed (engineSync.mjs); false: the operator waits.
+  prepareInstall: async () => true,
 };
 
 function readSetting() {
@@ -298,6 +300,8 @@ function wireBridge(instance) {
   instance.on('download', () => startDownload());
   instance.on('later', () => later());
   instance.on('restart', () => restartToUpdate());
+  // The backend notice, for a backend newer than this desk: look for the desk's release now.
+  instance.on('check-update', () => checkNow('manual'));
   instance.on('whats-new-close', () => whatsNew?.close());
   instance.on('open-link', async ({ url }) => {
     // Release notes' links, and the issue form's: the filed issue, its dump, GitHub's page.
@@ -326,6 +330,7 @@ async function loadUpdater() {
  * Start once, after the main window exists. Never throws.
  * @param {{ getWindow: () => any, envPath: () => string,
  *   stopEngine: () => Promise<boolean>, restartEngine: () => Promise<void>,
+ *   prepareInstall?: (tag: string, ui: { box: Function }) => Promise<boolean>,
  *   onBridge?: (bridge: object, logger: object) => void }} deps
  */
 export async function startAutoUpdate(deps) {
@@ -341,7 +346,7 @@ async function startUnguarded(deps) {
   // Always answers the window, so a dev checkout's page reads an empty view.
   bridge = createUpdateBridge({ ipcMain, getWindow: liveWindow, logger });
   wireBridge(bridge);
-  hooks.onBridge?.(bridge, logger); // the backend's own "Pull master and restart" (engineSync.mjs)
+  hooks.onBridge?.(bridge, logger); // the backend follows the desk's release (engineSync.mjs)
   requestIssueForm = createIssueRequest({
     bridge,
     getWindow: liveWindow,
@@ -356,6 +361,7 @@ async function startUnguarded(deps) {
     getUpdater: () => updater,
     getState: () => state,
     dispatch,
+    prepare: (tag) => hooks.prepareInstall(tag, { box: ask.box }),
     stopEngine: () => hooks.stopEngine(),
     restartEngine: () => hooks.restartEngine(),
     box: ask.box,

@@ -419,8 +419,11 @@ this API process runs, read once when it started
 (`diagnostics.process_info.REVISION`), `null` when git could not say -- beside
 `instance_id` / `pid` / `started_at`. A backend left running across a merge or
 an update keeps its own code, so the desk's window title names it after the
-desk's own revision: `Nova — Stock Scanner · v1007 · backend v1007`, and
-`backend v991 (older -- restart it)` when it is older (`electron/appTitle.mjs`;
+desk's own revision when the two differ: `Nova — Stock Scanner · v1007 ·
+backend v991 (older -- restart it)`, or `backend v1051 (newer -- update the
+desk)` when the desk's installer is behind; when they run one release the title
+names it once, `Nova — Stock Scanner · v1007` (operator ask, 2026-09-30: "i
+need them to be treated as ONE") (`electron/appTitle.mjs`;
 read once a minute and on focus by `utils/backendReleaseTag.ts`; a backend
 older than the field is read once per process from its `/api/diagnostics`
 `process.release_tag`; nothing while unknown, never another process's
@@ -489,18 +492,34 @@ app's own folder, so it is a different Paper account, bot session and history.
   modes, approvals and trades, and running history downloads. `safe` is true
   only when every reader answered and nothing is open, false when anything is
   open, and null when a reader failed (never read as "nothing open").
+- **One version** (operator ask, 2026-09-30: "i need them to be treated as
+  ONE"). The desk and the owner's backend run the same release. The backend's
+  checkout is only ever brought to the desk's own `vNNN` tag, never past it
+  (`syncToRelease`, `frontend/electron/engineSync.mjs`): fast-forward only, on
+  a clean `master`, refused when the release changes `backend/requirements.txt`,
+  and a checkout already at or past the tag is left where it is (master never
+  moves back). Until 2026-09-30 it pulled master's newest commit, which put the
+  backend on v1051 while v1051's installer was still being built (desk v1050).
+- **Restart to update updates both.** Before the installer runs, the desk asks
+  the owner's backend what a restart would interrupt; anything open (or a
+  backend that cannot say) is listed and the operator may wait, which installs
+  nothing. The checkout is brought to the release being installed; if it
+  cannot be, the operator chooses between waiting (the default) and the desk
+  alone. The old desk leaves `engine-follow.json` in userData = `{schema_version:
+  1, tag, repo_root, asked_at}` (owner `frontend/electron/engineFollow.mjs`);
+  the new desk reads it once, deletes it, and restarts the backend onto that
+  release without asking again. An unknown version, an unreadable file or one
+  older than a day is no promise. A bundled engine is the installer's own.
 - **The backend notice** (`frontend/src/desktop_update/BackendNotice.tsx`, in the
-  update strip). It shows while the backend is older than the desk: **Restart
-  backend now** when its checkout is ahead, **Pull master and restart** when
-  it is not and the backend runs from the owner. It reads the restart check
-  first. Nothing open restarts in one click; anything open, or a backend too
-  old to say, is listed and confirmed. A pull is always confirmed. Later hides
-  it until a revision changes.
-- **The pull** (`frontend/electron/engineSync.mjs`) runs only on the operator's
-  press:
-  - fast-forward only, on a clean `master`;
-  - refused when master changes `backend/requirements.txt`;
-  - then a restart if the checkout is now ahead.
+  update strip). It shows while the backend runs another release than the desk,
+  with one action: **Update backend to vNNN** when it is behind and runs from
+  the owner (the checkout to the desk's tag, then a restart -- never a restart
+  and then a pull); **Update desk to vNNN** when it is ahead (it looks for that
+  release now, as Help > Check for Updates does); **Restart backend now** for a
+  behind backend from another checkout that already holds newer code. It reads
+  the restart check first: nothing open goes in one click; anything open, or a
+  backend too old to say, is listed and confirmed. Later hides it until a
+  revision changes.
 
   Nothing pulls or restarts on a timer: an unattended nightly pull and restart
   was proposed and not built, pending the operator's explicit say-so.
@@ -2197,8 +2216,8 @@ points, published_at, url}], more, older_unlisted, page_url}` -- newest first,
 at most 30 listed (`more` counts the rest; `older_unlisted` says GitHub's one
 page did not reach the installed release). The window answers
 `{action: "download" | "later" | "restart" | "whats-new-close" | "open-link" |
-"backend-sync", url?}` (`backend-sync`: the backend notice's Pull master and
-restart); `open-link` opens only this repository's release, pull request and issue
+"backend-sync" | "check-update", url?}` (`backend-sync`: the backend notice's
+Update backend to vNNN; `check-update`: its Update desk to vNNN); `open-link` opens only this repository's release, pull request and issue
 pages and gists (`isReleaseLink` / `issueLinks.isIssueLink`). `file_issue` is
 `null` or `{requested_at}` (epoch ms): Help > File an Issue… sets it, and the
 page opens its issue form when the value changes after it subscribed (the value
@@ -3270,6 +3289,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-30 | Desk and backend are one version (operator: "it ask me first to reboot the backend or whatever cuz its older, then i press that, then it ask me to pull master!! why cant we just update both frontend and backend in one go after every update!?", then "now it says frontend 1050 and backend 1051 ... lets keep them walking in a single version!" and "i need them to be treated as ONE"). The backend notice offered Restart backend now while the checkout was ahead of the backend, then Pull master and restart once it was not; and the pull took master's newest commit, v1051, while v1051's installer was still building, so the backend overtook the desk. The backend's checkout now only ever comes to the desk's own release tag. Restart to update carries it: the desk lists what a backend restart would interrupt, brings the checkout to the release being installed, and the new desk restarts the backend onto it. The notice has one action (Update backend to vNNN, or Update desk to vNNN when the backend is ahead), and the title names one version when they match. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | Past setup labels make room (ADR 036 amendment; operator: "i do really like seeing the details, but perhaps it is extremely too crowded. how do we help that? maybe a checkbox or compact form"). The 1-minute chart wrote each past setup's whole label at its box's corner with no idea where the others were: LGHL that morning drew 15, and on the Trader's 400 px pane they stacked into unreadable piles. A legend chip beside "Past" now sets Compact (the default, then "maybe the compact form should just show (x) and when we hover, it shows the full failed setup": a mark alone, ✕ ○ ✓, whose hover tells the whole story) or Full, and in both the labels are placed: live labels, levels and the pin stay put, and each past label -- a trigger's result first, then the newest -- takes the longest form that touches nothing already placed, down to its mark or none; its box and hover stay. Checked by rendering LGHL's real day through the real primitive, before and after, and pointing at each of its 9 marks (all outside their boxes) in headless Chromium. §3 amended; `nova.stockRead.layers` adds `labels`. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | Signal trials, and setups first for the Level 2 lines (ADR 041; operator: "how can we use all this data to determine if we should buy or sell or hold?", then "combining time and sale with all 4 colors ... think about all of that!", then "i like it. go"). A study of every Level 2, Time & Sales and setup signal on 25 Session Records over 6 days, each result checked by two reviewers, found no buy edge (a random long loses 6.85c; every green Time & Sales event, a 12-feature model and every setup type lose too) and, in sample only, a 30 s flush exit and two don't-buy states. None of it becomes a call until it passes a trial registered before its data exists: `knowledge/signal-trials.json` (T1-T6), frozen by hash. Nova held no depth line at 50 of 62 setup triggers, so auto-record now gives its free lines to setups in a trade, near or armed before the leaders, and keeps a trade's line to the end of its scoring window. The operator's calls (risk under 5c warns; a flush-30 template on the Paper bot; Approve may hold Nova's exits on Paper) are recorded for later changes. §3 amended. | User Directive + Claude Opus 5.5 |
 | 2026-09-30 | The Cryptos page (ADR 040; operator: "give us a new tab called Cryptos and create a dashboard showing what a person need to see in the crypto world", then mockup v1: "go ahead and build exact replica ... when the user hover over things, make sure you show in friendly visual way what does it mean"). A nav-rail page laid out as the approved mockup: market tiles, 13 coins, a Coinbase chart with the day's levels and the 16:00 ET stock close, a 24/7 clock, the stocks that move with crypto (IBKR quotes and regular-hours closes, a 60-session beta and the move it implies), funding and open interest, stablecoin flows, what comes next and classified news. Crypto numbers come from named public reference sources (CoinGecko, Coinbase Exchange, alternative.me, Hyperliquid, DefiLlama, Deribit, Alpaca news), each labelled, a carve-out written into `single-market-data-feed.mdc` rule 13; nothing on the page places or feeds anything. Liquidations, daily ETF flows, a macro calendar and token unlocks have no free source and are stated absences. Nothing polls while the page is closed. Every number opens a hover card: what it means, a small drawing, what it reads now, why it matters. §3 and §4 amended. | User Directive + Claude Opus 5.5 |

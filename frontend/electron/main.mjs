@@ -298,15 +298,25 @@ if (
       app.on('will-quit', stopFocusSensor);
       // Packaged Windows only; downloads in the background, installs only on
       // the operator's "Restart to update" (#347). Never throws.
+      // One version for desk and backend: the backend's checkout follows the desk's release.
+      let engineSync = null;
       void startAutoUpdate({
         getWindow: () => mainWindow,
         envPath: getDesktopEnvPath,
         stopEngine: stopApiSidecarForUpdate,
         restartEngine: restartApiSidecar,
-        // ADR 038 (amended): remember the backend's checkout; "Pull master and restart" on request.
+        prepareInstall: (tag, ui) => (engineSync ? engineSync.prepareForDesk(tag, ui) : Promise.resolve(true)),
+        // ADR 038 (amended): remember the backend's checkout; bring it to this desk's release.
         onBridge: (bridge, logger) => {
           if (!app.isPackaged) return; // a dev desk runs from the checkout it would pull
-          attachEngineSync({ bridge, logger, apiBase: API_BASE, userData: app.getPath('userData'), reloadEngine });
+          engineSync = attachEngineSync({
+            bridge,
+            logger,
+            apiBase: API_BASE,
+            userData: app.getPath('userData'),
+            deskTag: () => novaDesktopReleaseTag(app),
+            reloadEngine,
+          });
         },
       });
     } catch (err) {

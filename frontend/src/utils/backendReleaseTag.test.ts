@@ -23,13 +23,18 @@ afterEach(() => {
 });
 
 describe('the backend revision in the window title', () => {
-  it('names the revision the API answers with', async () => {
+  it('names one version when the API runs the desk\'s own, and the API\'s when it differs', async () => {
     const tag = novaRendererReleaseTag();
     const fetchMock = health(tag);
     vi.stubGlobal('fetch', fetchMock);
     renderHook(() => useNovaWindowTitle(false, null));
-    await waitFor(() => expect(document.title).toBe(`${formatScannerWindowTitle(tag)} · backend ${tag}`));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(String(fetchMock.mock.calls[0]?.[0])).toMatch(/\/api\/health$/);
+    await waitFor(() => expect(document.title).toBe(formatScannerWindowTitle(tag)));
+    const newer = `v${Number(tag.slice(1)) + 1}`;
+    vi.stubGlobal('fetch', health(newer));
+    await act(() => refreshBackendReleaseTag());
+    await waitFor(() => expect(document.title).toBe(`${formatScannerWindowTitle(tag)} · backend ${newer} (newer -- update the desk)`));
   });
 
   it('says an older backend is older, so the operator knows to restart it', async () => {

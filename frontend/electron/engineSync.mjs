@@ -1,27 +1,40 @@
 /**
- * The operator's "Pull master and restart" for the backend's checkout (ADR 038 amendment,
- * 2026-09-29).
+ * The backend follows the desk, release for release (ADR 038 amendment 2026-09-29; one version,
+ * operator ask 2026-09-30: "i need them to be treated as ONE").
  *
  * The desk updates itself through the installer; the backend's code comes from git and loads only
- * when its process restarts, so the two drift apart (desk v1027 on backend v1025). When the
- * backend's checkout itself holds nothing newer, a restart alone cannot help: the desk's backend
- * notice offers this action, and it runs only when the operator presses it, after the desk listed
- * what is open. It pulls master into the owner's checkout -- fast-forward only, on master, with no
- * uncommitted changes, and never when master changes the backend's Python packages -- then
- * restarts the backend onto it. Nothing here runs on a timer. Every outcome goes to update.log and
- * to the update view's `engine` part (`{owner, attached_to_owner, running, last}`).
+ * when its process restarts, so the two drifted apart (desk v1027 on backend v1025) -- and a pull
+ * of master's newest commit put the backend ahead of the desk instead (desk v1050 on backend v1051,
+ * whose installer was still being built). So the backend's checkout is brought to exactly the
+ * release the desk runs -- its `vNNN` tag, fast-forward only, on a clean master, never when the
+ * backend's Python packages change -- and never past it:
+ * - at Restart to update (`prepareForDesk`): the checkout comes to the release being installed,
+ *   after the desk listed what a restart would interrupt, and the new desk restarts the backend
+ *   onto it (`followIfAsked`, engineFollow.mjs) -- one update for both;
+ * - on the backend notice's "Update backend to vNNN" (`syncNow`), for a backend left behind.
+ * Nothing here runs on a timer. Every outcome goes to update.log and to the update view's `engine`
+ * part (`{owner, attached_to_owner, running, last}`).
  */
 import { execFile } from 'node:child_process';
-import { isOlderTag } from './appTitle.mjs';
+import {
+  cannotFollowPrompt,
+  openNowPrompt,
+  restartCheckLines,
+  takeEngineFollow,
+  writeEngineFollow,
+} from './engineFollow.mjs';
 import { ownerRootFromEngine, readEngineOwner, sameRoot, writeEngineOwner } from './engineOwnership.mjs';
 import { engineHome, getJson } from './engineRestart.mjs';
 import { formatReleaseTag } from './releaseTag.mjs';
 
 /** A pull that changes these would start a backend without its packages: install them first. */
 export const ENGINE_SYNC_BLOCKING_FILES = ['backend/requirements.txt'];
+export const RESTART_CHECK_PATH = '/api/diagnostics/restart-check';
+const RESTART_CHECK_TIMEOUT_MS = 5_000;
 const GIT_TIMEOUT_MS = 20_000;
 const GIT_FETCH_TIMEOUT_MS = 120_000;
 const GIT_MAX_BUFFER = 4 * 1024 * 1024;
+const TAG_RE = /^v\d+$/;
 
 function lastLine(output) {
   const lines = String(output ?? '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
@@ -54,11 +67,14 @@ export async function checkoutRevision(root, git = runGit) {
 }
 
 /**
- * Pull master into `root`, fast-forward only: `{ok, pulled, from, to, reason}`, where `reason`
- * says why not in the operator's words. Never touches a checkout that is not a clean master.
+ * Bring `root` to release `tag` (a `vNNN` on master), fast-forward only: `{ok, pulled, from, to,
+ * reason}`, where `reason` says why not in the operator's words. A checkout already at the release
+ * is left alone; one past it too (`to` names where it is) -- master is never moved back. Never
+ * touches a checkout that is not a clean master.
  */
-export async function pullMaster(root, git = runGit) {
+export async function syncToRelease(root, tag, git = runGit) {
   const fail = (reason, from = null) => ({ ok: false, pulled: false, from, to: from, reason });
+  if (!TAG_RE.test(String(tag ?? ''))) return fail('the desk does not know its own version');
   const branch = await git(root, ['rev-parse', '--abbrev-ref', 'HEAD']);
   if (branch.code !== 0) return fail(`git could not read the checkout: ${lastLine(branch.stderr)}`);
   const name = branch.stdout.trim();
@@ -68,33 +84,40 @@ export async function pullMaster(root, git = runGit) {
   const dirty = status.stdout.split(/\r?\n/).filter((l) => l.trim()).length;
   if (dirty) return fail(`the checkout has ${dirty} changed file${dirty === 1 ? '' : 's'} nobody committed`);
   const from = await checkoutRevision(root, git);
-  const fetched = await git(root, ['fetch', '--quiet', 'origin', 'master'], { timeoutMs: GIT_FETCH_TIMEOUT_MS });
+  const fetched = await git(root, ['fetch', '--quiet', 'origin', 'master', `+refs/tags/${tag}:refs/tags/${tag}`], {
+    timeoutMs: GIT_FETCH_TIMEOUT_MS,
+  });
   if (fetched.code !== 0) return fail(`git fetch failed: ${lastLine(fetched.stderr)}`, from);
-  const behind = await git(root, ['rev-list', '--count', 'HEAD..origin/master']);
-  const count = Number(behind.stdout.trim());
-  if (behind.code !== 0 || !Number.isInteger(count)) return fail(`git could not compare with master: ${lastLine(behind.stderr)}`, from);
-  if (count === 0) return { ok: true, pulled: false, from, to: from, reason: null };
-  const ancestor = await git(root, ['merge-base', '--is-ancestor', 'HEAD', 'origin/master']);
-  if (ancestor.code !== 0) return fail('the checkout has commits master does not have', from);
-  const blocking = await git(root, ['diff', '--name-only', 'HEAD', 'origin/master', '--', ...ENGINE_SYNC_BLOCKING_FILES]);
-  if (blocking.code !== 0) return fail(`git could not list master's changes: ${lastLine(blocking.stderr)}`, from);
+  const target = await git(root, ['rev-parse', '--verify', '--quiet', `${tag}^{commit}`]);
+  const sha = target.stdout.trim();
+  if (target.code !== 0 || !sha) return fail(`GitHub has no ${tag} tag`, from);
+  const onMaster = await git(root, ['merge-base', '--is-ancestor', sha, 'origin/master']);
+  if (onMaster.code !== 0) return fail(`${tag} is not a commit on master`, from);
+  const reached = await git(root, ['merge-base', '--is-ancestor', sha, 'HEAD']);
+  if (reached.code === 0) return { ok: true, pulled: false, from, to: from, reason: null };
+  const behind = await git(root, ['merge-base', '--is-ancestor', 'HEAD', sha]);
+  if (behind.code !== 0) return fail('the checkout has commits master does not have', from);
+  const blocking = await git(root, ['diff', '--name-only', 'HEAD', sha, '--', ...ENGINE_SYNC_BLOCKING_FILES]);
+  if (blocking.code !== 0) return fail(`git could not list ${tag}'s changes: ${lastLine(blocking.stderr)}`, from);
   const files = blocking.stdout.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   if (files.length) {
-    return fail(`master changes ${files.join(', ')}: install the new packages first (docs/live-desk-sync.md)`, from);
+    return fail(`${tag} changes ${files.join(', ')}: install the new packages first (docs/live-desk-sync.md)`, from);
   }
-  const merged = await git(root, ['merge', '--ff-only', '--quiet', 'origin/master']);
+  const merged = await git(root, ['merge', '--ff-only', '--quiet', sha]);
   if (merged.code !== 0) return fail(`git merge failed: ${lastLine(merged.stderr)}`, from);
   return { ok: true, pulled: true, from, to: await checkoutRevision(root, git), reason: null };
 }
 
 /**
- * @param {{ apiBase: string, userData: string, reloadEngine: () => Promise<{from: string|null, to: string|null}>,
+ * @param {{ apiBase: string, userData: string, deskTag: () => string,
+ *   reloadEngine: () => Promise<{from: string|null, to: string|null}>,
  *   publish: (view: object) => void, logger: { info: Function, warn: Function },
  *   git?: Function, fetchJson?: Function, now?: () => number, fsDeps?: object }} deps
  */
 export function createEngineSync({
   apiBase,
   userData,
+  deskTag,
   reloadEngine,
   publish,
   logger,
@@ -104,6 +127,8 @@ export function createEngineSync({
   fsDeps = {},
   readOwner = readEngineOwner,
   writeOwner = writeEngineOwner,
+  writeFollow = writeEngineFollow,
+  takeFollow = takeEngineFollow,
 }) {
   let owner = readOwner(userData)?.repo_root ?? null;
   let attached = false;
@@ -143,36 +168,83 @@ export function createEngineSync({
     }
   }
 
-  /** The operator pressed "Pull master and restart" (the desk listed what is open first). */
+  /** Bring the backend to the desk's release: its checkout, then a restart onto it when it runs other code. */
   async function syncNow() {
     if (running) return;
+    const tag = deskTag();
     const home = await look();
     if (!home) {
       record('failed', 'No backend answers on port 8000');
       return;
     }
     if (!attached) {
-      record('failed', 'The backend is not running from your checkout, so there is nothing to pull');
+      record('failed', 'The backend is not running from your checkout, so Nova cannot update it');
       return;
     }
-    const pulled = await step('pull', () => pullMaster(owner, git));
+    const pulled = await step('pull', () => syncToRelease(owner, tag, git));
     if (!pulled.ok) {
-      record('failed', `Not pulled: ${pulled.reason}`);
+      record('failed', `Not updated: ${pulled.reason}`);
       return;
     }
-    if (pulled.pulled) record('pulled', `Pulled master into ${owner}: ${pulled.from ?? '?'} -> ${pulled.to ?? '?'}`);
+    if (pulled.pulled) record('pulled', `Brought ${owner} to ${pulled.to ?? tag} (was ${pulled.from ?? '?'})`);
     const checkout = await checkoutRevision(owner, git);
-    if (!isOlderTag(home.release_tag, checkout)) {
-      record('current', `The backend already runs ${home.release_tag ?? "its checkout's code"}; master had nothing newer`);
+    if (checkout && home.release_tag === checkout) {
+      record('current', `The backend already runs ${checkout}`);
       return;
     }
     try {
       const out = await step('restart', () => reloadEngine());
       record('restarted', `Restarted the backend: ${out.from ?? home.release_tag ?? '?'} -> ${out.to ?? '?'}`);
     } catch (err) {
-      record('failed', `Pulled, but the restart failed: ${message(err)}`);
+      record('failed', `The checkout is at ${checkout ?? tag}, but the restart failed: ${message(err)}`);
     }
   }
+
+  /**
+   * Restart to update, before the installer runs: list what a backend restart would interrupt,
+   * bring the backend's checkout to `tag`, and leave the new desk the promise to restart it.
+   * False when the operator chose to wait; true to install.
+   * @param {string} tag the release being installed
+   * @param {{ box: (options: object) => Promise<{response: number}> }} ui
+   */
+  async function prepareForDesk(tag, { box }) {
+    const home = await look();
+    // A bundled engine is replaced by the installer itself; another checkout's engine is not ours.
+    if (home && !attached) return true;
+    if (!owner) return true;
+    if (home) {
+      const check = restartCheckLines(await fetchJson(`${apiBase}${RESTART_CHECK_PATH}`, RESTART_CHECK_TIMEOUT_MS));
+      if (check.safe !== true && (await box(openNowPrompt(tag, check.lines)))?.response !== 0) {
+        logger.info(`update to ${tag} put off: something is open on the backend`);
+        return false;
+      }
+    }
+    const pulled = await step('pull', () => syncToRelease(owner, tag, git));
+    if (!pulled.ok) {
+      record('failed', `Not updated to ${tag}: ${pulled.reason}`);
+      return (await box(cannotFollowPrompt(tag, pulled.reason)))?.response === 1;
+    }
+    if (pulled.pulled) record('pulled', `Brought ${owner} to ${pulled.to ?? tag} (was ${pulled.from ?? '?'})`);
+    if (home && home.release_tag !== tag) writeFollow(userData, { tag, repoRoot: owner, now: now() });
+    return true;
+  }
+
+  /** The new desk's launch: keep the old desk's promise to restart the backend onto this release. */
+  async function followIfAsked() {
+    const promise = takeFollow(userData, { now: now() });
+    const tag = deskTag();
+    if (!promise || promise.tag !== tag) return;
+    const home = await look();
+    if (!home || !attached || home.release_tag === tag) return;
+    logger.info(`updating the backend to ${tag}, as asked at Restart to update`);
+    await syncNow();
+  }
+
+  const guard = (label, fn) => (...args) => fn(...args).catch((err) => {
+    running = null;
+    record('failed', `${label} failed: ${message(err)}`);
+    return undefined;
+  });
 
   return {
     view,
@@ -180,10 +252,18 @@ export function createEngineSync({
       logger.warn(`backend owner check failed: ${message(err)}`);
       return null;
     }),
-    syncNow: () => syncNow().catch((err) => {
-      running = null;
-      record('failed', `Pull and restart failed: ${message(err)}`);
-    }),
+    syncNow: guard('Updating the backend', syncNow),
+    // A failure here must not stop the desk's own update: the operator is told, then asked.
+    prepareForDesk: async (tag, ui) => {
+      try {
+        return await prepareForDesk(tag, ui);
+      } catch (err) {
+        running = null;
+        record('failed', `Could not prepare the backend for ${tag}: ${message(err)}`);
+        return (await ui.box(cannotFollowPrompt(tag, message(err))))?.response === 1;
+      }
+    },
+    followIfAsked: guard('Updating the backend', followIfAsked),
   };
 }
 
@@ -191,6 +271,6 @@ export function createEngineSync({
 export function attachEngineSync({ bridge, ...deps }) {
   const sync = createEngineSync({ ...deps, publish: (view) => bridge.set('engine', view) });
   bridge.on('backend-sync', () => sync.syncNow());
-  void sync.look();
+  void sync.look().then(() => sync.followIfAsked());
   return sync;
 }
