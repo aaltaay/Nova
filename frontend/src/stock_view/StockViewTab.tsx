@@ -5,7 +5,7 @@
  * row holds three tabs beside the Sim scrubber. Gap and chip are omitted when
  * the scanner has no row for the symbol -- never 0.00, never a guess.
  */
-import { ArrowLeftToLine, ExternalLink, Pin, PinOff, X } from 'lucide-react';
+import { ArrowLeftToLine, ExternalLink, Pin, PinOff, Video, X } from 'lucide-react';
 import type { RefObject } from 'react';
 import {
   TRADER_TAB_PIN_ARIA,
@@ -35,6 +35,8 @@ export interface StockViewTabProps {
   isDraft: boolean;
   suspended: boolean;
   recording: boolean;
+  /** A video clip is filming this tab (ADR 039): a small camera beside the REC colour. */
+  clipping?: boolean;
   /** ADR 011 preview tabs: an unpinned symbol is replaced by the next ticker opened. */
   pinned: boolean;
   context: TabContext | null;
@@ -60,7 +62,7 @@ export interface StockViewTabProps {
 }
 
 export function StockViewTab({
-  label, isActive, isDraft, suspended, recording, pinned, context, showDock, showExtract,
+  label, isActive, isDraft, suspended, recording, clipping = false, pinned, context, showDock, showExtract,
   moveTitle, dockWhy = null, extractWhy = null, editing, draft, inputRef, onDraftChange, onCommitEdit, onCancelEdit,
   onActivate, onExtract, onDock, onTogglePin, onClose,
 }: StockViewTabProps) {
@@ -78,6 +80,11 @@ export function StockViewTab({
     <>
       {recording && !isDraft && (
         <span className="sv-tab__rec" title={TRADER_TAB_RECORDING_TITLE} data-testid={`sv-tab-rec-${label}`} aria-label={TRADER_TAB_RECORDING_TITLE} />
+      )}
+      {clipping && !isDraft && (
+        <span className="sv-tab__clip" title="A video clip is recording this tab" aria-label="A video clip is recording this tab" data-testid={`sv-tab-clip-${label}`}>
+          <Video size={11} aria-hidden="true" />
+        </span>
       )}
       {editing ? (
         <input

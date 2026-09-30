@@ -52,6 +52,7 @@ import {
 import { HoldToStopButton } from '../capture/HoldToStopButton';
 import { CAPTURE_STOP_HOLD_HINT, captureStopHoldLabel } from '../capture/constants';
 import { botSymbolMenuPosition } from './botSymbolMenuPlacement';
+import { ClipMenuRows } from '../clips';
 import {
   toggleWatchList,
   useWatchList,
@@ -268,6 +269,8 @@ export function BotSymbolMenuHost() {
           <span>{error}</span>
         </div>
       )}
+      {/* ADR 039: the same video choices as the Trader tab's red button. */}
+      <ClipMenuRows symbol={symbol} onDone={closeBotSymbolMenu} />
       <MenuRow
         tone="bot"
         testId="bot-symbol-menu-toggle"

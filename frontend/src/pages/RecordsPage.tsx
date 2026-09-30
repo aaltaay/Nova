@@ -7,7 +7,7 @@
  * does not know read as words, never "-1" (QA 2026-09-22, C13 / C14 / C22 /
  * C64 / V20).
  */
-import { useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import {
   RECORDS_PAGE_COL_MISSING,
   RECORDS_PAGE_COL_PRINTS,
@@ -30,6 +30,7 @@ import {
 } from '../constantGroups/nav_rail';
 import { JOURNAL_CALENDAR_TIMEZONE } from '../constants';
 import { useRecordingSymbols } from '../capture/sessionRecordStore';
+import { ClipsList, CLIP_RECORDS_TAB_CLIPS, CLIP_RECORDS_TAB_SESSIONS, takeClipsListRequest, useClips } from '../clips';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { selectCaptureReplay } from '../sim/captureReplayLoad';
 import {
@@ -142,12 +143,31 @@ export function RecordsPage({ onOpenTrader }: Props) {
   };
   const failure = errors.replay ?? replayError;
   const replayBusy = busy.has('replay');
+  // ADR 039: Records holds the Session Records and the video clips; a link can ask for the clips.
+  const { view: clipsView, version: clipsVersion } = useClips();
+  const [tab, setTab] = useState<'sessions' | 'clips'>(() => (takeClipsListRequest() ? 'clips' : 'sessions'));
+  // A link that asks for the clips while Records is already open (the request bumps the version).
+  useEffect(() => {
+    if (takeClipsListRequest()) setTab('clips');
+  }, [clipsVersion]);
+  const sessionCount = records.length;
 
   return (
     <div className="nova-shell nova-shell--scanner">
       <div className="main-col main-col--scanner-stack">
         <section className="panel rail-page" aria-label={RECORDS_PAGE_TITLE} data-testid="records-page">
           <h2 className="rail-page__title">{RECORDS_PAGE_TITLE}</h2>
+          <div className="records-tabs" role="tablist" aria-label={RECORDS_PAGE_TITLE}>
+            <button type="button" role="tab" aria-selected={tab === 'sessions'} className={tab === 'sessions' ? 'is-on' : undefined}
+              data-testid="records-tab-sessions" onClick={() => setTab('sessions')}>
+              {CLIP_RECORDS_TAB_SESSIONS}<b>{sessionCount}</b>
+            </button>
+            <button type="button" role="tab" aria-selected={tab === 'clips'} className={tab === 'clips' ? 'is-on' : undefined}
+              data-testid="records-tab-clips" onClick={() => setTab('clips')}>
+              {CLIP_RECORDS_TAB_CLIPS}<b>{clipsView?.clips.length ?? 0}</b>
+            </button>
+          </div>
+          {tab === 'clips' ? <ClipsList onOpenTrader={onOpenTrader} /> : (<>
           <p className="rail-page__sub">{RECORDS_PAGE_SUBTITLE}</p>
           {recording.size > 0 && (
             <p className="records-page__recording" data-testid="records-page-recording">
@@ -231,6 +251,7 @@ export function RecordsPage({ onOpenTrader }: Props) {
               ))}
             </>
           )}
+          </>)}
         </section>
       </div>
     </div>

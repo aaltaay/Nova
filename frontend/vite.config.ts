@@ -110,6 +110,11 @@ export default defineConfig(({ command, mode }) => {
   },
   build: {
     rollupOptions: {
+      // The desk, and the hidden page that exports share clips (ADR 039; electron/clipExporter.mjs loads it).
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        clipExport: path.resolve(__dirname, 'clip-export.html'),
+      },
       output: {
         // Keep function and class names through minification so a long
         // animation frame's script attribution names the code (ADR 026).

@@ -18,6 +18,8 @@ export function quickTradeTone(kind: NovaActionKind): QuickTradeTone {
   switch (kind) {
     case 'cancel_symbol':
     case 'cancel_all_orders':
+    case 'clip_toggle':
+    case 'clip_save_last':
       return 'cancel';
     case 'cancel_and_exit':
     case 'exit_pos':

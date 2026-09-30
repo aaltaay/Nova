@@ -70,6 +70,10 @@ export function describeNovaAction(row: NovaActionRecord): string {
       return `Sell ${row.params.percent ?? 50}% of a long at Ask (limit). Long-only; whole shares; needs L2.`;
     case 'sell_pos_pct_bid_offset':
       return `Sell ${row.params.percent ?? 50}% of a long at Bid - $${row.params.offsetDollars ?? 0.03} (limit). Long-only; needs L2.`;
+    case 'clip_toggle':
+      return "Start a video clip of the active Trader tab, or stop the one recording. Places nothing.";
+    case 'clip_save_last':
+      return "Save the last 5 minutes of the active Trader tab as a clip. Places nothing.";
     default:
       return NOVA_ACTION_KIND_LABELS[row.kind];
   }

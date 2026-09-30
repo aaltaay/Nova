@@ -24,5 +24,12 @@ interface Window {
       /** Called with the current view, then every change; returns the unsubscribe. Views are unchecked wire data. */
       subscribe: (onView: (view: unknown) => void) => () => void;
     };
+    /** Electron IPC: share clips (clips/, ADR 039) -- the view, the operator's requests, this window's Trader tab. */
+    clips?: {
+      /** Called with the current view, then every change; returns the unsubscribe. Views are unchecked wire data. */
+      subscribe: (onView: (view: unknown) => void) => () => void;
+      act: (request: Record<string, unknown>) => Promise<unknown>;
+      report: (report: Record<string, unknown>) => void;
+    };
   };
 }

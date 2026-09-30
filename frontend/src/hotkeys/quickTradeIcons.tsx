@@ -13,6 +13,8 @@ const ICON_PATHS: Record<NovaActionKind, string> = {
   sell_limit_ask_offset: 'M12 5v14M5 12l7 7 7-7',
   sell_pos_pct_ask: 'M12 5v14M5 12l7 7 7-7',
   sell_pos_pct_bid_offset: 'M12 5v14M5 12l7 7 7-7',
+  clip_toggle: 'M3 7h11v10H3zM14 10l7-4v12l-7-4',
+  clip_save_last: 'M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2',
 };
 
 const GEAR_PATH =

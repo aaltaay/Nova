@@ -1,0 +1,16 @@
+<!doctype html>
+<!--
+  Share clips' export page (ADR 039): a hidden, sandboxed window the desktop
+  app opens (electron/clipExporter.mjs). It decodes the screen recording and
+  high-quality files with WebCodecs, crops and blurs each frame, and encodes
+  the MP4 -- reading and writing only through window.novaClipExport.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Nova clip export</title>
+</head>
+<body>
+<script type="module" src="/src/clips/export_page/clipExportPage.ts"></script>
+</body>
+</html>

@@ -279,7 +279,9 @@ describe('disarmed desk (#548, ADR 018 decision 4)', () => {
   // whole-position exits sent as `intent: "flatten"`.
   const PROTECTIVE: NovaActionKind[] = ['cancel_symbol', 'cancel_all_orders', 'exit_pos', 'cancel_and_exit'];
   // Every other kind -- a new one included -- is an ordinary manual order.
-  const OPENING = NOVA_ACTION_KINDS.filter((kind) => !PROTECTIVE.includes(kind));
+  // Share clips (ADR 039) are no order at all: the padlock is not theirs to hold.
+  const CLIPS: NovaActionKind[] = ['clip_toggle', 'clip_save_last'];
+  const OPENING = NOVA_ACTION_KINDS.filter((kind) => !PROTECTIVE.includes(kind) && !CLIPS.includes(kind));
 
   function nothingSent() {
     expect(placeIbkrOrder).not.toHaveBeenCalled();
@@ -364,6 +366,13 @@ describe('disarmed desk (#548, ADR 018 decision 4)', () => {
       );
       expect(res.ok).toBe(false);
       expect(res.text).toMatch(/disarmed/i);
+      nothingSent();
+    });
+
+    it.each(CLIPS)('%s never reaches an order, armed or not', async (kind) => {
+      const res = await runNovaAction(action({ kind }), disarmed());
+      // The clips feature answers (in tests there is no desktop app, so it says so); nothing is sent.
+      expect(res.text).toMatch(/desktop app|Trader tab/);
       nothingSent();
     });
 
