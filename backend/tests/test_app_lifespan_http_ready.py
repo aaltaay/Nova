@@ -30,7 +30,7 @@ def test_lifespan_yields_before_sentry_and_restore(monkeypatch):
         app_lifespan, "_restore_caches", lambda: order.append("restore")
     )
     monkeypatch.setattr(
-        app_lifespan, "_init_databases", lambda: order.append("db")
+        app_lifespan, "_init_databases", lambda took: order.append("db")
     )
 
     async def _body() -> None:
@@ -80,7 +80,7 @@ def test_scan_and_health_do_not_500_during_delayed_restore(monkeypatch):
 
     monkeypatch.setattr(app_lifespan, "init_sentry", lambda: False)
     monkeypatch.setattr(app_lifespan, "_restore_caches", slow_restore)
-    monkeypatch.setattr(app_lifespan, "_init_databases", lambda: None)
+    monkeypatch.setattr(app_lifespan, "_init_databases", lambda took: None)
 
     async def park_network() -> None:
         await asyncio.Event().wait()

@@ -11,6 +11,25 @@ def test_init_sentry_disabled_without_dsn(monkeypatch):
     assert sentry_enabled() is False
 
 
+def test_init_sentry_loads_only_its_own_integrations(monkeypatch):
+    """Auto-enabled integrations imported ~3,000 unused modules: 20-46 s of each restart."""
+    import sentry_sdk
+
+    import observability
+
+    seen: dict = {}
+    monkeypatch.setenv("SENTRY_DSN", "https://public@127.0.0.1/1")
+    monkeypatch.setattr(sentry_sdk, "init", lambda **kw: seen.update(kw))
+    try:
+        assert init_sentry() is True
+    finally:
+        monkeypatch.setattr(observability, "_sentry_enabled", False)
+    assert seen["auto_enabling_integrations"] is False
+    assert {type(i).__name__ for i in seen["integrations"]} == {
+        "LoggingIntegration", "StarletteIntegration", "FastApiIntegration",
+    }
+
+
 def test_before_send_drops_bridge_keep_cache():
     event = {
         "message": "Gainers bridge failed — keeping 50 cached row(s): TimeoutError",

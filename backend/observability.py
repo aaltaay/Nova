@@ -57,6 +57,12 @@ def init_sentry() -> bool:
                 StarletteIntegration(transaction_style="endpoint"),
                 FastApiIntegration(transaction_style="endpoint"),
             ],
+            # Only the integrations listed above. Auto-enabling imports every library Sentry
+            # knows that is installed (openai, anthropic, huggingface_hub, boto3, google_genai,
+            # mcp, sqlalchemy ...), none of which the backend uses at start: 3,689 modules
+            # against 682, 20-46 s of each restart on the desk (2026-09-30), and more for
+            # every full garbage collection to walk (#619).
+            "auto_enabling_integrations": False,
             "traces_sample_rate": max(0.0, min(1.0, traces)),
             "send_default_pii": False,
             "environment": environment,

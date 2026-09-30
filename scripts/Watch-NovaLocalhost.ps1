@@ -27,8 +27,39 @@ $viteNextTry = [datetime]::MinValue
 $viteBackoffAfter = 3
 $viteBackoffMin = 10
 
+# PowerShell never reads a running script again, so a watchdog started before a fix keeps the
+# old code (2026-09-30: running since 09-28 20:18, it held a failing Vite start ~75 s at a time,
+# 566 times that day, and a backend restart waited 90 s behind it -- the fix above had merged on
+# 09-29). When either script changes on disk and still parses, it starts itself again and exits.
+$scriptFiles = @($PSCommandPath, (Join-Path $PSScriptRoot 'NovaLocalhost.Common.ps1'))
+function Get-NovaScriptStamp {
+  ($scriptFiles | ForEach-Object { (Get-Item -LiteralPath $_ -ErrorAction SilentlyContinue).LastWriteTimeUtc.Ticks }) -join ','
+}
+function Test-NovaScriptsParse {
+  foreach ($file in $scriptFiles) {
+    $tokens = $null; $errors = $null
+    [void][System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$tokens, [ref]$errors)
+    if ($errors -and $errors.Count) {
+      Write-NovaLog ("Watchdog script changed but does not parse ({0}: {1}) - keeping the running code" -f $file, $errors[0].Message)
+      return $false
+    }
+  }
+  return $true
+}
+$scriptStamp = Get-NovaScriptStamp
+$relaunch = $false
+
 try {
   while ($true) {
+    $stamp = Get-NovaScriptStamp
+    if ($stamp -ne $scriptStamp) {
+      $scriptStamp = $stamp
+      if (Test-NovaScriptsParse) {
+        Write-NovaLog 'Watchdog scripts changed on disk - starting the new code'
+        $relaunch = $true
+        break
+      }
+    }
     try {
       $st = Get-NovaLocalhostStatus
       if (-not $st.apiHealthy) {
@@ -59,4 +90,12 @@ try {
     try { $mutex.ReleaseMutex() } catch {}
     $mutex.Dispose()
   }
+}
+
+# The mutex is released first, so the new watchdog is not turned away as a duplicate.
+if ($relaunch) {
+  Start-Process -FilePath 'powershell.exe' -WindowStyle Hidden -ArgumentList @(
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden',
+    '-File', "`"$PSCommandPath`"", '-IntervalSec', "$IntervalSec"
+  ) | Out-Null
 }

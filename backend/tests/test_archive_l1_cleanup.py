@@ -52,3 +52,27 @@ def test_purge_epoch_zero_l1(tmp_path, isolated_archive):
     assert n == 1
     assert left == "OK"
     assert not cold.exists()
+
+
+def test_purge_reads_the_date_index_not_the_whole_table(isolated_archive):
+    """It runs on every start: a full scan of l1_ticks cost ~28 s of each restart (2026-09-30)."""
+    captured: list[str] = []
+    real = archive_db.get_connection
+
+    def spy():
+        conn = real()
+        conn.set_trace_callback(captured.append)
+        return conn
+
+    import unittest.mock as mock
+
+    with mock.patch.object(archive_db, "get_connection", spy):
+        cleanup.purge_epoch_zero_l1()
+    delete = next(s for s in captured if s.lstrip().upper().startswith("DELETE FROM L1_TICKS"))
+    conn = archive_db.get_connection()
+    try:
+        plan = " ".join(str(r[3]) for r in conn.execute(f"EXPLAIN QUERY PLAN {delete}"))
+    finally:
+        conn.close()
+    assert "idx_l1_ticks_date" in plan, plan
+    assert "SCAN l1_ticks" not in plan, plan
