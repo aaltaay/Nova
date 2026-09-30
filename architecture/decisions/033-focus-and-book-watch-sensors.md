@@ -158,6 +158,59 @@ Change it "only if the evidence is clear".
 6. **Exact prices.** A lit print fills only a level at exactly its price. The old half-tick test let
    floating-point error match a midpoint print (3.655) to the level below it: 0.2% of the dropped size
    moves from filled to pulled, 15 more large pulls of about 11,000, no flag.
-7. **Parked (#636).** A print through a displayed level proves that level traded. Holding the level's
-   next drop as traded for a few seconds would mend the late book without claiming chance prints; 421
-   of 11,310 large pulls (3.7%) were such levels.
+7. **Parked (#636), then built** (next amendment). A print through a displayed level proves that level
+   traded. Holding the level's next drop as traded for a few seconds would mend the late book without
+   claiming chance prints; 421 of 11,310 large pulls (3.7%) were such levels.
+
+## Amendment 2026-09-30: a level a print traded through reads traded (#636)
+
+**Decided by:** the operator ("1 go" on building #636 after the matching-window study).
+
+1. **The proof.** A lit, price-setting print above the book's best ask (below its best bid) proves the
+   size the book showed at the round-lot levels from the best to its own price traded: a protected
+   quote cannot be traded through. IBKR's book can show that size for seconds more, and its drop then
+   reads pulled. The matching-window study's 10.2% of through-prints shown gone only 0.5-3 s later mixes
+   two things, which its depth-late measure now tells apart (`grew_first`): a level the book left
+   untouched until then (the book trailing its tape) and a level the book showed new size at first (a
+   refill). Of the 339,550 through-prints, 12.1% were not shown smaller within 0.5 s: for 4.2 points of
+   them the book showed new size at the level first, and 7.8% sat in the book untouched until it showed
+   them smaller (or for 10 s). Counting only the prints the rule takes as proof (87,430: no odd lots,
+   crosses or volume-only prints) gives the same split -- 88.0% shown within 0.5 s, 4.5 points refilled
+   first.
+2. **The rule** (`matching.Sweeps`). A sweep leaves the size the book showed at each level it took owed
+   there. For `BOOK_WATCH_SWEEP_HOLD_SEC` (3 s) after it, a drop at one of those levels first takes the
+   sweep's own prints -- the lit prints at its exact price within 0.5 s of the sweep -- at most the size
+   still owed, then its own window; every drop the book shows there pays the owed size down. New size
+   posted at the level, or the level leaving the view, ends it. Only real prints at its price: a level
+   pulled before the sweep reached it has none there and still reads pulled. A print proves nothing when
+   it is an odd lot, a cross, a volume-only or an off-exchange print, when the best it went through is
+   an odd lot (`BOOK_WATCH_SWEEP_MIN_LEVEL`: not a protected quote), or when the book is older than
+   `BOOK_WATCH_IDLE_SEC`. A book reset forgets every sweep.
+3. **What the first build got wrong.** It let any drop at a swept level within the hold take the sweep's
+   prints, with no limit and through refills. The placebos passed it -- 77.5% beyond chance against the
+   same sweeps moved, 83.9% against a tick past -- because the prints it claimed were real and near a
+   real sweep; the drop they filled was the error. Read against the book: on six busy recordings 84% of
+   the size it relabeled sat at a level the book had shown new size at since the sweep. On BKYI
+   2026-09-29 the 3.40 bid showed 551 when prints went through it, and 10,142 printed there within 0.5 s
+   of them (a hidden buyer). The book showed the 551 gone 0.2 s later; then a new bid appeared, grew to
+   10,300, and 5,600 of it left the book 2.3 s after the sweep with 1,185 printed near it. The first
+   build read all 5,600 traded, from the sweep's leftover prints. The owed size and the end on new size
+   remove that; what is left is the size the sweep proved. Letting a drop take every print since the
+   sweep, not only the sweep's own, was dropped earlier for the same reason: it claimed refills.
+4. **Measured** (`tools/book_watch_window_study.py`, section 5; `book_watch/sweep_study.py`) on the 27
+   recordings of 2026-09-21..29, through the detector itself -- its own sweeps off and the study's
+   placed in the same code for the placebos. 9,695 sweeps; the drops the rule covers (12.1M shares) read
+   86.2% traded without it and 88.7% with it. It adds 299,598 shares, 0.37% of the 82.0M the watcher
+   called pulled. Against the level a tick past each sweep, 97.7% of that is beyond chance; against the
+   same sweeps moved 30-60 s, 76.4%, on the fifth of the gain whose sweeps could be moved. The recordings
+   that kept every book IBKR sent (2026-09-25 and -29, as the live watcher sees it) show less: 0.14% of
+   the pulled size, 91% and 49% beyond chance; recordings before 2026-09-24 09:21 ET kept at most 8 books
+   a second. Large pulls 11,121 -> 11,071, flags 3,190 -> 3,176, large drops traded 28.4% -> 28.8%.
+   Small, because most of the first build's 1.6% was the wrong drop.
+5. **The window still stays 0.5 s.** With the rule on, a window reaching 1 s before the earlier book
+   would still add 2.0% of the pulled size, 0.3-0.4 points of it beyond chance (2.3% and 0.5-0.6 without
+   the rule). What stays wrongly pulled is size that traded at the best with nothing through it, shown
+   gone late, and size swapped at a level within one book update (the swept size gone and as much
+   posted, so the book shows no change): nothing on the tape or the book proves either. Prints are
+   matched by price, not venue, so a venue's order cancelled just before the sweep reached it can take
+   a hidden order's print at that price, up to the size shown.

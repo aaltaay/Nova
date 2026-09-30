@@ -43,7 +43,7 @@ from book_watch.constants_book_watch import (
     BOOK_WATCH_STATS_WINDOW_SEC,
 )
 from book_watch.hidden import DEFAULT_HIDDEN, HiddenParams, HiddenTracker, Stretch
-from book_watch.matching import DEFAULT_MATCH, MatchParams, claim
+from book_watch.matching import DEFAULT_MATCH, MatchParams, Sweeps, claim
 
 SIDES = ("bid", "ask")
 _OPPOSITE = {"bid": "ask", "ask": "bid"}
@@ -71,6 +71,8 @@ class SymbolWatch:
         self.symbol = symbol
         self.num_rows = num_rows
         self.match = match
+        # Levels a lit print traded through while the book still showed them (#636).
+        self.sweeps = Sweeps(match.sweep_hold_sec)
         # Every judged drop with the prints it claimed, for the study (window_study.py); live passes none.
         self.judged = judged
         self.prev: dict[str, SideView] | None = None
@@ -137,6 +139,7 @@ class SymbolWatch:
                 self.side_volume["bid"] += shares
         if lit:
             self.prints.append([ts, key, shares])
+            self.sweeps.note(ts, key, conditions, self.prev, self.last_book_ts)
         while self.prints and self.prints[0][0] < ts - BOOK_WATCH_PRINT_KEEP_SEC:
             self.prints.popleft()
         return out + self.hidden.on_print(ts, key, shares, lit=lit, conditions=conditions, views=self.prev,
@@ -147,6 +150,7 @@ class SymbolWatch:
         self.prev = None
         self.prev_ts = None
         self.tracked.clear()
+        self.sweeps.clear()
         return self.hidden.reset(self.last_book_ts)
 
     def tick(self, now: float) -> list[dict[str, Any]]:
@@ -172,6 +176,7 @@ class SymbolWatch:
         if prev is None or collapsed(prev, cur):
             # First book, or a side that collapsed at once (a reset, a glitch): nothing is judged.
             self._forget(side)
+            self.sweeps.forget_side(side)
             for price in cur.levels:
                 self.tracked[(side, price)] = {"posted_ts": None, "dist_post": None, "opp_at_post": None}
             return
@@ -180,17 +185,22 @@ class SymbolWatch:
                 continue
             if not in_view(price, side, cur.cutoff):
                 self.tracked.pop((side, price), None)  # scrolled out of view: unknown, never pulled
+                self.sweeps.forget(side, price)
                 continue
             after = cur.levels.get(price, 0.0)
             if after < before:
                 info = self.tracked.get((side, price)) or {}
+                # What a sweep proved taken there, shown gone only now (matching.Sweeps).
+                allow, swept = self.sweeps.on_drop(side, price, before - after, ts)
                 self.pending.append({
                     "deadline": ts + self.match.settle_sec, "t0": self.prev_ts, "t1": ts, "side": side,
                     "price": price, "drop": before - after, "before": before, "after": after,
                     "distance": distance_ticks(side, price, prev.best), "dist_post": info.get("dist_post"),
                     "posted_ts": info.get("posted_ts"), "opp_at_post": info.get("opp_at_post"),
-                    "median": median_level(prev.levels, exclude=price),
+                    "median": median_level(prev.levels, exclude=price), "allow": allow, "sweeps": swept,
                 })
+            elif after > before:
+                self.sweeps.forget(side, price)  # new size posted: a later drop may be the new order
             if after <= 0:
                 self.tracked.pop((side, price), None)
         for price in cur.levels:
@@ -212,17 +222,24 @@ class SymbolWatch:
 
     def _judge(self, drop: dict[str, Any]) -> list[dict[str, Any]]:
         t0 = drop["t0"] if drop["t0"] is not None else drop["t1"]
-        taken: list[tuple[float, float, float]] | None = [] if self.judged is not None else None
-        filled = claim(self.prints, t0 - self.match.before_sec, drop["t1"] + self.match.after_sec,
-                       drop["price"], drop["drop"], taken)
-        pulled = max(0.0, drop["drop"] - filled)
-        med = drop["median"]
-        large = _large(pulled, med)
         t1 = drop["t1"]
         side = drop["side"]
+        before, after, price, need = self.match.before_sec, self.match.after_sec, drop["price"], drop["drop"]
+        taken: list[tuple[float, float, float]] | None = [] if self.judged is not None else None
+        # A level a print traded through takes that sweep's own prints first, up to what the sweep proved
+        # taken: they arrived before the book that showed the level gone (matching.Sweeps).
+        swept, allow = drop["sweeps"], min(drop["allow"], need)
+        filled = 0.0
+        for ts in swept:
+            filled += claim(self.prints, ts - before, ts + after, price, allow - filled, taken)
+        filled += claim(self.prints, t0 - before, t1 + after, price, need - filled, taken)
+        pulled = max(0.0, need - filled)
+        med = drop["median"]
+        large = _large(pulled, med)
         if self.judged is not None:
             self.judged.append({"t0": t0, "t1": t1, "side": side, "price": drop["price"], "drop": drop["drop"],
-                                "filled": filled, "pulled": pulled, "large": large, "median": med, "claims": taken})
+                                "filled": filled, "pulled": pulled, "large": large, "median": med, "claims": taken,
+                                "swept": swept[0] if swept else None, "allow": allow})
         self.window.append((t1, pulled, filled, large, side))
         while self.window and self.window[0][0] < t1 - BOOK_WATCH_STATS_WINDOW_SEC:
             self.window.popleft()

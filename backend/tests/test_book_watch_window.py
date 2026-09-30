@@ -118,27 +118,29 @@ def test_the_study_reads_a_recording_leaving_out_crosses_and_tape_without_a_book
     assert rec.at_quote(1058.3, 9.99) == "bid" and rec.at_quote(1100.1, 10.02) is None
 
 
-def test_the_sweep_fills_the_early_prints_only_once_the_window_reaches_them(tmp_path):
+def test_the_sweep_fills_the_bids_early_print_only_once_the_window_reaches_it(tmp_path):
     swept, judged = window_study.sweep(window_study.read(_recording(tmp_path)))
     assert [swept[w]["dropped"] for w in ("0.5", "1", "2", "3")] == [1400, 1400, 1400, 1400]
-    assert [swept[w]["filled"] for w in ("0.5", "1", "2", "3")] == [0, 100, 1100, 1100]
-    assert sorted((d["price"], d["pulled"]) for d in judged) == [(9.99, 1000), (10.01, 300), (10.02, 100)]
+    # The print through the 10.01 offer fills its own level at any window (the sweep rule, #636);
+    # the bid's print, 1.7 s early with nothing through it, only once the window reaches it.
+    assert [swept[w]["filled"] for w in ("0.5", "1", "2", "3")] == [100, 100, 1100, 1100]
+    assert sorted((d["price"], d["pulled"]) for d in judged) == [(9.99, 1000), (10.01, 300), (10.02, 0)]
 
 
 def test_what_a_wider_window_adds_is_weighed_against_the_same_prints_moved(tmp_path):
     m = window_study.measure(window_study.read(_recording(tmp_path)))
     ext = m["extension"]
-    assert ext["pulled"] == 1400
-    assert [ext["before"][s]["real"] for s in ("1", "2", "3")] == [100, 1100, 1100]
+    assert ext["pulled"] == 1300
+    assert [ext["before"][s]["real"] for s in ("1", "2", "3")] == [0, 1000, 1000]  # 10.02 is already swept
     assert [ext["after"][s]["real"] for s in ("1", "2", "3")] == [0, 0, 0]
     # Moved 30-60 s, the prints land where no drop was pulled at their price: nothing by chance.
-    assert ext["before"]["2"]["moved_real"] == 1100 and ext["before"]["2"]["moved"] == 0
+    assert ext["before"]["2"]["moved_real"] == 1000 and ext["before"]["2"]["moved"] == 0
     # The unclaimed bid print had its own drop shown 1.7 s after it.
     ev = m["evidence"]
     assert ev["real"]["volume"] == 1000 and ev["real"]["print_early_1_3"] == 1000
     assert ev["moved"]["print_early_1_3"] == 0
     # The print through the offer: the book showed the offer gone 1.4 s later.
-    assert m["depth_late"] == {"through": 1, "<=0.5": 0, "0.5-1": 0, "1-3": 1, "3-10": 0, "never": 0}
+    assert m["depth_late"] == {"through": 1, "<=0.5": 0, "0.5-1": 0, "1-3": 1, "3-10": 0, "never": 0, "grew_first": 0}
 
 
 def test_the_answer_adds_recordings_up_by_day_and_in_all(tmp_path):

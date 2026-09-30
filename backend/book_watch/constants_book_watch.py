@@ -21,7 +21,8 @@ BOOK_WATCH_DEFAULT_ROOT_WIN = r"F:\Nova\book_watch"
 # prints that only traded at the same price nearby. Reaching 1 s before the
 # earlier book would fill 2.3% of the size now called pulled, only 0.5-0.6
 # points of it beyond chance (the same prints moved 30-60 s, or one tick out);
-# 3 s, 7.8% with 1.3-2.2 beyond; past the later book, less. Keep 0.5.
+# 3 s, 7.8% with 1.3-2.2 beyond; past the later book, less. Keep 0.5. With the sweep
+# rule below (#636) the 1 s reach still adds 2.0%, 0.3-0.4 points beyond chance.
 BOOK_WATCH_MATCH_SLACK_SEC = 0.5
 # A drop is judged this long after the book that showed it, so a late print
 # can still claim it; must exceed the slack. Every ladder mark waits this long.
@@ -78,6 +79,24 @@ BOOK_WATCH_HIDDEN_NOTE = (
     "several orders refilling it look the same here. A description of the book, never a detection."
 )
 
+# A level a print traded through (matching.Sweeps, #636). A lit, price-setting print above the
+# book's best ask (below its best bid) proves the size the book showed at the round-lot levels from
+# the best to its own price traded: a protected quote cannot be traded through. IBKR's book can show
+# it for seconds more, so for this long after the sweep a drop at one of those levels takes the
+# sweep's own prints (0.5 s either side of it) first, at most the size the sweep proved taken; new
+# size posted there ends it, since a later drop may be the new order, pulled. The book showed 98% of
+# through levels smaller within 3 s. Measured with tools/book_watch_window_study.py on the Session
+# Records of 2026-09-21..29: it adds 0.37% of the size called pulled (the drops it covers read 86.2%
+# traded without it, 88.7% with it); 98% of that is beyond chance against the level a tick past each
+# sweep and 76% against the same sweeps moved 30-60 s -- on the recordings that kept every book
+# (09-25, 09-29), 0.14%, 91% and 49%. A first version without the owed size or the end on new size
+# added 1.6%, 84% of it at levels refilled after the sweep.
+BOOK_WATCH_SWEEP_HOLD_SEC = 3.0
+# An odd-lot best price is not a protected quote: a print through it proves nothing.
+BOOK_WATCH_SWEEP_MIN_LEVEL = 100
+# Prints that prove nothing about the book: crosses, volume-only prints and odd lots.
+BOOK_WATCH_SWEEP_SKIP_CONDITIONS = BOOK_WATCH_HIDDEN_SKIP_CONDITIONS | BOOK_WATCH_AUCTION_CONDITIONS | frozenset("I")
+
 # Readings.
 BOOK_WATCH_STATS_WINDOW_SEC = 60.0
 BOOK_WATCH_RATE_WINDOW_SEC = 10.0
@@ -119,8 +138,9 @@ BOOK_WATCH_CAVEATS = (
     "Times are when data reached Nova, not the exchange's.",
     f"Filled means lit prints at exactly that price within {BOOK_WATCH_MATCH_SLACK_SEC:g} s of the two books; "
     "off-exchange (FINRA) and midpoint prints never fill a level.",
-    "IBKR's book can trail its tape: about 1 in 10 best levels a print traded through left the book 0.5-3 s "
-    "later, and what traded there reads as pulled.",
+    f"IBKR's book can trail its tape: a level a print traded through reads traded, up to the size shown there, "
+    f"when the book shows it gone within {BOOK_WATCH_SWEEP_HOLD_SEC:g} s of that print with nothing new posted "
+    "there first; size that traded at the best with nothing through it, shown gone late, still reads pulled.",
     "Hidden means lit prints at a price that held, beyond the most the book ever showed there; "
     "cross (auction) prints and off-exchange reports never count.",
 )

@@ -6,13 +6,17 @@ its matching window at 0.5, 1, 2 and 3 s either side of a drop's two books, then
 adds that chance would not: the prints no drop claimed at 0.5 s, against the same prints moved 30-60 s
 (kept in the same place against the quote) and moved one tick away from the inside. Also the evidence
 test (unclaimed size at the quote with a pulled drop at its price nearby, against the same prints moved)
-and a direct one: how long IBKR's book took to show a best level that a print traded through. Cross
-prints and prints with no book within 5 s are left out. Read-only: it opens the recordings and never
-writes beside them. ADR 033 amendment 2026-09-30; the module is ``backend/book_watch/window_study.py``.
+and a direct one: how long IBKR's book took to show a best level that a print traded through. Last, the
+detector's sweep rule (#636): the detector with and without it, and what it adds against the same sweeps
+moved 30-60 s and against the level a tick past each, all through the detector itself. Cross prints and
+prints with no book within 5 s are left out. Read-only: it opens the
+recordings and never writes beside them. ADR 033 amendments 2026-09-30; the modules are
+``backend/book_watch/window_study.py`` and ``backend/book_watch/sweep_study.py``.
 
 Usage:
 
-  py -3 tools/book_watch_window_study.py                 # every recording, per day and in all
+  py -3 tools/book_watch_window_study.py                 # every recording up to yesterday, per day and in all
+  py -3 tools/book_watch_window_study.py --until 2026-09-29
   py -3 tools/book_watch_window_study.py --by-recording
   py -3 tools/book_watch_window_study.py --session 2026-09-24:GCTK --session 2026-09-29:SSTI
   py -3 tools/book_watch_window_study.py --json --out F:\\Nova\\window_study.json
@@ -25,16 +29,23 @@ import argparse
 import json
 import sys
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "backend"))
 
+ET = ZoneInfo("America/New_York")
 
-def _recordings(root: Path, sessions: list[str] | None) -> list[Path]:
+
+def _recordings(root: Path, sessions: list[str] | None, until: str | None) -> list[Path]:
+    """The recordings to read: those named, else every one dated through ``until`` -- by default up to
+    yesterday (Eastern), since today's may still be being written."""
     if sessions:
         return [root / d / s.upper() for d, s in (x.split(":", 1) for x in sessions)]
-    return sorted(p.parent for p in root.glob("20*/*/l2.jsonl"))
+    last = until or (datetime.now(ET).date() - timedelta(days=1)).isoformat()
+    return sorted(p.parent for p in root.glob("20*/*/l2.jsonl") if p.parent.parent.name <= last)
 
 
 def _load(folder: Path):
@@ -93,7 +104,25 @@ def _depth_line(name: str, m: dict) -> str:
     d = m["depth_late"]
     n = d["through"]
     cells = " ".join(_pct(d[k], n) for k in ("<=0.5", "0.5-1", "1-3", "3-10", "never"))
-    return f"  {name:<18} {n:>9,} | {cells}"
+    return f"  {name:<18} {n:>9,} | {cells} | {_pct(d.get('grew_first', 0), n)}"
+
+
+def _sweep_rule_line(name: str, m: dict) -> str:
+    sw = m.get("sweep_rule")
+    if not sw:
+        return f"  {name:<18} (not measured)"
+    off, on, cov, got = sw["off"], sw["on"], sw["covered"], sw["reach"]
+    pulled = sw["pulled_off"]
+    moved = got["matched_real"] - got["moved"]
+    share = f"{100 * moved / got['matched_real']:5.1f}%" if got["matched_real"] else "    -"
+    past = f"{100 * (got['real'] - got['beyond']) / got['real']:5.1f}%" if got["real"] else "    -"
+    return (f"  {name:<18} {sw['sweeps']:>7,} | {_pct(cov['filled_off'], cov['dropped'])} -> "
+            f"{_pct(cov['filled_on'], cov['dropped'])} of {cov['dropped']:>11,.0f} | "
+            f"{off['large_pulls']:>6,} -> {on['large_pulls']:>6,} | {sum(off['flags'].values()):>5,} -> "
+            f"{sum(on['flags'].values()):>5,} | {_pct(off['large_traded'], off['large_drops'])} -> "
+            f"{_pct(on['large_traded'], on['large_drops'])} | {_pct(got['real'], pulled)}% of pulled; "
+            f"matched {_pct(got['matched_real'], pulled)}% vs moved {_pct(got['moved'], pulled)}% ({share} beyond); "
+            f"a tick past the sweep {_pct(got['beyond'], pulled)}% ({past} beyond)")
 
 
 def render(answer: dict, *, by_recording: bool) -> str:
@@ -127,37 +156,55 @@ def render(answer: dict, *, by_recording: bool) -> str:
     lines += [_evidence_line(n, m) for n, m in groups]
     lines += [
         "",
-        "4. Depth late: a lit print through the displayed best price; when a book showed that level smaller or gone",
-        f"  {'':<18} {'prints':>9} | <=0.5s 0.5-1s   1-3s  3-10s  never  (% of prints)",
+        "4. Depth late: a lit print through the displayed best price; when a book showed that level smaller or gone,",
+        "   and, of those not within 0.5 s, how many the book showed larger first (new size posted: a refill)",
+        f"  {'':<18} {'prints':>9} | <=0.5s 0.5-1s   1-3s  3-10s  never | grew first  (% of prints)",
     ]
     lines += [_depth_line(n, m) for n, m in groups]
+    lines += [
+        "",
+        f"5. A level a print traded through (#636): the detector at 0.5 s without the rule and with it, "
+        f"hold {answer.get('sweep_hold_sec', '-')} s",
+        f"  {'':<18} {'sweeps':>7} | the drops it covered, filled %    | large pulls      | flags          "
+        f"| large traded %  | what the rule adds, against the same sweeps moved 30-60 s and a tick past them",
+    ]
+    lines += [_sweep_rule_line(n, m) for n, m in groups]
     return "\n".join(lines)
 
 
 def main(argv: list[str] | None = None) -> int:
+    from book_watch import sweep_study
+    from book_watch.constants_book_watch import BOOK_WATCH_SWEEP_HOLD_SEC
     from book_watch.window_study import measure, study
     from capture.storage import capture_root
 
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--root", type=Path, default=None, help="the Session Records folder (default: Nova's)")
     parser.add_argument("--session", action="append", help="DATE:SYMBOL, repeatable (default: every recording)")
+    parser.add_argument("--until", default=None,
+                        help="last date to read, YYYY-MM-DD (default: yesterday; today's may still be recording)")
     parser.add_argument("--by-recording", action="store_true", help="each recording as well as each day")
     parser.add_argument("--json", action="store_true", help="the whole answer as JSON")
     parser.add_argument("--out", type=Path, default=None, help="write the JSON answer here")
+    parser.add_argument("--sweep-hold", type=float, default=BOOK_WATCH_SWEEP_HOLD_SEC,
+                        help="seconds a swept level takes its sweep's prints first (default: the detector's)")
     args = parser.parse_args(argv)
     root = args.root or capture_root()
     measured = []
-    for folder in _recordings(root, args.session):
+    for folder in _recordings(root, args.session, args.until):
         t = time.time()
         try:
             rec = _load(folder)
         except (ValueError, OSError) as exc:
             print(f"  skip {folder.parent.name} {folder.name}: {exc}", file=sys.stderr)
             continue
-        measured.append((rec, measure(rec)))
+        m = measure(rec)
+        m["sweep_rule"] = sweep_study.measure(rec, args.sweep_hold)
+        measured.append((rec, m))
         print(f"  read {rec.date} {rec.symbol:<6} {len(rec.books):>7} books {len(rec.prints):>8} prints "
               f"({time.time() - t:.0f}s)", file=sys.stderr)
     answer = study(measured)
+    answer["sweep_hold_sec"] = args.sweep_hold
     if args.out:
         args.out.write_text(json.dumps(answer, default=str), encoding="utf-8")
     if args.json:
