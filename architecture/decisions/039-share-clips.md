@@ -79,8 +79,12 @@ desk window sends, the requests and their refusals, and `GET` / `POST /api/clips
 
 ## Consequences
 
-- A cut clip adds no load while trading. A high-quality capture is one more software encoder (ADR 035
-  measured about half a core for three monitors at 15 fps; one window at 30 fps is to be measured).
+- A cut clip adds no load while trading. A high-quality capture is one more software encoder: 0.45 to
+  0.85 of a core with the busiest page Nova could draw (below), so the cap of 2 costs at most about
+  1.7 of the desk PC's 24 threads, beside the always-on recorder's third of a core for three monitors.
+- A high-quality capture records what the window paints, no more: up to 30 fps, and fewer when the
+  window paints less. Where the window's own compositing already fills a core (a big window on the
+  150% monitor, the GPU off), the capture takes about a quarter of the window's paint rate.
 - Cut clips are review quality: 15 fps at the monitor's layout size. The 4K monitor at 150% records at
   2560x1440, so a crop there is softer than on the 100% monitors.
 - A clip's size counts toward the F: drive guard ADR 035 already warns on.
@@ -105,11 +109,28 @@ desk window sends, the requests and their refusals, and `GET` / `POST /api/clips
   pixel variance fell from 1,625 to 42.
 - **Through the desk itself** (the built desk in sample mode, the real preload, bridge and service, driven
   by clicks on the red button, the menu, the CLIP chip, the toast and the dialog): a 9.7 s clip exported
-  as a playable 1246 x 778 MP4 at 15 fps. It caught two faults the unit tests had not: the order ticket's
-  blur named an element no component renders (the ticket stayed readable; a test now checks every blur
-  target against the components), and the trim timeline took the tab to be shown before the clip's
-  first mark. It also showed a window of another app over the desk in the cut, as decision 4 says.
-- **Still the operator's to judge:** whether the 15 fps cut is sharp enough to post.
+  as a playable 1246 x 778 MP4 at 15 fps. It caught four faults the unit tests had not: the order
+  ticket's blur named an element no component renders (the ticket stayed readable; a test now checks
+  every blur target against the components), the trim timeline took the tab to be shown before the
+  clip's first mark, "Panels I pick › Quote" named a card the Trader rail never renders, and the Record
+  menu stayed open over Level 2 after Start. It also showed a window of another app over the desk in
+  the cut, as decision 4 says.
+- **What High quality costs** (evening of 2026-09-29, the screen recorder running on all three
+  monitors). The real clip service captured a test window drawing the worst case -- a canvas redrawn
+  every frame and a 60-row ladder rewritten 20 times a second -- for 40 s, against 20 s without the
+  capture. CPU is Windows' own CPU time per process over wall time (Electron's `percentCPUUsage` is
+  divided by the 24 logical CPUs, so the desk's perf report reads 1.4 for the recorder's third of a
+  core).
+
+  | Window | It painted | Captured | Recorder | All of Nova | File |
+  |---|---|---|---|---|---|
+  | 1684 x 915 on the 100% monitor | 187/s, 114/s while captured | 28.8 fps | 0.84 core | +0.87 core | 9.8 MB/min |
+  | 2506 x 1338 on the 150% monitor (frame capped to 2560 x 1394) | 20/s, 14.5/s while captured | 13.7 fps | 0.45 core | +0.49 core | 7.5 MB/min |
+
+  The desk paints far less than this page, so a real capture should cost less. On the 150% monitor the
+  window's own compositing (the GPU process at one core, the GPU off) is the ceiling, not the capture.
+- **Still the operator's to judge:** whether the 15 fps cut is sharp enough to post, and whether High
+  quality on a full window on the 150% monitor is worth a slower-painting desk while it records.
 
 ## Rules and maps
 
